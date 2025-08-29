@@ -3,23 +3,6 @@ open ProjectorBase;
 open Language;
 open Js_of_ocaml;
 
-/* Codec interface for converting between Hazel syntax and external app JSON */
-[@deriving (show({with_path: false}), sexp, yojson)]
-type codec = {
-  syntax_to_json: ProjectorBase.info => option(string),
-  json_to_segment: (ProjectorBase.info, string) => option(Base.segment),
-  codec_name: string,
-};
-
-/* Registry entry storing callback, info, codec, and target origin */
-[@deriving (show({with_path: false}), sexp, yojson)]
-type projector_entry = {
-  signal: ProjectorBase.external_action => Ui_effect.t(unit),
-  info: ProjectorBase.info,
-  target_origin: string,
-  codec,
-};
-
 type message = {
   t: string,
   id: Id.t,
@@ -28,27 +11,15 @@ type message = {
 };
 
 /* Global registry to store projector entries by ID */
-let registry: ref(Id.Map.t(projector_entry)) = ref(Id.Map.empty);
+let registry: ref(Id.Map.t(Exo.entry)) = ref(Id.Map.empty);
 
 /* Global effect scheduler - set by Main.re during initialization */
 let global_effect_schedule: ref(option(Ui_effect.t(unit) => unit)) =
   ref(None);
 
-let register =
-    (
-      codec: codec,
-      target_origin: string,
-      signal: ProjectorBase.external_action => Ui_effect.t(unit),
-      info: ProjectorBase.info,
-    )
-    : unit => {
-  let entry = {
-    signal,
-    info,
-    codec,
-    target_origin,
-  };
-  registry := Id.Map.add(info.id, entry, registry^);
+let register = (entry: Exo.entry): unit => {
+  print_endline("register url: " ++ entry.url);
+  registry := Id.Map.add(entry.id, entry, registry^);
 };
 
 let unregister_projector = (id: Id.t): unit =>
@@ -71,21 +42,19 @@ let mk_msg = (message: message) => {
 let post_msg = (msg, target_origin, id: Id.t) =>
   msg |> mk_msg |> JsUtil.post_to_iframe(iframe_id(id), target_origin);
 
-let handle_ready = (msg: message, entry: projector_entry): unit =>
-  switch (entry.codec.syntax_to_json(entry.info)) {
-  | Some(value) =>
-    let msg = {
-      t: "init",
-      id: msg.id,
-      value,
-      codec: entry.codec.codec_name,
-    };
-    post_msg(msg, entry.target_origin, msg.id);
-  | None => prerr_endline("ready: codec conversion failed")
+let handle_ready = (msg: message, entry: Exo.entry): unit => {
+  let msg = {
+    t: "init",
+    id: msg.id,
+    value: entry.init_json,
+    codec: entry.codec_name,
   };
+  print_endline("handle_ready: " ++ msg.value);
+  post_msg(msg, entry.target_origin, msg.id);
+};
 
-let handle_set_syntax = (msg: message, entry: projector_entry): unit =>
-  switch (entry.codec.json_to_segment(entry.info, msg.value)) {
+let handle_set_syntax = (msg: message, entry: Exo.entry): unit =>
+  switch (entry.json_to_segment(msg.value)) {
   | Some(seg) =>
     switch (global_effect_schedule^) {
     | Some(scheduler) => scheduler(entry.signal(SetSyntax(seg)))
@@ -94,14 +63,14 @@ let handle_set_syntax = (msg: message, entry: projector_entry): unit =>
   | None => prerr_endline("setSyntax: codec conversion failed")
   };
 
-let dispatch = (msg: message, entry: projector_entry): unit =>
+let dispatch = (msg: message, entry: Exo.entry): unit =>
   switch (msg.t) {
   | "setSyntax" => handle_set_syntax(msg, entry)
   | "ready" => handle_ready(msg, entry)
   | other => prerr_endline("dispatch: unknown message type: " ++ other)
   };
 
-let registry_lookup = (msg: message, origin: string): option(projector_entry) =>
+let registry_lookup = (msg: message, origin: string): option(Exo.entry) =>
   switch (Id.Map.find_opt(msg.id, registry^)) {
   | Some(entry) =>
     if (origin != entry.target_origin) {
@@ -112,14 +81,14 @@ let registry_lookup = (msg: message, origin: string): option(projector_entry) =>
         ++ entry.target_origin,
       );
       None;
-    } else if (msg.codec != entry.codec.codec_name) {
-      prerr_endline(
-        "registry_lookup: codec mismatch: "
-        ++ msg.codec
-        ++ " != "
-        ++ entry.codec.codec_name,
-      );
-      None;
+      // } else if (msg.codec != entry.codec_name) {
+      //   prerr_endline(
+      //     "registry_lookup: codec mismatch: "
+      //     ++ msg.codec
+      //     ++ " != "
+      //     ++ entry.codec_name,
+      //   );
+      //   None;
     } else {
       Some(entry);
     }

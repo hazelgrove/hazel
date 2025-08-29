@@ -2,45 +2,31 @@ open Util;
 open Virtual_dom.Vdom;
 open ProjectorBase;
 
-[@deriving (show({with_path: false}), sexp, yojson)]
-type exo_model = {
-  exo_kind: ProjectorCore.Kind.exo_kind,
-  width: int,
-  height: int,
-};
-
-[@deriving (show({with_path: false}), sexp, yojson)]
-type exo_action =
-  | Resize(int, int);
-
-module M: Projector = {
+module M = (ExoP: Exo.Info) : Projector => {
   [@deriving (show({with_path: false}), sexp, yojson)]
-  type model = exo_model;
+  type model = {
+    exo_kind: ProjectorCore.Kind.exo_kind,
+    width: int,
+    height: int,
+  };
+
   [@deriving (show({with_path: false}), sexp, yojson)]
-  type action = exo_action;
+  type action =
+    | Resize(int, int);
 
-  let int_of = (any: Language.Any.t): option(Bigint.t) =>
-    switch (any) {
-    | Exp({term: Atom(Int(i)), _}) => Some(i)
-    | _ => None
-    };
-
-  //TODO(andrew): abstract out initialization
   let init = (any: Language.Any.t) =>
-    switch (int_of(any)) {
-    | Some(_) =>
-      Some({
-        exo_kind: ExoSlider,
-        width: 400,
-        height: 160,
-      })
-    | None => None
-    };
+    ExoP.init_test(any)
+      ? Some({
+          exo_kind: ExoP.exo_kind,
+          width: 400,
+          height: 160,
+        })
+      : None;
 
   let focusable = Focusable.non;
   let dynamics = false;
 
-  let placeholder = (model: exo_model, _): ProjectorCore.Shape.t => {
+  let placeholder = (model: model, _): ProjectorCore.Shape.t => {
     let px_to_grid = (value: int, multiple: float): int =>
       int_of_float(ceil(float_of_int(value) /. multiple));
     let m = Util.font_metrics^;
@@ -59,7 +45,7 @@ module M: Projector = {
       }
     };
 
-  let iframe_view = (id: Id.t, url: string, model: exo_model) => {
+  let iframe_view = (id: Id.t, url: string, model: model) => {
     Node.create(
       "iframe",
       ~attrs=[
@@ -93,13 +79,8 @@ module M: Projector = {
         ~parent: external_action => Ui_effect.t(unit),
         ~view_seg as _,
       ) => {
-    let exo = ExoAdapters.exo_info(model.exo_kind, info.id);
-    ExternalProjectorBridge.register(
-      exo.codec,
-      exo.target_origin,
-      parent,
-      info,
-    );
-    View.mk(iframe_view(info.id, exo.url, model));
+    let entry = Exo.mk_entry(parent, info, (module ExoP));
+    ExternalProjectorBridge.register(entry);
+    View.mk(iframe_view(info.id, entry.url, model));
   };
 };

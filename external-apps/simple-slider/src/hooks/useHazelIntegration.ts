@@ -62,7 +62,7 @@ export function useHazelIntegration(config: HazelIntegrationConfig) {
 
   // Send ready message
   const sendReady = useCallback(() => {
-    sendToHazel({ type: 'ready', id });
+    sendToHazel({ type: 'ready', id, });
   }, [sendToHazel, id]);
 
   // Request focus from parent

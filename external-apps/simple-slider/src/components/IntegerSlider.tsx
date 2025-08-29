@@ -22,7 +22,7 @@ export function IntegerSlider({
 
   const { setSyntax } = useHazelIntegration({
     id,
-    codec: "int",
+    codec: "exoslider",
     onInit: (hazelValue: any) => {
       // Convert Hazel value (could be string or number) to integer
       const intValue =
