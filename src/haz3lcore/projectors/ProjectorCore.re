@@ -18,7 +18,8 @@ module Kind = {
    * able to create and update their instances */
   [@deriving (show({with_path: false}), sexp, yojson, eq, enumerate)]
   type exo_kind =
-    | ExoSlider;
+    | ExoSlider
+    | ExoValueBuilder;
 
   [@deriving (show({with_path: false}), sexp, yojson, eq, enumerate)]
   type t =
@@ -41,6 +42,7 @@ module Kind = {
     Card,
     Livelit,
     Exo(ExoSlider),
+    Exo(ExoValueBuilder),
   ];
 
   let projectors: list(t) = livelit_projectors @ [Fold, Info, Probe];
@@ -51,6 +53,7 @@ module Kind = {
   let exo_name = (ek: exo_kind): string =>
     switch (ek) {
     | ExoSlider => "exoslider"
+    | ExoValueBuilder => "exovaluebuilder"
     };
 
   let name = (p: t): string =>
@@ -73,6 +76,7 @@ module Kind = {
   let exo_of_name = (name: string): exo_kind =>
     switch (name) {
     | "exoslider" => ExoSlider
+    | "exovaluebuilder" => ExoValueBuilder
     | _ => failwith("Unknown external projector kind")
     };
 
@@ -88,6 +92,7 @@ module Kind = {
     | "livelit" => Livelit
     | "card" => Card
     | "exoslider" => Exo(ExoSlider)
+    | "exovaluebuilder" => Exo(ExoValueBuilder)
     | _ => failwith("Unknown projector kind")
     };
 

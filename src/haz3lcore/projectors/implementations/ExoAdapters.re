@@ -41,3 +41,51 @@ module SliderAdapter: Exo.Info = {
     | None => false
     };
 };
+
+/* ValueBuilder adapter for ExternalProjectorBridge */
+module ValueBuilderAdapter: Exo.Info = {
+  let exo_kind = ProjectorCore.Kind.ExoValueBuilder;
+
+  let target_origin = "http://localhost:5174"; /* Different port from slider */
+
+  let codec_name = ProjectorCore.Kind.exo_name(exo_kind);
+
+  let url = (id: Id.t) =>
+    Printf.sprintf(
+      "%s/?id=%s&parentOrigin=%s",
+      target_origin,
+      Id.to_string(id),
+      hazel_server,
+    );
+
+  /* Convert Hazel term to JSON string using JsonCodec */
+  let term_to_string = (term: Language.Term.Any.t): option(string) =>
+    switch (HazelProtocol.JsonCodec.any_to_yojson(term)) {
+    | Ok(json) => Some(Yojson.Safe.to_string(json))
+    | Error(_) => None
+    };
+
+  /* Convert JSON string to Hazel term using JsonCodec */
+  let string_to_term =
+      (value_str: string, _: Language.Term.Any.t): Language.Term.Any.t =>
+    try({
+      let json = Yojson.Safe.from_string(value_str);
+      switch (HazelProtocol.JsonCodec.yojson_to_any(json)) {
+      | Ok(term) => term
+      | Error(_) =>
+        /* Fallback to integer if JsonCodec fails */
+        Exp(Language.IdTagged.FreshGrammar.Exp.big_int(Bigint.of_int(42)))
+      };
+    }) {
+    | _ =>
+      /* Fallback on parse error */
+      Exp(Language.IdTagged.FreshGrammar.Exp.big_int(Bigint.of_int(42)))
+    };
+
+  /* Accept any expression that JsonCodec can handle */
+  let init_test = (any: Language.Any.t): bool =>
+    switch (HazelProtocol.JsonCodec.any_to_yojson(any)) {
+    | Ok(_) => true
+    | Error(_) => false
+    };
+};
