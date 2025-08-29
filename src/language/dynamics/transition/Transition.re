@@ -48,6 +48,7 @@ open PatternMatch;
 [@deriving (show({with_path: false}), sexp, yojson)]
 type step_kind =
   | InvalidStep
+  | PartialStep
   | VarLookup
   | Seq
   | LetBind(string)
@@ -252,9 +253,17 @@ module Transition = (EV: EV_MODE) => {
       and. d1' =
         req_final(req(state, env), d1 => Let1(dp, d1, d2) |> wrap_ctx, d1);
       let.wrap_closure _ = env;
-      let {matches, closures} = matches(~force_partial_match=true, dp, d1');
+      let {matches: matches', closures} = matches(dp, d1');
+      let force_match = matches' == IndetMatch;
+      let {matches: matches', closures} =
+        force_match
+          ? matches(~force_partial_match=true, dp, d1')
+          : {
+            matches: matches',
+            closures,
+          };
       let matches_str = {
-        switch (matches) {
+        switch (matches') {
         | IndetMatch
         | DoesNotMatch => ""
         | Matches(env) =>
@@ -264,11 +273,11 @@ module Transition = (EV: EV_MODE) => {
           |> String.concat(", ")
         };
       };
-      let.match env' = (env, matches, env.call_stack);
+      let.match env' = (env, matches', env.call_stack);
       Step({
         expr: subst_env(env', d2),
         state_update: capture_closures(env, state, closures),
-        kind: LetBind(matches_str),
+        kind: force_match ? PartialStep : LetBind(matches_str),
         is_value: false,
       });
     | TypFun(_)
@@ -983,6 +992,7 @@ let should_hide_step_kind = (~settings: CoreSettings.Evaluation.t) =>
   | LetBind(_)
   | Seq
   | UpdateTest
+  | PartialStep
   | TypFunAp
   | FunAp
   | DeferredAp
@@ -1015,6 +1025,7 @@ let should_hide_step_kind = (~settings: CoreSettings.Evaluation.t) =>
 let stepper_justification: step_kind => string =
   fun
   | LetBind(s) => String.cat("substitution for ", s)
+  | PartialStep => "Partial pattern match"
   | Seq => "sequence"
   | FixUnwrap => "unroll fixpoint"
   | UpdateTest => "update test"
