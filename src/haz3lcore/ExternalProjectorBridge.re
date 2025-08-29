@@ -3,13 +3,6 @@ open ProjectorBase;
 open Language;
 open Js_of_ocaml;
 
-type message = {
-  t: string,
-  id: Id.t,
-  value: string,
-  codec: string,
-};
-
 /* Global registry to store projector entries by ID */
 let registry: ref(Id.Map.t(Exo.entry)) = ref(Id.Map.empty);
 
@@ -22,39 +15,28 @@ let register = (entry: Exo.entry): unit => {
   registry := Id.Map.add(entry.id, entry, registry^);
 };
 
-let unregister_projector = (id: Id.t): unit =>
-  registry := Id.Map.remove(id, registry^);
-
 let iframe_id = (id: Id.t): string => Id.cls(id) ++ "-exo-iframe";
 
-let set_msg_attr = (msg, attr, value) =>
-  Js.Unsafe.set(msg, attr, Js.string(value));
-
-let mk_msg = (message: message) => {
-  let msg = Js.Unsafe.obj([||]);
-  set_msg_attr(msg, "type", message.t);
-  set_msg_attr(msg, "id", Id.to_string(message.id));
-  set_msg_attr(msg, "codec", message.codec);
-  set_msg_attr(msg, "value", message.value);
-  msg;
+/* Send a typed message to iframe */
+let post_from_hazel_message =
+    (msg: HazelProtocol.from_hazel_message, target_origin: string, id: Id.t)
+    : unit => {
+  let js_msg = HazelProtocol.from_hazel_to_js(msg);
+  JsUtil.post_to_iframe(iframe_id(id), target_origin, js_msg);
 };
 
-let post_msg = (msg, target_origin, id: Id.t) =>
-  msg |> mk_msg |> JsUtil.post_to_iframe(iframe_id(id), target_origin);
-
-let handle_ready = (msg: message, entry: Exo.entry): unit => {
-  let msg = {
-    t: "init",
-    id: msg.id,
-    value: entry.init_json,
-    codec: entry.codec_name,
-  };
-  print_endline("handle_ready: " ++ msg.value);
-  post_msg(msg, entry.target_origin, msg.id);
+/* Message handlers using typed messages */
+let handle_ready = (id: Id.t, entry: Exo.entry): unit => {
+  let msg =
+    HazelProtocol.Init({
+      id,
+      value: entry.init_json,
+    });
+  post_from_hazel_message(msg, entry.target_origin, id);
 };
 
-let handle_set_syntax = (msg: message, entry: Exo.entry): unit =>
-  switch (entry.json_to_segment(msg.value)) {
+let handle_set_syntax = (value: string, entry: Exo.entry): unit =>
+  switch (entry.json_to_segment(value)) {
   | Some(seg) =>
     switch (global_effect_schedule^) {
     | Some(scheduler) => scheduler(entry.signal(SetSyntax(seg)))
@@ -63,15 +45,30 @@ let handle_set_syntax = (msg: message, entry: Exo.entry): unit =>
   | None => prerr_endline("setSyntax: codec conversion failed")
   };
 
-let dispatch = (msg: message, entry: Exo.entry): unit =>
-  switch (msg.t) {
-  | "setSyntax" => handle_set_syntax(msg, entry)
-  | "ready" => handle_ready(msg, entry)
-  | other => prerr_endline("dispatch: unknown message type: " ++ other)
+let handle_resize = (width: int, height: int): unit => {
+  /* TODO: Implement resize handling - might need to update projector model */
+  prerr_endline(
+    Printf.sprintf("handle_resize: %dx%d (not implemented)", width, height),
+  );
+};
+
+let handle_request_focus = _: unit => {
+  /* TODO: Implement focus handling */
+  prerr_endline(
+    "handle_request_focus: (not implemented)",
+  );
+};
+
+let dispatch = (msg: HazelProtocol.to_hazel_message, entry: Exo.entry): unit =>
+  switch (msg) {
+  | Ready({id}) => handle_ready(id, entry)
+  | SetSyntax({value, _}) => handle_set_syntax(value, entry)
+  | Resize({width, height, _}) => handle_resize(width, height)
+  | RequestFocus(_) => handle_request_focus(entry)
   };
 
-let registry_lookup = (msg: message, origin: string): option(Exo.entry) =>
-  switch (Id.Map.find_opt(msg.id, registry^)) {
+let registry_lookup = (id: Id.t, origin: string): option(Exo.entry) =>
+  switch (Id.Map.find_opt(id, registry^)) {
   | Some(entry) =>
     if (origin != entry.target_origin) {
       prerr_endline(
@@ -81,48 +78,23 @@ let registry_lookup = (msg: message, origin: string): option(Exo.entry) =>
         ++ entry.target_origin,
       );
       None;
-      // } else if (msg.codec != entry.codec_name) {
-      //   prerr_endline(
-      //     "registry_lookup: codec mismatch: "
-      //     ++ msg.codec
-      //     ++ " != "
-      //     ++ entry.codec_name,
-      //   );
-      //   None;
     } else {
       Some(entry);
     }
-  | None =>
-    prerr_endline("listener: projector not found");
-    None;
-  };
-
-let get_msg_attr = (obj: Js.t(_), key: string): string =>
-  try(Js.to_string(Js.Unsafe.get(obj, key))) {
-  | _ => "unknown"
-  };
-
-let parse_message = (data): option(message) =>
-  switch (Id.of_string(get_msg_attr(data, "id"))) {
-  | Some(id) =>
-    Some({
-      t: get_msg_attr(data, "type"),
-      id,
-      value: get_msg_attr(data, "value"),
-      codec: get_msg_attr(data, "codec"),
-    })
-  | exception _ =>
-    prerr_endline("parse_message: No UUID found");
-    None;
   | None => None
   };
 
 let listener = (event: _) => {
-  switch (parse_message(event##.data)) {
+  switch (HazelProtocol.parse_to_hazel_message(event##.data)) {
   | Some(msg) =>
-    switch (registry_lookup(msg, Js.to_string(event##.origin))) {
+    switch (
+      registry_lookup(
+        HazelProtocol.id_of(msg),
+        Js.to_string(event##.origin),
+      )
+    ) {
     | Some(entry) => dispatch(msg, entry)
-    | None => ()
+    | None => prerr_endline("listener: projector not found")
     }
   | None => prerr_endline("listener: invalid message format")
   };
