@@ -891,7 +891,7 @@ module M: Projector = {
 
   let update = update;
 
-  let view = (_model, info, ~local, ~parent, ~parent_global as _, ~view_seg) =>
+  let view = (_model, info, ~local, ~parent, ~view_seg) =>
     View.{
       inline: view(local, parent, info),
       overlay: Some(overlay_view(info)),

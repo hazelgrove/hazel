@@ -161,7 +161,6 @@ module type Projector = {
       ~local: action => Ui_effect.t(unit),
       /* A callback for parent editor actions */
       ~parent: external_action => Ui_effect.t(unit),
-      ~parent_global: external_action => unit,
       /* Creates a non-interactive embedded syntax view,
        * provided here to address a dependency cycle */
       ~view_seg: View.seg
@@ -192,13 +191,12 @@ module Cook = (C: Projector) : Cooked => {
   let init = any => C.init(any) |> Option.map(serialize_m);
   let focusable = C.focusable;
   let dynamics = C.dynamics;
-  let view = (m, info, ~local, ~parent, ~parent_global, ~view_seg) =>
+  let view = (m, info, ~local, ~parent, ~view_seg) =>
     C.view(
       deserialize_m(m),
       info,
       ~local=a => local(serialize_a(a)),
       ~parent,
-      ~parent_global,
       ~view_seg,
     );
   let placeholder = m =>

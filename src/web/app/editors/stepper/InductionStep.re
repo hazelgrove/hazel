@@ -341,7 +341,6 @@ module F =
           fun
           | MakeActive => take_focus(Scrut()),
         ~inject=x => inject(ScrutUpdate(x)),
-        ~schedule_global=_ => (), //TODO(andrew)
         ~selected=
           switch (focus) {
           | Some(Scrut(_)) => true

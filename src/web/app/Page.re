@@ -570,7 +570,6 @@ module View = {
       (
         ~get_log_and: (string => unit) => unit,
         ~inject: Update.t => Ui_effect.t(unit),
-        ~schedule_global: Update.t => unit,
         ~cursor: Cursor.cursor(Editors.Update.t),
         {
           globals,
@@ -613,7 +612,6 @@ module View = {
           fun
           | MakeActive(selection) => inject(MakeActive(selection)),
         ~inject=a => inject(Editors(a)),
-        ~schedule_global=a => schedule_global(Editors(a)),
         ~inject_explainthis=a => inject(ExplainThis(a)),
         ~selection=Some(selection),
         model.editors,
@@ -634,17 +632,12 @@ module View = {
   };
 
   let view =
-      (
-        ~get_log_and,
-        ~inject: Update.t => Ui_effect.t(unit),
-        ~schedule_global: Update.t => unit,
-        model: Model.t,
-      ) => {
+      (~get_log_and, ~inject: Update.t => Ui_effect.t(unit), model: Model.t) => {
     let cursor = Selection.get_cursor_info(~selection=model.selection, model);
     div(
       ~attrs=[Attr.id("page"), ...handlers(~cursor, ~inject, model)],
       [FontSpecimen.view, JsUtil.clipboard_shim]
-      @ main_view(~get_log_and, ~cursor, ~inject, ~schedule_global, model),
+      @ main_view(~get_log_and, ~cursor, ~inject, model),
     );
   };
 };

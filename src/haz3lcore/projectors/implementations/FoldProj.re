@@ -35,8 +35,7 @@ module M: Projector = {
     );
   };
 
-  let view =
-      (m: model, info, ~local as _, ~parent, ~parent_global as _, ~view_seg) =>
+  let view = (m: model, info, ~local as _, ~parent, ~view_seg) =>
     ProjectorBase.View.mk(
       div(
         ~attrs=[Attr.on_double_click(_ => parent(Remove))],

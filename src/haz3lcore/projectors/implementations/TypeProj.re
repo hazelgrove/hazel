@@ -97,8 +97,7 @@ module M: Projector = {
 
   let icon = div(~attrs=[Attr.classes(["icon"])], []);
 
-  let view =
-      (model, info, ~local, ~parent as _, ~parent_global as _, ~view_seg) =>
+  let view = (model, info, ~local, ~parent as _, ~view_seg) =>
     View.{
       inline:
         div(

@@ -177,7 +177,6 @@ module View = {
         ~selected: option(Selection.t),
         ~caption: option(Node.t)=?,
         ~sort=?,
-        ~schedule_global: Update.t => unit,
         ~result_kind=?,
         ~locked=false,
         model: Model.t,
@@ -224,9 +223,6 @@ module View = {
               ? _ => Ui_effect.Ignore
               : fun
                 | MakeActive => signal(MakeActive(MainEditor)),
-          ~schedule_global=
-            locked
-              ? _ => () : (action => schedule_global(MainEditor(action))),
           ~inject=
             locked
               ? _ => Ui_effect.Ignore

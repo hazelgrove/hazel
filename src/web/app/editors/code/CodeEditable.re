@@ -177,7 +177,6 @@ module View = {
         ~inject: Update.t => Ui_effect.t(unit),
         ~selected: bool,
         ~overlays: list(Node.t)=[],
-        ~schedule_global: Update.t => unit,
         ~sort=?,
         model: Model.t,
       ) => {
@@ -192,11 +191,7 @@ module View = {
     };
     let projectors =
       ProjectorView.all(
-        x => {
-          print_endline("CodeEditable.view: x= " ++ Action.show(x));
-          inject(Perform(x));
-        },
-        ~schedule_global=a => schedule_global(Perform(a)),
+        x => inject(Perform(x)),
         signal(MakeActive),
         globals.font_metrics,
         ProjectorView.Model.mk(

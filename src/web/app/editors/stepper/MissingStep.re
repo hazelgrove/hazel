@@ -535,7 +535,6 @@ module View = {
                                 | MakeActive =>
                                   signal(MakeActive(RewriteEditor())),
                               ~inject=x => inject(RewriteEditorAction(x)),
-                              ~schedule_global=_ => (), //TODO(andrew)
                               ~selected=
                                 switch (selected) {
                                 | Some(RewriteEditor ()) => true

@@ -44,30 +44,21 @@ module M: Projector = {
     | None => "0"
     };
 
-  let get_range = (_info: info): (int, int, int) =>
-    /* TODO: Extract from term type/context, for now default to 0-100 */
-    (0, 100, 1);
-
   let focusable = Focusable.non;
   let dynamics = false;
 
   let placeholder = (model: exo_model, _info: info): ProjectorCore.Shape.t => {
-    //TODO(andrew): route font metrics
-    /* Instead of dividing, round up to the nearest multiple of the divisor */
+    //TODO(andrew): route font metrics here
     let char_width = 10.4375;
     let char_height = 25.125;
-
-    let round_up_to_multiple = (value: float, multiple: float): int => {
-      int_of_float(ceil(value /. multiple) *. multiple /. multiple);
+    let round_up_to_multiple = (value: int, multiple: float): int => {
+      int_of_float(
+        ceil(float_of_int(value) /. multiple) *. multiple /. multiple,
+      );
     };
-
-    ProjectorCore.Shape.{
-      horizontal:
-        round_up_to_multiple(float_of_int(model.width), char_width) + 1,
-      vertical:
-        Block(
-          round_up_to_multiple(float_of_int(model.height), char_height) - 1,
-        ),
+    {
+      horizontal: round_up_to_multiple(model.width, char_width) + 1,
+      vertical: Block(round_up_to_multiple(model.height, char_height) - 1),
     };
   };
 
@@ -80,58 +71,54 @@ module M: Projector = {
       }
     };
 
+  let iframe_url = (~min_val, ~max_val, ~step_val, ~current_value, ~id) =>
+    Printf.sprintf(
+      "http://localhost:5173/?min=%d&max=%d&step=%d&initial=%s&id=%s&parentOrigin=%s",
+      min_val,
+      max_val,
+      step_val,
+      current_value,
+      Id.to_string(id),
+      "http://localhost:8000" /* Hazel dev server origin */
+    );
+
+  let iframe_view = (id: Id.t, model: exo_model, current_value: string) => {
+    let iframe_url =
+      iframe_url(~min_val=0, ~max_val=100, ~step_val=1, ~current_value, ~id);
+    Node.create(
+      "iframe",
+      ~attrs=[
+        Attr.create("src", iframe_url),
+        Attr.create("sandbox", "allow-scripts allow-same-origin"),
+        Attr.create("allow", ""),
+        Attr.create(
+          "style",
+          Printf.sprintf(
+            "width: %dpx; height: %dpx; border: 1px solid #ddd; border-radius: 4px;",
+            model.width,
+            model.height,
+          ),
+        ),
+        Attr.id(Id.cls(id) ++ "-exo-iframe"),
+        Attr.create("data-projector-id", Id.cls(id)),
+        Attr.create(
+          "data-exo-type",
+          ProjectorCore.Kind.exo_name(model.exo_kind),
+        ),
+      ],
+      [],
+    );
+  };
+
   let view =
       (
         model,
         info,
-        ~local,
+        ~local as _,
         ~parent: external_action => Ui_effect.t(unit),
-        ~parent_global: external_action => unit,
         ~view_seg as _,
       ) => {
-    /* Register this projector with the external bridge */
-    ExternalProjectorBridge.register_projector(info.id, parent_global, info);
-
-    let current_value = get_value(info);
-    let (min_val, max_val, step_val) = get_range(info);
-
-    /* Build iframe URL with parameters */
-    let iframe_url =
-      Printf.sprintf(
-        "http://localhost:5173/?min=%d&max=%d&step=%d&initial=%s&id=%s&parentOrigin=%s",
-        min_val,
-        max_val,
-        step_val,
-        current_value,
-        Id.to_string(info.id),
-        "http://localhost:8000" /* Hazel dev server origin */
-      );
-
-    View.mk(
-      Node.create(
-        "iframe",
-        ~attrs=[
-          Attr.create("src", iframe_url),
-          Attr.create("sandbox", "allow-scripts allow-same-origin"),
-          Attr.create("allow", ""),
-          Attr.create(
-            "style",
-            Printf.sprintf(
-              "width: %dpx; height: %dpx; border: 1px solid #ddd; border-radius: 4px;",
-              model.width,
-              model.height,
-            ),
-          ),
-          Attr.id(Id.cls(info.id) ++ "-exo-iframe"),
-          /* Store projector info for the message bridge */
-          Attr.create("data-projector-id", Id.cls(info.id)),
-          Attr.create(
-            "data-exo-type",
-            ProjectorCore.Kind.exo_name(model.exo_kind),
-          ),
-        ],
-        [],
-      ),
-    );
+    ExternalProjectorBridge.register_projector(parent, info);
+    View.mk(iframe_view(info.id, model, get_value(info)));
   };
 };

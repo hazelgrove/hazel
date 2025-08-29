@@ -618,7 +618,6 @@ module View = {
         ) => {
       CellEditor.View.view(
         ~globals,
-        ~schedule_global=_ => (), //TODO(andrew)
         ~signal=
           fun
           | MakeActive(a) => signal(MakeActive(Cell(this_pos, a))),

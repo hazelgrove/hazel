@@ -237,7 +237,6 @@ module F = (Stepper: STEPPER) => {
           fun
           | MakeActive => take_focus(Pattern()),
         ~inject=x => inject(PatternUpdate(x)),
-        ~schedule_global=_ => (), //TODO(andrew)
         ~selected=
           switch (focus) {
           | Some(Pattern ()) => true

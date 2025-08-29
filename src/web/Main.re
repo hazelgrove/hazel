@@ -17,8 +17,6 @@ let restart_caret_animation = () =>
   | _ => ()
   };
 
-let schedule_global: ref(Page.Update.t => unit) = ref(_ => ());
-
 let apply =
     (
       model: History.Model.t,
@@ -145,9 +143,12 @@ let start = {
         Js.string("MAC"),
       )
       >= 0;
-    schedule_global := schedule_action;
     NinjaKeys.initialize(Shortcut.options(schedule_action));
     JsUtil.focus_clipboard_shim();
+    /* Set up effect scheduler for external projector bridge */
+    Haz3lcore.ExternalProjectorBridge.set_effect_scheduler(
+      Bonsai.Effect.Expert.handle,
+    );
     Haz3lcore.ExternalProjectorBridge.init();
     schedule_action(
       Assistant(AssistantUpdate.ChatAction(FilterLoadingMessages)),
@@ -189,12 +190,7 @@ let start = {
   // View function
   let%arr app_model = app_model
   and app_inject = app_inject;
-  History.View.view(
-    app_model,
-    ~schedule_global=schedule_global^,
-    ~inject=app_inject,
-    ~get_log_and=Log.get_and,
-  );
+  History.View.view(app_model, ~inject=app_inject, ~get_log_and=Log.get_and);
 };
 
 switch (JsUtil.Fragment.get_current()) {

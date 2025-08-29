@@ -205,7 +205,6 @@ let simple_code = (~background=false, font_metrics, sort, segment): Node.t => {
 let mk_view =
     (
       inject: Action.t => Ui_effect.t(unit),
-      schedule_global: Action.t => unit,
       font_metrics: FontMetrics.t,
       {p, info, _}: Model.projector_data,
     )
@@ -214,13 +213,11 @@ let mk_view =
   let parent = a => {
     inject(Project(handle(p.id, a)));
   };
-  let parent_global = a => {
-    schedule_global(Project(handle(p.id, a)));
-  };
+
   let local = a =>
     inject(Project(SetModel(p.id, P.update(p.model, info, a))));
   let view_seg = (~background=?) => simple_code(~background?, font_metrics);
-  P.view(p.model, info, ~local, ~parent, ~parent_global, ~view_seg);
+  P.view(p.model, info, ~local, ~parent, ~view_seg);
 };
 
 /* Extract and collate different layers of the resulting view
@@ -228,7 +225,6 @@ let mk_view =
 let split_views =
     (
       inject: Action.t => Ui_effect.t(unit),
-      schedule_global: Action.t => unit,
       make_active,
       font_metrics: FontMetrics.t,
       {p, offside_base, measurement, status, _} as projector_data: Model.projector_data,
@@ -244,7 +240,7 @@ let split_views =
       ~id=p.id,
       ~kind=p.kind,
     );
-  let views = mk_view(inject, schedule_global, font_metrics, projector_data);
+  let views = mk_view(inject, font_metrics, projector_data);
   let line_view = {
     let offside_view =
       views.offside
@@ -275,7 +271,6 @@ let by_measurement = (pd1: Model.projector_data, pd2: Model.projector_data) =>
 let all =
     (
       inject: Action.t => Ui_effect.t(unit),
-      ~schedule_global: Action.t => unit,
       make_active,
       font_metrics: FontMetrics.t,
       projector_data: list(Model.projector_data),
@@ -289,9 +284,7 @@ let all =
   let (base_views, overlay_views) =
     projector_data
     |> List.sort(by_measurement)
-    |> List.map(
-         split_views(inject, schedule_global, make_active, font_metrics),
-       )
+    |> List.map(split_views(inject, make_active, font_metrics))
     |> List.split;
   let overlay_views = List.filter_map(Fun.id, overlay_views);
   [

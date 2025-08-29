@@ -137,9 +137,8 @@ module View = {
       (
         ~get_log_and,
         ~inject: Page.Update.t => Ui_effect.t(unit),
-        ~schedule_global: Page.Update.t => unit,
         model: Model.t,
       ) => {
-    Page.View.view(~get_log_and, ~inject, ~schedule_global, model.current);
+    Page.View.view(~get_log_and, ~inject, model.current);
   };
 };

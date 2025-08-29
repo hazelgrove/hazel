@@ -679,7 +679,6 @@ let code_block =
         ~globals,
         ~signal=_ => Ui_effect.Ignore,
         ~inject=_ => Ui_effect.Ignore,
-        ~schedule_global=_ => (), //TODO(andrew)
         ~selected=None,
         ~caption=None,
         ~locked=true,

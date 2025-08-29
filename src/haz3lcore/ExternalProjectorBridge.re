@@ -5,17 +5,24 @@ open Language;
 /* Registry entry storing both callback and projector info for codec operations */
 [@deriving (show({with_path: false}), sexp, yojson)]
 type projector_entry = {
-  parent_callback: ProjectorBase.external_action => unit,
+  parent_callback: ProjectorBase.external_action => Ui_effect.t(unit),
   info: ProjectorBase.info,
 };
 
 /* Global registry to store projector entries by ID */
 let projector_registry: ref(Id.Map.t(projector_entry)) = ref(Id.Map.empty);
 
+/* Global effect scheduler - set by Main.re during initialization */
+let global_effect_schedule: ref(option(Ui_effect.t(unit) => unit)) =
+  ref(None);
+
+let set_effect_scheduler = (scheduler: Ui_effect.t(unit) => unit): unit => {
+  global_effect_schedule := Some(scheduler);
+};
+
 let register_projector =
     (
-      id: Id.t,
-      parent_callback: ProjectorBase.external_action => unit,
+      parent_callback: ProjectorBase.external_action => Ui_effect.t(unit),
       info: ProjectorBase.info,
     )
     : unit => {
@@ -23,7 +30,7 @@ let register_projector =
     parent_callback,
     info,
   };
-  projector_registry := Id.Map.add(id, entry, projector_registry^);
+  projector_registry := Id.Map.add(info.id, entry, projector_registry^);
 };
 
 let unregister_projector = (id: Id.t): unit => {
@@ -82,7 +89,12 @@ let init = (): unit => {
               | "int" =>
                 switch (IntCodec.json_to_segment(info, msg_value)) {
                 | Some(new_segment) =>
-                  parent_callback(SetSyntax(new_segment))
+                  let effect = parent_callback(SetSyntax(new_segment));
+                  /* Schedule the effect for execution */
+                  switch (global_effect_schedule^) {
+                  | Some(scheduler) => scheduler(effect)
+                  | None => () /* No scheduler set */
+                  };
                 | None => ()
                 }
               | _ => () /* Unknown codec */
@@ -93,7 +105,7 @@ let init = (): unit => {
           };
         };
       }) {
-      | exn => () /* Ignore parse errors */
+      | _exn => () /* Ignore parse errors */
       };
     };
     Js_of_ocaml.Js._true;

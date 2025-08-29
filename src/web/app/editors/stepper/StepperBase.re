@@ -828,7 +828,6 @@ and Stepper: {
         let editor =
           StepperEditor.View.view(
             ~globals,
-            ~schedule_global=_ => (), //TODO(andrew)
             ~signal=
               fun
               | MakeActive => take_focus(Here())
