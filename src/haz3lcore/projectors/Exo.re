@@ -1,5 +1,12 @@
 open Util;
 
+[@deriving (show({with_path: false}), sexp, yojson)]
+type exo_model = {
+  exo_kind: ProjectorCore.Kind.exo_kind,
+  width: int,
+  height: int,
+};
+
 module type Info = {
   let exo_kind: ProjectorCore.Kind.exo_kind;
   let codec_name: string;
@@ -7,7 +14,7 @@ module type Info = {
   let string_to_term: (string, Language.Term.Any.t) => Language.Term.Any.t;
   let target_origin: string;
   let url: Id.t => string;
-  let init_test: Language.Term.Any.t => bool;
+  let init_test: Language.Term.Any.t => option(exo_model);
 };
 
 /* Registry entry storing callback, info, codec, and target origin */

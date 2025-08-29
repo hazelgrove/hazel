@@ -4,24 +4,13 @@ open ProjectorBase;
 
 module M = (ExoP: Exo.Info) : Projector => {
   [@deriving (show({with_path: false}), sexp, yojson)]
-  type model = {
-    exo_kind: ProjectorCore.Kind.exo_kind,
-    width: int,
-    height: int,
-  };
+  type model = Exo.exo_model;
 
   [@deriving (show({with_path: false}), sexp, yojson)]
   type action =
     | Resize(int, int);
 
-  let init = (any: Language.Any.t) =>
-    ExoP.init_test(any)
-      ? Some({
-          exo_kind: ExoP.exo_kind,
-          width: 400,
-          height: 160,
-        })
-      : None;
+  let init = (any: Language.Any.t) => ExoP.init_test(any);
 
   let focusable = Focusable.non;
   let dynamics = false;
@@ -36,7 +25,7 @@ module M = (ExoP: Exo.Info) : Projector => {
     };
   };
 
-  let update = (model, _info, action) =>
+  let update = (model: model, _info, action: action): model =>
     switch (action) {
     | Resize(w, h) => {
         ...model,

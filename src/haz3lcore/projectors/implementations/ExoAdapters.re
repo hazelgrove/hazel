@@ -35,10 +35,15 @@ module SliderAdapter: Exo.Info = {
       ),
     );
 
-  let init_test = (any: Language.Any.t): bool =>
+  let init_test = (any: Language.Any.t): option(Exo.exo_model) =>
     switch (term_to_string(any)) {
-    | Some(_) => true
-    | None => false
+    | Some(_) =>
+      Some({
+        exo_kind,
+        width: 400,
+        height: 160,
+      })
+    | None => None
     };
 };
 
@@ -46,7 +51,7 @@ module SliderAdapter: Exo.Info = {
 module ValueBuilderAdapter: Exo.Info = {
   let exo_kind = ProjectorCore.Kind.ExoValueBuilder;
 
-  let target_origin = "http://localhost:5174"; /* Different port from slider */
+  let target_origin = "http://localhost:5175"; /* Different port from slider */
 
   let codec_name = ProjectorCore.Kind.exo_name(exo_kind);
 
@@ -83,9 +88,14 @@ module ValueBuilderAdapter: Exo.Info = {
     };
 
   /* Accept any expression that JsonCodec can handle */
-  let init_test = (any: Language.Any.t): bool =>
+  let init_test = (any: Language.Any.t): option(Exo.exo_model) =>
     switch (HazelProtocol.JsonCodec.any_to_yojson(any)) {
-    | Ok(_) => true
-    | Error(_) => false
+    | Ok(_) =>
+      Some({
+        exo_kind,
+        width: 800,
+        height: 450,
+      })
+    | Error(_) => None
     };
 };
