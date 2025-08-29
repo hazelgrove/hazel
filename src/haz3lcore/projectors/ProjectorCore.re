@@ -18,7 +18,7 @@ module Kind = {
    * able to create and update their instances */
   [@deriving (show({with_path: false}), sexp, yojson, eq, enumerate)]
   type exo_kind =
-    | Slider;
+    | ExoSlider;
 
   [@deriving (show({with_path: false}), sexp, yojson, eq, enumerate)]
   type t =
@@ -40,7 +40,7 @@ module Kind = {
     TextArea,
     Card,
     Livelit,
-    Exo(Slider),
+    Exo(ExoSlider),
   ];
 
   let projectors: list(t) = livelit_projectors @ [Fold, Info, Probe];
@@ -50,7 +50,7 @@ module Kind = {
    * selecting projectors in the projector panel menu */
   let exo_name = (ek: exo_kind): string =>
     switch (ek) {
-    | Slider => "slider"
+    | ExoSlider => "exoslider"
     };
 
   let name = (p: t): string =>
@@ -64,7 +64,7 @@ module Kind = {
     | Card => "card"
     | Livelit => "livelit"
     | TextArea => "text"
-    | Exo(ek) => "exo-" ++ exo_name(ek)
+    | Exo(exo_kind) => exo_name(exo_kind)
     };
 
   /* This must be updated and kept 1-to-1 with the above
@@ -72,7 +72,7 @@ module Kind = {
    * projector in the projector panel menu */
   let exo_of_name = (name: string): exo_kind =>
     switch (name) {
-    | "slider" => Slider
+    | "exoslider" => ExoSlider
     | _ => failwith("Unknown external projector kind")
     };
 
@@ -87,10 +87,7 @@ module Kind = {
     | "text" => TextArea
     | "livelit" => Livelit
     | "card" => Card
-    | "exo-slider" => Exo(Slider)
-    | _ when String.starts_with(~prefix="exo-", p) =>
-      let exo_name = String.sub(p, 4, String.length(p) - 4);
-      Exo(exo_of_name(exo_name));
+    | "exoslider" => Exo(ExoSlider)
     | _ => failwith("Unknown projector kind")
     };
 

@@ -291,3 +291,43 @@ module QueryParams = {
          );
        });
 };
+
+let add_message_listener = (handler: _ => _): unit =>
+  try(
+    Js.Unsafe.fun_call(
+      Js.Unsafe.get(Dom_html.window, "addEventListener"),
+      [|
+        Js.Unsafe.inject(Js.string("message")),
+        Js.Unsafe.inject(Js.wrap_callback(handler)),
+      |],
+    )
+  ) {
+  | exn =>
+    Printf.eprintf(
+      "❌ addEventListener registration failed: %s\n",
+      Printexc.to_string(exn),
+    );
+    flush_all();
+  };
+
+let get_iframe = (iframe_id: string): option(Js.t(_)) => {
+  open OptUtil.Syntax;
+  let+ iframe_element =
+    Dom_html.document##getElementById(Js.string(iframe_id))
+    |> Js.Opt.to_option;
+  Js.Unsafe.coerce(iframe_element);
+};
+
+/* Helper to send postMessage to iframe contentWindow */
+let post_to_iframe =
+    (iframe_id: string, target_origin: string, message_obj: Js.t('a)): unit => {
+  switch (get_iframe(iframe_id)) {
+  | Some(iframe) =>
+    switch (Js.Opt.to_option(iframe##.contentWindow)) {
+    | Some(content_window) =>
+      content_window##postMessage(message_obj, Js.string(target_origin))
+    | None => prerr_endline("post_to_iframe: contentWindow not available")
+    }
+  | None => prerr_endline("post_to_iframe: iframe not found")
+  };
+};

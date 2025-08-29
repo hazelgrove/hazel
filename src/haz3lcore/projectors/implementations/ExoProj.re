@@ -13,55 +13,6 @@ type exo_model = {
 type exo_action =
   | Resize(int, int);
 
-/* Slider-specific adapter for ExternalProjectorBridge */
-module SliderAdapter = {
-  let codec: ExternalProjectorBridge.codec = {
-    syntax_to_string: (info: ProjectorBase.info) => (
-      try(
-        switch (info.utility.seg_to_term(info.syntax)) {
-        | Some(Exp({term: Atom(Int(i)), _})) => Some(Bigint.to_string(i))
-        | _ => None
-        }
-      ) {
-      | _ => None
-      }:
-        option(string)
-    ),
-    json_to_segment: (info: ProjectorBase.info, value_str: string) => (
-      try({
-        let int_val = Bigint.of_string(value_str);
-        info.utility.lift_syntax(
-          fun
-          | Exp(t) =>
-            Exp({
-              ...t,
-              term: Atom(Int(int_val)),
-            })
-          | _ => failwith("not an int literal"),
-          info.syntax,
-        );
-      }) {
-      | _ => None
-      }:
-        option(Base.segment)
-    ),
-    codec_name: "int",
-  };
-
-  let target_origin = "http://localhost:5173";
-
-  let build_url = (~min_val, ~max_val, ~step_val, ~id) =>
-    Printf.sprintf(
-      "%s/?min=%d&max=%d&step=%d&id=%s&parentOrigin=%s",
-      target_origin,
-      min_val,
-      max_val,
-      step_val,
-      Id.to_string(id),
-      "http://localhost:8000" /* Hazel dev server origin */
-    );
-};
-
 module M: Projector = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type model = exo_model;
@@ -78,7 +29,7 @@ module M: Projector = {
     switch (int_of(any)) {
     | Some(_) =>
       Some({
-        exo_kind: ProjectorCore.Kind.Slider,
+        exo_kind: ExoSlider,
         width: 400,
         height: 160,
       })
@@ -88,24 +39,13 @@ module M: Projector = {
   let focusable = Focusable.non;
   let dynamics = false;
 
-  let placeholder = (model: exo_model, _info: info): ProjectorCore.Shape.t => {
-    //TODO(andrew): route font metrics here
-    let char_width = Util.font_metrics^.col_width;
-    let char_height = Util.font_metrics^.row_height;
-    print_endline(
-      "char_width: "
-      ++ string_of_float(char_width)
-      ++ " char_height: "
-      ++ string_of_float(char_height),
-    );
-    let round_up_to_multiple = (value: int, multiple: float): int => {
-      int_of_float(
-        ceil(float_of_int(value) /. multiple) *. multiple /. multiple,
-      );
-    };
+  let placeholder = (model: exo_model, _): ProjectorCore.Shape.t => {
+    let px_to_grid = (value: int, multiple: float): int =>
+      int_of_float(ceil(float_of_int(value) /. multiple));
+    let m = Util.font_metrics^;
     {
-      horizontal: round_up_to_multiple(model.width, char_width) + 1,
-      vertical: Block(round_up_to_multiple(model.height, char_height) - 1),
+      horizontal: px_to_grid(model.width, m.col_width) + 1,
+      vertical: Block(px_to_grid(model.height, m.row_height) - 1),
     };
   };
 
@@ -118,12 +58,7 @@ module M: Projector = {
       }
     };
 
-  let iframe_view = (id: Id.t, model: exo_model) => {
-    let url =
-      switch (model.exo_kind) {
-      | ProjectorCore.Kind.Slider =>
-        SliderAdapter.build_url(~min_val=0, ~max_val=100, ~step_val=1, ~id)
-      };
+  let iframe_view = (id: Id.t, url: string, model: exo_model) => {
     Node.create(
       "iframe",
       ~attrs=[
@@ -138,7 +73,7 @@ module M: Projector = {
             model.height,
           ),
         ),
-        Attr.id(Id.cls(id) ++ "-exo-iframe"),
+        Attr.id(ExternalProjectorBridge.iframe_id(id)),
         Attr.create("data-projector-id", Id.cls(id)),
         Attr.create(
           "data-exo-type",
@@ -151,25 +86,19 @@ module M: Projector = {
 
   let view =
       (
-        model,
-        info,
+        model: model,
+        info: info,
         ~local as _,
         ~parent: external_action => Ui_effect.t(unit),
         ~view_seg as _,
       ) => {
-    let (codec, target_origin) =
-      switch (model.exo_kind) {
-      | ProjectorCore.Kind.Slider => (
-          SliderAdapter.codec,
-          SliderAdapter.target_origin,
-        )
-      };
-    ExternalProjectorBridge.register_projector(
-      codec,
-      target_origin,
+    let exo = ExoAdapters.exo_info(model.exo_kind, info.id);
+    ExternalProjectorBridge.register(
+      exo.codec,
+      exo.target_origin,
       parent,
       info,
     );
-    View.mk(iframe_view(info.id, model));
+    View.mk(iframe_view(info.id, exo.url, model));
   };
 };
