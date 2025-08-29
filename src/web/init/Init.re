@@ -61,17 +61,6 @@ let startup: PersistentData.t = {
       B2T2ErrorsUsingTables.out,
       B2T2ErrorsUsingTables2.out,
       B2T2ErrorsUsingTables3.out,
-      GUIDEExpressiveProgramming.out,
-      GUIDEComposingExpressions.out,
-      GUIDEComputingEquationally.out,
-      GUIDEVariables.out,
-      GUIDECompositionality.out,
-      GUIDEScope.out,
-      GUIDEShadowing.out,
-      GUIDEBoolsandTypes.out,
-      GUIDEConditionals.out,
-      GUIDEFunctions.out,
-      TESTSTypesandStaticErrors.out,
     ]
     |> List.map(((name, content)) =>
          (
