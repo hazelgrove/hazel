@@ -35,3 +35,16 @@ module OpenRouter = OpenRouter;
 // Used by [@deriving sexp, yojson)]
 include Sexplib.Std;
 include Ppx_yojson_conv_lib.Yojson_conv.Primitives;
+
+[@deriving (show({with_path: false}), sexp, yojson)]
+type font_metrics = {
+  row_height: float,
+  col_width: float,
+};
+
+let font_metrics_init = {
+  row_height: 25.125,
+  col_width: 10.390625,
+};
+
+let font_metrics = ref(font_metrics_init);

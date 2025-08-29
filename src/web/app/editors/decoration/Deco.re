@@ -203,11 +203,7 @@ let quick_select_deco = (segment: Segment.t): Node.t => {
     HighlightSegment({
       let measured = Measured.of_segment(segment, shape_map);
       let shape_map = shape_map;
-      let font_metrics =
-        FontMetrics.{
-          row_height: 25.125,
-          col_width: 10.390625,
-        };
+      let font_metrics = Util.font_metrics^;
     });
   switch (Highlight.go(segment, Some(Convex), [])) {
   | exception _exn => Node.div([])
