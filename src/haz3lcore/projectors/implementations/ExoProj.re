@@ -25,6 +25,7 @@ module M: Projector = {
     | _ => None
     };
 
+  //TODO(andrew): abstract out initialization
   let init = (any: Language.Any.t) =>
     switch (int_of(any)) {
     | Some(_) =>

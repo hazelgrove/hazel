@@ -142,12 +142,8 @@ let start = {
       )
       >= 0;
     NinjaKeys.initialize(Shortcut.options(schedule_action));
+    Haz3lcore.ExternalProjectorBridge.init(Bonsai.Effect.Expert.handle);
     JsUtil.focus_clipboard_shim();
-    /* Set up effect scheduler for external projector bridge */
-    Haz3lcore.ExternalProjectorBridge.set_effect_scheduler(
-      Bonsai.Effect.Expert.handle,
-    );
-    Haz3lcore.ExternalProjectorBridge.init();
     schedule_action(
       Assistant(AssistantUpdate.ChatAction(FilterLoadingMessages)),
     );
@@ -185,6 +181,7 @@ let start = {
     );
   };
   let%sub () = Bonsai.Edge.after_display(after_display);
+
   // View function
   let%arr app_model = app_model
   and app_inject = app_inject;

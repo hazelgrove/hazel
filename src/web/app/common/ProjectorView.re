@@ -210,9 +210,7 @@ let mk_view =
     )
     : View.t => {
   let (module P) = ProjectorInit.to_module(p.kind);
-  let parent = a => {
-    inject(Project(handle(p.id, a)));
-  };
+  let parent = a => inject(Project(handle(p.id, a)));
 
   let local = a =>
     inject(Project(SetModel(p.id, P.update(p.model, info, a))));

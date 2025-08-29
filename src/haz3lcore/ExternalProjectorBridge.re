@@ -34,10 +34,6 @@ let registry: ref(Id.Map.t(projector_entry)) = ref(Id.Map.empty);
 let global_effect_schedule: ref(option(Ui_effect.t(unit) => unit)) =
   ref(None);
 
-let set_effect_scheduler = (scheduler: Ui_effect.t(unit) => unit): unit => {
-  global_effect_schedule := Some(scheduler);
-};
-
 let register =
     (
       codec: codec,
@@ -164,4 +160,7 @@ let listener = (event: _) => {
   Js._true;
 };
 
-let init = (): unit => JsUtil.add_message_listener(listener);
+let init = (scheduler: Ui_effect.t(unit) => unit): unit => {
+  global_effect_schedule := Some(scheduler);
+  JsUtil.add_message_listener(listener);
+};

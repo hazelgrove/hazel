@@ -57,12 +57,11 @@ module M: Projector = {
         ~local as _,
         ~parent: external_action => Ui_effect.t(unit),
         ~view_seg as _,
-      ) => {
+      ) =>
     View.mk(
       Util.WebUtil.range(
         ~attrs=[Attr.on_input((_, v) => parent(SetSyntax(put(info, v))))],
         info |> get |> Bigint.to_string,
       ),
     );
-  };
 };

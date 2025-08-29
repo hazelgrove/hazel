@@ -17,7 +17,6 @@ open Language;
 type syntax = Base.piece;
 
 /* Global actions available to handlers in all projectors */
-[@deriving (show({with_path: false}), sexp, yojson)]
 type external_action =
   | Remove /* Remove projector entirely */
   | Escape(Util.Direction.t) /* Pass focus to parent editor */
