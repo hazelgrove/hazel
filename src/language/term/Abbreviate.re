@@ -859,6 +859,13 @@ and abbreviate_typ = (typ: Typ.t): Typ.t => {
         available := available^ - 3;
         TupLabel(abbreviate_typ(t1), abbreviate_typ(t2));
       }
+    | ProdProjection(t1, t2) =>
+      if (available^ <= 3) {
+        indet_term_typ;
+      } else {
+        available := available^ - 3;
+        ProdProjection(abbreviate_typ(t1), abbreviate_typ(t2));
+      }
     | Sum(ctors) =>
       if (available^ <= 1) {
         indet_term_typ;

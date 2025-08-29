@@ -166,6 +166,7 @@ type status_variant =
 type typ_expects =
   | TypeExpected
   | LabelExpected(status_variant, list(LabeledTuple.label)) // list of duplicate labels
+  | LabelProjectionExpected(list(LabeledTuple.label)) // list of labels to project out
   | ConstructorExpected(status_variant, Typ.t)
   | VariantExpected(status_variant, Typ.t);
 
@@ -182,6 +183,7 @@ type error_typ =
   | Duplicate(LabeledTuple.label, Typ.t)
   | WantTypeFoundAp
   | WantLabel
+  | InvalidLabel(LabeledTuple.label, list(LabeledTuple.label))
   | WantConstructorFoundType(Typ.t)
   | WantConstructorFoundAp
   | ParseFailure;
@@ -630,6 +632,13 @@ let status_typ = (ctx: Ctx.t, expects: typ_expects, ty: Typ.t): status_typ =>
         NotInHole(TypeAlias(name, Typ.weak_head_normalize(ctx, ty)))
       | _ => InHole(WantLabel)
       }
+    | LabelProjectionExpected(labels) =>
+      switch (Ctx.lookup_alias(ctx, name)) {
+      | Some({term: Label(l), _}) when List.mem(l, labels) =>
+        NotInHole(TypeAlias(name, Typ.weak_head_normalize(ctx, ty)))
+      | Some({term: Label(l), _}) => InHole(InvalidLabel(l, labels))
+      | _ => InHole(WantLabel)
+      }
     | TypeExpected =>
       switch (Ctx.is_alias(ctx, name)) {
       | false =>
@@ -647,6 +656,9 @@ let status_typ = (ctx: Ctx.t, expects: typ_expects, ty: Typ.t): status_typ =>
     | LabelExpected(Duplicate, dupes) =>
       List.exists(l => name == l, dupes)
         ? InHole(Duplicate(name, ty)) : InHole(WantLabel)
+    | LabelProjectionExpected(labels) when List.mem(name, labels) =>
+      NotInHole(Type(ty))
+    | LabelProjectionExpected(labels) => InHole(InvalidLabel(name, labels))
     | ConstructorExpected(_)
     | VariantExpected(_) => InHole(WantConstructorFoundType(ty))
     }
@@ -654,6 +666,7 @@ let status_typ = (ctx: Ctx.t, expects: typ_expects, ty: Typ.t): status_typ =>
     switch (expects) {
     | TypeExpected => NotInHole(Type(ty))
     | LabelExpected(_) => InHole(WantLabel)
+    | LabelProjectionExpected(_) => InHole(WantLabel)
     | ConstructorExpected(_)
     | VariantExpected(_) => InHole(WantConstructorFoundType(ty))
     }

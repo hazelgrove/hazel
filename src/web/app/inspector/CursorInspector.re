@@ -389,6 +389,20 @@ let typ_err_view = (~globals, ok: Info.error_typ) => {
   | WantConstructorFoundType(_) => [text("Expected a constructor")]
   | WantTypeFoundAp => [text("Must be part of a sum type")]
   | WantLabel => [text("Expect a valid label")]
+  | InvalidLabel(name, expected_labels) =>
+    switch (expected_labels) {
+    | [] => [
+        text("Invalid label: "),
+        label_view(name),
+        text(". No labels were expected."),
+      ]
+    | _ => [
+        text("Invalid label: "),
+        label_view(name),
+        text(" is not part of the expected labels: "),
+        ...List.map(code, expected_labels),
+      ]
+    }
   | DuplicateLabels(labels, _) => [
       text("Duplicate labels within tuple: "),
       ...List.map(label_view, labels),

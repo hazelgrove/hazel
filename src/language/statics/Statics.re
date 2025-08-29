@@ -1892,6 +1892,28 @@ and utyp_to_info_map =
           |> snd;
     let info = Info.derived_typ(~utyp, ~ctx, ~ancestors, ~expects);
     (info, add_info(ids, InfoTyp(info), m));
+  | ProdProjection(t, label) =>
+    let labels =
+      switch (Typ.normalize(ctx, t).term) {
+      | Prod(ts) =>
+        Some(
+          List.filter_map(
+            t => Typ.match_tup_label(t) |> Option.map(fst),
+            ts,
+          ),
+        )
+      | _ => None
+      };
+    let m =
+      go'(
+        ~expects=
+          LabelProjectionExpected(labels |> Option.value(~default=[])),
+        label,
+        m,
+      )
+      |> snd;
+    let m = go(t, m) |> snd;
+    add'(~expects=TypeExpected, m);
   | TupLabel(label, t) =>
     let expects_label =
       switch (expects) {

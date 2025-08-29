@@ -132,6 +132,7 @@ module Ctr = {
     | Atom(String)
     | Arrow(_)
     | Forall(_)
+    | ProdProjection(_) // Non-normalized but really this happens for errors. We should have recovery to unknown somehow
     | Var(_) => Infinite
     | Parens(_)
     | Label(_) =>

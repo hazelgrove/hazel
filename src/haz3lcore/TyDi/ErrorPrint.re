@@ -126,6 +126,12 @@ let typ_error: Info.error_typ => string =
     prn("Constructor %s already used in this sum", name)
   | WantLabel => "Expected a label"
   | ParseFailure => "Parse failure"
+  | InvalidLabel(name, labels) =>
+    prn(
+      "Label %s is not valid. Valid labels are: %s",
+      name,
+      String.concat(", ", labels),
+    )
   | DuplicateLabels(labels, ty) =>
     prn(
       "Duplicate labels in type %s: %s",

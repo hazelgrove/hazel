@@ -737,6 +737,20 @@ and typ_term: unsorted => (Typ.term, list(Id.t)) = {
           )
         | _ => ret(TupLabel(l, r))
         }
+      | ([(_id, (["."], []))], []) =>
+        switch (r.term) {
+        | Var(name) =>
+          ret(
+            ProdProjection(
+              l,
+              {
+                annotation: r.annotation,
+                term: Label(name),
+              },
+            ),
+          )
+        | _ => ret(ProdProjection(l, r))
+        }
       | _ => ret(hole(tm))
       }
     }

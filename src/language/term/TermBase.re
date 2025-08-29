@@ -617,6 +617,8 @@ and Typ: {
               variants,
             ),
           )
+        | ProdProjection(t1, t2) =>
+          ProdProjection(typ_map_term(t1), typ_map_term(t2)) // TODO Should we map t2?
         | Rec(tp, t) => Rec(tpat_map_term(tp), typ_map_term(t))
         | Forall(tp, t) => Forall(tpat_map_term(tp), typ_map_term(t))
         },
@@ -648,6 +650,8 @@ and Typ: {
       | List(ty) => List(subst(s, x, ty)) |> rewrap
       | Var(y) => str == y ? s : Var(y) |> rewrap
       | Parens(ty) => Parens(subst(s, x, ty)) |> rewrap
+      | ProdProjection(t1, t2) =>
+        ProdProjection(subst(s, x, t1), subst(s, x, t2)) |> rewrap // TODO Should we subst in t2?
       };
     | None => ty
     };
@@ -663,6 +667,10 @@ and Typ: {
     | (TupLabel(label1, t1'), TupLabel(label2, t2')) =>
       eq_internal(~alpha_equivalence, n, label1, label2)
       && eq_internal(~alpha_equivalence, n, t1', t2')
+    | (ProdProjection(t1, t2), ProdProjection(t1', t2')) =>
+      eq_internal(~alpha_equivalence, n, t1, t1')
+      && eq_internal(~alpha_equivalence, n, t2, t2') // I assume this is just equality and not normalized equality
+    | (ProdProjection(_), _) => false
     | (TupLabel(_), _) => false
     | (Rec(x1, t1), Rec(x2, t2))
     | (Forall(x1, t1), Forall(x2, t2)) =>

@@ -19,7 +19,8 @@ type cls =
   | Constructor // Constructor does not exist on Typ.term it's being used here as a hack for the cursors inspector
   | Parens
   | Rec
-  | Forall;
+  | Forall
+  | ProdProjection;
 
 include TermBase.Typ;
 
@@ -90,7 +91,8 @@ let cls_of_term: Grammar.typ_term('a) => cls =
   | Parens(_) => Parens
   | Sum(_) => Sum
   | Rec(_) => Rec
-  | Forall(_) => Forall;
+  | Forall(_) => Forall
+  | ProdProjection(_) => ProdProjection;
 
 let show_cls: cls => string =
   fun
@@ -110,7 +112,8 @@ let show_cls: cls => string =
   | Sum => "Sum type"
   | Parens => "Parenthesized type"
   | Rec => "Recursive type"
-  | Forall => "Forall type";
+  | Forall => "Forall type"
+  | ProdProjection => "Product projection";
 
 let rec is_arrow = (typ: t) => {
   switch (typ.term) {
@@ -125,7 +128,8 @@ let rec is_arrow = (typ: t) => {
   | Var(_)
   | Sum(_)
   | Forall(_)
-  | Rec(_) => false
+  | Rec(_)
+  | ProdProjection(_) => false
   };
 };
 
@@ -142,13 +146,15 @@ let is_atom = (ty: t): bool =>
   | Var(_)
   | Sum(_)
   | Forall(_)
-  | Rec(_) => false
+  | Rec(_)
+  | ProdProjection(_) => false
   };
 
 let rec has_fun = (typ: t) =>
   switch (typ.term) {
-  | Parens(typ) => has_fun(typ)
-  | TupLabel(_, typ) => has_fun(typ)
+  | Parens(typ)
+  | TupLabel(_, typ)
+  | ProdProjection(typ, _) => has_fun(typ)
   | Arrow(_)
   | Forall(_) => true
   | Unknown(_)
@@ -180,7 +186,8 @@ let rec is_forall = (typ: t) => {
   | Prod(_)
   | Var(_)
   | Sum(_)
-  | Rec(_) => false
+  | Rec(_)
+  | ProdProjection(_) => false
   };
 };
 
@@ -228,11 +235,12 @@ let rec match_tup_optional_label = (ty: t) =>
   | Unknown(_) => Some((None, ty))
   | _ => None
   };
-let match_tup_label = ty =>
+let match_tup_label = ty => {
   switch (match_tup_optional_label(ty)) {
   | Some((Some(name), t')) => Some((name, t'))
   | _ => None
   };
+};
 
 let rec free_vars = (~bound=[], ty: t): list(Var.t) =>
   switch (term_of(ty)) {
@@ -245,6 +253,7 @@ let rec free_vars = (~bound=[], ty: t): list(Var.t) =>
   | Arrow(t1, t2) => free_vars(~bound, t1) @ free_vars(~bound, t2)
   | Sum(sm) => ConstructorMap.free_variables(free_vars(~bound), sm)
   | Prod(tys) => List.concat_map(free_vars(~bound), tys)
+  | ProdProjection(t1, _) => free_vars(~bound, t1)
   | TupLabel(_, ty) => free_vars(~bound, ty)
   | Rec(x, ty)
   | Forall(x, ty) =>
@@ -276,9 +285,9 @@ let rec vars = (ty: t): list(Var.t) =>
     vars(ty) |> List.filter((x': string) => x' != x)
   | Forall(_, ty) => vars(ty)
   | Label(_) => []
-  | TupLabel(_, ty) => vars(ty)
+  | TupLabel(_, ty)
+  | ProdProjection(ty, _) => vars(ty)
   };
-
 let rec aliases_deep = (ctx: Ctx.t, ty: t): list((string, t)) => {
   let defs =
     List.concat_map(
@@ -330,6 +339,7 @@ let rec num_nodes = (ty: t): int => {
   | Forall(_, ty) => 1 + num_nodes(ty)
   | Label(_) => 1
   | TupLabel(_, ty) => 1 + num_nodes(ty)
+  | ProdProjection(ty1, ty2) => 1 + num_nodes(ty1) + num_nodes(ty2)
   };
 };
 
@@ -359,6 +369,7 @@ let rec count_unknowns = (ty: t): int =>
   | Forall(_, ty) => count_unknowns(ty)
   | Label(_) => 0
   | TupLabel(_, ty) => count_unknowns(ty)
+  | ProdProjection(ty1, _) => count_unknowns(ty1)
   };
 
 let rec contains_sum_or_var = (ty: t): bool =>
@@ -373,6 +384,7 @@ let rec contains_sum_or_var = (ty: t): bool =>
   | List(ty) => contains_sum_or_var(ty)
   | Parens(ty) => contains_sum_or_var(ty)
   | Forall(_, ty) => contains_sum_or_var(ty)
+  | ProdProjection(ty1, _) => contains_sum_or_var(ty1)
   | Label(_) => false
   | TupLabel(_, ty) => contains_sum_or_var(ty)
   };
@@ -387,6 +399,81 @@ let unroll = (ty: t): t =>
    Other types may be equivalent but this will not detect so if they are not normalized. */
 let equal = (t1: t, t2: t): bool => fast_equal(t1, t2);
 
+let project_type = (ty, label): option(t) => {
+  switch (term_of(ty), term_of(label)) {
+  | (Prod(tys), Label(l)) =>
+    switch (LabeledTuple.find_label(match_tup_label, tys, l)) {
+    | Some({term: TupLabel(_, ty), _}) =>
+      // LabeledTuple.find_label should return the inner ty
+      Some(ty)
+    | _ => None
+    }
+  | _ => None
+  };
+};
+
+let rec weak_head_normalize = (~rec_counter=0, ctx: Ctx.t, ty: t): t => {
+  if (rec_counter > 1000) {
+    failwith("weak_head_normalize exceeded 1000 recursive calls");
+  };
+  switch (term_of(ty)) {
+  | Parens(t) => weak_head_normalize(~rec_counter=rec_counter + 1, ctx, t)
+  | Var(x) =>
+    switch (Ctx.lookup_alias(ctx, x)) {
+    | Some(ty) => weak_head_normalize(~rec_counter=rec_counter + 1, ctx, ty)
+    | None => ty
+    }
+  | ProdProjection(ty, label) =>
+    let normalized_ty =
+      weak_head_normalize(~rec_counter=rec_counter + 1, ctx, ty);
+    project_type(normalized_ty, label)
+    |> Option.map(weak_head_normalize(~rec_counter=rec_counter + 1, ctx))
+    |> Util.OptUtil.get(() => {
+         let (_, rewrap) = unwrap(ty);
+         ProdProjection(normalized_ty, label) |> rewrap;
+       });
+  | _ => ty
+  };
+};
+
+let rec normalize = (~rec_counter=0, ctx: Ctx.t, ty: t): t => {
+  if (rec_counter > 1000) {
+    failwith("normalize exceeded 1000 recursive calls");
+  };
+  let normalize = normalize(~rec_counter=rec_counter + 1);
+  let (term, rewrap) = unwrap(ty);
+  switch (term) {
+  | Var(x) =>
+    switch (Ctx.lookup_alias(ctx, x)) {
+    | Some(ty) => normalize(ctx, ty)
+    | None => ty
+    }
+  | Unknown(_)
+  | Atom(_)
+  | Label(_) => ty
+  | Parens(t) => normalize(ctx, t)
+  | List(t) => List(normalize(ctx, t)) |> rewrap
+  | Arrow(t1, t2) =>
+    Arrow(normalize(ctx, t1), normalize(ctx, t2)) |> rewrap
+  | Prod(ts) => Prod(List.map(normalize(ctx), ts)) |> rewrap
+  | ProdProjection(ty, label) =>
+    let normalized_ty = normalize(ctx, ty);
+    project_type(normalized_ty, label)
+    |> Option.map(normalize(ctx))
+    |> Util.OptUtil.get(() => ProdProjection(normalized_ty, label) |> rewrap);
+  | TupLabel(label, ty) =>
+    TupLabel(normalize(ctx, label), normalize(ctx, ty)) |> rewrap
+  | Sum(ts) =>
+    Sum(ConstructorMap.map(Option.map(normalize(ctx)), ts)) |> rewrap
+  | Rec(tpat, ty) =>
+    /* NOTE: Dummy tvar added has fake id but shouldn't matter
+       as in current implementation Recs do not occur in the
+       surface syntax, so we won't try to jump to them. */
+    Rec(tpat, normalize(Ctx.extend_dummy_tvar(ctx, tpat), ty)) |> rewrap
+  | Forall(name, ty) =>
+    Forall(name, normalize(Ctx.extend_dummy_tvar(ctx, name), ty)) |> rewrap
+  };
+};
 /* Lattice join on types. This is a LUB join in the hazel2
    sense in that any type dominates Unknown. The optional
    resolve parameter specifies whether, in the case of a type
@@ -419,6 +506,16 @@ let rec join = (~resolve=false, ctx: Ctx.t, ty1: t, ty2: t): option(t) => {
     let+ ty_join = join'(ty_name, ty1);
     !resolve && equal(ty_name, ty_join) ? ty2 : ty_join;
   /* Note: Ordering of Unknown, Var, and Rec above is load-bearing! */
+  | (ProdProjection(t1, label1), ProdProjection(t2, label2))
+      when equal(label1, label2) =>
+    let+ t = join'(t1, t2);
+    ProdProjection(t, label1) |> temp;
+  | (ProdProjection(ty1', l), _) =>
+    let* ty1'' = project_type(normalize(ctx, ty1'), l);
+    join'(ty1'', ty2);
+  | (_, ProdProjection(ty2', l)) =>
+    let* ty2'' = project_type(normalize(ctx, ty2'), l);
+    join'(ty1, ty2'');
   | (Rec(tp1, ty1), Rec(tp2, ty2)) =>
     let ctx = Ctx.extend_dummy_tvar(ctx, tp1);
     let ty1' =
@@ -495,7 +592,8 @@ let rec match_synswitch = (t1: t, t2: t) => {
   | (Atom(_), _)
   | (Label(_), _)
   | (Var(_), _)
-  | (Rec(_), _) => t1
+  | (Rec(_), _)
+  | (ProdProjection(_), _) => t1
   // These might
   | (List(ty1), List(ty2)) => List(match_synswitch(ty1, ty2)) |> rewrap1
   | (List(_), _) => t1
@@ -541,55 +639,6 @@ let is_more_precise = (ctx: Ctx.t, ty1: t, ty2: t): bool => {
   switch (joined) {
   | None => false
   | Some(joined) => fast_equal(~alpha_equivalence=true, joined, ty1)
-  };
-};
-
-let rec weak_head_normalize = (~rec_counter=0, ctx: Ctx.t, ty: t): t => {
-  if (rec_counter > 1000) {
-    failwith("weak_head_normalize exceeded 1000 recursive calls");
-  };
-  switch (term_of(ty)) {
-  | Parens(t) => weak_head_normalize(~rec_counter=rec_counter + 1, ctx, t)
-  | Var(x) =>
-    switch (Ctx.lookup_alias(ctx, x)) {
-    | Some(ty) => weak_head_normalize(~rec_counter=rec_counter + 1, ctx, ty)
-    | None => ty
-    }
-  | _ => ty
-  };
-};
-
-let rec normalize = (~rec_counter=0, ctx: Ctx.t, ty: t): t => {
-  if (rec_counter > 1000) {
-    failwith("normalize exceeded 1000 recursive calls");
-  };
-  let normalize = normalize(~rec_counter=rec_counter + 1);
-  let (term, rewrap) = unwrap(ty);
-  switch (term) {
-  | Var(x) =>
-    switch (Ctx.lookup_alias(ctx, x)) {
-    | Some(ty) => normalize(ctx, ty)
-    | None => ty
-    }
-  | Unknown(_)
-  | Atom(_)
-  | Label(_) => ty
-  | Parens(t) => normalize(ctx, t)
-  | List(t) => List(normalize(ctx, t)) |> rewrap
-  | Arrow(t1, t2) =>
-    Arrow(normalize(ctx, t1), normalize(ctx, t2)) |> rewrap
-  | Prod(ts) => Prod(List.map(normalize(ctx), ts)) |> rewrap
-  | TupLabel(label, ty) =>
-    TupLabel(normalize(ctx, label), normalize(ctx, ty)) |> rewrap
-  | Sum(ts) =>
-    Sum(ConstructorMap.map(Option.map(normalize(ctx)), ts)) |> rewrap
-  | Rec(tpat, ty) =>
-    /* NOTE: Dummy tvar added has fake id but shouldn't matter
-       as in current implementation Recs do not occur in the
-       surface syntax, so we won't try to jump to them. */
-    Rec(tpat, normalize(Ctx.extend_dummy_tvar(ctx, tpat), ty)) |> rewrap
-  | Forall(name, ty) =>
-    Forall(name, normalize(Ctx.extend_dummy_tvar(ctx, name), ty)) |> rewrap
   };
 };
 
@@ -750,7 +799,8 @@ let rec is_syn = (ty: t): bool =>
   | List(_)
   | Arrow(_)
   | Prod(_)
-  | Sum(_) => false
+  | Sum(_)
+  | ProdProjection(_) => false
   };
 
 let rec is_ana_atom = (ty: t) =>
@@ -766,6 +816,7 @@ let rec is_ana_atom = (ty: t) =>
   | List(_)
   | Arrow(_)
   | Prod(_)
+  | ProdProjection(_, _)
   | Sum(_) => None
   };
 
@@ -783,7 +834,8 @@ let rec is_syn_plus = (ty: t): bool =>
   | Rec(_)
   | List(_)
   | Prod(_)
-  | Sum(_) => false
+  | Sum(_)
+  | ProdProjection(_) => false
   };
 
 /* Does the type require parentheses when on the left of an arrow for printing? */
@@ -795,7 +847,8 @@ let rec needs_parens = (ty: t): bool =>
   | Label(_)
   | TupLabel(_, _)
   | List(_) /* is already wrapped in [] */
-  | Var(_) => false
+  | Var(_)
+  | ProdProjection(_, _) => false // Confirm precedence of . operator
   | Rec(_, _)
   | Forall(_, _)
   | Arrow(_, _)
@@ -845,6 +898,8 @@ let rec pretty_print = (ty: t): string =>
          ts,
        )
     ++ ")"
+  | ProdProjection(t, label) =>
+    pretty_print(t) ++ "." ++ pretty_print(label)
   | Label(name) => name
   | TupLabel(label, t) => pretty_print(label) ++ "=" ++ pretty_print(t)
   | Rec(tv, t) =>

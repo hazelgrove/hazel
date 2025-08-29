@@ -125,6 +125,7 @@ and typ_term('a) =
   | Parens(typ_t('a))
   | Rec(tpat_t('a), typ_t('a))
   | Forall(tpat_t('a), typ_t('a))
+  | ProdProjection(typ_t('a), typ_t('a))
 and typ_t('a) = Annotated.t(typ_term('a), 'a)
 and tpat_term('a) =
   | Invalid(string)
@@ -345,6 +346,11 @@ and map_typ_annotation: 'a 'b. ('a => 'b, typ_t('a)) => typ_t('b) =
           TupLabel(map_typ_annotation(f, t1), map_typ_annotation(f, t2))
         | Sum(m) =>
           Sum(ConstructorMap.map_preserving(map_typ_annotation(f), m))
+        | ProdProjection(t1, t2) =>
+          ProdProjection(
+            map_typ_annotation(f, t1),
+            map_typ_annotation(f, t2),
+          )
         },
       annotation: new_annotation,
     };
@@ -781,6 +787,10 @@ module Factory = (DefaultAnnotation: DefaultAnnotation) => {
     };
     let prod = (~ann=?, l): typ_t(DefaultAnnotation.t) => {
       term: Prod(l),
+      annotation: default_annotation(ann),
+    };
+    let prod_projection = (~ann=?, t1, t2): typ_t(DefaultAnnotation.t) => {
+      term: ProdProjection(t1, t2),
       annotation: default_annotation(ann),
     };
     let label = (~ann=?, l): typ_t(DefaultAnnotation.t) => {
