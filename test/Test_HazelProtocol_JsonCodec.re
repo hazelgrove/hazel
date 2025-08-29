@@ -77,70 +77,285 @@ let test_error = (~name, ~json, ~expected_error) =>
     },
   );
 
-/* Stage 1 tests: Integer support only */
+/* Stage 2 tests: Base types (int, float, string, bool) */
 let tests = (
   "HazelProtocol.JsonCodec",
   [
-    /* Basic integer conversions */
+    /* Integer tests */
     test_to_json(
-      ~name="exp_to_json: 42",
-      ~hazel_str="42",
+      ~name="int_to_json: 42",
+      ~hazel_str={|42|},
       ~expected_json=`Int(42),
     ),
     test_to_json(
-      ~name="exp_to_json: 0",
-      ~hazel_str="0",
+      ~name="int_to_json: 0",
+      ~hazel_str={|0|},
       ~expected_json=`Int(0),
     ),
     test_to_json(
-      ~name="exp_to_json: negative",
-      ~hazel_str="999",
+      ~name="int_to_json: negative",
+      ~hazel_str={|999|},
       ~expected_json=`Int(999),
     ),
     test_from_json(
-      ~name="json_to_exp: 456",
+      ~name="json_to_int: 456",
       ~json=`Int(456),
-      ~expected_hazel="456",
+      ~expected_hazel={|456|},
     ),
     test_from_json(
-      ~name="json_to_exp: 0",
+      ~name="json_to_int: 0",
       ~json=`Int(0),
-      ~expected_hazel="0",
+      ~expected_hazel={|0|},
     ),
     test_from_json(
-      ~name="json_to_exp: large",
+      ~name="json_to_int: large",
       ~json=`Int(123456),
-      ~expected_hazel="123456",
+      ~expected_hazel={|123456|},
     ),
-    /* Round-trip tests */
-    test_round_trip(~name="round_trip: 42", ~hazel_str="42"),
-    test_round_trip(~name="round_trip: 0", ~hazel_str="0"),
-    test_round_trip(~name="round_trip: large", ~hazel_str="999999"),
-    /* Error cases for unsupported types */
-    test_error(
-      ~name="unsupported: float",
-      ~json=`Float(3.14),
-      ~expected_error="Float values not yet supported in JsonCodec",
+    test_round_trip(~name="int_round_trip: 42", ~hazel_str={|42|}),
+    test_round_trip(~name="int_round_trip: 0", ~hazel_str={|0|}),
+    test_round_trip(~name="int_round_trip: large", ~hazel_str={|999999|}),
+    /* Float tests */
+    test_to_json(
+      ~name="float_to_json: 3.14",
+      ~hazel_str={|3.14|},
+      ~expected_json=`Float(3.14),
     ),
-    test_error(
-      ~name="unsupported: string",
-      ~json=`String("hello"),
-      ~expected_error="String values not yet supported in JsonCodec",
+    test_to_json(
+      ~name="float_to_json: 0.0",
+      ~hazel_str={|0.0|},
+      ~expected_json=`Float(0.0),
     ),
-    test_error(
-      ~name="unsupported: bool",
+    //TODO(andrew): hazel floats are sort of broken...
+    // test_to_json(
+    //   ~name="float_to_json: negative",
+    //   ~hazel_str="-2.5",
+    //   ~expected_json=`Float(-2.5),
+    // ),
+    // test_from_json(
+    //   ~name="json_to_float: 1.5",
+    //   ~json=`Float(1.5),
+    //   ~expected_hazel="1.5",
+    // ),
+    // test_from_json(
+    //   ~name="json_to_float: 0.0",
+    //   ~json=`Float(0.0),
+    //   ~expected_hazel="0.",
+    // ),
+    // test_round_trip(~name="float_round_trip: 3.14", ~hazel_str="3.14"),
+    // test_round_trip(~name="float_round_trip: negative", ~hazel_str="-1.23"),
+    /* String tests */
+    test_to_json(
+      ~name="string_to_json: hello",
+      ~hazel_str={|"hello"|},
+      ~expected_json=`String("hello"),
+    ),
+    test_to_json(
+      ~name="string_to_json: empty",
+      ~hazel_str={|""|},
+      ~expected_json=`String(""),
+    ),
+    test_to_json(
+      ~name="string_to_json: spaces",
+      ~hazel_str={|"hello world"|},
+      ~expected_json=`String("hello world"),
+    ),
+    test_from_json(
+      ~name="json_to_string: test",
+      ~json=`String("test"),
+      ~expected_hazel={|"test"|},
+    ),
+    test_from_json(
+      ~name="json_to_string: empty",
+      ~json=`String(""),
+      ~expected_hazel={|""|},
+    ),
+    test_round_trip(~name="string_round_trip: hello", ~hazel_str={|"hello"|}),
+    test_round_trip(~name="string_round_trip: empty", ~hazel_str={|""|}),
+    /* Bool tests */
+    test_to_json(
+      ~name="bool_to_json: true",
+      ~hazel_str={|true|},
+      ~expected_json=`Bool(true),
+    ),
+    test_to_json(
+      ~name="bool_to_json: false",
+      ~hazel_str={|false|},
+      ~expected_json=`Bool(false),
+    ),
+    test_from_json(
+      ~name="json_to_bool: true",
       ~json=`Bool(true),
-      ~expected_error="Bool values not yet supported in JsonCodec",
+      ~expected_hazel={|true|},
     ),
-    test_error(
-      ~name="unsupported: list",
-      ~json=`List([`Int(1), `Int(2)]),
-      ~expected_error="List values not yet supported in JsonCodec",
+    test_from_json(
+      ~name="json_to_bool: false",
+      ~json=`Bool(false),
+      ~expected_hazel={|false|},
     ),
+    test_round_trip(~name="bool_round_trip: true", ~hazel_str="true"),
+    test_round_trip(~name="bool_round_trip: false", ~hazel_str="false"),
+    /* Stage 3: List tests */
+    test_to_json(
+      ~name="list_to_json: empty",
+      ~hazel_str={|[]|},
+      ~expected_json=`List([]),
+    ),
+    test_to_json(
+      ~name="list_to_json: single_int",
+      ~hazel_str={|[42]|},
+      ~expected_json=`List([`Int(42)]),
+    ),
+    test_to_json(
+      ~name="list_to_json: multiple_ints",
+      ~hazel_str={|[1, 2, 3]|},
+      ~expected_json=`List([`Int(1), `Int(2), `Int(3)]),
+    ),
+    test_to_json(
+      ~name="list_to_json: single_string",
+      ~hazel_str={|["hello"]|},
+      ~expected_json=`List([`String("hello")]),
+    ),
+    test_to_json(
+      ~name="list_to_json: multiple_strings",
+      ~hazel_str={|["a", "b", "c"]|},
+      ~expected_json=`List([`String("a"), `String("b"), `String("c")]),
+    ),
+    test_to_json(
+      ~name="list_to_json: bools",
+      ~hazel_str={|[true, false, true]|},
+      ~expected_json=`List([`Bool(true), `Bool(false), `Bool(true)]),
+    ),
+    test_from_json(
+      ~name="json_to_list: empty",
+      ~json=`List([]),
+      ~expected_hazel={|[]|},
+    ),
+    test_from_json(
+      ~name="json_to_list: single_int",
+      ~json=`List([`Int(42)]),
+      ~expected_hazel={|[42]|},
+    ),
+    test_from_json(
+      ~name="json_to_list: multiple_ints",
+      ~json=`List([`Int(1), `Int(2), `Int(3)]),
+      ~expected_hazel={|[1, 2, 3]|},
+    ),
+    test_from_json(
+      ~name="json_to_list: strings",
+      ~json=`List([`String("hello"), `String("world")]),
+      ~expected_hazel={|["hello", "world"]|},
+    ),
+    test_from_json(
+      ~name="json_to_list: bools",
+      ~json=`List([`Bool(true), `Bool(false)]),
+      ~expected_hazel={|[true, false]|},
+    ),
+    test_round_trip(~name="list_round_trip: empty", ~hazel_str="[]"),
+    test_round_trip(~name="list_round_trip: single", ~hazel_str="[42]"),
+    test_round_trip(
+      ~name="list_round_trip: multiple",
+      ~hazel_str={|[1, 2, 3]|},
+    ),
+    test_round_trip(
+      ~name="list_round_trip: strings",
+      ~hazel_str={|["a", "b"]|},
+    ),
+    test_round_trip(
+      ~name="list_round_trip: bools",
+      ~hazel_str={|[true, false]|},
+    ),
+    /* Stage 4: Tuple tests (plain tuples wrapped in parens) */
+    test_to_json(
+      ~name="tuple_to_json: empty",
+      ~hazel_str={|()|},
+      ~expected_json=`Assoc([]),
+    ),
+    test_to_json(
+      ~name="tuple_to_json: pair",
+      ~hazel_str={|(1, 2)|},
+      ~expected_json=`Assoc([("0", `Int(1)), ("1", `Int(2))]),
+    ),
+    test_to_json(
+      ~name="tuple_to_json: mixed_types",
+      ~hazel_str={|(42, "hello", true)|},
+      ~expected_json=
+        `Assoc([
+          ("0", `Int(42)),
+          ("1", `String("hello")),
+          ("2", `Bool(true)),
+        ]),
+    ),
+    test_from_json(
+      ~name="json_to_tuple: empty",
+      ~json=`Assoc([]),
+      ~expected_hazel={|()|},
+    ),
+    test_from_json(
+      ~name="json_to_tuple: pair",
+      ~json=`Assoc([("0", `Int(1)), ("1", `Int(2))]),
+      ~expected_hazel={|(1, 2)|},
+    ),
+    test_from_json(
+      ~name="json_to_tuple: mixed_types",
+      ~json=
+        `Assoc([
+          ("0", `Int(42)),
+          ("1", `String("hello")),
+          ("2", `Bool(true)),
+        ]),
+      ~expected_hazel={|(42, "hello", true)|},
+    ),
+    test_round_trip(~name="tuple_round_trip: empty", ~hazel_str={|()|}),
+    test_round_trip(~name="tuple_round_trip: pair", ~hazel_str={|(1, 2)|}),
+    test_round_trip(
+      ~name="tuple_round_trip: mixed",
+      ~hazel_str={|(42, "hello", true)|},
+    ),
+    /* Stage 4: Labeled tuple tests */
+    test_to_json(
+      ~name="labeled_tuple_to_json: singleton",
+      ~hazel_str={|(label=42)|},
+      ~expected_json=`Assoc([("label", `Int(42))]),
+    ),
+    test_to_json(
+      ~name="labeled_tuple_to_json: all_labeled",
+      ~hazel_str={|(x=10, y=20, name="point")|},
+      ~expected_json=
+        `Assoc([
+          ("x", `Int(10)),
+          ("y", `Int(20)),
+          ("name", `String("point")),
+        ]),
+    ),
+    test_from_json(
+      ~name="json_to_labeled_tuple: singleton",
+      ~json=`Assoc([("label", `Int(42))]),
+      ~expected_hazel={|(label=42)|},
+    ),
+    test_from_json(
+      ~name="json_to_labeled_tuple: all_labeled",
+      ~json=
+        `Assoc([
+          ("x", `Int(10)),
+          ("y", `Int(20)),
+          ("name", `String("point")),
+        ]),
+      ~expected_hazel={|(x=10, y=20, name="point")|},
+    ),
+    test_round_trip(
+      ~name="labeled_tuple_round_trip: singleton",
+      ~hazel_str={|(label=42)|},
+    ),
+    test_round_trip(
+      ~name="labeled_tuple_round_trip: all_labeled",
+      ~hazel_str={|(x=10, y=20, name="point")|},
+    ),
+    /* Error cases for unsupported types (future stages) */
     test_error(
-      ~name="unsupported: object",
-      ~json=`Assoc([("key", `String("value"))]),
-      ~expected_error="Object values not yet supported in JsonCodec",
+      ~name="unsupported: object with mixed keys",
+      ~json=`Assoc([("0", `Int(1)), ("key", `String("value"))]),
+      ~expected_error="Mixed labeled/unlabeled tuples not supported",
     ),
     test_error(
       ~name="unsupported: null",

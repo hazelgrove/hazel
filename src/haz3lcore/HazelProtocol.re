@@ -1,5 +1,6 @@
 open Util;
 open Js_of_ocaml;
+open Language;
 
 /**
  * Types for communication protocol between external apps and Hazel
@@ -121,25 +122,147 @@ let from_hazel_to_js = (msg: from_hazel_message): Js.t(_) => {
 
 /* JSON Codec for converting between Hazel expressions and Yojson */
 module JsonCodec = {
-  /* Stage 1: Support only integers; stub out other types with clear errors */
+  /* Stage 4: Support base types (int, float, string, bool), lists, and tuples (plain and labeled); stub out other types with clear errors */
 
-  let exp_to_yojson =
-      (exp: Language.Term.Exp.t): result(Yojson.Safe.t, string) => {
+  let rec exp_to_yojson =
+          (exp: Language.Term.Exp.t): result(Yojson.Safe.t, string) => {
+    /* Helper functions for tuple processing */
+    let rec check_tuple_type = (remaining, first_is_labeled) =>
+      switch (remaining) {
+      | [] => Ok(first_is_labeled)
+      | [hd, ...tl] =>
+        let is_labeled =
+          switch (Term.Exp.term_of(hd)) {
+          | TupLabel(_, _) => true
+          | _ => false
+          };
+        switch (first_is_labeled) {
+        | None => check_tuple_type(tl, Some(is_labeled))
+        | Some(expected) =>
+          if (is_labeled == expected) {
+            check_tuple_type(tl, Some(expected));
+          } else {
+            Error("Mixed labeled/unlabeled tuples not supported");
+          }
+        };
+      };
+
+    let rec convert_labeled_elements = (acc, remaining) =>
+      switch (remaining) {
+      | [] => Ok(List.rev(acc))
+      | [hd, ...tl] =>
+        switch (Term.Exp.term_of(hd)) {
+        | TupLabel(label_exp, value) =>
+          switch (Term.Exp.term_of(label_exp)) {
+          | Label(label) =>
+            switch (exp_to_yojson(value)) {
+            | Ok(json_elem) =>
+              convert_labeled_elements([(label, json_elem), ...acc], tl)
+            | Error(msg) => Error(msg)
+            }
+          | _ => Error("Invalid label in labeled tuple")
+          }
+        | _ => Error("Expected labeled element in labeled tuple")
+        }
+      };
+
+    let rec convert_unlabeled_elements = (acc, remaining, index) =>
+      switch (remaining) {
+      | [] => Ok(List.rev(acc))
+      | [hd, ...tl] =>
+        switch (exp_to_yojson(hd)) {
+        | Ok(json_elem) =>
+          convert_unlabeled_elements(
+            [(string_of_int(index), json_elem), ...acc],
+            tl,
+            index + 1,
+          )
+        | Error(msg) => Error(msg)
+        }
+      };
+
     switch (exp.term) {
     | Atom(Int(i)) =>
       switch (Bigint.to_int(i)) {
       | Some(int_val) => Ok(`Int(int_val))
       | None => Error("Integer too large to convert to JSON")
       }
-    | Atom(Float(_)) => Error("Float values not yet supported in JsonCodec")
-    | Atom(String(_)) =>
-      Error("String values not yet supported in JsonCodec")
-    | Atom(Bool(_)) => Error("Bool values not yet supported in JsonCodec")
-    | ListLit(_) => Error("List values not yet supported in JsonCodec")
-    | Tuple(_) => Error("Tuple values not yet supported in JsonCodec")
-    | Parens(_) => Error("Parens values not yet supported in JsonCodec")
+    | Atom(Float(f)) => Ok(`Float(f))
+    | Atom(String(s)) => Ok(`String(s))
+    | Atom(Bool(b)) => Ok(`Bool(b))
+    | ListLit(elements) =>
+      /* Convert each element to JSON and collect results */
+      let rec convert_elements = (acc, remaining) =>
+        switch (remaining) {
+        | [] => Ok(List.rev(acc))
+        | [hd, ...tl] =>
+          switch (exp_to_yojson(hd)) {
+          | Ok(json_elem) => convert_elements([json_elem, ...acc], tl)
+          | Error(msg) => Error(msg)
+          }
+        };
+      switch (convert_elements([], elements)) {
+      | Ok(json_elements) => Ok(`List(json_elements))
+      | Error(msg) => Error(msg)
+      };
+
+    | Tuple(elements) =>
+      /* Check if tuple is all-labeled or all-unlabeled */
+
+      switch (check_tuple_type(elements, None)) {
+      | Error(msg) => Error(msg)
+      | Ok(Some(true)) =>
+        /* All labeled */
+        switch (convert_labeled_elements([], elements)) {
+        | Ok(pairs) => Ok(`Assoc(pairs))
+        | Error(msg) => Error(msg)
+        }
+      | Ok(Some(false)) =>
+        /* All unlabeled */
+        switch (convert_unlabeled_elements([], elements, 0)) {
+        | Ok(pairs) => Ok(`Assoc(pairs))
+        | Error(msg) => Error(msg)
+        }
+      | Ok(None) =>
+        /* Empty tuple case should not reach here */
+        Ok(`Assoc([]))
+      }
+    | Parens(inner) =>
+      /* Check what's inside the parens */
+      switch (inner.term) {
+      | Tuple(elements) =>
+        /* Tuple wrapped in parens: could be plain or labeled */
+
+        /* Check if tuple is all-labeled or all-unlabeled */
+        switch (check_tuple_type(elements, None)) {
+        | Error(msg) => Error(msg)
+        | Ok(Some(true)) =>
+          /* All labeled */
+          switch (convert_labeled_elements([], elements)) {
+          | Ok(pairs) => Ok(`Assoc(pairs))
+          | Error(msg) => Error(msg)
+          }
+        | Ok(Some(false)) =>
+          /* All unlabeled */
+          switch (convert_unlabeled_elements([], elements, 0)) {
+          | Ok(pairs) => Ok(`Assoc(pairs))
+          | Error(msg) => Error(msg)
+          }
+        | Ok(None) => Error("Empty tuple handling error")
+        }
+      | _ =>
+        /* Non-tuple parens: just process the inner expression */
+        exp_to_yojson(inner)
+      }
     | Constructor(_) =>
       Error("Constructor values not yet supported in JsonCodec")
+    | UnOp(Float(Minus), {term: Atom(Float(f)), _}) => Ok(`Float(-. f))
+    | UnOp(Int(Minus), {term: Atom(Int(i)), _}) =>
+      switch (Bigint.to_int(i)) {
+      | Some(int_val) => Ok(`Int(- int_val))
+      | None => Error("Integer too large to convert to JSON")
+      }
+    | UnOp(_, _) => Error("Unary operations not yet supported in JsonCodec")
     | _ => Error("Unsupported expression type for JsonCodec")
     };
   };
@@ -152,9 +275,20 @@ module JsonCodec = {
     };
   };
 
-  let yojson_to_exp =
-      (json: Yojson.Safe.t): result(Language.Term.Exp.t, string) => {
+  let rec yojson_to_exp =
+          (json: Yojson.Safe.t): result(Language.Term.Exp.t, string) => {
     switch (json) {
+    | `Int(i) when i < 0 =>
+      try(
+        Ok(
+          Language.IdTagged.FreshGrammar.Exp.un_op(
+            Int(Minus),
+            Language.IdTagged.FreshGrammar.Exp.big_int(Bigint.of_int(- i)),
+          ),
+        )
+      ) {
+      | _ => Error("Failed to convert int to Bigint")
+      }
     | `Int(i) =>
       try({
         let _big_int = Bigint.of_int(i);
@@ -162,11 +296,120 @@ module JsonCodec = {
       }) {
       | _ => Error("Failed to convert int to Bigint")
       }
-    | `Float(_) => Error("Float values not yet supported in JsonCodec")
-    | `String(_) => Error("String values not yet supported in JsonCodec")
-    | `Bool(_) => Error("Bool values not yet supported in JsonCodec")
-    | `List(_) => Error("List values not yet supported in JsonCodec")
-    | `Assoc(_) => Error("Object values not yet supported in JsonCodec")
+    | `Float(f) when f < 0.0 =>
+      Ok(
+        Language.IdTagged.FreshGrammar.Exp.un_op(
+          Float(Minus),
+          Language.IdTagged.FreshGrammar.Exp.float(-. f),
+        ),
+      )
+    | `Float(f) => Ok(Language.IdTagged.FreshGrammar.Exp.float(f))
+    | `String(s) => Ok(Language.IdTagged.FreshGrammar.Exp.string(s))
+    | `Bool(b) => Ok(Language.IdTagged.FreshGrammar.Exp.bool(b))
+    | `List(json_elements) =>
+      /* Convert each JSON element to a Hazel expression */
+      let rec convert_elements = (acc, remaining) =>
+        switch (remaining) {
+        | [] => Ok(List.rev(acc))
+        | [hd, ...tl] =>
+          switch (yojson_to_exp(hd)) {
+          | Ok(exp_elem) => convert_elements([exp_elem, ...acc], tl)
+          | Error(msg) => Error(msg)
+          }
+        };
+      switch (convert_elements([], json_elements)) {
+      | Ok(exp_elements) =>
+        Ok(Language.IdTagged.FreshGrammar.Exp.list_lit(exp_elements))
+      | Error(msg) => Error(msg)
+      };
+    | `Assoc(pairs) =>
+      /* JSON object: convert to tuple */
+      if (List.length(pairs) == 0) {
+        /* Empty tuple */
+        Ok(Language.IdTagged.FreshGrammar.Exp.tuple([]));
+      } else {
+        let all_numeric =
+          List.for_all(
+            ((key, _value)) =>
+              /* Check if all keys are numeric strings (0, 1, 2, ...) */
+              try({
+                let index = int_of_string(key);
+                index >= 0;
+              }) {
+              | _ => false
+              },
+            pairs,
+          );
+
+        let any_numeric =
+          List.exists(
+            ((key, _value)) =>
+              try({
+                let _ = int_of_string(key);
+                true;
+              }) {
+              | _ => false
+              },
+            pairs,
+          );
+
+        /* Reject mixed numeric/non-numeric keys */
+        if (any_numeric && !all_numeric) {
+          Error("Mixed labeled/unlabeled tuples not supported");
+        } else if (all_numeric) {
+          /* Plain tuple: sort by numeric key and create Parens(Tuple(...)) */
+          let sorted_pairs =
+            List.sort(
+              ((k1, _), (k2, _)) => {
+                let i1 = int_of_string(k1);
+                let i2 = int_of_string(k2);
+                compare(i1, i2);
+              },
+              pairs,
+            );
+          let rec convert_plain_elements = (acc, remaining) =>
+            switch (remaining) {
+            | [] => Ok(List.rev(acc))
+            | [(_key, value), ...tl] =>
+              switch (yojson_to_exp(value)) {
+              | Ok(exp_elem) =>
+                convert_plain_elements([exp_elem, ...acc], tl)
+              | Error(msg) => Error(msg)
+              }
+            };
+          switch (convert_plain_elements([], sorted_pairs)) {
+          | Ok(elements) =>
+            Ok(
+              Language.IdTagged.FreshGrammar.Exp.parens(
+                Language.IdTagged.FreshGrammar.Exp.tuple(elements),
+              ),
+            )
+          | Error(msg) => Error(msg)
+          };
+        } else {
+          /* Labeled tuple: create tuple with TupLabel elements */
+          let rec convert_labeled_elements = (acc, remaining) =>
+            switch (remaining) {
+            | [] => Ok(List.rev(acc))
+            | [(key, value), ...tl] =>
+              switch (yojson_to_exp(value)) {
+              | Ok(exp_elem) =>
+                let labeled_elem =
+                  Language.IdTagged.FreshGrammar.Exp.tup_label(
+                    Language.IdTagged.FreshGrammar.Exp.label(key),
+                    exp_elem,
+                  );
+                convert_labeled_elements([labeled_elem, ...acc], tl);
+              | Error(msg) => Error(msg)
+              }
+            };
+          switch (convert_labeled_elements([], pairs)) {
+          | Ok(elements) =>
+            Ok(Language.IdTagged.FreshGrammar.Exp.tuple(elements))
+          | Error(msg) => Error(msg)
+          };
+        };
+      }
     | `Null => Error("Null values not supported in JsonCodec")
     | `Tuple(_) => Error("Tuple values not yet supported in JsonCodec")
     | `Intlit(_) => Error("Intlit values not yet supported in JsonCodec")
