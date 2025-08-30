@@ -6,10 +6,19 @@ module M = (ExoP: Exo.Info) : Projector => {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type model = Exo.model;
 
+  let model_of_sexp = (sexp: Sexplib.Sexp.t): model =>
+    switch (model_of_sexp(sexp)) {
+    | exception _ => {
+        width: 100,
+        height: 100,
+      }
+    | m => m
+    };
+
   [@deriving (show({with_path: false}), sexp, yojson)]
   type action = Exo.action;
 
-  let init = (any: Language.Any.t) => ExoP.init_test(any);
+  let init = (any: Language.Any.t) => ExoP.init(any);
 
   let focusable = Focusable.non;
   let dynamics = false;
@@ -24,10 +33,10 @@ module M = (ExoP: Exo.Info) : Projector => {
     };
   };
 
-  let update = (model: model, _info, action: action): model =>
+  let update = (_model: model, _info, action: action): model =>
     switch (action) {
     | Resize(w, h) => {
-        ...model,
+        //...model,
         width: w,
         height: h,
       }
@@ -50,10 +59,10 @@ module M = (ExoP: Exo.Info) : Projector => {
         ),
         Attr.id(ExternalProjectorBridge.iframe_id(id)),
         Attr.create("data-projector-id", Id.cls(id)),
-        Attr.create(
-          "data-exo-type",
-          ProjectorCore.Kind.exo_name(model.exo_kind),
-        ),
+        // Attr.create(
+        //   "data-exo-type",
+        //   ProjectorCore.Kind.exo_name(ExoP.exo_kind),
+        // ),
       ],
       [],
     );
@@ -67,8 +76,6 @@ module M = (ExoP: Exo.Info) : Projector => {
         ~parent: external_action => Ui_effect.t(unit),
         ~view_seg as _,
       ) => {
-    /* Create a resize callback that calls local with Resize action */
-
     let entry = Exo.mk_entry(parent, local, info, (module ExoP));
     ExternalProjectorBridge.register(entry);
     View.mk(iframe_view(info.id, entry.url, model));

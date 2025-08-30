@@ -1,121 +1,41 @@
-open Util;
+module Slider: Exo.Info = {
+  let dev = "http://localhost:5173/?min=0&max=100&step=1&";
+  let prod = WebEnv.base_url() ++ "/external/exoslider/?min=0&max=100&step=1&";
 
-/* Slider-specific adapter for ExternalProjectorBridge */
-module SliderAdapter: Exo.Info = {
-  let exo_kind = ProjectorCore.Kind.ExoSlider;
+  let kind = ProjectorCore.Kind.ExoSlider;
 
-  let hazel_origin = WebEnv.window_origin();
-  let hazel_base_url = WebEnv.base_url();
-
-  let dev = "http://localhost:5173";
-  let prod = hazel_base_url ++ "/external/exoslider";
-
-  let target_origin =
-    WebEnv.choose_origin(
-      ~name=ProjectorCore.Kind.exo_name(exo_kind),
-      ~dev,
-      ~prod,
-    );
-
-  let codec_name = ProjectorCore.Kind.exo_name(exo_kind);
-
-  let url = (id: Id.t) =>
-    Printf.sprintf(
-      "%s/?min=%d&max=%d&step=%d&id=%s&parentOrigin=%s",
-      target_origin,
-      0,
-      100,
-      1,
-      Id.to_string(id),
-      hazel_origin,
-    );
-
-  let term_to_string = (term: Language.Term.Any.t): option(string) =>
-    switch (term) {
-    | Exp({term: Atom(Int(i)), _}) => Some(Bigint.to_string(i))
-    | _ => None
-    };
-
-  let string_to_term =
-      (value_str: string, _: Language.Term.Any.t): Language.Term.Any.t =>
-    Exp(
-      Language.IdTagged.FreshGrammar.Exp.big_int(
-        Bigint.of_string(value_str),
-      ),
-    );
-
-  let init_test = (any: Language.Any.t): option(Exo.model) =>
-    switch (term_to_string(any)) {
-    | Some(_) =>
+  let init = (any: Language.Any.t): option(Exo.model) =>
+    switch (any) {
+    | Exp({term: Atom(Int(_)), _}) =>
       Some({
-        exo_kind,
         width: 400,
         height: 160,
       })
-    | None => None
+    | _ => None
     };
 };
 
-/* ValueBuilder adapter for ExternalProjectorBridge */
-module ValueBuilderAdapter: Exo.Info = {
-  let exo_kind = ProjectorCore.Kind.ExoValueBuilder;
-
-  let hazel_origin = WebEnv.window_origin();
-  let hazel_base_url = WebEnv.base_url();
-
+module ValueBuilder: Exo.Info = {
   let dev = "http://localhost:5175";
-  let prod = hazel_base_url ++ "/external/exovaluebuilder";
+  let prod = WebEnv.base_url() ++ "/external/exovaluebuilder";
 
-  let target_origin =
-    WebEnv.choose_origin(
-      ~name=ProjectorCore.Kind.exo_name(exo_kind),
-      ~dev,
-      ~prod,
-    );
+  let kind = ProjectorCore.Kind.ExoValueBuilder;
 
-  let codec_name = ProjectorCore.Kind.exo_name(exo_kind);
-
-  let url = (id: Id.t) =>
-    Printf.sprintf(
-      "%s/?id=%s&parentOrigin=%s",
-      target_origin,
-      Id.to_string(id),
-      hazel_origin,
-    );
-
-  /* Convert Hazel term to JSON string using JsonCodec */
-  let term_to_string = (term: Language.Term.Any.t): option(string) =>
-    switch (HazelProtocol.JsonCodec.any_to_yojson(term)) {
-    | Ok(json) => Some(Yojson.Safe.to_string(json))
-    | Error(_) => None
-    };
-
-  /* Convert JSON string to Hazel term using JsonCodec */
-  let string_to_term =
-      (value_str: string, _: Language.Term.Any.t): Language.Term.Any.t =>
-    try({
-      let json = Yojson.Safe.from_string(value_str);
-      switch (HazelProtocol.JsonCodec.yojson_to_any(json)) {
-      | Ok(term) => term
-      | Error(_) =>
-        /* Fallback to integer if JsonCodec fails */
-        Exp(Language.IdTagged.FreshGrammar.Exp.big_int(Bigint.of_int(42)))
-      };
-    }) {
-    | _ =>
-      /* Fallback on parse error */
-      Exp(Language.IdTagged.FreshGrammar.Exp.big_int(Bigint.of_int(42)))
-    };
-
-  /* Accept any expression that JsonCodec can handle */
-  let init_test = (any: Language.Any.t): option(Exo.model) =>
+  let init = (any: Language.Any.t): option(Exo.model) =>
     switch (HazelProtocol.JsonCodec.any_to_yojson(any)) {
     | Ok(_) =>
+      /* Accept any expression that JsonCodec can handle */
+      // TODO: More specific type restriction
       Some({
-        exo_kind,
         width: 795,
-        height: 200 /* Start smaller, let content drive the size */
+        height: 200,
       })
     | Error(_) => None
     };
 };
+
+let module_of_kind = (kind: ProjectorCore.Kind.exo_kind): (module Exo.Info) =>
+  switch (kind) {
+  | ExoSlider => (module Slider)
+  | ExoValueBuilder => (module ValueBuilder)
+  };
