@@ -890,17 +890,17 @@ let for_projection =
         switch (sort) {
         | Exp =>
           switch (exp(unsorted)) {
-          | {term: Tuple(_), _} => None
+          | {term: Tuple(xs), _} when List.length(xs) > 0 => None
           | _ => Some(Grammar.Exp(exp(unsorted)))
           }
         | Pat =>
           switch (pat(unsorted)) {
-          | {term: Tuple(_), _} => None
+          | {term: Tuple(xs), _} when List.length(xs) > 0 => None
           | _ => Some(Pat(pat(unsorted)))
           }
         | Typ =>
           switch (typ(unsorted)) {
-          | {term: Prod(_), _} => None
+          | {term: Prod(xs), _} when List.length(xs) > 0 => None
           | _ => Some(Typ(typ(unsorted)))
           }
         | TPat =>

@@ -36,7 +36,9 @@ type entry = {
 let term_to_string = (term: Language.Term.Any.t): option(string) =>
   switch (HazelProtocol.JsonCodec.any_to_yojson(term)) {
   | Ok(json) => Some(Yojson.Safe.to_string(json))
-  | Error(_) => None
+  | Error(err) =>
+    prerr_endline("term_to_string: " ++ err);
+    None;
   };
 
 /* Convert JSON string to Hazel term using JsonCodec */
@@ -81,14 +83,13 @@ let mk_entry =
       signal,
       inject,
       id: info.id,
-      // codec_name: ProjectorCore.Kind.exo_name(Exo.exo_kind),
       target_origin,
       init_json,
       json_to_segment: (str: string) =>
         info.utility.lift_syntax(string_to_term(str), info.syntax),
       url:
         Printf.sprintf(
-          "%sid=%s&parentOrigin=%s",
+          "%s/?id=%s&parentOrigin=%s",
           target_origin,
           Id.to_string(info.id),
           WebEnv.window_origin(),

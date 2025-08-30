@@ -1,6 +1,6 @@
 module Slider: Exo.Info = {
-  let dev = "http://localhost:5173/?min=0&max=100&step=1&";
-  let prod = WebEnv.base_url() ++ "/external/exoslider/?min=0&max=100&step=1&";
+  let dev = "http://localhost:5173";
+  let prod = WebEnv.base_url() ++ "/external/exoslider";
 
   let kind = ProjectorCore.Kind.ExoSlider;
 
