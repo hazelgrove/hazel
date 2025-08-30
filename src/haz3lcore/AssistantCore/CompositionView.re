@@ -189,6 +189,22 @@ let prepare_definition = (z: Zipper.t, curr_node: AssistantTreeHelper.node) => {
   // z'';
 };
 
+let full_definition =
+    (z: Zipper.t, curr_node: AssistantTreeHelper.node): string => {
+  switch (
+    Select.term(
+      ~defs_exclude_bodies=true,
+      ~case_rules=false,
+      CachedSyntax.init(z).term_data,
+      AssistantTreeHelper.id_of(curr_node),
+      z,
+    )
+  ) {
+  | Some(z'') => printer(z''.selection.content)
+  | None => "Failed to derive full definition"
+  };
+};
+
 let context = (local_information: AssistantTreeHelper.node): string => {
   let info = local_information.info;
   switch (info) {

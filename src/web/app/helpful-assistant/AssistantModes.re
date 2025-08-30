@@ -172,7 +172,7 @@ module Completion = {
 // LLM-based agentic code sysnthesis. Differs from code completion in that it can
 // navigate the program structure, and perform more complex, multi-step edits.
 module Composition = {
-  let max_tool_calls = 10;
+  let max_tool_calls = 40;
 
   // Prompt with appropriate AST context for each message.
   // The default information as of now is as follows:
@@ -181,11 +181,11 @@ module Composition = {
   // Parent node: <name>
   // Children nodes: [<name>, <name>, ...]
   // Static errors: <errors>
-  let mk_local_code_map_prompt =
+  let mk_structured_code_map_prompt =
       (_: ChatLSP.Options.t, editor: CodeWithStatics.Model.t)
       : (OpenRouter.message, AssistantModel.display) => {
     print_endline(
-      "here #a before building sub AST in mk_local_code_map_prompt",
+      "here #a before building sub AST in mk_structured_code_map_prompt",
     );
     let curr_node_info =
       AssistantTreeHelper.build_curr_node_info(
@@ -193,7 +193,7 @@ module Composition = {
         editor.statics.info_map,
       );
     print_endline(
-      "here #b after building sub AST in mk_local_code_map_prompt",
+      "here #b after building sub AST in mk_structured_code_map_prompt",
     );
 
     switch (curr_node_info) {
@@ -241,19 +241,15 @@ module Composition = {
           collapsed: true,
         },
       );
-    | Some(curr_node_info) =>
-      let curr_node_str = "Current node: " ++ curr_node_info.name;
+    | Some(curr_node) =>
+      let curr_node_str = "Current node: " ++ curr_node.name;
       // This shows the path to the current node now, rather than just the parent node
-      let parent_node_str =
-        switch (curr_node_info.parent) {
-        | Some(parent) =>
-          "Path to node: "
-          ++ AssistantTreeHelper.get_path_to_node(
-               parent.info,
-               editor.statics.info_map,
-             )
-        | None => "No parent node, you are at the top level of the program's AST."
-        };
+      let path_to_node_str =
+        "Path to node: "
+        ++ AssistantTreeHelper.get_path_to_node(
+             curr_node,
+             editor.statics.info_map,
+           );
       let siblings_nodes_str =
         "Sibling nodes: ["
         ++ String.concat(
@@ -261,7 +257,7 @@ module Composition = {
              List.mapi(
                (index, node: AssistantTreeHelper.node) =>
                  node.name ++ " (index: " ++ string_of_int(index) ++ ")",
-               curr_node_info.siblings,
+               curr_node.siblings,
              ),
            )
         ++ "]";
@@ -272,23 +268,36 @@ module Composition = {
              List.mapi(
                (index, node: AssistantTreeHelper.node) =>
                  node.name ++ " (index: " ++ string_of_int(index) ++ ")",
-               curr_node_info.children,
+               curr_node.children,
              ),
            )
         ++ "]";
 
+      let ast_info_str =
+        String.concat(
+          "\n",
+          [
+            "<AST information>",
+            curr_node_str,
+            path_to_node_str,
+            siblings_nodes_str,
+            children_nodes_str,
+            "</AST information>",
+          ],
+        );
+
       let prepped_z =
         CompositionView.prepare_definition(
           editor.editor.state.zipper,
-          curr_node_info,
+          curr_node,
         );
 
       let prepped_z_hd_str =
         "Definition of \""
-        ++ curr_node_info.name
+        ++ curr_node.name
         ++ "\"'s parent "
         ++ (
-          switch (curr_node_info.parent) {
+          switch (curr_node.parent) {
           | Some(parent) => "\"" ++ parent.name ++ "\""
           | None => "(no parent, displaying entire top level of the program)"
           }
@@ -309,18 +318,8 @@ module Composition = {
         | _ => "\nStatic errors: " ++ String.concat(", ", static_errors)
         };
 
-      let ast_info_str =
-        String.concat(
-          "\n",
-          [
-            "<AST information>",
-            curr_node_str,
-            parent_node_str,
-            siblings_nodes_str,
-            children_nodes_str,
-            "</AST information>",
-          ],
-        );
+      let refs_in_str =
+        CompositionView.str_refs_in(curr_node, editor.statics.info_map);
 
       let sketch_info_str =
         String.concat(
@@ -328,23 +327,25 @@ module Composition = {
           [
             "<Sketch information>",
             def_str,
+            refs_in_str,
             static_errors_str,
             "</Sketch information>",
           ],
         );
 
-      let local_code_map_str =
+      let structured_code_map_str =
         String.concat("\n", [ast_info_str, sketch_info_str]);
 
       (
-        OpenRouter.mk_user_msg(local_code_map_str),
+        OpenRouter.mk_user_msg(structured_code_map_str),
         {
-          displayable_content: [
-            Text(ast_info_str ++ prepped_z_hd_str),
-            Code(prepped_z),
-            Text(prepped_z_tl_str ++ static_errors_str),
-          ],
-          raw_content: local_code_map_str,
+          displayable_content: [Text(structured_code_map_str)],
+          // [
+          //   Text(String.concat("\n", [ast_info_str, prepped_z_hd_str])),
+          //   Code(prepped_z),
+          //   Text(prepped_z_tl_str ++ static_errors_str),
+          // ],
+          raw_content: structured_code_map_str,
           collapsed: true,
         },
       );
@@ -381,14 +382,27 @@ module Composition = {
   // AddToolLabel_2.0: handle the effects of the action on the editor itself
   let apply_action =
       (
+        ~z: Zipper.t,
+        ~info_map: Id.Map.t(Info.t),
         ~action: CompositionTools.action,
         ~schedule_action: Editors.Update.t => unit,
       )
       : result => {
-    let (result, actions) = (
-      "todo. no result feedback yet, see newly generated local code map/sketch context.",
-      [Action.AssistantComposition(action)],
-    );
+    let (result, actions) =
+      switch (action) {
+      | Read(r) =>
+        let res =
+          switch (r) {
+          | ViewEntireDefintion =>
+            switch (AssistantTreeHelper.build_curr_node_info(z, info_map)) {
+            | Some(node) => CompositionView.full_definition(z, node)
+            | None => "Failed to derive full definition"
+            }
+          | ShowUseSites => "todo"
+          };
+        (res, []);
+      | _ => ("", [Action.AssistantComposition(action)])
+      };
     // Apply actions to the editor
     schedule_actions(~actions, ~schedule_action);
     // Return the result (tool call response)

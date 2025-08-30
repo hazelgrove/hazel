@@ -18,7 +18,7 @@ let tools = [
   EditTools.delete_body,
   EditTools.insert_after,
   EditTools.insert_before,
-  //ViewTools.view_definition,
+  ViewTools.view_entire_definition,
 ];
 
 type action = Action.composition_action;
@@ -62,8 +62,6 @@ let action_of = (~tool_name: string, ~args: Maps.StringMap.t(string)): action =>
         name,
       );
     Nav(GoToBindingSite(name, index));
-  | "view_entire_definition" => Read(ViewEntireDefintion)
-  | "show_use_sites" => Read(ShowUseSites)
   | "update_all" =>
     let code =
       OptUtil.get_or_fail(
@@ -115,6 +113,8 @@ let action_of = (~tool_name: string, ~args: Maps.StringMap.t(string)): action =>
     Edit(InsertBefore(code));
   | "delete_binding_clause" => Edit(DeleteBindingClause)
   | "delete_body" => Edit(DeleteBody)
+  | "view_entire_definition" => Read(ViewEntireDefintion)
+  | "show_use_sites" => Read(ShowUseSites)
   | _ => raise(Failure("The tool called does not exist."))
   };
 };
@@ -175,8 +175,6 @@ let string_of = (action: action) => {
       }
     )
     ++ ")"
-  | Read(ViewEntireDefintion) => "view_entire_definition"
-  | Read(ShowUseSites) => "show_use_sites"
   | Edit(UpdateAll(code)) => "update_all(\"" ++ code ++ "\")"
   | Edit(UpdateDefinition(code)) => "update_definition(\"" ++ code ++ "\")"
   | Edit(UpdateBody(code)) => "update_body(\"" ++ code ++ "\")"
@@ -187,6 +185,8 @@ let string_of = (action: action) => {
   | Edit(DeleteBody) => "delete_body"
   | Edit(InsertAfter(code)) => "insert_after(\"" ++ code ++ "\")"
   | Edit(InsertBefore(code)) => "insert_before(\"" ++ code ++ "\")"
+  | Read(ViewEntireDefintion) => "view_entire_definition"
+  | Read(ShowUseSites) => "show_use_sites"
   };
 };
 

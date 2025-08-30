@@ -129,7 +129,7 @@ let update =
           let content_message: Model.message =
             mk_user_content_message(~content, ~role=User, ~editor);
           let (local_code_map_str, display) =
-            AssistantModes.Composition.mk_local_code_map_prompt(
+            AssistantModes.Composition.mk_structured_code_map_prompt(
               ChatLSP.Options.init,
               editor,
             );
@@ -183,7 +183,7 @@ let update =
             SendMessage(Composition(Intermediate, eval_mode), None, chat_id),
           );
           let (local_code_map_str, display) =
-            AssistantModes.Composition.mk_local_code_map_prompt(
+            AssistantModes.Composition.mk_structured_code_map_prompt(
               ChatLSP.Options.init,
               editor,
             );
@@ -205,7 +205,7 @@ let update =
               let response_message: Model.message = {
                 content:
                   // TODO: fix this logic, because it is messy and redundant.
-                  // We should maybe have mk_local_code_map_prompt always
+                  // We should maybe have mk_structured_code_map_prompt always
                   // return an openrouter tool message, and deliberately inject
                   // an assistant tool call and tool response initially...
                   // or, if that is not feasible, then we should make the logic flow
@@ -612,6 +612,8 @@ let update =
           );
         let apply_action =
           AssistantModes.Composition.apply_action(
+            ~z=editor.editor.state.zipper,
+            ~info_map=editor.statics.info_map,
             ~schedule_action=schedule_editor_action,
           );
         apply_structure_action(

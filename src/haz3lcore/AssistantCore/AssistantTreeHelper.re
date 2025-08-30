@@ -148,8 +148,7 @@ let rec parent_node_of =
   | _ => None
   };
 
-let get_path_to_node =
-    (curr_term: Info.t, info_map: Id.Map.t(Info.t)): string => {
+let get_path_to_node = (curr_node: node, info_map: Id.Map.t(Info.t)): string => {
   let rec path_to_node = (node: node, path_so_far: string) => {
     switch (
       parent_node_of(Info.ancestors_of(node.info), node.info, info_map)
@@ -164,18 +163,7 @@ let get_path_to_node =
     };
   };
   // Find lowest enclosing let/type binding then continue to bubble up to the root
-  switch (
-    {
-      List.find_map(
-        ancestor =>
-          least_upper_binding_node(Id.Map.find_opt(ancestor, info_map)),
-        [Info.id_of(curr_term), ...Info.ancestors_of(curr_term)],
-      );
-    }
-  ) {
-  | Some(node) => path_to_node(node, node.name)
-  | None => raise(Failure("No node found"))
-  };
+  path_to_node(curr_node, curr_node.name);
 };
 
 // Builds a localized AST centered around the current node
