@@ -38,7 +38,7 @@ export function BaseTypeEditor({ value, type, onChange }: BaseTypeEditorProps) {
     border: "1px solid #ccc",
     borderRadius: "3px",
     fontSize: "14px",
-    backgroundColor: "grey",
+    backgroundColor: "#f3f3f3",
     width: type === "string" ? "200px" : "100px",
   };
 

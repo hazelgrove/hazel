@@ -53,7 +53,7 @@ module Kind = {
   let exo_name = (ek: exo_kind): string =>
     switch (ek) {
     | ExoSlider => "exoslider"
-    | ExoValueBuilder => "exovaluebuilder"
+    | ExoValueBuilder => "exobuilder"
     };
 
   let name = (p: t): string =>
@@ -76,7 +76,7 @@ module Kind = {
   let exo_of_name = (name: string): exo_kind =>
     switch (name) {
     | "exoslider" => ExoSlider
-    | "exovaluebuilder" => ExoValueBuilder
+    | "exobuilder" => ExoValueBuilder
     | _ => failwith("Unknown external projector kind")
     };
 
@@ -92,7 +92,7 @@ module Kind = {
     | "livelit" => Livelit
     | "card" => Card
     | "exoslider" => Exo(ExoSlider)
-    | "exovaluebuilder" => Exo(ExoValueBuilder)
+    | "exobuilder" => Exo(ExoValueBuilder)
     | _ => failwith("Unknown projector kind")
     };
 

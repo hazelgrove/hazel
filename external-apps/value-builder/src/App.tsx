@@ -70,10 +70,10 @@ function App() {
       <div style={leftPanelStyle}>
         <div style={headerStyle}>
           <h2 style={{ margin: 0, marginBottom: "8px" }}>Value Builder</h2>
-          <div style={{ fontSize: "14px" }}>
+          {/* <div style={{ fontSize: "14px" }}>
             <strong>Connection:</strong>{" "}
             {isConnected ? "✅" : "⚠️ Waiting for Hazel..."}
-          </div>
+          </div> */}
         </div>
 
         <div style={quickTestStyle}>

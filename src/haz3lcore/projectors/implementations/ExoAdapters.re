@@ -93,8 +93,8 @@ module ValueBuilderAdapter: Exo.Info = {
     | Ok(_) =>
       Some({
         exo_kind,
-        width: 800,
-        height: 450,
+        width: 795,
+        height: 440,
       })
     | Error(_) => None
     };

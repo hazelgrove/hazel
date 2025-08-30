@@ -78,15 +78,15 @@ export function ListEditor({ value, onChange, path, level }: ListEditorProps) {
   return (
     <div style={containerStyle}>
       <div style={headerStyle}>
-        <strong>List (length {list.length})</strong>
+        <strong>List</strong>
         <button onClick={addItem} style={buttonStyle}>
-          + Add Item
+          +
         </button>
       </div>
 
       {list.length === 0 && (
         <div style={{ color: "#666", fontStyle: "italic", padding: "8px" }}>
-          Empty list. Click "Add Item" to start.
+          Empty list. Click "+" to start.
         </div>
       )}
 
@@ -98,8 +98,9 @@ export function ListEditor({ value, onChange, path, level }: ListEditorProps) {
               onClick={() => removeItem(index)}
               style={{
                 ...buttonStyle,
-                backgroundColor: "#ffebee",
-                borderColor: "#f44336",
+                backgroundColor: "#0000",
+                borderColor: "#0000",
+                color: "red",
               }}
               title="Remove"
             >

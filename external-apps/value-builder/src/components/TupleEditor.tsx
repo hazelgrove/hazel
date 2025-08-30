@@ -85,13 +85,13 @@ export function TupleEditor({
       <div style={headerStyle}>
         <strong> {keys.length}-Tuple </strong>
         <button onClick={addElement} style={buttonStyle}>
-          + Add Element
+          +
         </button>
       </div>
 
       {keys.length === 0 && (
         <div style={{ color: "#666", fontStyle: "italic", padding: "8px" }}>
-          Empty tuple. Click "Add Element" to start.
+          Empty tuple. Click "+" to start.
         </div>
       )}
 
@@ -107,8 +107,9 @@ export function TupleEditor({
                 onClick={() => removeElement(index)}
                 style={{
                   ...buttonStyle,
-                  backgroundColor: "#ffebee",
-                  borderColor: "#f44336",
+                  backgroundColor: "#0000",
+                  borderColor: "#0000",
+                  color: "red",
                 }}
                 title="Remove element"
               >

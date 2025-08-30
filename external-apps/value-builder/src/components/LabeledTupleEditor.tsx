@@ -76,16 +76,15 @@ export function LabeledTupleEditor({
     display: "flex",
     alignItems: "center",
     gap: "4px",
-    marginBottom: "8px",
-    padding: "4px",
-    backgroundColor: "#ffffff",
-    borderRadius: "3px",
-    border: "1px solid #ddd",
+    // padding: "4px",
+    // backgroundColor: "#ffffff",
+    // borderRadius: "3px",
+    // border: "1px solid #ddd",
   };
 
   const fieldContainerStyle: React.CSSProperties = {
     display: "flex",
-    alignItems: "flex-start",
+    alignItems: "center",
     gap: "8px",
     marginBottom: "8px",
   };
@@ -94,7 +93,7 @@ export function LabeledTupleEditor({
     minWidth: "80px",
     padding: "4px",
     // fontSize: "12px",
-    fontWeight: "bold",
+    // fontWeight: "bold",
     color: "#333",
   };
 
@@ -119,32 +118,30 @@ export function LabeledTupleEditor({
     <div style={containerStyle}>
       <div style={headerStyle}>
         <strong>Labeled {labels.length}-Tuple</strong>
-      </div>
-
-      <div style={addFieldStyle}>
-        <span style={{ fontSize: "12px" }}>Add field:</span>
-        <input
-          type="text"
-          value={newLabelName}
-          onChange={(e) => setNewLabelName(e.target.value)}
-          onKeyPress={(e) => e.key === "Enter" && addField()}
-          placeholder="field name"
-          style={inputStyle}
-        />
-        <button
-          onClick={addField}
-          disabled={
-            !newLabelName.trim() || labels.includes(newLabelName.trim())
-          }
-          style={buttonStyle}
-        >
-          + Add
-        </button>
+        <div style={addFieldStyle}>
+          <input
+            type="text"
+            value={newLabelName}
+            onChange={(e) => setNewLabelName(e.target.value)}
+            onKeyPress={(e) => e.key === "Enter" && addField()}
+            placeholder="New field name"
+            style={inputStyle}
+          />
+          <button
+            onClick={addField}
+            disabled={
+              !newLabelName.trim() || labels.includes(newLabelName.trim())
+            }
+            style={buttonStyle}
+          >
+            +
+          </button>
+        </div>
       </div>
 
       {labels.length === 0 && (
         <div style={{ color: "#666", fontStyle: "italic", padding: "8px" }}>
-          Empty labeled tuple. Add a field to start.
+          Empty labeled tuple. Add a field (+) to start.
         </div>
       )}
 
@@ -154,8 +151,9 @@ export function LabeledTupleEditor({
             onClick={() => removeField(label)}
             style={{
               ...buttonStyle,
-              backgroundColor: "#ffebee",
-              borderColor: "#f44336",
+              backgroundColor: "#0000",
+              borderColor: "#0000",
+              color: "red",
             }}
             title="Remove field"
           >
