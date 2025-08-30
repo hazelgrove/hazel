@@ -44,7 +44,7 @@ module SliderAdapter: Exo.Info = {
       ),
     );
 
-  let init_test = (any: Language.Any.t): option(Exo.exo_model) =>
+  let init_test = (any: Language.Any.t): option(Exo.model) =>
     switch (term_to_string(any)) {
     | Some(_) =>
       Some({
@@ -108,7 +108,7 @@ module ValueBuilderAdapter: Exo.Info = {
     };
 
   /* Accept any expression that JsonCodec can handle */
-  let init_test = (any: Language.Any.t): option(Exo.exo_model) =>
+  let init_test = (any: Language.Any.t): option(Exo.model) =>
     switch (HazelProtocol.JsonCodec.any_to_yojson(any)) {
     | Ok(_) =>
       Some({

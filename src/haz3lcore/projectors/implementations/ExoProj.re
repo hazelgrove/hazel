@@ -4,11 +4,10 @@ open ProjectorBase;
 
 module M = (ExoP: Exo.Info) : Projector => {
   [@deriving (show({with_path: false}), sexp, yojson)]
-  type model = Exo.exo_model;
+  type model = Exo.model;
 
   [@deriving (show({with_path: false}), sexp, yojson)]
-  type action =
-    | Resize(int, int);
+  type action = Exo.action;
 
   let init = (any: Language.Any.t) => ExoP.init_test(any);
 
@@ -69,9 +68,8 @@ module M = (ExoP: Exo.Info) : Projector => {
         ~view_seg as _,
       ) => {
     /* Create a resize callback that calls local with Resize action */
-    let resize_signal = (width: int, height: int) =>
-      local(Resize(width, height));
-    let entry = Exo.mk_entry(parent, resize_signal, info, (module ExoP));
+
+    let entry = Exo.mk_entry(parent, local, info, (module ExoP));
     ExternalProjectorBridge.register(entry);
     View.mk(iframe_view(info.id, entry.url, model));
   };

@@ -1,11 +1,15 @@
 open Util;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
-type exo_model = {
+type model = {
   exo_kind: ProjectorCore.Kind.exo_kind,
   width: int,
   height: int,
 };
+
+[@deriving (show({with_path: false}), sexp, yojson)]
+type action =
+  | Resize(int, int);
 
 module type Info = {
   let exo_kind: ProjectorCore.Kind.exo_kind;
@@ -14,7 +18,7 @@ module type Info = {
   let string_to_term: (string, Language.Term.Any.t) => Language.Term.Any.t;
   let target_origin: string;
   let url: Id.t => string;
-  let init_test: Language.Term.Any.t => option(exo_model);
+  let init_test: Language.Term.Any.t => option(model);
 };
 
 /* Registry entry storing callback, info, codec, and target origin */
@@ -26,16 +30,16 @@ type entry = {
   codec_name: string,
   init_json: string,
   json_to_segment: string => option(Base.segment),
-  signal: ProjectorBase.external_action => Ui_effect.t(unit),
-  /* Resize callback specific to this projector instance */
   [@sexp.opaque] [@yojson.opaque]
-  resize_signal: (int, int) => Ui_effect.t(unit),
+  signal: ProjectorBase.external_action => Ui_effect.t(unit),
+  [@sexp.opaque] [@yojson.opaque]
+  inject: action => Ui_effect.t(unit),
 };
 
 let mk_entry =
     (
       signal: ProjectorBase.external_action => Ui_effect.t(unit),
-      resize_signal: (int, int) => Ui_effect.t(unit),
+      inject: action => Ui_effect.t(unit),
       info: ProjectorBase.info,
       module Exo: Info,
     )
@@ -48,7 +52,7 @@ let mk_entry =
   ) {
   | Some(init_json) => {
       signal,
-      resize_signal,
+      inject,
       id: info.id,
       codec_name: Exo.codec_name,
       target_origin: Exo.target_origin,

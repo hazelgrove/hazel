@@ -110,7 +110,7 @@ let handle_resize =
   /* Trigger projector update through MVU loop */
   switch (global_effect_schedule^) {
   | Some(scheduler) =>
-    scheduler(entry.resize_signal(constrained_width, constrained_height))
+    scheduler(entry.inject(Resize(constrained_width, constrained_height)))
   | None => prerr_endline("resize: no scheduler set")
   };
 
