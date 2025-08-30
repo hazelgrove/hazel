@@ -25,9 +25,9 @@ a:hover {
 body {
   margin: 0;
   display: flex;
-  place-items: center;
-  min-width: 320px;
-  min-height: 100vh;
+  /* place-items: center; */
+  /* min-width: 320px;
+  min-height: 100vh; */
 }
 
 h2 {
@@ -40,15 +40,15 @@ button {
   border: 1px solid transparent;
   padding: 0.6em 1.2em;
   color: black;
-  /* font-size: 1em; */
   font-weight: 500;
   font-family: inherit;
   background-color: #e1e1e1;
   cursor: pointer;
   transition: border-color 0.25s;
+  border-left: 1px solid #a6a6a6;
 }
 button:hover {
-  border-color: #646cff;
+  background-color: #d1d1d1;
 }
 button:focus,
 button:focus-visible {

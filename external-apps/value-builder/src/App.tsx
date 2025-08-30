@@ -80,11 +80,11 @@ function App() {
       <div style={leftPanelStyle}>
         <div style={headerStyle}>
           <h2 style={{ margin: 0, marginBottom: "8px" }}>Value Builder</h2>
-          {constraints && (
+          {/* {constraints && (
             <div style={{ fontSize: "12px", color: "#666" }}>
               Max: {constraints.maxWidth}×{constraints.maxHeight}px
             </div>
-          )}
+          )} */}
         </div>
 
         <div style={quickTestStyle}>
