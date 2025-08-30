@@ -35,43 +35,18 @@ let print =
     | None => print("DEBUG: No indicated index")
     };
   | "F8" =>
-    let info_map = editor.statics.info_map;
-    let zipper = editor.editor.state.zipper;
-    let zipper = move_to_non_whitespace(zipper);
-    let cursor = Indicated.ci_of(zipper, info_map);
-    switch (cursor) {
-    | Some(ci) =>
-      print_endline("Curr ID: " ++ Id.to_string(Info.id_of(ci)) ++ "\n");
-      let ancestors = Info.ancestors_of(ci);
-      List.iter(
-        (ancestor: Uuidm.t) => {
-          print_endline("Ancestor ID: " ++ Uuidm.to_string(ancestor))
-        },
-        ancestors,
-      );
-    | None => print("DEBUG: No cursor found")
-    };
+    // print the id of the current tile
+    print(
+      Id.to_string(Info.id_of(Option.get(Indicated.ci_of(zipper, map)))),
+    )
   | "F9" =>
-    let references =
-      CompositionUtil.View.references_in(
+    print(
+      CompositionView.str_refs_in(
+        ~exclude_rec_refs=false,
+        ~exclude_body_refs=false,
         get_node(build_curr_node_info(zipper, map)),
         map,
-      );
-    let reference_strings =
-      List.mapi(
-        (i: int, binding: Binding.t) =>
-          string_of_int(i)
-          ++ ": "
-          ++ Id.to_string(binding.id)
-          ++ " ("
-          ++ binding.name
-          ++ ")",
-        references,
-      );
-    print_endline(
-      "Variables referenced: ["
-      ++ String.concat(", ", reference_strings)
-      ++ "]",
+      ),
     );
     ();
   | "F10" =>
@@ -125,7 +100,7 @@ let print =
   | "F11" =>
     //simple curr node id print
     let _ =
-      CompositionUtil.View.prepare_definition(
+      CompositionView.prepare_definition(
         zipper,
         get_node(build_curr_node_info(zipper, map)),
       );

@@ -103,16 +103,27 @@ type nav_action =
   // Jumps to the root node of the AST
   | GoToSibling(via)
   // Goes to the binding site of the indicated variable
-  | GoToBindingSite(string, option(int));
+  | GoToBindingSite(string, option(int))
+  | GoToUseSite(string, option(int));
 
 // --- File-Read Actions ---
 // These actions are used purely to read information from the program,
 // and do not modify the program or the cursor location in the AST.
+//    Note: We supply several "things to read" to the agent by default
+//          on each iteration:
+//              - AST Info
+//              - structure-based code map
+//              - variables referenced
+//              - static error info
+//         We could, technically, move any of these to here, but need to consider implications
+//         of doing so
 
 [@deriving (show({with_path: false}), sexp, yojson, eq)]
 type read_action =
-  // Displays the definition of the current node in the AST
-  | ViewDefinition;
+  // Lists all the use sites of the indicated variable
+  | ShowUseSites
+  // Displays the entire definition of the current node, with no child/sub definitions abstracted away
+  | ViewEntireDefintion;
 
 // --- Edit Actions ---
 // These actions are used to modify the program. They do provide additional

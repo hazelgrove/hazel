@@ -8,6 +8,7 @@ let tools = [
   NavTools.go_to_parent,
   NavTools.go_to_child,
   NavTools.go_to_sibling,
+  NavTools.go_to_binding_site,
   EditTools.update_all,
   EditTools.update_definition,
   EditTools.update_body,
@@ -54,7 +55,15 @@ let action_of = (~tool_name: string, ~args: Maps.StringMap.t(string)): action =>
         name,
       );
     Nav(GoToSibling(NameAndIdx(name, index)));
-  | "view_definition" => Read(ViewDefinition)
+  | "go_to_binding_site" =>
+    let name =
+      OptUtil.get_or_fail(
+        "You must specify a name for the variable you wish to navigate to",
+        name,
+      );
+    Nav(GoToBindingSite(name, index));
+  | "view_entire_definition" => Read(ViewEntireDefintion)
+  | "show_use_sites" => Read(ShowUseSites)
   | "update_all" =>
     let code =
       OptUtil.get_or_fail(
@@ -135,6 +144,15 @@ let string_of = (action: action) => {
       }
     )
     ++ ")"
+  | Nav(GoToSibling(Stepwise(d))) =>
+    "go_to_sibling("
+    ++ (
+      switch (d) {
+      | Left => "Prev"
+      | Right => "Next"
+      }
+    )
+    ++ ")"
   | Nav(GoToBindingSite(name, index)) =>
     "go_to_binding_site(\""
     ++ name
@@ -146,16 +164,19 @@ let string_of = (action: action) => {
       }
     )
     ++ ")"
-  | Nav(GoToSibling(Stepwise(d))) =>
-    "go_to_sibling("
+  | Nav(GoToUseSite(name, index)) =>
+    "go_to_use_site(\""
+    ++ name
+    ++ "\""
     ++ (
-      switch (d) {
-      | Left => "Prev"
-      | Right => "Next"
+      switch (index) {
+      | Some(index) => ", " ++ string_of_int(index)
+      | None => ""
       }
     )
     ++ ")"
-  | Read(ViewDefinition) => "view_definition"
+  | Read(ViewEntireDefintion) => "view_entire_definition"
+  | Read(ShowUseSites) => "show_use_sites"
   | Edit(UpdateAll(code)) => "update_all(\"" ++ code ++ "\")"
   | Edit(UpdateDefinition(code)) => "update_definition(\"" ++ code ++ "\")"
   | Edit(UpdateBody(code)) => "update_body(\"" ++ code ++ "\")"
@@ -337,8 +358,7 @@ module Perform = {
           }
         | GoToBindingSite(who, which) =>
           // Returns a list of binding sites (id, name)
-          let cands =
-            CompositionUtil.View.references_in(node, mk_statics(z));
+          let cands = CompositionView.refs_in(node, mk_statics(z));
           // We want to do the following:
           // 1. Find the target variable based on the args provided
           // 2. Navigate to the binding site of this target variable
@@ -363,8 +383,13 @@ module Perform = {
           | Some(z'') => Ok(z'')
           | None => Error(Action.Failure.Cant_move)
           };
+        | GoToUseSite(_who, _which) => Ok(z)
         }
-      | Read(_r) => Ok(z) // todo
+      | Read(r) =>
+        switch (r) {
+        | ShowUseSites => Ok(z)
+        | ViewEntireDefintion => Ok(z)
+        }
       | Edit(e) =>
         // let select_curr_node = z => {
         //   // Recalculate info map with new statics and measurements to assert fresh, non-stale state

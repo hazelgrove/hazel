@@ -730,3 +730,9 @@ let rec fold_left_opt =
     }
   };
 };
+
+let intersection = (xs, ys) =>
+  List.filter((x: 'a) => List.exists((y: 'a) => x == y, ys), xs);
+
+let intersection_f = (f: 'a => 'b, xs, ys) =>
+  List.filter((x: 'a) => List.exists((y: 'a) => f(x) == f(y), ys), xs);

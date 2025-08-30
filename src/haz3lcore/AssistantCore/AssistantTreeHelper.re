@@ -273,6 +273,7 @@ let build_curr_node_info =
           | FixF(_, e, _)
           | Use(_, e)
           | TypAp(e, _)
+          | TypFun(_, e, _)
           | DeferredAp(e, _)
           | Seq(e, _)
           | HintedTest(e, _) =>
@@ -319,7 +320,6 @@ let build_curr_node_info =
           | Deferral(_)
           | Atom(_)
           | Constructor(_, _)
-          | TypFun(_, _, _)
           | LivelitName(_)
           | Var(_) => children
           }

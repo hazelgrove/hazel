@@ -278,7 +278,7 @@ module Composition = {
         ++ "]";
 
       let prepped_z =
-        CompositionUtil.View.prepare_definition(
+        CompositionView.prepare_definition(
           editor.editor.state.zipper,
           curr_node_info,
         );
@@ -294,7 +294,7 @@ module Composition = {
           }
         )
         ++ "\":\n```";
-      let prepped_z_str = CompositionUtil.View.printer(prepped_z);
+      let prepped_z_str = CompositionView.printer(prepped_z);
       let prepped_z_tl_str = "```";
       let def_str =
         String.concat(
@@ -341,7 +341,7 @@ module Composition = {
         {
           displayable_content: [
             Text(ast_info_str ++ prepped_z_hd_str),
-            //Code(sketch_seg), //todo: avoid skel failures
+            Code(prepped_z),
             Text(prepped_z_tl_str ++ static_errors_str),
           ],
           raw_content: local_code_map_str,
