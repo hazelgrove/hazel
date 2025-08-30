@@ -156,9 +156,6 @@ export function ADTEditor({ value, onChange, path, level }: ADTEditorProps) {
 
       {hasPayload && (
         <div>
-          <div style={{ fontSize: "12px", color: "#666", marginBottom: "4px" }}>
-            Payload:
-          </div>
           <ValueNode
             value={adt.v}
             onChange={updatePayload}
@@ -167,10 +164,6 @@ export function ADTEditor({ value, onChange, path, level }: ADTEditorProps) {
           />
         </div>
       )}
-
-      <div style={{ fontSize: "11px", color: "#666", marginTop: "4px" }}>
-        JSON: {JSON.stringify(adt)}
-      </div>
     </div>
   );
 }

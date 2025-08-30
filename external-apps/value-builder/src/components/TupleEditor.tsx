@@ -51,7 +51,7 @@ export function TupleEditor({
   };
 
   const containerStyle: React.CSSProperties = {
-    border: "1px dashed #8bc34a",
+    borderLeft: "1px dashed #8bc34a",
     borderRadius: "4px",
     padding: "8px",
     backgroundColor: "#f1f8e9",
@@ -83,7 +83,7 @@ export function TupleEditor({
   return (
     <div style={containerStyle}>
       <div style={headerStyle}>
-        <strong>Tuple ({keys.length} elements)</strong>
+        <strong> {keys.length}-Tuple </strong>
         <button onClick={addElement} style={buttonStyle}>
           + Add Element
         </button>
@@ -99,12 +99,21 @@ export function TupleEditor({
         const index = parseInt(key, 10);
         return (
           <div key={key} style={elementContainerStyle}>
-            <div style={{ flex: 1 }}>
-              <div
-                style={{ fontSize: "12px", color: "#666", marginBottom: "4px" }}
+            <div style={{ display: "flex", gap: "6px" }}>
+              {/* <div style={{ fontSize: "12px", color: "#666" }}>
+                {displayIndex}:
+              </div> */}
+              <button
+                onClick={() => removeElement(index)}
+                style={{
+                  ...buttonStyle,
+                  backgroundColor: "#ffebee",
+                  borderColor: "#f44336",
+                }}
+                title="Remove element"
               >
-                ({displayIndex}):
-              </div>
+                ×
+              </button>
               <ValueNode
                 value={obj[key]}
                 onChange={(newValue) => updateElement(index, newValue)}
@@ -112,18 +121,6 @@ export function TupleEditor({
                 level={level + 1}
               />
             </div>
-
-            <button
-              onClick={() => removeElement(index)}
-              style={{
-                ...buttonStyle,
-                backgroundColor: "#ffebee",
-                borderColor: "#f44336",
-              }}
-              title="Remove element"
-            >
-              ×
-            </button>
           </div>
         );
       })}

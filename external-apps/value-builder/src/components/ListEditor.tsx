@@ -40,9 +40,9 @@ export function ListEditor({ value, onChange, path, level }: ListEditorProps) {
   };
 
   const containerStyle: React.CSSProperties = {
-    border: "1px dashed #ccc",
+    borderLeft: "1px solid #ccc",
     borderRadius: "4px",
-    padding: "8px",
+    paddingLeft: "8px",
     backgroundColor: "#f9f9f9",
   };
 
@@ -78,7 +78,7 @@ export function ListEditor({ value, onChange, path, level }: ListEditorProps) {
   return (
     <div style={containerStyle}>
       <div style={headerStyle}>
-        <strong>List ({list.length} items)</strong>
+        <strong>List (length {list.length})</strong>
         <button onClick={addItem} style={buttonStyle}>
           + Add Item
         </button>
@@ -92,37 +92,8 @@ export function ListEditor({ value, onChange, path, level }: ListEditorProps) {
 
       {list.map((item, index) => (
         <div key={index} style={itemContainerStyle}>
-          <div style={{ flex: 1 }}>
-            <div
-              style={{ fontSize: "12px", color: "#666", marginBottom: "4px" }}
-            >
-              [{index}]:
-            </div>
-            <ValueNode
-              value={item}
-              onChange={(newValue) => updateItem(index, newValue)}
-              path={[...path, `[${index}]`]}
-              level={level + 1}
-            />
-          </div>
-
-          <div style={controlsStyle}>
-            <button
-              onClick={() => moveItem(index, "up")}
-              disabled={index === 0}
-              style={buttonStyle}
-              title="Move up"
-            >
-              ↑
-            </button>
-            <button
-              onClick={() => moveItem(index, "down")}
-              disabled={index === list.length - 1}
-              style={buttonStyle}
-              title="Move down"
-            >
-              ↓
-            </button>
+          <div style={{ display: "flex", gap: "6px" }}>
+            {/* <div style={{ fontSize: "12px", color: "#666" }}>{index}:</div> */}
             <button
               onClick={() => removeItem(index)}
               style={{
@@ -134,6 +105,30 @@ export function ListEditor({ value, onChange, path, level }: ListEditorProps) {
             >
               ×
             </button>
+            <div style={controlsStyle}>
+              <button
+                onClick={() => moveItem(index, "up")}
+                disabled={index === 0}
+                style={buttonStyle}
+                title="Move up"
+              >
+                ↑
+              </button>
+              <button
+                onClick={() => moveItem(index, "down")}
+                disabled={index === list.length - 1}
+                style={buttonStyle}
+                title="Move down"
+              >
+                ↓
+              </button>
+            </div>
+            <ValueNode
+              value={item}
+              onChange={(newValue) => updateItem(index, newValue)}
+              path={[...path, `[${index}]`]}
+              level={level + 1}
+            />
           </div>
         </div>
       ))}

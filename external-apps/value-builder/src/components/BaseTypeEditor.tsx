@@ -29,14 +29,16 @@ export function BaseTypeEditor({ value, type, onChange }: BaseTypeEditorProps) {
   };
 
   const containerStyle: React.CSSProperties = {
-    padding: "4px 0",
+    // padding: "4px 0",
+    // display: "flex",
   };
 
   const inputStyle: React.CSSProperties = {
-    padding: "4px 8px",
+    padding: "2.5px 8px",
     border: "1px solid #ccc",
     borderRadius: "3px",
     fontSize: "14px",
+    backgroundColor: "grey",
     width: type === "string" ? "200px" : "100px",
   };
 
@@ -50,7 +52,7 @@ export function BaseTypeEditor({ value, type, onChange }: BaseTypeEditorProps) {
             onChange={handleInputChange}
             style={{ transform: "scale(1.2)" }}
           />
-          <span>{Boolean(value) ? "true" : "false"}</span>
+          {/* <span>{Boolean(value) ? "true" : "false"}</span> */}
         </label>
       </div>
     );

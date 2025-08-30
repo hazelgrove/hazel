@@ -67,7 +67,7 @@ export function ValueNode({
   level = 0,
 }: ValueNodeProps) {
   const valueType = detectValueType(value);
-  const indent = level * 16;
+  const indent = level * 8;
 
   const handleTypeChange = (newType: ValueType) => {
     // Convert value to new type with sensible defaults
@@ -106,11 +106,15 @@ export function ValueNode({
   };
 
   const nodeStyle: React.CSSProperties = {
-    marginLeft: `${indent}px`,
-    border: "1px solid #e0e0e0",
+    // marginLeft: `${indent}px`,
+    // marginLeft: "4px",
+    // border: "1px solid #e0e0e0",
+    borderLeft: "1px solid rgb(166 166 166)",
     borderRadius: "4px",
     padding: "8px",
-    marginBottom: "4px",
+    display: "flex",
+    alignItems: "flex-start",
+    gap: "8px",
     backgroundColor: level % 2 === 0 ? "#fafafa" : "#ffffff",
   };
 
@@ -118,7 +122,7 @@ export function ValueNode({
     display: "flex",
     alignItems: "center",
     gap: "8px",
-    marginBottom: "8px",
+    // marginBottom: "8px",
     fontSize: "14px",
     fontWeight: "bold",
     color: "#333",
@@ -127,7 +131,7 @@ export function ValueNode({
   return (
     <div style={nodeStyle}>
       <div style={headerStyle}>
-        <span>Type:</span>
+        {/* <span>Type</span> */}
         <select
           value={valueType}
           onChange={(e) => handleTypeChange(e.target.value as ValueType)}
@@ -139,14 +143,14 @@ export function ValueNode({
           <option value="bool">Boolean</option>
           <option value="list">List</option>
           <option value="tuple">Tuple</option>
-          <option value="labeled_tuple">Labeled Tuple</option>
+          <option value="labeled_tuple">Labeled</option>
           <option value="adt">ADT</option>
         </select>
-        {path.length > 0 && (
+        {/* {path.length > 0 && (
           <span style={{ fontSize: "12px", color: "#666" }}>
             Path: {path.join(" → ")}
           </span>
-        )}
+        )} */}
       </div>
 
       {(valueType === "int" ||

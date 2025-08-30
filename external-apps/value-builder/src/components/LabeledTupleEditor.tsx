@@ -59,7 +59,7 @@ export function LabeledTupleEditor({
   };
 
   const containerStyle: React.CSSProperties = {
-    border: "1px dashed #ff9800",
+    borderLeft: "1px dashed #ff9800",
     borderRadius: "4px",
     padding: "8px",
     backgroundColor: "#fff3e0",
@@ -93,14 +93,14 @@ export function LabeledTupleEditor({
   const labelStyle: React.CSSProperties = {
     minWidth: "80px",
     padding: "4px",
-    fontSize: "12px",
+    // fontSize: "12px",
     fontWeight: "bold",
     color: "#333",
   };
 
   const buttonStyle: React.CSSProperties = {
     padding: "2px 6px",
-    fontSize: "12px",
+    // fontSize: "12px",
     border: "1px solid #ccc",
     borderRadius: "2px",
     backgroundColor: "#fff",
@@ -109,15 +109,16 @@ export function LabeledTupleEditor({
 
   const inputStyle: React.CSSProperties = {
     padding: "2px 4px",
-    fontSize: "12px",
+    // fontSize: "12px",
     border: "1px solid #ccc",
     borderRadius: "2px",
+    color: "black",
   };
 
   return (
     <div style={containerStyle}>
       <div style={headerStyle}>
-        <strong>Labeled Tuple ({labels.length} fields)</strong>
+        <strong>Labeled {labels.length}-Tuple</strong>
       </div>
 
       <div style={addFieldStyle}>
@@ -149,6 +150,17 @@ export function LabeledTupleEditor({
 
       {labels.map((label) => (
         <div key={label} style={fieldContainerStyle}>
+          <button
+            onClick={() => removeField(label)}
+            style={{
+              ...buttonStyle,
+              backgroundColor: "#ffebee",
+              borderColor: "#f44336",
+            }}
+            title="Remove field"
+          >
+            ×
+          </button>
           <div style={labelStyle}>
             <input
               type="text"
@@ -164,7 +176,7 @@ export function LabeledTupleEditor({
             =
           </div>
 
-          <div style={{ flex: 1 }}>
+          <div style={{ display: "flex" }}>
             <ValueNode
               value={obj[label]}
               onChange={(newValue) => updateField(label, newValue)}
@@ -172,18 +184,6 @@ export function LabeledTupleEditor({
               level={level + 1}
             />
           </div>
-
-          <button
-            onClick={() => removeField(label)}
-            style={{
-              ...buttonStyle,
-              backgroundColor: "#ffebee",
-              borderColor: "#f44336",
-            }}
-            title="Remove field"
-          >
-            ×
-          </button>
         </div>
       ))}
     </div>
