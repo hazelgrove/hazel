@@ -20,17 +20,12 @@ type to_hazel_message =
       id: Id.t,
       width: int,
       height: int,
-    })
-  | RequestFocus({id: Id.t});
+    });
 
 /* Messages sent from parent (Hazel) to child (React app) */
 [@deriving (show({with_path: false}), sexp, yojson)]
 type from_hazel_message =
   | Init({
-      id: Id.t,
-      value: string,
-    })
-  | Update({
       id: Id.t,
       value: string,
     })
@@ -47,7 +42,6 @@ let id_of = (msg: to_hazel_message): Id.t =>
   | Ready({id}) => id
   | SetSyntax({id, _}) => id
   | Resize({id, _}) => id
-  | RequestFocus({id}) => id
   };
 
 let get_string = (obj: Js.t(_), key: string): option(string) =>
@@ -94,7 +88,6 @@ let parse_to_hazel_message = (data: Js.t(_)): option(to_hazel_message) =>
         );
         None;
       }
-    | Some("requestFocus") => Some(RequestFocus({id: id}))
     | Some(action) =>
       prerr_endline(
         "parse_to_hazel_message: unknown message type: " ++ action,
@@ -119,10 +112,6 @@ let from_hazel_to_js = (msg: from_hazel_message): Js.t(_) => {
   switch (msg) {
   | Init({id, value}) =>
     set_attr("type", "init");
-    set_attr("id", Id.to_string(id));
-    set_attr("value", value);
-  | Update({id, value}) =>
-    set_attr("type", "update");
     set_attr("id", Id.to_string(id));
     set_attr("value", value);
   | Constraints({id, max_width, max_height, min_width, min_height}) =>

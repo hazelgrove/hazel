@@ -120,19 +120,11 @@ let handle_resize =
   };
 };
 
-let handle_request_focus = _: unit => {
-  /* TODO: Implement focus handling */
-  prerr_endline(
-    "handle_request_focus: (not implemented)",
-  );
-};
-
 let dispatch = (msg: HazelProtocol.to_hazel_message, entry: Exo.entry): unit =>
   switch (msg) {
   | Ready({id}) => handle_ready(id, entry)
   | SetSyntax({value, _}) => handle_set_syntax(value, entry)
   | Resize({id, width, height}) => handle_resize(id, width, height, entry)
-  | RequestFocus(_) => handle_request_focus(entry)
   };
 
 let registry_lookup = (id: Id.t, origin: string): option(Exo.entry) =>

@@ -66,11 +66,13 @@ module ValueBuilderAdapter: Exo.Info = {
   let dev = "http://localhost:5175";
   let prod = hazel_base_url ++ "/external/exovaluebuilder";
 
+  /* Target origin should be just the origin (scheme+host+port), not full URL
+   * because iframe postMessage events always come from the origin, not the full path */
   let target_origin =
     WebEnv.choose_origin(
       ~name=ProjectorCore.Kind.exo_name(exo_kind),
       ~dev,
-      ~prod,
+      ~prod=hazel_origin /* Use origin, not full path */
     );
 
   let codec_name = ProjectorCore.Kind.exo_name(exo_kind);

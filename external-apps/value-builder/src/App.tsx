@@ -17,13 +17,14 @@ function App() {
   const { setSyntax } = useHazelIntegration({
     id,
     codec: "json", // We'll use our JsonCodec
-    onInit: (value: unknown) => {
+    onInit: (value: string) => {
       console.log("Received init from Hazel:", value);
-      setCurrentValue(value);
-    },
-    onUpdate: (value: unknown) => {
-      console.log("Received update from Hazel:", value);
-      setCurrentValue(value);
+      try {
+        setCurrentValue(JSON.parse(value));
+      } catch {
+        console.warn("Failed to parse init value, using as-is:", value);
+        setCurrentValue(value);
+      }
     },
     onConstraints: (c) => {
       console.log("Received constraints from Hazel:", c);

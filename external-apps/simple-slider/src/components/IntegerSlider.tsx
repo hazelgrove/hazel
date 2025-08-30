@@ -23,23 +23,9 @@ export function IntegerSlider({
   const { setSyntax } = useHazelIntegration({
     id,
     codec: "exoslider",
-    onInit: (hazelValue: any) => {
-      // Convert Hazel value (could be string or number) to integer
-      const intValue =
-        typeof hazelValue === "string"
-          ? parseInt(hazelValue, 10)
-          : Number(hazelValue);
-
-      if (!isNaN(intValue)) {
-        setValue(Math.max(min, Math.min(max, intValue)));
-      }
-    },
-    onUpdate: (hazelValue: any) => {
-      // Handle updates from Hazel (when syntax changes externally)
-      const intValue =
-        typeof hazelValue === "string"
-          ? parseInt(hazelValue, 10)
-          : Number(hazelValue);
+    onInit: (hazelValue: string) => {
+      // Parse initial value from Hazel
+      const intValue = parseInt(hazelValue, 10);
 
       if (!isNaN(intValue)) {
         setValue(Math.max(min, Math.min(max, intValue)));
