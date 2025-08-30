@@ -61,6 +61,17 @@ Copy these **3 files** into your `src/hooks/` directory for maximum convenience:
 
 ### 3. App-Specific Hook (`useHazelIntegration.ts`)
 
+```
+src/
+├── components/
+│   └── MyEditor.tsx            # Core app logic (Hazel-agnostic)
+├── hooks/
+│   ├── hazel-integration-base.ts   # Shared base hook
+│   ├── resize-strategies.ts        # Resize implementations
+│   └── useHazelIntegration.ts      # App-specific wrapper
+└── App.tsx                     # Entry point, uses Hazel integration
+```
+
 ## App Integration Example
 
 ```typescript
@@ -80,7 +91,6 @@ export default function App() {
       setValue(JSON.parse(valueStr));
     },
     onConstraints: (c) => {
-      // Apply size constraints
       document.body.style.maxWidth = `${c.maxWidth}px`;
     },
   });
@@ -115,108 +125,33 @@ export default function App() {
 - Use viewport units that ignore iframe constraints
 - Create horizontal scrolling (respect `maxWidth`)
 
-## Build & Deploy
-
-### Development
-
-```bash
-# Your app on localhost
-npm run dev -- --port 5175
-
-# Hazel automatically points to localhost in dev mode
-```
-
-### Production
-
-```bash
-# Build with relative paths
-npm run build -- --base=./
-
-# Hazel CI copies dist/ to /external/<your-app>/
-# Apps served at https://hazel.org/build/<branch>/external/<your-app>/
-```
-
 ## Hazel Integration (Hazel-side)
 
-To add your app to Hazel, create an adapter in `ExoAdapters.re`:
+We're still working on the Hazel-side integration story; it should become more minimal but for now there's a few steps. Morally what you're doing is providing the URL of the external app, a friendly name for use in the Hazel UI, and a Hazel type to restrict the kinds of data your exolivelit can apply to. However, things are a little bit more manual at the moment.
+
+Depending on who's reading this, either clone the Hazel repo and make the below modifications, or just ask Andrew to do it.
+
+### 1. Create a static identifier for your exolivelit in ProjectorCore.re
+
+This involves adding a case to the `exo_kind` type, and adding cases to related functions. It will suffice to just imitate all occurrences of `ExoValueBuilder` in that file.
+
+### 2. Create an adapter in `ExoAdapters.re`
+
+Add a new entry like the below one AND ALSO hook that in to the `module_of_kind` function. Similar to above, imitate the ValueBuilder case, except actually specifying a manual `prod` URL instead of using the auto-generated hazel repo one. The same init function can be used, or the completely permissive one below, but if you want to restrict what kind of hazel values you want to be able to consume/produce, you'll need a manual predicate. For now it's fine to just be permissive and fail if you recieve data you don't know how to deal with.
 
 ```ocaml
 module MyAppAdapter: Exo.Info = {
-  let exo_kind = ProjectorCore.Kind.ExoMyApp;
-  let codec_name = "json";
-  let target_origin =
-    WebEnv.choose_origin(
-      ~name="myapp",
-      ~dev="http://localhost:5175",
-      ~prod=WebEnv.base_url() ++ "/external/myapp"
-    );
-
-  let url = (id: Id.t) =>
-    Printf.sprintf("%s/?id=%s&parentOrigin=%s",
-      target_origin, Id.to_string(id), WebEnv.window_origin());
-
-  let term_to_string = (term) => (* convert Hazel term to JSON string *);
-  let string_to_term = (str, _) => (* convert JSON string to Hazel term *);
-  let init_test = (any) => Some({exo_kind, width: 400, height: 200});
+  let kind = ProjectorCore.Kind.(* Your new kind from step 1 *);
+  let prod = (* Your public URL for the app *);
+  let dev = (* Your internal dev path/port for your app, if applicable *);
+  let init_test = (any) => Some({
+    width: (* init width in px; *),
+    height: (* init height in px *)
+    });
 };
 ```
 
-## Wrapper Decoupling
-
-Keep Hazel integration separate from your core app:
-
-```
-src/
-├── components/
-│   └── MyEditor.tsx            # Core app logic (Hazel-agnostic)
-├── hooks/
-│   ├── hazel-integration-base.ts   # Shared base hook
-│   ├── resize-strategies.ts        # Resize implementations
-│   └── useHazelIntegration.ts      # App-specific wrapper
-└── App.tsx                     # Entry point, uses Hazel integration
-```
-
-**Benefits of the shared approach:**
-
-- **90% code reuse** between apps
-- **Pluggable resize strategies** for different content types
-- **Consistent protocol handling** across all external apps
-- **Easy to maintain** - bug fixes benefit all apps
-
-```typescript
-// App.tsx - Hazel integration at the top level
-export default function App() {
-  const [value, setValue] = useState();
-  const { setSyntax } = useHazelIntegration({
-    codec: "json",
-    onInit: (v) => setValue(JSON.parse(v)),
-  });
-
-  return (
-    <MyEditor
-      value={value}
-      onChange={(v) => {
-        setValue(v);
-        setSyntax(JSON.stringify(v));
-      }}
-    />
-  );
-}
-```
-
-This keeps your core component reusable outside Hazel while maximizing shared infrastructure.
-
-## Troubleshooting
-
-**App not loading**: Check browser console for CORS/sandbox errors  
-**No resize**: Verify `ResizeObserver` is firing, check CSS constraints  
-**Messages not sent**: Confirm `parentOrigin` is set correctly  
-**Parse errors**: Check JSON stringify/parse, match Hazel's codec expectations  
-**Focus issues**: Remove focus-related code, Hazel handles iframe focus
-
 ## Example Apps
 
-- **`external-apps/simple-slider/`**: Integer slider with `int` codec
-- **`external-apps/value-builder/`**: Complex JSON editor with `json` codec
-
-Both demonstrate the complete integration pattern and can serve as templates for your own apps.
+- **`external-apps/simple-slider/`**: Integer slider
+- **`external-apps/value-builder/`**: Compositional Hazel value editor
