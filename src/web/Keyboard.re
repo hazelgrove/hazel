@@ -104,6 +104,7 @@ let handle_key_event = (k: Key.t): option(Action.t) => {
     | "y" => now(AssistantComposition(Edit(DeleteBindingClause)))
     | "u" => now(AssistantComposition(Edit(InsertBefore("let s = ? in"))))
     | "i" => now(AssistantComposition(Edit(InsertAfter("let r = ? in"))))
+    | "g" => now(AssistantComposition(Nav(GoToBindingSite("f", None))))
     | "o" =>
       now(
         AssistantComposition(

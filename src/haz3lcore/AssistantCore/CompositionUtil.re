@@ -9,16 +9,6 @@ module View = {
   // covering up inner child definitions with folds,
   // and any other modifications we might want to make to the editor
   // before displaying a snippet of it in string form to the LLM.
-  let perform = (a: Action.t, z: Zipper.t) =>
-    Perform.go(
-      ~statics=CachedStatics.empty,
-      ~syntax=CachedSyntax.init(z),
-      a,
-      {
-        zipper: z,
-        col_target: None,
-      },
-    );
 
   let caret_char = "¦"; /* Note this is two bytes */
   let convex_char = "?";
@@ -26,15 +16,19 @@ module View = {
   let selection_char = "§"; /* Note this is two bytes */
   let caret_regexp = StringUtil.regexp(caret_char);
 
-  let printer = (z: Zipper.t): string => {
-    Printer.of_zipper(
-      ~holes=convex_char,
-      ~concave_holes=concave_char,
-      ~special_folds=true,
-      ~caret=caret_char,
-      ~selection_anchor=selection_char,
-      z,
-    );
+  // let printer = (z: Zipper.t): string => {
+  //   Printer.of_zipper(
+  //     ~holes=convex_char,
+  //     ~concave_holes=concave_char,
+  //     ~special_folds=true,
+  //     ~caret=caret_char,
+  //     ~selection_anchor=selection_char,
+  //     z,
+  //   );
+  // };
+
+  let printer = (seg: Segment.t): string => {
+    Printer.of_segment(~special_folds=true, seg);
   };
 
   let prepare_definition = (z: Zipper.t, curr_node: AssistantTreeHelper.node) => {
@@ -43,20 +37,31 @@ module View = {
       | [] => z
       | [id, ...rest] =>
         // Fold the *term* of the definition
-        let z' = perform(Action.Select(Term(Id(id, Direction.Right))), z);
-        switch (z') {
-        | Ok(z') =>
-          let z'' =
-            perform(Action.Project(SetIndicated(Specific(Fold))), z');
-          switch (z'') {
+        switch (
+          Select.term(
+            ~defs_exclude_bodies=false,
+            ~case_rules=false,
+            CachedSyntax.init(z).term_data,
+            id,
+            z,
+          )
+        ) {
+        | Some(z') =>
+          switch (
+            ProjectorPerform.go(
+              CachedSyntax.init(z').term_data,
+              SetIndicated(Specific(Fold)),
+              z',
+            )
+          ) {
           | Ok(z'') => fold_terms(z'', rest)
           | _ => fold_terms(z', rest)
-          };
-        | _ => fold_terms(z, rest)
-        };
+          }
+        | None => fold_terms(z, rest)
+        }
       };
     };
-    let remove_body = (z: Zipper.t, term: Info.t) => {
+    let fold_body = (z: Zipper.t, term: Info.t) => {
       let id =
         switch (term) {
         | InfoExp({term, _}) =>
@@ -67,10 +72,22 @@ module View = {
           }
         | _ => Id.invalid
         };
-      let z' = perform(Action.Select(Term(Id(id, Direction.Right))), z);
-      switch (z') {
-      | Ok(z') =>
-        let z'' = perform(Action.Paste(String("")), z');
+      switch (
+        Select.term(
+          ~defs_exclude_bodies=false,
+          ~case_rules=false,
+          CachedSyntax.init(z).term_data,
+          id,
+          z,
+        )
+      ) {
+      | Some(z') =>
+        let z'' =
+          ProjectorPerform.go(
+            CachedSyntax.init(z').term_data,
+            SetIndicated(Specific(Fold)),
+            z',
+          );
         z'';
       | _ => Ok(z)
       };
@@ -89,26 +106,6 @@ module View = {
     print_endline(
       "curr_node.id: " ++ Uuidm.to_string(Info.id_of(curr_node.info)),
     );
-    print_endline(
-      "curr_node.children: "
-      ++ String.concat(
-           ", ",
-           List.map(
-             Uuidm.to_string,
-             List.map(AssistantTreeHelper.id_of, curr_node.children),
-           ),
-         ),
-    );
-    print_endline(
-      "curr_node.siblings: "
-      ++ String.concat(
-           ", ",
-           List.map(
-             Uuidm.to_string,
-             List.map(AssistantTreeHelper.id_of, curr_node.siblings),
-           ),
-         ),
-    );
     let children_def_ids =
       List.map(
         (c: AssistantTreeHelper.node) => get_def_id_of_let(c.info),
@@ -119,7 +116,14 @@ module View = {
         (c: AssistantTreeHelper.node) => get_def_id_of_let(c.info),
         curr_node.siblings,
       );
-
+    print_endline(
+      "def ids of children: "
+      ++ String.concat(", ", List.map(Uuidm.to_string, children_def_ids)),
+    );
+    print_endline(
+      "def ids of siblings: "
+      ++ String.concat(", ", List.map(Uuidm.to_string, siblings_def_ids)),
+    );
     let z = fold_terms(z, children_def_ids);
     let z' = fold_terms(z, siblings_def_ids);
 
@@ -127,54 +131,53 @@ module View = {
       switch (curr_node.parent) {
       | Some(parent) =>
         // this switch is a temporary workaround for below mentioned bug
-        switch (remove_body(z', parent.info)) {
+        switch (fold_body(z', parent.info)) {
         | Ok(z'') =>
-          let syntax = CachedSyntax.init(z'');
           switch (
+            // Selects the parent node, displaying local code context/map.
             Select.term(
-              ~defs_exclude_bodies=true,
+              ~defs_exclude_bodies=false,
               ~case_rules=false,
-              syntax.term_data,
+              CachedSyntax.init(z'').term_data,
               AssistantTreeHelper.id_of(parent),
               z'',
             )
           ) {
           | Some(z''') => z'''
           | None => z''
-          };
+          }
         | _ => z
         }
-      | None =>
-        switch (perform(Action.Select(All), z')) {
-        | Ok(z'') => z''
-        | _ => z
-        }
+      | None => Select.all(z')
       };
 
+    let seg = z''.selection.content;
+    print_endline(printer(seg));
+    seg;
     // Todo @andrew: Not sure of the perf effects of the below
     // What this does is effectively display the local code map from the parent of the current node,
     // down, along with the current selection (the current node the cursor is at, using the same
     // characters test_editing uses).
     // This effectively Cuts out the def of the parent, pastes it as it's own thing, and then
     // selects the def of the current node.
-    let seg = z''.selection.content;
-    let z = Zipper.init();
-    let z' = Zipper.insert_segment(z, seg);
-    let z'' =
-      switch (
-        Select.term(
-          ~defs_exclude_bodies=true,
-          ~case_rules=false,
-          CachedSyntax.init(z').term_data,
-          AssistantTreeHelper.id_of(curr_node),
-          z',
-        )
-      ) {
-      | Some(z'') => z''
-      | None => raise(Failure("Failed to select term"))
-      };
-    print_endline(printer(z''));
-    z'';
+    // let z = Zipper.init();
+    // let z' = Zipper.insert_segment(z, seg);
+    // let z'' =
+    //   switch (
+    //     // Selects the current node, displaying where the cursor selection is.
+    //     Select.term(
+    //       ~defs_exclude_bodies=true,
+    //       ~case_rules=false,
+    //       CachedSyntax.init(z').term_data,
+    //       AssistantTreeHelper.id_of(curr_node),
+    //       z',
+    //     )
+    //   ) {
+    //   | Some(z'') => z''
+    //   | None => raise(Failure("Failed to select term"))
+    //   };
+    // print_endline(printer(z''));
+    // z'';
   };
 
   let context = (local_information: AssistantTreeHelper.node): string => {
@@ -216,22 +219,24 @@ module View = {
   };
 
   let references_in =
-      (
-        local_information: AssistantTreeHelper.node,
-        info_map: Id.Map.t(Info.t),
-      )
-      : string => {
-    let id = AssistantTreeHelper.id_of(local_information);
+      (node: AssistantTreeHelper.node, info_map: Id.Map.t(Info.t))
+      : list(Binding.t) => {
+    let id = AssistantTreeHelper.id_of(node);
     let references = Statics.Map.refs_in(info_map, id);
-    "References: ["
-    ++ String.concat(
-         ", ",
-         List.mapi(
-           (i: int, b: Binding.t) =>
-             b.name ++ " (Index: " ++ string_of_int(i) ++ ")",
-           references,
-         ),
-       )
-    ++ "]";
+    // remove duplicates
+    ListUtil.dedup_f(
+      (b1: Binding.t, b2: Binding.t) => b1.id == b2.id,
+      references,
+    );
+    // "References: ["
+    // ++ String.concat(
+    //      ", ",
+    //      List.mapi(
+    //        (i: int, b: Binding.t) =>
+    //          b.name ++ " (Index: " ++ string_of_int(i) ++ ")",
+    //        filtered_references,
+    //      ),
+    //    )
+    // ++ "]";
   };
 };

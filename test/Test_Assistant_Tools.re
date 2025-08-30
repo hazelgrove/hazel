@@ -358,33 +358,35 @@ let view_definition_tests = [
   test_prepare_definition(
     ~name="View Definition (\"Simplest\" Case)",
     ~init={|let x = 4¦ in x|},
-    ~goal={|let x = 4 in x|},
+    ~goal={|§let x = 4 in¦ x|},
   ),
   test_prepare_definition(
     ~name="View Definition (Single Sibling)",
     ~init={|let x = 4¦ in let y = 5 in x + y|},
-    ~goal={|let x = 4 in let y = ⋱ in x + y|},
+    ~goal={|§let x = 4 in¦ let y = ⋱ in x + y|},
   ),
   test_prepare_definition(
     ~name="View Definition (Single Sibling)",
     ~init={|let x = 4 in let y = 5 in¦ x + y|},
-    ~goal={|let x = ⋱ in let y = 5 in x + y|},
+    ~goal={|let x = ⋱ in §let y = 5 in¦ x + y|},
   ),
   test_prepare_definition(
     ~name="View Definition (Single Parent, Two Children - At Parent)",
     ~init={|let par1 = let chi1 = 0 in let chi2 = 1 in chi1 + chi2 in¦ par1|},
     ~goal=
-      {|let par1 = let chi1 = ⋱ in let chi2 = ⋱ in chi1 + chi2 in par1|},
+      {|§let par1 = let chi1 = ⋱ in let chi2 = ⋱ in chi1 + chi2 in¦ par1|},
   ),
   test_prepare_definition(
     ~name="View Definition (Single Parent, Two Children - At 1st Child)",
     ~init={|let par1 = let chi1 = 1 in¦ let chi2 = 2 in chi1 + chi2 in par1|},
-    ~goal={|let par1 = let chi1 = 1 in let chi2 = ⋱ in chi1 + chi2 in par1|},
+    ~goal=
+      {|let par1 = §let chi1 = 1 in¦ let chi2 = ⋱ in chi1 + chi2 in par1|},
   ),
   test_prepare_definition(
     ~name="View Definition (Single Parent, Two Children - At 2nd Child)",
     ~init={|let par1 = let chi1 = 2 in let chi2 = 3 in¦ chi1 + chi2 in par1|},
-    ~goal={|let par1 = let chi1 = ⋱ in let chi2 = 3 in chi1 + chi2 in par1|},
+    ~goal=
+      {|let par1 = let chi1 = ⋱ in §let chi2 = 3 in¦ chi1 + chi2 in par1|},
   ),
 ];
 

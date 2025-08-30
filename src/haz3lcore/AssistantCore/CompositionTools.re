@@ -1,4 +1,5 @@
 open Util;
+open OptUtil.Syntax;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type t = list(API.Json.t);
@@ -134,6 +135,17 @@ let string_of = (action: action) => {
       }
     )
     ++ ")"
+  | Nav(GoToBindingSite(name, index)) =>
+    "go_to_binding_site(\""
+    ++ name
+    ++ "\""
+    ++ (
+      switch (index) {
+      | Some(index) => ", " ++ string_of_int(index)
+      | None => ""
+      }
+    )
+    ++ ")"
   | Nav(GoToSibling(Stepwise(d))) =>
     "go_to_sibling("
     ++ (
@@ -248,9 +260,12 @@ module Perform = {
                 node.children,
               );
             if (List.length(cands) > 1) {
+              // No child with this name
               Error(Action.Failure.Cant_move);
             } else {
               switch (ListUtil.hd_opt(cands)) {
+              // More than one child node with the same name
+              // needs to specify how to resolve the ambiguity
               | None => Error(Action.Failure.Cant_move)
               | Some(child) =>
                 Select.tile(Info.id_of(child.info), z)
@@ -261,6 +276,7 @@ module Perform = {
             // this means the llm provided an index to move to, in which case
             // we default on using that as opposed to the name
             switch (List.nth_opt(node.children, nth)) {
+            // Index does not exist
             | None => Error(Action.Failure.Cant_move)
             | Some(child) =>
               Select.tile(Info.id_of(child.info), z)
@@ -319,6 +335,34 @@ module Perform = {
               };
             Select.tile(target_id, z) |> return(Action.Failure.Cant_select);
           }
+        | GoToBindingSite(who, which) =>
+          // Returns a list of binding sites (id, name)
+          let cands =
+            CompositionUtil.View.references_in(node, mk_statics(z));
+          // We want to do the following:
+          // 1. Find the target variable based on the args provided
+          // 2. Navigate to the binding site of this target variable
+          let target =
+            switch (which) {
+            | None =>
+              // No index provided, so use the name
+              List.find_opt(
+                (binding: Binding.t) => binding.name == who,
+                cands,
+              )
+            | Some(nth) =>
+              // Index provided, so use the index
+              List.nth_opt(cands, nth)
+            };
+          switch (
+            {
+              let* target = target;
+              Move.jump_to_id_indicated(z, target.id);
+            }
+          ) {
+          | Some(z'') => Ok(z'')
+          | None => Error(Action.Failure.Cant_move)
+          };
         }
       | Read(_r) => Ok(z) // todo
       | Edit(e) =>

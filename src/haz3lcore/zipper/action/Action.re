@@ -101,7 +101,9 @@ type nav_action =
   // Goes to the child node of the current node in the AST
   | GoToChild(string, option(int))
   // Jumps to the root node of the AST
-  | GoToSibling(via);
+  | GoToSibling(via)
+  // Goes to the binding site of the indicated variable
+  | GoToBindingSite(string, option(int));
 
 // --- File-Read Actions ---
 // These actions are used purely to read information from the program,
@@ -127,6 +129,10 @@ type edit_action =
   | DeleteBody
   | InsertAfter(string)
   | InsertBefore(string);
+
+[@deriving (show({with_path: false}), sexp, yojson, eq)]
+type view_action =
+  | ShowReferences;
 
 // AddToolLabel_1.0: Make the action types (above) and add their cases to the funs (below)
 [@deriving (show({with_path: false}), sexp, yojson, eq)]

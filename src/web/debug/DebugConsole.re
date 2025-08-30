@@ -52,38 +52,27 @@ let print =
     | None => print("DEBUG: No cursor found")
     };
   | "F9" =>
-    let is_on_whitespace = (z: Zipper.t): bool => {
-      // Use for_index which only ignores secondary pieces, not grout pieces
-      switch (Indicated.for_index(z)) {
-      | Some((piece, _, _)) =>
-        Piece.is_secondary(piece)
-        || Piece.is_grout(piece)
-        || Piece.is_convex(piece)
-      | None => false
-      };
-    };
+    let references =
+      CompositionUtil.View.references_in(
+        get_node(build_curr_node_info(zipper, map)),
+        map,
+      );
+    let reference_strings =
+      List.mapi(
+        (i: int, binding: Binding.t) =>
+          string_of_int(i)
+          ++ ": "
+          ++ Id.to_string(binding.id)
+          ++ " ("
+          ++ binding.name
+          ++ ")",
+        references,
+      );
     print_endline(
-      "is on whitespace: " ++ string_of_bool(is_on_whitespace(zipper)),
+      "Variables referenced: ["
+      ++ String.concat(", ", reference_strings)
+      ++ "]",
     );
-
-    // switch (info) {
-    // | InfoExp(info) =>
-    //   let ctx = info.ctx;
-    //   let entries =
-    //     List.map(
-    //       (entry: Ctx.entry) => {
-    //         switch (entry) {
-    //         | VarEntry(entry) => entry.name
-    //         | TVarEntry(entry) => entry.name
-    //         | ConstructorEntry(entry) => entry.name
-    //         | _ => "Unknown entry"
-    //         }
-    //       },
-    //       ctx.entries,
-    //     );
-    //   print("ctx: " ++ String.concat("\n", entries));
-    // | _ => print("DEBUG: No context found for info")
-    // };
     ();
   | "F10" =>
     let context = (local_information: node): string => {
