@@ -5,7 +5,6 @@ module SliderAdapter: Exo.Info = {
   let exo_kind = ProjectorCore.Kind.ExoSlider;
 
   let hazel_origin = WebEnv.window_origin();
-  let hazel_base_url = WebEnv.base_url();
 
   let dev = "http://localhost:5173";
 
@@ -60,7 +59,6 @@ module ValueBuilderAdapter: Exo.Info = {
   let exo_kind = ProjectorCore.Kind.ExoValueBuilder;
 
   let hazel_origin = WebEnv.window_origin();
-  let hazel_base_url = WebEnv.base_url();
 
   let dev = "http://localhost:5175";
 
