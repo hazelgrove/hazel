@@ -7,6 +7,7 @@ interface HazelIntegrationConfig {
   codec: string;
   onInit?: (value: any) => void;
   onUpdate?: (value: any) => void;
+  onConstraints?: (constraints: { maxWidth: number; maxHeight: number; minWidth?: number; minHeight?: number }) => void;
 }
 
 // Simple trailing throttle utility
@@ -31,7 +32,7 @@ function throttle<T extends (...args: any[]) => void>(fn: T, ms: number): T {
 }
 
 export function useHazelIntegration(config: HazelIntegrationConfig) {
-  const { id, codec, onInit, onUpdate } = config;
+  const { id, codec, onInit, onUpdate, onConstraints } = config;
   const hasInitialized = useRef(false);
 
   // Get target origin from URL params or env, fallback to '*'
@@ -90,6 +91,16 @@ export function useHazelIntegration(config: HazelIntegrationConfig) {
             onUpdate(data.value);
           }
           break;
+        case 'constraints':
+          if (onConstraints) {
+            onConstraints({
+              maxWidth: data.maxWidth,
+              maxHeight: data.maxHeight,
+              minWidth: data.minWidth,
+              minHeight: data.minHeight,
+            });
+          }
+          break;
       }
     };
 
@@ -104,7 +115,7 @@ export function useHazelIntegration(config: HazelIntegrationConfig) {
     return () => {
       window.removeEventListener('message', handleMessage);
     };
-  }, [id, onInit, onUpdate, sendReady]);
+  }, [id, onInit, onUpdate, onConstraints, sendReady]);
 
   // Optional: Report size changes to parent
   useEffect(() => {

@@ -16,12 +16,13 @@ export type ToHazelMessage =
 // Messages sent from parent (Hazel) to child (js app)
 export type FromHazelMessage =
   | { type: 'init'; id: string; value: CodecValue }
-  | { type: 'update'; id: string; value: CodecValue };
+  | { type: 'update'; id: string; value: CodecValue }
+  | { type: 'constraints'; id: string; maxWidth: number; maxHeight: number; minWidth?: number; minHeight?: number };
 
 export function isFromHazelMessage(data: unknown): data is FromHazelMessage {
   return data !== null && typeof data === 'object' && 
          'type' in data && 'id' in data &&
-         ['init', 'update'].includes((data as Record<string, unknown>).type as string) &&
+         ['init', 'update', 'constraints'].includes((data as Record<string, unknown>).type as string) &&
          typeof (data as Record<string, unknown>).id === 'string';
 }
 

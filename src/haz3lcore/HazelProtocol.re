@@ -33,6 +33,13 @@ type from_hazel_message =
   | Update({
       id: Id.t,
       value: string,
+    })
+  | Constraints({
+      id: Id.t,
+      max_width: int,
+      max_height: int,
+      min_width: option(int),
+      min_height: option(int),
     });
 
 let id_of = (msg: to_hazel_message): Id.t =>
@@ -107,6 +114,8 @@ let from_hazel_to_js = (msg: from_hazel_message): Js.t(_) => {
   let js_obj = Js.Unsafe.obj([||]);
   let set_attr = (key, value) =>
     Js.Unsafe.set(js_obj, key, Js.string(value));
+  let set_num = (key, value) =>
+    Js.Unsafe.set(js_obj, key, Js.number_of_float(float_of_int(value)));
   switch (msg) {
   | Init({id, value}) =>
     set_attr("type", "init");
@@ -116,6 +125,19 @@ let from_hazel_to_js = (msg: from_hazel_message): Js.t(_) => {
     set_attr("type", "update");
     set_attr("id", Id.to_string(id));
     set_attr("value", value);
+  | Constraints({id, max_width, max_height, min_width, min_height}) =>
+    set_attr("type", "constraints");
+    set_attr("id", Id.to_string(id));
+    set_num("maxWidth", max_width);
+    set_num("maxHeight", max_height);
+    switch (min_width) {
+    | Some(w) => set_num("minWidth", w)
+    | None => ()
+    };
+    switch (min_height) {
+    | Some(h) => set_num("minHeight", h)
+    | None => ()
+    };
   };
   js_obj;
 };

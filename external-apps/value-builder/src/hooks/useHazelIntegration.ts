@@ -7,6 +7,7 @@ interface HazelIntegrationConfig {
   codec: string;
   onInit?: (value: any) => void;
   onUpdate?: (value: any) => void;
+  onConstraints?: (constraints: { maxWidth: number; maxHeight: number; minWidth?: number; minHeight?: number }) => void;
 }
 
 // Simple trailing throttle utility
@@ -31,7 +32,7 @@ function throttle<T extends (...args: any[]) => void>(fn: T, ms: number): T {
 }
 
 export function useHazelIntegration(config: HazelIntegrationConfig) {
-  const { id, codec, onInit, onUpdate } = config;
+  const { id, codec, onInit, onUpdate, onConstraints } = config;
   const hasInitialized = useRef(false);
 
   // Get target origin from URL params or env, fallback to '*'
@@ -90,6 +91,16 @@ export function useHazelIntegration(config: HazelIntegrationConfig) {
             onUpdate(data.value);
           }
           break;
+        case 'constraints':
+          if (onConstraints) {
+            onConstraints({
+              maxWidth: data.maxWidth,
+              maxHeight: data.maxHeight,
+              minWidth: data.minWidth,
+              minHeight: data.minHeight,
+            });
+          }
+          break;
       }
     };
 
@@ -104,25 +115,78 @@ export function useHazelIntegration(config: HazelIntegrationConfig) {
     return () => {
       window.removeEventListener('message', handleMessage);
     };
-  }, [id, onInit, onUpdate, sendReady]);
+  }, [id, onInit, onUpdate, onConstraints, sendReady]);
 
-  // Optional: Report size changes to parent
+  // Enhanced ResizeObserver with debouncing and better content measurement
   useEffect(() => {
-    const element = document.documentElement;
+    const appRoot = document.getElementById('root') || document.body;
+    let lastWidth = 0;
+    let lastHeight = 0;
+
+    // Throttled resize reporter (trailing edge)
+    const reportResize = throttle((width: number, height: number) => {
+      // Only send if there's a meaningful change (avoid spam)
+      if (Math.abs(width - lastWidth) >= 2 || Math.abs(height - lastHeight) >= 2) {
+        lastWidth = width;
+        lastHeight = height;
+        sendToHazel({ 
+          type: 'resize', 
+          id, 
+          width: Math.round(width), 
+          height: Math.round(height) 
+        });
+      }
+    }, 100); // 100ms debounce
+
+    // Use ResizeObserver on the app root to measure actual content
     const resizeObserver = new ResizeObserver(entries => {
-      const rect = entries[0].contentRect;
-      sendToHazel({ 
-        type: 'resize', 
-        id, 
-        width: Math.round(rect.width), 
-        height: Math.round(rect.height) 
-      });
+      if (entries.length === 0) return;
+      
+      const entry = entries[0];
+      // Measure the actual content dimensions
+      // Use scrollHeight if larger than clientHeight, otherwise use clientHeight
+      const contentHeight = Math.max(appRoot.scrollHeight, appRoot.clientHeight);
+      const contentWidth = entry.contentRect.width;
+      
+      console.log(`ResizeObserver: scrollHeight=${appRoot.scrollHeight}, clientHeight=${appRoot.clientHeight}, using=${contentHeight}`);
+      reportResize(contentWidth, contentHeight);
     });
     
-    resizeObserver.observe(element);
+    resizeObserver.observe(appRoot);
+    
+    // Also use MutationObserver to catch DOM changes that ResizeObserver might miss
+    const mutationObserver = new MutationObserver(() => {
+      // Small delay to let DOM settle
+      setTimeout(() => {
+        const contentHeight = Math.max(appRoot.scrollHeight, appRoot.clientHeight);
+        const contentWidth = appRoot.getBoundingClientRect().width;
+        console.log(`MutationObserver: DOM changed, measuring ${contentWidth}x${contentHeight}`);
+        reportResize(contentWidth, contentHeight);
+      }, 50);
+    });
+    
+    mutationObserver.observe(appRoot, {
+      childList: true,
+      subtree: true,
+      attributes: true,
+    });
+    
+    // Also observe window resize to reflow content
+    const handleWindowResize = () => {
+      // Trigger a measurement after window resize
+      setTimeout(() => {
+        const contentHeight = Math.max(appRoot.scrollHeight, appRoot.clientHeight);
+        const contentWidth = appRoot.getBoundingClientRect().width;
+        reportResize(contentWidth, contentHeight);
+      }, 50);
+    };
+    
+    window.addEventListener('resize', handleWindowResize);
     
     return () => {
       resizeObserver.disconnect();
+      mutationObserver.disconnect();
+      window.removeEventListener('resize', handleWindowResize);
     };
   }, [id, sendToHazel]);
 

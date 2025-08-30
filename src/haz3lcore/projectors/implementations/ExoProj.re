@@ -64,11 +64,14 @@ module M = (ExoP: Exo.Info) : Projector => {
       (
         model: model,
         info: info,
-        ~local as _,
+        ~local: action => Ui_effect.t(unit),
         ~parent: external_action => Ui_effect.t(unit),
         ~view_seg as _,
       ) => {
-    let entry = Exo.mk_entry(parent, info, (module ExoP));
+    /* Create a resize callback that calls local with Resize action */
+    let resize_signal = (width: int, height: int) =>
+      local(Resize(width, height));
+    let entry = Exo.mk_entry(parent, resize_signal, info, (module ExoP));
     ExternalProjectorBridge.register(entry);
     View.mk(iframe_view(info.id, entry.url, model));
   };

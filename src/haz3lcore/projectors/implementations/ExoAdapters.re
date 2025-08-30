@@ -114,7 +114,7 @@ module ValueBuilderAdapter: Exo.Info = {
       Some({
         exo_kind,
         width: 795,
-        height: 440,
+        height: 200 /* Start smaller, let content drive the size */
       })
     | Error(_) => None
     };

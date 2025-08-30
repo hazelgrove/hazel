@@ -25,14 +25,38 @@ let post_from_hazel_message =
   JsUtil.post_to_iframe(iframe_id(id), target_origin, js_msg);
 };
 
+/* Send constraints to iframe */
+let send_constraints = (id: Id.t, entry: Exo.entry): unit => {
+  /* TODO: Compute these from editor layout and adapter config */
+  let max_width = 800;
+  let max_height = 600;
+  let min_width = Some(200);
+  let min_height = Some(100);
+
+  let msg =
+    HazelProtocol.(
+      Constraints({
+        id,
+        max_width,
+        max_height,
+        min_width,
+        min_height,
+      })
+    );
+  post_from_hazel_message(msg, entry.target_origin, id);
+};
+
 /* Message handlers using typed messages */
 let handle_ready = (id: Id.t, entry: Exo.entry): unit => {
-  let msg =
+  let init_msg =
     HazelProtocol.Init({
       id,
       value: entry.init_json,
     });
-  post_from_hazel_message(msg, entry.target_origin, id);
+  post_from_hazel_message(init_msg, entry.target_origin, id);
+
+  /* Send constraints after init */
+  send_constraints(id, entry);
 };
 
 let handle_set_syntax = (value: string, entry: Exo.entry): unit =>
@@ -45,11 +69,55 @@ let handle_set_syntax = (value: string, entry: Exo.entry): unit =>
   | None => prerr_endline("setSyntax: codec conversion failed")
   };
 
-let handle_resize = (width: int, height: int): unit => {
-  /* TODO: Implement resize handling - might need to update projector model */
-  prerr_endline(
-    Printf.sprintf("handle_resize: %dx%d (not implemented)", width, height),
+let handle_resize =
+    (id: Id.t, width: int, height: int, entry: Exo.entry): unit => {
+  Printf.printf(
+    "📏 Received resize: %s %dx%d\n",
+    Id.to_string(id),
+    width,
+    height,
   );
+
+  /* Apply constraints */
+  let max_width = 800; /* TODO: compute from editor layout */
+  let max_height = 600; /* TODO: configurable per adapter */
+  let min_width = 200;
+  let min_height = 100;
+
+  let constrained_width = max(min_width, min(max_width, width));
+  let constrained_height = max(min_height, min(max_height, height));
+
+  /* Log resize for debugging */
+  if (abs(width - constrained_width) >= 2
+      || abs(height - constrained_height) >= 2) {
+    Printf.printf(
+      "Resize %s: %dx%d -> %dx%d (constrained)\n",
+      Id.to_string(id),
+      width,
+      height,
+      constrained_width,
+      constrained_height,
+    );
+  } else {
+    Printf.printf(
+      "Resize %s: %dx%d (within constraints)\n",
+      Id.to_string(id),
+      width,
+      height,
+    );
+  };
+
+  /* Trigger projector update through MVU loop */
+  switch (global_effect_schedule^) {
+  | Some(scheduler) =>
+    scheduler(entry.resize_signal(constrained_width, constrained_height))
+  | None => prerr_endline("resize: no scheduler set")
+  };
+
+  /* Send updated constraints if size was clamped */
+  if (constrained_width != width || constrained_height != height) {
+    send_constraints(id, entry);
+  };
 };
 
 let handle_request_focus = _: unit => {
@@ -63,7 +131,7 @@ let dispatch = (msg: HazelProtocol.to_hazel_message, entry: Exo.entry): unit =>
   switch (msg) {
   | Ready({id}) => handle_ready(id, entry)
   | SetSyntax({value, _}) => handle_set_syntax(value, entry)
-  | Resize({width, height, _}) => handle_resize(width, height)
+  | Resize({id, width, height}) => handle_resize(id, width, height, entry)
   | RequestFocus(_) => handle_request_focus(entry)
   };
 

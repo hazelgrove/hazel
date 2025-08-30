@@ -5,6 +5,10 @@ import "./App.css";
 
 function App() {
   const [currentValue, setCurrentValue] = useState<unknown>(42);
+  const [constraints, setConstraints] = useState<{
+    maxWidth: number;
+    maxHeight: number;
+  } | null>(null);
 
   // Extract ID from URL params or use default
   const urlParams = new URLSearchParams(window.location.search);
@@ -21,6 +25,10 @@ function App() {
       console.log("Received update from Hazel:", value);
       setCurrentValue(value);
     },
+    onConstraints: (c) => {
+      console.log("Received constraints from Hazel:", c);
+      setConstraints(c);
+    },
   });
 
   const handleValueChange = (newValue: unknown) => {
@@ -30,8 +38,11 @@ function App() {
 
   const containerStyle: React.CSSProperties = {
     display: "flex",
-    height: "100vh",
+    minHeight: "100px", // Allow to be smaller initially
     fontFamily: "system-ui",
+    maxWidth: constraints?.maxWidth || "none",
+    maxHeight: constraints?.maxHeight || "none",
+    // Remove fixed height: "100vh" to allow content-driven sizing
   };
 
   const leftPanelStyle: React.CSSProperties = {
@@ -68,10 +79,11 @@ function App() {
       <div style={leftPanelStyle}>
         <div style={headerStyle}>
           <h2 style={{ margin: 0, marginBottom: "8px" }}>Value Builder</h2>
-          {/* <div style={{ fontSize: "14px" }}>
-            <strong>Connection:</strong>{" "}
-            {isConnected ? "✅" : "⚠️ Waiting for Hazel..."}
-          </div> */}
+          {constraints && (
+            <div style={{ fontSize: "12px", color: "#666" }}>
+              Max: {constraints.maxWidth}×{constraints.maxHeight}px
+            </div>
+          )}
         </div>
 
         <div style={quickTestStyle}>

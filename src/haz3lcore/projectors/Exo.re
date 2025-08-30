@@ -27,11 +27,15 @@ type entry = {
   init_json: string,
   json_to_segment: string => option(Base.segment),
   signal: ProjectorBase.external_action => Ui_effect.t(unit),
+  /* Resize callback specific to this projector instance */
+  [@sexp.opaque] [@yojson.opaque]
+  resize_signal: (int, int) => Ui_effect.t(unit),
 };
 
 let mk_entry =
     (
       signal: ProjectorBase.external_action => Ui_effect.t(unit),
+      resize_signal: (int, int) => Ui_effect.t(unit),
       info: ProjectorBase.info,
       module Exo: Info,
     )
@@ -44,6 +48,7 @@ let mk_entry =
   ) {
   | Some(init_json) => {
       signal,
+      resize_signal,
       id: info.id,
       codec_name: Exo.codec_name,
       target_origin: Exo.target_origin,
