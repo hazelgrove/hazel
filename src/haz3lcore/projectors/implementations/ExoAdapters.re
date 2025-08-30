@@ -1,12 +1,21 @@
 open Util;
 
-let hazel_server = "http://localhost:8000"; /* Hazel dev server origin */
-
 /* Slider-specific adapter for ExternalProjectorBridge */
 module SliderAdapter: Exo.Info = {
   let exo_kind = ProjectorCore.Kind.ExoSlider;
 
-  let target_origin = "http://localhost:5173";
+  let hazel_origin = WebEnv.window_origin();
+  let hazel_base_url = WebEnv.base_url();
+
+  let dev = "http://localhost:5173";
+  let prod = hazel_base_url ++ "/external/exoslider";
+
+  let target_origin =
+    WebEnv.choose_origin(
+      ~name=ProjectorCore.Kind.exo_name(exo_kind),
+      ~dev,
+      ~prod,
+    );
 
   let codec_name = ProjectorCore.Kind.exo_name(exo_kind);
 
@@ -18,7 +27,7 @@ module SliderAdapter: Exo.Info = {
       100,
       1,
       Id.to_string(id),
-      hazel_server,
+      hazel_origin,
     );
 
   let term_to_string = (term: Language.Term.Any.t): option(string) =>
@@ -51,7 +60,18 @@ module SliderAdapter: Exo.Info = {
 module ValueBuilderAdapter: Exo.Info = {
   let exo_kind = ProjectorCore.Kind.ExoValueBuilder;
 
-  let target_origin = "http://localhost:5175"; /* Different port from slider */
+  let hazel_origin = WebEnv.window_origin();
+  let hazel_base_url = WebEnv.base_url();
+
+  let dev = "http://localhost:5175";
+  let prod = hazel_base_url ++ "/external/exovaluebuilder";
+
+  let target_origin =
+    WebEnv.choose_origin(
+      ~name=ProjectorCore.Kind.exo_name(exo_kind),
+      ~dev,
+      ~prod,
+    );
 
   let codec_name = ProjectorCore.Kind.exo_name(exo_kind);
 
@@ -60,7 +80,7 @@ module ValueBuilderAdapter: Exo.Info = {
       "%s/?id=%s&parentOrigin=%s",
       target_origin,
       Id.to_string(id),
-      hazel_server,
+      hazel_origin,
     );
 
   /* Convert Hazel term to JSON string using JsonCodec */

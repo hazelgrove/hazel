@@ -51,11 +51,27 @@ jobs:
           eval $(opam env)
           export OPAMYES=1
           opam clean --all-switches --download-cache --logs --repo-cache --unused-repositories
+      - name: Build in-repo external apps (simple-slider)
+        run: |
+          npm ci
+          npm run build -- --base=./
+        working-directory: ./source/external-apps/simple-slider
+      - name: Build in-repo external apps (value-builder)
+        run: |
+          npm ci
+          npm run build -- --base=./
+        working-directory: ./source/external-apps/value-builder
       - name: Build Release
         run: |
           export DUNE_CACHE=enabled
           opam exec -- dune build @src/fmt --auto-promote src --profile release
         working-directory: ./source
+      - name: Stage external apps into Hazel www
+        run: |
+          mkdir -p "./source/_build/default/src/web/www/external/exoslider"
+          mkdir -p "./source/_build/default/src/web/www/external/exovaluebuilder"
+          cp -r "./source/external-apps/simple-slider/dist/"* "./source/_build/default/src/web/www/external/exoslider/"
+          cp -r "./source/external-apps/value-builder/dist/"* "./source/_build/default/src/web/www/external/exovaluebuilder/"
       - name: Checkout the website build artifacts repo
         uses: actions/checkout@v4
         with:
