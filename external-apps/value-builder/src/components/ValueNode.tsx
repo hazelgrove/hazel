@@ -67,7 +67,6 @@ export function ValueNode({
   level = 0,
 }: ValueNodeProps) {
   const valueType = detectValueType(value);
-  const indent = level * 8;
 
   const handleTypeChange = (newType: ValueType) => {
     // Convert value to new type with sensible defaults

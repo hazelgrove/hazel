@@ -5,7 +5,6 @@ import "./App.css";
 
 function App() {
   const [currentValue, setCurrentValue] = useState<unknown>(42);
-  const [isConnected, setIsConnected] = useState(false);
 
   // Extract ID from URL params or use default
   const urlParams = new URLSearchParams(window.location.search);
@@ -17,7 +16,6 @@ function App() {
     onInit: (value: unknown) => {
       console.log("Received init from Hazel:", value);
       setCurrentValue(value);
-      setIsConnected(true);
     },
     onUpdate: (value: unknown) => {
       console.log("Received update from Hazel:", value);
