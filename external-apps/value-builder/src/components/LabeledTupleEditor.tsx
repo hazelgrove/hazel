@@ -52,10 +52,28 @@ export function LabeledTupleEditor({
       return; // Don't rename to empty, same, or duplicate labels
     }
 
-    const newObj = { ...obj };
-    newObj[trimmedLabel] = newObj[oldLabel];
-    delete newObj[oldLabel];
+    // Preserve field order by rebuilding object in original key order
+    const newObj: Record<string, unknown> = {};
+    Object.keys(obj).forEach((key) => {
+      if (key === oldLabel) {
+        newObj[trimmedLabel] = obj[oldLabel]; // Rename this key but keep its position
+      } else {
+        newObj[key] = obj[key]; // Keep other keys in their original positions
+      }
+    });
     onChange(newObj);
+  };
+
+  const handleLabelEdit = (originalLabel: string, newValue: string) => {
+    // Update immediately for real-time feedback
+    const trimmedLabel = newValue.trim();
+    if (
+      trimmedLabel &&
+      trimmedLabel !== originalLabel &&
+      !labels.includes(trimmedLabel)
+    ) {
+      renameField(originalLabel, trimmedLabel);
+    }
   };
 
   const containerStyle: React.CSSProperties = {
@@ -145,8 +163,8 @@ export function LabeledTupleEditor({
         </div>
       )}
 
-      {labels.map((label) => (
-        <div key={label} style={fieldContainerStyle}>
+      {labels.map((label, index) => (
+        <div key={`field-${index}`} style={fieldContainerStyle}>
           <button
             onClick={() => removeField(label)}
             style={{
@@ -163,7 +181,7 @@ export function LabeledTupleEditor({
             <input
               type="text"
               value={label}
-              onChange={(e) => renameField(label, e.target.value)}
+              onChange={(e) => handleLabelEdit(label, e.target.value)}
               style={{
                 ...inputStyle,
                 fontWeight: "bold",
