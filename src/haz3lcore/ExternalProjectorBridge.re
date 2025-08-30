@@ -127,20 +127,50 @@ let dispatch = (msg: HazelProtocol.to_hazel_message, entry: Exo.entry): unit =>
   | Resize({id, width, height}) => handle_resize(id, width, height, entry)
   };
 
+/* Extract the origin (scheme://host:port) from a URL */
+let extract_origin = (url: string): string =>
+  /* Simple URL parsing to extract origin */
+  try({
+    let protocol_end = String.index(url, ':');
+    let protocol = String.sub(url, 0, protocol_end);
+    if (String.length(url) > protocol_end
+        + 2
+        && String.equal(String.sub(url, protocol_end, 3), "://")) {
+      let after_protocol = protocol_end + 3;
+      let remaining =
+        String.sub(url, after_protocol, String.length(url) - after_protocol);
+      let host_end =
+        try(String.index(remaining, '/')) {
+        | Not_found => String.length(remaining)
+        };
+      let host_part = String.sub(remaining, 0, host_end);
+      protocol ++ "://" ++ host_part;
+    } else {
+      url; /* Fallback if parsing fails */
+    };
+  }) {
+  | _ => url /* Fallback if parsing fails */
+  };
+
 let registry_lookup = (id: Id.t, origin: string): option(Exo.entry) =>
   switch (Id.Map.find_opt(id, registry^)) {
   | Some(entry) =>
-    if (origin != entry.target_origin) {
+    /* Extract origin from target_origin URL for comparison */
+    let expected_origin = extract_origin(entry.target_origin);
+    if (origin != expected_origin) {
       prerr_endline(
         "registry_lookup: origin mismatch: "
         ++ origin
         ++ " != "
-        ++ entry.target_origin,
+        ++ expected_origin
+        ++ " (from target_origin: "
+        ++ entry.target_origin
+        ++ ")",
       );
       None;
     } else {
       Some(entry);
-    }
+    };
   | None => None
   };
 
