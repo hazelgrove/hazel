@@ -1006,6 +1006,14 @@ and uexp_to_info_map =
       | _ =>
         /* This logic lets us treat constructors differently to functions in
            terms of error localization */
+        // TODO: (THI) having to handle arrow provs outside of a matched arrow seems unsafe
+        let syn_arrow = () =>
+          Arrow(
+            Unknown(LArrow(SynSwitch) |> Prov.fresh) |> Typ.temp,
+            Unknown(RArrow(SynSwitch) |> Prov.fresh) |> Typ.temp,
+          )
+          |> Typ.temp;
+
         let fn_ana =
           switch (Exp.ctr_name(fn)) {
           | Some(name) =>
@@ -1013,14 +1021,22 @@ and uexp_to_info_map =
             | Some(ty_ana) =>
               switch (Typ.matched_arrow_strict(ctx, ty_ana)) {
               | Some((ty1, ty2, _)) => Arrow(ty1, ty2) |> Typ.temp
-              | None => Arrow(syn, syn) |> Typ.temp
+              | None => syn_arrow()
               }
-            | None => Arrow(syn, syn) |> Typ.temp
+            | None => syn_arrow()
             }
-          | None => Arrow(syn, syn) |> Typ.temp
+          | None => syn_arrow()
           };
+
         let (fn, m) = go(~ana=fn_ana, fn, m);
         let (ty_in, ty_out, arr_constraints) = Typ.matched_arrow(ctx, fn.ty);
+        print_endline(
+          Typ.show(fn.ty)
+          ++ " "
+          ++ Typ.show(ty_in)
+          ++ " "
+          ++ Typ.show(ty_out),
+        );
 
         let (arg, m) = go(~ana=ty_in, arg, m);
         let self: Self.exp =

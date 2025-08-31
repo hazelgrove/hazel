@@ -726,13 +726,13 @@ let matched_arrow = (ctx, ty) => {
       let prov = (Internal: TermBase.Prov.term) |> IdTagged.temp;
       let left_arr =
         Unknown({
-          term: prov.term,
+          term: LArrow(prov.term),
           annotation: prov.annotation,
         })
         |> temp;
       let right_arr =
         Unknown({
-          term: prov.term,
+          term: RArrow(prov.term),
           annotation: prov.annotation,
         })
         |> temp;
