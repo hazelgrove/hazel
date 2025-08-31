@@ -684,11 +684,14 @@ let code_block =
         ~locked=true,
         message.role == Assistant
           ? {
-            sketch |> Zipper.unzip |> Editor.Model.mk |> CellEditor.Model.mk;
+            sketch
+            |> Zipper.unzip(~root=Exp)
+            |> Editor.Model.mk
+            |> CellEditor.Model.mk;
           }
           : {
             sketch
-            |> Zipper.unzip
+            |> Zipper.unzip(~root=Exp)
             |> Editor.Model.mk
             |> CellEditor.Model.mk
             |> CellEditor.Update.calculate(

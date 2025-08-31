@@ -191,10 +191,16 @@ let drv_get: drv_compound_form => t =
   | OfAlfaPat => mk_op_c(L, ["of_alfa_pat", "end"], Exp, [Drv(Pat)])
   | OfAlfaTPat => mk_op_c(L, ["of_alfa_tpat", "end"], Exp, [Drv(TPat)])
   | Subst =>
-    mk_pre_c(LT, ["[", "/", "]"], P.fun_, Drv(Exp), [Drv(Exp), Drv(Pat)])
+    mk_pre_c(
+      Non,
+      ["[", "/", "]"],
+      P.fun_,
+      Drv(Exp),
+      [Drv(Exp), Drv(Pat)],
+    )
   | SubstTy =>
     mk_pre_c(
-      LT,
+      Non,
       ["[", "/", "]"],
       P.fun_,
       Drv(Typ),
@@ -204,7 +210,7 @@ let drv_get: drv_compound_form => t =
   | Val => mk_op_c(L, ["val", "end"], Drv(Exp), [Drv(Exp)])
   | Eval => mk_infix("\\=/", Drv(Exp), P.min)
   | Entail => mk_infix("|-", Drv(Exp), P.min)
-  | UnaryEntail => mk_pre_c(LT, ["|-"], P.min, Drv(Exp), [Drv(Exp)])
+  | UnaryEntail => mk_pre_c(L, ["|-"], P.min, Drv(Exp), [Drv(Exp)])
   // Note(zhiyao):
   // Auto complete is only available for sort Exp, that's why
   // we need a fake_consistent to make it work for Drv(Exp)
@@ -302,14 +308,14 @@ let drv_get: drv_compound_form => t =
   | ApPat => mk_post_c(LT, ["(", ")"], P.ap, Drv(Pat), [Drv(Pat)])
   | CommaExp => mk_infix(",", Drv(Exp), P.comma)
   | CommaPat => mk_infix(",", Drv(Pat), P.comma)
-  | ParenProp => mk_op_c(LT, ["(", ")"], Drv(Prop), [Drv(Prop)])
+  | ParenProp => mk_op_c(LT, ["(", ")"], Drv(Jdmt), [Drv(Jdmt)])
   | ParenExp => mk_op_c(LT, ["(", ")"], Drv(Exp), [Drv(Exp)])
   | ParenPat => mk_op_c(LT, ["(", ")"], Drv(Pat), [Drv(Pat)])
   | ParenTyp => mk_op_c(LT, ["(", ")"], Drv(Typ), [Drv(Typ)])
-  | QuoteExp => mk_pre_c(LT, ["$"], P.unquote, Drv(Exp), [])
-  | QuotePat => mk_pre_c(LT, ["$"], P.unquote, Drv(Pat), [])
-  | QuoteTyp => mk_pre_c(LT, ["$"], P.max, Drv(Typ), [])
-  | QuoteTPat => mk_pre_c(LT, ["$"], P.unquote, Drv(TPat), []);
+  | QuoteExp => mk_pre_c(L, ["$"], P.unquote, Drv(Exp), [])
+  | QuotePat => mk_pre_c(L, ["$"], P.unquote, Drv(Pat), [])
+  | QuoteTyp => mk_pre_c(L, ["$"], P.max, Drv(Typ), [])
+  | QuoteTPat => mk_pre_c(L, ["$"], P.unquote, Drv(TPat), []);
 
 [@deriving enumerate]
 type compound_form =

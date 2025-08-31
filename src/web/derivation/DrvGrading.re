@@ -34,9 +34,7 @@ module ProofTree = {
     | Some(e) =>
       switch (IdTagged.term_of(e)) {
       | DrvExp(Exp(d), _) => Ok(d)
-      | _ =>
-        print_endline("Warning: expected a DrvExp, got " ++ Exp.show(e));
-        Error(NotAJudgment);
+      | _ => Error(NotAJudgment)
       }
     | None => Error(NoResult)
     };

@@ -77,6 +77,13 @@ type pos =
   | Setup
   | Trees(int, Tree.pos);
 
+let root_of_pos = (pos: pos): Sort.t =>
+  switch (pos) {
+  | Prelude => Exp
+  | Setup => Exp
+  | Trees(_, _) => Drv(Exp)
+  };
+
 // UI functionality
 
 let zipper_of_code = (code, ~root) => {
@@ -94,10 +101,11 @@ let get_trees_pos =
   | _ as pos => failwith("ProofCore.get_trees_pos: " ++ show_pos(pos));
 
 let add_premise = (m: p('a), ~pos, ~index): p('a) => {
+  let root = root_of_pos(pos);
   let (i, pos) = get_trees_pos(pos);
   let premise =
     Abbr.Just({
-      jdmt: init(~root=Drv(Exp)),
+      jdmt: init(~root),
       rule: None,
     });
   let trees =
@@ -130,7 +138,7 @@ let add_abbr = (m: p('a), ~index): p('a) => {
   let abbr =
     Tree.empty(
       Abbr.Just({
-        jdmt: init(~root=Drv(Exp)),
+        jdmt: init(~root=root_of_pos(Trees(0, Value))),
         rule: None,
       }),
     );
@@ -202,6 +210,7 @@ let push_premise = (m: p('a), ~pos): p('a) => {
 };
 
 let switch_rule = (m: p('a), ~pos: pos, ~rule): p('a) => {
+  let root = root_of_pos(pos);
   let (i, pos) = get_trees_pos(pos);
   let tree = List.nth(m.trees, i);
   let trees =
@@ -209,7 +218,7 @@ let switch_rule = (m: p('a), ~pos: pos, ~rule): p('a) => {
     |> Tree.nth(_, pos)
     |> Abbr.get_just_opt
     |> Option.map(d => d.jdmt)
-    |> Option.value(~default=init(~root=Drv(Exp)))
+    |> Option.value(~default=init(~root))
     |> (
       jdmt =>
         Abbr.Just({
@@ -310,13 +319,6 @@ let mapi = (p: p('a), f: (pos, 'a) => 'b): p('b) => {
   };
 };
 
-let root_of_pos = (pos: pos): Sort.t =>
-  switch (pos) {
-  | Prelude => Exp
-  | Setup => Exp
-  | Trees(_, _) => Drv(Exp)
-  };
-
 [@deriving (show({with_path: false}), sexp, yojson)]
 type eds = p(Editor.t);
 
@@ -402,7 +404,7 @@ let pos_of_idx = (_: p('code), idx: int) =>
 
 let derivation_init_wrapper = (): abbr(deduction('a)) => {
   Just({
-    jdmt: init(~root=Drv(Exp)),
+    jdmt: init(~root=root_of_pos(Trees(0, Value))),
     rule: None,
   });
 };

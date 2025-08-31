@@ -4,10 +4,20 @@ open Util;
 open Language;
 open Node;
 
+// TODO(zhiyao): an ad-hoc solution to remove E ==> Seq(EmptyHole, E) in the results
+let strip_seq = (exp: Exp.t): Exp.t => {
+  let rec aux = (e: Exp.t): Exp.t =>
+    switch (e.term) {
+    | Seq(_, e2) => aux(e2)
+    | _ => e
+    };
+  aux(exp);
+};
+
 let stitched_results =
   // TODO(zhiyao): check this
   DerivationTree.map_stitched((_, cell_editor: CellEditor.Model.t) =>
-    cell_editor.result.elab |> Calc.get_saved_opt
+    cell_editor.result.elab |> Calc.get_saved_opt |> Option.map(strip_seq)
   );
 
 let verified_tree =

@@ -49,6 +49,7 @@ let init = (~exp: option(Exp.t)=?, ()) => {
               ~settings=ExpToSegment.Settings.editable(~inline=true),
               e,
             ),
+            ~root=Exp,
           ),
         ),
       )

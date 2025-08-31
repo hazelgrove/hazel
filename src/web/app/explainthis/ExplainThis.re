@@ -373,7 +373,7 @@ let example_view =
                   ~locked=true,
                   {
                     term
-                    |> Zipper.unzip
+                    |> Zipper.unzip(~root=Exp)
                     |> Editor.Model.mk
                     |> CellEditor.Model.mk
                     |> CellEditor.Update.calculate(
@@ -674,7 +674,8 @@ let get_doc =
         |> List.to_seq
         |> Id.Map.of_seq
         |> Option.some;
-      let editor = Editor.Model.mk(doc.syntactic_form |> Zipper.unzip);
+      let editor =
+        Editor.Model.mk(doc.syntactic_form |> Zipper.unzip(~root=Exp));
       let expander_deco =
         expander_deco(
           ~globals,
@@ -2977,17 +2978,6 @@ let view =
             ? []
             : [section(~section_clss="examples", ~title="Examples", example)]
         ),
-      ),
-    ]
-    @ [
-      section(
-        ~section_clss="syntactic-form",
-        ~title=
-          switch (info_cursor) {
-          | None => "Whitespace or Comment"
-          | Some(info) => Info.cls_of(info) |> Cls.show
-          },
-        syn_form @ explanation,
       ),
     ]
     @ (

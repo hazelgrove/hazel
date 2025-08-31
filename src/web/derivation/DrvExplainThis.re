@@ -23,7 +23,7 @@ let exp_show =
              ),
            ~sort=Jdmt,
          )
-      |> Zipper.unzip,
+      |> Zipper.unzip(~root=Drv(Exp)),
     );
   let statics =
     CachedStatics.init_from_term(
@@ -46,7 +46,7 @@ let exp_show =
   CodeWithStatics.View.view(
     ~globals,
     ~overlays=highlight_deco,
-    ~sort=Drv(Jdmt),
+    ~sort=Drv(Exp),
     {
       editor,
       statics,
@@ -67,7 +67,9 @@ let test_show =
   | _ =>
     let editor =
       Editor.Model.mk(
-        test |> ExpToSegment.drv_formula_to_pretty(_, Jdmt) |> Zipper.unzip,
+        test
+        |> ExpToSegment.drv_formula_to_pretty(_, Jdmt)
+        |> Zipper.unzip(~root=Drv(Exp)),
       );
     let highlight_deco = {
       module Deco =
@@ -84,7 +86,7 @@ let test_show =
     CodeWithStatics.View.view(
       ~globals,
       ~overlays=highlight_deco,
-      ~sort=Drv(Jdmt),
+      ~sort=Drv(Exp),
       {
         editor,
         statics: CachedStatics.empty,

@@ -665,7 +665,7 @@ and Stepper: {
         and.calc expr = expr
         and.calc ctx = ctx;
         expr
-        |> CodeWithStatics.Model.mk_from_exp(~settings)
+        |> CodeWithStatics.Model.mk_from_exp(~settings, ~root=Exp)
         |> CodeSelectable.Update.calculate(
              ~is_dynamic_term=true,
              ~settings,

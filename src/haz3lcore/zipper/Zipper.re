@@ -54,9 +54,8 @@ let zip = (z: t): Segment.t => {
   );
 };
 
-let unzip = (seg: Segment.t): t => {
-  // TODO(zhiyao): check this
-  root: Segment.sort_of(Segment.skel(seg), seg),
+let unzip = (seg: Segment.t, ~root): t => {
+  root,
   selection: Selection.mk([]),
   relatives: {
     siblings: (seg, []),

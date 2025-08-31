@@ -26,13 +26,14 @@ module Model = {
       (
         ~settings: Language.CoreSettings.t,
         ~inline=false,
+        ~root: Sort.t,
         term: Language.Exp.t,
       ) => {
     ExpToSegment.exp_to_segment(
       term,
       ~settings=ExpToSegment.Settings.of_core(~inline, settings),
     )
-    |> Zipper.unzip
+    |> Zipper.unzip(~root)
     |> Editor.Model.mk
     |> mk;
   };

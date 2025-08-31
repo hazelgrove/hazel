@@ -17,7 +17,7 @@ let show = (syntax: Drv.Exp.t, ~globals: Globals.t): Node.t => {
            },
            ~sort=Jdmt,
          )
-      |> Zipper.unzip,
+      |> Zipper.unzip(~root=Drv(Exp)),
     );
   let statics =
     CachedStatics.init_from_term(
@@ -27,7 +27,7 @@ let show = (syntax: Drv.Exp.t, ~globals: Globals.t): Node.t => {
     );
   CodeWithStatics.View.view(
     ~globals,
-    ~sort=Drv(Jdmt),
+    ~sort=Drv(Exp),
     {
       editor,
       statics,
@@ -37,10 +37,10 @@ let show = (syntax: Drv.Exp.t, ~globals: Globals.t): Node.t => {
 };
 
 let show_without_statics = (pretty: Segment.t, ~globals: Globals.t): Node.t => {
-  let editor = Editor.Model.mk(pretty |> Zipper.unzip);
+  let editor = Editor.Model.mk(pretty |> Zipper.unzip(~root=Drv(Exp)));
   CodeWithStatics.View.view(
     ~globals,
-    ~sort=Drv(Jdmt),
+    ~sort=Drv(Exp),
     {
       editor,
       statics: CachedStatics.empty,
