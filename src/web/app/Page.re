@@ -92,6 +92,7 @@ module Update = {
     switch (model.editors) {
     | Scratch(m) => (List.nth(m.scratchpads, m.current) |> snd).editor
     | Documentation(m) => (List.nth(m.scratchpads, m.current) |> snd).editor
+    | Tutorial(m) => List.nth(m.exercises, m.current).cells.user_impl.editor
     | Exercises(m) => List.nth(m.exercises, m.current).cells.user_impl.editor
     | Derivations(m) => List.nth(m.exercises, m.current).cells.prelude.editor
     };
@@ -156,7 +157,12 @@ module Update = {
       model |> return_quiet;
     | FinishImportAll(None) => model |> return_quiet
     | FinishImportAll(Some(data)) =>
-      Export.import_all(~import_log, data, ~specs=ExerciseSettings.exercises);
+      Export.import_all(
+        ~import_log,
+        data,
+        ~exercise_specs=ExerciseSettings.exercises,
+        ~tutorial_specs=TutorialSettings.lessons,
+      );
       Store.load() |> return;
     | ExportForInit =>
       let (filename, content) =
@@ -175,6 +181,11 @@ module Update = {
               |> ((e: CellEditor.Model.t) => e.editor)
               |> CodeWithStatics.Model.persist,
             ));
+          (filename, content);
+        | Tutorial(model) =>
+          let current = List.nth(model.exercises, model.current);
+          let filename = current.editors.module_name ++ ".ml";
+          let content = "not supported";
           (filename, content);
         | Exercises(model) =>
           let current = List.nth(model.exercises, model.current);

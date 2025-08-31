@@ -4,6 +4,15 @@ let get_documentation_as_text = () => {
   let (_, slides) = ScratchMode.StoreDocumentation.load();
   let documentation =
     slides
+    |> List.map(((s, optional_persistent)) => {
+         (
+           s,
+           OptUtil.get(
+             () => Init.default_documentation_slide_name(s),
+             optional_persistent,
+           ),
+         )
+       })
     |> List.map(((name, persistent)) => {
          let cell_model =
            CellEditor.Model.unpersist(

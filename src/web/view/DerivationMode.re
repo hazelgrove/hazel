@@ -377,7 +377,10 @@ module Selection = {
        )
     |> Option.map(((pos, _)) =>
          (
-           Update.Editor(pos, MainEditor(Perform(Jump(TileId(id))))),
+           Update.Editor(
+             pos,
+             MainEditor(Perform(Move(Goal(TileId(id))))),
+           ),
            CellEditor.Selection.MainEditor,
          )
        );

@@ -9,6 +9,8 @@ type key =
   | Mode
   | Scratch
   | Documentation
+  | Tutorial(Haz3lcore.Id.t)
+  | CurrentTutorial
   | CurrentExercise
   | Exercise(Haz3lcore.Id.t)
   | CurrentDerivation
@@ -22,12 +24,14 @@ let key_to_string =
   | Mode => "MODE"
   | Scratch => "SAVE_SCRATCH"
   | Documentation => "SAVE_DOCUMENTATION"
+  | Tutorial(id) => Haz3lcore.Id.to_string(id)
+  | CurrentTutorial => "CUR_TUTORIAL"
   | CurrentExercise => "CUR_EXERCISE"
-  | Exercise(id) => Haz3lcore.Id.to_string(id)
   | CurrentDerivation => "CUR_DERIVATION"
   | Derivation(key) =>
     "DERIVATIONS"
-    ++ (key |> DerivationTree.sexp_of_key |> Sexplib.Sexp.to_string);
+    ++ (key |> DerivationTree.sexp_of_key |> Sexplib.Sexp.to_string)
+  | Exercise(id) => "TUTORIAL" ++ Haz3lcore.Id.to_string(id);
 
 module F =
        (

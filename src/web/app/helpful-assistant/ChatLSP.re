@@ -286,12 +286,12 @@ module Composition = {
     let actions =
       switch (matching_id) {
       | Some(id) => [
-          Action.Jump(TileId(id)),
+          Action.Move(Goal(TileId(id))),
           // Moving left by token is essentially a hacky method to get
           // off of a variable name (term), and triple/quad click on let binding
           // itself (this properly highlights full variable name and
           // definition when type annotation exists)
-          Action.Move(Local(Left(ByToken))),
+          Action.Move(Local(Left, ByToken)),
           switch (loc) {
           // TODO: Implement structure-based navigation actions
           | Definition =>
@@ -374,7 +374,13 @@ module ErrorRound = {
       (sketch_z: Zipper.t, completion: string): Result.t(Zipper.t, string) =>
     //NOTE: This function is pretty basic; reporting approach could be improved
     /* For now we required that the completion be complete in-itself: */
-    switch (Perform.paste(Zipper.init(~root=Exp), completion)) {
+    switch (
+      Parser.to_zipper(
+        ~root=Exp,
+        ~zipper_init=Zipper.init(~root=Exp),
+        completion,
+      )
+    ) {
     | None => Error("Undocumented parse error, no feedback available")
     | Some(completion_z) =>
       switch (Zipper.local_backpack(completion_z)) {
@@ -398,7 +404,7 @@ module ErrorRound = {
           {
             let* sketch_z = Destruct.go(Left, sketch_z);
             let+ sketch_z = Destruct.go(Left, sketch_z);
-            Perform.paste_segment(sketch_z, segment);
+            Zipper.insert_segment(sketch_z, segment);
           }
         ) {
         | None => Error("Undocumented parse error, no feedback available")

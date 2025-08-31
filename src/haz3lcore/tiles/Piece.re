@@ -137,13 +137,6 @@ let label: t => option(Label.t) =
   | Tile({label, _}) => Some(label)
   | _ => None;
 
-let monotile: t => option(Token.t) =
-  fun
-  | Tile({label: [t], _}) => Some(t)
-  | Secondary(w) when Secondary.is_comment(w) =>
-    Some(Secondary.get_string(w.content))
-  | _ => None;
-
 let is_complete: t => bool =
   fun
   | Tile(t) => Tile.is_complete(t)
@@ -191,34 +184,6 @@ let mk_tile: (Form.t, list(list(t))) => t =
       children,
     });
 
-let mk_mono = (sort: Sort.t, string: string): t =>
-  string |> Form.mk_atom_op(sort) |> mk_tile(_, []);
-
-let of_mono = (syntax: t): option(string) =>
-  switch (syntax) {
-  | Tile({label: [l], _}) => Some(l)
-  | _ => None
-  };
-
-let is_case_or_rule = (p: t) =>
-  switch (p) {
-  | Tile({label: ["case", "end"], _}) => true
-  | Tile({label: ["|", "=>"], _}) => true
-  | _ => false
-  };
-let is_not_case_or_rule_or_space = (p: t) =>
-  switch (p) {
-  | Tile({label: ["case", "end"], _}) => false
-  | Tile({label: ["|", "=>"], _}) => false
-  | Secondary(_) => false
-  | _ => true
-  };
-let not_comment_or_space = (p: t) =>
-  switch (p) {
-  | Secondary(s) => Secondary.is_linebreak(s)
-  | _ => true
-  };
-
 let is_term = (p: t) =>
   switch (p) {
   | Grout(_)
@@ -238,4 +203,16 @@ let is_infix_delimiter_op_prefix = (p: t) =>
   | Tile({label: [t], mold, _}) =>
     Mold.is_infix_op(mold) && Form.is_infix_delimiter_op_prefix(t)
   | _ => false
+  };
+
+let token_of = (p: t): option(Token.t) =>
+  switch (p) {
+  | Tile(t) =>
+    switch (Tile.effective_label(t)) {
+    | [tok] => Some(tok)
+    | _ => None
+    }
+  | Secondary(w) => Some(Secondary.get_string(w.content))
+  | Grout(_) => None
+  | Projector(_) => None
   };

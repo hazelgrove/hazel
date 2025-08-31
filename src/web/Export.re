@@ -5,6 +5,7 @@ type all = {
   settings: string,
   explainThisModel: string,
   scratch: string,
+  tutorial: string,
   exercise: string,
   documentation: string,
   derivation: string,
@@ -13,11 +14,12 @@ type all = {
 
 // fallback for saved state prior to release of lang doc in 490F22
 [@deriving (show({with_path: false}), sexp, yojson)]
-type all_f22 = {
+type all_public = {
   settings: string,
   scratch: string,
   exercise: string,
   derivation: string,
+  tutorial: string,
   log: string,
 };
 
@@ -26,6 +28,8 @@ let mk_all = (~core_settings, ~instructor_mode, ~log) => {
   let explainThisModel = ExplainThisModel.Store.export();
   let scratch = ScratchMode.Store.export();
   let documentation = ScratchMode.StoreDocumentation.export();
+  let tutorial =
+    TutorialsMode.Store.export(~settings=core_settings, ~instructor_mode);
   let exercise =
     ExercisesMode.Store.export(~settings=core_settings, ~instructor_mode);
   let derivation =
@@ -37,6 +41,7 @@ let mk_all = (~core_settings, ~instructor_mode, ~log) => {
     documentation,
     exercise,
     derivation,
+    tutorial,
     log,
   };
 };
@@ -45,18 +50,20 @@ let export_all = (~settings, ~instructor_mode, ~log) => {
   mk_all(~core_settings=settings, ~instructor_mode, ~log) |> yojson_of_all;
 };
 
-let import_all = (~import_log: string => unit, data, ~specs) => {
+let import_all =
+    (~import_log: string => unit, data, ~exercise_specs, ~tutorial_specs) => {
   let all =
     try(data |> Yojson.Safe.from_string |> all_of_yojson) {
     | _ =>
-      let all_f22 = data |> Yojson.Safe.from_string |> all_f22_of_yojson;
+      let all_public = data |> Yojson.Safe.from_string |> all_public_of_yojson;
       {
-        settings: all_f22.settings,
-        scratch: all_f22.scratch,
+        settings: all_public.settings,
+        scratch: all_public.scratch,
         documentation: "",
-        exercise: all_f22.exercise,
-        derivation: all_f22.derivation,
-        log: all_f22.log,
+        derivation: all_public.derivation,
+        exercise: all_public.exercise,
+        tutorial: all_public.tutorial,
+        log: all_public.log,
         explainThisModel: "",
       };
     };
@@ -65,21 +72,12 @@ let import_all = (~import_log: string => unit, data, ~specs) => {
   ExplainThisModel.Store.import(all.explainThisModel);
   let instructor_mode = settings.instructor_mode;
   ScratchMode.Store.import(all.scratch);
-  ExercisesMode.Store.import(all.exercise, ~specs, ~instructor_mode);
-  import_log(all.log);
-};
-
-let export_persistent = () => {
-  let data: PersistentData.t = {
-    documentation: ScratchMode.StoreDocumentation.load(),
-    scratch: ScratchMode.Store.load(),
-  };
-  let contents =
-    "let startup : PersistentData.t = " ++ PersistentData.show(data);
-  JsUtil.download_string_file(
-    ~filename="Init.ml",
-    ~content_type="text/plain",
-    ~contents,
+  ExercisesMode.Store.import(all.exercise, ~exercise_specs, ~instructor_mode);
+  TutorialsMode.Store.import(
+    ~settings=settings.core,
+    all.tutorial,
+    ~tutorial_specs,
+    ~instructor_mode,
   );
-  print_endline("INFO: Persistent data exported to Init.ml");
+  import_log(all.log);
 };
