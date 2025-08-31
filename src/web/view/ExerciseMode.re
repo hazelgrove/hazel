@@ -531,15 +531,19 @@ module Selection = {
   };
 
   let jump_to_tile =
-      (~settings: Settings.t, tile, model: Model.t): option((Update.t, t)) => {
+      (~settings: Settings.t, id: Id.t, model: Model.t)
+      : option((Update.t, t)) => {
     Exercise.positioned_editors(model.editors)
     |> List.find_opt(((p, e: Editor.t)) =>
-         TileMap.find_opt(tile, e.syntax.tiles) != None
+         TermData.root_tile_opt(id, e.syntax.term_data) != None
          && Exercise.visible_in(p, ~instructor_mode=settings.instructor_mode)
        )
     |> Option.map(((pos, _)) =>
          (
-           Update.Editor(pos, MainEditor(Perform(Jump(TileId(tile))))),
+           Update.Editor(
+             pos,
+             MainEditor(Perform(Move(Goal(TileId(id))))),
+           ),
            Cell(pos, CellEditor.Selection.MainEditor),
          )
        );
@@ -972,7 +976,7 @@ module View = {
                     inject(
                       Editor(
                         YourTestsValidation,
-                        MainEditor(Perform(Jump(TileId(id)))),
+                        MainEditor(Perform(Move(Goal(TileId(id))))),
                       ),
                     ),
                 ~signal_editing_test_val_rep=
@@ -1104,7 +1108,7 @@ module View = {
               inject(
                 Editor(
                   YourTestsTesting,
-                  MainEditor(Perform(Jump(TileId(id)))),
+                  MainEditor(Perform(Move(Goal(TileId(id))))),
                 ),
               ),
           ~inject_set_editing_impl_grd_rep=

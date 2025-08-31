@@ -222,8 +222,8 @@ let builtins = [
                   fn(
                     Pat.tuple([Pat.var("acc"), Pat.var("x")]),
                     Exp.list_concat(
-                      ap(Forward, var("f"), var("x")),
                       var("acc"),
+                      ap(Forward, var("f"), var("x")),
                     ),
                     None,
                     None,

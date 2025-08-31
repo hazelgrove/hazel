@@ -11,21 +11,48 @@ module Model = {
   };
 
   [@deriving (show({with_path: false}), sexp, yojson)]
-  type persistent = (int, list((string, CellEditor.Model.persistent)));
+  type persistent = (
+    int,
+    list((string, option(CellEditor.Model.persistent))),
+  );
 
-  let persist = model => (
+  let persist = (model: t): persistent => (
     model.current,
     List.map(
-      ((s, m)) => (s, CellEditor.Model.persist(m)),
+      ((s: string, m: CellEditor.Model.t)) => {
+        let current_segment = Zipper.zip(m.editor.editor.state.zipper);
+        let original = Init.find_documentation_slide(s);
+        let original_segment =
+          original
+          |> Option.map((pce: CellEditor.Model.persistent) =>
+               PersistentZipper.unpersist(pce.editor)
+             )
+          |> Option.map(Zipper.zip);
+
+        if (Option.equal(
+              Base.equal_segment,
+              original_segment,
+              Some(current_segment),
+            )) {
+          (s, None);
+        } else {
+          (s, Some(CellEditor.Model.persist(m)));
+        };
+      },
       model.scratchpads,
     ),
   );
 
-  let unpersist = (~settings, (current, slides)) => {
+  let unpersist = (~settings, (current, slides): persistent): t => {
     current,
     scratchpads:
       List.map(
-        ((s, m)) => (s, CellEditor.Model.unpersist(~settings, m)),
+        ((s: string, m: option(CellEditor.Model.persistent))) =>
+          (
+            s,
+            OptUtil.get(() => Init.default_documentation_slide_name(s), m)
+            |> CellEditor.Model.unpersist(~settings),
+          ),
         slides,
       ),
   };
@@ -36,7 +63,9 @@ module StoreDocumentation =
     [@deriving (show({with_path: false}), sexp, yojson)]
     type t = Model.persistent;
     let key = Store.Documentation;
-    let default = () => Init.startup.documentation;
+    let default = (): t =>
+      Init.startup.documentation
+      |> PairUtil.map_snd(List.map(PairUtil.map_snd(_ => None)));
   });
 
 module Store = {
@@ -44,7 +73,9 @@ module Store = {
     [@deriving (show({with_path: false}), sexp, yojson)]
     type t = Model.persistent;
     let key = Store.Scratch;
-    let default = () => Init.startup.scratch;
+    let default = () =>
+      Init.startup.scratch
+      |> PairUtil.map_snd(List.map(PairUtil.map_snd(x => Some(x))));
   });
 
   let integrate_share = (model: t): t => {
@@ -61,8 +92,15 @@ module Store = {
         zipper: "invalid",
         backup_text: shared_text,
       };
+      let shared: CellEditor.Model.persistent = {
+        editor: shared,
+        result: EvalResult.Model.init |> EvalResult.Model.persist,
+      };
 
-      (List.length(scratchpads), scratchpads @ [(share_name, shared)]);
+      (
+        List.length(scratchpads),
+        scratchpads @ [(share_name, Some(shared))],
+      );
     };
   };
 };
@@ -248,18 +286,14 @@ module Update = {
       let (key, _) = List.nth(model.scratchpads, model.current);
       let source =
         switch (is_documentation) {
-        | false => Zipper.init() |> PersistentZipper.persist
-        | true =>
-          Init.startup.documentation
-          |> snd
-          |> List.map(snd)
-          |> List.nth(_, model.current)
+        | false =>
+          CellEditor.Model.mk(Editor.Model.mk(Zipper.init()))
+          |> CellEditor.Model.persist
+        | true => Init.default_documentation_slide_name(key)
         };
       let* data =
         source
-        |> PersistentZipper.unpersist
-        |> Editor.Model.mk
-        |> CellEditor.Model.mk
+        |> CellEditor.Model.unpersist(~settings=settings.core)
         |> Updated.return;
       {
         ...model,
@@ -525,8 +559,8 @@ module View = {
 
   let top_bar = (~globals as _, ~inject: Update.t => 'a, model: Model.t) => {
     EditorModeView.view(
-      ~nav_buttons=false,
       ~edit_buttons=true,
+      ~nav_buttons=false,
       ~signal=
         fun
         | Previous =>

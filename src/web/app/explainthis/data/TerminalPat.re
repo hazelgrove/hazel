@@ -59,7 +59,7 @@ let strlit_pat = (s: string): form => {
   let explanation = "Only expressions with value `%s` match the *`%s` pattern*.";
   {
     id: StrPat,
-    syntactic_form: [s |> abbreviate |> Haz3lcore.Form.string_quote |> pat],
+    syntactic_form: [s |> abbreviate |> Haz3lcore.Token.string_quote |> pat],
     expandable_id: None,
     explanation,
     examples: [],
