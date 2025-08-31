@@ -1,5 +1,6 @@
 open Alcotest;
 open Language;
+open Util;
 
 let tests = (
   "Typ",
@@ -20,7 +21,7 @@ let tests = (
           Some(
             Forall(Var("a") |> TPat.temp, Var("a") |> Typ.temp) |> Typ.temp,
           ),
-          t,
+          OptUtil.unzip(t) |> fst,
         );
       },
     ),

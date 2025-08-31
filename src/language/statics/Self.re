@@ -230,7 +230,9 @@ let add_source =
     }
   );
 
-let match = (ctx: Ctx.t, tys: list(Typ.t), ids: list(Id.t)): t =>
+let match =
+    (ctx: Ctx.t, tys: list(Typ.t), ids: list(Id.t))
+    : (t, list(Typ.equivalence)) =>
   switch (
     Typ.join_all(
       ~empty=Unknown(Internal |> Prov.fresh) |> Typ.fresh,
@@ -238,17 +240,21 @@ let match = (ctx: Ctx.t, tys: list(Typ.t), ids: list(Id.t)): t =>
       tys,
     )
   ) {
-  | None => NoJoin(Id, add_source(ids, tys))
-  | Some(ty) => Just(ty)
+  | None => (NoJoin(Id, add_source(ids, tys)), [])
+  | Some((ty, cons)) => (Just(ty), cons)
   };
 
-let listlit = (~empty, ctx: Ctx.t, tys: list(Typ.t), ids: list(Id.t)): t =>
+let listlit =
+    (~empty, ctx: Ctx.t, tys: list(Typ.t), ids: list(Id.t))
+    : (t, list(Typ.equivalence)) =>
   switch (Typ.join_all(~empty, ctx, tys)) {
-  | None => NoJoin(List, add_source(ids, tys))
-  | Some(ty) => Just(List(ty) |> Typ.fresh)
+  | None => (NoJoin(List, add_source(ids, tys)), [])
+  | Some((ty, cons)) => (Just(List(ty) |> Typ.fresh), cons)
   };
 
-let list_concat = (ctx: Ctx.t, tys: list(Typ.t), ids: list(Id.t)): t =>
+let list_concat =
+    (ctx: Ctx.t, tys: list(Typ.t), ids: list(Id.t))
+    : (t, list(Typ.equivalence)) =>
   switch (
     Typ.join_all(
       ~empty=Unknown(Internal |> Prov.fresh) |> Typ.fresh,
@@ -256,11 +262,13 @@ let list_concat = (ctx: Ctx.t, tys: list(Typ.t), ids: list(Id.t)): t =>
       tys,
     )
   ) {
-  | None => NoJoin(List, add_source(ids, tys))
-  | Some(ty) => Just(ty)
+  | None => (NoJoin(List, add_source(ids, tys)), [])
+  | Some((ty, cons)) => (Just(ty), cons)
   };
 
-let poly_eq = (ctx: Ctx.t, tys: list(Typ.t), ids: list(Id.t)): t =>
+let poly_eq =
+    (ctx: Ctx.t, tys: list(Typ.t), ids: list(Id.t))
+    : (t, list(Typ.equivalence)) =>
   switch (
     Typ.join_all(
       ~empty=Unknown(Internal |> Prov.fresh) |> Typ.fresh,
@@ -268,7 +276,10 @@ let poly_eq = (ctx: Ctx.t, tys: list(Typ.t), ids: list(Id.t)): t =>
       tys,
     )
   ) {
-  | None => NoJoin(PolyEq, add_source(ids, tys))
-  | Some(ty) when ty |> Typ.normalize(ctx) |> Typ.has_fun => CompareFun(ty)
-  | Some(_) => Just(Atom(Bool) |> Typ.fresh)
+  | None => (NoJoin(PolyEq, add_source(ids, tys)), [])
+  | Some((ty, cons)) when ty |> Typ.normalize(ctx) |> Typ.has_fun => (
+      CompareFun(ty),
+      cons,
+    )
+  | Some(_) => (Just(Atom(Bool) |> Typ.fresh), [])
   };

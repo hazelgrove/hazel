@@ -222,12 +222,13 @@ let rec elaborate = (m: Statics.Map.t, uexp: Exp.t): (DHExp.t, Typ.t) => {
       };
     | ListLit(es) =>
       let (ds, tys) = List.map(elaborate(m), es) |> ListUtil.unzip;
-      let joined_ty =
+      let joined =
         Typ.join_all(
           ~empty=Unknown(Internal |> Prov.anonymous) |> Typ.temp,
           ctx,
           tys,
         );
+      let (joined_ty, _) = OptUtil.unzip(joined);
 
       let ds' =
         List.map2((d, t) => fresh_ascription(d, t, joined_ty), ds, tys);

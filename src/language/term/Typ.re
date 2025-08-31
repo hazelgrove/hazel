@@ -230,11 +230,20 @@ let of_source = List.map((source: source) => source.ty);
    but right now TypeHole strictly predominates over Internal
    which strictly predominates over SynSwitch. */
 let join_type_provenance =
-    (p1: Prov.t, p2: Prov.t): TermBase.type_provenance_t =>
+    (p1: Prov.t, p2: Prov.t)
+    : (TermBase.type_provenance_t, list(equivalence)) =>
   if (p1 == p2) {
-    p1;
+    (p1, []);
   } else {
-    Join(p1, p2) |> Prov.fresh;
+    let join_prov = Join(p1, p2) |> Prov.fresh;
+    let join_hole = Unknown(join_prov) |> temp;
+    (
+      join_prov,
+      [
+        Con(Unknown(p1) |> temp, join_hole),
+        Con(Unknown(p2) |> temp, join_hole),
+      ],
+    );
   };
 
 let rec match_tup_label = ty =>
@@ -447,32 +456,35 @@ let equal = (t1: t, t2: t): bool => fast_equal(t1, t2);
    resolve parameter specifies whether, in the case of a type
    variable and a succesful join, to return the resolved join type,
    or to return the (first) type variable for readability */
-let rec join = (~resolve=false, ctx: Ctx.t, ty1: t, ty2: t): option(t) => {
+let rec join =
+        (~resolve=false, ctx: Ctx.t, ty1: t, ty2: t)
+        : option((t, list(equivalence))) => {
   let join' = join(~resolve, ctx);
   switch (term_of(ty1), term_of(ty2)) {
   | (_, Parens(ty2)) => join'(ty1, ty2)
   | (Parens(ty1), _) => join'(ty1, ty2)
   | (Unknown(p1), Unknown(p2)) =>
-    Some(Unknown(join_type_provenance(p1, p2)) |> temp)
-  | (Unknown(_), _) => Some(ty2)
-  | (_, Unknown(_)) => Some(ty1)
+    let (prov, cons) = join_type_provenance(p1, p2);
+    Some((Unknown(prov) |> temp, cons));
+  | (Unknown(_), _) => Some((ty2, []))
+  | (_, Unknown(_)) => Some((ty1, []))
   | (Var(n1), Var(n2)) =>
     if (n1 == n2) {
-      Some(ty1);
+      Some((ty1, []));
     } else {
       let* ty1 = Ctx.lookup_alias(ctx, n1);
       let* ty2 = Ctx.lookup_alias(ctx, n2);
-      let+ ty_join = join'(ty1, ty2);
-      !resolve && equal(ty1, ty_join) ? ty1 : ty_join;
+      let+ (ty_join, cons) = join'(ty1, ty2);
+      (!resolve && equal(ty1, ty_join) ? ty1 : ty_join, cons);
     }
   | (Var(name), _) =>
     let* ty_name = Ctx.lookup_alias(ctx, name);
-    let+ ty_join = join'(ty_name, ty2);
-    !resolve && equal(ty_name, ty_join) ? ty1 : ty_join;
+    let+ (ty_join, cons) = join'(ty_name, ty2);
+    (!resolve && equal(ty_name, ty_join) ? ty1 : ty_join, cons);
   | (_, Var(name)) =>
     let* ty_name = Ctx.lookup_alias(ctx, name);
-    let+ ty_join = join'(ty_name, ty1);
-    !resolve && equal(ty_name, ty_join) ? ty2 : ty_join;
+    let+ (ty_join, cons) = join'(ty_name, ty1);
+    (!resolve && equal(ty_name, ty_join) ? ty2 : ty_join, cons);
   /* Note: Ordering of Unknown, Var, and Rec above is load-bearing! */
   | (Rec(tp1, ty1), Rec(tp2, ty2)) =>
     let ctx = Ctx.extend_dummy_tvar(ctx, tp1);
@@ -481,8 +493,8 @@ let rec join = (~resolve=false, ctx: Ctx.t, ty1: t, ty2: t): option(t) => {
       | Some(x2) => subst(Var(x2) |> temp, tp1, ty1)
       | None => ty1
       };
-    let+ ty_body = join(~resolve, ctx, ty1', ty2);
-    Rec(tp1, ty_body) |> temp;
+    let+ (ty_body, cons) = join(~resolve, ctx, ty1', ty2);
+    (Rec(tp1, ty_body) |> temp, cons);
   | (Rec(_), _) => None
   | (Forall(x1, ty1), Forall(x2, ty2)) =>
     let ty1' =
@@ -491,8 +503,8 @@ let rec join = (~resolve=false, ctx: Ctx.t, ty1: t, ty2: t): option(t) => {
       | None => ty1
       };
     let ctx = Ctx.extend_dummy_tvar(ctx, x2);
-    let+ ty_body = join(~resolve, ctx, ty1', ty2);
-    Forall(x2, ty_body) |> temp;
+    let+ (ty_body, join_cons) = join(~resolve, ctx, ty1', ty2);
+    (Forall(x2, ty_body) |> temp, join_cons);
   /* Note for above: there is no danger of free variable capture as
      subst itself performs capture avoiding substitution. However this
      may generate internal type variable names that in corner cases can
@@ -500,40 +512,45 @@ let rec join = (~resolve=false, ctx: Ctx.t, ty1: t, ty2: t): option(t) => {
      second type to preserve synthesized type variable names, which
      come from user annotations. */
   | (Forall(_), _) => None
-  | (Atom(c1), Atom(c2)) when c1 == c2 => Some(ty1)
+  | (Atom(c1), Atom(c2)) when c1 == c2 => Some((ty1, []))
   | (Atom(_), _) => None
-  | (Label(_), Label("")) => Some(ty1)
-  | (Label(""), Label(_)) => Some(ty2)
+  | (Label(_), Label("")) => Some((ty1, []))
+  | (Label(""), Label(_)) => Some((ty1, []))
   | (Label(name1), Label(name2))
       when LabeledTuple.match_labels(name1, name2) =>
-    Some(ty1)
+    Some((ty1, []))
   | (Label(_), _) => None
   | (Arrow(ty1, ty2), Arrow(ty1', ty2')) =>
-    let* ty1 = join'(ty1, ty1');
-    let+ ty2 = join'(ty2, ty2');
-    Arrow(ty1, ty2) |> temp;
+    let* (ty1, join_cons1) = join'(ty1, ty1');
+    let+ (ty2, join_cons2) = join'(ty2, ty2');
+    (Arrow(ty1, ty2) |> temp, join_cons1 @ join_cons2);
   | (Arrow(_), _) => None
   | (TupLabel(lab1, ty1'), TupLabel(lab2, ty2')) =>
-    let* lab = join'(lab1, lab2);
-    let+ ty = join'(ty1', ty2');
-    TupLabel(lab, ty) |> temp;
+    let* (lab, lab_cons) = join'(lab1, lab2);
+    let+ (ty, ty_cons) = join'(ty1', ty2');
+    (TupLabel(lab, ty) |> temp, lab_cons @ ty_cons);
   | (TupLabel(_), _) => None
   | (Prod(tys1), Prod(tys2)) =>
     if (List.length(tys1) != List.length(tys2)) {
       None;
     } else {
       let* tys = ListUtil.map2_opt(join', tys1, tys2);
-      let+ tys = OptUtil.sequence(tys);
-      Prod(tys) |> temp;
+      let* tys = OptUtil.sequence(tys);
+      let+ (tys, ty_cons) = Some(List.split(tys));
+      (Prod(tys) |> temp, List.flatten(ty_cons));
     }
   | (Prod(_), _) => None
   | (Sum(sm1), Sum(sm2)) =>
-    let+ sm' = ConstructorMap.join(equal, join(~resolve, ctx), sm1, sm2);
-    Sum(sm') |> temp;
+    let join = (a, b) => {
+      let+ (joined, _) = join(~resolve, ctx, a, b);
+      joined;
+    };
+    let+ sm' = ConstructorMap.join(equal, join, sm1, sm2);
+    (Sum(sm') |> temp, []);
   | (Sum(_), _) => None
   | (List(ty1), List(ty2)) =>
-    let+ ty = join'(ty1, ty2);
-    List(ty) |> temp;
+    let+ (ty, ty_cons) = join'(ty1, ty2);
+    (List(ty) |> temp, ty_cons);
   | (List(_), _) => None
   | (Ap(_), _) => failwith("Type join of ap")
   };
@@ -578,12 +595,21 @@ let rec match_synswitch = (t1: t, t2: t) => {
   };
 };
 
-let join_all = (~empty: t, ctx: Ctx.t, ts: list(t)): option(t) =>
-  List.fold_left(
-    (acc, ty) => OptUtil.and_then(join(ctx, ty), acc),
-    Some(empty),
-    ts,
-  );
+let join_all =
+    (~empty: t, ctx: Ctx.t, ts: list(t)): option((t, list(equivalence))) => {
+  let+ (ty, cons) =
+    List.fold_left(
+      (acc: option((t, list(list(equivalence)))), ty: t) => {
+        let* (acc_ty, acc_cons) = acc;
+        let+ (join_ty, join_cons) = join(ctx, ty, acc_ty);
+        (join_ty, [join_cons, ...acc_cons]);
+      },
+      Some((empty, [])),
+      ts,
+    );
+
+  (ty, List.flatten(cons));
+};
 
 let is_consistent = (ctx: Ctx.t, ty1: t, ty2: t): bool =>
   join(ctx, ty1, ty2) != None;
@@ -597,7 +623,7 @@ let is_more_precise = (ctx: Ctx.t, ty1: t, ty2: t): bool => {
   let joined = join(ctx, ty1, ty2);
   switch (joined) {
   | None => false
-  | Some(joined) => fast_equal(~alpha_equivalence=true, joined, ty1)
+  | Some((joined, _)) => fast_equal(~alpha_equivalence=true, joined, ty1)
   };
 };
 
@@ -905,7 +931,6 @@ let rec matched_args_strict = (ctx, ty, arity): Either.t('a, int) => {
   };
 };
 
-// TODO: (THI) does this need constraints and special provenances?
 let matched_label = (ctx, ty): option((t, t)) =>
   switch (term_of(weak_head_normalize(ctx, ty))) {
   | TupLabel({term: Label(ml), _}, ty) => Some((Label(ml) |> temp, ty))

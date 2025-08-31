@@ -9,7 +9,7 @@ let free_variables =
     ((name, entries)) =>
       switch (Ctx.lookup_var(ctx, name)) {
       | None =>
-        let joint_use_typ = CoCtx.join(ctx, entries);
+        let (joint_use_typ, _) = CoCtx.join(ctx, entries);
         if (Typ.is_consistent(ctx, expected_ty, joint_use_typ)) {
           Some({
             content: name,

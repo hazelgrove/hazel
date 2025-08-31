@@ -1145,8 +1145,8 @@ and Prov: {
 
   let rec to_string: term => string =
     fun
-    | Internal => "<="
-    | SynSwitch => "<>"
+    | Internal => "int"
+    | SynSwitch => "<="
     | Hole(_) => "()"
     | LArrow(p) => "->L(" ++ to_string(p) ++ ")"
     | RArrow(p) => "->R(" ++ to_string(p) ++ ")"

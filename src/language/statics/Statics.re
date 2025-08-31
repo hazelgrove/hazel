@@ -464,30 +464,30 @@ and uexp_to_info_map =
       let (es, m) = map_m_go(m, anas, es);
       let tys = List.map(Info.exp_ty, es);
       let es_constraints = List.flatten(List.map(Info.exp_constraints, es));
+      let (self, self_cons) =
+        Self.listlit(
+          ~empty=Unknown(Internal |> Prov.fresh) |> Typ.temp,
+          ctx,
+          tys,
+          ids,
+        );
+      let (subsum_self, _) =
+        Self.listlit(
+          ~empty=
+            Unknown((Internal: TermBase.type_provenance) |> IdTagged.temp)
+            |> Typ.temp,
+          ctx,
+          tys,
+          ids,
+        );
       add(
-        ~self=
-          Self.listlit(
-            ~empty=Unknown(Internal |> Prov.fresh) |> Typ.temp,
-            ctx,
-            tys,
-            ids,
-          ),
+        ~self,
         ~co_ctx=CoCtx.union(List.map(Info.exp_co_ctx, es)),
         ~constraints=
           es_constraints
           @ list_constraints
-          @ subsumption_constraints_t(
-              Self.listlit(
-                ~empty=
-                  Unknown(
-                    (Internal: TermBase.type_provenance) |> IdTagged.temp,
-                  )
-                  |> Typ.temp,
-                ctx,
-                tys,
-                ids,
-              ),
-            ),
+          @ self_cons
+          @ subsumption_constraints_t(subsum_self),
         m,
       );
     | Cons(hd, tl) =>
@@ -512,10 +512,11 @@ and uexp_to_info_map =
       let ids = List.map(Exp.rep_id, [e1, e2]);
       let (e1, m) = go(~ana=inner_ana_ty, e1, m);
       let (e2, m) = go(~ana=inner_ana_ty, e2, m);
+      let (self, self_cons) = Self.list_concat(ctx, [e1.ty, e2.ty], ids);
       add(
-        ~self=Self.list_concat(ctx, [e1.ty, e2.ty], ids),
+        ~self,
         ~co_ctx=CoCtx.union([e1.co_ctx, e2.co_ctx]),
-        ~constraints=e1.constraints @ e2.constraints,
+        ~constraints=e1.constraints @ e2.constraints @ self_cons,
         m,
       );
     | Var(name) =>
@@ -535,8 +536,9 @@ and uexp_to_info_map =
             ),
           )
         };
+      let self = Self.of_exp_var(ctx, name);
       add'(
-        ~self=Self.of_exp_var(ctx, name),
+        ~self,
         ~co_ctx=CoCtx.singleton(name, Exp.rep_id(uexp), ana),
         ~constraints=cons,
         m,
@@ -617,10 +619,12 @@ and uexp_to_info_map =
         let (es, m) =
           map_m_go(m, [temp_internal, temp_internal], [e1, e2]);
         let tys = List.map(Info.exp_ty, es);
+        let (self, self_cons) = Self.poly_eq(ctx, tys, ids);
         add(
-          ~self=Self.poly_eq(ctx, tys, ids),
+          ~self,
           ~co_ctx=CoCtx.union(List.map(Info.exp_co_ctx, es)),
-          ~constraints=List.flatten(List.map(Info.exp_constraints, es)),
+          ~constraints=
+            List.flatten(List.map(Info.exp_constraints, es)) @ self_cons,
           m,
         );
       | Defined(ty1, ty2, ty_out, _) =>
@@ -1191,7 +1195,7 @@ and uexp_to_info_map =
     | Let(p, def, body) =>
       let (p_syn, _) =
         go_pat(~is_synswitch=true, ~co_ctx=CoCtx.empty, ~ana=anon_syn, p, m);
-      let (def, p_ana_ctx, m, ty_p_ana) =
+      let (def, p_ana_ctx, p_ana'_cons, m, ty_p_ana) =
         if (!is_recursive(ctx, p, def, p_syn.ty)) {
           let (def, m) = go(~ana=p_syn.ty, def, m);
           let ty_p_ana = def.ty;
@@ -1203,7 +1207,7 @@ and uexp_to_info_map =
               p,
               m,
             );
-          (def, p_ana'.ctx, m, ty_p_ana);
+          (def, p_ana'.ctx, p_ana'.typ_constraints, m, ty_p_ana);
         } else {
           let (def_base, _) = go'(~ctx=p_syn.ctx, ~ana=p_syn.ty, def, m);
           let ty_p_ana = def_base.ty;
@@ -1240,10 +1244,8 @@ and uexp_to_info_map =
               ana_ty_fn((def_base.ty, def_base2.ty), p_syn.ty)
             };
           let (def, m) = go'(~ctx=def_ctx, ~ana, def, m);
-          (def, def_ctx, m, ty_p_ana);
+          (def, def_ctx, p_ana'.typ_constraints, m, ty_p_ana);
         };
-      print_endline("LOL");
-      print_endline(Typ.show(ana));
       let (body, m) = go'(~ctx=p_ana_ctx, ~ana, body, m);
       /* add co_ctx to pattern */
       let (p_ana, m) =
@@ -1264,6 +1266,7 @@ and uexp_to_info_map =
           CoCtx.union([def.co_ctx, CoCtx.mk(ctx, p_ana.ctx, body.co_ctx)]),
         ~constraints=
           p_ana.typ_constraints
+          @ p_ana'_cons
           @ p_syn.typ_constraints
           @ def.constraints
           @ body.constraints,
@@ -1287,14 +1290,17 @@ and uexp_to_info_map =
       let (cond, m) = go(~ana=Atom(Bool) |> Typ.temp, e0, m);
       let (cons, m) = go(~ana, e1, m);
       let (alt, m) = go(~ana, e2, m);
+      let (self, self_cons) =
+        Self.match(ctx, [cons.ty, alt.ty], branch_ids);
       add(
-        ~self=Self.match(ctx, [cons.ty, alt.ty], branch_ids),
+        ~self,
         ~co_ctx=CoCtx.union([cond.co_ctx, cons.co_ctx, alt.co_ctx]),
         ~constraints=
           cond.constraints
           @ cons.constraints
           @ alt.constraints
-          @ constrain_branches([cons.ty, alt.ty]),
+          @ constrain_branches([cons.ty, alt.ty])
+          @ self_cons,
         m,
       );
     | Match(scrut, rules) =>
@@ -1320,8 +1326,8 @@ and uexp_to_info_map =
       let e_tys = List.map(Info.exp_ty, es);
       let e_co_ctxs =
         List.map2(CoCtx.mk(ctx), p_ctxs, List.map(Info.exp_co_ctx, es));
-      let unwrapped_self: Self.exp =
-        Common(Self.match(ctx, e_tys, branch_ids));
+      let (self, self_cons) = Self.match(ctx, e_tys, branch_ids);
+      let unwrapped_self: Self.exp = Common(self);
       let (constraints, m) =
         List.fold_left(
           (
@@ -1384,7 +1390,8 @@ and uexp_to_info_map =
           @ es_constraints
           @ scrut.constraints
           @ constrain_branches(e_tys)
-          @ constrain_branches(p_tys),
+          @ constrain_branches(p_tys)
+          @ self_cons,
         m,
       );
     | TyAlias(typat, utyp, body) =>
@@ -1737,10 +1744,12 @@ and upat_to_info_map =
         | [] => Coverage.Constraint.nil
         | [hd, ...tl] => Coverage.Constraint.cons(hd, cons_fold_list(tl))
         };
+      let (self, self_constraints) =
+        Self.listlit(~empty=unknown, ctx, tys, ids);
       add(
-        ~self=Self.listlit(~empty=unknown, ctx, tys, ids),
+        ~self,
         ~ctx,
-        ~typ_constraints=constraints,
+        ~typ_constraints=constraints @ self_constraints,
         ~constraint_=cons_fold_list(cons),
         m,
       );
@@ -1762,7 +1771,7 @@ and upat_to_info_map =
       /* NOTE: The self type assigned to pattern variables (Unknown)
          may be SynSwitch, but SynSwitch is never added to the context;
          Unknown(Internal) is used in this case */
-      let ctx_typ =
+      let (ctx_typ, ctx_typ_cons) =
         Info.fixed_typ_pat(
           ctx,
           ana,
@@ -1779,7 +1788,7 @@ and upat_to_info_map =
         ~self,
         ~ctx=Ctx.extend(ctx, entry),
         ~constraint_=Coverage.Constraint.Truth,
-        ~typ_constraints=subsumption_constraints_t(self),
+        ~typ_constraints=subsumption_constraints_t(self) @ ctx_typ_cons,
         m,
       );
     | TupLabel(label, p) =>
@@ -2276,19 +2285,17 @@ let mk =
           e,
           Id.Map.empty,
         );
-      List.iter(
-        (Con(e1, e2) as e: Typ.equivalence) => {
-          print_endline(Typ.show_equivalence(e));
-          switch (e1 |> Typ.term_of) {
-          | Unknown(p) => Id.show(p |> IdTagged.rep_id) |> print_endline
-          | _ => ()
-          };
-          switch (e2 |> Typ.term_of) {
-          | Unknown(p) => Id.show(p |> IdTagged.rep_id) |> print_endline
-          | _ => ()
-          };
+
+      let inference_sols = Inference.solve(info.constraints);
+      Inference.ProvMap.iter(
+        (key, sol) => {
+          print_endline(
+            Inference.StringProv.show(key)
+            ++ " -> "
+            ++ Inference.show_solution(sol),
+          )
         },
-        info.constraints,
+        inference_sols,
       );
       map;
     },
