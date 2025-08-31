@@ -677,28 +677,28 @@ let rec normalize = (~rec_counter=0, ctx: Ctx.t, ty: t): t => {
   };
 };
 
+let matched_arrow_of_prov = ({term: t, annotation}: Prov.t, ty: t) => {
+  let left_arr =
+    Unknown({
+      term: LArrow(t),
+      annotation,
+    })
+    |> temp;
+  let right_arr =
+    Unknown({
+      term: RArrow(t),
+      annotation,
+    })
+    |> temp;
+  (left_arr, right_arr, [Con(ty, Arrow(left_arr, right_arr) |> temp)]);
+};
+
 let rec matched_arrow_strict = (ctx, ty) =>
   switch (term_of(weak_head_normalize(ctx, ty))) {
   | Parens(ty) => matched_arrow_strict(ctx, ty)
   | Arrow(ty_in, ty_out) => Some((ty_in, ty_out, []))
-  | Unknown({term: SynSwitch, annotation}) =>
-    let left_arr =
-      Unknown({
-        term: LArrow(SynSwitch),
-        annotation,
-      })
-      |> temp;
-    let right_arr =
-      Unknown({
-        term: RArrow(SynSwitch),
-        annotation,
-      })
-      |> temp;
-    Some((
-      left_arr,
-      right_arr,
-      [Con(ty, Arrow(left_arr, right_arr) |> temp)],
-    ));
+  | Unknown({term: SynSwitch, _} as prov) =>
+    Some(matched_arrow_of_prov(prov, ty))
   | _ => None
   };
 
@@ -709,34 +709,16 @@ let matched_arrow = (ctx, ty) => {
   | None =>
     switch (term_of(weak_head_normalize(ctx, ty))) {
     | Unknown({term: t, annotation}) =>
-      let left_arr =
-        Unknown({
-          term: LArrow(t),
+      matched_arrow_of_prov(
+        {
+          term: t,
           annotation,
-        })
-        |> temp;
-      let right_arr =
-        Unknown({
-          term: RArrow(t),
-          annotation,
-        })
-        |> temp;
-      (left_arr, right_arr, [Con(ty, Arrow(left_arr, right_arr) |> temp)]);
+        },
+        ty,
+      )
     | _ =>
       let prov = (Internal: TermBase.Prov.term) |> IdTagged.temp;
-      let left_arr =
-        Unknown({
-          term: LArrow(prov.term),
-          annotation: prov.annotation,
-        })
-        |> temp;
-      let right_arr =
-        Unknown({
-          term: RArrow(prov.term),
-          annotation: prov.annotation,
-        })
-        |> temp;
-      (left_arr, right_arr, [Con(ty, Arrow(left_arr, right_arr) |> temp)]);
+      matched_arrow_of_prov(prov, ty);
     }
   };
 };
