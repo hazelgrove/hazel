@@ -54,9 +54,9 @@ function App() {
   };
 
   const headerStyle: React.CSSProperties = {
-    marginBottom: "4px",
-    paddingBottom: "4px",
-    borderBottom: "2px solid #e0e0e0",
+    // marginBottom: "4px",
+    // paddingBottom: "4px",
+    // borderBottom: "2px solid #e0e0e0",
     display: "flex",
     flexDirection: "row",
     gap: "16px",
@@ -79,7 +79,7 @@ function App() {
       {/* Left Panel - Value Editor */}
       <div style={leftPanelStyle}>
         <div style={headerStyle}>
-          <h2 style={{ margin: 0, marginBottom: "8px" }}>Value Builder</h2>
+          <h4 style={{ margin: 0, marginBottom: "8px" }}>Value Builder</h4>
           {/* {constraints && (
             <div style={{ fontSize: "12px", color: "#666" }}>
               Max: {constraints.maxWidth}×{constraints.maxHeight}px
