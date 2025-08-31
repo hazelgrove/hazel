@@ -662,21 +662,24 @@ let rec solution_typ_replace_typ =
 
 let rec solution_replace_solution =
         (prov: StringProv.t, sol: solution, sol': solution): (solution, bool) => {
+  let fold_solutions =
+    List.fold_left(
+      ((sols, changed), sol) => {
+        let (sol', c) = solution_replace_solution(prov, sol, sol');
+        ([sol', ...sols], c || changed);
+      },
+      ([], false),
+    );
+
   switch (sol) {
   | Unknown({term: Hole(CycleHole), _}) => (sol, false)
   | Unknown(q) when prov == StringProv.of_prov(q) => (sol', true)
   | Unknown(_) => (sol, false)
-  | Prod(ss)
+  | Prod(ss) =>
+    let (ss', changed) = fold_solutions(ss);
+    (Prod(List.rev(ss')), changed);
   | Multi(ss) =>
-    let (ss', changed) =
-      List.fold_left(
-        ((sols, changed), sol) => {
-          let (sol', c) = solution_replace_solution(prov, sol, sol');
-          ([sol', ...sols], c || changed);
-        },
-        ([], false),
-        ss,
-      );
+    let (ss', changed) = fold_solutions(ss);
     (Multi(List.rev(ss')), changed);
   | Atom(_) => (sol, false)
   | Sum(_) => (sol, false)
