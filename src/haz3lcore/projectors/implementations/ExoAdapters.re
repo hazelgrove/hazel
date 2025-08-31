@@ -34,8 +34,27 @@ module ValueBuilder: Exo.Info = {
     };
 };
 
+module Nool: Exo.Info = {
+  let dev = "http://localhost:3000";
+  let prod = "https://andrewblinn.com/nool/exolivelit";
+
+  let kind = ProjectorCore.Kind.ExoNool;
+
+  let init = (any: Language.Any.t): option(Exo.model) =>
+    switch (HazelProtocol.JsonCodec.any_to_yojson(any)) {
+    | Ok(_) =>
+      /* Accept any expression that JsonCodec can handle */
+      Some({
+        width: 680,
+        height: 490,
+      })
+    | Error(_) => None
+    };
+};
+
 let module_of_kind = (kind: ProjectorCore.Kind.exo_kind): (module Exo.Info) =>
   switch (kind) {
   | ExoSlider => (module Slider)
   | ExoValueBuilder => (module ValueBuilder)
+  | ExoNool => (module Nool)
   };
