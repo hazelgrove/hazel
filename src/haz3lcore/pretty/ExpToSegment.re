@@ -595,6 +595,7 @@ and parenthesize_any =
   | Typ(t) => Typ(parenthesize_typ(~already_paren, ~show_filters, t))
   | TPat(tp) => TPat(parenthesize_tpat(~show_filters, tp))
   | Rul(r) => Rul(parenthesize_rul(~show_filters, r))
+  /* TODO(zhiyao): yet to implement for Drv */
   | Drv(_)
   | Any(_) => any
   };

@@ -67,6 +67,7 @@ module Model = {
     model.editor.state.zipper |> PersistentZipper.to_string;
   let unpersist = (p, ~root) =>
     p |> PersistentZipper.unpersist(~root) |> Editor.Model.mk |> mk;
+  let sort = (model: t): Sort.t => Editor.Model.sort(model.editor);
 };
 
 module Update = {
@@ -115,8 +116,7 @@ module View = {
   // There are no events for a read-only editor
   type event;
 
-  let view =
-      (~globals, ~overlays: list(Node.t)=[], ~sort=Sort.root, model: Model.t) => {
+  let view = (~globals, ~overlays: list(Node.t)=[], model: Model.t) => {
     let {
       editor:
         {
@@ -129,7 +129,7 @@ module View = {
     let code_text_view =
       CodeViewable.view(
         ~globals,
-        ~sort,
+        ~sort=Editor.Model.sort(model.editor),
         ~measured,
         ~buffer_ids=Selection.is_buffer(z.selection) ? selection_ids : [],
         ~segment,

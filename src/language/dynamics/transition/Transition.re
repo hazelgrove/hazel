@@ -165,9 +165,10 @@ module Transition = (EV: EV_MODE) => {
       r;
     };
 
-  /* Note[Matt]: For IDs, I'm currently using a fresh id
-     if anything about the current node changes, if only its
-     children change, we use rewrap */
+  /* Note(zhiyao): The purpose of transition for derivation terms is much useless
+     compared to that for hazel expressions. The only thing here is to calculate
+     1) variables reference and
+     2) contexts terms cons and concat */
 
   let drv_transition = (env, d: t): t => {
     let rec go_exp = exp => {
@@ -197,7 +198,7 @@ module Transition = (EV: EV_MODE) => {
         | Cons(p, ctx) =>
           switch (Drv.Exp.term_of(go_exp(ctx))) {
           | Ctx(es) => Ctx(Drv.Exp.cons_ctx(es, go_exp(p)))
-          | _ => Cons(p, ctx) // TODO(zhiyao): should we throw an error here?
+          | _ => Cons(p, ctx)
           }
         | Concat(e1, e2) =>
           switch (
@@ -206,7 +207,7 @@ module Transition = (EV: EV_MODE) => {
           ) {
           | (Ctx(es1), Ctx(es2)) =>
             Ctx(List.fold_left(Drv.Exp.cons_ctx, es2, es1))
-          | _ => Concat(go_exp(e1), go_exp(e2)) // TODO: should we throw an error here?
+          | _ => Concat(go_exp(e1), go_exp(e2))
           }
         | Type(t) => Type(go_typ(t))
         | HasType(e, t) => HasType(go_exp(e), go_typ(t))
@@ -324,6 +325,10 @@ module Transition = (EV: EV_MODE) => {
       };
     term |> rewrap;
   };
+
+  /* Note[Matt]: For IDs, I'm currently using a fresh id
+     if anything about the current node changes, if only its
+     children change, we use rewrap */
 
   let transition =
       (

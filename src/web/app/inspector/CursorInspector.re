@@ -52,7 +52,7 @@ let ctx_toggle = (~globals: Globals.t): Node.t =>
 
 let term_view = (~globals: Globals.t, ci) => {
   let sort_text =
-    Info.is_label(ci) ? "Label" : ci |> Info.sort_of |> Sort.show;
+    Info.is_label(ci) ? "Label" : ci |> Info.sort_of |> Sort.to_string;
   let sort_class = Info.is_label(ci) ? "Label" : ci |> Info.class_of;
   div(
     ~attrs=[

@@ -794,7 +794,6 @@ module View = {
           ~caption: option(string)=?,
           ~subcaption: option(string)=?,
           ~result_kind=`NoResults,
-          ~sort: Sort.t,
           this_pos: DerivationTree.pos,
           cell: CellEditor.Model.t,
         ) => {
@@ -815,7 +814,6 @@ module View = {
           | Some(c) => CellCommon.caption(c, ~rest=?subcaption)
           | None => None
           },
-        ~sort,
         cell,
       );
     };
@@ -826,19 +824,18 @@ module View = {
         prelude,
         ~subcaption=globals.settings.instructor_mode ? "" : " (Read-Only)",
         ~caption="Prelude",
-        ~sort=Exp,
       );
 
     let setup_view =
       div(
         ~attrs=[Attr.class_("cell-setup")],
-        [editor_view(Setup, setup, ~caption="Setup", ~sort=Exp)],
+        [editor_view(Setup, setup, ~caption="Setup")],
       );
 
     let conclusion_view = (~pos, ~editor) =>
       div(
         ~attrs=[Attr.class_("deduction-concl")],
-        [editor_view(pos, editor, ~sort=Drv(Exp))],
+        [editor_view(pos, editor)],
       );
 
     let deduction_view = (~children_node, ~pos, ~res, ~rule, ~editor) =>

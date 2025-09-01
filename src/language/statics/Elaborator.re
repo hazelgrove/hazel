@@ -213,26 +213,7 @@ let rec elaborate = (m: Statics.Map.t, uexp: Exp.t): (DHExp.t, Typ.t) => {
       let probe = Dynamics.Probe.instrument_exp(m, Exp.rep_id(uexp), probe);
       Probe(e', probe) |> rewrap;
     | Deferral(_) => uexp
-    | DrvExp(drv, s) =>
-      // TODO(zhiyao): probably I don't need to elaborate drv here
-      // let drv: Drv.Any.t =
-      //   switch (Id.Map.find_opt(Drv.Any.rep_id(drv), m)) {
-      //   | Some(Info.InfoDrv({status: InHole(_), sort, _})) =>
-      //     let hole: DrvTermBase.type_hole = Invalid("dynamic elaboration");
-      //     print_endline("drv");
-      //     switch (sort) {
-      //     | Jdmt
-      //     | Ctx
-      //     | Prop
-      //     | Exp => Exp(Hole(hole) |> Drv.Exp.fresh)
-      //     | Pat => Pat(Hole(hole) |> Drv.Pat.fresh)
-      //     | Typ => Typ(Hole(hole) |> Drv.Typ.fresh)
-      //     | TPat => TPat(Hole(hole) |> Drv.TPat.fresh)
-      //     };
-      //   | Some(Info.InfoDrv({status: NotInHole, _})) => drv
-      //   | _ => raise(MissingTypeInfo)
-      //   };
-      DrvExp(drv, s) |> rewrap
+    | DrvExp(_) => uexp
     | Atom(c) =>
       let c =
         Operators.replace_literal(c, Typ.is_ana_atom(ana), ctx.use_mode);

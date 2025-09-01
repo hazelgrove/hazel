@@ -8,7 +8,7 @@ type t =
   | Rul
   | Exp;
 
-let show =
+let to_string =
   fun
   | Drv(s) => DrvSort.show(s)
   | _ as s => show(s);
@@ -17,8 +17,6 @@ let class_of =
   fun
   | Drv(s) => DrvSort.class_of(s)
   | _ as s => show(s);
-
-let root = Exp;
 
 let all =
   (DrvSort.all |> List.map(s => Drv(s))) @ [Any, Pat, Typ, Rul, Exp, TPat];

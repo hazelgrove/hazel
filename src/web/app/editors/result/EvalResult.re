@@ -322,7 +322,6 @@ module View = {
           ~inject=a => inject(EvalEditorAction(a)),
           ~globals,
           ~selected,
-          ~sort=Sort.root,
         ),
         editor,
       );

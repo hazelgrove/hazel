@@ -36,7 +36,8 @@ let mk_pre = (p, out, in_) => {
     nibs: (l, r),
   };
 };
-// forms where tips can be different than out sort
+/* NOTE(zhiyao): needed for Derivation terms.
+   forms where tips can be different than out sort */
 let mk_pre' = (p, out, sort_l, in_, sort_r) => {
   let l =
     Nib.{

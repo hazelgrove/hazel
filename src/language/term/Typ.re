@@ -4,12 +4,12 @@ open OptUtil.Syntax;
 [@deriving (show({with_path: false}), sexp, yojson, enumerate, eq)]
 type cls =
   | Atom(Atom.cls)
+  | DrvTyp
   | Invalid
   | EmptyHole
   | MultiHole
   | SynSwitch
   | Internal
-  | DrvTyp
   | Arrow
   | Prod
   | TupLabel
@@ -103,8 +103,8 @@ let show_cls: cls => string =
   | EmptyHole => "Type hole"
   | SynSwitch => "Synthetic type"
   | Internal => "Internal type"
-  | Atom(_)
-  | DrvTyp => "Base type"
+  | Atom(_) => "Base type"
+  | DrvTyp => "Derivation term"
   | Var => "Type variable"
   | Constructor => "Sum constructor"
   | List => "List type"

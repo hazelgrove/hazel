@@ -41,6 +41,8 @@ module Model = {
   };
 
   let to_string = (model: t) => model.editor |> CodeEditable.Model.to_string;
+
+  let sort = (model: t): Sort.t => CodeEditable.Model.sort(model.editor);
 };
 
 module Update = {
@@ -176,7 +178,6 @@ module View = {
         ~inject: Update.t => Ui_effect.t(unit),
         ~selected: option(Selection.t),
         ~caption: option(Node.t)=?,
-        ~sort=?,
         ~result_kind=?,
         ~locked=false,
         model: Model.t,
@@ -210,7 +211,7 @@ module View = {
         },
         ~result_kind?,
         ~locked,
-        ~root=model.editor.editor.state.zipper.root,
+        ~root=Model.sort(model),
         model.result,
       );
     div(
@@ -230,7 +231,6 @@ module View = {
               : (action => inject(MainEditor(action))),
           ~selected=selected == Some(MainEditor),
           ~overlays=overlays(model.editor.editor),
-          ~sort?,
           model.editor,
         ),
       ]

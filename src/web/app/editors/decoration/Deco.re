@@ -229,15 +229,6 @@ module Deco =
   let projectors = M.editor.syntax.projectors;
   let error_ids = M.statics.error_ids;
   let color_highlights = M.globals.color_highlights;
-  let of_sort = (id: Uuidm.t, mold: Mold.t): Sort.t =>
-    switch (mold.out) {
-    | Sort.Drv(Exp) =>
-      switch (Id.Map.find_opt(id, M.statics.info_map)) {
-      | Some(Language.Info.InfoDrv({sort, _})) => Drv(sort)
-      | _ => Drv(Exp)
-      }
-    | _ as sort => sort
-    };
 
   let tile_term_deco =
     IndicationDec.term(

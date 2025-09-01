@@ -660,11 +660,11 @@ let get_doc =
           explanation_msg,
           docs,
         );
-      let sort =
-        switch (info) {
-        | None => Sort.Any
-        | Some(ci) => Info.sort_of(ci)
-        };
+      /* let sort =
+         switch (info) {
+         | None => Sort.Any
+         | Some(ci) => Info.sort_of(ci)
+         }; */
       let highlights =
         colorings
         |> List.map(((syntactic_form_id: Id.t, code_id: Id.t)) => {
@@ -704,7 +704,6 @@ let get_doc =
         CodeWithStatics.View.view(
           ~globals,
           ~overlays=highlight_deco @ [expander_deco],
-          ~sort,
           {
             editor,
             statics,

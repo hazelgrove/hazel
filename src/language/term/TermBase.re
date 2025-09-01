@@ -103,7 +103,7 @@ module rec Any: {
 
   let sort = (any: t): Sort.t =>
     switch (any) {
-    | Drv(drv) => Sort.Drv(DrvTermBase.Any.sort(drv))
+    | Drv(drv) => Drv(DrvTermBase.Any.sort(drv))
     | Exp(_) => Exp
     | Pat(_) => Pat
     | Typ(_) => Typ
@@ -136,7 +136,7 @@ module rec Any: {
         )
       | Rul(x) =>
         Rul(Rul.map_term(~f_exp, ~f_pat, ~f_typ, ~f_tpat, ~f_rul, ~f_any, x))
-      | Drv(x) => Drv(x) // TODO(zhiyao): drv term not mapped from outside
+      | Drv(x) => Drv(x) // Note(zhiyao): drv term not mapped from outside
       | Any () => Any()
       };
     x |> f_any(rec_call);
@@ -227,8 +227,8 @@ and Exp: {
         | EmptyHole
         | Invalid(_)
         | Atom(_)
-        | Constructor(_)
         | DrvExp(_)
+        | Constructor(_)
         | Label(_)
         | Deferral(_)
         | Var(_)

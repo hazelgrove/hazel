@@ -36,11 +36,13 @@ module Typ = {
     ("of_alfa_typ" ++ leading_expander, unk),
     ("of_alfa_pat" ++ leading_expander, unk),
     ("of_alfa_tpat" ++ leading_expander, unk),
+    /* NOTE(zhiyao): the following terms are only used in the derivation terms,
+       however they are phantom in the sense that they could trigger expansion
+       but they don't appear in the derivation terms */
     ("consistent" ++ leading_expander, unk),
     ("matched_arrow" ++ leading_expander, unk),
     ("matched_prod" ++ leading_expander, unk),
     ("matched_sum" ++ leading_expander, unk),
-    ("eval" ++ leading_expander, unk),
   ];
 
   let of_infix_delim: list((Token.t, Typ.term)) = [

@@ -27,7 +27,6 @@ let show = (syntax: Drv.Exp.t, ~globals: Globals.t): Node.t => {
     );
   CodeWithStatics.View.view(
     ~globals,
-    ~sort=Drv(Exp),
     {
       editor,
       statics,
@@ -40,7 +39,6 @@ let show_without_statics = (pretty: Segment.t, ~globals: Globals.t): Node.t => {
   let editor = Editor.Model.mk(pretty |> Zipper.unzip(~root=Drv(Exp)));
   CodeWithStatics.View.view(
     ~globals,
-    ~sort=Drv(Exp),
     {
       editor,
       statics: CachedStatics.empty,

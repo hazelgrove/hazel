@@ -27,13 +27,8 @@ let delete_parent = (z: t): t => {
   relatives: Relatives.delete_parent(z.relatives),
 };
 
-let zip = (z: t): Segment.t => {
-  // let z = drv_wrap_zip(z);
-  Relatives.zip(
-    ~sel=z.selection.content,
-    z.relatives,
-  );
-};
+let zip = (z: t): Segment.t =>
+  Relatives.zip(~sel=z.selection.content, z.relatives);
 
 let unzip = (seg: Segment.t, ~root): t => {
   root,

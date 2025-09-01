@@ -97,6 +97,7 @@ let shape_affix =
 
 let rec remold = (~shape=Nib.Shape.concave(), seg: t, s: Sort.t) =>
   switch (s) {
+  /* NOTE(zhiyao): disclaimer: didn't look into how remolding works*/
   | Drv(_) => remold_template(s, shape, seg)
   | Any => seg
   | Typ => remold_typ(shape, seg)

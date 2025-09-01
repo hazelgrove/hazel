@@ -46,7 +46,6 @@ let exp_show =
   CodeWithStatics.View.view(
     ~globals,
     ~overlays=highlight_deco,
-    ~sort=Drv(Exp),
     {
       editor,
       statics,
@@ -86,7 +85,6 @@ let test_show =
     CodeWithStatics.View.view(
       ~globals,
       ~overlays=highlight_deco,
-      ~sort=Drv(Exp),
       {
         editor,
         statics: CachedStatics.empty,

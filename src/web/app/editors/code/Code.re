@@ -70,7 +70,7 @@ let of_delim =
     };
   of_delim'((
     t.label,
-    t.mold.out,
+    sort,
     is_consistent,
     is_in_buffer,
     Tile.is_complete(t),
