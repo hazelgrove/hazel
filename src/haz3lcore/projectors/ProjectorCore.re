@@ -16,11 +16,6 @@ module Kind = {
   /* The different kinds of projector. New projector
    * types need to be registered here in order to be
    * able to create and update their instances */
-  [@deriving (show({with_path: false}), sexp, yojson, eq, enumerate)]
-  type exo_kind =
-    | ExoSlider
-    | ExoValueBuilder
-    | ExoNool;
 
   [@deriving (show({with_path: false}), sexp, yojson, eq, enumerate)]
   type t =
@@ -33,31 +28,17 @@ module Kind = {
     | Card
     | Livelit
     | TextArea
-    | Exo(exo_kind);
+    | Exo(Exo.kind);
 
-  let livelit_projectors: list(t) = [
-    Checkbox,
-    Slider,
-    SliderF,
-    TextArea,
-    Card,
-    Livelit,
-    Exo(ExoSlider),
-    Exo(ExoValueBuilder),
-    Exo(ExoNool),
-  ];
+  let livelit_projectors: list(t) =
+    [Checkbox, Slider, SliderF, TextArea, Card, Livelit]
+    @ List.map(x => Exo(x), Exo.all_of_kind);
 
   let projectors: list(t) = livelit_projectors @ [Fold, Info, Probe];
 
   /* A friendly name for each projector. This is used
    * both for identifying a projector in the CSS and for
    * selecting projectors in the projector panel menu */
-  let exo_name = (ek: exo_kind): string =>
-    switch (ek) {
-    | ExoSlider => "exoslider"
-    | ExoValueBuilder => "exobuilder"
-    | ExoNool => "exonool"
-    };
 
   let name = (p: t): string =>
     switch (p) {
@@ -70,20 +51,12 @@ module Kind = {
     | Card => "card"
     | Livelit => "livelit"
     | TextArea => "text"
-    | Exo(exo_kind) => exo_name(exo_kind)
+    | Exo(exo_kind) => Exo.name(exo_kind)
     };
 
   /* This must be updated and kept 1-to-1 with the above
    * name function in order to be able to select the
    * projector in the projector panel menu */
-  let exo_of_name = (name: string): exo_kind =>
-    switch (name) {
-    | "exoslider" => ExoSlider
-    | "exobuilder" => ExoValueBuilder
-    | "exonool" => ExoNool
-    | _ => failwith("Unknown external projector kind")
-    };
-
   let of_name = (p: string): t =>
     switch (p) {
     | "fold" => Fold
@@ -95,10 +68,7 @@ module Kind = {
     | "text" => TextArea
     | "livelit" => Livelit
     | "card" => Card
-    | "exoslider" => Exo(ExoSlider)
-    | "exobuilder" => Exo(ExoValueBuilder)
-    | "exonool" => Exo(ExoNool)
-    | _ => failwith("Unknown projector kind")
+    | _ => Exo(Exo.of_name(p))
     };
 
   let is_name = str => List.mem(str, List.map(name, all));

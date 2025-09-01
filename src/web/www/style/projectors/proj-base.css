@@ -21,6 +21,10 @@
   z-index: var(--projector-z);
 }
 
+.projector.Tab {
+  align-items: flex-start;
+}
+
 .projector > svg {
   z-index: var(--projector-underlay-z);
 }

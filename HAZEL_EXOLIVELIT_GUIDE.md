@@ -2,6 +2,8 @@
 
 Use this guide to make your app embeddable in Hazel as an ExoLivelit. Your app runs in an iframe and communicates with Hazel using `postMessage`. This is a minimal proof of concept implementation; we will be implementing more message types to expose more Hazel functionality, as well as support for incremental syntax updates when it becomes necessary.
 
+This guide has been claude hardened; a claude was able to oneshot adapt an unrelated ts app to an exolivelit and make the relevant hazelside changes by being pointed at this file in an alongside clone of the hazel repo, given additionally a description of how the relevant part of that app's data model should be represented in the JSON format hazel can consume. You can check out the value builder exolivelit to familiarize yourself with the data schema supported.
+
 ## Requirements
 
 - **Iframe-compatible**: Your app must work inside an iframe
@@ -20,6 +22,8 @@ Hazel loads your app with: `https://your-app/?id=<uuid>&parentOrigin=<hazel-orig
 ## Message Protocol
 
 ### App → Hazel (ToHazelMessage)
+
+To start, it suffices to send `ready` and `setSyntax`, and to handle `init`. More of the internal livelits API will be exposed here in the future.
 
 ```typescript
 type ToHazelMessage =
@@ -51,9 +55,9 @@ type FromHazelMessage =
 4. **User edits** → app sends `{type: 'setSyntax', codec: 'json', value: JSON.stringify(newValue)}`
 5. **Content grows** → app sends `{type: 'resize', width, height}` (debounced)
 
-## Shared Integration Library (Recommended)
+## Integration Starter Library
 
-Copy these **3 files** into your `src/hooks/` directory for maximum convenience:
+Copy these **3 files** into your e.g. `src/hooks/` directory:
 
 ### 1. Core Hook (`hazel-integration-base.ts`)
 
@@ -86,7 +90,7 @@ export default function App() {
 
   const { setSyntax } = useHazelIntegration({
     id,
-    codec: "json",
+    codec: "json" /* The only codec supported for now  */,
     onInit: (valueStr) => {
       setValue(JSON.parse(valueStr));
     },
@@ -100,7 +104,7 @@ export default function App() {
   };
 
   return (
-    <div style={{ padding: 8 }}>
+    <div style={{}}>
       <h3>My Hazel-Embedded App</h3>
       {/* Your editor UI here */}
       <button onClick={() => handleChange(value + 1)}>
@@ -115,7 +119,7 @@ export default function App() {
 
 **DO:**
 
-- Use flexible layouts (`flex`, `grid`)
+- Use flexible, responsive layouts (`flex`, `grid`)
 - Allow content-driven height (`min-height` instead of fixed `height`)
 - Apply `maxWidth` from constraints for responsive behavior
 
@@ -127,31 +131,38 @@ export default function App() {
 
 ## Hazel Integration (Hazel-side)
 
-We're still working on the Hazel-side integration story; it should become more minimal but for now there's a few steps. Morally what you're doing is providing the URL of the external app, a friendly name for use in the Hazel UI, and a Hazel type to restrict the kinds of data your exolivelit can apply to. However, things are a little bit more manual at the moment.
+We don't currently support dynamic registration for new kinds of exolivelit, although there is no particular blocker to doing so. Right now to add a new one, you'll need to clone the hazel repo and change two definitions in the `Exo.re` file.
 
-Depending on who's reading this, either clone the Hazel repo and make the below modifications, or just ask Andrew to do it.
+### 1. Create a static identifier for your exolivelit
 
-### 1. Create a static identifier for your exolivelit in ProjectorCore.re
-
-This involves adding a case to the `exo_kind` type, and adding cases to related functions. It will suffice to just imitate all occurrences of `ExoValueBuilder` in that file.
-
-### 2. Create an adapter in `ExoAdapters.re`
-
-Add a new entry like the below one AND ALSO hook that in to the `module_of_kind` function. Similar to above, imitate the ValueBuilder case, except actually specifying a manual `prod` URL instead of using the auto-generated hazel repo one. The same init function can be used, or the completely permissive one below, but if you want to restrict what kind of hazel values you want to be able to consume/produce, you'll need a manual predicate. For now it's fine to just be permissive and fail if you recieve data you don't know how to deal with.
+Add YourApp to the `Exo.kind` type. This will determine the Hazel UI name of your exolivelit.
 
 ```ocaml
-module MyAppAdapter: Exo.Info = {
-  let kind = ProjectorCore.Kind.(* Your new kind from step 1 *);
-  let prod = (* Your public URL for the app *);
-  let dev = (* Your internal dev path/port for your app, if applicable *);
-  let init_test = (any) => Some({
-    width: (* init width in px; *),
-    height: (* init height in px *)
-    });
-};
+  type kind =
+  | ...
+  | YourApp;
+```
+
+### 2. Specify static and default properties for your exolivelit
+
+Add a corresponding case to the `Exo.module_of_kind` function. This requires a `prod` and option `dev` URL for your app. The `shape` property determines how the text flow resumes to the right of your livelit; pick `Block` if in doubt. The rest of the properties (`guard` and `size`) are work-in-progress and will likely be set dynamically via content negoiation in the future; copying the values below should suffice for a prototype.
+
+```ocaml
+  | YourApp => {
+      kind,
+      prod: "https://yourdomain.com", (* Your public URL for the app *)
+      dev: "http://localhost:port", (* Your internal dev path, if applicable *)
+      shape: Block, (* Block: After livelit, text flow continues from bottom line. Tab: Continues from top *)
+      guard: _ => true, (* Determines what Hazel syntax your app can be applied to; okay to leave as this for now *)
+      size: {
+        width: 680, (* init width in px; *)
+        height: 490, (* init height in px *)
+      },
+    }
 ```
 
 ## Example Apps
 
 - **`external-apps/simple-slider/`**: Integer slider
 - **`external-apps/value-builder/`**: Compositional Hazel value editor
+- **`https://github.com/disconcision/nool/pull/4`**: A PR updating a math toy to support livelit embedding

@@ -39,9 +39,9 @@ type from_hazel_message =
 
 let id_of = (msg: to_hazel_message): Id.t =>
   switch (msg) {
-  | Ready({id}) => id
-  | SetSyntax({id, _}) => id
-  | Resize({id, _}) => id
+  | Ready(m) => m.id
+  | SetSyntax(m) => m.id
+  | Resize(m) => m.id
   };
 
 let get_string = (obj: Js.t(_), key: string): option(string) =>
@@ -488,10 +488,9 @@ module JsonCodec = {
   };
 
   let yojson_to_any =
-      (json: Yojson.Safe.t): result(Language.Term.Any.t, string) => {
+      (json: Yojson.Safe.t): result(Language.Term.Any.t, string) =>
     switch (yojson_to_exp(json)) {
     | Ok(exp) => Ok(Exp(exp))
     | Error(msg) => Error(msg)
     };
-  };
 };

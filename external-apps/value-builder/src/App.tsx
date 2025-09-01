@@ -50,7 +50,7 @@ function App() {
     flex: 2,
     padding: "8px",
     overflow: "auto",
-    borderRight: "1px solid #ddd",
+    // borderRight: "1px solid #ddd",
   };
 
   const headerStyle: React.CSSProperties = {
@@ -71,7 +71,7 @@ function App() {
     borderRadius: "6px",
     display: "flex",
     flexDirection: "row",
-    gap: "8px",
+    gap: "7px",
   };
 
   return (
@@ -79,7 +79,7 @@ function App() {
       {/* Left Panel - Value Editor */}
       <div style={leftPanelStyle}>
         <div style={headerStyle}>
-          <h4 style={{ margin: 0, marginBottom: "8px" }}>Value Builder</h4>
+          {/* <h4 style={{ margin: 0, marginBottom: "8px" }}>Value Builder</h4> */}
           {/* {constraints && (
             <div style={{ fontSize: "12px", color: "#666" }}>
               Max: {constraints.maxWidth}×{constraints.maxHeight}px
@@ -106,8 +106,8 @@ function App() {
           <button onClick={() => handleValueChange({ "0": 1, "1": 2 })}>
             <strong>Tuple</strong> (1,2)
           </button>
-          <button onClick={() => handleValueChange({ name: "Alice", age: 30 })}>
-            <strong>Labeled</strong> (name="Alice",age=30)
+          <button onClick={() => handleValueChange({ x: 6, y: 11 })}>
+            <strong>Labeled</strong> (x=6,y=11)
           </button>
           <button onClick={() => handleValueChange({ t: "Some", v: 42 })}>
             <strong>ADT</strong> Some(42)
@@ -136,10 +136,10 @@ function App() {
               background: "#ffffff",
               padding: "12px",
               borderRadius: "4px",
-              border: "1px solid #ddd",
+              borderLeft: "1px solid rgb(166, 166, 166)",
               fontSize: "12px",
-              lineHeight: "1.4",
-              overflow: "auto",
+              // lineHeight: "1.4",
+              // overflow: "auto",
               maxHeight: "300px",
               textAlign: "left",
             }}

@@ -22,7 +22,7 @@ export function IntegerSlider({
 
   const { setSyntax } = useHazelIntegration({
     id,
-    codec: "exoslider",
+    codec: "json",
     onInit: (hazelValue: string) => {
       // Parse initial value from Hazel
       const intValue = parseInt(hazelValue, 10);

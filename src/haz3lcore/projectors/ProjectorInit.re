@@ -16,8 +16,14 @@ let to_module = (kind: ProjectorCore.Kind.t): (module Cooked) =>
   | Livelit => (module Cook(LivelitProj.M))
   | Card => (module Cook(CardProj.M))
   | Exo(a) =>
-    let (module A) = ExoAdapters.module_of_kind(a);
-    (module Cook(ExoProj.M(A)));
+    (module
+     Cook(
+
+         ExoProj.M({
+           let exo = Exo.module_of_kind(a);
+         }),
+
+     ))
   };
 
 let init =

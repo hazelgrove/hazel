@@ -1,100 +1,79 @@
 open Util;
 
+[@deriving (show({with_path: false}), sexp, yojson, eq, enumerate)]
+type kind =
+  | ExoSlider
+  | ExoBuilder
+  | ExoNool;
+
 [@deriving (show({with_path: false}), sexp, yojson)]
-type model = {
-  //exo_kind: ProjectorCore.Kind.exo_kind,
+type size = {
   width: int,
   height: int,
 };
 
 [@deriving (show({with_path: false}), sexp, yojson)]
+type shape =
+  | Block
+  | Tab;
+
+[@deriving (show({with_path: false}), sexp, yojson)]
 type action =
   | Resize(int, int);
 
-module type Info = {
-  let kind: ProjectorCore.Kind.exo_kind;
-  let dev: string;
-  let prod: string;
-  let init: Language.Term.Any.t => option(model);
+type info = {
+  kind,
+  shape,
+  dev: string,
+  prod: string,
+  guard: Language.Any.t => bool,
+  size,
 };
 
-/* Registry entry storing callback, info, codec, and target origin */
-[@deriving (show({with_path: false}), sexp, yojson)]
-type entry = {
-  id: Id.t,
-  url: string,
-  target_origin: string,
-  init_json: string,
-  json_to_segment: string => option(Base.segment),
-  [@sexp.opaque] [@yojson.opaque]
-  signal: ProjectorBase.external_action => Ui_effect.t(unit),
-  [@sexp.opaque] [@yojson.opaque]
-  inject: action => Ui_effect.t(unit),
-};
+let name = (ek: kind): string => ek |> show_kind;
 
-/* Convert Hazel term to JSON string using JsonCodec */
-let term_to_string = (term: Language.Term.Any.t): option(string) =>
-  switch (HazelProtocol.JsonCodec.any_to_yojson(term)) {
-  | Ok(json) => Some(Yojson.Safe.to_string(json))
-  | Error(err) =>
-    prerr_endline("term_to_string: " ++ err);
-    None;
-  };
+let of_name = (name: string): kind =>
+  name |> Sexplib.Sexp.of_string |> kind_of_sexp;
 
-/* Convert JSON string to Hazel term using JsonCodec */
-let string_to_term =
-    (value_str: string, exp: Language.Term.Any.t): Language.Term.Any.t =>
-  try({
-    let json = Yojson.Safe.from_string(value_str);
-    switch (HazelProtocol.JsonCodec.yojson_to_any(json)) {
-    | Ok(term) => term
-    | Error(msg) =>
-      print_endline("JsonCodec failed : " ++ msg ++ ", using existing term");
-      exp;
-    };
-  }) {
-  | _ =>
-    print_endline("JsonCodec failed, using existing term");
-    exp;
-  };
-
-let mk_entry =
-    (
-      signal: ProjectorBase.external_action => Ui_effect.t(unit),
-      inject: action => Ui_effect.t(unit),
-      info: ProjectorBase.info,
-      module Exo: Info,
-    )
-    : entry => {
-  switch (
-    switch (info.utility.seg_to_term(info.syntax)) {
-    | Some(term) => term_to_string(term)
-    | None => None
+let module_of_kind = (kind: kind): info =>
+  switch (kind) {
+  | ExoSlider => {
+      kind,
+      prod: WebEnv.base_url() ++ "/external/exoslider",
+      dev: "http://localhost:5173",
+      shape: Tab,
+      guard: (
+        fun
+        | Exp({term: Atom(Int(_)), _}) => true
+        | _ => false
+      ),
+      size: {
+        width: 400,
+        height: 160,
+      },
     }
-  ) {
-  | Some(init_json) =>
-    let target_origin =
-      WebEnv.choose_origin(
-        ~name=ProjectorCore.Kind.exo_name(Exo.kind),
-        ~dev=Exo.dev,
-        ~prod=Exo.prod,
-      );
-    {
-      signal,
-      inject,
-      id: info.id,
-      target_origin,
-      init_json,
-      json_to_segment: (str: string) =>
-        info.utility.lift_syntax(string_to_term(str), info.syntax),
-      url:
-        Printf.sprintf(
-          "%s/?id=%s&parentOrigin=%s",
-          target_origin,
-          Id.to_string(info.id),
-          WebEnv.window_origin(),
-        ),
-    };
-  | None => failwith("mk_entry: init syntax conversion failed")
+  | ExoBuilder => {
+      kind,
+      prod: WebEnv.base_url() ++ "/external/exovaluebuilder",
+      dev: "http://localhost:5175",
+      shape: Tab,
+      // TODO: More specific syntax restriction
+      guard: _ => true,
+      size: {
+        width: 795,
+        height: 200,
+      },
+    }
+  | ExoNool => {
+      kind,
+      prod: "https://andrewblinn.com/nool/exolivelit",
+      dev: "http://localhost:3000",
+      shape: Block,
+      // TODO: More specific syntax restriction
+      guard: _ => true,
+      size: {
+        width: 680,
+        height: 490,
+      },
+    }
   };
-};

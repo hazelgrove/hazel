@@ -196,6 +196,7 @@ module View = {
         globals.font_metrics,
         ProjectorView.Model.mk(
           model.editor.syntax.projectors,
+          model.editor.syntax.shape_map,
           model.editor.syntax.measured,
           model.editor.syntax.selection_ids,
           Indicated.piece(model.editor.state.zipper),

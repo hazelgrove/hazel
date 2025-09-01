@@ -113,6 +113,7 @@ export function ValueNode({
     padding: "8px",
     display: "flex",
     alignItems: "flex-start",
+    width: "fit-content",
     gap: "8px",
     backgroundColor: level % 2 === 0 ? "#fafafa" : "#ffffff",
   };

@@ -2,9 +2,11 @@ open Util;
 open Virtual_dom.Vdom;
 open ProjectorBase;
 
-module M = (ExoP: Exo.Info) : Projector => {
+module M = (ExoP: {
+              let exo: Exo.info;
+            }) : Projector => {
   [@deriving (show({with_path: false}), sexp, yojson)]
-  type model = Exo.model;
+  type model = Exo.size;
 
   let model_of_sexp = (sexp: Sexplib.Sexp.t): model =>
     switch (model_of_sexp(sexp)) {
@@ -18,7 +20,8 @@ module M = (ExoP: Exo.Info) : Projector => {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type action = Exo.action;
 
-  let init = (any: Language.Any.t) => ExoP.init(any);
+  let init = (any: Language.Any.t): option(model) =>
+    ExoP.exo.guard(any) ? Some(ExoP.exo.size) : None;
 
   let focusable = Focusable.non;
   let dynamics = false;
@@ -29,14 +32,17 @@ module M = (ExoP: Exo.Info) : Projector => {
     let m = Util.font_metrics^;
     {
       horizontal: px_to_grid(model.width, m.col_width) + 1,
-      vertical: Block(px_to_grid(model.height, m.row_height) - 1),
+      vertical:
+        switch (ExoP.exo.shape) {
+        | Block => Block(px_to_grid(model.height, m.row_height) - 1)
+        | Tab => Tab(px_to_grid(model.height, m.row_height) - 1)
+        },
     };
   };
 
   let update = (_model: model, _info, action: action): model =>
     switch (action) {
     | Resize(w, h) => {
-        //...model,
         width: w,
         height: h,
       }
@@ -52,17 +58,13 @@ module M = (ExoP: Exo.Info) : Projector => {
         Attr.create(
           "style",
           Printf.sprintf(
-            "width: %dpx; height: %dpx; border: 1px solid #ddd; border-radius: 4px;",
+            "width: %dpx; height: %dpx; border: 1px solid #af9d6c; border-radius: 10px;",
             model.width,
             model.height,
           ),
         ),
         Attr.id(ExternalProjectorBridge.iframe_id(id)),
         Attr.create("data-projector-id", Id.cls(id)),
-        // Attr.create(
-        //   "data-exo-type",
-        //   ProjectorCore.Kind.exo_name(ExoP.exo_kind),
-        // ),
       ],
       [],
     );
@@ -76,8 +78,7 @@ module M = (ExoP: Exo.Info) : Projector => {
         ~parent: external_action => Ui_effect.t(unit),
         ~view_seg as _,
       ) => {
-    let entry = Exo.mk_entry(parent, local, info, (module ExoP));
-    ExternalProjectorBridge.register(entry);
-    View.mk(iframe_view(info.id, entry.url, model));
+    let url = ExternalProjectorBridge.register(parent, local, info, ExoP.exo);
+    View.mk(iframe_view(info.id, url, model));
   };
 };
