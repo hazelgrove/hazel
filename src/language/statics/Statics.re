@@ -753,9 +753,9 @@ and uexp_to_info_map =
         m,
       );
     | TupLabel(label, e) =>
-      let (lab, e, m) =
+      let (lab, e, matched_label_constraints, m) =
         switch (Typ.matched_label(ctx, ana)) {
-        | Some((labmode, val_mode)) =>
+        | Some((labmode, val_mode, matched_label_constraints)) =>
           let label_self: option(Self.exp) =
             switch (label.term) {
             | Label(_)
@@ -773,7 +773,7 @@ and uexp_to_info_map =
               m,
             );
           let (e, m) = go(~ana=val_mode, ~inferred_label?, e, m);
-          (lab, e, m);
+          (lab, e, matched_label_constraints, m);
         | _ =>
           let (lab, m) =
             go(
@@ -794,7 +794,7 @@ and uexp_to_info_map =
             );
 
           let (e, m) = go(~ana=temp_internal, ~inferred_label?, e, m);
-          (lab, e, m);
+          (lab, e, [], m);
         };
 
       let self =
@@ -830,7 +830,11 @@ and uexp_to_info_map =
       add(
         ~self,
         ~co_ctx=CoCtx.union([lab.co_ctx, e.co_ctx]),
-        ~constraints=e.constraints @ lab.constraints,
+        ~constraints=
+          e.constraints
+          @ lab.constraints
+          @ matched_label_constraints
+          @ subsumption_constraints_t(self),
         m,
       );
     | Label(name) =>
@@ -1808,9 +1812,9 @@ and upat_to_info_map =
         m,
       );
     | TupLabel(label, p) =>
-      let (lab, p, m) =
+      let (lab, p, matched_label_constraints, m) =
         switch (Typ.matched_label(ctx, ana)) {
-        | Some((labmode, val_mode)) =>
+        | Some((labmode, val_mode, matched_label_constraints)) =>
           let label_self: option(Self.t) =
             switch (label.term) {
             | Label(_) => None
@@ -1829,7 +1833,7 @@ and upat_to_info_map =
               m,
             );
           let (p, m) = go(~ctx, ~ana=val_mode, ~inferred_label?, p, m);
-          (lab, p, m);
+          (lab, p, matched_label_constraints, m);
         | _ =>
           let (lab, m) =
             go(
@@ -1851,7 +1855,7 @@ and upat_to_info_map =
             );
 
           let (p, m) = go(~ctx, ~ana=temp_internal, ~inferred_label?, p, m);
-          (lab, p, m);
+          (lab, p, [], m);
         };
 
       let self =
@@ -1887,7 +1891,8 @@ and upat_to_info_map =
       add(
         ~self,
         ~ctx=p.ctx,
-        ~typ_constraints=p.typ_constraints @ lab.typ_constraints,
+        ~typ_constraints=
+          p.typ_constraints @ lab.typ_constraints @ matched_label_constraints,
         ~constraint_=Coverage.Constraint.Tuple([p.constraint_]),
         m,
       );

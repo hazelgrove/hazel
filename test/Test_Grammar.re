@@ -169,6 +169,10 @@ let sample_type = (cls_typ: Typ.cls): Grammar.UnitGrammar.typ => {
       | NProduct => unknown(TypeProvenance.(nproduct(0, Hole(EmptyHole))))
       | MList => unknown(TypeProvenance.(mlist(Hole(EmptyHole))))
       | RForall => unknown(TypeProvenance.rforall(Hole(EmptyHole)))
+      | TupLabelProv =>
+        unknown(TypeProvenance.(tup_label_label(Hole(EmptyHole))))
+      | TupLabelArg =>
+        unknown(TypeProvenance.(tup_label_arg(Hole(EmptyHole))))
       | Join =>
         unknown(TypeProvenance.(join(hole(EmptyHole), hole(EmptyHole))))
       | Label => label("label")

@@ -1154,6 +1154,8 @@ and Prov: {
     | NProduct(n, p) =>
       "*(" ++ string_of_int(n) ++ "," ++ to_string(p) ++ ")"
     | RForall(p) => "->RA(" ++ to_string(p) ++ ")"
+    | TupLabel(p) => "(" ++ to_string(p) ++ ")="
+    | TupLabelArg(p) => "=(" ++ to_string(p) ++ ")"
     | Join(p1, p2) =>
       "J("
       ++ Prov.to_string(IdTagged.term_of(p1))
@@ -1201,6 +1203,8 @@ and Prov: {
           | NProduct(n, p) => NProduct(n, prov_map_temp_term(p))
           | MList(p) => MList(prov_map_temp_term(p))
           | RForall(p) => RForall(prov_map_temp_term(p))
+          | TupLabel(p) => TupLabel(prov_map_temp_term(p))
+          | TupLabelArg(p) => TupLabelArg(prov_map_temp_term(p))
           | Join(p1, p2) => Join(prov_map_term(p1), prov_map_term(p2))
           },
       };

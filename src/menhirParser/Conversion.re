@@ -427,7 +427,7 @@ and Typ: {
     | TupleType(ts) => parens(prod(List.map(of_menhir_ast, ts)))
     | LabelType(s) => label(s)
     | TupLabelType(t1, t2) =>
-      tup_label(of_menhir_ast(t1), of_menhir_ast(t2))
+      IndicatedG.Typ.tup_label(of_menhir_ast(t1), of_menhir_ast(t2))
     | ArrayType(t) => list(of_menhir_ast(t))
     | ArrowType(t1, t2) => arrow(of_menhir_ast(t1), of_menhir_ast(t2))
     | SumTyp(sumterms) =>

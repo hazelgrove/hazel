@@ -15,6 +15,8 @@ type cls =
   | NProduct
   | MList
   | RForall
+  | TupLabelProv
+  | TupLabelArg
   | Join
   | Arrow
   | Prod
@@ -89,6 +91,8 @@ let cls_of_term: Grammar.typ_term('a) => cls =
   | Unknown({term: NProduct(_), _}) => NProduct
   | Unknown({term: MList(_), _}) => MList
   | Unknown({term: RForall(_), _}) => RForall
+  | Unknown({term: TupLabel(_), _}) => TupLabelProv
+  | Unknown({term: TupLabelArg(_), _}) => TupLabelArg
   | Unknown({term: Join(_), _}) => Join
   | Atom(c) => Atom(c)
   | List(_) => List
@@ -116,6 +120,8 @@ let show_cls: cls => string =
   | NProduct => "Tuple prov type"
   | MList => "List prov type"
   | RForall => "Right Forall prov type"
+  | TupLabelProv => "Tuple label prov"
+  | TupLabelArg => "Tuple arg prov"
   | Join => "Join prov"
   | Atom(_) => "Base type"
   | Var => "Type variable"
@@ -913,11 +919,23 @@ let rec matched_args_strict = (ctx, ty, arity): Either.t('a, int) => {
   };
 };
 
-let matched_label = (ctx, ty): option((t, t)) =>
+let matched_label = (ctx, ty): option((t, t, list(equivalence))) =>
   switch (term_of(weak_head_normalize(ctx, ty))) {
-  | TupLabel({term: Label(ml), _}, ty) => Some((Label(ml) |> temp, ty))
-  | Unknown(t) when t.term == SynSwitch =>
-    Some((Unknown(t) |> temp, Unknown(t) |> temp))
+  | TupLabel({term: Label(ml), _}, ty) => Some((Label(ml) |> temp, ty, []))
+  | Unknown({term: t, annotation}) when t == SynSwitch =>
+    let label =
+      Unknown({
+        term: TupLabel(t),
+        annotation,
+      })
+      |> temp;
+    let arg =
+      Unknown({
+        term: TupLabelArg(t),
+        annotation,
+      })
+      |> temp;
+    Some((label, arg, [Con(ty, TupLabel(label, arg) |> temp)]));
   | _ => None
   };
 
@@ -976,6 +994,8 @@ and is_prov_syn = (prov: Prov.term): bool => {
   | RArrow(p)
   | NProduct(_, p)
   | RForall(p)
+  | TupLabel(p)
+  | TupLabelArg(p)
   | MList(p) => is_prov_syn(p)
   | Join(p1, p2) =>
     is_prov_syn(p1 |> Prov.term_of) || is_prov_syn(p2 |> Prov.term_of)

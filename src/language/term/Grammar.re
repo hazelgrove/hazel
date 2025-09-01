@@ -160,6 +160,8 @@ and type_provenance('a) =
   | NProduct(int, type_provenance('a))
   | MList(type_provenance('a))
   | RForall(type_provenance('a))
+  | TupLabel(type_provenance('a))
+  | TupLabelArg(type_provenance('a))
   | Join(type_provenance_t('a), type_provenance_t('a))
 and type_provenance_t('a) = Annotated.t(type_provenance('a), 'a)
 and filter('a) = {
@@ -429,6 +431,8 @@ and map_type_provenance_annotation:
     | NProduct(n, p) => NProduct(n, map_type_provenance_annotation(f, p))
     | MList(p) => MList(map_type_provenance_annotation(f, p))
     | RForall(p) => RForall(map_type_provenance_annotation(f, p))
+    | TupLabel(p) => TupLabel(map_type_provenance_annotation(f, p))
+    | TupLabelArg(p) => TupLabelArg(map_type_provenance_annotation(f, p))
     | Join(p1, p2) =>
       Join(
         map_type_provenance_t_annotation(f, p1),
@@ -957,6 +961,18 @@ module Factory = (DefaultAnnotation: DefaultAnnotation) => {
     let rforall = (~ann=?, p): type_provenance_t(DefaultAnnotation.t) => {
       {
         term: RForall(p),
+        annotation: default_annotation(ann),
+      };
+    };
+    let tup_label_label = (~ann=?, p): type_provenance_t(DefaultAnnotation.t) => {
+      {
+        term: TupLabel(p),
+        annotation: default_annotation(ann),
+      };
+    };
+    let tup_label_arg = (~ann=?, p): type_provenance_t(DefaultAnnotation.t) => {
+      {
+        term: TupLabelArg(p),
         annotation: default_annotation(ann),
       };
     };

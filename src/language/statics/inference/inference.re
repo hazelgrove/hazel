@@ -65,7 +65,9 @@ let rec provs_in_typ = (~include_prov=_ => true, t: Typ.term): list(Prov.t) => {
     List.map(t => provs_in_typ(~include_prov, t |> Typ.term_of), args)
     |> List.flatten
   | Label(_) => []
-  | TupLabel(_, arg) => provs_in_typ(~include_prov, arg |> Typ.term_of)
+  | TupLabel(label, arg) =>
+    provs_in_typ(~include_prov, label |> Typ.term_of)
+    @ provs_in_typ(~include_prov, arg |> Typ.term_of)
   | List(elt) => provs_in_typ(~include_prov, elt |> Typ.term_of)
   | Sum(_) => []
   | Parens(term) => provs_in_typ(~include_prov, term |> Typ.term_of)
@@ -93,7 +95,7 @@ let rec all_provs_in_sol = (s: solution): list(Prov.t) => {
   | Prod(args) => List.concat_map(all_provs_in_sol, args)
   | Label(_) => []
   | Sum(_) => []
-  | TupLabel(_, r) => all_provs_in_sol(r)
+  | TupLabel(l, r) => all_provs_in_sol(l) @ all_provs_in_sol(r)
   | Ap(fn, args) => all_provs_in_sol(fn) @ all_provs_in_sol(args)
   | Rec(_, ty) => all_provs_in_sol(ty)
   | Forall(_, ty) => all_provs_in_sol(ty)
@@ -140,8 +142,9 @@ let rec unfold_constramnot =
   | (Prod(l_args), Prod(r_args)) =>
     unfold_constramnot_prod(l_args, r_args, [])
   | (Label(_), Label(_)) => []
-  | (TupLabel(_, l_typ), TupLabel(_, r_typ)) =>
-    unfold_constramnot(Con(l_typ, r_typ)) // TODO: (THI) might we want to constrain labels?
+  | (TupLabel(l_label, l_typ), TupLabel(r_label, r_typ)) =>
+    unfold_constramnot(Con(l_label, r_label))
+    @ unfold_constramnot(Con(l_typ, r_typ)) // TODO: (THI) might we want to constrain labels?
   | (Ap(l_fun, l_args), Ap(r_fun, r_args)) =>
     unfold_constramnot(Con(l_fun, r_fun))
     @ unfold_constramnot(Con(l_args, r_args))
