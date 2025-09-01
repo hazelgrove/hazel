@@ -28,6 +28,7 @@ module Update = {
 
   let update =
       (~settings: Settings.t, action: t, model: Model.t): Updated.t(Model.t) => {
+    print_endline("DHE: 3L");
     let perform = (action: Action.t, model: Model.t) =>
       Editor.Update.update(
         ~settings=settings.core,
@@ -76,6 +77,8 @@ module Update = {
     | Perform(action) =>
       settings.core.flip_animations && Action.should_animate(action)
         ? Animation.request([Animation.Actions.move("caret")]) : ();
+
+      print_endline("DHE: 3R");
       perform(action, model);
     | DebugConsole(key) =>
       DebugConsole.print(~settings, model, key);

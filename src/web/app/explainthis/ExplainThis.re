@@ -262,7 +262,7 @@ let expander_deco =
         let get_clss = segment =>
           switch (List.nth(segment, 0)) {
           | Base.Tile({mold, _}) => [
-              "ci-header-" ++ Sort.to_string(mold.out) // TODO the brown on brown isn't the greatest... but okay
+              "ci-header-" ++ Sort.class_of(mold.out) // TODO the brown on brown isn't the greatest... but okay
             ]
           | _ => []
           };

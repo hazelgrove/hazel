@@ -31,6 +31,7 @@ let apply =
      The intention is that eventually, the calculate phase will be
      done automatically by incremental calculation. */
   // ---------- UPDATE PHASE ----------
+  print_endline("DHE: -1L");
   let updated: Updated.t(History.Model.t) =
     try(
       History.Update.update(
@@ -54,6 +55,7 @@ let apply =
       );
       model |> Updated.return_quiet;
     };
+  print_endline("DHE: -1R");
   // ---------- CALCULATE PHASE ----------
   let model' =
     updated.model
@@ -79,6 +81,7 @@ let apply =
 };
 
 let start = {
+  Printexc.record_backtrace(true);
   let%sub save_scheduler = BonsaiUtil.Alarm.alarm;
   let%sub (app_model, app_inject) =
     Bonsai.state_machine1(

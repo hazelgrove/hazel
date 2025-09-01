@@ -241,6 +241,7 @@ module Update = {
         action: t,
         model: Model.t,
       ) => {
+    print_endline("DHE: 0L");
     let globals = {
       ...model.globals,
       export_all: Export.export_all,
@@ -259,6 +260,7 @@ module Update = {
           action,
           model.editors,
         );
+      print_endline("DHE: 0R");
       {
         ...model,
         editors,

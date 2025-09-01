@@ -38,7 +38,7 @@ let of_delim' =
         | [s] when Token.is_explicit_hole(s) => "explicit-hole"
         | [s] when Token.is_string(s) => "string-lit"
         | _ when is_infix_var => "Any" /* Budget error deco */
-        | _ => Sort.to_string(sort)
+        | _ => Sort.class_of(sort)
         };
       let plurality = List.length(label) == 1 ? "mono" : "poly";
       let token = List.nth(label, i);

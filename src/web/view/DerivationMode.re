@@ -138,6 +138,7 @@ module Update = {
     switch (action) {
     | Editor(pos, MainEditor(action))
         when Model.is_editable(pos, ~instructor_mode, model) =>
+      print_endline("DHE: 2L");
       let editor =
         DerivationTree.main_editor_of_state(~selection=pos, model.editors);
       let* new_editor =
@@ -145,6 +146,7 @@ module Update = {
         editor
         |> CodeEditable.Model.mk
         |> CodeEditable.Update.update(~settings, action);
+      print_endline("DHE: 2R");
       {
         ...model,
         pos,
@@ -178,8 +180,11 @@ module Update = {
       | None => Updated.return_quiet(model)
       }
     | Editor(pos, ResultAction(UpdateResult(_)) as action) =>
+      print_endline("IOS: 1111L");
       let cell = DerivationTree.get_stitched(pos, model.cells);
+      print_endline("IOS: 1222L");
       let* new_cell = CellEditor.Update.update(~settings, action, cell);
+      print_endline("IOS: 1R");
       {
         ...model,
         cells: DerivationTree.put_stitched(pos, model.cells, new_cell),
@@ -233,6 +238,7 @@ module Update = {
                 result: cell.result,
               };
             }) {
+            | Invalid_argument(_)
             | Not_found =>
               ""
               |> DerivationTree.zipper_of_code(~root=Drv(Exp))
@@ -255,7 +261,9 @@ module Update = {
       worker_request^,
       ~handler=
         List.iter(((pos, result)) => {
+          print_endline("MUS: 1");
           let pos' = DerivationTree.pos_of_key(pos);
+          print_endline("MUS: 2");
           let result': ProgramResult.t(ProgramResult.inner) =
             switch (result) {
             | Ok((r, s)) =>
@@ -265,9 +273,11 @@ module Update = {
               })
             | Error(e) => ResultFail(e)
             };
+          print_endline("MUS: 3");
           schedule_action(
             Editor(pos', ResultAction(UpdateResult(result'))),
           );
+          print_endline("MUS: 4");
         }),
       ~timeout=_ => {
         let _ =
@@ -350,13 +360,17 @@ module Selection = {
   type t = CellEditor.Selection.t;
 
   let get_cursor_info = (~selection: t, model: Model.t): cursor(Update.t) => {
+    print_endline("114514A");
     let cell_editor = DerivationTree.get_stitched(model.pos, model.cells);
+    print_endline("114514B");
     let+ a = CellEditor.Selection.get_cursor_info(~selection, cell_editor);
     Update.Editor(model.pos, a);
   };
 
   let handle_key_event = (~selection: t, ~event, model: Model.t) => {
+    print_endline("114514C");
     let cell_editor = DerivationTree.get_stitched(model.pos, model.cells);
+    print_endline("114514D");
     CellEditor.Selection.handle_key_event(~selection, ~event, cell_editor)
     |> Option.map(a => Update.Editor(model.pos, a));
   };
