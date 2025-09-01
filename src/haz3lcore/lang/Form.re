@@ -210,7 +210,7 @@ let drv_get: drv_compound_form => t =
   | Val => mk_op_c(L, ["val", "end"], Drv(Exp), [Drv(Exp)])
   | Eval => mk_infix("\\=/", Drv(Exp), P.min)
   | Entail => mk_infix("|-", Drv(Exp), P.min)
-  | UnaryEntail => mk_pre_c(L, ["|-"], P.min, Drv(Exp), [Drv(Exp)])
+  | UnaryEntail => mk_pre_c(L, ["|-"], P.min, Drv(Exp), [])
   // Note(zhiyao):
   // Auto complete is only available for sort Exp, that's why
   // we need a fake_consistent to make it work for Drv(Exp)

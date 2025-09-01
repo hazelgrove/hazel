@@ -4,20 +4,18 @@ open Util;
 open Language;
 open Node;
 
-// TODO(zhiyao): an ad-hoc solution to remove E ==> Seq(EmptyHole, E) in the results
-let strip_seq = (exp: Exp.t): Exp.t => {
-  let rec aux = (e: Exp.t): Exp.t =>
-    switch (e.term) {
-    | Seq(_, e2) => aux(e2)
-    | _ => e
-    };
-  aux(exp);
-};
-
 let stitched_results =
-  // TODO(zhiyao): check this
   DerivationTree.map_stitched((_, cell_editor: CellEditor.Model.t) =>
-    cell_editor.result.elab |> Calc.get_saved_opt |> Option.map(strip_seq)
+    cell_editor.result.result
+    |> Calc.save
+    |> Calc.get_saved_opt
+    |> (
+      fun
+      | Some(ProgramResult.ResultOk(r)) => Some(r.result)
+      | Some(ResultFail(_))
+      | Some(ResultPending)
+      | None => None
+    )
   );
 
 let verified_tree =
@@ -140,11 +138,6 @@ module Update = {
     switch (action) {
     | Editor(pos, MainEditor(action))
         when Model.is_editable(pos, ~instructor_mode, model) =>
-      // Redirect to editors
-      print_endline(
-        "DerivationMode.Update: redirecting to editors at position "
-        ++ DerivationTree.show_pos(pos),
-      );
       let editor =
         DerivationTree.main_editor_of_state(~selection=pos, model.editors);
       let* new_editor =

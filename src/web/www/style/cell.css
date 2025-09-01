@@ -28,7 +28,8 @@
 }
 
 #main.Tutorial,
-#main.Exercises {
+#main.Exercises,
+#main.Derivations {
   padding: 1.5em;
   padding-top: 3.5em;
   display: flex;
@@ -39,7 +40,8 @@
 }
 
 #main.Tutorial .cell,
-#main.Exercises .cell {
+#main.Exercises .cell,
+#main.Derivations .cell {
   width: auto;
   border-radius: 0.4em;
 }
@@ -52,7 +54,7 @@
   flex-direction: column;
 }
 
-.cell > * {
+.cell>* {
   padding-left: 1em;
   padding: 1em;
   padding-left: 1.2em;
@@ -236,12 +238,14 @@
 }
 
 #main.Tutorial .cell:has(.code-editor.selected),
-#main.Exercises .cell:has(.code-editor.selected) {
+#main.Exercises .cell:has(.code-editor.selected),
+#main.Derivations .cell:has(.code-editor.selected) {
   background-color: var(--cell-active);
 }
 
 #main.Tutorial .cell.unlocked:has(.code-editor.selected),
-#main.Exercises .cell.unlocked:has(.code-editor.selected) {
+#main.Exercises .cell.unlocked:has(.code-editor.selected),
+#main.Derivations .cell.unlocked:has(.code-editor.selected) {
   border-left: 1px solid var(--cell-selected-accent);
   background-color: var(--cell-active);
 }
