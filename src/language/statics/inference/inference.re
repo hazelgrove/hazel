@@ -13,6 +13,7 @@ type solution =
   | Ap(solution, solution)
   | Rec(TPat.term, solution)
   | Forall(TPat.term, solution)
+  | Var(string)
   | Multi(list(solution));
 
 let cyclic_solution: solution = Unknown(Hole(CycleHole) |> Prov.anonymous);
@@ -99,6 +100,7 @@ let rec all_provs_in_sol = (s: solution): list(Prov.t) => {
   | Ap(fn, args) => all_provs_in_sol(fn) @ all_provs_in_sol(args)
   | Rec(_, ty) => all_provs_in_sol(ty)
   | Forall(_, ty) => all_provs_in_sol(ty)
+  | Var(_) => []
   | Multi(ss) => List.concat_map(all_provs_in_sol, ss)
   };
 };
@@ -378,7 +380,7 @@ let rec solution_of_typ = (p: Prov.t, t: Typ.term) => {
       solution_of_typ(p, fn |> Typ.term_of),
       solution_of_typ(p, arg |> Typ.term_of),
     )
-  | Var(_) => Unknown(Hole(EmptyHole) |> Prov.anonymous)
+  | Var(v) => Var(v)
   | Parens(term) => solution_of_typ(p, term |> Typ.term_of)
   | Arrow(t1, t2) =>
     Arrow(
@@ -481,6 +483,7 @@ let rec refine_solution = (p: Prov.t, s: solution, t: Typ.term): solution => {
   | (Arrow(_, _) as s, t)
   | (Prod(_) as s, t)
   | (Sum(_) as s, t)
+  | (Var(_) as s, t)
   | (Forall(_, _) as s, t) => Multi([s, solution_of_typ(p, t)])
   // | (Multi([]), _)
   // | (Multi([Hole, ..._]), _)
@@ -527,6 +530,7 @@ let rec typ_of_solution = (s: solution): Typ.term => {
     Rec(pat |> IdTagged.temp, typ_of_solution(ty) |> Typ.temp)
   | Forall(pat, ty) =>
     Forall(pat |> IdTagged.temp, typ_of_solution(ty) |> Typ.temp)
+  | Var(v) => Var(v)
   };
 };
 
@@ -538,6 +542,7 @@ let solution_typ = (s: solution): Typ.term => {
   | Sum(_)
   | List(_)
   | Prod(_)
+  | Var(_)
   | Label(_)
   | TupLabel(_, _)
   | Ap(_, _)
@@ -686,6 +691,7 @@ let rec solution_replace_solution =
     (Multi(List.rev(ss')), changed);
   | Atom(_) => (sol, false)
   | Sum(_) => (sol, false)
+  | Var(_) => (sol, false)
   | Label(_) => (sol, false)
   | TupLabel(label, body) =>
     let (label', changed1) = solution_replace_solution(prov, label, sol');
