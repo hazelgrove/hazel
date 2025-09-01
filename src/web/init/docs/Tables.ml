@@ -2,7 +2,7 @@ let out : string * Haz3lcore.PersistentZipper.t =
   ( "Tables",
     {
       zipper =
-        "((selection((focus Left)(content())(mode \
+        "((root Exp)(selection((focus Left)(content())(mode \
          Normal)))(relatives((siblings(()((Secondary((id \
          b0d8b117-3610-4859-8d2e-fb96ab73f185)(content(Comment\"# Sample: Quiz \
          scores from multiple students #\"))))(Secondary((id \

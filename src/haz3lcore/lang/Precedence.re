@@ -28,14 +28,12 @@ let max: t = 0;
 let type_sum_ap = 11;
 // _____ (Int)
 // + T1 + _____
-
-// Derivation Mode Only
-let type_prod = 12;
-let type_plus = 13 |> right_associative;
+let type_plus = 12 |> right_associative;
 // _____ -> Int
-let type_arrow = 14 |> right_associative;
+let type_arrow = 13 |> right_associative;
 // Int -> _____
 // String , _____ , String
+let type_prod = 14;
 let type_binder = 15;
 // forall t -> _____
 // rec t -> _____

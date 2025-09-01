@@ -10,7 +10,7 @@ type t =
 
 let to_string =
   fun
-  | Drv(s) => DrvSort.show(s)
+  | Drv(s) => DrvSort.to_string(s)
   | _ as s => show(s);
 
 let class_of =
@@ -29,16 +29,6 @@ let consistent = (s, s') =>
   | (Drv(_), _) => false
   | _ => s == s'
   };
-
-let to_string =
-  fun
-  | Drv(s) => DrvSort.class_of(s)
-  | Any => "Any"
-  | Pat => "Pat"
-  | TPat => "TPat"
-  | Typ => "Typ"
-  | Rul => "Rul"
-  | Exp => "Exp";
 
 let to_string_verbose =
   fun

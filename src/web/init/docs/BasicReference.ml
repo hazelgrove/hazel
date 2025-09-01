@@ -2,7 +2,7 @@ let out : string * Haz3lcore.PersistentZipper.t =
   ( "Basic Reference",
     {
       zipper =
-        "((selection((focus Left)(content())(mode \
+        "((root Exp)(selection((focus Left)(content())(mode \
          Normal)))(relatives((siblings(()((Secondary((id \
          aca843fa-ed08-4307-84d7-48ebf26e77a0)(content(Comment\"# Hazel \
          Language Quick Reference #\"))))(Secondary((id \

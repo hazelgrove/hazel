@@ -1,7 +1,7 @@
 open Util;
 
 let repr_list_ana_exp = (anas: list(DrvSort.t)): string =>
-  anas |> List.map(DrvSort.show) |> String.concat(", ");
+  anas |> List.map(DrvSort.to_string) |> String.concat(", ");
 
 [@deriving (show({with_path: false}), sexp, yojson, eq)]
 type ancestors = list(Id.t);

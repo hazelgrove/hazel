@@ -181,6 +181,8 @@ type drv_compound_form =
   | QuoteTyp
   | QuoteTPat;
 
+/* let all_of_drv_compound_form: list(_) = []; */
+
 let drv_get: drv_compound_form => t =
   fun
   | OfJdmt => mk_op_c(L, ["of_jdmt", "end"], Exp, [Drv(Exp)])
@@ -206,7 +208,8 @@ let drv_get: drv_compound_form => t =
       Drv(Typ),
       [Drv(Typ), Drv(TPat)],
     )
-  | Glb => mk_op_c(L, ["glb(", ",", ")"], Drv(Typ), [Drv(Typ), Drv(Typ)])
+  | Glb =>
+    mk_op_c(Non, ["glb(", ",", ")"], Drv(Typ), [Drv(Typ), Drv(Typ)])
   | Val => mk_op_c(L, ["val", "end"], Drv(Exp), [Drv(Exp)])
   | Eval => mk_infix("\\=/", Drv(Exp), P.min)
   | Entail => mk_infix("|-", Drv(Exp), P.min)
@@ -218,7 +221,7 @@ let drv_get: drv_compound_form => t =
     mk_pre_c(L, ["consistent", "~"], P.fun_, Exp, [Drv(Typ)])
   | Consistent =>
     mk(
-      LT,
+      L,
       ["consistent", "~"],
       Mold.mk_pre'(P.fun_, Drv(Exp), Drv(Exp), [Drv(Typ)], Drv(Typ)),
     )
@@ -226,7 +229,7 @@ let drv_get: drv_compound_form => t =
     mk_pre_c(L, ["matched_arrow", "with"], P.fun_, Exp, [Drv(Typ)])
   | MatchedArrow =>
     mk(
-      LT,
+      L,
       ["matched_arrow", "with"],
       Mold.mk_pre'(P.fun_, Drv(Exp), Drv(Exp), [Drv(Typ)], Drv(Typ)),
     )
@@ -248,21 +251,17 @@ let drv_get: drv_compound_form => t =
     )
   | Valid => mk_op_c(L, ["valid", "end"], Drv(Exp), [Drv(Typ)])
   | HasType =>
-    mk(LT, [":"], Mold.mk_bin'(P.ann, Drv(Exp), Drv(Exp), [], Drv(Typ)))
+    mk(L, [":"], Mold.mk_bin'(P.ann, Drv(Exp), Drv(Exp), [], Drv(Typ)))
   | Syn =>
-    mk(LT, ["=>"], Mold.mk_bin'(P.ann, Drv(Exp), Drv(Exp), [], Drv(Typ)))
+    mk(L, ["=>"], Mold.mk_bin'(P.ann, Drv(Exp), Drv(Exp), [], Drv(Typ)))
   | Ana =>
-    mk(LT, ["<="], Mold.mk_bin'(P.ann, Drv(Exp), Drv(Exp), [], Drv(Typ)))
+    mk(L, ["<="], Mold.mk_bin'(P.ann, Drv(Exp), Drv(Exp), [], Drv(Typ)))
   | And => mk_infix("/\\", Drv(Exp), P.and_)
   | Or => mk_infix("\\/", Drv(Exp), P.or_)
   | Impl => mk_infix("==>", Drv(Exp), P.impl)
   | Not => mk_pre_c(L, ["!"], P.neg, Drv(Exp), [])
   | Cons =>
-    mk(
-      LT,
-      ["::"],
-      Mold.mk_bin'(P.cons, Drv(Exp), Drv(Exp), [], Drv(Exp)),
-    )
+    mk(L, ["::"], Mold.mk_bin'(P.cons, Drv(Exp), Drv(Exp), [], Drv(Exp)))
   | Concat => mk_infix("@", Drv(Exp), P.plus)
   | List => mk_op_c(LT, ["[", "]"], Drv(Exp), [Drv(Exp)])
   | Neg => mk_pre_c(L, ["-"], P.neg, Drv(Exp), [])
@@ -299,7 +298,7 @@ let drv_get: drv_compound_form => t =
       Mold.mk_bin'(P.rule_sep, Drv(Exp), Drv(Exp), [Drv(Pat)], Drv(Exp)),
     )
   | Cast =>
-    mk(LT, [":"], Mold.mk_bin'(P.asc, Drv(Pat), Drv(Pat), [], Drv(Typ)))
+    mk(L, [":"], Mold.mk_bin'(P.asc, Drv(Pat), Drv(Pat), [], Drv(Typ)))
   | Arrow => mk_infix("->", Drv(Typ), P.type_arrow)
   | Prod => mk_infix("*", Drv(Typ), P.type_prod)
   | Sum => mk_infix("+", Drv(Typ), P.type_plus)

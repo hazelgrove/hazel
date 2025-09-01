@@ -2,7 +2,7 @@ let out : string * Haz3lcore.PersistentZipper.t =
   ( "Livelits",
     {
       zipper =
-        "((selection((focus Left)(content())(mode \
+        "((root Exp)(selection((focus Left)(content())(mode \
          Normal)))(relatives((siblings(()((Secondary((id \
          66b121c3-cd30-462a-8927-e0ef55b5b5a2)(content(Comment\"# LIVELITS \
          #\"))))(Secondary((id \

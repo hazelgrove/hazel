@@ -23,6 +23,15 @@ let doc_slide_reparses = ((name, slide: CellEditor.Model.persistent)) => {
         |> Zipper.t_of_sexp
         |> Zipper.seg_without_buffer;
 
+      print_endline(
+        "Original segment: "
+        ++ Segment.to_string(original_segment, ~projector_to_segment=_ => []),
+      );
+      print_endline(
+        "Reparsed segment: "
+        ++ Segment.to_string(reparsed_segment, ~projector_to_segment=_ => []),
+      );
+
       check(
         segment,
         "Reparsing backup_text produces equivalent segment",

@@ -2,7 +2,7 @@ let out : string * Haz3lcore.PersistentZipper.t =
   ( "Tuples",
     {
       zipper =
-        "((selection((focus Left)(content())(mode \
+        "((root Exp)(selection((focus Left)(content())(mode \
          Normal)))(relatives((siblings(()((Secondary((id \
          6c2d588e-11ff-490a-9632-ebd97e76d9ca)(content(Comment\"# Tuples can \
          have labels, including ones with special characters or spaces using \

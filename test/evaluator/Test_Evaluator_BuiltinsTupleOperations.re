@@ -84,7 +84,9 @@ let tests = (
       "Intermediate cast doesn't break evaluation",
       `Quick,
       () => {
-        let program = {|let (var=a, val=b) = (var="get_acne", val=true) : ? in b|};
+        /* Note(zhiyao): I changed var => r and val => l because val is a
+           reserved keyword for derivation terms */
+        let program = {|let (r=a, l=b) = (r="get_acne", l=true) : ? in b|};
 
         check(
           dhexp_typ,

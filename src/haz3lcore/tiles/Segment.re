@@ -152,9 +152,9 @@ and subsort_of = (sort: Sort.t): list(Sort.t) =>
     | Jdmt
     | Ctx
     | Prop
-    | Exp => [Pat, Drv(Pat), Drv(Typ), Drv(TPat)]
+    | Exp => [Drv(Pat), Drv(Typ), Drv(TPat)]
     | Pat => [Drv(Typ)]
-    | Typ => [Pat]
+    | Typ => []
     | TPat => [Drv(Typ)]
     }
   | _ => []

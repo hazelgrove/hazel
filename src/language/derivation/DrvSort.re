@@ -15,16 +15,6 @@ type t =
   | Typ
   | TPat;
 
-let show =
-  fun
-  | Jdmt => "Jdmt"
-  | Prop => "Prop"
-  | Ctx => "Ctx"
-  | Exp => "ALFA_Exp"
-  | Pat => "ALFA_Pat"
-  | Typ => "ALFA_Typ"
-  | TPat => "ALFA_TPat";
-
 let class_of =
   fun
   | Jdmt => "Drv"

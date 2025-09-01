@@ -23,7 +23,7 @@ let drv_view = (~globals, status: DrvInfo.t) => {
     );
   let view_type = (typ: Typ.t) =>
     switch (typ.term) {
-    | DrvTyp(t) => text(DrvSort.show(t))
+    | DrvTyp(t) => text(DrvSort.to_string(t))
     | _ => view_type(typ)
     };
   switch (DrvInfo.error_of(status)) {
@@ -36,14 +36,14 @@ let drv_view = (~globals, status: DrvInfo.t) => {
     | MultiHole => div_err([text("Expecting operator or delimiter")])
     | NoJoin(expect, _) =>
       div_err([
-        text("Unexpected term for sort " ++ (expect |> DrvSort.show)),
+        text("Unexpected term for sort " ++ (expect |> DrvSort.to_string)),
       ])
     | FreeVar => div_err([text("Unbound variable")])
     | VarNoJoin(expect, actual) =>
       div_err([
         text(
           "Expected a variable of sort "
-          ++ (expect |> DrvSort.show)
+          ++ (expect |> DrvSort.to_string)
           ++ ", got ",
         ),
         view_type(actual),
