@@ -391,10 +391,11 @@ and uexp_to_info_map =
       // TODO: (THI) do acriptions need to have another constraint generated?
       let (t, m) = go_typ(t2, ~expects=Info.TypeExpected, m);
       let (e, m) = go'(~ana=t.term, ~ctx=t.ctx, e, m);
+      let self: Self.t = Just(t.term);
       add(
-        ~self=Just(t.term),
+        ~self,
         ~co_ctx=e.co_ctx,
-        ~constraints=e.constraints,
+        ~constraints=e.constraints @ subsumption_constraints_t(self),
         m,
       );
     | Invalid(token) => atomic(BadToken(token))
