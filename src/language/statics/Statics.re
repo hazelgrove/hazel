@@ -881,12 +881,16 @@ and uexp_to_info_map =
           switch (element) {
           | Some({term: TupLabel(_, typ), _})
           | Some(typ) =>
+            let self: Self.t = Just(typ);
             add(
-              ~self=Just(typ),
+              ~self,
               ~co_ctx=info_e2.co_ctx,
-              ~constraints=info_e1.constraints @ info_e2.constraints,
+              ~constraints=
+                info_e1.constraints
+                @ info_e2.constraints
+                @ subsumption_constraints_t(self),
               m,
-            )
+            );
           | None =>
             add'(
               ~self=LabelNotFound(name, labels),
@@ -896,12 +900,16 @@ and uexp_to_info_map =
             )
           };
         | EmptyHole =>
+          let self: Self.t = Just(temp_internal);
           add(
-            ~self=Just(temp_internal),
+            ~self,
             ~co_ctx=info_e2.co_ctx,
-            ~constraints=info_e1.constraints @ info_e2.constraints,
+            ~constraints=
+              info_e1.constraints
+              @ info_e2.constraints
+              @ subsumption_constraints_t(self),
             m,
-          )
+          );
         | _ =>
           add(
             ~self=BadLabel(Exp(e2)),
