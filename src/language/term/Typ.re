@@ -708,7 +708,6 @@ let rec matched_arrow_strict = (ctx, ty) =>
   | _ => None
   };
 
-// TODO THI: abstract out /clean up provenance stuff
 let matched_arrow = (ctx, ty) => {
   switch (matched_arrow_strict(ctx, ty)) {
   | Some(v) => v
@@ -820,16 +819,8 @@ let rec matched_prod_strict:
           [],
         );
       }
-    | Unknown({term: SynSwitch, annotation}) =>
-      let (provs, constraints) =
-        matched_prod_of_prov(
-          {
-            term: SynSwitch,
-            annotation,
-          },
-          es,
-          ty,
-        );
+    | Unknown({term: SynSwitch, _} as p) =>
+      let (provs, constraints) = matched_prod_of_prov(p, es, ty);
       (es, Some(provs), constraints);
     | _ => (es, None, [])
     };
@@ -843,15 +834,7 @@ let matched_prod = (ctx, es, get_label_es, ty, constructor) => {
     | Some(p) => (p, constraints)
     | None =>
       switch (term_of(weak_head_normalize(ctx, ty))) {
-      | Unknown({term, annotation}) =>
-        matched_prod_of_prov(
-          {
-            term,
-            annotation,
-          },
-          es,
-          ty,
-        )
+      | Unknown(p) => matched_prod_of_prov(p, es, ty)
       | _ =>
         let prov = Internal |> Prov.fresh;
         matched_prod_of_prov(prov, es, ty);
