@@ -61,8 +61,9 @@ module Update = {
       cached_elab_subst
       |> {
         open Calc.Syntax;
-        let.calc elab = elab;
-        Substitution.subst(Builtins.env_init, elab);
+        let.calc elab = elab
+        and.calc env = env;
+        Substitution.subst(env |> ClosureEnvironment.map_of, elab);
       };
     let state = Calc.OldValue(EvaluatorState.init);
     let (root, _, _) =
