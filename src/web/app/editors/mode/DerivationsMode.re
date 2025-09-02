@@ -302,7 +302,6 @@ module Update = {
     switch (action) {
     | DerivationTree(action) =>
       let current = List.nth(model.exercises, model.current);
-      print_endline("DHE: 1L");
       let* new_current =
         DerivationMode.Update.update(
           ~settings=globals.settings,
@@ -310,7 +309,6 @@ module Update = {
           action,
           current,
         );
-      print_endline("DHE: 1R");
       let new_exercises =
         ListUtil.put_nth(model.current, new_current, model.exercises);
       Model.{

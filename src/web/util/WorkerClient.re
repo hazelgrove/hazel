@@ -23,22 +23,17 @@ let request =
       ~timeout: Request.t => unit,
     )
     : unit => {
-  print_endline("TCU: 1L");
   let setupWorkerMessageHandler = worker => {
     worker##.onmessage :=
       Dom.handler(evt => {
-        print_endline("TCU: 2L");
         switch (timeoutId.contents) {
         | Some(id) => Dom_html.window##clearTimeout(id)
         | None => ()
         };
         timeoutId.contents = None; /* Clear timeout after response */
         evt##.data |> Response.deserialize |> handler;
-        print_endline("TCU: 2R");
         Js._true;
       });
-
-    print_endline("TCU: 1R");
   };
 
   /* If there's an ongoing request, terminate the worker and reinitialize */

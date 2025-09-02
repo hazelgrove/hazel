@@ -340,7 +340,14 @@ module Deco =
   let term_decoration =
       (~id: Id.t, deco: ((Point.t, Point.t, SvgUtil.Path.t)) => Node.t) => {
     let (l, r) =
-      TermData.extreme_measures(id, term_data, measured) |> Option.get;
+      TermData.extreme_measures(id, term_data, measured)
+      |> OptUtil.value_exn(
+           ~none={
+             print_endline("Deco.Deco.term_decoration: option is none");
+             Not_found;
+           },
+           /* ~none=Invalid_argument("Deco.Deco.term_decoration"), */
+         );
     open SvgUtil.Path;
     let r_edge =
       ListUtil.range(~lo=l.row, r.row + 1)

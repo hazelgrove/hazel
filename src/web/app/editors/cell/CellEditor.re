@@ -70,7 +70,6 @@ module Update = {
         editor,
       };
     | ResultAction(action) =>
-      print_endline("IOS: 2L");
       let* result =
         EvalResult.Update.update(
           ~settings={
@@ -83,7 +82,6 @@ module Update = {
           action,
           model.result,
         );
-      print_endline("IOS: 2R");
       {
         ...model,
         result,

@@ -81,7 +81,7 @@ let root_of_pos = (pos: pos): Sort.t =>
   switch (pos) {
   | Prelude => Exp
   | Setup => Exp
-  | Trees(_, _) => Drv(Exp)
+  | Trees(_, _) => Drv(Jdmt)
   };
 
 // UI functionality
@@ -453,7 +453,12 @@ let get_stitched = (pos, s: stitched('a)): 'a =>
   | Prelude => s.prelude
   | Setup => s.setup
   | Trees(i, pos) =>
-    s.trees |> List.nth(_, i) |> Tree.nth(_, pos) |> Option.get
+    s.trees
+    |> List.nth(_, i)
+    |> Tree.nth(_, pos)
+    |> OptUtil.value_exn(
+         ~none=Invalid_argument("DerivationTree.get_stitched"),
+       )
   };
 
 let put_stitched = (pos, s: stitched('a), x: 'a): stitched('a) =>

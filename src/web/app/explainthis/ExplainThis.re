@@ -660,11 +660,11 @@ let get_doc =
           explanation_msg,
           docs,
         );
-      /* let sort =
-         switch (info) {
-         | None => Sort.Any
-         | Some(ci) => Info.sort_of(ci)
-         }; */
+      let root =
+        switch (info) {
+        | None => Sort.Any
+        | Some(ci) => Info.sort_of(ci)
+        };
       let highlights =
         colorings
         |> List.map(((syntactic_form_id: Id.t, code_id: Id.t)) => {
@@ -675,7 +675,7 @@ let get_doc =
         |> Id.Map.of_seq
         |> Option.some;
       let editor =
-        Editor.Model.mk(doc.syntactic_form |> Zipper.unzip(~root=Exp));
+        Editor.Model.mk(doc.syntactic_form |> Zipper.unzip(~root));
       let expander_deco =
         expander_deco(
           ~globals,
@@ -2943,40 +2943,35 @@ let view =
             _ =>
             globals.inject_global(Set(ExplainThis(SetHighlight(Toggle))))
           ),
-        ]
-        @ (
-          switch (info.deduction) {
-          | Some({rule, _}) => [
-              section(
-                ~section_clss="syntactic-form",
-                ~title=
-                  switch (rule) {
-                  | Some({rule, _}) => Rule.show(rule)
-                  | None => "Unknown Rule"
-                  },
-                syn_form_Drv @ explanation_Drv,
-              ),
-              div(~attrs=[clss(["hline"])], []),
-            ]
-          | None => []
-          }
-        )
-        @ [
+        ],
+      ),
+    ]
+    @ (
+      switch (info.deduction) {
+      | Some({rule, _}) => [
           section(
             ~section_clss="syntactic-form",
             ~title=
-              switch (info_cursor) {
-              | None => "Whitespace or Comment"
-              | Some(info) => Info.cls_of(info) |> Cls.show
+              switch (rule) {
+              | Some({rule, _}) => Rule.show(rule)
+              | None => "Unknown Rule"
               },
-            syn_form @ explanation,
+            syn_form_Drv @ explanation_Drv,
           ),
+          div(~attrs=[clss(["hline"])], []),
         ]
-        @ (
-          example == []
-            ? []
-            : [section(~section_clss="examples", ~title="Examples", example)]
-        ),
+      | None => []
+      }
+    )
+    @ [
+      section(
+        ~section_clss="syntactic-form",
+        ~title=
+          switch (info_cursor) {
+          | None => "Whitespace or Comment"
+          | Some(info) => Info.cls_of(info) |> Cls.show
+          },
+        syn_form @ explanation,
       ),
     ]
     @ (

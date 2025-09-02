@@ -31,7 +31,6 @@ let apply =
      The intention is that eventually, the calculate phase will be
      done automatically by incremental calculation. */
   // ---------- UPDATE PHASE ----------
-  print_endline("DHE: -1L");
   let updated: Updated.t(History.Model.t) =
     try(
       History.Update.update(
@@ -55,7 +54,6 @@ let apply =
       );
       model |> Updated.return_quiet;
     };
-  print_endline("DHE: -1R");
   // ---------- CALCULATE PHASE ----------
   let model' =
     updated.model

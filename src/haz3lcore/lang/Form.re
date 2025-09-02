@@ -307,7 +307,7 @@ let drv_get: drv_compound_form => t =
   | ApPat => mk_post_c(LT, ["(", ")"], P.ap, Drv(Pat), [Drv(Pat)])
   | CommaExp => mk_infix(",", Drv(Exp), P.comma)
   | CommaPat => mk_infix(",", Drv(Pat), P.comma)
-  | ParenProp => mk_op_c(LT, ["(", ")"], Drv(Jdmt), [Drv(Jdmt)])
+  | ParenProp => mk_op_c(LT, ["(", ")"], Drv(Prop), [Drv(Prop)])
   | ParenExp => mk_op_c(LT, ["(", ")"], Drv(Exp), [Drv(Exp)])
   | ParenPat => mk_op_c(LT, ["(", ")"], Drv(Pat), [Drv(Pat)])
   | ParenTyp => mk_op_c(LT, ["(", ")"], Drv(Typ), [Drv(Typ)])

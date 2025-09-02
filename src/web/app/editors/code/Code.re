@@ -195,6 +195,10 @@ module Text =
       | (_, Any) => true
       | (Rul, Exp) => true
       | (Exp, Rul) => true
+      /* Note(zhiyao): Drv(Jdmt | Ctx | Prop | Exp) are considered consistent
+         with each other because their differences are determined in dynamics,
+         which we cannot see here. */
+      | (Drv(Jdmt | Ctx | Prop | Exp), Drv(Jdmt | Ctx | Prop | Exp)) => true
       | _ => s == s'
       };
     let is_consistent = consistent(t.mold.out, expected_sort);
