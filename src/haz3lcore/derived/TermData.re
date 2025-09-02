@@ -45,6 +45,28 @@ let extremes_opt = (id: Id.t, data: t) =>
   | None => None
   };
 
+let extremes_shards = (id: Id.t, data: t): option((Piece.t, Piece.t)) =>
+  switch (extremes_opt(id, data)) {
+  | Some((Tile(l), Tile(r))) =>
+    Some((
+      Tile(Tile.shard_of(l, Tile.l_shard(l))),
+      Tile(Tile.shard_of(r, Tile.r_shard(r))),
+    ))
+  | Some((l, r)) => Some((l, r))
+  | None => None
+  };
+
+let root_shards = (id: Id.t, data: t): option((Piece.t, Piece.t)) =>
+  switch (Id.Map.find_opt(id, data)) {
+  | Some({root_piece: Tile(t), _}) =>
+    Some((
+      Tile(Tile.shard_of(t, Tile.l_shard(t))),
+      Tile(Tile.shard_of(t, Tile.r_shard(t))),
+    ))
+  | Some({root_piece, _}) => Some((root_piece, root_piece))
+  | _ => None
+  };
+
 let extreme_ids = (id: Id.t, data: t): option((Id.t, Id.t)) =>
   switch (extremes_opt(id, data)) {
   | Some((l, r)) => Some((Piece.id(l), Piece.id(r)))

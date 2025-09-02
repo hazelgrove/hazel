@@ -3,6 +3,55 @@ open Language;
 
 let testable_typ = testable(Fmt.using(Typ.show, Fmt.string), Typ.fast_equal);
 
+let eq_info_error_exp = (a: Info.error_exp, b: Info.error_exp) => {
+  switch (a, b) {
+  | (Common(DuplicateLabel(l, ty)), Common(DuplicateLabel(r, ty2))) =>
+    l == r && Typ.fast_equal(ty, ty2)
+  | (Common(NoType(BadLabel(a))), Common(NoType(BadLabel(b)))) =>
+    Any.fast_equal(a, b)
+  | (
+      Common(NoType(InvalidLabel(a, ls))),
+      Common(NoType(InvalidLabel(b, ls'))),
+    ) =>
+    a == b && ls == ls'
+  | (
+      Common(Inconsistent(Expectation({ana: a1, syn: a2}))),
+      Common(Inconsistent(Expectation({ana: b1, syn: b2}))),
+    ) =>
+    Typ.fast_equal(a1, b1) && Typ.fast_equal(a2, b2)
+  | (Common(TupleLabelError(err)), Common(TupleLabelError(err'))) =>
+    List.equal(Any.fast_equal, err.malformed_labels, err'.malformed_labels)
+    && List.equal(String.equal, err.duplicate_labels, err'.duplicate_labels)
+    && List.equal(String.equal, err.invalid_labels, err'.invalid_labels)
+    && Typ.fast_equal(err.typ, err'.typ)
+  | (
+      Common(NoType(FreeConstructor(a))),
+      Common(NoType(FreeConstructor(b))),
+    ) =>
+    String.equal(a, b)
+  | (FreeVariable(a), FreeVariable(b)) => String.equal(a, b)
+  | _ =>
+    Alcotest.fail(
+      "Not implemented for "
+      ++ Info.show_error_exp(a)
+      ++ " and "
+      ++ Info.show_error_exp(b),
+    )
+  };
+};
+
+let eq_info_error = (a: Info.error, b: Info.error) => {
+  switch (a, b) {
+  | (Exp(a), Exp(b)) => eq_info_error_exp(a, b)
+  | _ =>
+    Alcotest.fail(
+      "Not implemented for "
+      ++ Info.show_error(a)
+      ++ " and "
+      ++ Info.show_error(b),
+    )
+  };
+};
 let testable_info_error_exp =
   testable(Fmt.using(Info.show_error_exp, Fmt.string), Info.equal_error_exp);
 

@@ -62,13 +62,45 @@ let replace_shard = (d: Direction.t, t: Token.t, z: t): option(t) => {
 [@deriving (show({with_path: false}), sexp, yojson)]
 type appendability = option((Direction.t, Token.t));
 
+/* This papers over an edge case which needs non-local rematching
+ * to handle properly. Consider inserting an opening parens at `f(g|)`.
+ * Without this check, this would result in the closing parens being
+ * rematched with the inserted opening parens, orphaning the leftmost
+ * opening parens. This in itself is fine. However, when entering
+ * the subsequent closing parens in the middle of the resulting empty
+ * ap, it will not be rematched, as the closing parens will be inside
+ * the bidelmited segment of the ap, and so will not rematch with the
+ * opening parens outside it. In principle this could be resolved in
+ * two ways. Either with a more complete reparsing solution which
+ * matches across segments, or by non-local rematching within a
+ * segment (if we set it up so the inserted closing parens matches
+ * with the adjacent opening one and thus does not end up an orphan
+ * in the bidelimited segement). In absence of either of these
+ * mechanisms, we need this hack is required. */
+let parens_edge_case = (char: string, z: t): bool =>
+  switch (
+    char,
+    Zipper.neighbor_token(Right, z),
+    Siblings.neighbor(Right, z.relatives.siblings),
+  ) {
+  | ("[", Some("]"), None)
+  | ("(", Some(")"), None) => true
+  | _ => false
+  };
+
 /* Decide which if any sibling we can append `char` to.
  * We bias towards the left sibling */
 let sibling_appendability = (char: string, z: t): appendability =>
-  switch (neighbor_shards(z)) {
-  | (Some(t), _) when Token.is_potential_token(Token.append(t, char)) =>
+  switch (neighbor_tokens(z)) {
+  | (Some(t), _)
+      when
+        Token.is_potential_token(Token.append(t, char))
+        && !parens_edge_case(char, z) =>
     Some((Left, Token.append(t, char)))
-  | (_, Some(t)) when Token.is_potential_token(Token.append(char, t)) =>
+  | (_, Some(t))
+      when
+        Token.is_potential_token(Token.append(char, t))
+        && !parens_edge_case(char, z) =>
     Some((Right, Token.append(char, t)))
   | _ => None
   };
@@ -131,7 +163,7 @@ let split = (z: t, char: string, idx: int, t: Token.t): option(t) => {
   let z =
     z
     |> insert_shard(~id, ~d=Left, l)
-    |> remold_regrout(Left)  /* Required for e.g. splitting ap(|) */
+    //|> remold_regrout(Left)  /* Required for e.g. splitting ap(|) */
     |> insert_shard(~id=Id.mk(), ~d=Right, r);
   let z =
     Token.space == char && should_supress_space(z)
@@ -142,8 +174,10 @@ let split = (z: t, char: string, idx: int, t: Token.t): option(t) => {
   remold_regrout(Right, z);
 };
 
+/* If the caret is precisely between two tokens, which
+ * can become a valid token if merged, merge those tokens */
 let will_merge = (z: t): option((Token.t, Token.t)) =>
-  switch (Zipper.neighbor_shards(z)) {
+  switch (Zipper.neighbor_tokens(z)) {
   | (Some(l), Some(r))
       when Token.is_potential_token(Token.append(l, r)) && z.caret == Outer =>
     Some((l, r))
@@ -183,7 +217,7 @@ let adjust_caret_pos = (~z_final: t, ~z_init: t): t => {
 let go = (char: string, z: t): option(t) => {
   /* If there's a selection, delete it before proceeding */
   let z = z.selection.content != [] ? Zipper.destroy_selection(z) : z;
-  switch (z.caret, neighbor_shards(z)) {
+  switch (z.caret, neighbor_tokens(z)) {
   /* If we try to insert a quote inside an existing string, or a #
    * in a comment, we are instead moved to the righthand side of
    * the operand. Note that this behavior is load-bearing for the
@@ -230,8 +264,7 @@ let go = (char: string, z: t): option(t) => {
 
 /* This is a wrapper intended to effectuate after-insertion conditional
  * operations. See Triggers.re for more details */
-let go =
-    (~ctx: Language.Ctx.t=Language.Ctx.empty, char: string, z: t): option(t) => {
+let go = (~ci: option(Language.Info.t)=None, char: string, z: t): option(t) => {
   let+ z = go(char, z);
-  Triggers.insert(~ctx, z);
+  Triggers.insert(~ci, z);
 };
