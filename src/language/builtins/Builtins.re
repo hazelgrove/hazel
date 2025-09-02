@@ -41,3 +41,6 @@ let env_init: Environment.t =
   builtins
   |> List.map(imp_of_builtin)
   |> List.fold_left(Environment.extend, Environment.empty);
+
+let closure_env: ClosureEnvironment.t =
+  env_init |> ClosureEnvironment.of_environment;

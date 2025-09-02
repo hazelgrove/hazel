@@ -304,19 +304,24 @@ module Decompose = {
     };
 
     let (let.): (requirements('a, DHExp.t), 'a => rule) => result =
-      (rq, rl) =>
-        switch (rq) {
-        | (_, Result.Step(_) as r, _, _) => r
-        | (undo, r, env, v) =>
-          switch (rl(v)) {
-          | Constructor => r
-          | Value => Result.BoxedValue
-          | Indet => Result.Indet
-          | Step(s) => Result.Step([EvalObj.mk(Mark, env, undo, s.kind)])
-          // TODO: Actually show these exceptions to the user!
-          | exception (EvaluatorError.Exception(_)) => Result.Indet
-          }
+      (rq, rl) => {
+        let (undo, r, env, v) = rq;
+        let rq_steps =
+          switch (r) {
+          | Result.Step(ss) => ss
+          | Result.BoxedValue
+          | Result.Indet => []
+          };
+        switch (rl(v)) {
+        | Constructor => r
+        | Value => List.is_empty(rq_steps) ? Result.BoxedValue : r
+        | Indet => List.is_empty(rq_steps) ? Result.Indet : r
+        | Step(s) =>
+          Result.Step([EvalObj.mk(Mark, env, undo, s.kind), ...rq_steps])
+        // TODO: Actually show these exceptions to the user!
+        | exception (EvaluatorError.Exception(_)) => Result.Indet
         };
+      };
 
     let (and.):
       (requirements('a, 'c => 'b), requirement('c)) =>

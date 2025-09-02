@@ -939,8 +939,14 @@ module Transition = (EV: EV_MODE) => {
       let. _ = otherwise(env, d);
       // let.wrap_closure _ = env;  // uncomment for hole closures
       Indet;
-    | DynamicErrorHole(_) =>
-      let. _ = otherwise(env, d);
+    | DynamicErrorHole(d, err) =>
+      let. _ = otherwise(env, d => DynamicErrorHole(d, err) |> rewrap)
+      and. _ =
+        req_final(
+          req(state, env),
+          d1 => DynamicErrorHole(d1, err) |> wrap_ctx,
+          d,
+        );
       let.wrap_closure _ = env;
       Indet;
     | Asc(d, t) =>
