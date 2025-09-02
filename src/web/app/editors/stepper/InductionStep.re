@@ -318,7 +318,7 @@ module F =
         validity: validity |> Calc.save,
       },
       hidden |> Calc.set(false),
-      Some((join_exp, state)),
+      Some((Calc.OldValue(Exp.fresh(Atom(Bool(true)))), state)),
       validity,
     ));
   };
