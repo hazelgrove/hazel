@@ -12,6 +12,7 @@ let startup: PersistentData.t = {
   documentation: (
     0,
     [
+      Exodemo.out,
       BasicReference.out,
       Projectors.out,
       ADTs.out,
