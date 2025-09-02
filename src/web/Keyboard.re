@@ -111,6 +111,7 @@ let handle_key_event = (k: Key.t): option(Action.t) => {
           Edit(UpdateBindingClause("let hmph = 900 in")),
         ),
       )
+    | "b" => now(AssistantComposition(Edit(UpdateAll("let b = ? in"))))
     | _ => None
     }
   | {key: D("f"), sys: PC, shift: Up, meta: Up, ctrl: Up, alt: Down} =>

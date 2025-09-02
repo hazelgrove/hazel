@@ -129,5 +129,5 @@ let go =
   | Put_down => Zipper.put_down_glom(z) |> return(Cant_put_down)
   | Dump => Ok(Zipper.try_to_dump_backpack(z))
   | AssistantComposition(a) =>
-    CompositionTools.Perform.go(a, syntax, z, mk_statics, return)
+    CompositionTools.Perform.go(~syntax, ~z, ~a, ~mk_statics, ~return)
   };

@@ -1252,12 +1252,17 @@ let message_display =
         curr_messages,
       ),
     );
-  // Autoscroll to loading dots if they exist
+  // Autoscroll to loading dots if they exist (only once per loading session)
   JsUtil.delay(0.0, () => {
     Js.Opt.iter(
-      Dom_html.document##getElementById(Js.string("loading-dots-anchor")), el => {
-      Js.Unsafe.coerce(el)##scrollIntoView()
-    })
+      Dom_html.document##getElementById(Js.string("loading-dots-anchor")),
+      el => {
+        let _ = Js.Unsafe.coerce(el)##scrollIntoView();
+        // Change the ID so we don't scroll to it again
+        Js.Unsafe.coerce(el)##.id :=
+          Js.string("loading-dots-anchor-scrolled");
+      },
+    )
   });
   div(
     ~attrs=[clss(["message-display-container"])],

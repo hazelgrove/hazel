@@ -58,7 +58,7 @@ type message = {
   // E.g. Tool descriptions (user-facing, describing what the agent did)
   content: option(OpenRouter.message),
   // It may be the case we don't want to display a message to the user
-  // E.g. Empty LLM responses/responses that only contain tool calls
+  // E.g. Empty LLM responses/responses that only contain tool calls (who's text content is empty)
   display: option(display),
   role,
   sketch_snapshot,

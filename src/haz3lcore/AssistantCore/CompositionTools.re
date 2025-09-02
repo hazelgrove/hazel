@@ -229,7 +229,7 @@ module Perform = {
   };
 
   // Tempory wrapper that helps me localize myself while implementing (remove)
-  let go =
+  let composition_dispatch =
       (
         a: Action.composition_action,
         syntax: CachedSyntax.t,
@@ -238,9 +238,10 @@ module Perform = {
         return:
           (Action.Failure.t, option(Zipper.t)) =>
           result(Zipper.t, Action.Failure.t),
+        curr_node_info: option(AssistantTreeHelper.node),
       ) => {
     let introduce = (z, code) => {
-      // Just a helper function for trying to paste code into the zipper
+      // A wrapper function for trying to paste code into the zipper
       // Note that we paste a segment; so, we convert the string to a segment
       // first, and then insert the segment into the zipper. This helps to
       // avoid potential current buggy parsing issues.
@@ -250,8 +251,6 @@ module Perform = {
          )
       |> return(CantPaste);
     };
-    let curr_node_info =
-      AssistantTreeHelper.build_curr_node_info(z, mk_statics(z));
     switch (curr_node_info) {
     | None =>
       switch (a) {
@@ -337,22 +336,15 @@ module Perform = {
             }
           | Stepwise(d) =>
             let len = List.length(node.siblings);
-            print_endline(
-              "node.sibling_idx: "
-              ++ string_of_int(node.sibling_idx)
-              ++ " len: "
-              ++ string_of_int(len),
-            );
             let target_id =
               switch (d) {
               | Left =>
-                List.nth(node.siblings, (node.sibling_idx - 1 + len) mod len).
-                  info
-                |> Info.id_of
+                List.nth(node.siblings, (node.sibling_idx - 1 + len) mod len)
+                |> AssistantTreeHelper.id_of
               | Right =>
                 // Don't add 1 here because we filtered out the current node
-                List.nth(node.siblings, (node.sibling_idx + len) mod len).info
-                |> Info.id_of
+                List.nth(node.siblings, (node.sibling_idx + len) mod len)
+                |> AssistantTreeHelper.id_of
               };
             Select.tile(target_id, z) |> return(Action.Failure.Cant_select);
           }
@@ -405,11 +397,11 @@ module Perform = {
         //   };
         // };
 
-        let overwrite_term = (z, target_id, code) => {
-          // Select the respective tile (in this case the definition tile)
+        let overwrite_term = (z, target_id, code, defs_exclude_bodies) => {
+          // Select the respective term (in this case the definition term)
           switch (
             Select.term(
-              ~defs_exclude_bodies=true,
+              ~defs_exclude_bodies,
               ~case_rules=false,
               syntax.term_data, // todo: not sure about this arg
               target_id,
@@ -419,21 +411,22 @@ module Perform = {
           | Some(z') =>
             // Paste the code over the selected tile
             introduce(z', code)
+
           | None => Error(Action.Failure.Cant_select)
           };
         };
-        let insert_term = (z, target_id, code, direction) => {
+        let insert_term = (z, target_id, code, d) => {
           switch (
             Select.term(
               ~defs_exclude_bodies=true,
               ~case_rules=false,
-              syntax.term_data, // todo: not sure about this arg
+              syntax.term_data, // todo: not sure about this arg, is it right?
               target_id,
               z,
             )
           ) {
           | Some(z') =>
-            switch (Move.by_token(direction, z')) {
+            switch (Move.by_token(d, z')) {
             | Some(z'') => introduce(z'', code)
             | None => Error(Action.Failure.Cant_move)
             }
@@ -461,22 +454,23 @@ module Perform = {
         switch (e) {
         | UpdateDefinition(code) =>
           let target_id = get_inner_term_id(node, Def);
-          overwrite_term(z, target_id, code);
+          overwrite_term(z, target_id, code, true);
         | UpdateBody(code) =>
           let target_id = get_inner_term_id(node, Body);
-          overwrite_term(z, target_id, code);
+          overwrite_term(z, target_id, code, false);
         | UpdatePattern(code) =>
           let target_id = get_inner_term_id(node, Pat);
-          overwrite_term(z, target_id, code);
+          overwrite_term(z, target_id, code, true);
         | UpdateBindingClause(code) =>
           let target_id = Info.id_of(node.info);
-          overwrite_term(z, target_id, code);
+          overwrite_term(z, target_id, code, true);
         | DeleteBindingClause =>
           destruct_term(~defs_exclude_bodies=true, z, Info.id_of(node.info))
         | DeleteBody =>
           let target_id = get_inner_term_id(node, Body);
           destruct_term(~defs_exclude_bodies=false, z, target_id);
         | InsertBefore(code) =>
+          // todo: figure out a better method than magic space
           insert_term(z, Info.id_of(node.info), code ++ " ", Direction.Left)
         | InsertAfter(code) =>
           // todo: figure out a better method than magic space
@@ -485,8 +479,11 @@ module Perform = {
         };
       }
     };
-    // todo
-    // todo: not sure about this arg
-    // todo: not sure about this arg
+  };
+
+  let go = (~syntax, ~z, ~a, ~mk_statics, ~return) => {
+    let curr_node_info =
+      AssistantTreeHelper.build_curr_node_info(z, mk_statics(z));
+    composition_dispatch(a, syntax, z, mk_statics, return, curr_node_info);
   };
 };
