@@ -11,6 +11,8 @@
 @import "style/assistant.css";
 @import "style/sidebar.css";
 @import "style/exercise-mode.css";
+@import "style/tutorial-mode.css";
+@import "style/test-panel.css";
 @import "style/cell.css";
 @import "style/dynamics.css";
 @import "style/stepper.css";

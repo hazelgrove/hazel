@@ -160,8 +160,8 @@ let evaluate_and_limit =
   | Completed((_, x)) =>
     Completed((
       x
-      |> Exp.replace_all_ids
-      |> Exp.substitute_closures(env |> ClosureEnvironment.map_of),
+      |> Exp.substitute_closures(env |> ClosureEnvironment.map_of)
+      |> Exp.replace_all_ids,
       state^,
     ))
   | StepLimitExceeded => StepLimitExceeded
