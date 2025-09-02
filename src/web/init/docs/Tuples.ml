@@ -1,9 +1,8 @@
-let out : string * Haz3lcore.PersistentZipper.t =
+let out : string * Haz3lcore.PersistentSegment.t =
   ( "Tuples",
     {
-      zipper =
-        "((selection((focus Left)(content())(mode \
-         Normal)))(relatives((siblings(()((Secondary((id \
+      segment =
+        "((Secondary((id \
          6c2d588e-11ff-490a-9632-ebd97e76d9ca)(content(Comment\"# Tuples can \
          have labels, including ones with special characters or spaces using \
          backticks ` #\"))))(Secondary((id \
@@ -3080,8 +3079,7 @@ let out : string * Haz3lcore.PersistentZipper.t =
          \"))))(Secondary((id \
          b5294b5d-ef86-4dab-9cbc-7b7385ff92ca)(content(Whitespace\" \
          \"))))(Secondary((id \
-         6de0262b-eb04-41e1-bbe9-46760bc82866)(content(Whitespace\"\\n\")))))))))))))))(model\"((text\\\"\\\\226\\\\139\\\\177\\\"))\"))))))(ancestors())))(caret \
-         Outer))";
+         6de0262b-eb04-41e1-bbe9-46760bc82866)(content(Whitespace\"\\n\")))))))))))))))(model\"((text\\\"\\\\226\\\\139\\\\177\\\"))\"))))";
       backup_text =
         "# Tuples can have labels, including ones with special characters or \
          spaces using backticks ` #\n\
