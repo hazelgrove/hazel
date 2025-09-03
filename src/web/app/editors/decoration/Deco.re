@@ -380,13 +380,17 @@ module Deco =
         )
       )
     ) {
-    | Not_found =>
+    | _ =>
       /* This is caused by the statics overloading for exercise mode. The overriding
        * Exercise mode statics maps are calculated based on splicing together multiple
        * editors, but error_ids are extracted generically from the statics map, so
        * there may be error holes that don't occur in the editor being rendered.
        * Additionally, when showing color highlights when the backpack is non-empty,
-       * the prospective completion may have different ids than the displayed code. */
+       * the prospective completion may have different ids than the displayed code.
+       * Additionally additionally, this is crashing with an Option.get exception on
+       * typfuns when they are indicated with ExplainThis open, also due to the
+       * color_highting codepath; unsure if related to previous; color highlighting
+       * shows up fine though... */
       Node.div([])
     };
 
