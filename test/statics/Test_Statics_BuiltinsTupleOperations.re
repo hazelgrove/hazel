@@ -1363,11 +1363,12 @@ module FromLvs = {
     ),
   ];
 };
-let tests =
-  ToLvsOperation.tests
-  @ ProjectLabels.tests
-  @ SelectLabels.tests
-  @ GroupByLabel.tests
-  @ OmitLabels.tests
-  @ OmitAllLabels.tests
-  @ FromLvs.tests;
+let tests = [
+  ("Statics.Builtins.to_lvs", ToLvsOperation.tests),
+  ("Statics.Builtins.project_labels", ProjectLabels.tests),
+  ("Statics.Builtins.select_labels", SelectLabels.tests),
+  ("Statics.Builtins.group_by_label", GroupByLabel.tests),
+  ("Statics.Builtins.omit_labels", OmitLabels.tests),
+  ("Statics.Builtins.omit_all_labels", OmitAllLabels.tests),
+  ("Statics.Builtins.from_lvs", FromLvs.tests),
+];
