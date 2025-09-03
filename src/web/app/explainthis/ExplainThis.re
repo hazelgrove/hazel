@@ -2626,10 +2626,7 @@ let get_doc =
         TerminalTyp.var(v),
       )
     | Sum(_) => get_message(SumTyp.labelled_sum_typs)
-    | Ap({term: Var(c), _}, _) =>
-      get_message(SumTyp.sum_typ_unary_constructor_defs(c))
     | Unknown(Hole(Invalid(_))) => simple("Not a type or type operator")
-    | Ap(_)
     | Parens(_) => default // Shouldn't be hit?
     }
   | Some(InfoTPat(info)) =>

@@ -15,7 +15,7 @@ let to_zipper = (~zipper_init=Zipper.init(), str: string): option(Zipper.t) => {
 
 let to_segment = (s: string): option(Segment.t) => {
   let+ z = to_zipper(s);
-  Zipper.seg_without_buffer(z);
+  Zipper.unselect_and_zip(~erase_buffer=true, z);
 };
 
 let to_term = (s: string): option(Language.Term.Exp.t) => {
