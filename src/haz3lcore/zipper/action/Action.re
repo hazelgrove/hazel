@@ -96,6 +96,8 @@ type via =
 // through the AST.
 [@deriving (show({with_path: false}), sexp, yojson, eq)]
 type nav_action =
+  // This is mainly for user's to select the current node
+  | SelectCurrent
   // Goes to the parent node of the current node in the AST
   | GoToParent
   // Goes to the child node of the current node in the AST
@@ -130,16 +132,21 @@ type read_action =
 // information to the LLM (via reading), but may move the cursor (eg. removing
 // a node will require the cursor to be moved elsewhere).
 [@deriving (show({with_path: false}), sexp, yojson, eq)]
+type user =
+  | LLM(string)
+  | Human; // prompt user for string
+
+[@deriving (show({with_path: false}), sexp, yojson, eq)]
 type edit_action =
-  | UpdateAll(string)
-  | UpdateDefinition(string)
-  | UpdateBody(string)
-  | UpdatePattern(string)
-  | UpdateBindingClause(string)
+  | UpdateAll(user)
+  | UpdateDefinition(user)
+  | UpdateBody(user)
+  | UpdatePattern(user)
+  | UpdateBindingClause(user)
   | DeleteBindingClause
   | DeleteBody
-  | InsertAfter(string)
-  | InsertBefore(string);
+  | InsertAfter(user)
+  | InsertBefore(user);
 
 [@deriving (show({with_path: false}), sexp, yojson, eq)]
 type view_action =
@@ -167,7 +174,7 @@ type t =
   | Insert(string)
   | Put_down
   | Introduce
-  | AssistantComposition(composition_action)
+  | Composition(composition_action)
   | Dump;
 
 module Failure = {
@@ -205,13 +212,13 @@ let is_edit: t => bool =
   | Put_down
   | Introduce
   | Buffer(Accept | Clear | Set(_))
-  | AssistantComposition(Edit(_))
+  | Composition(Edit(_))
   | Dump => true
   | Copy
   | Move(_)
   | Select(_)
-  | AssistantComposition(Nav(_))
-  | AssistantComposition(Read(_))
+  | Composition(Nav(_))
+  | Composition(Read(_))
   | Unselect(_) => false
   | Project(p) =>
     switch (p) {
@@ -229,8 +236,8 @@ let is_historic: t => bool =
   | Copy
   | Move(_)
   | Select(_)
-  | AssistantComposition(Nav(_))
-  | AssistantComposition(Read(_))
+  | Composition(Nav(_))
+  | Composition(Read(_))
   | Unselect(_) => false
   | Cut
   | Buffer(Accept | Clear | Set(_))
@@ -240,7 +247,7 @@ let is_historic: t => bool =
   | Destruct(_)
   | Put_down
   | Introduce
-  | AssistantComposition(Edit(_))
+  | Composition(Edit(_))
   | Dump => true
   | Project(p) =>
     switch (p) {
@@ -257,8 +264,8 @@ let prevent_in_read_only_editor = (a: t) => {
   | Copy
   | Move(_)
   | Unselect(_)
-  | AssistantComposition(Nav(_))
-  | AssistantComposition(Read(_))
+  | Composition(Nav(_))
+  | Composition(Read(_))
   | Select(_) => false
   | Buffer(Set(_) | Accept | Clear)
   | Cut
@@ -268,7 +275,7 @@ let prevent_in_read_only_editor = (a: t) => {
   | Insert(_)
   | Put_down
   | Introduce
-  | AssistantComposition(Edit(_))
+  | Composition(Edit(_))
   | Dump => true
   | Project(p) =>
     switch (p) {
@@ -310,5 +317,5 @@ let should_animate: t => bool =
   | Copy
   | Move(_)
   | Project(_)
-  | AssistantComposition(_)
+  | Composition(_)
   | Dump => true;

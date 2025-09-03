@@ -65,7 +65,7 @@ module Update = {
              | Cut
              | Reparse
              | Introduce
-             | AssistantComposition(_)
+             | Composition(_)
              | Dump => true
              | Project(_)
              | Unselect(_)

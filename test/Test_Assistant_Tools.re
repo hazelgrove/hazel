@@ -18,7 +18,7 @@ let apply_actions = (init: string, actions: list(Action.t)): Zipper.t =>
 let test =
     (~name, ~init: string, ~acts: list(CompositionTools.action), ~goal)
     : test_case(_) => {
-  let acts = List.map(a => Action.AssistantComposition(a), acts);
+  let acts = List.map(a => Action.Composition(a), acts);
   test_case(name, `Quick, () =>
     check(
       testable(Fmt.string, String.equal),
@@ -147,13 +147,13 @@ let update_definition_tests = {
     test(
       ~name="Update Definition (\"Simplest\" Case)",
       ~init="let x = 1¦ in x",
-      ~acts=[Edit(UpdateDefinition("2"))],
+      ~acts=[Edit(UpdateDefinition(LLM("2")))],
       ~goal="let x = 2¦ in x",
     ),
     test(
       ~name="Update Definition (Simple - V2)",
       ~init={|let x = (1, 2)¦ in x|},
-      ~acts=[Edit(UpdateDefinition("(foo, 2, bar)"))],
+      ~acts=[Edit(UpdateDefinition(LLM("(foo, 2, bar)")))],
       ~goal={|let x = (foo, 2, bar)¦ in x|},
     ),
   ];
@@ -164,7 +164,7 @@ let update_body_tests = {
     test(
       ~name="Update Body (\"Simplest\" Case)",
       ~init="let x = 1 in¦ x + 2",
-      ~acts=[Edit(UpdateBody("x * 2"))],
+      ~acts=[Edit(UpdateBody(LLM("x * 2")))],
       ~goal="let x = 1 in x * 2¦",
     ),
   ];
@@ -177,37 +177,37 @@ let update_pattern_tests = {
     test(
       ~name="Update Pattern (\"Simplest\" Case)",
       ~init="let x = 1 in¦ x",
-      ~acts=[Edit(UpdatePattern("a"))],
+      ~acts=[Edit(UpdatePattern(LLM("a")))],
       ~goal="let a¦ = 1 in x",
     ),
     test(
       ~name="Update Pattern (Tuple)",
       ~init="let (a, b) = ? in¦ ?",
-      ~acts=[Edit(UpdatePattern("(x, y)"))],
+      ~acts=[Edit(UpdatePattern(LLM("(x, y)")))],
       ~goal="let (x, y)¦ = ? in ?",
     ),
     test(
       ~name="Update Pattern (Annotated Atomic Type)",
       ~init="let u : Int = ? in¦ ?",
-      ~acts=[Edit(UpdatePattern("u : Float"))],
+      ~acts=[Edit(UpdatePattern(LLM("u : Float")))],
       ~goal="let u : Float¦ = ? in ?",
     ),
     test(
       ~name="Update Pattern (Annotated Arrow Type)",
       ~init="let u : Int -> Int = ? in¦ ?",
-      ~acts=[Edit(UpdatePattern("u : Float -> Float"))],
+      ~acts=[Edit(UpdatePattern(LLM("u : Float -> Float")))],
       ~goal="let u : Float -> Float¦ = ? in ?",
     ),
     test(
       ~name="Update Pattern (Annotated Arrow Type 2 (Remove Annotation))",
       ~init="let u : Int -> Int = ? in¦ ?",
-      ~acts=[Edit(UpdatePattern("u"))],
+      ~acts=[Edit(UpdatePattern(LLM("u")))],
       ~goal="let u¦ = ? in ?",
     ),
     test(
       ~name="Update Pattern (Annotated Arrow Type 3 (Introduce Annotation))",
       ~init="let u = ? in¦ ?",
-      ~acts=[Edit(UpdatePattern("u : Int -> Int"))],
+      ~acts=[Edit(UpdatePattern(LLM("u : Int -> Int")))],
       ~goal="let u : Int -> Int¦ = ? in ?",
     ),
   ];
@@ -218,7 +218,7 @@ let update_binding_clause_tests = {
     test(
       ~name="Update Binding Clause (\"Simplest\" Case)",
       ~init="let x = 1¦ in x",
-      ~acts=[Edit(UpdateBindingClause("let x = 2 in"))],
+      ~acts=[Edit(UpdateBindingClause(LLM("let x = 2 in")))],
       ~goal="let x = 2 in¦ x",
     ),
   ];
@@ -309,14 +309,14 @@ let insert_after_tests = {
     test(
       ~name="Insert After (\"Simplest\" Case)",
       ~init="let a = 1¦ in a * b",
-      ~acts=[Edit(InsertAfter("let b = 2 in"))],
+      ~acts=[Edit(InsertAfter(LLM("let b = 2 in")))],
       // ~goal="let a = 1 in let b = 2 in¦ a * b", //todo: <- this should be the goal
       ~goal="let a = 1 in¦ let b = 2 in a * b",
     ),
     test(
       ~name="Insert After (Between Two Bindings)",
       ~init="let a = 10¦ in let c = 30 in a + b + c",
-      ~acts=[Edit(InsertAfter("let b = 20 in"))],
+      ~acts=[Edit(InsertAfter(LLM("let b = 20 in")))],
       ~goal="let a = 10 in¦ let b = 20 in let c = 30 in a + b + c",
     ),
   ];
@@ -505,7 +505,7 @@ let view_refs_tests = [
 /* =============================== */
 
 let tests = [
-  ("AssistantComposition.Navigation", nav_tests),
-  ("AssistantComposition.Editing", edit_tests),
+  ("Composition.Navigation", nav_tests),
+  ("Composition.Editing", edit_tests),
   ("AssistantTreeHelper.ViewDefinition", view_definition_tests),
 ];

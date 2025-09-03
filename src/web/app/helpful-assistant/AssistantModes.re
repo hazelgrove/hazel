@@ -401,7 +401,7 @@ module Composition = {
           | ShowUseSites => "todo"
           };
         (res, []);
-      | _ => ("", [Action.AssistantComposition(action)])
+      | _ => ("", [Action.Composition(action)])
       };
     // Apply actions to the editor
     schedule_actions(~actions, ~schedule_action);

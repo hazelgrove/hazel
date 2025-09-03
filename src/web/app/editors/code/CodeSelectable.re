@@ -50,7 +50,7 @@ module Update = {
         Project(_) |
         Introduce |
         Dump |
-        AssistantComposition(_),
+        Composition(_),
       )
     | DebugConsole(_)
     | TAB => None;

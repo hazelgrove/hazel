@@ -39,6 +39,93 @@ let instructor_shortcuts: list(t) = [
   ),
 ];
 
+let composition_shortcuts: list(t) = [
+  mk_shortcut(
+    ~hotkey="alt+UpArrow",
+    ~mdIcon="arrow_upward",
+    ~section="Navigation",
+    "Go To Parent Binding",
+    Globals(ActiveEditor(Composition(Nav(GoToParent)))),
+  ),
+  mk_shortcut(
+    ~hotkey="alt+RightArrow",
+    ~mdIcon="arrow_forward",
+    ~section="Navigation",
+    "Go To Next Sibling Binding",
+    Globals(
+      ActiveEditor(Composition(Nav(GoToSibling(Stepwise(Right))))),
+    ),
+  ),
+  mk_shortcut(
+    ~hotkey="alt+LeftArrow",
+    ~mdIcon="arrow_back",
+    ~section="Navigation",
+    "Go To Previous Sibling Binding",
+    Globals(ActiveEditor(Composition(Nav(GoToSibling(Stepwise(Left)))))),
+  ),
+  mk_shortcut(
+    ~hotkey="alt+DownArrow",
+    ~mdIcon="arrow_downward",
+    ~section="Navigation",
+    "Go To First Child Binding",
+    Globals(ActiveEditor(Composition(Nav(GoToChild("", Some(0)))))),
+  ),
+  mk_shortcut(
+    ~mdIcon="edit",
+    ~section="Edit",
+    "Insert Before",
+    Globals(ActiveEditor(Composition(Edit(InsertBefore(Human))))),
+  ),
+  mk_shortcut(
+    ~mdIcon="edit",
+    ~section="Edit",
+    "Insert After",
+    Globals(ActiveEditor(Composition(Edit(InsertAfter(Human))))),
+  ),
+  mk_shortcut(
+    ~mdIcon="edit",
+    ~section="Edit",
+    "Delete Binding Clause",
+    Globals(ActiveEditor(Composition(Edit(DeleteBindingClause)))),
+  ),
+  mk_shortcut(
+    ~mdIcon="edit",
+    ~section="Edit",
+    "Delete Body",
+    Globals(ActiveEditor(Composition(Edit(DeleteBody)))),
+  ),
+  mk_shortcut(
+    ~mdIcon="edit",
+    ~section="Edit",
+    "Update Definition",
+    Globals(ActiveEditor(Composition(Edit(UpdateDefinition(Human))))),
+  ),
+  mk_shortcut(
+    ~mdIcon="edit",
+    ~section="Edit",
+    "Update Body",
+    Globals(ActiveEditor(Composition(Edit(UpdateBody(Human))))),
+  ),
+  mk_shortcut(
+    ~mdIcon="edit",
+    ~section="Edit",
+    "Update Pattern",
+    Globals(ActiveEditor(Composition(Edit(UpdatePattern(Human))))),
+  ),
+  mk_shortcut(
+    ~mdIcon="edit",
+    ~section="Edit",
+    "Update Binding Clause",
+    Globals(ActiveEditor(Composition(Edit(UpdateBindingClause(Human))))),
+  ),
+  mk_shortcut(
+    ~mdIcon="edit",
+    ~section="Edit",
+    "Update All",
+    Globals(ActiveEditor(Composition(Edit(UpdateAll(Human))))),
+  ),
+];
+
 // List of shortcuts configured to show up in the command palette and have hotkey support
 let shortcuts = (sys: Util.Key.sys): list(t) =>
   [
@@ -75,17 +162,9 @@ let shortcuts = (sys: Util.Key.sys): list(t) =>
       Globals(ActiveEditor(Move(Goal(Hole(Right))))),
       // Tab is overloaded so not setting it here
     ),
-    mk_shortcut(
-      ~hotkey="ctrl+.",
-      ~mdIcon="swipe_right_alt",
-      ~section="Navigation",
-      "Go To Next Sibling Binding Clause",
-      Globals(
-        ActiveEditor(
-          AssistantComposition(Nav(GoToSibling(Stepwise(Right)))),
-        ),
-      ),
-    ),
+  ]
+  @ composition_shortcuts
+  @ [
     mk_shortcut(
       ~hotkey=Keyboard.meta(sys) ++ "+d",
       ~mdIcon="select_all",

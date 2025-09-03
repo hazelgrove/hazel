@@ -92,39 +92,20 @@ let handle_key_event = (k: Key.t): option(Action.t) => {
     switch (key) {
     | "a" => now(Move(Line(Left)))
     | "e" => now(Move(Line(Right)))
-    // vvv Debug shortcuts vvv
-    | "q" =>
-      let new_code =
-        JsUtil.prompt("Enter new buffer name:", "New Buffer Name")
-        |> Option.get;
-      now(AssistantComposition(Edit(UpdatePattern(new_code))));
-    | "w" => now(AssistantComposition(Edit(UpdateDefinition("100"))))
-    | "r" => now(AssistantComposition(Edit(UpdateBody("x * 2"))))
-    | "t" => now(AssistantComposition(Edit(DeleteBody)))
-    | "y" => now(AssistantComposition(Edit(DeleteBindingClause)))
-    | "u" => now(AssistantComposition(Edit(InsertBefore("let s = ? in"))))
-    | "i" => now(AssistantComposition(Edit(InsertAfter("let r = ? in"))))
-    | "g" => now(AssistantComposition(Nav(GoToBindingSite("f", None))))
-    | "o" =>
-      now(
-        AssistantComposition(
-          Edit(UpdateBindingClause("let hmph = 900 in")),
-        ),
-      )
-    | "b" => now(AssistantComposition(Edit(UpdateAll("let b = ? in"))))
     | _ => None
     }
   | {key: D(key), sys: _, shift: Up, meta: Up, ctrl: Up, alt: Down} =>
     switch (key) {
+    | "a"
     | "å" => now(Move(Local(Left, ByToken)))
-    | "∂" => now(Move(Local(Right, ByToken)))
-    | "ArrowUp" => now(AssistantComposition(Nav(GoToParent)))
-    | "ArrowDown" =>
-      now(AssistantComposition(Nav(GoToChild("", Some(0)))))
-    | "ArrowLeft" =>
-      now(AssistantComposition(Nav(GoToSibling(Stepwise(Left)))))
-    | "ArrowRight" =>
-      now(AssistantComposition(Nav(GoToSibling(Stepwise(Right)))))
+    | "d"
+    | "∆" => now(Move(Local(Right, ByToken)))
+    | "/"
+    | "÷" => now(Composition(Nav(SelectCurrent)))
+    | "ArrowUp" => now(Composition(Nav(GoToParent)))
+    | "ArrowDown" => now(Composition(Nav(GoToChild("", Some(0)))))
+    | "ArrowLeft" => now(Composition(Nav(GoToSibling(Stepwise(Left)))))
+    | "ArrowRight" => now(Composition(Nav(GoToSibling(Stepwise(Right)))))
     | "f"
     | "ƒ" => Some(Project(SetIndicated(Specific(Fold))))
     | "v"

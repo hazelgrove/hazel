@@ -40,6 +40,7 @@ let action_of = (~tool_name: string, ~args: Maps.StringMap.t(string)): action =>
   let code = Maps.StringMap.find_opt("code", args);
 
   switch (tool_name) {
+  | "select_current" => Nav(SelectCurrent)
   | "go_to_parent" => Nav(GoToParent)
   | "go_to_child" =>
     let name =
@@ -68,49 +69,49 @@ let action_of = (~tool_name: string, ~args: Maps.StringMap.t(string)): action =>
         "You must specify a code for the program you wish to update",
         code,
       );
-    Edit(UpdateAll(code));
+    Edit(UpdateAll(LLM(code)));
   | "update_definition" =>
     let code =
       OptUtil.get_or_fail(
         "You must specify a code for the definition you wish to update",
         code,
       );
-    Edit(UpdateDefinition(code));
+    Edit(UpdateDefinition(LLM(code)));
   | "update_body" =>
     let code =
       OptUtil.get_or_fail(
         "You must specify a code for the body you wish to update",
         code,
       );
-    Edit(UpdateBody(code));
+    Edit(UpdateBody(LLM(code)));
   | "update_pattern" =>
     let code =
       OptUtil.get_or_fail(
         "You must specify a code for the pattern you wish to update",
         code,
       );
-    Edit(UpdatePattern(code));
+    Edit(UpdatePattern(LLM(code)));
   | "update_binding_clause" =>
     let code =
       OptUtil.get_or_fail(
         "You must specify a code for the expression you wish to update",
         code,
       );
-    Edit(UpdateBindingClause(code));
+    Edit(UpdateBindingClause(LLM(code)));
   | "insert_after" =>
     let code =
       OptUtil.get_or_fail(
         "You must specify a code for the expression you wish to insert after",
         code,
       );
-    Edit(InsertAfter(code));
+    Edit(InsertAfter(LLM(code)));
   | "insert_before" =>
     let code =
       OptUtil.get_or_fail(
         "You must specify a code for the expression you wish to insert before",
         code,
       );
-    Edit(InsertBefore(code));
+    Edit(InsertBefore(LLM(code)));
   | "delete_binding_clause" => Edit(DeleteBindingClause)
   | "delete_body" => Edit(DeleteBody)
   | "view_entire_definition" => Read(ViewEntireDefintion)
@@ -119,8 +120,16 @@ let action_of = (~tool_name: string, ~args: Maps.StringMap.t(string)): action =>
   };
 };
 
+let code_of = (user: Action.user) => {
+  switch (user) {
+  | LLM(code) => code
+  | Human => JsUtil.prompt("Enter code argument:", "Code") |> Option.get
+  };
+};
+
 let string_of = (action: action) => {
   switch (action) {
+  | Nav(SelectCurrent) => "select_current"
   | Nav(GoToParent) => "go_to_parent"
   | Nav(GoToChild(name, index)) =>
     "go_to_child(\""
@@ -175,16 +184,17 @@ let string_of = (action: action) => {
       }
     )
     ++ ")"
-  | Edit(UpdateAll(code)) => "update_all(\"" ++ code ++ "\")"
-  | Edit(UpdateDefinition(code)) => "update_definition(\"" ++ code ++ "\")"
-  | Edit(UpdateBody(code)) => "update_body(\"" ++ code ++ "\")"
-  | Edit(UpdatePattern(code)) => "update_pattern(\"" ++ code ++ "\")"
-  | Edit(UpdateBindingClause(code)) =>
-    "update_binding_clause(\"" ++ code ++ "\")"
+  | Edit(UpdateAll(u)) => "update_all(\"" ++ code_of(u) ++ "\")"
+  | Edit(UpdateDefinition(u)) =>
+    "update_definition(\"" ++ code_of(u) ++ "\")"
+  | Edit(UpdateBody(u)) => "update_body(\"" ++ code_of(u) ++ "\")"
+  | Edit(UpdatePattern(u)) => "update_pattern(\"" ++ code_of(u) ++ "\")"
+  | Edit(UpdateBindingClause(u)) =>
+    "update_binding_clause(\"" ++ code_of(u) ++ "\")"
   | Edit(DeleteBindingClause) => "delete_binding_clause"
   | Edit(DeleteBody) => "delete_body"
-  | Edit(InsertAfter(code)) => "insert_after(\"" ++ code ++ "\")"
-  | Edit(InsertBefore(code)) => "insert_before(\"" ++ code ++ "\")"
+  | Edit(InsertAfter(u)) => "insert_after(\"" ++ code_of(u) ++ "\")"
+  | Edit(InsertBefore(u)) => "insert_before(\"" ++ code_of(u) ++ "\")"
   | Read(ViewEntireDefintion) => "view_entire_definition"
   | Read(ShowUseSites) => "show_use_sites"
   };
@@ -254,13 +264,26 @@ module Perform = {
     switch (curr_node_info) {
     | None =>
       switch (a) {
-      | Edit(UpdateAll(code)) => introduce(Select.all(z), code)
+      | Edit(UpdateAll(u)) => introduce(Select.all(z), code_of(u))
       | _ => Error(Action.Failure.Cant_derive_local_AST_information)
       }
     | Some(node) =>
       switch (a) {
       | Nav(n) =>
         switch (n) {
+        | SelectCurrent =>
+          switch (
+            Select.term(
+              ~defs_exclude_bodies=true,
+              ~case_rules=false,
+              syntax.term_data,
+              Info.id_of(node.info),
+              z,
+            )
+          ) {
+          | Some(z) => Ok(z)
+          | None => Error(Action.Failure.Cant_select)
+          }
         | GoToParent =>
           switch (node.parent) {
           | None => Error(Action.Failure.Cant_move)
@@ -452,30 +475,40 @@ module Perform = {
           };
         };
         switch (e) {
-        | UpdateDefinition(code) =>
+        | UpdateDefinition(u) =>
           let target_id = get_inner_term_id(node, Def);
-          overwrite_term(z, target_id, code, true);
-        | UpdateBody(code) =>
+          overwrite_term(z, target_id, code_of(u), true);
+        | UpdateBody(u) =>
           let target_id = get_inner_term_id(node, Body);
-          overwrite_term(z, target_id, code, false);
-        | UpdatePattern(code) =>
+          overwrite_term(z, target_id, code_of(u), false);
+        | UpdatePattern(u) =>
           let target_id = get_inner_term_id(node, Pat);
-          overwrite_term(z, target_id, code, true);
-        | UpdateBindingClause(code) =>
+          overwrite_term(z, target_id, code_of(u), true);
+        | UpdateBindingClause(u) =>
           let target_id = Info.id_of(node.info);
-          overwrite_term(z, target_id, code, true);
+          overwrite_term(z, target_id, code_of(u), true);
         | DeleteBindingClause =>
           destruct_term(~defs_exclude_bodies=true, z, Info.id_of(node.info))
         | DeleteBody =>
           let target_id = get_inner_term_id(node, Body);
           destruct_term(~defs_exclude_bodies=false, z, target_id);
-        | InsertBefore(code) =>
+        | InsertBefore(u) =>
           // todo: figure out a better method than magic space
-          insert_term(z, Info.id_of(node.info), code ++ " ", Direction.Left)
-        | InsertAfter(code) =>
+          insert_term(
+            z,
+            Info.id_of(node.info),
+            code_of(u) ++ " ",
+            Direction.Left,
+          )
+        | InsertAfter(u) =>
           // todo: figure out a better method than magic space
-          insert_term(z, Info.id_of(node.info), " " ++ code, Direction.Right)
-        | UpdateAll(code) => introduce(Select.all(z), code)
+          insert_term(
+            z,
+            Info.id_of(node.info),
+            " " ++ code_of(u),
+            Direction.Right,
+          )
+        | UpdateAll(u) => introduce(Select.all(z), code_of(u))
         };
       }
     };
