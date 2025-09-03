@@ -18,7 +18,6 @@ type cls =
   | Var
   | Constructor // Constructor does not exist on Typ.term it's being used here as a hack for the cursors inspector
   | Parens
-  | Ap
   | Rec
   | Forall;
 
@@ -89,7 +88,6 @@ let cls_of_term: Grammar.typ_term('a) => cls =
   | TupLabel(_) => TupLabel
   | Label(_) => Label
   | Parens(_) => Parens
-  | Ap(_) => Ap
   | Sum(_) => Sum
   | Rec(_) => Rec
   | Forall(_) => Forall;
@@ -111,7 +109,6 @@ let show_cls: cls => string =
   | Label => "Label"
   | Sum => "Sum type"
   | Parens => "Parenthesized type"
-  | Ap => "Constructor application"
   | Rec => "Recursive type"
   | Forall => "Forall type";
 
@@ -126,7 +123,6 @@ let rec is_arrow = (typ: t) => {
   | Label(_)
   | Prod(_)
   | Var(_)
-  | Ap(_)
   | Sum(_)
   | Forall(_)
   | Rec(_) => false
@@ -144,7 +140,6 @@ let is_atom = (ty: t): bool =>
   | Label(_)
   | Prod(_)
   | Var(_)
-  | Ap(_)
   | Sum(_)
   | Forall(_)
   | Rec(_) => false
@@ -169,7 +164,6 @@ let rec has_fun = (typ: t) =>
       | _ => false,
       sm,
     )
-  | Ap(t1, t2) => has_fun(t1) || has_fun(t2)
   | Prod(tys) => List.exists(has_fun, tys)
   };
 
@@ -185,7 +179,6 @@ let rec is_forall = (typ: t) => {
   | Label(_)
   | Prod(_)
   | Var(_)
-  | Ap(_)
   | Sum(_)
   | Rec(_) => false
   };
@@ -246,7 +239,6 @@ let rec free_vars = (~bound=[], ty: t): list(Var.t) =>
   | Unknown(_)
   | Atom(_)
   | Label(_) => []
-  | Ap(t1, t2) => free_vars(~bound, t1) @ free_vars(~bound, t2)
   | Var(v) => List.mem(v, bound) ? [] : [v]
   | Parens(ty) => free_vars(~bound, ty)
   | List(ty) => free_vars(~bound, ty)
@@ -283,7 +275,6 @@ let rec vars = (ty: t): list(Var.t) =>
   | Forall({term: Var(x), _}, ty) =>
     vars(ty) |> List.filter((x': string) => x' != x)
   | Forall(_, ty) => vars(ty)
-  | Ap(ty1, ty2) => vars(ty1) @ vars(ty2)
   | Label(_) => []
   | TupLabel(_, ty) => vars(ty)
   };
@@ -337,7 +328,6 @@ let rec num_nodes = (ty: t): int => {
   | List(ty) => 1 + num_nodes(ty)
   | Parens(ty) => 1 + num_nodes(ty)
   | Forall(_, ty) => 1 + num_nodes(ty)
-  | Ap(ty1, ty2) => 1 + num_nodes(ty1) + num_nodes(ty2)
   | Label(_) => 1
   | TupLabel(_, ty) => 1 + num_nodes(ty)
   };
@@ -367,7 +357,6 @@ let rec count_unknowns = (ty: t): int =>
   | List(ty) => count_unknowns(ty)
   | Parens(ty) => count_unknowns(ty)
   | Forall(_, ty) => count_unknowns(ty)
-  | Ap(ty1, ty2) => count_unknowns(ty1) + count_unknowns(ty2)
   | Label(_) => 0
   | TupLabel(_, ty) => count_unknowns(ty)
   };
@@ -384,7 +373,6 @@ let rec contains_sum_or_var = (ty: t): bool =>
   | List(ty) => contains_sum_or_var(ty)
   | Parens(ty) => contains_sum_or_var(ty)
   | Forall(_, ty) => contains_sum_or_var(ty)
-  | Ap(ty1, ty2) => contains_sum_or_var(ty1) || contains_sum_or_var(ty2)
   | Label(_) => false
   | TupLabel(_, ty) => contains_sum_or_var(ty)
   };
@@ -492,7 +480,6 @@ let rec join = (~resolve=false, ctx: Ctx.t, ty1: t, ty2: t): option(t) => {
     let+ ty = join'(ty1, ty2);
     List(ty) |> temp;
   | (List(_), _) => None
-  | (Ap(_), _) => failwith("Type join of ap")
   };
 };
 
@@ -508,7 +495,6 @@ let rec match_synswitch = (t1: t, t2: t) => {
   | (Atom(_), _)
   | (Label(_), _)
   | (Var(_), _)
-  | (Ap(_), _)
   | (Rec(_), _) => t1
   // These might
   | (List(ty1), List(ty2)) => List(match_synswitch(ty1, ty2)) |> rewrap1
@@ -590,7 +576,6 @@ let rec normalize = (~rec_counter=0, ctx: Ctx.t, ty: t): t => {
   | Label(_) => ty
   | Parens(t) => normalize(ctx, t)
   | List(t) => List(normalize(ctx, t)) |> rewrap
-  | Ap(t1, t2) => Ap(normalize(ctx, t1), normalize(ctx, t2)) |> rewrap
   | Arrow(t1, t2) =>
     Arrow(normalize(ctx, t1), normalize(ctx, t2)) |> rewrap
   | Prod(ts) => Prod(List.map(normalize(ctx), ts)) |> rewrap
@@ -760,7 +745,6 @@ let rec is_syn = (ty: t): bool =>
   | Atom(_)
   | Label(_)
   | Var(_)
-  | Ap(_)
   | Rec(_)
   | Forall(_)
   | List(_)
@@ -777,7 +761,6 @@ let rec is_ana_atom = (ty: t) =>
   | Unknown(_)
   | Label(_)
   | Var(_)
-  | Ap(_)
   | Rec(_)
   | Forall(_)
   | List(_)
@@ -797,7 +780,6 @@ let rec is_syn_plus = (ty: t): bool =>
   | Atom(_)
   | Label(_)
   | Var(_)
-  | Ap(_)
   | Rec(_)
   | List(_)
   | Prod(_)
@@ -808,7 +790,6 @@ let rec is_syn_plus = (ty: t): bool =>
 let rec needs_parens = (ty: t): bool =>
   switch (term_of(ty)) {
   | Parens(ty) => needs_parens(ty)
-  | Ap(_)
   | Unknown(_)
   | Atom(_)
   | Label(_)
@@ -834,7 +815,6 @@ let pretty_print_tvar = (tv: TPat.t): string =>
 let rec pretty_print = (ty: t): string =>
   switch (term_of(ty)) {
   | Parens(ty) => pretty_print(ty)
-  | Ap(_)
   | Unknown(_) => "?"
   | Atom(Int) => "Int"
   | Atom(Float) => "Float"
