@@ -740,3 +740,12 @@ let rec fold_left_opt =
     }
   };
 };
+
+let assoc_opt_by = (eq, key, assoc) => {
+  let rec find = lst =>
+    switch (lst) {
+    | [] => None
+    | [(k, v), ...rest] => eq(key, k) ? Some(v) : find(rest)
+    };
+  find(assoc);
+};

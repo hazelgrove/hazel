@@ -570,7 +570,14 @@ module View = {
                                     |> Calc.get_saved_exc(~print="full_exp"),
                                   ),
                                   unboxed_selected_exp,
-                                  unboxed_cached_exp,
+                                  unboxed_cached_exp
+                                  |> Exp.substitute_closures(
+                                       model.cached_env
+                                       |> Calc.get_saved_exc(
+                                            ~print="env not cached",
+                                          )
+                                       |> ClosureEnvironment.map_of,
+                                     ),
                                 ),
                               )
                             ),
@@ -584,8 +591,22 @@ module View = {
                                 inject(
                                   UpdateResult(
                                     RewriteChecker.check_rewrite(
-                                      unboxed_selected_exp,
-                                      unboxed_cached_exp,
+                                      unboxed_selected_exp
+                                      |> Exp.substitute_closures(
+                                           model.cached_env
+                                           |> Calc.get_saved_exc(
+                                                ~print="env not cached",
+                                              )
+                                           |> ClosureEnvironment.map_of,
+                                         ),
+                                      unboxed_cached_exp
+                                      |> Exp.substitute_closures(
+                                           model.cached_env
+                                           |> Calc.get_saved_exc(
+                                                ~print="env not cached",
+                                              )
+                                           |> ClosureEnvironment.map_of,
+                                         ),
                                     ),
                                   ),
                                 ),
