@@ -453,7 +453,6 @@ and Typ: {
         annotation: true,
         term: of_menhir_ast(t).term,
       }
-    | ApTyp(_t1, _t2) => failwith("ApTyp not supported")
     };
   };
 

@@ -295,34 +295,6 @@ let rec aliases_deep = (ctx: Ctx.t, ty: t): list((string, t)) => {
   rec_calls @ defs;
 };
 
-let rec vars = (ty: t): list(Var.t) =>
-  switch (ty.term) {
-  | Atom(_)
-  | Unknown(_) => []
-  | Var(x) => [x]
-  | Arrow(ty1, ty2) => vars(ty1) @ vars(ty2)
-  | Prod(tys) => ListUtil.flat_map(vars, tys)
-  | Sum(sm) =>
-    List.concat_map(
-      fun
-      | ConstructorMap.BadEntry(_) => []
-      | Variant(_, _, None) => []
-      | Variant(_, _, Some(typ)) => vars(typ),
-      sm,
-    )
-  | Rec({term: Var(x), _}, ty) =>
-    /* Remove recursive type references */
-    vars(ty) |> List.filter((x': string) => x' != x)
-  | Rec(_, ty) => vars(ty)
-  | List(ty) => vars(ty)
-  | Parens(ty) => vars(ty)
-  | Forall({term: Var(x), _}, ty) =>
-    vars(ty) |> List.filter((x': string) => x' != x)
-  | Forall(_, ty) => vars(ty)
-  | Label(_) => []
-  | TupLabel(_, ty) => vars(ty)
-  };
-
 let var_count = ref(0);
 let fresh_var = (var_name: string) => {
   let x = var_count^;

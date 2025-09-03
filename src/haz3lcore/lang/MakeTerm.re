@@ -169,11 +169,6 @@ let parse_sum_term: Typ.t => ConstructorMap.variant(Typ.t) =
       annotation: {ids: ids_ap, _},
     } =>
     Variant(ctr, ids_ctr @ ids_ap, Some(u))
-  // | {
-  //     term: Ap({term: Var(ctr), annotation: {ids: ids_ctr, _}}, u),
-  //     annotation: {ids: ids_ap, _},
-  //   } =>
-  //   Variant(ctr, ids_ctr @ ids_ap, Some(u))
   | t => BadEntry(t);
 
 let mk_bad = (ctr, ids, value) => {
@@ -677,8 +672,7 @@ and typ_term: unsorted => (Typ.term, list(Id.t)) = {
     }
   | Post(Typ(_t), tiles) as tm =>
     switch (tiles) {
-    /* Aps are only recognized in sum type parsing above */
-    //| ([(_, (["(", ")"], [Typ(typ)]))], []) => ret(Ap(t, typ))
+    /* Type aps which would otherwise be parsed here are recognized in sum type parsing above */
     | _ => ret(hole(tm))
     }
   /* forall and rec have to be before sum so that they bind tighter.
