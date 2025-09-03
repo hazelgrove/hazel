@@ -183,7 +183,8 @@ type error_typ =
   | WantTypeFoundAp
   | WantLabel
   | WantConstructorFoundType(Typ.t)
-  | WantConstructorFoundAp;
+  | WantConstructorFoundAp
+  | ParseFailure;
 
 /* Type ok statuses for cursor inspector */
 [@deriving (show({with_path: false}), sexp, yojson, eq)]
@@ -614,6 +615,7 @@ let status_typ = (ctx: Ctx.t, expects: typ_expects, ty: Typ.t): status_typ =>
     | LabelExpected(_) => NotInHole(EmptyLabel)
     | _ => NotInHole(Type(ty))
     }
+  | Unknown(Hole(MultiHole(_tms))) => InHole(ParseFailure)
   | Var(name) =>
     switch (expects) {
     | VariantExpected(Unique, sum_ty)
