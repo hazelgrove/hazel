@@ -86,6 +86,7 @@ module Update = {
           action,
           model.current,
         );
+      let _ = Log.update(action, current);
       if (Page.Update.can_undo(action)) {
         {
           ...current,
