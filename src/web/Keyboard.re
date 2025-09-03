@@ -114,16 +114,6 @@ let handle_key_event = (k: Key.t): option(Action.t) => {
     | "b" => now(AssistantComposition(Edit(UpdateAll("let b = ? in"))))
     | _ => None
     }
-  | {key: D("f"), sys: PC, shift: Up, meta: Up, ctrl: Up, alt: Down} =>
-    Some(Project(SetIndicated(Specific(Fold))))
-
-  | {key: D("v"), sys: PC, shift: Up, meta: Up, ctrl: Up, alt: Down} =>
-    Some(Project(SetIndicated(Specific(Probe))))
-
-  | {key: D("t"), sys: PC, shift: Up, meta: Up, ctrl: Up, alt: Down} =>
-    Some(Project(SetIndicated(Specific(Info))))
-  | {key: D("l"), sys: PC, shift: Up, meta: Up, ctrl: Up, alt: Down} =>
-    Some(Project(SetIndicated(ChooseLivelit)))
   | {key: D(key), sys: _, shift: Up, meta: Up, ctrl: Up, alt: Down} =>
     switch (key) {
     | "å" => now(Move(Local(Left, ByToken)))
