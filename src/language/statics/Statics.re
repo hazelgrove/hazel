@@ -1234,7 +1234,7 @@ and uexp_to_info_map =
            speculative rec parameter. */
         let (ty_def, ctx_def, ctx_body) = {
           switch (utyp.term) {
-          | Sum(_) when List.mem(name, Typ.free_vars(utyp)) =>
+          | _ when List.mem(name, Typ.free_vars(utyp)) =>
             /* NOTE: When debugging type system issues it may be beneficial to
                use a different name than the alias for the recursive parameter */
             //let ty_rec = Typ.Rec("α", Typ.subst(Var("α"), name, ty_pre));
