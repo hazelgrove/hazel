@@ -1,31 +1,31 @@
-let get_documentation_as_text = () => {
-  let (_, slides) = ScratchMode.StoreDocumentation.load();
-  let documentation =
-    slides
-    |> List.map(((name, persistent)) => {
-         switch (persistent) {
-         | Some(persistent) =>
-           let cell_model =
-             CellEditor.Model.unpersist(
-               ~settings=Language.CoreSettings.off,
-               persistent,
-             );
-           let text =
-             Haz3lcore.Printer.of_zipper(
-               cell_model.editor.editor.state.zipper,
-             );
-           "<slide_name>"
-           ++ name
-           ++ "</slide_name>\n"
-           ++ "<slide_text>"
-           ++ text
-           ++ "</slide_text>";
-         | None => ""
-         }
-       })
-    |> String.concat("\n\n");
-  ["<hazelDocumentation>" ++ documentation ++ "</hazelDocumentation>"];
-};
+// let get_documentation_as_text = () => {
+//   let (_, slides) = ScratchMode.StoreDocumentation.load();
+//   let documentation =
+//     slides
+//     |> List.map(((name, persistent)) => {
+//          switch (persistent) {
+//          | Some(persistent) =>
+//            let cell_model =
+//              CellEditor.Model.unpersist(
+//                ~settings=Language.CoreSettings.off,
+//                persistent,
+//              );
+//            let text =
+//              Printer.of_zipper(
+//                cell_model.editor.editor.state.zipper,
+//              );
+//            "<slide_name>"
+//            ++ name
+//            ++ "</slide_name>\n"
+//            ++ "<slide_text>"
+//            ++ text
+//            ++ "</slide_text>";
+//          | None => ""
+//          }
+//        })
+//     |> String.concat("\n\n");
+//   ["<hazelDocumentation>" ++ documentation ++ "</hazelDocumentation>"];
+// };
 
 let summarized_docs = [
   "<summarizedHazelDocs>",
@@ -114,5 +114,6 @@ let summarized_docs = [
 ];
 
 let self = (~summarized: bool) => {
-  summarized ? summarized_docs : get_documentation_as_text();
+  summarized
+    ? summarized_docs : []; //get_documentation_as_text();
 };

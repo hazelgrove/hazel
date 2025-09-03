@@ -91,11 +91,7 @@ let entries = (ctx: Ctx.t, ana: Typ.t): list(filtered_entry) => {
 };
 
 let format_def = ({name, typ, _}: filtered_entry) =>
-  Printf.sprintf(
-    "let %s: %s =  in",
-    name,
-    Haz3lcore.ErrorPrint.Print.typ(typ),
-  );
+  Printf.sprintf("let %s: %s =  in", name, ErrorPrint.Print.typ(typ));
 
 /* Returns a list of relevant values headers formatted as let definitions */
 let get = (ctx: Ctx.t, ana: Typ.t): string =>

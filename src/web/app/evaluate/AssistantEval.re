@@ -1,5 +1,6 @@
 open Haz3lcore;
 open Util;
+open AssistantUpdateType;
 
 open AssistantEvalParams;
 
@@ -79,7 +80,7 @@ module Update = {
         ~action: t,
         ~assistant_model: AssistantModel.t,
         ~schedule_action: t => unit,
-        ~schedule_assistant_action: AssistantUpdateBase.t => unit,
+        ~schedule_assistant_action: AssistantUpdate.t => unit,
         ~schedule_editor_action: Editors.Update.t => unit,
       )
       : Updated.t(Model.t) => {
@@ -95,7 +96,7 @@ module Update = {
     | PrepTest =>
       print_endline("Here #0 : Init");
       // Create a new chat
-      schedule_assistant_action(AssistantUpdateBase.ChatAction(NewChat));
+      schedule_assistant_action(ChatAction(NewChat));
       // Create a new scratchpad
       schedule_editor_action(Editors.Update.Scratch(AddSlide));
       // Paste the initial sketch
@@ -116,7 +117,7 @@ module Update = {
     | SendRequest =>
       // Send the prompt to the assistant
       schedule_assistant_action(
-        AssistantUpdateBase.SendMessage(
+        AssistantUpdateType.SendMessage(
           Composition(Request(prompt), true),
           None,
           assistant_model.current_chats.curr_composition_chat,

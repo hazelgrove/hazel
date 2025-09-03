@@ -192,7 +192,8 @@ module Failure = {
     | Cant_undo
     | Cant_redo
     | CantIntroduce
-    | Cant_derive_local_AST_information;
+    | Cant_derive_local_AST_information
+    | Composition_action_failure(string);
 
   exception Exception(t);
 };

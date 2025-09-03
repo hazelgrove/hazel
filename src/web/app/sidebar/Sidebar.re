@@ -3,6 +3,7 @@ open Node;
 open Util.WebUtil;
 open Js_of_ocaml;
 open Util.JsUtil;
+open Haz3lcore;
 
 let tab = (~tooltip="", icon, action, isActive) => {
   let classes = ["tab"] @ (isActive ? ["active"] : []);

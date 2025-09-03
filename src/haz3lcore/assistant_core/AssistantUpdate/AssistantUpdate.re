@@ -1,12 +1,396 @@
-open Haz3lcore;
 open Util;
-open Util.OptUtil.Syntax;
+open Language;
+open OptUtil.Syntax;
 
-open AssistantUpdateBase;
-open AssistantUpdateComposition;
-
-module CodeModel = CodeEditable.Model;
 module Model = AssistantModel;
+
+open AssistantUpdateType;
+type t = AssistantUpdateType.t;
+
+let get_mode_info = (mode: AssistantSettings.mode, model: Model.t) => {
+  switch (mode) {
+  | HazelTutor => (
+      model.chat_history.past_tutor_chats,
+      Id.Map.find(
+        model.current_chats.curr_tutor_chat,
+        model.chat_history.past_tutor_chats,
+      ),
+    )
+  | CodeSuggestion => (
+      model.chat_history.past_suggestion_chats,
+      Id.Map.find(
+        model.current_chats.curr_suggestion_chat,
+        model.chat_history.past_suggestion_chats,
+      ),
+    )
+  | TaskCompletion => (
+      model.chat_history.past_composition_chats,
+      Id.Map.find(
+        model.current_chats.curr_composition_chat,
+        model.chat_history.past_composition_chats,
+      ),
+    )
+  };
+};
+
+let filter_chat_messages =
+    (messages: list(Model.message)): list(Model.message) => {
+  List.filter((_: Model.message) => {true}, messages);
+};
+
+let resculpt_model =
+    (
+      ~model: Model.t,
+      ~mode: AssistantSettings.mode,
+      ~updated_past_chats: Id.Map.t(Model.chat),
+      ~chat_id: Id.t,
+    ) => {
+  Model.{
+    ...model,
+    chat_history: {
+      past_tutor_chats:
+        mode == HazelTutor
+          ? updated_past_chats : model.chat_history.past_tutor_chats,
+      past_suggestion_chats:
+        mode == CodeSuggestion
+          ? updated_past_chats : model.chat_history.past_suggestion_chats,
+      past_composition_chats:
+        mode == TaskCompletion
+          ? updated_past_chats : model.chat_history.past_composition_chats,
+    },
+    // This is tentative. Keep this if we want the user to be shown the most recent chat.
+    // Remove this if we want the user to be shown the chat they last/currently interact with.
+    // This is honestly such an edge case that it probably doesn't matter.
+    current_chats: {
+      curr_tutor_chat:
+        mode == HazelTutor ? chat_id : model.current_chats.curr_tutor_chat,
+      curr_suggestion_chat:
+        mode == CodeSuggestion
+          ? chat_id : model.current_chats.curr_suggestion_chat,
+      curr_composition_chat:
+        mode == TaskCompletion
+          ? chat_id : model.current_chats.curr_composition_chat,
+    },
+  };
+};
+
+let update_model_chat_history =
+    (
+      ~model: Model.t,
+      ~mode: AssistantSettings.mode,
+      ~updated_chat: Model.chat,
+      ~awaiting_response: bool,
+    )
+    : Model.t => {
+  let updated_chat = {
+    ...updated_chat,
+    awaiting_response,
+  };
+  let new_chat =
+    switch (mode) {
+    | HazelTutor =>
+      Id.Map.update(
+        updated_chat.id,
+        maybe_chat =>
+          switch (maybe_chat) {
+          | Some(_) => Some(updated_chat)
+          | None => None
+          },
+        model.chat_history.past_tutor_chats,
+      )
+    | CodeSuggestion =>
+      Id.Map.update(
+        updated_chat.id,
+        maybe_chat =>
+          switch (maybe_chat) {
+          | Some(_) => Some(updated_chat)
+          | None => None
+          },
+        model.chat_history.past_suggestion_chats,
+      )
+    | TaskCompletion =>
+      Id.Map.update(
+        updated_chat.id,
+        maybe_chat =>
+          switch (maybe_chat) {
+          | Some(_) => Some(updated_chat)
+          | None => None
+          },
+        model.chat_history.past_composition_chats,
+      )
+    };
+  let updated_chat_history =
+    switch (mode) {
+    | HazelTutor => {
+        ...model.chat_history,
+        past_tutor_chats: new_chat,
+      }
+    | CodeSuggestion => {
+        ...model.chat_history,
+        past_suggestion_chats: new_chat,
+      }
+    | TaskCompletion => {
+        ...model.chat_history,
+        past_composition_chats: new_chat,
+      }
+    };
+  {
+    ...model,
+    chat_history: updated_chat_history,
+  };
+};
+
+let create_chat_descriptor =
+    (
+      ~model: Model.t,
+      ~schedule_action,
+      ~mode: AssistantSettings.mode,
+      ~chat_id: Id.t,
+    )
+    : unit => {
+  let (past_chats, _) = get_mode_info(mode, model);
+  let curr_chat = Id.Map.find(chat_id, past_chats);
+
+  let this_prompt =
+    String.concat(
+      "\n",
+      [
+        "You are a helpful assistant that *summarizes* conversations between other assistants and users. ",
+        "Your summaries should be less than or equal to 7 words, and may include 1 or 2 emojis, if appropriate. ",
+        "NEVER exceed 7 words. ",
+        "ONLY provide the summarizing title in your response, do NOT include any other text. ",
+        "You will be given a conversation between an assistant and a user. ",
+        "Focus on the giving a summarizing topic title to the conversation between the assistant and the user. ",
+        "NEVER use first person pronouns in your response. ",
+        "EVERY response will be displayed as a summarizaing title, so do NOT respond with anything other than a summarizing title. ",
+        switch (mode) {
+        | HazelTutor => "This is known to be a chat between a hazel user and an LLM acting as a tutor."
+        | CodeSuggestion => "This is known to be a chat between a hazel user and an LLM acting as a code suggestion assistant. This means there won't be much dialogue, rather just a prompt, code contexts, and a code suggestion (potentially with a chain of thought), so please do your best to summarize based on the code context and the code suggestion."
+        | TaskCompletion => "This is known to be a chat between a student and an LLM acting as a task completion assistant."
+        },
+        "With this said, please now provide a summary for the conversation: ",
+      ],
+    );
+
+  let filtered_messages =
+    List.filter(
+      (message: Model.message) => {
+        message.role == User || message.role == Assistant
+      },
+      curr_chat.messages,
+    );
+
+  let combined_messages =
+    String.concat(
+      "\n",
+      List.filter_map(
+        (message: Model.message) => {
+          switch (message.content) {
+          | Some(content) =>
+            Some(
+              "<"
+              ++ Model.string_of_role(message.role)
+              ++ ">"
+              ++ content.content
+              ++ "</"
+              ++ Model.string_of_role(message.role)
+              ++ ">",
+            )
+          | None => None
+          }
+        },
+        filtered_messages,
+      ),
+    );
+
+  let outgoing_messages_for_descriptor = [
+    OpenRouter.mk_system_msg(this_prompt),
+    OpenRouter.mk_user_msg(combined_messages),
+  ];
+
+  // Only make descriptor after first few exchanges
+  List.length(filtered_messages) <= AssistantSettings.make_descriptor_max
+    ? try({
+        let model_id = model.external_api_info.set_model_info.id;
+        let key = model.external_api_info.api_key;
+        let params: OpenRouter.params = {
+          ...OpenRouter.default_params,
+          model_id,
+          stream: false // No streaming for descriptor
+        };
+        OpenRouter.start_chat(
+          ~params,
+          ~key,
+          ~outgoing_messages=outgoing_messages_for_descriptor,
+          req =>
+          switch (OpenRouter.handle_chat(req)) {
+          | Some(Reply({content, _})) =>
+            schedule_action(
+              EmployLLMAction(Describe(content, mode, chat_id)),
+            )
+          | Some(Error(_)) =>
+            raise(
+              Invalid_argument(
+                "Error in receiving response from OpenRouter when creating descriptor",
+              ),
+            )
+          | None => ()
+          }
+        );
+      }) {
+      | Invalid_argument(e) =>
+        print_endline("Invalid_argument when creating descriptor: " ++ e);
+        ();
+      }
+    : ();
+};
+
+// Sends a request to OpenRouter given outgoing messages.
+// Handles the response from OpenRouter.
+// Emits internal error if API key or model ID is not set.
+let mk_llm_call =
+    (
+      ~mode: AssistantSettings.mode,
+      ~model: Model.t,
+      ~schedule_action: t => unit,
+      ~updated_chat: Model.chat,
+      ~response_handler: OpenRouter.reply => t,
+    )
+    : unit => {
+  switch (
+    model.external_api_info.api_key,
+    model.external_api_info.set_model_info.id,
+  ) {
+  | ("", _) =>
+    let content = "No API key found. Please set an API key in the assistant settings.";
+    schedule_action(InternalError(content, mode, updated_chat.id));
+  | (_, "") =>
+    let content = "No model ID found. Please set a model ID in the assistant settings.";
+    schedule_action(InternalError(content, mode, updated_chat.id));
+  | (key, model_id) =>
+    let tools =
+      if (mode == TaskCompletion) {
+        CompositionTools.tools;
+      } else {
+        [];
+      };
+    let params: OpenRouter.params = {
+      ...OpenRouter.default_params,
+      model_id,
+      tools,
+    };
+    try(
+      OpenRouter.start_chat(
+        ~params,
+        ~key,
+        ~outgoing_messages=Model.get_messages_content(updated_chat.messages),
+        req =>
+        switch (OpenRouter.handle_chat(req)) {
+        | Some(Reply(response)) =>
+          schedule_action(response_handler(response))
+        | Some(Error({message, code})) =>
+          schedule_action(
+            InternalError(
+              "Error: " ++ message ++ " (code: " ++ string_of_int(code) ++ ")",
+              mode,
+              updated_chat.id,
+            ),
+          )
+        | None =>
+          let str_of_mode =
+            switch (mode) {
+            | HazelTutor => "HazelTutor"
+            | CodeSuggestion => "CodeSuggestion"
+            | TaskCompletion => "TaskCompletion"
+            };
+          ();
+          print_endline(
+            "Assistant: response still generating: " ++ str_of_mode,
+          );
+          ();
+        }
+      )
+    ) {
+    | Invalid_argument(e) =>
+      print_endline(
+        "Issue when making LLM call. (This is likely from an Option.get during sketch sending): "
+        ++ e,
+      )
+    | _ => ()
+    };
+  };
+};
+
+let mk_user_content_message =
+    (~content: string, ~role: Model.role, ~zipper: Zipper.t): Model.message => {
+  let _ = zipper;
+  {
+    content: Some(OpenRouter.mk_user_msg(content)),
+    display: Some(Model.mk_message_display(~content)),
+    role,
+    sketch_snapshot: None // Some(editor), todo: figure out how to serialize editor
+  };
+};
+
+let update_chat = (chat: Model.chat, messages: list(Model.message)) => {
+  {
+    ...chat,
+    messages: chat.messages @ messages,
+  };
+};
+
+let summarize_chat =
+    (
+      model: Model.t,
+      chat: Model.chat,
+      mode: AssistantSettings.mode,
+      schedule_action: t => unit,
+    )
+    : unit => {
+  // Filter our initial prompt
+  let outgoing_messages: list(OpenRouter.message) =
+    List.filter_map(
+      (message: Model.message) =>
+        switch (message.content) {
+        | Some(content) =>
+          switch (content.role) {
+          | System => None
+          | _ => Some(content)
+          }
+        | None => None
+        },
+      chat.messages,
+    );
+  let summarize_message: OpenRouter.message =
+    OpenRouter.mk_user_msg(SummarizePrompt.prelude);
+  let outgoing_messages = outgoing_messages @ [summarize_message];
+  try({
+    let model_id = model.external_api_info.set_model_info.id;
+    let key = model.external_api_info.api_key;
+    let params: OpenRouter.params = {
+      ...OpenRouter.default_params,
+      model_id,
+      stream: false // No streaming for summarization
+    };
+    OpenRouter.start_chat(~params, ~key, ~outgoing_messages, req =>
+      switch (OpenRouter.handle_chat(req)) {
+      | Some(Reply({content, _})) =>
+        schedule_action(EmployLLMAction(Summarize(content, mode, chat.id)))
+      | Some(Error(_)) =>
+        raise(
+          Invalid_argument(
+            "Error in receiving response from OpenRouter when summarizing chat",
+          ),
+        )
+      | None => ()
+      }
+    );
+  }) {
+  | Invalid_argument(e) =>
+    print_endline("Invalid_argument when summarizing chat: " ++ e);
+    ();
+  };
+};
 
 let can_undo = (action: t) => {
   // TODO: Implement the handling of actions that should be undoable
@@ -26,25 +410,25 @@ let can_undo = (action: t) => {
 
 let update =
     (
-      ~settings: Settings.t,
+      ~settings: AssistantSettings.t,
       ~action,
       ~model: Model.t,
       // todo: Find a way to track unqique editor between concurrent actions
-      ~editor: CodeModel.t,
+      ~zipper: Zipper.t,
+      ~info_map: Statics.Map.t,
       ~schedule_action: t => unit,
-      ~schedule_eval_action: AssistantEval.Update.t => unit,
-      ~schedule_editor_action: Editors.Update.t => unit,
+      ~schedule_editor_action: Editor.Update.t => unit,
     )
-    : Updated.t(Model.t) => {
+    : Model.t => {
   switch (action) {
-  | SendMessage(kind, editor_opt, chat_id) =>
-    let editor =
-      switch (editor_opt) {
-      | Some(editor) => editor
-      | None => editor
+  | SendMessage(kind, zipper_opt, chat_id) =>
+    let zipper =
+      switch (zipper_opt) {
+      | Some(zipper) => zipper
+      | None => zipper
       };
     if (model.current_chats.curr_tutor_chat == Id.invalid) {
-      model |> Updated.return;
+      model;
     } else {
       switch (kind) {
       | Tutor(content) =>
@@ -52,14 +436,14 @@ let update =
         let curr_chat =
           Id.Map.find(chat_id, model.chat_history.past_tutor_chats);
         let content_message =
-          mk_user_content_message(~content, ~role=User, ~editor);
+          mk_user_content_message(~content, ~role=User, ~zipper);
         let ctx_message: Model.message = {
           content:
             Some(
               OpenRouter.mk_user_msg(
                 String.concat(
                   "\n",
-                  ChatLSP.get_sketch_and_error_ctx(editor),
+                  ChatLSP.get_sketch_and_error_ctx(zipper, info_map),
                 ),
               ),
             ),
@@ -69,7 +453,7 @@ let update =
                 ~content=
                   String.concat(
                     "\n",
-                    ChatLSP.get_sketch_and_error_ctx(editor),
+                    ChatLSP.get_sketch_and_error_ctx(zipper, info_map),
                   ),
               ),
             ),
@@ -94,8 +478,7 @@ let update =
           ~mode,
           ~updated_chat,
           ~awaiting_response=true,
-        )
-        |> Updated.return;
+        );
 
       | Composition(kind, eval_mode) =>
         print_endline(
@@ -107,8 +490,12 @@ let update =
           Id.Map.find(chat_id, model.chat_history.past_composition_chats);
         switch (kind) {
         | Intermediate =>
-          intermediate_select_curr_node(~editor, ~schedule_editor_action);
-          model |> Updated.return;
+          AssistantUpdateComposition.intermediate_select_curr_node(
+            ~zipper,
+            ~info_map,
+            ~schedule_editor_action,
+          );
+          model;
 
         // The initial message sent to the LLM via the User --
         // We can think of the agentic looping as a directed graph:
@@ -127,11 +514,12 @@ let update =
           //       after a tool call has been handled.
           print_endline("handling composition request");
           let content_message: Model.message =
-            mk_user_content_message(~content, ~role=User, ~editor);
+            mk_user_content_message(~content, ~role=User, ~zipper);
           let (local_code_map_str, display) =
             AssistantModes.Composition.mk_structured_code_map_prompt(
               ChatLSP.Options.init,
-              editor,
+              zipper,
+              info_map,
             );
           let ctx_message: Model.message = {
             content: Some(local_code_map_str),
@@ -151,7 +539,7 @@ let update =
             ~response_handler=response =>
             HandleResponse(
               CompositionLoopRound(
-                editor,
+                zipper,
                 AssistantModes.Composition.max_tool_calls,
                 eval_mode,
               ),
@@ -167,8 +555,7 @@ let update =
             ~mode,
             ~updated_chat,
             ~awaiting_response=true,
-          )
-          |> Updated.return;
+          );
 
         | Loop(fuel, tool_contents, status) =>
           // This is step (2) from the directed graph above --
@@ -185,7 +572,8 @@ let update =
           let (local_code_map_str, display) =
             AssistantModes.Composition.mk_structured_code_map_prompt(
               ChatLSP.Options.init,
-              editor,
+              zipper,
+              info_map,
             );
 
           let local_code_map_str =
@@ -238,7 +626,7 @@ let update =
             ~updated_chat,
             ~response_handler=response =>
             HandleResponse(
-              CompositionLoopRound(editor, fuel, eval_mode),
+              CompositionLoopRound(zipper, fuel, eval_mode),
               response,
               chat_id,
             )
@@ -249,8 +637,7 @@ let update =
             ~mode,
             ~updated_chat,
             ~awaiting_response=true,
-          )
-          |> Updated.return;
+          );
         };
 
       | Completion(kind) =>
@@ -275,18 +662,15 @@ let update =
           switch (
             {
               let* sketch_z_with_tag =
-                Parser.to_zipper(
-                  ~zipper_init=editor.editor.state.zipper,
-                  tag,
-                );
+                Parser.to_zipper(~zipper_init=zipper, tag);
               let sketch_seg =
                 Zipper.smart_seg(
                   ~dump_backpack=true,
                   ~erase_buffer=true,
                   sketch_z_with_tag,
                 );
-              let* index = Indicated.index(editor.editor.state.zipper);
-              let+ ci = Id.Map.find_opt(index, editor.statics.info_map);
+              let* index = Indicated.index(zipper);
+              let+ ci = Id.Map.find_opt(index, info_map);
               AssistantModes.Completion.mk_ctx_prompt(
                 ChatLSP.Options.init,
                 ci,
@@ -297,7 +681,7 @@ let update =
           ) {
           | None =>
             print_endline("Suggestion prompt generation failed");
-            model_with_new_chat |> Updated.return;
+            model_with_new_chat;
           | Some(ctx_prompt) =>
             let ctx_message: Model.message = {
               content: Some(ctx_prompt),
@@ -315,7 +699,7 @@ let update =
               ~response_handler=response =>
               HandleResponse(
                 CompletionErrorRound(
-                  editor,
+                  zipper,
                   ChatLSP.Options.init.error_rounds_max,
                   tile_id,
                 ),
@@ -325,18 +709,20 @@ let update =
             );
             update_model_chat_history(
               ~model=model_with_new_chat,
-              ~mode=settings.assistant.mode,
+              ~mode,
               ~updated_chat,
               ~awaiting_response=true,
-            )
-            |> Updated.return;
+            );
           };
         | Query(content) =>
           let curr_chat =
             Id.Map.find(chat_id, model.chat_history.past_suggestion_chats);
           let ctx =
             OpenRouter.mk_user_msg(
-              String.concat("\n", ChatLSP.get_sketch_and_error_ctx(editor)),
+              String.concat(
+                "\n",
+                ChatLSP.get_sketch_and_error_ctx(zipper, info_map),
+              ),
             );
           let ctx_message: Model.message = {
             content: Some(ctx),
@@ -345,7 +731,7 @@ let update =
             sketch_snapshot: None,
           };
           let content_message =
-            mk_user_content_message(~content, ~role=User, ~editor);
+            mk_user_content_message(~content, ~role=User, ~zipper);
           let updated_chat =
             update_chat(curr_chat, [ctx_message, content_message]);
 
@@ -363,8 +749,7 @@ let update =
             ~mode,
             ~updated_chat,
             ~awaiting_response=true,
-          )
-          |> Updated.return;
+          );
 
         | Loop(error, tile_id, fuel) =>
           let curr_chat =
@@ -398,7 +783,7 @@ let update =
               ~updated_chat,
               ~response_handler=response =>
               HandleResponse(
-                CompletionErrorRound(editor, fuel, tile_id),
+                CompletionErrorRound(zipper, fuel, tile_id),
                 response,
                 chat_id,
               )
@@ -409,8 +794,7 @@ let update =
             ~mode,
             ~updated_chat,
             ~awaiting_response=true,
-          )
-          |> Updated.return;
+          );
         };
       };
     };
@@ -447,8 +831,7 @@ let update =
       ~mode,
       ~updated_chat,
       ~awaiting_response=false,
-    )
-    |> Updated.return;
+    );
 
   | HandleResponse(response_kind, reply, chat_id) =>
     let (curr_chat, mode) =
@@ -527,8 +910,8 @@ let update =
         ~mode,
         ~updated_chat,
         ~awaiting_response=false,
-      )
-      |> Updated.return;
+      );
+
     | CompositionLoopRound(_, fuel, eval_mode) =>
       print_endline(
         "Here #7 : Composition Eval mode is set to "
@@ -540,21 +923,21 @@ let update =
         // The agent did not make a tool call, thus there is nothing to handle on the backend,
         // we can proceed as if there were a normal LLM chat interaction.
         summarize_chat();
-        if (eval_mode) {
-          schedule_eval_action(CollectResults);
-        };
+        // if (eval_mode) {
+        //   schedule_eval_action(CollectResults);
+        // };
         update_model_chat_history(
           ~model,
           ~mode,
           ~updated_chat,
           ~awaiting_response=false,
-        )
-        |> Updated.return;
+        );
+
       | (_, 0) =>
         // The agent ran out of fuel. We should experiment with this in the future.
-        if (eval_mode) {
-          schedule_eval_action(CollectResults);
-        };
+        // if (eval_mode) {
+        //   schedule_eval_action(CollectResults);
+        // };
         schedule_action(
           InternalError(
             "By default, we stop the agent after "
@@ -570,8 +953,8 @@ let update =
           ~mode,
           ~updated_chat,
           ~awaiting_response=false,
-        )
-        |> Updated.return;
+        );
+
       | (Some(tool_call), _) =>
         let updated_chat = {
           let structure_edit_message: Model.message = {
@@ -579,7 +962,10 @@ let update =
             display:
               Some(
                 Model.mk_message_display(
-                  ~content=mk_structure_edit_msg(~tool_call),
+                  ~content=
+                    AssistantUpdateComposition.mk_structure_edit_msg(
+                      ~tool_call,
+                    ),
                 ),
               ),
             role: Tool,
@@ -612,11 +998,11 @@ let update =
           );
         let apply_action =
           AssistantModes.Composition.apply_action(
-            ~z=editor.editor.state.zipper,
-            ~info_map=editor.statics.info_map,
+            ~z=zipper,
+            ~info_map,
             ~schedule_action=schedule_editor_action,
           );
-        apply_structure_action(
+        AssistantUpdateComposition.apply_structure_action(
           ~tool_call,
           ~apply_action,
           ~schedule_action,
@@ -627,18 +1013,17 @@ let update =
           ~mode,
           ~updated_chat,
           ~awaiting_response=false,
-        )
-        |> Updated.return;
+        );
       };
-    | CompletionErrorRound(editor, fuel, tileId) =>
+    | CompletionErrorRound(zipper, fuel, tileId) =>
       // Split response into discussion and completion
       let code_pattern =
         Str.regexp(
           "\\(\\(.\\|\n\\)*\\)```[ \n]*\\([^`]+\\)[ \n]*```\\(\\(.\\|\n\\)*\\)",
         );
-      let index = Option.get(Indicated.index(editor.editor.state.zipper));
-      let ci = Option.get(Id.Map.find_opt(index, editor.statics.info_map));
-      let sketch_z = editor.editor.state.zipper;
+      let index = Option.get(Indicated.index(zipper));
+      let ci = Option.get(Id.Map.find_opt(index, info_map));
+      let sketch_z = zipper;
 
       let (_, completion) =
         if (Str.string_match(code_pattern, content, 0)) {
@@ -680,8 +1065,8 @@ let update =
         ~mode,
         ~updated_chat,
         ~awaiting_response=false,
-      )
-      |> Updated.return;
+      );
+
     | CompletionQueryResponse =>
       update_model_chat_history(
         ~model,
@@ -689,7 +1074,6 @@ let update =
         ~updated_chat,
         ~awaiting_response=false,
       )
-      |> Updated.return
     };
   | EmployLLMAction(action) =>
     let add_suggestion =
@@ -759,13 +1143,12 @@ let update =
         ~mode,
         ~updated_chat,
         ~awaiting_response=false,
-      )
-      |> Updated.return;
+      );
 
     | RemoveAndSuggest(response, tileId) =>
       // Only side effects in the editor are performed here
       add_suggestion(~response, ~tile=tileId);
-      model |> Updated.return;
+      model;
     | Describe(content, mode, chat_id) =>
       let (past_chats, _) = get_mode_info(mode, model);
       let updated_past_chats =
@@ -793,21 +1176,19 @@ let update =
         ~mode,
         ~updated_past_chats,
         ~chat_id=curr_chat_id,
-      )
-      |> Updated.return;
-    | SetLoop(loop) =>
-      {
+      );
+
+    | SetLoop(loop) => {
         ...model,
         loop,
       }
-      |> Updated.return
     };
 
   | ChatAction(action) =>
     switch (action) {
     | NewChat =>
       print_endline("Here #2 : Adding Chat");
-      let mode = settings.assistant.mode;
+      let mode = settings.mode;
       let (past_chats, _) = get_mode_info(mode, model);
       let new_chat: Model.chat = Model.new_chat(model, mode);
       let updated_history = Model.add_chat_to_history(new_chat, past_chats);
@@ -816,10 +1197,10 @@ let update =
         ~mode,
         ~updated_past_chats=updated_history,
         ~chat_id=new_chat.id,
-      )
-      |> Updated.return;
+      );
+
     | DeleteChat(chat_to_be_gone_id) =>
-      let mode = settings.assistant.mode;
+      let mode = settings.mode;
       // Filter out the chat we're deleting
       let (past_chats, curr_chat) = get_mode_info(mode, model);
       let filtered_past_chats =
@@ -849,13 +1230,13 @@ let update =
               ~updated_past_chats=filtered_past_chats,
               ~chat_id=curr_chat.id,
             );
-      updated_model |> Updated.return;
+      updated_model;
 
     // Concat LS' error message and await_llm_response (... animation)
     // This works even if out of fuel, as both Respond and ErrorRespond
     // remove await_llm_response
     | CollapseMessage(index) =>
-      let mode = settings.assistant.mode;
+      let mode = settings.mode;
       let (past_chats, curr_chat) = get_mode_info(mode, model);
       let is_prompt_display =
         try(
@@ -917,14 +1298,13 @@ let update =
         ~mode,
         ~updated_past_chats,
         ~chat_id=curr_chat.id,
-      )
-      |> Updated.return;
+      );
 
     | SwitchChat(chat_id) =>
-      let mode = settings.assistant.mode;
+      let mode = settings.mode;
       let (past_chats, _) = get_mode_info(mode, model);
-      resculpt_model(~model, ~mode, ~updated_past_chats=past_chats, ~chat_id)
-      |> Updated.return;
+      resculpt_model(~model, ~mode, ~updated_past_chats=past_chats, ~chat_id);
+
     | FilterLoadingMessages =>
       Model.{
         ...model,
@@ -961,10 +1341,9 @@ let update =
             ),
         },
       }
-      |> Updated.return
     | Lop(index) =>
       // Lop off the messages after the index
-      let mode = settings.assistant.mode;
+      let mode = settings.mode;
       let (_, curr_chat) = get_mode_info(mode, model);
       let _sketch_snapshot =
         List.nth(curr_chat.messages, index).sketch_snapshot;
@@ -988,20 +1367,17 @@ let update =
         ~mode,
         ~updated_chat,
         ~awaiting_response=false,
-      )
-      |> Updated.return;
+      );
     }
   | ExternalAPIAction(external_api_action) =>
     switch (external_api_action) {
-    | SetLLM(model_info) =>
-      {
+    | SetLLM(model_info) => {
         ...model,
         external_api_info: {
           ...model.external_api_info,
           set_model_info: model_info,
         },
       }
-      |> Updated.return
     | SetAPIKey(api_key) =>
       // Set the available models using the provided API key
       OpenRouter.get_models(~key=api_key, ~handler=response => {
@@ -1025,10 +1401,9 @@ let update =
           ...model.external_api_info,
           api_key,
         },
-      }
-      |> Updated.return;
-    | SetListOfLLMs(llms) =>
-      {
+      };
+
+    | SetListOfLLMs(llms) => {
         ...model,
         external_api_info: {
           ...model.external_api_info,
@@ -1037,8 +1412,7 @@ let update =
           set_model_info: List.hd(llms),
         },
       }
-      |> Updated.return
     }
-  | InitializeAssistant => AssistantModel.init() |> Updated.return
+  | InitializeAssistant => AssistantModel.init()
   };
 };

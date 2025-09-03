@@ -1,15 +1,11 @@
 open Util;
-open Haz3lcore;
+open Language;
 
 let get_sketch_and_error_ctx =
-    (editor: CodeWithStatics.Model.t): list(string) => {
+    (zipper: Zipper.t, info_map: Statics.Map.t): list(string) => {
   let sketch_seg =
-    Zipper.smart_seg(
-      ~dump_backpack=true,
-      ~erase_buffer=true,
-      editor.editor.state.zipper,
-    );
-  let errors = ErrorPrint.all(editor.statics.info_map);
+    Zipper.smart_seg(~dump_backpack=true, ~erase_buffer=true, zipper);
+  let errors = ErrorPrint.all(info_map);
   let static_error_arr =
     switch (errors) {
     | [] => ["No static errors found"]

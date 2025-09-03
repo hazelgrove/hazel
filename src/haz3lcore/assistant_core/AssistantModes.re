@@ -1,5 +1,4 @@
 open Util;
-open Haz3lcore;
 open Language;
 open Language.Statics;
 
@@ -51,22 +50,14 @@ module Completion = {
       (
         ~response: string,
         ~tile: Id.t,
-        ~schedule_action: Editors.Update.t => unit,
+        ~schedule_action: Editor.Update.t => unit,
       ) => {
     let actions = [
       Action.Select(Tile(Id(tile, Direction.Left))),
       Action.Buffer(Set(LLM(response))),
     ];
     // Apply each action in sequence
-    List.iter(
-      action => {
-        let perform_action = CodeEditable.Update.Perform(action);
-        let cell_action = CellEditor.Update.MainEditor(perform_action);
-        let scratch_action = Editors.Update.Scratch(CellAction(cell_action));
-        schedule_action(scratch_action);
-      },
-      actions,
-    );
+    List.iter(action => {schedule_action(action)}, actions);
   };
 
   module ErrorRound = {
@@ -182,16 +173,13 @@ module Composition = {
   // Children nodes: [<name>, <name>, ...]
   // Static errors: <errors>
   let mk_structured_code_map_prompt =
-      (_: ChatLSP.Options.t, editor: CodeWithStatics.Model.t)
+      (_: ChatLSP.Options.t, z: Zipper.t, info_map: Statics.Map.t)
       : (OpenRouter.message, AssistantModel.display) => {
     print_endline(
       "here #a before building sub AST in mk_structured_code_map_prompt",
     );
     let curr_node_info =
-      AssistantTreeHelper.build_curr_node_info(
-        editor.editor.state.zipper,
-        editor.statics.info_map,
-      );
+      AssistantTreeHelper.build_curr_node_info(z, info_map);
     print_endline(
       "here #b after building sub AST in mk_structured_code_map_prompt",
     );
@@ -200,7 +188,7 @@ module Composition = {
     | None =>
       // Special case: No let or type alias expressions in the program.
       // Just dump selection. It is assumed that the entire sketch is selected in this case.
-      let sketch_seg = editor.editor.state.zipper.selection.content;
+      let sketch_seg = z.selection.content;
       let sketch_seg_str = Printer.of_segment(~holes="?", sketch_seg);
       let sketch_seg_hd_str = "No let or type alias expressions found in the program, unable to derive any meaningful AST information. Selecting the entire program:\n```";
       let sketch_seg_tl_str = "```";
@@ -210,7 +198,7 @@ module Composition = {
           [sketch_seg_hd_str, sketch_seg_str, sketch_seg_tl_str],
         );
 
-      let static_errors = ErrorPrint.all(editor.statics.info_map);
+      let static_errors = ErrorPrint.all(info_map);
       let static_errors_str =
         switch (static_errors) {
         | [] => "\nNo static errors found in the program."
@@ -246,10 +234,7 @@ module Composition = {
       // This shows the path to the current node now, rather than just the parent node
       let path_to_node_str =
         "Path to node: "
-        ++ AssistantTreeHelper.get_path_to_node(
-             curr_node,
-             editor.statics.info_map,
-           );
+        ++ AssistantTreeHelper.get_path_to_node(curr_node, info_map);
       let siblings_nodes_str =
         "Sibling nodes: ["
         ++ String.concat(
@@ -286,11 +271,7 @@ module Composition = {
           ],
         );
 
-      let prepped_z =
-        CompositionView.prepare_definition(
-          editor.editor.state.zipper,
-          curr_node,
-        );
+      let prepped_z = CompositionView.prepare_definition(z, curr_node);
 
       let prepped_z_hd_str =
         "Definition of \""
@@ -311,15 +292,14 @@ module Composition = {
           [prepped_z_hd_str, prepped_z_str, prepped_z_tl_str],
         );
 
-      let static_errors = ErrorPrint.all(editor.statics.info_map);
+      let static_errors = ErrorPrint.all(info_map);
       let static_errors_str =
         switch (static_errors) {
         | [] => "\nNo static errors found in the program."
         | _ => "\nStatic errors: " ++ String.concat(", ", static_errors)
         };
 
-      let refs_in_str =
-        CompositionView.str_refs_in(curr_node, editor.statics.info_map);
+      let refs_in_str = CompositionView.str_refs_in(curr_node, info_map);
 
       let sketch_info_str =
         String.concat(
@@ -367,16 +347,8 @@ module Composition = {
 
   // Helper function for applying a list of editor-perform actions to the editor
   let schedule_actions =
-      (~actions: list(Action.t), ~schedule_action: Editors.Update.t => unit) => {
-    List.iter(
-      action => {
-        let perform_action = CodeEditable.Update.Perform(action);
-        let cell_action = CellEditor.Update.MainEditor(perform_action);
-        let scratch_action = Editors.Update.Scratch(CellAction(cell_action));
-        schedule_action(scratch_action);
-      },
-      actions,
-    );
+      (~actions: list(Action.t), ~schedule_action: Editor.Update.t => unit) => {
+    List.iter(action => {schedule_action(action)}, actions);
   };
 
   // AddToolLabel_2.0: handle the effects of the action on the editor itself
@@ -385,7 +357,7 @@ module Composition = {
         ~z: Zipper.t,
         ~info_map: Id.Map.t(Info.t),
         ~action: CompositionTools.action,
-        ~schedule_action: Editors.Update.t => unit,
+        ~schedule_action: Editor.Update.t => unit,
       )
       : result => {
     let (result, actions) =

@@ -2,6 +2,7 @@ open Js_of_ocaml;
 open Virtual_dom.Vdom;
 open Node;
 open Util;
+open Haz3lcore;
 
 /* The top-level UI component of Hazel */
 
@@ -33,7 +34,7 @@ module Store = {
         ~instructor_mode=globals.settings.instructor_mode,
       );
     let explain_this = ExplainThisModel.Store.load();
-    let assistant = AssistantModel.Store.load();
+    let assistant = AssistantWeb.Store.load();
     {
       editors,
       globals,
@@ -51,7 +52,7 @@ module Store = {
     );
     Globals.Model.save(m.globals);
     ExplainThisModel.Store.save(m.explain_this);
-    AssistantModel.Store.save(m.assistant);
+    AssistantWeb.Store.save(m.assistant);
   };
 };
 
@@ -68,7 +69,7 @@ module Update = {
     | Globals(Globals.Update.t)
     | Editors(Editors.Update.t)
     | ExplainThis(ExplainThisUpdate.update)
-    | Assistant(AssistantUpdateBase.t)
+    | Assistant(AssistantWeb.Update.t)
     | AssistantEval(AssistantEval.Update.t)
     | MakeActive(selection)
     | Benchmark(benchmark_action)
@@ -87,7 +88,7 @@ module Update = {
       ~schedule_action=a => schedule_action(Assistant(a)),
       ~schedule_setting=a => schedule_action(Globals(Set(Assistant(a)))),
       ~chat_id=model.assistant.current_chats.curr_suggestion_chat,
-      ~editor,
+      ~z=editor.editor.state.zipper,
     );
 
   let get_editor = (model: Model.t): CodeEditable.Model.t =>
@@ -256,15 +257,20 @@ module Update = {
         explain_this,
       };
     | Assistant(action) =>
+      let schedule_editor_action = a => {
+        let perform_action = CodeEditable.Update.Perform(a);
+        let cell_action = CellEditor.Update.MainEditor(perform_action);
+        let scratch_action = Editors.Update.Scratch(CellAction(cell_action));
+        schedule_action(Editors(scratch_action));
+      };
       let* assistant =
-        AssistantUpdate.update(
+        AssistantWeb.Update.update(
           ~action,
-          ~settings=globals.settings,
+          ~settings=globals.settings.assistant,
           ~model=model.assistant,
           ~editor=get_editor(model),
           ~schedule_action=a => schedule_action(Assistant(a)),
-          ~schedule_eval_action=a => schedule_action(AssistantEval(a)),
-          ~schedule_editor_action=a => schedule_action(Editors(a)),
+          ~schedule_editor_action,
         );
       {
         ...model,

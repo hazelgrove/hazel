@@ -1,4 +1,5 @@
 open Util;
+open Haz3lcore;
 
 module Model = {
   [@deriving (show({with_path: false}), sexp, yojson)]

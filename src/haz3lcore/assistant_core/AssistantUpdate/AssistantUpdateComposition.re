@@ -1,11 +1,11 @@
-open Haz3lcore;
 open Util;
 open API;
+open Language;
 
-module CodeModel = CodeEditable.Model;
 module Model = AssistantModel;
 
-open AssistantUpdateBase;
+open AssistantUpdateType;
+type t = AssistantUpdateType.t;
 
 let mk_structure_edit_msg = (~tool_call: OpenRouter.tool_call): string =>
   // AddToolLabel_3.0: what should the text content of this tool call to the user be?
@@ -53,31 +53,26 @@ let apply_structure_action =
   };
 
 let intermediate_select_curr_node =
-    (~editor: CodeModel.t, ~schedule_editor_action: Editors.Update.t => unit)
+    (
+      ~zipper: Zipper.t,
+      ~info_map: Statics.Map.t,
+      ~schedule_editor_action: Editor.Update.t => unit,
+    )
     : unit => {
   let curr_node_info =
-    AssistantTreeHelper.build_curr_node_info(
-      editor.editor.state.zipper,
-      editor.statics.info_map,
-    );
+    AssistantTreeHelper.build_curr_node_info(zipper, info_map);
   switch (curr_node_info) {
   | Some(curr_node_info) =>
-    let perform_action =
-      CodeEditable.Update.Perform(
-        Action.Select(
-          Tile(
-            Id(AssistantTreeHelper.id_of(curr_node_info), Direction.Right),
-          ),
+    let a =
+      Action.Select(
+        Tile(
+          Id(AssistantTreeHelper.id_of(curr_node_info), Direction.Right),
         ),
       );
-    let cell_action = CellEditor.Update.MainEditor(perform_action);
-    let scratch_action = Editors.Update.Scratch(CellAction(cell_action));
-    schedule_editor_action(scratch_action);
+    schedule_editor_action(a);
   | None =>
-    let perform_action = CodeEditable.Update.Perform(Action.Select(All));
-    let cell_action = CellEditor.Update.MainEditor(perform_action);
-    let scratch_action = Editors.Update.Scratch(CellAction(cell_action));
-    schedule_editor_action(scratch_action);
+    let perform_action = Action.Select(All);
+    schedule_editor_action(perform_action);
   // Special case: No let or type alias expressions in the program.
   // Just dump selection. It is assumed that the entire sketch is selected in this case.
   };

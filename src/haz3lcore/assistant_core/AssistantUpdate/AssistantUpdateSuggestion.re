@@ -1,20 +1,18 @@
-open Haz3lcore;
 open Util;
 
-module CodeModel = CodeEditable.Model;
 module Model = AssistantModel;
 
-open AssistantUpdateBase;
+open AssistantUpdateType;
+type t = AssistantUpdateType.t;
 
 let check_req =
     (
       ~schedule_action: t => unit,
       ~schedule_setting: AssistantSettings.action => unit,
-      ~editor: CodeEditable.Model.t,
+      ~z: Zipper.t,
       ~chat_id: Id.t,
     )
     : unit => {
-  let z = editor.editor.state.zipper;
   let caret = z.caret;
   let send_message = (tile_id, advanced_reasoning) => {
     schedule_setting(AssistantSettings.SwitchMode(CodeSuggestion));

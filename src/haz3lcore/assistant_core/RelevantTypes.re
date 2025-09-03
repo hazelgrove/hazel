@@ -3,11 +3,7 @@ open Language;
 /* Assembles relevant type definitions per the Static Contextualization paper */
 
 let format_def = (alias: string, ty: Typ.t): string =>
-  Printf.sprintf(
-    "type %s = %s in",
-    alias,
-    Haz3lcore.ErrorPrint.Print.typ(ty),
-  );
+  Printf.sprintf("type %s = %s in", alias, ErrorPrint.Print.typ(ty));
 
 let subst_if_rec = ((name: string, ty: Typ.t)): (string, Typ.t) => {
   switch (ty) {
@@ -41,7 +37,7 @@ let get = (ctx: Ctx.t, ana_ty: Typ.t, hole_label: string): string => {
     };
   prefix
   ++ "a type consistent with "
-  ++ Haz3lcore.ErrorPrint.Print.typ(ana_ty)
+  ++ ErrorPrint.Print.typ(ana_ty)
   ++ " #\n"
   ++ defs;
 };

@@ -37,7 +37,7 @@ let string_of_role =
 [@deriving (show({with_path: false}), sexp, yojson)]
 type block_kind =
   | Text(string)
-  | Code(Haz3lcore.Segment.t);
+  | Code(Segment.t);
 
 // The displayable content of a message. This is here mainly to cache it
 // in storage, avoiding runtime hindrances from parsing the content on the fly.
@@ -49,7 +49,7 @@ type display = {
 };
 
 [@deriving (show({with_path: false}), sexp, yojson)]
-type sketch_snapshot = option(CodeEditable.Model.t);
+type sketch_snapshot = option(Zipper.t);
 
 // A coupling of a message sent to the LLM and the displayable content of the message.
 [@deriving (show({with_path: false}), sexp, yojson)]
@@ -171,52 +171,9 @@ let mk_mode_prompt = (~mode: AssistantSettings.mode): OpenRouter.message => {
   prompt;
 };
 
-// This is essentially a reimplementation of what Omd does
-// Todo: Readapt to use Omd instead.
-let parse_blocks = (response: string): list(block_kind) => {
-  let rec parse_blocks =
-          (str: string, acc: list(block_kind)): list(block_kind) => {
-    open Haz3lcore;
-    let pattern = Str.regexp("```[ \n]*\\([^`]+\\)[ \n]*```");
-    switch (Str.search_forward(pattern, str, 0)) {
-    | exception Not_found => acc
-    | pos =>
-      let acc = ListUtil.leading(acc);
-      let code = Str.matched_group(1, str);
-      let zipper_of_code = Parser.to_zipper(code);
-      let sketch =
-        switch (zipper_of_code) {
-        | Some(z) =>
-          Zipper.smart_seg(~erase_buffer=false, ~dump_backpack=true, z)
-        | None =>
-          print_endline("Failed to parse content into segment.\n");
-          Zipper.smart_seg(
-            ~erase_buffer=false,
-            ~dump_backpack=true,
-            Zipper.init(),
-          );
-        };
-      let before = Str.string_before(str, pos);
-      let rest_start = pos + String.length(Str.matched_string(str));
-      if (rest_start >= String.length(str)) {
-        acc @ [Text(before), Code(sketch)];
-      } else {
-        let rest = Str.string_after(str, rest_start);
-        parse_blocks(
-          rest,
-          acc @ [Text(before), Code(sketch), Text(rest)],
-        );
-      };
-    };
-  };
-  parse_blocks(response, [Text(response)]);
-};
-
 let mk_message_display = (~content: string): display => {
   {
-    displayable_content: [Text(content)], //parse_blocks(content),
-    // String.length(content) <= max_collapsed_length
-    //   ? parse_blocks(content) : [Text(content)],
+    displayable_content: [Text(content)],
     raw_content: content,
     collapsed: true,
   };
@@ -348,12 +305,3 @@ let null_model = (): t => {
 
 [@deriving (show({with_path: false}), yojson, sexp)]
 type model = t;
-
-module Store =
-  Store.F({
-    [@deriving (show({with_path: false}), yojson, sexp)]
-    type t = model;
-    let default = () => null_model();
-
-    let key = Store.Assistant;
-  });

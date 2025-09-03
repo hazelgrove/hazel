@@ -6,7 +6,9 @@ open Util;
 open Js_of_ocaml;
 open Key;
 
-module Update = AssistantUpdateBase;
+module Update = AssistantUpdateType;
+
+module UpdateBase = AssistantUpdate;
 
 module Model = AssistantModel;
 
@@ -528,7 +530,8 @@ let mk_input_handlers =
       Virtual_dom.Vdom.Effect.Stop_propagation,
     ]);
   };
-  let (past_chats, curr_chat) = Update.get_mode_info(settings.mode, model);
+  let (past_chats, curr_chat) =
+    UpdateBase.get_mode_info(settings.mode, model);
   let curr_messages = Id.Map.find(curr_chat.id, past_chats).messages;
   let send_message = _ => {
     let message =
@@ -1074,7 +1077,8 @@ let form_block =
 
 let initial_display =
     (~model: Model.t, ~settings: AssistantSettings.t): Node.t => {
-  let (past_chats, curr_chat) = Update.get_mode_info(settings.mode, model);
+  let (past_chats, curr_chat) =
+    UpdateBase.get_mode_info(settings.mode, model);
   let curr_messages = Id.Map.find(curr_chat.id, past_chats).messages;
   List.length(curr_messages) <= 1
     ? div(
@@ -1131,7 +1135,8 @@ let message_display =
       },
     );
   };
-  let (past_chats, curr_chat) = Update.get_mode_info(settings.mode, model);
+  let (past_chats, curr_chat) =
+    UpdateBase.get_mode_info(settings.mode, model);
   let curr_messages = Id.Map.find(curr_chat.id, past_chats).messages;
   let message_nodes =
     List.flatten(
@@ -1314,7 +1319,8 @@ let prompt_display =
       ~inject,
     )
     : Node.t => {
-  let (past_chats, curr_chat) = Update.get_mode_info(settings.mode, model);
+  let (past_chats, curr_chat) =
+    UpdateBase.get_mode_info(settings.mode, model);
   let curr_messages = Id.Map.find(curr_chat.id, past_chats).messages;
   let curr_messages: list(unwrapped_message) =
     List.filter_map(
@@ -1420,7 +1426,8 @@ let mode_buttons =
 
 let history_menu =
     (~model: Model.t, ~settings: AssistantSettings.t, ~inject): Node.t => {
-  let (past_chats, curr_chat) = Update.get_mode_info(settings.mode, model);
+  let (past_chats, curr_chat) =
+    UpdateBase.get_mode_info(settings.mode, model);
   let chronologically_sorted_past_chats = Model.sorted_chats(past_chats);
 
   div(
