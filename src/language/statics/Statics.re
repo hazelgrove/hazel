@@ -1152,7 +1152,7 @@ and uexp_to_info_map =
         m,
       );
     | Theorem(p, e1, e2) =>
-      let (e1, m) = go'(~ctx, ~ana=Atom(Bool) |> Typ.temp, e1, m);
+      let (_, m) = go'(~ctx, ~ana=Atom(Bool) |> Typ.temp, e1, m);
       let (p', _) =
         go_pat(~is_synswitch=false, ~co_ctx=CoCtx.empty, ~ana=syn, p, m);
       let (e2, m) = go'(~ctx=p'.ctx, ~ana, e2, m);

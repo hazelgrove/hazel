@@ -23,7 +23,7 @@ module Update = {
   type t =
     | SetFilter(string);
 
-  let update = (~settings, action, model): Updated.t(Model.t) => {
+  let update = (~settings as _, action, model): Updated.t(Model.t) => {
     switch (action) {
     | SetFilter(filter) =>
       Model.{
@@ -99,12 +99,12 @@ module Selection = {
   type t = unit;
 
   let get_cursor_info =
-      (~selection as (): t, model: Model.t): cursor(Update.t) => {
+      (~selection as (): t, _model: Model.t): cursor(Update.t) => {
     empty;
   };
 
   let handle_key_event =
-      (~selection as (): t, model: Model.t, event): option(Update.t) => {
+      (~selection as (): t, _model: Model.t, _event): option(Update.t) => {
     None;
   };
 };

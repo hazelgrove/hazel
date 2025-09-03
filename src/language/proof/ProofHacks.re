@@ -241,7 +241,7 @@ let rec get_inductive_hypotheses = (m, t, pat) => {
   | Cons(e1, e2) =>
     get_inductive_hypotheses_inner(m, t, e1)
     @ get_inductive_hypotheses_inner(m, t, e2)
-  | Var(x) => []
+  | Var(_) => []
   | Tuple(xs) =>
     List.concat(List.map(get_inductive_hypotheses_inner(m, t, _), xs))
   | Parens(e) => get_inductive_hypotheses_inner(m, t, e)
