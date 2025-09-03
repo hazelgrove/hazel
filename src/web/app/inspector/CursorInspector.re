@@ -402,6 +402,7 @@ let typ_err_view = (~globals, ok: Info.error_typ) => {
       view_type(Var(name) |> Typ.fresh),
       text("already used in this sum"),
     ]
+  | ParseFailure => [text("Parse failure")]
   };
 };
 
