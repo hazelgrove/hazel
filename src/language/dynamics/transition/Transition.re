@@ -669,15 +669,7 @@ module Transition = (EV: EV_MODE) => {
       | Undefined(_) => Indet
       | DefinedPoly(poly_op) =>
         if (!DHExp.ty_comparable(d1, d2)) {
-          let expr =
-            DynamicErrorHole(BinOp(op, d1, d2) |> rewrap, Incomparable)
-            |> fresh;
-          Step({
-            expr,
-            state_update,
-            kind: MarkIncomparable,
-            is_value: false,
-          });
+          Indet;
         } else {
           let res = DHExp.poly_equal(d1, d2);
           let expr = Atom(Bool(poly_op == Equals ? res : !res)) |> fresh;
@@ -685,7 +677,7 @@ module Transition = (EV: EV_MODE) => {
             expr,
             state_update,
             kind: BinOp(op),
-            is_value: false,
+            is_value: true,
           });
         }
       | Defined(in_ty1, in_ty2, out_ty, f) =>

@@ -42,7 +42,12 @@ let exp_idx = (e1: Exp.t, e2: Exp.t) => {
     )
   ) {
   | exception (Found(_)) => n^
-  | _ => failwith("exp_idx: e1 not found in e2")
+  | _ =>
+    failwith(
+      "exp_idx: e1 not found in e2 (found "
+      ++ string_of_int(n^)
+      ++ " matches)",
+    )
   };
 };
 
