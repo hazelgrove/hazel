@@ -638,19 +638,6 @@ let status_typ = (ctx: Ctx.t, expects: typ_expects, ty: Typ.t): status_typ =>
       | true => NotInHole(TypeAlias(name, Typ.weak_head_normalize(ctx, ty)))
       }
     }
-  | Ap(t1, ty_in) =>
-    switch (expects) {
-    | VariantExpected(status_variant, ty_variant) =>
-      switch (status_variant, t1.term) {
-      | (Unique, Var(name)) =>
-        NotInHole(Variant(name, Arrow(ty_in, ty_variant) |> Typ.temp))
-      | _ =>
-        NotInHole(VariantIncomplete(Arrow(ty_in, ty_variant) |> Typ.temp))
-      }
-    | ConstructorExpected(_) => InHole(WantConstructorFoundAp)
-    | LabelExpected(_) => InHole(WantLabel)
-    | TypeExpected => InHole(WantTypeFoundAp)
-    }
   | Label(name) =>
     switch (expects) {
     | TypeExpected => NotInHole(Type(ty))
