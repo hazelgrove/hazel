@@ -485,5 +485,6 @@ module Perform = {
     let curr_node_info =
       AssistantTreeHelper.build_curr_node_info(z, mk_statics(z));
     composition_dispatch(a, syntax, z, mk_statics, return, curr_node_info);
+    // check z' if its well-formed
   };
 };

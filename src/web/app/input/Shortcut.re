@@ -76,6 +76,17 @@ let shortcuts = (sys: Util.Key.sys): list(t) =>
       // Tab is overloaded so not setting it here
     ),
     mk_shortcut(
+      ~hotkey="ctrl+.",
+      ~mdIcon="swipe_right_alt",
+      ~section="Navigation",
+      "Go To Next Sibling Binding Clause",
+      Globals(
+        ActiveEditor(
+          AssistantComposition(Nav(GoToSibling(Stepwise(Right)))),
+        ),
+      ),
+    ),
+    mk_shortcut(
       ~hotkey=Keyboard.meta(sys) ++ "+d",
       ~mdIcon="select_all",
       ~section="Selection",

@@ -92,12 +92,12 @@ let handle_key_event = (k: Key.t): option(Action.t) => {
     switch (key) {
     | "a" => now(Move(Line(Left)))
     | "e" => now(Move(Line(Right)))
-    | "c" => now(AssistantComposition(Nav(GoToChild("", Some(0)))))
-    | "," => now(AssistantComposition(Nav(GoToSibling(Stepwise(Left)))))
-    | "." => now(AssistantComposition(Nav(GoToSibling(Stepwise(Right)))))
-    | "p" => now(AssistantComposition(Nav(GoToParent)))
     // vvv Debug shortcuts vvv
-    | "q" => now(AssistantComposition(Edit(UpdatePattern("x : ? -> ?"))))
+    | "q" =>
+      let new_code =
+        JsUtil.prompt("Enter new buffer name:", "New Buffer Name")
+        |> Option.get;
+      now(AssistantComposition(Edit(UpdatePattern(new_code))));
     | "w" => now(AssistantComposition(Edit(UpdateDefinition("100"))))
     | "r" => now(AssistantComposition(Edit(UpdateBody("x * 2"))))
     | "t" => now(AssistantComposition(Edit(DeleteBody)))
@@ -116,31 +116,33 @@ let handle_key_event = (k: Key.t): option(Action.t) => {
     }
   | {key: D("f"), sys: PC, shift: Up, meta: Up, ctrl: Up, alt: Down} =>
     Some(Project(SetIndicated(Specific(Fold))))
-  | {key: D("ƒ"), sys: Mac, shift: Up, meta: Up, ctrl: Up, alt: Down} =>
-    /* Curly ƒ is what holding option turns f into on Mac */
-    Some(Project(SetIndicated(Specific(Fold))))
+
   | {key: D("v"), sys: PC, shift: Up, meta: Up, ctrl: Up, alt: Down} =>
     Some(Project(SetIndicated(Specific(Probe))))
-  | {key: D("√"), sys: Mac, shift: Up, meta: Up, ctrl: Up, alt: Down} =>
-    /* √ is what holding option turns f into on Mac */
-    Some(Project(SetIndicated(Specific(Probe))))
+
   | {key: D("t"), sys: PC, shift: Up, meta: Up, ctrl: Up, alt: Down} =>
-    Some(Project(SetIndicated(Specific(Info))))
-  | {key: D("†"), sys: Mac, shift: Up, meta: Up, ctrl: Up, alt: Down} =>
-    /* † is what holding option turns t into on Mac */
     Some(Project(SetIndicated(Specific(Info))))
   | {key: D("l"), sys: PC, shift: Up, meta: Up, ctrl: Up, alt: Down} =>
     Some(Project(SetIndicated(ChooseLivelit)))
-  | {key: D("¬"), sys: Mac, shift: Up, meta: Up, ctrl: Up, alt: Down} =>
-    /* † is what holding option turns t into on Mac */
-    Some(Project(SetIndicated(ChooseLivelit)))
-  | {key: D("µ"), sys: Mac, shift: Up, meta: Up, ctrl: Up, alt: Down} =>
-    print_endline("˜dump");
-    Some(Dump);
   | {key: D(key), sys: _, shift: Up, meta: Up, ctrl: Up, alt: Down} =>
     switch (key) {
-    | "ArrowLeft" => now(Move(Local(Left, ByToken)))
-    | "ArrowRight" => now(Move(Local(Right, ByToken)))
+    | "å" => now(Move(Local(Left, ByToken)))
+    | "∂" => now(Move(Local(Right, ByToken)))
+    | "ArrowUp" => now(AssistantComposition(Nav(GoToParent)))
+    | "ArrowDown" =>
+      now(AssistantComposition(Nav(GoToChild("", Some(0)))))
+    | "ArrowLeft" =>
+      now(AssistantComposition(Nav(GoToSibling(Stepwise(Left)))))
+    | "ArrowRight" =>
+      now(AssistantComposition(Nav(GoToSibling(Stepwise(Right)))))
+    | "f"
+    | "ƒ" => Some(Project(SetIndicated(Specific(Fold))))
+    | "v"
+    | "√" => Some(Project(SetIndicated(Specific(Probe))))
+    | "t"
+    | "†" => Some(Project(SetIndicated(Specific(Info))))
+    | "l"
+    | "¬" => Some(Project(SetIndicated(ChooseLivelit)))
     | _ => None
     }
   | _ => None
