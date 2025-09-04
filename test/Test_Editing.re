@@ -872,90 +872,67 @@ let selection_tests = [
   ),
 ];
 
-let string_with_permutation: QCheck.Gen.t((string, list(int))) = {
-  open QCheck;
-  open Gen;
-  let* str =
-    string_size(
-      ~gen=
-        oneof([
-          char_range('(', ')'),
-          return('['),
-          return(']'),
-          return(' '),
-          char_range('a', 'z'),
-        ]),
-      int_range(0, 10),
-    );
-  let+ permutation = shuffle_l(List.init(String.length(str), i => i));
-  (str, permutation);
-};
-
-let string_with_permutation_arb =
-  QCheck.make(
-    ~print=
-      ((str, perm)) => {[%derive.show: (string, list(int))]((str, perm))},
-    string_with_permutation,
+let gen_action: QCheck.Gen.t(Action.t) =
+  QCheck.Gen.(
+    oneof([
+      oneof([
+        // TODO Figure out what characters to insert
+        char_range('(', ')'),
+        return('['),
+        return(']'),
+        return(' '),
+        char_range('a', 'z'),
+      ])
+      |> map(c => Insert(String.make(1, c))),
+      return(Move(Local(Right, ByChar))),
+      return(Move(Local(Left, ByChar))),
+    ])
   );
+
+let arb_action = QCheck.make(~print=Action.show, gen_action);
 
 let property_tests = [
   QCheck_alcotest.to_alcotest(
     {
       QCheck.(
         Test.make(
-          ~name="Editing is ahistorical",
-          ~count=10,
-          string_with_permutation_arb,
-          ((str, perm)) => {
-            let ltr =
-              perform(
-                Zipper.init(),
-                Seq.map(
-                  (c): Action.t => Insert(String.make(1, c)),
-                  String.to_seq(str),
-                )
-                |> List.of_seq,
-              );
-            print_endline("Perm: " ++ [%derive.show: list(int)](perm));
-            let permuted: list((int, char)) =
+          ~name="Editing is ahistorical: reparsing editor content is a no-op",
+          ~count=100,
+          QCheck.list(arb_action),
+          permuted_actions => {
+            /* Same perform as above but ignores exceptiosn */
+            let perform = (zip: Zipper.t, actions: list(Action.t)): Zipper.t => {
+              let perform = (a: Action.t, z: Zipper.t) => {
+                Perform.go(
+                  ~statics=CachedStatics.empty,
+                  ~syntax=CachedSyntax.init(z),
+                  a,
+                  {
+                    zipper: z,
+                    col_target: None,
+                  },
+                );
+              };
               List.fold_left(
-                (acc: list((int, char)), i: int) => {
-                  print_endline("Permuting index " ++ string_of_int(i));
-                  let str_char = str.[i];
-                  let idx =
-                    List.filter(((i', _)) => i' < i, acc) |> List.length;
-                  acc @ [(idx, str_char)];
-                },
-                [],
-                perm,
+                (z: Zipper.t, a: Action.t) =>
+                  switch (perform(a, z)) {
+                  | Ok(z) => z
+                  | Error(_) => z /* Ignore errors */
+                  },
+                zip,
+                actions,
               );
-            print_endline("Permutation done");
-            print_endline(
-              "Permuted: " ++ [%derive.show: list((int, char))](permuted),
-            );
-            let permuted_actions: list(Action.t) =
-              List.concat_map(
-                ((pos, c)) =>
-                  [
-                    Move(
-                      Point({
-                        col: pos, // TODO This needs to ignore grout
-                        row: 0,
-                      }),
-                    ),
-                    Insert(String.make(1, c)),
-                  ],
-                permuted,
-              );
-
+            };
             let permuted_result = perform(Zipper.init(), permuted_actions);
-
-            let ltr_seg = Zipper.zip(ltr);
             let permuted_seg = Zipper.zip(permuted_result);
 
-            print_endline(Segment.show(ltr_seg));
-            print_endline("----");
-            print_endline(Segment.show(permuted_seg));
+            let ltr_z =
+              Parser.to_zipper(
+                ~zipper_init=Zipper.init(),
+                Printer.of_segment(~holes="", ~indent="", permuted_seg),
+              )
+              |> Option.get;
+            let ltr_seg = Zipper.zip(ltr_z);
             Segment.equal(ltr_seg, permuted_seg);
           },
         )
