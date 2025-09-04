@@ -26,6 +26,7 @@ module View = {
         let (l, r) =
           switch (active_selection) {
           | Some((exp, _vars, signal)) =>
+            let exp = exp |> DHExp.strip_ascriptions;
             let (l, r) = ProofRule.can_eq(~env, model.ctx_entry.rule, exp);
             (
               Option.map(e => signal(EqualityLeft(e)), l),

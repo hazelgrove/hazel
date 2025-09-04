@@ -779,7 +779,9 @@ let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
       }
       : e;
   // Forms which should be removed by substitute_closures
-  | Closure(_) => failwith("closure not removed before printing")
+  | Closure(_, e) =>
+    let+ e = go(e);
+    text_to_pretty(exp |> Exp.rep_id, Sort.Exp, "<closure>") @ e;
   // Other cases
   | Invalid(x) => text_to_pretty(exp |> Exp.rep_id, Sort.Exp, x)
   | EmptyHole =>

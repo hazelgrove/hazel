@@ -164,7 +164,10 @@ module Update = {
         | Some(x) => x.theorems
       )
       |> List.map(((a, b, c, d)) => {
-           let d' = ProofRule.exp_to_rule(d);
+           let d' =
+             ProofRule.exp_to_rule(
+               d |> DHExp.substitute_closures(Environment.empty),
+             );
            (a, b, c, d');
          })
       |> List.fold_left(

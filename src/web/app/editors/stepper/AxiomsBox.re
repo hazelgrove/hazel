@@ -76,7 +76,8 @@ module Update = {
                     ~env,
                     ab.ctx_entry.rule,
                     selected_exp
-                    |> Option.value(~default=EmptyHole |> Exp.fresh),
+                    |> Option.value(~default=EmptyHole |> Exp.fresh)
+                    |> DHExp.strip_ascriptions,
                   )
                 )
               : (x => x)

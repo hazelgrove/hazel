@@ -912,7 +912,7 @@ module Transition = (EV: EV_MODE) => {
           d1 => Closure(env', d1) |> wrap_ctx,
           d,
         );
-      if (needs_closure^) {
+      if (needs_closure^ || mode == `Substitution) {
         Constructor;
       } else {
         Step({
