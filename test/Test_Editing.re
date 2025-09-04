@@ -427,6 +427,16 @@ let insertion_tests = [
     ~acts=mk({|f(g¦)|}) @ [Insert("("), Insert(")")],
     ~goal={|f(g()¦)|},
   ),
+  test(
+    ~name="Forall regrouting edge case (debatable behavior) (#1913)",
+    ~acts=mk({|?:foral¦(?)|}) @ [Insert("l")],
+    ~goal={|?:forall¦(?)|},
+  ),
+  test(
+    ~name="Forall regrouting edge case (non-debatable) (#1913)",
+    ~acts=mk({|?:foral¦(?)|}) @ [Insert("l"), Insert("-"), Insert(">")],
+    ~goal={|?:forall?->¦(?)|},
+  ),
 ];
 
 let destruct_tests = [
