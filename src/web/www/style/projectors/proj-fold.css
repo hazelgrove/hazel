@@ -39,12 +39,15 @@
 }
 
 .projector.fold .hover-view {
-  display: none;
+  opacity: 0;
+  visibility: hidden;
   position: absolute;
 }
 .projector.fold:hover .hover-view,
 .projector.fold .hover-view path:hover {
-  display: block;
+  opacity: 1;
+  visibility: visible;
+  transition: opacity 0s ease 0.5s, visibility 0s linear 0.3s;
   left: 0;
   top: 0;
 }
