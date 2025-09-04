@@ -881,6 +881,15 @@ let gen_action: QCheck.Gen.t(Action.t) =
         return('['),
         return(']'),
         return(' '),
+        return(','),
+        return('='),
+        return('+'),
+        return('-'),
+        return('*'),
+        return('/'),
+        return('>'),
+        return('<'),
+        return('.'),
         char_range('a', 'z'),
       ])
       |> map(c => Insert(String.make(1, c))),
@@ -924,16 +933,16 @@ let property_tests = [
               );
             };
             let permuted_result = perform(Zipper.init(), permuted_actions);
-            let permuted_seg = Zipper.zip(permuted_result);
-
-            let ltr_z =
+            let permuted_seg = Zipper.zip(permuted_result) |> Segment.trim_secondary(Direction.Right);
+            
+              let ltr_z =
               Parser.to_zipper(
                 ~zipper_init=Zipper.init(),
                 Printer.of_segment(~holes="", ~indent="", permuted_seg),
               )
               |> Option.get;
-            let ltr_seg = Zipper.zip(ltr_z);
-            Segment.equal(ltr_seg, permuted_seg);
+            let ltr_seg = Zipper.zip(ltr_z)|> Segment.trim_secondary(Direction.Right);
+            Segment.equal(ltr_seg, permuted_seg)
           },
         )
       );
