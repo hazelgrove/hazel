@@ -797,11 +797,11 @@ and rul = (unsorted): Rul.t => {
           List.combine(ps, leading_clauses @ [last_clause]),
           ids(unsorted),
         )
-      | None => mk_rules(e, [], [])
+      | None => mk_rules(e, [], [Id.invalid])
       }
-    | _ => mk_rules(e, [], [])
+    | _ => mk_rules(e, [], [Id.invalid])
     }
-  | _ => mk_rules(e, [], [])
+  | _ => mk_rules(e, [], [Id.invalid])
   };
 }
 
