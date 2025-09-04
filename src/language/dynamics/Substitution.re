@@ -181,28 +181,29 @@ let rec subst_var = (d1: DHExp.t, x: Var.t, d2: DHExp.t): DHExp.t => {
 
 and subst_var_env =
     (d1: DHExp.t, x: Var.t, env: ClosureEnvironment.t): ClosureEnvironment.t => {
-  Environment.foldo(
-    ((x', d': DHExp.t), map) => {
-      let d' =
-        switch (DHExp.term_of(d')) {
-        /* Substitute each previously substituted binding into the
-         * fixpoint. */
-        | FixF(_) =>
-          map
-          |> Environment.foldo(
-               ((x'', d''), d) => subst_var(d'', x'', d),
-               d',
-             )
-        | _ => d'
-        };
-
-      /* Substitute. */
-      let d' = subst_var(d1, x, d');
-      Environment.extend(map, (x', d'));
-    },
-    Environment.empty,
-  )
-  |> ClosureEnvironment.update_env(_, env);
+  // Environment.foldo(
+  //   ((x', d': DHExp.t), map) => {
+  //     let d' =
+  //       switch (DHExp.term_of(d')) {
+  //       /* Substitute each previously substituted binding into the
+  //        * fixpoint. */
+  //       | FixF(_) =>
+  //         map
+  //         |> Environment.foldo(
+  //              ((x'', d''), d) => subst_var(d'', x'', d),
+  //              d',
+  //            )
+  //       | _ => d'
+  //       };
+  //     /* Substitute. */
+  //     let d' = subst_var(d1, x, d');
+  //     Environment.extend(map, (x', d'));
+  //   },
+  //   Environment.empty,
+  // )
+  // |> ClosureEnvironment.update_env(_, env);
+  // We don't need to substitute into closures, since closures should just contain values, which can't be bound variables.
+  env;
 }
 
 and subst_var_filter =
