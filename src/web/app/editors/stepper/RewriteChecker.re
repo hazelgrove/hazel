@@ -70,6 +70,8 @@ let check_rewrite = (from_: Exp.t, to_: Exp.t): bool => {
 
   // TODO return Some(bool) instead of bool in case we encounter a case we can't handle?
   let name_other = name_other();
+  let from_ = DHExp.strip_ascriptions(from_);
+  let to_ = DHExp.strip_ascriptions(to_);
   let left_str = print_exp_for_algebrite(~name_other, from_);
   let right_str = print_exp_for_algebrite(~name_other, to_);
   print_endline("Checking rewrite:");
