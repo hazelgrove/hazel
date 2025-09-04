@@ -428,7 +428,7 @@ module View = {
           )
           @ [
             proof_button(~callback=inject(ProposeRewrite), "Algebra ▼"),
-            proof_button(~callback=inject(ToggleAxioms), "Axioms ▼"),
+            proof_button(~callback=inject(ToggleAxioms), "Assumptions ▼"),
             proof_button(
               ~callback=
                 Ui_effect.Many([

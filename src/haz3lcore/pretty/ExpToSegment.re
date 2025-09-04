@@ -626,6 +626,7 @@ let should_add_space = (s1, s2) =>
   | _ when String.starts_with(s2, ~prefix=",") => false
   | _ when String.starts_with(s2, ~prefix=";") => false
   | _ when String.starts_with(s2, ~prefix=":") => false
+  | _ when String.ends_with(s1, ~suffix=":") => false
   | _ when String.ends_with(s1, ~suffix=" ") => false
   | _ when String.starts_with(s2, ~prefix=" ") => false
   | _ when String.ends_with(s1, ~suffix="\n") => false
@@ -736,7 +737,21 @@ let fold_fun_if = (condition, f_name: string, pieces) =>
         ProjectorInit.init_or_noop_from_str(Fold, syntax, any, str),
       ]
     };
-  | `Text => text_to_pretty(Id.mk(), Sort.Exp, f_name)
+  | `Text =>
+    let name =
+      if (String.length(f_name) >= 2) {
+        let len = String.length(f_name);
+        let end_idx =
+          if (len >= 3 && f_name.[len - 2] == '+') {
+            len - 3;
+          } else {
+            len - 2;
+          };
+        String.sub(f_name, 1, max(0, end_idx));
+      } else {
+        "";
+      };
+    text_to_pretty(Id.mk(), Sort.Exp, name);
   | `NoFold => pieces
   };
 
