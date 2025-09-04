@@ -180,7 +180,7 @@ let rec subst_var = (d1: DHExp.t, x: Var.t, d2: DHExp.t): DHExp.t => {
 }
 
 and subst_var_env =
-    (d1: DHExp.t, x: Var.t, env: ClosureEnvironment.t): ClosureEnvironment.t => {
+    (_d1: DHExp.t, _x: Var.t, env: ClosureEnvironment.t): ClosureEnvironment.t => {
   // Environment.foldo(
   //   ((x', d': DHExp.t), map) => {
   //     let d' =
