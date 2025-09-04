@@ -427,6 +427,11 @@ let insertion_tests = [
     ~acts=mk({|f(g¦)|}) @ [Insert("("), Insert(")")],
     ~goal={|f(g()¦)|},
   ),
+  test(
+    ~name="Issue #1914 regression test",
+    ~acts=mk({|((1)¦|}) @ [Put_down],
+    ~goal={|((1))¦|},
+  ),
 ];
 
 let destruct_tests = [

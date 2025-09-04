@@ -38,8 +38,9 @@ let insert_shard = (~id: Id.t, ~d: Direction.t, t: Token.t, z: t): t => {
   let z = destroy_selection(z);
   if (Token.is_secondary(t)) {
     Zipper.put_down_seg(d, [Piece.mk_secondary(id, t)], z);
-  } else if (Zipper.will_glom(t, z)) {
-    Zipper.glom(d, t, z) |> Option.get;
+  } else if (Zipper.backpack_find(t, z) != None) {
+    let target = Zipper.backpack_find(t, z) |> Option.get;
+    Zipper.put_down_target(d, target, z);
   } else {
     let (label, delim_d) = expansion(t, z);
     let molds = Form.Molds.get(label);

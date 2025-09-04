@@ -270,49 +270,11 @@ let do_until_linebreak =
   linebreak_on(d, generalized_neighbors(z))
     ? Some(z) : do_until(f, linebreak_on(d), z);
 
-let adj_pos = (d: Direction.t, z: t): t =>
-  switch (d) {
-  | Left => z
-  | Right =>
-    switch (move(Left, z)) {
-    | None => z
-    | Some(z) => z
-    }
-  };
-
-let insert_segment = (z: t, segment: Segment.t): t =>
-  replace_selection(z.selection.focus, segment, z)
-  |> unselect
-  |> remold_regrout(Right);
-
-let put_down_core = (seg: Segment.t, z: t): t =>
-  z |> replace_selection(Right, seg) |> unselect;
-
-let put_down_seg = (d: Direction.t, seg: Segment.t, z: t): t =>
-  z |> put_down_core(seg) |> adj_pos(d);
-
 let local_backpack = (z: t): list(Tile.t) =>
   Relatives.local_missing_shards(z.relatives);
 
-let can_put_down = z =>
-  switch (local_backpack(z)) {
-  | [] => false
-  | _ => z.caret == Outer
-  };
-
-let put_down_regrout_target = (d: Direction.t, target: Tile.t, z: t): t => {
-  let z = put_down_core([Tile(target)], z);
-  let z = z |> remold |> regrout(Left);
-  adj_pos(d, z);
-};
-
 let backpack_hd = (z: t): option(Tile.t) =>
   z |> local_backpack |> ListUtil.hd_opt;
-
-let put_down_remold_regrout = (d: Direction.t, z: t): option(t) => {
-  let+ target = backpack_hd(z);
-  put_down_regrout_target(d, target, z);
-};
 
 let backpack_find = (tok: Token.t, z: t): option(Tile.t) =>
   if (Form.is_ambiguous_polymorph(tok)) {
@@ -330,35 +292,47 @@ let backpack_find = (tok: Token.t, z: t): option(Tile.t) =>
     );
   };
 
-let will_glom = (tok: Token.t, z: t): bool => backpack_find(tok, z) != None;
+let insert_segment = (z: t, seg: Segment.t): t =>
+  z
+  |> replace_selection(z.selection.focus, seg)
+  |> unselect
+  |> remold_regrout(Right);
 
-let glom = (d: Direction.t, tok: Token.t, z: t): option(t) => {
-  let+ target = backpack_find(tok, z);
-  put_down_regrout_target(d, target, z);
-};
+let adj_pos = (d: Direction.t, z: t): t =>
+  switch (d) {
+  | Left => z
+  | Right =>
+    switch (move(Left, z)) {
+    | None => z
+    | Some(z) => z
+    }
+  };
+
+let put_down_core = (seg: Segment.t, z: t): t =>
+  z |> replace_selection(Right, seg) |> unselect;
+
+let put_down_seg = (d: Direction.t, seg: Segment.t, z: t): t =>
+  z |> put_down_core(seg) |> adj_pos(d);
+
+let can_put_down = z =>
+  switch (local_backpack(z)) {
+  | [] => false
+  | _ => z.caret == Outer
+  };
+
+let put_down_target = (d: Direction.t, target: Tile.t, z: t): t =>
+  z |> put_down_core([Tile(target)]) |> remold_regrout(Left) |> adj_pos(d);
+
+let put_down = (z: t): option(t) =>
+  z.caret == Outer
+    ? {
+      let+ target = backpack_hd(z);
+      put_down_target(Left, target, z);
+    }
+    : None;
 
 let delete = (d: Direction.t, z: t): option(t) =>
   z |> select(d) |> Option.map(destroy_selection);
-
-let glom_prev = (z: t) =>
-  switch (neighbor_token(Left, z)) {
-  | Some(t) when will_glom(t, z) =>
-    switch (delete(Left, z)) {
-    | Some(z) => glom(Left, t, z)
-    | None => Some(z)
-    }
-  | _ => None
-  };
-
-let put_down_glom = (z: t): option(t) =>
-  switch (z.caret) {
-  | Inner(_) => None
-  | Outer =>
-    switch (glom_prev(z)) {
-    | Some(z) => Some(z)
-    | None => put_down_remold_regrout(Left, z)
-    }
-  };
 
 let adjacent_monotile_id = (d: Direction.t, z: t): option(Id.t) =>
   switch (Siblings.neighbors(z.relatives.siblings)) {
