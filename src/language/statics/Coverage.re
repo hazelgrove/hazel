@@ -135,7 +135,6 @@ module Ctr = {
     | Poly(_)
     | Var(_) => Infinite
     | Parens(_)
-    | Ap(_)
     | Label(_) =>
       failwith(
         "all_ctrs_of_type called with a non-normalized type: " ++ Typ.show(ty),

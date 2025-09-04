@@ -152,8 +152,20 @@ let should_instrument = (id: Id.t): bool =>
 let parse_sum_term: Typ.t => ConstructorMap.variant(Typ.t) =
   fun
   | {term: Var(ctr), annotation: {ids, _}} => Variant(ctr, ids, None)
+  /* Constructor applications in sum type definitions are implemented as having type sort;
+     until they are reimplemented as their own sort, we must prevent these from being parsed
+     into types, where they can go on to mess with statics. Thus we let them fall through to
+     be parsed as multiholes, and then recognize them when we parse sum type definitions */
   | {
-      term: Ap({term: Var(ctr), annotation: {ids: ids_ctr, _}}, u),
+      term:
+        Unknown(
+          Hole(
+            MultiHole([
+              Typ({term: Var(ctr), annotation: {ids: ids_ctr, _}}),
+              Typ(u),
+            ]),
+          ),
+        ),
       annotation: {ids: ids_ap, _},
     } =>
     Variant(ctr, ids_ctr @ ids_ap, Some(u))
@@ -168,7 +180,7 @@ let mk_bad = (ctr, ids, value) => {
   };
   switch (value) {
   | None => t
-  | Some(u) => Ap(t, u) |> Typ.fresh
+  | Some(u) => Unknown(Hole(MultiHole([Typ(t), Typ(u)]))) |> Typ.fresh
   };
 };
 
@@ -664,9 +676,9 @@ and typ_term: unsorted => (Typ.term, list(Id.t)) = {
       )
     | _ => ret(hole(tm))
     }
-  | Post(Typ(t), tiles) as tm =>
+  | Post(Typ(_t), tiles) as tm =>
     switch (tiles) {
-    | ([(_, (["(", ")"], [Typ(typ)]))], []) => ret(Ap(t, typ))
+    /* Type aps which would otherwise be parsed here are recognized in sum type parsing above */
     | _ => ret(hole(tm))
     }
   /* poly and rec have to be before sum so that they bind tighter.
@@ -922,14 +934,7 @@ let for_projection =
     }
   );
 
-let from_zip_for_sem =
-    (~dump_backpack: bool, ~erase_buffer: bool, z: Zipper.t) => {
-  let seg = Zipper.smart_seg(~dump_backpack, ~erase_buffer, z);
-  go(seg);
-};
+let from_zip_for_sem = (z: Zipper.t) => go(Dump.to_segment(z));
 
 let from_zip_for_sem =
-  Core.Memo.general(
-    ~cache_size_bound=1000,
-    from_zip_for_sem(~dump_backpack=true, ~erase_buffer=true),
-  );
+  Core.Memo.general(~cache_size_bound=1000, from_zip_for_sem);

@@ -18,7 +18,6 @@ type cls =
   | Var
   | Constructor // Constructor does not exist on Typ.term it's being used here as a hack for the cursors inspector
   | Parens
-  | Ap
   | Rec
   | Poly
   | ProofOf;
@@ -90,7 +89,6 @@ let cls_of_term: Grammar.typ_term('a) => cls =
   | TupLabel(_) => TupLabel
   | Label(_) => Label
   | Parens(_) => Parens
-  | Ap(_) => Ap
   | Sum(_) => Sum
   | Rec(_) => Rec
   | Poly(_) => Poly
@@ -113,7 +111,6 @@ let show_cls: cls => string =
   | Label => "Label"
   | Sum => "Sum type"
   | Parens => "Parenthesized type"
-  | Ap => "Constructor application"
   | Rec => "Recursive type"
   | Poly => "Type quantifier"
   | ProofOf => "Proof type";
@@ -129,7 +126,6 @@ let rec is_arrow = (typ: t) => {
   | Label(_)
   | Prod(_)
   | Var(_)
-  | Ap(_)
   | Sum(_)
   | Poly(_)
   | ProofOf(_)
@@ -149,7 +145,6 @@ let is_atom = (ty: t): bool =>
   | Label(_)
   | Prod(_)
   | Var(_)
-  | Ap(_)
   | Sum(_)
   | Poly(_)
   | Rec(_) => false
@@ -175,7 +170,6 @@ let rec has_fun = (typ: t) =>
       | _ => false,
       sm,
     )
-  | Ap(t1, t2) => has_fun(t1) || has_fun(t2)
   | Prod(tys) => List.exists(has_fun, tys)
   };
 
@@ -192,7 +186,6 @@ let rec is_poly = (typ: t) => {
   | Label(_)
   | Prod(_)
   | Var(_)
-  | Ap(_)
   | Sum(_)
   | Rec(_) => false
   };
@@ -253,7 +246,6 @@ let rec free_vars = (~bound=[], ty: t): list(Var.t) =>
   | Unknown(_)
   | Atom(_)
   | Label(_) => []
-  | Ap(t1, t2) => free_vars(~bound, t1) @ free_vars(~bound, t2)
   | Var(v) => List.mem(v, bound) ? [] : [v]
   | Parens(ty) => free_vars(~bound, ty)
   | List(ty) => free_vars(~bound, ty)
@@ -292,7 +284,6 @@ let rec vars = (ty: t): list(Var.t) =>
     vars(ty) |> List.filter((x': string) => x' != x)
   | Poly(_, ty) => vars(ty)
   | ProofOf(_) => []
-  | Ap(ty1, ty2) => vars(ty1) @ vars(ty2)
   | Label(_) => []
   | TupLabel(_, ty) => vars(ty)
   };
@@ -312,36 +303,6 @@ let rec aliases_deep = (ctx: Ctx.t, ty: t): list((string, t)) => {
     ListUtil.flat_map(((_, ty')) => aliases_deep(ctx, ty'), defs);
   rec_calls @ defs;
 };
-
-let rec vars = (ty: t): list(Var.t) =>
-  switch (ty.term) {
-  | Atom(_)
-  | Unknown(_) => []
-  | Var(x) => [x]
-  | Arrow(ty1, ty2) => vars(ty1) @ vars(ty2)
-  | Prod(tys) => ListUtil.flat_map(vars, tys)
-  | Sum(sm) =>
-    List.concat_map(
-      fun
-      | ConstructorMap.BadEntry(_) => []
-      | Variant(_, _, None) => []
-      | Variant(_, _, Some(typ)) => vars(typ),
-      sm,
-    )
-  | Rec({term: Var(x), _}, ty) =>
-    /* Remove recursive type references */
-    vars(ty) |> List.filter((x': string) => x' != x)
-  | Rec(_, ty) => vars(ty)
-  | List(ty) => vars(ty)
-  | Parens(ty) => vars(ty)
-  | Poly({term: Var(x), _}, ty) =>
-    vars(ty) |> List.filter((x': string) => x' != x)
-  | ProofOf(_) => []
-  | Poly(_, ty) => vars(ty)
-  | Ap(ty1, ty2) => vars(ty1) @ vars(ty2)
-  | Label(_) => []
-  | TupLabel(_, ty) => vars(ty)
-  };
 
 let var_count = ref(0);
 let fresh_var = (var_name: string) => {
@@ -376,7 +337,6 @@ let rec num_nodes = (ty: t): int => {
   | List(ty) => 1 + num_nodes(ty)
   | Parens(ty) => 1 + num_nodes(ty)
   | Poly(_, ty) => 1 + num_nodes(ty)
-  | Ap(ty1, ty2) => 1 + num_nodes(ty1) + num_nodes(ty2)
   | Label(_) => 1
   | TupLabel(_, ty) => 1 + num_nodes(ty)
   | ProofOf(_) => 10 // TODO[Matt]: this is a hack to make sure that Yes types are not counted as small
@@ -408,7 +368,6 @@ let rec count_unknowns = (ty: t): int =>
   | Parens(ty) => count_unknowns(ty)
   | Poly(_, ty) => count_unknowns(ty)
   | ProofOf(_) => 0
-  | Ap(ty1, ty2) => count_unknowns(ty1) + count_unknowns(ty2)
   | Label(_) => 0
   | TupLabel(_, ty) => count_unknowns(ty)
   };
@@ -426,7 +385,6 @@ let rec contains_sum_or_var = (ty: t): bool =>
   | Parens(ty) => contains_sum_or_var(ty)
   | Poly(_, ty) => contains_sum_or_var(ty)
   | ProofOf(_) => false
-  | Ap(ty1, ty2) => contains_sum_or_var(ty1) || contains_sum_or_var(ty2)
   | Label(_) => false
   | TupLabel(_, ty) => contains_sum_or_var(ty)
   };
@@ -534,7 +492,6 @@ let rec join = (~resolve=false, ctx: Ctx.t, ty1: t, ty2: t): option(t) => {
     let+ ty = join'(ty1, ty2);
     List(ty) |> temp;
   | (List(_), _) => None
-  | (Ap(_), _) => failwith("Type join of ap")
   | (ProofOf(e1), ProofOf(e2)) =>
     TermBase.Exp.fast_equal(e1, e2) ? Some(ty1) : None
   | (ProofOf(_), _) => None
@@ -553,7 +510,6 @@ let rec match_synswitch = (t1: t, t2: t) => {
   | (Atom(_), _)
   | (Label(_), _)
   | (Var(_), _)
-  | (Ap(_), _)
   | (Rec(_), _)
   | (ProofOf(_), _) => t1
   // These might
@@ -636,7 +592,6 @@ let rec normalize = (~rec_counter=0, ctx: Ctx.t, ty: t): t => {
   | Label(_) => ty
   | Parens(t) => normalize(ctx, t)
   | List(t) => List(normalize(ctx, t)) |> rewrap
-  | Ap(t1, t2) => Ap(normalize(ctx, t1), normalize(ctx, t2)) |> rewrap
   | Arrow(t1, t2) =>
     Arrow(normalize(ctx, t1), normalize(ctx, t2)) |> rewrap
   | Prod(ts) => Prod(List.map(normalize(ctx), ts)) |> rewrap
@@ -807,7 +762,6 @@ let rec is_syn = (ty: t): bool =>
   | Atom(_)
   | Label(_)
   | Var(_)
-  | Ap(_)
   | Rec(_)
   | Poly(_)
   | ProofOf(_)
@@ -825,7 +779,6 @@ let rec is_ana_atom = (ty: t) =>
   | Unknown(_)
   | Label(_)
   | Var(_)
-  | Ap(_)
   | Rec(_)
   | Poly(_)
   | ProofOf(_)
@@ -847,7 +800,6 @@ let rec is_syn_plus = (ty: t): bool =>
   | Atom(_)
   | Label(_)
   | Var(_)
-  | Ap(_)
   | Rec(_)
   | List(_)
   | Prod(_)
@@ -858,7 +810,6 @@ let rec is_syn_plus = (ty: t): bool =>
 let rec needs_parens = (ty: t): bool =>
   switch (term_of(ty)) {
   | Parens(ty) => needs_parens(ty)
-  | Ap(_)
   | Unknown(_)
   | Atom(_)
   | Label(_)
@@ -885,7 +836,6 @@ let pretty_print_tvar = (tv: TPat.t): string =>
 let rec pretty_print = (ty: t): string =>
   switch (term_of(ty)) {
   | Parens(ty) => pretty_print(ty)
-  | Ap(_)
   | Unknown(_) => "?"
   | Atom(Int) => "Int"
   | Atom(Float) => "Float"

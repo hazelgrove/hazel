@@ -251,7 +251,6 @@ typ:
     | REC; c=tpat; DASH_ARROW; t = typ { RecType(c, t) }
     | OPEN_TRIPLE_CURLY; t = typ; CLOSE_TRIPLE_CURLY { IndicationTyp(t) }
     | OPEN_PAREN; t = typ; CLOSE_PAREN { t }
-    | t1 = typ; OPEN_PAREN; t2 = typ; CLOSE_PAREN { ApTyp(t1, t2) }
 
 tupPatEntry:
     | p = pat {p}

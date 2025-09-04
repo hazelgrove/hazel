@@ -96,7 +96,7 @@ let of_zipper =
       z: Zipper.t,
     )
     : string => {
-  let segment = Zipper.seg_without_buffer(z);
+  let segment = Zipper.unselect_and_zip(~erase_buffer=true, z);
   /* Note that we can't just pass in the measured from editor as
    * we must recalculate the measured after removing projectors */
   let measured = measured_no_projectors(segment);

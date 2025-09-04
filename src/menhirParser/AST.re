@@ -106,7 +106,6 @@ type typ =
   | LabelType(string)
   | TupLabelType(typ, typ)
   | IndicationTyp(typ)
-  | ApTyp(typ, typ)
 and sumterm =
   | Variant(string, option(typ))
   | BadEntry(typ)
@@ -537,11 +536,6 @@ and gen_typ_sized: (~minimal_idents: bool, int) => QCheck.Gen.t(typ) =
                 let* gen_tpat = gen_tpat;
                 let+ t = self(n - 1);
                 RecType(gen_tpat, t);
-              },
-              {
-                let* t1 = self((n - 1) / 2);
-                let+ t2 = self((n - 1) / 2);
-                ApTyp(t1, t2);
               },
               {
                 let* sizes = gen_non_empty_array(n - 1);
@@ -1173,16 +1167,6 @@ and shrink_typ: QCheck.Shrink.t(typ) =
           <+> {
             let* shrunk2 = shrink_typ(t2);
             return(TupLabelType(t1, shrunk2));
-          }
-        | ApTyp(t1, t2) =>
-          of_list([t1, t2])
-          <+> {
-            let* shrunk1 = shrink_typ(t1);
-            return(ApTyp(shrunk1, t2));
-          }
-          <+> {
-            let* shrunk2 = shrink_typ(t2);
-            return(ApTyp(t1, shrunk2));
           }
         | IndicationTyp(_)
         | IntType
