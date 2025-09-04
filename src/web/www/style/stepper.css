@@ -63,6 +63,14 @@
   margin-left: -1em;
 }
 
+.induction-case-hypothesis {
+  display: flex;
+  flex-direction: row;
+  gap: 0.5em;
+  margin-left: 3em;
+  align-items: center;
+}
+
 .induction-case-patten {
   display: flex;
   flex-direction: row;

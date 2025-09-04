@@ -427,7 +427,7 @@ module View = {
               : []
           )
           @ [
-            proof_button(~callback=inject(ProposeRewrite), "Rewrite ▼"),
+            proof_button(~callback=inject(ProposeRewrite), "Algebra ▼"),
             proof_button(~callback=inject(ToggleAxioms), "Axioms ▼"),
             proof_button(
               ~callback=
@@ -526,6 +526,7 @@ module View = {
                           ~settings=
                             ExpToSegment.Settings.of_core(
                               ~inline=false,
+                              ~fold_fn_bodies=`Text,
                               globals.settings.core,
                             ),
                           ~shape_map=Haz3lcore.Id.Map.empty,
@@ -563,7 +564,7 @@ module View = {
                               _ =>
                               signal(
                                 AddAxiomStep(
-                                  "rewrite",
+                                  "algebraic rewrite",
                                   ProofHacks.exp_idx(
                                     unboxed_selected_exp,
                                     model.full_exp

@@ -400,23 +400,28 @@ module F = (Stepper: STEPPER) => {
           "induction-case-hypotheses",
           List.filter_map(
             fun
-            | Ctx.VarEntry({name, id: _, typ, _}) => {
-                ProofRule.typ_to_rule(typ)
-                |> Option.map(rule =>
-                     AssumptionBox.View.view(
-                       ~env=ClosureEnvironment.empty, // TODO[Matt]: pass real env
-                       ~globals,
-                       ~active_selection=None,
-                       AssumptionBox.Model.{
-                         ctx_entry: {
-                           name,
-                           typ,
-                           rule,
-                           is_captured: false,
-                         } // TODO
-                       },
-                     )
-                   );
+            | Ctx.VarEntry({name: _, id: _, typ, _}) => {
+                open OptUtil.Syntax;
+                let* rule = ProofRule.typ_to_rule(typ);
+                let conclusion = ProofRule.conclusion_exp(rule);
+                let code =
+                  CodeViewable.view_any(
+                    ~globals,
+                    ~settings=
+                      Haz3lcore.ExpToSegment.Settings.of_core(
+                        ~inline=true,
+                        ~fold_fn_bodies=`Text,
+                        globals.settings.core,
+                      ),
+                    ~shape_map=ProjectorCore.Shape.Map.empty,
+                    Exp(conclusion),
+                  );
+                Some(
+                  WebUtil.div_c(
+                    "induction-case-hypothesis",
+                    [WebUtil.Node.text("assume "), code],
+                  ),
+                );
               }
             | _ => None,
             model.added_ctx
