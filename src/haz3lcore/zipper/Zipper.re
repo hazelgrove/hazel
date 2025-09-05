@@ -281,9 +281,7 @@ let adj_pos = (d: Direction.t, z: t): t =>
   };
 
 let insert_segment = (z: t, segment: Segment.t): t =>
-  replace_selection(z.selection.focus, segment, z)
-  |> unselect
-  |> remold_regrout(Right);
+  replace_selection(Right, segment, z) |> unselect |> remold_regrout(Right);
 
 let put_down_core = (seg: Segment.t, z: t): t =>
   z |> replace_selection(Right, seg) |> unselect;

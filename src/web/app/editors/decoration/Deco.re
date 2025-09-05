@@ -97,13 +97,17 @@ module HighlightSegment =
     (next_start_shape, shard_data);
   }
   and of_tile = (~start_shape, t: Tile.t): list(option(_)) => {
+    let shards = Measured.find_shards(~msg="sel_of_tile", t, M.measured);
     let tile_shards =
-      Measured.find_shards(~msg="sel_of_tile", t, M.measured)
-      |> List.filter(((i, _)) => List.mem(i, t.shards))
+      shards
+      |> List.filter_map(((i, m)) =>
+           List.mem(i, t.shards) ? Some((i, m)) : None
+         )
       |> List.map(((index, m)) => {
            let token = List.nth(t.label, index);
+           let shard = Tile.shard_of(t, index);
            switch (StringUtil.num_linebreaks(token)) {
-           | 0 => [Some(sel_shard_svg(~start_shape, m, Tile(t)))]
+           | 0 => [Some(sel_shard_svg(~start_shape, m, Tile(shard)))]
            | num_lb =>
              multiline_shard(num_lb, m, (Some(Convex), Some(Convex)))
            };
@@ -193,21 +197,17 @@ module HighlightSegment =
        );
 };
 
-let quick_select_deco = (segment: Segment.t): Node.t => {
+let quick_select_deco = (~font_metrics, segment: Segment.t): Node.t => {
   let shape_map = ProjectorCore.Shape.Map.empty; // assume no projectors
   module Highlight =
     HighlightSegment({
       let measured = Measured.of_segment(segment, shape_map);
       let shape_map = shape_map;
-      let font_metrics =
-        FontMetrics.{
-          row_height: 25.125,
-          col_width: 10.390625,
-        };
+      let font_metrics = font_metrics;
     });
   switch (Highlight.go(segment, Some(Convex), [])) {
-  | exception _exn => Node.div([])
-  | ya => div_c("quick-select-deco", ya)
+  | exception _ => Node.div([])
+  | ns => div_c("quick-select-deco", ns)
   };
 };
 
