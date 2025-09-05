@@ -1,2 +1,2 @@
 include ExerciseSettings_base;
-let show_instructor = false;
+let show_instructor = true;

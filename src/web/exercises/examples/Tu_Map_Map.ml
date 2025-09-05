@@ -2,7 +2,7 @@ let exercise : Tutorial.spec =
   {
     id =
       Option.get (Haz3lcore.Id.of_string "f283b4c5-2439-0123-4abc-def167890223");
-    title = "map map";
+    title = "Map Map";
     version = 9;
     module_name = "Tu_Map_Map";
     prompt =
