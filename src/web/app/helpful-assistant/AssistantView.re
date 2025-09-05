@@ -667,21 +667,21 @@ let form_collapse_toggle =
         clss(["collapse-indicator"]),
         Attr.on_click(_ => toggle_collapse(index)),
         String.length(message.display.raw_content)
-        >= Model.max_collapsed_length
+        >= AssistantSettings.max_collapsed_length
           ? Attr.empty : Attr.hidden,
       ],
       [text("▼ Show more")],
     );
   } else if (!message.display.collapsed
              && String.length(message.display.raw_content)
-             >= Model.max_collapsed_length
+             >= AssistantSettings.max_collapsed_length
              && is_last) {
     div(
       ~attrs=[
         clss(["collapse-indicator"]),
         Attr.on_click(_ => toggle_collapse(index)),
         String.length(message.display.raw_content)
-        >= Model.max_collapsed_length
+        >= AssistantSettings.max_collapsed_length
           ? Attr.empty : Attr.hidden,
       ],
       [text("▲ Show less")],
@@ -923,14 +923,17 @@ let text_block =
         let content =
           message.display.collapsed
           && String.length(message.display.raw_content)
-          >= Model.max_collapsed_length
+          >= AssistantSettings.max_collapsed_length
             ? String.concat(
                 "",
                 [
                   String.sub(
                     content,
                     0,
-                    min(String.length(content), Model.max_collapsed_length),
+                    min(
+                      String.length(content),
+                      AssistantSettings.max_collapsed_length,
+                    ),
                   ),
                   "...",
                 ],

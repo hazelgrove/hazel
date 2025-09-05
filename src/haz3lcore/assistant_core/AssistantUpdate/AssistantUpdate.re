@@ -859,7 +859,7 @@ let update =
     let threshold =
       int_of_float(
         float_of_int(model.external_api_info.set_model_info.context_length)
-        *. Model.context_threshold_ratio,
+        *. AssistantSettings.context_threshold_ratio,
       );
     // Thin wrapper to avoid need of passing response.usage.total_tokens
     let summarize_chat = () =>

@@ -27,4 +27,10 @@ type action =
   // Toggles the visibility of the API key in the settings menu
   | ToggleAPIKeyVisibility;
 
+// --- Constant Magic Ints ---
 let make_descriptor_max = 3;
+
+let max_collapsed_length: int = 500;
+
+let context_threshold_ratio: float = 0.3;
+// --- End Constant Magic Ints ---
