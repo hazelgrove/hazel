@@ -2,6 +2,9 @@ open Haz3lcore;
 open AssistantModel;
 
 module Update = {
+  /*
+   A fairly thin wrapper around the AssistantUpdate module
+   */
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t = AssistantUpdateAction.t;
   type model = AssistantModel.t;
