@@ -272,7 +272,7 @@ let term =
   | Some((l, r)) =>
     let of_tile = (id: Id.t) => {
       open OptUtil.Syntax;
-      let+ tile = TermData.root_tile_opt(id, term_data);
+      let+ tile = TermData.root_tile(id, term_data);
       (id, tile.mold, Measured.find_shards(~msg, tile, measured));
     };
     let tiles =

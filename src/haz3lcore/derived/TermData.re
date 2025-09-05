@@ -1,8 +1,10 @@
 open Util;
+open OptUtil.Syntax;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type data = {
-  range: (int, int),
+  skel: Skel.t,
+  sort: Sort.t,
   base_seg: Segment.t,
   root_piece: Piece.t,
 };
@@ -10,22 +12,36 @@ type data = {
 [@deriving (show({with_path: false}), sexp, yojson)]
 type t = Id.Map.t(data);
 
-let mk = (p: Piece.t, skel: Skel.t, seg: Segment.t): data => {
-  range: Skel.range(skel),
-  base_seg: seg,
+let mk = (p: Piece.t, sort: Sort.t, skel: Skel.t, base_seg: Segment.t): data => {
+  skel,
+  sort,
+  base_seg,
   root_piece: p,
 };
+
+let root_tile = (id: Id.t, data: t): option(Tile.t) =>
+  switch (Id.Map.find_opt(id, data)) {
+  | Some({root_piece: Tile(t), _}) => Some(t)
+  | _ => None
+  };
+
+let sort = (id: Id.t, data: t): Sort.t =>
+  switch (Id.Map.find_opt(id, data)) {
+  | Some({sort, _}) => sort
+  | None => Any
+  };
 
 let extremes_opt = (id: Id.t, data: t) =>
   /* This currently fails for singleton labelled tuples due
      to their maketerm hack, otherwise the extreme functions
      could be failwiths instead of options */
   switch (Id.Map.find_opt(id, data)) {
-  | Some({range: (l, r), base_seg, _}) =>
+  | Some({skel, base_seg, _}) =>
+    let (l, r) = Skel.range(skel);
     switch (List.nth(base_seg, l), List.nth(base_seg, r)) {
     | exception _ => None
     | (l, r) => Some((l, r))
-    }
+    };
   | None => None
   };
 
@@ -70,15 +86,9 @@ let extreme_measures = (id: Id.t, data: t, measured: Measured.t) =>
   | None => None
   };
 
-let root_tile_opt = (id: Id.t, data: t): option(Tile.t) =>
-  switch (Id.Map.find_opt(id, data)) {
-  | Some({root_piece: Tile(t), _}) => Some(t)
-  | _ => None
-  };
-
 /* The segment corresponding to the `id` term */
 let segment = (id: Id.t, data: t): option(Segment.t) => {
-  open OptUtil.Syntax;
-  let+ {base_seg, range: (l, r), _} = Id.Map.find_opt(id, data);
+  let+ {base_seg, skel, _} = Id.Map.find_opt(id, data);
+  let (l, r) = Skel.range(skel);
   ListUtil.sublist((l, r + 1), base_seg);
 };

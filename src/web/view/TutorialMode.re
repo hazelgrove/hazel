@@ -356,7 +356,7 @@ module Selection = {
       (~settings: Settings.t, tile, model: Model.t): option((Update.t, t)) => {
     Tutorial.positioned_editors(model.editors)
     |> List.find_opt(((p, e: Editor.t)) =>
-         TermData.root_tile_opt(tile, e.syntax.term_data) != None
+         TermData.root_tile(tile, e.syntax.term_data) != None
          && Tutorial.visible_in(p, ~instructor_mode=settings.instructor_mode)
        )
     |> Option.map(((pos, _)) =>

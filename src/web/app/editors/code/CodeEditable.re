@@ -134,7 +134,7 @@ module Selection = {
   };
 
   let jump_to_tile = (id: Id.t, model: Model.t): option(Update.t) => {
-    switch (TermData.root_tile_opt(id, model.editor.syntax.term_data)) {
+    switch (TermData.root_tile(id, model.editor.syntax.term_data)) {
     | Some(_) => Some(Perform(Move(Goal(TileId(id)))))
     | None => None
     };
@@ -197,6 +197,7 @@ module View = {
         ProjectorView.Model.mk(
           model.editor.syntax.projectors,
           model.editor.syntax.measured,
+          model.editor.syntax.term_data,
           model.editor.syntax.selection_ids,
           Indicated.piece(model.editor.state.zipper),
           model.statics.info_map,

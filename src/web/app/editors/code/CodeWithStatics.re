@@ -119,7 +119,7 @@ module View = {
     let {
       editor:
         {
-          syntax: {measured, selection_ids, segment, shape_map, _},
+          syntax: {measured, selection_ids, segment, shape_map, term_data, _},
           state: {zipper: z, _},
           _,
         },
@@ -130,6 +130,7 @@ module View = {
         ~globals,
         ~sort,
         ~measured,
+        ~term_data,
         ~buffer_ids=Selection.is_buffer(z.selection) ? selection_ids : [],
         ~segment,
         ~shape_map,

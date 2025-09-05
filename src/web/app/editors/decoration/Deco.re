@@ -160,12 +160,8 @@ module HighlightSegment =
       };
     }
   and of_segment =
-      (start_shape: ShardDec.tip, seg: Segment.t): list(option(_)) => {
-    seg
-    |> ListUtil.fold_left_map(of_piece, start_shape)
-    |> snd
-    |> List.flatten;
-  }
+      (start_shape: ShardDec.tip, seg: Segment.t): list(option(_)) =>
+    seg |> List.fold_left_map(of_piece, start_shape) |> snd |> List.flatten
   and go =
       (segment: Segment.t, shape_init: ShardDec.tip, classes): list(Node.t) =>
     /* We draw a single deco per row by dividing partionining the shards
@@ -274,12 +270,11 @@ module Deco =
       ["selected", Selection.buffer_cls(z.selection)],
     );
 
-  let indicated_piece_deco = (z: Zipper.t): list(Node.t) => {
-    switch (Indicated.piece(z)) {
-    | _ when z.selection.content != [] => []
-    | None => []
-    | Some((Grout(_) | Secondary(_), _, _)) => []
-    | Some((Projector(p), _, _)) =>
+  let indicated_piece_deco_internal = (p: Piece.t): list(Node.t) => {
+    switch (p) {
+    | Grout(_)
+    | Secondary(_) => []
+    | Projector(p) =>
       switch (Measured.find_pr_opt(p, M.editor.syntax.measured)) {
       | Some(measurement) => [
           ShardDec.simple(
@@ -297,7 +292,7 @@ module Deco =
         ]
       | None => []
       }
-    | Some((Tile(t) as p, _, _)) =>
+    | Tile(t) as p =>
       if (Piece.is_infix_delimiter_op_prefix(p)) {
         [];
       } else {
@@ -305,6 +300,13 @@ module Deco =
       }
     };
   };
+
+  let indicated_piece_deco = (z: Zipper.t): list(Node.t) =>
+    switch (Indicated.piece(z)) {
+    | _ when z.selection.content != [] => []
+    | Some((p, _, _)) => indicated_piece_deco_internal(p)
+    | _ => []
+    };
 
   let backpack = (z: Zipper.t): Node.t => {
     /* If there is a selection, any tiles bisected by the selection
@@ -380,7 +382,7 @@ module Deco =
           []
         }
       | None =>
-        switch (TermData.root_tile_opt(id, term_data)) {
+        switch (TermData.root_tile(id, term_data)) {
         | Some(t) => tile_term_deco(t)
         | None => []
         }
@@ -398,7 +400,7 @@ module Deco =
 
   let next_steps = (next_steps, ~inject) =>
     next_steps
-    |> List.filter_map(TermData.root_tile_opt(_, term_data))
+    |> List.filter_map(TermData.root_tile(_, term_data))
     |> List.mapi((i, t: Tile.t) =>
          div_c(
            "step-next",
@@ -411,12 +413,12 @@ module Deco =
 
   let taken_steps = taken_steps =>
     taken_steps
-    |> List.filter_map(TermData.root_tile_opt(_, term_data))
+    |> List.filter_map(TermData.root_tile(_, term_data))
     |> List.map(t => div_c("step-taken", tile_term_deco(t)));
 
   let refl_steps = (refl_steps, ~inject) =>
     refl_steps
-    |> List.filter_map(TermData.root_tile_opt(_, term_data))
+    |> List.filter_map(TermData.root_tile(_, term_data))
     |> List.mapi((i, t: Tile.t) =>
          div_c(
            "step-refl",

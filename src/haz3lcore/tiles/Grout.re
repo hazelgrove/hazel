@@ -19,21 +19,30 @@ let shapes = g =>
   | Concave => Nib.Shape.(Concave(Precedence.min), Concave(Precedence.min))
   };
 
-// assumes same shape on both sides
+let grout_cache: ref(option(Id.t)) = ref(None);
+
+let cache_id = (id: option(Id.t)) => {
+  grout_cache := id;
+};
+
+let get_cached_id = () =>
+  switch (grout_cache.contents) {
+  | Some(id) =>
+    grout_cache := None;
+    id;
+  | None =>
+    grout_cache := None;
+    Id.mk();
+  };
+
 let mk_fits_shape = (s: Nib.Shape.t): t => {
-  let id = Id.mk();
-  let shape =
+  id: get_cached_id(),
+  shape:
     switch (s) {
     | Convex => Concave
     | Concave(_) => Convex
-    };
-  {
-    id,
-    shape,
-  };
+    },
 };
-//let mk_fits = ((l, r): Nibs.shapes): option(t) =>
-//  Nib.Shape.fits(l, r) ? None : Some(mk_fits_shape(l));
 
 let fits_shape = (g: t, s: Nib.Shape.t) =>
   switch (g.shape, s) {
