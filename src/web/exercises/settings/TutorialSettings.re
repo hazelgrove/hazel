@@ -1,2 +1,2 @@
 include TutorialSettings_base;
-let show_instructor = true;
+let show_instructor = false;
