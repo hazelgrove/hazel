@@ -178,7 +178,6 @@ module View = {
         ~inject: Update.t => Ui_effect.t(unit),
         ~selected: bool,
         ~overlays: list(Node.t)=[],
-        ~sort=?,
         model: Model.t,
       ) => {
     let edit_decos = {
@@ -236,8 +235,7 @@ module View = {
       @ [Node.div(~attrs=[Attr.classes(["overlays"])], overlays)]
       @ projectors
       @ refractors_model;
-    let code_view =
-      CodeWithStatics.View.view(~globals, ~overlays, ~sort?, model);
+    let code_view = CodeWithStatics.View.view(~globals, ~overlays, model);
 
     let loc = (e: Pointer.Event.t) =>
       FontMetrics.get_goal(

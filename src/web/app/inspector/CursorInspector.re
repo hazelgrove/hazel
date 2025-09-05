@@ -87,12 +87,7 @@ let code_view_settings: Haz3lcore.ExpToSegment.Settings.t = {
 
 let view_any = (~globals, any: Term.Any.t) =>
   any
-  |> CodeViewable.view_any(
-       ~globals,
-       ~settings=code_view_settings,
-       ~shape_map=Haz3lcore.ProjectorCore.Shape.Map.empty, // assume no projectors
-       ~refractor_shape_map=Haz3lcore.Id.Map.empty,
-     )
+  |> CodeViewable.view_any(~globals, ~settings=code_view_settings)
   |> code_box_container;
 
 let view_type = (~globals, typ: Typ.t) =>

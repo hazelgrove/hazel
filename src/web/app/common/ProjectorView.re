@@ -201,7 +201,7 @@ let simple_code = (~background=false, font_metrics, _sort, segment): Node.t => {
       ~measured=Measured.of_segment(segment, shape_map, Id.Map.empty),
       ~settings=Settings.Model.init,
       ~shape_map,
-      ~refractor_shape_map=Id.Map.empty,
+      ~refractor_shape_map=Id.Map.empty, //TODO(andrew)
       ~font_metrics,
       ~term_data=Id.Map.empty,
       ~buffer_ids=[],
@@ -209,7 +209,7 @@ let simple_code = (~background=false, font_metrics, _sort, segment): Node.t => {
     );
   let backing =
     if (background) {
-      switch (Deco.quick_select_deco(segment)) {
+      switch (Deco.quick_select_deco(~font_metrics, segment)) {
       | exception _ => []
       | view => [view]
       };

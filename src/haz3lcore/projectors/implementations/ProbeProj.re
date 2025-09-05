@@ -856,8 +856,9 @@ let view = (local, _parent, info: info): Node.t =>
         Effect.Ignore;
       }),
       Attr.on_mouseenter(_ => {
-        show_purps := true;
-        local(NoOp);
+        //TODO(andrew): renable one day
+        //show_purps := true;
+        local(NoOp)
       }),
       Attr.on_mouseleave(_ => {
         show_purps := false;

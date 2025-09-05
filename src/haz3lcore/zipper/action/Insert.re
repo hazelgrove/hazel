@@ -105,6 +105,9 @@ let sibling_appendability = (char: string, z: t): appendability =>
   | _ => None
   };
 
+/* If the insertion will 'fill a hole', i.e. replace an
+ * existing grout,we make a best-effort approach to transfer
+ * the UUID. See also Destruct.capture */
 let preserve_grout_id = (char: string, z: t): (Id.t, t) =>
   switch (Siblings.neighbors(z.relatives.siblings)) {
   | _ when Token.is_comment_delim(char) || Token.is_secondary(char) => (

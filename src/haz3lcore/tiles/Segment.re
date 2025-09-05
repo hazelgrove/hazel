@@ -634,36 +634,6 @@ let sameline_secondary =
     | _ => false,
   );
 
-// let expected_sorts =
-//     (sort: Sort.t, skel: Skel.t, seg: t): list((int, Sort.t)) => {
-//   let p = List.nth(seg);
-//   let rec go = (sort: Sort.t, skel: Skel.t): list((list(int), Sort.t)) => {
-//     let root = Skel.root(skel);
-//     let inside_sorts =
-//       Aba.aba_triples(root)
-//       |> List.concat_map(((n_l, kid, n_r)) => {
-//            let (_, s_l) = Piece.nib_sorts(p(n_l));
-//            let (s_r, _) = Piece.nib_sorts(p(n_r));
-//            let s = s_l == s_r ? s_l : Sort.Any;
-//            go(s, kid);
-//          });
-//     let outside_sorts = {
-//       let ns = Aba.get_as(root);
-//       let (l_sort, _) = Piece.nib_sorts(p(Aba.first_a(root)));
-//       let (_, r_sort) = Piece.nib_sorts(p(Aba.last_a(root)));
-//       switch (skel) {
-//       | Op(_) => [(ns, sort)]
-//       | Pre(_, r) => [(ns, sort)] @ go(r_sort, r)
-//       | Post(l, _) => go(l_sort, l) @ [(ns, sort)]
-//       | Bin(l, _, r) => go(l_sort, l) @ [(ns, sort)] @ go(r_sort, r)
-//       };
-//     };
-//     outside_sorts @ inside_sorts;
-//   };
-//   go(sort, skel)
-//   |> List.concat_map(((ns, s)) => List.map(n => (n, s), ns));
-// };
-
 let rec holes = (segment: t): list(Grout.t) =>
   List.concat_map(
     fun
