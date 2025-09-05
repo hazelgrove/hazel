@@ -3,6 +3,15 @@ open Language;
 open Language.Statics;
 open OptUtil.Syntax;
 
+/*
+ This file contains primarily helper functions for extracting and formatting relevant
+ information from the AST.
+
+ This is primarily used for the Composition Mode, but may be useful for other cases in the future.
+
+ It is akin to files like ChatLSP
+ */
+
 type node = {
   // The term associated with this node
   info: Info.t,
@@ -424,79 +433,5 @@ let get_node = (curr_node_info: option(node)) => {
   switch (curr_node_info) {
   | Some(curr_node_info) => curr_node_info
   | None => raise(Failure("No current node found in the info map"))
-  };
-};
-
-// TODO: Build a function to get the path to the current node.
-
-// TODO: safe_move should work in most edit cases, EXCEPT for insert
-//       before/after, because the zipper/info map are outdated
-//       and I cannot figure out how to update them to successfully do this.
-let safe_move = (z: Zipper.t, info_map: Statics.Map.t): option(Zipper.t) => {
-  // Try moving to the first parent first, otherwise, move to the first sibling
-  // otherwise, move to the top level of the program
-  // TODO: make this even safer. also make more clear to llm how we moved after a deletion.
-  // also handle the case of an empty program.
-
-  print_endline("here #8.0 safe_move");
-
-  // If we are moving, then it should be the case that we are at an existing node.
-  let curr_node_info = get_node(build_curr_node_info(z, info_map));
-
-  print_endline("here #8.1 safe_move (after building sub AST)");
-
-  switch (Select.tile(Info.id_of(curr_node_info.info), z)) {
-  | Some(z) =>
-    print_endline("here #8.2 safe_move (after selecting current term)");
-    Some(z);
-  // Otherwise, try moving to the parent
-  | None =>
-    print_endline("here #8.2.1 safe_move (trying to select parent instead)");
-    switch (
-      {
-        let* parent = curr_node_info.parent;
-        print_endline(
-          "here #8.2.1.1 safe_move (trying to select parent term)",
-        );
-        let+ z' = Select.tile(Info.id_of(parent.info), z);
-        print_endline(
-          "here #8.2.1.2 safe_move (after selecting parent term)",
-        );
-        z';
-      }
-    ) {
-    | Some(z) =>
-      print_endline("here #8.3 safe_move (after selecting parent)");
-      Some(z);
-    | None =>
-      print_endline(
-        "here #8.2.2 safe_move (trying to select preceding sibling instead)",
-      );
-      switch (
-        {
-          let* prec_sibling =
-            ListUtil.nth_opt(
-              curr_node_info.sibling_idx - 1,
-              curr_node_info.siblings,
-            );
-          Select.tile(Info.id_of(prec_sibling.info), z);
-        }
-      ) {
-      | Some(z) =>
-        print_endline(
-          "here #8.4 safe_move (after selecting preceding sibling)",
-        );
-        Some(z);
-      | None =>
-        print_endline("here #8.2.3 safe_move (no preceding sibling found)");
-        print_endline(
-          "here #8.5 safe_move (after selecting preceding sibling)",
-        );
-        print_endline("no siblings still exist in info map");
-        // TODO: this likely means the program is empty and/or
-        // has no let/type expressions. or something else very bad.
-        Some(Select.all(z));
-      };
-    };
   };
 };

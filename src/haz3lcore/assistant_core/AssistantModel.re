@@ -1,5 +1,9 @@
 open Util;
 
+/*
+   The main model for the AI assistant.
+ */
+
 [@deriving (show({with_path: false}), sexp, yojson)]
 type system =
   // Issue that we catch and inform the user about.
