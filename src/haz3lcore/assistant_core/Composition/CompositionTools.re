@@ -21,7 +21,7 @@ let tools = [
   ViewTools.view_entire_definition,
 ];
 
-type action = Action.composition_action;
+type action = CompositionActions.composition_action;
 
 let get_string_arg = (~arg: option(string), ~fail_with: string) => {
   switch (arg) {
@@ -120,7 +120,7 @@ let action_of = (~tool_name: string, ~args: Maps.StringMap.t(string)): action =>
   };
 };
 
-let code_of = (user: Action.user) => {
+let code_of = (user: CompositionActions.user) => {
   switch (user) {
   | LLM(code) => code
   | Human => JsUtil.prompt("Enter code argument:", "Code") |> Option.get
@@ -241,7 +241,7 @@ module Perform = {
   // Tempory wrapper that helps me localize myself while implementing (remove)
   let composition_dispatch =
       (
-        a: Action.composition_action,
+        a: CompositionActions.composition_action,
         syntax: CachedSyntax.t,
         z: Zipper.t,
         mk_statics: Zipper.t => StaticsBase.Map.t,
@@ -517,7 +517,9 @@ module Perform = {
   let go = (~syntax, ~z, ~a, ~mk_statics, ~return) => {
     let curr_node_info =
       AssistantTreeHelper.build_curr_node_info(z, mk_statics(z));
-    composition_dispatch(a, syntax, z, mk_statics, return, curr_node_info);
-    // check z' if its well-formed
+    let res =
+      composition_dispatch(a, syntax, z, mk_statics, return, curr_node_info);
+    res;
+    //todo: handle res and use schedule_assistant_action to send the result to the assistant and loop
   };
 };

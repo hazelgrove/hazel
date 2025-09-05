@@ -4,8 +4,8 @@ open Language;
 
 module Model = AssistantModel;
 
-open AssistantUpdateType;
-type t = AssistantUpdateType.t;
+open AssistantUpdateAction;
+type t = AssistantUpdateAction.t;
 
 let mk_structure_edit_msg = (~tool_call: OpenRouter.tool_call): string =>
   // AddToolLabel_3.0: what should the text content of this tool call to the user be?

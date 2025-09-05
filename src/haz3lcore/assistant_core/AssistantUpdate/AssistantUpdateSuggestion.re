@@ -2,8 +2,8 @@ open Util;
 
 module Model = AssistantModel;
 
-open AssistantUpdateType;
-type t = AssistantUpdateType.t;
+open AssistantUpdateAction;
+type t = AssistantUpdateAction.t;
 
 let check_req =
     (

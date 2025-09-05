@@ -1,6 +1,6 @@
 open Haz3lcore;
 open Util;
-open AssistantUpdateType;
+open AssistantUpdateAction;
 
 open AssistantEvalParams;
 
@@ -117,7 +117,7 @@ module Update = {
     | SendRequest =>
       // Send the prompt to the assistant
       schedule_assistant_action(
-        AssistantUpdateType.SendMessage(
+        AssistantUpdateAction.SendMessage(
           Composition(Request(prompt), true),
           None,
           assistant_model.current_chats.curr_composition_chat,

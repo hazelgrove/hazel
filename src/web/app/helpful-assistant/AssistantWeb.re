@@ -3,7 +3,7 @@ open AssistantModel;
 
 module Update = {
   [@deriving (show({with_path: false}), sexp, yojson)]
-  type t = AssistantUpdateType.t;
+  type t = AssistantUpdateAction.t;
   type model = AssistantModel.t;
 
   let update =

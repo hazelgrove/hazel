@@ -4,8 +4,8 @@ open OptUtil.Syntax;
 
 module Model = AssistantModel;
 
-open AssistantUpdateType;
-type t = AssistantUpdateType.t;
+open AssistantUpdateAction;
+type t = AssistantUpdateAction.t;
 
 let get_mode_info = (mode: AssistantSettings.mode, model: Model.t) => {
   switch (mode) {

@@ -147,7 +147,7 @@ let start = {
     JsUtil.focus_clipboard_shim();
     schedule_action(
       Assistant(
-        Haz3lcore.AssistantUpdateType.ChatAction(FilterLoadingMessages),
+        Haz3lcore.AssistantUpdateAction.ChatAction(FilterLoadingMessages),
       ),
     );
   };
