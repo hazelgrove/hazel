@@ -1234,7 +1234,7 @@ and uexp_to_info_map =
            speculative rec parameter. */
         let (ty_def, ctx_def, ctx_body) = {
           switch (utyp.term) {
-          | Sum(_) when List.mem(name, Typ.free_vars(utyp)) =>
+          | _ when List.mem(name, Typ.free_vars(utyp)) =>
             /* NOTE: When debugging type system issues it may be beneficial to
                use a different name than the alias for the recursive parameter */
             //let ty_rec = Typ.Rec("α", Typ.subst(Var("α"), name, ty_pre));
@@ -1902,20 +1902,6 @@ and utyp_to_info_map =
     let m = go(t, m) |> snd;
     add'(~expects=TypeExpected, m);
   | Label(_) => add(m)
-  | Ap(t1, t2) =>
-    let t1_mode: Info.typ_expects =
-      switch (expects) {
-      | VariantExpected(m, sum_ty) =>
-        ConstructorExpected(m, Arrow(t2, sum_ty) |> Typ.temp)
-      | _ =>
-        ConstructorExpected(
-          Unique,
-          Arrow(t2, Unknown(Internal) |> Typ.temp) |> Typ.temp,
-        )
-      };
-    let m = go'(~expects=t1_mode, t1, m) |> snd;
-    let m = go'(~expects=TypeExpected, t2, m) |> snd;
-    add(m);
   | Sum(variants) =>
     let (m, _) =
       List.fold_left(

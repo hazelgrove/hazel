@@ -148,17 +148,20 @@ module Store = {
     |> sexp_of_exercise_export
     |> Sexplib.Sexp.to_string;
 
-  let import = (data, ~specs, ~instructor_mode) => {
+  let import = (data, ~exercise_specs, ~instructor_mode) => {
     let exercise_export =
       data |> Sexplib.Sexp.of_string |> exercise_export_of_sexp;
     StoreExerciseKey.save(exercise_export.cur_exercise);
     List.iter(
       ((key, value)) => {
         let n =
-          ListUtil.findi_opt(spec => Exercise.id_of(spec) == key, specs)
+          ListUtil.findi_opt(
+            spec => Exercise.id_of(spec) == key,
+            exercise_specs,
+          )
           |> Option.get
           |> fst;
-        let spec = List.nth(specs, n);
+        let spec = List.nth(exercise_specs, n);
         save_exercise(
           value |> ExerciseMode.Model.unpersist(~instructor_mode, spec),
           ~instructor_mode,
@@ -479,8 +482,8 @@ module View = {
       ~instructor_mode=globals.settings.instructor_mode,
     )
     @ EditorModeView.view(
-        ~nav_buttons=true,
         ~edit_buttons=false,
+        ~nav_buttons=true,
         ~signal=
           fun
           | Previous =>

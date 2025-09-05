@@ -27,4 +27,7 @@ let qcheck_statics_does_not_crash =
     }
   });
 
-let tests = [QCheck_alcotest.to_alcotest(qcheck_statics_does_not_crash)];
+let tests = (
+  "Statics.Properties",
+  [QCheck_alcotest.to_alcotest(qcheck_statics_does_not_crash)],
+);

@@ -105,7 +105,7 @@ module HighlightSegment =
          )
       |> List.map(((index, m)) => {
            let token = List.nth(t.label, index);
-           let shard = Tile.shard(t, index);
+           let shard = Tile.shard_of(t, index);
            switch (StringUtil.num_linebreaks(token)) {
            | 0 => [Some(sel_shard_svg(~start_shape, m, Tile(shard)))]
            | num_lb =>
@@ -164,12 +164,8 @@ module HighlightSegment =
       };
     }
   and of_segment =
-      (start_shape: ShardDec.tip, seg: Segment.t): list(option(_)) => {
-    seg
-    |> ListUtil.fold_left_map(of_piece, start_shape)
-    |> snd
-    |> List.flatten;
-  }
+      (start_shape: ShardDec.tip, seg: Segment.t): list(option(_)) =>
+    seg |> List.fold_left_map(of_piece, start_shape) |> snd |> List.flatten
   and go =
       (segment: Segment.t, shape_init: ShardDec.tip, classes): list(Node.t) =>
     /* We draw a single deco per row by dividing partionining the shards
@@ -211,7 +207,7 @@ let quick_select_deco = (~font_metrics, segment: Segment.t): Node.t => {
     });
   switch (Highlight.go(segment, Some(Convex), [])) {
   | exception _ => Node.div([])
-  | ya => div_c("quick-select-deco", ya)
+  | ns => div_c("quick-select-deco", ns)
   };
 };
 
@@ -274,12 +270,11 @@ module Deco =
       ["selected", Selection.buffer_cls(z.selection)],
     );
 
-  let indicated_piece_deco = (z: Zipper.t): list(Node.t) => {
-    switch (Indicated.piece(z)) {
-    | _ when z.selection.content != [] => []
-    | None => []
-    | Some((Grout(_) | Secondary(_), _, _)) => []
-    | Some((Projector(p), _, _)) =>
+  let indicated_piece_deco_internal = (p: Piece.t): list(Node.t) => {
+    switch (p) {
+    | Grout(_)
+    | Secondary(_) => []
+    | Projector(p) =>
       switch (Measured.find_pr_opt(p, M.editor.syntax.measured)) {
       | Some(measurement) => [
           ShardDec.simple(
@@ -297,7 +292,7 @@ module Deco =
         ]
       | None => []
       }
-    | Some((Tile(t) as p, _, _)) =>
+    | Tile(t) as p =>
       if (Piece.is_infix_delimiter_op_prefix(p)) {
         [];
       } else {
@@ -305,6 +300,13 @@ module Deco =
       }
     };
   };
+
+  let indicated_piece_deco = (z: Zipper.t): list(Node.t) =>
+    switch (Indicated.piece(z)) {
+    | _ when z.selection.content != [] => []
+    | Some((p, _, _)) => indicated_piece_deco_internal(p)
+    | _ => []
+    };
 
   let backpack = (z: Zipper.t): Node.t => {
     /* If there is a selection, any tiles bisected by the selection
@@ -337,65 +339,17 @@ module Deco =
       : Node.div([]);
   };
 
-  let term_decoration =
-      (~id: Id.t, deco: ((Point.t, Point.t, SvgUtil.Path.t)) => Node.t) => {
-    let (l, r) =
-      TermData.extreme_measures(id, term_data, measured) |> Option.get;
-    open SvgUtil.Path;
-    let r_edge =
-      ListUtil.range(~lo=l.row, r.row + 1)
-      |> List.concat_map(i => {
-           let row = Measured.Rows.find(i, measured.rows);
-           [h(~x=i == r.row ? r.col : row.max_col), v_(~dy=1)];
-         });
-    let l_edge =
-      ListUtil.range(~lo=l.row, r.row + 1)
-      |> List.rev_map(i => {
-           let row = Measured.Rows.find(i, measured.rows);
-           [h(~x=i == l.row ? l.col : row.indent), v_(~dy=-1)];
-         })
-      |> List.concat;
-    let path =
-      [m(~x=l.col, ~y=l.row), ...r_edge]
-      @ l_edge
-      @ [Z]
-      |> translate({
-           dx: Float.of_int(- l.col),
-           dy: Float.of_int(- l.row),
-         });
-    (l, r, path) |> deco;
-  };
-
-  let term_highlight = (~clss: list(string), id: Id.t) =>
-    try(
-      term_decoration(~id, ((origin, last, path)) =>
-        DecUtil.code_svg_sized(
-          ~font_metrics,
-          ~measurement={
-            origin,
-            last,
-          },
-          ~base_cls=clss,
-          path,
-        )
-      )
-    ) {
-    | Not_found =>
-      /* This is caused by the statics overloading for exercise mode. The overriding
-       * Exercise mode statics maps are calculated based on splicing together multiple
-       * editors, but error_ids are extracted generically from the statics map, so
-       * there may be error holes that don't occur in the editor being rendered.
-       * Additionally, when showing color highlights when the backpack is non-empty,
-       * the prospective completion may have different ids than the displayed code. */
-      Node.div([])
+  let color_highlight = (clss: list(string), id: Id.t) =>
+    switch (TermData.segment(id, term_data)) {
+    | Some(segment) => Highlight.go(segment, Some(Convex), clss)
+    | None => []
     };
 
   let color_highlights = () =>
     div_c(
       "color-highlights",
-      List.map(
-        ((id, color)) =>
-          term_highlight(~clss=["highlight-code-" ++ color], id),
+      List.concat_map(
+        ((id, color)) => color_highlight(["highlight-code-" ++ color], id),
         switch (color_highlights) {
         | Some(colorMap) => ColorSteps.to_list(colorMap)
         | _ => []
@@ -428,7 +382,7 @@ module Deco =
           []
         }
       | None =>
-        switch (TermData.root_tile_opt(id, term_data)) {
+        switch (TermData.root_tile(id, term_data)) {
         | Some(t) => tile_term_deco(t)
         | None => []
         }
@@ -446,7 +400,7 @@ module Deco =
 
   let next_steps = (next_steps, ~inject) =>
     next_steps
-    |> List.filter_map(TermData.root_tile_opt(_, term_data))
+    |> List.filter_map(TermData.root_tile(_, term_data))
     |> List.mapi((i, t: Tile.t) =>
          div_c(
            "step-next",
@@ -459,12 +413,12 @@ module Deco =
 
   let taken_steps = taken_steps =>
     taken_steps
-    |> List.filter_map(TermData.root_tile_opt(_, term_data))
+    |> List.filter_map(TermData.root_tile(_, term_data))
     |> List.map(t => div_c("step-taken", tile_term_deco(t)));
 
   let refl_steps = (refl_steps, ~inject) =>
     refl_steps
-    |> List.filter_map(TermData.root_tile_opt(_, term_data))
+    |> List.filter_map(TermData.root_tile(_, term_data))
     |> List.mapi((i, t: Tile.t) =>
          div_c(
            "step-refl",

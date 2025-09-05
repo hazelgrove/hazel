@@ -62,7 +62,7 @@ let contained_children = (t: t): list((t, Base.segment, t)) =>
        (l, child, r);
      });
 
-let shard = (t: t, i: int): t => {
+let shard_of = (t: t, i: int): t => {
   ...t,
   shards: [i],
   children: [],

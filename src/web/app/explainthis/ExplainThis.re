@@ -239,96 +239,88 @@ let expander_deco =
       let globals = globals;
       let statics = CachedStatics.empty;
     });
+
   switch (doc.expandable_id, List.length(options)) {
   | (None, _)
   | (_, 0 | 1) => div([])
-  | (Some((expandable, _)), _) =>
-    Deco.term_decoration(
-      ~id=expandable,
-      ((origin, _, path)) => {
-        let specificity_pos =
-          Printf.sprintf(
-            "position: absolute; top: %fpx;",
-            font_metrics.row_height,
-          );
+  | (Some((id, _)), _) =>
+    let origin =
+      switch (TermData.extreme_measures(id, Deco.term_data, Deco.measured)) {
+      | Some((origin, _)) => origin
+      | None => {
+          row: 0,
+          col: 0,
+        }
+      };
+    let specificity_pos =
+      Printf.sprintf(
+        "position: absolute; top: %fpx;",
+        font_metrics.row_height,
+      );
 
-        let specificity_style =
-          Attr.create(
-            "style",
-            specificity_pos
-            ++ (docs.specificity_open ? "transform: scaleY(1);" : ""),
-          );
+    let specificity_style =
+      Attr.create(
+        "style",
+        specificity_pos
+        ++ (docs.specificity_open ? "transform: scaleY(1);" : ""),
+      );
 
-        let get_clss = segment =>
-          switch (List.nth(segment, 0)) {
-          | Base.Tile({mold, _}) => [
-              "ci-header-" ++ Sort.to_string(mold.out) // TODO the brown on brown isn't the greatest... but okay
-            ]
-          | _ => []
-          };
+    let get_clss = segment =>
+      switch (List.nth(segment, 0)) {
+      | Base.Tile({mold, _}) => [
+          "ci-header-" ++ Sort.to_string(mold.out) // TODO the brown on brown isn't the greatest... but okay
+        ]
+      | _ => []
+      };
 
-        let specificity_menu =
-          Node.div(
-            ~attrs=[
-              clss(["specificity-options-menu", "expandable"]),
-              specificity_style,
-            ],
-            List.map(
-              ((id: ExplainThisForm.form_id, segment: Segment.t)): Node.t => {
-                let code_view =
-                  CodeViewable.view_segment(
-                    ~globals,
-                    ~sort=Exp,
-                    ~shape_map=ProjectorCore.Shape.Map.empty, // Assume no projectors
-                    segment,
-                  );
-                let classes =
-                  id == doc.id
-                    ? ["selected"] @ get_clss(segment) : get_clss(segment);
-                let update_group_selection = _ =>
-                  inject(
-                    ExplainThisUpdate.UpdateGroupSelection(group.id, id),
-                  );
-                Node.div(
-                  ~attrs=[
-                    clss(classes),
-                    Attr.on_click(update_group_selection),
-                  ],
-                  [code_view],
-                );
-              },
-              options,
-            ),
-          );
+    let specificity_menu =
+      Node.div(
+        ~attrs=[
+          clss(["specificity-options-menu", "expandable"]),
+          specificity_style,
+        ],
+        List.map(
+          ((id: ExplainThisForm.form_id, segment: Segment.t)): Node.t => {
+            let code_view = CodeViewable.view_segment(~globals, segment);
+            let classes =
+              id == doc.id
+                ? ["selected"] @ get_clss(segment) : get_clss(segment);
+            let update_group_selection = _ =>
+              inject(ExplainThisUpdate.UpdateGroupSelection(group.id, id));
+            Node.div(
+              ~attrs=[clss(classes), Attr.on_click(update_group_selection)],
+              [code_view],
+            );
+          },
+          options,
+        ),
+      );
 
-        let expand_arrow_style = Attr.create("style", specificity_pos);
-        let expand_arrow =
-          Node.div(~attrs=[clss(["arrow"]), expand_arrow_style], []);
+    let expand_arrow_style = Attr.create("style", specificity_pos);
+    let expand_arrow =
+      Node.div(~attrs=[clss(["arrow"]), expand_arrow_style], []);
 
-        let expandable_deco =
-          DecUtil.code_svg(
-            ~font_metrics,
-            ~origin,
-            ~base_cls=["expandable"],
-            ~abs_pos=false,
-            path,
-          );
+    let expandable_deco =
+      div_c("color-highlights", Deco.color_highlight(["expandable"], id));
 
-        Node.div(
-          ~attrs=[
-            clss(["expandable-target"]),
-            DecUtil.abs_position(~font_metrics, origin),
-            Attr.on_click(_ => {
-              inject(
-                ExplainThisUpdate.SpecificityOpen(!docs.specificity_open),
-              )
-            }),
-          ],
-          [expandable_deco, specificity_menu]
-          @ (docs.specificity_open ? [] : [expand_arrow]),
-        );
-      },
-    )
+    let expander =
+      div(
+        ~attrs=[
+          clss(["expandable-target"]),
+          DecUtil.abs_position(~font_metrics, origin),
+        ],
+        [specificity_menu] @ (docs.specificity_open ? [] : [expand_arrow]),
+      );
+
+    Node.div(
+      ~attrs=[
+        clss(["expandable-target"]),
+        Attr.on_click(_ =>
+          inject(ExplainThisUpdate.SpecificityOpen(!docs.specificity_open))
+        ),
+      ],
+      [expandable_deco, expander],
+    );
   };
 };
 
@@ -475,11 +467,6 @@ let get_doc =
           explanation_msg,
           docs,
         );
-      let sort =
-        switch (info) {
-        | None => Sort.Any
-        | Some(ci) => Info.sort_of(ci)
-        };
       let highlights =
         colorings
         |> List.map(((syntactic_form_id: Id.t, code_id: Id.t)) => {
@@ -518,7 +505,6 @@ let get_doc =
         CodeWithStatics.View.view(
           ~globals,
           ~overlays=highlight_deco @ [expander_deco],
-          ~sort,
           {
             editor,
             statics,
@@ -2626,10 +2612,7 @@ let get_doc =
         TerminalTyp.var(v),
       )
     | Sum(_) => get_message(SumTyp.labelled_sum_typs)
-    | Ap({term: Var(c), _}, _) =>
-      get_message(SumTyp.sum_typ_unary_constructor_defs(c))
     | Unknown(Hole(Invalid(_))) => simple("Not a type or type operator")
-    | Ap(_)
     | Parens(_) => default // Shouldn't be hit?
     }
   | Some(InfoTPat(info)) =>

@@ -9,10 +9,10 @@ type measurement = {
   last: Point.t,
 };
 
-// indentation relative to container
-type rel_indent = int;
-// indentation relative to code container
-type abs_indent = int;
+let mk_measurement = (origin: Point.t, last: Point.t): measurement => {
+  origin,
+  last,
+};
 
 module Rows = {
   include IntMap;
@@ -56,6 +56,7 @@ type t = {
   secondary: Id.Map.t(measurement),
   projectors: Id.Map.t(measurement),
   rows: Rows.t,
+  piece_rows: list(list(Piece.t)) /* NOTE: sublists are reversed */
 };
 
 let empty = {
@@ -64,6 +65,7 @@ let empty = {
   secondary: Id.Map.empty,
   projectors: Id.Map.empty,
   rows: Rows.empty,
+  piece_rows: [],
 };
 
 let add_s = (id: Id.t, i: int, m, map) => {
@@ -82,18 +84,6 @@ let add_s = (id: Id.t, i: int, m, map) => {
        ),
 };
 
-// assumes tile is single shard
-let add_t = (t: Tile.t, m, map) => {
-  ...map,
-  tiles:
-    map.tiles
-    |> Id.Map.update(
-         t.id,
-         fun
-         | None => Some([(Tile.l_shard(t), m)])
-         | Some(ms) => Some([(Tile.l_shard(t), m), ...ms]),
-       ),
-};
 let add_g = (g: Grout.t, m, map) => {
   ...map,
   grout: map.grout |> Id.Map.add(g.id, m),
@@ -106,21 +96,13 @@ let add_pr = (p: Base.projector, m, map) => {
   ...map,
   projectors: map.projectors |> Id.Map.add(p.id, m),
 };
-let add_p = (p: Piece.t, m, map) =>
-  p
-  |> Piece.get(
-       w => add_w(w, m, map),
-       g => add_g(g, m, map),
-       t => add_t(t, m, map),
-       pr => add_pr(pr, m, map),
-     );
 
 let add_row = (row: int, shape: Rows.shape, map) => {
   ...map,
   rows: Rows.add(row, shape, map.rows),
 };
 
-let rec add_n_rows = (origin: Point.t, row_indent, n: abs_indent, map: t): t =>
+let rec add_n_rows = (origin: Point.t, row_indent, n, map: t): t =>
   switch (n) {
   | 0 => map
   | _ =>
@@ -134,6 +116,19 @@ let rec add_n_rows = (origin: Point.t, row_indent, n: abs_indent, map: t): t =>
          },
        )
   };
+
+let add_piece_row = (_row: int, seg: list(Piece.t), map) => {
+  ...map,
+  piece_rows: [seg, ...map.piece_rows],
+};
+
+let add_empty_piece_rows = map => {
+  ...map,
+  piece_rows: [[], ...map.piece_rows],
+};
+
+let rec add_n_empty_piece_rows = (n: int, map) =>
+  n <= 0 ? map : add_n_empty_piece_rows(n - 1, add_empty_piece_rows(map));
 
 let find_shards = (~msg="", t: Tile.t, map) =>
   try(Id.Map.find(t.id, map.tiles)) {
@@ -218,13 +213,42 @@ let find_by_id = (id: Id.t, map: t): option(measurement) => {
   };
 };
 
-/* Tab projectors add linebreaks after the end of their line */
-let deferred_linebreaks: ref(int) = ref(0);
+type acc = (Segment.t, int, Point.t, t);
 
-let consume_deferred_linebreaks = (): int => {
-  let ret = deferred_linebreaks^;
-  deferred_linebreaks := 0;
-  ret;
+module MkDeferredLinebreaks = () => {
+  /* Tab projectors add linebreaks after the end of the line
+     the begin on. This keeps track of these deffered linebreaks
+     until the next (real) linebreak is reached */
+
+  let lbs: ref(int) = ref(0);
+
+  let consume = (): int => {
+    let ret = lbs^;
+    lbs := 0;
+    ret;
+  };
+
+  let update = (num_lb: int): unit => lbs := max(num_lb, lbs^);
+
+  let of_projector =
+      (p: Base.projector, shape_map: Id.Map.t(ProjectorShape.t)): Point.t => {
+    let shape = ProjectorCore.Shape.Map.lookup(p.id, shape_map);
+    let row =
+      switch (shape.vertical) {
+      | Inline
+      | Block(0) => 0
+      | Tab(num_lb) =>
+        update(num_lb);
+        0;
+      | Block(num_lb) => max(num_lb, consume())
+      };
+    {
+      col: shape.horizontal,
+      row,
+    };
+  };
+
+  let of_secondary = (): int => 1 + consume();
 };
 
 let of_segment =
@@ -234,163 +258,117 @@ let of_segment =
       shape_map: Id.Map.t(ProjectorCore.Shape.t),
     )
     : t => {
+  module DeferredLinebreaks = MkDeferredLinebreaks();
+
   let indent_level =
     Id.Map.is_empty(indent_level)
       ? Indentation.level_map(seg) : indent_level;
 
-  deferred_linebreaks := 0;
+  let indent_of_linebreak = (w: Secondary.t): option(int) =>
+    Secondary.is_linebreak(w) ? Id.Map.find_opt(w.id, indent_level) : None;
 
-  let rec go =
-          (
-            ~map,
-            ~prev_indent: int,
-            ~top_level,
-            ~origin: Point.t,
-            seg: Segment.t,
-          )
-          : (int, Point.t, t) =>
-    switch (seg) {
-    | [] =>
-      let map =
-        if (top_level) {
-          add_n_rows(
-            origin,
-            prev_indent,
-            1 + consume_deferred_linebreaks(),
-            map,
-          );
-        } else {
-          map;
-        };
-      (prev_indent, origin, map);
-    | [hd, ...tl] =>
-      let (prev_indent, origin, map) =
-        switch (hd) {
-        | Secondary(w) when Secondary.is_linebreak(w) =>
-          let indent =
-            switch (Id.Map.find_opt(w.id, indent_level)) {
-            | Some(indent) => indent
-            | None => 0
-            };
-          let num_extra_rows = 1 + consume_deferred_linebreaks();
-          let last =
-            Point.{
-              row: origin.row + num_extra_rows,
-              col: indent,
-            };
-          let map =
-            map
-            |> add_w(
-                 w,
-                 {
-                   origin,
-                   last,
-                 },
-               )
-            |> add_n_rows(origin, prev_indent, num_extra_rows);
-          (indent, last, map);
-        | Secondary(w) =>
-          let last = {
-            ...origin,
-            col:
-              origin.col + Unicode.length(Secondary.get_string(w.content)),
-          };
-          let map =
-            add_w(
-              w,
-              {
-                origin,
-                last,
-              },
-              map,
-            );
-          (prev_indent, last, map);
-        | Grout(g) =>
-          let last = {
-            ...origin,
-            col: origin.col + 1,
-          };
-          let map =
-            add_g(
-              g,
-              {
-                origin,
-                last,
-              },
-              map,
-            );
-          (prev_indent, last, map);
-        | Projector(p) =>
-          let indent =
-            switch (Id.Map.find_opt(p.id, indent_level)) {
-            | Some(indent) => indent
-            | None => 0
-            };
-          let shape = ProjectorCore.Shape.Map.lookup(p.id, shape_map);
-          let num_extra_rows =
-            switch (shape.vertical) {
-            | Inline
-            | Tab(0)
-            | Block(0) => 0
-            | Tab(num_lb) =>
-              deferred_linebreaks := max(num_lb, deferred_linebreaks^);
-              num_lb;
-            | Block(num_lb) => num_lb + consume_deferred_linebreaks()
-            };
-          let last = {
-            col: origin.col + shape.horizontal,
-            row:
-              switch (shape.vertical) {
-              | Inline => origin.row
-              | Tab(_) => origin.row
-              | Block(num_lb) => origin.row + num_lb
-              },
-          };
-          let map =
-            map
-            |> add_n_rows(origin, indent, num_extra_rows)
-            |> add_pr(
-                 p,
-                 {
-                   origin,
-                   last,
-                 },
-               );
-          (indent, last, map);
-        | Tile(t) =>
-          let last_of_token = (token: string, origin: Point.t): Point.t => {
-            col: origin.col + StringUtil.max_line_width(token),
-            row: origin.row + StringUtil.num_linebreaks(token),
-          };
-          let add_shard = (prev_indent, origin, map, shard) => {
-            let token = List.nth(t.label, shard);
-            let last = last_of_token(token, origin);
-            let map =
-              add_s(
-                t.id,
-                shard,
-                {
-                  origin,
-                  last,
-                },
-                map,
-              );
-            (prev_indent, last, map);
-          };
-          Aba.mk(t.shards, t.children)
-          |> Aba.fold_left(
-               add_shard(prev_indent, origin, map),
-               ((_prev_indent, origin, map), child, shard) => {
-                 let (prev_indent, child_last, child_map) =
-                   go(~map, ~prev_indent, ~top_level=false, ~origin, child);
-                 add_shard(prev_indent, child_last, child_map, shard);
-               },
-             );
-        };
-      go(~map, ~prev_indent, ~top_level, ~origin, tl);
+  let calc = (indent: int, origin: Point.t, map: t, size: Point.t) => {
+    let last = Point.add(origin, size);
+    let map = add_n_rows(origin, indent, size.row, map);
+    (mk_measurement(origin, last), map);
+  };
+
+  let shardify = (t: Tile.t, idx: int): Tile.t => {
+    {
+      ...t,
+      shards: [idx],
+      children: [],
     };
-  let (_, _, map) =
-    go(~map=empty, ~prev_indent=0, ~top_level=true, ~origin=Point.zero, seg);
+  };
+
+  let add_shard = ((seg, indent, origin, map): acc, t: Tile.t, idx: int) => {
+    let size = Token.bounding_box(List.nth(t.label, idx));
+    let (measure, map) = calc(indent, origin, map, size);
+    (
+      [Piece.Tile(shardify(t, idx)), ...seg],
+      indent,
+      measure.last,
+      add_s(t.id, idx, measure, map),
+    );
+  };
+
+  let add_grout = ((seg, indent, origin, map): acc, g: Grout.t) => {
+    let size = Point.mk(~row=0, ~col=1);
+    let (measure, map) = calc(indent, origin, map, size);
+    (
+      [Piece.Grout(g), ...seg],
+      indent,
+      measure.last,
+      add_g(g, measure, map),
+    );
+  };
+
+  let add_projector = ((seg, indent, origin, map): acc, pr: Base.projector) => {
+    let size = DeferredLinebreaks.of_projector(pr, shape_map);
+    let (measure, map) = calc(indent, origin, map, size);
+    let map =
+      size.row == 0
+        ? map
+        : add_piece_row(origin.row, [Piece.Projector(pr), ...seg], map);
+    let map = size.row == 0 ? map : add_n_empty_piece_rows(size.row - 1, map);
+    let seg = size.row == 0 ? [Piece.Projector(pr), ...seg] : [];
+    (seg, indent, measure.last, add_pr(pr, measure, map));
+  };
+
+  let add_secondary = ((seg, prev_indent, origin, map): acc, w: Secondary.t) => {
+    let (seg, new_indent, size, map) =
+      switch (indent_of_linebreak(w)) {
+      | Some(new_indent) =>
+        let size =
+          Point.mk(
+            ~row=DeferredLinebreaks.of_secondary(),
+            ~col=new_indent - origin.col,
+          );
+        // add seg to map and reset seg
+        //TODO(andrew): decide if should actually add linebreak here
+        let map = add_piece_row(origin.row, seg, map);
+        let map =
+          size.row == 0 ? map : add_n_empty_piece_rows(size.row - 1, map);
+        ([], new_indent, size, map);
+      | None =>
+        let size = Point.mk(~row=0, ~col=Secondary.length(w));
+        ([Piece.Secondary(w), ...seg], prev_indent, size, map);
+      };
+    let (measure, map) = calc(prev_indent, origin, map, size);
+    (seg, new_indent, measure.last, add_w(w, measure, map));
+  };
+
+  let add_top_level = ((seg, indent, origin, map): acc, ~top_level: bool) => {
+    let map =
+      top_level
+        ? {
+          let g = DeferredLinebreaks.of_secondary();
+          add_n_rows(origin, indent, g, map)
+          |> add_piece_row(origin.row, seg, _)
+          |> add_n_empty_piece_rows(g - 1);
+        }
+        : map;
+    (seg, indent, origin, map);
+  };
+
+  let rec go = (~top_level: bool, acc: acc, seg: Segment.t): acc =>
+    switch (seg) {
+    | [] => add_top_level(~top_level, acc)
+    | [hd, ...tl] => go(~top_level, of_piece(acc, hd), tl)
+    }
+  and of_piece = (acc: acc, p: Piece.t): acc =>
+    switch (p) {
+    | Secondary(w) => add_secondary(acc, w)
+    | Grout(g) => add_grout(acc, g)
+    | Projector(p) => add_projector(acc, p)
+    | Tile(t) =>
+      Aba.fold_left(
+        add_shard(acc, t),
+        (acc, seg) => add_shard(go(~top_level=false, acc, seg), t),
+        Aba.mk(t.shards, t.children),
+      )
+    };
+  let (_, _, _, map) = go(~top_level=true, ([], 0, Point.zero, empty), seg);
   map;
 };
 

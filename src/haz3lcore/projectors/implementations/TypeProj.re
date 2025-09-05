@@ -86,7 +86,7 @@ module M: Projector = {
     let max_len = 30;
     let seg = Segment.unparenthesize(info.syntax);
     let str = info.utility.seg_to_string(seg);
-    let str = StringUtil.replace(StringUtil.regexp({|\n|}), str, " ");
+    let str = StringUtil.replace(StringUtil.regexp("\n"), str, " ");
     String.length(str) > max_len
       ? String.sub(str, 0, max_len) ++ "..." : str;
   };
