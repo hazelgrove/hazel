@@ -43,6 +43,3 @@ let local_missing_shards = (ancs: t): list(Tile.t) =>
   | [] => []
   | [(a, _), ..._] => Ancestor.missing_middle_shards(a)
   };
-
-let ancestor_ids = (ancs: t): list(Id.t) =>
-  List.map(((a, _): generation) => a.id, ancs);

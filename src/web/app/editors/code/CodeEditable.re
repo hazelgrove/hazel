@@ -189,9 +189,6 @@ module View = {
         });
       Deco.editor(model.editor.state.zipper, selected);
     };
-    // print_endline(
-    //   "model.dynamics: " ++ Language.Dynamics.Map.show(model.dynamics),
-    // );
     let refractor_data =
       ProjectorView.Model.mk(
         Id.Map.union(
