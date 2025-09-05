@@ -144,7 +144,6 @@ let external_precedence_typ = (tp: Typ.t) =>
 
   // Other forms
   | Prod(_) => Precedence.comma
-  | Ap(_) => Precedence.type_sum_ap
   | Arrow(_, _) => Precedence.type_arrow
   | Sum(_) => Precedence.type_plus
   | Rec(_, _) => Precedence.let_
@@ -500,12 +499,6 @@ and parenthesize_typ =
   | Label(_) => typ
   | TupLabel(l, t) =>
     TupLabel(l, parenthesize_typ(t) |> paren_typ_at(Precedence.min))
-    |> rewrap
-  | Ap(t1, t2) =>
-    Ap(
-      parenthesize_typ(t1) |> paren_typ_assoc_at(Precedence.type_sum_ap),
-      parenthesize_typ(t2) |> paren_typ_at(Precedence.min),
-    )
     |> rewrap
   | Rec(tp, t) =>
     Rec(
@@ -1383,11 +1376,6 @@ and typ_to_pretty = (~settings: Settings.t, typ: Typ.t): pretty => {
     let id = typ |> Typ.rep_id;
     let+ t = go(t);
     [mk_form(ParensTyp, id, [t])];
-  | Ap(t1, t2) =>
-    let id = typ |> Typ.rep_id;
-    let+ t1 = go(t1)
-    and+ t2 = go(t2);
-    t1 @ [mk_form(ApTyp, id, [t2])];
   | Rec(tp, t) =>
     let id = typ |> Typ.rep_id;
     let+ tp = tpat_to_pretty(~settings: Settings.t, tp)

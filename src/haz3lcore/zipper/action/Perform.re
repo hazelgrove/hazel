@@ -187,5 +187,5 @@ let go =
   // | None => Ok(z)
   // };
 
-  | Dump => Ok(Zipper.try_to_dump_backpack(z))
+  | Dump => Ok(Dump.to_zipper(z))
   };

@@ -4,12 +4,7 @@ open Language;
 
 let get_sketch_and_error_ctx =
     (editor: CodeWithStatics.Model.t): list(string) => {
-  let sketch_seg =
-    Zipper.smart_seg(
-      ~dump_backpack=true,
-      ~erase_buffer=true,
-      editor.editor.state.zipper,
-    );
+  let sketch_seg = Dump.to_segment(editor.editor.state.zipper);
   let errors = ErrorPrint.all(editor.statics.info_map);
   let static_error_arr =
     switch (errors) {

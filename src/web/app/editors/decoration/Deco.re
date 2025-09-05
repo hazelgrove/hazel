@@ -358,65 +358,17 @@ module Deco =
       : Node.div([]);
   };
 
-  let term_decoration =
-      (~id: Id.t, deco: ((Point.t, Point.t, SvgUtil.Path.t)) => Node.t) => {
-    let (l, r) =
-      TermData.extreme_measures(id, term_data, measured) |> Option.get;
-    open SvgUtil.Path;
-    let r_edge =
-      ListUtil.range(~lo=l.row, r.row + 1)
-      |> List.concat_map(i => {
-           let row = Measured.Rows.find(i, measured.rows);
-           [h(~x=i == r.row ? r.col : row.max_col), v_(~dy=1)];
-         });
-    let l_edge =
-      ListUtil.range(~lo=l.row, r.row + 1)
-      |> List.rev_map(i => {
-           let row = Measured.Rows.find(i, measured.rows);
-           [h(~x=i == l.row ? l.col : row.indent), v_(~dy=-1)];
-         })
-      |> List.concat;
-    let path =
-      [m(~x=l.col, ~y=l.row), ...r_edge]
-      @ l_edge
-      @ [Z]
-      |> translate({
-           dx: Float.of_int(- l.col),
-           dy: Float.of_int(- l.row),
-         });
-    (l, r, path) |> deco;
-  };
-
-  let term_highlight = (~clss: list(string), id: Id.t) =>
-    try(
-      term_decoration(~id, ((origin, last, path)) =>
-        DecUtil.code_svg_sized(
-          ~font_metrics,
-          ~measurement={
-            origin,
-            last,
-          },
-          ~base_cls=clss,
-          path,
-        )
-      )
-    ) {
-    | Not_found =>
-      /* This is caused by the statics overloading for exercise mode. The overriding
-       * Exercise mode statics maps are calculated based on splicing together multiple
-       * editors, but error_ids are extracted generically from the statics map, so
-       * there may be error holes that don't occur in the editor being rendered.
-       * Additionally, when showing color highlights when the backpack is non-empty,
-       * the prospective completion may have different ids than the displayed code. */
-      Node.div([])
+  let color_highlight = (clss: list(string), id: Id.t) =>
+    switch (TermData.segment(id, term_data)) {
+    | Some(segment) => Highlight.go(segment, Some(Convex), clss)
+    | None => []
     };
 
   let color_highlights = () =>
     div_c(
       "color-highlights",
-      List.map(
-        ((id, color)) =>
-          term_highlight(~clss=["highlight-code-" ++ color], id),
+      List.concat_map(
+        ((id, color)) => color_highlight(["highlight-code-" ++ color], id),
         switch (color_highlights) {
         | Some(colorMap) => ColorSteps.to_list(colorMap)
         | _ => []
