@@ -1016,24 +1016,30 @@ let update =
         );
       };
     | CompletionErrorRound(zipper, fuel, tileId) =>
-      // Split response into discussion and completion
-      let code_pattern =
-        Str.regexp(
-          "\\(\\(.\\|\n\\)*\\)```[ \n]*\\([^`]+\\)[ \n]*```\\(\\(.\\|\n\\)*\\)",
+      /* --- todo: test if this works --- */
+      let code_pattern: StringUtil.regexp =
+        StringUtil.regexp(
+          "([\\s\\S]*)```[ \\n]*([^`]+)[ \\n]*```([\\s\\S]*)",
         );
+
       let index = Option.get(Indicated.index(zipper));
       let ci = Option.get(Id.Map.find_opt(index, info_map));
       let sketch_z = zipper;
 
+      /* small helper to grab a capture group using replace */
+      let capture = (n: int, s: string): string =>
+        StringUtil.replace(code_pattern, s, "$" ++ string_of_int(n));
+
       let (_, completion) =
-        if (Str.string_match(code_pattern, content, 0)) {
-          let before = String.trim(Str.matched_group(1, content));
-          let code = String.trim(Str.matched_group(3, content));
+        if (StringUtil.match(code_pattern, content)) {
+          let before = capture(1, content) |> String.trim;
+          let code = capture(2, content) |> String.trim;
           (before, code |> StringUtil.trim_leading);
         } else {
           print_endline("Regex match failed for: " ++ content);
-          ("", content |> StringUtil.trim_leading); // Fallback if no code block found
+          ("", content |> StringUtil.trim_leading); /* Fallback if no code block found */
         };
+      /* --- End todo -- */
 
       switch (
         AssistantModes.Completion.ErrorRound.mk_reply(
