@@ -2,6 +2,10 @@ open Util;
 open Language;
 open Language.Statics;
 
+/*
+    Modules organizing out functionalities for each mode the AI assistant can operate in.
+ */
+
 module Completion = {
   /*
    --- Completion Mode ---
