@@ -2,6 +2,9 @@ open Zipper;
 open Util;
 open OptUtil.Syntax;
 
+/* Captures the UUID of a single grout or tile about to be deleted
+ * so as to transfer that id to its replacement if possible. See
+ * also Insert.preserve_grout_id */
 let capture = (z): t => {
   let junk_id =
     switch (z.selection.content) {
@@ -14,7 +17,9 @@ let capture = (z): t => {
                  (tt: Tile.t) => tt.id == t.id,
                  Relatives.local_missing_shards(z.relatives),
                ) =>
-      /* Subtle condition, reliant on the selection being length 1 */
+      /* Don't want to capture the UUID if there are other shards
+       * that will persist with that id. This is a subtle condition,
+       * reliant on the selection being length 1 */
       Some(t.id)
     | [Grout(g)] => Some(g.id)
     | _ => None

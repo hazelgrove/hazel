@@ -114,8 +114,7 @@ module View = {
   // There are no events for a read-only editor
   type event;
 
-  let view =
-      (~globals, ~overlays: list(Node.t)=[], ~sort=Sort.root, model: Model.t) => {
+  let view = (~globals, ~overlays: list(Node.t)=[], model: Model.t) => {
     let {
       editor:
         {
@@ -128,7 +127,6 @@ module View = {
     let code_text_view =
       CodeViewable.view(
         ~globals,
-        ~sort,
         ~measured,
         ~term_data,
         ~buffer_ids=Selection.is_buffer(z.selection) ? selection_ids : [],

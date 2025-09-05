@@ -12,6 +12,8 @@ type data = {
 [@deriving (show({with_path: false}), sexp, yojson)]
 type t = Id.Map.t(data);
 
+let empty: t = Id.Map.empty;
+
 let mk = (p: Piece.t, sort: Sort.t, skel: Skel.t, base_seg: Segment.t): data => {
   skel,
   sort,
