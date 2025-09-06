@@ -445,4 +445,10 @@ module Expansion = {
     };
 
   let will = kw => List.length(get(kw) |> fst) > 1;
+
+  let is_leading = (t: Token.t): bool =>
+    switch (List.assoc_opt(t, expansions)) {
+    | Some((_, Left)) => true
+    | _ => false
+    };
 };

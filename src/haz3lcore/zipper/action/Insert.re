@@ -164,10 +164,17 @@ let split = (z: t, char: string, idx: int, t: Token.t): option(t) => {
   let id = Zipper.adjacent_monotile_or_new_id(Right, z);
   let+ z = z |> Caret.set(Outer) |> Zipper.delete(Right);
   let z =
-    z
-    |> insert_shard(~id, ~d=Left, l)
-    //|> remold_regrout(Left)  /* Required for e.g. splitting ap(|) */
-    |> insert_shard(~id=Id.mk(), ~d=Right, r);
+    /* If both are leading expanders, we want to prevent
+     * possible theft of trailing delimiters; see Issue #1907.
+     * Otherwise however we want to process these ltr as the
+     * rightwards may be a trailing delim of the leftwards. */
+    Form.Expansion.is_leading(l) && Form.Expansion.is_leading(r)
+      ? z
+        |> insert_shard(~id=Id.mk(), ~d=Right, r)
+        |> insert_shard(~id, ~d=Left, l)
+      : z
+        |> insert_shard(~id, ~d=Left, l)
+        |> insert_shard(~id=Id.mk(), ~d=Right, r);
   let z =
     Token.space == char && should_supress_space(z)
       ? z

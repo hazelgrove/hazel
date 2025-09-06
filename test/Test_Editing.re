@@ -260,6 +260,46 @@ let insertion_tests = [
     ~acts=mk({|if¦if|}) @ [Insert("+")],
     ~goal={|if?+¦if?|},
   ),
+  /* The next three tests cover issue #1907. They are slightly awkwardly
+     written; the details don't matter so much here. The important thing
+     is in this situation we are likely wanting to wrap the existing form,
+     so we want the rightwards leading token to match the existing
+     delimiters, not the leftwards one. */
+  test(
+    ~name="Inserting if before existing if doesn't steal delimiters",
+    ~acts=
+      mk({|¦if 1 then 2 else 3|})
+      @ [Insert("i"), Insert("f"), Insert(" "), Put_down, Put_down],
+    ~goal={|if? then?else¦if 1 then 2 else 3|},
+  ),
+  test(
+    ~name="Inserting let before existing let doesn't steal delimiters",
+    ~acts=
+      mk({|¦let x = 2 in 3|})
+      @ [
+        Insert("l"),
+        Insert("e"),
+        Insert("t"),
+        Insert(" "),
+        Put_down,
+        Put_down,
+      ],
+    ~goal={|let? =?in¦let x = 2 in 3|},
+  ),
+  test(
+    ~name="Inserting let before existing type doesn't steal delimiters",
+    ~acts=
+      mk({|¦type x = 2 in 3|})
+      @ [
+        Insert("l"),
+        Insert("e"),
+        Insert("t"),
+        Insert(" "),
+        Put_down,
+        Put_down,
+      ],
+    ~goal={|let? =?in¦type x = 2 in 3|},
+  ),
   /* Below test is slightly precious. Can't directly write
      `if then¦else` as then will instantly expand, so need
      to do this indirectly. The space after the first hole
