@@ -514,12 +514,27 @@ module Perform = {
     };
   };
 
-  let go = (~syntax, ~z, ~a, ~mk_statics, ~return) => {
+  let go = (~syntax, ~z, ~a, ~mk_statics, ~return, ~schedule_tool_response) => {
     let curr_node_info =
       AssistantTreeHelper.build_curr_node_info(z, mk_statics(z));
     let res =
       composition_dispatch(a, syntax, z, mk_statics, return, curr_node_info);
-    res;
     //todo: handle res and use schedule_assistant_action to send the result to the assistant and loop
+    switch (schedule_tool_response) {
+    | Some(schedule_tool_response) =>
+      switch (res) {
+      | Ok(_) => schedule_tool_response(AssistantUpdateAction.Success(""))
+      | Error(Composition_action_failure(e)) =>
+        schedule_tool_response(AssistantUpdateAction.Failure(e))
+      | _ =>
+        schedule_tool_response(
+          AssistantUpdateAction.Failure(
+            "An error occured when applying your changes to the editor",
+          ),
+        )
+      }
+    | None => ()
+    };
+    res;
   };
 };

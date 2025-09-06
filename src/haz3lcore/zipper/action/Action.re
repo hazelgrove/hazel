@@ -79,7 +79,7 @@ type paste =
   | String(string)
   | Segment(Segment.t);
 
-[@deriving (show({with_path: false}), sexp, yojson, eq)]
+[@deriving (show({with_path: false}), sexp, yojson)]
 type t =
   | Reparse
   | Buffer(buffer)
@@ -94,7 +94,7 @@ type t =
   | Insert(string)
   | Put_down
   | Introduce
-  | Composition(CompositionActions.composition_action)
+  | Composition(CompositionActions.payload)
   | Dump;
 
 module Failure = {
@@ -133,13 +133,13 @@ let is_edit: t => bool =
   | Put_down
   | Introduce
   | Buffer(Accept | Clear | Set(_))
-  | Composition(Edit(_))
+  | Composition((Edit(_), _))
   | Dump => true
   | Copy
   | Move(_)
   | Select(_)
-  | Composition(Nav(_))
-  | Composition(Read(_))
+  | Composition((Nav(_), _))
+  | Composition((Read(_), _))
   | Unselect(_) => false
   | Project(p) =>
     switch (p) {
@@ -157,8 +157,8 @@ let is_historic: t => bool =
   | Copy
   | Move(_)
   | Select(_)
-  | Composition(Nav(_))
-  | Composition(Read(_))
+  | Composition((Nav(_), _))
+  | Composition((Read(_), _))
   | Unselect(_) => false
   | Cut
   | Buffer(Accept | Clear | Set(_))
@@ -168,7 +168,7 @@ let is_historic: t => bool =
   | Destruct(_)
   | Put_down
   | Introduce
-  | Composition(Edit(_))
+  | Composition((Edit(_), _))
   | Dump => true
   | Project(p) =>
     switch (p) {
@@ -185,8 +185,8 @@ let prevent_in_read_only_editor = (a: t) => {
   | Copy
   | Move(_)
   | Unselect(_)
-  | Composition(Nav(_))
-  | Composition(Read(_))
+  | Composition((Nav(_), _))
+  | Composition((Read(_), _))
   | Select(_) => false
   | Buffer(Set(_) | Accept | Clear)
   | Cut
@@ -196,7 +196,7 @@ let prevent_in_read_only_editor = (a: t) => {
   | Insert(_)
   | Put_down
   | Introduce
-  | Composition(Edit(_))
+  | Composition((Edit(_), _))
   | Dump => true
   | Project(p) =>
     switch (p) {
@@ -238,5 +238,5 @@ let should_animate: t => bool =
   | Copy
   | Move(_)
   | Project(_)
-  | Composition(_)
+  | Composition((_, _))
   | Dump => true;

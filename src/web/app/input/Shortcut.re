@@ -1,4 +1,5 @@
 open Js_of_ocaml;
+open Haz3lcore;
 
 type t = {
   update_action: option(Page.Update.t),
@@ -45,7 +46,11 @@ let composition_shortcuts: list(t) = [
     ~mdIcon="arrow_upward",
     ~section="Navigation",
     "Go To Parent Binding",
-    Globals(ActiveEditor(Composition(Nav(GoToParent)))),
+    Globals(
+      ActiveEditor(
+        Composition(CompositionActions.default(Nav(GoToParent))),
+      ),
+    ),
   ),
   mk_shortcut(
     ~hotkey="alt+RightArrow",
@@ -53,7 +58,11 @@ let composition_shortcuts: list(t) = [
     ~section="Navigation",
     "Go To Next Sibling Binding",
     Globals(
-      ActiveEditor(Composition(Nav(GoToSibling(Stepwise(Right))))),
+      ActiveEditor(
+        Composition(
+          CompositionActions.default(Nav(GoToSibling(Stepwise(Right)))),
+        ),
+      ),
     ),
   ),
   mk_shortcut(
@@ -61,68 +70,122 @@ let composition_shortcuts: list(t) = [
     ~mdIcon="arrow_back",
     ~section="Navigation",
     "Go To Previous Sibling Binding",
-    Globals(ActiveEditor(Composition(Nav(GoToSibling(Stepwise(Left)))))),
+    Globals(
+      ActiveEditor(
+        Composition(
+          CompositionActions.default(Nav(GoToSibling(Stepwise(Left)))),
+        ),
+      ),
+    ),
   ),
   mk_shortcut(
     ~hotkey="alt+DownArrow",
     ~mdIcon="arrow_downward",
     ~section="Navigation",
     "Go To First Child Binding",
-    Globals(ActiveEditor(Composition(Nav(GoToChild("", Some(0)))))),
+    Globals(
+      ActiveEditor(
+        Composition(
+          CompositionActions.default(Nav(GoToChild("", Some(0)))),
+        ),
+      ),
+    ),
   ),
   mk_shortcut(
     ~mdIcon="edit",
     ~section="Edit",
     "Insert Before",
-    Globals(ActiveEditor(Composition(Edit(InsertBefore(Human))))),
+    Globals(
+      ActiveEditor(
+        Composition(CompositionActions.default(Edit(InsertBefore(Human)))),
+      ),
+    ),
   ),
   mk_shortcut(
     ~mdIcon="edit",
     ~section="Edit",
     "Insert After",
-    Globals(ActiveEditor(Composition(Edit(InsertAfter(Human))))),
+    Globals(
+      ActiveEditor(
+        Composition(CompositionActions.default(Edit(InsertAfter(Human)))),
+      ),
+    ),
   ),
   mk_shortcut(
     ~mdIcon="edit",
     ~section="Edit",
     "Delete Binding Clause",
-    Globals(ActiveEditor(Composition(Edit(DeleteBindingClause)))),
+    Globals(
+      ActiveEditor(
+        Composition(CompositionActions.default(Edit(DeleteBindingClause))),
+      ),
+    ),
   ),
   mk_shortcut(
     ~mdIcon="edit",
     ~section="Edit",
     "Delete Body",
-    Globals(ActiveEditor(Composition(Edit(DeleteBody)))),
+    Globals(
+      ActiveEditor(
+        Composition(CompositionActions.default(Edit(DeleteBody))),
+      ),
+    ),
   ),
   mk_shortcut(
     ~mdIcon="edit",
     ~section="Edit",
     "Update Definition",
-    Globals(ActiveEditor(Composition(Edit(UpdateDefinition(Human))))),
+    Globals(
+      ActiveEditor(
+        Composition(
+          CompositionActions.default(Edit(UpdateDefinition(Human))),
+        ),
+      ),
+    ),
   ),
   mk_shortcut(
     ~mdIcon="edit",
     ~section="Edit",
     "Update Body",
-    Globals(ActiveEditor(Composition(Edit(UpdateBody(Human))))),
+    Globals(
+      ActiveEditor(
+        Composition(CompositionActions.default(Edit(UpdateBody(Human)))),
+      ),
+    ),
   ),
   mk_shortcut(
     ~mdIcon="edit",
     ~section="Edit",
     "Update Pattern",
-    Globals(ActiveEditor(Composition(Edit(UpdatePattern(Human))))),
+    Globals(
+      ActiveEditor(
+        Composition(
+          CompositionActions.default(Edit(UpdatePattern(Human))),
+        ),
+      ),
+    ),
   ),
   mk_shortcut(
     ~mdIcon="edit",
     ~section="Edit",
     "Update Binding Clause",
-    Globals(ActiveEditor(Composition(Edit(UpdateBindingClause(Human))))),
+    Globals(
+      ActiveEditor(
+        Composition(
+          CompositionActions.default(Edit(UpdateBindingClause(Human))),
+        ),
+      ),
+    ),
   ),
   mk_shortcut(
     ~mdIcon="edit",
     ~section="Edit",
     "Update All",
-    Globals(ActiveEditor(Composition(Edit(UpdateAll(Human))))),
+    Globals(
+      ActiveEditor(
+        Composition(CompositionActions.default(Edit(UpdateAll(Human)))),
+      ),
+    ),
   ),
 ];
 

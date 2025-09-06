@@ -353,40 +353,33 @@ module Composition = {
     | Secondary(_) => []
     };
 
-  // Helper function for applying a list of editor-perform actions to the editor
-  let schedule_actions =
-      (~actions: list(Action.t), ~schedule_action: Editor.Update.t => unit) => {
-    List.iter(action => {schedule_action(action)}, actions);
-  };
-
   // AddToolLabel_2.0: handle the effects of the action on the editor itself
-  let apply_action =
+  let apply_editor_action =
       (
         ~z: Zipper.t,
         ~info_map: Id.Map.t(Info.t),
         ~action: CompositionTools.action,
-        ~schedule_action: Editor.Update.t => unit,
+        ~schedule_editor_action: Editor.Update.t => unit,
+        ~schedule_tool_response: AssistantUpdateAction.status => unit,
       )
-      : result => {
-    let (result, actions) =
-      switch (action) {
-      | Read(r) =>
-        let res =
-          switch (r) {
-          | ViewEntireDefintion =>
-            switch (AssistantTreeHelper.build_curr_node_info(z, info_map)) {
-            | Some(node) => CompositionView.full_definition(z, node)
-            | None => "Failed to derive full definition"
-            }
-          | ShowUseSites => "todo"
-          };
-        (res, []);
-      | _ => ("", [Action.Composition(action)])
-      };
-    // Apply actions to the editor
-    schedule_actions(~actions, ~schedule_action);
-    // Return the result (tool call response)
-    result;
+      : unit => {
+    switch (action) {
+    | Read(r) =>
+      let res =
+        switch (r) {
+        | ViewEntireDefintion =>
+          switch (AssistantTreeHelper.build_curr_node_info(z, info_map)) {
+          | Some(node) => CompositionView.full_definition(z, node)
+          | None => "Failed to derive full definition"
+          }
+        | ShowUseSites => "todo"
+        };
+      schedule_tool_response(Success(res));
+    | _ =>
+      schedule_editor_action(
+        Action.Composition((action, Some(schedule_tool_response))),
+      )
+    };
   };
 };
 

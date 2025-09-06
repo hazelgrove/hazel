@@ -4,7 +4,6 @@ open Language;
 
 module Model = AssistantModel;
 
-open AssistantUpdateAction;
 type t = AssistantUpdateAction.t;
 
 let mk_structure_edit_msg = (~tool_call: OpenRouter.tool_call): string =>
@@ -26,30 +25,6 @@ let mk_structure_edit_msg = (~tool_call: OpenRouter.tool_call): string =>
   | Invalid_argument(e) =>
     "The argument map creation may have failed, or some other fatal issue occurred: "
     ++ e
-  };
-
-let apply_structure_action =
-    (
-      ~tool_call: OpenRouter.tool_call,
-      ~apply_action: (~action: CompositionTools.action) => string,
-      ~schedule_action: t => unit,
-      ~loop_message,
-    )
-    : unit =>
-  // This try block is important, it allows us to handle exceptions and relay them to the agent
-  try({
-    let action =
-      CompositionTools.action_of(
-        ~tool_name=tool_call.tool_name,
-        ~args=Json.get_string_kvs(tool_call.args),
-      );
-    // tool_result will be a string returned from apply_action, detailing the effects of
-    // the action on the editor so that we can provide the agent with a meaningful "tool response".
-    // This follows standard tool calling protocol.
-    let tool_result = apply_action(~action);
-    schedule_action(loop_message(Success(tool_result)));
-  }) {
-  | Failure(err) => schedule_action(loop_message(Failure(err)))
   };
 
 let intermediate_select_curr_node =

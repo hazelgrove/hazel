@@ -18,7 +18,8 @@ let apply_actions = (init: string, actions: list(Action.t)): Zipper.t =>
 let test =
     (~name, ~init: string, ~acts: list(CompositionTools.action), ~goal)
     : test_case(_) => {
-  let acts = List.map(a => Action.Composition(a), acts);
+  let acts =
+    List.map(a => Action.Composition(CompositionActions.default(a)), acts);
   test_case(name, `Quick, () =>
     check(
       testable(Fmt.string, String.equal),

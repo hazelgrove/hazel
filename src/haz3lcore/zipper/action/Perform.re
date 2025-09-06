@@ -128,6 +128,13 @@ let go =
     |> return(Cant_insert)
   | Put_down => Zipper.put_down_glom(z) |> return(Cant_put_down)
   | Dump => Ok(Zipper.try_to_dump_backpack(z))
-  | Composition(a) =>
-    CompositionTools.Perform.go(~syntax, ~z, ~a, ~mk_statics, ~return)
+  | Composition((a, schedule_tool_response)) =>
+    CompositionTools.Perform.go(
+      ~syntax,
+      ~z,
+      ~a,
+      ~mk_statics,
+      ~return,
+      ~schedule_tool_response,
+    )
   };

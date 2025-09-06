@@ -996,18 +996,19 @@ let update =
             None,
             chat_id,
           );
-        let apply_action =
-          AssistantModes.Composition.apply_action(
-            ~z=zipper,
-            ~info_map,
-            ~schedule_action=schedule_editor_action,
+        let action =
+          CompositionTools.action_of(
+            ~tool_name=tool_call.tool_name,
+            ~args=API.Json.get_string_kvs(tool_call.args),
           );
-        AssistantUpdateComposition.apply_structure_action(
-          ~tool_call,
-          ~apply_action,
-          ~schedule_action,
-          ~loop_message,
-        );
+        AssistantModes.Composition.apply_editor_action(
+          ~z=zipper,
+          ~info_map,
+          ~action,
+          ~schedule_editor_action,
+          ~schedule_tool_response=(res: AssistantUpdateAction.status) => {
+          schedule_action(loop_message(res))
+        });
         update_model_chat_history(
           ~model,
           ~mode,

@@ -79,3 +79,11 @@ type composition_action =
   | Nav(nav_action)
   | Read(read_action)
   | Edit(edit_action);
+
+[@deriving (show({with_path: false}), sexp, yojson)]
+type payload = (
+  composition_action,
+  option(AssistantUpdateAction.status => unit),
+);
+
+let default = (a: composition_action) => (a, None);
