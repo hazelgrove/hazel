@@ -533,7 +533,7 @@ module Perform = {
             // it is not just possible, but also feasible, that the assistant (or anybody)
             // can repair the program in structure-level edits, without ever increasing
             // the number of errors beyond the initial set (the error count will be non-increasing)
-            when List.length(errors) <= List.length(old_errors) =>
+            when List.length(errors) >= List.length(old_errors) =>
           Error(
             Action.Failure.Composition_action_failure(
               "Changes not being applied to the editor since they introduce the following static error(s): "
