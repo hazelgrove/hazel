@@ -523,7 +523,17 @@ module Perform = {
     switch (schedule_tool_response) {
     | Some(schedule_tool_response) =>
       switch (res) {
-      | Ok(_) => schedule_tool_response(AssistantUpdateAction.Success(""))
+      | Ok(_) =>
+        switch (ErrorPrint.all(mk_statics(z))) {
+        | [] => schedule_tool_response(AssistantUpdateAction.Success(""))
+        | errors =>
+          schedule_tool_response(
+            AssistantUpdateAction.Failure(
+              "Changes not being applied to the editor since they introduce the following static error(s): "
+              ++ String.concat(", ", errors),
+            ),
+          )
+        }
       | Error(Composition_action_failure(e)) =>
         schedule_tool_response(AssistantUpdateAction.Failure(e))
       | _ =>
