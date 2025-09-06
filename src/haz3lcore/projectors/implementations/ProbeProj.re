@@ -119,13 +119,10 @@ let hide_env = (info: info): bool =>
   | _ => false
   };
 
-let show_purps = ref(false);
-
 let cur_ap = (info: info) =>
   switch (info.statics) {
   | Some(InfoExp({term: {term: Ap(_), _} as ap, _}))
-  | Some(InfoExp({term: {term: Probe({term: Ap(_), _} as ap, _), _}, _}))
-      when show_purps^ =>
+  | Some(InfoExp({term: {term: Probe({term: Ap(_), _} as ap, _), _}, _})) =>
     Some(Term.Exp.rep_id(ap))
   | _ => None
   };
@@ -854,15 +851,6 @@ let view = (local, _parent, info: info): Node.t =>
       Attr.on_pointerup(_ => {
         JsUtil.get_elem_by_id(Id.cls(info.id))##blur;
         Effect.Ignore;
-      }),
-      Attr.on_mouseenter(_ => {
-        //TODO(andrew): renable one day
-        //show_purps := true;
-        local(NoOp)
-      }),
-      Attr.on_mouseleave(_ => {
-        show_purps := false;
-        local(NoOp);
       }),
     ],
     [text(syntax_str(info.utility, info.syntax)) /*, icon*/],
