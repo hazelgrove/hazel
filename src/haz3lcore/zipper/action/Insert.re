@@ -254,7 +254,7 @@ let go = (char: string, z: t): option(t) => {
         |> Option.map(remold_regrout(Right))
       : split(z, char, idx, t);
   | (Inner(_), (_, None)) => None
-  | (Outer, (_, Some(_))) =>
+  | (Outer, _) =>
     let z =
       Caret.set(
         switch (sibling_appendability(char, z)) {
@@ -265,7 +265,6 @@ let go = (char: string, z: t): option(t) => {
         z,
       );
     insert_or_append(char, z);
-  | (Outer, (_, None)) => insert_or_append(char, z)
   };
 };
 
