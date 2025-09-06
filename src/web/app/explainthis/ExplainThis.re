@@ -231,21 +231,20 @@ let expander_deco =
       ~options: list((ExplainThisForm.form_id, Segment.t)),
       ~group: ExplainThisForm.group,
       ~doc: ExplainThisForm.form,
-      editor,
+      editor: Editor.Model.t,
     ) => {
-  module Deco =
-    Deco.Deco({
-      let editor = editor;
-      let globals = globals;
-      let statics = CachedStatics.empty;
-    });
-
   switch (doc.expandable_id, List.length(options)) {
   | (None, _)
   | (_, 0 | 1) => div([])
   | (Some((id, _)), _) =>
     let origin =
-      switch (TermData.extreme_measures(id, Deco.term_data, Deco.measured)) {
+      switch (
+        TermData.extreme_measures(
+          id,
+          editor.syntax.term_data,
+          editor.syntax.measured,
+        )
+      ) {
       | Some((origin, _)) => origin
       | None => {
           row: 0,
@@ -301,7 +300,15 @@ let expander_deco =
       Node.div(~attrs=[clss(["arrow"]), expand_arrow_style], []);
 
     let expandable_deco =
-      div_c("color-highlights", Deco.color_highlight(["expandable"], id));
+      div_c(
+        "color-highlights",
+        Highlight.color(
+          ~syntax=editor.syntax,
+          ~font_metrics,
+          ["expandable"],
+          id,
+        ),
+      );
 
     let expander =
       div(
@@ -487,28 +494,21 @@ let get_doc =
           ~doc,
           editor,
         );
-      let statics = CachedStatics.empty;
-      let dynamics = Dynamics.Map.empty;
-      let highlight_deco = {
-        module Deco =
-          Deco.Deco({
-            let editor = editor;
-            let globals = {
-              ...globals,
-              color_highlights: highlights,
-            };
-            let statics = statics;
-          });
-        [Deco.color_highlights()];
-      };
+      let highlight_deco = [
+        Highlight.colors(
+          ~font_metrics=globals.font_metrics,
+          ~syntax=editor.syntax,
+          highlights,
+        ),
+      ];
       let syntactic_form_view =
         CodeWithStatics.View.view(
           ~globals,
           ~overlays=highlight_deco @ [expander_deco],
           {
             editor,
-            statics,
-            dynamics,
+            statics: CachedStatics.empty,
+            dynamics: Dynamics.Map.empty,
           },
         );
       let example_view =

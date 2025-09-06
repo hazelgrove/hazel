@@ -170,6 +170,32 @@ module View = {
 
   module MouseState = Pointer.MkState();
 
+  let deco = (~syntax: CachedSyntax.t, ~z: Zipper.t, ~globals: Globals.t) => [
+    CaretDec.view(
+      ~measured=syntax.measured,
+      ~font_metrics=globals.font_metrics,
+      z,
+    ),
+    Arms.Indicated.term(~font_metrics=globals.font_metrics, ~syntax, z),
+    Highlight.selection(
+      ~measured=syntax.measured,
+      ~shape_map=syntax.shape_map,
+      ~font_metrics=globals.font_metrics,
+      z,
+    ),
+    Backpack.view(
+      ~font_metrics=globals.font_metrics,
+      ~measured=syntax.measured,
+      ~cached_backpack=syntax.cached_backpack,
+      z,
+    ),
+    Highlight.colors(
+      ~font_metrics=globals.font_metrics,
+      ~syntax,
+      globals.color_highlights,
+    ),
+  ];
+
   let view =
       (
         ~globals: Globals.t,
@@ -179,15 +205,14 @@ module View = {
         ~overlays: list(Node.t)=[],
         model: Model.t,
       ) => {
-    let edit_decos = {
-      module Deco =
-        Deco.Deco({
-          let editor = model.editor;
-          let globals = globals;
-          let statics = model.statics;
-        });
-      Deco.editor(model.editor.state.zipper, selected);
-    };
+    let edit_decos =
+      selected
+        ? deco(
+            ~z=model.editor.state.zipper,
+            ~syntax=model.editor.syntax,
+            ~globals,
+          )
+        : [];
     let projectors =
       ProjectorView.all(
         x => inject(Perform(x)),

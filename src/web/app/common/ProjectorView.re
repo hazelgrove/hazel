@@ -178,9 +178,10 @@ let offside_wrapper =
 
 let simple_code = (~background=false, font_metrics, _sort, segment): Node.t => {
   let shape_map = ProjectorCore.Shape.Map.empty; /* Assume this doesn't contain projectors */
+  let measured = Measured.of_segment(segment, shape_map);
   let code =
     Code.view(
-      ~measured=Measured.of_segment(segment, shape_map),
+      ~measured,
       ~settings=Settings.Model.init,
       ~shape_map,
       ~font_metrics,
@@ -190,16 +191,25 @@ let simple_code = (~background=false, font_metrics, _sort, segment): Node.t => {
     );
   let backing =
     if (background) {
-      switch (Deco.quick_select_deco(~font_metrics, segment)) {
+      switch (
+        Highlight.of_segment(
+          ~measured,
+          ~shape_map,
+          ~font_metrics,
+          ~shape_init=Some(Convex),
+          ~clss=[],
+          segment,
+        )
+      ) {
       | exception _ => []
-      | view => [view]
+      | view => view
       };
     } else {
       [];
     };
   div(
     ~attrs=[Attr.class_("code")],
-    [span_c("code-text", code)] @ backing,
+    [span_c("code-text", code)] @ [div_c("quick-select-deco", backing)],
   );
 };
 
