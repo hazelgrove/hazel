@@ -183,6 +183,11 @@ let insertion_tests = [
     ~goal={|"¦"|},
   ),
   test(
+    ~name="Insert string after concave grout",
+    ~acts=mk({|1 ¦|}) @ [Insert({|"|})],
+    ~goal={|1 ~"¦"|},
+  ),
+  test(
     ~name="Insert char at end of token",
     ~acts=mk({|fo¦|}) @ [Insert("o")],
     ~goal={|foo¦|},

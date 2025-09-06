@@ -125,16 +125,6 @@ let preserve_grout_id = (char: string, z: t): (Id.t, t) =>
   | _ => (Id.mk(), z)
   };
 
-/* If char can be appended to either sibling token, do it,
- * otherwise insert a new `char` token */
-let append_or_insert = (char: string, z: t): option(t) =>
-  switch (sibling_appendability(char, z)) {
-  | None =>
-    let (id, z) = preserve_grout_id(char, z);
-    z |> insert_shard(~id, ~d=Left, char) |> Option.some;
-  | Some((d, t)) => replace_shard(d, t, z)
-  };
-
 /* Figure out if we should avoid inserting a space
  * because grout is due to be inserted instead,
  *  e.g. when splitting `[|]` or `(|)` */
@@ -224,6 +214,24 @@ let adjust_caret_pos = (~z_final: t, ~z_init: t): t => {
   };
 };
 
+/* If char can be appended to either sibling token, do it,
+ * otherwise insert a new `char` token */
+let insert_or_append = (char: string, z: t): option(t) => {
+  let+ z_init =
+    switch (sibling_appendability(char, z)) {
+    | None =>
+      let (id, z) = preserve_grout_id(char, z);
+      Some(insert_shard(~id, ~d=Left, char, z));
+    | Some((d, t)) => replace_shard(d, t, z)
+    };
+  let z_final =
+    z_init
+    |> move_into_string_or_comment(char)
+    |> remold_regrout(Left)
+    |> merge_or_noop;
+  adjust_caret_pos(~z_final, ~z_init);
+};
+
 let go = (char: string, z: t): option(t) => {
   /* If there's a selection, delete it before proceeding */
   let z = z.selection.content != [] ? Zipper.destroy_selection(z) : z;
@@ -256,19 +264,8 @@ let go = (char: string, z: t): option(t) => {
         },
         z,
       );
-    let+ z_init = append_or_insert(char, z);
-    let z_final =
-      z_init
-      |> move_into_string_or_comment(char)
-      |> remold_regrout(Left)
-      |> merge_or_noop;
-    adjust_caret_pos(~z_final, ~z_init);
-  | (Outer, (_, None)) =>
-    let+ z = append_or_insert(char, z);
-    z
-    |> move_into_string_or_comment(char)
-    |> remold_regrout(Left)
-    |> merge_or_noop;
+    insert_or_append(char, z);
+  | (Outer, (_, None)) => insert_or_append(char, z)
   };
 };
 
