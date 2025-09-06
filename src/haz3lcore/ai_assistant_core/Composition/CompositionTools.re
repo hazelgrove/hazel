@@ -517,23 +517,43 @@ module Perform = {
   let go = (~syntax, ~z, ~a, ~mk_statics, ~return, ~schedule_tool_response) => {
     let curr_node_info =
       AssistantTreeHelper.build_curr_node_info(z, mk_statics(z));
+
+    let old_errors = ErrorPrint.all(mk_statics(z));
+
     let res =
-      composition_dispatch(a, syntax, z, mk_statics, return, curr_node_info);
+      switch (
+        composition_dispatch(a, syntax, z, mk_statics, return, curr_node_info)
+      ) {
+      | Ok(z') =>
+        switch (ErrorPrint.all(mk_statics(z'))) {
+        | [] => Ok(z')
+        | errors
+            // do not apply if new errors were introduced
+            // NOTE: This assumes that, given a program with errors already in it,
+            // it is not just possible, but also feasible, that the assistant (or anybody)
+            // can repair the program in structure-level edits, without ever increasing
+            // the number of errors beyond the initial set (the error count will be non-increasing)
+            when List.length(errors) <= List.length(old_errors) =>
+          Error(
+            Action.Failure.Composition_action_failure(
+              "Changes not being applied to the editor since they introduce the following static error(s): "
+              ++ String.concat(", ", errors),
+            ),
+          )
+        | _ => Ok(z')
+        }
+      | Error(e) => Error(e)
+      };
     //todo: handle res and use schedule_assistant_action to send the result to the assistant and loop
     switch (schedule_tool_response) {
     | Some(schedule_tool_response) =>
       switch (res) {
       | Ok(_) =>
-        switch (ErrorPrint.all(mk_statics(z))) {
-        | [] => schedule_tool_response(AssistantUpdateAction.Success(""))
-        | errors =>
-          schedule_tool_response(
-            AssistantUpdateAction.Failure(
-              "Changes not being applied to the editor since they introduce the following static error(s): "
-              ++ String.concat(", ", errors),
-            ),
-          )
-        }
+        schedule_tool_response(
+          AssistantUpdateAction.Success(
+            "Action has been applied to the editor",
+          ),
+        )
       | Error(Composition_action_failure(e)) =>
         schedule_tool_response(AssistantUpdateAction.Failure(e))
       | _ =>
@@ -543,7 +563,10 @@ module Perform = {
           ),
         )
       }
-    | None => ()
+    | None =>
+      // Composition action was not sourced from an ai assistant tool call,
+      // just return the action performed on the editor (no feedback to send)
+      ()
     };
     res;
   };
