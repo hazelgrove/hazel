@@ -1,0 +1,30 @@
+#probesys {
+  display: flex;
+  flex: 1;
+  padding: 1em;
+  flex-direction: column;
+  overflow-y: auto;
+  gap: 1em;
+  overflow-x: hidden; /* Prevent outer scroll */
+}
+
+#probesys .title {
+  text-transform: uppercase;
+  font-weight: bold;
+}
+
+#probesys .main-title {
+  text-transform: uppercase;
+  font-size: 1em;
+  font-weight: bold;
+  color: var(--ui-header-text);
+  align-self: flex-start;
+}
+
+#probesys .header {
+  display: flex;
+  width: 100%;
+  justify-content: space-between;
+  align-items: center;
+  font-weight: bold;
+}

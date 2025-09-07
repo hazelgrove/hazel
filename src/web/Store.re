@@ -6,6 +6,7 @@ type key =
   | Settings
   | ExplainThis
   | Assistant
+  | ProbeSystem
   | Mode
   | Scratch
   | Documentation
@@ -19,6 +20,7 @@ let key_to_string =
   | Settings => "SETTINGS"
   | ExplainThis => "ExplainThisModel"
   | Assistant => "AssistantModel"
+  | ProbeSystem => "ProbeSystemModel"
   | Mode => "MODE"
   | Scratch => "SAVE_SCRATCH"
   | Documentation => "SAVE_DOCUMENTATION"

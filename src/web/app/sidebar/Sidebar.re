@@ -12,60 +12,74 @@ let tab = (~tooltip="", icon, action, isActive) => {
   );
 };
 
-let explain_this_tab = (~globals: Globals.t): Node.t => {
-  let switch_explain_this = _ =>
-    Effect.Many([
-      globals.inject_global(
-        Set(Sidebar(SwitchPanel(LanguageDocumentation))),
-      ),
-      Effect.Stop_propagation,
-    ]);
-  div(
-    ~attrs=[clss(["explain-this-button"])],
-    [
-      tab(
-        Icons.explain_this,
-        ~tooltip="Switch to Language Documentation",
-        switch_explain_this,
-        globals.settings.sidebar.panel == LanguageDocumentation
-        && globals.settings.sidebar.show,
-      ),
-    ],
-  );
-};
+let switch_to = (~globals: Globals.t, panel: SidebarModel.Settings.panel, _) =>
+  Effect.Many([
+    globals.inject_global(Set(Sidebar(SwitchPanel(panel)))),
+    Effect.Stop_propagation,
+  ]);
 
-let assistant_tab = (~globals: Globals.t): Node.t => {
-  let switch_assistant = _ =>
-    Effect.Many([
-      globals.inject_global(Set(Sidebar(SwitchPanel(HelpfulAssistant)))),
-      Effect.Stop_propagation,
-    ]);
+let switch_assistant = (~globals: Globals.t, _) =>
+  Effect.Many([
+    globals.inject_global(Set(Sidebar(ToggleShow))),
+    Effect.Stop_propagation,
+  ]);
+
+let tab_of =
+    (
+      ~panel: SidebarModel.Settings.panel,
+      ~cls: list(string),
+      ~icon: Node.t,
+      ~tooltip: string,
+      ~globals: Globals.t,
+    )
+    : Node.t =>
   div(
-    ~attrs=[clss(["assistant-button"])],
+    ~attrs=[clss(cls)],
     [
       tab(
-        Icons.hazelnut_agent,
-        ~tooltip="Switch to Helpful Assistant",
-        switch_assistant,
-        globals.settings.sidebar.panel == HelpfulAssistant
+        icon,
+        ~tooltip,
+        switch_to(~globals, panel),
+        globals.settings.sidebar.panel == panel
         && globals.settings.sidebar.show,
       ),
     ],
   );
-};
+
+let explain_this_tab = (~globals: Globals.t): Node.t =>
+  tab_of(
+    ~panel=LanguageDocumentation,
+    ~cls=["explain-this-button"],
+    ~icon=Icons.explain_this,
+    ~tooltip="Switch to Language Documentation",
+    ~globals,
+  );
+
+let assistant_tab = (~globals: Globals.t): Node.t =>
+  tab_of(
+    ~panel=HelpfulAssistant,
+    ~cls=["assistant-button"],
+    ~icon=Icons.hazelnut_agent,
+    ~tooltip="Switch to Helpful Assistant",
+    ~globals,
+  );
+
+let probes_tab = (~globals: Globals.t): Node.t =>
+  tab_of(
+    ~panel=Probes,
+    ~cls=["probes-button"],
+    ~icon=Icons.glass,
+    ~tooltip="Switch to Probes Panel",
+    ~globals,
+  );
 
 let collapse_tab = (~globals: Globals.t): Node.t => {
   let tooltip =
     globals.settings.sidebar.show ? "Collapse Sidebar" : "Expand Sidebar";
   let icon = globals.settings.sidebar.show ? Icons.collapse : Icons.expand;
-  let switch_assistant = _ =>
-    Effect.Many([
-      globals.inject_global(Set(Sidebar(ToggleShow))),
-      Effect.Stop_propagation,
-    ]);
   div(
     ~attrs=[clss(["collapse-button"])],
-    [tab(icon, ~tooltip, switch_assistant, false)],
+    [tab(icon, ~tooltip, switch_assistant(~globals), false)],
   );
 };
 
@@ -75,7 +89,11 @@ let persistent_view = (~globals: Globals.t) =>
     [
       div(
         ~attrs=[clss(["tabs"])],
-        [explain_this_tab(~globals), assistant_tab(~globals)],
+        [
+          explain_this_tab(~globals),
+          assistant_tab(~globals),
+          probes_tab(~globals),
+        ],
       ),
     ],
   );
@@ -171,9 +189,11 @@ let view =
       ~globals: Globals.t,
       ~explain_this_inject,
       ~assistant_inject,
+      ~probes_inject,
       ~signal,
       ~explainThisModel: ExplainThisModel.t,
       ~assistantModel: AssistantModel.t,
+      ~probesModel: ProbeSystem.Model.t,
       ~editor,
       info: option(Language.Info.t),
     ) => {
@@ -197,6 +217,14 @@ let view =
                 ~signal,
                 ~inject=assistant_inject,
                 ~model=assistantModel,
+                ~editor,
+              )
+            | Probes =>
+              ProbeSystem.view(
+                ~globals,
+                ~signal,
+                ~inject=probes_inject,
+                ~model=probesModel,
                 ~editor,
               )
             },
