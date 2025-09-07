@@ -299,7 +299,20 @@ module Perform = {
       switch (a) {
       | Edit(Initialize(u)) =>
         switch (introduce(Select.all(z), code_of(u))) {
-        | Ok(z) => static_error_check(~old_z=None, ~new_z=z, ~mk_statics)
+        | Ok(new_z) =>
+          let new_statics = mk_statics(new_z);
+          // For initialization, check the entire program for errors
+          let new_errors = ErrorPrint.all(new_statics);
+          if (List.length(new_errors) > 0) {
+            Error(
+              Action.Failure.Composition_action_failure(
+                "Not applying the action you requested as it would have the following static error(s): "
+                ++ String.concat(", ", new_errors),
+              ),
+            );
+          } else {
+            Ok(new_z);
+          };
         | Error(e) => Error(e)
         }
       | _ => Error(Action.Failure.Cant_derive_local_AST_information)
@@ -573,7 +586,7 @@ module Perform = {
         | Initialize(_) =>
           Error(
             Action.Failure.Composition_action_failure(
-              "You may not use initialize on a program with let/type alias expressions",
+              "Once a program has let/type alias expressions, you can never use initialize on it ever again.",
             ),
           )
         };
@@ -607,7 +620,7 @@ module Perform = {
             } =>
           schedule_tool_response(
             AssistantUpdateAction.Success(
-              "WARNING: The action you requested introduces the following static error obligation(s): "
+              "WARNING: The application of the action you requested has introduced the following static error(s) in other parts of the program: "
               ++ String.concat(", ", new_errors),
             ),
           )
