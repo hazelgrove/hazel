@@ -7,6 +7,8 @@ type cls =
 
 include TermBase.TPat;
 
+let term_of: t => term = IdTagged.term_of;
+
 let rep_id: t => Id.t = IdTagged.rep_id;
 
 let fresh: term => t = IdTagged.fresh;

@@ -1,6 +1,6 @@
 open Util;
 
-let update_all_description = {|
+let initialize_description = {|
 Description:
 Overwrites the entire program with the given code.
 
@@ -12,20 +12,20 @@ The current program is:
 ```
 ?
 ```
-Calling update_all(code="let a = 3 in a * 2") would result in the program
+Calling initialize(code="let a = 3 in a * 2") would result in the program
 ```
 let a = 3 in a * 2
 ```
 |};
 
-let update_all: API.Json.t =
+let initialize: API.Json.t =
   `Assoc([
     ("type", `String("function")),
     (
       "function",
       `Assoc([
-        ("name", `String("update_all")),
-        ("description", `String(update_all_description)),
+        ("name", `String("initialize")),
+        ("description", `String(initialize_description)),
         (
           "parameters",
           `Assoc([

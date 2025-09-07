@@ -59,7 +59,7 @@ type user =
 
 [@deriving (show({with_path: false}), sexp, yojson, eq)]
 type edit_action =
-  | UpdateAll(user)
+  | Initialize(user)
   | UpdateDefinition(user)
   | UpdateBody(user)
   | UpdatePattern(user)

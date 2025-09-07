@@ -176,3 +176,44 @@ let all = (info_map: Statics.Map.t): list(string) => {
        }
      );
 };
+
+let subtree = (info: Info.t, info_map: Statics.Map.t): list(string) => {
+  let subtree = AssistantTreeHelper.subtree_of(info, info_map);
+  let errors =
+    subtree
+    |> List.sort_uniq(compare)
+    |> List.filter_map(info =>
+         switch (Info.error_of(info)) {
+         | None => None
+         | Some(error) =>
+           let term = term_string_of(info);
+           Some(format_error(term, string_of(error)));
+         }
+       );
+  print_endline("Subtree size: " ++ string_of_int(List.length(subtree)));
+  print_endline(
+    "Subtree nodes (id -> has_error):\n"
+    ++ String.concat(
+         "\n",
+         List.map(
+           info =>
+             Id.show(Info.id_of(info))
+             ++ " -> "
+             ++ (
+               switch (Info.error_of(info)) {
+               | None => "ok"
+               | Some(err) => "err:" ++ string_of(err)
+               }
+             ),
+           subtree,
+         ),
+       ),
+  );
+  print_endline(
+    "Errors in subtree ("
+    ++ string_of_int(List.length(errors))
+    ++ "):\n"
+    ++ String.concat("\n---\n", errors),
+  );
+  errors;
+};

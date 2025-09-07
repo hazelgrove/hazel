@@ -28,6 +28,36 @@ type node = {
   name: string,
 };
 
+let exp_to_info = (term: Exp.t, info_map: Id.Map.t(Info.t)): Info.t => {
+  // Helper function
+  let e = Exp.rep_id(term);
+  Id.Map.find(e, info_map);
+};
+
+let pat_to_info = (term: Pat.t, info_map: Id.Map.t(Info.t)): Info.t => {
+  // Helper function
+  let e = Pat.rep_id(term);
+  Id.Map.find(e, info_map);
+};
+
+let tpat_to_info = (term: TPat.t, info_map: Id.Map.t(Info.t)): Info.t => {
+  // Helper function
+  let e = TPat.rep_id(term);
+  Id.Map.find(e, info_map);
+};
+
+let typ_to_info = (term: Typ.t, info_map: Id.Map.t(Info.t)): Info.t => {
+  // Helper function
+  let e = Typ.rep_id(term);
+  Id.Map.find(e, info_map);
+};
+
+// let rul_to_info = (term: Rul.t, info_map: Id.Map.t(Info.t)): Info.t => {
+//   // Helper function
+//   let e = Rul.rep_id(term);
+//   Id.Map.find(e, info_map);
+// };
+
 let is_on_whitespace = (z: Zipper.t): bool => {
   // Use for_index which only ignores secondary pieces, not grout pieces
   switch (Indicated.for_index(z)) {
@@ -230,6 +260,7 @@ let build_curr_node_info =
         (curr_node: option(node), initial_candidate: option(Info.t))
         : list(node) => {
       let mk_child_node = (name: string, child: Info.t, idx: int): node => {
+        // Helper function
         info: child,
         parent: curr_node,
         siblings: [],
@@ -237,10 +268,7 @@ let build_curr_node_info =
         sibling_idx: idx,
         name,
       };
-      let exp_to_info = (term: Exp.t): Info.t => {
-        let e = Exp.rep_id(term);
-        Id.Map.find(e, info_map);
-      };
+      let exp_to_info = (term: Exp.t): Info.t => exp_to_info(term, info_map);
       let rec find_children =
               (candidate: Info.t, children: list(node), count: int)
               : list(node) =>
@@ -272,9 +300,9 @@ let build_curr_node_info =
           | TypAp(e, _)
           | TypFun(_, e, _)
           | DeferredAp(e, _)
-          | Seq(e, _)
           | HintedTest(e, _) =>
             find_children(exp_to_info(e), children, count)
+          | Seq(e1, e2)
           | Ap(_, e1, e2)
           | Dot(e1, e2)
           | TupleExtension(e1, e2)
@@ -434,4 +462,308 @@ let get_node = (curr_node_info: option(node)) => {
   | Some(curr_node_info) => curr_node_info
   | None => raise(Failure("No current node found in the info map"))
   };
+};
+
+let subtree_of = (info: Info.t, info_map: Id.Map.t(Info.t)): list(Info.t) => {
+  // Language server/AST helper to find ALL descendants of a given term
+  // building a sort of subtree from the given term
+  let exp_to_info = (term: Exp.t): Info.t => exp_to_info(term, info_map);
+  let add_to_subtree =
+      (descendants: list(Info.t), info: Info.t): list(Info.t) => {
+    [info, ...descendants];
+  };
+  let rec find_descendants =
+          (candidate: Info.t, descendants: list(Info.t)): list(Info.t) =>
+    switch (candidate) {
+    | InfoExp({term, _}) =>
+      switch (Exp.term_of(term)) {
+      | Fun(p, e, t, _) =>
+        let c1 = pat_to_info(p, info_map);
+        let d1 = add_to_subtree(descendants, pat_to_info(p, info_map));
+        let d1 = find_descendants(c1, d1);
+        let c2 = exp_to_info(e);
+        let d2 = add_to_subtree(d1, c2);
+        switch (t) {
+        | Some(t) =>
+          let d2 = find_descendants(c2, d2);
+          let c3 = typ_to_info(t, info_map);
+          let d3 = add_to_subtree(d2, c3);
+          find_descendants(c3, d3);
+        | None => find_descendants(c2, d2)
+        };
+      | Use(t, e)
+      | TypAp(e, t)
+      | Asc(e, t) =>
+        let c1 = exp_to_info(e);
+        let d1 = add_to_subtree(descendants, c1);
+        let d1 = find_descendants(c1, d1);
+        let c2 = typ_to_info(t, info_map);
+        let d2 = add_to_subtree(d1, c2);
+        find_descendants(c2, d2);
+      | FixF(p, e, _) =>
+        let c1 = pat_to_info(p, info_map);
+        let d1 = add_to_subtree(descendants, c1);
+        let d1 = find_descendants(c1, d1);
+        let c2 = exp_to_info(e);
+        let d2 = add_to_subtree(d1, c2);
+        find_descendants(c2, d2);
+      | TypFun(tp, e, _) =>
+        let c1 = tpat_to_info(tp, info_map);
+        let d1 = add_to_subtree(descendants, c1);
+        let d1 = find_descendants(c1, d1);
+        let c2 = exp_to_info(e);
+        let d2 = add_to_subtree(d1, c2);
+        find_descendants(c2, d2);
+      | DeferredAp(e, es) =>
+        let c1 = exp_to_info(e);
+        let d1 = add_to_subtree(descendants, c1);
+        let d1 = find_descendants(c1, d1);
+        let d2 =
+          List.fold_left(
+            (d_acc, arg) => {
+              let candidate' = exp_to_info(arg);
+              let d_acc = add_to_subtree(d_acc, candidate');
+              find_descendants(candidate', d_acc);
+            },
+            d1,
+            es,
+          );
+        d2;
+      | TyAlias(tp, t, e) =>
+        let c1 = tpat_to_info(tp, info_map);
+        let d1 = add_to_subtree(descendants, c1);
+        let d1 = find_descendants(c1, d1);
+        let c2 = typ_to_info(t, info_map);
+        let d2 = add_to_subtree(d1, c2);
+        let d2 = find_descendants(c2, d2);
+        let c3 = exp_to_info(e);
+        let d3 = add_to_subtree(d2, c3);
+        find_descendants(c3, d3);
+      | Let(p, e1, e2) =>
+        let c1 = pat_to_info(p, info_map);
+        let d1 = add_to_subtree(descendants, c1);
+        let d1 = find_descendants(c1, d1);
+        let c2 = exp_to_info(e1);
+        let d2 = add_to_subtree(d1, c2);
+        let d2 = find_descendants(c2, d2);
+        let c3 = exp_to_info(e2);
+        let d3 = add_to_subtree(d2, c3);
+        find_descendants(c3, d3);
+      | UnOp(_, e)
+      | Test(e)
+      | Parens(e)
+      | Filter(_, e)
+      | Closure(_, e)
+      | DynamicErrorHole(e, _)
+      | Probe(e, _) =>
+        let c' = exp_to_info(e);
+        find_descendants(c', add_to_subtree(descendants, c'));
+      | HintedTest(e1, e2)
+      | Seq(e1, e2)
+      | Ap(_, e1, e2)
+      | Dot(e1, e2)
+      | TupleExtension(e1, e2)
+      | TupLabel(e1, e2)
+      | Cons(e1, e2)
+      | ListConcat(e1, e2)
+      | BinOp(_, e1, e2) =>
+        let candidate_l = exp_to_info(e1);
+        let descendants_l = add_to_subtree(descendants, candidate_l);
+        let descendants_l = find_descendants(candidate_l, descendants_l);
+        let candidate_r = exp_to_info(e2);
+        let descendants_r = add_to_subtree(descendants_l, candidate_r);
+        find_descendants(candidate_r, descendants_r);
+      | Tuple(es)
+      | ListLit(es) =>
+        List.fold_left(
+          (descendants, e) => {
+            let candidate' = exp_to_info(e);
+            let descendants' = add_to_subtree(descendants, candidate');
+            find_descendants(candidate', descendants');
+          },
+          descendants,
+          es,
+        )
+      | If(e1, e2, e3) =>
+        let c1 = exp_to_info(e1);
+        let d1 = add_to_subtree(descendants, c1);
+        let d1 = find_descendants(c1, d1);
+
+        let c2 = exp_to_info(e2);
+        let d2 = add_to_subtree(d1, c2);
+        let d2 = find_descendants(c2, d2);
+
+        let c3 = exp_to_info(e3);
+        let d3 = add_to_subtree(d2, c3);
+        find_descendants(c3, d3);
+      | Match(e, branches) =>
+        let scrutinee = exp_to_info(e);
+        let d1 = add_to_subtree(descendants, scrutinee);
+        let d1 = find_descendants(scrutinee, d1);
+        List.fold_left(
+          (d_acc, (_pat, branch_e)) => {
+            let branch = exp_to_info(branch_e);
+            let d_acc = add_to_subtree(d_acc, branch);
+            find_descendants(branch, d_acc);
+          },
+          d1,
+          branches,
+        );
+      | BuiltinFun(_)
+      | Label(_)
+      | EmptyHole
+      | Undefined
+      | Invalid(_)
+      | MultiHole(_)
+      | Deferral(_)
+      | Atom(_)
+      | Constructor(_, _)
+      | LivelitName(_)
+      | Var(_) => descendants
+      }
+    | InfoPat({term, _}) =>
+      switch (Pat.term_of(term)) {
+      | ListLit(ps) =>
+        List.fold_left(
+          (descendants, p) => {
+            let candidate' = pat_to_info(p, info_map);
+            let descendants' = add_to_subtree(descendants, candidate');
+            find_descendants(candidate', descendants');
+          },
+          descendants,
+          ps,
+        )
+      | Cons(p1, p2)
+      | TupLabel(p1, p2) =>
+        let c1 = pat_to_info(p1, info_map);
+        let d1 = add_to_subtree(descendants, c1);
+        let d1 = find_descendants(c1, d1);
+        let c2 = pat_to_info(p2, info_map);
+        let d2 = add_to_subtree(d1, c2);
+        find_descendants(c2, d2);
+      | Tuple(ps) =>
+        List.fold_left(
+          (descendants, p) => {
+            let candidate' = pat_to_info(p, info_map);
+            let descendants' = add_to_subtree(descendants, candidate');
+            find_descendants(candidate', descendants');
+          },
+          descendants,
+          ps,
+        )
+      | Parens(p) =>
+        let c' = pat_to_info(p, info_map);
+        find_descendants(c', add_to_subtree(descendants, c'));
+      | Probe(p, _probe) =>
+        let c' = pat_to_info(p, info_map);
+        find_descendants(c', add_to_subtree(descendants, c'));
+      | Ap(p1, p2) =>
+        let c1 = pat_to_info(p1, info_map);
+        let d1 = add_to_subtree(descendants, c1);
+        let d1 = find_descendants(c1, d1);
+        let c2 = pat_to_info(p2, info_map);
+        let d2 = add_to_subtree(d1, c2);
+        find_descendants(c2, d2);
+      | Asc(p, t) =>
+        let c1 = pat_to_info(p, info_map);
+        let d1 = add_to_subtree(descendants, c1);
+        let d1 = find_descendants(c1, d1);
+        let c2 = typ_to_info(t, info_map);
+        let d2 = add_to_subtree(d1, c2);
+        find_descendants(c2, d2);
+      | Constructor(_, _)
+      | Var(_)
+      | Label(_)
+      | Invalid(_)
+      | MultiHole(_)
+      | EmptyHole
+      | Wild
+      | Atom(_) => descendants
+      }
+    | InfoTyp({term, _}) =>
+      switch (Typ.term_of(term)) {
+      | List(t) =>
+        let c' = typ_to_info(t, info_map);
+        find_descendants(c', add_to_subtree(descendants, c'));
+      | Arrow(t1, t2) =>
+        let c1 = typ_to_info(t1, info_map);
+        let d1 = add_to_subtree(descendants, c1);
+        let d1 = find_descendants(c1, d1);
+        let c2 = typ_to_info(t2, info_map);
+        let d2 = add_to_subtree(d1, c2);
+        find_descendants(c2, d2);
+      | Sum(m) =>
+        List.fold_left(
+          (descendants, variant) => {
+            switch (variant) {
+            | ConstructorMap.Variant(_, _, Some(t)) =>
+              let c1 = typ_to_info(t, info_map);
+              let d1 = add_to_subtree(descendants, c1);
+              find_descendants(c1, d1);
+            | ConstructorMap.Variant(_, _, None) => descendants
+            | ConstructorMap.BadEntry(t) =>
+              let c1 = typ_to_info(t, info_map);
+              let d1 = add_to_subtree(descendants, c1);
+              find_descendants(c1, d1);
+            }
+          },
+          descendants,
+          m,
+        )
+      | Prod(ts) =>
+        List.fold_left(
+          (descendants, t) => {
+            let c1 = typ_to_info(t, info_map);
+            let d1 = add_to_subtree(descendants, c1);
+            find_descendants(c1, d1);
+          },
+          descendants,
+          ts,
+        )
+      | TupLabel(t1, t2) =>
+        let c1 = typ_to_info(t1, info_map);
+        let d1 = add_to_subtree(descendants, c1);
+        let d1 = find_descendants(c1, d1);
+        let c2 = typ_to_info(t2, info_map);
+        let d2 = add_to_subtree(d1, c2);
+        find_descendants(c2, d2);
+      | Parens(t) =>
+        let c1 = typ_to_info(t, info_map);
+        find_descendants(c1, add_to_subtree(descendants, c1));
+      | Ap(t1, t2) =>
+        let c1 = typ_to_info(t1, info_map);
+        let d1 = add_to_subtree(descendants, c1);
+        let d1 = find_descendants(c1, d1);
+        let c2 = typ_to_info(t2, info_map);
+        let d2 = add_to_subtree(d1, c2);
+        find_descendants(c2, d2);
+      | Rec(tp, t) =>
+        let c1 = tpat_to_info(tp, info_map);
+        let d1 = add_to_subtree(descendants, c1);
+        let d1 = find_descendants(c1, d1);
+        let c2 = typ_to_info(t, info_map);
+        let d2 = add_to_subtree(d1, c2);
+        find_descendants(c2, d2);
+      | Forall(tp, t) =>
+        let c1 = tpat_to_info(tp, info_map);
+        let d1 = add_to_subtree(descendants, c1);
+        let d1 = find_descendants(c1, d1);
+        let c2 = typ_to_info(t, info_map);
+        let d2 = add_to_subtree(d1, c2);
+        find_descendants(c2, d2);
+      | Unknown(_)
+      | Atom(_)
+      | Var(_)
+      | Label(_) => descendants
+      }
+    | InfoTPat({term, _}) =>
+      switch (TPat.term_of(term)) {
+      | MultiHole(_)
+      | Var(_)
+      | Invalid(_)
+      | EmptyHole => descendants
+      }
+    | _ => descendants
+    };
+  find_descendants(info, add_to_subtree([], info));
 };

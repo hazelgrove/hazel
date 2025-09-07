@@ -35,10 +35,15 @@ let print =
     | None => print("DEBUG: No indicated index")
     };
   | "F8" =>
-    // print the id of the current tile
-    print(
-      Id.to_string(Info.id_of(Option.get(Indicated.ci_of(zipper, map)))),
-    )
+    let curr_node =
+      AssistantTreeHelper.build_curr_node_info(
+        editor.editor.state.zipper,
+        map,
+      );
+    let errors = ErrorPrint.subtree(Option.get(curr_node).info, map);
+    print_endline("Found the following errors:");
+    print_endline(String.concat("\n", errors));
+    ();
   | "F9" =>
     print(
       CompositionView.str_refs_in(

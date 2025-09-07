@@ -183,7 +183,7 @@ let composition_shortcuts: list(t) = [
     "Update All",
     Globals(
       ActiveEditor(
-        Composition(CompositionActions.default(Edit(UpdateAll(Human)))),
+        Composition(CompositionActions.default(Edit(Initialize(Human)))),
       ),
     ),
   ),

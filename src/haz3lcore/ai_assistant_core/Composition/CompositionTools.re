@@ -9,7 +9,7 @@ let tools = [
   NavTools.go_to_child,
   NavTools.go_to_sibling,
   NavTools.go_to_binding_site,
-  EditTools.update_all,
+  EditTools.initialize,
   EditTools.update_definition,
   EditTools.update_body,
   EditTools.update_pattern,
@@ -63,13 +63,13 @@ let action_of = (~tool_name: string, ~args: Maps.StringMap.t(string)): action =>
         name,
       );
     Nav(GoToBindingSite(name, index));
-  | "update_all" =>
+  | "initialize" =>
     let code =
       OptUtil.get_or_fail(
         "You must specify a code for the program you wish to update",
         code,
       );
-    Edit(UpdateAll(LLM(code)));
+    Edit(Initialize(LLM(code)));
   | "update_definition" =>
     let code =
       OptUtil.get_or_fail(
@@ -184,7 +184,7 @@ let string_of = (action: action) => {
       }
     )
     ++ ")"
-  | Edit(UpdateAll(u)) => "update_all(\"" ++ code_of(u) ++ "\")"
+  | Edit(Initialize(u)) => "initialize(\"" ++ code_of(u) ++ "\")"
   | Edit(UpdateDefinition(u)) =>
     "update_definition(\"" ++ code_of(u) ++ "\")"
   | Edit(UpdateBody(u)) => "update_body(\"" ++ code_of(u) ++ "\")"
@@ -238,6 +238,39 @@ module Perform = {
     };
   };
 
+  let static_error_check =
+      (
+        ~old_z: option(Zipper.t),
+        ~new_z: Zipper.t,
+        ~mk_statics: Zipper.t => StaticsBase.Map.t,
+      ) => {
+    // We check to see if there have been errors introduced at the current node
+    let old_errors =
+      switch (old_z) {
+      | None => []
+      | Some(old_z) =>
+        let old_node =
+          AssistantTreeHelper.build_curr_node_info(old_z, mk_statics(old_z))
+          |> Option.get;
+        ErrorPrint.subtree(old_node.info, mk_statics(old_z));
+      };
+    let new_statics = mk_statics(new_z);
+    let new_node =
+      AssistantTreeHelper.build_curr_node_info(new_z, new_statics)
+      |> Option.get;
+    let new_errors = ErrorPrint.subtree(new_node.info, new_statics);
+    if (List.length(new_errors) > List.length(old_errors)) {
+      Error(
+        Action.Failure.Composition_action_failure(
+          "Not applying the action you requested as it would have the following static error(s): "
+          ++ String.concat(", ", new_errors),
+        ),
+      );
+    } else {
+      Ok(new_z);
+    };
+  };
+
   // Tempory wrapper that helps me localize myself while implementing (remove)
   let composition_dispatch =
       (
@@ -264,7 +297,11 @@ module Perform = {
     switch (curr_node_info) {
     | None =>
       switch (a) {
-      | Edit(UpdateAll(u)) => introduce(Select.all(z), code_of(u))
+      | Edit(Initialize(u)) =>
+        switch (introduce(Select.all(z), code_of(u))) {
+        | Ok(z) => static_error_check(~old_z=None, ~new_z=z, ~mk_statics)
+        | Error(e) => Error(e)
+        }
       | _ => Error(Action.Failure.Cant_derive_local_AST_information)
       }
     | Some(node) =>
@@ -434,7 +471,6 @@ module Perform = {
           | Some(z') =>
             // Paste the code over the selected tile
             introduce(z', code)
-
           | None => Error(Action.Failure.Cant_select)
           };
         };
@@ -477,83 +513,111 @@ module Perform = {
         switch (e) {
         | UpdateDefinition(u) =>
           let target_id = get_inner_term_id(node, Def);
-          overwrite_term(z, target_id, code_of(u), true);
+          switch (overwrite_term(z, target_id, code_of(u), false)) {
+          | Error(e) => Error(e)
+          | Ok(new_z) =>
+            static_error_check(~old_z=Some(z), ~new_z, ~mk_statics)
+          };
         | UpdateBody(u) =>
           let target_id = get_inner_term_id(node, Body);
-          overwrite_term(z, target_id, code_of(u), false);
+          switch (overwrite_term(z, target_id, code_of(u), false)) {
+          | Error(e) => Error(e)
+          | Ok(new_z) =>
+            static_error_check(~old_z=Some(z), ~new_z, ~mk_statics)
+          };
         | UpdatePattern(u) =>
           let target_id = get_inner_term_id(node, Pat);
-          overwrite_term(z, target_id, code_of(u), true);
+          switch (overwrite_term(z, target_id, code_of(u), false)) {
+          | Error(e) => Error(e)
+          | Ok(new_z) =>
+            static_error_check(~old_z=Some(z), ~new_z, ~mk_statics)
+          };
         | UpdateBindingClause(u) =>
           let target_id = Info.id_of(node.info);
-          overwrite_term(z, target_id, code_of(u), true);
+          switch (overwrite_term(z, target_id, code_of(u), true)) {
+          | Error(e) => Error(e)
+          | Ok(new_z) =>
+            static_error_check(~old_z=Some(z), ~new_z, ~mk_statics)
+          };
+        | InsertBefore(u) =>
+          // todo: figure out a better method than magic space
+          switch (
+            insert_term(
+              z,
+              Info.id_of(node.info),
+              code_of(u) ++ " ",
+              Direction.Left,
+            )
+          ) {
+          | Error(e) => Error(e)
+          | Ok(new_z) => static_error_check(~old_z=None, ~new_z, ~mk_statics)
+          }
+        | InsertAfter(u) =>
+          // todo: figure out a better method than magic space
+          switch (
+            insert_term(
+              z,
+              Info.id_of(node.info),
+              " " ++ code_of(u),
+              Direction.Right,
+            )
+          ) {
+          | Error(e) => Error(e)
+          | Ok(new_z) => static_error_check(~old_z=None, ~new_z, ~mk_statics)
+          }
         | DeleteBindingClause =>
           destruct_term(~defs_exclude_bodies=true, z, Info.id_of(node.info))
         | DeleteBody =>
           let target_id = get_inner_term_id(node, Body);
           destruct_term(~defs_exclude_bodies=false, z, target_id);
-        | InsertBefore(u) =>
-          // todo: figure out a better method than magic space
-          insert_term(
-            z,
-            Info.id_of(node.info),
-            code_of(u) ++ " ",
-            Direction.Left,
+        | Initialize(_) =>
+          Error(
+            Action.Failure.Composition_action_failure(
+              "You may not use initialize on a program with let/type alias expressions",
+            ),
           )
-        | InsertAfter(u) =>
-          // todo: figure out a better method than magic space
-          insert_term(
-            z,
-            Info.id_of(node.info),
-            " " ++ code_of(u),
-            Direction.Right,
-          )
-        | UpdateAll(u) => introduce(Select.all(z), code_of(u))
         };
       }
     };
   };
 
   let go = (~syntax, ~z, ~a, ~mk_statics, ~return, ~schedule_tool_response) => {
-    let curr_node_info =
+    let curr_node =
       AssistantTreeHelper.build_curr_node_info(z, mk_statics(z));
 
     let old_errors = ErrorPrint.all(mk_statics(z));
-
     let res =
-      switch (
-        composition_dispatch(a, syntax, z, mk_statics, return, curr_node_info)
-      ) {
-      | Ok(z') =>
-        switch (ErrorPrint.all(mk_statics(z'))) {
-        | [] => Ok(z')
-        | errors
-            // do not apply if new errors were introduced
-            // NOTE: This assumes that, given a program with errors already in it,
-            // it is not just possible, but also feasible, that the assistant (or anybody)
-            // can repair the program in structure-level edits, without ever increasing
-            // the number of errors beyond the initial set (the error count will be non-increasing)
-            when List.length(errors) >= List.length(old_errors) =>
-          Error(
-            Action.Failure.Composition_action_failure(
-              "Changes not being applied to the editor since they introduce the following static error(s): "
-              ++ String.concat(", ", errors),
-            ),
-          )
-        | _ => Ok(z')
-        }
-      | Error(e) => Error(e)
-      };
+      composition_dispatch(a, syntax, z, mk_statics, return, curr_node);
+
     //todo: handle res and use schedule_assistant_action to send the result to the assistant and loop
     switch (schedule_tool_response) {
     | Some(schedule_tool_response) =>
       switch (res) {
-      | Ok(_) =>
-        schedule_tool_response(
-          AssistantUpdateAction.Success(
-            "Action has been applied to the editor",
-          ),
-        )
+      | Ok(z') =>
+        switch (ErrorPrint.all(mk_statics(z'))) {
+        | errors as new_errors
+            // do not apply if new errors were introduced
+            // NOTE: This is an open problem to solve
+            //       It's by no means trivial as to which method to take
+            //       https://chatgpt.com/share/68bca035-fce0-8001-aafa-5ee39b8a6e89
+            when {
+              let new_errors =
+                List.filter(err => !List.mem(err, old_errors), errors);
+              List.length(new_errors) >= 1;
+            } =>
+          schedule_tool_response(
+            AssistantUpdateAction.Success(
+              "WARNING: The action you requested introduces the following static error obligation(s): "
+              ++ String.concat(", ", new_errors),
+            ),
+          )
+        | _ =>
+          schedule_tool_response(
+            AssistantUpdateAction.Success(
+              "Action has been applied to the editor",
+            ),
+          )
+        }
       | Error(Composition_action_failure(e)) =>
         schedule_tool_response(AssistantUpdateAction.Failure(e))
       | _ =>
