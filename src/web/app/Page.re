@@ -243,6 +243,7 @@ module Update = {
       export_all: Export.export_all,
       get_log_and,
     };
+    print_endline("action: " ++ show(action));
     switch (action) {
     | Globals(action) =>
       update_global(~globals, ~import_log, ~schedule_action, action, model)

@@ -147,13 +147,17 @@ module Update = {
     /* 3. Update the zipper */
     let+ zipper = Perform.go(~statics=old_statics, ~syntax, a, state);
 
-    //TODO(andrew): relocate
     let zipper =
-      Refractors.add_ids_from_pinned_term(
-        ~term_data=syntax.term_data,
-        ~measured=syntax.measured,
-        zipper,
-      );
+      Action.is_edit(a)
+        ? {
+          print_endline("replace]''ing refractors");
+          zipper
+          |> Refractors.add_ids_from_pinned_term(
+               ~term_data=syntax.term_data,
+               ~measured=syntax.measured,
+             );
+        }
+        : zipper;
 
     Model.{
       state: {

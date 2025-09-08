@@ -67,13 +67,13 @@ let add_ids_from_pinned_term = (~term_data, ~measured, z: Zipper.t): Zipper.t =>
               print_endline("no probe for " ++ Id.show(id));
               map;
             | Some(p) =>
-              print_endline(
-                "adding ephemeral refractor "
-                ++ Id.show(id)
-                ++ " p.id: "
-                ++ Id.show(p.id),
-              );
-              Id.Map.add(id, p, map);
+              // print_endline(
+              //   "adding ephemeral refractor "
+              //   ++ Id.show(id)
+              //   ++ " p.id: "
+              //   ++ Id.show(p.id),
+              // );
+              Id.Map.add(id, p, map)
             },
           Id.Map.empty,
           ids,

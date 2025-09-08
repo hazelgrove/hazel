@@ -84,6 +84,33 @@
   filter: drop-shadow(var(--off-x) var(--off-y) var(--blur) var(--G0));
 }
 
+.refractors .overlays .projector.probe .num-closures {
+  right: -0.85em;
+  top: 1.05em;
+  transform-origin: top right;
+  scale: 0.6;
+  font-size: 0.8em;
+  padding: 0.1em;
+  min-width: 1.2em;
+}
+
+.refractors .projector.probe .closure .code {
+  line-height: 1.41;
+}
+
+.refractors .live-offside .live-equals {
+  display: none;
+}
+
+.refractors svg:has(.child-line) {
+  z-index: 2; /* TODO(andrew) */
+}
+
+.refractors path.child-line.dashed {
+  stroke-dasharray: 0.5 2.5;
+  opacity: 0.4;
+}
+
 /* INLINE VIEW */
 
 .projector.probe .main {

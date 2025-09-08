@@ -379,6 +379,161 @@ module Indicated = {
     div_c("indication", indicated_piece(~font_metrics, ~syntax, z));
 };
 
+module Refractors = {
+  let paths =
+      (
+        tiles: tile_data,
+        line_clss: list(string),
+        font_metrics: FontMetrics.t,
+        rows: Rows.t,
+        (first, last): (Point.t, Point.t),
+      )
+      : list(Node.t) =>
+    switch (tiles) {
+    | [] => []
+    | [(_, {out: sort, _}, _), ..._] =>
+      let shards = shards_of_tiles(tiles);
+      assert(shards != []);
+      let path_cls = ["child-line", Sort.to_string(sort)] @ line_clss;
+      let hx = abs_float(ShardDec.offset_of(fst(rep_tips(tiles))));
+      let min_col = min_col(~first, ~last, ~rows);
+      //let shard_rows = Shards.split_by_row(shards);
+      let (orig, path) =
+        switch (l_path(~hx, ~min_col, ~first, ~last)) {
+        | [(orig, path)] => (orig, path)
+        | _ => failwith("Arms")
+        };
+      let path = path @ [hook(hx, 1, -1)];
+      (
+        [
+          (orig, path),
+          // r_path(
+          //   ~hx,
+          //   ~min_col,
+          //   ~first=snd(ListUtil.last(shards)).last,
+          //   ~last,
+          // ),
+          // inner_lines(~hx, ~min_col, ~shard_rows),
+        ]
+        |> List.map(svg(~font_metrics, ~path_cls))
+      )
+      @ (
+        [(last, [m(~x=0, ~y=1), h(~x=8)])]  //TODO(andrew): figure out end of line
+        |> List.map(svg(~font_metrics, ~path_cls=["child-line", "dashed"]))
+      );
+    };
+
+  /* This draws the shards backing decorations,
+   * i.e. the hexagons under the term's delimiters */
+  let shards =
+      (
+        ~attr: option(list(Attr.t))=?,
+        ~font_metrics: FontMetrics.t,
+        ~base_clss: option(string),
+        tiles: tile_data,
+      )
+      : list(Node.t) =>
+    List.concat_map(
+      ((_, mold: Mold.t, shards: list(Shards.shard))) =>
+        List.map(
+          ((index: int, measurement: Measured.measurement)) =>
+            ShardDec.simple(
+              ~attr?,
+              {
+                font_metrics,
+                measurement,
+                tips: ShardDec.tips_of_shapes(Mold.nib_shapes(~index, mold)),
+              },
+              Option.to_list(base_clss)
+              @ ["indicated", Sort.to_string(mold.out)],
+            ),
+          shards,
+        ),
+      tiles,
+    );
+
+  /* This draws the indication decoration for a term, comprising shard
+   * decorations and paths between the shards and the edges of the term */
+  let term =
+      (
+        ~font_metrics: FontMetrics.t,
+        ~rows: Rows.t,
+        ~tiles: tile_data,
+        ~line_clss: list(string)=[],
+        range: (Point.t, Point.t),
+      )
+      : list(Node.t) =>
+    paths(tiles, line_clss, font_metrics, rows, range);
+
+  let term =
+      (
+        ~term_data: TermData.t,
+        ~terms: TermMap.t,
+        ~measured: Measured.t,
+        ~font_metrics: FontMetrics.t,
+        tile: Tile.t,
+      )
+      : list(Node.t) => {
+    let msg = "IndicationDec.term";
+    let id = Language.Any.rep_id(Id.Map.find(tile.id, terms));
+    switch (TermData.extreme_measures(id, term_data, measured)) {
+    | Some((l, r)) =>
+      let of_tile = (id: Id.t) => {
+        open OptUtil.Syntax;
+        let+ tile = TermData.root_tile(id, term_data);
+        (id, tile.mold, Measured.find_shards(~msg, tile, measured));
+      };
+      let tiles =
+        Id.Map.find(id, terms)
+        |> Language.Any.ids
+        |> List.filter_map(of_tile);
+      term(~font_metrics, ~rows=measured.rows, ~tiles, (l, r));
+    | _ => []
+    };
+  };
+
+  let term = (~syntax: CachedSyntax.t, ~font_metrics: FontMetrics.t) =>
+    term(
+      ~term_data=syntax.term_data,
+      ~terms=syntax.terms,
+      ~measured=syntax.measured,
+      ~font_metrics,
+    );
+
+  let of_piece =
+      (~font_metrics: FontMetrics.t, ~syntax: CachedSyntax.t, p: Piece.t)
+      : list(Node.t) => {
+    switch (p) {
+    | Grout(_)
+    | Secondary(_) => []
+    | Projector(p) =>
+      switch (Measured.find_pr_opt(p, syntax.measured)) {
+      | Some(measurement) => [
+          ShardDec.simple(
+            {
+              font_metrics,
+              measurement,
+              tips: p |> ProjectorCore.shapes |> ShardDec.tips_of_shapes,
+            },
+            [
+              p.syntax |> Piece.sort |> fst |> Sort.to_string,
+              "caret",
+              "indicated",
+            ],
+          ),
+        ]
+      | None => []
+      }
+    | Tile(t) as p =>
+      if (Piece.is_infix_delimiter_op_prefix(p)) {
+        [];
+      } else {
+        term(~font_metrics, ~syntax, t);
+      }
+    };
+  };
+};
+
 let refractor_decos =
     (~font_metrics: FontMetrics.t, ~syntax: CachedSyntax.t, z: Zipper.t)
     : list(Node.t) =>
@@ -394,7 +549,7 @@ let refractor_decos =
        | None => None
        }
      )
-  |> List.map(Indicated.of_piece(~font_metrics, ~syntax))
+  |> List.map(Refractors.of_piece(~font_metrics, ~syntax))
   |> List.flatten;
 
 let refractors =
