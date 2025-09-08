@@ -16,10 +16,15 @@ module Model = {
     dynamics: Language.Dynamics.Map.t,
   };
 
-  let mk = editor => {
+  let mk =
+      (
+        ~dynamics=Language.Dynamics.Map.empty,
+        ~statics=CachedStatics.empty,
+        editor,
+      ) => {
     editor,
-    statics: CachedStatics.empty,
-    dynamics: Language.Dynamics.Map.empty,
+    statics,
+    dynamics,
   };
 
   let mk_from_exp =
