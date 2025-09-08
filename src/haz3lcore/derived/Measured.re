@@ -306,6 +306,14 @@ let of_segment =
 
   let add_projector = ((seg, indent, origin, map): acc, pr: Base.projector) => {
     let size = DeferredLinebreaks.of_projector(pr, shape_map);
+    let shape = ProjectorCore.Shape.Map.lookup(pr.id, shape_map);
+    let indent =
+      switch (shape.vertical) {
+      | Inline
+      | Block(0)
+      | Tab(_) => indent
+      | Block(_) => origin.col
+      };
     let (measure, map) = calc(indent, origin, map, size);
     let map =
       size.row == 0

@@ -89,7 +89,6 @@ module Model = {
                 },
               )
             }
-
           | Some(m) => Some(m)
           };
         let info = ProjectorInfo.mk_info(p, ~statics, ~dynamics);

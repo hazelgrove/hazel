@@ -195,7 +195,7 @@ module View = {
       ~syntax,
       globals.color_highlights,
     ),
-    Arms.refractors(~font_metrics=globals.font_metrics, ~syntax, z),
+    Arms.Refractors.all(~font_metrics=globals.font_metrics, ~syntax, z),
   ];
 
   let view =

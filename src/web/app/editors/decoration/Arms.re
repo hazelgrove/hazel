@@ -161,25 +161,25 @@ let inner_lines =
  * enclosed leftward column containing program text. */
 let l_path =
     (~min_col: int, ~last: Point.t, ~hx: float, ~first: Point.t)
-    : list(positioned_path) =>
+    : option(positioned_path) =>
   if (last.row > first.row) {
-    [(first, l_vertical(~hx, ~first, ~last, ~min_col))];
+    Some((first, l_vertical(~hx, ~first, ~last, ~min_col)));
   } else if (Point.compare(last, first) > 0) {
-    [(first, l_horizontal(~hx, ~first, ~last))];
+    Some((first, l_horizontal(~hx, ~first, ~last)));
   } else {
-    [];
+    None;
   };
 
 /* See l-path */
 let r_path =
     (~min_col: int, ~first: Point.t, ~hx: float, ~last: Point.t)
-    : list(positioned_path) =>
+    : option(positioned_path) =>
   if (last.row > first.row) {
-    [(first, r_vertical(~hx, ~first, ~last, ~min_col))];
+    Some((first, r_vertical(~hx, ~first, ~last, ~min_col)));
   } else if (Point.compare(last, first) > 0) {
-    [(first, r_horizontal(~hx, ~first, ~last))];
+    Some((first, r_horizontal(~hx, ~first, ~last)));
   } else {
-    [];
+    None;
   };
 
 /* This draws the paths which connect the leftwards edge of the term to
@@ -204,8 +204,10 @@ let paths =
     let min_col = min_col(~first, ~last, ~rows);
     let shard_rows = Shards.split_by_row(shards);
     List.concat([
-      l_path(~hx, ~min_col, ~first, ~last=snd(List.hd(shards)).origin),
-      r_path(~hx, ~min_col, ~first=snd(ListUtil.last(shards)).last, ~last),
+      l_path(~hx, ~min_col, ~first, ~last=snd(List.hd(shards)).origin)
+      |> Option.to_list,
+      r_path(~hx, ~min_col, ~first=snd(ListUtil.last(shards)).last, ~last)
+      |> Option.to_list,
       inner_lines(~hx, ~min_col, ~shard_rows),
     ])
     |> List.map(svg(~font_metrics, ~path_cls));
@@ -300,6 +302,17 @@ let term = (~syntax: CachedSyntax.t, ~font_metrics: FontMetrics.t) =>
     ~font_metrics,
   );
 
+let term_range = (~syntax: CachedSyntax.t, p: Piece.t) => {
+  switch (p) {
+  | Secondary(_) => None
+  | Grout(_)
+  | Projector(_)
+  | Tile(_) =>
+    let id = Language.Any.rep_id(Id.Map.find(Piece.id(p), syntax.terms));
+    TermData.extreme_measures(id, syntax.term_data, syntax.measured);
+  };
+};
+
 open Util.WebUtil;
 
 module Errors = {
@@ -390,111 +403,57 @@ module Indicated = {
 };
 
 module Refractors = {
-  //TODO(andrew): cleanup. this is largely copy-pasted
   let paths =
       (
-        tiles: tile_data,
-        line_clss: list(string),
+        hx: float,
+        sort: Sort.t,
         font_metrics: FontMetrics.t,
         rows: Rows.t,
         (first, last): (Point.t, Point.t),
       )
+      : list(Node.t) => {
+    let min_col = min_col(~first, ~last, ~rows);
+    let (orig, path) = l_path(~hx, ~min_col, ~first, ~last) |> Option.get;
+    //TODO(andrew): unhardcode magic 4 offset
+    let dashed_length = IntMap.find(last.row, rows).max_col - last.col + 4;
+    [
+      svg(
+        ~font_metrics,
+        ~path_cls=["child-line", Sort.to_string(sort)],
+        (orig, path @ [hook(hx, 1, -1)]),
+      ),
+      svg(
+        ~font_metrics,
+        ~path_cls=["child-line", Sort.to_string(sort), "dashed"],
+        (last, [m(~x=0, ~y=1), h(~x=dashed_length)]),
+      ),
+    ];
+  };
+
+  let of_zipper =
+      (~font_metrics: FontMetrics.t, ~syntax: CachedSyntax.t, z: Zipper.t)
       : list(Node.t) =>
-    switch (tiles) {
-    | [] => []
-    | [(_, {out: sort, _}, _), ..._] =>
-      let shards = shards_of_tiles(tiles);
-      assert(shards != []);
-      let path_cls = ["child-line", Sort.to_string(sort)] @ line_clss;
-      let hx = abs_float(ShardDec.offset_of(fst(rep_tips(tiles))));
-      let min_col = min_col(~first, ~last, ~rows);
-      let (orig, path) =
-        switch (l_path(~hx, ~min_col, ~first, ~last)) {
-        | [(orig, path)] => (orig, path)
-        | _ => failwith("Arms")
-        };
-      let dashed_length = IntMap.find(last.row, rows).max_col - last.col + 4; //TODO(andrew): unhardcode offset
-      let path = path @ [hook(hx, 1, -1)];
-      ([(orig, path)] |> List.map(svg(~font_metrics, ~path_cls)))
-      @ (
-        [(last, [m(~x=0, ~y=1), h(~x=dashed_length)])]
-        |> List.map(svg(~font_metrics, ~path_cls=["child-line", "dashed"]))
-      );
-    };
+    Id.Map.union(
+      (_, _, b) => Some(b),
+      z.refractors.map,
+      z.refractors.ephemerals,
+    )
+    |> Id.Map.to_list
+    |> List.concat_map(((id, _p)) =>
+         switch (Id.Map.find_opt(id, syntax.term_data)) {
+         | Some(t) =>
+           switch (term_range(~syntax, t.root_piece)) {
+           | Some(range) =>
+             let hx = abs_float(ShardDec.offset_of(Some(Left))); // Always left-convex
+             let sort = Piece.sort(t.root_piece) |> fst;
+             paths(hx, sort, font_metrics, syntax.measured.rows, range);
+           | _ => []
+           }
+         | None => []
+         }
+       );
 
-  let term =
-      (
-        ~term_data: TermData.t,
-        ~terms: TermMap.t,
-        ~measured: Measured.t,
-        ~font_metrics: FontMetrics.t,
-        tile: Tile.t,
-      )
-      : list(Node.t) => {
-    let id = Language.Any.rep_id(Id.Map.find(tile.id, terms));
-    switch (TermData.extreme_measures(id, term_data, measured)) {
-    | Some((l, r)) =>
-      let tiles = tiles_data(~term_data, ~terms, ~measured, tile);
-      paths(tiles, [], font_metrics, measured.rows, (l, r));
-    | _ => []
-    };
-  };
-
-  let term = (~syntax: CachedSyntax.t, ~font_metrics: FontMetrics.t) =>
-    term(
-      ~term_data=syntax.term_data,
-      ~terms=syntax.terms,
-      ~measured=syntax.measured,
-      ~font_metrics,
-    );
-
-  let of_piece =
-      (~font_metrics: FontMetrics.t, ~syntax: CachedSyntax.t, p: Piece.t)
-      : list(Node.t) => {
-    switch (p) {
-    | Grout(_)
-    | Secondary(_) => []
-    | Projector(p) =>
-      switch (Measured.find_pr_opt(p, syntax.measured)) {
-      | Some(measurement) => [
-          ShardDec.simple(
-            {
-              font_metrics,
-              measurement,
-              tips: p |> ProjectorCore.shapes |> ShardDec.tips_of_shapes,
-            },
-            [
-              p.syntax |> Piece.sort |> fst |> Sort.to_string,
-              "caret",
-              "indicated",
-            ],
-          ),
-        ]
-      | None => []
-      }
-    | Tile(t) => term(~font_metrics, ~syntax, t)
-    };
-  };
+  let all =
+      (~font_metrics: FontMetrics.t, ~syntax: CachedSyntax.t, z: Zipper.t) =>
+    div_c("refractors", of_zipper(~font_metrics, ~syntax, z));
 };
-
-let refractor_decos =
-    (~font_metrics: FontMetrics.t, ~syntax: CachedSyntax.t, z: Zipper.t)
-    : list(Node.t) =>
-  Id.Map.union(
-    (_, _, b) => Some(b),
-    z.refractors.map,
-    z.refractors.ephemerals,
-  )
-  |> Id.Map.to_list
-  |> List.filter_map(((id, _p)) =>
-       switch (Id.Map.find_opt(id, syntax.term_data)) {
-       | Some(t) => Some(t.root_piece)
-       | None => None
-       }
-     )
-  |> List.map(Refractors.of_piece(~font_metrics, ~syntax))
-  |> List.flatten;
-
-let refractors =
-    (~font_metrics: FontMetrics.t, ~syntax: CachedSyntax.t, z: Zipper.t) =>
-  div_c("refractors", refractor_decos(~font_metrics, ~syntax, z));

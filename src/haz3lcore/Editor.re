@@ -150,7 +150,7 @@ module Update = {
     let zipper =
       Action.is_edit(a)
         ? {
-          print_endline("replace]''ing refractors");
+          print_endline("replacing refractors");
           zipper
           |> Refractors.add_ids_from_pinned_term(
                ~term_data=syntax.term_data,
