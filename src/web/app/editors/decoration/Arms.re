@@ -256,6 +256,23 @@ let term =
   shards(~attr?, ~font_metrics, ~base_clss, tiles)
   @ paths(tiles, line_clss, font_metrics, rows, range);
 
+let tiles_data =
+    (
+      ~term_data: TermData.t,
+      ~terms: TermMap.t,
+      ~measured: Measured.t,
+      tile: Tile.t,
+    ) => {
+  let msg = "Arms.tiles_data";
+  let id = Language.Any.rep_id(Id.Map.find(tile.id, terms));
+  let of_tile = (id: Id.t) => {
+    open OptUtil.Syntax;
+    let+ tile = TermData.root_tile(id, term_data);
+    (id, tile.mold, Measured.find_shards(~msg, tile, measured));
+  };
+  Id.Map.find(id, terms) |> Language.Any.ids |> List.filter_map(of_tile);
+};
+
 let term =
     (
       ~term_data: TermData.t,
@@ -266,17 +283,10 @@ let term =
       tile: Tile.t,
     )
     : list(Node.t) => {
-  let msg = "IndicationDec.term";
   let id = Language.Any.rep_id(Id.Map.find(tile.id, terms));
   switch (TermData.extreme_measures(id, term_data, measured)) {
   | Some((l, r)) =>
-    let of_tile = (id: Id.t) => {
-      open OptUtil.Syntax;
-      let+ tile = TermData.root_tile(id, term_data);
-      (id, tile.mold, Measured.find_shards(~msg, tile, measured));
-    };
-    let tiles =
-      Id.Map.find(id, terms) |> Language.Any.ids |> List.filter_map(of_tile);
+    let tiles = tiles_data(~term_data, ~terms, ~measured, tile);
     term(~font_metrics, ~rows=measured.rows, ~tiles, (l, r), ~attr?);
   | _ => []
   };
@@ -380,6 +390,7 @@ module Indicated = {
 };
 
 module Refractors = {
+  //TODO(andrew): cleanup. this is largely copy-pasted
   let paths =
       (
         tiles: tile_data,
@@ -397,73 +408,19 @@ module Refractors = {
       let path_cls = ["child-line", Sort.to_string(sort)] @ line_clss;
       let hx = abs_float(ShardDec.offset_of(fst(rep_tips(tiles))));
       let min_col = min_col(~first, ~last, ~rows);
-      //let shard_rows = Shards.split_by_row(shards);
       let (orig, path) =
         switch (l_path(~hx, ~min_col, ~first, ~last)) {
         | [(orig, path)] => (orig, path)
         | _ => failwith("Arms")
         };
+      let dashed_length = IntMap.find(last.row, rows).max_col - last.col + 4; //TODO(andrew): unhardcode offset
       let path = path @ [hook(hx, 1, -1)];
-      (
-        [
-          (orig, path),
-          // r_path(
-          //   ~hx,
-          //   ~min_col,
-          //   ~first=snd(ListUtil.last(shards)).last,
-          //   ~last,
-          // ),
-          // inner_lines(~hx, ~min_col, ~shard_rows),
-        ]
-        |> List.map(svg(~font_metrics, ~path_cls))
-      )
+      ([(orig, path)] |> List.map(svg(~font_metrics, ~path_cls)))
       @ (
-        [(last, [m(~x=0, ~y=1), h(~x=8)])]  //TODO(andrew): figure out end of line
+        [(last, [m(~x=0, ~y=1), h(~x=dashed_length)])]
         |> List.map(svg(~font_metrics, ~path_cls=["child-line", "dashed"]))
       );
     };
-
-  /* This draws the shards backing decorations,
-   * i.e. the hexagons under the term's delimiters */
-  let shards =
-      (
-        ~attr: option(list(Attr.t))=?,
-        ~font_metrics: FontMetrics.t,
-        ~base_clss: option(string),
-        tiles: tile_data,
-      )
-      : list(Node.t) =>
-    List.concat_map(
-      ((_, mold: Mold.t, shards: list(Shards.shard))) =>
-        List.map(
-          ((index: int, measurement: Measured.measurement)) =>
-            ShardDec.simple(
-              ~attr?,
-              {
-                font_metrics,
-                measurement,
-                tips: ShardDec.tips_of_shapes(Mold.nib_shapes(~index, mold)),
-              },
-              Option.to_list(base_clss)
-              @ ["indicated", Sort.to_string(mold.out)],
-            ),
-          shards,
-        ),
-      tiles,
-    );
-
-  /* This draws the indication decoration for a term, comprising shard
-   * decorations and paths between the shards and the edges of the term */
-  let term =
-      (
-        ~font_metrics: FontMetrics.t,
-        ~rows: Rows.t,
-        ~tiles: tile_data,
-        ~line_clss: list(string)=[],
-        range: (Point.t, Point.t),
-      )
-      : list(Node.t) =>
-    paths(tiles, line_clss, font_metrics, rows, range);
 
   let term =
       (
@@ -474,20 +431,11 @@ module Refractors = {
         tile: Tile.t,
       )
       : list(Node.t) => {
-    let msg = "IndicationDec.term";
     let id = Language.Any.rep_id(Id.Map.find(tile.id, terms));
     switch (TermData.extreme_measures(id, term_data, measured)) {
     | Some((l, r)) =>
-      let of_tile = (id: Id.t) => {
-        open OptUtil.Syntax;
-        let+ tile = TermData.root_tile(id, term_data);
-        (id, tile.mold, Measured.find_shards(~msg, tile, measured));
-      };
-      let tiles =
-        Id.Map.find(id, terms)
-        |> Language.Any.ids
-        |> List.filter_map(of_tile);
-      term(~font_metrics, ~rows=measured.rows, ~tiles, (l, r));
+      let tiles = tiles_data(~term_data, ~terms, ~measured, tile);
+      paths(tiles, [], font_metrics, measured.rows, (l, r));
     | _ => []
     };
   };
@@ -524,12 +472,7 @@ module Refractors = {
         ]
       | None => []
       }
-    | Tile(t) as p =>
-      if (Piece.is_infix_delimiter_op_prefix(p)) {
-        [];
-      } else {
-        term(~font_metrics, ~syntax, t);
-      }
+    | Tile(t) => term(~font_metrics, ~syntax, t)
     };
   };
 };

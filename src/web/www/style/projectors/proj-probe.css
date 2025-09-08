@@ -106,9 +106,18 @@
   z-index: 2; /* TODO(andrew) */
 }
 
+.refractors .child-line {
+  /* To make it align to shard shadows */
+  translate: 0 0.02px;
+}
+
 .refractors path.child-line.dashed {
   stroke-dasharray: 0.5 2.5;
   opacity: 0.4;
+}
+
+.refractors .overlays .projector.probe.indicated.Right .num-closures {
+  background-color: var(--exp-indicated) !important;
 }
 
 /* INLINE VIEW */
