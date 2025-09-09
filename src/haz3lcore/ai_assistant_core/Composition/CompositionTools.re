@@ -243,6 +243,9 @@ module Perform = {
         ~old_z: option(Zipper.t),
         ~new_z: Zipper.t,
         ~mk_statics: Zipper.t => StaticsBase.Map.t,
+        ~of_pat: bool,
+        ~of_def: bool,
+        ~of_body: bool,
       ) => {
     // We check to see if there have been errors introduced at the current node
     let old_errors =
@@ -252,13 +255,27 @@ module Perform = {
         let old_node =
           AssistantTreeHelper.build_curr_node_info(old_z, mk_statics(old_z))
           |> Option.get;
-        ErrorPrint.subtree(old_node.info);
+        let old_subtree =
+          AssistantTreeHelper.subtree_of(
+            ~info=old_node.info,
+            ~of_pat,
+            ~of_def,
+            ~of_body,
+          );
+        ErrorPrint.all(old_subtree);
       };
     let new_statics = mk_statics(new_z);
     let new_node =
       AssistantTreeHelper.build_curr_node_info(new_z, new_statics)
       |> Option.get;
-    let new_errors = ErrorPrint.subtree(new_node.info);
+    let new_subtree =
+      AssistantTreeHelper.subtree_of(
+        ~info=new_node.info,
+        ~of_pat,
+        ~of_def,
+        ~of_body,
+      );
+    let new_errors = ErrorPrint.all(new_subtree);
     if (List.length(new_errors) > List.length(old_errors)) {
       Error(
         Action.Failure.Composition_action_failure(
@@ -529,14 +546,28 @@ module Perform = {
           switch (overwrite_term(z, target_id, code_of(u), false)) {
           | Error(e) => Error(e)
           | Ok(new_z) =>
-            static_error_check(~old_z=Some(z), ~new_z, ~mk_statics)
+            static_error_check(
+              ~old_z=Some(z),
+              ~new_z,
+              ~mk_statics,
+              ~of_pat=false,
+              ~of_def=true,
+              ~of_body=false,
+            )
           };
         | UpdateBody(u) =>
           let target_id = get_inner_term_id(node, Body);
           switch (overwrite_term(z, target_id, code_of(u), false)) {
           | Error(e) => Error(e)
           | Ok(new_z) =>
-            static_error_check(~old_z=Some(z), ~new_z, ~mk_statics)
+            static_error_check(
+              ~old_z=Some(z),
+              ~new_z,
+              ~mk_statics,
+              ~of_pat=false,
+              ~of_def=false,
+              ~of_body=true,
+            )
           };
         | UpdatePattern(u) =>
           let target_id = get_inner_term_id(node, Pat);
@@ -545,27 +576,30 @@ module Perform = {
           switch (overwrite_term(z, target_id, code_of(u), false)) {
           | Error(e) => Error(e)
           | Ok(new_z) =>
-            switch (static_error_check(~old_z=Some(z), ~new_z, ~mk_statics)) {
+            switch (
+              static_error_check(
+                ~old_z=Some(z),
+                ~new_z,
+                ~mk_statics,
+                ~of_pat=true,
+                ~of_def=false,
+                ~of_body=false,
+              )
+            ) {
             | Error(e) => Error(e)
             | Ok(safe_z) =>
+              let new_info_map = mk_statics(safe_z);
               let new_node =
-                AssistantTreeHelper.build_curr_node_info(
-                  safe_z,
-                  mk_statics(safe_z),
-                )
+                AssistantTreeHelper.build_curr_node_info(safe_z, new_info_map)
                 |> Option.get;
               let target_id = get_inner_term_id(new_node, Pat);
               let new_pat =
-                StaticsBase.Map.lookup(target_id, mk_statics(safe_z))
-                |> Option.get;
+                StaticsBase.Map.lookup(target_id, new_info_map) |> Option.get;
               Ok(
                 AssistantTreeHelper.update_use_sites_of_pat(
                   ~z=safe_z,
                   ~co_ctx=
-                    AssistantTreeHelper.get_refs_to(
-                      node.info,
-                      mk_statics(safe_z),
-                    ),
+                    AssistantTreeHelper.get_refs_to(node.info, new_info_map),
                   ~old_names=
                     AssistantTreeHelper.get_var_names_from_pat(old_pat),
                   ~new_names=
@@ -579,7 +613,14 @@ module Perform = {
           switch (overwrite_term(z, target_id, code_of(u), true)) {
           | Error(e) => Error(e)
           | Ok(new_z) =>
-            static_error_check(~old_z=Some(z), ~new_z, ~mk_statics)
+            static_error_check(
+              ~old_z=Some(z),
+              ~new_z,
+              ~mk_statics,
+              ~of_pat=true,
+              ~of_def=true,
+              ~of_body=true,
+            )
           };
         | InsertBefore(u) =>
           // todo: figure out a better method than magic space
@@ -592,7 +633,15 @@ module Perform = {
             )
           ) {
           | Error(e) => Error(e)
-          | Ok(new_z) => static_error_check(~old_z=None, ~new_z, ~mk_statics)
+          | Ok(new_z) =>
+            static_error_check(
+              ~old_z=None,
+              ~new_z,
+              ~mk_statics,
+              ~of_pat=true,
+              ~of_def=true,
+              ~of_body=true,
+            )
           }
         | InsertAfter(u) =>
           // todo: figure out a better method than magic space
@@ -605,7 +654,15 @@ module Perform = {
             )
           ) {
           | Error(e) => Error(e)
-          | Ok(new_z) => static_error_check(~old_z=None, ~new_z, ~mk_statics)
+          | Ok(new_z) =>
+            static_error_check(
+              ~old_z=None,
+              ~new_z,
+              ~mk_statics,
+              ~of_pat=true,
+              ~of_def=true,
+              ~of_body=true,
+            )
           }
         | DeleteBindingClause =>
           destruct_term(~defs_exclude_bodies=true, z, Info.id_of(node.info))

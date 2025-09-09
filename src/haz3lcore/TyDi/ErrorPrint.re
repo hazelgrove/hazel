@@ -177,7 +177,7 @@ let all = (info_map: Statics.Map.t): list(string) => {
      );
 };
 
-let subtree = (info: Info.t): list(string) => {
-  let subtree = AssistantTreeHelper.subtree_of(info);
-  all(subtree);
-};
+// let subtree = (info: Info.t): list(string) => {
+//   let subtree = AssistantTreeHelper.subtree_of(info);
+//   all(subtree);
+// };
