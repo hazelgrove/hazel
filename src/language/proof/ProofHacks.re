@@ -398,7 +398,7 @@ let rec replace_exp = (replace, replace_coctx, with_exp, with_coctx, in_exp) => 
   );
 };
 
-let find_refls = (~env, e) => {
+let find_refls = (~info_map, ~env, e) => {
   let refls = ref([]);
   let _ =
     Exp.map_term(
@@ -407,7 +407,13 @@ let find_refls = (~env, e) => {
           switch (exp |> Exp.term_of) {
           | BinOp(Poly(Equals), e1, e2)
               when
-                MatchExp.match_exp(~exp_env=env, ~exp_r_ctx=[], e1, e2)
+                MatchExp.match_exp(
+                  ~info_map,
+                  ~exp_env=env,
+                  ~exp_r_ctx=[],
+                  e1,
+                  e2,
+                )
                 |> Option.is_some =>
             refls := [exp, ...refls^];
             cont(exp);

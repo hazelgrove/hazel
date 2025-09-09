@@ -27,6 +27,7 @@ and step_model = {
   // Calculated
   hidden: Calc.saved(bool),
   proof_validity: Calc.saved(option(bool)),
+  editor_info_map: Calc.saved(Statics.Map.t),
 };
 
 let init_step = {
@@ -37,6 +38,7 @@ let init_step = {
   next_step: None,
   hidden: Calc.Pending,
   proof_validity: Calc.Pending,
+  editor_info_map: Calc.Pending,
 };
 
 [@deriving (show({with_path: false}), sexp, yojson)]
@@ -185,6 +187,7 @@ module rec StepKind: {
             ~env: Calc.t(ClosureEnvironment.t),
             ~state: Calc.t(EvaluatorState.t),
             ~editor: Calc.t(CodeSelectable.Model.t),
+            ~info_map: Calc.t(Statics.Map.t),
             ~ana,
             model: model,
           ) =>
@@ -199,6 +202,7 @@ module rec StepKind: {
           ~env,
           ~state,
           ~editor,
+          ~info_map,
           ~ana,
           m,
         );
@@ -213,6 +217,7 @@ module rec StepKind: {
           ~env,
           ~state,
           ~editor,
+          ~info_map,
           ~ana,
           m,
         );
@@ -227,6 +232,7 @@ module rec StepKind: {
           ~env,
           ~state,
           ~editor,
+          ~info_map,
           ~ana,
           m,
         );
@@ -255,6 +261,7 @@ module rec StepKind: {
       | Some(evalobj) =>
         calculate(
           ~settings,
+          ~info_map,
           ~exp=exp |> Calc.make_new,
           ~ctx=ctx |> Calc.make_new,
           ~env=env |> Calc.make_new,
@@ -275,6 +282,7 @@ module rec StepKind: {
             MissingStep.Update.calculate(
               ~settings=settings |> Calc.get_value,
               exp,
+              info_map,
               env,
               ctx,
               state,
@@ -310,6 +318,7 @@ module rec StepKind: {
           ~env,
           ~state,
           ~editor,
+          ~info_map,
           ~ana,
           m,
         );
@@ -548,6 +557,7 @@ and Stepper: {
     next_step: None,
     hidden: Calc.Pending,
     proof_validity: Calc.Pending,
+    editor_info_map: Calc.Pending,
   };
 
   let rec persist = (model: model): persistent => {
@@ -566,6 +576,7 @@ and Stepper: {
       next_step: p.next_step |> Option.map(unpersist),
       hidden: Calc.Pending,
       proof_validity: Calc.Pending,
+      editor_info_map: Calc.Pending,
     };
   };
 
@@ -703,6 +714,7 @@ and Stepper: {
               next_step,
               hidden,
               proof_validity,
+              editor_info_map: info_map,
             }: step_model,
           )
           : (step_model, Calc.t(Exp.t), Calc.t(option(bool))) => {
@@ -726,6 +738,12 @@ and Stepper: {
              expr
            );
       };
+    let info_map =
+      info_map
+      |> {
+        let.calc editor: CodeSelectable.Model.t = editor;
+        editor.statics.info_map;
+      };
     let (step_kind, hidden, next_expr_state, inner_validity) =
       StepKind.calculate(
         ~settings,
@@ -735,6 +753,7 @@ and Stepper: {
         ~state,
         ~hidden,
         ~editor,
+        ~info_map,
         ~ana,
         step_kind,
       )
@@ -748,6 +767,7 @@ and Stepper: {
                 ~state,
                 ~hidden,
                 ~editor,
+                ~info_map,
                 ~ana,
               )
            |> Option.get
@@ -791,6 +811,7 @@ and Stepper: {
         next_step,
         hidden: hidden |> Calc.save,
         proof_validity: proof_validity |> Calc.save,
+        editor_info_map: info_map |> Calc.save,
       },
       last_expr,
       proof_validity,
@@ -935,6 +956,9 @@ and Stepper: {
                   when globals.settings.core.evaluation.enable_proof =>
                 MissingStep.View.view_overlay(
                   ~globals,
+                  ~info_map=
+                    model.editor_info_map
+                    |> Calc.get_saved_exc(~print="info_map"),
                   ~inject=x => inject(StepKindAction(MissingStep(x))),
                   ~selected=
                     switch (focus) {

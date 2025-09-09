@@ -36,6 +36,7 @@ module Update = {
 
   let calculate =
       (
+        ~info_map: Calc.t(Statics.Map.t),
         ~env: Calc.t(ClosureEnvironment.t),
         ~ctx: Calc.t(Ctx.t),
         ~selected_exp: Calc.t(option(Exp.t)),
@@ -55,7 +56,8 @@ module Update = {
         let.calc all_rules = all_rules
         and.calc env = env
         and.calc filter = model.filter
-        and.calc selected_exp = selected_exp;
+        and.calc selected_exp = selected_exp
+        and.calc info_map = info_map;
 
         let all_assumption_boxes =
           all_rules
@@ -73,6 +75,7 @@ module Update = {
             filter == ""
               ? List.filter((ab: AssumptionBox.Model.t) =>
                   ProofRule.is_active(
+                    ~info_map,
                     ~env,
                     ab.ctx_entry.rule,
                     selected_exp
@@ -114,6 +117,7 @@ module View = {
   let view =
       (
         ~globals,
+        ~info_map,
         ~env,
         ~full_exp,
         ~selected_exp,
@@ -140,6 +144,7 @@ module View = {
         (am: AssumptionBox.Model.t) =>
           AssumptionBox.View.view(
             ~globals,
+            ~info_map,
             ~env,
             ~active_selection=
               Some((

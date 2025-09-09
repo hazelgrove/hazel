@@ -142,6 +142,7 @@ module Update = {
       (
         ~settings,
         exp,
+        info_map,
         env: Calc.t(ClosureEnvironment.t),
         ctx: Calc.t(Ctx.t),
         _state,
@@ -209,7 +210,8 @@ module Update = {
       |> {
         let.calc exp = exp
         and.calc env = env
-        and.calc new_next_steps = new_next_steps;
+        and.calc new_next_steps = new_next_steps
+        and.calc info_map = info_map;
         let next_steps =
           new_next_steps
           |> (
@@ -217,7 +219,7 @@ module Update = {
             | EvaluatorStep.AutoStep(_) => []
             | EvaluatorStep.AvailableSteps(steps) => steps
           );
-        ProofHacks.find_refls(~env, exp)
+        ProofHacks.find_refls(~info_map, ~env, exp)
         |> List.filter(e =>
              !
                List.exists(
@@ -260,7 +262,9 @@ module Update = {
           cached_result: cached_result |> Calc.get_value,
         });
       | AxiomsOpen(m) =>
-        AxiomsOpen(AxiomsBox.Update.calculate(~env, ~ctx, ~selected_exp, m))
+        AxiomsOpen(
+          AxiomsBox.Update.calculate(~info_map, ~env, ~ctx, ~selected_exp, m),
+        )
       | NoneOpen => NoneOpen
       };
     let cached_env =
@@ -374,6 +378,7 @@ module View = {
         ~inject: Update.t => Ui_effect.t(unit),
         ~editor: CodeSelectable.Model.t,
         ~selected: option(Selection.t),
+        ~info_map,
         model: Model.t,
       ) =>
     {
@@ -476,6 +481,7 @@ module View = {
                       "axiom-box",
                       AxiomsBox.View.view(
                         ~globals,
+                        ~info_map,
                         ~env=
                           model.cached_env
                           |> Calc.get_saved_exc(~print="env not cached"),

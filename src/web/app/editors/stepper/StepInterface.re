@@ -28,6 +28,7 @@ module type STEP = {
       ~env: Calc.t(ClosureEnvironment.t),
       ~state: Calc.t(EvaluatorState.t),
       ~editor: Calc.t(CodeSelectable.Model.t),
+      ~info_map: Calc.t(Statics.Map.t),
       ~ana: Calc.t(Typ.t),
       model
     ) =>

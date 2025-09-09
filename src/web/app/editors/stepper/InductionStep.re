@@ -177,6 +177,7 @@ module F =
         ~env: Calc.t(ClosureEnvironment.t),
         ~state: Calc.t(EvaluatorState.t),
         ~editor as _,
+        ~info_map as _,
         ~ana: Calc.t(Typ.t),
         model: model,
       ) => {

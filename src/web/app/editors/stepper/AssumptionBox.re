@@ -15,6 +15,7 @@ module View = {
   let view =
       (
         ~globals: Globals.t,
+        ~info_map,
         ~env: ClosureEnvironment.t,
         ~active_selection:
            option((Exp.t, list(Var.t), proof_event => Ui_effect.t(unit))),
@@ -27,7 +28,8 @@ module View = {
           switch (active_selection) {
           | Some((exp, _vars, signal)) =>
             let exp = exp |> DHExp.strip_ascriptions;
-            let (l, r) = ProofRule.can_eq(~env, model.ctx_entry.rule, exp);
+            let (l, r) =
+              ProofRule.can_eq(~info_map, ~env, model.ctx_entry.rule, exp);
             (
               Option.map(e => signal(EqualityLeft(e)), l),
               Option.map(e => signal(EqualityRight(e)), r),

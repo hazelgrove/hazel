@@ -4,7 +4,7 @@ let v: ProofCtx.t =
        "Iden(+)L",
        // Fun is being used as a stand-in for Forall
        Forall(
-         Var("x") |> Pat.fresh,
+         Asc(Var("x") |> Pat.fresh, Atom(Int) |> Typ.fresh) |> Pat.fresh,
          BinOp(
            Poly(Equals),
            BinOp(
@@ -22,7 +22,7 @@ let v: ProofCtx.t =
   |> ProofCtx.add_exp(
        "Zero(*)",
        Forall(
-         Var("x") |> Pat.fresh,
+         Asc(Var("x") |> Pat.fresh, Atom(Int) |> Typ.fresh) |> Pat.fresh,
          BinOp(
            Poly(Equals),
            BinOp(
@@ -40,9 +40,9 @@ let v: ProofCtx.t =
   |> ProofCtx.add_exp(
        "Comm(+)",
        Forall(
-         Var("x") |> Pat.fresh,
+         Asc(Var("x") |> Pat.fresh, Atom(Int) |> Typ.fresh) |> Pat.fresh,
          Forall(
-           Var("y") |> Pat.fresh,
+           Asc(Var("x") |> Pat.fresh, Atom(Int) |> Typ.fresh) |> Pat.fresh,
            BinOp(
              Poly(Equals),
              BinOp(Int(Plus), Var("x") |> Exp.fresh, Var("y") |> Exp.fresh)
@@ -59,11 +59,11 @@ let v: ProofCtx.t =
   |> ProofCtx.add_exp(
        "Assoc(+)",
        Forall(
-         Var("x") |> Pat.fresh,
+         Asc(Var("x") |> Pat.fresh, Atom(Int) |> Typ.fresh) |> Pat.fresh,
          Forall(
-           Var("y") |> Pat.fresh,
+           Asc(Var("x") |> Pat.fresh, Atom(Int) |> Typ.fresh) |> Pat.fresh,
            Forall(
-             Var("z") |> Pat.fresh,
+             Asc(Var("x") |> Pat.fresh, Atom(Int) |> Typ.fresh) |> Pat.fresh,
              BinOp(
                Poly(Equals),
                BinOp(
@@ -100,9 +100,9 @@ let v: ProofCtx.t =
   |> ProofCtx.add_exp(
        "Comm(*)",
        Forall(
-         Var("x") |> Pat.fresh,
+         Asc(Var("x") |> Pat.fresh, Atom(Int) |> Typ.fresh) |> Pat.fresh,
          Forall(
-           Var("y") |> Pat.fresh,
+           Asc(Var("x") |> Pat.fresh, Atom(Int) |> Typ.fresh) |> Pat.fresh,
            BinOp(
              Poly(Equals),
              BinOp(
@@ -127,11 +127,11 @@ let v: ProofCtx.t =
   |> ProofCtx.add_exp(
        "Assoc(*)",
        Forall(
-         Var("x") |> Pat.fresh,
+         Asc(Var("x") |> Pat.fresh, Atom(Int) |> Typ.fresh) |> Pat.fresh,
          Forall(
-           Var("y") |> Pat.fresh,
+           Asc(Var("x") |> Pat.fresh, Atom(Int) |> Typ.fresh) |> Pat.fresh,
            Forall(
-             Var("z") |> Pat.fresh,
+             Asc(Var("x") |> Pat.fresh, Atom(Int) |> Typ.fresh) |> Pat.fresh,
              BinOp(
                Poly(Equals),
                BinOp(

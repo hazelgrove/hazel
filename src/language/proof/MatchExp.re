@@ -2,10 +2,10 @@ open Util;
 open OptUtil.Syntax;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
-type match_ctx = list((string, option(Exp.t)));
+type match_ctx = list((string, (Typ.t, option(Exp.t))));
 
 let match_ctx_has = (ctx: match_ctx, name: string): bool =>
-  List.exists(((n, _)) => n == name, ctx);
+  List.exists(((n, (_, _))) => n == name, ctx);
 
 type alphas = list((string, string));
 
@@ -32,8 +32,15 @@ let is_in_alphas_l = (alphas: alphas, x: string): bool =>
    */
 
 let rec match_exp =
-        (alphas: alphas, ctx: match_ctx, exp_r: Exp.t, exp: Exp.t)
+        (
+          ~info_map: Statics.Map.t,
+          alphas: alphas,
+          ctx: match_ctx,
+          exp_r: Exp.t,
+          exp: Exp.t,
+        )
         : option(match_ctx) => {
+  let match_exp = match_exp(~info_map);
   switch (exp_r |> Exp.term_of, exp |> Exp.term_of) {
   /* Parens */
   | (Parens(e1), _) => match_exp(alphas, ctx, e1, exp)
@@ -45,11 +52,30 @@ let rec match_exp =
   | (_, Asc(e2, _)) => match_exp(alphas, ctx, exp_r, e2)
   /* Variables */
   | (Var(x), _) when match_ctx_has(ctx, x) && !is_in_alphas_l(alphas, x) =>
-    switch (List.assoc(x, ctx)) {
+    let (typ, assigned_exp) = List.assoc(x, ctx);
+    let exp_statics = Statics.Map.lookup(Exp.rep_id(exp), info_map);
+    print_endline("Yo!");
+    switch (exp_statics) {
+    | Some(InfoExp({ty: exp_typ, _}))
+        when {
+          print_endline("HEY!");
+          !Typ.is_consistent(Ctx.empty, exp_typ, typ);
+        } =>
+      None
+    | Some(_)
     | None =>
-      Some(List.map(((n, e)) => n == x ? (n, Some(exp)) : (n, e), ctx))
-    | Some(e) => match_exp(alphas, [], e, exp)
-    }
+      switch (assigned_exp) {
+      | None =>
+        Some(
+          List.map(
+            ((n, (t, e))) =>
+              n == x ? (n, (t, Some(exp))) : (n, (t, e)),
+            ctx,
+          ),
+        )
+      | Some(e) => match_exp(alphas, [], e, exp)
+      }
+    };
   | (Var(x), Var(y)) when are_alpha_equiv(alphas, x, y) => Some(ctx)
   | (Var(_), _) => None
   /* Forms with binders */
@@ -327,8 +353,8 @@ let substitute_exp = (sub: match_ctx, exp: Exp.t): Exp.t =>
         // TODO[Matt]: flesh out with capture avoidance etc...
         | Var(x) when match_ctx_has(sub, x) =>
           switch (List.assoc(x, sub)) {
-          | None => exp
-          | Some(e) => e
+          | (_, None) => exp
+          | (_, Some(e)) => e
           }
         | _ => cont(exp)
         },
@@ -341,6 +367,7 @@ let match_exp' = match_exp;
    if we know it doesn't match */
 let match_exp =
     (
+      ~info_map,
       ~alphas=[],
       ~exp_env: ClosureEnvironment.t,
       ~exp_r_ctx: match_ctx,
@@ -348,5 +375,5 @@ let match_exp =
       exp: Exp.t,
     ) => {
   let exp = Exp.substitute_closures(ClosureEnvironment.map_of(exp_env), exp);
-  match_exp(alphas, exp_r_ctx, exp_r, exp);
+  match_exp(~info_map, alphas, exp_r_ctx, exp_r, exp);
 };
