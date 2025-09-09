@@ -540,10 +540,39 @@ module Perform = {
           };
         | UpdatePattern(u) =>
           let target_id = get_inner_term_id(node, Pat);
+          let old_pat =
+            StaticsBase.Map.lookup(target_id, mk_statics(z)) |> Option.get;
           switch (overwrite_term(z, target_id, code_of(u), false)) {
           | Error(e) => Error(e)
           | Ok(new_z) =>
-            static_error_check(~old_z=Some(z), ~new_z, ~mk_statics)
+            switch (static_error_check(~old_z=Some(z), ~new_z, ~mk_statics)) {
+            | Error(e) => Error(e)
+            | Ok(safe_z) =>
+              let new_node =
+                AssistantTreeHelper.build_curr_node_info(
+                  safe_z,
+                  mk_statics(safe_z),
+                )
+                |> Option.get;
+              let target_id = get_inner_term_id(new_node, Pat);
+              let new_pat =
+                StaticsBase.Map.lookup(target_id, mk_statics(safe_z))
+                |> Option.get;
+              Ok(
+                AssistantTreeHelper.update_use_sites_of_pat(
+                  ~z=safe_z,
+                  ~co_ctx=
+                    AssistantTreeHelper.get_refs_to(
+                      node.info,
+                      mk_statics(safe_z),
+                    ),
+                  ~old_names=
+                    AssistantTreeHelper.get_var_names_from_pat(old_pat),
+                  ~new_names=
+                    AssistantTreeHelper.get_var_names_from_pat(new_pat),
+                ),
+              );
+            }
           };
         | UpdateBindingClause(u) =>
           let target_id = Info.id_of(node.info);
@@ -598,7 +627,6 @@ module Perform = {
     let curr_node =
       AssistantTreeHelper.build_curr_node_info(z, mk_statics(z));
 
-    let old_errors = ErrorPrint.all(mk_statics(z));
     let res =
       composition_dispatch(a, syntax, z, mk_statics, return, curr_node);
 
@@ -606,31 +634,12 @@ module Perform = {
     switch (schedule_tool_response) {
     | Some(schedule_tool_response) =>
       switch (res) {
-      | Ok(z') =>
-        switch (ErrorPrint.all(mk_statics(z'))) {
-        | errors as new_errors
-            // do not apply if new errors were introduced
-            // NOTE: This is an open problem to solve
-            //       It's by no means trivial as to which method to take
-            //       https://chatgpt.com/share/68bca035-fce0-8001-aafa-5ee39b8a6e89
-            when {
-              let new_errors =
-                List.filter(err => !List.mem(err, old_errors), errors);
-              List.length(new_errors) >= 1;
-            } =>
-          schedule_tool_response(
-            AssistantUpdateAction.Success(
-              "WARNING: The application of the action you requested has introduced the following static error(s) in other parts of the program: "
-              ++ String.concat(", ", new_errors),
-            ),
-          )
-        | _ =>
-          schedule_tool_response(
-            AssistantUpdateAction.Success(
-              "Action has been applied to the editor",
-            ),
-          )
-        }
+      | Ok(_) =>
+        schedule_tool_response(
+          AssistantUpdateAction.Success(
+            "Action has been applied to the editor",
+          ),
+        )
       | Error(Composition_action_failure(e)) =>
         schedule_tool_response(AssistantUpdateAction.Failure(e))
       | _ =>

@@ -521,9 +521,9 @@ let subtree_of = (info: Info.t): Statics.Map.t => {
   );
 };
 
-let show_refs_to = (curr: Info.t, info_map: Id.Map.t(Info.t)): CoCtx.t => {
+let get_refs_to = (curr: Info.t, info_map: Id.Map.t(Info.t)): CoCtx.t => {
   /*
-     Returns the ids of all references in the CoCtx of the given let/tyalis expression
+   Returns the CoCtx containing exclusively references to the given let/tyalis expression
    */
 
   let exp_to_info = (term: Exp.t): Info.t => exp_to_info(term, info_map);
@@ -551,3 +551,96 @@ let show_refs_to = (curr: Info.t, info_map: Id.Map.t(Info.t)): CoCtx.t => {
   | _ => raise(Failure("Current node is not a let or type alias expression"))
   };
 };
+
+let rec get_var_names_from_pat = (curr: Info.t): list(string) => {
+  let rec go = (pat: Pat.t, vars: list(string)): list(string) => {
+    switch (pat.term) {
+    | Var(name) => vars @ [name]
+    | Ap(pat1, pat2)
+    | TupLabel(pat1, pat2)
+    | Cons(pat1, pat2) => go(pat1, vars) @ go(pat2, vars)
+    | Parens(pat)
+    | Probe(pat, _)
+    | Asc(pat, _) => go(pat, vars)
+    | ListLit(pats)
+    | Tuple(pats) =>
+      List.fold_left((vars, pat) => go(pat, vars), vars, pats)
+    | Invalid(_)
+    | EmptyHole
+    | MultiHole(_)
+    | Wild
+    | Atom(_)
+    | Constructor(_, _)
+    | Label(_) => vars
+    };
+  };
+  let pat =
+    switch (curr) {
+    | InfoPat({term, _}) => term
+    | _ => raise(Failure("Pat is not a pattern"))
+    };
+  go(pat, []);
+};
+
+let update_use_sites_of_var =
+    (z: Zipper.t, co_ctx: CoCtx.t, old_name: string, new_name: string)
+    : Zipper.t => {
+  /*
+   Updates the use sites of the given variables in the co-context.
+   */
+  // Iterate through all variables in the co-context
+  List.fold_left(
+    (acc_z, (var_name, entries)) =>
+      // Only update variables that match the old_name
+      if (var_name == old_name) {
+        // Iterate through all entries (IDs) for this variable
+        List.fold_left(
+          (acc_z', entry) => {
+            let id = entry.CoCtx.id;
+            switch (Select.tile(id, acc_z')) {
+            | Some(z') =>
+              switch (Parser.to_zipper(~zipper_init=z', new_name)) {
+              | Some(z'') => z''
+              | None => z'
+              }
+            | None => acc_z'
+            };
+          },
+          acc_z,
+          entries,
+        );
+      } else {
+        acc_z;
+      },
+    z,
+    co_ctx,
+  );
+};
+
+let update_use_sites_of_pat =
+    (
+      ~z: Zipper.t,
+      ~co_ctx: CoCtx.t,
+      ~old_names: list(string),
+      ~new_names: list(string),
+    )
+    : Zipper.t =>
+  /*
+   Updates the use sites of the given variables in the co-context.
+
+
+   Should be noted that there are special cases:
+   - Consider updating the pattern (x, y, z) to (a, b)
+     we are unable to determine which new var maps to which old var.
+     For now, we will only consider the case where the number of old and new vars is the same.
+   */
+  switch (ListUtil.opt_zip(old_names, new_names)) {
+  | None => z
+  | Some(pairs) =>
+    List.fold_left(
+      (acc_z, (old_name, new_name)) =>
+        update_use_sites_of_var(acc_z, co_ctx, old_name, new_name),
+      z,
+      pairs,
+    )
+  };
