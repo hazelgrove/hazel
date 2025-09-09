@@ -1,7 +1,9 @@
 // A simple example going over how to navigate from a sibling to another sibling, and update
 // a definition of a function
 
-let self = {|
+let self =
+  // This example is outdated, but may be a good reference for
+  {|
 <tallyFunctionExample>
 
 <User>Please implement the recursive fibonacci function.</User>
@@ -105,3 +107,4 @@ Great! The recursive fibonacci function is now properly implemented.
 
 </tallyFunctionExample>
 |};
+  // how to structure and write future few shot examples.

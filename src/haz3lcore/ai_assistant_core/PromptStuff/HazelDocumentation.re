@@ -1,3 +1,4 @@
+// todo: this broke when moving from web to core
 // let get_documentation_as_text = () => {
 //   let (_, slides) = ScratchMode.StoreDocumentation.load();
 //   let documentation =
