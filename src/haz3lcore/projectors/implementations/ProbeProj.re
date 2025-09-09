@@ -130,28 +130,94 @@ let cur_ap = (info: info) =>
 module DynCursor = {
   /* Manages shared state between probes */
 
+  type call_cursor = {
+    stack: Probe.call_stack,
+    index: int,
+  };
+
   type t = {
-    mutable call_cursor: Probe.call_stack,
+    mutable call_cursor,
     mutable indicated_call: option(Id.t),
     mutable pinned_call: option(Probe.call_stack),
   };
 
   let s: t = {
-    call_cursor: [],
+    call_cursor: {
+      stack: [],
+      index: (-1),
+    },
     indicated_call: None,
     pinned_call: None,
   };
 
   let reset = () => {
-    s.call_cursor = [];
+    s.call_cursor = {
+      stack: [],
+      index: (-1),
+    };
     s.indicated_call = None;
     s.pinned_call = None;
   };
 
+  let trimmed_stack = () =>
+    ListUtil.slice(
+      0,
+      s.call_cursor.index + 1,
+      s.call_cursor.stack |> List.rev,
+    )
+    |> List.rev;
+
   let capture_cursor = (closure: closure): unit =>
-    if (!ListUtil.is_suffix_of(closure.call_stack, s.call_cursor)) {
-      s.call_cursor = closure.call_stack;
+    if (!ListUtil.is_suffix_of(closure.call_stack, s.call_cursor.stack)) {
+      // print_endline(
+      //   "closure.call_stack: "
+      //   ++ String.concat(", ", List.map(Id.str3, closure.call_stack)),
+      // );
+      // print_endline(
+      //   "s.call_cursor.stack: "
+      //   ++ String.concat(", ", List.map(Id.str3, s.call_cursor.stack)),
+      // );
+      // print_endline("capture_cursor: closure not suffix of call_cursor");
+      // print_endline("setting new call_cursor");
+      s.call_cursor =
+        {
+          stack: closure.call_stack,
+          index: List.length(closure.call_stack) - 1,
+        };
+        // print_endline(
+        //   "trimmed_stack is now: "
+        //   ++ String.concat(", ", List.map(Id.str3, trimmed_stack())),
+        // );
+    } else {
+      // print_endline(
+      //   "closure.call_stack: "
+      //   ++ String.concat(", ", List.map(Id.str3, closure.call_stack)),
+      // );
+      // print_endline(
+      //   "s.call_cursor.stack: "
+      //   ++ String.concat(", ", List.map(Id.str3, s.call_cursor.stack)),
+      // );
+      // print_endline("capture_cursor: closure is suffix of call_cursor");
+      // print_endline("leaving stack the same");
+      // print_endline(
+      //   "index set to:" ++ string_of_int(List.length(closure.call_stack) - 1),
+      // );
+      s.call_cursor =
+        {
+          stack: s.call_cursor.stack,
+          index: List.length(closure.call_stack) - 1,
+        };
+        // print_endline(
+        //   "trimmed_stack is now: "
+        //   ++ String.concat(", ", List.map(Id.str3, trimmed_stack())),
+        // );
     };
+  // s.call_cursor = {
+  //   stack:
+  //     ListUtil.is_suffix_of(closure.call_stack, s.call_cursor.stack)
+  //       ? s.call_cursor.stack : closure.call_stack,
+  //   index: List.length(closure.call_stack) - 1,
+  // };
 
   let capture_ap = (info: info): unit => {
     s.indicated_call = cur_ap(info);
@@ -163,8 +229,9 @@ module DynCursor = {
   };
 
   let is_in = (closures: list(closure)): option(closure) =>
+    //TODO(andrew): maybe should use call_cursor suffix trimmed to index?
     List.find_opt(
-      (closure: closure) => s.call_cursor == closure.call_stack,
+      (closure: closure) => trimmed_stack() == closure.call_stack,
       closures,
     );
 
@@ -189,7 +256,7 @@ module DynCursor = {
       (call_stack: Probe.call_stack): option(int) => {
     open OptUtil.Syntax;
     let* cur_ap = s.indicated_call;
-    ListUtil.suffix_at_depth([cur_ap] @ s.call_cursor, call_stack);
+    ListUtil.suffix_at_depth([cur_ap] @ trimmed_stack(), call_stack);
   };
 
   type relative_level =
@@ -230,7 +297,7 @@ module DynCursor = {
   let relation = (info: info, closure: closure): relation => {
     open OptUtil.Syntax;
     let this = closure.call_stack;
-    let cursor = s.call_cursor;
+    let cursor = trimmed_stack();
     {
       is_call_cursor: cursor == this,
       relative_level_to_cursor: relative_level(cursor, this),
@@ -902,7 +969,7 @@ module M: Projector = {
   let update = update;
 
   let view = (_model, info, ~local, ~parent, ~view_seg) => {
-    DynCursor.s.call_cursor == [] ? DynCursor.probe_default(info) : (); /*TODO(andrew): document */
+    DynCursor.trimmed_stack() == [] ? DynCursor.probe_default(info) : (); /*TODO(andrew): document */
     View.{
       inline:
         switch (info.syntax) {
