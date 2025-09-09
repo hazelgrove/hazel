@@ -111,7 +111,7 @@ and uexp_to_info_map =
       ~expected_labels: option(list(string)),
       ~override_self: option(Self.exp)=?,
       ~inferred_label: option(LabeledTuple.label)=?,
-      ~label_sort,
+      ~label_sort=false,
       {annotation: {ids}, term} as uexp: Exp.t,
       m: Map.t,
     )

@@ -40,20 +40,44 @@ let print =
         editor.editor.state.zipper,
         map,
       );
-    let errors = ErrorPrint.subtree(Option.get(curr_node).info, map);
-    print_endline("Found the following errors:");
-    print_endline(String.concat("\n", errors));
+    let refs_to =
+      AssistantTreeHelper.show_refs_to(Option.get(curr_node).info, map);
+    print_endline("CoCtx:");
+    print_endline(CoCtx.show(refs_to));
     ();
   | "F9" =>
-    print(
-      CompositionView.str_refs_in(
-        ~exclude_rec_refs=false,
-        ~exclude_body_refs=false,
-        get_node(build_curr_node_info(zipper, map)),
+    // Print errors from ErrorPrint.subtree
+    let curr_node =
+      AssistantTreeHelper.build_curr_node_info(
+        editor.editor.state.zipper,
         map,
-      ),
-    );
-    ();
+      );
+    switch (curr_node) {
+    | Some(node) =>
+      let info = node.info;
+      print("=== ERRORS IN SUBTREE ===");
+      print("node.name: " ++ node.name);
+
+      // Get errors using ErrorPrint.subtree
+      let errors = ErrorPrint.subtree(info);
+
+      if (List.length(errors) == 0) {
+        print("✓ No errors found in subtree");
+      } else {
+        print(
+          "Found " ++ string_of_int(List.length(errors)) ++ " error(s):",
+        );
+        print("");
+        List.iteri(
+          (i, error) => {
+            print("[" ++ string_of_int(i + 1) ++ "] " ++ error);
+            print("");
+          },
+          errors,
+        );
+      };
+    | None => print("No current node found")
+    };
   | "F10" =>
     let context = (local_information: node): string => {
       let info = local_information.info;

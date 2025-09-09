@@ -252,13 +252,13 @@ module Perform = {
         let old_node =
           AssistantTreeHelper.build_curr_node_info(old_z, mk_statics(old_z))
           |> Option.get;
-        ErrorPrint.subtree(old_node.info, mk_statics(old_z));
+        ErrorPrint.subtree(old_node.info);
       };
     let new_statics = mk_statics(new_z);
     let new_node =
       AssistantTreeHelper.build_curr_node_info(new_z, new_statics)
       |> Option.get;
-    let new_errors = ErrorPrint.subtree(new_node.info, new_statics);
+    let new_errors = ErrorPrint.subtree(new_node.info);
     if (List.length(new_errors) > List.length(old_errors)) {
       Error(
         Action.Failure.Composition_action_failure(
