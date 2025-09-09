@@ -1134,9 +1134,15 @@ and uexp_to_info_map =
         m,
       );
     | Theorem({term: Var(_), _} as p, e1, e2) =>
-      let (e1, m) = go'(~ctx, ~ana=Atom(Bool) |> Typ.temp, e1, m);
+      let (e1', m) = go'(~ctx, ~ana=Atom(Bool) |> Typ.temp, e1, m);
       let (p', _) =
-        go_pat(~is_synswitch=false, ~co_ctx=CoCtx.empty, ~ana=syn, p, m);
+        go_pat(
+          ~is_synswitch=false,
+          ~co_ctx=CoCtx.empty,
+          ~ana=Typ.fresh(ProofOf(e1)),
+          p,
+          m,
+        );
       let (e2, m) = go'(~ctx=p'.ctx, ~ana, e2, m);
       /* add co_ctx to pattern */
       let (p, m) =
@@ -1146,7 +1152,7 @@ and uexp_to_info_map =
         ~co_ctx=
           CoCtx.union([
             p'.co_ctx,
-            e1.co_ctx,
+            e1'.co_ctx,
             CoCtx.mk(ctx, p.ctx, e2.co_ctx),
           ]),
         m,
