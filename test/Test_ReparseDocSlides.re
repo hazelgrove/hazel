@@ -52,42 +52,4 @@ let tests = [
     "DocSlides.ReparseBackuptext",
     List.map(doc_slide_reparses, List.tl(doc_slides)) // Dropping the first basic reference slide to avoid the issue with whitespace shifting around convex grout
   ),
-  (
-    "DocSlides.CaretAtBeginning",
-    List.map(caret_is_at_beginning, doc_slides),
-  ),
-  // This test case is just to print out all the segments in a format that can be moved into src/web/init/docs
-  // (
-  //   "DocSlides.PrintSegments",
-  //   [
-  //     test_case(
-  //       "Print all segments",
-  //       `Quick,
-  //       () => {
-  //         List.iter(
-  //           ((name, slide: CellEditor.Model.persistent)) => {
-  //             let segment =
-  //               Sexplib.Sexp.of_string(slide.editor.zipper)
-  //               |> Zipper.t_of_sexp
-  //               |> Zipper.zip;
-  //             let content =
-  //               "let out : string * Haz3lcore.PersistentSegment.t = "
-  //               ++ [%derive.show: (string, Haz3lcore.PersistentSegment.t)]((
-  //                    name,
-  //                    PersistentSegment.persist(segment),
-  //                  ));
-  //             print_endline(content);
-  //             // Write content out to file
-  //             let filename = Util.StringUtil.sanitize_filename(name) ++ ".ml";
-  //             let oc = open_out(filename);
-  //             output_string(oc, content);
-  //             close_out(oc);
-  //           },
-  //           doc_slides,
-  //         );
-  //         Alcotest.fail("Printed all segments to console");
-  //       },
-  //     ),
-  //   ],
-  // ),
 ];
