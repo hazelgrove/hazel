@@ -221,6 +221,7 @@ module Transition = (EV: EV_MODE) => {
       // | `Environment =>
       let. _ = otherwise(env, Var(x) |> rewrap);
       switch (ClosureEnvironment.lookup(env, x)) {
+      | Some({term: Var(y), _}) when x == y => Indet // Used in proof to refer to a bound variable.
       | Some(d) =>
         let is_value =
           switch (d |> Exp.term_of) {
@@ -278,14 +279,15 @@ module Transition = (EV: EV_MODE) => {
       });
     | Theorem({term: Var(n), _}, e, d1) =>
       let. _ = otherwise(env, d);
+      let e' = Exp.substitute_closures(env |> ClosureEnvironment.map_of, e);
       let env' =
-        [(n, ProofObject(e) |> Exp.fresh)]
+        [(n, ProofObject(e') |> Exp.fresh)]
         |> Environment.of_list
         |> evaluate_extend_env(~call_stack=env.call_stack, _, env);
       Step({
         expr: subst_env(env', d1),
         state_update: () =>
-          record_theorem(state, DHExp.rep_id(d), n, env, e),
+          record_theorem(state, DHExp.rep_id(d), n, env, e'),
         kind: TheoremBind,
         is_value: false,
       });
@@ -294,13 +296,20 @@ module Transition = (EV: EV_MODE) => {
       Indet;
     | ProofObject(e) =>
       let. _ = otherwise(env, d);
+      let e' = Exp.substitute_closures(env |> ClosureEnvironment.map_of, e);
       switch (mode) {
       | `Substitution => Value
       | `Environment =>
         Step({
           expr: d,
           state_update: () =>
-            record_theorem(state, DHExp.rep_id(d), "<anon theorem>", env, e),
+            record_theorem(
+              state,
+              DHExp.rep_id(d),
+              "<anon theorem>",
+              env,
+              e',
+            ),
           kind: RecordTheorem,
           is_value: true,
         })

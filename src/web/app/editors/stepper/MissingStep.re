@@ -192,14 +192,18 @@ module Update = {
       assumptions
       |> {
         let.calc _exp = selected_exp
-        and.calc ctx = ctx;
+        and.calc env = env;
         let proof_ctx =
-          ctx
-          |> Ctx.get_var_entries
+          env
+          |> ClosureEnvironment.to_list
+          |> List.filter_map(((name, exp)) =>
+               switch (Exp.term_of(exp)) {
+               | Grammar.ProofObject(e) => Some((name, e))
+               | _ => None
+               }
+             )
           |> List.fold_left(
-               (acc, {name, id: _, typ, custom_statics: _}: Ctx.var_entry) =>
-                 ProofCtx.add_typ(name, typ, acc)
-                 |> Option.value(~default=acc),
+               (acc, (name, exp)) => ProofCtx.add_exp(name, exp, acc),
                Axioms.v,
              )
           |> List.map(ctx_entry => AssumptionBox.Model.{ctx_entry: ctx_entry});

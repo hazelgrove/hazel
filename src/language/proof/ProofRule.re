@@ -111,10 +111,10 @@ let can_eq =
   | Equality(a, b) =>
     let bindings = get_empty_bindings(rule.bindings);
     (
-      MatchExp.match_exp(~info_map, ~exp_env=env, ~exp_r_ctx=bindings, a, exp)
-      |> Option.map(MatchExp.substitute_exp(_, b)),
       MatchExp.match_exp(~info_map, ~exp_env=env, ~exp_r_ctx=bindings, b, exp)
       |> Option.map(MatchExp.substitute_exp(_, a)),
+      MatchExp.match_exp(~info_map, ~exp_env=env, ~exp_r_ctx=bindings, a, exp)
+      |> Option.map(MatchExp.substitute_exp(_, b)),
     );
   | Other(_) => (None, None)
   };

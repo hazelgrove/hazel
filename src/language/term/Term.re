@@ -713,7 +713,11 @@ module Exp = {
             | Some(e) =>
               e
               |> replace_all_ids
-              |> substitute_closures(env, old_bound_vars, new_bound_vars)
+              |> substitute_closures(
+                   Environment.empty,
+                   old_bound_vars,
+                   new_bound_vars,
+                 )
             | None =>
               Var(
                 List.mem(x, old_bound_vars)

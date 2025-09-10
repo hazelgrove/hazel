@@ -83,3 +83,30 @@ let of_ctx = (~builtins, ctx: Ctx.t): t => {
     );
   rules;
 };
+
+let of_env = (~builtins, ~ctx: Ctx.t, env: ClosureEnvironment.t) => {
+  let (_, rules) =
+    ClosureEnvironment.to_list(env)
+    |> List.fold_left(
+         ((seen_vars, rules), (name, exp)) =>
+           switch (Exp.term_of(exp)) {
+           | Grammar.ProofObject(e) =>
+             let rule = ProofRule.exp_to_rule(e);
+             let typ = ProofRule.rule_to_typ(rule);
+             let coctx =
+               ProofRule.get_coctx(ctx, Typ.temp(Atom(Bool)), rule);
+             let is_captured = CoCtx.has_any(coctx, seen_vars);
+             print_endline("is captured: " ++ string_of_bool(is_captured));
+             let entry = {
+               name,
+               rule,
+               typ,
+               is_captured,
+             };
+             ([name, ...seen_vars], [entry, ...rules]);
+           | _ => ([name, ...seen_vars], rules)
+           },
+         ([], builtins),
+       );
+  rules;
+};

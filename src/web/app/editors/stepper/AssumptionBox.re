@@ -26,6 +26,7 @@ module View = {
       | Equality(_) =>
         let (l, r) =
           switch (active_selection) {
+          | _ when model.ctx_entry.is_captured => (None, None) // TODO[Matt]: tooltip explaining why disabled
           | Some((exp, _vars, signal)) =>
             let exp = exp |> DHExp.strip_ascriptions;
             let (l, r) =
