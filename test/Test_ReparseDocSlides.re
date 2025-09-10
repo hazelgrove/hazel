@@ -56,6 +56,7 @@ let tests = [
     "DocSlides.CaretAtBeginning",
     List.map(caret_is_at_beginning, doc_slides),
   ),
+  // This test case is just to print out all the segments in a format that can be moved into src/web/init/docs
   // (
   //   "DocSlides.PrintSegments",
   //   [
@@ -73,10 +74,7 @@ let tests = [
   //               "let out : string * Haz3lcore.PersistentSegment.t = "
   //               ++ [%derive.show: (string, Haz3lcore.PersistentSegment.t)]((
   //                    name,
-  //                    {
-  //                      segment,
-  //                      backup_text: PersistentSegment.to_string(segment),
-  //                    }: Haz3lcore.PersistentSegment.t,
+  //                    PersistentSegment.persist(segment),
   //                  ));
   //             print_endline(content);
   //             // Write content out to file
