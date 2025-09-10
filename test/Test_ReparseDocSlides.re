@@ -21,7 +21,7 @@ let doc_slide_reparses = ((name, slide: CellEditor.Model.persistent)) => {
       let original_segment =
         Sexplib.Sexp.of_string(slide.editor.zipper)
         |> Zipper.t_of_sexp
-        |> Zipper.seg_without_buffer;
+        |> Zipper.unselect_and_zip(~erase_buffer=true);
 
       check(
         segment,
