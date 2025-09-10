@@ -431,6 +431,7 @@ let insertion_tests = [
     ~name="Issue #1914 regression test",
     ~acts=mk({|((1)¦|}) @ [Put_down],
     ~goal={|((1))¦|},
+  ),
   /* In below test, we first cause the two `=`s to merge, then split them.
      The first `=` should not get matched to the `let` because of the parens.
      If it does, then it will prevent the Put_down from dropping the parens.
