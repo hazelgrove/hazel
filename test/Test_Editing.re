@@ -436,6 +436,19 @@ let insertion_tests = [
     ~name="Forall regrouting edge case (non-debatable) (#1913)",
     ~acts=mk({|?:foral¦(?)|}) @ [Insert("l"), Insert("-"), Insert(">")],
     ~goal={|?:forall?->¦(?)|},
+  /* In below test, we first cause the two `=`s to merge, then split them.
+     The first `=` should not get matched to the `let` because of the parens.
+     If it does, then it will prevent the Put_down from dropping the parens.
+     This was previously causes by the misssing ancestor shards being in the
+     local backpack in front of the missing sibling shards, so if the `let`
+     and `in` are down, but their `=` is up, the `=` would appear before
+     the `(` in the local_missing_shards.  */
+  test(
+    ~name="Split paren rematch (Regression guard for #1948)",
+    ~acts=
+      mk({|let(a=1)¦= 1 in 1|})
+      @ [Destruct(Left), Destruct(Left), Insert("1"), Put_down],
+    ~goal={|let(a=1)¦= 1 in 1|},
   ),
 ];
 
