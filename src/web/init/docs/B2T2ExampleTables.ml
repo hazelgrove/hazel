@@ -1,9 +1,8 @@
-let out : string * Haz3lcore.PersistentZipper.t =
+let out : string * Haz3lcore.PersistentSegment.t =
   ( "B2T2 / Example Tables",
     {
-      zipper =
-        "((selection((focus Left)(content())(mode \
-         Normal)))(relatives((siblings(()((Secondary((id \
+      segment =
+        "((Secondary((id \
          17762656-f10f-4636-ac4e-449d6d37e7b0)(content(Comment\"# Example \
          Tables from B2T2 #\"))))(Secondary((id \
          89ac1f7c-c7c7-43d7-8c9b-26172dbc6c30)(content(Whitespace\"\\n\"))))(Secondary((id \
@@ -5290,7 +5289,7 @@ let out : string * Haz3lcore.PersistentZipper.t =
          \")))))))))(Secondary((id \
          5ffe3b7b-9013-4a95-a5d8-02bbf296c3ab)(content(Whitespace\" \
          \"))))(Grout((id e6151c83-7a7e-4494-9887-1bb295fd3473)(shape \
-         Convex))))))(ancestors())))(caret Outer))";
+         Convex))))";
       backup_text =
         "# Example Tables from B2T2 #\n\
          # Tables copied from \

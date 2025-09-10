@@ -1,12 +1,11 @@
-let out : string * Haz3lcore.PersistentZipper.t =
+let out : string * Haz3lcore.PersistentSegment.t =
   ( "B2T2 / Errors / Using Tables / Part 1",
     {
-      zipper =
-        "((selection((focus Left)(content())(mode \
-         Normal)))(relatives((siblings(()((Tile((id \
-         62113b4c-0c40-4a45-b224-1dc986d93454)(label(type = in))(mold((out \
-         Exp)(in_(TPat Typ))(nibs(((shape Convex)(sort Exp))((shape(Concave \
-         40))(sort Exp))))))(shards(0 1 2))(children(((Secondary((id \
+      segment =
+        "((Tile((id 62113b4c-0c40-4a45-b224-1dc986d93454)(label(type = \
+         in))(mold((out Exp)(in_(TPat Typ))(nibs(((shape Convex)(sort \
+         Exp))((shape(Concave 40))(sort Exp))))))(shards(0 1 \
+         2))(children(((Secondary((id \
          8e57d637-7299-4cec-beb5-950b90bbd48e)(content(Whitespace\" \
          \"))))(Tile((id \
          468e58a9-356a-4e8d-aa92-c740a314cbb5)(label(Image))(mold((out \
@@ -5346,7 +5345,7 @@ let out : string * Haz3lcore.PersistentZipper.t =
          \"))))(Tile((id \
          d5eab350-4e08-45dd-9a24-637b1ec8baa7)(label(?))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
-         Exp))))))(shards(0))(children()))))))(ancestors())))(caret Outer))";
+         Exp))))))(shards(0))(children()))))";
       backup_text =
         "type Image = ? in\n\
          # Representing column names as projection functions for better error \

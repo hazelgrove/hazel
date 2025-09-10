@@ -1,12 +1,11 @@
-let out : string * Haz3lcore.PersistentZipper.t =
+let out : string * Haz3lcore.PersistentSegment.t =
   ( "B2T2 / Table API / Utilities / selectMany",
     {
-      zipper =
-        "((selection((focus Left)(content())(mode \
-         Normal)))(relatives((siblings(()((Tile((id \
-         b2bb07c1-4589-4781-a911-025550ca47eb)(label(type = in))(mold((out \
-         Exp)(in_(TPat Typ))(nibs(((shape Convex)(sort Exp))((shape(Concave \
-         40))(sort Exp))))))(shards(0 1 2))(children(((Secondary((id \
+      segment =
+        "((Tile((id b2bb07c1-4589-4781-a911-025550ca47eb)(label(type = \
+         in))(mold((out Exp)(in_(TPat Typ))(nibs(((shape Convex)(sort \
+         Exp))((shape(Concave 40))(sort Exp))))))(shards(0 1 \
+         2))(children(((Secondary((id \
          0931a2fb-b66b-412b-b99c-630fb8f77a2f)(content(Whitespace\" \
          \"))))(Tile((id \
          1f1efb5a-5a32-47c2-86bc-ff28f77c97c6)(label(GradebookEntry))(mold((out \
@@ -1198,7 +1197,7 @@ let out : string * Haz3lcore.PersistentZipper.t =
          Typ))))))(shards(0))(children())))))))))))))(Secondary((id \
          a79a5a62-b44f-4470-a160-f80c833be0a0)(content(Whitespace\"\\n\"))))(Secondary((id \
          221d0be1-801b-4f92-aeb5-ea7f3d915f87)(content(Whitespace\" \
-         \"))))))))))))(ancestors())))(caret Outer))";
+         \"))))))))))";
       backup_text =
         "type GradebookEntry = (name=String, age=Int, quiz1=Int, quiz2=Int, \
          midterm=Int, quiz3=Int, quiz4=Int, final=Int) in\n\

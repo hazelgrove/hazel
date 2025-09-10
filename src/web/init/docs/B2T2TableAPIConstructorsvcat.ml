@@ -1,12 +1,11 @@
-let out : string * Haz3lcore.PersistentZipper.t =
+let out : string * Haz3lcore.PersistentSegment.t =
   ( "B2T2 / Table API / Constructors / vcat",
     {
-      zipper =
-        "((selection((focus Left)(content())(mode \
-         Normal)))(relatives((siblings(()((Tile((id \
-         c542101d-6c88-46af-a204-a38d8c2ea0d7)(label(let = in))(mold((out \
-         Exp)(in_(Pat Exp))(nibs(((shape Convex)(sort Exp))((shape(Concave \
-         40))(sort Exp))))))(shards(0 1 2))(children(((Secondary((id \
+      segment =
+        "((Tile((id c542101d-6c88-46af-a204-a38d8c2ea0d7)(label(let = \
+         in))(mold((out Exp)(in_(Pat Exp))(nibs(((shape Convex)(sort \
+         Exp))((shape(Concave 40))(sort Exp))))))(shards(0 1 \
+         2))(children(((Secondary((id \
          1845248a-d5c8-42ac-9eff-0fcac0a2a880)(content(Whitespace\" \
          \"))))(Tile((id \
          0788c040-f61f-4551-a9d6-0253c57debff)(label(requires))(mold((out \
@@ -203,7 +202,7 @@ let out : string * Haz3lcore.PersistentZipper.t =
          Exp))))))(shards(0))(children())))(Secondary((id \
          2aad5cf8-50b8-46ad-a848-2fbcaa7d6048)(content(Whitespace\" \
          \")))))))))(Grout((id d820ccff-966c-44ed-9381-35cb963d4f93)(shape \
-         Convex))))))(ancestors())))(caret Outer))";
+         Convex))))";
       backup_text =
         "let requires = [(enforced=^^check(true), \"schema(t1) is equal to \
          schema(t2)\")] in\n\

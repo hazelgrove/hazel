@@ -1,12 +1,11 @@
-let out : string * Haz3lcore.PersistentZipper.t =
+let out : string * Haz3lcore.PersistentSegment.t =
   ( "B2T2 / Table API / Utilities / renameColumns",
     {
-      zipper =
-        "((selection((focus Left)(content())(mode \
-         Normal)))(relatives((siblings(()((Tile((id \
-         6b2a0bd5-505a-4e90-8856-88708117b1f5)(label(type = in))(mold((out \
-         Exp)(in_(TPat Typ))(nibs(((shape Convex)(sort Exp))((shape(Concave \
-         40))(sort Exp))))))(shards(0 1 2))(children(((Secondary((id \
+      segment =
+        "((Tile((id 6b2a0bd5-505a-4e90-8856-88708117b1f5)(label(type = \
+         in))(mold((out Exp)(in_(TPat Typ))(nibs(((shape Convex)(sort \
+         Exp))((shape(Concave 40))(sort Exp))))))(shards(0 1 \
+         2))(children(((Secondary((id \
          940d5658-4fa1-4d52-be10-5954afd1c9cf)(content(Whitespace\" \
          \"))))(Tile((id \
          da6dd0fc-89e3-4386-849f-01449717caa4)(label(Student))(mold((out \
@@ -1049,8 +1048,7 @@ let out : string * Haz3lcore.PersistentZipper.t =
          47))(sort Exp))))))(shards(0))(children())))(Tile((id \
          02feb45f-7f5e-47a4-9b0e-645557dfd515)(label(`name`))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
-         Exp))))))(shards(0))(children()))))))))))))))))(ancestors())))(caret \
-         Outer))";
+         Exp))))))(shards(0))(children()))))))))))))))";
       backup_text =
         "type Student = (name=String, age=Int, favorite_color=String) in\n\
          let students : [Student] = ^^fold([\n\

@@ -1,12 +1,11 @@
-let out : string * Haz3lcore.PersistentZipper.t =
+let out : string * Haz3lcore.PersistentSegment.t =
   ( "B2T2 / Table API / Constructors / values",
     {
-      zipper =
-        "((selection((focus Left)(content())(mode \
-         Normal)))(relatives((siblings(()((Tile((id \
-         2032cc86-c867-4617-9f4e-2ddb5b550f1a)(label(let = in))(mold((out \
-         Exp)(in_(Pat Exp))(nibs(((shape Convex)(sort Exp))((shape(Concave \
-         40))(sort Exp))))))(shards(0 1 2))(children(((Secondary((id \
+      segment =
+        "((Tile((id 2032cc86-c867-4617-9f4e-2ddb5b550f1a)(label(let = \
+         in))(mold((out Exp)(in_(Pat Exp))(nibs(((shape Convex)(sort \
+         Exp))((shape(Concave 40))(sort Exp))))))(shards(0 1 \
+         2))(children(((Secondary((id \
          4baca0a1-e96e-42aa-9187-1ee079450bd8)(content(Whitespace\" \
          \"))))(Tile((id \
          015556db-0123-4259-967a-36a318d57459)(label(requires))(mold((out \
@@ -266,7 +265,7 @@ let out : string * Haz3lcore.PersistentZipper.t =
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))))))))))))(Secondary((id \
          22e8319f-8557-480d-82f9-768bc4b43eaf)(content(Whitespace\" \
-         \"))))))))))))(ancestors())))(caret Outer))";
+         \"))))))))))";
       backup_text =
         "let requires = [\n\
          (enforced=^^check(false), \"length(rs) is positive\"),\n\

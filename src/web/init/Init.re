@@ -50,23 +50,23 @@ let startup: PersistentData.t = {
       B2T2TableAPIUtilitiesselectMany.out,
       B2T2TableAPIUtilitiesgroupJoin.out,
       B2T2TableAPIUtilitiesjoin.out,
-      B2T2ExampleProgramDotProduct.out,
-      B2T2ExampleProgrampHackingHomogeneous.out,
-      B2T2ExampleProgrampHackingHeterogeneous.out,
-      B2T2ExampleProgramquizScoreFilter.out,
-      B2T2ExampleProgramquizScoreSelect.out,
-      B2T2ExampleProgramgroupByRetentive.out,
+      B2T2ExampleProgramsDotProduct.out,
+      B2T2ExampleProgramspHackingHomogeneous.out,
+      B2T2ExampleProgramspHackingHeterogeneous.out,
+      B2T2ExampleProgramsquizScoreFilter.out,
+      B2T2ExampleProgramsquizScoreSelect.out,
+      B2T2ExampleProgramsgroupByRetentive.out,
       B2T2ExampleProgramsgroupBySubtractive.out,
       B2T2ErrorsMalformedTables.out,
-      B2T2ErrorsUsingTables.out,
-      B2T2ErrorsUsingTables2.out,
-      B2T2ErrorsUsingTables3.out,
+      B2T2ErrorsUsingTablesPart1.out,
+      B2T2ErrorsUsingTablesPart2.out,
+      B2T2ErrorsUsingTablesPart3.out,
     ]
-    |> List.map(((name, content)) =>
+    |> List.map(((name, content: PersistentSegment.t)) =>
          (
            name,
            {
-             editor: content,
+             editor: content |> PersistentSegment.to_persistent_zipper,
              result: EvalResult.Model.init |> EvalResult.Model.persist,
            }: CellEditor.Model.persistent,
          )

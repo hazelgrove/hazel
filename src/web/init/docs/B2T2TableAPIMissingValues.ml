@@ -1,12 +1,11 @@
-let out : string * Haz3lcore.PersistentZipper.t =
+let out : string * Haz3lcore.PersistentSegment.t =
   ( "B2T2 / Table API / Missing Values",
     {
-      zipper =
-        "((selection((focus Left)(content())(mode \
-         Normal)))(relatives((siblings(()((Tile((id \
-         9270fc4d-f8a1-4fe3-bc52-ff6d9a205b26)(label(type = in))(mold((out \
-         Exp)(in_(TPat Typ))(nibs(((shape Convex)(sort Exp))((shape(Concave \
-         40))(sort Exp))))))(shards(0 1 2))(children(((Secondary((id \
+      segment =
+        "((Tile((id 9270fc4d-f8a1-4fe3-bc52-ff6d9a205b26)(label(type = \
+         in))(mold((out Exp)(in_(TPat Typ))(nibs(((shape Convex)(sort \
+         Exp))((shape(Concave 40))(sort Exp))))))(shards(0 1 \
+         2))(children(((Secondary((id \
          0dc786c2-8d12-42e7-8afc-ad43d0f07ed6)(content(Whitespace\" \
          \"))))(Tile((id \
          52a7c60c-d9f8-4eb7-a0c4-b667742ff7c6)(label(OptInt))(mold((out \
@@ -2237,7 +2236,7 @@ let out : string * Haz3lcore.PersistentZipper.t =
          fccee20e-5d63-41b2-a8c3-b573c9c31b54)(content(Whitespace\"\\n\")))))))))(Secondary((id \
          e7fbd703-937c-40eb-8b46-9a48500595c4)(content(Whitespace\" \
          \"))))(Grout((id 89e21385-b080-41f4-bd3d-1159c364b645)(shape \
-         Convex))))))(ancestors())))(caret Outer))";
+         Convex))))";
       backup_text =
         "type OptInt = +None +Some(Int) in\n\
          type OptString = +None +Some(String) in\n\

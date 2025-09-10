@@ -16,14 +16,4 @@ let segment =
     Exp(string_exp),
   )
   |> Option.get;
-let slide = (
-  "B2T2 / Datasheet",
-  PersistentZipper.persist({
-    selection: Selection.mk([]),
-    relatives: {
-      siblings: ([], [segment]),
-      ancestors: [],
-    },
-    caret: Outer,
-  }),
-);
+let slide = ("B2T2 / Datasheet", PersistentSegment.persist([segment]));

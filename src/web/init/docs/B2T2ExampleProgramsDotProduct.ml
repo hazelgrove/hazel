@@ -1,12 +1,11 @@
-let out : string * Haz3lcore.PersistentZipper.t =
+let out : string * Haz3lcore.PersistentSegment.t =
   ( "B2T2 / Example Programs / Dot Product",
     {
-      zipper =
-        "((selection((focus Left)(content())(mode \
-         Normal)))(relatives((siblings(()((Tile((id \
-         82b58781-3a7d-4db8-abd9-543c85c40c0e)(label(type = in))(mold((out \
-         Exp)(in_(TPat Typ))(nibs(((shape Convex)(sort Exp))((shape(Concave \
-         40))(sort Exp))))))(shards(0 1 2))(children(((Secondary((id \
+      segment =
+        "((Tile((id 82b58781-3a7d-4db8-abd9-543c85c40c0e)(label(type = \
+         in))(mold((out Exp)(in_(TPat Typ))(nibs(((shape Convex)(sort \
+         Exp))((shape(Concave 40))(sort Exp))))))(shards(0 1 \
+         2))(children(((Secondary((id \
          60d44fc9-f28e-472d-84a6-9d3e6c50134d)(content(Whitespace\" \
          \"))))(Tile((id \
          222f1cc7-5dfa-4e65-aef2-f411e3d7ee03)(label(GradebookEntry))(mold((out \
@@ -1117,8 +1116,7 @@ let out : string * Haz3lcore.PersistentZipper.t =
          Exp))))))(shards(0 1))(children(((Tile((id \
          f3eb529a-1bd2-4268-b958-b5e0fba67c26)(label(result))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
-         Exp))))))(shards(0))(children())))))))))(model\"()\"))))))(ancestors())))(caret \
-         Outer))";
+         Exp))))))(shards(0))(children())))))))))(model\"()\"))))";
       backup_text =
         "type GradebookEntry = (name=String, age=Int, quiz1=Int, quiz2=Int, \
          midterm=Int, quiz3=Int, quiz4=Int, final=Int) in\n\

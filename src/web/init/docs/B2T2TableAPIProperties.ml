@@ -1,12 +1,11 @@
-let out : string * Haz3lcore.PersistentZipper.t =
+let out : string * Haz3lcore.PersistentSegment.t =
   ( "B2T2 / Table API / Properties",
     {
-      zipper =
-        "((selection((focus Left)(content())(mode \
-         Normal)))(relatives((siblings(()((Tile((id \
-         534dd007-fc89-4cb6-b5f6-c2769a76240b)(label(let = in))(mold((out \
-         Exp)(in_(Pat Exp))(nibs(((shape Convex)(sort Exp))((shape(Concave \
-         40))(sort Exp))))))(shards(0 1 2))(children(((Secondary((id \
+      segment =
+        "((Tile((id 534dd007-fc89-4cb6-b5f6-c2769a76240b)(label(let = \
+         in))(mold((out Exp)(in_(Pat Exp))(nibs(((shape Convex)(sort \
+         Exp))((shape(Concave 40))(sort Exp))))))(shards(0 1 \
+         2))(children(((Secondary((id \
          e9cc7779-afcb-4ae5-a271-0a90c8bc2e2e)(content(Whitespace\" \
          \"))))(Tile((id \
          ad108c1b-90d2-444a-b63f-0c37eb5fba19)(label(nrows))(mold((out \
@@ -719,7 +718,7 @@ let out : string * Haz3lcore.PersistentZipper.t =
          e4d70bd8-82d0-4d5d-babb-184de4b9807a)(content(Whitespace\"\\n\"))))(Tile((id \
          76cd59a9-3203-41a1-9adc-d5875e41de71)(label(?))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
-         Exp))))))(shards(0))(children()))))))(ancestors())))(caret Outer))";
+         Exp))))))(shards(0))(children()))))";
       backup_text =
         "let nrows = \n\
          let requires = [] in\n\

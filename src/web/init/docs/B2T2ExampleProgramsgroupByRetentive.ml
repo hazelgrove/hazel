@@ -1,12 +1,11 @@
-let out : string * Haz3lcore.PersistentZipper.t =
+let out : string * Haz3lcore.PersistentSegment.t =
   ( "B2T2 / Example Programs / groupByRetentive",
     {
-      zipper =
-        "((selection((focus Left)(content())(mode \
-         Normal)))(relatives((siblings(()((Tile((id \
-         a3b69c29-f4ae-4ebd-8752-7fb574b22c76)(label(let = in))(mold((out \
-         Exp)(in_(Pat Exp))(nibs(((shape Convex)(sort Exp))((shape(Concave \
-         40))(sort Exp))))))(shards(0 1 2))(children(((Secondary((id \
+      segment =
+        "((Tile((id a3b69c29-f4ae-4ebd-8752-7fb574b22c76)(label(let = \
+         in))(mold((out Exp)(in_(Pat Exp))(nibs(((shape Convex)(sort \
+         Exp))((shape(Concave 40))(sort Exp))))))(shards(0 1 \
+         2))(children(((Secondary((id \
          cfb0df14-198f-4fc0-bba2-82562dd520b4)(content(Whitespace\" \
          \"))))(Tile((id \
          34cbc59a-4a96-4f16-b376-887637e2c618)(label(get_value))(mold((out \
@@ -1544,8 +1543,7 @@ let out : string * Haz3lcore.PersistentZipper.t =
          \"))))(Tile((id \
          6787de8d-90c9-4411-805d-9ef2a892df23)(label(\"\\\"name\\\"\"))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
-         Exp))))))(shards(0))(children())))))))))))(ancestors())))(caret \
-         Outer))";
+         Exp))))))(shards(0))(children())))))))))";
       backup_text =
         "let get_value =\n\
          fun (r:?,label:String) ->\n\

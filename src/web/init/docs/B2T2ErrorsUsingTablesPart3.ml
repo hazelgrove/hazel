@@ -1,12 +1,11 @@
-let out : string * Haz3lcore.PersistentZipper.t =
+let out : string * Haz3lcore.PersistentSegment.t =
   ( "B2T2 / Errors / Using Tables / Part 3",
     {
-      zipper =
-        "((selection((focus Left)(content())(mode \
-         Normal)))(relatives((siblings(()((Tile((id \
-         c52339de-0fd4-48ef-b754-68a35c2fc0d1)(label(let = in))(mold((out \
-         Exp)(in_(Pat Exp))(nibs(((shape Convex)(sort Exp))((shape(Concave \
-         40))(sort Exp))))))(shards(0 1 2))(children(((Secondary((id \
+      segment =
+        "((Tile((id c52339de-0fd4-48ef-b754-68a35c2fc0d1)(label(let = \
+         in))(mold((out Exp)(in_(Pat Exp))(nibs(((shape Convex)(sort \
+         Exp))((shape(Concave 40))(sort Exp))))))(shards(0 1 \
+         2))(children(((Secondary((id \
          b98e8f99-7a68-4e6f-b25e-7646b6f3066e)(content(Whitespace\" \
          \"))))(Tile((id \
          2bbf932b-2fb4-42c6-97b1-96fa56850951)(label(brown_jellybeans))(mold((out \
@@ -4144,7 +4143,7 @@ let out : string * Haz3lcore.PersistentZipper.t =
          \"))))(Tile((id \
          0ec90c66-62b1-43f8-8080-5ce4213f94d0)(label(?))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
-         Exp))))))(shards(0))(children()))))))(ancestors())))(caret Outer))";
+         Exp))))))(shards(0))(children()))))";
       backup_text =
         "let brown_jellybeans =\n\
          type JellyAnon = (get_acne=Bool, red=Bool, black=Bool, white=Bool, \

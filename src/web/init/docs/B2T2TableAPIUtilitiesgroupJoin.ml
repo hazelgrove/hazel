@@ -1,12 +1,11 @@
-let out : string * Haz3lcore.PersistentZipper.t =
+let out : string * Haz3lcore.PersistentSegment.t =
   ( "B2T2 / Table API / Utilities / groupJoin",
     {
-      zipper =
-        "((selection((focus Left)(content())(mode \
-         Normal)))(relatives((siblings(()((Tile((id \
-         763498f6-75ce-4734-8815-96be723bdb9e)(label(type = in))(mold((out \
-         Exp)(in_(TPat Typ))(nibs(((shape Convex)(sort Exp))((shape(Concave \
-         40))(sort Exp))))))(shards(0 1 2))(children(((Secondary((id \
+      segment =
+        "((Tile((id 763498f6-75ce-4734-8815-96be723bdb9e)(label(type = \
+         in))(mold((out Exp)(in_(TPat Typ))(nibs(((shape Convex)(sort \
+         Exp))((shape(Concave 40))(sort Exp))))))(shards(0 1 \
+         2))(children(((Secondary((id \
          83631372-8143-41d8-ab6b-5ccbd63db154)(content(Whitespace\" \
          \"))))(Tile((id \
          0a9b92f2-2ac2-40c7-8fab-c463d8d21d8a)(label(GradebookEntry))(mold((out \
@@ -1655,8 +1654,7 @@ let out : string * Haz3lcore.PersistentZipper.t =
          8b884658-1d91-4cd9-b48f-be0b9aedcbc0)(label(Int))(mold((out \
          Typ)(in_())(nibs(((shape Convex)(sort Typ))((shape Convex)(sort \
          Typ))))))(shards(0))(children())))))))))))))(Secondary((id \
-         3b126846-dbd8-4ef3-bec4-4813b3fb173f)(content(Whitespace\"\\n\"))))))))))))(ancestors())))(caret \
-         Outer))";
+         3b126846-dbd8-4ef3-bec4-4813b3fb173f)(content(Whitespace\"\\n\"))))))))))";
       backup_text =
         "type GradebookEntry = (name=String, age=Int, quiz1=Int, quiz2=Int, \
          midterm=Int, quiz3=Int, quiz4=Int, final=Int) in\n\

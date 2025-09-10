@@ -1,9 +1,8 @@
-let out : string * Haz3lcore.PersistentZipper.t =
+let out : string * Haz3lcore.PersistentSegment.t =
   ( "Livelits",
     {
-      zipper =
-        "((selection((focus Left)(content())(mode \
-         Normal)))(relatives((siblings(()((Secondary((id \
+      segment =
+        "((Secondary((id \
          66b121c3-cd30-462a-8927-e0ef55b5b5a2)(content(Comment\"# LIVELITS \
          #\"))))(Secondary((id \
          4748dd5b-63ef-47d1-aee4-4e6c2ef75c5c)(content(Whitespace\"\\n\"))))(Secondary((id \
@@ -148,7 +147,7 @@ let out : string * Haz3lcore.PersistentZipper.t =
          Exp))))))(shards(0))(children()))))))))))))))(model\"()\")))(Secondary((id \
          44ddd530-82a8-4184-800a-21652348cfe7)(content(Whitespace\" \
          \")))))))))(Grout((id 3534f38b-9cab-4478-9cde-bd0d16f2fae0)(shape \
-         Convex))))))(ancestors())))(caret Outer))";
+         Convex))))";
       backup_text =
         "# LIVELITS #\n\
          # A livelit is a live GUI widget which can be inserted into \

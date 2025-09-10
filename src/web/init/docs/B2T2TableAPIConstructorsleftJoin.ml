@@ -1,12 +1,11 @@
-let out : string * Haz3lcore.PersistentZipper.t =
+let out : string * Haz3lcore.PersistentSegment.t =
   ( "B2T2 / Table API / Constructors / leftJoin",
     {
-      zipper =
-        "((selection((focus Left)(content())(mode \
-         Normal)))(relatives((siblings(()((Tile((id \
-         9a1a4885-4ba8-4824-9a71-778941d9146f)(label(type = in))(mold((out \
-         Exp)(in_(TPat Typ))(nibs(((shape Convex)(sort Exp))((shape(Concave \
-         40))(sort Exp))))))(shards(0 1 2))(children(((Secondary((id \
+      segment =
+        "((Tile((id 9a1a4885-4ba8-4824-9a71-778941d9146f)(label(type = \
+         in))(mold((out Exp)(in_(TPat Typ))(nibs(((shape Convex)(sort \
+         Exp))((shape(Concave 40))(sort Exp))))))(shards(0 1 \
+         2))(children(((Secondary((id \
          0b5a8039-f4a1-44d8-8a23-15c6454189db)(content(Whitespace\" \
          \"))))(Tile((id \
          985ba745-7282-4cc9-bf81-12b448d72ef4)(label(Student))(mold((out \
@@ -3669,7 +3668,7 @@ let out : string * Haz3lcore.PersistentZipper.t =
          89c81562-85bf-44c7-b38f-e8560f337530)(content(Whitespace\"\\n\"))))(Tile((id \
          024c9dcf-3f0f-4e42-887e-3a42971e0018)(label(?))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
-         Exp))))))(shards(0))(children()))))))(ancestors())))(caret Outer))";
+         Exp))))))(shards(0))(children()))))";
       backup_text =
         "type Student = (name=String, age=Int, favorite_color=String) in\n\
          let students : [Student] = ^^fold([\n\

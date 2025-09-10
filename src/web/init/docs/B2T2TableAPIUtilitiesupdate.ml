@@ -1,12 +1,11 @@
-let out : string * Haz3lcore.PersistentZipper.t =
+let out : string * Haz3lcore.PersistentSegment.t =
   ( "B2T2 / Table API / Utilities / update",
     {
-      zipper =
-        "((selection((focus Left)(content())(mode \
-         Normal)))(relatives((siblings(()((Tile((id \
-         dfcf1a3c-132b-4db4-ad2b-9d39c412630f)(label(type = in))(mold((out \
-         Exp)(in_(TPat Typ))(nibs(((shape Convex)(sort Exp))((shape(Concave \
-         40))(sort Exp))))))(shards(0 1 2))(children(((Secondary((id \
+      segment =
+        "((Tile((id dfcf1a3c-132b-4db4-ad2b-9d39c412630f)(label(type = \
+         in))(mold((out Exp)(in_(TPat Typ))(nibs(((shape Convex)(sort \
+         Exp))((shape(Concave 40))(sort Exp))))))(shards(0 1 \
+         2))(children(((Secondary((id \
          300a8c6a-4d3f-4e01-85cf-696d3f514ef8)(content(Whitespace\" \
          \"))))(Tile((id \
          643b5fbf-7c7d-4ccc-8ff8-cc1dbac4be42)(label(GradebookEntry))(mold((out \
@@ -1626,8 +1625,7 @@ let out : string * Haz3lcore.PersistentZipper.t =
          5055ae51-7d56-42d0-99c0-58d9c931c970)(label(false))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))))))))))))(Secondary((id \
-         e0d9d94e-0151-4dab-ab45-ce974dd80727)(content(Whitespace\"\\n\"))))))))))))(ancestors())))(caret \
-         Outer))";
+         e0d9d94e-0151-4dab-ab45-ce974dd80727)(content(Whitespace\"\\n\"))))))))))";
       backup_text =
         "type GradebookEntry = (name=String, age=Int, quiz1=Int, quiz2=Int, \
          midterm=Int, quiz3=Int, quiz4=Int, final=Int) in\n\

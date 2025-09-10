@@ -1,12 +1,11 @@
-let out : string * Haz3lcore.PersistentZipper.t =
+let out : string * Haz3lcore.PersistentSegment.t =
   ( "B2T2 / Errors / Using Tables / Part 2",
     {
-      zipper =
-        "((selection((focus Left)(content())(mode \
-         Normal)))(relatives((siblings(()((Tile((id \
-         2f793497-fb55-406b-a506-8bde5115bc09)(label(type = in))(mold((out \
-         Exp)(in_(TPat Typ))(nibs(((shape Convex)(sort Exp))((shape(Concave \
-         40))(sort Exp))))))(shards(0 1 2))(children(((Secondary((id \
+      segment =
+        "((Tile((id 2f793497-fb55-406b-a506-8bde5115bc09)(label(type = \
+         in))(mold((out Exp)(in_(TPat Typ))(nibs(((shape Convex)(sort \
+         Exp))((shape(Concave 40))(sort Exp))))))(shards(0 1 \
+         2))(children(((Secondary((id \
          2dc15921-438d-4795-837d-8bdbb25adc9f)(content(Whitespace\" \
          \"))))(Tile((id \
          36d223b9-482b-43ed-b503-90e8c2b3cab0)(label(Image))(mold((out \
@@ -4559,8 +4558,7 @@ let out : string * Haz3lcore.PersistentZipper.t =
          2b717202-b907-4f95-b769-f5451b743420)(content(Whitespace\" \
          \")))))))))(Secondary((id \
          6274fefe-4817-40f5-adb3-47f22d92b2a3)(content(Whitespace\"\\n\")))))))))(Grout((id \
-         b4411567-dacf-4305-88be-0b943bd4f78f)(shape \
-         Convex))))))(ancestors())))(caret Outer))";
+         b4411567-dacf-4305-88be-0b943bd4f78f)(shape Convex))))";
       backup_text =
         "type Image = in\n\
          # Representing column names as projection functions for better error \

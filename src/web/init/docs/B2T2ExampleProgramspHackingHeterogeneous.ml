@@ -1,12 +1,11 @@
-let out : string * Haz3lcore.PersistentZipper.t =
+let out : string * Haz3lcore.PersistentSegment.t =
   ( "B2T2 / Example Programs / pHackingHeterogeneous",
     {
-      zipper =
-        "((selection((focus Left)(content())(mode \
-         Normal)))(relatives((siblings(()((Tile((id \
-         1479cea1-9070-4218-886c-d68f36cbcc07)(label(let = in))(mold((out \
-         Exp)(in_(Pat Exp))(nibs(((shape Convex)(sort Exp))((shape(Concave \
-         40))(sort Exp))))))(shards(0 1 2))(children(((Secondary((id \
+      segment =
+        "((Tile((id 1479cea1-9070-4218-886c-d68f36cbcc07)(label(let = \
+         in))(mold((out Exp)(in_(Pat Exp))(nibs(((shape Convex)(sort \
+         Exp))((shape(Concave 40))(sort Exp))))))(shards(0 1 \
+         2))(children(((Secondary((id \
          2782a17b-089f-4c04-8cc7-f8620c67c7de)(content(Whitespace\" \
          \"))))(Tile((id \
          be98253c-9375-4fb5-b8c8-25e43322c9cc)(label(fisherTest))(mold((out \
@@ -2920,8 +2919,7 @@ let out : string * Haz3lcore.PersistentZipper.t =
          \"))))(Tile((id \
          d24592fb-1022-43e9-bd13-d11664e99859)(label(`name`))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
-         Exp))))))(shards(0))(children())))))))))))))))))))))(ancestors())))(caret \
-         Outer))";
+         Exp))))))(shards(0))(children())))))))))))))))))))";
       backup_text =
         "let fisherTest =\n\
          ^^fold(fun (xs:[Bool], ys: [Bool]) ->\n\n\

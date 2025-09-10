@@ -1,9 +1,8 @@
-let out : string * Haz3lcore.PersistentZipper.t =
+let out : string * Haz3lcore.PersistentSegment.t =
   ( "B2T2 / Errors / Malformed Tables",
     {
-      zipper =
-        "((selection((focus Left)(content())(mode \
-         Normal)))(relatives((siblings(()((Secondary((id \
+      segment =
+        "((Secondary((id \
          851208d9-35aa-44a2-a43c-38bba6973e37)(content(Comment\"# No type \
          correlates to missing schema. There is no error as it's valid data \
          without labels#\"))))(Secondary((id \
@@ -796,7 +795,7 @@ let out : string * Haz3lcore.PersistentZipper.t =
          \"))))(Tile((id \
          d40e69f5-2ce2-4482-b274-8053817635f9)(label(?))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
-         Exp))))))(shards(0))(children()))))))(ancestors())))(caret Outer))";
+         Exp))))))(shards(0))(children()))))";
       backup_text =
         "# No type correlates to missing schema. There is no error as it's \
          valid data without labels#\n\
