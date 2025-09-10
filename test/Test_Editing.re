@@ -477,6 +477,16 @@ let insertion_tests = [
     ~acts=mk({|((1)¦|}) @ [Put_down],
     ~goal={|((1))¦|},
   ),
+  test(
+    ~name="Forall regrouting edge case (debatable behavior) (#1913)",
+    ~acts=mk({|?:foral¦(?)|}) @ [Insert("l")],
+    ~goal={|?:forall¦(?)|},
+  ),
+  test(
+    ~name="Forall regrouting edge case (non-debatable) (#1913)",
+    ~acts=mk({|?:foral¦(?)|}) @ [Insert("l"), Insert("-"), Insert(">")],
+    ~goal={|?:forall?->¦(?)|},
+  ),
   /* In below test, we first cause the two `=`s to merge, then split them.
      The first `=` should not get matched to the `let` because of the parens.
      If it does, then it will prevent the Put_down from dropping the parens.
