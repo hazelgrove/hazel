@@ -73,6 +73,19 @@
   /* transition: all 0.3s ease; */
 }
 
+#assistant .context-usage-display {
+  font-size: 0.75em;
+  color: var(--STONE);
+  opacity: 0.6;
+  font-weight: bold;
+  min-width: 35px;
+  text-align: center;
+  padding: 4px 6px;
+  background-color: var(--SAND);
+  border-radius: 3px;
+  border: 0.5px solid var(--BR3);
+}
+
 #assistant .message-input {
   flex: 1;
   background-color: var(--SAND);

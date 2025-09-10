@@ -81,6 +81,9 @@ let toolkit = [
   "* \"definition\" - the tiles between the \"=\" and \"in\" delimiters, exclusive\n",
   "* \"body\" - the tiles after the \"in\" delimiter, exclusive\n",
   "* \"binding clause\" - the tiles between the \"let\" and \"in\" delimiters, or the \"type\" and \"in\" delimiters, inclusive\n",
+  "Another note—when writing code, you should use line breaks to neatly format the code.",
+  "NEVER try to indent code, as Hazel's formatter will automatically indent and format the code for you wherever you insert line breaks.",
+  "NEVER write code without using line breaks when line breaks are highly necessary.",
   "</Notes>",
 ];
 
@@ -89,8 +92,8 @@ let few_shot_comp_examples = {
     "<fewShotExamples>The following are GOLDEN EXAMPLES from agents who successfully implemented user-requested features."
     ++ "You ASPIRE to be as elegant and efficient as they are! "
     ++ "In fact, you CAN be! As long as you study what they've done so well!\n"
-    ++ Ex_RecFib.self
-    ++ Ex_RPS.self
+    ++ Eg_RecFib.self
+    ++ Eg_RPS.self
     ++ "</fewShotExamples>",
   ];
 };

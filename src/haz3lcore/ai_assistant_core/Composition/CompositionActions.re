@@ -45,6 +45,8 @@ type nav_action =
 type read_action =
   // Lists all the use sites of the indicated variable
   | ShowUseSites
+  // Displays the typing context/scope at the current let expression in the AST
+  // | ShowContext //todo: technically this is accomplished via showing sibs/parent
   // Displays the entire definition of the current node, with no child/sub definitions abstracted away
   | ViewEntireDefintion;
 

@@ -76,6 +76,7 @@ type chat = {
   id: Id.t,
   descriptor: string,
   timestamp: float,
+  context_usage: int,
   awaiting_response: bool,
 };
 
@@ -191,6 +192,7 @@ let init_chat = (mode: AssistantSettings.mode): chat => {
     id: Id.mk(),
     descriptor: "",
     timestamp: JsUtil.timestamp(),
+    context_usage: 0,
     awaiting_response: false,
   };
 };
@@ -208,6 +210,7 @@ let new_chat = (model: t, mode: AssistantSettings.mode): chat => {
     id: Id.mk(),
     descriptor: "",
     timestamp: JsUtil.timestamp(),
+    context_usage: 0,
     awaiting_response: false,
   };
 };
@@ -265,6 +268,7 @@ let null_model = (): t => {
     id: Id.invalid,
     descriptor: "Please set an API key",
     timestamp: JsUtil.timestamp(),
+    context_usage: 0,
     awaiting_response: false,
   };
   {

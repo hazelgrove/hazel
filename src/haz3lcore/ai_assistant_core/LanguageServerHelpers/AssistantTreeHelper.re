@@ -34,10 +34,24 @@ let exp_to_info = (term: Exp.t, info_map: Id.Map.t(Info.t)): Info.t => {
   Id.Map.find(e, info_map);
 };
 
+let exp_to_exp = (term: Exp.t, info_map: Id.Map.t(Info.t)): Info.exp => {
+  switch (exp_to_info(term, info_map)) {
+  | InfoExp(exp_info) => exp_info
+  | _ => raise(Failure("No exp info found"))
+  };
+};
+
 let pat_to_info = (term: Pat.t, info_map: Id.Map.t(Info.t)): Info.t => {
   // Helper function
   let e = Pat.rep_id(term);
   Id.Map.find(e, info_map);
+};
+
+let pat_to_pat = (term: Pat.t, info_map: Id.Map.t(Info.t)): Info.pat => {
+  switch (pat_to_info(term, info_map)) {
+  | InfoPat(pat_info) => pat_info
+  | _ => raise(Failure("No pat info found"))
+  };
 };
 
 let tpat_to_info = (term: TPat.t, info_map: Id.Map.t(Info.t)): Info.t => {
@@ -46,10 +60,24 @@ let tpat_to_info = (term: TPat.t, info_map: Id.Map.t(Info.t)): Info.t => {
   Id.Map.find(e, info_map);
 };
 
+let tpat_to_tpat = (term: TPat.t, info_map: Id.Map.t(Info.t)): Info.tpat => {
+  switch (tpat_to_info(term, info_map)) {
+  | InfoTPat(tpat_info) => tpat_info
+  | _ => raise(Failure("No tpat info found"))
+  };
+};
+
 let typ_to_info = (term: Typ.t, info_map: Id.Map.t(Info.t)): Info.t => {
   // Helper function
   let e = Typ.rep_id(term);
   Id.Map.find(e, info_map);
+};
+
+let typ_to_typ = (term: Typ.t, info_map: Id.Map.t(Info.t)): Info.typ => {
+  switch (typ_to_info(term, info_map)) {
+  | InfoTyp(typ_info) => typ_info
+  | _ => raise(Failure("No typ info found"))
+  };
 };
 
 // let rul_to_info = (term: Rul.t, info_map: Id.Map.t(Info.t)): Info.t => {
@@ -465,21 +493,31 @@ let get_node = (curr_node_info: option(node)) => {
 };
 
 let subtree_of =
-    (~info: Info.t, ~of_pat: bool, ~of_def: bool, ~of_body: bool)
+    (
+      ~info: Info.t,
+      ~orig_info_map: Id.Map.t(Info.t),
+      ~of_pat: bool,
+      ~of_def: bool,
+      ~of_body: bool,
+    )
     : Statics.Map.t => {
-  let (pat_map, def_map, body_map) =
+  let map =
     switch (info) {
-    | InfoExp({term, ana, ctx, co_ctx, ancestors, _}) =>
+    | InfoExp({term, _}) =>
       switch (Exp.term_of(term)) {
       | Let(pat, def, body) =>
+        let pat_info = pat_to_pat(pat, orig_info_map);
+        let def_info = exp_to_exp(def, orig_info_map);
+        let body_info = exp_to_exp(body, orig_info_map);
+
         let pat_map =
           of_pat
             ? Statics.upat_to_info_map(
                 ~is_synswitch=false,
-                ~ctx,
-                ~co_ctx,
-                ~ana,
-                ~ancestors,
+                ~ctx=pat_info.ctx,
+                ~co_ctx=pat_info.co_ctx,
+                ~ana=pat_info.ana,
+                ~ancestors=pat_info.ancestors,
                 ~duplicates=[],
                 pat,
                 Statics.Map.empty,
@@ -490,41 +528,46 @@ let subtree_of =
         let def_map =
           of_def
             ? Statics.uexp_to_info_map(
-                ~ctx,
-                ~ana,
+                ~ctx=def_info.ctx,
+                ~ana=def_info.ana,
                 ~is_in_filter=false,
-                ~ancestors=[],
+                ~ancestors=def_info.ancestors,
                 ~duplicates=[],
                 ~expected_labels=None,
                 def,
-                Statics.Map.empty,
+                pat_map,
               )
               |> snd
-            : Statics.Map.empty;
+            : pat_map;
 
         let body_map =
           of_body
             ? Statics.uexp_to_info_map(
-                ~ctx,
-                ~ana,
+                ~ctx=body_info.ctx,
+                ~ana=body_info.ana,
                 ~is_in_filter=false,
-                ~ancestors=[],
+                ~ancestors=body_info.ancestors,
                 ~duplicates=[],
                 ~expected_labels=None,
                 body,
-                Statics.Map.empty,
+                def_map,
               )
               |> snd
-            : Statics.Map.empty;
+            : def_map;
 
-        (pat_map, def_map, body_map);
-      | TyAlias(pat, tdef, body) =>
-        let pat_map =
+        body_map;
+
+      | TyAlias(tpat, tdef, body) =>
+        let tpat_info = tpat_to_tpat(tpat, orig_info_map);
+        let tdef_info = typ_to_typ(tdef, orig_info_map);
+        let body_info = exp_to_exp(body, orig_info_map);
+
+        let tpat_map =
           of_pat
             ? Statics.utpat_to_info_map(
-                ~ctx,
-                ~ancestors,
-                pat,
+                ~ctx=tpat_info.ctx,
+                ~ancestors=tpat_info.ancestors,
+                tpat,
                 Statics.Map.empty,
               )
               |> snd
@@ -532,64 +575,38 @@ let subtree_of =
         let tpat_map =
           of_def
             ? Statics.utyp_to_info_map(
-                ~ctx,
-                ~ancestors,
+                ~ctx=tdef_info.ctx,
+                ~ancestors=tdef_info.ancestors,
                 tdef,
-                Statics.Map.empty,
+                tpat_map,
               )
               |> snd
-            : Statics.Map.empty;
+            : tpat_map;
 
         let body_map =
           of_body
             ? Statics.uexp_to_info_map(
-                ~ctx,
-                ~ana,
+                ~ctx=body_info.ctx,
+                ~ana=body_info.ana,
                 ~is_in_filter=false,
-                ~ancestors=[],
+                ~ancestors=body_info.ancestors,
                 ~duplicates=[],
                 ~expected_labels=None,
                 body,
-                Statics.Map.empty,
+                tpat_map,
               )
               |> snd
-            : Statics.Map.empty;
+            : tpat_map;
 
-        (pat_map, tpat_map, body_map);
+        body_map;
+
       | _ =>
         raise(Failure("Current node is not a let or type alias expression"))
       }
     | _ => raise(Failure("Current node is not an expression"))
     };
 
-  let merge1 =
-    Id.Map.merge(
-      (_, info1, info2) =>
-        switch (info1, info2) {
-        | (Some(info), None) => Some(info)
-        | (None, Some(info)) => Some(info)
-        | (Some(info1), Some(info2)) =>
-          assert(info1 == info2); // These should always be identical
-          Some(info1);
-        | (None, None) => None
-        },
-      pat_map,
-      def_map,
-    );
-
-  Id.Map.merge(
-    (_, info1, info2) =>
-      switch (info1, info2) {
-      | (Some(info), None) => Some(info)
-      | (None, Some(info)) => Some(info)
-      | (Some(info1), Some(info2)) =>
-        assert(info1 == info2); // These should always be identical
-        Some(info1);
-      | (None, None) => None
-      },
-    merge1,
-    body_map,
-  );
+  map;
 };
 
 let get_refs_to = (curr: Info.t, info_map: Id.Map.t(Info.t)): CoCtx.t => {

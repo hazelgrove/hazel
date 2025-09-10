@@ -29,7 +29,7 @@ module Update = {
       ~schedule_action,
       ~schedule_editor_action,
     )
-    |> Updated.return_quiet;
+    |> Updated.return;
   };
 };
 

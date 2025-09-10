@@ -573,6 +573,28 @@ let mk_input_handlers =
   (send_message, handle_keydown);
 };
 
+let context_usage_display =
+    (~model: Model.t, ~settings: AssistantSettings.t): Node.t => {
+  let (past_chats, curr_chat) =
+    UpdateBase.get_mode_info(settings.mode, model);
+  let curr_chat_data = Id.Map.find(curr_chat.id, past_chats);
+  let context_length = model.external_api_info.set_model_info.context_length;
+  let context_usage = curr_chat_data.context_usage;
+
+  let percentage =
+    if (context_length > 0) {
+      int_of_float(
+        float_of_int(context_usage) /. float_of_int(context_length) *. 100.0,
+      );
+    } else {
+      0;
+    };
+
+  let usage_text = string_of_int(percentage) ++ "%";
+
+  div(~attrs=[clss(["context-usage-display"])], [text(usage_text)]);
+};
+
 let message_input =
     (~signal, ~inject, ~model: Model.t, ~settings: AssistantSettings.t)
     : Node.t => {
@@ -581,6 +603,7 @@ let message_input =
   div(
     ~attrs=[clss(["input-container"])],
     [
+      context_usage_display(~model, ~settings),
       input(
         ~attrs=[
           Attr.id("message-input"),

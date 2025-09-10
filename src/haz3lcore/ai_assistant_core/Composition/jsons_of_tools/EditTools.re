@@ -2,19 +2,36 @@ open Util;
 
 let initialize_description = {|
 Description:
-Overwrites the entire program with the given code.
+Overwrites the program with the given code.
+This may *only* ever be called on a program that has no let/type alias expressions.
+This tool is only meant for this special case.
+It may never be used once a program has let/type alias expressions.
 
 Parameters:
-code: string — new code to replace the entire program with
+code: string — new code to replace the program with
 
 Example(s):
+(Example 1)
 The current program is:
 ```
 ?
 ```
-Calling initialize(code="let a = 3 in a * 2") would result in the program
+Calling initialize(code="let a = 3 in
+a * 2") would result in the program
 ```
 let a = 3 in a * 2
+```
+
+(Example 2)
+The current program is:
+```
+5 * 10
+```
+Calling initialize(code="let a  = 5
+in let b = 10
+in a * b") would result in the program
+```
+let a  = 5 in let b = 10 in a * b
 ```
 |};
 
@@ -185,7 +202,12 @@ let update_body: API.Json.t =
 
 let update_pattern_description = {|
 Description:
-Updates/renames the pattern of the current node
+Updates/renames the pattern of the current node.
+A unique perk of this tool is that it will also update all use sites of the variable in the program.
+If the pattern is a tuple, or some other higher-order pattern, it will recursively find
+the atomic variables within that pattern, and update all use sites of those variables if and only if
+the number of old and new variables are the same (this is only a reuqirement for this feature to work,
+but you may very well change the pattern however you'd like to achieve your desired outcome!).
 
 Parameters:
 code: string — new pattern to assign
@@ -198,13 +220,15 @@ let b = "hello, world" in
 let c : Int = ⋱ in
 ?
 ```
-Calling update_pattern(code="b : String"), while the current node is "b", would result in the sketch:
+Calling update_pattern(code="s : String"), while the current node is "b", would result in the sketch:
 ```
 let a = ⋱ in
-let b : String = "hello, world" in
+let s : String = "hello, world" in
 let c : Int = ⋱ in
 ?
 ```
+*Note: If there were any references to "b" in the body of "b"'s variable definition
+(such as in the definition of the "c"), they would be updated to "s" as well.
 |};
 
 let update_pattern: API.Json.t =
@@ -241,7 +265,11 @@ let update_pattern: API.Json.t =
 let update_binding_clause_description = {|
 Description:
 Updates the pattern, definition, and enclosing delimiters of the current node (everything exclusive of the body).
-eg. calling update_binding_clause at a current node of let x = 3 in x will overwrite "let x = 3 in"
+eg. calling update_binding_clause at a current node of let x = 3 in x will overwrite "let x = 3 in".
+It is important to note that this does NOT update the body of the current node. If you wish to update the
+binding along with the body, you should call this tool along with update_body, sequentially. This also means
+the code argument you pass here should not contain a final body.
+(Eg. ```let x = 3 in x``` would be bad, but ```let x = 3 in``` would be good, so would ```let x = 3 in let y = 4 in```).
 
 Parameters:
 code: string — new expression (which may contain multiple expressions; see example below for more information)

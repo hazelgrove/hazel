@@ -19,6 +19,7 @@ let tools = [
   EditTools.insert_after,
   EditTools.insert_before,
   ViewTools.view_entire_definition,
+  // ViewTools.view_context,
 ];
 
 type action = CompositionActions.composition_action;
@@ -252,25 +253,28 @@ module Perform = {
       switch (old_z) {
       | None => []
       | Some(old_z) =>
+        let old_info_map = mk_statics(old_z);
         let old_node =
-          AssistantTreeHelper.build_curr_node_info(old_z, mk_statics(old_z))
+          AssistantTreeHelper.build_curr_node_info(old_z, old_info_map)
           |> Option.get;
         let old_subtree =
           AssistantTreeHelper.subtree_of(
             ~info=old_node.info,
+            ~orig_info_map=old_info_map,
             ~of_pat,
             ~of_def,
             ~of_body,
           );
         ErrorPrint.all(old_subtree);
       };
-    let new_statics = mk_statics(new_z);
+    let new_info_map = mk_statics(new_z);
     let new_node =
-      AssistantTreeHelper.build_curr_node_info(new_z, new_statics)
+      AssistantTreeHelper.build_curr_node_info(new_z, new_info_map)
       |> Option.get;
     let new_subtree =
       AssistantTreeHelper.subtree_of(
         ~info=new_node.info,
+        ~orig_info_map=new_info_map,
         ~of_pat,
         ~of_def,
         ~of_body,
@@ -550,7 +554,8 @@ module Perform = {
               ~old_z=Some(z),
               ~new_z,
               ~mk_statics,
-              ~of_pat=false,
+              ~of_pat=true, // set pat to true here because could be case def is made recursive
+              // or something else... errors in def can be dependent on pat (in Hazel)
               ~of_def=true,
               ~of_body=false,
             )
@@ -564,8 +569,10 @@ module Perform = {
               ~old_z=Some(z),
               ~new_z,
               ~mk_statics,
-              ~of_pat=false,
-              ~of_def=false,
+              ~of_pat=true, // two reasons this is set to true
+              // 1. updating the body of something should not break the pattern
+              // 2. the body is highly dependent on the pattern (possibly dep on def as well?)
+              ~of_def=true,
               ~of_body=true,
             )
           };
@@ -619,7 +626,7 @@ module Perform = {
               ~mk_statics,
               ~of_pat=true,
               ~of_def=true,
-              ~of_body=true,
+              ~of_body=false,
             )
           };
         | InsertBefore(u) =>
@@ -640,7 +647,7 @@ module Perform = {
               ~mk_statics,
               ~of_pat=true,
               ~of_def=true,
-              ~of_body=true,
+              ~of_body=false // optionally, we could make this true
             )
           }
         | InsertAfter(u) =>
@@ -661,7 +668,7 @@ module Perform = {
               ~mk_statics,
               ~of_pat=true,
               ~of_def=true,
-              ~of_body=true,
+              ~of_body=false // optionally, we could make this true
             )
           }
         | DeleteBindingClause =>

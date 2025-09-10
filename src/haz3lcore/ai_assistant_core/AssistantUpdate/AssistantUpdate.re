@@ -332,10 +332,20 @@ let mk_user_content_message =
   };
 };
 
-let update_chat = (chat: Model.chat, messages: list(Model.message)) => {
+let update_chat =
+    (
+      ~context_usage: option(int)=?,
+      chat: Model.chat,
+      messages: list(Model.message),
+    ) => {
   {
     ...chat,
     messages: chat.messages @ messages,
+    context_usage:
+      switch (context_usage) {
+      | Some(context_usage) => context_usage
+      | None => chat.context_usage
+      },
   };
 };
 
@@ -885,7 +895,12 @@ let update =
 
     // This commented out code below is for streaming, if we ever choose to add
     // If streaming, update the last message display
-    let updated_chat = update_chat(curr_chat, [assistant_message]);
+    let updated_chat =
+      update_chat(
+        ~context_usage=reply.usage.total_tokens,
+        curr_chat,
+        [assistant_message],
+      );
     /* let last_display = ListUtil.last(curr_chat.message_displays);
        if (last_display.role == Assistant) {
          let updated_content = last_display.original_content ++ content;
