@@ -885,25 +885,6 @@ and abbreviate_typ = (typ: Typ.t): Typ.t => {
         available := available^ - 2; // "()"
         Parens(abbreviate_typ(t));
       }
-    | Ap(t1, t2) =>
-      if (available^ <= 1) {
-        indet_term_typ;
-      } else {
-        available := available^ - 1; // space
-        let t1' = abbreviate_typ(t1);
-        if (available^ > 0) {
-          let t2' = abbreviate_typ(t2);
-          Ap(t1', t2');
-        } else {
-          Ap(
-            t1',
-            {
-              ...t2,
-              term: indet_term_typ,
-            },
-          );
-        };
-      }
     | Rec(tp, t) =>
       if (available^ <= 3) {
         indet_term_typ;
