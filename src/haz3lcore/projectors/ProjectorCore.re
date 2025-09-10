@@ -84,8 +84,8 @@ type t('syntax) = {
   model: string,
 };
 
-let mk = (kind, syntax, model) => {
-  id: Id.mk(),
+let mk = (~id=Id.mk(), kind, syntax, model) => {
+  id,
   kind,
   syntax,
   model,

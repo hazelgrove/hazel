@@ -24,6 +24,7 @@ let (suite, _) =
       Test_StringUtil.tests,
       Test_Typ.tests,
       Test_PatternMatch.tests,
+      Test_Id_Transform.tests,
     ]
     @ Test_Statics.tests
     @ Test_Elaboration.tests

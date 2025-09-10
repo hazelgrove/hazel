@@ -1,6 +1,6 @@
 open Util;
 
-let mk_probe = (): option(Base.projector) => {
+let mk_probe = (id): option(Base.projector) => {
   open OptUtil.Syntax;
   let kind = ProjectorCore.Kind.Probe;
   let (module P) = ProjectorInit.to_module(kind);
@@ -8,7 +8,7 @@ let mk_probe = (): option(Base.projector) => {
   let piece: Base.piece = Segment.parenthesize(seg);
   let* any = MakeTerm.for_projection(seg);
   let+ model = P.init(any);
-  ProjectorCore.mk(kind, piece, model);
+  ProjectorCore.mk(~id, kind, piece, model);
 };
 
 let update_refractors = (f, z: Zipper.t): Zipper.t => {
@@ -23,7 +23,7 @@ let add' = (id: Id.t, z: Zipper.t): Zipper.t => {
   switch (Id.Map.find_opt(id, z.refractors.map)) {
   | Some(_) => update_refractors(Id.Map.remove(id), z)
   | None =>
-    switch (mk_probe()) {
+    switch (mk_probe(Id.transform_variant(id))) {
     | None => z
     | Some(p) =>
       print_endline(
@@ -62,7 +62,7 @@ let add_ids_from_pinned_term = (~term_data, ~measured, z: Zipper.t): Zipper.t =>
       ephemerals:
         List.fold_left(
           (map, id) =>
-            switch (mk_probe()) {
+            switch (mk_probe(Id.transform_variant(id))) {
             | None =>
               print_endline("no probe for " ++ Id.show(id));
               map;

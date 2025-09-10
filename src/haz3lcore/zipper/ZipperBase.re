@@ -20,15 +20,15 @@ module Refractor = {
 
   type mapping = list((Id.t, Id.t));
 
-  let mapping = (refractors: Map.t): mapping =>
-    refractors
-    |> Id.Map.to_list
-    |> List.map(((id, p: Base.projector)) => (id, p.id));
+  // let mapping = (refractors: Map.t): mapping =>
+  //   refractors
+  //   |> Id.Map.to_list
+  //   |> List.map(((id, p: Base.projector)) => (id, p.id));
 
-  let reverse_mapping = (refractors: Map.t): mapping =>
-    refractors
-    |> Id.Map.to_list
-    |> List.map(((id, p: Base.projector)) => (p.id, id));
+  // let reverse_mapping = (refractors: Map.t): mapping =>
+  //   refractors
+  //   |> Id.Map.to_list
+  //   |> List.map(((id, p: Base.projector)) => (p.id, id));
 
   let init = {
     map: Id.Map.empty,

@@ -133,7 +133,7 @@ let record_term_data = (sort: Sort.t, seg: Segment.t, skel: Skel.t): unit =>
 /* Map to collect projector ids */
 let projectors: ref(Id.Map.t(Piece.projector)) = ref(Id.Map.empty);
 
-let rf_map: ref(list((Id.t, Id.t))) = ref([]);
+let rf_map: ref(Id.Map.t(_)) = ref(Id.Map.empty);
 
 /* Strip a projector from a segment and log it in the map */
 let log_projector = (pr: Base.projector): unit => {
@@ -210,8 +210,8 @@ and exp = unsorted => {
   let ids = ids(unsorted) @ inner_ids;
   //TODO(andrew): cleanup, document
   let (term, ids) =
-    switch (List.assoc_opt(List.hd(ids), rf_map^)) {
-    | Some(guy) =>
+    switch (Id.Map.find_opt(List.hd(ids), rf_map^)) {
+    | Some(_guy) =>
       //print_endline("adding probe to id: " ++ Id.str8(List.hd(ids)));
       (
         Probe(
@@ -223,7 +223,7 @@ and exp = unsorted => {
           },
           Probe.empty,
         ): TermBase.exp_term,
-        [guy],
+        [Id.transform_variant(List.hd(ids))],
       )
     | None => (term, ids)
     };
@@ -528,8 +528,8 @@ and pat = unsorted => {
   let ids = ids(unsorted) @ inner_ids;
   //TODO(andrew): cleanup, document
   let (term, ids) =
-    switch (List.assoc_opt(List.hd(ids), rf_map^)) {
-    | Some(guy) =>
+    switch (Id.Map.find_opt(List.hd(ids), rf_map^)) {
+    | Some(_guy) =>
       //print_endline("adding probe to id: " ++ Id.str8(List.hd(ids)));
       (
         Probe(
@@ -541,7 +541,7 @@ and pat = unsorted => {
           },
           Probe.empty,
         ): TermBase.pat_term,
-        [guy],
+        [Id.transform_variant(List.hd(ids))],
       )
     | None => (term, ids)
     };
@@ -968,13 +968,19 @@ let for_projection =
   );
 
 let from_zip_for_sem = (z: Zipper.t) => {
+  // let refractor_mapping =
+  //   ZipperBase.Refractor.mapping(
+  //     Id.Map.union(
+  //       (_, _, b) => Some(b),
+  //       z.refractors.map,
+  //       z.refractors.ephemerals,
+  //     ),
+  //   );
   let refractor_mapping =
-    ZipperBase.Refractor.mapping(
-      Id.Map.union(
-        (_, _, b) => Some(b),
-        z.refractors.map,
-        z.refractors.ephemerals,
-      ),
+    Id.Map.union(
+      (_, _, b) => Some(b),
+      z.refractors.map,
+      z.refractors.ephemerals,
     );
   go(refractor_mapping, Dump.to_segment(z));
 };

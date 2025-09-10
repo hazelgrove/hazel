@@ -157,20 +157,20 @@ let go =
       };
       //if in refractors, look up id using reverse_mapping
       /* TODO: perf */
-      let rmap =
-        ZipperBase.Refractor.reverse_mapping(
-          Id.Map.union(
-            (_, _, b) => Some(b),
-            z.refractors.map,
-            z.refractors.ephemerals,
-          ),
-        );
+      // let rmap =
+      //   ZipperBase.Refractor.reverse_mapping(
+      //     Id.Map.union(
+      //       (_, _, b) => Some(b),
+      //       z.refractors.map,
+      //       z.refractors.ephemerals,
+      //     ),
+      //   );
       let id =
-        switch (List.assoc_opt(id, rmap)) {
-        | Some(pid) =>
+        switch (Id.recover_original(id)) {
+        | pid =>
           print_endline("found in rmap refractors. looking up id");
           pid;
-        | None => id
+        // | None => id
         };
       Ok(Option.value(~default=z, Move.jump_to_id_indicated(z, id)));
     | Some(Right) =>
