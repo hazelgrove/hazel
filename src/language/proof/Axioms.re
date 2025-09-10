@@ -182,4 +182,123 @@ let v: ProofCtx.t =
          |> Exp.fresh,
        )
        |> Exp.fresh,
+     )
+  |> ProofCtx.add_exp(
+       "Identity(@)R",
+       Forall(
+         Asc(
+           Var("xs") |> Pat.fresh,
+           List(Unknown(Internal) |> Typ.temp) |> Typ.fresh,
+         )
+         |> Pat.fresh,
+         BinOp(
+           Poly(Equals),
+           ListConcat(Var("xs") |> Exp.fresh, ListLit([]) |> Exp.fresh)
+           |> Exp.fresh,
+           Var("xs") |> Exp.fresh,
+         )
+         |> Exp.fresh,
+       )
+       |> Exp.fresh,
+     )
+  |> ProofCtx.add_exp(
+       "Identity(@)L",
+       Forall(
+         Asc(
+           Var("xs") |> Pat.fresh,
+           List(Unknown(Internal) |> Typ.temp) |> Typ.fresh,
+         )
+         |> Pat.fresh,
+         BinOp(
+           Poly(Equals),
+           ListConcat(ListLit([]) |> Exp.fresh, Var("xs") |> Exp.fresh)
+           |> Exp.fresh,
+           Var("xs") |> Exp.fresh,
+         )
+         |> Exp.fresh,
+       )
+       |> Exp.fresh,
+     )
+  |> ProofCtx.add_exp(
+       "Assoc(::, @)",
+       Forall(
+         Asc(Var("x") |> Pat.fresh, Unknown(Internal) |> Typ.fresh)
+         |> Pat.fresh,
+         Forall(
+           Asc(
+             Var("xs") |> Pat.fresh,
+             List(Unknown(Internal) |> Typ.temp) |> Typ.fresh,
+           )
+           |> Pat.fresh,
+           Forall(
+             Asc(
+               Var("ys") |> Pat.fresh,
+               List(Unknown(Internal) |> Typ.temp) |> Typ.fresh,
+             )
+             |> Pat.fresh,
+             BinOp(
+               Poly(Equals),
+               ListConcat(
+                 Cons(Var("x") |> Exp.fresh, Var("xs") |> Exp.fresh)
+                 |> Exp.fresh,
+                 Var("ys") |> Exp.fresh,
+               )
+               |> Exp.fresh,
+               Cons(
+                 Var("x") |> Exp.fresh,
+                 ListConcat(Var("xs") |> Exp.fresh, Var("ys") |> Exp.fresh)
+                 |> Exp.fresh,
+               )
+               |> Exp.fresh,
+             )
+             |> Exp.fresh,
+           )
+           |> Exp.fresh,
+         )
+         |> Exp.fresh,
+       )
+       |> Exp.fresh,
+     )
+  |> ProofCtx.add_exp(
+       "Assoc(@)",
+       Forall(
+         Asc(
+           Var("xs") |> Pat.fresh,
+           List(Unknown(Internal) |> Typ.temp) |> Typ.fresh,
+         )
+         |> Pat.fresh,
+         Forall(
+           Asc(
+             Var("ys") |> Pat.fresh,
+             List(Unknown(Internal) |> Typ.temp) |> Typ.fresh,
+           )
+           |> Pat.fresh,
+           Forall(
+             Asc(
+               Var("zs") |> Pat.fresh,
+               List(Unknown(Internal) |> Typ.temp) |> Typ.fresh,
+             )
+             |> Pat.fresh,
+             BinOp(
+               Poly(Equals),
+               ListConcat(
+                 Var("xs") |> Exp.fresh,
+                 ListConcat(Var("ys") |> Exp.fresh, Var("zs") |> Exp.fresh)
+                 |> Exp.fresh,
+               )
+               |> Exp.fresh,
+               ListConcat(
+                 ListConcat(Var("xs") |> Exp.fresh, Var("ys") |> Exp.fresh)
+                 |> Exp.fresh,
+                 Var("zs") |> Exp.fresh,
+               )
+               |> Exp.fresh,
+             )
+             |> Exp.fresh,
+           )
+           |> Exp.fresh,
+         )
+         |> Exp.fresh,
+       )
+       |> Exp.fresh,
      );
