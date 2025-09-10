@@ -122,10 +122,21 @@ module Update = {
       // Redirect to editors
       let editor =
         Tutorial.main_editor_of_state(~selection=pos, model.editors);
+      let (statics, dynamics) =
+        switch (Tutorial.get_stitched(pos, model.cells)) {
+        | cell_editor => (
+            cell_editor.editor.statics,
+            cell_editor.editor.dynamics,
+          )
+        | exception (Failure(_)) => (
+            CachedStatics.empty,
+            Language.Dynamics.Map.empty,
+          )
+        };
       let* new_editor =
         // Hack[Matt]: put Editor.t into a CodeEditor.t to use its update function
         editor
-        |> CodeEditable.Model.mk
+        |> CodeEditable.Model.mk(~statics, ~dynamics)
         |> CodeEditable.Update.update(~settings, action);
       {
         ...model,

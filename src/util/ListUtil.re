@@ -453,3 +453,16 @@ let rec fold_left_opt =
     }
   };
 };
+
+let map_with_history = (f: (list('y), 'x) => 'y, xs: list('x)): list('y) => {
+  let rec aux = (acc: list('y), remaining: list('x)) => {
+    switch (remaining) {
+    | [] => []
+    | [x, ...xs] =>
+      let y = f(acc, x);
+      let acc' = acc @ [y];
+      [y, ...aux(acc', xs)];
+    };
+  };
+  aux([], xs);
+};
