@@ -119,12 +119,11 @@ module View = {
   // There are no events for a read-only editor
   type event;
 
-  let view =
-      (~globals, ~overlays: list(Node.t)=[], ~sort=Sort.root, model: Model.t) => {
+  let view = (~globals, ~overlays: list(Node.t)=[], model: Model.t) => {
     let {
       editor:
         {
-          syntax: {measured, selection_ids, segment, shape_map, _},
+          syntax: {measured, selection_ids, segment, shape_map, term_data, _},
           state: {zipper: z, _},
           _,
         },
@@ -133,21 +132,18 @@ module View = {
     let code_text_view =
       CodeViewable.view(
         ~globals,
-        ~sort,
         ~measured,
+        ~term_data,
         ~buffer_ids=Selection.is_buffer(z.selection) ? selection_ids : [],
         ~segment,
         ~shape_map,
       );
-    let statics_decos = {
-      module Deco =
-        Deco.Deco({
-          let globals = globals;
-          let editor = model.editor;
-          let statics = model.statics;
-        });
-      Deco.statics();
-    };
-    div_c("code-container", [code_text_view] @ statics_decos @ overlays);
+    let statics_decos =
+      Arms.Errors.of_ids(
+        ~font_metrics=globals.font_metrics,
+        ~syntax=model.editor.syntax,
+        model.statics.error_ids,
+      );
+    div_c("code-container", [code_text_view, statics_decos] @ overlays);
   };
 };
