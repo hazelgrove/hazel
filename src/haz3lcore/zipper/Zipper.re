@@ -33,7 +33,11 @@ let zip = (z: t): Segment.t =>
 let unzip = (~direction: Direction.t=Right, seg: Segment.t): t => {
   selection: Selection.mk([]),
   relatives: {
-    siblings: direction == Right ? (seg, []) : ([], seg),
+    siblings:
+      switch (direction) {
+      | Right => (seg, [])
+      | Left => ([], seg)
+      },
     ancestors: [],
   },
   caret: Outer,
