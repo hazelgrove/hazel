@@ -1419,7 +1419,7 @@ and uexp_to_info_map =
           @ es_constraints
           @ scrut.constraints
           @ constrain_branches(e_tys)
-          @ constrain_branches(p_tys)
+          @ constrain_branches(p_tys @ [scrut.ty])  // scrutinee needs to be constrained to patterns
           @ self_cons,
         m,
       );
