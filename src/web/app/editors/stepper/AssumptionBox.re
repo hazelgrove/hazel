@@ -3,8 +3,8 @@ open Language;
 open WebUtil;
 
 type proof_event =
-  | EqualityLeft(Exp.t)
-  | EqualityRight(Exp.t);
+  | EqualityLeft(string)
+  | EqualityRight(string);
 
 module Model = {
   [@deriving (show({with_path: false}), sexp, yojson)]
@@ -32,8 +32,11 @@ module View = {
             let (l, r) =
               ProofRule.can_eq(~info_map, ~env, model.ctx_entry.rule, exp);
             (
-              Option.map(e => signal(EqualityLeft(e)), l),
-              Option.map(e => signal(EqualityRight(e)), r),
+              Option.map(_ => signal(EqualityLeft(model.ctx_entry.name)), l),
+              Option.map(
+                _ => signal(EqualityRight(model.ctx_entry.name)),
+                r,
+              ),
             );
           | None => (None, None)
           };

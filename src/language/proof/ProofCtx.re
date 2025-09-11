@@ -110,3 +110,8 @@ let of_env = (~builtins, ~ctx: Ctx.t, env: ClosureEnvironment.t) => {
        );
   rules;
 };
+
+let lookup_rule = (name: string, ctx: t): option(ProofRule.t) =>
+  ctx
+  |> List.find_opt(e => e.name == name && e.is_captured == false)
+  |> Option.map(e => e.rule);

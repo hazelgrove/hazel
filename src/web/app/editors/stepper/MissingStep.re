@@ -332,7 +332,8 @@ module View = {
     | AddInduction(option(Exp.t))
     | AddForall
     | HideStepper
-    | AddAxiomStep(string, int, Exp.t, Exp.t)
+    | AddAxiomStep(string, int, Exp.t, Direction.t, string)
+    | AddAlgebriteStep(int, Exp.t, Exp.t)
     | MakeActive(Selection.t);
 
   let get_segment_bounds = (~measured: Measured.t, segment: Segment.t) => {
@@ -496,7 +497,8 @@ module View = {
                           (s: AxiomsBox.Selection.t) =>
                             signal(MakeActive(AxiomBoxSelection(s))),
                         ~add_axiom_step=
-                          (a, b, c, d) => signal(AddAxiomStep(a, b, c, d)),
+                          (a, b, c, d, e) =>
+                            signal(AddAxiomStep(a, b, c, d, e)),
                         ~full_exp=
                           model.full_exp
                           |> Calc.get_saved_exc(~print="full_exp not cached"),
@@ -573,8 +575,7 @@ module View = {
                               ~tooltip="replace",
                               _ =>
                               signal(
-                                AddAxiomStep(
-                                  "algebraic rewrite",
+                                AddAlgebriteStep(
                                   ProofHacks.exp_idx(
                                     unboxed_selected_exp,
                                     model.full_exp

@@ -124,7 +124,8 @@ module View = {
         ~selected_exp,
         ~inject: Update.t => Ui_effect.t(unit),
         ~take_focus: Selection.t => Ui_effect.t(unit),
-        ~add_axiom_step: (string, int, Exp.t, Exp.t) => Ui_effect.t(unit),
+        ~add_axiom_step:
+           (string, int, Exp.t, Direction.t, string) => Ui_effect.t(unit),
         model: Model.t,
       ) => {
     let unpacked_rewrites =
@@ -157,6 +158,7 @@ module View = {
                     am.ctx_entry.name,
                     ProofHacks.exp_idx(selected_exp, full_exp),
                     selected_exp,
+                    Left,
                     e,
                   )
                 | AssumptionBox.EqualityRight(e) =>
@@ -164,6 +166,7 @@ module View = {
                     am.ctx_entry.name,
                     ProofHacks.exp_idx(selected_exp, full_exp),
                     selected_exp,
+                    Right,
                     e,
                   ),
               )),
