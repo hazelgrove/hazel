@@ -64,48 +64,45 @@ let indicator_select =
 
   // Iterate over each path component of the current slide
   parts
-  |> List.mapi(
-       (prefix_depth, slide_segment: string) => {
-         // Take the prefix of the path up to the current depth
-         let prefix = ListUtil.take(prefix_depth, parts);
+  |> List.mapi((prefix_depth, slide_segment: string) => {
+       // Take the prefix of the path up to the current depth
+       let prefix = ListUtil.take(prefix_depth, parts);
 
-         // Find all slides that match the current prefix
-         let matching_names =
-           slides_decomposed
-           |> List.to_seq
-           // Filter slides that share the same prefix
-           |> Seq.filter(((_, parts': list(string))) => {
-                ListUtil.take(prefix_depth, parts') == prefix
-              })
-           // Map the matching slides to their index and the current path component
-           |> Seq.map(PairUtil.map_snd(List.nth(_, prefix_depth)))
-           // Deduplicate the matching names based on the path component
-           |> List.of_seq
-           |> Util.ListUtil.dedup_f(((_, a), (_, b)) => a == b, _);
+       // Find all slides that match the current prefix
+       let matching_names =
+         slides_decomposed
+         |> List.to_seq
+         // Filter slides that share the same prefix
+         |> Seq.filter(((_, parts': list(string))) => {
+              ListUtil.take(prefix_depth, parts') == prefix
+            })
+         // Map the matching slides to their index and the current path component
+         |> Seq.map(PairUtil.map_snd(List.nth(_, prefix_depth)))
+         // Deduplicate the matching names based on the path component
+         |> List.of_seq
+         |> Util.ListUtil.dedup_f(((_, a), (_, b)) => a == b, _);
 
-         // Create a dropdown (select element) for the current path component
-         select(
-           ~attrs=[
-             // Signal the selected slide index when the dropdown value changes
-             Attr.on_change((_, name) => {
-               signal(
-                 List.find_opt(((_, n)) => n == name, matching_names)
-                 |> Option.get
-                 |> fst,
-               )
-             }),
-           ],
-           {
-             List.map(
-               ((_, name: string)) => {
-                 option_view(name == slide_segment, name)
-               },
-               matching_names,
-             );
-           },
-         );
-       },
-       _,
-     )
+       // Create a dropdown (select element) for the current path component
+       select(
+         ~attrs=[
+           // Signal the selected slide index when the dropdown value changes
+           Attr.on_change((_, name) => {
+             signal(
+               List.find_opt(((_, n)) => n == name, matching_names)
+               |> Option.get
+               |> fst,
+             )
+           }),
+         ],
+         {
+           List.map(
+             ((_, name: string)) => {
+               option_view(name == slide_segment, name)
+             },
+             matching_names,
+           );
+         },
+       );
+     })
   |> Util.ListUtil.intersperse(text("/"));
 };
