@@ -1,7 +1,6 @@
 open Virtual_dom.Vdom;
 open Node;
 open Widgets;
-open Util;
 
 let option_view = (selected: bool, n) =>
   option(
@@ -49,48 +48,61 @@ let indicator_n = (cur_slide, num_slides) => [
   text(Printf.sprintf("%d / %d", cur_slide + 1, num_slides)),
 ];
 
-let indicator_select = (~signal: int => 'a, cur_slide, names): list(t) => {
-  let break = s => String.split_on_char('/', s) |> List.map(String.trim, _);
+let indicator_select =
+    (~signal: int => Effect.t(unit), cur_slide, slide_names): list(t) => {
+  open Util;
 
-  let names_split: list((int, list(string))) =
-    List.map(break, names) |> List.mapi((i, n) => (i, n));
-  let current: string = List.nth(names, cur_slide);
-  let parts = break(current);
-  List.to_seq(parts)
-  |> Seq.mapi(
-       (prefix_depth, current: string) => {
-         let prefix = ListUtil.take(prefix_depth, parts);
-         let matching_names =
-           List.filter(
-             ((_, n: list(string))) => {
-               Util.ListUtil.take(prefix_depth, n) == prefix
+  let split_filepath = (s: string): list(string) =>
+    String.split_on_char('/', s) |> List.map(String.trim, _);
+
+  // Decompose slide names into a list of tuples (index, list of path components)
+  let slides_decomposed: list((int, list(string))) =
+    List.map(split_filepath, slide_names) |> List.mapi((i, n) => (i, n));
+
+  // Get the path components of the current slide
+  let parts: list(string) = List.nth(slides_decomposed, cur_slide) |> snd;
+
+  // Iterate over each path component of the current slide
+  parts
+  |> List.mapi((prefix_depth, slide_segment: string) => {
+       // Take the prefix of the path up to the current depth
+       let prefix = ListUtil.take(prefix_depth, parts);
+
+       // Find all slides that match the current prefix
+       let matching_names =
+         slides_decomposed
+         |> List.to_seq
+         // Filter slides that share the same prefix
+         |> Seq.filter(((_, parts': list(string))) => {
+              ListUtil.take(prefix_depth, parts') == prefix
+            })
+         // Map the matching slides to their index and the current path component
+         |> Seq.map(PairUtil.map_snd(List.nth(_, prefix_depth)))
+         // Deduplicate the matching names based on the path component
+         |> List.of_seq
+         |> Util.ListUtil.dedup_f(((_, a), (_, b)) => a == b, _);
+
+       // Create a dropdown (select element) for the current path component
+       select(
+         ~attrs=[
+           // Signal the selected slide index when the dropdown value changes
+           Attr.on_change((_, name) => {
+             signal(
+               List.find_opt(((_, n)) => n == name, matching_names)
+               |> Option.get
+               |> fst,
+             )
+           }),
+         ],
+         {
+           List.map(
+             ((_, name: string)) => {
+               option_view(name == slide_segment, name)
              },
-             names_split,
-           )
-           |> List.map(((idx, n: list(string))) => {
-                (idx, List.nth(n, prefix_depth))
-              })
-           |> Util.ListUtil.dedup_f(((_, a), (_, b)) => a == b, _);
-         select(
-           ~attrs=[
-             Attr.on_change((_, name) => {
-               signal(
-                 List.find_opt(((_, n)) => n == name, matching_names)
-                 |> Option.get
-                 |> fst,
-               )
-             }),
-           ],
-           {
-             List.map(
-               ((_, name: string)) => {option_view(name == current, name)},
-               matching_names,
-             );
-           },
-         );
-       },
-       _,
-     )
-  |> List.of_seq
+             matching_names,
+           );
+         },
+       );
+     })
   |> Util.ListUtil.intersperse(text("/"));
 };

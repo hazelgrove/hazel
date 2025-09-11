@@ -34,6 +34,10 @@ let prefixes = StringUtil.prefixes;
 let to_list = StringUtil.to_list;
 let abbreviate = StringUtil.abbreviate;
 let num_linebreaks = StringUtil.num_linebreaks;
+let max_line_width = StringUtil.max_line_width;
+
+let bounding_box = (t: t): Point.t =>
+  Point.mk(~row=num_linebreaks(t), ~col=max_line_width(t));
 
 /* Token Recognition Predicates */
 
