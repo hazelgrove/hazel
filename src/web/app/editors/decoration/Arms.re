@@ -272,7 +272,7 @@ let term =
   | Some((l, r)) =>
     let of_tile = (id: Id.t) => {
       open OptUtil.Syntax;
-      let+ tile = TermData.root_tile_opt(id, term_data);
+      let+ tile = TermData.root_tile(id, term_data);
       (id, tile.mold, Measured.find_shards(~msg, tile, measured));
     };
     let tiles =
@@ -280,4 +280,101 @@ let term =
     term(~font_metrics, ~rows=measured.rows, ~tiles, (l, r), ~attr?);
   | _ => []
   };
+};
+
+let term = (~syntax: CachedSyntax.t, ~font_metrics: FontMetrics.t) =>
+  term(
+    ~term_data=syntax.term_data,
+    ~terms=syntax.terms,
+    ~measured=syntax.measured,
+    ~font_metrics,
+  );
+
+open Util.WebUtil;
+
+module Errors = {
+  let of_id =
+      (~font_metrics: FontMetrics.t, ~syntax: CachedSyntax.t, id: Id.t) =>
+    div_c(
+      "errors-piece",
+      switch (Id.Map.find_opt(id, syntax.projectors)) {
+      | Some(p) =>
+        /* Special case for projectors as they are not in tile map */
+        switch (Id.Map.find_opt(id, syntax.measured.projectors)) {
+        | Some(measurement) => [
+            ShardDec.simple(
+              {
+                font_metrics,
+                tips: p |> ProjectorCore.shapes |> ShardDec.tips_of_shapes,
+                measurement,
+              },
+              ["error"],
+            ),
+          ]
+        | None =>
+          /* This is caused by the statics overloading for exercise mode. The overriding
+           * Exercise mode statics maps are calculated based on splicing together multiple
+           * editors, but error_ids are extracted generically from the statics map, so
+           * there may be error holes that don't occur in the editor being rendered */
+          []
+        }
+      | None =>
+        switch (TermData.root_tile(id, syntax.term_data)) {
+        | Some(t) => term(~syntax, ~font_metrics, t)
+        | None => []
+        }
+      },
+    );
+
+  let of_ids =
+      (~font_metrics: FontMetrics.t, ~syntax: CachedSyntax.t, error_ids) =>
+    div_c("errors", List.map(of_id(~font_metrics, ~syntax), error_ids));
+};
+
+module Indicated = {
+  let of_piece =
+      (~font_metrics: FontMetrics.t, ~syntax: CachedSyntax.t, p: Piece.t)
+      : list(Node.t) => {
+    switch (p) {
+    | Grout(_)
+    | Secondary(_) => []
+    | Projector(p) =>
+      switch (Measured.find_pr_opt(p, syntax.measured)) {
+      | Some(measurement) => [
+          ShardDec.simple(
+            {
+              font_metrics,
+              measurement,
+              tips: p |> ProjectorCore.shapes |> ShardDec.tips_of_shapes,
+            },
+            [
+              p.syntax |> Piece.sort |> fst |> Sort.to_string,
+              "caret",
+              "indicated",
+            ],
+          ),
+        ]
+      | None => []
+      }
+    | Tile(t) as p =>
+      if (Piece.is_infix_delimiter_op_prefix(p)) {
+        [];
+      } else {
+        term(~font_metrics, ~syntax, t);
+      }
+    };
+  };
+
+  let indicated_piece =
+      (~font_metrics: FontMetrics.t, ~syntax: CachedSyntax.t, z: Zipper.t)
+      : list(Node.t) =>
+    switch (Indicated.piece(z)) {
+    | _ when z.selection.content != [] => []
+    | Some((p, _, _)) => of_piece(~font_metrics, ~syntax, p)
+    | _ => []
+    };
+
+  let term =
+      (~font_metrics: FontMetrics.t, ~syntax: CachedSyntax.t, z: Zipper.t) =>
+    div_c("indication", indicated_piece(~font_metrics, ~syntax, z));
 };

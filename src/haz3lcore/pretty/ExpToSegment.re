@@ -1288,7 +1288,7 @@ and typ_to_pretty = (~settings: Settings.t, typ: Typ.t): pretty => {
     | Variant(c, ids, Some(x)) => {
         let+ constructor =
           text_to_pretty(
-            Option.value(~default=Id.invalid, ListUtil.nth_opt(1, ids)),
+            Option.value(~default=Id.invalid, List.nth_opt(ids, 1)),
             Sort.Typ,
             c,
           );

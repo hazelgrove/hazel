@@ -56,8 +56,8 @@ let zip = (~sel=Segment.empty, {siblings, ancestors}: t) =>
   Ancestors.zip(Siblings.zip(~sel, siblings), ancestors);
 
 let local_missing_shards = ({siblings, ancestors}: t): list(Tile.t) => {
-  Ancestors.local_missing_shards(ancestors)
-  @ Siblings.local_missing_shards(siblings);
+  Siblings.local_missing_shards(siblings)
+  @ Ancestors.local_missing_shards(ancestors);
 };
 
 let parent =

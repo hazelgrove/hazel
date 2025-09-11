@@ -41,7 +41,7 @@ let to_zipper = (z: Zipper.t) =>
         z;
       };
     let rec put_down_as_much_as_possible = (z: Zipper.t): Zipper.t => {
-      switch (Zipper.put_down_remold_regrout(Left, z)) {
+      switch (Zipper.put_down(z)) {
       | None => z
       | Some(z) => put_down_as_much_as_possible(z)
       };
