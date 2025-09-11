@@ -425,12 +425,6 @@ let slice = (i: int, k: int, xs: list('x)): list('x) =>
 // TODO Remove once List.take is available in ocaml 5.3
 let take = (n, xs: list('a)) =>
   List.to_seq(xs) |> Seq.take(n) |> List.of_seq;
-let take_up_to_n = (n: int, xs: list('a)): list('a) =>
-  if (n < 0) {
-    xs;
-  } else {
-    take(n, xs);
-  };
 
 /* Move the first element equal to x to the front of the list */
 let lift = (x: 'a, xs: list('a)): list('a) =>
