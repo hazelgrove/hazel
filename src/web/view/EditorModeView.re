@@ -75,7 +75,7 @@ let indicator_select = (~signal: int => 'a, cur_slide, names): list(t) => {
            ~attrs=[
              Attr.on_change((_, name) => {
                signal(
-                 List.find_opt(((_, n)) => n == name, matching_names)  // TODO This doesn't deal with duplicate names. We should prohibit those or make it work
+                 List.find_opt(((_, n)) => n == name, matching_names)
                  |> Option.get
                  |> fst,
                )
@@ -83,7 +83,7 @@ let indicator_select = (~signal: int => 'a, cur_slide, names): list(t) => {
            ],
            {
              List.map(
-               ((_, name: string)) => {option_view(name == current, name)}, // TODO Handle duplicates
+               ((_, name: string)) => {option_view(name == current, name)},
                matching_names,
              );
            },
