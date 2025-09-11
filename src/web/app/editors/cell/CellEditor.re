@@ -230,6 +230,7 @@ module View = {
               : (action => inject(MainEditor(action))),
           ~selected=selected == Some(MainEditor),
           ~overlays=overlays(model.editor.editor),
+          ~dynamics=EvalResult.Model.dynamics(model.result),
           model.editor,
         ),
       ]

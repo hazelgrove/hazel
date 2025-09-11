@@ -312,14 +312,17 @@ module View = {
     let editor = Option.map(snd, editor);
     let code_view =
       Option.map(
-        CodeSelectable.View.view(
-          ~signal=
-            fun
-            | MakeActive => signal(MakeActive(Evaluation())),
-          ~inject=a => inject(EvalEditorAction(a)),
-          ~globals,
-          ~selected,
-        ),
+        (editor: CodeSelectable.Model.t) =>
+          CodeSelectable.View.view(
+            ~signal=
+              fun
+              | MakeActive => signal(MakeActive(Evaluation())),
+            ~inject=a => inject(EvalEditorAction(a)),
+            ~globals,
+            ~selected,
+            ~dynamics=editor.dynamics,
+            editor,
+          ),
         editor,
       );
     let exn_view =

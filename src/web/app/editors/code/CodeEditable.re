@@ -205,6 +205,7 @@ module View = {
         ~inject: Update.t => Ui_effect.t(unit),
         ~selected: bool,
         ~overlays: list(Node.t)=[],
+        ~dynamics: Language.Dynamics.Map.t,
         model: Model.t,
       ) => {
     let edit_decos =
@@ -227,7 +228,8 @@ module View = {
         model.editor.syntax.selection_ids,
         Indicated.piece(model.editor.state.zipper),
         model.statics.info_map,
-        model.dynamics,
+        dynamics,
+        //model.dynamics,
         selected,
       );
     let refractors_model =
@@ -249,7 +251,8 @@ module View = {
           model.editor.syntax.selection_ids,
           Indicated.piece(model.editor.state.zipper),
           model.statics.info_map,
-          model.dynamics,
+          dynamics,
+          //model.dynamics,
           selected,
         ),
       );
