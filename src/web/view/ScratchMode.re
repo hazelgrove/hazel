@@ -184,41 +184,41 @@ module Update = {
   };
 
   let add_new_slide = (model: Model.t, is_documentation: bool): Model.t => {
-    let new_key =
-      switch (is_documentation) {
-      | false =>
-        let used_scratchpads =
-          model.scratchpads
-          |> List.filter_map(scratchpad => {
-               switch (String.split_on_char(' ', fst(scratchpad))) {
-               | ["Scratchpad", num] => int_of_string_opt(num)
-               | _ => None
-               }
-             });
-        let unused_ids =
-          Seq.filter(i => !List.mem(i, used_scratchpads), Seq.ints(1));
-        let new_number =
-          Seq.uncons(unused_ids)
-          |> Option.get  // This is safe because unused_ids is infinite
-          |> fst;
+    let add_empty_slide = (name): Model.t => {
+      current: List.length(model.scratchpads),
+      scratchpads:
+        model.scratchpads
+        @ [(name, CellEditor.Model.mk(Editor.Model.mk(Zipper.init())))],
+    };
+    switch (is_documentation) {
+    | false =>
+      let used_scratchpads =
+        model.scratchpads
+        |> List.filter_map(scratchpad => {
+             switch (String.split_on_char(' ', fst(scratchpad))) {
+             | ["Scratchpad", num] => int_of_string_opt(num)
+             | _ => None
+             }
+           });
+      let unused_ids =
+        Seq.filter(i => !List.mem(i, used_scratchpads), Seq.ints(1));
+      let new_number =
+        Seq.uncons(unused_ids)
+        |> Option.get  // This is safe because unused_ids is infinite
+        |> fst;
 
-        Some("Scratchpad " ++ string_of_int(new_number));
-      | true =>
+      add_empty_slide("Scratchpad " ++ string_of_int(new_number));
+    | true =>
+      let new_name =
         prompt_slide_name(
           ~existing_scratchpads=
             model.scratchpads |> List.to_seq |> Seq.map(fst),
           "New Slide Name",
-        )
+        );
+      switch (new_name) {
+      | None => model // Prompt cancelled so no new scratchpad created
+      | Some(name) => add_empty_slide(name)
       };
-
-    switch (new_key) {
-    | Some(name) => {
-        current: List.length(model.scratchpads),
-        scratchpads:
-          model.scratchpads
-          @ [(name, CellEditor.Model.mk(Editor.Model.mk(Zipper.init())))],
-      }
-    | None => model // Prompt cancelled so no new scratchpad created
     };
   };
 
