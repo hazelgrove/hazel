@@ -5,7 +5,6 @@ module Direction = Direction;
 module Either = Either;
 module IntMap = IntMap;
 module IntUtil = IntUtil;
-module ListFrame = ListFrame;
 module ListUtil = ListUtil;
 module MapUtil = MapUtil;
 module Monads = Monads;

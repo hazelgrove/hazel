@@ -244,7 +244,7 @@ let rec free_vars = (~bound=[], ty: t): list(Var.t) =>
   | List(ty) => free_vars(~bound, ty)
   | Arrow(t1, t2) => free_vars(~bound, t1) @ free_vars(~bound, t2)
   | Sum(sm) => ConstructorMap.free_variables(free_vars(~bound), sm)
-  | Prod(tys) => ListUtil.flat_map(free_vars(~bound), tys)
+  | Prod(tys) => List.concat_map(free_vars(~bound), tys)
   | TupLabel(_, ty) => free_vars(~bound, ty)
   | Rec(x, ty)
   | Forall(x, ty) =>
@@ -257,7 +257,7 @@ let rec vars = (ty: t): list(Var.t) =>
   | Unknown(_) => []
   | Var(x) => [x]
   | Arrow(ty1, ty2) => vars(ty1) @ vars(ty2)
-  | Prod(tys) => ListUtil.flat_map(vars, tys)
+  | Prod(tys) => List.concat_map(vars, tys)
   | Sum(sm) =>
     List.concat_map(
       fun
@@ -281,7 +281,7 @@ let rec vars = (ty: t): list(Var.t) =>
 
 let rec aliases_deep = (ctx: Ctx.t, ty: t): list((string, t)) => {
   let defs =
-    ListUtil.flat_map(
+    List.concat_map(
       var =>
         switch (Ctx.lookup_alias(ctx, var)) {
         | Some(ty) => [(var, ty)]
@@ -291,7 +291,7 @@ let rec aliases_deep = (ctx: Ctx.t, ty: t): list((string, t)) => {
     )
     |> List.sort_uniq(((x, _), (y, _)) => compare(x, y));
   let rec_calls =
-    ListUtil.flat_map(((_, ty')) => aliases_deep(ctx, ty'), defs);
+    List.concat_map(((_, ty')) => aliases_deep(ctx, ty'), defs);
   rec_calls @ defs;
 };
 

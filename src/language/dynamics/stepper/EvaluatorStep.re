@@ -456,22 +456,13 @@ let refresh_step =
   let eos =
     decompose(exp, state)
     |> List.map(should_hide_eval_obj(~settings=settings.evaluation)); // NOTE: should_hide_eval_obj actually changes the eval obj to do filter bookkeeping!!!
-  print_endline("In exp" ++ (exp |> DHExp.show));
-  print_endline(
-    "Refreshing step: "
-    ++ (step.at_exp |> DHExp.show)
-    ++ " at idx: "
-    ++ string_of_int(step.exp_idx),
-  );
   let* desired_id =
     ProofHacks.nth_exp(step.at_exp, step.exp_idx, exp)
     |> Option.map(IdTagged.ids);
-  print_endline("Desired ID: " ++ (desired_id |> List.hd |> Id.show));
   let* (h, x) =
     List.find_opt(
       ((_, step': step)) => IdTagged.ids(step'.d_loc) == desired_id,
       eos,
     );
-  print_endline("Found step: " ++ (x.d_loc |> DHExp.show));
   Some((h, x));
 };
