@@ -473,6 +473,11 @@ let insertion_tests = [
     ~goal={|f(g()¦)|},
   ),
   test(
+    ~name="Issue #1914 regression test",
+    ~acts=mk({|((1)¦|}) @ [Put_down],
+    ~goal={|((1))¦|},
+  ),
+  test(
     ~name="Forall regrouting edge case (debatable behavior) (#1913)",
     ~acts=mk({|?:foral¦(?)|}) @ [Insert("l")],
     ~goal={|?:forall¦(?)|},
