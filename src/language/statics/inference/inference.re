@@ -141,12 +141,11 @@ let rec unfold_constramnot =
     }
   | (Arrow(l1, l2), Arrow(r1, r2)) =>
     unfold_constramnot(Con(l1, r1)) @ unfold_constramnot(Con(l2, r2))
-  | (Prod(l_args), Prod(r_args)) =>
-    unfold_constramnot_prod(l_args, r_args, [])
+  | (Prod(l_args), Prod(r_args)) => unfold_constramnot_prod(l_args, r_args)
   | (Label(_), Label(_)) => []
   | (TupLabel(l_label, l_typ), TupLabel(r_label, r_typ)) =>
     unfold_constramnot(Con(l_label, r_label))
-    @ unfold_constramnot(Con(l_typ, r_typ)) // TODO: (THI) might we want to constrain labels?
+    @ unfold_constramnot(Con(l_typ, r_typ))
   | (Ap(l_fun, l_args), Ap(r_fun, r_args)) =>
     unfold_constramnot(Con(l_fun, r_fun))
     @ unfold_constramnot(Con(l_args, r_args))
@@ -180,17 +179,20 @@ let rec unfold_constramnot =
   // | (Forall(_), _) | (_, Forall(_)) => []
   };
 }
-and unfold_constramnot_prod = (args1, args2, acc) => {
-  switch (args1, args2) {
-  | ([l_hd, ...l_tl], [r_hd, ...r_tl]) =>
-    unfold_constramnot_prod(
-      l_tl,
-      r_tl,
-      List.append(acc, unfold_constramnot(Con(l_hd, r_hd))),
-    )
-  | _ => acc
+and unfold_constramnot_prod = (args1, args2): list(canonical_constramnot) =>
+  // if both lists do not have identical labels or lengths,
+  // we should treat them as two different tuples
+  //
+  if (List.length(args1) == List.length(args2)) {
+    List.fold_left2(
+      (acc, t1, t2) => acc @ unfold_constramnot(Con(t1, t2)),
+      [],
+      args1,
+      args2,
+    );
+  } else {
+    [];
   };
-};
 
 let unfold_constramnots: list(Typ.equivalence) => list(canonical_constramnot) =
   List.concat_map(unfold_constramnot);
