@@ -117,7 +117,7 @@ let go =
     z
     |> Insert.go(char, ~ci=Indicated.ci_of(z, statics.info_map))
     |> return(Cant_insert)
-  | Put_down => Zipper.put_down_glom(z) |> return(Cant_put_down)
+  | Put_down => Zipper.put_down(z) |> return(Cant_put_down)
   | Refractor(SetRefProbe) =>
     switch (z.selection.content) {
     | [] => Ok(Refractors.add(z))
