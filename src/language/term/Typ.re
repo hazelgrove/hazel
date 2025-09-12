@@ -20,7 +20,8 @@ type cls =
   | Parens
   | Rec
   | Forall
-  | ProdProjection;
+  | ProdProjection
+  | ProdExtension;
 
 include TermBase.Typ;
 
@@ -92,7 +93,8 @@ let cls_of_term: Grammar.typ_term('a) => cls =
   | Sum(_) => Sum
   | Rec(_) => Rec
   | Forall(_) => Forall
-  | ProdProjection(_) => ProdProjection;
+  | ProdProjection(_) => ProdProjection
+  | ProdExtension(_) => ProdExtension;
 
 let show_cls: cls => string =
   fun
@@ -113,7 +115,8 @@ let show_cls: cls => string =
   | Parens => "Parenthesized type"
   | Rec => "Recursive type"
   | Forall => "Forall type"
-  | ProdProjection => "Product projection";
+  | ProdProjection => "Product projection"
+  | ProdExtension => "Product extension";
 
 let rec is_arrow = (typ: t) => {
   switch (typ.term) {
@@ -129,7 +132,8 @@ let rec is_arrow = (typ: t) => {
   | Sum(_)
   | Forall(_)
   | Rec(_)
-  | ProdProjection(_) => false
+  | ProdProjection(_)
+  | ProdExtension(_) => false
   };
 };
 
@@ -147,7 +151,8 @@ let is_atom = (ty: t): bool =>
   | Sum(_)
   | Forall(_)
   | Rec(_)
-  | ProdProjection(_) => false
+  | ProdProjection(_)
+  | ProdExtension(_) => false
   };
 
 let rec has_fun = (typ: t) =>
@@ -171,6 +176,7 @@ let rec has_fun = (typ: t) =>
       sm,
     )
   | Prod(tys) => List.exists(has_fun, tys)
+  | ProdExtension(t1, t2) => has_fun(t1) || has_fun(t2)
   };
 
 let rec is_forall = (typ: t) => {
@@ -187,7 +193,8 @@ let rec is_forall = (typ: t) => {
   | Var(_)
   | Sum(_)
   | Rec(_)
-  | ProdProjection(_) => false
+  | ProdProjection(_)
+  | ProdExtension(_) => false
   };
 };
 
@@ -250,6 +257,7 @@ let rec free_vars = (~bound=[], ty: t): list(Var.t) =>
   | Var(v) => List.mem(v, bound) ? [] : [v]
   | Parens(ty) => free_vars(~bound, ty)
   | List(ty) => free_vars(~bound, ty)
+  | ProdExtension(t1, t2)
   | Arrow(t1, t2) => free_vars(~bound, t1) @ free_vars(~bound, t2)
   | Sum(sm) => ConstructorMap.free_variables(free_vars(~bound), sm)
   | Prod(tys) => List.concat_map(free_vars(~bound), tys)
@@ -287,6 +295,7 @@ let rec vars = (ty: t): list(Var.t) =>
   | Label(_) => []
   | TupLabel(_, ty)
   | ProdProjection(ty, _) => vars(ty)
+  | ProdExtension(ty1, ty2) => vars(ty1) @ vars(ty2)
   };
 let rec aliases_deep = (ctx: Ctx.t, ty: t): list((string, t)) => {
   let defs =
@@ -340,6 +349,7 @@ let rec num_nodes = (ty: t): int => {
   | Label(_) => 1
   | TupLabel(_, ty) => 1 + num_nodes(ty)
   | ProdProjection(ty1, ty2) => 1 + num_nodes(ty1) + num_nodes(ty2)
+  | ProdExtension(ty1, ty2) => 1 + num_nodes(ty1) + num_nodes(ty2)
   };
 };
 
@@ -370,6 +380,7 @@ let rec count_unknowns = (ty: t): int =>
   | Label(_) => 0
   | TupLabel(_, ty) => count_unknowns(ty)
   | ProdProjection(ty1, _) => count_unknowns(ty1)
+  | ProdExtension(ty1, ty2) => count_unknowns(ty1) + count_unknowns(ty2)
   };
 
 let rec contains_sum_or_var = (ty: t): bool =>
@@ -385,6 +396,8 @@ let rec contains_sum_or_var = (ty: t): bool =>
   | Parens(ty) => contains_sum_or_var(ty)
   | Forall(_, ty) => contains_sum_or_var(ty)
   | ProdProjection(ty1, _) => contains_sum_or_var(ty1)
+  | ProdExtension(ty1, ty2) =>
+    contains_sum_or_var(ty1) || contains_sum_or_var(ty2)
   | Label(_) => false
   | TupLabel(_, ty) => contains_sum_or_var(ty)
   };
@@ -399,8 +412,9 @@ let unroll = (ty: t): t =>
    Other types may be equivalent but this will not detect so if they are not normalized. */
 let equal = (t1: t, t2: t): bool => fast_equal(t1, t2);
 
-let project_type = (ty, label): option(t) => {
+let rec project_type = (ty, label): option(t) => {
   switch (term_of(ty), term_of(label)) {
+  | (Parens(t), _) => project_type(t, label)
   | (Prod(tys), Label(l)) =>
     switch (LabeledTuple.find_label(match_tup_label, tys, l)) {
     | Some({term: TupLabel(_, ty), _}) =>
@@ -408,6 +422,30 @@ let project_type = (ty, label): option(t) => {
       Some(ty)
     | _ => None
     }
+  | _ => None
+  };
+};
+
+let rec product_extension = (t1: t, t2: t): option(t) => {
+  let get_lv = (t: t) => {
+    switch (match_tup_label(t)) {
+    | Some((l, t)) => (Some(l), t)
+    | None => (None, t)
+    };
+  };
+  switch (term_of(t1), term_of(t2)) {
+  | (Parens(t1), _) => product_extension(t1, t2)
+  | (_, Parens(t2)) => product_extension(t1, t2)
+  | (Prod(tys1), Prod(tys2)) =>
+    let new_tys =
+      LabeledTuple.extension(List.map(get_lv, tys1), List.map(get_lv, tys2))
+      |> List.map(((l, ty)) =>
+           switch (l) {
+           | Some(l) => TupLabel(fresh(Label(l)), ty) |> temp
+           | None => ty
+           }
+         );
+    Some(Prod(new_tys) |> temp);
   | _ => None
   };
 };
@@ -432,6 +470,16 @@ let rec weak_head_normalize = (~rec_counter=0, ctx: Ctx.t, ty: t): t => {
          let (_, rewrap) = unwrap(ty);
          ProdProjection(normalized_ty, label) |> rewrap;
        });
+  | ProdExtension(t1, t2) =>
+    let t1 = weak_head_normalize(~rec_counter=rec_counter + 1, ctx, t1);
+    let t2 = weak_head_normalize(~rec_counter=rec_counter + 1, ctx, t2);
+    let extended = product_extension(t1, t2);
+    switch (extended) {
+    | Some(t) => t
+    | None =>
+      let (_, rewrap) = unwrap(ty);
+      ProdExtension(t1, t2) |> rewrap;
+    };
   | _ => ty
   };
 };
@@ -461,6 +509,14 @@ let rec normalize = (~rec_counter=0, ctx: Ctx.t, ty: t): t => {
     project_type(normalized_ty, label)
     |> Option.map(normalize(ctx))
     |> Util.OptUtil.get(() => ProdProjection(normalized_ty, label) |> rewrap);
+  | ProdExtension(t1, t2) =>
+    let t1 = normalize(ctx, t1);
+    let t2 = normalize(ctx, t2);
+    let extended = product_extension(t1, t2);
+    switch (extended) {
+    | Some(t) => t
+    | None => ProdExtension(t1, t2) |> rewrap
+    };
   | TupLabel(label, ty) =>
     TupLabel(normalize(ctx, label), normalize(ctx, ty)) |> rewrap
   | Sum(ts) =>
@@ -480,6 +536,10 @@ let rec normalize = (~rec_counter=0, ctx: Ctx.t, ty: t): t => {
    variable and a succesful join, to return the resolved join type,
    or to return the (first) type variable for readability */
 let rec join = (~resolve=false, ctx: Ctx.t, ty1: t, ty2: t): option(t) => {
+  print_endline("Joining types:");
+  print_endline("  " ++ show(ty1));
+  print_endline("  " ++ show(ty2));
+  print_endline("");
   let join' = join(~resolve, ctx);
   switch (term_of(ty1), term_of(ty2)) {
   | (_, Parens(ty2)) => join'(ty1, ty2)
@@ -516,6 +576,21 @@ let rec join = (~resolve=false, ctx: Ctx.t, ty1: t, ty2: t): option(t) => {
   | (_, ProdProjection(ty2', l)) =>
     let* ty2'' = project_type(normalize(ctx, ty2'), l);
     join'(ty1, ty2'');
+  | (ProdExtension(t1, t2), _) =>
+    let extended1 = product_extension(t1, t2);
+    print_endline("Extended 1: " ++ [%derive.show: option(t)](extended1));
+    switch (extended1) {
+    | Some(ty1') => join'(ty1', ty2)
+    | None => None // TODO We need to handle the type-level indet here
+    };
+  | (_, ProdExtension(t1, t2)) =>
+    let extended2 = product_extension(t1, t2);
+    print_endline("Extended 2: " ++ [%derive.show: option(t)](extended2));
+
+    switch (extended2) {
+    | Some(ty2') => join'(ty1, ty2')
+    | None => None // TODO We need to handle the type-level indet here
+    };
   | (Rec(tp1, ty1), Rec(tp2, ty2)) =>
     let ctx = Ctx.extend_dummy_tvar(ctx, tp1);
     let ty1' =
@@ -593,7 +668,8 @@ let rec match_synswitch = (t1: t, t2: t) => {
   | (Label(_), _)
   | (Var(_), _)
   | (Rec(_), _)
-  | (ProdProjection(_), _) => t1
+  | (ProdProjection(_), _)
+  | (ProdExtension(_), _) => t1
   // These might
   | (List(ty1), List(ty2)) => List(match_synswitch(ty1, ty2)) |> rewrap1
   | (List(_), _) => t1
@@ -800,7 +876,8 @@ let rec is_syn = (ty: t): bool =>
   | Arrow(_)
   | Prod(_)
   | Sum(_)
-  | ProdProjection(_) => false
+  | ProdProjection(_)
+  | ProdExtension(_) => false
   };
 
 let rec is_ana_atom = (ty: t) =>
@@ -816,7 +893,8 @@ let rec is_ana_atom = (ty: t) =>
   | List(_)
   | Arrow(_)
   | Prod(_)
-  | ProdProjection(_, _)
+  | ProdProjection(_)
+  | ProdExtension(_)
   | Sum(_) => None
   };
 
@@ -835,7 +913,8 @@ let rec is_syn_plus = (ty: t): bool =>
   | List(_)
   | Prod(_)
   | Sum(_)
-  | ProdProjection(_) => false
+  | ProdProjection(_)
+  | ProdExtension(_) => false
   };
 
 /* Does the type require parentheses when on the left of an arrow for printing? */
@@ -848,7 +927,8 @@ let rec needs_parens = (ty: t): bool =>
   | TupLabel(_, _)
   | List(_) /* is already wrapped in [] */
   | Var(_)
-  | ProdProjection(_, _) => false // Confirm precedence of . operator
+  | ProdProjection(_, _)
+  | ProdExtension(_, _) => false // Confirm precedence of . operator
   | Rec(_, _)
   | Forall(_, _)
   | Arrow(_, _)
@@ -900,6 +980,8 @@ let rec pretty_print = (ty: t): string =>
     ++ ")"
   | ProdProjection(t, label) =>
     pretty_print(t) ++ "." ++ pretty_print(label)
+  | ProdExtension(t, label) =>
+    pretty_print(t) ++ " + " ++ pretty_print(label)
   | Label(name) => name
   | TupLabel(label, t) => pretty_print(label) ++ "=" ++ pretty_print(t)
   | Rec(tv, t) =>

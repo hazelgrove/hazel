@@ -7,18 +7,18 @@ module Annotated = {
     annotation: 'b,
   };
   /* uncomment to make terms pp without annotation */
-  //   let pp:
-  //     type a b.
-  //       (
-  //         (Format.formatter, a) => unit,
-  //         (Format.formatter, b) => unit,
-  //         Format.formatter,
-  //         t(a, b)
-  //       ) =>
-  //       unit =
-  //     (fmt_a, _, fmtr, t) => {
-  //       fmt_a(fmtr, t.term);
-  //     };
+    let pp:
+      type a b.
+        (
+          (Format.formatter, a) => unit,
+          (Format.formatter, b) => unit,
+          Format.formatter,
+          t(a, b)
+        ) =>
+        unit =
+      (fmt_a, _, fmtr, t) => {
+        fmt_a(fmtr, t.term);
+      };
 
   let term_of = x => x.term;
   let unwrap = x => (
@@ -126,6 +126,7 @@ and typ_term('a) =
   | Rec(tpat_t('a), typ_t('a))
   | Forall(tpat_t('a), typ_t('a))
   | ProdProjection(typ_t('a), typ_t('a))
+  | ProdExtension(typ_t('a), typ_t('a))
 and typ_t('a) = Annotated.t(typ_term('a), 'a)
 and tpat_term('a) =
   | Invalid(string)
@@ -348,6 +349,11 @@ and map_typ_annotation: 'a 'b. ('a => 'b, typ_t('a)) => typ_t('b) =
           Sum(ConstructorMap.map_preserving(map_typ_annotation(f), m))
         | ProdProjection(t1, t2) =>
           ProdProjection(
+            map_typ_annotation(f, t1),
+            map_typ_annotation(f, t2),
+          )
+        | ProdExtension(t1, t2) =>
+          ProdExtension(
             map_typ_annotation(f, t1),
             map_typ_annotation(f, t2),
           )
@@ -791,6 +797,10 @@ module Factory = (DefaultAnnotation: DefaultAnnotation) => {
     };
     let prod_projection = (~ann=?, t1, t2): typ_t(DefaultAnnotation.t) => {
       term: ProdProjection(t1, t2),
+      annotation: default_annotation(ann),
+    };
+    let prod_extension = (~ann=?, t1, t2): typ_t(DefaultAnnotation.t) => {
+      term: ProdExtension(t1, t2),
       annotation: default_annotation(ann),
     };
     let label = (~ann=?, l): typ_t(DefaultAnnotation.t) => {

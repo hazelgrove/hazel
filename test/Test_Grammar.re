@@ -157,6 +157,8 @@ let sample_type = (cls_typ: Typ.cls): Grammar.UnitGrammar.typ => {
           unknown(Hole(EmptyHole)),
           unknown(Hole(EmptyHole)),
         )
+      | ProdExtension =>
+        prod_extension(unknown(Hole(EmptyHole)), unknown(Hole(EmptyHole)))
       | Constructor => assert(false) // Excluded because there is no Typ constructor
       }
     )

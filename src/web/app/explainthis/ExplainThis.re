@@ -2613,7 +2613,8 @@ let get_doc =
       )
     | Sum(_) => get_message(SumTyp.labelled_sum_typs)
     | Unknown(Hole(Invalid(_))) => simple("Not a type or type operator")
-    | ProdProjection(_) => simple("TODO")
+    | ProdProjection(_)
+    | ProdExtension(_)
     | Parens(_) => default // Shouldn't be hit?
     }
   | Some(InfoTPat(info)) =>

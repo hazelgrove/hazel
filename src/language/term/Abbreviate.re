@@ -866,6 +866,25 @@ and abbreviate_typ = (typ: Typ.t): Typ.t => {
         available := available^ - 3;
         ProdProjection(abbreviate_typ(t1), abbreviate_typ(t2));
       }
+    | ProdExtension(t1, t2) =>
+      if (available^ <= 3) {
+        indet_term_typ;
+      } else {
+        available := available^ - 3; // "..."
+        let t1' = abbreviate_typ(t1);
+        if (available^ > 0) {
+          let t2' = abbreviate_typ(t2);
+          ProdExtension(t1', t2');
+        } else {
+          ProdExtension(
+            t1',
+            {
+              ...t2,
+              term: indet_term_typ,
+            },
+          );
+        };
+      }
     | Sum(ctors) =>
       if (available^ <= 1) {
         indet_term_typ;

@@ -751,6 +751,7 @@ and typ_term: unsorted => (Typ.term, list(Id.t)) = {
           )
         | _ => ret(ProdProjection(l, r))
         }
+      | ([(_id, (["..."], []))], []) => ret(ProdExtension(l, r))
       | _ => ret(hole(tm))
       }
     }

@@ -106,6 +106,7 @@ type typ =
   | TupLabelType(typ, typ)
   | IndicationTyp(typ)
   | ProdProjection(typ, typ)
+  | ProdExtension(typ, typ)
 and sumterm =
   | Variant(string, option(typ))
   | BadEntry(typ)
@@ -1149,6 +1150,16 @@ and shrink_typ: QCheck.Shrink.t(typ) =
           <+> {
             let* shrunk2 = shrink_typ(t2);
             return(ProdProjection(t1, shrunk2));
+          }
+        | ProdExtension(t1, t2) =>
+          return(t1)
+          <+> {
+            let* shrunk1 = shrink_typ(t1);
+            return(ProdExtension(shrunk1, t2));
+          }
+          <+> {
+            let* shrunk2 = shrink_typ(t2);
+            return(ProdExtension(t1, shrunk2));
           }
         | IndicationTyp(_)
         | IntType

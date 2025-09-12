@@ -434,6 +434,8 @@ and Typ: {
     | ArrowType(t1, t2) => arrow(of_menhir_ast(t1), of_menhir_ast(t2))
     | ProdProjection(t1, t2) =>
       prod_projection(of_menhir_ast(t1), of_menhir_ast(t2))
+    | ProdExtension(t1, t2) =>
+      prod_extension(of_menhir_ast(t1), of_menhir_ast(t2))
     | SumTyp(sumterms) =>
       open Language;
       let converted_terms: list(ConstructorMap.variant(IndicatedG.typ)) =
@@ -485,6 +487,7 @@ and Typ: {
     | Label(s) => LabelType(s)
     | TupLabel(t1, t2) => TupLabelType(of_core(t1), of_core(t2))
     | ProdProjection(t1, t2) => ProdProjection(of_core(t1), of_core(t2))
+    | ProdExtension(t1, t2) => ProdExtension(of_core(t1), of_core(t2))
     | Sum(constructors) =>
       let sumterms =
         List.map(

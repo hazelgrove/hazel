@@ -138,6 +138,7 @@ let external_precedence_typ = (tp: Typ.t) =>
   | Label(_)
   | TupLabel(_) => Precedence.max
   | ProdProjection(_) => Precedence.dot
+  | ProdExtension(_) => Precedence.plus
   // Same goes for forms which are already surrounded
   | Parens(_)
   | List(_) => Precedence.max
@@ -502,6 +503,12 @@ and parenthesize_typ =
     |> rewrap
   | ProdProjection(t1, t2) =>
     ProdProjection(parenthesize_typ(t1) |> paren_typ_at(Precedence.dot), t2)
+    |> rewrap
+  | ProdExtension(t1, t2) =>
+    ProdExtension(
+      parenthesize_typ(t1) |> paren_typ_assoc_at(Precedence.plus),
+      parenthesize_typ(t2) |> paren_typ_at(Precedence.plus),
+    )
     |> rewrap
   | Rec(tp, t) =>
     Rec(
@@ -1379,6 +1386,10 @@ and typ_to_pretty = (~settings: Settings.t, typ: Typ.t): pretty => {
     let+ t1 = go(t1)
     and+ t2 = go(t2);
     t1 @ [mk_form(ProdProjection, typ |> Typ.rep_id, [])] @ t2;
+  | ProdExtension(t1, t2) =>
+    let+ t1 = go(t1)
+    and+ t2 = go(t2);
+    t1 @ [mk_form(ProdExtension, typ |> Typ.rep_id, [])] @ t2;
   | Parens(t) =>
     let id = typ |> Typ.rep_id;
     let+ t = go(t);
