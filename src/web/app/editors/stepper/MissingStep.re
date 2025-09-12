@@ -541,7 +541,6 @@ module View = {
                               ~fold_fn_bodies=`Text,
                               globals.settings.core,
                             ),
-                          ~shape_map=Haz3lcore.Id.Map.empty,
                           Exp(unboxed_selected_exp),
                         ),
                         Node.text("With: "),

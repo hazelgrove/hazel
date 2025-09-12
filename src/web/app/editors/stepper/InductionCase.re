@@ -482,7 +482,6 @@ module F = (Stepper: STEPPER) => {
                         ~fold_fn_bodies=`Text,
                         globals.settings.core,
                       ),
-                    ~shape_map=ProjectorCore.Shape.Map.empty,
                     Exp(conclusion),
                   );
                 Some(

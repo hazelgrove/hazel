@@ -40,7 +40,6 @@ module F = (Stepper: StepInterface.STEPPER) => {
             ~inline=false,
             globals.settings.core,
           ),
-        ~shape_map=Haz3lcore.ProjectorCore.Shape.Map.empty, // Assume no projectors
         Exp(target),
       );
     let target_step = () =>

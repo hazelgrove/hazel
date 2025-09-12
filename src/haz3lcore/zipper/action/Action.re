@@ -167,7 +167,7 @@ let is_historic: t => bool =
     | Escape(_) => false
     };
 
-let prevent_in_read_only_editor = (a: t) => {
+let prevent_in_read_only_editor = (a: t) =>
   switch (a) {
   | Copy
   | Move(_)
@@ -192,7 +192,6 @@ let prevent_in_read_only_editor = (a: t) => {
     | Escape(_) => false
     }
   };
-};
 
 /* Currently animations are disabled during drag selection
  * to paper over a weird interaction with scroll-to-caret.

@@ -104,7 +104,7 @@ let rec elaborate_pattern =
       | R(BadInt(s)) => Invalid(s) |> rewrap
       };
     | ListLit(ps) =>
-      let (ps, _) = List.map(elaborate_pattern(m), ps) |> ListUtil.unzip;
+      let (ps, _) = List.map(elaborate_pattern(m), ps) |> List.split;
       ListLit(ps) |> rewrap;
     | Cons(p1, p2) =>
       let (p1', _) = elaborate_pattern(m, p1);
@@ -120,8 +120,7 @@ let rec elaborate_pattern =
       };
     | Tuple(ps) =>
       let (ps', _) =
-        List.map(elaborate_pattern(m, ~in_container=true), ps)
-        |> ListUtil.unzip;
+        List.map(elaborate_pattern(m, ~in_container=true), ps) |> List.split;
       let expected_labels: list(option(string)) =
         Typ.get_labels(ctx, elaborated_type);
 
@@ -221,7 +220,7 @@ let rec elaborate = (m: Statics.Map.t, uexp: Exp.t): (DHExp.t, Typ.t) => {
       | R(BadInt(s)) => Invalid(s) |> rewrap
       };
     | ListLit(es) =>
-      let (ds, tys) = List.map(elaborate(m), es) |> ListUtil.unzip;
+      let (ds, tys) = List.map(elaborate(m), es) |> List.split;
       let joined_ty =
         Typ.join_all(~empty=Unknown(Internal) |> Typ.temp, ctx, tys);
 
@@ -253,7 +252,7 @@ let rec elaborate = (m: Statics.Map.t, uexp: Exp.t): (DHExp.t, Typ.t) => {
       let (e', _) = elaborate(m, e);
       TypFun(tpat, e', name) |> rewrap;
     | Tuple(es) =>
-      let (ds, _) = List.map(elaborate(m), es) |> ListUtil.unzip;
+      let (ds, _) = List.map(elaborate(m), es) |> List.split;
 
       let expected_labels: list(option(string)) =
         Typ.get_labels(ctx, elaborated_type);
@@ -359,7 +358,7 @@ let rec elaborate = (m: Statics.Map.t, uexp: Exp.t): (DHExp.t, Typ.t) => {
       }
     | DeferredAp(f, args) =>
       let (f', _) = elaborate(m, f);
-      let (args', _) = List.map(elaborate(m), args) |> ListUtil.unzip;
+      let (args', _) = List.map(elaborate(m), args) |> List.split;
       DeferredAp(f', args') |> rewrap;
     | TypAp(e, ut) =>
       let (e', _) = elaborate(m, e);
@@ -439,9 +438,9 @@ let rec elaborate = (m: Statics.Map.t, uexp: Exp.t): (DHExp.t, Typ.t) => {
     | BuiltinFun(_) => uexp
     | Match(e, cases) =>
       let (e', _) = elaborate(m, e);
-      let (ps, es) = ListUtil.unzip(cases);
+      let (ps, es) = List.split(cases);
       let (ps', _) =
-        List.map(p => elaborate_pattern(m, p, false), ps) |> ListUtil.unzip;
+        List.map(p => elaborate_pattern(m, p, false), ps) |> List.split;
       let es' =
         List.map(
           e => {
