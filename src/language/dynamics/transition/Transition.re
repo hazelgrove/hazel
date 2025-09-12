@@ -263,6 +263,23 @@ module Transition = (EV: EV_MODE) => {
             closures,
           };
       // If no matches found in let expression body, just say indeterminate match
+      let matches' =
+        switch (matches') {
+        | DoesNotMatch => Unboxing.DoesNotMatch
+        | IndetMatch => Unboxing.IndetMatch
+        | Matches(env) =>
+          let matches_in_body =
+            List.fold_left(
+              (acc, v) => acc || Substitution.expr_contains_var(d2, v),
+              false,
+              VarBstMap.Ordered.to_listo(env) |> List.map(((var, _)) => var),
+            );
+          if (matches_in_body) {
+            Matches(env);
+          } else {
+            IndetMatch;
+          };
+        };
       // Else, find vars in dp that couldn't match in d1 (aren't in matches')
       let failed_matches =
         switch (matches') {

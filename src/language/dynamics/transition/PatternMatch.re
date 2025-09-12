@@ -104,7 +104,6 @@ let matches =
         )
     };
   let res = matches(capture, dp, d, ~force_partial_match?);
-  print_endline("MATCH RESULT: " ++ show_match_result(res));
   {
     matches: res,
     closures: closure_closures^,
