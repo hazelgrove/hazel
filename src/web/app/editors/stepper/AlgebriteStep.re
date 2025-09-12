@@ -133,7 +133,7 @@ module F =
         ~hide_stepper as _: Ui_effect.t(unit),
         ~undo as _: option(Ui_effect.t(unit)),
         ~is_toplevel as _: bool,
-        m: model,
+        _m: model,
       ) =>
     WebUtil.Node.text("algebra");
 
