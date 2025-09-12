@@ -270,49 +270,11 @@ let do_until_linebreak =
   linebreak_on(d, generalized_neighbors(z))
     ? Some(z) : do_until(f, linebreak_on(d), z);
 
-let adj_pos = (d: Direction.t, z: t): t =>
-  switch (d) {
-  | Left => z
-  | Right =>
-    switch (move(Left, z)) {
-    | None => z
-    | Some(z) => z
-    }
-  };
-
-let insert_segment = (z: t, segment: Segment.t): t =>
-  replace_selection(z.selection.focus, segment, z)
-  |> unselect
-  |> remold_regrout(Right);
-
-let put_down_core = (seg: Segment.t, z: t): t =>
-  z |> replace_selection(Right, seg) |> unselect;
-
-let put_down_seg = (d: Direction.t, seg: Segment.t, z: t): t =>
-  z |> put_down_core(seg) |> adj_pos(d);
-
 let local_backpack = (z: t): list(Tile.t) =>
   Relatives.local_missing_shards(z.relatives);
 
-let can_put_down = z =>
-  switch (local_backpack(z)) {
-  | [] => false
-  | _ => z.caret == Outer
-  };
-
-let put_down_regrout_target = (d: Direction.t, target: Tile.t, z: t): t => {
-  let z = put_down_core([Tile(target)], z);
-  let z = z |> remold |> regrout(Left);
-  adj_pos(d, z);
-};
-
 let backpack_hd = (z: t): option(Tile.t) =>
   z |> local_backpack |> ListUtil.hd_opt;
-
-let put_down_remold_regrout = (d: Direction.t, z: t): option(t) => {
-  let+ target = backpack_hd(z);
-  put_down_regrout_target(d, target, z);
-};
 
 let backpack_find = (tok: Token.t, z: t): option(Tile.t) =>
   if (Form.is_ambiguous_polymorph(tok)) {
@@ -330,35 +292,47 @@ let backpack_find = (tok: Token.t, z: t): option(Tile.t) =>
     );
   };
 
-let will_glom = (tok: Token.t, z: t): bool => backpack_find(tok, z) != None;
+let insert_segment = (z: t, seg: Segment.t): t =>
+  z
+  |> replace_selection(z.selection.focus, seg)
+  |> unselect
+  |> remold_regrout(Right);
 
-let glom = (d: Direction.t, tok: Token.t, z: t): option(t) => {
-  let+ target = backpack_find(tok, z);
-  put_down_regrout_target(d, target, z);
-};
+let adj_pos = (d: Direction.t, z: t): t =>
+  switch (d) {
+  | Left => z
+  | Right =>
+    switch (move(Left, z)) {
+    | None => z
+    | Some(z) => z
+    }
+  };
+
+let put_down_core = (seg: Segment.t, z: t): t =>
+  z |> replace_selection(Right, seg) |> unselect;
+
+let put_down_seg = (d: Direction.t, seg: Segment.t, z: t): t =>
+  z |> put_down_core(seg) |> adj_pos(d);
+
+let can_put_down = z =>
+  switch (local_backpack(z)) {
+  | [] => false
+  | _ => z.caret == Outer
+  };
+
+let put_down_target = (d: Direction.t, target: Tile.t, z: t): t =>
+  z |> put_down_core([Tile(target)]) |> remold_regrout(Left) |> adj_pos(d);
+
+let put_down = (z: t): option(t) =>
+  z.caret == Outer
+    ? {
+      let+ target = backpack_hd(z);
+      put_down_target(Left, target, z);
+    }
+    : None;
 
 let delete = (d: Direction.t, z: t): option(t) =>
   z |> select(d) |> Option.map(destroy_selection);
-
-let glom_prev = (z: t) =>
-  switch (neighbor_token(Left, z)) {
-  | Some(t) when will_glom(t, z) =>
-    switch (delete(Left, z)) {
-    | Some(z) => glom(Left, t, z)
-    | None => Some(z)
-    }
-  | _ => None
-  };
-
-let put_down_glom = (z: t): option(t) =>
-  switch (z.caret) {
-  | Inner(_) => None
-  | Outer =>
-    switch (glom_prev(z)) {
-    | Some(z) => Some(z)
-    | None => put_down_remold_regrout(Left, z)
-    }
-  };
 
 let adjacent_monotile_id = (d: Direction.t, z: t): option(Id.t) =>
   switch (Siblings.neighbors(z.relatives.siblings)) {
@@ -602,72 +576,3 @@ let is_linebreak_to_right_of_caret =
   | _ => false
   };
 };
-
-/* Try to complete the syntax to give better semantic feeback.
- * This is a best-effort approach focussed on adding new definitions
- * as opposed to restructuring; it does not complete the syntax in
- * all cases.
- *
- * NOTE: Setting the caret to outer was necessary to 'get it past'
- * string literals, i.e. offer live feeback when typing inside a
- * string; not sure if this is a hack or not, it may be compensating
- * for the put_down logic not working right with string lits. To test,
- * try to look at live evaluation while typing inside a string lit with
- * stuff left to drop in backpack with below set: Outer disabled. */
-let try_to_dump_backpack = (z: t) =>
-  if (!Selection.is_empty(z.selection)) {
-    z;
-  } else {
-    let z = {
-      ...z,
-      caret: Outer,
-    };
-    let rec move_until_cant_put_down = (z_last, z: t) =>
-      if (can_put_down(z) && !is_linebreak_to_right_of_caret(z)) {
-        switch (move(Right, z)) {
-        | None => z
-        | Some(z_new) => move_until_cant_put_down(z, z_new)
-        };
-      } else if (is_linebreak_to_right_of_caret(z)) {
-        switch (move(Right, z)) {
-        | None => z
-        | Some(z_new) => z_new
-        };
-      } else {
-        z_last;
-      };
-    let rec move_until_can_put_down = (z: t) =>
-      if (!can_put_down(z)) {
-        switch (move(Right, z)) {
-        | None => z
-        | Some(z_new) => move_until_can_put_down(z_new)
-        };
-      } else {
-        z;
-      };
-    let rec put_down_as_much_as_possible = (z: t): t => {
-      switch (put_down_remold_regrout(Left, z)) {
-      | None => z
-      | Some(z) => put_down_as_much_as_possible(z)
-      };
-    };
-    let rec go = (z: t): t => {
-      let z_can = can_put_down(z) ? z : move_until_can_put_down(z);
-      let z_cant = move_until_cant_put_down(z_can, z_can);
-      let z = put_down_as_much_as_possible(z_cant);
-      if (local_backpack(z) == []) {
-        z;
-      } else {
-        go(z);
-      };
-    };
-    go(z);
-  };
-
-let smart_seg = (~dump_backpack: bool, ~erase_buffer: bool, z: t) => {
-  let z = erase_buffer ? clear_unparsed_buffer(z) : z;
-  let z = dump_backpack ? try_to_dump_backpack(z) : z;
-  unselect_and_zip(~erase_buffer, z);
-};
-
-let seg_without_buffer = smart_seg(~erase_buffer=true, ~dump_backpack=false);
