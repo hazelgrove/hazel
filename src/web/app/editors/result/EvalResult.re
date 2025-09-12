@@ -489,6 +489,8 @@ module View = {
            | `NoResults
            | `TestResults
            | `EvalResults
+           | `NoTheorems
+           | `JustTheorems
            | `Custom(Node.t)
          ]=`EvalResults,
         ~locked: bool,
@@ -496,9 +498,12 @@ module View = {
       ) =>
     switch (result_kind) {
     // Normal case:
-    | `EvalResults when globals.settings.core.dynamics =>
+    | `EvalResults
+    | `NoTheorems
+    | `JustTheorems when globals.settings.core.dynamics =>
       let result =
-        footer(~globals, ~signal, ~inject, ~selected, ~locked, model);
+        result_kind == `JustTheorems
+          ? [] : footer(~globals, ~signal, ~inject, ~selected, ~locked, model);
       let test_overlay = (editor: Haz3lcore.Editor.t) =>
         switch (Model.test_results(model)) {
         | Some(result) => [
@@ -511,24 +516,27 @@ module View = {
         | None => []
         };
       let theorems =
-        Theorems.View.view(
-          ~globals,
-          ~take_focus=f => signal(MakeActive(Theorems(f))),
-          ~inject=a => inject(TheoremsAction(a)),
-          ~selected=
-            switch (selected) {
-            | Some(Theorems(f)) => Some(f)
-            | _ => None
-            },
-          model.theorems,
-        );
+        result_kind == `NoTheorems
+          ? []
+          : Theorems.View.view(
+              ~globals,
+              ~take_focus=f => signal(MakeActive(Theorems(f))),
+              ~inject=a => inject(TheoremsAction(a)),
+              ~selected=
+                switch (selected) {
+                | Some(Theorems(f)) => Some(f)
+                | _ => None
+                },
+              model.theorems,
+            );
       let theorems =
         List.length(theorems) == 0
           ? [] : [WebUtil.div_c("theorems", theorems)];
       (result @ theorems, test_overlay);
 
     // Just showing elaboration because evaluation is off:
-    | `EvalResults when globals.settings.core.elaborate =>
+    | `EvalResults
+    | `NoTheorems when globals.settings.core.elaborate =>
       let result = [
         text("Evaluation disabled, showing elaboration:"),
         switch (Model.get_elaboration(model)) {
@@ -548,6 +556,8 @@ module View = {
 
     // Not showing any results:
     | `EvalResults
+    | `NoTheorems
+    | `JustTheorems
     | `NoResults => ([], (_ => []))
 
     | `Custom(node) => (

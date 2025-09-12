@@ -8,7 +8,8 @@ open Util;
 module Model = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type exercise =
-    | Implementation(ExerciseMode.Model.t);
+    | Implementation(ExerciseMode.Model.t)
+    | Theorem(TheoremExerciseMode.Model.t);
 
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t = {
@@ -17,12 +18,12 @@ module Model = {
   };
 
   [@deriving (show({with_path: false}), sexp, yojson)]
-  type exercise_spec =
-    | SImplementation(Exercise.spec);
+  type exercise_spec = Exercise.exercise_spec;
 
   [@deriving (show({with_path: false}), sexp, yojson)]
   type persistent_exercise =
-    | PImplementation(ExerciseMode.Model.persistent);
+    | PImplementation(ExerciseMode.Model.persistent)
+    | PTheorem(TheoremExerciseMode.Model.persistent);
 
   [@deriving (show({with_path: false}), sexp, yojson)]
   type persistent = {
@@ -35,11 +36,19 @@ module Model = {
     switch (exercise) {
     | Implementation(e) =>
       PImplementation(ExerciseMode.Model.persist(~instructor_mode, e))
+    | Theorem(e) => PTheorem(TheoremExerciseMode.Model.persist(e))
     };
 
   let get_exercise_id = (exercise: exercise): Haz3lcore.Id.t =>
     switch (exercise) {
     | Implementation(e: ExerciseMode.Model.t) => e.editors.id
+    | Theorem(e: TheoremExerciseMode.Model.t) => e.id
+    };
+
+  let get_spec_id = (spec: exercise_spec): Haz3lcore.Id.t =>
+    switch (spec) {
+    | Implementation(s) => s.id
+    | Theorem(s) => s.id
     };
 
   let persist = (~instructor_mode, model): persistent => {
@@ -59,23 +68,36 @@ module Model = {
   };
 
   let unpersist_exercise =
-      (~instructor_mode, spec: exercise_spec, persistent: persistent_exercise)
+      (
+        ~settings,
+        ~instructor_mode,
+        spec: exercise_spec,
+        persistent: persistent_exercise,
+      )
       : exercise =>
     switch (spec, persistent) {
-    | (SImplementation(s), PImplementation(p)) =>
+    | (Implementation(s), PImplementation(p)) =>
       Implementation(ExerciseMode.Model.unpersist(~instructor_mode, s, p))
+    | (Implementation(s), _) =>
+      Implementation(
+        ExerciseMode.Model.of_spec(~settings, ~instructor_mode, s),
+      )
+    | (Theorem(s), PTheorem(p)) =>
+      Theorem(TheoremExerciseMode.Model.unpersist(~settings, s, p))
+    | (Theorem(s), _) => Theorem(TheoremExerciseMode.Model.of_spec(s))
     };
 
-  let unpersist = (~instructor_mode, persistent: persistent) => {
+  let unpersist = (~settings, ~instructor_mode, persistent: persistent) => {
     let exercises =
       List.map2(
-        unpersist_exercise(~instructor_mode),
-        ExerciseSettings.exercises |> List.map(s => SImplementation(s)), // TODO: Move this
+        unpersist_exercise(~settings, ~instructor_mode),
+        ExerciseSettings.exercises, // TODO: Move this
         persistent.exercise_data |> List.map(snd),
       );
     let current =
       ListUtil.findi_opt(
-        (spec: Exercise.spec) => spec.id == persistent.cur_exercise,
+        (spec: exercise_spec) =>
+          get_spec_id(spec) == persistent.cur_exercise,
         ExerciseSettings.exercises,
       )
       |> Option.map(fst)
@@ -89,15 +111,17 @@ module Model = {
   let exercise_of_spec =
       (~settings, ~instructor_mode, spec: exercise_spec): exercise =>
     switch (spec) {
-    | SImplementation(s) =>
+    | Implementation(s) =>
       Implementation(
         ExerciseMode.Model.of_spec(~settings, ~instructor_mode, s),
       )
+    | Theorem(s) => Theorem(TheoremExerciseMode.Model.of_spec(s))
     };
 
   let id_of_spec = (spec: exercise_spec): Haz3lcore.Id.t =>
     switch (spec) {
-    | SImplementation(s) => s.id
+    | Implementation(s) => s.id
+    | Theorem(s) => s.id
     };
 
   let get_current = (m: t) => List.nth(m.exercises, m.current);
@@ -105,11 +129,13 @@ module Model = {
   let get_exercise_name = (e: exercise): string =>
     switch (e) {
     | Implementation(e) => e.editors.title
+    | Theorem(e) => e.title
     };
 
   let export_exercise_module = (e: exercise): string =>
     switch (e) {
     | Implementation(e) => Exercise.export_module({eds: e.editors})
+    | Theorem(_) => "(* Theorem exercises do not have an exportable module *)\n"
     };
 
   let export_transitionary_module = (e: exercise): string =>
@@ -119,12 +145,14 @@ module Model = {
         e.editors.module_name,
         {eds: e.editors},
       )
+    | Theorem(_) => "(* Theorem exercises do not have an exportable transitionary module *)\n"
     };
 
   let export_grading_module = (e: exercise): string =>
     switch (e) {
     | Implementation(e) =>
       Exercise.export_grading_module(e.editors.module_name, {eds: e.editors})
+    | Theorem(_) => "(* Theorem exercises do not have an exportable grading module *)\n"
     };
 
   // Used for the assistant or something
@@ -132,6 +160,7 @@ module Model = {
     let current = List.nth(model.exercises, model.current);
     switch (current) {
     | Implementation(e) => e.cells.user_impl.editor
+    | Theorem(e) => e.cells.lemmas.editor
     };
   };
 };
@@ -141,7 +170,7 @@ module StoreExerciseKey =
     [@deriving (show({with_path: false}), sexp, yojson)]
     type t = Haz3lcore.Id.t;
     let default = () =>
-      List.nth(ExerciseSettings.exercises, 0) |> Exercise.id_of;
+      List.nth(ExerciseSettings.exercises, 0) |> Model.id_of_spec;
     let key = Store.CurrentExercise;
   });
 
@@ -204,7 +233,7 @@ module Store = {
           let key = Model.id_of_spec(spec);
           (key, load_exercise(~settings, key, spec, ~instructor_mode));
         },
-        ExerciseSettings.exercises |> List.map(s => Model.SImplementation(s)) // TODO: Move this
+        ExerciseSettings.exercises,
       );
     {
       cur_exercise,
@@ -221,14 +250,13 @@ module Store = {
             let key = Model.id_of_spec(spec);
             (key, load_exercise(~settings, key, spec, ~instructor_mode));
           },
-          ExerciseSettings.exercises
-          |> List.map(s => Model.SImplementation(s)) // TODO: Move this,
+          ExerciseSettings.exercises,
         ),
     }
     |> sexp_of_exercise_export
     |> Sexplib.Sexp.to_string;
 
-  let import = (data, ~exercise_specs, ~instructor_mode) => {
+  let import = (data, ~exercise_specs, ~settings, ~instructor_mode) => {
     let exercise_export =
       data |> Sexplib.Sexp.of_string |> exercise_export_of_sexp;
     StoreExerciseKey.save(exercise_export.cur_exercise);
@@ -236,18 +264,14 @@ module Store = {
       ((key, value)) => {
         let n =
           ListUtil.findi_opt(
-            spec => Exercise.id_of(spec) == key,
+            spec => Model.id_of_spec(spec) == key,
             exercise_specs,
           )
           |> Option.get
           |> fst;
-        let spec =
-          List.nth(
-            exercise_specs |> List.map(s => Model.SImplementation(s)),
-            n,
-          );
+        let spec = List.nth(exercise_specs, n);
         save_exercise(
-          value |> Model.unpersist_exercise(~instructor_mode, spec),
+          value |> Model.unpersist_exercise(~settings, ~instructor_mode, spec),
           ~instructor_mode,
         );
       },
@@ -263,6 +287,7 @@ module Update = {
   type t =
     | SwitchExercise(int)
     | Exercise(ExerciseMode.Update.t)
+    | TheoremExercise(TheoremExerciseMode.Update.t)
     | ExportModule
     | ExportSubmission
     | ExportTransitionary
@@ -272,6 +297,7 @@ module Update = {
     switch (action) {
     | SwitchExercise(_) => false
     | Exercise(action) => ExerciseMode.Update.can_undo(action)
+    | TheoremExercise(action) => TheoremExerciseMode.Update.can_undo(action)
     | ExportModule => false
     | ExportSubmission => false
     | ExportTransitionary => false
@@ -339,6 +365,25 @@ module Update = {
         current: model.current,
         exercises: new_exercises,
       };
+    | (_, Exercise(_)) => model |> return_quiet
+    | (Theorem(ex), TheoremExercise(action)) =>
+      let* new_current =
+        TheoremExerciseMode.Update.update(
+          ~settings=globals.settings,
+          action,
+          ex,
+        );
+      let new_exercises =
+        ListUtil.put_nth(
+          model.current,
+          Model.Theorem(new_current),
+          model.exercises,
+        );
+      Model.{
+        current: model.current,
+        exercises: new_exercises,
+      };
+    | (_, TheoremExercise(_)) => model |> return_quiet
     | (_, SwitchExercise(n)) =>
       Model.{
         current: n,
@@ -378,6 +423,15 @@ module Update = {
             ex,
           ),
         )
+      | Theorem(ex) =>
+        Model.Theorem(
+          TheoremExerciseMode.Update.calculate(
+            ~settings,
+            ~is_edited,
+            ~schedule_action=a => schedule_action(TheoremExercise(a)),
+            ex,
+          ),
+        )
       };
     Model.{
       current: model.current,
@@ -391,24 +445,36 @@ module Selection = {
   open Cursor;
 
   [@deriving (show({with_path: false}), sexp, yojson)]
-  type t = ExerciseMode.Selection.t;
+  type t =
+    | Implementation(ExerciseMode.Selection.t)
+    | TheoremExercise(TheoremExerciseMode.Selection.t);
 
   let get_cursor_info = (~selection, model: Model.t): cursor(Update.t) => {
     let current = List.nth(model.exercises, model.current);
-    switch (current) {
-    | Implementation(e) =>
+    switch (current, selection) {
+    | (Implementation(e), Implementation(selection)) =>
       let+ ci = ExerciseMode.Selection.get_cursor_info(~selection, e);
       Update.Exercise(ci);
+    | (Implementation(_), _) => Cursor.empty
+    | (Theorem(e), TheoremExercise(selection)) =>
+      let+ ci = TheoremExerciseMode.Selection.get_cursor_info(~selection, e);
+      Update.TheoremExercise(ci);
+    | (Theorem(_), _) => Cursor.empty
     };
   };
 
   let handle_key_event =
       (~selection: t, ~event, model: Model.t): option(Update.t) => {
     let current = List.nth(model.exercises, model.current);
-    switch (current) {
-    | Implementation(e) =>
+    switch (current, selection) {
+    | (Implementation(e), Implementation(selection)) =>
       ExerciseMode.Selection.handle_key_event(~selection, ~event, e)
       |> Option.map(a => Update.Exercise(a))
+    | (Implementation(_), _) => None
+    | (Theorem(e), TheoremExercise(selection)) =>
+      TheoremExerciseMode.Selection.handle_key_event(~selection, ~event, e)
+      |> Option.map(a => Update.TheoremExercise(a))
+    | (Theorem(_), _) => None
     };
   };
 
@@ -418,7 +484,12 @@ module Selection = {
     switch (current) {
     | Implementation(e) =>
       ExerciseMode.Selection.jump_to_tile(~settings, tile, e)
-      |> Option.map(((x, y)) => (Update.Exercise(x), y))
+      |> Option.map(((x, y)) => (Update.Exercise(x), Implementation(y)))
+    | Theorem(e) =>
+      TheoremExerciseMode.Selection.jump_to_tile(tile, e)
+      |> Option.map(((x, y)) =>
+           (Update.TheoremExercise(x), TheoremExercise(y))
+         )
     };
   };
 };
@@ -427,13 +498,42 @@ module View = {
   open Widgets;
   open Js_of_ocaml;
 
-  let view = (~globals: Globals.t, ~inject: Update.t => 'a, model: Model.t) => {
+  let view =
+      (
+        ~globals: Globals.t,
+        ~take_focus: Selection.t => 'a,
+        ~inject: Update.t => 'a,
+        ~inject_explainthis,
+        ~selection: option(Selection.t),
+        model: Model.t,
+      ) => {
     let current = List.nth(model.exercises, model.current);
     switch (current) {
     | Implementation(current) =>
       ExerciseMode.View.view(
         ~globals,
+        ~signal=
+          fun
+          | MakeActive(s) => take_focus(Implementation(s)),
         ~inject=a => inject(Update.Exercise(a)),
+        ~inject_explainthis,
+        ~selection=
+          switch (selection) {
+          | Some(Implementation(s)) => Some(s)
+          | _ => None
+          },
+        current,
+      )
+    | Theorem(current) =>
+      TheoremExerciseMode.View.view(
+        ~globals,
+        ~take_focus=s => take_focus(TheoremExercise(s)),
+        ~inject=a => inject(Update.TheoremExercise(a)),
+        ~selection=
+          switch (selection) {
+          | Some(TheoremExercise(s)) => Some(s)
+          | _ => None
+          },
         current,
       )
     };

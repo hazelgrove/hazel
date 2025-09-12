@@ -84,6 +84,11 @@ type pos =
 type spec = p(Zipper.t);
 
 [@deriving (show({with_path: false}), sexp, yojson)]
+type exercise_spec =
+  | Implementation(spec)
+  | Theorem(TheoremExerciseSpec.t);
+
+[@deriving (show({with_path: false}), sexp, yojson)]
 type transitionary_spec = p(string);
 
 let map = (p: p('a), f: 'a => 'b, f_hidden: 'a => 'b): p('b) => {
