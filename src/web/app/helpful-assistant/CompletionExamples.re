@@ -234,7 +234,7 @@ List.merge(cmp, merge_sort_helper(left), merge_sort_helper(right))
 let get =
     (num_examples: int, hole_label: string, advanced_reasoning: bool)
     : list(string) =>
-  Util.ListUtil.flat_map(
+  List.concat_map(
     ((sketch, expected_ty, completion)): list(string) =>
       [sketch] @ ["expected_ty: " ++ expected_ty] @ [completion],
     switch (
