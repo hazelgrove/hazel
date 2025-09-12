@@ -773,6 +773,9 @@ let rec drv_exp_to_pretty =
     let* x = go(x, ~sort=Prop)
     and* xs = xs |> List.map(go(~sort=Prop)) |> all;
     let ids = syntax |> IdTagged.ids |> List.tl |> pad_ids(List.length(xs));
+    let map2_safe = (f, l1, l2) =>
+      List.length(l1) == List.length(l2)
+        ? List.map2(f, l1, l2) : raise(Invalid_argument("map2_safe"));
     [
       mk_form(
         Drv(List),
@@ -780,7 +783,7 @@ let rec drv_exp_to_pretty =
         [
           x
           @ List.flatten(
-              List.map2(
+              map2_safe(
                 (id, x) => [mk_form(Drv(CommaExp), id, [])] @ x,
                 ids,
                 xs,
@@ -1049,12 +1052,14 @@ and drv_type_hole_to_pretty =
   };
 }
 and drv_to_pretty = (~settings: Settings.t, drv: Drv.Any.t, ~sort): pretty => {
-  switch (drv) {
-  | Exp(e) => drv_exp_to_pretty(~settings, e, ~sort)
-  | Pat(p) => drv_pat_to_pretty(~settings, p)
-  | Typ(t) => drv_typ_to_pretty(~settings, t)
-  | TPat(tp) => drv_tpat_to_pretty(~settings, tp)
-  };
+  let res =
+    switch (drv) {
+    | Exp(e) => drv_exp_to_pretty(~settings, e, ~sort)
+    | Pat(p) => drv_pat_to_pretty(~settings, p)
+    | Typ(t) => drv_typ_to_pretty(~settings, t)
+    | TPat(tp) => drv_tpat_to_pretty(~settings, tp)
+    };
+  res;
 };
 
 let rec drv_formula_to_pretty: type a. (RuleFormula.t(a), DrvSort.t) => pretty =

@@ -343,6 +343,7 @@ module Deco =
       TermData.extreme_measures(id, term_data, measured)
       |> OptUtil.value_exn(
            ~none={
+             // TODO(zhiyao): investigate why this happens
              print_endline("Deco.Deco.term_decoration: option is none");
              Not_found;
            },

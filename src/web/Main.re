@@ -79,7 +79,6 @@ let apply =
 };
 
 let start = {
-  Printexc.record_backtrace(true);
   let%sub save_scheduler = BonsaiUtil.Alarm.alarm;
   let%sub (app_model, app_inject) =
     Bonsai.state_machine1(
