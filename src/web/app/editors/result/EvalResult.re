@@ -448,7 +448,6 @@ module View = {
            | `Custom(Node.t)
          ]=`EvalResults,
         ~locked: bool,
-        ~root,
         model: Model.t,
       ) =>
     switch (result_kind) {
@@ -475,7 +474,6 @@ module View = {
         text("Evaluation disabled, showing elaboration:"),
         switch (Model.get_elaboration(model)) {
         | Some(elab) =>
-          let shape_map = Haz3lcore.ProjectorCore.Shape.Map.empty; // assume no projectors
           elab
           |> Haz3lcore.ExpToSegment.(
                exp_to_segment(
@@ -483,12 +481,7 @@ module View = {
                    Settings.of_core(~inline=false, globals.settings.core),
                )
              )
-          |> CodeViewable.view_segment(
-               ~globals,
-               ~sort=root,
-               ~info_map=Haz3lcore.Id.Map.empty,
-               ~shape_map,
-             );
+          |> CodeViewable.view_segment(~globals)
         | None => text("No elaboration found")
         },
       ];

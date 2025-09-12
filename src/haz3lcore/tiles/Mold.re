@@ -115,7 +115,15 @@ let nibs = (~index, mold: t): Nibs.t => {
       ? l
       : Nib.{
           shape: Shape.concave(),
-          sort: List.nth(in_, index - 1),
+          sort:
+            try(List.nth(in_, index - 1)) {
+            | Failure(_) =>
+              /* TODO(zhiyao): I dont know why this happen to some derivation term
+                    e.g. (, )
+                 */
+              print_endline("Mold.nibs: index out of bounds");
+              Sort.Any;
+            },
         };
   let r =
     index == List.length(in_)

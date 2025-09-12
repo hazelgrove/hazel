@@ -168,6 +168,7 @@ type drv_compound_form =
   | Sum
   | Rec
   // Shared
+  | ApExpEmpty
   | ApExp
   | ApPat
   | CommaExp
@@ -303,14 +304,15 @@ let drv_get: drv_compound_form => t =
   | Prod => mk_infix("*", Drv(Typ), P.type_prod)
   | Sum => mk_infix("+", Drv(Typ), P.type_plus)
   | Rec => mk_pre_c(L, ["rec", "->"], P.fun_, Drv(Typ), [Drv(TPat)])
+  | ApExpEmpty => mk_post_c(LT, ["()"], P.ap, Drv(Exp), [])
   | ApExp => mk_post_c(LT, ["(", ")"], P.ap, Drv(Exp), [Drv(Exp)])
   | ApPat => mk_post_c(LT, ["(", ")"], P.ap, Drv(Pat), [Drv(Pat)])
   | CommaExp => mk_infix(",", Drv(Exp), P.comma)
   | CommaPat => mk_infix(",", Drv(Pat), P.comma)
-  | ParenProp => mk_op_c(LT, ["(", ")"], Drv(Prop), [Drv(Prop)])
-  | ParenExp => mk_op_c(LT, ["(", ")"], Drv(Exp), [Drv(Exp)])
-  | ParenPat => mk_op_c(LT, ["(", ")"], Drv(Pat), [Drv(Pat)])
-  | ParenTyp => mk_op_c(LT, ["(", ")"], Drv(Typ), [Drv(Typ)])
+  | ParenProp => mk_parens(Drv(Prop))
+  | ParenExp => mk_parens(Drv(Exp))
+  | ParenPat => mk_parens(Drv(Pat))
+  | ParenTyp => mk_parens(Drv(Typ))
   | QuoteExp => mk_pre_c(L, ["$"], P.unquote, Drv(Exp), [])
   | QuotePat => mk_pre_c(L, ["$"], P.unquote, Drv(Pat), [])
   | QuoteTyp => mk_pre_c(L, ["$"], P.max, Drv(Typ), [])
@@ -377,6 +379,7 @@ type compound_form =
   | ParensExp
   | ParensPat
   | ParensTyp
+  | ParensTPat
   | ApExpEmpty
   | ApExp
   | ApPat
@@ -467,6 +470,7 @@ let get: compound_form => t =
   | ParensExp => mk_parens(Exp)
   | ParensPat => mk_parens(Pat)
   | ParensTyp => mk_parens(Typ)
+  | ParensTPat => mk_parens(TPat) // HACk (Issue #1913)
   | ApExpEmpty => mk_post_c(LT, ["()"], P.ap, Exp, [])
   | ApExp => mk_post_c(LT, ["(", ")"], P.ap, Exp, [Exp])
   | ApPat => mk_post_c(LT, ["(", ")"], P.ap, Pat, [Pat])
@@ -581,14 +585,17 @@ let get_atomic_form: atomic_form => (Token.t => bool, list(Mold.t)) =
   | Wild => (Token.is_wild, [op(Pat), op(Drv(Exp))])
   | String => (Token.is_string, [op(Exp), op(Pat)])
   | QuotedLabel => (Token.is_quoted_label, [op(Exp), op(Pat), op(Typ)])
-  | IntLit => (Token.is_int, [op(Exp), op(Pat)])
+  | IntLit => (
+      Token.is_int,
+      [op(Exp), op(Pat), op(Drv(Exp)), op(Drv(Typ))],
+    )
   | FloatLit => (Token.is_float, [op(Exp), op(Pat)])
   | LivelitName => (Token.is_livelit, [op(Exp), op(Pat)])
   | ProjectorInvoke => (
       Token.is_projector_invoke,
       [op(Exp), op(Pat), op(Typ), op(TPat)],
     )
-  | BoolLit => (Token.is_bool, [op(Exp), op(Pat)])
+  | BoolLit => (Token.is_bool, [op(Exp), op(Pat), op(Drv(Exp))])
   | UndefinedLit => (Token.is_undefined, [op(Exp), op(Pat)])
   | EmptyList => (Token.is_empty_list, [op(Exp), op(Pat), op(Drv(Exp))])
   | EmptyTuple => (
@@ -670,4 +677,10 @@ module Expansion = {
     };
 
   let will = kw => List.length(get(kw) |> fst) > 1;
+
+  let is_leading = (t: Token.t): bool =>
+    switch (List.assoc_opt(t, expansions)) {
+    | Some((_, Left)) => true
+    | _ => false
+    };
 };

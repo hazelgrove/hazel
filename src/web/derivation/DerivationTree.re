@@ -81,7 +81,7 @@ let root_of_pos = (pos: pos): Sort.t =>
   switch (pos) {
   | Prelude => Exp
   | Setup => Exp
-  | Trees(_, _) => Drv(Jdmt)
+  | Trees(_, _) => Drv(Exp)
   };
 
 // UI functionality

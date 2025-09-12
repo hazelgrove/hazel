@@ -81,4 +81,6 @@ let get_string: secondary_content => string =
     | Whitespace(s) => s
     };
 
+let length = (s: t): int => Token.length(get_string(s.content));
+
 let id = w => w.id;

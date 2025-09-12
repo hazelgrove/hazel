@@ -236,7 +236,7 @@ module Update = {
             | Invalid_argument(_)
             | Not_found =>
               ""
-              |> DerivationTree.zipper_of_code(~root=Drv(Jdmt))
+              |> DerivationTree.zipper_of_code(~root=Drv(Exp))
               |> Editor.Model.mk
               |> CellEditor.Model.mk
             }
@@ -367,7 +367,7 @@ module Selection = {
       : option((Update.t, t)) => {
     DerivationTree.positioned_editors(model.editors)
     |> List.find_opt(((_, e: Editor.t)) =>
-         TermData.root_tile_opt(id, e.syntax.term_data) != None
+         TermData.root_tile(id, e.syntax.term_data) != None
        )
     |> Option.map(((pos, _)) =>
          (

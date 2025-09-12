@@ -31,18 +31,13 @@ let exp_show =
       ~is_dynamic_term=false,
       DrvExp(Exp(syntax), Jdmt) |> Exp.fresh,
     );
-  let highlight_deco = {
-    module Deco =
-      Deco.Deco({
-        let editor = editor;
-        let globals = {
-          ...globals,
-          color_highlights: Some(fst(color_map)),
-        };
-        let statics = statics;
-      });
-    [Deco.color_highlights()];
-  };
+  let highlight_deco = [
+    Highlight.colors(
+      ~font_metrics=globals.font_metrics,
+      ~syntax=editor.syntax,
+      Some(fst(color_map)),
+    ),
+  ];
   CodeWithStatics.View.view(
     ~globals,
     ~overlays=highlight_deco,
@@ -70,18 +65,13 @@ let test_show =
         |> ExpToSegment.drv_formula_to_pretty(_, Jdmt)
         |> Zipper.unzip(~root=Drv(Jdmt)),
       );
-    let highlight_deco = {
-      module Deco =
-        Deco.Deco({
-          let editor = editor;
-          let globals = {
-            ...globals,
-            color_highlights: Some(fst(color_map)),
-          };
-          let statics = CachedStatics.empty;
-        });
-      [Deco.color_highlights()];
-    };
+    let highlight_deco = [
+      Highlight.colors(
+        ~font_metrics=globals.font_metrics,
+        ~syntax=editor.syntax,
+        Some(fst(color_map)),
+      ),
+    ];
     CodeWithStatics.View.view(
       ~globals,
       ~overlays=highlight_deco,

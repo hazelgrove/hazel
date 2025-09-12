@@ -231,105 +231,103 @@ let expander_deco =
       ~options: list((ExplainThisForm.form_id, Segment.t)),
       ~group: ExplainThisForm.group,
       ~doc: ExplainThisForm.form,
-      editor,
+      editor: Editor.Model.t,
     ) => {
-  module Deco =
-    Deco.Deco({
-      let editor = editor;
-      let globals = globals;
-      let statics = CachedStatics.empty;
-    });
   switch (doc.expandable_id, List.length(options)) {
   | (None, _)
   | (_, 0 | 1) => div([])
-  | (Some((expandable, _)), _) =>
-    Deco.term_decoration(
-      ~id=expandable,
-      ((origin, _, path)) => {
-        let specificity_pos =
-          Printf.sprintf(
-            "position: absolute; top: %fpx;",
-            font_metrics.row_height,
-          );
+  | (Some((id, _)), _) =>
+    let origin =
+      switch (
+        TermData.extreme_measures(
+          id,
+          editor.syntax.term_data,
+          editor.syntax.measured,
+        )
+      ) {
+      | Some((origin, _)) => origin
+      | None => {
+          row: 0,
+          col: 0,
+        }
+      };
+    let specificity_pos =
+      Printf.sprintf(
+        "position: absolute; top: %fpx;",
+        font_metrics.row_height,
+      );
 
-        let specificity_style =
-          Attr.create(
-            "style",
-            specificity_pos
-            ++ (docs.specificity_open ? "transform: scaleY(1);" : ""),
-          );
+    let specificity_style =
+      Attr.create(
+        "style",
+        specificity_pos
+        ++ (docs.specificity_open ? "transform: scaleY(1);" : ""),
+      );
 
-        let get_clss = segment =>
-          switch (List.nth(segment, 0)) {
-          | Base.Tile({mold, _}) => [
-              "ci-header-" ++ Sort.class_of(mold.out) // TODO the brown on brown isn't the greatest... but okay
-            ]
-          | _ => []
-          };
+    let get_clss = segment =>
+      switch (List.nth(segment, 0)) {
+      | Base.Tile({mold, _}) => [
+          "ci-header-" ++ Sort.to_string(mold.out) // TODO the brown on brown isn't the greatest... but okay
+        ]
+      | _ => []
+      };
 
-        let specificity_menu =
-          Node.div(
-            ~attrs=[
-              clss(["specificity-options-menu", "expandable"]),
-              specificity_style,
-            ],
-            List.map(
-              ((id: ExplainThisForm.form_id, segment: Segment.t)): Node.t => {
-                let code_view =
-                  CodeViewable.view_segment(
-                    ~globals,
-                    ~sort=Exp,
-                    ~shape_map=ProjectorCore.Shape.Map.empty, // Assume no projectors
-                    segment,
-                    ~info_map=Id.Map.empty,
-                  );
-                let classes =
-                  id == doc.id
-                    ? ["selected"] @ get_clss(segment) : get_clss(segment);
-                let update_group_selection = _ =>
-                  inject(
-                    ExplainThisUpdate.UpdateGroupSelection(group.id, id),
-                  );
-                Node.div(
-                  ~attrs=[
-                    clss(classes),
-                    Attr.on_click(update_group_selection),
-                  ],
-                  [code_view],
-                );
-              },
-              options,
-            ),
-          );
+    let specificity_menu =
+      Node.div(
+        ~attrs=[
+          clss(["specificity-options-menu", "expandable"]),
+          specificity_style,
+        ],
+        List.map(
+          ((id: ExplainThisForm.form_id, segment: Segment.t)): Node.t => {
+            let code_view = CodeViewable.view_segment(~globals, segment);
+            let classes =
+              id == doc.id
+                ? ["selected"] @ get_clss(segment) : get_clss(segment);
+            let update_group_selection = _ =>
+              inject(ExplainThisUpdate.UpdateGroupSelection(group.id, id));
+            Node.div(
+              ~attrs=[clss(classes), Attr.on_click(update_group_selection)],
+              [code_view],
+            );
+          },
+          options,
+        ),
+      );
 
-        let expand_arrow_style = Attr.create("style", specificity_pos);
-        let expand_arrow =
-          Node.div(~attrs=[clss(["arrow"]), expand_arrow_style], []);
+    let expand_arrow_style = Attr.create("style", specificity_pos);
+    let expand_arrow =
+      Node.div(~attrs=[clss(["arrow"]), expand_arrow_style], []);
 
-        let expandable_deco =
-          DecUtil.code_svg(
-            ~font_metrics,
-            ~origin,
-            ~base_cls=["expandable"],
-            ~abs_pos=false,
-            path,
-          );
+    let expandable_deco =
+      div_c(
+        "color-highlights",
+        Highlight.color(
+          ~syntax=editor.syntax,
+          ~font_metrics,
+          ["expandable"],
+          id,
+        ),
+      );
 
-        Node.div(
-          ~attrs=[
-            clss(["expandable-target"]),
-            DecUtil.abs_position(~font_metrics, origin),
-            Attr.on_click(_ => {
-              inject(
-                ExplainThisUpdate.SpecificityOpen(!docs.specificity_open),
-              )
-            }),
-          ],
-          [expandable_deco, specificity_menu]
-          @ (docs.specificity_open ? [] : [expand_arrow]),
-        );
-      },
-    )
+    let expander =
+      div(
+        ~attrs=[
+          clss(["expandable-target"]),
+          DecUtil.abs_position(~font_metrics, origin),
+        ],
+        [specificity_menu] @ (docs.specificity_open ? [] : [expand_arrow]),
+      );
+
+    Node.div(
+      ~attrs=[
+        clss(["expandable-target"]),
+        Attr.on_click(_ =>
+          inject(ExplainThisUpdate.SpecificityOpen(!docs.specificity_open))
+        ),
+      ],
+      [expandable_deco, expander],
+    );
   };
 };
 
@@ -686,28 +684,21 @@ let get_doc =
           ~doc,
           editor,
         );
-      let statics = CachedStatics.empty;
-      let dynamics = Dynamics.Map.empty;
-      let highlight_deco = {
-        module Deco =
-          Deco.Deco({
-            let editor = editor;
-            let globals = {
-              ...globals,
-              color_highlights: highlights,
-            };
-            let statics = statics;
-          });
-        [Deco.color_highlights()];
-      };
+      let highlight_deco = [
+        Highlight.colors(
+          ~font_metrics=globals.font_metrics,
+          ~syntax=editor.syntax,
+          highlights,
+        ),
+      ];
       let syntactic_form_view =
         CodeWithStatics.View.view(
           ~globals,
           ~overlays=highlight_deco @ [expander_deco],
           {
             editor,
-            statics,
-            dynamics,
+            statics: CachedStatics.empty,
+            dynamics: Dynamics.Map.empty,
           },
         );
       let example_view =
@@ -2820,10 +2811,7 @@ let get_doc =
         TerminalTyp.var(v),
       )
     | Sum(_) => get_message(SumTyp.labelled_sum_typs)
-    | Ap({term: Var(c), _}, _) =>
-      get_message(SumTyp.sum_typ_unary_constructor_defs(c))
     | Unknown(Hole(Invalid(_))) => simple("Not a type or type operator")
-    | Ap(_)
     | Parens(_) => default // Shouldn't be hit?
     // Note(zhiyao): Derivation term expression is not allowed to be explicitly written
     | DrvTyp(_) => simple("Derivations Types")
@@ -2842,7 +2830,7 @@ let get_doc =
         VarTPat.var_typ_pats(v),
       )
     }
-  | Some(InfoDrv({term, sort, _})) =>
+  | Some(InfoDrv({term, _})) =>
     let (syntax, msg) =
       switch (term) {
       | Exp(exp) => DrvDoc.exp_form(exp)
@@ -2851,15 +2839,7 @@ let get_doc =
       | TPat(tpat) => DrvDoc.tpat_form(tpat)
       };
     (
-      [
-        syntax
-        |> CodeViewable.view_segment(
-             ~globals,
-             ~sort=Drv(sort),
-             ~info_map=Id.Map.empty,
-             ~shape_map=ProjectorCore.Shape.Map.empty,
-           ),
-      ],
+      [syntax |> CodeViewable.view_segment(~globals)],
       (
         [
           div(

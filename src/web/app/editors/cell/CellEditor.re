@@ -211,7 +211,6 @@ module View = {
         },
         ~result_kind?,
         ~locked,
-        ~root=Model.sort(model),
         model.result,
       );
     div(

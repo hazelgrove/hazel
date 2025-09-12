@@ -90,12 +90,7 @@ let code_view_settings: Haz3lcore.ExpToSegment.Settings.t = {
 
 let view_any = (~globals, any: Term.Any.t) =>
   any
-  |> CodeViewable.view_any(
-       ~globals,
-       ~settings=code_view_settings,
-       ~shape_map=Haz3lcore.ProjectorCore.Shape.Map.empty, // assume no projectors
-       ~info_map=Statics.Map.empty,
-     )
+  |> CodeViewable.view_any(~globals, ~settings=code_view_settings)
   |> code_box_container;
 
 let view_type = (~globals, typ: Typ.t) =>
@@ -406,6 +401,7 @@ let typ_err_view = (~globals, ok: Info.error_typ) => {
       view_type(Var(name) |> Typ.fresh),
       text("already used in this sum"),
     ]
+  | ParseFailure => [text("Parse failure")]
   };
 };
 

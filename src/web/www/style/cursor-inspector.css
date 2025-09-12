@@ -220,7 +220,7 @@
 }
 
 #cursor-inspector.error .divider {
-  color: var(--R2);
+  color: var(--R2) !important;
 }
 
 #cursor-inspector .Pat .divider {

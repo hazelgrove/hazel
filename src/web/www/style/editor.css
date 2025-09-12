@@ -91,15 +91,8 @@
   color: var(--token-comment);
 }
 
-.code .whitespace {
+.code .code-text {
   color: var(--token-secondary);
-}
-
-.code .linebreak {
-  color: var(--token-secondary);
-  font-family: system-ui;
-  vertical-align: middle;
-  font-size: 0.59em;
 }
 
 .code .token.llm-waiting {

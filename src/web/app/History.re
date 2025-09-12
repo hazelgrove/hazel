@@ -86,6 +86,7 @@ module Update = {
           action,
           model.current,
         );
+      let _ = Log.update(action, current);
       if (Page.Update.can_undo(action)) {
         {
           ...current,
@@ -114,9 +115,16 @@ module Update = {
     };
 
   let calculate =
-      (~schedule_action: t => unit, ~is_edited: bool, model: Model.t): Model.t => {
+      (
+        ~schedule_action: t => unit,
+        ~is_edited: bool,
+        ~dynamics,
+        model: Model.t,
+      )
+      : Model.t => {
     current:
-      model.current |> Page.Update.calculate(~schedule_action, ~is_edited),
+      model.current
+      |> Page.Update.calculate(~schedule_action, ~is_edited, ~dynamics),
     undo_stack: model.undo_stack,
     redo_stack: model.redo_stack,
   };

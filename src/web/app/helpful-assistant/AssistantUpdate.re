@@ -618,12 +618,7 @@ let update =
                   ~zipper_init=editor.editor.state.zipper,
                   tag,
                 );
-              let sketch_seg =
-                Zipper.smart_seg(
-                  ~dump_backpack=true,
-                  ~erase_buffer=true,
-                  sketch_z_with_tag,
-                );
+              let sketch_seg = Dump.to_segment(sketch_z_with_tag);
               let* index = Indicated.index(editor.editor.state.zipper);
               let+ ci = Id.Map.find_opt(index, editor.statics.info_map);
               ChatLSP.Completion.mk_ctx_prompt(
