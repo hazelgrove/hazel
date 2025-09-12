@@ -107,7 +107,7 @@ let tests = (
         check(
           Alcotest.string,
           "ascribed sum type constructor in pattern",
-          "let []: (+ Jg) = ? in ?",
+          "let []:(+ Jg) = ? in ?",
           serialized,
         );
       },

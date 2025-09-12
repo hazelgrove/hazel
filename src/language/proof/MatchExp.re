@@ -71,7 +71,7 @@ let rec match_exp =
             ctx,
           ),
         )
-      | Some(e) => match_exp(alphas, [], e, exp)
+      | Some(e) => match_exp(alphas, ctx, e, exp)
       }
     };
   | (Var(x), Var(y)) when are_alpha_equiv(alphas, x, y) => Some(ctx)

@@ -7,7 +7,16 @@ let parse_exp = (s: string) => {
   };
 };
 
-let match_check = (~info_map=Language.Statics.Map.empty, ~alphas=[], ~ctx_in=[], exp_r, exp, expected, ()) => {
+let match_check =
+    (
+      ~info_map=Language.Statics.Map.empty,
+      ~alphas=[],
+      ~ctx_in=[],
+      exp_r,
+      exp,
+      expected,
+      (),
+    ) => {
   let exp_r' = parse_exp(exp_r);
   let exp' = parse_exp(exp);
   check(
@@ -20,7 +29,9 @@ let match_check = (~info_map=Language.Statics.Map.empty, ~alphas=[], ~ctx_in=[],
       ),
       Option.equal(
         List.for_all2(((str1, (typ1, opt1)), (str2, (typ2, opt2))) =>
-          str1 == str2 && Language.Typ.fast_equal(typ1, typ2) && Option.equal(Language.Exp.fast_equal, opt1, opt2)
+          str1 == str2
+          && Language.Typ.fast_equal(typ1, typ2)
+          && Option.equal(Language.Exp.fast_equal, opt1, opt2)
         ),
       ),
     ),
@@ -59,7 +70,12 @@ let tests = [
       test_case(
         "Doesn't resolve if different",
         `Quick,
-        match_check(~ctx_in=[("x", (hole_typ, None))], "(x, x)", "(y, z)", None),
+        match_check(
+          ~ctx_in=[("x", (hole_typ, None))],
+          "(x, x)",
+          "(y, z)",
+          None,
+        ),
       ),
       test_case(
         "Does resolve if same",

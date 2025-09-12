@@ -316,11 +316,11 @@ module F = (Stepper: STEPPER) => {
              List.fold_left(
                Environment.extend,
                _,
-               List.map(
-                 (v: Binding.t) => (v.name, Exp.fresh(Var(v.name))),
-                 variables,
-               )
-               @ added_env,
+               added_env
+               @ List.map(
+                   (v: Binding.t) => (v.name, Exp.fresh(Var(v.name))),
+                   variables,
+                 ),
              ),
            );
       };

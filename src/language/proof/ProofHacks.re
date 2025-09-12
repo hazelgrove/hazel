@@ -235,6 +235,7 @@ let dhpat_extend_ctx = (dhpat: DHPat.t, ty: Typ.t, ctx: Ctx.t): option(Ctx.t) =>
 
 let rec get_inductive_hypotheses = (m, t, pat) => {
   switch (pat |> Pat.term_of) {
+  | _ when Typ.fast_equal(t, Typ.temp(Unknown(Internal))) => []
   | Invalid(_) => []
   | EmptyHole => []
   | MultiHole(_) => []
