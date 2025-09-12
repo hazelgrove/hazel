@@ -75,14 +75,16 @@ module Update = {
           |> (
             filter == ""
               ? List.filter((ab: AssumptionBox.Model.t) =>
-                  ProofRule.is_active(
-                    ~info_map,
-                    ~env,
-                    ab.ctx_entry.rule,
-                    selected_exp
-                    |> Option.value(~default=EmptyHole |> Exp.fresh)
-                    |> DHExp.strip_ascriptions,
-                  )
+                  switch (selected_exp) {
+                  | Some(selected_exp) =>
+                    ProofRule.is_active(
+                      ~info_map,
+                      ~env,
+                      ab.ctx_entry.rule,
+                      selected_exp |> DHExp.strip_ascriptions,
+                    )
+                  | None => false
+                  }
                 )
               : (x => x)
           );
@@ -153,18 +155,23 @@ module View = {
                 selected_exp,
                 [],
                 fun
-                | AssumptionBox.EqualityLeft(e) =>
-                  add_axiom_step(
-                    am.ctx_entry.name,
-                    ProofHacks.exp_idx(selected_exp, full_exp),
-                    selected_exp,
-                    Left,
-                    e,
-                  )
+                | AssumptionBox.EqualityLeft(e) => {
+                    add_axiom_step(
+                      am.ctx_entry.name,
+                      try(ProofHacks.exp_idx(selected_exp, full_exp)) {
+                      | _ => 0
+                      },
+                      selected_exp,
+                      Left,
+                      e,
+                    );
+                  }
                 | AssumptionBox.EqualityRight(e) =>
                   add_axiom_step(
                     am.ctx_entry.name,
-                    ProofHacks.exp_idx(selected_exp, full_exp),
+                    try(ProofHacks.exp_idx(selected_exp, full_exp)) {
+                    | _ => 0
+                    },
                     selected_exp,
                     Right,
                     e,
