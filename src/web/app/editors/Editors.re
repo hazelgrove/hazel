@@ -356,6 +356,7 @@ module View = {
         editors: Model.t,
       ) =>
     switch (editors) {
+    // Add in the line numbering for Scratch editor
     | Scratch(m) =>
       ScratchMode.View.view(
         ~signal=
@@ -370,6 +371,7 @@ module View = {
         ~inject=a => Update.Scratch(a) |> inject,
         m,
       )
+    // Add in the line numbering for Documentation editor
     | Documentation(m) =>
       ScratchMode.View.view(
         ~signal=
