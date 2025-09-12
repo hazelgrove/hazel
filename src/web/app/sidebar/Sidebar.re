@@ -175,7 +175,7 @@ let view =
       ~explainThisModel: ExplainThisModel.t,
       ~assistantModel: AssistantModel.t,
       ~editor,
-      info: option(Language.Info.t),
+      info: ExplainThis.info,
     ) => {
   let sub =
     globals.settings.sidebar.show

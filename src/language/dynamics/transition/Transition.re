@@ -170,6 +170,167 @@ module Transition = (EV: EV_MODE) => {
       r;
     };
 
+  /* Note(zhiyao): The purpose of transition for derivation terms is much useless
+     compared to that for hazel expressions. The only thing here is to calculate
+     1) variables reference and
+     2) contexts terms cons and concat */
+
+  let drv_transition = (env, d: t): t => {
+    let rec go_exp = exp => {
+      let (term, rewrap) = Drv.Exp.unwrap(exp);
+      let term: Drv.Exp.term =
+        switch (term) {
+        | Hole(s) => Hole(s)
+        | Var(x) => Var(x)
+        | Quote(x) =>
+          switch (ClosureEnvironment.lookup(env, x)) {
+          | Some(d) =>
+            switch (DHExp.term_of(d)) {
+            | DrvExp(Exp({term, _}), _) => term
+            | _ => Hole(AbbrNotDrvTerm)
+            }
+          | None => Hole(AbbrNotFound)
+          }
+        | Parens(e) => Drv.Exp.term_of(go_exp(e))
+        | Val(e) => Val(go_exp(e))
+        | Eval(e1, e2) => Eval(go_exp(e1), go_exp(e2))
+        | Entail(ctx, p) => Entail(go_exp(ctx), go_exp(p))
+        | Consistent(t1, t2) => Consistent(go_typ(t1), go_typ(t2))
+        | MatchedArrow(t1, t2) => MatchedArrow(go_typ(t1), go_typ(t2))
+        | MatchedProd(t1, t2) => MatchedProd(go_typ(t1), go_typ(t2))
+        | MatchedSum(t1, t2) => MatchedSum(go_typ(t1), go_typ(t2))
+        | Ctx(es) => Ctx(List.map(go_exp, es))
+        | Cons(p, ctx) =>
+          switch (Drv.Exp.term_of(go_exp(ctx))) {
+          | Ctx(es) => Ctx(Drv.Exp.cons_ctx(es, go_exp(p)))
+          | _ => Cons(p, ctx)
+          }
+        | Concat(e1, e2) =>
+          switch (
+            Drv.Exp.term_of(go_exp(e1)),
+            Drv.Exp.term_of(go_exp(e2)),
+          ) {
+          | (Ctx(es1), Ctx(es2)) =>
+            Ctx(List.fold_left(Drv.Exp.cons_ctx, es2, es1))
+          | _ => Concat(go_exp(e1), go_exp(e2))
+          }
+        | Type(t) => Type(go_typ(t))
+        | HasType(e, t) => HasType(go_exp(e), go_typ(t))
+        | Syn(e, t) => Syn(go_exp(e), go_typ(t))
+        | Ana(e, t) => Ana(go_exp(e), go_typ(t))
+        | And(p1, p2) => And(go_exp(p1), go_exp(p2))
+        | Or(p1, p2) => Or(go_exp(p1), go_exp(p2))
+        | Impl(p1, p2) => Impl(go_exp(p1), go_exp(p2))
+        | Truth => Truth
+        | Falsity => Falsity
+        | NumLit(n) => NumLit(n)
+        | Neg(e) => Neg(go_exp(e))
+        | BinOp(op, e1, e2) => BinOp(op, go_exp(e1), go_exp(e2))
+        | True => True
+        | False => False
+        | If(e1, e2, e3) => If(go_exp(e1), go_exp(e2), go_exp(e3))
+        | Let(x, e1, e2) => Let(go_pat(x), go_exp(e1), go_exp(e2))
+        | Fix(x, e) => Fix(go_pat(x), go_exp(e))
+        | Fun(x, e) => Fun(go_pat(x), go_exp(e))
+        | Ap(e1, e2) => Ap(go_exp(e1), go_exp(e2))
+        | Tuple(es) => Tuple(List.map(go_exp, es))
+        | Pair(e1, e2) => Pair(go_exp(e1), go_exp(e2))
+        | Triv => Triv
+        | PrjL(e) => PrjL(go_exp(e))
+        | PrjR(e) => PrjR(go_exp(e))
+        | InjL(e) => InjL(go_exp(e))
+        | InjR(e) => InjR(go_exp(e))
+        | Case(e, x, e1, y, e2) =>
+          Case(go_exp(e), go_pat(x), go_exp(e1), go_pat(y), go_exp(e2))
+        | Roll(e) => Roll(go_exp(e))
+        | Unroll(e) => Unroll(go_exp(e))
+        | ExpHole => ExpHole
+        };
+      term |> rewrap;
+    }
+    and go_typ = typ => {
+      let (term, rewrap) = Drv.Typ.unwrap(typ);
+      let term: Drv.Typ.term =
+        switch (term) {
+        | Hole(s) => Hole(s)
+        | Quote(x) =>
+          switch (ClosureEnvironment.lookup(env, x)) {
+          | Some(d) =>
+            switch (DHExp.term_of(d)) {
+            | DrvExp(Typ({term, _}), _) => term
+            | _ => Hole(AbbrNotDrvTerm)
+            }
+          | None => Hole(AbbrNotFound)
+          }
+        | Num => Num
+        | Bool => Bool
+        | Arrow(t1, t2) => Arrow(go_typ(t1), go_typ(t2))
+        | Prod(t1, t2) => Prod(go_typ(t1), go_typ(t2))
+        | Unit => Unit
+        | Sum(t1, t2) => Sum(go_typ(t1), go_typ(t2))
+        | Var(x) => Var(x)
+        | Rec(x, t) => Rec(x, go_typ(t))
+        | Parens(t) => Drv.Typ.term_of(go_typ(t))
+        | TypHole => TypHole
+        };
+      term |> rewrap;
+    }
+    and go_pat = pat => {
+      let (term, rewrap) = Drv.Pat.unwrap(pat);
+      let term: Drv.Pat.term =
+        switch (term) {
+        | Hole(s) => Hole(s)
+        | Quote(x) =>
+          switch (ClosureEnvironment.lookup(env, x)) {
+          | Some(d) =>
+            switch (DHExp.term_of(d)) {
+            | DrvExp(Pat({term, _}), _) => term
+            | _ => Hole(AbbrNotDrvTerm)
+            }
+          | None => Hole(AbbrNotFound)
+          }
+        | Var(x) => Var(x)
+        | Cast(p, t) => Cast(go_pat(p), go_typ(t))
+        | InjL(p) => InjL(go_pat(p))
+        | InjR(p) => InjR(go_pat(p))
+        | Pair(p1, p2) => Pair(go_pat(p1), go_pat(p2))
+        | Parens(p) => Drv.Pat.term_of(go_pat(p))
+        };
+      term |> rewrap;
+    }
+    and go_tpat = tpat => {
+      let (term, rewrap) = Drv.TPat.unwrap(tpat);
+      let term: Drv.TPat.term =
+        switch (term) {
+        | Hole(s) => Hole(s)
+        | Quote(x) =>
+          switch (ClosureEnvironment.lookup(env, x)) {
+          | Some(d) =>
+            switch (DHExp.term_of(d)) {
+            | DrvExp(TPat({term, _}), _) => term
+            | _ => Hole(AbbrNotDrvTerm)
+            }
+          | None => Hole(AbbrNotFound)
+          }
+        | Var(x) => Var(x)
+        };
+      term |> rewrap;
+    };
+    let (term, rewrap) = IdTagged.unwrap(d);
+    let term: term =
+      switch (term) {
+      | DrvExp(drv, s) =>
+        switch (drv) {
+        | Exp(e) => DrvExp(Exp(go_exp(e)), s)
+        | Typ(t) => DrvExp(Typ(go_typ(t)), s)
+        | Pat(p) => DrvExp(Pat(go_pat(p)), s)
+        | TPat(t) => DrvExp(TPat(go_tpat(t)), s)
+        }
+      | _ => term
+      };
+    term |> rewrap;
+  };
+
   /* Note[Matt]: For IDs, I'm currently using a fresh id
      if anything about the current node changes, if only its
      children change, we use rewrap */
@@ -589,6 +750,19 @@ module Transition = (EV: EV_MODE) => {
     | BuiltinFun(_) =>
       let. _ = otherwise(env, d);
       Constructor;
+    | DrvExp(_) =>
+      let. _ = otherwise(env, d);
+      let d' = drv_transition(env, d);
+      if (DHExp.fast_equal(d, d')) {
+        Constructor;
+      } else {
+        Step({
+          expr: d',
+          state_update,
+          kind: CompleteClosure,
+          is_value: true,
+        });
+      };
     | If(c, d1, d2) =>
       let. _ = otherwise(env, c => If(c, d1, d2) |> rewrap)
       and. c' =

@@ -183,6 +183,8 @@ let rec match_exp =
       List.combine(es1, es2),
     );
   | (DeferredAp(_, _), _) => None
+  // TODO(zhiyao): check this for drv
+  | (DrvExp(_), _) => None
   | (If(e1, e2, e3), If(e4, e5, e6)) =>
     let* ctx = match_exp(alphas, ctx, e1, e4);
     let* ctx = match_exp(alphas, ctx, e2, e5);

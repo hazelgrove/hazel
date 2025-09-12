@@ -264,12 +264,14 @@ let pos_of_idx = (p: p('code), idx: int) =>
     }
   };
 
-let zipper_of_code = code => {
-  switch (Parser.to_zipper(code)) {
+let zipper_of_code = (code, ~root) => {
+  switch (Parser.to_zipper(code, ~root)) {
   | None => failwith("Transition failed.")
   | Some(zipper) => zipper
   };
 };
+
+let zipper_of_code = zipper_of_code(~root=Exp);
 
 let transition: transitionary_spec => spec =
   (
@@ -422,7 +424,7 @@ let update_exercise_title = ({eds, _}: state, new_title: string) => {
 
 let add_buggy_impl = (state: state) => {
   let new_buggy_impl = {
-    impl: Editor.Model.mk(Zipper.init()),
+    impl: Editor.Model.mk(Zipper.init(~root=Exp)),
     hint: "No Hint Available",
   };
   {
@@ -679,6 +681,7 @@ let rec append_exp = (e1: Language.Exp.t, e2: Language.Exp.t): Language.Exp.t =>
   | Undefined
   | Deferral(_)
   | Atom(_)
+  | DrvExp(_)
   | ListLit(_)
   | TupleExtension(_)
   | Constructor(_)
@@ -766,7 +769,10 @@ let rec append_exp = (e1: Language.Exp.t, e2: Language.Exp.t): Language.Exp.t =>
 };
 
 let stitch3 = (ed1: Editor.t, ed2: Editor.t, ed3: Editor.t) =>
-  append_exp(append_exp(term_of(ed1), term_of(ed2)), term_of(ed3));
+  EditorUtil.append_exp(
+    EditorUtil.append_exp(term_of(ed1), term_of(ed2)),
+    term_of(ed3),
+  );
 
 let stitch_term = (eds: p('a)): stitched(TermItem.t) => {
   let instructor =
@@ -776,14 +782,14 @@ let stitch_term = (eds: p('a)): stitched(TermItem.t) => {
       eds.your_impl |> term_of |> wrap_filter(Language.FilterAction.Step);
     let prelude_term =
       eds.prelude |> term_of |> wrap_filter(Language.FilterAction.Eval);
-    append_exp(prelude_term, your_impl_term);
+    EditorUtil.append_exp(prelude_term, your_impl_term);
   };
   let test_validation_term =
     stitch3(eds.prelude, eds.correct_impl, eds.your_tests.tests);
   let user_tests_term =
-    append_exp(user_impl_term, term_of(eds.your_tests.tests));
+    EditorUtil.append_exp(user_impl_term, term_of(eds.your_tests.tests));
   let hidden_tests_term =
-    append_exp(user_impl_term, term_of(eds.hidden_tests.tests));
+    EditorUtil.append_exp(user_impl_term, term_of(eds.hidden_tests.tests));
   {
     test_validation: wrap(test_validation_term, eds.your_tests.tests),
     /* Passing tests term to user_impl so probes in impl reflect tests: */
@@ -980,7 +986,7 @@ let unpersist =
     if (visible_in(pos, ~instructor_mode)) {
       switch (List.assoc_opt(pos, editors)) {
       | Some(persisted_zipper) =>
-        let zipper = PersistentZipper.unpersist(persisted_zipper);
+        let zipper = PersistentZipper.unpersist(persisted_zipper, ~root=Exp);
         Editor.Model.mk(zipper);
       | None => Editor.Model.mk(default)
       };
@@ -994,7 +1000,8 @@ let unpersist =
   let hidden_bugs =
     hidden_bugs
     |> List.map(({impl, hint}) => {
-         let impl = Editor.Model.mk(PersistentZipper.unpersist(impl));
+         let impl =
+           Editor.Model.mk(PersistentZipper.unpersist(impl, ~root=Exp));
          {
            impl,
            hint,

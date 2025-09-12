@@ -99,7 +99,7 @@ let test = (~name, ~acts, ~goal): test_case(_) =>
       testable(Fmt.string, String.equal),
       goal,
       goal,
-      acts |> perform(Zipper.init()) |> printer,
+      acts |> perform(Zipper.init(~root=Exp)) |> printer,
     )
   );
 

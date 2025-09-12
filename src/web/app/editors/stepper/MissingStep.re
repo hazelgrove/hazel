@@ -85,7 +85,10 @@ module Update = {
         | NoneOpen
         | AxiomsOpen(_) =>
           Model.RewritesOpen({
-            editor: CodeEditable.Model.mk(Editor.Model.mk(Zipper.init())),
+            editor:
+              CodeEditable.Model.mk(
+                Editor.Model.mk(Zipper.init(~root=Exp)),
+              ),
             cached_exp: Calc.Pending,
             cached_result: None,
           })

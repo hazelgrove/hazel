@@ -183,6 +183,7 @@ type pat_sub_form_id =
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type form_id =
+  | Derivation
   | EmptyHoleExp
   | MultiHoleExp
   | TrivExp
@@ -296,6 +297,7 @@ type form = {
 // MAYBE don't even need an id at all for the group - just use the most specific (1st) form id in forms
 [@deriving (show({with_path: false}), sexp, yojson)]
 type group_id =
+  | Derivation
   | EmptyHoleExp
   | MultiHoleExp
   | TrivExp

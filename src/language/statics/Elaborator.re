@@ -212,6 +212,7 @@ let rec elaborate = (m: Statics.Map.t, uexp: Exp.t): (DHExp.t, Typ.t) => {
       let probe = Dynamics.Probe.instrument_exp(m, Exp.rep_id(uexp), probe);
       Probe(e', probe) |> rewrap;
     | Deferral(_) => uexp
+    | DrvExp(_) => uexp
     | Atom(c) =>
       let c =
         Operators.replace_literal(c, Typ.is_ana_atom(ana), ctx.use_mode);

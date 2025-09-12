@@ -363,6 +363,7 @@ let rec replace_exp = (replace, replace_coctx, with_exp, with_coctx, in_exp) => 
         | DynamicErrorHole(_, _)
         | Deferral(_)
         | Atom(_)
+        | DrvExp(_, _)
         | ListLit(_)
         | Constructor(_)
         | TypFun(_)

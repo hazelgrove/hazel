@@ -18,7 +18,7 @@ module PlainTests = {
   open IdTagged.FreshGrammar;
 
   let parse_exp = (s: string) => {
-    switch (Haz3lcore.Parser.to_term(s)) {
+    switch (Haz3lcore.Parser.to_term(s, ~root=Exp)) {
     | Some(e) => e
     | None => Alcotest.fail("Failed to parse expression: " ++ s)
     };
@@ -429,6 +429,11 @@ module PlainTests = {
       "Function application with a deferral of a hole",
       `Quick,
       ap_of_deferral_of_hole,
+    ),
+    test_case(
+      "Rules print all",
+      `Quick,
+      RuleVerify.__print_all_specs_and_tests,
     ),
     test_case("Labeled tuple elaboration", `Quick, elaborated_labeled_tuple),
     test_case("Rearranged labeled tuple", `Quick, rearranged_labeled_tuple),

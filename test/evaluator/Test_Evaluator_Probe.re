@@ -167,7 +167,7 @@ let tests = (
         let p = (p, es: list(Grammar.exp_term(unit))) =>
           expected_probe(
             Probe(np(p), {refs: []}),
-            List.map(Grammar.Annotated.empty, es),
+            List.map(Annotated.empty, es),
           );
         let npt = (t): Grammar.typ_t(list(Grammar.exp_t(unit))) => {
           term: t,
@@ -227,7 +227,7 @@ let tests = (
         let p = (p, es: list(Grammar.exp_term(unit))) =>
           expected_probe(
             Probe(np(p), {refs: []}),
-            List.map(Grammar.Annotated.empty, es),
+            List.map(Annotated.empty, es),
           );
         let npt = (t): Grammar.typ_t(list(Grammar.exp_t(unit))) => {
           term: t,
@@ -264,7 +264,7 @@ let tests = (
         let p = (p, es: list(Grammar.exp_term(unit))) =>
           expected_probe_pat(
             Probe(npp(p), {refs: []}),
-            List.map(Grammar.Annotated.empty, es),
+            List.map(Annotated.empty, es),
           );
         let npt = (t): Grammar.typ_t(list(Grammar.exp_t(unit))) => {
           term: t,

@@ -18,6 +18,7 @@ let get_documentation_as_text = () => {
            CellEditor.Model.unpersist(
              ~settings=Language.CoreSettings.off,
              persistent,
+             ~root=Exp,
            );
          let text =
            Haz3lcore.Printer.of_zipper(cell_model.editor.editor.state.zipper);

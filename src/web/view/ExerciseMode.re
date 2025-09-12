@@ -186,7 +186,9 @@ module Update = {
           ...model.cells,
           hidden_bugs:
             model.cells.hidden_bugs
-            @ [CellEditor.Model.mk(Editor.Model.mk(Zipper.init()))],
+            @ [
+              CellEditor.Model.mk(Editor.Model.mk(Zipper.init(~root=Exp))),
+            ],
         },
       })
     | DeleteBuggyImplementation(i) =>

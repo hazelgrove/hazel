@@ -64,6 +64,8 @@ let filter = (f: 'a => bool, o: option('a)): option('a) =>
   | Some(a) => f(a) ? Some(a) : None
   };
 
+let value_exn = (~none, o) => get(() => raise(none), o);
+
 module Syntax = {
   let ( let* ) = Option.bind;
   let (let+) = (o, f) => Option.map(f, o);

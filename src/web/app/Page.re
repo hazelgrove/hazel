@@ -69,6 +69,7 @@ module Update = {
     | Assistant(AssistantUpdate.t)
     | MakeActive(selection)
     | Benchmark(benchmark_action)
+    | Refresh
     | Start
     | Save;
 
@@ -93,6 +94,7 @@ module Update = {
     | Documentation(m) => (List.nth(m.scratchpads, m.current) |> snd).editor
     | Tutorial(m) => List.nth(m.exercises, m.current).cells.user_impl.editor
     | Exercises(m) => List.nth(m.exercises, m.current).cells.user_impl.editor
+    | Derivations(m) => List.nth(m.exercises, m.current).cells.prelude.editor
     };
 
   let update_global =
@@ -186,6 +188,11 @@ module Update = {
           let content = "not supported";
           (filename, content);
         | Exercises(model) =>
+          let current = List.nth(model.exercises, model.current);
+          let filename = current.editors.module_name ++ ".ml";
+          let content = "not supported";
+          (filename, content);
+        | Derivations(model) =>
           let current = List.nth(model.exercises, model.current);
           let filename = current.editors.module_name ++ ".ml";
           let content = "not supported";
@@ -291,6 +298,7 @@ module Update = {
     | Benchmark(Finish) =>
       Benchmark.finish();
       model |> Updated.return_quiet;
+    | Refresh => model |> Updated.return_quiet(~recalculate=true)
     | Start => model |> return // Triggers recalculation at the start
     | Save =>
       print_endline("Saving...");
@@ -307,6 +315,7 @@ module Update = {
     | Assistant(action) => AssistantUpdate.can_undo(action)
     | MakeActive(_)
     | Benchmark(_) => false
+    | Refresh => false
     | Start => false
     | Save => false
     };
@@ -338,6 +347,18 @@ module Update = {
         ~explainThisModel=model.explain_this,
         cursor_info.info,
       );
+    // Note(Zhiyao): derivation highlight override ExplainThis highlights if exists
+    let derivation_info = Editors.Model.get_derivation_info(model.editors);
+    let color_highlights =
+      switch (derivation_info) {
+      | Some(_) =>
+        ExplainThis.get_color_map_deduction(
+          ~globals=model.globals,
+          ~explainThisModel=model.explain_this,
+          derivation_info,
+        )
+      | None => color_highlights
+      };
     let globals = Globals.Update.calculate(color_highlights, model.globals);
     {
       ...model,
@@ -608,6 +629,7 @@ module View = {
         ~inject=a => inject(Editors(a)),
         cursor,
       );
+    let derivation_info = Editors.Model.get_derivation_info(model.editors);
     let sidebar =
       Sidebar.view(
         ~globals,
@@ -619,7 +641,10 @@ module View = {
         ~explainThisModel,
         ~assistantModel,
         ~editor=Update.get_editor(model),
-        cursor.info,
+        ExplainThis.{
+          cursor: cursor.info,
+          deduction: derivation_info,
+        },
       );
 
     let editors_view =
@@ -645,6 +670,7 @@ module View = {
       sidebar,
       bottom_bar,
       ContextInspector.view(~globals, cursor.info),
+      HoverRuleSpec.view(~globals),
     ];
   };
 

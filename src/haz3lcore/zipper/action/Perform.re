@@ -30,7 +30,8 @@ let go =
        )
     |> return(CantIntroduce)
   | Paste(String(clipboard)) =>
-    Parser.to_zipper(~zipper_init=z, clipboard) |> return(CantPaste)
+    Parser.to_zipper(~root=z.root, ~zipper_init=z, clipboard)
+    |> return(CantPaste)
   | Paste(Segment(segment)) => Ok(Zipper.insert_segment(z, segment))
   | Cut =>
     /* System clipboard handling is done in Page.view handlers */
@@ -44,7 +45,7 @@ let go =
        editor, and then deserializes. It is intended as a (tactical)
        nuclear option for weird backpack states */
     Parser.to_zipper(
-      ~zipper_init=Zipper.init(),
+      ~root=z.root,
       Printer.of_zipper(~holes="", ~indent="", z),
     )
     |> return(CantReparse)

@@ -10,12 +10,22 @@ let string_of_pos = (pos: position) => {
 };
 
 let parse = (f, s) => {
+  print_endline("yet to parse");
   let lexbuf = Lexing.from_string(s);
+  print_endline("created lexbuf");
   let result =
     try(f(Lexer.token, lexbuf)) {
-    | Parser.Error =>
-      raise(Failure("Parse error at: " ++ string_of_pos(lexbuf.lex_curr_p)))
+    | Parser.Error as e =>
+      raise(
+        Failure(
+          "Exception "
+          ++ Printexc.to_string(e)
+          ++ " at: "
+          ++ string_of_pos(lexbuf.lex_curr_p),
+        ),
+      )
     };
+  print_endline("parsed");
   result;
 };
 

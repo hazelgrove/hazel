@@ -100,6 +100,7 @@ module Completion = {
       (expected_type ? ["expected_ty: " ++ expected] : [])
       @ (relevant_ctx ? ["relevant_ctx:\n " ++ relevant] : []);
     | InfoTyp(_)
+    | InfoDrv(_)
     | InfoTPat(_)
     | Secondary(_) => []
     };
@@ -233,6 +234,7 @@ module Composition = {
       let relevant = RelevantValues.get(ctx, ana);
       relevant_ctx ? ["relevant_ctx:\n " ++ relevant] : [];
     | InfoTyp(_)
+    | InfoDrv(_)
     | InfoTPat(_)
     | Secondary(_) => []
     };
@@ -367,7 +369,13 @@ module ErrorRound = {
       (sketch_z: Zipper.t, completion: string): Result.t(Zipper.t, string) =>
     //NOTE: This function is pretty basic; reporting approach could be improved
     /* For now we required that the completion be complete in-itself: */
-    switch (Parser.to_zipper(~zipper_init=Zipper.init(), completion)) {
+    switch (
+      Parser.to_zipper(
+        ~root=Exp,
+        ~zipper_init=Zipper.init(~root=Exp),
+        completion,
+      )
+    ) {
     | None => Error("Undocumented parse error, no feedback available")
     | Some(completion_z) =>
       switch (Zipper.local_backpack(completion_z)) {

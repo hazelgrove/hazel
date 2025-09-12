@@ -15,14 +15,14 @@ let persist = (zipper: Zipper.t) => {
   };
 };
 
-let unpersist = (persisted: t) =>
+let unpersist = (persisted: t, ~root) =>
   try(Sexplib.Sexp.of_string(persisted.zipper) |> Zipper.t_of_sexp) {
   | _ =>
     print_endline(
       "Warning: using backup text! Serialization may be for an older version of Hazel.",
     );
-    switch (Parser.to_zipper(persisted.backup_text)) {
-    | None => Zipper.init()
+    switch (Parser.to_zipper(persisted.backup_text, ~root)) {
+    | None => Zipper.init(~root)
     | Some(z) => z
     };
   };

@@ -8,6 +8,7 @@ type all = {
   tutorial: string,
   exercise: string,
   documentation: string,
+  derivation: string,
   log: string,
 };
 
@@ -17,6 +18,7 @@ type all_public = {
   settings: string,
   scratch: string,
   exercise: string,
+  derivation: string,
   tutorial: string,
   log: string,
 };
@@ -30,12 +32,15 @@ let mk_all = (~core_settings, ~instructor_mode, ~log) => {
     TutorialsMode.Store.export(~settings=core_settings, ~instructor_mode);
   let exercise =
     ExercisesMode.Store.export(~settings=core_settings, ~instructor_mode);
+  let derivation =
+    DerivationsMode.Store.export(~settings=core_settings, ~instructor_mode);
   {
     settings,
     explainThisModel,
     scratch,
     documentation,
     exercise,
+    derivation,
     tutorial,
     log,
   };
@@ -55,6 +60,7 @@ let import_all =
         settings: all_public.settings,
         scratch: all_public.scratch,
         documentation: "",
+        derivation: all_public.derivation,
         exercise: all_public.exercise,
         tutorial: all_public.tutorial,
         log: all_public.log,

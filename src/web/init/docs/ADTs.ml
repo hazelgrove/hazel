@@ -2,7 +2,7 @@ let out : string * Haz3lcore.PersistentZipper.t =
   ( "ADTs",
     {
       zipper =
-        "((selection((focus Left)(content())(mode \
+        "((root Exp)(selection((focus Left)(content())(mode \
          Normal)))(relatives((siblings(()((Secondary((id \
          80377b4b-960e-435a-a34e-44cc9a51274e)(content(Comment\"# Lambda \
          Calculus via evaluation by substitution #\"))))(Secondary((id \

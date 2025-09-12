@@ -17,7 +17,10 @@ let exp_to_segment =
   ExpToSegment.exp_to_segment(~settings=exp_to_segment_settings);
 
 let equivalent_to_make_term = (serialized: string) => {
-  switch (Parser.to_term(serialized), Parser.to_segment(serialized)) {
+  switch (
+    Parser.to_term(serialized, ~root=Exp),
+    Parser.to_segment(serialized, ~root=Exp),
+  ) {
   | (Some(exp), Some(seg)) =>
     check(
       string,
@@ -134,7 +137,7 @@ let tests = (
         check(
           option(segment),
           "2-ary",
-          Parser.to_segment("(1, 2)"),
+          Parser.to_segment("(1, 2)", ~root=Exp),
           Some(exp_to_segment(tuple([int(1), int(2)]))),
         );
       },
@@ -148,7 +151,7 @@ let tests = (
         check(
           option(segment),
           "Singleton Labeled",
-          Parser.to_segment("(x=1)"),
+          Parser.to_segment("(x=1)", ~root=Exp),
           Some(exp_to_segment(tuple([tup_label(label("x"), int(1))]))),
         );
         equivalent_to_make_term({|(x=1, y=2)|});

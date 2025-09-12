@@ -5,7 +5,8 @@
   flex-direction: column;
   overflow-y: auto;
   gap: 1em;
-  overflow-x: hidden; /* Prevent outer scroll */
+  overflow-x: hidden;
+  /* Prevent outer scroll */
 }
 
 #explain-this #examples {
@@ -20,7 +21,7 @@
   gap: 0.75em;
 }
 
-#explain-this .example + .example {
+#explain-this .example+.example {
   border-top: 1px dotted var(--BR2);
   padding-top: 0.75em;
 }
@@ -67,6 +68,7 @@
   display: flex;
   justify-content: flex-start;
   gap: 0.75em;
+  flex-direction: column;
   position: absolute;
   right: 1em;
   top: 1em;
@@ -128,6 +130,7 @@
   border-right: 6px solid transparent;
   border-top: 6px solid var(--explain-this-expander);
 }
+
 #explain-this div.expandable-target:hover .arrow,
 #explain-this .arrow:hover {
   border-top: 6px solid black;
@@ -185,4 +188,28 @@
 
 .highlight-code-c {
   fill: var(--highlight-c);
+}
+
+.highlight-d {
+  background-color: var(--highlight-d);
+}
+
+.highlight-code-d {
+  fill: var(--highlight-d);
+}
+
+.highlight-e {
+  background-color: var(--highlight-e);
+}
+
+.highlight-code-e {
+  fill: var(--highlight-e);
+}
+
+.highlight-f {
+  background-color: var(--highlight-f);
+}
+
+.highlight-code-f {
+  fill: var(--highlight-f);
 }

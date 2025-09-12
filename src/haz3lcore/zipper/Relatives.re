@@ -80,8 +80,8 @@ let delete_parent = ({siblings, ancestors}: t): t => {
   };
 };
 
-let remold = ({siblings, ancestors}: t): t => {
-  let s = Ancestors.sort(ancestors);
+let remold = ({siblings, ancestors}: t, root: Sort.t): t => {
+  let s = Ancestors.sort(root, ancestors);
   let siblings = Siblings.remold(siblings, s);
   {
     ancestors,

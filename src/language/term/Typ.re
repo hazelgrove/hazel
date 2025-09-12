@@ -4,6 +4,7 @@ open OptUtil.Syntax;
 [@deriving (show({with_path: false}), sexp, yojson, enumerate, eq)]
 type cls =
   | Atom(Atom.cls)
+  | DrvTyp
   | Invalid
   | EmptyHole
   | MultiHole
@@ -82,6 +83,7 @@ let cls_of_term: Grammar.typ_term('a) => cls =
   | Unknown(SynSwitch) => SynSwitch
   | Unknown(Internal) => Internal
   | Atom(c) => Atom(c)
+  | DrvTyp(_) => DrvTyp
   | List(_) => List
   | Arrow(_) => Arrow
   | Var(_) => Var
@@ -102,6 +104,7 @@ let show_cls: cls => string =
   | SynSwitch => "Synthetic type"
   | Internal => "Internal type"
   | Atom(_) => "Base type"
+  | DrvTyp => "Derivation term"
   | Var => "Type variable"
   | Constructor => "Sum constructor"
   | List => "List type"
@@ -122,6 +125,7 @@ let rec is_arrow = (typ: t) => {
   | Arrow(_) => true
   | Unknown(_)
   | Atom(_)
+  | DrvTyp(_)
   | List(_)
   | Label(_)
   | Prod(_)
@@ -136,6 +140,7 @@ let rec is_arrow = (typ: t) => {
 let is_atom = (ty: t): bool =>
   switch (ty.term) {
   | Atom(_) => true
+  | DrvTyp(_)
   | ProofOf(_)
   | Parens(_)
   | TupLabel(_)
@@ -159,6 +164,7 @@ let rec has_fun = (typ: t) =>
   | ProofOf(_) => true
   | Unknown(_)
   | Atom(_)
+  | DrvTyp(_)
   | Label(_)
   | Var(_) => false
   | List(t) => has_fun(t)
@@ -181,6 +187,7 @@ let rec is_poly = (typ: t) => {
   | ProofOf(_)
   | Unknown(_)
   | Atom(_)
+  | DrvTyp(_)
   | Arrow(_)
   | List(_)
   | Label(_)
@@ -245,6 +252,7 @@ let rec free_vars = (~bound=[], ty: t): list(Var.t) =>
   switch (term_of(ty)) {
   | Unknown(_)
   | Atom(_)
+  | DrvTyp(_)
   | Label(_) => []
   | Var(v) => List.mem(v, bound) ? [] : [v]
   | Parens(ty) => free_vars(~bound, ty)
@@ -262,6 +270,7 @@ let rec free_vars = (~bound=[], ty: t): list(Var.t) =>
 let rec vars = (ty: t): list(Var.t) =>
   switch (ty.term) {
   | Atom(_)
+  | DrvTyp(_) => []
   | Unknown(_) => []
   | Var(x) => [x]
   | Arrow(ty1, ty2) => vars(ty1) @ vars(ty2)
@@ -316,6 +325,7 @@ let fresh_var = (var_name: string) => {
 let rec num_nodes = (ty: t): int => {
   switch (ty.term) {
   | Atom(_)
+  | DrvTyp(_)
   | Unknown(_) => 1
   | Var(_) => 1
   | Arrow(t1, t2) => 1 + num_nodes(t1) + num_nodes(t2)
@@ -348,6 +358,7 @@ let rec count_unknowns = (ty: t): int =>
   switch (ty.term) {
   | Unknown(_) => 1
   | Atom(_)
+  | DrvTyp(_)
   | Var(_) => 0
   | Arrow(t1, t2) => count_unknowns(t1) + count_unknowns(t2)
   | Prod(tys) =>
@@ -375,6 +386,7 @@ let rec count_unknowns = (ty: t): int =>
 let rec contains_sum_or_var = (ty: t): bool =>
   switch (ty.term) {
   | Atom(_)
+  | DrvTyp(_)
   | Unknown(_) => false
   | Var(_)
   | Sum(_) => true
@@ -459,6 +471,8 @@ let rec join = (~resolve=false, ctx: Ctx.t, ty1: t, ty2: t): option(t) => {
   | (Poly(_), _) => None
   | (Atom(c1), Atom(c2)) when c1 == c2 => Some(ty1)
   | (Atom(_), _) => None
+  | (DrvTyp(d1), DrvTyp(d2)) when d1 == d2 => Some(ty1)
+  | (DrvTyp(_), _) => None
   | (Label(_), Label("")) => Some(ty1)
   | (Label(""), Label(_)) => Some(ty2)
   | (Label(name1), Label(name2))
@@ -508,6 +522,7 @@ let rec match_synswitch = (t1: t, t2: t) => {
   // These cases can't have a synswitch inside
   | (Unknown(_), _)
   | (Atom(_), _)
+  | (DrvTyp(_), _)
   | (Label(_), _)
   | (Var(_), _)
   | (Rec(_), _)
@@ -589,6 +604,7 @@ let rec normalize = (~rec_counter=0, ctx: Ctx.t, ty: t): t => {
     }
   | Unknown(_)
   | Atom(_)
+  | DrvTyp(_)
   | Label(_) => ty
   | Parens(t) => normalize(ctx, t)
   | List(t) => List(normalize(ctx, t)) |> rewrap
@@ -760,6 +776,7 @@ let rec is_syn = (ty: t): bool =>
   | Unknown(SynSwitch) => true
   | Unknown(_)
   | Atom(_)
+  | DrvTyp(_)
   | Label(_)
   | Var(_)
   | Rec(_)
@@ -776,6 +793,7 @@ let rec is_ana_atom = (ty: t) =>
   | TupLabel(_, x)
   | Parens(x) => is_ana_atom(x)
   | Atom(a) => Some(a)
+  | DrvTyp(_)
   | Unknown(_)
   | Label(_)
   | Var(_)
@@ -798,6 +816,7 @@ let rec is_syn_plus = (ty: t): bool =>
   | ProofOf(_)
   | Unknown(_)
   | Atom(_)
+  | DrvTyp(_)
   | Label(_)
   | Var(_)
   | Rec(_)
@@ -813,6 +832,7 @@ let rec needs_parens = (ty: t): bool =>
   | Unknown(_)
   | Atom(_)
   | Label(_)
+  | DrvTyp(_)
   | TupLabel(_, _)
   | List(_) /* is already wrapped in [] */
   | ProofOf(_)
@@ -841,6 +861,7 @@ let rec pretty_print = (ty: t): string =>
   | Atom(Float) => "Float"
   | Atom(Bool) => "Bool"
   | Atom(String) => "String"
+  | DrvTyp(d) => DrvSort.to_string(d)
   | Atom(Nat) => "Nat"
   | Atom(SInt) => "SInt"
   | Var(tvar) => tvar

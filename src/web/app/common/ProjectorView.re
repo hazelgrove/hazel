@@ -186,6 +186,7 @@ let simple_code = (~background=false, font_metrics, _sort, segment): Node.t => {
       ~shape_map,
       ~font_metrics,
       ~term_data=Id.Map.empty,
+      ~info_map=Language.Statics.Map.empty,
       ~buffer_ids=[],
       segment,
     );

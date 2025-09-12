@@ -115,6 +115,7 @@ let ty_subst = (s: Typ.t, tpat: TPat.t, exp: t): t => {
           | Constructor(_)
           | Var(_)
           | Atom(_)
+          | DrvExp(_)
           | MultiHole(_)
           | Deferral(_)
           | TyAlias(_)
@@ -186,6 +187,8 @@ let rec ty_comparable = (d1, d2) => {
     | (Float(_), _) => false
     }
   | (Atom(_), _) => false
+  | (DrvExp(_, t1), DrvExp(_, t2)) => t1 == t2
+  | (DrvExp(_, _), _) => false
   | (Label(l1), Label(l2)) => l1 == l2
   | (Label(_), _) => false
   | (TupLabel(l1, d1), TupLabel(l2, d2)) =>
@@ -281,6 +284,9 @@ let rec poly_equal = (d1, d2): bool => {
     | (Float(_), _) => false
     }
   | (Atom(_), _) => false
+  // TODO(zhiyao): check drv equality
+  | (DrvExp(d1, _), DrvExp(d2, _)) => d1 == d2
+  | (DrvExp(_, _), _) => false
   | (Label(l1), Label(l2)) => l1 == l2
   | (Label(_), _) => false
   | (TupLabel(l1, d1), TupLabel(l2, d2)) =>

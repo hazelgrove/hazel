@@ -302,6 +302,7 @@ module Exp = {
     | Deferral
     | Undefined
     | Atom(Atom.cls)
+    | DrvExp
     | ListLit
     | Constructor
     | Fun
@@ -370,6 +371,7 @@ module Exp = {
     | Deferral(_) => Deferral
     | Undefined => Undefined
     | Atom(c) => Atom(Atom.cls_of_t(c))
+    | DrvExp(_) => DrvExp
     | ListLit(_) => ListLit
     | Constructor(_) => Constructor
     | Fun(_) => Fun
@@ -425,6 +427,7 @@ module Exp = {
     | Atom(String) => "String literal"
     | Atom(Nat) => "Natural number literal"
     | Atom(SInt) => "System integer literal"
+    | DrvExp => "Drivation expression"
     | ListLit => "List literal"
     | Constructor => "Constructor"
     | Fun => "Function literal"
@@ -516,6 +519,7 @@ module Exp = {
     | Deferral(_)
     | Undefined
     | Atom(_)
+    | DrvExp(_)
     | Label(_)
     | ListLit(_)
     | Tuple(_)
@@ -580,6 +584,7 @@ module Exp = {
       | Deferral(_)
       | Undefined
       | Atom(_)
+      | DrvExp(_)
       | Label(_)
       | ListLit(_)
       | TupleExtension(_)
@@ -647,6 +652,7 @@ module Exp = {
       | Deferral(_)
       | Undefined
       | Atom(_)
+      | DrvExp(_)
       | Label(_)
       | ListLit(_)
       | TupleExtension(_)
@@ -828,6 +834,7 @@ module Exp = {
           | DynamicErrorHole(_)
           | Deferral(_)
           | Atom(_)
+          | DrvExp(_)
           | ListLit(_)
           | Constructor(_)
           | TypFun(_)
@@ -931,6 +938,23 @@ module Any = {
     fun
     | Typ(t) => Some(t)
     | _ => None;
+  let is_drv_exp: t => option(DrvTermBase.Exp.t) =
+    fun
+    | Drv(Exp(e)) => Some(e)
+    | _ => None;
+
+  let drv_hole = (tms: list(TermBase.Any.t)): DrvTermBase.type_hole =>
+    tms
+    |> List.filter_map(
+         fun
+         | Grammar.Drv(exp) => Some(exp)
+         | _ => None,
+       )
+    |> (
+      fun
+      | [] => DrvGrammar.EmptyHole
+      | tms => DrvGrammar.MultiHole(tms)
+    );
 
   let rec ids: TermBase.any_t => list(Id.t) =
     fun
@@ -939,6 +963,7 @@ module Any = {
     | Typ(tm) => IdTagged.ids(tm)
     | TPat(tm) => IdTagged.ids(tm)
     | Rul(tm) => Rul.ids(~any_ids=ids, tm)
+    | Drv(tm) => Drv.Any.ids(tm)
     | Any () => [];
 
   // Terms may consist of multiple tiles, eg the commas in an n-tuple,
@@ -959,5 +984,6 @@ module Any = {
     | Typ(tm) => Typ.rep_id(tm)
     | TPat(tm) => TPat.rep_id(tm)
     | Rul(tm) => Rul.rep_id(~any_ids=ids, tm)
+    | Drv(tm) => Drv.Any.rep_id(tm)
     | Any () => raise(Invalid_argument("Term.rep_id"));
 };

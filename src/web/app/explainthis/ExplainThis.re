@@ -371,7 +371,7 @@ let example_view =
                   ~locked=true,
                   {
                     term
-                    |> Zipper.unzip
+                    |> Zipper.unzip(~root=Exp)
                     |> Editor.Model.mk
                     |> CellEditor.Model.mk
                     |> CellEditor.Update.calculate(
@@ -434,6 +434,190 @@ type message_mode =
     )
   | Colorings;
 
+type info_deduction = option(DrvGrading.VerifiedTree.info);
+
+let get_doc_deduction =
+    (
+      ~globals: Globals.t,
+      ~docs: ExplainThisModel.t,
+      info_deduction: info_deduction,
+      mode: message_mode,
+    )
+    : (list(Node.t), (list(Node.t), ColorSteps.t), list(Node.t)) => {
+  let get_message =
+      (
+        ~format: option(string => string)=None,
+        ~explanation: option(string)=?,
+        group: ExplainThisForm.group,
+      )
+      // Examples can be leaved blank.
+      : (list(Node.t), (list(Node.t), ColorSteps.t), list(Node.t)) => {
+    let (doc, _) = ExplainThisModel.get_form_and_options(group, docs);
+
+    // https://stackoverflow.com/questions/31998408/ocaml-converting-strings-to-a-unit-string-format
+    let explanation_msg =
+      switch (explanation, format) {
+      | (Some(msg), _) => msg
+      | (_, Some(f)) => f(doc.explanation)
+      | (_, None) => doc.explanation
+      };
+    switch (mode) {
+    | MessageContent(inject, globals) =>
+      let (explanation_title, (explanation, color_map)) =
+        if (globals.settings.core.dynamics) {
+          (
+            DrvExplainThis.mk_explanation_title(),
+            mk_explanation(
+              ~globals,
+              ~inject,
+              group.id,
+              doc.id,
+              explanation_msg,
+              docs,
+            ),
+          );
+        } else {
+          (none, (none, ColorSteps.empty));
+        };
+      let rule_example_view =
+        DrvExplainThis.rule_example_view(
+          ~info=info_deduction,
+          ~color_map,
+          ~globals,
+        );
+      (
+        [rule_example_view],
+        ([explanation_title, explanation], color_map),
+        [],
+      );
+    | Colorings =>
+      let (_, color_map) =
+        mk_translation(~globals, ~inject=_ => (), explanation_msg);
+      ([], ([], color_map), []);
+    };
+  };
+
+  let fake_get_message = msg =>
+    get_message(~format=Some(_ => msg), DrvExplainThis.premise_mismatch);
+
+  switch (info_deduction) {
+  | None => fake_get_message("Deduction Not Available")
+  | Some({res: Correct, _}) => fake_get_message("✅ Correct")
+  | Some({res: Pending(p), _}) =>
+    fake_get_message(DrvGrading.ExternalError.show(p))
+  | Some({res: PartialCorrect(specced), _}) =>
+    fake_get_message(
+      if (globals.settings.explainThis.highlight == All) {
+        Printf.sprintf(
+          "❓ Correct until stop at a hole %s)",
+          RuleVerify.show_linked(specced),
+        );
+      } else {
+        "❓ Correct until stop at a hole";
+      },
+    )
+  | Some({res: Incorrect(failure), _}) =>
+    fake_get_message(
+      (
+        switch (failure) {
+        | Mismatch(expected, actual) =>
+          Printf.sprintf(
+            "Expected %d premises, but found %d",
+            expected,
+            actual,
+          )
+        | FailMatch((spec, _) as specced) =>
+          Printf.sprintf(
+            "Could not match the term %s against expected form %s",
+            RuleVerify.show_linked(specced),
+            spec |> Drv.Any.cls_of |> Drv.Any.show_cls,
+          )
+        | NotEqual(specced1, specced2) =>
+          Printf.sprintf(
+            "Matched terms %s and %s that should be equal were different",
+            RuleVerify.show_linked(specced1),
+            RuleVerify.show_linked(specced2),
+          )
+        | FailUnbox(specced, cls) =>
+          Printf.sprintf(
+            "Could not extract a %s from %s",
+            cls |> Drv.Any.show_cls,
+            RuleVerify.show_linked(specced),
+          )
+        | FailTest(map, test) =>
+          Printf.sprintf(
+            "Matched terms failed the test (hidden premise): %s",
+            test
+            |> ExpToSegment.drv_formula_to_pretty(_, DrvSort.Jdmt)
+            |> List.map(
+                 Base.map_piece(~f_piece=(cont, piece) => {
+                   switch (piece) {
+                   | Tile(
+                       {
+                         children: [],
+                         mold:
+                           {
+                             nibs: ({shape: Convex, _}, {shape: Convex, _}),
+                             _,
+                           },
+                         _,
+                       } as t,
+                     ) =>
+                     let label = t.label |> List.hd;
+                     let (_, syntax) = RuleVerify.Map.find(label, map);
+                     Tile({
+                       ...t,
+                       label: [
+                         Printf.sprintf(
+                           "[*%s*](%s)",
+                           label,
+                           syntax |> Drv.Any.rep_id |> Id.to_string,
+                         ),
+                       ],
+                     });
+                   | _ => cont(piece)
+                   }
+                 }),
+               )
+            |> Segment.to_string(
+                 ~projector_to_segment=Triggers.projector_to_invoke,
+               ),
+          )
+        }
+      )
+      |> Printf.sprintf("❌ %s"),
+    )
+  };
+};
+
+let get_color_map_deduction =
+    (
+      ~globals: Globals.t,
+      ~explainThisModel: ExplainThisModel.t,
+      info_deduction: info_deduction,
+    ) =>
+  switch (globals.settings.explainThis.highlight) {
+  | All when globals.settings.explainThis.show =>
+    let (_, (_, (color_map, _)), _) =
+      get_doc_deduction(
+        ~globals,
+        ~docs=explainThisModel,
+        info_deduction,
+        Colorings,
+      );
+    Some(color_map);
+  | One(id) when globals.settings.explainThis.show =>
+    let (_, (_, (color_map, _)), _) =
+      get_doc_deduction(
+        ~globals,
+        ~docs=explainThisModel,
+        info_deduction,
+        Colorings,
+      );
+    Some(Id.Map.filter((id', _) => id == id', color_map));
+  | _ => None
+  };
+
 let get_doc =
     (
       ~globals: Globals.t,
@@ -474,6 +658,11 @@ let get_doc =
           explanation_msg,
           docs,
         );
+      let root =
+        switch (info) {
+        | None => Sort.Any
+        | Some(ci) => Info.sort_of(ci)
+        };
       let highlights =
         colorings
         |> List.map(((syntactic_form_id: Id.t, code_id: Id.t)) => {
@@ -483,7 +672,8 @@ let get_doc =
         |> List.to_seq
         |> Id.Map.of_seq
         |> Option.some;
-      let editor = Editor.Model.mk(doc.syntactic_form |> Zipper.unzip);
+      let editor =
+        Editor.Model.mk(doc.syntactic_form |> Zipper.unzip(~root));
       let expander_deco =
         expander_deco(
           ~globals,
@@ -540,6 +730,15 @@ let get_doc =
             (term)
             : (list(Node.t), (list(Node.t), ColorSteps.t), list(Node.t)) =>
       switch ((term: Exp.term)) {
+      | DrvExp(_) => (
+          [],
+          mk_translation(
+            ~globals,
+            ~inject=_ => (),
+            "A converting expression from a derivation term. There is a total of 5 valid converting expressions:\n1) `of_jdmt`\n2) `of_ctx`\n3) `of_prop`\n4) `of_alfa_exp`\n5) `of_alfa_typ`",
+          ),
+          [],
+        )
       | Invalid(_) => simple("Not a valid expression")
       | DynamicErrorHole(_)
       | Closure(_) => simple("Internal expression")
@@ -2676,6 +2875,8 @@ let get_doc =
     | Sum(_) => get_message(SumTyp.labelled_sum_typs)
     | Unknown(Hole(Invalid(_))) => simple("Not a type or type operator")
     | Parens(_) => default // Shouldn't be hit?
+    // Note(zhiyao): Derivation term expression is not allowed to be explicitly written
+    | DrvTyp(_) => simple("Derivations Types")
     }
   | Some(InfoTPat(info)) =>
     switch (info.term.term) {
@@ -2691,6 +2892,27 @@ let get_doc =
         VarTPat.var_typ_pats(v),
       )
     }
+  | Some(InfoDrv({term, _})) =>
+    let (syntax, msg) =
+      switch (term) {
+      | Exp(exp) => DrvDoc.exp_form(exp)
+      | Typ(typ) => DrvDoc.typ_form(typ)
+      | Pat(pat) => DrvDoc.pat_form(pat)
+      | TPat(tpat) => DrvDoc.tpat_form(tpat)
+      };
+    (
+      [syntax |> CodeViewable.view_segment(~globals)],
+      (
+        [
+          div(
+            ~attrs=[clss(["explanation-contents"])],
+            msg |> mk_translation(~globals, ~inject=_ => ()) |> fst,
+          ),
+        ],
+        (Id.Map.empty, 0),
+      ),
+      [],
+    );
   | Some(Secondary(s)) =>
     switch (s.cls) {
     | Secondary(Whitespace) => simple("A semantic void, pervading but inert")
@@ -2722,20 +2944,32 @@ let get_color_map =
   | _ => None
   };
 
+type info = {
+  cursor: option(Statics.Info.t),
+  deduction: info_deduction,
+};
+
 let view =
     (
       ~globals: Globals.t,
       ~inject,
       ~explainThisModel: ExplainThisModel.t,
-      info: option(Info.t),
+      info: info,
     ) => {
   // This gets the info from the infomap before singleton autolabelling
-  let info = Option.map(Info.pre_labeled_info, info);
+  let info_cursor = Option.map(Info.pre_labeled_info, info.cursor);
   let (syn_form, (explanation, _), example) =
     get_doc(
       ~globals,
       ~docs=explainThisModel,
-      info,
+      info_cursor,
+      MessageContent(inject, globals),
+    );
+  let (syn_form_Drv, (explanation_Drv, _), _) =
+    get_doc_deduction(
+      ~globals,
+      ~docs=explainThisModel,
+      info.deduction,
       MessageContent(inject, globals),
     );
   div(
@@ -2754,11 +2988,28 @@ let view =
         ],
       ),
     ]
+    @ (
+      switch (info.deduction) {
+      | Some({rule, _}) => [
+          section(
+            ~section_clss="syntactic-form",
+            ~title=
+              switch (rule) {
+              | Some({rule, _}) => Rule.show(rule)
+              | None => "Unknown Rule"
+              },
+            syn_form_Drv @ explanation_Drv,
+          ),
+          div(~attrs=[clss(["hline"])], []),
+        ]
+      | None => []
+      }
+    )
     @ [
       section(
         ~section_clss="syntactic-form",
         ~title=
-          switch (info) {
+          switch (info_cursor) {
           | None => "Whitespace or Comment"
           | Some(info) => Info.cls_of(info) |> Cls.show
           },

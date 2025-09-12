@@ -11,14 +11,14 @@ module IdTag = {
 };
 
 [@deriving (show({with_path: false}), sexp, yojson)]
-type t('a) = Grammar.Annotated.t('a, IdTag.t);
+type t('a) = Annotated.t('a, IdTag.t);
 
 // To be used if you want to remove the id from the debug output
 // let pp: ((Format.formatter, 'a) => unit, Format.formatter, t('a)) => unit =
 //   (fmt_a, formatter, ta) => {
 //     fmt_a(formatter, ta.term);
 //   };
-let fresh = (term: 'a): Grammar.Annotated.t('a, IdTag.t) => {
+let fresh = (term: 'a): Annotated.t('a, IdTag.t) => {
   {
     term,
     annotation: IdTag.fresh(),
@@ -33,7 +33,7 @@ let fresh_deterministic = (prev_id, term): t('a) => {
   };
 };
 
-let term_of = (x: Grammar.Annotated.t('a, 'b)) => x.term;
+let term_of = (x: Annotated.t('a, 'b)) => x.term;
 let unwrap = (x: t('a)) => (
   x.term,
   term' => {
@@ -41,7 +41,7 @@ let unwrap = (x: t('a)) => (
     term: term',
   },
 );
-let rep_id = ({annotation: {ids, _}, _}: Grammar.Annotated.t('a, IdTag.t)) =>
+let rep_id = ({annotation: {ids, _}, _}: Annotated.t('a, IdTag.t)) =>
   List.hd(ids);
 
 let fast_copy = (id, {term, _}: t('a)): t('a) => {

@@ -143,6 +143,7 @@ let tpat_error: Info.error_tpat => string =
 
 let string_of: Info.error => string =
   fun
+  | Drv(_) => "TODO(zhiyao): drv error"
   | Exp(error) => exp_error(error)
   | Pat(error) => pat_error(error)
   | Typ(error) => typ_error(error)
@@ -153,6 +154,7 @@ let format_error = (term, error) =>
 
 let term_string_of: Info.t => string =
   fun
+  | InfoDrv({term, _}) => Print.term(Drv(term))
   | InfoExp({term, _}) => Print.term(Exp(term))
   | InfoPat({term, _}) => Print.term(Pat(term))
   | InfoTyp({term, _}) => Print.term(Typ(term))

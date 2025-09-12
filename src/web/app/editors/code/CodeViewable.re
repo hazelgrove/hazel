@@ -12,6 +12,7 @@ let view =
       ~buffer_ids,
       ~segment,
       ~shape_map,
+      ~info_map,
     )
     : Node.t => {
   let code =
@@ -21,6 +22,7 @@ let view =
       ~shape_map,
       ~font_metrics=globals.font_metrics,
       ~term_data,
+      ~info_map,
       ~buffer_ids,
       segment,
     );
@@ -35,6 +37,7 @@ let view_segment = (~globals: Globals.t, segment: Segment.t) => {
     ~measured=Measured.of_segment(segment, shape_map),
     ~term_data,
     ~buffer_ids=[],
+    ~info_map=Language.Statics.Map.empty,
     ~segment,
     ~shape_map,
   );

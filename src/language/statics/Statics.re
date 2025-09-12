@@ -66,6 +66,10 @@ let rec any_to_info_map =
       CoCtx.empty,
       utyp_to_info_map(~ctx, ~ancestors, ty, m) |> snd,
     )
+  | Drv(drv) => (
+      CoCtx.empty,
+      m |> drv_to_info_map(drv, ~ancestors, ~ctx, ~sort=Jdmt),
+    )
   | Rul(r) =>
     switch (r.term) {
     | Rules(scrut, rules) =>
@@ -101,6 +105,127 @@ and multi = (~ctx, ~ancestors, m, tms): (list(CoCtx.t), Map.t) =>
     ([], m),
     tms,
   )
+and drv_to_info_map =
+    (drv: Drv.Any.t, m: Map.t, ~ctx, ~ancestors, ~sort: DrvSort.t): Map.t => {
+  let rec go = (drv: Drv.Any.t, m, ~sort: DrvSort.t) => {
+    let add = info => add_info(Drv.Any.ids(drv), InfoDrv(info));
+    let info = DrvInfo.derived(drv, ~ancestors, ~sort);
+    let add_quote = (x, m) =>
+      switch (Self.of_exp_var(ctx, x)) {
+      | Common(Just({term: DrvTyp(s), _})) when sort == s => m |> add(info)
+      | Common(Just({term: Unknown(_), _})) => m |> add(info)
+      | Common(Just(typ)) =>
+        m
+        |> add({
+             ...info,
+             status: InHole(VarNoJoin(sort, typ)),
+           })
+      | _ =>
+        m
+        |> add({
+             ...info,
+             status: InHole(FreeVar),
+           })
+      };
+    let add = add(info);
+    switch (drv) {
+    | Exp(exp) =>
+      switch (exp.term) {
+      | Hole(_) => m |> add
+      | Var(_) => m |> add
+      | Quote(x) => m |> add_quote(x)
+      | Parens(e) => m |> go(Exp(e), ~sort) |> add
+      | Val(e) => m |> go_exp(e) |> add
+      | Eval(e1, e2) => m |> go_exp(e1) |> go_exp(e2) |> add
+      | Entail(ctx, p) => m |> go_ctx(ctx) |> go_prop(p) |> add
+      | Consistent(t1, t2) => m |> go_typ(t1) |> go_typ(t2) |> add
+      | MatchedArrow(t1, t2)
+      | MatchedProd(t1, t2)
+      | MatchedSum(t1, t2) => m |> go_typ(t1) |> go_typ(t2) |> add
+      | Ctx(es) => List.fold_left((m, e) => m |> go_prop(e), m, es) |> add
+      | Cons(e1, e2) => m |> go_prop(e1) |> go_ctx(e2) |> add
+      | Concat(e1, e2) => m |> go_ctx(e1) |> go_ctx(e2) |> add
+      | And(p1, p2)
+      | Or(p1, p2)
+      | Impl(p1, p2) => m |> go_prop(p1) |> go_prop(p2) |> add
+      | Truth
+      | Falsity => m |> add
+      | Type(t) => m |> go_typ(t) |> add
+      | HasType(e, t)
+      | Syn(e, t)
+      | Ana(e, t) => m |> go_exp(e) |> go_typ(t) |> add
+      | NumLit(_) => m |> add
+      | Neg(e) => m |> go_exp(e) |> add
+      | BinOp(_, e1, e2) => m |> go_exp(e1) |> go_exp(e2) |> add
+      | True
+      | False => m |> add
+      | If(e1, e2, e3) =>
+        m |> go_exp(e1) |> go_exp(e2) |> go_exp(e3) |> add
+      | Let(p, e1, e2) => m |> go_pat(p) |> go_exp(e1) |> go_exp(e2) |> add
+      | Fix(p, e)
+      | Fun(p, e) => m |> go_pat(p) |> go_exp(e) |> add
+      | Ap(e1, e2) => m |> go_exp(e1) |> go_exp(e2) |> add
+      | Tuple(es) => List.fold_left((m, e) => m |> go_exp(e), m, es) |> add
+      | Pair(e1, e2) => m |> go_exp(e1) |> go_exp(e2) |> add
+      | Triv => m |> add
+      | PrjL(e)
+      | PrjR(e) => m |> go_exp(e) |> add
+      | InjL(e)
+      | InjR(e) => m |> go_exp(e) |> add
+      | Roll(e) => m |> go_exp(e) |> add
+      | Unroll(e) => m |> go_exp(e) |> add
+      | ExpHole => m |> add
+      | Case(e, x, e1, y, e2) =>
+        m
+        |> go_exp(e)
+        |> go_pat(x)
+        |> go_exp(e1)
+        |> go_pat(y)
+        |> go_exp(e2)
+        |> add
+      }
+    | Pat(pat) =>
+      switch (pat.term) {
+      | Hole(_) => m |> add
+      | Quote(x) => m |> add_quote(x)
+      | Var(_) => m |> add
+      | Parens(p) => m |> go_pat(p) |> add
+      | Cast(p, t) => m |> go_pat(p) |> go_typ(t) |> add
+      | Pair(p1, p2) => m |> go_pat(p1) |> go_pat(p2) |> add
+      | InjL(p)
+      | InjR(p) => m |> go_pat(p) |> add
+      }
+    | Typ(ty) =>
+      switch (ty.term) {
+      | Hole(_) => m |> add
+      | Quote(x) => m |> add_quote(x)
+      | Var(_) => m |> add
+      | Parens(t) => m |> go_typ(t) |> add
+      | Num => m |> add
+      | Bool => m |> add
+      | Arrow(t1, t2) => m |> go_typ(t1) |> go_typ(t2) |> add
+      | Prod(t1, t2) => m |> go_typ(t1) |> go_typ(t2) |> add
+      | Unit => m |> add
+      | Sum(t1, t2) => m |> go_typ(t1) |> go_typ(t2) |> add
+      | Rec(p, t) => m |> go_tpat(p) |> go_typ(t) |> add
+      | TypHole => m |> add
+      }
+    | TPat(tp) =>
+      switch (tp.term) {
+      | Hole(_) => m |> add
+      | Quote(x) => m |> add_quote(x)
+      | Var(_) => m |> add
+      }
+    };
+  }
+  and go_ctx = ctx => go(Exp(ctx), ~sort=Ctx)
+  and go_prop = prop => go(Exp(prop), ~sort=Prop)
+  and go_exp = exp => go(Exp(exp), ~sort=Exp)
+  and go_pat = pat => go(Pat(pat), ~sort=Pat)
+  and go_typ = typ => go(Typ(typ), ~sort=Typ)
+  and go_tpat = tpat => go(TPat(tpat), ~sort=TPat);
+  go(drv, m, ~sort);
+}
 and uexp_to_info_map =
     (
       ~ctx: Ctx.t,
@@ -325,6 +450,10 @@ and uexp_to_info_map =
     | Deferral(position) =>
       add'(~self=IsDeferral(position), ~co_ctx=CoCtx.empty, m)
     | Undefined => atomic(Just(Unknown(Hole(EmptyHole)) |> Typ.temp))
+    | DrvExp(term, sort) =>
+      let self: Self.t = Just(DrvTyp(sort) |> Typ.temp);
+      let m = drv_to_info_map(term, m, ~ctx, ~ancestors, ~sort);
+      add(~self, ~co_ctx=CoCtx.empty, m);
     | Atom(c) =>
       let c =
         Operators.replace_literal(c, Typ.is_ana_atom(ana), ctx.use_mode); // Replace literal if necessary due to `use`
@@ -1916,6 +2045,7 @@ and utyp_to_info_map =
     let (_, m) = multi(~ctx, ~ancestors, m, tms);
     add(m);
   | Unknown(_)
+  | DrvTyp(_) => add(m)
   | Atom(_) => add(m)
   | Var(_) =>
     /* Names are resolved in Info.status_typ */

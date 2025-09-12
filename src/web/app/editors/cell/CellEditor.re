@@ -31,9 +31,9 @@ module Model = {
     result: model.result |> EvalResult.Model.persist,
   };
 
-  let unpersist = (~settings as _, {editor, result}: persistent): t => {
+  let unpersist = (~settings as _, {editor, result}: persistent, ~root): t => {
     editor: {
-      editor: editor |> PersistentZipper.unpersist |> Editor.Model.mk,
+      editor: editor |> PersistentZipper.unpersist(~root) |> Editor.Model.mk,
       statics: CachedStatics.empty,
       dynamics: Language.Dynamics.Map.empty,
     },
@@ -41,6 +41,8 @@ module Model = {
   };
 
   let to_string = (model: t) => model.editor |> CodeEditable.Model.to_string;
+
+  let sort = (model: t): Sort.t => CodeEditable.Model.sort(model.editor);
 };
 
 module Update = {

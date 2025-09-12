@@ -36,6 +36,25 @@ let mk_pre = (p, out, in_) => {
     nibs: (l, r),
   };
 };
+/* NOTE(zhiyao): needed for Derivation terms.
+   forms where tips can be different than out sort */
+let mk_pre' = (p, out, sort_l, in_, sort_r) => {
+  let l =
+    Nib.{
+      shape: Convex,
+      sort: sort_l,
+    };
+  let r =
+    Nib.{
+      shape: Concave(p),
+      sort: sort_r,
+    };
+  {
+    out,
+    in_,
+    nibs: (l, r),
+  };
+};
 let mk_post = (p, out, in_) => {
   let l =
     Nib.{
@@ -96,7 +115,15 @@ let nibs = (~index, mold: t): Nibs.t => {
       ? l
       : Nib.{
           shape: Shape.concave(),
-          sort: List.nth(in_, index - 1),
+          sort:
+            try(List.nth(in_, index - 1)) {
+            | Failure(_) =>
+              /* TODO(zhiyao): I dont know why this happen to some derivation term
+                    e.g. (, )
+                 */
+              print_endline("Mold.nibs: index out of bounds");
+              Sort.Any;
+            },
         };
   let r =
     index == List.length(in_)

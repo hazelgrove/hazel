@@ -52,10 +52,11 @@ let init = (~exp: option(Exp.t)=?, ()) => {
               ~settings=ExpToSegment.Settings.editable(~inline=true),
               e,
             ),
+            ~root=Exp,
           ),
         ),
       )
-    | None => CodeEditable.Model.mk(Editor.Model.mk(Zipper.init()))
+    | None => CodeEditable.Model.mk(Editor.Model.mk(Zipper.init(~root=Exp)))
     };
   {
     scrut,
@@ -106,7 +107,7 @@ module F =
 
   let unpersist = (p: persistent) => {
     {
-      scrut: CodeEditable.Model.unpersist(p.scrut),
+      scrut: CodeEditable.Model.unpersist(p.scrut, ~root=Exp),
       cases: List.map(InductionCase.unpersist, p.cases),
       elab_scrut: Calc.Pending,
       scrut_ty: Calc.Pending,

@@ -306,6 +306,7 @@ type secondary = {
 /* The static information collated for each term */
 [@deriving (show({with_path: false}), sexp, yojson)]
 type t =
+  | InfoDrv(DrvInfo.t)
   | InfoExp(exp)
   | InfoPat(pat)
   | InfoTyp(typ)
@@ -314,6 +315,7 @@ type t =
 
 [@deriving (show({with_path: false}), sexp, yojson, eq)]
 type error =
+  | Drv(DrvInfo.error)
   | Exp(error_exp)
   | Pat(error_pat)
   | Typ(error_typ)
@@ -321,14 +323,21 @@ type error =
 
 let sort_of: t => Sort.t =
   fun
+  | InfoDrv(drv) => Drv(DrvInfo.sort_of(drv))
   | InfoExp(_) => Exp
   | InfoPat(_) => Pat
   | InfoTyp(_) => Typ
   | InfoTPat(_) => TPat
   | Secondary(s) => s.sort;
 
+let class_of: t => string =
+  fun
+  | InfoDrv(drv) => DrvInfo.sort_of(drv) |> DrvSort.class_of
+  | _ as i => sort_of(i) |> Sort.show;
+
 let cls_of: t => Cls.t =
   fun
+  | InfoDrv(drv) => DrvInfo.cls_of(drv)
   | InfoExp({cls, _})
   | InfoPat({cls, _})
   | InfoTyp({cls, _})
@@ -337,6 +346,7 @@ let cls_of: t => Cls.t =
 
 let any_of: t => option(Term.Any.t) =
   fun
+  | InfoDrv({term, _}) => Some(Drv(term))
   | InfoExp({term, _}) => Some(Exp(term))
   | InfoPat({term, _}) => Some(Pat(term))
   | InfoTyp({term, _}) => Some(Typ(term))
@@ -345,6 +355,7 @@ let any_of: t => option(Term.Any.t) =
 
 let ctx_of: t => Ctx.t =
   fun
+  | InfoDrv(_) => Ctx.empty_pre_elaboration
   | InfoExp({ctx, _})
   | InfoPat({ctx, _})
   | InfoTyp({ctx, _})
@@ -353,6 +364,7 @@ let ctx_of: t => Ctx.t =
 
 let ancestors_of: t => ancestors =
   fun
+  | InfoDrv(drv) => DrvInfo.ancestors_of(drv)
   | InfoExp({ancestors, _})
   | InfoPat({ancestors, _})
   | InfoTyp({ancestors, _})
@@ -361,6 +373,7 @@ let ancestors_of: t => ancestors =
 
 let id_of: t => Id.t =
   fun
+  | InfoDrv(drv) => DrvInfo.id_of(drv)
   | InfoExp(i) => Exp.rep_id(i.term)
   | InfoPat(i) => Pat.rep_id(i.term)
   | InfoTyp(i) => Typ.rep_id(i.term)
@@ -369,6 +382,11 @@ let id_of: t => Id.t =
 
 let error_of: t => option(error) =
   fun
+  | InfoDrv(drv) =>
+    switch (DrvInfo.error_of(drv)) {
+    | None => None
+    | Some(err) => Some(Drv(err))
+    }
   | InfoExp({status: NotInHole(_), _})
   | InfoPat({status: NotInHole(_), _})
   | InfoTyp({status: NotInHole(_), _})
@@ -683,6 +701,7 @@ let status_tpat = (ctx: Ctx.t, utpat: TPat.t): status_tpat =>
 /* Determines whether any term is in an error hole. */
 let is_error = (ci: t): bool => {
   switch (ci) {
+  | InfoDrv(drv) => DrvInfo.is_error(drv)
   | InfoExp({status, _}) =>
     switch (status) {
     | InHole(_) => true

@@ -199,7 +199,7 @@ let paths =
   | [(_, {out: sort, _}, _), ..._] =>
     let shards = shards_of_tiles(tiles);
     assert(shards != []);
-    let path_cls = ["child-line", Sort.to_string(sort)] @ line_clss;
+    let path_cls = ["child-line", Sort.class_of(sort)] @ line_clss;
     let hx = abs_float(ShardDec.offset_of(fst(rep_tips(tiles))));
     let min_col = min_col(~first, ~last, ~rows);
     let shard_rows = Shards.split_by_row(shards);
@@ -233,7 +233,7 @@ let shards =
               tips: ShardDec.tips_of_shapes(Mold.nib_shapes(~index, mold)),
             },
             Option.to_list(base_clss)
-            @ ["indicated", Sort.to_string(mold.out)],
+            @ ["indicated", Sort.class_of(mold.out)],
           ),
         shards,
       ),
@@ -278,7 +278,10 @@ let term =
     let tiles =
       Id.Map.find(id, terms) |> Language.Any.ids |> List.filter_map(of_tile);
     term(~font_metrics, ~rows=measured.rows, ~tiles, (l, r), ~attr?);
-  | _ => []
+  | _ =>
+    // TODO(zhiyao): investigate why this happens
+    print_endline("Deco.Deco.term_decoration: option is none");
+    [];
   };
 };
 

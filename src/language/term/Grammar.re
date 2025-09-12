@@ -1,40 +1,5 @@
 open Util;
 
-module Annotated = {
-  [@deriving (show({with_path: false}), sexp, yojson, eq)]
-  type t('a, 'b) = {
-    term: 'a,
-    annotation: 'b,
-  };
-  /* uncomment to make terms pp without annotation */
-  //   let pp:
-  //     type a b.
-  //       (
-  //         (Format.formatter, a) => unit,
-  //         (Format.formatter, b) => unit,
-  //         Format.formatter,
-  //         t(a, b)
-  //       ) =>
-  //       unit =
-  //     (fmt_a, _, fmtr, t) => {
-  //       fmt_a(fmtr, t.term);
-  //     };
-
-  let term_of = x => x.term;
-  let unwrap = x => (
-    x.term,
-    term' => {
-      ...x,
-      term: term',
-    },
-  );
-
-  let empty = term => {
-    term,
-    annotation: (),
-  };
-};
-
 [@deriving (show({with_path: false}), sexp, yojson, eq)]
 type deferral_position_t =
   | InAp
@@ -47,6 +12,7 @@ type any_t('a) =
   | Typ(typ_t('a))
   | TPat(tpat_t('a))
   | Rul(rul_t('a))
+  | Drv(DrvGrammar.any_t('a))
   | Any(unit)
 and exp_term('a) =
   | Invalid(string)
@@ -56,6 +22,7 @@ and exp_term('a) =
   | Deferral(deferral_position_t)
   | Undefined
   | Atom(Atom.t)
+  | DrvExp(DrvGrammar.any_t('a), DrvSort.t)
   | ListLit(list(exp_t('a)))
   /* The type double-option field of this constructor is required to assign the correct
      statics to constructors after evaluation. In dynamic expressions `Some(None)` means
@@ -118,6 +85,7 @@ and pat_t('a) = Annotated.t(pat_term('a), 'a)
 and typ_term('a) =
   | Unknown(type_provenance('a))
   | Atom(Atom.cls)
+  | DrvTyp(DrvSort.t)
   | Var(string)
   | List(typ_t('a))
   | Arrow(typ_t('a), typ_t('a))
@@ -180,6 +148,7 @@ let rec map_exp_annotation: type a b. (a => b, exp_t(a)) => exp_t(b) =
         | Deferral(pos) => Deferral(pos)
         | Undefined => Undefined
         | Atom(c) => Atom(c)
+        | DrvExp(d, s) => DrvExp(DrvGrammar.map_any_annotation(f, d), s)
         | LivelitName(s) => LivelitName(s)
         | ListLit(l) => ListLit(List.map(x => map_exp_annotation(f, x), l))
         | Constructor(s, t) =>
@@ -298,6 +267,7 @@ and map_any_annotation: 'a 'b. ('a => 'b, any_t('a)) => any_t('b) =
     | Typ(t) => Typ(map_typ_annotation(f, t))
     | TPat(tp) => TPat(map_tpat_annotation(f, tp))
     | Rul(r) => Rul(map_rul_annotation(f, r))
+    | Drv(d) => Drv(DrvGrammar.map_any_annotation(f, d))
     | Any(_) => Any()
     };
   }
@@ -343,6 +313,7 @@ and map_typ_annotation: 'a 'b. ('a => 'b, typ_t('a)) => typ_t('b) =
         switch (term) {
         | Unknown(p) => Unknown(map_type_provenance_annotation(f, p))
         | Atom(c) => Atom(c)
+        | DrvTyp(s) => DrvTyp(s)
         | Var(s) => Var(s)
         | List(t) => List(map_typ_annotation(f, t))
         | Arrow(t1, t2) =>
@@ -461,6 +432,13 @@ module Factory = (DefaultAnnotation: DefaultAnnotation) => {
 
   let default_annotation = ann =>
     Option.value(~default=DefaultAnnotation.default_value(), ann);
+  module DrvGrammar = {
+    let placeholder = (~ann=?, ()): DrvGrammar.any_t(DefaultAnnotation.t) =>
+      DrvGrammar.Exp({
+        term: DrvGrammar.Hole(Invalid("place_holder")),
+        annotation: default_annotation(ann),
+      });
+  };
   module Exp = {
     type t = exp_t(DefaultAnnotation.t);
     let invalid = (~ann=?, s): exp_t(DefaultAnnotation.t) => {
@@ -515,6 +493,10 @@ module Factory = (DefaultAnnotation: DefaultAnnotation) => {
     };
     let nat = (~ann=?, i): exp_t(DefaultAnnotation.t) => {
       term: Atom(Nat(i)),
+      annotation: default_annotation(ann),
+    };
+    let drv_exp = (~ann=?, d, s): exp_t(DefaultAnnotation.t) => {
+      term: DrvExp(d, s),
       annotation: default_annotation(ann),
     };
     let list_lit = (~ann=?, l): exp_t(DefaultAnnotation.t) => {
@@ -787,6 +769,10 @@ module Factory = (DefaultAnnotation: DefaultAnnotation) => {
     };
     let nat = (~ann=?, ()): typ_t(DefaultAnnotation.t) => {
       term: Atom(Nat),
+      annotation: default_annotation(ann),
+    };
+    let drv_typ = (~ann=?, s): typ_t(DefaultAnnotation.t) => {
+      term: DrvTyp(s),
       annotation: default_annotation(ann),
     };
     let var = (~ann=?, s): typ_t(DefaultAnnotation.t) => {

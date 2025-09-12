@@ -103,6 +103,7 @@ module rec Any: {
 
   let sort = (any: t): Sort.t =>
     switch (any) {
+    | Drv(drv) => Drv(DrvTermBase.Any.sort(drv))
     | Exp(_) => Exp
     | Pat(_) => Pat
     | Typ(_) => Typ
@@ -135,6 +136,7 @@ module rec Any: {
         )
       | Rul(x) =>
         Rul(Rul.map_term(~f_exp, ~f_pat, ~f_typ, ~f_tpat, ~f_rul, ~f_any, x))
+      | Drv(x) => Drv(x) // Note(zhiyao): drv term not mapped from outside
       | Any () => Any()
       };
     x |> f_any(rec_call);
@@ -147,12 +149,14 @@ module rec Any: {
     | (Typ(x), Typ(y)) => Typ.fast_equal(x, y)
     | (TPat(x), TPat(y)) => TPat.fast_equal(x, y)
     | (Rul(x), Rul(y)) => Rul.fast_equal(x, y)
+    | (Drv(x), Drv(y)) => Drv.Any.eq(x, y, ~skip_hole=false)
     | (Any (), Any ()) => true
     | (Exp(_), _)
     | (Pat(_), _)
     | (Typ(_), _)
     | (TPat(_), _)
     | (Rul(_), _)
+    | (Drv(_), _)
     | (Any (), _) => false
     };
 
@@ -223,6 +227,7 @@ and Exp: {
         | EmptyHole
         | Invalid(_)
         | Atom(_)
+        | DrvExp(_)
         | Constructor(_)
         | Label(_)
         | Deferral(_)
@@ -292,7 +297,7 @@ and Exp: {
 
   let rec fast_equal = (~ignore_constructor_types: bool=false, e1: t, e2: t) => {
     let fast_equal = fast_equal(~ignore_constructor_types);
-    switch (e1 |> Grammar.Annotated.term_of, e2 |> Grammar.Annotated.term_of) {
+    switch (e1 |> Annotated.term_of, e2 |> Annotated.term_of) {
     | (DynamicErrorHole(x, _), _)
     | (Parens(x), _) => fast_equal(x, e2)
     | (_, DynamicErrorHole(x, _))
@@ -309,6 +314,7 @@ and Exp: {
       List.equal(Any.fast_equal, xs, ys)
     | (Deferral(d1), Deferral(d2)) => d1 == d2
     | (Atom(c1), Atom(c2)) => c1 == c2
+    | (DrvExp(d1, s1), DrvExp(d2, s2)) => d1 == d2 && s1 == s2
     | (Label(l1), Label(l2)) => l1 == l2
     | (ListLit(xs), ListLit(ys)) =>
       List.length(xs) == List.length(ys) && List.equal(fast_equal, xs, ys)
@@ -393,6 +399,7 @@ and Exp: {
     | (Invalid(_), _)
     | (Deferral(_), _)
     | (Atom(_), _)
+    | (DrvExp(_), _)
     | (Label(_), _)
     | (LivelitName(_), _)
     | (ListLit(_), _)
@@ -503,7 +510,7 @@ and Pat: {
   };
 
   let rec fast_equal = (p1: t, p2: t) =>
-    switch (p1 |> Grammar.Annotated.term_of, p2 |> Grammar.Annotated.term_of) {
+    switch (p1 |> Annotated.term_of, p2 |> Annotated.term_of) {
     /* Below is kind of a hack to make EvalResult.calculate go after adding a projector.
      * We should clarify syntactic/semantic equality here */
     | (Probe(x1, _), Probe(x2, _)) => fast_equal(x1, x2)
@@ -610,6 +617,7 @@ and Typ: {
         | Unknown(SynSwitch)
         | Unknown(Internal)
         | Atom(_)
+        | DrvTyp(_)
         | Label(_)
         | Var(_) => term
         | List(t) => List(typ_map_term(t))
@@ -642,10 +650,11 @@ and Typ: {
   let rec subst = (s: t, x: TPat.t, ty: t): typ_t => {
     switch (TPat.tyvar_of_utpat(x)) {
     | Some(str) =>
-      let (term, rewrap) = Grammar.Annotated.unwrap(ty);
+      let (term, rewrap) = Annotated.unwrap(ty);
       switch (term) {
       | Atom(_) => ty
-      | Label(name) => Grammar.Label(name) |> rewrap
+      | DrvTyp(d) => Grammar.DrvTyp(d) |> rewrap
+      | Label(name) => Label(name) |> rewrap
       | Unknown(prov) => Unknown(prov) |> rewrap
       | Arrow(ty1, ty2) =>
         Arrow(subst(s, x, ty1), subst(s, x, ty2)) |> rewrap
@@ -673,7 +682,7 @@ and Typ: {
      Other types may be equivalent but this will not detect so if they are not normalized. */
 
   let rec eq_internal = (~alpha_equivalence: bool, n: int, t1: t, t2: t) => {
-    switch (Grammar.Annotated.term_of(t1), Grammar.Annotated.term_of(t2)) {
+    switch (Annotated.term_of(t1), Annotated.term_of(t2)) {
     | (Parens(t1), _) => eq_internal(~alpha_equivalence, n, t1, t2)
     | (_, Parens(t2)) => eq_internal(~alpha_equivalence, n, t1, t2)
     | (TupLabel(label1, t1'), TupLabel(label2, t2')) =>
@@ -706,6 +715,8 @@ and Typ: {
     | (ProofOf(_), _) => false
     | (Atom(name1), Atom(name2)) => name1 == name2
     | (Atom(_), _) => false
+    | (DrvTyp(d1), DrvTyp(d2)) => DrvSort.equal(d1, d2)
+    | (DrvTyp(_), _) => false
     | (Label(name1), Label(name2)) =>
       LabeledTuple.match_labels(name1, name2)
     | (Label(_), _) => false
@@ -793,10 +804,7 @@ and TPat: {
     };
 
   let fast_equal = (tp1: t, tp2: t) =>
-    switch (
-      tp1 |> Grammar.Annotated.term_of,
-      tp2 |> Grammar.Annotated.term_of,
-    ) {
+    switch (tp1 |> Annotated.term_of, tp2 |> Annotated.term_of) {
     | (EmptyHole, EmptyHole) => true
     | (Invalid(s1), Invalid(s2)) => s1 == s2
     | (MultiHole(xs), MultiHole(ys)) =>
@@ -872,7 +880,7 @@ and Rul: {
   };
 
   let fast_equal = (r1: t, r2: t) =>
-    switch (r1 |> Grammar.Annotated.term_of, r2 |> Grammar.Annotated.term_of) {
+    switch (r1 |> Annotated.term_of, r2 |> Annotated.term_of) {
     | (Invalid(s1), Invalid(s2)) => s1 == s2
     | (MultiHole(xs), MultiHole(ys)) =>
       List.length(xs) == List.length(ys)

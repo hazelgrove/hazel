@@ -25,7 +25,7 @@ module Model = {
         let original_segment =
           original
           |> Option.map((pce: CellEditor.Model.persistent) =>
-               PersistentZipper.unpersist(pce.editor)
+               PersistentZipper.unpersist(pce.editor, ~root=Exp)
              )
           |> Option.map(Zipper.zip);
 
@@ -43,7 +43,7 @@ module Model = {
     ),
   );
 
-  let unpersist = (~settings, (current, slides): persistent): t => {
+  let unpersist = (~settings, (current, slides): persistent, ~root): t => {
     current,
     scratchpads:
       List.map(
@@ -51,7 +51,7 @@ module Model = {
           (
             s,
             OptUtil.get(() => Init.default_documentation_slide_name(s), m)
-            |> CellEditor.Model.unpersist(~settings),
+            |> CellEditor.Model.unpersist(~settings, ~root),
           ),
         slides,
       ),
@@ -181,7 +181,12 @@ module Update = {
         |> Option.get
       };
     model.scratchpads
-    @ [(new_key, CellEditor.Model.mk(Editor.Model.mk(Zipper.init())))];
+    @ [
+      (
+        new_key,
+        CellEditor.Model.mk(Editor.Model.mk(Zipper.init(~root=Exp))),
+      ),
+    ];
   };
 
   let update =
@@ -275,13 +280,13 @@ module Update = {
       let source =
         switch (is_documentation) {
         | false =>
-          CellEditor.Model.mk(Editor.Model.mk(Zipper.init()))
+          CellEditor.Model.mk(Editor.Model.mk(Zipper.init(~root=Exp)))
           |> CellEditor.Model.persist
         | true => Init.default_documentation_slide_name(key)
         };
       let* data =
         source
-        |> CellEditor.Model.unpersist(~settings=settings.core)
+        |> CellEditor.Model.unpersist(~settings=settings.core, ~root=Exp)
         |> Updated.return;
       {
         ...model,
@@ -300,7 +305,7 @@ module Update = {
         data
         |> Sexplib.Sexp.of_string
         |> CellEditor.Model.persistent_of_sexp
-        |> CellEditor.Model.unpersist(~settings=settings.core);
+        |> CellEditor.Model.unpersist(~settings=settings.core, ~root=Exp);
 
       let scratchpads =
         ListUtil.put_nth(model.current, (key, new_data), model.scratchpads);

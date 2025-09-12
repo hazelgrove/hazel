@@ -614,6 +614,7 @@ let update =
             {
               let* sketch_z_with_tag =
                 Parser.to_zipper(
+                  ~root=editor.editor.state.zipper.root,
                   ~zipper_init=editor.editor.state.zipper,
                   tag,
                 );

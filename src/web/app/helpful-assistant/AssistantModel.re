@@ -126,13 +126,13 @@ let parse_blocks = (response: string): list(block_kind) => {
     | pos =>
       let acc = ListUtil.leading(acc);
       let code = Str.matched_group(1, str);
-      let zipper_of_code = Parser.to_zipper(code);
+      let zipper_of_code = Parser.to_zipper(code, ~root=Exp);
       let sketch_z =
         switch (zipper_of_code) {
         | Some(z) => z
         | None =>
           print_endline("Failed to parse content into segment.\n");
-          Zipper.init();
+          Zipper.init(~root=Exp);
         };
       let sketch = Dump.to_segment(sketch_z);
       let before = Str.string_before(str, pos);

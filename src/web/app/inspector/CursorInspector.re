@@ -51,15 +51,18 @@ let ctx_toggle = (~globals: Globals.t): Node.t =>
   );
 
 let term_view = (~globals: Globals.t, ci) => {
-  let sort = Info.is_label(ci) ? "Label" : ci |> Info.sort_of |> Sort.show;
-
+  let sort_text =
+    Info.is_label(ci) ? "Label" : ci |> Info.sort_of |> Sort.to_string;
+  let sort_class = Info.is_label(ci) ? "Label" : ci |> Info.class_of;
   div(
     ~attrs=[
-      clss(["ci-header", sort] @ (Info.is_error(ci) ? [errc] : [okc])),
+      clss(
+        ["ci-header", sort_class] @ (Info.is_error(ci) ? [errc] : [okc]),
+      ),
     ],
     [
       ctx_toggle(~globals),
-      div(~attrs=[clss(["term-tag"])], [text(sort)]),
+      div(~attrs=[clss(["term-tag"])], [text(sort_text)]),
       div(~attrs=[clss(["divider"])], [text("/")]),
       cls_view(ci),
     ],
@@ -672,6 +675,7 @@ let view_of_info = (~globals, ci): list(Node.t) => {
     wrapper(pat_view(~globals, cls, status, ip))
   | InfoTyp({cls, status, _}) => wrapper(typ_view(~globals, cls, status))
   | InfoTPat({cls, status, _}) => wrapper(tpat_view(~globals, cls, status))
+  | InfoDrv(ci) => wrapper(DrvCursorInspector.drv_view(~globals, ci))
   };
 };
 

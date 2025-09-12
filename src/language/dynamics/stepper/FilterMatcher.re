@@ -207,6 +207,9 @@ let rec matches_exp =
       matches_exp(dl, fl) && matches_exp(dv, fv)
     | (TupLabel(_), _) => false
 
+    | (DrvExp(d, _), DrvExp(f, _)) => d == f
+    | (DrvExp(_), _) => false
+
     | (
         Constructor(_),
         Ap(_, {term: Constructor("~MVal", _), _}, {term: Tuple([]), _}),

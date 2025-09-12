@@ -13,6 +13,7 @@ let exercise : Exercise.spec =
       { test_validation = 1; mutation_testing = 1; impl_grading = 2 };
     prelude =
       {
+        root = Exp;
         selection = { focus = Left; content = []; mode = Normal };
         relatives =
           {
@@ -23,6 +24,7 @@ let exercise : Exercise.spec =
       };
     correct_impl =
       {
+        root = Exp;
         selection = { focus = Left; content = []; mode = Normal };
         relatives =
           {
@@ -470,6 +472,7 @@ let exercise : Exercise.spec =
       {
         tests =
           {
+            root = Exp;
             selection = { focus = Left; content = []; mode = Normal };
             relatives =
               {
@@ -483,6 +486,7 @@ let exercise : Exercise.spec =
       };
     your_impl =
       {
+        root = Exp;
         selection = { focus = Left; content = []; mode = Normal };
         relatives =
           {
@@ -663,6 +667,7 @@ let exercise : Exercise.spec =
         {
           impl =
             {
+              root = Exp;
               selection = { focus = Left; content = []; mode = Normal };
               relatives =
                 {
@@ -1373,6 +1378,7 @@ let exercise : Exercise.spec =
         {
           impl =
             {
+              root = Exp;
               selection = { focus = Left; content = []; mode = Normal };
               relatives =
                 {
@@ -1945,6 +1951,7 @@ let exercise : Exercise.spec =
       {
         tests =
           {
+            root = Exp;
             selection = { focus = Left; content = []; mode = Normal };
             relatives =
               {

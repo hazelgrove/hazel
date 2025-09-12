@@ -89,7 +89,7 @@ let linebreak = () => Piece.Secondary(Secondary.mk_newline(Id.mk()));
 let space = () => Piece.Secondary(Secondary.mk_space(Id.mk()));
 
 let mk_example = str => {
-  switch (Parser.to_segment(str)) {
+  switch (Parser.to_segment(str, ~root=Exp)) {
   | None => []
   | Some(seg) => seg
   };

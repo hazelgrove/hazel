@@ -2,6 +2,15 @@ open Util;
 open OptUtil.Syntax;
 open Language;
 
+/* NOTE(zhiyao): The field `root` serves 2 purposes here. Unfortunately, it is
+   not possible to derive the root sort from the zipper. This is because a zipper
+   can be empty, in which case the root sort is lost. The root sort is needed for
+   1. Considering Ancestors.sort of `[]` cases, the "root" sort should bytes
+       returned. `Drv(Exp)` is needed to here to ensure the correctness of
+       remolding and regrouting.
+   2. Usually start with Editor.Model.mk(~root), which is used in frontend
+       to construct the term with the correct sort.
+   */
 module Model = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type state = Perform.state;
@@ -26,7 +35,8 @@ module Model = {
   let persist = (model: t): persistent =>
     model.state.zipper |> PersistentZipper.persist;
 
-  let unpersist = (p: persistent): t => p |> PersistentZipper.unpersist |> mk;
+  let unpersist = (p: persistent, ~root): t =>
+    p |> PersistentZipper.unpersist(~root) |> mk;
 
   let trailing_hole_ctx =
       (ed: t, info_map: Language.Statics.Map.t): option(Ctx.t) => {
@@ -38,6 +48,8 @@ module Model = {
     let+ info = Language.Statics.Map.lookup(grout.id, info_map);
     Language.Info.ctx_of(info);
   };
+
+  let sort = (model: t): Sort.t => model.state.zipper.root;
 };
 
 module Update = {

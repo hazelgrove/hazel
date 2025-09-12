@@ -2,23 +2,23 @@ open Util;
 open OptUtil.Syntax;
 include ZipperBase;
 
-let init: unit => t =
-  () => {
-    selection: Selection.mk([]),
-    relatives: {
-      siblings: (
-        [],
-        [
-          Grout({
-            id: Id.mk(),
-            shape: Convex,
-          }),
-        ],
-      ),
-      ancestors: [],
-    },
-    caret: Outer,
-  };
+let init = (~root: Sort.t) => {
+  root,
+  selection: Selection.mk([]),
+  relatives: {
+    siblings: (
+      [],
+      [
+        Grout({
+          id: Id.mk(),
+          shape: Convex,
+        }),
+      ],
+    ),
+    ancestors: [],
+  },
+  caret: Outer,
+};
 
 let next_blank = _ => Id.mk();
 
@@ -30,7 +30,8 @@ let delete_parent = (z: t): t => {
 let zip = (z: t): Segment.t =>
   Relatives.zip(~sel=z.selection.content, z.relatives);
 
-let unzip = (seg: Segment.t): t => {
+let unzip = (seg: Segment.t, ~root): t => {
+  root,
   selection: Selection.mk([]),
   relatives: {
     siblings: (seg, []),
@@ -52,7 +53,7 @@ let remold = (z: t): t => {
   assert(Selection.is_empty(z.selection));
   {
     ...z,
-    relatives: Relatives.remold(z.relatives),
+    relatives: Relatives.remold(z.relatives, z.root),
   };
 };
 

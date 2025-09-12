@@ -26,7 +26,7 @@ let of_delim' =
         | _ when Token.is_explicit_hole(token) => "explicit-hole"
         | _ when Token.is_string(token) => "string-lit"
         | _ when is_infix_var => "Any" /* Budget error deco */
-        | _ => Sort.to_string(sort)
+        | _ => Sort.class_of(sort)
         };
       let plurality = plurality == 1 ? "mono" : "poly";
       let in_buffer = is_in_buffer ? ["in-parsed-buffer"] : [];
@@ -54,6 +54,7 @@ let view =
       ~shape_map: ProjectorCore.Shape.Map.t,
       ~font_metrics: FontMetrics.t,
       ~term_data: TermData.t,
+      ~info_map: Language.Statics.Map.t,
       ~buffer_ids: list(Id.t),
       segment: Segment.t,
     ) => {
@@ -72,30 +73,47 @@ let view =
   let lb_icon = settings.secondary_icons ? "⏎" : "";
   let ws_icon = settings.secondary_icons ? "·" : " ";
 
-  let is_consistent = (t: Tile.t) =>
+  let sort = (t: Tile.t): Sort.t =>
+    switch (t.mold.out) {
+    | Drv(Exp) =>
+      switch (Id.Map.find_opt(t.id, info_map)) {
+      | Some(Language.Info.InfoDrv({sort, _})) => Drv(sort)
+      | _ => Drv(Exp)
+      }
+    | _ as sort => sort
+    };
+
+  let is_consistent = (sort: Sort.t, t: Tile.t) =>
     switch (Id.Map.find_opt(t.id, term_data)) {
     | None => true
     | Some(data) =>
-      switch (t.mold.out, data.sort) {
+      switch (sort, data.sort) {
       | (Any, _)
       | (_, Any) => true
       | (Rul, Exp) => true
       | (Exp, Rul) => true
-      | _ => t.mold.out == data.sort
+      /* Note(zhiyao): Drv(Jdmt | Ctx | Prop | Exp) are considered consistent
+         with each other because their differences are determined in dynamics,
+         which we cannot see here. */
+      /* TODO(zhiyao): Drv sort checking is fragile, omitting consistency for now */
+      | (Drv(_), _) => true
+      | _ => sort == data.sort
       }
     };
 
-  let of_delim = (t: Piece.tile, i: int): t =>
+  let of_delim = (t: Piece.tile, i: int): t => {
+    let sort = sort(t);
     of_delim'(
       List.nth(t.label, i),
       List.length(t.label),
-      t.mold.out,
-      is_consistent(t),
+      sort,
+      is_consistent(sort, t),
       List.mem(t.id, buffer_ids),
       Tile.is_complete(t),
       Mold.is_infix_op(t.mold)
       && Form.is_infix_delimiter_op_prefix(List.nth(t.label, i)),
     );
+  };
 
   let measure_of = p => Measured.find_p(~msg="Text", p, measured);
 

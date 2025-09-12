@@ -175,6 +175,7 @@ let rec transition = (~recursive=false, d: DHExp.t): option(DHExp.t) => {
     | (Asc(_), _) => None
     // These are handled above and must have the wrong type
     | (Atom(_), _)
+    | (DrvExp(_), _)
     | (ListLit(_), _)
     | (TupLabel(_), _)
     | (Tuple(_), _)

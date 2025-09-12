@@ -31,6 +31,7 @@ let bools_ex : Tutorial.spec =
     version = 8;
     your_impl =
       {
+        root = Exp;
         selection = { focus = Left; content = []; mode = Normal };
         relatives =
           {
@@ -43,6 +44,7 @@ let bools_ex : Tutorial.spec =
       {
         tests =
           {
+            root = Exp;
             selection = { focus = Left; content = []; mode = Normal };
             relatives =
               {
@@ -327,6 +329,7 @@ let cond_ex : Tutorial.spec =
     version = 9;
     your_impl =
       {
+        root = Exp;
         selection = { focus = Left; content = []; mode = Normal };
         relatives =
           {
@@ -339,6 +342,7 @@ let cond_ex : Tutorial.spec =
       {
         tests =
           {
+            root = Exp;
             selection = { focus = Left; content = []; mode = Normal };
             relatives =
               {
@@ -467,6 +471,7 @@ let func_ex : Tutorial.spec =
     version = 10;
     your_impl =
       {
+        root = Exp;
         selection = { focus = Left; content = []; mode = Normal };
         relatives =
           {
@@ -479,6 +484,7 @@ let func_ex : Tutorial.spec =
       {
         tests =
           {
+            root = Exp;
             selection = { focus = Left; content = []; mode = Normal };
             relatives =
               {

@@ -131,6 +131,7 @@ module Ctr = {
     | Atom(Float)
     | Atom(Nat)
     | Atom(String)
+    | DrvTyp(_)
     | Arrow(_)
     | Poly(_)
     | Var(_) => Infinite

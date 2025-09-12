@@ -131,6 +131,7 @@ let rec abbreviate_exp = (exp: Exp.t): Exp.t => {
       let str = abbreviate_str(available^, s);
       available := available^ - 2; // for quotes in printed representation
       Atom(String(str));
+    | DrvExp(e, s) => DrvExp(e, s) // TODO(zhiyao): abbreviate this
     | Var(v) => Var(abbreviate_str(available^, v))
     | Label(v) => Label(abbreviate_str(available^, v))
     | Constructor(c, t) => Constructor(abbreviate_str(available^, c), t)
@@ -926,6 +927,14 @@ and abbreviate_typ = (typ: Typ.t): Typ.t => {
       } else {
         Atom(String);
       }
+    | DrvTyp(s) =>
+      // TODO(zhiyao): abbreviate this
+      if (available^ < 4) {
+        indet_term_typ;
+      } else {
+        available := available^ - 4; // "drv"
+        DrvTyp(s);
+      }
     | Var(v) => Var(abbreviate_str(available^, v))
     | Label(v) => Label(abbreviate_str(available^, v))
     | List(t) =>
@@ -1058,6 +1067,7 @@ and abbreviate_tpat = (tpat: TPat.t): TPat.t => {
 }
 and abbreviate_any = (any: Any.t): Any.t =>
   switch (any) {
+  | Drv(drv) => Drv(drv) // TODO(zhiyao): abbreviate this
   | Exp(e) => Exp(abbreviate_exp(e))
   | Pat(p) => Pat(abbreviate_pat(p))
   | Typ(t) => Typ(abbreviate_typ(t))

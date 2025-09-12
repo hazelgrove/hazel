@@ -2,7 +2,7 @@ let out : string * Haz3lcore.PersistentZipper.t =
   ( "Projectors",
     {
       zipper =
-        "((selection((focus Left)(content())(mode \
+        "((root Exp)(selection((focus Left)(content())(mode \
          Normal)))(relatives((siblings(()((Secondary((id \
          14360834-8a77-4332-b076-46898bcd4e37)(content(Comment\"# _____  \
          _____    _____      _  _____  _____  ______ #\"))))(Secondary((id \
@@ -177,7 +177,7 @@ let out : string * Haz3lcore.PersistentZipper.t =
          40))(sort Exp))))))(shards(0 1 2))(children(((Secondary((id \
          ef5135c4-e426-45d5-bc70-08ff837b71fd)(content(Whitespace\" \
          \"))))(Tile((id \
-         99e8415a-6b7c-482e-967e-74c56ebc169b)(label(val))(mold((out \
+         99e8415a-6b7c-482e-967e-74c56ebc169b)(label(value))(mold((out \
          Pat)(in_())(nibs(((shape Convex)(sort Pat))((shape Convex)(sort \
          Pat))))))(shards(0))(children())))(Tile((id \
          dfdf893a-e963-4bf8-8d32-2ceab571b0ce)(label(:))(mold((out \
@@ -591,7 +591,7 @@ let out : string * Haz3lcore.PersistentZipper.t =
          let typ: (Int -> Bool) = ^^type()   in\n\n\
          # 3. A live probe shows a term's value(s).           #\n\
          #    See the Probes slide for more information.      #\n\n\
-         let val: Int =  ^^probe((1 + 1))   in\n\n\
+         let value: Int =  ^^probe((1 + 1))   in\n\n\
          # 4. Projectors on literal data are called livelits. #\n\
          #    These can be applied using alt/option-l.        #\n\
          #    Three base types literals use inline views:     #\n\n\

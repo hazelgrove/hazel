@@ -153,7 +153,7 @@ let pos_of_idx = (idx: int) =>
   };
 
 let zipper_of_code = code => {
-  switch (Parser.to_zipper(code)) {
+  switch (Parser.to_zipper(code, ~root=Exp)) {
   | None => failwith("Transition failed.")
   | Some(zipper) => zipper
   };
@@ -294,6 +294,7 @@ let rec append_exp = (e1: Language.Exp.t, e2: Language.Exp.t): Language.Exp.t =>
   | Undefined
   | Deferral(_)
   | Atom(_)
+  | DrvExp(_)
   | ListLit(_)
   | Constructor(_)
   | Closure(_)
@@ -505,7 +506,7 @@ let unpersist = (~instructor_mode, positioned_zippers, spec: spec): spec => {
     if (visible_in(pos, ~instructor_mode)) {
       positioned_zippers
       |> List.assoc_opt(pos)
-      |> Option.map(PersistentZipper.unpersist)
+      |> Option.map(PersistentZipper.unpersist(~root=Exp))
       |> Option.value(~default);
     } else {
       default;

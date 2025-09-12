@@ -31,13 +31,14 @@ module Model = {
       (
         ~settings: Language.CoreSettings.t,
         ~inline=false,
+        ~root: Sort.t,
         term: Language.Exp.t,
       ) => {
     ExpToSegment.exp_to_segment(
       term,
       ~settings=ExpToSegment.Settings.of_core(~inline, settings),
     )
-    |> Zipper.unzip
+    |> Zipper.unzip(~root)
     |> Editor.Model.mk
     |> mk;
   };
@@ -69,8 +70,9 @@ module Model = {
     model.editor.state.zipper |> PersistentZipper.persist;
   let to_string = (model: t) =>
     model.editor.state.zipper |> PersistentZipper.to_string;
-  let unpersist = p =>
-    p |> PersistentZipper.unpersist |> Editor.Model.mk |> mk;
+  let unpersist = (p, ~root) =>
+    p |> PersistentZipper.unpersist(~root) |> Editor.Model.mk |> mk;
+  let sort = (model: t): Sort.t => Editor.Model.sort(model.editor);
 };
 
 module Update = {
@@ -139,6 +141,7 @@ module View = {
         ~buffer_ids=Selection.is_buffer(z.selection) ? selection_ids : [],
         ~segment,
         ~shape_map,
+        ~info_map=model.statics.info_map,
       );
     let statics_decos =
       Arms.Errors.of_ids(

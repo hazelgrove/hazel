@@ -44,7 +44,7 @@ module F = (Stepper: STEPPER) => {
   type focus = focus'(Stepper.focus);
 
   let init = {
-    pattern: CodeEditable.Model.mk(Editor.Model.mk(Zipper.init())),
+    pattern: CodeEditable.Model.mk(Editor.Model.mk(Zipper.init(~root=Exp))),
     elab_pattern: Calc.Pending,
     inner_exp: Calc.Pending,
     step: Stepper.init,
@@ -67,7 +67,7 @@ module F = (Stepper: STEPPER) => {
 
   let unpersist = (p: persistent) => {
     {
-      pattern: CodeEditable.Model.unpersist(p.pattern),
+      pattern: CodeEditable.Model.unpersist(p.pattern, ~root=Exp),
       elab_pattern: Calc.Pending,
       inner_exp: Calc.Pending,
       step: Stepper.unpersist(p.stepper),

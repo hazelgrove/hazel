@@ -19,6 +19,7 @@ let exercise : Tutorial.spec =
     version = 3;
     your_impl =
       {
+        root = Exp;
         selection = { focus = Left; content = []; mode = Normal };
         relatives =
           {
@@ -31,6 +32,7 @@ let exercise : Tutorial.spec =
       {
         tests =
           {
+            root = Exp;
             selection = { focus = Left; content = []; mode = Normal };
             relatives =
               {
@@ -159,6 +161,7 @@ let shadow_exercise : Tutorial.spec =
     version = 7;
     your_impl =
       {
+        root = Exp;
         selection = { focus = Left; content = []; mode = Normal };
         relatives =
           {
@@ -171,6 +174,7 @@ let shadow_exercise : Tutorial.spec =
       {
         tests =
           {
+            root = Exp;
             selection = { focus = Left; content = []; mode = Normal };
             relatives =
               {

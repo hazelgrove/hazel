@@ -18,7 +18,7 @@ let set_llm_buffer = (z: Zipper.t, response: string): Zipper.t =>
   switch (
     {
       //TODO: Check for incomplete syntax, report errors
-      let+ res = Parser.to_zipper(response);
+      let+ res = Parser.to_zipper(response, ~root=z.root);
       Zipper.zip(res);
     }
   ) {
@@ -43,12 +43,13 @@ let buffer_accept = (z: Zipper.t): option(Zipper.t) =>
        * left to the previous hole. */
       let z = {
         open OptUtil.Syntax;
-        let* z = Parser.to_zipper(~zipper_init=z, completion);
+        let* z = Parser.to_zipper(~root=z.root, ~zipper_init=z, completion);
         let* z = Move.to_next_grout(Left, z);
         Move.local(ByToken, Left, z);
       };
       z;
-    | Some(completion) => Parser.to_zipper(~zipper_init=z, completion)
+    | Some(completion) =>
+      Parser.to_zipper(~root=z.root, ~zipper_init=z, completion)
     }
   };
 

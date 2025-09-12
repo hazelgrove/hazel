@@ -75,6 +75,11 @@ let and_ = 32 |> right_associative;
 // true && _____
 // _____ || false
 let or_ = 33 |> right_associative;
+
+// Derivation Mode Only
+// A /\ B \/ C ==> D
+// ((A /\ B) \/ C) ==> D
+let impl = 34;
 // false || _____
 let if_ = 35;
 let fun_ = 36;
@@ -96,7 +101,13 @@ let case_ = 44;
 
 let comma = 47;
 
-let min = 48;
+// Derivation Mode Only
+// Exp : Typ (HasType)
+// Exp => Typ (Synthesis)
+// Exp <= Typ (Analysis)
+let ann = 48;
+
+let min = 49;
 
 let compare = (p1: t, p2: t): int =>
   (-1) * Int.compare((p1 :> int), (p2 :> int));

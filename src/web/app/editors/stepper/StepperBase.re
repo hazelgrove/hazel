@@ -808,7 +808,7 @@ and Stepper: {
         and.calc ctx = ctx
         and.calc ana = ana;
         expr
-        |> CodeWithStatics.Model.mk_from_exp(~settings)
+        |> CodeWithStatics.Model.mk_from_exp(~settings, ~root=Exp)
         |> CodeSelectable.Update.calculate(
              ~is_dynamic_term=true,
              ~settings,

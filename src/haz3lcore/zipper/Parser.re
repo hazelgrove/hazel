@@ -1,6 +1,7 @@
 open Util.OptUtil.Syntax;
 
-let to_zipper = (~zipper_init=Zipper.init(), str: string): option(Zipper.t) => {
+let to_zipper =
+    (~root, ~zipper_init=Zipper.init(~root), str: string): option(Zipper.t) => {
   let insert = (z: option(Zipper.t), c: string): option(Zipper.t) => {
     let* z = z;
     try(c == "\r" ? Some(z) : Insert.go(c, z)) {
@@ -13,12 +14,12 @@ let to_zipper = (~zipper_init=Zipper.init(), str: string): option(Zipper.t) => {
   Zipper.remold_regrout(Left, z);
 };
 
-let to_segment = (s: string): option(Segment.t) => {
-  let+ z = to_zipper(s);
+let to_segment = (s: string, ~root): option(Segment.t) => {
+  let+ z = to_zipper(s, ~root);
   Zipper.unselect_and_zip(~erase_buffer=true, z);
 };
 
-let to_term = (s: string): option(Language.Term.Exp.t) => {
-  let+ z = to_zipper(s);
+let to_term = (s: string, ~root): option(Language.Term.Exp.t) => {
+  let+ z = to_zipper(~root, s);
   MakeTerm.from_zip_for_sem(z).term;
 };
