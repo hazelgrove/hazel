@@ -991,6 +991,12 @@ and Stepper: {
             |> List.map(step => step |> EvaluatorStep.get_step_id)
           | _ => []
           };
+        let selected_exp =
+          switch (model.step_kind) {
+          | MissingStep(m) =>
+            m.selected_exp |> Calc.get_saved_opt |> Option.join
+          | _ => None
+          };
         let refls =
           switch (model.step_kind) {
           | MissingStep(m) when globals.settings.core.evaluation.enable_proof =>
@@ -1033,6 +1039,7 @@ and Stepper: {
               | Some(Here(_)) => true
               | _ => false
               },
+            ~selected_id=selected_exp |> Option.map(Exp.rep_id),
             ~overlays=
               switch (model.step_kind) {
               | MissingStep(m)
@@ -1058,7 +1065,8 @@ and Stepper: {
                     | AddAxiomStep(name, idx, e1, dir, eq) =>
                       inject(AddAxiomStep(name, idx, e1, dir, eq))
                     | AddAlgebriteStep(idx, e1, e2) =>
-                      inject(AddAlgebriteStep(idx, e1, e2)),
+                      inject(AddAlgebriteStep(idx, e1, e2))
+                    | TakeStep(i) => inject(StepForward(i)),
                   ~editor=model.editor |> Calc.get_saved_exc(~print="Editor"),
                   m,
                 )

@@ -334,7 +334,8 @@ module View = {
     | HideStepper
     | AddAxiomStep(string, int, Exp.t, Direction.t, string)
     | AddAlgebriteStep(int, Exp.t, Exp.t)
-    | MakeActive(Selection.t);
+    | MakeActive(Selection.t)
+    | TakeStep(int);
 
   let get_segment_bounds = (~measured: Measured.t, segment: Segment.t) => {
     let* first_piece = ListUtil.hd_opt(segment);
@@ -409,6 +410,25 @@ module View = {
         );
       };
 
+      let show_step_button =
+        switch (
+          model.selected_exp |> Calc.get_saved_exc(~print="Selected Exp")
+        ) {
+        | Some(selected_exp) =>
+          List.find_index(
+            x => x == (selected_exp |> Exp.rep_id),
+            model.next_steps
+            |> Calc.get_saved_exc(~print="next_steps")
+            |> (
+              fun
+              | AutoStep(_) => []
+              | AvailableSteps(steps) => steps
+            )
+            |> List.map(step => step |> EvaluatorStep.get_step_id),
+          )
+        | None => None
+        };
+
       let show_function_body_button = {
         Calc.get_saved_exc(model.selected_exp)
         == Some(Calc.get_saved_exc(model.full_exp))
@@ -421,6 +441,17 @@ module View = {
         Node.div(
           ~attrs=[Attr.classes(["proof-selection-buttons"])],
           (
+            switch (show_step_button) {
+            | None => []
+            | Some(idx) => [
+                proof_button(
+                  ~callback=Ui_effect.Many([signal(TakeStep(idx))]),
+                  "Step",
+                ),
+              ]
+            }
+          )
+          @ (
             show_function_body_button
               ? [
                 proof_button(
