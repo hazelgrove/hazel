@@ -532,7 +532,14 @@ module View = {
         model.cells.theorem,
       );
 
+    let score_view =
+      Grading.score_view(
+        Theorems.Model.get_score(model.cells.theorem.result.theorems)
+        |> Option.value(~default=(Float.nan, Float.nan)),
+      );
+
     [
+      score_view,
       title_view,
       prompt_view,
       // prelude_view, lemmas_view,

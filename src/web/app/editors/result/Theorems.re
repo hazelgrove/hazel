@@ -61,6 +61,28 @@ module Model = {
       ),
     thms: Calc.Pending,
   };
+
+  let get_score = (model: t): option((float, float)) => {
+    open OptUtil.Syntax;
+    let* thms = model.thms |> Calc.get_saved_opt;
+    let total = float_of_int(List.length(thms));
+    let correct =
+      List.fold_left(
+        (acc, id) =>
+          acc
+          +. (
+            switch (Id.Map.find_opt(id, model.thm_map)) {
+            | Some(thm) =>
+              StepperView.Model.get_validity(thm.stepper_view) == Some(true)
+                ? 1.0 : 0.0
+            | None => 0.0
+            }
+          ),
+        0.0,
+        thms,
+      );
+    Some((correct, total));
+  };
 };
 
 module Update = {
