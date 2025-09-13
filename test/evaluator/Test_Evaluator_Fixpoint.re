@@ -44,5 +44,25 @@ fun n -> if n == 0 then false else even(n - 1))) in even(1)|},
     test_case("Ouroboros fixpoint", `Quick, () =>
       parse_and_evaluate_test("(1: [?]):: (1: [?])", {|fix(_:: x) -> x :: 1|})
     ),
+    test_case("Substitution", `Quick, () =>
+      parse_and_evaluate_test(
+        "1",
+        {|let t =  1 in
+          let go =
+            fun i ->
+          if i > 1 then t else go(i+1) in
+          go(0)|},
+      )
+    ),
+    test_case("Mutual recursion substitution", `Quick, () =>
+      parse_and_evaluate_test(
+        "1",
+        {|let t =  1 in
+          let (go, go') =
+            (fun i ->
+          if i > 3 then t else go'(i+1),fun i -> if i > 3 then t else go(i+1) ) in
+          go(0)|},
+      )
+    ),
   ],
 );

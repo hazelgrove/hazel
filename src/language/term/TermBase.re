@@ -177,8 +177,8 @@ and Exp: {
     ) =>
     t;
 
-  let fast_equal: (t, t) => bool;
-  let equal: (t, t) => bool;
+  let fast_equal: (~ignore_constructor_types: bool=?, t, t) => bool;
+  let equal: (~ignore_constructor_types: bool=?, t, t) => bool;
 } = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type term = exp_term;
@@ -243,6 +243,8 @@ and Exp: {
         | TupLabel(label, e) =>
           TupLabel(exp_map_term(label), exp_map_term(e))
         | Tuple(xs) => Tuple(List.map(exp_map_term, xs))
+        | TupleExtension(e1, e2) =>
+          TupleExtension(exp_map_term(e1), exp_map_term(e2))
         | Dot(e1, e2) => Dot(exp_map_term(e1), exp_map_term(e2))
         | Let(p, e1, e2) =>
           Let(pat_map_term(p), exp_map_term(e1), exp_map_term(e2))
@@ -258,6 +260,7 @@ and Exp: {
           If(exp_map_term(e1), exp_map_term(e2), exp_map_term(e3))
         | Seq(e1, e2) => Seq(exp_map_term(e1), exp_map_term(e2))
         | Test(e) => Test(exp_map_term(e))
+        | HintedTest(e, h) => HintedTest(exp_map_term(e), exp_map_term(h))
         | Filter(f, e) => Filter(flt_map_term(f), exp_map_term(e))
         | Closure(env, e) => Closure(env, exp_map_term(e))
         | Parens(e) => Parens(exp_map_term(e))
@@ -283,7 +286,8 @@ and Exp: {
     x |> f_exp(rec_call);
   };
 
-  let rec fast_equal = (e1: t, e2: t) =>
+  let rec fast_equal = (~ignore_constructor_types: bool=false, e1: t, e2: t) => {
+    let fast_equal = fast_equal(~ignore_constructor_types);
     switch (e1 |> Grammar.Annotated.term_of, e2 |> Grammar.Annotated.term_of) {
     | (DynamicErrorHole(x, _), _)
     | (Parens(x), _) => fast_equal(x, e2)
@@ -304,6 +308,9 @@ and Exp: {
     | (Label(l1), Label(l2)) => l1 == l2
     | (ListLit(xs), ListLit(ys)) =>
       List.length(xs) == List.length(ys) && List.equal(fast_equal, xs, ys)
+    | (Constructor(c1, _), Constructor(c2, _))
+        when ignore_constructor_types == true =>
+      c1 == c2
     | (Constructor(c1, Some(Some(ty1))), Constructor(c2, Some(Some(ty2)))) =>
       c1 == c2 && Typ.fast_equal(ty1, ty2)
     | (Constructor(c1, Some(None)), Constructor(c2, Some(None)))
@@ -342,6 +349,8 @@ and Exp: {
     | (Seq(e1, e2), Seq(e3, e4)) =>
       fast_equal(e1, e3) && fast_equal(e2, e4)
     | (Test(e1), Test(e2)) => fast_equal(e1, e2)
+    | (HintedTest(e1, e2), HintedTest(e3, e4)) =>
+      fast_equal(e1, e3) && fast_equal(e2, e4)
     | (Filter(f1, e1), Filter(f2, e2)) =>
       StepperFilterKind.fast_equal(f1, f2) && fast_equal(e1, e2)
     | (Closure(c1, e1), Closure(c2, e2)) =>
@@ -370,6 +379,8 @@ and Exp: {
       fast_equal(e1, e3) && fast_equal(e2, e4)
     | (Dot(e1, e2), Dot(e3, e4)) =>
       fast_equal(e1, e3) && fast_equal(e2, e4)
+    | (TupleExtension(e1, e2), TupleExtension(e3, e4)) =>
+      fast_equal(e1, e3) && fast_equal(e2, e4)
     | (Invalid(_), _)
     | (Deferral(_), _)
     | (Atom(_), _)
@@ -381,6 +392,7 @@ and Exp: {
     | (TypFun(_), _)
     | (Tuple(_), _)
     | (TupLabel(_), _)
+    | (TupleExtension(_), _)
     | (Dot(_), _)
     | (Var(_), _)
     | (Let(_), _)
@@ -393,6 +405,7 @@ and Exp: {
     | (If(_), _)
     | (Seq(_), _)
     | (Test(_), _)
+    | (HintedTest(_, _), _)
     | (Filter(_), _)
     | (Closure(_), _)
     | (Cons(_), _)
@@ -406,6 +419,7 @@ and Exp: {
     | (EmptyHole, _)
     | (Undefined, _) => false
     };
+  };
   let equal = fast_equal;
 }
 and Pat: {
@@ -587,7 +601,6 @@ and Typ: {
         | List(t) => List(typ_map_term(t))
         | Unknown(Hole(MultiHole(things))) =>
           Unknown(Hole(MultiHole(List.map(any_map_term, things))))
-        | Ap(e1, e2) => Ap(typ_map_term(e1), typ_map_term(e2))
         | Prod(xs) => Prod(List.map(typ_map_term, xs))
         | TupLabel(label, e) =>
           TupLabel(typ_map_term(label), typ_map_term(e))
@@ -635,7 +648,6 @@ and Typ: {
       | List(ty) => List(subst(s, x, ty)) |> rewrap
       | Var(y) => str == y ? s : Var(y) |> rewrap
       | Parens(ty) => Parens(subst(s, x, ty)) |> rewrap
-      | Ap(t1, t2) => Ap(subst(s, x, t1), subst(s, x, t2)) |> rewrap
       };
     | None => ty
     };
@@ -679,10 +691,6 @@ and Typ: {
     | (Label(name1), Label(name2)) =>
       LabeledTuple.match_labels(name1, name2)
     | (Label(_), _) => false
-    | (Ap(t1, t2), Ap(t1', t2')) =>
-      eq_internal(~alpha_equivalence, n, t1, t1')
-      && eq_internal(~alpha_equivalence, n, t2, t2')
-    | (Ap(_), _) => false
     | (Unknown(_), Unknown(_)) => true
     | (Unknown(_), _) => false
     | (Arrow(t1, t2), Arrow(t1', t2')) =>
@@ -831,7 +839,7 @@ and Rul: {
       term:
         switch (term) {
         | Invalid(_) => term
-        | Hole(things) => Hole(List.map(any_map_term, things))
+        | MultiHole(things) => MultiHole(List.map(any_map_term, things))
         | Rules(e, rls) =>
           Rules(
             exp_map_term(e),
@@ -848,7 +856,7 @@ and Rul: {
   let fast_equal = (r1: t, r2: t) =>
     switch (r1 |> Grammar.Annotated.term_of, r2 |> Grammar.Annotated.term_of) {
     | (Invalid(s1), Invalid(s2)) => s1 == s2
-    | (Hole(xs), Hole(ys)) =>
+    | (MultiHole(xs), MultiHole(ys)) =>
       List.length(xs) == List.length(ys)
       && List.equal(Any.fast_equal, xs, ys)
     | (Rules(e1, rls1), Rules(e2, rls2)) =>
@@ -861,7 +869,7 @@ and Rul: {
            rls2,
          )
     | (Invalid(_), _)
-    | (Hole(_), _)
+    | (MultiHole(_), _)
     | (Rules(_), _) => false
     };
   let equal = fast_equal;
@@ -871,12 +879,12 @@ and Environment: {
   include
      (module type of VarBstMap.Ordered) with
       type t_('a) = VarBstMap.Ordered.t_('a);
-
+  [@deriving (show({with_path: false}), sexp, yojson)]
   type t = environment_t;
   let pp: (Format.formatter, t) => unit;
 } = {
   include VarBstMap.Ordered;
-
+  [@deriving (show({with_path: false}), sexp, yojson)]
   type t = environment_t;
 
   [@deriving show({with_path: false})]

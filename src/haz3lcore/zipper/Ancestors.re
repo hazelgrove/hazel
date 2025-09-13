@@ -27,9 +27,9 @@ let regrout = (ancs: t) =>
     ((a, sibs): generation, regrouted) => {
       let regrouted = regrouted;
       let ((pre, l, trim_l), (trim_r, r, suf)) = Siblings.regrout(sibs);
-      let (l', r') = TupleUtil.map2(Nib.shape, Mold.nibs(a.mold));
-      let trim_l = Segment.Trim.regrout(Left, (l, l'), trim_l);
-      let trim_r = Segment.Trim.regrout(Right, (r', r), trim_r);
+      let (l', r') = TupleUtil.map2(Nib.shape, Ancestor.nibs(a));
+      let trim_l = Segment.Trim.regrout((l, l'), trim_l);
+      let trim_r = Segment.Trim.regrout((r', r), trim_r);
       let pre = pre @ Segment.Trim.to_seg(trim_l);
       let suf = Segment.Trim.to_seg(trim_r) @ suf;
       [(a, (pre, suf)), ...regrouted];
@@ -38,8 +38,8 @@ let regrout = (ancs: t) =>
     empty,
   );
 
-let parent_matches = (t: Tile.t, ancs: t) =>
+let local_missing_shards = (ancs: t): list(Tile.t) =>
   switch (ancs) {
-  | [] => false
-  | [(a, _), ..._] => a.id == t.id
+  | [] => []
+  | [(a, _), ..._] => Ancestor.missing_middle_shards(a)
   };

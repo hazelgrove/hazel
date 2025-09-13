@@ -18,9 +18,7 @@ module M: Projector = {
         }),
       ) =>
       Some((llname, model))
-    | _ =>
-      print_endline("Warning - LivelitProj.get: Not an InfoExp term");
-      None;
+    | _ => None
     };
 
   let init = (any: Language.Term.Any.t) =>

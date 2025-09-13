@@ -9,8 +9,11 @@ let eq_info_error_exp = (a: Info.error_exp, b: Info.error_exp) => {
     l == r && Typ.fast_equal(ty, ty2)
   | (Common(NoType(BadLabel(a))), Common(NoType(BadLabel(b)))) =>
     Any.fast_equal(a, b)
-  | (Common(NoType(InvalidLabel(a))), Common(NoType(InvalidLabel(b)))) =>
-    a == b
+  | (
+      Common(NoType(InvalidLabel(a, ls))),
+      Common(NoType(InvalidLabel(b, ls'))),
+    ) =>
+    a == b && ls == ls'
   | (
       Common(Inconsistent(Expectation({ana: a1, syn: a2}))),
       Common(Inconsistent(Expectation({ana: b1, syn: b2}))),
@@ -21,6 +24,12 @@ let eq_info_error_exp = (a: Info.error_exp, b: Info.error_exp) => {
     && List.equal(String.equal, err.duplicate_labels, err'.duplicate_labels)
     && List.equal(String.equal, err.invalid_labels, err'.invalid_labels)
     && Typ.fast_equal(err.typ, err'.typ)
+  | (
+      Common(NoType(FreeConstructor(a))),
+      Common(NoType(FreeConstructor(b))),
+    ) =>
+    String.equal(a, b)
+  | (FreeVariable(a), FreeVariable(b)) => String.equal(a, b)
   | _ =>
     Alcotest.fail(
       "Not implemented for "
@@ -44,15 +53,15 @@ let eq_info_error = (a: Info.error, b: Info.error) => {
   };
 };
 let testable_info_error_exp =
-  testable(Fmt.using(Info.show_error_exp, Fmt.string), eq_info_error_exp);
+  testable(Fmt.using(Info.show_error_exp, Fmt.string), Info.equal_error_exp);
 
 let testable_error: testable(Info.error) =
-  testable(Fmt.using(Info.show_error, Fmt.string), (==));
+  testable(Fmt.using(Info.show_error, Fmt.string), Info.equal_error);
 
 let statics = Statics.mk(CoreSettings.on, Builtins.ctx_init(Some(Int)));
 
 let parse_exp = (s: string) => {
-  switch (Parse.parse_exp(s)) {
+  switch (Haz3lcore.Parser.to_term(s)) {
   | Some(e) => e
   | None => Alcotest.fail("Failed to parse expression: " ++ s)
   };
@@ -62,7 +71,11 @@ let annotate_static_errors = (exp: TermBase.exp_t, info_map: Statics.Map.t) => {
   Grammar.map_exp_annotation(
     ({ids, _}: IdTagged.IdTag.t) => {
       let new_info = Id.Map.find_opt(List.hd(ids), info_map);
-      Option.bind(new_info, Info.error_of);
+      switch (new_info) {
+      | Some(info) => Info.error_of(info)
+      | None =>
+        Alcotest.fail("No info found for the id: " ++ Id.show(List.hd(ids)))
+      };
     },
     exp,
   );
@@ -74,7 +87,7 @@ let annotated_exp: testable(Grammar.exp_t(option(Info.error))) =
       [%derive.show: Grammar.exp_t(option(Info.error))],
       Fmt.string,
     ),
-    Grammar.equal_exp_t(Option.equal(eq_info_error)),
+    Grammar.equal_exp_t(Option.equal(Info.equal_error)),
   );
 
 let fresh = (exp: Grammar.exp_t(unit)): TermBase.exp_t => {
@@ -87,24 +100,37 @@ let fresh = (exp: Grammar.exp_t(unit)): TermBase.exp_t => {
   );
 };
 
-let annotated_tree_test = (name, expected) => {
-  let term = fresh(Grammar.map_exp_annotation(_ => (), expected));
-  let annotated: Grammar.exp_t(option(Info.error)) =
-    annotate_static_errors(term, statics(term));
-
-  Alcotest.check(annotated_exp, name, expected, annotated);
-};
-
 // Get the type from the statics
-let type_of = f => {
+let type_of = (~static_map=?, f) => {
   IdTagged.rep_id(f)
-  |> Id.Map.find_opt(_, statics(f))
+  |> Id.Map.find_opt(
+       _,
+       switch (static_map) {
+       | Some(s) => s
+       | None => statics(f)
+       },
+     )
   |> Option.bind(
        _,
        fun
        | InfoExp(e) => Some(e.ty)
        | _ => None,
      );
+};
+
+let annotated_tree_test = (name, expected_type, expected_error_tree) => {
+  let term = fresh(Grammar.map_exp_annotation(_ => (), expected_error_tree));
+  let s = statics(term);
+  let annotated: Grammar.exp_t(option(Info.error)) =
+    annotate_static_errors(term, s);
+  let typ = type_of(~static_map=s, term);
+  Alcotest.check(annotated_exp, name, expected_error_tree, annotated);
+  Alcotest.check(
+    testable_typ,
+    "Expected Type",
+    expected_type,
+    Option.get(typ),
+  );
 };
 
 let inconsistent_typecheck = (name, exp) => {
@@ -133,12 +159,13 @@ let fully_consistent_typecheck = (name, serialized, expected) => {
       let exp = parse_exp(serialized);
       let s = statics(exp);
       let errors = List.map(snd, Statics.Map.errors(s));
+      let actual_type = type_of(~static_map=s, exp);
       Alcotest.check(list(testable_error), "Static Errors", [], errors);
       Alcotest.check(
         Alcotest.option(testable_typ),
         serialized,
         expected,
-        type_of(exp),
+        actual_type,
       );
     },
   );

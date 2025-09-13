@@ -23,14 +23,6 @@ let view =
       ~signal: event => 'a,
       ~indicator: list(Node.t),
     ) => {
-  let navigation_buttons =
-    nav_buttons
-      ? [
-        button(Icons.back, _ => signal(Previous)),
-        button(Icons.forward, _ => signal(Next)),
-      ]
-      : [];
-
   let edit_buttons_list = [
     button(~tooltip="Rename Current Slide", Icons.rename, _ =>
       signal(Rename)
@@ -42,8 +34,9 @@ let view =
   [
     div(
       ~attrs=[Attr.id("slide-navigation")],
-      indicator
-      @ navigation_buttons
+      (nav_buttons ? [button(Icons.back, _ => signal(Previous))] : [])
+      @ indicator
+      @ (nav_buttons ? [button(Icons.forward, _ => signal(Next))] : [])
       @ (
         edit_buttons
           ? [div(~attrs=[Attr.id("edit-buttons")], edit_buttons_list)] : []

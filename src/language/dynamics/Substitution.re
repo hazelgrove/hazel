@@ -81,6 +81,7 @@ let rec subst_var = (d1: DHExp.t, x: Var.t, d2: DHExp.t): DHExp.t => {
     Ap(dir, d3, d4) |> rewrap;
   | BuiltinFun(_) => d2
   | Test(d3) => Test(subst_var(d1, x, d3)) |> rewrap
+  | HintedTest(d3, h) => HintedTest(subst_var(d1, x, d3), h) |> rewrap
   | Atom(_)
   | Label(_)
   | LivelitName(_)
@@ -100,6 +101,10 @@ let rec subst_var = (d1: DHExp.t, x: Var.t, d2: DHExp.t): DHExp.t => {
     let d4 = subst_var(d1, x, d4);
     Dot(d3, d4) |> rewrap;
   | Tuple(ds) => Tuple(List.map(subst_var(d1, x), ds)) |> rewrap
+  | TupleExtension(d3, d4) =>
+    let d3 = subst_var(d1, x, d3);
+    let d4 = subst_var(d1, x, d4);
+    TupleExtension(d3, d4) |> rewrap;
   | UnOp(op, d3) =>
     let d3 = subst_var(d1, x, d3);
     UnOp(op, d3) |> rewrap;

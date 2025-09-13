@@ -11,8 +11,9 @@
   outline: 0.3px solid var(--BR2);
 }
 
-#projectors img {
+#projectors .toggle-knob img {
   width: 0.7em;
+  filter: invert(1) brightness(0.4) sepia(1) saturate(1.5);
 }
 
 #projectors option {

@@ -1484,7 +1484,14 @@ let inconsistent_undefined_ctrs =
           None,
           Grammar.Pat(
             IdTagged.FreshGrammar.Pat.(
-              tuple([big_int(Bigint.of_int(0)), wild()])
+              tuple([
+                big_int(Bigint.of_int(0)),
+                tuple([
+                  big_int(Bigint.of_int(0)),
+                  wild(),
+                  big_int(Bigint.of_int(1)),
+                ]),
+              ])
             ),
           ),
         ),
@@ -1571,9 +1578,12 @@ let inconsistent_fun_ctr_arg =
 
 // tests a weird edge case where the label has no argument
 let fun_labeled_tuple =
-  no_errors("Exhaustive fun w/ labeled tuple", {|
+  no_errors(
+    "Exhaustive fun w/ labeled tuple",
+    {|
       let _ = fun (a=_) -> 0 in ?
-    |});
+    |},
+  );
 
 let exhaustive_ints_with_wilds =
   no_errors(

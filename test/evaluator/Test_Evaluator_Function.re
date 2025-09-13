@@ -42,6 +42,30 @@ let tests = (
         ),
       )
     ),
+    test_case("Deferral applied to unknown type", `Quick, () =>
+      parse_and_evaluate_test(
+        {|"llo"|},
+        {|(string_sub : ?)(_, 2, 3)("hello")|},
+      )
+    ),
+    test_case(
+      "Ascription around deferral",
+      `Quick,
+      () => {
+        parse_and_evaluate_test(
+          {|[]|},
+          {|let f : ? -> ? = map(_, fun _ -> 1) in f([])|},
+        );
+        parse_and_evaluate_test(
+          {|[1.0 : Int, 2.0 : Int]|},
+          {|let f : [Int] -> ? = map(_, fun i -> i) in f([1.0, 2.0] : ?)|},
+        );
+        parse_and_evaluate_test(
+          {|[1.0 : Int, 2.0 : Int]|},
+          {|let f : ? ->  [Int]  = map(_, fun i -> i) in f([1.0, 2.0] : ?)|},
+        );
+      },
+    ),
     test_case("Variable capture", `Quick, () =>
       evaluation_test(
         {|let u = 5 in let f = fun () -> u in let u = 3 in f()|},

@@ -36,9 +36,7 @@ type op_bin_int =
   | LessThan
   | LessThanOrEqual
   | GreaterThan
-  | GreaterThanOrEqual
-  | Equals
-  | NotEquals;
+  | GreaterThanOrEqual;
 
 [@deriving (show({with_path: false}), sexp, qcheck, eq)]
 type op_bin_string =
@@ -46,11 +44,17 @@ type op_bin_string =
   | Equals;
 
 [@deriving (show({with_path: false}), sexp, qcheck, eq)]
+type op_bin_poly =
+  | Equals
+  | NotEquals;
+
+[@deriving (show({with_path: false}), sexp, qcheck, eq)]
 type bin_op =
   | IntOp(op_bin_int)
   | FloatOp(op_bin_float)
   | StringOp(op_bin_string)
-  | BoolOp(op_bin_bool);
+  | BoolOp(op_bin_bool)
+  | PolyOp(op_bin_poly);
 
 [@deriving (show({with_path: false}), sexp, qcheck, eq)]
 type op_un_meta =
@@ -101,7 +105,6 @@ type typ =
   | LabelType(string)
   | TupLabelType(typ, typ)
   | IndicationTyp(typ)
-  | ApTyp(typ, typ)
 and sumterm =
   | Variant(string, option(typ))
   | BadEntry(typ)
@@ -158,6 +161,7 @@ type exp =
   | Undefined
   | Seq(exp, exp)
   | Test(exp)
+  | HintedTest(exp, exp)
   | Deferral
   | TypFun(tpat, exp)
   | Cons(exp, exp)
@@ -168,7 +172,8 @@ type exp =
   | DynamicErrorHole(exp, string)
   | TyAlias(tpat, typ, exp)
   | Use(typ, exp)
-  | IndicationExp(exp);
+  | IndicationExp(exp)
+  | TupleExtension(exp, exp);
 
 /**
  * Generates a random CONSTRUCTOR_IDENT string. Used for CONSTRUCTOR_IDENT in the lexer.
@@ -368,6 +373,11 @@ let rec gen_exp_sized = (~minimal_idents: bool, n: int): QCheck.Gen.t(exp) => {
             BinExp(e1, op, e2);
           },
           {
+            let* e1 = self((n - 1) / 2);
+            let+ e2 = self((n - 1) / 2);
+            TupleExtension(e1, e2);
+          },
+          {
             let* op = gen_op_un;
             let+ e = self(n - 1);
             UnOp(op, e);
@@ -526,11 +536,6 @@ and gen_typ_sized: (~minimal_idents: bool, int) => QCheck.Gen.t(typ) =
                 let* gen_tpat = gen_tpat;
                 let+ t = self(n - 1);
                 RecType(gen_tpat, t);
-              },
-              {
-                let* t1 = self((n - 1) / 2);
-                let+ t2 = self((n - 1) / 2);
-                ApTyp(t1, t2);
               },
               {
                 let* sizes = gen_non_empty_array(n - 1);
@@ -864,13 +869,25 @@ let rec shrink_exp: QCheck.Shrink.t(exp) =
             let* shrunk = shrink_exp(e);
             return(Test(shrunk));
           }
+        | HintedTest(e1, e2) =>
+          {
+            of_list([e1, e2]);
+          }
+          <+> {
+            let* shrunk = shrink_exp(e1);
+            return(HintedTest(shrunk, e2));
+          }
+          <+> {
+            let* shrunk = shrink_exp(e2);
+            return(HintedTest(e1, shrunk));
+          }
         | Deferral => Iter.empty
         | TypFun(tpat, e) =>
           return(e)
           <+> {
             let* shrunk = shrink_exp(e);
-            return(TypFun(tpat, shrunk)); // Not worth shrinking tpat
-          }
+            return(TypFun(tpat, shrunk));
+          } // Not worth shrinking tpat
         | Cons(e1, e2) =>
           {
             of_list([e1, e2]);
@@ -882,6 +899,18 @@ let rec shrink_exp: QCheck.Shrink.t(exp) =
           <+> {
             let* shrunk = shrink_exp(e2);
             return(Cons(e1, shrunk));
+          }
+        | TupleExtension(e1, e2) =>
+          {
+            of_list([e1, e2]);
+          }
+          <+> {
+            let* shrunk = shrink_exp(e1);
+            return(TupleExtension(shrunk, e2));
+          }
+          <+> {
+            let* shrunk = shrink_exp(e2);
+            return(TupleExtension(e1, shrunk));
           }
         | ListConcat(e1, e2) =>
           {
@@ -1109,16 +1138,6 @@ and shrink_typ: QCheck.Shrink.t(typ) =
           <+> {
             let* shrunk2 = shrink_typ(t2);
             return(TupLabelType(t1, shrunk2));
-          }
-        | ApTyp(t1, t2) =>
-          of_list([t1, t2])
-          <+> {
-            let* shrunk1 = shrink_typ(t1);
-            return(ApTyp(shrunk1, t2));
-          }
-          <+> {
-            let* shrunk2 = shrink_typ(t2);
-            return(ApTyp(t1, shrunk2));
           }
         | IndicationTyp(_)
         | IntType

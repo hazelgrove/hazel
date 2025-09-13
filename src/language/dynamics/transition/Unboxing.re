@@ -43,9 +43,14 @@ type unbox_request('a) =
   | SumNoArg(string): unbox_request(unit)
   | SumWithArg(string): unbox_request(DHExp.t)
   | TypFun: unbox_request(unboxed_tfun)
-  | Fun: unbox_request(unboxed_fun);
+  | Fun: unbox_request(unboxed_fun)
+  | TupleElementPivot(LabeledTuple.label)
+    : unbox_request((LabeledTuple.label, list(DHExp.t)))
+  | LabeledTupleProjection(LabeledTuple.label): unbox_request(DHExp.t)
+  | LabeledTupleEntries
+      : unbox_request(list((option(LabeledTuple.label), DHExp.t)));
 
-[@deriving (show({with_path: false}), eq)]
+[@deriving (show({with_path: false}), sexp, yojson, eq)]
 type unboxed('a) =
   | DoesNotMatch
   | IndetMatch
@@ -58,6 +63,16 @@ let ( let* ) = (x: unboxed('a), f: 'a => unboxed('b)): unboxed('b) =>
   | Matches(x) => f(x)
   };
 
+let sequence = (l: list(unboxed('a))): unboxed(list('a)) =>
+  List.fold_left(
+    (acc, x) => {
+      let* acc = acc;
+      let* x = x;
+      Matches([x, ...acc]);
+    },
+    Matches([]),
+    l,
+  );
 let fixup_ascriptions = Ascriptions.transition_multiple;
 
 /* This function has a different return type depending on what kind of request
@@ -85,6 +100,49 @@ let rec unbox: type a. (unbox_request(a), DHExp.t) => unboxed(a) =
         DoesNotMatch;
       }
     | (TupLabel(_), _) => Matches(expr)
+    /* Remove Tuplabels from casts otherwise */
+    | (Label, Label(l)) => Matches(l)
+    | (LabeledTupleProjection(l), Tuple(ds)) =>
+      switch (LabeledTuple.find_label(Exp.match_tup_label, ds, l)) {
+      | Some(_) => Matches(expr) // Choosing to just return the original expression here
+      | _ => IndetMatch // TODO Should this be DoesNotMatch?
+      }
+    | (LabeledTupleProjection(_), ListLit(_)) => Matches(expr)
+    | (TupleElementPivot(l), Tuple(ds)) =>
+      let found_pivot: option((string, list(Exp.t))) =
+        ListUtil.find_with_rest(
+          exp => {
+            switch (Exp.match_tup_label(DHExp.strip_ascriptions(exp))) {
+            | Some((name, {term: Atom(String(e)), _})) when name == l =>
+              Some(e)
+            | _ => None
+            }
+          },
+          ds,
+        );
+      switch (found_pivot) {
+      | None => DoesNotMatch
+      | Some(a) => Matches(a)
+      };
+
+    | (LabeledTupleEntries, Tuple(ds)) =>
+      let unbox_tup_label =
+          (d: Exp.t): option((option(LabeledTuple.label), Exp.t)) => {
+        switch (Ascriptions.transition_multiple(d).term) {
+        // TODO Think about whether we should transition here
+        | TupLabel({term: Label(l), _}, e) => Some((Some(l), e))
+        | _ => Some((None, d))
+        };
+      };
+
+      let entries: list(option((option(string), Exp.t))) =
+        List.map(unbox_tup_label, ds);
+
+      switch (OptUtil.sequence(entries)) {
+      | Some(entries) => Matches(entries)
+      | None => DoesNotMatch
+      };
+    /* Base types are always already unboxed because of the ITCastID rule*/
     | (Atom(r), Atom(x)) =>
       switch (Atom.unbox(r, x)) {
       | Some(x) => Matches(x)
@@ -160,6 +218,9 @@ let rec unbox: type a. (unbox_request(a), DHExp.t) => unboxed(a) =
       | ListLitn(_)
       | Cons
       | SumNoArg(_)
+      | TupleElementPivot(_)
+      | LabeledTupleProjection(_)
+      | LabeledTupleEntries
       | SumWithArg(_)
       | Fun
       | TypFun => IndetMatch
@@ -180,11 +241,13 @@ let rec unbox: type a. (unbox_request(a), DHExp.t) => unboxed(a) =
         If(_) |
         Seq(_) |
         Test(_) |
+        HintedTest(_) |
         Filter(_) |
         Closure(_) |
         Parens(_) |
         Probe(_) |
         ListConcat(_) |
+        TupleExtension(_) |
         Dot(_) |
         UnOp(_) |
         BinOp(_) |

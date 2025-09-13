@@ -100,12 +100,14 @@ let rec find_fn = (name: string, uexp: Exp.t, l: list(Exp.t)): list(Exp.t) => {
   | TyAlias(_, _, u1)
   | Use(_, u1)
   | Test(u1)
+  | HintedTest(u1, _)
   | Closure(_, u1)
   | Filter(_, u1) => l |> find_fn(name, u1)
   | Ap(_, u1, u2)
   | Dot(u1, u2)
   | Seq(u1, u2)
   | Cons(u1, u2)
+  | TupleExtension(u1, u2)
   | ListConcat(u1, u2)
   | BinOp(_, u1, u2) => l |> find_fn(name, u1) |> find_fn(name, u2)
   | If(u1, u2, u3) =>
@@ -192,6 +194,7 @@ let rec var_mention = (name: string, uexp: Exp.t): bool => {
   | TypFun(_, u, _)
   | TypAp(u, _)
   | Test(u)
+  | HintedTest(u, _)
   | Parens(u)
   | Probe(u, _)
   | UnOp(_, u)
@@ -209,6 +212,7 @@ let rec var_mention = (name: string, uexp: Exp.t): bool => {
   | Dot(u1, u2)
   | Seq(u1, u2)
   | Cons(u1, u2)
+  | TupleExtension(u1, u2)
   | ListConcat(u1, u2)
   | BinOp(_, u1, u2) => var_mention(name, u1) || var_mention(name, u2)
   | DeferredAp(u1, us) =>
@@ -255,6 +259,7 @@ let rec var_applied = (name: string, uexp: Exp.t): bool => {
       ? false : var_applied(name, def) || var_applied(name, body)
   | TypFun(_, u, _)
   | Test(u)
+  | HintedTest(u, _)
   | Parens(u)
   | Probe(u, _)
   | UnOp(_, u)
@@ -286,6 +291,7 @@ let rec var_applied = (name: string, uexp: Exp.t): bool => {
   | Seq(u1, u2)
   | ListConcat(u1, u2)
   | Dot(u1, u2)
+  | TupleExtension(u1, u2)
   | BinOp(_, u1, u2) => var_applied(name, u1) || var_applied(name, u2)
   | If(u1, u2, u3) =>
     var_applied(name, u1) || var_applied(name, u2) || var_applied(name, u3)
@@ -348,6 +354,7 @@ let rec tail_check = (name: string, uexp: Exp.t): bool => {
     //If l has no recursive calls then true
     !List.fold_left((acc, ue) => {acc || var_mention(name, ue)}, false, l)
   | Test(_) => false
+  | HintedTest(_) => false
   | TyAlias(_, _, u)
   | Use(_, u)
   | Asc(u, _)
@@ -364,6 +371,7 @@ let rec tail_check = (name: string, uexp: Exp.t): bool => {
     tail_check(name, Ap(Forward, fn, Tuple(args) |> Exp.fresh) |> Exp.fresh)
   | Seq(u1, u2) => var_mention(name, u1) ? false : tail_check(name, u2)
   | Cons(u1, u2)
+  | TupleExtension(u1, u2)
   | ListConcat(u1, u2)
   | Dot(u1, u2)
   | BinOp(_, u1, u2) => !(var_mention(name, u1) || var_mention(name, u2))

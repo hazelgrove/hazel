@@ -16,6 +16,7 @@ module Model = {
     globals: Globals.Model.t,
     editors: Editors.Model.t,
     explain_this: ExplainThisModel.t,
+    assistant: AssistantModel.t,
     selection,
   };
 
@@ -31,10 +32,12 @@ module Store = {
         ~instructor_mode=globals.settings.instructor_mode,
       );
     let explain_this = ExplainThisModel.Store.load();
+    let assistant = AssistantModel.Store.load();
     {
       editors,
       globals,
       explain_this,
+      assistant,
       selection: Editors.Selection.default_selection(editors),
     };
   };
@@ -46,6 +49,7 @@ module Store = {
     );
     Globals.Model.save(m.globals);
     ExplainThisModel.Store.save(m.explain_this);
+    AssistantModel.Store.save(m.assistant);
   };
 };
 
@@ -62,12 +66,34 @@ module Update = {
     | Globals(Globals.Update.t)
     | Editors(Editors.Update.t)
     | ExplainThis(ExplainThisUpdate.update)
+    | Assistant(AssistantUpdate.t)
     | MakeActive(selection)
     | Benchmark(benchmark_action)
     | Start
     | Save;
 
   let equal = (===);
+
+  let assistant_callback =
+      (
+        ~schedule_action: t => unit,
+        model: Model.t,
+        editor: CodeEditable.Model.t,
+      ) =>
+    AssistantUpdate.check_req(
+      ~schedule_action=a => schedule_action(Assistant(a)),
+      ~schedule_setting=a => schedule_action(Globals(Set(Assistant(a)))),
+      ~chat_id=model.assistant.current_chats.curr_suggestion_chat,
+      ~editor,
+    );
+
+  let get_editor = (model: Model.t): CodeEditable.Model.t =>
+    switch (model.editors) {
+    | Scratch(m) => (List.nth(m.scratchpads, m.current) |> snd).editor
+    | Documentation(m) => (List.nth(m.scratchpads, m.current) |> snd).editor
+    | Tutorial(m) => List.nth(m.exercises, m.current).cells.user_impl.editor
+    | Exercises(m) => List.nth(m.exercises, m.current).cells.user_impl.editor
+    };
 
   let update_global =
       (
@@ -78,24 +104,6 @@ module Update = {
         model: Model.t,
       ) => {
     switch (action) {
-    | SetMousedown(mousedown) =>
-      {
-        ...model,
-        globals: {
-          ...model.globals,
-          mousedown,
-        },
-      }
-      |> Updated.return_quiet
-    | SetShowBackpackTargets(show) =>
-      {
-        ...model,
-        globals: {
-          ...model.globals,
-          show_backpack_targets: show,
-        },
-      }
-      |> Updated.return_quiet
     | SetFontMetrics(fm) =>
       {
         ...model,
@@ -105,9 +113,9 @@ module Update = {
         },
       }
       |> Updated.return_quiet(~scroll_active=true)
-    | Set(settings) =>
+    | Set(action) =>
       let* settings =
-        Settings.Update.update(settings, model.globals.settings);
+        Settings.Update.update(~action, ~settings=model.globals.settings);
       {
         ...model,
         globals: {
@@ -115,11 +123,11 @@ module Update = {
           settings,
         },
       };
-    | JumpToTile(tile) =>
+    | JumpToTile(id) =>
       let jump =
         Editors.Selection.jump_to_tile(
           ~settings=model.globals.settings,
-          tile,
+          id,
           model.editors,
         );
       switch (jump) {
@@ -129,6 +137,8 @@ module Update = {
           Editors.Update.update(
             ~globals,
             ~schedule_action=a => schedule_action(Editors(a)),
+            ~send_assistant_insertion_info=
+              assistant_callback(~schedule_action, model),
             action,
             model.editors,
           );
@@ -145,7 +155,12 @@ module Update = {
       model |> return_quiet;
     | FinishImportAll(None) => model |> return_quiet
     | FinishImportAll(Some(data)) =>
-      Export.import_all(~import_log, data, ~specs=ExerciseSettings.exercises);
+      Export.import_all(
+        ~import_log,
+        data,
+        ~exercise_specs=ExerciseSettings.exercises,
+        ~tutorial_specs=TutorialSettings.lessons,
+      );
       Store.load() |> return;
     | ExportForInit =>
       let (filename, content) =
@@ -159,8 +174,16 @@ module Update = {
           let content =
             [%derive.show: (string, Haz3lcore.PersistentZipper.t)]((
               current |> fst,
-              current |> snd |> CellEditor.Model.persist,
+              current
+              |> snd
+              |> ((e: CellEditor.Model.t) => e.editor)
+              |> CodeWithStatics.Model.persist,
             ));
+          (filename, content);
+        | Tutorial(model) =>
+          let current = List.nth(model.exercises, model.current);
+          let filename = current.editors.module_name ++ ".ml";
+          let content = "not supported";
           (filename, content);
         | Exercises(model) =>
           let current = List.nth(model.exercises, model.current);
@@ -188,6 +211,8 @@ module Update = {
           Editors.Update.update(
             ~globals=model.globals,
             ~schedule_action=a => schedule_action(Editors(a)),
+            ~send_assistant_insertion_info=
+              assistant_callback(~schedule_action, model),
             action,
             model.editors,
           );
@@ -222,6 +247,8 @@ module Update = {
         Editors.Update.update(
           ~globals,
           ~schedule_action=a => schedule_action(Editors(a)),
+          ~send_assistant_insertion_info=
+            assistant_callback(~schedule_action, model),
           action,
           model.editors,
         );
@@ -235,6 +262,20 @@ module Update = {
       {
         ...model,
         explain_this,
+      };
+    | Assistant(action) =>
+      let* assistant =
+        AssistantUpdate.update(
+          ~action,
+          ~settings=globals.settings,
+          ~model=model.assistant,
+          ~editor=get_editor(model),
+          ~schedule_action=a => schedule_action(Assistant(a)),
+          ~schedule_editor_action=a => schedule_action(Editors(a)),
+        );
+      {
+        ...model,
+        assistant,
       };
     | MakeActive(selection) =>
       {
@@ -263,17 +304,25 @@ module Update = {
     | Globals(action) => Globals.Update.can_undo(action)
     | Editors(action) => Editors.Update.can_undo(action)
     | ExplainThis(action) => ExplainThisUpdate.can_undo(action)
-    | MakeActive(_) => false
+    | Assistant(action) => AssistantUpdate.can_undo(action)
+    | MakeActive(_)
     | Benchmark(_) => false
     | Start => false
     | Save => false
     };
   };
 
-  let calculate = (~schedule_action, ~is_edited, model: Model.t) => {
+  let calculate =
+      (~schedule_action, ~is_edited, ~dynamics: bool, model: Model.t) => {
     let editors =
       Editors.Update.calculate(
-        ~settings=model.globals.settings.core,
+        ~settings=
+          dynamics
+            ? model.globals.settings.core
+            : {
+              ...model.globals.settings.core,
+              dynamics: false,
+            },
         ~schedule_action=a => schedule_action(Editors(a)),
         ~is_edited,
         model.editors,
@@ -306,10 +355,6 @@ module Selection = {
   let handle_key_event =
       (~selection, ~event: Key.t, model: Model.t): option(Update.t) => {
     switch (event) {
-    | {key: D("Alt"), sys: Mac | PC, shift: Up, meta: Up, ctrl: Up, alt: Down} =>
-      Some(Update.Globals(SetShowBackpackTargets(true)))
-    | {key: U("Alt"), _} =>
-      Some(Update.Globals(SetShowBackpackTargets(false)))
     | {key: D("F7"), sys: Mac | PC, shift: Down, meta: Up, ctrl: Up, alt: Up} =>
       Some(Update.Benchmark(Start))
     | {
@@ -360,6 +405,12 @@ module View = {
     };
   };
 
+  let copy = (cursor: Cursor.cursor(Editors.Update.t)): unit => {
+    let str = (cursor.selected_text |> Option.value(~default=() => ""))();
+    ClipboardCache.set(cursor.selection, str);
+    JsUtil.copy(str);
+  };
+
   let handlers =
       (
         ~inject: Update.t => Ui_effect.t(unit),
@@ -385,8 +436,6 @@ module View = {
     [
       Attr.on_keyup(key_handler(~inject, ~dir=KeyUp)),
       Attr.on_keydown(key_handler(~inject, ~dir=KeyDown)),
-      /* safety handler in case mousedown overlay doesn't catch it */
-      Attr.on_mouseup(_ => inject(Globals(SetMousedown(false)))),
       Attr.on_blur(_ => {
         JsUtil.focus_clipboard_shim();
         Effect.Ignore;
@@ -403,12 +452,7 @@ module View = {
           if (is_input_field(elId)) {
             ();
           } else {
-            let str =
-              (cursor.selected_text |> Option.value(~default=() => ""))();
-            /* Note that we cannot use the ClipboardCache system here unless
-             * we refine it further to replace unique ids on paste */
-            ClipboardCache.set(cursor.selection, str);
-            JsUtil.copy(str);
+            copy(cursor);
           };
         | None => ()
         };
@@ -422,9 +466,7 @@ module View = {
           if (is_input_field(elId)) {
             Effect.Ignore;
           } else {
-            JsUtil.copy(
-              (cursor.selected_text |> Option.value(~default=() => ""))(),
-            );
+            copy(cursor);
             Option.map(
               inject,
               Selection.handle_key_event(
@@ -456,11 +498,11 @@ module View = {
           if (is_input_field(elId)) {
             Effect.Ignore;
           } else {
-            let pasted_text =
+            let action =
               Js.to_string(evt##.clipboardData##getData(Js.string("text")))
-              |> Str.global_replace(Str.regexp("\n[ ]*"), "\n");
+              |> ClipboardCache.get;
             Dom.preventDefault(evt);
-            switch (cursor.editor_action(Paste(String(pasted_text)))) {
+            switch (cursor.editor_action(action)) {
             | None => Effect.Ignore
             | Some(action) => inject(Editors(action))
             };
@@ -493,7 +535,7 @@ module View = {
               Editors.View.file_menu(~globals, ~inject, editors),
             ),
             button(
-              Icons.command_palette_sparkle,
+              Icons.command_palette_terminal,
               _ => {
                 NinjaKeys.open_command_palette();
                 Effect.Ignore;
@@ -546,7 +588,13 @@ module View = {
         ~get_log_and: (string => unit) => unit,
         ~inject: Update.t => Ui_effect.t(unit),
         ~cursor: Cursor.cursor(Editors.Update.t),
-        {globals, editors, explain_this: explainThisModel, selection} as model: Model.t,
+        {
+          globals,
+          editors,
+          explain_this: explainThisModel,
+          assistant: assistantModel,
+          selection,
+        } as model: Model.t,
       ) => {
     let globals = {
       ...globals,
@@ -561,14 +609,19 @@ module View = {
         cursor,
       );
     let sidebar =
-      globals.settings.explainThis.show && globals.settings.core.statics
-        ? ExplainThis.view(
-            ~globals,
-            ~inject=a => inject(ExplainThis(a)),
-            ~explainThisModel,
-            cursor.info,
-          )
-        : div([]);
+      Sidebar.view(
+        ~globals,
+        ~explain_this_inject=action => inject(ExplainThis(action)),
+        ~assistant_inject=action => inject(Assistant(action)),
+        ~signal=
+          fun
+          | MakeActive(s) => inject(MakeActive(Scratch(s))),
+        ~explainThisModel,
+        ~assistantModel,
+        ~editor=Update.get_editor(model),
+        cursor.info,
+      );
+
     let editors_view =
       Editors.View.view(
         ~globals,
@@ -576,6 +629,7 @@ module View = {
           fun
           | MakeActive(selection) => inject(MakeActive(selection)),
         ~inject=a => inject(Editors(a)),
+        ~inject_explainthis=a => inject(ExplainThis(a)),
         ~selection=Some(selection),
         model.editors,
       );

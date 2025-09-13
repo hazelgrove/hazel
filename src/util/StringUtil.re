@@ -34,12 +34,24 @@ let match = (r: regexp, s: string): bool =>
 
 let replace = Js_of_ocaml.Regexp.global_replace;
 
-let split = Js_of_ocaml.Regexp.split;
+let search = Js_of_ocaml.Regexp.search;
 
 let plain_split: (string, string) => list(string) =
-  (str, sep) => {
-    split(Js_of_ocaml.Regexp.regexp_string(sep), str);
-  };
+  (str, sep) =>
+    Js_of_ocaml.Regexp.split(Js_of_ocaml.Regexp.regexp_string(sep), str);
+
+let plain_match: (string, string) => bool =
+  regexp => match(Js_of_ocaml.Regexp.regexp(regexp));
+
+let plain_replace: (string, string, string) => string =
+  regexp => replace(Js_of_ocaml.Regexp.regexp(regexp));
+
+let plain_search: (string, string, int) => int =
+  (regexp, str, idx) =>
+    switch (search(Js_of_ocaml.Regexp.regexp(regexp), str, idx)) {
+    | Some((idx, _)) => idx
+    | None => (-1)
+    };
 
 let to_lines = String.split_on_char('\n');
 
@@ -55,23 +67,15 @@ let num_linebreaks = (s: string) => {
   s |> String.to_seq |> Seq.filter((==)('\n')) |> Seq.length;
 };
 
-// let escape_linebreaks: string => string = replace(regexp("\n"), "\\n");
-// let unescape_linebreaks: string => string = replace(regexp("\\\\n"), "\n");
-// let trim_leading = replace(regexp("\n[ ]*"), "\n");
-
-/* TODO(andrew): figure out why above dont work. When they're
- * gone we can remove Re.Str entirely */
-
-let escape_linebreaks: string => string =
-  Re.Str.global_replace(Re.Str.regexp("\n"), "\\n");
+let escape_linebreaks: string => string = replace(regexp("\n"), _, "\\n");
 
 let unescape_linebreaks: string => string =
-  Re.Str.global_replace(Re.Str.regexp("\\\\n"), "\n");
+  replace(regexp("\\\\n"), _, "\n");
 
 let trim_leading = (s: string): string => {
   s
-  |> Re.Str.global_replace(Re.Str.regexp("^[ ]*"), "")  // Remove leading spaces at start
-  |> Re.Str.global_replace(Re.Str.regexp("\n[ ]*"), "\n"); // Remove leading spaces after newlines
+  |> replace(regexp("^[ ]*"), _, "")  // Remove leading spaces at start
+  |> replace(regexp("\n[ ]*"), _, "\n"); // Remove leading spaces after newlines
 };
 
 let isEmptyOrWhitespace = str => {
@@ -95,4 +99,39 @@ let decompress = (s: string): string => {
 
 let sanitize_filename = (s: string): string => {
   replace(regexp("[^a-zA-Z0-9_-]"), s, "");
+};
+
+let trim_trailing_whitespace = (str: string): string => {
+  let lines = String.split_on_char('\n', str);
+  let trim_line = (line: string): string => {
+    let chars = String.to_seq(line) |> List.of_seq;
+    let rec drop_leading_spaces = (chars: list(char)): list(char) =>
+      switch (chars) {
+      | [] => []
+      | [' ', ...rest] => drop_leading_spaces(rest)
+      | [c, ...rest] => [c, ...rest]
+      };
+    // Reverse, drop leading spaces, reverse back = drop trailing spaces
+    let reversed_chars = List.rev(chars);
+    let trimmed_reversed = drop_leading_spaces(reversed_chars);
+    let trimmed_chars = List.rev(trimmed_reversed);
+    String.of_seq(List.to_seq(trimmed_chars));
+  };
+  let trimmed_lines = List.map(trim_line, lines);
+  String.concat("\n", trimmed_lines);
+};
+
+let prefixes = (s: string): list(string) => {
+  let len = String.length(s);
+  let rec aux = (i: int) =>
+    if (i > len) {
+      [];
+    } else {
+      [String.sub(s, 0, i)] @ aux(i + 1);
+    };
+  if (len == 0) {
+    [""];
+  } else {
+    aux(1);
+  };
 };

@@ -16,10 +16,15 @@ module Model = {
     dynamics: Language.Dynamics.Map.t,
   };
 
-  let mk = editor => {
+  let mk =
+      (
+        ~dynamics=Language.Dynamics.Map.empty,
+        ~statics=CachedStatics.empty,
+        editor,
+      ) => {
     editor,
-    statics: CachedStatics.empty,
-    dynamics: Language.Dynamics.Map.empty,
+    statics,
+    dynamics,
   };
 
   let mk_from_exp =
@@ -47,7 +52,9 @@ module Model = {
       Indicated.piece''(model.editor.state.zipper)
       |> Option.map(((p, _, _)) => p),
     selected_text:
-      Some(() => Printer.to_string_selection(model.editor.state.zipper)),
+      Some(
+        () => Printer.of_segment(model.editor.state.zipper.selection.content),
+      ),
     selection: Some(model.editor.state.zipper.selection.content),
     editor: Some(model.editor),
     editor_read_only: true,
@@ -112,12 +119,11 @@ module View = {
   // There are no events for a read-only editor
   type event;
 
-  let view =
-      (~globals, ~overlays: list(Node.t)=[], ~sort=Sort.root, model: Model.t) => {
+  let view = (~globals, ~overlays: list(Node.t)=[], model: Model.t) => {
     let {
       editor:
         {
-          syntax: {measured, selection_ids, segment, shape_map, _},
+          syntax: {measured, selection_ids, segment, shape_map, term_data, _},
           state: {zipper: z, _},
           _,
         },
@@ -126,21 +132,18 @@ module View = {
     let code_text_view =
       CodeViewable.view(
         ~globals,
-        ~sort,
         ~measured,
+        ~term_data,
         ~buffer_ids=Selection.is_buffer(z.selection) ? selection_ids : [],
         ~segment,
         ~shape_map,
       );
-    let statics_decos = {
-      module Deco =
-        Deco.Deco({
-          let globals = globals;
-          let editor = model.editor;
-          let statics = model.statics;
-        });
-      Deco.statics();
-    };
-    div_c("code-container", [code_text_view] @ statics_decos @ overlays);
+    let statics_decos =
+      Arms.Errors.of_ids(
+        ~font_metrics=globals.font_metrics,
+        ~syntax=model.editor.syntax,
+        model.statics.error_ids,
+      );
+    div_c("code-container", [code_text_view, statics_decos] @ overlays);
   };
 };

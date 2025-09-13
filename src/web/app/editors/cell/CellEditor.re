@@ -21,12 +21,26 @@ module Model = {
     result: EvalResult.Model.init,
   };
   [@deriving (show({with_path: false}), sexp, yojson)]
-  type persistent = CodeEditable.Model.persistent;
+  type persistent = {
+    editor: CodeEditable.Model.persistent,
+    result: EvalResult.Model.persistent,
+  };
 
-  let persist = model => model.editor |> CodeEditable.Model.persist;
-  let to_string = model => model.editor |> CodeEditable.Model.to_string;
-  let unpersist = (~settings as _, pz) =>
-    pz |> PersistentZipper.unpersist |> Editor.Model.mk |> mk;
+  let persist = (model: t): persistent => {
+    editor: model.editor |> CodeEditable.Model.persist,
+    result: model.result |> EvalResult.Model.persist,
+  };
+
+  let unpersist = (~settings as _, {editor, result}: persistent): t => {
+    editor: {
+      editor: editor |> PersistentZipper.unpersist |> Editor.Model.mk,
+      statics: CachedStatics.empty,
+      dynamics: Language.Dynamics.Map.empty,
+    },
+    result: EvalResult.Model.unpersist(result),
+  };
+
+  let to_string = (model: t) => model.editor |> CodeEditable.Model.to_string;
 };
 
 module Update = {
@@ -162,7 +176,6 @@ module View = {
         ~inject: Update.t => Ui_effect.t(unit),
         ~selected: option(Selection.t),
         ~caption: option(Node.t)=?,
-        ~sort=?,
         ~result_kind=?,
         ~locked=false,
         model: Model.t,
@@ -185,7 +198,7 @@ module View = {
           | JumpTo(id) =>
             Effect.Many([
               signal(MakeActive(MainEditor)),
-              inject(MainEditor(Perform(Jump(TileId(id))))),
+              inject(MainEditor(Perform(Move(Goal(TileId(id)))))),
             ]),
         ~inject=a => inject(ResultAction(a)),
         ~selected={
@@ -215,7 +228,6 @@ module View = {
               : (action => inject(MainEditor(action))),
           ~selected=selected == Some(MainEditor),
           ~overlays=overlays(model.editor.editor),
-          ~sort?,
           model.editor,
         ),
       ]

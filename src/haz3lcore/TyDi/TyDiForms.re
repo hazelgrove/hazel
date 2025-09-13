@@ -1,5 +1,3 @@
-open Util;
-open OptUtil.Syntax;
 open Language;
 
 /* This module generates TyDi suggestions which depend
@@ -23,23 +21,20 @@ module Typ = {
     ("_", unk),
   ];
 
+  /* Only need to add forms here if they have a non-trivial type */
   let of_leading_delim: list((Token.t, Typ.t)) = [
-    ("case" ++ leading_expander, unk),
     ("fun" ++ leading_expander, Arrow(unk, unk) |> Typ.fresh),
     (
       "typfun" ++ leading_expander,
       Forall(Var("") |> TPat.fresh, unk) |> Typ.fresh,
     ),
-    ("if" ++ leading_expander, unk),
-    ("let" ++ leading_expander, unk),
     ("test" ++ leading_expander, Prod([]) |> Typ.fresh),
-    ("type" ++ leading_expander, unk),
   ];
 
   let of_infix_delim: list((Token.t, Typ.term)) = [
-    //("|>", Unknown(Internal)), /* annoying during case rules */
-    (",", Prod([unk, unk])), /* NOTE: Current approach doesn't work for this, but irrelevant as 1-char */
-    //("::", List(unk)), /* annoying in patterns. TODO: add codepath to show only if Ana(List(_)) */
+    ("|>", Unknown(Internal)),
+    (",", Prod([unk, unk])),
+    ("::", List(unk)),
     ("@", List(unk)),
     (";", Unknown(Internal)),
     ("&&", Atom(Bool)),
@@ -49,8 +44,8 @@ module Typ = {
     ("==.", Atom(Bool)),
     ("==", Atom(Bool)),
     ("!", Atom(Bool)),
-    //("!=", Atom(Bool)), /* annoying as != is more common */
-    //("!=.", Atom(Bool)), /* annoying as != is more common */
+    ("!=", Atom(Bool)),
+    ("!=.", Atom(Bool)),
     ("<", Atom(Bool)),
     (">", Atom(Bool)),
     ("<=", Atom(Bool)),
@@ -87,11 +82,14 @@ module Typ = {
       )
       : list((Token.t, Typ.t)) =>
     List.filter_map(
-      delim => {
-        let* self_ty = List.assoc_opt(delim, self_tys);
-        Typ.is_consistent(ctx, expected_ty, self_ty)
-          ? Some((delim, self_ty)) : None;
-      },
+      delim =>
+        switch (List.assoc_opt(delim, self_tys)) {
+        | _ when Form.is_annoying_delim(delim) => None
+        | None => Some((delim, unk))
+        | Some(self_ty) when Typ.is_consistent(ctx, expected_ty, self_ty) =>
+          Some((delim, self_ty))
+        | Some(_) => None
+        },
       delims,
     );
 };
@@ -99,29 +97,29 @@ module Typ = {
 /* Automatically collates most delimiters from Forms, notably all
  * mono delimiters, all infix operators, and all leading delimiters */
 module Delims = {
-  let delayed_leading = (sort: Sort.t): list(Token.t) =>
+  let leading = (sort: Sort.t): list(Token.t) =>
     Form.delims
     |> List.map(token => {
-         let (lbl, _) = Molds.delayed_expansion(token);
+         let (lbl, _) = Form.Expansion.get(token);
          List.filter_map(
            (m: Mold.t) =>
              List.length(lbl) > 1 && token == List.hd(lbl) && m.out == sort
                ? Some(token ++ leading_expander) : None,
-           Molds.get(lbl),
+           Form.Molds.get(lbl),
          );
        })
     |> List.flatten
     |> List.sort_uniq(compare);
 
-  let delated_leading_exp = delayed_leading(Exp);
-  let delated_leading_pat = delayed_leading(Pat);
-  let delated_leading_typ = delayed_leading(Typ);
+  let leading_exp = leading(Exp);
+  let leading_pat = leading(Pat);
+  let leading_typ = leading(Typ);
 
-  let delayed_leading = (sort: Sort.t): list(string) =>
+  let leading = (sort: Sort.t): list(string) =>
     switch (sort) {
-    | Exp => delated_leading_exp
-    | Pat => delated_leading_pat
-    | Typ => delated_leading_typ
+    | Exp => leading_exp
+    | Pat => leading_pat
+    | Typ => leading_typ
     | _ => []
     };
 
@@ -131,7 +129,10 @@ module Delims = {
          List.filter_map(
            (m: Mold.t) =>
              m.out == sort && Mold.is_infix_op(m) ? Some(token) : None,
-           Molds.get([token]),
+           switch (Form.Molds.compound([token])) {
+           | Some(molds) => molds
+           | None => []
+           },
          )
        })
     |> List.flatten
@@ -148,13 +149,13 @@ module Delims = {
     };
 
   let const_mono = (sort: Sort.t): list(Token.t) =>
-    Form.const_mono_delims
+    Token.const_mono_delims
     |> List.map(token => {
          List.filter_map(
            (m: Mold.t) =>
-             m.out == sort && List.mem(token, Form.const_mono_delims)
+             m.out == sort && List.mem(token, Token.const_mono_delims)
                ? Some(token) : None,
-           Molds.get([token]),
+           Form.Molds.get([token]),
          )
        })
     |> List.flatten
@@ -210,25 +211,13 @@ let suggest_form =
 };
 
 let suggest_operator: Info.t => list(TyDiSuggestion.t) =
-  info => {
-    switch (info) {
-    | InfoExp({
-        term:
-          {term: Tuple([{term: TupLabel({term: Label(_), _}, _), _}]), _},
-        _,
-      }) =>
-      [] // Stop completing (a= to (a==
-    | _ =>
-      suggest_form(
-        List.map(((a, b)) => (a, IdTagged.fresh(b)), Typ.of_infix_delim),
-        Delims.infix,
-        info,
-      )
-    };
-  };
+  suggest_form(
+    List.map(((a, b)) => (a, IdTagged.fresh(b)), Typ.of_infix_delim),
+    Delims.infix,
+  );
 
 let suggest_operand: Info.t => list(TyDiSuggestion.t) =
   suggest_form(Typ.of_const_mono_delim, Delims.const_mono);
 
 let suggest_leading: Info.t => list(TyDiSuggestion.t) =
-  suggest_form(Typ.of_leading_delim, Delims.delayed_leading);
+  suggest_form(Typ.of_leading_delim, Delims.leading);
