@@ -435,6 +435,7 @@ module View = {
                         Attr.on_change((_, str) =>
                           inject(UpdateTitle(str))
                         ),
+                        Attr.on_focus(_ => take_focus(TextBox)),
                       ],
                       (),
                     ),
@@ -455,6 +456,7 @@ module View = {
               ~attrs=[
                 Attr.class_("prompt-input"),
                 Attr.on_change((_, str) => inject(UpdatePrompt(str))),
+                Attr.on_focus(_ => take_focus(TextBox)),
               ],
               [text(model.prompt)],
             )
@@ -508,7 +510,7 @@ module View = {
           },
         ~inject=a => inject(Theorem(a)),
         ~result_kind=`JustTheorems,
-        ~caption=CellCommon.caption("Theorem (Read-Only)"),
+        ~caption=CellCommon.caption("Theorem (Prove-Only)"),
         model.cells.theorem,
       );
 

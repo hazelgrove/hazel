@@ -953,13 +953,6 @@ and ClosureEnvironment: {
     let id_of = (t: t) => t.id;
     let map_of = (t: t) => t.env;
     let call_stack_of = (t: t) => t.call_stack;
-
-    let (sexp_of_t, t_of_sexp) =
-      Util.StructureShareSexp.structure_share_here(
-        id_of,
-        sexp_of_t,
-        t_of_sexp,
-      );
   };
   include Inner;
 

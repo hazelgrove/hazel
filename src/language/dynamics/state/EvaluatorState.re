@@ -7,6 +7,9 @@ type t = {
   probes: Dynamics.Probe.Map.t,
 };
 
+let (sexp_of_t, t_of_sexp) =
+  StructureShareSexp.structure_share_in(sexp_of_t, t_of_sexp);
+
 let init = {
   tests: TestMap.empty,
   probes: Dynamics.Probe.Map.empty,
