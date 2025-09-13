@@ -149,24 +149,15 @@ let rec unfold_constramnot =
   | (Forall(_, l_ty), Forall(_, r_ty)) =>
     unfold_constramnot(Con(l_ty, r_ty))
   | (Atom(_), _)
-  | (_, Atom(_)) => []
   | (Arrow(_), _)
-  | (_, Arrow(_)) => []
   | (Var(_), _)
-  | (_, Var(_)) => []
   | (Prod(_), _)
-  | (_, Prod(_)) => []
   | (Label(_), _)
-  | (_, Label(_)) => []
   | (TupLabel(_), _)
-  | (_, TupLabel(_)) => []
   | (Sum(_), _)
-  | (_, Sum(_)) => []
   | (List(_), _)
-  | (_, List(_)) => []
   | (Rec(_), _)
-  | (_, Rec(_)) => []
-  // | (Forall(_), _) | (_, Forall(_)) => []
+  | (Forall(_), _) => []
   };
 }
 and unfold_constramnot_prod = (args1, args2): list(canonical_constramnot) =>
@@ -297,7 +288,7 @@ module PossibleProvTypesMap: {
         q => {
           update_data(
             q,
-            (Internal |> Prov.anonymous, [q], PossibleTypeSet.empty),
+            (Internal |> Prov.anonymous, [p], PossibleTypeSet.empty),
             m,
           )
         },
@@ -380,13 +371,14 @@ let rec solution_of_typ = (p: Prov.t, t: Typ.term) => {
 // multiholes idk lol???
 let rec refine_solution = (p: Prov.t, s: solution, t: Typ.term): solution => {
   switch (s, t) {
-  | (Unknown({term: Hole(CycleHole), _}), _) =>
-    Multi([
-      Unknown(Hole(CycleHole) |> Prov.anonymous),
-      solution_of_typ(p, t),
-    ])
-  | (Unknown(_), t) => solution_of_typ(p, t)
-  | (s, Unknown(_)) => s
+  | (s, Unknown({term: Hole(CycleHole), _}) as t)
+  | (Unknown({term: Hole(CycleHole), _}) as s, t) =>
+    Multi([s, solution_of_typ(p, t)])
+  | (Unknown(p), t) when !is_identified_providence(p) =>
+    solution_of_typ(p, t)
+  | (s, Unknown(p)) when !is_identified_providence(p) => s
+  | (Unknown(_) as s, _) => s
+  | (_, Unknown(_) as t) => solution_of_typ(p, t)
   | (Atom(a1), Atom(a2)) when a1 == a2 => Atom(a1)
   | (Atom(a1), Atom(a2)) => Multi([Atom(a1), Atom(a2)])
   | (List(l1), List(l2)) => List(refine_solution(p, l1, l2 |> Typ.term_of))
@@ -446,10 +438,6 @@ let rec refine_solution = (p: Prov.t, s: solution, t: Typ.term): solution => {
         ),
       ]);
     }
-  // | (Num, Arrow(_)) => Multi([Num, solution_of_typ(p, t)])
-  // | (Bool, Arrow(_)) => Multi([Bool, solution_of_typ(p, t)])
-  // | (Arrow(s1, s2), Num)
-  // | (Arrow(s1, s2), Bool) => Multi([Num, Arrow(s1, s2)])
   | (Arrow(s1, s2), Arrow(t1, t2)) =>
     Arrow(
       refine_solution(p, s1, t1 |> Typ.term_of),
