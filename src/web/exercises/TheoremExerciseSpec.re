@@ -5,7 +5,7 @@ type t = {
   id: Haz3lcore.Id.t,
   title: string,
   prompt: string,
-  prelude: Haz3lcore.Zipper.t,
-  lemmas: Haz3lcore.Zipper.t,
+  // prelude: Haz3lcore.Zipper.t,
+  // lemmas: Haz3lcore.Zipper.t,
   theorem: Haz3lcore.Zipper.t,
 };

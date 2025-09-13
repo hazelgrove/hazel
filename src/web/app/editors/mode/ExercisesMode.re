@@ -160,7 +160,7 @@ module Model = {
     let current = List.nth(model.exercises, model.current);
     switch (current) {
     | Implementation(e) => e.cells.user_impl.editor
-    | Theorem(e) => e.cells.lemmas.editor
+    | Theorem(e) => e.cells.theorem.editor
     };
   };
 };

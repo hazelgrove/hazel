@@ -10,8 +10,8 @@ open Util;
 module Model = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type cells = {
-    prelude: CellEditor.Model.t,
-    lemmas: CellEditor.Model.t,
+    // prelude: CellEditor.Model.t,
+    // lemmas: CellEditor.Model.t,
     theorem: CellEditor.Model.t,
   };
 
@@ -25,24 +25,24 @@ module Model = {
 
   [@deriving (show({with_path: false}), sexp, yojson)]
   type persistent = {
-    lemmas: CellEditor.Model.persistent,
+    // lemmas: CellEditor.Model.persistent,
     theorem: EvalResult.Model.persistent,
   };
 
   let persist = (model: t): persistent => {
-    lemmas: model.cells.lemmas |> CellEditor.Model.persist,
+    // lemmas: model.cells.lemmas |> CellEditor.Model.persist,
     theorem: model.cells.theorem.result |> EvalResult.Model.persist,
   };
 
   let unpersist =
-      (~settings, spec: TheoremExerciseSpec.t, persistent: persistent): t => {
+      (~settings as _, spec: TheoremExerciseSpec.t, persistent: persistent): t => {
     {
       id: spec.id,
       title: spec.title,
       prompt: spec.prompt,
       cells: {
-        prelude: CellEditor.Model.mk(Editor.Model.mk(spec.prelude)),
-        lemmas: persistent.lemmas |> CellEditor.Model.unpersist(~settings),
+        // prelude: CellEditor.Model.mk(Editor.Model.mk(spec.prelude)),
+        // lemmas: persistent.lemmas |> CellEditor.Model.unpersist(~settings),
         theorem: {
           editor: CellEditor.Model.mk(Editor.Model.mk(spec.theorem)).editor,
           result: persistent.theorem |> EvalResult.Model.unpersist,
@@ -57,8 +57,8 @@ module Model = {
       title: spec.title,
       prompt: spec.prompt,
       cells: {
-        prelude: CellEditor.Model.mk(Editor.Model.mk(spec.prelude)),
-        lemmas: CellEditor.Model.mk(Editor.Model.mk(spec.lemmas)),
+        // prelude: CellEditor.Model.mk(Editor.Model.mk(spec.prelude)),
+        // lemmas: CellEditor.Model.mk(Editor.Model.mk(spec.lemmas)),
         theorem: CellEditor.Model.mk(Editor.Model.mk(spec.theorem)),
       },
     };
@@ -72,8 +72,8 @@ module Update = {
   type t =
     | UpdateTitle(string)
     | UpdatePrompt(string)
-    | Prelude(CellEditor.Update.t)
-    | Lemmas(CellEditor.Update.t)
+    // | Prelude(CellEditor.Update.t)
+    // | Lemmas(CellEditor.Update.t)
     | Theorem(CellEditor.Update.t);
 
   let update = (~settings: Settings.t, action: t, model: Model.t) => {
@@ -94,51 +94,51 @@ module Update = {
     | UpdatePrompt(_) =>
       print_endline("Instructor-only action");
       Updated.return_quiet(model);
-    | Prelude(action) when settings.instructor_mode =>
-      let* new_cell =
-        CellEditor.Update.update(~settings, action, model.cells.prelude);
-      {
-        ...model,
-        cells: {
-          ...model.cells,
-          prelude: new_cell,
-        },
-      };
-    | Prelude(MainEditor(action))
-        when CodeSelectable.Update.convert_action(action) != None =>
-      let* new_cell =
-        CellEditor.Update.update(
-          ~settings,
-          MainEditor(action),
-          model.cells.prelude,
-        );
-      {
-        ...model,
-        cells: {
-          ...model.cells,
-          prelude: new_cell,
-        },
-      };
-    | Prelude(_) =>
-      print_endline("Instructor-only action");
-      Updated.return_quiet(model);
-    | Lemmas(action) =>
-      let* new_cell =
-        CellEditor.Update.update(~settings, action, model.cells.lemmas);
-      {
-        ...model,
-        cells: {
-          ...model.cells,
-          lemmas: new_cell,
-        },
-      };
+    // | Prelude(action) when settings.instructor_mode =>
+    //   let* new_cell =
+    //     CellEditor.Update.update(~settings, action, model.cells.prelude);
+    //   {
+    //     ...model,
+    //     cells: {
+    //       ...model.cells,
+    //       prelude: new_cell,
+    //     },
+    //   };
+    // | Prelude(MainEditor(action))
+    //     when CodeSelectable.Update.convert_action(action) != None =>
+    //   let* new_cell =
+    //     CellEditor.Update.update(
+    //       ~settings,
+    //       MainEditor(action),
+    //       model.cells.prelude,
+    //     );
+    //   {
+    //     ...model,
+    //     cells: {
+    //       ...model.cells,
+    //       prelude: new_cell,
+    //     },
+    //   };
+    // | Prelude(_) =>
+    //   print_endline("Instructor-only action");
+    //   Updated.return_quiet(model);
+    // | Lemmas(action) =>
+    //   let* new_cell =
+    //     CellEditor.Update.update(~settings, action, model.cells.lemmas);
+    //   {
+    //     ...model,
+    //     cells: {
+    //       ...model.cells,
+    //       lemmas: new_cell,
+    //     },
+    //   };
     | Theorem(action) when settings.instructor_mode =>
       let* new_cell =
         CellEditor.Update.update(~settings, action, model.cells.theorem);
       {
         ...model,
         cells: {
-          ...model.cells,
+          // ...model.cells,
           theorem: new_cell,
         },
       };
@@ -153,7 +153,7 @@ module Update = {
       {
         ...model,
         cells: {
-          ...model.cells,
+          // ...model.cells,
           theorem: new_cell,
         },
       };
@@ -167,7 +167,7 @@ module Update = {
       {
         ...model,
         cells: {
-          ...model.cells,
+          // ...model.cells,
           theorem: new_cell,
         },
       };
@@ -181,8 +181,8 @@ module Update = {
     switch (action) {
     | UpdateTitle(_) => true
     | UpdatePrompt(_) => true
-    | Prelude(action) => CellEditor.Update.can_undo(action)
-    | Lemmas(action) => CellEditor.Update.can_undo(action)
+    // | Prelude(action) => CellEditor.Update.can_undo(action)
+    // | Lemmas(action) => CellEditor.Update.can_undo(action)
     | Theorem(action) => CellEditor.Update.can_undo(action)
     };
   };
@@ -190,28 +190,28 @@ module Update = {
   let calculate =
       (~settings, ~is_edited, ~schedule_action, model: Model.t): Model.t => {
     // Work out the terms
-    let just_prelude_term =
-      MakeTerm.from_zip_for_sem(
-        model.cells.prelude.editor.editor.state.zipper,
-      ).
-        term;
-    let just_lemmas_term =
-      MakeTerm.from_zip_for_sem(model.cells.lemmas.editor.editor.state.zipper).
-        term;
-    let just_theorem_term =
-      MakeTerm.from_zip_for_sem(
-        model.cells.theorem.editor.editor.state.zipper,
-      ).
-        term;
+    // let just_prelude_term =
+    //   MakeTerm.from_zip_for_sem(
+    //     model.cells.prelude.editor.editor.state.zipper,
+    //   ).
+    //     term;
+    // let just_lemmas_term =
+    //   MakeTerm.from_zip_for_sem(model.cells.lemmas.editor.editor.state.zipper).
+    //     term;
+    // let just_theorem_term =
+    //   MakeTerm.from_zip_for_sem(
+    //     model.cells.theorem.editor.editor.state.zipper,
+    //   ).
+    //     term;
 
-    let stitched_scratch =
-      Exercise.append_exp(just_prelude_term, just_lemmas_term);
-    let stitched_theorem =
-      Exercise.append_exp(
-        stitched_scratch,
-        Language.Exp.replace_all_ids(just_prelude_term),
-      )
-      |> Exercise.append_exp(_, just_theorem_term);
+    // let stitched_scratch =
+    //   Exercise.append_exp(just_prelude_term, just_lemmas_term);
+    // let stitched_theorem =
+    //   Exercise.append_exp(
+    //     stitched_scratch,
+    //     Language.Exp.replace_all_ids(just_prelude_term),
+    //   )
+    //   |> Exercise.append_exp(_, just_theorem_term);
 
     // Worker Setup
     let worker_request: ref(list((string, Language.Exp.t))) = ref([]);
@@ -220,35 +220,35 @@ module Update = {
     };
 
     // Calculate each cell
-    let cells =
+    let cells: Model.cells =
       Model.{
-        prelude:
-          model.cells.prelude
-          |> CellEditor.Update.calculate(
-               ~settings,
-               ~is_edited,
-               ~queue_worker=Some(queue_worker("prelude")),
-               ~stitch=_ =>
-               just_prelude_term
-             ),
-        lemmas:
-          model.cells.lemmas
-          |> CellEditor.Update.calculate(
-               ~settings,
-               ~is_edited,
-               ~queue_worker=Some(queue_worker("lemmas")),
-               ~stitch=_ =>
-               stitched_scratch
-             ),
+        // prelude:
+        //   model.cells.prelude
+        //   |> CellEditor.Update.calculate(
+        //        ~settings,
+        //        ~is_edited,
+        //        ~queue_worker=Some(queue_worker("prelude")),
+        //        ~stitch=_ =>
+        //        just_prelude_term
+        //      ),
+        // lemmas:
+        //   model.cells.lemmas
+        //   |> CellEditor.Update.calculate(
+        //        ~settings,
+        //        ~is_edited,
+        //        ~queue_worker=Some(queue_worker("lemmas")),
+        //        ~stitch=_ =>
+        //        stitched_scratch
+        //      ),
         theorem:
           model.cells.theorem
           |> CellEditor.Update.calculate(
                ~settings,
                ~is_edited,
                ~queue_worker=Some(queue_worker("theorem")),
-               ~stitch=_ =>
-               stitched_theorem
-             ),
+               ~stitch=x =>
+               x
+             ) //  stitched_theorem
       };
 
     // Send to worker
@@ -267,9 +267,9 @@ module Update = {
             | Error(e) => ResultFail(e)
             };
           switch (pos) {
-          | "lemmas" =>
-            schedule_action(Prelude(ResultAction(UpdateResult(result'))));
-            schedule_action(Lemmas(ResultAction(UpdateResult(result'))));
+          // | "lemmas" =>
+          //   schedule_action(Prelude(ResultAction(UpdateResult(result'))));
+          //   schedule_action(Lemmas(ResultAction(UpdateResult(result'))));
           | "theorem" =>
             schedule_action(Theorem(ResultAction(UpdateResult(result'))))
           | _ => ()
@@ -278,14 +278,14 @@ module Update = {
       ~timeout=_ => {
       List.iter(
         fun
-        | "lemmas" => {
-            schedule_action(
-              Prelude(ResultAction(UpdateResult(ResultFail(Timeout)))),
-            );
-            schedule_action(
-              Lemmas(ResultAction(UpdateResult(ResultFail(Timeout)))),
-            );
-          }
+        // | "lemmas" => {
+        //     schedule_action(
+        //       Prelude(ResultAction(UpdateResult(ResultFail(Timeout)))),
+        //     );
+        //     schedule_action(
+        //       Lemmas(ResultAction(UpdateResult(ResultFail(Timeout)))),
+        //     );
+        //   }
         | "theorem" =>
           schedule_action(
             Theorem(ResultAction(UpdateResult(ResultFail(Timeout)))),
@@ -307,27 +307,27 @@ module Selection = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t =
     | TextBox
-    | Prelude(CellEditor.Selection.t)
-    | Lemmas(CellEditor.Selection.t)
+    // | Prelude(CellEditor.Selection.t)
+    // | Lemmas(CellEditor.Selection.t)
     | Theorem(CellEditor.Selection.t);
 
   let get_cursor_info = (~selection: t, model: Model.t): cursor(Update.t) => {
     switch (selection) {
     | TextBox => Cursor.empty
-    | Prelude(s) =>
-      let+ a =
-        CellEditor.Selection.get_cursor_info(
-          ~selection=s,
-          model.cells.prelude,
-        );
-      Update.Prelude(a);
-    | Lemmas(s) =>
-      let+ a =
-        CellEditor.Selection.get_cursor_info(
-          ~selection=s,
-          model.cells.lemmas,
-        );
-      Update.Lemmas(a);
+    // | Prelude(s) =>
+    //   let+ a =
+    //     CellEditor.Selection.get_cursor_info(
+    //       ~selection=s,
+    //       model.cells.prelude,
+    //     );
+    //   Update.Prelude(a);
+    // | Lemmas(s) =>
+    //   let+ a =
+    //     CellEditor.Selection.get_cursor_info(
+    //       ~selection=s,
+    //       model.cells.lemmas,
+    //     );
+    // Update.Lemmas(a);
     | Theorem(s) =>
       let+ a =
         CellEditor.Selection.get_cursor_info(
@@ -342,20 +342,20 @@ module Selection = {
       (~selection: t, ~event, model: Model.t): option(Update.t) => {
     switch (selection) {
     | TextBox => None
-    | Prelude(s) =>
-      CellEditor.Selection.handle_key_event(
-        ~selection=s,
-        model.cells.prelude,
-        ~event,
-      )
-      |> Option.map(x => Update.Prelude(x))
-    | Lemmas(s) =>
-      CellEditor.Selection.handle_key_event(
-        ~selection=s,
-        model.cells.lemmas,
-        ~event,
-      )
-      |> Option.map(x => Update.Lemmas(x))
+    // | Prelude(s) =>
+    //   CellEditor.Selection.handle_key_event(
+    //     ~selection=s,
+    //     model.cells.prelude,
+    //     ~event,
+    //   )
+    //   |> Option.map(x => Update.Prelude(x))
+    // | Lemmas(s) =>
+    //   CellEditor.Selection.handle_key_event(
+    //     ~selection=s,
+    //     model.cells.lemmas,
+    //     ~event,
+    //   )
+    //   |> Option.map(x => Update.Lemmas(x))
     | Theorem(s) =>
       CellEditor.Selection.handle_key_event(
         ~selection=s,
@@ -368,35 +368,35 @@ module Selection = {
 
   let jump_to_tile = (tile, model: Model.t): option((Update.t, t)) => {
     open OptUtil.Syntax;
-    let (let.or) = (v: option('b), f: unit => option('b)) => {
-      switch (v) {
-      | Some(x) => Some(x)
-      | None => f()
-      };
-    };
+    // let (let.or) = (v: option('b), f: unit => option('b)) => {
+    //   switch (v) {
+    //   | Some(x) => Some(x)
+    //   | None => f()
+    //   };
+    // };
 
-    let.or () = {
-      let* _ =
-        TermData.root_tile(
-          tile,
-          model.cells.prelude.editor.editor.syntax.term_data,
-        );
-      Some((
-        Update.Prelude(MainEditor(Perform(Move(Goal(TileId(tile)))))),
-        Prelude(CellEditor.Selection.MainEditor),
-      ));
-    };
-    let.or () = {
-      let* _ =
-        TermData.root_tile(
-          tile,
-          model.cells.lemmas.editor.editor.syntax.term_data,
-        );
-      Some((
-        Update.Lemmas(MainEditor(Perform(Move(Goal(TileId(tile)))))),
-        Lemmas(CellEditor.Selection.MainEditor),
-      ));
-    };
+    // let.or () = {
+    //   let* _ =
+    //     TermData.root_tile(
+    //       tile,
+    //       model.cells.prelude.editor.editor.syntax.term_data,
+    //     );
+    //   Some((
+    //     Update.Prelude(MainEditor(Perform(Move(Goal(TileId(tile)))))),
+    //     Prelude(CellEditor.Selection.MainEditor),
+    //   ));
+    // };
+    // let.or () = {
+    //   let* _ =
+    //     TermData.root_tile(
+    //       tile,
+    //       model.cells.lemmas.editor.editor.syntax.term_data,
+    //     );
+    //   Some((
+    //     Update.Lemmas(MainEditor(Perform(Move(Goal(TileId(tile)))))),
+    //     Lemmas(CellEditor.Selection.MainEditor),
+    //   ));
+    // };
 
     let* _ =
       TermData.root_tile(
@@ -463,39 +463,39 @@ module View = {
           : div(~attrs=[Attr.class_("prompt-text")], [text(model.prompt)]),
       ]);
 
-    let prelude_view =
-      CellEditor.View.view(
-        ~globals,
-        ~signal=
-          fun
-          | MakeActive(a) => take_focus(Prelude(a)),
-        ~selected=
-          switch (selection) {
-          | Some(Prelude(s)) => Some(s)
-          | _ => None
-          },
-        ~inject=a => inject(Prelude(a)),
-        ~result_kind=`NoResults,
-        ~caption=CellCommon.caption("Prelude (Read-Only)"),
-        model.cells.prelude,
-      );
+    // let prelude_view =
+    //   CellEditor.View.view(
+    //     ~globals,
+    //     ~signal=
+    //       fun
+    //       | MakeActive(a) => take_focus(Prelude(a)),
+    //     ~selected=
+    //       switch (selection) {
+    //       | Some(Prelude(s)) => Some(s)
+    //       | _ => None
+    //       },
+    //     ~inject=a => inject(Prelude(a)),
+    //     ~result_kind=`NoResults,
+    //     ~caption=CellCommon.caption("Prelude (Read-Only)"),
+    //     model.cells.prelude,
+    //   );
 
-    let lemmas_view =
-      CellEditor.View.view(
-        ~globals,
-        ~signal=
-          fun
-          | MakeActive(a) => take_focus(Lemmas(a)),
-        ~selected=
-          switch (selection) {
-          | Some(Lemmas(s)) => Some(s)
-          | _ => None
-          },
-        ~inject=a => inject(Lemmas(a)),
-        ~result_kind=`NoTheorems,
-        ~caption=CellCommon.caption("Lemmas / Scratch Space"),
-        model.cells.lemmas,
-      );
+    // let lemmas_view =
+    //   CellEditor.View.view(
+    //     ~globals,
+    //     ~signal=
+    //       fun
+    //       | MakeActive(a) => take_focus(Lemmas(a)),
+    //     ~selected=
+    //       switch (selection) {
+    //       | Some(Lemmas(s)) => Some(s)
+    //       | _ => None
+    //       },
+    //     ~inject=a => inject(Lemmas(a)),
+    //     ~result_kind=`NoTheorems,
+    //     ~caption=CellCommon.caption("Lemmas / Scratch Space"),
+    //     model.cells.lemmas,
+    //   );
 
     let theorem_view =
       CellEditor.View.view(
@@ -514,6 +514,11 @@ module View = {
         model.cells.theorem,
       );
 
-    [title_view, prompt_view, prelude_view, lemmas_view, theorem_view];
+    [
+      title_view,
+      prompt_view,
+      // prelude_view, lemmas_view,
+      theorem_view,
+    ];
   };
 };
