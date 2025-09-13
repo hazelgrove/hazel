@@ -270,7 +270,10 @@ module Update = {
       };
 
     let theorems =
-      theorems |> Theorems.Update.calculate(~settings, ~statics, ~dynamics);
+      Calc.get_value(settings).dynamics
+        ? theorems
+          |> Theorems.Update.calculate(~settings, ~statics, ~dynamics)
+        : theorems;
 
     (
       {

@@ -293,7 +293,7 @@ module View = {
         },
       },
     };
-    switch (model.thms |> Calc.get_saved_exc) {
+    switch (model.thms |> Calc.get_saved([])) {
     | [] => []
     | xs =>
       List.map(
