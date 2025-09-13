@@ -135,7 +135,7 @@ module Model = {
   let export_exercise_module = (e: exercise): string =>
     switch (e) {
     | Implementation(e) => Exercise.export_module({eds: e.editors})
-    | Theorem(_) => "(* Theorem exercises do not have an exportable module *)\n"
+    | Theorem(t) => TheoremExerciseMode.Model.export_module(t)
     };
 
   let export_transitionary_module = (e: exercise): string =>

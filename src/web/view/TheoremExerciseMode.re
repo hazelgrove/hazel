@@ -63,6 +63,24 @@ module Model = {
       },
     };
   };
+
+  let spec_of_t = (model: t): TheoremExerciseSpec.t => {
+    {
+      id: model.id,
+      title: model.title,
+      prompt: model.prompt,
+      // prelude: model.cells.prelude.editor.state.zipper, --- IGNORE ---
+      // lemmas: model.cells.lemmas.editor.state.zipper, --- IGNORE ---
+      theorem: model.cells.theorem.editor.editor.state.zipper,
+    };
+  };
+
+  let export_module = (model: t): string => {
+    let prefix = "let exercise : TheoremExerciseSpec.t =
+ \n";
+    let spec = spec_of_t(model);
+    prefix ++ TheoremExerciseSpec.show(spec) ++ "\n";
+  };
 };
 
 module Update = {
