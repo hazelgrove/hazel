@@ -744,18 +744,18 @@ let extend_sol_map =
   let canonical_cs = unfold_constramnots(cs); // make constraints canonical
   let m = PossibleProvTypesMap.of_constramnots(canonical_cs, sm); // compute provenance map
   // print_endline("Provenance Map:");
-  print_endline(string_of_prov_map(m));
+  // print_endline(string_of_prov_map(m));
   switch (PossibleProvTypesMap.find_dominant_provs(m)) {
   // if you find a dominant provenance...
   | ([], _) => None
   | ([p, ..._], is_cyclic) =>
     Some(
       {
-        print_endline(
-          "Solving: " ++ (StringProv.of_prov(p) |> StringProv.show),
-        );
+        // print_endline(
+        //   "Solving: " ++ (StringProv.of_prov(p) |> StringProv.show),
+        // );
         let s = solve_prov(p, m); // solve it
-        print_endline("Solution: " ++ show_solution(s));
+        // print_endline("Solution: " ++ show_solution(s));
         let equiv_provs: list(StringProv.t) =
           List.filter_map(
             ((p', _)) =>
@@ -772,10 +772,10 @@ let extend_sol_map =
               },
             PossibleProvTypesMap.bindings(m),
           );
-        print_endline(
-          "Equivalent provs: "
-          ++ String.concat(",", List.map(StringProv.show, equiv_provs)),
-        );
+        // print_endline(
+        //   "Equivalent provs: "
+        //   ++ String.concat(",", List.map(StringProv.show, equiv_provs)),
+        // );
 
         let cyclic_provs' =
           if (is_cyclic) {
@@ -839,7 +839,7 @@ let rec solve_rec =
         : SolutionMap.t => {
   switch (extend_sol_map(cs, sm, cyclic_provs)) {
   | None =>
-    print_endline("No dominant provenances");
+    // print_endline("No dominant provenances");
     // relax solution to have no cycles
     let sm' =
       List.fold_left(
@@ -863,7 +863,7 @@ let rec solve_rec =
 };
 
 let solve = (cs: list(Typ.equivalence)): SolutionMap.t => {
-  print_endline("SOLVING");
+  // print_endline("SOLVING");
   solve_rec(cs, SolutionMap.empty, []);
 };
 
