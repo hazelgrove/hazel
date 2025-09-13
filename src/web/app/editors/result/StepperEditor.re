@@ -97,7 +97,7 @@ module View = {
            div_c(
              "step-next",
              Arms.term(
-               ~attr=[Attr.on_mousedown(_ => inject(i))],
+               ~attr=[Attr.on_mouseup(_ => inject(i))],
                ~font_metrics,
                ~syntax,
                t,
