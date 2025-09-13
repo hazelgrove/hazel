@@ -41,6 +41,23 @@ type deferral_position_t =
   | OutsideAp;
 
 [@deriving (show({with_path: false}), sexp, yojson, eq)]
+type closure_env_strucshare('env) = {
+  id: Id.t,
+  env: 'env,
+  call_stack: Probe.call_stack,
+};
+
+let sexp_of_closure_env_strucshare = f =>
+  StructureShareSexp.structure_share_sexp_of_t(
+    (x: closure_env_strucshare('a)) => x.id,
+    sexp_of_closure_env_strucshare(f),
+  );
+let closure_env_strucshare_of_sexp = f =>
+  StructureShareSexp.structure_share_t_of_sexp(
+    closure_env_strucshare_of_sexp(f),
+  );
+
+[@deriving (show({with_path: false}), sexp, yojson, eq)]
 type any_t('a) =
   | Exp(exp_t('a))
   | Pat(pat_t('a))
