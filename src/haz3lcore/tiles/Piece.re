@@ -216,3 +216,15 @@ let token_of = (p: t): option(Token.t) =>
   | Grout(_) => None
   | Projector(_) => None
   };
+
+let l_shard_of = (p: t): t =>
+  switch (p) {
+  | Tile(t) => Tile(Tile.shard_of(t, Tile.l_shard(t)))
+  | _ => p
+  };
+
+let r_shard_of = (p: t): t =>
+  switch (p) {
+  | Tile(t) => Tile(Tile.shard_of(t, Tile.r_shard(t)))
+  | _ => p
+  };
