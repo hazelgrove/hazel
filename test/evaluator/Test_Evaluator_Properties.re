@@ -11,7 +11,8 @@ let qcheck_evaluator_does_not_crash_test =
     exp => {
     switch (
       Elaborator.elaborate(
-        Statics.mk(CoreSettings.on, Builtins.ctx_init(Some(Int)), exp),
+        Statics.mk(CoreSettings.on, Builtins.ctx_init(Some(Int)), exp)
+        |> fst,
         exp,
       )
       |> fst
@@ -55,7 +56,8 @@ let qcheck_stepper_confluence =
     uexp => {
     switch (
       Elaborator.elaborate(
-        Statics.mk(CoreSettings.on, Builtins.ctx_init(Some(Int)), uexp),
+        Statics.mk(CoreSettings.on, Builtins.ctx_init(Some(Int)), uexp)
+        |> fst,
         uexp,
       )
       |> fst
@@ -187,7 +189,7 @@ let qcheck_preservation_test =
     switch (
       switch (
         {
-          let statics =
+          let (statics, _) =
             Statics.mk(CoreSettings.on, Builtins.ctx_init(Some(Int)), uexp);
           let (elaborated, ty) = Elaborator.elaborate(statics, uexp);
           let stepped = single_step(elaborated);
@@ -197,7 +199,7 @@ let qcheck_preservation_test =
       | (Some((next, _)), orig_ty) =>
         switch (
           {
-            let statics =
+            let (statics, _) =
               Statics.mk(
                 CoreSettings.on,
                 Builtins.ctx_init(Some(Int)),

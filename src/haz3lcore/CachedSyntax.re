@@ -34,12 +34,17 @@ let t_of_sexp = _ => failwith("Editor.Meta.t_of_sexp");
 let yojson_of_t = _ => failwith("Editor.Meta.yojson_of_t");
 let t_of_yojson = _ => failwith("Editor.Meta.t_of_yojson");
 
-let mk = (~info_map, ~dyn_map, z): t => {
+let mk = (~info_map, ~inference_map, ~dyn_map, z): t => {
   let segment = Zipper.unselect_and_zip(z);
   let MakeTerm.{term: _, terms, projectors, term_data} =
     MakeTerm.go(segment);
   let projector_shapes =
-    ProjectorInfo.ShapeMapSemantics.mk(projectors, info_map, dyn_map);
+    ProjectorInfo.ShapeMapSemantics.mk(
+      projectors,
+      info_map,
+      inference_map,
+      dyn_map,
+    );
   {
     old: false,
     segment,
@@ -54,7 +59,12 @@ let mk = (~info_map, ~dyn_map, z): t => {
 };
 
 let init = (z: Zipper.t) =>
-  mk(z, ~info_map=Id.Map.empty, ~dyn_map=Id.Map.empty);
+  mk(
+    z,
+    ~info_map=Id.Map.empty,
+    ~inference_map=Language.Inference.SolutionMap.empty,
+    ~dyn_map=Id.Map.empty,
+  );
 
 let mark_old: t => t =
   old => {
@@ -62,9 +72,9 @@ let mark_old: t => t =
     old: true,
   };
 
-let calculate = (z: Zipper.t, info_map, dyn_map, old: t) =>
+let calculate = (z: Zipper.t, info_map, inference_map, dyn_map, old: t) =>
   old.old
-    ? mk(z, ~info_map, ~dyn_map)
+    ? mk(z, ~info_map, ~inference_map, ~dyn_map)
     : {
       ...old,
       selection_ids: Selection.selection_ids(z.selection),

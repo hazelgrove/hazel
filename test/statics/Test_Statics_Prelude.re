@@ -107,7 +107,7 @@ let type_of = (~static_map=?, f) => {
        _,
        switch (static_map) {
        | Some(s) => s
-       | None => statics(f)
+       | None => statics(f) |> fst
        },
      )
   |> Option.bind(
@@ -120,7 +120,7 @@ let type_of = (~static_map=?, f) => {
 
 let annotated_tree_test = (name, expected_type, expected_error_tree) => {
   let term = fresh(Grammar.map_exp_annotation(_ => (), expected_error_tree));
-  let s = statics(term);
+  let (s, _) = statics(term);
   let annotated: Grammar.exp_t(option(Info.error)) =
     annotate_static_errors(term, s);
   let typ = type_of(~static_map=s, term);
@@ -138,7 +138,7 @@ let inconsistent_typecheck = (name, exp) => {
     name,
     `Quick,
     () => {
-      let s = statics(exp);
+      let (s, _) = statics(exp);
 
       let errors = List.map(snd, Statics.Map.errors(s));
 
@@ -157,7 +157,7 @@ let fully_consistent_typecheck = (name, serialized, expected) => {
     `Quick,
     () => {
       let exp = parse_exp(serialized);
-      let s = statics(exp);
+      let (s, _) = statics(exp);
       let errors = List.map(snd, Statics.Map.errors(s));
       let actual_type = type_of(~static_map=s, exp);
       Alcotest.check(list(testable_error), "Static Errors", [], errors);

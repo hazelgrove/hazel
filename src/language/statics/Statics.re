@@ -2423,19 +2423,19 @@ let mk =
         );
 
       let inference_sols = Inference.solve(info.constraints);
-      Inference.ProvMap.iter(
-        (key, sol) => {
-          print_endline(
-            Inference.StringProv.show(key)
-            ++ " -> "
-            ++ Inference.show_solution(sol),
-          )
-        },
-        inference_sols,
-      );
-      map;
+      // Inference.ProvMap.iter(
+      //   (key, sol) => {
+      //     print_endline(
+      //       Inference.StringProv.show(key)
+      //       ++ " -> "
+      //       ++ Inference.show_solution(sol),
+      //     )
+      //   },
+      //   inference_sols,
+      // );
+      (map, inference_sols);
     },
   );
 
 let mk = (core: CoreSettings.t, ctx, exp) =>
-  core.statics ? mk(ctx, exp) : Id.Map.empty;
+  core.statics ? mk(ctx, exp) : (Id.Map.empty, Inference.SolutionMap.empty);

@@ -6,6 +6,7 @@ type t = {
   term: Exp.t,
   elaborated: Exp.t,
   info_map: Statics.Map.t,
+  inference_map: Inference.SolutionMap.t,
   error_ids: list(Id.t),
 };
 
@@ -23,6 +24,7 @@ let empty: t = {
     term: Tuple([]),
   },
   info_map: Id.Map.empty,
+  inference_map: Inference.SolutionMap.empty,
   error_ids: [],
 };
 
@@ -37,7 +39,7 @@ let init_from_term = (~settings, ~is_dynamic_term, ~ctx=?, term): t => {
       ~default=Builtins.ctx_init(is_dynamic_term ? None : Some(Int)),
       ctx,
     );
-  let info_map = Statics.mk(settings, ctx_init, term);
+  let (info_map, inference_map) = Statics.mk(settings, ctx_init, term);
   let error_ids = Statics.Map.error_ids(info_map);
   let elaborated =
     switch () {
@@ -54,6 +56,7 @@ let init_from_term = (~settings, ~is_dynamic_term, ~ctx=?, term): t => {
     term,
     elaborated,
     info_map,
+    inference_map,
     error_ids,
   };
 };

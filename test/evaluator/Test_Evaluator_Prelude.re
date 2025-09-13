@@ -35,7 +35,7 @@ let parse_exp = (s: string) => {
 };
 let elaborate = u =>
   Elaborator.elaborate(
-    Statics.mk(CoreSettings.on, Builtins.ctx_init(Some(Int)), u),
+    Statics.mk(CoreSettings.on, Builtins.ctx_init(Some(Int)), u) |> fst,
     u,
   )
   |> fst;
@@ -105,13 +105,13 @@ let full_small_step_reduction =
 };
 
 let full_preservation_test = (uexp: TermBase.exp_t): unit => {
-  let statics =
+  let (statics, _) =
     Statics.mk(CoreSettings.on, Builtins.ctx_init(Some(Int)), uexp);
   let (elaborated, ty) = Elaborator.elaborate(statics, uexp);
 
   let evaluated =
     Evaluator.evaluate(~env=Builtins.env_init, elaborated) |> fst;
-  let new_statics =
+  let (new_statics, _) =
     Statics.mk(CoreSettings.on, Builtins.ctx_init(Some(Int)), evaluated);
 
   let new_ty =

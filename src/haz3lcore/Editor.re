@@ -101,6 +101,7 @@ module Update = {
           CachedSyntax.calculate(
             state.zipper,
             old_statics.info_map,
+            old_statics.inference_map,
             old_dynamics,
             syntax,
           );
@@ -182,6 +183,7 @@ module Update = {
       CachedSyntax.calculate(
         zipper,
         new_statics.info_map,
+        new_statics.inference_map,
         new_dynamics,
         syntax,
       );

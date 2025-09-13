@@ -34,7 +34,7 @@ let analyze_hazel = path => {
   let program = read_input(path);
   let parsed = parse_program(program);
   open Language;
-  let static_map =
+  let (static_map, _) =
     Statics.mk(CoreSettings.on, Builtins.ctx_init(Some(Int)), parsed);
   let errors = List.map(snd, Statics.Map.errors(static_map));
   switch (errors) {

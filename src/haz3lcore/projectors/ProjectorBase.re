@@ -81,6 +81,8 @@ type info = {
    * information. Statics may be disabled by the user;
    * this case (None) must be handled by projector authors */
   statics: option(Language.Statics.Info.t),
+  // TODO: (THI) document, might want to merge with above
+  inference: option(Language.Inference.solution),
   /* Dynamic information about the syntax including
    * live values of the syntax. Dynamics may be
    * disabled by the user; this case (None) must be
