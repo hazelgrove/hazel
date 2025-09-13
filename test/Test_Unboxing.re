@@ -1,11 +1,18 @@
 open Alcotest;
 open Language;
 
+module F = IdTagged.FreshGrammar;
+
+let exp = testable(Exp.pp, DHExp.fast_equal);
+
 let unboxed_testable = (inner_testable: testable('a)) =>
   testable(
     Fmt.using(Unboxing.show_unboxed(pp(inner_testable)), Fmt.string),
     Unboxing.equal_unboxed(equal(inner_testable)),
   );
+
+let big_int_testable =
+  testable(Fmt.using(Bigint.to_string, Fmt.string), Bigint.equal);
 let dhexp_typ = testable(Fmt.using(Exp.show, Fmt.string), Exp.fast_equal);
 
 let test_does_not_match = (name, type_testable, request, term) =>
@@ -150,6 +157,66 @@ let tests = (
         pair(dhexp_typ, dhexp_typ),
         Cons,
         asc(empty_hole(), Typ.(list(empty_hole()))),
+      ),
+      test_case("Unboxing integer", `Quick, () => {
+        check(
+          unboxed_testable(big_int_testable),
+          "8",
+          Matches(Bigint.of_int(8)),
+          unbox(Atom(Int), F.Exp.int(8)),
+        )
+      }),
+      test_case(
+        "Pivot request",
+        `Quick,
+        () => {
+          let actual =
+            unbox(
+              TupleElementPivot("a"),
+              F.Exp.(
+                tuple([
+                  tup_label(label("a"), string("aval")),
+                  tup_label(label("b"), string("bval")),
+                ])
+              ),
+            );
+          let expected = (
+            "aval",
+            F.Exp.[tup_label(label("b"), string("bval"))],
+          );
+          check(
+            unboxed_testable(pair(Alcotest.string, list(exp))),
+            "Pivot request",
+            Matches(expected),
+            actual,
+          );
+        },
+      ),
+      test_case(
+        "Dot projection of casted tup label",
+        `Quick,
+        () => {
+          open F;
+          let orig =
+            Exp.(
+              tuple([
+                asc(
+                  tup_label(
+                    label("j"),
+                    asc(int(1), Typ.unknown(Internal |> Prov.fresh)),
+                  ),
+                  Typ.unknown(Internal |> Prov.fresh),
+                ),
+                asc(int(3), Typ.unknown(Internal |> Prov.fresh)),
+              ])
+            );
+          check(
+            unboxed_testable(exp),
+            "Dot projection of casted tup label",
+            Matches(orig),
+            unbox(LabeledTupleProjection("j"), orig),
+          );
+        },
       ),
     ]
   ),

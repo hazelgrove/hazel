@@ -10,7 +10,6 @@ type solution =
   | Prod(list(solution))
   | Label(string)
   | TupLabel(solution, solution)
-  | Ap(solution, solution)
   | Rec(TPat.term, solution)
   | Forall(TPat.term, solution)
   | Var(string)
@@ -72,9 +71,6 @@ let rec provs_in_typ = (~include_prov=_ => true, t: Typ.term): list(Prov.t) => {
   | List(elt) => provs_in_typ(~include_prov, elt |> Typ.term_of)
   | Sum(_) => []
   | Parens(term) => provs_in_typ(~include_prov, term |> Typ.term_of)
-  | Ap(fn, args) =>
-    provs_in_typ(~include_prov, fn |> Typ.term_of)
-    @ provs_in_typ(~include_prov, args |> Typ.term_of)
   | Rec(_, ty) => provs_in_typ(~include_prov, ty |> Typ.term_of)
   | Forall(_, ty) => provs_in_typ(~include_prov, ty |> Typ.term_of)
   | Var(_) => []
@@ -97,7 +93,6 @@ let rec all_provs_in_sol = (s: solution): list(Prov.t) => {
   | Label(_) => []
   | Sum(_) => []
   | TupLabel(l, r) => all_provs_in_sol(l) @ all_provs_in_sol(r)
-  | Ap(fn, args) => all_provs_in_sol(fn) @ all_provs_in_sol(args)
   | Rec(_, ty) => all_provs_in_sol(ty)
   | Forall(_, ty) => all_provs_in_sol(ty)
   | Var(_) => []
@@ -146,9 +141,6 @@ let rec unfold_constramnot =
   | (TupLabel(l_label, l_typ), TupLabel(r_label, r_typ)) =>
     unfold_constramnot(Con(l_label, r_label))
     @ unfold_constramnot(Con(l_typ, r_typ))
-  | (Ap(l_fun, l_args), Ap(r_fun, r_args)) =>
-    unfold_constramnot(Con(l_fun, r_fun))
-    @ unfold_constramnot(Con(l_args, r_args))
   | (Atom(_), Atom(_)) => []
   | (Sum(_), Sum(_)) => []
   | (List(l), List(r)) => unfold_constramnot(Con(l, r))
@@ -168,8 +160,6 @@ let rec unfold_constramnot =
   | (_, Label(_)) => []
   | (TupLabel(_), _)
   | (_, TupLabel(_)) => []
-  | (Ap(_), _)
-  | (_, Ap(_)) => []
   | (Sum(_), _)
   | (_, Sum(_)) => []
   | (List(_), _)
@@ -377,11 +367,6 @@ let rec solution_of_typ = (p: Prov.t, t: Typ.term) => {
       solution_of_typ(p, l |> Typ.term_of),
       solution_of_typ(p, t |> Typ.term_of),
     )
-  | Ap(fn, arg) =>
-    Ap(
-      solution_of_typ(p, fn |> Typ.term_of),
-      solution_of_typ(p, arg |> Typ.term_of),
-    )
   | Var(v) => Var(v)
   | Parens(term) => solution_of_typ(p, term |> Typ.term_of)
   | Arrow(t1, t2) =>
@@ -437,11 +422,6 @@ let rec refine_solution = (p: Prov.t, s: solution, t: Typ.term): solution => {
       refine_solution(p, l1, l2 |> Typ.term_of),
       refine_solution(p, r1, r2 |> Typ.term_of),
     )
-  | (Ap(fn1, arg1), Ap(fn2, arg2)) =>
-    Ap(
-      refine_solution(p, fn1, fn2 |> Typ.term_of),
-      refine_solution(p, arg1, arg2 |> Typ.term_of),
-    )
   | (Rec(pat1, ty1), Rec(pat2, ty2)) =>
     if (pat1 == (pat2 |> IdTagged.term_of)) {
       Rec(pat1, refine_solution(p, ty1, ty2 |> Typ.term_of));
@@ -480,7 +460,6 @@ let rec refine_solution = (p: Prov.t, s: solution, t: Typ.term): solution => {
   | (List(_) as s, t)
   | (Label(_) as s, t)
   | (TupLabel(_, _) as s, t)
-  | (Ap(_, _) as s, t)
   | (Rec(_, _) as s, t)
   | (Arrow(_, _) as s, t)
   | (Prod(_) as s, t)
@@ -526,8 +505,6 @@ let rec typ_of_solution = (s: solution): Typ.term => {
       typ_of_solution(label) |> Typ.temp,
       typ_of_solution(ty) |> Typ.temp,
     )
-  | Ap(fn, args) =>
-    Ap(typ_of_solution(fn) |> Typ.temp, typ_of_solution(args) |> Typ.temp)
   | Rec(pat, ty) =>
     Rec(pat |> IdTagged.temp, typ_of_solution(ty) |> Typ.temp)
   | Forall(pat, ty) =>
@@ -547,7 +524,6 @@ let solution_typ = (s: solution): Typ.term => {
   | Var(_)
   | Label(_)
   | TupLabel(_, _)
-  | Ap(_, _)
   | Rec(_, _)
   | Forall(_, _)
   | Arrow(_) => typ_of_solution(s)
@@ -619,13 +595,6 @@ let rec solution_typ_replace_typ =
   | List(t) =>
     List(
       solution_typ_replace_typ(prov, t |> Typ.term_of, sol_typ, m) |> Typ.temp,
-    )
-  | Ap(fn, args) =>
-    Ap(
-      solution_typ_replace_typ(prov, fn |> Typ.term_of, sol_typ, m)
-      |> Typ.temp,
-      solution_typ_replace_typ(prov, args |> Typ.term_of, sol_typ, m)
-      |> Typ.temp,
     )
   | Forall(pat, body) =>
     Forall(
@@ -699,10 +668,6 @@ let rec solution_replace_solution =
     let (label', changed1) = solution_replace_solution(prov, label, sol');
     let (body', changed2) = solution_replace_solution(prov, body, sol');
     (TupLabel(label', body'), changed1 || changed2);
-  | Ap(fn, args) =>
-    let (fn', fn_changed) = solution_replace_solution(prov, fn, sol');
-    let (args', args_changed) = solution_replace_solution(prov, args, sol');
-    (Ap(fn', args'), fn_changed || args_changed);
   | Rec(pat, body) =>
     let (body', changed) = solution_replace_solution(prov, body, sol');
     (Rec(pat, body'), changed);

@@ -303,6 +303,8 @@ and Exp: {
         | TupLabel(label, e) =>
           TupLabel(exp_map_term(label), exp_map_term(e))
         | Tuple(xs) => Tuple(List.map(exp_map_term, xs))
+        | TupleExtension(e1, e2) =>
+          TupleExtension(exp_map_term(e1), exp_map_term(e2))
         | Dot(e1, e2) => Dot(exp_map_term(e1), exp_map_term(e2))
         | Let(p, e1, e2) =>
           Let(pat_map_term(p), exp_map_term(e1), exp_map_term(e2))
@@ -437,6 +439,8 @@ and Exp: {
       fast_equal(e1, e3) && fast_equal(e2, e4)
     | (Dot(e1, e2), Dot(e3, e4)) =>
       fast_equal(e1, e3) && fast_equal(e2, e4)
+    | (TupleExtension(e1, e2), TupleExtension(e3, e4)) =>
+      fast_equal(e1, e3) && fast_equal(e2, e4)
     | (Invalid(_), _)
     | (Deferral(_), _)
     | (Atom(_), _)
@@ -448,6 +452,7 @@ and Exp: {
     | (TypFun(_), _)
     | (Tuple(_), _)
     | (TupLabel(_), _)
+    | (TupleExtension(_), _)
     | (Dot(_), _)
     | (Var(_), _)
     | (Let(_), _)
@@ -650,6 +655,8 @@ and Typ: {
       Typ.map_term(~f_exp, ~f_pat, ~f_typ, ~f_tpat, ~f_rul, ~f_prov, ~f_any);
     let prov_map_term =
       Prov.map_term(~f_exp, ~f_pat, ~f_typ, ~f_tpat, ~f_rul, ~f_prov, ~f_any);
+    let any_map_term =
+      Any.map_term(~f_exp, ~f_pat, ~f_typ, ~f_tpat, ~f_rul, ~f_prov, ~f_any);
     let tpat_map_term =
       TPat.map_term(~f_exp, ~f_pat, ~f_typ, ~f_tpat, ~f_rul, ~f_prov, ~f_any);
 
@@ -660,9 +667,13 @@ and Typ: {
         | Atom(_)
         | Label(_)
         | Var(_) => term
-        | Unknown(prov) => Unknown(prov_map_term(prov))
         | List(t) => List(typ_map_term(t))
-        | Ap(e1, e2) => Ap(typ_map_term(e1), typ_map_term(e2))
+        | Unknown({term: Hole(MultiHole(things)), annotation}) =>
+          Unknown({
+            term: Hole(MultiHole(List.map(any_map_term, things))),
+            annotation,
+          })
+        | Unknown(prov) => Unknown(prov_map_term(prov))
         | Prod(xs) => Prod(List.map(typ_map_term, xs))
         | TupLabel(label, e) =>
           TupLabel(typ_map_term(label), typ_map_term(e))
@@ -710,7 +721,6 @@ and Typ: {
       | List(ty) => List(subst(s, x, ty)) |> rewrap
       | Var(y) => str == y ? s : Var(y) |> rewrap
       | Parens(ty) => Parens(subst(s, x, ty)) |> rewrap
-      | Ap(t1, t2) => Ap(subst(s, x, t1), subst(s, x, t2)) |> rewrap
       };
     | None => ty
     };
@@ -754,10 +764,6 @@ and Typ: {
     | (Label(name1), Label(name2)) =>
       LabeledTuple.match_labels(name1, name2)
     | (Label(_), _) => false
-    | (Ap(t1, t2), Ap(t1', t2')) =>
-      eq_internal(~alpha_equivalence, n, t1, t1')
-      && eq_internal(~alpha_equivalence, n, t2, t2')
-    | (Ap(_), _) => false
     | (Unknown(_), Unknown(_)) => true
     | (Unknown(_), _) => false
     | (Arrow(t1, t2), Arrow(t1', t2')) =>
@@ -950,12 +956,12 @@ and Environment: {
   include
      (module type of VarBstMap.Ordered) with
       type t_('a) = VarBstMap.Ordered.t_('a);
-
+  [@deriving (show({with_path: false}), sexp, yojson)]
   type t = environment_t;
   let pp: (Format.formatter, t) => unit;
 } = {
   include VarBstMap.Ordered;
-
+  [@deriving (show({with_path: false}), sexp, yojson)]
   type t = environment_t;
 
   [@deriving show({with_path: false})]

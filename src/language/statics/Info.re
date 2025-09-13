@@ -55,7 +55,8 @@ type error_no_type =
   /* Sort error used as label in tuple */
   | BadLabel(Any.t)
   /* Invalid label in tuple */
-  | InvalidLabel(LabeledTuple.label);
+  | InvalidLabel(LabeledTuple.label, list(LabeledTuple.label))
+  | UnexpectedLabelSort(LabeledTuple.label) /* A Label is present but not expected */;
 
 /* Errors which can apply to either expression or patterns */
 [@deriving (show({with_path: false}), sexp, yojson, eq)]
@@ -81,6 +82,7 @@ type error_exp =
   | UnusedDeferral
   | BadPartialAp(Self.error_partial_ap)
   | Common(error_common)
+  | BuiltinError(Self.error_builtin)
   | InvalidUseMode({
       bad_typ: Typ.t,
       inner_typ: Typ.t,
@@ -90,7 +92,9 @@ type error_exp =
   /* Empty application of function with inconsistent type */
   | BadTrivAp(Typ.t)
   /* Dot Operator is ill-formed */
-  | WantTuple
+  | DotOperatorRequiresTuple
+  /* Tuple extension requires both arguments to be tuples */
+  | TupleExtensionRequiresTuples
   /* Invalid operator for current use mode, treated as hole */
   | BadOperator(string)
   /* Label not found in tuple for dot operator */
@@ -161,7 +165,6 @@ type status_variant =
 [@deriving (show({with_path: false}), sexp, yojson, eq)]
 type typ_expects =
   | TypeExpected
-  | TupleExpected
   | LabelExpected(status_variant, list(LabeledTuple.label)) // list of duplicate labels
   | ConstructorExpected(status_variant, Typ.t)
   | VariantExpected(status_variant, Typ.t);
@@ -178,10 +181,10 @@ type error_typ =
   | DuplicateLabels(list(LabeledTuple.label), Typ.t)
   | Duplicate(LabeledTuple.label, Typ.t)
   | WantTypeFoundAp
-  | WantTuple
   | WantLabel
   | WantConstructorFoundType(Typ.t)
-  | WantConstructorFoundAp;
+  | WantConstructorFoundAp
+  | ParseFailure;
 
 /* Type ok statuses for cursor inspector */
 [@deriving (show({with_path: false}), sexp, yojson, eq)]
@@ -446,7 +449,14 @@ let status_common =
     )
   | (BadToken(name), _) => (InHole(NoType(BadToken(name))), [])
   | (BadLabel(label), _) => (InHole(NoType(BadLabel(label))), [])
-  | (InvalidLabel(label), _) => (InHole(NoType(InvalidLabel(label))), [])
+  | (UnexpectedLabelSort(label), _) => (
+      InHole(NoType(UnexpectedLabelSort(label))),
+      [],
+    )
+  | (InvalidLabel(label, expected_labels), _) => (
+      InHole(NoType(InvalidLabel(label, expected_labels))),
+      [],
+    )
   | (
       TupleLabelError({
         malformed_labels,
@@ -604,20 +614,22 @@ let rec status_exp =
           None,
           cons,
         ) /* Type checking should fail and these errors would be nullified */
+      | (InHole(Common(NoType(_))), _)
+      | (InHole(Common(TupleLabelError(_))), _)
+      | (InHole(Common(DuplicateLabel(_))), _)
+      | (InHole(TupleExtensionRequiresTuples), _)
       | (
           InHole(
-            Common(NoType(_) | TupleLabelError(_) | DuplicateLabel(_)) |
-            FreeVariable(_) |
-            InexhaustiveMatch(_) |
-            UnusedDeferral |
+            FreeVariable(_) | InexhaustiveMatch(_) | UnusedDeferral |
             BadPartialAp(_) |
             InvalidUseMode(_) |
             UnboundLivelit(_) |
             BadTrivAp(_) |
-            WantTuple |
+            DotOperatorRequiresTuple |
             BadLivelitModel(_) |
             BadOperator(_) |
-            LabelNotFound(_),
+            LabelNotFound(_) |
+            BuiltinError(_),
           ),
           _,
         ) =>
@@ -627,6 +639,7 @@ let rec status_exp =
   | IsDeferral(InAp) => (NotInHole(AnaDeferralConsistent(ty_ana)), [])
   | IsDeferral(_) => (InHole(UnusedDeferral), [])
   | IsBadPartialAp(_ as info) => (InHole(BadPartialAp(info)), [])
+  | BuiltinError(err) => (InHole(BuiltinError(err)), [])
   | InvalidUseMode({inner_typ, bad_typ}) => (
       InHole(
         InvalidUseMode({
@@ -636,7 +649,7 @@ let rec status_exp =
       ),
       [],
     )
-  | WantTuple => (InHole(WantTuple), [])
+  | DotOperatorRequiresTuple => (InHole(DotOperatorRequiresTuple), [])
   | IsLivelitName({name, _}) =>
     let ll = Ctx.lookup_livelit(ctx, name);
     switch (ll) {
@@ -648,6 +661,10 @@ let rec status_exp =
         [],
       )
     };
+  | TupleExtensionRequiresTuples => (
+      InHole(TupleExtensionRequiresTuples),
+      [],
+    )
   | BadTrivAp(ty) => (InHole(BadTrivAp(ty)), [])
   | BadOperator(op) => (InHole(BadOperator(op)), [])
   | LabelNotFound(label, labels) => (
@@ -677,6 +694,7 @@ let status_typ = (ctx: Ctx.t, expects: typ_expects, ty: Typ.t): status_typ =>
     | LabelExpected(_) => NotInHole(EmptyLabel)
     | _ => NotInHole(Type(ty))
     }
+  | Unknown({term: Hole(MultiHole(_tms)), _}) => InHole(ParseFailure)
   | Var(name) =>
     switch (expects) {
     | VariantExpected(Unique, sum_ty)
@@ -685,12 +703,6 @@ let status_typ = (ctx: Ctx.t, expects: typ_expects, ty: Typ.t): status_typ =>
     | VariantExpected(Duplicate, _)
     | ConstructorExpected(Duplicate, _) =>
       InHole(DuplicateConstructor(name))
-    | TupleExpected =>
-      switch (Ctx.lookup_alias(ctx, name)) {
-      | Some({term: Prod(_), _}) =>
-        NotInHole(TypeAlias(name, Typ.weak_head_normalize(ctx, ty)))
-      | _ => InHole(WantTuple)
-      }
     | LabelExpected(_) =>
       switch (Ctx.lookup_alias(ctx, name)) {
       | Some({term: Label(_), _}) =>
@@ -707,24 +719,9 @@ let status_typ = (ctx: Ctx.t, expects: typ_expects, ty: Typ.t): status_typ =>
       | true => NotInHole(TypeAlias(name, Typ.weak_head_normalize(ctx, ty)))
       }
     }
-  | Ap(t1, ty_in) =>
-    switch (expects) {
-    | VariantExpected(status_variant, ty_variant) =>
-      switch (status_variant, t1.term) {
-      | (Unique, Var(name)) =>
-        NotInHole(Variant(name, Arrow(ty_in, ty_variant) |> Typ.temp))
-      | _ =>
-        NotInHole(VariantIncomplete(Arrow(ty_in, ty_variant) |> Typ.temp))
-      }
-    | ConstructorExpected(_) => InHole(WantConstructorFoundAp)
-    | TupleExpected => InHole(WantTuple)
-    | LabelExpected(_) => InHole(WantLabel)
-    | TypeExpected => InHole(WantTypeFoundAp)
-    }
   | Label(name) =>
     switch (expects) {
     | TypeExpected => NotInHole(Type(ty))
-    | TupleExpected => InHole(WantTuple)
     | LabelExpected(Unique, _) => NotInHole(Type(ty))
     | LabelExpected(Duplicate, dupes) =>
       List.exists(l => name == l, dupes)
@@ -732,26 +729,9 @@ let status_typ = (ctx: Ctx.t, expects: typ_expects, ty: Typ.t): status_typ =>
     | ConstructorExpected(_)
     | VariantExpected(_) => InHole(WantConstructorFoundType(ty))
     }
-  | Prod(ts) =>
-    switch (expects) {
-    | TypeExpected
-    | TupleExpected =>
-      let duplicate_labels =
-        LabeledTuple.get_duplicate_labels(Typ.match_tup_label, ts);
-
-      if (duplicate_labels == []) {
-        NotInHole(Type(ty));
-      } else {
-        InHole(DuplicateLabels(duplicate_labels, ty));
-      };
-    | LabelExpected(_) => InHole(WantLabel)
-    | ConstructorExpected(_)
-    | VariantExpected(_) => InHole(WantConstructorFoundType(ty))
-    }
   | _ =>
     switch (expects) {
     | TypeExpected => NotInHole(Type(ty))
-    | TupleExpected => InHole(WantTuple)
     | LabelExpected(_) => InHole(WantLabel)
     | ConstructorExpected(_)
     | VariantExpected(_) => InHole(WantConstructorFoundType(ty))
@@ -811,48 +791,79 @@ let fixed_typ_ok: ok_pat => Typ.t =
   | Ana(Consistent({join, _})) => join
   | Ana(InternallyInconsistent({ana, _})) => ana;
 
-let fixed_typ_err_common: error_common => Typ.t =
-  fun
-  | NoType(FreeConstructor(c)) =>
-    Sum([
-      ConstructorMap.Variant(c, [Id.invalid], None),
-      ConstructorMap.BadEntry(Unknown(Internal |> Prov.fresh) |> Typ.temp),
-    ])
-    |> Typ.temp
-  | NoType(BadToken(_) | BadLabel(_) | InvalidLabel(_)) =>
-    Unknown(Internal |> Prov.fresh) |> Typ.temp
-  | TupleLabelError({typ, _})
-  | DuplicateLabel(_, typ) => typ
-  | Inconsistent(Expectation({ana, _})) => ana
-  | Inconsistent(Internal(_)) => Unknown(Internal |> Prov.fresh) |> Typ.temp // Should this be some sort of meet?
-  | Inconsistent(CompareFun(_)) => Atom(Bool) |> Typ.temp
-  | Inconsistent(WithArrow(_)) =>
-    Arrow(
-      Unknown(Internal |> Prov.fresh) |> Typ.temp,
-      Unknown(Internal |> Prov.fresh) |> Typ.temp,
-    )
-    |> Typ.temp;
+let fixed_typ_err_common: (error_common, Typ.t) => Typ.t =
+  (err, ana) =>
+    switch (err) {
+    | NoType(FreeConstructor(c)) =>
+      if (Typ.is_syn_plus(ana)) {
+        Sum([
+          ConstructorMap.Variant(c, [Id.invalid], None),
+          ConstructorMap.BadEntry(
+            Unknown(Internal |> Prov.fresh) |> Typ.temp,
+          ),
+        ])
+        |> Typ.temp;
+      } else {
+        ana;
+      }
+    | NoType(BadToken(_))
+    | NoType(BadLabel(_))
+    | NoType(InvalidLabel(_))
+    | NoType(UnexpectedLabelSort(_)) =>
+      Unknown(Internal |> Prov.fresh) |> Typ.temp
+    | TupleLabelError({typ, _})
+    | DuplicateLabel(_, typ) => typ
+    | Inconsistent(Expectation({ana, _})) => ana
+    | Inconsistent(Internal(_)) =>
+      Unknown(Internal |> Prov.fresh) |> Typ.temp // Should this be some sort of meet?
+    | Inconsistent(CompareFun(_)) => Atom(Bool) |> Typ.temp
+    | Inconsistent(WithArrow(_)) =>
+      Arrow(
+        Unknown(Internal |> Prov.fresh) |> Typ.temp,
+        Unknown(Internal |> Prov.fresh) |> Typ.temp,
+      )
+      |> Typ.temp
+    };
 
-let fixed_typ_err: error_exp => Typ.t =
-  fun
-  | UnboundLivelit(_)
-  | FreeVariable(_)
-  | UnusedDeferral
-  | BadPartialAp(_)
-  | InexhaustiveMatch(_)
-  | WantTuple
-  | BadOperator(_)
-  | LabelNotFound(_, _)
-  | BadTrivAp(_) => Unknown(Internal |> Prov.fresh) |> Typ.temp
-  | Common(err) => fixed_typ_err_common(err)
-  | InvalidUseMode({inner_typ, _}) => inner_typ
-  | BadLivelitModel(ana) => ana;
+let fixed_typ_err: (error_exp, Typ.t) => Typ.t =
+  (err, ana) =>
+    switch (err) {
+    | UnboundLivelit(_)
+    | FreeVariable(_)
+    | UnusedDeferral
+    | BadPartialAp(_)
+    | InexhaustiveMatch(_)
+    | DotOperatorRequiresTuple
+    | BadOperator(_)
+    | LabelNotFound(_, _)
+    | TupleExtensionRequiresTuples
+    | BuiltinError(
+        ProjectLabelsMissingLabels(_) | MissingLabels(_) |
+        PivotLabelIsNotString(_),
+      )
+    | BuiltinError(
+        ArgumentMustBeTuple | ArgumentMustBeListOfTuples | AtLeast2Arguments |
+        Exactly2Arguments,
+      )
+    | BadTrivAp(_) =>
+      if (Typ.is_syn_plus(ana)) {
+        Unknown(Internal |> Prov.fresh) |> Typ.temp;
+      } else {
+        ana;
+      }
+    | BuiltinError(ToLvsMissingLabelsOnTuple(ty)) => ty
+    | Common(err) => fixed_typ_err_common(err, ana)
+    | InvalidUseMode({inner_typ, _}) => inner_typ
+    | BadLivelitModel(ana) => ana
+    };
 
-let fixed_typ_err_pat: error_pat => Typ.t =
-  fun
-  | ExpectedConstructor
-  | Redundant(_) => Unknown(Internal |> Prov.fresh) |> Typ.temp
-  | Common(err) => fixed_typ_err_common(err);
+let fixed_typ_err_pat: (error_pat, Typ.t) => Typ.t =
+  (err, ana) =>
+    switch (err) {
+    | ExpectedConstructor
+    | Redundant(_) => Unknown(Internal |> Prov.fresh) |> Typ.temp
+    | Common(err) => fixed_typ_err_common(err, ana)
+    };
 
 let fixed_typ_pat =
     (ctx, ty_ana: Typ.t, self: Self.pat): (Typ.t, list(Typ.equivalence)) => {
@@ -863,18 +874,19 @@ let fixed_typ_pat =
     | _ => self
     };
   switch (status_pat(ctx, ty_ana, self)) {
-  | (InHole(err), cons) => (fixed_typ_err_pat(err), cons)
+  | (InHole(err), cons) => (fixed_typ_err_pat(err, ty_ana), cons)
   | (NotInHole(ok), cons) => (fixed_typ_ok(ok), cons)
   };
 };
 
 let fixed_typ_exp =
-    (ctx, ty_ana: Typ.t, self: Self.exp): (Typ.t, list(Typ.equivalence)) =>
+    (ctx, ty_ana: Typ.t, self: Self.exp): (Typ.t, list(Typ.equivalence)) => {
   switch (status_exp(ctx, ty_ana, self)) {
-  | (InHole(err), cons) => (fixed_typ_err(err), cons)
+  | (InHole(err), cons) => (fixed_typ_err(err, ty_ana), cons)
   | (NotInHole(AnaDeferralConsistent(ana)), cons) => (ana, cons)
   | (NotInHole(Common(ok)), cons) => (fixed_typ_ok(ok), cons)
   };
+};
 
 /* Add derivable attributes for expression terms */
 let derived_exp =

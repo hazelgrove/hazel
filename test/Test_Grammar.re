@@ -50,6 +50,7 @@ let sample_expression = (cls_exp: Exp.cls): Grammar.UnitGrammar.exp => {
       | Label => label("label")
       | TupLabel => tup_label(label("label"), empty_hole())
       | Tuple => tuple([])
+      | TupleExtension => tuple_extension(empty_hole(), empty_hole())
       | Dot => dot(empty_hole(), empty_hole())
       | LivelitName => livelit_name("^slider")
       | LivelitAp => livelit_ap(Forward, livelit_name("^slider"), int(1))
@@ -152,11 +153,6 @@ let sample_type = (cls_typ: Typ.cls): Grammar.UnitGrammar.typ => {
           unknown(TypeProvenance.hole(EmptyHole)),
         )
       | Parens => parens(unknown(TypeProvenance.hole(EmptyHole)))
-      | Ap =>
-        ap(
-          unknown(TypeProvenance.hole(EmptyHole)),
-          unknown(TypeProvenance.hole(EmptyHole)),
-        )
       | Rec => rec_(TPat.var("x"), unknown(TypeProvenance.hole(EmptyHole)))
       | Forall =>
         forall(TPat.var("x"), unknown(TypeProvenance.hole(EmptyHole)))
