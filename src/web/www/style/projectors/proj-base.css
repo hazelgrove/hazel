@@ -26,6 +26,10 @@
   /* z-index: 1; */
 }
 
+.refractors .projector.probe.indicated {
+  z-index: 11;
+}
+
 .projector > svg {
   z-index: var(--projector-underlay-z);
 }

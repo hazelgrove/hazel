@@ -89,6 +89,16 @@ module Update = {
         {editor, statics, dynamics: _}: Model.t,
       )
       : Model.t => {
+    //TODO(andrew): resolve this cycle
+    // might be problematic not to calc editor again below...
+    let editor =
+      Editor.Update.calculate(
+        ~settings,
+        ~is_edited,
+        statics,
+        dynamics,
+        editor,
+      );
     let statics =
       is_edited
         ? CachedStatics.init(
@@ -99,15 +109,16 @@ module Update = {
             editor.state.zipper,
           )
         : statics;
-    let editor =
-      Editor.Update.calculate(
-        ~settings,
-        ~is_edited,
-        statics,
-        dynamics,
-        editor,
-      );
     {
+      // let editor =
+      //   Editor.Update.calculate(
+      //     ~settings,
+      //     ~is_edited,
+      //     statics,
+      //     dynamics,
+      //     editor,
+      //   );
+
       editor,
       statics,
       dynamics,

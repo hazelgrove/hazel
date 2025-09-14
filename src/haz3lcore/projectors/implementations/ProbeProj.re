@@ -90,9 +90,13 @@ module ClosureLength = {
   let get = (closure: closure): int =>
     Hashtbl.find_opt(lengths, closure.closure_id)
     |> Option.value(
+         // TODO(andrew): relax 5, special-case multilines eg `case`
          ~default=
-           !is_value(closure.value)
-             ? 5 : Window.get_mode() == Single ? 50 : 12,
+           /*!is_value(closure.value)
+
+             ? 5 :*/ Window.get_mode()
+           == Single
+             ? 150 : 12,
        );
 
   let set = (id: int, length: int): unit => Hashtbl.add(lengths, id, length);
@@ -413,19 +417,22 @@ module DynCursor = {
       stack |> List.map(Id.str3) |> String.concat("\n");
 
     let str = (info, closure: closure): string =>
-      "ap:"
+      "closure_id: "
+      ++ string_of_int(closure.closure_id)
+      ++ "\n"
+      ++ "ap:"
       ++ (
         switch (cur_call(info, closure)) {
         | Some([ap_id, ..._]) => Id.str3(ap_id)
         | _ => "None"
         }
       )
-      ++ "\nvalue:\n"
-      ++ DHExp.show(closure.value)
+      // ++ "\nvalue:\n"
+      // ++ DHExp.show(closure.value)
       ++ "\nstack:\n"
-      ++ stack(closure.call_stack);
-    // ++ "\ntime: "
-    // ++ string_of_float(closure.time /. 10000.0);
+      ++ stack(closure.call_stack)
+      ++ "\ntime: "
+      ++ string_of_float(closure.time /. 10000.0);
   };
 };
 
@@ -620,7 +627,7 @@ let value_view =
 
   div(
     ~attrs=[
-      //Attr.title(DynCursor.Debug.str(info, closure)),
+      Attr.title(DynCursor.Debug.str(info, closure)),
       Attr.classes(
         ["value", length_cls(length)]
         @ DynCursor.clss(info, closure)
@@ -845,12 +852,12 @@ let key_handler = (local, info: info, _, evt) => {
     };
     Many([local(NoOp), Stop_propagation, Prevent_default]);
   | D("ArrowRight") =>
-    move_cursor(info, -1);
+    move_cursor(info, 1);
     // hack: Prevent_default below stops aggressive horizontal scroll
     // noop to trigger redraw
     Many([local(NoOp), Stop_propagation, Prevent_default]);
   | D("ArrowLeft") =>
-    move_cursor(info, 1);
+    move_cursor(info, -1);
     Many([local(NoOp), Stop_propagation, Prevent_default]);
   | D(" ") =>
     Window.toggle_mode();

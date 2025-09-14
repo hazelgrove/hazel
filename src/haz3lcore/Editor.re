@@ -147,18 +147,6 @@ module Update = {
     /* 3. Update the zipper */
     let+ zipper = Perform.go(~statics=old_statics, ~syntax, a, state);
 
-    let zipper =
-      Action.is_edit(a)
-        ? {
-          print_endline("replacing refractors");
-          zipper
-          |> Refractors.add_ids_from_pinned_term(
-               ~term_data=syntax.term_data,
-               ~measured=syntax.measured,
-             );
-        }
-        : zipper;
-
     Model.{
       state: {
         ...state,
@@ -197,6 +185,15 @@ module Update = {
         new_dynamics,
         syntax,
       );
+
+    let zipper = {
+      print_endline("replacing refractors");
+      zipper
+      |> Refractors.add_ids_from_pinned_term(
+           ~term_data=syntax.term_data,
+           ~measured=syntax.measured,
+         );
+    };
 
     Model.{
       state: {

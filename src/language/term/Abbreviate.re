@@ -954,7 +954,9 @@ and abbreviate_any = (any: Any.t): Any.t =>
   | Pat(p) => Pat(abbreviate_pat(p))
   | Typ(t) => Typ(abbreviate_typ(t))
   | TPat(tp) => TPat(abbreviate_tpat(tp))
-  | Rul(_r) => failwith("TODO")
+  | Rul(_r) =>
+    //TODO(andrew): this gets triggered sometimes with refractor probes..
+    failwith("TODO")
   | Any(_) => any
   };
 
