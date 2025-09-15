@@ -25,6 +25,7 @@ let (suite, _) =
       Test_PatternMatch.tests,
     ]
     @ Test_Typ.tests
+    @ Test_Info.tests
     @ Test_Statics.tests
     @ Test_Elaboration.tests
     @ Test_Evaluator.tests

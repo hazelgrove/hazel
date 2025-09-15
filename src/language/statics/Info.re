@@ -609,68 +609,57 @@ let rec status_exp = (ctx: Ctx.t, ty_ana, self: Self.exp): status_exp =>
    separate sort. It also determines semantic properties
    such as whether or not a type variable reference is
    free, and whether a ctr name is a dupe. */
-let status_typ = (ctx: Ctx.t, expects: typ_expects, ty: Typ.t): status_typ =>
-  switch (ty.term) {
-  | Unknown(Hole(Invalid(token))) => InHole(BadToken(token))
-  | Unknown(Hole(EmptyHole)) =>
-    switch (expects) {
-    | LabelExpected(_) => NotInHole(EmptyLabel)
-    | _ => NotInHole(Type(ty))
+let status_typ = (ctx: Ctx.t, expects: typ_expects, ty: Typ.t): status_typ => {
+  switch (expects, ty.term) {
+  | (_, Unknown(Hole(Invalid(token)))) => InHole(BadToken(token))
+  | (LabelExpected(_), Unknown(Hole(EmptyHole))) => NotInHole(EmptyLabel)
+  | (_, Unknown(Hole(EmptyHole))) => NotInHole(Type(ty))
+  | (_, Unknown(Hole(MultiHole(_tms)))) => InHole(ParseFailure)
+  | (VariantExpected(Unique, sum_ty), Var(name))
+  | (ConstructorExpected(Unique, sum_ty), Var(name)) =>
+    NotInHole(Variant(name, sum_ty))
+  | (VariantExpected(Duplicate, _), Var(name))
+  | (ConstructorExpected(Duplicate, _), Var(name)) =>
+    InHole(DuplicateConstructor(name))
+  | (LabelExpected(_), Var(name)) =>
+    switch (Ctx.lookup_alias(ctx, name)) {
+    | Some({term: Label(_), _}) =>
+      NotInHole(TypeAlias(name, Typ.weak_head_normalize(ctx, ty)))
+    | _ => InHole(WantLabel)
     }
-  | Unknown(Hole(MultiHole(_tms))) => InHole(ParseFailure)
-  | Var(name) =>
-    switch (expects) {
-    | VariantExpected(Unique, sum_ty)
-    | ConstructorExpected(Unique, sum_ty) =>
-      NotInHole(Variant(name, sum_ty))
-    | VariantExpected(Duplicate, _)
-    | ConstructorExpected(Duplicate, _) =>
-      InHole(DuplicateConstructor(name))
-    | LabelExpected(_) =>
-      switch (Ctx.lookup_alias(ctx, name)) {
-      | Some({term: Label(_), _}) =>
-        NotInHole(TypeAlias(name, Typ.weak_head_normalize(ctx, ty)))
-      | _ => InHole(WantLabel)
+  | (LabelProjectionExpected(labels), Var(name)) =>
+    switch (Ctx.lookup_alias(ctx, name)) {
+    | Some({term: Label(l), _}) when List.mem(l, labels) =>
+      NotInHole(TypeAlias(name, Typ.weak_head_normalize(ctx, ty)))
+    | Some({term: Label(l), _}) => InHole(InvalidLabel(l, labels))
+    | _ => InHole(WantLabel)
+    }
+  | (TypeExpected, Var(name)) =>
+    switch (Ctx.is_alias(ctx, name)) {
+    | false =>
+      switch (Ctx.is_abstract(ctx, name)) {
+      | false => InHole(FreeTypeVariable(name))
+      | true => NotInHole(Type(Var(name) |> Typ.temp))
       }
-    | LabelProjectionExpected(labels) =>
-      switch (Ctx.lookup_alias(ctx, name)) {
-      | Some({term: Label(l), _}) when List.mem(l, labels) =>
-        NotInHole(TypeAlias(name, Typ.weak_head_normalize(ctx, ty)))
-      | Some({term: Label(l), _}) => InHole(InvalidLabel(l, labels))
-      | _ => InHole(WantLabel)
-      }
-    | TypeExpected =>
-      switch (Ctx.is_alias(ctx, name)) {
-      | false =>
-        switch (Ctx.is_abstract(ctx, name)) {
-        | false => InHole(FreeTypeVariable(name))
-        | true => NotInHole(Type(Var(name) |> Typ.temp))
-        }
-      | true => NotInHole(TypeAlias(name, Typ.weak_head_normalize(ctx, ty)))
-      }
+    | true => NotInHole(TypeAlias(name, Typ.weak_head_normalize(ctx, ty)))
     }
-  | Label(name) =>
-    switch (expects) {
-    | TypeExpected => NotInHole(Type(ty))
-    | LabelExpected(Unique, _) => NotInHole(Type(ty))
-    | LabelExpected(Duplicate, dupes) =>
-      List.exists(l => name == l, dupes)
-        ? InHole(Duplicate(name, ty)) : InHole(WantLabel)
-    | LabelProjectionExpected(labels) when List.mem(name, labels) =>
-      NotInHole(Type(ty))
-    | LabelProjectionExpected(labels) => InHole(InvalidLabel(name, labels))
-    | ConstructorExpected(_)
-    | VariantExpected(_) => InHole(WantConstructorFoundType(ty))
-    }
-  | _ =>
-    switch (expects) {
-    | TypeExpected => NotInHole(Type(ty))
-    | LabelExpected(_) => InHole(WantLabel)
-    | LabelProjectionExpected(_) => InHole(WantLabel)
-    | ConstructorExpected(_)
-    | VariantExpected(_) => InHole(WantConstructorFoundType(ty))
-    }
+  | (TypeExpected, Label(_))
+  | (LabelExpected(Unique, _), Label(_)) => NotInHole(Type(ty))
+  | (LabelExpected(Duplicate, dupes), Label(name)) =>
+    List.exists(l => name == l, dupes)
+      ? InHole(Duplicate(name, ty)) : InHole(WantLabel)
+  | (LabelProjectionExpected(labels), Label(name)) =>
+    List.mem(name, labels)
+      ? NotInHole(Type(ty)) : InHole(InvalidLabel(name, labels))
+  | (ConstructorExpected(_), Label(_))
+  | (VariantExpected(_), Label(_)) => InHole(WantConstructorFoundType(ty))
+  | (TypeExpected, _) => NotInHole(Type(ty))
+  | (LabelExpected(_), _)
+  | (LabelProjectionExpected(_), _) => InHole(WantLabel)
+  | (ConstructorExpected(_), _)
+  | (VariantExpected(_), _) => InHole(WantConstructorFoundType(ty))
   };
+};
 
 let status_tpat = (ctx: Ctx.t, utpat: TPat.t): status_tpat =>
   switch (utpat.term) {
