@@ -171,7 +171,11 @@ module DynCursor = {
     )
     |> List.rev;
 
-  let capture_cursor = (closure: closure): unit =>
+  let capture_cursor = (closure: closure): unit => {
+    print_endline(
+      "capture_cursor: closure.call_Stack="
+      ++ String.concat(", ", List.map(Id.str3, closure.call_stack)),
+    );
     if (!ListUtil.is_suffix_of(closure.call_stack, s.call_cursor.stack)) {
       // print_endline(
       //   "closure.call_stack: "
@@ -183,15 +187,15 @@ module DynCursor = {
       // );
       // print_endline("capture_cursor: closure not suffix of call_cursor");
       // print_endline("setting new call_cursor");
-      s.call_cursor =
-        {
-          stack: closure.call_stack,
-          index: List.length(closure.call_stack) - 1,
-        };
-        // print_endline(
-        //   "trimmed_stack is now: "
-        //   ++ String.concat(", ", List.map(Id.str3, trimmed_stack())),
-        // );
+      s.call_cursor = {
+        stack: closure.call_stack,
+        index: List.length(closure.call_stack) - 1,
+      };
+      print_endline("index is now: " ++ string_of_int(s.call_cursor.index));
+      // print_endline(
+      //   "trimmed_stack is now: "
+      //   ++ String.concat(", ", List.map(Id.str3, trimmed_stack())),
+      // );
     } else {
       // print_endline(
       //   "closure.call_stack: "
@@ -216,6 +220,7 @@ module DynCursor = {
         //   ++ String.concat(", ", List.map(Id.str3, trimmed_stack())),
         // );
     };
+  };
   // s.call_cursor = {
   //   stack:
   //     ListUtil.is_suffix_of(closure.call_stack, s.call_cursor.stack)
@@ -301,7 +306,11 @@ module DynCursor = {
   let relation = (info: info, closure: closure): relation => {
     open OptUtil.Syntax;
     let this = closure.call_stack;
+    print_endline("this: " ++ String.concat(", ", List.map(Id.str3, this)));
     let cursor = trimmed_stack();
+    print_endline(
+      "cursor: " ++ String.concat(", ", List.map(Id.str3, cursor)),
+    );
     {
       is_call_cursor: cursor == this,
       relative_level_to_cursor: relative_level(cursor, this),
@@ -979,7 +988,7 @@ module M: Projector = {
   let update = update;
 
   let view = (_model, info, ~local, ~parent, ~view_seg) => {
-    DynCursor.trimmed_stack() == [] ? DynCursor.probe_default(info) : (); /*TODO(andrew): document */
+    //DynCursor.trimmed_stack() == [] ? DynCursor.probe_default(info) : (); /*TODO(andrew): document */
     View.{
       inline:
         switch (info.syntax) {
