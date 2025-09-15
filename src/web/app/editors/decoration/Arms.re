@@ -406,6 +406,7 @@ module Refractors = {
   let paths =
       (
         hx: float,
+        ~dashed: bool,
         sort: Sort.t,
         font_metrics: FontMetrics.t,
         rows: Rows.t,
@@ -422,16 +423,27 @@ module Refractors = {
         ~path_cls=["child-line", Sort.to_string(sort)],
         (orig, path @ [hook(hx, 1, -1)]),
       ),
-      svg(
-        ~font_metrics,
-        ~path_cls=["child-line", Sort.to_string(sort), "dashed"],
-        (last, [m(~x=0, ~y=1), h(~x=dashed_length)]),
-      ),
-    ];
+    ]
+    @ (
+      dashed
+        ? [
+          svg(
+            ~font_metrics,
+            ~path_cls=["child-line", Sort.to_string(sort), "dashed"],
+            (last, [m(~x=0, ~y=1), h(~x=dashed_length)]),
+          ),
+        ]
+        : []
+    );
   };
 
   let of_zipper =
-      (~font_metrics: FontMetrics.t, ~syntax: CachedSyntax.t, z: Zipper.t)
+      (
+        ~font_metrics: FontMetrics.t,
+        ~syntax: CachedSyntax.t,
+        ~dynamics: Language.Dynamics.Map.t,
+        z: Zipper.t,
+      )
       : list(Node.t) =>
     Id.Map.union(
       (_, _, b) => Some(b),
@@ -446,7 +458,14 @@ module Refractors = {
            | Some(range) =>
              let hx = abs_float(ShardDec.offset_of(Some(Left))); // Always left-convex
              let sort = Piece.sort(t.root_piece) |> fst;
-             paths(hx, sort, font_metrics, syntax.measured.rows, range);
+             paths(
+               hx,
+               ~dashed=Id.Map.mem(Id.transform_variant(id), dynamics),
+               sort,
+               font_metrics,
+               syntax.measured.rows,
+               range,
+             );
            | _ => []
            }
          | None => []
@@ -454,6 +473,11 @@ module Refractors = {
        );
 
   let all =
-      (~font_metrics: FontMetrics.t, ~syntax: CachedSyntax.t, z: Zipper.t) =>
-    div_c("refractors", of_zipper(~font_metrics, ~syntax, z));
+      (
+        ~font_metrics: FontMetrics.t,
+        ~syntax: CachedSyntax.t,
+        ~dynamics: Language.Dynamics.Map.t,
+        z: Zipper.t,
+      ) =>
+    div_c("refractors", of_zipper(~font_metrics, ~syntax, ~dynamics, z));
 };

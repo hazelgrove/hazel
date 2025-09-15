@@ -204,7 +204,6 @@ module View = {
       ~syntax,
       globals.color_highlights,
     ),
-    Arms.Refractors.all(~font_metrics=globals.font_metrics, ~syntax, z),
   ];
 
   let pos_str = (~left, ~top, font_metrics: FontMetrics.t) =>
@@ -330,6 +329,14 @@ module View = {
             ~syntax=model.editor.syntax,
             ~globals,
           )
+          @ [
+            Arms.Refractors.all(
+              ~font_metrics=globals.font_metrics,
+              ~syntax=model.editor.syntax,
+              ~dynamics,
+              model.editor.state.zipper,
+            ),
+          ]
           @ (
             model.context_menu
               ? [
