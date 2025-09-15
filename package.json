@@ -16,9 +16,16 @@
     "algebrite": "^1.4.0"
   },
   "devDependencies": {
-    "@types/node": "^22.14.0",
+    "@types/node": "^24.3.0",
     "esbuild": "^0.25.1",
     "vite": "^6.3.4",
-    "vite-plugin-static-copy": "^2.3.0"
+    "vite-plugin-static-copy": "^2.3.0",
+    "@types/js-yaml": "^4.0.9",
+    "@types/minimist": "^1.2.5",
+    "js-yaml": "^4.1.0",
+    "minimist": "^1.2.8",
+    "playwright": "^1.55.0",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.9.2"
   }
 }
