@@ -412,6 +412,7 @@ let unroll = (ty: t): t =>
    Other types may be equivalent but this will not detect so if they are not normalized. */
 let equal = (t1: t, t2: t): bool => fast_equal(t1, t2);
 
+// TODO Have this take a list of tys and a label and do this matching at the callsite.
 let rec project_type = (ty, label): option(t) => {
   switch (term_of(ty), term_of(label)) {
   | (Parens(t), _) => project_type(t, label)
@@ -422,32 +423,29 @@ let rec project_type = (ty, label): option(t) => {
       Some(ty)
     | _ => None
     }
+  | (Prod(_), Unknown(_))
+  | (Unknown(_), Label(_))
+  | (Unknown(_), Unknown(_)) => Some(Unknown(Internal) |> temp)
   | _ => None
   };
 };
-
-let rec product_extension = (t1: t, t2: t): option(t) => {
+let product_extension = (tys1: list(t), tys2: list(t)): term => {
   let get_lv = (t: t) => {
     switch (match_tup_label(t)) {
     | Some((l, t)) => (Some(l), t)
     | None => (None, t)
     };
   };
-  switch (term_of(t1), term_of(t2)) {
-  | (Parens(t1), _) => product_extension(t1, t2)
-  | (_, Parens(t2)) => product_extension(t1, t2)
-  | (Prod(tys1), Prod(tys2)) =>
-    let new_tys =
-      LabeledTuple.extension(List.map(get_lv, tys1), List.map(get_lv, tys2))
-      |> List.map(((l, ty)) =>
-           switch (l) {
-           | Some(l) => TupLabel(fresh(Label(l)), ty) |> temp
-           | None => ty
-           }
-         );
-    Some(Prod(new_tys) |> temp);
-  | _ => None
-  };
+
+  let new_tys =
+    LabeledTuple.extension(List.map(get_lv, tys1), List.map(get_lv, tys2))
+    |> List.map(((l, ty)) =>
+         switch (l) {
+         | Some(l) => TupLabel(fresh(Label(l)), ty) |> temp
+         | None => ty
+         }
+       );
+  Prod(new_tys);
 };
 
 let rec weak_head_normalize = (~rec_counter=0, ctx: Ctx.t, ty: t): t => {
@@ -471,14 +469,15 @@ let rec weak_head_normalize = (~rec_counter=0, ctx: Ctx.t, ty: t): t => {
          ProdProjection(normalized_ty, label) |> rewrap;
        });
   | ProdExtension(t1, t2) =>
+    let (_, rewrap) = unwrap(ty);
+
     let t1 = weak_head_normalize(~rec_counter=rec_counter + 1, ctx, t1);
     let t2 = weak_head_normalize(~rec_counter=rec_counter + 1, ctx, t2);
-    let extended = product_extension(t1, t2);
-    switch (extended) {
-    | Some(t) => t
-    | None =>
-      let (_, rewrap) = unwrap(ty);
-      ProdExtension(t1, t2) |> rewrap;
+    switch (t1.term, t2.term) {
+    | (Prod(tys1), Prod(tys2)) => product_extension(tys1, tys2) |> rewrap
+    | _ =>
+      Unknown(Internal)  // TODO Consider whether we want to be doing this. We want this to be treated like a hole but maybe we should put a direct mark on it
+      |> rewrap
     };
   | _ => ty
   };
@@ -512,10 +511,11 @@ let rec normalize = (~rec_counter=0, ctx: Ctx.t, ty: t): t => {
   | ProdExtension(t1, t2) =>
     let t1 = normalize(ctx, t1);
     let t2 = normalize(ctx, t2);
-    let extended = product_extension(t1, t2);
-    switch (extended) {
-    | Some(t) => t
-    | None => ProdExtension(t1, t2) |> rewrap
+    switch (t1.term, t2.term) {
+    | (Prod(tys1), Prod(tys2)) => product_extension(tys1, tys2) |> rewrap
+    | _ =>
+      Unknown(Internal)  // TODO Consider whether we want to be doing this. We want this to be treated like a hole but maybe we should put a direct mark on it
+      |> rewrap
     };
   | TupLabel(label, ty) =>
     TupLabel(normalize(ctx, label), normalize(ctx, ty)) |> rewrap
@@ -536,10 +536,6 @@ let rec normalize = (~rec_counter=0, ctx: Ctx.t, ty: t): t => {
    variable and a succesful join, to return the resolved join type,
    or to return the (first) type variable for readability */
 let rec join = (~resolve=false, ctx: Ctx.t, ty1: t, ty2: t): option(t) => {
-  print_endline("Joining types:");
-  print_endline("  " ++ show(ty1));
-  print_endline("  " ++ show(ty2));
-  print_endline("");
   let join' = join(~resolve, ctx);
   switch (term_of(ty1), term_of(ty2)) {
   | (_, Parens(ty2)) => join'(ty1, ty2)
@@ -577,20 +573,17 @@ let rec join = (~resolve=false, ctx: Ctx.t, ty1: t, ty2: t): option(t) => {
     let* ty2'' = project_type(normalize(ctx, ty2'), l);
     join'(ty1, ty2'');
   | (ProdExtension(t1, t2), _) =>
-    let extended1 = product_extension(t1, t2);
-    print_endline("Extended 1: " ++ [%derive.show: option(t)](extended1));
-    switch (extended1) {
-    | Some(ty1') => join'(ty1', ty2)
-    | None => None // TODO We need to handle the type-level indet here
-    };
+    switch (weak_head_normalize(ctx, t1), weak_head_normalize(ctx, t2)) {
+    | ({term: Prod(tys1), _}, {term: Prod(tys2), _}) =>
+      join'(product_extension(tys1, tys2) |> temp, ty2)
+    | _ => join'(Unknown(Internal) |> temp, ty2) // TODO Do we want this?
+    }
   | (_, ProdExtension(t1, t2)) =>
-    let extended2 = product_extension(t1, t2);
-    print_endline("Extended 2: " ++ [%derive.show: option(t)](extended2));
-
-    switch (extended2) {
-    | Some(ty2') => join'(ty1, ty2')
-    | None => None // TODO We need to handle the type-level indet here
-    };
+    switch (weak_head_normalize(ctx, t1), weak_head_normalize(ctx, t2)) {
+    | ({term: Prod(tys1), _}, {term: Prod(tys2), _}) =>
+      join'(ty1, product_extension(tys1, tys2) |> temp)
+    | _ => join'(ty1, Unknown(Internal) |> temp) // TODO Do we want this?
+    }
   | (Rec(tp1, ty1), Rec(tp2, ty2)) =>
     let ctx = Ctx.extend_dummy_tvar(ctx, tp1);
     let ty1' =

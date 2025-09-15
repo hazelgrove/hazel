@@ -63,9 +63,30 @@ let join_tests = (
         );
       },
     ),
-    test_case("Typ join on product projection with unknown label", `Quick, () => {
-      Alcotest.fail("TODO: Implement this test")
-    }),
+    test_case(
+      "Typ join on product projection with unknown label",
+      `Quick,
+      () => {
+        let t =
+          Typ.join(
+            Builtins.ctx_init(None),
+            int(),
+            prod_projection(
+              prod([
+                tup_label(label("a"), int()),
+                tup_label(label("b"), bool()),
+              ]),
+              unknown(Internal),
+            ),
+          );
+        check(
+          option(typ),
+          "Joined product projections with unknown label",
+          Some(int()),
+          t,
+        );
+      },
+    ),
     test_case(
       "Typ join on product extension with fully known extension types",
       `Quick,
