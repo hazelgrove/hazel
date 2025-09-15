@@ -168,8 +168,8 @@ let go =
       let id =
         switch (Id.recover_original(id)) {
         | pid =>
-          print_endline("found in rmap refractors. looking up id");
-          pid;
+          // print_endline("found in rmap refractors. looking up id");
+          pid
         // | None => id
         };
       Ok(Option.value(~default=z, Move.jump_to_id_indicated(z, id)));

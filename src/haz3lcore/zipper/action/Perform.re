@@ -137,10 +137,10 @@ let go =
       });
     }
   | Refractor(InstrumentTerm) =>
-    print_endline("instrumenting term");
+    // print_endline("instrumenting term");
     switch (Indicated.index(z)) {
     | Some(id) =>
-      print_endline("un/instrumenting term " ++ Id.show(id));
+      // print_endline("un/instrumenting term " ++ Id.show(id));
       //add or remove from pinned_term_ids
       let pinned_term_ids =
         if (List.mem(id, z.refractors.pinned_term_ids)) {
@@ -162,7 +162,7 @@ let go =
            ),
       );
     | None => Ok(z)
-    };
+    }
 
   // let selection_ids = Selection.selection_ids(z.selection);
   // let _selection_ids_with_refractors_on_them =

@@ -26,13 +26,13 @@ let add' = (id: Id.t, z: Zipper.t): Zipper.t => {
     switch (mk_probe(Id.transform_variant(id))) {
     | None => z
     | Some(p) =>
-      print_endline(
-        "adding manual refractor id: "
-        ++ Id.show(id)
-        ++ " p.id: "
-        ++ Id.show(p.id),
-      );
-      update_refractors(Id.Map.add(id, p), z);
+      // print_endline(
+      //   "adding manual refractor id: "
+      //   ++ Id.show(id)
+      //   ++ " p.id: "
+      //   ++ Id.show(p.id),
+      // );
+      update_refractors(Id.Map.add(id, p), z)
     }
   };
 };

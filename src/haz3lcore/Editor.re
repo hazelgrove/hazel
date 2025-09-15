@@ -186,14 +186,13 @@ module Update = {
         syntax,
       );
 
-    let zipper = {
-      print_endline("replacing refractors");
+    // print_endline("replacing refractors");
+    let zipper =
       zipper
       |> Refractors.add_ids_from_pinned_term(
            ~term_data=syntax.term_data,
            ~measured=syntax.measured,
          );
-    };
 
     Model.{
       state: {

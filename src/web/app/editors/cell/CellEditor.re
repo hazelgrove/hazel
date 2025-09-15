@@ -182,7 +182,6 @@ module View = {
         ~locked=false,
         model: Model.t,
       ) => {
-    print_endline("rendering overlays");
     let (footer, overlays) =
       EvalResult.View.view(
         ~globals={
@@ -214,7 +213,6 @@ module View = {
         ~locked,
         model.result,
       );
-    print_endline("rendering main editor");
     div(
       ~attrs=[Attr.classes(["cell", locked ? "locked" : "unlocked"])],
       Option.to_list(caption)
