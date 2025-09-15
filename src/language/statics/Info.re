@@ -167,6 +167,7 @@ type typ_expects =
   | TypeExpected
   | LabelExpected(status_variant, list(LabeledTuple.label)) // list of duplicate labels
   | LabelProjectionExpected(list(LabeledTuple.label)) // list of labels to project out
+  | ProductExpected // Expects a product type (e.g. for product extension)
   | ConstructorExpected(status_variant, Typ.t)
   | VariantExpected(status_variant, Typ.t);
 
@@ -184,6 +185,7 @@ type error_typ =
   | WantTypeFoundAp
   | WantLabel
   | InvalidLabel(LabeledTuple.label, list(LabeledTuple.label))
+  | WantProduct(Typ.t)
   | WantConstructorFoundType(Typ.t)
   | WantConstructorFoundAp
   | ParseFailure;
@@ -613,6 +615,11 @@ let status_typ = (ctx: Ctx.t, expects: typ_expects, ty: Typ.t): status_typ => {
   switch (expects, ty.term) {
   | (_, Unknown(Hole(Invalid(token)))) => InHole(BadToken(token))
   | (LabelExpected(_), Unknown(Hole(EmptyHole))) => NotInHole(EmptyLabel)
+  | (ProductExpected, _) =>
+    switch (Typ.weak_head_normalize(ctx, ty)) {
+    | {term: Prod(_), _} as ty => NotInHole(Type(ty))
+    | ty => InHole(WantProduct(ty))
+    }
   | (_, Unknown(Hole(EmptyHole))) => NotInHole(Type(ty))
   | (_, Unknown(Hole(MultiHole(_tms)))) => InHole(ParseFailure)
   | (VariantExpected(Unique, sum_ty), Var(name))

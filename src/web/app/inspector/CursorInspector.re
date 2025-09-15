@@ -413,6 +413,10 @@ let typ_err_view = (~globals, ok: Info.error_typ) => {
       text("already used in this sum"),
     ]
   | ParseFailure => [text("Parse failure")]
+  | WantProduct(ty) => [
+      text("Expected a product type, found type"),
+      view_type(ty),
+    ]
   };
 };
 

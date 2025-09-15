@@ -1915,8 +1915,8 @@ and utyp_to_info_map =
     let m = go(t, m) |> snd;
     add'(~expects=TypeExpected, m);
   | ProdExtension(t1, t2) =>
-    let m = go(t1, m) |> snd;
-    let m = go(t2, m) |> snd;
+    let m = go'(~expects=ProductExpected, t1, m) |> snd;
+    let m = go'(~expects=ProductExpected, t2, m) |> snd;
     add(m);
   | TupLabel(label, t) =>
     let expects_label =

@@ -138,7 +138,9 @@ let typ_error: Info.error_typ => string =
       Print.typ(ty),
       String.concat(", ", labels),
     )
-  | Duplicate(name, _) => prn("Type %s is already defined", name);
+  | Duplicate(name, _) => prn("Type %s is already defined", name)
+  | WantProduct(ty) =>
+    prn("Expected a product type, found type %s", Print.typ(ty));
 
 let tpat_error: Info.error_tpat => string =
   fun
