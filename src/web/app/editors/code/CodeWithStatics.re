@@ -1,3 +1,4 @@
+open Util;
 open Util.WebUtil;
 open Haz3lcore;
 
@@ -12,6 +13,7 @@ module Model = {
   type t = {
     // Updated:
     editor: Editor.t,
+    context_menu: bool,
     statics: CachedStatics.t,
     dynamics: Language.Dynamics.Map.t,
   };
@@ -25,6 +27,7 @@ module Model = {
     editor,
     statics,
     dynamics,
+    context_menu: false,
   };
 
   let mk_from_exp =
@@ -86,7 +89,7 @@ module Update = {
         ~stitch,
         ~dynamics: Language.Dynamics.Map.t,
         ~is_dynamic_term,
-        {editor, statics, dynamics: _}: Model.t,
+        {editor, statics, context_menu, _}: Model.t,
       )
       : Model.t => {
     //TODO(andrew): resolve this cycle
@@ -122,6 +125,7 @@ module Update = {
       editor,
       statics,
       dynamics,
+      context_menu,
     };
   };
 };

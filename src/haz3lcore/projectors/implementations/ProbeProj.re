@@ -635,7 +635,9 @@ let value_view =
         @ (!is_value(closure.value) ? ["indet"] : []),
       ),
       Attr.on_double_click(_ => local(ToggleShowAllVals(index))),
-      Attr.on_pointerdown(val_pointerdown),
+      Attr.on_pointerdown(evt =>
+        Key.meta_held(evt) ? local(PinAp) : val_pointerdown(evt)
+      ),
       Attr.on_pointerup(val_pointerup),
       Attr.on_mousemove(val_mousemove),
     ],
@@ -670,6 +672,10 @@ let env_view = (closure: closure, view_seg, utility: utility): Node.t =>
     |> List.map(env_val(closure, view_seg, utility)),
   );
 
+let pin_view = (info: info) =>
+  DynCursor.show_pin(info)
+    ? [div(~attrs=[Attr.classes(["pin"])], [])] : [];
+
 let closure_view =
     (
       info: info,
@@ -681,6 +687,7 @@ let closure_view =
   div(
     ~attrs=[Attr.classes(["closure"])],
     [value_view(info, utility, view_seg, local, closure, index)]
+    @ pin_view(info)
     @ (hide_env(info) ? [] : [env_view(closure, view_seg, utility)]),
   );
 
@@ -739,10 +746,6 @@ let num_closures_view = (info: info) => {
     [text(description)],
   );
 };
-
-let pin_view = (info: info) =>
-  DynCursor.show_pin(info)
-    ? [div(~attrs=[Attr.classes(["pin"])], [])] : [];
 
 let syntax_str = (utility: utility) =>
   Core.Memo.general(seg => {
@@ -939,7 +942,7 @@ let overlay_view = (info: info): Node.t =>
         @ (DynCursor.is_pinned(info) ? ["pinned"] : []),
       ),
     ],
-    [num_closures_view(info)] @ pin_view(info),
+    [num_closures_view(info)] /*@ pin_view(info)*/,
   );
 
 [@deriving (show({with_path: false}), sexp, yojson)]

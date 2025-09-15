@@ -237,11 +237,11 @@
   color: var(--STONE);
 }
 
-.overlays .projector.probe .pin {
+.projector.probe .pin {
   pointer-events: auto;
   position: absolute;
-  left: -0.9em;
-  top: -0.2em;
+  right: -0.4em;
+  top: -0.4em;
   height: 1.3em;
   width: 1.3em;
   border-radius: 1em;
@@ -253,7 +253,7 @@
   transform-origin: top right;
   scale: 0.6;
 }
-.overlays .projector.probe .pin {
+.projector.probe .pin {
   background-color: oklch(0.8 0.18 201.83);
 }
 
