@@ -78,7 +78,8 @@ type paste =
 [@deriving (show({with_path: false}), sexp, yojson, eq)]
 type refractor =
   | SetRefProbe
-  | InstrumentTerm;
+  | InstrumentTerm
+  | ProbeJump;
 
 [@deriving (show({with_path: false}), sexp, yojson, eq)]
 type t =

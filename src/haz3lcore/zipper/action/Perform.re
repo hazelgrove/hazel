@@ -52,7 +52,7 @@ let go =
   | Project(a) => ProjectorPerform.go(syntax.term_data, a, z)
   | Move(d) =>
     Move.go(
-      ~ci=Indicated.ci_of(z, statics.info_map),
+      ~statics=statics.info_map,
       ~col_target=Option.value(col_target, ~default=0),
       ~measured=syntax.measured,
       d,
@@ -120,7 +120,15 @@ let go =
   | Put_down => Zipper.put_down(z) |> return(Cant_put_down)
   | Refractor(SetRefProbe) =>
     switch (z.selection.content) {
-    | [] => Ok(Refractors.add(z))
+    | [] =>
+      switch (Indicated.index(z)) {
+      | None => Ok(z)
+      | Some(id) =>
+        switch (Refractors.smart_add(id, statics.info_map, z)) {
+        | Some(z) => Ok(z)
+        | None => Ok(z)
+        }
+      }
     | _ =>
       let selection_ids = Selection.selection_ids(z.selection);
       let refractors =
@@ -186,6 +194,40 @@ let go =
   //   Ok(List.fold_left((z, id) => Refractors.add'(id, z), z, ids));
   // | None => Ok(z)
   // };
+  | Refractor(ProbeJump) =>
+    switch (
+      {
+        open OptUtil.Syntax;
+        let* ci = Indicated.ci_of(z, statics.info_map);
+        let* binding_id = Language.Info.get_binding_site(ci);
+        let* body_id =
+          Language.Statics.Map.enclosing_let_of_binding(
+            ~statics=statics.info_map,
+            ~binding_id,
+          );
+        let* ci_body = Language.Statics.Map.lookup(body_id, statics.info_map);
+        let* z = Refractors.smart_add(body_id, statics.info_map, z);
+        switch (ci_body) {
+        | InfoExp({term: {term: Fun(pat, _body, _, _), _}, _}) =>
+          let pat_id =
+            switch (pat.term) {
+            | Probe(_) => Id.recover_original(Language.IdTagged.rep_id(pat))
+            | _ => Language.IdTagged.rep_id(pat)
+            };
+          let* z = Move.jump_to_id_indicated(z, pat_id);
+          // let z = Refractors.add'(Language.IdTagged.rep_id(body), z);
+          // let z = Refractors.add'(Language.IdTagged.rep_id(pat), z);
+          Some(z);
+        | _ =>
+          let* z = Move.jump_to_id_indicated(z, body_id);
+          // let z = Refractors.add'(body_id, z);
+          Some(z);
+        };
+      }
+    ) {
+    | Some(z) => Ok(z)
+    | None => Error(Cant_move)
+    }
 
   | Dump => Ok(Dump.to_zipper(z))
   };

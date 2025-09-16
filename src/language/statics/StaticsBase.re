@@ -50,6 +50,54 @@ module Map = {
     | Some(InfoPat({term, _})) => Term.Pat.bindings(term)
     | _ => []
     };
+
+  /* Starting from a binding site id (possibly inside a deep pattern),
+   * climb ancestor ids to find the enclosing let or match, and return
+   * the id of its body expression. */
+  let enclosing_let_of_binding =
+      (~statics: t, ~binding_id: Id.t): option(Id.t) => {
+    open Util.OptUtil.Syntax;
+    let* ci_binder = lookup(binding_id, statics);
+    let rec climb = (ancs: list(Id.t)): option(Id.t) =>
+      switch (ancs) {
+      | [] => None
+      | [ancestor_id, ...rest] =>
+        let* ci = lookup(ancestor_id, statics);
+        switch (ci) {
+        | InfoExp({term: {term: Let(pat, def, _), _}, _}) =>
+          let binds = Term.Pat.bindings(pat);
+          List.exists((b: Binding.t) => b.id == binding_id, binds)
+            ? Some(IdTagged.rep_id(def)) : climb(rest);
+        // | InfoExp({
+        //     term: {term: TyAlias({annotation: {ids, _}, _}, def, _), _},
+        //     _,
+        //   }) =>
+        //   List.exists(id => id == binding_id, ids)
+        //     ? Some(Language.IdTagged.rep_id(def)) : None
+        // | InfoExp({term: {term: Match(scrut, rules), _}, _}) =>
+        //   /* Find the branch whose pattern actually binds this id */
+        //   let rec find_branch = (
+        //     fun
+        //     | [] => None
+        //     | [(p, e), ...rs] => {
+        //         let binds = Language.Term.Pat.bindings(p);
+        //         List.exists(
+        //           (b: Language.Binding.t) => b.id == binding_id,
+        //           binds,
+        //         )
+        //           ? Some(Language.IdTagged.rep_id(e)) : find_branch(rs);
+        //       }
+        //   );
+        //   switch (find_branch(rules)) {
+        //   | Some(_) => Some(Language.IdTagged.rep_id(scrut))
+        //   | None => climb(rest)
+        //   };
+        | InfoExp(_) => None
+        | _ => climb(rest)
+        };
+      };
+    climb(Info.ancestors_of(ci_binder));
+  };
 };
 
 let map_m = (f, xs, m: Map.t) =>

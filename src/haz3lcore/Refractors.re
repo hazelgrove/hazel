@@ -21,19 +21,46 @@ let update_refractors = (f, z: Zipper.t): Zipper.t => {
 
 let add' = (id: Id.t, z: Zipper.t): Zipper.t => {
   switch (Id.Map.find_opt(id, z.refractors.map)) {
-  | Some(_) => update_refractors(Id.Map.remove(id), z)
+  | Some(_) =>
+    print_endline("add': removing id: " ++ Id.show(id));
+    update_refractors(Id.Map.remove(id), z);
   | None =>
     switch (mk_probe(Id.transform_variant(id))) {
     | None => z
     | Some(p) =>
-      // print_endline(
-      //   "adding manual refractor id: "
-      //   ++ Id.show(id)
-      //   ++ " p.id: "
-      //   ++ Id.show(p.id),
-      // );
-      update_refractors(Id.Map.add(id, p), z)
+      print_endline("add': adding id: " ++ Id.show(id));
+      update_refractors(Id.Map.add(id, p), z);
     }
+  };
+};
+
+let smart_add =
+    (id: Id.t, info_map: Language.Statics.Map.t, z: Zipper.t)
+    : option(Zipper.t) => {
+  open OptUtil.Syntax;
+  let* ci_body = Language.Statics.Map.lookup(id, info_map);
+  switch (ci_body) {
+  | InfoExp({term: {term: Fun(pat, body, _, _), _}, _}) =>
+    /* Unfortunate edge behavior here; since we're inspecting the term,
+       it has probes on it from the refractors; we must account for the fact
+       that if a probe is already on, the id will the the probe id, not the
+       underlying term id which is the id in the refractors map */
+    let body_id =
+      switch (body.term) {
+      | Probe(_) => Id.recover_original(Language.IdTagged.rep_id(body))
+      | _ => Language.IdTagged.rep_id(body)
+      };
+    let pat_id =
+      switch (pat.term) {
+      | Probe(_) => Id.recover_original(Language.IdTagged.rep_id(pat))
+      | _ => Language.IdTagged.rep_id(pat)
+      };
+    let z = add'(body_id, z);
+    let z = add'(pat_id, z);
+    Some(z);
+  | _ =>
+    let z = add'(id, z);
+    Some(z);
   };
 };
 

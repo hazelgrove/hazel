@@ -33,6 +33,7 @@ let handle_key_event = (k: Key.t): option(Action.t) => {
     | (Up, "Backspace") => now(Destruct(Left))
     | (Up, "Delete") => now(Destruct(Right))
     | (Up, "Escape") => now(Unselect(None))
+    | (Up, "F8") => now(Refractor(ProbeJump))
     | (Up, "F12") => now(Move(Goal(BindingSiteOfIndicatedVar)))
     | (Down, "Tab") => now(Move(Goal(Hole(Left))))
     | (Down, "ArrowLeft") => now(Select(Resize(Local(Left, ByToken))))
@@ -124,6 +125,7 @@ let handle_key_event = (k: Key.t): option(Action.t) => {
     switch (key) {
     | "ArrowLeft" => now(Move(Local(Left, ByToken)))
     | "ArrowRight" => now(Move(Local(Right, ByToken)))
+    | "ArrowUp" => now(Refractor(ProbeJump))
     | _ => None
     }
   | _ => None
