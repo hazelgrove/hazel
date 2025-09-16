@@ -421,7 +421,7 @@ let rec project_type = (ty, label): option(t) => {
     | Some({term: TupLabel(_, ty), _}) =>
       // LabeledTuple.find_label should return the inner ty
       Some(ty)
-    | _ => Some(Unknown(Internal) |> temp) // TODO Consider whether we want to be doing this. We want this to be treated like a hole but it would be better to do this via a more direct error reovery mechanism
+    | _ => Some(Unknown(Internal) |> temp) // TODO Consider whether we want to be doing this. We want this to be treated like a hole but it would be better to do this via a more direct error recovery mechanism
     }
   | (Prod(_), Unknown(_))
   | (Unknown(_), Label(_))
