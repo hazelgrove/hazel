@@ -974,7 +974,7 @@ let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
   | Let(p, e1, e2) =>
     // TODO: Add optional newlines
     let id = exp |> Exp.rep_id;
-    // This step does the adding of fixpoints that happens in elaboration.
+    // This step undoes the adding of fixpoints that happens in elaboration.
     let e1 = settings.hide_fixpoints ? Exp.unfix(e1, p) : e1;
     let+ p = pat_to_pretty(~settings: Settings.t, p)
     and+ e1 = go(e1)
