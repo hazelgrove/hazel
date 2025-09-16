@@ -426,7 +426,7 @@ let rec project_type = (ty, label): option(t) => {
   | (Prod(_), Unknown(_))
   | (Unknown(_), Label(_))
   | (Unknown(_), Unknown(_)) => Some(Unknown(Internal) |> temp)
-  | _ => Some(Unknown(Internal) |> temp) // TODO Consider whether we want to be doing this. We want this to be treated like a hole but it would be better to do this via a more direct error reovery mechanism
+  | _ => Some(Unknown(Internal) |> temp) // TODO Consider whether we want to be doing this. We want this to be treated like a hole but it would be better to do this via a more direct error recovery mechanism
   };
 };
 
