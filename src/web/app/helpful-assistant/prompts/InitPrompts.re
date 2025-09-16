@@ -14,12 +14,7 @@ let get_documentation_as_text = () => {
          )
        })
     |> List.map(((name, persistent)) => {
-         let cell_model =
-           CellEditor.Model.unpersist(
-             ~settings=Language.CoreSettings.off,
-             persistent,
-             ~root=Exp,
-           );
+         let cell_model = CellEditor.Model.unpersist(persistent);
          let text =
            Haz3lcore.Printer.of_zipper(cell_model.editor.editor.state.zipper);
          "<slide_name>"

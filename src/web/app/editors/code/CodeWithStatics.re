@@ -65,13 +65,10 @@ module Model = {
   };
 
   [@deriving (show({with_path: false}), sexp, yojson)]
-  type persistent = PersistentZipper.t;
-  let persist = (model: t) =>
-    model.editor.state.zipper |> PersistentZipper.persist;
-  let to_string = (model: t) =>
-    model.editor.state.zipper |> PersistentZipper.to_string;
-  let unpersist = (p, ~root) =>
-    p |> PersistentZipper.unpersist(~root) |> Editor.Model.mk(~root) |> mk;
+  type persistent = Editor.Model.persistent;
+  let persist = (model: t) => model.editor |> Editor.Model.persist;
+  let to_string = (model: t) => model.editor |> Editor.Model.to_string;
+  let unpersist = p => p |> Editor.Model.unpersist |> mk;
   let sort = (model: t): Sort.t => model.editor.root;
 };
 

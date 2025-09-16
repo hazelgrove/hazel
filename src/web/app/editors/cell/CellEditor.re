@@ -31,17 +31,14 @@ module Model = {
     result: model.result |> EvalResult.Model.persist,
   };
 
-  let unpersist = (~settings as _, {editor, result}: persistent, ~root): t => {
-    editor: {
-      editor:
-        editor |> PersistentZipper.unpersist(~root) |> Editor.Model.mk(~root),
-      statics: CachedStatics.empty,
-      dynamics: Language.Dynamics.Map.empty,
-    },
+  let unpersist = ({editor, result}: persistent): t => {
+    editor: CodeEditable.Model.unpersist(editor),
     result: EvalResult.Model.unpersist(result),
   };
 
   let to_string = (model: t) => model.editor |> CodeEditable.Model.to_string;
+
+  let zipper = (model: t) => model.editor.editor.state.zipper;
 
   let sort = (model: t): Sort.t => CodeEditable.Model.sort(model.editor);
 };

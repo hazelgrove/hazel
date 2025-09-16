@@ -103,7 +103,7 @@ module F =
 
   let unpersist = (p: persistent) => {
     {
-      scrut: CodeEditable.Model.unpersist(p.scrut, ~root=Exp),
+      scrut: CodeEditable.Model.unpersist(p.scrut),
       cases: List.map(InductionCase.unpersist, p.cases),
       elab_scrut: Calc.Pending,
       scrut_ty: Calc.Pending,

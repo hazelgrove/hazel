@@ -32,13 +32,27 @@ module Model = {
     syntax: CachedSyntax.init(zipper),
   };
 
-  type persistent = PersistentZipper.t;
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type persistent = {
+    root: Sort.t,
+    zipper: PersistentZipper.t,
+  };
 
-  let persist = (model: t): persistent =>
-    model.state.zipper |> PersistentZipper.persist;
+  let persist = (model: t): persistent => {
+    root: model.root,
+    zipper: model.state.zipper |> PersistentZipper.persist,
+  };
 
-  let unpersist = (p: persistent, ~root): t =>
-    p |> PersistentZipper.unpersist(~root) |> mk(~root);
+  let unpersist = (p: persistent): t =>
+    p.zipper |> PersistentZipper.unpersist(~root=p.root) |> mk(~root=p.root);
+
+  let mk_persistent = (zipper: PersistentZipper.t, ~root): persistent => {
+    root,
+    zipper,
+  };
+
+  let to_string = (model: t): string =>
+    model.state.zipper |> PersistentZipper.to_string;
 
   let trailing_hole_ctx =
       (ed: t, info_map: Language.Statics.Map.t): option(Ctx.t) => {

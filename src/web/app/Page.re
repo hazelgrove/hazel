@@ -179,7 +179,8 @@ module Update = {
               current
               |> snd
               |> ((e: CellEditor.Model.t) => e.editor)
-              |> CodeWithStatics.Model.persist,
+              |> CodeWithStatics.Model.persist
+              |> (({zipper, _}) => zipper),
             ));
           (filename, content);
         | Tutorial(model) =>

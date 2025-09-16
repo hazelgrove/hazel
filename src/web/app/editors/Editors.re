@@ -53,7 +53,7 @@ module Store = {
       Model.Scratch(
         ScratchMode.Store.load()
         |> ScratchMode.Store.integrate_share
-        |> ScratchMode.Model.unpersist(~settings, ~root=Exp),
+        |> ScratchMode.Model.unpersist(~settings),
       );
     } else {
       // Otherwise, proceed with normal mode loading
@@ -63,12 +63,12 @@ module Store = {
         Model.Scratch(
           ScratchMode.Store.load()
           |> ScratchMode.Store.integrate_share
-          |> ScratchMode.Model.unpersist(~settings, ~root=Exp),
+          |> ScratchMode.Model.unpersist(~settings),
         )
       | Documentation =>
         Model.Documentation(
           ScratchMode.StoreDocumentation.load()
-          |> ScratchMode.Model.unpersist(~settings, ~root=Exp),
+          |> ScratchMode.Model.unpersist(~settings),
         )
       | Tutorial =>
         Model.Tutorial(
@@ -213,19 +213,13 @@ module Update = {
     | (SwitchMode(Scratch), _) =>
       Model.Scratch(
         ScratchMode.Store.load()
-        |> ScratchMode.Model.unpersist(
-             ~settings=globals.settings.core,
-             ~root=Exp,
-           ),
+        |> ScratchMode.Model.unpersist(~settings=globals.settings.core),
       )
       |> return
     | (SwitchMode(Documentation), _) =>
       Model.Documentation(
         ScratchMode.StoreDocumentation.load()
-        |> ScratchMode.Model.unpersist(
-             ~settings=globals.settings.core,
-             ~root=Exp,
-           ),
+        |> ScratchMode.Model.unpersist(~settings=globals.settings.core),
       )
       |> return
     | (SwitchMode(Tutorial), Tutorial(_)) => model |> return_quiet

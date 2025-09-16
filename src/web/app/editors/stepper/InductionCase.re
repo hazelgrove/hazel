@@ -58,7 +58,7 @@ module F = (Stepper: STEPPER) => {
 
   let unpersist = (p: persistent) => {
     {
-      pattern: CodeEditable.Model.unpersist(p.pattern, ~root=Exp),
+      pattern: CodeEditable.Model.unpersist(p.pattern),
       elab_pattern: Calc.Pending,
       inner_exp: Calc.Pending,
       step: Stepper.unpersist(p.stepper),
