@@ -854,6 +854,16 @@ let derived_pat =
   let cls = Cls.Pat(Pat.cls_of_term(upat.term));
   let status = status_pat(ctx, ana, self);
   let ty = fixed_typ_pat(ctx, ana, self);
+
+  // TODO: put in hole
+  // replace constraints with Hole if this info has an error
+  let constraint_': Coverage.Constraint.t =
+    switch (constraint_, status) {
+    | (Coverage.Constraint.Hole(_), _) => constraint_
+    | (_, InHole(_)) => Hole(Some(constraint_))
+    | (_, NotInHole(_)) => constraint_
+    };
+
   {
     cls,
     self,
@@ -865,7 +875,7 @@ let derived_pat =
     co_ctx,
     ancestors,
     term: upat,
-    constraint_,
+    constraint_: constraint_',
     label_inference,
     inferred_label,
     label_sort,

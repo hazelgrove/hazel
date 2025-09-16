@@ -981,39 +981,40 @@ in ?|},
     ],
   );
 
-let erroneous_pattern_redundancy =
-  has_errors(
-    "Erroneous Pattern: Redundancy",
-    {|
-type Tree = +Empty + Leaf(Tree) + Node([Tree]) in
-let f = fun (x : Tree) ->
-  {{{case x
-    | Empty => 1
-    | {{{A}}} => 2
-    | {{{A}}} => 3
-    | {{{B}}}(_) => 4
-    | {{{{{{B}}}(_)}}} => 5
-    | Leaf(_) => 6
-  end}}}
-in ?|},
-    [
-      Info.Exp(
-        InexhaustiveMatch(
-          None,
-          Grammar.Pat(
-            IdTagged.FreshGrammar.Pat.(
-              ap(constructor("Node", None), wild())
-            ),
-          ),
-        ),
-      ),
-      Info.Pat(Common(NoType(FreeConstructor("A")))),
-      Info.Pat(Redundant(Some(Common(NoType(FreeConstructor("A")))))),
-      Info.Pat(Common(NoType(FreeConstructor("B")))),
-      Info.Pat(Redundant(None)),
-      Info.Pat(Common(NoType(FreeConstructor("B")))),
-    ],
-  );
+// no lonegr supporting
+// let erroneous_pattern_redundancy =
+//   has_errors(
+//     "Erroneous Pattern: Redundancy",
+//     {|
+// type Tree = +Empty + Leaf(Tree) + Node([Tree]) in
+// let f = fun (x : Tree) ->
+//   {{{case x
+//     | Empty => 1
+//     | {{{A}}} => 2
+//     | {{{A}}} => 3
+//     | {{{B}}}(_) => 4
+//     | {{{{{{B}}}(_)}}} => 5
+//     | Leaf(_) => 6
+//   end}}}
+// in ?|},
+//     [
+//       Info.Exp(
+//         InexhaustiveMatch(
+//           None,
+//           Grammar.Pat(
+//             IdTagged.FreshGrammar.Pat.(
+//               ap(constructor("Node", None), wild())
+//             ),
+//           ),
+//         ),
+//       ),
+//       Info.Pat(Common(NoType(FreeConstructor("A")))),
+//       Info.Pat(Redundant(Some(Common(NoType(FreeConstructor("A")))))),
+//       Info.Pat(Common(NoType(FreeConstructor("B")))),
+//       Info.Pat(Redundant(None)),
+//       Info.Pat(Common(NoType(FreeConstructor("B")))),
+//     ],
+//   );
 
 let labeled_tuple_exhaustiveness =
   no_errors(
@@ -1130,452 +1131,6 @@ end|},
     [Info.Pat(Redundant(None))],
   );
 
-let extra_constructor_args =
-  has_non_common_errors(
-    "Extra Constructor Arguments: Inxhaustive",
-    {|
-type Ty = +A + B(Int) + C(Int, Int) in
-let f = fun (x: (Ty, Ty)) ->
-  {{{case x
-    | (A, _) => 1
-    | (B((_, _)), _) => 2
-    | (C((_, _)), _) => 3
-  end}}}
-in ?|},
-    [
-      Info.Exp(
-        InexhaustiveMatch(
-          None,
-          Grammar.Pat(
-            IdTagged.FreshGrammar.Pat.(
-              tuple([
-                ap(constructor("B", None), wild()),
-                constructor("A", None),
-              ])
-            ),
-          ),
-        ),
-      ),
-    ],
-  );
-
-let extra_constructor_args_tuple_ctr =
-  has_non_common_errors(
-    "Extra Constructor Arguments w/ Tuple Ctr: Inxhaustive",
-    {|
-type Ty = +A + B(Int) + C(Int, Int) in
-let f = fun (x: (Ty, Ty)) ->
-  {{{case x
-    | (A, _) => 1
-    | (B(_), _) => 2
-    | (C((_, _, _)), _) => 3
-  end}}}
-in ?|},
-    [
-      Info.Exp(
-        InexhaustiveMatch(
-          None,
-          Grammar.Pat(
-            IdTagged.FreshGrammar.Pat.(
-              tuple([
-                ap(constructor("C", None), wild()),
-                constructor("A", None),
-              ])
-            ),
-          ),
-        ),
-      ),
-    ],
-  );
-
-let missing_constructor_args =
-  has_non_common_errors(
-    "Missing Constructor Arguments: Inxhaustive",
-    {|
-type Ty = +A + B(Int) + C(Int, Int) in
-let f = fun (x: (Ty, Ty)) ->
-  {{{case x
-    | (A, _) => 1
-    | (B(_), _) => 2
-    | (C((0)), _) => 3
-  end}}}
-in ?|},
-    [
-      Info.Exp(
-        InexhaustiveMatch(
-          None,
-          Grammar.Pat(
-            IdTagged.FreshGrammar.Pat.(
-              tuple([
-                ap(constructor("C", None), wild()),
-                constructor("A", None),
-              ])
-            ),
-          ),
-        ),
-      ),
-    ],
-  );
-
-let inconsistent_tuple =
-  has_non_common_errors(
-    "Inconsistent Tuple: Inxhaustive",
-    {|
-let f = fun (x: (Int, Int)) ->
-  {{{case x
-    | (0, 0, 0) => 1
-  end}}}
-in ?|},
-    [
-      Info.Exp(
-        InexhaustiveMatch(
-          None,
-          Grammar.Pat(IdTagged.FreshGrammar.Pat.(wild())),
-        ),
-      ),
-    ],
-  );
-
-let inconsistent_tuple_elt =
-  has_non_common_errors(
-    "Inconsistent Tuple Element: Inxhaustive",
-    {|
-let f = fun (x: (Int, Int, Int)) ->
-  {{{case x
-    | (0, 0, "hello") => 1
-  end}}}
-in ?|},
-    [
-      Info.Exp(
-        InexhaustiveMatch(
-          None,
-          Grammar.Pat(
-            IdTagged.FreshGrammar.Pat.(
-              tuple([
-                big_int(Bigint.of_int(0)),
-                big_int(Bigint.of_int(0)),
-                wild(),
-              ])
-            ),
-          ),
-        ),
-      ),
-    ],
-  );
-
-let inconsistent_inexhaustive_tuple_fist_col_exhaustive =
-  has_non_common_errors(
-    "Inconsistent Inexhaustive Tuple w/ First Column Exhaustive",
-    {|
-      type Ty = + A + C(Int, Int) + B(Int) in
-      let a : (Ty, Ty) -> Bool =
-        fun x ->
-          {{{case x
-          | (B(_), _) => false
-          | (C(_), (C((_,_,_)), C((_,_,_)))) => false
-          | (A, A) => true
-          | (_, B(_)) => false
-          | (_, C(_)) => false
-          end}}}
-      in ?
-    |},
-    [
-      Info.Exp(
-        InexhaustiveMatch(
-          None,
-          Grammar.Pat(
-            IdTagged.FreshGrammar.Pat.(
-              tuple([
-                ap(constructor("C", None), wild()),
-                constructor("A", None),
-              ])
-            ),
-          ),
-        ),
-      ),
-    ],
-  );
-
-let inexhasutive_all_inconsistent =
-  has_non_common_errors(
-    "Inexhaustive All Inconsistent",
-    {|
-      type Ty = + A + C(Int, Int) + B(Int) in
-      let a : (Ty, Ty, Ty) -> Bool =
-        fun x ->
-          {{{case x
-            | (B((_, _, _)), A) => false
-            | (C((_, _, _)), A, A, A) => false
-          end}}}
-      in ?
-    |},
-    [
-      Info.Exp(
-        InexhaustiveMatch(
-          None,
-          Grammar.Pat(IdTagged.FreshGrammar.Pat.(wild())),
-        ),
-      ),
-    ],
-  );
-
-let inexhaustive_list_cons_inconsistent =
-  has_non_common_errors(
-    "Inexhaustive List Cons Inconsistent",
-    {|
-      type Ty = + A + C(Int, Int) + B(Int) in
-      let a : (Ty, [Int]) -> Bool =
-      fun x ->
-        {{{case x
-          | (_, Q::_::[]) => false
-          | (_, _::_::_::_) => false
-        end}}}
-      in ?
-    |},
-    [
-      Info.Exp(
-        InexhaustiveMatch(
-          None,
-          Grammar.Pat(
-            IdTagged.FreshGrammar.Pat.(
-              tuple([wild(), cons(wild(), cons(wild(), list_lit([])))])
-            ),
-          ),
-        ),
-      ),
-    ],
-  );
-
-let inconsistent_valid_bias =
-  has_non_common_errors(
-    "Inexhaustive Inconsistent Valid Bias",
-    {|
-let f = fun (x: (Int, Int)) ->
-  {{{case x
-    | (0, 0) => 1
-    | (0, "hello") => 0
-  end}}}
-in ?|},
-    [
-      Info.Exp(
-        InexhaustiveMatch(
-          None,
-          Grammar.Pat(
-            IdTagged.FreshGrammar.Pat.(
-              tuple([
-                big_int(Bigint.of_int(0)),
-                big_int(Bigint.of_int(1)),
-              ])
-            ),
-          ),
-        ),
-      ),
-    ],
-  );
-
-let inconsistent_less_errors_bias =
-  has_non_common_errors(
-    "Inexhaustive Inconsistent Less Error Bias",
-    {|
-let f = fun (x: ((Int,Int), Int, (Int, Int))) ->
-  {{{case x
-    | (false, 0, (0, false)) => 1
-    | ((false, 0), 0, (0, false)) => 0
-  end}}}
-in ?|},
-    [
-      Info.Exp(
-        InexhaustiveMatch(
-          None,
-          Grammar.Pat(
-            IdTagged.FreshGrammar.Pat.(
-              tuple([
-                tuple([wild(), big_int(Bigint.of_int(0))]),
-                big_int(Bigint.of_int(0)),
-                tuple([big_int(Bigint.of_int(0)), wild()]),
-              ])
-            ),
-          ),
-        ),
-      ),
-    ],
-  );
-
-let inconsistent_less_errors_bias_ctrs =
-  has_non_common_errors(
-    "Inexhaustive Inconsistent Less Error Bias with Ctrs",
-    {|
-      type Ty = + A + C(Int, Int) + B(Int) in
-      let a : (Int, (Int, Int, Int)) -> Bool =
-        fun x ->
-          {{{case x
-          | (0, (0, A, 0)) => false
-          | (A, (0, A)) => false
-          | (0, (A, 0, A)) => false
-          end}}}
-      in ?
-    |},
-    [
-      Info.Exp(
-        InexhaustiveMatch(
-          None,
-          Grammar.Pat(
-            IdTagged.FreshGrammar.Pat.(
-              tuple([
-                big_int(Bigint.of_int(0)),
-                tuple([
-                  big_int(Bigint.of_int(0)),
-                  wild(),
-                  big_int(Bigint.of_int(1)),
-                ]),
-              ])
-            ),
-          ),
-        ),
-      ),
-    ],
-  );
-
-let inconsistent_exhaustive_first_col_less_errors_biars =
-  has_non_common_errors(
-    "Inexhaustive Inconsistent: Exhaustive first col less errors bias",
-    {|
-      type Ty = +A + B(Int, Int) in
-      let x: (Ty, Int, Int) = ? in
-      {{{case x
-        | (A, 0, 0) => false
-        | (B((0, 0, 0)), "", "") => false
-        | (B((0, 0, 0)), 0, 0) => false
-        | (C((0, 0, 0)), "", 0) => false
-      end}}}
-    |},
-    [
-      Info.Exp(
-        InexhaustiveMatch(
-          None,
-          Grammar.Pat(
-            IdTagged.FreshGrammar.Pat.(
-              tuple([
-                ap(constructor("B", None), wild()),
-                big_int(Bigint.of_int(0)),
-                big_int(Bigint.of_int(1)),
-              ])
-            ),
-          ),
-        ),
-      ),
-    ],
-  );
-
-let inconsistent_undefined_ctrs =
-  has_non_common_errors(
-    "Inconsistent Inexhaustive Undefined Ctrs",
-    {|
-      let a : (Int, (Int, Int, Int)) -> Bool =
-        fun x ->
-          {{{case x
-          | (0, (0, A, 0)) => false
-          end}}}
-      in ?
-    |},
-    [
-      Info.Exp(
-        InexhaustiveMatch(
-          None,
-          Grammar.Pat(
-            IdTagged.FreshGrammar.Pat.(
-              tuple([
-                big_int(Bigint.of_int(0)),
-                tuple([
-                  big_int(Bigint.of_int(0)),
-                  wild(),
-                  big_int(Bigint.of_int(1)),
-                ]),
-              ])
-            ),
-          ),
-        ),
-      ),
-    ],
-  );
-
-// very suble bug
-let inconsistent_inexhaustive__first_col_tuple_truth =
-  has_non_common_errors(
-    "Inconsistent Inexhaustive, First Column Tuple Truth",
-    {|
-      type Ty = + A+ C(Int, Int) + B(Int) in
-      let a : (Ty, Ty) -> Bool =
-        fun x ->
-          {{{case x
-            | (B((_,_)), A) => false
-            | (_, A) => false
-          end}}}
-      in ?
-    |},
-    [
-      Info.Exp(
-        InexhaustiveMatch(
-          None,
-          Grammar.Pat(
-            IdTagged.FreshGrammar.Pat.(
-              tuple([
-                ap(constructor("B", None), wild()),
-                ap(constructor("B", None), wild()),
-              ])
-            ),
-          ),
-        ),
-      ),
-    ],
-  );
-
-// test that wilds work with primitive types
-let inconsistent_inexhaustive_ctr_no_args =
-  has_non_common_errors(
-    "Inconsistent Inexhaustive Constructor Type w/ no args",
-    {|
-      type Ty = + A in
-      let f : (Int, Int) -> Bool =
-        fun x ->
-          {{{case x
-          | (A((a, a)), 0) => false
-          end}}}
-      in ?
-    |},
-    [
-      Info.Exp(
-        InexhaustiveMatch(
-          None,
-          Grammar.Pat(
-            IdTagged.FreshGrammar.Pat.(
-              tuple([wild(), big_int(Bigint.of_int(1))])
-            ),
-          ),
-        ),
-      ),
-    ],
-  );
-
-let inconsistent_fun_ctr_arg =
-  has_non_common_errors(
-    "Fun w/ Invalid Arg Ctr",
-    {|
-      type y = + B(Float) in
-      {{{fun B("": Int) -> 0}}}
-    |},
-    [
-      Info.Exp(
-        InexhaustiveMatch(
-          None,
-          Grammar.Pat(
-            IdTagged.FreshGrammar.Pat.(ap(constructor("B", None), wild())),
-          ),
-        ),
-      ),
-    ],
-  );
-
 // tests a weird edge case where the label has no argument
 let fun_labeled_tuple =
   no_errors(
@@ -1682,27 +1237,10 @@ let tests = (
     unknown_scrutinee_tuples_of_many_lengths,
     partially_unknown_scrutinee_inexhaustive,
     partially_unknown_scrutinee_redundancy,
-    erroneous_pattern_redundancy,
     labeled_tuple_exhaustiveness,
     labeled_tuple_inexhaustiveness,
     labeled_tuple_redundancy,
     function_scrutinee,
-    extra_constructor_args,
-    extra_constructor_args_tuple_ctr,
-    missing_constructor_args,
-    inconsistent_tuple,
-    inconsistent_tuple_elt,
-    inconsistent_inexhaustive_tuple_fist_col_exhaustive,
-    inexhasutive_all_inconsistent,
-    inexhaustive_list_cons_inconsistent,
-    inconsistent_valid_bias,
-    inconsistent_less_errors_bias,
-    inconsistent_less_errors_bias_ctrs,
-    inconsistent_exhaustive_first_col_less_errors_biars,
-    inconsistent_undefined_ctrs,
-    inconsistent_inexhaustive__first_col_tuple_truth,
-    inconsistent_inexhaustive_ctr_no_args,
-    inconsistent_fun_ctr_arg,
     fun_labeled_tuple,
     exhaustive_ints_with_wilds,
     exhaustive_strings_with_wilds,
