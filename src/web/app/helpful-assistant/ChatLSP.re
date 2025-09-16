@@ -4,7 +4,8 @@ open Language;
 
 let get_sketch_and_error_ctx =
     (editor: CodeWithStatics.Model.t): list(string) => {
-  let sketch_seg = Dump.to_segment(editor.editor.state.zipper);
+  let sketch_seg =
+    Dump.to_segment(editor.editor.state.zipper, ~root=editor.editor.root);
   let errors = ErrorPrint.all(editor.statics.info_map);
   let static_error_arr =
     switch (errors) {
@@ -370,11 +371,7 @@ module ErrorRound = {
     //NOTE: This function is pretty basic; reporting approach could be improved
     /* For now we required that the completion be complete in-itself: */
     switch (
-      Parser.to_zipper(
-        ~root=Exp,
-        ~zipper_init=Zipper.init(~root=Exp),
-        completion,
-      )
+      Parser.to_zipper(~root=Exp, ~zipper_init=Zipper.init(), completion)
     ) {
     | None => Error("Undocumented parse error, no feedback available")
     | Some(completion_z) =>
@@ -397,9 +394,9 @@ module ErrorRound = {
         let segment = Zipper.zip(completion_z);
         switch (
           {
-            let* sketch_z = Destruct.go(Left, sketch_z);
-            let+ sketch_z = Destruct.go(Left, sketch_z);
-            Zipper.insert_segment(sketch_z, segment);
+            let* sketch_z = Destruct.go(Left, sketch_z, ~root=Exp);
+            let+ sketch_z = Destruct.go(Left, sketch_z, ~root=Exp);
+            Zipper.insert_segment(sketch_z, segment, ~root=Exp);
           }
         ) {
         | None => Error("Undocumented parse error, no feedback available")
@@ -413,7 +410,7 @@ module ErrorRound = {
     Statics.uexp_to_info_map(
       ~ctx=init_ctx,
       ~ancestors=[],
-      MakeTerm.from_zip_for_sem(z).term,
+      MakeTerm.from_zip_for_sem(z, ~root=Exp).term,
       Id.Map.empty,
       ~duplicates=[],
       ~expected_labels=None,

@@ -2,7 +2,7 @@ let out : string * Haz3lcore.PersistentZipper.t =
   ( "Projectors",
     {
       zipper =
-        "((root Exp)(selection((focus Left)(content())(mode \
+        "((selection((focus Left)(content())(mode \
          Normal)))(relatives((siblings(()((Secondary((id \
          14360834-8a77-4332-b076-46898bcd4e37)(content(Comment\"# _____  \
          _____    _____      _  _____  _____  ______ #\"))))(Secondary((id \

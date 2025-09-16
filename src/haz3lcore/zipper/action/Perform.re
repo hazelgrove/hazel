@@ -13,6 +13,7 @@ let go =
     (
       ~statics: CachedStatics.t,
       ~syntax: CachedSyntax.t,
+      ~root,
       a: Action.t,
       {zipper: z, col_target}: state,
     )
@@ -30,12 +31,11 @@ let go =
        )
     |> return(CantIntroduce)
   | Paste(String(clipboard)) =>
-    Parser.to_zipper(~root=z.root, ~zipper_init=z, clipboard)
-    |> return(CantPaste)
-  | Paste(Segment(segment)) => Ok(Zipper.insert_segment(z, segment))
+    Parser.to_zipper(~root, ~zipper_init=z, clipboard) |> return(CantPaste)
+  | Paste(Segment(segment)) => Ok(Zipper.insert_segment(z, segment, ~root))
   | Cut =>
     /* System clipboard handling is done in Page.view handlers */
-    Destruct.go(Left, z) |> return(Cant_destruct)
+    Destruct.go(Left, z, ~root) |> return(Cant_destruct)
   | Copy =>
     /* System clipboard handling itself is done in Page.view handlers.
      * This doesn't change state but is included here for logging purposes */
@@ -44,10 +44,7 @@ let go =
     /* This serializes the current editor to text, resets the current
        editor, and then deserializes. It is intended as a (tactical)
        nuclear option for weird backpack states */
-    Parser.to_zipper(
-      ~root=z.root,
-      Printer.of_zipper(~holes="", ~indent="", z),
-    )
+    Parser.to_zipper(~root, Printer.of_zipper(~holes="", ~indent="", z))
     |> return(CantReparse)
   | Buffer(a) => Buffer.go(~ci=Indicated.ci_of(z, statics.info_map), a, z)
   | Project(a) => ProjectorPerform.go(syntax.term_data, a, z)
@@ -113,11 +110,11 @@ let go =
     }
   | Select(ToggleFocus) => Ok(Zipper.toggle_focus(z))
   | Select(SetFocus(d)) => Ok(Zipper.set_focus(z, d))
-  | Destruct(d) => Destruct.go(d, z) |> return(Cant_destruct)
+  | Destruct(d) => Destruct.go(d, z, ~root) |> return(Cant_destruct)
   | Insert(char) =>
     z
-    |> Insert.go(char, ~ci=Indicated.ci_of(z, statics.info_map))
+    |> Insert.go(char, ~ci=Indicated.ci_of(z, statics.info_map), ~root)
     |> return(Cant_insert)
-  | Put_down => Zipper.put_down(z) |> return(Cant_put_down)
-  | Dump => Ok(Dump.to_zipper(z))
+  | Put_down => Zipper.put_down(z, ~root) |> return(Cant_put_down)
+  | Dump => Ok(Dump.to_zipper(z, ~root))
   };

@@ -34,58 +34,61 @@ let delete = (d: Direction.t, z: t): option(t) => {
   destroy_selection(z);
 };
 
-let outer = (d: Direction.t, z: t): option(t) =>
+let outer = (d: Direction.t, z: t, ~root): option(t) =>
   switch (Zipper.neighbor_token(d, z)) {
   | Some(t) when Token.length(t) > 1 && !Token.is_string_or_comment(t) =>
-    Insert.replace_shard(d, Token.rm_edge(d, t), z)
+    Insert.replace_shard(d, Token.rm_edge(d, t), z, ~root)
   | _ => delete(d, z)
   };
 
 let rm_nth_right = (idx, t, z) =>
   Insert.replace_shard(Right, Token.rm_nth(idx, t), z);
 
-let inner_left = (idx: int, z: t): option(t) =>
+let inner_left = (idx: int, z: t, ~root): option(t) =>
   switch (Zipper.neighbor_token(Right, z)) {
   | Some(t) when Token.is_string_or_comment(t) && idx == 0 =>
     z |> Caret.set(Outer) |> delete(Right)
   | Some(t) =>
     let z = Caret.set(idx == 0 ? Outer : Inner(idx - 1), z);
-    let+ z_init = rm_nth_right(idx, t, z);
-    let z_final = Zipper.remold_regrout(Left, z_init);
+    let+ z_init = rm_nth_right(idx, t, z, ~root);
+    let z_final = Zipper.remold_regrout(Left, z_init, ~root);
     Insert.adjust_caret_pos(~z_final, ~z_init);
   | None => z |> Caret.set(Outer) |> delete(Right)
   };
 
 let is_last_inner_pos = (t, idx) => Token.length(t) - 2 == idx;
 
-let inner_right = (idx: int, z: t): option(t) =>
+let inner_right = (idx: int, z: t, ~root): option(t) =>
   switch (Zipper.neighbor_token(Right, z)) {
   | Some(t) when Token.is_string_or_comment(t) && is_last_inner_pos(t, idx) =>
     z |> Caret.set(Outer) |> delete(Right)
   | Some(t) =>
-    let* z = rm_nth_right(idx + 1, t, z);
+    let* z = rm_nth_right(idx + 1, t, z, ~root);
     is_last_inner_pos(t, idx)
       ? z |> Caret.set(Outer) |> Zipper.move(Right) : Some(z);
   | None => z |> Caret.set(Outer) |> delete(Left)
   };
 
-let destruct = (d: Direction.t, z: t): option(t) =>
+let destruct = (d: Direction.t, z: t, ~root): option(t) =>
   switch (z.caret) {
   | _ when z.selection.content != [] =>
     Some(z |> capture |> destroy_selection)
-  | Outer => outer(d, z)
+  | Outer => outer(d, z, ~root)
   | Inner(idx) =>
     switch (d) {
-    | Left => inner_left(idx, z)
-    | Right => inner_right(idx, z)
+    | Left => inner_left(idx, z, ~root)
+    | Right => inner_right(idx, z, ~root)
     }
   };
 
-let go = (d: Direction.t, z: t): option(t) =>
+let go = (d: Direction.t, z: t, ~root): option(t) =>
   switch (Triggers.destruct(z)) {
   | Some(z) => Some(z)
   | None =>
-    let+ z = destruct(d, z);
+    let+ z = destruct(d, z, ~root);
     /* If grout disappears we may have a second merge opportunity */
-    z |> Insert.merge_or_noop |> remold_regrout(d) |> Insert.merge_or_noop;
+    z
+    |> Insert.merge_or_noop(~root)
+    |> remold_regrout(d, ~root)
+    |> Insert.merge_or_noop(~root);
   };

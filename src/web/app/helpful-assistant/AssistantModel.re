@@ -132,9 +132,9 @@ let parse_blocks = (response: string): list(block_kind) => {
         | Some(z) => z
         | None =>
           print_endline("Failed to parse content into segment.\n");
-          Zipper.init(~root=Exp);
+          Zipper.init();
         };
-      let sketch = Dump.to_segment(sketch_z);
+      let sketch = Dump.to_segment(sketch_z, ~root=Exp);
       let before = Str.string_before(str, pos);
       let rest_start = pos + String.length(Str.matched_string(str));
       if (rest_start >= String.length(str)) {

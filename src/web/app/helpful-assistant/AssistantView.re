@@ -685,14 +685,14 @@ let code_block =
         message.role == Assistant
           ? {
             sketch
-            |> Zipper.unzip(~root=Exp)
-            |> Editor.Model.mk
+            |> Zipper.unzip
+            |> Editor.Model.mk(~root=Exp)
             |> CellEditor.Model.mk;
           }
           : {
             sketch
-            |> Zipper.unzip(~root=Exp)
-            |> Editor.Model.mk
+            |> Zipper.unzip
+            |> Editor.Model.mk(~root=Exp)
             |> CellEditor.Model.mk
             |> CellEditor.Update.calculate(
                  ~settings=globals.settings.core,

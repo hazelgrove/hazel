@@ -2,7 +2,7 @@ let out : string * Haz3lcore.PersistentZipper.t =
   ( "Polymorphism",
     {
       zipper =
-        "((root Exp)(selection((focus Left)(content())(mode \
+        "((selection((focus Left)(content())(mode \
          Normal)))(relatives((siblings(()((Secondary((id \
          28724395-ea08-46df-bc33-e8638e48818a)(content(Comment\"# Polymorphism \
          #\"))))(Secondary((id \

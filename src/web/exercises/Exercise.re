@@ -424,7 +424,7 @@ let update_exercise_title = ({eds, _}: state, new_title: string) => {
 
 let add_buggy_impl = (state: state) => {
   let new_buggy_impl = {
-    impl: Editor.Model.mk(Zipper.init(~root=Exp)),
+    impl: Editor.Model.mk(Zipper.init(), ~root=Exp),
     hint: "No Hint Available",
   };
   {
@@ -670,7 +670,7 @@ let wrap = (term, editor: Editor.t): TermItem.t => {
 };
 
 let term_of = (editor: Editor.t): Language.Exp.t =>
-  MakeTerm.from_zip_for_sem(editor.state.zipper).term;
+  MakeTerm.from_zip_for_sem(editor.state.zipper, ~root=editor.root).term;
 
 let rec append_exp = (e1: Language.Exp.t, e2: Language.Exp.t): Language.Exp.t => {
   switch (e1.term) {
@@ -977,11 +977,11 @@ let unpersist =
       switch (List.assoc_opt(pos, editors)) {
       | Some(persisted_zipper) =>
         let zipper = PersistentZipper.unpersist(persisted_zipper, ~root=Exp);
-        Editor.Model.mk(zipper);
-      | None => Editor.Model.mk(default)
+        Editor.Model.mk(zipper, ~root=Exp);
+      | None => Editor.Model.mk(default, ~root=Exp)
       };
     } else {
-      Editor.Model.mk(default);
+      Editor.Model.mk(default, ~root=Exp);
     };
   let prelude = lookup(Prelude, spec.prelude);
   let correct_impl = lookup(CorrectImpl, spec.correct_impl);
@@ -991,7 +991,10 @@ let unpersist =
     hidden_bugs
     |> List.map(({impl, hint}) => {
          let impl =
-           Editor.Model.mk(PersistentZipper.unpersist(impl, ~root=Exp));
+           Editor.Model.mk(
+             PersistentZipper.unpersist(impl, ~root=Exp),
+             ~root=Exp,
+           );
          {
            impl,
            hint,

@@ -18,7 +18,7 @@ let test_indent = (~name, ~init, ~goal): test_case(_) => {
       goal,
       init
       |> string_to_ltr_actions
-      |> perform(Zipper.init(~root=Exp))
+      |> perform(Zipper.init())
       |> Printer.of_zipper(
            ~holes=convex_char,
            ~concave_holes=concave_char,

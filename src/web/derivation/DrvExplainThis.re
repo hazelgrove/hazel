@@ -23,7 +23,8 @@ let exp_show =
              ),
            ~sort=Jdmt,
          )
-      |> Zipper.unzip(~root=Drv(Jdmt)),
+      |> Zipper.unzip,
+      ~root=Drv(Jdmt),
     );
   let statics =
     CachedStatics.init_from_term(
@@ -61,9 +62,8 @@ let test_show =
   | _ =>
     let editor =
       Editor.Model.mk(
-        test
-        |> ExpToSegment.drv_formula_to_pretty(_, Jdmt)
-        |> Zipper.unzip(~root=Drv(Jdmt)),
+        test |> ExpToSegment.drv_formula_to_pretty(_, Jdmt) |> Zipper.unzip,
+        ~root=Drv(Jdmt),
       );
     let highlight_deco = [
       Highlight.colors(

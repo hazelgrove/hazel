@@ -33,7 +33,8 @@ module Model = {
 
   let unpersist = (~settings as _, {editor, result}: persistent, ~root): t => {
     editor: {
-      editor: editor |> PersistentZipper.unpersist(~root) |> Editor.Model.mk,
+      editor:
+        editor |> PersistentZipper.unpersist(~root) |> Editor.Model.mk(~root),
       statics: CachedStatics.empty,
       dynamics: Language.Dynamics.Map.empty,
     },

@@ -612,13 +612,14 @@ let update =
           let tag = String.sub(Id.to_string(tile_id), 0, 3);
           switch (
             {
+              let root = editor.editor.root;
               let* sketch_z_with_tag =
                 Parser.to_zipper(
-                  ~root=editor.editor.state.zipper.root,
+                  ~root,
                   ~zipper_init=editor.editor.state.zipper,
                   tag,
                 );
-              let sketch_seg = Dump.to_segment(sketch_z_with_tag);
+              let sketch_seg = Dump.to_segment(sketch_z_with_tag, ~root);
               let* index = Indicated.index(editor.editor.state.zipper);
               let+ ci = Id.Map.find_opt(index, editor.statics.info_map);
               ChatLSP.Completion.mk_ctx_prompt(

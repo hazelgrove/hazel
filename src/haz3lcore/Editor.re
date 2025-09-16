@@ -17,12 +17,14 @@ module Model = {
 
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t = {
+    root: Sort.t,
     state,
     [@opaque]
     syntax: CachedSyntax.t /* Calculated */
   };
 
-  let mk = (zipper: Zipper.t): t => {
+  let mk = (zipper: Zipper.t, ~root): t => {
+    root,
     state: {
       zipper,
       col_target: None,
@@ -36,7 +38,7 @@ module Model = {
     model.state.zipper |> PersistentZipper.persist;
 
   let unpersist = (p: persistent, ~root): t =>
-    p |> PersistentZipper.unpersist(~root) |> mk;
+    p |> PersistentZipper.unpersist(~root) |> mk(~root);
 
   let trailing_hole_ctx =
       (ed: t, info_map: Language.Statics.Map.t): option(Ctx.t) => {
@@ -48,8 +50,6 @@ module Model = {
     let+ info = Language.Statics.Map.lookup(grout.id, info_map);
     Language.Info.ctx_of(info);
   };
-
-  let sort = (model: t): Sort.t => model.state.zipper.root;
 };
 
 module Update = {
@@ -136,7 +136,7 @@ module Update = {
         a: Action.t,
         old_statics: CachedStatics.t,
         old_dynamics: Dynamics.Map.t,
-        {state, syntax}: Model.t,
+        {state, syntax, root}: Model.t,
       )
       : Action.Result.t(Model.t) => {
     open Result.Syntax;
@@ -157,9 +157,10 @@ module Update = {
     let state = update_col_target(~measured=syntax.measured, a, state);
 
     /* 3. Update the zipper */
-    let+ zipper = Perform.go(~statics=old_statics, ~syntax, a, state);
+    let+ zipper = Perform.go(~statics=old_statics, ~syntax, a, state, ~root);
 
     Model.{
+      root,
       state: {
         ...state,
         zipper,
@@ -174,7 +175,7 @@ module Update = {
         ~is_edited,
         new_statics: CachedStatics.t,
         new_dynamics: Dynamics.Map.t,
-        {syntax, state}: Model.t,
+        {syntax, state, root}: Model.t,
       )
       : Model.t => {
     /* 1. Recalculate the autocomplete buffer if necessary */
@@ -199,6 +200,7 @@ module Update = {
       );
 
     Model.{
+      root,
       state: {
         ...state,
         zipper,

@@ -2,8 +2,7 @@ open Util;
 open OptUtil.Syntax;
 include ZipperBase;
 
-let init = (~root: Sort.t) => {
-  root,
+let init = () => {
   selection: Selection.mk([]),
   relatives: {
     siblings: (
@@ -30,8 +29,7 @@ let delete_parent = (z: t): t => {
 let zip = (z: t): Segment.t =>
   Relatives.zip(~sel=z.selection.content, z.relatives);
 
-let unzip = (seg: Segment.t, ~root): t => {
-  root,
+let unzip = (seg: Segment.t): t => {
   selection: Selection.mk([]),
   relatives: {
     siblings: (seg, []),
@@ -49,15 +47,16 @@ let regrout = (d: Direction.t, z: t): t => {
   };
 };
 
-let remold = (z: t): t => {
+let remold = (z: t, ~root): t => {
   assert(Selection.is_empty(z.selection));
   {
     ...z,
-    relatives: Relatives.remold(z.relatives, z.root),
+    relatives: Relatives.remold(z.relatives, root),
   };
 };
 
-let remold_regrout = (d: Direction.t, z: t): t => z |> remold |> regrout(d);
+let remold_regrout = (d: Direction.t, z: t, ~root): t =>
+  z |> remold(~root) |> regrout(d);
 
 let clear_unparsed_buffer = (z: t) =>
   switch (z.selection.mode) {
@@ -293,11 +292,11 @@ let backpack_find = (tok: Token.t, z: t): option(Tile.t) =>
     );
   };
 
-let insert_segment = (z: t, seg: Segment.t): t =>
+let insert_segment = (z: t, seg: Segment.t, ~root): t =>
   z
   |> replace_selection(z.selection.focus, seg)
   |> unselect
-  |> remold_regrout(Right);
+  |> remold_regrout(Right, ~root);
 
 let adj_pos = (d: Direction.t, z: t): t =>
   switch (d) {
@@ -321,14 +320,17 @@ let can_put_down = z =>
   | _ => z.caret == Outer
   };
 
-let put_down_target = (d: Direction.t, target: Tile.t, z: t): t =>
-  z |> put_down_core([Tile(target)]) |> remold_regrout(Left) |> adj_pos(d);
+let put_down_target = (d: Direction.t, target: Tile.t, z: t, ~root): t =>
+  z
+  |> put_down_core([Tile(target)])
+  |> remold_regrout(Left, ~root)
+  |> adj_pos(d);
 
-let put_down = (z: t): option(t) =>
+let put_down = (z: t, ~root): option(t) =>
   z.caret == Outer
     ? {
       let+ target = backpack_hd(z);
-      put_down_target(Left, target, z);
+      put_down_target(Left, target, z, ~root);
     }
     : None;
 

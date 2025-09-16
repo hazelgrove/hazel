@@ -184,7 +184,7 @@ module Update = {
     @ [
       (
         new_key,
-        CellEditor.Model.mk(Editor.Model.mk(Zipper.init(~root=Exp))),
+        CellEditor.Model.mk(Editor.Model.mk(Zipper.init(), ~root=Exp)),
       ),
     ];
   };
@@ -280,7 +280,7 @@ module Update = {
       let source =
         switch (is_documentation) {
         | false =>
-          CellEditor.Model.mk(Editor.Model.mk(Zipper.init(~root=Exp)))
+          CellEditor.Model.mk(Editor.Model.mk(Zipper.init(), ~root=Exp))
           |> CellEditor.Model.persist
         | true => Init.default_documentation_slide_name(key)
         };

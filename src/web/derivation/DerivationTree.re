@@ -93,7 +93,8 @@ let zipper_of_code = (code, ~root) => {
   };
 };
 
-let init = (~root: Sort.t) => "" |> zipper_of_code(~root) |> Editor.Model.mk;
+let init = (~root: Sort.t) =>
+  "" |> zipper_of_code(~root) |> Editor.Model.mk(~root);
 
 let get_trees_pos =
   fun
@@ -485,7 +486,7 @@ let wrap = (term, editor: Editor.t): TermItem.t => {
 };
 
 let term_of = (editor: Editor.t): Language.Exp.t =>
-  MakeTerm.from_zip_for_sem(editor.state.zipper).term;
+  MakeTerm.from_zip_for_sem(editor.state.zipper, ~root=editor.root).term;
 
 let stitch3 = (ed1: Editor.t, ed2: Editor.t, ed3: Editor.t) =>
   EditorUtil.append_exp(

@@ -2,7 +2,7 @@ let out : string * Haz3lcore.PersistentZipper.t =
   ( "[TESTS] Types and Static Errors",
     {
       zipper =
-        "((root Exp)(selection((focus Left)(content())(mode \
+        "((selection((focus Left)(content())(mode \
          Normal)))(relatives((siblings(()((Secondary((id \
          429b4d2a-51ee-469c-b1c0-a43fc60b2cf7)(content(Comment\"# Internal \
          Regression Tests: Type errors #\"))))(Secondary((id \

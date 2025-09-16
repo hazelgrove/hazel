@@ -11,7 +11,6 @@ let exercise : DerivationTree.spec =
        annotate the function argument.";
     prelude =
       {
-        root = Drv Exp;
         selection = { focus = Left; content = []; mode = Normal };
         relatives =
           {
@@ -1239,7 +1238,6 @@ let exercise : DerivationTree.spec =
       };
     setup =
       {
-        root = Drv Exp;
         selection = { focus = Left; content = []; mode = Normal };
         relatives =
           {
@@ -1275,7 +1273,6 @@ let exercise : DerivationTree.spec =
               {
                 jdmt =
                   {
-                    root = Drv Exp;
                     selection = { focus = Left; content = []; mode = Normal };
                     relatives =
                       {
@@ -1752,7 +1749,6 @@ let exercise : DerivationTree.spec =
                     {
                       jdmt =
                         {
-                          root = Drv Exp;
                           selection =
                             { focus = Left; content = []; mode = Normal };
                           relatives =
@@ -2115,7 +2111,6 @@ let exercise : DerivationTree.spec =
                           {
                             jdmt =
                               {
-                                root = Drv Exp;
                                 selection =
                                   {
                                     focus = Left;
@@ -2318,7 +2313,6 @@ let exercise : DerivationTree.spec =
                                 {
                                   jdmt =
                                     {
-                                      root = Drv Exp;
                                       selection =
                                         {
                                           focus = Left;
@@ -2520,7 +2514,6 @@ let exercise : DerivationTree.spec =
                           {
                             jdmt =
                               {
-                                root = Drv Exp;
                                 selection =
                                   { focus = Left; content = []; mode = Normal };
                                 relatives =
@@ -2718,7 +2711,6 @@ let exercise : DerivationTree.spec =
                                 {
                                   jdmt =
                                     {
-                                      root = Drv Exp;
                                       selection =
                                         {
                                           focus = Left;
@@ -2921,7 +2913,6 @@ let exercise : DerivationTree.spec =
                           {
                             jdmt =
                               {
-                                root = Drv Exp;
                                 selection =
                                   { focus = Left; content = []; mode = Normal };
                                 relatives =
@@ -3119,7 +3110,6 @@ let exercise : DerivationTree.spec =
                                 {
                                   jdmt =
                                     {
-                                      root = Drv Exp;
                                       selection =
                                         {
                                           focus = Left;
@@ -3324,7 +3314,6 @@ let exercise : DerivationTree.spec =
               {
                 jdmt =
                   {
-                    root = Drv Exp;
                     selection = { focus = Left; content = []; mode = Normal };
                     relatives =
                       {
@@ -3978,7 +3967,6 @@ let exercise : DerivationTree.spec =
                     {
                       jdmt =
                         {
-                          root = Drv Exp;
                           selection =
                             { focus = Left; content = []; mode = Normal };
                           relatives =

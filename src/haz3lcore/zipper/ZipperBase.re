@@ -8,7 +8,6 @@ type caret =
 // assuming single backpack, shards may appear in selection, backpack, or siblings
 [@deriving (show({with_path: false}), sexp, yojson, eq)]
 type t = {
-  root: Sort.t,
   selection: Selection.t,
   relatives: Relatives.t,
   caret,

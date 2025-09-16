@@ -39,7 +39,10 @@ module Model = {
   };
 
   let of_spec = (~settings as _, ~instructor_mode as _: bool, spec) => {
-    let editors = DerivationTree.map(spec, Editor.Model.mk);
+    let editors =
+      DerivationTree.mapi(spec, pos =>
+        Editor.Model.mk(~root=DerivationTree.root_of_pos(pos))
+      );
     let term_item_to_cell =
         (item: DerivationTree.TermItem.t): CellEditor.Model.t => {
       CellEditor.Model.mk(item.editor);
@@ -201,7 +204,10 @@ module Update = {
       |> Updated.return;
     | Refresh => Updated.return(model)
     | ResetExercise =>
-      let new_editors = DerivationTree.map(model.spec, Editor.Model.mk);
+      let new_editors =
+        DerivationTree.mapi(model.spec, pos =>
+          Editor.Model.mk(~root=DerivationTree.root_of_pos(pos))
+        );
       {
         ...model,
         editors: new_editors,
@@ -235,10 +241,11 @@ module Update = {
             }) {
             | Invalid_argument(_)
             | Not_found =>
+              let root = DerivationTree.root_of_pos(pos);
               ""
-              |> DerivationTree.zipper_of_code(~root=Drv(Exp))
-              |> Editor.Model.mk
-              |> CellEditor.Model.mk
+              |> DerivationTree.zipper_of_code(~root)
+              |> Editor.Model.mk(~root)
+              |> CellEditor.Model.mk;
             }
           )
           |> CellEditor.Update.calculate(

@@ -38,8 +38,8 @@ module Model = {
       term,
       ~settings=ExpToSegment.Settings.of_core(~inline, settings),
     )
-    |> Zipper.unzip(~root)
-    |> Editor.Model.mk
+    |> Zipper.unzip
+    |> Editor.Model.mk(~root)
     |> mk;
   };
 
@@ -71,8 +71,8 @@ module Model = {
   let to_string = (model: t) =>
     model.editor.state.zipper |> PersistentZipper.to_string;
   let unpersist = (p, ~root) =>
-    p |> PersistentZipper.unpersist(~root) |> Editor.Model.mk |> mk;
-  let sort = (model: t): Sort.t => Editor.Model.sort(model.editor);
+    p |> PersistentZipper.unpersist(~root) |> Editor.Model.mk(~root) |> mk;
+  let sort = (model: t): Sort.t => model.editor.root;
 };
 
 module Update = {
@@ -98,6 +98,7 @@ module Update = {
             ~stitch,
             ~ctx?,
             ~is_dynamic_term,
+            ~root=editor.root,
             editor.state.zipper,
           )
         : statics;

@@ -1253,7 +1253,8 @@ let for_projection =
     }
   );
 
-let from_zip_for_sem = (z: Zipper.t) => go(Dump.to_segment(z));
+let from_zip_for_sem = (z: Zipper.t, ~root) =>
+  go(Dump.to_segment(z, ~root));
 
 let from_zip_for_sem =
   Core.Memo.general(~cache_size_bound=1000, from_zip_for_sem);

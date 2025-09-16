@@ -44,7 +44,7 @@ let perform = (zip: Zipper.t, actions: list(Action.t)): Zipper.t => {
     );
   List.fold_left(
     (z: Zipper.t, a: Action.t) =>
-      switch (perform(a, z)) {
+      switch (perform(a, z, ~root=Exp)) {
       | Ok(z) => z
       | Error(err) =>
         print_endline("Zipper: " ++ Zipper.show(z));
@@ -99,7 +99,7 @@ let test = (~name, ~acts, ~goal): test_case(_) =>
       testable(Fmt.string, String.equal),
       goal,
       goal,
-      acts |> perform(Zipper.init(~root=Exp)) |> printer,
+      acts |> perform(Zipper.init()) |> printer,
     )
   );
 

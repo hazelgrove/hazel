@@ -22,7 +22,7 @@ let unpersist = (persisted: t, ~root) =>
       "Warning: using backup text! Serialization may be for an older version of Hazel.",
     );
     switch (Parser.to_zipper(persisted.backup_text, ~root)) {
-    | None => Zipper.init(~root)
+    | None => Zipper.init()
     | Some(z) => z
     };
   };

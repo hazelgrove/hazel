@@ -206,6 +206,7 @@ module Update = {
           and.calc result = result;
           switch (result) {
           | ResultOk({result: exp, _}) =>
+            // TODO(zhiyao): what should display root be consistent with?
             Some((
               exp,
               exp |> CodeSelectable.Model.mk_from_exp(~settings, ~root=Exp),

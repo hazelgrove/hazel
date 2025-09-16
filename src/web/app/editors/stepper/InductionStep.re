@@ -49,11 +49,12 @@ let init = (~exp: option(Exp.t)=?, ()) => {
               ~settings=ExpToSegment.Settings.editable(~inline=true),
               e,
             ),
-            ~root=Exp,
           ),
+          ~root=Exp,
         ),
       )
-    | None => CodeEditable.Model.mk(Editor.Model.mk(Zipper.init(~root=Exp)))
+    | None =>
+      CodeEditable.Model.mk(Editor.Model.mk(Zipper.init(), ~root=Exp))
     };
   {
     scrut,

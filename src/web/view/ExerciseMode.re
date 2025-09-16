@@ -42,7 +42,12 @@ module Model = {
   };
 
   let of_spec = (~settings as _, ~instructor_mode as _: bool, spec) => {
-    let editors = Exercise.map(spec, Editor.Model.mk, Editor.Model.mk);
+    let editors =
+      Exercise.map(
+        spec,
+        Editor.Model.mk(~root=Exp),
+        Editor.Model.mk(~root=Exp),
+      );
     let term_item_to_cell = (item: Exercise.TermItem.t): CellEditor.Model.t => {
       CellEditor.Model.mk(item.editor);
     };
@@ -187,7 +192,7 @@ module Update = {
           hidden_bugs:
             model.cells.hidden_bugs
             @ [
-              CellEditor.Model.mk(Editor.Model.mk(Zipper.init(~root=Exp))),
+              CellEditor.Model.mk(Editor.Model.mk(Zipper.init(), ~root=Exp)),
             ],
         },
       })
@@ -342,7 +347,7 @@ module Update = {
     | Editor(_, ResultAction(_)) => Updated.return_quiet(model) // TODO: I think this case should never happen
     | ResetEditor(pos) =>
       let spec = Exercise.main_editor_of_state(~selection=pos, model.spec);
-      let new_editor = Editor.Model.mk(spec);
+      let new_editor = Editor.Model.mk(spec, ~root=Exp);
       {
         ...model,
         editors:
@@ -351,7 +356,11 @@ module Update = {
       |> Updated.return;
     | ResetExercise =>
       let new_editors =
-        Exercise.map(model.spec, Editor.Model.mk, Editor.Model.mk);
+        Exercise.map(
+          model.spec,
+          Editor.Model.mk(~root=Exp),
+          Editor.Model.mk(~root=Exp),
+        );
       {
         ...model,
         editors: new_editors,

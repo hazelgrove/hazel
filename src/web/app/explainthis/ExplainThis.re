@@ -371,8 +371,8 @@ let example_view =
                   ~locked=true,
                   {
                     term
-                    |> Zipper.unzip(~root=Exp)
-                    |> Editor.Model.mk
+                    |> Zipper.unzip
+                    |> Editor.Model.mk(~root=Exp)
                     |> CellEditor.Model.mk
                     |> CellEditor.Update.calculate(
                          ~settings=globals.settings.core,
@@ -672,8 +672,7 @@ let get_doc =
         |> List.to_seq
         |> Id.Map.of_seq
         |> Option.some;
-      let editor =
-        Editor.Model.mk(doc.syntactic_form |> Zipper.unzip(~root));
+      let editor = Editor.Model.mk(doc.syntactic_form |> Zipper.unzip, ~root);
       let expander_deco =
         expander_deco(
           ~globals,

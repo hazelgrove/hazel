@@ -39,7 +39,8 @@ module F = (Stepper: STEPPER) => {
   type focus = focus'(Stepper.focus);
 
   let init = {
-    pattern: CodeEditable.Model.mk(Editor.Model.mk(Zipper.init(~root=Exp))),
+    pattern:
+      CodeEditable.Model.mk(Editor.Model.mk(Zipper.init(), ~root=Exp)),
     elab_pattern: Calc.Pending,
     inner_exp: Calc.Pending,
     step: Stepper.init,
