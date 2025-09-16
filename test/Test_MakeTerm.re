@@ -233,5 +233,22 @@ let tests =
           "^slider(50)",
         )
       ),
+      test_case("Product extension in ascription", `Quick, () =>
+        exp_check(
+          asc(
+            empty_hole(),
+            Typ.(
+              prod_extension(
+                prod([tup_label(label("a"), int()), string()]),
+                prod([
+                  tup_label(label("b"), int()),
+                  tup_label(label("c"), float()),
+                ]),
+              )
+            ),
+          ),
+          "? : (a=Int, String) ... (b=Int, c=Float)",
+        )
+      ),
     ],
   );

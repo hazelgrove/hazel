@@ -230,7 +230,13 @@ module rec Exp: {
       tuple_extension(of_menhir_ast(e1), of_menhir_ast(e2))
     | Label(s) => label(s)
     | TupLabel(e1, e2) => tup_label(of_menhir_ast(e1), of_menhir_ast(e2))
-    | Dot(e1, e2) => dot(of_menhir_ast(e1), of_menhir_ast(e2))
+    | Dot(e1, e2) =>
+      switch (e2) {
+      | Var(s)
+      | Label(s) => dot(of_menhir_ast(e1), label(s))
+      | EmptyHole => dot(of_menhir_ast(e1), empty_hole())
+      | _ => dot(of_menhir_ast(e1), multi_hole([Exp(of_menhir_ast(e2))]))
+      }
     | Let(p, e1, e2) =>
       let_(Pat.of_menhir_ast(p), of_menhir_ast(e1), of_menhir_ast(e2))
     | FixF(p, e) => fix_f(Pat.of_menhir_ast(p), of_menhir_ast(e), None)
@@ -369,6 +375,7 @@ module rec Exp: {
       )
     | Deferral(_) => Deferral
     | Filter(Residue(_), _) => raise(Failure("Residue not supported"))
+    | MultiHole([Exp(e)]) => of_core(e) // unwrap single exp multi-holes. just used for label parse failure
     | MultiHole(_) => raise(Failure("MultiHole not supported"))
     | Closure(_) => raise(Failure("Closure not supported"))
     | Parens(e) => of_core(e)

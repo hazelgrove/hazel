@@ -243,7 +243,11 @@ let rec parenthesize =
   | TupLabel(l, e) =>
     TupLabel(l, parenthesize(e) |> paren_at(Precedence.min)) |> rewrap
   | Dot(e, l) =>
-    Dot(parenthesize(e) |> paren_at(Precedence.min), l) |> rewrap
+    Dot(
+      parenthesize(e) |> paren_at(Precedence.dot),
+      parenthesize(l) |> paren_at(Precedence.dot),
+    )
+    |> rewrap
   | TupleExtension(l, r) =>
     TupleExtension(
       parenthesize(l) |> paren_at(Precedence.dot),
@@ -502,7 +506,10 @@ and parenthesize_typ =
     TupLabel(l, parenthesize_typ(t) |> paren_typ_at(Precedence.min))
     |> rewrap
   | ProdProjection(t1, t2) =>
-    ProdProjection(parenthesize_typ(t1) |> paren_typ_at(Precedence.dot), t2)
+    ProdProjection(
+      parenthesize_typ(t1) |> paren_typ_at(Precedence.dot),
+      parenthesize_typ(t2) |> paren_typ_at(Precedence.dot),
+    )
     |> rewrap
   | ProdExtension(t1, t2) =>
     ProdExtension(
@@ -597,7 +604,7 @@ and parenthesize_any =
   | Any(_) => any
   };
 
-let should_add_space = (s1, s2) =>
+let should_add_space = (s1, s2) => {
   switch () {
   | _ when String.ends_with(s1, ~suffix="(") => false
   | _ when String.ends_with(s1, ~suffix="[") => false
@@ -629,8 +636,13 @@ let should_add_space = (s1, s2) =>
   | _ when String.ends_with(s1, ~suffix="…") =>
     /* Hack case for probe projector abbreviations */
     false
+  | _ when s1 == "." && (Token.is_quoted_label(s2) || Token.is_var(s2)) =>
+    false
+  | _ when s2 == "." && (Token.is_quoted_label(s1) || Token.is_var(s1)) =>
+    false
   | _ => true
   };
+};
 
 let text_to_pretty = (id, sort, str): pretty => {
   p_just([
@@ -959,11 +971,11 @@ let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
         )
       | _ => go(l)
       };
-    List.flatten([e, [mk_form(DotExp, exp |> Exp.rep_id, [])], l]);
+    e @ [mk_form(DotExp, exp |> Exp.rep_id, [])] @ l;
   | Let(p, e1, e2) =>
     // TODO: Add optional newlines
     let id = exp |> Exp.rep_id;
-    // This step undoes the adding of fixpoints that happens in elaboration.
+    // This step does the adding of fixpoints that happens in elaboration.
     let e1 = settings.hide_fixpoints ? Exp.unfix(e1, p) : e1;
     let+ p = pat_to_pretty(~settings: Settings.t, p)
     and+ e1 = go(e1)

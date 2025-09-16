@@ -377,6 +377,11 @@ let rec gen_exp_sized = (~minimal_idents: bool, n: int): QCheck.Gen.t(exp) => {
           {
             let* e1 = self((n - 1) / 2);
             let+ e2 = self((n - 1) / 2);
+            Dot(e1, e2);
+          },
+          {
+            let* e1 = self((n - 1) / 2);
+            let+ e2 = self((n - 1) / 2);
             TupleExtension(e1, e2);
           },
           {
@@ -562,6 +567,16 @@ and gen_typ_sized: (~minimal_idents: bool, int) => QCheck.Gen.t(typ) =
                   );
 
                 SumTyp(Array.to_list(sumterms));
+              },
+              {
+                let* t1 = self((n - 1) / 2);
+                let+ t2 = self((n - 1) / 2);
+                ProdProjection(t1, t2);
+              },
+              {
+                let* t1 = self((n - 1) / 2);
+                let+ t2 = self((n - 1) / 2);
+                ProdExtension(t1, t2);
               },
             ])
           },

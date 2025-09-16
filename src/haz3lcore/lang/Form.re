@@ -239,7 +239,7 @@ let get: compound_form => t =
   | TupleExtension => mk_infix("...", Exp, P.plus)
   | TypPlus => mk_infix("+", Typ, P.type_plus)
   | ProdProjection => mk_infix(".", Typ, P.dot)
-  | ProdExtension => mk_infix("...", Typ, P.plus)
+  | ProdExtension => mk_infix("...", Typ, P.ap)
   // UNARY PREFIX OPERATORS
   | Not => mk_prefix("!", Exp, P.not_)
   | TypSumSingle => mk_prefix("+", Typ, P.or_)

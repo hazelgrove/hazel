@@ -332,5 +332,17 @@ let tests = (
         ),
       )
     }),
+    test_case("Dot operator on float", `Quick, () => {
+      check(
+        string,
+        "",
+        {|1.230000 . 4.560000|},
+        print_seg(
+          exp_to_segment(
+            IdTagged.FreshGrammar.Exp.(dot(float(1.23), float(4.56))),
+          ),
+        ),
+      )
+    }),
   ],
 );
