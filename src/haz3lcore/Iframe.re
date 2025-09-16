@@ -232,7 +232,7 @@ let listen = (schedule_action: Action.t => unit): unit => {
         let js_state = EditorState.get_state(state);
         let state = RedundantCoverterIGuess.autoseg_of_hazeldoc(js_state); // @andrew make it work
         let seg = AutoSeg.doc_to_seg(state);
-        schedule_action(TempReplace(seg));
+        schedule_action(SyncReplace(seg));
         Firebug.console##log(
           "my name is iframe and I'm here to say you gave me this state",
         );

@@ -242,6 +242,9 @@ let go_z =
     |> Insert.go(char, ~ctx)
     /* note: remolding here is done case-by-case */
     |> Result.of_option(~error=Action.Failure.Cant_insert);
+  | SyncReplace(segment) =>
+    SyncReplace.sync_replace(z, segment)
+    |> Result.of_option(~error=Action.Failure.Cant_insert)
   | Put_down =>
     (
       switch (z.caret) {
@@ -254,53 +257,5 @@ let go_z =
       }
     )
     |> Result.of_option(~error=Action.Failure.Cant_put_down)
-  | TempReplace(segment) =>
-    //let id_init = Indicated.index(z);
-    let (id_init, d_init: Direction.t) =
-      switch (z.relatives.siblings) {
-      | (_, [p, ..._]) => (Piece.id(p), Right)
-      | ([_, ..._] as l, []) => (Piece.id(ListUtil.last(l)), Left)
-      | _ => (Id.invalid, Left)
-      };
-    let caret_init = z.caret;
-    let z = Zipper.unzip(segment);
-    let rec move_to_start = (z: t): t => {
-      switch (Move.primary(ByToken, Left, z)) {
-      | Some(z) => move_to_start(z)
-      | None => z
-      };
-    };
-    let move_to_id = (z: t, id: Id.t): option(t) => {
-      let z = z |> move_to_start;
-      let rec go = (z: t): option(t) =>
-        (
-          switch (z.relatives.siblings) {
-          | (_, [p, ..._]) when d_init == Right => Piece.id(p) == id
-          | ([_, ..._] as l, []) when d_init == Left =>
-            Piece.id(ListUtil.last(l)) == id
-          | _ => false
-          }
-        )
-          ? Some(z)
-          : (
-            switch (Move.primary(ByToken, Right, z)) {
-            | Some(z) => go(z)
-            | None => None
-            }
-          );
-      go(z);
-    };
-    let z =
-      switch (id_init) {
-      | id =>
-        switch (move_to_id(z, id)) {
-        | Some(z) => {
-            ...z,
-            caret: caret_init,
-          }
-        | None => z
-        }
-      };
-    Ok(z);
   };
 };

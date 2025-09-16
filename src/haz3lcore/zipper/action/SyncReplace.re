@@ -1,0 +1,148 @@
+open Util;
+open Zipper;
+open Language;
+
+let rec move_to_start = (z: t): t => {
+  switch (Move.primary(ByToken, Left, z)) {
+  | Some(z) => move_to_start(z)
+  | None => z
+  };
+};
+
+let move_to_id_anc = (z: t, (id, shard)): option(t) => {
+  // this doesn't really work
+  let z = z |> move_to_start;
+  let rec go = (z: t): option(t) => {
+    let guy =
+      List.find_opt(
+        (a: Ancestors.generation) =>
+          fst(a).id == id && fst(a).shards |> fst |> ListUtil.hd_opt == shard,
+        z.relatives.ancestors,
+      )
+      != None;
+    guy
+      ? Some(z)
+      : (
+        switch (Move.primary(ByToken, Right, z)) {
+        | Some(z) => go(z)
+        | None => None
+        }
+      );
+  };
+  go(z);
+};
+let move_to_id =
+    (d_init: Direction.t, caret_init: Caret.t, z: t, id: Id.t): option(t) => {
+  let z = z |> move_to_start;
+  let rec go = (z: t): option(t) => {
+    let (guy, flag) =
+      switch (z.relatives.siblings) {
+      | (_, [p, ..._]) when d_init == Right => (Piece.id(p) == id, false)
+      | ([_, ..._] as l, _) when d_init == Left => (
+          Piece.id(ListUtil.last(l)) == id,
+          false,
+        )
+      | (_, [p, ..._]) when caret_init == Outer => (
+          Piece.id(p) == id,
+          caret_init == Outer,
+        )
+      //TODO(andrew): edge case when on outer right of thing that BECOMES last in seg
+      // | ([_, ..._] as l, _) when caret_init == Outer => (
+      //     Piece.id(ListUtil.last(l)) == id,
+      //     false,
+      //   )
+      | _ => (false, false)
+      };
+    guy
+      ? flag ? Move.primary(ByToken, Left, z) : Some(z)
+      : (
+        switch (Move.primary(ByToken, Right, z)) {
+        | Some(z) => go(z)
+        | None => None
+        }
+      );
+  };
+  go(z);
+};
+
+let sync_replace = (z: Zipper.t, segment: Segment.t): option(Zipper.t) => {
+  let (id_init, d_init: Direction.t) =
+    switch (z.relatives.siblings) {
+    | (_, [p, ..._]) => (Piece.id(p), Right)
+    | ([_, ..._] as l, []) => (Piece.id(ListUtil.last(l)), Left)
+    | _ => (Id.invalid, Left)
+    };
+  let caret_init = z.caret;
+  let ancestors = z.relatives.ancestors;
+  let ancestor_ids =
+    List.map(fst, ancestors)
+    |> List.map((anc: Ancestor.t) =>
+         (anc.id, anc.shards |> fst |> ListUtil.hd_opt)
+       );
+  // print_endline(
+  //   "ancestor_ids: "
+  //   ++ String.concat(", ", List.map(x=>x|>fst|>Id.to_string, ancestor_ids)),
+  // );
+  let z = Zipper.unzip(segment);
+
+  let z =
+    switch (id_init) {
+    | id =>
+      switch (move_to_id(d_init, caret_init, z, id)) {
+      | Some(z) => {
+          ...z,
+          caret: caret_init,
+        }
+      | None =>
+        let rec go = (ancestor_ids, z): option(t) => {
+          switch (ancestor_ids) {
+          | [] => None
+          | [ancestor_id, ...ancestor_ids] =>
+            // print_endline(
+            //   "tying to move to ancestor_id: " ++ Id.to_string(ancestor_id),
+            // );
+            let z = z |> move_to_start;
+            switch (move_to_id_anc(z, ancestor_id)) {
+            | Some(z) => Some(z)
+            | None => go(ancestor_ids, z)
+            };
+          };
+        };
+        switch (go(ancestor_ids, z)) {
+        | Some(z) => z
+        | None => z
+        };
+      }
+    };
+  Some(z);
+};
+
+let should_send_state = (a: Action.t): bool =>
+  //TODO(andrew): review actions esp project
+  switch (a) {
+  | SyncReplace(_)
+  | Buffer(Clear | Accept)
+  | Copy
+  | Project(
+      SetIndicated(_) | RemoveIndicated | SetModel(_) | Focus(_) | Escape(_),
+    )
+  | Jump(_)
+  | Select(_)
+  | Unselect(_)
+  | Move(_) => false
+  | Project(SetSyntax(_))
+  | Reparse
+  | Destruct(_)
+  | Insert(_)
+  | Put_down
+  | Introduce
+  | Paste(_)
+  | Buffer(Set(_))
+  | Cut => true
+  };
+
+let send_state = (a: Action.t, z: Zipper.t): unit =>
+  if (should_send_state(a)) {
+    let auto_seg = AutoSeg.seg_to_doc(z |> Zipper.zip);
+    Iframe.send_state(auto_seg);
+  };

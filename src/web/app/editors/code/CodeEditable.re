@@ -68,7 +68,7 @@ module Update = {
              | Project(_)
              | Unselect(_)
              | Select(All)
-             | TempReplace(_) => false
+             | SyncReplace(_) => false
              };
            },
          );

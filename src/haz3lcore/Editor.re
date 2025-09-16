@@ -222,11 +222,6 @@ module Update = {
       col_target,
     };
 
-    // print_endline("yo");
-
-    // let auto_seg = AutoSeg.seg_to_auto_seg(state.zipper |> Zipper.zip);
-    // print_endline(AutoSeg.show(auto_seg));
-
     // 4. Update the zipper
     let+ zipper =
       Perform.go_z(
@@ -240,33 +235,7 @@ module Update = {
         state.zipper,
       );
 
-    let auto_seg = AutoSeg.seg_to_doc(zipper |> Zipper.zip);
-    switch (a) {
-    | TempReplace(_)
-    | Buffer(Clear | Accept)
-    | Copy
-    | Project(
-        SetIndicated(_) | RemoveIndicated | SetModel(_) | Focus(_) | Escape(_),
-      ) //TODO(andrew)
-    | Jump(_)
-    | Select(_)
-    | Unselect(_)
-    | Move(_) => ()
-    | Project(SetSyntax(_))
-    | Reparse
-    | Destruct(_)
-    | Insert(_)
-    | Put_down
-    | Introduce
-    | Paste(_)
-    | Buffer(Set(_))
-    | Cut => Iframe.send_state(auto_seg)
-    };
-    // let diff = AutoSeg.mk_diff(auto_seg, auto_seg_2);
-    // switch (List.length(diff)) {
-    // | 0 => ()
-    // | _ => Iframe.send_delta(AutoSeg.diff_to_ts(diff))
-    // };
+    SyncReplace.send_state(a, zipper);
 
     // Recombine
     Model.{

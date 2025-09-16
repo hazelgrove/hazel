@@ -81,7 +81,7 @@ type paste =
 
 [@deriving (show({with_path: false}), sexp, yojson, eq)]
 type t =
-  | TempReplace(Segment.t)
+  | SyncReplace(Segment.t)
   | Reparse
   | Buffer(buffer)
   | Paste(paste)
@@ -123,7 +123,7 @@ module Result = {
 
 let is_edit: t => bool =
   fun
-  | TempReplace(_)
+  | SyncReplace(_)
   | Paste(_)
   | Cut
   | Reparse
@@ -154,7 +154,7 @@ let is_historic: t => bool =
   | Move(_)
   | Jump(_)
   | Select(_)
-  | TempReplace(_)
+  | SyncReplace(_)
   | Unselect(_) => false
   | Cut
   | Buffer(Accept | Clear | Set(_))
@@ -181,7 +181,7 @@ let prevent_in_read_only_editor = (a: t) => {
   | Unselect(_)
   | Jump(_)
   | Select(_) => false
-  | TempReplace(_)
+  | SyncReplace(_)
   | Buffer(Set(_) | Accept | Clear)
   | Cut
   | Paste(_)
@@ -218,7 +218,7 @@ let should_animate: t => bool =
     | ToggleFocus
     | SetFocus(_) => true
     }
-  | TempReplace(_)
+  | SyncReplace(_)
   | Unselect(_)
   | Paste(_)
   | Cut
