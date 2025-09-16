@@ -603,12 +603,7 @@ let out : string * Haz3lcore.PersistentSegment.t =
          64cf90d4-a7be-4a44-8163-65f2effc7a31)(label(r'))(mold((out \
          Typ)(in_())(nibs(((shape Convex)(sort Typ))((shape Convex)(sort \
          Typ))))))(shards(0))(children()))))))))(Secondary((id \
-         bef37b67-154d-4d53-9e75-6b8c02be6903)(content(Whitespace\" \
-         \"))))(Secondary((id \
-         40a25f6d-9d60-4c86-9ee7-7b54901a0919)(content(Whitespace\" \
-         \"))))(Secondary((id \
-         9b12c1c0-01d5-45db-a8f3-cc3824a3deb6)(content(Whitespace\" \
-         \")))))))))(Secondary((id \
+         dc79fcf3-a10e-41b4-9202-5d68aacce7db)(content(Whitespace\"\\n\")))))))))(Secondary((id \
          9e584eaa-7587-4595-81c8-ff31dbb5fb8e)(content(Whitespace\"\\n\"))))(Secondary((id \
          6943a9fa-367f-4792-b9a9-46860c58c70d)(content(Whitespace\"\\n\"))))(Secondary((id \
          c1a9ef34-caed-41ef-990a-3d56eaaf0300)(content(Comment\"# Examples \
@@ -1663,7 +1658,8 @@ let out : string * Haz3lcore.PersistentSegment.t =
          ] in\n\n\
          let build_column = typfun r -> typfun v -> typfun r' -> fun (t : [r], \
          c : ((r, v) -> r'), f: (r -> v)) ->\n\
-         map(t, fun r -> c(r, f(r))) : [r']   in\n\n\
+         map(t, fun r -> c(r, f(r))) : [r']\n\
+         in\n\n\
          # Examples #\n\
          test \n\
          build_column\n\

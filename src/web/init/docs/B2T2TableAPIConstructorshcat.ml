@@ -1500,10 +1500,13 @@ let out : string * Haz3lcore.PersistentSegment.t =
          \"))))(Tile((id \
          5041869f-28c1-44c0-a90b-e2640b4babc9)(label(requires))(mold((out \
          Pat)(in_())(nibs(((shape Convex)(sort Pat))((shape Convex)(sort \
-         Pat))))))(shards(0))(children()))))((Tile((id \
-         e79709d8-62bb-4e1b-8852-405b7068fd7d)(label([ ]))(mold((out \
-         Exp)(in_(Exp))(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
-         Exp))))))(shards(0 1))(children(((Secondary((id \
+         Pat))))))(shards(0))(children())))(Secondary((id \
+         b4669d48-3e57-491d-8da1-15e733734e5b)(content(Whitespace\" \
+         \")))))((Secondary((id \
+         88c0515a-8a5f-4790-ac64-0abb6fda6a35)(content(Whitespace\" \
+         \"))))(Tile((id e79709d8-62bb-4e1b-8852-405b7068fd7d)(label([ \
+         ]))(mold((out Exp)(in_(Exp))(nibs(((shape Convex)(sort Exp))((shape \
+         Convex)(sort Exp))))))(shards(0 1))(children(((Secondary((id \
          d18386d6-cec5-49dc-a7ae-2850da50e8c3)(content(Whitespace\"\\n\"))))(Tile((id \
          3af004e7-cefe-425e-932e-fc14b1354286)(label(\"(\"\")\"))(mold((out \
          Exp)(in_(Exp))(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
@@ -1570,10 +1573,13 @@ let out : string * Haz3lcore.PersistentSegment.t =
          \"))))(Tile((id \
          b841a20f-49c3-4580-b794-7c447c986a08)(label(ensures))(mold((out \
          Pat)(in_())(nibs(((shape Convex)(sort Pat))((shape Convex)(sort \
-         Pat))))))(shards(0))(children()))))((Tile((id \
-         ef1d51de-dd8f-448a-bbf9-b734bf18dc19)(label([ ]))(mold((out \
-         Exp)(in_(Exp))(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
-         Exp))))))(shards(0 1))(children(((Secondary((id \
+         Pat))))))(shards(0))(children())))(Secondary((id \
+         052aef78-084d-408e-b338-1aa7eacf7291)(content(Whitespace\" \
+         \")))))((Secondary((id \
+         e168e6ce-dcb6-4270-a09a-30a6a952d605)(content(Whitespace\" \
+         \"))))(Tile((id ef1d51de-dd8f-448a-bbf9-b734bf18dc19)(label([ \
+         ]))(mold((out Exp)(in_(Exp))(nibs(((shape Convex)(sort Exp))((shape \
+         Convex)(sort Exp))))))(shards(0 1))(children(((Secondary((id \
          eba5a85e-8dfe-4ec3-aecd-db49ca1f920b)(content(Whitespace\"\\n\"))))(Tile((id \
          3ac4d555-d987-475d-b9b4-10f08d56f65d)(label(\"(\"\")\"))(mold((out \
          Exp)(in_(Exp))(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
@@ -2221,12 +2227,12 @@ let out : string * Haz3lcore.PersistentSegment.t =
          string column. Given the lack of row polymorphism no constraints are \
          ensured #  \n\
          let v2 =  \n\
-         let requires=[\n\
+         let requires = [\n\
          (enforced=^^check(false), \"concat(header(t1), header(t2)) has no \
          duplicates\"),\n\
          (enforced=^^check(false), \"nrows(t1) is equal to nrows(t2)\")\n\
          ] in\n\
-         let ensures=[\n\
+         let ensures = [\n\
          (enforced=^^check(false), \"schema(t3) is equal to concat(schema(t1), \
          schema(t2))\"),\n\
          (enforced=^^check(false), \"nrows(t3) is equal to nrows(t1)\")\n\

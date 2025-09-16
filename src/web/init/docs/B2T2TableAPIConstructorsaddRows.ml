@@ -111,7 +111,9 @@ let out : string * Haz3lcore.PersistentSegment.t =
          to nrows(t1) + length(rs)\\\"\"))(mold((out Exp)(in_())(nibs(((shape \
          Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children()))))))))(Secondary((id \
-         090c2eda-53a7-4367-9837-3beca5fa6ff1)(content(Whitespace\"\\n\"))))))))))))))(Secondary((id \
+         090c2eda-53a7-4367-9837-3beca5fa6ff1)(content(Whitespace\"\\n\")))))))))(Secondary((id \
+         23b8e07b-e013-4135-a1f1-84728d932387)(content(Whitespace\" \
+         \")))))))))(Secondary((id \
          f992e154-ed13-4427-b321-c9be9f42a5aa)(content(Whitespace\"\\n\"))))(Secondary((id \
          c115e823-bd82-4d67-a60c-c4facbcf7ee4)(content(Comment\"#Hazel tables \
          are lists; so add_rows is just list \
@@ -139,8 +141,6 @@ let out : string * Haz3lcore.PersistentSegment.t =
          TPat))))))(shards(0))(children())))(Secondary((id \
          fc0dd5af-2061-495f-84b1-2f8545a25b55)(content(Whitespace\" \
          \")))))))))(Secondary((id \
-         70a76173-7b74-477e-b360-2148fd2210d7)(content(Whitespace\" \
-         \"))))(Secondary((id \
          31ea6208-7265-4a8b-b173-69a05cfd8386)(content(Whitespace\" \
          \"))))(Tile((id 8710400a-8aeb-4c72-929c-8c857cd379f1)(label(fun \
          ->))(mold((out Exp)(in_(Pat))(nibs(((shape Convex)(sort \
@@ -624,9 +624,9 @@ let out : string * Haz3lcore.PersistentSegment.t =
          (enforced=^^check(true), \"schema(t2) is equal to schema(t1)\"),\n\
          (enforced=^^check(false), \"nrows(t2) is equal to nrows(t1) + \
          length(rs)\")\n\
-         ]in\n\
+         ] in\n\
          #Hazel tables are lists; so add_rows is just list concatenation#\n\
-         let add_rows = typfun row ->  fun (rs : [row], rs' : [row]) -> rs @ \
+         let add_rows = typfun row -> fun (rs : [row], rs' : [row]) -> rs @ \
          rs'  in\n\n\
          # Examples #\n\
          type GradebookEntry= (name=String, age=Int, quiz1=Int, quiz2=Int, \

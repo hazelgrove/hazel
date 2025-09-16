@@ -1957,8 +1957,7 @@ let out : string * Haz3lcore.PersistentSegment.t =
          \"))))(Tile((id \
          9f56438a-ec82-4708-8d6e-e1364b070e19)(label(?))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
-         Exp))))))(shards(0))(children())))(Secondary((id \
-         8c9d0fab-46b1-4ba2-87a7-79c86b1b2213)(content(Whitespace\"\\n\")))))";
+         Exp))))))(shards(0))(children()))))";
       backup_text =
         "type Student = (name=String, age=Int, favorite_color=String) in\n\
          let students : [Student]  = ^^fold([\n\
@@ -2036,5 +2035,5 @@ let out : string * Haz3lcore.PersistentSegment.t =
          ] : ^^fold([(name=String, age=Int, favorite_color=String, \
          get_acne=Bool, red=Bool, black=Bool)]))\n\
          end\n\n\
-         in ?\n";
+         in ?";
     } )

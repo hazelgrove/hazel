@@ -82,10 +82,13 @@ let out : string * Haz3lcore.PersistentSegment.t =
          \"))))(Tile((id \
          7696d94a-45b2-4989-9cbc-d867f340d088)(label(ensures))(mold((out \
          Pat)(in_())(nibs(((shape Convex)(sort Pat))((shape Convex)(sort \
-         Pat))))))(shards(0))(children()))))((Tile((id \
-         a60e17b6-c853-4609-87fe-566233fd79f6)(label([ ]))(mold((out \
-         Exp)(in_(Exp))(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
-         Exp))))))(shards(0 1))(children(((Secondary((id \
+         Pat))))))(shards(0))(children())))(Secondary((id \
+         7518419a-26d6-4434-9e38-ed67538acb4e)(content(Whitespace\" \
+         \")))))((Secondary((id \
+         f7aee380-0394-425b-9077-8162bcfde498)(content(Whitespace\" \
+         \"))))(Tile((id a60e17b6-c853-4609-87fe-566233fd79f6)(label([ \
+         ]))(mold((out Exp)(in_(Exp))(nibs(((shape Convex)(sort Exp))((shape \
+         Convex)(sort Exp))))))(shards(0 1))(children(((Secondary((id \
          8b78698f-7e3f-4e17-8bcf-028e15eb9897)(content(Whitespace\"\\n\"))))(Tile((id \
          43806d82-f9f2-4a99-9985-c14c86832480)(label(\"(\"\")\"))(mold((out \
          Exp)(in_(Exp))(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
@@ -272,7 +275,7 @@ let out : string * Haz3lcore.PersistentSegment.t =
          (enforced=^^check(true), \"for all r in rs, schema(r) is equal to \
          schema(rs[0])\")\n\
          ] in\n\
-         let ensures=[\n\
+         let ensures = [\n\
          (enforced=^^check(true), \"schema(t) is equal to schema(rs[0])\"),\n\
          (enforced=^^check(false), \"nrows(t) is equal to length(rs)\")\n\
          ] in\n\
