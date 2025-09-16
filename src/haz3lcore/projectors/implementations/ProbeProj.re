@@ -171,56 +171,44 @@ module DynCursor = {
     )
     |> List.rev;
 
-  let capture_cursor = (closure: closure): unit => {
-    print_endline(
-      "capture_cursor: closure.call_Stack="
-      ++ String.concat(", ", List.map(Id.str3, closure.call_stack)),
-    );
+  let capture_cursor = (closure: closure): unit =>
+    // print_endline(
+    //   "capture_cursor: closure.call_Stack="
+    //   ++ String.concat(", ", List.map(Id.str3, closure.call_stack)),
+    // );
     if (!ListUtil.is_suffix_of(closure.call_stack, s.call_cursor.stack)) {
-      // print_endline(
-      //   "closure.call_stack: "
-      //   ++ String.concat(", ", List.map(Id.str3, closure.call_stack)),
-      // );
-      // print_endline(
-      //   "s.call_cursor.stack: "
-      //   ++ String.concat(", ", List.map(Id.str3, s.call_cursor.stack)),
-      // );
-      // print_endline("capture_cursor: closure not suffix of call_cursor");
-      // print_endline("setting new call_cursor");
-      s.call_cursor = {
-        stack: closure.call_stack,
-        index: List.length(closure.call_stack) - 1,
-      };
-      print_endline("index is now: " ++ string_of_int(s.call_cursor.index));
-      // print_endline(
-      //   "trimmed_stack is now: "
-      //   ++ String.concat(", ", List.map(Id.str3, trimmed_stack())),
-      // );
+      s.call_cursor =
+        {
+          stack: closure.call_stack,
+          index: List.length(closure.call_stack) - 1,
+        };
+        // print_endline("case A: call_stack not suffix of call_cursor");
+        // print_endline("index is now: " ++ string_of_int(s.call_cursor.index));
+        // print_endline(
+        //   "call_cursor is now: "
+        //   ++ String.concat(", ", List.map(Id.str3, s.call_cursor.stack)),
+        // );
+        // print_endline(
+        //   "trimmed_stack is now: "
+        //   ++ String.concat(", ", List.map(Id.str3, trimmed_stack())),
+        // );
     } else {
-      // print_endline(
-      //   "closure.call_stack: "
-      //   ++ String.concat(", ", List.map(Id.str3, closure.call_stack)),
-      // );
-      // print_endline(
-      //   "s.call_cursor.stack: "
-      //   ++ String.concat(", ", List.map(Id.str3, s.call_cursor.stack)),
-      // );
-      // print_endline("capture_cursor: closure is suffix of call_cursor");
-      // print_endline("leaving stack the same");
-      // print_endline(
-      //   "index set to:" ++ string_of_int(List.length(closure.call_stack) - 1),
-      // );
       s.call_cursor =
         {
           stack: s.call_cursor.stack,
           index: List.length(closure.call_stack) - 1,
         };
+        // print_endline("case B: call_stack is suffix of call_cursor");
+        // print_endline(
+        //   "call_cursor is now: "
+        //   ++ String.concat(", ", List.map(Id.str3, s.call_cursor.stack)),
+        // );
+        // print_endline("index is now: " ++ string_of_int(s.call_cursor.index));
         // print_endline(
         //   "trimmed_stack is now: "
         //   ++ String.concat(", ", List.map(Id.str3, trimmed_stack())),
         // );
     };
-  };
   // s.call_cursor = {
   //   stack:
   //     ListUtil.is_suffix_of(closure.call_stack, s.call_cursor.stack)
@@ -278,6 +266,7 @@ module DynCursor = {
   type relation = {
     /* Is the current closure the call cursor? */
     is_call_cursor: bool,
+    is_more_precise_than_cursor: bool,
     relative_level_to_cursor: relative_level,
     /* Is the current closure a call directly above the call cursor? */
     is_call_above_call_cursor: option(int),
@@ -306,13 +295,16 @@ module DynCursor = {
   let relation = (info: info, closure: closure): relation => {
     open OptUtil.Syntax;
     let this = closure.call_stack;
-    print_endline("this: " ++ String.concat(", ", List.map(Id.str3, this)));
+    // print_endline("this: " ++ String.concat(", ", List.map(Id.str3, this)));
     let cursor = trimmed_stack();
-    print_endline(
-      "cursor: " ++ String.concat(", ", List.map(Id.str3, cursor)),
-    );
     {
+      // print_endline(
+      //   "cursor: " ++ String.concat(", ", List.map(Id.str3, cursor)),
+      // );
+
       is_call_cursor: cursor == this,
+      is_more_precise_than_cursor:
+        List.length(s.call_cursor.stack) > List.length(closure.call_stack),
       relative_level_to_cursor: relative_level(cursor, this),
       is_call_above_call_cursor: {
         let* cur_call = cur_call(info, closure);
@@ -351,29 +343,41 @@ module DynCursor = {
     );
   };
 
+  let is_related = relation =>
+    switch (relation.relative_level_to_cursor) {
+    | Above(_)
+    | Below(_) => true
+    | Same => true
+    | Unrelated => false
+    };
+
   let first_index_of_interest = (info, closures: list(closure)): option(int) => {
     let find = (rel: relation => bool): option(int) =>
       List.find_index(
         (closure: closure) => rel(relation(info, closure)),
         closures,
       );
+    // switch (
+    //   find(relation =>
+    //     is_related(relation) && relation.is_more_precise_than_cursor
+    //   )
+    // ) {
+    // | Some(idx) =>
+    //   print_endline("is more precise than cursor");
+    //   Some(idx);
+    // | None =>
     switch (find(relation => relation.is_call_cursor)) {
-    | Some(idx) => Some(idx)
+    | Some(idx) =>
+      // print_endline("is call cursor");
+      Some(idx)
     | None =>
       switch (find(relation => relation.is_below_indicated_call == Some(0))) {
       | Some(idx) => Some(idx)
       | None =>
         let a = find(relation => relation.is_below_indicated_call != None);
-        a == None
-          ? find(relation =>
-              switch (relation.relative_level_to_cursor) {
-              | Above(_)
-              | Below(_) => true
-              | _ => false
-              }
-            )
-          : a;
+        a == None ? find(is_related) : a;
       }
+    // }
     };
   };
 
@@ -469,8 +473,14 @@ module Closures = {
     let closures = filter_frames_by_pin(info, closures);
     let cursor_idx =
       switch (DynCursor.first_index_of_interest(info, closures)) {
-      | Some(idx) => idx
-      | None => 0
+      | Some(idx) =>
+        // print_endline(
+        //   "select_frames: first_index_of_interest = " ++ string_of_int(idx),
+        // );
+        idx
+      | None =>
+        // print_endline("select_frames: first_index_of_interest = None");
+        0
       };
     let all_closures = List.length(closures);
     let (l, r) = Window.reform(info.id, all_closures, cursor_idx);
@@ -766,8 +776,6 @@ let syntax_str = (utility: utility) =>
       ? String.sub(str, 0, max_len) ++ "..." : str;
   });
 let icon = div(~attrs=[Attr.classes(["icon"])], []);
-
-let state: ref(option(Direction.t)) = ref(Option.None);
 
 let move_cursor = (info: info, offset: int): unit =>
   switch (info.dynamics) {

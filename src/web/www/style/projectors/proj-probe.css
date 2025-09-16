@@ -92,6 +92,7 @@
   font-size: 0.8em;
   padding: 0.1em;
   min-width: 1.2em;
+  pointer-events: none;
 }
 
 .refractors .projector.probe .closure .code {
@@ -369,8 +370,8 @@
 
   border-radius: 0.05em 0.05em 0.05em 0.2em;
   transition: scale 0.1s ease-in-out, transform 0.1s ease-in-out,
-    translate 0.1s ease-in-out, border 0.1s ease-in-out,
-    box-shadow 0.1s ease-in-out, top 0.1s ease-in-out;
+    translate 0.1s ease-in-out, box-shadow 0.1s ease-in-out,
+    top 0.1s ease-in-out;
   /* background-color: var(--bkg); */
   border-bottom-color: var(--bottom-border-clr);
   padding: 0 0.1em;
@@ -401,12 +402,16 @@
   --bkg: var(--exp-ap-indicated);
 }
 .projector.probe .closure:has(.value.cursor-caller):not(:hover) {
-  /* outline-width: 1px; */
   outline-style: none;
-  /* outline-color: red; */
-  border-color: red;
+  border-color: rgb(165, 64, 205);
   border-radius: 0.2em;
-  border-bottom-style: solid;
+  border-bottom-style: dotted;
+}
+.projector.probe .closure:has(.value.cursor-callee):not(:hover) {
+  outline-style: none;
+  border-color: rgb(72, 130, 224);
+  border-radius: 0.2em;
+  border-bottom-style: dotted;
 }
 .projector.probe
   .live-offside.Single:has(
@@ -431,7 +436,7 @@
 }
 
 .projector.probe .closure:has(.value.above) .code-text .token {
-  color: #bd8dff;
+  color: #d8bcfe;
 }
 
 .projector.probe .live-offside.Many .closure:has(.value.above.indirect) {
@@ -486,7 +491,7 @@
   border-radius: 0.05em 0.2em 0.05em 0.2em;
   border: none;
   overflow: hidden;
-  background-color: #e5d2ff;
+  /* background-color: #e5d2ff; */
 }
 .projector.probe .live-offside.Many .closure:has(.value.below) {
   translate: 0 3px;
@@ -500,9 +505,16 @@
   background-color: #eaf4ea;
 }
 
-.projector.probe .closure:has(.value.below) .code-text .token {
-  color: var(--TYP);
-  opacity: 0.3;
+.projector.probe
+  .closure:has(.value.below):not(.cursor-unrelated)
+  .code-text
+  .token {
+  color: oklch(0.91 0.05 255.11);
+  /* opacity: 0.3; */
+}
+.projector.probe .closure:has(.value.below.direct) .code-text .token {
+  /* color: oklch(0.91 0.05 255.11) !important; */
+  /* opacity: 0.3; */
 }
 
 .projector.probe .live-offside.Many .closure:has(.value.above.L2) {
@@ -551,26 +563,40 @@
 }
 .projector.probe.indicated .closure:has(.value.cursor) {
   /* background: var(--SAND); */
-  outline-width: 1.5px;
+  /* outline-width: 1.5px;
   outline-style: solid;
-  border: none;
+  border: none; */
 }
 
-.projector.probe .closure:hover,
-.projector.probe.indicated .closure:has(.value.cursor) {
-  outline-color: var(--exp-indicated);
+@keyframes flash-border {
+  0%,
+  50% {
+    border-bottom-color: var(--R1);
+  }
+  51%,
+  100% {
+    border-bottom-color: transparent;
+  }
 }
+.projector.probe:not(.indicated) .closure:hover {
+  /* outline-color: var(--exp-indicated); */
+  /* outline-width: 0;
+  outline-style: none; */
+  border-bottom: 1px double var(--R1);
+  animation: flash-border 1s infinite;
+}
+
 .projector.probe.indicated .closure:has(.value.cursor) {
-  outline: 1.5px solid var(--R1);
+  /* outline: 1.5px solid var(--R1); */
+  border-bottom: 1px solid var(--R1);
 }
 
 .projector.probe .closure:hover {
   z-index: var(--projector-indicated-z);
   position: relative;
-  outline-width: 1.5px;
-  outline-style: solid;
+  /* outline-width: 1.5px;
+  outline-style: solid; */
   /* outline-offset: -0.1px; */
-  position: relative;
   /* filter: drop-shadow(1.5px 3px 0 #95876452) !important; */
 }
 
@@ -620,15 +646,16 @@
 
 .projector.probe .value.cursor-unrelated .code-text .token,
 .projector.probe .value.cursor-caller .code-text .token {
-  color: var(--exp-indicated);
-  opacity: 0.4;
+  /* color: var(--exp-indicated); */
+  color: rgb(102, 102, 102);
+  /* opacity: 0.4; */
 }
-.projector.probe .value.cursor-callee.indirect .code-text .token {
+/* .projector.probe .value.cursor-callee.indirect .code-text .token {
   color: white;
 }
 .projector.probe .value.cursor-callee.direct .code-text .token {
   color: var(--exp-ap-indicated);
-}
+} */
 
 .projector.probe .value .token.explicit-hole {
   color: white;
@@ -643,9 +670,9 @@
   padding: 0.2em;
   display: none;
   position: absolute;
-  /* top: 1.4em; */
+  translate: 0 1px;
   left: 3px;
-  scale: 0.86;
+  scale: 0.75;
   transform-origin: top left;
 }
 
