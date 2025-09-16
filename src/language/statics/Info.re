@@ -855,7 +855,6 @@ let derived_pat =
   let status = status_pat(ctx, ana, self);
   let ty = fixed_typ_pat(ctx, ana, self);
 
-  // TODO: put in hole
   // replace constraints with Hole if this info has an error
   let constraint_': Coverage.Constraint.t =
     switch (constraint_, status) {
