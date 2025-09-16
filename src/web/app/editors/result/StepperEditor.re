@@ -11,6 +11,7 @@ module Model = {
     // Read-only
     taken_steps: list(Id.t),
     next_steps: list(Id.t),
+    refls: list(Id.t),
   };
 };
 
@@ -27,6 +28,7 @@ module Update = {
       editor,
       taken_steps: model.taken_steps,
       next_steps: model.next_steps,
+      refls: model.refls,
     };
   };
 
@@ -38,7 +40,7 @@ module Update = {
         ~is_edited,
         ~stitch,
         ~dynamics: Language.Dynamics.Map.t,
-        {editor, taken_steps, next_steps}: Model.t,
+        {editor, taken_steps, next_steps, refls}: Model.t,
       )
       : Model.t => {
     let editor =
@@ -54,6 +56,7 @@ module Update = {
       editor,
       taken_steps,
       next_steps,
+      refls,
     };
   };
 };
@@ -70,7 +73,61 @@ module Selection = {
 module View = {
   type event =
     | MakeActive
-    | TakeStep(int);
+    | TakeStep(int)
+    | Refl(int);
+
+  let deco =
+      (
+        ~syntax: CachedSyntax.t,
+        ~font_metrics: FontMetrics.t,
+        signal: event => Ui_effect.t(unit),
+        model: Model.t,
+      ) => {
+    open WebUtil;
+
+    let next_steps =
+        (next_steps: list(Id.t), ~inject: int => Ui_effect.t(unit)) =>
+      next_steps
+      |> List.filter_map(TermData.root_tile(_, syntax.term_data))
+      |> List.mapi((i, t: Tile.t) =>
+           div_c(
+             "step-next",
+             Arms.term(
+               ~attr=[Attr.on_mousedown(_ => inject(i))],
+               ~font_metrics,
+               ~syntax,
+               t,
+             ),
+           )
+         );
+
+    let taken_steps = (taken_steps: list(Id.t)) =>
+      taken_steps
+      |> List.filter_map(TermData.root_tile(_, syntax.term_data))
+      |> List.map(t =>
+           div_c("step-taken", Arms.term(~font_metrics, ~syntax, t))
+         );
+
+    let refl_steps =
+        (refl_steps: list(Id.t), ~inject: int => Ui_effect.t(unit)) =>
+      refl_steps
+      |> List.filter_map(TermData.root_tile(_, syntax.term_data))
+      |> List.mapi((i, t: Tile.t) =>
+           div_c(
+             "step-refl",
+             Arms.term(
+               ~attr=[Attr.on_mousedown(_ => inject(i))],
+               ~font_metrics,
+               ~syntax,
+               t,
+             ),
+           )
+         );
+
+    taken_steps(model.taken_steps)
+    @ next_steps(model.next_steps, ~inject=x => signal(TakeStep(x)))
+    @ refl_steps(model.refls, ~inject=x => signal(Refl(x)));
+  };
 
   let view =
       (
@@ -79,26 +136,21 @@ module View = {
         ~overlays=[],
         ~selected,
         model: Model.t,
-      ) => {
-    let overlays = {
-      module Deco =
-        Deco.Deco({
-          let editor = model.editor.editor;
-          let globals = globals;
-          let statics = model.editor.statics;
-        });
-      overlays
-      @ Deco.taken_steps(model.taken_steps)
-      @ Deco.next_steps(model.next_steps, ~inject=x => signal(TakeStep(x)));
-    };
+      ) =>
     CodeSelectable.View.view(
       ~signal=
         fun
         | MakeActive => signal(MakeActive),
       ~selected,
       ~globals,
-      ~overlays,
+      ~overlays=
+        overlays
+        @ deco(
+            ~syntax=model.editor.editor.syntax,
+            ~font_metrics=globals.font_metrics,
+            signal,
+            model,
+          ),
       model.editor,
     );
-  };
 };

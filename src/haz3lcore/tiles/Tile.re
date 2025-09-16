@@ -17,12 +17,6 @@ let l_shard = t =>
 let r_shard = t =>
   OptUtil.get_or_raise(Empty_tile, ListUtil.last_opt(t.shards));
 
-let shard_on_side = (d: Direction.t, t: t) =>
-  switch (d) {
-  | Left => l_shard(t)
-  | Right => r_shard(t)
-  };
-
 let has_end = (d: Direction.t, t) =>
   switch (d) {
   | Left => l_shard(t) == 0
@@ -67,6 +61,12 @@ let contained_children = (t: t): list((t, Base.segment, t)) =>
        };
        (l, child, r);
      });
+
+let shard_of = (t: t, i: int): t => {
+  ...t,
+  shards: [i],
+  children: [],
+};
 
 let split_shards = (id, label, mold, shards) =>
   shards

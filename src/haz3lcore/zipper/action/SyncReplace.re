@@ -3,7 +3,7 @@ open Zipper;
 open Language;
 
 let rec move_to_start = (z: t): t => {
-  switch (Move.primary(ByToken, Left, z)) {
+  switch (Move.local(ByToken, Left, z)) {
   | Some(z) => move_to_start(z)
   | None => z
   };
@@ -23,7 +23,7 @@ let move_to_id_anc = (z: t, (id, shard)): option(t) => {
     guy
       ? Some(z)
       : (
-        switch (Move.primary(ByToken, Right, z)) {
+        switch (Move.local(ByToken, Right, z)) {
         | Some(z) => go(z)
         | None => None
         }
@@ -54,9 +54,9 @@ let move_to_id =
       | _ => (false, false)
       };
     guy
-      ? flag ? Move.primary(ByToken, Left, z) : Some(z)
+      ? flag ? Move.local(ByToken, Left, z) : Some(z)
       : (
-        switch (Move.primary(ByToken, Right, z)) {
+        switch (Move.local(ByToken, Right, z)) {
         | Some(z) => go(z)
         | None => None
         }
@@ -123,13 +123,12 @@ let should_send_state = (a: Action.t): bool =>
   | SyncReplace(_)
   | Buffer(Clear | Accept)
   | Copy
-  | Project(
-      SetIndicated(_) | RemoveIndicated | SetModel(_) | Focus(_) | Escape(_),
-    )
-  | Jump(_)
   | Select(_)
   | Unselect(_)
   | Move(_) => false
+  | Project(
+      SetIndicated(_) | RemoveIndicated | SetModel(_) | Focus(_) | Escape(_),
+    )
   | Project(SetSyntax(_))
   | Reparse
   | Destruct(_)
@@ -138,7 +137,8 @@ let should_send_state = (a: Action.t): bool =>
   | Introduce
   | Paste(_)
   | Buffer(Set(_))
-  | Cut => true
+  | Cut
+  | Dump => true
   };
 
 let send_state = (a: Action.t, z: Zipper.t): unit =>

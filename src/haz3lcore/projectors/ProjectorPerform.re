@@ -60,14 +60,15 @@ let update =
   ZipperBase.MapPiece.fast_local_seg(update_piece(f, id), id, z);
 
 let go =
-    (
-      jump_to_id_indicated,
-      jump_to_side_of_id,
-      select_term: Zipper.t => option(Zipper.t),
-      a: Action.project,
-      z: Zipper.t,
-    )
+    (term_data: TermData.t, a: Action.project, z: Zipper.t)
     : result(ZipperBase.t, Action.Failure.t) => {
+  let select_term =
+    Select.current_term(
+      term_data,
+      ~defs_exclude_bodies=false,
+      ~case_rules=false,
+    );
+
   let setup_selection = (z: Zipper.t): option((Direction.t, Zipper.t)) =>
     Selection.is_empty(z.selection)
       ? switch (select_term(z), Indicated.direction(z)) {
@@ -154,7 +155,7 @@ let go =
       | Some(focus) => focus(id)
       | None => ()
       };
-      Ok(Option.value(~default=z, jump_to_id_indicated(z, id)));
+      Ok(Option.value(~default=z, Move.jump_to_id_indicated(z, id)));
     | Some(Right) =>
       /* Focus by arrow key hand-off */
       let (module P) = ProjectorInit.to_module(kind);
@@ -173,7 +174,7 @@ let go =
       Ok(z);
     }
   | Escape(id, d) =>
-    switch (jump_to_side_of_id(d, z, id)) {
+    switch (Move.jump_to_side_of_id(d, z, id)) {
     | Some(z) => Ok(z)
     | None => Error(Cant_project)
     }

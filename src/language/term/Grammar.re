@@ -91,6 +91,7 @@ and exp_term('a) =
   | BinOp(Operators.op_bin, exp_t('a), exp_t('a))
   | BuiltinFun(string)
   | Match(exp_t('a), list((pat_t('a), exp_t('a))))
+  | TupleExtension(exp_t('a), exp_t('a))
   | Asc(exp_t('a), typ_t('a))
 and exp_t('a) = Annotated.t(exp_term('a), 'a)
 and pat_term('a) =
@@ -122,7 +123,6 @@ and typ_term('a) =
   | Label(string)
   | TupLabel(typ_t('a), typ_t('a))
   | Parens(typ_t('a))
-  | Ap(typ_t('a), typ_t('a))
   | Rec(tpat_t('a), typ_t('a))
   | Forall(tpat_t('a), typ_t('a))
 and typ_t('a) = Annotated.t(typ_term('a), 'a)
@@ -261,6 +261,11 @@ let rec map_exp_annotation: type a b. (a => b, exp_t(a)) => exp_t(b) =
               l,
             ),
           )
+        | TupleExtension(e1, e2) =>
+          TupleExtension(
+            map_exp_annotation(f, e1),
+            map_exp_annotation(f, e2),
+          )
         | Asc(e, t) =>
           Asc(map_exp_annotation(f, e), map_typ_annotation(f, t))
         };
@@ -330,8 +335,6 @@ and map_typ_annotation: 'a 'b. ('a => 'b, typ_t('a)) => typ_t('b) =
         | Arrow(t1, t2) =>
           Arrow(map_typ_annotation(f, t1), map_typ_annotation(f, t2))
         | Parens(t) => Parens(map_typ_annotation(f, t))
-        | Ap(t1, t2) =>
-          Ap(map_typ_annotation(f, t1), map_typ_annotation(f, t2))
         | Rec(tp, t) =>
           Rec(map_tpat_annotation(f, tp), map_typ_annotation(f, t))
         | Forall(tp, t) =>
@@ -530,6 +533,10 @@ module Factory = (DefaultAnnotation: DefaultAnnotation) => {
     };
     let dot = (~ann=?, e1, e2): exp_t(DefaultAnnotation.t) => {
       term: Dot(e1, e2),
+      annotation: default_annotation(ann),
+    };
+    let tuple_extension = (~ann=?, e1, e2): exp_t(DefaultAnnotation.t) => {
+      term: TupleExtension(e1, e2),
       annotation: default_annotation(ann),
     };
     let var = (~ann=?, v): exp_t(DefaultAnnotation.t) => {
@@ -786,10 +793,6 @@ module Factory = (DefaultAnnotation: DefaultAnnotation) => {
     };
     let parens = (~ann=?, t): typ_t(DefaultAnnotation.t) => {
       term: Parens(t),
-      annotation: default_annotation(ann),
-    };
-    let ap = (~ann=?, t1, t2): typ_t(DefaultAnnotation.t) => {
-      term: Ap(t1, t2),
       annotation: default_annotation(ann),
     };
     let rec_ = (~ann=?, tp, t): typ_t(DefaultAnnotation.t) => {
