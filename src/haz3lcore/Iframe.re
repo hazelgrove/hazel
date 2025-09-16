@@ -181,18 +181,15 @@ module RedundantCoverterIGuess = {
     EditorState.t_to_js(EditorState.create(~t=`L_s3_state, ~state, ()));
   };
 
-  let autoseg_of_hazeldoc = (doc: HazelDoc.t_0): AutoSeg.Doc.t => {
-    let tiles = doc |> Delta.HazelDoc.AnonymousInterface2.get_tiles;
-
-    let pieces = tiles |> List.map(to_flat_piece);
-
-    Id.Map.of_list(
-      pieces |> List.map(piece => (id_from_piece(piece), piece)),
-    );
-  };
+  let autoseg_of_hazeldoc = (doc: HazelDoc.t_0): AutoSeg.Doc.t =>
+    doc
+    |> Delta.HazelDoc.AnonymousInterface2.get_tiles
+    |> List.map(to_flat_piece)
+    |> List.map(piece => (id_from_piece(piece), piece))
+    |> Id.Map.of_list;
 };
 
-let send_to_parent = (message: Ojs.t) => {
+let send_to_parent = (message: Ojs.t): unit => {
   Js.Unsafe.fun_call(
     Js.Unsafe.js_expr("window.parent.postMessage"),
     [|Js.Unsafe.inject(message), Js.Unsafe.inject(Js.string("*"))|],
@@ -230,7 +227,7 @@ let listen = (schedule_action: Action.t => unit): unit => {
         Firebug.console##log(Js.string("iframe got pong: " ++ text));
       | `U_s3_state(state) =>
         let js_state = EditorState.get_state(state);
-        let state = RedundantCoverterIGuess.autoseg_of_hazeldoc(js_state); // @andrew make it work
+        let state = RedundantCoverterIGuess.autoseg_of_hazeldoc(js_state);
         let seg = AutoSeg.doc_to_seg(state);
         schedule_action(SyncReplace(seg));
         Firebug.console##log(
@@ -257,7 +254,7 @@ let send_state = (map: AutoSeg.Doc.t): unit =>
   map |> RedundantCoverterIGuess.js_of_autoseg |> send_to_parent;
 
 let init_iframe = schedule_action => {
-  print_endline("Initializing iframe stufffff...");
+  print_endline("Initializing iframe");
   let init_message =
     Init.t_to_js(
       Init.create(
@@ -266,8 +263,6 @@ let init_iframe = schedule_action => {
         (),
       ),
     );
-
-  let _ = send_to_parent(init_message);
-  let _ = listen(schedule_action);
-  ();
+  send_to_parent(init_message);
+  listen(schedule_action);
 };
