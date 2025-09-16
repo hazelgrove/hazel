@@ -19,7 +19,7 @@ let parse_float_string s =
 
 }
 (* TODO We don't yet support negative floats in MakeTerm *)
-(* Require leading 0 to avoid clashing with dot *)
+(* Require leading digits before dot *)
 let float = ['0'-'9']+ '.' ['0'-'9']*
 (* negative ints are done through unop *)
 let int = ['0'-'9'] ['0'-'9']*
