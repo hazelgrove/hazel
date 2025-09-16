@@ -28,7 +28,7 @@ Yes
 
 > Q. Do tables capture missing data and, if so, how? Do missing values affect the output constraints of any operations, for example `groupBy`?
   - Represented via `Option` types (`Some` / `None`)  
-  - Incomplete programs can use expression holes (not programmatically accessible)  
+  - Incomplete programs can use expression holes (holes are not programmatically discernible)  
   - No special handling in operations — `Option` values are ordinary
 
 > Q. Are mutable tables supported? Are there any limitations?
@@ -37,18 +37,23 @@ Mutable tables are not supported
 > You may reference, instead of duplicating, the responses to the above questions in answering those below:
 
 > Q. Which tables are inexpressible? Why?
+
 None — all tables can be expressed using `Option` types for missing data
 
 > Q. Which tables are only partially expressible? Why, and what’s missing?
+
 N/A
 
 > Q. Which tables’ expressibility is unknown? Why?
+
 N/A
 
 > Q. Which tables can be expressed more precisely than in the benchmark? How?
+
 None - hazel represents the tables as precisely as the benchmark. Once again explicit option types make optional columns explicit.
 
 > Q. How direct is the mapping from the tables in the benchmark to representations in your system? How complex is the encoding?
+
   - Very direct  
   - Benchmark tables map naturally to Hazel's `List of Labeled Tuples`  
   - Missing values use `Option`
