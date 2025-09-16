@@ -421,14 +421,21 @@ let rec project_type = (ty, label): option(t) => {
     | Some({term: TupLabel(_, ty), _}) =>
       // LabeledTuple.find_label should return the inner ty
       Some(ty)
-    | _ => None
+    | _ => Some(Unknown(Internal) |> temp) // TODO Consider whether we want to be doing this. We want this to be treated like a hole but it would be better to do this via a more direct error reovery mechanism
     }
   | (Prod(_), Unknown(_))
   | (Unknown(_), Label(_))
   | (Unknown(_), Unknown(_)) => Some(Unknown(Internal) |> temp)
-  | _ => None
+  | _ => Some(Unknown(Internal) |> temp) // TODO Consider whether we want to be doing this. We want this to be treated like a hole but it would be better to do this via a more direct error reovery mechanism
   };
 };
+
+let project_type' = (tys: list(t), label: string): option(t) =>
+  switch (LabeledTuple.find_label(match_tup_label, tys, label)) {
+  | Some({term: TupLabel(_, ty), _}) => Some(ty)
+  | _ => None
+  };
+
 let product_extension = (tys1: list(t), tys2: list(t)): term => {
   let get_lv = (t: t) => {
     switch (match_tup_label(t)) {
@@ -466,7 +473,8 @@ let rec weak_head_normalize = (~rec_counter=0, ctx: Ctx.t, ty: t): t => {
     |> Option.map(weak_head_normalize(~rec_counter=rec_counter + 1, ctx))
     |> Util.OptUtil.get(() => {
          let (_, rewrap) = unwrap(ty);
-         ProdProjection(normalized_ty, label) |> rewrap;
+         Unknown(Internal)  // TODO Consider whether we want to be doing this. We want this to be treated like a hole but maybe we should put a direct mark on it
+         |> rewrap;
        });
   | ProdExtension(t1, t2) =>
     let (_, rewrap) = unwrap(ty);
@@ -507,7 +515,10 @@ let rec normalize = (~rec_counter=0, ctx: Ctx.t, ty: t): t => {
     let normalized_ty = normalize(ctx, ty);
     project_type(normalized_ty, label)
     |> Option.map(normalize(ctx))
-    |> Util.OptUtil.get(() => ProdProjection(normalized_ty, label) |> rewrap);
+    |> Util.OptUtil.get(() =>
+         Unknown(Internal)  // TODO Consider whether we want to be doing this. We want this to be treated like a hole but maybe we should put a direct mark on it
+         |> rewrap
+       );
   | ProdExtension(t1, t2) =>
     let t1 = normalize(ctx, t1);
     let t2 = normalize(ctx, t2);
@@ -562,10 +573,6 @@ let rec join = (~resolve=false, ctx: Ctx.t, ty1: t, ty2: t): option(t) => {
     let+ ty_join = join'(ty_name, ty1);
     !resolve && equal(ty_name, ty_join) ? ty2 : ty_join;
   /* Note: Ordering of Unknown, Var, and Rec above is load-bearing! */
-  | (ProdProjection(t1, label1), ProdProjection(t2, label2))
-      when equal(label1, label2) =>
-    let+ t = join'(t1, t2);
-    ProdProjection(t, label1) |> temp;
   | (ProdProjection(ty1', l), _) =>
     let* ty1'' = project_type(normalize(ctx, ty1'), l);
     join'(ty1'', ty2);

@@ -1904,15 +1904,8 @@ and utyp_to_info_map =
         )
       | _ => None
       };
-    let m =
-      go'(
-        ~expects=
-          LabelProjectionExpected(labels |> Option.value(~default=[])),
-        label,
-        m,
-      )
-      |> snd;
-    let m = go(t, m) |> snd;
+    let m = go'(~expects=LabelProjectionExpected(labels), label, m) |> snd;
+    let m = go'(~expects=ProductExpected, t, m) |> snd;
     add'(~expects=TypeExpected, m);
   | ProdExtension(t1, t2) =>
     let m = go'(~expects=ProductExpected, t1, m) |> snd;

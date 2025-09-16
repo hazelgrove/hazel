@@ -166,7 +166,7 @@ type status_variant =
 type typ_expects =
   | TypeExpected
   | LabelExpected(status_variant, list(LabeledTuple.label)) // list of duplicate labels
-  | LabelProjectionExpected(list(LabeledTuple.label)) // list of labels to project out
+  | LabelProjectionExpected(option(list(LabeledTuple.label))) // list of labels to project out
   | ProductExpected // Expects a product type (e.g. for product extension)
   | ConstructorExpected(status_variant, Typ.t)
   | VariantExpected(status_variant, Typ.t);
@@ -282,7 +282,7 @@ type pat = {
 type typ = {
   term: Typ.t,
   ancestors,
-  ctx: Ctx.t,
+  ctx: [@show.opqaque] Ctx.t,
   expects: typ_expects,
   cls: Cls.t,
   status: status_typ,
@@ -628,19 +628,6 @@ let status_typ = (ctx: Ctx.t, expects: typ_expects, ty: Typ.t): status_typ => {
   | (VariantExpected(Duplicate, _), Var(name))
   | (ConstructorExpected(Duplicate, _), Var(name)) =>
     InHole(DuplicateConstructor(name))
-  | (LabelExpected(_), Var(name)) =>
-    switch (Ctx.lookup_alias(ctx, name)) {
-    | Some({term: Label(_), _}) =>
-      NotInHole(TypeAlias(name, Typ.weak_head_normalize(ctx, ty)))
-    | _ => InHole(WantLabel)
-    }
-  | (LabelProjectionExpected(labels), Var(name)) =>
-    switch (Ctx.lookup_alias(ctx, name)) {
-    | Some({term: Label(l), _}) when List.mem(l, labels) =>
-      NotInHole(TypeAlias(name, Typ.weak_head_normalize(ctx, ty)))
-    | Some({term: Label(l), _}) => InHole(InvalidLabel(l, labels))
-    | _ => InHole(WantLabel)
-    }
   | (TypeExpected, Var(name)) =>
     switch (Ctx.is_alias(ctx, name)) {
     | false =>
@@ -655,9 +642,11 @@ let status_typ = (ctx: Ctx.t, expects: typ_expects, ty: Typ.t): status_typ => {
   | (LabelExpected(Duplicate, dupes), Label(name)) =>
     List.exists(l => name == l, dupes)
       ? InHole(Duplicate(name, ty)) : InHole(WantLabel)
-  | (LabelProjectionExpected(labels), Label(name)) =>
+  | (LabelProjectionExpected(Some(labels)), Label(name)) =>
     List.mem(name, labels)
       ? NotInHole(Type(ty)) : InHole(InvalidLabel(name, labels))
+  | (LabelProjectionExpected(None), Label(_)) =>
+    NotInHole(Type(Unknown(Internal) |> Typ.temp)) // Unknown type because the product is unknown
   | (ConstructorExpected(_), Label(_))
   | (VariantExpected(_), Label(_)) => InHole(WantConstructorFoundType(ty))
   | (TypeExpected, _) => NotInHole(Type(ty))

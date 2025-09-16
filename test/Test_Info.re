@@ -152,29 +152,6 @@ let status_typ_tests = (
         );
       },
     ),
-    /* Var(name) with LabelExpected */
-    test_case(
-      "Var label-alias under LabelExpected => TypeAlias",
-      `Quick,
-      () => {
-        let ctx0 = Builtins.ctx_init(Some(Int));
-        let ctx =
-          Ctx.extend_alias(ctx0, "Lab", Id.invalid, Label("a") |> Typ.temp);
-        let ty = Var("Lab") |> Typ.temp;
-        let status = Info.status_typ(ctx, LabelExpected(Unique, []), ty);
-        check(
-          testable(
-            Fmt.using(Info.show_status_typ, Fmt.string),
-            Info.equal_status_typ,
-          ),
-          "Label alias resolves",
-          Info.NotInHole(
-            Info.TypeAlias("Lab", Typ.weak_head_normalize(ctx, ty)),
-          ),
-          status,
-        );
-      },
-    ),
     test_case(
       "Var non-label under LabelExpected => WantLabel",
       `Quick,
@@ -188,71 +165,6 @@ let status_typ_tests = (
             Info.equal_status_typ,
           ),
           "WantLabel",
-          Info.InHole(Info.WantLabel),
-          status,
-        );
-      },
-    ),
-    /* Var(name) with LabelProjectionExpected */
-    test_case(
-      "Var label-alias included in LabelProjectionExpected => TypeAlias",
-      `Quick,
-      () => {
-        let ctx0 = Builtins.ctx_init(Some(Int));
-        let ctx =
-          Ctx.extend_alias(ctx0, "Lab", Id.invalid, Label("x") |> Typ.temp);
-        let ty = Var("Lab") |> Typ.temp;
-        let status =
-          Info.status_typ(ctx, LabelProjectionExpected(["x", "y"]), ty);
-        check(
-          testable(
-            Fmt.using(Info.show_status_typ, Fmt.string),
-            Info.equal_status_typ,
-          ),
-          "TypeAlias for projected label",
-          Info.NotInHole(
-            Info.TypeAlias("Lab", Typ.weak_head_normalize(ctx, ty)),
-          ),
-          status,
-        );
-      },
-    ),
-    test_case(
-      "Var label-alias not included in LabelProjectionExpected => InvalidLabel",
-      `Quick,
-      () => {
-        let ctx0 = Builtins.ctx_init(Some(Int));
-        let ctx =
-          Ctx.extend_alias(ctx0, "Lab", Id.invalid, Label("x") |> Typ.temp);
-        let ty = Var("Lab") |> Typ.temp;
-        let labels = ["a", "b"];
-        let status =
-          Info.status_typ(ctx, LabelProjectionExpected(labels), ty);
-        check(
-          testable(
-            Fmt.using(Info.show_status_typ, Fmt.string),
-            Info.equal_status_typ,
-          ),
-          "InvalidLabel",
-          Info.InHole(Info.InvalidLabel("x", labels)),
-          status,
-        );
-      },
-    ),
-    test_case(
-      "Var not alias under LabelProjectionExpected => WantLabel",
-      `Quick,
-      () => {
-        let ctx = Builtins.ctx_init(Some(Int));
-        let ty = Var("ZZ") |> Typ.temp;
-        let status =
-          Info.status_typ(ctx, LabelProjectionExpected(["x"]), ty);
-        check(
-          testable(
-            Fmt.using(Info.show_status_typ, Fmt.string),
-            Info.equal_status_typ,
-          ),
-          "WantLabel (no alias)",
           Info.InHole(Info.WantLabel),
           status,
         );
@@ -397,7 +309,11 @@ let status_typ_tests = (
         let ctx = Builtins.ctx_init(Some(Int));
         let ty = Label("p") |> Typ.temp;
         let status =
-          Info.status_typ(ctx, LabelProjectionExpected(["p", "q"]), ty);
+          Info.status_typ(
+            ctx,
+            LabelProjectionExpected(Some(["p", "q"])),
+            ty,
+          );
         check(
           testable(
             Fmt.using(Info.show_status_typ, Fmt.string),
@@ -417,7 +333,7 @@ let status_typ_tests = (
         let ty = Label("p") |> Typ.temp;
         let labels = ["x", "y"];
         let status =
-          Info.status_typ(ctx, LabelProjectionExpected(labels), ty);
+          Info.status_typ(ctx, LabelProjectionExpected(Some(labels)), ty);
         check(
           testable(
             Fmt.using(Info.show_status_typ, Fmt.string),
@@ -513,7 +429,7 @@ let status_typ_tests = (
         let ctx = Builtins.ctx_init(Some(Int));
         let ty = Atom(Int) |> Typ.temp;
         let status =
-          Info.status_typ(ctx, LabelProjectionExpected(["a"]), ty);
+          Info.status_typ(ctx, LabelProjectionExpected(Some(["a"])), ty);
         check(
           testable(
             Fmt.using(Info.show_status_typ, Fmt.string),

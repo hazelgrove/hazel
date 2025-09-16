@@ -604,7 +604,7 @@ and parenthesize_any =
   | Any(_) => any
   };
 
-let should_add_space = (s1, s2) => {
+let should_add_space = (s1, s2) =>
   switch () {
   | _ when String.ends_with(s1, ~suffix="(") => false
   | _ when String.ends_with(s1, ~suffix="[") => false
@@ -642,7 +642,6 @@ let should_add_space = (s1, s2) => {
     false
   | _ => true
   };
-};
 
 let text_to_pretty = (id, sort, str): pretty => {
   p_just([

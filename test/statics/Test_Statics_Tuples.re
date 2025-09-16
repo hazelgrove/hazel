@@ -72,6 +72,89 @@ module TupleExtension = {
     ),
   ];
 };
+
+module ProductProjection = {
+  let tests = [
+    fully_consistent_typecheck(
+      "Consistent Type-level product projection",
+      {|type T = (a=Int, String) in 1 : T.a |},
+      Some(
+        prod_projection(
+          prod([tup_label(label("a"), int()), string()]),
+          label("a"),
+        ),
+      ) // TODO This should be Int but it's not because we don't normalize the types
+    ),
+    test_case("Inconsistent Type-level product projection", `Quick, () => {
+      annotated_tree_test(
+        {|type T = (a=Int, String) in "" : T.a |},
+        Typ.(
+          prod_projection(
+            // TODO This should be Int but it's not because we don't normalize the types
+            prod([tup_label(label("a"), int()), string()]),
+            label("a"),
+          )
+        ),
+        FIError.(
+          Exp.(
+            ty_alias(
+              TPat.var("T"),
+              Typ.(prod([tup_label(label("a"), int()), string()])),
+              asc(
+                string(
+                  ~ann=
+                    FTemp.Typ.(
+                      Some(
+                        Exp(
+                          Common(
+                            Inconsistent(
+                              Expectation({
+                                ana: prod_projection(var("T"), label("a")),
+                                syn: string(),
+                              }),
+                            ),
+                          ),
+                        ),
+                      )
+                    ),
+                  "",
+                ),
+                Typ.(prod_projection(var("T"), label("a"))),
+              ),
+            )
+          )
+        ),
+      )
+    }),
+    test_case("Missing label projection", `Quick, () => {
+      FIError.(
+        annotated_tree_test(
+          {|type T = (a=Int, String) in 1 : T.b |},
+          prod_projection(
+            prod([tup_label(label("a"), int()), string()]),
+            label("b"),
+          ),
+          FIError.Exp.(
+            ty_alias(
+              TPat.var("T"),
+              Typ.(prod([tup_label(label("a"), int()), string()])),
+              asc(
+                int(1),
+                Typ.(
+                  prod_projection(
+                    var("T"),
+                    label(~ann=Some(Typ(InvalidLabel("b", ["a"]))), "b"),
+                  )
+                ),
+              ),
+            )
+          ),
+        )
+      )
+    }),
+  ];
+};
+
 let tests = (
   "Statics.Tuples",
   [
@@ -847,5 +930,6 @@ let tests = (
       Some(list(unknown(Internal))),
     ),
   ]
-  @ TupleExtension.tests,
+  @ TupleExtension.tests
+  @ ProductProjection.tests,
 );
