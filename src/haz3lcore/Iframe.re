@@ -178,7 +178,7 @@ module RedundantCoverterIGuess = {
       map |> Id.Map.to_list |> List.map(((_x, y)) => of_flat_piece(y));
     let state =
       Delta.HazelDoc.AnonymousInterface2.create(~title="", ~tiles, ());
-    EditorState.t_to_js(EditorState.create(~t=`L_s3_state, ~state, ()));
+    EditorState.t_to_js(EditorState.create(~t=`L_s4_state, ~state, ()));
   };
 
   let autoseg_of_hazeldoc = (doc: HazelDoc.t_0): AutoSeg.Doc.t =>
@@ -190,6 +190,8 @@ module RedundantCoverterIGuess = {
 };
 
 let send_to_parent = (message: Ojs.t): unit => {
+  Firebug.console##log(Js.string("iframe sending raw message:"));
+  Firebug.console##log(message);
   Js.Unsafe.fun_call(
     Js.Unsafe.js_expr("window.parent.postMessage"),
     [|Js.Unsafe.inject(message), Js.Unsafe.inject(Js.string("*"))|],
@@ -210,22 +212,22 @@ let listen = (schedule_action: Action.t => unit): unit => {
     switch (msg) {
     | Some(msg) =>
       switch (msg) {
-      | `U_s0_init(init) =>
+      | `U_s1_init(init) =>
         let text: string = Init.get_message(init);
         Firebug.console##log(Js.string("iframe got init: " ++ text));
-      | `U_s1_ping(ping) =>
+      | `U_s2_ping(ping) =>
         let text: string = Ping.get_message(ping);
         // send back pong
         let pongJs: Ojs.t =
           Pong.t_to_js(
-            Pong.create(~t=`L_s2_pong, ~message="pong from iframe", ()),
+            Pong.create(~t=`L_s3_pong, ~message="pong from iframe", ()),
           );
         Firebug.console##log(Js.string("iframe got ping: " ++ text));
         send_to_parent(pongJs);
-      | `U_s2_pong(pong) =>
+      | `U_s3_pong(pong) =>
         let text: string = Pong.get_message(pong);
         Firebug.console##log(Js.string("iframe got pong: " ++ text));
-      | `U_s3_state(state) =>
+      | `U_s4_state(state) =>
         let js_state = EditorState.get_state(state);
         let state = RedundantCoverterIGuess.autoseg_of_hazeldoc(js_state);
         let seg = AutoSeg.doc_to_seg(state);
@@ -234,6 +236,19 @@ let listen = (schedule_action: Action.t => unit): unit => {
           "my name is iframe and I'm here to say you gave me this state",
         );
         Firebug.console##log(state);
+      | `U_s0_caret(caret_msg) =>
+        let piece_id: string =
+          MessageTypes.CaretPosition.get_pieceId(caret_msg);
+        let caret_offset: int =
+          MessageTypes.CaretPosition.get_caretOffset(caret_msg);
+        Firebug.console##log(
+          Js.string(
+            "iframe received caret position: piece_id="
+            ++ piece_id
+            ++ " offset="
+            ++ string_of_int(caret_offset),
+          ),
+        );
       }
     | None => Firebug.console##log(Js.string("iframe got unknown message"))
     };
@@ -253,13 +268,39 @@ let listen = (schedule_action: Action.t => unit): unit => {
 let send_state = (map: AutoSeg.Doc.t): unit =>
   map |> RedundantCoverterIGuess.js_of_autoseg |> send_to_parent;
 
+let send_caret_position = (piece_id: Id.t, caret_offset: int): unit => {
+  Firebug.console##log(
+    Js.string(
+      "iframe sending caret position: piece_id="
+      ++ Id.to_string(piece_id)
+      ++ " offset="
+      ++ string_of_int(caret_offset),
+    ),
+  );
+
+  Firebug.console##log(Js.string("Creating caret_pos..."));
+  let caret_pos =
+    MessageTypes.CaretPosition.create(
+      ~t=`L_s0_caret,
+      ~pieceId=Id.to_string(piece_id),
+      ~caretOffset=caret_offset,
+      (),
+    );
+
+  Firebug.console##log(Js.string("Converting to JS..."));
+  let caret_message = MessageTypes.CaretPosition.t_to_js(caret_pos);
+
+  Firebug.console##log(Js.string("About to send to parent..."));
+  send_to_parent(caret_message);
+};
+
 let init_iframe = schedule_action => {
   print_endline("Initializing iframe");
   let init_message =
     Init.t_to_js(
       Init.create(
         ~message="Hello I am hazel and I am inside of an iframe!",
-        ~t=`L_s0_init,
+        ~t=`L_s1_init,
         (),
       ),
     );

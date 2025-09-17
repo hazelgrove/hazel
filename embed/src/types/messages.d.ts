@@ -20,5 +20,11 @@ export interface EditorState {
   state: HazelDoc;
 }
 
-export type HazelToParent = Init | Ping | Pong | EditorState;
-export type ParentToHazel = Init | Ping | Pong | EditorState;
+export interface CaretPosition {
+  t: "caret";
+  pieceId: string;
+  caretOffset: number;
+}
+
+export type HazelToParent = Init | Ping | Pong | EditorState | CaretPosition;
+export type ParentToHazel = Init | Ping | Pong | EditorState | CaretPosition;

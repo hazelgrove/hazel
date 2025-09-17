@@ -29,14 +29,14 @@ interface HazelEmbedProps {
    * Unique identifier for this Hazel instance
    */
   instanceId: string;
-  
+
   /**
    * Callback function that receives messages from the Hazel iframe
    * @param message - The message sent from Hazel (with state converted to HazelDoc format)
    * @param sourceInstanceId - The instance ID that sent the message
    */
   onMessage: (message: HazelToParent, sourceInstanceId: string) => void;
-  
+
   /**
    * Function to register the sendMessage function for communicating with Hazel
    * @param sendMessageFn - Function that allows sending messages to Hazel (accepts HazelDoc format for state)
@@ -44,7 +44,7 @@ interface HazelEmbedProps {
   registerSendMessage: (
     sendMessageFn: (message: ParentToHazel) => void,
   ) => void;
-  
+
   /**
    * URL of the Hazel instance to embed
    * Defaults to localhost:8000 in development and hazel.org/build/patchwork/ in production
@@ -71,7 +71,9 @@ const HazelEmbed: React.FC<HazelEmbedProps> = ({
   instanceId,
   onMessage,
   registerSendMessage,
-  url = import.meta.env.DEV ? "http://localhost:8000" : "https://hazel.org/build/patchwork/",
+  url = import.meta.env.DEV
+    ? "http://localhost:8000"
+    : "https://hazel.org/build/patchwork/",
 }) => {
   const hazelRef = useRef<HTMLIFrameElement>(null);
 
@@ -91,10 +93,16 @@ const HazelEmbed: React.FC<HazelEmbedProps> = ({
   // Listen for messages from the iframe
   useEffect(() => {
     const handleMessage = (event: MessageEvent) => {
-      if (event.data?.source?.includes("react")) return;
+      console.log("HazelEmbed received message:", event.data);
+
+      if (event.data?.source?.includes("react")) {
+        console.log("Filtering out React message");
+        return;
+      }
 
       // Extract the message from the event data (using internal types from iframe)
       const hazelMessage = event.data as HazelToParent;
+      console.log("Forwarding to parent:", hazelMessage);
       onMessage(hazelMessage, instanceId);
     };
 

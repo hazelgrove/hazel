@@ -141,8 +141,55 @@ let should_send_state = (a: Action.t): bool =>
   | Dump => true
   };
 
-let send_state = (a: Action.t, z: Zipper.t): unit =>
+let should_send_caret = (a: Action.t): bool =>
+  switch (a) {
+  | Move(_)
+  | Select(_)
+  | Unselect(_)
+  | SyncReplace(_) => true
+  | Buffer(Clear | Accept)
+  | Copy
+  | Project(
+      SetIndicated(_) | RemoveIndicated | SetModel(_) | Focus(_) | Escape(_),
+    )
+  | Project(SetSyntax(_))
+  | Reparse
+  | Destruct(_)
+  | Insert(_)
+  | Put_down
+  | Introduce
+  | Paste(_)
+  | Buffer(Set(_))
+  | Cut
+  | Dump => false
+  };
+
+let get_current_piece_id = (z: Zipper.t): option(Id.t) =>
+  switch (z.relatives.siblings) {
+  | (_, [p, ..._]) => Some(Piece.id(p))
+  | ([_, ..._] as l, []) => Some(Piece.id(ListUtil.last(l)))
+  | _ => None
+  };
+
+let send_caret_position = (z: Zipper.t): unit => {
+  switch (get_current_piece_id(z)) {
+  | Some(piece_id) =>
+    let caret_offset =
+      switch (z.caret) {
+      | Outer => 0
+      | Inner(offset) => offset
+      };
+    Iframe.send_caret_position(piece_id, caret_offset);
+  | None => ()
+  };
+};
+
+let send_state = (a: Action.t, z: Zipper.t): unit => {
   if (should_send_state(a)) {
     let auto_seg = AutoSeg.seg_to_doc(z |> Zipper.zip);
     Iframe.send_state(auto_seg);
   };
+  if (should_send_caret(a)) {
+    send_caret_position(z);
+  };
+};

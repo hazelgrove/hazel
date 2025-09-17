@@ -34,17 +34,17 @@ module Pong : sig
   val t_0_to_js : t_0 -> Ojs.t
   val t_0_of_js : Ojs.t -> t_0
 
-  val get_t : 'tags this -> ([ `L_s2_pong [@js "pong"] ][@js.enum])
+  val get_t : 'tags this -> ([ `L_s3_pong [@js "pong"] ][@js.enum])
   [@@js.get "t"]
 
-  val set_t : 'tags this -> ([ `L_s2_pong [@js "pong"] ][@js.enum]) -> unit
+  val set_t : 'tags this -> ([ `L_s3_pong [@js "pong"] ][@js.enum]) -> unit
   [@@js.set "t"]
 
   val get_message : 'tags this -> string [@@js.get "message"]
   val set_message : 'tags this -> string -> unit [@@js.set "message"]
 
   val create :
-    t:([ `L_s2_pong [@js "pong"] ][@js.enum]) -> message:string -> unit -> t
+    t:([ `L_s3_pong [@js "pong"] ][@js.enum]) -> message:string -> unit -> t
   [@@js.builder]
 
   val cast_from : 'tags this -> t [@@js.custom let cast_from = Obj.magic]
@@ -72,17 +72,17 @@ module Ping : sig
   val t_0_to_js : t_0 -> Ojs.t
   val t_0_of_js : Ojs.t -> t_0
 
-  val get_t : 'tags this -> ([ `L_s1_ping [@js "ping"] ][@js.enum])
+  val get_t : 'tags this -> ([ `L_s2_ping [@js "ping"] ][@js.enum])
   [@@js.get "t"]
 
-  val set_t : 'tags this -> ([ `L_s1_ping [@js "ping"] ][@js.enum]) -> unit
+  val set_t : 'tags this -> ([ `L_s2_ping [@js "ping"] ][@js.enum]) -> unit
   [@@js.set "t"]
 
   val get_message : 'tags this -> string [@@js.get "message"]
   val set_message : 'tags this -> string -> unit [@@js.set "message"]
 
   val create :
-    t:([ `L_s1_ping [@js "ping"] ][@js.enum]) -> message:string -> unit -> t
+    t:([ `L_s2_ping [@js "ping"] ][@js.enum]) -> message:string -> unit -> t
   [@@js.builder]
 
   val cast_from : 'tags this -> t [@@js.custom let cast_from = Obj.magic]
@@ -110,17 +110,17 @@ module Init : sig
   val t_0_to_js : t_0 -> Ojs.t
   val t_0_of_js : Ojs.t -> t_0
 
-  val get_t : 'tags this -> ([ `L_s0_init [@js "init"] ][@js.enum])
+  val get_t : 'tags this -> ([ `L_s1_init [@js "init"] ][@js.enum])
   [@@js.get "t"]
 
-  val set_t : 'tags this -> ([ `L_s0_init [@js "init"] ][@js.enum]) -> unit
+  val set_t : 'tags this -> ([ `L_s1_init [@js "init"] ][@js.enum]) -> unit
   [@@js.set "t"]
 
   val get_message : 'tags this -> string [@@js.get "message"]
   val set_message : 'tags this -> string -> unit [@@js.set "message"]
 
   val create :
-    t:([ `L_s0_init [@js "init"] ][@js.enum]) -> message:string -> unit -> t
+    t:([ `L_s1_init [@js "init"] ][@js.enum]) -> message:string -> unit -> t
   [@@js.builder]
 
   val cast_from : 'tags this -> t [@@js.custom let cast_from = Obj.magic]
@@ -150,18 +150,64 @@ module EditorState : sig
   val t_0_to_js : t_0 -> Ojs.t
   val t_0_of_js : Ojs.t -> t_0
 
-  val get_t : 'tags this -> ([ `L_s3_state [@js "state"] ][@js.enum])
+  val get_t : 'tags this -> ([ `L_s4_state [@js "state"] ][@js.enum])
   [@@js.get "t"]
 
-  val set_t : 'tags this -> ([ `L_s3_state [@js "state"] ][@js.enum]) -> unit
+  val set_t : 'tags this -> ([ `L_s4_state [@js "state"] ][@js.enum]) -> unit
   [@@js.set "t"]
 
   val get_state : 'tags this -> HazelDoc.t_0 [@@js.get "state"]
   val set_state : 'tags this -> HazelDoc.t_0 -> unit [@@js.set "state"]
 
   val create :
-    t:([ `L_s3_state [@js "state"] ][@js.enum]) ->
+    t:([ `L_s4_state [@js "state"] ][@js.enum]) ->
     state:HazelDoc.t_0 ->
+    unit ->
+    t
+  [@@js.builder]
+
+  val cast_from : 'tags this -> t [@@js.custom let cast_from = Obj.magic]
+end
+
+module CaretPosition : sig
+  type t = [ `CaretPosition ] intf
+  [@@js.custom { of_js = Obj.magic; to_js = Obj.magic }]
+
+  type t_0 = t
+
+  [@@@js.stop]
+
+  type tags = [ `CaretPosition ]
+  type tags_0 = tags
+
+  [@@@js.start]
+
+  [@@@js.implem
+  type tags = [ `CaretPosition ]
+  type tags_0 = tags]
+
+  type 'tags this = 'tags intf constraint 'tags = [> `CaretPosition ]
+
+  val t_to_js : t -> Ojs.t
+  val t_of_js : Ojs.t -> t
+  val t_0_to_js : t_0 -> Ojs.t
+  val t_0_of_js : Ojs.t -> t_0
+
+  val get_t : 'tags this -> ([ `L_s0_caret [@js "caret"] ][@js.enum])
+  [@@js.get "t"]
+
+  val set_t : 'tags this -> ([ `L_s0_caret [@js "caret"] ][@js.enum]) -> unit
+  [@@js.set "t"]
+
+  val get_pieceId : 'tags this -> string [@@js.get "pieceId"]
+  val set_pieceId : 'tags this -> string -> unit [@@js.set "pieceId"]
+  val get_caretOffset : 'tags this -> int [@@js.get "caretOffset"]
+  val set_caretOffset : 'tags this -> int -> unit [@@js.set "caretOffset"]
+
+  val create :
+    t:([ `L_s0_caret [@js "caret"] ][@js.enum]) ->
+    pieceId:string ->
+    caretOffset:int ->
     unit ->
     t
   [@@js.builder]
@@ -171,10 +217,11 @@ end
 
 module ParentToHazel : sig
   type t =
-    ([ `U_s0_init of Init.t [@js "init"]
-     | `U_s1_ping of Ping.t [@js "ping"]
-     | `U_s2_pong of Pong.t [@js "pong"]
-     | `U_s3_state of EditorState.t [@js "state"] ]
+    ([ `U_s0_caret of CaretPosition.t [@js "caret"]
+     | `U_s1_init of Init.t [@js "init"]
+     | `U_s2_ping of Ping.t [@js "ping"]
+     | `U_s3_pong of Pong.t [@js "pong"]
+     | `U_s4_state of EditorState.t [@js "state"] ]
     [@js.union on_field "t"])
 
   type t_0 = t
@@ -187,10 +234,11 @@ end
 
 module HazelToParent : sig
   type t =
-    ([ `U_s0_init of Init.t [@js "init"]
-     | `U_s1_ping of Ping.t [@js "ping"]
-     | `U_s2_pong of Pong.t [@js "pong"]
-     | `U_s3_state of EditorState.t [@js "state"] ]
+    ([ `U_s0_caret of CaretPosition.t [@js "caret"]
+     | `U_s1_init of Init.t [@js "init"]
+     | `U_s2_ping of Ping.t [@js "ping"]
+     | `U_s3_pong of Pong.t [@js "pong"]
+     | `U_s4_state of EditorState.t [@js "state"] ]
     [@js.union on_field "t"])
 
   type t_0 = t
@@ -233,6 +281,14 @@ module Export : sig
 
   [@@@js.start]
   [@@@js.implem module EditorState = EditorState]
+
+  (* export interface CaretPosition *)
+  [@@@js.stop]
+
+  module CaretPosition = CaretPosition
+
+  [@@@js.start]
+  [@@@js.implem module CaretPosition = CaretPosition]
 
   (* export type HazelToParent *)
   [@@@js.stop]
