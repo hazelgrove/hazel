@@ -289,6 +289,19 @@ module View = {
                       ],
                       [text("Add repl")],
                     ),
+                    div(
+                      ~attrs=[
+                        Attr.on_pointerdown(_ => {
+                          Effect.Many([
+                            Effect.Stop_propagation,
+                            Effect.Prevent_default,
+                            inject(Perform(Refractor(ProbeJump))),
+                          ])
+                        }),
+                        clss(["named-menu-item"]),
+                      ],
+                      [text("Probejump")],
+                    ),
                     // Widgets.toggle_named("", ~tooltip="probe", true, _ => {
                     //   Effect.Many([
                     //     Effect.Stop_propagation,
