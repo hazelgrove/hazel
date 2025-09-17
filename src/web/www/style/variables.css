@@ -200,7 +200,7 @@
   --tile-z: 2;
   --err-hole-z: 3;
   --select-z: 4;
-  --stepper-interactive-z: 3.5;
+  --stepper-interactive-z: 5;
   --projector-underlay-z: 9;
 
   /* AT CODE LEVEL */
