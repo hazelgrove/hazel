@@ -412,23 +412,11 @@ let unroll = (ty: t): t =>
    Other types may be equivalent but this will not detect so if they are not normalized. */
 let equal = (t1: t, t2: t): bool => fast_equal(t1, t2);
 
-let project_type' = (tys: list(t), label: string): option(t) =>
+let project_type = (tys: list(t), label: string): option(t) =>
   switch (LabeledTuple.find_label(match_tup_label, tys, label)) {
   | Some({term: TupLabel(_, ty), _}) => Some(ty)
   | _ => None
   };
-
-// TODO Have this take a list of tys and a label and do this matching at the callsite.
-let rec project_type = (ty, label): option(t) => {
-  switch (term_of(ty), term_of(label)) {
-  | (Parens(t), _) => project_type(t, label)
-  | (Prod(tys), Label(l)) => project_type'(tys, l)
-  | (Prod(_), Unknown(_))
-  | (Unknown(_), Label(_))
-  | (Unknown(_), Unknown(_)) => Some(Unknown(Internal) |> temp)
-  | _ => Some(Unknown(Internal) |> temp) // TODO Consider whether we want to be doing this. We want this to be treated like a hole but it would be better to do this via a more direct error recovery mechanism
-  };
-};
 
 let product_extension = (tys1: list(t), tys2: list(t)): term => {
   let get_lv = (t: t) => {
@@ -461,15 +449,18 @@ let rec weak_head_normalize = (~rec_counter=0, ctx: Ctx.t, ty: t): t => {
     | None => ty
     }
   | ProdProjection(ty, label) =>
+    let (_, rewrap) = unwrap(ty);
+
     let normalized_ty =
       weak_head_normalize(~rec_counter=rec_counter + 1, ctx, ty);
-    project_type(normalized_ty, label)
-    |> Option.map(weak_head_normalize(~rec_counter=rec_counter + 1, ctx))
-    |> Util.OptUtil.get(() => {
-         let (_, rewrap) = unwrap(ty);
-         // It would be better to do this via a more direct error recovery mechanism in statics
-         Unknown(Internal) |> rewrap;
-       });
+
+    (
+      switch (normalized_ty.term, label.term) {
+      | (Prod(tys), Label(l)) => project_type(tys, l)
+      | _ => None // It would be better to do this via a more direct error recovery mechanism in statics
+      }
+    )
+    |> Option.value(~default=Unknown(Internal) |> rewrap);
   | ProdExtension(t1, t2) =>
     let (_, rewrap) = unwrap(ty);
 
@@ -505,18 +496,8 @@ let rec normalize = (~rec_counter=0, ctx: Ctx.t, ty: t): t => {
   | Arrow(t1, t2) =>
     Arrow(normalize(ctx, t1), normalize(ctx, t2)) |> rewrap
   | Prod(ts) => Prod(List.map(normalize(ctx), ts)) |> rewrap
-  | ProdProjection(ty, label) =>
-    let normalized_ty = normalize(ctx, ty);
-    project_type(normalized_ty, label)
-    |> Option.map(normalize(ctx))
-    |> Util.OptUtil.get(() => Unknown(Internal) |> rewrap);
-  | ProdExtension(t1, t2) =>
-    let t1 = normalize(ctx, t1);
-    let t2 = normalize(ctx, t2);
-    switch (t1.term, t2.term) {
-    | (Prod(tys1), Prod(tys2)) => product_extension(tys1, tys2) |> rewrap
-    | _ => Unknown(Internal) |> rewrap
-    };
+  | ProdProjection(_) => weak_head_normalize(ctx, ty) |> normalize(ctx)
+  | ProdExtension(_) => weak_head_normalize(ctx, ty) |> normalize(ctx)
   | TupLabel(label, ty) =>
     TupLabel(normalize(ctx, label), normalize(ctx, ty)) |> rewrap
   | Sum(ts) =>

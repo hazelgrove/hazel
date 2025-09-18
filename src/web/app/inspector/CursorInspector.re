@@ -382,7 +382,10 @@ let underdetermined_typ_view =
 
     [text("Cannot determine projected type because ")]
     @ (
-      ListUtil.join([text(" and ")], [product_error, label_error])
+      ListUtil.join(
+        [text(" and ")],
+        [product_error, label_error] |> List.filter(x => x != []),
+      )
       |> List.concat
     );
   };

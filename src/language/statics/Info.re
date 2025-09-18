@@ -635,7 +635,7 @@ let status_typ = (ctx: Ctx.t, expects: typ_expects, ty: Typ.t): status_typ => {
   | (TypeExpected | ProductExpected, ProdProjection(ty, l)) =>
     switch (Typ.weak_head_normalize(ctx, ty), l.term) {
     | ({term: Prod(tys), _}, Label(l)) =>
-      switch (Typ.project_type'(tys, l)) {
+      switch (Typ.project_type(tys, l)) {
       | Some(ty') =>
         NotInHole(
           WHNormalizedTo({
