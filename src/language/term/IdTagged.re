@@ -14,10 +14,10 @@ module IdTag = {
 type t('a) = Grammar.Annotated.t('a, IdTag.t);
 
 // To be used if you want to remove the id from the debug output
-let pp: ((Format.formatter, 'a) => unit, Format.formatter, t('a)) => unit =
-  (fmt_a, formatter, ta) => {
-    fmt_a(formatter, ta.term);
-  };
+// let pp: ((Format.formatter, 'a) => unit, Format.formatter, t('a)) => unit =
+//   (fmt_a, formatter, ta) => {
+//     fmt_a(formatter, ta.term);
+//   };
 let fresh = (term: 'a): Grammar.Annotated.t('a, IdTag.t) => {
   {
     term,
