@@ -166,7 +166,7 @@ type status_variant =
 type typ_expects =
   | TypeExpected
   | LabelExpected(status_variant, list(LabeledTuple.label)) // list of duplicate labels
-  | LabelProjectionExpected(option(list(LabeledTuple.label))) // list of labels to project out
+  | LabelProjectionExpected(option(list(LabeledTuple.label))) // list of labels that exist on the product that is being projected
   | ProductExpected // Expects a product type (e.g. for product extension)
   | ConstructorExpected(status_variant, Typ.t)
   | VariantExpected(status_variant, Typ.t);
@@ -297,7 +297,7 @@ type pat = {
 type typ = {
   term: Typ.t,
   ancestors,
-  ctx: [@show.opqaque] Ctx.t,
+  ctx: Ctx.t,
   expects: typ_expects,
   cls: Cls.t,
   status: status_typ,
@@ -632,60 +632,7 @@ let status_typ = (ctx: Ctx.t, expects: typ_expects, ty: Typ.t): status_typ => {
   | (LabelExpected(_), Unknown(Hole(EmptyHole))) => NotInHole(EmptyLabel)
   | (LabelProjectionExpected(_), Unknown(Hole(EmptyHole))) =>
     NotInHole(EmptyLabel)
-  | (ProductExpected, _) =>
-    switch (Typ.weak_head_normalize(ctx, ty)) {
-    | {term: Prod(_), _} as ty => NotInHole(Type(ty))
-    | ty => InHole(WantProduct(ty))
-    }
-  | (_, Unknown(Hole(EmptyHole))) => NotInHole(Type(ty))
-  | (_, Unknown(Hole(MultiHole(_tms)))) => InHole(ParseFailure)
-  | (VariantExpected(Unique, sum_ty), Var(name))
-  | (ConstructorExpected(Unique, sum_ty), Var(name)) =>
-    NotInHole(Variant(name, sum_ty))
-  | (VariantExpected(Duplicate, _), Var(name))
-  | (ConstructorExpected(Duplicate, _), Var(name)) =>
-    InHole(DuplicateConstructor(name))
-  | (TypeExpected, Var(name)) =>
-    switch (Ctx.is_alias(ctx, name)) {
-    | false =>
-      switch (Ctx.is_abstract(ctx, name)) {
-      | false => InHole(FreeTypeVariable(name))
-      | true => NotInHole(Type(Var(name) |> Typ.temp))
-      }
-    | true => NotInHole(TypeAlias(name, Typ.weak_head_normalize(ctx, ty)))
-    }
-  | (TypeExpected, Label(_))
-  | (LabelExpected(Unique, _), Label(_)) => NotInHole(Type(ty))
-  | (LabelExpected(Duplicate, dupes), Label(name)) =>
-    List.exists(l => name == l, dupes)
-      ? InHole(Duplicate(name, ty)) : InHole(WantLabel)
-  | (LabelProjectionExpected(Some(labels)), Label(name)) =>
-    List.mem(name, labels)
-      ? NotInHole(Type(ty)) : InHole(InvalidLabel(name, labels))
-  | (LabelProjectionExpected(None), Label(_)) =>
-    NotInHole(Type(Unknown(Internal) |> Typ.temp)) // Unknown type because the product is unknown
-  | (ConstructorExpected(_), Label(_))
-  | (VariantExpected(_), Label(_)) => InHole(WantConstructorFoundType(ty))
-  | (_, ProdExtension(t1, t2)) =>
-    switch (
-      Typ.weak_head_normalize(ctx, t1).term,
-      Typ.weak_head_normalize(ctx, t2).term,
-    ) {
-    | (Prod(t1s), Prod(t2s)) =>
-      NotInHole(
-        WHNormalizedTo({
-          unnormalized: ty,
-          whnormalized: Typ.product_extension(t1s, t2s) |> Typ.fresh,
-        }),
-      )
-    | (Prod(_), _) =>
-      NotInHole(TypeUnderdetermined(ProdExtensionUnderdetermined([t2])))
-    | (_, Prod(_)) =>
-      NotInHole(TypeUnderdetermined(ProdExtensionUnderdetermined([t1])))
-    | _ =>
-      NotInHole(TypeUnderdetermined(ProdExtensionUnderdetermined([t1, t2])))
-    }
-  | (_, ProdProjection(ty, l)) =>
+  | (TypeExpected | ProductExpected, ProdProjection(ty, l)) =>
     switch (Typ.weak_head_normalize(ctx, ty), l.term) {
     | ({term: Prod(tys), _}, Label(l)) =>
       switch (Typ.project_type'(tys, l)) {
@@ -727,6 +674,59 @@ let status_typ = (ctx: Ctx.t, expects: typ_expects, ty: Typ.t): status_typ => {
         ),
       )
     }
+  | (TypeExpected | ProductExpected, ProdExtension(t1, t2)) =>
+    switch (
+      Typ.weak_head_normalize(ctx, t1).term,
+      Typ.weak_head_normalize(ctx, t2).term,
+    ) {
+    | (Prod(t1s), Prod(t2s)) =>
+      NotInHole(
+        WHNormalizedTo({
+          unnormalized: ty,
+          whnormalized: Typ.product_extension(t1s, t2s) |> Typ.fresh,
+        }),
+      )
+    | (Prod(_), _) =>
+      NotInHole(TypeUnderdetermined(ProdExtensionUnderdetermined([t2])))
+    | (_, Prod(_)) =>
+      NotInHole(TypeUnderdetermined(ProdExtensionUnderdetermined([t1])))
+    | _ =>
+      NotInHole(TypeUnderdetermined(ProdExtensionUnderdetermined([t1, t2])))
+    }
+  | (ProductExpected, _) =>
+    switch (Typ.weak_head_normalize(ctx, ty)) {
+    | {term: Prod(_), _} as ty => NotInHole(Type(ty))
+    | ty => InHole(WantProduct(ty))
+    }
+  | (_, Unknown(Hole(EmptyHole))) => NotInHole(Type(ty))
+  | (_, Unknown(Hole(MultiHole(_tms)))) => InHole(ParseFailure)
+  | (VariantExpected(Unique, sum_ty), Var(name))
+  | (ConstructorExpected(Unique, sum_ty), Var(name)) =>
+    NotInHole(Variant(name, sum_ty))
+  | (VariantExpected(Duplicate, _), Var(name))
+  | (ConstructorExpected(Duplicate, _), Var(name)) =>
+    InHole(DuplicateConstructor(name))
+  | (TypeExpected, Var(name)) =>
+    switch (Ctx.is_alias(ctx, name)) {
+    | false =>
+      switch (Ctx.is_abstract(ctx, name)) {
+      | false => InHole(FreeTypeVariable(name))
+      | true => NotInHole(Type(Var(name) |> Typ.temp))
+      }
+    | true => NotInHole(TypeAlias(name, Typ.weak_head_normalize(ctx, ty)))
+    }
+  | (TypeExpected, Label(_))
+  | (LabelExpected(Unique, _), Label(_)) => NotInHole(Type(ty))
+  | (LabelExpected(Duplicate, dupes), Label(name)) =>
+    List.exists(l => name == l, dupes)
+      ? InHole(Duplicate(name, ty)) : InHole(WantLabel)
+  | (LabelProjectionExpected(Some(labels)), Label(name)) =>
+    List.mem(name, labels)
+      ? NotInHole(Type(ty)) : InHole(InvalidLabel(name, labels))
+  | (LabelProjectionExpected(None), Label(_)) =>
+    NotInHole(Type(Unknown(Internal) |> Typ.temp)) // Unknown type because the product is unknown
+  | (ConstructorExpected(_), Label(_))
+  | (VariantExpected(_), Label(_)) => InHole(WantConstructorFoundType(ty))
   | (TypeExpected, _) => NotInHole(Type(ty))
   | (LabelExpected(_), _)
   | (LabelProjectionExpected(_), _) => InHole(WantLabel)

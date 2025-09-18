@@ -412,29 +412,23 @@ let unroll = (ty: t): t =>
    Other types may be equivalent but this will not detect so if they are not normalized. */
 let equal = (t1: t, t2: t): bool => fast_equal(t1, t2);
 
+let project_type' = (tys: list(t), label: string): option(t) =>
+  switch (LabeledTuple.find_label(match_tup_label, tys, label)) {
+  | Some({term: TupLabel(_, ty), _}) => Some(ty)
+  | _ => None
+  };
+
 // TODO Have this take a list of tys and a label and do this matching at the callsite.
 let rec project_type = (ty, label): option(t) => {
   switch (term_of(ty), term_of(label)) {
   | (Parens(t), _) => project_type(t, label)
-  | (Prod(tys), Label(l)) =>
-    switch (LabeledTuple.find_label(match_tup_label, tys, l)) {
-    | Some({term: TupLabel(_, ty), _}) =>
-      // LabeledTuple.find_label should return the inner ty
-      Some(ty)
-    | _ => Some(Unknown(Internal) |> temp) // TODO Consider whether we want to be doing this. We want this to be treated like a hole but it would be better to do this via a more direct error recovery mechanism
-    }
+  | (Prod(tys), Label(l)) => project_type'(tys, l)
   | (Prod(_), Unknown(_))
   | (Unknown(_), Label(_))
   | (Unknown(_), Unknown(_)) => Some(Unknown(Internal) |> temp)
   | _ => Some(Unknown(Internal) |> temp) // TODO Consider whether we want to be doing this. We want this to be treated like a hole but it would be better to do this via a more direct error recovery mechanism
   };
 };
-
-let project_type' = (tys: list(t), label: string): option(t) =>
-  switch (LabeledTuple.find_label(match_tup_label, tys, label)) {
-  | Some({term: TupLabel(_, ty), _}) => Some(ty)
-  | _ => None
-  };
 
 let product_extension = (tys1: list(t), tys2: list(t)): term => {
   let get_lv = (t: t) => {
@@ -568,24 +562,10 @@ let rec join = (~resolve=false, ctx: Ctx.t, ty1: t, ty2: t): option(t) => {
     let+ ty_join = join'(ty_name, ty1);
     !resolve && equal(ty_name, ty_join) ? ty2 : ty_join;
   /* Note: Ordering of Unknown, Var, and Rec above is load-bearing! */
-  | (ProdProjection(ty1', l), _) =>
-    let* ty1'' = project_type(normalize(ctx, ty1'), l);
-    join'(ty1'', ty2);
-  | (_, ProdProjection(ty2', l)) =>
-    let* ty2'' = project_type(normalize(ctx, ty2'), l);
-    join'(ty1, ty2'');
-  | (ProdExtension(t1, t2), _) =>
-    switch (weak_head_normalize(ctx, t1), weak_head_normalize(ctx, t2)) {
-    | ({term: Prod(tys1), _}, {term: Prod(tys2), _}) =>
-      join'(product_extension(tys1, tys2) |> temp, ty2)
-    | _ => join'(Unknown(Internal) |> temp, ty2) // TODO Do we want this?
-    }
-  | (_, ProdExtension(t1, t2)) =>
-    switch (weak_head_normalize(ctx, t1), weak_head_normalize(ctx, t2)) {
-    | ({term: Prod(tys1), _}, {term: Prod(tys2), _}) =>
-      join'(ty1, product_extension(tys1, tys2) |> temp)
-    | _ => join'(ty1, Unknown(Internal) |> temp) // TODO Do we want this?
-    }
+  | (ProdProjection(_), _) => join'(weak_head_normalize(ctx, ty1), ty2)
+  | (_, ProdProjection(_)) => join'(ty1, weak_head_normalize(ctx, ty2))
+  | (ProdExtension(_), _) => join'(weak_head_normalize(ctx, ty1), ty2)
+  | (_, ProdExtension(_)) => join'(ty1, weak_head_normalize(ctx, ty2))
   | (Rec(tp1, ty1), Rec(tp2, ty2)) =>
     let ctx = Ctx.extend_dummy_tvar(ctx, tp1);
     let ty1' =
