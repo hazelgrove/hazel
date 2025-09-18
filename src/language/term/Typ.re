@@ -473,8 +473,8 @@ let rec weak_head_normalize = (~rec_counter=0, ctx: Ctx.t, ty: t): t => {
     |> Option.map(weak_head_normalize(~rec_counter=rec_counter + 1, ctx))
     |> Util.OptUtil.get(() => {
          let (_, rewrap) = unwrap(ty);
-         Unknown(Internal)  // TODO Consider whether we want to be doing this. We want this to be treated like a hole but maybe we should put a direct mark on it
-         |> rewrap;
+         // It would be better to do this via a more direct error recovery mechanism in statics
+         Unknown(Internal) |> rewrap;
        });
   | ProdExtension(t1, t2) =>
     let (_, rewrap) = unwrap(ty);
@@ -484,8 +484,8 @@ let rec weak_head_normalize = (~rec_counter=0, ctx: Ctx.t, ty: t): t => {
     switch (t1.term, t2.term) {
     | (Prod(tys1), Prod(tys2)) => product_extension(tys1, tys2) |> rewrap
     | _ =>
-      Unknown(Internal)  // TODO Consider whether we want to be doing this. We want this to be treated like a hole but maybe we should put a direct mark on it
-      |> rewrap
+      // It would be better to do this via a more direct error recovery mechanism in statics
+      Unknown(Internal) |> rewrap
     };
   | _ => ty
   };
@@ -515,18 +515,13 @@ let rec normalize = (~rec_counter=0, ctx: Ctx.t, ty: t): t => {
     let normalized_ty = normalize(ctx, ty);
     project_type(normalized_ty, label)
     |> Option.map(normalize(ctx))
-    |> Util.OptUtil.get(() =>
-         Unknown(Internal)  // TODO Consider whether we want to be doing this. We want this to be treated like a hole but maybe we should put a direct mark on it
-         |> rewrap
-       );
+    |> Util.OptUtil.get(() => Unknown(Internal) |> rewrap);
   | ProdExtension(t1, t2) =>
     let t1 = normalize(ctx, t1);
     let t2 = normalize(ctx, t2);
     switch (t1.term, t2.term) {
     | (Prod(tys1), Prod(tys2)) => product_extension(tys1, tys2) |> rewrap
-    | _ =>
-      Unknown(Internal)  // TODO Consider whether we want to be doing this. We want this to be treated like a hole but maybe we should put a direct mark on it
-      |> rewrap
+    | _ => Unknown(Internal) |> rewrap
     };
   | TupLabel(label, ty) =>
     TupLabel(normalize(ctx, label), normalize(ctx, ty)) |> rewrap

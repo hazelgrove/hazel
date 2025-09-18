@@ -148,6 +148,29 @@ let underdetermined_typ: Info.underdetermined_typ => string =
     prn(
       "Cannot determine type of product extension with argument types: %s",
       List.map(Print.typ, tys) |> String.concat(", "),
+    )
+  | ProdProjectionMissingLabel(label, labels) =>
+    prn(
+      "Cannot project label %s. Valid labels are: %s",
+      label,
+      String.concat(", ", labels),
+    )
+  | ProdProjectionBadArgs({product, label}) =>
+    prn(
+      "Cannot determine projection type because %s",
+      String.concat(
+        " and ",
+        [
+          switch (product) {
+          | Some(ty) => "Product is not a product type: " ++ Print.typ(ty)
+          | None => ""
+          },
+          switch (label) {
+          | Some(ty) => "Label is not a valid label: " ++ Print.typ(ty)
+          | None => ""
+          },
+        ],
+      ),
     );
 
 let tpat_error: Info.error_tpat => string =

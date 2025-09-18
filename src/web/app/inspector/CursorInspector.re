@@ -433,6 +433,37 @@ let underdetermined_typ_view =
       text("Cannot determine type of product extension with argument types:"),
       ...ListUtil.join(text(","), List.map(view_type, tys)),
     ]
+  | ProdProjectionMissingLabel(label, labels) => [
+      text("Cannot project label "),
+      label_view(label),
+      text(". Valid labels are: "),
+      ...List.map(code, labels),
+    ]
+  | ProdProjectionBadArgs({product, label}) =>
+    let product_error =
+      switch (product) {
+      | Some(ty) => [
+          text("product"),
+          view_type(ty),
+          text("is not a product type"),
+        ]
+      | None => []
+      };
+    let label_error =
+      switch (label) {
+      | Some(ty) => [
+          text("label"),
+          view_type(ty),
+          text("is not a valid label: "),
+        ]
+      | None => []
+      };
+
+    [text("Cannot determine projected type because ")]
+    @ (
+      ListUtil.join([text(" and ")], [product_error, label_error])
+      |> List.concat
+    );
   };
 };
 

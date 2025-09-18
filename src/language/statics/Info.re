@@ -193,7 +193,12 @@ type error_typ =
 // Not an error mark on this type but on one of its children so we can not give a normalized type
 [@deriving (show({with_path: false}), sexp, yojson, eq)]
 type underdetermined_typ =
-  | ProdExtensionUnderdetermined(list(Typ.t));
+  | ProdExtensionUnderdetermined(list(Typ.t))
+  | ProdProjectionMissingLabel(LabeledTuple.label, list(LabeledTuple.label))
+  | ProdProjectionBadArgs({
+      product: option(Typ.t),
+      label: option(Typ.t),
+    });
 
 /* Type ok statuses for cursor inspector */
 [@deriving (show({with_path: false}), sexp, yojson, eq)]
@@ -626,28 +631,12 @@ let status_typ = (ctx: Ctx.t, expects: typ_expects, ty: Typ.t): status_typ => {
   switch (expects, ty.term) {
   | (_, Unknown(Hole(Invalid(token)))) => InHole(BadToken(token))
   | (LabelExpected(_), Unknown(Hole(EmptyHole))) => NotInHole(EmptyLabel)
+  | (LabelProjectionExpected(_), Unknown(Hole(EmptyHole))) =>
+    NotInHole(EmptyLabel)
   | (ProductExpected, _) =>
     switch (Typ.weak_head_normalize(ctx, ty)) {
     | {term: Prod(_), _} as ty => NotInHole(Type(ty))
     | ty => InHole(WantProduct(ty))
-    }
-  | (_, ProdExtension(t1, t2)) =>
-    switch (
-      Typ.weak_head_normalize(ctx, t1).term,
-      Typ.weak_head_normalize(ctx, t2).term,
-    ) {
-    | (Prod(t1s), Prod(t2s)) =>
-      NotInHole(
-        WHNormalizedTo({
-          unnormalized: ty,
-          whnormalized: Typ.product_extension(t1s, t2s) |> Typ.fresh,
-        }),
-      )
-    | (Prod(_), _) =>
-      TypeUnderdetermined(ProdExtensionUnderdetermined([t2]))
-    | (_, Prod(_)) =>
-      TypeUnderdetermined(ProdExtensionUnderdetermined([t1]))
-    | _ => TypeUnderdetermined(ProdExtensionUnderdetermined([t1, t2]))
     }
   | (_, Unknown(Hole(EmptyHole))) => NotInHole(Type(ty))
   | (_, Unknown(Hole(MultiHole(_tms)))) => InHole(ParseFailure)
@@ -678,6 +667,62 @@ let status_typ = (ctx: Ctx.t, expects: typ_expects, ty: Typ.t): status_typ => {
     NotInHole(Type(Unknown(Internal) |> Typ.temp)) // Unknown type because the product is unknown
   | (ConstructorExpected(_), Label(_))
   | (VariantExpected(_), Label(_)) => InHole(WantConstructorFoundType(ty))
+  | (_, ProdExtension(t1, t2)) =>
+    switch (
+      Typ.weak_head_normalize(ctx, t1).term,
+      Typ.weak_head_normalize(ctx, t2).term,
+    ) {
+    | (Prod(t1s), Prod(t2s)) =>
+      NotInHole(
+        WHNormalizedTo({
+          unnormalized: ty,
+          whnormalized: Typ.product_extension(t1s, t2s) |> Typ.fresh,
+        }),
+      )
+    | (Prod(_), _) =>
+      TypeUnderdetermined(ProdExtensionUnderdetermined([t2]))
+    | (_, Prod(_)) =>
+      TypeUnderdetermined(ProdExtensionUnderdetermined([t1]))
+    | _ => TypeUnderdetermined(ProdExtensionUnderdetermined([t1, t2]))
+    }
+  | (_, ProdProjection(ty, l)) =>
+    switch (Typ.weak_head_normalize(ctx, ty), l.term) {
+    | ({term: Prod(tys), _}, Label(l)) =>
+      switch (Typ.project_type'(tys, l)) {
+      | Some(ty') =>
+        NotInHole(
+          WHNormalizedTo({
+            unnormalized: ty,
+            whnormalized: ty',
+          }),
+        )
+      | None =>
+        TypeUnderdetermined(
+          ProdProjectionMissingLabel(
+            l,
+            List.filter_map(
+              t => Typ.match_tup_label(t) |> Option.map(fst),
+              tys,
+            ),
+          ),
+        )
+      }
+    | (t1, _) =>
+      TypeUnderdetermined(
+        ProdProjectionBadArgs({
+          product:
+            switch (t1.term) {
+            | Prod(_) => None
+            | _ => Some(Typ.weak_head_normalize(ctx, ty))
+            },
+          label:
+            switch (l.term) {
+            | Label(_) => None
+            | _ => Some(l)
+            },
+        }),
+      )
+    }
   | (TypeExpected, _) => NotInHole(Type(ty))
   | (LabelExpected(_), _)
   | (LabelProjectionExpected(_), _) => InHole(WantLabel)
