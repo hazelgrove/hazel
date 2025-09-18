@@ -125,6 +125,12 @@ go(Var("yo"))|},
         ),
       )
     ),
+    test_case("Ascriptions collapse lazily through if", `Quick, () =>
+      parse_and_evaluate_test(
+        {|if ? then ? : String else ? : String|},
+        {|(if ? then ? else ?) : String : String|},
+      )
+    ),
     test_case("Indet case passes ascriptions through", `Quick, () => {
       parse_and_evaluate_test(
         {|(case ?
