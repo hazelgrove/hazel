@@ -157,20 +157,3 @@ If you are working on multiple OCaml projects, it may be helpful to set up a loc
 
 You can now go back to 
 [README.md](README.md) and follow the instructions there to build and run Hazel.
-
-## Troubleshooting dependency updates and build failures
-
-- If Hazel fails to compile after you update or pull new dependencies, first run:
-  
-  ```sh
-  make deps
-  ```
-
-- If that doesn't work, your opam switch may be out of sync. Remove and recreate it, then reinstall deps:
-  
-  ```sh
-  # Replace 5.2.0 with the name of your switch
-  opam switch remove 5.2.0
-  ```
-  
-  Then recreate the switch following the steps in this guide (see "Install OCaml" and "Install Library Dependencies"), run `eval $(opam env)`, `make deps`, and rebuild.

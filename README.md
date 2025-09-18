@@ -45,23 +45,6 @@ This is due to an [upstream library issue](https://github.com/hazelgrove/hazel/i
 
 This is due various [upstream library issues](https://github.com/hazelgrove/hazel/issues/1796) and can be ignored. 
 
-## Troubleshooting: dependency updates and build failures
-
-- If Hazel fails to compile after pulling changes, first run:
-  
-  ```sh
-  make deps
-  ```
-
-- If that doesn't work, your opam switch may be out of sync. Remove and recreate it, then reinstall deps:
-  
-  ```sh
-  # Replace 5.2.0 with the name of your switch
-  opam switch remove 5.2.0
-  ```
-  
-  Recreate the switch following the instructions in [INSTALL.md](INSTALL.md) (see "Install OCaml" and "Install Library Dependencies"), then run `make deps` and rebuild.
-
 ## Running Hazel
 
 ### Locally
@@ -86,6 +69,8 @@ Although Hazel is primarily designed as an integrated development environment, w
 
 ## Running Tests
 You can run Hazel's unit tests with `make test`. Further details on testing are in the [test README](test/README.md).
+
+
 
 ## Contributing to Hazel
 We welcome open source contributions to Hazel! If you are planning to contribute, please review the information in [CONTRIBUTING.md](CONTRIBUTING.md), which details how to run tests. You may also want to contact Cyrus Omar (comar@umich.edu) about your plans. We have a team Slack that might be helpful for you to join if you are planning to make non-trivial contributions and are happy to invite (and assist) external contributors!
