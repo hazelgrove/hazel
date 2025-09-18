@@ -211,13 +211,13 @@ type ok_typ =
       whnormalized: Typ.t,
     })
   | Type(Typ.t)
-  | EmptyLabel;
+  | EmptyLabel
+  | TypeUnderdetermined(underdetermined_typ);
 
 [@deriving (show({with_path: false}), sexp, yojson, eq)]
 type status_typ =
   | InHole(error_typ)
-  | NotInHole(ok_typ)
-  | TypeUnderdetermined(underdetermined_typ) /* Not an error, but we cannot give a normalized type */;
+  | NotInHole(ok_typ);
 
 [@deriving (show({with_path: false}), sexp, yojson, eq)]
 type type_var_err =
@@ -394,7 +394,6 @@ let error_of: t => option(error) =
   | InfoPat({status: InHole(err), _}) => Some(Pat(err))
   | InfoTyp({status: InHole(err), _}) => Some(Typ(err))
   | InfoTPat({status: InHole(err), _}) => Some(TPat(err))
-  | InfoTyp({status: TypeUnderdetermined(_), _}) => None
   | Secondary(_) => None;
 
 let exp_co_ctx: exp => CoCtx.t = ({co_ctx, _}) => co_ctx;
@@ -680,10 +679,11 @@ let status_typ = (ctx: Ctx.t, expects: typ_expects, ty: Typ.t): status_typ => {
         }),
       )
     | (Prod(_), _) =>
-      TypeUnderdetermined(ProdExtensionUnderdetermined([t2]))
+      NotInHole(TypeUnderdetermined(ProdExtensionUnderdetermined([t2])))
     | (_, Prod(_)) =>
-      TypeUnderdetermined(ProdExtensionUnderdetermined([t1]))
-    | _ => TypeUnderdetermined(ProdExtensionUnderdetermined([t1, t2]))
+      NotInHole(TypeUnderdetermined(ProdExtensionUnderdetermined([t1])))
+    | _ =>
+      NotInHole(TypeUnderdetermined(ProdExtensionUnderdetermined([t1, t2])))
     }
   | (_, ProdProjection(ty, l)) =>
     switch (Typ.weak_head_normalize(ctx, ty), l.term) {
@@ -697,30 +697,34 @@ let status_typ = (ctx: Ctx.t, expects: typ_expects, ty: Typ.t): status_typ => {
           }),
         )
       | None =>
-        TypeUnderdetermined(
-          ProdProjectionMissingLabel(
-            l,
-            List.filter_map(
-              t => Typ.match_tup_label(t) |> Option.map(fst),
-              tys,
+        NotInHole(
+          TypeUnderdetermined(
+            ProdProjectionMissingLabel(
+              l,
+              List.filter_map(
+                t => Typ.match_tup_label(t) |> Option.map(fst),
+                tys,
+              ),
             ),
           ),
         )
       }
     | (t1, _) =>
-      TypeUnderdetermined(
-        ProdProjectionBadArgs({
-          product:
-            switch (t1.term) {
-            | Prod(_) => None
-            | _ => Some(Typ.weak_head_normalize(ctx, ty))
-            },
-          label:
-            switch (l.term) {
-            | Label(_) => None
-            | _ => Some(l)
-            },
-        }),
+      NotInHole(
+        TypeUnderdetermined(
+          ProdProjectionBadArgs({
+            product:
+              switch (t1.term) {
+              | Prod(_) => None
+              | _ => Some(Typ.weak_head_normalize(ctx, ty))
+              },
+            label:
+              switch (l.term) {
+              | Label(_) => None
+              | _ => Some(l)
+              },
+          }),
+        ),
       )
     }
   | (TypeExpected, _) => NotInHole(Type(ty))
@@ -765,7 +769,6 @@ let is_error = (ci: t): bool => {
     switch (status) {
     | InHole(_) => true
     | NotInHole(_) => false
-    | TypeUnderdetermined(_) => false // Not an error but we the best we can do is unknown
     }
   | InfoTPat({status, _}) =>
     switch (status) {

@@ -346,6 +346,48 @@ let common_ok_view =
   );
 };
 
+let underdetermined_typ_view =
+    (~globals, underdetermined: Info.underdetermined_typ) => {
+  let view_type = view_type(~globals);
+  switch (underdetermined) {
+  | ProdExtensionUnderdetermined(tys) => [
+      text("Cannot determine type of product extension with argument types:"),
+      ...ListUtil.join(text(","), List.map(view_type, tys)),
+    ]
+  | ProdProjectionMissingLabel(label, labels) => [
+      text("Cannot project label "),
+      label_view(label),
+      text(". Valid labels are: "),
+      ...List.map(code, labels),
+    ]
+  | ProdProjectionBadArgs({product, label}) =>
+    let product_error =
+      switch (product) {
+      | Some(ty) => [
+          text("product"),
+          view_type(ty),
+          text("is not a product type"),
+        ]
+      | None => []
+      };
+    let label_error =
+      switch (label) {
+      | Some(ty) => [
+          text("label"),
+          view_type(ty),
+          text("is not a valid label: "),
+        ]
+      | None => []
+      };
+
+    [text("Cannot determine projected type because ")]
+    @ (
+      ListUtil.join([text(" and ")], [product_error, label_error])
+      |> List.concat
+    );
+  };
+};
+
 let typ_ok_view = (~globals, cls: Cls.t, ok: Info.ok_typ) => {
   let view_type = view_type(~globals);
   switch (ok) {
@@ -379,6 +421,8 @@ let typ_ok_view = (~globals, cls: Cls.t, ok: Info.ok_typ) => {
       text("An incomplete sum type constuctor of type"),
       view_type(sum_ty),
     ]
+  | TypeUnderdetermined(underdetermined) =>
+    underdetermined_typ_view(~globals, underdetermined)
   };
 };
 
@@ -422,48 +466,6 @@ let typ_err_view = (~globals, ok: Info.error_typ) => {
       text("Expected a product type, found type"),
       view_type(ty),
     ]
-  };
-};
-
-let underdetermined_typ_view =
-    (~globals, underdetermined: Info.underdetermined_typ) => {
-  let view_type = view_type(~globals);
-  switch (underdetermined) {
-  | ProdExtensionUnderdetermined(tys) => [
-      text("Cannot determine type of product extension with argument types:"),
-      ...ListUtil.join(text(","), List.map(view_type, tys)),
-    ]
-  | ProdProjectionMissingLabel(label, labels) => [
-      text("Cannot project label "),
-      label_view(label),
-      text(". Valid labels are: "),
-      ...List.map(code, labels),
-    ]
-  | ProdProjectionBadArgs({product, label}) =>
-    let product_error =
-      switch (product) {
-      | Some(ty) => [
-          text("product"),
-          view_type(ty),
-          text("is not a product type"),
-        ]
-      | None => []
-      };
-    let label_error =
-      switch (label) {
-      | Some(ty) => [
-          text("label"),
-          view_type(ty),
-          text("is not a valid label: "),
-        ]
-      | None => []
-      };
-
-    [text("Cannot determine projected type because ")]
-    @ (
-      ListUtil.join([text(" and ")], [product_error, label_error])
-      |> List.concat
-    );
   };
 };
 
@@ -691,7 +693,6 @@ let rec pat_view =
 let typ_view = (~globals, cls: Cls.t, status: Info.status_typ) =>
   switch (status) {
   | NotInHole(ok) => div_ok(typ_ok_view(~globals, cls, ok))
-  | TypeUnderdetermined(ut) => div_ok(underdetermined_typ_view(~globals, ut))
   | InHole(err) => div_err(typ_err_view(~globals, err))
   };
 
