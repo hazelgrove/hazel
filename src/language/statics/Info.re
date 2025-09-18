@@ -632,8 +632,8 @@ let status_typ = (ctx: Ctx.t, expects: typ_expects, ty: Typ.t): status_typ => {
   | (LabelExpected(_), Unknown(Hole(EmptyHole))) => NotInHole(EmptyLabel)
   | (LabelProjectionExpected(_), Unknown(Hole(EmptyHole))) =>
     NotInHole(EmptyLabel)
-  | (TypeExpected | ProductExpected, ProdProjection(ty, l)) =>
-    switch (Typ.weak_head_normalize(ctx, ty), l.term) {
+  | (TypeExpected | ProductExpected, ProdProjection(pty, l)) =>
+    switch (Typ.weak_head_normalize(ctx, pty), l.term) {
     | ({term: Prod(tys), _}, Label(l)) =>
       switch (Typ.project_type(tys, l)) {
       | Some(ty') =>

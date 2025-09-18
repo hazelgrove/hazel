@@ -138,7 +138,7 @@ let external_precedence_typ = (tp: Typ.t) =>
   | Label(_)
   | TupLabel(_) => Precedence.max
   | ProdProjection(_) => Precedence.dot
-  | ProdExtension(_) => Precedence.plus
+  | ProdExtension(_) => Precedence.ap
   // Same goes for forms which are already surrounded
   | Parens(_)
   | List(_) => Precedence.max
@@ -638,9 +638,18 @@ let should_add_space = (s1, s2) =>
     false
   | _ when s1 == "." && (Token.is_quoted_label(s2) || Token.is_var(s2)) =>
     false
-  | _ when s2 == "." && (Token.is_quoted_label(s1) || Token.is_var(s1)) =>
+  | _
+      when
+        s2 == "."
+        && (
+          Token.is_quoted_label(s1)
+          || Token.is_var(s1)
+          || String.ends_with(s1, ~suffix=")")
+        ) =>
     false
-  | _ => true
+  | _ =>
+    print_endline("Adding space between '" ++ s1 ++ "' and '" ++ s2 ++ "'");
+    true;
   };
 
 let text_to_pretty = (id, sort, str): pretty => {
@@ -1394,8 +1403,18 @@ and typ_to_pretty = (~settings: Settings.t, typ: Typ.t): pretty => {
       },
     ]);
   | ProdProjection(t1, t2) =>
-    let+ t1 = go(t1)
-    and+ t2 = go(t2);
+    let* t1 = go(t1)
+    and* t2 =
+      switch (t2.term) {
+      | Label(l') =>
+        label_to_pretty(
+          ~label_only_position=true,
+          Sort.Typ,
+          l',
+          t2 |> Typ.rep_id,
+        )
+      | _ => go(t2)
+      };
     t1 @ [mk_form(ProdProjection, typ |> Typ.rep_id, [])] @ t2;
   | ProdExtension(t1, t2) =>
     let+ t1 = go(t1)
