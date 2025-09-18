@@ -1,9 +1,8 @@
-let out : string * Haz3lcore.PersistentZipper.t =
+let out : string * Haz3lcore.PersistentSegment.t =
   ( "Probes",
     {
-      zipper =
-        "((selection((focus Left)(content())(mode \
-         Normal)))(relatives((siblings(()((Secondary((id \
+      segment =
+        "((Secondary((id \
          cb2ee082-765a-4dc4-af90-936779f6ba68)(content(Comment\"#  \
          _____           _                #\"))))(Secondary((id \
          76a735c9-5109-464a-820c-28ff643f03f0)(content(Whitespace\"\\n\"))))(Secondary((id \
@@ -2393,7 +2392,7 @@ let out : string * Haz3lcore.PersistentZipper.t =
          e304eca9-e4ea-41fa-8ded-37bc3b64247a)(content(Comment\"# - You can \
          resize a cell by holding shift and dragging horizontally \
          #\"))))(Grout((id c6d59965-e3c8-4647-b0ed-587226496ea7)(shape \
-         Convex))))))(ancestors())))(caret Outer))";
+         Convex))))";
       backup_text =
         "#  _____           _                #\n\
          # |  __ \\         | |               #\n\
