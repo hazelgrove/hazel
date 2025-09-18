@@ -58,7 +58,7 @@ let join_tests = (
         check(
           option(typ),
           "Joined product projections with unknown",
-          Some(int()), // Think this through. I think it makes sense because the product could be (a=int), etc.
+          Some(int()),
           t,
         );
       },

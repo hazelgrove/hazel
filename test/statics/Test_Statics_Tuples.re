@@ -83,14 +83,13 @@ module ProductProjection = {
           prod([tup_label(label("a"), int()), string()]),
           label("a"),
         ),
-      ) // TODO This should be Int but it's not because we don't normalize the types
+      )
     ),
     test_case("Inconsistent Type-level product projection", `Quick, () => {
       annotated_tree_test(
         {|type T = (a=Int, String) in "" : T.a |},
         Typ.(
           prod_projection(
-            // TODO This should be Int but it's not because we don't normalize the types
             prod([tup_label(label("a"), int()), string()]),
             label("a"),
           )

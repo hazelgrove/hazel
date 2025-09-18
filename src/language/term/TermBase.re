@@ -618,7 +618,7 @@ and Typ: {
             ),
           )
         | ProdProjection(t1, t2) =>
-          ProdProjection(typ_map_term(t1), typ_map_term(t2)) // TODO Should we map t2?
+          ProdProjection(typ_map_term(t1), typ_map_term(t2))
         | ProdExtension(t1, t2) =>
           ProdExtension(typ_map_term(t1), typ_map_term(t2))
         | Rec(tp, t) => Rec(tpat_map_term(tp), typ_map_term(t))
@@ -653,7 +653,7 @@ and Typ: {
       | Var(y) => str == y ? s : Var(y) |> rewrap
       | Parens(ty) => Parens(subst(s, x, ty)) |> rewrap
       | ProdProjection(t1, t2) =>
-        ProdProjection(subst(s, x, t1), subst(s, x, t2)) |> rewrap // TODO Should we subst in t2?
+        ProdProjection(subst(s, x, t1), subst(s, x, t2)) |> rewrap
       | ProdExtension(t1, t2) =>
         ProdExtension(subst(s, x, t1), subst(s, x, t2)) |> rewrap
       };
@@ -673,7 +673,7 @@ and Typ: {
       && eq_internal(~alpha_equivalence, n, t1', t2')
     | (ProdProjection(t1, t2), ProdProjection(t1', t2')) =>
       eq_internal(~alpha_equivalence, n, t1, t1')
-      && eq_internal(~alpha_equivalence, n, t2, t2') // I assume this is just equality and not normalized equality
+      && eq_internal(~alpha_equivalence, n, t2, t2')
     | (ProdProjection(_), _) => false
     | (ProdExtension(t1, t2), ProdExtension(t1', t2')) =>
       eq_internal(~alpha_equivalence, n, t1, t1')
