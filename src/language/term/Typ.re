@@ -880,11 +880,11 @@ let rec needs_parens = (ty: t): bool =>
   | Unknown(_)
   | Atom(_)
   | Label(_)
-  | TupLabel(_, _)
   | List(_) /* is already wrapped in [] */
-  | Var(_)
+  | Var(_) => false
   | ProdProjection(_, _)
-  | ProdExtension(_, _) => false // Confirm precedence of . operator
+  | ProdExtension(_, _)
+  | TupLabel(_, _)
   | Rec(_, _)
   | Forall(_, _)
   | Arrow(_, _)
