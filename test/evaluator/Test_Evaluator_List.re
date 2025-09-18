@@ -16,6 +16,18 @@ let tests = (
         {|[1,2,3] : [String]|},
       )
     ),
+    test_case("List ascription through indet cons", `Quick, () => {
+      parse_and_evaluate_test(
+        "(x : Int) :: (y : [Int])",
+        {|(x :: y) : [Int]|},
+      )
+    }),
+    test_case("Ascription through indet list concatenation", `Quick, () => {
+      parse_and_evaluate_test(
+        "(x : [Int]) @ (y : [Int])",
+        {|(x @ y) : [Int]|},
+      )
+    }),
     test_case("Inconsistent list ascription with alias", `Quick, () => {
       parse_and_evaluate_test(
         "[1 : String,2 : String,3 : String]",
