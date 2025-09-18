@@ -83,7 +83,7 @@ module ProductProjection = {
           prod([tup_label(label("a"), int()), string()]),
           label("a"),
         ),
-      )
+      ),
     ),
     test_case("Inconsistent Type-level product projection", `Quick, () => {
       annotated_tree_test(
