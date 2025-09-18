@@ -190,19 +190,29 @@ type error_typ =
   | WantConstructorFoundAp
   | ParseFailure;
 
+// Not an error mark on this type but on one of its children so we can not give a normalized type
+[@deriving (show({with_path: false}), sexp, yojson, eq)]
+type underdetermined_typ =
+  | ProdExtensionUnderdetermined(list(Typ.t));
+
 /* Type ok statuses for cursor inspector */
 [@deriving (show({with_path: false}), sexp, yojson, eq)]
 type ok_typ =
   | Variant(Constructor.t, Typ.t)
   | VariantIncomplete(Typ.t)
   | TypeAlias(string, Typ.t)
+  | WHNormalizedTo({
+      unnormalized: Typ.t,
+      whnormalized: Typ.t,
+    })
   | Type(Typ.t)
   | EmptyLabel;
 
 [@deriving (show({with_path: false}), sexp, yojson, eq)]
 type status_typ =
   | InHole(error_typ)
-  | NotInHole(ok_typ);
+  | NotInHole(ok_typ)
+  | TypeUnderdetermined(underdetermined_typ) /* Not an error, but we cannot give a normalized type */;
 
 [@deriving (show({with_path: false}), sexp, yojson, eq)]
 type type_var_err =
@@ -379,6 +389,7 @@ let error_of: t => option(error) =
   | InfoPat({status: InHole(err), _}) => Some(Pat(err))
   | InfoTyp({status: InHole(err), _}) => Some(Typ(err))
   | InfoTPat({status: InHole(err), _}) => Some(TPat(err))
+  | InfoTyp({status: TypeUnderdetermined(_), _}) => None
   | Secondary(_) => None;
 
 let exp_co_ctx: exp => CoCtx.t = ({co_ctx, _}) => co_ctx;
@@ -620,6 +631,24 @@ let status_typ = (ctx: Ctx.t, expects: typ_expects, ty: Typ.t): status_typ => {
     | {term: Prod(_), _} as ty => NotInHole(Type(ty))
     | ty => InHole(WantProduct(ty))
     }
+  | (_, ProdExtension(t1, t2)) =>
+    switch (
+      Typ.weak_head_normalize(ctx, t1).term,
+      Typ.weak_head_normalize(ctx, t2).term,
+    ) {
+    | (Prod(t1s), Prod(t2s)) =>
+      NotInHole(
+        WHNormalizedTo({
+          unnormalized: ty,
+          whnormalized: Typ.product_extension(t1s, t2s) |> Typ.fresh,
+        }),
+      )
+    | (Prod(_), _) =>
+      TypeUnderdetermined(ProdExtensionUnderdetermined([t2]))
+    | (_, Prod(_)) =>
+      TypeUnderdetermined(ProdExtensionUnderdetermined([t1]))
+    | _ => TypeUnderdetermined(ProdExtensionUnderdetermined([t1, t2]))
+    }
   | (_, Unknown(Hole(EmptyHole))) => NotInHole(Type(ty))
   | (_, Unknown(Hole(MultiHole(_tms)))) => InHole(ParseFailure)
   | (VariantExpected(Unique, sum_ty), Var(name))
@@ -691,6 +720,7 @@ let is_error = (ci: t): bool => {
     switch (status) {
     | InHole(_) => true
     | NotInHole(_) => false
+    | TypeUnderdetermined(_) => false // Not an error but we the best we can do is unknown
     }
   | InfoTPat({status, _}) =>
     switch (status) {

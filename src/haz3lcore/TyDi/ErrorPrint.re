@@ -142,6 +142,14 @@ let typ_error: Info.error_typ => string =
   | WantProduct(ty) =>
     prn("Expected a product type, found type %s", Print.typ(ty));
 
+let underdetermined_typ: Info.underdetermined_typ => string =
+  fun
+  | ProdExtensionUnderdetermined(tys) =>
+    prn(
+      "Cannot determine type of product extension with argument types: %s",
+      List.map(Print.typ, tys) |> String.concat(", "),
+    );
+
 let tpat_error: Info.error_tpat => string =
   fun
   | NotAVar(_) => "Not a valid type name" //TODO: elaborate

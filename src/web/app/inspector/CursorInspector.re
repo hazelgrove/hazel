@@ -362,8 +362,13 @@ let typ_ok_view = (~globals, cls: Cls.t, ok: Info.ok_typ) => {
 
   | TypeAlias(name, ty_lookup) => [
       view_type(Var(name) |> Typ.fresh),
-      text("is an alias for"),
+      text("is equal to"),
       view_type(ty_lookup),
+    ]
+  | WHNormalizedTo({unnormalized, whnormalized}) => [
+      view_type(unnormalized),
+      text("is equal to"),
+      view_type(whnormalized),
     ]
   | Variant(name, sum_ty) => [
       view_type(Var(name) |> Typ.fresh),
@@ -416,6 +421,17 @@ let typ_err_view = (~globals, ok: Info.error_typ) => {
   | WantProduct(ty) => [
       text("Expected a product type, found type"),
       view_type(ty),
+    ]
+  };
+};
+
+let underdetermined_typ_view =
+    (~globals, underdetermined: Info.underdetermined_typ) => {
+  let view_type = view_type(~globals);
+  switch (underdetermined) {
+  | ProdExtensionUnderdetermined(tys) => [
+      text("Cannot determine type of product extension with argument types:"),
+      ...ListUtil.join(text(","), List.map(view_type, tys)),
     ]
   };
 };
@@ -644,6 +660,7 @@ let rec pat_view =
 let typ_view = (~globals, cls: Cls.t, status: Info.status_typ) =>
   switch (status) {
   | NotInHole(ok) => div_ok(typ_ok_view(~globals, cls, ok))
+  | TypeUnderdetermined(ut) => div_ok(underdetermined_typ_view(~globals, ut))
   | InHole(err) => div_err(typ_err_view(~globals, err))
   };
 
