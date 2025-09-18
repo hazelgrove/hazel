@@ -375,5 +375,17 @@ let tests = (
         "(``=Int) ... (`label with spaces`=String)",
       )
     }),
+    test_case("Singleton unlabeled tuple", `Quick, () =>
+      check(
+        string,
+        "Singleton unlabeled tuple",
+        "(_=1)",
+        print_seg(
+          exp_to_segment(
+            IdTagged.FreshGrammar.Exp.(tuple([int(1)])),
+          ),
+        ),
+      )
+    ),
   ],
 );

@@ -227,6 +227,20 @@ let rec parenthesize =
   | TypFun(tp, e, n) =>
     TypFun(tp, parenthesize(e) |> paren_assoc_at(Precedence.fun_), n)
     |> rewrap
+  | Tuple([e]) when switch(e.term) {
+    | TupLabel(_) => false 
+    | _ => true
+    } =>
+    // Single-element tuples are printed as (_ = e)
+    let inner =
+      TupLabel(Deferral(OutsideAp) |> Exp.temp, parenthesize(e) |> paren_at(Precedence.prod))
+      |> rewrap;
+
+    if (already_paren) {
+      inner;
+    } else {
+      Parens(inner) |> Exp.fresh;
+    };
   | Tuple(es) =>
     let inner =
       Tuple(
