@@ -1,6 +1,7 @@
 let exercise : DerivationTree.spec =
   {
-    id = Haz3lcore.Id.mk ();
+    id =
+      Option.get (Haz3lcore.Id.of_string "f73cdb5d-76b5-4675-82cd-b7ccf757dd27");
     title = "Type Validation Derivation";
     module_name = "Ex_Type_Validation_Derivation";
     prompt = "";

@@ -51,7 +51,13 @@ let export_all = (~settings, ~instructor_mode, ~log) => {
 };
 
 let import_all =
-    (~import_log: string => unit, data, ~exercise_specs, ~tutorial_specs) => {
+    (
+      ~import_log: string => unit,
+      data,
+      ~exercise_specs,
+      ~derivation_spec,
+      ~tutorial_specs,
+    ) => {
   let all =
     try(data |> Yojson.Safe.from_string |> all_of_yojson) {
     | _ =>
@@ -76,6 +82,12 @@ let import_all =
     ~settings,
     all.exercise,
     ~exercise_specs,
+    ~instructor_mode,
+  );
+  DerivationsMode.Store.import(
+    ~settings,
+    all.derivation,
+    ~specs=derivation_spec,
     ~instructor_mode,
   );
   TutorialsMode.Store.import(

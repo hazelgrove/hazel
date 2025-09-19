@@ -1,6 +1,7 @@
 let exercise : DerivationTree.spec =
   {
-    id = Haz3lcore.Id.mk ();
+    id =
+      Option.get (Haz3lcore.Id.of_string "47ebca57-cc02-42ae-99aa-6afd31d15dba");
     title = "Closed Substitution";
     module_name = "Ex_Closed_Substitution";
     prompt = "";

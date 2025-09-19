@@ -1,6 +1,7 @@
 let exercise : DerivationTree.spec =
   {
-    id = Haz3lcore.Id.mk ();
+    id =
+      Option.get (Haz3lcore.Id.of_string "409f23b1-93e7-48e9-94b3-aed9810a06b2");
     title = "Task 7 of 7: Deriving";
     module_name = "t7";
     prompt = "Derive the following judgment.";

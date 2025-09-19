@@ -161,6 +161,7 @@ module Update = {
         ~import_log,
         data,
         ~exercise_specs=ExerciseSettings.exercises,
+        ~derivation_spec=DerivationSettings.exercises,
         ~tutorial_specs=TutorialSettings.lessons,
       );
       Store.load() |> return;

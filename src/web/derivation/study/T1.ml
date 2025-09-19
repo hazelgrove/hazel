@@ -1,6 +1,7 @@
 let exercise : DerivationTree.spec =
   {
-    id = Haz3lcore.Id.mk ();
+    id =
+      Option.get (Haz3lcore.Id.of_string "9f42f0b7-08a1-4753-9724-b9dc1d39d981");
     title = "Task 1 of 7: Transcription";
     module_name = "t1";
     prompt =

@@ -1,6 +1,7 @@
 let exercise : DerivationTree.spec =
   {
-    id = Haz3lcore.Id.mk ();
+    id =
+      Option.get (Haz3lcore.Id.of_string "bf42c3bf-f3aa-4e0e-b180-8df80e1aaa8f");
     title = "PairMap Derivation";
     module_name = "Ex_PairMap_Derivation";
     prompt =
