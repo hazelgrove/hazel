@@ -1,9 +1,8 @@
-let out : string * Haz3lcore.PersistentZipper.t =
+let out : string * Haz3lcore.PersistentSegment.t =
   ( "Projectors",
     {
-      zipper =
-        "((selection((focus Left)(content())(mode \
-         Normal)))(relatives((siblings(()((Secondary((id \
+      segment =
+        "((Secondary((id \
          14360834-8a77-4332-b076-46898bcd4e37)(content(Comment\"# _____  \
          _____    _____      _  _____  _____  ______ #\"))))(Secondary((id \
          6998ac14-1961-4827-adf1-6599df39e990)(content(Whitespace\"\\n\"))))(Secondary((id \
@@ -567,7 +566,7 @@ let out : string * Haz3lcore.PersistentZipper.t =
          f23907c7-6a6e-4d02-ae59-fb9021d0dfd0)(content(Whitespace\"\\n\"))))(Tile((id \
          eb14dc68-3f2a-44bf-93bc-51b72030cc67)(label(?))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
-         Exp))))))(shards(0))(children()))))))(ancestors())))(caret Outer))";
+         Exp))))))(shards(0))(children()))))";
       backup_text =
         "# _____  _____    _____      _  _____  _____  ______ #\n\
          #|     ||   _ |  |     |    | ||     ||     ||      |#\n\

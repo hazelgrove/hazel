@@ -26,12 +26,3 @@ let unpersist = (persisted: t, ~root) =>
     | Some(z) => z
     };
   };
-
-let serialize = (zipper: Zipper.t) => {
-  persist(zipper) |> yojson_of_t |> Yojson.Safe.to_string;
-};
-
-let deserialize = (data: string) => {
-  let persisted = data |> Yojson.Safe.from_string |> t_of_yojson;
-  unpersist(persisted);
-};

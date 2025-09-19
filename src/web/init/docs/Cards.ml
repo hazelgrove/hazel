@@ -1,9 +1,8 @@
-let out : string * Haz3lcore.PersistentZipper.t =
+let out : string * Haz3lcore.PersistentSegment.t =
   ( "Cards",
     {
-      zipper =
-        "((selection((focus Left)(content())(mode \
-         Normal)))(relatives((siblings(()((Secondary((id \
+      segment =
+        "((Secondary((id \
          4ae35bc0-09bd-4a32-8477-01f073316cb2)(content(Comment\"# PLAYING CARD \
          LITERALS #\"))))(Secondary((id \
          a4523575-b4ca-4c58-9cae-157401e9506e)(content(Whitespace\"\\n\"))))(Secondary((id \
@@ -1133,8 +1132,7 @@ let out : string * Haz3lcore.PersistentZipper.t =
          Show))\")))))))))))))(Secondary((id \
          fc6ee6a5-04c5-4949-8443-c2611113b4a8)(content(Whitespace\" \
          \")))))))))(Secondary((id \
-         85e39531-3aa9-4674-b0e4-544cd7172054)(content(Whitespace\"\\n\")))))))(ancestors())))(caret \
-         Outer))";
+         85e39531-3aa9-4674-b0e4-544cd7172054)(content(Whitespace\"\\n\")))))";
       backup_text =
         "# PLAYING CARD LITERALS #\n\n\
          type Suit = (Hearts + Diamonds + Clubs + Spades) in\n\

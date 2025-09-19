@@ -368,6 +368,13 @@ let rec rev_concat: (list('a), list('a)) => list('a) =
 let cross = (xs, ys) =>
   List.concat(List.map(x => List.map(y => (x, y), ys), xs));
 
+let rec intersperse = (sep, xs) =>
+  switch (xs) {
+  | [] => []
+  | [x] => [x]
+  | [x, ...xs] => [x, sep, ...intersperse(sep, xs)]
+  };
+
 let rec flat_intersperse = (sep, xss) =>
   switch (xss) {
   | [] => []
@@ -433,11 +440,9 @@ let rec remove_first_n = (n: int, xs: list('a)): list('a) => {
 let slice = (i: int, k: int, xs: list('x)): list('x) =>
   xs |> remove_first_n(i) |> truncate(k);
 
-let take_up_to_n = (n: int, xs: list('a)): list('a) =>
-  switch (split_n_opt(n, xs)) {
-  | Some((xs, _)) => xs
-  | None => xs
-  };
+// TODO Remove once List.take is available in ocaml 5.3
+let take = (n, xs: list('a)) =>
+  List.to_seq(xs) |> Seq.take(n) |> List.of_seq;
 
 /* Move the first element equal to x to the front of the list */
 let lift = (x: 'a, xs: list('a)): list('a) =>

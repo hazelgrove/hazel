@@ -26,23 +26,15 @@ let startup: PersistentData.t = {
       Cards.out,
       Probes.out,
       Livelits.out,
-      // GUIDEExpressiveProgramming.out,
-      // GUIDEComposingExpressions.out,
-      // GUIDEComputingEquationally.out,
-      // GUIDEVariables.out,
-      // GUIDECompositionality.out,
-      // GUIDEScope.out,
-      // GUIDEShadowing.out,
-      // GUIDEBoolsandTypes.out,
-      // GUIDEConditionals.out,
-      // GUIDEFunctions.out,
-      // TESTSTypesandStaticErrors.out,
     ]
-    |> List.map(((name, content)) =>
+    |> List.map(((name, content: PersistentSegment.t)) =>
          (
            name,
            {
-             editor: Editor.Model.mk_persistent(content, ~root=Exp),
+             editor:
+               content
+               |> PersistentSegment.to_persistent_zipper(~root=Exp)
+               |> Editor.Model.mk_persistent(~root=Exp),
              result: EvalResult.Model.init |> EvalResult.Model.persist,
            }: CellEditor.Model.persistent,
          )
