@@ -5,11 +5,9 @@ open Language;
 
 let max_column_length = 12;
 
-let table_of =
-    (any: Any.t): option((list(LabeledTuple.label), list(list(Exp.t)))) =>
-  switch (any) {
-  | Exp({term: ListLit(es), _}) =>
-    print_endline("Processing ListLit...");
+let table_from_exp = (exp: Exp.t) => {
+  switch (exp.term) {
+  | ListLit(es) =>
     let data: list(option((list(string), list(TermBase.exp_t)))) =
       List.map(
         e => {
@@ -55,8 +53,16 @@ let table_of =
 
       | _ => None
       };
-    | None => None
+    | _ => None
     };
+  | _ => None
+  };
+};
+
+let table_of =
+    (any: Any.t): option((list(LabeledTuple.label), list(list(Exp.t)))) =>
+  switch (any) {
+  | Exp(exp) => table_from_exp(exp)
   | _ => None
   };
 
@@ -152,11 +158,11 @@ let value_view = (_info: info, utility: utility, view_seg, exp) => {
 
 let table =
     (
-      info,
+      info: info,
       ~parent as _: external_action => Ui_effect.t(unit),
       (headers, rows): (list(LabeledTuple.label), list(list(Exp.t))),
       ~view_seg: (Sort.t, Segment.t) => Node.t,
-    ) =>
+    ) => {
   Node.table(
     ~attrs=[Attr.classes(["table"])],
     [
@@ -177,6 +183,7 @@ let table =
       ),
     ],
   );
+};
 
 module M: Projector = {
   [@deriving (show({with_path: false}), sexp, yojson)]
@@ -184,46 +191,39 @@ module M: Projector = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type action = unit;
 
-  let init = (any: Term.Any.t) =>
-    switch (table_of(any)) {
-    | Some(_) => Some()
-    | None => None
-    };
+  let init = (any: Term.Any.t) => Some();
 
   let focusable =
     Focusable.{
       pointer: None,
       keyboard: None,
     };
-  let dynamics = false;
+  let dynamics = true;
   let placeholder = (_, info) => {
-    let (header, rows): (list(string), list(list(TermBase.exp_t))) =
-      info |> get;
-    let max_header_length =
-      header |> List.map(String.length) |> List.fold_left((+), 0);
-    let max_row_length =
-      rows
-      |> List.map(row =>
-           row
-           |> List.map(e =>
-                Abbreviate.abbreviate_exp(~available=max_column_length, e)
-                |> snd
-              )
-           |> List.fold_left((+), 0, _)
-         )
-      |> List.fold_left(max, 0, _);
-    let max_length = max(max_header_length, max_row_length);
-
-    let num_rows = List.length(rows);
-    let num_cols = List.length(header);
     ProjectorCore.Shape.{
-      vertical: Block(min(num_rows + 1, 10)), // +1 for header row
+      vertical: Block(11), // +1 for header row
       /* +2 for left and right padding */
-      horizontal: 4 + max_length * 1 + num_cols * 2 // +2 for left and right padding
+      horizontal: 50 // +2 for left and right padding
     };
   };
   let update = (model, _, _) => model;
 
-  let view = (_, info, ~local as _, ~parent, ~view_seg: View.seg) =>
-    View.mk(table(info, ~view_seg, ~parent, info |> get));
+  let view = (_, info, ~local as _, ~parent, ~view_seg: View.seg) => {
+    let dynamics: list(Dynamics.Probe.Closure.t) =
+      info.dynamics |> Option.value(~default=[]);
+    let values =
+      List.map((c: Dynamics.Probe.Closure.t) => c.value, dynamics);
+
+    let v =
+      switch (values) {
+      | [] => Node.div([])
+      | [x, ..._] =>
+        switch (table_from_exp(x)) {
+        | Some((hd, tl)) => table(info, ~view_seg, ~parent, (hd, tl))
+        | _ => Node.div([])
+        }
+      };
+
+    View.mk(v);
+  };
 };
