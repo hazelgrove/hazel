@@ -34,6 +34,40 @@
     background-color: var(--df-hover-bg);
 }
 
+/* Closure Navigation Buttons in Table Header */
+.closure-nav-button {
+    cursor: pointer;
+    padding: 2px 6px;
+    margin: 0 4px;
+    border-radius: 3px;
+    background-color: var(--df-header-bg);
+    color: var(--BR2);
+    font-size: 14px;
+    transition: all 0.2s ease;
+    user-select: none;
+    display: inline-block;
+    vertical-align: middle;
+}
+
+.closure-nav-button:hover {
+    background-color: var(--df-hover-bg);
+    transform: scale(1.05);
+}
+
+.closure-nav-button:active {
+    transform: scale(0.95);
+}
+
+/* Ensure table header cells with buttons are properly aligned */
+.tableprobe th {
+    text-align: center;
+    vertical-align: middle;
+}
+
+.tableprobe th:has(.closure-nav-button) {
+    white-space: nowrap;
+}
+
 
 .projector.tableprobe {
     height: 100%;

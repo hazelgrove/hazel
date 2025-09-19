@@ -3,6 +3,16 @@ open Virtual_dom.Vdom;
 open ProjectorBase;
 open Language;
 
+let icon_button = (~tooltip="", icon_text, action) =>
+  Node.div(
+    ~attrs=[
+      Attr.classes(["icon", "closure-nav-button"]),
+      Attr.on_click(action),
+      Attr.title(tooltip),
+    ],
+    [Node.text(icon_text)],
+  );
+
 let max_column_length = 12;
 
 let table_from_exp = (exp: Exp.t) => {
@@ -156,19 +166,36 @@ let value_view = (_info: info, utility: utility, view_seg, exp) => {
   );
 };
 
-let table =
+let table_with_buttons =
     (
       info: info,
       ~parent as _: external_action => Ui_effect.t(unit),
       (headers, rows): (list(LabeledTuple.label), list(list(Exp.t))),
       ~view_seg: (Sort.t, Segment.t) => Node.t,
+      prev_button: option(Node.t),
+      next_button: option(Node.t),
     ) => {
+  let header_cells =
+    List.mapi(
+      (i, h) => {
+        let content =
+          switch (i, prev_button, next_button) {
+          | (0, Some(btn), _) => [btn, Node.text(h)]
+          | (i, _, Some(btn)) when i == List.length(headers) - 1 => [
+              Node.text(h),
+              btn,
+            ]
+          | _ => [Node.text(h)]
+          };
+        Node.th(content);
+      },
+      headers,
+    );
+
   Node.table(
     ~attrs=[Attr.classes(["table"])],
     [
-      Node.thead([
-        Node.tr(List.map(h => Node.th([Node.text(h)]), headers)),
-      ]),
+      Node.thead([Node.tr(header_cells)]),
       Node.tbody(
         List.map(
           row =>
@@ -233,38 +260,38 @@ module M: Projector = {
         let length = List.length(dynamics);
         let observed = Option.value(model, ~default=0) mod length;
         let closure = List.nth(dynamics, observed);
-        let table_node =
-          switch (table_from_exp(closure.value)) {
-          | Some((hd, tl)) => table(info, ~view_seg, ~parent, (hd, tl))
-          | _ => Node.div([Node.text("No table data")])
-          };
 
-        let buttons =
+        let (prev_button, next_button) =
           if (length <= 1) {
-            Node.div([]);
+            (None, None);
           } else {
-            Node.div(
-              ~attrs=[Attr.classes(["closure-buttons"])],
-              [
-                Node.button(
-                  ~attrs=[
-                    Attr.on_click(_ => local(Previous)),
-                    Attr.classes(["btn", "btn-secondary"]),
-                  ],
-                  [Node.text("Previous")],
+            (
+              Some(
+                icon_button(~tooltip="Previous closure", "⬅", _ =>
+                  local(Previous)
                 ),
-                Node.button(
-                  ~attrs=[
-                    Attr.on_click(_ => local(Next)),
-                    Attr.classes(["btn", "btn-secondary"]),
-                  ],
-                  [Node.text("Next")],
-                ),
-              ],
+              ),
+              Some(
+                icon_button(~tooltip="Next closure", "➡", _ => local(Next)),
+              ),
             );
           };
 
-        Node.div([buttons, table_node]);
+        let table_node =
+          switch (table_from_exp(closure.value)) {
+          | Some((hd, tl)) =>
+            table_with_buttons(
+              info,
+              ~view_seg,
+              ~parent,
+              (hd, tl),
+              prev_button,
+              next_button,
+            )
+          | _ => Node.div([Node.text("No table data")])
+          };
+
+        table_node;
       };
 
     View.mk(v);
