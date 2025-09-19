@@ -3,10 +3,7 @@ import HazelEmbed from "./components/HazelEmbed";
 import MessageDisplay from "./components/MessageDisplay";
 import DocGraph from "./components/DocGraph";
 import DocStateManager from "./components/DocStateManager";
-import type {
-  Pong,
-  Ping,
-} from "./types/messages";
+import type { Pong, Ping } from "./types/messages";
 import "./components/DocComponents.css";
 import type { HazelDoc } from "./types/delta";
 
@@ -16,8 +13,16 @@ type ParentFacingState = {
   state: HazelDoc;
 };
 
-type ParentFacingMessage = Ping | Pong | { t: "init"; message: string } | ParentFacingState;
-type ParentMessage = Ping | Pong | { t: "init"; message: string } | ParentFacingState;
+type ParentFacingMessage =
+  | Ping
+  | Pong
+  | { t: "init"; message: string }
+  | ParentFacingState;
+type ParentMessage =
+  | Ping
+  | Pong
+  | { t: "init"; message: string }
+  | ParentFacingState;
 
 interface MessageWithMetadata {
   message: ParentFacingMessage;
@@ -43,7 +48,10 @@ function App() {
     hazelRefs["hazel-1"].current = { sendMessage: sendMessageFn };
   };
 
-  const handleMessage = (message: ParentFacingMessage, sourceInstanceId: string) => {
+  const handleMessage = (
+    message: ParentFacingMessage,
+    sourceInstanceId: string,
+  ) => {
     const newMessage: MessageWithMetadata = {
       message,
       instanceId: sourceInstanceId,
@@ -52,39 +60,47 @@ function App() {
     setMessages((prevMessages) => [...prevMessages, newMessage]);
 
     switch (message.t) {
-        case "ping": {
-            const pongMessage: Pong = {
-                t: "pong",
-                message: `Pong response to ${sourceInstanceId}!`,
-            };
+      case "ping": {
+        const pongMessage: Pong = {
+          t: "pong",
+          message: `Pong response to ${sourceInstanceId}!`,
+        };
 
-            // Send the pong message back to the same instance that sent the ping
-            const hazelRef = hazelRefs[sourceInstanceId as keyof typeof hazelRefs];
-            if (hazelRef?.current) {
-              hazelRef.current.sendMessage(pongMessage);
-            } else {
-                console.error(`Cannot send pong: instance ${sourceInstanceId} not found`);
-            }
-            break;
+        // Send the pong message back to the same instance that sent the ping
+        const hazelRef = hazelRefs[sourceInstanceId as keyof typeof hazelRefs];
+        if (hazelRef?.current) {
+          hazelRef.current.sendMessage(pongMessage);
+        } else {
+          console.error(
+            `Cannot send pong: instance ${sourceInstanceId} not found`,
+          );
         }
-        case "pong": {
-          break;
-        }
-        case "init": {
-            console.log(`Received init from instance ${sourceInstanceId}:`, message);
-            break;
-        }
-        case "state": {
-          console.log(`Received state from instance ${sourceInstanceId}:`, message);
-          // HazelEmbed has already converted to HazelDoc format
-          setHazelState(message.state);
-          break;
-        }
-        default: {
-          const _exhaustiveCheck: never = message;
-          console.warn(`Unknown message type: ${(message as any).t}`);
-          return;
-        }
+        break;
+      }
+      case "pong": {
+        break;
+      }
+      case "init": {
+        console.log(
+          `Received init from instance ${sourceInstanceId}:`,
+          message,
+        );
+        break;
+      }
+      case "state": {
+        console.log(
+          `Received state from instance ${sourceInstanceId}:`,
+          message,
+        );
+        // HazelEmbed has already converted to HazelDoc format
+        setHazelState(message.state);
+        break;
+      }
+      default: {
+        const _exhaustiveCheck: never = message;
+        console.warn(`Unknown message type: ${(message as any).t}`);
+        return;
+      }
     }
   };
 
@@ -110,7 +126,7 @@ function App() {
       t: "state",
       state: state,
     };
-    
+
     const hazelRef = hazelRefs[instanceId as keyof typeof hazelRefs];
     if (hazelRef?.current) {
       hazelRef.current.sendMessage(editorStateMessage);
@@ -142,9 +158,9 @@ function App() {
           <DocGraph docState={hazelState} />
         </div>
         <div className="state-manager-section">
-          <DocStateManager 
-            currentState={hazelState} 
-            onLoadState={handleLoadState} 
+          <DocStateManager
+            currentState={hazelState}
+            onLoadState={handleLoadState}
           />
         </div>
         <div className="message-section">
