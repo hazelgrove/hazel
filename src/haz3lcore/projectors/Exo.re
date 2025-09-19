@@ -4,7 +4,8 @@ open Util;
 type kind =
   | ExoSlider
   | ExoBuilder
-  | ExoNool;
+  | ExoNool
+  | Petrinaut;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type size = {
@@ -74,6 +75,18 @@ let module_of_kind = (kind: kind): info =>
       size: {
         width: 680,
         height: 490,
+      },
+    }
+  | Petrinaut => {
+      kind,
+      prod: "https://hazel.petrinaut.org",
+      dev: "http://localhost:5173",
+      shape: Block,
+      // TODO: More specific syntax restriction
+      guard: _ => true,
+      size: {
+        width: 1050,
+        height: 590,
       },
     }
   };
