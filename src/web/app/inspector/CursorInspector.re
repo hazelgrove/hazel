@@ -294,7 +294,7 @@ let common_ok_view =
           | false => []
           | true => [text(" after reordering by labels ")]
           }
-        );
+        )
       }
     | (_, Ana(Consistent({ana, syn, _}))) =>
       (

@@ -633,12 +633,7 @@ and uexp_to_info_map =
       );
     | TupLabel({term: ExplicitNonlabel, _} as label, e) =>
       let (e, m) = go(~ana, e, m);
-      let (_, m) =
-        go(
-          ~label_sort=true,
-          label,
-          m,
-        );
+      let (_, m) = go(~label_sort=true, label, m);
       add(~self=Just(e.ty), ~co_ctx=e.co_ctx, m);
     | TupLabel(label, e) =>
       let (lab, e, m) =
