@@ -195,5 +195,6 @@ let go =
     | Some(z) => Ok(z)
     | None => Error(Cant_project)
     }
+  | DynCursor(a) => Ok(DynCursorPerform.perform(z, a))
   };
 };

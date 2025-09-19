@@ -73,6 +73,7 @@ module Update = {
              | Project(_)
              | Unselect(_)
              | Refractor(_)
+             | DynCursor(_)
              | Select(All) => false
              };
            },
@@ -377,6 +378,7 @@ module View = {
         Indicated.piece(model.editor.state.zipper),
         model.statics.info_map,
         dynamics,
+        model.editor.state.zipper.refractors.dyn_cursor,
         selected,
       );
     let refractors_model =
@@ -399,6 +401,7 @@ module View = {
           Indicated.piece(model.editor.state.zipper),
           model.statics.info_map,
           dynamics,
+          model.editor.state.zipper.refractors.dyn_cursor,
           selected,
         ),
       );

@@ -5,20 +5,44 @@ open Util;
  * static information gathering, but right now it specifically handles
  * closure gathering for probe projectors */
 
+module Cursor = {
+  [@deriving (show({with_path: false}), sexp, yojson, eq)]
+  type call_cursor = {
+    stack: Probe.call_stack,
+    index: int,
+  };
+
+  [@deriving (show({with_path: false}), sexp, yojson, eq)]
+  type t = {
+    call_cursor,
+    indicated_call: option(Id.t),
+    pinned_call: option(Probe.call_stack),
+  };
+
+  let init: t = {
+    call_cursor: {
+      stack: [],
+      index: (-1),
+    },
+    indicated_call: None,
+    pinned_call: None,
+  };
+};
+
 module Probe = {
   module Env = {
     /* To avoid unnecessary de/serialization from evaluation worker,
      * we refrain from retaining certain large un-educational values,
      * such as closures. Which values are made opaque can be modulated
      * via the below `elide` function */
-    [@deriving (show({with_path: false}), sexp, yojson)]
+    [@deriving (show({with_path: false}), sexp, yojson, eq)]
     type elided_value =
       | Opaque
       | Val(DHExp.t);
 
     /* A probe environment entry is a variable binding
      * along with its corresponding elided value */
-    [@deriving (show({with_path: false}), sexp, yojson)]
+    [@deriving (show({with_path: false}), sexp, yojson, eq)]
     type entry = {
       binding: Binding.t,
       value: elided_value,
@@ -26,7 +50,7 @@ module Probe = {
 
     /* A probe environment is a summarized version of the
      * dynamic environment of the probed expression */
-    [@deriving (show({with_path: false}), sexp, yojson)]
+    [@deriving (show({with_path: false}), sexp, yojson, eq)]
     type t = list(entry);
 
     /* Selectively elide dynamic information not currently
@@ -65,7 +89,7 @@ module Probe = {
    * partial information about the execution trace prior to
    * the creation of the closure */
   module Closure = {
-    [@deriving (show({with_path: false}), sexp, yojson)]
+    [@deriving (show({with_path: false}), sexp, yojson, eq)]
     type t = {
       closure_id: int, /* Primary ID (unique-ish) */
       syntax_id: Id.t, /* Syntax ID of probed expression */
@@ -131,7 +155,10 @@ module Probe = {
 module Info = {
   /* Collected closures for a given id */
   [@deriving (show({with_path: false}), sexp, yojson)]
-  type t = list(Probe.Closure.t);
+  type t = {
+    closures: list(Probe.Closure.t),
+    dyn_cursor: Cursor.t,
+  };
 };
 
 module Map = {

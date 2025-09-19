@@ -42,6 +42,12 @@ type select =
   | SetFocus(Direction.t);
 
 [@deriving (show({with_path: false}), sexp, yojson, eq)]
+type dyn_cursor =
+  | Capture(Language.Dynamics.Probe.Closure.t, option(Id.t))
+  | TogglePinCall(Language.Probe.call_stack)
+  | Reset;
+
+[@deriving (show({with_path: false}), sexp, yojson, eq)]
 type chooser =
   | Specific(ProjectorCore.Kind.t)
   | ChooseLivelit;
@@ -52,6 +58,7 @@ type chooser =
  * and from each projector's own internal action type */
 [@deriving (show({with_path: false}), sexp, yojson, eq)]
 type project =
+  | DynCursor(dyn_cursor)
   | SetIndicated(chooser) /* Project syntax at caret */
   | RemoveIndicated /* Remove projector at caret */
   | SetSyntax(Id.t, Base.segment) /* Set underlying syntax */
@@ -97,6 +104,7 @@ type t =
   | Put_down
   | Introduce
   | Refractor(refractor)
+  | DynCursor(dyn_cursor)
   | Dump;
 
 module Failure = {
@@ -145,8 +153,10 @@ let is_edit: t => bool =
     | SetIndicated(_)
     | RemoveIndicated => true
     | Focus(_)
+    | DynCursor(_)
     | Escape(_) => false
     }
+  | DynCursor(_) => false
   | Refractor(_) => true;
 
 /* Determines whether undo/redo skips action */
@@ -172,8 +182,10 @@ let is_historic: t => bool =
     | SetIndicated(_)
     | RemoveIndicated => true
     | Focus(_)
+    | DynCursor(_)
     | Escape(_) => false
     }
+  | DynCursor(_) => false
   | Refractor(_) => true;
 
 let prevent_in_read_only_editor = (a: t) =>
@@ -198,8 +210,10 @@ let prevent_in_read_only_editor = (a: t) =>
     | SetIndicated(_)
     | RemoveIndicated
     | Focus(_)
+    | DynCursor(_)
     | Escape(_) => false
     }
+  | DynCursor(_) => false
   | Refractor(_) => false
   };
 
@@ -232,4 +246,5 @@ let should_animate: t => bool =
   | Move(_)
   | Project(_)
   | Refractor(_)
+  | DynCursor(_)
   | Dump => true;

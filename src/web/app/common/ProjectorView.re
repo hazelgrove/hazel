@@ -68,6 +68,7 @@ module Model = {
         indicated: option(Indicated.piece),
         statics: Language.Statics.Map.t,
         dynamics: Language.Dynamics.Map.t,
+        dyn_cursor: Language.Dynamics.Cursor.t,
         editor_active: bool,
       ) => {
     List.filter_map(
@@ -91,7 +92,7 @@ module Model = {
             }
           | Some(m) => Some(m)
           };
-        let info = ProjectorInfo.mk_info(p, ~statics, ~dynamics);
+        let info = ProjectorInfo.mk_info(p, ~dyn_cursor, ~statics, ~dynamics);
         {
           p,
           info,
@@ -176,6 +177,7 @@ let handle = (id, action: external_action): Action.project =>
   | Remove => RemoveIndicated
   | Escape(d) => Escape(id, d)
   | SetSyntax(f) => SetSyntax(id, f)
+  | DynCursor(a) => DynCursor(a)
   };
 
 let offside_wrapper =

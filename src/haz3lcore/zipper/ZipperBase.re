@@ -16,24 +16,13 @@ module Refractor = {
     map: Map.t,
     pinned_term_ids: list(Id.t),
     ephemerals: Map.t,
+    dyn_cursor: Language.Dynamics.Cursor.t,
   };
-
-  type mapping = list((Id.t, Id.t));
-
-  // let mapping = (refractors: Map.t): mapping =>
-  //   refractors
-  //   |> Id.Map.to_list
-  //   |> List.map(((id, p: Base.projector)) => (id, p.id));
-
-  // let reverse_mapping = (refractors: Map.t): mapping =>
-  //   refractors
-  //   |> Id.Map.to_list
-  //   |> List.map(((id, p: Base.projector)) => (p.id, id));
-
   let init = {
     map: Id.Map.empty,
     pinned_term_ids: [],
     ephemerals: Id.Map.empty,
+    dyn_cursor: Language.Dynamics.Cursor.init,
   };
 };
 

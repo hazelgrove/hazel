@@ -171,29 +171,6 @@ let go =
       );
     | None => Ok(z)
     }
-
-  // let selection_ids = Selection.selection_ids(z.selection);
-  // let _selection_ids_with_refractors_on_them =
-  //   Id.Map.filter(
-  //     (id, _) => List.mem(id, selection_ids),
-  //     z.refractors.map,
-  //   )
-  //   |> Id.Map.bindings
-  //   |> List.map(((id, _)) => id);
-  // switch (Indicated.index(z)) {
-  // | Some(id) =>
-  //   let ids =
-  //     TermData.get_largest_terminal_term_ids(
-  //       id,
-  //       syntax.term_data,
-  //       syntax.measured,
-  //     )
-  //     |> Option.to_list
-  //     |> List.flatten
-  //     |> List.filter_map(Fun.id);
-  //   Ok(List.fold_left((z, id) => Refractors.add'(id, z), z, ids));
-  // | None => Ok(z)
-  // };
   | Refractor(ProbeJump) =>
     switch (
       {
@@ -228,6 +205,6 @@ let go =
     | Some(z) => Ok(z)
     | None => Error(Cant_move)
     }
-
+  | DynCursor(a) => Ok(DynCursorPerform.perform(z, a))
   | Dump => Ok(Dump.to_zipper(z))
   };

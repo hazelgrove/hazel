@@ -30,29 +30,51 @@ let utility: ProjectorBase.utility = {
 };
 
 let mk_info =
-    (p: Piece.projector, ~statics: Statics.Map.t, ~dynamics: Dynamics.Map.t)
+    (
+      p: Piece.projector,
+      ~dyn_cursor: Dynamics.Cursor.t,
+      ~statics: Statics.Map.t,
+      ~dynamics: Dynamics.Map.t,
+    )
     : ProjectorBase.info => {
   id: p.id,
   syntax: Piece.unparenthesize(p.syntax),
   statics: Statics.Map.lookup(p.id, statics),
-  dynamics: Dynamics.Map.lookup(p.id, dynamics),
+  dynamics:
+    switch (Dynamics.Map.lookup(p.id, dynamics)) {
+    | Some(closures) =>
+      Some({
+        closures,
+        dyn_cursor,
+      })
+    | None => None
+    },
   utility,
 };
 
 module ShapeMapSemantics = {
   let from_semantics =
-      (statics: Statics.Map.t, dynamics: Dynamics.Map.t, p: Base.projector)
+      (
+        dyn_cursor: Language.Dynamics.Cursor.t,
+        statics: Statics.Map.t,
+        dynamics: Dynamics.Map.t,
+        p: Base.projector,
+      )
       : ProjectorCore.Shape.t => {
     let (module P) = ProjectorInit.to_module(p.kind);
-    P.placeholder(p.model, mk_info(p, ~statics, ~dynamics));
+    P.placeholder(p.model, mk_info(p, ~dyn_cursor, ~statics, ~dynamics));
   };
 
   let mk =
       (
         proj_map: Id.Map.t(Base.projector),
+        refractors: ZipperBase.Refractor.t,
         statics: Statics.Map.t,
         dynamics: Dynamics.Map.t,
       )
       : Id.Map.t(ProjectorCore.Shape.t) =>
-    Id.Map.map(from_semantics(statics, dynamics), proj_map);
+    Id.Map.map(
+      from_semantics(refractors.dyn_cursor, statics, dynamics),
+      proj_map,
+    );
 };

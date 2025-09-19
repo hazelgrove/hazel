@@ -50,6 +50,7 @@ module Update = {
         Project(_) |
         Refractor(_) |
         Dump |
+        DynCursor(_) | //TODO(andrew): ?
         Introduce,
       )
     | DebugConsole(_)
