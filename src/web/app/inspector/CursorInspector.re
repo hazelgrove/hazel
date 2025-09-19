@@ -268,7 +268,6 @@ let common_ok_view =
       switch (syn.term) {
       | Label(l) => [label_view(l), text(" is a valid label")]
       | _ =>
-        print_endline("Here");
         [text(":"), view_type(syn)]
         @ [text("equals expected type")]
         @ (
