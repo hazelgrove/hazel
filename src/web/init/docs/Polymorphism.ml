@@ -1,9 +1,8 @@
-let out : string * Haz3lcore.PersistentZipper.t =
+let out : string * Haz3lcore.PersistentSegment.t =
   ( "Polymorphism",
     {
-      zipper =
-        "((selection((focus Left)(content())(mode \
-         Normal)))(relatives((siblings(()((Secondary((id \
+      segment =
+        "((Secondary((id \
          28724395-ea08-46df-bc33-e8638e48818a)(content(Comment\"# Polymorphism \
          #\"))))(Secondary((id \
          067efd4f-6736-4ee9-a92e-cb2df6235924)(content(Whitespace\"\\n\"))))(Secondary((id \
@@ -1441,8 +1440,7 @@ let out : string * Haz3lcore.PersistentZipper.t =
          \"))))(Tile((id \
          f2588d63-a57f-4e02-ba63-2f7c7e099483)(label(ex5))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
-         Exp))))))(shards(0))(children())))))))))))(ancestors())))(caret \
-         Outer))";
+         Exp))))))(shards(0))(children())))))))))";
       backup_text =
         "# Polymorphism #\n\n\
          # We can take types as parameters to type functions, #\n\

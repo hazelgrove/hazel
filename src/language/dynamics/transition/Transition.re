@@ -950,19 +950,31 @@ module Transition = (EV: EV_MODE) => {
         );
       let.wrap_closure _ = env;
       Indet;
-    | Asc(d, t) =>
-      let. _ = otherwise(env, d => Asc(d, t) |> rewrap)
-      and. d' = req_final(req(state, env), d => Asc(d, t) |> wrap_ctx, d);
-      switch (Ascriptions.transition(Asc(d', t) |> rewrap)) {
-      | Some(d) =>
+    | Asc(d', t) =>
+      switch (Ascriptions.transition(d)) {
+      | Some(d') =>
+        let. _ = otherwise(env, d);
         Step({
-          expr: d,
+          expr: d',
           state_update,
           kind: Ascription,
           is_value: false,
-        })
-      | None => Constructor
-      };
+        });
+      | None =>
+        let. _ = otherwise(env, d => Asc(d, t) |> rewrap)
+        and. d' =
+          req_final(req(state, env), d => Asc(d, t) |> wrap_ctx, d');
+        switch (Ascriptions.transition(Asc(d', t) |> rewrap)) {
+        | Some(d) =>
+          Step({
+            expr: d,
+            state_update,
+            kind: Ascription,
+            is_value: false,
+          })
+        | None => Constructor
+        };
+      }
     | Undefined =>
       let. _ = otherwise(env, d);
       Indet;
