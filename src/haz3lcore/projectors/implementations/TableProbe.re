@@ -68,7 +68,34 @@ let table_from_exp = (exp: Exp.t) => {
   | _ => None
   };
 };
-
+let drop_column = (info: info, column: string): Base.segment => {
+  IdTagged.FreshGrammar.(
+    switch (
+      info.utility.lift_syntax(
+        fun
+        | Exp({term: exp_term, _}) =>
+          Exp(
+            Exp.(
+              ap(
+                Reverse,
+                exp_term |> DHExp.temp,
+                ap(
+                  Forward,
+                  var("omit_labels"),
+                  tuple([deferral(InAp), label(column)]),
+                ),
+              )
+            ),
+          )
+        | _ => failwith("TableProj: drop_column: not an expression"),
+        info.syntax,
+      )
+    ) {
+    | Some(s) => s
+    | None => failwith("TableProj: drop_column: lift failed")
+    }
+  );
+};
 let table_of =
     (any: Any.t): option((list(LabeledTuple.label), list(list(Exp.t)))) =>
   switch (any) {
@@ -166,26 +193,27 @@ let value_view = (_info: info, utility: utility, view_seg, exp) => {
   );
 };
 
-let table_with_buttons =
+let table_with_drop_buttons =
     (
       info: info,
-      ~parent as _: external_action => Ui_effect.t(unit),
+      ~parent: external_action => Ui_effect.t(unit),
       (headers, rows): (list(LabeledTuple.label), list(list(Exp.t))),
       ~view_seg: (Sort.t, Segment.t) => Node.t,
       prev_button: option(Node.t),
       next_button: option(Node.t),
+      make_drop_button: string => Node.t,
     ) => {
   let header_cells =
     List.mapi(
       (i, h) => {
+        let drop_button = make_drop_button(h);
+        let base_content = [Node.text(h), drop_button];
         let content =
           switch (i, prev_button, next_button) {
-          | (0, Some(btn), _) => [btn, Node.text(h)]
-          | (i, _, Some(btn)) when i == List.length(headers) - 1 => [
-              Node.text(h),
-              btn,
-            ]
-          | _ => [Node.text(h)]
+          | (0, Some(btn), _) => [btn] @ base_content
+          | (i, _, Some(btn)) when i == List.length(headers) - 1 =>
+            base_content @ [btn]
+          | _ => base_content
           };
         Node.th(content);
       },
@@ -218,7 +246,8 @@ module M: Projector = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type action =
     | Next
-    | Previous;
+    | Previous
+    | DropColumn(string);
 
   let init = (any: Term.Any.t) => Some(None);
 
@@ -236,15 +265,22 @@ module M: Projector = {
     };
   };
   let update = (model, info, action) => {
-    let dynamics = info.dynamics |> Option.value(~default=[]);
-    let length = List.length(dynamics);
-    if (length == 0) {
-      model;
-    } else {
-      let current = Option.value(model, ~default=0);
-      switch (action) {
-      | Next => Some((current + 1) mod length)
-      | Previous => Some((current + length - 1) mod length)
+    switch (action) {
+    | DropColumn(column) =>
+      // This action will be handled by the parent through the view
+      model
+    | _ =>
+      let dynamics = info.dynamics |> Option.value(~default=[]);
+      let length = List.length(dynamics);
+      if (length == 0) {
+        model;
+      } else {
+        let current = Option.value(model, ~default=0);
+        switch (action) {
+        | Next => Some((current + 1) mod length)
+        | Previous => Some((current + length - 1) mod length)
+        | DropColumn(_) => model // Already handled above
+        };
       };
     };
   };
@@ -277,16 +313,22 @@ module M: Projector = {
             );
           };
 
+        let make_drop_button = (column_name: string) =>
+          icon_button(~tooltip="Drop " ++ column_name ++ " column", "×", _ =>
+            parent(SetSyntax(drop_column(info, column_name)))
+          );
+
         let table_node =
           switch (table_from_exp(closure.value)) {
           | Some((hd, tl)) =>
-            table_with_buttons(
+            table_with_drop_buttons(
               info,
               ~view_seg,
               ~parent,
               (hd, tl),
               prev_button,
               next_button,
+              make_drop_button,
             )
           | _ => Node.div([Node.text("No table data")])
           };
