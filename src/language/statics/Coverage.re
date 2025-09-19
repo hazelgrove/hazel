@@ -115,6 +115,7 @@ module Ctr = {
     | Rec(_) => all_ctrs_of_typ(Typ.unroll(ty))
     | Prod(elts) =>
       Finite(Map.singleton(tuple_ctr(List.length(elts)), elts))
+    | ProofOf(_) => Infinite
     | TupLabel(_, ty) => Finite(Map.singleton(tuple_ctr(1), [ty]))
     | List(elt_ty) =>
       Finite(
@@ -132,7 +133,7 @@ module Ctr = {
     | Atom(String)
     | DrvTyp(_)
     | Arrow(_)
-    | Forall(_)
+    | Poly(_)
     | Var(_) => Infinite
     | Parens(_)
     | Label(_) =>

@@ -18,6 +18,18 @@ let combine = (x: t('a), y: t('b)): t(('a, 'b)) =>
     NewValue((x, y))
   };
 
+let combine_list = (xs: list(t('a))): t(list('a)) =>
+  List.fold_left(
+    (acc, x) =>
+      switch (acc, x) {
+      | (OldValue(acc), OldValue(x)) => OldValue([x, ...acc])
+      | (OldValue(acc) | NewValue(acc), OldValue(x) | NewValue(x)) =>
+        NewValue([x, ...acc])
+      },
+    OldValue([]),
+    xs |> List.rev,
+  );
+
 let make_old = (x: t('a)): t('a) =>
   switch (x) {
   | OldValue(x)
@@ -46,6 +58,12 @@ let is_new = (x: t('a)): bool =>
   switch (x) {
   | OldValue(_) => false
   | NewValue(_) => true
+  };
+
+let old_if_same = (~eq: ('a, 'a) => bool=(==), x: 'a, y: t('a)): t('a) =>
+  switch (y) {
+  | NewValue(y) when eq(x, y) => OldValue(x)
+  | _ => NewValue(x)
   };
 
 // ================================================================================
@@ -133,6 +151,14 @@ let saved_to_option = get_saved_opt;
 
 // ================================================================================
 // Helper functions:
+
+let old_if_same' =
+    (~eq: ('a, 'a) => bool=(==), x: saved('a), y: t('a)): t('a) =>
+  switch (y, x) {
+  | (NewValue(y), Calculated(x)) when eq(y, x) => OldValue(y)
+  | (NewValue(y), _) => NewValue(y)
+  | (OldValue(y), _) => OldValue(y)
+  };
 
 let to_option = (x: t(option('a))): option(t('a)) => {
   switch (x) {

@@ -12,8 +12,13 @@ type model'('stepper) = {
   inner_exp: Calc.saved(Exp.t),
   step: 'stepper,
   last_exp: Calc.saved(Exp.t),
-  hypo_points: Calc.saved(list(Exp.t)),
+  inductive_hypotheses: Calc.saved(list(Exp.t)),
+  case_eq: Calc.saved((Var.t, Exp.t)),
+  added_ctx: Calc.saved((list(Ctx.entry), list(Var.t))),
   inner_ctx: Calc.saved(Ctx.t),
+  added_env: Calc.saved(list((Var.t, Exp.t))),
+  inner_env: Calc.saved(ClosureEnvironment.t),
+  constraint_: Calc.saved(option(Coverage.Constraint.t)),
 };
 
 [@deriving (show({with_path: false}), sexp, yojson)]
@@ -45,8 +50,13 @@ module F = (Stepper: STEPPER) => {
     inner_exp: Calc.Pending,
     step: Stepper.init,
     last_exp: Calc.Pending,
-    hypo_points: Calc.Pending,
+    inductive_hypotheses: Calc.Pending,
+    case_eq: Calc.Pending,
+    added_ctx: Calc.Pending,
     inner_ctx: Calc.Pending,
+    added_env: Calc.Pending,
+    inner_env: Calc.Pending,
+    constraint_: Calc.Pending,
   };
 
   let persist = (model: model) => {
@@ -63,8 +73,13 @@ module F = (Stepper: STEPPER) => {
       inner_exp: Calc.Pending,
       step: Stepper.unpersist(p.stepper),
       last_exp: Calc.Pending,
-      hypo_points: Calc.Pending,
+      inductive_hypotheses: Calc.Pending,
+      case_eq: Calc.Pending,
       inner_ctx: Calc.Pending,
+      added_ctx: Calc.Pending,
+      added_env: Calc.Pending,
+      inner_env: Calc.Pending,
+      constraint_: Calc.Pending,
     };
   };
 
@@ -98,11 +113,13 @@ module F = (Stepper: STEPPER) => {
       (
         ~settings: Calc.t(CoreSettings.t),
         ~elab_scrut: Calc.t(Exp.t),
-        ~scrut_ty: Calc.t(Typ.t),
         ~scrut_co_ctx: Calc.t(CoCtx.t),
-        ~ctx: Calc.t(Ctx.t),
+        ~scrut_ty: Calc.t(Typ.t),
         ~exp: Calc.t(Exp.t),
+        ~ctx: Calc.t(Ctx.t),
+        ~env: Calc.t(ClosureEnvironment.t),
         ~state: Calc.t(EvaluatorState.t),
+        ~ana: Calc.t(Typ.t),
         model: model,
       ) => {
     let pattern =
@@ -120,6 +137,7 @@ module F = (Stepper: STEPPER) => {
         ~is_dynamic_term=true,
         model.pattern,
       );
+
     let elab_pattern =
       Calc.set(
         ~eq=Pat.fast_equal,
@@ -127,6 +145,7 @@ module F = (Stepper: STEPPER) => {
         |> ProofHacks.remove_wrapping_function,
         model.elab_pattern,
       );
+
     let inner_exp =
       model.inner_exp
       |> {
@@ -143,46 +162,217 @@ module F = (Stepper: STEPPER) => {
           exp,
         );
       };
-    let hypo_points =
-      model.hypo_points
+
+    let case_eq =
+      model.case_eq
       |> {
         open Calc.Syntax;
         let.calc elab_pattern = elab_pattern
+        and.calc elab_scrut = elab_scrut
+        and.calc ctx = ctx
+        and.calc env = env;
+        let var_name =
+          Var.free_name(
+            "case_eq",
+            List.map(
+              (e: Ctx.var_entry) => e.name,
+              Ctx.get_var_entries(ctx),
+            ),
+          );
+        (
+          var_name,
+          BinOp(
+            Poly(Equals),
+            elab_scrut,
+            elab_pattern |> ProofHacks.pat_to_exp,
+          )
+          |> Exp.fresh
+          |> Exp.substitute_closures(ClosureEnvironment.map_of(env)),
+        );
+      };
+
+    let inductive_hypotheses =
+      model.inductive_hypotheses
+      |> {
+        open Calc.Syntax;
+        let.calc elab_pattern = elab_pattern
+        and.calc elab_scrut = elab_scrut
+        and.calc scrut_co_ctx = scrut_co_ctx
+        and.calc exp = exp
         and.calc scrut_ty = scrut_ty;
         ProofHacks.get_inductive_hypotheses(
           CodeEditable.Model.get_statics(pattern).info_map,
           scrut_ty,
           elab_pattern,
         )
-        |> List.map(v => Exp.fresh(Var(v)));
+        |> List.map(h =>
+             ProofHacks.replace_exp(
+               elab_scrut,
+               scrut_co_ctx,
+               h |> ProofHacks.pat_to_exp,
+               h |> Pat.bindings |> CoCtx.of_bindings,
+               exp,
+             )
+           );
       };
+
+    let added_ctx =
+      model.added_ctx
+      |> {
+        open Calc.Syntax;
+        let.calc inductive_hypotheses = inductive_hypotheses
+        and.calc ctx = ctx
+        and.calc env = env
+        and.calc (case_eq_name, case_eq_exp) = case_eq;
+
+        let case_eq: Ctx.entry =
+          VarEntry({
+            name: case_eq_name,
+            id: Id.mk(),
+            typ: Typ.fresh(ProofOf(case_eq_exp)),
+            custom_statics: None,
+          });
+
+        let (hypo_entries: list(Ctx.entry), ih_names: list(Var.t)) =
+          inductive_hypotheses
+          |> List.map(e =>
+               Typ.fresh(
+                 ProofOf(
+                   e
+                   |> Exp.substitute_closures(ClosureEnvironment.map_of(env)),
+                 ),
+               )
+             )
+          |> List.fold_left_map(
+               ((acc, ih_names), ty) => {
+                 let name =
+                   Var.free_name(
+                     "ih",
+                     List.map(
+                       (e: Ctx.var_entry) => e.name,
+                       acc @ Ctx.get_var_entries(ctx),
+                     ),
+                   );
+                 let var_entry =
+                   Ctx.{
+                     name,
+                     id: Id.mk(),
+                     typ: ty,
+                     custom_statics: None,
+                   };
+                 let entry = Ctx.VarEntry(var_entry);
+                 (([var_entry, ...acc], [name, ...ih_names]), entry);
+               },
+               ([], []),
+             )
+          |> ((((_, ih_names), hypo_entries)) => (hypo_entries, ih_names));
+        ([case_eq] @ hypo_entries, ih_names);
+      };
+
     let inner_ctx =
       model.inner_ctx
       |> {
         open Calc.Syntax;
-        let.calc elab_pattern = elab_pattern
+        let.calc ctx = ctx
+        and.calc elab_pattern = elab_pattern
         and.calc scrut_ty = scrut_ty
-        and.calc ctx = ctx;
-        ProofHacks.dhpat_extend_ctx(elab_pattern, scrut_ty, ctx)
-        |> Option.value(~default=ctx);
+        and.calc (added_ctx, _) = added_ctx;
+        let ctx = List.fold_left(Ctx.extend, ctx, added_ctx |> List.rev);
+        let ctx =
+          ProofHacks.dhpat_extend_ctx(elab_pattern, scrut_ty, ctx)
+          |> Option.value(~default=ctx);
+        ctx;
       };
-    let (stepper, last_exp) =
+
+    let added_env =
+      model.added_env
+      |> {
+        open Calc.Syntax;
+        let.calc (_, ih_names) = added_ctx
+        and.calc inductive_hypotheses = inductive_hypotheses
+        and.calc (case_eq_name, case_eq_exp) = case_eq;
+        [(case_eq_name, Exp.fresh(ProofObject(case_eq_exp)))]
+        @ List.map2(
+            (ih_name, ih_exp) => (ih_name, Exp.fresh(ProofObject(ih_exp))),
+            ih_names,
+            inductive_hypotheses,
+          );
+      };
+
+    print_endline(
+      "added_env_length:"
+      ++ string_of_int(List.length(Calc.get_value(added_env))),
+    );
+
+    let inner_env =
+      model.inner_env
+      |> {
+        open Calc.Syntax;
+        let.calc env = env
+        and.calc added_env = added_env
+        and.calc elab_pattern = elab_pattern;
+        let variables = Pat.bindings(elab_pattern);
+        env
+        |> ClosureEnvironment.update_env(
+             List.fold_left(
+               Environment.extend,
+               _,
+               added_env
+               @ List.map(
+                   (v: Binding.t) => (v.name, Exp.fresh(Var(v.name))),
+                   variables,
+                 ),
+             ),
+           );
+      };
+
+    let (stepper, last_exp, validity) =
       Stepper.calculate(
         ~settings, // TODO: this is a little ugly
         ~ctx=inner_ctx,
         ~exp=inner_exp,
+        ~env=inner_env,
         ~state,
+        ~ana,
         model.step,
       );
-    {
-      pattern,
-      elab_pattern: elab_pattern |> Calc.save,
-      inner_exp: inner_exp |> Calc.save,
-      hypo_points: hypo_points |> Calc.save,
-      step: stepper,
-      last_exp: last_exp |> Calc.save,
-      inner_ctx: inner_ctx |> Calc.save,
-    };
+
+    let constraint_ =
+      {
+        open OptUtil.Syntax;
+        let statics = CodeWithStatics.Model.get_statics(pattern);
+        let* info =
+          Statics.Map.lookup(
+            elab_pattern |> Calc.get_value |> Pat.rep_id,
+            statics.info_map,
+          );
+        let* info_pat =
+          switch (info) {
+          | InfoPat(info_pat) => Some(info_pat)
+          | _ => None
+          };
+        Some(Info.pat_constraint(info_pat));
+      }
+      |> Calc.set(_, model.constraint_);
+
+    (
+      {
+        pattern,
+        elab_pattern: elab_pattern |> Calc.save,
+        inner_exp: inner_exp |> Calc.save,
+        inductive_hypotheses: inductive_hypotheses |> Calc.save,
+        case_eq: case_eq |> Calc.save,
+        step: stepper,
+        last_exp: last_exp |> Calc.save,
+        added_ctx: added_ctx |> Calc.save,
+        inner_ctx: inner_ctx |> Calc.save,
+        constraint_: constraint_ |> Calc.save,
+        added_env: added_env |> Calc.save,
+        inner_env: inner_env |> Calc.save,
+      },
+      constraint_,
+      validity,
+    );
   };
 
   let get_cursor_info = (~focus: focus, model: model) => {
@@ -247,8 +437,9 @@ module F = (Stepper: STEPPER) => {
       );
     let pattern_editor =
       WebUtil.div_c("inline-editor-wrapper", [pattern_editor]);
+    module StepperTargetBox = StepperTargetBox.F(Stepper);
     let stepper_view =
-      Stepper.view(
+      StepperTargetBox.target_box(
         ~globals,
         ~take_focus=s => take_focus(Stepper(s)),
         ~hide_stepper,
@@ -260,6 +451,8 @@ module F = (Stepper: STEPPER) => {
           },
         ~is_toplevel=false,
         model.step,
+        Exp.fresh(Atom(Bool(true))),
+        model.last_exp |> Calc.get_saved_exc(~print="last_exp not calculated"),
       );
     WebUtil.div_c(
       "induction-case",
@@ -272,6 +465,38 @@ module F = (Stepper: STEPPER) => {
             pattern_editor,
             WebUtil.Node.text(" : "),
           ],
+        ),
+        WebUtil.div_c(
+          "induction-case-hypotheses",
+          List.filter_map(
+            fun
+            | Ctx.VarEntry({name: _, id: _, typ, _}) => {
+                open OptUtil.Syntax;
+                let* rule = ProofRule.typ_to_rule(typ);
+                let conclusion = ProofRule.conclusion_exp(rule);
+                let code =
+                  CodeViewable.view_any(
+                    ~globals,
+                    ~settings=
+                      Haz3lcore.ExpToSegment.Settings.of_core(
+                        ~inline=true,
+                        ~fold_fn_bodies=`Text,
+                        globals.settings.core,
+                      ),
+                    Exp(conclusion),
+                  );
+                Some(
+                  WebUtil.div_c(
+                    "induction-case-hypothesis",
+                    [WebUtil.Node.text("assume "), code],
+                  ),
+                );
+              }
+            | _ => None,
+            model.added_ctx
+            |> Calc.get_saved_exc(~print="InductionCase not calculated")
+            |> fst,
+          ),
         ),
       ]
       @ stepper_view,

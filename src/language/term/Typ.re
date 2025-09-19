@@ -20,7 +20,8 @@ type cls =
   | Constructor // Constructor does not exist on Typ.term it's being used here as a hack for the cursors inspector
   | Parens
   | Rec
-  | Forall;
+  | Poly
+  | ProofOf;
 
 include TermBase.Typ;
 
@@ -92,7 +93,8 @@ let cls_of_term: Grammar.typ_term('a) => cls =
   | Parens(_) => Parens
   | Sum(_) => Sum
   | Rec(_) => Rec
-  | Forall(_) => Forall;
+  | Poly(_) => Poly
+  | ProofOf(_) => ProofOf;
 
 let show_cls: cls => string =
   fun
@@ -113,7 +115,8 @@ let show_cls: cls => string =
   | Sum => "Sum type"
   | Parens => "Parenthesized type"
   | Rec => "Recursive type"
-  | Forall => "Forall type";
+  | Poly => "Type quantifier"
+  | ProofOf => "Proof type";
 
 let rec is_arrow = (typ: t) => {
   switch (typ.term) {
@@ -128,7 +131,8 @@ let rec is_arrow = (typ: t) => {
   | Prod(_)
   | Var(_)
   | Sum(_)
-  | Forall(_)
+  | Poly(_)
+  | ProofOf(_)
   | Rec(_) => false
   };
 };
@@ -137,6 +141,7 @@ let is_atom = (ty: t): bool =>
   switch (ty.term) {
   | Atom(_) => true
   | DrvTyp(_)
+  | ProofOf(_)
   | Parens(_)
   | TupLabel(_)
   | Arrow(_)
@@ -146,7 +151,7 @@ let is_atom = (ty: t): bool =>
   | Prod(_)
   | Var(_)
   | Sum(_)
-  | Forall(_)
+  | Poly(_)
   | Rec(_) => false
   };
 
@@ -155,7 +160,8 @@ let rec has_fun = (typ: t) =>
   | Parens(typ) => has_fun(typ)
   | TupLabel(_, typ) => has_fun(typ)
   | Arrow(_)
-  | Forall(_) => true
+  | Poly(_)
+  | ProofOf(_) => true
   | Unknown(_)
   | Atom(_)
   | DrvTyp(_)
@@ -173,11 +179,12 @@ let rec has_fun = (typ: t) =>
   | Prod(tys) => List.exists(has_fun, tys)
   };
 
-let rec is_forall = (typ: t) => {
+let rec is_poly = (typ: t) => {
   switch (typ.term) {
   | Parens(typ)
-  | TupLabel(_, typ) => is_forall(typ)
-  | Forall(_) => true
+  | TupLabel(_, typ) => is_poly(typ)
+  | Poly(_) => true
+  | ProofOf(_)
   | Unknown(_)
   | Atom(_)
   | DrvTyp(_)
@@ -255,8 +262,9 @@ let rec free_vars = (~bound=[], ty: t): list(Var.t) =>
   | Prod(tys) => List.concat_map(free_vars(~bound), tys)
   | TupLabel(_, ty) => free_vars(~bound, ty)
   | Rec(x, ty)
-  | Forall(x, ty) =>
+  | Poly(x, ty) =>
     free_vars(~bound=(x |> TPat.tyvar_of_utpat |> Option.to_list) @ bound, ty)
+  | ProofOf(_) => []
   };
 
 let rec vars = (ty: t): list(Var.t) =>
@@ -281,9 +289,10 @@ let rec vars = (ty: t): list(Var.t) =>
   | Rec(_, ty) => vars(ty)
   | List(ty) => vars(ty)
   | Parens(ty) => vars(ty)
-  | Forall({term: Var(x), _}, ty) =>
+  | Poly({term: Var(x), _}, ty) =>
     vars(ty) |> List.filter((x': string) => x' != x)
-  | Forall(_, ty) => vars(ty)
+  | Poly(_, ty) => vars(ty)
+  | ProofOf(_) => []
   | Label(_) => []
   | TupLabel(_, ty) => vars(ty)
   };
@@ -337,9 +346,10 @@ let rec num_nodes = (ty: t): int => {
   | Rec(_, ty) => 1 + num_nodes(ty)
   | List(ty) => 1 + num_nodes(ty)
   | Parens(ty) => 1 + num_nodes(ty)
-  | Forall(_, ty) => 1 + num_nodes(ty)
+  | Poly(_, ty) => 1 + num_nodes(ty)
   | Label(_) => 1
   | TupLabel(_, ty) => 1 + num_nodes(ty)
+  | ProofOf(_) => 10 // TODO[Matt]: this is a hack to make sure that Yes types are not counted as small
   };
 };
 
@@ -367,7 +377,8 @@ let rec count_unknowns = (ty: t): int =>
   | Rec(_, ty) => count_unknowns(ty)
   | List(ty) => count_unknowns(ty)
   | Parens(ty) => count_unknowns(ty)
-  | Forall(_, ty) => count_unknowns(ty)
+  | Poly(_, ty) => count_unknowns(ty)
+  | ProofOf(_) => 0
   | Label(_) => 0
   | TupLabel(_, ty) => count_unknowns(ty)
   };
@@ -384,7 +395,8 @@ let rec contains_sum_or_var = (ty: t): bool =>
   | Rec(_, ty) => contains_sum_or_var(ty)
   | List(ty) => contains_sum_or_var(ty)
   | Parens(ty) => contains_sum_or_var(ty)
-  | Forall(_, ty) => contains_sum_or_var(ty)
+  | Poly(_, ty) => contains_sum_or_var(ty)
+  | ProofOf(_) => false
   | Label(_) => false
   | TupLabel(_, ty) => contains_sum_or_var(ty)
   };
@@ -441,7 +453,7 @@ let rec join = (~resolve=false, ctx: Ctx.t, ty1: t, ty2: t): option(t) => {
     let+ ty_body = join(~resolve, ctx, ty1', ty2);
     Rec(tp1, ty_body) |> temp;
   | (Rec(_), _) => None
-  | (Forall(x1, ty1), Forall(x2, ty2)) =>
+  | (Poly(x1, ty1), Poly(x2, ty2)) =>
     let ty1' =
       switch (TPat.tyvar_of_utpat(x2)) {
       | Some(x2) => subst(Var(x2) |> temp, x1, ty1)
@@ -449,14 +461,14 @@ let rec join = (~resolve=false, ctx: Ctx.t, ty1: t, ty2: t): option(t) => {
       };
     let ctx = Ctx.extend_dummy_tvar(ctx, x2);
     let+ ty_body = join(~resolve, ctx, ty1', ty2);
-    Forall(x2, ty_body) |> temp;
+    Poly(x2, ty_body) |> temp;
   /* Note for above: there is no danger of free variable capture as
      subst itself performs capture avoiding substitution. However this
      may generate internal type variable names that in corner cases can
      be exposed to the user. We preserve the variable name of the
      second type to preserve synthesized type variable names, which
      come from user annotations. */
-  | (Forall(_), _) => None
+  | (Poly(_), _) => None
   | (Atom(c1), Atom(c2)) when c1 == c2 => Some(ty1)
   | (Atom(_), _) => None
   | (DrvTyp(d1), DrvTyp(d2)) when d1 == d2 => Some(ty1)
@@ -494,6 +506,9 @@ let rec join = (~resolve=false, ctx: Ctx.t, ty1: t, ty2: t): option(t) => {
     let+ ty = join'(ty1, ty2);
     List(ty) |> temp;
   | (List(_), _) => None
+  | (ProofOf(e1), ProofOf(e2)) =>
+    TermBase.Exp.fast_equal(e1, e2) ? Some(ty1) : None
+  | (ProofOf(_), _) => None
   };
 };
 
@@ -510,7 +525,8 @@ let rec match_synswitch = (t1: t, t2: t) => {
   | (DrvTyp(_), _)
   | (Label(_), _)
   | (Var(_), _)
-  | (Rec(_), _) => t1
+  | (Rec(_), _)
+  | (ProofOf(_), _) => t1
   // These might
   | (List(ty1), List(ty2)) => List(match_synswitch(ty1, ty2)) |> rewrap1
   | (List(_), _) => t1
@@ -530,9 +546,9 @@ let rec match_synswitch = (t1: t, t2: t) => {
       ConstructorMap.match_synswitch(match_synswitch, equal, sm1, sm2);
     Sum(sm') |> rewrap1;
   | (Sum(_), _) => t1
-  // HACK[Matt]: The only possible forall is `Forall Syn -> Syn`
-  | (Forall(_), Forall(_)) => t2
-  | (Forall(_), _) => t1
+  // HACK[Matt]: The only possible poly is `Poly Syn -> Syn`
+  | (Poly(_), Poly(_)) => t2
+  | (Poly(_), _) => t1
   };
 };
 
@@ -604,8 +620,9 @@ let rec normalize = (~rec_counter=0, ctx: Ctx.t, ty: t): t => {
        as in current implementation Recs do not occur in the
        surface syntax, so we won't try to jump to them. */
     Rec(tpat, normalize(Ctx.extend_dummy_tvar(ctx, tpat), ty)) |> rewrap
-  | Forall(name, ty) =>
-    Forall(name, normalize(Ctx.extend_dummy_tvar(ctx, name), ty)) |> rewrap
+  | Poly(name, ty) =>
+    Poly(name, normalize(Ctx.extend_dummy_tvar(ctx, name), ty)) |> rewrap
+  | ProofOf(_) => ty // TODO[Matt]: we might want to elaborate this?
   };
 };
 
@@ -624,16 +641,16 @@ let matched_arrow = (ctx, ty) =>
        ~default=(Unknown(Internal) |> temp, Unknown(Internal) |> temp),
      );
 
-let rec matched_forall_strict = (ctx, ty) =>
+let rec matched_poly_strict = (ctx, ty) =>
   switch (term_of(weak_head_normalize(ctx, ty))) {
-  | Parens(ty) => matched_forall_strict(ctx, ty)
-  | Forall(t, ty) => Some((Some(t), ty))
+  | Parens(ty) => matched_poly_strict(ctx, ty)
+  | Poly(t, ty) => Some((Some(t), ty))
   | Unknown(SynSwitch) => Some((None, Unknown(SynSwitch) |> temp))
   | _ => None
   };
 
-let matched_forall = (ctx, ty) =>
-  matched_forall_strict(ctx, ty)
+let matched_poly = (ctx, ty) =>
+  matched_poly_strict(ctx, ty)
   |> Option.value(~default=(None, Unknown(Internal) |> temp));
 
 let rec get_labels = (ctx, ty): list(option(string)) => {
@@ -763,7 +780,8 @@ let rec is_syn = (ty: t): bool =>
   | Label(_)
   | Var(_)
   | Rec(_)
-  | Forall(_)
+  | Poly(_)
+  | ProofOf(_)
   | List(_)
   | Arrow(_)
   | Prod(_)
@@ -780,7 +798,8 @@ let rec is_ana_atom = (ty: t) =>
   | Label(_)
   | Var(_)
   | Rec(_)
-  | Forall(_)
+  | Poly(_)
+  | ProofOf(_)
   | List(_)
   | Arrow(_)
   | Prod(_)
@@ -793,7 +812,8 @@ let rec is_syn_plus = (ty: t): bool =>
   | Parens(x) => is_syn_plus(x)
   | Unknown(SynSwitch) => true
   | Arrow(t1, t2) => is_syn(t1) && is_syn_plus(t2)
-  | Forall(_, t) => is_syn(t)
+  | Poly(_, t) => is_syn(t)
+  | ProofOf(_)
   | Unknown(_)
   | Atom(_)
   | DrvTyp(_)
@@ -815,9 +835,10 @@ let rec needs_parens = (ty: t): bool =>
   | DrvTyp(_)
   | TupLabel(_, _)
   | List(_) /* is already wrapped in [] */
+  | ProofOf(_)
   | Var(_) => false
   | Rec(_, _)
-  | Forall(_, _)
+  | Poly(_, _)
   | Arrow(_, _)
   | Prod(_)
   | Sum(_) => true /* disambiguate between (A + B) -> C and A + (B -> C) */
@@ -870,8 +891,9 @@ let rec pretty_print = (ty: t): string =>
   | TupLabel(label, t) => pretty_print(label) ++ "=" ++ pretty_print(t)
   | Rec(tv, t) =>
     "rec " ++ pretty_print_tvar(tv) ++ " -> " ++ pretty_print(t)
-  | Forall(tv, t) =>
-    "forall " ++ pretty_print_tvar(tv) ++ " -> " ++ pretty_print(t)
+  | Poly(tv, t) =>
+    "poly " ++ pretty_print_tvar(tv) ++ " -> " ++ pretty_print(t)
+  | ProofOf(_e) => "yes <e> indeed"
   }
 and ctr_pretty_print =
   fun

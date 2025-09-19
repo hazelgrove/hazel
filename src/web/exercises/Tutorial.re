@@ -322,6 +322,8 @@ let rec append_exp = (e1: Language.Exp.t, e2: Language.Exp.t): Language.Exp.t =>
   | BinOp(_)
   | BuiltinFun(_)
   | Asc(_)
+  | ProofObject(_)
+  | Forall(_)
   | Match(_) => {
       term: Seq(e1, e2),
       annotation: {
@@ -348,6 +350,14 @@ let rec append_exp = (e1: Language.Exp.t, e2: Language.Exp.t): Language.Exp.t =>
     let ebody' = append_exp(ebody, e2);
     {
       term: Let(p, edef, ebody'),
+      annotation: {
+        ids: Language.IdTagged.ids(e1),
+      },
+    };
+  | Theorem(p, edef, ebody) =>
+    let ebody' = append_exp(ebody, e2);
+    {
+      term: Theorem(p, edef, ebody'),
       annotation: {
         ids: Language.IdTagged.ids(e1),
       },

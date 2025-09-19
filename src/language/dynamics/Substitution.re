@@ -52,6 +52,23 @@ let rec subst_var = (d1: DHExp.t, x: Var.t, d2: DHExp.t): DHExp.t => {
         subst_var(d1, x, d4);
       };
     Let(dp, d3, d4) |> rewrap;
+  | Theorem(dp, d3, d4) =>
+    let d4 =
+      if (binds_var(x, dp)) {
+        d4;
+      } else {
+        subst_var(d1, x, d4);
+      };
+    Theorem(dp, subst_var(d1, x, d3), d4) |> rewrap;
+  | ProofObject(typ) => ProofObject(typ) |> rewrap // TODO[Matt]: we should probably substitute into types now
+  | Forall(dp, d3) =>
+    let d3 =
+      if (binds_var(x, dp)) {
+        d3;
+      } else {
+        subst_var(d1, x, d3);
+      };
+    Forall(dp, d3) |> rewrap;
   | FixF(y, d3, env) =>
     let env' = Option.map(subst_var_env(d1, x), env);
     let d3 =
@@ -164,29 +181,30 @@ let rec subst_var = (d1: DHExp.t, x: Var.t, d2: DHExp.t): DHExp.t => {
 }
 
 and subst_var_env =
-    (d1: DHExp.t, x: Var.t, env: ClosureEnvironment.t): ClosureEnvironment.t => {
-  Environment.foldo(
-    ((x', d': DHExp.t), map) => {
-      let d' =
-        switch (DHExp.term_of(d')) {
-        /* Substitute each previously substituted binding into the
-         * fixpoint. */
-        | FixF(_) =>
-          map
-          |> Environment.foldo(
-               ((x'', d''), d) => subst_var(d'', x'', d),
-               d',
-             )
-        | _ => d'
-        };
-
-      /* Substitute. */
-      let d' = subst_var(d1, x, d');
-      Environment.extend(map, (x', d'));
-    },
-    Environment.empty,
-  )
-  |> ClosureEnvironment.update_env(_, env);
+    (_d1: DHExp.t, _x: Var.t, env: ClosureEnvironment.t): ClosureEnvironment.t => {
+  // Environment.foldo(
+  //   ((x', d': DHExp.t), map) => {
+  //     let d' =
+  //       switch (DHExp.term_of(d')) {
+  //       /* Substitute each previously substituted binding into the
+  //        * fixpoint. */
+  //       | FixF(_) =>
+  //         map
+  //         |> Environment.foldo(
+  //              ((x'', d''), d) => subst_var(d'', x'', d),
+  //              d',
+  //            )
+  //       | _ => d'
+  //       };
+  //     /* Substitute. */
+  //     let d' = subst_var(d1, x, d');
+  //     Environment.extend(map, (x', d'));
+  //   },
+  //   Environment.empty,
+  // )
+  // |> ClosureEnvironment.update_env(_, env);
+  // We don't need to substitute into closures, since closures should just contain values, which can't be bound variables.
+  env;
 }
 
 and subst_var_filter =

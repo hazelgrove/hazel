@@ -365,6 +365,16 @@ let rec rev_concat: (list('a), list('a)) => list('a) =
     };
   };
 
+let rec unzip3 =
+        (lst: list(('a, 'b, 'c))): (list('a), list('b), list('c)) => {
+  switch (lst) {
+  | [] => ([], [], [])
+  | [(a, b, c), ...tail] =>
+    let (as_, bs, cs) = unzip3(tail);
+    ([a, ...as_], [b, ...bs], [c, ...cs]);
+  };
+};
+
 let cross = (xs, ys) =>
   List.concat(List.map(x => List.map(y => (x, y), ys), xs));
 
@@ -502,4 +512,13 @@ let map_with_history = (f: (list('y), 'x) => 'y, xs: list('x)): list('y) => {
     };
   };
   aux([], xs);
+};
+
+let assoc_opt_by = (eq, key, assoc) => {
+  let rec find = lst =>
+    switch (lst) {
+    | [] => None
+    | [(k, v), ...rest] => eq(key, k) ? Some(v) : find(rest)
+    };
+  find(assoc);
 };

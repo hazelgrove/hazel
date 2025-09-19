@@ -15,10 +15,18 @@ type status =
 
 //[Matt] Long-term we probably don't need state in the stepper.
 
-let get_status: (~settings: CoreSettings.t, Exp.t, EvaluatorState.t) => status; //[Matt] This should probably take an env argument eventually
+let get_status:
+  (~settings: CoreSettings.t, Exp.t, ClosureEnvironment.t, EvaluatorState.t) =>
+  status; //[Matt] This should probably take an env argument eventually
 
 let refresh_step:
-  (~settings: CoreSettings.t, Exp.t, EvaluatorState.t, persistent) =>
+  (
+    ~settings: CoreSettings.t,
+    Exp.t,
+    ClosureEnvironment.t,
+    EvaluatorState.t,
+    persistent
+  ) =>
   option((FilterAction.action, step));
 
 let persist: step => persistent;

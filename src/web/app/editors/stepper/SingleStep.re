@@ -78,8 +78,11 @@ module F =
         ~hidden: Calc.saved(bool),
         ~exp: Calc.t(Exp.t),
         ~ctx as _: Calc.t(Ctx.t),
+        ~env: Calc.t(ClosureEnvironment.t),
         ~state: Calc.t(EvaluatorState.t),
         ~editor as _: Calc.t(CodeSelectable.Model.t),
+        ~info_map as _,
+        ~ana as _,
         model: model,
       ) => {
     let {persistent_evalobj, evalobj, next_exp, next_state} = model;
@@ -89,11 +92,13 @@ module F =
       |> {
         let.calc settings = settings
         and.calc exp = exp
+        and.calc env = env
         and.calc state = state;
         let+ (filter_action, eo) =
           EvaluatorStep.refresh_step(
             ~settings,
             exp,
+            env,
             state,
             persistent_evalobj,
           );
@@ -124,6 +129,7 @@ module F =
       },
       hidden,
       Some((next_exp, next_state)),
+      Calc.OldValue(Some(true)),
     );
   };
 

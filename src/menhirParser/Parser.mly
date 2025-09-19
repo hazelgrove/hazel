@@ -10,7 +10,7 @@ open AST
 %token E_EXP
 %token TILDE
 %token NAMED_FUN
-%token FORALL
+%token POLY
 %token REC
 %token UNDEF
 %token <string> PROJECTOR_INVOKE
@@ -243,7 +243,7 @@ typ:
     | UNKNOWN; INTERNAL { UnknownType(Internal) }
     | QUESTION { UnknownType(EmptyHole) }
     | UNIT { TupleType([]) }
-    | FORALL; a = tpat; DASH_ARROW; t = typ { ForallType(a, t) }
+    | POLY; a = tpat; DASH_ARROW; t = typ { PolyType(a, t) }
     | t = tupleType { t }
     | OPEN_SQUARE_BRACKET; t = typ; CLOSE_SQUARE_BRACKET { ArrayType(t) }
     | t1 = typ; DASH_ARROW; t2 = typ { ArrowType(t1, t2) }

@@ -2,6 +2,7 @@ open Util;
 open Language;
 open Haz3lcore;
 open StepInterface;
+open Calc.Syntax;
 
 /* Types are defined outside the functor to make it
    easier to use them in other files. */
@@ -18,6 +19,8 @@ type model'('stepper) = {
   result: Calc.saved(Exp.t),
   result_state: Calc.saved(EvaluatorState.t),
   join_exp: Calc.saved(Exp.t),
+  is_exhaustive: Calc.saved(bool),
+  validity: Calc.saved(option(bool)),
 };
 
 [@deriving (show({with_path: false}), sexp, yojson)]
@@ -65,6 +68,8 @@ let init = (~exp: option(Exp.t)=?, ()) => {
     result: Calc.Pending,
     result_state: Calc.Pending,
     join_exp: Calc.Pending,
+    is_exhaustive: Calc.Pending,
+    validity: Calc.Pending,
   };
 };
 
@@ -111,6 +116,8 @@ module F =
       result: Calc.Pending,
       result_state: Calc.Pending,
       join_exp: Calc.Pending,
+      is_exhaustive: Calc.Pending,
+      validity: Calc.Pending,
     };
   };
 
@@ -169,8 +176,11 @@ module F =
         ~hidden: Calc.saved(bool),
         ~exp: Calc.t(Exp.t),
         ~ctx: Calc.t(Ctx.t),
+        ~env: Calc.t(ClosureEnvironment.t),
         ~state: Calc.t(EvaluatorState.t),
         ~editor as _,
+        ~info_map as _,
+        ~ana: Calc.t(Typ.t),
         model: model,
       ) => {
     let {
@@ -182,6 +192,8 @@ module F =
       result: _,
       result_state: _,
       join_exp,
+      is_exhaustive,
+      validity,
     }: model = model;
     let scrut =
       CodeEditable.Update.calculate(
@@ -225,19 +237,22 @@ module F =
         };
       Calc.set(self_co_ctx, scrut_co_ctx);
     };
-    let cases =
+    let (cases, constraints, validities) =
       List.map(
         InductionCase.calculate(
           ~settings,
           ~scrut_ty,
-          ~elab_scrut,
           ~scrut_co_ctx,
+          ~elab_scrut,
           ~ctx,
+          ~env,
           ~exp,
           ~state,
+          ~ana,
         ),
         cases,
-      );
+      )
+      |> ListUtil.unzip3;
 
     let new_join_exp =
       List.fold_left(
@@ -261,6 +276,34 @@ module F =
         join_exp,
       );
 
+    let is_exhaustive =
+      is_exhaustive
+      |> {
+        let.calc constraints = Calc.combine_list(constraints)
+        and.calc ctx = ctx
+        and.calc scrut_ty = scrut_ty;
+        let constraints = List.filter_map(Fun.id, constraints);
+        Coverage.check(constraints, Typ.normalize(ctx, scrut_ty)).
+          is_exhaustive;
+      };
+
+    let validity =
+      validity
+      |> {
+        let.calc validities = Calc.combine_list(validities)
+        and.calc is_exhaustive = is_exhaustive;
+        List.fold_left(
+          (v1, v2) =>
+            switch (v1, v2) {
+            | (Some(true), Some(true)) => Some(true)
+            | (Some(false), Some(false)) => Some(false)
+            | (_, _) => None
+            },
+          is_exhaustive ? Some(true) : None,
+          validities,
+        );
+      };
+
     let result = exp |> Calc.save;
     let result_state = state |> Calc.save;
 
@@ -274,9 +317,12 @@ module F =
         result,
         result_state,
         join_exp: join_exp |> Calc.save,
+        is_exhaustive: is_exhaustive |> Calc.save,
+        validity: validity |> Calc.save,
       },
       hidden |> Calc.set(false),
-      Some((join_exp, state)),
+      Some((Calc.OldValue(Exp.fresh(Atom(Bool(true)))), state)),
+      validity,
     ));
   };
 
@@ -323,7 +369,7 @@ module F =
         ~is_toplevel as _: bool,
         _: model,
       ) =>
-    WebUtil.Node.text("Case Analysis");
+    WebUtil.Node.text("Induction");
 
   let view_content =
       (
@@ -385,12 +431,16 @@ module F =
       WebUtil.div_c(
         "induction-scrut",
         [
-          WebUtil.Node.text("Cases on: "),
+          WebUtil.Node.text("Induction on: "),
           WebUtil.div_c("inline-editor-wrapper", [scrut_editor]),
         ],
       ),
     ]
     @ cases
-    @ [add_case_button];
+    @ [add_case_button]
+    @ [
+      model.is_exhaustive |> Calc.get_saved_exc(~print="exhaustive")
+        ? WebUtil.Node.text("exhaustive") : WebUtil.Node.text("inexhaustive"),
+    ];
   };
 };

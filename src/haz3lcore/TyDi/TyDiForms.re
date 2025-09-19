@@ -26,7 +26,7 @@ module Typ = {
     ("fun" ++ leading_expander, Arrow(unk, unk) |> Typ.fresh),
     (
       "typfun" ++ leading_expander,
-      Forall(Var("") |> TPat.fresh, unk) |> Typ.fresh,
+      Poly(Var("") |> TPat.fresh, unk) |> Typ.fresh,
     ),
     ("test" ++ leading_expander, Prod([]) |> Typ.fresh),
     ("of_jdmt" ++ leading_expander, unk),

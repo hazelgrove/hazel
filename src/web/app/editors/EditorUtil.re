@@ -15,6 +15,7 @@ let rec append_exp = (e1: Language.Exp.t, e2: Language.Exp.t): Language.Exp.t =>
   | Fun(_)
   | TypFun(_)
   | FixF(_)
+  | Forall(_)
   | Tuple(_)
   | TupLabel(_)
   | Label(_)
@@ -35,10 +36,11 @@ let rec append_exp = (e1: Language.Exp.t, e2: Language.Exp.t): Language.Exp.t =>
   | BinOp(_)
   | BuiltinFun(_)
   | Asc(_)
+  | ProofObject(_)
   | Match(_) => {
       term: Seq(e1, e2),
       annotation: {
-        ids: [Language.Id.mk()],
+        ids: [Haz3lcore.Id.mk()],
       },
     }
   | Seq(e11, e12) =>
@@ -61,6 +63,14 @@ let rec append_exp = (e1: Language.Exp.t, e2: Language.Exp.t): Language.Exp.t =>
     let ebody' = append_exp(ebody, e2);
     {
       term: Let(p, edef, ebody'),
+      annotation: {
+        ids: Language.IdTagged.ids(e1),
+      },
+    };
+  | Theorem(p, thm, ebody) =>
+    let ebody' = append_exp(ebody, e2);
+    {
+      term: Theorem(p, thm, ebody'),
       annotation: {
         ids: Language.IdTagged.ids(e1),
       },

@@ -19,7 +19,7 @@ let settings =
   ExpToSegment.Settings.{
     inline: true,
     fold_case_clauses: false,
-    fold_fn_bodies: false,
+    fold_fn_bodies: `NoFold,
     hide_fixpoints: false,
     show_filters: false,
     show_unknown_as_hole: false,

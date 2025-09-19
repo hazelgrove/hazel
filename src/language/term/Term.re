@@ -151,7 +151,7 @@ module Pat = {
     | Probe(pat, _)
     | TupLabel(_, pat) => get_fun_var(pat)
     | Asc(pat, t1) =>
-      if (Typ.is_arrow(t1) || Typ.is_forall(t1)) {
+      if (Typ.is_arrow(t1) || Typ.is_poly(t1)) {
         get_var(pat) |> Option.map(var => var);
       } else {
         None;
@@ -314,6 +314,9 @@ module Exp = {
     | Dot
     | Var
     | Let
+    | Theorem
+    | ProofObject
+    | Forall
     | FixF
     | TyAlias
     | Use
@@ -380,6 +383,9 @@ module Exp = {
     | Dot(_) => Dot
     | Var(_) => Var
     | Let(_) => Let
+    | Theorem(_) => Theorem
+    | ProofObject(_) => ProofObject
+    | Forall(_) => Forall
     | FixF(_) => FixF
     | TyAlias(_) => TyAlias
     | Use(_) => Use
@@ -433,6 +439,9 @@ module Exp = {
     | Dot => "Dot operator"
     | Var => "Variable reference"
     | Let => "Let expression"
+    | Theorem => "Theorem expression"
+    | ProofObject => "Proof placeholder"
+    | Forall => "Forall expression"
     | FixF => "Fixpoint operator"
     | TyAlias => "Type Alias definition"
     | Use => "Specify number format to use"
@@ -517,6 +526,9 @@ module Exp = {
     | TupleExtension(_)
     | Var(_)
     | Let(_)
+    | Theorem(_)
+    | ProofObject(_)
+    | Forall(_)
     | FixF(_)
     | TyAlias(_)
     | Use(_)
@@ -582,6 +594,9 @@ module Exp = {
       | BuiltinFun(_)
       | Var(_)
       | Let(_)
+      | Theorem(_)
+      | ProofObject(_)
+      | Forall(_)
       | FixF(_)
       | TyAlias(_)
       | Use(_)
@@ -645,6 +660,9 @@ module Exp = {
       | TypFun(_)
       | Var(_)
       | Let(_)
+      | Theorem(_)
+      | ProofObject(_)
+      | Forall(_)
       | Filter(_)
       | TyAlias(_)
       | Use(_)
@@ -701,7 +719,11 @@ module Exp = {
             | Some(e) =>
               e
               |> replace_all_ids
-              |> substitute_closures(env, old_bound_vars, new_bound_vars)
+              |> substitute_closures(
+                   Environment.empty,
+                   old_bound_vars,
+                   new_bound_vars,
+                 )
             | None =>
               Var(
                 List.mem(x, old_bound_vars)
@@ -791,7 +813,21 @@ module Exp = {
               None,
             )
             |> rewrap;
+          | Forall(p, e) =>
+            let pat_bound_vars = Pat.bound_vars(p);
+            Forall(
+              p,
+              substitute_closures(
+                env |> Environment.without_keys(pat_bound_vars),
+                pat_bound_vars @ old_bound_vars,
+                pat_bound_vars @ new_bound_vars,
+                e,
+              ),
+            )
+            |> rewrap;
           // Other cases: recurse
+          | Theorem(_)
+          | ProofObject(_)
           | Invalid(_)
           | EmptyHole
           | MultiHole(_)

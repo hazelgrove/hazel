@@ -82,7 +82,7 @@ let rec transition = (~recursive=false, d: DHExp.t): option(DHExp.t) => {
         )
         |> DHExp.fresh,
       )
-    | (TypFun(tp, e, v), Forall(tp', t')) =>
+    | (TypFun(tp, e, v), Poly(tp', t')) =>
       let new_ty: Typ.t =
         switch (TPat.tyvar_of_utpat(tp)) {
         | Some(tyvar) => Var(tyvar) |> Typ.temp
@@ -99,7 +99,7 @@ let rec transition = (~recursive=false, d: DHExp.t): option(DHExp.t) => {
     | (If(e, e1, e2), t) =>
       Some(
         If(
-          recur(e),
+          recur(Asc(e, t |> Typ.temp) |> DHExp.fresh),
           recur(Asc(e1, t |> Typ.temp) |> DHExp.fresh),
           recur(Asc(e2, t |> Typ.temp) |> DHExp.fresh),
         )
@@ -139,60 +139,9 @@ let rec transition = (~recursive=false, d: DHExp.t): option(DHExp.t) => {
     | (Constructor(_, Some(Some(t))), t')
         when Typ.is_consistent(Ctx.empty, Typ.unroll(t), t' |> Typ.temp) =>
       Some(e)
+    | (ProofObject(e1), ProofOf(e2)) when Exp.fast_equal(e1, e2) =>
+      Some(ProofObject(e1) |> DHExp.fresh)
     | (Test(_), Prod([])) => Some(e)
-    // These are non-value cases we're handling to process ascriptions as early as possible
-    | (BinOp(bin_op, _, _), _) =>
-      switch (Operators.semantics_of_bin_op(bin_op)) {
-      | DefinedPoly(Equals | NotEquals)
-          when Typ.is_consistent(Ctx.empty, t, Atom(Bool) |> Typ.temp) =>
-        Some(e)
-      | Defined(_, _, ty_out, _)
-          when
-            Typ.is_consistent(
-              Ctx.empty,
-              t,
-              Atom(Atom.cls_of_kind(ty_out)) |> Typ.temp,
-            ) =>
-        Some(e)
-      | Undefined(_)
-      | DefinedPoly(_)
-      | Defined(_) => None
-      }
-    | (UnOp(un_op, _), _) =>
-      switch (Operators.semantics_of_un_op(un_op)) {
-      | Defined(_, ty_out, _)
-          when
-            Typ.is_consistent(
-              Ctx.empty,
-              t,
-              Atom(Atom.cls_of_kind(ty_out)) |> Typ.temp,
-            ) =>
-        Some(e)
-      | Undefined(_)
-      | Defined(_) => None
-      }
-    | (ListConcat(d1, d2), List(_)) =>
-      Some(
-        ListConcat(
-          recur(Asc(d1, t) |> DHExp.fresh),
-          recur(Asc(d2, t) |> DHExp.fresh),
-        )
-        |> DHExp.fresh,
-      )
-    | (Let(p, e1, e2), _) =>
-      Some(Let(p, e1, Asc(e2, t) |> DHExp.fresh) |> DHExp.fresh)
-    | (Seq(e1, e2), _) =>
-      Some(Seq(e1, Asc(e2, t) |> DHExp.fresh) |> DHExp.fresh)
-    | (Parens(e), _) =>
-      Some(Parens(Asc(e, t) |> DHExp.fresh) |> DHExp.fresh)
-    // We _could_ do this, but it would be a bit weird
-    | (Use(_), _) // I'm scaredto do Use because the type-directed literals might make this look weird in the stepper
-    | (BuiltinFun(_), _)
-    | (FixF(_), _)
-    | (TypAp(_), _)
-    | (Filter(_), _)
-    | (TyAlias(_), _)
-    | (Asc(_), _) => None
     // These are non-value cases we don't want to handle
     | (EmptyHole, _)
     | (DynamicErrorHole(_), _)
@@ -208,11 +157,26 @@ let rec transition = (~recursive=false, d: DHExp.t): option(DHExp.t) => {
     | (LivelitName(_), _)
     | (Probe(_, _), _)
     | (TupleExtension(_, _), _)
+    // We _could_ do this, but it would be a bit weird
+    | (Let(_), _)
+    | (Theorem(_), _)
+    | (Use(_), _)
+    | (BinOp(_), _)
+    | (Forall(_), _)
+    | (UnOp(_), _)
+    | (BuiltinFun(_), _)
+    | (FixF(_), _)
+    | (TypAp(_), _)
+    | (Seq(_), _)
+    | (Filter(_), _)
+    | (Parens(_), _)
+    | (TyAlias(_), _)
+    | (ListConcat(_), _)
+    | (Asc(_), _) => None
     // These are handled above and must have the wrong type
     | (Atom(_), _)
     | (DrvExp(_), _)
     | (ListLit(_), _)
-    | (ListConcat(_), _)
     | (TupLabel(_), _)
     | (Tuple(_), _)
     | (Fun(_), _)
@@ -220,6 +184,7 @@ let rec transition = (~recursive=false, d: DHExp.t): option(DHExp.t) => {
     | (Test(_), _)
     | (HintedTest(_), _)
     | (Cons(_), _)
+    | (ProofObject(_), _)
     | (Constructor(_), _) => None
     }
   | _ => None

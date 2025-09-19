@@ -85,7 +85,8 @@ type exp =
   | TupleExtensionRequiresTuples /* Want two Tuples, found not-tuples */
   | LabelNotFound(LabeledTuple.label, list(LabeledTuple.label)) /* Currently used by the dot operator for a label not found */
   | BadOperator(string) /* Invalid operator, continues with undefined behavior */
-  | BadLivelitModel(Typ.t); /* Livelit model type is not valid */
+  | BadLivelitModel(Typ.t) /* Livelit model type is not valid */
+  | BadTheorem(Typ.t); /* Theorem pattern is not of the form p : t */
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type pat =
@@ -140,6 +141,7 @@ let typ_of_exp: exp => option(Typ.t) =
   | InvalidUseMode({inner_typ, _}) => Some(inner_typ)
   | IsLivelitName({exp_t, _}) => Some(exp_t)
   | BadLivelitModel(typ) => Some(typ)
+  | BadTheorem(typ) => Some(typ)
   | BuiltinError(ToLvsMissingLabelsOnTuple(typ)) => Some(typ)
   | BuiltinError(ProjectLabelsMissingLabels(_))
   | BuiltinError(MissingLabels(_) | PivotLabelIsNotString(_))

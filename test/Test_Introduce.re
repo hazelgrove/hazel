@@ -179,7 +179,7 @@ let tests =
             option(exp),
             "Function",
             Some(Exp.(typ_fun(TPat.empty_hole(), empty_hole(), None))),
-            introduce_expression(Typ.(forall(TPat.var("a"), var("a")))),
+            introduce_expression(Typ.(poly(TPat.var("a"), var("a")))),
           )
         }),
         test_case("String", `Quick, () => {

@@ -42,7 +42,12 @@ let exp_idx = (e1: Exp.t, e2: Exp.t) => {
     )
   ) {
   | exception (Found(_)) => n^
-  | _ => failwith("exp_idx: e1 not found in e2")
+  | _ =>
+    failwith(
+      "exp_idx: e1 not found in e2 (found "
+      ++ string_of_int(n^)
+      ++ " matches)",
+    )
   };
 };
 
@@ -223,22 +228,45 @@ let dhpat_extend_ctx = (dhpat: DHPat.t, ty: Typ.t, ctx: Ctx.t): option(Ctx.t) =>
   List.fold_left((ctx, entry) => Ctx.extend(ctx, entry), ctx, l);
 };
 
-let rec get_inductive_hypotheses = (m: Statics.Map.t, t: Typ.t, p: Pat.t) => {
-  switch (p |> Pat.term_of) {
+/* Returns all sub-pattern of the original pattern that
+       1. Have the same type as the original pattern
+       2. Are not the original pattern itself.
+   */
+
+let rec get_inductive_hypotheses = (m, t, pat) => {
+  switch (pat |> Pat.term_of) {
+  | _ when Typ.fast_equal(t, Typ.temp(Unknown(Internal))) => []
   | Invalid(_) => []
   | EmptyHole => []
   | MultiHole(_) => []
   | Wild => []
   | Atom(_) => []
   | ListLit(xs) =>
-    List.concat(List.map(get_inductive_hypotheses(m, t, _), xs))
+    List.concat(List.map(get_inductive_hypotheses_inner(m, t, _), xs))
   | Constructor(_) => []
   | Cons(e1, e2) =>
-    get_inductive_hypotheses(m, t, e1) @ get_inductive_hypotheses(m, t, e2)
-  | Var(x) =>
+    get_inductive_hypotheses_inner(m, t, e1)
+    @ get_inductive_hypotheses_inner(m, t, e2)
+  | Var(_) => []
+  | Tuple(xs) =>
+    List.concat(List.map(get_inductive_hypotheses_inner(m, t, _), xs))
+  | Parens(e) => get_inductive_hypotheses_inner(m, t, e)
+  | Ap(e1, e2) =>
+    get_inductive_hypotheses_inner(m, t, e1)
+    @ get_inductive_hypotheses_inner(m, t, e2)
+  | Asc(e, _) => get_inductive_hypotheses_inner(m, t, e)
+  | Label(_) => []
+  | TupLabel(l, e) =>
+    get_inductive_hypotheses_inner(m, t, l)
+    @ get_inductive_hypotheses_inner(m, t, e)
+  | Probe(e, _) => get_inductive_hypotheses_inner(m, t, e)
+  };
+}
+and get_inductive_hypotheses_inner' = (m, t, pat) => {
+  let is_correct_type =
     Util.OptUtil.Syntax.(
       {
-        let* info = Id.Map.find_opt(Pat.rep_id(p), m);
+        let* info = Id.Map.find_opt(Pat.rep_id(pat), m);
         let* info =
           switch (info) {
           | Info.InfoPat(pinfo) => Some(pinfo)
@@ -246,25 +274,21 @@ let rec get_inductive_hypotheses = (m: Statics.Map.t, t: Typ.t, p: Pat.t) => {
           };
         let t' = info.ty;
         if (Typ.fast_equal(t, t')) {
-          Some([x]);
+          Some();
         } else {
           None;
         };
       }
-      |> Option.value(~default=[])
-    )
-  | Tuple(xs) =>
-    List.concat(List.map(get_inductive_hypotheses(m, t, _), xs))
-  | Parens(e) => get_inductive_hypotheses(m, t, e)
-  | Ap(e1, e2) =>
-    get_inductive_hypotheses(m, t, e1) @ get_inductive_hypotheses(m, t, e2)
-  | Asc(e, _) => get_inductive_hypotheses(m, t, e)
-  | Label(_) => []
-  | TupLabel(l, e) =>
-    get_inductive_hypotheses(m, t, l) @ get_inductive_hypotheses(m, t, e)
-  | Probe(e, _) => get_inductive_hypotheses(m, t, e)
+      |> Option.is_some
+    );
+  (is_correct_type ? [pat] : []) @ get_inductive_hypotheses(m, t, pat);
+}
+and get_inductive_hypotheses_inner = (m, t, pat) =>
+  switch (pat |> Pat.term_of) {
+  | Parens(x) => get_inductive_hypotheses_inner(m, t, x)
+  | Asc(e, _) => get_inductive_hypotheses_inner(m, t, e)
+  | _ => get_inductive_hypotheses_inner'(m, t, pat)
   };
-};
 
 /* Replace all occurrences of `replace` in `in_exp` with `with_exp`.
    The coctx is used to prevent capture inside binders. */
@@ -319,6 +343,18 @@ let rec replace_exp = (replace, replace_coctx, with_exp, with_coctx, in_exp) => 
             ),
           )
           |> rewrap
+        | Theorem(p, e1, e2) =>
+          if (is_bound(p)) {
+            Theorem(p, replace_exp(e1), e2) |> rewrap;
+          } else {
+            continue(exp);
+          }
+        | Forall(p, e) =>
+          if (is_bound(p)) {
+            exp;
+          } else {
+            Forall(p, replace_exp(e)) |> rewrap;
+          }
         /* Forms without binders: continue */
         | EmptyHole
         | Undefined
@@ -356,6 +392,7 @@ let rec replace_exp = (replace, replace_coctx, with_exp, with_coctx, in_exp) => 
         | UnOp(_, _)
         | BinOp(_, _, _)
         | BuiltinFun(_)
+        | ProofObject(_)
         | Asc(_, _) => continue(exp)
         };
       },
@@ -363,7 +400,7 @@ let rec replace_exp = (replace, replace_coctx, with_exp, with_coctx, in_exp) => 
   );
 };
 
-let find_refls = e => {
+let find_refls = (~info_map, ~env, e) => {
   let refls = ref([]);
   let _ =
     Exp.map_term(
@@ -371,7 +408,15 @@ let find_refls = e => {
         (cont, exp) => {
           switch (exp |> Exp.term_of) {
           | BinOp(Poly(Equals), e1, e2)
-              when MatchExp.match_exp([], [], e1, e2) |> Option.is_some =>
+              when
+                MatchExp.match_exp(
+                  ~info_map,
+                  ~exp_env=env,
+                  ~exp_r_ctx=[],
+                  e1,
+                  e2,
+                )
+                |> Option.is_some =>
             refls := [exp, ...refls^];
             cont(exp);
           | _ => cont(exp)
@@ -380,4 +425,11 @@ let find_refls = e => {
       e,
     );
   refls^;
+};
+
+let goal_of_typ = (ty: Typ.t): Exp.t => {
+  switch (ty.term) {
+  | ProofOf(e) => e
+  | _ => Exp.fresh(Invalid("Bad_Goal"))
+  };
 };

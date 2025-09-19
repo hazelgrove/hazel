@@ -100,18 +100,18 @@ type typ =
   | ArrowType(typ, typ)
   | TypVar(string)
   | InvalidTyp(string)
-  | ForallType(tpat, typ)
+  | PolyType(tpat, typ)
   | RecType(tpat, typ)
+  | ProofOfType(exp)
   | LabelType(string)
   | TupLabelType(typ, typ)
   | IndicationTyp(typ)
 and sumterm =
   | Variant(string, option(typ))
   | BadEntry(typ)
-and sumtype = list(sumterm);
+and sumtype = list(sumterm)
 
-[@deriving (show({with_path: false}), sexp, eq)]
-type pat =
+and pat =
   | AscPat(pat, typ)
   | EmptyHolePat
   | WildPat
@@ -125,20 +125,17 @@ type pat =
   | InvalidPat(string) // Menhir parser doesn't actually support invalid pats
   | TupLabelPat(pat, pat)
   | LabelPat(string)
-  | IndicationPat(pat);
+  | IndicationPat(pat)
 
-[@deriving (show({with_path: false}), sexp, qcheck, eq)]
-type if_consistency =
+and if_consistency =
   | Consistent
-  | Inconsistent;
+  | Inconsistent
 
-[@deriving (show({with_path: false}), sexp, qcheck, eq)]
-type deferral_pos =
+and deferral_pos =
   | InAp
-  | OutsideAp;
+  | OutsideAp
 
-[@deriving (show({with_path: false}), sexp, eq)]
-type exp =
+and exp =
   | Atom(Language.Atom.t)
   | Var(string)
   | Constructor(string, option(option(typ)))
@@ -147,7 +144,10 @@ type exp =
   | BinExp(exp, bin_op, exp)
   | UnOp(op_un, exp)
   | Let(pat, exp, exp)
+  | Theorem(pat, exp, exp)
+  | ProofObject(exp)
   | Fun(pat, exp, option(string))
+  | ForallExp(pat, exp)
   | CaseExp(exp, list((pat, exp)))
   | Label(string)
   | TupLabel(exp, exp)
@@ -530,7 +530,7 @@ and gen_typ_sized: (~minimal_idents: bool, int) => QCheck.Gen.t(typ) =
               {
                 let* gen_tpat = gen_tpat;
                 let+ t = self(n - 1);
-                ForallType(gen_tpat, t);
+                PolyType(gen_tpat, t);
               },
               {
                 let* gen_tpat = gen_tpat;
@@ -726,6 +726,32 @@ let rec shrink_exp: QCheck.Shrink.t(exp) =
           <+> {
             let* shrunk = shrink_pat(p);
             return(Let(shrunk, e1, e2));
+          }
+        | Theorem(p, e1, e2) =>
+          return(e1)
+          <+> {
+            let* shrunk = shrink_exp(e1);
+            return(Theorem(p, shrunk, e2));
+          }
+          <+> {
+            let* shrunk = shrink_exp(e2);
+            return(Theorem(p, e1, shrunk));
+          }
+          <+> {
+            let* shrunk = shrink_pat(p);
+            return(Theorem(shrunk, e1, e2));
+          }
+        | ProofObject(t) =>
+          let* shrunk = shrink_exp(t);
+          return(ProofObject(shrunk));
+        | ForallExp(pat, e) =>
+          {
+            let* shrunk = shrink_exp(e);
+            return(ForallExp(pat, shrunk));
+          }
+          <+> {
+            let* shrunk = shrink_pat(pat);
+            return(ForallExp(shrunk, e));
           }
         | Fun(p, e, name) =>
           return(e)
@@ -1121,12 +1147,15 @@ and shrink_typ: QCheck.Shrink.t(typ) =
             return(ArrowType(t1, shrunk2));
           }
         | TypVar(x) => Shrink.string(x) >|= ((x: string) => TypVar(x))
-        | ForallType(tpat, t) =>
+        | PolyType(tpat, t) =>
           let* shrunk = shrink_typ(t);
-          return(ForallType(tpat, shrunk));
+          return(PolyType(tpat, shrunk));
         | RecType(tpat, t) =>
           let* shrunk = shrink_typ(t);
           return(RecType(tpat, shrunk));
+        | ProofOfType(e) =>
+          let* shrunk = shrink_exp(e);
+          return(ProofOfType(shrunk));
         | LabelType(x) =>
           shrink_non_empty_string(x) >|= ((x: string) => LabelType(x))
         | TupLabelType(t1, t2) =>

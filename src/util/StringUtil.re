@@ -135,3 +135,47 @@ let prefixes = (s: string): list(string) => {
     aux(1);
   };
 };
+
+// AI generated function
+// checks if 'sub' is a subsequence of 's'
+// (i.e., all characters of 'sub' appear in 's' in the same order, but not necessarily consecutively)
+// case insensitive, ignores spaces on sub
+let subseq_search = (s: string, sub: string): bool => {
+  let s_len = String.length(s);
+  let sub_len = String.length(sub);
+
+  let rec search = (s_idx: int, sub_idx: int): bool =>
+    // If we've matched all characters in sub, we're done
+    if (sub_idx >= sub_len) {
+      true;
+    } else if
+      // If we've exhausted s but still have characters to match in sub
+      (s_idx >= s_len) {
+      false;
+    } else if
+      // Skip spaces in sub
+      (sub.[sub_idx] == ' ') {
+      search(s_idx, sub_idx + 1);
+    } else if
+      // If current characters match (case insensitive), advance both indices
+      (Char.lowercase_ascii(s.[s_idx]) == Char.lowercase_ascii(sub.[sub_idx])) {
+      search(s_idx + 1, sub_idx + 1);
+    } else {
+      // If they don't match, advance only the s index
+      search(
+        s_idx + 1,
+        sub_idx,
+      );
+    };
+
+  print_endline(
+    "Subseq search: "
+    ++ sub
+    ++ " in "
+    ++ s
+    ++ "returns"
+    ++ string_of_bool(search(0, 0)),
+  );
+
+  search(0, 0);
+};

@@ -15,7 +15,7 @@ let drv_view = (~globals, status: DrvInfo.t) => {
       ~settings={
         inline: true,
         fold_case_clauses: false,
-        fold_fn_bodies: false,
+        fold_fn_bodies: `NoFold,
         hide_fixpoints: false,
         show_filters: false,
         show_unknown_as_hole: false,

@@ -253,6 +253,10 @@ and Exp: {
         | Dot(e1, e2) => Dot(exp_map_term(e1), exp_map_term(e2))
         | Let(p, e1, e2) =>
           Let(pat_map_term(p), exp_map_term(e1), exp_map_term(e2))
+        | Theorem(p, e1, e2) =>
+          Theorem(pat_map_term(p), exp_map_term(e1), exp_map_term(e2))
+        | ProofObject(t) => ProofObject(exp_map_term(t))
+        | Forall(p, e) => Forall(pat_map_term(p), exp_map_term(e))
         | FixF(p, e, env) => FixF(pat_map_term(p), exp_map_term(e), env)
         | TyAlias(tp, t, e) =>
           TyAlias(tpat_map_term(tp), typ_map_term(t), exp_map_term(e))
@@ -332,6 +336,11 @@ and Exp: {
     | (Var(v1), Var(v2)) => v1 == v2
     | (Let(p1, e1, e2), Let(p2, e3, e4)) =>
       Pat.fast_equal(p1, p2) && fast_equal(e1, e3) && fast_equal(e2, e4)
+    | (Theorem(p1, e1, e2), Theorem(p2, e3, e4)) =>
+      Pat.fast_equal(p1, p2) && fast_equal(e1, e3) && fast_equal(e2, e4)
+    | (ProofObject(t1), ProofObject(t2)) => Exp.fast_equal(t1, t2)
+    | (Forall(p1, e1), Forall(p2, e2)) =>
+      Pat.fast_equal(p1, p2) && fast_equal(e1, e2)
     | (FixF(p1, e1, c1), FixF(p2, e2, c2)) =>
       Pat.fast_equal(p1, p2)
       && fast_equal(e1, e2)
@@ -403,6 +412,9 @@ and Exp: {
     | (Dot(_), _)
     | (Var(_), _)
     | (Let(_), _)
+    | (Theorem(_), _)
+    | (ProofObject(_), _)
+    | (Forall(_), _)
     | (FixF(_), _)
     | (TyAlias(_), _)
     | (Use(_), _)
@@ -594,6 +606,8 @@ and Typ: {
       Any.map_term(~f_exp, ~f_pat, ~f_typ, ~f_tpat, ~f_rul, ~f_any);
     let tpat_map_term =
       TPat.map_term(~f_exp, ~f_pat, ~f_typ, ~f_tpat, ~f_rul, ~f_any);
+    let exp_map_term =
+      Exp.map_term(~f_exp, ~f_pat, ~f_typ, ~f_tpat, ~f_rul, ~f_any);
     let rec_call = ({term, _} as exp: t) => {
       ...exp,
       term:
@@ -626,7 +640,8 @@ and Typ: {
             ),
           )
         | Rec(tp, t) => Rec(tpat_map_term(tp), typ_map_term(t))
-        | Forall(tp, t) => Forall(tpat_map_term(tp), typ_map_term(t))
+        | Poly(tp, t) => Poly(tpat_map_term(tp), typ_map_term(t))
+        | ProofOf(e) => ProofOf(exp_map_term(e))
         },
     };
     x |> f_typ(rec_call);
@@ -647,13 +662,14 @@ and Typ: {
       | TupLabel(label, ty) => TupLabel(label, subst(s, x, ty)) |> rewrap
       | Sum(sm) =>
         Sum(ConstructorMap.map(Option.map(subst(s, x)), sm)) |> rewrap
-      | Forall(tp2, ty)
+      | Poly(tp2, ty)
           when TPat.tyvar_of_utpat(x) == TPat.tyvar_of_utpat(tp2) =>
-        Forall(tp2, ty) |> rewrap
-      | Forall(tp2, ty) => Forall(tp2, subst(s, x, ty)) |> rewrap
+        Poly(tp2, ty) |> rewrap
+      | Poly(tp2, ty) => Poly(tp2, subst(s, x, ty)) |> rewrap
       | Rec(tp2, ty) when TPat.tyvar_of_utpat(x) == TPat.tyvar_of_utpat(tp2) =>
         Rec(tp2, ty) |> rewrap
       | Rec(tp2, ty) => Rec(tp2, subst(s, x, ty)) |> rewrap
+      | ProofOf(e) => ProofOf(e) |> rewrap // TODO[Matt]: do we need to substitute into the expression?
       | List(ty) => List(subst(s, x, ty)) |> rewrap
       | Var(y) => str == y ? s : Var(y) |> rewrap
       | Parens(ty) => Parens(subst(s, x, ty)) |> rewrap
@@ -674,7 +690,7 @@ and Typ: {
       && eq_internal(~alpha_equivalence, n, t1', t2')
     | (TupLabel(_), _) => false
     | (Rec(x1, t1), Rec(x2, t2))
-    | (Forall(x1, t1), Forall(x2, t2)) =>
+    | (Poly(x1, t1), Poly(x2, t2)) =>
       if (alpha_equivalence) {
         let alpha_subst =
           subst({
@@ -694,7 +710,9 @@ and Typ: {
         && eq_internal(~alpha_equivalence, n + 1, t1, t2);
       }
     | (Rec(_), _) => false
-    | (Forall(_), _) => false
+    | (Poly(_), _) => false
+    | (ProofOf(e1), ProofOf(e2)) => Exp.fast_equal(e1, e2)
+    | (ProofOf(_), _) => false
     | (Atom(name1), Atom(name2)) => name1 == name2
     | (Atom(_), _) => false
     | (DrvTyp(d1), DrvTyp(d2)) => DrvSort.equal(d1, d2)
@@ -943,13 +961,6 @@ and ClosureEnvironment: {
     let id_of = (t: t) => t.id;
     let map_of = (t: t) => t.env;
     let call_stack_of = (t: t) => t.call_stack;
-
-    let (sexp_of_t, t_of_sexp) =
-      Util.StructureShareSexp.structure_share_here(
-        id_of,
-        sexp_of_t,
-        t_of_sexp,
-      );
   };
   include Inner;
 

@@ -84,6 +84,11 @@ type pos =
 type spec = p(Zipper.t);
 
 [@deriving (show({with_path: false}), sexp, yojson)]
+type exercise_spec =
+  | Implementation(spec)
+  | Theorem(TheoremExerciseSpec.t);
+
+[@deriving (show({with_path: false}), sexp, yojson)]
 type transitionary_spec = p(string);
 
 let map = (p: p('a), f: 'a => 'b, f_hidden: 'a => 'b): p('b) => {
@@ -689,6 +694,7 @@ let rec append_exp = (e1: Language.Exp.t, e2: Language.Exp.t): Language.Exp.t =>
   | Fun(_)
   | TypFun(_)
   | FixF(_)
+  | Forall(_)
   | Tuple(_)
   | TupLabel(_)
   | Label(_)
@@ -709,6 +715,7 @@ let rec append_exp = (e1: Language.Exp.t, e2: Language.Exp.t): Language.Exp.t =>
   | BinOp(_)
   | BuiltinFun(_)
   | Asc(_)
+  | ProofObject(_)
   | Match(_) => {
       term: Seq(e1, e2),
       annotation: {
@@ -735,6 +742,14 @@ let rec append_exp = (e1: Language.Exp.t, e2: Language.Exp.t): Language.Exp.t =>
     let ebody' = append_exp(ebody, e2);
     {
       term: Let(p, edef, ebody'),
+      annotation: {
+        ids: Language.IdTagged.ids(e1),
+      },
+    };
+  | Theorem(p, thm, ebody) =>
+    let ebody' = append_exp(ebody, e2);
+    {
+      term: Theorem(p, thm, ebody'),
       annotation: {
         ids: Language.IdTagged.ids(e1),
       },

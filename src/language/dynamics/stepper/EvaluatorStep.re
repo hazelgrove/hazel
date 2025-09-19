@@ -95,6 +95,9 @@ let rec matches =
       | Let2(d1, d2, ctx) =>
         let+ ctx = matches(env, flt, ctx, exp, act, idx);
         Let2(d1, d2, ctx) |> rewrap;
+      | Theorem(dp, d1, ctx) =>
+        let+ ctx = matches(env, flt, ctx, exp, act, idx);
+        Theorem(dp, d1, ctx) |> rewrap;
       | Fun(dp, ctx, ty, name) =>
         // TODO: Should this env include the bound variables?
         let+ ctx = matches(env, flt, ctx, exp, act, idx);
@@ -301,19 +304,24 @@ module Decompose = {
     };
 
     let (let.): (requirements('a, DHExp.t), 'a => rule) => result =
-      (rq, rl) =>
-        switch (rq) {
-        | (_, Result.Step(_) as r, _, _) => r
-        | (undo, r, env, v) =>
-          switch (rl(v)) {
-          | Constructor => r
-          | Value => Result.BoxedValue
-          | Indet => Result.Indet
-          | Step(s) => Result.Step([EvalObj.mk(Mark, env, undo, s.kind)])
-          // TODO: Actually show these exceptions to the user!
-          | exception (EvaluatorError.Exception(_)) => Result.Indet
-          }
+      (rq, rl) => {
+        let (undo, r, env, v) = rq;
+        let rq_steps =
+          switch (r) {
+          | Result.Step(ss) => ss
+          | Result.BoxedValue
+          | Result.Indet => []
+          };
+        switch (rl(v)) {
+        | Constructor => r
+        | Value => List.is_empty(rq_steps) ? Result.BoxedValue : r
+        | Indet => List.is_empty(rq_steps) ? Result.Indet : r
+        | Step(s) =>
+          Result.Step([EvalObj.mk(Mark, env, undo, s.kind), ...rq_steps])
+        // TODO: Actually show these exceptions to the user!
+        | exception (EvaluatorError.Exception(_)) => Result.Indet
         };
+      };
 
     let (and.):
       (requirements('a, 'c => 'b), requirement('c)) =>
@@ -325,6 +333,8 @@ module Decompose = {
       state := EvaluatorState.add_test(state^, id, v);
     let update_probe = (state, closure: Dynamics.Probe.Closure.t) =>
       state := EvaluatorState.add_closure(state^, closure);
+    let record_theorem = (state, id, name, env, d) =>
+      state := EvaluatorState.add_theorem(state^, id, name, env, d);
   };
 
   module Decomp = Transition(DecomposeEVMode);
@@ -377,6 +387,9 @@ module TakeStep = {
 
     let update_probe = (state, closure: Dynamics.Probe.Closure.t) =>
       state := EvaluatorState.add_closure(state^, closure);
+
+    let record_theorem = (state, id, name, env, d) =>
+      state := EvaluatorState.add_theorem(state^, id, name, env, d);
   };
 
   module TakeStepEV = Transition(TakeStepEVMode);
@@ -395,8 +408,7 @@ module TakeStep = {
 
 let take_step = TakeStep.take_step;
 
-let decompose = (d: DHExp.t, es: EvaluatorState.t) => {
-  let env = ClosureEnvironment.of_environment(Builtins.env_init);
+let decompose = (d: DHExp.t, env: ClosureEnvironment.t, es: EvaluatorState.t) => {
   let rs = Decompose.decompose(ref(es), env, d);
   Decompose.Result.unbox(rs);
 };
@@ -417,9 +429,9 @@ type status =
   | AutoStep(step)
   | AvailableSteps(list(step));
 
-let get_status = (~settings: CoreSettings.t, exp, state) => {
+let get_status = (~settings: CoreSettings.t, exp, env, state) => {
   let eos =
-    decompose(exp, state)
+    decompose(exp, env, state)
     |> List.map(should_hide_eval_obj(~settings=settings.evaluation)); // NOTE: should_hide_eval_obj actually changes the eval obj to do filter bookkeeping!!!
   switch (List.find_opt(((x, _)) => x == FilterAction.Eval, eos)) {
   | Some((_, x)) => AutoStep(x)
@@ -441,8 +453,8 @@ let take_step = (step: EvalObj.t) => {
   let next_state = state^;
   let next_expr =
     EvalCtx.compose(step.ctx, next_expr)
-    |> Exp.replace_all_ids
-    |> DHExp.substitute_closures(Builtins.env_init);
+    |> DHExp.substitute_closures(Environment.empty)
+    |> Exp.replace_all_ids;
   (next_expr, next_state);
 };
 
@@ -450,11 +462,12 @@ let refresh_step =
     (
       ~settings: CoreSettings.t,
       exp: Exp.t,
+      env: ClosureEnvironment.t,
       state: EvaluatorState.t,
       step: persistent,
     ) => {
   let eos =
-    decompose(exp, state)
+    decompose(exp, env, state)
     |> List.map(should_hide_eval_obj(~settings=settings.evaluation)); // NOTE: should_hide_eval_obj actually changes the eval obj to do filter bookkeeping!!!
   let* desired_id =
     ProofHacks.nth_exp(step.at_exp, step.exp_idx, exp)

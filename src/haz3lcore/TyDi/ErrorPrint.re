@@ -106,6 +106,8 @@ let exp_error: Info.error_exp => string =
   | InexhaustiveMatch(_) => "Match is not exhaustive" //TODO: elaborate
   | UnusedDeferral => "Unused deferral" //TODO: better message
   | BadPartialAp(_) => "Bad partial application" //TODO: elaborate
+  | BadTheorem(typ) =>
+    prn("Theorem pattern is not of the form p : t, got %s", Print.typ(typ))
   | Common(error) => common_error(error);
 
 let pat_error: Info.error_pat => string =

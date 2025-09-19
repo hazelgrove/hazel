@@ -12,7 +12,8 @@ type model'('stepper) = {
   name: string,
   at_idx: int,
   at_exp: Exp.t,
-  with_exp: Exp.t,
+  direction: Direction.t,
+  equality: string,
   next_exp: Calc.saved(Exp.t),
 };
 
@@ -21,7 +22,8 @@ type persistent'('stepper) = {
   name: string,
   at_idx: int,
   at_exp: Exp.t,
-  with_exp: Exp.t,
+  direction: Direction.t,
+  equality: string,
 };
 
 [@deriving (show({with_path: false}), sexp, yojson)]
@@ -61,7 +63,8 @@ module F =
       name: model.name,
       at_idx: model.at_idx,
       at_exp: model.at_exp,
-      with_exp: model.with_exp,
+      direction: model.direction,
+      equality: model.equality,
     };
   };
 
@@ -70,7 +73,8 @@ module F =
       name: p.name,
       at_idx: p.at_idx,
       at_exp: p.at_exp,
-      with_exp: p.with_exp,
+      direction: p.direction,
+      equality: p.equality,
       next_exp: Calc.Pending,
     };
   };
@@ -87,18 +91,32 @@ module F =
         ~settings as _: Calc.t(CoreSettings.t),
         ~hidden: Calc.saved(bool),
         ~exp: Calc.t(Exp.t),
-        ~ctx as _: Calc.t(Ctx.t),
+        ~ctx: Calc.t(Ctx.t),
+        ~env: Calc.t(ClosureEnvironment.t),
         ~state: Calc.t(EvaluatorState.t),
         ~editor as _: Calc.t(CodeSelectable.Model.t),
+        ~info_map,
+        ~ana as _,
         model: model,
       ) => {
-    let {name, at_idx, at_exp, with_exp, next_exp} = model;
+    let {name, at_idx, at_exp, direction, equality, next_exp} = model;
     let+ next_exp =
       next_exp
       |> Calc.map_saved(Option.some)
       |> {
-        let.calc exp = exp;
+        let.calc exp = exp
+        and.calc env = env
+        and.calc ctx = ctx
+        and.calc info_map = info_map;
         let* e = ProofHacks.nth_exp(at_exp, at_idx, exp);
+        let proof_ctx = ProofCtx.of_env(~builtins=Axioms.v, ~ctx, env);
+        let* proofrule = ProofCtx.lookup_rule(equality, proof_ctx);
+        let (l, r) = ProofRule.can_eq(~info_map, ~env, proofrule, e);
+        let* with_exp =
+          switch (direction) {
+          | Left => l
+          | Right => r
+          };
         Some(ProofHacks.replace_exp_id(e |> DHExp.rep_id, exp, with_exp));
       }
       |> Calc.to_option;
@@ -107,11 +125,13 @@ module F =
         name,
         at_idx,
         at_exp,
-        with_exp,
+        direction,
+        equality,
         next_exp: next_exp |> Calc.save,
       },
       hidden |> Calc.set(false),
       Some((next_exp, state)),
+      Calc.OldValue(Some(true)),
     );
   };
 

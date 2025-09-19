@@ -141,7 +141,7 @@ module IntroduceExp: Introducable with type t = Exp.t = {
               )
             ),
           )
-        | Forall(_, _) =>
+        | Poly(_, _) =>
           Some(
             TPat.empty_hole()
             |> (
@@ -222,7 +222,7 @@ module Make =
         ~settings={
           inline: true,
           fold_case_clauses: false,
-          fold_fn_bodies: false,
+          fold_fn_bodies: `NoFold,
           hide_fixpoints: false,
           show_filters: true,
           show_unknown_as_hole: true,

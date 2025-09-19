@@ -85,6 +85,7 @@ module Update = {
         ~stitch,
         ~dynamics: Language.Dynamics.Map.t,
         ~is_dynamic_term,
+        ~ana=?,
         {editor, statics, dynamics: _}: Model.t,
       )
       : Model.t => {
@@ -94,6 +95,7 @@ module Update = {
             ~settings,
             ~stitch,
             ~ctx?,
+            ~ana?,
             ~is_dynamic_term,
             ~root=editor.root,
             editor.state.zipper,

@@ -72,7 +72,12 @@ let import_all =
   ExplainThisModel.Store.import(all.explainThisModel);
   let instructor_mode = settings.instructor_mode;
   ScratchMode.Store.import(all.scratch);
-  ExercisesMode.Store.import(all.exercise, ~exercise_specs, ~instructor_mode);
+  ExercisesMode.Store.import(
+    ~settings,
+    all.exercise,
+    ~exercise_specs,
+    ~instructor_mode,
+  );
   TutorialsMode.Store.import(
     ~settings=settings.core,
     all.tutorial,

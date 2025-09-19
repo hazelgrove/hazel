@@ -66,7 +66,7 @@ let rec is_arrow_like = (t: Typ.t) => {
   switch (t |> Typ.term_of) {
   | Unknown(_) => true
   | Arrow(_) => true
-  | Forall(_, t) => is_arrow_like(t)
+  | Poly(_, t) => is_arrow_like(t)
   | _ => false
   };
 };

@@ -10,7 +10,7 @@ let show = (syntax: Drv.Exp.t, ~globals: Globals.t): Node.t => {
            ~settings={
              inline: true,
              fold_case_clauses: false,
-             fold_fn_bodies: false,
+             fold_fn_bodies: `NoFold,
              hide_fixpoints: false,
              show_filters: false,
              show_unknown_as_hole: false,

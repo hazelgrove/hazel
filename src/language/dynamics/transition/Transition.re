@@ -51,6 +51,8 @@ type step_kind =
   | VarLookup
   | Seq
   | LetBind(string)
+  | TheoremBind
+  | RecordTheorem
   | WrapClosure
   | FixUnwrap
   | FixClosure
@@ -124,6 +126,9 @@ module type EV_MODE = {
   let update_test: (state, Id.t, TestMap.instance_report) => unit;
 
   let update_probe: (state, Dynamics.Probe.Closure.t) => unit;
+
+  let record_theorem:
+    (state, Id.t, string, ClosureEnvironment.t, Exp.t) => unit;
 };
 
 module Transition = (EV: EV_MODE) => {
@@ -373,31 +378,32 @@ module Transition = (EV: EV_MODE) => {
     // Transition rules
     switch (term) {
     | Var(x) =>
-      switch (mode) {
-      | `Environment =>
-        let. _ = otherwise(env, Var(x) |> rewrap);
-        switch (ClosureEnvironment.lookup(env, x)) {
-        | Some(d) =>
-          let is_value =
-            switch (d |> Exp.term_of) {
-            | FixF(_, _, _) => false // fixpoints aren't final
-            | Let(_, _, _) => false // could be mutually-recursive fixpoint
-            | _ => true // all other closure entries should be final
-            };
-          Step({
-            expr: d |> fast_copy(Id.mk()),
-            state_update,
-            kind: VarLookup,
-            is_value,
-          });
-        | None =>
-          let.wrap_closure _ = env;
-          Indet;
-        };
-      | `Substitution =>
-        let. _ = otherwise(env, d);
+      // switch (mode) {
+      // | `Environment =>
+      let. _ = otherwise(env, Var(x) |> rewrap);
+      switch (ClosureEnvironment.lookup(env, x)) {
+      | Some({term: Var(y), _}) when x == y => Indet // Used in proof to refer to a bound variable.
+      | Some(d) =>
+        let is_value =
+          switch (d |> Exp.term_of) {
+          | FixF(_, _, _) => false // fixpoints aren't final
+          | Let(_, _, _) => false // could be mutually-recursive fixpoint
+          | _ => true // all other closure entries should be final
+          };
+        Step({
+          expr: d |> fast_copy(Id.mk()),
+          state_update,
+          kind: VarLookup,
+          is_value,
+        });
+      | None =>
+        let.wrap_closure _ = env;
         Indet;
-      }
+      };
+    // | `Substitution =>
+    //   let. _ = otherwise(env, d);
+    //   Indet;
+    // }
     | Seq(d1, d2) =>
       let. _ = otherwise(env, d1 => Seq(d1, d2) |> rewrap)
       and. _ =
@@ -432,6 +438,47 @@ module Transition = (EV: EV_MODE) => {
         kind: LetBind(matches_str),
         is_value: false,
       });
+    | Theorem({term: Var(n), _}, e, d1) =>
+      let. _ = otherwise(env, d);
+      let e' = Exp.substitute_closures(env |> ClosureEnvironment.map_of, e);
+      let env' =
+        [(n, ProofObject(e') |> Exp.fresh)]
+        |> Environment.of_list
+        |> evaluate_extend_env(~call_stack=env.call_stack, _, env);
+      Step({
+        expr: subst_env(env', d1),
+        state_update: () =>
+          record_theorem(state, DHExp.rep_id(d), n, env, e'),
+        kind: TheoremBind,
+        is_value: false,
+      });
+    | Theorem(_) =>
+      let. _ = otherwise(env, d);
+      Indet;
+    | ProofObject(e) =>
+      let. _ = otherwise(env, d);
+      let e' = Exp.substitute_closures(env |> ClosureEnvironment.map_of, e);
+      switch (mode) {
+      | `Substitution => Value
+      | `Environment =>
+        Step({
+          expr: d,
+          state_update: () =>
+            record_theorem(
+              state,
+              DHExp.rep_id(d),
+              "<anon theorem>",
+              env,
+              e',
+            ),
+          kind: RecordTheorem,
+          is_value: true,
+        })
+      };
+    // Note[Matt]: we could make this spin, but for now it's indet
+    | Forall(_) =>
+      let. _ = otherwise(env, d);
+      Indet;
     | TypFun(_)
     | Fun(_, _, _, _) =>
       let. _ = otherwise(env, d);
@@ -805,15 +852,7 @@ module Transition = (EV: EV_MODE) => {
       | Undefined(_) => Indet
       | DefinedPoly(poly_op) =>
         if (!DHExp.ty_comparable(d1, d2)) {
-          let expr =
-            DynamicErrorHole(BinOp(op, d1, d2) |> rewrap, Incomparable)
-            |> fresh;
-          Step({
-            expr,
-            state_update,
-            kind: MarkIncomparable,
-            is_value: false,
-          });
+          Indet;
         } else {
           let res = DHExp.poly_equal(d1, d2);
           let expr = Atom(Bool(poly_op == Equals ? res : !res)) |> fresh;
@@ -821,7 +860,7 @@ module Transition = (EV: EV_MODE) => {
             expr,
             state_update,
             kind: BinOp(op),
-            is_value: false,
+            is_value: true,
           });
         }
       | Defined(in_ty1, in_ty2, out_ty, f) =>
@@ -1056,7 +1095,7 @@ module Transition = (EV: EV_MODE) => {
           d1 => Closure(env', d1) |> wrap_ctx,
           d,
         );
-      if (needs_closure^) {
+      if (needs_closure^ || mode == `Substitution) {
         Constructor;
       } else {
         Step({
@@ -1075,8 +1114,14 @@ module Transition = (EV: EV_MODE) => {
       let. _ = otherwise(env, d);
       // let.wrap_closure _ = env;  // uncomment for hole closures
       Indet;
-    | DynamicErrorHole(_) =>
-      let. _ = otherwise(env, d);
+    | DynamicErrorHole(d, err) =>
+      let. _ = otherwise(env, d => DynamicErrorHole(d, err) |> rewrap)
+      and. _ =
+        req_final(
+          req(state, env),
+          d1 => DynamicErrorHole(d1, err) |> wrap_ctx,
+          d,
+        );
       let.wrap_closure _ = env;
       Indet;
     | Asc(d', t) =>
@@ -1167,6 +1212,7 @@ module Transition = (EV: EV_MODE) => {
 let should_hide_step_kind = (~settings: CoreSettings.Evaluation.t) =>
   fun
   | LetBind(_)
+  | TheoremBind
   | Seq
   | UpdateTest
   | TypFunAp
@@ -1184,8 +1230,8 @@ let should_hide_step_kind = (~settings: CoreSettings.Evaluation.t) =>
   | Conditional(_)
   | RemoveTypeAlias
   | RemoveUse
-  | InvalidStep => false
-  | VarLookup => !settings.show_lookup_steps
+  | InvalidStep
+  | VarLookup => false
   | AscriptionTypAp
   | AscriptionAp
   | Ascription => !settings.show_ascription_steps
@@ -1196,11 +1242,14 @@ let should_hide_step_kind = (~settings: CoreSettings.Evaluation.t) =>
   | WrapClosure
   | FixClosure
   | MarkIncomparable
+  | RecordTheorem
   | RemoveParens => true;
 
 let stepper_justification: step_kind => string =
   fun
   | LetBind(s) => String.cat("substitution for ", s)
+  | TheoremBind => "theorem substitution"
+  | RecordTheorem => "record theorem"
   | Seq => "sequence"
   | FixUnwrap => "unroll fixpoint"
   | UpdateTest => "update test"

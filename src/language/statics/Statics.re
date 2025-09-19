@@ -1038,10 +1038,10 @@ and uexp_to_info_map =
         };
       }
     | TypAp(fn, utyp) =>
-      let typfn_ana = Forall(EmptyHole |> TPat.fresh, syn) |> Typ.temp;
+      let typfn_ana = Poly(EmptyHole |> TPat.fresh, syn) |> Typ.temp;
       let (fn, m) = go(~ana=typfn_ana, fn, m);
       let (_, m) = utyp_to_info_map(~ctx, ~ancestors, utyp, m);
-      let (option_name, ty_body) = Typ.matched_forall(ctx, fn.ty);
+      let (option_name, ty_body) = Typ.matched_poly(ctx, fn.ty);
       switch (option_name) {
       | Some(name) =>
         add(
@@ -1153,8 +1153,16 @@ and uexp_to_info_map =
       let self =
         is_exhaustive ? unwrapped_self : InexhaustiveMatch(unwrapped_self);
       add'(~self, ~co_ctx=CoCtx.mk(ctx, p.ctx, e.co_ctx), m);
+    | Forall(p, e) =>
+      let (p, m) = go_pat(~is_synswitch=false, ~co_ctx=CoCtx.empty, p, m);
+      let (e, m) = go'(~ctx=p.ctx, ~ana=Atom(Bool) |> Typ.temp, e, m);
+      add'(
+        ~self=Common(Just(Atom(Bool) |> Typ.temp)),
+        ~co_ctx=CoCtx.mk(ctx, p.ctx, e.co_ctx),
+        m,
+      );
     | TypFun(utpat, body, _) =>
-      let (name_expected_opt, item) = Typ.matched_forall(ctx, ana);
+      let (name_expected_opt, item) = Typ.matched_poly(ctx, ana);
       let (mode_body, ctx_body) =
         switch (TPat.tyvar_of_utpat(utpat)) {
         | Some(name) when !Ctx.shadows_typ(ctx, name) =>
@@ -1181,7 +1189,7 @@ and uexp_to_info_map =
       let m = utpat_to_info_map(~ctx, ~ancestors, utpat, m) |> snd;
       let (body, m) = go'(~ctx=ctx_body, ~ana=mode_body, body, m);
       add(
-        ~self=Just(Forall(utpat, body.ty) |> Typ.temp),
+        ~self=Just(Poly(utpat, body.ty) |> Typ.temp),
         ~co_ctx=body.co_ctx,
         m,
       );
@@ -1254,6 +1262,46 @@ and uexp_to_info_map =
           CoCtx.union([def.co_ctx, CoCtx.mk(ctx, p_ana.ctx, body.co_ctx)]),
         m,
       );
+    | Theorem({term: Var(_), _} as p, e1, e2) =>
+      let (e1', m) = go'(~ctx, ~ana=Atom(Bool) |> Typ.temp, e1, m);
+      let (p', _) =
+        go_pat(
+          ~is_synswitch=false,
+          ~co_ctx=CoCtx.empty,
+          ~ana=Typ.fresh(ProofOf(e1)),
+          p,
+          m,
+        );
+      let (e2, m) = go'(~ctx=p'.ctx, ~ana, e2, m);
+      /* add co_ctx to pattern */
+      let (p, m) =
+        go_pat(~is_synswitch=false, ~co_ctx=e2.co_ctx, ~ana=syn, p, m);
+      add(
+        ~self=Just(e2.ty),
+        ~co_ctx=
+          CoCtx.union([
+            p'.co_ctx,
+            e1'.co_ctx,
+            CoCtx.mk(ctx, p.ctx, e2.co_ctx),
+          ]),
+        m,
+      );
+    | Theorem(p, e1, e2) =>
+      let (_, m) = go'(~ctx, ~ana=Atom(Bool) |> Typ.temp, e1, m);
+      let (p', _) =
+        go_pat(~is_synswitch=false, ~co_ctx=CoCtx.empty, ~ana=syn, p, m);
+      let (e2, m) = go'(~ctx=p'.ctx, ~ana, e2, m);
+      /* add co_ctx to pattern */
+      let (p, m) =
+        go_pat(~is_synswitch=false, ~co_ctx=e2.co_ctx, ~ana=syn, p, m);
+      add'(
+        ~self=BadTheorem(e2.ty),
+        ~co_ctx=CoCtx.union([p'.co_ctx, CoCtx.mk(ctx, p.ctx, e2.co_ctx)]),
+        m,
+      );
+    | ProofObject(e) =>
+      let (_, m) = go'(~ctx, ~ana=Atom(Bool) |> Typ.temp, e, m);
+      add(~self=Just(Typ.temp(ProofOf(e))), ~co_ctx=CoCtx.empty, m); // TODO[Matt]: do types need coctxs now?
     | FixF(p, e, _) =>
       let (p', _) =
         go_pat(~is_synswitch=false, ~co_ctx=CoCtx.empty, ~ana, p, m);
@@ -2040,7 +2088,7 @@ and utyp_to_info_map =
         variants,
       );
     add(m);
-  | Forall({term: Var(name), _} as utpat, tbody) =>
+  | Poly({term: Var(name), _} as utpat, tbody) =>
     let body_ctx =
       Ctx.extend_tvar(
         ctx,
@@ -2061,12 +2109,25 @@ and utyp_to_info_map =
       |> snd;
     let m = utpat_to_info_map(~ctx, ~ancestors, utpat, m) |> snd;
     add(m); // TODO: check with andrew
-  | Forall(utpat, tbody) =>
+  | Poly(utpat, tbody) =>
     let m =
       utyp_to_info_map(tbody, ~ctx, ~ancestors, ~expects=TypeExpected, m)
       |> snd;
     let m = utpat_to_info_map(~ctx, ~ancestors, utpat, m) |> snd;
     add(m); // TODO: check with andrew
+  | ProofOf(e) =>
+    let (_, m) =
+      uexp_to_info_map(
+        ~ctx,
+        ~ancestors,
+        ~ana=Atom(Bool) |> Typ.temp,
+        ~duplicates=[],
+        ~expected_labels=None,
+        ~label_sort=false,
+        e,
+        m,
+      );
+    add(m);
   | Rec({term: Var(name), _} as utpat, tbody) =>
     let body_ctx =
       Ctx.extend_tvar(
@@ -2157,8 +2218,9 @@ and variant_to_info_map =
 };
 
 let mk =
-  Core.Memo.general(~cache_size_bound=1000, (ctx, e) => {
+  Core.Memo.general(~cache_size_bound=1000, (ana, ctx, e) => {
     uexp_to_info_map(
+      ~ana,
       ~ctx,
       ~ancestors=[],
       ~duplicates=[],
@@ -2170,5 +2232,5 @@ let mk =
     |> snd
   });
 
-let mk = (core: CoreSettings.t, ctx, exp) =>
-  core.statics ? mk(ctx, exp) : Id.Map.empty;
+let mk = (~ana=Typ.temp(Unknown(SynSwitch)), core: CoreSettings.t, ctx, exp) =>
+  core.statics ? mk(ana, ctx, exp) : Id.Map.empty;
