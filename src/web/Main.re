@@ -152,11 +152,6 @@ let start = {
       )
       >= 0;
     NinjaKeys.initialize(Shortcut.options(schedule_action));
-    DerivationMode.NinjaKeys.schedule_action :=
-      (
-        update =>
-          Editors(Derivations(DerivationTree(update))) |> schedule_action
-      );
     JsUtil.focus_clipboard_shim();
     schedule_action(
       Assistant(AssistantUpdate.ChatAction(FilterLoadingMessages)),

@@ -440,7 +440,6 @@ module NinjaKeys = {
   open Js_of_ocaml;
   open Util;
 
-  let schedule_action = ref((_: Update.t) => ());
   let current_hover_rule = ref(Rule.Assumption);
 
   let ( let* ) = Js.Opt.case(_, () => Js._false);
@@ -484,10 +483,13 @@ module NinjaKeys = {
   let shadow_root = Js.Unsafe.get(_, "shadowRoot");
 
   module Open =
-         (M: {
-            let corpus: RuleImage.corpus;
-            let pos: DerivationTree.pos;
-          }) => {
+         (
+           M: {
+             let corpus: RuleImage.corpus;
+             let pos: DerivationTree.pos;
+             let schedule_action: Update.t => Ui_effect.t(unit);
+           },
+         ) => {
     let copy_hover_rule_spec = (target_elem: Js.t(Dom_html.element), ev) => {
       let action = Js.Unsafe.get(target_elem, "action");
       let id = Js.to_string(action##.id);
@@ -495,7 +497,7 @@ module NinjaKeys = {
       let rule = Option.get(RuleImage.to_rule(M.corpus, rule_image));
       if (current_hover_rule^ != rule) {
         current_hover_rule := rule;
-        schedule_action^(Refresh);
+        Ui_effect.Expert.handle(M.schedule_action(Refresh));
       };
       let* origin = opt_get_origin();
       let _ = try_remove_copied(ev);
@@ -550,9 +552,11 @@ module NinjaKeys = {
          val section = Js.Optdef.option(Some(show_kind(of_kind(rule))));
          val handler =
            () =>
-             schedule_action^(
-               MapEditor(
-                 DerivationTree.switch_rule(~pos=M.pos, ~rule=Some(rule)),
+             Ui_effect.Expert.handle(
+               M.schedule_action(
+                 MapEditor(
+                   DerivationTree.switch_rule(~pos=M.pos, ~rule=Some(rule)),
+                 ),
                ),
              );
          val keywords = keywords(rule) |> String.concat(" ")
@@ -573,11 +577,12 @@ module NinjaKeys = {
     };
   };
 
-  let open_command_palette = (~corpus, ~pos): unit => {
+  let open_command_palette = (~corpus, ~pos, ~inject): unit => {
     module Open =
       Open({
         let corpus = corpus;
         let pos = pos;
+        let schedule_action = (a: Update.t) => inject(a);
       });
     open Open;
     set_data();
@@ -700,7 +705,7 @@ module View = {
       Widgets.button_named(
         Icons.command_palette_sparkle,
         _ => {
-          NinjaKeys.open_command_palette(~corpus=eds.corpus, ~pos);
+          NinjaKeys.open_command_palette(~corpus=eds.corpus, ~pos, ~inject);
           Effect.Ignore;
         },
         ~tooltip="Switch Rule",
