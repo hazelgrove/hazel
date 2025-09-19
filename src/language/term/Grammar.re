@@ -100,6 +100,7 @@ and pat_term('a) =
   | EmptyHole
   | MultiHole(list(any_t('a)))
   | Wild
+  | ExplicitNonlabel
   | Atom(Atom.t)
   | ListLit(list(pat_t('a)))
   | Constructor(string, option(option(typ_t('a)))) // see comment on constructor expressions
@@ -312,6 +313,7 @@ and map_pat_annotation: 'a 'b. ('a => 'b, pat_t('a)) => pat_t('b) =
           Cons(map_pat_annotation(f, p1), map_pat_annotation(f, p2))
         | Var(v) => Var(v)
         | Tuple(l) => Tuple(List.map(x => map_pat_annotation(f, x), l))
+        | ExplicitNonlabel => ExplicitNonlabel
         | Label(l) => Label(l)
         | TupLabel(p1, p2) =>
           TupLabel(map_pat_annotation(f, p1), map_pat_annotation(f, p2))
@@ -723,6 +725,10 @@ module Factory = (DefaultAnnotation: DefaultAnnotation) => {
     };
     let tuple = (~ann=?, l): pat_t(DefaultAnnotation.t) => {
       term: Tuple(l),
+      annotation: default_annotation(ann),
+    };
+    let explicit_non_label = (~ann=?, ()): pat_t(DefaultAnnotation.t) => {
+      term: ExplicitNonlabel,
       annotation: default_annotation(ann),
     };
     let label = (~ann=?, l): pat_t(DefaultAnnotation.t) => {

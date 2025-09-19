@@ -1144,6 +1144,7 @@ let get_doc =
         | Parens(_)
         | Probe(_)
         | Label(_)
+        | ExplicitNonlabel
         | Asc(_) => default // Shouldn't get hit?
         };
       | Label(name) =>
@@ -1725,6 +1726,7 @@ let get_doc =
             basic(LetExp.lets_ctr);
           }
         | TupLabel(_)
+        | ExplicitNonlabel
         | Label(_)
         | Invalid(_) => default // Shouldn't get hit
         | Parens(_)
@@ -2261,6 +2263,7 @@ let get_doc =
           ),
         TerminalPat.var(v),
       )
+    | ExplicitNonlabel => simple("Explicitly non-labeled entry")
     | Label(name) =>
       get_message(
         ~format=

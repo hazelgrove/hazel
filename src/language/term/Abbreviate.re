@@ -645,6 +645,7 @@ and abbreviate_pat = (pat: Pat.t): Pat.t => {
   let term: Pat.term =
     switch (pat.term) {
     | Wild => Wild
+    | ExplicitNonlabel => ExplicitNonlabel
     | Var(v) => Var(abbreviate_str(available^, v))
     | Label(v) => Label(abbreviate_str(available^, v))
     | Atom(Int(n)) => wrap_or(Atom(Int(n)), Bigint.to_string(n))

@@ -110,6 +110,7 @@ let rec elaborate_pattern =
       let (p1', _) = elaborate_pattern(m, p1);
       let (p2', _) = elaborate_pattern(m, p2);
       Cons(p1', p2') |> rewrap;
+    | TupLabel({term: ExplicitNonlabel, _}, p) => p
     | TupLabel(lab, p) =>
       let (plab, _) = elaborate_pattern(m, lab);
       let (p', _) = elaborate_pattern(m, p);
@@ -134,6 +135,8 @@ let rec elaborate_pattern =
         );
 
       Tuple(ps') |> rewrap;
+    | ExplicitNonlabel =>
+      raise(Failure("Explicit nonlabel pattern outside of tuplabel"))
     | Label(_) => upat
     | Ap(p1, p2) =>
       let (p1', _) = elaborate_pattern(m, p1);

@@ -122,6 +122,7 @@ let sample_pattern = (cls_pat: Pat.cls): Grammar.UnitGrammar.pat => {
       | Ap => ap(empty_hole(), empty_hole())
       | Asc => asc(empty_hole(), Typ.string())
       | Wild => wild()
+      | ExplicitNonlabel => explicit_non_label()
       }
     )
   );

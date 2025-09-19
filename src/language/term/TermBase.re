@@ -477,7 +477,8 @@ and Pat: {
         | Atom(_)
         | Constructor(_)
         | Label(_)
-        | Var(_) => term
+        | Var(_)
+        | ExplicitNonlabel => term
         | MultiHole(things) => MultiHole(List.map(any_map_term, things))
         | ListLit(ts) => ListLit(List.map(pat_map_term, ts))
         | Ap(e1, e2) => Ap(pat_map_term(e1), pat_map_term(e2))
@@ -509,6 +510,7 @@ and Pat: {
     | (Wild, Wild) => true
     | (Atom(c1), Atom(c2)) => c1 == c2
     | (Label(s1), Label(s2)) => s1 == s2
+    | (ExplicitNonlabel, ExplicitNonlabel) => true
     | (Constructor(c1, Some(Some(t1))), Constructor(c2, Some(Some(t2)))) =>
       c1 == c2 && Typ.fast_equal(t1, t2)
     | (Constructor(c1, Some(None)), Constructor(c2, Some(None)))
@@ -537,6 +539,7 @@ and Pat: {
     | (Var(_), _)
     | (TupLabel(_), _)
     | (Tuple(_), _)
+    | (ExplicitNonlabel, _)
     | (Ap(_), _)
     | (Asc(_), _) => false
     };

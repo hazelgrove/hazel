@@ -562,6 +562,7 @@ and Pat: {
         annotation: true,
         term: of_menhir_ast(p).term,
       }
+    | ExplicitNonlabel => explicit_non_label()
     };
   };
   let rec of_core = (pat: IndicatedG.pat): AST.pat => {
@@ -582,6 +583,7 @@ and Pat: {
     | Parens(p) => of_core(p)
     | Probe(p, _) => of_core(p)
     | Label(s) => LabelPat(s)
+    | ExplicitNonlabel => ExplicitNonlabel
     | TupLabel(p1, p2) => TupLabelPat(of_core(p1), of_core(p2))
     };
   };

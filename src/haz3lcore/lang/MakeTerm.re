@@ -602,6 +602,16 @@ and pat_term: unsorted => (Pat.term, list(Id.t)) = {
       switch (tiles) {
       | ([(_id, (["="], []))], []) =>
         switch (l.term) {
+        | Wild =>
+          ret(
+            TupLabel(
+              {
+                annotation: l.annotation,
+                term: ExplicitNonlabel,
+              },
+              r,
+            ),
+          ) // Unlabeled tuple using deferred ap in tuplabel
         | Var(name) =>
           ret(
             TupLabel(

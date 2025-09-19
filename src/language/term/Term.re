@@ -5,6 +5,7 @@ module Pat = {
     | EmptyHole
     | MultiHole
     | Wild
+    | ExplicitNonlabel
     | Atom(Atom.cls)
     | ListLit
     | Constructor
@@ -49,6 +50,7 @@ module Pat = {
     | Cons(_) => Cons
     | Var(_) => Var
     | Label(_) => Label
+    | ExplicitNonlabel => ExplicitNonlabel
     | TupLabel(_) => TupLabel
     | Tuple(_) => Tuple
     | Parens(_) => Parens
@@ -62,6 +64,7 @@ module Pat = {
     | MultiHole => "Broken pattern"
     | EmptyHole => "Empty pattern hole"
     | Wild => "Wildcard"
+    | ExplicitNonlabel => "Explicitly non-labeled entry"
     | Atom(Int) => "Number literal"
     | Atom(Float) => "Float literal"
     | Atom(Bool) => "Boolean literal"
@@ -96,6 +99,7 @@ module Pat = {
     | Cons(_, _)
     | Tuple(_)
     | Label(_)
+    | ExplicitNonlabel
     | Constructor(_)
     | Ap(_) => false
     };
@@ -111,6 +115,7 @@ module Pat = {
       | TupLabel(_, pat) => is_tuple_of_vars(pat)
       | Tuple(pats) => pats |> List.for_all(is_var)
       | Label(_)
+      | ExplicitNonlabel
       | Invalid(_)
       | EmptyHole
       | MultiHole(_)
@@ -139,6 +144,7 @@ module Pat = {
     | ListLit(_)
     | Cons(_, _)
     | Label(_)
+    | ExplicitNonlabel
     | Tuple(_)
     | Constructor(_)
     | Ap(_) => None
@@ -165,6 +171,7 @@ module Pat = {
     | Cons(_, _)
     | Var(_)
     | Label(_)
+    | ExplicitNonlabel
     | Tuple(_)
     | Constructor(_)
     | Ap(_) => None
@@ -188,6 +195,7 @@ module Pat = {
           Some(List.map(Option.get, vars));
         };
       | Label(_)
+      | ExplicitNonlabel
       | Invalid(_)
       | EmptyHole
       | MultiHole(_)
@@ -213,6 +221,7 @@ module Pat = {
       | Tuple(pats) =>
         is_tuple_of_vars(pat) ? Some(List.length(pats)) : None
       | Label(_)
+      | ExplicitNonlabel
       | Invalid(_)
       | EmptyHole
       | MultiHole(_)
@@ -255,6 +264,7 @@ module Pat = {
     | Invalid(_)
     | Atom(_)
     | Label(_)
+    | ExplicitNonlabel
     | Constructor(_) => []
     | Asc(y, _)
     | Parens(y)

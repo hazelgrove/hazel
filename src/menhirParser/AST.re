@@ -127,7 +127,8 @@ type pat =
   | InvalidPat(string) // Menhir parser doesn't actually support invalid pats
   | TupLabelPat(pat, pat)
   | LabelPat(string)
-  | IndicationPat(pat);
+  | IndicationPat(pat)
+  | ExplicitNonlabel;
 
 [@deriving (show({with_path: false}), sexp, qcheck, eq)]
 type if_consistency =
@@ -1085,6 +1086,7 @@ and shrink_pat: QCheck.Shrink.t(pat) =
           }
         | LabelPat(l) =>
           shrink_non_empty_string(l) >|= ((l: string) => LabelPat(l))
+        | ExplicitNonlabel => return(ExplicitNonlabel: pat)
         | InvalidPat(_)
         | IndicationPat(_)
         | WildPat

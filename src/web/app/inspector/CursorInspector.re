@@ -238,6 +238,9 @@ let common_ok_view =
     switch (cls, ok) {
     | (Pat(EmptyHole), _) when label_sort => []
     | (Exp(EmptyHole), _) when label_sort => []
+    | (Pat(ExplicitNonlabel), _) when label_sort => [
+        text("Explicitly non-labeled entry"),
+      ]
     | (Exp(ExplicitNonlabel), _) when label_sort => [
         text("Explicitly non-labeled entry"),
       ]

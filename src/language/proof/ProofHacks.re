@@ -132,6 +132,7 @@ let rec pat_to_exp = (pat: Pat.t): Exp.t => {
   | Ap(e1, e2) => rewrap(Ap(Forward, pat_to_exp(e1), pat_to_exp(e2)))
   | Asc(e, t1) => rewrap(Asc(pat_to_exp(e), t1))
   | Label(l) => rewrap(Label(l))
+  | ExplicitNonlabel => rewrap(ExplicitNonlabel)
   | TupLabel(l, e) => rewrap(TupLabel(pat_to_exp(l), pat_to_exp(e)))
   | Probe(e, probe) => rewrap(Probe(pat_to_exp(e), probe))
   };
@@ -170,6 +171,10 @@ let dhpat_extend_ctx = (dhpat: DHPat.t, ty: Typ.t, ctx: Ctx.t): option(Ctx.t) =>
       Some([entry]);
     | Label(name) =>
       Typ.equal(ty, Label(name) |> Typ.temp) ? Some([]) : None
+    | ExplicitNonlabel =>
+      raise(Failure("dhpat_extend_ctx ExplicitNonlabel shouldn't show up"))
+    | TupLabel({term: ExplicitNonlabel, _}, dhpat) =>
+      dhpat_var_entry(dhpat, ty)
     | TupLabel(_, dp1) =>
       switch (ty'.term) {
       | TupLabel(_, ty2)
@@ -260,6 +265,7 @@ let rec get_inductive_hypotheses = (m: Statics.Map.t, t: Typ.t, p: Pat.t) => {
     get_inductive_hypotheses(m, t, e1) @ get_inductive_hypotheses(m, t, e2)
   | Asc(e, _) => get_inductive_hypotheses(m, t, e)
   | Label(_) => []
+  | ExplicitNonlabel => []
   | TupLabel(l, e) =>
     get_inductive_hypotheses(m, t, l) @ get_inductive_hypotheses(m, t, e)
   | Probe(e, _) => get_inductive_hypotheses(m, t, e)

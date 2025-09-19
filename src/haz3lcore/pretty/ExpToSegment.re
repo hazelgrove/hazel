@@ -105,6 +105,7 @@ let external_precedence_pat = (dp: Pat.t) =>
   // Indivisible forms never need parentheses around them
   | EmptyHole
   | Wild
+  | ExplicitNonlabel
   | Invalid(_)
   | Var(_)
   | Atom(Bool(_) | Int(_) | SInt(_) | Float(_) | String(_) | Nat(_))
@@ -434,6 +435,7 @@ and parenthesize_pat =
 
   // Other forms
   | Wild => pat
+  | ExplicitNonlabel => pat
   | Parens(p) =>
     Parens(
       parenthesize_pat(~already_paren=true, p)
@@ -1207,6 +1209,7 @@ and pat_to_pretty = (~settings: Settings.t, pat: Pat.t): pretty => {
       }),
     ]);
   | Wild => text_to_pretty(pat |> Pat.rep_id, Sort.Pat, "_")
+  | ExplicitNonlabel => text_to_pretty(pat |> Pat.rep_id, Sort.Pat, "_")
   | Var(v) => text_to_pretty(pat |> Pat.rep_id, Sort.Pat, v)
   | Atom(c) =>
     text_to_pretty(pat |> Pat.rep_id, Sort.Pat, Atom.to_literal(c))
