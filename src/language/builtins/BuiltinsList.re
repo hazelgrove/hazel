@@ -755,14 +755,14 @@ let builtins =
              | [] => error("tail: empty list")
              | _ :: xs => xs
            end|},
-      name: "tl",
+      name: "tail",
       arg: List(unknown(Internal)),
       ret: List(unknown(Internal)),
       imp: {
         Fresh.(
           Exp.(
             fix_f(
-              Pat.var("tl"),
+              Pat.var("tail"),
               fn(
                 Pat.var("xs"),
                 match(
@@ -773,7 +773,7 @@ let builtins =
                   ],
                 ),
                 None,
-                None,
+                Some("tail+"),
               ),
               None,
             )
@@ -2740,18 +2740,18 @@ let go: ([?], [?], [?]) -> [?] =
       },
     },
     {
-      str: {|fix tl_opt -> fun xs -> case xs
+      str: {|fix tail_opt -> fun xs -> case xs
              | [] => None
              | _ :: xs => Some(xs)
            end|},
-      name: "tl_opt",
+      name: "tail_opt",
       arg: List(unknown(Internal)),
       ret: Unknown(Internal),
       imp: {
         Fresh.(
           Exp.(
             fix_f(
-              Pat.var("tl_opt"),
+              Pat.var("tail_opt"),
               fn(
                 Pat.var("xs"),
                 match(
@@ -2765,7 +2765,7 @@ let go: ([?], [?], [?]) -> [?] =
                   ],
                 ),
                 None,
-                Some("tl_opt+"),
+                Some("tail_opt+"),
               ),
               None,
             )
