@@ -187,11 +187,13 @@ let table =
 
 module M: Projector = {
   [@deriving (show({with_path: false}), sexp, yojson)]
-  type model = unit;
+  type model = option(int);
   [@deriving (show({with_path: false}), sexp, yojson)]
-  type action = unit;
+  type action =
+    | Next
+    | Previous;
 
-  let init = (any: Term.Any.t) => Some();
+  let init = (any: Term.Any.t) => Some(None);
 
   let focusable =
     Focusable.{
@@ -206,22 +208,63 @@ module M: Projector = {
       horizontal: 50 // +2 for left and right padding
     };
   };
-  let update = (model, _, _) => model;
+  let update = (model, info, action) => {
+    let dynamics = info.dynamics |> Option.value(~default=[]);
+    let length = List.length(dynamics);
+    if (length == 0) {
+      model;
+    } else {
+      let current = Option.value(model, ~default=0);
+      switch (action) {
+      | Next => Some((current + 1) mod length)
+      | Previous => Some((current + length - 1) mod length)
+      };
+    };
+  };
 
-  let view = (_, info, ~local as _, ~parent, ~view_seg: View.seg) => {
+  let view = (model, info, ~local, ~parent, ~view_seg: View.seg) => {
     let dynamics: list(Dynamics.Probe.Closure.t) =
       info.dynamics |> Option.value(~default=[]);
-    let values =
-      List.map((c: Dynamics.Probe.Closure.t) => c.value, dynamics);
 
     let v =
-      switch (values) {
-      | [] => Node.div([])
-      | [x, ..._] =>
-        switch (table_from_exp(x)) {
-        | Some((hd, tl)) => table(info, ~view_seg, ~parent, (hd, tl))
-        | _ => Node.div([])
-        }
+      if (List.length(dynamics) == 0) {
+        Node.div([Node.text("Loading dynamics...")]);
+      } else {
+        let length = List.length(dynamics);
+        let observed = Option.value(model, ~default=0) mod length;
+        let closure = List.nth(dynamics, observed);
+        let table_node =
+          switch (table_from_exp(closure.value)) {
+          | Some((hd, tl)) => table(info, ~view_seg, ~parent, (hd, tl))
+          | _ => Node.div([Node.text("No table data")])
+          };
+
+        let buttons =
+          if (length <= 1) {
+            Node.div([]);
+          } else {
+            Node.div(
+              ~attrs=[Attr.classes(["closure-buttons"])],
+              [
+                Node.button(
+                  ~attrs=[
+                    Attr.on_click(_ => local(Previous)),
+                    Attr.classes(["btn", "btn-secondary"]),
+                  ],
+                  [Node.text("Previous")],
+                ),
+                Node.button(
+                  ~attrs=[
+                    Attr.on_click(_ => local(Next)),
+                    Attr.classes(["btn", "btn-secondary"]),
+                  ],
+                  [Node.text("Next")],
+                ),
+              ],
+            );
+          };
+
+        Node.div([buttons, table_node]);
       };
 
     View.mk(v);
