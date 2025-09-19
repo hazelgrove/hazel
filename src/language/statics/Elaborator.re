@@ -265,9 +265,14 @@ let rec elaborate = (m: Statics.Map.t, uexp: Exp.t): (DHExp.t, Typ.t) => {
 
       Tuple(ds) |> rewrap;
     | TupLabel(label, e) =>
-      let (label', _) = elaborate(m, label);
-      let (e', _) = elaborate(m, e);
-      TupLabel(label', e') |> rewrap;
+      switch (label.term) {
+      | ExplicitNonlabel => elaborate(m, e) |> fst
+      | _ =>
+        let (label', _) = elaborate(m, label);
+        let (e', _) = elaborate(m, e);
+        TupLabel(label', e') |> rewrap;
+      }
+    | ExplicitNonlabel
     | Label(_) => uexp
     | Dot(e1, e2) =>
       let (e1, _) = elaborate(m, e1);

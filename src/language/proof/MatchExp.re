@@ -200,9 +200,15 @@ let rec match_exp =
   | (Match(_, _), _) => None
   | (Label(l1), Label(l2)) when l1 == l2 => Some(ctx)
   | (Label(_), _) => None
+  | (ExplicitNonlabel, ExplicitNonlabel) => Some(ctx)
   | (TupLabel(l1, e1), TupLabel(l2, e2)) when l1 == l2 =>
     match_exp(alphas, ctx, e1, e2)
+  | (TupLabel({term: ExplicitNonlabel, _}, e1), _) =>
+    match_exp(alphas, ctx, e1, exp)
+  | (_, TupLabel({term: ExplicitNonlabel, _}, e2)) =>
+    match_exp(alphas, ctx, exp_r, e2)
   | (TupLabel(_, _), _) => None
+  | (ExplicitNonlabel, _) => None
   | (Dot(e1, l1), Dot(e2, l2)) when l1 == l2 =>
     match_exp(alphas, ctx, e1, e2)
   | (Dot(_, _), _) => None

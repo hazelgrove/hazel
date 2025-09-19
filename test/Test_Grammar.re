@@ -48,6 +48,7 @@ let sample_expression = (cls_exp: Exp.cls): Grammar.UnitGrammar.exp => {
       | Fun => fn(Pat.var("x"), var("x"), None, None)
       | TypFun => typ_fun(TPat.var("x"), empty_hole(), None)
       | Label => label("label")
+      | ExplicitNonlabel => explicit_non_label()
       | TupLabel => tup_label(label("label"), empty_hole())
       | Tuple => tuple([])
       | TupleExtension => tuple_extension(empty_hole(), empty_hole())

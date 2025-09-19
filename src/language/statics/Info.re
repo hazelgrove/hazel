@@ -266,10 +266,10 @@ type label_inference('a) =
 type exp = {
   term: Exp.t, /* The term under consideration */
   ancestors, /* Ascending list of containing term ids */
-  ctx: Ctx.t, /* Typing context for the term */
+  ctx: [@show.opaque] Ctx.t, /* Typing context for the term */
   ana: Typ.t, /* Parental type expectations  */
   self: Self.exp, /* Expectation-independent type info */
-  co_ctx: CoCtx.t, /* Locally free variables */
+  co_ctx: [@show.opaque] CoCtx.t, /* Locally free variables */
   cls: Cls.t, /* DERIVED: Syntax class (i.e. form name) */
   status: status_exp, /* DERIVED: Ok/Error statuses for display */
   ty: Typ.t, /* DERIVED: Type after nonempty hole fixing */
@@ -453,6 +453,7 @@ let status_common = (ctx: Ctx.t, ty_ana: Typ.t, self: Self.t): status_common =>
   | (FreeConstructor(name), _) => InHole(NoType(FreeConstructor(name)))
   | (BadToken(name), _) => InHole(NoType(BadToken(name)))
   | (BadLabel(label), _) => InHole(NoType(BadLabel(label)))
+  | (ExplicitNonlabel, _) => NotInHole(Syn(Unknown(Internal) |> Typ.temp))
   | (UnexpectedLabelSort(label), _) =>
     InHole(NoType(UnexpectedLabelSort(label)))
   | (InvalidLabel(label, expected_labels), _) =>

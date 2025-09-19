@@ -152,6 +152,7 @@ type exp =
   | Fun(pat, exp, option(string))
   | CaseExp(exp, list((pat, exp)))
   | Label(string)
+  | ExplicitNonlabel
   | TupLabel(exp, exp)
   | Dot(exp, exp)
   | ApExp(exp, exp)
@@ -784,6 +785,7 @@ let rec shrink_exp: QCheck.Shrink.t(exp) =
           }
         | Label(l) =>
           shrink_non_empty_string(l) >|= ((l: string) => Label(l))
+        | ExplicitNonlabel => return(ExplicitNonlabel)
         | TupLabel(e1, e2) =>
           {
             return(

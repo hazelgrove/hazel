@@ -631,6 +631,15 @@ and uexp_to_info_map =
           Info.derive_label_inference_info(original_labels, new_labels),
         m,
       );
+    | TupLabel({term: ExplicitNonlabel, _} as label, e) =>
+      let (e, m) = go(~ana, e, m);
+      let (_, m) =
+        go(
+          ~label_sort=true,
+          label,
+          m,
+        );
+      add(~self=Just(e.ty), ~co_ctx=e.co_ctx, m);
     | TupLabel(label, e) =>
       let (lab, e, m) =
         switch (Typ.matched_label(ctx, ana)) {
@@ -685,6 +694,7 @@ and uexp_to_info_map =
           })
         };
       add(~self, ~co_ctx=CoCtx.union([lab.co_ctx, e.co_ctx]), m);
+    | ExplicitNonlabel => atomic(ExplicitNonlabel)
     | Label(name) when label_sort =>
       let self = Self.Just(Label(name) |> Typ.temp);
       List.exists(l => name == l, duplicates)

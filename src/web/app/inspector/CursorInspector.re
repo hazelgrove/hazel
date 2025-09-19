@@ -238,6 +238,9 @@ let common_ok_view =
     switch (cls, ok) {
     | (Pat(EmptyHole), _) when label_sort => []
     | (Exp(EmptyHole), _) when label_sort => []
+    | (Exp(ExplicitNonlabel), _) when label_sort => [
+        text("Explicitly non-labeled entry"),
+      ]
     | (Exp(MultiHole) | Pat(MultiHole), _) => [
         text("Expecting operator or delimiter"),
       ]
@@ -265,6 +268,7 @@ let common_ok_view =
       switch (syn.term) {
       | Label(l) => [label_view(l), text(" is a valid label")]
       | _ =>
+        print_endline("Here");
         [text(":"), view_type(syn)]
         @ [text("equals expected type")]
         @ (
@@ -291,7 +295,7 @@ let common_ok_view =
           | false => []
           | true => [text(" after reordering by labels ")]
           }
-        )
+        );
       }
     | (_, Ana(Consistent({ana, syn, _}))) =>
       (
@@ -740,6 +744,7 @@ let tpat_view = (~globals, _: Cls.t, status: Info.status_tpat) => {
 let secondary_view = (cls: Cls.t) => div_ok([text(cls |> Cls.show)]);
 
 let view_of_info = (~globals, ci): list(Node.t) => {
+  print_endline("Rendering info view for " ++ Info.show(ci));
   let wrapper = status_view => [term_view(~globals, ci), status_view];
   switch (ci) {
   | Secondary(_) => wrapper(div([]))

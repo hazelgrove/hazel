@@ -229,6 +229,7 @@ module rec Exp: {
     | TupleExtension(e1, e2) =>
       tuple_extension(of_menhir_ast(e1), of_menhir_ast(e2))
     | Label(s) => label(s)
+    | ExplicitNonlabel => explicit_non_label()
     | TupLabel(e1, e2) => tup_label(of_menhir_ast(e1), of_menhir_ast(e2))
     | Dot(e1, e2) =>
       switch (e2) {
@@ -386,6 +387,7 @@ module rec Exp: {
       ApExp(of_core(e), TupleExp(List.map(of_core, es)))
     | Fun(p, e, _, name_opt) => Fun(Pat.of_core(p), of_core(e), name_opt)
     | Label(s) => Label(s)
+    | ExplicitNonlabel => ExplicitNonlabel
     | TupLabel(e1, e2) => TupLabel(of_core(e1), of_core(e2))
     | Dot(e1, e2) => Dot(of_core(e1), of_core(e2))
     | Ap(Reverse, _, _) => raise(Failure("Reverse not supported"))

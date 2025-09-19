@@ -251,11 +251,18 @@ let tests =
         )
       ),
       test_case("Singleton unlabeled tuple", `Quick, () =>
-        exp_check(tuple([int(1)]), "(_ = 1)")
+        exp_check(
+          tuple([tup_label(explicit_non_label(), int(1))]),
+          "(_ = 1)",
+        )
       ),
       test_case("Multiple unlabeled tuple entries", `Quick, () =>
         exp_check(
-          tuple([int(1), int(2), int(3)]),
+          tuple([
+            tup_label(explicit_non_label(), int(1)),
+            tup_label(explicit_non_label(), int(2)),
+            tup_label(explicit_non_label(), int(3)),
+          ]),
           "(_ = 1, _ = 2, _ = 3)",
         )
       ),

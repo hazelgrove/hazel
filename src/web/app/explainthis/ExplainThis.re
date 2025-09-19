@@ -586,6 +586,7 @@ let get_doc =
         );
       | Undefined => get_message(UndefinedExp.undefined_exps)
       | Deferral(_) => get_message(TerminalExp.deferral_exps)
+      | ExplicitNonlabel => simple("Explicitly non-labeled entry")
       | Atom(Bool(b)) => get_message(TerminalExp.bool_exps(b))
       | Atom(Int(i)) => get_message(TerminalExp.int_exps(i))
       | Atom(SInt(i)) => get_message(TerminalExp.sint_exps(i))

@@ -66,6 +66,7 @@ and exp_term('a) =
   | TypFun(tpat_t('a), exp_t('a), option(Var.t))
   | Tuple(list(exp_t('a)))
   | Label(string)
+  | ExplicitNonlabel
   | TupLabel(exp_t('a), exp_t('a))
   | Dot(exp_t('a), exp_t('a))
   | LivelitName(string)
@@ -193,6 +194,7 @@ let rec map_exp_annotation: type a b. (a => b, exp_t(a)) => exp_t(b) =
           TypFun(map_tpat_annotation(f, p), map_exp_annotation(f, e), v)
         | Tuple(l) => Tuple(List.map(x => map_exp_annotation(f, x), l))
         | Label(l) => Label(l)
+        | ExplicitNonlabel => ExplicitNonlabel
         | TupLabel(l, e) =>
           TupLabel(map_exp_annotation(f, l), map_exp_annotation(f, e))
         | Dot(e1, e2) =>
@@ -533,6 +535,10 @@ module Factory = (DefaultAnnotation: DefaultAnnotation) => {
     };
     let tuple = (~ann=?, l): exp_t(DefaultAnnotation.t) => {
       term: Tuple(l),
+      annotation: default_annotation(ann),
+    };
+    let explicit_non_label = (~ann=?, ()): exp_t(DefaultAnnotation.t) => {
+      term: ExplicitNonlabel,
       annotation: default_annotation(ann),
     };
     let label = (~ann=?, l): exp_t(DefaultAnnotation.t) => {

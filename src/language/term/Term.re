@@ -306,6 +306,7 @@ module Exp = {
     | Constructor
     | Fun
     | TypFun
+    | ExplicitNonlabel
     | Label
     | TupLabel
     | TupleExtension
@@ -374,6 +375,7 @@ module Exp = {
     | Tuple(_) => Tuple
     | TupleExtension(_) => TupleExtension
     | Label(_) => Label
+    | ExplicitNonlabel => ExplicitNonlabel
     | TupLabel(_, _) => TupLabel
     | Dot(_) => Dot
     | Var(_) => Var
@@ -425,6 +427,7 @@ module Exp = {
     | TypFun => "Type Function Literal"
     | Tuple => "Tuple literal"
     | Label => "Label"
+    | ExplicitNonlabel => "Explicitly non-labeled entry"
     | TupLabel => "Labeled Tuple Item"
     | TupleExtension => "Tuple Extension"
     | Dot => "Dot operator"
@@ -508,6 +511,7 @@ module Exp = {
     | Undefined
     | Atom(_)
     | Label(_)
+    | ExplicitNonlabel
     | ListLit(_)
     | Tuple(_)
     | TupleExtension(_)
@@ -569,6 +573,7 @@ module Exp = {
       | Undefined
       | Atom(_)
       | Label(_)
+      | ExplicitNonlabel
       | ListLit(_)
       | TupleExtension(_)
       | Fun(_)
@@ -633,6 +638,7 @@ module Exp = {
       | Undefined
       | Atom(_)
       | Label(_)
+      | ExplicitNonlabel
       | ListLit(_)
       | TupleExtension(_)
       | Fun(_)
@@ -799,6 +805,7 @@ module Exp = {
           | TupLabel(_)
           | TupleExtension(_)
           | Label(_)
+          | ExplicitNonlabel
           | Dot(_)
           | TyAlias(_)
           | Use(_)

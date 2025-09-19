@@ -52,6 +52,7 @@ let rec external_precedence = (exp: Exp.t): Precedence.t => {
   | Atom(Bool(_) | Int(_) | SInt(_) | Float(_) | String(_) | Nat(_))
   | EmptyHole
   | Deferral(_)
+  | ExplicitNonlabel
   | BuiltinFun(_)
   | Undefined
   | Label(_)
@@ -195,8 +196,10 @@ let rec parenthesize =
   | LivelitName(_)
   //| Constructor(_) // Not indivisible because of the type annotation!
   | Deferral(_)
+  | ExplicitNonlabel
   | BuiltinFun(_)
   | Tuple([])
+  | Label(_)
   | Undefined => exp
 
   // Forms that currently need to stripped before outputting
@@ -258,7 +261,6 @@ let rec parenthesize =
     } else {
       Parens(inner) |> Exp.fresh;
     };
-  | Label(_) => exp
   | TupLabel(l, e) =>
     TupLabel(l, parenthesize(e) |> paren_at(Precedence.min)) |> rewrap
   | Dot(e, l) =>
@@ -812,6 +814,7 @@ let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
   // @ (t |> fold_if(settings.fold_cast_types));
   | ListLit([]) => text_to_pretty(exp |> Exp.rep_id, Sort.Exp, "[]")
   | Deferral(_) => text_to_pretty(exp |> Exp.rep_id, Sort.Exp, "_")
+  | ExplicitNonlabel => text_to_pretty(exp |> Exp.rep_id, Sort.Exp, "_")
   | ListLit([x, ...xs]) =>
     // TODO: Add optional newlines
     let* x = go(x)

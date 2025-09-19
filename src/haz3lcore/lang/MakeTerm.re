@@ -218,18 +218,10 @@ and exp = unsorted => {
       },
     );
   switch (term) {
-  | TupLabel(l, r) =>
-    switch (l.term) {
-    | Deferral(_) =>
-      // Unlabelled tuple
-      let (e_term, rewrap) = IdTagged.unwrap(e);
-      rewrap(Tuple([r]): Exp.term);
-
-    | _ =>
-      // The tile id is the id of the tuple not the tuplabel
-      let (e_term, rewrap) = IdTagged.unwrap(e);
-      rewrap(Tuple([e_term |> Exp.fresh]): Exp.term);
-    }
+  | TupLabel(_) =>
+    // The tile id is the id of the tuple not the tuplabel
+    let (e_term, rewrap) = IdTagged.unwrap(e);
+    rewrap(Tuple([e_term |> Exp.fresh]): Exp.term);
   | _ => e
   };
 }
@@ -461,7 +453,14 @@ and exp_term: unsorted => (Exp.term, list(Id.t)) = {
           | (["..."], []) => TupleExtension(l, r)
           | (["="], []) =>
             switch (l.term) {
-            | Deferral(_) => TupLabel(l, r) // Unlabeled tuple using deferred ap in tuplabel
+            | Deferral(_) =>
+              TupLabel(
+                {
+                  annotation: l.annotation,
+                  term: ExplicitNonlabel,
+                },
+                r,
+              ) // Unlabeled tuple using deferred ap in tuplabel
             | Var(name) =>
               TupLabel(
                 {

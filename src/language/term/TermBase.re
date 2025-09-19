@@ -225,6 +225,7 @@ and Exp: {
         | Atom(_)
         | Constructor(_)
         | Label(_)
+        | ExplicitNonlabel
         | Deferral(_)
         | Var(_)
         | LivelitName(_)
@@ -306,6 +307,7 @@ and Exp: {
     | (Deferral(d1), Deferral(d2)) => d1 == d2
     | (Atom(c1), Atom(c2)) => c1 == c2
     | (Label(l1), Label(l2)) => l1 == l2
+    | (ExplicitNonlabel, ExplicitNonlabel) => true
     | (ListLit(xs), ListLit(ys)) =>
       List.length(xs) == List.length(ys) && List.equal(fast_equal, xs, ys)
     | (Constructor(c1, _), Constructor(c2, _))
@@ -385,6 +387,7 @@ and Exp: {
     | (Deferral(_), _)
     | (Atom(_), _)
     | (Label(_), _)
+    | (ExplicitNonlabel, _)
     | (LivelitName(_), _)
     | (ListLit(_), _)
     | (Constructor(_), _)

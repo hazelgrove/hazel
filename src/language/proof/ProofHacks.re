@@ -355,7 +355,8 @@ let rec replace_exp = (replace, replace_coctx, with_exp, with_coctx, in_exp) => 
         | UnOp(_, _)
         | BinOp(_, _, _)
         | BuiltinFun(_)
-        | Asc(_, _) => continue(exp)
+        | Asc(_, _)
+        | ExplicitNonlabel => continue(exp)
         };
       },
     in_exp,
