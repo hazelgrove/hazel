@@ -381,9 +381,7 @@ let tests = (
         "Singleton unlabeled tuple",
         "(_=1)",
         print_seg(
-          exp_to_segment(
-            IdTagged.FreshGrammar.Exp.(tuple([int(1)])),
-          ),
+          exp_to_segment(IdTagged.FreshGrammar.Exp.(tuple([int(1)]))),
         ),
       )
     ),

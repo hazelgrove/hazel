@@ -479,7 +479,7 @@ and exp_term: unsorted => (Exp.term, list(Id.t)) = {
                 rewrap(MultiHole([Exp(e_term |> Exp.fresh)]): Exp.term),
                 r,
               );
-            };
+            }
           | (["."], []) =>
             switch (r.term) {
             | Var(name) =>
