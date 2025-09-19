@@ -14,7 +14,7 @@ type key =
   | CurrentExercise
   | Exercise(Haz3lcore.Id.t)
   | CurrentDerivation
-  | Derivation(DerivationTree.key);
+  | Derivation(Haz3lcore.Id.t);
 
 let key_to_string =
   fun
@@ -28,9 +28,7 @@ let key_to_string =
   | CurrentTutorial => "CUR_TUTORIAL"
   | CurrentExercise => "CUR_EXERCISE"
   | CurrentDerivation => "CUR_DERIVATION"
-  | Derivation(key) =>
-    "DERIVATIONS"
-    ++ (key |> DerivationTree.sexp_of_key |> Sexplib.Sexp.to_string)
+  | Derivation(key) => "DERIVATIONS" ++ Haz3lcore.Id.to_string(key)
   | Exercise(id) => "TUTORIAL" ++ Haz3lcore.Id.to_string(id);
 
 module F =

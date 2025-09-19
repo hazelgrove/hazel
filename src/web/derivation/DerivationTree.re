@@ -49,8 +49,8 @@ type abbr_trees('a) = list(tree(abbr('a)));
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type p('code) = {
+  id: Id.t,
   title: string,
-  version: int,
   module_name: string,
   prompt: string,
   prelude: 'code,
@@ -258,17 +258,6 @@ let all_abbrs = pos =>
 type hint = string;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
-type key = (string, int);
-
-let key_of = p => {
-  (p.title, p.version);
-};
-
-let find_key_opt = (key, specs: list(p('code))) => {
-  specs |> Util.ListUtil.findi_opt(spec => key_of(spec) == key);
-};
-
-[@deriving (show({with_path: false}), sexp, yojson)]
 type spec = p(Zipper.t);
 
 [@deriving (show({with_path: false}), sexp, yojson)]
@@ -294,8 +283,8 @@ let farthest_pos = (pos: pos, editors: p('a)): pos =>
 
 let map = (p: p('a), f: 'a => 'b): p('b) => {
   {
+    id: p.id,
     title: p.title,
-    version: p.version,
     module_name: p.module_name,
     prompt: p.prompt,
     prelude: p.prelude |> f,
@@ -307,8 +296,8 @@ let map = (p: p('a), f: 'a => 'b): p('b) => {
 
 let mapi = (p: p('a), f: (pos, 'a) => 'b): p('b) => {
   {
+    id: p.id,
     title: p.title,
-    version: p.version,
     module_name: p.module_name,
     prompt: p.prompt,
     prelude: p.prelude |> f(Prelude),
@@ -325,8 +314,6 @@ type eds = p(Editor.t);
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type state = {eds};
-
-let key_of_state = eds => key_of(eds);
 
 let main_editor_of_state = (~selection: pos, eds) =>
   switch (selection) {
@@ -625,8 +612,8 @@ let blank_spec = (~title, ~module_name) => {
     ),
   ];
   {
+    id: Id.mk(),
     title,
-    version: 1,
     module_name,
     prompt: "TODO: prompt",
     prelude,
@@ -637,4 +624,4 @@ let blank_spec = (~title, ~module_name) => {
 };
 
 [@deriving (show({with_path: false}), sexp, yojson)]
-type persistent_exercise_mode = p(PersistentZipper.t);
+type persistent_state = p(PersistentZipper.t);

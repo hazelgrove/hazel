@@ -72,7 +72,7 @@ module Model = {
   };
 
   [@deriving (show({with_path: false}), sexp, yojson)]
-  type persistent = DerivationTree.persistent_exercise_mode;
+  type persistent = DerivationTree.persistent_state;
 
   let persist = (exercise: t, ~instructor_mode as _: bool): persistent => {
     DerivationTree.map(exercise.editors, editor =>
@@ -87,6 +87,51 @@ module Model = {
         PersistentZipper.unpersist(~root=DerivationTree.root_of_pos(pos))
       );
     of_spec(~instructor_mode, spec);
+  };
+
+  let get_derivation_info = (model: t) => {
+    let trees = model.verified_tree;
+    let eds = model.editors;
+    switch (model.pos) {
+    | Trees(i, pos) =>
+      try({
+        let tree = List.nth(trees, i);
+        let res = Tree.nth(tree, pos);
+        let tree = List.nth(eds.trees, i);
+        let ed = Tree.nth(tree, pos);
+        switch (ed, res) {
+        | (Just({rule: Some(rule), _}), {rule: None, _}) =>
+          Language.(
+            switch (RuleImage.to_rule(eds.corpus, rule)) {
+            | Some(rule) =>
+              Some({
+                ...res,
+                rule:
+                  Some(
+                    {
+                      print_endline("Uncaught Rule: " ++ Rule.show(rule));
+                      let spec = RuleSpec.of_spec(rule);
+                      {
+                        // TODO(zhiyao): may not bring it back now
+                        // let (spec, tests) =
+                        //   RuleVerify.fill_eq_tests(spec, tests);
+                        // let tests = RuleVerify.test_remove_eq_test(tests);
+                        rule,
+                        spec,
+                      };
+                    },
+                  ),
+              })
+            | _ => Some(res)
+            }
+          )
+        | _ => Some(res)
+        };
+      }) {
+      | _ => None
+      }
+    | _ => None
+    };
   };
 };
 

@@ -14,21 +14,22 @@ module Model = {
 
   [@deriving (show({with_path: false}), sexp, yojson)]
   type persistent = {
-    cur_exercise: DerivationTree.key,
-    exercise_data:
-      list((DerivationTree.key, DerivationMode.Model.persistent)),
+    cur_exercise: Haz3lcore.Id.t,
+    exercise_data: list((Haz3lcore.Id.t, DerivationMode.Model.persistent)),
   };
 
+  let id_of_spec = (spec: DerivationTree.spec): Haz3lcore.Id.t => spec.id;
+
+  let get_exercise_id = (exercise: DerivationMode.Model.t) =>
+    id_of_spec(exercise.spec);
+
   let persist = (~instructor_mode, model): persistent => {
-    cur_exercise:
-      DerivationTree.key_of_state(
-        List.nth(model.exercises, model.current).editors,
-      ),
+    cur_exercise: List.nth(model.exercises, model.current) |> get_exercise_id,
     exercise_data:
       List.map(
         (exercise: DerivationMode.Model.t) =>
           (
-            DerivationTree.key_of_state(exercise.editors),
+            get_exercise_id(exercise),
             DerivationMode.Model.persist(~instructor_mode, exercise),
           ),
         model.exercises,
@@ -44,7 +45,7 @@ module Model = {
       );
     let current =
       ListUtil.findi_opt(
-        spec => DerivationTree.key_of(spec) == persistent.cur_exercise,
+        spec => id_of_spec(spec) == persistent.cur_exercise,
         DerivationSettings.exercises,
       )
       |> Option.map(fst)
@@ -59,67 +60,26 @@ module Model = {
 
   let get_derivation_info = (eds: t) => {
     let model = get_current(eds);
-    let trees = model.verified_tree;
-    let eds = model.editors;
-    switch (model.pos) {
-    | Trees(i, pos) =>
-      try({
-        let tree = List.nth(trees, i);
-        let res = Tree.nth(tree, pos);
-        let tree = List.nth(eds.trees, i);
-        let ed = Tree.nth(tree, pos);
-        switch (ed, res) {
-        | (Just({rule: Some(rule), _}), {rule: None, _}) =>
-          Language.(
-            switch (RuleImage.to_rule(eds.corpus, rule)) {
-            | Some(rule) =>
-              Some({
-                ...res,
-                rule:
-                  Some(
-                    {
-                      print_endline("Uncaught Rule: " ++ Rule.show(rule));
-                      let spec = RuleSpec.of_spec(rule);
-                      {
-                        // TODO(zhiyao): may not bring it back now
-                        // let (spec, tests) =
-                        //   RuleVerify.fill_eq_tests(spec, tests);
-                        // let tests = RuleVerify.test_remove_eq_test(tests);
-                        rule,
-                        spec,
-                      };
-                    },
-                  ),
-              })
-            | _ => Some(res)
-            }
-          )
-        | _ => Some(res)
-        };
-      }) {
-      | _ => None
-      }
-    | _ => None
-    };
+    DerivationMode.Model.get_derivation_info(model);
   };
 };
 
 module StoreExerciseKey =
   Store.F({
     [@deriving (show({with_path: false}), sexp, yojson)]
-    type t = DerivationTree.key;
+    type t = Haz3lcore.Id.t;
     let default = () =>
-      List.nth(DerivationSettings.exercises, 0) |> DerivationTree.key_of;
+      List.nth(DerivationSettings.exercises, 0) |> Model.id_of_spec;
     let key = Store.CurrentDerivation;
   });
 
 module Store = {
   let keystring_of_key = key => {
-    key |> DerivationTree.sexp_of_key |> Sexplib.Sexp.to_string;
+    key |> Haz3lcore.Id.to_string;
   };
 
   let save_exercise = (exercise: DerivationMode.Model.t, ~instructor_mode) => {
-    let key = DerivationTree.key_of_state(exercise.editors);
+    let key = Model.get_exercise_id(exercise);
     let value = DerivationMode.Model.persist(exercise, ~instructor_mode);
     module S =
       Store.F({
@@ -132,7 +92,7 @@ module Store = {
   };
 
   let init_exercise = (~settings, spec, ~instructor_mode) => {
-    let key = DerivationTree.key_of(spec);
+    let key = Model.id_of_spec(spec);
     let exercise =
       DerivationMode.Model.of_spec(spec, ~settings, ~instructor_mode);
     save_exercise(exercise, ~instructor_mode);
@@ -158,7 +118,7 @@ module Store = {
 
   let save = (model: Model.t, ~instructor_mode) => {
     let exercise = List.nth(model.exercises, model.current);
-    let key = DerivationTree.key_of(exercise.editors);
+    let key = Model.get_exercise_id(exercise);
     save_exercise(exercise, ~instructor_mode);
     StoreExerciseKey.save(key);
   };
@@ -171,7 +131,7 @@ module Store = {
     let exercise_data =
       List.map(
         spec => {
-          let key = DerivationTree.key_of(spec);
+          let key = Model.id_of_spec(spec);
           (key, load_exercise(~settings, key, spec, ~instructor_mode));
         },
         DerivationSettings.exercises,
@@ -188,7 +148,7 @@ module Store = {
       exercise_data:
         List.map(
           spec => {
-            let key = DerivationTree.key_of(spec);
+            let key = Model.id_of_spec(spec);
             (key, load_exercise(~settings, key, spec, ~instructor_mode));
           },
           DerivationSettings.exercises,
@@ -204,10 +164,7 @@ module Store = {
     List.iter(
       ((key, value)) => {
         let n =
-          ListUtil.findi_opt(
-            spec => DerivationTree.key_of(spec) == key,
-            specs,
-          )
+          ListUtil.findi_opt(spec => Model.id_of_spec(spec) == key, specs)
           |> Option.get
           |> fst;
         let spec = List.nth(specs, n);

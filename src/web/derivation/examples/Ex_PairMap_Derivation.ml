@@ -1,7 +1,7 @@
 let exercise : DerivationTree.spec =
   {
+    id = Haz3lcore.Id.mk ();
     title = "PairMap Derivation";
-    version = 1;
     module_name = "Ex_PairMap_Derivation";
     prompt =
       "Provide a derivation using the Bidirectional Type System rules of the \

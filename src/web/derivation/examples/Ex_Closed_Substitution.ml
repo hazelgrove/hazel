@@ -1,7 +1,7 @@
 let exercise : DerivationTree.spec =
   {
+    id = Haz3lcore.Id.mk ();
     title = "Closed Substitution";
-    version = 1;
     module_name = "Ex_Closed_Substitution";
     prompt = "";
     corpus = Language.RuleImage.ALF;

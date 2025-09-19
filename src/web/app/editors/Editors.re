@@ -28,6 +28,7 @@ module Model = {
   let get_derivation_info = (model: t) => {
     switch (model) {
     | Derivations(eds) => DerivationsMode.Model.get_derivation_info(eds)
+    | Exercises(eds) => ExercisesMode.Model.get_derivation_info(eds)
     | _ => None
     };
   };

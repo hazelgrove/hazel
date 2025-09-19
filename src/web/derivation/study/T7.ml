@@ -1,7 +1,7 @@
 let exercise : DerivationTree.spec =
   {
+    id = Haz3lcore.Id.mk ();
     title = "Task 7 of 7: Deriving";
-    version = 0;
     module_name = "t7";
     prompt = "Derive the following judgment.";
     prelude =

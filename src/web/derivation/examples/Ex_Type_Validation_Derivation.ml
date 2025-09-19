@@ -1,7 +1,7 @@
 let exercise : DerivationTree.spec =
   {
+    id = Haz3lcore.Id.mk ();
     title = "Type Validation Derivation";
-    version = 1;
     module_name = "Ex_Type_Validation_Derivation";
     prompt = "";
     prelude =

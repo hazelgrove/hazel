@@ -1,7 +1,7 @@
 let exercise : DerivationTree.spec =
   {
+    id = Haz3lcore.Id.mk ();
     title = "Curried Function Derivation";
-    version = 1;
     module_name = "Ex_Curried_Function_Derivation";
     prompt =
       "Provide a derivation of the following judgement, which establishes that \

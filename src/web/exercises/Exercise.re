@@ -86,6 +86,7 @@ type spec = p(Zipper.t);
 [@deriving (show({with_path: false}), sexp, yojson)]
 type exercise_spec =
   | Implementation(spec)
+  | Derivation(DerivationTree.spec)
   | Theorem(TheoremExerciseSpec.t);
 
 [@deriving (show({with_path: false}), sexp, yojson)]

@@ -1,7 +1,7 @@
 let exercise : DerivationTree.spec =
   {
+    id = Haz3lcore.Id.mk ();
     title = "Shadowing and Closures";
-    version = 1;
     module_name = "Ex_Shadowing_And_Closures";
     prompt = "let us derive the judgement e_example \226\135\147 4.";
     prelude =

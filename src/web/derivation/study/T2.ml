@@ -1,7 +1,7 @@
 let exercise : DerivationTree.spec =
   {
+    id = Haz3lcore.Id.mk ();
     title = "Task 2 of 7: Debugging";
-    version = 0;
     module_name = "t2";
     prompt =
       "Try to fix the derivation until all the node turn marked correct (turn \

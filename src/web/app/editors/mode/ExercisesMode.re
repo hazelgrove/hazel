@@ -9,6 +9,7 @@ module Model = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type exercise =
     | Implementation(ExerciseMode.Model.t)
+    | Derivation(DerivationMode.Model.t)
     | Theorem(TheoremExerciseMode.Model.t);
 
   [@deriving (show({with_path: false}), sexp, yojson)]
@@ -23,6 +24,7 @@ module Model = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type persistent_exercise =
     | PImplementation(ExerciseMode.Model.persistent)
+    | PDerivation(DerivationMode.Model.persistent)
     | PTheorem(TheoremExerciseMode.Model.persistent);
 
   [@deriving (show({with_path: false}), sexp, yojson)]
@@ -36,18 +38,23 @@ module Model = {
     switch (exercise) {
     | Implementation(e) =>
       PImplementation(ExerciseMode.Model.persist(~instructor_mode, e))
+    | Derivation(e) =>
+      PDerivation(DerivationMode.Model.persist(~instructor_mode, e))
     | Theorem(e) => PTheorem(TheoremExerciseMode.Model.persist(e))
     };
 
   let get_exercise_id = (exercise: exercise): Haz3lcore.Id.t =>
     switch (exercise) {
     | Implementation(e: ExerciseMode.Model.t) => e.editors.id
+    | Derivation(_: DerivationMode.Model.t) => Id.invalid // TODO(zhiyao): add id to DerivationMode.Model.t
     | Theorem(e: TheoremExerciseMode.Model.t) => e.id
     };
 
   let get_spec_id = (spec: exercise_spec): Haz3lcore.Id.t =>
     switch (spec) {
+    // TODO(zhiyao): look into why we need it
     | Implementation(s) => s.id
+    | Derivation(s) => s.id
     | Theorem(s) => s.id
     };
 
@@ -82,6 +89,14 @@ module Model = {
       Implementation(
         ExerciseMode.Model.of_spec(~settings, ~instructor_mode, s),
       )
+    | (Derivation(s), PDerivation(p)) =>
+      Derivation(
+        DerivationMode.Model.unpersist(~settings, ~instructor_mode, p, s),
+      )
+    | (Derivation(s), _) =>
+      Derivation(
+        DerivationMode.Model.of_spec(~settings, ~instructor_mode, s),
+      )
     | (Theorem(s), PTheorem(p)) =>
       Theorem(TheoremExerciseMode.Model.unpersist(~settings, s, p))
     | (Theorem(s), _) => Theorem(TheoremExerciseMode.Model.of_spec(s))
@@ -115,12 +130,17 @@ module Model = {
       Implementation(
         ExerciseMode.Model.of_spec(~settings, ~instructor_mode, s),
       )
+    | Derivation(s) =>
+      Derivation(
+        DerivationMode.Model.of_spec(~settings, ~instructor_mode, s),
+      )
     | Theorem(s) => Theorem(TheoremExerciseMode.Model.of_spec(s))
     };
 
   let id_of_spec = (spec: exercise_spec): Haz3lcore.Id.t =>
     switch (spec) {
     | Implementation(s) => s.id
+    | Derivation(s) => s.id
     | Theorem(s) => s.id
     };
 
@@ -129,12 +149,14 @@ module Model = {
   let get_exercise_name = (e: exercise): string =>
     switch (e) {
     | Implementation(e) => e.editors.title
+    | Derivation(e) => e.spec.title
     | Theorem(e) => e.title
     };
 
   let export_exercise_module = (e: exercise): string =>
     switch (e) {
     | Implementation(e) => Exercise.export_module({eds: e.editors})
+    | Derivation(e) => DerivationTree.export_module({eds: e.editors})
     | Theorem(t) => TheoremExerciseMode.Model.export_module(t)
     };
 
@@ -145,6 +167,11 @@ module Model = {
         e.editors.module_name,
         {eds: e.editors},
       )
+    | Derivation(e) =>
+      DerivationTree.export_transitionary_module(
+        e.spec.module_name,
+        {eds: e.editors},
+      )
     | Theorem(_) => "(* Theorem exercises do not have an exportable transitionary module *)\n"
     };
 
@@ -152,6 +179,11 @@ module Model = {
     switch (e) {
     | Implementation(e) =>
       Exercise.export_grading_module(e.editors.module_name, {eds: e.editors})
+    | Derivation(e) =>
+      DerivationTree.export_grading_module(
+        e.spec.module_name,
+        {eds: e.editors},
+      )
     | Theorem(_) => "(* Theorem exercises do not have an exportable grading module *)\n"
     };
 
@@ -160,7 +192,17 @@ module Model = {
     let current = List.nth(model.exercises, model.current);
     switch (current) {
     | Implementation(e) => e.cells.user_impl.editor
+    | Derivation(e) => e.cells.prelude.editor
     | Theorem(e) => e.cells.theorem.editor
+    };
+  };
+
+  // Note(zhiyao): This function is only used in ExercisesMode.re
+  let get_derivation_info = (eds: t) => {
+    let model = get_current(eds);
+    switch (model) {
+    | Derivation(e) => DerivationMode.Model.get_derivation_info(e)
+    | _ => None
     };
   };
 };
@@ -287,6 +329,7 @@ module Update = {
   type t =
     | SwitchExercise(int)
     | Exercise(ExerciseMode.Update.t)
+    | Derivation(DerivationMode.Update.t)
     | TheoremExercise(TheoremExerciseMode.Update.t)
     | ExportModule
     | ExportSubmission
@@ -297,6 +340,7 @@ module Update = {
     switch (action) {
     | SwitchExercise(_) => false
     | Exercise(action) => ExerciseMode.Update.can_undo(action)
+    | Derivation(action) => DerivationMode.Update.can_undo(action)
     | TheoremExercise(action) => TheoremExerciseMode.Update.can_undo(action)
     | ExportModule => false
     | ExportSubmission => false
@@ -384,6 +428,25 @@ module Update = {
         exercises: new_exercises,
       };
     | (_, TheoremExercise(_)) => model |> return_quiet
+    | (Derivation(ex), Derivation(action)) =>
+      let* new_current =
+        DerivationMode.Update.update(
+          ~settings=globals.settings,
+          ~schedule_action,
+          action,
+          ex,
+        );
+      let new_exercises =
+        ListUtil.put_nth(
+          model.current,
+          Model.Derivation(new_current),
+          model.exercises,
+        );
+      Model.{
+        current: model.current,
+        exercises: new_exercises,
+      };
+    | (_, Derivation(_)) => model |> return_quiet
     | (_, SwitchExercise(n)) =>
       Model.{
         current: n,
@@ -423,6 +486,15 @@ module Update = {
             ex,
           ),
         )
+      | Derivation(ex) =>
+        Model.Derivation(
+          DerivationMode.Update.calculate(
+            ~settings,
+            ~is_edited,
+            ~schedule_action=a => schedule_action(Derivation(a)),
+            ex,
+          ),
+        )
       | Theorem(ex) =>
         Model.Theorem(
           TheoremExerciseMode.Update.calculate(
@@ -447,6 +519,7 @@ module Selection = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t =
     | Implementation(ExerciseMode.Selection.t)
+    | Derivation(DerivationMode.Selection.t)
     | TheoremExercise(TheoremExerciseMode.Selection.t);
 
   let get_cursor_info = (~selection, model: Model.t): cursor(Update.t) => {
@@ -456,6 +529,10 @@ module Selection = {
       let+ ci = ExerciseMode.Selection.get_cursor_info(~selection, e);
       Update.Exercise(ci);
     | (Implementation(_), _) => Cursor.empty
+    | (Derivation(e), Derivation(selection)) =>
+      let+ ci = DerivationMode.Selection.get_cursor_info(~selection, e);
+      Update.Derivation(ci);
+    | (Derivation(_), _) => Cursor.empty
     | (Theorem(e), TheoremExercise(selection)) =>
       let+ ci = TheoremExerciseMode.Selection.get_cursor_info(~selection, e);
       Update.TheoremExercise(ci);
@@ -471,6 +548,10 @@ module Selection = {
       ExerciseMode.Selection.handle_key_event(~selection, ~event, e)
       |> Option.map(a => Update.Exercise(a))
     | (Implementation(_), _) => None
+    | (Derivation(e), Derivation(selection)) =>
+      DerivationMode.Selection.handle_key_event(~selection, ~event, e)
+      |> Option.map(a => Update.Derivation(a))
+    | (Derivation(_), _) => None
     | (Theorem(e), TheoremExercise(selection)) =>
       TheoremExerciseMode.Selection.handle_key_event(~selection, ~event, e)
       |> Option.map(a => Update.TheoremExercise(a))
@@ -485,6 +566,9 @@ module Selection = {
     | Implementation(e) =>
       ExerciseMode.Selection.jump_to_tile(~settings, tile, e)
       |> Option.map(((x, y)) => (Update.Exercise(x), Implementation(y)))
+    | Derivation(e) =>
+      DerivationMode.Selection.jump_to_tile(~settings, tile, e)
+      |> Option.map(((x, y)) => (Update.Derivation(x), Derivation(y)))
     | Theorem(e) =>
       TheoremExerciseMode.Selection.jump_to_tile(tile, e)
       |> Option.map(((x, y)) =>
@@ -520,6 +604,20 @@ module View = {
         ~selection=
           switch (selection) {
           | Some(Implementation(s)) => Some(s)
+          | _ => None
+          },
+        current,
+      )
+    | Derivation(current) =>
+      DerivationMode.View.view(
+        ~globals,
+        ~signal=
+          fun
+          | MakeActive(s) => take_focus(Derivation(s)),
+        ~inject=a => inject(Update.Derivation(a)),
+        ~selection=
+          switch (selection) {
+          | Some(Derivation(s)) => Some(s)
           | _ => None
           },
         current,
