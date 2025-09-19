@@ -374,7 +374,6 @@ module Exp = {
     | Tuple(_) => Tuple
     | TupleExtension(_) => TupleExtension
     | Label(_) => Label
-    | TupLabel(_, _) => TupLabel
     | Dot(_) => Dot
     | Var(_) => Var
     | Let(_) => Let
@@ -454,22 +453,31 @@ module Exp = {
     | LivelitAp => "Livelit application"
     | Asc => "Type ascription expression";
 
-  let rec match_tup_label: t => option((LabeledTuple.label, t)) = {
-    e => {
-      switch (e.term) {
-      | Parens(e) => match_tup_label(e)
-      | TupLabel(elab, e') =>
-        switch (elab.term) {
-        | Label(name) => Some((name, e'))
-        | _ => None
-        }
-      | Asc(e, _) => match_tup_label(e)
-      | _ => None
-      };
+  let match_tup_label =
+      (te: Grammar.exp_tuple_entry(IdTagged.IdTag.t))
+      : option((LabeledTuple.label, t)) => {
+    switch (te) {
+    | Labeled(_, Label(l), e) => Some((l, e))
+    | _ => None
     };
   };
 
-  let get_label: t => option(LabeledTuple.label) = {
+  let apply_entry = (f: t => 'a, te: tuple_entry): 'a => {
+    switch (te) {
+    | Unlabeled(e) => f(e)
+    | Labeled(_, _, e) => f(e)
+    };
+  };
+
+  let map_entry = (f: t => t, te: tuple_entry): tuple_entry => {
+    switch (te) {
+    | Unlabeled(e) => Unlabeled(f(e))
+    | Labeled(id, l, e) => Labeled(id, l, f(e))
+    };
+  };
+
+  let get_label:
+    Grammar.exp_tuple_entry(IdTagged.IdTag.t) => option(LabeledTuple.label) = {
     e => match_tup_label(e) |> Option.map(fst);
   };
 
@@ -483,22 +491,26 @@ module Exp = {
     | TypFun(_)
     | Fun(_)
     | BuiltinFun(_) => true
-    | TupLabel(_, e) => is_fun(e)
     | Dot(e1, e2) =>
       let rec check_tuple = (e1: t, e2: t) =>
         switch (e1.term) {
         | Parens(e) => check_tuple(e, e2)
         | Tuple(ts) =>
           switch (e2.term) {
-          | Label(name) => LabeledTuple.find_label(match_tup_label, ts, name)
+          | Label(name) =>
+            LabeledTuple.find_label(
+              (y: Grammar.exp_tuple_entry(IdTagged.IdTag.t)) =>
+                match_tup_label(y),
+              ts,
+              name,
+            )
           | _ => None
           }
         | _ => None
         };
-      let element: option(t) = check_tuple(e1, e2);
-      switch (element) {
-      | Some(exp) => is_fun(exp)
+      switch (check_tuple(e1, e2)) {
       | None => false
+      | Some(te) => apply_entry(is_fun, te)
       };
     | Invalid(_)
     | EmptyHole
@@ -541,9 +553,8 @@ module Exp = {
       switch (e.term) {
       | Asc(e, _)
       | Parens(e)
-      | Probe(e, _)
-      | TupLabel(_, e) => is_tuple_of_functions(e)
-      | Tuple(es) => es |> List.for_all(is_fun)
+      | Probe(e, _) => is_tuple_of_functions(e)
+      | Tuple(es) => es |> List.for_all(apply_entry(is_fun))
       | Dot(e1, e2) =>
         let rec check_tuple = (e1: t, e2: t) =>
           switch (e1.term) {
@@ -556,9 +567,8 @@ module Exp = {
             }
           | _ => None
           };
-        let element: option(t) = check_tuple(e1, e2);
-        switch (element) {
-        | Some(exp) => is_tuple_of_functions(exp)
+        switch (check_tuple(e1, e2)) {
+        | Some(exp) => apply_entry(is_tuple_of_functions, exp)
         | None => false
         };
       | Invalid(_)
@@ -618,7 +628,6 @@ module Exp = {
       switch (e.term) {
       | Parens(e)
       | Probe(e, _)
-      | TupLabel(_, e)
       | Dot(e, _) => get_num_of_functions(e)
       | Tuple(es) => is_tuple_of_functions(e) ? Some(List.length(es)) : None
       | Invalid(_)
@@ -796,7 +805,6 @@ module Exp = {
           | Constructor(_)
           | TypFun(_)
           | Tuple(_)
-          | TupLabel(_)
           | TupleExtension(_)
           | Label(_)
           | Dot(_)

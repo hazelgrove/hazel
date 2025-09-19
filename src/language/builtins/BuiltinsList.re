@@ -76,7 +76,7 @@ let builtins =
                         ap(
                           Forward,
                           var("map"),
-                          tuple([var("xs"), var("f")]),
+                          unlabeled_tuple([var("xs"), var("f")]),
                         ),
                       ),
                     ),
@@ -120,13 +120,13 @@ let builtins =
                           ap(
                             Forward,
                             var("filter"),
-                            tuple([var("xs"), var("f")]),
+                            unlabeled_tuple([var("xs"), var("f")]),
                           ),
                         ),
                         ap(
                           Forward,
                           var("filter"),
-                          tuple([var("xs"), var("f")]),
+                          unlabeled_tuple([var("xs"), var("f")]),
                         ),
                       ),
                     ),
@@ -173,13 +173,13 @@ let builtins =
                       ap(
                         Forward,
                         var("fold_left"),
-                        tuple([
+                        unlabeled_tuple([
                           var("xs"),
                           var("f"),
                           ap(
                             Forward,
                             var("f"),
-                            tuple([var("acc"), var("x")]),
+                            unlabeled_tuple([var("acc"), var("x")]),
                           ),
                         ]),
                       ),
@@ -214,7 +214,7 @@ let builtins =
                 ap(
                   Forward,
                   var("fold_left"),
-                  tuple([
+                  unlabeled_tuple([
                     var("xs"),
                     fn(
                       Pat.tuple([Pat.var("acc"), Pat.var("x")]),
@@ -254,7 +254,7 @@ let builtins =
               fn(
                 Pat.tuple([Pat.var("xs"), Pat.var("ys")]),
                 match(
-                  tuple([var("xs"), var("ys")]),
+                  unlabeled_tuple([var("xs"), var("ys")]),
                   [
                     (
                       Pat.tuple([Pat.list_lit([]), Pat.wild()]),
@@ -270,11 +270,11 @@ let builtins =
                         Pat.cons(Pat.var("y"), Pat.var("ys")),
                       ]),
                       cons(
-                        tuple([var("x"), var("y")]),
+                        unlabeled_tuple([var("x"), var("y")]),
                         ap(
                           Forward,
                           var("zip"),
-                          tuple([var("xs"), var("ys")]),
+                          unlabeled_tuple([var("xs"), var("ys")]),
                         ),
                       ),
                     ),
@@ -309,7 +309,7 @@ let builtins =
                   [
                     (
                       Pat.list_lit([]),
-                      tuple([list_lit([]), list_lit([])]),
+                      unlabeled_tuple([list_lit([]), list_lit([])]),
                     ),
                     (
                       Pat.cons(
@@ -319,7 +319,7 @@ let builtins =
                       let_(
                         Pat.tuple([Pat.var("as"), Pat.var("bs")]),
                         ap(Forward, var("unzip"), var("xs")),
-                        tuple([
+                        unlabeled_tuple([
                           cons(var("a"), var("as")),
                           cons(var("b"), var("bs")),
                         ]),
@@ -405,7 +405,7 @@ let builtins =
                           ap(
                             Forward,
                             var("take"),
-                            tuple([
+                            unlabeled_tuple([
                               var("xs"),
                               bin_op(Int(Minus), var("n"), int(1)),
                             ]),
@@ -452,7 +452,7 @@ let builtins =
                         ap(
                           Forward,
                           var("drop"),
-                          tuple([
+                          unlabeled_tuple([
                             var("xs"),
                             bin_op(Int(Minus), var("n"), int(1)),
                           ]),
@@ -490,7 +490,7 @@ let builtins =
                     ap(
                       Forward,
                       var("range"),
-                      tuple([
+                      unlabeled_tuple([
                         bin_op(Int(Plus), var("start"), int(1)),
                         var("end"),
                       ]),
@@ -540,7 +540,7 @@ let builtins =
                               ap(
                                 Forward,
                                 var("enumerate_helper"),
-                                tuple([
+                                unlabeled_tuple([
                                   var("xs"),
                                   bin_op(Int(Plus), var("index"), int(1)),
                                 ]),
@@ -554,7 +554,7 @@ let builtins =
                     ),
                     None,
                   ),
-                  tuple([var("xs"), int(0)]),
+                  unlabeled_tuple([var("xs"), int(0)]),
                 ),
                 None,
                 Some("enumerate+"),
@@ -593,7 +593,7 @@ let builtins =
                         ap(
                           Forward,
                           var("any"),
-                          tuple([var("xs"), var("pred")]),
+                          unlabeled_tuple([var("xs"), var("pred")]),
                         ),
                       ),
                     ),
@@ -635,7 +635,7 @@ let builtins =
                         ap(
                           Forward,
                           var("all"),
-                          tuple([var("xs"), var("pred")]),
+                          unlabeled_tuple([var("xs"), var("pred")]),
                         ),
                         bool(false),
                       ),
@@ -681,7 +681,7 @@ let builtins =
                           ap(
                             Forward,
                             var("intersperse"),
-                            tuple([var("xs"), var("sep")]),
+                            unlabeled_tuple([var("xs"), var("sep")]),
                           ),
                         ),
                       ),
@@ -839,7 +839,7 @@ let builtins =
                         ap(
                           Forward,
                           var("nth"),
-                          tuple([
+                          unlabeled_tuple([
                             var("xs"),
                             bin_op(Int(Minus), var("n"), int(1)),
                           ]),
@@ -889,12 +889,16 @@ let builtins =
                       ap(
                         Forward,
                         var("f"),
-                        tuple([
+                        unlabeled_tuple([
                           var("x"),
                           ap(
                             Forward,
                             var("fold_right"),
-                            tuple([var("xs"), var("f"), var("acc")]),
+                            unlabeled_tuple([
+                              var("xs"),
+                              var("f"),
+                              var("acc"),
+                            ]),
                           ),
                         ]),
                       ),

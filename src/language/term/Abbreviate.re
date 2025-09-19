@@ -65,7 +65,7 @@ let rec abbreviate_exp = (exp: Exp.t): Exp.t => {
       Invalid(abbreviate_str(available^, str));
     };
 
-  let abbreviate_seq = xs => {
+  let abbreviate_seq = (xs: list(Exp.t)): list(Exp.t) => {
     let rec go = xs =>
       switch (xs) {
       | [] => []
@@ -79,6 +79,35 @@ let rec abbreviate_exp = (exp: Exp.t): Exp.t => {
         } else {
           available := available^ - 3;
           [hd, flat_ellipses_term()];
+        };
+      };
+    go(xs);
+  };
+  let abbreviate_tuple_entry = (x: Exp.tuple_entry): Exp.tuple_entry =>
+    switch (x) {
+    | Unlabeled(x) => Unlabeled(abbreviate_exp(x))
+    | Labeled(a, Label(l), x) =>
+      Labeled(a, Label(abbreviate_str(1, l)), abbreviate_exp(x))
+    | Labeled(a, EmptyLabel, x) => Labeled(a, EmptyLabel, abbreviate_exp(x))
+    | Labeled(a, MultiHole(ls), x) =>
+      Labeled(a, MultiHole(ls), abbreviate_exp(x))
+    };
+  // TODO This probably isn't right
+  let abbreviate_tuple_entries =
+      (xs: list(Exp.tuple_entry)): list(Exp.tuple_entry) => {
+    let rec go = (xs: list(Exp.tuple_entry)) =>
+      switch (xs) {
+      | [] => []
+      | [x, ...xs] =>
+        let hd: Exp.tuple_entry = abbreviate_tuple_entry(x);
+        if (available^ > 3) {
+          available := available^ - 2; // comma space
+          [hd, ...go(xs)];
+        } else if (xs == []) {
+          [hd];
+        } else {
+          available := available^ - 3;
+          [hd, Unlabeled(flat_ellipses_term())];
         };
       };
     go(xs);
@@ -121,7 +150,7 @@ let rec abbreviate_exp = (exp: Exp.t): Exp.t => {
     | Fun(_p, _e, _, Some(s)) => Invalid("<" ++ s ++ ">")
     | Fun(_p, _e, _, None) => Invalid("<>")
     | BuiltinFun(_f) => Invalid("<>")
-    | Tuple([e]) => Tuple([abbreviate_exp(e)])
+    | Tuple([e]) => Tuple([abbreviate_tuple_entry(e)])
     | DynamicErrorHole(_exp, err) =>
       Invalid("<" ++ InvalidOperationError.show(err) ++ ">")
 
@@ -160,14 +189,7 @@ let rec abbreviate_exp = (exp: Exp.t): Exp.t => {
         available := available^ - 2; // square brackets
         ListLit(abbreviate_seq(xs));
       }
-    | Tuple([_, _, ..._] as xs) => Tuple(abbreviate_seq(xs))
-    | TupLabel(e1, e2) =>
-      if (available^ <= 3) {
-        Invalid(flat_ellipses);
-      } else {
-        available := available^ - 3;
-        TupLabel(abbreviate_exp(e1), abbreviate_exp(e2));
-      }
+    | Tuple([_, _, ..._] as xs) => Tuple(abbreviate_tuple_entries(xs))
     | Dot(e1, e2) =>
       if (available^ <= 3) {
         Invalid(flat_ellipses);

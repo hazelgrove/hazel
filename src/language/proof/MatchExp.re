@@ -105,9 +105,19 @@ let rec match_exp =
     let* () = match_tpat(tp1, tp2);
     match_exp(alphas, ctx, e1, e2);
   | (TypFun(_, _, _), _) => None
+  | (Label(l1), Label(l2)) when l1 == l2 => Some(ctx)
+  | (Label(_), _) => None
   | (Tuple(xs), Tuple(ys)) when List.length(xs) == List.length(ys) =>
     ListUtil.fold_left_opt(
-      (ctx, (x, y)) => match_exp(alphas, ctx, x, y),
+      (ctx, (x: Exp.tuple_entry, y: Exp.tuple_entry)) =>
+        switch (x, y) {
+        | (Unlabeled(e1), Unlabeled(e2)) => match_exp(alphas, ctx, e1, e2)
+        | (Labeled(_, l1, e1), Labeled(_, l2, e2)) when l1 == l2 =>
+          match_exp(alphas, ctx, e1, e2)
+        | (Labeled(_), Labeled(_))
+        | (Labeled(_, _, _), Unlabeled(_))
+        | (Unlabeled(_), Labeled(_, _, _)) => None
+        },
       ctx,
       List.combine(xs, ys),
     )
@@ -198,11 +208,6 @@ let rec match_exp =
       List.combine(rs1, rs2),
     );
   | (Match(_, _), _) => None
-  | (Label(l1), Label(l2)) when l1 == l2 => Some(ctx)
-  | (Label(_), _) => None
-  | (TupLabel(l1, e1), TupLabel(l2, e2)) when l1 == l2 =>
-    match_exp(alphas, ctx, e1, e2)
-  | (TupLabel(_, _), _) => None
   | (Dot(e1, l1), Dot(e2, l2)) when l1 == l2 =>
     match_exp(alphas, ctx, e1, e2)
   | (Dot(_, _), _) => None

@@ -43,13 +43,33 @@ let rec transition = (~recursive=false, d: DHExp.t): option(DHExp.t) => {
           Exp.(fn(Pat.(asc(p, t1)), asc(e, t2), t, v))
         ),
       )
-    | (TupLabel(l, e), TupLabel(_l2, t)) =>
-      // TODO Figure out what to do if the labels don't match
-      Some(TupLabel(l, recur(Asc(e, t) |> DHExp.fresh)) |> DHExp.fresh)
     | (Tuple(es), Prod(tys)) when List.length(es) == List.length(tys) =>
       Some(
         Tuple(
-          List.map2((e, ty) => recur(Asc(e, ty) |> DHExp.fresh), es, tys),
+          List.map2(
+            (e: Exp.tuple_entry, ty: Typ.t): Exp.tuple_entry => {
+              switch (e) {
+              | Unlabeled(e) => Unlabeled(recur(Asc(e, ty) |> DHExp.fresh))
+              | Labeled(a, l, e) =>
+                Labeled(
+                  a,
+                  l,
+                  recur(
+                    Asc(
+                      e,
+                      switch (ty.term) {
+                      | TupLabel(_, ty) => ty
+                      | _ => ty
+                      },
+                    )
+                    |> DHExp.fresh,
+                  ),
+                ) // TODO We should not pass casts down into tuples if the labels don't match
+              }
+            },
+            es,
+            tys,
+          ),
         )
         |> DHExp.fresh,
       )
@@ -212,7 +232,6 @@ let rec transition = (~recursive=false, d: DHExp.t): option(DHExp.t) => {
     | (Atom(_), _)
     | (ListLit(_), _)
     | (ListConcat(_), _)
-    | (TupLabel(_), _)
     | (Tuple(_), _)
     | (Fun(_), _)
     | (TypFun(_), _)

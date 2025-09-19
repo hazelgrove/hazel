@@ -64,9 +64,8 @@ and exp_term('a) =
   | Constructor(string, option(option(typ_t('a))))
   | Fun(pat_t('a), exp_t('a), option(typ_t('a)), option(Var.t)) // typ_t field is only used to display types in results
   | TypFun(tpat_t('a), exp_t('a), option(Var.t))
-  | Tuple(list(exp_t('a)))
+  | Tuple(list(exp_tuple_entry('a)))
   | Label(string)
-  | TupLabel(exp_t('a), exp_t('a))
   | Dot(exp_t('a), exp_t('a))
   | LivelitName(string)
   | Var(Var.t)
@@ -94,6 +93,19 @@ and exp_term('a) =
   | TupleExtension(exp_t('a), exp_t('a))
   | Asc(exp_t('a), typ_t('a))
 and exp_t('a) = Annotated.t(exp_term('a), 'a)
+and label_t('a) =
+  | Label(string)
+  | EmptyLabel
+  | MultiHole(list(any_t('a)))
+and tuple_entry('a, 'e) =
+  | Labeled('a, label_t('a), 'e)
+  | Unlabeled('e)
+and exp_tuple_entry('a) = tuple_entry('a, exp_t('a))
+// | ExplicitlyUnlabeled({
+//     unlabeled: 'a,
+//     tup_label: 'a,
+//     term: exp_t('a),
+//   })
 and pat_term('a) =
   | Invalid(string)
   | EmptyHole
@@ -189,10 +201,23 @@ let rec map_exp_annotation: type a b. (a => b, exp_t(a)) => exp_t(b) =
           )
         | TypFun(p, e, v) =>
           TypFun(map_tpat_annotation(f, p), map_exp_annotation(f, e), v)
-        | Tuple(l) => Tuple(List.map(x => map_exp_annotation(f, x), l))
+        | Tuple(l) =>
+          Tuple(
+            List.map(
+              (x: exp_tuple_entry(a)) =>
+                switch (x) {
+                | Unlabeled(x) => Unlabeled(map_exp_annotation(f, x))
+                | Labeled(a, l, x) =>
+                  Labeled(
+                    f(a),
+                    map_label_annotation(f, l),
+                    map_exp_annotation(f, x),
+                  )
+                },
+              l,
+            ),
+          )
         | Label(l) => Label(l)
-        | TupLabel(l, e) =>
-          TupLabel(map_exp_annotation(f, l), map_exp_annotation(f, e))
         | Dot(e1, e2) =>
           Dot(map_exp_annotation(f, e1), map_exp_annotation(f, e2))
         | Var(v) => Var(v)
@@ -277,6 +302,14 @@ let rec map_exp_annotation: type a b. (a => b, exp_t(a)) => exp_t(b) =
       exp_t(b)
   )
 
+and map_label_annotation: 'a 'b. ('a => 'b, label_t('a)) => label_t('b) =
+  (f, e) => {
+    switch (e) {
+    | Label(s) => Label(s)
+    | EmptyLabel => EmptyLabel
+    | MultiHole(l) => MultiHole(List.map(x => map_any_annotation(f, x), l))
+    };
+  }
 and map_any_annotation: 'a 'b. ('a => 'b, any_t('a)) => any_t('b) =
   (f, e) => {
     switch (e) {
@@ -519,16 +552,16 @@ module Factory = (DefaultAnnotation: DefaultAnnotation) => {
       term: TypFun(p, e, v),
       annotation: default_annotation(ann),
     };
+    let unlabeled_tuple = (~ann=?, l): exp_t(DefaultAnnotation.t) => {
+      term: Tuple(List.map(x => Unlabeled(x), l)),
+      annotation: default_annotation(ann),
+    };
     let tuple = (~ann=?, l): exp_t(DefaultAnnotation.t) => {
       term: Tuple(l),
       annotation: default_annotation(ann),
     };
     let label = (~ann=?, l): exp_t(DefaultAnnotation.t) => {
       term: Label(l),
-      annotation: default_annotation(ann),
-    };
-    let tup_label = (~ann=?, l, e): exp_t(DefaultAnnotation.t) => {
-      term: TupLabel(l, e),
       annotation: default_annotation(ann),
     };
     let dot = (~ann=?, e1, e2): exp_t(DefaultAnnotation.t) => {

@@ -199,7 +199,7 @@ let rearrange:
       );
     };
 
-let find_label: ('a => option((label, 'a)), list('a), label) => option('a) =
+let find_label: ('a => option((label, 'b)), list('a), label) => option('a) =
   (filt, es, label) => {
     List.find_opt(
       e => {

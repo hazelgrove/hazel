@@ -23,8 +23,11 @@ type term =
   | BinOp2(Operators.op_bin, DHExp.t, t)
   | TupleExtension1(t, DHExp.t)
   | TupleExtension2(DHExp.t, t)
-  | TupLabel(DHExp.t, t)
-  | Tuple(t, (list(DHExp.t), list(DHExp.t)))
+  // | TupLabel(DHExp.t, t)
+  | Tuple(
+      Grammar.tuple_entry(IdTagged.IdTag.t, t),
+      (list(Exp.tuple_entry), list(Exp.tuple_entry)),
+    )
   | Dot1(t, DHExp.t)
   | Dot2(DHExp.t, t)
   | Test(t)
@@ -131,9 +134,6 @@ let rec compose = (ctx: t, d: DHExp.t): DHExp.t => {
     | ListConcat2(d1, ctx) =>
       let d2 = compose(ctx, d);
       ListConcat(d1, d2) |> wrap;
-    | TupLabel(label, ctx) =>
-      let d = compose(ctx, d);
-      TupLabel(label, d) |> wrap;
     | Dot1(ctx, d2) =>
       let d1 = compose(ctx, d);
       Dot(d1, d2) |> wrap;
@@ -141,7 +141,11 @@ let rec compose = (ctx: t, d: DHExp.t): DHExp.t => {
       let d2 = compose(ctx, d);
       Dot(d1, d2) |> wrap;
     | Tuple(ctx, (ld, rd)) =>
-      let d = compose(ctx, d);
+      let d: Exp.tuple_entry =
+        switch (ctx) {
+        | Unlabeled(ctx) => Unlabeled(compose(ctx, d))
+        | Labeled(l, a, ctx) => Labeled(l, a, compose(ctx, d))
+        };
       Tuple(ListUtil.rev_concat(ld, [d, ...rd])) |> wrap;
     | ListLit(ctx, (ld, rd)) =>
       let d = compose(ctx, d);

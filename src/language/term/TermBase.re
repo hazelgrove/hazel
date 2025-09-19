@@ -164,6 +164,9 @@ and Exp: {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t = exp_t;
   [@deriving (show({with_path: false}), sexp, yojson)]
+  type tuple_entry = Grammar.exp_tuple_entry(IdTagged.IdTag.t);
+
+  [@deriving (show({with_path: false}), sexp, yojson)]
   type deferral_position = deferral_position_t;
   let map_term:
     (
@@ -184,6 +187,8 @@ and Exp: {
   type term = exp_term;
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t = exp_t;
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type tuple_entry = Grammar.exp_tuple_entry(IdTagged.IdTag.t);
   [@deriving (show({with_path: false}), sexp, yojson)]
   type deferral_position = deferral_position_t;
 
@@ -240,9 +245,21 @@ and Exp: {
             f,
           )
         | TypFun(tp, e, f) => TypFun(tpat_map_term(tp), exp_map_term(e), f)
-        | TupLabel(label, e) =>
-          TupLabel(exp_map_term(label), exp_map_term(e))
-        | Tuple(xs) => Tuple(List.map(exp_map_term, xs))
+        | Tuple(xs) =>
+          Tuple(
+            List.map(
+              (x: Grammar.exp_tuple_entry(IdTagged.IdTag.t)) => {
+                switch (x) {
+                | Unlabeled(e) => (
+                    Unlabeled(exp_map_term(e)):
+                      Grammar.exp_tuple_entry(IdTagged.IdTag.t)
+                  )
+                | Labeled(a, l, e) => Labeled(a, l, exp_map_term(e))
+                }
+              },
+              xs,
+            ),
+          )
         | TupleExtension(e1, e2) =>
           TupleExtension(exp_map_term(e1), exp_map_term(e2))
         | Dot(e1, e2) => Dot(exp_map_term(e1), exp_map_term(e2))
@@ -322,7 +339,23 @@ and Exp: {
     | (TypFun(tp1, e1, _), TypFun(tp2, e2, _)) =>
       TPat.fast_equal(tp1, tp2) && fast_equal(e1, e2)
     | (Tuple(xs), Tuple(ys)) =>
-      List.length(xs) == List.length(ys) && List.equal(fast_equal, xs, ys)
+      List.length(xs) == List.length(ys)
+      && List.equal(
+           (
+             x: Grammar.exp_tuple_entry(IdTagged.IdTag.t),
+             y: Grammar.exp_tuple_entry(IdTagged.IdTag.t),
+           ) => {
+             switch (x, y) {
+             | (Labeled(_, l, e), Labeled(_, l', e')) =>
+               fast_equal(e, e')
+               && Grammar.equal_label_t((_, _) => true, l, l')
+             | (Unlabeled(e), Unlabeled(e')) => fast_equal(e, e')
+             | _ => false
+             }
+           },
+           xs,
+           ys,
+         )
     | (Var(v1), Var(v2)) => v1 == v2
     | (Let(p1, e1, e2), Let(p2, e3, e4)) =>
       Pat.fast_equal(p1, p2) && fast_equal(e1, e3) && fast_equal(e2, e4)
@@ -375,8 +408,6 @@ and Exp: {
          )
     | (Asc(e1, t1), Asc(e2, t2)) =>
       fast_equal(e1, e2) && Typ.fast_equal(t1, t2)
-    | (TupLabel(e1, e2), TupLabel(e3, e4)) =>
-      fast_equal(e1, e3) && fast_equal(e2, e4)
     | (Dot(e1, e2), Dot(e3, e4)) =>
       fast_equal(e1, e3) && fast_equal(e2, e4)
     | (TupleExtension(e1, e2), TupleExtension(e3, e4)) =>
@@ -391,7 +422,6 @@ and Exp: {
     | (Fun(_), _)
     | (TypFun(_), _)
     | (Tuple(_), _)
-    | (TupLabel(_), _)
     | (TupleExtension(_), _)
     | (Dot(_), _)
     | (Var(_), _)

@@ -8,10 +8,11 @@ let temp: term => t =
     },
   };
 
+// TODO
 let to_tuple = (es: list(t)): t =>
   switch (es) {
-  | []
-  | [{term: TupLabel(_), _}] => Tuple(es) |> temp
+  | [] => Tuple([]) |> temp
   | [e] => e
-  | _ => Tuple(es) |> temp
+  | _ =>
+    Tuple(es |> List.map((x: t): tuple_entry => Unlabeled(x), _)) |> temp
   };

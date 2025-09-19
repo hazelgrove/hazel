@@ -97,7 +97,6 @@ let ty_subst = (s: Typ.t, tpat: TPat.t, exp: t): t => {
           | Cons(_)
           | ListConcat(_)
           | Tuple(_)
-          | TupLabel(_)
           | TupleExtension(_)
           | Label(_)
           | Dot(_)
@@ -182,9 +181,6 @@ let rec ty_comparable = (d1, d2) => {
   | (Atom(_), _) => false
   | (Label(l1), Label(l2)) => l1 == l2
   | (Label(_), _) => false
-  | (TupLabel(l1, d1), TupLabel(l2, d2)) =>
-    ty_comparable(l1, l2) && ty_comparable(d1, d2)
-  | (TupLabel(_), _) => false
   // Note(zhiyao): Listlit checks the consistency of all elements,
   // which is different from Tuple (check pairwise consistency).
   | (ListLit(ds1), ListLit(ds2)) =>
@@ -195,7 +191,19 @@ let rec ty_comparable = (d1, d2) => {
   | (ListLit(_), _) => false
   | (Tuple(ds1), Tuple(ds2)) =>
     List.length(ds1) == List.length(ds2)
-    && List.for_all2(ty_comparable, ds1, ds2)
+    && List.for_all2(
+         (te: tuple_entry, te': tuple_entry) => {
+           switch (te, te') {
+           | (Unlabeled(e1), Unlabeled(e2)) => ty_comparable(e1, e2)
+           | (Labeled(_, l1, e1), Labeled(_, l2, e2)) =>
+             l1 == l2 && ty_comparable(e1, e2)
+           | (Labeled(_, _, _), Unlabeled(_))
+           | (Unlabeled(_), Labeled(_, _, _)) => false
+           }
+         },
+         ds1,
+         ds2,
+       )
   | (Tuple(_), _) => false
   | (
       Constructor(_, Some(Some(t1))) |
@@ -274,16 +282,24 @@ let rec poly_equal = (d1, d2): bool => {
   | (Atom(_), _) => false
   | (Label(l1), Label(l2)) => l1 == l2
   | (Label(_), _) => false
-  | (TupLabel(l1, d1), TupLabel(l2, d2)) =>
-    poly_equal(l1, l2) && poly_equal(d1, d2)
-  | (TupLabel(_), _) => false
   | (ListLit(ds1), ListLit(ds2)) =>
     List.length(ds1) == List.length(ds2)
     && List.for_all2(poly_equal, ds1, ds2)
   | (ListLit(_), _) => false
   | (Tuple(ds1), Tuple(ds2)) =>
     List.length(ds1) == List.length(ds2)
-    && List.for_all2(poly_equal, ds1, ds2)
+    && List.for_all2(
+         (te: tuple_entry, te': tuple_entry) =>
+           switch (te, te') {
+           | (Unlabeled(e1), Unlabeled(e2)) => poly_equal(e1, e2)
+           | (Labeled(_, l1, e1), Labeled(_, l2, e2)) =>
+             l1 == l2 && poly_equal(e1, e2)
+           | (Labeled(_, _, _), Unlabeled(_))
+           | (Unlabeled(_), Labeled(_, _, _)) => false
+           },
+         ds1,
+         ds2,
+       )
   | (Tuple(_), _) => false
   | (Constructor(c1, _), Constructor(c2, _)) => c1 == c2
   | (Constructor(_), _) => false
