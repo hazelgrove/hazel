@@ -31,10 +31,14 @@ let delete_parent = (z: t): t => {
 let zip = (z: t): Segment.t =>
   Relatives.zip(~sel=z.selection.content, z.relatives);
 
-let unzip = (seg: Segment.t): t => {
+let unzip = (~direction: Direction.t=Right, seg: Segment.t): t => {
   selection: Selection.mk([]),
   relatives: {
-    siblings: (seg, []),
+    siblings:
+      switch (direction) {
+      | Right => (seg, [])
+      | Left => ([], seg)
+      },
     ancestors: [],
   },
   caret: Outer,
