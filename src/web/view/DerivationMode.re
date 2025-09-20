@@ -1009,27 +1009,31 @@ module View = {
           text(Unicode.nbsp),
           text(RuleImage.show_corpus(eds.corpus)),
           text(Unicode.nbsp),
-          select(
-            ~attrs=[
-              Attr.class_("version-select"),
-              Attr.on_change((_, name) => {
-                let corpus = RuleImage.corpus_of_string(name);
-                inject(
-                  MapEditor(
-                    m =>
-                      {
-                        ...m,
-                        corpus,
-                      },
-                  ),
-                );
-              }),
-            ],
-            List.map(
-              option_view(RuleImage.show_corpus(eds.corpus)),
-              RuleImage.all_of_corpus |> List.map(RuleImage.show_corpus),
-            ),
-          ),
+          if (globals.settings.instructor_mode) {
+            select(
+              ~attrs=[
+                Attr.class_("version-select"),
+                Attr.on_change((_, name) => {
+                  let corpus = RuleImage.corpus_of_string(name);
+                  inject(
+                    MapEditor(
+                      m =>
+                        {
+                          ...m,
+                          corpus,
+                        },
+                    ),
+                  );
+                }),
+              ],
+              List.map(
+                option_view(RuleImage.show_corpus(eds.corpus)),
+                RuleImage.all_of_corpus |> List.map(RuleImage.show_corpus),
+              ),
+            );
+          } else {
+            none;
+          },
         ],
       );
 
