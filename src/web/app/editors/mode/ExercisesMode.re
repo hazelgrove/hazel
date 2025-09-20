@@ -46,13 +46,12 @@ module Model = {
   let get_exercise_id = (exercise: exercise): Haz3lcore.Id.t =>
     switch (exercise) {
     | Implementation(e: ExerciseMode.Model.t) => e.editors.id
-    | Derivation(e: DerivationMode.Model.t) => e.spec.id
+    | Derivation(e: DerivationMode.Model.t) => e.editors.id
     | Theorem(e: TheoremExerciseMode.Model.t) => e.id
     };
 
   let get_spec_id = (spec: exercise_spec): Haz3lcore.Id.t =>
     switch (spec) {
-    // TODO(zhiyao): look into why we need it
     | Implementation(s) => s.id
     | Derivation(s) => s.id
     | Theorem(s) => s.id
