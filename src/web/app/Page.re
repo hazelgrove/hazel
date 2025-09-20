@@ -94,7 +94,6 @@ module Update = {
     | Documentation(m) => (List.nth(m.scratchpads, m.current) |> snd).editor
     | Tutorial(m) => List.nth(m.exercises, m.current).cells.user_impl.editor
     | Exercises(m) => ExercisesMode.Model.get_editor(m)
-    | Derivations(m) => List.nth(m.exercises, m.current).cells.prelude.editor
     };
 
   let update_global =
@@ -161,7 +160,6 @@ module Update = {
         ~import_log,
         data,
         ~exercise_specs=ExerciseSettings.exercises,
-        ~derivation_spec=DerivationSettings.exercises,
         ~tutorial_specs=TutorialSettings.lessons,
       );
       Store.load() |> return;
@@ -198,11 +196,6 @@ module Update = {
           let current = List.nth(model.exercises, model.current);
           let filename =
             ExercisesMode.Model.get_exercise_name(current) ++ ".ml";
-          let content = "not supported";
-          (filename, content);
-        | Derivations(model) =>
-          let current = List.nth(model.exercises, model.current);
-          let filename = current.editors.module_name ++ ".ml";
           let content = "not supported";
           (filename, content);
         };

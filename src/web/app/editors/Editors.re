@@ -5,7 +5,6 @@ module Model = {
   type mode =
     | Scratch
     | Documentation
-    | Derivations
     | Tutorial
     | Exercises;
 
@@ -13,7 +12,6 @@ module Model = {
   type t =
     | Scratch(ScratchMode.Model.t)
     | Documentation(ScratchMode.Model.t)
-    | Derivations(DerivationsMode.Model.t)
     | Tutorial(TutorialsMode.Model.t)
     | Exercises(ExercisesMode.Model.t);
 
@@ -21,13 +19,11 @@ module Model = {
     fun
     | Scratch(_) => "Scratch"
     | Documentation(_) => "Documentation"
-    | Derivations(_) => "Derivations"
     | Tutorial(_) => "Tutorial"
     | Exercises(_) => "Exercises";
 
   let get_derivation_info = (model: t) => {
     switch (model) {
-    | Derivations(eds) => DerivationsMode.Model.get_derivation_info(eds)
     | Exercises(eds) => ExercisesMode.Model.get_derivation_info(eds)
     | _ => None
     };
@@ -81,11 +77,6 @@ module Store = {
           ExercisesMode.Store.load(~settings, ~instructor_mode)
           |> ExercisesMode.Model.unpersist(~settings, ~instructor_mode),
         )
-      | Derivations =>
-        Model.Derivations(
-          DerivationsMode.Store.load(~settings, ~instructor_mode)
-          |> DerivationsMode.Model.unpersist(~settings, ~instructor_mode),
-        )
       };
     };
   };
@@ -104,9 +95,6 @@ module Store = {
     | Model.Exercises(m) =>
       StoreMode.save(Exercises);
       ExercisesMode.Store.save(~instructor_mode, m);
-    | Model.Derivations(m) =>
-      StoreMode.save(Derivations);
-      DerivationsMode.Store.save(~instructor_mode, m);
     };
   };
 };
@@ -121,8 +109,7 @@ module Update = {
     | Scratch(ScratchMode.Update.t)
     | Tutorial(TutorialsMode.Update.t)
     // Exercises
-    | Exercises(ExercisesMode.Update.t)
-    | Derivations(DerivationsMode.Update.t);
+    | Exercises(ExercisesMode.Update.t);
 
   let can_undo = (action: t) => {
     switch (action) {
@@ -130,7 +117,6 @@ module Update = {
     | Scratch(action) => ScratchMode.Update.can_undo(action)
     | Tutorial(action) => TutorialsMode.Update.can_undo(action)
     | Exercises(action) => ExercisesMode.Update.can_undo(action)
-    | Derivations(action) => DerivationsMode.Update.can_undo(action)
     };
   };
 
@@ -183,32 +169,15 @@ module Update = {
           m,
         );
       Model.Exercises(m');
-    | (Derivations(action), Derivations(m)) =>
-      let* derivations =
-        DerivationsMode.Update.update(
-          ~globals,
-          ~schedule_action=a => schedule_action(Derivations(a)),
-          action,
-          m,
-        );
-      Model.Derivations(derivations);
     | (Tutorial(_), Exercises(_))
     | (Tutorial(_), Scratch(_))
     | (Tutorial(_), Documentation(_))
-    | (Tutorial(_), Derivations(_))
     | (Scratch(_), Exercises(_))
     | (Scratch(_), Tutorial(_))
     | (Exercises(_), Scratch(_))
     | (Exercises(_), Documentation(_)) => model |> return_quiet
-    | (Scratch(_), Derivations(_))
-    | (Exercises(_), Derivations(_))
-    | (Derivations(_), Scratch(_))
-    | (Derivations(_), Documentation(_))
-    | (Derivations(_), Tutorial(_))
-    | (Derivations(_), Exercises(_)) => model |> return_quiet
     | (SwitchMode(Scratch), Scratch(_))
     | (SwitchMode(Documentation), Documentation(_))
-    | (SwitchMode(Derivations), Derivations(_)) => model |> return_quiet
     | (Exercises(_), Tutorial(_)) => model |> return_quiet
     | (SwitchMode(Exercises), Exercises(_)) => model |> return_quiet
     | (SwitchMode(Scratch), _) =>
@@ -244,18 +213,6 @@ module Update = {
         )
         |> ExercisesMode.Model.unpersist(
              ~settings=globals.settings,
-             ~instructor_mode=globals.settings.instructor_mode,
-           ),
-      )
-      |> return
-    | (SwitchMode(Derivations), _) =>
-      Model.Derivations(
-        DerivationsMode.Store.load(
-          ~settings=globals.settings.core,
-          ~instructor_mode=globals.settings.instructor_mode,
-        )
-        |> DerivationsMode.Model.unpersist(
-             ~settings=globals.settings.core,
              ~instructor_mode=globals.settings.instructor_mode,
            ),
       )
@@ -301,15 +258,6 @@ module Update = {
           m,
         ),
       )
-    | Model.Derivations(m) =>
-      Model.Derivations(
-        DerivationsMode.Update.calculate(
-          ~schedule_action=a => schedule_action(Derivations(a)),
-          ~settings,
-          ~is_edited,
-          m,
-        ),
-      )
     };
   };
 };
@@ -320,7 +268,6 @@ module Selection = {
   type t =
     | Scratch(ScratchMode.Selection.t)
     | Exercises(ExercisesMode.Selection.t)
-    | Derivations(DerivationsMode.Selection.t)
     | Tutorial(TutorialMode.Selection.t);
 
   let get_cursor_info = (~selection: t, editors: Model.t): cursor(Update.t) => {
@@ -337,24 +284,14 @@ module Selection = {
     | (Exercises(selection), Exercises(m)) =>
       let+ ci = ExercisesMode.Selection.get_cursor_info(~selection, m);
       Update.Exercises(ci);
-    | (Derivations(selection), Derivations(m)) =>
-      let+ ci = DerivationsMode.Selection.get_cursor_info(~selection, m);
-      Update.Derivations(ci);
     | (Scratch(_), Tutorial(_))
     | (Scratch(_), Exercises(_))
-    | (Scratch(_), Derivations(_))
     | (Exercises(_), Scratch(_))
     | (Exercises(_), Documentation(_))
-    | (Exercises(_), Derivations(_))
     | (Exercises(_), Tutorial(_))
-    | (Derivations(_), Scratch(_))
-    | (Derivations(_), Documentation(_))
-    | (Derivations(_), Exercises(_))
-    | (Derivations(_), Tutorial(_))
     | (Tutorial(_), Scratch(_))
     | (Tutorial(_), Exercises(_))
-    | (Tutorial(_), Documentation(_))
-    | (Tutorial(_), Derivations(_)) => empty
+    | (Tutorial(_), Documentation(_)) => empty
     };
   };
 
@@ -373,24 +310,14 @@ module Selection = {
     | (Some(Exercises(selection)), Exercises(m)) =>
       ExercisesMode.Selection.handle_key_event(~selection, ~event, m)
       |> Option.map(x => Update.Exercises(x))
-    | (Some(Derivations(selection)), Derivations(m)) =>
-      DerivationsMode.Selection.handle_key_event(~selection, ~event, m)
-      |> Option.map(x => Update.Derivations(x))
     | (Some(Scratch(_)), Exercises(_))
-    | (Some(Scratch(_)), Derivations(_))
-    | (Some(Derivations(_)), Scratch(_))
-    | (Some(Derivations(_)), Documentation(_))
-    | (Some(Derivations(_)), Exercises(_))
-    | (Some(Derivations(_)), Tutorial(_))
     | (Some(Scratch(_)), Tutorial(_))
     | (Some(Exercises(_)), Tutorial(_))
     | (Some(Exercises(_)), Scratch(_))
     | (Some(Exercises(_)), Documentation(_))
-    | (Some(Exercises(_)), Derivations(_))
     | (Some(Tutorial(_)), Scratch(_))
     | (Some(Tutorial(_)), Documentation(_))
     | (Some(Tutorial(_)), Exercises(_))
-    | (Some(Tutorial(_)), Derivations(_))
     | (None, _) => None
     };
   };
@@ -410,16 +337,12 @@ module Selection = {
     | Exercises(m) =>
       ExercisesMode.Selection.jump_to_tile(~settings, tile, m)
       |> Option.map(((x, y)) => (Update.Exercises(x), Exercises(y)))
-    | Derivations(m) =>
-      DerivationsMode.Selection.jump_to_tile(~settings, tile, m)
-      |> Option.map(((x, y)) => (Update.Derivations(x), Derivations(y)))
     };
 
   let default_selection =
     fun
     | Model.Scratch(_) => Scratch(Cell(MainEditor))
     | Model.Documentation(_) => Scratch(Cell(MainEditor))
-    | Model.Derivations(_) => Derivations(MainEditor)
     | Model.Tutorial(_) => Tutorial(Cell(Tutorial.YourImpl, MainEditor))
     | Model.Exercises(_) =>
       Exercises(Implementation(Cell(Exercise.Prelude, MainEditor)));
@@ -500,20 +423,6 @@ module View = {
         ~inject_explainthis: ExplainThisUpdate.update => 'b,
         m,
       )
-    | Derivations(m) =>
-      DerivationsMode.View.view(
-        ~signal=
-          fun
-          | MakeActive(s) => signal(MakeActive(Derivations(s))),
-        ~globals,
-        ~selection=
-          switch (selection) {
-          | Some(Derivations(s)) => Some(s)
-          | _ => None
-          },
-        ~inject=a => Update.Derivations(a) |> inject,
-        m,
-      )
     };
 
   let file_menu = (~globals, ~inject, editors: Model.t) =>
@@ -537,12 +446,6 @@ module View = {
         ~inject=x => inject(Update.Exercises(x)),
         e,
       )
-    | Derivations(d) =>
-      DerivationsMode.View.file_menu(
-        ~globals,
-        ~inject=x => inject(Update.Derivations(x)),
-        d,
-      )
     };
 
   let top_bar =
@@ -559,7 +462,6 @@ module View = {
                 | "Documentation" => inject(Update.SwitchMode(Documentation))
                 | "Tutorial" => inject(Update.SwitchMode(Tutorial))
                 | "Exercises" => inject(Update.SwitchMode(Exercises))
-                | "Derivations" => inject(Update.SwitchMode(Derivations))
                 | _ => failwith("Invalid mode")
               ),
             ],
@@ -572,19 +474,12 @@ module View = {
                     | Documentation(_) => "Documentation"
                     | Tutorial(_) => "Tutorial"
                     | Exercises(_) => "Exercises"
-                    | Derivations(_) => "Derivations"
                     }
                   )
                   == s,
                   s,
                 ),
-              [
-                "Scratch",
-                "Documentation",
-                "Tutorial",
-                "Exercises",
-                "Derivations",
-              ],
+              ["Scratch", "Documentation", "Tutorial", "Exercises"],
             ),
           ),
         ],
@@ -614,12 +509,6 @@ module View = {
         ExercisesMode.View.top_bar(
           ~globals,
           ~inject=a => Update.Exercises(a) |> inject,
-          m,
-        )
-      | Derivations(m) =>
-        DerivationsMode.View.top_bar(
-          ~globals,
-          ~inject=a => Update.Derivations(a) |> inject,
           m,
         )
       };
