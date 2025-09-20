@@ -27,7 +27,6 @@ let drv_view = (~globals, status: DrvInfo.t) => {
     | _ => view_type(typ)
     };
   switch (DrvInfo.error_of(status)) {
-  // TODO(zhiyao): add info for DrvInfo
   | None => div_ok([])
   | Some(err) =>
     switch (err) {

@@ -1230,7 +1230,11 @@ let for_projection =
         let sort = Segment.sort_of(skel, seg);
         let unsorted = unsorted(sort, skel, seg);
         switch (sort) {
-        | Drv(_) => None // TODO(zhiyao): handle this case
+        | Drv(_) =>
+          switch (drv_exp(unsorted)) {
+          | {term: Tuple(_), _} => None
+          | _ => Some(Grammar.Drv(Exp(drv_exp(unsorted))))
+          }
         | Exp =>
           switch (exp(unsorted)) {
           | {term: Tuple(_), _} => None

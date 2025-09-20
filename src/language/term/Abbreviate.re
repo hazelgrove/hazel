@@ -131,7 +131,7 @@ let rec abbreviate_exp = (exp: Exp.t): Exp.t => {
       let str = abbreviate_str(available^, s);
       available := available^ - 2; // for quotes in printed representation
       Atom(String(str));
-    | DrvExp(e, s) => DrvExp(e, s) // TODO(zhiyao): abbreviate this
+    | DrvExp(_) => Invalid("<drv term>")
     | Var(v) => Var(abbreviate_str(available^, v))
     | Label(v) => Label(abbreviate_str(available^, v))
     | Constructor(c, t) => Constructor(abbreviate_str(available^, c), t)
@@ -928,11 +928,10 @@ and abbreviate_typ = (typ: Typ.t): Typ.t => {
         Atom(String);
       }
     | DrvTyp(s) =>
-      // TODO(zhiyao): abbreviate this
       if (available^ < 4) {
         indet_term_typ;
       } else {
-        available := available^ - 4; // "drv"
+        available := available^ - 4;
         DrvTyp(s);
       }
     | Var(v) => Var(abbreviate_str(available^, v))
@@ -1067,7 +1066,7 @@ and abbreviate_tpat = (tpat: TPat.t): TPat.t => {
 }
 and abbreviate_any = (any: Any.t): Any.t =>
   switch (any) {
-  | Drv(drv) => Drv(drv) // TODO(zhiyao): abbreviate this
+  | Drv(_) => Drv(Exp(Hole(Invalid("<drv term>")) |> Drv.Exp.fresh))
   | Exp(e) => Exp(abbreviate_exp(e))
   | Pat(p) => Pat(abbreviate_pat(p))
   | Typ(t) => Typ(abbreviate_typ(t))

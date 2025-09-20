@@ -145,11 +145,11 @@
   color: var(--BR2);
 }
 
-.add-abbr-btn:hover,
 .add-premise-btn:hover,
 .deduction-just:hover:has(>div>div>.deduction-just-wrapper:only-child) .add-premise-btn,
 .deduction-just-wrapper:has(>div>.deduction-concl:hover):not(:has(.add-premise-btn:hover))+.deduction-just-wrapper>.add-premise-btn,
 .deduction-just-wrapper:has(>div>.deduction-concl:hover)>.add-premise-btn,
+.add-abbr-btn:hover,
 .cell-derivation:hover:has(.deduction-just~:hover)+.cell-derivation .add-abbr-btn,
 .cell-derivation:hover:not(:has(.deduction-just~:hover)):not(:has(.deduction-just:hover)) .add-abbr-btn,
 .cell-derivation:only-child .add-abbr-btn {

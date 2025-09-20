@@ -284,8 +284,7 @@ let rec poly_equal = (d1, d2): bool => {
     | (Float(_), _) => false
     }
   | (Atom(_), _) => false
-  // TODO(zhiyao): check drv equality
-  | (DrvExp(d1, _), DrvExp(d2, _)) => d1 == d2
+  | (DrvExp(d1, _), DrvExp(d2, _)) => Drv.Any.eq(d1, d2, ~skip_hole=false)
   | (DrvExp(_, _), _) => false
   | (Label(l1), Label(l2)) => l1 == l2
   | (Label(_), _) => false

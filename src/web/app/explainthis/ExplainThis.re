@@ -528,7 +528,7 @@ let get_doc_deduction =
           )
         | FailMatch((spec, _) as specced) =>
           Printf.sprintf(
-            "Could not match the term %s against expected form %s",
+            "Could not match %s against expected form %s",
             RuleVerify.show_linked(specced),
             spec |> Drv.Any.cls_of |> Drv.Any.show_cls,
           )

@@ -496,9 +496,6 @@ module View = {
       inject(Globals.Update.Set(InstructorMode))
     );
 
-  // TODO(zhiyao): disabled for study mode
-  ignore(instructor_toggle);
-
   let top_bar = (~globals: Globals.t, ~inject: Update.t => 'a, model: Model.t) =>
     [instructor_toggle(~inject=globals.inject_global, ~globals)]
     @ EditorModeView.view(

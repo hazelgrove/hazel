@@ -107,20 +107,10 @@ module Model = {
               Some({
                 ...res,
                 rule:
-                  Some(
-                    {
-                      print_endline("Uncaught Rule: " ++ Rule.show(rule));
-                      let spec = RuleSpec.of_spec(rule);
-                      {
-                        // TODO(zhiyao): may not bring it back now
-                        // let (spec, tests) =
-                        //   RuleVerify.fill_eq_tests(spec, tests);
-                        // let tests = RuleVerify.test_remove_eq_test(tests);
-                        rule,
-                        spec,
-                      };
-                    },
-                  ),
+                  Some({
+                    rule,
+                    spec: RuleSpec.of_spec(rule),
+                  }),
               })
             | _ => Some(res)
             }
@@ -519,19 +509,26 @@ module NinjaKeys = {
 
     let bind_event_handler_all = () => {
       let elem_root = shadow_root(elem);
-      let actions = elem_root##querySelectorAll(Js.string("ninja-action"));
-      let _ = actions##forEach(Js.wrap_callback(bind_event_handler));
-      actions##.length != 0;
+      if (elem_root != None) {
+        let actions = elem_root##querySelectorAll(Js.string("ninja-action"));
+        let _ = actions##forEach(Js.wrap_callback(bind_event_handler));
+        actions##.length != 0;
+      } else {
+        true;
+      };
     };
 
     let bind_event_handler_search = () => {
       let elem_root = shadow_root(elem);
-      let ninja_header = elem_root##querySelector(Js.string("ninja-header"));
-      let shadow_root = shadow_root(ninja_header);
-      let search: Js.t(Dom_html.inputElement) =
-        shadow_root##querySelector(Js.string("#search"));
-      search##.oninput :=
-        Dom.handler(_ev => Js.bool(bind_event_handler_all()));
+      if (elem_root != None) {
+        let ninja_header =
+          elem_root##querySelector(Js.string("ninja-header"));
+        let shadow_root = shadow_root(ninja_header);
+        let search: Js.t(Dom_html.inputElement) =
+          shadow_root##querySelector(Js.string("#search"));
+        search##.oninput :=
+          Dom.handler(_ev => Js.bool(bind_event_handler_all()));
+      };
     };
 
     let from_rule =
@@ -625,15 +622,6 @@ module View = {
         model: Model.t,
       ) => {
     let eds = model.editors;
-
-    let {prelude, setup, trees}: DerivationTree.stitched('a) = model.cells;
-
-    let title_view = CellCommon.title_cell(eds.title);
-
-    let prompt_view =
-      CellCommon.narrative_cell(
-        div(~attrs=[Attr.class_("cell-prompt")], [text(eds.prompt)]),
-      );
 
     let add_premise_btn_view = (~pos: DerivationTree.pos, ~index: int) =>
       div(
@@ -754,12 +742,7 @@ module View = {
           switch (index) {
           | Some(_) when !pos_is_value(pos) => [push_premise_btn_view(~pos)]
           | Some(_) => []
-          | None
-              when
-                !pos_is_value(pos)
-                || pos == Trees(List.length(eds.trees) - 1, Value) => [
-              pop_premise_btn_view(~pos),
-            ]
+          | None when !pos_is_value(pos) => [pop_premise_btn_view(~pos)]
           | None => []
           }
         )
@@ -869,20 +852,6 @@ module View = {
       );
     };
 
-    let prelude_view =
-      editor_view(
-        Prelude,
-        prelude,
-        ~subcaption=globals.settings.instructor_mode ? "" : " (Read-Only)",
-        ~caption="Prelude",
-      );
-
-    let setup_view =
-      div(
-        ~attrs=[Attr.class_("cell-setup")],
-        [editor_view(Setup, setup, ~caption="Setup")],
-      );
-
     let conclusion_view = (~pos, ~editor) =>
       div(
         ~attrs=[Attr.class_("deduction-concl")],
@@ -891,15 +860,7 @@ module View = {
 
     let deduction_view = (~children_node, ~pos, ~res, ~rule, ~editor) =>
       div(
-        ~attrs=
-          [Attr.class_("deduction-just")]
-          @ (
-            if (pos == model.pos) {
-              [Attr.class_("staged")];
-            } else {
-              [];
-            }
-          ),
+        ~attrs=[Attr.class_("deduction-just")],
         [
           premises_view(~children_node, ~pos, ~res, ~rule),
           conclusion_view(~pos, ~editor),
@@ -981,7 +942,7 @@ module View = {
     //   | Abbr(index);
 
     let info_tree =
-      List.map2(Tree.combine, eds.trees, trees)
+      List.map2(Tree.combine, eds.trees, model.cells.trees)
       |> List.map(
            Tree.map(
              fun
@@ -1027,6 +988,13 @@ module View = {
         ),
       );
 
+    let title_view = CellCommon.title_cell(eds.title);
+
+    let prompt_view =
+      CellCommon.narrative_cell(
+        div(~attrs=[Attr.class_("cell-prompt")], [text(eds.prompt)]),
+      );
+
     let option_view = (name, n) =>
       option(
         ~attrs=n == name ? [Attr.create("selected", "selected")] : [],
@@ -1063,6 +1031,20 @@ module View = {
             ),
           ),
         ],
+      );
+
+    let prelude_view =
+      editor_view(
+        Prelude,
+        model.cells.prelude,
+        ~subcaption=globals.settings.instructor_mode ? "" : " (Read-Only)",
+        ~caption="Prelude",
+      );
+
+    let setup_view =
+      div(
+        ~attrs=[Attr.class_("cell-setup")],
+        [editor_view(Setup, model.cells.setup, ~caption="Setup")],
       );
 
     [

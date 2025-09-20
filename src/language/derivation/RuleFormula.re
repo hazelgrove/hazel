@@ -25,6 +25,7 @@ module M =
            type t('a, 'b);
          },
        ) => {
+  /* [@deriving show({with_path: false})] */
   type term('a, 'b) =
     | LookUpExp(Var.t): term(exp_t, 'b)
     | LookUpPat(Var.t): term(pat_t, 'b)
@@ -65,18 +66,18 @@ module M =
     | Subset(t(ctx_t, 'b), t(ctx_t, 'b)): term(bool, 'b)
   and t('a, 'b) = W.t(term('a, 'b), 'b);
 
-  let show = (_, _, _) => failwith("not implemented");
+  // TODO(zhiyao): I cannot make gadt happy with deriving show,
+  // sexp, and yojson.
   let t_of_sexp = (_, _, _) => failwith("not implemented");
   let sexp_of_t = (_, _, _) => failwith("not implemented");
-  let t_of_yojson = (_, _, _) => failwith("not implemented");
-  let yojson_of_t = (_, _, _) => failwith("not implemented");
+  let t_of_yojson = (_, _, _) => failwith("cannot implemented");
+  let yojson_of_t = (_, _, _) => failwith("<opaque rule-formula-t>");
   let pp = (_, _, _, _) => failwith("not implemented");
 
-  let show_term = (_, _, _) => failwith("not implemented");
   let term_of_sexp = (_, _, _) => failwith("not implemented");
   let sexp_of_term = (_, _, _) => failwith("not implemented");
-  let term_of_yojson = (_, _, _) => failwith("not implemented");
-  let yojson_of_term = (_, _, _) => failwith("not implemented");
+  let term_of_yojson = (_, _, _) => failwith("cannot implemented");
+  let yojson_of_term = (_, _, _) => failwith("<opaque rule-formula-term>");
   let pp_term = (_, _, _, _) => failwith("not implemented");
 };
 

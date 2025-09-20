@@ -66,6 +66,24 @@ let common_error: Info.error_common => string =
       Print.typ(syn),
     );
 
+let drv_error: DrvInfo.error => string =
+  fun
+  | DrvInfo.BadToken(token) => prn("\"%s\" isn't a valid token", token)
+  | DrvInfo.MultiHole => "Multiple holes in term"
+  | DrvInfo.FreeVar => "Free variable"
+  | DrvInfo.VarNoJoin(expect, actual) =>
+    prn(
+      "Expecting variable to have a derivation sort %s but got %s",
+      DrvSort.to_string(expect),
+      Print.typ(actual),
+    )
+  | DrvInfo.NoJoin(expect, actuals) =>
+    prn(
+      "Expecting terms to have a derivation sort of %s but got potential derivation sorts: %s",
+      DrvSort.to_string(expect),
+      List.map(DrvSort.to_string, actuals) |> String.concat(", "),
+    );
+
 let exp_error: Info.error_exp => string =
   fun
   | DotOperatorRequiresTuple => "Expected a tuple"
@@ -143,7 +161,7 @@ let tpat_error: Info.error_tpat => string =
 
 let string_of: Info.error => string =
   fun
-  | Drv(_) => "TODO(zhiyao): drv error"
+  | Drv(error) => drv_error(error)
   | Exp(error) => exp_error(error)
   | Pat(error) => pat_error(error)
   | Typ(error) => typ_error(error)

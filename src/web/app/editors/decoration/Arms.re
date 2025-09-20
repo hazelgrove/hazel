@@ -279,8 +279,8 @@ let term =
       Id.Map.find(id, terms) |> Language.Any.ids |> List.filter_map(of_tile);
     term(~font_metrics, ~rows=measured.rows, ~tiles, (l, r), ~attr?);
   | _ =>
-    // TODO(zhiyao): investigate why this happens
-    print_endline("Deco.Deco.term_decoration: option is none");
+    // TODO(zhiyao): investigate why this happens for some derivations term
+    print_endline("Arms.term: option is none");
     [];
   };
 };

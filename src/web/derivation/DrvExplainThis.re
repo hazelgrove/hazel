@@ -181,6 +181,11 @@ let premises_view =
   );
 };
 
+let deduction_view = (~spec, ~rule, ~color_map, ~globals) => [
+  premises_view(~spec, ~rule, ~color_map, ~globals),
+  conclusion_view(~spec=spec.concl, ~color_map, ~globals),
+];
+
 let rule_example_view =
     (~info: DrvGrading.VerifiedTree.info, ~color_map: ColorSteps.t, ~globals)
     : Node.t => {
@@ -200,15 +205,13 @@ let rule_example_view =
       Attr.class_("drv-explainthis-section"),
     ],
     switch (rule) {
-    | Some({spec, rule}) => [
-        premises_view(
-          ~spec,
-          ~rule=Some(RuleImage.to_image(rule)),
-          ~color_map,
-          ~globals,
-        ),
-        conclusion_view(~spec=spec.concl, ~color_map, ~globals),
-      ]
+    | Some({spec, rule}) =>
+      deduction_view(
+        ~spec,
+        ~rule=Some(RuleImage.to_image(rule)),
+        ~color_map,
+        ~globals,
+      )
     | None => []
     },
   );
