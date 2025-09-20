@@ -46,7 +46,7 @@ module Model = {
   let get_exercise_id = (exercise: exercise): Haz3lcore.Id.t =>
     switch (exercise) {
     | Implementation(e: ExerciseMode.Model.t) => e.editors.id
-    | Derivation(_: DerivationMode.Model.t) => Id.invalid // TODO(zhiyao): add id to DerivationMode.Model.t
+    | Derivation(e: DerivationMode.Model.t) => e.spec.id
     | Theorem(e: TheoremExerciseMode.Model.t) => e.id
     };
 
