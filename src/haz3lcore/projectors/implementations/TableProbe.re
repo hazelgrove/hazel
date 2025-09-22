@@ -318,7 +318,7 @@ module M: Projector = {
     );
   };
 
-  let init = (any: Term.Any.t) =>
+  let init = (_any: Term.Any.t) =>
     Some({
       closure: None,
       menu: None,
@@ -407,7 +407,7 @@ module M: Projector = {
             );
           };
 
-        let make_menu_button = (i, h) =>
+        let make_menu_button = (i, _h) =>
           icon_button(~tooltip="Column options", "⋮", _ =>
             local(ShowMenu(i))
           );
