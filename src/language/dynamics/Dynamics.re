@@ -1,11 +1,13 @@
 open Util;
+open OptUtil.Syntax;
 
 /* Semantic information gathered during evaluation. This aspirationally
  * unifies all evaluator output, in the same sense as Statics does for
  * static information gathering, but right now it specifically handles
  * closure gathering for probe projectors */
 
-module ProbeR = Probe;
+[@deriving (show({with_path: false}), sexp, yojson, eq)]
+type call_stack = Probe.call_stack;
 
 module Probe = {
   module Env = {
@@ -133,7 +135,7 @@ module Probe = {
 module Cursor = {
   [@deriving (show({with_path: false}), sexp, yojson, eq)]
   type call_cursor = {
-    stack: ProbeR.call_stack,
+    stack: call_stack,
     index: int,
   };
 
@@ -141,7 +143,7 @@ module Cursor = {
   type t = {
     call_cursor,
     indicated_call: option(Id.t),
-    pinned_call: option(ProbeR.call_stack),
+    pinned_call: option(call_stack),
   };
 
   let init: t = {
@@ -161,7 +163,7 @@ module Cursor = {
    * call stack is downstream of that call, return how many
    * aps downstream it is */
   let depth_in_indicated_calls_stack =
-      (cc: t, call_stack: ProbeR.call_stack): option(int) => {
+      (cc: t, call_stack: call_stack): option(int) => {
     open OptUtil.Syntax;
     let* cur_ap = cc.indicated_call;
     ListUtil.suffix_at_depth(
@@ -169,28 +171,6 @@ module Cursor = {
       call_stack,
     );
   };
-};
-
-module Info = {
-  /* Collected closures for a given id */
-  [@deriving (show({with_path: false}), sexp, yojson)]
-  type t = {
-    closures: list(Probe.Closure.t),
-    dyn_cursor: Cursor.t,
-  };
-
-  let init = {
-    closures: [],
-    dyn_cursor: Cursor.init,
-  };
-
-  let is_in = (di: t): option(Probe.Closure.t) =>
-    //TODO(andrew): maybe should use call_cursor suffix trimmed to index?
-    List.find_opt(
-      (closure: Probe.Closure.t) =>
-        Cursor.trimmed_stack(di.dyn_cursor.call_cursor) == closure.call_stack,
-      di.closures,
-    );
 
   type relative_level =
     | Above(int)
@@ -222,34 +202,26 @@ module Info = {
     };
 
   let cur_call = (ap_id: option(Id.t), closure: Probe.Closure.t) => {
-    open OptUtil.Syntax;
     let* ap_id = ap_id;
     let dyn = closure.call_stack;
     Some([ap_id, ...dyn]);
   };
 
   let relation =
-      (ap_id: option(Id.t), di: t, closure: Probe.Closure.t): relation => {
-    open OptUtil.Syntax;
+      (ap_id: option(Id.t), cc: t, closure: Probe.Closure.t): relation => {
     let this = closure.call_stack;
-    // print_endline("this: " ++ String.concat(", ", List.map(Id.str3, this)));
-    let cursor = Cursor.trimmed_stack(di.dyn_cursor.call_cursor);
+    let cursor = trimmed_stack(cc.call_cursor);
     {
-      // print_endline(
-      //   "cursor: " ++ String.concat(", ", List.map(Id.str3, cursor)),
-      // );
-
       is_call_cursor: cursor == this,
       is_more_precise_than_cursor:
-        List.length(di.dyn_cursor.call_cursor.stack)
-        > List.length(closure.call_stack),
+        List.length(cc.call_cursor.stack) > List.length(closure.call_stack),
       relative_level_to_cursor: relative_level(cursor, this),
       is_call_above_call_cursor: {
         let* cur_call = cur_call(ap_id, closure);
         is_below(cur_call, cursor);
       },
       is_below_indicated_call: {
-        let* cur_ap = di.dyn_cursor.indicated_call;
+        let* cur_ap = cc.indicated_call;
         is_below([cur_ap] @ cursor, this);
       },
     };
@@ -262,13 +234,35 @@ module Info = {
     | Same => true
     | Unrelated => false
     };
+};
+
+module Info = {
+  /* Collected closures for a given id */
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type t = {
+    closures: list(Probe.Closure.t),
+    dyn_cursor: Cursor.t,
+  };
+
+  let init = {
+    closures: [],
+    dyn_cursor: Cursor.init,
+  };
+
+  let is_in = (di: t): option(Probe.Closure.t) =>
+    //TODO(andrew): maybe should use call_cursor suffix trimmed to index?
+    List.find_opt(
+      (closure: Probe.Closure.t) =>
+        Cursor.trimmed_stack(di.dyn_cursor.call_cursor) == closure.call_stack,
+      di.closures,
+    );
 
   let first_cursor_closure =
       (ap_id: option(Id.t), di: t): option(Probe.Closure.t) => {
-    open OptUtil.Syntax;
     let find_cursor =
       List.find_opt(
-        closure => relation(ap_id, di, closure).is_call_cursor,
+        closure =>
+          Cursor.relation(ap_id, di.dyn_cursor, closure).is_call_cursor,
         di.closures,
       );
     switch (find_cursor) {

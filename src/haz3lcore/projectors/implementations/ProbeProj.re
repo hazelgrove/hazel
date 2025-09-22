@@ -128,22 +128,20 @@ module Closures = {
 
   let first_index_of_interest =
       (~ap_id: option(Id.t), di: Dynamics.Info.t): option(int) => {
-    let find = (rel: Dynamics.Info.relation => bool): option(int) =>
+    let find = (rel: Dynamics.Cursor.relation => bool): option(int) =>
       List.find_index(
         (closure: closure) =>
-          rel(Dynamics.Info.relation(ap_id, di, closure)),
+          rel(Dynamics.Cursor.relation(ap_id, di.dyn_cursor, closure)),
         di.closures,
       );
     switch (find(relation => relation.is_call_cursor)) {
-    | Some(idx) =>
-      // print_endline("is call cursor");
-      Some(idx)
+    | Some(idx) => Some(idx)
     | None =>
       switch (find(relation => relation.is_below_indicated_call == Some(0))) {
       | Some(idx) => Some(idx)
       | None =>
         let a = find(relation => relation.is_below_indicated_call != None);
-        a == None ? find(Dynamics.Info.is_related) : a;
+        a == None ? find(Dynamics.Cursor.is_related) : a;
       }
     // }
     };
@@ -154,14 +152,8 @@ module Closures = {
     let closures = filter_frames_by_pin(~ap_id, di);
     let cursor_idx =
       switch (first_index_of_interest(~ap_id, di)) {
-      | Some(idx) =>
-        // print_endline(
-        //   "select_frames: first_index_of_interest = " ++ string_of_int(idx),
-        // );
-        idx
-      | None =>
-        // print_endline("select_frames: first_index_of_interest = None");
-        0
+      | Some(idx) => idx
+      | None => 0
       };
     let all_closures = List.length(closures);
     let (l, r) = Window.reform(id, all_closures, cursor_idx);
@@ -280,7 +272,7 @@ module ValueState = {
 let cursor_clss =
     (ap_id: option(Id.t), di: Dynamics.Info.t, closure: closure)
     : list(string) => {
-  let relation = Dynamics.Info.relation(ap_id, di, closure);
+  let relation = Dynamics.Cursor.relation(ap_id, di.dyn_cursor, closure);
   (
     switch (
       relation.is_call_cursor,
@@ -315,7 +307,7 @@ module Debug = {
     ++ "\n"
     ++ "ap:"
     ++ (
-      switch (Dynamics.Info.cur_call(ap_id, closure)) {
+      switch (Dynamics.Cursor.cur_call(ap_id, closure)) {
       | Some([ap_id, ..._]) => Id.str3(ap_id)
       | _ => "None"
       }
@@ -379,7 +371,7 @@ let value_view =
 
   div(
     ~attrs=[
-      Attr.title(Debug.str(~ap_id, closure)),
+      //Attr.title(Debug.str(~ap_id, closure)),
       Attr.classes(
         ["value", length_cls(length)]
         @ cursor_clss(ap_id, di, closure)
@@ -391,17 +383,12 @@ let value_view =
         Key.meta_held(evt)
           ? switch (ap_id, Dynamics.Info.is_in(di)) {
             | (Some(ap_id), Some(closure_cursor)) =>
-              print_endline(
-                "TogglePinCall: Some(ap_id), Some(closure_cursor)",
-              );
               parent(
                 DynCursor(
                   TogglePinCall([ap_id, ...closure_cursor.call_stack]),
                 ),
-              );
-            | _ =>
-              print_endline("TogglePinCall: _");
-              Effect.Ignore;
+              )
+            | _ => Effect.Ignore
             }
           : val_pointerdown(evt)
       ),
@@ -440,20 +427,6 @@ let env_view = (closure: closure, view_seg, utility: utility): Node.t =>
   );
 
 let show_pin = (~ap_id: option(Id.t), di: Dynamics.Info.t) => {
-  switch (ap_id) {
-  | None => ()
-  | Some(ap_id) =>
-    print_endline("show_pin: ap_id = " ++ Id.str3(ap_id));
-    print_endline(
-      "show_pin: di.dyn_cursor.pinned_call = "
-      ++ (
-        di.dyn_cursor.pinned_call
-        |> OptUtil.and_then(ListUtil.hd_opt)
-        |> Option.map(Id.str3)
-        |> Option.value(~default="None")
-      ),
-    );
-  };
   di.dyn_cursor.pinned_call != None
   && di.dyn_cursor.pinned_call
   |> OptUtil.and_then(ListUtil.hd_opt) == ap_id;
@@ -801,17 +774,10 @@ let probe_default =
 let is_pinned = (ap_id: option(Id.t), di: Dynamics.Info.t): bool =>
   switch (Dynamics.Info.is_in(di)) {
   | Some(closure_cursor) =>
-    di.dyn_cursor.pinned_call == Dynamics.Info.cur_call(ap_id, closure_cursor)
+    di.dyn_cursor.pinned_call
+    == Dynamics.Cursor.cur_call(ap_id, closure_cursor)
   | _ => false
   };
-
-// let pin_call = (info: info): unit =>
-//   switch (
-//     OptUtil.and_then((di: Dynamics.Info.t) => is_in(di), info.dynamics)
-//   ) {
-//   | Some(closure_cursor) => s.pinned_call = cur_call(info, closure_cursor)
-//   | _ => ()
-//   };
 
 let view = (local, parent, info: info): Node.t =>
   div(

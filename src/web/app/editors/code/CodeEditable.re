@@ -247,7 +247,7 @@ module View = {
         //       Effect.Many([
         //         Effect.Stop_propagation,
         //         Effect.Prevent_default,
-        //         inject(Perform(Refractor(SetRefProbe))),
+        //         inject(Perform(Refractor(ToggleProbeManual))),
         //       ]);
         //     }),
         //   ],
@@ -270,7 +270,7 @@ module View = {
                           Effect.Many([
                             Effect.Stop_propagation,
                             Effect.Prevent_default,
-                            inject(Perform(Refractor(SetRefProbe))),
+                            inject(Perform(Refractor(ToggleProbeManual))),
                           ])
                         }),
                         clss(["named-menu-item"]),
@@ -283,7 +283,7 @@ module View = {
                           Effect.Many([
                             Effect.Stop_propagation,
                             Effect.Prevent_default,
-                            inject(Perform(Refractor(InstrumentTerm))),
+                            inject(Perform(Refractor(ToggleProbeREPL))),
                           ])
                         }),
                         clss(["named-menu-item"]),
@@ -307,14 +307,14 @@ module View = {
                     //   Effect.Many([
                     //     Effect.Stop_propagation,
                     //     Effect.Prevent_default,
-                    //     inject(Perform(Refractor(SetRefProbe))),
+                    //     inject(Perform(Refractor(ToggleProbeManual))),
                     //   ])
                     // }),
                     // Widgets.toggle_named("", ~tooltip="repl", true, _ => {
                     //   Effect.Many([
                     //     Effect.Stop_propagation,
                     //     Effect.Prevent_default,
-                    //     inject(Perform(Refractor(InstrumentTerm))),
+                    //     inject(Perform(Refractor(ToggleProbeREPL))),
                     //   ])
                     // }),
                   ],

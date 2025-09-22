@@ -36,6 +36,11 @@ type t = {
   refractors: Refractor.t,
 };
 
+let update_refractors = (z: t, f: Refractor.t => Refractor.t): t => {
+  ...z,
+  refractors: f(z.refractors),
+};
+
 let update_relatives = (f: Relatives.t => Relatives.t, z: t): t => {
   ...z,
   relatives: f(z.relatives),
