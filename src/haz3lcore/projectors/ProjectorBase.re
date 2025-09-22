@@ -64,6 +64,11 @@ module Focusable = {
   };
 };
 
+[@deriving (show({with_path: false}), sexp, yojson)]
+type inference_solution =
+  | Single(Typ.t)
+  | Many(lazy_t(list(Typ.t)));
+
 /* External info proivded to all projectors */
 [@deriving (show({with_path: false}), sexp, yojson)]
 type info = {
@@ -82,7 +87,7 @@ type info = {
    * this case (None) must be handled by projector authors */
   statics: option(Language.Statics.Info.t),
   // TODO: (THI) document, might want to merge with above
-  inference: option(Language.Inference.solution),
+  inference: option(inference_solution),
   /* Dynamic information about the syntax including
    * live values of the syntax. Dynamics may be
    * disabled by the user; this case (None) must be

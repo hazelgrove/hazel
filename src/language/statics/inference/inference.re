@@ -3,6 +3,14 @@ open Util;
 let is_identified_providence = (p: Prov.t) =>
   IdTagged.rep_id(p) != Id.invalid;
 
+let rec cartesian_product = (lists: list(list(Typ.t))): list(list(Typ.t)) =>
+  switch (lists) {
+  | [] => [[]]
+  | [hd, ...tl] =>
+    let tl_product = cartesian_product(tl);
+    List.concat_map(h => List.map(t => [h, ...t], tl_product), hd);
+  };
+
 module Solution = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t =
@@ -80,6 +88,66 @@ module Solution = {
     | Rec(_, _)
     | Forall(_, _)
     | Arrow(_) => typ_of_solution(sol)
+    };
+  };
+
+  /*
+   * Is true if the solution expresses more than one possible type. In other words,
+   * when the solution possesses a multi anywhere
+   */
+  let rec has_multiple_types = (sol: t): bool =>
+    switch (sol) {
+    | Label(_) => false
+    | TupLabel(ty1, ty2) =>
+      has_multiple_types(ty1) || has_multiple_types(ty2)
+    | Arrow(ty1, ty2) => has_multiple_types(ty1) || has_multiple_types(ty2)
+    | Atom(_) => false
+    | Var(_) => false
+    | Unknown(_) => false
+    | Forall(_, ty) => has_multiple_types(ty)
+    | Rec(_, ty) => has_multiple_types(ty)
+    | List(ty) => has_multiple_types(ty)
+    | Sum(_) => false
+    | Prod(tys) => List.exists(has_multiple_types, tys)
+    | Multi(_) => true
+    };
+
+  /*
+   * Is all *combinatorial* types a given solution represents
+   */
+  let rec all_types_from_solution = (sol: t): list(Typ.t) => {
+    switch (sol) {
+    | Label(l) => [Label(l) |> Typ.temp]
+    | TupLabel(l, r) =>
+      let t1_tys = all_types_from_solution(l);
+      let t2_tys = all_types_from_solution(r);
+      List.concat_map(
+        t1 => List.map(t2 => {TupLabel(t1, t2) |> Typ.temp}, t2_tys),
+        t1_tys,
+      );
+    | Arrow(t1, t2) =>
+      let t1_tys = all_types_from_solution(t1);
+      let t2_tys = all_types_from_solution(t2);
+      List.concat_map(
+        t1 => List.map(t2 => {Arrow(t1, t2) |> Typ.temp}, t2_tys),
+        t1_tys,
+      );
+    | Atom(a) => [Atom(a) |> Typ.temp]
+    | Var(v) => [Var(v) |> Typ.temp]
+    | Unknown(p) => [Unknown(p) |> Typ.temp]
+    | Forall(pat, ty)
+    | Rec(pat, ty) =>
+      List.map(
+        ty => {Rec(pat |> IdTagged.temp, ty) |> Typ.temp},
+        all_types_from_solution(ty),
+      )
+    | Sum(sm) => [Sum(sm) |> Typ.temp]
+    | Multi(ss) => List.concat_map(all_types_from_solution, ss)
+    | List(sol) =>
+      List.map(t => {List(t) |> Typ.temp}, all_types_from_solution(sol))
+    | Prod(args) =>
+      let args_tys = List.map(all_types_from_solution, args);
+      List.map(ts => {Prod(ts) |> Typ.temp}, cartesian_product(args_tys));
     };
   };
 };
@@ -563,13 +631,9 @@ let solve_prov =
   );
 };
 
-// let string_of_constramnot = (Con(t1, t2): constramnot): string => {
-//   string_of_htyp(t1) ++ "~" ++ string_of_htyp(t2);
-// };
-
-// let string_of_constramnots = (cs: list(constramnot)): string => {
-//   "{" ++ String.concat("\n", List.map(string_of_constramnot, cs)) ++ "}";
-// };
+let string_of_constramnots = (cs: list(Typ.equivalence)): string => {
+  "{" ++ String.concat("\n", List.map(Typ.show_equivalence, cs)) ++ "}";
+};
 
 let string_of_data = ((_, ps, ts): PossibleProvTypesMap.data): string =>
   "["
@@ -771,7 +835,7 @@ let extend_sol_map =
     )
     : option((list(Typ.equivalence), SolutionMap.t, list(StringProv.t))) => {
   // print_endline("Constraints:");
-  // print_endline(string_of_constramnots(cs));
+  // print_endline(string_of_constramnots(constraints));
   let canonical_cs = unfold_constramnots(constraints); // make constraints canonical
   let m = PossibleProvTypesMap.of_constramnots(canonical_cs, sol_map); // compute provenance map
   // print_endline("Provenance Map:");

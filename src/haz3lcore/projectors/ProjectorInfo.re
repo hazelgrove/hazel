@@ -1,4 +1,5 @@
 open Language;
+open Util;
 
 /* Projector data which is dependent on semantics,
  * separated out for dependency reasons */
@@ -53,7 +54,24 @@ let mk_info =
     id: p.id,
     syntax: Piece.unparenthesize(p.syntax),
     statics,
-    inference: inference_solution,
+    inference:
+      OptUtil.and_then(
+        s =>
+          if (Inference.Solution.has_multiple_types(s)) {
+            Some(
+              ProjectorBase.Many(
+                lazy(Inference.Solution.all_types_from_solution(s)),
+              ),
+            );
+          } else {
+            Some(
+              ProjectorBase.Single(
+                Inference.Solution.all_types_from_solution(s) |> List.hd,
+              ),
+            );
+          },
+        inference_solution,
+      ),
     dynamics: Dynamics.Map.lookup(p.id, dynamics),
     utility,
   };
