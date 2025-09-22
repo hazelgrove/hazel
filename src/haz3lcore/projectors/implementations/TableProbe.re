@@ -126,13 +126,17 @@ let parse_column_int = (info: info, column: string): Base.segment => {
                         tuple([
                           tup_label(
                             label(column),
-                            ap(Forward, var("int_of_string"), dot(var("r"), label(column)))
-                          )
-                        ])
+                            ap(
+                              Forward,
+                              var("int_of_string"),
+                              dot(var("r"), label(column)),
+                            ),
+                          ),
+                        ]),
                       ),
                       None,
-                      None
-                    )
+                      None,
+                    ),
                   ]),
                 ),
                 exp_term |> DHExp.fresh,
@@ -171,13 +175,17 @@ let parse_column_float = (info: info, column: string): Base.segment => {
                         tuple([
                           tup_label(
                             label(column),
-                            ap(Forward, var("float_of_string"), dot(var("r"), label(column)))
-                          )
-                        ])
+                            ap(
+                              Forward,
+                              var("float_of_string"),
+                              dot(var("r"), label(column)),
+                            ),
+                          ),
+                        ]),
                       ),
                       None,
-                      None
-                    )
+                      None,
+                    ),
                   ]),
                 ),
                 exp_term |> DHExp.fresh,
@@ -216,13 +224,17 @@ let parse_column_bool = (info: info, column: string): Base.segment => {
                         tuple([
                           tup_label(
                             label(column),
-                            ap(Forward, var("bool_of_string"), dot(var("r"), label(column)))
-                          )
-                        ])
+                            ap(
+                              Forward,
+                              var("bool_of_string"),
+                              dot(var("r"), label(column)),
+                            ),
+                          ),
+                        ]),
                       ),
                       None,
-                      None
-                    )
+                      None,
+                    ),
                   ]),
                 ),
                 exp_term |> DHExp.fresh,
@@ -354,6 +366,7 @@ module M: Projector = {
     | ShowMenu(int)
     | ShowParseMenu(int)
     | CloseMenu
+    | BackToMainMenu(int)
     | ParseColumn(string, string);
 
   let table_with_column_menus =
@@ -384,7 +397,7 @@ module M: Projector = {
           let full_content =
             switch (model.menu) {
             | Some((j, menu_state)) when i == j =>
-              let menu_content = 
+              let menu_content =
                 switch (menu_state) {
                 | MainMenu => [
                     Node.div(
@@ -439,7 +452,7 @@ module M: Projector = {
                     Node.div(
                       ~attrs=[
                         Attr.classes(["submenu-back"]),
-                        Attr.on_click(_ => local(ShowMenu(i))),
+                        Attr.on_click(_ => local(BackToMainMenu(i))),
                       ],
                       [Node.text("← Back")],
                     ),
@@ -487,7 +500,7 @@ module M: Projector = {
                   ~attrs=[Attr.classes(["column-menu"])],
                   menu_content,
                 ),
-              ]
+              ];
             | _ => cell_content
             };
           Node.th(full_content);
@@ -553,6 +566,10 @@ module M: Projector = {
         ...model,
         menu: Some((i, ParseSubmenu)),
       }
+    | BackToMainMenu(i) => {
+        ...model,
+        menu: Some((i, MainMenu)),
+      }
     | ParseColumn(_, _) =>
       // This action will be handled by the parent through the view
       model
@@ -578,6 +595,7 @@ module M: Projector = {
         | DropColumn(_) => model // Already handled above
         | ShowMenu(_) => model // Already handled above
         | ShowParseMenu(_) => model // Already handled above
+        | BackToMainMenu(_) => model // Already handled above
         | ParseColumn(_, _) => model // Already handled above
         | CloseMenu => model // Already handled above
         };

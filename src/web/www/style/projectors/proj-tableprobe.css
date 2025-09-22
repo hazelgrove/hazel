@@ -110,6 +110,28 @@
     background-color: var(--df-hover-bg);
 }
 
+.submenu-item {
+    padding: 8px 12px;
+    cursor: pointer;
+    font-size: 0.875rem;
+    color: var(--BR2);
+}
+
+.submenu-item:hover {
+    background-color: var(--df-hover-bg);
+}
+
+.submenu-back {
+    padding: 8px 12px;
+    cursor: pointer;
+    font-size: 0.875rem;
+    color: var(--BR2);
+}
+
+.submenu-back:hover {
+    background-color: var(--df-hover-bg);
+}
+
 /* Ensure table header cells with buttons are properly aligned */
 .tableprobe th {
     text-align: center;
