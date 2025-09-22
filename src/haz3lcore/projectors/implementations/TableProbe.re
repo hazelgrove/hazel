@@ -175,6 +175,23 @@ let get_column_type' = (ty: Typ.t, column: string) => {
   };
 };
 
+let get_columns = (ty: Typ.t): option(list(string)) => {
+  switch (ty.term) {
+  | List({term: Prod(tys), _}) =>
+    let labels: option(list(string)) =
+      OptUtil.traverse(
+        ty => {
+          open OptUtil.Syntax;
+          let* (label, _value_ty) = Typ.match_tup_label(ty);
+          Some(label);
+        },
+        tys,
+      );
+    labels;
+  | _ => None
+  };
+};
+
 let get_dynamic_type = (info: info): option(Typ.t) => {
   info.dynamics
   |> Option.bind(
@@ -202,6 +219,73 @@ let get_dynamic_type = (info: info): option(Typ.t) => {
          );
        },
      );
+};
+
+let move_column =
+    (info: info, column: string, left: bool): option(Base.segment) => {
+  let columns_opt = get_dynamic_type(info) |> Option.bind(_, get_columns);
+  switch (columns_opt) {
+  | Some(columns) =>
+    let idx_opt = List.find_index(x => x == column, columns);
+    switch (idx_opt) {
+    | Some(idx) =>
+      let new_idx = left ? idx - 1 : idx + 1;
+      if (new_idx < 0 || new_idx >= List.length(columns)) {
+        None;
+      } else {
+        let new_columns =
+          List.mapi(
+            (i, x) =>
+              if (i == idx) {
+                List.nth(columns, new_idx);
+              } else if (i == new_idx) {
+                List.nth(columns, idx);
+              } else {
+                x;
+              },
+            columns,
+          );
+        IdTagged.FreshGrammar.(
+          switch (
+            info.utility.lift_syntax(
+              fun
+              | Exp({term: exp_term, _}) =>
+                Exp(
+                  Exp.(
+                    ap(
+                      Reverse,
+                      ap(
+                        Forward,
+                        var("map"),
+                        tuple([
+                          deferral(InAp),
+                          ap(
+                            Forward,
+                            var("select_labels"),
+                            tuple(
+                              [deferral(InAp)]
+                              @ List.map(label, new_columns),
+                            ),
+                          ),
+                        ]),
+                      ),
+                      exp_term |> DHExp.fresh,
+                    )
+                  ),
+                )
+              | _ => failwith("TableProj: move_column: not an expression"),
+              info.syntax,
+            )
+          ) {
+          | Some(s) => Some(s)
+          | None => None
+          }
+        );
+      };
+    | None => None
+    };
+  | None => None
+  };
 };
 
 let get_column_type = (info: info, column: string) => {
@@ -427,6 +511,27 @@ module M: Projector = {
                     get_dynamic_type(info)
                     |> Option.bind(_, get_column_type'(_, h));
 
+                  let columns_opt =
+                    get_dynamic_type(info) |> Option.bind(_, get_columns);
+                  let can_move_left =
+                    switch (columns_opt) {
+                    | Some(columns) =>
+                      switch (List.find_index(x => x == h, columns)) {
+                      | Some(idx) => idx > 0
+                      | None => false
+                      }
+                    | None => false
+                    };
+                  let can_move_right =
+                    switch (columns_opt) {
+                    | Some(columns) =>
+                      switch (List.find_index(x => x == h, columns)) {
+                      | Some(idx) => idx < List.length(columns) - 1
+                      | None => false
+                      }
+                    | None => false
+                    };
+
                   let base_menu_items = [
                     Node.div(
                       ~attrs=[
@@ -457,25 +562,61 @@ module M: Projector = {
                     Node.div(
                       ~attrs=[
                         Attr.classes(["menu-item"]),
-                        Attr.on_click(_ => local(CloseMenu)),
-                      ],
-                      [Node.text("Move Left")],
-                    ),
-                    Node.div(
-                      ~attrs=[
-                        Attr.classes(["menu-item"]),
-                        Attr.on_click(_ => local(CloseMenu)),
-                      ],
-                      [Node.text("Move Right")],
-                    ),
-                    Node.div(
-                      ~attrs=[
-                        Attr.classes(["menu-item"]),
                         Attr.on_click(_ => local(ShowConversionMenu(i))),
                       ],
                       [Node.text("Convert →")],
                     ),
                   ];
+
+                  let move_left_item =
+                    can_move_left
+                      ? [
+                        Node.div(
+                          ~attrs=[
+                            Attr.classes(["menu-item"]),
+                            Attr.on_click(_ =>
+                              Effect.Many([
+                                local(CloseMenu),
+                                parent(
+                                  SetSyntax(
+                                    OptUtil.get_or_fail(
+                                      "move left failed",
+                                      move_column(info, h, true),
+                                    ),
+                                  ),
+                                ),
+                              ])
+                            ),
+                          ],
+                          [Node.text("Move Left")],
+                        ),
+                      ]
+                      : [];
+
+                  let move_right_item =
+                    can_move_right
+                      ? [
+                        Node.div(
+                          ~attrs=[
+                            Attr.classes(["menu-item"]),
+                            Attr.on_click(_ =>
+                              Effect.Many([
+                                local(CloseMenu),
+                                parent(
+                                  SetSyntax(
+                                    OptUtil.get_or_fail(
+                                      "move right failed",
+                                      move_column(info, h, false),
+                                    ),
+                                  ),
+                                ),
+                              ])
+                            ),
+                          ],
+                          [Node.text("Move Right")],
+                        ),
+                      ]
+                      : [];
 
                   let sort_menu_item =
                     switch (sort_column(info, column_type, h)) {
@@ -496,7 +637,10 @@ module M: Projector = {
                     | None => []
                     };
 
-                  base_menu_items @ sort_menu_item;
+                  base_menu_items
+                  @ move_left_item
+                  @ move_right_item
+                  @ sort_menu_item;
                 | ConversionSubmenu =>
                   let back_button =
                     Node.div(
