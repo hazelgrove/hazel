@@ -1304,7 +1304,11 @@ and uexp_to_info_map =
       add'(
         ~self,
         ~co_ctx=CoCtx.mk(ctx, p.ctx, e.co_ctx),
-        ~constraints=arr_constraint @ e.constraints @ p.typ_constraints,
+        ~constraints=
+          arr_constraint
+          @ e.constraints
+          @ p.typ_constraints
+          @ p'.typ_constraints,
         m,
       );
     | TypFun(utpat, body, _) =>
@@ -2423,16 +2427,16 @@ let mk =
         );
 
       let inference_sols = Inference.solve(info.constraints);
-      // Inference.ProvMap.iter(
-      //   (key, sol) => {
-      //     print_endline(
-      //       Inference.StringProv.show(key)
-      //       ++ " -> "
-      //       ++ Inference.show_solution(sol),
-      //     )
-      //   },
-      //   inference_sols,
-      // );
+      Inference.ProvMap.iter(
+        (key, sol) => {
+          print_endline(
+            Inference.StringProv.show(key)
+            ++ " -> "
+            ++ Inference.Solution.show(sol),
+          )
+        },
+        inference_sols,
+      );
       (map, inference_sols);
     },
   );
