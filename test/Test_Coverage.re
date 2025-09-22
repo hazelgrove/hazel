@@ -981,41 +981,6 @@ in ?|},
     ],
   );
 
-// no lonegr supporting
-// let erroneous_pattern_redundancy =
-//   has_errors(
-//     "Erroneous Pattern: Redundancy",
-//     {|
-// type Tree = +Empty + Leaf(Tree) + Node([Tree]) in
-// let f = fun (x : Tree) ->
-//   {{{case x
-//     | Empty => 1
-//     | {{{A}}} => 2
-//     | {{{A}}} => 3
-//     | {{{B}}}(_) => 4
-//     | {{{{{{B}}}(_)}}} => 5
-//     | Leaf(_) => 6
-//   end}}}
-// in ?|},
-//     [
-//       Info.Exp(
-//         InexhaustiveMatch(
-//           None,
-//           Grammar.Pat(
-//             IdTagged.FreshGrammar.Pat.(
-//               ap(constructor("Node", None), wild())
-//             ),
-//           ),
-//         ),
-//       ),
-//       Info.Pat(Common(NoType(FreeConstructor("A")))),
-//       Info.Pat(Redundant(Some(Common(NoType(FreeConstructor("A")))))),
-//       Info.Pat(Common(NoType(FreeConstructor("B")))),
-//       Info.Pat(Redundant(None)),
-//       Info.Pat(Common(NoType(FreeConstructor("B")))),
-//     ],
-//   );
-
 let labeled_tuple_exhaustiveness =
   no_errors(
     "Labeled Tuple Exhaustiveness Stress Test",

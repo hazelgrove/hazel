@@ -654,7 +654,7 @@ module Submatrices = {
 
   // data accumulation pass over the first column of the matrix
   let seen = (m: Matrix.t, all_ctrs: Ctr.all_ctrs): Seen.t => {
-    let rec seen' = (seen: Seen.t, row: Matrix.row) => {
+    let seen' = (seen: Seen.t, row: Matrix.row) => {
       switch (row.cols) {
       | [] => seen
       | [BigInt(n), ..._] => {
@@ -829,7 +829,7 @@ module Submatrices = {
     let submatrices = {
       open Matrix;
 
-      let rec submatrix = (submatrices, row: Matrix.row) => {
+      let submatrix = (submatrices, row: Matrix.row) => {
         switch (row.cols) {
         | [] => submatrices
         | [SInt(n), ...cols] => {
