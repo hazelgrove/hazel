@@ -710,6 +710,7 @@ module Exp = {
           // Variables: lookup if bound
           | Var(x) =>
             switch (Environment.lookup(env, x)) {
+            | Some({term: Var(y), _}) when x == y => e
             | Some(e) =>
               e
               |> replace_all_ids

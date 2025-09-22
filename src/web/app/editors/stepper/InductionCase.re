@@ -162,6 +162,18 @@ module F = (Stepper: STEPPER) => {
         );
       };
 
+    let _ =
+      Calc.Calculated(5)
+      |> {
+        open Calc.Syntax;
+        let.calc elab_pattern = elab_pattern
+        and.calc elab_scrut = elab_scrut
+        and.calc scrut_ty = scrut_ty
+        and.calc ctx = ctx
+        and.calc env = env;
+
+        5;
+      };
     let case_eq =
       model.case_eq
       |> {

@@ -410,7 +410,7 @@ let take_step = TakeStep.take_step;
 
 let decompose = (d: DHExp.t, env: ClosureEnvironment.t, es: EvaluatorState.t) => {
   let rs = Decompose.decompose(ref(es), env, d);
-  Decompose.Result.unbox(rs);
+  Decompose.Result.unbox(rs) |> List.rev;
 };
 
 /* ========== PUBLIC METHODS ========== */
