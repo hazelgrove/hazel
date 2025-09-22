@@ -2,10 +2,12 @@ open Haz3lcore;
 open Util;
 open Core;
 open Language;
-open Web;
-open Exercise;
-open Grading;
-open Specs;
+// open Web;
+open Web.Exercise;
+open Web.Grading;
+open Web.Specs;
+open Web.Export;
+open Web.ExercisesMode;
 
 [@deriving (sexp, yojson)]
 type item = {
@@ -42,10 +44,8 @@ type chapter = list(section);
 module Main = {
   let settings = CoreSettings.on; /* Statics and Dynamics on */
   let name_to_exercise_export = path => {
-    let all = path |> Yojson.Safe.from_file |> Export.all_of_yojson;
-    all.exercise
-    |> Sexp.of_string
-    |> ExercisesMode.Store.exercise_export_of_sexp;
+    let all = path |> Yojson.Safe.from_file |> all_of_yojson;
+    all.exercise |> Sexp.of_string |> Store.exercise_export_of_sexp;
   };
   let gen_grading_report = (exercise): report => {
     let zipper_pp = Printer.of_zipper;
@@ -112,7 +112,7 @@ module Main = {
              let spec =
                unpersist(persistent_state, ~spec, ~instructor_mode=true);
              let spec': p(ZipperBase.t) =
-               Exercise.map(
+               Web.Exercise.map(
                  spec.eds,
                  e => e.state.zipper,
                  e => e.state.zipper,

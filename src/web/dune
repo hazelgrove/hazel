@@ -16,11 +16,49 @@
   (pps ppx_yojson_conv ppx_sexp_conv ppx_deriving.show)))
 
 (library
+ (name webex)
+ (modules
+  SyntaxTest
+  Exercise
+  ExplainThisModel
+  Settings
+  Globals
+  FontMetrics
+  Grading
+  Specs
+  Export
+  ExerciseMode
+  ExercisesMode)
+ (libraries util haz3lcore)
+ (js_of_ocaml)
+ (preprocess
+  (pps
+   js_of_ocaml-ppx
+   ppx_let
+   ppx_sexp_conv
+   ppx_deriving.show
+   ppx_yojson_conv)))
+
+(library
  (name web)
  (instrumentation
   (backend bisect_ppx))
  (modules
-  (:standard \ Main Gradescope)
+  (:standard
+   \
+   Main
+   Gradescope
+   SyntaxTest
+   Exercise
+   FontMetrics
+   ExplainThisModel
+   Settings
+   Globals
+   Grading
+   Specs
+   Export
+   ExerciseMode
+   ExercisesMode)
   \
   Worker
   WorkerServer)
@@ -29,6 +67,7 @@
   ezjs_idb
   workerServer
   str
+  webex
   bonsai
   bonsai.web
   virtual_dom.input_widgets
@@ -64,16 +103,10 @@
 (executable
  (name gradescope)
  (modules Gradescope)
- (libraries ppx_yojson_conv.expander web)
+ (libraries ppx_yojson_conv.expander haz3lcore web)
  (modes js)
  (preprocess
-  (pps
-   ppx_yojson_conv
-   js_of_ocaml-ppx
-   ppx_let
-   ppx_sexp_conv
-   ppx_deriving.show
-   bonsai.ppx_bonsai)))
+  (pps ppx_yojson_conv ppx_let ppx_sexp_conv ppx_deriving.show)))
 
 (executable
  (name worker)
