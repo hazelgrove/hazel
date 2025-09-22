@@ -103,6 +103,141 @@ let drop_column = (info: info, column: string): Base.segment => {
     }
   );
 };
+
+let parse_column_int = (info: info, column: string): Base.segment => {
+  IdTagged.FreshGrammar.(
+    switch (
+      info.utility.lift_syntax(
+        fun
+        | Exp({term: exp_term, _}) =>
+          Exp(
+            Exp.(
+              ap(
+                Reverse,
+                ap(
+                  Forward,
+                  var("map"),
+                  tuple([
+                    deferral(InAp),
+                    fn(
+                      Pat.var("r"),
+                      tuple_extension(
+                        var("r"),
+                        tuple([
+                          tup_label(
+                            label(column),
+                            ap(Forward, var("int_of_string"), dot(var("r"), label(column)))
+                          )
+                        ])
+                      ),
+                      None,
+                      None
+                    )
+                  ]),
+                ),
+                exp_term |> DHExp.fresh,
+              )
+            ),
+          )
+        | _ => failwith("TableProj: parse_column_int: not an expression"),
+        info.syntax,
+      )
+    ) {
+    | Some(s) => s
+    | None => failwith("TableProj: parse_column_int: lift failed")
+    }
+  );
+};
+
+let parse_column_float = (info: info, column: string): Base.segment => {
+  IdTagged.FreshGrammar.(
+    switch (
+      info.utility.lift_syntax(
+        fun
+        | Exp({term: exp_term, _}) =>
+          Exp(
+            Exp.(
+              ap(
+                Reverse,
+                ap(
+                  Forward,
+                  var("map"),
+                  tuple([
+                    deferral(InAp),
+                    fn(
+                      Pat.var("r"),
+                      tuple_extension(
+                        var("r"),
+                        tuple([
+                          tup_label(
+                            label(column),
+                            ap(Forward, var("float_of_string"), dot(var("r"), label(column)))
+                          )
+                        ])
+                      ),
+                      None,
+                      None
+                    )
+                  ]),
+                ),
+                exp_term |> DHExp.fresh,
+              )
+            ),
+          )
+        | _ => failwith("TableProj: parse_column_float: not an expression"),
+        info.syntax,
+      )
+    ) {
+    | Some(s) => s
+    | None => failwith("TableProj: parse_column_float: lift failed")
+    }
+  );
+};
+
+let parse_column_bool = (info: info, column: string): Base.segment => {
+  IdTagged.FreshGrammar.(
+    switch (
+      info.utility.lift_syntax(
+        fun
+        | Exp({term: exp_term, _}) =>
+          Exp(
+            Exp.(
+              ap(
+                Reverse,
+                ap(
+                  Forward,
+                  var("map"),
+                  tuple([
+                    deferral(InAp),
+                    fn(
+                      Pat.var("r"),
+                      tuple_extension(
+                        var("r"),
+                        tuple([
+                          tup_label(
+                            label(column),
+                            ap(Forward, var("bool_of_string"), dot(var("r"), label(column)))
+                          )
+                        ])
+                      ),
+                      None,
+                      None
+                    )
+                  ]),
+                ),
+                exp_term |> DHExp.fresh,
+              )
+            ),
+          )
+        | _ => failwith("TableProj: parse_column_bool: not an expression"),
+        info.syntax,
+      )
+    ) {
+    | Some(s) => s
+    | None => failwith("TableProj: parse_column_bool: lift failed")
+    }
+  );
+};
 let table_of =
     (any: Any.t): option((list(LabeledTuple.label), list(list(Exp.t)))) =>
   switch (any) {
@@ -202,9 +337,14 @@ let value_view = (_info: info, utility: utility, view_seg, exp) => {
 
 module M: Projector = {
   [@deriving (show({with_path: false}), sexp, yojson)]
+  type menu_state =
+    | MainMenu
+    | ParseSubmenu;
+
+  [@deriving (show({with_path: false}), sexp, yojson)]
   type model = {
     closure: option(int),
-    menu: option(int),
+    menu: option((int, menu_state)),
   };
   [@deriving (show({with_path: false}), sexp, yojson)]
   type action =
@@ -212,7 +352,9 @@ module M: Projector = {
     | Previous
     | DropColumn(string)
     | ShowMenu(int)
-    | CloseMenu;
+    | ShowParseMenu(int)
+    | CloseMenu
+    | ParseColumn(string, string);
 
   let table_with_column_menus =
       (
@@ -240,12 +382,11 @@ module M: Projector = {
             };
           let cell_content = content;
           let full_content =
-            if (model.menu == Some(i)) {
-              cell_content
-              @ [
-                Node.div(
-                  ~attrs=[Attr.classes(["column-menu"])],
-                  [
+            switch (model.menu) {
+            | Some((j, menu_state)) when i == j =>
+              let menu_content = 
+                switch (menu_state) {
+                | MainMenu => [
                     Node.div(
                       ~attrs=[
                         Attr.classes(["menu-item"]),
@@ -286,11 +427,68 @@ module M: Projector = {
                       ],
                       [Node.text("Move Right")],
                     ),
-                  ],
+                    Node.div(
+                      ~attrs=[
+                        Attr.classes(["menu-item"]),
+                        Attr.on_click(_ => local(ShowParseMenu(i))),
+                      ],
+                      [Node.text("Parse →")],
+                    ),
+                  ]
+                | ParseSubmenu => [
+                    Node.div(
+                      ~attrs=[
+                        Attr.classes(["submenu-back"]),
+                        Attr.on_click(_ => local(ShowMenu(i))),
+                      ],
+                      [Node.text("← Back")],
+                    ),
+                    Node.div(
+                      ~attrs=[
+                        Attr.classes(["submenu-item"]),
+                        Attr.on_click(_ =>
+                          Effect.Many([
+                            local(CloseMenu),
+                            parent(SetSyntax(parse_column_int(info, h))),
+                          ])
+                        ),
+                      ],
+                      [Node.text("int")],
+                    ),
+                    Node.div(
+                      ~attrs=[
+                        Attr.classes(["submenu-item"]),
+                        Attr.on_click(_ =>
+                          Effect.Many([
+                            local(CloseMenu),
+                            parent(SetSyntax(parse_column_float(info, h))),
+                          ])
+                        ),
+                      ],
+                      [Node.text("float")],
+                    ),
+                    Node.div(
+                      ~attrs=[
+                        Attr.classes(["submenu-item"]),
+                        Attr.on_click(_ =>
+                          Effect.Many([
+                            local(CloseMenu),
+                            parent(SetSyntax(parse_column_bool(info, h))),
+                          ])
+                        ),
+                      ],
+                      [Node.text("bool")],
+                    ),
+                  ]
+                };
+              cell_content
+              @ [
+                Node.div(
+                  ~attrs=[Attr.classes(["column-menu"])],
+                  menu_content,
                 ),
-              ];
-            } else {
-              cell_content;
+              ]
+            | _ => cell_content
             };
           Node.th(full_content);
         },
@@ -346,12 +544,18 @@ module M: Projector = {
     | ShowMenu(i) => {
         ...model,
         menu:
-          if (model.menu == Some(i)) {
-            None;
-          } else {
-            Some(i);
+          switch (model.menu) {
+          | Some((j, _)) when i == j => None
+          | _ => Some((i, MainMenu))
           },
       }
+    | ShowParseMenu(i) => {
+        ...model,
+        menu: Some((i, ParseSubmenu)),
+      }
+    | ParseColumn(_, _) =>
+      // This action will be handled by the parent through the view
+      model
     | DropColumn(_) =>
       // This action will be handled by the parent through the view
       model
@@ -373,6 +577,8 @@ module M: Projector = {
           }
         | DropColumn(_) => model // Already handled above
         | ShowMenu(_) => model // Already handled above
+        | ShowParseMenu(_) => model // Already handled above
+        | ParseColumn(_, _) => model // Already handled above
         | CloseMenu => model // Already handled above
         };
       };
