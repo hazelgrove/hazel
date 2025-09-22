@@ -104,7 +104,8 @@ let drop_column = (info: info, column: string): Base.segment => {
   );
 };
 
-let convert_column_int = (info: info, column: string): Base.segment => {
+let convert_column =
+    (info: info, column: string, conversion_fn: string): Base.segment => {
   IdTagged.FreshGrammar.(
     switch (
       info.utility.lift_syntax(
@@ -128,7 +129,7 @@ let convert_column_int = (info: info, column: string): Base.segment => {
                             label(column),
                             ap(
                               Forward,
-                              var("int_of_string"),
+                              var(conversion_fn),
                               dot(var("r"), label(column)),
                             ),
                           ),
@@ -143,590 +144,12 @@ let convert_column_int = (info: info, column: string): Base.segment => {
               )
             ),
           )
-        | _ => failwith("TableProj: convert_column_int: not an expression"),
+        | _ => failwith("TableProj: convert_column: not an expression"),
         info.syntax,
       )
     ) {
     | Some(s) => s
-    | None => failwith("TableProj: convert_column_int: lift failed")
-    }
-  );
-};
-
-let convert_column_float = (info: info, column: string): Base.segment => {
-  IdTagged.FreshGrammar.(
-    switch (
-      info.utility.lift_syntax(
-        fun
-        | Exp({term: exp_term, _}) =>
-          Exp(
-            Exp.(
-              ap(
-                Reverse,
-                ap(
-                  Forward,
-                  var("map"),
-                  tuple([
-                    deferral(InAp),
-                    fn(
-                      Pat.var("r"),
-                      tuple_extension(
-                        var("r"),
-                        tuple([
-                          tup_label(
-                            label(column),
-                            ap(
-                              Forward,
-                              var("float_of_string"),
-                              dot(var("r"), label(column)),
-                            ),
-                          ),
-                        ]),
-                      ),
-                      None,
-                      None,
-                    ),
-                  ]),
-                ),
-                exp_term |> DHExp.fresh,
-              )
-            ),
-          )
-        | _ => failwith("TableProj: convert_column_float: not an expression"),
-        info.syntax,
-      )
-    ) {
-    | Some(s) => s
-    | None => failwith("TableProj: convert_column_float: lift failed")
-    }
-  );
-};
-
-let convert_column_bool = (info: info, column: string): Base.segment => {
-  IdTagged.FreshGrammar.(
-    switch (
-      info.utility.lift_syntax(
-        fun
-        | Exp({term: exp_term, _}) =>
-          Exp(
-            Exp.(
-              ap(
-                Reverse,
-                ap(
-                  Forward,
-                  var("map"),
-                  tuple([
-                    deferral(InAp),
-                    fn(
-                      Pat.var("r"),
-                      tuple_extension(
-                        var("r"),
-                        tuple([
-                          tup_label(
-                            label(column),
-                            ap(
-                              Forward,
-                              var("bool_of_string"),
-                              dot(var("r"), label(column)),
-                            ),
-                          ),
-                        ]),
-                      ),
-                      None,
-                      None,
-                    ),
-                  ]),
-                ),
-                exp_term |> DHExp.fresh,
-              )
-            ),
-          )
-        | _ => failwith("TableProj: convert_column_bool: not an expression"),
-        info.syntax,
-      )
-    ) {
-    | Some(s) => s
-    | None => failwith("TableProj: convert_column_bool: lift failed")
-    }
-  );
-};
-
-let convert_column_string_from_int =
-    (info: info, column: string): Base.segment => {
-  IdTagged.FreshGrammar.(
-    switch (
-      info.utility.lift_syntax(
-        fun
-        | Exp({term: exp_term, _}) =>
-          Exp(
-            Exp.(
-              ap(
-                Reverse,
-                ap(
-                  Forward,
-                  var("map"),
-                  tuple([
-                    deferral(InAp),
-                    fn(
-                      Pat.var("r"),
-                      tuple_extension(
-                        var("r"),
-                        tuple([
-                          tup_label(
-                            label(column),
-                            ap(
-                              Forward,
-                              var("string_of_int"),
-                              dot(var("r"), label(column)),
-                            ),
-                          ),
-                        ]),
-                      ),
-                      None,
-                      None,
-                    ),
-                  ]),
-                ),
-                exp_term |> DHExp.fresh,
-              )
-            ),
-          )
-        | _ =>
-          failwith(
-            "TableProj: convert_column_string_from_int: not an expression",
-          ),
-        info.syntax,
-      )
-    ) {
-    | Some(s) => s
-    | None =>
-      failwith("TableProj: convert_column_string_from_int: lift failed")
-    }
-  );
-};
-
-let convert_column_string_from_float =
-    (info: info, column: string): Base.segment => {
-  IdTagged.FreshGrammar.(
-    switch (
-      info.utility.lift_syntax(
-        fun
-        | Exp({term: exp_term, _}) =>
-          Exp(
-            Exp.(
-              ap(
-                Reverse,
-                ap(
-                  Forward,
-                  var("map"),
-                  tuple([
-                    deferral(InAp),
-                    fn(
-                      Pat.var("r"),
-                      tuple_extension(
-                        var("r"),
-                        tuple([
-                          tup_label(
-                            label(column),
-                            ap(
-                              Forward,
-                              var("string_of_float"),
-                              dot(var("r"), label(column)),
-                            ),
-                          ),
-                        ]),
-                      ),
-                      None,
-                      None,
-                    ),
-                  ]),
-                ),
-                exp_term |> DHExp.fresh,
-              )
-            ),
-          )
-        | _ =>
-          failwith(
-            "TableProj: convert_column_string_from_float: not an expression",
-          ),
-        info.syntax,
-      )
-    ) {
-    | Some(s) => s
-    | None =>
-      failwith("TableProj: convert_column_string_from_float: lift failed")
-    }
-  );
-};
-
-let convert_column_string_from_bool =
-    (info: info, column: string): Base.segment => {
-  IdTagged.FreshGrammar.(
-    switch (
-      info.utility.lift_syntax(
-        fun
-        | Exp({term: exp_term, _}) =>
-          Exp(
-            Exp.(
-              ap(
-                Reverse,
-                ap(
-                  Forward,
-                  var("map"),
-                  tuple([
-                    deferral(InAp),
-                    fn(
-                      Pat.var("r"),
-                      tuple_extension(
-                        var("r"),
-                        tuple([
-                          tup_label(
-                            label(column),
-                            ap(
-                              Forward,
-                              var("string_of_bool"),
-                              dot(var("r"), label(column)),
-                            ),
-                          ),
-                        ]),
-                      ),
-                      None,
-                      None,
-                    ),
-                  ]),
-                ),
-                exp_term |> DHExp.fresh,
-              )
-            ),
-          )
-        | _ =>
-          failwith(
-            "TableProj: convert_column_string_from_bool: not an expression",
-          ),
-        info.syntax,
-      )
-    ) {
-    | Some(s) => s
-    | None =>
-      failwith("TableProj: convert_column_string_from_bool: lift failed")
-    }
-  );
-};
-
-let convert_column_float_from_int = (info: info, column: string): Base.segment => {
-  IdTagged.FreshGrammar.(
-    switch (
-      info.utility.lift_syntax(
-        fun
-        | Exp({term: exp_term, _}) =>
-          Exp(
-            Exp.(
-              ap(
-                Reverse,
-                ap(
-                  Forward,
-                  var("map"),
-                  tuple([
-                    deferral(InAp),
-                    fn(
-                      Pat.var("r"),
-                      tuple_extension(
-                        var("r"),
-                        tuple([
-                          tup_label(
-                            label(column),
-                            ap(
-                              Forward,
-                              var("float_of_int"),
-                              dot(var("r"), label(column)),
-                            ),
-                          ),
-                        ]),
-                      ),
-                      None,
-                      None,
-                    ),
-                  ]),
-                ),
-                exp_term |> DHExp.fresh,
-              )
-            ),
-          )
-        | _ =>
-          failwith(
-            "TableProj: convert_column_float_from_int: not an expression",
-          ),
-        info.syntax,
-      )
-    ) {
-    | Some(s) => s
-    | None =>
-      failwith("TableProj: convert_column_float_from_int: lift failed")
-    }
-  );
-};
-
-let convert_column_int_from_float = (info: info, column: string): Base.segment => {
-  IdTagged.FreshGrammar.(
-    switch (
-      info.utility.lift_syntax(
-        fun
-        | Exp({term: exp_term, _}) =>
-          Exp(
-            Exp.(
-              ap(
-                Reverse,
-                ap(
-                  Forward,
-                  var("map"),
-                  tuple([
-                    deferral(InAp),
-                    fn(
-                      Pat.var("r"),
-                      tuple_extension(
-                        var("r"),
-                        tuple([
-                          tup_label(
-                            label(column),
-                            ap(
-                              Forward,
-                              var("int_of_float"),
-                              dot(var("r"), label(column)),
-                            ),
-                          ),
-                        ]),
-                      ),
-                      None,
-                      None,
-                    ),
-                  ]),
-                ),
-                exp_term |> DHExp.fresh,
-              )
-            ),
-          )
-        | _ =>
-          failwith(
-            "TableProj: convert_column_int_from_float: not an expression",
-          ),
-        info.syntax,
-      )
-    ) {
-    | Some(s) => s
-    | None =>
-      failwith("TableProj: convert_column_int_from_float: lift failed")
-    }
-  );
-};
-
-let convert_column_bool_from_int = (info: info, column: string): Base.segment => {
-  IdTagged.FreshGrammar.(
-    switch (
-      info.utility.lift_syntax(
-        fun
-        | Exp({term: exp_term, _}) =>
-          Exp(
-            Exp.(
-              ap(
-                Reverse,
-                ap(
-                  Forward,
-                  var("map"),
-                  tuple([
-                    deferral(InAp),
-                    fn(
-                      Pat.var("r"),
-                      tuple_extension(
-                        var("r"),
-                        tuple([
-                          tup_label(
-                            label(column),
-                            ap(
-                              Forward,
-                              var("bool_of_int"),
-                              dot(var("r"), label(column)),
-                            ),
-                          ),
-                        ]),
-                      ),
-                      None,
-                      None,
-                    ),
-                  ]),
-                ),
-                exp_term |> DHExp.fresh,
-              )
-            ),
-          )
-        | _ =>
-          failwith(
-            "TableProj: convert_column_bool_from_int: not an expression",
-          ),
-        info.syntax,
-      )
-    ) {
-    | Some(s) => s
-    | None => failwith("TableProj: convert_column_bool_from_int: lift failed")
-    }
-  );
-};
-
-let convert_column_bool_from_float =
-    (info: info, column: string): Base.segment => {
-  IdTagged.FreshGrammar.(
-    switch (
-      info.utility.lift_syntax(
-        fun
-        | Exp({term: exp_term, _}) =>
-          Exp(
-            Exp.(
-              ap(
-                Reverse,
-                ap(
-                  Forward,
-                  var("map"),
-                  tuple([
-                    deferral(InAp),
-                    fn(
-                      Pat.var("r"),
-                      tuple_extension(
-                        var("r"),
-                        tuple([
-                          tup_label(
-                            label(column),
-                            ap(
-                              Forward,
-                              var("bool_of_float"),
-                              dot(var("r"), label(column)),
-                            ),
-                          ),
-                        ]),
-                      ),
-                      None,
-                      None,
-                    ),
-                  ]),
-                ),
-                exp_term |> DHExp.fresh,
-              )
-            ),
-          )
-        | _ =>
-          failwith(
-            "TableProj: convert_column_bool_from_float: not an expression",
-          ),
-        info.syntax,
-      )
-    ) {
-    | Some(s) => s
-    | None =>
-      failwith("TableProj: convert_column_bool_from_float: lift failed")
-    }
-  );
-};
-
-let convert_column_int_from_bool = (info: info, column: string): Base.segment => {
-  IdTagged.FreshGrammar.(
-    switch (
-      info.utility.lift_syntax(
-        fun
-        | Exp({term: exp_term, _}) =>
-          Exp(
-            Exp.(
-              ap(
-                Reverse,
-                ap(
-                  Forward,
-                  var("map"),
-                  tuple([
-                    deferral(InAp),
-                    fn(
-                      Pat.var("r"),
-                      tuple_extension(
-                        var("r"),
-                        tuple([
-                          tup_label(
-                            label(column),
-                            ap(
-                              Forward,
-                              var("int_of_bool"),
-                              dot(var("r"), label(column)),
-                            ),
-                          ),
-                        ]),
-                      ),
-                      None,
-                      None,
-                    ),
-                  ]),
-                ),
-                exp_term |> DHExp.fresh,
-              )
-            ),
-          )
-        | _ =>
-          failwith(
-            "TableProj: convert_column_int_from_bool: not an expression",
-          ),
-        info.syntax,
-      )
-    ) {
-    | Some(s) => s
-    | None => failwith("TableProj: convert_column_int_from_bool: lift failed")
-    }
-  );
-};
-
-let convert_column_float_from_bool =
-    (info: info, column: string): Base.segment => {
-  IdTagged.FreshGrammar.(
-    switch (
-      info.utility.lift_syntax(
-        fun
-        | Exp({term: exp_term, _}) =>
-          Exp(
-            Exp.(
-              ap(
-                Reverse,
-                ap(
-                  Forward,
-                  var("map"),
-                  tuple([
-                    deferral(InAp),
-                    fn(
-                      Pat.var("r"),
-                      tuple_extension(
-                        var("r"),
-                        tuple([
-                          tup_label(
-                            label(column),
-                            ap(
-                              Forward,
-                              var("float_of_bool"),
-                              dot(var("r"), label(column)),
-                            ),
-                          ),
-                        ]),
-                      ),
-                      None,
-                      None,
-                    ),
-                  ]),
-                ),
-                exp_term |> DHExp.fresh,
-              )
-            ),
-          )
-        | _ =>
-          failwith(
-            "TableProj: convert_column_float_from_bool: not an expression",
-          ),
-        info.syntax,
-      )
-    ) {
-    | Some(s) => s
-    | None =>
-      failwith("TableProj: convert_column_float_from_bool: lift failed")
+    | None => failwith("TableProj: convert_column: lift failed")
     }
   );
 };
@@ -788,7 +211,9 @@ let get_column_type = (info: info, column: string) => {
   };
 };
 
-let sort_column = (info: info, column_type: option(Typ.t), header: string): option(Base.segment) => {
+let sort_column =
+    (info: info, column_type: option(Typ.t), header: string)
+    : option(Base.segment) => {
   let compare_fn =
     switch (column_type) {
     | Some(ty) =>
@@ -1097,7 +522,13 @@ module M: Projector = {
                                 Effect.Many([
                                   local(CloseMenu),
                                   parent(
-                                    SetSyntax(convert_column_int(info, h)),
+                                    SetSyntax(
+                                      convert_column(
+                                        info,
+                                        h,
+                                        "int_of_string",
+                                      ),
+                                    ),
                                   ),
                                 ])
                               ),
@@ -1111,7 +542,13 @@ module M: Projector = {
                                 Effect.Many([
                                   local(CloseMenu),
                                   parent(
-                                    SetSyntax(convert_column_float(info, h)),
+                                    SetSyntax(
+                                      convert_column(
+                                        info,
+                                        h,
+                                        "float_of_string",
+                                      ),
+                                    ),
                                   ),
                                 ])
                               ),
@@ -1125,7 +562,13 @@ module M: Projector = {
                                 Effect.Many([
                                   local(CloseMenu),
                                   parent(
-                                    SetSyntax(convert_column_bool(info, h)),
+                                    SetSyntax(
+                                      convert_column(
+                                        info,
+                                        h,
+                                        "bool_of_string",
+                                      ),
+                                    ),
                                   ),
                                 ])
                               ),
@@ -1142,7 +585,11 @@ module M: Projector = {
                                   local(CloseMenu),
                                   parent(
                                     SetSyntax(
-                                      convert_column_string_from_int(info, h),
+                                      convert_column(
+                                        info,
+                                        h,
+                                        "string_of_int",
+                                      ),
                                     ),
                                   ),
                                 ])
@@ -1158,7 +605,7 @@ module M: Projector = {
                                   local(CloseMenu),
                                   parent(
                                     SetSyntax(
-                                      convert_column_float_from_int(info, h),
+                                      convert_column(info, h, "float_of_int"),
                                     ),
                                   ),
                                 ])
@@ -1174,7 +621,7 @@ module M: Projector = {
                                   local(CloseMenu),
                                   parent(
                                     SetSyntax(
-                                      convert_column_bool_from_int(info, h),
+                                      convert_column(info, h, "bool_of_int"),
                                     ),
                                   ),
                                 ])
@@ -1192,9 +639,10 @@ module M: Projector = {
                                   local(CloseMenu),
                                   parent(
                                     SetSyntax(
-                                      convert_column_string_from_float(
+                                      convert_column(
                                         info,
                                         h,
+                                        "string_of_float",
                                       ),
                                     ),
                                   ),
@@ -1211,7 +659,7 @@ module M: Projector = {
                                   local(CloseMenu),
                                   parent(
                                     SetSyntax(
-                                      convert_column_int_from_float(info, h),
+                                      convert_column(info, h, "int_of_float"),
                                     ),
                                   ),
                                 ])
@@ -1227,7 +675,11 @@ module M: Projector = {
                                   local(CloseMenu),
                                   parent(
                                     SetSyntax(
-                                      convert_column_bool_from_float(info, h),
+                                      convert_column(
+                                        info,
+                                        h,
+                                        "bool_of_float",
+                                      ),
                                     ),
                                   ),
                                 ])
@@ -1245,9 +697,10 @@ module M: Projector = {
                                   local(CloseMenu),
                                   parent(
                                     SetSyntax(
-                                      convert_column_string_from_bool(
+                                      convert_column(
                                         info,
                                         h,
+                                        "string_of_bool",
                                       ),
                                     ),
                                   ),
@@ -1264,7 +717,7 @@ module M: Projector = {
                                   local(CloseMenu),
                                   parent(
                                     SetSyntax(
-                                      convert_column_int_from_bool(info, h),
+                                      convert_column(info, h, "int_of_bool"),
                                     ),
                                   ),
                                 ])
@@ -1280,7 +733,11 @@ module M: Projector = {
                                   local(CloseMenu),
                                   parent(
                                     SetSyntax(
-                                      convert_column_float_from_bool(info, h),
+                                      convert_column(
+                                        info,
+                                        h,
+                                        "float_of_bool",
+                                      ),
                                     ),
                                   ),
                                 ])
