@@ -78,12 +78,19 @@ let drop_column = (info: info, column: string): Base.segment => {
             Exp.(
               ap(
                 Reverse,
-                exp_term |> DHExp.temp,
                 ap(
                   Forward,
-                  var("omit_labels"),
-                  tuple([deferral(InAp), label(column)]),
+                  var("map"),
+                  tuple([
+                    deferral(InAp),
+                    ap(
+                      Forward,
+                      var("omit_labels"),
+                      tuple([deferral(InAp), label(column)]),
+                    ),
+                  ]),
                 ),
+                exp_term |> DHExp.fresh,
               )
             ),
           )
@@ -193,63 +200,112 @@ let value_view = (_info: info, utility: utility, view_seg, exp) => {
   );
 };
 
-let table_with_drop_buttons =
-    (
-      info: info,
-      ~parent: external_action => Ui_effect.t(unit),
-      (headers, rows): (list(LabeledTuple.label), list(list(Exp.t))),
-      ~view_seg: (Sort.t, Segment.t) => Node.t,
-      prev_button: option(Node.t),
-      next_button: option(Node.t),
-      make_drop_button: string => Node.t,
-    ) => {
-  let header_cells =
-    List.mapi(
-      (i, h) => {
-        let drop_button = make_drop_button(h);
-        let base_content = [Node.text(h), drop_button];
-        let content =
-          switch (i, prev_button, next_button) {
-          | (0, Some(btn), _) => [btn] @ base_content
-          | (i, _, Some(btn)) when i == List.length(headers) - 1 =>
-            base_content @ [btn]
-          | _ => base_content
-          };
-        Node.th(content);
-      },
-      headers,
-    );
-
-  Node.table(
-    ~attrs=[Attr.classes(["table"])],
-    [
-      Node.thead([Node.tr(header_cells)]),
-      Node.tbody(
-        List.map(
-          row =>
-            Node.tr(
-              List.map(
-                e => Node.td([value_view(info, info.utility, view_seg, e)]),
-                row,
-              ),
-            ),
-          rows,
-        ),
-      ),
-    ],
-  );
-};
-
 module M: Projector = {
   [@deriving (show({with_path: false}), sexp, yojson)]
-  type model = option(int);
+  type model = {
+    closure: option(int),
+    menu: option(int),
+  };
   [@deriving (show({with_path: false}), sexp, yojson)]
   type action =
     | Next
     | Previous
-    | DropColumn(string);
+    | DropColumn(string)
+    | ShowMenu(int);
 
-  let init = (any: Term.Any.t) => Some(None);
+  let table_with_column_menus =
+      (
+        model: model,
+        info: info,
+        ~parent: external_action => Ui_effect.t(unit),
+        (headers, rows): (list(LabeledTuple.label), list(list(Exp.t))),
+        ~view_seg: (Sort.t, Segment.t) => Node.t,
+        prev_button: option(Node.t),
+        next_button: option(Node.t),
+        make_menu_button: (int, string) => Node.t,
+      ) => {
+    let header_cells =
+      List.mapi(
+        (i, h) => {
+          let menu_button = make_menu_button(i, h);
+          let base_content = [Node.text(h), menu_button];
+          let content =
+            switch (i, prev_button, next_button) {
+            | (0, Some(btn), _) => [btn] @ base_content
+            | (i, _, Some(btn)) when i == List.length(headers) - 1 =>
+              base_content @ [btn]
+            | _ => base_content
+            };
+          let cell_content = content;
+          let full_content =
+            if (model.menu == Some(i)) {
+              cell_content
+              @ [
+                Node.div(
+                  ~attrs=[Attr.classes(["column-menu"])],
+                  [
+                    Node.div(
+                      ~attrs=[
+                        Attr.classes(["menu-item"]),
+                        Attr.on_click(_ =>
+                          parent(SetSyntax(drop_column(info, h)))
+                        ),
+                      ],
+                      [Node.text("Drop Column")],
+                    ),
+                    Node.div(
+                      ~attrs=[Attr.classes(["menu-item"])],
+                      [Node.text("Rename")],
+                    ),
+                    Node.div(
+                      ~attrs=[Attr.classes(["menu-item"])],
+                      [Node.text("Add Column After")],
+                    ),
+                    Node.div(
+                      ~attrs=[Attr.classes(["menu-item"])],
+                      [Node.text("Move Left")],
+                    ),
+                    Node.div(
+                      ~attrs=[Attr.classes(["menu-item"])],
+                      [Node.text("Move Right")],
+                    ),
+                  ],
+                ),
+              ];
+            } else {
+              cell_content;
+            };
+          Node.th(full_content);
+        },
+        headers,
+      );
+
+    Node.table(
+      ~attrs=[Attr.classes(["table"])],
+      [
+        Node.thead([Node.tr(header_cells)]),
+        Node.tbody(
+          List.map(
+            row =>
+              Node.tr(
+                List.map(
+                  e =>
+                    Node.td([value_view(info, info.utility, view_seg, e)]),
+                  row,
+                ),
+              ),
+            rows,
+          ),
+        ),
+      ],
+    );
+  };
+
+  let init = (any: Term.Any.t) =>
+    Some({
+      closure: None,
+      menu: None,
+    });
 
   let focusable =
     Focusable.{
@@ -257,7 +313,7 @@ module M: Projector = {
       keyboard: None,
     };
   let dynamics = true;
-  let placeholder = (_, info) => {
+  let placeholder = (_, _info) => {
     ProjectorCore.Shape.{
       vertical: Block(11), // +1 for header row
       /* +2 for left and right padding */
@@ -266,7 +322,16 @@ module M: Projector = {
   };
   let update = (model, info, action) => {
     switch (action) {
-    | DropColumn(column) =>
+    | ShowMenu(i) => {
+        ...model,
+        menu:
+          if (model.menu == Some(i)) {
+            None;
+          } else {
+            Some(i);
+          },
+      }
+    | DropColumn(_) =>
       // This action will be handled by the parent through the view
       model
     | _ =>
@@ -275,11 +340,18 @@ module M: Projector = {
       if (length == 0) {
         model;
       } else {
-        let current = Option.value(model, ~default=0);
+        let current = Option.value(model.closure, ~default=0);
         switch (action) {
-        | Next => Some((current + 1) mod length)
-        | Previous => Some((current + length - 1) mod length)
+        | Next => {
+            ...model,
+            closure: Some((current + 1) mod length),
+          }
+        | Previous => {
+            ...model,
+            closure: Some((current + length - 1) mod length),
+          }
         | DropColumn(_) => model // Already handled above
+        | ShowMenu(_) => model // Already handled above
         };
       };
     };
@@ -294,7 +366,7 @@ module M: Projector = {
         Node.div([Node.text("Loading dynamics...")]);
       } else {
         let length = List.length(dynamics);
-        let observed = Option.value(model, ~default=0) mod length;
+        let observed = Option.value(model.closure, ~default=0) mod length;
         let closure = List.nth(dynamics, observed);
 
         let (prev_button, next_button) =
@@ -313,22 +385,23 @@ module M: Projector = {
             );
           };
 
-        let make_drop_button = (column_name: string) =>
-          icon_button(~tooltip="Drop " ++ column_name ++ " column", "×", _ =>
-            parent(SetSyntax(drop_column(info, column_name)))
+        let make_menu_button = (i, h) =>
+          icon_button(~tooltip="Column options", "⋮", _ =>
+            local(ShowMenu(i))
           );
 
         let table_node =
           switch (table_from_exp(closure.value)) {
           | Some((hd, tl)) =>
-            table_with_drop_buttons(
+            table_with_column_menus(
+              model,
               info,
               ~view_seg,
               ~parent,
               (hd, tl),
               prev_button,
               next_button,
-              make_drop_button,
+              make_menu_button,
             )
           | _ => Node.div([Node.text("No table data")])
           };
