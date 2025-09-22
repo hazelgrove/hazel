@@ -58,7 +58,7 @@ module Kind = {
     | Livelit => "livelit"
     | TextArea => "text"
     | Table => "table"
-    | TableProbe => "tableprobe"
+    | TableProbe => "table probe"
     };
 
   /* This must be updated and kept 1-to-1 with the above
