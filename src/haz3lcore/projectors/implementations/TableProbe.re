@@ -412,6 +412,324 @@ let convert_column_string_from_bool =
     }
   );
 };
+
+let convert_column_float_from_int = (info: info, column: string): Base.segment => {
+  IdTagged.FreshGrammar.(
+    switch (
+      info.utility.lift_syntax(
+        fun
+        | Exp({term: exp_term, _}) =>
+          Exp(
+            Exp.(
+              ap(
+                Reverse,
+                ap(
+                  Forward,
+                  var("map"),
+                  tuple([
+                    deferral(InAp),
+                    fn(
+                      Pat.var("r"),
+                      tuple_extension(
+                        var("r"),
+                        tuple([
+                          tup_label(
+                            label(column),
+                            ap(
+                              Forward,
+                              var("float_of_int"),
+                              dot(var("r"), label(column)),
+                            ),
+                          ),
+                        ]),
+                      ),
+                      None,
+                      None,
+                    ),
+                  ]),
+                ),
+                exp_term |> DHExp.fresh,
+              )
+            ),
+          )
+        | _ =>
+          failwith(
+            "TableProj: convert_column_float_from_int: not an expression",
+          ),
+        info.syntax,
+      )
+    ) {
+    | Some(s) => s
+    | None =>
+      failwith("TableProj: convert_column_float_from_int: lift failed")
+    }
+  );
+};
+
+let convert_column_int_from_float = (info: info, column: string): Base.segment => {
+  IdTagged.FreshGrammar.(
+    switch (
+      info.utility.lift_syntax(
+        fun
+        | Exp({term: exp_term, _}) =>
+          Exp(
+            Exp.(
+              ap(
+                Reverse,
+                ap(
+                  Forward,
+                  var("map"),
+                  tuple([
+                    deferral(InAp),
+                    fn(
+                      Pat.var("r"),
+                      tuple_extension(
+                        var("r"),
+                        tuple([
+                          tup_label(
+                            label(column),
+                            ap(
+                              Forward,
+                              var("int_of_float"),
+                              dot(var("r"), label(column)),
+                            ),
+                          ),
+                        ]),
+                      ),
+                      None,
+                      None,
+                    ),
+                  ]),
+                ),
+                exp_term |> DHExp.fresh,
+              )
+            ),
+          )
+        | _ =>
+          failwith(
+            "TableProj: convert_column_int_from_float: not an expression",
+          ),
+        info.syntax,
+      )
+    ) {
+    | Some(s) => s
+    | None =>
+      failwith("TableProj: convert_column_int_from_float: lift failed")
+    }
+  );
+};
+
+let convert_column_bool_from_int = (info: info, column: string): Base.segment => {
+  IdTagged.FreshGrammar.(
+    switch (
+      info.utility.lift_syntax(
+        fun
+        | Exp({term: exp_term, _}) =>
+          Exp(
+            Exp.(
+              ap(
+                Reverse,
+                ap(
+                  Forward,
+                  var("map"),
+                  tuple([
+                    deferral(InAp),
+                    fn(
+                      Pat.var("r"),
+                      tuple_extension(
+                        var("r"),
+                        tuple([
+                          tup_label(
+                            label(column),
+                            ap(
+                              Forward,
+                              var("bool_of_int"),
+                              dot(var("r"), label(column)),
+                            ),
+                          ),
+                        ]),
+                      ),
+                      None,
+                      None,
+                    ),
+                  ]),
+                ),
+                exp_term |> DHExp.fresh,
+              )
+            ),
+          )
+        | _ =>
+          failwith(
+            "TableProj: convert_column_bool_from_int: not an expression",
+          ),
+        info.syntax,
+      )
+    ) {
+    | Some(s) => s
+    | None => failwith("TableProj: convert_column_bool_from_int: lift failed")
+    }
+  );
+};
+
+let convert_column_bool_from_float =
+    (info: info, column: string): Base.segment => {
+  IdTagged.FreshGrammar.(
+    switch (
+      info.utility.lift_syntax(
+        fun
+        | Exp({term: exp_term, _}) =>
+          Exp(
+            Exp.(
+              ap(
+                Reverse,
+                ap(
+                  Forward,
+                  var("map"),
+                  tuple([
+                    deferral(InAp),
+                    fn(
+                      Pat.var("r"),
+                      tuple_extension(
+                        var("r"),
+                        tuple([
+                          tup_label(
+                            label(column),
+                            ap(
+                              Forward,
+                              var("bool_of_float"),
+                              dot(var("r"), label(column)),
+                            ),
+                          ),
+                        ]),
+                      ),
+                      None,
+                      None,
+                    ),
+                  ]),
+                ),
+                exp_term |> DHExp.fresh,
+              )
+            ),
+          )
+        | _ =>
+          failwith(
+            "TableProj: convert_column_bool_from_float: not an expression",
+          ),
+        info.syntax,
+      )
+    ) {
+    | Some(s) => s
+    | None =>
+      failwith("TableProj: convert_column_bool_from_float: lift failed")
+    }
+  );
+};
+
+let convert_column_int_from_bool = (info: info, column: string): Base.segment => {
+  IdTagged.FreshGrammar.(
+    switch (
+      info.utility.lift_syntax(
+        fun
+        | Exp({term: exp_term, _}) =>
+          Exp(
+            Exp.(
+              ap(
+                Reverse,
+                ap(
+                  Forward,
+                  var("map"),
+                  tuple([
+                    deferral(InAp),
+                    fn(
+                      Pat.var("r"),
+                      tuple_extension(
+                        var("r"),
+                        tuple([
+                          tup_label(
+                            label(column),
+                            ap(
+                              Forward,
+                              var("int_of_bool"),
+                              dot(var("r"), label(column)),
+                            ),
+                          ),
+                        ]),
+                      ),
+                      None,
+                      None,
+                    ),
+                  ]),
+                ),
+                exp_term |> DHExp.fresh,
+              )
+            ),
+          )
+        | _ =>
+          failwith(
+            "TableProj: convert_column_int_from_bool: not an expression",
+          ),
+        info.syntax,
+      )
+    ) {
+    | Some(s) => s
+    | None => failwith("TableProj: convert_column_int_from_bool: lift failed")
+    }
+  );
+};
+
+let convert_column_float_from_bool =
+    (info: info, column: string): Base.segment => {
+  IdTagged.FreshGrammar.(
+    switch (
+      info.utility.lift_syntax(
+        fun
+        | Exp({term: exp_term, _}) =>
+          Exp(
+            Exp.(
+              ap(
+                Reverse,
+                ap(
+                  Forward,
+                  var("map"),
+                  tuple([
+                    deferral(InAp),
+                    fn(
+                      Pat.var("r"),
+                      tuple_extension(
+                        var("r"),
+                        tuple([
+                          tup_label(
+                            label(column),
+                            ap(
+                              Forward,
+                              var("float_of_bool"),
+                              dot(var("r"), label(column)),
+                            ),
+                          ),
+                        ]),
+                      ),
+                      None,
+                      None,
+                    ),
+                  ]),
+                ),
+                exp_term |> DHExp.fresh,
+              )
+            ),
+          )
+        | _ =>
+          failwith(
+            "TableProj: convert_column_float_from_bool: not an expression",
+          ),
+        info.syntax,
+      )
+    ) {
+    | Some(s) => s
+    | None =>
+      failwith("TableProj: convert_column_float_from_bool: lift failed")
+    }
+  );
+};
 let get_column_type' = (ty: Typ.t, column: string) => {
   switch (ty.term) {
   | List({term: Prod(tys), _}) =>
@@ -745,6 +1063,38 @@ module M: Projector = {
                             ],
                             [Node.text("string")],
                           ),
+                          Node.div(
+                            ~attrs=[
+                              Attr.classes(["submenu-item"]),
+                              Attr.on_click(_ =>
+                                Effect.Many([
+                                  local(CloseMenu),
+                                  parent(
+                                    SetSyntax(
+                                      convert_column_float_from_int(info, h),
+                                    ),
+                                  ),
+                                ])
+                              ),
+                            ],
+                            [Node.text("float")],
+                          ),
+                          Node.div(
+                            ~attrs=[
+                              Attr.classes(["submenu-item"]),
+                              Attr.on_click(_ =>
+                                Effect.Many([
+                                  local(CloseMenu),
+                                  parent(
+                                    SetSyntax(
+                                      convert_column_bool_from_int(info, h),
+                                    ),
+                                  ),
+                                ])
+                              ),
+                            ],
+                            [Node.text("bool")],
+                          ),
                         ]
                       | Typ.Atom(Atom.Float) => [
                           Node.div(
@@ -766,6 +1116,38 @@ module M: Projector = {
                             ],
                             [Node.text("string")],
                           ),
+                          Node.div(
+                            ~attrs=[
+                              Attr.classes(["submenu-item"]),
+                              Attr.on_click(_ =>
+                                Effect.Many([
+                                  local(CloseMenu),
+                                  parent(
+                                    SetSyntax(
+                                      convert_column_int_from_float(info, h),
+                                    ),
+                                  ),
+                                ])
+                              ),
+                            ],
+                            [Node.text("int")],
+                          ),
+                          Node.div(
+                            ~attrs=[
+                              Attr.classes(["submenu-item"]),
+                              Attr.on_click(_ =>
+                                Effect.Many([
+                                  local(CloseMenu),
+                                  parent(
+                                    SetSyntax(
+                                      convert_column_bool_from_float(info, h),
+                                    ),
+                                  ),
+                                ])
+                              ),
+                            ],
+                            [Node.text("bool")],
+                          ),
                         ]
                       | Typ.Atom(Atom.Bool) => [
                           Node.div(
@@ -786,6 +1168,38 @@ module M: Projector = {
                               ),
                             ],
                             [Node.text("string")],
+                          ),
+                          Node.div(
+                            ~attrs=[
+                              Attr.classes(["submenu-item"]),
+                              Attr.on_click(_ =>
+                                Effect.Many([
+                                  local(CloseMenu),
+                                  parent(
+                                    SetSyntax(
+                                      convert_column_int_from_bool(info, h),
+                                    ),
+                                  ),
+                                ])
+                              ),
+                            ],
+                            [Node.text("int")],
+                          ),
+                          Node.div(
+                            ~attrs=[
+                              Attr.classes(["submenu-item"]),
+                              Attr.on_click(_ =>
+                                Effect.Many([
+                                  local(CloseMenu),
+                                  parent(
+                                    SetSyntax(
+                                      convert_column_float_from_bool(info, h),
+                                    ),
+                                  ),
+                                ])
+                              ),
+                            ],
+                            [Node.text("float")],
                           ),
                         ]
                       | _ => []
