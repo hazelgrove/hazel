@@ -112,10 +112,14 @@ let view_of_info = (~globals, ci): list(Node.t) => {
   let wrapper = status_view => [term_view(~globals, ci), status_view];
   switch (ci) {
   | Secondary(_) => wrapper(div([]))
-  | InfoExp(ie) => wrapper(make_status_view(~globals, build_exp_message(ie)))
-  | InfoPat(ip) => wrapper(make_status_view(~globals, build_pat_message(ip)))
-  | InfoTyp(it) => wrapper(make_status_view(~globals, build_typ_message(it)))
-  | InfoTPat(it) => wrapper(make_status_view(~globals, build_tpat_message(it)))
+  | InfoExp(ie) =>
+    wrapper(make_status_view(~globals, build_exp_message(ie)))
+  | InfoPat(ip) =>
+    wrapper(make_status_view(~globals, build_pat_message(ip)))
+  | InfoTyp(it) =>
+    wrapper(make_status_view(~globals, build_typ_message(it)))
+  | InfoTPat(it) =>
+    wrapper(make_status_view(~globals, build_tpat_message(it)))
   };
 };
 

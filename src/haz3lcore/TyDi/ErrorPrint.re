@@ -40,26 +40,20 @@ module Print = {
   let typ = (ty: Typ.t): string => term(Typ(ty));
 };
 
-let prn = Printf.sprintf;
-
-let render_string: list(ErrorMessage.fragment) => string =
-  fragments =>
-    List.map(
-      fun
-      | Text(s) => s
-      | Code(s) => "\"" ++ s ++ "\""
-      | Type(ty) => Print.typ(ty)
-      | Term(term) => Print.term(term)
-      | Label(s) => Token.quote_label_when_necessary(s),
-      fragments,
-    )
-    |> String.concat("");
+let render_string = (fragments: list(ErrorMessage.fragment)): string =>
+  List.map(
+    fun
+    | Text(s) => s
+    | Code(s) => "\"" ++ s ++ "\""
+    | Type(ty) => Print.typ(ty)
+    | Term(term) => Print.term(term)
+    | Label(s) => Token.quote_label_when_necessary(s),
+    fragments,
+  )
+  |> String.concat("");
 
 let string_of: Info.t => string =
   info => render_string(ErrorMessage.build_message(info).fragments);
-
-let format_error = (term, error) =>
-  prn("Error in term:\n  %s\nNature of error: %s", term, error);
 
 let term_string_of: Info.t => string =
   fun
@@ -85,7 +79,13 @@ let all = (info_map: Statics.Map.t): list(string) => {
        | None => None
        | Some(_) =>
          let term = term_string_of(info);
-         Some(format_error(term, string_of(info)));
+         Some(
+           Printf.sprintf(
+             "Error in term:\n  %s\nNature of error: %s",
+             term,
+             string_of(info),
+           ),
+         );
        }
      );
 };
