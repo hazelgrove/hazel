@@ -91,7 +91,6 @@ module ClosureLength = {
          // TODO(andrew): relax 5, special-case multilines eg `case`
          ~default=
            /*!is_value(closure.value)
-
              ? 5 :*/ Window.get_mode()
            == Single
              ? 150 : 12,
@@ -129,20 +128,12 @@ module Closures = {
 
   let first_index_of_interest =
       (~ap_id: option(Id.t), di: Dynamics.Info.t): option(int) => {
-    let find = (rel: DynCursor.relation => bool): option(int) =>
+    let find = (rel: Dynamics.Info.relation => bool): option(int) =>
       List.find_index(
-        (closure: closure) => rel(DynCursor.relation(ap_id, di, closure)),
+        (closure: closure) =>
+          rel(Dynamics.Info.relation(ap_id, di, closure)),
         di.closures,
       );
-    // switch (
-    //   find(relation =>
-    //     is_related(relation) && relation.is_more_precise_than_cursor
-    //   )
-    // ) {
-    // | Some(idx) =>
-    //   print_endline("is more precise than cursor");
-    //   Some(idx);
-    // | None =>
     switch (find(relation => relation.is_call_cursor)) {
     | Some(idx) =>
       // print_endline("is call cursor");
@@ -152,7 +143,7 @@ module Closures = {
       | Some(idx) => Some(idx)
       | None =>
         let a = find(relation => relation.is_below_indicated_call != None);
-        a == None ? find(DynCursor.is_related) : a;
+        a == None ? find(Dynamics.Info.is_related) : a;
       }
     // }
     };
@@ -289,7 +280,7 @@ module ValueState = {
 let cursor_clss =
     (ap_id: option(Id.t), di: Dynamics.Info.t, closure: closure)
     : list(string) => {
-  let relation = DynCursor.relation(ap_id, di, closure);
+  let relation = Dynamics.Info.relation(ap_id, di, closure);
   (
     switch (
       relation.is_call_cursor,
@@ -312,6 +303,29 @@ let cursor_clss =
     | Unrelated => ["incomparable"]
     }
   );
+};
+
+module Debug = {
+  let stack = (stack: Probe.call_stack): string =>
+    stack |> List.map(Id.str3) |> String.concat("\n");
+
+  let str = (~ap_id: option(Id.t), closure: closure): string =>
+    "closure_id: "
+    ++ string_of_int(closure.closure_id)
+    ++ "\n"
+    ++ "ap:"
+    ++ (
+      switch (Dynamics.Info.cur_call(ap_id, closure)) {
+      | Some([ap_id, ..._]) => Id.str3(ap_id)
+      | _ => "None"
+      }
+    )
+    // ++ "\nvalue:\n"
+    // ++ DHExp.show(closure.value)
+    ++ "\nstack:\n"
+    ++ stack(closure.call_stack)
+    ++ "\ntime: "
+    ++ string_of_float(closure.time /. 10000.0);
 };
 
 let value_view =
@@ -337,8 +351,6 @@ let value_view =
           col: e##.clientX,
         });
     };
-    // DynCursor.capture(info, closure);
-    // Effect.Ignore;
     parent(DynCursor(Capture(closure, ap_id)));
   };
 
@@ -367,7 +379,7 @@ let value_view =
 
   div(
     ~attrs=[
-      Attr.title(DynCursor.Debug.str(~ap_id, closure)),
+      Attr.title(Debug.str(~ap_id, closure)),
       Attr.classes(
         ["value", length_cls(length)]
         @ cursor_clss(ap_id, di, closure)
@@ -377,7 +389,7 @@ let value_view =
       Attr.on_double_click(_ => local(ToggleShowAllVals(index))),
       Attr.on_pointerdown(evt =>
         Key.meta_held(evt)
-          ? switch (ap_id, DynCursor.is_in(di)) {
+          ? switch (ap_id, Dynamics.Info.is_in(di)) {
             | (Some(ap_id), Some(closure_cursor)) =>
               print_endline(
                 "TogglePinCall: Some(ap_id), Some(closure_cursor)",
@@ -427,10 +439,25 @@ let env_view = (closure: closure, view_seg, utility: utility): Node.t =>
     |> List.map(env_val(closure, view_seg, utility)),
   );
 
-let show_pin = (~ap_id: option(Id.t), di: Dynamics.Info.t) =>
+let show_pin = (~ap_id: option(Id.t), di: Dynamics.Info.t) => {
+  switch (ap_id) {
+  | None => ()
+  | Some(ap_id) =>
+    print_endline("show_pin: ap_id = " ++ Id.str3(ap_id));
+    print_endline(
+      "show_pin: di.dyn_cursor.pinned_call = "
+      ++ (
+        di.dyn_cursor.pinned_call
+        |> OptUtil.and_then(ListUtil.hd_opt)
+        |> Option.map(Id.str3)
+        |> Option.value(~default="None")
+      ),
+    );
+  };
   di.dyn_cursor.pinned_call != None
   && di.dyn_cursor.pinned_call
   |> OptUtil.and_then(ListUtil.hd_opt) == ap_id;
+};
 
 let pin_view = (~ap_id: option(Id.t), di: Dynamics.Info.t) =>
   show_pin(~ap_id, di) ? [div(~attrs=[Attr.classes(["pin"])], [])] : [];
@@ -609,7 +636,7 @@ let round_down = (utility: utility, closure: closure): unit => {
 
 let indicated_closure =
     (~ap_id: option(Id.t), di: Dynamics.Info.t): option(closure) =>
-  DynCursor.first_cursor_closure(ap_id, di);
+  Dynamics.Info.first_cursor_closure(ap_id, di);
 
 let key_handler =
     (
@@ -641,10 +668,8 @@ let key_handler =
   switch (key.key) {
   | D("Escape") when key.shift == Down =>
     JsUtil.get_elem_by_id(Id.cls(id))##blur;
-    // DynCursor.reset();
     Window.reset();
     ClosureLength.reset();
-    // local(NoOp);
     parent(DynCursor(Reset));
   | D("Escape") =>
     JsUtil.get_elem_by_id(Id.cls(id))##blur;
@@ -774,9 +799,9 @@ let probe_default =
   };
 
 let is_pinned = (ap_id: option(Id.t), di: Dynamics.Info.t): bool =>
-  switch (DynCursor.is_in(di)) {
+  switch (Dynamics.Info.is_in(di)) {
   | Some(closure_cursor) =>
-    di.dyn_cursor.pinned_call == DynCursor.cur_call(ap_id, closure_cursor)
+    di.dyn_cursor.pinned_call == Dynamics.Info.cur_call(ap_id, closure_cursor)
   | _ => false
   };
 
@@ -816,8 +841,7 @@ let view = (local, parent, info: info): Node.t =>
       Attr.on_double_click(_ =>
         switch (
           cur_ap(info),
-          info.dynamics
-          |> OptUtil.and_then((di: Dynamics.Info.t) => DynCursor.is_in(di)),
+          info.dynamics |> OptUtil.and_then(Dynamics.Info.is_in),
         ) {
         | (Some(ap_id), Some(closure_cursor)) =>
           parent(
@@ -826,14 +850,9 @@ let view = (local, parent, info: info): Node.t =>
         | _ => Effect.Ignore
         }
       ),
-      Attr.on_pointerdown(_ => {
+      Attr.on_pointerdown(_
         /* Select a default cell if one is not already selected */
-        probe_default(
-          parent,
-          info,
-          // Effect.Ignore;
-        )
-      }),
+        => probe_default(parent, info)),
       Attr.on_pointerup(_ => {
         JsUtil.get_elem_by_id(Id.cls(info.id))##blur;
         Effect.Ignore;

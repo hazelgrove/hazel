@@ -49,8 +49,24 @@ let capture =
   );
 
 let toggle_pin_call = (z: Zipper.t, call_stack): Zipper.t =>
-  update_pinned_call(z, pinned_call =>
-    Some(call_stack) == pinned_call ? Some(call_stack) : None
+  update_pinned_call(
+    z,
+    pinned_call => {
+      print_endline(
+        "toggle_pin_call: call_stack = "
+        ++ String.concat(" ", List.map(Id.str3, call_stack)),
+      );
+      print_endline(
+        "toggle_pin_call: pinned_call = "
+        ++ (
+          pinned_call
+          |> OptUtil.and_then(ListUtil.hd_opt)
+          |> Option.map(Id.str3)
+          |> Option.value(~default="None")
+        ),
+      );
+      Some(call_stack) == pinned_call ? None : Some(call_stack);
+    },
   );
 
 let reset = (z: Zipper.t): Zipper.t =>
