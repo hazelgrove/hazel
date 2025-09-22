@@ -5,19 +5,19 @@ let output_header_grading = _module_name =>
   "module Exercise = GradePrelude.Exercise\n" ++ "let prompt = ()\n";
 
 [@deriving (show({with_path: false}), sexp, yojson)]
+type hint = {hint: string};
+
+[@deriving (show({with_path: false}), sexp, yojson)]
 type wrong_impl('code) = {
   impl: 'code,
-  hint: string,
+  hint,
 };
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type hidden_tests('code) = {
   tests: 'code,
-  hints: list(string),
+  hints: list(hint),
 };
-
-[@deriving (show({with_path: false}), sexp, yojson)]
-type hint = string;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type syntax_test = (hint, SyntaxTest.predicate);
@@ -133,7 +133,7 @@ type persistent_state = {
   required: int,
   module_name: string,
   syntax_tests: list(syntax_test),
-  hidden_test_hints: list(string),
+  hidden_test_hints: list(hint),
   // NOTE: Add new fields to record here as new instructor editable features are
   //       implemented (eg. prelude: PersistentZipper.t when adding the feature
   //       to edit the prelude). After adding these field(s), we will need to
@@ -423,7 +423,9 @@ let update_exercise_title = ({eds, _}: state, new_title: string) => {
 let add_buggy_impl = (state: state) => {
   let new_buggy_impl = {
     impl: Editor.Model.mk(Zipper.init()),
-    hint: "No Hint Available",
+    hint: {
+      hint: "No Hint Available",
+    },
   };
   {
     eds: {
@@ -443,7 +445,7 @@ let delete_buggy_impl = (state: state, index: int) => {
 };
 
 let edit_buggy_impl = (state: state, idx: int, impl: Editor.t, new_hint: hint) => {
-  let buggy_impl = {
+  let buggy_impl: wrong_impl(Editor.t) = {
     impl,
     hint: new_hint,
   };
@@ -484,9 +486,11 @@ let update_mut_test_rep =
       (i, bug) => {
         let new_hint = List.nth_opt(new_hints, i);
         switch (new_hint) {
-        | Some(hint) => {
+        | Some(hint_string) => {
             ...bug,
-            hint,
+            hint: {
+              hint: hint_string,
+            },
           }
         | None => bug
         };
@@ -512,7 +516,7 @@ let update_impl_grd_rep =
       ...eds,
       hidden_tests: {
         ...eds.hidden_tests,
-        hints: new_hints,
+        hints: List.map(h => {hint: h}, new_hints),
       },
       point_distribution: {
         ...eds.point_distribution,
@@ -530,8 +534,8 @@ let update_syntax_rep = ({eds}: state, new_hints: list(string)) => {
         (i, (_, predicate)) => {
           let new_hint = List.nth_opt(new_hints, i);
           switch (new_hint) {
-          | Some(hint) => (hint, predicate)
-          | None => ("No Hint Provided", predicate)
+          | Some(hint) => ({hint: hint}, predicate)
+          | None => ({hint: "No Hint Provided"}, predicate)
           };
         },
         eds.syntax_tests,
@@ -893,7 +897,9 @@ let blank_spec =
         let zipper = Zipper.next_blank();
         {
           impl: zipper,
-          hint: "TODO: hint " ++ string_of_int(i),
+          hint: {
+            hint: "TODO: hint " ++ string_of_int(i),
+          },
         };
       },
     );

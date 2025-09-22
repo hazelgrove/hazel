@@ -255,7 +255,7 @@ module TestValidationReport = {
 };
 
 module MutationTestingReport = {
-  type t = {results: list((TestStatus.t, string))};
+  type t = {results: list((TestStatus.t, hint))};
 
   let hidden_bug_status =
       (
@@ -501,7 +501,7 @@ module MutationTestingReport = {
   let individual_report =
       (
         ~i: int,
-        ~hint: string,
+        ~hint: hint,
         ~status,
         ~editing_mut_test_rep,
         ~globals: Globals.t,
@@ -533,7 +533,7 @@ module MutationTestingReport = {
               //Attr.type_("string"),
               Attr.classes(["test-hint", "test-instance"]),
               Attr.id("hint-input-" ++ string_of_int(i)),
-              Attr.value(hint),
+              Attr.value(hint.hint),
               Attr.create("min", "0"),
               Attr.on_focus(_ => select_textbox),
             ],
@@ -569,7 +569,7 @@ module MutationTestingReport = {
                 TestStatus.to_string(status),
               ]),
             ],
-            [text(hint)],
+            [text(hint.hint)],
           ),
         ],
       );
@@ -722,7 +722,7 @@ module SyntaxReport = {
   let individual_report =
       (
         i: int,
-        hint: string,
+        hint: hint,
         status: bool,
         ~editing_syntax_rep,
         ~globals: Globals.t,
@@ -744,7 +744,7 @@ module SyntaxReport = {
             ~attrs=[
               Attr.classes(["test-hint", "test-instance"]),
               Attr.id("syntax-hint-input-" ++ string_of_int(i)),
-              Attr.value(hint),
+              Attr.value(hint.hint),
               Attr.create("min", "0"),
               Attr.on_focus(_ => select_textbox),
             ],
@@ -766,7 +766,7 @@ module SyntaxReport = {
             ~attrs=[
               Attr.classes(["test-hint", "test-instance", result_string]),
             ],
-            [text(hint)],
+            [text(hint.hint)],
           ),
         ],
       );
@@ -775,7 +775,7 @@ module SyntaxReport = {
 
   let individual_reports =
       (
-        hinted_results: list((bool, string)),
+        hinted_results: list((bool, hint)),
         ~editing_syntax_rep,
         ~globals,
         ~select_textbox,
@@ -901,12 +901,12 @@ module SyntaxReport = {
 
 module ImplGradingReport = {
   type t = {
-    hints: list(string),
+    hints: list(hint),
     test_results: option(TestResults.t),
-    hinted_results: list((TestStatus.t, string)),
+    hinted_results: list((TestStatus.t, hint)),
   };
 
-  let mk = (~hints: list(string), ~test_results: option(TestResults.t)): t => {
+  let mk = (~hints: list(hint), ~test_results: option(TestResults.t)): t => {
     let hinted_results =
       switch (test_results) {
       | Some(test_results) =>
@@ -915,7 +915,7 @@ module ImplGradingReport = {
           statuses,
           hints,
           Language.TestStatus.Indet,
-          "No Hint available.",
+          {hint: "No Hint available."},
         );
 
       | None =>
@@ -923,7 +923,7 @@ module ImplGradingReport = {
           [],
           hints,
           Language.TestStatus.Indet,
-          "Exercise configuration error: Hint without a test.",
+          {hint: "Exercise configuration error: Hint without a test."},
         )
       };
     {
@@ -998,7 +998,7 @@ module ImplGradingReport = {
       (
         i,
         ~signal_jump,
-        ~hint: string,
+        ~hint: hint,
         ~status,
         (id, _),
         ~editing_impl_grd_rep,
@@ -1032,7 +1032,7 @@ module ImplGradingReport = {
               //Attr.type_("string"),
               Attr.classes(["test-hint", "test-instance"]),
               Attr.id("impl-hint-input-" ++ string_of_int(i)),
-              Attr.value(hint),
+              Attr.value(hint.hint),
               Attr.create("min", "0"),
               Attr.on_focus(_ => select_textbox),
             ],
@@ -1068,7 +1068,7 @@ module ImplGradingReport = {
                 TestStatus.to_string(status),
               ]),
             ],
-            [text(hint)],
+            [text(hint.hint)],
           ),
         ],
       );
@@ -1091,7 +1091,7 @@ module ImplGradingReport = {
        * for example due to a stack overflow, which may occur in normal operation  */
       div(
         report.hinted_results
-        |> List.mapi((i, (status, hint)) =>
+        |> List.mapi((i, (status, hint: hint)) =>
              individual_report(
                i,
                ~signal_jump,

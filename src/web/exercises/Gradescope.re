@@ -1,10 +1,12 @@
-open WebUtil;
 open Haz3lcore;
 open Util;
 open Core;
+open Language;
+open Web;
 open Exercise;
 open Grading;
 open Specs;
+
 [@deriving (sexp, yojson)]
 type item = {
   max: int,
@@ -54,20 +56,13 @@ module Main = {
       map_stitched(
         (_, term) =>
           term
-          |> CachedStatics.init_from_term(~settings)
+          |> CachedStatics.init_from_term(~settings, ~is_dynamic_term=false)
           |> ((x: CachedStatics.t) => x.elaborated)
-          |> Evaluator.evaluate(~settings, ~env=Builtins.env_init)
-          |> ProgramResult.map(x =>
-               x
-               |> ProgramResult.get_state
-               |> EvaluatorState.get_tests
-               |> TestResults.mk_results
-             )
-          |> (
-            fun
-            | ResultOk(x) => Some(x)
-            | _ => None
-          ),
+          |> Evaluator.evaluate(~env=Builtins.env_init)
+          |> snd
+          |> EvaluatorState.get_tests
+          |> TestResults.mk_results
+          |> Option.some,
         terms,
       );
     let grading_report = exercise.eds |> GradingReport.mk(~stitched_tests);
@@ -111,18 +106,25 @@ module Main = {
     let hw = name_to_exercise_export(hw_path);
     let export_chapter =
       hw.exercise_data
-      |> List.map(~f=(((name, _) as key, persistent_state)) => {
-           switch (find_key_opt(key, specs)) {
+      |> List.map(~f=((key, persistent_state)) => {
+           switch (find_id_opt(key, specs)) {
            | Some((_n, spec)) =>
              let spec =
-               unpersist(persistent_state, spec, ~instructor_mode=true);
+               unpersist(persistent_state, ~spec, ~instructor_mode=true);
+             let spec': p(ZipperBase.t) =
+               Exercise.map(
+                 spec.eds,
+                 e => e.state.zipper,
+                 e => e.state.zipper,
+               );
              let report =
-               {eds: spec |> eds_of_spec(~settings=CoreSettings.on)}
+               {eds: spec' |> eds_of_spec(~settings=CoreSettings.on)}
                |> gen_grading_report;
-             {
-               name,
+             let thing: section = {
+               name: "section name",
                report,
              };
+             thing;
            | None => failwith("Invalid spec")
            //  | None => (key |> yojson_of_key |> Yojson.Safe.to_string, "?")
            }
