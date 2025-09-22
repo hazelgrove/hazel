@@ -3,6 +3,8 @@ open Node;
 open Util.WebUtil;
 open Util;
 open Language;
+open Haz3lcore;
+open ErrorMessage;
 
 let errc = "error";
 let okc = "ok";
@@ -94,6 +96,17 @@ let view_type = (~globals, typ: Typ.t) =>
   typ
   |> CodeViewable.view_typ(~globals, ~settings=code_view_settings)
   |> code_box_container;
+
+let render_ui = (~globals, fragments) =>
+  List.map(
+    fun
+    | Text(s) => text(s)
+    | Code(s) => code(s)
+    | Type(ty) => view_type(~globals, ty)
+    | Term(term) => view_any(~globals, term)
+    | Label(s) => label_view(s),
+    fragments,
+  );
 
 let common_err_view =
     (
@@ -420,238 +433,43 @@ let rec automatic_inserted_labels_pat =
   | _ => []
   };
 
-let rec exp_view =
-        (~globals, cls: Cls.t, status: Info.status_exp, info: Info.exp) => {
-  let introduced_labels =
-    switch (info.label_inference) {
-    | Some(MultiLabelInference({introduced_labels, _})) => introduced_labels
-    | Some(SingletonLabelInference({label, pre_labeled_info})) =>
-      [label] @ automatic_inserted_labels_exp(Some(pre_labeled_info))
-    | _ => []
-    };
-  let reordered =
-    switch (info.label_inference) {
-    | Some(MultiLabelInference({reordered, _})) => reordered
-    | _ => false
-    };
-  let lifted_ty =
-    switch (info.label_inference) {
-    | Some(SingletonLabelInference(_)) => Some(info.ty)
-    | _ => None
-    };
-  let inferred_label = info.inferred_label;
-  let view_type = view_type(~globals);
-  switch (status) {
-  | InHole(FreeVariable(name)) => div_err([code(name), text("not found")])
-  | InHole(InexhaustiveMatch(additional_err)) =>
-    let cls_str = Cls.show(cls);
-    switch (additional_err) {
-    | None => div_err([text(cls_str ++ " is inexhaustive")])
-    | Some(err) =>
-      let cls_str = String.uncapitalize_ascii(cls_str);
-      div_err([
-        exp_view(~globals, cls, InHole(Common(err)), info)
-        |> code_box_container,
-        text("; " ++ cls_str ++ " is inexhaustive"),
-      ]);
-    };
-  | InHole(UnusedDeferral) =>
-    div_err([text("Deferral must appear as a function argument")])
-  | InHole(BadPartialAp(NoDeferredArgs)) =>
-    div_err([text("Expected at least one non-deferred argument")])
-  | InHole(BadPartialAp(ArityMismatch({expected, actual}))) =>
-    div_err([
-      text(
-        "Arity mismatch: expected "
-        ++ string_of_int(expected)
-        ++ " argument"
-        ++ (expected == 1 ? "" : "s")
-        ++ ", got "
-        ++ string_of_int(actual)
-        ++ " arguments",
-      ),
-    ])
-  | InHole(BuiltinError(e)) =>
-    switch (e) {
-    | MissingLabels(labels) =>
-      div_err([
-        text("Labels not present in tuple: "),
-        ...List.map(label_view, labels),
-      ])
-    | ToLvsMissingLabelsOnTuple(_) =>
-      div_err([
-        text(
-          "All entries in the argument must have labels, but some were not provided",
-        ),
-      ])
-    | ProjectLabelsMissingLabels(labels) =>
-      div_err([
-        text("Projected tuple does not have the following labels: "),
-        ...List.map(label_view, labels),
-      ])
-    | ArgumentMustBeTuple => div_err([text("Argument must be a tuple")])
-    | AtLeast2Arguments =>
-      div_err([text("Must have 2 or more direct arguments")])
-    | Exactly2Arguments =>
-      div_err([text("Must have exactly 2 direct arguments")])
-    | ArgumentMustBeListOfTuples =>
-      div_err([text("First argument must be a list of labeled tuples")])
-    | PivotLabelIsNotString(ty) =>
-      div_err([
-        text("Pivot column must be a string, but got: "),
-        view_type(ty),
-      ])
-    }
-  | InHole(InvalidUseMode({bad_typ, _})) =>
-    div_err([
-      text("Cannot use type "),
-      view_type(bad_typ) |> code_box_container,
-      text(" for number operators and literals."),
-    ])
-  | InHole(BadTrivAp(ty)) =>
-    div_err([
-      text("Function argument type"),
-      view_type(ty),
-      text("inconsistent with"),
-      view_type(Prod([]) |> Typ.fresh),
-    ])
-  | InHole(TupleExtensionRequiresTuples) =>
-    div_err([text("Tuple extension requires tuple")])
-  | InHole(DotOperatorRequiresTuple) =>
-    div_err([text("Requires tuple for first argument")])
-  | InHole(Common(error)) =>
-    div_err(
-      common_err_view(
-        ~globals,
-        ~introduced_labels,
-        ~lifted_ty,
-        ~inferred_label,
-        cls,
-        error,
-      ),
-    )
-  | InHole(UnboundLivelit(name)) =>
-    div_err([
-      text("Livelit with name"),
-      code(name),
-      text("not found, and also, it's a livelit"),
-    ])
-  | InHole(BadOperator(msg)) =>
-    div_err([text("Invalid operator: "), text(msg)])
-  | InHole(LabelNotFound(name, labels)) =>
-    div_err([
-      text("Label "),
-      label_view(name),
-      text(" not found in tuple's labels: "),
-      ...List.map(label_view, labels),
-    ])
-  | InHole(BadLivelitModel(_)) =>
-    div_err([text("Bad internal livelit model")])
-  | NotInHole(AnaDeferralConsistent(ana)) =>
-    div_ok([text("Expecting type"), view_type(ana)])
-  | NotInHole(Common(ok)) =>
-    div_ok(
-      common_ok_view(
-        ~globals,
-        ~lifted_ty,
-        ~reordered,
-        ~introduced_labels,
-        ~inferred_label,
-        ~label_sort=info.label_sort,
-        cls,
-        ok,
-      ),
-    )
+let exp_view = (~globals, info: Info.exp) => {
+  let msg = build_exp_message(info);
+  let content = render_ui(~globals, msg.fragments);
+  if (msg.is_error) {
+    div_err(content);
+  } else {
+    div_ok(content);
   };
 };
 
-let rec pat_view =
-        (~globals, cls: Cls.t, status: Info.status_pat, info: Info.pat) => {
-  let lifted_ty =
-    switch (info.label_inference) {
-    | Some(SingletonLabelInference(_)) => Some(info.ty)
-    | _ => None
-    };
-  let inferred_label = info.inferred_label;
-  let introduced_labels =
-    switch (info.label_inference) {
-    | Some(MultiLabelInference({introduced_labels, _})) => introduced_labels
-    | Some(SingletonLabelInference({label, pre_labeled_info})) =>
-      [label] @ automatic_inserted_labels_pat(Some(pre_labeled_info))
-    | _ => []
-    };
-
-  switch (status) {
-  | InHole(ExpectedConstructor) => div_err([text("Expected a constructor")])
-  | InHole(Redundant(additional_err)) =>
-    switch (additional_err) {
-    | None => div_err([text("Pattern is redundant")])
-    | Some(err) =>
-      div_err([
-        pat_view(~globals, cls, InHole(err), info) |> code_box_container,
-        text("; pattern is redundant"),
-      ])
-    }
-  | InHole(Common(error)) =>
-    div_err(
-      common_err_view(
-        ~globals,
-        ~inferred_label,
-        ~introduced_labels,
-        ~lifted_ty,
-        cls,
-        error,
-      ),
-    )
-  | NotInHole(ok) =>
-    div_ok(
-      common_ok_view(
-        ~globals,
-        ~lifted_ty,
-        ~reordered=
-          switch (info.label_inference) {
-          | Some(MultiLabelInference({reordered, _})) => reordered
-          | _ => false
-          },
-        ~introduced_labels,
-        ~inferred_label,
-        ~label_sort=info.label_sort,
-        cls,
-        ok,
-      ),
-    )
+let pat_view = (~globals, info: Info.pat) => {
+  let msg = build_pat_message(info);
+  let content = render_ui(~globals, msg.fragments);
+  if (msg.is_error) {
+    div_err(content);
+  } else {
+    div_ok(content);
   };
 };
 
-let typ_view = (~globals, cls: Cls.t, status: Info.status_typ) =>
-  switch (status) {
-  | NotInHole(ok) => div_ok(typ_ok_view(~globals, cls, ok))
-  | InHole(err) => div_err(typ_err_view(~globals, err))
+let typ_view = (~globals, info: Info.typ) => {
+  let msg = build_typ_message(info);
+  let content = render_ui(~globals, msg.fragments);
+  if (msg.is_error) {
+    div_err(content);
+  } else {
+    div_ok(content);
   };
+};
 
-let tpat_view = (~globals, _: Cls.t, status: Info.status_tpat) => {
-  let view_type = view_type(~globals);
-  switch (status) {
-  | NotInHole(Empty) => div_ok([text("Fillable with a new alias")])
-  | NotInHole(Var(name)) => div_ok([ContextInspector.alias_view(name)])
-  | InHole(NotAVar(NotCapitalized)) =>
-    div_err([text("Must begin with a capital letter")])
-  | InHole(NotAVar(_)) => div_err([text("Expected an alias")])
-  | InHole(ShadowsType(name, BaseTyp)) =>
-    div_err([
-      text("Can't shadow base type"),
-      view_type(Var(name) |> Typ.fresh),
-    ])
-  | InHole(ShadowsType(name, TyAlias)) =>
-    div_err([
-      text("Can't shadow existing alias"),
-      view_type(Var(name) |> Typ.fresh),
-    ])
-  | InHole(ShadowsType(name, TyVar)) =>
-    div_err([
-      text("Can't shadow existing type variable"),
-      view_type(Var(name) |> Typ.fresh),
-    ])
+let tpat_view = (~globals, info: Info.tpat) => {
+  let msg = build_tpat_message(info);
+  let content = render_ui(~globals, msg.fragments);
+  if (msg.is_error) {
+    div_err(content);
+  } else {
+    div_ok(content);
   };
 };
 
@@ -661,12 +479,10 @@ let view_of_info = (~globals, ci): list(Node.t) => {
   let wrapper = status_view => [term_view(~globals, ci), status_view];
   switch (ci) {
   | Secondary(_) => wrapper(div([]))
-  | InfoExp({cls, status, _} as ie) =>
-    wrapper(exp_view(~globals, cls, status, ie))
-  | InfoPat({cls, status, _} as ip) =>
-    wrapper(pat_view(~globals, cls, status, ip))
-  | InfoTyp({cls, status, _}) => wrapper(typ_view(~globals, cls, status))
-  | InfoTPat({cls, status, _}) => wrapper(tpat_view(~globals, cls, status))
+  | InfoExp(ie) => wrapper(exp_view(~globals, ie))
+  | InfoPat(ip) => wrapper(pat_view(~globals, ip))
+  | InfoTyp(it) => wrapper(typ_view(~globals, it))
+  | InfoTPat(it) => wrapper(tpat_view(~globals, it))
   };
 };
 

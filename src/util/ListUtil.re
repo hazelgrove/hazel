@@ -76,6 +76,9 @@ let rec join = (sep: 'x, xs: list('x)): list('x) =>
   | [x, ...xs] => [x, sep, ...join(sep, xs)]
   };
 
+let join_map = (sep: 'x, f: 'a => list('x), xs: list('a)): list('x) =>
+  join(sep, List.concat(List.map(f, xs)));
+
 let hd_opt =
   fun
   | [] => None

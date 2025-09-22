@@ -1,5 +1,6 @@
 open Util;
 open Language;
+open ErrorMessage;
 
 /* Print static errors to a string */
 
@@ -40,6 +41,19 @@ module Print = {
 };
 
 let prn = Printf.sprintf;
+
+let render_string: list(ErrorMessage.fragment) => string =
+  fragments =>
+    List.map(
+      fun
+      | Text(s) => s
+      | Code(s) => "\"" ++ s ++ "\""
+      | Type(ty) => Print.typ(ty)
+      | Term(term) => Print.term(term)
+      | Label(s) => Token.quote_label_when_necessary(s),
+      fragments,
+    )
+    |> String.concat("");
 
 let common_error: Info.error_common => string =
   fun
@@ -139,12 +153,8 @@ let tpat_error: Info.error_tpat => string =
   | NotAVar(_) => "Not a valid type name" //TODO: elaborate
   | ShadowsType(name, _source) => "Can't shadow type " ++ name; //TODO: elaborate
 
-let string_of: Info.error => string =
-  fun
-  | Exp(error) => exp_error(error)
-  | Pat(error) => pat_error(error)
-  | Typ(error) => typ_error(error)
-  | TPat(error) => tpat_error(error);
+let string_of: Info.t => string =
+  info => render_string(ErrorMessage.build_message(info).fragments);
 
 let format_error = (term, error) =>
   prn("Error in term:\n  %s\nNature of error: %s", term, error);
@@ -171,9 +181,9 @@ let all = (info_map: Statics.Map.t): list(string) => {
   |> List.filter_map(info =>
        switch (Info.error_of(info)) {
        | None => None
-       | Some(error) =>
+       | Some(_) =>
          let term = term_string_of(info);
-         Some(format_error(term, string_of(error)));
+         Some(format_error(term, string_of(info)));
        }
      );
 };
