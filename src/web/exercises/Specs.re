@@ -1,3 +1,4 @@
-let specs = []; //  Ex_RecursiveFibonacci_grading.exercise,
+open Ex_OddlyRecursive_grading;
+let specs = [Ex_OddlyRecursive_grading.exercise];
 
 //  Ex_OddlyRecursive_grading.exercise,

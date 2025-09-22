@@ -533,7 +533,7 @@ module MutationTestingReport = {
               //Attr.type_("string"),
               Attr.classes(["test-hint", "test-instance"]),
               Attr.id("hint-input-" ++ string_of_int(i)),
-              Attr.value(hint.hint),
+              Attr.value(hint),
               Attr.create("min", "0"),
               Attr.on_focus(_ => select_textbox),
             ],
@@ -569,7 +569,7 @@ module MutationTestingReport = {
                 TestStatus.to_string(status),
               ]),
             ],
-            [text(hint.hint)],
+            [text(hint)],
           ),
         ],
       );
@@ -744,7 +744,7 @@ module SyntaxReport = {
             ~attrs=[
               Attr.classes(["test-hint", "test-instance"]),
               Attr.id("syntax-hint-input-" ++ string_of_int(i)),
-              Attr.value(hint.hint),
+              Attr.value(hint),
               Attr.create("min", "0"),
               Attr.on_focus(_ => select_textbox),
             ],
@@ -766,7 +766,7 @@ module SyntaxReport = {
             ~attrs=[
               Attr.classes(["test-hint", "test-instance", result_string]),
             ],
-            [text(hint.hint)],
+            [text(hint)],
           ),
         ],
       );
@@ -915,7 +915,7 @@ module ImplGradingReport = {
           statuses,
           hints,
           Language.TestStatus.Indet,
-          {hint: "No Hint available."},
+          "No Hint available.",
         );
 
       | None =>
@@ -923,7 +923,7 @@ module ImplGradingReport = {
           [],
           hints,
           Language.TestStatus.Indet,
-          {hint: "Exercise configuration error: Hint without a test."},
+          "Exercise configuration error: Hint without a test.",
         )
       };
     {
@@ -1032,7 +1032,7 @@ module ImplGradingReport = {
               //Attr.type_("string"),
               Attr.classes(["test-hint", "test-instance"]),
               Attr.id("impl-hint-input-" ++ string_of_int(i)),
-              Attr.value(hint.hint),
+              Attr.value(hint),
               Attr.create("min", "0"),
               Attr.on_focus(_ => select_textbox),
             ],
@@ -1068,7 +1068,7 @@ module ImplGradingReport = {
                 TestStatus.to_string(status),
               ]),
             ],
-            [text(hint.hint)],
+            [text(hint)],
           ),
         ],
       );

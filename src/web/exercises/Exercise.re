@@ -5,7 +5,7 @@ let output_header_grading = _module_name =>
   "module Exercise = GradePrelude.Exercise\n" ++ "let prompt = ()\n";
 
 [@deriving (show({with_path: false}), sexp, yojson)]
-type hint = {hint: string};
+type hint = string;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type wrong_impl('code) = {
@@ -423,9 +423,7 @@ let update_exercise_title = ({eds, _}: state, new_title: string) => {
 let add_buggy_impl = (state: state) => {
   let new_buggy_impl = {
     impl: Editor.Model.mk(Zipper.init()),
-    hint: {
-      hint: "No Hint Available",
-    },
+    hint: "No Hint Available",
   };
   {
     eds: {
@@ -488,9 +486,7 @@ let update_mut_test_rep =
         switch (new_hint) {
         | Some(hint_string) => {
             ...bug,
-            hint: {
-              hint: hint_string,
-            },
+            hint: hint_string,
           }
         | None => bug
         };
@@ -516,7 +512,7 @@ let update_impl_grd_rep =
       ...eds,
       hidden_tests: {
         ...eds.hidden_tests,
-        hints: List.map(h => {hint: h}, new_hints),
+        hints: new_hints,
       },
       point_distribution: {
         ...eds.point_distribution,
@@ -534,8 +530,8 @@ let update_syntax_rep = ({eds}: state, new_hints: list(string)) => {
         (i, (_, predicate)) => {
           let new_hint = List.nth_opt(new_hints, i);
           switch (new_hint) {
-          | Some(hint) => ({hint: hint}, predicate)
-          | None => ({hint: "No Hint Provided"}, predicate)
+          | Some(hint) => (hint, predicate)
+          | None => ("No Hint Provided", predicate)
           };
         },
         eds.syntax_tests,
@@ -897,9 +893,7 @@ let blank_spec =
         let zipper = Zipper.next_blank();
         {
           impl: zipper,
-          hint: {
-            hint: "TODO: hint " ++ string_of_int(i),
-          },
+          hint: "TODO: hint " ++ string_of_int(i),
         };
       },
     );
@@ -951,8 +945,7 @@ let persist = (state: state, ~instructor_mode: bool) => {
     required: state.eds.your_tests.required,
     module_name: state.eds.module_name,
     syntax_tests: state.eds.syntax_tests,
-    hidden_test_hints:
-      List.map((h: hint) => h.hint, state.eds.hidden_tests.hints),
+    hidden_test_hints: state.eds.hidden_tests.hints,
   };
 };
 
@@ -1016,7 +1009,7 @@ let unpersist =
       hidden_bugs,
       hidden_tests: {
         tests: hidden_tests_tests,
-        hints: List.map(s => {hint: s}, hidden_test_hints),
+        hints: hidden_test_hints,
       },
       syntax_tests,
     },

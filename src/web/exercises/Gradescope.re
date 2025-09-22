@@ -120,11 +120,10 @@ module Main = {
              let report =
                {eds: spec' |> eds_of_spec(~settings=CoreSettings.on)}
                |> gen_grading_report;
-             let thing: section = {
+             {
                name: "section name",
                report,
-             };
-             thing;
+             }
            | None => failwith("Invalid spec")
            //  | None => (key |> yojson_of_key |> Yojson.Safe.to_string, "?")
            }
