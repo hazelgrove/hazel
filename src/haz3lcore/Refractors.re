@@ -1,13 +1,14 @@
 open Util;
 open OptUtil.Syntax;
 
-let mk_probe = (id): option(Base.projector) => {
+let mk_probe = (id): Base.projector => {
   let kind = ProjectorCore.Kind.Probe;
   let (module P) = ProjectorInit.to_module(kind);
   let seg: Segment.t = [Piece.mk_grout(~id=Id.invalid, Convex)];
   let piece: Base.piece = Segment.parenthesize(seg);
-  let* any = MakeTerm.for_projection(seg);
-  let+ model = P.init(any);
+  let any =
+    MakeTerm.for_projection(seg) |> OptUtil.get_or_fail("mk_probe: maketerm");
+  let model = P.init(any) |> OptUtil.get_or_fail("mk_probe: init");
   ProjectorCore.mk(~id, kind, piece, model);
 };
 
@@ -16,6 +17,14 @@ let update_refractors_map = (f, z: Zipper.t): Zipper.t => {
   refractors: {
     ...z.refractors,
     map: f(z.refractors.map),
+  },
+};
+
+let update_ephemerals = (f, z: Zipper.t): Zipper.t => {
+  ...z,
+  refractors: {
+    ...z.refractors,
+    ephemerals: f(z.refractors.ephemerals),
   },
 };
 
@@ -68,11 +77,10 @@ let rm_repl = (id: Id.t, z: Zipper.t): Zipper.t =>
     }
   );
 
-let add' = (id: Id.t, z: Zipper.t): Zipper.t =>
-  switch (mk_probe(Id.transform_variant(id))) {
-  | None => z
-  | Some(p) => update_refractors_map(Id.Map.add(id, p), z)
-  };
+let add_single = (id: Id.t, z: Zipper.t): Zipper.t => {
+  let p = mk_probe(Id.transform_variant(id));
+  update_refractors_map(Id.Map.add(id, p), z);
+};
 
 let rm_manual = (ids: list(Id.t), z: Zipper.t): Zipper.t =>
   update_refractors_map(
@@ -83,7 +91,7 @@ let rm_manual = (ids: list(Id.t), z: Zipper.t): Zipper.t =>
 let add_manual =
     (id: Id.t, info_map: Language.Statics.Map.t, z: Zipper.t): Zipper.t => {
   let ids = target_subterm_ids(id, info_map);
-  List.fold_left((z, id) => add'(id, z), z, ids);
+  List.fold_left((z, id) => add_single(id, z), z, ids);
 };
 
 let toggle_manual =
@@ -104,22 +112,20 @@ let add_ids_from_pinned_term = (~term_data, ~measured, z: Zipper.t): Zipper.t =>
   let ids =
     switch (z.refractors.pinned_term_ids) {
     | [] => []
-    | [hd, ..._] => ids_from_term(~term_data, ~measured, hd)
+    | [hd, ..._] =>
+      // This ignores other pinned terms... see below
+      ids_from_term(~term_data, ~measured, hd)
     };
-  Zipper.update_refractors(z, refractors =>
-    {
-      ...refractors,
-      ephemerals:
-        List.fold_left(
-          (map, id) =>
-            switch (mk_probe(Id.transform_variant(id))) {
-            | None => map
-            | Some(p) => Id.Map.add(id, p, map)
-            },
-          Id.Map.empty,
-          ids,
-        ),
-    }
+  //TODO(andrew): should there only be one repl at a time? this is sort of what above does but not quite
+  update_ephemerals(
+    _ =>
+      List.fold_left(
+        (map, id) =>
+          Id.Map.add(id, mk_probe(Id.transform_variant(id)), map),
+        Id.Map.empty,
+        ids,
+      ),
+    z,
   );
 };
 
@@ -149,6 +155,42 @@ let toggle_repl =
   | Non => add_repl(id, syntax, z)
   };
 
+let probe_jump =
+    (statics: Language.Statics.Map.t, z: Zipper.t): option(Zipper.t) => {
+  let* ci = Indicated.ci_of(z, statics);
+  let* binding_id = Language.Info.get_binding_site(ci);
+  let* body_id =
+    Language.Statics.Map.enclosing_let_of_binding(~statics, ~binding_id);
+  let* ci_body = Language.Statics.Map.lookup(body_id, statics);
+  let z = toggle_manual(body_id, statics, z);
+  switch (ci_body) {
+  | InfoExp({term: {term: Fun(_pat, body, _, _), _}, _}) =>
+    let fun_body_id =
+      switch (body.term) {
+      | Probe(_) => Id.recover_original(Language.IdTagged.rep_id(body))
+      | _ => Language.IdTagged.rep_id(body)
+      };
+    Move.jump_to_id_indicated(z, fun_body_id);
+  | _ => Move.jump_to_id_indicated(z, body_id)
+  };
+};
+
+let rm_probes_in_selection = (z: Zipper.t): Zipper.t => {
+  //TODO: remove repls in selection too?
+  let selection_ids = Selection.selection_ids(z.selection);
+  let map =
+    Id.Map.filter(
+      (id, _) => !List.mem(id, selection_ids),
+      z.refractors.map,
+    );
+  Zipper.update_refractors(z, refractors =>
+    {
+      ...refractors,
+      map,
+    }
+  );
+};
+
 let update =
     (
       ~statics: CachedStatics.t,
@@ -165,20 +207,7 @@ let update =
       | None => z
       | Some(id) => toggle_manual(id, statics.info_map, z)
       }
-    | _ =>
-      //TODO: remove repls in selection too?
-      let selection_ids = Selection.selection_ids(z.selection);
-      let map =
-        Id.Map.filter(
-          (id, _) => !List.mem(id, selection_ids),
-          z.refractors.map,
-        );
-      Zipper.update_refractors(z, refractors =>
-        {
-          ...refractors,
-          map,
-        }
-      );
+    | _ => rm_probes_in_selection(z)
     }
   | ToggleProbeREPL =>
     switch (Indicated.index(z)) {
@@ -186,32 +215,7 @@ let update =
     | None => z
     }
   | ProbeJump =>
-    switch (
-      {
-        let* ci = Indicated.ci_of(z, statics.info_map);
-        let* binding_id = Language.Info.get_binding_site(ci);
-        let* body_id =
-          Language.Statics.Map.enclosing_let_of_binding(
-            ~statics=statics.info_map,
-            ~binding_id,
-          );
-        let* ci_body = Language.Statics.Map.lookup(body_id, statics.info_map);
-        let z = toggle_manual(body_id, statics.info_map, z);
-        switch (ci_body) {
-        | InfoExp({term: {term: Fun(pat, _body, _, _), _}, _}) =>
-          let pat_id =
-            switch (pat.term) {
-            | Probe(_) => Id.recover_original(Language.IdTagged.rep_id(pat))
-            | _ => Language.IdTagged.rep_id(pat)
-            };
-          let* z = Move.jump_to_id_indicated(z, pat_id);
-          Some(z);
-        | _ =>
-          let* z = Move.jump_to_id_indicated(z, body_id);
-          Some(z);
-        };
-      }
-    ) {
+    switch (probe_jump(statics.info_map, z)) {
     | Some(z) => z
     | None => z
     }
