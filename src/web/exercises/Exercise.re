@@ -133,7 +133,7 @@ type persistent_state = {
   required: int,
   module_name: string,
   syntax_tests: list(syntax_test),
-  hidden_test_hints: list(hint),
+  hidden_test_hints: list(string),
   // NOTE: Add new fields to record here as new instructor editable features are
   //       implemented (eg. prelude: PersistentZipper.t when adding the feature
   //       to edit the prelude). After adding these field(s), we will need to
@@ -951,7 +951,8 @@ let persist = (state: state, ~instructor_mode: bool) => {
     required: state.eds.your_tests.required,
     module_name: state.eds.module_name,
     syntax_tests: state.eds.syntax_tests,
-    hidden_test_hints: state.eds.hidden_tests.hints,
+    hidden_test_hints:
+      List.map((h: hint) => h.hint, state.eds.hidden_tests.hints),
   };
 };
 
@@ -1015,7 +1016,7 @@ let unpersist =
       hidden_bugs,
       hidden_tests: {
         tests: hidden_tests_tests,
-        hints: hidden_test_hints,
+        hints: List.map(s => {hint: s}, hidden_test_hints),
       },
       syntax_tests,
     },

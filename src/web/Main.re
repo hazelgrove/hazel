@@ -144,6 +144,7 @@ let start = {
       )
       >= 0;
     NinjaKeys.initialize(Shortcut.options(schedule_action));
+    // NPMWebWorker.initialize();
     JsUtil.focus_clipboard_shim();
     schedule_action(
       Assistant(AssistantUpdate.ChatAction(FilterLoadingMessages)),
