@@ -1,9 +1,8 @@
-let out : string * Haz3lcore.PersistentZipper.t =
+let out : string * Haz3lcore.PersistentSegment.t =
   ( "Basic Reference",
     {
-      zipper =
-        "((selection((focus Left)(content())(mode \
-         Normal)))(relatives((siblings(()((Secondary((id \
+      segment =
+        "((Secondary((id \
          aca843fa-ed08-4307-84d7-48ebf26e77a0)(content(Comment\"# Hazel \
          Language Quick Reference #\"))))(Secondary((id \
          5f018e7f-0929-4f23-9744-b418adde69cf)(content(Whitespace\"\\n\"))))(Secondary((id \
@@ -2706,7 +2705,7 @@ let out : string * Haz3lcore.PersistentZipper.t =
          \"))))(Tile((id \
          79cdae6f-64ae-437d-b6eb-ae6ec050e7d0)(label(2))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
-         Exp))))))(shards(0))(children()))))))(ancestors())))(caret Outer))";
+         Exp))))))(shards(0))(children()))))";
       backup_text =
         "# Hazel Language Quick Reference #\n\n\
          # Empty holes stand for missing expressions, patterns, or types #\n\
