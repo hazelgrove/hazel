@@ -104,7 +104,7 @@ let drop_column = (info: info, column: string): Base.segment => {
   );
 };
 
-let parse_column_int = (info: info, column: string): Base.segment => {
+let convert_column_int = (info: info, column: string): Base.segment => {
   IdTagged.FreshGrammar.(
     switch (
       info.utility.lift_syntax(
@@ -143,17 +143,17 @@ let parse_column_int = (info: info, column: string): Base.segment => {
               )
             ),
           )
-        | _ => failwith("TableProj: parse_column_int: not an expression"),
+        | _ => failwith("TableProj: convert_column_int: not an expression"),
         info.syntax,
       )
     ) {
     | Some(s) => s
-    | None => failwith("TableProj: parse_column_int: lift failed")
+    | None => failwith("TableProj: convert_column_int: lift failed")
     }
   );
 };
 
-let parse_column_float = (info: info, column: string): Base.segment => {
+let convert_column_float = (info: info, column: string): Base.segment => {
   IdTagged.FreshGrammar.(
     switch (
       info.utility.lift_syntax(
@@ -192,17 +192,17 @@ let parse_column_float = (info: info, column: string): Base.segment => {
               )
             ),
           )
-        | _ => failwith("TableProj: parse_column_float: not an expression"),
+        | _ => failwith("TableProj: convert_column_float: not an expression"),
         info.syntax,
       )
     ) {
     | Some(s) => s
-    | None => failwith("TableProj: parse_column_float: lift failed")
+    | None => failwith("TableProj: convert_column_float: lift failed")
     }
   );
 };
 
-let parse_column_bool = (info: info, column: string): Base.segment => {
+let convert_column_bool = (info: info, column: string): Base.segment => {
   IdTagged.FreshGrammar.(
     switch (
       info.utility.lift_syntax(
@@ -241,17 +241,18 @@ let parse_column_bool = (info: info, column: string): Base.segment => {
               )
             ),
           )
-        | _ => failwith("TableProj: parse_column_bool: not an expression"),
+        | _ => failwith("TableProj: convert_column_bool: not an expression"),
         info.syntax,
       )
     ) {
     | Some(s) => s
-    | None => failwith("TableProj: parse_column_bool: lift failed")
+    | None => failwith("TableProj: convert_column_bool: lift failed")
     }
   );
 };
 
-let parse_column_string_from_int = (info: info, column: string): Base.segment => {
+let convert_column_string_from_int =
+    (info: info, column: string): Base.segment => {
   IdTagged.FreshGrammar.(
     switch (
       info.utility.lift_syntax(
@@ -292,18 +293,19 @@ let parse_column_string_from_int = (info: info, column: string): Base.segment =>
           )
         | _ =>
           failwith(
-            "TableProj: parse_column_string_from_int: not an expression",
+            "TableProj: convert_column_string_from_int: not an expression",
           ),
         info.syntax,
       )
     ) {
     | Some(s) => s
-    | None => failwith("TableProj: parse_column_string_from_int: lift failed")
+    | None =>
+      failwith("TableProj: convert_column_string_from_int: lift failed")
     }
   );
 };
 
-let parse_column_string_from_float =
+let convert_column_string_from_float =
     (info: info, column: string): Base.segment => {
   IdTagged.FreshGrammar.(
     switch (
@@ -345,19 +347,20 @@ let parse_column_string_from_float =
           )
         | _ =>
           failwith(
-            "TableProj: parse_column_string_from_float: not an expression",
+            "TableProj: convert_column_string_from_float: not an expression",
           ),
         info.syntax,
       )
     ) {
     | Some(s) => s
     | None =>
-      failwith("TableProj: parse_column_string_from_float: lift failed")
+      failwith("TableProj: convert_column_string_from_float: lift failed")
     }
   );
 };
 
-let parse_column_string_from_bool = (info: info, column: string): Base.segment => {
+let convert_column_string_from_bool =
+    (info: info, column: string): Base.segment => {
   IdTagged.FreshGrammar.(
     switch (
       info.utility.lift_syntax(
@@ -398,14 +401,14 @@ let parse_column_string_from_bool = (info: info, column: string): Base.segment =
           )
         | _ =>
           failwith(
-            "TableProj: parse_column_string_from_bool: not an expression",
+            "TableProj: convert_column_string_from_bool: not an expression",
           ),
         info.syntax,
       )
     ) {
     | Some(s) => s
     | None =>
-      failwith("TableProj: parse_column_string_from_bool: lift failed")
+      failwith("TableProj: convert_column_string_from_bool: lift failed")
     }
   );
 };
@@ -567,7 +570,7 @@ module M: Projector = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type menu_state =
     | MainMenu
-    | ParseSubmenu;
+    | ConversionSubmenu;
 
   [@deriving (show({with_path: false}), sexp, yojson)]
   type model = {
@@ -580,10 +583,10 @@ module M: Projector = {
     | Previous
     | DropColumn(string)
     | ShowMenu(int)
-    | ShowParseMenu(int)
+    | ShowConversionMenu(int)
     | CloseMenu
     | BackToMainMenu(int)
-    | ParseColumn(string, string);
+    | ConversionColumn(string, string);
 
   let table_with_column_menus =
       (
@@ -659,12 +662,12 @@ module M: Projector = {
                     Node.div(
                       ~attrs=[
                         Attr.classes(["menu-item"]),
-                        Attr.on_click(_ => local(ShowParseMenu(i))),
+                        Attr.on_click(_ => local(ShowConversionMenu(i))),
                       ],
-                      [Node.text("Parse →")],
+                      [Node.text("Convert →")],
                     ),
                   ]
-                | ParseSubmenu =>
+                | ConversionSubmenu =>
                   let back_button =
                     Node.div(
                       ~attrs=[
@@ -689,7 +692,7 @@ module M: Projector = {
                                 Effect.Many([
                                   local(CloseMenu),
                                   parent(
-                                    SetSyntax(parse_column_int(info, h)),
+                                    SetSyntax(convert_column_int(info, h)),
                                   ),
                                 ])
                               ),
@@ -703,7 +706,7 @@ module M: Projector = {
                                 Effect.Many([
                                   local(CloseMenu),
                                   parent(
-                                    SetSyntax(parse_column_float(info, h)),
+                                    SetSyntax(convert_column_float(info, h)),
                                   ),
                                 ])
                               ),
@@ -717,7 +720,7 @@ module M: Projector = {
                                 Effect.Many([
                                   local(CloseMenu),
                                   parent(
-                                    SetSyntax(parse_column_bool(info, h)),
+                                    SetSyntax(convert_column_bool(info, h)),
                                   ),
                                 ])
                               ),
@@ -734,7 +737,7 @@ module M: Projector = {
                                   local(CloseMenu),
                                   parent(
                                     SetSyntax(
-                                      parse_column_string_from_int(info, h),
+                                      convert_column_string_from_int(info, h),
                                     ),
                                   ),
                                 ])
@@ -752,7 +755,10 @@ module M: Projector = {
                                   local(CloseMenu),
                                   parent(
                                     SetSyntax(
-                                      parse_column_string_from_float(info, h),
+                                      convert_column_string_from_float(
+                                        info,
+                                        h,
+                                      ),
                                     ),
                                   ),
                                 ])
@@ -770,7 +776,10 @@ module M: Projector = {
                                   local(CloseMenu),
                                   parent(
                                     SetSyntax(
-                                      parse_column_string_from_bool(info, h),
+                                      convert_column_string_from_bool(
+                                        info,
+                                        h,
+                                      ),
                                     ),
                                   ),
                                 ])
@@ -853,15 +862,15 @@ module M: Projector = {
           | _ => Some((i, MainMenu))
           },
       }
-    | ShowParseMenu(i) => {
+    | ShowConversionMenu(i) => {
         ...model,
-        menu: Some((i, ParseSubmenu)),
+        menu: Some((i, ConversionSubmenu)),
       }
     | BackToMainMenu(i) => {
         ...model,
         menu: Some((i, MainMenu)),
       }
-    | ParseColumn(_, _) =>
+    | ConversionColumn(_, _) =>
       // This action will be handled by the parent through the view
       model
     | DropColumn(_) =>
@@ -885,9 +894,9 @@ module M: Projector = {
           }
         | DropColumn(_) => model // Already handled above
         | ShowMenu(_) => model // Already handled above
-        | ShowParseMenu(_) => model // Already handled above
+        | ShowConversionMenu(_) => model // Already handled above
         | BackToMainMenu(_) => model // Already handled above
-        | ParseColumn(_, _) => model // Already handled above
+        | ConversionColumn(_, _) => model // Already handled above
         | CloseMenu => model // Already handled above
         };
       };
