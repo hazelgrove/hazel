@@ -250,6 +250,222 @@ let parse_column_bool = (info: info, column: string): Base.segment => {
     }
   );
 };
+
+let parse_column_string_from_int = (info: info, column: string): Base.segment => {
+  IdTagged.FreshGrammar.(
+    switch (
+      info.utility.lift_syntax(
+        fun
+        | Exp({term: exp_term, _}) =>
+          Exp(
+            Exp.(
+              ap(
+                Reverse,
+                ap(
+                  Forward,
+                  var("map"),
+                  tuple([
+                    deferral(InAp),
+                    fn(
+                      Pat.var("r"),
+                      tuple_extension(
+                        var("r"),
+                        tuple([
+                          tup_label(
+                            label(column),
+                            ap(
+                              Forward,
+                              var("string_of_int"),
+                              dot(var("r"), label(column)),
+                            ),
+                          ),
+                        ]),
+                      ),
+                      None,
+                      None,
+                    ),
+                  ]),
+                ),
+                exp_term |> DHExp.fresh,
+              )
+            ),
+          )
+        | _ =>
+          failwith(
+            "TableProj: parse_column_string_from_int: not an expression",
+          ),
+        info.syntax,
+      )
+    ) {
+    | Some(s) => s
+    | None => failwith("TableProj: parse_column_string_from_int: lift failed")
+    }
+  );
+};
+
+let parse_column_string_from_float =
+    (info: info, column: string): Base.segment => {
+  IdTagged.FreshGrammar.(
+    switch (
+      info.utility.lift_syntax(
+        fun
+        | Exp({term: exp_term, _}) =>
+          Exp(
+            Exp.(
+              ap(
+                Reverse,
+                ap(
+                  Forward,
+                  var("map"),
+                  tuple([
+                    deferral(InAp),
+                    fn(
+                      Pat.var("r"),
+                      tuple_extension(
+                        var("r"),
+                        tuple([
+                          tup_label(
+                            label(column),
+                            ap(
+                              Forward,
+                              var("string_of_float"),
+                              dot(var("r"), label(column)),
+                            ),
+                          ),
+                        ]),
+                      ),
+                      None,
+                      None,
+                    ),
+                  ]),
+                ),
+                exp_term |> DHExp.fresh,
+              )
+            ),
+          )
+        | _ =>
+          failwith(
+            "TableProj: parse_column_string_from_float: not an expression",
+          ),
+        info.syntax,
+      )
+    ) {
+    | Some(s) => s
+    | None =>
+      failwith("TableProj: parse_column_string_from_float: lift failed")
+    }
+  );
+};
+
+let parse_column_string_from_bool = (info: info, column: string): Base.segment => {
+  IdTagged.FreshGrammar.(
+    switch (
+      info.utility.lift_syntax(
+        fun
+        | Exp({term: exp_term, _}) =>
+          Exp(
+            Exp.(
+              ap(
+                Reverse,
+                ap(
+                  Forward,
+                  var("map"),
+                  tuple([
+                    deferral(InAp),
+                    fn(
+                      Pat.var("r"),
+                      tuple_extension(
+                        var("r"),
+                        tuple([
+                          tup_label(
+                            label(column),
+                            ap(
+                              Forward,
+                              var("string_of_bool"),
+                              dot(var("r"), label(column)),
+                            ),
+                          ),
+                        ]),
+                      ),
+                      None,
+                      None,
+                    ),
+                  ]),
+                ),
+                exp_term |> DHExp.fresh,
+              )
+            ),
+          )
+        | _ =>
+          failwith(
+            "TableProj: parse_column_string_from_bool: not an expression",
+          ),
+        info.syntax,
+      )
+    ) {
+    | Some(s) => s
+    | None =>
+      failwith("TableProj: parse_column_string_from_bool: lift failed")
+    }
+  );
+};
+let get_column_type' = (ty: Typ.t, column: string) => {
+  switch (ty.term) {
+  | List({term: Prod(tys), _}) =>
+    let ty =
+      List.find_map(
+        ty => {
+          open OptUtil.Syntax;
+          let* (label, value_ty) = Typ.match_tup_label(ty);
+          if (label == column) {
+            Some(value_ty);
+          } else {
+            None;
+          };
+        },
+        tys,
+      );
+    ty;
+  | _ => None
+  };
+};
+
+let get_dynamic_type = (info: info): option(Typ.t) => {
+  info.dynamics
+  |> Option.bind(
+       _,
+       (d: Dynamics.Info.t) => {
+         let statics =
+           Statics.mk(CoreSettings.on, Builtins.ctx_init(Some(Int)));
+         let type_of = (c: Dynamics.Probe.Closure.t) => {
+           IdTagged.rep_id(c.value)
+           |> Id.Map.find_opt(_, statics(c.value))
+           |> Option.bind(
+                _,
+                fun
+                | InfoExp(e) => {
+                    Some(e.ty);
+                  }
+                | _ => None,
+              );
+         };
+         let types = List.map(type_of, d) |> Util.OptUtil.sequence;
+
+         Option.bind(
+           types,
+           Typ.join_all(~empty=Unknown(Internal) |> Typ.temp, Ctx.empty),
+         );
+       },
+     );
+};
+
+let get_column_type = (info: info, column: string) => {
+  switch (info.statics) {
+  | Some(InfoExp({ty, _})) => get_column_type'(ty, column)
+  | _ => None
+  };
+};
+
 let table_of =
     (any: Any.t): option((list(LabeledTuple.label), list(list(Exp.t)))) =>
   switch (any) {
@@ -448,51 +664,126 @@ module M: Projector = {
                       [Node.text("Parse →")],
                     ),
                   ]
-                | ParseSubmenu => [
+                | ParseSubmenu =>
+                  let back_button =
                     Node.div(
                       ~attrs=[
                         Attr.classes(["submenu-back"]),
                         Attr.on_click(_ => local(BackToMainMenu(i))),
                       ],
                       [Node.text("← Back")],
-                    ),
-                    Node.div(
-                      ~attrs=[
-                        Attr.classes(["submenu-item"]),
-                        Attr.on_click(_ =>
-                          Effect.Many([
-                            local(CloseMenu),
-                            parent(SetSyntax(parse_column_int(info, h))),
-                          ])
-                        ),
-                      ],
-                      [Node.text("int")],
-                    ),
-                    Node.div(
-                      ~attrs=[
-                        Attr.classes(["submenu-item"]),
-                        Attr.on_click(_ =>
-                          Effect.Many([
-                            local(CloseMenu),
-                            parent(SetSyntax(parse_column_float(info, h))),
-                          ])
-                        ),
-                      ],
-                      [Node.text("float")],
-                    ),
-                    Node.div(
-                      ~attrs=[
-                        Attr.classes(["submenu-item"]),
-                        Attr.on_click(_ =>
-                          Effect.Many([
-                            local(CloseMenu),
-                            parent(SetSyntax(parse_column_bool(info, h))),
-                          ])
-                        ),
-                      ],
-                      [Node.text("bool")],
-                    ),
-                  ]
+                    );
+                  let column_type =
+                    get_dynamic_type(info)
+                    |> Option.bind(_, get_column_type'(_, h));
+
+                  let submenu_items =
+                    switch (column_type) {
+                    | Some(ty) =>
+                      switch (Typ.cls_of_term(ty.term)) {
+                      | Typ.Atom(Atom.String) => [
+                          Node.div(
+                            ~attrs=[
+                              Attr.classes(["submenu-item"]),
+                              Attr.on_click(_ =>
+                                Effect.Many([
+                                  local(CloseMenu),
+                                  parent(
+                                    SetSyntax(parse_column_int(info, h)),
+                                  ),
+                                ])
+                              ),
+                            ],
+                            [Node.text("int")],
+                          ),
+                          Node.div(
+                            ~attrs=[
+                              Attr.classes(["submenu-item"]),
+                              Attr.on_click(_ =>
+                                Effect.Many([
+                                  local(CloseMenu),
+                                  parent(
+                                    SetSyntax(parse_column_float(info, h)),
+                                  ),
+                                ])
+                              ),
+                            ],
+                            [Node.text("float")],
+                          ),
+                          Node.div(
+                            ~attrs=[
+                              Attr.classes(["submenu-item"]),
+                              Attr.on_click(_ =>
+                                Effect.Many([
+                                  local(CloseMenu),
+                                  parent(
+                                    SetSyntax(parse_column_bool(info, h)),
+                                  ),
+                                ])
+                              ),
+                            ],
+                            [Node.text("bool")],
+                          ),
+                        ]
+                      | Typ.Atom(Atom.Int) => [
+                          Node.div(
+                            ~attrs=[
+                              Attr.classes(["submenu-item"]),
+                              Attr.on_click(_ =>
+                                Effect.Many([
+                                  local(CloseMenu),
+                                  parent(
+                                    SetSyntax(
+                                      parse_column_string_from_int(info, h),
+                                    ),
+                                  ),
+                                ])
+                              ),
+                            ],
+                            [Node.text("string")],
+                          ),
+                        ]
+                      | Typ.Atom(Atom.Float) => [
+                          Node.div(
+                            ~attrs=[
+                              Attr.classes(["submenu-item"]),
+                              Attr.on_click(_ =>
+                                Effect.Many([
+                                  local(CloseMenu),
+                                  parent(
+                                    SetSyntax(
+                                      parse_column_string_from_float(info, h),
+                                    ),
+                                  ),
+                                ])
+                              ),
+                            ],
+                            [Node.text("string")],
+                          ),
+                        ]
+                      | Typ.Atom(Atom.Bool) => [
+                          Node.div(
+                            ~attrs=[
+                              Attr.classes(["submenu-item"]),
+                              Attr.on_click(_ =>
+                                Effect.Many([
+                                  local(CloseMenu),
+                                  parent(
+                                    SetSyntax(
+                                      parse_column_string_from_bool(info, h),
+                                    ),
+                                  ),
+                                ])
+                              ),
+                            ],
+                            [Node.text("string")],
+                          ),
+                        ]
+                      | _ => []
+                      }
+                    | None => []
+                    };
+                  [back_button] @ submenu_items;
                 };
               cell_content
               @ [
