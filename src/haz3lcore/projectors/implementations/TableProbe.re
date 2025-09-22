@@ -222,8 +222,9 @@ let get_dynamic_type = (info: info): option(Typ.t) => {
 };
 
 let move_column =
-    (info: info, column: string, left: bool): option(Base.segment) => {
-  let columns_opt = get_dynamic_type(info) |> Option.bind(_, get_columns);
+    (info: info, dyn_type: option(Typ.t), column: string, left: bool)
+    : option(Base.segment) => {
+  let columns_opt = Option.bind(dyn_type, get_columns);
   switch (columns_opt) {
   | Some(columns) =>
     let idx_opt = List.find_index(x => x == column, columns);
@@ -501,6 +502,8 @@ module M: Projector = {
             | _ => base_content
             };
           let cell_content = content;
+          let dyn_type = get_dynamic_type(info);
+
           let full_content =
             switch (model.menu) {
             | Some((j, menu_state)) when i == j =>
@@ -508,11 +511,9 @@ module M: Projector = {
                 switch (menu_state) {
                 | MainMenu =>
                   let column_type =
-                    get_dynamic_type(info)
-                    |> Option.bind(_, get_column_type'(_, h));
+                    dyn_type |> Option.bind(_, get_column_type'(_, h));
 
-                  let columns_opt =
-                    get_dynamic_type(info) |> Option.bind(_, get_columns);
+                  let columns_opt = dyn_type |> Option.bind(_, get_columns);
                   let can_move_left =
                     switch (columns_opt) {
                     | Some(columns) =>
@@ -581,7 +582,7 @@ module M: Projector = {
                                   SetSyntax(
                                     OptUtil.get_or_fail(
                                       "move left failed",
-                                      move_column(info, h, true),
+                                      move_column(info, dyn_type, h, true),
                                     ),
                                   ),
                                 ),
@@ -606,7 +607,7 @@ module M: Projector = {
                                   SetSyntax(
                                     OptUtil.get_or_fail(
                                       "move right failed",
-                                      move_column(info, h, false),
+                                      move_column(info, dyn_type, h, false),
                                     ),
                                   ),
                                 ),
@@ -651,8 +652,7 @@ module M: Projector = {
                       [Node.text("← Back")],
                     );
                   let column_type =
-                    get_dynamic_type(info)
-                    |> Option.bind(_, get_column_type'(_, h));
+                    Option.bind(dyn_type, get_column_type'(_, h));
 
                   let submenu_items =
                     switch (column_type) {
