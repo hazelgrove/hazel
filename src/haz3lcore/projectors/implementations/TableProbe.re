@@ -211,12 +211,14 @@ module M: Projector = {
     | Next
     | Previous
     | DropColumn(string)
-    | ShowMenu(int);
+    | ShowMenu(int)
+    | CloseMenu;
 
   let table_with_column_menus =
       (
         model: model,
         info: info,
+        ~local: action => Ui_effect.t(unit),
         ~parent: external_action => Ui_effect.t(unit),
         (headers, rows): (list(LabeledTuple.label), list(list(Exp.t))),
         ~view_seg: (Sort.t, Segment.t) => Node.t,
@@ -248,25 +250,40 @@ module M: Projector = {
                       ~attrs=[
                         Attr.classes(["menu-item"]),
                         Attr.on_click(_ =>
-                          parent(SetSyntax(drop_column(info, h)))
+                          Effect.Many([
+                            local(CloseMenu),
+                            parent(SetSyntax(drop_column(info, h))),
+                          ])
                         ),
                       ],
                       [Node.text("Drop Column")],
                     ),
                     Node.div(
-                      ~attrs=[Attr.classes(["menu-item"])],
+                      ~attrs=[
+                        Attr.classes(["menu-item"]),
+                        Attr.on_click(_ => local(CloseMenu)),
+                      ],
                       [Node.text("Rename")],
                     ),
                     Node.div(
-                      ~attrs=[Attr.classes(["menu-item"])],
+                      ~attrs=[
+                        Attr.classes(["menu-item"]),
+                        Attr.on_click(_ => local(CloseMenu)),
+                      ],
                       [Node.text("Add Column After")],
                     ),
                     Node.div(
-                      ~attrs=[Attr.classes(["menu-item"])],
+                      ~attrs=[
+                        Attr.classes(["menu-item"]),
+                        Attr.on_click(_ => local(CloseMenu)),
+                      ],
                       [Node.text("Move Left")],
                     ),
                     Node.div(
-                      ~attrs=[Attr.classes(["menu-item"])],
+                      ~attrs=[
+                        Attr.classes(["menu-item"]),
+                        Attr.on_click(_ => local(CloseMenu)),
+                      ],
                       [Node.text("Move Right")],
                     ),
                   ],
@@ -322,6 +339,10 @@ module M: Projector = {
   };
   let update = (model, info, action) => {
     switch (action) {
+    | CloseMenu => {
+        ...model,
+        menu: None,
+      }
     | ShowMenu(i) => {
         ...model,
         menu:
@@ -352,6 +373,7 @@ module M: Projector = {
           }
         | DropColumn(_) => model // Already handled above
         | ShowMenu(_) => model // Already handled above
+        | CloseMenu => model // Already handled above
         };
       };
     };
@@ -396,8 +418,9 @@ module M: Projector = {
             table_with_column_menus(
               model,
               info,
-              ~view_seg,
+              ~local,
               ~parent,
+              ~view_seg,
               (hd, tl),
               prev_button,
               next_button,
