@@ -730,6 +730,7 @@ let convert_column_float_from_bool =
     }
   );
 };
+
 let get_column_type' = (ty: Typ.t, column: string) => {
   switch (ty.term) {
   | List({term: Prod(tys), _}) =>
@@ -784,6 +785,66 @@ let get_column_type = (info: info, column: string) => {
   switch (info.statics) {
   | Some(InfoExp({ty, _})) => get_column_type'(ty, column)
   | _ => None
+  };
+};
+
+let sort_column = (info: info, column_type: option(Typ.t), header: string): option(Base.segment) => {
+  let compare_fn =
+    switch (column_type) {
+    | Some(ty) =>
+      switch (Typ.cls_of_term(ty.term)) {
+      | Typ.Atom(Atom.Int) => Some("int_compare")
+      | Typ.Atom(Atom.Float) => Some("float_compare")
+      | Typ.Atom(Atom.String) => Some("string_compare")
+      | _ => None
+      }
+    | None => None
+    };
+
+  switch (compare_fn) {
+  | Some(compare_fn_name) =>
+    IdTagged.FreshGrammar.(
+      switch (
+        info.utility.lift_syntax(
+          fun
+          | Exp({term: exp_term, _}) =>
+            Exp(
+              Exp.(
+                ap(
+                  Reverse,
+                  ap(
+                    Forward,
+                    var("sort"),
+                    tuple([
+                      fn(
+                        Pat.tuple([Pat.var("r1"), Pat.var("r2")]),
+                        ap(
+                          Forward,
+                          var(compare_fn_name),
+                          tuple([
+                            dot(var("r1"), label(header)),
+                            dot(var("r2"), label(header)),
+                          ]),
+                        ),
+                        None,
+                        None,
+                      ),
+                      deferral(InAp),
+                    ]),
+                  ),
+                  exp_term |> DHExp.fresh,
+                )
+              ),
+            )
+          | _ => failwith("TableProj: sort_column: not an expression"),
+          info.syntax,
+        )
+      ) {
+      | Some(segment) => Some(segment)
+      | None => None
+      }
+    )
+  | None => None
   };
 };
 
@@ -936,7 +997,12 @@ module M: Projector = {
             | Some((j, menu_state)) when i == j =>
               let menu_content =
                 switch (menu_state) {
-                | MainMenu => [
+                | MainMenu =>
+                  let column_type =
+                    get_dynamic_type(info)
+                    |> Option.bind(_, get_column_type'(_, h));
+
+                  let base_menu_items = [
                     Node.div(
                       ~attrs=[
                         Attr.classes(["menu-item"]),
@@ -984,7 +1050,28 @@ module M: Projector = {
                       ],
                       [Node.text("Convert →")],
                     ),
-                  ]
+                  ];
+
+                  let sort_menu_item =
+                    switch (sort_column(info, column_type, h)) {
+                    | Some(segment) => [
+                        Node.div(
+                          ~attrs=[
+                            Attr.classes(["menu-item"]),
+                            Attr.on_click(_ =>
+                              Effect.Many([
+                                local(CloseMenu),
+                                parent(SetSyntax(segment)),
+                              ])
+                            ),
+                          ],
+                          [Node.text("Sort")],
+                        ),
+                      ]
+                    | None => []
+                    };
+
+                  base_menu_items @ sort_menu_item;
                 | ConversionSubmenu =>
                   let back_button =
                     Node.div(
