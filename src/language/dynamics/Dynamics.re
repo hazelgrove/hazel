@@ -159,6 +159,11 @@ module Info = {
     closures: list(Probe.Closure.t),
     dyn_cursor: Cursor.t,
   };
+
+  let init = {
+    closures: [],
+    dyn_cursor: Cursor.init,
+  };
 };
 
 module Map = {
