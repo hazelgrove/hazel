@@ -97,38 +97,7 @@ let render_ui = (~globals, fragments) =>
     fragments,
   );
 
-let exp_view = (~globals, info: Info.exp) => {
-  let msg = build_exp_message(info);
-  let content = render_ui(~globals, msg.fragments);
-  if (msg.is_error) {
-    div_err(content);
-  } else {
-    div_ok(content);
-  };
-};
-
-let pat_view = (~globals, info: Info.pat) => {
-  let msg = build_pat_message(info);
-  let content = render_ui(~globals, msg.fragments);
-  if (msg.is_error) {
-    div_err(content);
-  } else {
-    div_ok(content);
-  };
-};
-
-let typ_view = (~globals, info: Info.typ) => {
-  let msg = build_typ_message(info);
-  let content = render_ui(~globals, msg.fragments);
-  if (msg.is_error) {
-    div_err(content);
-  } else {
-    div_ok(content);
-  };
-};
-
-let tpat_view = (~globals, info: Info.tpat) => {
-  let msg = build_tpat_message(info);
+let make_status_view = (~globals, msg: ErrorMessage.message) => {
   let content = render_ui(~globals, msg.fragments);
   if (msg.is_error) {
     div_err(content);
@@ -143,10 +112,10 @@ let view_of_info = (~globals, ci): list(Node.t) => {
   let wrapper = status_view => [term_view(~globals, ci), status_view];
   switch (ci) {
   | Secondary(_) => wrapper(div([]))
-  | InfoExp(ie) => wrapper(exp_view(~globals, ie))
-  | InfoPat(ip) => wrapper(pat_view(~globals, ip))
-  | InfoTyp(it) => wrapper(typ_view(~globals, it))
-  | InfoTPat(it) => wrapper(tpat_view(~globals, it))
+  | InfoExp(ie) => wrapper(make_status_view(~globals, build_exp_message(ie)))
+  | InfoPat(ip) => wrapper(make_status_view(~globals, build_pat_message(ip)))
+  | InfoTyp(it) => wrapper(make_status_view(~globals, build_typ_message(it)))
+  | InfoTPat(it) => wrapper(make_status_view(~globals, build_tpat_message(it)))
   };
 };
 
