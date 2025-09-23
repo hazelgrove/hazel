@@ -154,7 +154,7 @@ let convert_column =
   );
 };
 
-let get_column_type' = (ty: Typ.t, column: string) => {
+let get_column_type = (ty: Typ.t, column: string) => {
   switch (ty.term) {
   | List({term: Prod(tys), _}) =>
     let ty =
@@ -302,7 +302,7 @@ let move_column =
 
 let get_column_type = (info: info, column: string) => {
   switch (info.statics) {
-  | Some(InfoExp({ty, _})) => get_column_type'(ty, column)
+  | Some(InfoExp({ty, _})) => get_column_type(ty, column)
   | _ => None
   };
 };
@@ -577,7 +577,7 @@ module M: Projector = {
                 switch (menu_state) {
                 | MainMenu =>
                   let column_type =
-                    dyn_type |> Option.bind(_, get_column_type'(_, h));
+                    dyn_type |> Option.bind(_, get_column_type(_, h));
 
                   let columns_opt = dyn_type |> Option.bind(_, get_columns);
                   let can_move_left = can_move_column(columns_opt, h, true);
@@ -635,7 +635,7 @@ module M: Projector = {
                   let back_button =
                     submenu_back("← Back", _ => local(BackToMainMenu(i)));
                   let column_type =
-                    Option.bind(dyn_type, get_column_type'(_, h));
+                    Option.bind(dyn_type, get_column_type(_, h));
 
                   let submenu_items =
                     switch (column_type) {
