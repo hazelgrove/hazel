@@ -488,6 +488,36 @@ module M: Projector = {
     | BackToMainMenu(int)
     | ConversionColumn(string, string);
 
+  let menu_item = (text, action) =>
+    Node.div(
+      ~attrs=[Attr.classes(["menu-item"]), Attr.on_click(action)],
+      [Node.text(text)],
+    );
+
+  let submenu_item = (text, action) =>
+    Node.div(
+      ~attrs=[Attr.classes(["submenu-item"]), Attr.on_click(action)],
+      [Node.text(text)],
+    );
+
+  let submenu_back = (text, action) =>
+    Node.div(
+      ~attrs=[Attr.classes(["submenu-back"]), Attr.on_click(action)],
+      [Node.text(text)],
+    );
+
+  let conversion_submenu_items = (local, parent, info, h, conversions) =>
+    List.map(
+      conversion =>
+        submenu_item(conversion, _ =>
+          Effect.Many([
+            local(CloseMenu),
+            parent(SetSyntax(convert_column(info, h, conversion))),
+          ])
+        ),
+      conversions,
+    );
+
   let table_with_column_menus =
       (
         model: model,
@@ -529,38 +559,16 @@ module M: Projector = {
                   let can_move_right = can_move_column(columns_opt, h, false);
 
                   let base_menu_items = [
-                    Node.div(
-                      ~attrs=[
-                        Attr.classes(["menu-item"]),
-                        Attr.on_click(_ =>
-                          Effect.Many([
-                            local(CloseMenu),
-                            parent(SetSyntax(drop_column(info, h))),
-                          ])
-                        ),
-                      ],
-                      [Node.text("Drop Column")],
+                    menu_item("Drop Column", _ =>
+                      Effect.Many([
+                        local(CloseMenu),
+                        parent(SetSyntax(drop_column(info, h))),
+                      ])
                     ),
-                    Node.div(
-                      ~attrs=[
-                        Attr.classes(["menu-item"]),
-                        Attr.on_click(_ => local(CloseMenu)),
-                      ],
-                      [Node.text("Rename")],
-                    ),
-                    Node.div(
-                      ~attrs=[
-                        Attr.classes(["menu-item"]),
-                        Attr.on_click(_ => local(CloseMenu)),
-                      ],
-                      [Node.text("Add Column After")],
-                    ),
-                    Node.div(
-                      ~attrs=[
-                        Attr.classes(["menu-item"]),
-                        Attr.on_click(_ => local(ShowConversionMenu(i))),
-                      ],
-                      [Node.text("Convert →")],
+                    menu_item("Rename", _ => local(CloseMenu)),
+                    menu_item("Add Column After", _ => local(CloseMenu)),
+                    menu_item("Convert →", _ =>
+                      local(ShowConversionMenu(i))
                     ),
                   ];
 
@@ -568,42 +576,30 @@ module M: Projector = {
                     (can_move_left ? [true] : [])
                     @ (can_move_right ? [false] : [])
                     |> List.map(left =>
-                         Node.div(
-                           ~attrs=[
-                             Attr.classes(["menu-item"]),
-                             Attr.on_click(_ =>
-                               Effect.Many([
-                                 local(CloseMenu),
-                                 parent(
-                                   SetSyntax(
-                                     OptUtil.get_or_fail(
-                                       (left ? "move left" : "move right")
-                                       ++ " failed",
-                                       move_column(info, dyn_type, h, left),
-                                     ),
-                                   ),
+                         menu_item(left ? "Move Left" : "Move Right", _ =>
+                           Effect.Many([
+                             local(CloseMenu),
+                             parent(
+                               SetSyntax(
+                                 OptUtil.get_or_fail(
+                                   (left ? "move left" : "move right")
+                                   ++ " failed",
+                                   move_column(info, dyn_type, h, left),
                                  ),
-                               ])
+                               ),
                              ),
-                           ],
-                           [Node.text(left ? "Move Left" : "Move Right")],
+                           ])
                          )
                        );
 
                   let sort_menu_item =
                     switch (sort_column(info, column_type, h)) {
                     | Some(segment) => [
-                        Node.div(
-                          ~attrs=[
-                            Attr.classes(["menu-item"]),
-                            Attr.on_click(_ =>
-                              Effect.Many([
-                                local(CloseMenu),
-                                parent(SetSyntax(segment)),
-                              ])
-                            ),
-                          ],
-                          [Node.text("Sort")],
+                        menu_item("Sort", _ =>
+                          Effect.Many([
+                            local(CloseMenu),
+                            parent(SetSyntax(segment)),
+                          ])
                         ),
                       ]
                     | None => []
@@ -612,13 +608,7 @@ module M: Projector = {
                   base_menu_items @ move_items @ sort_menu_item;
                 | ConversionSubmenu =>
                   let back_button =
-                    Node.div(
-                      ~attrs=[
-                        Attr.classes(["submenu-back"]),
-                        Attr.on_click(_ => local(BackToMainMenu(i))),
-                      ],
-                      [Node.text("← Back")],
-                    );
+                    submenu_back("← Back", _ => local(BackToMainMenu(i)));
                   let column_type =
                     Option.bind(dyn_type, get_column_type'(_, h));
 
@@ -626,238 +616,38 @@ module M: Projector = {
                     switch (column_type) {
                     | Some(ty) =>
                       switch (Typ.cls_of_term(ty.term)) {
-                      | Typ.Atom(Atom.String) => [
-                          Node.div(
-                            ~attrs=[
-                              Attr.classes(["submenu-item"]),
-                              Attr.on_click(_ =>
-                                Effect.Many([
-                                  local(CloseMenu),
-                                  parent(
-                                    SetSyntax(
-                                      convert_column(
-                                        info,
-                                        h,
-                                        "int_of_string",
-                                      ),
-                                    ),
-                                  ),
-                                ])
-                              ),
-                            ],
-                            [Node.text("int")],
-                          ),
-                          Node.div(
-                            ~attrs=[
-                              Attr.classes(["submenu-item"]),
-                              Attr.on_click(_ =>
-                                Effect.Many([
-                                  local(CloseMenu),
-                                  parent(
-                                    SetSyntax(
-                                      convert_column(
-                                        info,
-                                        h,
-                                        "float_of_string",
-                                      ),
-                                    ),
-                                  ),
-                                ])
-                              ),
-                            ],
-                            [Node.text("float")],
-                          ),
-                          Node.div(
-                            ~attrs=[
-                              Attr.classes(["submenu-item"]),
-                              Attr.on_click(_ =>
-                                Effect.Many([
-                                  local(CloseMenu),
-                                  parent(
-                                    SetSyntax(
-                                      convert_column(
-                                        info,
-                                        h,
-                                        "bool_of_string",
-                                      ),
-                                    ),
-                                  ),
-                                ])
-                              ),
-                            ],
-                            [Node.text("bool")],
-                          ),
-                        ]
-                      | Typ.Atom(Atom.Int) => [
-                          Node.div(
-                            ~attrs=[
-                              Attr.classes(["submenu-item"]),
-                              Attr.on_click(_ =>
-                                Effect.Many([
-                                  local(CloseMenu),
-                                  parent(
-                                    SetSyntax(
-                                      convert_column(
-                                        info,
-                                        h,
-                                        "string_of_int",
-                                      ),
-                                    ),
-                                  ),
-                                ])
-                              ),
-                            ],
-                            [Node.text("string")],
-                          ),
-                          Node.div(
-                            ~attrs=[
-                              Attr.classes(["submenu-item"]),
-                              Attr.on_click(_ =>
-                                Effect.Many([
-                                  local(CloseMenu),
-                                  parent(
-                                    SetSyntax(
-                                      convert_column(info, h, "float_of_int"),
-                                    ),
-                                  ),
-                                ])
-                              ),
-                            ],
-                            [Node.text("float")],
-                          ),
-                          Node.div(
-                            ~attrs=[
-                              Attr.classes(["submenu-item"]),
-                              Attr.on_click(_ =>
-                                Effect.Many([
-                                  local(CloseMenu),
-                                  parent(
-                                    SetSyntax(
-                                      convert_column(info, h, "bool_of_int"),
-                                    ),
-                                  ),
-                                ])
-                              ),
-                            ],
-                            [Node.text("bool")],
-                          ),
-                        ]
-                      | Typ.Atom(Atom.Float) => [
-                          Node.div(
-                            ~attrs=[
-                              Attr.classes(["submenu-item"]),
-                              Attr.on_click(_ =>
-                                Effect.Many([
-                                  local(CloseMenu),
-                                  parent(
-                                    SetSyntax(
-                                      convert_column(
-                                        info,
-                                        h,
-                                        "string_of_float",
-                                      ),
-                                    ),
-                                  ),
-                                ])
-                              ),
-                            ],
-                            [Node.text("string")],
-                          ),
-                          Node.div(
-                            ~attrs=[
-                              Attr.classes(["submenu-item"]),
-                              Attr.on_click(_ =>
-                                Effect.Many([
-                                  local(CloseMenu),
-                                  parent(
-                                    SetSyntax(
-                                      convert_column(info, h, "int_of_float"),
-                                    ),
-                                  ),
-                                ])
-                              ),
-                            ],
-                            [Node.text("int")],
-                          ),
-                          Node.div(
-                            ~attrs=[
-                              Attr.classes(["submenu-item"]),
-                              Attr.on_click(_ =>
-                                Effect.Many([
-                                  local(CloseMenu),
-                                  parent(
-                                    SetSyntax(
-                                      convert_column(
-                                        info,
-                                        h,
-                                        "bool_of_float",
-                                      ),
-                                    ),
-                                  ),
-                                ])
-                              ),
-                            ],
-                            [Node.text("bool")],
-                          ),
-                        ]
-                      | Typ.Atom(Atom.Bool) => [
-                          Node.div(
-                            ~attrs=[
-                              Attr.classes(["submenu-item"]),
-                              Attr.on_click(_ =>
-                                Effect.Many([
-                                  local(CloseMenu),
-                                  parent(
-                                    SetSyntax(
-                                      convert_column(
-                                        info,
-                                        h,
-                                        "string_of_bool",
-                                      ),
-                                    ),
-                                  ),
-                                ])
-                              ),
-                            ],
-                            [Node.text("string")],
-                          ),
-                          Node.div(
-                            ~attrs=[
-                              Attr.classes(["submenu-item"]),
-                              Attr.on_click(_ =>
-                                Effect.Many([
-                                  local(CloseMenu),
-                                  parent(
-                                    SetSyntax(
-                                      convert_column(info, h, "int_of_bool"),
-                                    ),
-                                  ),
-                                ])
-                              ),
-                            ],
-                            [Node.text("int")],
-                          ),
-                          Node.div(
-                            ~attrs=[
-                              Attr.classes(["submenu-item"]),
-                              Attr.on_click(_ =>
-                                Effect.Many([
-                                  local(CloseMenu),
-                                  parent(
-                                    SetSyntax(
-                                      convert_column(
-                                        info,
-                                        h,
-                                        "float_of_bool",
-                                      ),
-                                    ),
-                                  ),
-                                ])
-                              ),
-                            ],
-                            [Node.text("float")],
-                          ),
-                        ]
+                      | Typ.Atom(Atom.String) =>
+                        conversion_submenu_items(
+                          local,
+                          parent,
+                          info,
+                          h,
+                          ["int", "float", "bool"],
+                        )
+                      | Typ.Atom(Atom.Int) =>
+                        conversion_submenu_items(
+                          local,
+                          parent,
+                          info,
+                          h,
+                          ["string", "float", "bool"],
+                        )
+                      | Typ.Atom(Atom.Float) =>
+                        conversion_submenu_items(
+                          local,
+                          parent,
+                          info,
+                          h,
+                          ["string", "int", "bool"],
+                        )
+                      | Typ.Atom(Atom.Bool) =>
+                        conversion_submenu_items(
+                          local,
+                          parent,
+                          info,
+                          h,
+                          ["string", "int", "float"],
+                        )
                       | _ => []
                       }
                     | None => []
