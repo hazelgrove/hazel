@@ -74,26 +74,50 @@ let term_view = (~globals: Globals.t, ~available=8, term: Language.Any.t) =>
     },
   );
 
-let fancy = (~info_map: Language.Statics.Map.t, ~globals: Globals.t, id: Id.t) =>
-  switch (Language.Statics.Map.lookup(id, info_map)) {
-  | Some(InfoExp({term, _})) =>
-    div(
-      ~attrs=[
-        Attr.create("style", "cursor: pointer; position: relative;"),
-        Attr.on_pointerdown(jump_to(~globals, id)),
-      ],
-      [term_view(~globals, ~available=8, Exp(term))],
-    )
-  | Some(InfoPat({term, _})) =>
-    div(
-      ~attrs=[
-        Attr.create("style", "cursor: pointer; position: relative;"),
-        Attr.on_pointerdown(jump_to(~globals, id)),
-      ],
-      [term_view(~globals, ~available=8, Pat(term))],
-    )
-  | _ => basic(~globals, id)
+let probe_view = (font_metrics, refractor_data, id: Id.t) => {
+  let inject = _ => Ui_effect.Ignore;
+  let projector_data =
+    List.find_opt(
+      (p: ProjectorView.Model.projector_data) => p.p.id == id,
+      refractor_data,
+    );
+  switch (projector_data) {
+  | Some(projector_data) =>
+    let views = ProjectorView.mk_view(inject, font_metrics, projector_data);
+    let offside_view = views.offside |> Option.to_list;
+    div(~attrs=[Attr.class_("probe-view")], offside_view);
+  | None => div([text("?")])
   };
+};
+
+let fancy =
+    (
+      ~refractor_data,
+      ~info_map: Language.Statics.Map.t,
+      ~globals: Globals.t,
+      id: Id.t,
+    ) => {
+  let any =
+    switch (Language.Statics.Map.lookup(id, info_map)) {
+    | Some(InfoExp({term, _})) => Language.Grammar.Exp(term)
+    | Some(InfoPat({term, _})) => Language.Grammar.Pat(term)
+    | _ => Language.Grammar.Any()
+    };
+  div(
+    ~attrs=[
+      Attr.class_("probe-entry"),
+      Attr.on_pointerdown(jump_to(~globals, id)),
+    ],
+    [
+      term_view(~globals, ~available=8, any),
+      probe_view(
+        globals.font_metrics,
+        refractor_data,
+        Id.transform_variant(id),
+      ),
+    ],
+  );
+};
 
 let sort_ids_by_measurement =
     (~measured: Haz3lcore.Measured.t, ids: list((Id.t, _))) =>
@@ -120,6 +144,22 @@ let view =
       ~model as _: Model.t,
       ~editor: CodeEditable.Model.t,
     ) => {
+  let refractor_data =
+    ProjectorView.Model.mk(
+      Id.Map.union(
+        (_, _, b) => Some(b),
+        editor.editor.state.zipper.refractors.map,
+        editor.editor.state.zipper.refractors.ephemerals,
+      ),
+      editor.editor.syntax.measured,
+      editor.editor.syntax.term_data,
+      editor.editor.syntax.selection_ids,
+      Haz3lcore.Indicated.piece(editor.editor.state.zipper),
+      editor.statics.info_map,
+      editor.dynamics,
+      editor.editor.state.zipper.refractors.dyn_cursor,
+      true,
+    );
   let info_map = editor.statics.info_map;
   //let term_data = editor.editor.syntax.term_data;
   let refractors = editor.editor.state.zipper.refractors;
@@ -131,8 +171,8 @@ let view =
   let call_cursor = dyn_cursor.call_cursor;
   let indicated_call = dyn_cursor.indicated_call;
   let pinned_call = dyn_cursor.pinned_call;
-  let fancyd = fancy(~info_map, ~globals);
-  let basicd = basic(~globals);
+  let fancyd = fancy(~refractor_data, ~info_map, ~globals);
+  //let basicd = basic(~globals);
   div(
     ~attrs=[Attr.id("probesys")],
     [

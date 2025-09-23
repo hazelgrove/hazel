@@ -38,6 +38,21 @@
   left: 1em;
 }
 
-#probesys .code .code-text .token {
-  /* color: var(--STONE); */
+#probesys .live-offside .code .code-text .token {
+  color: var(--G2) !important;
+}
+
+#probesys .probe-view .live-env {
+  display: none;
+}
+
+#probesys .probe-view .live-offside > *:not(.closure-groups) {
+  display: none;
+}
+
+#probesys .probe-entry {
+  cursor: pointer;
+  position: relative;
+  display: flex;
+  gap: 1em;
 }

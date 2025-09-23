@@ -275,7 +275,7 @@ module View = {
                         }),
                         clss(["named-menu-item"]),
                       ],
-                      [text("Add probe")],
+                      [text("Toggle probe")],
                     ),
                     div(
                       ~attrs=[
@@ -288,7 +288,7 @@ module View = {
                         }),
                         clss(["named-menu-item"]),
                       ],
-                      [text("Add repl")],
+                      [text("Toggle repl")],
                     ),
                     div(
                       ~attrs=[
