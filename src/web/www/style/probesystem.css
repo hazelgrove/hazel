@@ -28,3 +28,16 @@
   align-items: center;
   font-weight: bold;
 }
+
+#probesys .quick-select-deco svg {
+  fill: oklch(0.95 0.05 90);
+}
+
+#probesys .ephemerals {
+  position: relative;
+  left: 1em;
+}
+
+#probesys .code .code-text .token {
+  /* color: var(--STONE); */
+}

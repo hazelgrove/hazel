@@ -28,7 +28,7 @@ let capture =
   update_dyn_cursor(z, dyn_cursor =>
     {
       ...dyn_cursor,
-      indicated_call: id != None ? id : z.refractors.dyn_cursor.indicated_call,
+      indicated_call: id /*!= None ? id : z.refractors.dyn_cursor.indicated_call*/,
       call_cursor: {
         stack:
           !

@@ -410,6 +410,7 @@ module Refractors = {
         sort: Sort.t,
         font_metrics: FontMetrics.t,
         rows: Rows.t,
+        ~cls: string,
         (first, last): (Point.t, Point.t),
       )
       : list(Node.t) => {
@@ -420,7 +421,7 @@ module Refractors = {
     [
       svg(
         ~font_metrics,
-        ~path_cls=["child-line", Sort.to_string(sort)],
+        ~path_cls=["child-line", cls, Sort.to_string(sort)],
         (orig, path @ [hook(hx, 1, -1)]),
       ),
     ]
@@ -437,6 +438,34 @@ module Refractors = {
     );
   };
 
+  let refractor_arms =
+      (
+        ~id: Id.t,
+        ~syntax: CachedSyntax.t,
+        ~font_metrics: FontMetrics.t,
+        ~cls: string,
+        ~dynamics: Language.Dynamics.Map.t,
+      ) =>
+    switch (Id.Map.find_opt(id, syntax.term_data)) {
+    | Some(t) =>
+      switch (term_range(~syntax, t.root_piece)) {
+      | Some(range) =>
+        let hx = abs_float(ShardDec.offset_of(Some(Left))); // Always left-convex
+        let sort = Piece.sort(t.root_piece) |> fst;
+        paths(
+          hx,
+          ~dashed=Id.Map.mem(Id.transform_variant(id), dynamics),
+          ~cls,
+          sort,
+          font_metrics,
+          syntax.measured.rows,
+          range,
+        );
+      | _ => []
+      }
+    | None => []
+    };
+
   let of_zipper =
       (
         ~font_metrics: FontMetrics.t,
@@ -445,32 +474,26 @@ module Refractors = {
         z: Zipper.t,
       )
       : list(Node.t) =>
-    Id.Map.union(
-      (_, _, b) => Some(b),
-      z.refractors.map,
-      z.refractors.ephemerals,
+    (
+      z.refractors.map
+      |> Id.Map.to_list
+      |> List.concat_map(((id, _p)) =>
+           refractor_arms(
+             ~id,
+             ~syntax,
+             ~font_metrics,
+             ~cls="manual",
+             ~dynamics,
+           )
+         )
     )
-    |> Id.Map.to_list
-    |> List.concat_map(((id, _p)) =>
-         switch (Id.Map.find_opt(id, syntax.term_data)) {
-         | Some(t) =>
-           switch (term_range(~syntax, t.root_piece)) {
-           | Some(range) =>
-             let hx = abs_float(ShardDec.offset_of(Some(Left))); // Always left-convex
-             let sort = Piece.sort(t.root_piece) |> fst;
-             paths(
-               hx,
-               ~dashed=Id.Map.mem(Id.transform_variant(id), dynamics),
-               sort,
-               font_metrics,
-               syntax.measured.rows,
-               range,
-             );
-           | _ => []
-           }
-         | None => []
-         }
-       );
+    @ (
+      z.refractors.ephemerals
+      |> Id.Map.to_list
+      |> List.concat_map(((id, _p)) =>
+           refractor_arms(~id, ~syntax, ~font_metrics, ~cls="repl", ~dynamics)
+         )
+    );
 
   let all =
       (

@@ -187,6 +187,7 @@ let resize_handle = (): Node.t => {
 let view =
     (
       ~globals: Globals.t,
+      ~cursor: Cursor.cursor(Editors.Update.t),
       ~explain_this_inject,
       ~assistant_inject,
       ~probes_inject,
@@ -223,6 +224,7 @@ let view =
               ProbeSystem.view(
                 ~globals,
                 ~signal,
+                ~cursor,
                 ~inject=probes_inject,
                 ~model=probesModel,
                 ~editor,

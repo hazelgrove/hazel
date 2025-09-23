@@ -627,6 +627,7 @@ module View = {
     let sidebar =
       Sidebar.view(
         ~globals,
+        ~cursor,
         ~explain_this_inject=action => inject(ExplainThis(action)),
         ~assistant_inject=action => inject(Assistant(action)),
         ~probes_inject=action => inject(ProbeSystem(action)),
