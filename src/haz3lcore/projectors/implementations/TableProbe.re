@@ -154,7 +154,66 @@ let convert_column =
   );
 };
 
-let get_column_type = (ty: Typ.t, column: string) => {
+let rename_column =
+    (info: info, _old_name: string, _new_name: string): Base.segment => {
+  switch (
+    info.utility.lift_syntax(
+      s => s, // TODO Implement rename
+      info.syntax,
+    )
+  ) {
+  | Some(s) => s
+  | None => failwith("TableProj: rename_column: lift failed")
+  };
+};
+
+let add_column_after =
+    (info: info, _after_column: string, new_column: string): Base.segment => {
+  IdTagged.FreshGrammar.(
+    switch (
+      info.utility.lift_syntax(
+        fun
+        | Exp({term: exp_term, _}) =>
+          Exp(
+            Exp.(
+              ap(
+                Reverse,
+                ap(
+                  Forward,
+                  var("map"),
+                  tuple([
+                    deferral(InAp),
+                    fn(
+                      Pat.var("r"),
+                      tuple_extension(
+                        var("r"),
+                        tuple([
+                          tup_label(
+                            label(new_column),
+                            var("\"\"") // Empty string as default value
+                          ),
+                        ]),
+                      ),
+                      None,
+                      None,
+                    ),
+                  ]),
+                ),
+                exp_term |> DHExp.fresh,
+              )
+            ),
+          )
+        | _ => failwith("TableProj: add_column_after: not an expression"),
+        info.syntax,
+      )
+    ) {
+    | Some(s) => s
+    | None => failwith("TableProj: add_column_after: lift failed")
+    }
+  );
+};
+
+let get_column_type_from_ty = (ty: Typ.t, column: string) => {
   switch (ty.term) {
   | List({term: Prod(tys), _}) =>
     let ty =
@@ -211,7 +270,7 @@ let get_dynamic_type = (info: info): option(Typ.t) => {
                 | _ => None,
               );
          };
-         let types = List.map(type_of, d) |> Util.OptUtil.sequence;
+         let types = List.map(type_of, d) |> OptUtil.sequence;
 
          Option.bind(
            types,
@@ -302,7 +361,7 @@ let move_column =
 
 let get_column_type = (info: info, column: string) => {
   switch (info.statics) {
-  | Some(InfoExp({ty, _})) => get_column_type(ty, column)
+  | Some(InfoExp({ty, _})) => get_column_type_from_ty(ty, column)
   | _ => None
   };
 };
@@ -468,9 +527,20 @@ let value_view = (_info: info, utility: utility, view_seg, exp) => {
 
 module M: Projector = {
   [@deriving (show({with_path: false}), sexp, yojson)]
-  type menu_state =
-    | MainMenu
-    | ConversionSubmenu;
+  type menu_item =
+    | Action({
+        text: string,
+        action: unit => Ui_effect.t(unit),
+      })
+    | Submenu({
+        text: string,
+        subitems: list(menu_item),
+      });
+
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type menu_data = list(menu_item);
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type menu_state = list(string); // Path of opened submenus
 
   [@deriving (show({with_path: false}), sexp, yojson)]
   type model = {
@@ -483,26 +553,15 @@ module M: Projector = {
     | Previous
     | DropColumn(string)
     | ShowMenu(int)
-    | ShowConversionMenu(int)
+    | ShowSubmenu(list(string))
     | CloseMenu
-    | BackToMainMenu(int)
-    | ConversionColumn(string, string);
+    | ConversionColumn(string, string)
+    | RenameColumn(string, string)
+    | AddColumnAfter(string, string);
 
   let menu_item = (text, action) =>
     Node.div(
       ~attrs=[Attr.classes(["menu-item"]), Attr.on_click(action)],
-      [Node.text(text)],
-    );
-
-  let submenu_item = (text, action) =>
-    Node.div(
-      ~attrs=[Attr.classes(["submenu-item"]), Attr.on_click(action)],
-      [Node.text(text)],
-    );
-
-  let submenu_back = (text, action) =>
-    Node.div(
-      ~attrs=[Attr.classes(["submenu-back"]), Attr.on_click(action)],
       [Node.text(text)],
     );
 
@@ -531,17 +590,245 @@ module M: Projector = {
     | _ => []
     };
 
-  let conversion_submenu_items = (local, parent, info, h, conversions) =>
+  let sort_column_with_direction =
+      (
+        info: info,
+        column_type: option(Typ.t),
+        header: string,
+        descending: bool,
+      )
+      : option(Base.segment) => {
+    let compare_fn =
+      switch (column_type) {
+      | Some(ty) =>
+        switch (Typ.cls_of_term(ty.term)) {
+        | Typ.Atom(Atom.Int) => Some("int_compare")
+        | Typ.Atom(Atom.Float) => Some("float_compare")
+        | Typ.Atom(Atom.String) => Some("string_compare")
+        | _ => None
+        }
+      | None => None
+      };
+
+    switch (compare_fn) {
+    | Some(compare_fn_name) =>
+      IdTagged.FreshGrammar.(
+        switch (
+          info.utility.lift_syntax(
+            fun
+            | Exp({term: exp_term, _}) => {
+                let sort_expr =
+                  Exp.(
+                    ap(
+                      Reverse,
+                      ap(
+                        Forward,
+                        var("sort"),
+                        tuple([
+                          fn(
+                            Pat.tuple([Pat.var("r1"), Pat.var("r2")]),
+                            ap(
+                              Forward,
+                              var(compare_fn_name),
+                              tuple([
+                                dot(var("r1"), label(header)),
+                                dot(var("r2"), label(header)),
+                              ]),
+                            ),
+                            None,
+                            None,
+                          ),
+                          deferral(InAp),
+                        ]),
+                      ),
+                      exp_term |> DHExp.fresh,
+                    )
+                  );
+
+                let final_expr =
+                  if (descending) {
+                    Exp.(ap(Reverse, var("reverse"), sort_expr));
+                  } else {
+                    sort_expr;
+                  };
+
+                Exp(final_expr);
+              }
+            | _ => failwith("TableProj: sort_column: not an expression"),
+            info.syntax,
+          )
+        ) {
+        | Some(segment) => Some(segment)
+        | None => None
+        }
+      )
+    | None => None
+    };
+  };
+
+  let build_column_menu = (info, h, dyn_type, local, parent, menu_path) => {
+    let column_type =
+      dyn_type |> Option.bind(_, ty => get_column_type_from_ty(ty, h));
+    let columns_opt = dyn_type |> Option.bind(_, get_columns);
+    let can_move_left = can_move_column(columns_opt, h, true);
+    let can_move_right = can_move_column(columns_opt, h, false);
+
+    // If we're in a submenu, show that submenu
+    switch (menu_path) {
+    | ["Convert"] =>
+      // Show conversion submenu
+      switch (column_type) {
+      | Some(ty) =>
+        switch (Typ.cls_of_term(ty.term)) {
+        | Typ.Atom(atom) =>
+          let conversions = conversion_functions(atom);
+          [
+            Action({
+              text: "← Back",
+              action: () => local(ShowSubmenu([])) // Go back to main menu
+            }),
+          ]
+          @ List.map(
+              ((display, func)) =>
+                Action({
+                  text: display,
+                  action: () =>
+                    Effect.Many([
+                      local(CloseMenu),
+                      parent(SetSyntax(convert_column(info, h, func))),
+                    ]),
+                }),
+              conversions,
+            );
+        | _ => []
+        }
+      | None => []
+      }
+    | ["Sort"] =>
+      // Show sort submenu
+      [
+        Action({
+          text: "← Back",
+          action: () => local(ShowSubmenu([])) // Go back to main menu
+        }),
+        Action({
+          text: "Ascending",
+          action: () =>
+            switch (sort_column_with_direction(info, column_type, h, false)) {
+            | Some(segment) =>
+              Effect.Many([local(CloseMenu), parent(SetSyntax(segment))])
+            | None => local(CloseMenu)
+            },
+        }),
+        Action({
+          text: "Descending",
+          action: () =>
+            switch (sort_column_with_direction(info, column_type, h, true)) {
+            | Some(segment) =>
+              Effect.Many([local(CloseMenu), parent(SetSyntax(segment))])
+            | None => local(CloseMenu)
+            },
+        }),
+      ]
+    | [] =>
+      // Show main menu
+      let base_items = [
+        Action({
+          text: "Drop Column",
+          action: () =>
+            Effect.Many([
+              local(CloseMenu),
+              parent(SetSyntax(drop_column(info, h))),
+            ]),
+        }),
+        Action({
+          text: "Rename",
+          action: () =>
+            Effect.Many([
+              local(CloseMenu),
+              parent(SetSyntax(rename_column(info, h, "renamed_" ++ h))),
+            ]),
+        }),
+        Action({
+          text: "Add Column After",
+          action: () =>
+            Effect.Many([
+              local(CloseMenu),
+              parent(SetSyntax(add_column_after(info, h, "new_column"))),
+            ]),
+        }),
+      ];
+
+      let conversion_submenu =
+        switch (column_type) {
+        | Some(ty) =>
+          switch (Typ.cls_of_term(ty.term)) {
+          | Typ.Atom(atom) =>
+            let conversions = conversion_functions(atom);
+            if (List.length(conversions) == 0) {
+              [];
+            } else {
+              [
+                Action({
+                  text: "Convert →",
+                  action: () => local(ShowSubmenu(["Convert"])) // Navigate to conversion submenu
+                }),
+              ];
+            };
+          | _ => []
+          }
+        | None => []
+        };
+
+      let move_items =
+        (can_move_left ? [true] : [])
+        @ (can_move_right ? [false] : [])
+        |> List.map(left =>
+             Action({
+               text: left ? "Move Left" : "Move Right",
+               action: () =>
+                 Effect.Many([
+                   local(CloseMenu),
+                   parent(
+                     SetSyntax(
+                       OptUtil.get_or_fail(
+                         (left ? "move left" : "move right") ++ " failed",
+                         move_column(info, dyn_type, h, left),
+                       ),
+                     ),
+                   ),
+                 ]),
+             })
+           );
+
+      let sort_submenu =
+        switch (sort_column_with_direction(info, column_type, h, false)) {
+        | Some(_) => [
+            Action({
+              text: "Sort →",
+              action: () => local(ShowSubmenu(["Sort"])) // Navigate to sort submenu
+            }),
+          ]
+        | None => []
+        };
+
+      base_items @ conversion_submenu @ move_items @ sort_submenu;
+    | _ => [] // Unknown menu path
+    };
+  };
+
+  let render_menu = menu_data => {
     List.map(
-      ((display, func)) =>
-        submenu_item(display, _ =>
-          Effect.Many([
-            local(CloseMenu),
-            parent(SetSyntax(convert_column(info, h, func))),
-          ])
-        ),
-      conversions,
+      item =>
+        switch (item) {
+        | Action({text, action}) => menu_item(text, _ => action())
+        | Submenu({text, subitems: _}) =>
+          // Submenu navigation is handled by the Action in build_column_menu
+          menu_item(text, _ => Effect.Ignore)
+        },
+      menu_data,
     );
+  };
 
   let table_with_column_menus =
       (
@@ -572,93 +859,17 @@ module M: Projector = {
 
           let full_content =
             switch (model.menu) {
-            | Some((j, menu_state)) when i == j =>
-              let menu_content =
-                switch (menu_state) {
-                | MainMenu =>
-                  let column_type =
-                    dyn_type |> Option.bind(_, get_column_type(_, h));
-
-                  let columns_opt = dyn_type |> Option.bind(_, get_columns);
-                  let can_move_left = can_move_column(columns_opt, h, true);
-                  let can_move_right = can_move_column(columns_opt, h, false);
-
-                  let base_menu_items = [
-                    menu_item("Drop Column", _ =>
-                      Effect.Many([
-                        local(CloseMenu),
-                        parent(SetSyntax(drop_column(info, h))),
-                      ])
-                    ),
-                    menu_item("Rename", _ => local(CloseMenu)),
-                    menu_item("Add Column After", _ => local(CloseMenu)),
-                    menu_item("Convert →", _ =>
-                      local(ShowConversionMenu(i))
-                    ),
-                  ];
-
-                  let move_items =
-                    (can_move_left ? [true] : [])
-                    @ (can_move_right ? [false] : [])
-                    |> List.map(left =>
-                         menu_item(left ? "Move Left" : "Move Right", _ =>
-                           Effect.Many([
-                             local(CloseMenu),
-                             parent(
-                               SetSyntax(
-                                 OptUtil.get_or_fail(
-                                   (left ? "move left" : "move right")
-                                   ++ " failed",
-                                   move_column(info, dyn_type, h, left),
-                                 ),
-                               ),
-                             ),
-                           ])
-                         )
-                       );
-
-                  let sort_menu_item =
-                    switch (sort_column(info, column_type, h)) {
-                    | Some(segment) => [
-                        menu_item("Sort", _ =>
-                          Effect.Many([
-                            local(CloseMenu),
-                            parent(SetSyntax(segment)),
-                          ])
-                        ),
-                      ]
-                    | None => []
-                    };
-
-                  base_menu_items @ move_items @ sort_menu_item;
-                | ConversionSubmenu =>
-                  let back_button =
-                    submenu_back("← Back", _ => local(BackToMainMenu(i)));
-                  let column_type =
-                    Option.bind(dyn_type, get_column_type(_, h));
-
-                  let submenu_items =
-                    switch (column_type) {
-                    | Some(ty) =>
-                      switch (Typ.cls_of_term(ty.term)) {
-                      | Typ.Atom(atom) =>
-                        switch (conversion_functions(atom)) {
-                        | [] => []
-                        | conversions =>
-                          conversion_submenu_items(
-                            local,
-                            parent,
-                            info,
-                            h,
-                            conversions,
-                          )
-                        }
-                      | _ => []
-                      }
-                    | None => []
-                    };
-                  [back_button] @ submenu_items;
-                };
+            | Some((j, menu_path)) when i == j =>
+              let menu_data =
+                build_column_menu(
+                  info,
+                  h,
+                  dyn_type,
+                  local,
+                  parent,
+                  menu_path,
+                );
+              let menu_content = render_menu(menu_data);
               cell_content
               @ [
                 Node.div(
@@ -724,16 +935,16 @@ module M: Projector = {
         menu:
           switch (model.menu) {
           | Some((j, _)) when i == j => None
-          | _ => Some((i, MainMenu))
+          | _ => Some((i, [])) // Empty path for main menu
           },
       }
-    | ShowConversionMenu(i) => {
+    | ShowSubmenu(new_path) => {
         ...model,
-        menu: Some((i, ConversionSubmenu)),
-      }
-    | BackToMainMenu(i) => {
-        ...model,
-        menu: Some((i, MainMenu)),
+        menu:
+          switch (model.menu) {
+          | Some((column_index, _)) => Some((column_index, new_path))
+          | None => None // Shouldn't happen, but just in case
+          },
       }
     | ConversionColumn(_, _) =>
       // This action will be handled by the parent through the view
@@ -759,10 +970,11 @@ module M: Projector = {
           }
         | DropColumn(_) => model // Already handled above
         | ShowMenu(_) => model // Already handled above
-        | ShowConversionMenu(_) => model // Already handled above
-        | BackToMainMenu(_) => model // Already handled above
-        | ConversionColumn(_, _) => model // Already handled above
+        | ShowSubmenu(_) => model // Already handled above
+        | ConversionColumn(_) => model // Already handled above
         | CloseMenu => model // Already handled above
+        | RenameColumn(_, _) => model // This action will be handled by the parent through the view
+        | AddColumnAfter(_, _) => model // This action will be handled by the parent through the view
         };
       };
     };
