@@ -508,20 +508,36 @@ module M: Projector = {
 
   let conversion_functions = (cls: Atom.cls) =>
     switch (cls) {
-    | Atom.String => ["int_of_string", "float_of_string", "bool_of_string"]
-    | Atom.Int => ["string_of_int", "float_of_int", "bool_of_int"]
-    | Atom.Float => ["string_of_float", "int_of_float", "bool_of_float"]
-    | Atom.Bool => ["string_of_bool", "int_of_bool", "float_of_bool"]
+    | Atom.String => [
+        ("int", "int_of_string"),
+        ("float", "float_of_string"),
+        ("bool", "bool_of_string"),
+      ]
+    | Atom.Int => [
+        ("string", "string_of_int"),
+        ("float", "float_of_int"),
+        ("bool", "bool_of_int"),
+      ]
+    | Atom.Float => [
+        ("string", "string_of_float"),
+        ("int", "int_of_float"),
+        ("bool", "bool_of_float"),
+      ]
+    | Atom.Bool => [
+        ("string", "string_of_bool"),
+        ("int", "int_of_bool"),
+        ("float", "float_of_bool"),
+      ]
     | _ => []
     };
 
   let conversion_submenu_items = (local, parent, info, h, conversions) =>
     List.map(
-      conversion =>
-        submenu_item(conversion, _ =>
+      ((display, func)) =>
+        submenu_item(display, _ =>
           Effect.Many([
             local(CloseMenu),
-            parent(SetSyntax(convert_column(info, h, conversion))),
+            parent(SetSyntax(convert_column(info, h, func))),
           ])
         ),
       conversions,
