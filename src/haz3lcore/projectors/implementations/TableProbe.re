@@ -622,7 +622,11 @@ module M: Projector = {
                           parent,
                           info,
                           h,
-                          ["int", "float", "bool"],
+                          [
+                            "int_of_string",
+                            "float_of_string",
+                            "bool_of_string",
+                          ],
                         )
                       | Typ.Atom(Atom.Int) =>
                         conversion_submenu_items(
@@ -630,7 +634,7 @@ module M: Projector = {
                           parent,
                           info,
                           h,
-                          ["string", "float", "bool"],
+                          ["string_of_int", "float_of_int", "bool_of_int"],
                         )
                       | Typ.Atom(Atom.Float) =>
                         conversion_submenu_items(
@@ -638,7 +642,11 @@ module M: Projector = {
                           parent,
                           info,
                           h,
-                          ["string", "int", "bool"],
+                          [
+                            "string_of_float",
+                            "int_of_float",
+                            "bool_of_float",
+                          ],
                         )
                       | Typ.Atom(Atom.Bool) =>
                         conversion_submenu_items(
@@ -646,7 +654,7 @@ module M: Projector = {
                           parent,
                           info,
                           h,
-                          ["string", "int", "float"],
+                          ["string_of_bool", "int_of_bool", "float_of_bool"],
                         )
                       | _ => []
                       }
