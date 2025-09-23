@@ -34,6 +34,37 @@ let rec print_exp_for_algebrite = (exp: Exp.t): string =>
     ++ "("
     ++ print_exp_for_algebrite(inner)
     ++ ")"
+  // Just return built-in functions using their exact name
+  | BuiltinFun(str) => str
+  // Handle functions
+  // TODO(nishant): need to handle more here
+  | Fun(pat, exp, _, var) =>
+    print_endline("pat: " ++ Pat.show(pat));
+    print_endline(print_exp_for_algebrite(exp));
+    switch (var) {
+    | Some(v) => print_endline(Var.show(v))
+    | None => print_endline("None")
+    };
+    print_exp_for_algebrite(exp);
+  // Handle lists
+  | ListLit(list) =>
+    "["
+    ++ String.concat(", ", List.map(print_exp_for_algebrite, list))
+    ++ "]"
+  | ListConcat(exp1, exp2) =>
+    "["
+    ++ String.sub(
+         print_exp_for_algebrite(exp1),
+         1,
+         String.length(print_exp_for_algebrite(exp1)) - 2,
+       )  // remove the [] brackets
+    ++ ", "
+    ++ String.sub(
+         print_exp_for_algebrite(exp2),
+         1,
+         String.length(print_exp_for_algebrite(exp2)) - 2,
+       )  // remove the [] brackets
+    ++ "]"
   // If we don't know how to print the expression, we can use a hash to create a unique string
   // Modulo keeps it short
   | _ =>
