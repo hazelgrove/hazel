@@ -294,8 +294,8 @@ let rec parenthesize =
   | Ap(Reverse, e1, e2) =>
     Ap(
       Reverse,
-      parenthesize(e1) |> paren_assoc_at(Precedence.eqs),
-      parenthesize(e2) |> paren_at(Precedence.eqs),
+      parenthesize(e1) |> paren_at(Precedence.eqs), // Associativity is backwards because e2 goes before e1
+      parenthesize(e2) |> paren_assoc_at(Precedence.eqs),
     )
     |> rewrap
   | TypAp(e, tp) =>
@@ -1004,6 +1004,8 @@ let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
     and+ e2 = go(e2);
     e1 @ [mk_form(ApExp, id, [e2])];
   | Ap(Reverse, e1, e2) =>
+    print_endline("Printing reverse application");
+    print_endline(Exp.show(exp));
     // TODO: Add optional newlines
     let id = exp |> Exp.rep_id;
     let+ e1 = go(e1)
