@@ -221,6 +221,17 @@ let get_dynamic_type = (info: info): option(Typ.t) => {
      );
 };
 
+let can_move_column =
+    (columns_opt: option(list(string)), column: string, left: bool) =>
+  switch (columns_opt) {
+  | Some(columns) =>
+    switch (List.find_index(x => x == column, columns)) {
+    | Some(idx) => left ? idx > 0 : idx < List.length(columns) - 1
+    | None => false
+    }
+  | None => false
+  };
+
 let move_column =
     (info: info, dyn_type: option(Typ.t), column: string, left: bool)
     : option(Base.segment) => {
@@ -514,24 +525,8 @@ module M: Projector = {
                     dyn_type |> Option.bind(_, get_column_type'(_, h));
 
                   let columns_opt = dyn_type |> Option.bind(_, get_columns);
-                  let can_move_left =
-                    switch (columns_opt) {
-                    | Some(columns) =>
-                      switch (List.find_index(x => x == h, columns)) {
-                      | Some(idx) => idx > 0
-                      | None => false
-                      }
-                    | None => false
-                    };
-                  let can_move_right =
-                    switch (columns_opt) {
-                    | Some(columns) =>
-                      switch (List.find_index(x => x == h, columns)) {
-                      | Some(idx) => idx < List.length(columns) - 1
-                      | None => false
-                      }
-                    | None => false
-                    };
+                  let can_move_left = can_move_column(columns_opt, h, true);
+                  let can_move_right = can_move_column(columns_opt, h, false);
 
                   let base_menu_items = [
                     Node.div(
@@ -569,55 +564,31 @@ module M: Projector = {
                     ),
                   ];
 
-                  let move_left_item =
-                    can_move_left
-                      ? [
-                        Node.div(
-                          ~attrs=[
-                            Attr.classes(["menu-item"]),
-                            Attr.on_click(_ =>
-                              Effect.Many([
-                                local(CloseMenu),
-                                parent(
-                                  SetSyntax(
-                                    OptUtil.get_or_fail(
-                                      "move left failed",
-                                      move_column(info, dyn_type, h, true),
-                                    ),
-                                  ),
-                                ),
-                              ])
-                            ),
-                          ],
-                          [Node.text("Move Left")],
-                        ),
-                      ]
-                      : [];
-
-                  let move_right_item =
-                    can_move_right
-                      ? [
-                        Node.div(
-                          ~attrs=[
-                            Attr.classes(["menu-item"]),
-                            Attr.on_click(_ =>
-                              Effect.Many([
-                                local(CloseMenu),
-                                parent(
-                                  SetSyntax(
-                                    OptUtil.get_or_fail(
-                                      "move right failed",
-                                      move_column(info, dyn_type, h, false),
-                                    ),
-                                  ),
-                                ),
-                              ])
-                            ),
-                          ],
-                          [Node.text("Move Right")],
-                        ),
-                      ]
-                      : [];
+                  let move_items =
+                    (can_move_left ? [true] : [])
+                    @ (can_move_right ? [false] : [])
+                    |> List.map(left =>
+                         Node.div(
+                           ~attrs=[
+                             Attr.classes(["menu-item"]),
+                             Attr.on_click(_ =>
+                               Effect.Many([
+                                 local(CloseMenu),
+                                 parent(
+                                   SetSyntax(
+                                     OptUtil.get_or_fail(
+                                       (left ? "move left" : "move right")
+                                       ++ " failed",
+                                       move_column(info, dyn_type, h, left),
+                                     ),
+                                   ),
+                                 ),
+                               ])
+                             ),
+                           ],
+                           [Node.text(left ? "Move Left" : "Move Right")],
+                         )
+                       );
 
                   let sort_menu_item =
                     switch (sort_column(info, column_type, h)) {
@@ -638,10 +609,7 @@ module M: Projector = {
                     | None => []
                     };
 
-                  base_menu_items
-                  @ move_left_item
-                  @ move_right_item
-                  @ sort_menu_item;
+                  base_menu_items @ move_items @ sort_menu_item;
                 | ConversionSubmenu =>
                   let back_button =
                     Node.div(
