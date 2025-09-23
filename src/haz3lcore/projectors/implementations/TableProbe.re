@@ -506,6 +506,15 @@ module M: Projector = {
       [Node.text(text)],
     );
 
+  let conversion_functions = (cls: Atom.cls) =>
+    switch (cls) {
+    | Atom.String => ["int_of_string", "float_of_string", "bool_of_string"]
+    | Atom.Int => ["string_of_int", "float_of_int", "bool_of_int"]
+    | Atom.Float => ["string_of_float", "int_of_float", "bool_of_float"]
+    | Atom.Bool => ["string_of_bool", "int_of_bool", "float_of_bool"]
+    | _ => []
+    };
+
   let conversion_submenu_items = (local, parent, info, h, conversions) =>
     List.map(
       conversion =>
@@ -616,46 +625,18 @@ module M: Projector = {
                     switch (column_type) {
                     | Some(ty) =>
                       switch (Typ.cls_of_term(ty.term)) {
-                      | Typ.Atom(Atom.String) =>
-                        conversion_submenu_items(
-                          local,
-                          parent,
-                          info,
-                          h,
-                          [
-                            "int_of_string",
-                            "float_of_string",
-                            "bool_of_string",
-                          ],
-                        )
-                      | Typ.Atom(Atom.Int) =>
-                        conversion_submenu_items(
-                          local,
-                          parent,
-                          info,
-                          h,
-                          ["string_of_int", "float_of_int", "bool_of_int"],
-                        )
-                      | Typ.Atom(Atom.Float) =>
-                        conversion_submenu_items(
-                          local,
-                          parent,
-                          info,
-                          h,
-                          [
-                            "string_of_float",
-                            "int_of_float",
-                            "bool_of_float",
-                          ],
-                        )
-                      | Typ.Atom(Atom.Bool) =>
-                        conversion_submenu_items(
-                          local,
-                          parent,
-                          info,
-                          h,
-                          ["string_of_bool", "int_of_bool", "float_of_bool"],
-                        )
+                      | Typ.Atom(atom) =>
+                        switch (conversion_functions(atom)) {
+                        | [] => []
+                        | conversions =>
+                          conversion_submenu_items(
+                            local,
+                            parent,
+                            info,
+                            h,
+                            conversions,
+                          )
+                        }
                       | _ => []
                       }
                     | None => []
