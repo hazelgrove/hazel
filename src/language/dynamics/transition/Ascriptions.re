@@ -78,7 +78,7 @@ let rec transition =
         )
         |> DHExp.fresh,
       )
-    | (e, Unknown(_)) => Some(e |> DHExp.fresh)
+    | (_, Unknown(_)) => Some(e)
     | (Atom(value) as d, Atom(typ)) =>
       switch (value, typ) {
       | (Int(_), Int)
