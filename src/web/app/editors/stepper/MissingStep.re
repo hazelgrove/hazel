@@ -143,8 +143,7 @@ module Update = {
         ~settings,
         exp,
         info_map,
-        env: Calc.t(ClosureEnvironment.t),
-        ctx: Calc.t(Ctx.t),
+        ctx: Calc.t(SemanticCtx.t),
         _state,
         new_next_steps,
         {
@@ -192,9 +191,10 @@ module Update = {
       assumptions
       |> {
         let.calc _exp = selected_exp
-        and.calc env = env;
+        and.calc ctx = ctx;
         let proof_ctx =
-          env
+          ctx
+          |> SemanticCtx.get_env
           |> ClosureEnvironment.to_list
           |> List.filter_map(((name, exp)) =>
                switch (Exp.term_of(exp)) {
@@ -213,7 +213,7 @@ module Update = {
       refls
       |> {
         let.calc exp = exp
-        and.calc env = env
+        and.calc ctx = ctx
         and.calc new_next_steps = new_next_steps
         and.calc info_map = info_map;
         let next_steps =
@@ -223,7 +223,7 @@ module Update = {
             | EvaluatorStep.AutoStep(_) => []
             | EvaluatorStep.AvailableSteps(steps) => steps
           );
-        ProofHacks.find_refls(~info_map, ~env, exp)
+        ProofHacks.find_refls(~info_map, ~env=SemanticCtx.get_env(ctx), exp)
         |> List.filter(e =>
              !
                List.exists(
@@ -243,7 +243,7 @@ module Update = {
             ~is_dynamic_term=true,
             ~dynamics=Dynamics.Map.empty,
             ~stitch=x => x,
-            ~ctx=Calc.get_value(ctx),
+            ~ctx=Calc.get_value(ctx) |> SemanticCtx.get_ctx,
             editor,
           );
         // Extract an exp from the editor
@@ -267,15 +267,15 @@ module Update = {
         });
       | AxiomsOpen(m) =>
         AxiomsOpen(
-          AxiomsBox.Update.calculate(~info_map, ~env, ~ctx, ~selected_exp, m),
+          AxiomsBox.Update.calculate(~info_map, ~ctx, ~selected_exp, m),
         )
       | NoneOpen => NoneOpen
       };
     let cached_env =
       cached_env
       |> {
-        let.calc e = env;
-        e;
+        let.calc ctx = ctx;
+        SemanticCtx.get_env(ctx);
       };
     {
       next_steps: new_next_steps |> Calc.save,

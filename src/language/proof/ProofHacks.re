@@ -290,16 +290,48 @@ and get_inductive_hypotheses_inner = (m, t, pat) =>
   | _ => get_inductive_hypotheses_inner'(m, t, pat)
   };
 
+exception BlacklistVarFound;
+
 /* Replace all occurrences of `replace` in `in_exp` with `with_exp`.
    The coctx is used to prevent capture inside binders. */
-let rec replace_exp = (replace, replace_coctx, with_exp, with_coctx, in_exp) => {
+let rec replace_exp =
+        (
+          info_map: Statics.Map.t,
+          replace,
+          replace_coctx,
+          with_exp,
+          with_coctx,
+          blacklist_vars,
+          in_exp,
+        ) => {
   let is_bound = (pat: Pat.t): bool => {
     let bvn = pat |> Pat.bindings |> Binding.variable_names;
     CoCtx.has_any(replace_coctx, bvn)
       ? true : CoCtx.has_any(with_coctx, bvn);
   };
-  let replace_exp = (in_exp): Exp.t =>
-    replace_exp(replace, replace_coctx, with_exp, with_coctx, in_exp);
+  let replace_exp = (in_exp, blacklist_vars): Exp.t =>
+    replace_exp(
+      info_map,
+      replace,
+      replace_coctx,
+      with_exp,
+      with_coctx,
+      blacklist_vars,
+      in_exp,
+    );
+  let uses_blacklist_var = (exp: Exp.t, blacklist_vars) => {
+    let coctx =
+      switch (Id.Map.find_opt(Exp.rep_id(exp), info_map)) {
+      | Some(Info.InfoExp({co_ctx, _})) => co_ctx
+      | _ => CoCtx.empty
+      };
+    CoCtx.has_any(coctx, blacklist_vars);
+  };
+  let restrict_blacklist = (pat: Pat.t, blacklist_vars) => {
+    let bvn = pat |> Pat.bindings |> Binding.variable_names;
+    List.filter(v => !List.mem(v, bvn), blacklist_vars);
+  };
+
   Exp.map_term(
     ~f_exp=
       (continue, exp) => {
@@ -311,33 +343,73 @@ let rec replace_exp = (replace, replace_coctx, with_exp, with_coctx, in_exp) => 
           with_exp |> Exp.replace_all_ids
         /* Forms with binders: check if any bound variables are in the coctx,
            if so, stop. */
-        | Fun(p, _, _, _) =>
+        | Fun(p, d1, x, y) =>
           if (is_bound(p)) {
+            if (uses_blacklist_var(
+                  exp,
+                  restrict_blacklist(p, blacklist_vars),
+                )) {
+              raise(BlacklistVarFound);
+            };
             exp;
           } else {
-            continue(exp);
+            Fun(
+              p,
+              replace_exp(d1, restrict_blacklist(p, blacklist_vars)),
+              x,
+              y,
+            )
+            |> rewrap;
           }
         | Let(p, e1, e2) =>
           if (is_bound(p)) {
-            Let(p, replace_exp(e1), e2) |> rewrap;
+            if (uses_blacklist_var(
+                  exp,
+                  restrict_blacklist(p, blacklist_vars),
+                )) {
+              raise(BlacklistVarFound);
+            };
+            Let(
+              p,
+              replace_exp(e1, restrict_blacklist(p, blacklist_vars)),
+              e2,
+            )
+            |> rewrap;
           } else {
             continue(exp);
           }
         | FixF(p, e, env) =>
           if (is_bound(p)) {
+            if (uses_blacklist_var(exp, blacklist_vars)) {
+              raise(BlacklistVarFound);
+            };
             exp;
           } else {
-            FixF(p, replace_exp(e), env) |> rewrap;
+            FixF(
+              p,
+              replace_exp(e, restrict_blacklist(p, blacklist_vars)),
+              env,
+            )
+            |> rewrap;
           }
         | Match(e, cases) =>
           Match(
-            replace_exp(e),
+            replace_exp(e, blacklist_vars),
             List.map(
               ((p, e)) =>
                 if (is_bound(p)) {
+                  if (uses_blacklist_var(
+                        e,
+                        restrict_blacklist(p, blacklist_vars),
+                      )) {
+                    raise(BlacklistVarFound);
+                  };
                   (p, e);
                 } else {
-                  (p, replace_exp(e));
+                  (
+                    p,
+                    replace_exp(e, restrict_blacklist(p, blacklist_vars)),
+                  );
                 },
               cases,
             ),
@@ -345,16 +417,32 @@ let rec replace_exp = (replace, replace_coctx, with_exp, with_coctx, in_exp) => 
           |> rewrap
         | Theorem(p, e1, e2) =>
           if (is_bound(p)) {
-            Theorem(p, replace_exp(e1), e2) |> rewrap;
+            if (uses_blacklist_var(
+                  exp,
+                  restrict_blacklist(p, blacklist_vars),
+                )) {
+              raise(BlacklistVarFound);
+            };
+            Theorem(p, replace_exp(e1, blacklist_vars), e2) |> rewrap;
           } else {
             continue(exp);
           }
         | Forall(p, e) =>
           if (is_bound(p)) {
+            if (uses_blacklist_var(
+                  exp,
+                  restrict_blacklist(p, blacklist_vars),
+                )) {
+              raise(BlacklistVarFound);
+            };
             exp;
           } else {
-            Forall(p, replace_exp(e)) |> rewrap;
+            Forall(p, replace_exp(e, restrict_blacklist(p, blacklist_vars)))
+            |> rewrap;
           }
+        /* Variables: check if in blacklist */
+        | Var(x) when List.mem(x, blacklist_vars) => raise(BlacklistVarFound)
+        | Var(_) => continue(exp)
         /* Forms without binders: continue */
         | EmptyHole
         | Undefined
@@ -372,7 +460,6 @@ let rec replace_exp = (replace, replace_coctx, with_exp, with_coctx, in_exp) => 
         | TupLabel(_, _)
         | Dot(_, _)
         | LivelitName(_)
-        | Var(_)
         | TyAlias(_)
         | Use(_, _)
         | Ap(_, _, _)
@@ -398,6 +485,32 @@ let rec replace_exp = (replace, replace_coctx, with_exp, with_coctx, in_exp) => 
     in_exp,
   );
 };
+
+let replace_exp =
+    (
+      info_map,
+      replace,
+      replace_coctx,
+      with_exp,
+      with_coctx,
+      blacklist_vars,
+      in_exp,
+    ) =>
+  try(
+    Some(
+      replace_exp(
+        info_map,
+        replace,
+        replace_coctx,
+        with_exp,
+        with_coctx,
+        blacklist_vars,
+        in_exp,
+      ),
+    )
+  ) {
+  | BlacklistVarFound => None
+  };
 
 let find_refls = (~info_map, ~env, e) => {
   let refls = ref([]);

@@ -77,8 +77,7 @@ module F =
         ~settings: Calc.t(CoreSettings.t),
         ~hidden: Calc.saved(bool),
         ~exp: Calc.t(Exp.t),
-        ~ctx as _: Calc.t(Ctx.t),
-        ~env: Calc.t(ClosureEnvironment.t),
+        ~ctx: Calc.t(SemanticCtx.t),
         ~state: Calc.t(EvaluatorState.t),
         ~editor as _: Calc.t(CodeSelectable.Model.t),
         ~info_map as _,
@@ -87,18 +86,18 @@ module F =
       ) => {
     let {persistent_evalobj, evalobj, next_exp, next_state} = model;
     let* hidden_and_eo =
-      Calc.pair_saved(hidden, evalobj)
+      Calc.saved_pair((hidden, evalobj))
       |> Calc.map_saved(Option.some)
       |> {
         let.calc settings = settings
         and.calc exp = exp
-        and.calc env = env
+        and.calc ctx = ctx
         and.calc state = state;
         let+ (filter_action, eo) =
           EvaluatorStep.refresh_step(
             ~settings,
             exp,
-            env,
+            SemanticCtx.get_env(ctx),
             state,
             persistent_evalobj,
           );
@@ -112,7 +111,7 @@ module F =
       |> Calc.to_option;
     let (hidden, evalobj) = Calc.to_pair(hidden_and_eo);
     let+ next_exp_and_state =
-      Calc.pair_saved(next_exp, next_state)
+      Calc.saved_pair((next_exp, next_state))
       |> Calc.map_saved(Option.some)
       |> {
         let.calc evalobj = evalobj;

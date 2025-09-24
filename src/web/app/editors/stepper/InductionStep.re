@@ -13,7 +13,8 @@ type model'('stepper) = {
   scrut: CodeEditable.Model.t,
   cases: list(InductionCase.model'('stepper)),
   // Calculated
-  elab_scrut: Calc.saved(Exp.t),
+  elab_scrut_raw: Calc.saved(Exp.t),
+  elab_scrut_sub: Calc.saved(Exp.t),
   scrut_ty: Calc.saved(Typ.t),
   scrut_co_ctx: Calc.saved(CoCtx.t),
   result: Calc.saved(Exp.t),
@@ -60,7 +61,8 @@ let init = (~exp: option(Exp.t)=?, ()) => {
   {
     scrut,
     cases: [],
-    elab_scrut: Calc.Pending,
+    elab_scrut_raw: Calc.Pending,
+    elab_scrut_sub: Calc.Pending,
     scrut_ty: Calc.Pending,
     scrut_co_ctx: Calc.Pending,
     result: Calc.Pending,
@@ -108,7 +110,8 @@ module F =
     {
       scrut: CodeEditable.Model.unpersist(p.scrut),
       cases: List.map(InductionCase.unpersist, p.cases),
-      elab_scrut: Calc.Pending,
+      elab_scrut_raw: Calc.Pending,
+      elab_scrut_sub: Calc.Pending,
       scrut_ty: Calc.Pending,
       scrut_co_ctx: Calc.Pending,
       result: Calc.Pending,
@@ -173,18 +176,18 @@ module F =
         ~settings: Calc.t(CoreSettings.t),
         ~hidden: Calc.saved(bool),
         ~exp: Calc.t(Exp.t),
-        ~ctx: Calc.t(Ctx.t),
-        ~env: Calc.t(ClosureEnvironment.t),
+        ~ctx: Calc.t(SemanticCtx.t),
         ~state: Calc.t(EvaluatorState.t),
         ~editor as _,
-        ~info_map as _,
+        ~info_map,
         ~ana: Calc.t(Typ.t),
         model: model,
       ) => {
     let {
       scrut,
       cases,
-      elab_scrut,
+      elab_scrut_raw,
+      elab_scrut_sub,
       scrut_ty,
       scrut_co_ctx,
       result: _,
@@ -196,19 +199,27 @@ module F =
     let scrut =
       CodeEditable.Update.calculate(
         ~settings=Calc.get_value(settings),
-        ~ctx=Calc.get_value(ctx),
+        ~ctx=Calc.get_value(ctx).ctx,
         ~dynamics=Dynamics.Map.empty,
         ~is_edited=true,
         ~stitch=x => x,
         ~is_dynamic_term=true,
         scrut,
       );
-    let elab_scrut =
+    let elab_scrut_raw =
       Calc.set(
         ~eq=Exp.fast_equal,
         CodeEditable.Model.get_statics(scrut).elaborated,
-        elab_scrut,
+        elab_scrut_raw,
       );
+    let elab_scrut_sub =
+      elab_scrut_sub
+      |> {
+        let.calc raw = elab_scrut_raw
+        and.calc sem_ctx = ctx;
+        let env = SemanticCtx.get_env(sem_ctx);
+        DHExp.substitute_closures(env |> ClosureEnvironment.map_of, raw);
+      };
     let scrut_ty = {
       let self_ty =
         switch (
@@ -241,9 +252,9 @@ module F =
           ~settings,
           ~scrut_ty,
           ~scrut_co_ctx,
-          ~elab_scrut,
+          ~elab_scrut=elab_scrut_sub,
           ~ctx,
-          ~env,
+          ~info_map,
           ~exp,
           ~state,
           ~ana,
@@ -281,7 +292,10 @@ module F =
         and.calc ctx = ctx
         and.calc scrut_ty = scrut_ty;
         let constraints = List.filter_map(Fun.id, constraints);
-        Coverage.check(constraints, Typ.normalize(ctx, scrut_ty)).
+        Coverage.check(
+          constraints,
+          Typ.normalize(SemanticCtx.get_ctx(ctx), scrut_ty),
+        ).
           is_exhaustive;
       };
 
@@ -309,7 +323,8 @@ module F =
       {
         scrut,
         cases,
-        elab_scrut: elab_scrut |> Calc.save,
+        elab_scrut_raw: elab_scrut_raw |> Calc.save,
+        elab_scrut_sub: elab_scrut_sub |> Calc.save,
         scrut_ty: scrut_ty |> Calc.save,
         scrut_co_ctx: scrut_co_ctx |> Calc.save,
         result,

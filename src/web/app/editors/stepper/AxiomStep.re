@@ -91,8 +91,7 @@ module F =
         ~settings as _: Calc.t(CoreSettings.t),
         ~hidden: Calc.saved(bool),
         ~exp: Calc.t(Exp.t),
-        ~ctx: Calc.t(Ctx.t),
-        ~env: Calc.t(ClosureEnvironment.t),
+        ~ctx: Calc.t(SemanticCtx.t),
         ~state: Calc.t(EvaluatorState.t),
         ~editor as _: Calc.t(CodeSelectable.Model.t),
         ~info_map,
@@ -105,13 +104,23 @@ module F =
       |> Calc.map_saved(Option.some)
       |> {
         let.calc exp = exp
-        and.calc env = env
         and.calc ctx = ctx
         and.calc info_map = info_map;
         let* e = ProofHacks.nth_exp(at_exp, at_idx, exp);
-        let proof_ctx = ProofCtx.of_env(~builtins=Axioms.v, ~ctx, env);
+        let proof_ctx =
+          ProofCtx.of_env(
+            ~builtins=Axioms.v,
+            ~ctx=SemanticCtx.get_ctx(ctx),
+            SemanticCtx.get_env(ctx),
+          );
         let* proofrule = ProofCtx.lookup_rule(equality, proof_ctx);
-        let (l, r) = ProofRule.can_eq(~info_map, ~env, proofrule, e);
+        let (l, r) =
+          ProofRule.can_eq(
+            ~info_map,
+            ~env=SemanticCtx.get_env(ctx),
+            proofrule,
+            e,
+          );
         let* with_exp =
           switch (direction) {
           | Left => l

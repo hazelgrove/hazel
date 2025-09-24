@@ -24,8 +24,7 @@ module type STEP = {
       ~settings: Calc.t(CoreSettings.t),
       ~hidden: Calc.saved(bool),
       ~exp: Calc.t(Exp.t),
-      ~ctx: Calc.t(Ctx.t),
-      ~env: Calc.t(ClosureEnvironment.t),
+      ~ctx: Calc.t(SemanticCtx.t),
       ~state: Calc.t(EvaluatorState.t),
       ~editor: Calc.t(CodeSelectable.Model.t),
       ~info_map: Calc.t(Statics.Map.t),
@@ -97,8 +96,7 @@ module type STEPPER = {
     (
       ~settings: Calc.t(CoreSettings.t),
       ~exp: Calc.t(Exp.t),
-      ~ctx: Calc.t(Ctx.t),
-      ~env: Calc.t(ClosureEnvironment.t),
+      ~ctx: Calc.t(SemanticCtx.t),
       ~state: Calc.t(EvaluatorState.t),
       ~ana: Calc.t(Typ.t),
       model

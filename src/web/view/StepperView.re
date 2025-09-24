@@ -50,8 +50,7 @@ module Update = {
   let calculate =
       (
         ~settings: Calc.t(CoreSettings.t),
-        ~ctx: Calc.t(Ctx.t),
-        ~env: Calc.t(ClosureEnvironment.t),
+        ~ctx: Calc.t(SemanticCtx.t),
         elab: Calc.t(Exp.t),
         ~ana=Calc.OldValue(Typ.fresh(Unknown(SynSwitch))),
         {cached_elab_subst, root}: Model.t,
@@ -62,8 +61,11 @@ module Update = {
       |> {
         open Calc.Syntax;
         let.calc elab = elab
-        and.calc env = env;
-        Substitution.subst(env |> ClosureEnvironment.map_of, elab);
+        and.calc ctx = ctx;
+        Substitution.subst(
+          ctx |> SemanticCtx.get_env |> ClosureEnvironment.map_of,
+          elab,
+        );
       };
     let state = Calc.OldValue(EvaluatorState.init);
     let (root, _, _) =
@@ -71,7 +73,6 @@ module Update = {
         ~settings,
         ~ctx,
         ~exp=elab_subst,
-        ~env,
         ~state,
         ~ana,
         root,

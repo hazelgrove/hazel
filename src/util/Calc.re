@@ -108,6 +108,15 @@ let saved_pair = ((x: saved('a), y: saved('b))): saved(('a, 'b)) =>
   | (Calculated(x), Calculated(y)) => Calculated((x, y))
   };
 
+let saved_3 =
+    ((x: saved('a), y: saved('b), z: saved('c))): saved(('a, 'b, 'c)) =>
+  switch (x, y, z) {
+  | (Pending, _, _)
+  | (_, Pending, _)
+  | (_, _, Pending) => Pending
+  | (Calculated(x), Calculated(y), Calculated(z)) => Calculated((x, y, z))
+  };
+
 /* Using update, we can make a value of saved('a) that recalculates whenever
    the value of t('a) changes. */
 let update = (x: t('a), f: 'a => 'b, y: saved('b)): t('b) =>
@@ -176,12 +185,12 @@ let to_pair = (x: t(('a, 'b))): (t('a), t('b)) => {
   };
 };
 
-let pair_saved = (x: saved('a), y: saved('b)): saved(('a, 'b)) =>
-  switch (x, y) {
-  | (Pending, _)
-  | (_, Pending) => Pending
-  | (Calculated(x), Calculated(y)) => Calculated((x, y))
+let to_3 = (x: t(('a, 'b, 'c))): (t('a), t('b), t('c)) => {
+  switch (x) {
+  | OldValue((x, y, z)) => (OldValue(x), OldValue(y), OldValue(z))
+  | NewValue((x, y, z)) => (NewValue(x), NewValue(y), NewValue(z))
   };
+};
 
 module Syntax = {
   let (let.calc) = update;

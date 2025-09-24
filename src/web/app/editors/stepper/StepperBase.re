@@ -196,8 +196,7 @@ module rec StepKind: {
             ~settings: Calc.t(CoreSettings.t),
             ~hidden: Calc.saved(bool),
             ~exp: Calc.t(Exp.t),
-            ~ctx: Calc.t(Ctx.t),
-            ~env: Calc.t(ClosureEnvironment.t),
+            ~ctx: Calc.t(SemanticCtx.t),
             ~state: Calc.t(EvaluatorState.t),
             ~editor: Calc.t(CodeSelectable.Model.t),
             ~info_map: Calc.t(Statics.Map.t),
@@ -212,7 +211,6 @@ module rec StepKind: {
           ~hidden,
           ~exp,
           ~ctx,
-          ~env,
           ~state,
           ~editor,
           ~info_map,
@@ -227,7 +225,6 @@ module rec StepKind: {
           ~hidden,
           ~exp,
           ~ctx,
-          ~env,
           ~state,
           ~editor,
           ~info_map,
@@ -242,7 +239,6 @@ module rec StepKind: {
           ~hidden,
           ~exp,
           ~ctx,
-          ~env,
           ~state,
           ~editor,
           ~info_map,
@@ -256,9 +252,14 @@ module rec StepKind: {
         |> {
           let.calc settings = settings
           and.calc exp = exp
-          and.calc env = env
+          and.calc ctx = ctx
           and.calc state = state;
-          EvaluatorStep.get_status(~settings, exp, env, state);
+          EvaluatorStep.get_status(
+            ~settings,
+            exp,
+            SemanticCtx.get_env(ctx),
+            state,
+          );
         };
       let next_step_to_take =
         Calc.Calculated(None)
@@ -277,7 +278,6 @@ module rec StepKind: {
           ~info_map,
           ~exp=exp |> Calc.make_new,
           ~ctx=ctx |> Calc.make_new,
-          ~env=env |> Calc.make_new,
           ~state=state |> Calc.make_new,
           SingleStep({
             persistent_evalobj: evalobj |> EvaluatorStep.persist,
@@ -296,7 +296,6 @@ module rec StepKind: {
               ~settings=settings |> Calc.get_value,
               exp,
               info_map,
-              env,
               ctx,
               state,
               next_steps,
@@ -328,7 +327,6 @@ module rec StepKind: {
           ~hidden,
           ~exp,
           ~ctx,
-          ~env,
           ~state,
           ~editor,
           ~info_map,
@@ -343,7 +341,6 @@ module rec StepKind: {
           ~hidden,
           ~exp,
           ~ctx,
-          ~env,
           ~state,
           ~editor,
           ~info_map,
@@ -784,8 +781,7 @@ and Stepper: {
           (
             ~settings: Calc.t(CoreSettings.t),
             ~exp as expr: Calc.t(Exp.t),
-            ~ctx: Calc.t(Ctx.t),
-            ~env: Calc.t(ClosureEnvironment.t),
+            ~ctx: Calc.t(SemanticCtx.t),
             ~state: Calc.t(EvaluatorState.t),
             ~ana: Calc.t(Typ.t),
             {
@@ -820,7 +816,6 @@ and Stepper: {
         ~settings,
         ~ctx,
         ~exp=expr,
-        ~env,
         ~state,
         ~hidden,
         ~editor,
@@ -833,7 +828,6 @@ and Stepper: {
            |> StepKind.calculate(
                 ~settings,
                 ~ctx,
-                ~env,
                 ~exp=expr,
                 ~state,
                 ~hidden,
@@ -852,7 +846,6 @@ and Stepper: {
             ~settings,
             ~exp=next_expr,
             ~ctx,
-            ~env,
             ~state=next_state,
             ~ana,
             next_step,
@@ -879,7 +872,7 @@ and Stepper: {
         ~is_dynamic_term=true,
         ~settings=Calc.get_value(settings),
         ~is_edited=true,
-        ~ctx=Calc.get_value(ctx),
+        ~ctx=Calc.get_value(ctx) |> SemanticCtx.get_ctx,
         ~dynamics=Dynamics.Map.empty,
         ~ana=Calc.get_value(ana),
         ~stitch=_ => Calc.get_value(expr),

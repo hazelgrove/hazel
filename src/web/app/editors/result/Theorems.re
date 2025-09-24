@@ -8,6 +8,7 @@ module Model = {
     name: string,
     ctx: Calc.saved(Ctx.t),
     env: Calc.saved(ClosureEnvironment.t),
+    sem_ctx: Calc.saved(SemanticCtx.t),
     goal_exp: Calc.saved(Exp.t),
     stepper_view: StepperView.Model.t,
   };
@@ -19,6 +20,7 @@ module Model = {
     name,
     ctx: Calc.Pending,
     env: Calc.Pending,
+    sem_ctx: Calc.Pending,
     goal_exp: Calc.Pending,
     stepper_view: StepperView.Model.init,
   };
@@ -54,6 +56,7 @@ module Model = {
             name: "?",
             ctx: Calc.Pending,
             env: Calc.Pending,
+            sem_ctx: Calc.Pending,
             goal_exp: Calc.Pending,
             stepper_view: StepperView.Model.unpersist(p_thm.stepper_view),
           },
@@ -197,7 +200,14 @@ module Update = {
              Id.Map.update(
                id,
                (opt: option(Model.theorem)) => {
-                 let Model.{name: _, ctx, env, goal_exp, stepper_view} =
+                 let Model.{
+                   name: _,
+                   ctx,
+                   env,
+                   sem_ctx,
+                   goal_exp,
+                   stepper_view,
+                 } =
                    Option.value(~default=Model.theorem_init("?"), opt);
 
                  let goal_exp =
@@ -230,11 +240,18 @@ module Update = {
                  let env =
                    Calc.set(~eq=ClosureEnvironment.id_equal, env', env);
 
+                 let sem_ctx =
+                   sem_ctx
+                   |> {
+                     let.calc ctx = ctx
+                     and.calc env = env;
+                     SemanticCtx.of_ctx_and_env(ctx, env);
+                   };
+
                  let stepper_view =
                    StepperView.Update.calculate(
                      ~settings,
-                     ~ctx,
-                     ~env,
+                     ~ctx=sem_ctx,
                      ~ana=Calc.OldValue(Typ.fresh(Atom(Bool))),
                      goal_exp,
                      stepper_view,
@@ -244,6 +261,7 @@ module Update = {
                    name,
                    ctx: ctx |> Calc.save,
                    env: env |> Calc.save,
+                   sem_ctx: sem_ctx |> Calc.save,
                    goal_exp: goal_exp |> Calc.save,
                    stepper_view,
                  });

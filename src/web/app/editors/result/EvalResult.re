@@ -254,8 +254,13 @@ module Update = {
         Model.Stepper(
           StepperView.Update.calculate(
             ~settings,
-            ~ctx=OldValue(Builtins.ctx_init(None)),
-            ~env=OldValue(Builtins.closure_env),
+            ~ctx=
+              OldValue(
+                SemanticCtx.of_ctx_and_env(
+                  Builtins.ctx_init(None),
+                  Builtins.closure_env,
+                ),
+              ),
             elab,
             stepper,
           ),

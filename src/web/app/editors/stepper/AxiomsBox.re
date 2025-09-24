@@ -37,8 +37,7 @@ module Update = {
   let calculate =
       (
         ~info_map: Calc.t(Statics.Map.t),
-        ~env: Calc.t(ClosureEnvironment.t),
-        ~ctx: Calc.t(Ctx.t),
+        ~ctx: Calc.t(SemanticCtx.t),
         ~selected_exp: Calc.t(option(Exp.t)),
         model: Model.t,
       )
@@ -46,8 +45,9 @@ module Update = {
     let all_rules =
       model.all_rules
       |> {
-        let.calc ctx = ctx
-        and.calc env = env;
+        let.calc ctx = ctx;
+        let env = SemanticCtx.get_env(ctx);
+        let ctx = SemanticCtx.get_ctx(ctx);
         ProofCtx.of_env(~builtins=Axioms.v, ~ctx, env);
       };
 
@@ -55,7 +55,7 @@ module Update = {
       model.filtered_rewrites
       |> {
         let.calc all_rules = all_rules
-        and.calc env = env
+        and.calc ctx = ctx
         and.calc filter = model.filter
         and.calc selected_exp = selected_exp
         and.calc info_map = info_map;
@@ -79,7 +79,7 @@ module Update = {
                   | Some(selected_exp) =>
                     ProofRule.is_active(
                       ~info_map,
-                      ~env,
+                      ~env=SemanticCtx.get_env(ctx),
                       ab.ctx_entry.rule,
                       selected_exp |> DHExp.strip_ascriptions,
                     )
