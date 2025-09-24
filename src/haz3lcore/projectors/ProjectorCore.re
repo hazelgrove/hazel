@@ -58,7 +58,7 @@ module Kind = {
     | Livelit => "livelit"
     | TextArea => "text"
     | Table => "table"
-    | TableProbe => "table probe"
+    | TableProbe => "tableprobe"
     };
 
   /* This must be updated and kept 1-to-1 with the above
@@ -76,7 +76,7 @@ module Kind = {
     | "livelit" => Livelit
     | "card" => Card
     | "table" => Table
-    | "table probe" => TableProbe
+    | "tableprobe" => TableProbe
     | _ => failwith("Unknown projector kind")
     };
 
