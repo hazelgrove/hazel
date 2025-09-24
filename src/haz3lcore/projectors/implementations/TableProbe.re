@@ -237,11 +237,13 @@ let add_column_after =
   );
 };
 
-let get_dynamic_type = (info: info): option(Typ.t) => {
+// This currently uses the type of the currently displayed table. We need to decide if we're going to integrate statics or join them.
+let get_dynamic_type = (closure: option(int), info: info): option(Typ.t) => {
   info.dynamics
+  |> Option.bind(_, List.nth_opt(_, closure |> Option.value(~default=0)))
   |> Option.bind(
        _,
-       (d: Dynamics.Info.t) => {
+       (d: Dynamics.Probe.Closure.t) => {
          let statics =
            Statics.mk(CoreSettings.on, Builtins.ctx_init(Some(Int)));
          let type_of = (c: Dynamics.Probe.Closure.t) => {
@@ -256,12 +258,7 @@ let get_dynamic_type = (info: info): option(Typ.t) => {
                 | _ => None,
               );
          };
-         let types = List.map(type_of, d) |> OptUtil.sequence;
-
-         Option.bind(
-           types,
-           Typ.join_all(~empty=Unknown(Internal) |> Typ.temp, Ctx.empty),
-         );
+         type_of(d);
        },
      );
 };
@@ -809,7 +806,7 @@ module M: Projector = {
             | _ => base_content
             };
           let cell_content = content;
-          let dyn_type = get_dynamic_type(info);
+          let dyn_type = get_dynamic_type(model.closure, info);
 
           let full_content =
             switch (model.menu) {
