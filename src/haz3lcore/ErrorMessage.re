@@ -13,34 +13,6 @@ type message = {
   fragments: list(fragment),
 };
 
-let elements_noun: Cls.t => string =
-  fun
-  | Exp(Match | If) => "Branches"
-  | Exp(ListLit)
-  | Pat(ListLit) => "Elements"
-  | Exp(ListConcat)
-  | Exp(BinOp(Poly(_))) => "Operands"
-  | cls =>
-    failwith("elements_noun: " ++ Cls.show(cls) ++ " cls has no elements");
-
-let rec automatic_inserted_labels_exp =
-        (info: option(Info.exp)): list(string) =>
-  switch (Option.bind(info, i => i.label_inference)) {
-  | Some(MultiLabelInference({introduced_labels, _})) => introduced_labels
-  | Some(SingletonLabelInference({label, pre_labeled_info})) =>
-    [label] @ automatic_inserted_labels_exp(Some(pre_labeled_info))
-  | _ => []
-  };
-
-let rec automatic_inserted_labels_pat =
-        (info: option(Info.pat)): list(string) =>
-  switch (Option.bind(info, i => i.label_inference)) {
-  | Some(MultiLabelInference({introduced_labels, _})) => introduced_labels
-  | Some(SingletonLabelInference({label, pre_labeled_info})) =>
-    [label] @ automatic_inserted_labels_pat(Some(pre_labeled_info))
-  | _ => []
-  };
-
 let build_common_err =
     (
       ~introduced_labels: list(LabeledTuple.label),
@@ -173,7 +145,22 @@ let build_common_err =
           )
         }
       | Inconsistent(Internal(tys)) => [
-          Text(elements_noun(cls) ++ " have inconsistent types:"),
+          Text(
+            (
+              switch (cls) {
+              | Exp(Match | If) => "Branches"
+              | Exp(ListLit)
+              | Pat(ListLit) => "Elements"
+              | Exp(ListConcat)
+              | Exp(BinOp(Poly(_))) => "Operands"
+              | cls =>
+                failwith(
+                  "elements_noun: " ++ Cls.show(cls) ++ " cls has no elements",
+                )
+              }
+            )
+            ++ " have inconsistent types:",
+          ),
           ...ListUtil.join_map(Text(","), ty => [Type(ty)], tys),
         ]
       }
@@ -299,7 +286,22 @@ let build_common_ok =
         )
       | (_, Ana(InternallyInconsistent({ana, nojoin: tys}))) =>
         [
-          Text(elements_noun(cls) ++ " have inconsistent types:"),
+          Text(
+            (
+              switch (cls) {
+              | Exp(Match | If) => "Branches"
+              | Exp(ListLit)
+              | Pat(ListLit) => "Elements"
+              | Exp(ListConcat)
+              | Exp(BinOp(Poly(_))) => "Operands"
+              | cls =>
+                failwith(
+                  "elements_noun: " ++ Cls.show(cls) ++ " cls has no elements",
+                )
+              }
+            )
+            ++ " have inconsistent types:",
+          ),
           ...ListUtil.join_map(Text(","), ty => [Type(ty)], tys),
         ]
         @ [Text("but consistent with expected"), Type(ana)]
@@ -314,7 +316,7 @@ let build_common_ok =
   fragments;
 };
 
-let build_typ_ok = (~globals, cls: Cls.t, ok: Info.ok_typ): list(fragment) => {
+let build_typ_ok = (cls: Cls.t, ok: Info.ok_typ): list(fragment) => {
   let fragments =
     switch (ok) {
     | EmptyLabel => []
@@ -346,7 +348,7 @@ let build_typ_ok = (~globals, cls: Cls.t, ok: Info.ok_typ): list(fragment) => {
   fragments;
 };
 
-let build_typ_err = (~globals, ok: Info.error_typ): list(fragment) => {
+let build_typ_err = (ok: Info.error_typ): list(fragment) => {
   let fragments =
     switch (ok) {
     | FreeTypeVariable(name) => [
@@ -377,7 +379,14 @@ let build_exp_message = (info: Info.exp): message => {
     switch (info.label_inference) {
     | Some(MultiLabelInference({introduced_labels, _})) => introduced_labels
     | Some(SingletonLabelInference({label, pre_labeled_info})) =>
-      [label] @ automatic_inserted_labels_exp(Some(pre_labeled_info))
+      let rec f = (info: option(Info.exp)): list(string) =>
+        switch (Option.bind(info, i => i.label_inference)) {
+        | Some(MultiLabelInference({introduced_labels, _})) => introduced_labels
+        | Some(SingletonLabelInference({label, pre_labeled_info})) =>
+          [label] @ f(Some(pre_labeled_info))
+        | _ => []
+        };
+      [label] @ f(Some(pre_labeled_info));
     | _ => []
     };
   let reordered =
@@ -528,7 +537,14 @@ let build_pat_message = (info: Info.pat): message => {
     switch (info.label_inference) {
     | Some(MultiLabelInference({introduced_labels, _})) => introduced_labels
     | Some(SingletonLabelInference({label, pre_labeled_info})) =>
-      [label] @ automatic_inserted_labels_pat(Some(pre_labeled_info))
+      let rec f = (info: option(Info.pat)): list(string) =>
+        switch (Option.bind(info, i => i.label_inference)) {
+        | Some(MultiLabelInference({introduced_labels, _})) => introduced_labels
+        | Some(SingletonLabelInference({label, pre_labeled_info})) =>
+          [label] @ f(Some(pre_labeled_info))
+        | _ => []
+        };
+      [label] @ f(Some(pre_labeled_info));
     | _ => []
     };
   let cls = info.cls;
@@ -593,8 +609,8 @@ let build_typ_message = (info: Info.typ): message => {
   let status = info.status;
   let fragments =
     switch (status) {
-    | NotInHole(ok) => build_typ_ok(~globals=(), cls, ok)
-    | InHole(err) => build_typ_err(~globals=(), err)
+    | NotInHole(ok) => build_typ_ok(cls, ok)
+    | InHole(err) => build_typ_err(err)
     };
   {
     is_error:
@@ -607,7 +623,6 @@ let build_typ_message = (info: Info.typ): message => {
 };
 
 let build_tpat_message = (info: Info.tpat): message => {
-  let cls = info.cls;
   let status = info.status;
   let fragments =
     switch (status) {
