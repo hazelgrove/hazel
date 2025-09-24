@@ -68,151 +68,6 @@ let table_from_exp = (exp: Exp.t) => {
   | _ => None
   };
 };
-let drop_column = (info: info, column: string): Base.segment => {
-  IdTagged.FreshGrammar.(
-    switch (
-      info.utility.lift_syntax(
-        fun
-        | Exp({term: exp_term, _}) =>
-          Exp(
-            Exp.(
-              ap(
-                Reverse,
-                ap(
-                  Forward,
-                  var("map"),
-                  tuple([
-                    deferral(InAp),
-                    ap(
-                      Forward,
-                      var("omit_labels"),
-                      tuple([deferral(InAp), label(column)]),
-                    ),
-                  ]),
-                ),
-                exp_term |> DHExp.fresh,
-              )
-            ),
-          )
-        | _ => failwith("TableProj: drop_column: not an expression"),
-        info.syntax,
-      )
-    ) {
-    | Some(s) => s
-    | None => failwith("TableProj: drop_column: lift failed")
-    }
-  );
-};
-
-let convert_column =
-    (info: info, column: string, conversion_fn: string): Base.segment => {
-  IdTagged.FreshGrammar.(
-    switch (
-      info.utility.lift_syntax(
-        fun
-        | Exp({term: exp_term, _}) =>
-          Exp(
-            Exp.(
-              ap(
-                Reverse,
-                ap(
-                  Forward,
-                  var("map"),
-                  tuple([
-                    deferral(InAp),
-                    fn(
-                      Pat.var("r"),
-                      tuple_extension(
-                        var("r"),
-                        tuple([
-                          tup_label(
-                            label(column),
-                            ap(
-                              Forward,
-                              var(conversion_fn),
-                              dot(var("r"), label(column)),
-                            ),
-                          ),
-                        ]),
-                      ),
-                      None,
-                      None,
-                    ),
-                  ]),
-                ),
-                exp_term |> DHExp.fresh,
-              )
-            ),
-          )
-        | _ => failwith("TableProj: convert_column: not an expression"),
-        info.syntax,
-      )
-    ) {
-    | Some(s) => s
-    | None => failwith("TableProj: convert_column: lift failed")
-    }
-  );
-};
-
-let rename_column =
-    (info: info, _old_name: string, _new_name: string): Base.segment => {
-  switch (
-    info.utility.lift_syntax(
-      s => s, // TODO Implement rename
-      info.syntax,
-    )
-  ) {
-  | Some(s) => s
-  | None => failwith("TableProj: rename_column: lift failed")
-  };
-};
-
-let add_column_after =
-    (info: info, _after_column: string, new_column: string): Base.segment => {
-  IdTagged.FreshGrammar.(
-    switch (
-      info.utility.lift_syntax(
-        fun
-        | Exp({term: exp_term, _}) =>
-          Exp(
-            Exp.(
-              ap(
-                Reverse,
-                ap(
-                  Forward,
-                  var("map"),
-                  tuple([
-                    deferral(InAp),
-                    fn(
-                      Pat.var("r"),
-                      tuple_extension(
-                        var("r"),
-                        tuple([
-                          tup_label(
-                            label(new_column),
-                            var("\"\"") // Empty string as default value
-                          ),
-                        ]),
-                      ),
-                      None,
-                      None,
-                    ),
-                  ]),
-                ),
-                exp_term |> DHExp.fresh,
-              )
-            ),
-          )
-        | _ => failwith("TableProj: add_column_after: not an expression"),
-        info.syntax,
-      )
-    ) {
-    | Some(s) => s
-    | None => failwith("TableProj: add_column_after: lift failed")
-    }
-  );
-};
-
 let get_column_type_from_ty = (ty: Typ.t, column: string) => {
   switch (ty.term) {
   | List({term: Prod(tys), _}) =>
@@ -249,6 +104,123 @@ let get_columns = (ty: Typ.t): option(list(string)) => {
     labels;
   | _ => None
   };
+};
+
+let apply_transformation = (info: info, transformation: Exp.t) => {
+  IdTagged.FreshGrammar.(
+    switch (
+      info.utility.lift_syntax(
+        fun
+        | Exp({term: exp_term, _}) =>
+          Exp(Exp.(ap(Reverse, transformation, exp_term |> DHExp.fresh)))
+
+        | _ => failwith("TableProj: apply_transformation: not an expression"),
+        info.syntax,
+      )
+    ) {
+    | Some(s) => s
+    | None => failwith("TableProj: apply_transformation: lift failed")
+    }
+  );
+};
+
+let apply_rowwise_transformation =
+    (info: info, row_transformation: Exp.t): Base.segment => {
+  IdTagged.FreshGrammar.(
+    apply_transformation(
+      info,
+      Exp.(
+        ap(
+          Forward,
+          var("map"),
+          tuple([deferral(InAp), row_transformation]),
+        )
+      ),
+    )
+  );
+};
+
+let drop_column = (info: info, column: string): Base.segment => {
+  IdTagged.FreshGrammar.(
+    apply_rowwise_transformation(
+      info,
+      Exp.(
+        ap(
+          Forward,
+          var("omit_labels"),
+          tuple([deferral(InAp), label(column)]),
+        )
+      ),
+    )
+  );
+};
+
+let convert_column =
+    (info: info, column: string, conversion_fn: string): Base.segment => {
+  IdTagged.FreshGrammar.(
+    Exp.(
+      apply_rowwise_transformation(
+        info,
+        fn(
+          Pat.var("r"),
+          tuple_extension(
+            var("r"),
+            tuple([
+              tup_label(
+                label(column),
+                ap(
+                  Forward,
+                  var(conversion_fn),
+                  dot(var("r"), label(column)),
+                ),
+              ),
+            ]),
+          ),
+          None,
+          None,
+        ),
+      )
+    )
+  );
+};
+
+let rename_column =
+    (info: info, _old_name: string, _new_name: string): Base.segment => {
+  switch (
+    info.utility.lift_syntax(
+      s => s, // TODO Implement rename
+      info.syntax,
+    )
+  ) {
+  | Some(s) => s
+  | None => failwith("TableProj: rename_column: lift failed")
+  };
+};
+
+// TODO This should be after and not at the end
+let add_column_after =
+    (info: info, _after_column: string, new_column: string): Base.segment => {
+  IdTagged.FreshGrammar.(
+    Exp.(
+      apply_rowwise_transformation(
+        info,
+        fn(
+          Pat.var("r"),
+          tuple_extension(
+            var("r"),
+            tuple([
+              tup_label(
+                label(new_column),
+                var("\"\"") // Empty string as default value
+              ),
+            ]),
+          ),
+          None,
+          None,
+        ),
+      )
+    )
+  );
 };
 
 let get_dynamic_type = (info: info): option(Typ.t) => {
@@ -316,42 +288,17 @@ let move_column =
               },
             columns,
           );
-        IdTagged.FreshGrammar.(
-          switch (
-            info.utility.lift_syntax(
-              fun
-              | Exp({term: exp_term, _}) =>
-                Exp(
-                  Exp.(
-                    ap(
-                      Reverse,
-                      ap(
-                        Forward,
-                        var("map"),
-                        tuple([
-                          deferral(InAp),
-                          ap(
-                            Forward,
-                            var("select_labels"),
-                            tuple(
-                              [deferral(InAp)]
-                              @ List.map(label, new_columns),
-                            ),
-                          ),
-                        ]),
-                      ),
-                      exp_term |> DHExp.fresh,
-                    )
-                  ),
-                )
-              | _ => failwith("TableProj: move_column: not an expression"),
-              info.syntax,
-            )
-          ) {
-          | Some(s) => Some(s)
-          | None => None
-          }
-        );
+        IdTagged.FreshGrammar.Exp.(
+          apply_rowwise_transformation(
+            info,
+            ap(
+              Forward,
+              var("select_labels"),
+              tuple([deferral(InAp)] @ List.map(label, new_columns)),
+            ),
+          )
+        )
+        |> Option.some;
       };
     | None => None
     };
@@ -384,46 +331,33 @@ let sort_column =
   switch (compare_fn) {
   | Some(compare_fn_name) =>
     IdTagged.FreshGrammar.(
-      switch (
-        info.utility.lift_syntax(
-          fun
-          | Exp({term: exp_term, _}) =>
-            Exp(
-              Exp.(
+      apply_transformation(
+        info,
+        Exp.(
+          ap(
+            Forward,
+            var("sort"),
+            tuple([
+              fn(
+                Pat.tuple([Pat.var("r1"), Pat.var("r2")]),
                 ap(
-                  Reverse,
-                  ap(
-                    Forward,
-                    var("sort"),
-                    tuple([
-                      fn(
-                        Pat.tuple([Pat.var("r1"), Pat.var("r2")]),
-                        ap(
-                          Forward,
-                          var(compare_fn_name),
-                          tuple([
-                            dot(var("r1"), label(header)),
-                            dot(var("r2"), label(header)),
-                          ]),
-                        ),
-                        None,
-                        None,
-                      ),
-                      deferral(InAp),
-                    ]),
-                  ),
-                  exp_term |> DHExp.fresh,
-                )
+                  Forward,
+                  var(compare_fn_name),
+                  tuple([
+                    dot(var("r1"), label(header)),
+                    dot(var("r2"), label(header)),
+                  ]),
+                ),
+                None,
+                None,
               ),
-            )
-          | _ => failwith("TableProj: sort_column: not an expression"),
-          info.syntax,
-        )
-      ) {
-      | Some(segment) => Some(segment)
-      | None => None
-      }
+              deferral(InAp),
+            ]),
+          )
+        ),
+      )
     )
+    |> Option.some
   | None => None
   };
 };
