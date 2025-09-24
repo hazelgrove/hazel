@@ -7,16 +7,33 @@
  Ascriptions should be propagated inside of expressions when consistent.
  e.g. [1, 2] : [Int] -> [1 : Int, 2 : Int]
  */
-let rec transition = (~recursive=false, d: DHExp.t): option(DHExp.t) => {
+
+let rec transition =
+        (
+          ~update_probe=(
+                          _syntax_id: Id.t,
+                          _value: DHExp.t,
+                          _env: Environment.t,
+                          _call_stack: Probe.call_stack,
+                          _pr: Probe.t,
+                        ) =>
+                          (),
+          ~recursive=false,
+          d: DHExp.t,
+        )
+        : option(DHExp.t) => {
   let recur = (d: DHExp.t): DHExp.t =>
     if (recursive) {
-      transition(~recursive, d) |> Option.value(~default=d);
+      transition(~update_probe, ~recursive, d) |> Option.value(~default=d);
     } else {
       d;
     };
   switch (DHExp.term_of(d)) {
   | Asc(e, t) =>
     switch (DHExp.term_of(e), Typ.term_of(Typ.unroll(t))) {
+    | (_, Probe(t, p)) =>
+      update_probe(Exp.rep_id(e), e, Environment.empty, [], p);
+      Asc(e, t) |> DHExp.fresh |> transition(~update_probe, ~recursive);
     | (Asc(e, t'), t)
         // This is only necessary because sometimes we add two ascriptions and aren't marking it as a non-value
         when
@@ -33,9 +50,17 @@ let rec transition = (~recursive=false, d: DHExp.t): option(DHExp.t) => {
       }
     | (e, Parens(t)) =>
       // This is an impossible case since types should be normalized before coming to transitions
-      transition(~recursive, Asc(e |> DHExp.fresh, t) |> DHExp.fresh)
+      transition(
+        ~update_probe,
+        ~recursive,
+        Asc(e |> DHExp.fresh, t) |> DHExp.fresh,
+      )
     | (Closure(ce, d), t) =>
-      transition(~recursive, Asc(d, t |> Typ.fresh) |> DHExp.fresh)
+      transition(
+        ~update_probe,
+        ~recursive,
+        Asc(d, t |> Typ.fresh) |> DHExp.fresh,
+      )
       |> Option.map(d => Closure(ce, d) |> DHExp.fresh)
     | (Fun(p, e, t, v), Arrow(t1, t2)) =>
       Some(
@@ -225,9 +250,21 @@ let rec transition = (~recursive=false, d: DHExp.t): option(DHExp.t) => {
   };
 };
 
-let rec transition_multiple = (d: DHExp.t): DHExp.t => {
-  switch (transition(~recursive=true, d)) {
-  | Some(d'') => transition_multiple(d'')
+let rec transition_multiple =
+        (
+          ~update_probe=(
+                          _syntax_id: Id.t,
+                          _value: DHExp.t,
+                          _env: Environment.t,
+                          _call_stack: Probe.call_stack,
+                          _pr: Probe.t,
+                        ) =>
+                          (),
+          d: DHExp.t,
+        )
+        : DHExp.t => {
+  switch (transition(~update_probe, ~recursive=true, d)) {
+  | Some(d'') => transition_multiple(~update_probe, d'')
   | None => d
   };
 };

@@ -72,6 +72,13 @@ module Model = {
       ) => {
     List.filter_map(
       ((id, _)) => {
+        let d =
+          Id.Map.to_seq(dynamics)
+          |> Seq.map(fst)
+          |> Seq.map(Id.str3)
+          |> List.of_seq;
+        print_endline("Dynamic Ids: " ++ String.concat(", ", d));
+        print_endline("Looking for projector id: " ++ Id.str3(id));
         let* p = Id.Map.find_opt(id, projectors);
         let+ measurement = Measured.find_pr_opt(p, measured);
         let info = ProjectorInfo.mk_info(p, ~statics, ~dynamics);

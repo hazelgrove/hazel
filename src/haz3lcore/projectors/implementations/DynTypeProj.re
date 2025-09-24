@@ -24,6 +24,7 @@ module M: Projector = {
     | Exp(_)
     | Pat(_) => Some(Expected)
     | Any () => Some(Expected) /* Grout don't have sorts rn */
+    | Typ(_) => Some(Expected)
     | _ => None
     };
   };
@@ -32,6 +33,10 @@ module M: Projector = {
   let focusable = Focusable.non;
 
   let typ_view = (info: info, utility, view_seg: View.seg) => {
+    info.dynamics
+    |> Option.map([%derive.show: Language.Dynamics.Info.t])
+    |> Option.value(~default="None")
+    |> (y => print_endline("Dynamics: " ++ y));
     let dynamic_typ =
       info.dynamics
       |> Option.bind(

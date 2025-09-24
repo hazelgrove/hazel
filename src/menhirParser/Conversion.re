@@ -495,6 +495,7 @@ and Typ: {
           constructors,
         );
       SumTyp(sumterms);
+    | Probe(typ, _) => of_core(typ)
     };
   };
 }

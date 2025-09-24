@@ -92,7 +92,8 @@ let cls_of_term: Grammar.typ_term('a) => cls =
   | Parens(_) => Parens
   | Sum(_) => Sum
   | Rec(_) => Rec
-  | Forall(_) => Forall;
+  | Forall(_) => Forall
+  | Probe(_, _) => EmptyHole;
 
 let show_cls: cls => string =
   fun
@@ -129,14 +130,16 @@ let rec is_arrow = (typ: t) => {
   | Sum(_)
   | Forall(_)
   | Rec(_) => false
+  | Probe(typ, _) => is_arrow(typ)
   };
 };
 
-let is_atom = (ty: t): bool =>
+let rec is_atom = (ty: t): bool =>
   switch (ty.term) {
   | Atom(_) => true
-  | Parens(_)
-  | TupLabel(_)
+  | Parens(ty)
+  | TupLabel(_, ty) => is_atom(ty)
+  | Probe(ty, _) => is_atom(ty)
   | Arrow(_)
   | Unknown(_)
   | List(_)
@@ -168,6 +171,7 @@ let rec has_fun = (typ: t) =>
       sm,
     )
   | Prod(tys) => List.exists(has_fun, tys)
+  | Probe(typ, _) => has_fun(typ)
   };
 
 let rec is_forall = (typ: t) => {
@@ -184,6 +188,7 @@ let rec is_forall = (typ: t) => {
   | Var(_)
   | Sum(_)
   | Rec(_) => false
+  | Probe(typ, _) => is_forall(typ)
   };
 };
 
@@ -254,6 +259,7 @@ let rec free_vars = (~bound=[], ty: t): list(Var.t) =>
   | Rec(x, ty)
   | Forall(x, ty) =>
     free_vars(~bound=(x |> TPat.tyvar_of_utpat |> Option.to_list) @ bound, ty)
+  | Probe(ty, _) => free_vars(~bound, ty)
   };
 
 let rec vars = (ty: t): list(Var.t) =>
@@ -282,6 +288,7 @@ let rec vars = (ty: t): list(Var.t) =>
   | Forall(_, ty) => vars(ty)
   | Label(_) => []
   | TupLabel(_, ty) => vars(ty)
+  | Probe(ty, _) => vars(ty)
   };
 
 let rec aliases_deep = (ctx: Ctx.t, ty: t): list((string, t)) => {
@@ -335,6 +342,7 @@ let rec num_nodes = (ty: t): int => {
   | Forall(_, ty) => 1 + num_nodes(ty)
   | Label(_) => 1
   | TupLabel(_, ty) => 1 + num_nodes(ty)
+  | Probe(ty, _) => 1 + num_nodes(ty)
   };
 };
 
@@ -364,6 +372,7 @@ let rec count_unknowns = (ty: t): int =>
   | Forall(_, ty) => count_unknowns(ty)
   | Label(_) => 0
   | TupLabel(_, ty) => count_unknowns(ty)
+  | Probe(ty, _) => count_unknowns(ty)
   };
 
 let rec contains_sum_or_var = (ty: t): bool =>
@@ -380,6 +389,7 @@ let rec contains_sum_or_var = (ty: t): bool =>
   | Forall(_, ty) => contains_sum_or_var(ty)
   | Label(_) => false
   | TupLabel(_, ty) => contains_sum_or_var(ty)
+  | Probe(ty, _) => contains_sum_or_var(ty)
   };
 
 let unroll = (ty: t): t =>
@@ -495,6 +505,10 @@ let rec join =
     let+ ty = join'(ty1, ty2);
     List(ty) |> temp;
   | (List(_), _) => inconsistent
+  | (Probe(ty1, _), Probe(ty2, _)) =>
+    let+ ty = join'(ty1, ty2);
+    ty;
+  | (Probe(ty1, _), _) => join'(ty1, ty2)
   };
 };
 
@@ -533,6 +547,8 @@ let rec match_synswitch = (t1: t, t2: t) => {
   // HACK[Matt]: The only possible forall is `Forall Syn -> Syn`
   | (Forall(_), Forall(_)) => t2
   | (Forall(_), _) => t1
+  | (Probe(ty1, _), _) =>
+    Probe(match_synswitch(ty1, t2), Probe.empty) |> rewrap1
   };
 };
 
@@ -623,6 +639,7 @@ let rec normalize = (~rec_counter=0, ctx: Ctx.t, ty: t): t => {
     Rec(tpat, normalize(Ctx.extend_dummy_tvar(ctx, tpat), ty)) |> rewrap
   | Forall(name, ty) =>
     Forall(name, normalize(Ctx.extend_dummy_tvar(ctx, name), ty)) |> rewrap
+  | Probe(ty, probe) => Probe(normalize(ctx, ty), probe) |> rewrap
   };
 };
 
@@ -784,6 +801,7 @@ let rec is_syn = (ty: t): bool =>
   | Arrow(_)
   | Prod(_)
   | Sum(_) => false
+  | Probe(ty, _) => is_syn(ty)
   };
 
 let rec is_ana_atom = (ty: t) =>
@@ -800,6 +818,7 @@ let rec is_ana_atom = (ty: t) =>
   | Arrow(_)
   | Prod(_)
   | Sum(_) => None
+  | Probe(ty, _) => is_ana_atom(ty)
   };
 
 let rec is_syn_plus = (ty: t): bool =>
@@ -817,6 +836,7 @@ let rec is_syn_plus = (ty: t): bool =>
   | List(_)
   | Prod(_)
   | Sum(_) => false
+  | Probe(ty, _) => is_syn_plus(ty)
   };
 
 /* Does the type require parentheses when on the left of an arrow for printing? */
@@ -834,6 +854,7 @@ let rec needs_parens = (ty: t): bool =>
   | Arrow(_, _)
   | Prod(_)
   | Sum(_) => true /* disambiguate between (A + B) -> C and A + (B -> C) */
+  | Probe(ty, _) => needs_parens(ty)
   };
 
 let pretty_print_tvar = (tv: TPat.t): string =>
@@ -884,6 +905,7 @@ let rec pretty_print = (ty: t): string =>
     "rec " ++ pretty_print_tvar(tv) ++ " -> " ++ pretty_print(t)
   | Forall(tv, t) =>
     "forall " ++ pretty_print_tvar(tv) ++ " -> " ++ pretty_print(t)
+  | Probe(ty, _) => pretty_print(ty)
   }
 and ctr_pretty_print =
   fun

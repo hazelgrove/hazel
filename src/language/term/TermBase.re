@@ -620,6 +620,7 @@ and Typ: {
           )
         | Rec(tp, t) => Rec(tpat_map_term(tp), typ_map_term(t))
         | Forall(tp, t) => Forall(tpat_map_term(tp), typ_map_term(t))
+        | Probe(t, probe) => Probe(typ_map_term(t), probe)
         },
     };
     x |> f_typ(rec_call);
@@ -649,6 +650,7 @@ and Typ: {
       | List(ty) => List(subst(s, x, ty)) |> rewrap
       | Var(y) => str == y ? s : Var(y) |> rewrap
       | Parens(ty) => Parens(subst(s, x, ty)) |> rewrap
+      | Probe(ty, probe) => Probe(subst(s, x, ty), probe) |> rewrap
       };
     | None => ty
     };
@@ -709,6 +711,9 @@ and Typ: {
     | (Sum(_), _) => false
     | (Var(n1), Var(n2)) => n1 == n2
     | (Var(_), _) => false
+    | (Probe(t1, _), Probe(t2, _)) =>
+      eq_internal(~alpha_equivalence, n, t1, t2)
+    | (Probe(_), _) => false
     };
   };
 

@@ -189,6 +189,16 @@ module Transition = (EV: EV_MODE) => {
         d,
       )
       : EV.result => {
+    print_endline("Transitioning: " ++ DHExp.show(d));
+    let update_probe' = (id, d, env, call_stack, pr) => {
+      print_endline(
+        "Updating probe: " ++ Id.str3(id) ++ " with value " ++ DHExp.show(d),
+      );
+      update_probe(
+        state,
+        Dynamics.Probe.Closure.mk(id, d, env, call_stack, pr),
+      );
+    };
     // Split DHExp into term and id information
     let (term, rewrap) = DHExp.unwrap(d);
     let wrap_ctx = (term): EvalCtx.t =>
@@ -906,7 +916,7 @@ module Transition = (EV: EV_MODE) => {
       let.wrap_closure _ = env;
       Indet;
     | Asc(d', t) =>
-      switch (Ascriptions.transition(d)) {
+      switch (Ascriptions.transition(~update_probe=update_probe', d)) {
       | Some(d') =>
         let. _ = otherwise(env, d);
         Step({

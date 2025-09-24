@@ -213,6 +213,7 @@ module View = {
             ~globals,
           )
         : [];
+
     let projectors =
       ProjectorView.all(
         x => inject(Perform(x)),

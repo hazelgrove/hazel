@@ -126,7 +126,7 @@ let external_precedence_pat = (dp: Pat.t) =>
   | MultiHole(_) => Precedence.min
   };
 
-let external_precedence_typ = (tp: Typ.t) =>
+let rec external_precedence_typ = (tp: Typ.t) =>
   switch (Typ.term_of(tp)) {
   // Indivisible forms never need parentheses around them
   | Unknown(Hole(Invalid(_)))
@@ -152,6 +152,7 @@ let external_precedence_typ = (tp: Typ.t) =>
 
   // Matt: I think multiholes are min because we don't know the precedence of the `⟩?⟨`s
   | Unknown(Hole(MultiHole(_))) => Precedence.min
+  | Probe(typ, _) => external_precedence_typ(typ)
   };
 
 let paren_at = (internal_precedence: Precedence.t, exp: Exp.t): Exp.t =>
@@ -534,6 +535,13 @@ and parenthesize_typ =
   | Unknown(Hole(MultiHole(xs))) =>
     Unknown(
       Hole(MultiHole(List.map(parenthesize_any(~show_filters), xs))),
+    )
+    |> rewrap
+  | Probe(t, pr) =>
+    Probe(
+      parenthesize_typ(~already_paren=true, t)
+      |> paren_typ_at(Precedence.min),
+      pr,
     )
     |> rewrap
   };
@@ -1410,6 +1418,7 @@ and typ_to_pretty = (~settings: Settings.t, typ: Typ.t): pretty => {
     @ List.flatten(
         List.map2((id, t) => [mk_form(TypPlus, id, [])] @ t, ids, ts),
       );
+  | Probe(typ, _) => go(typ)
   };
 }
 and tpat_to_pretty = (~settings: Settings.t, tpat: TPat.t): pretty => {

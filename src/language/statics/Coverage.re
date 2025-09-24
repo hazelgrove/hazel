@@ -140,6 +140,7 @@ module Ctr = {
       failwith(
         "all_ctrs_of_type called with a non-normalized type: " ++ Typ.show(ty),
       )
+    | Probe(ty, _) => all_ctrs_of_typ(ty)
     };
   };
 
@@ -279,7 +280,7 @@ module UnseenPatternList: UnseenPatternList = {
   };
 
   /* Appends any Ctr to the beginning of the unseen pattern list*/
-  let cons_ctr = (ctr: Ctr.t, col_type: Typ.t, unseen_pattern: t) => {
+  let rec cons_ctr = (ctr: Ctr.t, col_type: Typ.t, unseen_pattern: t) => {
     let pat_list = unseen_pattern.pat;
     let cons_pat_t = (pat, unseen_pattern) =>
       cons_pat_t(pat, unseen_pattern);
@@ -419,6 +420,7 @@ module UnseenPatternList: UnseenPatternList = {
         "prepend_ctr called with a non-normalized type: "
         ++ Typ.show(col_type),
       )
+    | Probe(ty, _) => cons_ctr(ctr, ty, unseen_pattern)
     };
   };
 
@@ -455,14 +457,14 @@ module UnseenPatternList: UnseenPatternList = {
   /* Takes a type appends it to the start of the list. The list
      may receive additional modifications outside of just the type
      being appended. This behavior is type dependent*/
-  let cons_from_type =
-      (
-        seen_in_col: Seen.t,
-        col_type: Typ.t,
-        col_ctr: Ctr.t,
-        unseen_pattern: t,
-      )
-      : t => {
+  let rec cons_from_type =
+          (
+            seen_in_col: Seen.t,
+            col_type: Typ.t,
+            col_ctr: Ctr.t,
+            unseen_pattern: t,
+          )
+          : t => {
     let all_ctrs = Ctr.all_ctrs_of_typ(col_type);
     let pat_list = unseen_pattern.pat;
 
@@ -551,10 +553,13 @@ module UnseenPatternList: UnseenPatternList = {
         "cons_from_type called with a non-normalized type: "
         ++ Typ.show(col_type),
       )
+    | Probe(ty, _) =>
+      cons_from_type(seen_in_col, ty, col_ctr, unseen_pattern)
     };
   };
 
-  let cons_type_default = (col_type: Typ.t, col_ctr: Ctr.t, unseen_pattern: t) => {
+  let rec cons_type_default =
+          (col_type: Typ.t, col_ctr: Ctr.t, unseen_pattern: t) => {
     let all_ctrs = Ctr.all_ctrs_of_typ(col_type);
     let pat_list = unseen_pattern.pat;
 
@@ -609,6 +614,7 @@ module UnseenPatternList: UnseenPatternList = {
         "prepend_from_type called with a non-normalized type: "
         ++ Typ.show(col_type),
       )
+    | Probe(ty, _) => cons_type_default(ty, col_ctr, unseen_pattern)
     };
   };
 
