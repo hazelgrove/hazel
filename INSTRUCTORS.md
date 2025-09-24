@@ -35,8 +35,6 @@ between the two without clearing your local storage (in browser dev tools).
 
 # Generating Grade Reports (for Gradescope, etc.)
 
-`node -r ./src/web/www/polyfill_worker.js _build/default/src/web/gradescope.bc.js <path to json>` 
-
 NOTE: This is only relevant to the EECS490 repo (which include the haz3lschool build target).
 
 1. Open the exercise in instructor mode and export a grading version (button in top bar) which generates an OCaml file.
@@ -45,6 +43,6 @@ NOTE: This is only relevant to the EECS490 repo (which include the haz3lschool b
 
 3. Update the `src/haz3lschool/Specs.re` module with `<module_name>.exercise`.
 
-4. Run `dune exec ./src/haz3lschool/gradescope.exe <path_to_student_json>` under project root to print the grade report.
+4. Run `node -r ./src/web/www/polyfill_worker.js _build/default/src/web/gradescope.bc.js <path to student json> <path to output file>` under project root to export the grade report. Ignore the nonsense error. 
 
 To change the output format, adjust `Main.gen_grading_report` function in `Gradescope.re` .

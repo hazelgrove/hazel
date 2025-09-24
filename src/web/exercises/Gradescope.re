@@ -103,6 +103,7 @@ module Main = {
   };
   let run = () => {
     let hw_path = Sys.get_argv()[1];
+    let output_path = Sys.get_argv()[2];
     let hw = name_to_exercise_export(hw_path);
     let export_chapter =
       hw.exercise_data
@@ -121,9 +122,9 @@ module Main = {
                {eds: spec' |> eds_of_spec(~settings=CoreSettings.on)}
                |> gen_grading_report;
              {
-               name: "section name",
+               name: spec'.title,
                report,
-             }
+             };
            | None => failwith("Invalid spec")
            //  | None => (key |> yojson_of_key |> Yojson.Safe.to_string, "?")
            }
@@ -131,7 +132,7 @@ module Main = {
     export_chapter
     |> yojson_of_chapter
     |> Yojson.Safe.pretty_to_string
-    |> print_endline;
+    |> Out_channel.output_string(Out_channel.create(output_path));
   };
 };
 Main.run();
