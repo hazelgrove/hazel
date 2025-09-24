@@ -184,17 +184,31 @@ let convert_column =
   );
 };
 
+// TODO: Preserve ordering
 let rename_column =
-    (info: info, _old_name: string, _new_name: string): Base.segment => {
-  switch (
-    info.utility.lift_syntax(
-      s => s, // TODO Implement rename
-      info.syntax,
-    )
-  ) {
-  | Some(s) => s
-  | None => failwith("TableProj: rename_column: lift failed")
-  };
+    (info: info, old_name: string, new_name: string): Base.segment => {
+  apply_rowwise_transformation(
+    info,
+    IdTagged.FreshGrammar.(
+      Exp.(
+        fn(
+          Pat.var("r"),
+          tuple_extension(
+            ap(
+              Forward,
+              var("omit_labels"),
+              tuple([var("r"), label(old_name)]),
+            ),
+            tuple([
+              tup_label(label(new_name), dot(var("r"), label(old_name))),
+            ]),
+          ),
+          None,
+          None,
+        )
+      )
+    ),
+  );
 };
 
 // TODO This should be after and not at the end
@@ -677,11 +691,17 @@ module M: Projector = {
         }),
         Action({
           text: "Rename",
-          action: () =>
-            Effect.Many([
-              local(CloseMenu),
-              parent(SetSyntax(rename_column(info, h, "renamed_" ++ h))),
-            ]),
+          action: () => {
+            let new_column_name = JsUtil.prompt("New column name:", h);
+            switch (new_column_name) {
+            | None => local(CloseMenu) // User cancelled
+            | Some(new_name) =>
+              Effect.Many([
+                local(CloseMenu),
+                parent(SetSyntax(rename_column(info, h, new_name))),
+              ])
+            };
+          },
         }),
         Action({
           text: "Add Column After",
