@@ -39,6 +39,6 @@ NOTE: This is only relevant to the EECS490 repo (which include the haz3lschool b
 
 1. Update the `src/haz3lschool/Specs.re` module with `<module_name>.exercise`.
 
-2. Run `node -r ./src/web/www/polyfill_worker.js _build/default/src/web/gradescope.bc.js <path to student json> <path to output file>` under project root to export the grade report. Ignore the nonsense error. 
+2. Run `node -r ./src/web/www/polyfill_worker.js _build/default/src/web/gradescope.bc.js <path to student json> <path to output json>` under project root to export the grade report. Ignore the nonsense error. 
 
 To change the output format, adjust `Main.gen_grading_report` function in `Gradescope.re` .
