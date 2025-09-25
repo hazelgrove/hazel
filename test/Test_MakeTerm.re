@@ -233,29 +233,5 @@ let tests =
           "^slider(50)",
         )
       ),
-      // test_case(
-      //   "Dyntype proj exp",
-      //   `Quick,
-      //   () => {
-      //     open Haz3lcore;
-      //     let seg = Parser.to_segment({|^^dyntype(3) :  ?|}) |> Option.get;
-      //     let term = MakeTerm.from_zip_for_sem(Zipper.unzip(seg)).term;
-      //     print_endline("Segment: " ++ Segment.show(seg));
-      //     print_endline("Term: " ++ Language.Term.Exp.show(term));
-      //     Alcotest.fail("");
-      //   },
-      // ),
-      test_case(
-        "Dyntype proj typ",
-        `Quick,
-        () => {
-          open Haz3lcore;
-          let seg = Parser.to_segment({|3 :  ^^dyntype(?)|}) |> Option.get;
-          let term = MakeTerm.from_zip_for_sem(Zipper.unzip(seg)).term;
-          print_endline("Segment: " ++ Segment.show(seg));
-          print_endline("Term: " ++ Language.Term.Exp.show(term));
-          Alcotest.fail("");
-        },
-      ),
     ],
   );
