@@ -1,0 +1,63 @@
+{
+  "total": 1,
+  "pass": 0,
+  "fail": 1,
+  "indet": 0,
+  "model": "deepseek/deepseek-chat-v3.1:free",
+  "prompt_tokens": 42289,
+  "completion_tokens": 372,
+  "total_tokens": 42661,
+  "cached_tokens": 0,
+  "cached_tokens_supported": false,
+  "token_events": [
+    {
+      "prompt_tokens": 5709,
+      "completion_tokens": 55,
+      "total_tokens": 5764,
+      "cached_tokens": 0
+    },
+    {
+      "prompt_tokens": 5778,
+      "completion_tokens": 42,
+      "total_tokens": 5820,
+      "cached_tokens": 0
+    },
+    {
+      "prompt_tokens": 5931,
+      "completion_tokens": 50,
+      "total_tokens": 5981,
+      "cached_tokens": 0
+    },
+    {
+      "prompt_tokens": 6091,
+      "completion_tokens": 38,
+      "total_tokens": 6129,
+      "cached_tokens": 0
+    },
+    {
+      "prompt_tokens": 6164,
+      "completion_tokens": 49,
+      "total_tokens": 6213,
+      "cached_tokens": 0
+    },
+    {
+      "prompt_tokens": 6227,
+      "completion_tokens": 43,
+      "total_tokens": 6270,
+      "cached_tokens": 0
+    },
+    {
+      "prompt_tokens": 6389,
+      "completion_tokens": 95,
+      "total_tokens": 6484,
+      "cached_tokens": 0
+    }
+  ],
+  "failed_or_indet_tests": [
+    "test y == 5 end"
+  ],
+  "message_log": {
+    "messages": [],
+    "lastMessage": null
+  }
+}
