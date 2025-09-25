@@ -897,7 +897,14 @@ and abbreviate_typ = (typ: Typ.t): Typ.t => {
       } else {
         //TODO: abbreviate these like tuples
         available := available^ - 2; // "()"
-        let ts' = List.map(abbreviate_typ, ts);
+        let ts' =
+          List.map(
+            abbreviate_tuple_entry(
+              ~f=abbreviate_typ,
+              ~indet_term=indet_term_typ |> Typ.temp,
+            ),
+            ts,
+          );
         Prod(ts');
       }
     | Parens(t) =>
@@ -970,6 +977,28 @@ and abbreviate_tpat = (tpat: TPat.t): TPat.t => {
     };
   rewrap(term);
 }
+and abbreviate_tuple_entry:
+  'a 'ann.
+  (~indet_term: 'a, ~f: 'a => 'a, Grammar.tuple_entry('ann, 'a)) =>
+  Grammar.tuple_entry('ann, 'a)
+ =
+  (~indet_term, ~f, entry) =>
+    switch (entry) {
+    | Unlabeled(x) => Unlabeled(f(x))
+    | Labeled(a, l, x) =>
+      if (available^ <= 3) {
+        Unlabeled(indet_term);
+      } else {
+        available := available^ - 3;
+        Labeled(a, abbreviate_label(l), f(x));
+      }
+    }
+and abbreviate_label = (label: Grammar.label_t('a)): Grammar.label_t('a) =>
+  switch (label) {
+  | Label(l) => Label(abbreviate_str(available^, l))
+  | EmptyLabel => EmptyLabel
+  | MultiHole(ls) => MultiHole(ls)
+  }
 and abbreviate_any = (any: Any.t): Any.t =>
   switch (any) {
   | Exp(e) => Exp(abbreviate_exp(e))

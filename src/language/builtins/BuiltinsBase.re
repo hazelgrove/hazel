@@ -179,7 +179,7 @@ let numeric_fns: list(BuiltinsUtil.fn) = [
   },
   {
     name: "monus",
-    arg: Prod([nat(), nat()]),
+    arg: unlabeled_prod([nat(), nat()]).term,
     ret: Atom(Nat),
     imp:
       binary((d1, d2) => {
@@ -195,7 +195,7 @@ let numeric_fns: list(BuiltinsUtil.fn) = [
   },
   {
     name: "int_mod",
-    arg: Prod([int(), int()]),
+    arg: unlabeled_prod([int(), int()]).term,
     ret: Atom(Int),
     imp:
       binary((d1, d2) => {
@@ -217,7 +217,7 @@ let numeric_fns: list(BuiltinsUtil.fn) = [
   },
   {
     name: "sint_mod",
-    arg: Prod([sint(), sint()]),
+    arg: unlabeled_prod([sint(), sint()]).term,
     ret: Atom(SInt),
     imp:
       binary((d1, d2) => {
@@ -239,7 +239,7 @@ let numeric_fns: list(BuiltinsUtil.fn) = [
   },
   {
     name: "nat_mod",
-    arg: Prod([nat(), nat()]),
+    arg: unlabeled_prod([nat(), nat()]).term,
     ret: Atom(Nat),
     imp:
       binary((d1, d2) => {
@@ -261,7 +261,7 @@ let numeric_fns: list(BuiltinsUtil.fn) = [
   },
   {
     name: "float_mod",
-    arg: Prod([float(), float()]),
+    arg: unlabeled_prod([float(), float()]).term,
     ret: Atom(Float),
     imp:
       binary((d1, d2) => {
@@ -296,7 +296,7 @@ let string_fns: list(BuiltinsUtil.fn) = [
   },
   BuiltinsADT.{
     name: "string_compare",
-    arg: Prod([string(), string()]),
+    arg: unlabeled_prod([string(), string()]).term,
     ret: Ord.t.term,
     imp:
       binary((d1, d2) => {
@@ -382,7 +382,7 @@ let string_fns: list(BuiltinsUtil.fn) = [
   },
   {
     name: "string_join",
-    arg: Prod([string(), list(string())]),
+    arg: unlabeled_prod([string(), list(string())]).term,
     ret: Atom(String),
     imp:
       binary((d1, d2) => {
@@ -400,7 +400,7 @@ let string_fns: list(BuiltinsUtil.fn) = [
   },
   {
     name: "string_sub",
-    arg: Prod([string(), int(), int()]),
+    arg: unlabeled_prod([string(), int(), int()]).term,
     ret: Atom(String),
     imp:
       ternary((d1, d2, d3) => {
@@ -430,7 +430,7 @@ let string_fns: list(BuiltinsUtil.fn) = [
   },
   {
     name: "string_split",
-    arg: Prod([string(), string()]),
+    arg: unlabeled_prod([string(), string()]).term,
     ret: List(string()),
     imp:
       binary((d1, d2) => {
@@ -445,7 +445,7 @@ let string_fns: list(BuiltinsUtil.fn) = [
   },
   {
     name: "string_match",
-    arg: Prod([string(), string()]),
+    arg: unlabeled_prod([string(), string()]).term,
     ret: Atom(Bool),
     imp:
       binary((d1, d2) => {
@@ -457,7 +457,7 @@ let string_fns: list(BuiltinsUtil.fn) = [
   },
   {
     name: "string_replace",
-    arg: Prod([string(), string(), string()]),
+    arg: unlabeled_prod([string(), string(), string()]).term,
     ret: Atom(String),
     imp:
       ternary((d1, d2, d3) => {
@@ -470,7 +470,7 @@ let string_fns: list(BuiltinsUtil.fn) = [
   },
   {
     name: "string_search",
-    arg: Prod([string(), string(), int()]),
+    arg: unlabeled_prod([string(), string(), int()]).term,
     ret: Atom(Int),
     imp:
       ternary((d1, d2, d3) => {
@@ -494,7 +494,7 @@ let string_fns: list(BuiltinsUtil.fn) = [
 let pair_fns: list(BuiltinsUtil.fn) = [
   {
     name: "fst",
-    arg: Prod([unknown(Internal), unknown(Internal)]),
+    arg: unlabeled_prod([unknown(Internal), unknown(Internal)]).term,
     ret: Unknown(Internal),
     imp: d => {
       let-unbox t = (Tuple(2), d);
@@ -507,7 +507,7 @@ let pair_fns: list(BuiltinsUtil.fn) = [
   },
   {
     name: "snd",
-    arg: Prod([unknown(Internal), unknown(Internal)]),
+    arg: unlabeled_prod([unknown(Internal), unknown(Internal)]).term,
     ret: Unknown(Internal),
     imp: d => {
       let-unbox t = (Tuple(2), d);

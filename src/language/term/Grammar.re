@@ -101,6 +101,7 @@ and tuple_entry('a, 'e) =
   | Labeled('a, label_t('a), 'e)
   | Unlabeled('e)
 and exp_tuple_entry('a) = tuple_entry('a, exp_t('a))
+and typ_tuple_entry('a) = tuple_entry('a, typ_t('a))
 // | ExplicitlyUnlabeled({
 //     unlabeled: 'a,
 //     tup_label: 'a,
@@ -131,7 +132,7 @@ and typ_term('a) =
   | List(typ_t('a))
   | Arrow(typ_t('a), typ_t('a))
   | Sum(ConstructorMap.t(typ_t('a)))
-  | Prod(list(typ_t('a)))
+  | Prod(list(typ_tuple_entry('a)))
   | Label(string)
   | TupLabel(typ_t('a), typ_t('a))
   | Parens(typ_t('a))
@@ -354,6 +355,16 @@ and map_pat_annotation: 'a 'b. ('a => 'b, pat_t('a)) => pat_t('b) =
       annotation: new_annotation,
     };
   }
+and map_tuple_entry_annotation:
+  'ann 'inner 'ann2 'inner2.
+  ('ann => 'ann2, 'inner => 'inner2, tuple_entry('ann, 'inner)) =>
+  tuple_entry('ann2, 'inner2)
+ =
+  (f, g, entry) =>
+    switch (entry) {
+    | Unlabeled(t) => Unlabeled(g(t))
+    | Labeled(a, l, t) => Labeled(f(a), map_label_annotation(f, l), g(t))
+    }
 and map_typ_annotation: 'a 'b. ('a => 'b, typ_t('a)) => typ_t('b) =
   (f, e) => {
     let (term, annotation) = (e.term, e.annotation);
@@ -372,7 +383,13 @@ and map_typ_annotation: 'a 'b. ('a => 'b, typ_t('a)) => typ_t('b) =
           Rec(map_tpat_annotation(f, tp), map_typ_annotation(f, t))
         | Forall(tp, t) =>
           Forall(map_tpat_annotation(f, tp), map_typ_annotation(f, t))
-        | Prod(l) => Prod(List.map(x => map_typ_annotation(f, x), l))
+        | Prod(l) =>
+          Prod(
+            List.map(
+              x => map_tuple_entry_annotation(f, map_typ_annotation(f), x),
+              l,
+            ),
+          )
         | Label(l) => Label(l)
         | TupLabel(t1, t2) =>
           TupLabel(map_typ_annotation(f, t1), map_typ_annotation(f, t2))
@@ -465,6 +482,23 @@ and map_type_hole_annotation:
     | MultiHole(l) => MultiHole(List.map(x => map_any_annotation(f, x), l))
     };
   };
+
+let map_tuple_entry:
+  'ann 'inner.
+  ('inner => 'inner, tuple_entry('ann, 'inner)) => tuple_entry('ann, 'inner)
+ =
+  (g, entry) =>
+    switch (entry) {
+    | Unlabeled(t) => Unlabeled(g(t))
+    | Labeled(a, l, t) => Labeled(a, l, g(t))
+    };
+
+let get_tuple_entry_value: 'a 'b. tuple_entry('a, 'b) => 'b =
+  entry =>
+    switch (entry) {
+    | Unlabeled(t) => t
+    | Labeled(_, _, t) => t
+    };
 
 module type DefaultAnnotation = {
   type t;
@@ -563,6 +597,16 @@ module Factory = (DefaultAnnotation: DefaultAnnotation) => {
     let label = (~ann=?, l): exp_t(DefaultAnnotation.t) => {
       term: Label(l),
       annotation: default_annotation(ann),
+    };
+    let labeled =
+        (~ann=?, l: string, exp: exp_t(DefaultAnnotation.t))
+        : exp_tuple_entry(DefaultAnnotation.t) => {
+      Labeled(default_annotation(ann), Label(l), exp);
+    };
+    let labeled' =
+        (~ann=?, l, exp: exp_t(DefaultAnnotation.t))
+        : exp_tuple_entry(DefaultAnnotation.t) => {
+      Labeled(default_annotation(ann), l, exp);
     };
     let dot = (~ann=?, e1, e2): exp_t(DefaultAnnotation.t) => {
       term: Dot(e1, e2),
@@ -815,6 +859,22 @@ module Factory = (DefaultAnnotation: DefaultAnnotation) => {
     let prod = (~ann=?, l): typ_t(DefaultAnnotation.t) => {
       term: Prod(l),
       annotation: default_annotation(ann),
+    };
+
+    let unlabeled_prod = (~ann=?, l): typ_t(DefaultAnnotation.t) => {
+      term: Prod(List.map(x => Unlabeled(x), l)),
+      annotation: default_annotation(ann),
+    };
+
+    let labeled =
+        (~ann=?, l: string, exp: typ_t(DefaultAnnotation.t))
+        : typ_tuple_entry(DefaultAnnotation.t) => {
+      Labeled(default_annotation(ann), Label(l), exp);
+    };
+    let labeled' =
+        (~ann=?, l, exp: typ_t(DefaultAnnotation.t))
+        : typ_tuple_entry(DefaultAnnotation.t) => {
+      Labeled(default_annotation(ann), l, exp);
     };
     let label = (~ann=?, l): typ_t(DefaultAnnotation.t) => {
       term: Label(l),

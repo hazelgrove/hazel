@@ -5,7 +5,11 @@ open Util;
 let builtins: list(BuiltinsUtil.fn) = [
   {
     name: "group_by_label",
-    arg: Prod([list(unknown(Internal)), unknown(Internal)]),
+    arg:
+      Prod([
+        Unlabeled(list(unknown(Internal))),
+        Unlabeled(unknown(Internal)),
+      ]),
     ret: Unknown(Internal),
     imp:
       binary((d: DHExp.t, lab: DHExp.t) => {
@@ -26,12 +30,19 @@ let builtins: list(BuiltinsUtil.fn) = [
             |> Option.map(ListUtil.group_by(fst))
             |> Option.map(List.map(PairUtil.map_snd(List.map(snd))));
           Option.map(
-            List.map(((name: string, es)) =>
-              Fresh.Exp.(tup_label(label(name), list_lit(es)))
-            ),
+            List.map(
+              ((name: string, es)): Grammar.exp_tuple_entry(
+                                        IdTagged.IdTag.t,
+                                      ) => {
+              Labeled(
+                IdTagged.IdTag.fresh(),
+                Label(name),
+                Fresh.Exp.list_lit(es),
+              )
+            }),
             unboxed,
           )
-          |> Option.map(Exp.to_tuple);
+          |> Option.map(Fresh.Exp.tuple);
 
         | _ => None
         }
@@ -44,8 +55,8 @@ let builtins: list(BuiltinsUtil.fn) = [
     ret:
       List(
         prod([
-          tup_label(label("label"), string()),
-          tup_label(label("value"), unknown(Internal)),
+          labeled("label", string()),
+          labeled("value", unknown(Internal)),
         ]),
       ),
     imp: (e: DHExp.t) => {
@@ -68,8 +79,8 @@ let builtins: list(BuiltinsUtil.fn) = [
             IdTagged.FreshGrammar.(
               Exp.(
                 tuple([
-                  tup_label(label("label"), string(name)),
-                  tup_label(label("value"), e),
+                  labeled("label", string(name)),
+                  labeled("value", e),
                 ])
               )
             ),
@@ -84,17 +95,18 @@ let builtins: list(BuiltinsUtil.fn) = [
     arg:
       List(
         prod([
-          tup_label(label("label"), string()),
-          tup_label(label("value"), unknown(Internal)),
+          labeled("label", string()),
+          labeled("value", unknown(Internal)),
         ]),
       ),
     ret: Unknown(Internal),
     imp: (e: DHExp.t) => {
       open OptUtil.Syntax;
       let-unbox elems: list(Exp.t) = (ListLit, e);
-      let* tuple_entries =
+      let* tuple_entries: list(Exp.tuple_entry) =
         OptUtil.traverse(
           elem => {
+            open IdTagged.TempGrammar;
             let-unbox tuple_parts = (LabeledTupleEntries, elem);
 
             switch (tuple_parts) {
@@ -102,24 +114,18 @@ let builtins: list(BuiltinsUtil.fn) = [
                 (Some("label"), {term: Atom(String(s)), _}),
                 (Some("value"), v),
               ] =>
-              Some((Label(s) |> Exp.temp, v))
+              Some(Exp.labeled(s, v)) // TODO This was temp now it's fresh
             | [(Some("label"), {term: EmptyHole, _}), (Some("value"), v)] =>
-              Some((EmptyHole |> Exp.temp, v))
+              Some(Exp.labeled'(EmptyLabel, v))
             | [(Some("label"), bad_label), (Some("value"), v)] =>
-              Some((MultiHole([Exp(bad_label)]) |> Exp.temp, v))
+              Some(Exp.labeled'(MultiHole([Exp(bad_label)]), v))
             | _ => None
             };
           },
           elems,
         );
 
-      let tuple_entries =
-        List.map(
-          ((e1, e2)) => {TupLabel(e1, e2) |> Exp.temp},
-          tuple_entries,
-        );
-
-      Some(Exp.to_tuple(tuple_entries));
+      Some(IdTagged.TempGrammar.Exp.tuple(tuple_entries));
     },
     custom_statics: None,
   },
@@ -190,12 +196,10 @@ let builtins: list(BuiltinsUtil.fn) = [
           let entries =
             List.map(
               l =>
-                IdTagged.FreshGrammar.Exp.(
-                  tup_label(label(l), dot(tup, label(l)))
-                ),
+                IdTagged.FreshGrammar.Exp.(labeled(l, dot(tup, label(l)))),
               labels,
             );
-          Some(Exp.to_tuple(entries));
+          Some(IdTagged.TempGrammar.Exp.tuple(entries));
         | None => None
         };
       };
@@ -240,14 +244,14 @@ let builtins: list(BuiltinsUtil.fn) = [
                   if (StringSet.mem(l, labels_set)) {
                     None;
                   } else {
-                    Some(tup_label(label(l), e));
+                    Some(labeled(l, e));
                   }
-                | None => Some(e)
+                | None => Some(Unlabeled(e))
                 }
               },
               entries,
             );
-          Some(Exp.to_tuple(entries));
+          Some(IdTagged.TempGrammar.Exp.tuple(entries));
         | None => None
         };
       };

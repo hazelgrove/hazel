@@ -262,14 +262,14 @@ and uexp_to_info_map =
       );
 
     /* Special case for probes, which would otherwise lose their id association here */
+    // TODO Confirm this still works
     let elaborated_exp =
       switch (term) {
       | Probe(_, p) =>
         rewrap(
           Probe(
             Tuple([
-              TupLabel(Label(l) |> Exp.fresh, original_expression)
-              |> Exp.fresh,
+              IdTagged.FreshGrammar.Exp.(labeled(l, original_expression)),
             ])
             |> Exp.fresh,
             p,
@@ -278,7 +278,7 @@ and uexp_to_info_map =
       | _ =>
         rewrap(
           Tuple([
-            TupLabel(Label(l) |> Exp.fresh, original_expression) |> Exp.fresh,
+            IdTagged.FreshGrammar.Exp.(labeled(l, original_expression)),
           ]),
         )
       };
@@ -480,28 +480,12 @@ and uexp_to_info_map =
         Typ.normalize(ctx, t2.ty).term,
       ) {
       | (Prod(ts1), Prod(ts2)) =>
-        let extract_entry: Typ.t => (option(string), Typ.t) = (
-          t =>
-            switch (Typ.match_tup_label(t)) {
-            | Some((name, t)) => (Some(name), t)
-            | None => (None, t)
-            }
-        );
-        let e1_entries = List.map(extract_entry, ts1);
-        let e2_entries = List.map(extract_entry, ts2);
+        let e1_entries = ts1;
+        let e2_entries = ts2;
 
         let ty: Grammar.typ_t(IdTagged.IdTag.t) =
           IdTagged.FreshGrammar.Typ.(
-            prod(
-              List.map(
-                ((lab, d)) =>
-                  switch (lab) {
-                  | Some(l) => tup_label(label(l), d)
-                  | None => d
-                  },
-                LabeledTuple.extension(e1_entries, e2_entries),
-              ),
-            )
+            prod(LabeledTuple.extension'(e1_entries, e2_entries))
           );
 
         add(
@@ -527,41 +511,21 @@ and uexp_to_info_map =
     | Tuple(es) =>
       let expected_labels =
         switch (Typ.weak_head_normalize(ctx, ana).term) {
-        | Prod(ts) =>
-          Some(
-            List.filter_map(
-              t => Typ.match_tup_label(t) |> Option.map(fst),
-              ts,
-            ),
-          )
+        | Prod(ts) => Some(List.filter_map(LabeledTuple.get_label, ts))
         | _ => None
         };
 
       let original_labels =
         List.map(e => Exp.match_tup_label(e) |> Option.map(fst), es);
+      let (inferred_es, ana_tys) = Typ.matched_prod'(ctx, es, ana);
+      let es: list(Exp.tuple_entry) = inferred_es; //  List.map(snd, inferred_es);
+      let inferred: list(Exp.tuple_entry) = inferred_es;
 
-      let (inferred_es, ana_tys) =
-        Typ.matched_prod(
-          ctx,
-          List.map(e => (None: option(string), e), es),
-          ((inferred, e)) => {
-            Exp.match_tup_label(e)
-            |> Option.map(((label, element)) =>
-                 (label, (inferred, element))
-               )
-          },
-          ana,
-          (name, (_, e)) =>
-            (
-              Some(name),
-              TupLabel(Label(name) |> Exp.fresh, e) |> Exp.fresh,
-            ),
+      let new_labels: list(option(string)) =
+        List.map(
+          (e: Exp.tuple_entry) => Exp.match_tup_label(e) |> Option.map(fst),
+          es,
         );
-      let es = List.map(snd, inferred_es);
-      let inferred = List.map(fst, inferred_es);
-
-      let new_labels =
-        List.map(e => Exp.match_tup_label(e) |> Option.map(fst), es);
 
       let duplicate_labels =
         LabeledTuple.get_duplicate_labels(Exp.match_tup_label, es);
@@ -631,60 +595,60 @@ and uexp_to_info_map =
           Info.derive_label_inference_info(original_labels, new_labels),
         m,
       );
-    | TupLabel(label, e) =>
-      let (lab, e, m) =
-        switch (Typ.matched_label(ctx, ana)) {
-        | Some((labmode, val_mode)) =>
-          let (_, lab, m) =
-            label_to_info_map(expected_labels, labmode, label, m);
+    // | TupLabel(label, e) =>
+    //   let (lab, e, m) =
+    //     switch (Typ.matched_label(ctx, ana)) {
+    //     | Some((labmode, val_mode)) =>
+    //       let (_, lab, m) =
+    //         label_to_info_map(expected_labels, labmode, label, m);
 
-          let (e, m) = go(~ana=val_mode, ~inferred_label?, e, m);
-          (lab, e, m);
-        | _ =>
-          let (_, lab, m) =
-            label_to_info_map(
-              expected_labels,
-              Unknown(SynSwitch) |> Typ.temp,
-              label,
-              m,
-            );
+    //       let (e, m) = go(~ana=val_mode, ~inferred_label?, e, m);
+    //       (lab, e, m);
+    //     | _ =>
+    //       let (_, lab, m) =
+    //         label_to_info_map(
+    //           expected_labels,
+    //           Unknown(SynSwitch) |> Typ.temp,
+    //           label,
+    //           m,
+    //         );
 
-          let (e, m) =
-            go(~ana=Unknown(Internal) |> Typ.temp, ~inferred_label?, e, m);
-          (lab, e, m);
-        };
+    //       let (e, m) =
+    //         go(~ana=Unknown(Internal) |> Typ.temp, ~inferred_label?, e, m);
+    //       (lab, e, m);
+    //     };
 
-      let self =
-        switch (lab.status) {
-        | NotInHole(_) => Self.Just(TupLabel(lab.ty, e.ty) |> Typ.temp)
-        | InHole(
-            Common(
-              Inconsistent(Expectation({syn: {term: Label(name), _}, _})),
-            ),
-          )
-        | InHole(Common(NoType(InvalidLabel(name, _)))) =>
-          Self.TupleLabelError({
-            malformed_labels: [],
-            duplicate_labels: [],
-            invalid_labels: [name],
-            typ: TupLabel(Label(name) |> Typ.temp, e.ty) |> Typ.temp,
-          })
-        | InHole(Common(DuplicateLabel(name, _))) =>
-          Self.TupleLabelError({
-            malformed_labels: [],
-            duplicate_labels: [name],
-            invalid_labels: [],
-            typ: TupLabel(Label(name) |> Typ.temp, e.ty) |> Typ.temp,
-          })
-        | InHole(_) =>
-          Self.TupleLabelError({
-            malformed_labels: [Exp(label)],
-            duplicate_labels: [],
-            invalid_labels: [],
-            typ: TupLabel(Unknown(Internal) |> Typ.temp, e.ty) |> Typ.temp,
-          })
-        };
-      add(~self, ~co_ctx=CoCtx.union([lab.co_ctx, e.co_ctx]), m);
+    //   let self =
+    //     switch (lab.status) {
+    //     | NotInHole(_) => Self.Just(TupLabel(lab.ty, e.ty) |> Typ.temp)
+    //     | InHole(
+    //         Common(
+    //           Inconsistent(Expectation({syn: {term: Label(name), _}, _})),
+    //         ),
+    //       )
+    //     | InHole(Common(NoType(InvalidLabel(name, _)))) =>
+    //       Self.TupleLabelError({
+    //         malformed_labels: [],
+    //         duplicate_labels: [],
+    //         invalid_labels: [name],
+    //         typ: TupLabel(Label(name) |> Typ.temp, e.ty) |> Typ.temp,
+    //       })
+    //     | InHole(Common(DuplicateLabel(name, _))) =>
+    //       Self.TupleLabelError({
+    //         malformed_labels: [],
+    //         duplicate_labels: [name],
+    //         invalid_labels: [],
+    //         typ: TupLabel(Label(name) |> Typ.temp, e.ty) |> Typ.temp,
+    //       })
+    //     | InHole(_) =>
+    //       Self.TupleLabelError({
+    //         malformed_labels: [Exp(label)],
+    //         duplicate_labels: [],
+    //         invalid_labels: [],
+    //         typ: TupLabel(Unknown(Internal) |> Typ.temp, e.ty) |> Typ.temp,
+    //       })
+    //     };
+    //   add(~self, ~co_ctx=CoCtx.union([lab.co_ctx, e.co_ctx]), m);
     | Label(name) when label_sort =>
       let self = Self.Just(Label(name) |> Typ.temp);
       List.exists(l => name == l, duplicates)

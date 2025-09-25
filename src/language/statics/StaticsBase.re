@@ -78,7 +78,9 @@ let is_recursive = (ctx, p, def, syn: Typ.t) => {
     let norm = Typ.normalize(ctx, syn);
     switch (norm |> Typ.term_of) {
     | Prod(syns) when List.length(syns) == num_vars =>
-      syns |> List.for_all(is_arrow_like)
+      Util.(
+        syns |> List.for_all(Grammar.get_tuple_entry_value >> is_arrow_like)
+      )
     | _ when is_arrow_like(norm) => num_vars == 1
     | _ => false
     };

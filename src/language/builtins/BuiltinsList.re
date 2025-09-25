@@ -54,8 +54,8 @@ let builtins =
       name: "map",
       arg:
         Prod([
-          list(unknown(Internal)),
-          arrow(unknown(Internal), unknown(Internal)),
+          Unlabeled(list(unknown(Internal))),
+          Unlabeled(arrow(unknown(Internal), unknown(Internal))),
         ]),
       ret: List(unknown(Internal)),
       imp: {
@@ -98,7 +98,11 @@ let builtins =
            end|},
       name: "filter",
       arg:
-        Prod([list(unknown(Internal)), arrow(unknown(Internal), bool())]),
+        unlabeled_prod([
+          list(unknown(Internal)),
+          arrow(unknown(Internal), bool()),
+        ]).
+          term,
       ret: List(unknown(Internal)),
       imp: {
         Fresh.(
@@ -148,14 +152,15 @@ let builtins =
            end|},
       name: "fold_left",
       arg:
-        Prod([
+        unlabeled_prod([
           list(unknown(Internal)),
           arrow(
-            prod([unknown(Internal), unknown(Internal)]),
+            unlabeled_prod([unknown(Internal), unknown(Internal)]),
             unknown(Internal),
           ),
           unknown(Internal),
-        ]),
+        ]).
+          term,
       ret: Typ.term_of(unknown(Internal)),
       imp: {
         Fresh.(
@@ -199,10 +204,11 @@ let builtins =
       str: {|fix flat_map -> fun (xs, f) -> fold_left(xs, fun (acc,x) -> acc @ f(x), []))|},
       name: "flat_map",
       arg:
-        Prod([
+        unlabeled_prod([
           list(unknown(Internal)),
           arrow(unknown(Internal), list(unknown(Internal))),
-        ]),
+        ]).
+          term,
       ret: List(unknown(Internal)),
       imp: {
         Fresh.(
@@ -244,8 +250,12 @@ let builtins =
              | (x :: xs, y :: ys) => (x,y) :: zip(xs,ys)
            end|},
       name: "zip",
-      arg: Prod([list(unknown(Internal)), list(unknown(Internal))]),
-      ret: List(prod([unknown(Internal), unknown(Internal)])),
+      arg:
+        Prod([
+          Unlabeled(list(unknown(Internal))),
+          Unlabeled(list(unknown(Internal))),
+        ]),
+      ret: List(unlabeled_prod([unknown(Internal), unknown(Internal)])),
       imp: {
         Fresh.(
           Exp.(
@@ -295,8 +305,10 @@ let builtins =
              | ((a,b) :: xs) => let (as, bs) = unzip(xs) in ((a :: as), (b ::bs))
            end|},
       name: "unzip",
-      arg: List(prod([unknown(Internal), unknown(Internal)])),
-      ret: Prod([list(unknown(Internal)), list(unknown(Internal))]),
+      arg: List(unlabeled_prod([unknown(Internal), unknown(Internal)])),
+      ret:
+        unlabeled_prod([list(unknown(Internal)), list(unknown(Internal))]).
+          term,
       imp: {
         Fresh.(
           Exp.(
@@ -382,7 +394,7 @@ let builtins =
              | x :: xs => x :: take(xs, n - 1)
            end|},
       name: "take",
-      arg: Prod([list(unknown(Internal)), int()]),
+      arg: unlabeled_prod([list(unknown(Internal)), int()]).term,
       ret: List(unknown(Internal)),
       imp: {
         Fresh.(
@@ -431,7 +443,7 @@ let builtins =
              | x :: xs => drop(xs, n - 1)
            end|},
       name: "drop",
-      arg: Prod([list(unknown(Internal)), int()]),
+      arg: unlabeled_prod([list(unknown(Internal)), int()]).term,
       ret: List(unknown(Internal)),
       imp: {
         Fresh.(
@@ -473,7 +485,7 @@ let builtins =
     {
       str: {|fix range -> fun (start, end) -> if start > end then [] else start :: range(start + 1, end)|},
       name: "range",
-      arg: Prod([int(), int()]),
+      arg: unlabeled_prod([int(), int()]).term,
       ret: List(int()),
       imp: {
         Fresh.(
@@ -515,7 +527,7 @@ let builtins =
            |},
       name: "enumerate",
       arg: List(unknown(Internal)),
-      ret: List(prod([int(), unknown(Internal)])),
+      ret: List(unlabeled_prod([int(), unknown(Internal)])),
       imp: {
         Fresh.(
           Exp.(
@@ -536,7 +548,7 @@ let builtins =
                           (
                             Pat.cons(Pat.var("x"), Pat.var("xs")),
                             cons(
-                              tuple([var("index"), var("x")]),
+                              unlabeled_tuple([var("index"), var("x")]),
                               ap(
                                 Forward,
                                 var("enumerate_helper"),
@@ -572,7 +584,11 @@ let builtins =
            end|},
       name: "any",
       arg:
-        Prod([list(unknown(Internal)), arrow(unknown(Internal), bool())]),
+        unlabeled_prod([
+          list(unknown(Internal)),
+          arrow(unknown(Internal), bool()),
+        ]).
+          term,
       ret: Atom(Bool),
       imp: {
         Fresh.(
@@ -615,7 +631,11 @@ let builtins =
            end|},
       name: "all",
       arg:
-        Prod([list(unknown(Internal)), arrow(unknown(Internal), bool())]),
+        unlabeled_prod([
+          list(unknown(Internal)),
+          arrow(unknown(Internal), bool()),
+        ]).
+          term,
       ret: Atom(Bool),
       imp: {
         Fresh.(
@@ -658,7 +678,8 @@ let builtins =
              | x :: xs => x :: sep :: intersperse(xs, sep)
            end|},
       name: "intersperse",
-      arg: Prod([list(unknown(Internal)), unknown(Internal)]),
+      arg:
+        unlabeled_prod([list(unknown(Internal)), unknown(Internal)]).term,
       ret: List(unknown(Internal)),
       imp: {
         Fresh.(
@@ -700,7 +721,8 @@ let builtins =
     {
       str: {|fix cons -> fun (x, xs) -> x :: xs|},
       name: "cons",
-      arg: Prod([unknown(Internal), list(unknown(Internal))]),
+      arg:
+        unlabeled_prod([unknown(Internal), list(unknown(Internal))]).term,
       ret: List(unknown(Internal)),
       imp: {
         Fresh.(
@@ -818,7 +840,7 @@ let builtins =
              | x :: xs => if n == 0 then x else nth(xs, n - 1)
            end|},
       name: "nth",
-      arg: Prod([list(unknown(Internal)), int()]),
+      arg: unlabeled_prod([list(unknown(Internal)), int()]).term,
       ret: Unknown(Internal),
       imp: {
         Fresh.(
@@ -864,14 +886,15 @@ let builtins =
            end|},
       name: "fold_right",
       arg:
-        Prod([
+        unlabeled_prod([
           list(unknown(Internal)),
           arrow(
-            prod([unknown(Internal), unknown(Internal)]),
+            unlabeled_prod([unknown(Internal), unknown(Internal)]),
             unknown(Internal),
           ),
           unknown(Internal),
-        ]),
+        ]).
+          term,
       ret: Unknown(Internal),
       imp: {
         Fresh.(
@@ -917,7 +940,9 @@ let builtins =
     {
       str: {|fix append -> fun (xs, ys) -> xs @ ys|},
       name: "append",
-      arg: Prod([list(unknown(Internal)), list(unknown(Internal))]),
+      arg:
+        unlabeled_prod([list(unknown(Internal)), list(unknown(Internal))]).
+          term,
       ret: List(unknown(Internal)),
       imp: {
         Fresh.(
@@ -981,10 +1006,14 @@ let builtins =
            end|},
       name: "mapi",
       arg:
-        Prod([
+        unlabeled_prod([
           list(unknown(Internal)),
-          arrow(prod([int(), unknown(Internal)]), unknown(Internal)),
-        ]),
+          arrow(
+            unlabeled_prod([int(), unknown(Internal)]),
+            unknown(Internal),
+          ),
+        ]).
+          term,
       ret: List(unknown(Internal)),
       imp: {
         Fresh.(
@@ -1013,12 +1042,12 @@ let builtins =
                               ap(
                                 Forward,
                                 var("f"),
-                                tuple([var("i"), var("x")]),
+                                unlabeled_tuple([var("i"), var("x")]),
                               ),
                               ap(
                                 Forward,
                                 var("mapi_helper"),
-                                tuple([
+                                unlabeled_tuple([
                                   var("xs"),
                                   var("f"),
                                   bin_op(Int(Plus), var("i"), int(1)),
@@ -1033,7 +1062,7 @@ let builtins =
                     ),
                     None,
                   ),
-                  tuple([var("xs"), var("f"), int(0)]),
+                  unlabeled_tuple([var("xs"), var("f"), int(0)]),
                 ),
                 None,
                 Some("mapi+"),
@@ -1052,10 +1081,11 @@ let builtins =
            end|},
       name: "filteri",
       arg:
-        Prod([
+        unlabeled_prod([
           list(unknown(Internal)),
-          arrow(prod([int(), unknown(Internal)]), bool()),
-        ]),
+          arrow(unlabeled_prod([int(), unknown(Internal)]), bool()),
+        ]).
+          term,
       ret: List(unknown(Internal)),
       imp: {
         Fresh.(
@@ -1084,14 +1114,14 @@ let builtins =
                               ap(
                                 Forward,
                                 var("f"),
-                                tuple([var("i"), var("x")]),
+                                unlabeled_tuple([var("i"), var("x")]),
                               ),
                               cons(
                                 var("x"),
                                 ap(
                                   Forward,
                                   var("filteri_helper"),
-                                  tuple([
+                                  unlabeled_tuple([
                                     var("xs"),
                                     var("f"),
                                     bin_op(Int(Plus), var("i"), int(1)),
@@ -1101,7 +1131,7 @@ let builtins =
                               ap(
                                 Forward,
                                 var("filteri_helper"),
-                                tuple([
+                                unlabeled_tuple([
                                   var("xs"),
                                   var("f"),
                                   bin_op(Int(Plus), var("i"), int(1)),
@@ -1116,7 +1146,7 @@ let builtins =
                     ),
                     None,
                   ),
-                  tuple([var("xs"), var("f"), int(0)]),
+                  unlabeled_tuple([var("xs"), var("f"), int(0)]),
                 ),
                 None,
                 Some("filteri+"),
@@ -1130,7 +1160,8 @@ let builtins =
     {
       str: {|fix mem -> fun (xs, x) -> any(xs, fun t -> x == t)|},
       name: "mem",
-      arg: Prod([list(unknown(Internal)), unknown(Internal)]),
+      arg:
+        unlabeled_prod([list(unknown(Internal)), unknown(Internal)]).term,
       ret: Atom(Bool),
       imp: {
         Fresh.(
@@ -1142,7 +1173,7 @@ let builtins =
                 ap(
                   Forward,
                   var("any"),
-                  tuple([
+                  unlabeled_tuple([
                     var("xs"),
                     fn(
                       Pat.var("t"),
@@ -1169,8 +1200,14 @@ let builtins =
            end|},
       name: "partition",
       arg:
-        Prod([list(unknown(Internal)), arrow(unknown(Internal), bool())]),
-      ret: Prod([list(unknown(Internal)), list(unknown(Internal))]),
+        unlabeled_prod([
+          list(unknown(Internal)),
+          arrow(unknown(Internal), bool()),
+        ]).
+          term,
+      ret:
+        unlabeled_prod([list(unknown(Internal)), list(unknown(Internal))]).
+          term,
       imp: {
         Fresh.(
           Exp.(
@@ -1183,7 +1220,7 @@ let builtins =
                   [
                     (
                       Pat.list_lit([]),
-                      tuple([list_lit([]), list_lit([])]),
+                      unlabeled_tuple([list_lit([]), list_lit([])]),
                     ),
                     (
                       Pat.cons(Pat.var("x"), Pat.var("xs")),
@@ -1192,15 +1229,15 @@ let builtins =
                         ap(
                           Forward,
                           var("partition"),
-                          tuple([var("xs"), var("pred")]),
+                          unlabeled_tuple([var("xs"), var("pred")]),
                         ),
                         if_(
                           ap(Forward, var("pred"), var("x")),
-                          tuple([
+                          unlabeled_tuple([
                             cons(var("x"), var("trues")),
                             var("falses"),
                           ]),
-                          tuple([
+                          unlabeled_tuple([
                             var("trues"),
                             cons(var("x"), var("falses")),
                           ]),
@@ -1224,7 +1261,9 @@ let builtins =
              | x :: xs => rev_append(xs, x :: ys)
            end|},
       name: "rev_append",
-      arg: Prod([list(unknown(Internal)), list(unknown(Internal))]),
+      arg:
+        unlabeled_prod([list(unknown(Internal)), list(unknown(Internal))]).
+          term,
       ret: List(unknown(Internal)),
       imp: {
         Fresh.(
@@ -1242,7 +1281,10 @@ let builtins =
                       ap(
                         Forward,
                         var("rev_append"),
-                        tuple([var("xs"), cons(var("x"), var("ys"))]),
+                        unlabeled_tuple([
+                          var("xs"),
+                          cons(var("x"), var("ys")),
+                        ]),
                       ),
                     ),
                   ],
@@ -1264,11 +1306,11 @@ let builtins =
            end|},
       name: "fold_left2",
       arg:
-        Prod([
+        unlabeled_prod([
           list(unknown(Internal)),
           list(unknown(Internal)),
           arrow(
-            prod([
+            unlabeled_prod([
               unknown(Internal),
               unknown(Internal),
               unknown(Internal),
@@ -1276,7 +1318,8 @@ let builtins =
             unknown(Internal),
           ),
           unknown(Internal),
-        ]),
+        ]).
+          term,
       ret: Unknown(Internal),
       imp: {
         Fresh.(
@@ -1291,7 +1334,7 @@ let builtins =
                   Pat.var("acc"),
                 ]),
                 match(
-                  tuple([var("xs"), var("ys")]),
+                  unlabeled_tuple([var("xs"), var("ys")]),
                   [
                     (Pat.tuple([Pat.list_lit([]), Pat.wild()]), var("acc")),
                     (
@@ -1306,14 +1349,18 @@ let builtins =
                       ap(
                         Forward,
                         var("fold_left2"),
-                        tuple([
+                        unlabeled_tuple([
                           var("xs"),
                           var("ys"),
                           var("f"),
                           ap(
                             Forward,
                             var("f"),
-                            tuple([var("acc"), var("x"), var("y")]),
+                            unlabeled_tuple([
+                              var("acc"),
+                              var("x"),
+                              var("y"),
+                            ]),
                           ),
                         ]),
                       ),
@@ -1337,11 +1384,11 @@ let builtins =
            end|},
       name: "fold_right2",
       arg:
-        Prod([
+        unlabeled_prod([
           list(unknown(Internal)),
           list(unknown(Internal)),
           arrow(
-            prod([
+            unlabeled_prod([
               unknown(Internal),
               unknown(Internal),
               unknown(Internal),
@@ -1349,7 +1396,8 @@ let builtins =
             unknown(Internal),
           ),
           unknown(Internal),
-        ]),
+        ]).
+          term,
       ret: Unknown(Internal),
       imp: {
         Fresh.(
@@ -1364,7 +1412,7 @@ let builtins =
                   Pat.var("acc"),
                 ]),
                 match(
-                  tuple([var("xs"), var("ys")]),
+                  unlabeled_tuple([var("xs"), var("ys")]),
                   [
                     (Pat.tuple([Pat.list_lit([]), Pat.wild()]), var("acc")),
                     (
@@ -1379,13 +1427,13 @@ let builtins =
                       ap(
                         Forward,
                         var("f"),
-                        tuple([
+                        unlabeled_tuple([
                           var("x"),
                           var("y"),
                           ap(
                             Forward,
                             var("fold_right2"),
-                            tuple([
+                            unlabeled_tuple([
                               var("xs"),
                               var("ys"),
                               var("f"),
@@ -1414,14 +1462,15 @@ let builtins =
            end|},
       name: "map2",
       arg:
-        Prod([
+        unlabeled_prod([
           list(unknown(Internal)),
           list(unknown(Internal)),
           arrow(
-            prod([unknown(Internal), unknown(Internal)]),
+            unlabeled_prod([unknown(Internal), unknown(Internal)]),
             unknown(Internal),
           ),
-        ]),
+        ]).
+          term,
       ret: List(unknown(Internal)),
       imp: {
         Fresh.(
@@ -1431,7 +1480,7 @@ let builtins =
               fn(
                 Pat.tuple([Pat.var("xs"), Pat.var("ys"), Pat.var("f")]),
                 match(
-                  tuple([var("xs"), var("ys")]),
+                  unlabeled_tuple([var("xs"), var("ys")]),
                   [
                     (
                       Pat.tuple([Pat.list_lit([]), Pat.wild()]),
@@ -1450,12 +1499,16 @@ let builtins =
                         ap(
                           Forward,
                           var("f"),
-                          tuple([var("x"), var("y")]),
+                          unlabeled_tuple([var("x"), var("y")]),
                         ),
                         ap(
                           Forward,
                           var("map2"),
-                          tuple([var("xs"), var("ys"), var("f")]),
+                          unlabeled_tuple([
+                            var("xs"),
+                            var("ys"),
+                            var("f"),
+                          ]),
                         ),
                       ),
                     ),
@@ -1478,11 +1531,15 @@ let builtins =
            end|},
       name: "all2",
       arg:
-        Prod([
+        unlabeled_prod([
           list(unknown(Internal)),
           list(unknown(Internal)),
-          arrow(prod([unknown(Internal), unknown(Internal)]), bool()),
-        ]),
+          arrow(
+            unlabeled_prod([unknown(Internal), unknown(Internal)]),
+            bool(),
+          ),
+        ]).
+          term,
       ret: Atom(Bool),
       imp: {
         Fresh.(
@@ -1492,7 +1549,7 @@ let builtins =
               fn(
                 Pat.tuple([Pat.var("xs"), Pat.var("ys"), Pat.var("pred")]),
                 match(
-                  tuple([var("xs"), var("ys")]),
+                  unlabeled_tuple([var("xs"), var("ys")]),
                   [
                     (Pat.tuple([Pat.list_lit([]), Pat.wild()]), bool(true)),
                     (
@@ -1508,12 +1565,16 @@ let builtins =
                         ap(
                           Forward,
                           var("pred"),
-                          tuple([var("x"), var("y")]),
+                          unlabeled_tuple([var("x"), var("y")]),
                         ),
                         ap(
                           Forward,
                           var("all2"),
-                          tuple([var("xs"), var("ys"), var("pred")]),
+                          unlabeled_tuple([
+                            var("xs"),
+                            var("ys"),
+                            var("pred"),
+                          ]),
                         ),
                         bool(false),
                       ),
@@ -1537,11 +1598,15 @@ let builtins =
            end|},
       name: "any2",
       arg:
-        Prod([
+        unlabeled_prod([
           list(unknown(Internal)),
           list(unknown(Internal)),
-          arrow(prod([unknown(Internal), unknown(Internal)]), bool()),
-        ]),
+          arrow(
+            unlabeled_prod([unknown(Internal), unknown(Internal)]),
+            bool(),
+          ),
+        ]).
+          term,
       ret: Atom(Bool),
       imp: {
         Fresh.(
@@ -1551,7 +1616,7 @@ let builtins =
               fn(
                 Pat.tuple([Pat.var("xs"), Pat.var("ys"), Pat.var("pred")]),
                 match(
-                  tuple([var("xs"), var("ys")]),
+                  unlabeled_tuple([var("xs"), var("ys")]),
                   [
                     (
                       Pat.tuple([Pat.list_lit([]), Pat.wild()]),
@@ -1570,13 +1635,17 @@ let builtins =
                         ap(
                           Forward,
                           var("pred"),
-                          tuple([var("x"), var("y")]),
+                          unlabeled_tuple([var("x"), var("y")]),
                         ),
                         bool(true),
                         ap(
                           Forward,
                           var("any2"),
-                          tuple([var("xs"), var("ys"), var("pred")]),
+                          unlabeled_tuple([
+                            var("xs"),
+                            var("ys"),
+                            var("pred"),
+                          ]),
                         ),
                       ),
                     ),
@@ -1598,7 +1667,11 @@ let builtins =
            end|},
       name: "find",
       arg:
-        Prod([list(unknown(Internal)), arrow(unknown(Internal), bool())]),
+        unlabeled_prod([
+          list(unknown(Internal)),
+          arrow(unknown(Internal), bool()),
+        ]).
+          term,
       ret: Unknown(Internal),
       imp: {
         Fresh.(
@@ -1619,7 +1692,7 @@ let builtins =
                         ap(
                           Forward,
                           var("find"),
-                          tuple([var("xs"), var("pred")]),
+                          unlabeled_tuple([var("xs"), var("pred")]),
                         ),
                       ),
                     ),
@@ -1641,7 +1714,11 @@ let builtins =
            end|},
       name: "take_while",
       arg:
-        Prod([list(unknown(Internal)), arrow(unknown(Internal), bool())]),
+        unlabeled_prod([
+          list(unknown(Internal)),
+          arrow(unknown(Internal), bool()),
+        ]).
+          term,
       ret: List(unknown(Internal)),
       imp: {
         Fresh.(
@@ -1663,7 +1740,7 @@ let builtins =
                           ap(
                             Forward,
                             var("take_while"),
-                            tuple([var("xs"), var("pred")]),
+                            unlabeled_tuple([var("xs"), var("pred")]),
                           ),
                         ),
                         list_lit([]),
@@ -1687,7 +1764,11 @@ let builtins =
            end|},
       name: "drop_while",
       arg:
-        Prod([list(unknown(Internal)), arrow(unknown(Internal), bool())]),
+        unlabeled_prod([
+          list(unknown(Internal)),
+          arrow(unknown(Internal), bool()),
+        ]).
+          term,
       ret: List(unknown(Internal)),
       imp: {
         Fresh.(
@@ -1707,7 +1788,7 @@ let builtins =
                         ap(
                           Forward,
                           var("drop_while"),
-                          tuple([var("xs"), var("pred")]),
+                          unlabeled_tuple([var("xs"), var("pred")]),
                         ),
                         cons(var("x"), var("xs")),
                       ),
@@ -1733,10 +1814,11 @@ let builtins =
            end|},
       name: "filter_map",
       arg:
-        Prod([
+        unlabeled_prod([
           list(unknown(Internal)),
           arrow(unknown(Internal), unknown(Internal)),
-        ]),
+        ]).
+          term,
       ret: List(unknown(Internal)),
       imp: {
         Fresh.(
@@ -1759,7 +1841,7 @@ let builtins =
                             ap(
                               Forward,
                               var("filter_map"),
-                              tuple([var("xs"), var("f")]),
+                              unlabeled_tuple([var("xs"), var("f")]),
                             ),
                           ),
                           (
@@ -1769,7 +1851,7 @@ let builtins =
                               ap(
                                 Forward,
                                 var("filter_map"),
-                                tuple([var("xs"), var("f")]),
+                                unlabeled_tuple([var("xs"), var("f")]),
                               ),
                             ),
                           ),
@@ -1793,7 +1875,7 @@ let builtins =
              | x :: xs => if n == 0 then Some(x) else nth_opt(xs, n - 1)
            end|},
       name: "nth_opt",
-      arg: Prod([list(unknown(Internal)), int()]),
+      arg: unlabeled_prod([list(unknown(Internal)), int()]).term,
       ret: Unknown(Internal),
       imp: {
         Fresh.(
@@ -1814,7 +1896,7 @@ let builtins =
                         ap(
                           Forward,
                           var("nth_opt"),
-                          tuple([
+                          unlabeled_tuple([
                             var("xs"),
                             bin_op(Int(Minus), var("n"), int(1)),
                           ]),
@@ -1839,7 +1921,11 @@ let builtins =
            end|},
       name: "find_opt",
       arg:
-        Prod([list(unknown(Internal)), arrow(unknown(Internal), bool())]),
+        unlabeled_prod([
+          list(unknown(Internal)),
+          arrow(unknown(Internal), bool()),
+        ]).
+          term,
       ret: Unknown(Internal),
       imp: {
         Fresh.(
@@ -1860,7 +1946,7 @@ let builtins =
                         ap(
                           Forward,
                           var("find_opt"),
-                          tuple([var("xs"), var("pred")]),
+                          unlabeled_tuple([var("xs"), var("pred")]),
                         ),
                       ),
                     ),
@@ -1883,7 +1969,11 @@ let builtins =
            end|},
       name: "find_index",
       arg:
-        Prod([list(unknown(Internal)), arrow(unknown(Internal), bool())]),
+        unlabeled_prod([
+          list(unknown(Internal)),
+          arrow(unknown(Internal), bool()),
+        ]).
+          term,
       ret: Unknown(Internal),
       imp: {
         Fresh.(
@@ -1914,7 +2004,7 @@ let builtins =
                               ap(
                                 Forward,
                                 var("find_index_helper"),
-                                tuple([
+                                unlabeled_tuple([
                                   var("xs"),
                                   var("pred"),
                                   bin_op(Int(Plus), var("i"), int(1)),
@@ -1929,7 +2019,7 @@ let builtins =
                     ),
                     None,
                   ),
-                  tuple([var("xs"), var("pred"), int(0)]),
+                  unlabeled_tuple([var("xs"), var("pred"), int(0)]),
                 ),
                 None,
                 Some("find_index+"),
@@ -1950,10 +2040,11 @@ let builtins =
            end|},
       name: "find_map",
       arg:
-        Prod([
+        unlabeled_prod([
           list(unknown(Internal)),
           arrow(unknown(Internal), unknown(Internal)),
-        ]),
+        ]).
+          term,
       ret: Unknown(Internal),
       imp: {
         Fresh.(
@@ -1976,7 +2067,7 @@ let builtins =
                             ap(
                               Forward,
                               var("find_map"),
-                              tuple([var("xs"), var("f")]),
+                              unlabeled_tuple([var("xs"), var("f")]),
                             ),
                           ),
                           (
@@ -2008,10 +2099,14 @@ let builtins =
            end|},
       name: "find_mapi",
       arg:
-        Prod([
+        unlabeled_prod([
           list(unknown(Internal)),
-          arrow(prod([int(), unknown(Internal)]), unknown(Internal)),
-        ]),
+          arrow(
+            unlabeled_prod([int(), unknown(Internal)]),
+            unknown(Internal),
+          ),
+        ]).
+          term,
       ret: Unknown(Internal),
       imp: {
         Fresh.(
@@ -2040,7 +2135,7 @@ let builtins =
                               ap(
                                 Forward,
                                 var("f"),
-                                tuple([var("i"), var("x")]),
+                                unlabeled_tuple([var("i"), var("x")]),
                               ),
                               [
                                 (
@@ -2048,7 +2143,7 @@ let builtins =
                                   ap(
                                     Forward,
                                     var("find_mapi_helper"),
-                                    tuple([
+                                    unlabeled_tuple([
                                       var("xs"),
                                       var("f"),
                                       bin_op(Int(Plus), var("i"), int(1)),
@@ -2069,7 +2164,7 @@ let builtins =
                     ),
                     None,
                   ),
-                  tuple([var("xs"), var("f"), int(0)]),
+                  unlabeled_tuple([var("xs"), var("f"), int(0)]),
                 ),
                 None,
                 Some("find_mapi+"),
@@ -2085,7 +2180,7 @@ let builtins =
            fix init_helper -> fun (n, f, i) -> if i >= n then [] else f(i) :: init_helper(n, f, i + 1)
            end|},
       name: "init",
-      arg: Prod([int(), arrow(int(), unknown(Internal))]),
+      arg: unlabeled_prod([int(), arrow(int(), unknown(Internal))]).term,
       ret: List(unknown(Internal)),
       imp: {
         Fresh.(
@@ -2116,7 +2211,7 @@ let builtins =
                           ap(
                             Forward,
                             var("init_helper"),
-                            tuple([
+                            unlabeled_tuple([
                               var("n"),
                               var("f"),
                               bin_op(Int(Plus), var("i"), int(1)),
@@ -2129,7 +2224,7 @@ let builtins =
                     ),
                     None,
                   ),
-                  tuple([var("n"), var("f"), int(0)]),
+                  unlabeled_tuple([var("n"), var("f"), int(0)]),
                 ),
                 None,
                 Some("init+"),
@@ -2147,10 +2242,11 @@ let builtins =
            end|},
       name: "assoc",
       arg:
-        Prod([
-          list(prod([unknown(Internal), unknown(Internal)])),
+        unlabeled_prod([
+          list(unlabeled_prod([unknown(Internal), unknown(Internal)])),
           unknown(Internal),
-        ]),
+        ]).
+          term,
       ret: Unknown(Internal),
       imp: {
         Fresh.(
@@ -2174,7 +2270,7 @@ let builtins =
                         ap(
                           Forward,
                           var("assoc"),
-                          tuple([var("xs"), var("key")]),
+                          unlabeled_tuple([var("xs"), var("key")]),
                         ),
                       ),
                     ),
@@ -2196,10 +2292,11 @@ let builtins =
            end|},
       name: "assoc_opt",
       arg:
-        Prod([
-          list(prod([unknown(Internal), unknown(Internal)])),
+        unlabeled_prod([
+          list(unlabeled_prod([unknown(Internal), unknown(Internal)])),
           unknown(Internal),
-        ]),
+        ]).
+          term,
       ret: Unknown(Internal),
       imp: {
         Fresh.(
@@ -2223,7 +2320,7 @@ let builtins =
                         ap(
                           Forward,
                           var("assoc_opt"),
-                          tuple([var("xs"), var("key")]),
+                          unlabeled_tuple([var("xs"), var("key")]),
                         ),
                       ),
                     ),
@@ -2245,10 +2342,11 @@ let builtins =
            end|},
       name: "mem_assoc",
       arg:
-        Prod([
-          list(prod([unknown(Internal), unknown(Internal)])),
+        unlabeled_prod([
+          list(unlabeled_prod([unknown(Internal), unknown(Internal)])),
           unknown(Internal),
-        ]),
+        ]).
+          term,
       ret: Atom(Bool),
       imp: {
         Fresh.(
@@ -2272,7 +2370,7 @@ let builtins =
                         ap(
                           Forward,
                           var("mem_assoc"),
-                          tuple([var("xs"), var("key")]),
+                          unlabeled_tuple([var("xs"), var("key")]),
                         ),
                       ),
                     ),
@@ -2294,11 +2392,12 @@ let builtins =
            end|},
       name: "remove_assoc",
       arg:
-        Prod([
-          list(prod([unknown(Internal), unknown(Internal)])),
+        unlabeled_prod([
+          list(unlabeled_prod([unknown(Internal), unknown(Internal)])),
           unknown(Internal),
-        ]),
-      ret: List(prod([unknown(Internal), unknown(Internal)])),
+        ]).
+          term,
+      ret: List(unlabeled_prod([unknown(Internal), unknown(Internal)])),
       imp: {
         Fresh.(
           Exp.(
@@ -2320,14 +2419,14 @@ let builtins =
                         ap(
                           Forward,
                           var("remove_assoc"),
-                          tuple([var("xs"), var("key")]),
+                          unlabeled_tuple([var("xs"), var("key")]),
                         ),
                         cons(
-                          tuple([var("k"), var("v")]),
+                          unlabeled_tuple([var("k"), var("v")]),
                           ap(
                             Forward,
                             var("remove_assoc"),
-                            tuple([var("xs"), var("key")]),
+                            unlabeled_tuple([var("xs"), var("key")]),
                           ),
                         ),
                       ),
@@ -2354,11 +2453,14 @@ let builtins =
            end|},
       name: "partition_map",
       arg:
-        Prod([
+        unlabeled_prod([
           list(unknown(Internal)),
           arrow(unknown(Internal), unknown(Internal)),
-        ]),
-      ret: Prod([list(unknown(Internal)), list(unknown(Internal))]),
+        ]).
+          term,
+      ret:
+        unlabeled_prod([list(unknown(Internal)), list(unknown(Internal))]).
+          term,
       imp: {
         Fresh.(
           Exp.(
@@ -2371,7 +2473,7 @@ let builtins =
                   [
                     (
                       Pat.list_lit([]),
-                      tuple([list_lit([]), list_lit([])]),
+                      unlabeled_tuple([list_lit([]), list_lit([])]),
                     ),
                     (
                       Pat.cons(Pat.var("x"), Pat.var("xs")),
@@ -2380,21 +2482,21 @@ let builtins =
                         ap(
                           Forward,
                           var("partition_map"),
-                          tuple([var("xs"), var("f")]),
+                          unlabeled_tuple([var("xs"), var("f")]),
                         ),
                         match(
                           ap(Forward, var("f"), var("x")),
                           [
                             (
                               Pat.ap(Either.pat_left, Pat.var("y")),
-                              tuple([
+                              unlabeled_tuple([
                                 cons(var("y"), var("lefts")),
                                 var("rights"),
                               ]),
                             ),
                             (
                               Pat.ap(Either.pat_right, Pat.var("y")),
-                              tuple([
+                              unlabeled_tuple([
                                 var("lefts"),
                                 cons(var("y"), var("rights")),
                               ]),
@@ -2450,10 +2552,14 @@ let go: ([?], [?], [?]) -> [?] =
         merge_sort(xs)|},
       name: "sort",
       arg:
-        Prod([
-          arrow(prod([unknown(Internal), unknown(Internal)]), Ord.t),
+        unlabeled_prod([
+          arrow(
+            unlabeled_prod([unknown(Internal), unknown(Internal)]),
+            Ord.t,
+          ),
           list(unknown(Internal)),
-        ]),
+        ]).
+          term,
       ret: List(unknown(Internal)),
       imp: {
         Fresh.(
@@ -2481,7 +2587,7 @@ let go: ([?], [?], [?]) -> [?] =
                             Pat.var("acc"),
                           ]),
                           match(
-                            tuple([var("xs"), var("ys")]),
+                            unlabeled_tuple([var("xs"), var("ys")]),
                             [
                               (
                                 Pat.tuple([
@@ -2495,7 +2601,7 @@ let go: ([?], [?], [?]) -> [?] =
                                 ap(
                                   Forward,
                                   var("rev_append"),
-                                  tuple([var("acc"), var("ys")]),
+                                  unlabeled_tuple([var("acc"), var("ys")]),
                                 ),
                               ),
                               (
@@ -2503,7 +2609,7 @@ let go: ([?], [?], [?]) -> [?] =
                                 ap(
                                   Forward,
                                   var("rev_append"),
-                                  tuple([var("acc"), var("xs")]),
+                                  unlabeled_tuple([var("acc"), var("xs")]),
                                 ),
                               ),
                               (
@@ -2515,7 +2621,7 @@ let go: ([?], [?], [?]) -> [?] =
                                   ap(
                                     Forward,
                                     var("cmp"),
-                                    tuple([var("x"), var("y")]),
+                                    unlabeled_tuple([var("x"), var("y")]),
                                   ),
                                   [
                                     (
@@ -2523,7 +2629,7 @@ let go: ([?], [?], [?]) -> [?] =
                                       ap(
                                         Forward,
                                         var("go"),
-                                        tuple([
+                                        unlabeled_tuple([
                                           var("xs"),
                                           cons(var("y"), var("ys")),
                                           cons(var("x"), var("acc")),
@@ -2535,7 +2641,7 @@ let go: ([?], [?], [?]) -> [?] =
                                       ap(
                                         Forward,
                                         var("go"),
-                                        tuple([
+                                        unlabeled_tuple([
                                           var("xs"),
                                           cons(var("y"), var("ys")),
                                           cons(var("x"), var("acc")),
@@ -2547,7 +2653,7 @@ let go: ([?], [?], [?]) -> [?] =
                                       ap(
                                         Forward,
                                         var("go"),
-                                        tuple([
+                                        unlabeled_tuple([
                                           cons(var("x"), var("xs")),
                                           var("ys"),
                                           cons(var("y"), var("acc")),
@@ -2567,7 +2673,11 @@ let go: ([?], [?], [?]) -> [?] =
                       ap(
                         Forward,
                         var("go"),
-                        tuple([var("xs"), var("ys"), list_lit([])]),
+                        unlabeled_tuple([
+                          var("xs"),
+                          var("ys"),
+                          list_lit([]),
+                        ]),
                       ),
                     ),
                     None,
@@ -2584,11 +2694,14 @@ let go: ([?], [?], [?]) -> [?] =
                           [
                             (
                               Pat.list_lit([]),
-                              tuple([list_lit([]), list_lit([])]),
+                              unlabeled_tuple([list_lit([]), list_lit([])]),
                             ),
                             (
                               Pat.list_lit([Pat.var("x")]),
-                              tuple([list_lit([var("x")]), list_lit([])]),
+                              unlabeled_tuple([
+                                list_lit([var("x")]),
+                                list_lit([]),
+                              ]),
                             ),
                             (
                               Pat.cons(
@@ -2598,7 +2711,7 @@ let go: ([?], [?], [?]) -> [?] =
                               let_(
                                 Pat.tuple([Pat.var("xs"), Pat.var("ys")]),
                                 ap(Forward, var("split"), var("ys")),
-                                tuple([
+                                unlabeled_tuple([
                                   cons(var("x"), var("xs")),
                                   cons(var("y"), var("ys")),
                                 ]),
@@ -2636,7 +2749,7 @@ let go: ([?], [?], [?]) -> [?] =
                                   ap(
                                     Forward,
                                     var("merge"),
-                                    tuple([
+                                    unlabeled_tuple([
                                       var("cmp"),
                                       ap(
                                         Forward,
@@ -2675,7 +2788,7 @@ let go: ([?], [?], [?]) -> [?] =
     {
       str: {|fix slice -> fun (start, end, xs) -> take(drop(xs, start), end - start)|},
       name: "slice",
-      arg: Prod([int(), int(), list(unknown(Internal))]),
+      arg: unlabeled_prod([int(), int(), list(unknown(Internal))]).term,
       ret: List(unknown(Internal)),
       imp: {
         Fresh.(
@@ -2691,11 +2804,11 @@ let go: ([?], [?], [?]) -> [?] =
                 ap(
                   Forward,
                   var("take"),
-                  tuple([
+                  unlabeled_tuple([
                     ap(
                       Forward,
                       var("drop"),
-                      tuple([var("xs"), var("start")]),
+                      unlabeled_tuple([var("xs"), var("start")]),
                     ),
                     bin_op(Int(Minus), var("end"), var("start")),
                   ]),
@@ -2781,7 +2894,11 @@ let go: ([?], [?], [?]) -> [?] =
       str: {|any|}, //alias
       name: "contains",
       arg:
-        Prod([list(unknown(Internal)), arrow(unknown(Internal), bool())]),
+        unlabeled_prod([
+          list(unknown(Internal)),
+          arrow(unknown(Internal), bool()),
+        ]).
+          term,
       ret: Atom(Bool),
       imp: {
         Fresh.(Exp.(var("any")));
@@ -2809,7 +2926,11 @@ let go: ([?], [?], [?]) -> [?] =
       str: {|any|}, //alias
       name: "exists",
       arg:
-        Prod([list(unknown(Internal)), arrow(unknown(Internal), bool())]),
+        unlabeled_prod([
+          list(unknown(Internal)),
+          arrow(unknown(Internal), bool()),
+        ]).
+          term,
       ret: Atom(Bool),
       imp: {
         Fresh.(Exp.(var("any")));
@@ -2819,7 +2940,11 @@ let go: ([?], [?], [?]) -> [?] =
       str: {|all|}, //alias
       name: "for_all",
       arg:
-        Prod([list(unknown(Internal)), arrow(unknown(Internal), bool())]),
+        unlabeled_prod([
+          list(unknown(Internal)),
+          arrow(unknown(Internal), bool()),
+        ]).
+          term,
       ret: Atom(Bool),
       imp: {
         Fresh.(Exp.(var("all")));
@@ -2829,11 +2954,15 @@ let go: ([?], [?], [?]) -> [?] =
       str: {|any2|}, //alias
       name: "exists2",
       arg:
-        Prod([
+        unlabeled_prod([
           list(unknown(Internal)),
           list(unknown(Internal)),
-          arrow(prod([unknown(Internal), unknown(Internal)]), bool()),
-        ]),
+          arrow(
+            unlabeled_prod([unknown(Internal), unknown(Internal)]),
+            bool(),
+          ),
+        ]).
+          term,
       ret: Atom(Bool),
       imp: {
         Fresh.(Exp.(var("any2")));
@@ -2843,11 +2972,15 @@ let go: ([?], [?], [?]) -> [?] =
       str: {|all2|}, //alias
       name: "for_all2",
       arg:
-        Prod([
+        unlabeled_prod([
           list(unknown(Internal)),
           list(unknown(Internal)),
-          arrow(prod([unknown(Internal), unknown(Internal)]), bool()),
-        ]),
+          arrow(
+            unlabeled_prod([unknown(Internal), unknown(Internal)]),
+            bool(),
+          ),
+        ]).
+          term,
       ret: Atom(Bool),
       imp: {
         Fresh.(Exp.(var("all2")));
@@ -2857,10 +2990,11 @@ let go: ([?], [?], [?]) -> [?] =
       str: {|flat_map|}, //alias
       name: "concat_map",
       arg:
-        Prod([
+        unlabeled_prod([
           list(unknown(Internal)),
           arrow(unknown(Internal), list(unknown(Internal))),
-        ]),
+        ]).
+          term,
       ret: List(unknown(Internal)),
       imp: {
         Fresh.(Exp.(var("flat_map")));
@@ -2869,8 +3003,10 @@ let go: ([?], [?], [?]) -> [?] =
     {
       str: {|unzip|}, //alias
       name: "split",
-      arg: List(prod([unknown(Internal), unknown(Internal)])),
-      ret: Prod([list(unknown(Internal)), list(unknown(Internal))]),
+      arg: List(unlabeled_prod([unknown(Internal), unknown(Internal)])),
+      ret:
+        unlabeled_prod([list(unknown(Internal)), list(unknown(Internal))]).
+          term,
       imp: {
         Fresh.(Exp.(var("unzip")));
       },
@@ -2878,8 +3014,10 @@ let go: ([?], [?], [?]) -> [?] =
     {
       str: {|zip|}, //alias
       name: "combine",
-      arg: Prod([list(unknown(Internal)), list(unknown(Internal))]),
-      ret: List(prod([unknown(Internal), unknown(Internal)])),
+      arg:
+        unlabeled_prod([list(unknown(Internal)), list(unknown(Internal))]).
+          term,
+      ret: List(unlabeled_prod([unknown(Internal), unknown(Internal)])),
       imp: {
         Fresh.(Exp.(var("zip")));
       },

@@ -246,20 +246,7 @@ and Exp: {
           )
         | TypFun(tp, e, f) => TypFun(tpat_map_term(tp), exp_map_term(e), f)
         | Tuple(xs) =>
-          Tuple(
-            List.map(
-              (x: Grammar.exp_tuple_entry(IdTagged.IdTag.t)) => {
-                switch (x) {
-                | Unlabeled(e) => (
-                    Unlabeled(exp_map_term(e)):
-                      Grammar.exp_tuple_entry(IdTagged.IdTag.t)
-                  )
-                | Labeled(a, l, e) => Labeled(a, l, exp_map_term(e))
-                }
-              },
-              xs,
-            ),
-          )
+          Tuple(List.map(Grammar.map_tuple_entry(exp_map_term), xs))
         | TupleExtension(e1, e2) =>
           TupleExtension(exp_map_term(e1), exp_map_term(e2))
         | Dot(e1, e2) => Dot(exp_map_term(e1), exp_map_term(e2))
@@ -569,11 +556,35 @@ and Pat: {
     };
   let equal = fast_equal;
 }
+and Label: {
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type t = Grammar.label_t(IdTagged.IdTag.t);
+
+  let equal: (t, t) => bool;
+} = {
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type t = Grammar.label_t(IdTagged.IdTag.t);
+
+  let equal = (l1: t, l2: t) => {
+    switch (l1, l2) {
+    | (Label(s1), Label(s2)) => s1 == s2
+    | (EmptyLabel, EmptyLabel)
+    | (MultiHole(_), MultiHole(_)) // TODO Decide how this should work
+    | (MultiHole(_), EmptyLabel) // TODO Decide how this should work
+    | (EmptyLabel, MultiHole(_)) => true // TODO Decide how this should work
+    | (MultiHole(_), _)
+    | (Label(_), _)
+    | (EmptyLabel, _) => false
+    };
+  };
+}
 and Typ: {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type term = typ_term;
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t = typ_t;
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type tuple_entry = Grammar.typ_tuple_entry(IdTagged.IdTag.t);
 
   type sum_map = ConstructorMap.t(t);
 
@@ -598,6 +609,8 @@ and Typ: {
   type term = typ_term;
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t = typ_t;
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type tuple_entry = Grammar.typ_tuple_entry(IdTagged.IdTag.t);
 
   type sum_map = ConstructorMap.t(t);
 
@@ -631,7 +644,8 @@ and Typ: {
         | List(t) => List(typ_map_term(t))
         | Unknown(Hole(MultiHole(things))) =>
           Unknown(Hole(MultiHole(List.map(any_map_term, things))))
-        | Prod(xs) => Prod(List.map(typ_map_term, xs))
+        | Prod(xs) =>
+          Prod(List.map(Grammar.map_tuple_entry(typ_map_term), xs))
         | TupLabel(label, e) =>
           TupLabel(typ_map_term(label), typ_map_term(e))
         | Parens(e) => Parens(typ_map_term(e))
@@ -664,7 +678,8 @@ and Typ: {
       | Unknown(prov) => Unknown(prov) |> rewrap
       | Arrow(ty1, ty2) =>
         Arrow(subst(s, x, ty1), subst(s, x, ty2)) |> rewrap
-      | Prod(tys) => Prod(List.map(subst(s, x), tys)) |> rewrap
+      | Prod(tys) =>
+        Prod(List.map(Grammar.map_tuple_entry(subst(s, x)), tys)) |> rewrap
       | TupLabel(label, ty) => TupLabel(label, subst(s, x, ty)) |> rewrap
       | Sum(sm) =>
         Sum(ConstructorMap.map(Option.map(subst(s, x)), sm)) |> rewrap
@@ -728,7 +743,21 @@ and Typ: {
       && eq_internal(~alpha_equivalence, n, t2, t2')
     | (Arrow(_), _) => false
     | (Prod(tys1), Prod(tys2)) =>
-      List.equal(eq_internal(~alpha_equivalence, n), tys1, tys2)
+      List.equal(
+        (ty1: tuple_entry, ty2: tuple_entry) => {
+          switch (ty1, ty2) {
+          | (Grammar.Labeled(_, l1, t1), Grammar.Labeled(_, l2, t2)) =>
+            Label.equal(l1, l2)
+            && eq_internal(~alpha_equivalence, n + 1, t1, t2)
+          | (Grammar.Unlabeled(t1), Grammar.Unlabeled(t2)) =>
+            eq_internal(~alpha_equivalence, n + 1, t1, t2)
+          | (Grammar.Labeled(_, _, _), Grammar.Unlabeled(_))
+          | (Grammar.Unlabeled(_), Grammar.Labeled(_, _, _)) => false
+          }
+        },
+        tys1,
+        tys2,
+      )
     | (Prod(_), _) => false
     | (List(t1), List(t2)) => eq_internal(~alpha_equivalence, n, t1, t2)
     | (List(_), _) => false

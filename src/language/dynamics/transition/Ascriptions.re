@@ -44,35 +44,31 @@ let rec transition = (~recursive=false, d: DHExp.t): option(DHExp.t) => {
         ),
       )
     | (Tuple(es), Prod(tys)) when List.length(es) == List.length(tys) =>
-      Some(
-        Tuple(
-          List.map2(
-            (e: Exp.tuple_entry, ty: Typ.t): Exp.tuple_entry => {
-              switch (e) {
-              | Unlabeled(e) => Unlabeled(recur(Asc(e, ty) |> DHExp.fresh))
-              | Labeled(a, l, e) =>
-                Labeled(
-                  a,
-                  l,
-                  recur(
-                    Asc(
-                      e,
-                      switch (ty.term) {
-                      | TupLabel(_, ty) => ty
-                      | _ => ty
-                      },
-                    )
-                    |> DHExp.fresh,
-                  ),
-                ) // TODO We should not pass casts down into tuples if the labels don't match
-              }
-            },
-            es,
-            tys,
-          ),
-        )
-        |> DHExp.fresh,
-      )
+      Seq.product(List.to_seq(es), List.to_seq(tys))
+      |> Seq.map(((e_entry: Exp.tuple_entry, t_entry: Typ.tuple_entry)) => {
+           let ret: option(Exp.tuple_entry) =
+             switch (e_entry, t_entry) {
+             | (Unlabeled(e), Unlabeled(t)) =>
+               Some(Unlabeled(recur(Asc(e, t) |> DHExp.fresh)))
+             | (Labeled(a, Label(l1), e), Labeled(_, Label(l2), t))
+                 when String.equal(l1, l2) =>
+               Some(
+                 Labeled(a, Label(l1), recur(Asc(e, t) |> DHExp.fresh)),
+               )
+             | (Labeled(_, Label(_), _), Labeled(_, Label(_), _)) => None
+             | (Labeled(a, EmptyLabel | MultiHole(_), e), Labeled(_, l, t)) =>
+               Some(Labeled(a, l, recur(Asc(e, t) |> DHExp.fresh)))
+             | (Labeled(a, l, e), Labeled(_, EmptyLabel | MultiHole(_), t)) =>
+               Some(Labeled(a, l, recur(Asc(e, t) |> DHExp.fresh)))
+             | (Unlabeled(_), _) => None
+             | (Labeled(_), Unlabeled(_)) => None
+             };
+
+           ret;
+         })
+      |> List.of_seq
+      |> Util.OptUtil.sequence
+      |> Option.map(IdTagged.FreshGrammar.Exp.tuple)
     | (e, Unknown(_)) => Some(e |> DHExp.fresh)
     | (Atom(value) as d, Atom(typ)) =>
       switch (value, typ) {

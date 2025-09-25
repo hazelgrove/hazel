@@ -114,13 +114,21 @@ module Ctr = {
     | Rec({term: Var(w), _}, {term: Var(v), _}) when v == w => Unknown
     | Rec(_) => all_ctrs_of_typ(Typ.unroll(ty))
     | Prod(elts) =>
-      Finite(Map.singleton(tuple_ctr(List.length(elts)), elts))
+      Finite(
+        Map.singleton(
+          tuple_ctr(List.length(elts)),
+          List.map(Grammar.get_tuple_entry_value, elts),
+        ),
+      )
     | TupLabel(_, ty) => Finite(Map.singleton(tuple_ctr(1), [ty]))
     | List(elt_ty) =>
       Finite(
         Map.of_list([
           (nil_ctr, []),
-          (cons_ctr, [Prod([elt_ty, ty]) |> Typ.temp]),
+          (
+            cons_ctr,
+            [IdTagged.TempGrammar.Typ.unlabeled_prod([elt_ty, ty])],
+          ),
         ]),
       )
     | Atom(Bool) => Finite(Map.of_list([(true_ctr, []), (false_ctr, [])]))

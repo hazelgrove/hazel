@@ -272,7 +272,7 @@ module Js: BuiltinLivelit = {
 
   /* Model type in Hazel: a 2-tuple of strings. */
   let hazel_model_t: TermBase.Typ.t =
-    Prod([Typ.temp(Atom(String)), Typ.temp(Atom(String))]) |> Typ.fresh;
+    IdTagged.FreshGrammar.Typ.(unlabeled_prod([string(), string()]));
 
   /* Convert model to a Hazel expression. */
   let model_to_hazel: model_t => model_exp =
@@ -327,8 +327,7 @@ module Js: BuiltinLivelit = {
         "SetModel",
         [],
         Some(
-          Prod([Typ.temp(Atom(String)), Typ.temp(Atom(String))])
-          |> Typ.fresh,
+          IdTagged.FreshGrammar.Typ.(unlabeled_prod([string(), string()])),
         ),
       ),
     ])
@@ -352,8 +351,9 @@ module Js: BuiltinLivelit = {
             "SetModel",
             Some(
               Some(
-                Prod([Typ.temp(Atom(String)), Typ.temp(Atom(String))])
-                |> Typ.fresh,
+                IdTagged.FreshGrammar.Typ.(
+                  unlabeled_prod([string(), string()])
+                ),
               ),
             ),
           )

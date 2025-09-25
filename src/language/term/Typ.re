@@ -164,7 +164,11 @@ let rec has_fun = (typ: t) =>
       | _ => false,
       sm,
     )
-  | Prod(tys) => List.exists(has_fun, tys)
+  | Prod(tys) =>
+    List.exists(
+      (x: tuple_entry) => x |> Grammar.get_tuple_entry_value |> has_fun,
+      tys,
+    )
   };
 
 let rec is_forall = (typ: t) => {
@@ -220,17 +224,17 @@ let join_type_provenance =
   | (SynSwitch, SynSwitch) => SynSwitch
   };
 
-let rec match_tup_optional_label = (ty: t) =>
-  switch (term_of(ty)) {
-  | Parens(ty) => match_tup_optional_label(ty)
-  | TupLabel({term: Label(name), _}, t') => Some((Some(name), t'))
-  | TupLabel({term: Unknown(_), _}, t') => Some((None, t'))
-  | Unknown(_) => Some((None, ty))
+let match_tup_optional_label = (ty: tuple_entry) =>
+  switch (ty) {
+  | Labeled(_, Label(name), t') => Some((Some(name), t'))
+  | Labeled(_, EmptyLabel | MultiHole(_), t') => Some((None, t'))
+  | Unlabeled({term: Unknown(_), _} as t') => Some((None, t')) // TODO Decide if we need this
   | _ => None
   };
-let match_tup_label = ty =>
+
+let match_tup_label = (ty: tuple_entry) =>
   switch (match_tup_optional_label(ty)) {
-  | Some((Some(name), t')) => Some((name, t'))
+  | Some((Some(name), _)) => Some((name, ty)) // TODO Think about this
   | _ => None
   };
 
@@ -244,7 +248,8 @@ let rec free_vars = (~bound=[], ty: t): list(Var.t) =>
   | List(ty) => free_vars(~bound, ty)
   | Arrow(t1, t2) => free_vars(~bound, t1) @ free_vars(~bound, t2)
   | Sum(sm) => ConstructorMap.free_variables(free_vars(~bound), sm)
-  | Prod(tys) => List.concat_map(free_vars(~bound), tys)
+  | Prod(tys) =>
+    List.concat_map(Grammar.get_tuple_entry_value >> free_vars(~bound), tys)
   | TupLabel(_, ty) => free_vars(~bound, ty)
   | Rec(x, ty)
   | Forall(x, ty) =>
@@ -257,7 +262,7 @@ let rec vars = (ty: t): list(Var.t) =>
   | Unknown(_) => []
   | Var(x) => [x]
   | Arrow(ty1, ty2) => vars(ty1) @ vars(ty2)
-  | Prod(tys) => List.concat_map(vars, tys)
+  | Prod(tys) => List.concat_map(Grammar.get_tuple_entry_value >> vars, tys)
   | Sum(sm) =>
     List.concat_map(
       fun
@@ -311,7 +316,12 @@ let rec num_nodes = (ty: t): int => {
   | Var(_) => 1
   | Arrow(t1, t2) => 1 + num_nodes(t1) + num_nodes(t2)
   | Prod(tys) =>
-    1 + List.fold_left((acc, ty) => acc + num_nodes(ty), 0, tys)
+    1
+    + List.fold_left(
+        (acc, ty) => acc + num_nodes(Grammar.get_tuple_entry_value(ty)),
+        0,
+        tys,
+      ) // TODO We may want unknown labels here
   | Sum(sm) =>
     1
     + List.fold_left(
@@ -341,7 +351,11 @@ let rec count_unknowns = (ty: t): int =>
   | Var(_) => 0
   | Arrow(t1, t2) => count_unknowns(t1) + count_unknowns(t2)
   | Prod(tys) =>
-    List.fold_left((acc, ty) => acc + count_unknowns(ty), 0, tys)
+    List.fold_left(
+      (acc, ty) => acc + count_unknowns(Grammar.get_tuple_entry_value(ty)),
+      0,
+      tys,
+    ) // TODO We may want to count unknown labels
   | Sum(sm) =>
     List.fold_left(
       (acc, variant) =>
@@ -368,7 +382,8 @@ let rec contains_sum_or_var = (ty: t): bool =>
   | Var(_)
   | Sum(_) => true
   | Arrow(t1, t2) => contains_sum_or_var(t1) || contains_sum_or_var(t2)
-  | Prod(tys) => List.exists(contains_sum_or_var, tys)
+  | Prod(tys) =>
+    List.exists(Grammar.get_tuple_entry_value >> contains_sum_or_var, tys)
   | Rec(_, ty) => contains_sum_or_var(ty)
   | List(ty) => contains_sum_or_var(ty)
   | Parens(ty) => contains_sum_or_var(ty)
@@ -467,7 +482,51 @@ let rec join = (~resolve=false, ctx: Ctx.t, ty1: t, ty2: t): option(t) => {
     if (List.length(tys1) != List.length(tys2)) {
       None;
     } else {
-      let* tys = ListUtil.map2_opt(join', tys1, tys2);
+      let* tys =
+        ListUtil.map2_opt(
+          (ty1: tuple_entry, ty2: tuple_entry) => {
+            switch (ty1, ty2) {
+            | (Unlabeled(ty1), Unlabeled(ty2)) =>
+              join'(ty1, ty2)
+              |> Option.map((ty): tuple_entry => Unlabeled(ty))
+            | (Labeled(_, lab1, ty1), Labeled(_, lab2, ty2)) =>
+              switch (lab1, lab2) {
+              | (EmptyLabel | MultiHole(_), l2) =>
+                join'(ty1, ty2)
+                |> Option.map((ty: t) =>
+                     IdTagged.TempGrammar.Typ.labeled'(l2, ty)
+                   )
+              | (l1, EmptyLabel | MultiHole(_)) =>
+                join'(ty1, ty2)
+                |> Option.map((ty: t) =>
+                     IdTagged.TempGrammar.Typ.labeled'(l1, ty)
+                   )
+              | (Label(name1), Label("")) =>
+                // todo: Do we need this
+                join'(ty1, ty2)
+                |> Option.map(ty =>
+                     IdTagged.TempGrammar.Typ.labeled'(Label(name1), ty)
+                   )
+              | (Label(""), Label(name2)) =>
+                // todo: Do we need this
+                join'(ty1, ty2)
+                |> Option.map(ty =>
+                     IdTagged.TempGrammar.Typ.labeled'(Label(name2), ty)
+                   )
+              | (Label(name1), Label(name2)) when name1 == name2 =>
+                join'(ty1, ty2)
+                |> Option.map(ty =>
+                     IdTagged.TempGrammar.Typ.labeled'(Label(name1), ty)
+                   )
+              | (Label(_), Label(_)) => None
+              }
+            | (Unlabeled(_), Labeled(_)) => None
+            | (Labeled(_), Unlabeled(_)) => None
+            }
+          },
+          tys1,
+          tys2,
+        );
       let+ tys = OptUtil.sequence(tys);
       Prod(tys) |> temp;
     }
@@ -503,7 +562,21 @@ let rec match_synswitch = (t1: t, t2: t) => {
     Arrow(match_synswitch(ty1, ty1'), match_synswitch(ty2, ty2')) |> rewrap1
   | (Arrow(_), _) => t1
   | (Prod(tys1), Prod(tys2)) when List.length(tys1) == List.length(tys2) =>
-    let tys = List.map2(match_synswitch, tys1, tys2);
+    let tys =
+      List.map2(
+        (ty1: tuple_entry, ty2: tuple_entry): tuple_entry => {
+          switch (ty1, ty2) {
+          | (Unlabeled(ty1), Unlabeled(ty2)) =>
+            Unlabeled(match_synswitch(ty1, ty2))
+          | (Labeled(id1, lab1, ty1), Labeled(_, _, ty2)) =>
+            Labeled(id1, lab1, match_synswitch(ty1, ty2))
+          | (Unlabeled(_), _) => ty1
+          | (Labeled(_, _, _), _) => ty1
+          }
+        },
+        tys1,
+        tys2,
+      );
     Prod(tys) |> rewrap1;
   | (Prod(_), _) => t1
   | (TupLabel(label1, ty1), TupLabel(label2, ty2)) =>
@@ -578,7 +651,8 @@ let rec normalize = (~rec_counter=0, ctx: Ctx.t, ty: t): t => {
   | List(t) => List(normalize(ctx, t)) |> rewrap
   | Arrow(t1, t2) =>
     Arrow(normalize(ctx, t1), normalize(ctx, t2)) |> rewrap
-  | Prod(ts) => Prod(List.map(normalize(ctx), ts)) |> rewrap
+  | Prod(ts) =>
+    Prod(List.map(Grammar.map_tuple_entry(normalize(ctx)), ts)) |> rewrap
   | TupLabel(label, ty) =>
     TupLabel(normalize(ctx, label), normalize(ctx, ty)) |> rewrap
   | Sum(ts) =>
@@ -624,7 +698,17 @@ let rec get_labels = (ctx, ty): list(option(string)) => {
   let ty = weak_head_normalize(ctx, ty);
   switch (term_of(ty)) {
   | Parens(ty) => get_labels(ctx, ty)
-  | Prod(tys) => List.map(x => Option.map(fst, match_tup_label(x)), tys)
+  | Prod(tys) =>
+    List.map(
+      (x: tuple_entry) =>
+        switch (x) {
+        | Labeled(_, Label(name), _) => Some(name)
+        | Labeled(_, EmptyLabel, _)
+        | Labeled(_, MultiHole(_), _)
+        | Unlabeled(_) => None
+        },
+      tys,
+    )
   | _ => []
   };
 };
@@ -632,12 +716,12 @@ let rec get_labels = (ctx, ty): list(option(string)) => {
 let rec matched_prod_strict:
   type a.
     (Ctx.t, list(a), a => option((string, a)), t, (string, a) => a) =>
-    (list(a), option(list(t))) =
+    (list(a), option(list(tuple_entry))) =
   (ctx: Ctx.t, es, get_label_es, ty: t, constructor) => {
     switch (term_of(weak_head_normalize(ctx, ty))) {
     | Parens(ty) =>
       matched_prod_strict(ctx, es, get_label_es, ty, constructor)
-    | Prod(tys: list(t)) =>
+    | Prod(tys: list(tuple_entry)) =>
       if (List.length(es) != List.length(tys)) {
         (es, None);
       } else {
@@ -654,7 +738,11 @@ let rec matched_prod_strict:
       }
     | Unknown(SynSwitch) => (
         es,
-        Some(List.init(List.length(es), _ => Unknown(SynSwitch) |> temp)),
+        Some(
+          List.init(List.length(es), _: tuple_entry =>
+            Unlabeled(Unknown(SynSwitch) |> temp)
+          ),
+        ),
       )
     | _ => (es, None)
     };
@@ -667,11 +755,50 @@ let matched_prod = (ctx, es, get_label_es, ty, constructor) => {
     es,
     tys_opt
     |> Option.value(
-         ~default=List.init(List.length(es), _ => Unknown(Internal) |> temp),
+         ~default=
+           List.init(List.length(es), _: tuple_entry =>
+             Unlabeled(Unknown(Internal) |> temp)
+           ),
        ),
   );
 };
+let rec matched_prod_strict' = (ctx: Ctx.t, es, ty: t) => {
+  switch (term_of(weak_head_normalize(ctx, ty))) {
+  | Parens(ty) => matched_prod_strict'(ctx, es, ty)
+  | Prod(tys: list(tuple_entry)) =>
+    if (List.length(es) != List.length(tys)) {
+      (es, None);
+    } else {
+      (
+        LabeledTuple.rearrange'(~get_ann=IdTagged.IdTag.temp, tys, es),
+        Some(tys),
+      );
+    }
+  | Unknown(SynSwitch) => (
+      es,
+      Some(
+        List.init(List.length(es), _: tuple_entry =>
+          Unlabeled(Unknown(SynSwitch) |> temp)
+        ),
+      ),
+    )
+  | _ => (es, None)
+  };
+};
 
+let matched_prod' = (ctx, es, ty) => {
+  let (es, tys_opt) = matched_prod_strict'(ctx, es, ty);
+  (
+    es,
+    tys_opt
+    |> Option.value(
+         ~default=
+           List.init(List.length(es), _: tuple_entry =>
+             Unlabeled(Unknown(Internal) |> temp)
+           ),
+       ),
+  );
+};
 let rec matched_list_strict = (ctx, ty) =>
   switch (term_of(weak_head_normalize(ctx, ty))) {
   | Parens(ty) => matched_list_strict(ctx, ty)
@@ -689,8 +816,13 @@ let rec matched_args_strict = (ctx, ty, arity): Either.t('a, int) => {
   | Parens(ty) => matched_args_strict(ctx, ty, arity)
   | Prod(tys) when List.length(tys) == arity => L(tys)
   | Prod(tys) => R(List.length(tys))
-  | _ when arity == 1 => L([ty])
-  | Unknown(_) => L(List.init(arity, _ => Unknown(Internal) |> temp))
+  | _ when arity == 1 => L([Unlabeled(ty)])
+  | Unknown(_) =>
+    L(
+      List.init(arity, _: tuple_entry =>
+        Unlabeled(Unknown(Internal) |> temp)
+      ),
+    )
   | _ => R(1)
   };
 };
@@ -840,8 +972,8 @@ let rec pretty_print = (ty: t): string =>
   | Prod([t0, ...ts]) =>
     "("
     ++ List.fold_left(
-         (acc, t) => acc ++ ", " ++ pretty_print(t),
-         pretty_print(t0),
+         (acc, t: tuple_entry) => acc ++ ", " ++ pretty_print_tuple_entry(t),
+         pretty_print_tuple_entry(t0),
          ts,
        )
     ++ ")"
@@ -863,6 +995,12 @@ and paren_pretty_print = typ =>
     "(" ++ pretty_print(typ) ++ ")";
   } else {
     pretty_print(typ);
+  }
+and pretty_print_tuple_entry = (te: tuple_entry): string =>
+  switch (te) {
+  | Labeled(_, Label(name), t) => name ++ "=" ++ pretty_print(t)
+  | Labeled(_, EmptyLabel | MultiHole(_), t) => "?" ++ "=" ++ pretty_print(t)
+  | Unlabeled(t) => pretty_print(t)
   };
 
 /**
@@ -876,31 +1014,35 @@ and paren_pretty_print = typ =>
  * @return A new list of types with duplicates removed.
  */
 let remove_duplicate_labels =
-    (~duplicate_labels: list(LabeledTuple.label), tys: list(t)): list(t) => {
+    (
+      ~duplicate_labels: list(LabeledTuple.label),
+      tuple_entries: list(tuple_entry),
+    )
+    : list(tuple_entry) => {
   snd(
     List.fold_left(
-      ((seen_duplicates, deduplicated_types), ty) => {
-        let tup_label = match_tup_label(ty);
-        switch (tup_label) {
-        | Some((l, _))
+      ((seen_duplicates, deduplicated_types), entry: tuple_entry) => {
+        switch (entry) {
+        | Labeled(_, Label(l), _)
             when
               List.mem(l, duplicate_labels) && List.mem(l, seen_duplicates) => (
             seen_duplicates,
             deduplicated_types,
           )
-        | Some((l, _)) when List.mem(l, duplicate_labels) => (
+        | Labeled(_, Label(l), _) when List.mem(l, duplicate_labels) => (
             [l] @ seen_duplicates,
             deduplicated_types
-            @ [
-              TupLabel(Label(l) |> temp, Unknown(Internal) |> temp) |> temp,
-            ],
+            @ [IdTagged.TempGrammar.Typ.(labeled(l, unknown(Internal)))],
           )
-        | Some(_) => (seen_duplicates, deduplicated_types @ [ty])
-        | None => (seen_duplicates, deduplicated_types @ [ty])
-        };
+        | Labeled(_, EmptyLabel | MultiHole(_) | Label(_), _) => (
+            seen_duplicates,
+            deduplicated_types @ [entry],
+          )
+        | Unlabeled(_) => (seen_duplicates, deduplicated_types @ [entry])
+        }
       },
       ([], []),
-      tys,
+      tuple_entries,
     ),
   );
 };
@@ -915,10 +1057,11 @@ let remove_duplicate_labels =
  * @return A product type representing the combination of the input types,
  *         or the single type if the list contains only one element.
  */
-let to_product = (tys: list(t)): t =>
-  switch (tys) {
-  | []
-  | [{term: TupLabel(_), _}] => Prod(tys) |> temp
-  | [ty] => ty
-  | _ => Prod(tys) |> temp
-  };
+let to_product = (entries: list(tuple_entry)): t =>
+  IdTagged.TempGrammar.Typ.(
+    switch (entries) {
+    | [] => prod([])
+    | [Unlabeled(t)] => t
+    | entries => prod(entries)
+    }
+  );

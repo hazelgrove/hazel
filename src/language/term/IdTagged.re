@@ -8,6 +8,7 @@ module IdTag = {
   };
 
   let fresh = (): t => {ids: [Id.mk()]};
+  let temp = (): t => {ids: [Id.invalid]};
 };
 
 [@deriving (show({with_path: false}), sexp, yojson)]
@@ -70,4 +71,9 @@ module FreshGrammar =
   Grammar.Factory({
     type t = IdTag.t;
     let default_value = (): IdTag.t => IdTag.fresh();
+  });
+module TempGrammar =
+  Grammar.Factory({
+    type t = IdTag.t;
+    let default_value: unit => IdTag.t = () => {ids: [Id.invalid]};
   });

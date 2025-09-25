@@ -69,7 +69,11 @@ module Option = {
                | Some(x) => Some(f(x))
              end|},
       name: "option_map",
-      arg: Prod([t, arrow(unknown(Internal), unknown(Internal))]),
+      arg:
+        Prod([
+          Unlabeled(t),
+          Unlabeled(arrow(unknown(Internal), unknown(Internal))),
+        ]),
       ret: Unknown(Internal),
       imp: {
         Fresh.(
@@ -103,7 +107,11 @@ module Option = {
                | Some x => f(x)
              end|},
       name: "option_bind",
-      arg: Prod([t, arrow(unknown(Internal), unknown(Internal))]),
+      arg:
+        Prod([
+          Unlabeled(t),
+          Unlabeled(arrow(unknown(Internal), unknown(Internal))),
+        ]),
       ret: Unknown(Internal),
       imp: {
         Fresh.(

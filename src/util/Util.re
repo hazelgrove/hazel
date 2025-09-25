@@ -30,6 +30,7 @@ module VarMap = VarMap;
 module ProjectorShape = ProjectorShape;
 module API = API;
 module OpenRouter = OpenRouter;
+let (>>) = (f, g, x) => g(f(x));
 
 // Used by [@deriving sexp, yojson)]
 include Sexplib.Std;
