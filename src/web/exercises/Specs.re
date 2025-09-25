@@ -1,1 +1,1 @@
-let specs = [Ex_OddlyRecursive.exercise];
+let specs = ExerciseSettings_base.exercises;
