@@ -181,8 +181,7 @@ module Update = {
     | Exercise(ExerciseMode.Update.t)
     | ExportModule
     | ExportSubmission
-    | ExportTransitionary
-    | ExportGrading;
+    | ExportTransitionary;
 
   let can_undo = (action: t) => {
     switch (action) {
@@ -191,7 +190,6 @@ module Update = {
     | ExportModule => false
     | ExportSubmission => false
     | ExportTransitionary => false
-    | ExportGrading => false
     };
   };
   let export_exercise_module = (exercises: Model.t): unit => {
@@ -229,18 +227,7 @@ module Update = {
       );
     JsUtil.download_string_file(~filename, ~content_type, ~contents);
   };
-
-  let export_instructor_grading_report = (exercises: Model.t) => {
-    let exercise = Model.get_current(exercises);
-    // .ml files because show uses OCaml syntax (dune handles seamlessly)
-    let module_name = exercise.editors.module_name;
-    let filename = exercise.editors.module_name ++ "_grading.ml";
-    let content_type = "text/plain";
-    let contents =
-      Exercise.export_grading_module(module_name, {eds: exercise.editors});
-    JsUtil.download_string_file(~filename, ~content_type, ~contents);
-  };
-
+  
   let update =
       (~globals: Globals.t, ~schedule_action, action: t, model: Model.t) => {
     switch (action) {
@@ -276,10 +263,6 @@ module Update = {
     | ExportTransitionary =>
       Store.save(~instructor_mode=globals.settings.instructor_mode, model);
       export_transitionary(model);
-      model |> return_quiet;
-    | ExportGrading =>
-      Store.save(~instructor_mode=globals.settings.instructor_mode, model);
-      export_instructor_grading_report(model);
       model |> return_quiet;
     };
   };
@@ -379,13 +362,6 @@ module View = {
         ~tooltip="Export Transitionary Exercise Module",
       );
 
-    let instructor_grading_export =
-      Widgets.button_named(
-        Icons.export,
-        _ => {inject(ExportGrading)},
-        ~tooltip="Export Grading Exercise Module",
-      );
-
     let export_submission =
       Widgets.button_named(
         Icons.star,
@@ -448,11 +424,7 @@ module View = {
       NutMenu.item_group(
         ~inject,
         "Developer Export",
-        [
-          instructor_export,
-          instructor_transitionary_export,
-          instructor_grading_export,
-        ],
+        [instructor_export, instructor_transitionary_export],
       );
 
     if (globals.settings.instructor_mode) {

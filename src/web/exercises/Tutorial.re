@@ -457,14 +457,6 @@ let export_transitionary_module = (module_name, {eds, _}: state) => {
   data;
 };
 
-let export_grading_module = (module_name, {eds, _}: state) => {
-  let header = output_header_grading(module_name);
-  let prefix = "let exercise: Exercise.spec = ";
-  let record = show_p(editor_pp, eds);
-  let data = header ++ prefix ++ record ++ "\n";
-  data;
-};
-
 let blank_spec = (~title) => {
   let your_impl = Zipper.next_blank();
   let hidden_tests_tests = Zipper.next_blank();

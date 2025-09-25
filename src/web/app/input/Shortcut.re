@@ -31,12 +31,6 @@ let instructor_shortcuts: list(t) = [
     "Export Transitionary Exercise Module",
     Editors(Exercises(ExportTransitionary)) // TODO Would we rather skip contextual stuff for now or include it and have it fail
   ),
-  mk_shortcut(
-    ~mdIcon="download",
-    ~section="Export",
-    "Export Grading Exercise Module",
-    Editors(Exercises(ExportGrading)) // TODO Would we rather skip contextual stuff for now or include it and have it fail
-  ),
 ];
 
 // List of shortcuts configured to show up in the command palette and have hotkey support
