@@ -4,7 +4,8 @@ open Util;
 type kind =
   | ExoSlider
   | ExoBuilder
-  | ExoNool;
+  | ExoNool
+  | CatColLab;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type size = {
@@ -70,6 +71,17 @@ let module_of_kind = (kind: kind): info =>
       dev: "http://localhost:3000",
       shape: Block,
       // TODO: More specific syntax restriction
+      guard: _ => true,
+      size: {
+        width: 680,
+        height: 490,
+      },
+    }
+  | CatColLab => {
+      kind,
+      prod: "https://catcolab.org/model/0194fbf4-fddf-7a12-b88b-33015d17d8e7",
+      dev: "https://catcolab.org/model/0194fbf4-fddf-7a12-b88b-33015d17d8e7",
+      shape: Block,
       guard: _ => true,
       size: {
         width: 680,
