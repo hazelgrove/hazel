@@ -448,8 +448,7 @@ let rec elaborate = (m: Statics.Map.t, uexp: Exp.t): (DHExp.t, Typ.t) => {
    in the expression. It does this to get rid of
    all the invalid ids we added to prevent generating
    too many new ids */
-let fix_typ_ids =
-  Exp.map_term(~f_typ=(cont, e) => e |> IdTagged.new_ids |> cont);
+let fix_typ_ids = Exp.map_term(~f_typ=(cont, e) => e |> cont);
 
 let uexp_elab = (m: Statics.Map.t, uexp: Exp.t): ElaborationResult.t => {
   switch (elaborate(m, uexp)) {

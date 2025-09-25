@@ -31,9 +31,9 @@ let rec transition =
   switch (DHExp.term_of(d)) {
   | Asc(e, t) =>
     switch (DHExp.term_of(e), Typ.term_of(Typ.unroll(t))) {
-    | (_, Probe(t, p)) =>
-      update_probe(Exp.rep_id(e), e, Environment.empty, [], p);
-      Asc(e, t) |> DHExp.fresh |> transition(~update_probe, ~recursive);
+    | (_, Probe(t', p)) =>
+      update_probe(Typ.rep_id(t), e, Environment.empty, [], p);
+      Asc(e, t') |> DHExp.fresh |> transition(~update_probe, ~recursive);
     | (Asc(e, t'), t)
         // This is only necessary because sometimes we add two ascriptions and aren't marking it as a non-value
         when

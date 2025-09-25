@@ -9,6 +9,34 @@ let self_ty = (info: option(Info.t)): option(Typ.t) =>
   | Some(InfoPat({self, _})) => Self.typ_of_pat(self)
   | _ => None
   };
+let get_dynamic_typ = (info: info): Typ.t => {
+  let dynamic_typ =
+    info.dynamics
+    |> Option.bind(
+         _,
+         (d: Dynamics.Info.t) => {
+           let statics =
+             Statics.mk(CoreSettings.on, Builtins.ctx_init(Some(Int)));
+           let type_of = (c: Dynamics.Probe.Closure.t) => {
+             IdTagged.rep_id(c.value)
+             |> Id.Map.find_opt(_, statics(c.value))
+             |> Option.bind(
+                  _,
+                  fun
+                  | InfoExp(e) => {
+                      Some(e.ty);
+                    }
+                  | _ => None,
+                );
+           };
+           let types = List.map(type_of, d) |> Util.OptUtil.sequence;
+
+           Option.map(Typ.consistent_join(Ctx.empty), types);
+         },
+       )
+    |> Option.value(~default=Typ.fresh(Unknown(Internal)));
+  dynamic_typ;
+};
 module M: Projector = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type model =
@@ -37,31 +65,7 @@ module M: Projector = {
     |> Option.map([%derive.show: Language.Dynamics.Info.t])
     |> Option.value(~default="None")
     |> (y => print_endline("Dynamics: " ++ y));
-    let dynamic_typ =
-      info.dynamics
-      |> Option.bind(
-           _,
-           (d: Dynamics.Info.t) => {
-             let statics =
-               Statics.mk(CoreSettings.on, Builtins.ctx_init(Some(Int)));
-             let type_of = (c: Dynamics.Probe.Closure.t) => {
-               IdTagged.rep_id(c.value)
-               |> Id.Map.find_opt(_, statics(c.value))
-               |> Option.bind(
-                    _,
-                    fun
-                    | InfoExp(e) => {
-                        Some(e.ty);
-                      }
-                    | _ => None,
-                  );
-             };
-             let types = List.map(type_of, d) |> Util.OptUtil.sequence;
-
-             Option.map(Typ.consistent_join(Ctx.empty), types);
-           },
-         )
-      |> Option.value(~default=Typ.fresh(Unknown(Internal)));
+    let dynamic_typ = get_dynamic_typ(info);
     div(
       ~attrs=[Attr.classes(["dyntype-cell"])],
       [Typ(dynamic_typ) |> utility.term_to_seg |> view_seg(Sort.Typ)],
@@ -96,7 +100,7 @@ module M: Projector = {
         info: info,
         ~local: action => Ui_effect.t(unit),
         ~parent as _,
-        ~view_seg,
+        ~view_seg: View.seg,
       ) =>
     View.{
       inline:

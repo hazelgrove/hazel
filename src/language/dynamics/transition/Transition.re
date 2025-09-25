@@ -189,7 +189,6 @@ module Transition = (EV: EV_MODE) => {
         d,
       )
       : EV.result => {
-    print_endline("Transitioning: " ++ DHExp.show(d));
     let update_probe' = (id, d, env, call_stack, pr) => {
       print_endline(
         "Updating probe: " ++ Id.str3(id) ++ " with value " ++ DHExp.show(d),
@@ -262,7 +261,8 @@ module Transition = (EV: EV_MODE) => {
       and. d1' =
         req_final(req(state, env), d1 => Let1(dp, d1, d2) |> wrap_ctx, d1);
       let.wrap_closure _ = env;
-      let {matches, closures} = matches(dp, d1');
+      let {matches, closures} =
+        matches(~update_probe=update_probe', dp, d1');
       let matches_str = {
         switch (matches) {
         | IndetMatch
@@ -297,7 +297,7 @@ module Transition = (EV: EV_MODE) => {
     | FixF(dp, d1, env) =>
       let. _ =
         otherwise(env |> Option.value(~default=ClosureEnvironment.empty), d);
-      switch (matches(dp, d1).matches) {
+      switch (matches(~update_probe=update_probe', dp, d1).matches) {
       | IndetMatch
       | DoesNotMatch => Indet
       | Matches(env') =>
@@ -440,7 +440,7 @@ module Transition = (EV: EV_MODE) => {
         switch (unboxed_fun) {
         | Constructor(_) => Constructor
         | FunEnv(dp, d3, function_lexical_env) =>
-          let matches = matches(dp, d2');
+          let matches = matches(~update_probe=update_probe', dp, d2');
           switch (matches.matches) {
           | IndetMatch
           | DoesNotMatch => Indet
@@ -460,7 +460,7 @@ module Transition = (EV: EV_MODE) => {
             });
           };
         | FunNoEnv(dp, d3) when mode == `Substitution =>
-          let matches = matches(dp, d2');
+          let matches = matches(~update_probe=update_probe', dp, d2');
           switch (matches.matches) {
           | IndetMatch
           | DoesNotMatch => Indet
@@ -854,7 +854,7 @@ module Transition = (EV: EV_MODE) => {
         fun
         | [] => None
         | [(dp, d2), ...rules] => {
-            let matches = matches(dp, d1);
+            let matches = matches(~update_probe=update_probe', dp, d1);
             switch (matches.matches) {
             | Matches(env') => Some((env', d2, matches.closures))
             | DoesNotMatch => next_rule(rules)
@@ -929,7 +929,12 @@ module Transition = (EV: EV_MODE) => {
         let. _ = otherwise(env, d => Asc(d, t) |> rewrap)
         and. d' =
           req_final(req(state, env), d => Asc(d, t) |> wrap_ctx, d');
-        switch (Ascriptions.transition(Asc(d', t) |> rewrap)) {
+        switch (
+          Ascriptions.transition(
+            ~update_probe=update_probe',
+            Asc(d', t) |> rewrap,
+          )
+        ) {
         | Some(d) =>
           Step({
             expr: d,

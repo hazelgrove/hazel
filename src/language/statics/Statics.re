@@ -1898,6 +1898,7 @@ and utyp_to_info_map =
     add(m)
   | List(t)
   | Parens(t) => add(go(t, m) |> snd)
+  | Probe(typ, _) => add(go(typ, m) |> snd)
   | Arrow(t1, t2) =>
     let m = go(t1, m) |> snd;
     let m = go(t2, m) |> snd;
@@ -1988,9 +1989,6 @@ and utyp_to_info_map =
       |> snd;
     let m = utpat_to_info_map(~ctx, ~ancestors, utpat, m) |> snd;
     add(m); // TODO: check with andrew
-  | Probe(typ, _) =>
-    let m = utyp_to_info_map(~ctx, ~ancestors, typ, m) |> snd;
-    add(m);
   };
 }
 and utpat_to_info_map =

@@ -420,6 +420,8 @@ let rec join =
   switch (term_of(ty1), term_of(ty2)) {
   | (_, Parens(ty2)) => join'(ty1, ty2)
   | (Parens(ty1), _) => join'(ty1, ty2)
+  | (Probe(ty1, _), _) => join'(ty1, ty2)
+  | (_, Probe(ty2, _)) => join'(ty1, ty2)
   | (Unknown(p1), Unknown(p2)) =>
     Some(Unknown(join_type_provenance(p1, p2)) |> temp)
   | (Unknown(Inconsistent), _) => Some(ty1)
@@ -505,10 +507,6 @@ let rec join =
     let+ ty = join'(ty1, ty2);
     List(ty) |> temp;
   | (List(_), _) => inconsistent
-  | (Probe(ty1, _), Probe(ty2, _)) =>
-    let+ ty = join'(ty1, ty2);
-    ty;
-  | (Probe(ty1, _), _) => join'(ty1, ty2)
   };
 };
 

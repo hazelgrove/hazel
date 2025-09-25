@@ -333,5 +333,22 @@ let tests = (
         )
       )
     }),
+    test_case("Probe around unknown type", `Quick, () => {
+      PGrammar.(
+        probe_test(
+          {|3 : PROBE(?)|},
+          Exp.(
+            asc(
+              int(3),
+              Typ.probe(
+                ~ann=[probed_value(Atom(Int(Bigint.of_int(3))))],
+                Typ.unknown(Internal),
+                {refs: []},
+              ),
+            )
+          ),
+        )
+      )
+    }),
   ],
 );
