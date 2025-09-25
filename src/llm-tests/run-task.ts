@@ -35,10 +35,7 @@ type Summary = {
   cached_tokens_supported: boolean;
   token_events: TokenUsageEvent[];
   failed_or_indet_tests: string[];
-  message_log?: {
-    messages: any[];
-    lastMessage: any | null;
-  };
+  message_log: any[];
 };
 
 type RunOnceResult = 
@@ -117,10 +114,9 @@ async function runCore(
     tokenEvents: TokenUsageEvent[];
     cachedTokensSupported: boolean;
     lastMessages: any[] | null;
-    lastMessage: any | null;
   }
 ): Promise<Summary> {
-  const { task, apiKey, modelValue, url, outPath, tokenTotals, tokenEvents, cachedTokensSupported, lastMessages, lastMessage } = params;
+  const { task, apiKey, modelValue, url, outPath, tokenTotals, tokenEvents, cachedTokensSupported, lastMessages } = params;
 
   await page.goto(url, { waitUntil: 'domcontentloaded' });
 
@@ -221,6 +217,60 @@ async function runCore(
   }
   await page.waitForTimeout(500);
 
+  // --- Collect all messages robustly using Playwright locators ---
+  const message_log: any[] = [];
+  const container = await page.$('.message-display-container');
+  if (container) {
+    const messageEls = await container.$$('.message-container');
+    for (const el of messageEls) {
+      const classes = await el.getAttribute('class') || '';
+      // System prompt
+      if (classes.includes('system-prompt')) {
+        const showBtn = await el.$('.show-prompt-button');
+        let content = '[prompt hidden]';
+        if (showBtn) {
+          await showBtn.click();
+          // Wait for the system-prompt-message to appear anywhere in the DOM
+          const promptMsg = await page.waitForSelector('.system-prompt-message', { timeout: 2000 });
+          content = (await promptMsg.textContent())?.trim() || '';
+          // Optionally close the prompt (click outside or ESC)
+          await page.keyboard.press('Escape').catch(() => {});
+          await page.waitForTimeout(100);
+        }
+        message_log.push({ type: 'system-prompt', content });
+      }
+      // User message
+      else if (classes.includes('user')) {
+        const textarea = await el.$('textarea');
+        let content = '';
+        if (textarea) {
+          content = (await textarea.getProperty('value')).toString() || '';
+          if (!content) content = (await textarea.textContent())?.trim() || '';
+        }
+        message_log.push({ type: 'user', content });
+      }
+      // LLM/agent message
+      else if (classes.includes('llm')) {
+        const llmMsg = await el.$('.llm-message');
+        const content = (await llmMsg?.textContent())?.trim() || '';
+        message_log.push({ type: 'agent', content });
+      }
+      // Tool call
+      else if (classes.includes('tool')) {
+        const toolMsg = await el.$('.tool-message');
+        const content = (await toolMsg?.textContent())?.trim() || '';
+        message_log.push({ type: 'tool', content });
+      }
+      // System error
+      else if (classes.includes('system-error')) {
+        const errMsg = await el.$('.system-error-message');
+        const content = (await errMsg?.textContent())?.trim() || '';
+        message_log.push({ type: 'system-error', content });
+      }
+    }
+  }
+  await page.waitForTimeout(200);
+
   const [passCount, failCount, indetCount] = await Promise.all([
     page.locator(S.testPass).count(),
     page.locator(S.testFail).count(),
@@ -228,8 +278,6 @@ async function runCore(
   ]);
   const total = passCount + failCount + indetCount;
 
-  // Save the run summary file your script already computes (same outPath logic)
-  const message_log = lastMessages && lastMessage ? [...lastMessages, lastMessage] : undefined;
   const summary: Summary = {
     total,
     pass: passCount,
@@ -243,10 +291,7 @@ async function runCore(
     cached_tokens_supported: cachedTokensSupported,
     token_events: tokenEvents,
     failed_or_indet_tests,
-    message_log: {
-      messages: lastMessages ?? [],
-      lastMessage: lastMessage ?? null,
-    },
+    message_log: message_log
   };
 
   fs.writeFileSync(outPath, JSON.stringify(summary, null, 2), 'utf8');
@@ -260,7 +305,6 @@ async function runOnce(attempt: number, params: {
   const { headless, url, outDir, outPath, task, apiKey, modelValue } = params;
 
   let lastMessages: any[] | null = null;
-  let lastMessage: any | null = null;
 
   const browser = await chromium.launch({ headless });
   const ctx = await browser.newContext();
@@ -347,13 +391,15 @@ async function runOnce(attempt: number, params: {
 
           // Save last message
           if (Array.isArray(data.choices) && data.choices.length > 0 && data.choices[0].message) {
-            lastMessage = data.choices[0].message;
+            // lastMessage = data.choices[0].message;
+            // Log the full message object for debugging
+            console.log(JSON.stringify(data.choices[0].message, null, 2));
           }
         } catch {
           // ignore parse/streaming issues
         }
       });
-      const summary = await runCore(page, ctx, { task, apiKey, modelValue, url, outPath, tokenTotals, tokenEvents, cachedTokensSupported, lastMessages, lastMessage });
+      const summary = await runCore(page, ctx, { task, apiKey, modelValue, url, outPath, tokenTotals, tokenEvents, cachedTokensSupported, lastMessages });
       // Success: stop trace without saving
       await ctx.tracing.stop();
       return { ok: true as const, summary };
