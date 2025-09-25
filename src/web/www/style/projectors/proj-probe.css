@@ -244,7 +244,7 @@
 .projector.probe .pin {
   pointer-events: auto;
   position: absolute;
-  right: -0.4em;
+  left: -0.85em;
   top: -0.4em;
   height: 1.3em;
   width: 1.3em;

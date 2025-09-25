@@ -97,7 +97,7 @@ let add_manual =
 let toggle_manual =
     (id: Id.t, info_map: Language.Statics.Map.t, z: Zipper.t): Zipper.t =>
   switch (probe_status(id, info_map, z.refractors)) {
-  | REPL => rm_repl(id, z)
+  | REPL => rm_repl(id, z) |> add_manual(id, info_map)
   | Manual(ids) => rm_manual(ids, z)
   | Non => add_manual(id, info_map, z)
   };
@@ -151,7 +151,7 @@ let toggle_repl =
     : Zipper.t =>
   switch (probe_status(id, info_map, z.refractors)) {
   | REPL => rm_repl(id, z)
-  | Manual(ids) => rm_manual(ids, z)
+  | Manual(ids) => rm_manual(ids, z) |> add_repl(id, syntax)
   | Non => add_repl(id, syntax, z)
   };
 
@@ -164,13 +164,13 @@ let probe_jump =
   let* ci_body = Language.Statics.Map.lookup(body_id, statics);
   let z = toggle_manual(body_id, statics, z);
   switch (ci_body) {
-  | InfoExp({term: {term: Fun(_pat, body, _, _), _}, _}) =>
-    let fun_body_id =
-      switch (body.term) {
-      | Probe(_) => Id.recover_original(Language.IdTagged.rep_id(body))
-      | _ => Language.IdTagged.rep_id(body)
+  | InfoExp({term: {term: Fun(pat, _body, _, _), _}, _}) =>
+    let jump_target_id =
+      switch (pat.term) {
+      | Probe(_) => Id.recover_original(Language.IdTagged.rep_id(pat))
+      | _ => Language.IdTagged.rep_id(pat)
       };
-    Move.jump_to_id_indicated(z, fun_body_id);
+    Move.jump_to_id_indicated(z, jump_target_id);
   | _ => Move.jump_to_id_indicated(z, body_id)
   };
 };

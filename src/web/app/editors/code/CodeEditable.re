@@ -301,7 +301,7 @@ module View = {
                         }),
                         clss(["named-menu-item"]),
                       ],
-                      [text("Probejump")],
+                      [text("Step into")],
                     ),
                     // Widgets.toggle_named("", ~tooltip="probe", true, _ => {
                     //   Effect.Many([
