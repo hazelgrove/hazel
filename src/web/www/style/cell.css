@@ -16,6 +16,7 @@
   /* Only code in primary editor is selectable atm */
   cursor: text;
   flex-direction: row;
+  padding-left: 0px;
 }
 
 

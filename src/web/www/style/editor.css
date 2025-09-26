@@ -23,8 +23,13 @@
 }
 
 .line-numbers{
+  z-index: 100000;
+  background-color: var(--cell-active);
+  left: 0;
+  position: sticky !important; 
   display: flex !important;
   padding: 0px !important;
+  padding-left: 1em !important;
   width: fit-content !important;
   opacity: 0.5 !important;
   text-align: right !important;
