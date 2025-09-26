@@ -152,6 +152,7 @@ let sample_type = (cls_typ: Typ.cls): Grammar.UnitGrammar.typ => {
       | SynSwitch => unknown(SynSwitch)
       | Internal => unknown(Internal)
       | Label => label("label")
+      | ExplicitNonlabel => explicit_non_label()
       | MultiHole => unknown(Hole(MultiHole([])))
       | Sum => sum([])
       | ProdProjection =>

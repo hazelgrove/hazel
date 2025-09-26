@@ -157,21 +157,25 @@ module ProductProjection = {
 module ExplicitlyUnlabeledTuples = {
   let tests = [
     fully_consistent_typecheck(
+      ~normalize=true,
       "Explicitly unlabeled tuple in let binding",
       {|(_=1) : (_=Int)|},
       Some(prod([int()])),
     ),
     fully_consistent_typecheck(
+      ~normalize=true,
       "Multiple elements explicitly unlabeled",
       {|(_=1, _="") : (_=Int, _=String)|},
       Some(prod([int(), string()])),
     ),
     fully_consistent_typecheck(
+      ~normalize=true,
       "Explicitly unlabeled elements with implicit type",
       {|(_=1,_="") : (Int, String)|},
       Some(prod([int(), string()])),
     ),
     fully_consistent_typecheck(
+      ~normalize=true,
       "Implicitly unlabeled elements with explicitly unlabeled types",
       {|(1,"") : (_=Int, _=String)|},
       Some(prod([int(), string()])),

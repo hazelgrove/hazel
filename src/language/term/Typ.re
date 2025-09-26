@@ -460,6 +460,8 @@ let rec weak_head_normalize = (~rec_counter=0, ctx: Ctx.t, ty: t): t => {
     | Some(ty) => weak_head_normalize(~rec_counter=rec_counter + 1, ctx, ty)
     | None => ty
     }
+  | TupLabel({term: ExplicitNonlabel, _}, ty) =>
+    weak_head_normalize(~rec_counter=rec_counter + 1, ctx, ty)
   | ProdProjection(ty, label) =>
     let (_, rewrap) = unwrap(ty);
 
@@ -511,6 +513,7 @@ let rec normalize = (~rec_counter=0, ctx: Ctx.t, ty: t): t => {
   | Prod(ts) => Prod(List.map(normalize(ctx), ts)) |> rewrap
   | ProdProjection(_) => weak_head_normalize(ctx, ty) |> normalize(ctx)
   | ProdExtension(_) => weak_head_normalize(ctx, ty) |> normalize(ctx)
+  | TupLabel({term: ExplicitNonlabel, _}, ty) => normalize(ctx, ty) // Drop ExplicitNonlabel in normalization
   | TupLabel(label, ty) =>
     TupLabel(normalize(ctx, label), normalize(ctx, ty)) |> rewrap
   | Sum(ts) =>
@@ -625,8 +628,7 @@ let rec join = (~resolve=false, ctx: Ctx.t, ty1: t, ty2: t): option(t) => {
   | (List(_), _) => None
   // We would prefer for this to be a sort difference and never appear in a join.
   // These get marked in statics but that does not remove them from the utyp's propagated on parents.
-  | (ExplicitNonlabel, _) =>
-    None
+  | (ExplicitNonlabel, _) => None
   };
 };
 
