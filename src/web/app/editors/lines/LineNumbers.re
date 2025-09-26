@@ -20,7 +20,14 @@ module View = {
         },
       _,
     }: Model.t = model;
-    let num_rows = 19;
+    let num_rows =
+      IntMap.fold(
+        /* The folding function: takes the key, value, and accumulator. */
+        (key, value, count) => count + 1,
+        measured.rows,
+        /* The initial value of the accumulator (count). */
+        0,
+      );
     [
       Node.div(
         //replace with Node.div
