@@ -227,7 +227,7 @@ module Update = {
       );
     JsUtil.download_string_file(~filename, ~content_type, ~contents);
   };
-  
+
   let update =
       (~globals: Globals.t, ~schedule_action, action: t, model: Model.t) => {
     switch (action) {
