@@ -218,10 +218,10 @@ and exp = unsorted => {
       },
     );
   switch (term) {
-  | TupLabel(_) =>
-    // The tile id is the id of the tuple not the tuplabel
-    let (e_term, rewrap) = IdTagged.unwrap(e);
-    rewrap(Tuple([e_term |> Exp.fresh]): Exp.term);
+  // | TupLabel(_) =>
+  //   // The tile id is the id of the tuple not the tuplabel
+  //   let (e_term, rewrap) = IdTagged.unwrap(e);
+  //   rewrap(Tuple([e_term |> Exp.fresh]): Exp.term);
   | _ => e
   };
 }
@@ -263,13 +263,16 @@ and exp_term: unsorted => (Exp.term, list(Id.t)) = {
           (
             ListLit(
               List.map(
-                (list_item: Grammar.exp_t(IdTagged.IdTag.t)) => {
-                  let (e, rewrap) = IdTagged.unwrap(list_item);
-                  switch (e) {
-                  | TupLabel(_) =>
-                    rewrap(Tuple([e |> Exp.fresh]): TermBase.exp_term)
-                  | _ => list_item
-                  };
+                (list_item: Exp.tuple_entry) => {
+                  switch (list_item) {
+                  | Labeled(a, l, e) => (
+                      {
+                        annotation: a,
+                        term: Tuple([Labeled(IdTagged.IdTag.fresh(), l, e)]),
+                      }: Exp.t
+                    )
+                  | Unlabeled(e) => e
+                  }
                 },
                 es,
               ),
@@ -378,11 +381,27 @@ and exp_term: unsorted => (Exp.term, list(Id.t)) = {
           ret(LivelitName(Token.parse_livelit(l)))
         | _ when Exp.is_deferral(arg) =>
           ret(DeferredAp(l, [use_deferral(arg)]))
-        | Tuple(es) when List.exists(Exp.is_deferral, es) => (
+        | Tuple(es)
+            when
+              List.exists(
+                e => Exp.is_deferral(Grammar.get_tuple_entry_value(e)),
+                es,
+              ) => (
             DeferredAp(
               l,
               List.map(
-                arg => Exp.is_deferral(arg) ? use_deferral(arg) : arg,
+                (arg: Exp.tuple_entry) => {
+                  switch (arg) {
+                  | Unlabeled(arg) =>
+                    Exp.is_deferral(arg) ? use_deferral(arg) : arg
+                  | _ =>
+                    raise(
+                      Failure(
+                        "todo:  labeled argument in deferred application",
+                      ),
+                    )
+                  }
+                },
                 es,
               ),
             ),
@@ -403,24 +422,24 @@ and exp_term: unsorted => (Exp.term, list(Id.t)) = {
   | Bin(Exp(l), tiles, Exp(r)) as tm =>
     switch (is_tuple_exp(tiles)) {
     | Some(between_kids) =>
-      let tuple_children: list(Exp.t) =
+      let tuple_children: list(Exp.tuple_entry) =
         [l]
         @ between_kids
         @ [r]
         |> List.map((child: Exp.t) => {
              switch (child) {
-             | {term: Tuple([{term: TupLabel(_) as tl, _}]), _} as tup =>
+             | {term: Tuple([Labeled(_, l, e)]), annotation: a} =>
                // We use the Id for the tuple as the ids for the tuplabels
-               let (_, rewrap) = IdTagged.unwrap(tup);
-               rewrap(tl);
-             | _ => child
+               (Labeled(a, l, e): Exp.tuple_entry)
+             | {term: Tuple([Unlabeled(_) as e]), _} => e
+             | _ => Unlabeled(child)
              }
            });
 
       ret(Tuple(tuple_children));
     | None =>
       switch (tiles) {
-      | ([(_id, t)], []) =>
+      | ([(id, t)], []) =>
         ret(
           switch (t) {
           | (["+"], []) => BinOp(Int(Plus), l, r)
@@ -455,22 +474,49 @@ and exp_term: unsorted => (Exp.term, list(Id.t)) = {
           | (["="], []) =>
             switch (l.term) {
             | Var(name) =>
-              TupLabel(
-                {
-                  annotation: l.annotation,
-                  term: Label(name),
-                },
-                r,
-              )
-            | Label(_) => TupLabel(l, r)
-            | EmptyHole => TupLabel(l, r)
+              Tuple([
+                Labeled(
+                  {ids: [id]},
+                  {
+                    term: Label(name),
+                    annotation: l.annotation,
+                  },
+                  r,
+                ),
+              ])
+            | Label(name) =>
+              Tuple([
+                Labeled(
+                  {ids: [id]},
+                  {
+                    term: Label(name),
+                    annotation: l.annotation,
+                  },
+                  r,
+                ),
+              ])
+            | EmptyHole =>
+              Tuple([
+                Labeled(
+                  {ids: [id]},
+                  {
+                    term: EmptyLabel,
+                    annotation: l.annotation,
+                  },
+                  r,
+                ),
+              ])
             | _ =>
-              let (e_term, rewrap) = IdTagged.unwrap(l);
-
-              TupLabel(
-                rewrap(MultiHole([Exp(e_term |> Exp.fresh)]): Exp.term),
-                r,
-              );
+              Tuple([
+                Labeled(
+                  {ids: [id]},
+                  {
+                    term: MultiHole([Exp(l.term |> Exp.fresh)]),
+                    annotation: l.annotation,
+                  },
+                  r,
+                ),
+              ])
             }
           | (["."], []) =>
             switch (r.term) {
@@ -637,8 +683,8 @@ and typ = unsorted => {
       },
     );
   switch (term) {
-  | TupLabel(_) => Prod([t]) |> Typ.fresh
-  | _ => t
+  // | TupLabel(_) => Prod([t]) |> Typ.fresh
+  | _ => t // TODO
   };
 }
 and typ_term: unsorted => (Typ.term, list(Id.t)) = {
@@ -708,14 +754,18 @@ and typ_term: unsorted => (Typ.term, list(Id.t)) = {
   | Bin(Typ(l), tiles, Typ(r)) as tm =>
     switch (is_tuple_typ(tiles)) {
     | Some(between_kids) =>
-      let tuple_children: list(Typ.t) =
+      let tuple_children: list(Typ.tuple_entry) =
         [l]
         @ between_kids
         @ [r]
         |> List.map((child: Typ.t) => {
              switch (child) {
-             | {term: Prod([{term: TupLabel(_), _} as tl]), _} => tl
-             | _ => child
+             | {term: Prod([Labeled(_, l, e)]), annotation: a} =>
+               // We use the Id for the tuple as the ids for the tuplabels
+               (Labeled(a, l, e): Typ.tuple_entry)
+             | {term: Prod([Unlabeled(_) as e]), _} => e
+
+             | _ => Unlabeled(child)
              }
            });
 

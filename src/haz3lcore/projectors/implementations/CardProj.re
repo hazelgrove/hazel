@@ -124,7 +124,7 @@ module SyntaxTerm = {
 
   let card_to_exp = ((suit, rank): card): Term.Exp.t =>
     Exp.parens(
-      Exp.tuple([
+      Exp.unlabeled_tuple([
         Exp.constructor(Sexplib.Sexp.to_string(sexp_of_suit(suit)), None),
         Exp.constructor(Sexplib.Sexp.to_string(sexp_of_rank(rank)), None),
       ]),
@@ -181,7 +181,10 @@ module SyntaxTerm = {
     switch (term.term) {
     | Parens(inner) => exp_to_card(inner)
     | Tuple([t1, t2]) =>
-      switch (t1.term, t2.term) {
+      switch (
+        Grammar.get_tuple_entry_value(t1).term,
+        Grammar.get_tuple_entry_value(t2).term,
+      ) {
       | (Constructor(suit, _), Constructor(rank, _)) =>
         switch (string_to_suit(suit), string_to_rank(rank)) {
         | (Some(s), Some(r)) => Some((s, r))

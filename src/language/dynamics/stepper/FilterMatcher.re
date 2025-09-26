@@ -203,10 +203,6 @@ let rec matches_exp =
     | (Label(dv), Label(fv)) => dv == fv
     | (Label(_), _) => false
 
-    | (TupLabel(dl, dv), TupLabel(fl, fv)) =>
-      matches_exp(dl, fl) && matches_exp(dv, fv)
-    | (TupLabel(_), _) => false
-
     | (
         Constructor(_),
         Ap(_, {term: Constructor("~MVal", _), _}, {term: Tuple([]), _}),
@@ -301,7 +297,17 @@ let rec matches_exp =
     | (Dot(_), _) => false
 
     | (Tuple(dv), Tuple(fv)) =>
-      List.fold_left2((acc, d, f) => acc && matches_exp(d, f), true, dv, fv)
+      List.fold_left2(
+        (acc, d, f) =>
+          acc
+          && matches_exp(
+               Grammar.get_tuple_entry_value(d),
+               Grammar.get_tuple_entry_value(f),
+             ),
+        true,
+        dv,
+        fv,
+      )
     | (Tuple(_), _) => false
 
     | (UnOp(d_op, d1), UnOp(f_op, f1)) =>

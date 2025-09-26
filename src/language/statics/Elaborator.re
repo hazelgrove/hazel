@@ -77,8 +77,7 @@ let elaborated_pat_type =
       switch (label_inference) {
       | Some(SingletonLabelInference({label: l, _})) =>
         Typ.match_synswitch(
-          Prod([TupLabel(Label(l) |> Typ.temp, syn_ty) |> Typ.temp])
-          |> Typ.temp,
+          IdTagged.TempGrammar.Typ.(prod([labeled(l, syn_ty)])),
           ana_ty,
         )
       | _ => Typ.match_synswitch(syn_ty, ana_ty)
@@ -248,26 +247,12 @@ let rec elaborate = (m: Statics.Map.t, uexp: Exp.t): (DHExp.t, Typ.t) => {
       let (e', _) = elaborate(m, e);
       TypFun(tpat, e', name) |> rewrap;
     | Tuple(es) =>
-      let (ds, _) = List.map(elaborate(m), es) |> List.split;
-
-      let expected_labels: list(option(string)) =
-        Typ.get_labels(ctx, elaborated_type);
       let ds =
-        LabeledTuple.rearrange(
-          s => Option.map(x => (x, Some(x)), s),
-          Exp.match_tup_label,
-          expected_labels,
-          ds,
-          (name, e) => {
-            TupLabel(Label(name) |> DHExp.fresh, e) |> DHExp.fresh
-          },
+        List.map(
+          et => {Grammar.map_tuple_entry(e => elaborate(m, e) |> fst, et)},
+          es,
         );
-
       Tuple(ds) |> rewrap;
-    | TupLabel(label, e) =>
-      let (label', _) = elaborate(m, label);
-      let (e', _) = elaborate(m, e);
-      TupLabel(label', e') |> rewrap;
     | Label(_) => uexp
     | Dot(e1, e2) =>
       let (e1, _) = elaborate(m, e1);
@@ -291,10 +276,8 @@ let rec elaborate = (m: Statics.Map.t, uexp: Exp.t): (DHExp.t, Typ.t) => {
         switch (def_term, Typ.term_of(Typ.normalize(ctx, ty1))) {
         | (Tuple(ds), Prod(tys)) =>
           Tuple(
-            LabeledTuple.rearrange(
-              Typ.match_tup_label, DHExp.match_tup_label, tys, ds, (t, b) =>
-              TupLabel(Label(t) |> Exp.fresh, b) |> Exp.fresh
-            ),
+            LabeledTuple.rearrange'(~get_ann=IdTagged.IdTag.temp, tys, ds)
+            |> List.map(snd),
           )
           |> def_rewrap
         | (_, _) => def

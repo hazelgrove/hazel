@@ -457,7 +457,7 @@ module Exp = {
       (te: Grammar.exp_tuple_entry(IdTagged.IdTag.t))
       : option((LabeledTuple.label, t)) => {
     switch (te) {
-    | Labeled(_, Label(l), e) => Some((l, e))
+    | Labeled(_, {term: Label(l), _}, e) => Some((l, e))
     | _ => None
     };
   };
@@ -911,6 +911,7 @@ module Any = {
     | Typ(tm) => IdTagged.ids(tm)
     | TPat(tm) => IdTagged.ids(tm)
     | Rul(tm) => Rul.ids(~any_ids=ids, tm)
+    | Label(tm) => IdTagged.ids(tm)
     | Any () => [];
 
   // Terms may consist of multiple tiles, eg the commas in an n-tuple,
@@ -931,5 +932,6 @@ module Any = {
     | Typ(tm) => Typ.rep_id(tm)
     | TPat(tm) => TPat.rep_id(tm)
     | Rul(tm) => Rul.rep_id(~any_ids=ids, tm)
+    | Label(tm) => IdTagged.rep_id(tm)
     | Any () => raise(Invalid_argument("Term.rep_id"));
 };

@@ -301,7 +301,6 @@ let rec append_exp = (e1: Language.Exp.t, e2: Language.Exp.t): Language.Exp.t =>
   | TypFun(_)
   | FixF(_)
   | Tuple(_)
-  | TupLabel(_)
   | TupleExtension(_)
   | Label(_)
   | Dot(_)

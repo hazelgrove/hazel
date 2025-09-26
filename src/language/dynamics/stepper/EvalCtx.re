@@ -25,7 +25,8 @@ type term =
   | TupleExtension2(DHExp.t, t)
   // | TupLabel(DHExp.t, t)
   | Tuple(
-      Grammar.tuple_entry(IdTagged.IdTag.t, t),
+      t,
+      option((IdTagged.IdTag.t, TermBase.Label.t)),
       (list(Exp.tuple_entry), list(Exp.tuple_entry)),
     )
   | Dot1(t, DHExp.t)
@@ -140,11 +141,11 @@ let rec compose = (ctx: t, d: DHExp.t): DHExp.t => {
     | Dot2(d1, ctx) =>
       let d2 = compose(ctx, d);
       Dot(d1, d2) |> wrap;
-    | Tuple(ctx, (ld, rd)) =>
+    | Tuple(ctx, label, (ld, rd)) =>
       let d: Exp.tuple_entry =
-        switch (ctx) {
-        | Unlabeled(ctx) => Unlabeled(compose(ctx, d))
-        | Labeled(l, a, ctx) => Labeled(l, a, compose(ctx, d))
+        switch (label) {
+        | None => Unlabeled(compose(ctx, d))
+        | Some((a, l)) => Labeled(a, l, compose(ctx, d))
         };
       Tuple(ListUtil.rev_concat(ld, [d, ...rd])) |> wrap;
     | ListLit(ctx, (ld, rd)) =>

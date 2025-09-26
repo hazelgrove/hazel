@@ -86,11 +86,18 @@ let rec abbreviate_exp = (exp: Exp.t): Exp.t => {
   let abbreviate_tuple_entry = (x: Exp.tuple_entry): Exp.tuple_entry =>
     switch (x) {
     | Unlabeled(x) => Unlabeled(abbreviate_exp(x))
-    | Labeled(a, Label(l), x) =>
-      Labeled(a, Label(abbreviate_str(1, l)), abbreviate_exp(x))
-    | Labeled(a, EmptyLabel, x) => Labeled(a, EmptyLabel, abbreviate_exp(x))
-    | Labeled(a, MultiHole(ls), x) =>
-      Labeled(a, MultiHole(ls), abbreviate_exp(x))
+    | Labeled(a, l, x) =>
+      let l =
+        Grammar.Annotated.map(
+          (l: TermBase.Label.term): TermBase.Label.term =>
+            switch (l) {
+            | Label(l) => Label(abbreviate_str(1, l))
+            | EmptyLabel => EmptyLabel
+            | MultiHole(ls) => MultiHole(ls)
+            },
+          l,
+        );
+      Labeled(a, l, abbreviate_exp(x));
     };
   // TODO This probably isn't right
   let abbreviate_tuple_entries =
@@ -993,18 +1000,26 @@ and abbreviate_tuple_entry:
         Labeled(a, abbreviate_label(l), f(x));
       }
     }
-and abbreviate_label = (label: Grammar.label_t('a)): Grammar.label_t('a) =>
-  switch (label) {
-  | Label(l) => Label(abbreviate_str(available^, l))
-  | EmptyLabel => EmptyLabel
-  | MultiHole(ls) => MultiHole(ls)
+and abbreviate_label: type ann. Grammar.label_t(ann) => Grammar.label_t(ann) =
+  label => {
+    Grammar.Annotated.map(
+      (label: Grammar.label_term(ann)): Grammar.label_term(ann) =>
+        switch (label) {
+        | Label(l) => Label(abbreviate_str(available^, l))
+        | EmptyLabel => EmptyLabel
+        | MultiHole(ls) => MultiHole(ls)
+        },
+      label,
+    );
   }
+
 and abbreviate_any = (any: Any.t): Any.t =>
   switch (any) {
   | Exp(e) => Exp(abbreviate_exp(e))
   | Pat(p) => Pat(abbreviate_pat(p))
   | Typ(t) => Typ(abbreviate_typ(t))
   | TPat(tp) => TPat(abbreviate_tpat(tp))
+  | Label(l) => Label(abbreviate_label(l))
   | Rul(_r) => failwith("TODO")
   | Any(_) => any
   };

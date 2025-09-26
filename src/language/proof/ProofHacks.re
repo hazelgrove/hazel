@@ -102,7 +102,7 @@ let rec exp_to_pat = (exp: Exp.t): Pat.t => {
   | Constructor(c, t) => rewrap(Constructor(c, t))
   | Cons(e1, e2) => rewrap(Cons(exp_to_pat(e1), exp_to_pat(e2)))
   | Var(x) => rewrap(Var(x))
-  | Tuple(xs) => rewrap(Tuple(List.map(exp_to_pat, xs)))
+  | Tuple(xs) => raise(Failure("proofhacks todo"))
   | Parens(e) => rewrap(Parens(exp_to_pat(e)))
   | Ap(_, e1, e2) => rewrap(Ap(exp_to_pat(e1), exp_to_pat(e2)))
   | Asc(e, t1) => rewrap(Asc(exp_to_pat(e), t1))
@@ -127,12 +127,12 @@ let rec pat_to_exp = (pat: Pat.t): Exp.t => {
   | Constructor(c, t) => rewrap(Constructor(c, t))
   | Cons(e1, e2) => rewrap(Cons(pat_to_exp(e1), pat_to_exp(e2)))
   | Var(x) => rewrap(Var(x))
-  | Tuple(xs) => rewrap(Tuple(List.map(pat_to_exp, xs)))
+  | Tuple(xs) => raise(Failure("proofhacks todo"))
   | Parens(e) => rewrap(Parens(pat_to_exp(e)))
   | Ap(e1, e2) => rewrap(Ap(Forward, pat_to_exp(e1), pat_to_exp(e2)))
   | Asc(e, t1) => rewrap(Asc(pat_to_exp(e), t1))
   | Label(l) => rewrap(Label(l))
-  | TupLabel(l, e) => rewrap(TupLabel(pat_to_exp(l), pat_to_exp(e)))
+  | TupLabel(l, e) => raise(Failure("proofhacks todo"))
   | Probe(e, probe) => rewrap(Probe(pat_to_exp(e), probe))
   };
 };
@@ -171,24 +171,29 @@ let dhpat_extend_ctx = (dhpat: DHPat.t, ty: Typ.t, ctx: Ctx.t): option(Ctx.t) =>
     | Label(name) =>
       Typ.equal(ty, Label(name) |> Typ.temp) ? Some([]) : None
     | TupLabel(_, dp1) =>
-      switch (ty'.term) {
-      | TupLabel(_, ty2)
-          when
-            LabeledTuple.has_same_labels(
-              DHPat.match_tup_label(dhpat),
-              Typ.match_tup_label(ty'),
-            ) =>
-        dhpat_var_entry(dp1, ty2)
-      | TupLabel(_, _) => None
-      | _ => dhpat_var_entry(dp1, ty)
-      }
+      // switch (ty'.term) {
+      // | TupLabel(_, ty2)
+      //     when
+      //       LabeledTuple.has_same_labels(
+      //         DHPat.match_tup_label(dhpat),
+      //         Typ.match_tup_label(ty'),
+      //       ) =>
+      //   dhpat_var_entry(dp1, ty2)
+      // | TupLabel(_, _) => None
+      // | _ => dhpat_var_entry(dp1, ty)
+      // }
+      raise(Failure("proofhacks todo"))
     | Tuple(l1) =>
       let (l1, ts) =
         Typ.matched_prod(ctx, l1, Pat.match_tup_label, ty, (name, b) =>
           TupLabel(Label(name) |> Pat.fresh, b) |> Pat.fresh
         );
       let* l =
-        List.map2((dhp, typ) => {dhpat_var_entry(dhp, typ)}, l1, ts)
+        List.map2(
+          (dhp, typ) => {dhpat_var_entry(dhp, typ)},
+          l1,
+          raise(Failure("proofhacks todo")),
+        )
         |> OptUtil.sequence;
       Some(List.concat(l));
     | Cons(dhp1, dhp2) =>
@@ -333,7 +338,6 @@ let rec replace_exp = (replace, replace_coctx, with_exp, with_coctx, in_exp) => 
         | Tuple(_)
         | TupleExtension(_)
         | Label(_)
-        | TupLabel(_, _)
         | Dot(_, _)
         | LivelitName(_)
         | Var(_)

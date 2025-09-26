@@ -201,6 +201,21 @@ type status_typ =
   | NotInHole(ok_typ);
 
 [@deriving (show({with_path: false}), sexp, yojson, eq)]
+type error_label =
+  | InvalidLabel(LabeledTuple.label, list(LabeledTuple.label))
+  | Duplicate(LabeledTuple.label)
+  | UnexpectedLabelSort(LabeledTuple.label);
+
+[@deriving (show({with_path: false}), sexp, yojson, eq)]
+type ok_label =
+  | Label;
+
+[@deriving (show({with_path: false}), sexp, yojson, eq)]
+type status_label =
+  | InHole(error_label)
+  | NotInHole(ok_label);
+
+[@deriving (show({with_path: false}), sexp, yojson, eq)]
 type type_var_err =
   | Other
   | NotCapitalized;
@@ -285,6 +300,15 @@ type typ = {
 };
 
 [@deriving (show({with_path: false}), sexp, yojson)]
+type label = {
+  cls: Cls.t,
+  term: Grammar.label_t(IdTagged.IdTag.t), // Should always be a Label
+  ancestors,
+  ctx: Ctx.t,
+  status: status_label // Should always be NotInHole
+};
+
+[@deriving (show({with_path: false}), sexp, yojson)]
 type tpat = {
   term: TPat.t,
   ancestors,
@@ -308,6 +332,7 @@ type t =
   | InfoPat(pat)
   | InfoTyp(typ)
   | InfoTPat(tpat)
+  | InfoLabel(label)
   | Secondary(secondary);
 
 [@deriving (show({with_path: false}), sexp, yojson, eq)]
@@ -315,7 +340,8 @@ type error =
   | Exp(error_exp)
   | Pat(error_pat)
   | Typ(error_typ)
-  | TPat(error_tpat);
+  | TPat(error_tpat)
+  | Label(error_label);
 
 let sort_of: t => Sort.t =
   fun
@@ -323,6 +349,7 @@ let sort_of: t => Sort.t =
   | InfoPat(_) => Pat
   | InfoTyp(_) => Typ
   | InfoTPat(_) => TPat
+  | InfoLabel(_) => Any // TODO
   | Secondary(s) => s.sort;
 
 let cls_of: t => Cls.t =
@@ -331,6 +358,7 @@ let cls_of: t => Cls.t =
   | InfoPat({cls, _})
   | InfoTyp({cls, _})
   | InfoTPat({cls, _})
+  | InfoLabel({cls, _})
   | Secondary({cls, _}) => cls;
 
 let any_of: t => option(Term.Any.t) =
@@ -339,6 +367,7 @@ let any_of: t => option(Term.Any.t) =
   | InfoPat({term, _}) => Some(Pat(term))
   | InfoTyp({term, _}) => Some(Typ(term))
   | InfoTPat({term, _}) => Some(TPat(term))
+  | InfoLabel({term, _}) => Some(Label(term))
   | Secondary(_) => None;
 
 let ctx_of: t => Ctx.t =
@@ -347,14 +376,16 @@ let ctx_of: t => Ctx.t =
   | InfoPat({ctx, _})
   | InfoTyp({ctx, _})
   | InfoTPat({ctx, _})
-  | Secondary({ctx, _}) => ctx;
+  | Secondary({ctx, _})
+  | InfoLabel({ctx, _}) => ctx;
 
 let ancestors_of: t => ancestors =
   fun
   | InfoExp({ancestors, _})
   | InfoPat({ancestors, _})
   | InfoTyp({ancestors, _})
-  | InfoTPat({ancestors, _}) => ancestors
+  | InfoTPat({ancestors, _})
+  | InfoLabel({ancestors, _}) => ancestors
   | Secondary(_) => []; //TODO
 
 let id_of: t => Id.t =
@@ -363,6 +394,7 @@ let id_of: t => Id.t =
   | InfoPat(i) => Pat.rep_id(i.term)
   | InfoTyp(i) => Typ.rep_id(i.term)
   | InfoTPat(i) => TPat.rep_id(i.term)
+  | InfoLabel(i) => IdTagged.rep_id(i.term)
   | Secondary(s) => s.id;
 
 let error_of: t => option(error) =
@@ -370,11 +402,13 @@ let error_of: t => option(error) =
   | InfoExp({status: NotInHole(_), _})
   | InfoPat({status: NotInHole(_), _})
   | InfoTyp({status: NotInHole(_), _})
-  | InfoTPat({status: NotInHole(_), _}) => None
+  | InfoTPat({status: NotInHole(_), _})
+  | InfoLabel({status: NotInHole(_), _}) => None
   | InfoExp({status: InHole(err), _}) => Some(Exp(err))
   | InfoPat({status: InHole(err), _}) => Some(Pat(err))
   | InfoTyp({status: InHole(err), _}) => Some(Typ(err))
   | InfoTPat({status: InHole(err), _}) => Some(TPat(err))
+  | InfoLabel({status: InHole(err), _}) => Some(Label(err))
   | Secondary(_) => None;
 
 let exp_co_ctx: exp => CoCtx.t = ({co_ctx, _}) => co_ctx;
@@ -695,6 +729,11 @@ let is_error = (ci: t): bool => {
     | NotInHole(_) => false
     }
   | InfoTPat({status, _}) =>
+    switch (status) {
+    | InHole(_) => true
+    | NotInHole(_) => false
+    }
+  | InfoLabel({status, _}) =>
     switch (status) {
     | InHole(_) => true
     | NotInHole(_) => false

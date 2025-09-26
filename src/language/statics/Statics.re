@@ -90,6 +90,7 @@ let rec any_to_info_map =
       (CoCtx.union(co_ctxs), m);
     | Invalid(_) => (CoCtx.empty, m)
     }
+  | Label(l) => raise(Failure("Label in any_to_info_map")) // TODO
   | Any () => (CoCtx.empty, m)
   }
 and multi = (~ctx, ~ancestors, m, tms): (list(CoCtx.t), Map.t) =>
@@ -518,8 +519,8 @@ and uexp_to_info_map =
       let original_labels =
         List.map(e => Exp.match_tup_label(e) |> Option.map(fst), es);
       let (inferred_es, ana_tys) = Typ.matched_prod'(ctx, es, ana);
-      let es: list(Exp.tuple_entry) = inferred_es; //  List.map(snd, inferred_es);
-      let inferred: list(Exp.tuple_entry) = inferred_es;
+      let es: list(Exp.tuple_entry) = List.map(snd, inferred_es);
+      let inferred: list(option(string)) = List.map(fst, inferred_es);
 
       let new_labels: list(option(string)) =
         List.map(
@@ -532,22 +533,45 @@ and uexp_to_info_map =
 
       let (es', m) =
         List.fold_left2(
-          ((es, m), ana, (inferred_label, e)) => {
-            go(
-              ~ana,
-              ~inferred_label?,
-              ~duplicates=duplicate_labels,
-              ~expected_labels?,
-              e,
-              m,
-            )
-            |> (((e, m)) => (es @ [e], m))
+          (
+            (es, m),
+            ana: Typ.tuple_entry,
+            (inferred_label: option(string), e: Exp.tuple_entry),
+          ) => {
+            let m: Map.t =
+              switch (e, ana) {
+              | (Unlabeled(e), Unlabeled(ana)) => go(~ana, e, m) |> snd
+              | (Labeled(eid, l, e), _) =>
+                switch (l.term) {
+                | Label(name)
+                    when
+                      List.mem(
+                        name,
+                        expected_labels |> Option.value(~default=[]),
+                      ) =>
+                  add_info(eid.ids @ IdTagged.ids(l), assert(false), m)
+                | _ => m // TODO
+                }
+              | _ => m // TODO
+              };
+
+            // go(
+            //   ~ana,
+            //   ~inferred_label?,
+            //   ~duplicates=duplicate_labels,
+            //   ~expected_labels?,
+            //   e,
+            //   m,
+            // )
+            // |> (((e, m)) => ([]], m));
+
+            ([], m);
           },
           ([], m),
           ana_tys,
           List.combine(inferred, es),
         );
-      let ty_list = List.map(Info.exp_ty, es');
+      let ty_list: list(Typ.tuple_entry) = [];
 
       let (malformed_labels, duplicate_labels, invalid_labels) =
         List.fold_left(
@@ -672,15 +696,11 @@ and uexp_to_info_map =
         switch (info_e1.ty.term, info_e2.ty.term) {
         | (Unknown(_), Label(name)) =>
           // This is so that the statics will result in Unknown(Internal)
+
           let ty =
-            Prod([
-              TupLabel(
-                Label(name) |> Typ.temp,
-                Unknown(Internal) |> Typ.temp,
-              )
-              |> Typ.temp,
-            ])
-            |> Typ.temp;
+            IdTagged.TempGrammar.Typ.(
+              prod([labeled(name, unknown(Internal))])
+            );
           let (_, m) = go(~ana=ty, e1, m);
           (ty, m);
         | _ => (Typ.normalize(ctx, info_e1.ty), m)
@@ -693,11 +713,12 @@ and uexp_to_info_map =
 
         switch (e2.term) {
         | Label(name) =>
-          let element: option(Typ.t) =
+          let element: option(Typ.tuple_entry) =
             LabeledTuple.find_label(Typ.match_tup_label, ts, name);
           switch (element) {
-          | Some({term: TupLabel(_, typ), _})
-          | Some(typ) => add(~self=Just(typ), ~co_ctx=info_e2.co_ctx, m)
+          | Some(Labeled(_, _, typ))
+          | Some(Unlabeled(typ)) =>
+            add(~self=Just(typ), ~co_ctx=info_e2.co_ctx, m)
           | None =>
             add'(
               ~self=LabelNotFound(name, labels),
@@ -719,11 +740,11 @@ and uexp_to_info_map =
 
         switch (e2.term) {
         | Label(name) =>
-          let element: option(Typ.t) =
+          let element: option(Typ.tuple_entry) =
             LabeledTuple.find_label(Typ.match_tup_label, ts, name);
           switch (element) {
-          | Some({term: TupLabel(_, typ), _})
-          | Some(typ) =>
+          | Some(Labeled(_, _, typ))
+          | Some(Unlabeled(typ)) =>
             add(
               ~self=Just(List(typ) |> Typ.fresh),
               ~co_ctx=info_e2.co_ctx,
@@ -845,23 +866,25 @@ and uexp_to_info_map =
           };
         let (fn, m) = go(~ana=fn_ana, fn, m);
         switch (custom_statics) {
-        | Some(kind) =>
-          CustomStatics.custom_statics_ap(
-            ~inferred_label,
-            ~label_sort,
-            ~ctx,
-            ~ancestors,
-            ~fn_info=fn,
-            kind,
-            (module
-             {
-               let uexp_to_info_map = uexp_to_info_map;
-               let label_to_info_map = label_to_info_map;
-               let add' = add';
-             }),
-            m,
-            arg,
-          )
+        | Some(_kind) =>
+          // CustomStatics.custom_statics_ap(
+          //   ~inferred_label,
+          //   ~label_sort,
+          //   ~ctx,
+          //   ~ancestors,
+          //   ~fn_info=fn,
+          //   kind,
+          //   (module
+          //    {
+          //      let uexp_to_info_map = uexp_to_info_map;
+          //      let label_to_info_map = label_to_info_map;
+          //      let add' = add';
+          //    }): (module ExpressionStatics),
+
+          //   m,
+          //   arg,
+          // )
+          assert(false)
         | None =>
           let (ty_in, ty_out) = Typ.matched_arrow(ctx, fn.ty);
           let (arg, m) = go(~ana=ty_in, arg, m);
@@ -915,28 +938,42 @@ and uexp_to_info_map =
 
       switch (custom_statics) {
       | Some(kind) =>
-        CustomStatics.custom_statics_deferred_ap(
-          ~inferred_label,
-          ~label_sort,
-          ~ctx,
-          ~ancestors,
-          ~fn_info=fn,
-          kind,
-          (module
-           {
-             let uexp_to_info_map = uexp_to_info_map;
-             let label_to_info_map = label_to_info_map;
-             let add' = add';
-           }),
-          m,
-          args,
-        )
+        // CustomStatics.custom_statics_deferred_ap(
+        //   ~inferred_label,
+        //   ~label_sort,
+        //   ~ctx,
+        //   ~ancestors,
+        //   ~fn_info=fn,
+        //   kind,
+        //   (module
+        //    {
+        //      let uexp_to_info_map = uexp_to_info_map;
+        //      let label_to_info_map = label_to_info_map;
+        //      let add' = add';
+        //    }),
+        //   m,
+        //   args,
+        // )
+        assert(false)
       | None =>
         let (ty_in, ty_out) = Typ.matched_arrow(ctx, fn.ty);
         let num_args = List.length(args);
         switch (Typ.matched_args_strict(ctx, ty_in, num_args)) {
         | L(ty_ins) =>
-          let (args_infos, m) = map_m_go(m, ty_ins, args);
+          let (args_infos, m) =
+            List.fold_left2(
+              ((es, m), ana: Typ.tuple_entry, e) => {
+                switch (ana) {
+                | Unlabeled(ty) =>
+                  go(~ana=ty, ~duplicates=[], e, m)
+                  |> (((e, m)) => (es @ [e], m))
+                | _ => assert(false) // TODO: Handle labels
+                }
+              },
+              ([], m),
+              ty_ins,
+              args,
+            );
           let arg_co_ctx =
             CoCtx.union(List.map(Info.exp_co_ctx, args_infos));
           let ty_in' =
@@ -945,7 +982,7 @@ and uexp_to_info_map =
             |> List.map(fst)
             |> (
               fun
-              | [x] => x
+              | [Unlabeled(x)] => x
               | xs => Prod(xs) |> Typ.temp
             );
           add(
@@ -1050,10 +1087,18 @@ and uexp_to_info_map =
             );
           let def_ctx = p_ana'.ctx;
           let (def_base2, _) = go'(~ctx=def_ctx, ~ana=p_syn.ty, def, m);
-          let ana_ty_fn = ((ty_fn1, ty_fn2), ty_p) => {
-            Typ.term_of(ty_p) == Unknown(SynSwitch)
-            && !Typ.equal(ty_fn1, ty_fn2)
-              ? ty_fn1 : ty_p;
+
+          // TODO This probably needs to be redone once patterns have tuple_entries
+          let ana_ty_fn =
+              (
+                (ty_fn1: Typ.tuple_entry, ty_fn2: Typ.tuple_entry),
+                ty_p: Typ.tuple_entry,
+              ) => {
+            switch (ty_p) {
+            | Unlabeled({term: Unknown(SynSwitch), _})
+                when !Typ.equal_tuple_entry(ty_fn1, ty_fn2) => ty_fn1
+            | _ => ty_p
+            };
           };
           let ana =
             switch (
@@ -1065,7 +1110,12 @@ and uexp_to_info_map =
                 List.map2(ana_ty_fn, List.combine(ty_fns1, ty_fns2), ty_ps);
               Prod(tys) |> Typ.temp;
             | ((_, _), _) =>
-              ana_ty_fn((def_base.ty, def_base2.ty), p_syn.ty)
+              let ana_ty_fn = ((ty_fn1, ty_fn2), ty_p) => {
+                Typ.term_of(ty_p) == Unknown(SynSwitch)
+                && !Typ.equal(ty_fn1, ty_fn2)
+                  ? ty_fn1 : ty_p;
+              };
+              ana_ty_fn((def_base.ty, def_base2.ty), p_syn.ty);
             };
           let (def, m) = go'(~ctx=def_ctx, ~ana, def, m);
           (def, def_ctx, m, ty_p_ana);
@@ -1280,13 +1330,13 @@ and uexp_to_info_map =
   // This is for lifting single values into a singleton labeled tuple when the label is not present
 
   switch (Typ.weak_head_normalize(ctx, ana).term) {
-  | Prod([{term: TupLabel({term: Label(l1), _}, ana_ty), _}]) =>
+  | Prod([Labeled(_, {term: Label(l1), _}, ana_ty)]) =>
     // We can flatten this by pulling it up on the case match but since OCaml is strict it'll be evaluated.
     // So for performance reasons we'll just do it here.
     let (e, m) = go(~ana=syn, uexp, m);
 
     switch (Typ.weak_head_normalize(ctx, e.ty).term) {
-    | Prod([{term: TupLabel({term: Label(l2), _}, _), _}]) when l1 == l2 =>
+    | Prod([Labeled(_, {term: Label(l2), _}, _)]) when l1 == l2 =>
       default_case()
     | Unknown(_) => default_case() // TODO I don't know if this is correct
     | _ => autolabel_singleton_tuple(uexp, ana_ty, l1, m)
@@ -1672,10 +1722,18 @@ and upat_to_info_map =
         LabeledTuple.get_duplicate_labels(Pat.match_tup_label, ps);
       let (ctx, tys, cons, m, info_pats) =
         List.fold_left2(
-          ((ctx, tys, cons, m, info_all), (inferred_label, e), ana) =>
+          (
+            (ctx, tys, cons, m, info_all),
+            (inferred_label, e),
+            ana: Typ.tuple_entry,
+          ) =>
             go(
               ~ctx,
-              ~ana,
+              ~ana=
+                switch (ana) {
+                | Unlabeled(ana) => ana
+                | _ => assert(false) // TODO
+                },
               ~inferred_label?,
               ~duplicates=duplicate_labels,
               ~expected_labels?,
@@ -1724,12 +1782,19 @@ and upat_to_info_map =
         List.is_empty(malformed_labels)
         && List.is_empty(duplicate_labels)
         && List.is_empty(invalid_labels)
-          ? Self.Just(Prod(tys) |> Typ.temp)
+          ? Self.Just(
+              Prod(tys |> List.map((ty): Typ.tuple_entry => Unlabeled(ty)))  // TODO
+              |> Typ.temp,
+            )
           : Self.TupleLabelError({
               malformed_labels,
               duplicate_labels,
               invalid_labels,
-              typ: Prod(tys) |> Typ.temp,
+              typ:
+                Prod(
+                  tys |> List.map((ty): Typ.tuple_entry => Unlabeled(ty)),
+                )
+                |> Typ.temp,
             });
 
       add(
@@ -1796,13 +1861,13 @@ and upat_to_info_map =
     default_case();
   } else {
     switch (Typ.weak_head_normalize(ctx, ana).term) {
-    | Prod([{term: TupLabel({term: Label(l1), _}, ana_ty), _}]) =>
+    | Prod([Labeled(_, {term: Label(l1), _}, ana_ty)]) =>
       // We can flatten this by pulling it up on the case match but since OCaml is strict it'll be evaluated.
       // So for performance reasons we'll just do it here.
       let (e, m) = go(~ana=syn, ~ctx, upat, m);
 
       switch (Typ.weak_head_normalize(ctx, e.ty).term) {
-      | Prod([{term: TupLabel({term: Label(l2), _}, _), _}]) when l1 == l2 =>
+      | Prod([Labeled(_, {term: Label(l2), _}, _)]) when l1 == l2 =>
         default_case()
       | _ => elaborate_singleton_tuple(upat, ana_ty, l1, m)
       };
@@ -1843,17 +1908,20 @@ and utyp_to_info_map =
     let m = go(t2, m) |> snd;
     add(m);
   | Prod(ts) =>
-    let duplicate_labels =
+    let _duplicate_labels =
       LabeledTuple.get_duplicate_labels(Typ.match_tup_label, ts);
     let m =
-      List.is_empty(duplicate_labels)
-        ? map_m(go, ts, m) |> snd
-        : map_m(
-            go'(~expects=LabelExpected(Duplicate, duplicate_labels)),
-            ts,
-            m,
-          )
-          |> snd;
+      map_m(
+        (t: Typ.tuple_entry, m: Map.t) => {
+          switch (t) {
+          | Unlabeled(ty) => go(ty, m)
+          | _ => assert(false) // TODO Handle labeled types as well as duplicate labels
+          }
+        },
+        ts,
+        m,
+      )
+      |> snd;
     let info = Info.derived_typ(~utyp, ~ctx, ~ancestors, ~expects);
     (info, add_info(ids, InfoTyp(info), m));
   | TupLabel(label, t) =>

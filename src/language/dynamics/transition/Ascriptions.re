@@ -50,15 +50,30 @@ let rec transition = (~recursive=false, d: DHExp.t): option(DHExp.t) => {
              switch (e_entry, t_entry) {
              | (Unlabeled(e), Unlabeled(t)) =>
                Some(Unlabeled(recur(Asc(e, t) |> DHExp.fresh)))
-             | (Labeled(a, Label(l1), e), Labeled(_, Label(l2), t))
+             | (
+                 Labeled(a, {term: Label(l1), _}, e),
+                 Labeled(_, {term: Label(l2), _}, t),
+               )
                  when String.equal(l1, l2) =>
                Some(
-                 Labeled(a, Label(l1), recur(Asc(e, t) |> DHExp.fresh)),
+                 IdTagged.FreshGrammar.Exp.(
+                   labeled(~ann=a, l1, recur(asc(e, t)))
+                 ),
                )
-             | (Labeled(_, Label(_), _), Labeled(_, Label(_), _)) => None
-             | (Labeled(a, EmptyLabel | MultiHole(_), e), Labeled(_, l, t)) =>
+             | (
+                 Labeled(_, {term: Label(_), _}, _),
+                 Labeled(_, {term: Label(_), _}, _),
+               ) =>
+               None
+             | (
+                 Labeled(a, {term: EmptyLabel | MultiHole(_), _}, e),
+                 Labeled(_, l, t),
+               ) =>
                Some(Labeled(a, l, recur(Asc(e, t) |> DHExp.fresh)))
-             | (Labeled(a, l, e), Labeled(_, EmptyLabel | MultiHole(_), t)) =>
+             | (
+                 Labeled(a, l, e),
+                 Labeled(_, {term: EmptyLabel | MultiHole(_), _}, t),
+               ) =>
                Some(Labeled(a, l, recur(Asc(e, t) |> DHExp.fresh)))
              | (Unlabeled(_), _) => None
              | (Labeled(_), Unlabeled(_)) => None

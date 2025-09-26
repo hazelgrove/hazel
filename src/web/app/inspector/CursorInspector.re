@@ -667,6 +667,7 @@ let view_of_info = (~globals, ci): list(Node.t) => {
     wrapper(pat_view(~globals, cls, status, ip))
   | InfoTyp({cls, status, _}) => wrapper(typ_view(~globals, cls, status))
   | InfoTPat({cls, status, _}) => wrapper(tpat_view(~globals, cls, status))
+  | InfoLabel(_) => wrapper(div([])) // Labels have no additional info
   };
 };
 

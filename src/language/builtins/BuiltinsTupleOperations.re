@@ -36,7 +36,7 @@ let builtins: list(BuiltinsUtil.fn) = [
                                       ) => {
               Labeled(
                 IdTagged.IdTag.fresh(),
-                Label(name),
+                Fresh.Exp.label(name),
                 Fresh.Exp.list_lit(es),
               )
             }),
@@ -116,9 +116,9 @@ let builtins: list(BuiltinsUtil.fn) = [
               ] =>
               Some(Exp.labeled(s, v)) // TODO This was temp now it's fresh
             | [(Some("label"), {term: EmptyHole, _}), (Some("value"), v)] =>
-              Some(Exp.labeled'(EmptyLabel, v))
+              Some(Exp.labeled'(Label.empty_label(), v))
             | [(Some("label"), bad_label), (Some("value"), v)] =>
-              Some(Exp.labeled'(MultiHole([Exp(bad_label)]), v))
+              Some(Exp.labeled'(Label.multi_hole([Exp(bad_label)]), v))
             | _ => None
             };
           },

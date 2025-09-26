@@ -226,8 +226,8 @@ let join_type_provenance =
 
 let match_tup_optional_label = (ty: tuple_entry) =>
   switch (ty) {
-  | Labeled(_, Label(name), t') => Some((Some(name), t'))
-  | Labeled(_, EmptyLabel | MultiHole(_), t') => Some((None, t'))
+  | Labeled(_, {term: Label(name), _}, t') => Some((Some(name), t'))
+  | Labeled(_, {term: EmptyLabel | MultiHole(_), _}, t') => Some((None, t'))
   | Unlabeled({term: Unknown(_), _} as t') => Some((None, t')) // TODO Decide if we need this
   | _ => None
   };
@@ -490,33 +490,33 @@ let rec join = (~resolve=false, ctx: Ctx.t, ty1: t, ty2: t): option(t) => {
               join'(ty1, ty2)
               |> Option.map((ty): tuple_entry => Unlabeled(ty))
             | (Labeled(_, lab1, ty1), Labeled(_, lab2, ty2)) =>
-              switch (lab1, lab2) {
+              switch (lab1.term, lab2.term) {
               | (EmptyLabel | MultiHole(_), l2) =>
                 join'(ty1, ty2)
                 |> Option.map((ty: t) =>
-                     IdTagged.TempGrammar.Typ.labeled'(l2, ty)
+                     IdTagged.TempGrammar.Typ.labeled'(lab2, ty)
                    )
               | (l1, EmptyLabel | MultiHole(_)) =>
                 join'(ty1, ty2)
                 |> Option.map((ty: t) =>
-                     IdTagged.TempGrammar.Typ.labeled'(l1, ty)
+                     IdTagged.TempGrammar.Typ.labeled'(lab1, ty)
                    )
               | (Label(name1), Label("")) =>
                 // todo: Do we need this
                 join'(ty1, ty2)
                 |> Option.map(ty =>
-                     IdTagged.TempGrammar.Typ.labeled'(Label(name1), ty)
+                     IdTagged.TempGrammar.Typ.(labeled(name1, ty))
                    )
               | (Label(""), Label(name2)) =>
                 // todo: Do we need this
                 join'(ty1, ty2)
                 |> Option.map(ty =>
-                     IdTagged.TempGrammar.Typ.labeled'(Label(name2), ty)
+                     IdTagged.TempGrammar.Typ.labeled(name2, ty)
                    )
               | (Label(name1), Label(name2)) when name1 == name2 =>
                 join'(ty1, ty2)
                 |> Option.map(ty =>
-                     IdTagged.TempGrammar.Typ.labeled'(Label(name1), ty)
+                     IdTagged.TempGrammar.Typ.labeled(name1, ty)
                    )
               | (Label(_), Label(_)) => None
               }
@@ -702,9 +702,9 @@ let rec get_labels = (ctx, ty): list(option(string)) => {
     List.map(
       (x: tuple_entry) =>
         switch (x) {
-        | Labeled(_, Label(name), _) => Some(name)
-        | Labeled(_, EmptyLabel, _)
-        | Labeled(_, MultiHole(_), _)
+        | Labeled(_, {term: Label(name), _}, _) => Some(name)
+        | Labeled(_, {term: EmptyLabel, _}, _)
+        | Labeled(_, {term: MultiHole(_), _}, _)
         | Unlabeled(_) => None
         },
       tys,
@@ -767,7 +767,7 @@ let rec matched_prod_strict' = (ctx: Ctx.t, es, ty: t) => {
   | Parens(ty) => matched_prod_strict'(ctx, es, ty)
   | Prod(tys: list(tuple_entry)) =>
     if (List.length(es) != List.length(tys)) {
-      (es, None);
+      (List.map(e => (None, e), es), None);
     } else {
       (
         LabeledTuple.rearrange'(~get_ann=IdTagged.IdTag.temp, tys, es),
@@ -775,14 +775,14 @@ let rec matched_prod_strict' = (ctx: Ctx.t, es, ty: t) => {
       );
     }
   | Unknown(SynSwitch) => (
-      es,
+      List.map(e => (None, e), es),
       Some(
         List.init(List.length(es), _: tuple_entry =>
           Unlabeled(Unknown(SynSwitch) |> temp)
         ),
       ),
     )
-  | _ => (es, None)
+  | _ => (List.map(e => (None, e), es), None)
   };
 };
 
@@ -998,8 +998,9 @@ and paren_pretty_print = typ =>
   }
 and pretty_print_tuple_entry = (te: tuple_entry): string =>
   switch (te) {
-  | Labeled(_, Label(name), t) => name ++ "=" ++ pretty_print(t)
-  | Labeled(_, EmptyLabel | MultiHole(_), t) => "?" ++ "=" ++ pretty_print(t)
+  | Labeled(_, {term: Label(name), _}, t) => name ++ "=" ++ pretty_print(t)
+  | Labeled(_, {term: EmptyLabel | MultiHole(_), _}, t) =>
+    "?" ++ "=" ++ pretty_print(t)
   | Unlabeled(t) => pretty_print(t)
   };
 
@@ -1023,18 +1024,19 @@ let remove_duplicate_labels =
     List.fold_left(
       ((seen_duplicates, deduplicated_types), entry: tuple_entry) => {
         switch (entry) {
-        | Labeled(_, Label(l), _)
+        | Labeled(_, {term: Label(l), _}, _)
             when
               List.mem(l, duplicate_labels) && List.mem(l, seen_duplicates) => (
             seen_duplicates,
             deduplicated_types,
           )
-        | Labeled(_, Label(l), _) when List.mem(l, duplicate_labels) => (
+        | Labeled(_, {term: Label(l), _}, _)
+            when List.mem(l, duplicate_labels) => (
             [l] @ seen_duplicates,
             deduplicated_types
             @ [IdTagged.TempGrammar.Typ.(labeled(l, unknown(Internal)))],
           )
-        | Labeled(_, EmptyLabel | MultiHole(_) | Label(_), _) => (
+        | Labeled(_, {term: EmptyLabel | MultiHole(_) | Label(_), _}, _) => (
             seen_duplicates,
             deduplicated_types @ [entry],
           )
@@ -1065,3 +1067,11 @@ let to_product = (entries: list(tuple_entry)): t =>
     | entries => prod(entries)
     }
   );
+
+let equal_tuple_entry = (ty1: tuple_entry, ty2: tuple_entry): bool =>
+  switch (ty1, ty2) {
+  | (Unlabeled(t1), Unlabeled(t2)) => equal(t1, t2)
+  | (Labeled(_, l1, t1), Labeled(_, l2, t2)) =>
+    TermBase.Label.equal(l1, l2) && equal(t1, t2)
+  | _ => false
+  };

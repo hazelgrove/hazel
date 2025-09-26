@@ -200,7 +200,7 @@ let rearrange:
     };
 let get_label = (entry: Grammar.tuple_entry('a, 'e)): option(label) =>
   switch (entry) {
-  | Grammar.Labeled(_, Label(l), _) => Some(l)
+  | Grammar.Labeled(_, {term: Label(l), _}, _) => Some(l)
   | _ => None
   };
 
@@ -211,10 +211,10 @@ let rearrange':
       list(Grammar.tuple_entry(ann, t)),
       list(Grammar.tuple_entry(ann, e))
     ) =>
-    list(Grammar.tuple_entry(ann, e)) =
+    list((option(string), Grammar.tuple_entry(ann, e))) =
   (~get_ann, ts, es) =>
     if (List.length(es) != List.length(ts)) {
-      es;
+      es |> List.map(e => (None, e));
     } else {
       let t_labels = List.map(get_label, ts);
       let e_labels = List.map(get_label, es);
@@ -225,10 +225,20 @@ let rearrange':
           switch (optional_label) {
           | Some(label) =>
             switch (e) {
-            | Unlabeled(e) => Grammar.Labeled(get_ann(), Label(label), e)
-            | Labeled(_, _, _) => e
+            | Unlabeled(e) => (
+                Some(label),
+                Grammar.Labeled(
+                  get_ann(),
+                  {
+                    annotation: get_ann(),
+                    term: Label(label),
+                  },
+                  e,
+                ),
+              )
+            | Labeled(_, _, _) => (None, e)
             }
-          | None => e
+          | None => (None, e)
           },
         e_reordered,
       );
@@ -310,7 +320,7 @@ let extension =
 };
 let get_label = (entry: Grammar.tuple_entry('a, 'e)): option(label) =>
   switch (entry) {
-  | Grammar.Labeled(_, Label(l), _) => Some(l)
+  | Grammar.Labeled(_, {term: Label(l), _}, _) => Some(l)
   | _ => None
   };
 let extension' =
@@ -325,7 +335,7 @@ let extension' =
     List.fold_left(
       (acc, entry: Grammar.tuple_entry('a, 'e)) =>
         switch (entry) {
-        | Labeled(_, Label(l), e) => StringMap.add(l, e, acc)
+        | Labeled(_, {term: Label(l), _}, e) => StringMap.add(l, e, acc)
         | _ => acc
         },
       StringMap.empty,
@@ -336,13 +346,14 @@ let extension' =
     List.map(
       (entry: Grammar.tuple_entry('a, 'e)): Grammar.tuple_entry('a, 'e) =>
         switch (entry) {
-        | Labeled(a, Label(l), d1) =>
+        | Labeled(a, {term: Label(l), _} as lab, d1) =>
           switch (StringMap.find_opt(l, e2_map)) {
-          | Some(d2) => Labeled(a, Label(l), d2)
-          | None => Labeled(a, Label(l), d1)
+          | Some(d2) => Labeled(a, lab, d2)
+          | None => Labeled(a, lab, d1)
           }
         | Unlabeled(d1) => Unlabeled(d1)
-        | Labeled(a, (EmptyLabel | MultiHole(_)) as l, d) => Labeled(a, l, d)
+        | Labeled(a, {term: EmptyLabel | MultiHole(_), _} as l, d) =>
+          Labeled(a, l, d)
         },
       e1_entries,
     )
@@ -350,7 +361,7 @@ let extension' =
     @ List.filter_map(
         (entry: Grammar.tuple_entry('a, 'e)) =>
           switch (entry) {
-          | Labeled(_, Label(l), _) =>
+          | Labeled(_, {term: Label(l), _}, _) =>
             if (List.exists(
                   entry => get_label(entry) == Some(l),
                   e1_entries,

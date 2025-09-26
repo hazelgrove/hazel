@@ -33,7 +33,7 @@ module Typ = {
 
   let of_infix_delim: list((Token.t, Typ.term)) = [
     ("|>", Unknown(Internal)),
-    (",", Prod([unk, unk])),
+    (",", Prod([Unlabeled(unk), Unlabeled(unk)])),
     ("::", List(unk)),
     ("@", List(unk)),
     (";", Unknown(Internal)),

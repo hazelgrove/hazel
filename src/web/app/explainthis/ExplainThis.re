@@ -1154,24 +1154,6 @@ let get_doc =
             ),
           LabelTerm.labels(name),
         )
-      | TupLabel(l, e) =>
-        get_message(
-          ~format=
-            Some(
-              msg =>
-                Printf.sprintf(
-                  Scanf.format_from_string(msg, "%s%s"),
-                  Id.to_string(Exp.rep_id(l)),
-                  Id.to_string(Exp.rep_id(e)),
-                ),
-            ),
-          ~colorings=
-            TupLabelExp.labeled_exps_coloring_ids(
-              ~label_id=Exp.rep_id(l),
-              ~exp_id=Exp.rep_id(e),
-            ),
-          TupLabelExp.labeled_exps,
-        )
       | Dot(tup, lab) =>
         get_message(
           ~format=
@@ -1207,8 +1189,20 @@ let get_doc =
         | 2 =>
           if (TupleExp.tuple_exp_size2.id
               == get_specificity_level(TupleExp.tuples2)) {
-            let exp1_id = List.nth(IdTagged.ids(List.nth(terms, 0)), 0);
-            let exp2_id = List.nth(IdTagged.ids(List.nth(terms, 1)), 0);
+            let exp1_id =
+              List.nth(
+                IdTagged.ids(
+                  Grammar.get_tuple_entry_value(List.nth(terms, 0)),
+                ),
+                0,
+              );
+            let exp2_id =
+              List.nth(
+                IdTagged.ids(
+                  Grammar.get_tuple_entry_value(List.nth(terms, 1)),
+                ),
+                0,
+              );
             get_message(
               ~colorings=
                 TupleExp.tuple_exp_size2_coloring_ids(~exp1_id, ~exp2_id),
@@ -1229,9 +1223,27 @@ let get_doc =
         | 3 =>
           if (TupleExp.tuple_exp_size3.id
               == get_specificity_level(TupleExp.tuples3)) {
-            let exp1_id = List.nth(IdTagged.ids(List.nth(terms, 0)), 0);
-            let exp2_id = List.nth(IdTagged.ids(List.nth(terms, 1)), 0);
-            let exp3_id = List.nth(IdTagged.ids(List.nth(terms, 2)), 0);
+            let exp1_id =
+              List.nth(
+                IdTagged.ids(
+                  Grammar.get_tuple_entry_value(List.nth(terms, 0)),
+                ),
+                0,
+              );
+            let exp2_id =
+              List.nth(
+                IdTagged.ids(
+                  Grammar.get_tuple_entry_value(List.nth(terms, 1)),
+                ),
+                0,
+              );
+            let exp3_id =
+              List.nth(
+                IdTagged.ids(
+                  Grammar.get_tuple_entry_value(List.nth(terms, 2)),
+                ),
+                0,
+              );
             get_message(
               ~colorings=
                 TupleExp.tuple_exp_size3_coloring_ids(
@@ -2554,8 +2566,20 @@ let get_doc =
         }
       | 2 =>
         if (TupleTyp.tuple2_typ.id == get_specificity_level(TupleTyp.tuple2)) {
-          let elem1_id = List.nth(IdTagged.ids(List.nth(elements, 0)), 0);
-          let elem2_id = List.nth(IdTagged.ids(List.nth(elements, 1)), 0);
+          let elem1_id =
+            List.nth(
+              IdTagged.ids(
+                Grammar.get_tuple_entry_value(List.nth(elements, 0)),
+              ),
+              0,
+            );
+          let elem2_id =
+            List.nth(
+              IdTagged.ids(
+                Grammar.get_tuple_entry_value(List.nth(elements, 1)),
+              ),
+              0,
+            );
           get_message(
             ~colorings=TupleTyp.tuple2_typ_coloring_ids(~elem1_id, ~elem2_id),
             ~format=
@@ -2574,9 +2598,27 @@ let get_doc =
         }
       | 3 =>
         if (TupleTyp.tuple3_typ.id == get_specificity_level(TupleTyp.tuple3)) {
-          let elem1_id = List.nth(IdTagged.ids(List.nth(elements, 0)), 0);
-          let elem2_id = List.nth(IdTagged.ids(List.nth(elements, 1)), 0);
-          let elem3_id = List.nth(IdTagged.ids(List.nth(elements, 2)), 0);
+          let elem1_id =
+            List.nth(
+              IdTagged.ids(
+                Grammar.get_tuple_entry_value(List.nth(elements, 0)),
+              ),
+              0,
+            );
+          let elem2_id =
+            List.nth(
+              IdTagged.ids(
+                Grammar.get_tuple_entry_value(List.nth(elements, 1)),
+              ),
+              0,
+            );
+          let elem3_id =
+            List.nth(
+              IdTagged.ids(
+                Grammar.get_tuple_entry_value(List.nth(elements, 2)),
+              ),
+              0,
+            );
           get_message(
             ~colorings=
               TupleTyp.tuple3_typ_coloring_ids(
@@ -2636,6 +2678,7 @@ let get_doc =
       simple("Comments are ignored by systems but treasured by readers")
     | _ => failwith("ExplainThis: Secondary Impossible")
     }
+  | Some(InfoLabel(_)) => default
   | None => default
   };
 };

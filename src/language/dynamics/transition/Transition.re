@@ -507,7 +507,7 @@ module Transition = (EV: EV_MODE) => {
             if (n_args == 1) {
               (
                 Tuple(n_args),
-                tuple([d2]) // TODO Should we not be going to a tuple?
+                tuple([Unlabeled(d2)]) // TODO Should we not be going to a tuple?
               );
             } else {
               (Tuple(n_args), d2);
@@ -525,7 +525,7 @@ module Transition = (EV: EV_MODE) => {
             go(d4s, args);
           };
           Step({
-            expr: ap(Forward, d3, tuple(new_args)),
+            expr: ap(Forward, d3, unlabeled_tuple(new_args)),
             state_update,
             kind: DeferredAp,
             is_value: false,
@@ -702,18 +702,18 @@ module Transition = (EV: EV_MODE) => {
               })
             | _ => Indet
             };
-          | TupLabel(_, d) =>
-            LabeledTuple.has_same_labels(
-              Exp.match_tup_label(d1'),
-              Some((name, d)),
-            )
-              ? Step({
-                  expr: d,
-                  state_update,
-                  kind: Dot,
-                  is_value: false,
-                })
-              : Indet
+          // | TupLabel(_, d) =>
+          //   LabeledTuple.has_same_labels(
+          //     Exp.match_tup_label(d1'),
+          //     Some((name, d)),
+          //   )
+          //     ? Step({
+          //         expr: d,
+          //         state_update,
+          //         kind: Dot,
+          //         is_value: false,
+          //       })
+          //     : Indet
           | ListLit(ds) =>
             let mapped =
               List.map(d => Dot(d, lab |> Exp.fresh) |> Exp.fresh, ds);
@@ -731,22 +731,58 @@ module Transition = (EV: EV_MODE) => {
 
       | _ => Indet
       };
-    | TupLabel(label, d1) =>
-      let. _ = otherwise(env, d1 => TupLabel(label, d1) |> rewrap)
-      and. _ =
-        req_final(
-          req(state, env),
-          d1 => TupLabel(label, d1) |> wrap_ctx,
-          d1,
-        );
-      Constructor;
+    // | TupLabel(label, d1) =>
+    //   let. _ = otherwise(env, d1 => TupLabel(label, d1) |> rewrap)
+    //   and. _ =
+    //     req_final(
+    //       req(state, env),
+    //       d1 => TupLabel(label, d1) |> wrap_ctx,
+    //       d1,
+    //     );
+    //   Constructor;
     | Tuple(ds) =>
-      let. _ = otherwise(env, ds => Tuple(ds) |> rewrap)
+      // TODO Thread the labels through evaluation better.
+      let reapply_label = (te: Exp.tuple_entry, d: Exp.t): Exp.tuple_entry => {
+        switch (te) {
+        | Unlabeled(_) => Unlabeled(d)
+        | Labeled(a, l, _) => Labeled(a, l, d)
+        };
+      };
+      let original_ds = ds;
+
+      let. _ =
+        otherwise(env, (ds: list(Exp.t)) =>
+          Tuple(ds |> List.map2(reapply_label, original_ds)) |> rewrap
+        )
       and. _ =
         req_all_final(
           req(state, env),
-          (d1, ds) => Tuple(d1, ds) |> wrap_ctx,
-          ds,
+          (d1: EvalCtx.t, ds: (list(t), list(t))) => {
+            let (ds1, ds2) = ds;
+            let ds1 =
+              List.map2(
+                reapply_label,
+                ListUtil.take(List.length(ds1), original_ds),
+                ds1,
+              );
+            let ds2 =
+              List.map2(
+                reapply_label,
+                ListUtil.remove_first_n(List.length(ds1) + 1, original_ds),
+                ds2,
+              );
+            let ds = (ds1, ds2);
+            Tuple(
+              d1,
+              switch (List.nth(original_ds, List.length(ds1))) {
+              | Unlabeled(_) => None
+              | Labeled(a, l, _) => Some((a, l))
+              },
+              ds,
+            )
+            |> wrap_ctx;
+          },
+          List.map(Grammar.get_tuple_entry_value, ds),
         );
       Constructor;
     | TupleExtension(e1, e2) =>
@@ -763,27 +799,16 @@ module Transition = (EV: EV_MODE) => {
           e2 => TupleExtension2(e1, e2) |> wrap_ctx,
           e2,
         );
-      let-unbox e1_entries = (LabeledTupleEntries, e1');
-      let-unbox e2_entries = (LabeledTupleEntries, e2');
-
-      let tuple: Grammar.exp_t(IdTagged.IdTag.t) =
-        tuple(
-          List.map(
-            ((lab, d)) =>
-              switch (lab) {
-              | Some(l) => tup_label(label(l), d)
-              | None => d
-              },
-            LabeledTuple.extension(e1_entries, e2_entries),
-          ),
-        );
-
-      Step({
-        expr: tuple,
-        state_update,
-        kind: TupleExtension,
-        is_value: true,
-      });
+      switch (e1'.term, e2'.term) {
+      | (Tuple(e1s), Tuple(e2s)) =>
+        Step({
+          expr: tuple(LabeledTuple.extension'(e1s, e2s)),
+          state_update,
+          kind: TupleExtension,
+          is_value: true,
+        })
+      | _ => Indet
+      };
     | Cons(d1, d2) =>
       let. _ = otherwise(env, (d1, d2) => Cons(d1, d2) |> rewrap)
       and. d1' =

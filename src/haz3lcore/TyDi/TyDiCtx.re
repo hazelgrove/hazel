@@ -180,8 +180,14 @@ let suggest_lookahead_variable = (ci: Info.t): list(TyDiSuggestion.t) => {
     | Prod([ty, ...tys]) =>
       let commas =
         List.init(List.length(tys), _ => ",") |> String.concat(" ");
-      List.map(restrategize(" )" ++ commas), exp_aps(ty))
-      @ List.map(restrategize(commas), exp_refs(ty));
+      List.map(
+        restrategize(" )" ++ commas),
+        exp_aps(Grammar.get_tuple_entry_value(ty)),
+      )
+      @ List.map(
+          restrategize(commas),
+          exp_refs(Grammar.get_tuple_entry_value(ty)),
+        );
     | Atom(Bool) =>
       /* TODO: Find a UI to make these less confusing */
       exp_refs(Atom(Int) |> Typ.fresh)
@@ -206,8 +212,14 @@ let suggest_lookahead_variable = (ci: Info.t): list(TyDiSuggestion.t) => {
     | Prod([ty, ...tys]) =>
       let commas =
         List.init(List.length(tys), _ => ",") |> String.concat(" ");
-      List.map(restrategize(" )" ++ commas), pat_aps(ty))
-      @ List.map(restrategize(commas), pat_refs(ty));
+      List.map(
+        restrategize(" )" ++ commas),
+        pat_aps(Grammar.get_tuple_entry_value(ty)),
+      )
+      @ List.map(
+          restrategize(commas),
+          pat_refs(Grammar.get_tuple_entry_value(ty)),
+        );
     | _ => []
     };
   | InfoTyp(_) => []

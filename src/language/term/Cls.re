@@ -1,3 +1,8 @@
+[@deriving (show({with_path: false}), sexp, yojson, enumerate, eq)]
+type label_cls =
+  | EmptyLabel
+  | Label;
+
 [@deriving (show({with_path: false}), sexp, yojson, enumerate)]
 type t =
   | Exp(Exp.cls)
@@ -5,6 +10,7 @@ type t =
   | Typ(Typ.cls)
   | TPat(TPat.cls)
   | Rul(Rul.cls)
+  | Label(label_cls)
   | Secondary(Secondary.cls);
 
 let show = (cls: t) =>
@@ -14,5 +20,6 @@ let show = (cls: t) =>
   | Typ(cls) => Typ.show_cls(cls)
   | TPat(cls) => TPat.show_cls(cls)
   | Rul(cls) => Rul.show_cls(cls)
+  | Label(cls) => show_label_cls(cls)
   | Secondary(cls) => Secondary.show_cls(cls)
   };

@@ -101,6 +101,7 @@ module Completion = {
       @ (relevant_ctx ? ["relevant_ctx:\n " ++ relevant] : []);
     | InfoTyp(_)
     | InfoTPat(_)
+    | InfoLabel(_)
     | Secondary(_) => []
     };
 
@@ -235,6 +236,7 @@ module Composition = {
     | InfoTyp(_)
     | InfoTPat(_)
     | Secondary(_) => []
+    | InfoLabel(_) => []
     };
 
   // Finds the first matching variable as 'name' in the context

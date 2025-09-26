@@ -142,12 +142,9 @@ let rec matches =
       | TupleExtension2(d1, ctx) =>
         let+ ctx = matches(env, flt, ctx, exp, act, idx);
         TupleExtension2(d1, ctx) |> rewrap;
-      | Tuple(ctx, ds) =>
+      | Tuple(ctx, l, ds) =>
         let+ ctx = matches(env, flt, ctx, exp, act, idx);
-        Tuple(ctx, ds) |> rewrap;
-      | TupLabel(label, ctx) =>
-        let+ ctx = matches(env, flt, ctx, exp, act, idx);
-        TupLabel(label, ctx) |> rewrap;
+        Tuple(ctx, l, ds) |> rewrap;
       | Dot1(ctx, d2) =>
         let+ ctx = matches(env, flt, ctx, exp, act, idx);
         Dot1(ctx, d2) |> rewrap;

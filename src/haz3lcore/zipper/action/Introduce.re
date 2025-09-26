@@ -102,29 +102,29 @@ module IntroduceExp: Introducable with type t = Exp.t = {
           Some(
             tuple([]) |> (exp => (exp, List.hd(exp.annotation.ids), false)),
           )
-        | Prod([t, ...ts]) =>
-          let tuple_entry = (t: TermBase.Typ.t) => {
-            let hole = empty_hole();
-            (
-              switch (t) {
-              | {term: TupLabel({term: Label(l), _}, _), _} =>
-                tup_label(label(l), hole)
-              | _ => hole
-              },
-              List.hd(hole.annotation.ids),
-            );
-          };
+        // | Prod([t, ...ts]) =>
+        //   let tuple_entry = (t: TermBase.Typ.t) => {
+        //     let hole = empty_hole();
+        //     (
+        //       switch (t) {
+        //       | {term: TupLabel({term: Label(l), _}, _), _} =>
+        //         tup_label(label(l), hole)
+        //       | _ => hole
+        //       },
+        //       List.hd(hole.annotation.ids),
+        //     );
+        //   };
 
-          let (head_element, head_id) = tuple_entry(t);
+        //   let (head_element, head_id) = tuple_entry(t);
 
-          Some((
-            tuple([
-              head_element,
-              ...List.map(t => t |> tuple_entry |> fst, ts),
-            ]),
-            head_id,
-            false,
-          ));
+        //   Some((
+        //     tuple([
+        //       head_element,
+        //       ...List.map(t => t |> tuple_entry |> fst, ts),
+        //     ]),
+        //     head_id,
+        //     false,
+        //   ));
         | Sum([Variant(c, _, None)]) =>
           Some(
             constructor(c, None)

@@ -56,8 +56,7 @@ let rec external_precedence = (exp: Exp.t): Precedence.t => {
   | Undefined
   | Label(_)
   | Constructor(_)
-  | LivelitName(_)
-  | TupLabel(_) => Precedence.max
+  | LivelitName(_) => Precedence.max
 
   // Same goes for forms which are already surrounded
   | Parens(_)
@@ -229,7 +228,9 @@ let rec parenthesize =
   | Tuple(es) =>
     let inner =
       Tuple(
-        es |> List.map(parenthesize) |> List.map(paren_at(Precedence.prod)),
+        es
+        |> List.map(Grammar.map_tuple_entry(parenthesize))
+        |> List.map(Grammar.map_tuple_entry(paren_at(Precedence.prod))),
       )
       |> rewrap;
 
@@ -239,8 +240,6 @@ let rec parenthesize =
       Parens(inner) |> Exp.fresh;
     };
   | Label(_) => exp
-  | TupLabel(l, e) =>
-    TupLabel(l, parenthesize(e) |> paren_at(Precedence.min)) |> rewrap
   | Dot(e, l) =>
     Dot(parenthesize(e) |> paren_at(Precedence.min), l) |> rewrap
   | TupleExtension(l, r) =>
@@ -491,8 +490,8 @@ and parenthesize_typ =
     let inner =
       Prod(
         ts
-        |> List.map(parenthesize_typ)
-        |> List.map(paren_typ_at(Precedence.comma)),
+        |> List.map(Grammar.map_tuple_entry(parenthesize_typ))
+        |> List.map(Grammar.map_tuple_entry(paren_typ_at(Precedence.comma))),
       )
       |> rewrap;
     already_paren ? inner : Parens(inner) |> Typ.fresh;
@@ -584,6 +583,7 @@ and parenthesize_any =
   | Typ(t) => Typ(parenthesize_typ(~already_paren, ~show_filters, t))
   | TPat(tp) => TPat(parenthesize_tpat(~show_filters, tp))
   | Rul(r) => Rul(parenthesize_rul(~show_filters, r))
+  | Label(l) => Label(l)
   | Any(_) => any
   };
 
@@ -888,8 +888,54 @@ let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
     @ e
     |> fold_fun_if(settings.fold_fn_bodies, name);
   | Tuple([]) => text_to_pretty(exp |> Exp.rep_id, Sort.Exp, "()")
-  | Tuple([{term: TupLabel(_), _} as le]) => go(le)
   | Tuple([x, ...xs]) =>
+    let go = (e: Exp.tuple_entry) => {
+      switch (e) {
+      | Unlabeled(e) => go(e)
+      | Labeled(_a, l, e) =>
+        let* l =
+          switch (l.term) {
+          | Label(l') =>
+            label_to_pretty(
+              ~label_only_position=true,
+              Sort.Exp,
+              l',
+              l |> IdTagged.rep_id,
+            )
+          | EmptyLabel =>
+            p_just([
+              Grout({
+                id: l |> IdTagged.rep_id,
+                shape: Convex,
+              }),
+            ])
+          | MultiHole(anys) =>
+            go({
+              term: MultiHole(anys),
+              annotation: l.annotation,
+            })
+          }
+        and* e = go(e);
+
+        List.flatten([
+          l,
+          [
+            Tile({
+              id: exp |> Exp.rep_id,
+              label: ["="],
+              mold: Mold.mk_bin(Precedence.lab, Sort.Exp, []),
+              shards: [0],
+              children: [],
+            }),
+          ],
+          if (Token.begins_with_potential_operator(Segment.first_string(e))) {
+            [Secondary(mk_space(Id.mk()))] @ e;
+          } else {
+            e;
+          },
+        ]);
+      };
+    };
     // TODO: Add optional newlines
     let+ x = go(x)
     and+ xs = xs |> List.map(go) |> all;
@@ -905,37 +951,6 @@ let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
       Token.label_quote(l),
       exp |> Exp.rep_id,
     )
-  | TupLabel(l, e) =>
-    let* l =
-      switch (l.term) {
-      | Label(l') =>
-        label_to_pretty(
-          ~label_only_position=true,
-          Sort.Exp,
-          l',
-          l |> Exp.rep_id,
-        )
-      | _ => go(l)
-      }
-    and* e = go(e);
-
-    List.flatten([
-      l,
-      [
-        Tile({
-          id: exp |> Exp.rep_id,
-          label: ["="],
-          mold: Mold.mk_bin(Precedence.lab, Sort.Exp, []),
-          shards: [0],
-          children: [],
-        }),
-      ],
-      if (Token.begins_with_potential_operator(Segment.first_string(e))) {
-        [Secondary(mk_space(Id.mk()))] @ e;
-      } else {
-        e;
-      },
-    ]);
   | Dot(e, l) =>
     let* e = go(e)
     and* l =
@@ -1329,6 +1344,54 @@ and typ_to_pretty = (~settings: Settings.t, typ: Typ.t): pretty => {
     [mk_form(ListTyp, id, [t])];
   | Prod([]) => text_to_pretty(typ |> Typ.rep_id, Sort.Typ, "()")
   | Prod([t, ...ts]) =>
+    let go = (t: Typ.tuple_entry) => {
+      switch (t) {
+      | Unlabeled(t) => go(t)
+      | Labeled(_a, l, t) =>
+        let* l =
+          switch (l.term) {
+          | Label(l') =>
+            label_to_pretty(
+              ~label_only_position=true,
+              Sort.Typ,
+              l',
+              l |> IdTagged.rep_id,
+            )
+          | EmptyLabel =>
+            p_just([
+              Grout({
+                id: l |> IdTagged.rep_id,
+                shape: Convex,
+              }),
+            ])
+          | MultiHole(anys) =>
+            go({
+              term: Unknown(Hole(MultiHole(anys))),
+              annotation: l.annotation,
+            })
+          }
+        and* t = go(t);
+
+        List.flatten([
+          l,
+          [
+            Tile({
+              id: typ |> Typ.rep_id,
+              label: ["="],
+              mold: Mold.mk_bin(Precedence.lab, Sort.Typ, []),
+              shards: [0],
+              children: [],
+            }),
+          ],
+          if (Token.begins_with_potential_operator(Segment.first_string(t))) {
+            [Secondary(mk_space(Id.mk()))] @ t;
+          } else {
+            t;
+          },
+        ]);
+      };
+    };
+
     let+ t = go(t)
     and+ ts = ts |> List.map(go) |> all;
     t
@@ -1439,6 +1502,7 @@ and any_to_pretty = (~settings: Settings.t, any: Any.t): pretty => {
   | Pat(p) => pat_to_pretty(~settings: Settings.t, p)
   | Typ(t) => typ_to_pretty(~settings: Settings.t, t)
   | TPat(tp) => tpat_to_pretty(~settings: Settings.t, tp)
+  | Label(l) => label_to_pretty'(~settings: Settings.t, l)
   | Any(_)
   | Rul(_) =>
     //TODO: print out invalid rules properly
@@ -1449,6 +1513,35 @@ and any_to_pretty = (~settings: Settings.t, any: Any.t): pretty => {
         shape: Convex,
       }),
     ]);
+  };
+}
+and label_to_pretty' = (~settings, l: TermBase.Label.t): pretty => {
+  switch (l.term) {
+  | Label(l') =>
+    label_to_pretty(
+      ~label_only_position=true,
+      Sort.Typ,
+      l',
+      l |> IdTagged.rep_id,
+    )
+  | EmptyLabel =>
+    p_just([
+      Grout({
+        id: l |> IdTagged.rep_id,
+        shape: Convex,
+      }),
+    ])
+  | MultiHole(anys) =>
+    // TODO: Add optional newlines
+    let id = l |> IdTagged.rep_id;
+    let+ anys = anys |> List.map(any_to_pretty(~settings)) |> all;
+    ListUtil.flat_intersperse(
+      Grout({
+        id,
+        shape: Concave,
+      }),
+      anys,
+    );
   };
 }
 and label_to_pretty =

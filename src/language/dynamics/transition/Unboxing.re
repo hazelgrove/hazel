@@ -133,7 +133,7 @@ let rec unbox: type a. (unbox_request(a), DHExp.t) => unboxed(a) =
           (te: Exp.tuple_entry) =>
             switch (te) {
             | Unlabeled(e) => Some((None, e))
-            | Labeled(_, Label(l), e) => Some((Some(l), e))
+            | Labeled(_, {term: Label(l), _}, e) => Some((Some(l), e))
             | _ => None // TODO Determine what happens for empty labels
             },
           ds,

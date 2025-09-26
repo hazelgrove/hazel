@@ -109,6 +109,7 @@ module rec Any: {
     | TPat(_) => TPat
     | Rul(_) => Rul
     | Any(_) => Any
+    | Label(_) => Any // TODO Sort for label
     };
 
   let map_term =
@@ -135,6 +136,7 @@ module rec Any: {
         )
       | Rul(x) =>
         Rul(Rul.map_term(~f_exp, ~f_pat, ~f_typ, ~f_tpat, ~f_rul, ~f_any, x))
+      | Label(l) => Label(l)
       | Any () => Any()
       };
     x |> f_any(rec_call);
@@ -147,13 +149,15 @@ module rec Any: {
     | (Typ(x), Typ(y)) => Typ.fast_equal(x, y)
     | (TPat(x), TPat(y)) => TPat.fast_equal(x, y)
     | (Rul(x), Rul(y)) => Rul.fast_equal(x, y)
+    | (Label(x), Label(y)) => Label.equal(x, y)
     | (Any (), Any ()) => true
     | (Exp(_), _)
     | (Pat(_), _)
     | (Typ(_), _)
     | (TPat(_), _)
     | (Rul(_), _)
-    | (Any (), _) => false
+    | (Any (), _)
+    | (Label(_), _) => false
     };
 
   let equal = fast_equal;
@@ -559,14 +563,17 @@ and Pat: {
 and Label: {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t = Grammar.label_t(IdTagged.IdTag.t);
-
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type term = Grammar.label_term(IdTagged.IdTag.t);
   let equal: (t, t) => bool;
 } = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t = Grammar.label_t(IdTagged.IdTag.t);
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type term = Grammar.label_term(IdTagged.IdTag.t);
 
   let equal = (l1: t, l2: t) => {
-    switch (l1, l2) {
+    switch (l1.term, l2.term) {
     | (Label(s1), Label(s2)) => s1 == s2
     | (EmptyLabel, EmptyLabel)
     | (MultiHole(_), MultiHole(_)) // TODO Decide how this should work

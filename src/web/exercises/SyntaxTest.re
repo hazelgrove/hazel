@@ -52,14 +52,15 @@ let rec find_in_let =
   | (_, Parens(ue) | Probe(ue, _)) => find_in_let(name, upat, ue, l)
   | (Asc(up, _), _) => find_in_let(name, up, def, l)
   | (Var(x), Fun(_)) => x == name ? [def, ...l] : l
-  | (TupLabel(_, up), TupLabel(_, ue)) => find_in_let(name, up, ue, l)
   | (TupLabel(_, up), _) => find_in_let(name, up, def, l)
   | (Tuple(pl), Tuple(ul)) =>
     if (List.length(pl) != List.length(ul)) {
       l;
     } else {
       List.fold_left2(
-        (acc, up, ue) => {find_in_let(name, up, ue, acc)},
+        (acc, up, ue) => {
+          find_in_let(name, up, Grammar.get_tuple_entry_value(ue), acc)
+        },
         l,
         pl,
         ul,
@@ -85,13 +86,17 @@ let rec find_fn = (name: string, uexp: Exp.t, l: list(Exp.t)): list(Exp.t) => {
   switch (uexp.term) {
   | Let(up, def, body) =>
     l |> find_in_let(name, up, def) |> find_fn(name, body)
-  | ListLit(ul)
-  | Tuple(ul) =>
+  | ListLit(ul) =>
     List.fold_left((acc, u1) => {find_fn(name, u1, acc)}, l, ul)
+  | Tuple(ul) =>
+    List.fold_left(
+      (acc, u1) => {find_fn(name, Grammar.get_tuple_entry_value(u1), acc)},
+      l,
+      ul,
+    )
   | TypFun(_, body, _)
   | FixF(_, body, _)
   | Fun(_, body, _, _) => l |> find_fn(name, body)
-  | TupLabel(_, u1)
   | TypAp(u1, _)
   | Parens(u1)
   | Probe(u1, _)
@@ -185,9 +190,16 @@ let rec var_mention = (name: string, uexp: Exp.t): bool => {
   | Deferral(_) => false
   | Fun(args, body, _, _) =>
     var_mention_upat(name, args) ? false : var_mention(name, body)
-  | ListLit(l)
-  | Tuple(l) =>
+  | ListLit(l) =>
     List.fold_left((acc, ue) => {acc || var_mention(name, ue)}, false, l)
+  | Tuple(l) =>
+    List.fold_left(
+      (acc, ue) => {
+        acc || var_mention(name, Grammar.get_tuple_entry_value(ue))
+      },
+      false,
+      l,
+    )
   | Let(p, def, body) =>
     var_mention_upat(name, p)
       ? false : var_mention(name, def) || var_mention(name, body)
@@ -200,7 +212,6 @@ let rec var_mention = (name: string, uexp: Exp.t): bool => {
   | UnOp(_, u)
   | TyAlias(_, _, u)
   | Use(_, u)
-  | TupLabel(_, u)
   | Filter(_, u) => var_mention(name, u)
   | DynamicErrorHole(u, _) => var_mention(name, u)
   | FixF(args, body, _) =>
@@ -251,9 +262,16 @@ let rec var_applied = (name: string, uexp: Exp.t): bool => {
   | Fun(args, body, _, _)
   | FixF(args, body, _) =>
     var_mention_upat(name, args) ? false : var_applied(name, body)
-  | ListLit(l)
-  | Tuple(l) =>
+  | ListLit(l) =>
     List.fold_left((acc, ue) => {acc || var_applied(name, ue)}, false, l)
+  | Tuple(l) =>
+    List.fold_left(
+      (acc, ue) => {
+        acc || var_applied(name, Grammar.get_tuple_entry_value(ue))
+      },
+      false,
+      l,
+    )
   | Let(p, def, body) =>
     var_mention_upat(name, p)
       ? false : var_applied(name, def) || var_applied(name, body)
@@ -265,7 +283,6 @@ let rec var_applied = (name: string, uexp: Exp.t): bool => {
   | UnOp(_, u)
   | TyAlias(_, _, u)
   | Use(_, u)
-  | TupLabel(_, u)
   | Filter(_, u) => var_applied(name, u)
   | TypAp(u, _) =>
     switch (u.term) {
@@ -349,16 +366,23 @@ let rec tail_check = (name: string, uexp: Exp.t): bool => {
   | Let(p, def, body) =>
     var_mention_upat(name, p) || var_mention(name, def)
       ? false : tail_check(name, body)
-  | ListLit(l)
+  | ListLit(l) =>
+    !List.fold_left((acc, ue) => {acc || var_mention(name, ue)}, false, l)
   | Tuple(l) =>
     //If l has no recursive calls then true
-    !List.fold_left((acc, ue) => {acc || var_mention(name, ue)}, false, l)
+    !
+      List.fold_left(
+        (acc, ue) => {
+          acc || var_mention(name, Grammar.get_tuple_entry_value(ue))
+        },
+        false,
+        l,
+      )
   | Test(_) => false
   | HintedTest(_) => false
   | TyAlias(_, _, u)
   | Use(_, u)
   | Asc(u, _)
-  | TupLabel(_, u)
   | Filter(_, u)
   | Closure(_, u)
   | TypFun(_, u, _)
@@ -368,7 +392,16 @@ let rec tail_check = (name: string, uexp: Exp.t): bool => {
   | UnOp(_, u) => !var_mention(name, u)
   | Ap(_, u1, u2) => var_mention(name, u2) ? false : tail_check(name, u1)
   | DeferredAp(fn, args) =>
-    tail_check(name, Ap(Forward, fn, Tuple(args) |> Exp.fresh) |> Exp.fresh)
+    tail_check(
+      name,
+      Ap(
+        Forward,
+        fn,
+        Tuple(args |> List.map((arg): Exp.tuple_entry => Unlabeled(arg)))
+        |> Exp.fresh // TODO Deferredap should take labeled args
+      )
+      |> Exp.fresh,
+    )
   | Seq(u1, u2) => var_mention(name, u1) ? false : tail_check(name, u2)
   | Cons(u1, u2)
   | TupleExtension(u1, u2)

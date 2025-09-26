@@ -75,7 +75,7 @@ let secondary_targets = (goal: Typ.t): list(Typ.t) =>
       | Prod(ts) => ts
       | _ => []
       };
-    [target] @ elems;
+    [target] @ List.map(Grammar.get_tuple_entry_value, elems);
   | _ => []
   };
 

@@ -144,7 +144,8 @@ let string_of: Info.error => string =
   | Exp(error) => exp_error(error)
   | Pat(error) => pat_error(error)
   | Typ(error) => typ_error(error)
-  | TPat(error) => tpat_error(error);
+  | TPat(error) => tpat_error(error)
+  | Label(error) => raise(Failure("Todo: implement label errors"));
 
 let format_error = (term, error) =>
   prn("Error in term:\n  %s\nNature of error: %s", term, error);
@@ -155,6 +156,7 @@ let term_string_of: Info.t => string =
   | InfoPat({term, _}) => Print.term(Pat(term))
   | InfoTyp({term, _}) => Print.term(Typ(term))
   | InfoTPat({term, _}) => Print.term(TPat(term))
+  | InfoLabel({term, _}) => Print.term(Label(term))
   | Secondary(_) => failwith("ChatLSP: term_string_of: Secondary");
 
 let all = (info_map: Statics.Map.t): list(string) => {

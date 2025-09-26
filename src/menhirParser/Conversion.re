@@ -223,14 +223,15 @@ module rec Exp: {
       constructor(x, Option.map(Option.map(Typ.of_menhir_ast), ty))
     | Deferral => deferral(InAp)
     | ListExp(l) => list_lit(List.map(of_menhir_ast, l))
-    | TupleExp([TupLabel(_) as tl]) => parens(tuple([of_menhir_ast(tl)]))
+    | TupleExp([TupLabel(_) as tl]) =>
+      parens(tuple([raise(Failure("todo"))]))
     | TupleExp([e]) => parens(of_menhir_ast(e))
-    | TupleExp(e) => parens(tuple(List.map(of_menhir_ast, e)))
+    | TupleExp(e) => parens(tuple(raise(Failure("todo"))))
     | TupleExtension(e1, e2) =>
       tuple_extension(of_menhir_ast(e1), of_menhir_ast(e2))
-    | Label(s) => label(s)
-    | TupLabel(e1, e2) => tup_label(of_menhir_ast(e1), of_menhir_ast(e2))
-    | Dot(e1, e2) => dot(of_menhir_ast(e1), of_menhir_ast(e2))
+    | Label(s) => raise(Failure("todo"))
+    | TupLabel(e1, e2) => raise(Failure("todo"))
+    | Dot(e1, e2) => dot(of_menhir_ast(e1), raise(Failure("todo")))
     | Let(p, e1, e2) =>
       let_(Pat.of_menhir_ast(p), of_menhir_ast(e1), of_menhir_ast(e2))
     | FixF(p, e) => fix_f(Pat.of_menhir_ast(p), of_menhir_ast(e), None)
@@ -332,7 +333,7 @@ module rec Exp: {
     | LivelitName(_) => InvalidExp("Not supported")
     | Deferral(InAp) => Deferral
     | ListLit(l) => ListExp(List.map(of_core, l))
-    | Tuple(l) => TupleExp(List.map(of_core, l))
+    | Tuple(l) => TupleExp(List.map(of_core, raise(Failure("todo"))))
     | TupleExtension(e1, e2) => TupleExp([of_core(e1), of_core(e2)])
     | Let(p, e1, e2) => Let(Pat.of_core(p), of_core(e1), of_core(e2))
     | FixF(p, e, _) => FixF(Pat.of_core(p), of_core(e))
@@ -379,7 +380,6 @@ module rec Exp: {
       ApExp(of_core(e), TupleExp(List.map(of_core, es)))
     | Fun(p, e, _, name_opt) => Fun(Pat.of_core(p), of_core(e), name_opt)
     | Label(s) => Label(s)
-    | TupLabel(e1, e2) => TupLabel(of_core(e1), of_core(e2))
     | Dot(e1, e2) => Dot(of_core(e1), of_core(e2))
     | Ap(Reverse, _, _) => raise(Failure("Reverse not supported"))
     };
@@ -426,8 +426,8 @@ and Typ: {
       }
     | TypVar(s) => var(s)
     | TupleType([t]) => parens(of_menhir_ast(t))
-    | TupleType(ts) => parens(prod(List.map(of_menhir_ast, ts)))
-    | LabelType(s) => label(s)
+    | TupleType(ts) => parens(prod(raise(Failure("todo"))))
+    | LabelType(s) => raise(Failure("todo"))
     | TupLabelType(t1, t2) =>
       tup_label(of_menhir_ast(t1), of_menhir_ast(t2))
     | ArrayType(t) => list(of_menhir_ast(t))
@@ -473,7 +473,7 @@ and Typ: {
     | Atom(Bool) => BoolType
     | Atom(Nat) => NatType
     | Var(x) => TypVar(x)
-    | Prod(ts) => TupleType(List.map(of_core, ts))
+    | Prod(ts) => TupleType(List.map(of_core, raise(Failure("todo"))))
     | List(t) => ArrayType(of_core(t))
     | Arrow(t1, t2) => ArrowType(of_core(t1), of_core(t2))
     | Unknown(p) => UnknownType(of_core_type_provenance(p))
