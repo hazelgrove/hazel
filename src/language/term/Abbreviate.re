@@ -827,6 +827,7 @@ and abbreviate_typ = (typ: Typ.t): Typ.t => {
         Atom(String);
       }
     | Var(v) => Var(abbreviate_str(available^, v))
+    | ExplicitNonlabel => ExplicitNonlabel
     | Label(v) => Label(abbreviate_str(available^, v))
     | List(t) =>
       if (available^ <= 2) {

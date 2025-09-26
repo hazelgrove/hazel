@@ -865,6 +865,7 @@ let rec is_ana_atom = (ty: t) =>
   | Parens(x) => is_ana_atom(x)
   | Atom(a) => Some(a)
   | Unknown(_)
+  | ExplicitNonlabel
   | Label(_)
   | Var(_)
   | Rec(_)
@@ -886,6 +887,7 @@ let rec is_syn_plus = (ty: t): bool =>
   | Forall(_, t) => is_syn(t)
   | Unknown(_)
   | Atom(_)
+  | ExplicitNonlabel
   | Label(_)
   | Var(_)
   | Rec(_)
@@ -902,6 +904,7 @@ let rec needs_parens = (ty: t): bool =>
   | Parens(ty) => needs_parens(ty)
   | Unknown(_)
   | Atom(_)
+  | ExplicitNonlabel
   | Label(_)
   | List(_) /* is already wrapped in [] */
   | Var(_) => false

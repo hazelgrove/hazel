@@ -103,6 +103,7 @@ type typ =
   | ForallType(tpat, typ)
   | RecType(tpat, typ)
   | LabelType(string)
+  | ExplicitNonlabel
   | TupLabelType(typ, typ)
   | IndicationTyp(typ)
   | ProdProjection(typ, typ)
@@ -1148,6 +1149,7 @@ and shrink_typ: QCheck.Shrink.t(typ) =
         | RecType(tpat, t) =>
           let* shrunk = shrink_typ(t);
           return(RecType(tpat, shrunk));
+        | ExplicitNonlabel => return(ExplicitNonlabel: typ)
         | LabelType(x) =>
           shrink_non_empty_string(x) >|= ((x: string) => LabelType(x))
         | TupLabelType(t1, t2) =>

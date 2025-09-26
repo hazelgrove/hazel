@@ -138,6 +138,7 @@ let external_precedence_typ = (tp: Typ.t) =>
   | Var(_)
   | Atom(_)
   | Label(_)
+  | ExplicitNonlabel
   | TupLabel(_) => Precedence.max
   | ProdProjection(_) => Precedence.dot
   | ProdExtension(_) => Precedence.ap
@@ -524,6 +525,7 @@ and parenthesize_typ =
       )
       |> rewrap;
     already_paren ? inner : Parens(inner) |> Typ.fresh;
+  | ExplicitNonlabel => typ
   | Label(_) => typ
   | TupLabel(l, t) =>
     TupLabel(l, parenthesize_typ(t) |> paren_typ_at(Precedence.min))
@@ -1368,7 +1370,6 @@ and typ_to_pretty = (~settings: Settings.t, typ: Typ.t): pretty => {
       }),
       es,
     );
-
   | Var(v) => text_to_pretty(typ |> Typ.rep_id, Sort.Typ, v)
   | Atom(Int) => text_to_pretty(typ |> Typ.rep_id, Sort.Typ, "Int")
   | Atom(SInt) => text_to_pretty(typ |> Typ.rep_id, Sort.Typ, "SInt")
@@ -1392,6 +1393,7 @@ and typ_to_pretty = (~settings: Settings.t, typ: Typ.t): pretty => {
           ts,
         ),
       );
+  | ExplicitNonlabel => text_to_pretty(typ |> Typ.rep_id, Sort.Typ, "_")
   | Label(l) =>
     text_to_pretty(typ |> Typ.rep_id, Sort.Typ, Token.label_quote(l))
   | TupLabel(l, t) =>

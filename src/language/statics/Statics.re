@@ -1961,7 +1961,7 @@ and utyp_to_info_map =
     };
     (info, add_info(ids, InfoTyp(info), m));
   | TupLabel({term: ExplicitNonlabel, _} as label, t) =>
-    let (e, m) = go(t, m);
+    let (_, m) = go(t, m);
 
     let label_info: Info.typ = {
       cls: Typ(ExplicitNonlabel),

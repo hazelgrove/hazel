@@ -437,6 +437,7 @@ and Typ: {
     | TupleType([t]) => parens(of_menhir_ast(t))
     | TupleType(ts) => parens(prod(List.map(of_menhir_ast, ts)))
     | LabelType(s) => label(s)
+    | ExplicitNonlabel => explicit_non_label()
     | TupLabelType(t1, t2) =>
       tup_label(of_menhir_ast(t1), of_menhir_ast(t2))
     | ArrayType(t) => list(of_menhir_ast(t))
@@ -494,6 +495,7 @@ and Typ: {
     | Rec(tp, t) => RecType(TPat.of_core(tp), of_core(t))
     | Parens(t) => of_core(t)
     | Label(s) => LabelType(s)
+    | ExplicitNonlabel => (ExplicitNonlabel: AST.typ)
     | TupLabel(t1, t2) => TupLabelType(of_core(t1), of_core(t2))
     | ProdProjection(t1, t2) => ProdProjection(of_core(t1), of_core(t2))
     | ProdExtension(t1, t2) => ProdExtension(of_core(t1), of_core(t2))

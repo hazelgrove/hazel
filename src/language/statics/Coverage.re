@@ -138,6 +138,7 @@ module Ctr = {
     | ProdExtension(_)
     | Var(_) => Infinite
     | Parens(_)
+    | ExplicitNonlabel
     | Label(_) =>
       failwith(
         "all_ctrs_of_type called with a non-normalized type: " ++ Typ.show(ty),
