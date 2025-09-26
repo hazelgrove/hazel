@@ -178,6 +178,7 @@ module View = {
         ~selected: bool,
         ~overlays: list(Node.t)=[],
         ~sort=?,
+        ~lines: bool=false,
         model: Model.t,
       ) => {
     let edit_decos = {
@@ -279,7 +280,7 @@ module View = {
         Attr.on_mousemove(evt => drag_select(Pointer.Event.mk(evt))),
         Attr.on_wheel(evt => drag_select(Pointer.Event.mk(evt))),
       ],
-      [code_view],
+      lines ? LineNumbers.View.view(model) @ [code_view] : [code_view],
     );
   };
 };

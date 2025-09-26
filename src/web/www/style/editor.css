@@ -22,6 +22,14 @@
   white-space: pre;
 }
 
+.line-numbers{ 
+  display: flex !important;
+  padding: 0px !important;
+  width: fit-content !important;
+  opacity: 0.5 !important;
+  text-align: right !important;
+}
+
 /* This is a hack to compensating for default linebreak handling
 * preventing a trailing linebreak in code editors from leaving a
 * trailing blank line, as per https://stackoverflow.com/questions/43492826/.
@@ -29,8 +37,10 @@
 * to avoid inserting an extraneous whitespace context for inline
 * syntax views, e.g. type views in the cursor inspector */
 .code-text:after {
-  content: "​";
+  content: "";
 }
+
+
 
 /* TOKEN COLORS */
 

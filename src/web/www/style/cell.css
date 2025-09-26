@@ -15,7 +15,9 @@
 #main .code-editor {
   /* Only code in primary editor is selectable atm */
   cursor: text;
+  flex-direction: row;
 }
+
 
 #main.Scratch,
 #main.Documentation {

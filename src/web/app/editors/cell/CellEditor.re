@@ -216,23 +216,22 @@ module View = {
       ~attrs=[Attr.classes(["cell", locked ? "locked" : "unlocked"])],
       Option.to_list(caption)
       @ [
-        Lines.View.view(
-          CodeEditable.View.view(
-            ~globals,
-            ~signal=
-              locked
-                ? _ => Ui_effect.Ignore
-                : fun
-                  | MakeActive => signal(MakeActive(MainEditor)),
-            ~inject=
-              locked
-                ? _ => Ui_effect.Ignore
-                : (action => inject(MainEditor(action))),
-            ~selected=selected == Some(MainEditor),
-            ~overlays=overlays(model.editor.editor),
-            ~sort?,
-            model.editor,
-          ),
+        CodeEditable.View.view(
+          ~globals,
+          ~signal=
+            locked
+              ? _ => Ui_effect.Ignore
+              : fun
+                | MakeActive => signal(MakeActive(MainEditor)),
+          ~inject=
+            locked
+              ? _ => Ui_effect.Ignore
+              : (action => inject(MainEditor(action))),
+          ~selected=selected == Some(MainEditor),
+          ~overlays=overlays(model.editor.editor),
+          ~sort?,
+          ~lines=true,
+          model.editor,
         ),
       ]
       @ footer,
