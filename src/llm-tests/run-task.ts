@@ -233,8 +233,10 @@ async function runCore(
           // Wait for the system-prompt-message to appear anywhere in the DOM
           const promptMsg = await page.waitForSelector('.system-prompt-message', { timeout: 2000 });
           content = (await promptMsg.textContent())?.trim() || '';
-          // Optionally close the prompt (click outside or ESC)
-          await page.keyboard.press('Escape').catch(() => {});
+          // Close the prompt
+          await showBtn.click();
+          // Wait for the prompt to disappear before continuing
+          await page.waitForSelector('.system-prompt-message', { state: 'detached', timeout: 2000 });
           await page.waitForTimeout(100);
         }
         message_log.push({ type: 'system-prompt', content });
