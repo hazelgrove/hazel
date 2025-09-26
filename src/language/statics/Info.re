@@ -300,7 +300,7 @@ type pat = {
 type typ = {
   term: Typ.t,
   ancestors,
-  ctx: Ctx.t,
+  ctx: [@show.opaque] Ctx.t,
   expects: typ_expects,
   cls: Cls.t,
   status: status_typ,

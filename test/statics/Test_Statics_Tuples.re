@@ -154,6 +154,30 @@ module ProductProjection = {
   ];
 };
 
+module ExplicitlyUnlabeledTuples = {
+  let tests = [
+    fully_consistent_typecheck(
+      "Explicitly unlabeled tuple in let binding",
+      {|(_=1) : (_=Int)|},
+      Some(prod([int()])),
+    ),
+    fully_consistent_typecheck(
+      "Multiple elements explicitly unlabeled",
+      {|(_=1, _="") : (_=Int, _=String)|},
+      Some(prod([int(), string()])),
+    ),
+    fully_consistent_typecheck(
+      "Explicitly unlabeled elements with implicit type",
+      {|(_=1,_="") : (Int, String)|},
+      Some(prod([int(), string()])),
+    ),
+    fully_consistent_typecheck(
+      "Implicitly unlabeled elements with explicitly unlabeled types",
+      {|(1,"") : (_=Int, _=String)|},
+      Some(prod([int(), string()])),
+    ),
+  ];
+};
 let tests = (
   "Statics.Tuples",
   [
@@ -930,5 +954,6 @@ let tests = (
     ),
   ]
   @ TupleExtension.tests
-  @ ProductProjection.tests,
+  @ ProductProjection.tests
+  @ ExplicitlyUnlabeledTuples.tests,
 );

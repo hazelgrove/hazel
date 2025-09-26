@@ -266,5 +266,14 @@ let tests =
           "(_ = 1, _ = 2, _ = 3)",
         )
       ),
+      test_case("Explicit unlabeled in type", `Quick, () =>
+        exp_check(
+          asc(
+            empty_hole(),
+            Typ.(prod([tup_label(explicit_non_label(), int())])),
+          ),
+          "? : (_=Int)",
+        )
+      ),
     ],
   );

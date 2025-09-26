@@ -603,6 +603,7 @@ and Typ: {
         | Unknown(Internal)
         | Atom(_)
         | Label(_)
+        | ExplicitNonlabel
         | Var(_) => term
         | List(t) => List(typ_map_term(t))
         | Unknown(Hole(MultiHole(things))) =>
@@ -641,6 +642,7 @@ and Typ: {
       switch (term) {
       | Atom(_) => ty
       | Label(name) => Grammar.Label(name) |> rewrap
+      | ExplicitNonlabel => ExplicitNonlabel |> rewrap
       | Unknown(prov) => Unknown(prov) |> rewrap
       | Arrow(ty1, ty2) =>
         Arrow(subst(s, x, ty1), subst(s, x, ty2)) |> rewrap
@@ -710,6 +712,8 @@ and Typ: {
     | (Forall(_), _) => false
     | (Atom(name1), Atom(name2)) => name1 == name2
     | (Atom(_), _) => false
+    | (ExplicitNonlabel, ExplicitNonlabel) => true
+    | (ExplicitNonlabel, _) => false
     | (Label(name1), Label(name2)) =>
       LabeledTuple.match_labels(name1, name2)
     | (Label(_), _) => false

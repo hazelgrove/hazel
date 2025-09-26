@@ -13,6 +13,7 @@ type cls =
   | Prod
   | TupLabel
   | Label
+  | ExplicitNonlabel
   | Sum
   | List
   | Var
@@ -89,6 +90,7 @@ let cls_of_term: Grammar.typ_term('a) => cls =
   | Prod(_) => Prod
   | TupLabel(_) => TupLabel
   | Label(_) => Label
+  | ExplicitNonlabel => ExplicitNonlabel
   | Parens(_) => Parens
   | Sum(_) => Sum
   | Rec(_) => Rec
@@ -111,6 +113,7 @@ let show_cls: cls => string =
   | Prod => "Tuple type"
   | TupLabel => "Labeled tuple item type"
   | Label => "Label"
+  | ExplicitNonlabel => "Explicitly unlabeled tuple item type"
   | Sum => "Sum type"
   | Parens => "Parenthesized type"
   | Rec => "Recursive type"
@@ -127,6 +130,7 @@ let rec is_arrow = (typ: t) => {
   | Atom(_)
   | List(_)
   | Label(_)
+  | ExplicitNonlabel
   | Prod(_)
   | Var(_)
   | Sum(_)
@@ -146,6 +150,7 @@ let is_atom = (ty: t): bool =>
   | Unknown(_)
   | List(_)
   | Label(_)
+  | ExplicitNonlabel
   | Prod(_)
   | Var(_)
   | Sum(_)
@@ -165,6 +170,7 @@ let rec has_fun = (typ: t) =>
   | Unknown(_)
   | Atom(_)
   | Label(_)
+  | ExplicitNonlabel
   | Var(_) => false
   | List(t) => has_fun(t)
   | Rec(_, t) => has_fun(t)
@@ -189,6 +195,7 @@ let rec is_forall = (typ: t) => {
   | Arrow(_)
   | List(_)
   | Label(_)
+  | ExplicitNonlabel
   | Prod(_)
   | Var(_)
   | Sum(_)
@@ -253,7 +260,8 @@ let rec free_vars = (~bound=[], ty: t): list(Var.t) =>
   switch (term_of(ty)) {
   | Unknown(_)
   | Atom(_)
-  | Label(_) => []
+  | Label(_)
+  | ExplicitNonlabel => []
   | Var(v) => List.mem(v, bound) ? [] : [v]
   | Parens(ty) => free_vars(~bound, ty)
   | List(ty) => free_vars(~bound, ty)
@@ -292,6 +300,7 @@ let rec vars = (ty: t): list(Var.t) =>
   | Forall({term: Var(x), _}, ty) =>
     vars(ty) |> List.filter((x': string) => x' != x)
   | Forall(_, ty) => vars(ty)
+  | ExplicitNonlabel
   | Label(_) => []
   | TupLabel(_, ty)
   | ProdProjection(ty, _) => vars(ty)
@@ -346,6 +355,7 @@ let rec num_nodes = (ty: t): int => {
   | List(ty) => 1 + num_nodes(ty)
   | Parens(ty) => 1 + num_nodes(ty)
   | Forall(_, ty) => 1 + num_nodes(ty)
+  | ExplicitNonlabel
   | Label(_) => 1
   | TupLabel(_, ty) => 1 + num_nodes(ty)
   | ProdProjection(ty1, ty2) => 1 + num_nodes(ty1) + num_nodes(ty2)
@@ -377,6 +387,7 @@ let rec count_unknowns = (ty: t): int =>
   | List(ty) => count_unknowns(ty)
   | Parens(ty) => count_unknowns(ty)
   | Forall(_, ty) => count_unknowns(ty)
+  | ExplicitNonlabel
   | Label(_) => 0
   | TupLabel(_, ty) => count_unknowns(ty)
   | ProdProjection(ty1, _) => count_unknowns(ty1)
@@ -398,6 +409,7 @@ let rec contains_sum_or_var = (ty: t): bool =>
   | ProdProjection(ty1, _) => contains_sum_or_var(ty1)
   | ProdExtension(ty1, ty2) =>
     contains_sum_or_var(ty1) || contains_sum_or_var(ty2)
+  | ExplicitNonlabel
   | Label(_) => false
   | TupLabel(_, ty) => contains_sum_or_var(ty)
   };
@@ -490,6 +502,7 @@ let rec normalize = (~rec_counter=0, ctx: Ctx.t, ty: t): t => {
     }
   | Unknown(_)
   | Atom(_)
+  | ExplicitNonlabel
   | Label(_) => ty
   | Parens(t) => normalize(ctx, t)
   | List(t) => List(normalize(ctx, t)) |> rewrap
@@ -586,6 +599,8 @@ let rec join = (~resolve=false, ctx: Ctx.t, ty1: t, ty2: t): option(t) => {
     let+ ty2 = join'(ty2, ty2');
     Arrow(ty1, ty2) |> temp;
   | (Arrow(_), _) => None
+  | (TupLabel({term: ExplicitNonlabel, _}, ty1'), _) => join'(ty1', ty2)
+  | (_, TupLabel({term: ExplicitNonlabel, _}, ty2')) => join'(ty1, ty2')
   | (TupLabel(lab1, ty1'), TupLabel(lab2, ty2')) =>
     let* lab = join'(lab1, lab2);
     let+ ty = join'(ty1', ty2');
@@ -608,6 +623,10 @@ let rec join = (~resolve=false, ctx: Ctx.t, ty1: t, ty2: t): option(t) => {
     let+ ty = join'(ty1, ty2);
     List(ty) |> temp;
   | (List(_), _) => None
+  // We would prefer for this to be a sort difference and never appear in a join.
+  // These get marked in statics but that does not remove them from the utyp's propagated on parents.
+  | (ExplicitNonlabel, _) =>
+    None
   };
 };
 
@@ -622,6 +641,7 @@ let rec match_synswitch = (t1: t, t2: t) => {
   | (Unknown(_), _)
   | (Atom(_), _)
   | (Label(_), _)
+  | (ExplicitNonlabel, _)
   | (Var(_), _)
   | (Rec(_), _)
   | (ProdProjection(_), _)
@@ -833,7 +853,8 @@ let rec is_syn = (ty: t): bool =>
   | Prod(_)
   | Sum(_)
   | ProdProjection(_)
-  | ProdExtension(_) => false
+  | ProdExtension(_)
+  | ExplicitNonlabel => false
   };
 
 let rec is_ana_atom = (ty: t) =>
@@ -939,6 +960,7 @@ let rec pretty_print = (ty: t): string =>
   | ProdExtension(t, label) =>
     pretty_print(t) ++ " + " ++ pretty_print(label)
   | Label(name) => name
+  | ExplicitNonlabel => "_"
   | TupLabel(label, t) => pretty_print(label) ++ "=" ++ pretty_print(t)
   | Rec(tv, t) =>
     "rec " ++ pretty_print_tvar(tv) ++ " -> " ++ pretty_print(t)

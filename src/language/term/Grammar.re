@@ -122,6 +122,7 @@ and typ_term('a) =
   | Arrow(typ_t('a), typ_t('a))
   | Sum(ConstructorMap.t(typ_t('a)))
   | Prod(list(typ_t('a)))
+  | ExplicitNonlabel
   | Label(string)
   | TupLabel(typ_t('a), typ_t('a))
   | Parens(typ_t('a))
@@ -347,6 +348,7 @@ and map_typ_annotation: 'a 'b. ('a => 'b, typ_t('a)) => typ_t('b) =
           Forall(map_tpat_annotation(f, tp), map_typ_annotation(f, t))
         | Prod(l) => Prod(List.map(x => map_typ_annotation(f, x), l))
         | Label(l) => Label(l)
+        | ExplicitNonlabel => ExplicitNonlabel
         | TupLabel(t1, t2) =>
           TupLabel(map_typ_annotation(f, t1), map_typ_annotation(f, t2))
         | Sum(m) =>
@@ -817,6 +819,10 @@ module Factory = (DefaultAnnotation: DefaultAnnotation) => {
     };
     let label = (~ann=?, l): typ_t(DefaultAnnotation.t) => {
       term: Label(l),
+      annotation: default_annotation(ann),
+    };
+    let explicit_non_label = (~ann=?, ()): typ_t(DefaultAnnotation.t) => {
+      term: ExplicitNonlabel,
       annotation: default_annotation(ann),
     };
     let tup_label = (~ann=?, t1, t2): typ_t(DefaultAnnotation.t) => {
