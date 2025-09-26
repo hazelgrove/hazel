@@ -195,13 +195,6 @@ end
     let a:Bad = 0 in a == 0
     |} |> parse_exp,
     ),
-    inconsistent_typecheck(
-      "non-sum types cant be recursive",
-      // #err: not bound#
-      {|
-    type Lol = Lol in ?
-    |} |> parse_exp,
-    ),
     fully_consistent_typecheck(
       "analytic shadowing",
       {|

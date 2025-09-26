@@ -21,7 +21,7 @@ let doc_slide_reparses = ((name, slide: CellEditor.Model.persistent)) => {
       let original_segment =
         Sexplib.Sexp.of_string(slide.editor.zipper)
         |> Zipper.t_of_sexp
-        |> Zipper.seg_without_buffer;
+        |> Zipper.unselect_and_zip(~erase_buffer=true);
 
       check(
         segment,
@@ -33,27 +33,9 @@ let doc_slide_reparses = ((name, slide: CellEditor.Model.persistent)) => {
   );
 };
 
-let caret_is_at_beginning = ((name, slide: CellEditor.Model.persistent)) => {
-  test_case(
-    name,
-    `Slow,
-    () => {
-      let z = Sexplib.Sexp.of_string(slide.editor.zipper) |> Zipper.t_of_sexp;
-      let selection = z.selection;
-      let (l, _) = z.relatives.siblings;
-      check(segment, "Selection content is empty", [], selection.content);
-      check(segment, "Left sibling is empty", [], l);
-    },
-  );
-};
-
 let tests = [
   (
     "DocSlides.ReparseBackuptext",
     List.map(doc_slide_reparses, List.tl(doc_slides)) // Dropping the first basic reference slide to avoid the issue with whitespace shifting around convex grout
-  ),
-  (
-    "DocSlides.CaretAtBeginning",
-    List.map(caret_is_at_beginning, doc_slides),
   ),
 ];

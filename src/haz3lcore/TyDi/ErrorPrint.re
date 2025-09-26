@@ -126,6 +126,7 @@ let typ_error: Info.error_typ => string =
   | DuplicateConstructor(name) =>
     prn("Constructor %s already used in this sum", name)
   | WantLabel => "Expected a label"
+  | ParseFailure => "Parse failure"
   | DuplicateLabels(labels, ty) =>
     prn(
       "Duplicate labels in type %s: %s",

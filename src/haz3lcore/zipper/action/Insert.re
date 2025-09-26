@@ -38,8 +38,9 @@ let insert_shard = (~id: Id.t, ~d: Direction.t, t: Token.t, z: t): t => {
   let z = destroy_selection(z);
   if (Token.is_secondary(t)) {
     Zipper.put_down_seg(d, [Piece.mk_secondary(id, t)], z);
-  } else if (Zipper.will_glom(t, z)) {
-    Zipper.glom(d, t, z) |> Option.get;
+  } else if (Zipper.backpack_find(t, z) != None) {
+    let target = Zipper.backpack_find(t, z) |> Option.get;
+    Zipper.put_down_target(d, target, z);
   } else {
     let (label, delim_d) = expansion(t, z);
     let molds = Form.Molds.get(label);
@@ -105,12 +106,24 @@ let sibling_appendability = (char: string, z: t): appendability =>
   | _ => None
   };
 
-/* If char can be appended to either sibling token, do it,
- * otherwise insert a new `char` token */
-let append_or_insert = (char: string, z: t): option(t) =>
-  switch (sibling_appendability(char, z)) {
-  | None => z |> insert_shard(~id=Id.mk(), ~d=Left, char) |> Option.some
-  | Some((d, t)) => replace_shard(d, t, z)
+/* If the insertion will 'fill a hole', i.e. replace an
+ * existing grout,we make a best-effort approach to transfer
+ * the UUID. See also Destruct.capture */
+let preserve_grout_id = (char: string, z: t): (Id.t, t) =>
+  switch (Siblings.neighbors(z.relatives.siblings)) {
+  | _ when Token.is_comment_delim(char) || Token.is_secondary(char) => (
+      Id.mk(),
+      z,
+    )
+  | (Some(Grout(g)), _) => (
+      g.id,
+      update_siblings(((l, r)) => (l |> ListUtil.split_last |> fst, r), z),
+    )
+  | (_, Some(Grout(g))) => (
+      g.id,
+      update_siblings(((l, r)) => (l, List.tl(r)), z),
+    )
+  | _ => (Id.mk(), z)
   };
 
 /* Figure out if we should avoid inserting a space
@@ -142,10 +155,17 @@ let split = (z: t, char: string, idx: int, t: Token.t): option(t) => {
   let id = Zipper.adjacent_monotile_or_new_id(Right, z);
   let+ z = z |> Caret.set(Outer) |> Zipper.delete(Right);
   let z =
-    z
-    |> insert_shard(~id, ~d=Left, l)
-    //|> remold_regrout(Left)  /* Required for e.g. splitting ap(|) */
-    |> insert_shard(~id=Id.mk(), ~d=Right, r);
+    /* If both are leading expanders, we want to prevent
+     * possible theft of trailing delimiters; see Issue #1907.
+     * Otherwise however we want to process these ltr as the
+     * rightwards may be a trailing delim of the leftwards. */
+    Form.Expansion.is_leading(l) && Form.Expansion.is_leading(r)
+      ? z
+        |> insert_shard(~id=Id.mk(), ~d=Right, r)
+        |> insert_shard(~id, ~d=Left, l)
+      : z
+        |> insert_shard(~id, ~d=Left, l)
+        |> insert_shard(~id=Id.mk(), ~d=Right, r);
   let z =
     Token.space == char && should_supress_space(z)
       ? z
@@ -157,17 +177,26 @@ let split = (z: t, char: string, idx: int, t: Token.t): option(t) => {
 
 /* If the caret is precisely between two tokens, which
  * can become a valid token if merged, merge those tokens */
-let merge_or_noop = (z: t): t =>
+let will_merge = (z: t): option((Token.t, Token.t)) =>
   switch (Zipper.neighbor_tokens(z)) {
   | (Some(l), Some(r))
       when Token.is_potential_token(Token.append(l, r)) && z.caret == Outer =>
+    Some((l, r))
+  | _ => None
+  };
+
+/* If the caret is precisely between two tokens, which
+ * can become a valid token if merged, merge those tokens */
+let merge_or_noop = (z: t): t =>
+  switch (will_merge(z)) {
+  | Some((l, r)) =>
     /* We remove the left manually, and then replace the right */
     let z = Zipper.delete(Left, z) |> Option.get;
     let z = replace_shard(Right, Token.append(l, r), z) |> Option.get;
     let z = Caret.set(Inner(Token.length(l) - 1), z);
     /* Regrouting direction needed to merge prefixs into infix eg ! */
     remold_regrout(Right, z);
-  | _ => z
+  | None => z
   };
 
 /* If a grout is due to be inserted to the right of the caret,
@@ -184,6 +213,24 @@ let adjust_caret_pos = (~z_final: t, ~z_init: t): t => {
       when Piece.is_grout(p) && final_nhbr != init_nhbr => z_moved
   | _ => z_final
   };
+};
+
+/* If char can be appended to either sibling token, do it,
+ * otherwise insert a new `char` token */
+let insert_or_append = (char: string, z: t): option(t) => {
+  let+ z_init =
+    switch (sibling_appendability(char, z)) {
+    | None =>
+      let (id, z) = preserve_grout_id(char, z);
+      Some(insert_shard(~id, ~d=Left, char, z));
+    | Some((d, t)) => replace_shard(d, t, z)
+    };
+  let z_final =
+    z_init
+    |> move_into_string_or_comment(char)
+    |> remold_regrout(Left)
+    |> merge_or_noop;
+  adjust_caret_pos(~z_final, ~z_init);
 };
 
 let go = (char: string, z: t): option(t) => {
@@ -208,7 +255,7 @@ let go = (char: string, z: t): option(t) => {
         |> Option.map(remold_regrout(Right))
       : split(z, char, idx, t);
   | (Inner(_), (_, None)) => None
-  | (Outer, (_, Some(_))) =>
+  | (Outer, _) =>
     let z =
       Caret.set(
         switch (sibling_appendability(char, z)) {
@@ -218,20 +265,7 @@ let go = (char: string, z: t): option(t) => {
         },
         z,
       );
-    let+ z_init = append_or_insert(char, z);
-    let z_final =
-      z_init
-      |> move_into_string_or_comment(char)
-      |> remold_regrout(Left)
-      |> merge_or_noop;
-
-    adjust_caret_pos(~z_final, ~z_init);
-  | (Outer, (_, None)) =>
-    let+ z = append_or_insert(char, z);
-    z
-    |> move_into_string_or_comment(char)
-    |> remold_regrout(Left)
-    |> merge_or_noop;
+    insert_or_append(char, z);
   };
 };
 

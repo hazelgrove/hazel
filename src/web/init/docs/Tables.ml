@@ -1,9 +1,8 @@
-let out : string * Haz3lcore.PersistentZipper.t =
+let out : string * Haz3lcore.PersistentSegment.t =
   ( "Tables",
     {
-      zipper =
-        "((selection((focus Left)(content())(mode \
-         Normal)))(relatives((siblings(()((Secondary((id \
+      segment =
+        "((Secondary((id \
          b0d8b117-3610-4859-8d2e-fb96ab73f185)(content(Comment\"# Sample: Quiz \
          scores from multiple students #\"))))(Secondary((id \
          123658ff-b82b-4c0d-8636-06060454381b)(content(Whitespace\"\\n\"))))(Tile((id \
@@ -3045,8 +3044,7 @@ let out : string * Haz3lcore.PersistentZipper.t =
          Exp))))))(shards(0 1))(children(((Tile((id \
          613832c1-26a1-4c86-8068-21796d819515)(label(sighting_counts))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
-         Exp))))))(shards(0))(children())))))))))(model\"()\"))))))(ancestors())))(caret \
-         Outer))";
+         Exp))))))(shards(0))(children())))))))))(model\"()\"))))";
       backup_text =
         "# Sample: Quiz scores from multiple students #\n\
          type GradebookEntry = (\n\

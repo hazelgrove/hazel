@@ -176,7 +176,6 @@ module View = {
         ~inject: Update.t => Ui_effect.t(unit),
         ~selected: option(Selection.t),
         ~caption: option(Node.t)=?,
-        ~sort=?,
         ~result_kind=?,
         ~locked=false,
         model: Model.t,
@@ -229,7 +228,6 @@ module View = {
               : (action => inject(MainEditor(action))),
           ~selected=selected == Some(MainEditor),
           ~overlays=overlays(model.editor.editor),
-          ~sort?,
           model.editor,
         ),
       ]

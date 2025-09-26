@@ -1022,10 +1022,14 @@ and uexp_to_info_map =
       // TODO: factor out code
       let unwrapped_self: Self.exp =
         Common(Just(Arrow(p.ty, e.ty) |> Typ.temp));
-      let Coverage.{is_exhaustive, _} =
+      let Coverage.CheckMatrix.{exhaustiveness, _} =
         Coverage.check([Info.pat_constraint(p)], Typ.normalize(ctx, p.ty));
       let self =
-        is_exhaustive ? unwrapped_self : InexhaustiveMatch(unwrapped_self);
+        switch (exhaustiveness) {
+        | Exhaustive => unwrapped_self
+        | Inexhaustive(unseen_pattern) =>
+          InexhaustiveMatch(unwrapped_self, unseen_pattern)
+        };
       add'(~self, ~co_ctx=CoCtx.mk(ctx, p.ctx, e.co_ctx), m);
     | TypFun(utpat, body, _) =>
       let (name_expected_opt, item) = Typ.matched_forall(ctx, ana);
@@ -1115,13 +1119,17 @@ and uexp_to_info_map =
         go_pat(~is_synswitch=false, ~co_ctx=body.co_ctx, ~ana=ty_p_ana, p, m);
       // TODO: factor out code
       let unwrapped_self: Self.exp = Common(Just(body.ty));
-      let Coverage.{is_exhaustive, _} =
+      let Coverage.CheckMatrix.{exhaustiveness, _} =
         Coverage.check(
           [Info.pat_constraint(p_ana)],
           Typ.normalize(ctx, p_ana.ty),
         );
       let self =
-        is_exhaustive ? unwrapped_self : InexhaustiveMatch(unwrapped_self);
+        switch (exhaustiveness) {
+        | Exhaustive => unwrapped_self
+        | Inexhaustive(unseen_pattern) =>
+          InexhaustiveMatch(unwrapped_self, unseen_pattern)
+        };
       add'(
         ~self,
         ~co_ctx=
@@ -1159,6 +1167,7 @@ and uexp_to_info_map =
           ps,
           m,
         );
+
       let p_ctxs = List.map(Info.pat_ctx, ps');
       let (es, m) =
         List.fold_left2(
@@ -1168,6 +1177,7 @@ and uexp_to_info_map =
           es,
           p_ctxs,
         );
+
       let e_tys = List.map(Info.exp_ty, es);
       let e_co_ctxs =
         List.map2(CoCtx.mk(ctx), p_ctxs, List.map(Info.exp_co_ctx, es));
@@ -1181,19 +1191,26 @@ and uexp_to_info_map =
           ) => {
             let (info, m) =
               go_pat(~is_synswitch=false, ~co_ctx, ~ana=scrut.ty, p, m);
+
             let p_constraint = Info.pat_constraint(info);
             ([p_constraint, ...constraints], m);
           },
           ([], m),
           List.combine(ps, e_co_ctxs),
         );
+
       let constraints = List.rev(constraints);
 
       let normalized_scrut_ty = Typ.normalize(ctx, scrut.ty);
-      let Coverage.{is_exhaustive, redundant_rows} =
+      let Coverage.CheckMatrix.{exhaustiveness, redundant_rows} =
         Coverage.check(constraints, normalized_scrut_ty);
+
       let self =
-        is_exhaustive ? unwrapped_self : InexhaustiveMatch(unwrapped_self);
+        switch (exhaustiveness) {
+        | Exhaustive => unwrapped_self
+        | Inexhaustive(unseen_pattern) =>
+          InexhaustiveMatch(unwrapped_self, unseen_pattern)
+        };
       let add_redundancy = (ps: list(TermBase.pat_t), redundant_rows, m) => {
         List.fold_left(
           (m, row) => {
@@ -1237,7 +1254,7 @@ and uexp_to_info_map =
            speculative rec parameter. */
         let (ty_def, ctx_def, ctx_body) = {
           switch (utyp.term) {
-          | Sum(_) when List.mem(name, Typ.free_vars(utyp)) =>
+          | _ when List.mem(name, Typ.free_vars(utyp)) =>
             /* NOTE: When debugging type system issues it may be beneficial to
                use a different name than the alias for the recursive parameter */
             //let ty_rec = Typ.Rec("α", Typ.subst(Var("α"), name, ty_pre));
@@ -1374,6 +1391,7 @@ and upat_to_info_map =
         ~inferred_label,
         ~label_sort,
       );
+
     (info, add_info(ids, InfoPat(info), m));
   };
   let upat_to_info_map =
@@ -1438,7 +1456,8 @@ and upat_to_info_map =
         ),
       (ctx, [], [], m, []),
     );
-  let hole = self => atomic(self, Coverage.Constraint.Hole);
+
+  let hole = self => atomic(self, Coverage.Constraint.Hole(None));
 
   let elaborate_singleton_tuple = (upat: Pat.t, inner_ty, l, m) => {
     let (term, rewrap) = Pat.unwrap(upat);
@@ -1505,7 +1524,12 @@ and upat_to_info_map =
     switch (term) {
     | MultiHole(tms) =>
       let (_, m) = multi(~ctx, ~ancestors, m, tms);
-      add(~self=IsMulti, ~ctx, ~constraint_=Coverage.Constraint.Hole, m);
+      add(
+        ~self=IsMulti,
+        ~ctx,
+        ~constraint_=Coverage.Constraint.Hole(None),
+        m,
+      );
     | Invalid(token) => hole(BadToken(token))
     | EmptyHole => hole(Just(unknown))
     | Atom(c) =>
@@ -1858,7 +1882,7 @@ and upat_to_info_map =
       let constraint_ =
         switch (ctr) {
         | Some(ctr) => Coverage.Constraint.Ap(ctr, Some(arg.constraint_))
-        | None => Coverage.Constraint.Hole
+        | None => Coverage.Constraint.Hole(None)
         };
       add(~self=Just(ty_out), ~ctx=arg.ctx, ~constraint_, m);
     | Asc(p, ann) =>
@@ -1942,20 +1966,6 @@ and utyp_to_info_map =
     let m = go(t, m) |> snd;
     add'(~expects=TypeExpected, m);
   | Label(_) => add(m)
-  | Ap(t1, t2) =>
-    let t1_mode: Info.typ_expects =
-      switch (expects) {
-      | VariantExpected(m, sum_ty) =>
-        ConstructorExpected(m, Arrow(t2, sum_ty) |> Typ.temp)
-      | _ =>
-        ConstructorExpected(
-          Unique,
-          Arrow(t2, Unknown(Internal) |> Typ.temp) |> Typ.temp,
-        )
-      };
-    let m = go'(~expects=t1_mode, t1, m) |> snd;
-    let m = go'(~expects=TypeExpected, t2, m) |> snd;
-    add(m);
   | Sum(variants) =>
     let (m, _) =
       List.fold_left(

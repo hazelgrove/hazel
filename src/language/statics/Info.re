@@ -79,7 +79,10 @@ type error_common =
 [@deriving (show({with_path: false}), sexp, yojson, eq)]
 type error_exp =
   | FreeVariable(Var.t) /* Unbound variable (not in typing context) */
-  | InexhaustiveMatch(option(error_common))
+  | InexhaustiveMatch(
+      option(error_common),
+      [@equal Any.fast_equal] Grammar.any_t(IdTagged.IdTag.t),
+    )
   | UnusedDeferral
   | BadPartialAp(Self.error_partial_ap)
   | Common(error_common)
@@ -184,7 +187,8 @@ type error_typ =
   | WantTypeFoundAp
   | WantLabel
   | WantConstructorFoundType(Typ.t)
-  | WantConstructorFoundAp;
+  | WantConstructorFoundAp
+  | ParseFailure;
 
 /* Type ok statuses for cursor inspector */
 [@deriving (show({with_path: false}), sexp, yojson, eq)]
@@ -542,7 +546,7 @@ let rec status_pat = (ctx: Ctx.t, ty_ana: Typ.t, self: Self.pat): status_pat =>
 let rec status_exp = (ctx: Ctx.t, ty_ana, self: Self.exp): status_exp =>
   switch (self) {
   | Free(name) => InHole(FreeVariable(name))
-  | InexhaustiveMatch(self) =>
+  | InexhaustiveMatch(self, example) =>
     let additional_err =
       switch (status_exp(ctx, ty_ana, self)) {
       | InHole(Common(Inconsistent(Internal(_)) as inconsistent_err)) =>
@@ -573,7 +577,7 @@ let rec status_exp = (ctx: Ctx.t, ty_ana, self: Self.exp): status_exp =>
         ) =>
         failwith("InHole(InexhaustiveMatch(impossible_err))")
       };
-    InHole(InexhaustiveMatch(additional_err));
+    InHole(InexhaustiveMatch(additional_err, example));
   | IsDeferral(InAp) => NotInHole(AnaDeferralConsistent(ty_ana))
   | IsDeferral(_) => InHole(UnusedDeferral)
   | IsBadPartialAp(_ as info) => InHole(BadPartialAp(info))
@@ -620,6 +624,7 @@ let status_typ = (ctx: Ctx.t, expects: typ_expects, ty: Typ.t): status_typ =>
     | LabelExpected(_) => NotInHole(EmptyLabel)
     | _ => NotInHole(Type(ty))
     }
+  | Unknown(Hole(MultiHole(_tms))) => InHole(ParseFailure)
   | Var(name) =>
     switch (expects) {
     | VariantExpected(Unique, sum_ty)
@@ -643,19 +648,6 @@ let status_typ = (ctx: Ctx.t, expects: typ_expects, ty: Typ.t): status_typ =>
         }
       | true => NotInHole(TypeAlias(name, Typ.weak_head_normalize(ctx, ty)))
       }
-    }
-  | Ap(t1, ty_in) =>
-    switch (expects) {
-    | VariantExpected(status_variant, ty_variant) =>
-      switch (status_variant, t1.term) {
-      | (Unique, Var(name)) =>
-        NotInHole(Variant(name, Arrow(ty_in, ty_variant) |> Typ.temp))
-      | _ =>
-        NotInHole(VariantIncomplete(Arrow(ty_in, ty_variant) |> Typ.temp))
-      }
-    | ConstructorExpected(_) => InHole(WantConstructorFoundAp)
-    | LabelExpected(_) => InHole(WantLabel)
-    | TypeExpected => InHole(WantTypeFoundAp)
     }
   | Label(name) =>
     switch (expects) {
@@ -870,6 +862,15 @@ let derived_pat =
   let cls = Cls.Pat(Pat.cls_of_term(upat.term));
   let status = status_pat(ctx, ana, self);
   let ty = fixed_typ_pat(ctx, ana, self);
+
+  // replace constraints with Hole if this info has an error
+  let constraint_': Coverage.Constraint.t =
+    switch (constraint_, status) {
+    | (Coverage.Constraint.Hole(_), _) => constraint_
+    | (_, InHole(_)) => Hole(Some(constraint_))
+    | (_, NotInHole(_)) => constraint_
+    };
+
   {
     cls,
     self,
@@ -881,7 +882,7 @@ let derived_pat =
     co_ctx,
     ancestors,
     term: upat,
-    constraint_,
+    constraint_: constraint_',
     label_inference,
     inferred_label,
     label_sort,
