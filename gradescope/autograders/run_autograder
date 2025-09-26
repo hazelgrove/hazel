@@ -1,0 +1,6 @@
+#!/usr/bin/env bash
+# see
+# https://gradescope-autograders.readthedocs.io/en/latest/specs/
+
+cd /autograder/source
+python3 run_test_grade_hazel.py
