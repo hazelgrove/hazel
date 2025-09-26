@@ -280,7 +280,8 @@ module View = {
         Attr.on_mousemove(evt => drag_select(Pointer.Event.mk(evt))),
         Attr.on_wheel(evt => drag_select(Pointer.Event.mk(evt))),
       ],
-      lines ? LineNumbers.View.view(model) @ [code_view] : [code_view],
+      lines && globals.settings.line_numbers
+        ? LineNumbers.View.view(model) @ [code_view] : [code_view],
     );
   };
 };

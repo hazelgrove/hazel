@@ -22,7 +22,7 @@
   white-space: pre;
 }
 
-.line-numbers{ 
+.line-numbers{
   display: flex !important;
   padding: 0px !important;
   width: fit-content !important;

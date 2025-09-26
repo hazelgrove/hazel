@@ -118,6 +118,7 @@ let dev_group = (~globals) => {
         globals.settings.core.flip_animations,
         FlipAnimations,
       ),
+      ("l", "Line Numbers", globals.settings.line_numbers, ToggleLineNumbers),
     ],
   );
 };
