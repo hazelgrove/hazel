@@ -358,6 +358,36 @@ end
     let (x,x) = 1,2 in ?
     |} |> parse_exp,
     ),
+    inconsistent_typecheck(
+      "duplicate variables in patterns in functions",
+      // #err: type incons#
+      {|
+    fun x,x -> = 1 in ?
+    |} |> parse_exp,
+    ),
+    inconsistent_typecheck(
+      "duplicate variables in patterns in labeled tuples",
+      // #err: type incons#
+      {|
+    let (x=a, x=(b, c)) = ? in
+    |} |> parse_exp,
+    ),
+    inconsistent_typecheck(
+      "duplicate variables in patterns in labeled tuples #2",
+      // #err: type incons#
+      {|
+    let (x, x=(x, y)) = ? in
+    |} |> parse_exp,
+    ),
+    fully_consistent_typecheck(
+      "duplicate variable tests: happy",
+      {|
+      let (x=(x, y)) = ? in
+      let (x, x=?) = ? in
+      let (x, x=(z, y=(x=a))) = ? in
+    |},
+      Some(unknown(Internal)),
+    ),
     // ======================== KNOWN BUGS ==============================
     skip_known_bug(
       // inconsistent_typecheck(

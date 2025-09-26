@@ -1616,7 +1616,7 @@ and upat_to_info_map =
         ? add(
             ~self=DuplicateVar(name, Just(unknown)),
             ~ctx=Ctx.extend(ctx, entry),
-            ~constraint_=Coverage.Constraint.Hole,
+            ~constraint_=Coverage.Constraint.Truth,
             m,
           )
         : add(
