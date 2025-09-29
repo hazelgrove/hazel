@@ -126,7 +126,7 @@ let print =
       // let get_terminal_term_ids =
       //   TermData.get_terminal_term_ids(_, term_data, measured);
       let get_largest_terminal_term_ids =
-        TermData.get_largest_terminal_term_ids(_, term_data, measured);
+        AutoProbe.get_largest_terminal_term_ids(_, term_data, measured);
       open Util.OptUtil.Syntax;
 
       //let piece_rows = measured.piece_rows |> List.rev;

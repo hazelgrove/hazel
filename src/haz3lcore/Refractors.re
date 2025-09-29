@@ -104,7 +104,7 @@ let toggle_manual =
 
 let ids_from_term =
     (~term_data, ~terms, ~measured, ~info_map, id: Id.t): list(Id.t) =>
-  TermData.get_sophisticated_probe_term_ids_with_statics(
+  AutoProbe.get_sophisticated_probe_term_ids_with_statics(
     id,
     term_data,
     terms,
