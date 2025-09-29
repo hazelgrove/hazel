@@ -1964,7 +1964,7 @@ and utyp_to_info_map =
       cls: Typ(ExplicitNonlabel),
       ctx,
       ancestors,
-      status: NotInHole(EmptyLabel), // This should probably be a different status than label holes
+      status: NotInHole(EmptyLabel),
       expects,
       term: utyp,
     };
