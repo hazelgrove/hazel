@@ -318,9 +318,7 @@ and uexp_to_info_map =
       add(~self=IsMulti, ~co_ctx=CoCtx.union(co_ctxs), m);
     | Asc(e, t2) =>
       let (t, m) = go_typ(t2, ~expects=Info.TypeExpected, m);
-      print_endline("Asc type: " ++ Typ.show(t.term));
       let (e, m) = go'(~ana=t.term, ~ctx=t.ctx, e, m);
-      print_endline("Asc exp: " ++ Typ.show(e.ty));
       add(~self=Just(t.term), ~co_ctx=e.co_ctx, m);
     | Invalid(token) => atomic(BadToken(token))
     | EmptyHole => atomic(Just(Unknown(Internal) |> Typ.temp))
@@ -1893,7 +1891,6 @@ and utyp_to_info_map =
     : (Info.typ, Map.t) => {
   let add' = (~expects=expects, ~utyp=utyp, m) => {
     let info = Info.derived_typ(~utyp, ~ctx, ~ancestors, ~expects);
-    print_endline("Info: " ++ Info.show_typ(info));
     (info, add_info(ids, InfoTyp(info), m));
   };
   let add = (~utyp=utyp, m) => add'(~utyp, m);
@@ -1973,7 +1970,6 @@ and utyp_to_info_map =
     };
 
     let m = add_info(label.annotation.ids, InfoTyp(label_info), m);
-    print_endline("Utyp: " ++ Typ.show(t));
     add'(~expects=TypeExpected, ~utyp=t, m);
   | TupLabel(label, t) =>
     let expects_label =

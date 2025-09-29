@@ -746,7 +746,6 @@ let tpat_view = (~globals, _: Cls.t, status: Info.status_tpat) => {
 let secondary_view = (cls: Cls.t) => div_ok([text(cls |> Cls.show)]);
 
 let view_of_info = (~globals, ci): list(Node.t) => {
-  print_endline("Rendering info view for " ++ Info.show(ci));
   let wrapper = status_view => [term_view(~globals, ci), status_view];
   switch (ci) {
   | Secondary(_) => wrapper(div([]))

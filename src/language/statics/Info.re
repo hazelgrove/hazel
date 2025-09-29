@@ -266,10 +266,10 @@ type label_inference('a) =
 type exp = {
   term: Exp.t, /* The term under consideration */
   ancestors, /* Ascending list of containing term ids */
-  ctx: [@show.opaque] Ctx.t, /* Typing context for the term */
+  ctx:  Ctx.t, /* Typing context for the term */
   ana: Typ.t, /* Parental type expectations  */
   self: Self.exp, /* Expectation-independent type info */
-  co_ctx: [@show.opaque] CoCtx.t, /* Locally free variables */
+  co_ctx:  CoCtx.t, /* Locally free variables */
   cls: Cls.t, /* DERIVED: Syntax class (i.e. form name) */
   status: status_exp, /* DERIVED: Ok/Error statuses for display */
   ty: Typ.t, /* DERIVED: Type after nonempty hole fixing */
@@ -300,7 +300,7 @@ type pat = {
 type typ = {
   term: Typ.t,
   ancestors,
-  ctx: [@show.opaque] Ctx.t,
+  ctx:  Ctx.t,
   expects: typ_expects,
   cls: Cls.t,
   status: status_typ,
