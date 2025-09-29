@@ -1,54 +1,46 @@
 open Util.OptUtil.Syntax;
 
 /*
-  * AUTOMATIC PROBE PLACEMENT FOR REPL MODE
-  *
-  * This module determines which term on each line should receive an automatic probe.
-  *
-  * The core strategy is to analyze each line's candidate terms (ordered by priority:
-  * find the most rightwards last position of a term ending on that line, then find the
-  * largest term sharing that last position. This is the primary candidate, which we'll
-  * refer to as the default below. The 'ordered candidates' consist of the default
-  * candidate, followed by other terms sharing that same ending position (ordered by size),
-  * then other terms ending on that line (first by rightwardsness, disambiguating by size).
-  * We then apply a series of predicates and special case handlers which may result in
-  * another term ending on that line, or no term at all, being indicated instead.
-  * Ultimate we select 0 or 1 terms to display for each line in the probed range.
-  *
- * DEFAULT TERM SELECTION EXAMPLES:
+ * AUTOMATIC PROBE PLACEMENT FOR REPL MODE
+ *
+ * This module determines which term on each line should receive an automatic probe.
+ *
+ * The core strategy is to analyze each line's candidate terms (ordered by priority:
+ * find the most rightwards last position of a term ending on that line, then find the
+ * largest term sharing that last position. This is the primary candidate, which we'll
+ * refer to as the default below. The 'ordered candidates' consist of the default
+ * candidate, followed by other terms sharing that same ending position (ordered by size),
+ * then other terms ending on that line (first by rightwardsness, disambiguating by size).
+ * We then apply a series of predicates and special case handlers which may result in
+ * another term ending on that line, or no term at all, being indicated instead.
+ * Ultimate we select 0 or 1 terms to display for each line in the probed range.
+ *
+ * DEFAULT BEHAVIOR:
  *
  * Step 1: Find rightmost ending position on the line
  * Step 2: Among terms ending at that position, pick the largest
  *
  * Only one term at rightmost position:
- *   let (x, y) = 1 in             // rightmost ending: where '1' ends
- *                                 // terms ending there: just '1'
- *                                 // probe: '1' (largest of 1 term)
+ *   let x = 1 in             // rightmost ending: where '1' ends
+ *                            // terms ending there: just '1'
+ *                            // probe: '1' (largest of 1 term)
  *
  * Multiple terms at rightmost position - largest wins:
- *   let (x, y) = 2 + 1 in         // rightmost ending: where '2 + 1' ends (same as where '1' ends)
- *                                 // terms ending there: '1' and '2 + 1'
- *                                 // probe: '2 + 1' (larger than '1')
- *
- *   let z = f(g(42)) in           // rightmost ending: where 'f(g(42))' ends
- *                                 // terms ending there: '42', 'g(42)', 'f(g(42))'
- *                                 // probe: 'f(g(42))' (largest)
+ *   let x = 2 + 1 in         // rightmost ending: where '2 + 1' ends (same as where '1' ends)
+ *                            // terms ending there: '1' and '2 + 1'
+ *                            // probe: '2 + 1' (larger than '1')
  *
  * Rightmost position beats larger terms ending earlier:
  *   let (x, y) = v in  probe: 'v' (NOT '(x, y)' even though it's larger)
  *
- * BASIC BEHAVIOR EXAMPLES:
+ * DEFAULT MULTILINE BEHAVIOR:
  *
- * Simple assignment:
- *   let x = 42 in        // probe on '42' (rightmost and only term ending on line)
-  *
-  * Multi-line expression:
-  *   let result =
-  *     fn(           // no probe (no probe on 'fn' since we don't show function values)
-  *       arg1,       // probe on reference 'arg1' (default)
-  *       arg2        // probe on reference 'arg2' (default)
-  *     ) in          // probe on application 'fn(...)' (default)
-  *
+ * For function applications and other elimination forms, use the default logic, i.e.
+ * favor probing the form itself at the end, instead of e.g. a subterm:
+ *     fn(arg1,       // probe on reference 'arg1' (default)
+ *        arg2        // probe on reference 'arg2' (default)
+ *     ) in           // probe on application 'fn(arg1, arg2)' (default)
+ *
   * HOLE AVOIDANCE EXAMPLES:
   *
   * Only holes on line:

@@ -93,11 +93,7 @@ let test_probe_placement = (~name: string, ~code: string): test_case(_) => {
       /* Get the term for statics computation */
       let root_segment = Zipper.unselect_and_zip(zipper);
       let root_id =
-        switch (root_segment) {
-        | [Tile({id, _}), ..._] => id
-        | [piece, ..._] => Piece.id(piece)
-        | [] => fail("Empty segment")
-        };
+        Segment.root_id(Segment.skel(root_segment), root_segment);
 
       /* Compute statics */
       let MakeTerm.{term, _} = MakeTerm.go(Id.Map.empty, root_segment);
@@ -172,27 +168,30 @@ let basic_tests = [
     ~name="Probe largest rightmost term",
     ~code={|2 + 1 // 2 + 1|},
   ),
+  test_probe_placement(
+    ~name="Single-line function application",
+    ~code={|get_fn(true) // get_fn(true)|},
+  ),
 ];
 
 /* NESTED / MULTILINE */
 let nested_multiline_tests = [
   test_probe_placement(
     ~name="Multi-line parens - don't redundatly probe parens",
-    ~code={|let x = ( // x
-  1 + 1 // 1 + 1
+    ~code=
+      {|
+let x = (    // x
+  1 + 1      // 1 + 1
 ) in
-1 + 1 // 1 + 1|},
-  ),
-  test_probe_placement(
-    ~name="Single-line function application",
-    ~code={|get_fn(true) // get_fn(true)|},
+1 + 1        // 1 + 1|},
   ),
   test_probe_placement(
     ~name="Multi-line function application - probe ap not last arg",
     ~code=
-      {|let x = f(1 + 1, // 1 + 1
-    2) in // f(1 + 1, 2)
-1 + 1 // 1 + 1|},
+      {|
+let x = f(1 + 1,  // 1 + 1
+  2) in           // f(1 + 1, 2)
+1 + 1             // 1 + 1|},
   ),
 ];
 
@@ -200,8 +199,10 @@ let nested_multiline_tests = [
 let hole_avoidance_tests = [
   test_probe_placement(
     ~name="Avoid hole if there's an alternative",
-    ~code={|let incomplete = ? in // incomplete
-1 + 1 // 1 + 1|},
+    ~code=
+      {|
+let incomplete = ? in  // incomplete
+1 + 1                  // 1 + 1|},
   ),
   test_probe_placement(
     ~name="Probe hole if there's no alternative",
