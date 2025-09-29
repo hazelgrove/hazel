@@ -102,19 +102,27 @@ let toggle_manual =
   | Non => add_manual(id, info_map, z)
   };
 
-let ids_from_term = (~term_data, ~measured, id: Id.t): list(Id.t) =>
-  TermData.get_largest_terminal_term_ids(id, term_data, measured)
+let ids_from_term =
+    (~term_data, ~terms, ~measured, ~info_map, id: Id.t): list(Id.t) =>
+  TermData.get_sophisticated_probe_term_ids_with_statics(
+    id,
+    term_data,
+    terms,
+    measured,
+    info_map,
+  )
   |> Option.to_list
   |> List.flatten
   |> List.filter_map(Fun.id);
 
-let add_ids_from_pinned_term = (~term_data, ~measured, z: Zipper.t): Zipper.t => {
+let add_ids_from_pinned_term =
+    (~term_data, ~terms, ~measured, ~info_map, z: Zipper.t): Zipper.t => {
   let ids =
     switch (z.refractors.pinned_term_ids) {
     | [] => []
     | [hd, ..._] =>
       // This ignores other pinned terms... see below
-      ids_from_term(~term_data, ~measured, hd)
+      ids_from_term(~term_data, ~terms, ~measured, ~info_map, hd)
     };
   //TODO(andrew): should there only be one repl at a time? this is sort of what above does but not quite
   update_ephemerals(
@@ -138,7 +146,9 @@ let add_repl = (id: Id.t, syntax: CachedSyntax.t, z: Zipper.t): Zipper.t =>
   )
   |> add_ids_from_pinned_term(
        ~term_data=syntax.term_data,
+       ~terms=syntax.terms,
        ~measured=syntax.measured,
+       ~info_map=Language.Statics.Map.empty /* TODO: get real info_map */
      );
 
 let toggle_repl =
