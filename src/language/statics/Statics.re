@@ -1610,7 +1610,7 @@ and upat_to_info_map =
     | TupLabel({term: ExplicitNonlabel, _} as label, p) =>
       let (p, m) = go(~ana, ~ctx, p, m);
       let (_, m) = go(~label_sort=true, ~ctx, ~ana=syn, label, m);
-      (p, add_info(ids, InfoPat(p), m)); // TODO Is this going to blow up because of the ids
+      (p, add_info(ids, InfoPat(p), m));
     | ExplicitNonlabel => atomic(ExplicitNonlabel, Coverage.Constraint.Truth)
     | TupLabel(label, p) =>
       let (lab, p, m) =
