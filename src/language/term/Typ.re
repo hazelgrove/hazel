@@ -988,9 +988,9 @@ let rec diff = (ty: t, ty': t): list(Id.t) => {
   | (Label(_), _) => [ty' |> rep_id]
   | (Var(v1), Var(v2)) when v1 == v2 => []
   | (Var(_), _) => [ty' |> rep_id]
-  | (Rec(tp1, t1), Rec(tp2, t2)) => diff(t1, t2) // TODO Check tpat
+  | (Rec(_tp1, t1), Rec(_tp2, t2)) => diff(t1, t2) // TODO Check tpat
   | (Rec(_), _) => [ty' |> rep_id]
-  | (Forall(tp1, t1), Forall(tp2, t2)) => diff(t1, t2) // TODO Check tpat
+  | (Forall(_tp1, t1), Forall(_tp2, t2)) => diff(t1, t2) // TODO Check tpat
   | (Forall(_), _) => [ty' |> rep_id]
   | (Arrow(t1a, t1b), Arrow(t2a, t2b)) => diff(t1a, t2a) @ diff(t1b, t2b)
   | (Arrow(_), _) => [ty' |> rep_id]
@@ -999,7 +999,8 @@ let rec diff = (ty: t, ty': t): list(Id.t) => {
   | (Prod(_), _) => [ty' |> rep_id]
   | (TupLabel(l1, t1), TupLabel(l2, t2)) => diff(l1, l2) @ diff(t1, t2)
   | (TupLabel(_, _), _) => [ty' |> rep_id]
-  | _ => // TODO
+  | _ =>
+    // TODO
     raise(
       Failure(
         "diff: unsupported types"
