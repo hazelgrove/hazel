@@ -111,7 +111,7 @@ let show_cls: cls => string =
   | List => "List type"
   | Arrow => "Function type"
   | Prod => "Tuple type"
-  | TupLabel => "Labeled tuple item type"
+  | TupLabel => "Tuple item type"
   | Label => "Label"
   | ExplicitNonlabel => "Explicitly unlabeled tuple item type"
   | Sum => "Sum type"
