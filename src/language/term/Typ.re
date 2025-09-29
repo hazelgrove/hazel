@@ -1035,10 +1035,4 @@ let remove_duplicate_labels =
  * @return A product type representing the combination of the input types,
  *         or the single type if the list contains only one element.
  */
-let to_product = (tys: list(t)): t =>
-  switch (tys) {
-  | []
-  | [{term: TupLabel(_), _}] => Prod(tys) |> temp
-  | [ty] => ty
-  | _ => Prod(tys) |> temp
-  };
+let to_product = (tys: list(t)): t => TempGrammar.Typ.(prod(tys));

@@ -377,6 +377,10 @@ and Exp: {
          )
     | (Asc(e1, t1), Asc(e2, t2)) =>
       fast_equal(e1, e2) && Typ.fast_equal(t1, t2)
+    | (TupLabel({term: ExplicitNonlabel,_}, e1), _) =>
+      fast_equal(e1, e2)
+    | (_, TupLabel({term: ExplicitNonlabel,_}, e2)) =>
+      fast_equal(e1, e2)
     | (TupLabel(e1, e2), TupLabel(e3, e4)) =>
       fast_equal(e1, e3) && fast_equal(e2, e4)
     | (Dot(e1, e2), Dot(e3, e4)) =>
