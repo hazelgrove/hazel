@@ -1,8 +1,5 @@
 open Util.OptUtil.Syntax;
-
-/*
- * AUTOMATIC PROBE PLACEMENT FOR REPL MODE
- *
+/* AUTOMATIC PROBE PLACEMENT FOR REPL MODE
  * This module determines which term on each line should receive an automatic probe.
  *
  * The core strategy is to analyze each line's candidate terms (ordered by priority:
@@ -119,542 +116,432 @@ open Util.OptUtil.Syntax;
   *     get_pair(1) in     // probe on 'get_pair(1)' (default)
   *   let x = 1 + a in    // probe on 'x', NOT on 'a' (already seen via pattern probe)
   *
-  * The implementation processes each line through:
-  * 1. Special case handlers (if expressions, containers)
-  * 2. Predicate-based filtering (holes, functions, redundant containers, variables)
-  * 3. Priority-based selection (largest term first, then others by ending position)
-  */
-
-/* Term analysis utilities */
-let get_term_by_id: (Id.t, TermMap.t) => option(Language.Any.t) =
-  (id: Id.t, terms: TermMap.t) => Id.Map.find_opt(id, terms);
-
-let is_hole_term: Language.Any.t => bool = {
-  fun
-  | Exp({term: EmptyHole | MultiHole(_), _}) => true
-  | Pat({term: EmptyHole | MultiHole(_), _}) => true
-  | Typ({term: Unknown(Hole(EmptyHole | MultiHole(_))), _}) => true
-  | TPat({term: EmptyHole | MultiHole(_), _}) => true
-  | _ => false;
-};
-
-let is_parens_term: Language.Any.t => bool =
-  fun
-  | Exp({term: Parens(_), _}) => true
-  | Pat({term: Parens(_), _}) => true
-  | Typ({term: Parens(_), _}) => true
-  | _ => false;
-
-let is_tuple_term: Language.Any.t => bool =
-  fun
-  | Exp({term: Tuple(_), _}) => true
-  | Pat({term: Tuple(_), _}) => true
-  | _ => false;
-
-let is_list_literal_term: Language.Any.t => bool =
-  fun
-  | Exp({term: ListLit(_), _}) => true
-  | Pat({term: ListLit(_), _}) => true
-  | _ => false;
-
-let is_variable_reference: Language.Any.t => bool =
-  fun
-  | Exp({term: Var(_), _}) => true
-  | Pat({term: Var(_), _}) => true
-  | _ => false;
-
-/* ===== REFACTORED PROBE PLACEMENT INFRASTRUCTURE ===== */
-
-[@deriving show({with_path: false})]
-type probe_candidate = {
-  id: Id.t,
-  row: int,
-  col: int,
-  is_largest_on_line: bool,
-};
-
-/* Extract term IDs on each row, ordered by priority:
- * 1. Largest term ending on that line (rightmost ending position)
- * 2. Other terms ending at the same position (ordered left to right)
- * 3. Other terms ending earlier on the line (ordered by ending position, then left to right)
+ * Behavior is aligned with the scenarios documented in `test/Test_AutoProbe.re`.
+ * The implementation follows a simple pipeline:
+ *   1. Derive ordered candidate IDs per source row from `TermData`.
+ *   2. Compute lightweight row metadata (e.g. whether only holes appear).
+ *   3. Apply rule-based adjustments (currently only the if/else preference).
+ *   4. Scan the ordered candidates and pick the first one accepted by the predicates.
+ *   5. Update cross-row state (pattern tracking) when a probe is selected.
  */
+
+type selection_state = {seen_patterns: list(Id.t)};
+
+let empty_state: selection_state = {seen_patterns: []};
+
+type selection_env = {
+  terms: TermMap.t,
+  data: TermData.t,
+  measured: Measured.t,
+  info_map: Language.Statics.Map.t,
+};
+
+type row_context = {
+  row_index: int,
+  ids: list(Id.t),
+  hole_only: bool,
+};
+
+let get_term = (id: Id.t, terms: TermMap.t): option(Language.Any.t) =>
+  Id.Map.find_opt(id, terms);
+
+let term_is_hole = (term: Language.Any.t): bool =>
+  switch (term) {
+  | Exp({term: EmptyHole | MultiHole(_), _})
+  | Pat({term: EmptyHole | MultiHole(_), _})
+  | Typ({term: Unknown(Hole(EmptyHole | MultiHole(_))), _})
+  | TPat({term: EmptyHole | MultiHole(_), _}) => true
+  | _ => false
+  };
+
+let term_is_parens = (term: Language.Any.t): bool =>
+  switch (term) {
+  | Exp({term: Parens(_), _})
+  | Pat({term: Parens(_), _})
+  | Typ({term: Parens(_), _}) => true
+  | _ => false
+  };
+
+let term_is_tuple = (term: Language.Any.t): bool =>
+  switch (term) {
+  | Exp({term: Tuple(_), _})
+  | Pat({term: Tuple(_), _}) => true
+  | _ => false
+  };
+
+let term_is_list_literal = (term: Language.Any.t): bool =>
+  switch (term) {
+  | Exp({term: ListLit(_), _})
+  | Pat({term: ListLit(_), _}) => true
+  | _ => false
+  };
+
+let term_is_variable = (term: Language.Any.t): bool =>
+  switch (term) {
+  | Exp({term: Var(_), _})
+  | Pat({term: Var(_), _}) => true
+  | _ => false
+  };
+
+let term_is_if = (term: Language.Any.t): bool =>
+  switch (term) {
+  | Exp({term: If(_, _, _), _}) => true
+  | _ => false
+  };
+
+let term_is_let = (term: Language.Any.t): bool =>
+  switch (term) {
+  | Exp({term: Let(_, _, _), _}) => true
+  | _ => false
+  };
+
+let let_body_is_hole = (term: Language.Any.t): bool =>
+  switch (term) {
+  | Exp({term: Let(_, _, body), _}) => term_is_hole(Exp(body))
+  | _ => false
+  };
+
+let has_function_type = (id: Id.t, info_map: Language.Statics.Map.t): bool =>
+  switch (Language.Statics.Map.lookup(id, info_map)) {
+  | Some(InfoExp({ty, _}))
+  | Some(InfoPat({ty, _})) => Language.Typ.is_arrow(ty)
+  | _ => false
+  };
+
+let term_spans_multiple_rows =
+    (id: Id.t, data: TermData.t, measured: Measured.t): bool =>
+  switch (TermData.extreme_measures(id, data, measured)) {
+  | Some((start_loc, end_loc)) => start_loc.row < end_loc.row
+  | None => false
+  };
+
+let term_end_position =
+    (candidate_id: Id.t, env: selection_env): option((int, int)) =>
+  switch (TermData.extreme_measures(candidate_id, env.data, env.measured)) {
+  | Some((_, end_loc)) => Some((end_loc.row, end_loc.col))
+  | None => None
+  };
+
+let rec collect_row_terms =
+        (ids: list(Id.t), terms: TermMap.t, acc: list(Language.Any.t))
+        : list(Language.Any.t) =>
+  switch (ids) {
+  | [] => List.rev(acc)
+  | [id, ...rest] =>
+    let next_acc =
+      switch (get_term(id, terms)) {
+      | Some(term) => [term, ...acc]
+      | None => acc
+      };
+    collect_row_terms(rest, terms, next_acc);
+  };
+
+let row_is_hole_only = (ids: list(Id.t), terms: TermMap.t): bool =>
+  switch (collect_row_terms(ids, terms, [])) {
+  | [] => false
+  | collected_terms => List.for_all(term_is_hole, collected_terms)
+  };
+
+let rec collect_terms_for_row =
+        (
+          pieces: list(Piece.t),
+          current_row: int,
+          data: TermData.t,
+          measured: Measured.t,
+          acc: list((Id.t, int)),
+        )
+        : list((Id.t, int)) =>
+  switch (pieces) {
+  | [] => List.rev(acc)
+  | [piece, ...rest] =>
+    let maybe_position =
+      TermData.extreme_measures(Piece.id(piece), data, measured);
+    let next_acc =
+      switch (maybe_position) {
+      | Some((_, end_loc)) when end_loc.row == current_row => [
+          (Piece.id(piece), end_loc.col),
+          ...acc,
+        ]
+      | _ => acc
+      };
+    collect_terms_for_row(rest, current_row, data, measured, next_acc);
+  };
+
+let compare_by_col_desc = (pair1: (Id.t, int), pair2: (Id.t, int)): int =>
+  switch (pair1, pair2) {
+  | ((_, col1), (_, col2)) => Int.compare(col2, col1)
+  };
+
+let rec ids_from_pairs =
+        (pairs: list((Id.t, int)), acc: list(Id.t)): list(Id.t) =>
+  switch (pairs) {
+  | [] => List.rev(acc)
+  | [(id, _), ...rest] => ids_from_pairs(rest, [id, ...acc])
+  };
+
+let rec build_row_id_lists =
+        (
+          rows: list(Segment.t),
+          start_row: int,
+          index: int,
+          data: TermData.t,
+          measured: Measured.t,
+          acc: list(list(Id.t)),
+        )
+        : list(list(Id.t)) =>
+  switch (rows) {
+  | [] => List.rev(acc)
+  | [row, ...rest] =>
+    let current_row = start_row + index;
+    let terms_with_cols =
+      collect_terms_for_row(row, current_row, data, measured, []);
+    let sorted_pairs = List.sort(compare_by_col_desc, terms_with_cols);
+    let ids = ids_from_pairs(sorted_pairs, []);
+    build_row_id_lists(
+      rest,
+      start_row,
+      index + 1,
+      data,
+      measured,
+      [ids, ...acc],
+    );
+  };
+
 let get_row_term_ids_prioritized =
     (id: Id.t, data: TermData.t, measured: Measured.t)
     : option(list(list(Id.t))) => {
   let+ (start_row_idx, term_rows) =
     TermData.get_term_rows(id, data, measured);
-  let get_final_col = (current_row: int, piece: Piece.t): option(int) =>
-    switch (TermData.extreme_measures(Piece.id(piece), data, measured)) {
-    | Some((_, final)) when final.row == current_row => Some(final.col)
-    | _ => None
+  build_row_id_lists(term_rows, start_row_idx, 0, data, measured, []);
+};
+
+let rec build_row_contexts =
+        (
+          rows: list(list(Id.t)),
+          terms: TermMap.t,
+          index: int,
+          acc: list(row_context),
+        )
+        : list(row_context) =>
+  switch (rows) {
+  | [] => List.rev(acc)
+  | [ids, ...rest] =>
+    let context = {
+      row_index: index,
+      ids,
+      hole_only: row_is_hole_only(ids, terms),
     };
-  List.mapi(
-    (row_index: int, row: Segment.t) => {
-      let current_row = start_row_idx + row_index;
-      /* Build list of (id, col) pairs for terms ending on this row */
-      let terms_with_cols =
-        row
-        |> List.filter_map(piece => {
-             let id = Piece.id(piece);
-             let+ col = get_final_col(current_row, piece);
-             (id, col);
-           });
-      /* Sort by column (rightmost first), then by original order (leftmost first) */
-      terms_with_cols
-      |> List.sort(((_, col1), (_, col2)) => Int.compare(col2, col1))
-      |> List.map(fst);
-    }, /* Extract just the IDs */
-    term_rows,
-  );
-};
-
-/* Enhanced probe context for sophisticated predicates */
-type probe_context = {
-  candidate: probe_candidate,
-  term: option(Language.Any.t),
-  hole_only: bool,
-  terms: TermMap.t,
-};
-
-/* Predicate: Don't probe holes unless there are only holes on the line */
-let should_not_probe_holes_unless_only_holes = (context: probe_context): bool => {
-  let is_candidate_hole =
-    context.term |> Option.map(is_hole_term) |> Option.value(~default=false);
-  /* If candidate is a hole, only allow it if all terms on line are holes */
-  if (is_candidate_hole) {
-    context.hole_only;
-  } else {
-    true; /* Non-holes are always ok */
+    build_row_contexts(rest, terms, index + 1, [context, ...acc]);
   };
-};
 
-/* ===== PHASE 3: FUNCTION TYPE DETECTION (Enhanced with Statics) ===== */
-
-/* Check if a type represents a function type using statics information
- * This is more precise than syntactic detection since it catches:
- * - Function literals: fun x -> ...
- * - Variables bound to functions: let f = fun x -> ... in f
- * - Function applications that return functions: get_fn()(x)
- * - Any other expressions that evaluate to function values
- */
-let has_function_type = (id: Id.t, info_map: Language.Statics.Map.t): bool => {
-  switch (Language.Statics.Map.lookup(id, info_map)) {
-  | Some(InfoExp({ty, _})) => Language.Typ.is_arrow(ty)
-  | Some(InfoPat({ty, _})) => Language.Typ.is_arrow(ty) /* Pattern variables can have function types too */
-  | _ => false /* If we can't determine the type, assume it's not a function */
-  };
-};
-
-/* Predicate: Don't probe expressions with function types (we don't show function values) */
-let should_not_probe_function_types =
-    (context: probe_context, info_map: Language.Statics.Map.t): bool => {
-  !has_function_type(context.candidate.id, info_map);
-};
-
-/* Combine multiple predicates with AND logic */
-let combine_predicates: (list(probe_context => bool), probe_context) => bool =
-  (predicates, context) => List.for_all(pred => pred(context), predicates);
-
-/* ===== PHASE 4: TUPLE/LIST SPECIAL CASE LOGIC ===== */
-
-/* Handle tuple/list special case: prefer elements over literals in multi-line cases
- * Examples:
- *   Single line: (a, b, c)     // probe the whole tuple (no special case)
- *   Multi-line:  (a,    // probe 'a'
- *                 b,    // probe 'b'
- *                 c)    // probe 'c', NOT the tuple
- *   Mixed:       (a, b, // probe 'b' (rightmost on this line)
- *                 c)    // probe 'c', NOT the tuple
- *   List:        [x,    // probe 'x'
- *                 y]    // probe 'y', NOT the list
- */
-let handle_tuple_list_special_case =
-    (
-      candidates: list(Id.t),
-      terms: TermMap.t,
-      data: TermData.t,
-      measured: Measured.t,
-    )
-    : option(Id.t) => {
-  /* Strategy: Look for tuple/list literals and see if we should prefer their elements instead */
-  candidates
-  |> List.find_map(literal_id => {
-       switch (get_term_by_id(literal_id, terms)) {
-       | Some(literal_term)
-           when
-             is_tuple_term(literal_term)
-             || is_list_literal_term(literal_term) =>
-         /* Only apply special case logic for multi-line containers */
-         switch (TermData.extreme_measures(literal_id, data, measured)) {
-         | Some((literal_start, literal_end))
-             when literal_start.row < literal_end.row =>
-           /* Multi-line container: prefer elements over the container */
-           candidates
-           |> List.find_map(candidate_id =>
-                if (candidate_id == literal_id) {
-                  None; /* Skip the literal itself */
-                } else {
-                  /* Check if this candidate would be a better choice than the literal */
-                  switch (
-                    TermData.extreme_measures(candidate_id, data, measured)
-                  ) {
-                  | Some((_, candidate_end)) =>
-                    /* Prefer the candidate if it ends on an earlier row than the literal */
-                    if (candidate_end.row < literal_end.row) {
-                      Some(candidate_id);
-                    } else {
-                      None;
-                    }
-                  | _ => None
-                  };
-                }
-              )
-         | _ => None /* Single-line container: no special case, use normal logic */
-         }
-       | _ => None /* Not a tuple/list literal */
-       }
-     });
-};
-
-/* Handle container closing elements: avoid redundant probes on multi-line containers
- * Examples:
- *   Tuple:  (a,
- *            b)   // probe on 'b', NOT on closing parens
- *   List:   [a,
- *            b]   // probe on 'b', NOT on the list literal [a,b]
- */
-let should_not_probe_redundant_container =
-    (context: probe_context, data: TermData.t, measured: Measured.t): bool => {
-  let is_candidate_parens =
-    context.term
-    |> Option.map(is_parens_term)
-    |> Option.value(~default=false);
-
-  let is_multiline_container_on_final_line =
-    context.term
-    |> Option.map(term =>
-         if (is_tuple_term(term) || is_list_literal_term(term)) {
-           /* Check if this container spans multiple lines by looking at its start vs end */
-           switch (
-             TermData.extreme_measures(context.candidate.id, data, measured)
-           ) {
-           | Some((start, end_)) when start.row < end_.row =>
-             /* Multi-line container: avoid probing on final line since elements were already probed */
-             true
-           | _ => false /* Single line container: normal probe logic applies */
-           };
-         } else {
-           false;
-         }
-       )
-    |> Option.value(~default=false);
-
-  /* Avoid both: 1) parens terms, 2) multi-line containers on their final line */
-  !is_candidate_parens && !is_multiline_container_on_final_line;
-};
-
-/* ===== PHASE 5: IF EXPRESSION SPECIAL CASE LOGIC ===== */
-
-let is_if_expression: Language.Any.t => bool =
-  fun
-  | Exp({term: If(_, _, _), _}) => true
-  | _ => false;
-
-let is_let_expression: Language.Any.t => bool =
-  fun
-  | Exp({term: Let(_, _, _), _}) => true
-  | _ => false;
-
-/* Check if a let expression has a hole as its body */
-let let_body_is_hole: Language.Any.t => bool =
-  fun
-  | Exp({term: Let(_, _, body), _}) => is_hole_term(Exp(body))
-  | _ => false;
-
-/* Handle if expression special case: prefer trailing else branch over whole if
- * Example:
- *   if cond
- *   then branch1
- *   else branch2    // probe on 'branch2', NOT on the whole if expression
- *
- * Only applies when the if is multi-line and else branch is the trailing term
- */
-let handle_if_expression_special_case =
-    (
-      candidates: list(Id.t),
-      terms: TermMap.t,
-      data: TermData.t,
-      measured: Measured.t,
-    )
-    : option(Id.t) => {
-  /* Look for pattern where first candidate is if expression and there are other candidates */
-  switch (candidates) {
-  | [if_id, ...rest] when rest != [] =>
-    switch (get_term_by_id(if_id, terms)) {
-    | Some(if_term) when is_if_expression(if_term) =>
-      /* Check if the if expression is multi-line by seeing if any candidates end later */
-      switch (TermData.extreme_measures(if_id, data, measured)) {
-      | Some((_if_start, if_end)) =>
-        /* Look for a candidate that might be the else branch ending at the same position as the if */
-        rest
-        |> List.find_opt(candidate_id => {
-             switch (TermData.extreme_measures(candidate_id, data, measured)) {
-             | Some((_, candidate_end)) =>
-               candidate_end.row == if_end.row
-               && candidate_end.col == if_end.col
-             | None => false
-             }
-           })
-      | None => None
-      }
-    | _ => None
-    }
-  | _ => None
-  };
-};
-
-/* Filter out let expressions with hole bodies to enable better selection
- * Returns filtered candidate list, or None if no filtering needed
- */
-let filter_let_with_hole_body =
-    (candidates: list(Id.t), terms: TermMap.t): option(list(Id.t)) => {
-  /* Look for let expressions with hole bodies */
-  let problematic_lets =
-    candidates
-    |> List.filter(candidate_id => {
-         switch (get_term_by_id(candidate_id, terms)) {
-         | Some(let_term)
-             when is_let_expression(let_term) && let_body_is_hole(let_term) =>
-           true
-         | _ => false
-         }
-       });
-
-  if (problematic_lets != []) {
-    /* Remove problematic lets and return filtered list */
-    let remaining_candidates =
-      candidates |> List.filter(id => !List.mem(id, problematic_lets));
-
-    switch (remaining_candidates) {
-    | [] => None /* No alternatives, don't filter */
-    | remaining => Some(remaining) /* Return filtered candidates */
-    };
-  } else {
-    None; /* No problematic lets found, no filtering needed */
-  };
-};
-
-let only_hole = (term_ids: list(Id.t), terms: TermMap.t): bool =>
-  switch (List.filter_map(get_term_by_id(_, terms), term_ids)) {
+let rec row_has_non_hole_alternative =
+        (candidate_id: Id.t, ids: list(Id.t), terms: TermMap.t): bool =>
+  switch (ids) {
   | [] => false
-  | terms => List.for_all(is_hole_term, terms)
+  | [id, ...rest] =>
+    if (id == candidate_id) {
+      row_has_non_hole_alternative(candidate_id, rest, terms);
+    } else {
+      switch (get_term(id, terms)) {
+      | Some(term) =>
+        if (!term_is_hole(term)) {
+          true;
+        } else {
+          row_has_non_hole_alternative(candidate_id, rest, terms);
+        }
+      | None => row_has_non_hole_alternative(candidate_id, rest, terms)
+      };
+    }
   };
 
-let match_predicate =
-    (
-      special_result: option(Id.t),
-      filtered_candidates: list(Id.t),
-      terms: TermMap.t,
-      row_index: int,
-      predicate: probe_context => bool,
-    )
-    : option(Id.t) =>
-  switch (special_result) {
-  | Some(id) => Some(id)
-  | None =>
-    filtered_candidates
-    |> List.mapi((candidate_index, id) => {
-         let candidate = {
-           id,
-           row: row_index,
-           col: 0,
-           is_largest_on_line: candidate_index == 0,
-         };
-         let context = {
-           candidate,
-           term: get_term_by_id(id, terms),
-           hole_only: only_hole(filtered_candidates, terms),
-           terms,
-         };
-         predicate(context) ? Some(id) : None;
-       })
-    |> List.find_map(Fun.id)
+let candidate_allowed_by_holes =
+    (candidate_id: Id.t, row: row_context, env: selection_env): bool =>
+  switch (get_term(candidate_id, env.terms)) {
+  | Some(term) when term_is_hole(term) => row.hole_only
+  | _ => true
   };
 
-/* 2. Try special case handlers on filtered candidates */
-let special_result =
-    (
-      filtered_candidates: list(Id.t),
-      terms: TermMap.t,
-      data: TermData.t,
-      measured: Measured.t,
-    ) =>
-  switch (
-    handle_if_expression_special_case(
-      filtered_candidates,
-      terms,
-      data,
-      measured,
-    )
-  ) {
-  | Some(id) => Some(id)
-  | None =>
-    handle_tuple_list_special_case(filtered_candidates, terms, data, measured)
+let candidate_allowed_by_function_types =
+    (candidate_id: Id.t, env: selection_env): bool =>
+  !has_function_type(candidate_id, env.info_map);
+
+let candidate_allowed_by_container =
+    (candidate_id: Id.t, env: selection_env): bool =>
+  switch (get_term(candidate_id, env.terms)) {
+  | Some(term) =>
+    if (term_is_parens(term)) {
+      false;
+    } else if (term_is_tuple(term) || term_is_list_literal(term)) {
+      !term_spans_multiple_rows(candidate_id, env.data, env.measured);
+    } else {
+      true;
+    }
+  | None => true
   };
 
-/* ===== UNIFIED SELECTION CORE ===== */
+let candidate_allowed_by_let_hole =
+    (candidate_id: Id.t, row: row_context, env: selection_env): bool =>
+  switch (get_term(candidate_id, env.terms)) {
+  | Some(term) when term_is_let(term) && let_body_is_hole(term) =>
+    !row_has_non_hole_alternative(candidate_id, row.ids, env.terms)
+  | _ => true
+  };
 
-/* Core selection function with configurable predicate.
- * This eliminates duplication between the two public selection functions.
- *
- * The predicate receives a probe_context and returns whether to probe that candidate.
- * Special case handlers always take precedence over the predicate.
- */
-let select_probe_candidates_core =
-    (
-      row_term_ids: list(list(Id.t)),
-      terms: TermMap.t,
-      data: TermData.t,
-      measured: Measured.t,
-      predicate: probe_context => bool,
-    ) =>
-  List.mapi(
-    (row_index: int, candidates: list(Id.t)) => {
-      /* 1. Apply let filtering first */
-      let filtered_candidates =
-        switch (filter_let_with_hole_body(candidates, terms)) {
-        | Some(filtered) => filtered
-        | None => candidates
-        };
-      match_predicate(
-        special_result(filtered_candidates, terms, data, measured),
-        filtered_candidates,
-        terms,
-        row_index,
-        predicate,
-      );
-    },
-    row_term_ids,
-  );
-
-/* ===== PHASE 6: VARIABLE REFERENCE DETECTION WITH STATICS ===== */
-
-/* Check if a variable ID corresponds to a pattern variable that we've already seen
- * Uses statics to look up binding sites and track which patterns have been probed
- */
 let is_redundant_variable_reference =
     (
-      var_id: Id.t,
+      candidate_id: Id.t,
       info_map: Language.Statics.Map.t,
-      seen_pattern_ids: list(Id.t),
+      seen_patterns: list(Id.t),
     )
-    : bool => {
-  /* Look up the variable in statics to find its binding site */
-  switch (Language.Statics.Map.lookup(var_id, info_map)) {
+    : bool =>
+  switch (Language.Statics.Map.lookup(candidate_id, info_map)) {
   | Some(info) =>
-    /* Try to get the binding site pattern ID from the variable info */
     switch (Language.Info.get_binding_site(info)) {
-    | Some(binding_id) => List.mem(binding_id, seen_pattern_ids)
+    | Some(binding_id) => List.mem(binding_id, seen_patterns)
     | None => false
     }
-  | None => false /* If we can't look it up, don't consider it redundant */
+  | None => false
   };
-};
 
-/* Predicate: Don't probe variable references if we've already seen their pattern */
-let should_not_probe_redundant_variables =
-    (
-      context: probe_context,
-      info_map: Language.Statics.Map.t,
-      seen_pattern_ids: list(Id.t),
-    )
-    : bool => {
-  let is_candidate_variable =
-    context.term
-    |> Option.map(is_variable_reference)
-    |> Option.value(~default=false);
-
-  if (is_candidate_variable) {
+let candidate_allowed_by_variables =
+    (candidate_id: Id.t, env: selection_env, state: selection_state): bool =>
+  switch (get_term(candidate_id, env.terms)) {
+  | Some(term) when term_is_variable(term) =>
     !
       is_redundant_variable_reference(
-        context.candidate.id,
-        info_map,
-        seen_pattern_ids,
-      );
-      /* If it's a variable, check if it's redundant */
-  } else {
-    true; /* Non-variables are always ok */
+        candidate_id,
+        env.info_map,
+        state.seen_patterns,
+      )
+  | _ => true
   };
-};
 
-/* Helper: Get all pattern variable IDs from a pattern (including from tuples, etc) */
-let get_pattern_variable_ids = (id: Id.t, terms: TermMap.t): list(Id.t) => {
-  switch (Id.Map.find_opt(id, terms)) {
-  | Some(Pat(pat)) =>
-    /* Use the built-in bindings function to recursively collect all variable IDs */
-    Language.Pat.bindings(pat) |> List.map((b: Language.Binding.t) => b.id)
-  | _ => []
-  };
-};
-
-/* Enhanced selection function with variable redundancy checking */
-let select_probe_candidates_with_variable_awareness =
+let candidate_is_allowed =
     (
-      row_term_ids: list(list(Id.t)),
-      terms: TermMap.t,
-      data: TermData.t,
-      measured: Measured.t,
-      info_map: Language.Statics.Map.t,
+      candidate_id: Id.t,
+      row: row_context,
+      env: selection_env,
+      state: selection_state,
     )
-    : list(option(Id.t)) => {
-  /* Track pattern IDs we've seen so far to detect redundant variables */
-  let seen_pattern_ids = ref([]);
+    : bool =>
+  candidate_allowed_by_holes(candidate_id, row, env)
+  && candidate_allowed_by_function_types(candidate_id, env)
+  && candidate_allowed_by_container(candidate_id, env)
+  && candidate_allowed_by_let_hole(candidate_id, row, env)
+  && candidate_allowed_by_variables(candidate_id, env, state);
 
-  /* Process rows sequentially so we can update seen_pattern_ids between rows */
-  row_term_ids
-  |> List.mapi((row_index: int, candidates: list(Id.t)) => {
-       /* Variable-aware predicate: includes basic checks + variable redundancy */
-       let variable_aware_predicate = context => {
-         combine_predicates(
-           [should_not_probe_holes_unless_only_holes],
-           context,
-         )
-         && should_not_probe_function_types(context, info_map)
-         && should_not_probe_redundant_container(context, data, measured)
-         && should_not_probe_redundant_variables(
-              context,
-              info_map,
-              seen_pattern_ids^,
-            );
-       };
+let rec extract_candidate_with_end =
+        (
+          ids: list(Id.t),
+          env: selection_env,
+          target_row: int,
+          target_col: int,
+          acc: list(Id.t),
+        )
+        : (option(Id.t), list(Id.t)) =>
+  switch (ids) {
+  | [] => (None, List.rev(acc))
+  | [id, ...rest] =>
+    let matches =
+      switch (term_end_position(id, env)) {
+      | Some((row_value, col_value)) =>
+        row_value == target_row && col_value == target_col
+      | None => false
+      };
+    if (matches) {
+      (Some(id), List.rev_append(acc, rest));
+    } else {
+      extract_candidate_with_end(
+        rest,
+        env,
+        target_row,
+        target_col,
+        [id, ...acc],
+      );
+    };
+  };
 
-       /* 1. Apply let filtering first */
-       let filtered_candidates =
-         switch (filter_let_with_hole_body(candidates, terms)) {
-         | Some(filtered) => filtered
-         | None => candidates
-         };
+let adjust_candidates_for_if =
+    (row: row_context, env: selection_env): list(Id.t) =>
+  switch (row.ids) {
+  | [] => []
+  | [first_id, ...rest] =>
+    let is_if_candidate =
+      switch (get_term(first_id, env.terms)) {
+      | Some(term) => term_is_if(term)
+      | None => false
+      };
+    if (!is_if_candidate) {
+      row.ids;
+    } else {
+      switch (term_end_position(first_id, env)) {
+      | Some((target_row, target_col)) =>
+        let (maybe_else, remaining) =
+          extract_candidate_with_end(rest, env, target_row, target_col, []);
+        switch (maybe_else) {
+        | Some(else_id) => [else_id, first_id, ...remaining]
+        | None => row.ids
+        };
+      | None => row.ids
+      };
+    };
+  };
 
-       let selected_probe =
-         match_predicate(
-           special_result(filtered_candidates, terms, data, measured),
-           filtered_candidates,
-           terms,
-           row_index,
-           variable_aware_predicate,
-         );
+let rec collect_pattern_binding_ids =
+        (bindings: list(Language.Binding.t), acc: list(Id.t)): list(Id.t) =>
+  switch (bindings) {
+  | [] => List.rev(acc)
+  | [binding, ...rest] =>
+    collect_pattern_binding_ids(rest, [binding.id, ...acc])
+  };
 
-       /* 4. Update seen_pattern_ids if we selected a pattern with variables */
-       switch (selected_probe) {
-       | Some(id) =>
-         let pattern_var_ids = get_pattern_variable_ids(id, terms);
-         seen_pattern_ids := pattern_var_ids @ seen_pattern_ids^;
-       | None => ()
-       };
+let update_state_with_candidate =
+    (candidate_id: Id.t, env: selection_env, state: selection_state)
+    : selection_state =>
+  switch (Id.Map.find_opt(candidate_id, env.terms)) {
+  | Some(Pat(pat)) =>
+    let binding_ids =
+      collect_pattern_binding_ids(Language.Pat.bindings(pat), []);
+    {seen_patterns: binding_ids @ state.seen_patterns};
+  | _ => state
+  };
 
-       selected_probe;
-     });
+let rec choose_candidate =
+        (
+          candidates: list(Id.t),
+          row: row_context,
+          env: selection_env,
+          state: selection_state,
+        )
+        : (option(Id.t), selection_state) =>
+  switch (candidates) {
+  | [] => (None, state)
+  | [candidate_id, ...rest] =>
+    if (candidate_is_allowed(candidate_id, row, env, state)) {
+      let next_state = update_state_with_candidate(candidate_id, env, state);
+      (Some(candidate_id), next_state);
+    } else {
+      choose_candidate(rest, row, env, state);
+    }
+  };
+
+let select_in_row =
+    (row: row_context, env: selection_env, state: selection_state)
+    : (option(Id.t), selection_state) => {
+  let adjusted_ids = adjust_candidates_for_if(row, env);
+  choose_candidate(adjusted_ids, row, env, state);
 };
+
+let rec select_rows =
+        (rows: list(row_context), env: selection_env, state: selection_state)
+        : (list(option(Id.t)), selection_state) =>
+  switch (rows) {
+  | [] => ([], state)
+  | [row, ...rest] =>
+    let (selected, next_state) = select_in_row(row, env, state);
+    let (tail, final_state) = select_rows(rest, env, next_state);
+    ([selected, ...tail], final_state);
+  };
 
 let ids_to_autoprobe =
     (
@@ -666,11 +553,13 @@ let ids_to_autoprobe =
     )
     : option(list(option(Id.t))) => {
   let+ row_term_ids = get_row_term_ids_prioritized(id, data, measured);
-  select_probe_candidates_with_variable_awareness(
-    row_term_ids,
+  let row_contexts = build_row_contexts(row_term_ids, terms, 0, []);
+  let env = {
     terms,
     data,
     measured,
     info_map,
-  );
+  };
+  let (selections, _) = select_rows(row_contexts, env, empty_state);
+  selections;
 };
