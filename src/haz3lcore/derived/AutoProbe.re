@@ -196,34 +196,6 @@ let get_row_term_ids_prioritized:
 let should_probe_largest_only: probe_candidate => bool =
   candidate => candidate.is_largest_on_line;
 
-/* Fold-based selection function */
-let select_probe_candidates:
-  (list(list(Id.t)), probe_candidate => bool) => list(option(Id.t)) =
-  (row_term_ids: list(list(Id.t)), should_probe: probe_candidate => bool) => {
-    row_term_ids
-    |> List.mapi((row_index: int, candidates: list(Id.t)) => {
-         candidates
-         |> List.mapi((candidate_index, id) => {
-              let candidate = {
-                id,
-                row: row_index,
-                col: 0, /* We'll populate this if needed later */
-                is_largest_on_line: candidate_index == 0,
-              };
-              should_probe(candidate) ? Some(id) : None;
-            })
-         |> List.find_map(Fun.id) /* Return first Some, or None if all None */
-       });
-  };
-
-/* Refactored version using new infrastructure */
-let get_largest_terminal_term_ids_refactored:
-  (Id.t, TermData.t, Measured.t) => option(list(option(Id.t))) =
-  (id: Id.t, data: TermData.t, measured: Measured.t) => {
-    let+ row_term_ids = get_row_term_ids_prioritized(id, data, measured);
-    select_probe_candidates(row_term_ids, should_probe_largest_only);
-  };
-
 /* ===== PHASE 2: HOLE-AWARE PROBE PLACEMENT ===== */
 
 /* Term analysis utilities */
@@ -294,43 +266,6 @@ let should_not_probe_holes_unless_only_holes: probe_context => bool =
     } else {
       true; /* Non-holes are always ok */
     };
-  };
-
-/* Enhanced selection function with hole awareness */
-let select_probe_candidates_with_holes:
-  (list(list(Id.t)), TermMap.t, TermData.t, Measured.t) =>
-  list(option(Id.t)) =
-  (
-    row_term_ids: list(list(Id.t)),
-    terms: TermMap.t,
-    _data: TermData.t,
-    _measured: Measured.t,
-  ) => {
-    row_term_ids
-    |> List.mapi((row_index: int, candidates: list(Id.t)) => {
-         let row_analysis = analyze_row_terms(candidates, terms);
-
-         candidates
-         |> List.mapi((candidate_index, id) => {
-              let candidate = {
-                id,
-                row: row_index,
-                col: 0,
-                is_largest_on_line: candidate_index == 0,
-              };
-              let term = get_term_by_id(id, terms);
-              let context = {
-                candidate,
-                term,
-                row_analysis,
-                terms,
-              };
-
-              should_not_probe_holes_unless_only_holes(context)
-                ? Some(id) : None;
-            })
-         |> List.find_map(Fun.id);
-       });
   };
 
 /* ===== PHASE 3: FUNCTION TYPE DETECTION (Enhanced with Statics) ===== */
@@ -532,68 +467,6 @@ let should_not_probe_redundant_container:
     !is_candidate_parens && !is_multiline_container_on_final_line;
   };
 
-/* Enhanced selection function with special case handling */
-let select_probe_candidates_with_special_cases:
-  (
-    list(list(Id.t)),
-    TermMap.t,
-    TermData.t,
-    Measured.t,
-    Language.Statics.Map.t
-  ) =>
-  list(option(Id.t)) =
-  (
-    row_term_ids: list(list(Id.t)),
-    terms: TermMap.t,
-    data: TermData.t,
-    measured: Measured.t,
-    info_map: Language.Statics.Map.t,
-  ) => {
-    row_term_ids
-    |> List.mapi((row_index: int, candidates: list(Id.t)) => {
-         /* 1. Try special case handlers first */
-         let special_result =
-           handle_tuple_list_special_case(candidates, terms, data, measured);
-
-         switch (special_result) {
-         | Some(id) => Some(id)
-         | None =>
-           /* 2. Fall back to predicate-based selection */
-           let row_analysis = analyze_row_terms(candidates, terms);
-
-           /* Enhanced predicate: avoid holes, function types, AND redundant containers */
-           let enhanced_predicate = context => {
-             combine_predicates(
-               [should_not_probe_holes_unless_only_holes],
-               context,
-             )
-             && should_not_probe_function_types(context, info_map)
-             && should_not_probe_redundant_container(context, data, measured);
-           };
-
-           candidates
-           |> List.mapi((candidate_index, id) => {
-                let candidate = {
-                  id,
-                  row: row_index,
-                  col: 0,
-                  is_largest_on_line: candidate_index == 0,
-                };
-                let term = get_term_by_id(id, terms);
-                let context = {
-                  candidate,
-                  term,
-                  row_analysis,
-                  terms,
-                };
-
-                enhanced_predicate(context) ? Some(id) : None;
-              })
-           |> List.find_map(Fun.id);
-         };
-       });
-  };
-
 /* ===== PHASE 5: IF EXPRESSION SPECIAL CASE LOGIC ===== */
 
 let is_if_expression: Language.Any.t => bool =
@@ -693,88 +566,88 @@ let filter_let_with_hole_body: (list(Id.t), TermMap.t) => option(list(Id.t)) =
     };
   };
 
-/* DEPRECATED: Handle let expression with hole body (replaced by filter approach above)
- * Example:
- *   let x = 2 + 1 in ?    // probe on '2 + 1', NOT on the whole let (which evaluates to ?)
+/* ===== UNIFIED SELECTION CORE ===== */
+
+/* Core selection function with configurable predicate.
+ * This eliminates duplication between the two public selection functions.
  *
- * Only applies when the let and its hole body end on the same line
+ * The predicate receives a probe_context and returns whether to probe that candidate.
+ * Special case handlers always take precedence over the predicate.
  */
-let handle_let_with_hole_body:
-  (list(Id.t), TermMap.t, TermData.t, Measured.t) => option(Id.t) =
+let select_probe_candidates_core:
   (
-    candidates: list(Id.t),
+    list(list(Id.t)),
+    TermMap.t,
+    TermData.t,
+    Measured.t,
+    Language.Statics.Map.t,
+    probe_context => bool
+  ) => /* configurable predicate */
+  list(option(Id.t)) =
+  (
+    row_term_ids: list(list(Id.t)),
     terms: TermMap.t,
     data: TermData.t,
     measured: Measured.t,
+    info_map: Language.Statics.Map.t,
+    predicate: probe_context => bool,
   ) => {
-    /* Look for let expressions with hole bodies */
-    let problematic_lets =
-      candidates
-      |> List.filter(candidate_id => {
-           switch (get_term_by_id(candidate_id, terms)) {
-           | Some(let_term)
-               when is_let_expression(let_term) && let_body_is_hole(let_term) =>
-             true
-           | _ => false
-           }
-         });
+    row_term_ids
+    |> List.mapi((row_index: int, candidates: list(Id.t)) => {
+         /* 1. Apply let filtering first */
+         let filtered_candidates =
+           switch (filter_let_with_hole_body(candidates, terms)) {
+           | Some(filtered) => filtered
+           | None => candidates
+           };
 
-    if (problematic_lets != []) {
-      /* Remove problematic lets and re-run selection on remaining candidates */
-      let remaining_candidates =
-        candidates |> List.filter(id => !List.mem(id, problematic_lets));
+         /* 2. Try special case handlers on filtered candidates */
+         let special_result =
+           switch (
+             handle_if_expression_special_case(
+               filtered_candidates,
+               terms,
+               data,
+               measured,
+             )
+           ) {
+           | Some(id) => Some(id)
+           | None =>
+             handle_tuple_list_special_case(
+               filtered_candidates,
+               terms,
+               data,
+               measured,
+             )
+           };
 
-      switch (remaining_candidates) {
-      | [] => None /* No alternatives, stick with original */
-      | remaining =>
-        /* Apply selection logic that avoids holes (prefer non-holes over holes) */
-        let non_holes =
-          remaining
-          |> List.filter(id =>
-               switch (get_term_by_id(id, terms)) {
-               | Some(term) => !is_hole_term(term)
-               | None => true
-               }
-             );
+         switch (special_result) {
+         | Some(id) => Some(id)
+         | None =>
+           /* 3. Fall back to predicate-based selection on filtered candidates */
+           let row_analysis = analyze_row_terms(filtered_candidates, terms);
 
-        let preferred_candidates =
-          if (non_holes != []) {
-            non_holes; /* Prefer non-holes if available */
-          } else {
-            remaining; /* Fall back to all remaining if only holes */
-          };
+           filtered_candidates
+           |> List.mapi((candidate_index, id) => {
+                let candidate = {
+                  id,
+                  row: row_index,
+                  col: 0,
+                  is_largest_on_line: candidate_index == 0,
+                };
+                let term = get_term_by_id(id, terms);
+                let context = {
+                  candidate,
+                  term,
+                  row_analysis,
+                  terms,
+                };
 
-        /* Now apply rightmost-largest logic to preferred candidates */
-        preferred_candidates
-        |> List.fold_left(
-             (best_opt, candidate_id) => {
-               switch (
-                 best_opt,
-                 TermData.extreme_measures(candidate_id, data, measured),
-               ) {
-               | (None, Some(_)) => Some(candidate_id)
-               | (Some(best_id), Some((_, candidate_end))) =>
-                 switch (TermData.extreme_measures(best_id, data, measured)) {
-                 | Some((_, best_end)) =>
-                   /* Prefer rightmost, then largest among ties */
-                   if (candidate_end.col > best_end.col
-                       || candidate_end.col == best_end.col
-                       && candidate_id < best_id) {
-                     Some(candidate_id);
-                   } else {
-                     best_opt;
-                   }
-                 | None => best_opt
-                 }
-               | _ => best_opt
-               }
-             },
-             None,
-           );
-      };
-    } else {
-      None; /* No problematic lets found */
-    };
+                predicate(context) ? Some(id) : None;
+              })
+           |> List.find_map(Fun.id);
+         };
+       });
   };
 
 /* Enhanced selection function with if expression handling */
@@ -945,83 +818,26 @@ let select_probe_candidates_with_variable_awareness:
     /* Track pattern IDs we've seen so far to detect redundant variables */
     let seen_pattern_ids = ref([]);
 
-    row_term_ids
-    |> List.mapi((row_index: int, candidates: list(Id.t)) => {
-         /* 1. Apply let filtering first */
-         let filtered_candidates =
-           switch (filter_let_with_hole_body(candidates, terms)) {
-           | Some(filtered) => filtered
-           | None => candidates
-           };
+    /* Variable-aware predicate: includes basic checks + variable redundancy */
+    let variable_aware_predicate = context => {
+      combine_predicates([should_not_probe_holes_unless_only_holes], context)
+      && should_not_probe_function_types(context, info_map)
+      && should_not_probe_redundant_container(context, data, measured)
+      && should_not_probe_redundant_variables(
+           context,
+           info_map,
+           seen_pattern_ids^,
+         );
+    };
 
-         /* 2. Try special case handlers on filtered candidates */
-         let special_result =
-           switch (
-             handle_if_expression_special_case(
-               filtered_candidates,
-               terms,
-               data,
-               measured,
-             )
-           ) {
-           | Some(id) => Some(id)
-           | None =>
-             handle_tuple_list_special_case(
-               filtered_candidates,
-               terms,
-               data,
-               measured,
-             )
-           };
-
-         switch (special_result) {
-         | Some(id) =>
-           /* If we selected something via special case, track it (patterns handled separately) */
-           Some(id)
-         | None =>
-           /* 2. Fall back to predicate-based selection with variable awareness */
-           let row_analysis = analyze_row_terms(candidates, terms);
-
-           /* Enhanced predicate: avoid holes, function types, redundant containers, AND redundant variables */
-           let enhanced_predicate = context => {
-             combine_predicates(
-               [should_not_probe_holes_unless_only_holes],
-               context,
-             )
-             && should_not_probe_function_types(context, info_map)
-             && should_not_probe_redundant_container(context, data, measured)
-             && should_not_probe_redundant_variables(
-                  context,
-                  info_map,
-                  seen_pattern_ids^,
-                );
-           };
-
-           let selected =
-             filtered_candidates
-             |> List.mapi((candidate_index, id) => {
-                  let candidate = {
-                    id,
-                    row: row_index,
-                    col: 0,
-                    is_largest_on_line: candidate_index == 0,
-                  };
-                  let term = get_term_by_id(id, terms);
-                  let context = {
-                    candidate,
-                    term,
-                    row_analysis,
-                    terms,
-                  };
-
-                  enhanced_predicate(context) ? Some(id) : None;
-                })
-             |> List.find_map(Fun.id);
-
-           /* Return the selected result (pattern tracking simplified for now) */
-           selected;
-         };
-       });
+    select_probe_candidates_core(
+      row_term_ids,
+      terms,
+      data,
+      measured,
+      info_map,
+      variable_aware_predicate,
+    );
   };
 
 /* Public API with full variable awareness (requires statics) */
