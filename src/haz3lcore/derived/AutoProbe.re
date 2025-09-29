@@ -97,25 +97,39 @@ open Util.OptUtil.Syntax;
   *   let (y, z) = expr in            // probe on 'expr' (rightmost ending term, NOT 'z')
   *   let items = [item1, item2] in   // probe on '[item1, item2]' (rightmost ending, NOT 'item2')
   *
-  * IF EXPRESSION SPECIAL CASES:
-  *
-  * Single-line if (normal behavior):
-  *   let result = if cond then a else b in  // probe on 'if cond then a else b' (whole expression)
-  *
-  * RULE: Multi-line if with trailing else preferred:
-  *   let result =
-  *     if condition     // probe on 'condition' (default)
-  *     then branch1     // probe on 'branch1' (largest on line)
-  *     else branch2 in  // probe on 'branch2', NOT on whole if (prefer trailing branch)
-  *
-  * Which holds without change for nested if expressions:
-  *   let complex =
-  *     if outer_cond    // probe on 'outer_cond'  (default)
-  *     then
-  *       if inner_cond  // probe on 'inner_cond'  (default)
-  *       then val1      // probe on 'val1'  (default)
-  *       else val2      // probe on 'val2' (inner trailing branch)
-  *     else val3 in     // probe on 'val3' (outer trailing branch, NOT whole outer if)
+ * LET EXPRESSION SPECIAL CASES:
+ *
+ * RULE: Avoid probing lets with hole bodies (semantically uninformative):
+ *
+ * Basic case - prefer meaningful binding over uninformative let:
+ *   let x = 2 + 1 in ?    // probe on '2 + 1', NOT on whole let (which evaluates to ?)
+ *
+ * No non-hole alternatives - stick with original behavior:
+ *   let x = ? in ?        // probe on 'x' (no better alternatives available)
+ *   let ? = 1 in ?        // probe on '1'
+ *
+ * Normal let (no hole body) - no special case:
+ *   let x = 2 + 1 in x    // probe on whole let (normal default behavior)
+ *
+ * IF EXPRESSION SPECIAL CASES:
+ *
+ * Single-line if (normal behavior):
+ *   let result = if cond then a else b in  // probe on 'if cond then a else b' (whole expression)
+ *
+ * RULE: Multi-line if with trailing else preferred:
+ *   let result =
+ *     if condition     // probe on 'condition' (default)
+ *     then branch1     // probe on 'branch1' (largest on line)
+ *     else branch2 in  // probe on 'branch2', NOT on whole if (prefer trailing branch)
+ *
+ * Which holds without change for nested if expressions:
+ *   let complex =
+ *     if outer_cond    // probe on 'outer_cond'  (default)
+ *     then
+ *       if inner_cond  // probe on 'inner_cond'  (default)
+ *       then val1      // probe on 'val1'  (default)
+ *       else val2      // probe on 'val2' (inner trailing branch)
+ *     else val3 in     // probe on 'val3' (outer trailing branch, NOT whole outer if)
   *
   * VARIABLE REFERENCE REDUNDANCY EXAMPLES:
   * (Record what variables have been seen to avoid redundant probes, respecting scope)
@@ -587,6 +601,17 @@ let is_if_expression: Language.Any.t => bool =
   | Exp({term: If(_, _, _), _}) => true
   | _ => false;
 
+let is_let_expression: Language.Any.t => bool =
+  fun
+  | Exp({term: Let(_, _, _), _}) => true
+  | _ => false;
+
+/* Check if a let expression has a hole as its body */
+let let_body_is_hole: Language.Any.t => bool =
+  fun
+  | Exp({term: Let(_, _, body), _}) => is_hole_term(Exp(body))
+  | _ => false;
+
 /* Extract the else branch from an if expression */
 let get_if_else_branch: Language.Any.t => option(Language.Exp.t) =
   fun
@@ -637,6 +662,121 @@ let handle_if_expression_special_case:
     };
   };
 
+/* Filter out let expressions with hole bodies to enable better selection
+ * Returns filtered candidate list, or None if no filtering needed
+ */
+let filter_let_with_hole_body: (list(Id.t), TermMap.t) => option(list(Id.t)) =
+  (candidates: list(Id.t), terms: TermMap.t) => {
+    /* Look for let expressions with hole bodies */
+    let problematic_lets =
+      candidates
+      |> List.filter(candidate_id => {
+           switch (get_term_by_id(candidate_id, terms)) {
+           | Some(let_term)
+               when is_let_expression(let_term) && let_body_is_hole(let_term) =>
+             true
+           | _ => false
+           }
+         });
+
+    if (problematic_lets != []) {
+      /* Remove problematic lets and return filtered list */
+      let remaining_candidates =
+        candidates |> List.filter(id => !List.mem(id, problematic_lets));
+
+      switch (remaining_candidates) {
+      | [] => None /* No alternatives, don't filter */
+      | remaining => Some(remaining) /* Return filtered candidates */
+      };
+    } else {
+      None; /* No problematic lets found, no filtering needed */
+    };
+  };
+
+/* DEPRECATED: Handle let expression with hole body (replaced by filter approach above)
+ * Example:
+ *   let x = 2 + 1 in ?    // probe on '2 + 1', NOT on the whole let (which evaluates to ?)
+ *
+ * Only applies when the let and its hole body end on the same line
+ */
+let handle_let_with_hole_body:
+  (list(Id.t), TermMap.t, TermData.t, Measured.t) => option(Id.t) =
+  (
+    candidates: list(Id.t),
+    terms: TermMap.t,
+    data: TermData.t,
+    measured: Measured.t,
+  ) => {
+    /* Look for let expressions with hole bodies */
+    let problematic_lets =
+      candidates
+      |> List.filter(candidate_id => {
+           switch (get_term_by_id(candidate_id, terms)) {
+           | Some(let_term)
+               when is_let_expression(let_term) && let_body_is_hole(let_term) =>
+             true
+           | _ => false
+           }
+         });
+
+    if (problematic_lets != []) {
+      /* Remove problematic lets and re-run selection on remaining candidates */
+      let remaining_candidates =
+        candidates |> List.filter(id => !List.mem(id, problematic_lets));
+
+      switch (remaining_candidates) {
+      | [] => None /* No alternatives, stick with original */
+      | remaining =>
+        /* Apply selection logic that avoids holes (prefer non-holes over holes) */
+        let non_holes =
+          remaining
+          |> List.filter(id =>
+               switch (get_term_by_id(id, terms)) {
+               | Some(term) => !is_hole_term(term)
+               | None => true
+               }
+             );
+
+        let preferred_candidates =
+          if (non_holes != []) {
+            non_holes; /* Prefer non-holes if available */
+          } else {
+            remaining; /* Fall back to all remaining if only holes */
+          };
+
+        /* Now apply rightmost-largest logic to preferred candidates */
+        preferred_candidates
+        |> List.fold_left(
+             (best_opt, candidate_id) => {
+               switch (
+                 best_opt,
+                 TermData.extreme_measures(candidate_id, data, measured),
+               ) {
+               | (None, Some(_)) => Some(candidate_id)
+               | (Some(best_id), Some((_, candidate_end))) =>
+                 switch (TermData.extreme_measures(best_id, data, measured)) {
+                 | Some((_, best_end)) =>
+                   /* Prefer rightmost, then largest among ties */
+                   if (candidate_end.col > best_end.col
+                       || candidate_end.col == best_end.col
+                       && candidate_id < best_id) {
+                     Some(candidate_id);
+                   } else {
+                     best_opt;
+                   }
+                 | None => best_opt
+                 }
+               | _ => best_opt
+               }
+             },
+             None,
+           );
+      };
+    } else {
+      None; /* No problematic lets found */
+    };
+  };
+
 /* Enhanced selection function with if expression handling */
 let select_probe_candidates_with_all_special_cases:
   (
@@ -656,11 +796,18 @@ let select_probe_candidates_with_all_special_cases:
   ) => {
     row_term_ids
     |> List.mapi((row_index: int, candidates: list(Id.t)) => {
-         /* 1. Try special case handlers first (in priority order) */
+         /* 1. Apply let filtering first */
+         let filtered_candidates =
+           switch (filter_let_with_hole_body(candidates, terms)) {
+           | Some(filtered) => filtered
+           | None => candidates
+           };
+
+         /* 2. Try special case handlers on filtered candidates */
          let special_result =
            switch (
              handle_if_expression_special_case(
-               candidates,
+               filtered_candidates,
                terms,
                data,
                measured,
@@ -668,14 +815,19 @@ let select_probe_candidates_with_all_special_cases:
            ) {
            | Some(id) => Some(id)
            | None =>
-             handle_tuple_list_special_case(candidates, terms, data, measured)
+             handle_tuple_list_special_case(
+               filtered_candidates,
+               terms,
+               data,
+               measured,
+             )
            };
 
          switch (special_result) {
          | Some(id) => Some(id)
          | None =>
-           /* 2. Fall back to predicate-based selection */
-           let row_analysis = analyze_row_terms(candidates, terms);
+           /* 3. Fall back to predicate-based selection on filtered candidates */
+           let row_analysis = analyze_row_terms(filtered_candidates, terms);
 
            /* Enhanced predicate: avoid holes, function types, AND redundant containers */
            let enhanced_predicate = context => {
@@ -687,7 +839,7 @@ let select_probe_candidates_with_all_special_cases:
              && should_not_probe_redundant_container(context, data, measured);
            };
 
-           candidates
+           filtered_candidates
            |> List.mapi((candidate_index, id) => {
                 let candidate = {
                   id,
@@ -795,11 +947,18 @@ let select_probe_candidates_with_variable_awareness:
 
     row_term_ids
     |> List.mapi((row_index: int, candidates: list(Id.t)) => {
-         /* 1. Try special case handlers first (in priority order) */
+         /* 1. Apply let filtering first */
+         let filtered_candidates =
+           switch (filter_let_with_hole_body(candidates, terms)) {
+           | Some(filtered) => filtered
+           | None => candidates
+           };
+
+         /* 2. Try special case handlers on filtered candidates */
          let special_result =
            switch (
              handle_if_expression_special_case(
-               candidates,
+               filtered_candidates,
                terms,
                data,
                measured,
@@ -807,7 +966,12 @@ let select_probe_candidates_with_variable_awareness:
            ) {
            | Some(id) => Some(id)
            | None =>
-             handle_tuple_list_special_case(candidates, terms, data, measured)
+             handle_tuple_list_special_case(
+               filtered_candidates,
+               terms,
+               data,
+               measured,
+             )
            };
 
          switch (special_result) {
@@ -834,7 +998,7 @@ let select_probe_candidates_with_variable_awareness:
            };
 
            let selected =
-             candidates
+             filtered_candidates
              |> List.mapi((candidate_index, id) => {
                   let candidate = {
                     id,
