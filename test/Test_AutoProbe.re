@@ -106,27 +106,28 @@ let test_probe_placement = (~name: string, ~code: string): test_case(_) => {
 
       /* Build the syntax cache with statics */
       let syntax = CachedSyntax.mk(zipper, ~info_map, ~dyn_map=Id.Map.empty);
-      let {terms, term_data, measured, _}: CachedSyntax.t = syntax;
 
       /* Call AutoProbe to get probe term IDs using the sophisticated version */
       let probe_ids =
         switch (
           AutoProbe.ids_to_autoprobe(
             root_id,
-            term_data,
-            terms,
-            measured,
+            syntax.term_data,
+            syntax.terms,
+            syntax.measured,
             info_map,
           )
         ) {
-        | Some(ids) => ids |> List.filter_map(Fun.id)
+        | Some(ids) => List.filter_map(Fun.id, ids)
         | None => fail("AutoProbe returned None")
         };
 
       /* Convert probe IDs to string representations */
       let actual_probes =
-        probe_ids
-        |> List.filter_map(id => term_id_to_string(id, terms, term_data));
+        List.filter_map(
+          term_id_to_string(_, syntax.terms, syntax.term_data),
+          probe_ids,
+        );
 
       /* Debug for failing tests */
       if (List.length(expected_probes) != List.length(actual_probes)) {
