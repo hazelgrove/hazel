@@ -332,7 +332,6 @@ a|},
   ),
   test_probe_placement(
     ~name="Don't probe references already probed in compound pattern",
-    // TODO(andrew): consider probe on parens instead of tuple
     ~code={|let (a, b) = // a, b
     pair in              // pair
   a|},

@@ -193,7 +193,6 @@ let get_row_term_ids_prioritized =
   term_rows
   |> List.mapi((row_index: int, row: Segment.t) => {
        let current_row = start_row_idx + row_index;
-
        /* Build list of (id, col) pairs for terms ending on this row */
        let terms_with_cols =
          row
@@ -202,7 +201,6 @@ let get_row_term_ids_prioritized =
               let+ col = get_final_col(current_row, piece);
               (id, col);
             });
-
        /* Sort by column (rightmost first), then by original order (leftmost first) */
        terms_with_cols
        |> List.sort(((_, col1), (_, col2)) => Int.compare(col2, col1))
@@ -210,20 +208,9 @@ let get_row_term_ids_prioritized =
      });
 };
 
-/* Simple predicate that matches original behavior: select first (largest) term */
-let should_probe_largest_only: probe_candidate => bool =
-  candidate => candidate.is_largest_on_line;
-
 /* ===== PHASE 2: HOLE-AWARE PROBE PLACEMENT ===== */
 
-type row_analysis = {
-  all_holes: bool,
-  has_non_holes: bool,
-  hole_count: int,
-  non_hole_count: int,
-};
-
-let analyze_row_terms: (list(Id.t), TermMap.t) => row_analysis =
+let only_hole: (list(Id.t), TermMap.t) => bool =
   (term_ids: list(Id.t), terms: TermMap.t) => {
     let (hole_count, non_hole_count) =
       term_ids
@@ -240,20 +227,14 @@ let analyze_row_terms: (list(Id.t), TermMap.t) => row_analysis =
            },
            (0, 0),
          );
-
-    {
-      all_holes: hole_count > 0 && non_hole_count == 0,
-      has_non_holes: non_hole_count > 0,
-      hole_count,
-      non_hole_count,
-    };
+    hole_count > 0 && non_hole_count == 0;
   };
 
 /* Enhanced probe context for sophisticated predicates */
 type probe_context = {
   candidate: probe_candidate,
   term: option(Language.Any.t),
-  row_analysis,
+  hole_only: bool,
   terms: TermMap.t,
 };
 
@@ -267,7 +248,7 @@ let should_not_probe_holes_unless_only_holes: probe_context => bool =
 
     /* If candidate is a hole, only allow it if all terms on line are holes */
     if (is_candidate_hole) {
-      context.row_analysis.all_holes;
+      context.hole_only;
     } else {
       true; /* Non-holes are always ok */
     };
@@ -537,9 +518,6 @@ let select_probe_candidates_core =
        switch (special_result) {
        | Some(id) => Some(id)
        | None =>
-         /* 3. Fall back to predicate-based selection on filtered candidates */
-         let row_analysis = analyze_row_terms(filtered_candidates, terms);
-
          filtered_candidates
          |> List.mapi((candidate_index, id) => {
               let candidate = {
@@ -552,13 +530,13 @@ let select_probe_candidates_core =
               let context = {
                 candidate,
                 term,
-                row_analysis,
+                hole_only: only_hole(filtered_candidates, terms),
                 terms,
               };
 
               predicate(context) ? Some(id) : None;
             })
-         |> List.find_map(Fun.id);
+         |> List.find_map(Fun.id)
        };
      });
 };
@@ -686,8 +664,6 @@ let select_probe_candidates_with_variable_awareness =
          | Some(id) => Some(id)
          | None =>
            /* 3. Fall back to predicate-based selection on filtered candidates */
-           let row_analysis = analyze_row_terms(filtered_candidates, terms);
-
            filtered_candidates
            |> List.mapi((candidate_index, id) => {
                 let candidate = {
@@ -698,14 +674,14 @@ let select_probe_candidates_with_variable_awareness =
                 };
                 let context = {
                   candidate,
-                  row_analysis,
+                  hole_only: only_hole(filtered_candidates, terms),
                   term: Id.Map.find_opt(id, terms),
                   terms,
                 };
                 variable_aware_predicate(context) ? Some(id) : None;
               })
            |> List.find_opt(Option.is_some)
-           |> Option.join;
+           |> Option.join
          };
 
        /* 4. Update seen_pattern_ids if we selected a pattern with variables */
