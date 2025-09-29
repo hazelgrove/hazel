@@ -21,7 +21,7 @@ let rec matches = (capture, dp: Pat.t, d: DHExp.t): match_result => {
   | MultiHole(_)
   | Wild => Matches(Environment.empty)
   | ExplicitNonlabel =>
-    raise(Failure("PatternMatch ExplicitNonlabel shouldn't show up"))
+    raise(Failure("PatternMatch ExplicitNonlabel should not show up since these are removed during elaboration"))
   | Atom(c) =>
     let V(value, kind) = Atom.unpack(c);
     let* d' = Unboxing.unbox(Atom(kind), d);

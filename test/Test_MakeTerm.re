@@ -275,5 +275,15 @@ let tests =
           "? : (_=Int)",
         )
       ),
+      test_case("Explicit unlabeled in pattern", `Quick, () =>
+        exp_check(
+          let_(
+            Pat.(tuple([tup_label(explicit_non_label(), var("x"))])),
+            tuple([tup_label(explicit_non_label(), int(1))]),
+            var("x"),
+          ),
+          {|let (_=x) = (_=1) in x|},
+        )
+      ),
     ],
   );
