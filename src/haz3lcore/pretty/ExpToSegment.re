@@ -647,9 +647,7 @@ let should_add_space = (s1, s2) =>
           || String.ends_with(s1, ~suffix=")")
         ) =>
     false
-  | _ =>
-    print_endline("Adding space between '" ++ s1 ++ "' and '" ++ s2 ++ "'");
-    true;
+  | _ => true
   };
 
 let text_to_pretty = (id, sort, str): pretty => {
