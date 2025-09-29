@@ -15,10 +15,32 @@ open Util.OptUtil.Syntax;
   * another term ending on that line, or no term at all, being indicated instead.
   * Ultimate we select 0 or 1 terms to display for each line in the probed range.
   *
-  * BASIC BEHAVIOR EXAMPLES:
-  *
-  * Simple assignment:
-  *   let x = 42 in        // probe on '42' (largest, most meaningful term)
+ * DEFAULT TERM SELECTION EXAMPLES:
+ *
+ * Step 1: Find rightmost ending position on the line
+ * Step 2: Among terms ending at that position, pick the largest
+ *
+ * Only one term at rightmost position:
+ *   let (x, y) = 1 in             // rightmost ending: where '1' ends
+ *                                 // terms ending there: just '1'
+ *                                 // probe: '1' (largest of 1 term)
+ *
+ * Multiple terms at rightmost position - largest wins:
+ *   let (x, y) = 2 + 1 in         // rightmost ending: where '2 + 1' ends (same as where '1' ends)
+ *                                 // terms ending there: '1' and '2 + 1'
+ *                                 // probe: '2 + 1' (larger than '1')
+ *
+ *   let z = f(g(42)) in           // rightmost ending: where 'f(g(42))' ends
+ *                                 // terms ending there: '42', 'g(42)', 'f(g(42))'
+ *                                 // probe: 'f(g(42))' (largest)
+ *
+ * Rightmost position beats larger terms ending earlier:
+ *   let (x, y) = v in  probe: 'v' (NOT '(x, y)' even though it's larger)
+ *
+ * BASIC BEHAVIOR EXAMPLES:
+ *
+ * Simple assignment:
+ *   let x = 42 in        // probe on '42' (rightmost and only term ending on line)
   *
   * Multi-line expression:
   *   let result =
@@ -56,24 +78,24 @@ open Util.OptUtil.Syntax;
   *
   * CONTAINER SPECIAL CASES:
   *
-  * Single-line containers (normal behavior):
-  *   let pair = (a, b) in      // probe on '(a, b)' (whole tuple)
-  *   let list = [1, 2, 3] in   // probe on '[1, 2, 3]' (whole list)
-  *
-  * Multi-line tuple avoid redundant parens probe (as above):
+  * RULE: Multi-line containers prefer elements over the whole container:
   *   let triple = (
   *     first_value,     // probe on 'first_value' (default)
   *     second_value,    // probe on 'second_value' (default)
   *     third_value      // probe on 'third_value' (default)
   *   ) in               // probe nothing (avoid redundant parens probing)
   *
-  * RULE: Similar to the parens rule (but distinct, since list literal brackets are
- *        not optional, don't redudantly probe lists if any elements are probed. )
   *   let items = [
   *     item1,           // probe on 'item1' (default)
   *     item2,           // probe on 'item2' (default)
   *     item3            // probe on 'item3' (default)
   *   ] in               // probe nothing (avoid redundant list literal)
+  *
+  * RULE: Single-line containers use normal default behavior (no special case):
+  *   let pair = (a, b) in            // probe on '(a, b)' (rightmost ending term)
+  *   let list = [1, 2, 3] in         // probe on '[1, 2, 3]' (rightmost ending term)
+  *   let (y, z) = expr in            // probe on 'expr' (rightmost ending term, NOT 'z')
+  *   let items = [item1, item2] in   // probe on '[item1, item2]' (rightmost ending, NOT 'item2')
   *
   * IF EXPRESSION SPECIAL CASES:
   *
@@ -108,8 +130,6 @@ open Util.OptUtil.Syntax;
   * 2. Predicate-based filtering (holes, functions, redundant containers, variables)
   * 3. Priority-based selection (largest term first, then others by ending position)
   */
-
-open TermData;
 
 /* ===== REFACTORED PROBE PLACEMENT INFRASTRUCTURE ===== */
 
@@ -164,14 +184,8 @@ let should_probe_largest_only: probe_candidate => bool =
 
 /* Fold-based selection function */
 let select_probe_candidates:
-  (list(list(Id.t)), TermData.t, Measured.t, probe_candidate => bool) =>
-  list(option(Id.t)) =
-  (
-    row_term_ids: list(list(Id.t)),
-    data: TermData.t,
-    measured: Measured.t,
-    should_probe: probe_candidate => bool,
-  ) => {
+  (list(list(Id.t)), probe_candidate => bool) => list(option(Id.t)) =
+  (row_term_ids: list(list(Id.t)), should_probe: probe_candidate => bool) => {
     row_term_ids
     |> List.mapi((row_index: int, candidates: list(Id.t)) => {
          candidates
@@ -193,12 +207,7 @@ let get_largest_terminal_term_ids_refactored:
   (Id.t, TermData.t, Measured.t) => option(list(option(Id.t))) =
   (id: Id.t, data: TermData.t, measured: Measured.t) => {
     let+ row_term_ids = get_row_term_ids_prioritized(id, data, measured);
-    select_probe_candidates(
-      row_term_ids,
-      data,
-      measured,
-      should_probe_largest_only,
-    );
+    select_probe_candidates(row_term_ids, should_probe_largest_only);
   };
 
 /* ===== PHASE 2: HOLE-AWARE PROBE PLACEMENT ===== */
@@ -208,14 +217,12 @@ let get_term_by_id: (Id.t, TermMap.t) => option(Language.Any.t) =
   (id: Id.t, terms: TermMap.t) => Id.Map.find_opt(id, terms);
 
 let is_hole_term: Language.Any.t => bool = {
-  Language.(
-    fun
-    | Exp({term: EmptyHole | MultiHole(_), _}) => true
-    | Pat({term: EmptyHole | MultiHole(_), _}) => true
-    | Typ({term: Unknown(Hole(EmptyHole | MultiHole(_))), _}) => true
-    | TPat({term: EmptyHole | MultiHole(_), _}) => true
-    | _ => false
-  );
+  fun
+  | Exp({term: EmptyHole | MultiHole(_), _}) => true
+  | Pat({term: EmptyHole | MultiHole(_), _}) => true
+  | Typ({term: Unknown(Hole(EmptyHole | MultiHole(_))), _}) => true
+  | TPat({term: EmptyHole | MultiHole(_), _}) => true
+  | _ => false;
 };
 
 type row_analysis = {
@@ -396,29 +403,23 @@ let select_probe_candidates_enhanced:
 /* ===== PHASE 4: TUPLE/LIST SPECIAL CASE LOGIC ===== */
 
 let is_parens_term: Language.Any.t => bool =
-  Language.(
-    fun
-    | Exp({term: Parens(_), _}) => true
-    | Pat({term: Parens(_), _}) => true
-    | Typ({term: Parens(_), _}) => true
-    | _ => false
-  );
+  fun
+  | Exp({term: Parens(_), _}) => true
+  | Pat({term: Parens(_), _}) => true
+  | Typ({term: Parens(_), _}) => true
+  | _ => false;
 
 let is_tuple_term: Language.Any.t => bool =
-  Language.(
-    fun
-    | Exp({term: Tuple(_), _}) => true
-    | Pat({term: Tuple(_), _}) => true
-    | _ => false
-  );
+  fun
+  | Exp({term: Tuple(_), _}) => true
+  | Pat({term: Tuple(_), _}) => true
+  | _ => false;
 
 let is_list_literal_term: Language.Any.t => bool =
-  Language.(
-    fun
-    | Exp({term: ListLit(_), _}) => true
-    | Pat({term: ListLit(_), _}) => true
-    | _ => false
-  );
+  fun
+  | Exp({term: ListLit(_), _}) => true
+  | Pat({term: ListLit(_), _}) => true
+  | _ => false;
 
 /* Handle tuple/list special case: prefer elements over literals in multi-line cases
  * Examples:
@@ -447,33 +448,33 @@ let handle_tuple_list_special_case:
              when
                is_tuple_term(literal_term)
                || is_list_literal_term(literal_term) =>
-           /* Found a tuple/list literal. Check if any other candidates are better choices */
-           candidates
-           |> List.find_map(candidate_id =>
-                if (candidate_id == literal_id) {
-                  None; /* Skip the literal itself */
-                } else {
-                  /* Check if this candidate would be a better choice than the literal */
-                  switch (
-                    TermData.extreme_measures(candidate_id, data, measured),
-                    TermData.extreme_measures(literal_id, data, measured),
-                  ) {
-                  | (Some((_, candidate_end)), Some((_, literal_end))) =>
-                    /* Prefer the candidate if:
-                     * 1. It ends on an earlier row (definitely better), OR
-                     * 2. It ends on the same row but at an earlier or same column (prefer element over literal)
-                     */
-                    if (candidate_end.row < literal_end.row
-                        || candidate_end.row == literal_end.row
-                        && candidate_end.col <= literal_end.col) {
-                      Some(candidate_id);
-                    } else {
-                      None;
-                    }
-                  | _ => None
-                  };
-                }
-              )
+           /* Only apply special case logic for multi-line containers */
+           switch (TermData.extreme_measures(literal_id, data, measured)) {
+           | Some((literal_start, literal_end))
+               when literal_start.row < literal_end.row =>
+             /* Multi-line container: prefer elements over the container */
+             candidates
+             |> List.find_map(candidate_id =>
+                  if (candidate_id == literal_id) {
+                    None; /* Skip the literal itself */
+                  } else {
+                    /* Check if this candidate would be a better choice than the literal */
+                    switch (
+                      TermData.extreme_measures(candidate_id, data, measured)
+                    ) {
+                    | Some((_, candidate_end)) =>
+                      /* Prefer the candidate if it ends on an earlier row than the literal */
+                      if (candidate_end.row < literal_end.row) {
+                        Some(candidate_id);
+                      } else {
+                        None;
+                      }
+                    | _ => None
+                    };
+                  }
+                )
+           | _ => None /* Single-line container: no special case, use normal logic */
+           }
          | _ => None /* Not a tuple/list literal */
          }
        });
@@ -487,13 +488,8 @@ let handle_tuple_list_special_case:
  *            b]   // probe on 'b', NOT on the list literal [a,b]
  */
 let should_not_probe_redundant_container:
-  (probe_context, TermMap.t, TermData.t, Measured.t) => bool =
-  (
-    context: probe_context,
-    _terms: TermMap.t,
-    data: TermData.t,
-    measured: Measured.t,
-  ) => {
+  (probe_context, TermData.t, Measured.t) => bool =
+  (context: probe_context, data: TermData.t, measured: Measured.t) => {
     let is_candidate_parens =
       context.term
       |> Option.map(is_parens_term)
@@ -558,12 +554,7 @@ let select_probe_candidates_with_special_cases:
                context,
              )
              && should_not_probe_function_types(context, info_map)
-             && should_not_probe_redundant_container(
-                  context,
-                  terms,
-                  data,
-                  measured,
-                );
+             && should_not_probe_redundant_container(context, data, measured);
            };
 
            candidates
@@ -592,19 +583,15 @@ let select_probe_candidates_with_special_cases:
 /* ===== PHASE 5: IF EXPRESSION SPECIAL CASE LOGIC ===== */
 
 let is_if_expression: Language.Any.t => bool =
-  Language.(
-    fun
-    | Exp({term: If(_, _, _), _}) => true
-    | _ => false
-  );
+  fun
+  | Exp({term: If(_, _, _), _}) => true
+  | _ => false;
 
 /* Extract the else branch from an if expression */
 let get_if_else_branch: Language.Any.t => option(Language.Exp.t) =
-  Language.(
-    fun
-    | Exp({term: If(_, _, else_branch), _}) => Some(else_branch)
-    | _ => None
-  );
+  fun
+  | Exp({term: If(_, _, else_branch), _}) => Some(else_branch)
+  | _ => None;
 
 /* Handle if expression special case: prefer trailing else branch over whole if
  * Example:
@@ -629,7 +616,7 @@ let handle_if_expression_special_case:
       | Some(if_term) when is_if_expression(if_term) =>
         /* Check if the if expression is multi-line by seeing if any candidates end later */
         switch (TermData.extreme_measures(if_id, data, measured)) {
-        | Some((if_start, if_end)) =>
+        | Some((_if_start, if_end)) =>
           /* Look for a candidate that might be the else branch ending at the same position as the if */
           rest
           |> List.find_opt(candidate_id => {
@@ -697,12 +684,7 @@ let select_probe_candidates_with_all_special_cases:
                context,
              )
              && should_not_probe_function_types(context, info_map)
-             && should_not_probe_redundant_container(
-                  context,
-                  terms,
-                  data,
-                  measured,
-                );
+             && should_not_probe_redundant_container(context, data, measured);
            };
 
            candidates
@@ -731,21 +713,17 @@ let select_probe_candidates_with_all_special_cases:
 /* ===== PHASE 6: VARIABLE REFERENCE DETECTION WITH STATICS ===== */
 
 let is_variable_reference: Language.Any.t => bool =
-  Language.(
-    fun
-    | Exp({term: Var(_), _}) => true
-    | Pat({term: Var(_), _}) => true
-    | _ => false
-  );
+  fun
+  | Exp({term: Var(_), _}) => true
+  | Pat({term: Var(_), _}) => true
+  | _ => false;
 
 /* Extract variable name from a variable reference */
 let get_variable_name: Language.Any.t => option(string) =
-  Language.(
-    fun
-    | Exp({term: Var(name), _}) => Some(name)
-    | Pat({term: Var(name), _}) => Some(name)
-    | _ => None
-  );
+  fun
+  | Exp({term: Var(name), _}) => Some(name)
+  | Pat({term: Var(name), _}) => Some(name)
+  | _ => None;
 
 /* Check if a variable ID corresponds to a pattern variable that we've already seen
  * Uses statics to look up binding sites and track which patterns have been probed
@@ -847,12 +825,7 @@ let select_probe_candidates_with_variable_awareness:
                context,
              )
              && should_not_probe_function_types(context, info_map)
-             && should_not_probe_redundant_container(
-                  context,
-                  terms,
-                  data,
-                  measured,
-                )
+             && should_not_probe_redundant_container(context, data, measured)
              && should_not_probe_redundant_variables(
                   context,
                   info_map,
