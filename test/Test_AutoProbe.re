@@ -4,9 +4,9 @@
  * Tests are written in concrete syntax with trailing comments indicating expected probe results:
  *
  * Example:
- * let a = 1 + 2 in // 1 + 2
- * let (x, y) = 1 in // 1
- * a // no probe
+ * let a = 1 + 2 in # 1 + 2 #
+ * let (x, y) = 1 in # 1 #
+ * a # no probe #
  *
  * The test harness extracts comments and compares them to actual probe placements.
  */
@@ -21,22 +21,28 @@ let extract_line_comments = (code: string): (string, list(option(string))) => {
   let lines = String.split_on_char('\n', code);
 
   let process_line = (line: string): (string, option(string)) => {
-    /* Find the position of "//" comment marker */
-    switch (String.index_opt(line, '/')) {
-    | Some(pos) when pos + 1 < String.length(line) && line.[pos + 1] == '/' =>
-      let clean_line = String.sub(line, 0, pos) |> String.trim;
-      let comment_part =
-        String.sub(line, pos + 2, String.length(line) - pos - 2)
-        |> String.trim;
+    /* Find the position of "#" comment delimiters */
+    switch (String.index_opt(line, '#')) {
+    | Some(first_hash) =>
+      /* Look for the closing # after the first one */
+      let after_first = first_hash + 1;
+      switch (String.index_from_opt(line, after_first, '#')) {
+      | Some(second_hash) =>
+        let clean_line = String.sub(line, 0, first_hash) |> String.trim;
+        let comment_part =
+          String.sub(line, after_first, second_hash - after_first)
+          |> String.trim;
 
-      let expected =
-        if (comment_part == "no probe") {
-          None;
-        } else {
-          Some(comment_part);
-        };
-      (clean_line, expected);
-    | _ => (line, None)
+        let expected =
+          if (comment_part == "no probe") {
+            None;
+          } else {
+            Some(comment_part);
+          };
+        (clean_line, expected);
+      | None => (line, None)
+      };
+    | None => (line, None)
     };
   };
 
@@ -163,14 +169,14 @@ let test_probe_placement = (~name: string, ~code: string): test_case(_) => {
 
 /* Basic test cases */
 let basic_tests = [
-  test_probe_placement(~name="Probe atomic literal", ~code={|1 // 1|}),
+  test_probe_placement(~name="Probe atomic literal", ~code={|1 # 1 #|}),
   test_probe_placement(
     ~name="Probe largest rightmost term",
-    ~code={|2 + 1 // 2 + 1|},
+    ~code={|2 + 1 # 2 + 1 #|},
   ),
   test_probe_placement(
     ~name="Single-line function application",
-    ~code={|get_fn(true) // get_fn(true)|},
+    ~code={|get_fn(true) # get_fn(true) #|},
   ),
 ];
 
@@ -180,18 +186,18 @@ let nested_multiline_tests = [
     ~name="Multi-line parens - don't redundatly probe parens",
     ~code=
       {|
-let x = (    // x
-  1 + 1      // 1 + 1
+let x = (    # x #
+  1 + 1      # 1 + 1 #
 ) in
-1 + 1        // 1 + 1|},
+1 + 1        # 1 + 1 #|},
   ),
   test_probe_placement(
     ~name="Multi-line function application - probe ap not last arg",
     ~code=
       {|
-let x = f(1 + 1,  // 1 + 1
-  2) in           // f(1 + 1, 2)
-1 + 1             // 1 + 1|},
+let x = f(1 + 1,  # 1 + 1 #
+  2) in           # f(1 + 1, 2) #
+1 + 1             # 1 + 1 #|},
   ),
 ];
 
@@ -201,12 +207,12 @@ let hole_avoidance_tests = [
     ~name="Avoid hole if there's an alternative",
     ~code=
       {|
-let incomplete = ? in  // incomplete
-1 + 1                  // 1 + 1|},
+let incomplete = ? in  # incomplete #
+1 + 1                  # 1 + 1 #|},
   ),
   test_probe_placement(
     ~name="Probe hole if there's no alternative",
-    ~code={|? // ?|},
+    ~code={|? # ? #|},
   ),
 ];
 
@@ -215,53 +221,53 @@ let container_tests = [
   test_probe_placement(
     //TODO(andrew): consider probing parens instead of tuple
     ~name="Single-line tuple - normal behavior",
-    ~code={|let pair = (a, b) in // a, b
-pair // pair|},
+    ~code={|let pair = (a, b) in # a, b #
+pair # pair #|},
   ),
   test_probe_placement(
     ~name="Single-line list - normal behavior",
-    ~code={|let list = [1, 2, 3 + 1] in // [1, 2, 3 + 1]
-list // list|},
+    ~code={|let list = [1, 2, 3 + 1] in # [1, 2, 3 + 1] #
+list # list #|},
   ),
   /* Note: Multi-line containers probe the trailing elements on each line,
      but not the cotainer itself */
   test_probe_placement(
     ~name="Multi-line tuple - probe elements but not container",
     ~code=
-      {|let triple = ( // triple
-  a, // a
-  b, // b
-  c // c
+      {|let triple = ( # triple #
+  a, # a #
+  b, # b #
+  c # c #
 ) in
-1 + 1 // 1 + 1|},
+1 + 1 # 1 + 1 #|},
   ),
   test_probe_placement(
     ~name="Multi-line tuple - probe trailing elements on each line 1",
     ~code=
-      {|let triple = ( // triple
-  a, // a
-  b, c + d // c + d
+      {|let triple = ( # triple #
+  a, # a #
+  b, c + d # c + d #
 ) in
-1 + 1 // 1 + 1|},
+1 + 1 # 1 + 1 #|},
   ),
   test_probe_placement(
     ~name="Multi-line tuple - probe trailing elements on each line 2",
     ~code=
-      {|let triple = ( // triple
-  a, b + c, // b + c
-  d // d
+      {|let triple = ( # triple #
+  a, b + c, # b + c #
+  d # d #
 ) in
-1 + 1 // 1 + 1|},
+1 + 1 # 1 + 1 #|},
   ),
   test_probe_placement(
     ~name="Multi-line list - probe elements but not container",
     ~code=
-      {|let items = [ // items
-  a, // a
-  b, // b
-  c // c
+      {|let items = [ # items #
+  a, # a #
+  b, # b #
+  c # c #
 ] in
-1 + 1 // 1 + 1|},
+1 + 1 # 1 + 1 #|},
   ),
 ];
 
@@ -269,26 +275,26 @@ list // list|},
 let let_expression_tests = [
   test_probe_placement(
     ~name="Only one term at rightmost position",
-    ~code={|let (x, y) = 1 in // 1
-1 + 1 // 1 + 1|},
+    ~code={|let (x, y) = 1 in # 1 #
+1 + 1 # 1 + 1 #|},
   ),
   test_probe_placement(
     ~name="Multiple terms at rightmost - largest wins",
-    ~code={|let (x, y) = 2 + 1 in // 2 + 1
-1 + 1 // 1 + 1|},
+    ~code={|let (x, y) = 2 + 1 in # 2 + 1 #
+1 + 1 # 1 + 1 #|},
   ),
   test_probe_placement(
     ~name="Let with hole body ending on same line - don't probe let or hole",
-    ~code={|let x = 2 + 1 in ? // 2 + 1|},
+    ~code={|let x = 2 + 1 in ? # 2 + 1 #|},
   ),
   test_probe_placement(
     ~name="Let with hole body plus hole avoidance",
-    ~code={|let x = ? in ? // x|},
+    ~code={|let x = ? in ? # x #|},
   ),
   test_probe_placement(
     //TODO(andrew): probably this should probe body instead ie never probe
     ~name="Normal single line let (no hole body)",
-    ~code={|let x = 2 + 1 in x // let x = 2 + 1 in x|},
+    ~code={|let x = 2 + 1 in x # let x = 2 + 1 in x #|},
   ),
 ];
 
@@ -297,28 +303,28 @@ let if_expression_tests = [
   test_probe_placement(
     ~name="Single-line if - default behavior",
     ~code=
-      {|let result = if c then a else b in // if c then a else b
-1 + 1 // 1 + 1|},
+      {|let result = if c then a else b in # if c then a else b #
+1 + 1 # 1 + 1 #|},
   ),
   test_probe_placement(
     ~name="Multi-line if - probe branches",
     ~code=
-      {|let result =  // result
-  if condition then   // condition
-  branch1             // branch1
-  else branch2 in     // branch2
-1 + 1                 // 1 + 1|},
+      {|let result =  # result #
+  if condition then   # condition #
+  branch1             # branch1 #
+  else branch2 in     # branch2 #
+1 + 1                 # 1 + 1 #|},
   ),
   test_probe_placement(
     ~name="Nested if - probe branches",
     ~code=
-      {|let complex =   // complex
-  if outer_cond then    // outer_cond
-    if inner_cond then  // inner_cond
-    val1                // val1
-    else val2           // val2
-  else val3 in          // val3
-1 + 1                   // 1 + 1|},
+      {|let complex =   # complex #
+  if outer_cond then    # outer_cond #
+    if inner_cond then  # inner_cond #
+    val1                # val1 #
+    else val2           # val2 #
+  else val3 in          # val3 #
+1 + 1                   # 1 + 1 #|},
   ),
 ];
 
@@ -326,14 +332,14 @@ let if_expression_tests = [
 let variable_redundancy_tests = [
   test_probe_placement(
     ~name="Don't probe reference already probed",
-    ~code={|let a = // a
-  1 in              // 1
+    ~code={|let a = # a #
+  1 in              # 1 #
 a|},
   ),
   test_probe_placement(
     ~name="Don't probe references already probed in compound pattern",
-    ~code={|let (a, b) = // a, b
-    pair in              // pair
+    ~code={|let (a, b) = # a, b #
+    pair in              # pair #
   a|},
   ),
 ];
@@ -345,7 +351,7 @@ let function_type_tests = [
       "Function literal - probe function body, but not var of function type",
     ~code={|
 let adder =
-  fun x -> x + 1 in      // x + 1
+  fun x -> x + 1 in      # x + 1 #
 adder|},
   ),
 ];

@@ -183,52 +183,30 @@ let get_row_term_ids_prioritized =
     : option(list(list(Id.t))) => {
   let+ (start_row_idx, term_rows) =
     TermData.get_term_rows(id, data, measured);
-
   let get_final_col = (current_row: int, piece: Piece.t): option(int) =>
     switch (TermData.extreme_measures(Piece.id(piece), data, measured)) {
     | Some((_, final)) when final.row == current_row => Some(final.col)
     | _ => None
     };
-
-  term_rows
-  |> List.mapi((row_index: int, row: Segment.t) => {
-       let current_row = start_row_idx + row_index;
-       /* Build list of (id, col) pairs for terms ending on this row */
-       let terms_with_cols =
-         row
-         |> List.filter_map(piece => {
-              let id = Piece.id(piece);
-              let+ col = get_final_col(current_row, piece);
-              (id, col);
-            });
-       /* Sort by column (rightmost first), then by original order (leftmost first) */
-       terms_with_cols
-       |> List.sort(((_, col1), (_, col2)) => Int.compare(col2, col1))
-       |> List.map(fst); /* Extract just the IDs */
-     });
+  List.mapi(
+    (row_index: int, row: Segment.t) => {
+      let current_row = start_row_idx + row_index;
+      /* Build list of (id, col) pairs for terms ending on this row */
+      let terms_with_cols =
+        row
+        |> List.filter_map(piece => {
+             let id = Piece.id(piece);
+             let+ col = get_final_col(current_row, piece);
+             (id, col);
+           });
+      /* Sort by column (rightmost first), then by original order (leftmost first) */
+      terms_with_cols
+      |> List.sort(((_, col1), (_, col2)) => Int.compare(col2, col1))
+      |> List.map(fst);
+    }, /* Extract just the IDs */
+    term_rows,
+  );
 };
-
-/* ===== PHASE 2: HOLE-AWARE PROBE PLACEMENT ===== */
-
-let only_hole: (list(Id.t), TermMap.t) => bool =
-  (term_ids: list(Id.t), terms: TermMap.t) => {
-    let (hole_count, non_hole_count) =
-      term_ids
-      |> List.fold_left(
-           ((hole_acc, non_hole_acc), id) => {
-             switch (get_term_by_id(id, terms)) {
-             | Some(term) when is_hole_term(term) => (
-                 hole_acc + 1,
-                 non_hole_acc,
-               )
-             | Some(_) => (hole_acc, non_hole_acc + 1)
-             | None => (hole_acc, non_hole_acc) /* Term not found, skip */
-             }
-           },
-           (0, 0),
-         );
-    hole_count > 0 && non_hole_count == 0;
-  };
 
 /* Enhanced probe context for sophisticated predicates */
 type probe_context = {
@@ -239,20 +217,16 @@ type probe_context = {
 };
 
 /* Predicate: Don't probe holes unless there are only holes on the line */
-let should_not_probe_holes_unless_only_holes: probe_context => bool =
-  context => {
-    let is_candidate_hole =
-      context.term
-      |> Option.map(is_hole_term)
-      |> Option.value(~default=false);
-
-    /* If candidate is a hole, only allow it if all terms on line are holes */
-    if (is_candidate_hole) {
-      context.hole_only;
-    } else {
-      true; /* Non-holes are always ok */
-    };
+let should_not_probe_holes_unless_only_holes = (context: probe_context): bool => {
+  let is_candidate_hole =
+    context.term |> Option.map(is_hole_term) |> Option.value(~default=false);
+  /* If candidate is a hole, only allow it if all terms on line are holes */
+  if (is_candidate_hole) {
+    context.hole_only;
+  } else {
+    true; /* Non-holes are always ok */
   };
+};
 
 /* ===== PHASE 3: FUNCTION TYPE DETECTION (Enhanced with Statics) ===== */
 
@@ -470,6 +444,64 @@ let filter_let_with_hole_body =
   };
 };
 
+let only_hole = (term_ids: list(Id.t), terms: TermMap.t): bool =>
+  switch (List.filter_map(get_term_by_id(_, terms), term_ids)) {
+  | [] => false
+  | terms => List.for_all(is_hole_term, terms)
+  };
+
+let match_predicate =
+    (
+      special_result: option(Id.t),
+      filtered_candidates: list(Id.t),
+      terms: TermMap.t,
+      row_index: int,
+      predicate: probe_context => bool,
+    )
+    : option(Id.t) =>
+  switch (special_result) {
+  | Some(id) => Some(id)
+  | None =>
+    filtered_candidates
+    |> List.mapi((candidate_index, id) => {
+         let candidate = {
+           id,
+           row: row_index,
+           col: 0,
+           is_largest_on_line: candidate_index == 0,
+         };
+         let context = {
+           candidate,
+           term: get_term_by_id(id, terms),
+           hole_only: only_hole(filtered_candidates, terms),
+           terms,
+         };
+         predicate(context) ? Some(id) : None;
+       })
+    |> List.find_map(Fun.id)
+  };
+
+/* 2. Try special case handlers on filtered candidates */
+let special_result =
+    (
+      filtered_candidates: list(Id.t),
+      terms: TermMap.t,
+      data: TermData.t,
+      measured: Measured.t,
+    ) =>
+  switch (
+    handle_if_expression_special_case(
+      filtered_candidates,
+      terms,
+      data,
+      measured,
+    )
+  ) {
+  | Some(id) => Some(id)
+  | None =>
+    handle_tuple_list_special_case(filtered_candidates, terms, data, measured)
+  };
+
 /* ===== UNIFIED SELECTION CORE ===== */
 
 /* Core selection function with configurable predicate.
@@ -485,61 +517,25 @@ let select_probe_candidates_core =
       data: TermData.t,
       measured: Measured.t,
       predicate: probe_context => bool,
-    ) => {
-  row_term_ids
-  |> List.mapi((row_index: int, candidates: list(Id.t)) => {
-       /* 1. Apply let filtering first */
-       let filtered_candidates =
-         switch (filter_let_with_hole_body(candidates, terms)) {
-         | Some(filtered) => filtered
-         | None => candidates
-         };
-
-       /* 2. Try special case handlers on filtered candidates */
-       let special_result =
-         switch (
-           handle_if_expression_special_case(
-             filtered_candidates,
-             terms,
-             data,
-             measured,
-           )
-         ) {
-         | Some(id) => Some(id)
-         | None =>
-           handle_tuple_list_special_case(
-             filtered_candidates,
-             terms,
-             data,
-             measured,
-           )
-         };
-
-       switch (special_result) {
-       | Some(id) => Some(id)
-       | None =>
-         filtered_candidates
-         |> List.mapi((candidate_index, id) => {
-              let candidate = {
-                id,
-                row: row_index,
-                col: 0,
-                is_largest_on_line: candidate_index == 0,
-              };
-              let term = get_term_by_id(id, terms);
-              let context = {
-                candidate,
-                term,
-                hole_only: only_hole(filtered_candidates, terms),
-                terms,
-              };
-
-              predicate(context) ? Some(id) : None;
-            })
-         |> List.find_map(Fun.id)
-       };
-     });
-};
+    ) =>
+  List.mapi(
+    (row_index: int, candidates: list(Id.t)) => {
+      /* 1. Apply let filtering first */
+      let filtered_candidates =
+        switch (filter_let_with_hole_body(candidates, terms)) {
+        | Some(filtered) => filtered
+        | None => candidates
+        };
+      match_predicate(
+        special_result(filtered_candidates, terms, data, measured),
+        filtered_candidates,
+        terms,
+        row_index,
+        predicate,
+      );
+    },
+    row_term_ids,
+  );
 
 /* ===== PHASE 6: VARIABLE REFERENCE DETECTION WITH STATICS ===== */
 
@@ -639,50 +635,14 @@ let select_probe_candidates_with_variable_awareness =
          | None => candidates
          };
 
-       /* 2. Try special case handlers on filtered candidates */
-       let special_result =
-         switch (
-           handle_if_expression_special_case(
-             filtered_candidates,
-             terms,
-             data,
-             measured,
-           )
-         ) {
-         | Some(id) => Some(id)
-         | None =>
-           handle_tuple_list_special_case(
-             filtered_candidates,
-             terms,
-             data,
-             measured,
-           )
-         };
-
        let selected_probe =
-         switch (special_result) {
-         | Some(id) => Some(id)
-         | None =>
-           /* 3. Fall back to predicate-based selection on filtered candidates */
-           filtered_candidates
-           |> List.mapi((candidate_index, id) => {
-                let candidate = {
-                  id,
-                  row: row_index,
-                  col: 0,
-                  is_largest_on_line: candidate_index == 0,
-                };
-                let context = {
-                  candidate,
-                  hole_only: only_hole(filtered_candidates, terms),
-                  term: Id.Map.find_opt(id, terms),
-                  terms,
-                };
-                variable_aware_predicate(context) ? Some(id) : None;
-              })
-           |> List.find_opt(Option.is_some)
-           |> Option.join
-         };
+         match_predicate(
+           special_result(filtered_candidates, terms, data, measured),
+           filtered_candidates,
+           terms,
+           row_index,
+           variable_aware_predicate,
+         );
 
        /* 4. Update seen_pattern_ids if we selected a pattern with variables */
        switch (selected_probe) {
