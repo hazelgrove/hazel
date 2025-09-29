@@ -975,3 +975,38 @@ let to_product = (tys: list(t)): t =>
   | [ty] => ty
   | _ => Prod(tys) |> temp
   };
+
+/* Computes the list of ids in t' that are not in t. Assumes initial ids are distinct. Only returns the id of the root difference. */
+let rec diff = (ty: t, ty': t): list(Id.t) => {
+  switch (term_of(ty), term_of(ty')) {
+  | (Parens(t1), Parens(t2)) => diff(t1, t2)
+  | (Unknown(_), Unknown(_)) => []
+  | (Unknown(_), _) => [ty' |> rep_id]
+  | (Atom(c1), Atom(c2)) when c1 == c2 => []
+  | (Atom(_), _) => [ty' |> rep_id]
+  | (Label(l1), Label(l2)) when l1 == l2 => []
+  | (Label(_), _) => [ty' |> rep_id]
+  | (Var(v1), Var(v2)) when v1 == v2 => []
+  | (Var(_), _) => [ty' |> rep_id]
+  | (Rec(tp1, t1), Rec(tp2, t2)) => diff(t1, t2) // TODO Check tpat
+  | (Rec(_), _) => [ty' |> rep_id]
+  | (Forall(tp1, t1), Forall(tp2, t2)) => diff(t1, t2) // TODO Check tpat
+  | (Forall(_), _) => [ty' |> rep_id]
+  | (Arrow(t1a, t1b), Arrow(t2a, t2b)) => diff(t1a, t2a) @ diff(t1b, t2b)
+  | (Arrow(_), _) => [ty' |> rep_id]
+  | (Prod(tys1), Prod(tys2)) when List.length(tys1) == List.length(tys2) =>
+    List.map2(diff, tys1, tys2) |> List.concat
+  | (Prod(_), _) => [ty' |> rep_id]
+  | (TupLabel(l1, t1), TupLabel(l2, t2)) => diff(l1, l2) @ diff(t1, t2)
+  | (TupLabel(_, _), _) => [ty' |> rep_id]
+  | _ => // TODO
+    raise(
+      Failure(
+        "diff: unsupported types"
+        ++ pretty_print(ty)
+        ++ " and "
+        ++ pretty_print(ty'),
+      ),
+    )
+  };
+};

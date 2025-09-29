@@ -105,7 +105,14 @@ module View = {
   };
 
   [@deriving (show({with_path: false}), sexp, yojson)]
-  type seg = (~background: bool=?, Sort.t, list(syntax)) => Node.t;
+  type seg =
+    (
+      ~background: bool=?,
+      ~is_dynamic: Id.t => bool=?,
+      Sort.t,
+      list(syntax)
+    ) =>
+    Node.t;
 
   let mk = (~overlay=None, ~offside=None, inline) => {
     inline,

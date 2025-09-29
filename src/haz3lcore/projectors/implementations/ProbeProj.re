@@ -643,7 +643,14 @@ let offside_view =
     (
       info: info,
       local,
-      view_seg: (~background: bool=?, Sort.t, list(syntax)) => Node.t,
+      view_seg:
+        (
+          ~background: bool=?,
+          ~is_dynamic: Id.t => bool=?,
+          Sort.t,
+          list(syntax)
+        ) =>
+        Node.t,
       utility: utility,
     ) =>
   Node.div(

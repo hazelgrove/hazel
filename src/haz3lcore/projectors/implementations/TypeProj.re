@@ -76,9 +76,9 @@ module M: Projector = {
   let dynamics = true;
   let focusable = Focusable.non;
 
-  let display_ty = (model, statics, info): option(Typ.t) =>
+  let _display_ty = (model, statics, dyn_typ): option(Typ.t) =>
     switch (model) {
-    | Dynamic => Some(get_dynamic_typ(info))
+    | Dynamic => Some(dyn_typ)
     | _ when expected_ty(statics) |> totalize_ty |> Typ.is_syn =>
       statics |> self_ty
     | Self => statics |> self_ty
@@ -87,7 +87,7 @@ module M: Projector = {
 
   let display_mode = (model: model, statics: option(Language.Info.t)): string =>
     switch (model) {
-    | Dynamic => "↠"
+    | Dynamic => "↦"
     | _ when self_ty(statics) == expected_ty(statics) => "⇔"
     | _ when expected_ty(statics) |> totalize_ty |> Typ.is_syn => "⇒"
     | Self => "⇒"
@@ -101,10 +101,36 @@ module M: Projector = {
     );
 
   let typ_view = (model, info: info, utility, view_seg: View.seg) => {
-    let typ = display_ty(model, info.statics, info) |> totalize_ty;
+    let (is_dynamic, typ) =
+      switch (model) {
+      | Dynamic =>
+        let self_ty = self_ty(info.statics);
+        let dyn_typ =
+          get_dynamic_typ(info)
+          |> Grammar.map_typ_annotation(_ => IdTagged.IdTag.fresh(), _);
+        let ids: list(Id.t) =
+          Typ.diff(
+            Option.value(~default=Typ.fresh(Unknown(Internal)), self_ty),
+            dyn_typ,
+          );
+        let is_dynamic_id = (id: Id.t): bool => {
+          if (List.mem(id, ids)) {
+            print_endline("Was dynamic id: " ++ Id.str3(id));
+          } else {
+            ();
+          };
+          List.mem(id, ids);
+        };
+        (is_dynamic_id, dyn_typ);
+      | Expected => ((_ => false), expected_ty(info.statics) |> totalize_ty)
+      | Self => ((_ => false), self_ty(info.statics) |> totalize_ty)
+      };
+
     div(
       ~attrs=[Attr.classes(["type-cell"])],
-      [Typ(typ) |> utility.term_to_seg |> view_seg(Sort.Typ)],
+      [
+        Typ(typ) |> utility.term_to_seg |> view_seg(~is_dynamic, Sort.Typ, _),
+      ],
     );
   };
 
