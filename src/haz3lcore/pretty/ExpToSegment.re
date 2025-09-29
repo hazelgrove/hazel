@@ -241,7 +241,7 @@ let rec parenthesize =
     // Single-element tuples are printed as (_ = e)
     let inner =
       TupLabel(
-        Deferral(OutsideAp) |> Exp.temp,
+        ExplicitNonlabel |> Exp.temp,
         parenthesize(e) |> paren_at(Precedence.prod),
       )
       |> rewrap;
@@ -516,6 +516,25 @@ and parenthesize_typ =
   | List(t) =>
     List(parenthesize_typ(t) |> paren_typ_at(Precedence.min)) |> rewrap
   | Prod([]) => typ
+  | Prod([t])
+      when
+        switch (t.term) {
+        | TupLabel(_) => false
+        | _ => true
+        } =>
+    // Single-element tuples are printed as (_ = e)
+    let inner =
+      TupLabel(
+        ExplicitNonlabel |> Typ.temp,
+        parenthesize_typ(t) |> paren_typ_at(Precedence.prod),
+      )
+      |> rewrap;
+
+    if (already_paren) {
+      inner;
+    } else {
+      Parens(inner) |> Typ.fresh;
+    };
   | Prod(ts) =>
     let inner =
       Prod(

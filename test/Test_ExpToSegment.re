@@ -385,5 +385,18 @@ let tests = (
         ),
       )
     ),
+    test_case("Singleton unlabeled tuple type", `Quick, () =>
+      check(
+        string,
+        "Singleton unlabeled tuple type",
+        "(_=Int)",
+        print_seg(
+          ExpToSegment.typ_to_segment(
+            ~settings=exp_to_segment_settings,
+            IdTagged.FreshGrammar.Typ.(prod([int()])),
+          ),
+        ),
+      )
+    ),
   ],
 );
