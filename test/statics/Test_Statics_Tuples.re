@@ -180,6 +180,44 @@ module ExplicitlyUnlabeledTuples = {
       {|(1,"") : (_=Int, _=String)|},
       Some(prod([int(), string()])),
     ),
+    test_case("Marks are placed on elements", `Quick, () =>
+      annotated_tree_test(
+        {|(_=1) : (_=String)|},
+        prod([tup_label(explicit_non_label(), string())]),
+        FIError.(
+          Exp.(
+            asc(
+              tuple([
+                tup_label(
+                  explicit_non_label(),
+                  int(
+                    ~ann=
+                      Some(
+                        FTemp.Typ.(
+                          Exp(
+                            Common(
+                              Inconsistent(
+                                Expectation({
+                                  ana: string(),
+                                  syn: int(),
+                                }),
+                              ),
+                            ),
+                          )
+                        ),
+                      ),
+                    1,
+                  ),
+                ),
+              ]),
+              Typ.(
+                parens(prod([tup_label(explicit_non_label(), string())]))
+              ),
+            )
+          )
+        ),
+      )
+    ),
   ];
 };
 let tests = (
