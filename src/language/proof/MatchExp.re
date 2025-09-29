@@ -294,7 +294,11 @@ and match_pat = (pat_r: Pat.t, pat: Pat.t): option(alphas) =>
   | (_, TupLabel({term: ExplicitNonlabel, _}, pat)) =>
     match_pat(pat_r, pat)
   | (ExplicitNonlabel, _) =>
-    raise(Failure("match_pat ExplicitNonlabel shouldn't show up"))
+    raise(
+      Failure(
+        "match_pat ExplicitNonlabel shouldn't show up since they're matched above",
+      ),
+    )
   | (TupLabel(e1, e2), TupLabel(e3, e4)) =>
     let* alphas1 = match_pat(e1, e3);
     let* alphas2 = match_pat(e2, e4);

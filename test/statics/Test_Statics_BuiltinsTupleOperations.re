@@ -220,7 +220,7 @@ module ProjectLabels = {
     test_case("project_labels with label not in tuple", `Quick, () =>
       annotated_tree_test(
         {|project_labels((a=1, b=true, c=3), `d`)|},
-       prod( [unknown(Internal)]),
+        prod([unknown(Internal)]),
         FIError.Exp.(
           ap(
             Forward,

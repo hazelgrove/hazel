@@ -689,7 +689,7 @@ let rec append_exp = (e1: Language.Exp.t, e2: Language.Exp.t): Language.Exp.t =>
   | Tuple(_)
   | TupLabel(_)
   | Label(_)
-  | ExplicitNonlabel // TODO Labels can't be seq'd
+  | ExplicitNonlabel
   | Dot(_)
   | Var(_)
   | Ap(_)

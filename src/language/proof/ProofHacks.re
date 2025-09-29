@@ -172,7 +172,11 @@ let dhpat_extend_ctx = (dhpat: DHPat.t, ty: Typ.t, ctx: Ctx.t): option(Ctx.t) =>
     | Label(name) =>
       Typ.equal(ty, Label(name) |> Typ.temp) ? Some([]) : None
     | ExplicitNonlabel =>
-      raise(Failure("dhpat_extend_ctx ExplicitNonlabel shouldn't show up"))
+      raise(
+        Failure(
+          "dhpat_extend_ctx ExplicitNonlabel shouldn't show up since they should only show up in in tuplabels below",
+        ),
+      )
     | TupLabel({term: ExplicitNonlabel, _}, dhpat) =>
       dhpat_var_entry(dhpat, ty)
     | TupLabel(_, dp1) =>

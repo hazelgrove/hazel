@@ -119,10 +119,7 @@ in fn("hello")|},
       )
     ),
     test_case("Explicitly unlabeled tuple entry", `Quick, () =>
-      parse_and_evaluate_test(
-        "1",
-        {|let (_=x) = (_=1) in x|},
-      )
+      parse_and_evaluate_test("1", {|let (_=x) = (_=1) in x|})
     ),
   ],
 );

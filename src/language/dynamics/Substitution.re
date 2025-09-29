@@ -11,7 +11,11 @@ let rec binds_var = (x: Var.t, dp: DHPat.t): bool =>
   | Label(_)
   | Constructor(_) => false
   | ExplicitNonlabel =>
-    raise(Failure("binds_var ExplicitNonlabel shouldn't show up"))
+    raise(
+      Failure(
+        "binds_var ExplicitNonlabel shouldn't show up since they're removed in elaboration",
+      ),
+    )
   | Asc(y, _)
   | Parens(y)
   | Probe(y, _) => binds_var(x, y)
