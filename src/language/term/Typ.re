@@ -979,6 +979,8 @@ let to_product = (tys: list(t)): t =>
 /* Computes the list of ids in t' that are not in t. Assumes initial ids are distinct. Only returns the id of the root difference. */
 let rec diff = (ty: t, ty': t): list(Id.t) => {
   switch (term_of(ty), term_of(ty')) {
+  | (Probe(t1, _), _) => diff(t1, ty')
+  | (_, Probe(t2, _)) => diff(ty, t2)
   | (Parens(t1), Parens(t2)) => diff(t1, t2)
   | (Unknown(_), Unknown(_)) => []
   | (Unknown(_), _) => [ty' |> rep_id]
@@ -999,14 +1001,13 @@ let rec diff = (ty: t, ty': t): list(Id.t) => {
   | (Prod(_), _) => [ty' |> rep_id]
   | (TupLabel(l1, t1), TupLabel(l2, t2)) => diff(l1, l2) @ diff(t1, t2)
   | (TupLabel(_, _), _) => [ty' |> rep_id]
+  | (List(t1), List(t2)) => diff(t1, t2)
+  | (List(_), _) => [ty' |> rep_id]
   | _ =>
     // TODO
     raise(
       Failure(
-        "diff: unsupported types"
-        ++ pretty_print(ty)
-        ++ " and "
-        ++ pretty_print(ty'),
+        "diff: unsupported types" ++ show(ty) ++ " and " ++ show(ty'),
       ),
     )
   };

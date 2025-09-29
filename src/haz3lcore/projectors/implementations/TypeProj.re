@@ -8,6 +8,7 @@ let expected_ty = (info: option(Info.t)): option(Typ.t) =>
   switch (info) {
   | Some(InfoExp({ana, _}))
   | Some(InfoPat({ana, _})) => Some(ana)
+  | Some(InfoTyp({term, _})) => Some(term) // TODO Expected doesn't make sense for types
   | _ => None
   };
 
@@ -15,6 +16,7 @@ let self_ty = (info: option(Info.t)): option(Typ.t) =>
   switch (info) {
   | Some(InfoExp({self, _})) => Self.typ_of_exp(self)
   | Some(InfoPat({self, _})) => Self.typ_of_pat(self)
+  | Some(InfoTyp({term, _})) => Some(term)
   | _ => None
   };
 
@@ -67,6 +69,7 @@ module M: Projector = {
   let init = (any: Term.Any.t): option(model) => {
     switch (any) {
     | Exp(_)
+    | Typ(_) // TODO This seems to behave oddly on grout
     | Pat(_) => Some(Expected)
     | Any () => Some(Expected) /* Grout don't have sorts rn */
     | _ => None
