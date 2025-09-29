@@ -24,11 +24,41 @@ let totalize_ty = (expected_ty: option(Typ.t)): Typ.t =>
   | None => Typ.fresh(Unknown(Internal))
   };
 
+let get_dynamic_typ = (info: info): Typ.t => {
+  let dynamic_typ =
+    info.dynamics
+    |> Option.bind(
+         _,
+         (d: Dynamics.Info.t) => {
+           let statics =
+             Statics.mk(CoreSettings.on, Builtins.ctx_init(Some(Int)));
+           let type_of = (c: Dynamics.Probe.Closure.t) => {
+             IdTagged.rep_id(c.value)
+             |> Id.Map.find_opt(_, statics(c.value))
+             |> Option.bind(
+                  _,
+                  fun
+                  | InfoExp(e) => {
+                      Some(e.ty);
+                    }
+                  | _ => None,
+                );
+           };
+           let types = List.map(type_of, d) |> Util.OptUtil.sequence;
+
+           Option.map(Typ.consistent_join(Ctx.empty), types);
+         },
+       )
+    |> Option.value(~default=Typ.fresh(Unknown(Internal)));
+  dynamic_typ;
+};
+
 module M: Projector = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type model =
     | Expected
-    | Self;
+    | Self
+    | Dynamic;
 
   [@deriving (show({with_path: false}), sexp, yojson)]
   type action =
@@ -43,11 +73,12 @@ module M: Projector = {
     };
   };
 
-  let dynamics = false;
+  let dynamics = true;
   let focusable = Focusable.non;
 
-  let display_ty = (model, statics): option(Typ.t) =>
+  let display_ty = (model, statics, info): option(Typ.t) =>
     switch (model) {
+    | Dynamic => Some(get_dynamic_typ(info))
     | _ when expected_ty(statics) |> totalize_ty |> Typ.is_syn =>
       statics |> self_ty
     | Self => statics |> self_ty
@@ -56,6 +87,7 @@ module M: Projector = {
 
   let display_mode = (model: model, statics: option(Language.Info.t)): string =>
     switch (model) {
+    | Dynamic => "↠"
     | _ when self_ty(statics) == expected_ty(statics) => "⇔"
     | _ when expected_ty(statics) |> totalize_ty |> Typ.is_syn => "⇒"
     | Self => "⇒"
@@ -69,7 +101,7 @@ module M: Projector = {
     );
 
   let typ_view = (model, info: info, utility, view_seg: View.seg) => {
-    let typ = display_ty(model, info.statics) |> totalize_ty;
+    let typ = display_ty(model, info.statics, info) |> totalize_ty;
     div(
       ~attrs=[Attr.classes(["type-cell"])],
       [Typ(typ) |> utility.term_to_seg |> view_seg(Sort.Typ)],
@@ -79,7 +111,8 @@ module M: Projector = {
   let update = (model, _, a: action) =>
     switch (a, model) {
     | (ToggleDisplay, Expected) => Self
-    | (ToggleDisplay, Self) => Expected
+    | (ToggleDisplay, Self) => Dynamic
+    | (ToggleDisplay, Dynamic) => Expected
     };
 
   let syntax_str = (info: info) => {
