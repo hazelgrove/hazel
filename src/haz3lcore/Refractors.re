@@ -104,13 +104,7 @@ let toggle_manual =
 
 let ids_from_term =
     (~term_data, ~terms, ~measured, ~info_map, id: Id.t): list(Id.t) =>
-  AutoProbe.get_sophisticated_probe_term_ids_with_statics(
-    id,
-    term_data,
-    terms,
-    measured,
-    info_map,
-  )
+  AutoProbe.ids_to_autoprobe(id, term_data, terms, measured, info_map)
   |> Option.to_list
   |> List.flatten
   |> List.filter_map(Fun.id);

@@ -111,7 +111,7 @@ let test_probe_placement = (~name: string, ~code: string): test_case(_) => {
       /* Call AutoProbe to get probe term IDs using the sophisticated version */
       let probe_ids =
         switch (
-          AutoProbe.get_sophisticated_probe_term_ids_with_statics(
+          AutoProbe.ids_to_autoprobe(
             root_id,
             term_data,
             terms,
@@ -178,9 +178,9 @@ let nested_multiline_tests = [
   test_probe_placement(
     ~name="Multi-line parens - don't redundatly probe parens",
     ~code={|let x = ( // x
-  1 // 1
+  1 + 1 // 1 + 1
 ) in
-x // x|},
+1 + 1 // 1 + 1|},
   ),
   test_probe_placement(
     ~name="Single-line function application",
@@ -188,9 +188,10 @@ x // x|},
   ),
   test_probe_placement(
     ~name="Multi-line function application - probe ap not last arg",
-    ~code={|let x = f(1, // 1
-    2) in // f(1, 2)
-x // x|},
+    ~code=
+      {|let x = f(1 + 1, // 1 + 1
+    2) in // f(1 + 1, 2)
+1 + 1 // 1 + 1|},
   ),
 ];
 
@@ -199,7 +200,7 @@ let hole_avoidance_tests = [
   test_probe_placement(
     ~name="Avoid hole if there's an alternative",
     ~code={|let incomplete = ? in // incomplete
-incomplete // incomplete|},
+1 + 1 // 1 + 1|},
   ),
   test_probe_placement(
     ~name="Probe hole if there's no alternative",
@@ -217,7 +218,7 @@ pair // pair|},
   ),
   test_probe_placement(
     ~name="Single-line list - normal behavior",
-    ~code={|let list = [1, 2, 3] in // [1, 2, 3]
+    ~code={|let list = [1, 2, 3 + 1] in // [1, 2, 3 + 1]
 list // list|},
   ),
   /* Note: Multi-line containers probe the trailing elements on each line,
@@ -226,11 +227,11 @@ list // list|},
     ~name="Multi-line tuple - probe elements but not container",
     ~code=
       {|let triple = ( // triple
-  first_value, // first_value
-  second_value, // second_value
-  third_value // third_value
+  a, // a
+  b, // b
+  c // c
 ) in
-triple // triple|},
+1 + 1 // 1 + 1|},
   ),
   test_probe_placement(
     ~name="Multi-line tuple - probe trailing elements on each line 1",
@@ -239,7 +240,7 @@ triple // triple|},
   a, // a
   b, c + d // c + d
 ) in
-triple // triple|},
+1 + 1 // 1 + 1|},
   ),
   test_probe_placement(
     ~name="Multi-line tuple - probe trailing elements on each line 2",
@@ -248,17 +249,17 @@ triple // triple|},
   a, b + c, // b + c
   d // d
 ) in
-triple // triple|},
+1 + 1 // 1 + 1|},
   ),
   test_probe_placement(
     ~name="Multi-line list - probe elements but not container",
     ~code=
       {|let items = [ // items
-  item1, // item1
-  item2, // item2
-  item3 // item3
+  a, // a
+  b, // b
+  c // c
 ] in
-items // items|},
+1 + 1 // 1 + 1|},
   ),
 ];
 
@@ -267,12 +268,12 @@ let let_expression_tests = [
   test_probe_placement(
     ~name="Only one term at rightmost position",
     ~code={|let (x, y) = 1 in // 1
-x // x|},
+1 + 1 // 1 + 1|},
   ),
   test_probe_placement(
     ~name="Multiple terms at rightmost - largest wins",
     ~code={|let (x, y) = 2 + 1 in // 2 + 1
-x // x|},
+1 + 1 // 1 + 1|},
   ),
   test_probe_placement(
     ~name="Let with hole body ending on same line - don't probe let or hole",
@@ -294,8 +295,8 @@ let if_expression_tests = [
   test_probe_placement(
     ~name="Single-line if - default behavior",
     ~code=
-      {|let result = if cond then a else b in // if cond then a else b
-result // result|},
+      {|let result = if c then a else b in // if c then a else b
+1 + 1 // 1 + 1|},
   ),
   test_probe_placement(
     ~name="Multi-line if - probe branches",
@@ -304,7 +305,7 @@ result // result|},
   if condition then   // condition
   branch1             // branch1
   else branch2 in     // branch2
-result                // result|},
+1 + 1                 // 1 + 1|},
   ),
   test_probe_placement(
     ~name="Nested if - probe branches",
@@ -315,7 +316,7 @@ result                // result|},
     val1                // val1
     else val2           // val2
   else val3 in          // val3
-complex                 // complex|},
+1 + 1                   // 1 + 1|},
   ),
 ];
 
