@@ -207,10 +207,8 @@ async function runCore(
       await page.waitForTimeout(100); // let clipboard update
       // Read clipboard in browser context
       const copied = await page.evaluate(async () => {
-        if (navigator.clipboard && navigator.clipboard.readText) {
-          return await navigator.clipboard.readText();
-        }
-        return '';
+        const selection = window.getSelection();
+        return selection ? selection.toString() : '';
       });
       if (copied && copied.trim()) failed_or_indet_tests.push(copied.trim());
     }
@@ -474,7 +472,9 @@ async function runOnce(attempt: number, params: {
   for (let attempt = 1; attempt <= (retries + 1); attempt++) {
     const res = await runOnce(attempt, { headless, url, outDir: outputDir, outPath, task, apiKey, modelValue }) as RunOnceResult;
     if (res.ok) {
-      console.log(JSON.stringify({ ...(res.summary ?? {}), output: outPath, attempts: attempt }, null, 2));
+      // Log summary without the verbose message_log
+      const { message_log, ...summaryWithoutLog } = res.summary;
+      console.log(JSON.stringify({ ...summaryWithoutLog, output: outPath, attempts: attempt }, null, 2));
       if (res.summary?.fail > 0) process.exitCode = 2;
       return;
     }
