@@ -954,3 +954,11 @@
   opacity: 0.7;
   text-align: center;
 }
+
+/* Agent looping theme - applies dreamy blue/purple colors when agent is actively editing */
+.agent-looping {
+  --caret-color: var(--agent-caret-color);
+  --shard-selected: var(--agent-shard-selected);
+  --shadow-selected: var(--agent-shadow-selected);
+  --cell-selected-accent: var(--agent-cell-selected-accent);
+}
