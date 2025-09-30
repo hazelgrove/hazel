@@ -48,10 +48,9 @@ module Model = {
         ~selection_ids: list(Id.t),
         ~info: ProjectorBase.info,
         ~id: Id.t,
+        ~sort: Sort.t,
       ) => {
-    sort:
-      Option.map(Language.Info.sort_of, info.statics)
-      |> Option.value(~default=Sort.Exp),
+    sort,
     error:
       Option.map(Language.Info.is_error, info.statics)
       |> Option.value(~default=false),
@@ -64,6 +63,7 @@ module Model = {
       (
         projectors: Id.Map.t(Base.projector),
         measured: Measured.t,
+        term_data: TermData.t,
         selection_ids: list(Id.t),
         indicated: option(Indicated.piece),
         statics: Language.Statics.Map.t,
@@ -83,6 +83,7 @@ module Model = {
           status:
             mk_status(
               p,
+              ~sort=TermData.sort(id, term_data),
               ~editor_active,
               ~indicated,
               ~selection_ids,
@@ -175,29 +176,40 @@ let offside_wrapper =
     [v],
   );
 
-let simple_code = (~background=false, font_metrics, sort, segment): Node.t => {
+let simple_code = (~background=false, font_metrics, _sort, segment): Node.t => {
   let shape_map = ProjectorCore.Shape.Map.empty; /* Assume this doesn't contain projectors */
-  let map = Measured.of_segment(segment, shape_map);
-  module Text =
-    Code.Text({
-      let map = map;
-      let settings = Settings.Model.init;
-      let shape_map = shape_map;
-      let font_metrics = font_metrics;
-    });
+  let measured = Measured.of_segment(segment, shape_map);
+  let code =
+    Code.view(
+      ~measured,
+      ~settings=Settings.Model.init,
+      ~shape_map,
+      ~font_metrics,
+      ~term_data=Id.Map.empty,
+      ~buffer_ids=[],
+      segment,
+    );
   let backing =
     if (background) {
-      switch (Deco.quick_select_deco(segment)) {
+      switch (
+        Highlight.of_segment(
+          ~measured,
+          ~shape_map,
+          ~font_metrics,
+          ~shape_init=Some(Convex),
+          ~clss=[],
+          segment,
+        )
+      ) {
       | exception _ => []
-      | view => [view]
+      | view => view
       };
     } else {
       [];
     };
   div(
     ~attrs=[Attr.class_("code")],
-    [span_c("code-text", Text.of_segment([], false, sort, segment))]
-    @ backing,
+    [span_c("code-text", code)] @ [div_c("quick-select-deco", backing)],
   );
 };
 

@@ -652,12 +652,7 @@ let update =
             {
               let* sketch_z_with_tag =
                 Parser.to_zipper(~zipper_init=zipper, tag);
-              let sketch_seg =
-                Zipper.smart_seg(
-                  ~dump_backpack=true,
-                  ~erase_buffer=true,
-                  sketch_z_with_tag,
-                );
+              let sketch_seg = Dump.to_segment(sketch_z_with_tag);
               let* index = Indicated.index(zipper);
               let+ ci = Id.Map.find_opt(index, info_map);
               AssistantModes.Completion.mk_ctx_prompt(

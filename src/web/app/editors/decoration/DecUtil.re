@@ -86,9 +86,6 @@ let code_svg_sized =
 let position =
     (
       ~style="",
-      ~left_fudge=0.0,
-      ~top_fudge=0.0,
-      ~width_fudge=0.0,
       ~height_fudge=0.0,
       ~width=1,
       ~height=1,
@@ -102,10 +99,9 @@ let position =
     ++ ";"
     ++ Printf.sprintf(
          "left: %fpx; top: %fpx; width: %fpx; height: %fpx;",
-         Float.of_int(origin.col) *. font_metrics.col_width +. left_fudge,
-         Float.of_int(origin.row) *. font_metrics.row_height +. top_fudge,
-         scale
-         *. (font_metrics.col_width *. Float.of_int(width) +. width_fudge),
+         Float.of_int(origin.col) *. font_metrics.col_width,
+         Float.of_int(origin.row) *. font_metrics.row_height,
+         scale *. (font_metrics.col_width *. Float.of_int(width)),
          scale
          *. (font_metrics.row_height *. Float.of_int(height) +. height_fudge),
        ),
@@ -113,25 +109,18 @@ let position =
 
 let abs_position =
     (
-      ~left_fudge=0.0,
-      ~top_fudge=0.0,
-      ~width_fudge=0.0,
       ~height_fudge=0.0,
       ~scale=1.,
       ~font_metrics: FontMetrics.t,
       origin: Point.t,
-    ) => {
+    ) =>
   position(
     ~style="position: absolute",
-    ~left_fudge,
-    ~top_fudge,
-    ~width_fudge,
     ~height_fudge,
     ~scale,
     ~font_metrics,
     origin,
   );
-};
 
 let code_svg =
     (
@@ -139,16 +128,12 @@ let code_svg =
       ~origin: Point.t,
       ~base_cls=[],
       ~path_cls=[],
-      ~left_fudge=0.0,
-      ~top_fudge=0.0,
-      ~width_fudge=0.0,
       ~height_fudge=0.0,
       ~id="",
-      ~attrs=[],
       ~abs_pos=true,
       ~scale=0.5,
       paths: list(SvgUtil.Path.cmd),
-    ) => {
+    ) =>
   // re: scale
   // Using a viewBox of 0 0 1 1 seems to trigger Chrome rounding bug
   // (https://bugs.chromium.org/p/chromium/issues/detail?id=424288) that
@@ -161,28 +146,10 @@ let code_svg =
       @ [
         Attr.classes(base_cls),
         abs_pos
-          ? abs_position(
-              ~font_metrics,
-              ~left_fudge,
-              ~top_fudge,
-              ~width_fudge,
-              ~height_fudge,
-              ~scale,
-              origin,
-            )
-          : position(
-              ~font_metrics,
-              ~left_fudge,
-              ~top_fudge,
-              ~width_fudge,
-              ~height_fudge,
-              ~scale,
-              origin,
-            ),
+          ? abs_position(~font_metrics, ~height_fudge, ~scale, origin)
+          : position(~font_metrics, ~height_fudge, ~scale, origin),
         Attr.create("viewBox", Printf.sprintf("0 0 %f %f", scale, scale)),
         Attr.create("preserveAspectRatio", "none"),
-      ]
-      @ attrs,
+      ],
     [SvgUtil.Path.view(~attrs=[Attr.classes(path_cls)], paths)],
   );
-};

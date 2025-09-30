@@ -40,7 +40,11 @@ let go =
     |> return(CantIntroduce)
   | Paste(String(clipboard)) =>
     Parser.to_zipper(~zipper_init=z, clipboard) |> return(CantPaste)
-  | Paste(Segment(segment)) => Ok(Zipper.insert_segment(z, segment))
+  | Paste(Segment(segment)) =>
+    z.caret == Outer
+      ? Ok(Zipper.insert_segment(z, segment))
+      : Parser.to_zipper(~zipper_init=z, Printer.of_segment(segment))
+        |> return(CantPaste)
   | Cut =>
     /* System clipboard handling is done in Page.view handlers */
     Destruct.go(Left, z) |> return(Cant_destruct)
@@ -126,8 +130,6 @@ let go =
     z
     |> Insert.go(char, ~ci=Indicated.ci_of(z, statics.info_map))
     |> return(Cant_insert)
-  | Put_down => Zipper.put_down_glom(z) |> return(Cant_put_down)
-  | Dump => Ok(Zipper.try_to_dump_backpack(z))
   | Composition((a, schedule_tool_response)) =>
     CompositionTools.Perform.go(
       ~syntax,
@@ -137,4 +139,6 @@ let go =
       ~return,
       ~schedule_tool_response,
     )
+  | Put_down => Zipper.put_down(z) |> return(Cant_put_down)
+  | Dump => Ok(Dump.to_zipper(z))
   };
