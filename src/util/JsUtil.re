@@ -297,3 +297,13 @@ let autosize_textarea = (id: string) => {
   el##.style##.height := Js.string("auto");
   el##.style##.height := Js.string(string_of_int(el##.scrollHeight) ++ "px");
 };
+
+/* Agent looping theme functions */
+let set_agent_looping_theme = (enabled: bool) => {
+  let root = Dom_html.document##.documentElement;
+  if (enabled) {
+    root##.classList##add(Js.string("agent-looping"));
+  } else {
+    root##.classList##remove(Js.string("agent-looping"));
+  };
+};

@@ -499,14 +499,6 @@ let update =
         let curr_chat =
           Id.Map.find(chat_id, model.chat_history.past_composition_chats);
         switch (kind) {
-        | Intermediate =>
-          AssistantUpdateComposition.intermediate_select_curr_node(
-            ~zipper,
-            ~info_map,
-            ~schedule_editor_action,
-          );
-          model;
-
         // The initial message sent to the LLM via the User --
         // We can think of the agentic looping as a directed graph:
         // 1. The user sends a message to the LLM, appending with info from (2)
@@ -541,6 +533,7 @@ let update =
           let updated_chat =
             update_chat(curr_chat, [content_message, ctx_message]);
 
+          schedule_action(EmployLLMAction(SetAgentLooping(true)));
           mk_llm_call(
             ~mode,
             ~model,
@@ -556,9 +549,6 @@ let update =
               response,
               chat_id,
             )
-          );
-          schedule_action(
-            SendMessage(Composition(Intermediate, eval_mode), None, chat_id),
           );
           update_model_chat_history(
             ~model,
@@ -576,9 +566,6 @@ let update =
           //    which takes the tool call and the tool call results (which we send as the context).
           //    We then send off this message to the LLM and await a response, either
           //    an end output to the user (implying no more looping) or a new tool call.
-          schedule_action(
-            SendMessage(Composition(Intermediate, eval_mode), None, chat_id),
-          );
           let (local_code_map_str, display) =
             AssistantModes.Composition.mk_structured_code_map_prompt(
               ChatLSP.Options.init,
@@ -941,6 +928,7 @@ let update =
         // if (eval_mode) {
         //   schedule_eval_action(CollectResults);
         // };
+        schedule_action(EmployLLMAction(SetAgentLooping(false)));
         update_model_chat_history(
           ~model,
           ~mode,
@@ -953,6 +941,7 @@ let update =
         // if (eval_mode) {
         //   schedule_eval_action(CollectResults);
         // };
+        schedule_action(EmployLLMAction(SetAgentLooping(false)));
         schedule_action(
           InternalError(
             "By default, we stop the agent after "
@@ -1203,6 +1192,10 @@ let update =
     | SetLoop(loop) => {
         ...model,
         loop,
+      }
+    | SetAgentLooping(agent_looping) => {
+        ...model,
+        agent_looping,
       }
     };
 

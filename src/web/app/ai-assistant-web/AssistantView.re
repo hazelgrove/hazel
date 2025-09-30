@@ -1638,5 +1638,11 @@ let view =
         ),
       ],
     );
+
+  // Apply blue cursor theme when agent is looping
+  JsUtil.delay(0.0, () => {
+    JsUtil.set_agent_looping_theme(model.agent_looping)
+  });
+
   view;
 };

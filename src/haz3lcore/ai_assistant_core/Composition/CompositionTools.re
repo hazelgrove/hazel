@@ -528,7 +528,8 @@ module Perform = {
           };
         };
         let insert_term = (z, target_id, code, d) => {
-          switch ( // ' let a = 0 in'
+          switch (
+            // ' let a = 0 in'
             Select.term(
               ~defs_exclude_bodies=true,
               ~case_rules=false,
@@ -716,6 +717,20 @@ module Perform = {
 
     let res =
       composition_dispatch(a, syntax, z, mk_statics, return, curr_node);
+
+    let res =
+      switch (res) {
+      | Ok(z) =>
+        let curr_node =
+          Option.get(
+            AssistantTreeHelper.build_curr_node_info(z, mk_statics(z)),
+          );
+        switch (Select.tile(Info.id_of(curr_node.info), z)) {
+        | Some(z) => Ok(z)
+        | None => Error(Action.Failure.Cant_select)
+        };
+      | Error(e) => Error(e)
+      };
 
     //todo: handle res and use schedule_assistant_action to send the result to the assistant and loop
     switch (schedule_tool_response) {
