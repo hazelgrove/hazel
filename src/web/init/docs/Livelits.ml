@@ -1,6 +1,7 @@
 let out : string * Haz3lcore.PersistentSegment.t =
   ( "Livelits",
     {
+      refractors = Haz3lcore.Zipper.Refractor.Map.empty;
       segment =
         "((Secondary((id \
          66b121c3-cd30-462a-8927-e0ef55b5b5a2)(content(Comment\"# LIVELITS \

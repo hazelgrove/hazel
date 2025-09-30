@@ -42,7 +42,7 @@ let probes_menu = (~inject: Action.t => Ui_effect.t(unit)) =>
         "contents",
         [
           menu_item("Toggle probe", inject, Refractor(ToggleProbeManual)),
-          menu_item("Toggle autoprobe", inject, Refractor(ToggleProbeREPL)),
+          menu_item("Toggle auto", inject, Refractor(ToggleProbeREPL)),
           menu_item("Step into", inject, Refractor(ProbeJump)),
         ],
       ),

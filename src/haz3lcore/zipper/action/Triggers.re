@@ -23,6 +23,21 @@ let expand_projector = (z: t): option(t) => {
       Tile({label: [name], _}),
       ...rest,
     ]
+      when name == "^^probe" =>
+    /* Trim only need because of grout/whitespace transmutation when syntax is hole */
+    // let syntax =
+    //   syntax |> Segment.trim_secondary(Right) |> Segment.trim_secondary(Left);
+    Zipper.update_siblings(((_, r)) => (syntax @ rest |> List.rev, r), z)
+    |> MkRefractor.add_single(
+         Segment.root_id(Segment.skel(syntax), syntax),
+       )
+    |> Option.some
+  //TODO(andrew): cleanup
+  | [
+      Tile({label: ["(", ")"], children: [syntax], _}),
+      Tile({label: [name], _}),
+      ...rest,
+    ]
       when Token.is_projector_invoke(name) =>
     /* Trim only need because of grout/whitespace transmutation when syntax is hole */
     let syntax =
@@ -44,14 +59,14 @@ let expand_projector = (z: t): option(t) => {
   };
 };
 
-let projector_to_invoke: Base.projector => Segment.t =
-  pr => [
-    Piece.mk_tile(
-      Form.mk_atom_op(Exp, Token.mk_projector_invoke(pr.kind)),
-      [],
-    ),
-    Piece.mk_tile(Form.get(ApExp), [Piece.unparenthesize(pr.syntax)]),
-  ];
+let refractor_to_invoke =
+    (kind: ProjectorCore.Kind.t, seg: Segment.t): Segment.t => [
+  Piece.mk_tile(Form.mk_atom_op(Exp, Token.mk_projector_invoke(kind)), []),
+  Piece.mk_tile(Form.get(ApExp), [seg]),
+];
+
+let projector_to_invoke = (pr: Base.projector): Segment.t =>
+  refractor_to_invoke(pr.kind, Piece.unparenthesize(pr.syntax));
 
 let expand_livelit = (~ctx, z: t): option(t) =>
   switch (z.relatives.siblings |> fst |> List.rev) {
@@ -101,3 +116,29 @@ let destruct = (z: t): option(t) =>
     Some(Zipper.update_siblings(((_, r)) => (l @ last, r), z));
   | _ => None
   };
+
+/*
+  What we want to do here is make the skel, and the recurse into the skel structure,
+  at each time checking if the skel root id is in the refractor map. If it is, we need
+  to wrap the subseg corresponding to the skel range corresponding to the refactor id
+  with the result of calling refractor_to_invoke on the subseg, where the think we're
+  wrapping is the result of continuing the recursion down into the seg. kind of confusing.
+  basically the idea here is that we want to wrap certain subsegs of the segment, possibly
+  contained within other to-be-wrapped subsegs, where the subsegs are given by the term
+  structure as which we need to build the skel to get, where the skel can be used to get
+  the indicies in the original 'base' segment (see e.g. TermData.segment) corresponding to
+  a subterm of a given id. See e.g. Segment.root_id to see the relationship between ids
+  and skel, as well as Skel.re obviously.
+
+  As a simple example, consider the segment:
+  '1 + 2 * 3'
+  where '2 * 3' is a term with id A, and '2' is a term with id B.
+  say the refractors map has entries for A and B, both having kind 'probe'.
+  then we want this function to convert this segment into:
+  '1 + ^^probe(^^probe(2) * 3)'
+ where refractor_to_invoke should take care of the actual wrapping
+
+ Possible strategy: Recu
+   */
+let refractor_seg_to_seg =
+    (_refractors: Id.Map.t(Base.projector), seg: Segment.t): Segment.t => seg;

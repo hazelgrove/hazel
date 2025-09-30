@@ -1,6 +1,7 @@
 let out : string * Haz3lcore.PersistentSegment.t =
   ( "Cards",
     {
+      refractors = Haz3lcore.Zipper.Refractor.Map.empty;
       segment =
         "((Secondary((id \
          4ae35bc0-09bd-4a32-8477-01f073316cb2)(content(Comment\"# PLAYING CARD \

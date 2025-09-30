@@ -177,11 +177,7 @@ module Update = {
                 current |> fst,
                 current
                 |> snd
-                |> ((e: CellEditor.Model.t) => e.editor)
-                |> (
-                  (e: CodeWithStatics.Model.t) =>
-                    Zipper.zip(e.editor.state.zipper)
-                )
+                |> (e => e.editor.editor.state.zipper)
                 |> PersistentSegment.persist,
               ))
             );

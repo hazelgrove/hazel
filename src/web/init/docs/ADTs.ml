@@ -1,6 +1,7 @@
 let out : string * Haz3lcore.PersistentSegment.t =
   ( "ADTs",
     {
+      refractors = Haz3lcore.Zipper.Refractor.Map.empty;
       segment =
         "((Secondary((id \
          80377b4b-960e-435a-a34e-44cc9a51274e)(content(Comment\"# Lambda \

@@ -1,6 +1,7 @@
 let out : string * Haz3lcore.PersistentSegment.t =
   ( "Tuples",
     {
+      refractors = Haz3lcore.Zipper.Refractor.Map.empty;
       segment =
         "((Secondary((id \
          6c2d588e-11ff-490a-9632-ebd97e76d9ca)(content(Comment\"# Tuples can \

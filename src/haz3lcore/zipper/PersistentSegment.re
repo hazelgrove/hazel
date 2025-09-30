@@ -4,33 +4,52 @@ open Util;
 type t = {
   segment: string,
   backup_text: string,
+  refractors: Id.Map.t(Base.projector),
 };
 
 let to_string = Printer.of_segment(~holes="", ~indent="");
 
-let persist = (zipper: Segment.t) => {
+let persist = (zipper: Zipper.t) => {
+  let segment = zipper |> Zipper.zip;
   {
-    segment: Segment.sexp_of_t(zipper) |> Sexplib.Sexp.to_string,
-    backup_text: to_string(zipper),
+    segment: segment |> Segment.sexp_of_t |> Sexplib.Sexp.to_string,
+    backup_text: to_string(segment, ~refractors=zipper.refractors.manuals),
+    refractors: zipper.refractors.manuals,
   };
 };
 
-let unpersist = (persisted: t) =>
-  try(Sexplib.Sexp.of_string(persisted.segment) |> Segment.t_of_sexp) {
-  | _ =>
-    print_endline(
-      "Warning: using backup text! Serialization may be for an older version of Hazel.",
-    );
-    switch (Parser.to_segment(persisted.backup_text)) {
+let restore = (persisted: t): Zipper.t =>
+  persisted.segment
+  |> Sexplib.Sexp.of_string
+  |> Segment.t_of_sexp
+  |> Zipper.unzip(~direction=Left)
+  |> Zipper.update_refractors(_, refractors =>
+       {
+         ...refractors,
+         manuals: persisted.refractors,
+       }
+     );
+
+let restore_from_backup_text = (backup_text: string): Zipper.t =>
+  (
+    switch (Parser.to_segment(backup_text)) {
     | None => Segment.empty
     | Some(z) => z
-    };
-  };
+    }
+  )
+  |> Zipper.unzip(~direction=Left);
 
-let to_persistent_zipper = (persisted: t): PersistentZipper.t => {
+let unpersist = (persisted: t): PersistentZipper.t => {
   zipper:
-    unpersist(persisted)
-    |> Zipper.unzip(~direction=Left)
+    (
+      try(restore(persisted)) {
+      | _ =>
+        print_endline(
+          "Warning: using backup text! Serialization may be for an older version of Hazel.",
+        );
+        restore_from_backup_text(persisted.backup_text);
+      }
+    )
     |> Zipper.sexp_of_t
     |> Sexplib.Sexp.to_string,
   backup_text: persisted.backup_text,

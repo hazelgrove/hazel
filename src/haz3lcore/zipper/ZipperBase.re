@@ -9,6 +9,7 @@ module Refractor = {
   module Map = {
     [@deriving (show({with_path: false}), sexp, yojson, eq)]
     type t = Id.Map.t(Base.projector);
+    let empty = Id.Map.empty;
   };
 
   [@deriving (show({with_path: false}), sexp, yojson, eq)]
@@ -39,6 +40,22 @@ type t = {
 let update_refractors = (z: t, f: Refractor.t => Refractor.t): t => {
   ...z,
   refractors: f(z.refractors),
+};
+
+let update_manuals = (f, z: t): t => {
+  ...z,
+  refractors: {
+    ...z.refractors,
+    manuals: f(z.refractors.manuals),
+  },
+};
+
+let update_ephemerals = (f, z: t): t => {
+  ...z,
+  refractors: {
+    ...z.refractors,
+    ephemerals: f(z.refractors.ephemerals),
+  },
 };
 
 let update_relatives = (f: Relatives.t => Relatives.t, z: t): t => {

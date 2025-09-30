@@ -1,33 +1,6 @@
 open Util;
 open OptUtil.Syntax;
 
-let mk_probe = (id): Base.projector => {
-  let kind = ProjectorCore.Kind.Probe;
-  let (module P) = ProjectorInit.to_module(kind);
-  let seg: Segment.t = [Piece.mk_grout(~id=Id.invalid, Convex)];
-  let piece: Base.piece = Segment.parenthesize(seg);
-  let any =
-    MakeTerm.for_projection(seg) |> OptUtil.get_or_fail("mk_probe: maketerm");
-  let model = P.init(any) |> OptUtil.get_or_fail("mk_probe: init");
-  ProjectorCore.mk(~id, kind, piece, model);
-};
-
-let update_refractors_map = (f, z: Zipper.t): Zipper.t => {
-  ...z,
-  refractors: {
-    ...z.refractors,
-    manuals: f(z.refractors.manuals),
-  },
-};
-
-let update_ephemerals = (f, z: Zipper.t): Zipper.t => {
-  ...z,
-  refractors: {
-    ...z.refractors,
-    ephemerals: f(z.refractors.ephemerals),
-  },
-};
-
 let target_subterm_ids = (id: Id.t, info_map: Language.Statics.Map.t) =>
   switch (Language.Statics.Map.lookup(id, info_map)) {
   | Some(InfoExp({term: {term: Fun(pat, body, _, _), _}, _})) =>
@@ -77,13 +50,8 @@ let rm_repl = (id: Id.t, z: Zipper.t): Zipper.t =>
     }
   );
 
-let add_single = (id: Id.t, z: Zipper.t): Zipper.t => {
-  let p = mk_probe(Id.transform_variant(id));
-  update_refractors_map(Id.Map.add(id, p), z);
-};
-
 let rm_manual = (ids: list(Id.t), z: Zipper.t): Zipper.t =>
-  update_refractors_map(
+  Zipper.update_manuals(
     map => Id.Map.filter((id, _) => !List.mem(id, ids), map),
     z,
   );
@@ -91,7 +59,7 @@ let rm_manual = (ids: list(Id.t), z: Zipper.t): Zipper.t =>
 let add_manual =
     (id: Id.t, info_map: Language.Statics.Map.t, z: Zipper.t): Zipper.t => {
   let ids = target_subterm_ids(id, info_map);
-  List.fold_left((z, id) => add_single(id, z), z, ids);
+  List.fold_left((z, id) => MkRefractor.add_single(id, z), z, ids);
 };
 
 let toggle_manual =
@@ -119,11 +87,15 @@ let add_ids_from_pinned_term =
       ids_from_term(~term_data, ~terms, ~measured, ~info_map, hd)
     };
   //TODO(andrew): should there only be one repl at a time? this is sort of what above does but not quite
-  update_ephemerals(
+  Zipper.update_ephemerals(
     _ =>
       List.fold_left(
         (map, id) =>
-          Id.Map.add(id, mk_probe(Id.transform_variant(id)), map),
+          Id.Map.add(
+            id,
+            MkRefractor.mk(Probe, Id.transform_variant(id)),
+            map,
+          ),
         Id.Map.empty,
         ids,
       ),

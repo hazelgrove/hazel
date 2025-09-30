@@ -378,6 +378,7 @@ module ErrorRound = {
               ~holes="",
               ~concave_holes=" ",
               ~projector_to_segment=Triggers.projector_to_invoke,
+              ~refractor_seg_to_seg=Fun.id //TODO(andrew)
             ),
             orphans,
           );

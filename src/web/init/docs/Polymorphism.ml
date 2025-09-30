@@ -1,6 +1,7 @@
 let out : string * Haz3lcore.PersistentSegment.t =
   ( "Polymorphism",
     {
+      refractors = Haz3lcore.Zipper.Refractor.Map.empty;
       segment =
         "((Secondary((id \
          28724395-ea08-46df-bc33-e8638e48818a)(content(Comment\"# Polymorphism \

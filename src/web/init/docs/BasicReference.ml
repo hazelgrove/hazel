@@ -1,6 +1,7 @@
 let out : string * Haz3lcore.PersistentSegment.t =
   ( "Basic Reference",
     {
+      refractors = Haz3lcore.Zipper.Refractor.Map.empty;
       segment =
         "((Secondary((id \
          aca843fa-ed08-4307-84d7-48ebf26e77a0)(content(Comment\"# Hazel \
