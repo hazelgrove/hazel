@@ -437,7 +437,7 @@ module Transition = (EV: EV_MODE) => {
           | Matches(function_arg_env) =>
             let env'' =
               evaluate_extend_env(
-                ~ap_id=Term.Exp.rep_id(d),
+                ~ap_id=Exp.rep_id(d),
                 ~call_stack=env.call_stack,
                 function_arg_env,
                 function_lexical_env,

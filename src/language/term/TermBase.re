@@ -81,8 +81,6 @@ module rec Any: {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t = any_t;
 
-  let sort: t => Sort.t;
-
   let map_term:
     (
       ~f_exp: (Exp.t => Exp.t, Exp.t) => Exp.t=?,
@@ -97,16 +95,6 @@ module rec Any: {
 } = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t = any_t;
-
-  let sort = (any: t): Sort.t =>
-    switch (any) {
-    | Exp(_) => Exp
-    | Pat(_) => Pat
-    | Typ(_) => Typ
-    | TPat(_) => TPat
-    | Rul(_) => Rul
-    | Any(_) => Any
-    };
 
   let map_term =
       (
@@ -348,8 +336,6 @@ and Typ: {
       t
     ) =>
     t;
-
-  let subst: (t, TPat.t, t) => t;
 } = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type term = typ_term;
@@ -414,40 +400,6 @@ and Typ: {
         },
     };
     x |> f_typ(rec_call);
-  };
-
-  let rec subst = (s: t, x: TPat.t, ty: t): typ_t => {
-    switch (TPat.tyvar_of_utpat(x)) {
-    | Some(str) =>
-      let (term, rewrap) = Grammar.Annotated.unwrap(ty);
-      switch (term) {
-      | Atom(_) => ty
-      | Label(name) => Grammar.Label(name) |> rewrap
-      | ExplicitNonlabel => ExplicitNonlabel |> rewrap
-      | Unknown(prov) => Unknown(prov) |> rewrap
-      | Arrow(ty1, ty2) =>
-        Arrow(subst(s, x, ty1), subst(s, x, ty2)) |> rewrap
-      | Prod(tys) => Prod(List.map(subst(s, x), tys)) |> rewrap
-      | TupLabel(label, ty) => TupLabel(label, subst(s, x, ty)) |> rewrap
-      | Sum(sm) =>
-        Sum(ConstructorMap.map(Option.map(subst(s, x)), sm)) |> rewrap
-      | Forall(tp2, ty)
-          when TPat.tyvar_of_utpat(x) == TPat.tyvar_of_utpat(tp2) =>
-        Forall(tp2, ty) |> rewrap
-      | Forall(tp2, ty) => Forall(tp2, subst(s, x, ty)) |> rewrap
-      | Rec(tp2, ty) when TPat.tyvar_of_utpat(x) == TPat.tyvar_of_utpat(tp2) =>
-        Rec(tp2, ty) |> rewrap
-      | Rec(tp2, ty) => Rec(tp2, subst(s, x, ty)) |> rewrap
-      | List(ty) => List(subst(s, x, ty)) |> rewrap
-      | Var(y) => str == y ? s : Var(y) |> rewrap
-      | Parens(ty) => Parens(subst(s, x, ty)) |> rewrap
-      | ProdProjection(t1, t2) =>
-        ProdProjection(subst(s, x, t1), subst(s, x, t2)) |> rewrap
-      | ProdExtension(t1, t2) =>
-        ProdExtension(subst(s, x, t1), subst(s, x, t2)) |> rewrap
-      };
-    | None => ty
-    };
   };
 }
 and TPat: {
