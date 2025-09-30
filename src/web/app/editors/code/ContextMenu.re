@@ -25,6 +25,7 @@ let menu_item =
         Effect.Many([
           Effect.Stop_propagation,
           Effect.Prevent_default,
+          //inject(Project(FocusIndicated)),
           inject(action),
         ])
       ),

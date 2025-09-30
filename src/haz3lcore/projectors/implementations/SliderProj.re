@@ -25,7 +25,9 @@ module M: Projector = {
       info.syntax |> info.utility.seg_to_term |> OptUtil.and_then(int_of)
     ) {
     | Some(i) => i
-    | None => failwith("Slider: Get: not integer literal")
+    | None =>
+      Segment.show(info.syntax) |> print_endline;
+      failwith("Slider: Get: not integer literal");
     };
 
   let put = (info: info, v: string): Base.segment =>

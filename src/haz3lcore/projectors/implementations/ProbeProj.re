@@ -722,7 +722,7 @@ let offside_view =
     ];
     Node.div(
       ~attrs=[
-        Attr.id(Id.cls(info.id)),
+        Attr.id(Id.cls(id)),
         Attr.tabindex(0),
         Attr.on_keydown(
           key_handler(local, ~id, ~ap_id, di, utility, parent),
