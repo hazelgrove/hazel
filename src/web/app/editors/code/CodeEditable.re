@@ -208,125 +208,6 @@ module View = {
     ),
   ];
 
-  let pos_str = (~left, ~top, font_metrics: FontMetrics.t) =>
-    Printf.sprintf(
-      "position: absolute; left: %fpx; top: %fpx;",
-      Float.of_int(left) *. font_metrics.col_width,
-      Float.of_int(top) *. font_metrics.row_height,
-    );
-
-  let context_menu_view =
-      (
-        ~inject: Update.t => Ui_effect.t(unit),
-        ~measured: Haz3lcore.Measured.t,
-        ~font_metrics: FontMetrics.t,
-        z: Haz3lcore.Zipper.t,
-      )
-      : Node.t => {
-    open Haz3lcore;
-    open WebUtil;
-    open Node;
-    let caret_point = Zipper.Caret.point(measured, z);
-    Node.div(
-      ~attrs=[
-        Attr.classes(["context-menu", "nut-menu"]),
-        Attr.create(
-          "style",
-          pos_str(
-            ~left=caret_point.col,
-            ~top=caret_point.row + 1,
-            font_metrics,
-          ),
-        ),
-      ],
-      [
-        // div(
-        //   ~attrs=[
-        //     Attr.on_pointerdown(_ => {
-        //       print_endline("onpointerdown biptch");
-        //       Effect.Many([
-        //         Effect.Stop_propagation,
-        //         Effect.Prevent_default,
-        //         inject(Perform(Refractor(ToggleProbeManual))),
-        //       ]);
-        //     }),
-        //   ],
-        //   [text("beprobe")],
-        // ),
-        NutMenu.submenu(
-          ~tooltip="",
-          ~icon=Node.div([]),
-          [
-            div_c(
-              "group",
-              [
-                // div_c("name", [text("Probes")]),
-                div_c(
-                  "contents",
-                  [
-                    div(
-                      ~attrs=[
-                        Attr.on_pointerdown(_ => {
-                          Effect.Many([
-                            Effect.Stop_propagation,
-                            Effect.Prevent_default,
-                            inject(Perform(Refractor(ToggleProbeManual))),
-                          ])
-                        }),
-                        clss(["named-menu-item"]),
-                      ],
-                      [text("Toggle probe")],
-                    ),
-                    div(
-                      ~attrs=[
-                        Attr.on_pointerdown(_ => {
-                          Effect.Many([
-                            Effect.Stop_propagation,
-                            Effect.Prevent_default,
-                            inject(Perform(Refractor(ToggleProbeREPL))),
-                          ])
-                        }),
-                        clss(["named-menu-item"]),
-                      ],
-                      [text("Toggle autoprobe")],
-                    ),
-                    div(
-                      ~attrs=[
-                        Attr.on_pointerdown(_ => {
-                          Effect.Many([
-                            Effect.Stop_propagation,
-                            Effect.Prevent_default,
-                            inject(Perform(Refractor(ProbeJump))),
-                          ])
-                        }),
-                        clss(["named-menu-item"]),
-                      ],
-                      [text("Step into")],
-                    ),
-                    // Widgets.toggle_named("", ~tooltip="probe", true, _ => {
-                    //   Effect.Many([
-                    //     Effect.Stop_propagation,
-                    //     Effect.Prevent_default,
-                    //     inject(Perform(Refractor(ToggleProbeManual))),
-                    //   ])
-                    // }),
-                    // Widgets.toggle_named("", ~tooltip="repl", true, _ => {
-                    //   Effect.Many([
-                    //     Effect.Stop_propagation,
-                    //     Effect.Prevent_default,
-                    //     inject(Perform(Refractor(ToggleProbeREPL))),
-                    //   ])
-                    // }),
-                  ],
-                ),
-              ],
-            ),
-          ],
-        ),
-      ],
-    );
-  };
-
   let view =
       (
         ~globals: Globals.t,
@@ -355,8 +236,8 @@ module View = {
           @ (
             model.context_menu
               ? [
-                context_menu_view(
-                  ~inject,
+                ContextMenu.view(
+                  ~inject=a => inject(Perform(a)),
                   ~measured=model.editor.syntax.measured,
                   ~font_metrics=globals.font_metrics,
                   model.editor.state.zipper,

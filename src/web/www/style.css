@@ -90,7 +90,7 @@ select {
 #main {
   /* grid-row: 1 / span 2; */
   /* TODO(andrew): fix backpack visibility */
-  grid-row: 2 / span 2;
+  grid-row: 2 / span 1;
   grid-column: 1 / span 1;
   overflow: auto;
   padding: 0;
