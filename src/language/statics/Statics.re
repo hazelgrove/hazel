@@ -631,6 +631,10 @@ and uexp_to_info_map =
           Info.derive_label_inference_info(original_labels, new_labels),
         m,
       );
+    | TupLabel({term: ExplicitNonlabel, _} as label, e) =>
+      let (e, m) = go(~ana, e, m);
+      let (_, m) = go(~label_sort=true, label, m);
+      add(~self=Just(e.ty), ~co_ctx=e.co_ctx, m);
     | TupLabel(label, e) =>
       let (lab, e, m) =
         switch (Typ.matched_label(ctx, ana)) {
@@ -685,6 +689,7 @@ and uexp_to_info_map =
           })
         };
       add(~self, ~co_ctx=CoCtx.union([lab.co_ctx, e.co_ctx]), m);
+    | ExplicitNonlabel => atomic(ExplicitNonlabel)
     | Label(name) when label_sort =>
       let self = Self.Just(Label(name) |> Typ.temp);
       List.exists(l => name == l, duplicates)
@@ -1602,6 +1607,11 @@ and upat_to_info_map =
         ~constraint_=Coverage.Constraint.Truth,
         m,
       );
+    | TupLabel({term: ExplicitNonlabel, _} as label, p) =>
+      let (p, m) = go(~ana, ~ctx, p, m);
+      let (_, m) = go(~label_sort=true, ~ctx, ~ana=syn, label, m);
+      (p, add_info(ids, InfoPat(p), m));
+    | ExplicitNonlabel => atomic(ExplicitNonlabel, Coverage.Constraint.Truth)
     | TupLabel(label, p) =>
       let (lab, p, m) =
         switch (Typ.matched_label(ctx, ana)) {
@@ -1935,6 +1945,32 @@ and utyp_to_info_map =
     let m = go'(~expects=ProductExpected, t1, m) |> snd;
     let m = go'(~expects=ProductExpected, t2, m) |> snd;
     add(m);
+  | ExplicitNonlabel =>
+    let ancestors = List.tl(ancestors); // Recover original ancestors
+
+    let info: Info.typ = {
+      cls: Typ(ExplicitNonlabel),
+      ctx,
+      ancestors,
+      status: InHole(BadToken("_")),
+      expects,
+      term: utyp,
+    };
+    (info, add_info(ids, InfoTyp(info), m));
+  | TupLabel({term: ExplicitNonlabel, _} as label, t) =>
+    let (_, m) = go(t, m);
+
+    let label_info: Info.typ = {
+      cls: Typ(ExplicitNonlabel),
+      ctx,
+      ancestors,
+      status: NotInHole(EmptyLabel),
+      expects,
+      term: utyp,
+    };
+
+    let m = add_info(label.annotation.ids, InfoTyp(label_info), m);
+    add'(~expects=TypeExpected, ~utyp=t, m);
   | TupLabel(label, t) =>
     let expects_label =
       switch (expects) {

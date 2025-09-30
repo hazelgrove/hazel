@@ -250,5 +250,40 @@ let tests =
           "? : (a=Int, String) ... (b=Int, c=Float)",
         )
       ),
+      test_case("Singleton unlabeled tuple", `Quick, () =>
+        exp_check(
+          tuple([tup_label(explicit_non_label(), int(1))]),
+          "(_ = 1)",
+        )
+      ),
+      test_case("Multiple unlabeled tuple entries", `Quick, () =>
+        exp_check(
+          tuple([
+            tup_label(explicit_non_label(), int(1)),
+            tup_label(explicit_non_label(), int(2)),
+            tup_label(explicit_non_label(), int(3)),
+          ]),
+          "(_ = 1, _ = 2, _ = 3)",
+        )
+      ),
+      test_case("Explicit unlabeled in type", `Quick, () =>
+        exp_check(
+          asc(
+            empty_hole(),
+            Typ.(prod([tup_label(explicit_non_label(), int())])),
+          ),
+          "? : (_=Int)",
+        )
+      ),
+      test_case("Explicit unlabeled in pattern", `Quick, () =>
+        exp_check(
+          let_(
+            Pat.(tuple([tup_label(explicit_non_label(), var("x"))])),
+            tuple([tup_label(explicit_non_label(), int(1))]),
+            var("x"),
+          ),
+          {|let (_=x) = (_=1) in x|},
+        )
+      ),
     ],
   );

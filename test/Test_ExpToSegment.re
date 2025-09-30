@@ -375,5 +375,28 @@ let tests = (
         "(``=Int) ... (`label with spaces`=String)",
       )
     }),
+    test_case("Singleton unlabeled tuple", `Quick, () =>
+      check(
+        string,
+        "Singleton unlabeled tuple",
+        "(_=1)",
+        print_seg(
+          exp_to_segment(IdTagged.FreshGrammar.Exp.(tuple([int(1)]))),
+        ),
+      )
+    ),
+    test_case("Singleton unlabeled tuple type", `Quick, () =>
+      check(
+        string,
+        "Singleton unlabeled tuple type",
+        "(_=Int)",
+        print_seg(
+          ExpToSegment.typ_to_segment(
+            ~settings=exp_to_segment_settings,
+            IdTagged.FreshGrammar.Typ.(prod([int()])),
+          ),
+        ),
+      )
+    ),
   ],
 );

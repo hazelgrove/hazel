@@ -406,8 +406,11 @@ let pat_ty: pat => Typ.t = ({ty, _}) => ty;
 let pat_constraint: pat => Coverage.Constraint.t =
   ({constraint_, _}) => constraint_;
 
-let status_common = (ctx: Ctx.t, ty_ana: Typ.t, self: Self.t): status_common =>
+let rec status_common =
+        (ctx: Ctx.t, ty_ana: Typ.t, self: Self.t): status_common =>
   switch (self, ty_ana) {
+  | (_, {term: TupLabel({term: ExplicitNonlabel, _}, ana_inner), _}) =>
+    status_common(ctx, ana_inner, self)
   | (Just(ty), {term: Unknown(SynSwitch), _}) => NotInHole(Syn(ty))
   | (Just(syn), ana) =>
     switch (
@@ -453,6 +456,7 @@ let status_common = (ctx: Ctx.t, ty_ana: Typ.t, self: Self.t): status_common =>
   | (FreeConstructor(name), _) => InHole(NoType(FreeConstructor(name)))
   | (BadToken(name), _) => InHole(NoType(BadToken(name)))
   | (BadLabel(label), _) => InHole(NoType(BadLabel(label)))
+  | (ExplicitNonlabel, _) => NotInHole(Syn(Unknown(Internal) |> Typ.temp))
   | (UnexpectedLabelSort(label), _) =>
     InHole(NoType(UnexpectedLabelSort(label)))
   | (InvalidLabel(label, expected_labels), _) =>

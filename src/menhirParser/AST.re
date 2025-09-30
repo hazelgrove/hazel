@@ -103,6 +103,7 @@ type typ =
   | ForallType(tpat, typ)
   | RecType(tpat, typ)
   | LabelType(string)
+  | ExplicitNonlabel
   | TupLabelType(typ, typ)
   | IndicationTyp(typ)
   | ProdProjection(typ, typ)
@@ -127,7 +128,8 @@ type pat =
   | InvalidPat(string) // Menhir parser doesn't actually support invalid pats
   | TupLabelPat(pat, pat)
   | LabelPat(string)
-  | IndicationPat(pat);
+  | IndicationPat(pat)
+  | ExplicitNonlabel;
 
 [@deriving (show({with_path: false}), sexp, qcheck, eq)]
 type if_consistency =
@@ -152,6 +154,7 @@ type exp =
   | Fun(pat, exp, option(string))
   | CaseExp(exp, list((pat, exp)))
   | Label(string)
+  | ExplicitNonlabel
   | TupLabel(exp, exp)
   | Dot(exp, exp)
   | ApExp(exp, exp)
@@ -784,6 +787,7 @@ let rec shrink_exp: QCheck.Shrink.t(exp) =
           }
         | Label(l) =>
           shrink_non_empty_string(l) >|= ((l: string) => Label(l))
+        | ExplicitNonlabel => return(ExplicitNonlabel)
         | TupLabel(e1, e2) =>
           {
             return(
@@ -1083,6 +1087,7 @@ and shrink_pat: QCheck.Shrink.t(pat) =
           }
         | LabelPat(l) =>
           shrink_non_empty_string(l) >|= ((l: string) => LabelPat(l))
+        | ExplicitNonlabel => return(ExplicitNonlabel: pat)
         | InvalidPat(_)
         | IndicationPat(_)
         | WildPat
@@ -1144,6 +1149,7 @@ and shrink_typ: QCheck.Shrink.t(typ) =
         | RecType(tpat, t) =>
           let* shrunk = shrink_typ(t);
           return(RecType(tpat, shrunk));
+        | ExplicitNonlabel => return(ExplicitNonlabel: typ)
         | LabelType(x) =>
           shrink_non_empty_string(x) >|= ((x: string) => LabelType(x))
         | TupLabelType(t1, t2) =>

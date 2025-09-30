@@ -133,6 +133,7 @@ let rec abbreviate_exp = (exp: Exp.t): Exp.t => {
       Atom(String(str));
     | Var(v) => Var(abbreviate_str(available^, v))
     | Label(v) => Label(abbreviate_str(available^, v))
+    | ExplicitNonlabel => ExplicitNonlabel
     | Constructor(c, t) => Constructor(abbreviate_str(available^, c), t)
     | LivelitName(v) => LivelitName(abbreviate_str(available^, v))
 
@@ -644,6 +645,7 @@ and abbreviate_pat = (pat: Pat.t): Pat.t => {
   let term: Pat.term =
     switch (pat.term) {
     | Wild => Wild
+    | ExplicitNonlabel => ExplicitNonlabel
     | Var(v) => Var(abbreviate_str(available^, v))
     | Label(v) => Label(abbreviate_str(available^, v))
     | Atom(Int(n)) => wrap_or(Atom(Int(n)), Bigint.to_string(n))
@@ -825,6 +827,7 @@ and abbreviate_typ = (typ: Typ.t): Typ.t => {
         Atom(String);
       }
     | Var(v) => Var(abbreviate_str(available^, v))
+    | ExplicitNonlabel => ExplicitNonlabel
     | Label(v) => Label(abbreviate_str(available^, v))
     | List(t) =>
       if (available^ <= 2) {

@@ -229,6 +229,7 @@ module rec Exp: {
     | TupleExtension(e1, e2) =>
       tuple_extension(of_menhir_ast(e1), of_menhir_ast(e2))
     | Label(s) => label(s)
+    | ExplicitNonlabel => explicit_non_label()
     | TupLabel(e1, e2) => tup_label(of_menhir_ast(e1), of_menhir_ast(e2))
     | Dot(e1, e2) =>
       switch (e2) {
@@ -386,6 +387,7 @@ module rec Exp: {
       ApExp(of_core(e), TupleExp(List.map(of_core, es)))
     | Fun(p, e, _, name_opt) => Fun(Pat.of_core(p), of_core(e), name_opt)
     | Label(s) => Label(s)
+    | ExplicitNonlabel => ExplicitNonlabel
     | TupLabel(e1, e2) => TupLabel(of_core(e1), of_core(e2))
     | Dot(e1, e2) => Dot(of_core(e1), of_core(e2))
     | Ap(Reverse, _, _) => raise(Failure("Reverse not supported"))
@@ -435,6 +437,7 @@ and Typ: {
     | TupleType([t]) => parens(of_menhir_ast(t))
     | TupleType(ts) => parens(prod(List.map(of_menhir_ast, ts)))
     | LabelType(s) => label(s)
+    | ExplicitNonlabel => explicit_non_label()
     | TupLabelType(t1, t2) =>
       tup_label(of_menhir_ast(t1), of_menhir_ast(t2))
     | ArrayType(t) => list(of_menhir_ast(t))
@@ -492,6 +495,7 @@ and Typ: {
     | Rec(tp, t) => RecType(TPat.of_core(tp), of_core(t))
     | Parens(t) => of_core(t)
     | Label(s) => LabelType(s)
+    | ExplicitNonlabel => (ExplicitNonlabel: AST.typ)
     | TupLabel(t1, t2) => TupLabelType(of_core(t1), of_core(t2))
     | ProdProjection(t1, t2) => ProdProjection(of_core(t1), of_core(t2))
     | ProdExtension(t1, t2) => ProdExtension(of_core(t1), of_core(t2))
@@ -560,6 +564,7 @@ and Pat: {
         annotation: true,
         term: of_menhir_ast(p).term,
       }
+    | ExplicitNonlabel => explicit_non_label()
     };
   };
   let rec of_core = (pat: IndicatedG.pat): AST.pat => {
@@ -580,6 +585,7 @@ and Pat: {
     | Parens(p) => of_core(p)
     | Probe(p, _) => of_core(p)
     | Label(s) => LabelPat(s)
+    | ExplicitNonlabel => ExplicitNonlabel
     | TupLabel(p1, p2) => TupLabelPat(of_core(p1), of_core(p2))
     };
   };

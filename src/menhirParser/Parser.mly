@@ -328,6 +328,7 @@ unExp:
 tupExpEntry:
     | e = exp {e}
     | l = label; SINGLE_EQUAL; e = exp {TupLabel(Label(l), e)}
+    | WILD; SINGLE_EQUAL; e = exp {TupLabel(ExplicitNonlabel, e)}
 
 exp:
     | b = binExp { b }

@@ -110,6 +110,7 @@ let rec elaborate_pattern =
       let (p1', _) = elaborate_pattern(m, p1);
       let (p2', _) = elaborate_pattern(m, p2);
       Cons(p1', p2') |> rewrap;
+    | TupLabel({term: ExplicitNonlabel, _}, p) => p
     | TupLabel(lab, p) =>
       let (plab, _) = elaborate_pattern(m, lab);
       let (p', _) = elaborate_pattern(m, p);
@@ -134,6 +135,8 @@ let rec elaborate_pattern =
         );
 
       Tuple(ps') |> rewrap;
+    | ExplicitNonlabel =>
+      raise(Failure("Explicit nonlabel pattern outside of tuplabel"))
     | Label(_) => upat
     | Ap(p1, p2) =>
       let (p1', _) = elaborate_pattern(m, p1);
@@ -265,9 +268,14 @@ let rec elaborate = (m: Statics.Map.t, uexp: Exp.t): (DHExp.t, Typ.t) => {
 
       Tuple(ds) |> rewrap;
     | TupLabel(label, e) =>
-      let (label', _) = elaborate(m, label);
-      let (e', _) = elaborate(m, e);
-      TupLabel(label', e') |> rewrap;
+      switch (label.term) {
+      | ExplicitNonlabel => elaborate(m, e) |> fst
+      | _ =>
+        let (label', _) = elaborate(m, label);
+        let (e', _) = elaborate(m, e);
+        TupLabel(label', e') |> rewrap;
+      }
+    | ExplicitNonlabel
     | Label(_) => uexp
     | Dot(e1, e2) =>
       let (e1, _) = elaborate(m, e1);
