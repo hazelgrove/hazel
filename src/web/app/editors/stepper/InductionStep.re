@@ -296,7 +296,8 @@ module F =
           constraints,
           Typ.normalize(SemanticCtx.get_ctx(ctx), scrut_ty),
         ).
-          is_exhaustive;
+          exhaustiveness
+        == Exhaustive;
       };
 
     let validity =
