@@ -288,7 +288,7 @@ module View = {
                         }),
                         clss(["named-menu-item"]),
                       ],
-                      [text("Toggle repl")],
+                      [text("Toggle autoprobe")],
                     ),
                     div(
                       ~attrs=[
