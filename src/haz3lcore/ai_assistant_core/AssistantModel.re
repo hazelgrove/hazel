@@ -131,8 +131,9 @@ type t = {
   // Loading in and parsing the prompts is an expensive operation, so we perform this eagerly,
   // before the user sends their first request. This is currently done when the user sets an API key.
   init_prompt_data,
-  // Agent looping flag - indicates when the agent is actively editing code
-  // Used to trigger blue cursor/selection theme
+  // We make this universal to the model. It really only serves for
+  // UI effects. It doesn't make sense to make it local to a chat, since an
+  // "agent" is really in the editor... not necessarily the chat.
   agent_looping: bool,
 };
 

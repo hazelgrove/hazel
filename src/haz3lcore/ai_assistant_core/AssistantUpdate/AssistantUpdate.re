@@ -245,6 +245,23 @@ let create_chat_descriptor =
     : ();
 };
 
+let update_chat =
+    (
+      ~context_usage: option(int)=?,
+      chat: Model.chat,
+      messages: list(Model.message),
+    ) => {
+  {
+    ...chat,
+    messages: chat.messages @ messages,
+    context_usage:
+      switch (context_usage) {
+      | Some(context_usage) => context_usage
+      | None => chat.context_usage
+      },
+  };
+};
+
 // Sends a request to OpenRouter given outgoing messages.
 // Handles the response from OpenRouter.
 // Emits internal error if API key or model ID is not set.
@@ -256,7 +273,7 @@ let mk_llm_call =
       ~updated_chat: Model.chat,
       ~response_handler: OpenRouter.reply => t,
     )
-    : unit => {
+    : Model.t => {
   switch (
     model.external_api_info.api_key,
     model.external_api_info.set_model_info.id,
@@ -264,9 +281,11 @@ let mk_llm_call =
   | ("", _) =>
     let content = "No API key found. Please set an API key in the assistant settings.";
     schedule_action(InternalError(content, mode, updated_chat.id));
+    model;
   | (_, "") =>
     let content = "No model ID found. Please set a model ID in the assistant settings.";
     schedule_action(InternalError(content, mode, updated_chat.id));
+    model;
   | (key, model_id) =>
     let tools =
       if (mode == TaskCompletion) {
@@ -318,6 +337,17 @@ let mk_llm_call =
       )
     | _ => ()
     };
+    let model =
+      update_model_chat_history(
+        ~model,
+        ~mode,
+        ~updated_chat,
+        ~awaiting_response=true,
+      );
+    {
+      ...model,
+      agent_looping: mode == TaskCompletion,
+    };
   };
 };
 
@@ -329,23 +359,6 @@ let mk_user_content_message =
     display: Some(Model.mk_message_display(~content)),
     role,
     sketch_snapshot: None // Some(editor), todo: figure out how to serialize editor
-  };
-};
-
-let update_chat =
-    (
-      ~context_usage: option(int)=?,
-      chat: Model.chat,
-      messages: list(Model.message),
-    ) => {
-  {
-    ...chat,
-    messages: chat.messages @ messages,
-    context_usage:
-      switch (context_usage) {
-      | Some(context_usage) => context_usage
-      | None => chat.context_usage
-      },
   };
 };
 
@@ -483,13 +496,6 @@ let update =
           HandleResponse(Tutor, response, chat_id)
         );
 
-        update_model_chat_history(
-          ~model,
-          ~mode,
-          ~updated_chat,
-          ~awaiting_response=true,
-        );
-
       | Composition(kind, eval_mode) =>
         print_endline(
           "Here #6 : Composition Eval mode is set to "
@@ -533,7 +539,6 @@ let update =
           let updated_chat =
             update_chat(curr_chat, [content_message, ctx_message]);
 
-          schedule_action(EmployLLMAction(SetAgentLooping(true)));
           mk_llm_call(
             ~mode,
             ~model,
@@ -549,12 +554,6 @@ let update =
               response,
               chat_id,
             )
-          );
-          update_model_chat_history(
-            ~model,
-            ~mode,
-            ~updated_chat,
-            ~awaiting_response=true,
           );
 
         | Loop(fuel, tool_contents, status) =>
@@ -628,13 +627,6 @@ let update =
               chat_id,
             )
           );
-
-          update_model_chat_history(
-            ~model,
-            ~mode,
-            ~updated_chat,
-            ~awaiting_response=true,
-          );
         };
 
       | Completion(kind) =>
@@ -688,9 +680,10 @@ let update =
               sketch_snapshot: None,
             };
             let updated_chat = update_chat(new_chat, [ctx_message]);
+
             mk_llm_call(
               ~mode,
-              ~model,
+              ~model=model_with_new_chat,
               ~schedule_action,
               ~updated_chat,
               ~response_handler=response =>
@@ -703,12 +696,6 @@ let update =
                 response,
                 new_chat.id,
               )
-            );
-            update_model_chat_history(
-              ~model=model_with_new_chat,
-              ~mode,
-              ~updated_chat,
-              ~awaiting_response=true,
             );
           };
         | Query(content) =>
@@ -741,13 +728,6 @@ let update =
             HandleResponse(CompletionQueryResponse, response, chat_id)
           );
 
-          update_model_chat_history(
-            ~model,
-            ~mode,
-            ~updated_chat,
-            ~awaiting_response=true,
-          );
-
         | Loop(error, tile_id, fuel) =>
           let curr_chat =
             Id.Map.find(chat_id, model.chat_history.past_suggestion_chats);
@@ -772,6 +752,7 @@ let update =
               ++ string_of_int(ChatLSP.Options.init.error_rounds_max)
               ++ " error rounds.";
             schedule_action(InternalError(content, mode, updated_chat.id));
+            model;
           } else {
             mk_llm_call(
               ~mode,
@@ -786,12 +767,6 @@ let update =
               )
             );
           };
-          update_model_chat_history(
-            ~model,
-            ~mode,
-            ~updated_chat,
-            ~awaiting_response=true,
-          );
         };
       };
     };
@@ -831,6 +806,8 @@ let update =
     );
 
   | HandleResponse(response_kind, reply, chat_id) =>
+    // Check if we're still awaiting a promise - if not, ignore the response
+
     let (curr_chat, mode) =
       switch (response_kind) {
       | Tutor => (
@@ -851,106 +828,65 @@ let update =
         )
       };
 
-    // todo: turning off for now to save credits
-    //create_chat_descriptor(~model, ~schedule_action, ~mode, ~chat_id);
-    let threshold =
-      int_of_float(
-        float_of_int(model.external_api_info.set_model_info.context_length)
-        *. AssistantSettings.context_threshold_ratio,
-      );
-    // Thin wrapper to avoid need of passing response.usage.total_tokens
-    let summarize_chat = () =>
-      if (reply.usage.total_tokens > threshold) {
-        summarize_chat(model, curr_chat, mode, schedule_action);
+    if (!curr_chat.awaiting_response) {
+      // There was an early exit, so throw away/ignore the response
+      model;
+    } else {
+      // todo: turning off for now to save credits
+      //create_chat_descriptor(~model, ~schedule_action, ~mode, ~chat_id);
+      let threshold =
+        int_of_float(
+          float_of_int(model.external_api_info.set_model_info.context_length)
+          *. AssistantSettings.context_threshold_ratio,
+        );
+      // Thin wrapper to avoid need of passing response.usage.total_tokens
+      let summarize_chat = () =>
+        if (reply.usage.total_tokens > threshold) {
+          summarize_chat(model, curr_chat, mode, schedule_action);
+        };
+
+      let content = reply.content;
+      print_endline("content: " ++ content);
+      // Todo: Allow for multiple tool calls
+      let tool_call = ListUtil.hd_opt(reply.tool_calls);
+      let assistant_message: Model.message = {
+        content:
+          Some(OpenRouter.mk_assistant_msg(content, reply.tool_calls_json)),
+        display:
+          switch (content) {
+          | "" => None
+          | _ => Some(Model.mk_message_display(~content))
+          },
+        role: Assistant,
+        sketch_snapshot: None,
       };
 
-    let content = reply.content;
-    print_endline("content: " ++ content);
-    // Todo: Allow for multiple tool calls
-    let tool_call = ListUtil.hd_opt(reply.tool_calls);
-    let assistant_message: Model.message = {
-      content:
-        Some(OpenRouter.mk_assistant_msg(content, reply.tool_calls_json)),
-      display:
-        switch (content) {
-        | "" => None
-        | _ => Some(Model.mk_message_display(~content))
-        },
-      role: Assistant,
-      sketch_snapshot: None,
-    };
-
-    // This commented out code below is for streaming, if we ever choose to add
-    // If streaming, update the last message display
-    let updated_chat =
-      update_chat(
-        ~context_usage=reply.usage.total_tokens,
-        curr_chat,
-        [assistant_message],
-      );
-    /* let last_display = ListUtil.last(curr_chat.message_displays);
-       if (last_display.role == Assistant) {
-         let updated_content = last_display.original_content ++ content;
-         (
-           ListUtil.leading(curr_chat.messages)
-           @ [OpenRouter.mk_assistant_msg(updated_content)],
-           ListUtil.leading(curr_chat.messages)
-           @ [
-             Model.mk_message_display(
-               ~content=updated_content,
-               ~role=Assistant,
-             ),
-           ],
-         );
-       } else */
-
-    switch (response_kind) {
-    | Tutor =>
-      summarize_chat();
-      update_model_chat_history(
-        ~model,
-        ~mode,
-        ~updated_chat,
-        ~awaiting_response=false,
-      );
-
-    | CompositionLoopRound(_, fuel, eval_mode) =>
-      print_endline(
-        "Here #7 : Composition Eval mode is set to "
-        ++ string_of_bool(eval_mode),
-      );
-      // This is step (3) from the directed graph above --
-      switch (tool_call, fuel) {
-      | (None, _) =>
-        // The agent did not make a tool call, thus there is nothing to handle on the backend,
-        // we can proceed as if there were a normal LLM chat interaction.
-        summarize_chat();
-        // if (eval_mode) {
-        //   schedule_eval_action(CollectResults);
-        // };
-        schedule_action(EmployLLMAction(SetAgentLooping(false)));
-        update_model_chat_history(
-          ~model,
-          ~mode,
-          ~updated_chat,
-          ~awaiting_response=false,
+      // This commented out code below is for streaming, if we ever choose to add
+      // If streaming, update the last message display
+      let updated_chat =
+        update_chat(
+          ~context_usage=reply.usage.total_tokens,
+          curr_chat,
+          [assistant_message],
         );
+      /* let last_display = ListUtil.last(curr_chat.message_displays);
+         if (last_display.role == Assistant) {
+           let updated_content = last_display.original_content ++ content;
+           (
+             ListUtil.leading(curr_chat.messages)
+             @ [OpenRouter.mk_assistant_msg(updated_content)],
+             ListUtil.leading(curr_chat.messages)
+             @ [
+               Model.mk_message_display(
+                 ~content=updated_content,
+                 ~role=Assistant,
+               ),
+             ],
+           );
+         } else */
 
-      | (_, 0) =>
-        // The agent ran out of fuel. We should experiment with this in the future.
-        // if (eval_mode) {
-        //   schedule_eval_action(CollectResults);
-        // };
-        schedule_action(EmployLLMAction(SetAgentLooping(false)));
-        schedule_action(
-          InternalError(
-            "By default, we stop the agent after "
-            ++ string_of_int(AssistantModes.Composition.max_tool_calls)
-            ++ " tool calls.",
-            mode,
-            chat_id,
-          ),
-        );
+      switch (response_kind) {
+      | Tutor =>
         summarize_chat();
         update_model_chat_history(
           ~model,
@@ -959,132 +895,193 @@ let update =
           ~awaiting_response=false,
         );
 
-      | (Some(tool_call), _) =>
-        let updated_chat = {
-          let structure_edit_message: Model.message = {
-            content: None,
-            display:
-              Some(
-                Model.mk_message_display(
-                  ~content=
-                    AssistantModes.Composition.mk_structure_edit_msg(
-                      ~tool_call,
-                    ),
-                ),
-              ),
-            role: Tool,
-            sketch_snapshot: None,
-          };
-          update_chat(
-            curr_chat,
-            [assistant_message, structure_edit_message],
-          );
-        };
-        // We don't summarize while the agent loops on tool calls.
-
-        // The agent made a tool call, we need to handle it and then perform a loop
-        // round (the loop round itself will later handle it)
-        let loop_message = (status: status) =>
-          SendMessage(
-            Composition(
-              Loop(
-                fuel - 1,
-                {
-                  tool_call_id: tool_call.id,
-                  name: tool_call.tool_name,
-                },
-                status,
-              ),
-              eval_mode,
-            ),
-            None,
-            chat_id,
-          );
-        let action =
-          CompositionTools.action_of(
-            ~tool_name=tool_call.tool_name,
-            ~args=API.Json.get_string_kvs(tool_call.args),
-          );
-        AssistantModes.Composition.apply_editor_action(
-          ~z=zipper,
-          ~info_map,
-          ~action,
-          ~schedule_editor_action,
-          ~schedule_tool_response=(res: AssistantUpdateAction.status) => {
-          schedule_action(loop_message(res))
-        });
-        update_model_chat_history(
-          ~model,
-          ~mode,
-          ~updated_chat,
-          ~awaiting_response=false,
-        );
-      };
-    | CompletionErrorRound(zipper, fuel, tileId) =>
-      /* --- todo: test if this works --- */
-      let code_pattern: StringUtil.regexp =
-        StringUtil.regexp(
-          "([\\s\\S]*)```[ \\n]*([^`]+)[ \\n]*```([\\s\\S]*)",
-        );
-
-      let index = Option.get(Indicated.index(zipper));
-      let ci = Option.get(Id.Map.find_opt(index, info_map));
-      let sketch_z = zipper;
-
-      /* small helper to grab a capture group using replace */
-      let capture = (n: int, s: string): string =>
-        StringUtil.replace(code_pattern, s, "$" ++ string_of_int(n));
-
-      let (_, completion) =
-        if (StringUtil.match(code_pattern, content)) {
-          let before = capture(1, content) |> String.trim;
-          let code = capture(2, content) |> String.trim;
-          (before, code |> StringUtil.trim_leading);
-        } else {
-          print_endline("Regex match failed for: " ++ content);
-          ("", content |> StringUtil.trim_leading); /* Fallback if no code block found */
-        };
-      /* --- End todo -- */
-
-      switch (
-        AssistantModes.Completion.ErrorRound.mk_reply(
-          ci,
-          sketch_z,
-          completion,
-        )
-      ) {
-      | None =>
-        print_endline("ERROR ROUNDS (Non-error Response): " ++ completion);
-        schedule_action(
-          EmployLLMAction(RemoveAndSuggest(completion, tileId)),
-        );
-      | Some(error) =>
-        print_endline("ERROR ROUNDS (Error): " ++ error);
+      | CompositionLoopRound(_, fuel, eval_mode) =>
         print_endline(
-          "ERROR ROUNDS (Error-causing Response): " ++ completion,
+          "Here #7 : Composition Eval mode is set to "
+          ++ string_of_bool(eval_mode),
         );
-        schedule_action(
-          SendMessage(
-            Completion(Loop(error, tileId, fuel - 1)),
-            None,
-            chat_id,
-          ),
-        );
-      };
-      update_model_chat_history(
-        ~model,
-        ~mode,
-        ~updated_chat,
-        ~awaiting_response=false,
-      );
+        // This is step (3) from the directed graph above --
+        switch (tool_call, fuel) {
+        | (None, _) =>
+          // The agent did not make a tool call, thus there is nothing to handle on the backend,
+          // we can proceed as if there were a normal LLM chat interaction.
+          summarize_chat();
+          // if (eval_mode) {
+          //   schedule_eval_action(CollectResults);
+          // };
+          schedule_action(EmployLLMAction(SetAgentLooping(false)));
+          let model =
+            update_model_chat_history(
+              ~model,
+              ~mode,
+              ~updated_chat,
+              ~awaiting_response=false,
+            );
+          {
+            ...model,
+            agent_looping: false,
+          };
 
-    | CompletionQueryResponse =>
-      update_model_chat_history(
-        ~model,
-        ~mode,
-        ~updated_chat,
-        ~awaiting_response=false,
-      )
+        | (_, 0) =>
+          // The agent ran out of fuel. We should experiment with this in the future.
+          // if (eval_mode) {
+          //   schedule_eval_action(CollectResults);
+          // };
+          schedule_action(EmployLLMAction(SetAgentLooping(false)));
+          schedule_action(
+            InternalError(
+              "By default, we stop the agent after "
+              ++ string_of_int(AssistantModes.Composition.max_tool_calls)
+              ++ " tool calls.",
+              mode,
+              chat_id,
+            ),
+          );
+          summarize_chat();
+          let model =
+            update_model_chat_history(
+              ~model,
+              ~mode,
+              ~updated_chat,
+              ~awaiting_response=false,
+            );
+          {
+            ...model,
+            agent_looping: false,
+          };
+
+        | (Some(tool_call), _) =>
+          let updated_chat = {
+            let structure_edit_message: Model.message = {
+              content: None,
+              display:
+                Some(
+                  Model.mk_message_display(
+                    ~content=
+                      AssistantModes.Composition.mk_structure_edit_msg(
+                        ~tool_call,
+                      ),
+                  ),
+                ),
+              role: Tool,
+              sketch_snapshot: None,
+            };
+            update_chat(
+              curr_chat,
+              [assistant_message, structure_edit_message],
+            );
+          };
+          // We don't summarize while the agent loops on tool calls.
+
+          // The agent made a tool call, we need to handle it and then perform a loop
+          // round (the loop round itself will later handle it)
+          let loop_message = (status: status) =>
+            SendMessage(
+              Composition(
+                Loop(
+                  fuel - 1,
+                  {
+                    tool_call_id: tool_call.id,
+                    name: tool_call.tool_name,
+                  },
+                  status,
+                ),
+                eval_mode,
+              ),
+              None,
+              chat_id,
+            );
+          let action =
+            CompositionTools.action_of(
+              ~tool_name=tool_call.tool_name,
+              ~args=API.Json.get_string_kvs(tool_call.args),
+            );
+          AssistantModes.Composition.apply_editor_action(
+            ~z=zipper,
+            ~info_map,
+            ~action,
+            ~schedule_editor_action,
+            ~schedule_tool_response=(res: AssistantUpdateAction.status) => {
+            schedule_action(loop_message(res))
+          });
+          let model =
+            update_model_chat_history(
+              ~model,
+              ~mode,
+              ~updated_chat,
+              ~awaiting_response=false,
+            );
+          {
+            ...model,
+            agent_looping: true,
+          };
+        };
+      | CompletionErrorRound(zipper, fuel, tileId) =>
+        /* --- todo: test if this works --- */
+        let code_pattern: StringUtil.regexp =
+          StringUtil.regexp(
+            "([\\s\\S]*)```[ \\n]*([^`]+)[ \\n]*```([\\s\\S]*)",
+          );
+
+        let index = Option.get(Indicated.index(zipper));
+        let ci = Option.get(Id.Map.find_opt(index, info_map));
+        let sketch_z = zipper;
+
+        /* small helper to grab a capture group using replace */
+        let capture = (n: int, s: string): string =>
+          StringUtil.replace(code_pattern, s, "$" ++ string_of_int(n));
+
+        let (_, completion) =
+          if (StringUtil.match(code_pattern, content)) {
+            let before = capture(1, content) |> String.trim;
+            let code = capture(2, content) |> String.trim;
+            (before, code |> StringUtil.trim_leading);
+          } else {
+            print_endline("Regex match failed for: " ++ content);
+            ("", content |> StringUtil.trim_leading); /* Fallback if no code block found */
+          };
+        /* --- End todo -- */
+
+        switch (
+          AssistantModes.Completion.ErrorRound.mk_reply(
+            ci,
+            sketch_z,
+            completion,
+          )
+        ) {
+        | None =>
+          print_endline("ERROR ROUNDS (Non-error Response): " ++ completion);
+          schedule_action(
+            EmployLLMAction(RemoveAndSuggest(completion, tileId)),
+          );
+        | Some(error) =>
+          print_endline("ERROR ROUNDS (Error): " ++ error);
+          print_endline(
+            "ERROR ROUNDS (Error-causing Response): " ++ completion,
+          );
+          schedule_action(
+            SendMessage(
+              Completion(Loop(error, tileId, fuel - 1)),
+              None,
+              chat_id,
+            ),
+          );
+        };
+        update_model_chat_history(
+          ~model,
+          ~mode,
+          ~updated_chat,
+          ~awaiting_response=false,
+        );
+
+      | CompletionQueryResponse =>
+        update_model_chat_history(
+          ~model,
+          ~mode,
+          ~updated_chat,
+          ~awaiting_response=false,
+        )
+      };
     };
   | EmployLLMAction(action) =>
     let add_suggestion =
@@ -1192,6 +1189,27 @@ let update =
         ...model,
         agent_looping,
       }
+    | Quit =>
+      // Set awaiting_promise to false and add a system message
+      let quit_message: Model.message = {
+        content: Some(OpenRouter.mk_user_msg("User quit early")),
+        display: Some(Model.mk_message_display(~content="User quit early")),
+        role: System(InternalError),
+        sketch_snapshot: None,
+      };
+      let (_, curr_chat) = get_mode_info(settings.mode, model);
+      let updated_chat = update_chat(curr_chat, [quit_message]);
+      let model =
+        update_model_chat_history(
+          ~model,
+          ~mode=settings.mode,
+          ~updated_chat,
+          ~awaiting_response=false,
+        );
+      {
+        ...model,
+        agent_looping: false,
+      };
     };
 
   | ChatAction(action) =>

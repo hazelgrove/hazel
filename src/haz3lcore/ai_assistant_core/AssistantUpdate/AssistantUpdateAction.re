@@ -41,7 +41,8 @@ type employ_llm_action =
   | RemoveAndSuggest(string, Id.t)
   | Describe(string, AssistantSettings.mode, Id.t)
   | Summarize(string, AssistantSettings.mode, Id.t)
-  | SetAgentLooping(bool);
+  | SetAgentLooping(bool)
+  | Quit;
 
 // Future Todo: (Check whether) These might be able to be relocated to AssistantSettings
 //              Although, arguably, the chat is inherently part of the assistant model,

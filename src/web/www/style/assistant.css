@@ -137,7 +137,10 @@
   border-radius: 4px;
   font-weight: bold;
   cursor: pointer;
-  /* transition: all 0.3s ease;*/
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 #assistant .send-button:hover {
@@ -961,4 +964,27 @@
   --shard-selected: var(--agent-shard-selected);
   --shadow-selected: var(--agent-shadow-selected);
   --cell-selected-accent: var(--agent-cell-selected-accent);
+}
+
+/* Quit button styling */
+#assistant .quit-button {
+  color: var(--STONE);
+  padding: 0.75em;
+  border: 0.75px solid var(--BR3);
+  background-color: var(--T1);
+  border-radius: 4px;
+  font-weight: bold;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+#assistant .quit-button:hover {
+  background-color: var(--Y1);
+}
+
+#assistant .quit-button:active {
+  background-color: var(--Y2);
 }
