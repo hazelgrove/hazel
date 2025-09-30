@@ -131,9 +131,6 @@ type t = {
   // Loading in and parsing the prompts is an expensive operation, so we perform this eagerly,
   // before the user sends their first request. This is currently done when the user sets an API key.
   init_prompt_data,
-  // Composition loop flag
-  // Todo: Might be a cleaner way to do this.
-  loop: bool,
   // Agent looping flag - indicates when the agent is actively editing code
   // Used to trigger blue cursor/selection theme
   agent_looping: bool,
@@ -260,7 +257,6 @@ let init = (): t => {
       },
       api_key: "",
     },
-    loop: false,
     agent_looping: false,
   };
 };
@@ -305,7 +301,6 @@ let null_model = (): t => {
       },
       api_key: "",
     },
-    loop: false,
     agent_looping: false,
   };
 };

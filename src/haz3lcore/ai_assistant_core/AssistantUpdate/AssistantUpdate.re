@@ -1188,11 +1188,6 @@ let update =
         ~updated_past_chats,
         ~chat_id=curr_chat_id,
       );
-
-    | SetLoop(loop) => {
-        ...model,
-        loop,
-      }
     | SetAgentLooping(agent_looping) => {
         ...model,
         agent_looping,

@@ -18,7 +18,6 @@ module Model = {
     editors: Editors.Model.t,
     explain_this: ExplainThisModel.t,
     assistant: AssistantModel.t,
-    assistant_eval: AssistantEval.Model.t,
     selection,
   };
 
@@ -40,7 +39,6 @@ module Store = {
       globals,
       explain_this,
       assistant,
-      assistant_eval: AssistantEval.Model.init(),
       selection: Editors.Selection.default_selection(editors),
     };
   };
@@ -70,7 +68,6 @@ module Update = {
     | Editors(Editors.Update.t)
     | ExplainThis(ExplainThisUpdate.update)
     | Assistant(AssistantWeb.Update.t)
-    | AssistantEval(AssistantEval.Update.t)
     | MakeActive(selection)
     | Benchmark(benchmark_action)
     | Start
@@ -276,20 +273,6 @@ module Update = {
         ...model,
         assistant,
       };
-    | AssistantEval(action) =>
-      let* assistant_eval =
-        AssistantEval.Update.update(
-          ~action,
-          ~model=model.assistant_eval,
-          ~assistant_model=model.assistant,
-          ~schedule_editor_action=a => schedule_action(Editors(a)),
-          ~schedule_action=a => schedule_action(AssistantEval(a)),
-          ~schedule_assistant_action=a => schedule_action(Assistant(a)),
-        );
-      {
-        ...model,
-        assistant_eval,
-      };
     | MakeActive(selection) =>
       {
         ...model,
@@ -318,7 +301,6 @@ module Update = {
     | Editors(action) => Editors.Update.can_undo(action)
     | ExplainThis(action) => ExplainThisUpdate.can_undo(action)
     | Assistant(action) => AssistantUpdate.can_undo(action)
-    | AssistantEval(action) => AssistantEval.Update.can_undo(action)
     | MakeActive(_)
     | Benchmark(_) => false
     | Start => false
@@ -525,7 +507,6 @@ module View = {
       (
         ~globals: Globals.t,
         ~inject: Editors.Update.t => 'a,
-        ~inject_assistant_eval: AssistantEval.Update.t => 'a,
         ~editors: Editors.Model.t,
       ) => {
     NutMenu.(
@@ -554,11 +535,6 @@ module View = {
                 ++ Keyboard.meta(Os.is_mac^ ? Mac : PC)
                 ++ " + k)",
             ),
-            button(
-              Icons.assistant,
-              _ => inject_assistant_eval(AssistantEval.Update.Init),
-              ~tooltip="Run Assistant Eval",
-            ),
             link(
               Icons.github,
               "https://github.com/hazelgrove/hazel",
@@ -579,12 +555,7 @@ module View = {
           ~attrs=[Attr.class_("wrap")],
           [a(~attrs=[Attr.class_("nut-icon")], [Icons.hazelnut])],
         ),
-        nut_menu(
-          ~globals,
-          ~inject=a => inject(Editors(a)),
-          ~inject_assistant_eval=a => inject(AssistantEval(a)),
-          ~editors,
-        ),
+        nut_menu(~globals, ~inject=a => inject(Editors(a)), ~editors),
         div(
           ~attrs=[Attr.class_("wrap")],
           [div(~attrs=[Attr.id("title")], [text("hazel")])],
@@ -612,11 +583,9 @@ module View = {
           editors,
           explain_this: explainThisModel,
           assistant: assistantModel,
-          assistant_eval: assistantEvalModel,
           selection,
         } as model: Model.t,
       ) => {
-    let _ = assistantEvalModel;
     let globals = {
       ...globals,
       inject_global: x => inject(Globals(x)),
