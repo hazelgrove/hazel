@@ -13,7 +13,9 @@ let mk_composition = (): OpenRouter.message => {
   OpenRouter.mk_system_msg(
     String.concat(
       " ",
-      CompositionPrompt.self @ HazelDocumentation.self(~summarized=true),
+      CompositionPrompt.self
+      @ [CompositionPrompt09282025.HazelAgentPrompts.self]
+      @ HazelDocumentation.self(~summarized=true),
     ),
   );
 };

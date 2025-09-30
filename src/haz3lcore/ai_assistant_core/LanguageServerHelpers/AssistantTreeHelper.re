@@ -601,7 +601,11 @@ let subtree_of =
         body_map;
 
       | _ =>
-        raise(Failure("Current node is not a let or type alias expression"))
+        raise(
+          Failure(
+            "UNIMPLEMENTED_NODE_TYPE: Only let and type alias expressions are currently supported as nodes",
+          ),
+        )
       }
     | _ => raise(Failure("Current node is not an expression"))
     };
@@ -716,11 +720,10 @@ let update_use_sites_of_pat =
   /*
    Updates the use sites of the given variables in the co-context.
 
-
    Should be noted that there are special cases:
    - Consider updating the pattern (x, y, z) to (a, b)
      we are unable to determine which new var maps to which old var.
-     For now, we will only consider the case where the number of old and new vars is the same.
+     For now, we will only consider the case where the number of old and new vars are the same.
    */
   switch (ListUtil.opt_zip(old_names, new_names)) {
   | None => z

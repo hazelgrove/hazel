@@ -978,7 +978,7 @@ let update =
               Some(
                 Model.mk_message_display(
                   ~content=
-                    AssistantUpdateComposition.mk_structure_edit_msg(
+                    AssistantModes.Composition.mk_structure_edit_msg(
                       ~tool_call,
                     ),
                 ),

@@ -46,21 +46,21 @@ let action_of = (~tool_name: string, ~args: Maps.StringMap.t(string)): action =>
   | "go_to_child" =>
     let name =
       OptUtil.get_or_fail(
-        "You must specify a name for the child you wish to navigate to",
+        "A name must be provided for the child node to navigate to",
         name,
       );
     Nav(GoToChild(name, index));
   | "go_to_sibling" =>
     let name =
       OptUtil.get_or_fail(
-        "You must specify a name for the sibling you wish to navigate to",
+        "A name must be provided for the sibling node to navigate to",
         name,
       );
     Nav(GoToSibling(NameAndIdx(name, index)));
   | "go_to_binding_site" =>
     let name =
       OptUtil.get_or_fail(
-        "You must specify a name for the variable you wish to navigate to",
+        "A name must be provided for the variable to navigate to",
         name,
       );
     Nav(GoToBindingSite(name, index));
@@ -212,6 +212,14 @@ module Perform = {
 
   let get_inner_term_id =
       (curr_node_info: AssistantTreeHelper.node, inner_term: inner_term): Id.t => {
+    /*
+     Returns the specified "inner_term" from the "curr_node_info"
+
+     E.g. If current node is "x" in a program "let x : Int = 2 + 3 in 100 + 200",
+     calling get_inner_term_id(curr_node_info, Pat) will return the id of the pattern "x : Int",
+     calling get_inner_term_id(curr_node_info, Def) will return the id of the definition "2 + 3",
+     calling get_inner_term_id(curr_node_info, Body) will return the id of the body "100 + 200".
+     */
     switch (curr_node_info.info) {
     | InfoExp({term, _}) =>
       switch (Exp.term_of(term)) {
@@ -228,7 +236,11 @@ module Perform = {
         | Body => Exp.rep_id(body)
         }
       | _ =>
-        raise(Failure("Current node is not a let or type alias expression"))
+        raise(
+          Failure(
+            "UNIMPLEMENTED_NODE_TYPE: Only let and type alias expressions are currently supported as nodes",
+          ),
+        )
       }
     | _ =>
       raise(
@@ -241,14 +253,21 @@ module Perform = {
 
   let static_error_check =
       (
-        ~old_z: option(Zipper.t),
+        ~old_z: option(Zipper.t), // optional arg -- if not provided, assume no errors
         ~new_z: Zipper.t,
         ~mk_statics: Zipper.t => StaticsBase.Map.t,
         ~of_pat: bool,
         ~of_def: bool,
         ~of_body: bool,
       ) => {
-    // We check to see if there have been errors introduced at the current node
+    /*
+     A localized static error check to ensure that newly inserted segments do not introduce any errors.
+
+     This is a localized check, as obligations occuring elsewhere in the program are inevitable for
+     many types of edits.
+
+     of_pat, of_def, and of_body are used to specify which parts of the program to check for errors.
+     */
     let old_errors =
       switch (old_z) {
       | None => []
@@ -509,7 +528,7 @@ module Perform = {
           };
         };
         let insert_term = (z, target_id, code, d) => {
-          switch (
+          switch ( // ' let a = 0 in'
             Select.term(
               ~defs_exclude_bodies=true,
               ~case_rules=false,
@@ -661,15 +680,19 @@ module Perform = {
             )
           ) {
           | Error(e) => Error(e)
-          | Ok(new_z) =>
-            static_error_check(
-              ~old_z=None,
-              ~new_z,
-              ~mk_statics,
-              ~of_pat=true,
-              ~of_def=true,
-              ~of_body=false // optionally, we could make this true
-            )
+          | Ok(new_z) => Ok(new_z)
+          // switch (Move.local(ByToken, Direction.Right, new_z)) {
+          // | Some(new_z) =>
+          //   static_error_check(
+          //     ~old_z=None,
+          //     ~new_z,
+          //     ~mk_statics,
+          //     ~of_pat=true,
+          //     ~of_def=true,
+          //     ~of_body=false // optionally, we could make this true
+          //   )
+          // | None => Error(Action.Failure.Cant_move)
+          // }
           }
         | DeleteBindingClause =>
           destruct_term(~defs_exclude_bodies=true, z, Info.id_of(node.info))

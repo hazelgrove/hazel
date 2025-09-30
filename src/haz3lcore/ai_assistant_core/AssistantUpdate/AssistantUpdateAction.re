@@ -1,5 +1,7 @@
 open Util;
 
+/* Update Action Types are defined here to avoid circular dependencies */
+
 [@deriving (show({with_path: false}), sexp, yojson)]
 type completion =
   | Request(Id.t, bool) // When user presses ?? or ?a

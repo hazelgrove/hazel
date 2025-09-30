@@ -84,7 +84,7 @@ module Update = {
         model: Model.t,
         editor: CodeEditable.Model.t,
       ) =>
-    AssistantUpdateSuggestion.check_req(
+    AssistantModes.Completion.check_req(
       ~schedule_action=a => schedule_action(Assistant(a)),
       ~schedule_setting=a => schedule_action(Globals(Set(Assistant(a)))),
       ~chat_id=model.assistant.current_chats.curr_suggestion_chat,

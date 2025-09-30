@@ -56,8 +56,6 @@ module SystemPrompt = {
 
   let hazel_syntax_notes = HazelSyntaxNotes.self;
 
-  let composition_prompt = CompositionPrompt.self;
-
   let mk_suggestion_prompt =
       (
         {instructions, syntax_notes, _}: Options.t,

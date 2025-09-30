@@ -12,9 +12,7 @@
 //                persistent,
 //              );
 //            let text =
-//              Printer.of_zipper(
-//                cell_model.editor.editor.state.zipper,
-//              );
+//              Printer.of_zipper(cell_model.editor.editor.state.zipper);
 //            "<slide_name>"
 //            ++ name
 //            ++ "</slide_name>\n"

@@ -163,6 +163,42 @@ module Completion = {
       };
     };
   };
+
+  let check_req =
+      (
+        ~schedule_action: AssistantUpdateAction.t => unit,
+        ~schedule_setting: AssistantSettings.action => unit,
+        ~z: Zipper.t,
+        ~chat_id: Id.t,
+      )
+      : unit => {
+    let caret = z.caret;
+    let send_message = (tile_id, advanced_reasoning) => {
+      schedule_setting(AssistantSettings.SwitchMode(CodeSuggestion));
+      schedule_action(
+        AssistantUpdateAction.SendMessage(
+          Completion(Request(tile_id, advanced_reasoning)),
+          None,
+          chat_id,
+        ),
+      );
+    };
+
+    // Check if user just typed ??
+    switch (caret, Zipper.neighbor_tokens(z)) {
+    | (Outer, (_, Some("??")))
+    | (Outer, (Some("??"), _)) =>
+      let tileId = Option.get(Indicated.index(z));
+      let advanced_reasoning = false;
+      send_message(tileId, advanced_reasoning);
+    | (Outer, (_, Some("?a")))
+    | (Outer, (Some("?a"), _)) =>
+      let tileId = Option.get(Indicated.index(z));
+      let advanced_reasoning = true;
+      send_message(tileId, advanced_reasoning);
+    | _ => ()
+    };
+  };
 };
 
 module Composition = {
@@ -307,7 +343,9 @@ module Composition = {
         | _ => "\nStatic errors: " ++ String.concat(", ", static_errors)
         };
 
-      let refs_in_str = CompositionView.str_refs_in(curr_node, info_map);
+      let refs_in_str =
+        CompositionView.refs_in(curr_node, info_map)
+        |> CompositionView.str_of_refs_in;
 
       let sketch_info_str =
         String.concat(
@@ -339,6 +377,27 @@ module Composition = {
       );
     };
   };
+
+  let mk_structure_edit_msg = (~tool_call: OpenRouter.tool_call): string =>
+    // AddToolLabel_3.0: what should the text content of this tool call to the user be?
+    //                   (not to the llm, that is the string returned in AssistantModes.Composition.apply_action)
+    try({
+      let tool_name = tool_call.tool_name;
+      let args = tool_call.args;
+      let action =
+        CompositionTools.action_of(
+          ~tool_name,
+          ~args=API.Json.get_string_kvs(args),
+        );
+      let _enclose_in_backticks = (str: string) => "```" ++ str ++ "```";
+      "Agent called tool: " ++ CompositionTools.string_of(action);
+    }) {
+    | Failure(err) =>
+      "The agent may have called tools with invalid arguments: " ++ err
+    | Invalid_argument(e) =>
+      "The argument map creation may have failed, or some other fatal issue occurred: "
+      ++ e
+    };
 
   type result = string;
 
@@ -386,8 +445,7 @@ module Composition = {
 module Tutor = {
   /*
    --- Tutor Mode ---
-     Empty module for now
-     Tutor mode is pretty simple, and basically just an LLM chat
-     prompted with hazel-specific information.
+     Empty.
+     Tutor mode is just an LLM chat prompted with hazel-specific information.
    */
 };

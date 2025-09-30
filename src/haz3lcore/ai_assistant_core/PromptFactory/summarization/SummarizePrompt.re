@@ -1,3 +1,7 @@
+/*
+ Summarization prompt for compressing long conversations.
+ */
+
 let prelude = "This is an automated system message:
 You are a helpful assistant that is to summarize a conversation.
 Your summary should be approximately the length of a 4 page report, or around 2000 words.
