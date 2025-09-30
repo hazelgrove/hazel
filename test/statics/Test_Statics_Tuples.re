@@ -218,6 +218,12 @@ module ExplicitlyUnlabeledTuples = {
         ),
       )
     ),
+    fully_consistent_typecheck(
+      ~normalize=true,
+      "Explicitly unlabeled tuple extension",
+      {|let typed_single : (_=Int) = (_=42) in typed_single|},
+      Some(prod([int()])),
+    ),
   ];
 };
 let tests = (

@@ -537,6 +537,8 @@ let rec join = (~resolve=false, ctx: Ctx.t, ty1: t, ty2: t): option(t) => {
   switch (term_of(ty1), term_of(ty2)) {
   | (_, Parens(ty2)) => join'(ty1, ty2)
   | (Parens(ty1), _) => join'(ty1, ty2)
+  | (TupLabel({term: ExplicitNonlabel, _}, ty1'), _) => join'(ty1', ty2)
+  | (_, TupLabel({term: ExplicitNonlabel, _}, ty2')) => join'(ty1, ty2')
   | (Unknown(p1), Unknown(p2)) =>
     Some(Unknown(join_type_provenance(p1, p2)) |> temp)
   | (Unknown(_), _) => Some(ty2)
@@ -602,8 +604,6 @@ let rec join = (~resolve=false, ctx: Ctx.t, ty1: t, ty2: t): option(t) => {
     let+ ty2 = join'(ty2, ty2');
     Arrow(ty1, ty2) |> temp;
   | (Arrow(_), _) => None
-  | (TupLabel({term: ExplicitNonlabel, _}, ty1'), _) => join'(ty1', ty2)
-  | (_, TupLabel({term: ExplicitNonlabel, _}, ty2')) => join'(ty1, ty2')
   | (TupLabel(lab1, ty1'), TupLabel(lab2, ty2')) =>
     let* lab = join'(lab1, lab2);
     let+ ty = join'(ty1', ty2');
