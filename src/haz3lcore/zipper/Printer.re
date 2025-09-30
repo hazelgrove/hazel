@@ -68,7 +68,7 @@ let of_segment =
       ~holes=" ",
       ~concave_holes=" ",
       ~indent=" ",
-      ~refractors as _=Id.Map.empty,
+      ~refractors=Id.Map.empty,
       ~caret: option((string, Point.t))=None,
       ~selection_anchor: option((string, Point.t))=None,
       ~measured=?,
@@ -79,7 +79,8 @@ let of_segment =
   |> Segment.to_string(
        ~holes,
        ~concave_holes,
-       ~refractor_seg_to_seg=Fun.id,
+       ~refractors,
+       ~refractor_seg_to_seg=Triggers.refractor_seg_to_seg,
        ~projector_to_segment=Triggers.projector_to_invoke,
      )
   |> String.split_on_char('\n')

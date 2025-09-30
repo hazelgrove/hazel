@@ -68,7 +68,8 @@ let term_id_to_string =
       Base.segment_to_string(
         ~holes="",
         ~concave_holes="",
-        ~refractor_seg_to_seg=Fun.id,
+        ~refractor_seg_to_seg=(a, b) => (a, b),
+        ~refractors=Id.Map.empty,
         ~projector_to_segment=_ => [],
         segment,
       )

@@ -138,7 +138,51 @@ let destruct = (z: t): option(t) =>
   '1 + ^^probe(^^probe(2) * 3)'
  where refractor_to_invoke should take care of the actual wrapping
 
- Possible strategy: Recu
+ Possible strategy: Assume for initial simplicity that there are no n-ary forms. that is,
+ in the skel, all roots are singleton Abas whose a=int points to a single index into the seg.
+ Now, recurse into the skel. Branch on skel. In each case, Get id of root tile. In each branch,
+ recurse on the children, getting segments. Now, to recombine those segments to return, we further
+ branch based on whether the root tile id is in the refractors map. If it's not, we simply
+ create a segment which is the results of the recursive call combine with a singleton segment of
+ the root tile, obtained from the original seg, in the appropriate order/combination depending
+ on the skel branch we're in. If it is in refractors, then we do the same, except wrapping the
+ resulting seg using refractor_to_invoke. so i guess actually we can factor this part out to
+ after the skel branching.
+
    */
 let refractor_seg_to_seg =
-    (_refractors: Id.Map.t(Base.projector), seg: Segment.t): Segment.t => seg;
+    (refractors: Id.Map.t(Base.projector), seg: Segment.t)
+    : (Id.Map.t(Base.projector), Segment.t) => {
+  //TODO(andrew): make this support n-ary ops
+  let foo = root => [List.nth(seg, Aba.first_a(root))];
+  let rec go = (map, skel: Skel.t): (Id.Map.t(Base.projector), Segment.t) => {
+    let (map, res) =
+      switch (skel) {
+      | Op(root) => (map, foo(root))
+      | Pre(root, l) =>
+        let (map, seg) = go(map, l);
+        (map, foo(root) @ seg);
+      | Post(r, root) =>
+        let (map, seg) = go(map, r);
+        (map, seg @ foo(root));
+      | Bin(l, root, r) =>
+        let (map1, seg1) = go(map, l);
+        let (map2, seg2) = go(map1, r);
+        (map2, seg1 @ foo(root) @ seg2);
+      };
+    let root_id = Segment.root_id(skel, seg);
+    switch (Id.Map.find_opt(root_id, refractors)) {
+    | Some(pr) => (
+        Id.Map.remove(root_id, map),
+        refractor_to_invoke(pr.kind, res),
+      )
+    | None => (map, res)
+    };
+  };
+  Id.Map.is_empty(refractors)
+    ? (refractors, seg)
+    : {
+      let (map, seg) = go(refractors, Segment.skel(seg));
+      (map, seg);
+    };
+};

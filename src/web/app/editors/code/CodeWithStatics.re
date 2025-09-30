@@ -56,7 +56,11 @@ module Model = {
       |> Option.map(((p, _, _)) => p),
     selected_text:
       Some(
-        () => Printer.of_segment(model.editor.state.zipper.selection.content),
+        () =>
+          Printer.of_segment(
+            ~refractors=model.editor.state.zipper.refractors.manuals,
+            model.editor.state.zipper.selection.content,
+          ),
       ),
     selection: Some(model.editor.state.zipper.selection.content),
     editor: Some(model.editor),
