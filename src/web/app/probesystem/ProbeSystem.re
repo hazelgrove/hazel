@@ -3,30 +3,6 @@ open Node;
 open Util.WebUtil;
 open Util;
 
-module Update = {
-  [@deriving (show({with_path: false}), sexp, yojson)]
-  type t =
-    |;
-
-  let can_undo = _action => false; //TODO(andrew)
-};
-
-module Model = {
-  [@deriving (show({with_path: false}), sexp, yojson)]
-  type t = unit;
-
-  let init = ();
-
-  module Store =
-    Store.F({
-      [@deriving (show({with_path: false}), yojson, sexp)]
-      type t = unit;
-      let default = () => init;
-
-      let key = Store.ProbeSystem;
-    });
-};
-
 let jump_to = (~globals: Globals.t, id: Id.t, _) =>
   globals.inject_global(ActiveEditor(Move(Goal(TileId(id)))));
 
@@ -140,15 +116,13 @@ let view =
       ~globals: Globals.t,
       ~cursor as _: Cursor.cursor(Editors.Update.t),
       ~signal as _,
-      ~inject as _: Update.t => Ui_effect.t(unit),
-      ~model as _: Model.t,
       ~editor: CodeEditable.Model.t,
     ) => {
   let refractor_data =
     ProjectorView.Model.mk(
       Id.Map.union(
         (_, _, b) => Some(b),
-        editor.editor.state.zipper.refractors.map,
+        editor.editor.state.zipper.refractors.manuals,
         editor.editor.state.zipper.refractors.ephemerals,
       ),
       editor.editor.syntax.measured,
@@ -160,19 +134,11 @@ let view =
       editor.editor.state.zipper.refractors.dyn_cursor,
       true,
     );
-  let info_map = editor.statics.info_map;
-  //let term_data = editor.editor.syntax.term_data;
   let refractors = editor.editor.state.zipper.refractors;
   let measured = editor.editor.syntax.measured;
-  let manual_map = refractors.map;
-  let pinned_term_ids = refractors.pinned_term_ids;
-  let ephemerals = refractors.ephemerals;
   let dyn_cursor = refractors.dyn_cursor;
-  let call_cursor = dyn_cursor.call_cursor;
-  let indicated_call = dyn_cursor.indicated_call;
-  let pinned_call = dyn_cursor.pinned_call;
-  let fancyd = fancy(~refractor_data, ~info_map, ~globals);
-  //let basicd = basic(~globals);
+  let fancyd =
+    fancy(~refractor_data, ~info_map=editor.statics.info_map, ~globals);
   div(
     ~attrs=[Attr.id("probesys")],
     [
@@ -186,7 +152,7 @@ let view =
           List.mapi(
             (i, id) =>
               div(
-                i == call_cursor.index
+                i == dyn_cursor.index
                   ? [
                     div(
                       ~attrs=[Attr.create("style", "font-weight: bold;")],
@@ -195,17 +161,17 @@ let view =
                   ]
                   : [fancyd(id)],
               ),
-            call_cursor.stack,
+            dyn_cursor.stack,
           ),
         ),
         br(),
         text("Indicated Call: "),
-        indicated_call
+        dyn_cursor.indicated_call
         |> Option.map(fancyd)
         |> Option.value(~default=div([text("None")]), _),
         br(),
         text("Pinned Call: "),
-        pinned_call
+        dyn_cursor.pinned_stack
         |> Option.map(stack => div(List.map(id => fancyd(id), stack)))
         |> Option.value(~default=div([text("None")]), _),
       ]),
@@ -213,18 +179,20 @@ let view =
         [br(), text("Manual Probes:"), br()]
         @ List.map(
             ((id, _p)) => fancyd(id),
-            manual_map |> Id.Map.to_list |> sort_ids_by_measurement(~measured),
+            refractors.manuals
+            |> Id.Map.to_list
+            |> sort_ids_by_measurement(~measured),
           ),
       ),
       div(
         [br(), text("REPL Probes:"), br()]
-        @ List.map(id => fancyd(id), pinned_term_ids)
+        @ List.map(id => fancyd(id), refractors.autos)
         @ [
           div(
             ~attrs=[clss(["ephemerals"])],
             List.map(
               ((id, _p)) => fancyd(id),
-              ephemerals
+              refractors.ephemerals
               |> Id.Map.to_list
               |> sort_ids_by_measurement(~measured),
             ),

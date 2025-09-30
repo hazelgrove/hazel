@@ -17,7 +17,6 @@ module Model = {
     editors: Editors.Model.t,
     explain_this: ExplainThisModel.t,
     assistant: AssistantModel.t,
-    probes: ProbeSystem.Model.t,
     selection,
   };
 
@@ -34,13 +33,11 @@ module Store = {
       );
     let explain_this = ExplainThisModel.Store.load();
     let assistant = AssistantModel.Store.load();
-    let probes = ProbeSystem.Model.Store.load();
     {
       editors,
       globals,
       explain_this,
       assistant,
-      probes,
       selection: Editors.Selection.default_selection(editors),
     };
   };
@@ -70,7 +67,6 @@ module Update = {
     | Editors(Editors.Update.t)
     | ExplainThis(ExplainThisUpdate.update)
     | Assistant(AssistantUpdate.t)
-    | ProbeSystem(ProbeSystem.Update.t)
     | MakeActive(selection)
     | Benchmark(benchmark_action)
     | Start
@@ -288,9 +284,6 @@ module Update = {
         ...model,
         assistant,
       };
-    | ProbeSystem(_action) =>
-      print_endline("TODO(andrew)");
-      model |> return;
     | MakeActive(selection) =>
       {
         ...model,
@@ -319,7 +312,6 @@ module Update = {
     | Editors(action) => Editors.Update.can_undo(action)
     | ExplainThis(action) => ExplainThisUpdate.can_undo(action)
     | Assistant(action) => AssistantUpdate.can_undo(action)
-    | ProbeSystem(action) => ProbeSystem.Update.can_undo(action)
     | MakeActive(_)
     | Benchmark(_) => false
     | Start => false
@@ -608,7 +600,6 @@ module View = {
           editors,
           explain_this: explainThisModel,
           assistant: assistantModel,
-          probes: probesModel,
           selection,
         } as model: Model.t,
       ) => {
@@ -630,13 +621,11 @@ module View = {
         ~cursor,
         ~explain_this_inject=action => inject(ExplainThis(action)),
         ~assistant_inject=action => inject(Assistant(action)),
-        ~probes_inject=action => inject(ProbeSystem(action)),
         ~signal=
           fun
           | MakeActive(s) => inject(MakeActive(Scratch(s))),
         ~explainThisModel,
         ~assistantModel,
-        ~probesModel,
         ~editor=Update.get_editor(model),
         cursor.info,
       );

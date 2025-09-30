@@ -190,11 +190,9 @@ let view =
       ~cursor: Cursor.cursor(Editors.Update.t),
       ~explain_this_inject,
       ~assistant_inject,
-      ~probes_inject,
       ~signal,
       ~explainThisModel: ExplainThisModel.t,
       ~assistantModel: AssistantModel.t,
-      ~probesModel: ProbeSystem.Model.t,
       ~editor,
       info: option(Language.Info.t),
     ) => {
@@ -220,15 +218,7 @@ let view =
                 ~model=assistantModel,
                 ~editor,
               )
-            | Probes =>
-              ProbeSystem.view(
-                ~globals,
-                ~signal,
-                ~cursor,
-                ~inject=probes_inject,
-                ~model=probesModel,
-                ~editor,
-              )
+            | Probes => ProbeSystem.view(~globals, ~signal, ~cursor, ~editor)
             },
           ],
         )

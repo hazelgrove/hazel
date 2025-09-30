@@ -112,7 +112,7 @@ let rm_opaques:
 module Closures = {
   let filter_frames_by_pin =
       (~ap_id: option(Id.t), di: Dynamics.Info.t): list(closure) =>
-    switch (di.dyn_cursor.pinned_call) {
+    switch (di.dyn_cursor.pinned_stack) {
     | Some(pinned_ap) =>
       List.filter(
         (closure: closure) =>
@@ -427,8 +427,8 @@ let env_view = (closure: closure, view_seg, utility: utility): Node.t =>
   );
 
 let show_pin = (~ap_id: option(Id.t), di: Dynamics.Info.t) => {
-  di.dyn_cursor.pinned_call != None
-  && di.dyn_cursor.pinned_call
+  di.dyn_cursor.pinned_stack != None
+  && di.dyn_cursor.pinned_stack
   |> OptUtil.and_then(ListUtil.hd_opt) == ap_id;
 };
 
@@ -774,7 +774,7 @@ let probe_default =
 let is_pinned = (ap_id: option(Id.t), di: Dynamics.Info.t): bool =>
   switch (Dynamics.Info.is_in(di)) {
   | Some(closure_cursor) =>
-    di.dyn_cursor.pinned_call
+    di.dyn_cursor.pinned_stack
     == Dynamics.Cursor.cur_call(ap_id, closure_cursor)
   | _ => false
   };

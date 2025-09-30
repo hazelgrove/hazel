@@ -475,7 +475,7 @@ module Refractors = {
       )
       : list(Node.t) =>
     (
-      z.refractors.map
+      z.refractors.manuals
       |> Id.Map.to_list
       |> List.concat_map(((id, _p)) =>
            refractor_arms(

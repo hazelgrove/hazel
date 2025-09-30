@@ -968,18 +968,10 @@ let for_projection =
   );
 
 let from_zip_for_sem = (z: Zipper.t) => {
-  // let refractor_mapping =
-  //   ZipperBase.Refractor.mapping(
-  //     Id.Map.union(
-  //       (_, _, b) => Some(b),
-  //       z.refractors.map,
-  //       z.refractors.ephemerals,
-  //     ),
-  //   );
   let refractor_mapping =
     Id.Map.union(
       (_, _, b) => Some(b),
-      z.refractors.map,
+      z.refractors.manuals,
       z.refractors.ephemerals,
     );
   go(refractor_mapping, Dump.to_segment(z));

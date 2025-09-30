@@ -13,14 +13,14 @@ module Refractor = {
 
   [@deriving (show({with_path: false}), sexp, yojson, eq)]
   type t = {
-    map: Map.t,
-    pinned_term_ids: list(Id.t),
+    manuals: Map.t,
+    autos: list(Id.t),
     ephemerals: Map.t,
     dyn_cursor: Language.Dynamics.Cursor.t,
   };
   let init = {
-    map: Id.Map.empty,
-    pinned_term_ids: [],
+    manuals: Id.Map.empty,
+    autos: [],
     ephemerals: Id.Map.empty,
     dyn_cursor: Language.Dynamics.Cursor.init,
   };

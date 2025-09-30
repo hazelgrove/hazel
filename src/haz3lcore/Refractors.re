@@ -16,7 +16,7 @@ let update_refractors_map = (f, z: Zipper.t): Zipper.t => {
   ...z,
   refractors: {
     ...z.refractors,
-    map: f(z.refractors.map),
+    manuals: f(z.refractors.manuals),
   },
 };
 
@@ -62,16 +62,16 @@ let probe_status =
     )
     : probe_status => {
   let ids = target_subterm_ids(id, info_map);
-  List.for_all(id => Id.Map.mem(id, refractors.map), ids)
+  List.for_all(id => Id.Map.mem(id, refractors.manuals), ids)
     ? Manual(target_subterm_ids(id, info_map))
-    : List.mem(id, refractors.pinned_term_ids) ? REPL : Non;
+    : List.mem(id, refractors.autos) ? REPL : Non;
 };
 
 let rm_repl = (id: Id.t, z: Zipper.t): Zipper.t =>
   Zipper.update_refractors(z, refractors =>
     {
       ...refractors,
-      pinned_term_ids: List.filter((!=)(id), z.refractors.pinned_term_ids),
+      autos: List.filter((!=)(id), z.refractors.autos),
       ephemerals:
         Id.Map.filter((id', _) => id' != id, z.refractors.ephemerals),
     }
@@ -112,7 +112,7 @@ let ids_from_term =
 let add_ids_from_pinned_term =
     (~term_data, ~terms, ~measured, ~info_map, z: Zipper.t): Zipper.t => {
   let ids =
-    switch (z.refractors.pinned_term_ids) {
+    switch (z.refractors.autos) {
     | [] => []
     | [hd, ..._] =>
       // This ignores other pinned terms... see below
@@ -135,7 +135,7 @@ let add_repl = (id: Id.t, syntax: CachedSyntax.t, z: Zipper.t): Zipper.t =>
   Zipper.update_refractors(z, refractors =>
     {
       ...refractors,
-      pinned_term_ids: [id, ...z.refractors.pinned_term_ids],
+      autos: [id, ...z.refractors.autos],
     }
   )
   |> add_ids_from_pinned_term(
@@ -182,15 +182,15 @@ let probe_jump =
 let rm_probes_in_selection = (z: Zipper.t): Zipper.t => {
   //TODO: remove repls in selection too?
   let selection_ids = Selection.selection_ids(z.selection);
-  let map =
+  let manuals =
     Id.Map.filter(
       (id, _) => !List.mem(id, selection_ids),
-      z.refractors.map,
+      z.refractors.manuals,
     );
   Zipper.update_refractors(z, refractors =>
     {
       ...refractors,
-      map,
+      manuals,
     }
   );
 };

@@ -134,40 +134,33 @@ module Probe = {
 
 module Cursor = {
   [@deriving (show({with_path: false}), sexp, yojson, eq)]
-  type call_cursor = {
+  type t = {
     stack: call_stack,
     index: int,
-  };
-
-  [@deriving (show({with_path: false}), sexp, yojson, eq)]
-  type t = {
-    call_cursor,
+    pinned_stack: option(call_stack),
     indicated_call: option(Id.t),
-    pinned_call: option(call_stack),
   };
 
   let init: t = {
-    call_cursor: {
-      stack: [],
-      index: (-1),
-    },
+    stack: [],
+    index: (-1),
+    pinned_stack: None,
     indicated_call: None,
-    pinned_call: None,
   };
 
-  let trimmed_stack = (call_cursor: call_cursor) =>
-    ListUtil.slice(0, call_cursor.index + 1, call_cursor.stack |> List.rev)
+  let trimmed_stack = (dyn_cursor: t) =>
+    ListUtil.slice(0, dyn_cursor.index + 1, dyn_cursor.stack |> List.rev)
     |> List.rev;
 
   /* If the closure cursor is on a call, and the provided
    * call stack is downstream of that call, return how many
    * aps downstream it is */
   let depth_in_indicated_calls_stack =
-      (cc: t, call_stack: call_stack): option(int) => {
+      (dyn_cursor: t, call_stack: call_stack): option(int) => {
     open OptUtil.Syntax;
-    let* cur_ap = cc.indicated_call;
+    let* cur_ap = dyn_cursor.indicated_call;
     ListUtil.suffix_at_depth(
-      [cur_ap] @ trimmed_stack(cc.call_cursor),
+      [cur_ap] @ trimmed_stack(dyn_cursor),
       call_stack,
     );
   };
@@ -208,20 +201,21 @@ module Cursor = {
   };
 
   let relation =
-      (ap_id: option(Id.t), cc: t, closure: Probe.Closure.t): relation => {
+      (ap_id: option(Id.t), dyn_cursor: t, closure: Probe.Closure.t)
+      : relation => {
     let this = closure.call_stack;
-    let cursor = trimmed_stack(cc.call_cursor);
+    let cursor = trimmed_stack(dyn_cursor);
     {
       is_call_cursor: cursor == this,
       is_more_precise_than_cursor:
-        List.length(cc.call_cursor.stack) > List.length(closure.call_stack),
+        List.length(dyn_cursor.stack) > List.length(closure.call_stack),
       relative_level_to_cursor: relative_level(cursor, this),
       is_call_above_call_cursor: {
         let* cur_call = cur_call(ap_id, closure);
         is_below(cur_call, cursor);
       },
       is_below_indicated_call: {
-        let* cur_ap = cc.indicated_call;
+        let* cur_ap = dyn_cursor.indicated_call;
         is_below([cur_ap] @ cursor, this);
       },
     };
@@ -253,7 +247,7 @@ module Info = {
     //TODO(andrew): maybe should use call_cursor suffix trimmed to index?
     List.find_opt(
       (closure: Probe.Closure.t) =>
-        Cursor.trimmed_stack(di.dyn_cursor.call_cursor) == closure.call_stack,
+        Cursor.trimmed_stack(di.dyn_cursor) == closure.call_stack,
       di.closures,
     );
 

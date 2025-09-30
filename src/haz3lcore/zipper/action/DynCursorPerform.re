@@ -19,7 +19,7 @@ let update_pinned_call =
   update_dyn_cursor(z, dyn_cursor =>
     {
       ...dyn_cursor,
-      pinned_call: f(dyn_cursor.pinned_call),
+      pinned_stack: f(dyn_cursor.pinned_stack),
     }
   );
 
@@ -29,16 +29,10 @@ let capture =
     {
       ...dyn_cursor,
       indicated_call: id /*!= None ? id : z.refractors.dyn_cursor.indicated_call*/,
-      call_cursor: {
-        stack:
-          !
-            ListUtil.is_suffix_of(
-              closure.call_stack,
-              dyn_cursor.call_cursor.stack,
-            )
-            ? closure.call_stack : dyn_cursor.call_cursor.stack,
-        index: List.length(closure.call_stack) - 1,
-      },
+      stack:
+        !ListUtil.is_suffix_of(closure.call_stack, dyn_cursor.stack)
+          ? closure.call_stack : dyn_cursor.stack,
+      index: List.length(closure.call_stack) - 1,
     }
   );
 

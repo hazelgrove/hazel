@@ -250,7 +250,7 @@ module View = {
       ProjectorView.Model.mk(
         Id.Map.union(
           (_, _, b) => Some(b),
-          model.editor.state.zipper.refractors.map,
+          model.editor.state.zipper.refractors.manuals,
           model.editor.state.zipper.refractors.ephemerals,
         ),
         model.editor.syntax.measured,
