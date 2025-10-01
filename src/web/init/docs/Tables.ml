@@ -1,7 +1,6 @@
 let out : string * Haz3lcore.PersistentSegment.t =
   ( "Tables",
     {
-      refractors = Haz3lcore.Zipper.Refractor.Map.empty;
       segment =
         "((Secondary((id \
          b0d8b117-3610-4859-8d2e-fb96ab73f185)(content(Comment\"# Sample: Quiz \
@@ -453,11 +452,7 @@ let out : string * Haz3lcore.PersistentSegment.t =
          e35609fd-06a8-4834-8ee8-862636f6876a)(content(Comment\"# Pull out all \
          final exam scores using projection over the table \
          #\"))))(Secondary((id \
-         e4d4a64e-c139-455c-8b31-30e5dda68910)(content(Whitespace\"\\n\"))))(Projector((id \
-         d3fd9135-9990-4b33-9bfc-1d40cbadeed7)(kind Probe)(syntax(Tile((id \
-         156ff866-3783-4b92-bc0e-97f4a9c74581)(label(\"(\"\")\"))(mold((out \
-         Exp)(in_(Exp))(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
-         Exp))))))(shards(0 1))(children(((Tile((id \
+         e4d4a64e-c139-455c-8b31-30e5dda68910)(content(Whitespace\"\\n\"))))(Tile((id \
          75c2ffad-c04c-4b4a-bb89-bc2c23a7c187)(label(gradebook))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Tile((id \
@@ -466,7 +461,7 @@ let out : string * Haz3lcore.PersistentSegment.t =
          22))(sort Exp))))))(shards(0))(children())))(Tile((id \
          5f50d8ea-4872-457f-9ce9-55bdc79b538a)(label(final))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
-         Exp))))))(shards(0))(children())))))))))(model\"()\")))(Tile((id \
+         Exp))))))(shards(0))(children())))(Tile((id \
          34251b4f-a988-42e4-9f31-f8b3875abe22)(label(\";\"))(mold((out \
          Exp)(in_())(nibs(((shape(Concave 38))(sort Exp))((shape(Concave \
          38))(sort Exp))))))(shards(0))(children())))(Secondary((id \
@@ -830,20 +825,12 @@ let out : string * Haz3lcore.PersistentSegment.t =
          Exp))))))(shards(0))(children()))))))))(Secondary((id \
          a7bce209-0c3d-4d5c-bb59-288145517422)(content(Whitespace\"\\n\")))))))))(Secondary((id \
          bdf40c44-4b94-4b66-9014-9b91e8d79bc7)(content(Whitespace\" \
-         \"))))(Projector((id a32839d7-8077-4a2d-985c-3a4cbf24d969)(kind \
-         Probe)(syntax(Tile((id \
-         ea0d07d2-d276-468e-b442-79d458471884)(label(\"(\"\")\"))(mold((out \
-         Exp)(in_(Exp))(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
-         Exp))))))(shards(0 1))(children(((Tile((id \
+         \"))))(Tile((id \
          7e473f77-91c8-44f2-bb82-8bec41c8e126)(label(with_average))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
-         Exp))))))(shards(0))(children())))))))))(model\"()\"))))))))(Secondary((id \
+         Exp))))))(shards(0))(children()))))))))(Secondary((id \
          f175e5ec-0cad-419c-8984-2c38100a427c)(content(Whitespace\"\\n\")))))))))(Secondary((id \
-         5145025d-03ac-4c94-9ded-0ab22a6055a4)(content(Whitespace\"\\n\"))))(Projector((id \
-         7dda81af-6678-41a3-b3dd-b66af0ad2e72)(kind Probe)(syntax(Tile((id \
-         5a4c63fe-00b8-419c-ab8d-b8b74af79f1e)(label(\"(\"\")\"))(mold((out \
-         Exp)(in_(Exp))(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
-         Exp))))))(shards(0 1))(children(((Tile((id \
+         5145025d-03ac-4c94-9ded-0ab22a6055a4)(content(Whitespace\"\\n\"))))(Tile((id \
          9f28658b-f06d-4ad9-b55f-e118e2a636a5)(label(gradebook_with_average))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Tile((id \
@@ -852,7 +839,7 @@ let out : string * Haz3lcore.PersistentSegment.t =
          22))(sort Exp))))))(shards(0))(children())))(Tile((id \
          f94c2336-be0b-4608-b5b1-12811bb492ca)(label(quiz_average))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
-         Exp))))))(shards(0))(children())))))))))(model\"()\")))(Tile((id \
+         Exp))))))(shards(0))(children())))(Tile((id \
          0649b6c1-fe99-4227-912c-e53152c530e8)(label(\";\"))(mold((out \
          Exp)(in_())(nibs(((shape(Concave 38))(sort Exp))((shape(Concave \
          38))(sort Exp))))))(shards(0))(children())))(Secondary((id \
@@ -1105,14 +1092,10 @@ let out : string * Haz3lcore.PersistentSegment.t =
          Exp)(in_(Pat Exp))(nibs(((shape Convex)(sort Exp))((shape(Concave \
          40))(sort Exp))))))(shards(0 1 2))(children(((Secondary((id \
          0692ab4a-d45c-4a89-9e80-9c068d574e70)(content(Whitespace\" \
-         \"))))(Projector((id b482a441-b474-4124-8808-e23da5868a3b)(kind \
-         Probe)(syntax(Tile((id \
-         8a1818dc-caa3-4bed-a995-398d316f2be2)(label(\"(\"\")\"))(mold((out \
-         Pat)(in_(Pat))(nibs(((shape Convex)(sort Pat))((shape Convex)(sort \
-         Pat))))))(shards(0 1))(children(((Tile((id \
+         \"))))(Tile((id \
          d5146269-9376-48e7-b7dc-f6cc61f8e2fe)(label(by_level))(mold((out \
          Pat)(in_())(nibs(((shape Convex)(sort Pat))((shape Convex)(sort \
-         Pat))))))(shards(0))(children())))))))))(model\"()\")))(Secondary((id \
+         Pat))))))(shards(0))(children())))(Secondary((id \
          bc400069-4144-4d26-9bc4-58bae40f9d9e)(content(Whitespace\" \
          \")))))((Secondary((id \
          6fa40989-7289-47fa-82ac-ba995cfac18d)(content(Whitespace\" \
@@ -1136,11 +1119,7 @@ let out : string * Haz3lcore.PersistentSegment.t =
          Exp))))))(shards(0))(children()))))))))(Secondary((id \
          d8b30b6e-9144-4e53-8cac-9b1c6f78b8ac)(content(Whitespace\" \
          \")))))))))(Secondary((id \
-         ae8cfd29-149a-48b1-8893-0efdefd556f1)(content(Whitespace\"\\n\"))))(Projector((id \
-         20bf5bc5-6223-411b-873e-10789b19c7b0)(kind Probe)(syntax(Tile((id \
-         61f9ac5e-93a4-4790-b840-5cb623304035)(label(\"(\"\")\"))(mold((out \
-         Exp)(in_(Exp))(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
-         Exp))))))(shards(0 1))(children(((Tile((id \
+         ae8cfd29-149a-48b1-8893-0efdefd556f1)(content(Whitespace\"\\n\"))))(Tile((id \
          4d8272ac-53f8-49a6-9a9e-deee1115dbef)(label(by_level))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Tile((id \
@@ -1149,15 +1128,11 @@ let out : string * Haz3lcore.PersistentSegment.t =
          22))(sort Exp))))))(shards(0))(children())))(Tile((id \
          cd621758-4bc7-4300-8094-5fdbd990203d)(label(forest))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
-         Exp))))))(shards(0))(children())))))))))(model\"()\")))(Tile((id \
+         Exp))))))(shards(0))(children())))(Tile((id \
          aaedced6-bafe-4d26-913c-ed09bf6aee89)(label(\";\"))(mold((out \
          Exp)(in_())(nibs(((shape(Concave 38))(sort Exp))((shape(Concave \
          38))(sort Exp))))))(shards(0))(children())))(Secondary((id \
-         482c160c-14c3-477a-9b5a-05cbffcf440e)(content(Whitespace\"\\n\"))))(Projector((id \
-         bacb773e-181f-495e-8100-4971c7293cdd)(kind Probe)(syntax(Tile((id \
-         c78b02f3-3ce3-46eb-ac61-f237e21e9f3c)(label(\"(\"\")\"))(mold((out \
-         Exp)(in_(Exp))(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
-         Exp))))))(shards(0 1))(children(((Tile((id \
+         482c160c-14c3-477a-9b5a-05cbffcf440e)(content(Whitespace\"\\n\"))))(Tile((id \
          f7493c53-317e-402a-97bf-bdfb087c711d)(label(by_level))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Tile((id \
@@ -1166,15 +1141,11 @@ let out : string * Haz3lcore.PersistentSegment.t =
          22))(sort Exp))))))(shards(0))(children())))(Tile((id \
          afb6f98c-7306-41d9-b533-c1ef8af6f37e)(label(cave))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
-         Exp))))))(shards(0))(children())))))))))(model\"()\")))(Tile((id \
+         Exp))))))(shards(0))(children())))(Tile((id \
          9fb39c24-0578-42d7-acfa-e631a3d844a7)(label(\";\"))(mold((out \
          Exp)(in_())(nibs(((shape(Concave 38))(sort Exp))((shape(Concave \
          38))(sort Exp))))))(shards(0))(children())))(Secondary((id \
-         8baed61c-8225-4f6a-8062-b57e0e5ae6cd)(content(Whitespace\"\\n\"))))(Projector((id \
-         9446b212-8e22-4654-b74d-03b25a8a0470)(kind Probe)(syntax(Tile((id \
-         b9f5f3b5-881b-4bc4-9ef2-2f0996241364)(label(\"(\"\")\"))(mold((out \
-         Exp)(in_(Exp))(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
-         Exp))))))(shards(0 1))(children(((Tile((id \
+         8baed61c-8225-4f6a-8062-b57e0e5ae6cd)(content(Whitespace\"\\n\"))))(Tile((id \
          9455707d-ea8e-4471-ab97-03cfb812ced3)(label(by_level))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Tile((id \
@@ -1189,7 +1160,7 @@ let out : string * Haz3lcore.PersistentSegment.t =
          22))(sort Exp))))))(shards(0))(children())))(Tile((id \
          b66c7e95-e247-43e0-a044-2fd49ef75f4e)(label(score))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
-         Exp))))))(shards(0))(children())))))))))(model\"()\")))(Tile((id \
+         Exp))))))(shards(0))(children())))(Tile((id \
          afbe6803-2014-4d6d-a2c6-e1b0c618d22a)(label(\";\"))(mold((out \
          Exp)(in_())(nibs(((shape(Concave 38))(sort Exp))((shape(Concave \
          38))(sort Exp))))))(shards(0))(children())))(Secondary((id \
@@ -3038,116 +3009,60 @@ let out : string * Haz3lcore.PersistentSegment.t =
          \"))))(Secondary((id \
          84ced6e9-404e-4905-9577-1ec2e50b35b9)(content(Whitespace\"\\n\")))))))))(Secondary((id \
          da1cf5f0-a625-434d-9e18-724da28a19de)(content(Whitespace\" \
-         \"))))(Projector((id 5e6e0d9e-ab0e-497e-823b-c858e3a3126a)(kind \
-         Probe)(syntax(Tile((id \
-         d4e4b35e-040d-4f87-b52c-a5e3c34456ba)(label(\"(\"\")\"))(mold((out \
-         Exp)(in_(Exp))(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
-         Exp))))))(shards(0 1))(children(((Tile((id \
+         \"))))(Tile((id \
          613832c1-26a1-4c86-8068-21796d819515)(label(sighting_counts))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
-         Exp))))))(shards(0))(children())))))))))(model\"()\"))))";
+         Exp))))))(shards(0))(children()))))";
       backup_text =
-        "# Sample: Quiz scores from multiple students #\n\
-         type GradebookEntry = (\n\
-         name=String, \n\
-         age=Int, \n\
-         quiz1=Int, \n\
-         quiz2=Int, \n\
-         quiz3=Int, \n\
-         quiz4=Int, \n\
-         final=Int\n\
-         ) in\n\n\
-         let gradebook : [GradebookEntry] = [\n\
-         (\"Alice\", 12, 8, 9, 7, 8, 87),\n\
-         (\"Bob\", 17,  6, 8, 8, 7, 85),\n\
-         (\"Alice\", 13, 9, 10, 8, 8, 90),\n\
-         (\"Charlie\", 14, 7, 9, 9, 6, 77),\n\
-         (\"Bob\", 18, 10, 6, 6, 6, 93)\n\
-         ] in\n\n\
-         # Projection over Lists of Labeled Tuples #\n\
-         # Pull out all final exam scores using projection over the table #\n\
-         ^^probe(gradebook.final);\n\n\
-         # The to_lvs operation on labeled tuples converts them to a list of \
-         (label, value) entries. #\n\
-         # We can map this over a table to do things like extracting all quiz \
-         scores and compute an average. #\n\
-         let average = ^^fold(fun (ns: [Int]) -> float_of_int(fold_left(ns, \
-         int_plus, 0))  /. float_of_int(length(ns))) in\n\
-         let gradebook_with_average = \n\
-         map(gradebook,\n\
-         fun e: GradebookEntry ->\n\
-         let ^^type(with_average) = \n\
-         e ... (quiz_average=\n\
-         to_lvs(omit_labels(e, `name`))\n\
-         |> filter(_, fun (label, score):^^fold((label=String, value=Int)) -> \
-         string_match(\"quiz.*\", label))\n\
-         |> map(_, fun e -> e.value)\n\
-         |> average)\n\
-         in ^^probe(with_average))\n\
-         in\n\
-         ^^probe(gradebook_with_average.quiz_average);\n\n\
-         # `group_by_label`: Group records by a label's value and pivot into a \
-         tuple of lists #\n\
-         # Example: Game leaderboard entries grouped by level #\n\
-         let leaderboard = [\n\
-         (level=\"forest\", player=\"Aria\", score=1200),\n\
-         (level=\"desert\", player=\"Ben\", score=900),\n\
-         (level=\"forest\", player=\"Cleo\", score=1500),\n\
-         (level=\"cave\", player=\"Dana\", score=700),\n\
-         (level=\"desert\", player=\"Eli\", score=1300)\n\
-         ] in\n\n\
-         let ^^probe(by_level) = group_by_label(leaderboard, `level`) in\n\
-         ^^probe(by_level.forest);\n\
-         ^^probe(by_level.cave);\n\
-         ^^probe(by_level.desert.score);\n\n\
-         # Example: Wildlife Tracking Grid of Species Sightings #\n\
-         # Each row represents presence/absence of species seen by a camera on \
-         a given day #\n\
-         type DailySighting = (day=Int, fox=Bool, deer=Bool, rabbit=Bool, \
-         bear=Bool, owl=Bool, raccoon=Bool, wolf=Bool, moose=Bool) in\n\
-         let sightings : [DailySighting] = [\n\
-         (1, ^^check(true), ^^check(false), ^^check(true), ^^check(false), \
-         ^^check(false), ^^check(true), ^^check(false), ^^check(false)),\n\
-         (2, ^^check(false), ^^check(true), ^^check(true), ^^check(false), \
-         ^^check(true), ^^check(false), ^^check(false), ^^check(false)),\n\
-         (3, ^^check(true), ^^check(false), ^^check(false), ^^check(false), \
-         ^^check(true), ^^check(false), ^^check(false), ^^check(false)),\n\
-         (4, ^^check(false), ^^check(false), ^^check(true), ^^check(false), \
-         ^^check(false), ^^check(false), ^^check(false), ^^check(false)),\n\
-         (5, ^^check(true), ^^check(false), ^^check(false), ^^check(false), \
-         ^^check(false), ^^check(true), ^^check(false), ^^check(false)),\n\
-         (6, ^^check(false), ^^check(true), ^^check(false), ^^check(true), \
-         ^^check(false), ^^check(false), ^^check(false), ^^check(true)),\n\
-         (7, ^^check(false), ^^check(false), ^^check(true), ^^check(false), \
-         ^^check(false), ^^check(false), ^^check(true), ^^check(false)),\n\
-         (8, ^^check(true), ^^check(false), ^^check(true), ^^check(false), \
-         ^^check(false), ^^check(false), ^^check(false), ^^check(false)),\n\
-         (9, ^^check(false), ^^check(true), ^^check(false), ^^check(false), \
-         ^^check(true), ^^check(false), ^^check(false), ^^check(false))\n\
-         ] in\n\
-         # to_lvs the grid into a long format table for analysis #\n\
-         let lvs : [(label=String, value=Bool)] = flat_map(sightings, fun \
-         sighting:^^fold((day=Int, fox=Bool, deer=Bool, rabbit=Bool, \
-         bear=Bool, owl=Bool, raccoon=Bool, wolf=Bool, moose=Bool)) -> \
-         to_lvs(omit_labels(sighting, `day`))) in\n\
-         let counts : [String] -> [(String, Int)] = ^^fold(fun elems -> case \
-         elems\n\
-         | [] => []\n\
-         | (hd :: tl) => \n\
-         let rest = counts(tl) in\n\
-         case rest\n\
-         | [] => [(hd, 1)]\n\
-         | ((prev, count)::tl) => \n\
-         if string_eq(\n\
-         prev,\n\
-         hd) \n\
-         then (prev,count+1) :: tl else (hd, 1) :: rest \n\
-         end \n\
-         end) in                  \n\
-         # Show counts for each species#\n\
-         let sighting_counts =   \n\
-         filter(lvs, fun (label=l, value=v) -> v).label\n\
-         |> sort(fun (a,b) -> string_compare(a,b), _)\n\
-         |> counts \n\
-         in ^^probe(sighting_counts)";
+        "typeGradebookEntry=(name=String,final=Int)inletgradebook:[GradebookEntry]=[(\"Alice\",87),(\"Bob\",93)]in^^probe(gradebook.final);letaverage=^^fold(fun(ns:[Int])->float_of_int(fold_left(ns,0))/.float_of_int(length(ns)))inletgradebook_with_average=map(gradebook,fune:GradebookEntry->let^^type(with_average)=e...(quiz_average=to_lvs(omit_labels(e,`name`))|>filter(_,fun(label,score):^^fold((label=String,value=Int))->string_match(\"quiz.*\",label))|>map(_,fune->e.value)|>average)in^^probe(with_average))in^^probe(gradebook_with_average.quiz_average);letleaderboard=[(level=\"forest\",score=1200),(level=\"desert\",score=1300)]inlet^^probe(by_level)=group_by_label(leaderboard,`level`)in^^probe(by_level.forest);^^probe(by_level.cave);^^probe(by_level.desert).score;typeDailySighting=(day=Int,moose=Bool)inletsightings:[DailySighting]=[(1,^^check(false)),(9,^^check(false))]inletlvs:[(label=String,value=Bool)]=flat_map(sightings,funsighting:^^fold((day=Int,moose=Bool))->to_lvs(omit_labels(sighting,`day`)))inletcounts:[String]->[(String,Int)]=^^fold(funelems->caseelems|[]=>letrest=counts(tl)incaserest|[]=>ifstring_eq(prev,hd)then(prev,count+1)::tlelse(hd,1)::restendend)inletsighting_counts=filter(lvs,fun(label=l,value=v)->v).label|>sort(fun(a,b)->string_compare(a,b),_)|>countsin^^probe(sighting_counts)";
+      refractors =
+        "((1977d0b9-81e3-40c0-bea7-ae466451f758((id \
+         1977d0b9-81e3-40c0-bea7-ae466451f759)(kind Probe)(syntax(Tile((id \
+         d1f6ca84-f4ee-4c4d-94b4-6c7b331c012f)(label(\"(\"\")\"))(mold((out \
+         Any)(in_(Any))(nibs(((shape Convex)(sort Any))((shape Convex)(sort \
+         Any))))))(shards(0 1))(children(((Grout((id \
+         00000000-0000-0000-0000-000000000000)(shape \
+         Convex)))))))))(model\"()\")))(387d3f19-18d3-4f81-99a7-0a0d184d8373((id \
+         387d3f19-18d3-4f81-99a7-0a0d184d8374)(kind Probe)(syntax(Tile((id \
+         ea06d21c-be48-451d-a22a-b40a16d15715)(label(\"(\"\")\"))(mold((out \
+         Any)(in_(Any))(nibs(((shape Convex)(sort Any))((shape Convex)(sort \
+         Any))))))(shards(0 1))(children(((Grout((id \
+         00000000-0000-0000-0000-000000000000)(shape \
+         Convex)))))))))(model\"()\")))(613832c1-26a1-4c86-8068-21796d819515((id \
+         613832c1-26a1-4c86-8068-21796d819516)(kind Probe)(syntax(Tile((id \
+         e7b90c4d-4c05-492d-81a0-ffd9c2a31ec1)(label(\"(\"\")\"))(mold((out \
+         Any)(in_(Any))(nibs(((shape Convex)(sort Any))((shape Convex)(sort \
+         Any))))))(shards(0 1))(children(((Grout((id \
+         00000000-0000-0000-0000-000000000000)(shape \
+         Convex)))))))))(model\"()\")))(7e473f77-91c8-44f2-bb82-8bec41c8e126((id \
+         7e473f77-91c8-44f2-bb82-8bec41c8e127)(kind Probe)(syntax(Tile((id \
+         df2bce4e-00a5-4e3c-ae01-48200f406a99)(label(\"(\"\")\"))(mold((out \
+         Any)(in_(Any))(nibs(((shape Convex)(sort Any))((shape Convex)(sort \
+         Any))))))(shards(0 1))(children(((Grout((id \
+         00000000-0000-0000-0000-000000000000)(shape \
+         Convex)))))))))(model\"()\")))(835fa6f7-4213-431a-95a2-f277ea410c94((id \
+         835fa6f7-4213-431a-95a2-f277ea410c95)(kind Probe)(syntax(Tile((id \
+         79807e95-0fa2-4834-a8d2-34f4e4ffe67f)(label(\"(\"\")\"))(mold((out \
+         Any)(in_(Any))(nibs(((shape Convex)(sort Any))((shape Convex)(sort \
+         Any))))))(shards(0 1))(children(((Grout((id \
+         00000000-0000-0000-0000-000000000000)(shape \
+         Convex)))))))))(model\"()\")))(b25666ac-eb44-4310-be3f-7932a3e32e14((id \
+         b25666ac-eb44-4310-be3f-7932a3e32e15)(kind Probe)(syntax(Tile((id \
+         7e869c5e-7de2-4ce5-8265-0ac5914da353)(label(\"(\"\")\"))(mold((out \
+         Any)(in_(Any))(nibs(((shape Convex)(sort Any))((shape Convex)(sort \
+         Any))))))(shards(0 1))(children(((Grout((id \
+         00000000-0000-0000-0000-000000000000)(shape \
+         Convex)))))))))(model\"()\")))(d2d2a2ef-dd56-4e1c-b2cf-bf3c0a58e9c2((id \
+         d2d2a2ef-dd56-4e1c-b2cf-bf3c0a58e9c3)(kind Probe)(syntax(Tile((id \
+         28368bb6-976d-43e7-a507-bd53d9c33cdc)(label(\"(\"\")\"))(mold((out \
+         Any)(in_(Any))(nibs(((shape Convex)(sort Any))((shape Convex)(sort \
+         Any))))))(shards(0 1))(children(((Grout((id \
+         00000000-0000-0000-0000-000000000000)(shape \
+         Convex)))))))))(model\"()\")))(d5146269-9376-48e7-b7dc-f6cc61f8e2fe((id \
+         d5146269-9376-48e7-b7dc-f6cc61f8e2ff)(kind Probe)(syntax(Tile((id \
+         6af01d88-14e2-412a-9569-b45e704a6b76)(label(\"(\"\")\"))(mold((out \
+         Any)(in_(Any))(nibs(((shape Convex)(sort Any))((shape Convex)(sort \
+         Any))))))(shards(0 1))(children(((Grout((id \
+         00000000-0000-0000-0000-000000000000)(shape \
+         Convex)))))))))(model\"()\"))))";
     } )

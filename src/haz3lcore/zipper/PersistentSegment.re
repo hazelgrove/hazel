@@ -4,7 +4,7 @@ open Util;
 type t = {
   segment: string,
   backup_text: string,
-  refractors: Id.Map.t(Base.projector),
+  refractors: string,
 };
 
 let to_string = Printer.of_segment(~holes="", ~indent="");
@@ -14,8 +14,22 @@ let persist = (zipper: Zipper.t) => {
   {
     segment: segment |> Segment.sexp_of_t |> Sexplib.Sexp.to_string,
     backup_text: to_string(segment, ~refractors=zipper.refractors.manuals),
-    refractors: zipper.refractors.manuals,
+    refractors:
+      zipper.refractors.manuals
+      |> ZipperBase.Refractor.Map.sexp_of_t
+      |> Sexplib.Sexp.to_string,
   };
+};
+
+let restore_refractors =
+    (persisted: string, refractors: ZipperBase.Refractor.t) => {
+  ...refractors,
+  manuals:
+    try(
+      persisted |> Sexplib.Sexp.of_string |> ZipperBase.Refractor.Map.t_of_sexp
+    ) {
+    | _ => Id.Map.empty
+    },
 };
 
 let restore = (persisted: t): Zipper.t =>
@@ -23,12 +37,7 @@ let restore = (persisted: t): Zipper.t =>
   |> Sexplib.Sexp.of_string
   |> Segment.t_of_sexp
   |> Zipper.unzip(~direction=Left)
-  |> Zipper.update_refractors(_, refractors =>
-       {
-         ...refractors,
-         manuals: persisted.refractors,
-       }
-     );
+  |> Zipper.update_refractors(_, restore_refractors(persisted.refractors));
 
 let restore_from_backup_text = (backup_text: string): Zipper.t =>
   (

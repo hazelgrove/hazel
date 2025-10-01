@@ -27,7 +27,7 @@ let expand_projector = (z: t): option(t) => {
     /* Trim only need because of grout/whitespace transmutation when syntax is hole */
     // let syntax =
     //   syntax |> Segment.trim_secondary(Right) |> Segment.trim_secondary(Left);
-    Zipper.update_siblings(((_, r)) => (syntax @ rest |> List.rev, r), z)
+    Zipper.update_siblings(((_, r)) => (List.rev(syntax @ rest), r), z)
     |> MkRefractor.add_single(
          Segment.root_id(Segment.skel(syntax), syntax),
        )
