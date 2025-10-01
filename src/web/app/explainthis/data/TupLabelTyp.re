@@ -10,7 +10,7 @@ let labeled_example_1: example = {
 let unlabeled_example: example = {
   sub_id: Label2,
   term: mk_example("(_=1) : (_=Int)"),
-  message: "A singleton unlabeled tuple. Unlabeled tuple items are given explicitly nonlabeled with `_` in label position.",
+  message: "A singleton unlabeled tuple. Unlabeled tuple items are given explicitly with `_` in label position.",
 };
 let labeled_example_2: example = {
   sub_id: Label3,

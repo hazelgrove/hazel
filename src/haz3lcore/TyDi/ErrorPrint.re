@@ -140,13 +140,13 @@ let typ_error: Info.error_typ => string =
     )
   | Duplicate(name, _) => prn("Type %s is already defined", name)
   | WantProduct(ty) =>
-    prn("Expected a product type, found type %s", Print.typ(ty));
+    prn("Expected a tuple type, found type %s", Print.typ(ty));
 
 let underdetermined_typ: Info.underdetermined_typ => string =
   fun
   | ProdExtensionUnderdetermined(tys) =>
     prn(
-      "Cannot determine type of product extension with argument types: %s",
+      "Cannot determine type of tuple extension with argument types: %s",
       List.map(Print.typ, tys) |> String.concat(", "),
     )
   | ProdProjectionMissingLabel(label, labels) =>
@@ -162,7 +162,7 @@ let underdetermined_typ: Info.underdetermined_typ => string =
         " and ",
         [
           switch (product) {
-          | Some(ty) => "Product is not a product type: " ++ Print.typ(ty)
+          | Some(ty) => "Type is not a tuple type: " ++ Print.typ(ty)
           | None => ""
           },
           switch (label) {

@@ -370,9 +370,9 @@ let underdetermined_typ_view =
     let product_error =
       switch (product) {
       | Some(ty) => [
-          text("product"),
+          text("type"),
           view_type(ty),
-          text("is not a product type"),
+          text("is not a tuple type"),
         ]
       | None => []
       };
@@ -472,7 +472,7 @@ let typ_err_view = (~globals, ok: Info.error_typ) => {
     ]
   | ParseFailure => [text("Parse failure")]
   | WantProduct(ty) => [
-      text("Expected a product type, found type"),
+      text("Expected a tuple type, found type"),
       view_type(ty),
     ]
   };
