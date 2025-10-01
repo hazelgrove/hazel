@@ -13,7 +13,8 @@ let (suite, _) =
     ~and_exit=false,
     ~argv=Sys.argv,
     "HazelTests",
-    [
+    Test_Assistant_Tools.tests
+    @ [
       Test_ListUtil.tests,
       Test_OptUtil.tests,
       Test_Grammar.tests,
@@ -29,7 +30,6 @@ let (suite, _) =
     @ Test_Elaboration.tests
     @ Test_Evaluator.tests
     @ Test_Editing.tests
-    @ Test_Assistant_Tools.tests
     @ Test_Indentation.tests
     @ [Test_Coverage.tests, Test_Unboxing.tests]
     @ Test_Introduce.tests

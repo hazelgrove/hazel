@@ -86,26 +86,42 @@ let typ_to_typ = (term: Typ.t, info_map: Id.Map.t(Info.t)): Info.typ => {
 //   Id.Map.find(e, info_map);
 // };
 
-let is_on_whitespace = (z: Zipper.t): bool => {
-  // Use for_index which only ignores secondary pieces, not grout pieces
-  switch (Indicated.for_index(z)) {
-  | Some((piece, _, _)) =>
-    Piece.is_secondary(piece)
-    || Piece.is_grout(piece)
-    || Piece.is_convex(piece)
-  | None => false
-  };
-};
+module MoveOffWhitespaceHelper = {
+  /*
+   Ad-hoc methods to help move the cursor off whitespace and to the nearest
+   non-whitespace term.
+   */
 
-let rec move_to_non_whitespace = (z: Zipper.t): Zipper.t => {
-  is_on_whitespace(z)
-    ? {
-      switch (Move.by_char_left(z)) {
-      | Some(z') => move_to_non_whitespace(z')
-      | None => raise(Failure("Couldn't move to non-whitespace"))
-      };
-    }
-    : z;
+  let is_on_whitespace = (z: Zipper.t): bool => {
+    // Use for_index which only ignores secondary pieces, not grout pieces
+    switch (Indicated.for_index(z)) {
+    | Some((piece, _, _)) =>
+      Piece.is_secondary(piece)
+      || Piece.is_grout(piece)
+      || Piece.is_convex(piece)
+    | None => false
+    };
+  };
+
+  let rec move_to_non_whitespace = (z: Zipper.t, d: Direction.t): Zipper.t => {
+    /*
+     Iteratively move the cursor to the left.
+     If moving left becomes stagnant, try and move right.
+     */
+    is_on_whitespace(z)
+      ? {
+        switch (Move.by_char(d, z)) {
+        | Some(z') => move_to_non_whitespace(z', d)
+        | None =>
+          if (d == Left) {
+            move_to_non_whitespace(z, Right);
+          } else {
+            raise(Failure("Couldn't move to non-whitespace"));
+          }
+        };
+      }
+      : z;
+  };
 };
 
 // Helper function to get the id of a node, which is
@@ -261,7 +277,7 @@ let build_curr_node_info =
   // as an ad-hoc path to get the root term of the InfoMap
   // Todo: find simpler, sensible way to get the root term
   try({
-    let zipper = move_to_non_whitespace(zipper);
+    let zipper = MoveOffWhitespaceHelper.move_to_non_whitespace(zipper, Left);
     let curr_term = Indicated.ci_of(zipper, info_map);
     let curr_node =
       switch (
