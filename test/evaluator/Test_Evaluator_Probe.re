@@ -18,6 +18,7 @@ let probe_test =
   let fresh: Exp.t =
     Grammar.map_exp_annotation(_ => IdTagged.IdTag.fresh(), expected);
   let elaborated = elaborate(fresh);
+  print_endline("Elaborated: " ++ DHExp.show(elaborated));
   let probes = evaluate_probes(elaborated);
   let probed: Grammar.exp_t(list(Grammar.exp_t(unit))) =
     Grammar.map_exp_annotation(
@@ -328,6 +329,46 @@ let tests = (
                 {refs: []},
               ),
               Typ.unknown(~ann=[], Internal),
+            )
+          ),
+        )
+      )
+    }),
+    test_case("Probe around function", `Quick, () => {
+      PGrammar.(
+        probe_test(
+          "let id = probe(fun x -> x) in id(3)",
+          Exp.(
+            let_(
+              Pat.(var("id")),
+              probe(
+                ~ann=[UG.(Exp.(fn(Pat.(int(3)), int(3), None, None)))],
+                fn(Pat.(var("x")), var("x"), None, None),
+                {refs: []},
+              ),
+              ap(Forward, var("id"), int(3)),
+            )
+          ),
+        )
+      )
+    }),
+    test_case("Probe around builtin", `Quick, () => {
+      PGrammar.(
+        probe_test(
+          "let x = ^^probe(string_capitalize) in x(\"\")",
+          Exp.(
+            let_(
+              Pat.(var("x")),
+              probe(
+                ~ann=[
+                  UG.(
+                    Exp.(ap(Forward, var("string_capitalize"), string("")))
+                  ),
+                ],
+                builtin_fun("string_capitalize"),
+                {refs: []},
+              ),
+              ap(Forward, var("x"), string("abcd")),
             )
           ),
         )

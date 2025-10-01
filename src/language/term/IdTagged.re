@@ -2,12 +2,13 @@ open Util;
 
 module IdTag = {
   [@deriving (show({with_path: false}), sexp, yojson, eq)]
-  type t = {
-    [@show.opaque]
-    ids: list(Id.t),
-  };
+  type t = {ids: list(Id.t)};
 
-  let fresh = (): t => {ids: [Id.mk()]};
+  let fresh = (): t => {
+    let id = Id.mk();
+
+    {ids: [id]};
+  };
   let temp = (): t => {ids: [Id.invalid]};
 };
 
@@ -20,9 +21,10 @@ type t('a) = Grammar.Annotated.t('a, IdTag.t);
 //     fmt_a(formatter, ta.term);
 //   };
 let fresh = (term: 'a): Grammar.Annotated.t('a, IdTag.t) => {
+  let id = IdTag.fresh();
   {
     term,
-    annotation: IdTag.fresh(),
+    annotation: id,
   };
 };
 let fresh_deterministic = (prev_id, term): t('a) => {
@@ -52,10 +54,12 @@ let fast_copy = (id, {term, _}: t('a)): t('a) => {
   },
 };
 let new_ids = ({term, annotation: {ids: _}}: t('a)): t('a) => {
-  term,
-  annotation: {
-    ids: [Id.mk()],
-  },
+  {
+    term,
+    annotation: {
+      ids: [Id.mk()],
+    },
+  };
 };
 
 let ids = ({annotation: {ids, _}, _}: t('a)) => ids;

@@ -224,7 +224,7 @@ module Transition = (EV: EV_MODE) => {
             | _ => true // all other closure entries should be final
             };
           Step({
-            expr: d |> fast_copy(Id.mk()),
+            expr: d,
             state_update,
             kind: VarLookup,
             is_value,
@@ -416,6 +416,29 @@ module Transition = (EV: EV_MODE) => {
       and. d2' =
         req_final(req(state, env), d2 => Ap2(dir, d1, d2) |> wrap_ctx, d2);
       switch (d1'.term) {
+      | Probe(f, pr) =>
+        Step({
+          expr: {
+            term: Probe(Ap(dir, f, d2') |> fresh, pr),
+            annotation: d1'.annotation,
+          },
+          state_update: () => {
+            let call_stack = ClosureEnvironment.call_stack_of(env);
+            let map = ClosureEnvironment.map_of(env);
+            let id = DHExp.rep_id(d1');
+            let closure =
+              Dynamics.Probe.Closure.mk(
+                id,
+                Ap(Forward, d1', d2') |> Exp.fresh,
+                map,
+                call_stack,
+                pr,
+              );
+            update_probe(state, closure);
+          },
+          kind: RemoveParens,
+          is_value: false,
+        })
       | Asc(d1'', {term: Arrow(t1, t2), _}) =>
         Step({
           expr:
@@ -934,6 +957,13 @@ module Transition = (EV: EV_MODE) => {
     | Undefined =>
       let. _ = otherwise(env, d);
       Indet;
+    | Probe({term: Fun(_), _}, _)
+    | Probe({term: BuiltinFun(_), _}, _)
+    | Probe({term: DeferredAp(_), _}, _)
+    | Probe({term: Var(_), _}, _) =>
+      // Probes around functions don't step
+      let. _ = otherwise(env, d);
+      Constructor;
     | Probe(d'', pr) =>
       /* When evaluated, a probe adds a dynamics info entry
        * reflecting the evaluation of the contained expression */
