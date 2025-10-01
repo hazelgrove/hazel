@@ -77,7 +77,7 @@ let tests = (
       parse_and_evaluate_test({|1|}, {|head([1, 2, 3])|})
     ),
     test_case("tl of non-empty list", `Quick, () =>
-      parse_and_evaluate_test({|[2, 3]|}, {|tl([1, 2, 3])|})
+      parse_and_evaluate_test({|[2, 3]|}, {|tail([1, 2, 3])|})
     ),
     test_case("is_empty of empty list", `Quick, () =>
       parse_and_evaluate_test({|true|}, {|is_empty([])|})

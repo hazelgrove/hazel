@@ -2740,18 +2740,18 @@ let go: ([?], [?], [?]) -> [?] =
       },
     },
     {
-      str: {|fix tail_opt -> fun xs -> case xs
+      str: {|fix tl_opt -> fun xs -> case xs
              | [] => None
              | _ :: xs => Some(xs)
            end|},
-      name: "tail_opt",
+      name: "tl_opt",
       arg: List(unknown(Internal)),
       ret: Unknown(Internal),
       imp: {
         Fresh.(
           Exp.(
             fix_f(
-              Pat.var("tail_opt"),
+              Pat.var("tl_opt"),
               fn(
                 Pat.var("xs"),
                 match(
@@ -2765,7 +2765,7 @@ let go: ([?], [?], [?]) -> [?] =
                   ],
                 ),
                 None,
-                Some("tail_opt+"),
+                Some("tl_opt+"),
               ),
               None,
             )
