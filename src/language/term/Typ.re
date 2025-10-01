@@ -119,7 +119,7 @@ let show_cls: cls => string =
   | Rec => "Recursive type"
   | Forall => "Forall type"
   | ProdProjection => "Tuple projection"
-  | ProdExtension => "Product extension";
+  | ProdExtension => "Tuple extension";
 
 let rec is_arrow = (typ: t) => {
   switch (typ.term) {
