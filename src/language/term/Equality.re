@@ -43,19 +43,18 @@ module Alphas = {
   let singleton = (x, y) => [(x, y)];
   let empty: t = [];
 
+  type is_equiv =
+    | Free
+    | Equiv
+    | NotEquiv;
+
   // Note[Matt]: Thomas told me to do this
-  let rec are_alpha_equiv:
-    (string, string, t) =>
-    [
-      | `Free
-      | `Equiv
-      | `NotEquiv
-    ] =
+  let rec are_alpha_equiv: (string, string, t) => is_equiv =
     (x, y, alphas) =>
       switch (alphas) {
-      | [] => `Free
-      | [(a, b), ..._] when a == x => b == y ? `Equiv : `NotEquiv
-      | [(_, b), ..._] when b == y => `NotEquiv
+      | [] => Free
+      | [(a, b), ..._] when a == x => b == y ? Equiv : NotEquiv
+      | [(_, b), ..._] when b == y => NotEquiv
       | [(_, _), ...rest] => are_alpha_equiv(x, y, rest)
       };
 
@@ -67,7 +66,7 @@ type settings = {
   exp_alpha: bool, // Alpha equivalence over expression variables
   ignore_parens: bool,
   ignore_probes: bool,
-  ignore_casts: bool,
+  ignore_ascriptions: bool,
   ignore_dynamic_errors: bool,
   ignore_function_types: bool,
   ignore_constructor_types: bool,
@@ -77,8 +76,8 @@ type settings = {
                            compares closures by their IDs to save time
                            traversing through massive closures */
   ignore_filters: bool,
-  ignore_unknown_provenance: bool,
-  use_expr_wildcards: option((ClosureEnvironment.t, Exp.t) => bool),
+  ignore_unknown_provenance: bool, // Treats all holes as equal, including multiholes, emptyholes, invalid and synswitch
+  use_expr_wildcards: option((ClosureEnvironment.t, Exp.t) => bool), // In order to turn this setting on, you must provide a function that decides whether something is a value (i.e. whether it matches $v)
   ignore_fixpoints: bool, // Hideously unsound, used to hide function steps in the stepper
   free_var_handler: option((Alphas.t, string, Exp.t) => bool), // Note[Matt]: to be used in MatchExp
   /* The following two options shouldn't really be `settings' but they're
@@ -95,7 +94,7 @@ let equality =
         exp_alpha,
         ignore_parens,
         ignore_probes,
-        ignore_casts,
+        ignore_ascriptions,
         ignore_dynamic_errors,
         ignore_function_types,
         ignore_constructor_types,
@@ -133,8 +132,8 @@ let equality =
     | (_, Parens(x)) when ignore_parens => exp'(e1, x)
     | (Probe(x, _), _) when ignore_probes => exp'(x, e2)
     | (_, Probe(x, _)) when ignore_probes => exp'(e1, x)
-    | (Asc(x, _), _) when ignore_casts => exp'(x, e2)
-    | (_, Asc(x, _)) when ignore_casts => exp'(e1, x)
+    | (Asc(x, _), _) when ignore_ascriptions => exp'(x, e2)
+    | (_, Asc(x, _)) when ignore_ascriptions => exp'(e1, x)
     | (Filter(_, x), _) when ignore_filters => exp'(x, e2)
     | (_, Filter(_, x)) when ignore_filters => exp'(e1, x)
     | (TupLabel({term: ExplicitNonlabel, _}, e1), _)
@@ -161,9 +160,9 @@ let equality =
     | (Var(x), Var(y)) =>
       OptUtil.Syntax.(
         switch (Alphas.are_alpha_equiv(x, y, alphas_exp)) {
-        | `Equiv => true
-        | `NotEquiv => false // At least one of the variables is bound, so ctx won't help.
-        | `Free =>
+        | Equiv => true
+        | NotEquiv => false // At least one of the variables is bound, so ctx won't help.
+        | Free =>
           // Both variables are free, so we first check ctxs, and then use the free_var_handler if provided.
           let lookup1 = {
             let* env1 = env1;
@@ -418,8 +417,8 @@ let equality =
     | (_, Probe(x, _)) when ignore_probes => pat'(p1, x)
     | (Parens(x), _) when ignore_parens => pat'(x, p2)
     | (_, Parens(x)) when ignore_parens => pat'(p1, x)
-    | (Asc(x, _), _) when ignore_casts => pat'(x, p2)
-    | (_, Asc(x, _)) when ignore_casts => pat'(p1, x)
+    | (Asc(x, _), _) when ignore_ascriptions => pat'(x, p2)
+    | (_, Asc(x, _)) when ignore_ascriptions => pat'(p1, x)
 
     // Wrappers otherwise: compare.
     | (Probe(x, tag1), Probe(y, tag2)) when tag1 == tag2 => pat'(x, y)
@@ -549,9 +548,9 @@ let equality =
     // Type variables: special case depending on alpha equivalence.
     | (Var(x), Var(y)) =>
       switch (Alphas.are_alpha_equiv(x, y, alphas_typ)) {
-      | `Equiv => true
-      | `Free => x == y
-      | `NotEquiv => false
+      | Equiv => true
+      | Free => x == y
+      | NotEquiv => false
       }
     | (Var(_), _) => false
 
@@ -725,7 +724,7 @@ let syntactic_settings = {
   ignore_parens: false,
   ignore_dynamic_errors: false,
   ignore_probes: false,
-  ignore_casts: false,
+  ignore_ascriptions: false,
   ignore_function_types: false,
   ignore_constructor_types: false,
   ignore_function_names: false,
@@ -748,7 +747,7 @@ let semantic_settings = {
   ignore_parens: true,
   ignore_dynamic_errors: false,
   ignore_probes: true,
-  ignore_casts: false,
+  ignore_ascriptions: false,
   ignore_function_types: false,
   ignore_constructor_types: false,
   ignore_function_names: true,
