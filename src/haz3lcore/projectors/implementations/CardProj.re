@@ -122,7 +122,7 @@ module SyntaxTerm = {
   open IdTagged.FreshGrammar;
   open OptUtil.Syntax;
 
-  let card_to_exp = ((suit, rank): card): Term.Exp.t =>
+  let card_to_exp = ((suit, rank): card): exp =>
     Exp.parens(
       Exp.tuple([
         Exp.constructor(Sexplib.Sexp.to_string(sexp_of_suit(suit)), None),
@@ -130,7 +130,7 @@ module SyntaxTerm = {
       ]),
     );
 
-  let card_to_pat = ((suit, rank): card): Term.Pat.t =>
+  let card_to_pat = ((suit, rank): card): pat =>
     Pat.parens(
       Pat.tuple([
         switch (suit) {
@@ -146,14 +146,14 @@ module SyntaxTerm = {
       ]),
     );
 
-  let syntax_to_any = ((sort, collection): state): Term.Any.t => {
-    let collection_to_exp = (collection: collection): Term.Exp.t =>
+  let syntax_to_any = ((sort, collection): state): Any.t => {
+    let collection_to_exp = (collection: collection): Exp.t =>
       switch (collection) {
       | Card(card) => card_to_exp(card)
       | Hand(hand) => Exp.list_lit(List.map(card_to_exp, hand))
       };
 
-    let collection_to_pat = (collection: collection): Term.Pat.t =>
+    let collection_to_pat = (collection: collection): pat =>
       switch (collection) {
       | Card(card) => card_to_pat(card)
       | Hand(hand) => Pat.list_lit(List.map(card_to_pat, hand))
@@ -177,7 +177,7 @@ module SyntaxTerm = {
     | exception _ => None
     };
 
-  let rec exp_to_card = (term: Term.Exp.t): option(card) => {
+  let rec exp_to_card = (term: Exp.t): option(card) => {
     switch (term.term) {
     | Parens(inner) => exp_to_card(inner)
     | Tuple([t1, t2]) =>
@@ -193,7 +193,7 @@ module SyntaxTerm = {
     };
   };
 
-  let rec pat_to_card = (term: Term.Pat.t): option(card) => {
+  let rec pat_to_card = (term: pat): option(card) => {
     switch (term.term) {
     | Parens(pat) => pat |> pat_to_card
     | Tuple([p1, p2]) =>
@@ -215,7 +215,7 @@ module SyntaxTerm = {
     };
   };
 
-  let any_to_syntax = (term: Term.Any.t): option(state) => {
+  let any_to_syntax = (term: Any.t): option(state) => {
     switch (term) {
     | Exp(term) =>
       switch (strip_wraps_exp(term).term) {

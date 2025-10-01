@@ -5,6 +5,9 @@
    slightly as described in Elaborator.re.
    */
 
+open Util;
+open OptUtil.Syntax;
+
 include Exp;
 
 let term_of: t => term = IdTagged.term_of;
@@ -223,9 +226,11 @@ let rec ty_comparable = (d1, d2) => {
   };
 };
 
-let rec poly_equal = (d1, d2): bool => {
+/* Returns Some(true) if they are definitely equal, Some(false) if they are definitely not equal, and None if either d1 or d2 is indet or incomparable.*/
+let rec poly_equal = (d1, d2): option(bool) => {
   // With assumption that the types are consistent and have no arrow type
   switch (term_of(d1), term_of(d2)) {
+  // If either is indet or incomparable, return None
   | (Invalid(_), _)
   | (EmptyHole, _)
   | (MultiHole(_), _)
@@ -258,50 +263,61 @@ let rec poly_equal = (d1, d2): bool => {
   | (Fun(_), _)
   | (TypFun(_), _)
   | (Use(_), _)
-  | (BuiltinFun(_), _) => false
+  | (BuiltinFun(_), _) => None
+
+  // Wrapping forms: just look through them
   | (Probe(d1, _), _) => poly_equal(d1, d2)
   | (_, Probe(d2, _)) => poly_equal(d1, d2)
   | (Parens(d1), _) => poly_equal(d1, d2)
   | (_, Parens(d2)) => poly_equal(d1, d2)
   | (Asc(d1, _), _) => poly_equal(d1, d2)
   | (_, Asc(d2, _)) => poly_equal(d1, d2)
+
+  // Comparable forms
   | (Atom(t1), Atom(t2)) =>
-    switch (t1, t2) {
-    | (Int(n1), Int(n2)) => n1 == n2
-    | (Int(_), _) => false
-    | (SInt(n1), SInt(n2)) => n1 == n2
-    | (SInt(_), _) => false
-    | (Nat(n1), Nat(n2)) => n1 == n2
-    | (Nat(_), _) => false
-    | (Bool(b1), Bool(b2)) => b1 == b2
-    | (Bool(_), _) => false
-    | (String(s1), String(s2)) => s1 == s2
-    | (String(_), _) => false
-    | (Float(f1), Float(f2)) => f1 == f2
-    | (Float(_), _) => false
-    }
-  | (Atom(_), _) => false
-  | (Label(l1), Label(l2)) => l1 == l2
-  | (Label(_), _) => false
+    (
+      switch (t1, t2) {
+      | (Int(n1), Int(n2)) => n1 == n2
+      | (Int(_), _) => false
+      | (SInt(n1), SInt(n2)) => n1 == n2
+      | (SInt(_), _) => false
+      | (Nat(n1), Nat(n2)) => n1 == n2
+      | (Nat(_), _) => false
+      | (Bool(b1), Bool(b2)) => b1 == b2
+      | (Bool(_), _) => false
+      | (String(s1), String(s2)) => s1 == s2
+      | (String(_), _) => false
+      | (Float(f1), Float(f2)) => f1 == f2
+      | (Float(_), _) => false
+      }
+    )
+    |> Option.some
+  | (Atom(_), _) => None
+  | (Label(l1), Label(l2)) => l1 == l2 ? Some(true) : None
+  | (Label(_), _) => None
   | (TupLabel(l1, d1), TupLabel(l2, d2)) =>
-    poly_equal(l1, l2) && poly_equal(d1, d2)
-  | (TupLabel(_), _) => false
-  | (ListLit(ds1), ListLit(ds2)) =>
-    List.length(ds1) == List.length(ds2)
-    && List.for_all2(poly_equal, ds1, ds2)
-  | (ListLit(_), _) => false
-  | (Tuple(ds1), Tuple(ds2)) =>
-    List.length(ds1) == List.length(ds2)
-    && List.for_all2(poly_equal, ds1, ds2)
-  | (Tuple(_), _) => false
-  | (Constructor(c1, _), Constructor(c2, _)) => c1 == c2
-  | (Constructor(_), _) => false
+    let* l_eq = poly_equal(l1, l2);
+    let* d_eq = poly_equal(d1, d2);
+    Some(l_eq && d_eq);
+  | (TupLabel(_), _) => None
+  | (ListLit(ds1), ListLit(ds2)) when List.length(ds1) == List.length(ds2) =>
+    ListUtil.forall2_opt(poly_equal, ds1, ds2)
+  | (ListLit(_), ListLit(_)) => Some(false)
+  | (ListLit(_), _) => None
+  | (Tuple(ds1), Tuple(ds2)) when List.length(ds1) == List.length(ds2) =>
+    ListUtil.forall2_opt(poly_equal, ds1, ds2)
+  | (Tuple(_), _) => None
+  | (Constructor(c1, _), Constructor(c2, _)) => Some(c1 == c2)
   // Note: Only Constructor Ap is comparable
   | (
       Ap(_, {term: Constructor(c1, _), _}, d1),
       Ap(_, {term: Constructor(c2, _), _}, d2),
     ) =>
-    c1 == c2 && poly_equal(d1, d2)
-  | (Ap(_), _) => false
+    let* d_eq = poly_equal(d1, d2);
+    Some(c1 == c2 && d_eq);
+  | (Constructor(_), Ap(_, {term: Constructor(_), _}, _))
+  | (Ap(_, {term: Constructor(_), _}, _), Constructor(_)) => Some(false)
+  | (Ap(_), _) => None
+  | (Constructor(_), _) => None
   };
 };

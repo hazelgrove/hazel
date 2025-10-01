@@ -338,7 +338,7 @@ let cls_of: t => Cls.t =
   | InfoTPat({cls, _})
   | Secondary({cls, _}) => cls;
 
-let any_of: t => option(Term.Any.t) =
+let any_of: t => option(Any.t) =
   fun
   | InfoExp({term, _}) => Some(Exp(term))
   | InfoPat({term, _}) => Some(Pat(term))

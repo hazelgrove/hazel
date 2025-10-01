@@ -33,7 +33,6 @@ let tests = (
           "Poly alpha equivalent",
           true,
           Typ.fast_equal(
-            ~alpha_equivalence=true,
             Poly(Var("a") |> TPat.temp, Var("a") |> Typ.temp) |> Typ.temp,
             Poly(Var("b") |> TPat.temp, Var("b") |> Typ.temp) |> Typ.temp,
           ),
@@ -42,8 +41,7 @@ let tests = (
           bool,
           "Poly non alpha equivalent",
           false,
-          Typ.fast_equal(
-            ~alpha_equivalence=false,
+          Equality.syntactic.typ(
             Poly(Var("a") |> TPat.temp, Var("a") |> Typ.temp) |> Typ.temp,
             Poly(Var("b") |> TPat.temp, Var("b") |> Typ.temp) |> Typ.temp,
           ),

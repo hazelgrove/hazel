@@ -389,6 +389,35 @@ let rec contains_sum_or_var = (ty: t): bool =>
   | TupLabel(_, ty) => contains_sum_or_var(ty)
   };
 
+let rec subst = (s: t, x: TPat.t, ty: t): t => {
+  switch (TPat.tyvar_of_utpat(x)) {
+  | Some(str) =>
+    let (term, rewrap) = Grammar.Annotated.unwrap(ty);
+    switch (term) {
+    | Atom(_) => ty
+    | Label(name) => Grammar.Label(name) |> rewrap
+    | Unknown(prov) => Unknown(prov) |> rewrap
+    | Arrow(ty1, ty2) =>
+      Arrow(subst(s, x, ty1), subst(s, x, ty2)) |> rewrap
+    | Prod(tys) => Prod(List.map(subst(s, x), tys)) |> rewrap
+    | TupLabel(label, ty) => TupLabel(label, subst(s, x, ty)) |> rewrap
+    | Sum(sm) =>
+      Sum(ConstructorMap.map(Option.map(subst(s, x)), sm)) |> rewrap
+    | Poly(tp2, ty) when TPat.tyvar_of_utpat(x) == TPat.tyvar_of_utpat(tp2) =>
+      Poly(tp2, ty) |> rewrap
+    | Poly(tp2, ty) => Poly(tp2, subst(s, x, ty)) |> rewrap
+    | Rec(tp2, ty) when TPat.tyvar_of_utpat(x) == TPat.tyvar_of_utpat(tp2) =>
+      Rec(tp2, ty) |> rewrap
+    | Rec(tp2, ty) => Rec(tp2, subst(s, x, ty)) |> rewrap
+    | List(ty) => List(subst(s, x, ty)) |> rewrap
+    | Var(y) => str == y ? s : Var(y) |> rewrap
+    | Parens(ty) => Parens(subst(s, x, ty)) |> rewrap
+    | ProofOf(e) => ProofOf(e) |> rewrap
+    };
+  | None => ty
+  };
+};
+
 let unroll = (ty: t): t =>
   switch (term_of(ty)) {
   | Rec(tp, ty_body) => subst(ty, tp, ty_body)
@@ -397,7 +426,8 @@ let unroll = (ty: t): t =>
 
 /* Type Equality: This coincides with alpha equivalence for normalized types.
    Other types may be equivalent but this will not detect so if they are not normalized. */
-let equal = (t1: t, t2: t): bool => fast_equal(t1, t2);
+let fast_equal = Equality.semantic.typ;
+let equal = (t1: t, t2: t): bool => Equality.syntactic.typ(t1, t2);
 
 /* Lattice join on types. This is a LUB join in the hazel2
    sense in that any type dominates Unknown. The optional
@@ -493,7 +523,7 @@ let rec join = (~resolve=false, ctx: Ctx.t, ty1: t, ty2: t): option(t) => {
     List(ty) |> temp;
   | (List(_), _) => None
   | (ProofOf(e1), ProofOf(e2)) =>
-    TermBase.Exp.fast_equal(e1, e2) ? Some(ty1) : None
+    Equality.semantic.exp(e1, e2) ? Some(ty1) : None
   | (ProofOf(_), _) => None
   };
 };
@@ -556,7 +586,7 @@ let is_more_precise = (ctx: Ctx.t, ty1: t, ty2: t): bool => {
   let joined = join(ctx, ty1, ty2);
   switch (joined) {
   | None => false
-  | Some(joined) => fast_equal(~alpha_equivalence=true, joined, ty1)
+  | Some(joined) => Equality.semantic.typ(joined, ty1)
   };
 };
 
@@ -872,7 +902,7 @@ let rec pretty_print = (ty: t): string =>
     "rec " ++ pretty_print_tvar(tv) ++ " -> " ++ pretty_print(t)
   | Poly(tv, t) =>
     "poly " ++ pretty_print_tvar(tv) ++ " -> " ++ pretty_print(t)
-  | ProofOf(_e) => "yes <e> indeed"
+  | ProofOf(_e) => "proof_of <e> end"
   }
 and ctr_pretty_print =
   fun

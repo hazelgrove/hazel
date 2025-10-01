@@ -3,19 +3,37 @@ open Language;
 
 module UG = Grammar.UnitGrammar;
 
-let testable_exp = (~ignore_constructor_types=?, ()) =>
+let testable_exp =
+    (~ignore_constructor_types=false, ~ignore_dynamic_errors=false, ()) =>
   testable(
     Fmt.using(Exp.show, Fmt.string),
-    DHExp.fast_equal(~ignore_constructor_types?),
+    Equality.(
+      equality({
+        ...syntactic_settings,
+        ignore_parens: true,
+        ignore_function_names: true,
+        ignore_function_types: true,
+        ignore_unknown_provenance: true,
+        ignore_dynamic_errors,
+        ignore_constructor_types,
+      })
+    ).
+      exp,
   );
 let evaluate = unevaluated =>
   unevaluated |> Evaluator.evaluate(~env=Builtins.env_init) |> fst;
 let dhexp_typ = testable_exp();
 
 let evaluation_test =
-    (~ignore_constructor_types=?, msg, expected, unevaluated) =>
+    (
+      ~ignore_constructor_types=?,
+      ~ignore_dynamic_errors=?,
+      msg,
+      expected,
+      unevaluated,
+    ) =>
   check(
-    testable_exp(~ignore_constructor_types?, ()),
+    testable_exp(~ignore_constructor_types?, ~ignore_dynamic_errors?, ()),
     msg,
     expected,
     evaluate(unevaluated),
@@ -53,11 +71,13 @@ let parse_and_evaluate_test =
     (
       ~msg: option(string)=?,
       ~ignore_constructor_types=?,
+      ~ignore_dynamic_errors=?,
       expected: string,
       actual: string,
     ) =>
   evaluation_test(
     ~ignore_constructor_types?,
+    ~ignore_dynamic_errors?,
     Option.value(~default=expected ++ " == " ++ actual, msg),
     parse_exp(expected),
     elaborate(parse_exp(actual)),
