@@ -342,7 +342,6 @@ let check_req =
     : unit => {
   let z = editor.editor.state.zipper;
   let caret = z.caret;
-  let siblings = z.relatives.siblings;
   let send_message = (tile_id, advanced_reasoning) => {
     schedule_setting(AssistantSettings.SwitchMode(CodeSuggestion));
     schedule_action(
@@ -355,7 +354,7 @@ let check_req =
   };
 
   // Check if user just typed ??
-  switch (caret, Zipper.neighbor_monotiles(siblings)) {
+  switch (caret, Zipper.neighbor_tokens(z)) {
   | (Outer, (_, Some("??")))
   | (Outer, (Some("??"), _)) =>
     let tileId = Option.get(Indicated.index(z));
@@ -614,13 +613,11 @@ let update =
           switch (
             {
               let* sketch_z_with_tag =
-                Perform.paste(editor.editor.state.zipper, tag);
-              let sketch_seg =
-                Zipper.smart_seg(
-                  ~dump_backpack=true,
-                  ~erase_buffer=true,
-                  sketch_z_with_tag,
+                Parser.to_zipper(
+                  ~zipper_init=editor.editor.state.zipper,
+                  tag,
                 );
+              let sketch_seg = Dump.to_segment(sketch_z_with_tag);
               let* index = Indicated.index(editor.editor.state.zipper);
               let+ ci = Id.Map.find_opt(index, editor.statics.info_map);
               ChatLSP.Completion.mk_ctx_prompt(

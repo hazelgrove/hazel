@@ -202,11 +202,13 @@ let rec matches_exp =
 
     | (Label(dv), Label(fv)) => dv == fv
     | (Label(_), _) => false
-
+    | (ExplicitNonlabel, ExplicitNonlabel) => true
+    | (ExplicitNonlabel, _) => false
+    | (TupLabel({term: ExplicitNonlabel, _}, d), _) => matches_exp(d, f)
+    | (_, TupLabel({term: ExplicitNonlabel, _}, f)) => matches_exp(d, f)
     | (TupLabel(dl, dv), TupLabel(fl, fv)) =>
       matches_exp(dl, fl) && matches_exp(dv, fv)
     | (TupLabel(_), _) => false
-
     | (
         Constructor(_),
         Ap(_, {term: Constructor("~MVal", _), _}, {term: Tuple([]), _}),
@@ -288,6 +290,9 @@ let rec matches_exp =
     | (Cons(d1, d2), Cons(f1, f2)) =>
       matches_exp(d1, f1) && matches_exp(d2, f2)
     | (Cons(_), _) => false
+    | (TupleExtension(d1, d2), TupleExtension(f1, f2)) =>
+      matches_exp(d1, f1) && matches_exp(d2, f2)
+    | (TupleExtension(_), _) => false
 
     | (ListLit(dv), ListLit(fv)) when List.length(dv) == List.length(fv) =>
       List.fold_left2((acc, d, f) => acc && matches_exp(d, f), true, dv, fv)

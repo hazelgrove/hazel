@@ -4,6 +4,7 @@ open OptUtil.Syntax;
 
 exception Found(Exp.t);
 
+// Find a subexpression by id
 let find_exp_id = (id: Id.t, exp: Exp.t) =>
   switch (
     Exp.map_term(
@@ -20,6 +21,55 @@ let find_exp_id = (id: Id.t, exp: Exp.t) =>
   | exception (Found(x)) => Some(x)
   | _ => None
   };
+
+// Given an expression e1 that appears in e2, count how many
+// times e1 appears with a different id before e1 in e2.
+let exp_idx = (e1: Exp.t, e2: Exp.t) => {
+  let n = ref(0);
+  switch (
+    Exp.map_term(
+      ~f_exp=
+        (cont, exp) =>
+          if (Exp.rep_id(exp) == Exp.rep_id(e1)) {
+            raise(Found(exp));
+          } else if (DHExp.fast_equal(exp, e1)) {
+            n := n^ + 1;
+            exp;
+          } else {
+            cont(exp);
+          },
+      e2,
+    )
+  ) {
+  | exception (Found(_)) => n^
+  | _ => failwith("exp_idx: e1 not found in e2")
+  };
+};
+
+// Find the (n+1)th occurence of e1 in e2
+let nth_exp = (e1: Exp.t, n: int, e2: Exp.t) => {
+  let count = ref(0);
+  switch (
+    Exp.map_term(
+      ~f_exp=
+        (cont, exp) =>
+          if (DHExp.fast_equal(exp, e1)) {
+            if (count^ == n) {
+              raise(Found(exp));
+            } else {
+              count := count^ + 1;
+              exp;
+            };
+          } else {
+            cont(exp);
+          },
+      e2,
+    )
+  ) {
+  | exception (Found(x)) => Some(x)
+  | _ => None
+  };
+};
 
 let replace_exp_id = (id: Id.t, exp: Exp.t, new_exp: Exp.t) =>
   Exp.map_term(
@@ -82,6 +132,7 @@ let rec pat_to_exp = (pat: Pat.t): Exp.t => {
   | Ap(e1, e2) => rewrap(Ap(Forward, pat_to_exp(e1), pat_to_exp(e2)))
   | Asc(e, t1) => rewrap(Asc(pat_to_exp(e), t1))
   | Label(l) => rewrap(Label(l))
+  | ExplicitNonlabel => rewrap(ExplicitNonlabel)
   | TupLabel(l, e) => rewrap(TupLabel(pat_to_exp(l), pat_to_exp(e)))
   | Probe(e, probe) => rewrap(Probe(pat_to_exp(e), probe))
   };
@@ -115,10 +166,19 @@ let dhpat_extend_ctx = (dhpat: DHPat.t, ty: Typ.t, ctx: Ctx.t): option(Ctx.t) =>
           name,
           id: Id.invalid,
           typ: ty,
+          custom_statics: None,
         });
       Some([entry]);
     | Label(name) =>
       Typ.equal(ty, Label(name) |> Typ.temp) ? Some([]) : None
+    | ExplicitNonlabel =>
+      raise(
+        Failure(
+          "dhpat_extend_ctx ExplicitNonlabel shouldn't show up since they should only show up in in tuplabels below",
+        ),
+      )
+    | TupLabel({term: ExplicitNonlabel, _}, dhpat) =>
+      dhpat_var_entry(dhpat, ty)
     | TupLabel(_, dp1) =>
       switch (ty'.term) {
       | TupLabel(_, ty2)
@@ -209,6 +269,7 @@ let rec get_inductive_hypotheses = (m: Statics.Map.t, t: Typ.t, p: Pat.t) => {
     get_inductive_hypotheses(m, t, e1) @ get_inductive_hypotheses(m, t, e2)
   | Asc(e, _) => get_inductive_hypotheses(m, t, e)
   | Label(_) => []
+  | ExplicitNonlabel => []
   | TupLabel(l, e) =>
     get_inductive_hypotheses(m, t, l) @ get_inductive_hypotheses(m, t, e)
   | Probe(e, _) => get_inductive_hypotheses(m, t, e)
@@ -230,6 +291,8 @@ let rec replace_exp = (replace, replace_coctx, with_exp, with_coctx, in_exp) => 
       (continue, exp) => {
         let (term, rewrap) = Exp.unwrap(exp);
         switch (term) {
+        /* Note[Matt]: We are not currently checking alpha-equivalence here because it's unlikely
+           to come up, but we could. */
         | _ when Exp.fast_equal(exp, replace) =>
           with_exp |> Exp.replace_all_ids
         /* Forms with binders: check if any bound variables are in the coctx,
@@ -278,6 +341,7 @@ let rec replace_exp = (replace, replace_coctx, with_exp, with_coctx, in_exp) => 
         | Constructor(_)
         | TypFun(_)
         | Tuple(_)
+        | TupleExtension(_)
         | Label(_)
         | TupLabel(_, _)
         | Dot(_, _)
@@ -301,9 +365,29 @@ let rec replace_exp = (replace, replace_coctx, with_exp, with_coctx, in_exp) => 
         | UnOp(_, _)
         | BinOp(_, _, _)
         | BuiltinFun(_)
-        | Asc(_, _) => continue(exp)
+        | Asc(_, _)
+        | ExplicitNonlabel => continue(exp)
         };
       },
     in_exp,
   );
+};
+
+let find_refls = e => {
+  let refls = ref([]);
+  let _ =
+    Exp.map_term(
+      ~f_exp=
+        (cont, exp) => {
+          switch (exp |> Exp.term_of) {
+          | BinOp(Poly(Equals), e1, e2)
+              when MatchExp.match_exp([], [], e1, e2) |> Option.is_some =>
+            refls := [exp, ...refls^];
+            cont(exp);
+          | _ => cont(exp)
+          }
+        },
+      e,
+    );
+  refls^;
 };

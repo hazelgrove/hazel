@@ -7,3 +7,5 @@ let temp: term => t =
       ids: [Id.invalid],
     },
   };
+
+let to_tuple = (es: list(t)): t => TempGrammar.Exp.(tuple(es));

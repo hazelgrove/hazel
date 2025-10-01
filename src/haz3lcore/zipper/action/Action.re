@@ -1,34 +1,30 @@
 open Util;
 
-open Zipper;
-
 [@deriving (show({with_path: false}), sexp, yojson, eq)]
-type piece_goal =
-  | Grout;
-
-let of_piece_goal =
-  fun
-  | Grout => (
-      fun
-      | Piece.Grout(_) => true
-      | _ => false
-    );
+type chunkiness =
+  | ByChar
+  | ByToken;
 
 [@deriving (show({with_path: false}), sexp, yojson, eq)]
 type goal =
-  | Point(Point.t)
-  | Piece(piece_goal, Direction.t);
+  | Hole(Direction.t)
+  | TileId([@equal (_, _) => true] Id.t)
+  | BindingSiteOfIndicatedVar;
+
+[@deriving (show({with_path: false}), sexp, yojson, eq)]
+type vertical =
+  | Up
+  | Down;
 
 [@deriving (show({with_path: false}), sexp, yojson, eq)]
 type move =
-  | Extreme(planar)
-  | Local(planar)
+  | Start
+  | End
+  | Line(Direction.t)
+  | Local(Direction.t, chunkiness)
+  | Vertical(vertical)
+  | Point(Point.t)
   | Goal(goal);
-
-[@deriving (show({with_path: false}), sexp, yojson, eq)]
-type jump_target =
-  | TileId([@equal (_, _) => true] Id.t)
-  | BindingSiteOfIndicatedVar;
 
 [@deriving (show({with_path: false}), sexp, yojson, eq)]
 type rel =
@@ -88,13 +84,13 @@ type t =
   | Cut
   | Project(project)
   | Move(move)
-  | Jump(jump_target)
   | Select(select)
   | Unselect(option(Direction.t))
   | Destruct(Direction.t)
   | Insert(string)
   | Put_down
-  | Introduce;
+  | Introduce
+  | Dump;
 
 module Failure = {
   [@deriving (show({with_path: false}), sexp, yojson, eq)]
@@ -129,10 +125,10 @@ let is_edit: t => bool =
   | Destruct(_)
   | Put_down
   | Introduce
-  | Buffer(Accept | Clear | Set(_)) => true
+  | Buffer(Accept | Clear | Set(_))
+  | Dump => true
   | Copy
   | Move(_)
-  | Jump(_)
   | Select(_)
   | Unselect(_) => false
   | Project(p) =>
@@ -150,7 +146,6 @@ let is_historic: t => bool =
   fun
   | Copy
   | Move(_)
-  | Jump(_)
   | Select(_)
   | Unselect(_) => false
   | Cut
@@ -160,7 +155,8 @@ let is_historic: t => bool =
   | Insert(_)
   | Destruct(_)
   | Put_down
-  | Introduce => true
+  | Introduce
+  | Dump => true
   | Project(p) =>
     switch (p) {
     | SetSyntax(_)
@@ -171,12 +167,11 @@ let is_historic: t => bool =
     | Escape(_) => false
     };
 
-let prevent_in_read_only_editor = (a: t) => {
+let prevent_in_read_only_editor = (a: t) =>
   switch (a) {
   | Copy
   | Move(_)
   | Unselect(_)
-  | Jump(_)
   | Select(_) => false
   | Buffer(Set(_) | Accept | Clear)
   | Cut
@@ -185,7 +180,8 @@ let prevent_in_read_only_editor = (a: t) => {
   | Destruct(_)
   | Insert(_)
   | Put_down
-  | Introduce => true
+  | Introduce
+  | Dump => true
   | Project(p) =>
     switch (p) {
     | SetSyntax(_) => true
@@ -196,7 +192,6 @@ let prevent_in_read_only_editor = (a: t) => {
     | Escape(_) => false
     }
   };
-};
 
 /* Currently animations are disabled during drag selection
  * to paper over a weird interaction with scroll-to-caret.
@@ -225,5 +220,5 @@ let should_animate: t => bool =
   | Buffer(Accept | Clear | Set(_))
   | Copy
   | Move(_)
-  | Jump(_)
-  | Project(_) => true;
+  | Project(_)
+  | Dump => true;

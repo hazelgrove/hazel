@@ -23,7 +23,7 @@ module type Introducable = {
 module IntroducePat: Introducable with type t = Pat.t = {
   type t = Pat.t;
   let parse = selection =>
-    MakeTerm.(pat(unsorted(Segment.skel(selection), selection)));
+    MakeTerm.(pat(unsorted(Pat, Segment.skel(selection), selection)));
   let is_hole = (pat: Pat.t) => {
     switch (pat.term) {
     | EmptyHole => true
@@ -80,7 +80,7 @@ module IntroducePat: Introducable with type t = Pat.t = {
 module IntroduceExp: Introducable with type t = Exp.t = {
   type t = Exp.t;
   let parse = selection =>
-    MakeTerm.(exp(unsorted(Segment.skel(selection), selection)));
+    MakeTerm.(exp(unsorted(Exp, Segment.skel(selection), selection)));
   let is_hole = (exp: Exp.t) => {
     switch (exp.term) {
     | EmptyHole => true
@@ -203,9 +203,7 @@ module Make =
     |> Zipper.replace_selection(Left, seg, _)
     |> Zipper.directional_unselect(Left, _)
     |> move_right_until_id(id, _)
-    |> (
-      move_left ? Util.OptUtil.replace(Move.primary(ByChar, Left)) : Fun.id
-    );
+    |> (move_left ? Util.OptUtil.replace(Move.local(ByChar, Left)) : Fun.id);
   };
 
   let introduce = (z: Zipper.t, ty: Typ.t, ctx: Ctx.t) => {
@@ -237,8 +235,8 @@ module Make =
   };
 };
 
-let introduce = (statics: Statics.Map.t, z: Zipper.t) => {
-  switch (Indicated.ci_of(z, statics)) {
+let introduce = (ci: option(Info.t), z: Zipper.t) => {
+  switch (ci) {
   | None => None
   | Some(
       InfoExp({

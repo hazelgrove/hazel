@@ -66,6 +66,7 @@ and exp_term('a) =
   | TypFun(tpat_t('a), exp_t('a), option(Var.t))
   | Tuple(list(exp_t('a)))
   | Label(string)
+  | ExplicitNonlabel
   | TupLabel(exp_t('a), exp_t('a))
   | Dot(exp_t('a), exp_t('a))
   | LivelitName(string)
@@ -91,6 +92,7 @@ and exp_term('a) =
   | BinOp(Operators.op_bin, exp_t('a), exp_t('a))
   | BuiltinFun(string)
   | Match(exp_t('a), list((pat_t('a), exp_t('a))))
+  | TupleExtension(exp_t('a), exp_t('a))
   | Asc(exp_t('a), typ_t('a))
 and exp_t('a) = Annotated.t(exp_term('a), 'a)
 and pat_term('a) =
@@ -98,6 +100,7 @@ and pat_term('a) =
   | EmptyHole
   | MultiHole(list(any_t('a)))
   | Wild
+  | ExplicitNonlabel
   | Atom(Atom.t)
   | ListLit(list(pat_t('a)))
   | Constructor(string, option(option(typ_t('a)))) // see comment on constructor expressions
@@ -119,12 +122,14 @@ and typ_term('a) =
   | Arrow(typ_t('a), typ_t('a))
   | Sum(ConstructorMap.t(typ_t('a)))
   | Prod(list(typ_t('a)))
+  | ExplicitNonlabel
   | Label(string)
   | TupLabel(typ_t('a), typ_t('a))
   | Parens(typ_t('a))
-  | Ap(typ_t('a), typ_t('a))
   | Rec(tpat_t('a), typ_t('a))
   | Forall(tpat_t('a), typ_t('a))
+  | ProdProjection(typ_t('a), typ_t('a))
+  | ProdExtension(typ_t('a), typ_t('a))
 and typ_t('a) = Annotated.t(typ_term('a), 'a)
 and tpat_term('a) =
   | Invalid(string)
@@ -191,6 +196,7 @@ let rec map_exp_annotation: type a b. (a => b, exp_t(a)) => exp_t(b) =
           TypFun(map_tpat_annotation(f, p), map_exp_annotation(f, e), v)
         | Tuple(l) => Tuple(List.map(x => map_exp_annotation(f, x), l))
         | Label(l) => Label(l)
+        | ExplicitNonlabel => ExplicitNonlabel
         | TupLabel(l, e) =>
           TupLabel(map_exp_annotation(f, l), map_exp_annotation(f, e))
         | Dot(e1, e2) =>
@@ -261,6 +267,11 @@ let rec map_exp_annotation: type a b. (a => b, exp_t(a)) => exp_t(b) =
               l,
             ),
           )
+        | TupleExtension(e1, e2) =>
+          TupleExtension(
+            map_exp_annotation(f, e1),
+            map_exp_annotation(f, e2),
+          )
         | Asc(e, t) =>
           Asc(map_exp_annotation(f, e), map_typ_annotation(f, t))
         };
@@ -303,6 +314,7 @@ and map_pat_annotation: 'a 'b. ('a => 'b, pat_t('a)) => pat_t('b) =
           Cons(map_pat_annotation(f, p1), map_pat_annotation(f, p2))
         | Var(v) => Var(v)
         | Tuple(l) => Tuple(List.map(x => map_pat_annotation(f, x), l))
+        | ExplicitNonlabel => ExplicitNonlabel
         | Label(l) => Label(l)
         | TupLabel(p1, p2) =>
           TupLabel(map_pat_annotation(f, p1), map_pat_annotation(f, p2))
@@ -330,18 +342,27 @@ and map_typ_annotation: 'a 'b. ('a => 'b, typ_t('a)) => typ_t('b) =
         | Arrow(t1, t2) =>
           Arrow(map_typ_annotation(f, t1), map_typ_annotation(f, t2))
         | Parens(t) => Parens(map_typ_annotation(f, t))
-        | Ap(t1, t2) =>
-          Ap(map_typ_annotation(f, t1), map_typ_annotation(f, t2))
         | Rec(tp, t) =>
           Rec(map_tpat_annotation(f, tp), map_typ_annotation(f, t))
         | Forall(tp, t) =>
           Forall(map_tpat_annotation(f, tp), map_typ_annotation(f, t))
         | Prod(l) => Prod(List.map(x => map_typ_annotation(f, x), l))
         | Label(l) => Label(l)
+        | ExplicitNonlabel => ExplicitNonlabel
         | TupLabel(t1, t2) =>
           TupLabel(map_typ_annotation(f, t1), map_typ_annotation(f, t2))
         | Sum(m) =>
           Sum(ConstructorMap.map_preserving(map_typ_annotation(f), m))
+        | ProdProjection(t1, t2) =>
+          ProdProjection(
+            map_typ_annotation(f, t1),
+            map_typ_annotation(f, t2),
+          )
+        | ProdExtension(t1, t2) =>
+          ProdExtension(
+            map_typ_annotation(f, t1),
+            map_typ_annotation(f, t2),
+          )
         },
       annotation: new_annotation,
     };
@@ -520,6 +541,10 @@ module Factory = (DefaultAnnotation: DefaultAnnotation) => {
       term: Tuple(l),
       annotation: default_annotation(ann),
     };
+    let explicit_non_label = (~ann=?, ()): exp_t(DefaultAnnotation.t) => {
+      term: ExplicitNonlabel,
+      annotation: default_annotation(ann),
+    };
     let label = (~ann=?, l): exp_t(DefaultAnnotation.t) => {
       term: Label(l),
       annotation: default_annotation(ann),
@@ -530,6 +555,10 @@ module Factory = (DefaultAnnotation: DefaultAnnotation) => {
     };
     let dot = (~ann=?, e1, e2): exp_t(DefaultAnnotation.t) => {
       term: Dot(e1, e2),
+      annotation: default_annotation(ann),
+    };
+    let tuple_extension = (~ann=?, e1, e2): exp_t(DefaultAnnotation.t) => {
+      term: TupleExtension(e1, e2),
       annotation: default_annotation(ann),
     };
     let var = (~ann=?, v): exp_t(DefaultAnnotation.t) => {
@@ -700,6 +729,10 @@ module Factory = (DefaultAnnotation: DefaultAnnotation) => {
       term: Tuple(l),
       annotation: default_annotation(ann),
     };
+    let explicit_non_label = (~ann=?, ()): pat_t(DefaultAnnotation.t) => {
+      term: ExplicitNonlabel,
+      annotation: default_annotation(ann),
+    };
     let label = (~ann=?, l): pat_t(DefaultAnnotation.t) => {
       term: Label(l),
       annotation: default_annotation(ann),
@@ -776,8 +809,20 @@ module Factory = (DefaultAnnotation: DefaultAnnotation) => {
       term: Prod(l),
       annotation: default_annotation(ann),
     };
+    let prod_projection = (~ann=?, t1, t2): typ_t(DefaultAnnotation.t) => {
+      term: ProdProjection(t1, t2),
+      annotation: default_annotation(ann),
+    };
+    let prod_extension = (~ann=?, t1, t2): typ_t(DefaultAnnotation.t) => {
+      term: ProdExtension(t1, t2),
+      annotation: default_annotation(ann),
+    };
     let label = (~ann=?, l): typ_t(DefaultAnnotation.t) => {
       term: Label(l),
+      annotation: default_annotation(ann),
+    };
+    let explicit_non_label = (~ann=?, ()): typ_t(DefaultAnnotation.t) => {
+      term: ExplicitNonlabel,
       annotation: default_annotation(ann),
     };
     let tup_label = (~ann=?, t1, t2): typ_t(DefaultAnnotation.t) => {
@@ -786,10 +831,6 @@ module Factory = (DefaultAnnotation: DefaultAnnotation) => {
     };
     let parens = (~ann=?, t): typ_t(DefaultAnnotation.t) => {
       term: Parens(t),
-      annotation: default_annotation(ann),
-    };
-    let ap = (~ann=?, t1, t2): typ_t(DefaultAnnotation.t) => {
-      term: Ap(t1, t2),
       annotation: default_annotation(ann),
     };
     let rec_ = (~ann=?, tp, t): typ_t(DefaultAnnotation.t) => {
