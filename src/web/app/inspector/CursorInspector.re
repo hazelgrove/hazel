@@ -239,10 +239,10 @@ let common_ok_view =
     | (Pat(EmptyHole), _) when label_sort => []
     | (Exp(EmptyHole), _) when label_sort => []
     | (Pat(ExplicitNonlabel), _) when label_sort => [
-        text("Explicitly non-labeled entry"),
+        text("Explicitly unlabeled entry"),
       ]
     | (Exp(ExplicitNonlabel), _) when label_sort => [
-        text("Explicitly non-labeled entry"),
+        text("Explicitly unlabeled entry"),
       ]
     | (Exp(MultiHole) | Pat(MultiHole), _) => [
         text("Expecting operator or delimiter"),
