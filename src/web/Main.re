@@ -110,7 +110,6 @@ let start = {
     );
 
   // Autosave every second
-  //TODO(andrew): restore
   let save_effect =
     Bonsai.Value.map(~f=g => g(Page.Update.Save), app_inject);
   let%sub () = BonsaiUtil.Alarm.listen(save_scheduler, ~event=save_effect);

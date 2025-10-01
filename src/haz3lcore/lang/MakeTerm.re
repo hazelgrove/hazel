@@ -211,9 +211,7 @@ and exp = unsorted => {
   //TODO(andrew): cleanup, document
   let (term, ids) =
     switch (Id.Map.find_opt(List.hd(ids), rf_map^)) {
-    | Some(_guy) =>
-      //print_endline("adding probe to id: " ++ Id.str8(List.hd(ids)));
-      (
+    | Some(_guy) => (
         Probe(
           {
             annotation: {
@@ -529,9 +527,7 @@ and pat = unsorted => {
   //TODO(andrew): cleanup, document
   let (term, ids) =
     switch (Id.Map.find_opt(List.hd(ids), rf_map^)) {
-    | Some(_guy) =>
-      //print_endline("adding probe to id: " ++ Id.str8(List.hd(ids)));
-      (
+    | Some(_guy) => (
         Probe(
           {
             annotation: {

@@ -166,23 +166,8 @@ let go =
       | Some(focus) => focus(id)
       | None => ()
       };
-      //if in refractors, look up id using reverse_mapping
-      /* TODO: perf */
-      // let rmap =
-      //   ZipperBase.Refractor.reverse_mapping(
-      //     Id.Map.union(
-      //       (_, _, b) => Some(b),
-      //       z.refractors.map,
-      //       z.refractors.ephemerals,
-      //     ),
-      //   );
-      let id =
-        switch (Id.recover_original(id)) {
-        | pid =>
-          // print_endline("found in rmap refractors. looking up id");
-          pid
-        // | None => id
-        };
+      //TODO(andrew): clarify below logic
+      let id = kind == Probe ? Id.recover_original(id) : id;
       Ok(Option.value(~default=z, Move.jump_to_id_indicated(z, id)));
     | Some(Right) =>
       /* Focus by arrow key hand-off */

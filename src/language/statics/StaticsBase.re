@@ -69,30 +69,6 @@ module Map = {
           let binds = Term.Pat.bindings(pat);
           List.exists((b: Binding.t) => b.id == binding_id, binds)
             ? Some(IdTagged.rep_id(def)) : climb(rest);
-        // | InfoExp({
-        //     term: {term: TyAlias({annotation: {ids, _}, _}, def, _), _},
-        //     _,
-        //   }) =>
-        //   List.exists(id => id == binding_id, ids)
-        //     ? Some(Language.IdTagged.rep_id(def)) : None
-        // | InfoExp({term: {term: Match(scrut, rules), _}, _}) =>
-        //   /* Find the branch whose pattern actually binds this id */
-        //   let rec find_branch = (
-        //     fun
-        //     | [] => None
-        //     | [(p, e), ...rs] => {
-        //         let binds = Language.Term.Pat.bindings(p);
-        //         List.exists(
-        //           (b: Language.Binding.t) => b.id == binding_id,
-        //           binds,
-        //         )
-        //           ? Some(Language.IdTagged.rep_id(e)) : find_branch(rs);
-        //       }
-        //   );
-        //   switch (find_branch(rules)) {
-        //   | Some(_) => Some(Language.IdTagged.rep_id(scrut))
-        //   | None => climb(rest)
-        //   };
         | InfoExp(_) => None
         | _ => climb(rest)
         };

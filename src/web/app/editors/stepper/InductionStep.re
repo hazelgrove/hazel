@@ -347,7 +347,7 @@ module F =
           | Some(_)
           | None => false
           },
-        ~dynamics=Dynamics.Map.empty, //TODO(andrew)
+        ~dynamics=Dynamics.Map.empty,
         model.scrut,
       );
 

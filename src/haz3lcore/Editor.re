@@ -186,7 +186,7 @@ module Update = {
         syntax,
       );
 
-    // print_endline("replacing refractors");
+    /* 3. Update autoprobes */
     let zipper =
       zipper
       |> Refractors.add_ids_from_pinned_term(

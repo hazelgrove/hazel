@@ -24,15 +24,12 @@ let expand_projector = (z: t): option(t) => {
       ...rest,
     ]
       when name == "^^probe" =>
-    /* Trim only need because of grout/whitespace transmutation when syntax is hole */
-    // let syntax =
-    //   syntax |> Segment.trim_secondary(Right) |> Segment.trim_secondary(Left);
+    //TODO(andrew): clarify probe case
     Zipper.update_siblings(((_, r)) => (List.rev(syntax @ rest), r), z)
     |> MkRefractor.add_single(
          Segment.root_id(Segment.skel(syntax), syntax),
        )
     |> Option.some
-  //TODO(andrew): cleanup
   | [
       Tile({label: ["(", ")"], children: [syntax], _}),
       Tile({label: [name], _}),
@@ -117,43 +114,11 @@ let destruct = (z: t): option(t) =>
   | _ => None
   };
 
-/*
-  What we want to do here is make the skel, and the recurse into the skel structure,
-  at each time checking if the skel root id is in the refractor map. If it is, we need
-  to wrap the subseg corresponding to the skel range corresponding to the refactor id
-  with the result of calling refractor_to_invoke on the subseg, where the think we're
-  wrapping is the result of continuing the recursion down into the seg. kind of confusing.
-  basically the idea here is that we want to wrap certain subsegs of the segment, possibly
-  contained within other to-be-wrapped subsegs, where the subsegs are given by the term
-  structure as which we need to build the skel to get, where the skel can be used to get
-  the indicies in the original 'base' segment (see e.g. TermData.segment) corresponding to
-  a subterm of a given id. See e.g. Segment.root_id to see the relationship between ids
-  and skel, as well as Skel.re obviously.
-
-  As a simple example, consider the segment:
-  '1 + 2 * 3'
-  where '2 * 3' is a term with id A, and '2' is a term with id B.
-  say the refractors map has entries for A and B, both having kind 'probe'.
-  then we want this function to convert this segment into:
-  '1 + ^^probe(^^probe(2) * 3)'
- where refractor_to_invoke should take care of the actual wrapping
-
- Possible strategy: Assume for initial simplicity that there are no n-ary forms. that is,
- in the skel, all roots are singleton Abas whose a=int points to a single index into the seg.
- Now, recurse into the skel. Branch on skel. In each case, Get id of root tile. In each branch,
- recurse on the children, getting segments. Now, to recombine those segments to return, we further
- branch based on whether the root tile id is in the refractors map. If it's not, we simply
- create a segment which is the results of the recursive call combine with a singleton segment of
- the root tile, obtained from the original seg, in the appropriate order/combination depending
- on the skel branch we're in. If it is in refractors, then we do the same, except wrapping the
- resulting seg using refractor_to_invoke. so i guess actually we can factor this part out to
- after the skel branching.
-
-   */
 let refractor_seg_to_seg =
     (refractors: Id.Map.t(Base.projector), seg: Segment.t)
     : (Id.Map.t(Base.projector), Segment.t) => {
   //TODO(andrew): make this support n-ary ops
+  //TODO(andrew): This unfortuately seems to remove all secondary....
   let foo = root => [List.nth(seg, Aba.first_a(root))];
   let rec go = (map, skel: Skel.t): (Id.Map.t(Base.projector), Segment.t) => {
     let (map, res) =

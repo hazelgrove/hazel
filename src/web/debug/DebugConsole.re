@@ -35,31 +35,6 @@ let print =
       };
     | None => print("DEBUG: No indicated index")
     };
-  | "F8" =>
-    print_endline("--------------------------------");
-    // let _measured_old =
-    //   Util.TimeUtil.measure_time("MeasuredOld.of_segment", true, () =>
-    //     for (_i in 0 to 190) {
-    //       MeasuredOld.of_segment(
-    //         editor.editor.syntax.segment,
-    //         editor.editor.syntax.shape_map,
-    //       )
-    //       |> ignore;
-    //     }
-    //   );
-    let _measured =
-      Util.TimeUtil.measure_time("Measured.of_segment", true, () =>
-        for (_i in 0 to 190) {
-          Measured.of_segment(
-            editor.editor.syntax.segment,
-            editor.editor.syntax.shape_map,
-            Id.Map.empty,
-          )
-          |> ignore;
-        }
-      );
-    print_endline("--------------------------------");
-    ();
   | _ => print("DEBUG: No action for key: " ++ key)
   };
 };

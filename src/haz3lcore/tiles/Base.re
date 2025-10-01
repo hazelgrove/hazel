@@ -46,7 +46,8 @@ let rec segment_to_string =
           seg: segment,
         )
         : string => {
-  let (refractors, seg) = refractor_seg_to_seg(refractors, seg);
+  //TODO(andrew): reinstate when whitespace issue is resolved
+  //let (refractors, seg) = refractor_seg_to_seg(refractors, seg);
   seg
   |> List.map(
        piece_to_string(

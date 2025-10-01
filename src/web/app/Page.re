@@ -241,7 +241,6 @@ module Update = {
       export_all: Export.export_all,
       get_log_and,
     };
-    // print_endline("action: " ++ show(action));
     switch (action) {
     | Globals(action) =>
       update_global(~globals, ~import_log, ~schedule_action, action, model)
@@ -432,7 +431,6 @@ module View = {
         !selection_has_refractors(editor.state.zipper.refractors, selection)
       | _ => true
       };
-    print_endline("should_set: " ++ string_of_bool(should_set));
     should_set ? ClipboardCache.set(cursor.selection, str) : ();
     JsUtil.copy(str);
   };

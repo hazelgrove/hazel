@@ -535,7 +535,7 @@ module View = {
                                 | Some(RewriteEditor ()) => true
                                 | _ => false
                                 },
-                              ~dynamics=Dynamics.Map.empty, //TODO(andrew)
+                              ~dynamics=Dynamics.Map.empty,
                               editor,
                             ),
                           ],
