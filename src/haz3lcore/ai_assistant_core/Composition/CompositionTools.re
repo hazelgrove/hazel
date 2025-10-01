@@ -679,7 +679,7 @@ module Perform = {
               let target_id = get_inner_term_id(new_node, Pat);
               let new_pat =
                 StaticsBase.Map.lookup(target_id, new_info_map) |> Option.get;
-              Ok(
+              let updated_z =
                 AssistantTreeHelper.update_use_sites_of_pat(
                   ~z=safe_z,
                   ~co_ctx=
@@ -688,8 +688,10 @@ module Perform = {
                     AssistantTreeHelper.get_var_names_from_pat(old_pat),
                   ~new_names=
                     AssistantTreeHelper.get_var_names_from_pat(new_pat),
-                ),
-              );
+                );
+              // Jump back to the original node
+              Move.jump_to_id_indicated(updated_z, target_id)
+              |> return(Action.Failure.Cant_move);
             }
           };
         | UpdateBindingClause(u) =>

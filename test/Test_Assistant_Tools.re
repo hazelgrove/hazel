@@ -356,7 +356,7 @@ let insert_after_tests = {
 let edit_tests =
   update_definition_tests
   @ update_body_tests
-  //@ update_pattern_tests  // todo: (fix) relocate cursor back to pattern after variable renaming
+  @ update_pattern_tests  // todo: (fix) relocate cursor back to pattern after variable renaming
   @ update_binding_clause_tests
   @ delete_binding_clause_tests
   @ delete_body_tests
@@ -441,16 +441,12 @@ let test_refs_in =
   let curr_node_info =
     Option.get(AssistantTreeHelper.build_curr_node_info(z, info_map));
   let refs_in =
-    String.concat(
-      " ",
-      List.map(
-        (b: Binding.t) => b.name,
-        CompositionView.refs_in(
-          ~exclude_rec_refs,
-          ~exclude_body_refs,
-          curr_node_info,
-          info_map,
-        ),
+    refs_list_to_str_for_testing_only(
+      CompositionView.refs_in(
+        ~exclude_rec_refs,
+        ~exclude_body_refs,
+        curr_node_info,
+        info_map,
       ),
     );
   test_case(name, `Quick, () =>

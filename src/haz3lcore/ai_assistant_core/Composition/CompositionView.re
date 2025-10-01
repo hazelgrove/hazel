@@ -283,10 +283,6 @@ let refs_in =
   refs'';
 };
 
-let refs_in_str = (refs: list(Binding.t)): string => {
-  String.concat(" ", List.map((b: Binding.t) => b.name, refs));
-};
-
 let str_of_refs_in = (references: list(Binding.t)): string => {
   "Variables referenced: ["
   ++ String.concat(
