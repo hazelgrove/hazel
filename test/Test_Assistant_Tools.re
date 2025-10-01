@@ -441,11 +441,17 @@ let test_refs_in =
   let curr_node_info =
     Option.get(AssistantTreeHelper.build_curr_node_info(z, info_map));
   let refs_in =
-    CompositionView.str_refs_in(
-      ~exclude_rec_refs,
-      ~exclude_body_refs,
-      curr_node_info,
-      info_map,
+    String.concat(
+      " ",
+      List.map(
+        (b: Binding.t) => b.name,
+        CompositionView.refs_in(
+          ~exclude_rec_refs,
+          ~exclude_body_refs,
+          curr_node_info,
+          info_map,
+        ),
+      ),
     );
   test_case(name, `Quick, () =>
     check(testable(Fmt.string, String.equal), goal, goal, refs_in)
@@ -454,7 +460,7 @@ let test_refs_in =
 
 let view_refs_tests = [
   test_refs_in(
-    ~name="View Refs (Exclude Rec Refs)",
+    ~name="View Refs (Include Rec Refs)",
     ~exclude_rec_refs=false,
     ~exclude_body_refs=false,
     ~init=
@@ -492,7 +498,7 @@ let view_refs_tests = [
     ~goal="c0 c1",
   ),
   test_refs_in(
-    ~name="View Refs (Exclude Rec Refs)",
+    ~name="View Refs (Include Body Refs)",
     ~exclude_rec_refs=false,
     ~exclude_body_refs=true,
     ~init=
@@ -511,7 +517,7 @@ let view_refs_tests = [
     ~goal="c0 f1",
   ),
   test_refs_in(
-    ~name="View Refs (Exclude Rec Refs)",
+    ~name="View Refs (Include All)",
     ~exclude_rec_refs=true,
     ~exclude_body_refs=true,
     ~init=
