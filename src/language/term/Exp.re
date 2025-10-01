@@ -13,6 +13,7 @@ type cls =
   | TypFun
   | Label
   | TupLabel
+  | ExplicitNonlabel
   | TupleExtension
   | Tuple
   | Dot
@@ -94,6 +95,7 @@ let cls_of_term: type a. Grammar.exp_term(a) => cls =
   | TupleExtension(_) => TupleExtension
   | Label(_) => Label
   | TupLabel(_, _) => TupLabel
+  | ExplicitNonlabel => ExplicitNonlabel
   | Dot(_) => Dot
   | Var(_) => Var
   | Let(_) => Let
@@ -148,6 +150,7 @@ let show_cls: cls => string =
   | Tuple => "Tuple literal"
   | Label => "Label"
   | TupLabel => "Labeled Tuple Item"
+  | ExplicitNonlabel => "Explicitly unlabeled entry"
   | TupleExtension => "Tuple Extension"
   | Dot => "Dot operator"
   | Var => "Variable reference"
@@ -259,6 +262,7 @@ let rec is_fun = (e: t) => {
   | BinOp(_)
   | Match(_)
   | LivelitName(_)
+  | ExplicitNonlabel => false
   | Constructor(_) => false
   };
 };
@@ -324,6 +328,7 @@ let rec is_tuple_of_functions = (e: t) =>
     | BinOp(_)
     | Match(_)
     | LivelitName(_)
+    | ExplicitNonlabel => false
     | Constructor(_) => false
     }
   );
@@ -388,6 +393,7 @@ let rec get_num_of_functions = (e: t) =>
     | BinOp(_)
     | Match(_)
     | LivelitName(_)
+    | ExplicitNonlabel
     | Constructor(_) => None
     };
   };
@@ -561,6 +567,7 @@ let rec substitute_closures =
         | TypFun(_)
         | Tuple(_)
         | TupLabel(_)
+        | ExplicitNonlabel
         | TupleExtension(_)
         | Label(_)
         | Dot(_)
@@ -613,10 +620,4 @@ let rec get_fn_name = (e: t) => {
   };
 };
 
-let to_tuple = (es: list(t)): t =>
-  switch (es) {
-  | []
-  | [{term: TupLabel(_), _}] => Tuple(es) |> temp
-  | [e] => e
-  | _ => Tuple(es) |> temp
-  };
+let to_tuple = (es: list(t)): t => TempGrammar.Exp.(tuple(es));

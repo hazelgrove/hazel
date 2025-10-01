@@ -189,6 +189,7 @@ and Exp: {
         | Atom(_)
         | Constructor(_)
         | Label(_)
+        | ExplicitNonlabel
         | Deferral(_)
         | Var(_)
         | LivelitName(_)
@@ -303,7 +304,8 @@ and Pat: {
         | Atom(_)
         | Constructor(_)
         | Label(_)
-        | Var(_) => term
+        | Var(_)
+        | ExplicitNonlabel => term
         | MultiHole(things) => MultiHole(List.map(any_map_term, things))
         | ListLit(ts) => ListLit(List.map(pat_map_term, ts))
         | Ap(e1, e2) => Ap(pat_map_term(e1), pat_map_term(e2))
@@ -374,6 +376,7 @@ and Typ: {
         | Unknown(Internal)
         | Atom(_)
         | Label(_)
+        | ExplicitNonlabel
         | Var(_) => term
         | List(t) => List(typ_map_term(t))
         | Unknown(Hole(MultiHole(things))) =>
@@ -394,6 +397,10 @@ and Typ: {
               variants,
             ),
           )
+        | ProdProjection(t1, t2) =>
+          ProdProjection(typ_map_term(t1), typ_map_term(t2))
+        | ProdExtension(t1, t2) =>
+          ProdExtension(typ_map_term(t1), typ_map_term(t2))
         | Rec(tp, t) => Rec(tpat_map_term(tp), typ_map_term(t))
         | Poly(tp, t) => Poly(tpat_map_term(tp), typ_map_term(t))
         | ProofOf(e) => ProofOf(exp_map_term(e))

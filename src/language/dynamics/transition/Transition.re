@@ -585,6 +585,7 @@ module Transition = (EV: EV_MODE) => {
     | Atom(_)
     | LivelitName(_)
     | Label(_)
+    | ExplicitNonlabel
     | Constructor(_)
     | BuiltinFun(_) =>
       let. _ = otherwise(env, d);
@@ -678,7 +679,15 @@ module Transition = (EV: EV_MODE) => {
       | Undefined(_) => Indet
       | DefinedPoly(poly_op) =>
         if (!DHExp.ty_comparable(d1, d2)) {
-          Indet;
+          let expr =
+            DynamicErrorHole(BinOp(op, d1, d2) |> rewrap, Incomparable)
+            |> fresh;
+          Step({
+            expr,
+            state_update,
+            kind: MarkIncomparable,
+            is_value: true,
+          });
         } else {
           switch (DHExp.poly_equal(d1, d2)) {
           | None => Indet

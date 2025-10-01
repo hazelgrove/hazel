@@ -88,6 +88,7 @@ type example_id =
   | Fun(fun_examples)
   | Label1
   | Label2
+  | Label3
   | Dot1
   | Dot2
   | DotTyp

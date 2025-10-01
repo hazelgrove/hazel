@@ -72,6 +72,7 @@ type settings = {
   ignore_function_types: bool,
   ignore_constructor_types: bool,
   ignore_function_names: bool,
+  ignore_explicit_unlabelling: bool,
   closures_by_id: bool, /* Currently "false" option is not implemented.
                            compares closures by their IDs to save time
                            traversing through massive closures */
@@ -99,6 +100,7 @@ let equality =
         ignore_function_types,
         ignore_constructor_types,
         ignore_function_names,
+        ignore_explicit_unlabelling,
         closures_by_id,
         ignore_filters,
         ignore_unknown_provenance,
@@ -135,6 +137,12 @@ let equality =
     | (_, Asc(x, _)) when ignore_casts => exp'(e1, x)
     | (Filter(_, x), _) when ignore_filters => exp'(x, e2)
     | (_, Filter(_, x)) when ignore_filters => exp'(e1, x)
+    | (TupLabel({term: ExplicitNonlabel, _}, e1), _)
+        when ignore_explicit_unlabelling =>
+      exp'(e1, e2)
+    | (_, TupLabel({term: ExplicitNonlabel, _}, e2))
+        when ignore_explicit_unlabelling =>
+      exp'(e1, e2)
 
     // Expression Wildcards:
     | (Constructor("$v", _), _) when Option.is_some(use_expr_wildcards) =>
@@ -360,6 +368,8 @@ let equality =
     | (TupLabel(label1, d1'), TupLabel(label2, d2')) =>
       exp'(label1, label2) && exp'(d1', d2')
     | (TupLabel(_, _), _) => false
+    | (ExplicitNonlabel, ExplicitNonlabel) => true
+    | (ExplicitNonlabel, _) => false
     | (Dot(e11, e12), Dot(e21, e22)) => exp'(e11, e21) && exp'(e12, e22)
     | (Dot(_, _), _) => false
     | (TupleExtension(e1, e2), TupleExtension(e1', e2')) =>
@@ -488,6 +498,8 @@ let equality =
       let* alphas2 = pat'(d1', d2');
       Some(Alphas.combine(alphas1, alphas2));
     | (TupLabel(_, _), _) => None
+    | (ExplicitNonlabel, ExplicitNonlabel) => Some(Alphas.empty)
+    | (ExplicitNonlabel, _) => None
     | (Ap(p1, p2), Ap(p3, p4)) =>
       open OptUtil.Syntax;
       let* alphas1 = pat'(p1, p3);
@@ -507,6 +519,12 @@ let equality =
     // Wrappers when ignored: unwrap.
     | (Parens(x), _) when ignore_parens => typ'(x, t2)
     | (_, Parens(x)) when ignore_parens => typ'(t1, x)
+    | (TupLabel({term: ExplicitNonlabel, _}, t1), _)
+        when ignore_explicit_unlabelling =>
+      typ'(t1, t2)
+    | (_, TupLabel({term: ExplicitNonlabel, _}, t2))
+        when ignore_explicit_unlabelling =>
+      typ'(t1, t2)
 
     // Wrappers otherwise: compare.
     | (Parens(x), Parens(y)) => typ'(x, y)
@@ -572,6 +590,14 @@ let equality =
     | (TupLabel(label1, t1'), TupLabel(label2, t2')) =>
       typ'(label1, label2) && typ'(t1', t2')
     | (TupLabel(_, _), _) => false
+    | (ExplicitNonlabel, ExplicitNonlabel) => true
+    | (ExplicitNonlabel, _) => false
+    | (ProdProjection(t1, t2), ProdProjection(t1', t2')) =>
+      typ'(t1, t1') && typ'(t2, t2')
+    | (ProdProjection(_), _) => false
+    | (ProdExtension(t1, t2), ProdExtension(t1', t2')) =>
+      typ'(t1, t1') && typ'(t2, t2')
+    | (ProdExtension(_), _) => false
     | (ProofOf(e1), ProofOf(e2)) => exp'(e1, e2)
     | (ProofOf(_), _) => false
     };
@@ -703,6 +729,7 @@ let syntactic_settings = {
   ignore_function_types: false,
   ignore_constructor_types: false,
   ignore_function_names: false,
+  ignore_explicit_unlabelling: false,
   closures_by_id: true,
   ignore_filters: false,
   ignore_unknown_provenance: false,
@@ -725,6 +752,7 @@ let semantic_settings = {
   ignore_function_types: false,
   ignore_constructor_types: false,
   ignore_function_names: true,
+  ignore_explicit_unlabelling: true,
   closures_by_id: true, // Ideally substitute all closures before using semantic equality
   ignore_filters: true,
   ignore_unknown_provenance: true,

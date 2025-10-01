@@ -414,14 +414,13 @@ and exp_term: unsorted => (Exp.term, list(Id.t)) = {
         @ [r]
         |> List.map((child: Exp.t) => {
              switch (child) {
-             | {term: Tuple([{term: TupLabel(_) as tl, _}]), _} as tup =>
+             | {term: Tuple([{term: _ as tl, _}]), _} as tup =>
                // We use the Id for the tuple as the ids for the tuplabels
                let (_, rewrap) = IdTagged.unwrap(tup);
                rewrap(tl);
              | _ => child
              }
            });
-
       ret(Tuple(tuple_children));
     | None =>
       switch (tiles) {
@@ -459,6 +458,14 @@ and exp_term: unsorted => (Exp.term, list(Id.t)) = {
           | (["..."], []) => TupleExtension(l, r)
           | (["="], []) =>
             switch (l.term) {
+            | Deferral(_) =>
+              TupLabel(
+                {
+                  annotation: l.annotation,
+                  term: ExplicitNonlabel,
+                },
+                r,
+              ) // Unlabeled tuple using deferred ap in tuplabel
             | Var(name) =>
               TupLabel(
                 {
@@ -600,6 +607,16 @@ and pat_term: unsorted => (Pat.term, list(Id.t)) = {
       switch (tiles) {
       | ([(_id, (["="], []))], []) =>
         switch (l.term) {
+        | Wild =>
+          ret(
+            TupLabel(
+              {
+                annotation: l.annotation,
+                term: ExplicitNonlabel,
+              },
+              r,
+            ),
+          ) // Unlabeled tuple using deferred ap in tuplabel
         | Var(name) =>
           ret(
             TupLabel(
@@ -662,6 +679,7 @@ and typ_term: unsorted => (Typ.term, list(Id.t)) = {
         | (["Float"], []) => Atom(Float)
         | (["String"], []) => Atom(String)
         | (["Nat"], []) => Atom(Nat)
+        | (["_"], []) => ExplicitNonlabel
         | (["proof_of", "end"], [Exp(exp)]) => ProofOf(exp)
         | ([t], []) when Token.is_typ_var(t) => Var(t)
         | ([t], []) when Token.is_quoted_label(t) =>
@@ -743,6 +761,21 @@ and typ_term: unsorted => (Typ.term, list(Id.t)) = {
           )
         | _ => ret(TupLabel(l, r))
         }
+      | ([(_id, (["."], []))], []) =>
+        switch (r.term) {
+        | Var(name) =>
+          ret(
+            ProdProjection(
+              l,
+              {
+                annotation: r.annotation,
+                term: Label(name),
+              },
+            ),
+          )
+        | _ => ret(ProdProjection(l, r))
+        }
+      | ([(_id, (["..."], []))], []) => ret(ProdExtension(l, r))
       | _ => ret(hole(tm))
       }
     }

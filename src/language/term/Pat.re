@@ -10,6 +10,7 @@ type cls =
   | Cons
   | Var
   | Label
+  | ExplicitNonlabel
   | TupLabel
   | Tuple
   | Parens
@@ -51,6 +52,7 @@ let cls_of_term: Grammar.pat_term('a) => cls =
   | Cons(_) => Cons
   | Var(_) => Var
   | Label(_) => Label
+  | ExplicitNonlabel => ExplicitNonlabel
   | TupLabel(_) => TupLabel
   | Tuple(_) => Tuple
   | Parens(_) => Parens
@@ -76,6 +78,7 @@ let show_cls: cls => string =
   | Var => "Variable binding"
   | Label => "Label"
   | TupLabel => "Labeled Tuple Item"
+  | ExplicitNonlabel => "Explicitly unlabeled entry"
   | Tuple => "Tuple"
   | Parens => "Parenthesized pattern"
   | Probe => "Probe"
@@ -99,6 +102,7 @@ let rec is_var = (pat: t) => {
   | Tuple(_)
   | Label(_)
   | Constructor(_)
+  | ExplicitNonlabel
   | Ap(_) => false
   };
 };
@@ -122,6 +126,7 @@ let rec is_tuple_of_vars = (pat: t) =>
     | Cons(_, _)
     | Var(_)
     | Constructor(_)
+    | ExplicitNonlabel
     | Ap(_) => false
     }
   );
@@ -143,6 +148,7 @@ let rec get_var = (pat: t) => {
   | Label(_)
   | Tuple(_)
   | Constructor(_)
+  | ExplicitNonlabel
   | Ap(_) => None
   };
 };
@@ -169,6 +175,7 @@ let rec get_fun_var = (pat: t) => {
   | Label(_)
   | Tuple(_)
   | Constructor(_)
+  | ExplicitNonlabel
   | Ap(_) => None
   };
 };
@@ -190,6 +197,7 @@ let rec get_bindings = (pat: t) =>
         Some(List.map(Option.get, vars));
       };
     | Label(_)
+    | ExplicitNonlabel
     | Invalid(_)
     | EmptyHole
     | MultiHole(_)
@@ -214,6 +222,7 @@ let rec get_num_of_vars = (pat: t) =>
     | TupLabel(_, pat) => get_num_of_vars(pat)
     | Tuple(pats) => is_tuple_of_vars(pat) ? Some(List.length(pats)) : None
     | Label(_)
+    | ExplicitNonlabel
     | Invalid(_)
     | EmptyHole
     | MultiHole(_)
@@ -256,6 +265,7 @@ let rec bindings = (dp: t): Binding.s =>
   | Invalid(_)
   | Atom(_)
   | Label(_)
+  | ExplicitNonlabel
   | Constructor(_) => []
   | Asc(y, _)
   | Parens(y)
