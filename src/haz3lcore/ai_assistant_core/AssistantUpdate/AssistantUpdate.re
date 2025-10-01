@@ -776,29 +776,37 @@ let update =
         get_mode_info(mode, model) |> snd;
       };
 
-    // todo: Should this be a user, assistant, or system message?
-    //       We could make it assistant and put it in the first-person.
-    let system_message: Model.message = {
-      content: Some(OpenRouter.mk_user_msg(content)),
-      display: Some(Model.mk_message_display(~content)),
-      role: System(InternalError),
-      sketch_snapshot: None,
-    };
+    if (!curr_chat.awaiting_response) {
+      model;
+    } else {
+      let model = {
+        ...model,
+        agent_looping: false,
+      };
+      // todo: Should this be a user, assistant, or system message?
+      //       We could make it assistant and put it in the first-person.
+      let system_message: Model.message = {
+        content: Some(OpenRouter.mk_user_msg(content)),
+        display: Some(Model.mk_message_display(~content)),
+        role: System(InternalError),
+        sketch_snapshot: None,
+      };
 
-    // Note: We aren't sending a message here, but we do add it to the chat history.
-    //       for future reference for the LLM so it isn't confused.
-    //       (Eg: Max tool call limit reached, agent should know from history that this
-    //        is why their prior task completion was not successful.)
-    let updated_chat = {
-      ...curr_chat,
-      messages: curr_chat.messages @ [system_message],
+      // Note: We aren't sending a message here, but we do add it to the chat history.
+      //       for future reference for the LLM so it isn't confused.
+      //       (Eg: Max tool call limit reached, agent should know from history that this
+      //        is why their prior task completion was not successful.)
+      let updated_chat = {
+        ...curr_chat,
+        messages: curr_chat.messages @ [system_message],
+      };
+      update_model_chat_history(
+        ~model,
+        ~mode,
+        ~updated_chat,
+        ~awaiting_response=false,
+      );
     };
-    update_model_chat_history(
-      ~model,
-      ~mode,
-      ~updated_chat,
-      ~awaiting_response=false,
-    );
 
   | HandleResponse(response_kind, reply, chat_id) =>
     // Check if we're still awaiting a promise - if not, ignore the response
@@ -919,9 +927,6 @@ let update =
 
         | (_, 0) =>
           // The agent ran out of fuel. We should experiment with this in the future.
-          // if (eval_mode) {
-          //   schedule_eval_action(CollectResults);
-          // };
           schedule_action(EmployLLMAction(SetAgentLooping(false)));
           schedule_action(
             InternalError(
