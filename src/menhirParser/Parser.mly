@@ -50,6 +50,7 @@ open AST
 %token SINGLE_EQUAL
 %token TURNSTILE
 %token TUPLE_EXTENSION
+%token DOT
 
 (* Poly ops *)
 %token DOUBLE_EQUAL
@@ -142,6 +143,8 @@ open AST
 %nonassoc TYP_AP_SYMBOL
 
 %left OPEN_PAREN CLOSE_PAREN
+%left DOT
+
 %left DOLLAR_SIGN
 
 %left TILDE
@@ -251,6 +254,8 @@ typ:
     | REC; c=tpat; DASH_ARROW; t = typ { RecType(c, t) }
     | OPEN_TRIPLE_CURLY; t = typ; CLOSE_TRIPLE_CURLY { IndicationTyp(t) }
     | OPEN_PAREN; t = typ; CLOSE_PAREN { t }
+    | t1 = typ; TUPLE_EXTENSION; t2 = typ { ProdExtension(t1, t2) } %prec TYP_AP_SYMBOL
+    | t1 = typ; DOT; t2 = typ { ProdProjection(t1, t2) }
 
 tupPatEntry:
     | p = pat {p}
@@ -323,6 +328,7 @@ unExp:
 tupExpEntry:
     | e = exp {e}
     | l = label; SINGLE_EQUAL; e = exp {TupLabel(Label(l), e)}
+    | WILD; SINGLE_EQUAL; e = exp {TupLabel(ExplicitNonlabel, e)}
 
 exp:
     | b = binExp { b }
@@ -364,4 +370,6 @@ exp:
     | LESS_THAN; LESS_THAN; e = exp; QUESTION; s = QUOTED_LABEL; GREATER_THAN; GREATER_THAN {DynamicErrorHole(e, s)}
     | UNDEF; {Undefined}
     | u = unExp { u }
-    | e1 = exp; TUPLE_EXTENSION; e2 = exp { TupleExtension(e1, e2) }
+    | e1 = exp; TUPLE_EXTENSION; e2 = exp { TupleExtension(e1, e2) } %prec PLUS
+    | e1 = exp; DOT; e2 = exp { Dot(e1, e2) }
+
