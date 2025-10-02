@@ -80,7 +80,7 @@ let module_of_kind = (kind: kind): info =>
   | Petrinaut => {
       kind,
       prod: "https://hazel.petrinaut.org",
-      dev: "http://localhost:5173",
+      dev: "https://hazel.petrinaut.org", //"http://localhost:5174",
       shape: Block,
       // TODO: More specific syntax restriction
       guard: _ => true,

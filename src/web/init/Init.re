@@ -12,7 +12,6 @@ let startup: PersistentData.t = {
   documentation: (
     0,
     [
-      Exodemo.out,
       BasicReference.out,
       Projectors.out,
       ADTs.out,
@@ -22,23 +21,12 @@ let startup: PersistentData.t = {
       Cards.out,
       Probes.out,
       Livelits.out,
-      GUIDEExpressiveProgramming.out,
-      GUIDEComposingExpressions.out,
-      GUIDEComputingEquationally.out,
-      GUIDEVariables.out,
-      GUIDECompositionality.out,
-      GUIDEScope.out,
-      GUIDEShadowing.out,
-      GUIDEBoolsandTypes.out,
-      GUIDEConditionals.out,
-      GUIDEFunctions.out,
-      TESTSTypesandStaticErrors.out,
     ]
-    |> List.map(((name, content)) =>
+    |> List.map(((name, content: PersistentSegment.t)) =>
          (
            name,
            {
-             editor: content,
+             editor: content |> PersistentSegment.to_persistent_zipper,
              result: EvalResult.Model.init |> EvalResult.Model.persist,
            }: CellEditor.Model.persistent,
          )

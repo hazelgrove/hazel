@@ -47,25 +47,6 @@ let rec range = (~lo: int=0, hi: int) =>
     [lo, ...range(~lo=lo + 1, hi)];
   };
 
-// heads of prefix and suffix neighbor the subject
-type frame('x) = (list('x), list('x));
-
-let rec mk_frame = (n: int, xs: list('x)): frame('x) => {
-  let invalid_arg = () => raise(Invalid_argument("ListUtil.mk_frame"));
-  if (n < 0) {
-    invalid_arg();
-  } else if (n == 0) {
-    ([], xs);
-  } else {
-    switch (xs) {
-    | [] => invalid_arg()
-    | [x, ...xs] =>
-      let (prefix, suffix) = mk_frame(n - 1, xs);
-      (prefix @ [x], suffix);
-    };
-  };
-};
-
 let rec split =
         (l: list('x), cond: 'x => bool): (list('x), option('x), list('x)) => {
   switch (l) {
@@ -80,30 +61,13 @@ let rec split =
   };
 };
 
-let rec split_frame = (n: int, xs: list('x)): ('x, frame('x)) =>
-  switch (n, xs) {
-  | (_, []) => failwith("list index out of bounds")
-  | (0, [x, ...xs]) => (x, ([], xs))
-  | (_, [x, ...xs]) =>
-    let (subj, (prefix, suffix)) = split_frame(n - 1, xs);
-    (subj, (prefix @ [x], suffix));
-  };
-
-let of_frame = (~subject: list('x)=[], (prefix, suffix): frame('x)) =>
-  List.concat([List.rev(prefix), subject, suffix]);
-
 let combine_opt = (xs, ys) =>
   switch (List.combine(xs, ys)) {
   | exception (Invalid_argument(_)) => None
   | xys => Some(xys)
   };
 
-let is_empty =
-  fun
-  | [] => true
-  | _ => false;
-
-let flat_map = (f, l) => List.flatten(List.map(f, l));
+let flat_map = List.concat_map;
 
 let rec join = (sep: 'x, xs: list('x)): list('x) =>
   switch (xs) {
@@ -116,16 +80,6 @@ let hd_opt =
   fun
   | [] => None
   | [hd, ..._] => Some(hd);
-
-let rec nth_opt = (n, xs) =>
-  n < 0
-    ? None
-    : (
-      switch (xs) {
-      | [] => None
-      | [hd, ...tl] => n == 0 ? Some(hd) : nth_opt(n - 1, tl)
-      }
-    );
 
 /**
  * `split_n_opt(n, xs)` splits the first `n` elements from `xs`
@@ -148,7 +102,6 @@ let split_n_opt = (n: int, xs: list('x)): option((list('x), list('x))) => {
   go(n, xs);
 };
 
-// TODO unify with ListFrame
 let split_n = (n: int, xs: list('x)): (list('x), list('x)) =>
   switch (split_n_opt(n, xs)) {
   | None =>
@@ -188,6 +141,7 @@ let split_sublist =
     )
   | Some(r) => r
   };
+
 let sublist = ((i, j), xs: list('x)): list('x) => {
   let (_, sublist, _) = split_sublist(i, j, xs);
   sublist;
@@ -220,79 +174,46 @@ let rec put_nth = (n: int, x: 'x, xs: list('x)): list('x) =>
     [hd, ...tl];
   };
 
-let rec map_nth = (n: int, f: 'a => 'a, xs: list('a)): list('a) =>
-  switch (n, xs) {
-  | (_, []) => failwith("out of bounds")
-  | (0, [hd, ...tl]) => [f(hd), ...tl]
-  | (_, [hd, ...tl]) => [hd, ...map_nth(n - 1, f, tl)]
-  };
-
-let rec split_last_opt = (xs: list('x)): option((list('x), 'x)) =>
-  switch (xs) {
-  | [] => None
-  | [x] => Some(([], x))
-  | [x, ...xs] =>
-    split_last_opt(xs)
-    |> Option.map(((leading, last)) => ([x, ...leading], last))
-  };
-// let last_opt = xs => xs |> split_last_opt |> Option.map(snd);
+let split_last_opt = (xs: list('x)): option((list('x), 'x)) => {
+  let rec go = (acc, xs) =>
+    switch (xs) {
+    | [] => None
+    | [x] => Some((List.rev(acc), x))
+    | [x, ...xs] => go([x, ...acc], xs)
+    };
+  go([], xs);
+};
 
 let split_last = (xs: list('x)): (list('x), 'x) =>
   switch (split_last_opt(xs)) {
   | None => raise(Invalid_argument("ListUtil.split_last"))
   | Some(r) => r
   };
+
 let leading = xs => fst(split_last(xs));
-let last = xs => snd(split_last(xs));
-let last_opt = xs => {
-  let length = List.length(xs);
-  if (length == 0) {
-    None;
-  } else {
-    Some(List.nth(xs, length - 1));
+
+let rec last_opt = (xs: list('x)): option('x) =>
+  switch (xs) {
+  | [] => None
+  | [x] => Some(x)
+  | [_, ...xs] => last_opt(xs)
   };
-};
+
+let last = (xs: list('x)): 'x =>
+  switch (last_opt(xs)) {
+  | None => raise(Invalid_argument("ListUtil.last"))
+  | Some(x) => x
+  };
 
 let split_first_opt = (xs: list('x)): option(('x, list('x))) =>
   switch (xs) {
   | [] => None
   | [first, ...trailing] => Some((first, trailing))
   };
+
 let split_first = xs =>
   split_first_opt(xs)
   |> OptUtil.get_or_raise(Invalid_argument("ListUtil.split_first"));
-
-let rec fold_left_map =
-        (f: ('acc, 'x) => ('acc, 'y), start: 'acc, xs: list('x))
-        : ('acc, list('y)) =>
-  switch (xs) {
-  | [] => (start, [])
-  | [x, ...xs] =>
-    let (new_acc, y) = f(start, x);
-    let (final, ys) = fold_left_map(f, new_acc, xs);
-    (final, [y, ...ys]);
-  };
-
-let rec take_while = (p: 'x => bool, xs: list('x)): (list('x), list('x)) =>
-  switch (xs) {
-  | [] => ([], [])
-  | [hd, ...tl] =>
-    if (p(hd)) {
-      let (taken, rest) = take_while(p, tl);
-      ([hd, ...taken], rest);
-    } else {
-      ([], xs);
-    }
-  };
-
-let product = (xs, ys) =>
-  xs |> List.map(x => ys |> List.map(y => (x, y))) |> List.flatten;
-
-let rec ordered_pairs = (xs: list('x)): list(('x, 'x)) =>
-  switch (xs) {
-  | [] => []
-  | [hd, ...tl] => List.map(x => (hd, x), tl) @ ordered_pairs(tl)
-  };
 
 let rec neighbors = (xs: list('x)): list(('x, 'x)) =>
   switch (xs) {
@@ -300,12 +221,6 @@ let rec neighbors = (xs: list('x)): list(('x, 'x)) =>
   | [_] => []
   | [x1, x2, ...xs] => [(x1, x2), ...neighbors([x2, ...xs])]
   };
-
-module Syntax = {
-  let (let+) = (xs, f) => List.map(f, xs);
-  let (and+) = product;
-  let ( let* ) = (xs, f) => List.concat_map(f, xs);
-};
 
 let map_alt: ('a => 'c, 'b => 'c, list('a), list('b)) => list('c) =
   (fx, fy, xs, ys) => {
@@ -322,88 +237,20 @@ let map_alt: ('a => 'c, 'b => 'c, list('a), list('b)) => list('c) =
 
 let interleave = (xs, ys) => map_alt(x => x, y => y, xs, ys);
 
-let p_indices = (p: 'a => bool, xs: list('a)): list(int) => {
-  let (_, idxs) =
-    List.fold_left(
-      ((n, idxs), x) => (n + 1, idxs @ (p(x) ? [n] : [])),
-      (0, []),
-      xs,
-    );
-  idxs;
-};
-
-let splits = (xs: list('x) as 'xs): list(('xs, 'xs)) => {
-  let rec go = (split: ('xs, 'xs)): list(('xs, 'xs)) =>
-    switch (split) {
-    | (_, []) => [split]
-    | (l, [hd, ...tl]) => [split, ...go((l @ [hd], tl))]
-    };
-  go(([], xs));
-};
-
-let elem_splits = (xs: list('x) as 'xs): list(('xs, 'x, 'xs)) => {
-  let rec go = (split: ('xs, 'x, 'xs)): list(('xs, 'x, 'xs)) =>
-    switch (split) {
-    | (_, _, []) => [split]
-    | (l, x, [hd, ...tl]) => [split, ...go(([x, ...l], hd, tl))]
-    };
-  switch (xs) {
-  | [] => []
-  | [x, ...xs] => go(([], x, xs))
-  };
-};
-
 let rotate = (xs: list('x)): list('x) =>
   switch (xs) {
   | [] => []
   | [hd, ...tl] => tl @ [hd]
   };
 
-let single_elem = (xs: list('x)): option('x) =>
-  switch (xs) {
-  | [] => None
-  | [hd, ...tl] => List.for_all((==)(hd), tl) ? Some(hd) : None
-  };
-
 let count_pred = (f: 'a => bool, xs: list('a)): int =>
   List.fold_left((n, x) => f(x) ? n + 1 : n, 0, xs);
-
-let for_all2_opt =
-    (f: ('a, 'b) => bool, xs: list('a), ys: list('b)): option(bool) =>
-  switch (List.for_all2(f, xs, ys)) {
-  | b => Some(b)
-  | exception (Invalid_argument(_)) => None
-  };
 
 let map2_opt =
     (f: ('a, 'b) => 'c, xs: list('a), ys: list('b)): option(list('c)) =>
   switch (List.map2(f, xs, ys)) {
   | b => Some(b)
   | exception (Invalid_argument(_)) => None
-  };
-
-/* repeat an element n times */
-let replicate = (n: int, e: 'a): list('a) => {
-  /* add c additional copies of e to xs */
-  let rec f = (c, xs) =>
-    if (c > 0) {
-      f(c - 1, [e, ...xs]);
-    } else {
-      xs;
-    };
-  f(n, []);
-};
-
-/**
- * Zips together two lists, returning None if different lengths
- */
-let rec opt_zip = (xs: list('x), ys: list('y)): option(list(('x, 'y))) =>
-  switch (xs, ys) {
-  | ([], [_, ..._])
-  | ([_, ..._], []) => None
-  | ([], []) => Some([])
-  | ([x, ...xs], [y, ...ys]) =>
-    opt_zip(xs, ys) |> Option.map(xys => [(x, y), ...xys])
   };
 
 let rec zip_defaults =
@@ -430,13 +277,6 @@ let rec update_nth = (n, xs, f) =>
   | (_, []) => []
   | (0, [x, ...xs]) => [f(x), ...xs]
   | (n, [x, ...xs]) => [x, ...update_nth(n - 1, xs, f)]
-  };
-
-let rec disjoint_pairs = (xs: list('x)): list(('x, 'x)) =>
-  switch (xs) {
-  | []
-  | [_] => []
-  | [x1, x2, ...xs] => [(x1, x2), ...disjoint_pairs(xs)]
   };
 
 let findi_opt: ('x => bool, list('x)) => option((int, 'x)) =
@@ -466,29 +306,11 @@ let find_with_rest:
     go(xs, []);
   };
 
-let init_fold: (int, 'b, (int, 'b) => ('b, 'a)) => ('b, list('a)) =
-  (n, b, f) => {
-    let range = List.init(n, n => n);
-    let (acc, rev_xs) =
-      List.fold_left(
-        ((acc, xs), n) => {
-          let (acc', elt) = f(n, acc);
-          (acc', [elt, ...xs]);
-        },
-        (b, []),
-        range,
-      );
-    (acc, List.rev(rev_xs));
-  };
-
 let assoc_err = (x, xs, err: string) =>
   switch (List.assoc_opt(x, xs)) {
   | None => failwith(err)
   | Some(y) => y
   };
-
-let update_assoc = ((k, v)) =>
-  List.map(((k', v')) => k == k' ? (k, v) : (k', v'));
 
 /* Give a list of optional 'a, split the
  * list up using the Nones as dividers */
@@ -517,18 +339,6 @@ let first_and_last = (xss: list(list('a))): list(('a, 'a)) =>
        | [x, ...xs] => Some((x, last(xs))),
      );
 
-let rec unsnoc = (xs: list('a)): option(('a, list('a))) => {
-  switch ((xs: list('a))) {
-  | [] => None
-  | [head, ...tail] =>
-    switch (unsnoc(tail)) {
-    | None => Some((head, []))
-    | Some((tail_last: 'a, tail_init: list('a))) =>
-      Some((tail_last, [head, ...tail_init]))
-    }
-  };
-};
-
 let rec rev_concat: (list('a), list('a)) => list('a) =
   (ls, rs) => {
     switch (ls) {
@@ -536,25 +346,6 @@ let rec rev_concat: (list('a), list('a)) => list('a) =
     | [hd, ...tl] => rev_concat(tl, [hd, ...rs])
     };
   };
-
-let rec map3 = (f, xs, ys, zs) =>
-  switch (xs, ys, zs) {
-  | ([], [], []) => []
-  | ([x, ...xs], [y, ...ys], [z, ...zs]) => [
-      f(x, y, z),
-      ...map3(f, xs, ys, zs),
-    ]
-  | _ => failwith("Lists are of unequal length")
-  };
-
-let rec unzip = (lst: list(('a, 'b))): (list('a), list('b)) => {
-  switch (lst) {
-  | [] => ([], [])
-  | [(a, b), ...tail] =>
-    let (_as, bs) = unzip(tail);
-    ([a, ..._as], [b, ...bs]);
-  };
-};
 
 let cross = (xs, ys) =>
   List.concat(List.map(x => List.map(y => (x, y), ys), xs));
@@ -571,40 +362,6 @@ let rec flat_intersperse = (sep, xss) =>
   | [] => []
   | [xs] => xs
   | [xs, ...xss] => xs @ [sep, ...flat_intersperse(sep, xss)]
-  };
-
-let rec map_last_only = (f, xs) =>
-  switch (xs) {
-  | [] => []
-  | [x] => [f(x)]
-  | [x, ...xs] => [x, ...map_last_only(f, xs)]
-  };
-
-let rec split_last = (xs: list('x)): (list('x), 'x) =>
-  switch (xs) {
-  | [] => failwith("ListUtil.split_last")
-  | [x] => ([], x)
-  | [x, ...xs] =>
-    let (prefix, last) = split_last(xs);
-    ([x, ...prefix], last);
-  };
-
-let minimum = (f: 'a => int, xs: list('a)): option('a) =>
-  switch (xs) {
-  | [] => None
-  | [x, ...xs] =>
-    let rec loop = (best: 'a, best_f: int, xs: list('a)): option('a) =>
-      switch (xs) {
-      | [] => Some(best)
-      | [x, ...xs] =>
-        let f_x = f(x);
-        if (f_x < best_f) {
-          loop(x, f_x, xs);
-        } else {
-          loop(best, best_f, xs);
-        };
-      };
-    loop(x, f(x), xs);
   };
 
 /* Given two lists, return their maximum common suffix */
@@ -665,29 +422,9 @@ let rec remove_first_n = (n: int, xs: list('a)): list('a) => {
 let slice = (i: int, k: int, xs: list('x)): list('x) =>
   xs |> remove_first_n(i) |> truncate(k);
 
-let rec rotate_n = (n: int, xs: list('a)): list('a) => {
-  let n = IntUtil.modulo(n, List.length(xs));
-  switch (n) {
-  | 0 => xs
-  | _ => rotate_n(n - 1, rotate(xs))
-  };
-};
-
-let take = (n, xs) => {
-  let rec loop = (n, xs, acc) =>
-    switch (n, xs) {
-    | (0, _) => acc
-    | (_, []) => acc
-    | (n, [x, ...xs]) => loop(n - 1, xs, [x, ...acc])
-    };
-  loop(n, xs, []);
-};
-
-let take_up_to_n = (n: int, xs: list('a)): list('a) =>
-  switch (split_n_opt(n, xs)) {
-  | Some((xs, _)) => xs
-  | None => xs
-  };
+// TODO Remove once List.take is available in ocaml 5.3
+let take = (n, xs: list('a)) =>
+  List.to_seq(xs) |> Seq.take(n) |> List.of_seq;
 
 /* Move the first element equal to x to the front of the list */
 let lift = (x: 'a, xs: list('a)): list('a) =>
@@ -700,15 +437,6 @@ let rec is_length = (n: int, xs: list('a)): bool =>
   | _ when n <= 0 => false
   | [] => false
   | [_, ...xs] => is_length(n - 1, xs)
-  };
-
-/* Length of ys but be equal to the number of `None`s in xs */
-let rec fill_nones = (xs: list(option('a)), ys: list('a)): list('a) =>
-  switch (xs, ys) {
-  | ([], []) => []
-  | ([None, ...xs], [y, ...ys]) => [y, ...fill_nones(xs, ys)]
-  | ([Some(x), ...xs], ys) => [x, ...fill_nones(xs, ys)]
-  | _ => failwith("ListUtil.fill_nones: lengths do not match")
   };
 
 let rec remove_nth = (n: int, xs: list('a)): option(list('a)) =>
@@ -729,4 +457,17 @@ let rec fold_left_opt =
     | Some(acc') => fold_left_opt(f, acc', xs)
     }
   };
+};
+
+let map_with_history = (f: (list('y), 'x) => 'y, xs: list('x)): list('y) => {
+  let rec aux = (acc: list('y), remaining: list('x)) => {
+    switch (remaining) {
+    | [] => []
+    | [x, ...xs] =>
+      let y = f(acc, x);
+      let acc' = acc @ [y];
+      [y, ...aux(acc', xs)];
+    };
+  };
+  aux([], xs);
 };

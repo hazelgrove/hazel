@@ -92,6 +92,7 @@ type atomic_form =
   | EmptyList
   | EmptyTuple
   | Deferral
+  | ExplicitNonlabel
   | TyVar
   | TyVarP
   | Ctr
@@ -148,6 +149,8 @@ type compound_form =
   | DotTyp
   | TypeAsc
   | TypPlus
+  | ProdProjection
+  | ProdExtension
   // UNARY PREFIX OPERATORS
   | Not
   | TypSumSingle
@@ -165,6 +168,7 @@ type compound_form =
   | ParensExp
   | ParensPat
   | ParensTyp
+  | ParensTPat
   | ApExpEmpty
   | ApExp
   | ApPat
@@ -235,6 +239,8 @@ let get: compound_form => t =
   | TypeAsc => mk_infix(":", Exp, ~l=Exp, ~r=Typ, P.asc)
   | TupleExtension => mk_infix("...", Exp, P.plus)
   | TypPlus => mk_infix("+", Typ, P.type_plus)
+  | ProdProjection => mk_infix(".", Typ, P.dot)
+  | ProdExtension => mk_infix("...", Typ, P.ap)
   // UNARY PREFIX OPERATORS
   | Not => mk_prefix("!", Exp, P.not_)
   | TypSumSingle => mk_prefix("+", Typ, P.or_)
@@ -252,6 +258,7 @@ let get: compound_form => t =
   | ParensExp => mk_parens(Exp)
   | ParensPat => mk_parens(Pat)
   | ParensTyp => mk_parens(Typ)
+  | ParensTPat => mk_parens(TPat) // HACk (Issue #1913)
   | ApExpEmpty => mk_post_c(LT, ["()"], P.ap, Exp, [])
   | ApExp => mk_post_c(LT, ["(", ")"], P.ap, Exp, [Exp])
   | ApPat => mk_post_c(LT, ["(", ")"], P.ap, Pat, [Pat])
@@ -375,6 +382,7 @@ let get_atomic_form: atomic_form => (Token.t => bool, list(Mold.t)) =
   | EmptyList => (Token.is_empty_list, [op(Exp), op(Pat)])
   | EmptyTuple => (Token.is_empty_tuple, [op(Exp), op(Pat), op(Typ)])
   | Deferral => (Token.is_wild, [op(Exp)])
+  | ExplicitNonlabel => (Token.is_wild, [op(Typ)])
   | TyVar => (Token.is_typ_var, [op(Typ)])
   | TyVarP => (Token.is_typ_var, [op(TPat)])
   | Ctr => (Token.is_ctr, [op(Exp), op(Pat)])
@@ -445,4 +453,10 @@ module Expansion = {
     };
 
   let will = kw => List.length(get(kw) |> fst) > 1;
+
+  let is_leading = (t: Token.t): bool =>
+    switch (List.assoc_opt(t, expansions)) {
+    | Some((_, Left)) => true
+    | _ => false
+    };
 };
