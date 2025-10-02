@@ -41,7 +41,7 @@ let module_of_kind = (kind: kind): info =>
   | ExoSlider => {
       kind,
       prod: WebEnv.base_url() ++ "/external/exoslider",
-      dev: "http://localhost:5173",
+      dev: WebEnv.base_url() ++ "/external/exoslider", //"http://localhost:5173",
       shape: Tab,
       guard: (
         fun
@@ -56,7 +56,7 @@ let module_of_kind = (kind: kind): info =>
   | ExoBuilder => {
       kind,
       prod: WebEnv.base_url() ++ "/external/exovaluebuilder",
-      dev: "http://localhost:5175",
+      dev: WebEnv.base_url() ++ "/external/exovaluebuilder", //"http://localhost:5175",
       shape: Tab,
       // TODO: More specific syntax restriction
       guard: _ => true,
@@ -68,7 +68,7 @@ let module_of_kind = (kind: kind): info =>
   | ExoNool => {
       kind,
       prod: "https://andrewblinn.com/nool/exolivelit",
-      dev: "http://localhost:3000",
+      dev: "https://andrewblinn.com/nool/exolivelit", //"http://localhost:3000",
       shape: Block,
       // TODO: More specific syntax restriction
       guard: _ => true,
