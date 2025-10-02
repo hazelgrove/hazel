@@ -1,5 +1,3 @@
-open Alcotest;
-open Haz3lcore;
 module Fresh = Language.IdTagged.FreshGrammar;
 
 /* =============================== */
