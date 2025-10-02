@@ -3,6 +3,9 @@ open Virtual_dom.Vdom;
 open ProjectorBase;
 open Language;
 
+/* Import the reusable table renderer */
+module TR = TableRenderer;
+
 let icon_button = (~tooltip="", icon_text, action) =>
   Node.div(
     ~attrs=[
@@ -13,464 +16,20 @@ let icon_button = (~tooltip="", icon_text, action) =>
     [Node.text(icon_text)],
   );
 
-let max_column_length = 12;
+let table_from_exp = TR.table_from_exp;
+let table_of = TR.table_of;
+let get_dynamic_type = TR.get_dynamic_type;
 
-let table_from_exp = (exp: Exp.t) => {
-  switch (exp.term) {
-  | ListLit(es) =>
-    let data: list(option((list(string), list(TermBase.exp_t)))) =
-      List.map(
-        e => {
-          switch (Unboxing.unbox(LabeledTupleEntries, e)) {
-          // TODO Stop doing this with unboxing and deconstruct it here with the parens
-          | IndetMatch => None
-          | DoesNotMatch => None
-          | Matches(entries: list((option(string), TermBase.exp_t))) =>
-            let f: option(list((string, TermBase.exp_t))) =
-              OptUtil.sequence(
-                List.map(
-                  ((label, value)) =>
-                    switch (label) {
-                    | Some(l) => Some((l, value))
-                    | None => None
-                    },
-                  entries,
-                ),
-              );
-
-            let g: option((list(string), list(TermBase.exp_t))) =
-              f |> Option.map(List.split);
-
-            g;
-          }
-        },
-        es,
-      );
-
-    let data: option(list((list(string), list(TermBase.exp_t)))) =
-      OptUtil.sequence(data);
-    switch (data) {
-    | Some(data: list((list(string), list(TermBase.exp_t)))) =>
-      let (headers: list(list(string)), rows: list(list(TermBase.exp_t))) =
-        List.split(data);
-
-      // If all the headers aren't the same return None
-      switch (headers) {
-      | [] => None
-      | [h, ..._] when List.for_all(x => x == h, headers) =>
-        let headers = h;
-        Some((headers, rows));
-
-      | _ => None
-      };
-    | _ => None
-    };
-  | _ => None
-  };
-};
-let get_column_type_from_ty = (ty: Typ.t, column: string) => {
-  switch (ty.term) {
-  | List({term: Prod(tys), _}) =>
-    let ty =
-      List.find_map(
-        ty => {
-          open OptUtil.Syntax;
-          let* (label, value_ty) = Typ.match_tup_label(ty);
-          if (label == column) {
-            Some(value_ty);
-          } else {
-            None;
-          };
-        },
-        tys,
-      );
-    ty;
-  | _ => None
-  };
-};
-
-let get_columns = (ty: Typ.t): option(list(string)) => {
-  switch (ty.term) {
-  | List({term: Prod(tys), _}) =>
-    let labels: option(list(string)) =
-      OptUtil.traverse(
-        ty => {
-          open OptUtil.Syntax;
-          let* (label, _value_ty) = Typ.match_tup_label(ty);
-          Some(label);
-        },
-        tys,
-      );
-    labels;
-  | _ => None
-  };
-};
-
-let apply_transformation = (info: info, transformation: Exp.t) => {
-  IdTagged.FreshGrammar.(
-    switch (
-      info.utility.lift_syntax(
-        fun
-        | Exp({term: exp_term, _}) =>
-          Exp(Exp.(ap(Reverse, transformation, exp_term |> DHExp.fresh)))
-
-        | _ => failwith("TableProj: apply_transformation: not an expression"),
-        info.syntax,
-      )
-    ) {
-    | Some(s) => s
-    | None => failwith("TableProj: apply_transformation: lift failed")
-    }
-  );
-};
-
-let apply_rowwise_transformation =
-    (info: info, row_transformation: Exp.t): Base.segment => {
-  IdTagged.FreshGrammar.(
-    apply_transformation(
-      info,
-      Exp.(
-        ap(
-          Forward,
-          var("map"),
-          tuple([deferral(InAp), row_transformation]),
-        )
-      ),
-    )
-  );
-};
-
-let drop_column = (info: info, column: string): Base.segment => {
-  IdTagged.FreshGrammar.(
-    apply_rowwise_transformation(
-      info,
-      Exp.(
-        ap(
-          Forward,
-          var("omit_labels"),
-          tuple([deferral(InAp), label(column)]),
-        )
-      ),
-    )
-  );
-};
-
-let convert_column =
-    (info: info, column: string, conversion_fn: string): Base.segment => {
-  IdTagged.FreshGrammar.(
-    Exp.(
-      apply_rowwise_transformation(
-        info,
-        fn(
-          Pat.var("r"),
-          tuple_extension(
-            var("r"),
-            tuple([
-              tup_label(
-                label(column),
-                ap(
-                  Forward,
-                  var(conversion_fn),
-                  dot(var("r"), label(column)),
-                ),
-              ),
-            ]),
-          ),
-          None,
-          None,
-        ),
-      )
-    )
-  );
-};
-
-// TODO: Preserve ordering
-let rename_column =
-    (info: info, old_name: string, new_name: string): Base.segment => {
-  apply_rowwise_transformation(
-    info,
-    IdTagged.FreshGrammar.(
-      Exp.(
-        fn(
-          Pat.var("r"),
-          tuple_extension(
-            ap(
-              Forward,
-              var("omit_labels"),
-              tuple([var("r"), label(old_name)]),
-            ),
-            tuple([
-              tup_label(label(new_name), dot(var("r"), label(old_name))),
-            ]),
-          ),
-          None,
-          None,
-        )
-      )
-    ),
-  );
-};
-
-// TODO This should be after and not at the end
-let add_column_after =
-    (info: info, _after_column: string, new_column: string): Base.segment => {
-  IdTagged.FreshGrammar.(
-    Exp.(
-      apply_rowwise_transformation(
-        info,
-        fn(
-          Pat.var("r"),
-          tuple_extension(
-            var("r"),
-            tuple([
-              tup_label(
-                label(new_column),
-                var("\"\"") // Empty string as default value
-              ),
-            ]),
-          ),
-          None,
-          None,
-        ),
-      )
-    )
-  );
-};
-
-// This currently uses the type of the currently displayed table. We need to decide if we're going to integrate statics or join them.
-let get_dynamic_type = (closure: option(int), info: info): option(Typ.t) => {
-  info.dynamics
-  |> Option.bind(_, d =>
-       List.nth_opt(d.closures, closure |> Option.value(~default=0))
-     )
-  |> Option.bind(
-       _,
-       (d: Dynamics.Probe.Closure.t) => {
-         let statics =
-           Statics.mk(CoreSettings.on, Builtins.ctx_init(Some(Int)));
-         let type_of = (c: Dynamics.Probe.Closure.t) => {
-           IdTagged.rep_id(c.value)
-           |> Id.Map.find_opt(_, statics(c.value))
-           |> Option.bind(
-                _,
-                fun
-                | InfoExp(e) => {
-                    Some(e.ty);
-                  }
-                | _ => None,
-              );
-         };
-         type_of(d);
-       },
-     );
-};
-
-let can_move_column =
-    (columns_opt: option(list(string)), column: string, left: bool) =>
-  switch (columns_opt) {
-  | Some(columns) =>
-    switch (List.find_index(x => x == column, columns)) {
-    | Some(idx) => left ? idx > 0 : idx < List.length(columns) - 1
-    | None => false
-    }
-  | None => false
-  };
-
-let move_column =
-    (info: info, dyn_type: option(Typ.t), column: string, left: bool)
-    : option(Base.segment) => {
-  let columns_opt = Option.bind(dyn_type, get_columns);
-  switch (columns_opt) {
-  | Some(columns) =>
-    let idx_opt = List.find_index(x => x == column, columns);
-    switch (idx_opt) {
-    | Some(idx) =>
-      let new_idx = left ? idx - 1 : idx + 1;
-      if (new_idx < 0 || new_idx >= List.length(columns)) {
-        None;
-      } else {
-        let new_columns =
-          List.mapi(
-            (i, x) =>
-              if (i == idx) {
-                List.nth(columns, new_idx);
-              } else if (i == new_idx) {
-                List.nth(columns, idx);
-              } else {
-                x;
-              },
-            columns,
-          );
-        IdTagged.FreshGrammar.Exp.(
-          apply_rowwise_transformation(
-            info,
-            ap(
-              Forward,
-              var("select_labels"),
-              tuple([deferral(InAp)] @ List.map(label, new_columns)),
-            ),
-          )
-        )
-        |> Option.some;
-      };
-    | None => None
-    };
-  | None => None
-  };
-};
-
-let get_column_type = (info: info, column: string) => {
-  switch (info.statics) {
-  | Some(InfoExp({ty, _})) => get_column_type_from_ty(ty, column)
-  | _ => None
-  };
-};
-
-let sort_column =
-    (info: info, column_type: option(Typ.t), header: string)
-    : option(Base.segment) => {
-  let compare_fn =
-    switch (column_type) {
-    | Some(ty) =>
-      switch (Typ.cls_of_term(ty.term)) {
-      | Typ.Atom(Atom.Int) => Some("int_compare")
-      | Typ.Atom(Atom.Float) => Some("float_compare")
-      | Typ.Atom(Atom.String) => Some("string_compare")
-      | _ => None
-      }
-    | None => None
-    };
-
-  switch (compare_fn) {
-  | Some(compare_fn_name) =>
-    IdTagged.FreshGrammar.(
-      apply_transformation(
-        info,
-        Exp.(
-          ap(
-            Forward,
-            var("sort"),
-            tuple([
-              fn(
-                Pat.tuple([Pat.var("r1"), Pat.var("r2")]),
-                ap(
-                  Forward,
-                  var(compare_fn_name),
-                  tuple([
-                    dot(var("r1"), label(header)),
-                    dot(var("r2"), label(header)),
-                  ]),
-                ),
-                None,
-                None,
-              ),
-              deferral(InAp),
-            ]),
-          )
-        ),
-      )
-    )
-    |> Option.some
-  | None => None
-  };
-};
-
-let table_of =
-    (any: Any.t): option((list(LabeledTuple.label), list(list(Exp.t)))) =>
-  switch (any) {
-  | Exp(exp) => table_from_exp(exp)
-  | _ => None
-  };
-
-let get = (info: info): (list(LabeledTuple.label), list(list(Exp.t))) =>
-  switch (info.syntax |> info.utility.seg_to_term) {
-  | Some(s) =>
-    switch (table_of(s)) {
-    | Some(s) => s
-    | None => failwith("TextArea: get: Not a table")
-    }
-  | None => failwith("TextArea: get: Not a table")
-  };
-
-let key_handler = (id, ~parent, evt) => {
-  open Effect;
-  let key = Key.mk(KeyDown, evt);
-
-  switch (key.key) {
-  | D("ArrowRight" | "ArrowDown")
-      when WebUtil.TextArea.is_last_pos(Id.cls(id)) =>
-    JsUtil.get_elem_by_id(Id.cls(id))##blur;
-    Many([parent(Escape(Right)), Stop_propagation]);
-  | D("ArrowLeft" | "ArrowUp")
-      when WebUtil.TextArea.is_first_pos(Id.cls(id)) =>
-    JsUtil.get_elem_by_id(Id.cls(id))##blur;
-    Many([parent(Escape(Left)), Stop_propagation]);
-  /* Defer to parent editor undo for now */
-  | D("z" | "Z" | "y" | "Y") when Key.ctrl_held(evt) || Key.meta_held(evt) =>
-    Many([Prevent_default])
-  | D("z" | "Z")
-      when Key.shift_held(evt) && (Key.ctrl_held(evt) || Key.meta_held(evt)) =>
-    Many([Prevent_default])
-  | D("\"") =>
-    /* Hide quotes from both the textarea and parent editor */
-    Many([Prevent_default, Stop_propagation])
-  | _ => Stop_propagation
-  };
-};
-
-let len_seg = (utility: utility, seg: Segment.t): int =>
-  seg |> utility.seg_to_string |> String.length;
-
-let seg_of_exp = (utility: utility, exp: Exp.t): (Segment.t, int) => {
-  let seg = utility.term_to_seg(Exp(exp));
-  (seg, len_seg(utility, seg));
-};
-
-let abbreviated_seg_of =
-    (utility: utility, available: int, exp: Exp.t): (Segment.t, int) => {
-  let (abbr_exp, _length) =
-    exp |> DHExp.strip_ascriptions |> Abbreviate.abbreviate_exp(~available);
-  seg_of_exp(utility, abbr_exp);
-};
-let length_cls = (length: int): string =>
-  if (length > 10) {
-    "extra";
-  } else if (length > 9) {
-    "s6";
-  } else if (length > 8) {
-    "s5";
-  } else if (length > 7) {
-    "s4";
-  } else if (length > 6) {
-    "s3";
-  } else if (length > 5) {
-    "s2";
-  } else if (length > 4) {
-    "s1";
-  } else {
-    "s0";
-  };
-let value_view = (_info: info, utility: utility, view_seg, exp) => {
-  let (seg, length) = abbreviated_seg_of(utility, max_column_length, exp);
-
-  Node.div(
-    ~attrs=[
-      //Attr.title(DynCursor.Debug.str(info, closure)),
-      Attr.classes([
-        "value",
-        length_cls(length),
-        // @ DynCursor.clss(info, closure)
-        // @ (Option.is_some(cur_ap(info)) ? ["ap"] : [])
-        // @ (!is_value(closure.value) ? ["indet"] : []),
-      ]),
-      // Attr.on_double_click(_ => local(ToggleShowAllVals(index))),
-      // Attr.on_pointerdown(val_pointerdown),
-      // Attr.on_pointerup(val_pointerup),
-      // Attr.on_mousemove(val_mousemove),
-    ],
-    [view_seg(Sort.Exp, seg)],
-  );
-};
+/* Import other needed functions from TableRenderer */
+let get_column_type_from_ty = TR.get_column_type_from_ty;
+let get_columns = TR.get_columns;
+let can_move_column = TR.can_move_column;
+let convert_column = TR.convert_column;
+let drop_column = TR.drop_column;
+let rename_column = TR.rename_column;
+let add_column_after = TR.add_column_after;
+let move_column = TR.move_column;
+let value_view = TR.value_view;
 
 module M: Projector = {
   [@deriving (show({with_path: false}), sexp, yojson)]
@@ -548,10 +107,10 @@ module M: Projector = {
     let compare_fn =
       switch (column_type) {
       | Some(ty) =>
-        switch (Typ.cls_of_term(ty.term)) {
-        | Typ.Atom(Atom.Int) => Some("int_compare")
-        | Typ.Atom(Atom.Float) => Some("float_compare")
-        | Typ.Atom(Atom.String) => Some("string_compare")
+        switch (Typ.term_of(ty)) {
+        | Atom(Atom.Int) => Some("int_compare")
+        | Atom(Atom.Float) => Some("float_compare")
+        | Atom(Atom.String) => Some("string_compare")
         | _ => None
         }
       | None => None
@@ -626,9 +185,9 @@ module M: Projector = {
       // Show conversion submenu
       switch (column_type) {
       | Some(ty) =>
-        switch (Typ.cls_of_term(ty.term)) {
-        | Typ.Atom(atom) =>
-          let conversions = conversion_functions(atom);
+        switch (Typ.term_of(ty)) {
+        | Atom(cls) =>
+          let conversions = conversion_functions(cls);
           [
             Action({
               text: "← Back",
@@ -793,68 +352,48 @@ module M: Projector = {
         ~view_seg: (Sort.t, Segment.t) => Node.t,
         prev_button: option(Node.t),
         next_button: option(Node.t),
-        make_menu_button: (int, string) => Node.t,
+        _make_menu_button: (int, string) => Node.t,
       ) => {
-    let header_cells =
-      List.mapi(
-        (i, h) => {
-          let menu_button = make_menu_button(i, h);
-          let base_content = [Node.text(h), menu_button];
-          let content =
-            switch (i, prev_button, next_button) {
-            | (0, Some(btn), _) => [btn] @ base_content
-            | (i, _, Some(btn)) when i == List.length(headers) - 1 =>
-              base_content @ [btn]
-            | _ => base_content
-            };
-          let cell_content = content;
-          let dyn_type = get_dynamic_type(model.closure, info);
+    /* Create action handler for the table renderer */
+    let action_handler: TR.action_handler = {
+      set_syntax: segment => parent(SetSyntax(segment)),
+      local_action: table_action => {
+        switch (table_action) {
+        | CloseMenu => local(CloseMenu)
+        | ShowMenu(i) => local(ShowMenu(i))
+        | ShowSubmenu(path) => local(ShowSubmenu(path))
+        | DropColumn(_) => local(CloseMenu) /* Will be handled by set_syntax */
+        | ConversionColumn(_) => local(CloseMenu) /* Will be handled by set_syntax */
+        | RenameColumn(_) => local(CloseMenu) /* Will be handled by set_syntax */
+        | AddColumnAfter(_) => local(CloseMenu) /* Will be handled by set_syntax */
+        };
+      },
+    };
 
-          let full_content =
-            switch (model.menu) {
-            | Some((j, menu_path)) when i == j =>
-              let menu_data =
-                build_column_menu(
-                  info,
-                  h,
-                  dyn_type,
-                  local,
-                  parent,
-                  menu_path,
-                );
-              let menu_content = render_menu(menu_data);
-              cell_content
-              @ [
-                Node.div(
-                  ~attrs=[Attr.classes(["column-menu"])],
-                  menu_content,
-                ),
-              ];
-            | _ => cell_content
-            };
-          Node.th(full_content);
-        },
-        headers,
-      );
+    /* Prepare closure navigation buttons */
+    let closure_nav =
+      switch (prev_button, next_button) {
+      | (Some(prev), Some(next_)) => Some((prev, next_))
+      | _ => None
+      };
 
-    Node.table(
-      ~attrs=[Attr.classes(["table"])],
-      [
-        Node.thead([Node.tr(header_cells)]),
-        Node.tbody(
-          List.map(
-            row =>
-              Node.tr(
-                List.map(
-                  e =>
-                    Node.td([value_view(info, info.utility, view_seg, e)]),
-                  row,
-                ),
-              ),
-            rows,
-          ),
-        ),
-      ],
+    /* Prepare menu state */
+    let menu_state =
+      switch (model.menu) {
+      | Some((column_index, menu_path)) => Some((column_index, menu_path))
+      | None => None
+      };
+
+    /* Use TableRenderer to render the table */
+    TR.render_table(
+      ~headers,
+      ~rows,
+      ~info,
+      ~view_seg,
+      ~action_handler,
+      ~closure_nav,
+      ~menu_state,
+      (),
     );
   };
 

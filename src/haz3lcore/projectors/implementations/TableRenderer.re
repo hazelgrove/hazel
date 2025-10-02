@@ -1,0 +1,828 @@
+open Util;
+open Virtual_dom.Vdom;
+open ProjectorBase;
+open Language;
+
+/* TableRenderer - A reusable module for rendering interactive tables with column operations */
+
+/* Table actions that can be performed on columns */
+[@deriving (show({with_path: false}), sexp, yojson)]
+type table_action =
+  | CloseMenu
+  | ShowMenu(int)
+  | ShowSubmenu(list(string))
+  | DropColumn(string)
+  | ConversionColumn(string, string)
+  | RenameColumn(string, string)
+  | AddColumnAfter(string, string);
+
+/* Action handler interface - allows the parent to control how actions are handled */
+type action_handler = {
+  set_syntax: Base.segment => Ui_effect.t(unit),
+  local_action: table_action => Ui_effect.t(unit),
+};
+
+/* Menu item types for the column menu system */
+[@deriving (show({with_path: false}), sexp, yojson)]
+type menu_item =
+  | Action({
+      text: string,
+      action: unit => Ui_effect.t(unit),
+    })
+  | Submenu({
+      text: string,
+      subitems: list(menu_item),
+    });
+
+[@deriving (show({with_path: false}), sexp, yojson)]
+type menu_data = list(menu_item);
+
+/* Reusable UI components */
+let icon_button = (~tooltip="", icon_text, action) =>
+  Node.div(
+    ~attrs=[
+      Attr.classes(["icon", "closure-nav-button"]),
+      Attr.on_click(action),
+      Attr.title(tooltip),
+    ],
+    [Node.text(icon_text)],
+  );
+
+let max_column_length = 12;
+
+/* Table detection from expressions */
+let table_from_exp = (exp: Exp.t) => {
+  switch (exp.term) {
+  | ListLit(es) =>
+    let data: list(option((list(string), list(TermBase.exp_t)))) =
+      List.map(
+        e => {
+          switch (Unboxing.unbox(LabeledTupleEntries, e)) {
+          | IndetMatch => None
+          | DoesNotMatch => None
+          | Matches(entries: list((option(string), TermBase.exp_t))) =>
+            let f: option(list((string, TermBase.exp_t))) =
+              OptUtil.sequence(
+                List.map(
+                  ((label, value)) =>
+                    switch (label) {
+                    | Some(l) => Some((l, value))
+                    | None => None
+                    },
+                  entries,
+                ),
+              );
+
+            let g: option((list(string), list(TermBase.exp_t))) =
+              f |> Option.map(List.split);
+
+            g;
+          }
+        },
+        es,
+      );
+
+    let data: option(list((list(string), list(TermBase.exp_t)))) =
+      OptUtil.sequence(data);
+    switch (data) {
+    | Some(data: list((list(string), list(TermBase.exp_t)))) =>
+      let (headers: list(list(string)), rows: list(list(TermBase.exp_t))) =
+        List.split(data);
+
+      // If all the headers aren't the same return None
+      switch (headers) {
+      | [] => None
+      | [h, ..._] when List.for_all(x => x == h, headers) =>
+        let headers = h;
+        Some((headers, rows));
+
+      | _ => None
+      };
+    | _ => None
+    };
+  | _ => None
+  };
+};
+
+/* Convert any term to table data if possible */
+let table_of =
+    (any: Any.t): option((list(LabeledTuple.label), list(list(Exp.t)))) =>
+  switch (any) {
+  | Exp(exp) => table_from_exp(exp)
+  | _ => None
+  };
+
+/* Type utilities for column operations */
+let get_column_type_from_ty = (ty: Typ.t, column: string) => {
+  switch (ty.term) {
+  | List({term: Prod(tys), _}) =>
+    let ty =
+      List.find_map(
+        ty => {
+          open OptUtil.Syntax;
+          let* (label, value_ty) = Typ.match_tup_label(ty);
+          if (label == column) {
+            Some(value_ty);
+          } else {
+            None;
+          };
+        },
+        tys,
+      );
+    ty;
+  | _ => None
+  };
+};
+
+let get_columns = (ty: Typ.t): option(list(string)) => {
+  switch (ty.term) {
+  | List({term: Prod(tys), _}) =>
+    let labels: option(list(string)) =
+      OptUtil.traverse(
+        ty => {
+          open OptUtil.Syntax;
+          let* (label, _value_ty) = Typ.match_tup_label(ty);
+          Some(label);
+        },
+        tys,
+      );
+    labels;
+  | _ => None
+  };
+};
+
+/* Core transformation functions */
+let apply_transformation = (info: info, transformation: Exp.t) => {
+  IdTagged.FreshGrammar.(
+    switch (
+      info.utility.lift_syntax(
+        fun
+        | Exp({term: exp_term, _}) =>
+          Exp(Exp.(ap(Reverse, transformation, exp_term |> DHExp.fresh)))
+
+        | _ =>
+          failwith("TableRenderer: apply_transformation: not an expression"),
+        info.syntax,
+      )
+    ) {
+    | Some(s) => s
+    | None => failwith("TableRenderer: apply_transformation: lift failed")
+    }
+  );
+};
+
+let apply_rowwise_transformation =
+    (info: info, row_transformation: Exp.t): Base.segment => {
+  IdTagged.FreshGrammar.(
+    apply_transformation(
+      info,
+      Exp.(
+        ap(
+          Forward,
+          var("map"),
+          tuple([deferral(InAp), row_transformation]),
+        )
+      ),
+    )
+  );
+};
+
+/* Column transformation operations */
+let drop_column = (info: info, column: string): Base.segment => {
+  IdTagged.FreshGrammar.(
+    apply_rowwise_transformation(
+      info,
+      Exp.(
+        ap(
+          Forward,
+          var("omit_labels"),
+          tuple([deferral(InAp), label(column)]),
+        )
+      ),
+    )
+  );
+};
+
+let convert_column =
+    (info: info, column: string, conversion_fn: string): Base.segment => {
+  IdTagged.FreshGrammar.(
+    Exp.(
+      apply_rowwise_transformation(
+        info,
+        fn(
+          Pat.var("r"),
+          tuple_extension(
+            var("r"),
+            tuple([
+              tup_label(
+                label(column),
+                ap(
+                  Forward,
+                  var(conversion_fn),
+                  dot(var("r"), label(column)),
+                ),
+              ),
+            ]),
+          ),
+          None,
+          None,
+        ),
+      )
+    )
+  );
+};
+
+let rename_column =
+    (info: info, old_name: string, new_name: string): Base.segment => {
+  apply_rowwise_transformation(
+    info,
+    IdTagged.FreshGrammar.(
+      Exp.(
+        fn(
+          Pat.var("r"),
+          tuple_extension(
+            ap(
+              Forward,
+              var("omit_labels"),
+              tuple([var("r"), label(old_name)]),
+            ),
+            tuple([
+              tup_label(label(new_name), dot(var("r"), label(old_name))),
+            ]),
+          ),
+          None,
+          None,
+        )
+      )
+    ),
+  );
+};
+
+let add_column_after =
+    (info: info, _after_column: string, new_column: string): Base.segment => {
+  IdTagged.FreshGrammar.(
+    Exp.(
+      apply_rowwise_transformation(
+        info,
+        fn(
+          Pat.var("r"),
+          tuple_extension(
+            var("r"),
+            tuple([
+              tup_label(
+                label(new_column),
+                var("\"\"") // Empty string as default value
+              ),
+            ]),
+          ),
+          None,
+          None,
+        ),
+      )
+    )
+  );
+};
+
+let get_dynamic_type = (closure: option(int), info: info): option(Typ.t) => {
+  info.dynamics
+  |> Option.bind(_, d =>
+       List.nth_opt(d.closures, closure |> Option.value(~default=0))
+     )
+  |> Option.bind(
+       _,
+       (d: Dynamics.Probe.Closure.t) => {
+         let statics =
+           Statics.mk(CoreSettings.on, Builtins.ctx_init(Some(Int)));
+         let type_of = (c: Dynamics.Probe.Closure.t) => {
+           IdTagged.rep_id(c.value)
+           |> Id.Map.find_opt(_, statics(c.value))
+           |> Option.bind(
+                _,
+                fun
+                | InfoExp(e) => {
+                    Some(e.ty);
+                  }
+                | _ => None,
+              );
+         };
+         type_of(d);
+       },
+     );
+};
+
+let can_move_column =
+    (columns_opt: option(list(string)), column: string, left: bool) =>
+  switch (columns_opt) {
+  | Some(columns) =>
+    switch (List.find_index(x => x == column, columns)) {
+    | Some(idx) => left ? idx > 0 : idx < List.length(columns) - 1
+    | None => false
+    }
+  | None => false
+  };
+
+let move_column =
+    (info: info, dyn_type: option(Typ.t), column: string, left: bool)
+    : option(Base.segment) => {
+  let columns_opt = Option.bind(dyn_type, get_columns);
+  switch (columns_opt) {
+  | Some(columns) =>
+    let idx_opt = List.find_index(x => x == column, columns);
+    switch (idx_opt) {
+    | Some(idx) =>
+      let new_idx = left ? idx - 1 : idx + 1;
+      if (new_idx < 0 || new_idx >= List.length(columns)) {
+        None;
+      } else {
+        let new_columns =
+          List.mapi(
+            (i, x) =>
+              if (i == idx) {
+                List.nth(columns, new_idx);
+              } else if (i == new_idx) {
+                List.nth(columns, idx);
+              } else {
+                x;
+              },
+            columns,
+          );
+        IdTagged.FreshGrammar.Exp.(
+          apply_rowwise_transformation(
+            info,
+            ap(
+              Forward,
+              var("select_labels"),
+              tuple([deferral(InAp)] @ List.map(label, new_columns)),
+            ),
+          )
+        )
+        |> Option.some;
+      };
+    | None => None
+    };
+  | None => None
+  };
+};
+
+let get_column_type = (info: info, column: string) => {
+  switch (info.statics) {
+  | Some(InfoExp({ty, _})) => get_column_type_from_ty(ty, column)
+  | _ => None
+  };
+};
+
+let sort_column =
+    (info: info, column_type: option(Typ.t), header: string)
+    : option(Base.segment) => {
+  let compare_fn =
+    switch (column_type) {
+    | Some(ty) =>
+      switch (Typ.cls_of_term(ty.term)) {
+      | Typ.Atom(Atom.Int) => Some("int_compare")
+      | Typ.Atom(Atom.Float) => Some("float_compare")
+      | Typ.Atom(Atom.String) => Some("string_compare")
+      | _ => None
+      }
+    | None => None
+    };
+
+  switch (compare_fn) {
+  | Some(compare_fn_name) =>
+    IdTagged.FreshGrammar.(
+      apply_transformation(
+        info,
+        Exp.(
+          ap(
+            Forward,
+            var("sort"),
+            tuple([
+              fn(
+                Pat.tuple([Pat.var("r1"), Pat.var("r2")]),
+                ap(
+                  Forward,
+                  var(compare_fn_name),
+                  tuple([
+                    dot(var("r1"), label(header)),
+                    dot(var("r2"), label(header)),
+                  ]),
+                ),
+                None,
+                None,
+              ),
+              deferral(InAp),
+            ]),
+          )
+        ),
+      )
+    )
+    |> Option.some
+  | None => None
+  };
+};
+
+/* Cell rendering utilities */
+let len_seg = (utility: utility, seg: Segment.t): int =>
+  seg |> utility.seg_to_string |> String.length;
+
+let seg_of_exp = (utility: utility, exp: Exp.t): (Segment.t, int) => {
+  let seg = utility.term_to_seg(Exp(exp));
+  (seg, len_seg(utility, seg));
+};
+
+let abbreviated_seg_of =
+    (utility: utility, available: int, exp: Exp.t): (Segment.t, int) => {
+  let (abbr_exp, _length) =
+    exp |> DHExp.strip_ascriptions |> Abbreviate.abbreviate_exp(~available);
+  seg_of_exp(utility, abbr_exp);
+};
+
+let length_cls = (length: int): string =>
+  if (length > 10) {
+    "extra";
+  } else if (length > 9) {
+    "s6";
+  } else if (length > 8) {
+    "s5";
+  } else if (length > 7) {
+    "s4";
+  } else if (length > 6) {
+    "s3";
+  } else if (length > 5) {
+    "s2";
+  } else if (length > 4) {
+    "s1";
+  } else {
+    "s0";
+  };
+
+let value_view = (_info: info, utility: utility, view_seg, exp) => {
+  let (seg, length) = abbreviated_seg_of(utility, max_column_length, exp);
+
+  Node.div(
+    ~attrs=[Attr.classes(["value", length_cls(length)])],
+    [view_seg(Sort.Exp, seg)],
+  );
+};
+
+/* Menu system */
+let menu_item = (text, action) =>
+  Node.div(
+    ~attrs=[Attr.classes(["menu-item"]), Attr.on_click(action)],
+    [Node.text(text)],
+  );
+
+let conversion_functions = (cls: Atom.cls) =>
+  switch (cls) {
+  | Atom.String => [
+      ("int", "int_of_string"),
+      ("float", "float_of_string"),
+      ("bool", "bool_of_string"),
+    ]
+  | Atom.Int => [
+      ("string", "string_of_int"),
+      ("float", "float_of_int"),
+      ("bool", "bool_of_int"),
+    ]
+  | Atom.Float => [
+      ("string", "string_of_float"),
+      ("int", "int_of_float"),
+      ("bool", "bool_of_float"),
+    ]
+  | Atom.Bool => [
+      ("string", "string_of_bool"),
+      ("int", "int_of_bool"),
+      ("float", "float_of_bool"),
+    ]
+  | _ => []
+  };
+
+let sort_column_with_direction =
+    (
+      info: info,
+      column_type: option(Typ.t),
+      header: string,
+      descending: bool,
+    )
+    : option(Base.segment) => {
+  let compare_fn =
+    switch (column_type) {
+    | Some(ty) =>
+      switch (Typ.cls_of_term(ty.term)) {
+      | Typ.Atom(Atom.Int) => Some("int_compare")
+      | Typ.Atom(Atom.Float) => Some("float_compare")
+      | Typ.Atom(Atom.String) => Some("string_compare")
+      | _ => None
+      }
+    | None => None
+    };
+
+  switch (compare_fn) {
+  | Some(compare_fn_name) =>
+    IdTagged.FreshGrammar.(
+      switch (
+        info.utility.lift_syntax(
+          fun
+          | Exp({term: exp_term, _}) => {
+              let sort_expr =
+                Exp.(
+                  ap(
+                    Reverse,
+                    ap(
+                      Forward,
+                      var("sort"),
+                      tuple([
+                        fn(
+                          Pat.tuple([Pat.var("r1"), Pat.var("r2")]),
+                          ap(
+                            Forward,
+                            var(compare_fn_name),
+                            tuple([
+                              dot(var("r1"), label(header)),
+                              dot(var("r2"), label(header)),
+                            ]),
+                          ),
+                          None,
+                          None,
+                        ),
+                        deferral(InAp),
+                      ]),
+                    ),
+                    exp_term |> DHExp.fresh,
+                  )
+                );
+
+              let final_expr =
+                if (descending) {
+                  Exp.(ap(Reverse, var("reverse"), sort_expr));
+                } else {
+                  sort_expr;
+                };
+
+              Exp(final_expr);
+            }
+          | _ => failwith("TableRenderer: sort_column: not an expression"),
+          info.syntax,
+        )
+      ) {
+      | Some(segment) => Some(segment)
+      | None => None
+      }
+    )
+  | None => None
+  };
+};
+
+let build_column_menu =
+    (info, h, dyn_type, local_action, set_syntax, menu_path) => {
+  let column_type =
+    dyn_type |> Option.bind(_, ty => get_column_type_from_ty(ty, h));
+  let columns_opt = dyn_type |> Option.bind(_, get_columns);
+  let can_move_left = can_move_column(columns_opt, h, true);
+  let can_move_right = can_move_column(columns_opt, h, false);
+
+  // If we're in a submenu, show that submenu
+  switch (menu_path) {
+  | ["Convert"] =>
+    // Show conversion submenu
+    switch (column_type) {
+    | Some(ty) =>
+      switch (Typ.cls_of_term(ty.term)) {
+      | Typ.Atom(atom) =>
+        let conversions = conversion_functions(atom);
+        [
+          Action({
+            text: "← Back",
+            action: () => local_action(ShowSubmenu([])) // Go back to main menu
+          }),
+        ]
+        @ List.map(
+            ((display, func)) =>
+              Action({
+                text: display,
+                action: () =>
+                  Effect.Many([
+                    local_action(CloseMenu),
+                    set_syntax(convert_column(info, h, func)),
+                  ]),
+              }),
+            conversions,
+          );
+      | _ => []
+      }
+    | None => []
+    }
+  | ["Sort"] =>
+    // Show sort submenu
+    [
+      Action({
+        text: "← Back",
+        action: () => local_action(ShowSubmenu([])) // Go back to main menu
+      }),
+      Action({
+        text: "Ascending",
+        action: () =>
+          switch (sort_column_with_direction(info, column_type, h, false)) {
+          | Some(segment) =>
+            Effect.Many([local_action(CloseMenu), set_syntax(segment)])
+          | None => local_action(CloseMenu)
+          },
+      }),
+      Action({
+        text: "Descending",
+        action: () =>
+          switch (sort_column_with_direction(info, column_type, h, true)) {
+          | Some(segment) =>
+            Effect.Many([local_action(CloseMenu), set_syntax(segment)])
+          | None => local_action(CloseMenu)
+          },
+      }),
+    ]
+  | [] =>
+    // Show main menu
+    let base_items = [
+      Action({
+        text: "Drop Column",
+        action: () =>
+          Effect.Many([
+            local_action(CloseMenu),
+            set_syntax(drop_column(info, h)),
+          ]),
+      }),
+      Action({
+        text: "Rename",
+        action: () => {
+          let new_column_name = JsUtil.prompt("New column name:", h);
+          switch (new_column_name) {
+          | None => local_action(CloseMenu) // User cancelled
+          | Some(new_name) =>
+            Effect.Many([
+              local_action(CloseMenu),
+              set_syntax(rename_column(info, h, new_name)),
+            ])
+          };
+        },
+      }),
+      Action({
+        text: "Add Column After",
+        action: () =>
+          Effect.Many([
+            local_action(CloseMenu),
+            set_syntax(add_column_after(info, h, "new_column")),
+          ]),
+      }),
+    ];
+
+    let conversion_submenu =
+      switch (column_type) {
+      | Some(ty) =>
+        switch (Typ.cls_of_term(ty.term)) {
+        | Typ.Atom(atom) =>
+          let conversions = conversion_functions(atom);
+          if (List.length(conversions) == 0) {
+            [];
+          } else {
+            [
+              Action({
+                text: "Convert →",
+                action: () => local_action(ShowSubmenu(["Convert"])) // Navigate to conversion submenu
+              }),
+            ];
+          };
+        | _ => []
+        }
+      | None => []
+      };
+
+    let move_items =
+      (can_move_left ? [true] : [])
+      @ (can_move_right ? [false] : [])
+      |> List.map(left =>
+           Action({
+             text: left ? "Move Left" : "Move Right",
+             action: () =>
+               Effect.Many([
+                 local_action(CloseMenu),
+                 set_syntax(
+                   OptUtil.get_or_fail(
+                     (left ? "move left" : "move right") ++ " failed",
+                     move_column(info, dyn_type, h, left),
+                   ),
+                 ),
+               ]),
+           })
+         );
+
+    let sort_submenu =
+      switch (sort_column_with_direction(info, column_type, h, false)) {
+      | Some(_) => [
+          Action({
+            text: "Sort →",
+            action: () => local_action(ShowSubmenu(["Sort"])) // Navigate to sort submenu
+          }),
+        ]
+      | None => []
+      };
+
+    base_items @ conversion_submenu @ move_items @ sort_submenu;
+  | _ => [] // Unknown menu path
+  };
+};
+
+let render_menu = menu_data => {
+  List.map(
+    item =>
+      switch (item) {
+      | Action({text, action}) => menu_item(text, _ => action())
+      | Submenu({text, subitems: _}) =>
+        // Submenu navigation is handled by the Action in build_column_menu
+        menu_item(text, _ => Effect.Ignore)
+      },
+    menu_data,
+  );
+};
+
+/* Main table rendering function */
+let render_table =
+    (
+      ~headers: list(string),
+      ~rows: list(list(Exp.t)),
+      ~info: info,
+      ~view_seg: (Sort.t, Segment.t) => Node.t,
+      ~action_handler: action_handler,
+      ~closure_nav: option((Node.t, Node.t)), /* (prev_button, next_button) */
+      ~menu_state: option((int, list(string))), /* (column_index, menu_path) */
+      unit,
+    ) => {
+  let (prev_button, next_button) =
+    switch (closure_nav) {
+    | Some((prev, next_)) => (Some(prev), Some(next_))
+    | None => (None, None)
+    };
+
+  let make_menu_button = (i, _h) =>
+    icon_button(~tooltip="Column options", "⋮", _ =>
+      action_handler.local_action(ShowMenu(i))
+    );
+
+  let header_cells =
+    List.mapi(
+      (i, h) => {
+        let menu_button = make_menu_button(i, h);
+        let base_content = [Node.text(h), menu_button];
+
+        /* Add navigation buttons to first and last columns if provided */
+        let content =
+          switch (prev_button, next_button) {
+          | (Some(prev_btn), _) when i == 0 => [prev_btn] @ base_content
+          | (_, Some(next_btn)) when i == List.length(headers) - 1 =>
+            base_content @ [next_btn]
+          | _ => base_content
+          };
+
+        let full_content =
+          switch (menu_state) {
+          | Some((j, menu_path)) when i == j =>
+            let dyn_type = get_dynamic_type(None, info); /* TODO: Pass closure info properly */
+            let menu_data =
+              build_column_menu(
+                info,
+                h,
+                dyn_type,
+                action_handler.local_action,
+                action_handler.set_syntax,
+                menu_path,
+              );
+            let menu_content = render_menu(menu_data);
+            content
+            @ [
+              Node.div(
+                ~attrs=[Attr.classes(["column-menu"])],
+                menu_content,
+              ),
+            ];
+          | _ => content
+          };
+        Node.th(full_content);
+      },
+      headers,
+    );
+
+  Node.table(
+    ~attrs=[Attr.classes(["table"])],
+    [
+      Node.thead([Node.tr(header_cells)]),
+      Node.tbody(
+        List.map(
+          row =>
+            Node.tr(
+              List.map(
+                e => Node.td([value_view(info, info.utility, view_seg, e)]),
+                row,
+              ),
+            ),
+          rows,
+        ),
+      ),
+    ],
+  );
+};
