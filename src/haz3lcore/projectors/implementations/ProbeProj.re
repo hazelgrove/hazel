@@ -21,12 +21,12 @@ module Window = {
     | Single
     | Many;
 
-  let mode = ref(Many);
+  let mode = ref(Single);
   let offset = Hashtbl.create(100);
 
   let reset = () => {
     Hashtbl.clear(offset);
-    mode := Many;
+    mode := Single;
   };
 
   let max_closures = () =>
@@ -91,7 +91,7 @@ module ClosureLength = {
     |> Option.value(
          ~default=
            !is_value(closure.value)
-             ? 5 : Window.get_mode() == Single ? 36 : 12,
+             ? 5 : Window.get_mode() == Single ? 96 : 12,
        );
 
   let set = (id: int, length: int): unit => Hashtbl.add(lengths, id, length);

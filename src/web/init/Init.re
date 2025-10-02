@@ -12,15 +12,18 @@ let startup: PersistentData.t = {
   documentation: (
     0,
     [
-      BasicReference.out,
-      Projectors.out,
-      ADTs.out,
-      Tuples.out,
-      Tables.out,
-      Polymorphism.out,
-      Cards.out,
-      Probes.out,
-      Livelits.out,
+      Exolivelits.out,
+      Nool.out,
+      Petrinaut.out,
+      // BasicReference.out,
+      // Projectors.out,
+      // ADTs.out,
+      // Tuples.out,
+      // Tables.out,
+      // Polymorphism.out,
+      // Cards.out,
+      // Probes.out,
+      // Livelits.out,
     ]
     |> List.map(((name, content: PersistentSegment.t)) =>
          (
