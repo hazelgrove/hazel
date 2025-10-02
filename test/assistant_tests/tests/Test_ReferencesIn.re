@@ -13,7 +13,7 @@ let refs_list_to_str_for_testing_only = (refs: list(Binding.t)): string => {
   List.map((binding: Binding.t) => binding.name, refs) |> String.concat(" ");
 };
 
-let test_refs_in =
+let test =
     (
       ~exclude_rec_refs: bool,
       ~exclude_body_refs: bool,
@@ -41,7 +41,7 @@ let test_refs_in =
 };
 
 let view_refs_tests = [
-  test_refs_in(
+  test(
     ~name="View Refs (Include Rec Refs)",
     ~exclude_rec_refs=false,
     ~exclude_body_refs=false,
@@ -60,7 +60,7 @@ let view_refs_tests = [
     |},
     ~goal="c0 f1 c1",
   ),
-  test_refs_in(
+  test(
     ~name="View Refs (Exclude Rec Refs)",
     ~exclude_rec_refs=true,
     ~exclude_body_refs=false,
@@ -79,7 +79,7 @@ let view_refs_tests = [
     |},
     ~goal="c0 c1",
   ),
-  test_refs_in(
+  test(
     ~name="View Refs (Include Body Refs)",
     ~exclude_rec_refs=false,
     ~exclude_body_refs=true,
@@ -98,7 +98,7 @@ let view_refs_tests = [
     |},
     ~goal="c0 f1",
   ),
-  test_refs_in(
+  test(
     ~name="View Refs (Include All)",
     ~exclude_rec_refs=true,
     ~exclude_body_refs=true,
