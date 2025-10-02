@@ -662,10 +662,7 @@ and typ_term: unsorted => (Typ.term, list(Id.t)) = {
           Label(Token.sub(t, 1, Token.length(t) - 2))
         | (["(", ")"], [Typ(body)]) => Parens(body)
         | (label, [Typ(body)]) when is_probe_wrap(label) =>
-          print_endline("Parsing probe wrap for type");
-          print_endline("Id: " ++ Id.str3(id));
           let should = should_instrument(id);
-          print_endline("Should instrument: " ++ string_of_bool(should));
           should ? Probe(body, Probe.empty) : body.term;
         | (["[", "]"], [Typ(body)]) => List(body)
         | ([t], []) when is_hole_label(t) => hole(tm)

@@ -23,22 +23,25 @@ let fresh_ascription = (d: Exp.t, t: Typ.t, t': option(Typ.t)) => {
   );
 };
 let elaborated_type =
-    (m: Statics.Map.t, uexp: Exp.t): (Typ.t, Typ.t, Ctx.t, CoCtx.t, Exp.t) => {
-  let (ana_ty, self_ty, ctx, co_ctx, term) =
+    (m: Statics.Map.t, uexp: Exp.t)
+    : (Typ.t, Typ.t, Self.exp, Ctx.t, CoCtx.t, Exp.t) => {
+  let (ana_ty, ty, self, ctx, co_ctx, term) =
     switch (Id.Map.find_opt(Exp.rep_id(uexp), m)) {
-    | Some(Info.InfoExp({ana, ty, ctx, co_ctx, term: new_term, _})) => (
+    | Some(Info.InfoExp({ana, ty, self, ctx, co_ctx, term: new_term, _})) => (
         ana,
         ty,
+        self,
         ctx,
         co_ctx,
         new_term,
       )
     | _ => raise(MissingTypeInfo)
     };
-  let elab_ty = Typ.match_synswitch(ana_ty, self_ty);
+  let elab_ty = Typ.match_synswitch(ana_ty, ty);
   (
     elab_ty |> Typ.normalize(ctx) |> Typ.all_ids_temp,
     ana_ty,
+    self,
     ctx,
     co_ctx,
     term,
@@ -177,8 +180,12 @@ let rec elaborate = (m: Statics.Map.t, uexp: Exp.t): (DHExp.t, Typ.t) => {
   // We store this syntax with the same ID as the original expression and store it on the Info.exp in the Statics.map
   // We are then pulling this out and using it in place of the actual expression.
 
-  let (elaborated_type, ana, ctx, co_ctx, statics_pseudo_elaborated) =
+  let (elaborated_type, ana, self, ctx, co_ctx, statics_pseudo_elaborated) =
     elaborated_type(m, uexp);
+
+  let contains_unknown =
+    Option.map(t => Typ.count_unknowns(t) > 0, Self.typ_of_exp(self))
+    |> Option.value(~default=true);
   let (_, rewrap) = Exp.unwrap(uexp);
   let uexp = rewrap(statics_pseudo_elaborated.term);
 
@@ -438,6 +445,19 @@ let rec elaborate = (m: Statics.Map.t, uexp: Exp.t): (DHExp.t, Typ.t) => {
           es,
         );
       Match(e', List.combine(ps', es')) |> rewrap;
+    };
+
+  let dhexp =
+    if (contains_unknown) {
+      switch (dhexp) {
+      | {term: Probe(_), _} => dhexp
+      | _ => {
+          term: Probe(dhexp, Probe.empty),
+          annotation: dhexp.annotation,
+        } // Think about whether it's safe to reuse ids here
+      };
+    } else {
+      dhexp;
     };
   (dhexp, elaborated_type);
 };
