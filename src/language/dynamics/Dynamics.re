@@ -1,9 +1,13 @@
 open Util;
+open OptUtil.Syntax;
 
 /* Semantic information gathered during evaluation. This aspirationally
  * unifies all evaluator output, in the same sense as Statics does for
  * static information gathering, but right now it specifically handles
  * closure gathering for probe projectors */
+
+[@deriving (show({with_path: false}), sexp, yojson, eq)]
+type call_stack = Probe.call_stack;
 
 module Probe = {
   module Env = {
@@ -11,14 +15,14 @@ module Probe = {
      * we refrain from retaining certain large un-educational values,
      * such as closures. Which values are made opaque can be modulated
      * via the below `elide` function */
-    [@deriving (show({with_path: false}), sexp, yojson)]
+    [@deriving (show({with_path: false}), sexp, yojson, eq)]
     type elided_value =
       | Opaque
       | Val(DHExp.t);
 
     /* A probe environment entry is a variable binding
      * along with its corresponding elided value */
-    [@deriving (show({with_path: false}), sexp, yojson)]
+    [@deriving (show({with_path: false}), sexp, yojson, eq)]
     type entry = {
       binding: Binding.t,
       value: elided_value,
@@ -26,7 +30,7 @@ module Probe = {
 
     /* A probe environment is a summarized version of the
      * dynamic environment of the probed expression */
-    [@deriving (show({with_path: false}), sexp, yojson)]
+    [@deriving (show({with_path: false}), sexp, yojson, eq)]
     type t = list(entry);
 
     /* Selectively elide dynamic information not currently
@@ -65,7 +69,7 @@ module Probe = {
    * partial information about the execution trace prior to
    * the creation of the closure */
   module Closure = {
-    [@deriving (show({with_path: false}), sexp, yojson)]
+    [@deriving (show({with_path: false}), sexp, yojson, eq)]
     type t = {
       closure_id: int, /* Primary ID (unique-ish) */
       syntax_id: Id.t, /* Syntax ID of probed expression */
@@ -128,10 +132,138 @@ module Probe = {
   };
 };
 
+module Cursor = {
+  [@deriving (show({with_path: false}), sexp, yojson, eq)]
+  type t = {
+    stack: call_stack,
+    index: int,
+    pinned_stack: option(call_stack),
+    indicated_call: option(Id.t),
+  };
+
+  let init: t = {
+    stack: [],
+    index: (-1),
+    pinned_stack: None,
+    indicated_call: None,
+  };
+
+  let trimmed_stack = (dyn_cursor: t) =>
+    ListUtil.slice(0, dyn_cursor.index + 1, dyn_cursor.stack |> List.rev)
+    |> List.rev;
+
+  /* If the closure cursor is on a call, and the provided
+   * call stack is downstream of that call, return how many
+   * aps downstream it is */
+  let depth_in_indicated_calls_stack =
+      (dyn_cursor: t, call_stack: call_stack): option(int) => {
+    open OptUtil.Syntax;
+    let* cur_ap = dyn_cursor.indicated_call;
+    ListUtil.suffix_at_depth(
+      [cur_ap] @ trimmed_stack(dyn_cursor),
+      call_stack,
+    );
+  };
+
+  type relative_level =
+    | Above(int)
+    | Below(int)
+    | Same
+    | Unrelated;
+
+  /* How is the current closure related to the closure cursor? */
+  type relation = {
+    /* Is the current closure the call cursor? */
+    is_call_cursor: bool,
+    is_more_precise_than_cursor: bool,
+    relative_level_to_cursor: relative_level,
+    /* Is the current closure a call directly above the call cursor? */
+    is_call_above_call_cursor: option(int),
+    /* Is the current closure below the call cursor, and if so, by how much? */
+    is_below_indicated_call: option(int),
+    /* Is the current closure a call directly below the call cursor, and if so, by how much? */
+  };
+
+  let is_below = ListUtil.suffix_at_depth;
+
+  let relative_level = (cs1, cs2): relative_level =>
+    switch (is_below(cs1, cs2), is_below(cs2, cs1)) {
+    | (Some(0), Some(0)) => Same
+    | (Some(n), None) => Below(n)
+    | (None, Some(n)) => Above(n)
+    | (_, _) => Unrelated
+    };
+
+  let cur_call = (ap_id: option(Id.t), closure: Probe.Closure.t) => {
+    let* ap_id = ap_id;
+    let dyn = closure.call_stack;
+    Some([ap_id, ...dyn]);
+  };
+
+  let relation =
+      (ap_id: option(Id.t), dyn_cursor: t, closure: Probe.Closure.t)
+      : relation => {
+    let this = closure.call_stack;
+    let cursor = trimmed_stack(dyn_cursor);
+    {
+      is_call_cursor: cursor == this,
+      is_more_precise_than_cursor:
+        List.length(dyn_cursor.stack) > List.length(closure.call_stack),
+      relative_level_to_cursor: relative_level(cursor, this),
+      is_call_above_call_cursor: {
+        let* cur_call = cur_call(ap_id, closure);
+        is_below(cur_call, cursor);
+      },
+      is_below_indicated_call: {
+        let* cur_ap = dyn_cursor.indicated_call;
+        is_below([cur_ap] @ cursor, this);
+      },
+    };
+  };
+
+  let is_related = relation =>
+    switch (relation.relative_level_to_cursor) {
+    | Above(_)
+    | Below(_) => true
+    | Same => true
+    | Unrelated => false
+    };
+};
+
 module Info = {
   /* Collected closures for a given id */
   [@deriving (show({with_path: false}), sexp, yojson)]
-  type t = list(Probe.Closure.t);
+  type t = {
+    closures: list(Probe.Closure.t),
+    dyn_cursor: Cursor.t,
+  };
+
+  let init = {
+    closures: [],
+    dyn_cursor: Cursor.init,
+  };
+
+  let is_in = (di: t): option(Probe.Closure.t) =>
+    //TODO(andrew): maybe should use call_cursor suffix trimmed to index?
+    List.find_opt(
+      (closure: Probe.Closure.t) =>
+        Cursor.trimmed_stack(di.dyn_cursor) == closure.call_stack,
+      di.closures,
+    );
+
+  let first_cursor_closure =
+      (ap_id: option(Id.t), di: t): option(Probe.Closure.t) => {
+    let find_cursor =
+      List.find_opt(
+        closure =>
+          Cursor.relation(ap_id, di.dyn_cursor, closure).is_call_cursor,
+        di.closures,
+      );
+    switch (find_cursor) {
+    | Some(closure) => Some(closure)
+    | None => None
+    };
+  };
 };
 
 module Map = {

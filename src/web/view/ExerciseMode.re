@@ -337,7 +337,9 @@ module Update = {
         ...model,
         cells: Exercise.put_stitched(pos, model.cells, new_cell),
       };
-    | Editor(_, ResultAction(_)) => Updated.return_quiet(model) // TODO: I think this case should never happen
+    | Editor(_, ResultAction(_)) =>
+      print_endline("IMPOSSIBLE!!!!");
+      Updated.return_quiet(model); // TODO: I think this case should never happen
     | ResetEditor(pos) =>
       let spec = Exercise.main_editor_of_state(~selection=pos, model.spec);
       let new_editor = Editor.Model.mk(spec);
@@ -375,6 +377,7 @@ module Update = {
               editor,
               statics: cell.editor.statics,
               dynamics: EvalResult.Model.dynamics(cell.result),
+              context_menu: false,
             },
             result: cell.result,
           }
@@ -962,6 +965,7 @@ module View = {
         editor: editor.editor.editor,
         statics: editor.editor.statics,
         dynamics: Language.Dynamics.Map.empty,
+        context_menu: false,
       },
       result: editor.result,
     };

@@ -240,7 +240,9 @@ let add_column_after =
 // This currently uses the type of the currently displayed table. We need to decide if we're going to integrate statics or join them.
 let get_dynamic_type = (closure: option(int), info: info): option(Typ.t) => {
   info.dynamics
-  |> Option.bind(_, List.nth_opt(_, closure |> Option.value(~default=0)))
+  |> Option.bind(_, d =>
+       List.nth_opt(d.closures, closure |> Option.value(~default=0))
+     )
   |> Option.bind(
        _,
        (d: Dynamics.Probe.Closure.t) => {
@@ -904,7 +906,10 @@ module M: Projector = {
       // This action will be handled by the parent through the view
       model
     | _ =>
-      let dynamics = info.dynamics |> Option.value(~default=[]);
+      let dynamics =
+        info.dynamics
+        |> Option.map((d: Dynamics.Info.t) => d.closures)
+        |> Option.value(~default=[]);
       let length = List.length(dynamics);
       if (length == 0) {
         model;
@@ -933,7 +938,9 @@ module M: Projector = {
 
   let view = (model, info, ~local, ~parent, ~view_seg: View.seg) => {
     let dynamics: list(Dynamics.Probe.Closure.t) =
-      info.dynamics |> Option.value(~default=[]);
+      info.dynamics
+      |> Option.map((d: Dynamics.Info.t) => d.closures)
+      |> Option.value(~default=[]);
 
     let v =
       if (List.length(dynamics) == 0) {

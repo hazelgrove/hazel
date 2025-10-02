@@ -398,15 +398,15 @@ let suffix_at_depth = (xs: list('a), ys: list('a)): option(int) => {
   go(0, xs, ys);
 };
 
-/* list truncated after at most n elementsnts */
+/* list truncated after at most n elements */
 let truncate = (n: int, xs: list('a)): list('a) => {
-  let rec loop = (n, xs, acc) =>
+  let rec loop = (n: int, xs: list('a), acc: list('a)): list('a) =>
     switch (n, xs) {
     | (0, _) => acc
     | (_, []) => acc
     | (n, [x, ...xs]) => loop(n - 1, xs, [x, ...acc])
     };
-  loop(n, xs, []);
+  List.rev(loop(n, xs, []));
 };
 
 /* list without the first n elements, recurse into list until 0 then return rest */

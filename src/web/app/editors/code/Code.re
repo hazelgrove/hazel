@@ -52,6 +52,7 @@ let view =
       ~measured: Measured.t,
       ~settings: Settings.Model.t,
       ~shape_map: ProjectorCore.Shape.Map.t,
+      ~refractor_shape_map: Id.Map.t(_),
       ~font_metrics: FontMetrics.t,
       ~term_data: TermData.t,
       ~buffer_ids: list(Id.t),
@@ -122,10 +123,18 @@ let view =
   let rec of_segment = (seg: Segment.t): list(Node.t) =>
     List.concat_map(
       fun
-      | Piece.Tile(t) =>
-        Aba.mk(t.shards, t.children)
-        |> Aba.join(i => [of_delim(t, i)], of_segment)
-        |> List.concat
+      | Piece.Tile(t) => {
+          let _ =
+            switch (Id.Map.find_opt(t.id, refractor_shape_map)) {
+            | Some(_) =>
+              DeferredLinebreaks.update(2) |> ignore;
+              ();
+            | None => ()
+            };
+          Aba.mk(t.shards, t.children)
+          |> Aba.join(i => [of_delim(t, i)], of_segment)
+          |> List.concat;
+        }
       | Grout(g) => [of_grout(g)]
       | Secondary(s) => [of_secondary(s)]
       | Projector(pr) => [of_projector(pr)],

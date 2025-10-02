@@ -177,11 +177,7 @@ module Update = {
                 current |> fst,
                 current
                 |> snd
-                |> ((e: CellEditor.Model.t) => e.editor)
-                |> (
-                  (e: CodeWithStatics.Model.t) =>
-                    Zipper.zip(e.editor.state.zipper)
-                )
+                |> (e => e.editor.editor.state.zipper)
                 |> PersistentSegment.persist,
               ))
             );
@@ -411,9 +407,31 @@ module View = {
     };
   };
 
+  let selection_has_refractors =
+      (
+        refractors: Haz3lcore.Zipper.Refractor.t,
+        selection: Haz3lcore.Segment.t,
+      )
+      : bool =>
+    if (Id.Map.is_empty(refractors.manuals)) {
+      false;
+    } else {
+      let ids = Haz3lcore.Segment.ids(selection);
+      List.exists(Id.Map.mem(_, refractors.manuals), ids);
+    };
+
   let copy = (cursor: Cursor.cursor(Editors.Update.t)): unit => {
     let str = (cursor.selected_text |> Option.value(~default=() => ""))();
-    ClipboardCache.set(cursor.selection, str);
+    let should_set =
+      switch (cursor.editor, cursor.selection) {
+      | (Some(editor), Some(selection)) =>
+        /* If the selection contains refractors, we forgo the segment cache
+         * for the sake of preserving refractors in the copy via expanding
+         * their text invocation form, i.e. ^^refractor_name(<syntax>) */
+        !selection_has_refractors(editor.state.zipper.refractors, selection)
+      | _ => true
+      };
+    should_set ? ClipboardCache.set(cursor.selection, str) : ();
     JsUtil.copy(str);
   };
 
@@ -617,6 +635,7 @@ module View = {
     let sidebar =
       Sidebar.view(
         ~globals,
+        ~cursor,
         ~explain_this_inject=action => inject(ExplainThis(action)),
         ~assistant_inject=action => inject(Assistant(action)),
         ~signal=

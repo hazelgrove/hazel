@@ -599,5 +599,173 @@ let tests = (
         ignore(ListUtil.interleave([1, 2], [3, 4]))
       })
     }),
+    test_case("truncate with empty list", `Quick, () => {
+      check(list(int), "Empty list", [], ListUtil.truncate(5, []))
+    }),
+    test_case(
+      "truncate with n=0",
+      `Quick,
+      () => {
+        let xs = [1, 2, 3, 4, 5];
+        check(list(int), "Zero elements", [], ListUtil.truncate(0, xs));
+      },
+    ),
+    test_case(
+      "truncate less than list length",
+      `Quick,
+      () => {
+        let xs = [1, 2, 3, 4, 5];
+        check(
+          list(int),
+          "First 3 elements",
+          [1, 2, 3],
+          ListUtil.truncate(3, xs),
+        );
+      },
+    ),
+    test_case(
+      "truncate equal to list length",
+      `Quick,
+      () => {
+        let xs = [1, 2, 3];
+        check(
+          list(int),
+          "All elements",
+          [1, 2, 3],
+          ListUtil.truncate(3, xs),
+        );
+      },
+    ),
+    test_case(
+      "truncate greater than list length",
+      `Quick,
+      () => {
+        let xs = [1, 2, 3];
+        check(
+          list(int),
+          "All elements when n > length",
+          [1, 2, 3],
+          ListUtil.truncate(10, xs),
+        );
+      },
+    ),
+    test_case("remove_first_n with empty list", `Quick, () => {
+      check(list(int), "Empty list", [], ListUtil.remove_first_n(3, []))
+    }),
+    test_case(
+      "remove_first_n with n=0",
+      `Quick,
+      () => {
+        let xs = [1, 2, 3, 4, 5];
+        check(
+          list(int),
+          "Remove 0 elements",
+          xs,
+          ListUtil.remove_first_n(0, xs),
+        );
+      },
+    ),
+    test_case(
+      "remove_first_n less than list length",
+      `Quick,
+      () => {
+        let xs = [1, 2, 3, 4, 5];
+        check(
+          list(int),
+          "Remove first 2 elements",
+          [3, 4, 5],
+          ListUtil.remove_first_n(2, xs),
+        );
+      },
+    ),
+    test_case(
+      "remove_first_n equal to list length",
+      `Quick,
+      () => {
+        let xs = [1, 2, 3];
+        check(
+          list(int),
+          "Remove all elements",
+          [],
+          ListUtil.remove_first_n(3, xs),
+        );
+      },
+    ),
+    test_case(
+      "remove_first_n greater than list length",
+      `Quick,
+      () => {
+        let xs = [1, 2, 3];
+        check(
+          list(int),
+          "Remove more than length",
+          [],
+          ListUtil.remove_first_n(10, xs),
+        );
+      },
+    ),
+    test_case("slice with empty list", `Quick, () => {
+      check(list(int), "Empty list", [], ListUtil.slice(2, 3, []))
+    }),
+    test_case(
+      "slice from beginning",
+      `Quick,
+      () => {
+        let xs = [1, 2, 3, 4, 5];
+        check(
+          list(int),
+          "Slice from start",
+          [1, 2, 3],
+          ListUtil.slice(0, 3, xs),
+        );
+      },
+    ),
+    test_case(
+      "slice from middle",
+      `Quick,
+      () => {
+        let xs = [1, 2, 3, 4, 5];
+        check(
+          list(int),
+          "Slice from middle",
+          [2, 3, 4],
+          ListUtil.slice(1, 3, xs),
+        );
+      },
+    ),
+    test_case(
+      "slice with k=0",
+      `Quick,
+      () => {
+        let xs = [1, 2, 3, 4, 5];
+        check(list(int), "Zero length slice", [], ListUtil.slice(2, 0, xs));
+      },
+    ),
+    test_case(
+      "slice beyond list bounds",
+      `Quick,
+      () => {
+        let xs = [1, 2, 3, 4, 5];
+        check(
+          list(int),
+          "Slice beyond bounds",
+          [],
+          ListUtil.slice(10, 3, xs),
+        );
+      },
+    ),
+    test_case(
+      "slice with large k",
+      `Quick,
+      () => {
+        let xs = [1, 2, 3, 4, 5];
+        check(
+          list(int),
+          "Slice to end",
+          [3, 4, 5],
+          ListUtil.slice(2, 10, xs),
+        );
+      },
+    ),
   ],
 );

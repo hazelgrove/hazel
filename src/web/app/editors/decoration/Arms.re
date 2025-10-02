@@ -161,25 +161,25 @@ let inner_lines =
  * enclosed leftward column containing program text. */
 let l_path =
     (~min_col: int, ~last: Point.t, ~hx: float, ~first: Point.t)
-    : list(positioned_path) =>
+    : option(positioned_path) =>
   if (last.row > first.row) {
-    [(first, l_vertical(~hx, ~first, ~last, ~min_col))];
+    Some((first, l_vertical(~hx, ~first, ~last, ~min_col)));
   } else if (Point.compare(last, first) > 0) {
-    [(first, l_horizontal(~hx, ~first, ~last))];
+    Some((first, l_horizontal(~hx, ~first, ~last)));
   } else {
-    [];
+    None;
   };
 
 /* See l-path */
 let r_path =
     (~min_col: int, ~first: Point.t, ~hx: float, ~last: Point.t)
-    : list(positioned_path) =>
+    : option(positioned_path) =>
   if (last.row > first.row) {
-    [(first, r_vertical(~hx, ~first, ~last, ~min_col))];
+    Some((first, r_vertical(~hx, ~first, ~last, ~min_col)));
   } else if (Point.compare(last, first) > 0) {
-    [(first, r_horizontal(~hx, ~first, ~last))];
+    Some((first, r_horizontal(~hx, ~first, ~last)));
   } else {
-    [];
+    None;
   };
 
 /* This draws the paths which connect the leftwards edge of the term to
@@ -204,8 +204,10 @@ let paths =
     let min_col = min_col(~first, ~last, ~rows);
     let shard_rows = Shards.split_by_row(shards);
     List.concat([
-      l_path(~hx, ~min_col, ~first, ~last=snd(List.hd(shards)).origin),
-      r_path(~hx, ~min_col, ~first=snd(ListUtil.last(shards)).last, ~last),
+      l_path(~hx, ~min_col, ~first, ~last=snd(List.hd(shards)).origin)
+      |> Option.to_list,
+      r_path(~hx, ~min_col, ~first=snd(ListUtil.last(shards)).last, ~last)
+      |> Option.to_list,
       inner_lines(~hx, ~min_col, ~shard_rows),
     ])
     |> List.map(svg(~font_metrics, ~path_cls));
@@ -256,6 +258,23 @@ let term =
   shards(~attr?, ~font_metrics, ~base_clss, tiles)
   @ paths(tiles, line_clss, font_metrics, rows, range);
 
+let tiles_data =
+    (
+      ~term_data: TermData.t,
+      ~terms: TermMap.t,
+      ~measured: Measured.t,
+      tile: Tile.t,
+    ) => {
+  let msg = "Arms.tiles_data";
+  let id = Language.Any.rep_id(Id.Map.find(tile.id, terms));
+  let of_tile = (id: Id.t) => {
+    open OptUtil.Syntax;
+    let+ tile = TermData.root_tile(id, term_data);
+    (id, tile.mold, Measured.find_shards(~msg, tile, measured));
+  };
+  Id.Map.find(id, terms) |> Language.Any.ids |> List.filter_map(of_tile);
+};
+
 let term =
     (
       ~term_data: TermData.t,
@@ -266,17 +285,10 @@ let term =
       tile: Tile.t,
     )
     : list(Node.t) => {
-  let msg = "IndicationDec.term";
   let id = Language.Any.rep_id(Id.Map.find(tile.id, terms));
   switch (TermData.extreme_measures(id, term_data, measured)) {
   | Some((l, r)) =>
-    let of_tile = (id: Id.t) => {
-      open OptUtil.Syntax;
-      let+ tile = TermData.root_tile(id, term_data);
-      (id, tile.mold, Measured.find_shards(~msg, tile, measured));
-    };
-    let tiles =
-      Id.Map.find(id, terms) |> Language.Any.ids |> List.filter_map(of_tile);
+    let tiles = tiles_data(~term_data, ~terms, ~measured, tile);
     term(~font_metrics, ~rows=measured.rows, ~tiles, (l, r), ~attr?);
   | _ => []
   };
@@ -289,6 +301,17 @@ let term = (~syntax: CachedSyntax.t, ~font_metrics: FontMetrics.t) =>
     ~measured=syntax.measured,
     ~font_metrics,
   );
+
+let term_range = (~syntax: CachedSyntax.t, p: Piece.t) => {
+  switch (p) {
+  | Secondary(_) => None
+  | Grout(_)
+  | Projector(_)
+  | Tile(_) =>
+    let id = Language.Any.rep_id(Id.Map.find(Piece.id(p), syntax.terms));
+    TermData.extreme_measures(id, syntax.term_data, syntax.measured);
+  };
+};
 
 open Util.WebUtil;
 
@@ -377,4 +400,107 @@ module Indicated = {
   let term =
       (~font_metrics: FontMetrics.t, ~syntax: CachedSyntax.t, z: Zipper.t) =>
     div_c("indication", indicated_piece(~font_metrics, ~syntax, z));
+};
+
+module Refractors = {
+  let paths =
+      (
+        hx: float,
+        ~dashed: bool,
+        sort: Sort.t,
+        font_metrics: FontMetrics.t,
+        rows: Rows.t,
+        ~cls: string,
+        (first, last): (Point.t, Point.t),
+      )
+      : list(Node.t) => {
+    let min_col = min_col(~first, ~last, ~rows);
+    let (orig, path) = l_path(~hx, ~min_col, ~first, ~last) |> Option.get;
+    //TODO(andrew): unhardcode magic 4 offset
+    let dashed_length = IntMap.find(last.row, rows).max_col - last.col + 4;
+    [
+      svg(
+        ~font_metrics,
+        ~path_cls=["child-line", cls, Sort.to_string(sort)],
+        (orig, path @ [hook(hx, 1, -1)]),
+      ),
+    ]
+    @ (
+      dashed
+        ? [
+          svg(
+            ~font_metrics,
+            ~path_cls=["child-line", Sort.to_string(sort), "dashed"],
+            (last, [m(~x=0, ~y=1), h(~x=dashed_length)]),
+          ),
+        ]
+        : []
+    );
+  };
+
+  let refractor_arms =
+      (
+        ~id: Id.t,
+        ~syntax: CachedSyntax.t,
+        ~font_metrics: FontMetrics.t,
+        ~cls: string,
+        ~dynamics: Language.Dynamics.Map.t,
+      ) =>
+    switch (Id.Map.find_opt(id, syntax.term_data)) {
+    | Some(t) =>
+      switch (term_range(~syntax, t.root_piece)) {
+      | Some(range) =>
+        let hx = abs_float(ShardDec.offset_of(Some(Left))); // Always left-convex
+        let sort = Piece.sort(t.root_piece) |> fst;
+        paths(
+          hx,
+          ~dashed=Id.Map.mem(Id.transform_variant(id), dynamics),
+          ~cls,
+          sort,
+          font_metrics,
+          syntax.measured.rows,
+          range,
+        );
+      | _ => []
+      }
+    | None => []
+    };
+
+  let of_zipper =
+      (
+        ~font_metrics: FontMetrics.t,
+        ~syntax: CachedSyntax.t,
+        ~dynamics: Language.Dynamics.Map.t,
+        z: Zipper.t,
+      )
+      : list(Node.t) =>
+    (
+      z.refractors.manuals
+      |> Id.Map.to_list
+      |> List.concat_map(((id, _p)) =>
+           refractor_arms(
+             ~id,
+             ~syntax,
+             ~font_metrics,
+             ~cls="manual",
+             ~dynamics,
+           )
+         )
+    )
+    @ (
+      z.refractors.ephemerals
+      |> Id.Map.to_list
+      |> List.concat_map(((id, _p)) =>
+           refractor_arms(~id, ~syntax, ~font_metrics, ~cls="repl", ~dynamics)
+         )
+    );
+
+  let all =
+      (
+        ~font_metrics: FontMetrics.t,
+        ~syntax: CachedSyntax.t,
+        ~dynamics: Language.Dynamics.Map.t,
+        z: Zipper.t,
+      ) =>
+    div_c("refractors", of_zipper(~font_metrics, ~syntax, ~dynamics, z));
 };

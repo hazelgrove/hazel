@@ -2,7 +2,7 @@ open Alcotest;
 open Haz3lcore;
 open Base;
 
-let print_seg = Printer.of_segment(~holes="?");
+let print_seg = Printer.of_segment(~holes="?", ~refractors=Id.Map.empty);
 
 // Id ignoring equality for tiles
 let rec equal_segment = (a: segment, b: segment) => {

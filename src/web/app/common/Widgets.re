@@ -53,7 +53,7 @@ let toggle_named = (~tooltip="", icon, active, action) =>
   div(
     ~attrs=[
       clss(["named-menu-item"] @ (active ? ["active"] : [])),
-      Attr.on_click(action),
+      Attr.on_pointerdown(action),
     ],
     [toggle(icon, active, _ => Effect.Ignore), div([text(tooltip)])],
   );

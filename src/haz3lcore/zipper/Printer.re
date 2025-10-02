@@ -8,7 +8,7 @@ let remove_projector: Piece.t => Segment.t =
 let measured_no_projectors = (segment: Segment.t) =>
   segment
   |> ZipperBase.MapPiece.of_segment(remove_projector)
-  |> Measured.of_segment(_, ProjectorCore.Shape.Map.empty);
+  |> Measured.of_segment(_, ProjectorCore.Shape.Map.empty, Id.Map.empty);
 
 let insert_string = (s: string, point: Point.t, rows: list(string)) => {
   switch (ListUtil.split_nth_opt(point.row, rows)) {
@@ -68,6 +68,7 @@ let of_segment =
       ~holes=" ",
       ~concave_holes=" ",
       ~indent=" ",
+      ~refractors=Id.Map.empty,
       ~caret: option((string, Point.t))=None,
       ~selection_anchor: option((string, Point.t))=None,
       ~measured=?,
@@ -78,6 +79,8 @@ let of_segment =
   |> Segment.to_string(
        ~holes,
        ~concave_holes,
+       ~refractors,
+       ~refractor_seg_to_seg=Triggers.refractor_seg_to_seg,
        ~projector_to_segment=Triggers.projector_to_invoke,
      )
   |> String.split_on_char('\n')
@@ -112,6 +115,7 @@ let of_zipper =
     ~holes?,
     ~concave_holes?,
     ~indent?,
+    ~refractors=z.refractors.manuals,
     ~caret,
     ~selection_anchor,
     ~measured,

@@ -146,6 +146,17 @@ let go =
         z,
       ),
     )
+  | FocusIndicated =>
+    switch (Indicated.index(z)) {
+    | Some(id) =>
+      let (module P) = ProjectorInit.to_module(Probe); //TODO(andrew)
+      switch (P.focusable.pointer) {
+      | Some(focus) => focus(id)
+      | None => ()
+      };
+      Ok(z);
+    | None => Error(Cant_project)
+    }
   | Focus(id, kind, d) =>
     switch (d) {
     | None =>
@@ -155,6 +166,8 @@ let go =
       | Some(focus) => focus(id)
       | None => ()
       };
+      //TODO(andrew): clarify below logic
+      let id = kind == Probe ? Id.recover_original(id) : id;
       Ok(Option.value(~default=z, Move.jump_to_id_indicated(z, id)));
     | Some(Right) =>
       /* Focus by arrow key hand-off */
@@ -178,5 +191,6 @@ let go =
     | Some(z) => Ok(z)
     | None => Error(Cant_project)
     }
+  | DynCursor(a) => Ok(DynCursorPerform.perform(z, a))
   };
 };

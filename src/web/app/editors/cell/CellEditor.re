@@ -17,6 +17,7 @@ module Model = {
       editor,
       statics: CachedStatics.empty,
       dynamics: Language.Dynamics.Map.empty,
+      context_menu: false,
     },
     result: EvalResult.Model.init,
   };
@@ -36,6 +37,7 @@ module Model = {
       editor: editor |> PersistentZipper.unpersist |> Editor.Model.mk,
       statics: CachedStatics.empty,
       dynamics: Language.Dynamics.Map.empty,
+      context_menu: false,
     },
     result: EvalResult.Model.unpersist(result),
   };
@@ -228,6 +230,7 @@ module View = {
               : (action => inject(MainEditor(action))),
           ~selected=selected == Some(MainEditor),
           ~overlays=overlays(model.editor.editor),
+          ~dynamics=EvalResult.Model.dynamics(model.result),
           model.editor,
         ),
       ]

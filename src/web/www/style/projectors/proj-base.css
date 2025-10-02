@@ -23,11 +23,20 @@
   z-index: var(--projector-z);
 }
 
+.refractors .projector {
+  /* TODO(andrew) */
+  /* z-index: 1; */
+}
+
+.refractors .projector.probe.indicated {
+  z-index: 11;
+}
+
 .projector > svg {
   z-index: var(--projector-underlay-z);
 }
 
-.projector.indicated {
+.projectors .projector.indicated {
   z-index: var(--projector-indicated-z);
 }
 
@@ -38,7 +47,7 @@
   fill: var(--error-hole-fill);
 }
 
-.projector:hover {
+.projectors .projector:hover {
   z-index: var(--projector-hover-z);
 }
 
@@ -46,7 +55,8 @@
   z-index: var(--projector-z);
 }
 
-.projectors .overlays .projector {
+.projectors .overlays .projector,
+.refractors .overlays .projector {
   pointer-events: none;
   z-index: var(--projector-overlay-z);
 }
