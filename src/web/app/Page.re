@@ -172,13 +172,19 @@ module Update = {
             (current |> fst |> StringUtil.sanitize_filename) ++ ".ml";
 
           let content =
-            [%derive.show: (string, Haz3lcore.PersistentZipper.t)]((
-              current |> fst,
-              current
-              |> snd
-              |> ((e: CellEditor.Model.t) => e.editor)
-              |> CodeWithStatics.Model.persist,
-            ));
+            Haz3lcore.(
+              [%derive.show: (string, PersistentSegment.t)]((
+                current |> fst,
+                current
+                |> snd
+                |> ((e: CellEditor.Model.t) => e.editor)
+                |> (
+                  (e: CodeWithStatics.Model.t) =>
+                    Zipper.zip(e.editor.state.zipper)
+                )
+                |> PersistentSegment.persist,
+              ))
+            );
           (filename, content);
         | Tutorial(model) =>
           let current = List.nth(model.exercises, model.current);
@@ -195,7 +201,7 @@ module Update = {
         ~filename,
         ~content_type="text/plain",
         ~contents=
-          "let out : string * Haz3lcore.PersistentZipper.t = " ++ content,
+          "let out : string * Haz3lcore.PersistentSegment.t = " ++ content,
       );
       model |> return_quiet;
     | ActiveEditor(action) =>
@@ -312,10 +318,17 @@ module Update = {
     };
   };
 
-  let calculate = (~schedule_action, ~is_edited, model: Model.t) => {
+  let calculate =
+      (~schedule_action, ~is_edited, ~dynamics: bool, model: Model.t) => {
     let editors =
       Editors.Update.calculate(
-        ~settings=model.globals.settings.core,
+        ~settings=
+          dynamics
+            ? model.globals.settings.core
+            : {
+              ...model.globals.settings.core,
+              dynamics: false,
+            },
         ~schedule_action=a => schedule_action(Editors(a)),
         ~is_edited,
         model.editors,

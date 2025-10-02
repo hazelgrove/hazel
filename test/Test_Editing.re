@@ -183,6 +183,11 @@ let insertion_tests = [
     ~goal={|"¦"|},
   ),
   test(
+    ~name="Insert string after concave grout",
+    ~acts=mk({|1 ¦|}) @ [Insert({|"|})],
+    ~goal={|1 ~"¦"|},
+  ),
+  test(
     ~name="Insert char at end of token",
     ~acts=mk({|fo¦|}) @ [Insert("o")],
     ~goal={|foo¦|},
@@ -259,6 +264,46 @@ let insertion_tests = [
     ~name="Split two leading delated expander delims with bin op",
     ~acts=mk({|if¦if|}) @ [Insert("+")],
     ~goal={|if?+¦if?|},
+  ),
+  /* The next three tests cover issue #1907. They are slightly awkwardly
+     written; the details don't matter so much here. The important thing
+     is in this situation we are likely wanting to wrap the existing form,
+     so we want the rightwards leading token to match the existing
+     delimiters, not the leftwards one. */
+  test(
+    ~name="Inserting if before existing if doesn't steal delimiters",
+    ~acts=
+      mk({|¦if 1 then 2 else 3|})
+      @ [Insert("i"), Insert("f"), Insert(" "), Put_down, Put_down],
+    ~goal={|if? then?else¦if 1 then 2 else 3|},
+  ),
+  test(
+    ~name="Inserting let before existing let doesn't steal delimiters",
+    ~acts=
+      mk({|¦let x = 2 in 3|})
+      @ [
+        Insert("l"),
+        Insert("e"),
+        Insert("t"),
+        Insert(" "),
+        Put_down,
+        Put_down,
+      ],
+    ~goal={|let? =?in¦let x = 2 in 3|},
+  ),
+  test(
+    ~name="Inserting let before existing type doesn't steal delimiters",
+    ~acts=
+      mk({|¦type x = 2 in 3|})
+      @ [
+        Insert("l"),
+        Insert("e"),
+        Insert("t"),
+        Insert(" "),
+        Put_down,
+        Put_down,
+      ],
+    ~goal={|let? =?in¦type x = 2 in 3|},
   ),
   /* Below test is slightly precious. Can't directly write
      `if then¦else` as then will instantly expand, so need
@@ -426,6 +471,35 @@ let insertion_tests = [
     ~name="Nested parens edge case (See Insert.parens_edge_case)",
     ~acts=mk({|f(g¦)|}) @ [Insert("("), Insert(")")],
     ~goal={|f(g()¦)|},
+  ),
+  test(
+    ~name="Issue #1914 regression test",
+    ~acts=mk({|((1)¦|}) @ [Put_down],
+    ~goal={|((1))¦|},
+  ),
+  test(
+    ~name="Forall regrouting edge case (debatable behavior) (#1913)",
+    ~acts=mk({|?:foral¦(?)|}) @ [Insert("l")],
+    ~goal={|?:forall¦(?)|},
+  ),
+  test(
+    ~name="Forall regrouting edge case (non-debatable) (#1913)",
+    ~acts=mk({|?:foral¦(?)|}) @ [Insert("l"), Insert("-"), Insert(">")],
+    ~goal={|?:forall?->¦(?)|},
+  ),
+  /* In below test, we first cause the two `=`s to merge, then split them.
+     The first `=` should not get matched to the `let` because of the parens.
+     If it does, then it will prevent the Put_down from dropping the parens.
+     This was previously causes by the misssing ancestor shards being in the
+     local backpack in front of the missing sibling shards, so if the `let`
+     and `in` are down, but their `=` is up, the `=` would appear before
+     the `(` in the local_missing_shards.  */
+  test(
+    ~name="Split paren rematch (Regression guard for #1948)",
+    ~acts=
+      mk({|let(a=1)¦= 1 in 1|})
+      @ [Destruct(Left), Destruct(Left), Insert("1"), Put_down],
+    ~goal={|let(a=1)¦= 1 in 1|},
   ),
 ];
 

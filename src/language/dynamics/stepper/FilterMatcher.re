@@ -202,11 +202,13 @@ let rec matches_exp =
 
     | (Label(dv), Label(fv)) => dv == fv
     | (Label(_), _) => false
-
+    | (ExplicitNonlabel, ExplicitNonlabel) => true
+    | (ExplicitNonlabel, _) => false
+    | (TupLabel({term: ExplicitNonlabel, _}, d), _) => matches_exp(d, f)
+    | (_, TupLabel({term: ExplicitNonlabel, _}, f)) => matches_exp(d, f)
     | (TupLabel(dl, dv), TupLabel(fl, fv)) =>
       matches_exp(dl, fl) && matches_exp(dv, fv)
     | (TupLabel(_), _) => false
-
     | (
         Constructor(_),
         Ap(_, {term: Constructor("~MVal", _), _}, {term: Tuple([]), _}),

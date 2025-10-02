@@ -118,13 +118,10 @@ let hide_env = (info: info): bool =>
   | _ => false
   };
 
-let show_purps = ref(false);
-
 let cur_ap = (info: info) =>
   switch (info.statics) {
   | Some(InfoExp({term: {term: Ap(_), _} as ap, _}))
-  | Some(InfoExp({term: {term: Probe({term: Ap(_), _} as ap, _), _}, _}))
-      when show_purps^ =>
+  | Some(InfoExp({term: {term: Probe({term: Ap(_), _} as ap, _), _}, _})) =>
     Some(Term.Exp.rep_id(ap))
   | _ => None
   };
@@ -834,15 +831,6 @@ let view = (local, parent, info: info): Node.t =>
         JsUtil.get_elem_by_id(Id.cls(info.id))##blur;
         Effect.Ignore;
       }),
-      Attr.on_mouseenter(_ => {
-        //TODO(andrew): renable one day
-        //show_purps := true;
-        local(NoOp)
-      }),
-      Attr.on_mouseleave(_ => {
-        show_purps := false;
-        local(NoOp);
-      }),
     ],
     [text(syntax_str(info.utility, info.syntax)), icon],
   );
@@ -892,7 +880,7 @@ module M: Projector = {
 
   let update = update;
 
-  let view = (_model, info, ~local, ~parent, ~view_seg) =>
+  let view = ({info, local, parent, view_seg, _}: View.args(model, action)) =>
     View.{
       inline: view(local, parent, info),
       overlay: Some(overlay_view(info)),

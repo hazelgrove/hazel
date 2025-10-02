@@ -7,13 +7,7 @@ open Util.OptUtil.Syntax;
 open Util.WebUtil;
 
 module Model = {
-  type status = {
-    kind: ProjectorCore.Kind.t,
-    sort: Sort.t,
-    indication: option(Direction.t),
-    selected: bool,
-    error: bool,
-  };
+  type status = ProjectorBase.View.status;
 
   type projector_data = {
     p: Piece.projector,
@@ -49,7 +43,8 @@ module Model = {
         ~info: ProjectorBase.info,
         ~id: Id.t,
         ~sort: Sort.t,
-      ) => {
+      )
+      : status => {
     sort,
     error:
       Option.map(Language.Info.is_error, info.statics)
@@ -178,9 +173,10 @@ let offside_wrapper =
 
 let simple_code = (~background=false, font_metrics, _sort, segment): Node.t => {
   let shape_map = ProjectorCore.Shape.Map.empty; /* Assume this doesn't contain projectors */
+  let measured = Measured.of_segment(segment, shape_map);
   let code =
     Code.view(
-      ~measured=Measured.of_segment(segment, shape_map),
+      ~measured,
       ~settings=Settings.Model.init,
       ~shape_map,
       ~font_metrics,
@@ -190,16 +186,25 @@ let simple_code = (~background=false, font_metrics, _sort, segment): Node.t => {
     );
   let backing =
     if (background) {
-      switch (Deco.quick_select_deco(~font_metrics, segment)) {
+      switch (
+        Highlight.of_segment(
+          ~measured,
+          ~shape_map,
+          ~font_metrics,
+          ~shape_init=Some(Convex),
+          ~clss=[],
+          segment,
+        )
+      ) {
       | exception _ => []
-      | view => [view]
+      | view => view
       };
     } else {
       [];
     };
   div(
     ~attrs=[Attr.class_("code")],
-    [span_c("code-text", code)] @ backing,
+    [span_c("code-text", code)] @ [div_c("quick-select-deco", backing)],
   );
 };
 
@@ -208,15 +213,19 @@ let mk_view =
     (
       inject: Action.t => Ui_effect.t(unit),
       font_metrics: FontMetrics.t,
-      {p, info, _}: Model.projector_data,
+      {p, info, status, _}: Model.projector_data,
     )
     : View.t => {
   let (module P) = ProjectorInit.to_module(p.kind);
-  let parent = a => inject(Project(handle(p.id, a)));
-  let local = a =>
-    inject(Project(SetModel(p.id, P.update(p.model, info, a))));
-  let view_seg = (~background=?) => simple_code(~background?, font_metrics);
-  P.view(p.model, info, ~local, ~parent, ~view_seg);
+  P.view({
+    model: p.model,
+    info,
+    local: a =>
+      inject(Project(SetModel(p.id, P.update(p.model, info, a)))),
+    parent: a => inject(Project(handle(p.id, a))),
+    view_seg: (~background=?) => simple_code(~background?, font_metrics),
+    status,
+  });
 };
 
 /* Extract and collate different layers of the resulting view

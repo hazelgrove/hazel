@@ -16,10 +16,15 @@ module Model = {
     dynamics: Language.Dynamics.Map.t,
   };
 
-  let mk = editor => {
+  let mk =
+      (
+        ~dynamics=Language.Dynamics.Map.empty,
+        ~statics=CachedStatics.empty,
+        editor,
+      ) => {
     editor,
-    statics: CachedStatics.empty,
-    dynamics: Language.Dynamics.Map.empty,
+    statics,
+    dynamics,
   };
 
   let mk_from_exp =
@@ -133,15 +138,12 @@ module View = {
         ~segment,
         ~shape_map,
       );
-    let statics_decos = {
-      module Deco =
-        Deco.Deco({
-          let globals = globals;
-          let editor = model.editor;
-          let statics = model.statics;
-        });
-      Deco.statics();
-    };
-    div_c("code-container", [code_text_view] @ statics_decos @ overlays);
+    let statics_decos =
+      Arms.Errors.of_ids(
+        ~font_metrics=globals.font_metrics,
+        ~syntax=model.editor.syntax,
+        model.statics.error_ids,
+      );
+    div_c("code-container", [code_text_view, statics_decos] @ overlays);
   };
 };

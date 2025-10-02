@@ -12,6 +12,7 @@
 .projector.fold {
   cursor: pointer;
   font-family: var(--code-font);
+  z-index: var(--projector-hover-z);
 }
 
 .result .projector.fold {
@@ -173,36 +174,9 @@
 .projector.fold.Pat .hover-view svg {
   --shadow: var(--token-pat);
 }
-.projector.fold.Typ .hover-view svg {
-  --shadow: var(--token-typ);
-}
-.projector.fold.TPat .hover-view svg {
-  --shadow: var(--token-tpat);
-}
 
 .projector.fold .hover-view path {
   --fill: var(--shard-exp);
   fill: var(--fill);
   stroke: var(--fill);
-}
-.projector.fold.Pat .hover-view path {
-  --fill: var(--shard-pat);
-}
-.projector.fold.Typ .hover-view path {
-  --fill: var(--shard-typ);
-}
-.projector.fold.TPat .hover-view path {
-  --fill: var(--shard-tpat);
-}
-
-.projector.fold.Pat.indicated > svg path {
-  fill: var(--shard-pat);
-}
-
-.projector.fold.Typ.indicated > svg path {
-  fill: var(--shard-typ);
-}
-
-.projector.fold.TPat.indicated > svg path {
-  fill: var(--shard-tpat);
 }

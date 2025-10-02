@@ -61,9 +61,10 @@ module M: Projector = {
     );
   };
 
-  let view = (m: model, info, ~local, ~parent as _, ~view_seg) =>
+  let view =
+      ({model, info, local, view_seg, status, _}: View.args(model, action)) =>
     ProjectorBase.View.mk(
-      if (m.always_render) {
+      if (model.always_render) {
         /* Always render mode: Use checkbox hack for CSS-only toggle */
         let checkbox_id = "fold-toggle-" ++ Id.to_string(info.id);
         label(
@@ -81,15 +82,19 @@ module M: Projector = {
               ],
               (),
             ),
-            text(m.text),
-            hover_view(view_seg, m, info),
+            text(model.text),
+            hover_view(view_seg, model, info),
           ],
         );
       } else {
         div(
-          ~attrs=[Attr.on_click(_ => local(Toggle))],
-          [text(m.text)]
-          @ (m.expanded ? [hover_view(view_seg, m, info)] : []),
+          ~attrs=[
+            Attr.on_pointerdown(_ =>
+              status.indication != None ? local(Toggle) : Ui_effect.Ignore
+            ),
+          ],
+          [text(model.text)]
+          @ (model.expanded ? [hover_view(view_seg, model, info)] : []),
         );
       },
     );
