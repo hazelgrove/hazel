@@ -72,6 +72,160 @@ module TupleExtension = {
     ),
   ];
 };
+
+module ProductProjection = {
+  let tests = [
+    fully_consistent_typecheck(
+      "Consistent Type-level product projection",
+      {|type T = (a=Int, String) in 1 : T.a |},
+      Some(
+        prod_projection(
+          prod([tup_label(label("a"), int()), string()]),
+          label("a"),
+        ),
+      ),
+    ),
+    test_case("Inconsistent Type-level product projection", `Quick, () => {
+      annotated_tree_test(
+        {|type T = (a=Int, String) in "" : T.a |},
+        Typ.(
+          prod_projection(
+            prod([tup_label(label("a"), int()), string()]),
+            label("a"),
+          )
+        ),
+        FIError.(
+          Exp.(
+            ty_alias(
+              TPat.var("T"),
+              Typ.(prod([tup_label(label("a"), int()), string()])),
+              asc(
+                string(
+                  ~ann=
+                    FTemp.Typ.(
+                      Some(
+                        Exp(
+                          Common(
+                            Inconsistent(
+                              Expectation({
+                                ana: prod_projection(var("T"), label("a")),
+                                syn: string(),
+                              }),
+                            ),
+                          ),
+                        ),
+                      )
+                    ),
+                  "",
+                ),
+                Typ.(prod_projection(var("T"), label("a"))),
+              ),
+            )
+          )
+        ),
+      )
+    }),
+    test_case("Missing label projection", `Quick, () => {
+      FIError.(
+        annotated_tree_test(
+          {|type T = (a=Int, String) in 1 : T.b |},
+          prod_projection(
+            prod([tup_label(label("a"), int()), string()]),
+            label("b"),
+          ),
+          FIError.Exp.(
+            ty_alias(
+              TPat.var("T"),
+              Typ.(prod([tup_label(label("a"), int()), string()])),
+              asc(
+                int(1),
+                Typ.(
+                  prod_projection(
+                    var("T"),
+                    label(~ann=Some(Typ(InvalidLabel("b", ["a"]))), "b"),
+                  )
+                ),
+              ),
+            )
+          ),
+        )
+      )
+    }),
+  ];
+};
+
+module ExplicitlyUnlabeledTuples = {
+  let tests = [
+    fully_consistent_typecheck(
+      ~normalize=true,
+      "Explicitly unlabeled tuple in let binding",
+      {|(_=1) : (_=Int)|},
+      Some(prod([int()])),
+    ),
+    fully_consistent_typecheck(
+      ~normalize=true,
+      "Multiple elements explicitly unlabeled",
+      {|(_=1, _="") : (_=Int, _=String)|},
+      Some(prod([int(), string()])),
+    ),
+    fully_consistent_typecheck(
+      ~normalize=true,
+      "Explicitly unlabeled elements with implicit type",
+      {|(_=1,_="") : (Int, String)|},
+      Some(prod([int(), string()])),
+    ),
+    fully_consistent_typecheck(
+      ~normalize=true,
+      "Implicitly unlabeled elements with explicitly unlabeled types",
+      {|(1,"") : (_=Int, _=String)|},
+      Some(prod([int(), string()])),
+    ),
+    test_case("Marks are placed on elements", `Quick, () =>
+      annotated_tree_test(
+        {|(_=1) : (_=String)|},
+        prod([tup_label(explicit_non_label(), string())]),
+        FIError.(
+          Exp.(
+            asc(
+              tuple([
+                tup_label(
+                  explicit_non_label(),
+                  int(
+                    ~ann=
+                      Some(
+                        FTemp.Typ.(
+                          Exp(
+                            Common(
+                              Inconsistent(
+                                Expectation({
+                                  ana: string(),
+                                  syn: int(),
+                                }),
+                              ),
+                            ),
+                          )
+                        ),
+                      ),
+                    1,
+                  ),
+                ),
+              ]),
+              Typ.(
+                parens(prod([tup_label(explicit_non_label(), string())]))
+              ),
+            )
+          )
+        ),
+      )
+    ),
+    fully_consistent_typecheck(
+      ~normalize=true,
+      "Explicitly unlabeled tuple extension",
+      {|let typed_single : (_=Int) = (_=42) in typed_single|},
+      Some(prod([int()])),
+    ),
+  ];
+};
 let tests = (
   "Statics.Tuples",
   [
@@ -847,5 +1001,7 @@ let tests = (
       Some(list(unknown(Internal))),
     ),
   ]
-  @ TupleExtension.tests,
+  @ TupleExtension.tests
+  @ ProductProjection.tests
+  @ ExplicitlyUnlabeledTuples.tests,
 );

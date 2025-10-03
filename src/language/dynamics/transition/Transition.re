@@ -538,6 +538,7 @@ module Transition = (EV: EV_MODE) => {
     | Atom(_)
     | LivelitName(_)
     | Label(_)
+    | ExplicitNonlabel
     | Constructor(_)
     | BuiltinFun(_) =>
       let. _ = otherwise(env, d);
