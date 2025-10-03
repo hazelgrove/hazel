@@ -5,7 +5,8 @@ type kind =
   | ExoSlider
   | ExoBuilder
   | ExoNool
-  | Petrinaut;
+  | Petrinaut
+  | CatColLab;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type size = {
@@ -41,7 +42,7 @@ let module_of_kind = (kind: kind): info =>
   | ExoSlider => {
       kind,
       prod: WebEnv.base_url() ++ "/external/exoslider",
-      dev: "http://localhost:5173",
+      dev: "https://hazel.org/build/exolivelits/external/exoslider", //"http://localhost:5173",
       shape: Tab,
       guard: (
         fun
@@ -56,7 +57,7 @@ let module_of_kind = (kind: kind): info =>
   | ExoBuilder => {
       kind,
       prod: WebEnv.base_url() ++ "/external/exovaluebuilder",
-      dev: "http://localhost:5175",
+      dev: "https://hazel.org/build/exolivelits//external/exovaluebuilder", //"http://localhost:5175",
       shape: Tab,
       // TODO: More specific syntax restriction
       guard: _ => true,
@@ -68,7 +69,7 @@ let module_of_kind = (kind: kind): info =>
   | ExoNool => {
       kind,
       prod: "https://andrewblinn.com/nool/exolivelit",
-      dev: "http://localhost:3000",
+      dev: "https://andrewblinn.com/nool/exolivelit", //"http://localhost:3000",
       shape: Block,
       // TODO: More specific syntax restriction
       guard: _ => true,
@@ -87,6 +88,17 @@ let module_of_kind = (kind: kind): info =>
       size: {
         width: 1050,
         height: 590,
+      },
+    }
+  | CatColLab => {
+      kind,
+      prod: "http://localhost:5175", //"https://catcolab.org/model/0194fbf4-fddf-7a12-b88b-33015d17d8e7",
+      dev: "http://localhost:5175",
+      shape: Block,
+      guard: _ => true,
+      size: {
+        width: 680,
+        height: 490,
       },
     }
   };
