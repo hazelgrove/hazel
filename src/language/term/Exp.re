@@ -8,10 +8,4 @@ let temp: term => t =
     },
   };
 
-let to_tuple = (es: list(t)): t =>
-  switch (es) {
-  | []
-  | [{term: TupLabel(_), _}] => Tuple(es) |> temp
-  | [e] => e
-  | _ => Tuple(es) |> temp
-  };
+let to_tuple = (es: list(t)): t => TempGrammar.Exp.(tuple(es));
