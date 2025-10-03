@@ -41,9 +41,17 @@ let rec matches =
     let* d' = Unboxing.unbox(Atom(kind), d);
     value == d' ? Matches(Environment.empty) : DoesNotMatch;
   | ListLit(xs) =>
-    let* s' = Unboxing.unbox(ListLitn(List.length(xs)), d);
-    List.map2(matches, xs, s')
-    |> List.fold_left(combine_result, Matches(Environment.empty));
+    switch (d |> DHExp.term_of) {
+    | EmptyHole when force_partial_match == Some(true) =>
+      let* ds =
+        Matches(List.init(List.length(xs), _ => EmptyHole |> DHExp.fresh));
+      List.map2(matches, xs, ds)
+      |> List.fold_left(combine_result, Matches(Environment.empty));
+    | _ =>
+      let* s' = Unboxing.unbox(ListLitn(List.length(xs)), d);
+      List.map2(matches, xs, s')
+      |> List.fold_left(combine_result, Matches(Environment.empty));
+    }
   | Cons(x, xs) =>
     let* (x', xs') = Unboxing.unbox(Cons, d);
     let* m_x = matches(x, x');
