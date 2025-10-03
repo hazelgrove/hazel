@@ -712,8 +712,7 @@ let fold_fun_if = (condition, f_name: string, pieces) =>
     pieces;
   };
 
-let project_table_if = (should_project, pieces) => {
-  print_endline("Projecting table: " ++ string_of_bool(should_project));
+let project_table_if = (should_project, pieces) =>
   if (should_project) {
     switch (MakeTerm.for_projection([pieces])) {
     | None => failwith("ExpToSegment.fold_if")
@@ -722,7 +721,6 @@ let project_table_if = (should_project, pieces) => {
   } else {
     [pieces];
   };
-};
 /* We assume that parentheses have already been added as necessary, and
       that the expression has no Closures or DynamicErrorHoles
    */

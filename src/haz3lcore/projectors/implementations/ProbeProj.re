@@ -5,14 +5,27 @@ open Node;
 open Js_of_ocaml;
 open Language;
 
+/* Import the reusable table renderer */
+module TR = TableRenderer;
+[@deriving (show({with_path: false}), sexp, yojson)]
+type menu_state = option((int, list(string)));
+[@deriving (show({with_path: false}), sexp, yojson)]
+type table_model = {menu_state};
 [@deriving (show({with_path: false}), sexp, yojson)]
 type closure = Dynamics.Probe.Closure.t;
+[@deriving (show({with_path: false}), sexp, yojson)]
+type otable_model = option(table_model);
+[@deriving (show({with_path: false}), sexp, yojson)]
+type probe_model = {table_modal: otable_model};
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type action =
   | ChangeLength(int, int)
   | ToggleShowAllVals(int)
-  | NoOp;
+  | NoOp
+  | OpenTableModal
+  | CloseTableModal
+  | TableMenuAction(int, list(string));
 
 module Window = {
   [@deriving (show({with_path: false}), sexp, yojson)]
@@ -369,34 +382,57 @@ let value_view =
   let (seg, length) =
     abbreviated_seg_of(utility, ClosureLength.get(closure), closure.value);
 
-  div(
-    ~attrs=[
-      //Attr.title(Debug.str(~ap_id, closure)),
-      Attr.classes(
-        ["value", length_cls(length)]
-        @ cursor_clss(ap_id, di, closure)
-        @ (Option.is_some(ap_id) ? ["ap"] : [])
-        @ (!is_value(closure.value) ? ["indet"] : []),
-      ),
-      Attr.on_double_click(_ => local(ToggleShowAllVals(index))),
-      Attr.on_pointerdown(evt =>
-        Key.meta_held(evt)
-          ? switch (ap_id, Dynamics.Info.is_in(di)) {
-            | (Some(ap_id), Some(closure_cursor)) =>
-              parent(
-                DynCursor(
-                  TogglePinCall([ap_id, ...closure_cursor.call_stack]),
-                ),
-              )
-            | _ => Effect.Ignore
-            }
-          : val_pointerdown(evt)
-      ),
-      Attr.on_pointerup(val_pointerup),
-      Attr.on_mousemove(val_mousemove),
-    ],
-    [view_seg(Sort.Exp, seg)],
-  );
+  /* Check if this closure has table data */
+  let has_table = Option.is_some(TR.table_from_exp(closure.value));
+
+  /* Create table badge if this closure has table data */
+  let table_badge =
+    has_table
+      ? div(
+          ~attrs=[
+            Attr.classes(["table-badge"]),
+            Attr.title("Click to view as table"),
+            Attr.on_click(_ => {
+              print_endline("Opening table modal");
+              local(OpenTableModal);
+            }),
+          ],
+          [Node.text("📊")],
+        )
+      : Node.div([]);
+
+  div([
+    div(
+      ~attrs=[
+        //Attr.title(Debug.str(~ap_id, closure)),
+        Attr.classes(
+          ["value", length_cls(length)]
+          @ cursor_clss(ap_id, di, closure)
+          @ (Option.is_some(ap_id) ? ["ap"] : [])
+          @ (!is_value(closure.value) ? ["indet"] : [])
+          @ (has_table ? ["has-table"] : []),
+        ),
+        Attr.on_double_click(_ => local(ToggleShowAllVals(index))),
+        Attr.on_pointerdown(evt =>
+          Key.meta_held(evt)
+            ? switch (ap_id, Dynamics.Info.is_in(di)) {
+              | (Some(ap_id), Some(closure_cursor)) =>
+                parent(
+                  DynCursor(
+                    TogglePinCall([ap_id, ...closure_cursor.call_stack]),
+                  ),
+                )
+              | _ => Effect.Ignore
+              }
+            : val_pointerdown(evt)
+        ),
+        Attr.on_pointerup(val_pointerup),
+        Attr.on_mousemove(val_mousemove),
+      ],
+      [view_seg(Sort.Exp, seg)],
+    ),
+    table_badge,
+  ]);
 };
 
 let env_val =
@@ -745,14 +781,6 @@ let offside_view =
   | _ => Node.div([])
   };
 
-let update = (() as m, _info: info, a: action) => {
-  switch (a) {
-  | ChangeLength(id, len) => ClosureLength.set(id, len)
-  | ToggleShowAllVals(_) => Window.toggle_mode()
-  | NoOp => m
-  };
-};
-
 /* If one of the current probe's cells is not already selected,
  * select the first one */
 let probe_default =
@@ -778,8 +806,27 @@ let is_pinned = (ap_id: option(Id.t), di: Dynamics.Info.t): bool =>
     == Dynamics.Cursor.cur_call(ap_id, closure_cursor)
   | _ => false
   };
+/* Table detection helper */
+let get_current_table_data = (info: info) => {
+  switch (info.dynamics) {
+  | Some(di) =>
+    let ap_id = cur_ap(info);
+    /* First try to get the indicated closure */
+    switch (Dynamics.Info.first_cursor_closure(ap_id, di)) {
+    | Some(closure) => TR.table_from_exp(closure.value)
+    | None =>
+      /* Fallback: check if any displayed closure has table data */
+      let closures = Closures.select_frames(~id=info.id, ~ap_id, di);
+      List.find_map(
+        (closure: closure) => TR.table_from_exp(closure.value),
+        closures,
+      );
+    };
+  | None => None
+  };
+};
 
-let view = (local, parent, info: info): Node.t =>
+let view = (model: probe_model, local, parent, info: info): Node.t =>
   div(
     ~attrs=[
       Attr.id(Id.cls(info.id)),
@@ -816,9 +863,13 @@ let view = (local, parent, info: info): Node.t =>
         | _ => Effect.Ignore
         }
       ),
-      Attr.on_pointerdown(_
-        /* Select a default cell if one is not already selected */
-        => probe_default(parent, info)),
+      Attr.on_pointerdown(_ => {
+        /* Check if we should open table modal */
+        switch (get_current_table_data(info)) {
+        | Some(_) => local(OpenTableModal)
+        | None => probe_default(parent, info)
+        }
+      }),
       Attr.on_pointerup(_ => {
         JsUtil.get_elem_by_id(Id.cls(info.id))##blur;
         Effect.Ignore;
@@ -827,19 +878,21 @@ let view = (local, parent, info: info): Node.t =>
     [text(syntax_str(info.utility, info.syntax)) /*, icon*/],
   );
 
-let overlay_view = (info: info): Node.t =>
+let overlay_view = (model: probe_model, info: info): Node.t =>
   switch (info.dynamics) {
   | Some(di) =>
     let ap_id = cur_ap(info);
+    let has_table = Option.is_some(get_current_table_data(info));
     div(
       ~attrs=[
         Attr.classes(
           ["overlay"]
           @ (Option.is_some(ap_id) ? ["ap"] : [])
-          @ (is_pinned(ap_id, di) ? ["pinned"] : []),
+          @ (is_pinned(ap_id, di) ? ["pinned"] : [])
+          @ (has_table ? ["has-table"] : []),
         ),
       ],
-      [num_closures_view(~ap_id, di)] /*@ pin_view(info)*/,
+      [num_closures_view(~ap_id, di)],
     );
   | None => Node.div([])
   };
@@ -849,18 +902,19 @@ type a = action;
 
 module M: Projector = {
   [@deriving (show({with_path: false}), sexp, yojson)]
-  type model = unit;
-  let model_of_sexp = _ => ();
+  type model = probe_model;
   [@deriving (show({with_path: false}), sexp, yojson)]
   type action = a;
 
-  let init = (any: Term.Any.t) =>
+  let init = (any: Term.Any.t) => {
+    print_endline("Initializing probe for " ++ Term.Any.show(any));
     switch (any) {
     | Exp(_)
-    | Pat(_) => Some()
-    | Any(_) => Some() /* Grout don't have sorts rn */
+    | Pat(_) => Some({table_modal: None})
+    | Any(_) => Some({table_modal: None}) /* Grout don't have sorts rn */
     | _ => None
     };
+  };
 
   let dynamics = true;
 
@@ -875,23 +929,120 @@ module M: Projector = {
       /*2 +*/ String.length(syntax_str(info.utility, info.syntax)),
     );
 
-  let update = update;
+  let update = (model: probe_model, _info: info, action: action) => {
+    switch (action) {
+    | ChangeLength(id, len) =>
+      ClosureLength.set(id, len);
+      model;
+    | ToggleShowAllVals(_) =>
+      Window.toggle_mode();
+      model;
+    | NoOp => model
+    | OpenTableModal => {table_modal: Some({menu_state: None})}
+    | CloseTableModal => {table_modal: None}
+    | TableMenuAction(col, path) => {
+        table_modal:
+          Option.map(
+            _modal => {menu_state: Some((col, path))},
+            model.table_modal,
+          ),
+      }
+    };
+  };
 
-  let view = (_model, info, ~local, ~parent, ~view_seg) => {
+  /* Modal overlay for table display */
+  let modal_overlay = (model, info, ~local, ~parent, ~view_seg) => {
+    print_endline("Model: " ++ show_model(model));
+    switch (model.table_modal) {
+    | Some(_) =>
+      switch (get_current_table_data(info)) {
+      | Some((headers, rows)) =>
+        /* Create action handler for table operations */
+        let action_handler: TR.action_handler = {
+          set_syntax: segment => parent(SetSyntax(segment)),
+          local_action: action => {
+            switch (action) {
+            | CloseMenu => local(CloseTableModal)
+            | ShowMenu(i) => local(TableMenuAction(i, []))
+            | ShowSubmenu(path) => local(TableMenuAction(0, path)) /* TODO: Track current column */
+            | DropColumn(_) => local(CloseTableModal) /* Will be handled by set_syntax */
+            | ConversionColumn(_) => local(CloseTableModal) /* Will be handled by set_syntax */
+            | RenameColumn(_) => local(CloseTableModal) /* Will be handled by set_syntax */
+            | AddColumnAfter(_) => local(CloseTableModal) /* Will be handled by set_syntax */
+            };
+          },
+        };
+
+        /* Get current menu state */
+        let menu_state =
+          switch (model.table_modal) {
+          | Some({menu_state: Some((col, path))}) => Some((col, path))
+          | _ => None
+          };
+
+        /* Render modal backdrop */
+        div(
+          ~attrs=[
+            Attr.classes(["table-modal-backdrop"]),
+            Attr.on_click(_ => local(CloseTableModal)),
+          ],
+          [
+            /* Modal content */
+            div(
+              ~attrs=[
+                Attr.classes(["table-modal"]),
+                Attr.on_click(_ => Effect.Stop_propagation),
+              ],
+              [
+                /* Close button */
+                div(
+                  ~attrs=[
+                    Attr.classes(["table-modal-close"]),
+                    Attr.on_click(_ => local(CloseTableModal)),
+                  ],
+                  [Node.text("×")],
+                ),
+                /* Table content using TableRenderer */
+                TR.render_table(
+                  ~headers,
+                  ~rows,
+                  ~info,
+                  ~view_seg,
+                  ~action_handler,
+                  ~closure_nav=None,
+                  ~menu_state,
+                  (),
+                ),
+              ],
+            ),
+          ],
+        );
+      | None => Node.div([])
+      }
+    | None => Node.div([])
+    };
+  };
+
+  let view = (model, info, ~local, ~parent, ~view_seg) => {
     View.{
       inline:
         switch (info.syntax) {
         | [Grout({id, _})] when id == Id.invalid => Node.div([])
-        | _ => view(local, parent, info)
+        | _ => view(model, local, parent, info)
         },
       overlay:
         switch (info.syntax) {
         | [Grout({id, _})] when id == Id.invalid =>
-          Some(overlay_view(info))
-        | _ => Some(overlay_view(info))
+          Some(overlay_view(model, info))
+        | _ => Some(overlay_view(model, info))
         },
       offside:
-        Some(offside_view(info, local, parent, view_seg, info.utility)),
+        Some(
+          div([
+            offside_view(info, local, parent, view_seg, info.utility),
+            modal_overlay(model, info, ~local, ~parent, ~view_seg),
+          ]),
+        ),
     };
   };
 };
