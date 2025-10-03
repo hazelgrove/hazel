@@ -66,9 +66,17 @@ let rec matches =
     let* x' = Unboxing.unbox(TupLabel(dp), d);
     matches(x, x');
   | Tuple(ps) =>
-    let* ds = Unboxing.unbox(Tuple(List.length(ps)), d);
-    List.map2(matches, ps, ds)
-    |> List.fold_left(combine_result, Matches(Environment.empty));
+    switch (d |> DHExp.term_of) {
+    | EmptyHole when force_partial_match == Some(true) =>
+      let* ds =
+        Matches(List.init(List.length(ps), _ => EmptyHole |> DHExp.fresh));
+      List.map2(matches, ps, ds)
+      |> List.fold_left(combine_result, Matches(Environment.empty));
+    | _ =>
+      let* ds = Unboxing.unbox(Tuple(List.length(ps)), d);
+      List.map2(matches, ps, ds)
+      |> List.fold_left(combine_result, Matches(Environment.empty));
+    }
   | Parens(p) => matches(p, d)
   | Probe(p, pr) =>
     let inner_match = matches(p, d);
@@ -89,6 +97,9 @@ type matches_and_closures = {
 let matches =
     (~force_partial_match=?, dp: Pat.t, d: DHExp.t): matches_and_closures => {
   /* Closure capture for Probe instrumentation */
+  if (force_partial_match == Some(true)) {
+    print_endline("Indet match -> partial pattern match");
+  };
   let closure_closures: ref(closure_closures) = ref([]);
   let capture =
       (pr: Probe.t, dp: Term.Pat.t, d: DHExp.t, inner_match: match_result)

@@ -294,7 +294,6 @@ module Transition = (EV: EV_MODE) => {
           Pat.bound_vars(dp)
           |> List.filter(x => !VarBstMap.Ordered.contains(env, x))
         };
-      List.iter(print_endline, failed_matches);
       let matches_str = {
         switch (matches') {
         | IndetMatch
@@ -473,10 +472,30 @@ module Transition = (EV: EV_MODE) => {
         switch (unboxed_fun) {
         | Constructor(_) => Constructor
         | FunEnv(dp, d3, function_lexical_env) =>
-          let matches = matches(dp, d2');
-          switch (matches.matches) {
-          | IndetMatch
+          let matches' = matches(dp, d2');
+          switch (matches'.matches) {
           | DoesNotMatch => Indet
+          | IndetMatch =>
+            let matches' = matches(~force_partial_match=true, dp, d2');
+            switch (matches'.matches) {
+            | IndetMatch
+            | DoesNotMatch => Indet
+            | Matches(function_arg_env) =>
+              let env'' =
+                evaluate_extend_env(
+                  ~ap_id=Term.Exp.rep_id(d),
+                  ~call_stack=env.call_stack,
+                  function_arg_env,
+                  function_lexical_env,
+                );
+              Step({
+                expr: subst_env(env'', d3),
+                state_update:
+                  capture_closures(env'', state, matches'.closures),
+                kind: PartialStep(["test"]),
+                is_value: false,
+              });
+            };
           | Matches(function_arg_env) =>
             let env'' =
               evaluate_extend_env(
@@ -487,15 +506,43 @@ module Transition = (EV: EV_MODE) => {
               );
             Step({
               expr: subst_env(env'', d3),
-              state_update: capture_closures(env'', state, matches.closures),
+              state_update: capture_closures(env'', state, matches'.closures),
               kind: FunAp,
               is_value: false,
             });
           };
         | FunNoEnv(dp, d3) when mode == `Substitution =>
-          let matches = matches(dp, d2');
-          switch (matches.matches) {
-          | IndetMatch
+          let matches' = matches(dp, d2');
+          switch (matches'.matches) {
+          | IndetMatch =>
+            let partial_matches = matches(~force_partial_match=true, dp, d2');
+            switch (partial_matches.matches) {
+            | IndetMatch
+            | DoesNotMatch => Indet
+            | Matches(function_arg_env) =>
+              let failed_matches =
+                switch (partial_matches.matches) {
+                | IndetMatch
+                | DoesNotMatch => []
+                | Matches(_) => ["placeholder"]
+                };
+              Step({
+                expr:
+                  subst_env(
+                    function_arg_env |> ClosureEnvironment.of_environment,
+                    d3,
+                  ),
+                state_update:
+                  capture_closures(
+                    function_arg_env |> ClosureEnvironment.of_environment,
+                    state,
+                    matches'.closures,
+                  ),
+                kind: PartialStep(failed_matches),
+                is_value: false,
+              });
+            };
+
           | DoesNotMatch => Indet
           | Matches(function_arg_env) =>
             Step({
@@ -508,7 +555,7 @@ module Transition = (EV: EV_MODE) => {
                 capture_closures(
                   function_arg_env |> ClosureEnvironment.of_environment,
                   state,
-                  matches.closures,
+                  matches'.closures,
                 ),
               kind: FunAp,
               is_value: false,
