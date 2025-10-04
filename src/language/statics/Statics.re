@@ -2203,10 +2203,11 @@ and upat_to_info_map =
     | Asc(p, ann) =>
       let (ann, m) = utyp_to_info_map(~ctx, ~ancestors, ann, m);
       let (p, m) = go(~ctx, ~under_ascription=true, ~ana=ann.term, p, m);
+      let self: Self.t = Just(ann.term);
       add(
-        ~self=Just(ann.term),
+        ~self,
         ~ctx=p.ctx,
-        ~typ_constraints=p.typ_constraints,
+        ~typ_constraints=p.typ_constraints @ subsumption_constraints_t(self),
         ~constraint_=p.constraint_,
         m,
       );
