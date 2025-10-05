@@ -1,4 +1,3 @@
-open Language;
 open Haz3lcore;
 open Test_Editing;
 module Fresh = Language.IdTagged.FreshGrammar;

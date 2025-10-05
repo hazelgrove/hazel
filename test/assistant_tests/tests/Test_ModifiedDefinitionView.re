@@ -16,11 +16,14 @@ open Utils_AssistantTests;
 let test = (~name, ~init: string, ~goal): test_case(_) => {
   let z = perform(Zipper.init(), mk(init));
   let info_map = mk_statics(z);
-  let curr_node_info =
-    Option.get(AssistantTreeHelper.build_curr_node_info(z, info_map));
+  let curr_node_info = AssistantTreeHelper.build_curr_node_info(z, info_map);
   let prepped_z_str =
-    CompositionView.prepare_definition(z, curr_node_info)
-    |> CompositionView.printer;
+    switch (curr_node_info) {
+    | Some(node) =>
+      // The actual function we're testing
+      CompositionView.prepare_definition(z, node) |> CompositionView.printer
+    | None => ""
+    };
   test_case(name, `Quick, () =>
     check(testable(Fmt.string, String.equal), goal, goal, prepped_z_str)
   );
@@ -135,19 +138,11 @@ let view_definition_tests = [
     ~init={|let x = Some(42) in¦ case x | Some(n) => n | None => 0|},
     ~goal={|let x = Some(42) in case x | Some(n) => n | None => 0|},
   ),
-  // Edge cases
-  // todo: look into why this case is failing
-  // test(
-  //   ~name="View Definition (Single Expression - No Let)",
-  //   ~init={|§42 + 1¦|},
-  //   ~goal={|42 + 1|},
-  // ),
-  // todo: Should be able to handle awkward initial selection states via finding nearest node
-  // test(
-  //   ~name="View Definition (Pattern case - At Variable)",
-  //   ~init={|let x = 5¦ in x|},
-  //   ~goal={|let x = 5 in x|},
-  // ),
+  test(
+    ~name="View Definition (Single Expression - No Let)",
+    ~init={|42 + 1¦|},
+    ~goal={|42 + 1|},
+  ),
   test(
     ~name="View Definition (Empty Let Body)",
     ~init={|let x = 42 in¦ ?|},

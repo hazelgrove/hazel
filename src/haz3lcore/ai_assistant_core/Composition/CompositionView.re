@@ -15,16 +15,16 @@ let concave_char = "~";
 let selection_char = "§"; /* Note this is two bytes */
 let caret_regexp = StringUtil.regexp(caret_char);
 
-// let printer = (z: Zipper.t): string => {
-//   Printer.of_zipper(
-//     ~holes=convex_char,
-//     ~concave_holes=concave_char,
-//     ~special_folds=true,
-//     ~caret=caret_char,
-//     ~selection_anchor=selection_char,
-//     z,
-//   );
-// };
+let printer = (z: Zipper.t): string => {
+  Printer.of_zipper(
+    ~holes=convex_char,
+    ~concave_holes=concave_char,
+    ~special_folds=true,
+    ~caret=caret_char,
+    ~selection_anchor=selection_char,
+    z,
+  );
+};
 
 let get_individual_ids_of_let = (term: Info.t): (Id.t, Id.t, Id.t) => {
   switch (term) {
@@ -47,51 +47,11 @@ let get_def_id_of_let = (term: Info.t): Id.t => {
   def;
 };
 
-let printer = (seg: Segment.t): string => {
-  Printer.of_segment(~special_folds=true, seg);
-};
-
-let prepare_definition = (z: Zipper.t, curr_node: AssistantTreeHelper.node) => {
-  let rec fold_terms = (z: Zipper.t, ids: list(Id.t)) => {
-    switch (ids) {
-    | [] => z
-    | [id, ...rest] =>
-      // Fold the *term* of the definition
-      switch (
-        Select.term(
-          ~defs_exclude_bodies=false,
-          ~case_rules=false,
-          CachedSyntax.init(z).term_data,
-          id,
-          z,
-        )
-      ) {
-      | Some(z') =>
-        switch (
-          ProjectorPerform.go(
-            CachedSyntax.init(z').term_data,
-            SetIndicated(Specific(Fold)),
-            z',
-          )
-        ) {
-        | Ok(z'') => fold_terms(z'', rest)
-        | _ => fold_terms(z', rest)
-        }
-      | None => fold_terms(z, rest)
-      }
-    };
-  };
-  let fold_body = (z: Zipper.t, term: Info.t) => {
-    let id =
-      switch (term) {
-      | InfoExp({term, _}) =>
-        switch (Exp.term_of(term)) {
-        | Let(_, _, body) => Exp.rep_id(body)
-        | TyAlias(_, _, body) => Exp.rep_id(body)
-        | _ => Id.invalid
-        }
-      | _ => Id.invalid
-      };
+let rec fold_terms = (z: Zipper.t, ids: list(Id.t)) => {
+  switch (ids) {
+  | [] => z
+  | [id, ...rest] =>
+    // Fold the *term* of the definition
     switch (
       Select.term(
         ~defs_exclude_bodies=false,
@@ -102,19 +62,54 @@ let prepare_definition = (z: Zipper.t, curr_node: AssistantTreeHelper.node) => {
       )
     ) {
     | Some(z') =>
-      let z'' =
+      switch (
         ProjectorPerform.go(
           CachedSyntax.init(z').term_data,
           SetIndicated(Specific(Fold)),
           z',
-        );
-      z'';
-    | _ => Ok(z)
-    };
+        )
+      ) {
+      | Ok(z'') => fold_terms(z'', rest)
+      | _ => fold_terms(z', rest)
+      }
+    | None => fold_terms(z, rest)
+    }
   };
-  print_endline(
-    "curr_node.id: " ++ Uuidm.to_string(Info.id_of(curr_node.info)),
-  );
+};
+
+let fold_body = (z: Zipper.t, term: Info.t) => {
+  let id =
+    switch (term) {
+    | InfoExp({term, _}) =>
+      switch (Exp.term_of(term)) {
+      | Let(_, _, body) => Exp.rep_id(body)
+      | TyAlias(_, _, body) => Exp.rep_id(body)
+      | _ => Id.invalid
+      }
+    | _ => Id.invalid
+    };
+  switch (
+    Select.term(
+      ~defs_exclude_bodies=false,
+      ~case_rules=false,
+      CachedSyntax.init(z).term_data,
+      id,
+      z,
+    )
+  ) {
+  | Some(z') =>
+    let z'' =
+      ProjectorPerform.go(
+        CachedSyntax.init(z').term_data,
+        SetIndicated(Specific(Fold)),
+        z',
+      );
+    z'';
+  | _ => Ok(z)
+  };
+};
+
+let prepare_definition = (z: Zipper.t, curr_node: AssistantTreeHelper.node) => {
   let children_def_ids =
     List.map(
       (c: AssistantTreeHelper.node) => get_def_id_of_let(c.info),
@@ -125,21 +120,11 @@ let prepare_definition = (z: Zipper.t, curr_node: AssistantTreeHelper.node) => {
       (c: AssistantTreeHelper.node) => get_def_id_of_let(c.info),
       curr_node.siblings,
     );
-  print_endline(
-    "def ids of children: "
-    ++ String.concat(", ", List.map(Uuidm.to_string, children_def_ids)),
-  );
-  print_endline(
-    "def ids of siblings: "
-    ++ String.concat(", ", List.map(Uuidm.to_string, siblings_def_ids)),
-  );
   let z = fold_terms(z, children_def_ids);
   let z' = fold_terms(z, siblings_def_ids);
-
   let z'' =
     switch (curr_node.parent) {
     | Some(parent) =>
-      // this switch is a temporary workaround for below mentioned bug
       switch (fold_body(z', parent.info)) {
       | Ok(z'') =>
         switch (
@@ -161,32 +146,23 @@ let prepare_definition = (z: Zipper.t, curr_node: AssistantTreeHelper.node) => {
     };
 
   let seg = z''.selection.content;
-  print_endline(printer(seg));
-  seg;
-  // Todo @andrew: Not sure of the perf effects of the below
-  // What this does is effectively display the local code map from the parent of the current node,
-  // down, along with the current selection (the current node the cursor is at, using the same
-  // characters test_editing uses).
-  // This effectively Cuts out the def of the parent, pastes it as it's own thing, and then
-  // selects the def of the current node.
-  // let z = Zipper.init();
-  // let z' = Zipper.insert_segment(z, seg);
-  // let z'' =
-  //   switch (
-  //     // Selects the current node, displaying where the cursor selection is.
-  //     Select.term(
-  //       ~defs_exclude_bodies=true,
-  //       ~case_rules=false,
-  //       CachedSyntax.init(z').term_data,
-  //       AssistantTreeHelper.id_of(curr_node),
-  //       z',
-  //     )
-  //   ) {
-  //   | Some(z'') => z''
-  //   | None => raise(Failure("Failed to select term"))
-  //   };
-  // print_endline(printer(z''));
-  // z'';
+  let z = Zipper.init();
+  let z' = Zipper.insert_segment(z, seg);
+  let z'' =
+    switch (
+      // Selects the current node, displaying where the cursor selection is.
+      Select.term(
+        ~defs_exclude_bodies=false,
+        ~case_rules=false,
+        CachedSyntax.init(z').term_data,
+        AssistantTreeHelper.id_of(curr_node),
+        z',
+      )
+    ) {
+    | Some(z'') => z''
+    | None => raise(Failure("Failed to select term"))
+    };
+  z'';
 };
 
 let full_definition =
@@ -200,7 +176,8 @@ let full_definition =
       z,
     )
   ) {
-  | Some(z'') => printer(z''.selection.content)
+  | Some(z'') =>
+    Printer.of_segment(~special_folds=false, z''.selection.content)
   | None => "Failed to derive full definition"
   };
 };
