@@ -52,6 +52,7 @@ let rec external_precedence = (exp: Exp.t): Precedence.t => {
   | Atom(Bool(_) | Int(_) | SInt(_) | Float(_) | String(_) | Nat(_))
   | EmptyHole
   | Deferral(_)
+  | ExplicitNonlabel
   | BuiltinFun(_)
   | Undefined
   | Label(_)
@@ -104,6 +105,7 @@ let external_precedence_pat = (dp: Pat.t) =>
   // Indivisible forms never need parentheses around them
   | EmptyHole
   | Wild
+  | ExplicitNonlabel
   | Invalid(_)
   | Var(_)
   | Atom(Bool(_) | Int(_) | SInt(_) | Float(_) | String(_) | Nat(_))
@@ -137,8 +139,10 @@ let external_precedence_typ = (tp: Typ.t) =>
   | Var(_)
   | Atom(_)
   | Label(_)
+  | ExplicitNonlabel
   | TupLabel(_) => Precedence.max
-
+  | ProdProjection(_) => Precedence.dot
+  | ProdExtension(_) => Precedence.ap
   // Same goes for forms which are already surrounded
   | Parens(_)
   | List(_) => Precedence.max
@@ -195,8 +199,10 @@ let rec parenthesize =
   | LivelitName(_)
   //| Constructor(_) // Not indivisible because of the type annotation!
   | Deferral(_)
+  | ExplicitNonlabel
   | BuiltinFun(_)
   | Tuple([])
+  | Label(_)
   | Undefined => exp
 
   // Forms that currently need to stripped before outputting
@@ -227,6 +233,25 @@ let rec parenthesize =
   | TypFun(tp, e, n) =>
     TypFun(tp, parenthesize(e) |> paren_assoc_at(Precedence.fun_), n)
     |> rewrap
+  | Tuple([e])
+      when
+        switch (e.term) {
+        | TupLabel(_) => false
+        | _ => true
+        } =>
+    // Single-element tuples are printed as (_ = e)
+    let inner =
+      TupLabel(
+        ExplicitNonlabel |> Exp.temp,
+        parenthesize(e) |> paren_at(Precedence.prod),
+      )
+      |> rewrap;
+
+    if (already_paren) {
+      inner;
+    } else {
+      Parens(inner) |> Exp.fresh;
+    };
   | Tuple(es) =>
     let inner =
       Tuple(
@@ -239,11 +264,14 @@ let rec parenthesize =
     } else {
       Parens(inner) |> Exp.fresh;
     };
-  | Label(_) => exp
   | TupLabel(l, e) =>
     TupLabel(l, parenthesize(e) |> paren_at(Precedence.min)) |> rewrap
   | Dot(e, l) =>
-    Dot(parenthesize(e) |> paren_at(Precedence.min), l) |> rewrap
+    Dot(
+      parenthesize(e) |> paren_at(Precedence.dot),
+      parenthesize(l) |> paren_at(Precedence.dot),
+    )
+    |> rewrap
   | TupleExtension(l, r) =>
     TupleExtension(
       parenthesize(l) |> paren_at(Precedence.dot),
@@ -409,6 +437,7 @@ and parenthesize_pat =
 
   // Other forms
   | Wild => pat
+  | ExplicitNonlabel => pat
   | Parens(p) =>
     Parens(
       parenthesize_pat(~already_paren=true, p)
@@ -489,6 +518,25 @@ and parenthesize_typ =
   | List(t) =>
     List(parenthesize_typ(t) |> paren_typ_at(Precedence.min)) |> rewrap
   | Prod([]) => typ
+  | Prod([t])
+      when
+        switch (t.term) {
+        | TupLabel(_) => false
+        | _ => true
+        } =>
+    // Single-element tuples are printed as (_ = e)
+    let inner =
+      TupLabel(
+        ExplicitNonlabel |> Typ.temp,
+        parenthesize_typ(t) |> paren_typ_at(Precedence.prod),
+      )
+      |> rewrap;
+
+    if (already_paren) {
+      inner;
+    } else {
+      Parens(inner) |> Typ.fresh;
+    };
   | Prod(ts) =>
     let inner =
       Prod(
@@ -498,9 +546,22 @@ and parenthesize_typ =
       )
       |> rewrap;
     already_paren ? inner : Parens(inner) |> Typ.fresh;
+  | ExplicitNonlabel => typ
   | Label(_) => typ
   | TupLabel(l, t) =>
     TupLabel(l, parenthesize_typ(t) |> paren_typ_at(Precedence.min))
+    |> rewrap
+  | ProdProjection(t1, t2) =>
+    ProdProjection(
+      parenthesize_typ(t1) |> paren_typ_at(Precedence.dot),
+      parenthesize_typ(t2) |> paren_typ_at(Precedence.dot),
+    )
+    |> rewrap
+  | ProdExtension(t1, t2) =>
+    ProdExtension(
+      parenthesize_typ(t1) |> paren_typ_assoc_at(Precedence.plus),
+      parenthesize_typ(t2) |> paren_typ_at(Precedence.plus),
+    )
     |> rewrap
   | Rec(tp, t) =>
     Rec(
@@ -620,6 +681,17 @@ let should_add_space = (s1, s2) =>
     false
   | _ when String.ends_with(s1, ~suffix="…") =>
     /* Hack case for probe projector abbreviations */
+    false
+  | _ when s1 == "." && (Token.is_quoted_label(s2) || Token.is_var(s2)) =>
+    false
+  | _
+      when
+        s2 == "."
+        && (
+          Token.is_quoted_label(s1)
+          || Token.is_var(s1)
+          || String.ends_with(s1, ~suffix=")")
+        ) =>
     false
   | _ => true
   };
@@ -767,6 +839,7 @@ let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
   // @ (t |> fold_if(settings.fold_cast_types));
   | ListLit([]) => text_to_pretty(exp |> Exp.rep_id, Sort.Exp, "[]")
   | Deferral(_) => text_to_pretty(exp |> Exp.rep_id, Sort.Exp, "_")
+  | ExplicitNonlabel => text_to_pretty(exp |> Exp.rep_id, Sort.Exp, "_")
   | ListLit([x, ...xs]) =>
     // TODO: Add optional newlines
     let* x = go(x)
@@ -951,7 +1024,7 @@ let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
         )
       | _ => go(l)
       };
-    List.flatten([e, [mk_form(DotExp, exp |> Exp.rep_id, [])], l]);
+    e @ [mk_form(DotExp, exp |> Exp.rep_id, [])] @ l;
   | Let(p, e1, e2) =>
     // TODO: Add optional newlines
     let id = exp |> Exp.rep_id;
@@ -1159,6 +1232,7 @@ and pat_to_pretty = (~settings: Settings.t, pat: Pat.t): pretty => {
       }),
     ]);
   | Wild => text_to_pretty(pat |> Pat.rep_id, Sort.Pat, "_")
+  | ExplicitNonlabel => text_to_pretty(pat |> Pat.rep_id, Sort.Pat, "_")
   | Var(v) => text_to_pretty(pat |> Pat.rep_id, Sort.Pat, v)
   | Atom(c) =>
     text_to_pretty(pat |> Pat.rep_id, Sort.Pat, Atom.to_literal(c))
@@ -1318,7 +1392,6 @@ and typ_to_pretty = (~settings: Settings.t, typ: Typ.t): pretty => {
       }),
       es,
     );
-
   | Var(v) => text_to_pretty(typ |> Typ.rep_id, Sort.Typ, v)
   | Atom(Int) => text_to_pretty(typ |> Typ.rep_id, Sort.Typ, "Int")
   | Atom(SInt) => text_to_pretty(typ |> Typ.rep_id, Sort.Typ, "SInt")
@@ -1342,6 +1415,7 @@ and typ_to_pretty = (~settings: Settings.t, typ: Typ.t): pretty => {
           ts,
         ),
       );
+  | ExplicitNonlabel => text_to_pretty(typ |> Typ.rep_id, Sort.Typ, "_")
   | Label(l) =>
     text_to_pretty(typ |> Typ.rep_id, Sort.Typ, Token.label_quote(l))
   | TupLabel(l, t) =>
@@ -1375,6 +1449,24 @@ and typ_to_pretty = (~settings: Settings.t, typ: Typ.t): pretty => {
         t;
       },
     ]);
+  | ProdProjection(t1, t2) =>
+    let* t1 = go(t1)
+    and* t2 =
+      switch (t2.term) {
+      | Label(l') =>
+        label_to_pretty(
+          ~label_only_position=true,
+          Sort.Typ,
+          l',
+          t2 |> Typ.rep_id,
+        )
+      | _ => go(t2)
+      };
+    t1 @ [mk_form(ProdProjection, typ |> Typ.rep_id, [])] @ t2;
+  | ProdExtension(t1, t2) =>
+    let+ t1 = go(t1)
+    and+ t2 = go(t2);
+    t1 @ [mk_form(ProdExtension, typ |> Typ.rep_id, [])] @ t2;
   | Parens(t) =>
     let id = typ |> Typ.rep_id;
     let+ t = go(t);
