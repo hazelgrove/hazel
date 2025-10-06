@@ -206,13 +206,13 @@
   /* AT CODE LEVEL */
   --code-text-z: 10;
   --projector-z: 10;
-  --line-number-z: 11;
 
   /* ABOVE CODE LEVEL */
   --backpack-targets-z: 11;
   --projector-indicated-z: 11;
   --projector-hover-z: 12;
   --caret-z: 20;
+  --line-number-z: 21;
   --projector-overlay-z: 29;
 
   /* TOP LEVEL UI */
