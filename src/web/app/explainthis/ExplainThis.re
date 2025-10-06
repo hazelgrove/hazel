@@ -586,6 +586,7 @@ let get_doc =
         );
       | Undefined => get_message(UndefinedExp.undefined_exps)
       | Deferral(_) => get_message(TerminalExp.deferral_exps)
+      | ExplicitNonlabel => simple("Explicitly unlabeled entry")
       | Atom(Bool(b)) => get_message(TerminalExp.bool_exps(b))
       | Atom(Int(i)) => get_message(TerminalExp.int_exps(i))
       | Atom(SInt(i)) => get_message(TerminalExp.sint_exps(i))
@@ -1143,6 +1144,7 @@ let get_doc =
         | Parens(_)
         | Probe(_)
         | Label(_)
+        | ExplicitNonlabel
         | Asc(_) => default // Shouldn't get hit?
         };
       | Label(name) =>
@@ -1736,6 +1738,7 @@ let get_doc =
             basic(LetExp.lets_ctr);
           }
         | TupLabel(_)
+        | ExplicitNonlabel
         | Label(_)
         | Invalid(_) => default // Shouldn't get hit
         | Parens(_)
@@ -2272,6 +2275,7 @@ let get_doc =
           ),
         TerminalPat.var(v),
       )
+    | ExplicitNonlabel => simple("Explicitly unlabeled entry")
     | Label(name) =>
       get_message(
         ~format=
@@ -2644,6 +2648,9 @@ let get_doc =
       )
     | Sum(_) => get_message(SumTyp.labelled_sum_typs)
     | Unknown(Hole(Invalid(_))) => simple("Not a type or type operator")
+    | ExplicitNonlabel
+    | ProdProjection(_)
+    | ProdExtension(_)
     | Parens(_) => default // Shouldn't be hit?
     }
   | Some(InfoTPat(info)) =>
