@@ -206,6 +206,7 @@
   /* AT CODE LEVEL */
   --code-text-z: 10;
   --projector-z: 10;
+  --line-number-z: 11;
 
   /* ABOVE CODE LEVEL */
   --backpack-targets-z: 11;

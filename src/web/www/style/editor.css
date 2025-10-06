@@ -30,10 +30,15 @@
   position: sticky; 
   display: flex;
   padding: 0;
+  padding-left: 0.5em;
   min-width: 31px; /*The width of three digits*/
-  opacity: 0.5;
   text-align: right;
   justify-content: flex-end;
+  z-index: var(--line-number-z);
+}
+
+.line-numbers-text{
+  opacity: 0.5;
 }
 
 /* This is a hack to compensating for default linebreak handling
