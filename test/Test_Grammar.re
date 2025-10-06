@@ -48,6 +48,7 @@ let sample_expression = (cls_exp: Exp.cls): Grammar.UnitGrammar.exp => {
       | Fun => fn(Pat.var("x"), var("x"), None, None)
       | TypFun => typ_fun(TPat.var("x"), empty_hole(), None)
       | Label => label("label")
+      | ExplicitNonlabel => explicit_non_label()
       | TupLabel => tup_label(label("label"), empty_hole())
       | Tuple => tuple([])
       | TupleExtension => tuple_extension(empty_hole(), empty_hole())
@@ -121,6 +122,7 @@ let sample_pattern = (cls_pat: Pat.cls): Grammar.UnitGrammar.pat => {
       | Ap => ap(empty_hole(), empty_hole())
       | Asc => asc(empty_hole(), Typ.string())
       | Wild => wild()
+      | ExplicitNonlabel => explicit_non_label()
       }
     )
   );
@@ -151,8 +153,16 @@ let sample_type = (cls_typ: Typ.cls): Grammar.UnitGrammar.typ => {
       | Internal => unknown(Internal)
       | Inconsistent => unknown(Inconsistent)
       | Label => label("label")
+      | ExplicitNonlabel => explicit_non_label()
       | MultiHole => unknown(Hole(MultiHole([])))
       | Sum => sum([])
+      | ProdProjection =>
+        prod_projection(
+          unknown(Hole(EmptyHole)),
+          unknown(Hole(EmptyHole)),
+        )
+      | ProdExtension =>
+        prod_extension(unknown(Hole(EmptyHole)), unknown(Hole(EmptyHole)))
       | Constructor => assert(false) // Excluded because there is no Typ constructor
       }
     )

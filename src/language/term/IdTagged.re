@@ -5,6 +5,7 @@ module IdTag = {
   type t = {ids: list(Id.t)};
 
   let fresh = (): t => {ids: [Id.mk()]};
+  let temp = (): t => {ids: [Id.invalid]};
 };
 
 [@deriving (show({with_path: false}), sexp, yojson)]

@@ -134,8 +134,11 @@ module Ctr = {
     | Atom(String)
     | Arrow(_)
     | Forall(_)
+    | ProdProjection(_)
+    | ProdExtension(_)
     | Var(_) => Infinite
     | Parens(_)
+    | ExplicitNonlabel
     | Label(_) =>
       failwith(
         "all_ctrs_of_type called with a non-normalized type: " ++ Typ.show(ty),
@@ -415,6 +418,9 @@ module UnseenPatternList: UnseenPatternList = {
     | Forall(_)
     | Var(_) => unseen_pattern
     | Parens(_)
+    | ProdProjection(_)
+    | ProdExtension(_)
+    | ExplicitNonlabel
     | Label(_) =>
       failwith(
         "prepend_ctr called with a non-normalized type: "
@@ -548,6 +554,9 @@ module UnseenPatternList: UnseenPatternList = {
     | Forall(_)
     | Var(_) => cons_wild(unseen_pattern)
     | Parens(_)
+    | ProdProjection(_)
+    | ProdExtension(_)
+    | ExplicitNonlabel
     | Label(_) =>
       failwith(
         "cons_from_type called with a non-normalized type: "
@@ -609,6 +618,9 @@ module UnseenPatternList: UnseenPatternList = {
     | Forall(_)
     | Var(_) => cons_wild(unseen_pattern)
     | Parens(_)
+    | ProdProjection(_)
+    | ProdExtension(_)
+    | ExplicitNonlabel
     | Label(_) =>
       failwith(
         "prepend_from_type called with a non-normalized type: "

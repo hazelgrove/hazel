@@ -225,6 +225,7 @@ and Exp: {
         | Atom(_)
         | Constructor(_)
         | Label(_)
+        | ExplicitNonlabel
         | Deferral(_)
         | Var(_)
         | LivelitName(_)
@@ -306,6 +307,7 @@ and Exp: {
     | (Deferral(d1), Deferral(d2)) => d1 == d2
     | (Atom(c1), Atom(c2)) => c1 == c2
     | (Label(l1), Label(l2)) => l1 == l2
+    | (ExplicitNonlabel, ExplicitNonlabel) => true
     | (ListLit(xs), ListLit(ys)) =>
       List.length(xs) == List.length(ys) && List.equal(fast_equal, xs, ys)
     | (Constructor(c1, _), Constructor(c2, _))
@@ -375,6 +377,8 @@ and Exp: {
          )
     | (Asc(e1, t1), Asc(e2, t2)) =>
       fast_equal(e1, e2) && Typ.fast_equal(t1, t2)
+    | (TupLabel({term: ExplicitNonlabel, _}, e1), _) => fast_equal(e1, e2)
+    | (_, TupLabel({term: ExplicitNonlabel, _}, e2)) => fast_equal(e1, e2)
     | (TupLabel(e1, e2), TupLabel(e3, e4)) =>
       fast_equal(e1, e3) && fast_equal(e2, e4)
     | (Dot(e1, e2), Dot(e3, e4)) =>
@@ -385,6 +389,7 @@ and Exp: {
     | (Deferral(_), _)
     | (Atom(_), _)
     | (Label(_), _)
+    | (ExplicitNonlabel, _)
     | (LivelitName(_), _)
     | (ListLit(_), _)
     | (Constructor(_), _)
@@ -474,7 +479,8 @@ and Pat: {
         | Atom(_)
         | Constructor(_)
         | Label(_)
-        | Var(_) => term
+        | Var(_)
+        | ExplicitNonlabel => term
         | MultiHole(things) => MultiHole(List.map(any_map_term, things))
         | ListLit(ts) => ListLit(List.map(pat_map_term, ts))
         | Ap(e1, e2) => Ap(pat_map_term(e1), pat_map_term(e2))
@@ -506,6 +512,7 @@ and Pat: {
     | (Wild, Wild) => true
     | (Atom(c1), Atom(c2)) => c1 == c2
     | (Label(s1), Label(s2)) => s1 == s2
+    | (ExplicitNonlabel, ExplicitNonlabel) => true
     | (Constructor(c1, Some(Some(t1))), Constructor(c2, Some(Some(t2)))) =>
       c1 == c2 && Typ.fast_equal(t1, t2)
     | (Constructor(c1, Some(None)), Constructor(c2, Some(None)))
@@ -534,6 +541,7 @@ and Pat: {
     | (Var(_), _)
     | (TupLabel(_), _)
     | (Tuple(_), _)
+    | (ExplicitNonlabel, _)
     | (Ap(_), _)
     | (Asc(_), _) => false
     };
@@ -598,6 +606,7 @@ and Typ: {
         | Unknown(Inconsistent)
         | Atom(_)
         | Label(_)
+        | ExplicitNonlabel
         | Var(_) => term
         | List(t) => List(typ_map_term(t))
         | Unknown(Hole(MultiHole(things))) =>
@@ -618,6 +627,10 @@ and Typ: {
               variants,
             ),
           )
+        | ProdProjection(t1, t2) =>
+          ProdProjection(typ_map_term(t1), typ_map_term(t2))
+        | ProdExtension(t1, t2) =>
+          ProdExtension(typ_map_term(t1), typ_map_term(t2))
         | Rec(tp, t) => Rec(tpat_map_term(tp), typ_map_term(t))
         | Forall(tp, t) => Forall(tpat_map_term(tp), typ_map_term(t))
         | Probe(t, probe) => Probe(typ_map_term(t), probe)
@@ -633,6 +646,7 @@ and Typ: {
       switch (term) {
       | Atom(_) => ty
       | Label(name) => Grammar.Label(name) |> rewrap
+      | ExplicitNonlabel => ExplicitNonlabel |> rewrap
       | Unknown(prov) => Unknown(prov) |> rewrap
       | Arrow(ty1, ty2) =>
         Arrow(subst(s, x, ty1), subst(s, x, ty2)) |> rewrap
@@ -650,6 +664,10 @@ and Typ: {
       | List(ty) => List(subst(s, x, ty)) |> rewrap
       | Var(y) => str == y ? s : Var(y) |> rewrap
       | Parens(ty) => Parens(subst(s, x, ty)) |> rewrap
+      | ProdProjection(t1, t2) =>
+        ProdProjection(subst(s, x, t1), subst(s, x, t2)) |> rewrap
+      | ProdExtension(t1, t2) =>
+        ProdExtension(subst(s, x, t1), subst(s, x, t2)) |> rewrap
       | Probe(ty, probe) => Probe(subst(s, x, ty), probe) |> rewrap
       };
     | None => ty
@@ -666,6 +684,14 @@ and Typ: {
     | (TupLabel(label1, t1'), TupLabel(label2, t2')) =>
       eq_internal(~alpha_equivalence, n, label1, label2)
       && eq_internal(~alpha_equivalence, n, t1', t2')
+    | (ProdProjection(t1, t2), ProdProjection(t1', t2')) =>
+      eq_internal(~alpha_equivalence, n, t1, t1')
+      && eq_internal(~alpha_equivalence, n, t2, t2')
+    | (ProdProjection(_), _) => false
+    | (ProdExtension(t1, t2), ProdExtension(t1', t2')) =>
+      eq_internal(~alpha_equivalence, n, t1, t1')
+      && eq_internal(~alpha_equivalence, n, t2, t2')
+    | (ProdExtension(_), _) => false
     | (TupLabel(_), _) => false
     | (Rec(x1, t1), Rec(x2, t2))
     | (Forall(x1, t1), Forall(x2, t2)) =>
@@ -691,6 +717,8 @@ and Typ: {
     | (Forall(_), _) => false
     | (Atom(name1), Atom(name2)) => name1 == name2
     | (Atom(_), _) => false
+    | (ExplicitNonlabel, ExplicitNonlabel) => true
+    | (ExplicitNonlabel, _) => false
     | (Label(name1), Label(name2)) =>
       LabeledTuple.match_labels(name1, name2)
     | (Label(_), _) => false

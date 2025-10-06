@@ -68,6 +68,8 @@ let rec transition =
           Exp.(fn(Pat.(asc(p, t1)), asc(e, t2), t, v))
         ),
       )
+    | (TupLabel({term: ExplicitNonlabel, _}, e), _) =>
+      Some(recur(Asc(e, t) |> DHExp.fresh))
     | (TupLabel(l, e), TupLabel(_l2, t)) =>
       // TODO Figure out what to do if the labels don't match
       Some(TupLabel(l, recur(Asc(e, t) |> DHExp.fresh)) |> DHExp.fresh)
@@ -226,6 +228,7 @@ let rec transition =
     | (Invalid(_), _)
     | (MultiHole(_), _)
     | (Label(_), _)
+    | (ExplicitNonlabel, _)
     | (Var(_), _)
     | (Ap(_), _)
     | (DeferredAp(_), _)

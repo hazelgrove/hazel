@@ -100,6 +100,7 @@ let ty_subst = (s: Typ.t, tpat: TPat.t, exp: t): t => {
           | TupLabel(_)
           | TupleExtension(_)
           | Label(_)
+          | ExplicitNonlabel
           | Dot(_)
           | Match(_)
           | LivelitName(_)
@@ -184,7 +185,11 @@ let rec ty_comparable = (d1, d2) => {
   | (Label(_), _) => false
   | (TupLabel(l1, d1), TupLabel(l2, d2)) =>
     ty_comparable(l1, l2) && ty_comparable(d1, d2)
+  | (TupLabel({term: ExplicitNonlabel, _}, d1), _) => ty_comparable(d1, d2)
+  | (_, TupLabel({term: ExplicitNonlabel, _}, d2)) => ty_comparable(d1, d2)
   | (TupLabel(_), _) => false
+  | (ExplicitNonlabel, ExplicitNonlabel) => true
+  | (ExplicitNonlabel, _) => false
   // Note(zhiyao): Listlit checks the consistency of all elements,
   // which is different from Tuple (check pairwise consistency).
   | (ListLit(ds1), ListLit(ds2)) =>
@@ -274,6 +279,10 @@ let rec poly_equal = (d1, d2): bool => {
   | (Atom(_), _) => false
   | (Label(l1), Label(l2)) => l1 == l2
   | (Label(_), _) => false
+  | (ExplicitNonlabel, ExplicitNonlabel) => true
+  | (ExplicitNonlabel, _) => false
+  | (TupLabel({term: ExplicitNonlabel, _}, d1), _) => poly_equal(d1, d2)
+  | (_, TupLabel({term: ExplicitNonlabel, _}, d2)) => poly_equal(d1, d2)
   | (TupLabel(l1, d1), TupLabel(l2, d2)) =>
     poly_equal(l1, l2) && poly_equal(d1, d2)
   | (TupLabel(_), _) => false
