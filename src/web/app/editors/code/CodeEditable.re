@@ -266,10 +266,14 @@ module View = {
       | _ => Effect.Ignore
       };
 
+    let display_line_numbers: bool = lines && globals.settings.line_numbers;
+
     Node.div(
       ~attrs=[
         Attr.classes(
-          ["cell-item", "code-editor"] @ (selected ? ["selected"] : []),
+          ["cell-item", "code-editor"]
+          @ (selected ? ["selected"] : [])
+          @ (display_line_numbers ? ["has-line-numbers"] : []),
         ),
         Attr.on_pointerdown(evt =>
           move_or_select(Pointer.Event.mk(evt), Pointer.Event.id_of(evt))
@@ -280,7 +284,7 @@ module View = {
         Attr.on_mousemove(evt => drag_select(Pointer.Event.mk(evt))),
         Attr.on_wheel(evt => drag_select(Pointer.Event.mk(evt))),
       ],
-      lines && globals.settings.line_numbers
+      display_line_numbers
         ? LineNumbers.View.view(model) @ [code_view] : [code_view],
     );
   };

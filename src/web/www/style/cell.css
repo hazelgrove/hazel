@@ -16,7 +16,11 @@
   /* Only code in primary editor is selectable atm */
   cursor: text;
   flex-direction: row;
-  padding-left: 0px;
+  padding-left: 1em;
+}
+
+#main .code-editor.has-line-numbers{
+  padding-left: 0.25em;
 }
 
 
