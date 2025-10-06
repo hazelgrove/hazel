@@ -12,7 +12,7 @@ let strip_wrap =
       (cont: TermBase.exp_t => TermBase.exp_t, e: TermBase.exp_t) =>
         switch (e.term) {
         | Parens(e)
-        | Probe(e, _) => cont(e)
+        | Probe(e, _, _) => cont(e)
         | _ => cont(e)
         },
     ~f_pat=

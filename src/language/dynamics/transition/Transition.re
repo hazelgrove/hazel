@@ -416,26 +416,13 @@ module Transition = (EV: EV_MODE) => {
       and. d2' =
         req_final(req(state, env), d2 => Ap2(dir, d1, d2) |> wrap_ctx, d2);
       switch (d1'.term) {
-      | Probe(f, pr) =>
+      | Probe(f, pr, _) =>
         Step({
           expr: {
-            term: Probe(Ap(dir, f, d2') |> fresh, pr),
+            term: Probe(Ap(dir, f, d2') |> fresh, pr, Some(d2')),
             annotation: d1'.annotation,
           },
-          state_update: () => {
-            let call_stack = ClosureEnvironment.call_stack_of(env);
-            let map = ClosureEnvironment.map_of(env);
-            let id = DHExp.rep_id(d1');
-            let closure =
-              Dynamics.Probe.Closure.mk(
-                id,
-                Ap(Forward, d1', d2') |> Exp.fresh,
-                map,
-                call_stack,
-                pr,
-              );
-            update_probe(state, closure);
-          },
+          state_update,
           kind: RemoveParens,
           is_value: false,
         })
@@ -957,19 +944,19 @@ module Transition = (EV: EV_MODE) => {
     | Undefined =>
       let. _ = otherwise(env, d);
       Indet;
-    | Probe({term: Fun(_), _}, _)
-    | Probe({term: BuiltinFun(_), _}, _)
-    | Probe({term: DeferredAp(_), _}, _)
-    | Probe({term: Var(_), _}, _) =>
+    | Probe({term: Fun(_), _}, _, _)
+    | Probe({term: BuiltinFun(_), _}, _, _)
+    | Probe({term: DeferredAp(_), _}, _, _)
+    | Probe({term: Var(_), _}, _, _) =>
       // Probes around functions don't step
       let. _ = otherwise(env, d);
       Constructor;
-    | Probe(d'', pr) =>
+    | Probe(d'', pr, arg) =>
       /* When evaluated, a probe adds a dynamics info entry
        * reflecting the evaluation of the contained expression */
-      let. _ = otherwise(env, d => Probe(d, pr) |> rewrap)
+      let. _ = otherwise(env, d => Probe(d, pr, arg) |> rewrap)
       and. d' =
-        req_final(req(state, env), d => Probe(d, pr) |> wrap_ctx, d'');
+        req_final(req(state, env), d => Probe(d, pr, arg) |> wrap_ctx, d'');
       Step({
         expr: d',
         state_update: () => {
@@ -977,7 +964,11 @@ module Transition = (EV: EV_MODE) => {
           let map = ClosureEnvironment.map_of(env);
           let id = DHExp.rep_id(d);
           let closure =
-            Dynamics.Probe.Closure.mk(id, d', map, call_stack, pr);
+            switch (arg) {
+            | None => Dynamics.Probe.Closure.mk(id, d', map, call_stack, pr)
+            | Some(a) =>
+              Dynamics.Probe.Closure.mk_ap(id, a, d', map, call_stack, pr)
+            };
           update_probe(state, closure);
         },
         kind: RemoveParens,

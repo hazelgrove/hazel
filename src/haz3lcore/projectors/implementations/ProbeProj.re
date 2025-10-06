@@ -90,8 +90,11 @@ module ClosureLength = {
     Hashtbl.find_opt(lengths, closure.closure_id)
     |> Option.value(
          ~default=
-           !is_value(closure.value)
-             ? 5 : Window.get_mode() == Single ? 36 : 12,
+           switch (closure.value) {
+           | Exp(v) =>
+             !is_value(v) ? 5 : Window.get_mode() == Single ? 36 : 12
+           | Function(_) => 36 // TODO
+           },
        );
 
   let set = (id: int, length: int): unit => Hashtbl.add(lengths, id, length);
@@ -111,7 +114,10 @@ let rm_opaques:
 let hide_env = (info: info): bool =>
   switch (info.statics) {
   | Some(
-      InfoExp({term: {term: Var(_) | Probe({term: Var(_), _}, _), _}, _}),
+      InfoExp({
+        term: {term: Var(_) | Probe({term: Var(_), _}, _, _), _},
+        _,
+      }),
     ) =>
     true
   | Some(InfoPat(_)) => true
@@ -121,7 +127,9 @@ let hide_env = (info: info): bool =>
 let cur_ap = (info: info) =>
   switch (info.statics) {
   | Some(InfoExp({term: {term: Ap(_), _} as ap, _}))
-  | Some(InfoExp({term: {term: Probe({term: Ap(_), _} as ap, _), _}, _})) =>
+  | Some(
+      InfoExp({term: {term: Probe({term: Ap(_), _} as ap, _, _), _}, _}),
+    ) =>
     Some(Term.Exp.rep_id(ap))
   | _ => None
   };
@@ -339,7 +347,7 @@ module DynCursor = {
         }
       )
       ++ "\nvalue:\n"
-      ++ DHExp.show(closure.value)
+      ++ Language.Dynamics.Probe.show_probed_value(closure.value)
       ++ "\nstack:\n"
       ++ stack(closure.call_stack);
     // ++ "\ntime: "
@@ -441,6 +449,7 @@ let abbreviated_seg_of =
     (utility: utility, available: int, exp: Exp.t): (Segment.t, int) => {
   let (abbr_exp, _length) =
     exp |> DHExp.strip_ascriptions |> Abbreviate.abbreviate_exp(~available);
+  print_endline("Abbreviated to: " ++ Exp.show(abbr_exp));
   seg_of_exp(utility, abbr_exp);
 };
 
@@ -488,6 +497,17 @@ module ValueState = {
   let click_coords: ref(option(Point.t)) = ref(Option.None);
 };
 
+let exp_of_fun = pairs =>
+  IdTagged.FreshGrammar.Exp.(
+    list_lit(
+      List.map(
+        ((a, b)) =>
+          fn(IdTagged.FreshGrammar.Pat.multi_hole([Exp(a)]), b, None, None),
+        pairs,
+      ) // TODO
+    )
+  );
+
 let value_view =
     (
       info: info,
@@ -534,7 +554,15 @@ let value_view =
   };
 
   let (seg, length) =
-    abbreviated_seg_of(utility, ClosureLength.get(closure), closure.value);
+    switch (closure.value) {
+    | Exp(e) => abbreviated_seg_of(utility, ClosureLength.get(closure), e)
+    | Function(pairs) =>
+      abbreviated_seg_of(
+        utility,
+        ClosureLength.get(closure),
+        exp_of_fun(pairs),
+      )
+    };
 
   div(
     ~attrs=[
@@ -543,7 +571,15 @@ let value_view =
         ["value", length_cls(length)]
         @ DynCursor.clss(info, closure)
         @ (Option.is_some(cur_ap(info)) ? ["ap"] : [])
-        @ (!is_value(closure.value) ? ["indet"] : []),
+        @ (
+          (
+            switch (closure.value) {
+            | Exp(e) => !is_value(e)
+            | Function(_) => false
+            }
+          )
+            ? ["indet"] : []
+        ),
       ),
       Attr.on_double_click(_ => local(ToggleShowAllVals(index))),
       Attr.on_pointerdown(val_pointerdown),
@@ -708,15 +744,17 @@ let move_cursor = (info: info, offset: int): unit =>
   | None => ()
   };
 
-let round_up = (utility: utility, closure): unit => {
-  let (_, cur) =
-    abbreviated_seg_of(utility, ClosureLength.get(closure), closure.value);
+let round_up = (utility: utility, closure: closure): unit => {
+  let v =
+    switch (closure.value) {
+    | Exp(e) => e
+    | Function(pairs) => exp_of_fun(pairs)
+    };
+  let (_, cur) = abbreviated_seg_of(utility, ClosureLength.get(closure), v);
   let goal = cur + 1;
-  let (_, max_len) =
-    seg_of_exp(utility, DHExp.strip_ascriptions(closure.value));
+  let (_, max_len) = seg_of_exp(utility, DHExp.strip_ascriptions(v));
   let rec find_target = (target: int): int => {
-    let attempt_len =
-      abbreviated_seg_of(utility, target, closure.value) |> snd;
+    let attempt_len = abbreviated_seg_of(utility, target, v) |> snd;
     if (attempt_len < goal && target <= max_len) {
       find_target(target + 1);
     } else {
@@ -727,12 +765,15 @@ let round_up = (utility: utility, closure): unit => {
 };
 
 let round_down = (utility: utility, closure: closure): unit => {
-  let (_, cur) =
-    abbreviated_seg_of(utility, ClosureLength.get(closure), closure.value);
+  let v =
+    switch (closure.value) {
+    | Exp(e) => e
+    | Function(pairs) => exp_of_fun(pairs)
+    };
+  let (_, cur) = abbreviated_seg_of(utility, ClosureLength.get(closure), v);
   let goal = cur - 1;
   let rec find_target = (target: int): int => {
-    let attempt_len =
-      abbreviated_seg_of(utility, target, closure.value) |> snd;
+    let attempt_len = abbreviated_seg_of(utility, target, v) |> snd;
     if (attempt_len > goal && target > 0) {
       find_target(target - 1);
     } else {

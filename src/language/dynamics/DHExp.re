@@ -159,8 +159,8 @@ let rec ty_comparable = (d1, d2) => {
   | (BuiltinFun(_), _)
   | (TypFun(_), _)
   | (TupleExtension(_), _) => false
-  | (Probe(d1, _), _) => ty_comparable(d1, d2)
-  | (_, Probe(d2, _)) => ty_comparable(d1, d2)
+  | (Probe(d1, _, _), _) => ty_comparable(d1, d2)
+  | (_, Probe(d2, _, _)) => ty_comparable(d1, d2)
   | (Parens(d1), _) => ty_comparable(d1, d2)
   | (_, Parens(d2)) => ty_comparable(d1, d2)
   | (Asc(d1, _), _) => ty_comparable(d1, d2)
@@ -255,8 +255,8 @@ let rec poly_equal = (d1, d2): bool => {
   | (TypFun(_), _)
   | (Use(_), _)
   | (BuiltinFun(_), _) => false
-  | (Probe(d1, _), _) => poly_equal(d1, d2)
-  | (_, Probe(d2, _)) => poly_equal(d1, d2)
+  | (Probe(d1, _, _), _) => poly_equal(d1, d2)
+  | (_, Probe(d2, _, _)) => poly_equal(d1, d2)
   | (Parens(d1), _) => poly_equal(d1, d2)
   | (_, Parens(d2)) => poly_equal(d1, d2)
   | (Asc(d1, _), _) => poly_equal(d1, d2)

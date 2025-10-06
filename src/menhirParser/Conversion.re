@@ -380,7 +380,7 @@ module rec Exp: {
     | MultiHole(_) => raise(Failure("MultiHole not supported"))
     | Closure(_) => raise(Failure("Closure not supported"))
     | Parens(e) => of_core(e)
-    | Probe(e, _) => of_core(e)
+    | Probe(e, _, _) => of_core(e)
     | Constructor(s, typ) =>
       Constructor(s, Option.map(Option.map(Typ.of_core), typ))
     | DeferredAp(e, es) =>

@@ -210,10 +210,10 @@ let rec elaborate = (m: Statics.Map.t, uexp: Exp.t): (DHExp.t, Typ.t) => {
     | Parens(e) =>
       let (e', _) = elaborate(m, e);
       e';
-    | Probe(e, probe) =>
+    | Probe(e, probe, arg) =>
       let (e', _) = elaborate(m, e);
       let probe = Dynamics.Probe.instrument_exp(m, Exp.rep_id(uexp), probe);
-      Probe(e', probe) |> rewrap;
+      Probe(e', probe, arg) |> rewrap;
     | Deferral(_) => uexp
     | Atom(c) =>
       let c =

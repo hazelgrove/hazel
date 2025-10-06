@@ -491,7 +491,7 @@ module Exp = {
   let rec is_fun = (e: t) => {
     switch (e.term) {
     | Parens(e)
-    | Probe(e, _) => is_fun(e)
+    | Probe(e, _, _) => is_fun(e)
     | Asc(e, _) => is_fun(e)
     | TypFun(_)
     | Fun(_)
@@ -555,7 +555,7 @@ module Exp = {
       switch (e.term) {
       | Asc(e, _)
       | Parens(e)
-      | Probe(e, _)
+      | Probe(e, _, _)
       | TupLabel(_, e) => is_tuple_of_functions(e)
       | Tuple(es) => es |> List.for_all(is_fun)
       | Dot(e1, e2) =>
@@ -632,7 +632,7 @@ module Exp = {
     } else {
       switch (e.term) {
       | Parens(e)
-      | Probe(e, _)
+      | Probe(e, _, _)
       | TupLabel(_, e)
       | Dot(e, _) => get_num_of_functions(e)
       | Tuple(es) => is_tuple_of_functions(e) ? Some(List.length(es)) : None
@@ -860,7 +860,7 @@ module Exp = {
     | Fun(_, _, _, n) => n
     | FixF(_, e, _) => get_fn_name(e)
     | Parens(e)
-    | Probe(e, _) => get_fn_name(e)
+    | Probe(e, _, _) => get_fn_name(e)
     | TypFun(_, _, n) => n
     | _ => None
     };

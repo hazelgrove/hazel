@@ -118,9 +118,9 @@ let rec abbreviate_exp = (exp: Exp.t): Exp.t => {
 
   let term: Exp.term =
     switch (exp |> Exp.term_of) {
-    | Fun(_p, _e, _, Some(s)) => Invalid("<" ++ s ++ ">")
-    | Fun(_p, _e, _, None) => Invalid("<>")
-    | BuiltinFun(_f) => Invalid("<>")
+    | Fun(p, e, _, _) =>
+      Fun(abbreviate_pat(p), abbreviate_exp(e), None, None)
+    | BuiltinFun(s) => Invalid("<" ++ s ++ ">")
     | Tuple([e]) => Tuple([abbreviate_exp(e)])
     | DynamicErrorHole(_exp, err) =>
       Invalid("<" ++ InvalidOperationError.show(err) ++ ">")
@@ -187,7 +187,7 @@ let rec abbreviate_exp = (exp: Exp.t): Exp.t => {
         };
       Ap(Forward, konst, arg);
     | Parens(e)
-    | Probe(e, _) =>
+    | Probe(e, _, _) =>
       available := available^ - 2;
       Parens(abbreviate_exp(e));
 

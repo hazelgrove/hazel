@@ -415,7 +415,7 @@ let rec bypass_parens_pat = (pat: Pat.t) => {
 let rec bypass_parens_exp = (exp: Exp.t) => {
   switch (exp.term) {
   | Parens(e)
-  | Probe(e, _) => bypass_parens_exp(e)
+  | Probe(e, _, _) => bypass_parens_exp(e)
   | _ => exp
   };
 };
@@ -1933,7 +1933,7 @@ let get_doc =
           TestExp.tests,
         );
       | Parens(term)
-      | Probe(term, _) => get_message_exp(term.term) // No Special message?
+      | Probe(term, _, _) => get_message_exp(term.term) // No Special message?
       | HintedTest(body, hint) =>
         let hint_id = List.nth(IdTagged.ids(hint), 0);
         let body_id = List.nth(IdTagged.ids(body), 0);

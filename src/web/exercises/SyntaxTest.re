@@ -47,10 +47,10 @@ let rec find_var_upat = (name: string, upat: Pat.t): bool => {
 let rec find_in_let =
         (name: string, upat: Pat.t, def: Exp.t, l: list(Exp.t)): list(Exp.t) => {
   switch (upat.term, def.term) {
-  | (Parens(up) | Probe(up, _), Parens(ue) | Probe(ue, _)) =>
+  | (Parens(up) | Probe(up, _), Parens(ue) | Probe(ue, _, _)) =>
     find_in_let(name, up, ue, l)
   | (Parens(up) | Probe(up, _), _) => find_in_let(name, up, def, l)
-  | (_, Parens(ue) | Probe(ue, _)) => find_in_let(name, upat, ue, l)
+  | (_, Parens(ue) | Probe(ue, _, _)) => find_in_let(name, upat, ue, l)
   | (Asc(up, _), _) => find_in_let(name, up, def, l)
   | (Var(x), Fun(_)) => x == name ? [def, ...l] : l
   | (TupLabel(_, up), TupLabel(_, ue)) => find_in_let(name, up, ue, l)
@@ -96,7 +96,7 @@ let rec find_fn = (name: string, uexp: Exp.t, l: list(Exp.t)): list(Exp.t) => {
   | TupLabel(_, u1)
   | TypAp(u1, _)
   | Parens(u1)
-  | Probe(u1, _)
+  | Probe(u1, _, _)
   | Asc(u1, _)
   | UnOp(_, u1)
   | TyAlias(_, _, u1)
@@ -201,7 +201,7 @@ let rec var_mention = (name: string, uexp: Exp.t): bool => {
   | Test(u)
   | HintedTest(u, _)
   | Parens(u)
-  | Probe(u, _)
+  | Probe(u, _, _)
   | UnOp(_, u)
   | TyAlias(_, _, u)
   | Use(_, u)
@@ -267,7 +267,7 @@ let rec var_applied = (name: string, uexp: Exp.t): bool => {
   | Test(u)
   | HintedTest(u, _)
   | Parens(u)
-  | Probe(u, _)
+  | Probe(u, _, _)
   | UnOp(_, u)
   | TyAlias(_, _, u)
   | Use(_, u)
@@ -371,7 +371,7 @@ let rec tail_check = (name: string, uexp: Exp.t): bool => {
   | TypFun(_, u, _)
   | TypAp(u, _)
   | Parens(u)
-  | Probe(u, _) => tail_check(name, u)
+  | Probe(u, _, _) => tail_check(name, u)
   | UnOp(_, u) => !var_mention(name, u)
   | Ap(_, u1, u2) => var_mention(name, u2) ? false : tail_check(name, u1)
   | DeferredAp(fn, args) =>

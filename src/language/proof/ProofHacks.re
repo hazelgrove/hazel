@@ -134,7 +134,7 @@ let rec pat_to_exp = (pat: Pat.t): Exp.t => {
   | Label(l) => rewrap(Label(l))
   | ExplicitNonlabel => rewrap(ExplicitNonlabel)
   | TupLabel(l, e) => rewrap(TupLabel(pat_to_exp(l), pat_to_exp(e)))
-  | Probe(e, probe) => rewrap(Probe(pat_to_exp(e), probe))
+  | Probe(e, probe) => rewrap(Probe(pat_to_exp(e), probe, None)) // TODO
   };
 };
 
@@ -359,7 +359,7 @@ let rec replace_exp = (replace, replace_coctx, with_exp, with_coctx, in_exp) => 
         | Filter(_)
         | Closure(_)
         | Parens(_)
-        | Probe(_, _)
+        | Probe(_, _, _)
         | Cons(_, _)
         | ListConcat(_, _)
         | UnOp(_, _)

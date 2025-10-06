@@ -265,7 +265,8 @@ and Exp: {
         | Filter(f, e) => Filter(flt_map_term(f), exp_map_term(e))
         | Closure(env, e) => Closure(env, exp_map_term(e))
         | Parens(e) => Parens(exp_map_term(e))
-        | Probe(e, tag) => Probe(exp_map_term(e), tag)
+        | Probe(e, tag, arg) =>
+          Probe(exp_map_term(e), tag, arg |> Option.map(exp_map_term))
         | Cons(e1, e2) => Cons(exp_map_term(e1), exp_map_term(e2))
         | ListConcat(e1, e2) =>
           ListConcat(exp_map_term(e1), exp_map_term(e2))
@@ -297,8 +298,9 @@ and Exp: {
     /* Hack to make EvalResult.calculate recalc after adding a probe.
      * We should clarify syntactic/semantic equality here,
      * See https://github.com/hazelgrove/hazel/issues/1563 */
-    | (Probe(x1, _), Probe(x2, _)) => fast_equal(x1, x2)
-    | (Probe(_, _), _) => false
+    | (Probe(x1, _, arg1), Probe(x2, _, arg2)) =>
+      fast_equal(x1, x2) && Option.equal(Exp.fast_equal, arg1, arg2)
+    | (Probe(_, _, _), _) => false
     | (EmptyHole, EmptyHole) => true
     | (Undefined, Undefined) => true
     | (Invalid(s1), Invalid(s2)) => s1 == s2

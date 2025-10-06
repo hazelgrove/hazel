@@ -255,7 +255,9 @@ and exp_term: unsorted => (Exp.term, list(Id.t)) = {
       | (["(", ")"], [Exp(body)]) => ret(Parens(body))
       | (label, [Exp(body)]) when is_probe_wrap(label) =>
         // Temporary wrapping form to persist projector probes
-        ret(should_instrument(id) ? Probe(body, Probe.empty) : body.term)
+        ret(
+          should_instrument(id) ? Probe(body, Probe.empty, None) : body.term,
+        )
       | (["[", "]"], [Exp(body)]) =>
         switch (body) {
         | {annotation: {ids}, term: Tuple(es)} =>

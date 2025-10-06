@@ -60,6 +60,10 @@ module Probe = {
       List.filter_map(mk_entry(env), bound_in);
   };
 
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type probed_value =
+    | Exp(DHExp.t)
+    | Function(list((DHExp.t, DHExp.t)));
   /* A probe closure records an elided value and environment,
    * in the above senses, along with a `stack` which records
    * partial information about the execution trace prior to
@@ -69,7 +73,7 @@ module Probe = {
     type t = {
       closure_id: int, /* Primary ID (unique-ish) */
       syntax_id: Id.t, /* Syntax ID of probed expression */
-      value: DHExp.t, /* Value of expression */
+      value: probed_value, /* Value of expression */
       env: Env.t, /* (Filtered) Environment Values  */
       call_stack: Probe.call_stack, /* Call stacks as ap ids */
       time: float /* Time of evaluatation */
@@ -89,7 +93,28 @@ module Probe = {
        * UUID depending on future desiderata */
       closure_id: Hashtbl.hash((call_stack, value, pr)),
       syntax_id,
-      value,
+      value: Exp(value),
+      env: Env.filter(env, pr.refs),
+      call_stack,
+      time: JsUtil.timestamp(),
+    };
+
+    let mk_ap =
+        (
+          syntax_id: Id.t,
+          arg_value: DHExp.t,
+          return_value: DHExp.t,
+          env: Environment.t,
+          call_stack: Probe.call_stack,
+          pr: Probe.t,
+        ) => {
+      /* Below hash provides a coarse-grained identification of
+       * closures currently used to keep display-length data between
+       * similar runs. May want to alter this or simply used a fresh
+       * UUID depending on future desiderata */
+      closure_id: Hashtbl.hash((call_stack, arg_value, return_value, pr)),
+      syntax_id,
+      value: Function([(arg_value, return_value)]),
       env: Env.filter(env, pr.refs),
       call_stack,
       time: JsUtil.timestamp(),

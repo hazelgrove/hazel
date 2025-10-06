@@ -264,7 +264,7 @@ and uexp_to_info_map =
     /* Special case for probes, which would otherwise lose their id association here */
     let elaborated_exp =
       switch (term) {
-      | Probe(_, p) =>
+      | Probe(_, p, arg) =>
         rewrap(
           Probe(
             Tuple([
@@ -273,6 +273,7 @@ and uexp_to_info_map =
             ])
             |> Exp.fresh,
             p,
+            arg,
           ),
         )
       | _ =>
@@ -386,7 +387,7 @@ and uexp_to_info_map =
       )
     | DynamicErrorHole(e, _)
     | Parens(e)
-    | Probe(e, _) =>
+    | Probe(e, _, _) =>
       let (e, m) = go(~ana, e, m);
       add(~self=Just(e.ty), ~co_ctx=e.co_ctx, m);
     | UnOp(Meta(Unquote), e) when is_in_filter =>

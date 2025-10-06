@@ -360,10 +360,11 @@ let rec parenthesize =
   | Parens(e) =>
     Parens(parenthesize(~already_paren=true, e) |> paren_at(Precedence.min))
     |> rewrap
-  | Probe(e, pr) =>
+  | Probe(e, pr, arg) =>
     Probe(
       parenthesize(~already_paren=true, e) |> paren_at(Precedence.min),
       pr,
+      arg,
     )
     |> rewrap
   | Cons(e1, e2) =>
@@ -907,7 +908,7 @@ let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
       es,
     );
   | Parens({term: Fun(p, e, _, _), _} as inner_exp)
-  | Probe({term: Fun(p, e, _, _), _} as inner_exp, _) =>
+  | Probe({term: Fun(p, e, _, _), _} as inner_exp, _, _) =>
     // TODO: Add optional newlines
     let id = inner_exp |> Exp.rep_id;
     let+ p = pat_to_pretty(~settings: Settings.t, p)
@@ -1143,7 +1144,7 @@ let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
     let id = exp |> Exp.rep_id;
     let+ e = go(e);
     [mk_form(ParensExp, id, [e])];
-  | Probe(e, _) =>
+  | Probe(e, _, _) =>
     /* Not sure about this case*/
     go(e)
   | Cons(e1, e2) =>

@@ -38,8 +38,8 @@ let rec match_exp =
   /* Parens */
   | (Parens(e1), _) => match_exp(alphas, ctx, e1, exp)
   | (_, Parens(e2)) => match_exp(alphas, ctx, exp_r, e2)
-  | (Probe(e1, _), _) => match_exp(alphas, ctx, e1, exp)
-  | (_, Probe(e2, _)) => match_exp(alphas, ctx, exp_r, e2)
+  | (Probe(e1, _, _), _) => match_exp(alphas, ctx, e1, exp)
+  | (_, Probe(e2, _, _)) => match_exp(alphas, ctx, exp_r, e2)
   // TODO: Better cast logic
   | (Asc(e1, _), _) => match_exp(alphas, ctx, e1, exp)
   | (_, Asc(e2, _)) => match_exp(alphas, ctx, exp_r, e2)

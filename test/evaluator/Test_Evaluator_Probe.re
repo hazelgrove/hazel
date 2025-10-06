@@ -28,7 +28,10 @@ let probe_test =
           List.map((c: Dynamics.Probe.Closure.t) =>
             Grammar.map_exp_annotation(
               _ => (),
-              DHExp.strip_ascriptions(c.value),
+              switch (c.value) {
+              | Exp(e) => DHExp.strip_ascriptions(e)
+              | Function(_) => TempGrammar.Exp.tuple([]) // TODO
+              },
             )
           ), // Idk why there's ascriptions on the probed values
           probe_closures,
@@ -101,7 +104,7 @@ let tests = (
         let npp = expected_probe_pat(_, []);
         let np = expected_probe(_, []);
         let p = (p, es: list(UG.Exp.t)) =>
-          expected_probe(Probe(p, {refs: []}), es);
+          expected_probe(Probe(p, {refs: []}, None), es);
         let pp = (p, es: list(UE.t)) =>
           expected_probe_pat(Probe(npp(p), {refs: []}), es);
 
@@ -167,7 +170,7 @@ let tests = (
         let np = expected_probe(_, []);
         let p = (p, es: list(Grammar.exp_term(unit))) =>
           expected_probe(
-            Probe(np(p), {refs: []}),
+            Probe(np(p), {refs: []}, None),
             List.map(Grammar.Annotated.empty, es),
           );
         let npt = (t): Grammar.typ_t(list(Grammar.exp_t(unit))) => {
@@ -227,7 +230,7 @@ let tests = (
         let np = expected_probe(_, []);
         let p = (p, es: list(Grammar.exp_term(unit))) =>
           expected_probe(
-            Probe(np(p), {refs: []}),
+            Probe(np(p), {refs: []}, None),
             List.map(Grammar.Annotated.empty, es),
           );
         let npt = (t): Grammar.typ_t(list(Grammar.exp_t(unit))) => {

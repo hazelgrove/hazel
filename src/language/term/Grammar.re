@@ -85,7 +85,7 @@ and exp_term('a) =
   | Filter(stepper_filter_kind_t('a), exp_t('a))
   | Closure([@show.opaque] closure_environment_t('a), exp_t('a))
   | Parens(exp_t('a)) // (
-  | Probe(exp_t('a), Probe.t)
+  | Probe(exp_t('a), Probe.t, option(exp_t('a))) // The optional exp_t is the argument in an ap.
   | Cons(exp_t('a), exp_t('a))
   | ListConcat(exp_t('a), exp_t('a))
   | UnOp(Operators.op_un, exp_t('a))
@@ -249,7 +249,12 @@ let rec map_exp_annotation: type a b. (a => b, exp_t(a)) => exp_t(b) =
             map_exp_annotation(f, e),
           )
         | Parens(e) => Parens(map_exp_annotation(f, e))
-        | Probe(e, probe) => Probe(map_exp_annotation(f, e), probe)
+        | Probe(e, probe, arg) =>
+          Probe(
+            map_exp_annotation(f, e),
+            probe,
+            Option.map(map_exp_annotation(f), arg),
+          )
         | Cons(e1, e2) =>
           Cons(map_exp_annotation(f, e1), map_exp_annotation(f, e2))
         | ListConcat(e1, e2) =>
@@ -629,8 +634,8 @@ module Factory = (DefaultAnnotation: DefaultAnnotation) => {
       term: Parens(e),
       annotation: default_annotation(ann),
     };
-    let probe = (~ann=?, e1, e2): exp_t(DefaultAnnotation.t) => {
-      term: Probe(e1, e2),
+    let probe = (~ann=?, ~arg=?, e1, e2): exp_t(DefaultAnnotation.t) => {
+      term: Probe(e1, e2, arg),
       annotation: default_annotation(ann),
     };
     let cons = (~ann=?, e1, e2): exp_t(DefaultAnnotation.t) => {

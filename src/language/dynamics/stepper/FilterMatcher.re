@@ -100,8 +100,8 @@ let rec matches_exp =
     true;
   } else {
     switch (d |> DHExp.term_of, f |> DHExp.term_of) {
-    | (Parens(d) | Probe(d, _), _) => matches_exp(d, f)
-    | (_, Parens(f) | Probe(f, _)) => matches_exp(d, f)
+    | (Parens(d) | Probe(d, _, _), _) => matches_exp(d, f)
+    | (_, Parens(f) | Probe(f, _, _)) => matches_exp(d, f)
 
     | (Constructor("$e", _), _) => failwith("$e in matched expression")
     | (Constructor("$v", _), _) => failwith("$v in matched expression")
