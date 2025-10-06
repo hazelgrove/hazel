@@ -525,7 +525,16 @@ module Transition = (EV: EV_MODE) => {
             go(d4s, args);
           };
           Step({
-            expr: ap(Forward, d3, tuple(new_args)),
+            expr:
+              ap(
+                Forward,
+                d3,
+                switch (new_args) {
+                | [{term: TupLabel(_, _), _}] => tuple(new_args)
+                | [d] => d
+                | _ => tuple(new_args)
+                },
+              ),
             state_update,
             kind: DeferredAp,
             is_value: false,
