@@ -152,7 +152,7 @@ let prepare_definition = (z: Zipper.t, curr_node: AssistantTreeHelper.node) => {
     switch (
       // Selects the current node, displaying where the cursor selection is.
       Select.term(
-        ~defs_exclude_bodies=false,
+        ~defs_exclude_bodies=true,
         ~case_rules=false,
         CachedSyntax.init(z').term_data,
         AssistantTreeHelper.id_of(curr_node),
