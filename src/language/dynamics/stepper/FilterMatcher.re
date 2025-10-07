@@ -1,4 +1,4 @@
-let matches_exp = (~denv, d, ~fenv, f) =>
+let matches_exp = (~denv, d, ~fenv, f) => {
   Equality.(
     equality({
       ...semantic_settings,
@@ -13,6 +13,7 @@ let matches_exp = (~denv, d, ~fenv, f) =>
     f,
     d,
   );
+};
 
 let matches =
     (~env: ClosureEnvironment.t, ~exp: DHExp.t, ~flt: TermBase.filter)

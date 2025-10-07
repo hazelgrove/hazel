@@ -147,8 +147,8 @@ let equality =
     | (Constructor("$v", _), _) when Option.is_some(use_expr_wildcards) =>
       let check_value = Option.get(use_expr_wildcards);
       check_value(Option.value(env2, ~default=ClosureEnvironment.empty), e2);
-    | (_, EmptyHole) when Option.is_some(use_expr_wildcards) => true
-    | (_, Constructor("$e", _)) when Option.is_some(use_expr_wildcards) =>
+    | (EmptyHole, _) when Option.is_some(use_expr_wildcards) => true
+    | (Constructor("$e", _), _) when Option.is_some(use_expr_wildcards) =>
       true
 
     /* These variable cases are quite complicated because they account for a lot of concerns.
