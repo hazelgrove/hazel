@@ -507,10 +507,10 @@ module Transition = (EV: EV_MODE) => {
             if (n_args == 1) {
               (
                 Tuple(n_args),
-                tuple([d2]) // TODO Should we not be going to a tuple?
+                tuple([d2']) // TODO Should we not be going to a tuple?
               );
             } else {
-              (Tuple(n_args), d2);
+              (Tuple(n_args), d2');
             };
           let new_args = {
             let rec go = (deferred, args) =>
