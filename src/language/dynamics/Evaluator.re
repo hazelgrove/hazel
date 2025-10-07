@@ -73,7 +73,7 @@ module EvaluatorEVMode: {
   include
     EV_MODE with
       type state = ref(EvaluatorState.t) and
-      type result = Trampoline.t((status, DHExp.t));
+      type result = Trampoline.t((status, list(side_effect), DHExp.t));
 } = {
   open Trampoline.Syntax;
 
@@ -81,7 +81,7 @@ module EvaluatorEVMode: {
     | Final
     | Uneval;
 
-  type result = Trampoline.t((status, DHExp.t));
+  type result = Trampoline.t((status, list(side_effect), DHExp.t));
   type requirement('a) = Trampoline.t('a);
   type requirements('a, 'b) = Trampoline.t(('a, 'b));
 
@@ -93,8 +93,8 @@ module EvaluatorEVMode: {
     state := EvaluatorState.add_closure(state^, closure);
 
   let req_final = (f, _, x) => {
-    let.trampoline x' = Next(() => f(x));
-    Trampoline.return(x' |> snd);
+    let.trampoline (_, _, x) = Next(() => f(x));
+    Trampoline.return(x);
   };
   let rec req_all_final = (f, i, xs) =>
     switch (xs) {
@@ -113,36 +113,69 @@ module EvaluatorEVMode: {
   };
   let (let.) = (t1, s) => {
     let.trampoline (x, c) = t1;
+    let id = DHExp.rep_id(c); // Assuming that c has the original id
     switch (s(x)) {
-    | Step({expr, state_update, is_value: true, _}) =>
-      state_update();
-      Trampoline.return((Final, expr));
-    | Step({expr, state_update, is_value: false, _}) =>
-      state_update();
-      Trampoline.return((Uneval, expr));
+    | Step({expr, side_effects, is_value: true, _}) =>
+      Trampoline.return((Final, side_effects, expr))
+    | Step({expr, side_effects, is_value: false, _}) =>
+      Trampoline.return((Uneval, side_effects, expr))
     | Constructor
     | Value
-    | Indet => Trampoline.return((Final, c))
+    | Indet => Trampoline.return((Final, [], c))
     };
   };
 };
 
 module Eval = Transition(EvaluatorEVMode);
 
-let rec evaluate = (~in_closure=?, state, env, d) => {
+let rec evaluate = (~in_closure=?, ~call_stack, state, env, d) => {
   open Trampoline.Syntax;
-  let.trampoline u =
+  let.trampoline (is_finished, side_effects, d') =
     Eval.transition(
-      evaluate,
+      evaluate(~call_stack),
       ~mode=`Environment,
       ~in_closure?,
       state,
       env,
       d,
     );
+  let (call_stack, state) = List.fold_left(
+    fun 
+      | ((call_stack, state), RecordTest(instance_report))
+      | ((call_stack, state), RecordProbe)
+      | ((call_stack, state), AddToCallStack)
+      | ((call_stack, state), BindingProbe(closure_closures))
+  )
+
   switch (u) {
   | (Final, x) => (EvaluatorEVMode.Final, x) |> Trampoline.return
-  | (Uneval, x) => Trampoline.Next(() => evaluate(state, env, x))
+  | (Uneval, x) =>
+    Trampoline.Next(() => evaluate(~call_stack, state, env, x))
+  | (AddToCallStack, x) =>
+    Trampoline.Next(
+      () =>
+        evaluate(
+          ~call_stack=[DHExp.rep_id(d), ...call_stack],
+          state,
+          env,
+          x,
+        ),
+    )
+  | (RecordProbe, x) =>
+    Trampoline.Next(
+      () => {
+        let map = ClosureEnvironment.map_of(env);
+        let id = DHExp.rep_id(d);
+        let closure = Dynamics.Probe.Closure.mk(id, x, map, call_stack, pr);
+        update_probe(state, closure);
+        evaluate(
+          ~call_stack=[DHExp.rep_id(d), ...call_stack],
+          state,
+          env,
+          x,
+        );
+      },
+    )
   };
 };
 

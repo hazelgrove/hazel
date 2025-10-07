@@ -71,7 +71,7 @@ and exp_term('a) =
   | LivelitName(string)
   | Var(Var.t)
   | Let(pat_t('a), exp_t('a), exp_t('a))
-  | FixF(pat_t('a), exp_t('a), option(closure_environment_t('a)))
+  | FixF(pat_t('a), exp_t('a), option(Environment.t(exp_t('a))))
   | TyAlias(tpat_t('a), typ_t('a), exp_t('a))
   | Use(typ_t('a), exp_t('a))
   | Ap(Operators.ap_direction, exp_t('a), exp_t('a))
@@ -82,7 +82,7 @@ and exp_term('a) =
   | Test(exp_t('a))
   | HintedTest(exp_t('a), exp_t('a))
   | Filter(stepper_filter_kind_t('a), exp_t('a))
-  | Closure([@show.opaque] closure_environment_t('a), exp_t('a))
+  | Closure([@show.opaque] Environment.t(exp_t('a)), exp_t('a))
   | Parens(exp_t('a)) // (
   | Probe(exp_t('a), Probe.t)
   | Cons(exp_t('a), exp_t('a))
@@ -137,12 +137,6 @@ and rul_term('a) =
   | MultiHole(list(any_t('a)))
   | Rules(exp_t('a), list((pat_t('a), exp_t('a))))
 and rul_t('a) = Annotated.t(rul_term('a), 'a)
-and environment_t('a) = VarBstMap.Ordered.t_(exp_t('a))
-and closure_environment_t('a) = {
-  id: Id.t,
-  env: environment_t('a),
-  call_stack: Probe.call_stack,
-}
 and stepper_filter_kind_t('a) =
   | Filter(filter('a))
   | Residue(int, FilterAction.t)
@@ -239,7 +233,7 @@ let rec map_exp_annotation: type a b. (a => b, exp_t(a)) => exp_t(b) =
           )
         | Closure(env, e) =>
           Closure(
-            map_closure_environment_annotation(f, env),
+            Environment.map(map_exp_annotation(f), env),
             map_exp_annotation(f, e),
           )
         | Parens(e) => Parens(map_exp_annotation(f, e))
@@ -401,13 +395,6 @@ and map_stepper_filter_kind_annotation:
       })
     | Residue(i, act) => Residue(i, act)
     };
-  }
-and map_closure_environment_annotation:
-  type a b. (a => b, closure_environment_t(a)) => closure_environment_t(b) =
-  (f, {id, env, call_stack}) => {
-    id,
-    env: VarBstMap.Ordered.mapo(((_, y)) => map_exp_annotation(f, y), env),
-    call_stack,
   }
 
 and map_type_provenance_annotation:
@@ -841,17 +828,6 @@ module Factory = (DefaultAnnotation: DefaultAnnotation) => {
       term: Rules(e, l),
       annotation: default_annotation(ann),
     };
-  };
-
-  let environment = (env): environment_t(DefaultAnnotation.t) => {
-    VarBstMap.Ordered.mapo(((_, y)) => map_exp_annotation(x => x, y), env);
-  };
-
-  let closure_environment =
-      (~callstack, id, env): closure_environment_t(DefaultAnnotation.t) => {
-    id,
-    env: environment(env),
-    call_stack: callstack,
   };
 
   module StepperFilter = {

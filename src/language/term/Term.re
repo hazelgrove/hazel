@@ -680,7 +680,7 @@ module Exp = {
 
   let rec substitute_closures =
           (
-            env: Environment.t,
+            env: Environment.t(t),
             old_bound_vars: list(string),
             new_bound_vars: list(string),
           ) =>
@@ -705,12 +705,7 @@ module Exp = {
             }
           // Forms with environments: look up in new environment
           | Closure(env, e) =>
-            substitute_closures(
-              env |> ClosureEnvironment.map_of,
-              [],
-              new_bound_vars,
-              e,
-            )
+            substitute_closures(env, [], new_bound_vars, e)
           | Fun(p, e, t, n) =>
             let pat_bound_vars = Pat.bound_vars(p);
             Fun(
@@ -730,9 +725,7 @@ module Exp = {
             FixF(
               p,
               substitute_closures(
-                env
-                |> ClosureEnvironment.map_of
-                |> Environment.without_keys(pat_bound_vars),
+                env |> Environment.without_keys(pat_bound_vars),
                 pat_bound_vars @ old_bound_vars,
                 pat_bound_vars @ new_bound_vars,
                 e,
