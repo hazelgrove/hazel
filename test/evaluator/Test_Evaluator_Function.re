@@ -160,7 +160,8 @@ result_equal(
 Ok(Lam("yo", Var("yo"))))|},
       )
     ),
-    test_case("Single deferral produces single value not singleton tuple", `Quick, () =>
+    test_case(
+      "Single deferral produces single value not singleton tuple", `Quick, () =>
       evaluation_test(
         "let f = fun x -> x in f(_)(42)",
         int(42),

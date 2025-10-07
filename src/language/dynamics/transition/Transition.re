@@ -91,13 +91,17 @@ type rule =
   | Indet
   | Value;
 
-let (let-unbox) = ((request, v), f) =>
-  switch (Unboxing.unbox(request, v)) {
+let (let-unboxed) = (unboxed: Unboxing.unboxed('a), f) =>
+  switch (unboxed) {
   | IndetMatch
   | DoesNotMatch => Indet
   | Matches(n) => f(n)
   };
 
+let (let-unbox) = ((request, v), f) => {
+  let-unboxed result = Unboxing.unbox(request, v);
+  f(result);
+};
 module type EV_MODE = {
   type state;
   type result;
@@ -503,14 +507,11 @@ module Transition = (EV: EV_MODE) => {
                 d4s,
               ),
             );
-          let-unbox args =
+          let-unboxed args =
             if (n_args == 1) {
-              (
-                Tuple(n_args),
-                tuple([d2']) // TODO Should we not be going to a tuple?
-              );
+              Matches([d2']);
             } else {
-              (Tuple(n_args), d2');
+              Unboxing.unbox(Tuple(n_args), d2');
             };
           let new_args = {
             let rec go = (deferred, args) =>
