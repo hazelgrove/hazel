@@ -932,20 +932,20 @@ let rec drv_exp_to_pretty =
   | PrjL(e) =>
     let+ e = go(e, ~sort=Exp);
     e
-    @ [mk_form(Drv(Dot), id, [])]
+    @ [mk_form(Drv(Dot), Id.invalid, [])]
     @ text_to_pretty(id, Sort.Drv(Exp), "fst");
   | PrjR(e) =>
     let+ e = go(e, ~sort=Exp);
     e
-    @ [mk_form(Drv(Dot), id, [])]
+    @ [mk_form(Drv(Dot), Id.invalid, [])]
     @ text_to_pretty(id, Sort.Drv(Exp), "snd");
   | InjL(e) =>
-    let e = go(e, ~sort=Exp);
-    text_to_pretty(id, Sort.Drv(Exp), "L")
+    let+ e = go(e, ~sort=Exp);
+    text_to_pretty(Id.invalid, Sort.Drv(Exp), "L")
     @ [mk_form(Drv(ApExp), id, [e])];
   | InjR(e) =>
-    let e = go(e, ~sort=Exp);
-    text_to_pretty(id, Sort.Drv(Exp), "R")
+    let+ e = go(e, ~sort=Exp);
+    text_to_pretty(Id.invalid, Sort.Drv(Exp), "R")
     @ [mk_form(Drv(ApExp), id, [e])];
   | Case(e, x, e1, y, e2) =>
     let+ e = go(e, ~sort=Exp)
@@ -970,12 +970,12 @@ let rec drv_exp_to_pretty =
       ),
     ];
   | Roll(e) =>
-    let e = go(e, ~sort=Exp);
-    text_to_pretty(id, Sort.Drv(Exp), "roll")
+    let+ e = go(e, ~sort=Exp);
+    text_to_pretty(Id.invalid, Sort.Drv(Exp), "roll")
     @ [mk_form(Drv(ApExp), id, [e])];
   | Unroll(e) =>
-    let e = go(e, ~sort=Exp);
-    text_to_pretty(id, Sort.Drv(Exp), "unroll")
+    let+ e = go(e, ~sort=Exp);
+    text_to_pretty(Id.invalid, Sort.Drv(Exp), "unroll")
     @ [mk_form(Drv(ApExp), id, [e])];
   | ExpHole => text_to_pretty(id, Sort.Drv(Exp), Token.wild)
   };
