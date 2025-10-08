@@ -159,11 +159,7 @@ let evaluate_and_limit =
   let result = evaluate(~call_stack=[], state, env, d);
   let result = Trampoline.run(~step_limit?, result);
   switch (result) {
-  | Completed((_, _, x)) =>
-    Completed((
-      x |> Exp.replace_all_ids |> Exp.substitute_closures(env),
-      state^,
-    ))
+  | Completed((_, _, x)) => Completed((x |> Exp.replace_all_ids, state^))
   | StepLimitExceeded => StepLimitExceeded
   };
 };

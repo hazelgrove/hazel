@@ -14,12 +14,12 @@ type t('a) =
     });
 
 [@deriving (show({with_path: false}), sexp, yojson, eq)]
-type serialized_t('a) =
+type serialized_t'('a, 'b) =
   | EmptyS
   | ES({
       id: Id.t,
       binding: (Var.t, 'a),
-      prev_env: serialized_t('a),
+      prev_env: 'b,
     });
 
 let extend = (type a, ~id=Id.mk(), env: t(a), v: Var.t, x: a): t(a) => {
@@ -40,22 +40,45 @@ let extend = (type a, ~id=Id.mk(), env: t(a), v: Var.t, x: a): t(a) => {
   });
 };
 
+let sexp_of_serialized_t' = (f_a, f_b, x) => {
+  print_endline("sexp_of_serialized_t'");
+  Util.StructureShareSexp.structure_share_sexp_of_t(
+    (x: serialized_t'('a, 'b)) =>
+      switch (x) {
+      | EmptyS => Id.invalid
+      | ES(e) => e.id
+      },
+    sexp_of_serialized_t'(f_a, f_b),
+    x,
+  );
+};
+let serialized_t'_of_sexp = (f_a, f_b) =>
+  Util.StructureShareSexp.structure_share_t_of_sexp(
+    serialized_t'_of_sexp(f_a, f_b),
+  );
+
+[@deriving (show({with_path: false}), sexp, yojson)]
+type serialized_t('a) =
+  | A(serialized_t'('a, serialized_t('a)));
+
 let rec serialized_of_t = (env: t('a)): serialized_t('a) => {
   switch (env) {
-  | Empty => EmptyS
+  | Empty => A(EmptyS)
   | E(e) =>
-    ES({
-      id: e.id,
-      binding: e.binding,
-      prev_env: serialized_of_t(e.prev_env),
-    })
+    A(
+      ES({
+        id: e.id,
+        binding: e.binding,
+        prev_env: serialized_of_t(e.prev_env),
+      }),
+    )
   };
 };
 
 let rec t_of_serialized = (serialized: serialized_t('a)): t('a) => {
   switch (serialized) {
-  | EmptyS => Empty
-  | ES(e) =>
+  | A(EmptyS) => Empty
+  | A(ES(e)) =>
     let (v, x) = e.binding;
     extend(~id=e.id, t_of_serialized(e.prev_env), v, x);
   };

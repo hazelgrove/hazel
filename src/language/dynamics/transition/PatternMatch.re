@@ -1,7 +1,20 @@
 open Util;
 
-[@deriving (show({with_path: false}), sexp, yojson, eq)]
+[@deriving (show({with_path: false}), sexp, yojson)]
 type match_result = Unboxing.unboxed(list(Environment.binding(Exp.t)));
+
+let equal_match_result = (r1: match_result, r2: match_result): bool =>
+  switch (r1, r2) {
+  | (DoesNotMatch, DoesNotMatch) => true
+  | (IndetMatch, IndetMatch) => true
+  | (Matches(env1), Matches(env2)) =>
+    List.equal(
+      Environment.equal_binding(Exp.equal),
+      List.sort(compare, env1),
+      List.sort(compare, env2),
+    )
+  | _ => false
+  };
 let ( let* ) = Unboxing.( let* );
 
 let combine_result = (r1: match_result, r2: match_result): match_result =>
