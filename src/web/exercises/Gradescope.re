@@ -54,15 +54,27 @@ module Main = {
       |> map_stitched((_, {term, _}: TermItem.t) => term);
     let stitched_tests =
       map_stitched(
-        (_, term) =>
-          term
-          |> CachedStatics.init_from_term(~settings, ~is_dynamic_term=false)
-          |> ((x: CachedStatics.t) => x.elaborated)
-          |> Evaluator.evaluate(~env=Builtins.env_init)
-          |> snd
-          |> EvaluatorState.get_tests
-          |> TestResults.mk_results
-          |> Option.some,
+        (_, term) => {
+          let evaluated =
+            term
+            |> CachedStatics.init_from_term(
+                 ~settings,
+                 ~is_dynamic_term=false,
+               )
+            |> ((x: CachedStatics.t) => x.elaborated)
+            |> Evaluator.evaluate_and_limit(
+                 ~step_limit=1000000,
+                 ~env=Builtins.env_init,
+               );
+          switch (evaluated) {
+          | StepLimitExceeded => None
+          | Completed((_, evaluated)) =>
+            evaluated
+            |> EvaluatorState.get_tests
+            |> TestResults.mk_results
+            |> Option.some
+          };
+        },
         terms,
       );
     let grading_report = exercise.eds |> GradingReport.mk(~stitched_tests);

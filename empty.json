@@ -1,9 +1,0 @@
-[
-  {
-    "name": "Oddly Recursive",
-    "report": {
-      "summary": "Overall: 2.0/4.0\n\nTest Validation: 0.0/1.0\n\nSource Code:\n\ntest not(false) end;\ntest not(not(true)) end; \n \n\nMutation Testing: 0.0/1.0\n\nImpl Grading: 2.0/2.0\n\nSource Code:\n\nlet odd: Int -> Bool =\n  fun n -> \n    if n < 0 then odd(-n) else \n      if n == 0 then false else \n        !odd(n-1) \nin  \n\n",
-      "overall": [ 2.0, 4.0 ]
-    }
-  }
-]

@@ -100,7 +100,7 @@ def hazel_transform(value, hazel_path):
         return run_hazel_grader(value, hazel_path)
     except Exception as e:
         print(f"[error] Hazel processing failed: {e}", file=sys.stderr)
-        return value  # Return original on error
+        return "Hazel grader error"
 
 
 def cat_function(submission_dir):
