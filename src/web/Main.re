@@ -179,7 +179,7 @@ let start = {
         } else {
           ();
         };
-        model.current.globals.settings.core.statics ? Animation.go() : ();
+        model.current.page.globals.settings.core.statics ? Animation.go() : ();
       },
       (),
     );

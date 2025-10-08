@@ -6,19 +6,21 @@ module Model = {
 
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t = {
-    current: state,
-    undo_stack: list(Updated.t(state)),
-    redo_stack: list(Updated.t(state)),
-    history_log: list(Updated.t(EditHistory.state)),
+    current: EditHistory.state,
+    undo_stack: list(Updated.t(EditHistory.state)),
+    redo_stack: list(Updated.t(EditHistory.state)),
   };
 
   let equal = (===);
 
   let init = () => {
-    current: Page.Store.load(),
+    current: {
+      id: Id.mk(),
+      action: EditHistory.Update.Start,
+      page: Page.Store.load(),
+    },
     undo_stack: [],
     redo_stack: [],
-    history_log: [],
   };
 };
 
@@ -56,7 +58,6 @@ module Update = {
               },
               ...model.redo_stack,
             ],
-            history_log: model.history_log,
           },
         }
       }
@@ -77,12 +78,11 @@ module Update = {
               ...model.undo_stack,
             ],
             redo_stack: rest,
-            history_log: model.history_log,
           },
         }
       }
-    | Globals(HistoryJump(id)) =>
-      let rest =
+    | Globals(HistoryJump(id)) => model |> return_quiet
+    /*let rest =
         ListUtil.drop_while(
           (update: Updated.t(EditHistory.state)) => update.model.id != id,
           model.history_log,
@@ -97,7 +97,7 @@ module Update = {
           history_log: [x, ...xs],
         };
         x |> return;
-      };
+      };*/
     | action =>
       let current =
         Page.Update.update(
@@ -105,13 +105,17 @@ module Update = {
           ~get_log_and,
           ~schedule_action,
           action,
-          model.current,
+          model.current.page,
         );
       if (Page.Update.can_undo(action)) {
         {
           ...current,
           model: {
-            current: current.model,
+            current: {
+              id: Id.mk(),
+              action,
+              page: current.model,
+            },
             undo_stack: [
               {
                 ...current,
@@ -120,27 +124,19 @@ module Update = {
               ...model.undo_stack,
             ],
             redo_stack: [],
-            history_log: [
-              {
-                ...current,
-                model: {
-                  id: Id.mk(),
-                  action,
-                  page: current.model,
-                },
-              },
-              ...model.history_log,
-            ],
           },
         };
       } else {
         {
           ...current,
           model: {
-            current: current.model,
+            current: {
+              page: current.model,
+              action: model.current.action,
+              id: model.current.id,
+            },
             undo_stack: model.undo_stack,
             redo_stack: model.redo_stack,
-            history_log: model.history_log,
           },
         };
       };
@@ -148,11 +144,14 @@ module Update = {
 
   let calculate =
       (~schedule_action: t => unit, ~is_edited: bool, model: Model.t): Model.t => {
-    current:
-      model.current |> Page.Update.calculate(~schedule_action, ~is_edited),
+    current: {
+      ...model.current,
+      page:
+        model.current.page
+        |> Page.Update.calculate(~schedule_action, ~is_edited),
+    },
     undo_stack: model.undo_stack,
     redo_stack: model.redo_stack,
-    history_log: model.history_log,
   };
 };
 
@@ -160,15 +159,32 @@ module Selection = {
   type t = Editors.Selection.t;
 
   let handle_key_event = (model: Model.t) =>
-    Page.Selection.handle_key_event(model.current);
+    Page.Selection.handle_key_event(model.current.page);
 
   let get_cursor_info = (model: Model.t) =>
-    Page.Selection.get_cursor_info(model.current);
+    Page.Selection.get_cursor_info(model.current.page);
 };
 
 module View = {
   let view =
       (~get_log_and, ~inject: Update.t => Ui_effect.t(unit), model: Model.t) => {
-    Page.View.view(~get_log_and, ~inject, model.current, model.history_log);
+    let extract_models =
+        (stack: list(Updated.t(EditHistory.state)))
+        : list(EditHistory.state) =>
+      List.map(
+        (updated: Updated.t(EditHistory.state)) => updated.model,
+        stack,
+      );
+
+    Page.View.view(
+      ~get_log_and,
+      ~inject,
+      model.current.page,
+      (
+        extract_models(model.redo_stack),
+        model.current,
+        extract_models(model.undo_stack),
+      ),
+    );
   };
 };

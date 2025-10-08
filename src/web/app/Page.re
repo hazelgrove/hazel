@@ -635,7 +635,11 @@ module View = {
         ~get_log_and,
         ~inject: Update.t => Ui_effect.t(unit),
         model: Model.t,
-        history,
+        history: (
+          list(EditHistory.state),
+          EditHistory.state,
+          list(EditHistory.state),
+        ),
       ) => {
     let cursor = Selection.get_cursor_info(~selection=model.selection, model);
     div(
