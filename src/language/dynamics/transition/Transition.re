@@ -10,14 +10,14 @@ open PatternMatch;
 
     | Seq(d1, d2) =>
         let. _ = otherwise(d1 => Seq(d1, d2))
-        and. _ = req_final(req(state, env), 0, d1);
+        and. _ = req_final(req(env), 0, d1);
         Step({expr: d2, state, kind: Seq, final: false});
 
 
     Each step semantics starts with a `let. () = otherwise(...)` that defines how
     to wrap the expression back up if the step couldn't be evaluated.
 
-    This is followed by a series of `and. d1' = req_final(req(state, env), <i>, <d1>)`
+    This is followed by a series of `and. d1' = req_final(req(env), <i>, <d1>)`
     which indicate that in order to evaluate the step, <d1> must be final. Note that
     if successful, d1' will be the fully-evaluated version of d1. The sub-expressions
     are all enumerated by the <i> field, so i=0 indicates that it is the first
@@ -150,19 +150,12 @@ module Transition = (EV: EV_MODE) => {
   let transition =
       (
         req:
-          (
-            ~in_closure: unit => unit=?,
-            state,
-            Environment.t(Exp.t),
-            DHExp.t
-          ) =>
-          'a,
+          (~in_closure: unit => unit=?, Environment.t(Exp.t), DHExp.t) => 'a,
         ~mode: [
            | `Substitution
            | `Environment
          ],
         ~in_closure=?,
-        state,
         env: Environment.t(Exp.t), // Environment is empty in substitution mode
         d,
       )
@@ -217,8 +210,7 @@ module Transition = (EV: EV_MODE) => {
       }
     | Seq(d1, d2) =>
       let. _ = otherwise(env, d1 => Seq(d1, d2) |> rewrap)
-      and. _ =
-        req_final(req(state, env), d1 => Seq1(d1, d2) |> wrap_ctx, d1);
+      and. _ = req_final(req(env), d1 => Seq1(d1, d2) |> wrap_ctx, d1);
       Step({
         expr: d2,
         side_effects: [],
@@ -228,7 +220,7 @@ module Transition = (EV: EV_MODE) => {
     | Let(dp, d1, d2) =>
       let. _ = otherwise(env, d1 => Let(dp, d1, d2) |> rewrap)
       and. d1' =
-        req_final(req(state, env), d1 => Let1(dp, d1, d2) |> wrap_ctx, d1);
+        req_final(req(env), d1 => Let1(dp, d1, d2) |> wrap_ctx, d1);
       let.wrap_closure _ = env;
       let {matches, closures} = matches(dp, d1');
       let matches_str = {
@@ -296,7 +288,7 @@ module Transition = (EV: EV_MODE) => {
       };
     | Test(d'') =>
       let. _ = otherwise(env, d => Test(d) |> rewrap)
-      and. d' = req_final(req(state, env), d => Test(d) |> wrap_ctx, d'');
+      and. d' = req_final(req(env), d => Test(d) |> wrap_ctx, d'');
       let result: TestStatus.t =
         switch (Unboxing.unbox(Atom(Bool), d')) {
         | DoesNotMatch
@@ -318,8 +310,7 @@ module Transition = (EV: EV_MODE) => {
       });
     | HintedTest(d'', h) =>
       let. _ = otherwise(env, d => HintedTest(d, h) |> rewrap)
-      and. d' =
-        req_final(req(state, env), d => HintedTest(d, h) |> wrap_ctx, d'');
+      and. d' = req_final(req(env), d => HintedTest(d, h) |> wrap_ctx, d'');
       let result: TestStatus.t =
         switch (Unboxing.unbox(Atom(Bool), d')) {
         | DoesNotMatch
@@ -345,8 +336,7 @@ module Transition = (EV: EV_MODE) => {
       });
     | TypAp(d, tau) =>
       let. _ = otherwise(env, d => TypAp(d, tau) |> rewrap)
-      and. d' =
-        req_final(req(state, env), d => TypAp(d, tau) |> wrap_ctx, d);
+      and. d' = req_final(req(env), d => TypAp(d, tau) |> wrap_ctx, d);
       let-unbox typfun = (TypFun, d');
       switch (typfun) {
       | TypFun(utpat, tfbody, name) =>
@@ -369,24 +359,19 @@ module Transition = (EV: EV_MODE) => {
     | DeferredAp(d1, ds) =>
       let. _ = otherwise(env, (d1, ds) => DeferredAp(d1, ds) |> rewrap)
       and. _ =
-        req_final(
-          req(state, env),
-          d1 => DeferredAp1(d1, ds) |> wrap_ctx,
-          d1,
-        )
+        req_final(req(env), d1 => DeferredAp1(d1, ds) |> wrap_ctx, d1)
       and. _ =
         req_all_final(
-          req(state, env),
+          req(env),
           (d2, ds) => DeferredAp2(d1, d2, ds) |> wrap_ctx,
           ds,
         );
       Value;
     | Ap(dir, d1, d2) =>
       let. _ = otherwise(env, (d1, d2) => Ap(dir, d1, d2) |> rewrap)
-      and. d1' =
-        req_final(req(state, env), d1 => Ap1(dir, d1, d2) |> wrap_ctx, d1)
+      and. d1' = req_final(req(env), d1 => Ap1(dir, d1, d2) |> wrap_ctx, d1)
       and. d2' =
-        req_final(req(state, env), d2 => Ap2(dir, d1, d2) |> wrap_ctx, d2);
+        req_final(req(env), d2 => Ap2(dir, d1, d2) |> wrap_ctx, d2);
       switch (d1'.term) {
       | Asc(d1'', {term: Arrow(t1, t2), _}) =>
         Step({
@@ -511,8 +496,7 @@ module Transition = (EV: EV_MODE) => {
       Constructor;
     | If(c, d1, d2) =>
       let. _ = otherwise(env, c => If(c, d1, d2) |> rewrap)
-      and. c' =
-        req_final(req(state, env), c => If1(c, d1, d2) |> wrap_ctx, c);
+      and. c' = req_final(req(env), c => If1(c, d1, d2) |> wrap_ctx, c);
       let.wrap_closure _ = env;
       let-unbox b = (Atom(Bool), c');
       Step({
@@ -529,8 +513,7 @@ module Transition = (EV: EV_MODE) => {
       Indet;
     | UnOp(op, d1) =>
       let. _ = otherwise(env, d1 => UnOp(op, d1) |> rewrap)
-      and. d1' =
-        req_final(req(state, env), d1 => UnOp(op, d1) |> wrap_ctx, d1);
+      and. d1' = req_final(req(env), d1 => UnOp(op, d1) |> wrap_ctx, d1);
       switch (Operators.semantics_of_un_op(op)) {
       | Undefined(_) => Indet
       | Defined(in_ty, out_ty, f) =>
@@ -555,7 +538,7 @@ module Transition = (EV: EV_MODE) => {
       let. _ = otherwise(env, d1 => BinOp(Bool(And), d1, d2) |> rewrap)
       and. d1' =
         req_final(
-          req(state, env),
+          req(env),
           d1 => BinOp1(Bool(And), d1, d2) |> wrap_ctx,
           d1,
         );
@@ -571,7 +554,7 @@ module Transition = (EV: EV_MODE) => {
       let. _ = otherwise(env, d1 => BinOp(Bool(Or), d1, d2) |> rewrap)
       and. d1' =
         req_final(
-          req(state, env),
+          req(env),
           d1 => BinOp1(Bool(Or), d1, d2) |> wrap_ctx,
           d1,
         );
@@ -586,13 +569,9 @@ module Transition = (EV: EV_MODE) => {
     | BinOp(op, d1, d2) =>
       let. _ = otherwise(env, (d1, d2) => BinOp(op, d1, d2) |> rewrap)
       and. d1 =
-        req_final(req(state, env), d1 => BinOp1(op, d1, d2) |> wrap_ctx, d1)
+        req_final(req(env), d1 => BinOp1(op, d1, d2) |> wrap_ctx, d1)
       and. d2 =
-        req_final(
-          req(state, env),
-          d2 => BinOp2(op, d1, d2) |> wrap_ctx,
-          d2,
-        );
+        req_final(req(env), d2 => BinOp2(op, d1, d2) |> wrap_ctx, d2);
       // Operator semantics are defined in Operators.re
       switch (Operators.semantics_of_bin_op(op)) {
       | Undefined(_) => Indet
@@ -638,10 +617,8 @@ module Transition = (EV: EV_MODE) => {
       };
     | Dot(d1, d2) =>
       let. _ = otherwise(env, (d1, d2) => Dot(d1, d2) |> rewrap)
-      and. d1' =
-        req_final(req(state, env), d1 => Dot1(d1, d2) |> wrap_ctx, d1)
-      and. d2' =
-        req_final(req(state, env), d2 => Dot2(d1, d2) |> wrap_ctx, d2);
+      and. d1' = req_final(req(env), d1 => Dot1(d1, d2) |> wrap_ctx, d1)
+      and. d2' = req_final(req(env), d2 => Dot2(d1, d2) |> wrap_ctx, d2);
       switch (DHExp.term_of(d2')) {
       | Label(name) as lab =>
         switch (Unboxing.unbox(LabeledTupleProjection(name), d1')) {
@@ -701,35 +678,19 @@ module Transition = (EV: EV_MODE) => {
     | TupLabel(label, d1) =>
       let. _ = otherwise(env, d1 => TupLabel(label, d1) |> rewrap)
       and. _ =
-        req_final(
-          req(state, env),
-          d1 => TupLabel(label, d1) |> wrap_ctx,
-          d1,
-        );
+        req_final(req(env), d1 => TupLabel(label, d1) |> wrap_ctx, d1);
       Constructor;
     | Tuple(ds) =>
       let. _ = otherwise(env, ds => Tuple(ds) |> rewrap)
       and. _ =
-        req_all_final(
-          req(state, env),
-          (d1, ds) => Tuple(d1, ds) |> wrap_ctx,
-          ds,
-        );
+        req_all_final(req(env), (d1, ds) => Tuple(d1, ds) |> wrap_ctx, ds);
       Constructor;
     | TupleExtension(e1, e2) =>
       let. _ = otherwise(env, (e1, e2) => TupleExtension(e1, e2) |> rewrap)
       and. e1' =
-        req_final(
-          req(state, env),
-          e1 => TupleExtension1(e1, e2) |> wrap_ctx,
-          e1,
-        )
+        req_final(req(env), e1 => TupleExtension1(e1, e2) |> wrap_ctx, e1)
       and. e2' =
-        req_final(
-          req(state, env),
-          e2 => TupleExtension2(e1, e2) |> wrap_ctx,
-          e2,
-        );
+        req_final(req(env), e2 => TupleExtension2(e1, e2) |> wrap_ctx, e2);
       let-unbox e1_entries = (LabeledTupleEntries, e1');
       let-unbox e2_entries = (LabeledTupleEntries, e2');
 
@@ -753,10 +714,8 @@ module Transition = (EV: EV_MODE) => {
       });
     | Cons(d1, d2) =>
       let. _ = otherwise(env, (d1, d2) => Cons(d1, d2) |> rewrap)
-      and. d1' =
-        req_final(req(state, env), d1 => Cons1(d1, d2) |> wrap_ctx, d1)
-      and. d2' =
-        req_final(req(state, env), d2 => Cons2(d1, d2) |> wrap_ctx, d2);
+      and. d1' = req_final(req(env), d1 => Cons1(d1, d2) |> wrap_ctx, d1)
+      and. d2' = req_final(req(env), d2 => Cons2(d1, d2) |> wrap_ctx, d2);
       switch (Unboxing.unbox(ListLit, d2')) {
       | Matches(ds) =>
         Step({
@@ -771,17 +730,9 @@ module Transition = (EV: EV_MODE) => {
     | ListConcat(d1, d2) =>
       let. _ = otherwise(env, (d1, d2) => ListConcat(d1, d2) |> rewrap)
       and. d1' =
-        req_final(
-          req(state, env),
-          d1 => ListConcat1(d1, d2) |> wrap_ctx,
-          d1,
-        )
+        req_final(req(env), d1 => ListConcat1(d1, d2) |> wrap_ctx, d1)
       and. d2' =
-        req_final(
-          req(state, env),
-          d2 => ListConcat2(d1, d2) |> wrap_ctx,
-          d2,
-        );
+        req_final(req(env), d2 => ListConcat2(d1, d2) |> wrap_ctx, d2);
       let-unbox ds1 = (ListLit, d1');
       let-unbox ds2 = (ListLit, d2');
       Step({
@@ -794,7 +745,7 @@ module Transition = (EV: EV_MODE) => {
       let. _ = otherwise(env, ds => ListLit(ds) |> rewrap)
       and. _ =
         req_all_final(
-          req(state, env),
+          req(env),
           (d1, ds) => ListLit(d1, ds) |> wrap_ctx,
           ds,
         );
@@ -802,11 +753,7 @@ module Transition = (EV: EV_MODE) => {
     | Match(d1, rules) =>
       let. _ = otherwise(env, d1 => Match(d1, rules) |> rewrap)
       and. d1 =
-        req_final(
-          req(state, env),
-          d1 => MatchScrut(d1, rules) |> wrap_ctx,
-          d1,
-        );
+        req_final(req(env), d1 => MatchScrut(d1, rules) |> wrap_ctx, d1);
       let rec next_rule = (
         fun
         | [] => None
@@ -840,7 +787,7 @@ module Transition = (EV: EV_MODE) => {
       let. _ = otherwise(env, d => Closure(env', d) |> rewrap)
       and. d' =
         req_final(
-          req(~in_closure, state, env'),
+          req(~in_closure, env'),
           d1 => Closure(env', d1) |> wrap_ctx,
           d,
         );
@@ -879,8 +826,7 @@ module Transition = (EV: EV_MODE) => {
         });
       | None =>
         let. _ = otherwise(env, d => Asc(d, t) |> rewrap)
-        and. d' =
-          req_final(req(state, env), d => Asc(d, t) |> wrap_ctx, d');
+        and. d' = req_final(req(env), d => Asc(d, t) |> wrap_ctx, d');
         switch (Ascriptions.transition(Asc(d', t) |> rewrap)) {
         | Some(d) =>
           Step({
@@ -899,8 +845,7 @@ module Transition = (EV: EV_MODE) => {
       /* When evaluated, a probe adds a dynamics info entry
        * reflecting the evaluation of the contained expression */
       let. _ = otherwise(env, d => Probe(d, pr) |> rewrap)
-      and. d' =
-        req_final(req(state, env), d => Probe(d, pr) |> wrap_ctx, d'');
+      and. d' = req_final(req(env), d => Probe(d, pr) |> wrap_ctx, d'');
       Step({
         expr: d',
         side_effects: [RecordExpProbe(pr)],
@@ -933,8 +878,7 @@ module Transition = (EV: EV_MODE) => {
       });
     | Filter(f1, d1) =>
       let. _ = otherwise(env, d1 => Filter(f1, d1) |> rewrap)
-      and. d1 =
-        req_final(req(state, env), d1 => Filter(f1, d1) |> wrap_ctx, d1);
+      and. d1 = req_final(req(env), d1 => Filter(f1, d1) |> wrap_ctx, d1);
       Step({
         expr: d1,
         side_effects: [],

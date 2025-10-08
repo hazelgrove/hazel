@@ -95,7 +95,6 @@ module F =
         ~hidden: Calc.saved(bool),
         ~exp: Calc.t(Exp.t),
         ~ctx: Calc.t(Ctx.t),
-        ~state: Calc.t(EvaluatorState.t),
         ~editor as _: Calc.t(CodeSelectable.Model.t),
         model: model,
       ) => {
@@ -122,7 +121,6 @@ module F =
         ~settings,
         ~ctx=bindings,
         ~exp=inner_exp,
-        ~state,
         inner_stepper,
       );
     let result_function =
@@ -151,7 +149,7 @@ module F =
         result_function: result_function |> Calc.save,
       },
       hidden |> Calc.set(false),
-      Some((result_function, state)),
+      Some(result_function),
     );
   };
 

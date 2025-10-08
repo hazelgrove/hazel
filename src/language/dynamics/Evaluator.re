@@ -72,7 +72,7 @@ module EvaluatorEVMode: {
 
   include
     EV_MODE with
-      type state = EvaluatorState.t and
+      type state = ref(EvaluatorState.t) and
       type result =
         Trampoline.t((status, list(EvaluatorState.effect), DHExp.t));
 } = {
@@ -87,7 +87,7 @@ module EvaluatorEVMode: {
   type requirement('a) = Trampoline.t('a);
   type requirements('a, 'b) = Trampoline.t(('a, 'b));
 
-  type state = EvaluatorState.t;
+  type state = ref(EvaluatorState.t);
 
   let req_final = (f, _, x) => {
     let.trampoline (_, _, x) = Next(() => f(x));
@@ -131,19 +131,21 @@ let rec evaluate =
           state: EvaluatorEVMode.state,
           env,
           init: DHExp.t,
-        ) => {
+        )
+        : EvaluatorEVMode.result => {
   open Trampoline.Syntax;
   let.trampoline (is_finished, effects, next) =
     Eval.transition(
-      evaluate(~call_stack),
+      (~in_closure=?, env, init) =>
+        evaluate(~in_closure?, ~call_stack, state, env, init),
       ~mode=`Environment,
       ~in_closure?,
-      state,
       env,
       init,
     );
-  let (call_stack, state) =
-    EvaluatorState.update(state, call_stack, env, init, next, effects);
+  let (call_stack, new_state) =
+    EvaluatorState.update(state^, call_stack, env, init, next, effects);
+  state := new_state;
   switch (is_finished) {
   | Final => Trampoline.return((EvaluatorEVMode.Final, [], next))
   | Uneval => Trampoline.Next(() => evaluate(~call_stack, state, env, next))
@@ -153,14 +155,14 @@ let rec evaluate =
 let evaluate_and_limit =
     (~step_limit: option(int)=?, ~env, d: DHExp.t)
     : step_constrained((Exp.t, EvaluatorState.t)) => {
-  let state = EvaluatorState.init;
+  let state = ref(EvaluatorState.init);
   let result = evaluate(~call_stack=[], state, env, d);
   let result = Trampoline.run(~step_limit?, result);
   switch (result) {
   | Completed((_, _, x)) =>
     Completed((
       x |> Exp.replace_all_ids |> Exp.substitute_closures(env),
-      state,
+      state^,
     ))
   | StepLimitExceeded => StepLimitExceeded
   };

@@ -131,7 +131,6 @@ module Update = {
         ~settings,
         exp,
         ctx: Calc.t(Ctx.t),
-        _state,
         new_next_steps,
         {
           next_steps: _,

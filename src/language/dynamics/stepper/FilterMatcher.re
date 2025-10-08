@@ -141,7 +141,7 @@ let rec matches_exp =
       matches_exp(~denv, d, ~fenv, fc);
 
     | (_, Constructor("$v", _)) =>
-      switch (ValueChecker.check_value((), denv, d)) {
+      switch (ValueChecker.check_value(denv, d)) {
       | Indet
       | Value => true
       | Expr => false

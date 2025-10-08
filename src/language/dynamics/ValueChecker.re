@@ -49,20 +49,19 @@ module ValueCheckerEVMode: {
 
 module CV = Transition(ValueCheckerEVMode);
 
-let rec check_value = (~in_closure=?, state, env, d) =>
-  CV.transition(check_value, ~mode=`Environment, ~in_closure?, state, env, d);
+let rec check_value = (~in_closure=?, env, d) =>
+  CV.transition(check_value, ~mode=`Environment, ~in_closure?, env, d);
 
-let rec check_value_mod_ctx = (~in_closure=?, (), env, d) =>
+let rec check_value_mod_ctx = (~in_closure=?, env, d) =>
   switch (DHExp.term_of(d)) {
   | Var(x) =>
     switch (Environment.lookup(env, x)) {
-    | Some(v) => check_value_mod_ctx(~in_closure?, (), env, v)
+    | Some(v) => check_value_mod_ctx(~in_closure?, env, v)
     | None =>
       CV.transition(
         check_value_mod_ctx,
         ~mode=`Environment,
         ~in_closure?,
-        (),
         env,
         d,
       )
@@ -72,7 +71,6 @@ let rec check_value_mod_ctx = (~in_closure=?, (), env, d) =>
       check_value_mod_ctx,
       ~mode=`Environment,
       ~in_closure?,
-      (),
       env,
       d,
     )
