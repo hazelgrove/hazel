@@ -1,6 +1,6 @@
 open Util;
 
-[@deriving (show({with_path: false}), sexp, yojson)]
+[@deriving (show({with_path: false}), sexp, yojson, eq)]
 type binding('a) = (Var.t, 'a);
 
 type t('a) =
@@ -62,6 +62,9 @@ let add_bindings = (type a, env: t(a), bindings: list(binding(a))): t(a) => {
     bindings,
   );
 };
+
+let of_list = (bindings: list(binding('a))): t('a) =>
+  add_bindings(empty, bindings);
 
 let rec map = (f: 'a => 'b, env: t('a)): t('b) => {
   switch (env) {

@@ -58,7 +58,7 @@ let rec check_value = (~in_closure=?, state, env, d) =>
 let rec check_value_mod_ctx = (~in_closure=?, (), env, d) =>
   switch (DHExp.term_of(d)) {
   | Var(x) =>
-    switch (ClosureEnvironment.lookup(env, x)) {
+    switch (Environment.lookup(env, x)) {
     | Some(v) => check_value_mod_ctx(~in_closure?, (), env, v)
     | None =>
       CV.transition(

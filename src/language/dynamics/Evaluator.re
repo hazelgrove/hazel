@@ -113,7 +113,6 @@ module EvaluatorEVMode: {
   };
   let (let.) = (t1, s) => {
     let.trampoline (x, c) = t1;
-    let id = DHExp.rep_id(c); // Assuming that c has the original id
     switch (s(x)) {
     | Step({expr, side_effects, is_value: true, _}) =>
       Trampoline.return((Final, side_effects, expr))
@@ -128,54 +127,65 @@ module EvaluatorEVMode: {
 
 module Eval = Transition(EvaluatorEVMode);
 
-let rec evaluate = (~in_closure=?, ~call_stack, state, env, d) => {
+let handle_effects =
+    (
+      state: ref(EvaluatorState.t),
+      call_stack: list(Id.t),
+      env,
+      init: DHExp.t,
+      next: DHExp.t,
+      side_effects,
+    ) =>
+  List.fold_left(
+    ((call_stack, state), side_effect) =>
+      switch (side_effect) {
+      | RecordTest(instance_report) =>
+        let id = DHExp.rep_id(instance_report.exp);
+        state := EvaluatorState.add_test(state^, id, instance_report);
+        (call_stack, state);
+      | RecordProbe(pr) =>
+        let id = DHExp.rep_id(init);
+        let closure =
+          Dynamics.Probe.Closure.mk(id, next, env, call_stack, pr);
+        state := EvaluatorState.add_closure(state^, closure);
+        (call_stack, state);
+      | AddToCallStack => ([DHExp.rep_id(init), ...call_stack], state)
+      | BindingProbe(closure_closures) =>
+        List.iter(
+          closure =>
+            state := EvaluatorState.add_closure(state^, closure(call_stack)),
+          closure_closures,
+        );
+        (call_stack, state);
+      },
+    (call_stack, state),
+    side_effects,
+  );
+
+let rec evaluate =
+        (
+          ~in_closure=?,
+          ~call_stack: list(Id.t),
+          state: EvaluatorEVMode.state,
+          env,
+          init: DHExp.t,
+        ) => {
+  //TODO: unref state
   open Trampoline.Syntax;
-  let.trampoline (is_finished, side_effects, d') =
+  let.trampoline (is_finished, side_effects, next) =
     Eval.transition(
       evaluate(~call_stack),
       ~mode=`Environment,
       ~in_closure?,
       state,
       env,
-      d,
+      init,
     );
-  let (call_stack, state) = List.fold_left(
-    fun 
-      | ((call_stack, state), RecordTest(instance_report))
-      | ((call_stack, state), RecordProbe)
-      | ((call_stack, state), AddToCallStack)
-      | ((call_stack, state), BindingProbe(closure_closures))
-  )
-
-  switch (u) {
-  | (Final, x) => (EvaluatorEVMode.Final, x) |> Trampoline.return
-  | (Uneval, x) =>
-    Trampoline.Next(() => evaluate(~call_stack, state, env, x))
-  | (AddToCallStack, x) =>
-    Trampoline.Next(
-      () =>
-        evaluate(
-          ~call_stack=[DHExp.rep_id(d), ...call_stack],
-          state,
-          env,
-          x,
-        ),
-    )
-  | (RecordProbe, x) =>
-    Trampoline.Next(
-      () => {
-        let map = ClosureEnvironment.map_of(env);
-        let id = DHExp.rep_id(d);
-        let closure = Dynamics.Probe.Closure.mk(id, x, map, call_stack, pr);
-        update_probe(state, closure);
-        evaluate(
-          ~call_stack=[DHExp.rep_id(d), ...call_stack],
-          state,
-          env,
-          x,
-        );
-      },
-    )
+  let (call_stack, state) =
+    handle_effects(state, call_stack, env, init, next, side_effects);
+  switch (is_finished) {
+  | Final => Trampoline.return((EvaluatorEVMode.Final, [], next))
+  | Uneval => Trampoline.Next(() => evaluate(~call_stack, state, env, next))
   };
 };
 
@@ -183,15 +193,12 @@ let evaluate_and_limit =
     (~step_limit: option(int)=?, ~env, d: DHExp.t)
     : step_constrained((Exp.t, EvaluatorState.t)) => {
   let state = ref(EvaluatorState.init);
-  let env = ClosureEnvironment.of_environment(env);
-  let result = evaluate(state, env, d);
+  let result = evaluate(~call_stack=[], state, env, d);
   let result = Trampoline.run(~step_limit?, result);
   switch (result) {
-  | Completed((_, x)) =>
+  | Completed((_, _, x)) =>
     Completed((
-      x
-      |> Exp.replace_all_ids
-      |> Exp.substitute_closures(env |> ClosureEnvironment.map_of),
+      x |> Exp.replace_all_ids |> Exp.substitute_closures(env),
       state^,
     ))
   | StepLimitExceeded => StepLimitExceeded

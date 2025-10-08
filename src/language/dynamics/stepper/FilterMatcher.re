@@ -1,26 +1,26 @@
-let evaluate_extend_env = ClosureEnvironment.extend_eval(~call_stack=[]);
-
 let evaluate_extend_env_with_pat =
     (
       ids: list(Uuidm.t),
       pat: DHPat.t,
       exp: DHExp.t,
-      to_extend: ClosureEnvironment.t,
+      to_extend: Environment.t(Exp.t),
     )
-    : ClosureEnvironment.t => {
+    : Environment.t(Exp.t) => {
   switch (DHPat.get_var(pat)) {
   | Some(fname) =>
-    evaluate_extend_env(
-      Environment.singleton((
-        fname,
-        {
-          annotation: {
-            ids: ids,
-          },
-          term: FixF(pat, exp, Some(to_extend)),
-        }: TermBase.exp_t,
-      )),
+    Environment.add_bindings(
       to_extend,
+      [
+        (
+          fname,
+          {
+            annotation: {
+              ids: ids,
+            },
+            term: FixF(pat, exp, Some(to_extend)),
+          }: TermBase.exp_t,
+        ),
+      ],
     )
   | None =>
     let bindings = DHPat.bound_vars(pat);
@@ -45,7 +45,7 @@ let evaluate_extend_env_with_pat =
           ),
         bindings,
       );
-    evaluate_extend_env(Environment.of_list(substitutions), to_extend);
+    Environment.add_bindings(to_extend, substitutions);
   };
 };
 
@@ -54,11 +54,11 @@ let alpha_magic = "__alpha_id__";
 let tangle =
     (
       dp: DHPat.t,
-      denv: ClosureEnvironment.t,
+      denv: Environment.t(Exp.t),
       fp: DHPat.t,
-      fenv: ClosureEnvironment.t,
+      fenv: Environment.t(Exp.t),
     )
-    : option((ClosureEnvironment.t, ClosureEnvironment.t)) => {
+    : option((Environment.t(Exp.t), Environment.t(Exp.t))) => {
   let dvars = DHPat.bound_vars(dp);
   let fvars = DHPat.bound_vars(fp);
   if (List.length(dvars) != List.length(fvars)) {
@@ -80,17 +80,17 @@ let tangle =
           (binding, (Var(ids[i]): TermBase.exp_term) |> IdTagged.fresh),
         fvars,
       );
-    let denv = evaluate_extend_env(Environment.of_list(denv_subst), denv);
-    let fenv = evaluate_extend_env(Environment.of_list(fenv_subst), fenv);
+    let denv = Environment.add_bindings(denv, denv_subst);
+    let fenv = Environment.add_bindings(fenv, fenv_subst);
     Some((denv, fenv));
   };
 };
 
 let rec matches_exp =
         (
-          ~denv: ClosureEnvironment.t,
+          ~denv: Environment.t(Exp.t),
           d: DHExp.t,
-          ~fenv: ClosureEnvironment.t,
+          ~fenv: Environment.t(Exp.t),
           f: DHExp.t,
         )
         : bool => {
@@ -167,10 +167,7 @@ let rec matches_exp =
           && String.starts_with(~prefix=alpha_magic, fx)) {
         String.equal(dx, fx);
       } else {
-        switch (
-          ClosureEnvironment.lookup(denv, dx),
-          ClosureEnvironment.lookup(fenv, fx),
-        ) {
+        switch (Environment.lookup(denv, dx), Environment.lookup(fenv, fx)) {
         | (Some(d), Some(f)) => matches_exp(d, f)
         | (Some(_), None) => false
         | (None, Some(_)) => false
@@ -178,12 +175,12 @@ let rec matches_exp =
         };
       }
     | (Var(dx), _) =>
-      switch (ClosureEnvironment.lookup(denv, dx)) {
+      switch (Environment.lookup(denv, dx)) {
       | Some(d) => matches_exp(d, f)
       | None => false
       }
     | (_, Var(fx)) =>
-      switch (ClosureEnvironment.lookup(fenv, fx)) {
+      switch (Environment.lookup(fenv, fx)) {
       | Some(f) => matches_exp(d, f)
       | None => false
       }
@@ -355,10 +352,10 @@ let rec matches_exp =
 
 and matches_fun =
     (
-      ~denv: ClosureEnvironment.t,
+      ~denv: Environment.t(Exp.t),
       dp: DHPat.t,
       d: DHExp.t,
-      ~fenv: ClosureEnvironment.t,
+      ~fenv: Environment.t(Exp.t),
       fp: DHPat.t,
       f: DHExp.t,
     ) => {
@@ -383,8 +380,8 @@ and matches_fun =
           (binding, (Var(ids[i]): TermBase.exp_term) |> IdTagged.fresh),
         fvars,
       );
-    let denv = evaluate_extend_env(Environment.of_list(denv_subst), denv);
-    let fenv = evaluate_extend_env(Environment.of_list(fenv_subst), fenv);
+    let denv = Environment.add_bindings(denv, denv_subst);
+    let fenv = Environment.add_bindings(fenv, fenv_subst);
     matches_exp(~denv, d, ~fenv, f);
   };
 }
@@ -405,7 +402,7 @@ and matches_utpat = (d: TPat.t, f: TPat.t): bool => {
 };
 
 let matches =
-    (~env: ClosureEnvironment.t, ~exp: DHExp.t, ~flt: TermBase.filter)
+    (~env: Environment.t(Exp.t), ~exp: DHExp.t, ~flt: TermBase.filter)
     : option(FilterAction.t) =>
   if (matches_exp(~denv=env, exp, ~fenv=env, flt.pat)) {
     Some(flt.act);
@@ -414,7 +411,12 @@ let matches =
   };
 
 let matches =
-    (~env: ClosureEnvironment.t, ~exp: DHExp.t, ~act: FilterAction.t, flt_env)
+    (
+      ~env: Environment.t(Exp.t),
+      ~exp: DHExp.t,
+      ~act: FilterAction.t,
+      flt_env,
+    )
     : (FilterAction.t, int) => {
   let len = List.length(flt_env);
   let rec matches' = (~env, ~exp, ~act, flt_env, idx) => {

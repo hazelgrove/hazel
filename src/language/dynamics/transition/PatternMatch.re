@@ -1,6 +1,6 @@
 open Util;
 
-[@deriving (show({with_path: false}), sexp, yojson)]
+[@deriving (show({with_path: false}), sexp, yojson, eq)]
 type match_result = Unboxing.unboxed(list(Environment.binding(Exp.t)));
 let ( let* ) = Unboxing.( let* );
 

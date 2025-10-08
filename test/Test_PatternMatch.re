@@ -48,17 +48,13 @@ let tests = (
         check(
           testable(
             PatternMatch.pp_match_result,
-            Unboxing.equal_unboxed(
-              VarBstMap.Ordered.equal_t_(TermBase.Exp.fast_equal),
-            ),
+            PatternMatch.equal_match_result,
           ),
           "Labeled Tuple with casts",
-          Matches(
-            Environment.of_list([
-              ("b", Exp.(bool(true))),
-              ("a", Exp.(string("get_acne"))),
-            ]),
-          ),
+          Matches([
+            ("b", Exp.(bool(true))),
+            ("a", Exp.(string("get_acne"))),
+          ]),
           matches,
         );
       },

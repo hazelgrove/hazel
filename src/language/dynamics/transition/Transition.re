@@ -47,7 +47,7 @@ open PatternMatch;
 
 type side_effect =
   | RecordTest(TestMap.instance_report)
-  | RecordProbe
+  | RecordProbe(Probe.t)
   | AddToCallStack
   | BindingProbe(PatternMatch.closure_closures);
 
@@ -83,8 +83,7 @@ type step_kind =
   | Ascription
   | RemoveTypeAlias
   | RemoveUse
-  | RemoveParens
-  | RecordProbe;
+  | RemoveParens;
 
 type rule =
   | Step({
@@ -908,8 +907,8 @@ module Transition = (EV: EV_MODE) => {
         req_final(req(state, env), d => Probe(d, pr) |> wrap_ctx, d'');
       Step({
         expr: d',
-        side_effects: [RecordProbe],
-        kind: RecordProbe,
+        side_effects: [RecordProbe(pr)],
+        kind: RemoveParens,
         is_value: false,
       });
     | Parens(d) =>
@@ -982,7 +981,6 @@ let should_hide_step_kind = (~settings: CoreSettings.Evaluation.t) =>
   | WrapClosure
   | FixClosure
   | MarkIncomparable
-  | RecordProbe
   | RemoveParens => true;
 
 let stepper_justification: step_kind => string =
@@ -1032,7 +1030,6 @@ let stepper_justification: step_kind => string =
   | RemoveTypeAlias => "define type"
   | RemoveUse => "set use type"
   | RemoveParens => "remove parentheses"
-  | RecordProbe => "record probe"
   | Dot => "Labeled tuple access"
   | TupleExtension => "Tuple extension"
   | MarkIncomparable => "mark equality as incomparable"

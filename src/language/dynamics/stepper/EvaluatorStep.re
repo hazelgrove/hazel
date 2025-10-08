@@ -4,7 +4,7 @@ open Transition;
 module EvalObj = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t = {
-    env: ClosureEnvironment.t, // technically can be calculated from ctx
+    env: Environment.t(Exp.t), // technically can be calculated from ctx
     d_loc: DHExp.t,
     ctx: EvalCtx.t,
     knd: step_kind,
@@ -39,7 +39,7 @@ module EvalObj = {
 
 let rec matches =
         (
-          env: ClosureEnvironment.t,
+          env: Environment.t(Exp.t),
           flt: FilterEnvironment.t,
           ctx: EvalCtx.t,
           exp: DHExp.t,
@@ -218,7 +218,7 @@ let should_hide_eval_obj =
     (Eval, x);
   } else {
     let (act, _, ctx) =
-      matches(ClosureEnvironment.empty, [], x.ctx, x.d_loc, (Step, One), 0);
+      matches(Environment.empty, [], x.ctx, x.d_loc, (Step, One), 0);
     switch (act) {
     | (Eval, _) => (
         Eval,
@@ -260,7 +260,7 @@ module Decompose = {
   } = {
     type state = ref(EvaluatorState.t);
     type requirement('a) = (Result.t, 'a);
-    type requirements('a, 'b) = ('b, Result.t, ClosureEnvironment.t, 'a);
+    type requirements('a, 'b) = ('b, Result.t, Environment.t(Exp.t), 'a);
     type result = Result.t;
 
     let (&&): (Result.t, Result.t) => Result.t =
@@ -360,9 +360,7 @@ module TakeStep = {
 
     let (let.) = (rq: requirements('a, DHExp.t), rl: 'a => rule) =>
       switch (rl(rq)) {
-      | Step({expr, state_update, _}) =>
-        state_update();
-        Some(expr);
+      | Step({expr, _}) => Some(expr)
       | Constructor
       | Value
       | Indet => None
@@ -396,7 +394,7 @@ module TakeStep = {
 let take_step = TakeStep.take_step;
 
 let decompose = (d: DHExp.t, es: EvaluatorState.t) => {
-  let env = ClosureEnvironment.of_environment(Builtins.env_init);
+  let env = Builtins.env_init;
   let rs = Decompose.decompose(ref(es), env, d);
   Decompose.Result.unbox(rs);
 };
