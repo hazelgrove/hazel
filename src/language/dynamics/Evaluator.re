@@ -72,8 +72,9 @@ module EvaluatorEVMode: {
 
   include
     EV_MODE with
-      type state = ref(EvaluatorState.t) and
-      type result = Trampoline.t((status, list(side_effect), DHExp.t));
+      type state = EvaluatorState.t and
+      type result =
+        Trampoline.t((status, list(EvaluatorState.effect), DHExp.t));
 } = {
   open Trampoline.Syntax;
 
@@ -81,16 +82,12 @@ module EvaluatorEVMode: {
     | Final
     | Uneval;
 
-  type result = Trampoline.t((status, list(side_effect), DHExp.t));
+  type result =
+    Trampoline.t((status, list(EvaluatorState.effect), DHExp.t));
   type requirement('a) = Trampoline.t('a);
   type requirements('a, 'b) = Trampoline.t(('a, 'b));
 
-  type state = ref(EvaluatorState.t);
-  let update_test = (state, id, v) =>
-    state := EvaluatorState.add_test(state^, id, v);
-
-  let update_probe = (state, closure: Dynamics.Probe.Closure.t) =>
-    state := EvaluatorState.add_closure(state^, closure);
+  type state = EvaluatorState.t;
 
   let req_final = (f, _, x) => {
     let.trampoline (_, _, x) = Next(() => f(x));
@@ -127,41 +124,6 @@ module EvaluatorEVMode: {
 
 module Eval = Transition(EvaluatorEVMode);
 
-let handle_effects =
-    (
-      state: ref(EvaluatorState.t),
-      call_stack: list(Id.t),
-      env,
-      init: DHExp.t,
-      next: DHExp.t,
-      side_effects,
-    ) =>
-  List.fold_left(
-    ((call_stack, state), side_effect) =>
-      switch (side_effect) {
-      | RecordTest(instance_report) =>
-        let id = DHExp.rep_id(instance_report.exp);
-        state := EvaluatorState.add_test(state^, id, instance_report);
-        (call_stack, state);
-      | RecordProbe(pr) =>
-        let id = DHExp.rep_id(init);
-        let closure =
-          Dynamics.Probe.Closure.mk(id, next, env, call_stack, pr);
-        state := EvaluatorState.add_closure(state^, closure);
-        (call_stack, state);
-      | AddToCallStack => ([DHExp.rep_id(init), ...call_stack], state)
-      | BindingProbe(closure_closures) =>
-        List.iter(
-          closure =>
-            state := EvaluatorState.add_closure(state^, closure(call_stack)),
-          closure_closures,
-        );
-        (call_stack, state);
-      },
-    (call_stack, state),
-    side_effects,
-  );
-
 let rec evaluate =
         (
           ~in_closure=?,
@@ -170,9 +132,8 @@ let rec evaluate =
           env,
           init: DHExp.t,
         ) => {
-  //TODO: unref state
   open Trampoline.Syntax;
-  let.trampoline (is_finished, side_effects, next) =
+  let.trampoline (is_finished, effects, next) =
     Eval.transition(
       evaluate(~call_stack),
       ~mode=`Environment,
@@ -182,7 +143,7 @@ let rec evaluate =
       init,
     );
   let (call_stack, state) =
-    handle_effects(state, call_stack, env, init, next, side_effects);
+    EvaluatorState.update(state, call_stack, env, init, next, effects);
   switch (is_finished) {
   | Final => Trampoline.return((EvaluatorEVMode.Final, [], next))
   | Uneval => Trampoline.Next(() => evaluate(~call_stack, state, env, next))
@@ -192,14 +153,14 @@ let rec evaluate =
 let evaluate_and_limit =
     (~step_limit: option(int)=?, ~env, d: DHExp.t)
     : step_constrained((Exp.t, EvaluatorState.t)) => {
-  let state = ref(EvaluatorState.init);
+  let state = EvaluatorState.init;
   let result = evaluate(~call_stack=[], state, env, d);
   let result = Trampoline.run(~step_limit?, result);
   switch (result) {
   | Completed((_, _, x)) =>
     Completed((
       x |> Exp.replace_all_ids |> Exp.substitute_closures(env),
-      state^,
+      state,
     ))
   | StepLimitExceeded => StepLimitExceeded
   };

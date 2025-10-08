@@ -45,12 +45,6 @@ open PatternMatch;
     (functions without closures immediately inside them do not count as values).
    */
 
-type side_effect =
-  | RecordTest(TestMap.instance_report)
-  | RecordProbe(Probe.t)
-  | AddToCallStack
-  | BindingProbe(PatternMatch.closure_closures);
-
 [@deriving (show({with_path: false}), sexp, yojson)]
 type step_kind =
   | InvalidStep
@@ -88,7 +82,7 @@ type step_kind =
 type rule =
   | Step({
       expr: DHExp.t,
-      side_effects: list(side_effect),
+      side_effects: list(EvaluatorState.effect),
       kind: step_kind,
       is_value: bool,
     })
@@ -125,10 +119,6 @@ module type EV_MODE = {
     (requirements('a, 'c => 'b), requirement('c)) =>
     requirements(('a, 'c), 'b);
   let otherwise: (Environment.t(Exp.t), 'a) => requirements(unit, 'a);
-
-  let update_test: (state, Id.t, TestMap.instance_report) => unit;
-
-  let update_probe: (state, Dynamics.Probe.Closure.t) => unit;
 };
 
 module Transition = (EV: EV_MODE) => {
@@ -257,7 +247,7 @@ module Transition = (EV: EV_MODE) => {
         let env' = Environment.add_bindings(env, env');
         Step({
           expr: subst_env(env', d2),
-          side_effects: [BindingProbe(closures)],
+          side_effects: [RecordPatProbes(closures)],
           kind: LetBind(matches_str),
           is_value: false,
         });
@@ -420,7 +410,10 @@ module Transition = (EV: EV_MODE) => {
             let env'' = Environment.add_bindings(replacement_env, added_env);
             Step({
               expr: subst_env(env'', d3),
-              side_effects: [BindingProbe(matches.closures), AddToCallStack],
+              side_effects: [
+                RecordPatProbes(matches.closures),
+                RecordStackFrame,
+              ],
               kind: FunAp,
               is_value: false,
             });
@@ -437,7 +430,10 @@ module Transition = (EV: EV_MODE) => {
                   Environment.add_bindings(Environment.empty, added_env),
                   d3,
                 ),
-              side_effects: [BindingProbe(matches.closures), AddToCallStack],
+              side_effects: [
+                RecordPatProbes(matches.closures),
+                RecordStackFrame,
+              ],
               kind: FunAp,
               is_value: false,
             })
@@ -827,7 +823,7 @@ module Transition = (EV: EV_MODE) => {
       | Some((env', d2, closures)) =>
         Step({
           expr: subst_env(Environment.add_bindings(env, env'), d2),
-          side_effects: [BindingProbe(closures)],
+          side_effects: [RecordPatProbes(closures)],
           kind: CaseApply,
           is_value: false,
         })
@@ -907,7 +903,7 @@ module Transition = (EV: EV_MODE) => {
         req_final(req(state, env), d => Probe(d, pr) |> wrap_ctx, d'');
       Step({
         expr: d',
-        side_effects: [RecordProbe(pr)],
+        side_effects: [RecordExpProbe(pr)],
         kind: RemoveParens,
         is_value: false,
       });

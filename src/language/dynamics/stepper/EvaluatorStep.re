@@ -321,10 +321,6 @@ module Decompose = {
       ((u, r1, env, v1), (r2, v2)) => (u(v2), r1 && r2, env, (v1, v2));
 
     let otherwise = (env, o) => (o, Result.BoxedValue, env, ());
-    let update_test = (state, id, v) =>
-      state := EvaluatorState.add_test(state^, id, v);
-    let update_probe = (state, closure: Dynamics.Probe.Closure.t) =>
-      state := EvaluatorState.add_closure(state^, closure);
   };
 
   module Decomp = Transition(DecomposeEVMode);
@@ -369,12 +365,6 @@ module TakeStep = {
     let (and.) = (x1, x2) => (x1, x2);
 
     let otherwise = (_, _) => ();
-
-    let update_test = (state, id, v) =>
-      state := EvaluatorState.add_test(state^, id, v);
-
-    let update_probe = (state, closure: Dynamics.Probe.Closure.t) =>
-      state := EvaluatorState.add_closure(state^, closure);
   };
 
   module TakeStepEV = Transition(TakeStepEVMode);

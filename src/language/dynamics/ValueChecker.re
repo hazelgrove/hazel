@@ -45,9 +45,6 @@ module ValueCheckerEVMode: {
   let (and.) = ((v1, r1), (v2, r2)) => {
     ((v1, v2), combine(r1, r2));
   };
-
-  let update_test = (_, _, _) => ();
-  let update_probe = (_, _) => ();
 };
 
 module CV = Transition(ValueCheckerEVMode);
