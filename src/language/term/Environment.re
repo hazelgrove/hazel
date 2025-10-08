@@ -13,29 +13,14 @@ type t('a) =
         Core.Map.t(Var.t, 'a, Core.String.comparator_witness),
     });
 
-type serialized_t('a) = {
-  id: Id.t,
-  binding: (Var.t, 'a),
-  prev_env: serialized_t('a),
-};
-
-let pp = (_, _, _) => failwith("Environment.pp not implemented");
-let sexp_of_t = (_, _) => failwith("Environment.sexp_of_t not implemented");
-let t_of_sexp = (_, _) => failwith("Environment.t_of_sexp not implemented");
-let yojson_of_t = (_, _) =>
-  failwith("Environment.yojson_of_t not implemented");
-let t_of_yojson = (_, _) =>
-  failwith("Environment.t_of_yojson not implemented");
-let id_equal = (x: t('a), y: t('a)) =>
-  switch (x, y) {
-  | (Empty, Empty) => true
-  | (E(e1), E(e2)) => e1.id == e2.id
-  | (Empty, E(_))
-  | (E(_), Empty) => false
-  };
-let equal = _ => id_equal;
-
-let empty = Empty;
+[@deriving (show({with_path: false}), sexp, yojson, eq)]
+type serialized_t('a) =
+  | EmptyS
+  | ES({
+      id: Id.t,
+      binding: (Var.t, 'a),
+      prev_env: serialized_t('a),
+    });
 
 let extend = (type a, ~id=Id.mk(), env: t(a), v: Var.t, x: a): t(a) => {
   E({
@@ -52,8 +37,51 @@ let extend = (type a, ~id=Id.mk(), env: t(a), v: Var.t, x: a): t(a) => {
         ~f=_ =>
         x
       ),
-  }) /* }*/;
+  });
 };
+
+let rec serialized_of_t = (env: t('a)): serialized_t('a) => {
+  switch (env) {
+  | Empty => EmptyS
+  | E(e) =>
+    ES({
+      id: e.id,
+      binding: e.binding,
+      prev_env: serialized_of_t(e.prev_env),
+    })
+  };
+};
+
+let rec t_of_serialized = (serialized: serialized_t('a)): t('a) => {
+  switch (serialized) {
+  | EmptyS => Empty
+  | ES(e) =>
+    let (v, x) = e.binding;
+    extend(~id=e.id, t_of_serialized(e.prev_env), v, x);
+  };
+};
+
+let pp = (a: (Format.formatter, 'a) => unit, b: Format.formatter, t: t('a)) =>
+  t |> serialized_of_t |> pp_serialized_t(a, b);
+let sexp_of_t = (a: 'a => Sexplib.Sexp.t, t: t('a)) =>
+  t |> serialized_of_t |> sexp_of_serialized_t(a);
+let t_of_sexp = (a: Sexplib.Sexp.t => 'a, sexp: Sexplib.Sexp.t) =>
+  sexp |> serialized_t_of_sexp(a) |> t_of_serialized;
+let yojson_of_t = (a: 'a => Yojson.Safe.t, t: t('a)) =>
+  t |> serialized_of_t |> yojson_of_serialized_t(a);
+let t_of_yojson = (a: Yojson.Safe.t => 'a, yojson: Yojson.Safe.t) =>
+  yojson |> serialized_t_of_yojson(a) |> t_of_serialized;
+
+let id_equal = (x: t('a), y: t('a)) =>
+  switch (x, y) {
+  | (Empty, Empty) => true
+  | (E(e1), E(e2)) => e1.id == e2.id
+  | (Empty, E(_))
+  | (E(_), Empty) => false
+  };
+let equal = _ => id_equal;
+
+let empty = Empty;
 
 let add_bindings = (type a, env: t(a), bindings: list(binding(a))): t(a) => {
   List.fold_left(
