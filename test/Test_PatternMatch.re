@@ -45,11 +45,23 @@ let tests = (
         let matches: PatternMatch.match_result =
           PatternMatch.matches(pat, expression).matches;
 
+        let equal_match_result =
+            (r1: PatternMatch.match_result, r2: PatternMatch.match_result)
+            : bool =>
+          switch (r1, r2) {
+          | (DoesNotMatch, DoesNotMatch) => true
+          | (IndetMatch, IndetMatch) => true
+          | (Matches(env1), Matches(env2)) =>
+            List.equal(
+              Environment.equal_binding(Term.Exp.equal),
+              List.sort(compare, env1),
+              List.sort(compare, env2),
+            )
+          | _ => false
+          };
+
         check(
-          testable(
-            PatternMatch.pp_match_result,
-            PatternMatch.equal_match_result,
-          ),
+          testable(PatternMatch.pp_match_result, equal_match_result),
           "Labeled Tuple with casts",
           Matches([
             ("b", Exp.(bool(true))),
