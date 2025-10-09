@@ -181,7 +181,7 @@ and subst_var_env =
 
       /* Substitute. */
       let d' = subst_var(d1, x, d');
-      Environment.extend(map, x', d');
+      Environment.extend(map, (x', d'));
     },
     Environment.empty,
     env,
