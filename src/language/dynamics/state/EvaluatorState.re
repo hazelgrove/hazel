@@ -15,22 +15,22 @@ let init = {
   probes: Dynamics.Probe.Map.empty,
 };
 
-let add_test = ({tests, _} as es, id, report) => {
-  let tests = tests |> TestMap.extend((id, report));
-  {
-    ...es,
-    tests,
-  };
-};
-
 let get_tests = ({tests, _}) => tests;
 
-let add_closure = ({probes, _} as es, closure: Dynamics.Probe.Closure.t) => {
-  ...es,
-  probes: Dynamics.Probe.Map.extend(closure.syntax_id, closure, probes),
-};
-
 let get_probes = ({probes, _}) => probes;
+
+let add_test = (state: t, instance_report: TestMap.instance_report) => {
+  ...state,
+  tests:
+    TestMap.extend(
+      (DHExp.rep_id(instance_report.exp), instance_report),
+      state.tests,
+    ),
+};
+let add_closure = (state: t, closure: Dynamics.Probe.Closure.t) => {
+  ...state,
+  probes: Dynamics.Probe.Map.extend(closure.syntax_id, closure, state.probes),
+};
 
 let update =
     (
@@ -42,12 +42,13 @@ let update =
       side_effects: list(effect),
     ) =>
   List.fold_left(
-    ((call_stack, state), side_effect) =>
-      switch (side_effect) {
+    ((call_stack: Probe.call_stack, state: t), effect: effect) =>
+      switch (effect) {
       | RecordStackFrame => ([DHExp.rep_id(init), ...call_stack], state)
-      | RecordTest(instance_report) =>
-        let id = DHExp.rep_id(instance_report.exp);
-        (call_stack, add_test(state, id, instance_report));
+      | RecordTest(instance_report) => (
+          call_stack,
+          add_test(state, instance_report),
+        )
       | RecordExpProbe(pr) =>
         let id = DHExp.rep_id(init);
         let closure =
