@@ -95,52 +95,14 @@ and exp_term('a) =
   | TupleExtension(exp_t('a), exp_t('a))
   | Asc(exp_t('a), typ_t('a))
 and exp_t('a) = Annotated.t(exp_term('a), 'a)
-and pat_term('a) =
-  | Invalid(string)
-  | EmptyHole
-  | MultiHole(list(any_t('a)))
-  | Wild
-  | ExplicitNonlabel
-  | Atom(Atom.t)
-  | ListLit(list(pat_t('a)))
-  | Constructor(string, option(option(typ_t('a)))) // see comment on constructor expressions
-  | Cons(pat_t('a), pat_t('a))
-  | Var(Var.t)
-  | Tuple(list(pat_t('a)))
-  | Label(string)
-  | TupLabel(pat_t('a), pat_t('a))
-  | Parens(pat_t('a))
-  | Probe(pat_t('a), Probe.t)
-  | Ap(pat_t('a), pat_t('a))
-  | Asc(pat_t('a), typ_t('a))
+and pat_term('a) = PatCore.pat_term(pat_t('a), typ_t('a), any_t('a))
 and pat_t('a) = Annotated.t(pat_term('a), 'a)
 and typ_term('a) =
-  | Unknown(type_provenance('a))
-  | Atom(Atom.cls)
-  | Var(string)
-  | List(typ_t('a))
-  | Arrow(typ_t('a), typ_t('a))
-  | Sum(ConstructorMap.t(typ_t('a)))
-  | Prod(list(typ_t('a)))
-  | ExplicitNonlabel
-  | Label(string)
-  | TupLabel(typ_t('a), typ_t('a))
-  | Parens(typ_t('a))
-  | Rec(tpat_t('a), typ_t('a))
-  | Forall(tpat_t('a), typ_t('a))
-  | ProdProjection(typ_t('a), typ_t('a))
-  | ProdExtension(typ_t('a), typ_t('a))
+  TypCore.term_core(type_provenance('a), typ_t('a), tpat_t('a))
 and typ_t('a) = Annotated.t(typ_term('a), 'a)
-and tpat_term('a) =
-  | Invalid(string)
-  | EmptyHole
-  | MultiHole(list(any_t('a)))
-  | Var(string)
+and tpat_term('a) = TPatCore.tpat_term(any_t('a))
 and tpat_t('a) = Annotated.t(tpat_term('a), 'a)
-and rul_term('a) =
-  | Invalid(string)
-  | MultiHole(list(any_t('a)))
-  | Rules(exp_t('a), list((pat_t('a), exp_t('a))))
+and rul_term('a) = RulCore.rul_term(exp_t('a), pat_t('a), any_t('a))
 and rul_t('a) = Annotated.t(rul_term('a), 'a)
 and environment_t('a) = VarBstMap.Ordered.t_(exp_t('a))
 and closure_environment_t('a) = {

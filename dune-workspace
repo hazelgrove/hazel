@@ -4,7 +4,7 @@
 (env
  (dev
   (flags
-   (:standard -w -56-58 -warn-error +A-26-27-K-58))) ; Disable some unused warnings.
+   (:standard -rectypes -w -56-58 -warn-error +A-26-27-K-58))) ; Disable some unused warnings.
  (release
   (flags
    (:standard -w

@@ -643,7 +643,7 @@ and Typ: {
       let (term, rewrap) = Grammar.Annotated.unwrap(ty);
       switch (term) {
       | Atom(_) => ty
-      | Label(name) => Grammar.Label(name) |> rewrap
+      | Label(name) => (TypCore.Label(name) |> rewrap: t)
       | ExplicitNonlabel => ExplicitNonlabel |> rewrap
       | Unknown(prov) => Unknown(prov) |> rewrap
       | Arrow(ty1, ty2) =>

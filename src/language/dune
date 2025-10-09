@@ -16,8 +16,10 @@
 
 (env
  (dev
+  (flags :standard -rectypes)
   (js_of_ocaml
    (flags :standard --debuginfo --noinline --dynlink --linkall --sourcemap)))
  (release
+  (flags :standard -rectypes)
   (js_of_ocaml
    (flags :standard))))
