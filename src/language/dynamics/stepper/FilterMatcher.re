@@ -8,19 +8,17 @@ let evaluate_extend_env_with_pat =
     : Environment.t(Exp.t) => {
   switch (DHPat.get_var(pat)) {
   | Some(fname) =>
-    Environment.add_bindings(
+    Environment.extend(
       to_extend,
-      [
-        (
-          fname,
-          {
-            annotation: {
-              ids: ids,
-            },
-            term: FixF(pat, exp, Some(to_extend)),
-          }: TermBase.exp_t,
-        ),
-      ],
+      (
+        fname,
+        {
+          annotation: {
+            ids: ids,
+          },
+          term: FixF(pat, exp, Some(to_extend)),
+        }: TermBase.exp_t,
+      ),
     )
   | None =>
     let bindings = DHPat.bound_vars(pat);

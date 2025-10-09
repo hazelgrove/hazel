@@ -22,8 +22,9 @@ module Response = {
     );
   [@deriving (show, sexp, yojson)]
   type t = list((string, value));
-  let (sexp_of_t, t_of_sexp) =
-    Util.StructureShareSexp.structure_share_in(sexp_of_t, t_of_sexp);
+  //TODO(andrew, matt): uncomment
+  // let (sexp_of_t, t_of_sexp) =
+  //   Util.StructureShareSexp.structure_share_in(sexp_of_t, t_of_sexp);
 
   let serialize = r => r |> sexp_of_t |> Sexplib.Sexp.to_string;
   let deserialize = sexp => sexp |> Sexplib.Sexp.of_string |> t_of_sexp;
@@ -45,12 +46,6 @@ let on_request = (req: string): unit =>
   |> Request.deserialize
   |> List.map(((k, v)) => (k, work(v)))
   |> Response.serialize
-  |> (
-    x => {
-      print_endline("Serialized response:" ++ x);
-      x;
-    }
-  )
   |> Js_of_ocaml.Worker.post_message;
 
 let start = () => Js_of_ocaml.Worker.set_onmessage(on_request);

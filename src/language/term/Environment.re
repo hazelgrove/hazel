@@ -40,21 +40,22 @@ let extend = (type a, ~id=Id.mk(), env: t(a), (v: Var.t, x: a)): t(a) => {
   });
 };
 
-let sexp_of_serialized_t' = (f_a, f_b, x) =>
-  Util.StructureShareSexp.structure_share_sexp_of_t(
-    (x: serialized_t'('a, 'b)) =>
-      switch (x) {
-      | EmptyS => Id.invalid
-      | ES(e) => e.id
-      },
-    sexp_of_serialized_t'(f_a, f_b),
-    x,
-  );
+//TODO(andrew, matt): uncomment
+// let sexp_of_serialized_t' = (f_a, f_b, x) =>
+//   Util.StructureShareSexp.structure_share_sexp_of_t(
+//     (x: serialized_t'('a, 'b)) =>
+//       switch (x) {
+//       | EmptyS => Id.invalid
+//       | ES(e) => e.id
+//       },
+//     sexp_of_serialized_t'(f_a, f_b),
+//     x,
+//   );
 
-let serialized_t'_of_sexp = (f_a, f_b) =>
-  Util.StructureShareSexp.structure_share_t_of_sexp(
-    serialized_t'_of_sexp(f_a, f_b),
-  );
+// let serialized_t'_of_sexp = (f_a, f_b) =>
+//   Util.StructureShareSexp.structure_share_t_of_sexp(
+//     serialized_t'_of_sexp(f_a, f_b),
+//   );
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type serialized_t('a) =
