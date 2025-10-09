@@ -39,7 +39,7 @@ module StoreMode =
     [@deriving (show({with_path: false}), sexp, yojson)]
     type t = Model.mode;
     let key = Store.Mode;
-    let default = (): Model.mode => Tutorial;
+    let default = (): Model.mode => Derivations;
   });
 
 module Store = {
