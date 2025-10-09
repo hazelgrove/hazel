@@ -22,9 +22,9 @@ module Response = {
     );
   [@deriving (show, sexp, yojson)]
   type t = list((string, value));
-  //TODO(andrew, matt): uncomment
-  // let (sexp_of_t, t_of_sexp) =
-  //   Util.StructureShareSexp.structure_share_in(sexp_of_t, t_of_sexp);
+
+  let (sexp_of_t, t_of_sexp) =
+    Util.StructureShareSexp.structure_share_in(sexp_of_t, t_of_sexp);
 
   let serialize = r => r |> sexp_of_t |> Sexplib.Sexp.to_string;
   let deserialize = sexp => sexp |> Sexplib.Sexp.of_string |> t_of_sexp;

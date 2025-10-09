@@ -304,7 +304,6 @@ module Transition = (EV: EV_MODE) => {
             hint: "No hint available.",
           }),
         ],
-        // update_test(state, DHExp.rep_id(d), (d', result)),
         kind: UpdateTest,
         is_value: true,
       });
