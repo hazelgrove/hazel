@@ -15,7 +15,7 @@ let combine_result = (r1: match_result, r2: match_result): match_result =>
 let rec matches =
         (~update_probe, capture, dp: Pat.t, d: DHExp.t): match_result => {
   let matches = matches(~update_probe, capture);
-  let d = Ascriptions.transition_multiple(d);
+  let d = Ascriptions.transition_multiple(~update_probe, d);
   switch (DHPat.term_of(dp)) {
   | Invalid(_)
   | EmptyHole
