@@ -25,13 +25,15 @@
 .line-numbers{
   background-color: var(--cell-active);
   left: 0;
-  margin-right: 0;
   margin-left: 0;
   margin-top: -2px;
+  margin-bottom: -2px;
   position: sticky; 
   display: flex;
   padding: 0;
   padding-left: 0.5em;
+  padding-right: 0.7em;
+  margin-right: -0.6em;
   min-width: 31px; /*The width of three digits*/
   text-align: right;
   justify-content: flex-end;
