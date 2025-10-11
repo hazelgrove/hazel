@@ -27,6 +27,7 @@
   left: 0;
   margin-right: 0;
   margin-left: 0;
+  margin-top: -2px;
   position: sticky; 
   display: flex;
   padding: 0;
@@ -35,6 +36,8 @@
   text-align: right;
   justify-content: flex-end;
   z-index: var(--line-number-z);
+  border-top: 2px solid var(--cell-active);
+  border-bottom: 2px solid var(--cell-active);
 }
 
 .line-numbers-text{
