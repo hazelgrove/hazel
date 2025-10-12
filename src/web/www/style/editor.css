@@ -37,8 +37,9 @@
   border-bottom: 2px solid var(--cell-active);
 }
 
-.line-numbers-text{
+.code .code-text.line-numbers-text{
   opacity: 0.5;
+  color: var(--STONE);
 }
 
 /* This is a hack to compensating for default linebreak handling
@@ -109,15 +110,8 @@
   color: var(--token-comment);
 }
 
-.code .whitespace {
+.code .code-text {
   color: var(--token-secondary);
-}
-
-.code .linebreak {
-  color: var(--token-secondary);
-  font-family: system-ui;
-  vertical-align: middle;
-  font-size: 0.59em;
 }
 
 .code .token.llm-waiting {

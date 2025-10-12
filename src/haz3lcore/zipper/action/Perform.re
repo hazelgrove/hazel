@@ -117,6 +117,6 @@ let go =
     z
     |> Insert.go(char, ~ci=Indicated.ci_of(z, statics.info_map))
     |> return(Cant_insert)
-  | Put_down => Zipper.put_down_glom(z) |> return(Cant_put_down)
-  | Dump => Ok(Zipper.try_to_dump_backpack(z))
+  | Put_down => Zipper.put_down(z) |> return(Cant_put_down)
+  | Dump => Ok(Dump.to_zipper(z))
   };
