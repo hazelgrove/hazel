@@ -119,6 +119,12 @@ let dev_group = (~globals) => {
         FlipAnimations,
       ),
       ("l", "Line Numbers", globals.settings.line_numbers, ToggleLineNumbers),
+      (
+        "r",
+        "Relative Numbers",
+        globals.settings.relative_line_numbers,
+        ToggleRelativeLineNumbers,
+      ),
     ],
   );
 };

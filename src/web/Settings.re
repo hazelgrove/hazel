@@ -14,6 +14,7 @@ module Model = {
     assistant: AssistantSettings.t,
     sidebar: SidebarModel.Settings.t,
     line_numbers: bool,
+    relative_line_numbers: bool,
   };
 
   let init = {
@@ -58,6 +59,7 @@ module Model = {
       show: true,
     },
     line_numbers: true,
+    relative_line_numbers: false,
   };
 
   let fix_instructor_mode = settings =>
@@ -116,7 +118,8 @@ module Update = {
     | ExplainThis(ExplainThisModel.Settings.action)
     | Assistant(AssistantSettings.action)
     | FlipAnimations
-    | ToggleLineNumbers;
+    | ToggleLineNumbers
+    | ToggleRelativeLineNumbers;
 
   let can_undo = (action: t) => {
     switch (action) {
@@ -321,6 +324,10 @@ module Update = {
       | ToggleLineNumbers => {
           ...settings,
           line_numbers: !settings.line_numbers,
+        }
+      | ToggleRelativeLineNumbers => {
+          ...settings,
+          relative_line_numbers: !settings.relative_line_numbers,
         }
       }
     )

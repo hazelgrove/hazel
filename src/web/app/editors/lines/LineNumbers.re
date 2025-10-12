@@ -11,7 +11,7 @@ open Zipper;
 module Model = CodeWithStatics.Model;
 
 module View = {
-  let view = (model: Model.t) => {
+  let view = (model: Model.t, show_relative_numbers: bool) => {
     let {editor: {syntax: {measured, _}, state: {zipper, _}, _}, _}: Model.t = model;
     let num_rows =
       IntMap.fold(
@@ -31,8 +31,10 @@ module View = {
             ~attrs=[Attr.classes(["code-text", "line-numbers-text"])],
             List.init(num_rows, (i): Node.t =>
               Text(
-                string_of_int(abs(i - row))
-                ++ (i + 1 == num_rows ? "" : "\n"),
+                show_relative_numbers
+                  ? string_of_int(abs(i - row) == 0 ? i + 1 : abs(i - row))
+                    ++ (i + 1 == num_rows ? "" : "\n")
+                  : string_of_int(i + 1) ++ (i + 1 == num_rows ? "" : "\n"),
               )
             ): list(Node.t),
           ),
