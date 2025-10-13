@@ -388,4 +388,66 @@ module View = {
         ),
     );
   };
+
+  let file_menu = (~globals: Globals.t, ~inject: Update.t => 'a, _: Model.t) => {
+    let export_button_for_init =
+      Widgets.button_named(
+        Icons.export,
+        _ => globals.inject_global(ExportForInit),
+        ~tooltip="Export for Init",
+      );
+
+    let file_group_scratch =
+      NutMenu.item_group(~inject, "File", [export_button_for_init]);
+
+    let reset_button =
+      Widgets.button_named(
+        Icons.trash,
+        _ => {
+          let confirmed =
+            JsUtil.confirm(
+              "Are you SURE you want to reset this scratchpad? You will lose any existing code.",
+            );
+          if (confirmed) {
+            inject(ResetCurrent);
+          } else {
+            Virtual_dom.Vdom.Effect.Ignore;
+          };
+        },
+        ~tooltip="Reset Editor",
+      );
+
+    let reparse =
+      Widgets.button_named(
+        Icons.backpack,
+        _ => globals.inject_global(ActiveEditor(Reparse)),
+        ~tooltip="Reparse Editor",
+      );
+
+    let reset_hazel =
+      Widgets.button_named(
+        Icons.bomb,
+        _ => {
+          let confirmed =
+            JsUtil.confirm(
+              "Are you SURE you want to reset Hazel to its initial state? You will lose any existing code that you have written, and course staff have no way to restore it!",
+            );
+          if (confirmed) {
+            JsUtil.clear_localstore();
+            Js_of_ocaml.Dom_html.window##.location##reload;
+          };
+          Virtual_dom.Vdom.Effect.Ignore;
+        },
+        ~tooltip="Reset Hazel (LOSE ALL DATA)",
+      );
+
+    let reset_group_scratch =
+      NutMenu.item_group(
+        ~inject,
+        "Reset",
+        [reset_button, reparse, reset_hazel],
+      );
+
+    [file_group_scratch, reset_group_scratch];
+  };
 };

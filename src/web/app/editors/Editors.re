@@ -507,7 +507,12 @@ module View = {
         ~inject=x => inject(Update.Scratch(x)),
         s,
       )
-    | Config(s) => [] // TODO: Add ConfigurationMode.View.file_menu when implemented
+    | Config(s) =>
+      ConfigurationMode.View.file_menu(
+        ~globals,
+        ~inject=x => inject(Update.Configuration(x)),
+        s,
+      )
     | Documentation(s) =>
       ScratchMode.View.file_menu(
         ~globals,
