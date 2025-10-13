@@ -885,17 +885,36 @@ let fixed_typ_exp = (ctx, ty_ana: Typ.t, self: Self.exp): Typ.t =>
 /* Add derivable attributes for expression terms */
 let derived_exp =
     (
+      ~dynamics: DynamicStatics.Map.t,
       ~uexp: Exp.t,
       ~ctx,
       ~ana,
       ~ancestors,
-      ~self,
+      ~self: Self.exp,
       ~co_ctx,
       ~label_inference: option(label_inference(exp)),
       ~inferred_label: option(LabeledTuple.label),
       ~label_sort,
     )
     : exp => {
+  let t = DynamicStatics.Map.lookup(uexp |> Exp.rep_id, dynamics); // currently unused
+  Id.Map.iter(
+    (id, ty) =>
+      print_endline(
+        "Dynamic type for " ++ Id.to_string(id) ++ ": " ++ Typ.show(ty),
+      ),
+    dynamics,
+  );
+  let self: Self.exp =
+    switch (self, t) {
+    | (Common(Just(ty)), Some(ty')) =>
+      print_endline("Term: " ++ [%derive.show: Exp.t](uexp));
+      print_endline("Dynamic ty: " ++ [%derive.show: Typ.t](ty'));
+      print_endline("Self ty: " ++ [%derive.show: Typ.t](ty));
+      Common(Just(ty'));
+    | _ => self
+    };
+
   let cls = Cls.Exp(Exp.cls_of_term(uexp.term));
   let status = status_exp(ctx, ana, self);
   let ty = fixed_typ_exp(ctx, ana, self);

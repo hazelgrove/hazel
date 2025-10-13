@@ -31,7 +31,14 @@
 include StaticsBase;
 
 let rec any_to_info_map =
-        (~ctx: Ctx.t, ~ancestors, any: Any.t, m: Map.t): (CoCtx.t, Map.t) =>
+        (
+          ~dynamics: DynamicStatics.Map.t=DynamicStatics.Map.empty,
+          ~ctx: Ctx.t,
+          ~ancestors,
+          any: Any.t,
+          m: Map.t,
+        )
+        : (CoCtx.t, Map.t) =>
   switch (any) {
   | Exp(e) =>
     let ({co_ctx, _}: Info.exp, m) =
@@ -92,7 +99,15 @@ let rec any_to_info_map =
     }
   | Any () => (CoCtx.empty, m)
   }
-and multi = (~ctx, ~ancestors, m, tms): (list(CoCtx.t), Map.t) =>
+and multi =
+    (
+      ~dynamics: DynamicStatics.Map.t=DynamicStatics.Map.empty,
+      ~ctx,
+      ~ancestors,
+      m,
+      tms,
+    )
+    : (list(CoCtx.t), Map.t) =>
   List.fold_left(
     ((co_ctxs, m), any) => {
       let (co_ctx, m) = any_to_info_map(~ctx, ~ancestors, any, m);
@@ -103,6 +118,7 @@ and multi = (~ctx, ~ancestors, m, tms): (list(CoCtx.t), Map.t) =>
   )
 and uexp_to_info_map =
     (
+      ~dynamics: DynamicStatics.Map.t=DynamicStatics.Map.empty,
       ~ctx: Ctx.t,
       ~ana=syn,
       ~is_in_filter=false,
@@ -126,6 +142,7 @@ and uexp_to_info_map =
       : (Info.exp, Map.t) => {
     let info =
       Info.derived_exp(
+        ~dynamics,
         ~uexp,
         ~ctx,
         ~ana,
@@ -158,6 +175,7 @@ and uexp_to_info_map =
         m: Map.t,
       ) => {
     uexp_to_info_map(
+      ~dynamics,
       ~ctx,
       ~ana,
       ~is_in_filter,
@@ -174,6 +192,7 @@ and uexp_to_info_map =
   let replace_self = (m: Map.t, original_info: Info.exp, self: Self.exp) => {
     let new_info =
       Info.derived_exp(
+        ~dynamics,
         ~uexp=original_info.term,
         ~ctx=original_info.ctx,
         ~ana=original_info.ana,
@@ -1354,6 +1373,7 @@ and uexp_to_info_map =
 }
 and upat_to_info_map =
     (
+      ~dynamics: DynamicStatics.Map.t=DynamicStatics.Map.empty,
       ~is_synswitch,
       ~ctx,
       ~co_ctx,
@@ -1882,6 +1902,7 @@ and upat_to_info_map =
 }
 and utyp_to_info_map =
     (
+      ~dynamics: DynamicStatics.Map.t=DynamicStatics.Map.empty,
       ~ctx,
       ~expects=Info.TypeExpected,
       ~ancestors,
@@ -2048,6 +2069,7 @@ and utyp_to_info_map =
 }
 and utpat_to_info_map =
     (
+      ~dynamics: DynamicStatics.Map.t=DynamicStatics.Map.empty,
       ~ctx,
       ~ancestors,
       {annotation: {ids, _}, term} as utpat: TPat.t,
@@ -2070,6 +2092,7 @@ and utpat_to_info_map =
 }
 and variant_to_info_map =
     (
+      ~dynamics: DynamicStatics.Map.t=DynamicStatics.Map.empty,
       ~ctx,
       ~ancestors,
       ~ty_sum,
@@ -2107,8 +2130,10 @@ and variant_to_info_map =
 };
 
 let mk =
-  Core.Memo.general(~cache_size_bound=1000, (ctx, e) => {
+  Core.Memo.general(
+    ~cache_size_bound=1000, (dynamics: DynamicStatics.Map.t, ctx, e) => {
     uexp_to_info_map(
+      ~dynamics,
       ~ctx,
       ~ancestors=[],
       ~duplicates=[],
@@ -2120,5 +2145,11 @@ let mk =
     |> snd
   });
 
-let mk = (core: CoreSettings.t, ctx, exp) =>
-  core.statics ? mk(ctx, exp) : Id.Map.empty;
+let mk =
+    (
+      ~dynamics: DynamicStatics.Map.t=DynamicStatics.Map.empty,
+      core: CoreSettings.t,
+      ctx,
+      exp,
+    ) =>
+  core.statics ? mk(dynamics, ctx, exp) : Id.Map.empty;

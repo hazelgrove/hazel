@@ -22,9 +22,11 @@ module Model = {
         ~statics=CachedStatics.empty,
         editor,
       ) => {
-    editor,
-    statics,
-    dynamics,
+    {
+      editor,
+      statics,
+      dynamics,
+    };
   };
 
   let mk_from_exp =
@@ -107,10 +109,54 @@ module Update = {
             editor.state.zipper,
           )
         : statics;
+
+    let ctx_init: Language.Ctx.t = Language.Builtins.ctx_init(Some(Int));
+    // This should be a fold over the dynamics map getitng the type for each value
+    let dynamic_types: Id.Map.t(Language.Typ.t) =
+      Id.Map.filter_map(
+        (_, d) => {
+          open Language;
+
+          let statics =
+            Statics.mk(CoreSettings.on, Builtins.ctx_init(Some(Int)));
+          let type_of = (c: Dynamics.Probe.Closure.t) => {
+            IdTagged.rep_id(c.value)
+            |> Id.Map.find_opt(_, statics(c.value))
+            |> Option.bind(
+                 _,
+                 fun
+                 | InfoExp(e) => {
+                     Some(e.ty);
+                   }
+                 | _ => None,
+               );
+          };
+          let types = List.map(type_of, d) |> Util.OptUtil.sequence;
+
+          Option.map(Typ.consistent_join(Ctx.empty), types);
+        },
+        dynamics,
+      );
+
+    let info_map =
+      Language.Statics.mk(
+        ~dynamics=dynamic_types,
+        settings,
+        ctx_init,
+        statics.term,
+      );
+
+    let error_ids = Language.StaticsBase.Map.error_ids(info_map);
+    let statics: CachedStatics.t = {
+      ...statics,
+      info_map,
+      error_ids,
+    };
+
     let editor =
       Editor.Update.calculate(
         ~settings,
-        ~is_edited,
+        ~is_edited=true,
         statics,
         dynamics,
         editor,
