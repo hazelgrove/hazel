@@ -104,12 +104,17 @@ let stepper_group = (~globals: Globals.t) => {
   );
 };
 
-let dev_group = (~globals) => {
+let dev_group = (~globals: Globals.t) => {
   settings_group(
     ~globals,
     "Developer",
     [
-      ("✓", "Benchmarks", globals.settings.benchmark, Benchmark),
+      (
+        "✓",
+        "Benchmarks",
+        globals.settings.benchmark,
+        Benchmark: Settings.Update.t,
+      ),
       ("𝑒", "Elaboration", globals.settings.core.elaborate, Elaborate),
       ("↵", "Whitespace", globals.settings.secondary_icons, SecondaryIcons),
       (
@@ -118,10 +123,23 @@ let dev_group = (~globals) => {
         globals.settings.core.flip_animations,
         FlipAnimations,
       ),
-    ],
+      ("l", "Line Numbers", globals.settings.line_numbers, ToggleLineNumbers),
+    ]
+    @ (
+      globals.settings.line_numbers
+        ? [
+          (
+            "r",
+            "Relative Numbers",
+            globals.settings.relative_line_numbers,
+            ToggleRelativeLineNumbers,
+          ),
+        ]
+        : []
+    ),
   );
 };
-
+//("l", "Line Numbers", globals.settings.line_numbers, ToggleLineNumbers)
 let settings_menu = (~globals) => {
   [
     semantics_group(~globals),

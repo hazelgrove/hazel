@@ -228,6 +228,7 @@ module View = {
               : (action => inject(MainEditor(action))),
           ~selected=selected == Some(MainEditor),
           ~overlays=overlays(model.editor.editor),
+          ~lines=true,
           model.editor,
         ),
       ]

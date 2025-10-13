@@ -22,6 +22,44 @@
   white-space: pre;
 }
 
+.line-numbers{
+  background-color: var(--ui-bkg);
+  left: 0;
+  position: sticky; 
+  display: flex;
+  padding: 0 0.7em 0 0.5em;
+  margin: -2px -0.6em -2px 0;
+  min-width: 31px; /*The width of three digits*/
+  text-align: right;
+  justify-content: flex-end;
+  z-index: var(--line-number-z);
+  border-top: 2px solid var(--ui-bkg);
+  border-bottom: 2px solid var(--ui-bkg);
+}
+
+/* The default background color for Documentation and Scratch, when not selected, is still cell-active, not --ui-bkg */
+#main.Documentation .line-numbers,
+#main.Scratch .line-numbers{
+  background-color: var(--cell-active);
+  border-color: var(--cell-active);
+}
+
+.line-numbers.line-numbers-selected{
+  background-color: var(--cell-active);
+  border-color: var(--cell-active);
+}
+
+.code .code-text.line-numbers-text :not(.line-numbers-bold){
+  opacity: 0.5;
+  color: var(--STONE);
+}
+
+.code .code-text.line-numbers-text .line-numbers-bold{
+  font-weight: bolder; 
+  opacity: 1;
+  color: var(--BLACK);
+}
+
 /* This is a hack to compensating for default linebreak handling
 * preventing a trailing linebreak in code editors from leaving a
 * trailing blank line, as per https://stackoverflow.com/questions/43492826/.
@@ -29,8 +67,10 @@
 * to avoid inserting an extraneous whitespace context for inline
 * syntax views, e.g. type views in the cursor inspector */
 .code-text:after {
-  content: "​";
+  content: "";
 }
+
+
 
 /* TOKEN COLORS */
 

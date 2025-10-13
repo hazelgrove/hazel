@@ -212,6 +212,7 @@
   --projector-indicated-z: 11;
   --projector-hover-z: 12;
   --caret-z: 20;
+  --line-number-z: 21;
   --projector-overlay-z: 29;
 
   /* TOP LEVEL UI */
