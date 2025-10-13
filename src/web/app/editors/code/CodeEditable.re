@@ -309,7 +309,11 @@ module View = {
         Attr.on_wheel(evt => drag_select(Pointer.Event.mk(evt))),
       ],
       display_line_numbers
-        ? LineNumbers.View.view(model, globals.settings.relative_line_numbers)
+        ? LineNumbers.View.view(
+            model,
+            globals.settings.relative_line_numbers,
+            selected,
+          )
           @ [code_view]
         : [code_view],
     );

@@ -23,7 +23,6 @@
 }
 
 .line-numbers{
-  /*background-color: var(--cell-active);*/
   left: 0;
   position: sticky; 
   display: flex;
@@ -33,8 +32,18 @@
   text-align: right;
   justify-content: flex-end;
   z-index: var(--line-number-z);
-  border-top: 2px solid var(--cell-active);;
-  border-bottom: 2px solid var(--cell-active);;
+  border-top: 2px solid var(--ui-bkg);
+  border-bottom: 2px solid var(--ui-bkg);
+}
+
+/* The default background color for Documentation and Scratch, when not selected, is still cell-active, not --ui-bkg */
+#main.Documentation .line-numbers,
+#main.Scratch .line-numbers{
+  border-color: var(--cell-active);
+}
+
+.line-numbers.line-numbers-selected{
+  border-color: var(--cell-active);
 }
 
 .code .code-text.line-numbers-text{

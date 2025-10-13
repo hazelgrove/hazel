@@ -11,7 +11,7 @@ open Zipper;
 module Model = CodeWithStatics.Model;
 
 module View = {
-  let view = (model: Model.t, show_relative_numbers: bool) => {
+  let view = (model: Model.t, show_relative_numbers: bool, selected: bool) => {
     let {editor: {syntax: {measured, _}, state: {zipper, _}, _}, _}: Model.t = model;
     let num_rows =
       IntMap.fold(
@@ -24,13 +24,21 @@ module View = {
     let Point.{row, _} = Zipper.Caret.point(measured, zipper);
     [
       Node.div(
-        ~attrs=[Attr.classes(["code", "line-numbers"])],
+        ~attrs=[
+          Attr.classes([
+            "code",
+            "line-numbers",
+            selected ? "line-numbers-selected" : "",
+          ]),
+        ],
         [
           Node.span(
             ~attrs=[Attr.classes(["code-text", "line-numbers-text"])],
             List.init(num_rows, (i): Node.t =>
               Node.span(
-                ~attrs=i == row ? [Attr.classes(["line-numbers-bold"])] : [],
+                ~attrs=
+                  i == row && selected
+                    ? [Attr.classes(["line-numbers-bold"])] : [],
                 [
                   Text(
                     show_relative_numbers
