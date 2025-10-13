@@ -2,7 +2,6 @@ open Haz3lcore;
 //open Virtual_dom.Vdom;
 open Util;
 open WebUtil;
-open Zipper;
 
 /*
  Used to display line numbering alongside cells
