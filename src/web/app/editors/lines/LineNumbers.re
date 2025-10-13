@@ -40,7 +40,7 @@ module View = {
                     ? [Attr.classes(["line-numbers-bold"])] : [],
                 [
                   Text(
-                    show_relative_numbers
+                    show_relative_numbers && selected
                       ? string_of_int(
                           abs(i - row) == 0 ? i + 1 : abs(i - row),
                         )
