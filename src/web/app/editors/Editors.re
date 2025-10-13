@@ -151,6 +151,7 @@ module Update = {
         ConfigurationMode.Update.update(
           ~schedule_action=a => schedule_action(Configuration(a)),
           ~settings=globals.settings,
+          ~send_assistant_insertion_info,
           action,
           m,
         );
