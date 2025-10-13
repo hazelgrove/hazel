@@ -9,9 +9,10 @@ open Language;
    and each has a side effect after evaluation */
 
 module Model = {
-  [@deriving (show({with_path: false}), sexp, yojson)]
+  [@deriving (show({with_path: false}), sexp, yojson, enumerate)]
   type config_type =
-    | ColorScheme;
+    | ColorScheme
+    | Shortcuts;
 
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t = {
@@ -36,6 +37,7 @@ module Model = {
   let config_name = (config_type: config_type): string => {
     switch (config_type) {
     | ColorScheme => "Colors"
+    | Shortcuts => "Shortcuts"
     };
   };
 
@@ -43,6 +45,7 @@ module Model = {
   let from_name = (name: string): option(config_type) => {
     switch (name) {
     | "Colors" => Some(ColorScheme)
+    | "Shortcuts" => Some(Shortcuts)
     | _ => None
     };
   };
@@ -50,6 +53,10 @@ module Model = {
   let default_persisted_segment = config_type => {
     switch (config_type) {
     | ColorScheme => Colors.out
+    | Shortcuts => (
+        "Shortcuts",
+        Zipper.init() |> Zipper.zip |> PersistentSegment.persist,
+      )
     };
   };
 
@@ -76,12 +83,39 @@ module Model = {
             },
             lits,
           );
-        print_endline(
-          "Colors: " ++ [%derive.show: list((string, string))](colors),
-        );
         List.iter(
           ((var, color)) => JsUtil.set_css_variable("--" ++ var, color),
           colors,
+        );
+      | _ => ()
+      }
+    | Shortcuts =>
+      switch (value.term) {
+      | ListLit(lits) =>
+        let shortcuts =
+          List.concat_map(
+            x => {
+              switch (Unboxing.unbox(Tuple(2), x)) {
+              | Matches([x, y]) =>
+                switch (
+                  Unboxing.unbox(Atom(String), x),
+                  Unboxing.unbox(Atom(String), y),
+                ) {
+                | (Matches(name), Matches(color)) => [(name, color)]
+                | _ => []
+                }
+              | _ => []
+              }
+            },
+            lits,
+          );
+        List.iter(
+          ((var, hotkey)) => {
+            print_endline("Shortcut: " ++ var ++ " -> " ++ hotkey);
+            // abanduk: I  would rather not be doing this via side-effect. Talk to mckeenan about threading an action to do this on Page
+            NinjaKeys.update_shortcut_hotkey(var, hotkey);
+          },
+          shortcuts,
         );
       | _ => ()
       }
@@ -127,25 +161,56 @@ module Model = {
   );
 
   let unpersist = (~settings, (current, slides): persistent): t => {
-    current,
-    configs:
-      List.map(
+    let get_persistent =
         ((s: string, m: option(CellEditor.Model.persistent))) => {
-          let config_type = from_name(s) |> Option.get;
-          (
-            config_type,
-            OptUtil.get(
-              () =>
-                default_persisted_segment(config_type)
-                |> snd
-                |> CellEditor.Model.from_persistent_segment,
-              m,
+      let config_type = from_name(s) |> Option.get;
+      (
+        config_type,
+        OptUtil.get(
+          () =>
+            default_persisted_segment(config_type)
+            |> snd
+            |> CellEditor.Model.from_persistent_segment,
+          m,
+        )
+        |> CellEditor.Model.unpersist(~settings),
+      );
+    };
+    {
+      current:
+        List.find_index(
+          config_type =>
+            config_name(config_type) == (List.nth(slides, current) |> fst),
+          all_of_config_type,
+        )
+        |> Option.value(~default=0),
+      configs:
+        List.map(
+          (config_type: config_type) =>
+            List.find_map(
+              s =>
+                s |> fst == config_name(config_type)
+                  ? Some(get_persistent(s)) : None,
+              slides,
             )
-            |> CellEditor.Model.unpersist(~settings),
-          );
-        },
-        slides,
-      ),
+            |> OptUtil.get(() => {
+                 let (_, seg) = default_persisted_segment(config_type);
+
+                 (
+                   config_type,
+                   CellEditor.Model.mk(
+                     Editor.Model.mk(
+                       Zipper.unzip(
+                         ~direction=Left,
+                         PersistentSegment.unpersist(seg),
+                       ),
+                     ),
+                   ),
+                 );
+               }),
+          all_of_config_type,
+        ),
+    };
   };
 };
 

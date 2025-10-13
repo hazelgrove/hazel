@@ -13,7 +13,7 @@
  (libraries language)
  (js_of_ocaml)
  (preprocess
-  (pps ppx_yojson_conv ppx_sexp_conv ppx_deriving.show)))
+  (pps ppx_yojson_conv ppx_sexp_conv ppx_deriving.show ppx_enumerate)))
 
 (library
  (name web)
@@ -45,7 +45,8 @@
    ppx_sexp_conv
    ppx_deriving.show
    ppx_yojson_conv
-   bonsai.ppx_bonsai)))
+   bonsai.ppx_bonsai
+   ppx_enumerate)))
 
 (executable
  (name main)
@@ -59,7 +60,8 @@
    ppx_let
    ppx_sexp_conv
    ppx_deriving.show
-   bonsai.ppx_bonsai)))
+   bonsai.ppx_bonsai
+   ppx_enumerate)))
 
 (executable
  (name worker)
