@@ -1,6 +1,5 @@
 open Haz3lcore;
 open Util;
-open Language;
 /* This file follows conventions in [docs/ui-architecture.md] */
 
 module Model = {
