@@ -23,6 +23,7 @@
 }
 
 .line-numbers{
+  background-color: var(--ui-bkg);
   left: 0;
   position: sticky; 
   display: flex;
@@ -39,14 +40,16 @@
 /* The default background color for Documentation and Scratch, when not selected, is still cell-active, not --ui-bkg */
 #main.Documentation .line-numbers,
 #main.Scratch .line-numbers{
+  background-color: var(--cell-active);
   border-color: var(--cell-active);
 }
 
 .line-numbers.line-numbers-selected{
+  background-color: var(--cell-active);
   border-color: var(--cell-active);
 }
 
-.code .code-text.line-numbers-text{
+.code .code-text.line-numbers-text :not(.line-numbers-bold){
   opacity: 0.5;
   color: var(--STONE);
 }
@@ -54,7 +57,7 @@
 .code .code-text.line-numbers-text .line-numbers-bold{
   font-weight: bolder; 
   opacity: 1;
-  color: var(--R1);
+  color: var(--BLACK);
 }
 
 /* This is a hack to compensating for default linebreak handling
