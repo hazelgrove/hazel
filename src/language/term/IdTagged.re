@@ -1,13 +1,14 @@
 open Util;
 
 module IdTag = {
-  [@deriving (show({with_path: false}), sexp, yojson)]
+  [@deriving (show({with_path: false}), sexp, yojson, eq)]
   type t = {
     [@show.opaque]
     ids: list(Id.t),
   };
 
   let fresh = (): t => {ids: [Id.mk()]};
+  let temp = (): t => {ids: [Id.invalid]};
 };
 
 [@deriving (show({with_path: false}), sexp, yojson)]

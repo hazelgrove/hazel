@@ -34,11 +34,9 @@
 
 .projector.probe.Exp > svg {
   fill: var(--exp-base);
-  filter: drop-shadow(0.7px 0.7px 0px var(--exp-shadow));
 }
 .projector.probe.Pat > svg {
   fill: var(--pat-base);
-  filter: drop-shadow(0.7px 0.7px 0px var(--pat-shadow));
 }
 
 .projector.probe.selected > svg {
@@ -46,9 +44,11 @@
 }
 .projector.probe.indicated.Exp > svg {
   fill: var(--exp-indicated);
+  filter: drop-shadow(0.7px 0.7px 0px var(--exp-shadow));
 }
 .projector.probe.indicated.Pat > svg {
   fill: var(--pat-indicated);
+  filter: drop-shadow(0.7px 0.7px 0px var(--pat-shadow));
 }
 .projector.probe:has(.ap.pinned) > svg {
   /* fill: var(--exp-ap-indicated); */
@@ -84,7 +84,7 @@
   animation: rotate 5s linear infinite;
 }
 .projector.probe .main .icon {
-  scale: 0.95;
+  scale: 0.84;
   width: 16px;
   height: 16px;
   background-image: url(../../img/noun-search-5661270.svg);

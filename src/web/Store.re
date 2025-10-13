@@ -10,6 +10,8 @@ type key =
   | Scratch
   | Documentation
   | Configuration
+  | Tutorial(Haz3lcore.Id.t)
+  | CurrentTutorial
   | CurrentExercise
   | Exercise(Haz3lcore.Id.t);
 
@@ -22,8 +24,10 @@ let key_to_string =
   | Scratch => "SAVE_SCRATCH"
   | Documentation => "SAVE_DOCUMENTATION"
   | Configuration => "SAVE_CONFIGURATION"
+  | Tutorial(id) => Haz3lcore.Id.to_string(id)
+  | CurrentTutorial => "CUR_TUTORIAL"
   | CurrentExercise => "CUR_EXERCISE"
-  | Exercise(id) => Haz3lcore.Id.to_string(id);
+  | Exercise(id) => "TUTORIAL" ++ Haz3lcore.Id.to_string(id);
 
 module F =
        (

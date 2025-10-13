@@ -1,9 +1,8 @@
-let out : string * Haz3lcore.PersistentZipper.t =
+let out : string * Haz3lcore.PersistentSegment.t =
   ( "ADTs",
     {
-      zipper =
-        "((selection((focus Left)(content())(mode \
-         Normal)))(relatives((siblings(()((Secondary((id \
+      segment =
+        "((Secondary((id \
          80377b4b-960e-435a-a34e-44cc9a51274e)(content(Comment\"# Lambda \
          Calculus via evaluation by substitution #\"))))(Secondary((id \
          8a87fe38-8756-46e1-a148-232ab52416e0)(content(Whitespace\"\\n\"))))(Secondary((id \
@@ -1049,7 +1048,7 @@ let out : string * Haz3lcore.PersistentZipper.t =
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children()))))))))))))))))))(Secondary((id \
          1777dbf8-1d90-4eaf-9182-08ba3d50d77f)(content(Whitespace\" \
-         \"))))))))))))(ancestors())))(caret Outer))";
+         \"))))))))))";
       backup_text =
         "# Lambda Calculus via evaluation by substitution #\n\n\
          # An Expression is a variable, function, or application #\n\

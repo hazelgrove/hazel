@@ -12,22 +12,49 @@ module Model = {
   };
 
   [@deriving (show({with_path: false}), sexp, yojson)]
-  type persistent = (int, list((string, CellEditor.Model.persistent)));
+  type persistent = (
+    int,
+    list((string, option(CellEditor.Model.persistent))),
+  );
 
-  let persist = model => (
+  let persist = (model: t): persistent => (
     model.current,
     List.map(
-      ((s, m)) => (s, CellEditor.Model.persist(m)),
+      ((s: string, m: CellEditor.Model.t)) => {
+        let current_segment = Zipper.zip(m.editor.editor.state.zipper);
+        let original = Init.find_documentation_slide(s);
+        let original_segment =
+          original
+          |> Option.map((pce: CellEditor.Model.persistent) =>
+               PersistentZipper.unpersist(pce.editor)
+             )
+          |> Option.map(Zipper.zip);
+
+        if (Option.equal(
+              Base.equal_segment,
+              original_segment,
+              Some(current_segment),
+            )) {
+          (s, None);
+        } else {
+          (s, Some(CellEditor.Model.persist(m)));
+        };
+      },
       model.scratchpads,
     ),
   );
 
-  let unpersist = (~settings, scratch_sort, (current, slides)) => {
+  let unpersist = (~settings, scratch_sort, (current, slides): persistent): t => {
     scratch_sort,
     current,
     scratchpads:
       List.map(
-        ((s, m)) => (s, CellEditor.Model.unpersist(~settings, m)),
+        ((s: string, m: option(CellEditor.Model.persistent))) =>
+          (
+            s,
+            OptUtil.get(() => Init.default_documentation_slide_name(s), m)
+            |> CellEditor.Model.unpersist(~settings),
+          ),
         slides,
       ),
   };
@@ -38,14 +65,18 @@ module StoreDocumentation =
     [@deriving (show({with_path: false}), sexp, yojson)]
     type t = Model.persistent;
     let key = Store.Documentation;
-    let default = () => Init.startup.documentation;
+    let default = (): t =>
+      Init.startup.documentation
+      |> PairUtil.map_snd(List.map(PairUtil.map_snd(_ => None)));
   });
 module StoreConfig =
   Store.F({
     [@deriving (show({with_path: false}), sexp, yojson)]
     type t = Model.persistent;
     let key = Store.Configuration;
-    let default = () => Init.startup.configuration;
+    let default = () =>
+      Init.startup.configuration
+      |> PairUtil.map_snd(List.map(PairUtil.map_snd(Option.some)));
   });
 
 module Store = {
@@ -53,7 +84,9 @@ module Store = {
     [@deriving (show({with_path: false}), sexp, yojson)]
     type t = Model.persistent;
     let key = Store.Scratch;
-    let default = () => Init.startup.scratch;
+    let default = () =>
+      Init.startup.scratch
+      |> PairUtil.map_snd(List.map(PairUtil.map_snd(x => Some(x))));
   });
 
   let integrate_share = (model: t): t => {
@@ -75,7 +108,10 @@ module Store = {
         result: EvalResult.Model.init |> EvalResult.Model.persist,
       };
 
-      (List.length(scratchpads), scratchpads @ [(share_name, shared)]);
+      (
+        List.length(scratchpads),
+        scratchpads @ [(share_name, Some(shared))],
+      );
     };
   };
 };
@@ -128,35 +164,74 @@ module Update = {
     JsUtil.QueryParams.set_param("share", StringUtil.compress(c));
     JsUtil.QueryParams.set_param("name", name);
   };
+  let rec prompt_slide_name =
+          (
+            ~error: option(string)=?,
+            ~existing_scratchpads: Seq.t(string),
+            default: string,
+          )
+          : Option.t(string) => {
+    let new_name =
+      JsUtil.prompt(
+        (
+          switch (error) {
+          | Some(e) => e ++ "\n"
+          | None => ""
+          }
+        )
+        ++ "Enter new slide name:",
+        default,
+      );
 
-  let mk_new_scratchpad =
-      (model: Model.t, is_documentation: bool)
-      : list((string, CellEditor.Model.t)) => {
-    let new_key =
-      switch (is_documentation) {
-      | false =>
-        let used_scratchpads =
-          model.scratchpads
-          |> List.filter_map(scratchpad => {
-               switch (String.split_on_char(' ', fst(scratchpad))) {
-               | ["Scratchpad", num] => int_of_string_opt(num)
-               | _ => None
-               }
-             });
-        let unused_ids =
-          Seq.filter(i => !List.mem(i, used_scratchpads), Seq.ints(1));
-        let new_number =
-          Seq.uncons(unused_ids)
-          |> Option.get  // This is safe because unused_ids is infinite
-          |> fst;
+    if (existing_scratchpads |> Seq.exists(name => Some(name) == new_name)) {
+      prompt_slide_name(
+        ~error="Slide name already exists. Please choose a different name.",
+        ~existing_scratchpads,
+        Option.value(~default, new_name),
+      );
+    } else {
+      new_name;
+    };
+  };
 
-        "Scratchpad " ++ string_of_int(new_number);
-      | true =>
-        JsUtil.prompt("Enter new buffer name:", "New Buffer Name")
-        |> Option.get
+  let add_new_slide = (model: Model.t, is_documentation: bool): Model.t => {
+    let add_empty_slide = (name): Model.t => {
+      scratch_sort: model.scratch_sort,
+      current: List.length(model.scratchpads),
+      scratchpads:
+        model.scratchpads
+        @ [(name, CellEditor.Model.mk(Editor.Model.mk(Zipper.init())))],
+    };
+    switch (is_documentation) {
+    | false =>
+      let used_scratchpads =
+        model.scratchpads
+        |> List.filter_map(scratchpad => {
+             switch (String.split_on_char(' ', fst(scratchpad))) {
+             | ["Scratchpad", num] => int_of_string_opt(num)
+             | _ => None
+             }
+           });
+      let unused_ids =
+        Seq.filter(i => !List.mem(i, used_scratchpads), Seq.ints(1));
+      let new_number =
+        Seq.uncons(unused_ids)
+        |> Option.get  // This is safe because unused_ids is infinite
+        |> fst;
+
+      add_empty_slide("Scratchpad " ++ string_of_int(new_number));
+    | true =>
+      let new_name =
+        prompt_slide_name(
+          ~existing_scratchpads=
+            model.scratchpads |> List.to_seq |> Seq.map(fst),
+          "New Slide Name",
+        );
+      switch (new_name) {
+      | None => model // Prompt cancelled so no new scratchpad created
+      | Some(name) => add_empty_slide(name)
       };
-    model.scratchpads
-    @ [(new_key, CellEditor.Model.mk(Editor.Model.mk(Zipper.init())))];
+    };
   };
 
   let update =
@@ -225,18 +300,21 @@ module Update = {
         ...model,
         current,
       };
-    | AddSlide =>
-      let new_sp = mk_new_scratchpad(model, is_documentation);
-      Updated.return(
-        {
-          scratch_sort: model.scratch_sort,
-          current: List.length(new_sp) - 1,
-          scratchpads: new_sp,
-        }: Model.t,
-      );
+    | AddSlide => Updated.return(add_new_slide(model, is_documentation))
     | RenameSlide =>
       let current = List.nth(model.scratchpads, model.current);
-      let new_name = JsUtil.prompt("Enter new buffer name:", fst(current));
+      let new_name =
+        prompt_slide_name(
+          ~existing_scratchpads=
+            model.scratchpads
+            |> List.to_seq
+            |> Seq.map(fst)
+            |> Seq.zip(Seq.ints(0))
+            |> Seq.filter(((idx, _)) => idx != model.current)
+            |> Seq.map(snd),
+          fst(current),
+        );
+
       switch (new_name) {
       | None => model |> return_quiet
       | Some(new_name) =>
@@ -254,29 +332,28 @@ module Update = {
     | DeleteSlide =>
       let confirmed =
         JsUtil.confirm(
-          "Are you SURE you want to delete this buffer? You will lose any existing code that you have written, and course staff have no way to restore it!",
+          "Are you SURE you want to delete this slide? You will lose any existing code that you have written, and course staff have no way to restore it!",
         );
       if (confirmed) {
         let new_sp =
           ListUtil.remove_nth(model.current, model.scratchpads)
           |> Option.value(~default=model.scratchpads);
-        let safe_sp =
-          new_sp |> List.length == 0
-            ? mk_new_scratchpad(
+
+        let m: Model.t =
+          List.is_empty(new_sp)
+            ? add_new_slide(
                 {
                   ...model,
-                  scratchpads: new_sp,
+                  scratchpads: [],
                 },
                 is_documentation,
               )
-            : new_sp;
-        Updated.return(
-          {
-            scratch_sort: model.scratch_sort,
-            current: max(model.current - 1, 0),
-            scratchpads: safe_sp,
-          }: Model.t,
-        );
+            : {
+              scratch_sort: model.scratch_sort,
+              scratchpads: new_sp,
+              current: max(model.current - 1, 0),
+            };
+        Updated.return(m);
       } else {
         model |> return_quiet;
       };
@@ -288,11 +365,7 @@ module Update = {
         | false =>
           CellEditor.Model.mk(Editor.Model.mk(Zipper.init()))
           |> CellEditor.Model.persist
-        | true =>
-          Init.startup.documentation
-          |> snd
-          |> List.map(snd)
-          |> List.nth(_, model.current)
+        | true => Init.default_documentation_slide_name(key)
         };
       let* data =
         source
@@ -562,8 +635,8 @@ module View = {
 
   let top_bar = (~globals as _, ~inject: Update.t => 'a, model: Model.t) => {
     EditorModeView.view(
-      ~nav_buttons=false,
       ~edit_buttons=true,
+      ~nav_buttons=false,
       ~signal=
         fun
         | Previous =>
