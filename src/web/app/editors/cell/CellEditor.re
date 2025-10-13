@@ -40,6 +40,11 @@ module Model = {
     result: EvalResult.Model.unpersist(result),
   };
 
+  let from_persistent_segment = (content: PersistentSegment.t): persistent => {
+    editor: content |> PersistentSegment.to_persistent_zipper,
+    result: EvalResult.Model.init |> EvalResult.Model.persist,
+  };
+
   let to_string = (model: t) => model.editor |> CodeEditable.Model.to_string;
 };
 

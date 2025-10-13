@@ -14,7 +14,7 @@ module Model = {
     | Scratch(ScratchMode.Model.t)
     | Documentation(ScratchMode.Model.t)
     | Exercises(ExercisesMode.Model.t)
-    | Config(ScratchMode.Model.t)
+    | Config(ConfigurationMode.Model.t)
     | Tutorial(TutorialsMode.Model.t);
 
   let mode_string: t => string =
@@ -75,8 +75,8 @@ module Store = {
         )
       | Config =>
         Model.Config(
-          ScratchMode.StoreConfig.load()
-          |> ScratchMode.Model.unpersist(~settings, "configuration"),
+          ConfigurationMode.StoreConfig.load()
+          |> ConfigurationMode.Model.unpersist(~settings),
         )
       };
     };
@@ -98,7 +98,7 @@ module Store = {
       ExercisesMode.Store.save(~instructor_mode, m);
     | Model.Config(m) =>
       StoreMode.save(Config);
-      ScratchMode.StoreConfig.save(ScratchMode.Model.persist(m));
+      ConfigurationMode.StoreConfig.save(ConfigurationMode.Model.persist(m));
     };
   };
 };
@@ -111,6 +111,7 @@ module Update = {
     | SwitchMode(Model.mode)
     // Scratch & Documentation
     | Scratch(ScratchMode.Update.t)
+    | Configuration(ConfigurationMode.Update.t)
     | Tutorial(TutorialsMode.Update.t)
     // Exercises
     | Exercises(ExercisesMode.Update.t);
@@ -119,6 +120,7 @@ module Update = {
     switch (action) {
     | SwitchMode(_) => true
     | Scratch(action) => ScratchMode.Update.can_undo(action)
+    | Configuration(action) => ConfigurationMode.Update.can_undo(action)
     | Tutorial(action) => TutorialsMode.Update.can_undo(action)
     | Exercises(action) => ExercisesMode.Update.can_undo(action)
     };
@@ -144,17 +146,15 @@ module Update = {
           m,
         );
       Model.Scratch(scratch);
-    | (Scratch(action), Config(m)) =>
-      let* scratch =
-        ScratchMode.Update.update(
+    | (Configuration(action), Config(m)) =>
+      let* config =
+        ConfigurationMode.Update.update(
+          ~schedule_action=a => schedule_action(Configuration(a)),
           ~settings=globals.settings,
-          ~send_assistant_insertion_info,
-          ~schedule_action=a => schedule_action(Scratch(a)),
-          ~is_documentation=true,
           action,
           m,
         );
-      Model.Config(scratch);
+      Model.Config(config);
     | (Scratch(action), Documentation(m)) =>
       let* scratch =
         ScratchMode.Update.update(
@@ -190,9 +190,11 @@ module Update = {
     | (Tutorial(_), Config(_))
     | (Scratch(_), Exercises(_))
     | (Scratch(_), Tutorial(_))
+    | (Scratch(_), Config(_))
     | (Exercises(_), Scratch(_))
     | (Exercises(_), Config(_))
-    | (Exercises(_), Documentation(_)) => model |> return_quiet
+    | (Exercises(_), Documentation(_))
+    | (Configuration(_), _) => model |> return_quiet
     | (SwitchMode(Scratch), Scratch(_))
     | (SwitchMode(Documentation), Documentation(_))
     | (SwitchMode(Config), Config(_))
@@ -218,11 +220,8 @@ module Update = {
       |> return
     | (SwitchMode(Config), _) =>
       Model.Config(
-        ScratchMode.StoreConfig.load()
-        |> ScratchMode.Model.unpersist(
-             ~settings=globals.settings.core,
-             "configuration",
-           ),
+        ConfigurationMode.StoreConfig.load()
+        |> ConfigurationMode.Model.unpersist(~settings=globals.settings.core),
       )
       |> return
     | (SwitchMode(Tutorial), Tutorial(_)) => model |> return_quiet
@@ -274,8 +273,8 @@ module Update = {
       )
     | Model.Config(m) =>
       Model.Config(
-        ScratchMode.Update.calculate(
-          ~schedule_action=a => schedule_action(Scratch(a)),
+        ConfigurationMode.Update.calculate(
+          ~schedule_action=a => schedule_action(Configuration(a)),
           ~settings,
           ~is_edited,
           m,
@@ -309,7 +308,8 @@ module Selection = {
   type t =
     | Scratch(ScratchMode.Selection.t)
     | Exercises(ExerciseMode.Selection.t)
-    | Tutorial(TutorialMode.Selection.t);
+    | Tutorial(TutorialMode.Selection.t)
+    | Configuration(ConfigurationMode.Selection.t);
 
   let get_cursor_info = (~selection: t, editors: Model.t): cursor(Update.t) => {
     switch (selection, editors) {
@@ -319,10 +319,9 @@ module Selection = {
     | (Scratch(selection), Documentation(m)) =>
       let+ ci = ScratchMode.Selection.get_cursor_info(~selection, m);
       Update.Scratch(ci);
-    | (Scratch(selection), Config(m)) =>
-      let+ ci = ScratchMode.Selection.get_cursor_info(~selection, m);
-      Update.Scratch(ci);
-
+    | (Configuration(selection), Config(m)) =>
+      let+ ci = ConfigurationMode.Selection.get_cursor_info(~selection, m);
+      Update.Configuration(ci);
     | (Tutorial(selection), Tutorial(m)) =>
       let+ ci = TutorialsMode.Selection.get_cursor_info(~selection, m);
       Update.Tutorial(ci);
@@ -335,10 +334,11 @@ module Selection = {
     | (Exercises(_), Scratch(_))
     | (Exercises(_), Documentation(_))
     | (Exercises(_), Config(_))
+    | (Configuration(_), _)
+    | (_, Config(_))
     | (Tutorial(_), Scratch(_))
     | (Tutorial(_), Exercises(_))
-    | (Tutorial(_), Documentation(_))
-    | (Tutorial(_), Config(_)) => empty
+    | (Tutorial(_), Documentation(_)) => empty
     };
   };
 
@@ -351,10 +351,9 @@ module Selection = {
     | (Some(Scratch(selection)), Documentation(m)) =>
       ScratchMode.Selection.handle_key_event(~selection, ~event, m)
       |> Option.map(x => Update.Scratch(x))
-    | (Some(Scratch(selection)), Config(m)) =>
-      ScratchMode.Selection.handle_key_event(~selection, ~event, m)
-      |> Option.map(x => Update.Scratch(x))
-
+    | (Some(Configuration(selection)), Config(m)) =>
+      ConfigurationMode.Selection.handle_key_event(~selection, ~event, m)
+      |> Option.map(x => Update.Configuration(x))
     | (Some(Tutorial(selection)), Tutorial(m)) =>
       TutorialsMode.Selection.handle_key_event(~selection, ~event, m)
       |> Option.map(x => Update.Tutorial(x))
@@ -371,6 +370,8 @@ module Selection = {
     | (Some(Tutorial(_)), Config(_))
     | (Some(Tutorial(_)), Scratch(_))
     | (Some(Tutorial(_)), Exercises(_))
+    | (Some(Configuration(_)), _)
+    | (_, Config(_))
     | (None, _) => None
     };
   };
@@ -381,7 +382,11 @@ module Selection = {
     | Scratch(m) =>
       ScratchMode.Selection.jump_to_tile(tile, m)
       |> Option.map(((x, y)) => (Update.Scratch(x), Scratch(y)))
-    | Config(m)
+    | Config(m) =>
+      ConfigurationMode.Selection.jump_to_tile(tile, m)
+      |> Option.map(((x, y)) =>
+           (Update.Configuration(x), Configuration(y))
+         )
     | Documentation(m) =>
       ScratchMode.Selection.jump_to_tile(tile, m)
       |> Option.map(((x, y)) => (Update.Scratch(x), Scratch(y)))
@@ -449,17 +454,17 @@ module View = {
         m,
       )
     | Config(m) =>
-      ScratchMode.View.view(
+      ConfigurationMode.View.view(
         ~signal=
           fun
-          | MakeActive(s) => signal(MakeActive(Scratch(s))),
+          | MakeActive(s) => signal(MakeActive(Configuration(s))),
         ~globals,
         ~selected=
           switch (selection) {
-          | Some(Scratch(s)) => Some(s)
+          | Some(Configuration(s)) => Some(s)
           | _ => None
           },
-        ~inject=a => Update.Scratch(a) |> inject,
+        ~inject=a => Update.Configuration(a) |> inject,
         m,
       )
     | Tutorial(m) =>
@@ -496,8 +501,13 @@ module View = {
 
   let file_menu = (~globals, ~inject, editors: Model.t) =>
     switch (editors) {
-    | Scratch(s)
-    | Config(s)
+    | Scratch(s) =>
+      ScratchMode.View.file_menu(
+        ~globals,
+        ~inject=x => inject(Update.Scratch(x)),
+        s,
+      )
+    | Config(s) => [] // TODO: Add ConfigurationMode.View.file_menu when implemented
     | Documentation(s) =>
       ScratchMode.View.file_menu(
         ~globals,
@@ -578,9 +588,8 @@ module View = {
           m,
         )
       | Config(m) =>
-        ScratchMode.View.top_bar(
-          ~globals,
-          ~inject=a => Update.Scratch(a) |> inject,
+        ConfigurationMode.View.top_bar(
+          ~inject=a => Update.Configuration(a) |> inject,
           m,
         )
       | Tutorial(m) =>

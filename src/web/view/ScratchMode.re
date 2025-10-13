@@ -69,15 +69,6 @@ module StoreDocumentation =
       Init.startup.documentation
       |> PairUtil.map_snd(List.map(PairUtil.map_snd(_ => None)));
   });
-module StoreConfig =
-  Store.F({
-    [@deriving (show({with_path: false}), sexp, yojson)]
-    type t = Model.persistent;
-    let key = Store.Configuration;
-    let default = () =>
-      Init.startup.configuration
-      |> PairUtil.map_snd(List.map(PairUtil.map_snd(Option.some)));
-  });
 
 module Store = {
   include Store.F({
@@ -245,40 +236,6 @@ module Update = {
       ) => {
     switch (action) {
     | CellAction(a) =>
-      switch (a) {
-      | CellEditor.Update.ResultAction(UpdateResult(ResultOk({result, _})))
-          when model.scratch_sort == "configuration" =>
-        switch (result.term) {
-        | ListLit(lits) =>
-          let colors =
-            List.concat_map(
-              x => {
-                switch (Unboxing.unbox(Tuple(2), x)) {
-                | Matches([x, y]) =>
-                  switch (
-                    Unboxing.unbox(Atom(String), x),
-                    Unboxing.unbox(Atom(String), y),
-                  ) {
-                  | (Matches(name), Matches(color)) => [(name, color)]
-                  | _ => []
-                  }
-                | _ => []
-                }
-              },
-              lits,
-            );
-          print_endline(
-            "Colors: " ++ [%derive.show: list((string, string))](colors),
-          );
-          List.iter(
-            ((var, color)) => JsUtil.set_css_variable("--" ++ var, color),
-            colors,
-          );
-        | _ => ()
-        }
-      | _ => ()
-      };
-
       let (key, ed) = List.nth(model.scratchpads, model.current);
       let* new_ed = CellEditor.Update.update(~settings, a, ed);
       let new_sp =

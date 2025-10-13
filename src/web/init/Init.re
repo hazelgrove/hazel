@@ -23,13 +23,7 @@ let startup: PersistentData.t = {
       Livelits.out,
     ]
     |> List.map(((name, content: PersistentSegment.t)) =>
-         (
-           name,
-           {
-             editor: content |> PersistentSegment.to_persistent_zipper,
-             result: EvalResult.Model.init |> EvalResult.Model.persist,
-           }: CellEditor.Model.persistent,
-         )
+         (name, CellEditor.Model.from_persistent_segment(content))
        ),
   ),
   configuration: (
@@ -39,10 +33,7 @@ let startup: PersistentData.t = {
       |> (
         ((name: string, content: PersistentSegment.t)) => (
           name,
-          {
-            editor: content |> PersistentSegment.to_persistent_zipper,
-            result: EvalResult.Model.init |> EvalResult.Model.persist,
-          }: CellEditor.Model.persistent,
+          CellEditor.Model.from_persistent_segment(content),
         )
       ),
     ],

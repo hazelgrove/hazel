@@ -93,7 +93,7 @@ module Update = {
     | Documentation(m) => (List.nth(m.scratchpads, m.current) |> snd).editor
     | Tutorial(m) => List.nth(m.exercises, m.current).cells.user_impl.editor
     | Exercises(m) => List.nth(m.exercises, m.current).cells.user_impl.editor
-    | Config(m) => (List.nth(m.scratchpads, m.current) |> snd).editor
+    | Config(m) => (List.nth(m.configs, m.current) |> snd).editor
     };
 
   let update_global =
@@ -166,7 +166,32 @@ module Update = {
     | ExportForInit =>
       let (filename, content) =
         switch (model.editors) {
-        | Config(model)
+        | Config(model) =>
+          let current = List.nth(model.configs, model.current);
+          let filename =
+            (
+              current
+              |> fst
+              |> ConfigurationMode.Model.config_name
+              |> StringUtil.sanitize_filename
+            )
+            ++ ".ml";
+
+          let content =
+            Haz3lcore.(
+              [%derive.show: (string, PersistentSegment.t)]((
+                current |> fst |> ConfigurationMode.Model.config_name,
+                current
+                |> snd
+                |> ((e: CellEditor.Model.t) => e.editor)
+                |> (
+                  (e: CodeWithStatics.Model.t) =>
+                    Zipper.zip(e.editor.state.zipper)
+                )
+                |> PersistentSegment.persist,
+              ))
+            );
+          (filename, content);
         | Scratch(model)
         | Documentation(model) =>
           let current = List.nth(model.scratchpads, model.current);
