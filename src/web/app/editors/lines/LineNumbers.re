@@ -24,17 +24,24 @@ module View = {
     let Point.{row, _} = Zipper.Caret.point(measured, zipper);
     [
       Node.div(
-        //replace with Node.div
         ~attrs=[Attr.classes(["code", "line-numbers"])],
         [
           Node.span(
             ~attrs=[Attr.classes(["code-text", "line-numbers-text"])],
             List.init(num_rows, (i): Node.t =>
-              Text(
-                show_relative_numbers
-                  ? string_of_int(abs(i - row) == 0 ? i + 1 : abs(i - row))
-                    ++ (i + 1 == num_rows ? "" : "\n")
-                  : string_of_int(i + 1) ++ (i + 1 == num_rows ? "" : "\n"),
+              Node.span(
+                ~attrs=i == row ? [Attr.classes(["line-numbers-bold"])] : [],
+                [
+                  Text(
+                    show_relative_numbers
+                      ? string_of_int(
+                          abs(i - row) == 0 ? i + 1 : abs(i - row),
+                        )
+                        ++ (i + 1 == num_rows ? "" : "\n")
+                      : string_of_int(i + 1)
+                        ++ (i + 1 == num_rows ? "" : "\n"),
+                  ),
+                ],
               )
             ): list(Node.t),
           ),

@@ -23,7 +23,7 @@
 }
 
 .line-numbers{
-  background-color: var(--cell-active);
+  /*background-color: var(--cell-active);*/
   left: 0;
   position: sticky; 
   display: flex;
@@ -33,13 +33,19 @@
   text-align: right;
   justify-content: flex-end;
   z-index: var(--line-number-z);
-  border-top: 2px solid var(--cell-active);
-  border-bottom: 2px solid var(--cell-active);
+  border-top: 2px solid var(--cell-active);;
+  border-bottom: 2px solid var(--cell-active);;
 }
 
 .code .code-text.line-numbers-text{
   opacity: 0.5;
   color: var(--STONE);
+}
+
+.code .code-text.line-numbers-text .line-numbers-bold{
+  font-weight: bolder; 
+  opacity: 1;
+  color: var(--R1);
 }
 
 /* This is a hack to compensating for default linebreak handling
