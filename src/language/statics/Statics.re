@@ -1174,7 +1174,10 @@ and uexp_to_info_map =
         add(
           ~self,
           ~co_ctx=fn.co_ctx,
-          ~constraints=fn.constraints @ subsumption_constraints_t(self),
+          ~constraints=
+            fn.constraints
+            @ forall_constraints
+            @ subsumption_constraints_t(self),
           m,
         );
       | None =>
@@ -1312,7 +1315,6 @@ and uexp_to_info_map =
         m,
       );
     | TypFun(utpat, body, _) =>
-      // TODO: (THI) constraints for matched forall?
       let (name_expected_opt, item, forall_constraints) =
         Typ.matched_forall(ctx, ana);
       let (mode_body, ctx_body) =

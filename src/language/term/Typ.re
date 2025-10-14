@@ -687,14 +687,22 @@ let matched_arrow = (ctx, ty) => {
   };
 };
 
-let matched_forall_of_prov = (prov, ty) => {
+let matched_forall_of_prov = ({term, annotation}: Prov.t, ty) => {
   (
     None,
     ty,
     [
       Con(
         ty,
-        Forall(EmptyHole |> TPat.fresh, Unknown(prov) |> temp) |> temp,
+        Forall(
+          EmptyHole |> TPat.fresh,
+          Unknown({
+            term: RForall(term),
+            annotation,
+          })
+          |> temp,
+        )
+        |> temp,
       ),
     ],
   );
@@ -708,7 +716,7 @@ let rec matched_forall_strict = (ctx, ty) =>
     Some(
       matched_forall_of_prov(
         {
-          term: RForall(SynSwitch),
+          term: SynSwitch,
           annotation,
         },
         ty,
@@ -717,9 +725,7 @@ let rec matched_forall_strict = (ctx, ty) =>
   | _ => None
   };
 
-// TODO: (THI) does this need constraints and special provenances?
-let matched_forall = (ctx, ty) =>
-  // TODO: want to optimize repeated term_of/normalize calls
+let matched_forall = (ctx, ty) => {
   switch (matched_forall_strict(ctx, ty)) {
   | Some(r) => r
   | None =>
@@ -730,6 +736,7 @@ let matched_forall = (ctx, ty) =>
       };
     matched_forall_of_prov(prov, ty);
   };
+};
 
 let rec get_labels = (ctx, ty): list(option(string)) => {
   let ty = weak_head_normalize(ctx, ty);
