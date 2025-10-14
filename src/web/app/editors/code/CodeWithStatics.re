@@ -146,11 +146,14 @@ module Update = {
         statics.term,
       );
 
-    let error_ids = Language.StaticsBase.Map.error_ids(info_map);
+    let error_ids =
+      Language.StaticsBase.Map.error_ids(info_map)
+      |> List.filter(id => !List.mem(id, statics.error_ids));
+
     let statics: CachedStatics.t = {
       ...statics,
-      info_map,
-      error_ids,
+      dynamic_info_map: info_map,
+      dynamic_error_ids: error_ids,
     };
 
     let editor =
@@ -198,6 +201,16 @@ module View = {
         ~syntax=model.editor.syntax,
         model.statics.error_ids,
       );
-    div_c("code-container", [code_text_view, statics_decos] @ overlays);
+    let dynamic_static_decos =
+      Arms.Errors.of_ids(
+        ~is_dynamic=true,
+        ~font_metrics=globals.font_metrics,
+        ~syntax=model.editor.syntax,
+        model.statics.dynamic_error_ids,
+      );
+    div_c(
+      "code-container",
+      [code_text_view, statics_decos, dynamic_static_decos] @ overlays,
+    );
   };
 };

@@ -7,6 +7,8 @@ type t = {
   elaborated: Exp.t,
   info_map: Statics.Map.t,
   error_ids: list(Id.t),
+  dynamic_info_map: Statics.Map.t,
+  dynamic_error_ids: list(Id.t),
 };
 
 let empty: t = {
@@ -24,6 +26,8 @@ let empty: t = {
   },
   info_map: Id.Map.empty,
   error_ids: [],
+  dynamic_info_map: Id.Map.empty,
+  dynamic_error_ids: [],
 };
 
 let elaborate =
@@ -55,6 +59,8 @@ let init_from_term = (~settings, ~is_dynamic_term, ~ctx=?, term): t => {
     elaborated,
     info_map,
     error_ids,
+    dynamic_info_map: Statics.Map.empty,
+    dynamic_error_ids: [],
   };
 };
 
