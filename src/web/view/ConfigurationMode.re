@@ -98,7 +98,7 @@ module Model = {
                   Unboxing.unbox(Atom(String), x),
                   Unboxing.unbox(Atom(String), y),
                 ) {
-                | (Matches(name), Matches(color)) => [(name, color)]
+                | (Matches(name), Matches(shortcut)) => [(name, shortcut)]
                 | _ => []
                 }
               | _ => []
