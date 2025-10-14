@@ -34,20 +34,18 @@ module Model = {
     get_current_config(model) |> fst;
   };
 
-  let config_name = (config_type: config_type): string => {
+  let config_name_of_type = (config_type: config_type): string => {
     switch (config_type) {
     | ColorScheme => "Colors"
     | Shortcuts => "Shortcuts"
     };
   };
 
-  // Combine with above
-  let from_name = (name: string): option(config_type) => {
-    switch (name) {
-    | "Colors" => Some(ColorScheme)
-    | "Shortcuts" => Some(Shortcuts)
-    | _ => None
-    };
+  let type_of_config_name = (name: string): option(config_type) => {
+    List.find_opt(
+      config_type => config_name_of_type(config_type) == name,
+      all_of_config_type,
+    );
   };
 
   let default_persisted_segment = config_type => {
@@ -125,7 +123,7 @@ module Model = {
     model.current,
     List.map(
       ((s: config_type, m: CellEditor.Model.t)) => {
-        let s = config_name(s);
+        let s = config_name_of_type(s);
         let current_segment = Zipper.zip(m.editor.editor.state.zipper);
         let original = Init.find_documentation_slide(s);
         let original_segment =
@@ -152,7 +150,13 @@ module Model = {
   let unpersist = (~settings, (current, slides): persistent): t => {
     let get_persistent =
         ((s: string, m: option(CellEditor.Model.persistent))) => {
-      let config_type = from_name(s) |> Option.get;
+      let config_type =
+        switch (type_of_config_name(s)) {
+        | Some(ct) => ct
+        | None =>
+          // Fallback to first config type if name is not recognized
+          List.hd(all_of_config_type)
+        };
       (
         config_type,
         OptUtil.get(
@@ -169,7 +173,8 @@ module Model = {
       current:
         List.find_index(
           config_type =>
-            config_name(config_type) == (List.nth(slides, current) |> fst),
+            config_name_of_type(config_type)
+            == (List.nth(slides, current) |> fst),
           all_of_config_type,
         )
         |> Option.value(~default=0),
@@ -178,7 +183,7 @@ module Model = {
           (config_type: config_type) =>
             List.find_map(
               s =>
-                s |> fst == config_name(config_type)
+                s |> fst == config_name_of_type(config_type)
                   ? Some(get_persistent(s)) : None,
               slides,
             )
@@ -448,7 +453,7 @@ module View = {
           ~signal=i => inject(SwitchConfig(i)),
           model.current,
           List.map(
-            ((config_type, _)) => Model.config_name(config_type),
+            ((config_type, _)) => Model.config_name_of_type(config_type),
             model.configs,
           ),
         ),

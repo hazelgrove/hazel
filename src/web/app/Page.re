@@ -172,7 +172,7 @@ module Update = {
             (
               current
               |> fst
-              |> ConfigurationMode.Model.config_name
+              |> ConfigurationMode.Model.config_name_of_type
               |> StringUtil.sanitize_filename
             )
             ++ ".ml";
@@ -180,7 +180,7 @@ module Update = {
           let content =
             Haz3lcore.(
               [%derive.show: (string, PersistentSegment.t)]((
-                current |> fst |> ConfigurationMode.Model.config_name,
+                current |> fst |> ConfigurationMode.Model.config_name_of_type,
                 current
                 |> snd
                 |> ((e: CellEditor.Model.t) => e.editor)
