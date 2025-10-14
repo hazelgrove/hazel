@@ -53,10 +53,7 @@ module Model = {
   let default_persisted_segment = config_type => {
     switch (config_type) {
     | ColorScheme => ("Colors", ColorConfiguration.segment)
-    | Shortcuts => (
-        "Shortcuts",
-        Zipper.init() |> Zipper.zip |> PersistentSegment.persist,
-      )
+    | Shortcuts => Shortcuts.out
     };
   };
 
@@ -111,9 +108,11 @@ module Model = {
           );
         List.iter(
           ((var, hotkey)) => {
-            print_endline("Shortcut: " ++ var ++ " -> " ++ hotkey);
             // abanduk: I  would rather not be doing this via side-effect. Talk to mckeenan about threading an action to do this on Page
-            NinjaKeys.update_shortcut_hotkey(var, hotkey);
+            NinjaKeys.update_shortcut_hotkey(
+              var,
+              hotkey,
+            )
           },
           shortcuts,
         );
@@ -285,13 +284,18 @@ module Update = {
       })
     | ResetCurrent =>
       let (config_type, _) = Model.get_current_config(model);
-      let source = CellEditor.Model.mk(Editor.Model.mk(Zipper.init()));
+      let (_, source) = Model.default_persisted_segment(config_type);
       Updated.return({
         ...model,
         configs:
           ListUtil.put_nth(
             model.current,
-            (config_type, source),
+            (
+              config_type,
+              source
+              |> CellEditor.Model.from_persistent_segment
+              |> CellEditor.Model.unpersist(~settings),
+            ),
             model.configs,
           ),
       });
