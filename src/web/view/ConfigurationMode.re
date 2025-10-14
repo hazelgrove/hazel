@@ -108,7 +108,7 @@ module Model = {
           );
         List.iter(
           ((var, hotkey)) => {
-            // abanduk: I  would rather not be doing this via side-effect. Talk to mckeenan about threading an action to do this on Page
+            // abanduk: I would rather not be doing this via side-effect. Talk to mckeenan about threading an action to do this on Page
             NinjaKeys.update_shortcut_hotkey(
               var,
               hotkey,
@@ -118,16 +118,6 @@ module Model = {
         );
       | _ => ()
       }
-    };
-  };
-
-  let perform_color_scheme_side_effect = (value: Language.Exp.t): unit => {
-    // For now, just handle simple string values
-    // TODO: Parse more complex color configuration structures
-    switch (value.term) {
-    | Atom(String(color_value)) =>
-      JsUtil.set_css_variable("--main-bkg", color_value)
-    | _ => ()
     };
   };
 

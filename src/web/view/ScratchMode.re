@@ -5,7 +5,6 @@ open Util;
 module Model = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t = {
-    scratch_sort: string,
     current: int,
     scratchpads: list((string, CellEditor.Model.t)),
   };
@@ -43,8 +42,7 @@ module Model = {
     ),
   );
 
-  let unpersist = (~settings, scratch_sort, (current, slides): persistent): t => {
-    scratch_sort,
+  let unpersist = (~settings, (current, slides): persistent): t => {
     current,
     scratchpads:
       List.map(
@@ -186,7 +184,6 @@ module Update = {
 
   let add_new_slide = (model: Model.t, is_documentation: bool): Model.t => {
     let add_empty_slide = (name): Model.t => {
-      scratch_sort: model.scratch_sort,
       current: List.length(model.scratchpads),
       scratchpads:
         model.scratchpads
@@ -305,7 +302,6 @@ module Update = {
                 is_documentation,
               )
             : {
-              scratch_sort: model.scratch_sort,
               scratchpads: new_sp,
               current: max(model.current - 1, 0),
             };
