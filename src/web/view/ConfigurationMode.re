@@ -477,7 +477,7 @@ module View = {
         _ => {
           let confirmed =
             JsUtil.confirm(
-              "Are you SURE you want to reset this scratchpad? You will lose any existing code.",
+              "Are you SURE you want to reset this configuration? You will lose any existing settings.",
             );
           if (confirmed) {
             inject(ResetCurrent);
