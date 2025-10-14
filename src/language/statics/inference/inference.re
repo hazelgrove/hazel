@@ -1,8 +1,9 @@
 open Util;
 
-let is_identified_providence = (p: Prov.t) =>
+let is_identified_provenance = (p: Prov.t) =>
   IdTagged.rep_id(p) != Id.invalid;
 
+// computes the cartesian product of a list of lists
 let rec cartesian_product = (lists: list(list(Typ.t))): list(list(Typ.t)) =>
   switch (lists) {
   | [] => [[]]
@@ -57,7 +58,7 @@ module Solution = {
 
   let rec all_provs_in_sol = (sol: t): list(Prov.t) => {
     switch (sol) {
-    | Unknown(p) when is_identified_providence(p) => [p]
+    | Unknown(p) when is_identified_provenance(p) => [p]
     | Unknown(_) => []
     | Atom(_) => []
     | Arrow(t1, t2) => all_provs_in_sol(t1) @ all_provs_in_sol(t2)
@@ -113,7 +114,12 @@ module Solution = {
     };
 
   /*
-   * Is all *combinatorial* types a given solution represents
+   * Is all *combinatorial* types a given solution represents.
+   *
+   * This function will try to filter out any types that are invalid
+   *
+   * TODO: (THI) maybe for type validity checking, we could run each output type
+   * through statics. Would have a performance penalty though
    */
   let rec all_types_from_solution = (sol: t): list(Typ.t) => {
     switch (sol) {
@@ -135,7 +141,11 @@ module Solution = {
     | Atom(a) => [Atom(a) |> Typ.temp]
     | Var(v) => [Var(v) |> Typ.temp]
     | Unknown(p) => [Unknown(p) |> Typ.temp]
-    | Forall(pat, ty)
+    | Forall(pat, ty) =>
+      List.map(
+        ty => {Forall(pat |> IdTagged.temp, ty) |> Typ.temp},
+        all_types_from_solution(ty),
+      )
     | Rec(pat, ty) =>
       List.map(
         ty => {Rec(pat |> IdTagged.temp, ty) |> Typ.temp},
@@ -147,12 +157,31 @@ module Solution = {
       List.map(t => {List(t) |> Typ.temp}, all_types_from_solution(sol))
     | Prod(args) =>
       let args_tys = List.map(all_types_from_solution, args);
-      List.map(ts => {Prod(ts) |> Typ.temp}, cartesian_product(args_tys));
+
+      // compute the cartesian products of the arguments
+      // any tuples that contain a duplicate labels are filtered out
+      //
+      // this is fine to do as this should never eliminate
+      // all possible solutions; that is to say that whenever this
+      // case occurs, there must be at least two valid types that
+      // get constrainted together to create an invalid type
+      List.map(
+        ts => {Prod(ts) |> Typ.temp},
+        List.filter(
+          ps => {
+            List.is_empty(
+              LabeledTuple.get_duplicate_labels(Typ.match_tup_label, ps),
+            )
+          },
+          cartesian_product(args_tys),
+        ),
+      );
     };
   };
 };
 let cyclic_solution: Solution.t = Unknown(Hole(CycleHole) |> Prov.anonymous);
 
+[@deriving (show({with_path: false}), sexp, yojson)]
 type canonical_constramnot =
   | Con(Prov.t, Typ.term);
 
@@ -222,7 +251,7 @@ module SolutionMap: {
 
 let rec provs_in_typ = (~include_prov=_ => true, t: Typ.term): list(Prov.t) => {
   switch (t) {
-  | Unknown(p) when is_identified_providence(p) && include_prov(p) => [p]
+  | Unknown(p) when is_identified_provenance(p) && include_prov(p) => [p]
   | Unknown(_) => []
   | Atom(_) => []
   | Arrow(t1, t2) =>
@@ -266,19 +295,19 @@ let rec unfold_constramnot =
   // | (Unknown({term: Hole(EmptyHole), _}), _) => []
   // | (_, Unknown({term: Hole(EmptyHole), _})) => []
   | (Unknown(p), Unknown(q)) =>
-    if (is_identified_providence(p) && is_identified_providence(q)) {
+    if (is_identified_provenance(p) && is_identified_provenance(q)) {
       [Con(p, Unknown(q))];
     } else {
       [];
     }
   | (Unknown(p), t) =>
-    if (is_identified_providence(p)) {
+    if (is_identified_provenance(p)) {
       [Con(p, t)];
     } else {
       [];
     }
   | (t, Unknown(p)) =>
-    if (is_identified_providence(p)) {
+    if (is_identified_provenance(p)) {
       [Con(p, t)];
     } else {
       [];
@@ -357,10 +386,18 @@ module PossibleTypeSet: {
 } = {
   type t = list(Typ.term);
 
-  let set_contains = (x: Typ.term, ts: t) =>
-    List.exists((y: Typ.term) => Typ.equal(Typ.temp(y), Typ.temp(x)), ts);
+  // let set_contains = (x: Typ.term, ts: t) =>
+  //   List.exists(
+  //     (y: Typ.term) =>
+  //       Typ.equal(
+  //         ~consider_prov_equivalence=true,
+  //         Typ.temp(y),
+  //         Typ.temp(x),
+  //       ),
+  //     ts,
+  //   );
 
-  let add = (x: Typ.term, ts: t) => set_contains(x, ts) ? ts : [x, ...ts];
+  let add = (x: Typ.term, ts: t) => [x, ...ts];
 
   // Fold for dedup
   let union = (a, b) => List.fold_left((acc, t) => add(t, acc), a, b);
@@ -524,9 +561,9 @@ let rec refine_solution =
   | (s, Unknown({term: Hole(CycleHole), _}) as t)
   | (Unknown({term: Hole(CycleHole), _}) as s, t) =>
     Multi([s, solution_of_typ(prov, t)])
-  | (Unknown(p), t) when !is_identified_providence(p) =>
+  | (Unknown(p), t) when !is_identified_provenance(p) =>
     solution_of_typ(p, t)
-  | (s, Unknown(p)) when !is_identified_providence(p) => s
+  | (s, Unknown(p)) when !is_identified_provenance(p) => s
   | (Unknown(_) as s, _) => s
   | (_, Unknown(_) as t) => solution_of_typ(prov, t)
   | (Atom(a1), Atom(a2)) when a1 == a2 => Atom(a1)
@@ -837,6 +874,11 @@ let extend_sol_map =
   // print_endline("Constraints:");
   // print_endline(string_of_constramnots(constraints));
   let canonical_cs = unfold_constramnots(constraints); // make constraints canonical
+  // String.concat(
+  //   "\n",
+  //   List.map(s => show_canonical_constramnot(s), canonical_cs),
+  // )
+  // |> print_endline;
   let m = PossibleProvTypesMap.of_constramnots(canonical_cs, sol_map); // compute provenance map
   // print_endline("Provenance Map:");
   // print_endline(string_of_prov_map(m));
@@ -965,7 +1007,6 @@ let solve = (cs: list(Typ.equivalence)): SolutionMap.t => {
 let go = (cs: list(Typ.equivalence)): SolutionMap.t => {
   solve(
     cs,
-    // print_endline(string_of_sol_map(sm));
     // let cs = unfold_constramnots(cs);
     // let m = prov_map_of_constramnots(cs);
     // print_endline("go2");
