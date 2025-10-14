@@ -226,6 +226,7 @@ module Make =
           hide_fixpoints: false,
           show_filters: true,
           show_unknown_as_hole: true,
+          multiline_lists: false,
         },
         term,
         already_parenthesized(z),

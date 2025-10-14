@@ -52,7 +52,7 @@ module Model = {
 
   let default_persisted_segment = config_type => {
     switch (config_type) {
-    | ColorScheme => Colors.out
+    | ColorScheme => ("Colors", ColorConfiguration.segment)
     | Shortcuts => (
         "Shortcuts",
         Zipper.init() |> Zipper.zip |> PersistentSegment.persist,
@@ -219,9 +219,16 @@ module StoreConfig =
     [@deriving (show({with_path: false}), sexp, yojson)]
     type t = Model.persistent;
     let key = Store.Configuration;
-    let default = () =>
-      Init.startup.configuration
-      |> PairUtil.map_snd(List.map(PairUtil.map_snd(Option.some)));
+    let default = () => (
+      0,
+      List.map(
+        x =>
+          Model.default_persisted_segment(x)
+          |> PairUtil.map_snd(CellEditor.Model.from_persistent_segment)
+          |> PairUtil.map_snd(Option.some),
+        Model.all_of_config_type,
+      ),
+    );
   });
 
 module Update = {

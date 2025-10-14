@@ -26,18 +26,7 @@ let startup: PersistentData.t = {
          (name, CellEditor.Model.from_persistent_segment(content))
        ),
   ),
-  configuration: (
-    0,
-    [
-      Colors.out
-      |> (
-        ((name: string, content: PersistentSegment.t)) => (
-          name,
-          CellEditor.Model.from_persistent_segment(content),
-        )
-      ),
-    ],
-  ),
+  configuration: (0, []),
 };
 
 let find_documentation_slide = (name: string) => {

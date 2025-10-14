@@ -13,6 +13,7 @@ module Settings = {
     hide_fixpoints: bool,
     show_filters: bool,
     show_unknown_as_hole: bool,
+    multiline_lists: bool,
   };
 
   let of_core = (~inline, settings: CoreSettings.t) => {
@@ -22,9 +23,10 @@ module Settings = {
     hide_fixpoints: !settings.evaluation.show_fixpoints,
     show_filters: settings.evaluation.show_stepper_filters,
     show_unknown_as_hole: true,
+    multiline_lists: false,
   };
 
-  let editable = (~inline) => {
+  let editable = (~multiline_lists, ~inline) => {
     {
       inline,
       fold_case_clauses: false,
@@ -32,6 +34,7 @@ module Settings = {
       hide_fixpoints: false,
       show_filters: true,
       show_unknown_as_hole: true,
+      multiline_lists,
     };
   };
 };
@@ -846,19 +849,24 @@ let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
       IdTagged.ids(exp) |> List.hd,
       IdTagged.ids(exp) |> List.tl |> pad_ids(List.length(xs)),
     );
+    let optional_newline = () =>
+      settings.multiline_lists ? [Secondary(mk_newline(Id.mk()))] : [];
     let form = (x, xs) =>
       mk_form(
         ListLitExp,
         id,
         [
-          x
+          optional_newline()
+          @ x
           @ List.flatten(
               List.map2(
-                (id, x) => [mk_form(CommaExp, id, [])] @ x,
+                (id, x) =>
+                  [mk_form(CommaExp, id, [])] @ optional_newline() @ x,
                 ids,
                 xs,
               ),
-            ),
+            )
+          @ optional_newline(),
         ],
       );
     p_just([form(x, xs)]);
