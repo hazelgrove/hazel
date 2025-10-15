@@ -49,8 +49,8 @@ let elaborated_type =
 };
 
 let elaborated_pat_type =
-    (m: Statics.Map.t, upat: Pat.t): (Typ.t, Typ.t, Ctx.t, Pat.t) => {
-  let (ana_ty, self_ty, ctx, prev_synswitch, term, label_inference) =
+    (m: Statics.Map.t, upat: Pat.t): (Typ.t, Typ.t, Ctx.t, Pat.t, Self.pat) => {
+  let (ana_ty, self_ty, ctx, prev_synswitch, term, label_inference, self) =
     switch (Id.Map.find_opt(Pat.rep_id(upat), m)) {
     | Some(
         Info.InfoPat({
@@ -60,6 +60,7 @@ let elaborated_pat_type =
           prev_synswitch,
           term: new_term,
           label_inference,
+          self,
           _,
         }),
       ) => (
@@ -69,6 +70,7 @@ let elaborated_pat_type =
         prev_synswitch,
         new_term,
         label_inference,
+        self,
       )
     | _ => raise(MissingTypeInfo)
     };
@@ -87,15 +89,25 @@ let elaborated_pat_type =
       | _ => Typ.match_synswitch(syn_ty, ana_ty)
       }
     };
-  (elab_ty |> Typ.normalize(ctx) |> Typ.all_ids_temp, ana_ty, ctx, term);
+  (
+    elab_ty |> Typ.normalize(ctx) |> Typ.all_ids_temp,
+    ana_ty,
+    ctx,
+    term,
+    self,
+  );
 };
 
 let rec elaborate_pattern =
         (m: Statics.Map.t, upat: Pat.t, in_container: bool): (Pat.t, Typ.t) => {
   // Pulling upat back out of the statics map for statics level singleton tuple autolabeling
-  let (elaborated_type, ana, ctx, upat) = elaborated_pat_type(m, upat);
+  let (elaborated_type, ana, ctx, upat, self) = elaborated_pat_type(m, upat);
   let elaborate_pattern = (~in_container=false, m, upat) =>
     elaborate_pattern(m, upat, in_container);
+
+  let contains_unknown =
+    Option.map(t => Typ.count_unknowns(t) > 0, Self.typ_of_pat(self))
+    |> Option.value(~default=true);
   let (term, rewrap) = Pat.unwrap(upat);
   let dpat =
     switch (term) {
@@ -174,6 +186,19 @@ let rec elaborate_pattern =
         | _ => None
         };
       Constructor(c, Some(t)) |> rewrap;
+    };
+
+  let dpat =
+    if (contains_unknown) {
+      switch (dpat) {
+      | {term: Probe(_), _} => dpat
+      | _ => {
+          term: Probe(dpat, Probe.empty),
+          annotation: dpat.annotation,
+        } // Think about whether it's safe to reuse ids here
+      };
+    } else {
+      dpat;
     };
   (dpat, elaborated_type);
 };

@@ -32,7 +32,7 @@ include StaticsBase;
 
 let rec any_to_info_map =
         (
-          ~dynamics: DynamicStatics.Map.t=DynamicStatics.Map.empty,
+          ~dynamics: DynamicStatics.Map.t,
           ~ctx: Ctx.t,
           ~ancestors,
           any: Any.t,
@@ -43,6 +43,7 @@ let rec any_to_info_map =
   | Exp(e) =>
     let ({co_ctx, _}: Info.exp, m) =
       uexp_to_info_map(
+        ~dynamics,
         ~ctx,
         ~ancestors,
         ~duplicates=[],
@@ -55,6 +56,7 @@ let rec any_to_info_map =
   | Pat(p) =>
     let m =
       upat_to_info_map(
+        ~dynamics,
         ~is_synswitch=false,
         ~co_ctx=CoCtx.empty,
         ~ancestors,
@@ -67,11 +69,11 @@ let rec any_to_info_map =
     (CoCtx.empty, m);
   | TPat(tp) => (
       CoCtx.empty,
-      utpat_to_info_map(~ctx, ~ancestors, tp, m) |> snd,
+      utpat_to_info_map(~dynamics, ~ctx, ~ancestors, tp, m) |> snd,
     )
   | Typ(ty) => (
       CoCtx.empty,
-      utyp_to_info_map(~ctx, ~ancestors, ty, m) |> snd,
+      utyp_to_info_map(~dynamics, ~ctx, ~ancestors, ty, m) |> snd,
     )
   | Rul(r) =>
     switch (r.term) {
@@ -84,6 +86,7 @@ let rec any_to_info_map =
         |> List.map(((p, e)) => [Grammar.Pat(p), Grammar.Exp(e)])
         |> List.concat;
       any_to_info_map(
+        ~dynamics,
         ~ctx,
         ~ancestors,
         Exp({
@@ -93,24 +96,18 @@ let rec any_to_info_map =
         m,
       );
     | MultiHole(tms) =>
-      let (co_ctxs, m) = multi(~ctx, ~ancestors, m, tms);
+      let (co_ctxs, m) = multi(~dynamics, ~ctx, ~ancestors, m, tms);
       (CoCtx.union(co_ctxs), m);
     | Invalid(_) => (CoCtx.empty, m)
     }
   | Any () => (CoCtx.empty, m)
   }
 and multi =
-    (
-      ~dynamics: DynamicStatics.Map.t=DynamicStatics.Map.empty,
-      ~ctx,
-      ~ancestors,
-      m,
-      tms,
-    )
+    (~dynamics: DynamicStatics.Map.t, ~ctx, ~ancestors, m, tms)
     : (list(CoCtx.t), Map.t) =>
   List.fold_left(
     ((co_ctxs, m), any) => {
-      let (co_ctx, m) = any_to_info_map(~ctx, ~ancestors, any, m);
+      let (co_ctx, m) = any_to_info_map(~dynamics, ~ctx, ~ancestors, any, m);
       (co_ctxs @ [co_ctx], m);
     },
     ([], m),
@@ -118,7 +115,7 @@ and multi =
   )
 and uexp_to_info_map =
     (
-      ~dynamics: DynamicStatics.Map.t=DynamicStatics.Map.empty,
+      ~dynamics: DynamicStatics.Map.t,
       ~ctx: Ctx.t,
       ~ana=syn,
       ~is_in_filter=false,
@@ -229,8 +226,8 @@ and uexp_to_info_map =
         go(~ana, ~duplicates, e, m) |> (((e, m)) => (es @ [e], m)),
       ([], m),
     );
-  let go_pat = upat_to_info_map(~ctx, ~ancestors, ~duplicates);
-  let go_typ = utyp_to_info_map(~ctx, ~ancestors);
+  let go_pat = upat_to_info_map(~dynamics, ~ctx, ~ancestors, ~duplicates);
+  let go_typ = utyp_to_info_map(~dynamics, ~ctx, ~ancestors);
   let label_to_info_map =
       (expected_labels, labmode, label: Exp.t, m: Map.t)
       : (option(string), Info.exp, Map.t) => {
@@ -333,7 +330,7 @@ and uexp_to_info_map =
       let (e, m) = go(~ana, e, m);
       add(~self=Just(e.ty), ~co_ctx=e.co_ctx, m);
     | MultiHole(tms) =>
-      let (co_ctxs, m) = multi(~ctx, ~ancestors, m, tms);
+      let (co_ctxs, m) = multi(~dynamics, ~ctx, ~ancestors, m, tms);
       add(~self=IsMulti, ~co_ctx=CoCtx.union(co_ctxs), m);
     | Asc(e, t2) =>
       let (t, m) = go_typ(t2, ~expects=Info.TypeExpected, m);
@@ -935,7 +932,7 @@ and uexp_to_info_map =
     | TypAp(fn, utyp) =>
       let typfn_ana = Forall(EmptyHole |> TPat.fresh, syn) |> Typ.temp;
       let (fn, m) = go(~ana=typfn_ana, fn, m);
-      let (_, m) = utyp_to_info_map(~ctx, ~ancestors, utyp, m);
+      let (_, m) = utyp_to_info_map(~dynamics, ~ctx, ~ancestors, utyp, m);
       let (option_name, ty_body) = Typ.matched_forall(ctx, fn.ty);
       switch (option_name) {
       | Some(name) =>
@@ -1077,7 +1074,7 @@ and uexp_to_info_map =
         | Some(_)
         | None => (item, ctx)
         };
-      let m = utpat_to_info_map(~ctx, ~ancestors, utpat, m) |> snd;
+      let m = utpat_to_info_map(~dynamics, ~ctx, ~ancestors, utpat, m) |> snd;
       let (body, m) = go'(~ctx=ctx_body, ~ana=mode_body, body, m);
       add(
         ~self=Just(Forall(utpat, body.ty) |> Typ.temp),
@@ -1099,6 +1096,7 @@ and uexp_to_info_map =
               p,
               m,
             );
+
           (def, p_ana'.ctx, m, ty_p_ana);
         } else {
           let (def_base, _) = go'(~ctx=p_syn.ctx, ~ana=p_syn.ty, def, m);
@@ -1240,6 +1238,7 @@ and uexp_to_info_map =
             | Info.InfoPat(info) =>
               let info =
                 Info.derived_pat(
+                  ~dynamics,
                   ~upat=info.term,
                   ~ctx=info.ctx,
                   ~co_ctx=info.co_ctx,
@@ -1263,7 +1262,7 @@ and uexp_to_info_map =
       let m = add_redundancy(ps, redundant_rows, m);
       add'(~self, ~co_ctx=CoCtx.union([scrut.co_ctx] @ e_co_ctxs), m);
     | TyAlias(typat, utyp, body) =>
-      let m = utpat_to_info_map(~ctx, ~ancestors, typat, m) |> snd;
+      let m = utpat_to_info_map(~dynamics, ~ctx, ~ancestors, typat, m) |> snd;
       switch (typat.term) {
       | Var(name) when !Ctx.shadows_typ(ctx, name) =>
         /* Currently we disallow all type shadowing */
@@ -1312,7 +1311,9 @@ and uexp_to_info_map =
           go'(~ctx=ctx_body, ~ana, body, m);
         /* Make sure types don't escape their scope */
         let ty_escape = Typ.subst(ty_def, typat, ty_body);
-        let m = utyp_to_info_map(~ctx=ctx_def, ~ancestors, utyp, m) |> snd;
+        let m =
+          utyp_to_info_map(~dynamics, ~ctx=ctx_def, ~ancestors, utyp, m)
+          |> snd;
         add(~self=Just(ty_escape), ~co_ctx, m);
       | Var(_)
       | Invalid(_)
@@ -1320,11 +1321,11 @@ and uexp_to_info_map =
       | MultiHole(_) =>
         let ({co_ctx, ty: ty_body, _}: Info.exp, m) =
           go'(~ctx, ~ana, body, m);
-        let m = utyp_to_info_map(~ctx, ~ancestors, utyp, m) |> snd;
+        let m = utyp_to_info_map(~dynamics, ~ctx, ~ancestors, utyp, m) |> snd;
         add(~self=Just(ty_body), ~co_ctx, m);
       };
     | Use(typ, body) =>
-      let (typ, m) = utyp_to_info_map(~ctx, ~ancestors, typ, m);
+      let (typ, m) = utyp_to_info_map(~dynamics, ~ctx, ~ancestors, typ, m);
       let use_mode: option(Operators.mode) =
         switch (typ.term |> Typ.weak_head_normalize(ctx) |> Typ.term_of) {
         | Atom(Nat) => Some(Nat)
@@ -1373,7 +1374,7 @@ and uexp_to_info_map =
 }
 and upat_to_info_map =
     (
-      ~dynamics: DynamicStatics.Map.t=DynamicStatics.Map.empty,
+      ~dynamics: DynamicStatics.Map.t,
       ~is_synswitch,
       ~ctx,
       ~co_ctx,
@@ -1400,6 +1401,7 @@ and upat_to_info_map =
       };
     let info =
       Info.derived_pat(
+        ~dynamics,
         ~prev_synswitch,
         ~upat,
         ~ctx,
@@ -1432,6 +1434,7 @@ and upat_to_info_map =
         m: Map.t,
       ) => {
     upat_to_info_map(
+      ~dynamics,
       ~is_synswitch,
       ~ctx,
       ~co_ctx,
@@ -1534,7 +1537,7 @@ and upat_to_info_map =
   let default_case = () =>
     switch (term) {
     | MultiHole(tms) =>
-      let (_, m) = multi(~ctx, ~ancestors, m, tms);
+      let (_, m) = multi(~dynamics, ~ctx, ~ancestors, m, tms);
       add(
         ~self=IsMulti,
         ~ctx,
@@ -1612,7 +1615,11 @@ and upat_to_info_map =
         Info.fixed_typ_pat(
           ctx,
           ana,
-          Common(Just(Unknown(Internal) |> Typ.temp)),
+          Info.derived_dynamic_self_pat(
+            ~dynamics,
+            ~upat,
+            ~self=Common(Just(Unknown(Internal) |> Typ.temp)),
+          ),
         );
       let entry =
         Ctx.VarEntry({
@@ -1852,6 +1859,7 @@ and upat_to_info_map =
         | _ =>
           let info =
             Info.derived_pat(
+              ~dynamics,
               ~upat=fn'.term,
               ~ctx=fn'.ctx,
               ~co_ctx=fn'.co_ctx,
@@ -1876,7 +1884,7 @@ and upat_to_info_map =
         };
       add(~self=Just(ty_out), ~ctx=arg.ctx, ~constraint_, m);
     | Asc(p, ann) =>
-      let (ann, m) = utyp_to_info_map(~ctx, ~ancestors, ann, m);
+      let (ann, m) = utyp_to_info_map(~dynamics, ~ctx, ~ancestors, ann, m);
       let (p, m) = go(~ctx, ~under_ascription=true, ~ana=ann.term, p, m);
       add(~self=Just(ann.term), ~ctx=p.ctx, ~constraint_=p.constraint_, m);
     };
@@ -1902,7 +1910,7 @@ and upat_to_info_map =
 }
 and utyp_to_info_map =
     (
-      ~dynamics: DynamicStatics.Map.t=DynamicStatics.Map.empty,
+      ~dynamics: DynamicStatics.Map.t,
       ~ctx,
       ~expects=Info.TypeExpected,
       ~ancestors,
@@ -1916,11 +1924,11 @@ and utyp_to_info_map =
   };
   let add = (~utyp=utyp, m) => add'(~utyp, m);
   let ancestors = [Typ.rep_id(utyp)] @ ancestors;
-  let go' = utyp_to_info_map(~ctx, ~ancestors);
+  let go' = utyp_to_info_map(~dynamics, ~ctx, ~ancestors);
   let go = go'(~expects=TypeExpected);
   switch (term) {
   | Unknown(Hole(MultiHole(tms))) =>
-    let (_, m) = multi(~ctx, ~ancestors, m, tms);
+    let (_, m) = multi(~dynamics, ~ctx, ~ancestors, m, tms);
     add(m);
   | Unknown(_)
   | Atom(_) => add(m)
@@ -2006,7 +2014,7 @@ and utyp_to_info_map =
   | Sum(variants) =>
     let (m, _) =
       List.fold_left(
-        variant_to_info_map(~ctx, ~ancestors, ~ty_sum=utyp),
+        variant_to_info_map(~dynamics, ~ctx, ~ancestors, ~ty_sum=utyp),
         (m, []),
         variants,
       );
@@ -2023,6 +2031,7 @@ and utyp_to_info_map =
       );
     let m =
       utyp_to_info_map(
+        ~dynamics,
         tbody,
         ~ctx=body_ctx,
         ~ancestors,
@@ -2030,13 +2039,20 @@ and utyp_to_info_map =
         m,
       )
       |> snd;
-    let m = utpat_to_info_map(~ctx, ~ancestors, utpat, m) |> snd;
+    let m = utpat_to_info_map(~dynamics, ~ctx, ~ancestors, utpat, m) |> snd;
     add(m); // TODO: check with andrew
   | Forall(utpat, tbody) =>
     let m =
-      utyp_to_info_map(tbody, ~ctx, ~ancestors, ~expects=TypeExpected, m)
+      utyp_to_info_map(
+        ~dynamics,
+        tbody,
+        ~ctx,
+        ~ancestors,
+        ~expects=TypeExpected,
+        m,
+      )
       |> snd;
-    let m = utpat_to_info_map(~ctx, ~ancestors, utpat, m) |> snd;
+    let m = utpat_to_info_map(~dynamics, ~ctx, ~ancestors, utpat, m) |> snd;
     add(m); // TODO: check with andrew
   | Rec({term: Var(name), _} as utpat, tbody) =>
     let body_ctx =
@@ -2050,6 +2066,7 @@ and utyp_to_info_map =
       );
     let m =
       utyp_to_info_map(
+        ~dynamics,
         tbody,
         ~ctx=body_ctx,
         ~ancestors,
@@ -2057,19 +2074,26 @@ and utyp_to_info_map =
         m,
       )
       |> snd;
-    let m = utpat_to_info_map(~ctx, ~ancestors, utpat, m) |> snd;
+    let m = utpat_to_info_map(~dynamics, ~ctx, ~ancestors, utpat, m) |> snd;
     add(m); // TODO: check with andrew
   | Rec(utpat, tbody) =>
     let m =
-      utyp_to_info_map(tbody, ~ctx, ~ancestors, ~expects=TypeExpected, m)
+      utyp_to_info_map(
+        ~dynamics,
+        tbody,
+        ~ctx,
+        ~ancestors,
+        ~expects=TypeExpected,
+        m,
+      )
       |> snd;
-    let m = utpat_to_info_map(~ctx, ~ancestors, utpat, m) |> snd;
+    let m = utpat_to_info_map(~dynamics, ~ctx, ~ancestors, utpat, m) |> snd;
     add(m); // TODO: check with andrew
   };
 }
 and utpat_to_info_map =
     (
-      ~dynamics: DynamicStatics.Map.t=DynamicStatics.Map.empty,
+      ~dynamics: DynamicStatics.Map.t,
       ~ctx,
       ~ancestors,
       {annotation: {ids, _}, term} as utpat: TPat.t,
@@ -2083,7 +2107,7 @@ and utpat_to_info_map =
   let ancestors = [TPat.rep_id(utpat)] @ ancestors;
   switch (term) {
   | MultiHole(tms) =>
-    let (_, m) = multi(~ctx, ~ancestors, m, tms);
+    let (_, m) = multi(~dynamics, ~ctx, ~ancestors, m, tms);
     add(m);
   | Invalid(_)
   | EmptyHole
@@ -2092,14 +2116,14 @@ and utpat_to_info_map =
 }
 and variant_to_info_map =
     (
-      ~dynamics: DynamicStatics.Map.t=DynamicStatics.Map.empty,
+      ~dynamics: DynamicStatics.Map.t,
       ~ctx,
       ~ancestors,
       ~ty_sum,
       (m, ctrs),
       uty: ConstructorMap.variant(Typ.t),
     ) => {
-  let go = expects => utyp_to_info_map(~ctx, ~ancestors, ~expects);
+  let go = expects => utyp_to_info_map(~dynamics, ~ctx, ~ancestors, ~expects);
   switch (uty) {
   | BadEntry(uty) =>
     let m = go(VariantExpected(Unique, ty_sum), uty, m) |> snd;

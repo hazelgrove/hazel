@@ -898,20 +898,10 @@ let derived_exp =
     )
     : exp => {
   let t = DynamicStatics.Map.lookup(uexp |> Exp.rep_id, dynamics); // currently unused
-  Id.Map.iter(
-    (id, ty) =>
-      print_endline(
-        "Dynamic type for " ++ Id.to_string(id) ++ ": " ++ Typ.show(ty),
-      ),
-    dynamics,
-  );
+
   let self: Self.exp =
     switch (self, t) {
-    | (Common(Just(ty)), Some(ty')) =>
-      print_endline("Term: " ++ [%derive.show: Exp.t](uexp));
-      print_endline("Dynamic ty: " ++ [%derive.show: Typ.t](ty'));
-      print_endline("Self ty: " ++ [%derive.show: Typ.t](ty));
-      Common(Just(ty'));
+    | (Common(Just(_)), Some(ty')) => Common(Just(ty'))
     | _ => self
     };
 
@@ -935,21 +925,33 @@ let derived_exp =
 };
 
 /* Add derivable attributes for pattern terms */
+let derived_dynamic_self_pat =
+    (~dynamics: DynamicStatics.Map.t, ~upat: Pat.t, ~self: Self.pat): Self.pat => {
+  let t = DynamicStatics.Map.lookup(upat |> Pat.rep_id, dynamics); // currently unused
+
+  switch (self, t) {
+  | (Common(Just(_)), Some(ty')) => Common(Just(ty'))
+  | _ => self
+  };
+};
 let derived_pat =
     (
+      ~dynamics: DynamicStatics.Map.t,
       ~upat: Pat.t,
       ~ctx,
       ~co_ctx,
       ~prev_synswitch,
       ~ana,
       ~ancestors,
-      ~self,
+      ~self: Self.pat,
       ~constraint_,
       ~label_inference,
       ~inferred_label,
       ~label_sort,
     )
     : pat => {
+  let self: Self.pat = derived_dynamic_self_pat(~dynamics, ~upat, ~self);
+
   let cls = Cls.Pat(Pat.cls_of_term(upat.term));
   let status = status_pat(ctx, ana, self);
   let ty = fixed_typ_pat(ctx, ana, self);
