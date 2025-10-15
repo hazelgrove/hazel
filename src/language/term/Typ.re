@@ -688,23 +688,16 @@ let matched_arrow = (ctx, ty) => {
 };
 
 let matched_forall_of_prov = ({term, annotation}: Prov.t, ty) => {
+  let r_forall =
+    Unknown({
+      term: RForall(term),
+      annotation,
+    })
+    |> temp;
   (
     None,
-    ty,
-    [
-      Con(
-        ty,
-        Forall(
-          EmptyHole |> TPat.fresh,
-          Unknown({
-            term: RForall(term),
-            annotation,
-          })
-          |> temp,
-        )
-        |> temp,
-      ),
-    ],
+    r_forall,
+    [Con(ty, Forall(EmptyHole |> TPat.fresh, r_forall) |> temp)],
   );
 };
 
