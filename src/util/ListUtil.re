@@ -490,3 +490,24 @@ let rec fold_left2_opt =
   | _ => None
   };
 };
+
+/**
+ * Similar to List.for_all2 but for functions that return option(bool)
+ * Returns None if any call returns None
+ * Returns Some(false) if any call returns Some(false)
+ * Returns Some(true) if all calls return Some(true)
+ */
+let rec forall2_opt =
+        (f: ('a, 'b) => option(bool), l1: list('a), l2: list('b))
+        : option(bool) => {
+  switch (l1, l2) {
+  | ([], []) => Some(true)
+  | ([x1, ...rest1], [x2, ...rest2]) =>
+    switch (f(x1, x2)) {
+    | None => None
+    | Some(false) => Some(false)
+    | Some(true) => forall2_opt(f, rest1, rest2)
+    }
+  | _ => Some(false) // Different lengths
+  };
+};
