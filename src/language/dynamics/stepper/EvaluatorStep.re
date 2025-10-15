@@ -425,8 +425,8 @@ let take_step = (step: EvalObj.t) => {
   };
   let next_expr =
     EvalCtx.compose(step.ctx, next_expr)
-    |> Exp.replace_all_ids
-    |> DHExp.substitute_closures(Builtins.env_init);
+    |> DHExp.substitute_closures(Builtins.env_init)
+    |> Exp.replace_all_ids;
   next_expr;
 };
 
