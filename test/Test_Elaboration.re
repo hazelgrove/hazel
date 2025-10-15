@@ -714,7 +714,7 @@ module MenhirElaborationTests = {
   //uexp = tested
   open IdTagged.FreshGrammar;
 
-  let alco_check_menhir = (name: string, dhexp: string, uexp: Term.Exp.t) =>
+  let alco_check_menhir = (name: string, dhexp: string, uexp: Exp.t) =>
     alco_check(
       name,
       Grammar.map_exp_annotation(
