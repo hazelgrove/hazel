@@ -489,6 +489,7 @@ module Transition = (EV: EV_MODE) => {
     | Atom(_)
     | LivelitName(_)
     | Label(_)
+    | ExplicitNonlabel
     | Constructor(_)
     | BuiltinFun(_) =>
       let. _ = otherwise(env, d);
@@ -586,14 +587,23 @@ module Transition = (EV: EV_MODE) => {
             is_value: false,
           });
         } else {
-          let res = DHExp.poly_equal(d1, d2);
-          let expr = Atom(Bool(poly_op == Equals ? res : !res)) |> fresh;
-          Step({
-            expr,
-            side_effects: [],
-            kind: BinOp(op),
-            is_value: false,
-          });
+          switch (DHExp.poly_equal(d1, d2)) {
+          | None => Indet
+          | Some(true) =>
+            Step({
+              expr: Atom(Bool(poly_op == Equals)) |> fresh,
+              side_effects: [],
+              kind: BinOp(op),
+              is_value: false,
+            })
+          | Some(false) =>
+            Step({
+              expr: Atom(Bool(poly_op != Equals)) |> fresh,
+              side_effects: [],
+              kind: BinOp(op),
+              is_value: false,
+            })
+          };
         }
       | Defined(in_ty1, in_ty2, out_ty, f) =>
         let-unbox n1 = (Atom(in_ty1), d1);

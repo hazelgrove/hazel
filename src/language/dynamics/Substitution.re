@@ -10,6 +10,12 @@ let rec binds_var = (x: Var.t, dp: DHPat.t): bool =>
   | Atom(_)
   | Label(_)
   | Constructor(_) => false
+  | ExplicitNonlabel =>
+    raise(
+      Failure(
+        "binds_var ExplicitNonlabel shouldn't show up since they're removed in elaboration",
+      ),
+    )
   | Asc(y, _)
   | Parens(y)
   | Probe(y, _) => binds_var(x, y)
@@ -84,6 +90,7 @@ let rec subst_var = (d1: DHExp.t, x: Var.t, d2: DHExp.t): DHExp.t => {
   | HintedTest(d3, h) => HintedTest(subst_var(d1, x, d3), h) |> rewrap
   | Atom(_)
   | Label(_)
+  | ExplicitNonlabel
   | LivelitName(_)
   | Constructor(_) => d2
   | ListLit(ds) => ListLit(List.map(subst_var(d1, x), ds)) |> rewrap

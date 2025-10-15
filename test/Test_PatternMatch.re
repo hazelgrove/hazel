@@ -53,7 +53,7 @@ let tests = (
           | (IndetMatch, IndetMatch) => true
           | (Matches(env1), Matches(env2)) =>
             List.equal(
-              Environment.equal_binding(Term.Exp.equal),
+              Environment.equal_binding(Language.Exp.fast_equal),
               List.sort(compare, env1),
               List.sort(compare, env2),
             )

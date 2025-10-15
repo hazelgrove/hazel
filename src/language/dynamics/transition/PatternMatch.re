@@ -22,6 +22,12 @@ let rec matches = (capture, dp: Pat.t, d: DHExp.t): match_result => {
   | EmptyHole
   | MultiHole(_)
   | Wild => Matches([])
+  | ExplicitNonlabel =>
+    raise(
+      Failure(
+        "PatternMatch ExplicitNonlabel should not show up since these are removed during elaboration",
+      ),
+    )
   | Atom(c) =>
     let V(value, kind) = Atom.unpack(c);
     let* d' = Unboxing.unbox(Atom(kind), d);
@@ -75,8 +81,7 @@ let matches = (dp: Pat.t, d: DHExp.t): matches_and_closures => {
   /* Closure capture for Probe instrumentation */
   let closure_closures: ref(closure_closures) = ref([]);
   let capture =
-      (pr: Probe.t, dp: Term.Pat.t, d: DHExp.t, inner_match: match_result)
-      : unit =>
+      (pr: Probe.t, dp: Pat.t, d: DHExp.t, inner_match: match_result): unit =>
     switch (inner_match) {
     | DoesNotMatch => ()
     | IndetMatch => ()
@@ -84,7 +89,7 @@ let matches = (dp: Pat.t, d: DHExp.t): matches_and_closures => {
       closure_closures :=
         List.cons(
           Dynamics.Probe.Closure.mk(
-            Term.Pat.rep_id(dp),
+            Pat.rep_id(dp),
             d,
             Environment.of_bindings(env),
             _,

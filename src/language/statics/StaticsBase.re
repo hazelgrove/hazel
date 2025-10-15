@@ -9,6 +9,7 @@ module Map = {
 
   let empty = Id.Map.empty;
   let lookup = Id.Map.find_opt;
+  let filter = Id.Map.filter;
 
   let error_ids = (info_map: t): list(Id.t) =>
     Id.Map.fold(
@@ -47,7 +48,7 @@ module Map = {
 
   let bound_in = (m: t, id: Id.t): Binding.s =>
     switch (lookup(id, m)) {
-    | Some(InfoPat({term, _})) => Term.Pat.bindings(term)
+    | Some(InfoPat({term, _})) => Pat.bindings(term)
     | _ => []
     };
 };
