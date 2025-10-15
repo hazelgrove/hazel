@@ -422,7 +422,8 @@ let unroll = (ty: t): t =>
 
 /* Type Equality: This coincides with alpha equivalence for normalized types.
    Other types may be equivalent but this will not detect so if they are not normalized. */
-let equal = (t1: t, t2: t): bool => fast_equal(t1, t2);
+let fast_equal = Equality.semantic.typ;
+let equal = (t1: t, t2: t): bool => Equality.syntactic.typ(t1, t2);
 
 let project_type = (tys: list(t), label: string): option(t) =>
   switch (LabeledTuple.find_label(match_tup_label, tys, label)) {
@@ -692,7 +693,7 @@ let is_more_precise = (ctx: Ctx.t, ty1: t, ty2: t): bool => {
   let joined = join(ctx, ty1, ty2);
   switch (joined) {
   | None => false
-  | Some(joined) => fast_equal(~alpha_equivalence=true, joined, ty1)
+  | Some(joined) => Equality.semantic.typ(joined, ty1)
   };
 };
 

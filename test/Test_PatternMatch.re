@@ -49,7 +49,7 @@ let tests = (
           testable(
             PatternMatch.pp_match_result,
             Unboxing.equal_unboxed(
-              VarBstMap.Ordered.equal_t_(TermBase.Exp.fast_equal),
+              VarBstMap.Ordered.equal_t_(Term.Exp.fast_equal),
             ),
           ),
           "Labeled Tuple with casts",

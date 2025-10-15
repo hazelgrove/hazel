@@ -3,7 +3,19 @@ open Language;
 
 /*Create a testable type for dhexp which requires
   an equal function (dhexp_eq) and a print function (dhexp_print) */
-let dhexp_typ = testable(Fmt.using(Exp.show, Fmt.string), DHExp.fast_equal);
+let dhexp_typ =
+  testable(
+    Fmt.using(Exp.show, Fmt.string),
+    // This is syntactic with ignore_wrappers=true
+    Equality.(
+      equality({
+        ...syntactic_settings,
+        ignore_parens: true,
+        ignore_unknown_provenance: true,
+      })
+    ).
+      exp,
+  );
 
 let mk_map = Statics.mk(CoreSettings.on, Builtins.ctx_init(Some(Int)));
 let dhexp_of_uexp = u =>

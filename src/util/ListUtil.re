@@ -471,3 +471,22 @@ let map_with_history = (f: (list('y), 'x) => 'y, xs: list('x)): list('y) => {
   };
   aux([], xs);
 };
+
+let rec fold_left2_opt =
+        (
+          f: ('a, 'b, 'c) => option('a),
+          acc: 'a,
+          xs: list('b),
+          ys: list('c),
+        )
+        : option('a) => {
+  switch (xs, ys) {
+  | ([], []) => Some(acc)
+  | ([x, ...xs], [y, ...ys]) =>
+    switch (f(acc, x, y)) {
+    | None => None
+    | Some(acc') => fold_left2_opt(f, acc', xs, ys)
+    }
+  | _ => None
+  };
+};
