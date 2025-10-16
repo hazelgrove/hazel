@@ -49,8 +49,8 @@ let elaborated_type =
 };
 
 let elaborated_pat_type =
-    (m: Statics.Map.t, upat: Pat.t): (Typ.t, Typ.t, Ctx.t, Pat.t) => {
-  let (ana_ty, self_ty, ctx, prev_synswitch, term, label_inference) =
+    (m: Statics.Map.t, upat: Pat.t): (Typ.t, Typ.t, Ctx.t, Pat.t, Self.pat) => {
+  let (ana_ty, self_ty, ctx, prev_synswitch, term, label_inference, self) =
     switch (Id.Map.find_opt(Pat.rep_id(upat), m)) {
     | Some(
         Info.InfoPat({
@@ -60,6 +60,7 @@ let elaborated_pat_type =
           prev_synswitch,
           term: new_term,
           label_inference,
+          self,
           _,
         }),
       ) => (
@@ -69,6 +70,7 @@ let elaborated_pat_type =
         prev_synswitch,
         new_term,
         label_inference,
+        self,
       )
     | _ => raise(MissingTypeInfo)
     };
@@ -87,15 +89,31 @@ let elaborated_pat_type =
       | _ => Typ.match_synswitch(syn_ty, ana_ty)
       }
     };
-  (elab_ty |> Typ.normalize(ctx) |> Typ.all_ids_temp, ana_ty, ctx, term);
+  (
+    elab_ty |> Typ.normalize(ctx) |> Typ.all_ids_temp,
+    ana_ty,
+    ctx,
+    term,
+    self,
+  );
 };
 
 let rec elaborate_pattern =
-        (m: Statics.Map.t, upat: Pat.t, in_container: bool): (Pat.t, Typ.t) => {
+        (
+          ~probe_unknowns: bool,
+          m: Statics.Map.t,
+          upat: Pat.t,
+          in_container: bool,
+        )
+        : (Pat.t, Typ.t) => {
   // Pulling upat back out of the statics map for statics level singleton tuple autolabeling
-  let (elaborated_type, ana, ctx, upat) = elaborated_pat_type(m, upat);
+  let (elaborated_type, ana, ctx, upat, self) = elaborated_pat_type(m, upat);
   let elaborate_pattern = (~in_container=false, m, upat) =>
-    elaborate_pattern(m, upat, in_container);
+    elaborate_pattern(~probe_unknowns, m, upat, in_container);
+
+  let contains_unknown =
+    Option.map(t => Typ.count_unknowns(t) > 0, Self.typ_of_pat(self))
+    |> Option.value(~default=true);
   let (term, rewrap) = Pat.unwrap(upat);
   let dpat =
     switch (term) {
@@ -175,10 +193,27 @@ let rec elaborate_pattern =
         };
       Constructor(c, Some(t)) |> rewrap;
     };
+
+  let dpat =
+    if (probe_unknowns && contains_unknown) {
+      switch (dpat) {
+      | {term: Probe(_), _} => dpat
+      | _ => {
+          term: Probe(dpat, Probe.empty),
+          annotation: dpat.annotation,
+        } // Think about whether it's safe to reuse ids here
+      };
+    } else {
+      dpat;
+    };
   (dpat, elaborated_type);
 };
 
-let rec elaborate = (m: Statics.Map.t, uexp: Exp.t): (DHExp.t, Typ.t) => {
+let rec elaborate =
+        (~probe_unknowns: bool, m: Statics.Map.t, uexp: Exp.t)
+        : (DHExp.t, Typ.t) => {
+  let elaborate = elaborate(~probe_unknowns);
+  let elaborate_pattern = elaborate_pattern(~probe_unknowns);
   // In the case of singleton labeled tuples we update the syntax in Statics.
   // We store this syntax with the same ID as the original expression and store it on the Info.exp in the Statics.map
   // We are then pulling this out and using it in place of the actual expression.
@@ -456,7 +491,7 @@ let rec elaborate = (m: Statics.Map.t, uexp: Exp.t): (DHExp.t, Typ.t) => {
     };
 
   let dhexp =
-    if (contains_unknown) {
+    if (probe_unknowns && contains_unknown) {
       switch (dhexp) {
       | {term: Probe(_), _} => dhexp
       | _ => {
@@ -478,8 +513,10 @@ let rec elaborate = (m: Statics.Map.t, uexp: Exp.t): (DHExp.t, Typ.t) => {
    too many new ids */
 let fix_typ_ids = Exp.map_term(~f_typ=(cont, e) => e |> cont);
 
-let uexp_elab = (m: Statics.Map.t, uexp: Exp.t): ElaborationResult.t => {
-  switch (elaborate(m, uexp)) {
+let uexp_elab =
+    (~probe_unknowns: bool, m: Statics.Map.t, uexp: Exp.t)
+    : ElaborationResult.t => {
+  switch (elaborate(~probe_unknowns, m, uexp)) {
   | exception MissingTypeInfo => DoesNotElaborate
   | (d, ty) => Elaborates(d |> fix_typ_ids, ty)
   };
