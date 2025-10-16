@@ -99,11 +99,17 @@ let elaborated_pat_type =
 };
 
 let rec elaborate_pattern =
-        (m: Statics.Map.t, upat: Pat.t, in_container: bool): (Pat.t, Typ.t) => {
+        (
+          ~probe_unknowns: bool,
+          m: Statics.Map.t,
+          upat: Pat.t,
+          in_container: bool,
+        )
+        : (Pat.t, Typ.t) => {
   // Pulling upat back out of the statics map for statics level singleton tuple autolabeling
   let (elaborated_type, ana, ctx, upat, self) = elaborated_pat_type(m, upat);
   let elaborate_pattern = (~in_container=false, m, upat) =>
-    elaborate_pattern(m, upat, in_container);
+    elaborate_pattern(~probe_unknowns, m, upat, in_container);
 
   let contains_unknown =
     Option.map(t => Typ.count_unknowns(t) > 0, Self.typ_of_pat(self))
@@ -189,7 +195,7 @@ let rec elaborate_pattern =
     };
 
   let dpat =
-    if (contains_unknown) {
+    if (probe_unknowns && contains_unknown) {
       switch (dpat) {
       | {term: Probe(_), _} => dpat
       | _ => {
@@ -203,7 +209,11 @@ let rec elaborate_pattern =
   (dpat, elaborated_type);
 };
 
-let rec elaborate = (m: Statics.Map.t, uexp: Exp.t): (DHExp.t, Typ.t) => {
+let rec elaborate =
+        (~probe_unknowns: bool, m: Statics.Map.t, uexp: Exp.t)
+        : (DHExp.t, Typ.t) => {
+  let elaborate = elaborate(~probe_unknowns);
+  let elaborate_pattern = elaborate_pattern(~probe_unknowns);
   // In the case of singleton labeled tuples we update the syntax in Statics.
   // We store this syntax with the same ID as the original expression and store it on the Info.exp in the Statics.map
   // We are then pulling this out and using it in place of the actual expression.
@@ -481,7 +491,7 @@ let rec elaborate = (m: Statics.Map.t, uexp: Exp.t): (DHExp.t, Typ.t) => {
     };
 
   let dhexp =
-    if (contains_unknown) {
+    if (probe_unknowns && contains_unknown) {
       switch (dhexp) {
       | {term: Probe(_), _} => dhexp
       | _ => {
@@ -503,8 +513,10 @@ let rec elaborate = (m: Statics.Map.t, uexp: Exp.t): (DHExp.t, Typ.t) => {
    too many new ids */
 let fix_typ_ids = Exp.map_term(~f_typ=(cont, e) => e |> cont);
 
-let uexp_elab = (m: Statics.Map.t, uexp: Exp.t): ElaborationResult.t => {
-  switch (elaborate(m, uexp)) {
+let uexp_elab =
+    (~probe_unknowns: bool, m: Statics.Map.t, uexp: Exp.t)
+    : ElaborationResult.t => {
+  switch (elaborate(~probe_unknowns, m, uexp)) {
   | exception MissingTypeInfo => DoesNotElaborate
   | (d, ty) => Elaborates(d |> fix_typ_ids, ty)
   };

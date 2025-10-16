@@ -31,7 +31,11 @@ let empty: t = {
 };
 
 let elaborate =
-  Core.Memo.general(~cache_size_bound=1000, Elaborator.uexp_elab);
+  Core.Memo.general(
+    ~cache_size_bound=1000,
+    (probe_unknowns: bool, info_map: Statics.Map.t, term: Exp.t) =>
+    Elaborator.uexp_elab(~probe_unknowns, info_map, term)
+  );
 
 let dh_err = (error: string): DHExp.t => Var(error) |> DHExp.fresh;
 
@@ -49,7 +53,7 @@ let init_from_term = (~settings, ~is_dynamic_term, ~ctx=?, term): t => {
     | _ when !settings.dynamics && !settings.elaborate =>
       dh_err("Dynamics & Elaboration disabled")
     | _ =>
-      switch (elaborate(info_map, term)) {
+      switch (elaborate(settings.dynamic_feedback, info_map, term)) {
       | DoesNotElaborate => dh_err("Elaboration returns None")
       | Elaborates(d, _) => d
       }
