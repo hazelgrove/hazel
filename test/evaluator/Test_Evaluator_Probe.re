@@ -350,5 +350,14 @@ let tests = (
         )
       )
     }),
+    test_case("Probe on constructor pattern still pattern matches", `Quick, () => {
+      parse_and_evaluate_test(
+        {hazel|1|hazel},
+        {hazel|case Some("int", 3)
+| None => 0
+| ^^probe(Some(d)) => 1
+end|hazel},
+      )
+    }),
   ],
 );

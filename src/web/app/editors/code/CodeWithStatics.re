@@ -138,7 +138,7 @@ module Update = {
         dynamics,
       );
 
-    let info_map =
+    let dynamic_info_map =
       Language.Statics.mk(
         ~dynamics=dynamic_types,
         settings,
@@ -146,14 +146,14 @@ module Update = {
         statics.term,
       );
 
-    let error_ids =
-      Language.StaticsBase.Map.error_ids(info_map)
+    let dynamic_error_ids =
+      Language.StaticsBase.Map.error_ids(dynamic_info_map)
       |> List.filter(id => !List.mem(id, statics.error_ids));
 
     let statics: CachedStatics.t = {
       ...statics,
-      dynamic_info_map: info_map,
-      dynamic_error_ids: error_ids,
+      dynamic_info_map,
+      dynamic_error_ids,
     };
 
     let editor =

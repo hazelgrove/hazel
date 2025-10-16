@@ -46,6 +46,12 @@ let rec matches =
   | Ap({term: Constructor(ctr, _), _}, p2) =>
     let* d2 = Unboxing.unbox(SumWithArg(ctr), d);
     matches(p2, d2);
+  | Ap({term: Probe({term: Constructor(ctr, _), _}, _), _}, p2) =>
+    // TODO There's probably a better way to handle the incremental pattern matching for this
+    // TODO We need to actually capture the constructor here
+    // This is addressing https://github.com/hazelgrove/hazel/issues/1987
+    let* d2 = Unboxing.unbox(SumWithArg(ctr), d);
+    matches(p2, d2);
   | Ap(_, _) => IndetMatch // TODO: should this fail?
   | Var(x) => Matches(Environment.singleton((x, d)))
   /* Labels are a special case */

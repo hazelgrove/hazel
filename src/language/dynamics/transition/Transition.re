@@ -190,9 +190,6 @@ module Transition = (EV: EV_MODE) => {
       )
       : EV.result => {
     let update_probe' = (id, d, env, call_stack, pr) => {
-      print_endline(
-        "Updating probe: " ++ Id.str3(id) ++ " with value " ++ DHExp.show(d),
-      );
       update_probe(
         state,
         Dynamics.Probe.Closure.mk(id, d, env, call_stack, pr),
