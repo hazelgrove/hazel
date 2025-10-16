@@ -1,5 +1,6 @@
 open Util.WebUtil;
 open Haz3lcore;
+open Language;
 
 /* Read-only code viewer with statics, but no interaction. Notably,
    since there is no interaction, the user can see that there is an
@@ -90,7 +91,7 @@ module Update = {
   /* Calculates the statics for the editor. */
   let calculate =
       (
-        ~settings,
+        ~settings: Language.CoreSettings.t,
         ~is_edited,
         ~ctx=?,
         ~stitch,
@@ -138,17 +139,24 @@ module Update = {
         dynamics,
       );
 
-    let dynamic_info_map =
-      Language.Statics.mk(
-        ~dynamics=dynamic_types,
-        settings,
-        ctx_init,
-        statics.term,
-      );
+    let (dynamic_info_map, dynamic_error_ids) =
+      if (settings.dynamic_feedback) {
+        let dynamic_info_map =
+          Language.Statics.mk(
+            ~dynamics=dynamic_types,
+            settings,
+            ctx_init,
+            statics.term,
+          );
 
-    let dynamic_error_ids =
-      Language.StaticsBase.Map.error_ids(dynamic_info_map)
-      |> List.filter(id => !List.mem(id, statics.error_ids));
+        let dynamic_error_ids =
+          Language.StaticsBase.Map.error_ids(dynamic_info_map)
+          |> List.filter(id => !List.mem(id, statics.error_ids));
+
+        (dynamic_info_map, dynamic_error_ids);
+      } else {
+        (Statics.Map.empty, []);
+      };
 
     let statics: CachedStatics.t = {
       ...statics,

@@ -23,6 +23,7 @@ module Model = {
       elaborate: false,
       assist: true,
       dynamics: true,
+      dynamic_feedback: false,
       flip_animations: true,
       evaluation: {
         show_case_clauses: true,
@@ -106,6 +107,7 @@ module Update = {
     | Dynamics
     | Assist
     | Elaborate
+    | DynamicFeedback
     | Benchmark
     | ContextInspector
     | InstructorMode
@@ -163,6 +165,13 @@ module Update = {
           core: {
             ...settings.core,
             flip_animations: !settings.core.flip_animations,
+          },
+        }
+      | DynamicFeedback => {
+          ...settings,
+          core: {
+            ...settings.core,
+            dynamic_feedback: !settings.core.dynamic_feedback,
           },
         }
       | Evaluation(u) =>
