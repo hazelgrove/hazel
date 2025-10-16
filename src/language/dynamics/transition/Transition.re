@@ -48,6 +48,7 @@ open PatternMatch;
 [@deriving (show({with_path: false}), sexp, yojson)]
 type step_kind =
   | InvalidStep
+  | PartialStep(list(string))
   | VarLookup
   | Seq
   | LetBind(string)
@@ -252,9 +253,20 @@ module Transition = (EV: EV_MODE) => {
       and. d1' =
         req_final(req(state, env), d1 => Let1(dp, d1, d2) |> wrap_ctx, d1);
       let.wrap_closure _ = env;
-      let {matches, closures} = matches(dp, d1');
+      let {matches: matches', closures} = matches(dp, d1');
+      let force_match = matches' == IndetMatch;
+      let failed_matches = failed_matches(dp, d1');
+      let {matches: matches', closures} =
+        force_match
+          ? matches(~force_partial_match=true, dp, d1')
+          : {
+            matches: matches',
+            closures,
+          };
+      // find vars in dp that couldn't match in d1 (aren't in matches')
+
       let matches_str = {
-        switch (matches) {
+        switch (matches') {
         | IndetMatch
         | DoesNotMatch => ""
         | Matches(env) =>
@@ -264,11 +276,12 @@ module Transition = (EV: EV_MODE) => {
           |> String.concat(", ")
         };
       };
-      let.match env' = (env, matches, env.call_stack);
+      let.match env' = (env, matches', env.call_stack);
       Step({
         expr: subst_env(env', d2),
         state_update: capture_closures(env, state, closures),
-        kind: LetBind(matches_str),
+        kind:
+          force_match ? PartialStep(failed_matches) : LetBind(matches_str),
         is_value: false,
       });
     | TypFun(_)
@@ -430,10 +443,10 @@ module Transition = (EV: EV_MODE) => {
         switch (unboxed_fun) {
         | Constructor(_) => Constructor
         | FunEnv(dp, d3, function_lexical_env) =>
-          let matches = matches(dp, d2');
-          switch (matches.matches) {
-          | IndetMatch
-          | DoesNotMatch => Indet
+          let matches' = matches(dp, d2');
+          switch (matches'.matches) {
+          | DoesNotMatch
+          | IndetMatch => Indet
           | Matches(function_arg_env) =>
             let env'' =
               evaluate_extend_env(
@@ -444,15 +457,38 @@ module Transition = (EV: EV_MODE) => {
               );
             Step({
               expr: subst_env(env'', d3),
-              state_update: capture_closures(env'', state, matches.closures),
+              state_update: capture_closures(env'', state, matches'.closures),
               kind: FunAp,
               is_value: false,
             });
           };
         | FunNoEnv(dp, d3) when mode == `Substitution =>
-          let matches = matches(dp, d2');
-          switch (matches.matches) {
-          | IndetMatch
+          let matches' = matches(dp, d2');
+          switch (matches'.matches) {
+          | IndetMatch =>
+            let partial_matches = matches(~force_partial_match=true, dp, d2');
+            let failed_matches = failed_matches(dp, d2');
+            switch (partial_matches.matches) {
+            | IndetMatch
+            | DoesNotMatch => Indet
+            | Matches(function_arg_env) =>
+              Step({
+                expr:
+                  subst_env(
+                    function_arg_env |> ClosureEnvironment.of_environment,
+                    d3,
+                  ),
+                state_update:
+                  capture_closures(
+                    function_arg_env |> ClosureEnvironment.of_environment,
+                    state,
+                    matches'.closures,
+                  ),
+                kind: PartialStep(failed_matches),
+                is_value: false,
+              })
+            };
+
           | DoesNotMatch => Indet
           | Matches(function_arg_env) =>
             Step({
@@ -465,7 +501,7 @@ module Transition = (EV: EV_MODE) => {
                 capture_closures(
                   function_arg_env |> ClosureEnvironment.of_environment,
                   state,
-                  matches.closures,
+                  matches'.closures,
                 ),
               kind: FunAp,
               is_value: false,
@@ -1005,6 +1041,7 @@ let should_hide_step_kind = (~settings: CoreSettings.Evaluation.t) =>
   | LetBind(_)
   | Seq
   | UpdateTest
+  | PartialStep(_)
   | TypFunAp
   | FunAp
   | DeferredAp
@@ -1037,6 +1074,10 @@ let should_hide_step_kind = (~settings: CoreSettings.Evaluation.t) =>
 let stepper_justification: step_kind => string =
   fun
   | LetBind(s) => String.cat("substitution for ", s)
+  | PartialStep(failed_matches) =>
+    "partial pattern match (failed to match: "
+    ++ String.concat(", ", failed_matches)
+    ++ ")"
   | Seq => "sequence"
   | FixUnwrap => "unroll fixpoint"
   | UpdateTest => "update test"

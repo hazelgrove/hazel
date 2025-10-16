@@ -12,9 +12,25 @@ let combine_result = (r1: match_result, r2: match_result): match_result =>
     Matches(Environment.union(env1, env2))
   };
 
-let rec matches = (capture, dp: Pat.t, d: DHExp.t): match_result => {
-  let matches = matches(capture);
+let combine_partial_result =
+    (r1: match_result, r2: match_result): match_result =>
+  switch (r1, r2) {
+  | (DoesNotMatch, DoesNotMatch)
+  | (IndetMatch, DoesNotMatch)
+  | (DoesNotMatch, IndetMatch) => DoesNotMatch
+  | (IndetMatch, IndetMatch) => IndetMatch
+  | (Matches(env1), Matches(env2)) =>
+    Matches(Environment.union(env1, env2))
+  | (Matches(env), _) => Matches(env)
+  | (_, Matches(env)) => Matches(env)
+  };
+let rec matches =
+        (~force_partial_match=?, capture, dp: Pat.t, d: DHExp.t): match_result => {
+  let matches = matches(capture, ~force_partial_match?);
   let d = Ascriptions.transition_multiple(d);
+  let combine_result =
+    Option.is_none(force_partial_match)
+      ? combine_result : combine_partial_result;
   switch (DHPat.term_of(dp)) {
   | Invalid(_)
   | EmptyHole
@@ -31,9 +47,17 @@ let rec matches = (capture, dp: Pat.t, d: DHExp.t): match_result => {
     let* d' = Unboxing.unbox(Atom(kind), d);
     value == d' ? Matches(Environment.empty) : DoesNotMatch;
   | ListLit(xs) =>
-    let* s' = Unboxing.unbox(ListLitn(List.length(xs)), d);
-    List.map2(matches, xs, s')
-    |> List.fold_left(combine_result, Matches(Environment.empty));
+    switch (d |> DHExp.term_of) {
+    | EmptyHole when force_partial_match == Some(true) =>
+      let* ds =
+        Matches(List.init(List.length(xs), _ => EmptyHole |> DHExp.fresh));
+      List.map2(matches, xs, ds)
+      |> List.fold_left(combine_result, Matches(Environment.empty));
+    | _ =>
+      let* s' = Unboxing.unbox(ListLitn(List.length(xs)), d);
+      List.map2(matches, xs, s')
+      |> List.fold_left(combine_result, Matches(Environment.empty));
+    }
   | Cons(x, xs) =>
     let* (x', xs') = Unboxing.unbox(Cons, d);
     let* m_x = matches(x, x');
@@ -56,9 +80,17 @@ let rec matches = (capture, dp: Pat.t, d: DHExp.t): match_result => {
     let* x' = Unboxing.unbox(TupLabel(dp), d);
     matches(x, x');
   | Tuple(ps) =>
-    let* ds = Unboxing.unbox(Tuple(List.length(ps)), d);
-    List.map2(matches, ps, ds)
-    |> List.fold_left(combine_result, Matches(Environment.empty));
+    switch (d |> DHExp.term_of) {
+    | EmptyHole when force_partial_match == Some(true) =>
+      let* ds =
+        Matches(List.init(List.length(ps), _ => EmptyHole |> DHExp.fresh));
+      List.map2(matches, ps, ds)
+      |> List.fold_left(combine_result, Matches(Environment.empty));
+    | _ =>
+      let* ds = Unboxing.unbox(Tuple(List.length(ps)), d);
+      List.map2(matches, ps, ds)
+      |> List.fold_left(combine_result, Matches(Environment.empty));
+    }
   | Parens(p) => matches(p, d)
   | Probe(p, pr) =>
     let inner_match = matches(p, d);
@@ -66,6 +98,59 @@ let rec matches = (capture, dp: Pat.t, d: DHExp.t): match_result => {
     inner_match;
   | Asc(p, t1) =>
     matches(p, Ascriptions.transition_multiple(Asc(d, t1) |> DHExp.fresh))
+  };
+};
+let rec failed_matches = (dp: Pat.t, d: DHExp.t): list(string) => {
+  let d = Ascriptions.transition_multiple(d);
+  switch (DHPat.term_of(dp)) {
+  | Invalid(_)
+  | EmptyHole
+  | MultiHole(_)
+  | Wild
+  | Atom(_) => []
+  | ListLit(xs) =>
+    switch (d |> DHExp.term_of) {
+    | EmptyHole => Pat.bound_vars(dp)
+    | _ =>
+      let s' = Unboxing.unbox(ListLitn(List.length(xs)), d);
+      switch (s') {
+      | DoesNotMatch
+      | IndetMatch => []
+      | Matches(s') =>
+        List.map2(failed_matches, xs, s')
+        |> List.fold_left((a, b) => a @ b, [])
+      };
+    }
+  | Cons(_, _) =>
+    //TODO: Implement all of these cases
+    []
+  | Constructor(_, _) => []
+  | Ap({term: Constructor(_, _), _}, _) => []
+  | Ap(_, _) => []
+  | Var(_) => []
+  /* Labels are a special case */
+  | Label(_) => []
+  | TupLabel(_, _) => []
+  | Tuple(ps) =>
+    switch (d |> DHExp.term_of) {
+    | EmptyHole => Pat.bound_vars(dp)
+    | _ =>
+      let s' = Unboxing.unbox(Tuple(List.length(ps)), d);
+      switch (s') {
+      | DoesNotMatch
+      | IndetMatch => []
+      | Matches(s') =>
+        List.map2(failed_matches, ps, s')
+        |> List.fold_left((a, b) => a @ b, [])
+      };
+    }
+  | Parens(p) => failed_matches(p, d)
+  | Probe(p, _) => failed_matches(p, d)
+  | Asc(p, t1) =>
+    failed_matches(
+      p,
+      Ascriptions.transition_multiple(Asc(d, t1) |> DHExp.fresh),
+    )
   };
 };
 
@@ -76,8 +161,12 @@ type matches_and_closures = {
   closures: closure_closures,
 };
 
-let matches = (dp: Pat.t, d: DHExp.t): matches_and_closures => {
+let matches =
+    (~force_partial_match=?, dp: Pat.t, d: DHExp.t): matches_and_closures => {
   /* Closure capture for Probe instrumentation */
+  if (force_partial_match == Some(true)) {
+    print_endline("Indet match -> partial pattern match");
+  };
   let closure_closures: ref(closure_closures) = ref([]);
   let capture =
       (pr: Probe.t, dp: Pat.t, d: DHExp.t, inner_match: match_result): unit =>
@@ -91,7 +180,7 @@ let matches = (dp: Pat.t, d: DHExp.t): matches_and_closures => {
           closure_closures^,
         )
     };
-  let res = matches(capture, dp, d);
+  let res = matches(capture, dp, d, ~force_partial_match?);
   {
     matches: res,
     closures: closure_closures^,

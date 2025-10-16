@@ -28,6 +28,97 @@ let rec binds_var = (x: Var.t, dp: DHPat.t): bool =>
     List.fold_left((||), false, new_list);
   | Ap(_, _) => false
   };
+let rec expr_contains_var = (d: DHExp.t, x: Var.t): bool => {
+  let (term, _) = DHExp.unwrap(d);
+  switch (term) {
+  | Var(y) => Var.equal(x, y)
+  | Invalid(_) => false
+  | Undefined => false
+  | Seq(d3, d4) => expr_contains_var(d3, x) || expr_contains_var(d4, x)
+  | Filter(_, _) =>
+    //unimplemented
+    false
+  | Let(dp, d3, d4) =>
+    if (expr_contains_var(d3, x)) {
+      true;
+    } else if (binds_var(x, dp)) {
+      false;
+    } else {
+      expr_contains_var(d4, x);
+    }
+  | FixF(_, _, _) =>
+    //unimplemnted
+    false
+  | Fun(dp, d3, _, _) =>
+    if (binds_var(x, dp)) {
+      false;
+    } else {
+      expr_contains_var(d3, x);
+    }
+  | TypFun(_, d3, _) => expr_contains_var(d3, x)
+  | Closure(_, d3) =>
+    /* Closure shouldn't appear during substitution (which
+       only is called from elaboration currently) */
+    expr_contains_var(d3, x)
+  | Ap(_, d3, d4) => expr_contains_var(d3, x) || expr_contains_var(d4, x)
+  | BuiltinFun(_) => false
+  | Test(d)
+  | HintedTest(d, _) => expr_contains_var(d, x)
+  | Atom(_)
+  | Label(_)
+  | LivelitName(_)
+  | Constructor(_) => false
+  | ListLit(ds) =>
+    List.fold_left((acc, d) => acc || expr_contains_var(d, x), false, ds)
+  | Cons(d3, d4) => expr_contains_var(d3, x) || expr_contains_var(d4, x)
+  | ListConcat(d3, d4) =>
+    expr_contains_var(d3, x) || expr_contains_var(d4, x)
+  | TupLabel(_, d) => expr_contains_var(d, x)
+  | Dot(d3, d4) => expr_contains_var(d3, x) || expr_contains_var(d4, x)
+  | Tuple(ds) =>
+    List.fold_left((acc, d) => acc || expr_contains_var(d, x), false, ds)
+  | TupleExtension(d3, d4) =>
+    expr_contains_var(d3, x) || expr_contains_var(d4, x)
+  | UnOp(_, d3) => expr_contains_var(d3, x)
+  | BinOp(_, d3, d4) => expr_contains_var(d3, x) || expr_contains_var(d4, x)
+  | Match(_, _) => false
+  /* Unimplemented
+     let ds = subst_var(d1, x, ds);
+     let rules =
+       List.map(
+         ((p, v)) =>
+           if (binds_var(x, p)) {
+             (p, v);
+           } else {
+             (p, subst_var(d1, x, v));
+           },
+         rules,
+       );
+     Match(ds, rules) |> rewrap;*/
+  | EmptyHole => false
+  // TODO: handle multihole
+  | MultiHole(_d2) => false //MultiHole(List.map(subst_var(m, d1, x), ds)) |> rewrap
+  | Asc(d, _) => expr_contains_var(d, x)
+  | DynamicErrorHole(d, _) => expr_contains_var(d, x)
+  | If(d4, d5, d6) =>
+    expr_contains_var(d4, x)
+    || expr_contains_var(d5, x)
+    || expr_contains_var(d6, x)
+  | TyAlias(_, _, d4) => expr_contains_var(d4, x)
+  | Use(_, d) => expr_contains_var(d, x)
+  | Parens(d4) => expr_contains_var(d4, x)
+  | Probe(d4, _) => expr_contains_var(d4, x)
+  | Deferral(_) => false
+  | DeferredAp(d3, d4s) =>
+    expr_contains_var(d3, x)
+    || List.fold_left(
+         (acc, d) => acc || expr_contains_var(d, x),
+         false,
+         d4s,
+       )
+  | TypAp(d3, _) => expr_contains_var(d3, x)
+  };
+};
 
 /* closed substitution [d1/x]d2 */
 let rec subst_var = (d1: DHExp.t, x: Var.t, d2: DHExp.t): DHExp.t => {
