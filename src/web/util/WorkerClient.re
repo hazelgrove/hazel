@@ -2,7 +2,7 @@ open Js_of_ocaml;
 open WorkerServer;
 
 let name = "worker.js"; // Worker file name
-let timeoutDuration = 20000; // Worker timeout in ms
+let timeoutDuration = 60000; // Worker timeout in ms
 
 let initWorker = () => Worker.create(name);
 
