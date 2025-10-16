@@ -255,6 +255,7 @@ module Transition = (EV: EV_MODE) => {
       let.wrap_closure _ = env;
       let {matches: matches', closures} = matches(dp, d1');
       let force_match = matches' == IndetMatch;
+      let failed_matches = failed_matches(dp, d1');
       let {matches: matches', closures} =
         force_match
           ? matches(~force_partial_match=true, dp, d1')
@@ -262,38 +263,8 @@ module Transition = (EV: EV_MODE) => {
             matches: matches',
             closures,
           };
-      // If no matches found in let expression body, just say indeterminate match
-      let matches' =
-        !force_match
-          ? matches'
-          : (
-            switch (matches') {
-            | DoesNotMatch => Unboxing.DoesNotMatch
-            | IndetMatch => Unboxing.IndetMatch
-            | Matches(env) =>
-              let matches_in_body =
-                List.fold_left(
-                  (acc, v) => acc || Substitution.expr_contains_var(d2, v),
-                  false,
-                  VarBstMap.Ordered.to_listo(env)
-                  |> List.map(((var, _)) => var),
-                );
-              if (matches_in_body) {
-                Matches(env);
-              } else {
-                IndetMatch;
-              };
-            }
-          );
-      // Else, find vars in dp that couldn't match in d1 (aren't in matches')
-      let failed_matches =
-        switch (matches') {
-        | IndetMatch
-        | DoesNotMatch => []
-        | Matches(env) =>
-          Pat.bound_vars(dp)
-          |> List.filter(x => !VarBstMap.Ordered.contains(env, x))
-        };
+      // find vars in dp that couldn't match in d1 (aren't in matches')
+
       let matches_str = {
         switch (matches') {
         | IndetMatch
@@ -474,28 +445,8 @@ module Transition = (EV: EV_MODE) => {
         | FunEnv(dp, d3, function_lexical_env) =>
           let matches' = matches(dp, d2');
           switch (matches'.matches) {
-          | DoesNotMatch => Indet
-          | IndetMatch =>
-            let matches' = matches(~force_partial_match=true, dp, d2');
-            switch (matches'.matches) {
-            | IndetMatch
-            | DoesNotMatch => Indet
-            | Matches(function_arg_env) =>
-              let env'' =
-                evaluate_extend_env(
-                  ~ap_id=Term.Exp.rep_id(d),
-                  ~call_stack=env.call_stack,
-                  function_arg_env,
-                  function_lexical_env,
-                );
-              Step({
-                expr: subst_env(env'', d3),
-                state_update:
-                  capture_closures(env'', state, matches'.closures),
-                kind: PartialStep(["test"]),
-                is_value: false,
-              });
-            };
+          | DoesNotMatch
+          | IndetMatch => Indet
           | Matches(function_arg_env) =>
             let env'' =
               evaluate_extend_env(
@@ -516,16 +467,11 @@ module Transition = (EV: EV_MODE) => {
           switch (matches'.matches) {
           | IndetMatch =>
             let partial_matches = matches(~force_partial_match=true, dp, d2');
+            let failed_matches = failed_matches(dp, d2');
             switch (partial_matches.matches) {
             | IndetMatch
             | DoesNotMatch => Indet
             | Matches(function_arg_env) =>
-              let failed_matches =
-                switch (partial_matches.matches) {
-                | IndetMatch
-                | DoesNotMatch => []
-                | Matches(_) => ["placeholder"]
-                };
               Step({
                 expr:
                   subst_env(
@@ -540,7 +486,7 @@ module Transition = (EV: EV_MODE) => {
                   ),
                 kind: PartialStep(failed_matches),
                 is_value: false,
-              });
+              })
             };
 
           | DoesNotMatch => Indet

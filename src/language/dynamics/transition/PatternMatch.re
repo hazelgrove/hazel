@@ -94,6 +94,59 @@ let rec matches =
     matches(p, Ascriptions.transition_multiple(Asc(d, t1) |> DHExp.fresh))
   };
 };
+let rec failed_matches = (dp: Pat.t, d: DHExp.t): list(string) => {
+  let d = Ascriptions.transition_multiple(d);
+  switch (DHPat.term_of(dp)) {
+  | Invalid(_)
+  | EmptyHole
+  | MultiHole(_)
+  | Wild
+  | Atom(_) => []
+  | ListLit(xs) =>
+    switch (d |> DHExp.term_of) {
+    | EmptyHole => Pat.bound_vars(dp)
+    | _ =>
+      let s' = Unboxing.unbox(ListLitn(List.length(xs)), d);
+      switch (s') {
+      | DoesNotMatch
+      | IndetMatch => []
+      | Matches(s') =>
+        List.map2(failed_matches, xs, s')
+        |> List.fold_left((a, b) => a @ b, [])
+      };
+    }
+  | Cons(_, _) =>
+    //TODO: Implement all of these cases
+    []
+  | Constructor(_, _) => []
+  | Ap({term: Constructor(_, _), _}, _) => []
+  | Ap(_, _) => []
+  | Var(_) => []
+  /* Labels are a special case */
+  | Label(_) => []
+  | TupLabel(_, _) => []
+  | Tuple(ps) =>
+    switch (d |> DHExp.term_of) {
+    | EmptyHole => Pat.bound_vars(dp)
+    | _ =>
+      let s' = Unboxing.unbox(Tuple(List.length(ps)), d);
+      switch (s') {
+      | DoesNotMatch
+      | IndetMatch => []
+      | Matches(s') =>
+        List.map2(failed_matches, ps, s')
+        |> List.fold_left((a, b) => a @ b, [])
+      };
+    }
+  | Parens(p) => failed_matches(p, d)
+  | Probe(p, _) => failed_matches(p, d)
+  | Asc(p, t1) =>
+    failed_matches(
+      p,
+      Ascriptions.transition_multiple(Asc(d, t1) |> DHExp.fresh),
+    )
+  };
+};
 
 type closure_closures = list(Probe.call_stack => Dynamics.Probe.Closure.t);
 
