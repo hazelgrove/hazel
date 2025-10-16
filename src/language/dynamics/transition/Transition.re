@@ -260,32 +260,26 @@ module Transition = (EV: EV_MODE) => {
       });
     | FixF(dp, d1, fix_env) =>
       let. _ = otherwise(env, d);
-      switch (matches(dp, d1).matches) {
-      | IndetMatch
-      | DoesNotMatch => Indet
-      | Matches(env') =>
-        let env' =
-          if (Pat.is_var(dp)) {
-            List.map(
-              ((v, exp)) =>
-                (v, FixF(Var(v) |> Pat.fresh, exp, fix_env) |> rewrap),
-              env',
-            );
-          } else {
-            List.map(
-              ((v, _exp)) =>
-                (v, let_(dp, FixF(dp, d1, fix_env) |> rewrap, var(v))),
-              env',
-            );
-          };
-        let env'' = Environment.add_bindings(env, env');
-        Step({
-          expr: subst_env(env'', d1),
-          side_effects: [],
-          kind: FixUnwrap,
-          is_value: false,
-        });
-      };
+      let env' =
+        switch (Pat.is_var(dp)) {
+        | Some(v) => [
+            (v, FixF(Var(v) |> Pat.fresh, d1, fix_env) |> rewrap),
+          ]
+        | None =>
+          // If the pattern is not a single variable, we need to unpack the results of inner evaulations
+          List.map(
+            (Binding.{name: v, id: _}) =>
+              (v, let_(dp, FixF(dp, d1, fix_env) |> rewrap, var(v))),
+            Pat.bindings(dp),
+          )
+        };
+      let env'' = Environment.add_bindings(env, env');
+      Step({
+        expr: subst_env(env'', d1),
+        side_effects: [],
+        kind: FixUnwrap,
+        is_value: false,
+      });
     | Test(d'') =>
       let. _ = otherwise(env, d => Test(d) |> rewrap)
       and. d' = req_final(req(env), d => Test(d) |> wrap_ctx, d'');

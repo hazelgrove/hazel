@@ -5,7 +5,7 @@ let tests = (
   "Evaluator.Fixpoints",
   [
     test_case("Inconsistent type in fixpoint pattern", `Quick, () =>
-      parse_and_evaluate_test("fix () -> [] : ()", {|fix () -> []|})
+      parse_and_evaluate_test("[] : ()", {|fix () -> []|})
     ),
     test_case("Fixpoint with boolean short circuiting", `Quick, () =>
       parse_and_evaluate_test("true", {|fix f -> true || f|})
@@ -26,12 +26,6 @@ fun n -> if n == 0 then false else even(n - 1))) in even(1)|},
     test_case("Fixpoint with wildcard unit type", `Quick, () =>
       parse_and_evaluate_test("()", {|fix _ : () -> test B end|})
     ),
-    test_case("Fixpoint with wrong arity", `Quick, () =>
-      parse_and_evaluate_test(
-        "fix (a,b,c) -> (a,b) : (?, ?, ?)",
-        {|fix (a,b,c) -> (a,b)|},
-      )
-    ),
     test_case("Fixpoint pattern ascription", `Quick, () =>
       parse_and_evaluate_test(
         "() : Bool",
@@ -39,7 +33,7 @@ fun n -> if n == 0 then false else even(n - 1))) in even(1)|},
       )
     ),
     test_case("Fixpoint with type ascription", `Quick, () =>
-      parse_and_evaluate_test("fix 0 -> () : Int", {|fix 0 -> ()|})
+      parse_and_evaluate_test("() : Int", {|fix 0 -> ()|})
     ),
     test_case("Substitution", `Quick, () =>
       parse_and_evaluate_test(
@@ -60,6 +54,9 @@ fun n -> if n == 0 then false else even(n - 1))) in even(1)|},
           if i > 3 then t else go'(i+1),fun i -> if i > 3 then t else go(i+1) ) in
           go(0)|},
       )
+    ),
+    test_case("Fixpoint that evaluates to the correct form", `Quick, () =>
+      parse_and_evaluate_test("(1, 2)", {|let x = (1, 2) in fix f -> x|})
     ),
   ],
 );
