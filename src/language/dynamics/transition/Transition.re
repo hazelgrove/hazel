@@ -3,6 +3,10 @@ open PatternMatch;
 
 /* Transition.re
 
+   ##########################################
+   #   How to add / edit transition rules   #
+   ##########################################
+
    This module defines the evaluation semantics of Hazel in terms of small step
    evaluation. These small steps are wrapped up into a big step in Evaluator.re.
 
@@ -43,6 +47,53 @@ open PatternMatch;
 
     A value is either a literal, or a function with a closure, or a type function.
     (functions without closures immediately inside them do not count as values).
+
+
+    ############################
+    #   How Transition works   #
+    ############################
+
+    The following are technical details that for most purposes can be ignored.
+
+    ## Motivation
+    
+    Most of the complication in Transition.re comes from combining small-step and 
+    big-step evaluation. This is annoying because they have different requirements:
+      - big-step needs to be fast
+          - big-step cannot re-traverse expressions (used to just be for perf, 
+            but also now prevents double-probes)
+          - big-step is not a sequence of small-steps - big-step should never 
+            re-wrap substeps in their expression context
+      - small-step is nondeterministic, and needs to be able to happen in any subexpression
+    
+    ## High-Level Idea
+        
+    At each point in evaluation we need to
+      - check what class of expression we're looking at
+      - evaluate all subexpressions
+      - make a call whether to take a step or not take a step
+          - If we take a step, we might get a new form that needs to take more steps 
+            so we go back to the top
+          - If we don't need to take a step, subexpressions might have taken a step, 
+            so we can't just stop, we need to rewrap the result of subexpression evaluation
+    
+     Because each expression could either take a step or not, this means we always need 
+     two continuations making it feel like a monadic double-bind which idk if that's something 
+     that exists. For example, we could consider the type of the plus_case to be:
+
+        list_concat_case: ((result(exp), result(exp)), (exp, exp) -> result(exp), (exp, exp) -> result(exp) )
+    
+    which is almost a monadic bind, but not quite.
+
+    The fallback expression wrapper is fed in using `otherwise`, and because this fallback 
+    expression wrapper needs to be passed through the whole applicative, and at each step needs 
+    to be filled with the values of d1' and d2' , the types in the applicative become a little 
+    horrendous. requirements('a, 'b), 'a represents the type of the arguments for the step, normal 
+    monad style. 'b  represents the type of f2, after it has had all the arguments passed in so far.
+
+    let. which is called last, is expecting 'b  to be a DHExp.t, as in it's expecting f2 to have 
+    been fully applied by this point, and (and.) is expecting to be able to apply an argument and 
+    turn f2 from 'c => 'b  into 'b.
    */
 
 [@deriving (show({with_path: false}), sexp, yojson)]
