@@ -778,15 +778,26 @@ let dynamic_type = closures => {
 };
 
 let inspector_view =
-    (~globals, ~dynamics: option(list(Dynamics.Probe.Closure.t)), ci)
+    (~globals, ~dynamics: option(list(Dynamics.Probe.Closure.t)), ci, ~dynamic_info)
     : Node.t => {
   let dyn = Option.bind(dynamics, dynamic_type);
+  /* Determine which info to display: prioritize static errors, then dynamic errors, then normal info */
+  let display_info =
+    if (Info.is_error(ci)) {
+      ci // Show static error
+    } else {
+      switch (dynamic_info) {
+      | Some(di) when Info.is_error(di) => di // Show dynamic error
+      | _ => ci // Show normal info
+      }
+    };
+
   div(
     ~attrs=[
       Attr.id("cursor-inspector"),
-      clss([Info.is_error(ci) ? errc : okc]),
+      clss([Info.is_error(display_info) ? errc : okc]),
     ],
-    view_of_info(~globals, ci)
+    view_of_info(~globals, display_info)
     @ (
       switch (dyn) {
       | None => []
@@ -815,7 +826,7 @@ let view =
   | None => err_view("Whitespace or Comment")
   | Some(ci) =>
     bar_view([
-      inspector_view(~globals, ~dynamics=cursor.dynamics, ci),
+      inspector_view(~globals, ~dynamics=cursor.dynamics, ci, ~dynamic_info=cursor.dynamic_info),
       ProjectorPanel.view(
         ~inject=
           a =>

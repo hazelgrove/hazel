@@ -2,6 +2,7 @@ open Haz3lcore;
 open Language;
 type cursor('update) = {
   info: option(Info.t),
+  dynamic_info: option(Info.t),
   dynamics: option(list(Dynamics.Probe.Closure.t)),
   selected_text: option(unit => string),
   selection: option(Segment.t),
@@ -29,6 +30,7 @@ let map_opt = (f: 'a => option('b), cursor) => {
 
 let empty = {
   info: None,
+  dynamic_info: None,
   dynamics: None,
   selected_text: None,
   selection: None,

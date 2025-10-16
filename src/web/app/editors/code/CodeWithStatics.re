@@ -52,9 +52,15 @@ module Model = {
   let get_cursor_info = (model: t): Cursor.cursor(Action.t) => {
     let info =
       Indicated.ci_of(model.editor.state.zipper, model.statics.info_map);
+    let dynamic_info =
+      Indicated.ci_of(
+        model.editor.state.zipper,
+        model.statics.dynamic_info_map,
+      );
     let id = Indicated.index(model.editor.state.zipper);
     {
       info,
+      dynamic_info,
       dynamics:
         Option.bind(id, Language.Dynamics.Map.lookup(_, model.dynamics)),
       indicated_piece:
