@@ -316,6 +316,7 @@ module Decompose = {
         | Constructor => r
         | Value => List.is_empty(rq_steps) ? Result.BoxedValue : r
         | Indet => List.is_empty(rq_steps) ? Result.Indet : r
+        | Step(s) when s.kind == CompleteFilter => Result.Step(rq_steps)
         | Step(s) =>
           Result.Step([EvalObj.mk(Mark, env, undo, s.kind), ...rq_steps])
         // TODO: Actually show these exceptions to the user!
