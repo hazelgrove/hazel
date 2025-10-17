@@ -23,16 +23,19 @@ open Util;
 [@deriving (show({with_path: false}), sexp, yojson)]
 type join_type =
   | Id
-  | List;
+  | List
+  | PolyEq;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type t =
   | Just(Typ.t) /* Just a regular type */
   | NoJoin(join_type, list(Typ.source)) /* Inconsistent types for e.g match, listlits */
   | Duplicate(LabeledTuple.label, t) /* Duplicate label, marked as duplicate */
+  | CompareFun(Typ.t) /* Type equality failed because of arrow type inside */
   | BadToken(string) /* Invalid expression token, continues with undefined behavior */
   | BadLabel(Any.t) /* TupLabel label component is not a valid Label*/
-  | InvalidLabel(LabeledTuple.label) /* Invalid label in a labeled tuple */
+  | InvalidLabel(LabeledTuple.label, list(LabeledTuple.label)) /* Invalid label in a labeled tuple where these labels are expected */
+  | UnexpectedLabelSort(LabeledTuple.label) /* A label is present but not expected */
   | TupleLabelError({
       malformed_labels: list(Any.t), // Labels that are not of the right syntactic form
       duplicate_labels: list(LabeledTuple.label),
@@ -40,7 +43,8 @@ type t =
       typ: Typ.t,
     }) /* Tuple/TupLabel contains malformed labels, duplicate labels, and/or invalid labels */
   | IsMulti /* Multihole, treated as hole */
-  | FreeConstructor(Constructor.t); /* Constructor not bound in context or ana type */
+  | FreeConstructor(Constructor.t) /* Constructor not bound in context or ana type */
+  | ExplicitNonlabel; /* _ used as label in labeled tuple */
 
 [@deriving (show({with_path: false}), sexp, yojson, eq)]
 type error_partial_ap =
@@ -49,15 +53,26 @@ type error_partial_ap =
       expected: int,
       actual: int,
     });
+[@deriving (show({with_path: false}), sexp, yojson, eq)]
+type error_builtin =
+  | ToLvsMissingLabelsOnTuple(Typ.t) /* to_lvs requires labels for all tuple elements */
+  | ProjectLabelsMissingLabels(list(string)) /* Attempted to project labels from a tuple that doesn't have them */
+  | MissingLabels(list(string)) // Operation with labels that are not present in the tuple
+  | PivotLabelIsNotString(Typ.t) /* Pivot column must be a string */
+  | ArgumentMustBeTuple
+  | ArgumentMustBeListOfTuples /* Argument to label projection is not a tuple */
+  | AtLeast2Arguments /* Builtin function must have direct arguments, a variable of type tuple or a parenthesized expression */
+  | Exactly2Arguments;
 
 /* Expressions can also be free variables */
 [@deriving (show({with_path: false}), sexp, yojson)]
 type exp =
   | Free(Var.t)
-  | InexhaustiveMatch(exp)
+  | InexhaustiveMatch(exp, Grammar.any_t(IdTagged.IdTag.t))
   | IsDeferral(Exp.deferral_position)
   | IsBadPartialAp(error_partial_ap)
   | Common(t)
+  | BuiltinError(error_builtin)
   | InvalidUseMode({
       bad_typ: Typ.t,
       inner_typ: Typ.t,
@@ -67,7 +82,8 @@ type exp =
       exp_t: Typ.t,
     })
   | BadTrivAp(Typ.t) /* Trivial (nullary) ap on function that doesn't take triv */
-  | WantTuple /* Want a Tuple, found not-tuple */
+  | DotOperatorRequiresTuple /* Want a Tuple, found not-tuple */
+  | TupleExtensionRequiresTuples /* Want two Tuples, found not-tuples */
   | LabelNotFound(LabeledTuple.label, list(LabeledTuple.label)) /* Currently used by the dot operator for a label not found */
   | BadOperator(string) /* Invalid operator, continues with undefined behavior */
   | BadLivelitModel(Typ.t); /* Livelit model type is not valid */
@@ -81,6 +97,7 @@ type pat =
 let join_of = (j: join_type, ty: Typ.t): Typ.t =>
   switch (j) {
   | Id => ty
+  | PolyEq => ty
   | List => List(ty) |> Typ.fresh
   };
 
@@ -92,6 +109,7 @@ let typ_of: t => option(Typ.t) =
   | Just(typ)
   | Duplicate(_, Just(typ))
   | TupleLabelError({typ, _}) => Some(typ)
+  | CompareFun(_) => Some(Atom(Bool) |> Typ.fresh)
   | FreeConstructor(name) =>
     Some(
       Sum([
@@ -105,7 +123,9 @@ let typ_of: t => option(Typ.t) =
   | Duplicate(_)
   | BadLabel(_)
   | InvalidLabel(_)
-  | NoJoin(_) => None;
+  | ExplicitNonlabel
+  | NoJoin(_)
+  | UnexpectedLabelSort(_) => None;
 
 let typ_of_exp: exp => option(Typ.t) =
   fun
@@ -116,11 +136,20 @@ let typ_of_exp: exp => option(Typ.t) =
   | BadTrivAp(_)
   | LabelNotFound(_)
   | BadOperator(_)
-  | WantTuple => None
+  | DotOperatorRequiresTuple
+  | TupleExtensionRequiresTuples => None
   | Common(self) => typ_of(self)
   | InvalidUseMode({inner_typ, _}) => Some(inner_typ)
   | IsLivelitName({exp_t, _}) => Some(exp_t)
-  | BadLivelitModel(typ) => Some(typ);
+  | BadLivelitModel(typ) => Some(typ)
+  | BuiltinError(ToLvsMissingLabelsOnTuple(typ)) => Some(typ)
+  | BuiltinError(ProjectLabelsMissingLabels(_))
+  | BuiltinError(MissingLabels(_) | PivotLabelIsNotString(_))
+  | BuiltinError(
+      ArgumentMustBeTuple | ArgumentMustBeListOfTuples | AtLeast2Arguments |
+      Exactly2Arguments,
+    ) =>
+    None;
 
 let rec typ_of_pat: pat => option(Typ.t) =
   fun
@@ -194,30 +223,6 @@ let of_ctr =
   };
 };
 
-let of_deferred_ap = (args, ty_ins: list(Typ.t), ty_out: Typ.t): exp => {
-  let expected = List.length(ty_ins);
-  let actual = List.length(args);
-  if (expected != actual) {
-    IsBadPartialAp(
-      ArityMismatch({
-        expected,
-        actual,
-      }),
-    );
-  } else if (List.for_all(Exp.is_deferral, args)) {
-    IsBadPartialAp(NoDeferredArgs);
-  } else {
-    let ty_ins =
-      List.combine(args, ty_ins)
-      |> List.filter(((arg, _ty)) => Exp.is_deferral(arg))
-      |> List.map(snd);
-    let ty_in =
-      List.length(ty_ins) == 1
-        ? List.hd(ty_ins) : Prod(ty_ins) |> Typ.fresh;
-    Common(Just(Arrow(ty_in, ty_out) |> Typ.fresh));
-  };
-};
-
 let add_source =
   List.map2((id, ty) =>
     Typ.{
@@ -242,4 +247,11 @@ let list_concat = (ctx: Ctx.t, tys: list(Typ.t), ids: list(Id.t)): t =>
   switch (Typ.join_all(~empty=Unknown(Internal) |> Typ.fresh, ctx, tys)) {
   | None => NoJoin(List, add_source(ids, tys))
   | Some(ty) => Just(ty)
+  };
+
+let poly_eq = (ctx: Ctx.t, tys: list(Typ.t), ids: list(Id.t)): t =>
+  switch (Typ.join_all(~empty=Unknown(Internal) |> Typ.fresh, ctx, tys)) {
+  | None => NoJoin(PolyEq, add_source(ids, tys))
+  | Some(ty) when ty |> Typ.normalize(ctx) |> Typ.has_fun => CompareFun(ty)
+  | Some(_) => Just(Atom(Bool) |> Typ.fresh)
   };

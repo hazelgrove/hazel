@@ -2,36 +2,7 @@ open Alcotest;
 open Haz3lcore;
 open Language;
 open Base;
-
-// Id ignoring equality for tiles
-let rec equal_segment = (a: segment, b: segment) => {
-  List.equal(equal_piece, a, b);
-}
-and equal_piece = (a: piece, b: piece) => {
-  switch (a, b) {
-  | (Tile(t1), Tile(t2)) =>
-    t1.label == t2.label
-    && List.equal(equal_segment, t1.children, t2.children)
-    && t1.mold == t2.mold
-    && t1.shards == t2.shards
-  | (Grout(g1), Grout(g2)) => g1.shape == g2.shape
-  | (Secondary(s1), Secondary(s2)) => s1.content == s2.content
-  | (Projector(p1), Projector(p2)) =>
-    p1.kind == p2.kind
-    && p1.model == p2.model
-    && equal_piece(p1.syntax, p2.syntax)
-  | _ => false
-  };
-};
-
-let segment = testable(Fmt.using(Segment.show, Fmt.string), equal_segment);
-let exp_to_segment =
-  ExpToSegment.(
-    exp_to_segment(~settings=Settings.of_core(~inline=true, CoreSettings.on))
-  );
-
-let zipper_parse = (s: string) =>
-  Option.map(Printer.seg_of_zip, Printer.zipper_of_string(s));
+open EditingPrelude;
 
 let exp_to_segment_settings: ExpToSegment.Settings.t = {
   inline: true,
@@ -41,30 +12,34 @@ let exp_to_segment_settings: ExpToSegment.Settings.t = {
   show_filters: true,
   show_unknown_as_hole: true,
 };
+
+let exp_to_segment =
+  ExpToSegment.exp_to_segment(~settings=exp_to_segment_settings);
+
 let equivalent_to_make_term = (serialized: string) => {
-  switch (Printer.zipper_of_string(serialized)) {
-  | None => Alcotest.fail("Failed to parse term")
-  | Some(zb) =>
-    let exp = MakeTerm.from_zip_for_sem(zb).term;
-    let seg =
-      ExpToSegment.exp_to_segment(~settings=exp_to_segment_settings, exp);
+  switch (Parser.to_term(serialized), Parser.to_segment(serialized)) {
+  | (Some(exp), Some(seg)) =>
     check(
       string,
-      "Make term print equivalent: " ++ serialized,
+      "Make term text equivalent: " ++ serialized,
       serialized,
-      Printer.of_segment(~holes=Some("?"), seg),
+      print_seg(seg),
     );
+    print_seg(exp_to_segment(exp)) |> print_endline;
     check(
       segment,
-      "Make term equivalent: " ++ serialized,
+      "Make term segments equivalent: " ++ serialized,
       seg,
       exp_to_segment(exp),
     );
+  | _ => Alcotest.fail("Failed to parse term")
   };
 };
 
-let segmentize =
-  ExpToSegment.exp_to_segment(~settings=exp_to_segment_settings, _);
+let type_equivalent_to_make_term = (type_serialized: string) => {
+  let expr_serialized = "1: " ++ type_serialized;
+  equivalent_to_make_term(expr_serialized);
+};
 
 module TempGrammar =
   Grammar.Factory({
@@ -124,7 +99,7 @@ let tests = (
         open IdTagged.FreshGrammar;
         open Exp;
         let segment =
-          segmentize(
+          exp_to_segment(
             let_(
               Pat.(
                 asc(list_lit([]), Typ.(sum([Variant("Jg", [], None)])))
@@ -133,7 +108,7 @@ let tests = (
               empty_hole(),
             ),
           );
-        let serialized = Printer.of_segment(~holes=Some("?"), segment);
+        let serialized = print_seg(segment);
 
         check(
           Alcotest.string,
@@ -165,7 +140,7 @@ let tests = (
         check(
           option(segment),
           "2-ary",
-          zipper_parse("(1, 2)"),
+          Parser.to_segment("(1, 2)"),
           Some(exp_to_segment(tuple([int(1), int(2)]))),
         );
       },
@@ -179,12 +154,21 @@ let tests = (
         check(
           option(segment),
           "Singleton Labeled",
-          zipper_parse("(x=1)"),
+          Parser.to_segment("(x=1)"),
           Some(exp_to_segment(tuple([tup_label(label("x"), int(1))]))),
         );
         equivalent_to_make_term({|(x=1, y=2)|});
       },
     ),
+    test_case("Labels in types with single quotes", `Quick, () => {
+      equivalent_to_make_term({|type t = (``=Int, ab=String) in 7|})
+    }),
+    test_case("Labels in  patterns with single quotes", `Quick, () => {
+      equivalent_to_make_term({|fun (``=a, ab=_) -> 3|})
+    }),
+    test_case("Function call with label arguments", `Quick, () => {
+      equivalent_to_make_term({|omit_labels((a=1), `a`)|})
+    }),
     test_case("Doc page labeled tuple example", `Quick, () => {
       equivalent_to_make_term(
         {|let labeled_tuple = (a=1, b=2.000000, c=true) in let prj_a = labeled_tuple.a in prj_a|},
@@ -197,7 +181,7 @@ let tests = (
         open IdTagged.FreshGrammar;
         open Exp;
         let segment =
-          segmentize(
+          exp_to_segment(
             match(
               var("x"),
               [
@@ -206,7 +190,7 @@ let tests = (
               ],
             ),
           );
-        let serialized = Printer.of_segment(~holes=Some("?"), segment);
+        let serialized = print_seg(segment);
 
         check(
           Alcotest.string,
@@ -222,14 +206,14 @@ let tests = (
       () => {
         let segment =
           IdTagged.FreshGrammar.Exp.(
-            segmentize(
+            exp_to_segment(
               deferred_ap(
                 var("string_sub"),
                 [string("hello"), int(1), deferral(InAp)],
               ),
             )
           );
-        let serialized = Printer.of_segment(~holes=Some("?"), segment);
+        let serialized = print_seg(segment);
 
         check(
           string,
@@ -244,8 +228,8 @@ let tests = (
       `Quick,
       () => {
         let segment =
-          IdTagged.FreshGrammar.Exp.(segmentize(test(bool(true))));
-        let serialized = Printer.of_segment(~holes=Some("?"), segment);
+          IdTagged.FreshGrammar.Exp.(exp_to_segment(test(bool(true))));
+        let serialized = print_seg(segment);
 
         check(string, "Test of true", {|test true end|}, serialized);
       },
@@ -255,7 +239,7 @@ let tests = (
       `Quick,
       () => {
         let segment =
-          segmentize(
+          exp_to_segment(
             IdTagged.FreshGrammar.Exp.(
               filter(
                 Filter({
@@ -266,7 +250,7 @@ let tests = (
               )
             ),
           );
-        let serialized = Printer.of_segment(~holes=Some("?"), segment);
+        let serialized = print_seg(segment);
 
         check(string, "Pause", serialized, {|pause 1 in 2|});
       },
@@ -278,9 +262,8 @@ let tests = (
         check(
           string,
           "No parens",
-          Printer.of_segment(
-            ~holes=Some("?"),
-            segmentize(
+          print_seg(
+            exp_to_segment(
               IdTagged.FreshGrammar.Exp.(
                 bin_op(
                   Int(Power),
@@ -295,9 +278,8 @@ let tests = (
         check(
           string,
           "Parens",
-          Printer.of_segment(
-            ~holes=Some("?"),
-            segmentize(
+          print_seg(
+            exp_to_segment(
               IdTagged.FreshGrammar.Exp.(
                 bin_op(
                   Int(Power),
@@ -312,9 +294,8 @@ let tests = (
         check(
           string,
           "Arrow types",
-          Printer.of_segment(
-            ~holes=Some("?"),
-            segmentize(
+          print_seg(
+            exp_to_segment(
               IdTagged.FreshGrammar.(
                 Exp.ty_alias(
                   TPat.(var("x")),
@@ -333,8 +314,7 @@ let tests = (
         string,
         "Unit type",
         "()",
-        Printer.of_segment(
-          ~holes=Some("?"),
+        print_seg(
           ExpToSegment.typ_to_segment(
             ~settings=exp_to_segment_settings,
             IdTagged.FreshGrammar.Typ.prod([]),
@@ -350,21 +330,73 @@ let tests = (
         string,
         "Unit pattern",
         "()",
-        Printer.of_segment(
-          ~holes=Some("?"),
+        print_seg(
           ExpToSegment.any_to_segment(
-            ~settings={
-              inline: true,
-              fold_case_clauses: false,
-              fold_fn_bodies: false,
-              hide_fixpoints: false,
-              show_filters: true,
-              show_unknown_as_hole: true,
-            },
+            ~settings=exp_to_segment_settings,
             Pat(IdTagged.FreshGrammar.Pat.tuple([])),
           ),
         ),
       )
     }),
+    test_case("Dot operator on float", `Quick, () => {
+      check(
+        string,
+        "",
+        {|1.230000 . 4.560000|},
+        print_seg(
+          exp_to_segment(
+            IdTagged.FreshGrammar.Exp.(dot(float(1.23), float(4.56))),
+          ),
+        ),
+      )
+    }),
+    test_case("ProdProjection - basic product type", `Quick, () => {
+      type_equivalent_to_make_term("(a=Int, b=String).a")
+    }),
+    test_case("ProdProjection - empty label", `Quick, () => {
+      type_equivalent_to_make_term("(``=Int).``")
+    }),
+    test_case("ProdProjection - label with spaces", `Quick, () => {
+      type_equivalent_to_make_term(
+        "(`label with spaces`=Int).`label with spaces`",
+      )
+    }),
+    test_case("ProdProjection - type variable", `Quick, () => {
+      type_equivalent_to_make_term("t.a")
+    }),
+    test_case("ProdExtension - product types", `Quick, () => {
+      type_equivalent_to_make_term("(a=Int) ... (b=String)")
+    }),
+    test_case("ProdExtension - type variables", `Quick, () => {
+      type_equivalent_to_make_term("t ... u")
+    }),
+    test_case("ProdExtension - with special labels", `Quick, () => {
+      type_equivalent_to_make_term(
+        "(``=Int) ... (`label with spaces`=String)",
+      )
+    }),
+    test_case("Singleton unlabeled tuple", `Quick, () =>
+      check(
+        string,
+        "Singleton unlabeled tuple",
+        "(_=1)",
+        print_seg(
+          exp_to_segment(IdTagged.FreshGrammar.Exp.(tuple([int(1)]))),
+        ),
+      )
+    ),
+    test_case("Singleton unlabeled tuple type", `Quick, () =>
+      check(
+        string,
+        "Singleton unlabeled tuple type",
+        "(_=Int)",
+        print_seg(
+          ExpToSegment.typ_to_segment(
+            ~settings=exp_to_segment_settings,
+            IdTagged.FreshGrammar.Typ.(prod([int()])),
+          ),
+        ),
+      )
+    ),
   ],
 );

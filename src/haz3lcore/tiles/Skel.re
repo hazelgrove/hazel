@@ -48,14 +48,21 @@ let rel = (p1: Piece.t, p2: Piece.t): option(rel) =>
     let lbl2 = (==)(t2.label);
     //TODO: unhardcode
     let comma = [","];
-    let case = ["case"];
+    let case = ["case", "end"];
     let rule = ["|", "=>"];
+    let plus = ["+"];
     let eq =
       [
         lbl1(case) && lbl2(rule),
         lbl1(rule) && lbl2(rule),
-        lbl1(comma) && lbl2(comma) && t1.mold == t2.mold,
-        lbl1(["+"]) && lbl2(["+"]) && t1.mold == t2.mold,
+        lbl1(comma)
+        && lbl2(comma)
+        && Mold.is_infix_op(t1.mold)
+        && Mold.is_infix_op(t2.mold),
+        lbl1(plus)
+        && lbl2(plus)
+        && Mold.is_infix_op(t1.mold)
+        && Mold.is_infix_op(t2.mold),
       ]
       |> List.fold_left((||), false);
     if (eq) {
@@ -142,9 +149,7 @@ module Stacks = {
       let is = List.map(fst, chain);
       let split_kids = n =>
         try(ListUtil.split_n(n, stacks.output) |> PairUtil.map_fst(List.rev)) {
-        | _ =>
-          //prerr_endline(show(stacks));
-          failwith("Skel.push_output: split_kids: index out of bounds")
+        | _ => failwith("Skel.push_output: split_kids: index out of bounds")
         };
       let output =
         switch (l, r) {
@@ -198,3 +203,11 @@ let mk = (seg: list(ip)): t => {
     |> Stacks.finish;
   ListUtil.hd_opt(stacks.output) |> OptUtil.get_or_raise(Nonconvex_segment);
 };
+
+let rec range = (skel: t): (int, int) =>
+  switch (skel) {
+  | Op(root) => (Aba.first_a(root), Aba.last_a(root))
+  | Pre(root, skel) => (Aba.first_a(root), snd(range(skel)))
+  | Post(skel, root) => (fst(range(skel)), Aba.last_a(root))
+  | Bin(l, _, r) => (fst(range(l)), snd(range(r)))
+  };

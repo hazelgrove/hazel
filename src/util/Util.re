@@ -5,7 +5,6 @@ module Direction = Direction;
 module Either = Either;
 module IntMap = IntMap;
 module IntUtil = IntUtil;
-module ListFrame = ListFrame;
 module ListUtil = ListUtil;
 module MapUtil = MapUtil;
 module Monads = Monads;
@@ -29,6 +28,8 @@ module Unicode = Unicode;
 module StructureShareSexp = StructureShareSexp;
 module VarMap = VarMap;
 module ProjectorShape = ProjectorShape;
+module API = API;
+module OpenRouter = OpenRouter;
 
 // Used by [@deriving sexp, yojson)]
 include Sexplib.Std;

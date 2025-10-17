@@ -71,8 +71,6 @@ module Operators = {
         | LessThanOrEqual => LessThanOrEqual
         | GreaterThan => GreaterThan
         | GreaterThanOrEqual => GreaterThanOrEqual
-        | Equals => Equals
-        | NotEquals => NotEquals
         },
       )
     | Float(op_float) =>
@@ -105,6 +103,13 @@ module Operators = {
         | Equals => Equals
         },
       )
+    | Poly(op_poly) =>
+      PolyOp(
+        switch (op_poly) {
+        | Equals => Equals
+        | NotEquals => NotEquals
+        },
+      )
     };
   };
 
@@ -135,7 +140,7 @@ module Operators = {
   };
 
   [@deriving (show({with_path: false}), sexp, yojson)]
-  let float_op_of_menhir_ast = (op: AST.op_bin_float): op_bin_num => {
+  let float_op_of_menhir_ast = (op: AST.op_bin_float): op_bin_float => {
     switch (op) {
     | Plus => Plus
     | Minus => Minus
@@ -160,6 +165,14 @@ module Operators = {
   };
 
   [@deriving (show({with_path: false}), sexp, yojson)]
+  let poly_op_of_menhir_ast = (op: AST.op_bin_poly): op_bin_poly => {
+    switch (op) {
+    | Equals => Equals
+    | NotEquals => NotEquals
+    };
+  };
+
+  [@deriving (show({with_path: false}), sexp, yojson)]
   let bool_op_of_menhir_ast = (op: AST.op_bin_bool): op_bin_bool => {
     switch (op) {
     | And => And
@@ -179,8 +192,6 @@ module Operators = {
     | LessThanOrEqual => LessThanOrEqual
     | GreaterThan => GreaterThan
     | GreaterThanOrEqual => GreaterThanOrEqual
-    | Equals => Equals
-    | NotEquals => NotEquals
     };
   };
 
@@ -191,6 +202,7 @@ module Operators = {
     | FloatOp(op_float) => Float(float_op_of_menhir_ast(op_float))
     | BoolOp(op_bool) => Bool(bool_op_of_menhir_ast(op_bool))
     | StringOp(op_string) => String(string_op_of_menhir_ast(op_string))
+    | PolyOp(op_poly) => Poly(poly_op_of_menhir_ast(op_poly))
     };
   };
 };
@@ -214,9 +226,18 @@ module rec Exp: {
     | TupleExp([TupLabel(_) as tl]) => parens(tuple([of_menhir_ast(tl)]))
     | TupleExp([e]) => parens(of_menhir_ast(e))
     | TupleExp(e) => parens(tuple(List.map(of_menhir_ast, e)))
+    | TupleExtension(e1, e2) =>
+      tuple_extension(of_menhir_ast(e1), of_menhir_ast(e2))
     | Label(s) => label(s)
+    | ExplicitNonlabel => explicit_non_label()
     | TupLabel(e1, e2) => tup_label(of_menhir_ast(e1), of_menhir_ast(e2))
-    | Dot(e1, e2) => dot(of_menhir_ast(e1), of_menhir_ast(e2))
+    | Dot(e1, e2) =>
+      switch (e2) {
+      | Var(s)
+      | Label(s) => dot(of_menhir_ast(e1), label(s))
+      | EmptyHole => dot(of_menhir_ast(e1), empty_hole())
+      | _ => dot(of_menhir_ast(e1), multi_hole([Exp(of_menhir_ast(e2))]))
+      }
     | Let(p, e1, e2) =>
       let_(Pat.of_menhir_ast(p), of_menhir_ast(e1), of_menhir_ast(e2))
     | FixF(p, e) => fix_f(Pat.of_menhir_ast(p), of_menhir_ast(e), None)
@@ -279,6 +300,8 @@ module rec Exp: {
     | EmptyHole => empty_hole()
     | Seq(e1, e2) => seq(of_menhir_ast(e1), of_menhir_ast(e2))
     | Test(e) => test(of_menhir_ast(e))
+    | HintedTest(e, hint) =>
+      hinted_test(of_menhir_ast(e), of_menhir_ast(hint))
     | Cons(e1, e2) => cons(of_menhir_ast(e1), of_menhir_ast(e2))
     | ListConcat(e1, e2) =>
       list_concat(of_menhir_ast(e1), of_menhir_ast(e2))
@@ -317,6 +340,7 @@ module rec Exp: {
     | Deferral(InAp) => Deferral
     | ListLit(l) => ListExp(List.map(of_core, l))
     | Tuple(l) => TupleExp(List.map(of_core, l))
+    | TupleExtension(e1, e2) => TupleExp([of_core(e1), of_core(e2)])
     | Let(p, e1, e2) => Let(Pat.of_core(p), of_core(e1), of_core(e2))
     | FixF(p, e, _) => FixF(Pat.of_core(p), of_core(e))
     | TypFun(tp, e, _) => TypFun(TPat.of_core(tp), of_core(e))
@@ -338,6 +362,7 @@ module rec Exp: {
     | EmptyHole => EmptyHole
     | Seq(e1, e2) => Seq(of_core(e1), of_core(e2))
     | Test(e) => Test(of_core(e))
+    | HintedTest(e, hint) => HintedTest(of_core(e), of_core(hint))
     | Cons(e1, e2) => Cons(of_core(e1), of_core(e2))
     | ListConcat(e1, e2) => ListConcat(of_core(e1), of_core(e2))
     | Filter(Filter({pat, act}), body) =>
@@ -351,6 +376,7 @@ module rec Exp: {
       )
     | Deferral(_) => Deferral
     | Filter(Residue(_), _) => raise(Failure("Residue not supported"))
+    | MultiHole([Exp(e)]) => of_core(e) // unwrap single exp multi-holes. just used for label parse failure
     | MultiHole(_) => raise(Failure("MultiHole not supported"))
     | Closure(_) => raise(Failure("Closure not supported"))
     | Parens(e) => of_core(e)
@@ -361,6 +387,7 @@ module rec Exp: {
       ApExp(of_core(e), TupleExp(List.map(of_core, es)))
     | Fun(p, e, _, name_opt) => Fun(Pat.of_core(p), of_core(e), name_opt)
     | Label(s) => Label(s)
+    | ExplicitNonlabel => ExplicitNonlabel
     | TupLabel(e1, e2) => TupLabel(of_core(e1), of_core(e2))
     | Dot(e1, e2) => Dot(of_core(e1), of_core(e2))
     | Ap(Reverse, _, _) => raise(Failure("Reverse not supported"))
@@ -410,10 +437,15 @@ and Typ: {
     | TupleType([t]) => parens(of_menhir_ast(t))
     | TupleType(ts) => parens(prod(List.map(of_menhir_ast, ts)))
     | LabelType(s) => label(s)
+    | ExplicitNonlabel => explicit_non_label()
     | TupLabelType(t1, t2) =>
       tup_label(of_menhir_ast(t1), of_menhir_ast(t2))
     | ArrayType(t) => list(of_menhir_ast(t))
     | ArrowType(t1, t2) => arrow(of_menhir_ast(t1), of_menhir_ast(t2))
+    | ProdProjection(t1, t2) =>
+      prod_projection(of_menhir_ast(t1), of_menhir_ast(t2))
+    | ProdExtension(t1, t2) =>
+      prod_extension(of_menhir_ast(t1), of_menhir_ast(t2))
     | SumTyp(sumterms) =>
       open Language;
       let converted_terms: list(ConstructorMap.variant(IndicatedG.typ)) =
@@ -435,7 +467,6 @@ and Typ: {
         annotation: true,
         term: of_menhir_ast(t).term,
       }
-    | ApTyp(t1, t2) => ap(of_menhir_ast(t1), of_menhir_ast(t2))
     };
   };
 
@@ -464,8 +495,10 @@ and Typ: {
     | Rec(tp, t) => RecType(TPat.of_core(tp), of_core(t))
     | Parens(t) => of_core(t)
     | Label(s) => LabelType(s)
+    | ExplicitNonlabel => (ExplicitNonlabel: AST.typ)
     | TupLabel(t1, t2) => TupLabelType(of_core(t1), of_core(t2))
-    | Ap(t1, t2) => ApTyp(of_core(t1), of_core(t2))
+    | ProdProjection(t1, t2) => ProdProjection(of_core(t1), of_core(t2))
+    | ProdExtension(t1, t2) => ProdExtension(of_core(t1), of_core(t2))
     | Sum(constructors) =>
       let sumterms =
         List.map(
@@ -531,6 +564,7 @@ and Pat: {
         annotation: true,
         term: of_menhir_ast(p).term,
       }
+    | ExplicitNonlabel => explicit_non_label()
     };
   };
   let rec of_core = (pat: IndicatedG.pat): AST.pat => {
@@ -551,6 +585,7 @@ and Pat: {
     | Parens(p) => of_core(p)
     | Probe(p, _) => of_core(p)
     | Label(s) => LabelPat(s)
+    | ExplicitNonlabel => ExplicitNonlabel
     | TupLabel(p1, p2) => TupLabelPat(of_core(p1), of_core(p2))
     };
   };

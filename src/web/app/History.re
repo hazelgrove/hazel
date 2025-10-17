@@ -38,12 +38,6 @@ module Update = {
       : Updated.t(Model.t) =>
     switch (action) {
     | Globals(Undo) =>
-      print_endline(
-        "Undo length: " ++ string_of_int(List.length(model.undo_stack)),
-      );
-      print_endline(
-        "Redo length: " ++ string_of_int(List.length(model.redo_stack)),
-      );
       switch (model.undo_stack) {
       | [] =>
         print_endline("Cannot undo");
@@ -62,7 +56,7 @@ module Update = {
             ],
           },
         }
-      };
+      }
     | Globals(Redo) =>
       switch (model.redo_stack) {
       | [] =>
@@ -92,6 +86,7 @@ module Update = {
           action,
           model.current,
         );
+      let _ = Log.update(action, current);
       if (Page.Update.can_undo(action)) {
         {
           ...current,
@@ -120,9 +115,16 @@ module Update = {
     };
 
   let calculate =
-      (~schedule_action: t => unit, ~is_edited: bool, model: Model.t): Model.t => {
+      (
+        ~schedule_action: t => unit,
+        ~is_edited: bool,
+        ~dynamics,
+        model: Model.t,
+      )
+      : Model.t => {
     current:
-      model.current |> Page.Update.calculate(~schedule_action, ~is_edited),
+      model.current
+      |> Page.Update.calculate(~schedule_action, ~is_edited, ~dynamics),
     undo_stack: model.undo_stack,
     redo_stack: model.redo_stack,
   };

@@ -18,12 +18,10 @@ module M: Projector = {
         }),
       ) =>
       Some((llname, model))
-    | _ =>
-      print_endline("Warning - LivelitProj.get: Not an InfoExp term");
-      None;
+    | _ => None
     };
 
-  let init = (any: Language.Term.Any.t) =>
+  let init = (any: Language.Any.t) =>
     switch (any) {
     | Exp({term: Ap(_dir, {term: LivelitName(_), _}, _), _})
     | Exp({

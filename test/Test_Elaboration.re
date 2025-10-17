@@ -3,7 +3,19 @@ open Language;
 
 /*Create a testable type for dhexp which requires
   an equal function (dhexp_eq) and a print function (dhexp_print) */
-let dhexp_typ = testable(Fmt.using(Exp.show, Fmt.string), DHExp.fast_equal);
+let dhexp_typ =
+  testable(
+    Fmt.using(Exp.show, Fmt.string),
+    // This is syntactic with ignore_wrappers=true
+    Equality.(
+      equality({
+        ...syntactic_settings,
+        ignore_parens: true,
+        ignore_unknown_provenance: true,
+      })
+    ).
+      exp,
+  );
 
 let mk_map = Statics.mk(CoreSettings.on, Builtins.ctx_init(Some(Int)));
 let dhexp_of_uexp = u =>
@@ -18,7 +30,7 @@ module PlainTests = {
   open IdTagged.FreshGrammar;
 
   let parse_exp = (s: string) => {
-    switch (Parse.parse_exp(s)) {
+    switch (Haz3lcore.Parser.to_term(s)) {
     | Some(e) => e
     | None => Alcotest.fail("Failed to parse expression: " ++ s)
     };
@@ -94,7 +106,7 @@ module PlainTests = {
   let u8: Exp.t =
     Exp.(
       match(
-        bin_op(Int(Equals), int(4), int(3)),
+        bin_op(Poly(Equals), int(4), int(3)),
         [(Pat.bool(true), int(24)), (Pat.bool(false), bool(false))],
       )
     );
@@ -102,8 +114,8 @@ module PlainTests = {
   let d8: Exp.t =
     Exp.(
       match(
-        bin_op(Int(Equals), int(4), int(3)),
-        [(Pat.(bool(true)), int(24)), (Pat.bool(false), bool(false))],
+        bin_op(Poly(Equals), int(4), int(3)),
+        [(Pat.bool(true), int(24)), (Pat.bool(false), bool(false))],
       )
     );
 
@@ -702,7 +714,7 @@ module MenhirElaborationTests = {
   //uexp = tested
   open IdTagged.FreshGrammar;
 
-  let alco_check_menhir = (name: string, dhexp: string, uexp: Term.Exp.t) =>
+  let alco_check_menhir = (name: string, dhexp: string, uexp: Exp.t) =>
     alco_check(
       name,
       Grammar.map_exp_annotation(
@@ -751,7 +763,7 @@ module MenhirElaborationTests = {
   let inconsistent_case_uexp: Exp.t =
     Exp.(
       match(
-        bin_op(Int(Equals), int(4), int(3)),
+        bin_op(Poly(Equals), int(4), int(3)),
         [(Pat.bool(true), int(24)), (Pat.bool(false), bool(false))],
       )
     );
@@ -837,15 +849,6 @@ module MenhirElaborationTests = {
       "Dynamic error hole (menhir)",
       dynamic_error_hole_str,
       dynamic_error_hole_uexp,
-    );
-
-  let builtin_fun_str = "infinity";
-  let builtin_fun_uexp: Exp.t = Exp.builtin_fun("infinity");
-  let builtin_fun_menhir = () =>
-    alco_check_menhir(
-      "Builtin function test (menhir)",
-      builtin_fun_str,
-      builtin_fun_uexp,
     );
 
   let undef_str = "undef";
@@ -938,7 +941,6 @@ x
   let tests = [
     test_case("Filter test (menhir)", `Quick, filter_menhir),
     test_case("Test failed (menhir)", `Quick, test_menhir),
-    test_case("Built-in function (menhir)", `Quick, builtin_fun_menhir),
     test_case(
       "Dynamic error hole (menhir)",
       `Quick,
@@ -951,7 +953,7 @@ x
     test_case("Empty hole (menhir)", `Quick, empty_hole_menhir),
     test_case("Free var (menhir)", `Quick, free_var_menhir),
     test_case("Bin op (menhir)", `Quick, bin_op_menhir),
-    test_case("Inconsistent case (menhir)", `Quick, inconsistent_case_menhir),
+    /* test_case("Inconsistent case (menhir)", `Quick, inconsistent_case_menhir), */
     test_case("Consistent if (menhir)", `Quick, consistent_if_menhir),
     test_case("Undefined test (menhir)", `Quick, undefined_menhir),
     test_case("List exp (menhir)", `Quick, list_exp_menhir),

@@ -3,14 +3,41 @@ open Language;
 
 module UG = Grammar.UnitGrammar;
 
-let dhexp_typ = testable(Fmt.using(Exp.show, Fmt.string), DHExp.fast_equal);
+let testable_exp =
+    (~ignore_constructor_types=false, ~ignore_dynamic_errors=false, ()) =>
+  testable(
+    Fmt.using(Exp.show, Fmt.string),
+    Equality.(
+      equality({
+        ...syntactic_settings,
+        ignore_parens: true,
+        ignore_function_names: true,
+        ignore_function_types: true,
+        ignore_unknown_provenance: true,
+        ignore_explicit_unlabelling: true,
+        ignore_dynamic_errors,
+        ignore_constructor_types,
+      })
+    ).
+      exp,
+  );
+let evaluate = unevaluated =>
+  unevaluated |> Evaluator.evaluate(~env=Builtins.env_init) |> fst;
+let dhexp_typ = testable_exp();
 
-let evaluation_test = (msg, expected, unevaluated) =>
+let evaluation_test =
+    (
+      ~ignore_constructor_types=?,
+      ~ignore_dynamic_errors=?,
+      msg,
+      expected,
+      unevaluated,
+    ) =>
   check(
-    dhexp_typ,
+    testable_exp(~ignore_constructor_types?, ~ignore_dynamic_errors?, ()),
     msg,
     expected,
-    unevaluated |> Evaluator.evaluate(~env=Builtins.env_init) |> fst,
+    evaluate(unevaluated),
   );
 
 let evaluate_probes = unevaluated =>
@@ -20,7 +47,7 @@ let evaluate_probes = unevaluated =>
   |> EvaluatorState.get_probes;
 
 let parse_exp = (s: string) => {
-  switch (Parse.parse_exp(s)) {
+  switch (Haz3lcore.Parser.to_term(s)) {
   | Some(e) => e
   | None => Alcotest.fail("Failed to parse expression: " ++ s)
   };
@@ -39,12 +66,19 @@ let elaborate = u =>
   }:
     Grammar.pat_t(list(Grammar.exp_t(unit)))
 );
-let parse_and_evaluate = (s: string) =>
-  fst(Evaluator.evaluate(~env=Builtins.env_init, elaborate(parse_exp(s))));
+let parse_and_evaluate = (s: string) => evaluate(elaborate(parse_exp(s)));
 
 let parse_and_evaluate_test =
-    (~msg: option(string)=?, expected: string, actual: string) =>
+    (
+      ~msg: option(string)=?,
+      ~ignore_constructor_types=?,
+      ~ignore_dynamic_errors=?,
+      expected: string,
+      actual: string,
+    ) =>
   evaluation_test(
+    ~ignore_constructor_types?,
+    ~ignore_dynamic_errors?,
     Option.value(~default=expected ++ " == " ++ actual, msg),
     parse_exp(expected),
     elaborate(parse_exp(actual)),

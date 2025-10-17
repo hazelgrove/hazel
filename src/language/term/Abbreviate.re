@@ -133,6 +133,7 @@ let rec abbreviate_exp = (exp: Exp.t): Exp.t => {
       Atom(String(str));
     | Var(v) => Var(abbreviate_str(available^, v))
     | Label(v) => Label(abbreviate_str(available^, v))
+    | ExplicitNonlabel => ExplicitNonlabel
     | Constructor(c, t) => Constructor(abbreviate_str(available^, c), t)
     | LivelitName(v) => LivelitName(abbreviate_str(available^, v))
 
@@ -272,6 +273,19 @@ let rec abbreviate_exp = (exp: Exp.t): Exp.t => {
         };
       };
 
+    | TupleExtension(e1, e2) =>
+      if (available^ <= 3) {
+        indet_term;
+      } else {
+        available := available^ - 3; // "..."
+        let e1' = abbreviate_exp(e1);
+        if (available^ > 0) {
+          let e2' = abbreviate_exp(e2);
+          TupleExtension(e1', e2');
+        } else {
+          e1'.term;
+        };
+      }
     | Ap(Forward, e1, e2) =>
       if (available^ <= 1) {
         indet_term;
@@ -306,6 +320,13 @@ let rec abbreviate_exp = (exp: Exp.t): Exp.t => {
         ~cost=9, // "test " + " end"
         ~make_term=e' => Test(e'),
         e,
+      )
+    | HintedTest(e, hint) =>
+      handle_op_indet(
+        ~cost=15, // "hint " + " test " + " end"
+        ~make_term=(e', hint') => HintedTest(e', hint'),
+        e,
+        hint,
       )
     | Seq(e1, e2) =>
       handle_op_indet(
@@ -624,6 +645,7 @@ and abbreviate_pat = (pat: Pat.t): Pat.t => {
   let term: Pat.term =
     switch (pat.term) {
     | Wild => Wild
+    | ExplicitNonlabel => ExplicitNonlabel
     | Var(v) => Var(abbreviate_str(available^, v))
     | Label(v) => Label(abbreviate_str(available^, v))
     | Atom(Int(n)) => wrap_or(Atom(Int(n)), Bigint.to_string(n))
@@ -805,6 +827,7 @@ and abbreviate_typ = (typ: Typ.t): Typ.t => {
         Atom(String);
       }
     | Var(v) => Var(abbreviate_str(available^, v))
+    | ExplicitNonlabel => ExplicitNonlabel
     | Label(v) => Label(abbreviate_str(available^, v))
     | List(t) =>
       if (available^ <= 2) {
@@ -839,6 +862,32 @@ and abbreviate_typ = (typ: Typ.t): Typ.t => {
         available := available^ - 3;
         TupLabel(abbreviate_typ(t1), abbreviate_typ(t2));
       }
+    | ProdProjection(t1, t2) =>
+      if (available^ <= 3) {
+        indet_term_typ;
+      } else {
+        available := available^ - 3;
+        ProdProjection(abbreviate_typ(t1), abbreviate_typ(t2));
+      }
+    | ProdExtension(t1, t2) =>
+      if (available^ <= 3) {
+        indet_term_typ;
+      } else {
+        available := available^ - 3; // "..."
+        let t1' = abbreviate_typ(t1);
+        if (available^ > 0) {
+          let t2' = abbreviate_typ(t2);
+          ProdExtension(t1', t2');
+        } else {
+          ProdExtension(
+            t1',
+            {
+              ...t2,
+              term: indet_term_typ,
+            },
+          );
+        };
+      }
     | Sum(ctors) =>
       if (available^ <= 1) {
         indet_term_typ;
@@ -864,25 +913,6 @@ and abbreviate_typ = (typ: Typ.t): Typ.t => {
       } else {
         available := available^ - 2; // "()"
         Parens(abbreviate_typ(t));
-      }
-    | Ap(t1, t2) =>
-      if (available^ <= 1) {
-        indet_term_typ;
-      } else {
-        available := available^ - 1; // space
-        let t1' = abbreviate_typ(t1);
-        if (available^ > 0) {
-          let t2' = abbreviate_typ(t2);
-          Ap(t1', t2');
-        } else {
-          Ap(
-            t1',
-            {
-              ...t2,
-              term: indet_term_typ,
-            },
-          );
-        };
       }
     | Rec(tp, t) =>
       if (available^ <= 3) {

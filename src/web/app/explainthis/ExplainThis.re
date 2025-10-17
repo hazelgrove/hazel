@@ -87,7 +87,13 @@ let code_node = text =>
   Node.span(~attrs=[clss(["code"])], [Node.text(text)]);
 
 let highlight =
-    (~globals: Globals.t, msg: list(Node.t), id: Id.t, mapping: ColorSteps.t)
+    (
+      ~globals: Globals.t,
+      ~inject as _: ExplainThisUpdate.update => 'a,
+      msg: list(Node.t),
+      id: Id.t,
+      mapping: ColorSteps.t,
+    )
     : (Node.t, ColorSteps.t) => {
   let (c, mapping) = ColorSteps.get_color(id, mapping);
   let classes = clss(["highlight-" ++ c, "clickable"]);
@@ -112,12 +118,13 @@ let highlight =
  code: `code`
  italics: *word*
  */
-let mk_translation = (~globals, text: string): (list(Node.t), ColorSteps.t) => {
+let mk_translation =
+    (~globals, ~inject, text: string): (list(Node.t), ColorSteps.t) => {
   let omd = Omd.of_string(text);
   //print_markdown(omd);
 
   let rec translate_inline =
-          (inline: Omd.inline(_), msg, mapping: ColorSteps.t)
+          (inline: Omd.inline(_), msg, mapping: ColorSteps.t, ~inject)
           : (list(Node.t), ColorSteps.t) => {
     switch (inline) {
     | Omd.Concat(_, items) =>
@@ -125,7 +132,7 @@ let mk_translation = (~globals, text: string): (list(Node.t), ColorSteps.t) => {
         List.fold_left(
           ((msg, mapping), item) => {
             let (translated_item, mapping) =
-              translate_inline(item, [], mapping);
+              translate_inline(item, [], mapping, ~inject);
             (List.concat([msg, translated_item]), mapping);
           },
           ([], mapping),
@@ -135,16 +142,17 @@ let mk_translation = (~globals, text: string): (list(Node.t), ColorSteps.t) => {
     | Omd.Text(_, d) => (List.append(msg, [Node.text(d)]), mapping)
     | Omd.Code(_, d) => (List.append(msg, [code_node(d)]), mapping)
     | Omd.Link(_, {label, destination, _}) =>
-      let (d, mapping) = translate_inline(label, [], mapping);
+      let (d, mapping) = translate_inline(label, [], mapping, ~inject);
       let id =
         switch (Id.of_string(destination)) {
         | Some(id) => id
         | None => Id.invalid
         };
-      let (inner_msg, mapping) = highlight(~globals, d, id, mapping);
+      let (inner_msg, mapping) =
+        highlight(~globals, ~inject, d, id, mapping);
       (List.append(msg, [inner_msg]), mapping);
     | Omd.Emph(_, d) =>
-      let (d, mapping) = translate_inline(d, [], mapping);
+      let (d, mapping) = translate_inline(d, [], mapping, ~inject);
       (
         List.append(
           msg,
@@ -172,9 +180,7 @@ let mk_translation = (~globals, text: string): (list(Node.t), ColorSteps.t) => {
     List.fold_left(
       ((msg, mapping), elem) => {
         switch (elem) {
-        | Omd.Paragraph(_, d) =>
-          let (n, _) = translate_inline(d, [], mapping);
-          (List.append(msg, [Node.p(n)]), mapping);
+        | Omd.Paragraph(_, d) => translate_inline(d, msg, mapping, ~inject)
         | Omd.List(_, _, _, items) =>
           let (bullets, mapping) =
             List.fold_left(
@@ -207,7 +213,7 @@ let mk_explanation =
       model: ExplainThisModel.t,
     )
     : (Node.t, ColorSteps.t) => {
-  let (msg, color_map) = mk_translation(~globals, text);
+  let (msg, color_map) = mk_translation(~globals, ~inject, text);
   let feedback =
     globals.settings.explainThis.show_feedback
       ? [explanation_feedback_view(~inject, group_id, form_id, model)] : [];
@@ -225,104 +231,103 @@ let expander_deco =
       ~options: list((ExplainThisForm.form_id, Segment.t)),
       ~group: ExplainThisForm.group,
       ~doc: ExplainThisForm.form,
-      editor,
+      editor: Editor.Model.t,
     ) => {
-  module Deco =
-    Deco.Deco({
-      let editor = editor;
-      let globals = globals;
-      let statics = CachedStatics.empty;
-    });
   switch (doc.expandable_id, List.length(options)) {
   | (None, _)
   | (_, 0 | 1) => div([])
-  | (Some((expandable, _)), _) =>
-    Deco.term_decoration(
-      ~id=expandable,
-      ((origin, _, path)) => {
-        let specificity_pos =
-          Printf.sprintf(
-            "position: absolute; top: %fpx;",
-            font_metrics.row_height,
-          );
+  | (Some((id, _)), _) =>
+    let origin =
+      switch (
+        TermData.extreme_measures(
+          id,
+          editor.syntax.term_data,
+          editor.syntax.measured,
+        )
+      ) {
+      | Some((origin, _)) => origin
+      | None => {
+          row: 0,
+          col: 0,
+        }
+      };
+    let specificity_pos =
+      Printf.sprintf(
+        "position: absolute; top: %fpx;",
+        font_metrics.row_height,
+      );
 
-        let specificity_style =
-          Attr.create(
-            "style",
-            specificity_pos
-            ++ (docs.specificity_open ? "transform: scaleY(1);" : ""),
-          );
+    let specificity_style =
+      Attr.create(
+        "style",
+        specificity_pos
+        ++ (docs.specificity_open ? "transform: scaleY(1);" : ""),
+      );
 
-        let get_clss = segment =>
-          switch (List.nth(segment, 0)) {
-          | Base.Tile({mold, _}) => [
-              "ci-header-" ++ Sort.to_string(mold.out) // TODO the brown on brown isn't the greatest... but okay
-            ]
-          | _ => []
-          };
+    let get_clss = segment =>
+      switch (List.nth(segment, 0)) {
+      | Base.Tile({mold, _}) => [
+          "ci-header-" ++ Sort.to_string(mold.out) // TODO the brown on brown isn't the greatest... but okay
+        ]
+      | _ => []
+      };
 
-        let specificity_menu =
-          Node.div(
-            ~attrs=[
-              clss(["specificity-options-menu", "expandable"]),
-              specificity_style,
-            ],
-            List.map(
-              ((id: ExplainThisForm.form_id, segment: Segment.t)): Node.t => {
-                let code_view =
-                  CodeViewable.view_segment(
-                    ~globals,
-                    ~sort=Exp,
-                    ~shape_map=ProjectorCore.Shape.Map.empty, // Assume no projectors
-                    segment,
-                  );
-                let classes =
-                  id == doc.id
-                    ? ["selected"] @ get_clss(segment) : get_clss(segment);
-                let update_group_selection = _ =>
-                  inject(
-                    ExplainThisUpdate.UpdateGroupSelection(group.id, id),
-                  );
-                Node.div(
-                  ~attrs=[
-                    clss(classes),
-                    Attr.on_click(update_group_selection),
-                  ],
-                  [code_view],
-                );
-              },
-              options,
-            ),
-          );
+    let specificity_menu =
+      Node.div(
+        ~attrs=[
+          clss(["specificity-options-menu", "expandable"]),
+          specificity_style,
+        ],
+        List.map(
+          ((id: ExplainThisForm.form_id, segment: Segment.t)): Node.t => {
+            let code_view = CodeViewable.view_segment(~globals, segment);
+            let classes =
+              id == doc.id
+                ? ["selected"] @ get_clss(segment) : get_clss(segment);
+            let update_group_selection = _ =>
+              inject(ExplainThisUpdate.UpdateGroupSelection(group.id, id));
+            Node.div(
+              ~attrs=[clss(classes), Attr.on_click(update_group_selection)],
+              [code_view],
+            );
+          },
+          options,
+        ),
+      );
 
-        let expand_arrow_style = Attr.create("style", specificity_pos);
-        let expand_arrow =
-          Node.div(~attrs=[clss(["arrow"]), expand_arrow_style], []);
+    let expand_arrow_style = Attr.create("style", specificity_pos);
+    let expand_arrow =
+      Node.div(~attrs=[clss(["arrow"]), expand_arrow_style], []);
 
-        let expandable_deco =
-          DecUtil.code_svg(
-            ~font_metrics,
-            ~origin,
-            ~base_cls=["expandable"],
-            ~abs_pos=false,
-            path,
-          );
+    let expandable_deco =
+      div_c(
+        "color-highlights",
+        Highlight.color(
+          ~syntax=editor.syntax,
+          ~font_metrics,
+          ["expandable"],
+          id,
+        ),
+      );
 
-        Node.div(
-          ~attrs=[
-            clss(["expandable-target"]),
-            DecUtil.abs_position(~font_metrics, origin),
-            Attr.on_click(_ => {
-              inject(
-                ExplainThisUpdate.SpecificityOpen(!docs.specificity_open),
-              )
-            }),
-          ],
-          [expandable_deco, specificity_menu]
-          @ (docs.specificity_open ? [] : [expand_arrow]),
-        );
-      },
-    )
+    let expander =
+      div(
+        ~attrs=[
+          clss(["expandable-target"]),
+          DecUtil.abs_position(~font_metrics, origin),
+        ],
+        [specificity_menu] @ (docs.specificity_open ? [] : [expand_arrow]),
+      );
+
+    Node.div(
+      ~attrs=[
+        clss(["expandable-target"]),
+        Attr.on_click(_ =>
+          inject(ExplainThisUpdate.SpecificityOpen(!docs.specificity_open))
+        ),
+      ],
+      [expandable_deco, expander],
+    );
   };
 };
 
@@ -469,11 +474,6 @@ let get_doc =
           explanation_msg,
           docs,
         );
-      let sort =
-        switch (info) {
-        | None => Sort.Any
-        | Some(ci) => Info.sort_of(ci)
-        };
       let highlights =
         colorings
         |> List.map(((syntactic_form_id: Id.t, code_id: Id.t)) => {
@@ -494,29 +494,21 @@ let get_doc =
           ~doc,
           editor,
         );
-      let statics = CachedStatics.empty;
-      let dynamics = Dynamics.Map.empty;
-      let highlight_deco = {
-        module Deco =
-          Deco.Deco({
-            let editor = editor;
-            let globals = {
-              ...globals,
-              color_highlights: highlights,
-            };
-            let statics = statics;
-          });
-        [Deco.color_highlights()];
-      };
+      let highlight_deco = [
+        Highlight.colors(
+          ~font_metrics=globals.font_metrics,
+          ~syntax=editor.syntax,
+          highlights,
+        ),
+      ];
       let syntactic_form_view =
         CodeWithStatics.View.view(
           ~globals,
           ~overlays=highlight_deco @ [expander_deco],
-          ~sort,
           {
             editor,
-            statics,
-            dynamics,
+            statics: CachedStatics.empty,
+            dynamics: Dynamics.Map.empty,
           },
         );
       let example_view =
@@ -530,7 +522,8 @@ let get_doc =
         );
       ([syntactic_form_view], ([explanation], color_map), example_view);
     | Colorings =>
-      let (_, color_map) = mk_translation(~globals, explanation_msg);
+      let (_, color_map) =
+        mk_translation(~globals, ~inject=_ => (), explanation_msg);
       ([], ([], color_map), []);
     };
   };
@@ -593,6 +586,7 @@ let get_doc =
         );
       | Undefined => get_message(UndefinedExp.undefined_exps)
       | Deferral(_) => get_message(TerminalExp.deferral_exps)
+      | ExplicitNonlabel => simple("Explicitly unlabeled entry")
       | Atom(Bool(b)) => get_message(TerminalExp.bool_exps(b))
       | Atom(Int(i)) => get_message(TerminalExp.int_exps(i))
       | Atom(SInt(i)) => get_message(TerminalExp.sint_exps(i))
@@ -1150,6 +1144,7 @@ let get_doc =
         | Parens(_)
         | Probe(_)
         | Label(_)
+        | ExplicitNonlabel
         | Asc(_) => default // Shouldn't get hit?
         };
       | Label(name) =>
@@ -1731,6 +1726,7 @@ let get_doc =
             basic(LetExp.lets_ctr);
           }
         | TupLabel(_)
+        | ExplicitNonlabel
         | Label(_)
         | Invalid(_) => default // Shouldn't get hit
         | Parens(_)
@@ -1938,6 +1934,23 @@ let get_doc =
         );
       | Parens(term)
       | Probe(term, _) => get_message_exp(term.term) // No Special message?
+      | HintedTest(body, hint) =>
+        let hint_id = List.nth(IdTagged.ids(hint), 0);
+        let body_id = List.nth(IdTagged.ids(body), 0);
+        get_message(
+          ~colorings=
+            HintedTestExp.hinted_test_exp_coloring_ids(~body_id, ~hint_id),
+          ~format=
+            Some(
+              msg =>
+                Printf.sprintf(
+                  Scanf.format_from_string(msg, "%s%s"),
+                  Id.to_string(hint_id),
+                  Id.to_string(body_id),
+                ),
+            ),
+          HintedTestExp.tests,
+        );
       | Cons(hd, tl) =>
         let hd_id = List.nth(IdTagged.ids(hd), 0);
         let tl_id = List.nth(IdTagged.ids(tl), 0);
@@ -1953,6 +1966,22 @@ let get_doc =
                 ),
             ),
           ListExp.listcons,
+        );
+      | TupleExtension(x, y) =>
+        let x_id = List.nth(IdTagged.ids(x), 0);
+        let y_id = List.nth(IdTagged.ids(y), 0);
+        get_message(
+          ~colorings=TupleExp.tuple_extension_exp_coloring_ids(~x_id, ~y_id),
+          ~format=
+            Some(
+              msg =>
+                Printf.sprintf(
+                  Scanf.format_from_string(msg, "%s%s"),
+                  Id.to_string(x_id),
+                  Id.to_string(y_id),
+                ),
+            ),
+          TupleExp.tuple_extensions,
         );
       | ListConcat(xs, ys) =>
         let xs_id = List.nth(IdTagged.ids(xs), 0);
@@ -2043,12 +2072,6 @@ let get_doc =
               int_greater_than_equal,
               int_gte_exp_coloring_ids,
             )
-          | Nat(Equals)
-          | SInt(Equals)
-          | Int(Equals) => (int_equal, int_eq_exp_coloring_ids)
-          | Nat(NotEquals)
-          | SInt(NotEquals)
-          | Int(NotEquals) => (int_not_equal, int_neq_exp_coloring_ids)
           | Float(Plus) => (float_plus, float_plus_exp_coloring_ids)
           | Float(Minus) => (float_minus, float_minus_exp_coloring_ids)
           | Float(Times) => (float_times, float_times_exp_coloring_ids)
@@ -2073,6 +2096,8 @@ let get_doc =
           | Bool(Or) => (bool_or, bool_or_exp_coloring_ids)
           | String(Equals) => (string_equal, str_eq_exp_coloring_ids)
           | String(Concat) => (string_concat, str_concat_exp_coloring_ids)
+          | Poly(Equals) => (poly_equal, poly_eq_exp_coloring_ids)
+          | Poly(NotEquals) => (poly_not_equal, poly_neq_exp_coloring_ids)
           };
         let left_id = List.nth(IdTagged.ids(left), 0);
         let right_id = List.nth(IdTagged.ids(right), 0);
@@ -2238,6 +2263,7 @@ let get_doc =
           ),
         TerminalPat.var(v),
       )
+    | ExplicitNonlabel => simple("Explicitly unlabeled entry")
     | Label(name) =>
       get_message(
         ~format=
@@ -2590,10 +2616,10 @@ let get_doc =
         TerminalTyp.var(v),
       )
     | Sum(_) => get_message(SumTyp.labelled_sum_typs)
-    | Ap({term: Var(c), _}, _) =>
-      get_message(SumTyp.sum_typ_unary_constructor_defs(c))
     | Unknown(Hole(Invalid(_))) => simple("Not a type or type operator")
-    | Ap(_)
+    | ExplicitNonlabel
+    | ProdProjection(_)
+    | ProdExtension(_)
     | Parens(_) => default // Shouldn't be hit?
     }
   | Some(InfoTPat(info)) =>
@@ -2630,11 +2656,11 @@ let section = (~section_clss: string, ~title: string, contents: list(Node.t)) =>
 let get_color_map =
     (~globals: Globals.t, ~explainThisModel: ExplainThisModel.t, info) =>
   switch (globals.settings.explainThis.highlight) {
-  | All when globals.settings.explainThis.show =>
+  | All when globals.settings.sidebar.show =>
     let (_, (_, (color_map, _)), _) =
       get_doc(~globals, ~docs=explainThisModel, info, Colorings);
     Some(color_map);
-  | One(id) when globals.settings.explainThis.show =>
+  | One(id) when globals.settings.sidebar.show =>
     let (_, (_, (color_map, _)), _) =
       get_doc(~globals, ~docs=explainThisModel, info, Colorings);
     Some(Id.Map.filter((id', _) => id == id', color_map));
@@ -2658,52 +2684,36 @@ let view =
       MessageContent(inject, globals),
     );
   div(
-    ~attrs=[Attr.id("side-bar")],
+    ~attrs=[Attr.id("explain-this")],
     [
       div(
-        ~attrs=[Attr.id("explain-this")],
+        ~attrs=[clss(["header"])],
         [
-          div(
-            ~attrs=[clss(["header"])],
-            [
-              Widgets.toggle(
-                ~tooltip="Toggle highlighting",
-                "🔆",
-                globals.settings.explainThis.highlight == All,
-                _ =>
-                globals.inject_global(
-                  Set(ExplainThis(SetHighlight(Toggle))),
-                )
-              ),
-              div(
-                ~attrs=[
-                  clss(["close"]),
-                  Attr.on_click(_ =>
-                    globals.inject_global(Set(ExplainThis(ToggleShow)))
-                  ),
-                ],
-                [Icons.thin_x],
-              ),
-            ],
+          Widgets.toggle(
+            ~tooltip="Toggle highlighting",
+            "🔆",
+            globals.settings.explainThis.highlight == All,
+            _ =>
+            globals.inject_global(Set(ExplainThis(SetHighlight(Toggle))))
           ),
-        ]
-        @ [
-          section(
-            ~section_clss="syntactic-form",
-            ~title=
-              switch (info) {
-              | None => "Whitespace or Comment"
-              | Some(info) => Info.cls_of(info) |> Cls.show
-              },
-            syn_form @ explanation,
-          ),
-        ]
-        @ (
-          example == []
-            ? []
-            : [section(~section_clss="examples", ~title="Examples", example)]
-        ),
+        ],
       ),
-    ],
+    ]
+    @ [
+      section(
+        ~section_clss="syntactic-form",
+        ~title=
+          switch (info) {
+          | None => "Whitespace or Comment"
+          | Some(info) => Info.cls_of(info) |> Cls.show
+          },
+        syn_form @ explanation,
+      ),
+    ]
+    @ (
+      example == []
+        ? []
+        : [section(~section_clss="examples", ~title="Examples", example)]
+    ),
   );
 };

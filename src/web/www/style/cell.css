@@ -22,11 +22,34 @@
   background-color: var(--cell-active);
 }
 
+#main.Scratch .cell,
+#main.Documentation .cell {
+  flex-grow: 1;
+}
+
+#main.Tutorial,
+#main.Exercises {
+  padding: 1.5em;
+  padding-top: 3.5em;
+  display: flex;
+  flex-direction: column;
+  gap: 1.2em;
+  background-color: var(--ui-bkg);
+  scrollbar-color: var(--main-scroll-thumb) var(--NONE);
+}
+
+#main.Tutorial .cell,
+#main.Exercises .cell {
+  width: auto;
+  border-radius: 0.4em;
+}
+
 .cell {
   border: none;
-  border-radius: 0.4em;
   width: fit-content;
   min-width: 100%;
+  display: flex;
+  flex-direction: column;
 }
 
 .cell > * {
@@ -46,9 +69,7 @@
 }
 
 .title-cell {
-  padding-left: 1em;
-  padding-top: 0;
-  padding-bottom: 0;
+  padding: 0;
 }
 
 .title-cell .title-text {
@@ -177,12 +198,6 @@
   opacity: 0.5;
 }
 
-.cell-prompt {
-  padding-left: 1em;
-  padding-top: 0.25em;
-  padding-bottom: 0.5em;
-}
-
 .prompt-edit .prompt-text {
   width: 500px;
   height: 300px;
@@ -218,6 +233,46 @@
 
 .prompt-content {
   font-size: 1rem;
+}
+
+#main.Tutorial .cell:has(.code-editor.selected),
+#main.Exercises .cell:has(.code-editor.selected) {
+  background-color: var(--cell-active);
+}
+
+#main.Tutorial .cell.unlocked:has(.code-editor.selected),
+#main.Exercises .cell.unlocked:has(.code-editor.selected) {
+  border-left: 1px solid var(--cell-selected-accent);
+  background-color: var(--cell-active);
+}
+
+.cell-caption {
+  color: var(--ui-header-text);
+  font-size: 0.8em;
+}
+
+.cell-caption strong {
+  text-transform: uppercase;
+}
+
+.cell.unlocked {
+  border-left: 1px solid var(--cell-exercises-border);
+}
+
+.cell-report {
+  padding: 1.2em;
+  background-color: var(--test-panel-bkg);
+  border-left: 1px solid #0000;
+}
+
+.cell .cell-item:first-child {
+  border-top-left-radius: 0.4em;
+  border-top-right-radius: 0.4em;
+}
+
+.cell .cell-item:last-child {
+  border-bottom-left-radius: 0.4em;
+  border-bottom-right-radius: 0.4em;
 }
 
 .syntax-tests-list {

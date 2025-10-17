@@ -104,12 +104,13 @@ let rec elaborate_pattern =
       | R(BadInt(s)) => Invalid(s) |> rewrap
       };
     | ListLit(ps) =>
-      let (ps, _) = List.map(elaborate_pattern(m), ps) |> ListUtil.unzip;
+      let (ps, _) = List.map(elaborate_pattern(m), ps) |> List.split;
       ListLit(ps) |> rewrap;
     | Cons(p1, p2) =>
       let (p1', _) = elaborate_pattern(m, p1);
       let (p2', _) = elaborate_pattern(m, p2);
       Cons(p1', p2') |> rewrap;
+    | TupLabel({term: ExplicitNonlabel, _}, p) => p
     | TupLabel(lab, p) =>
       let (plab, _) = elaborate_pattern(m, lab);
       let (p', _) = elaborate_pattern(m, p);
@@ -120,8 +121,7 @@ let rec elaborate_pattern =
       };
     | Tuple(ps) =>
       let (ps', _) =
-        List.map(elaborate_pattern(m, ~in_container=true), ps)
-        |> ListUtil.unzip;
+        List.map(elaborate_pattern(m, ~in_container=true), ps) |> List.split;
       let expected_labels: list(option(string)) =
         Typ.get_labels(ctx, elaborated_type);
 
@@ -135,6 +135,8 @@ let rec elaborate_pattern =
         );
 
       Tuple(ps') |> rewrap;
+    | ExplicitNonlabel =>
+      raise(Failure("Explicit nonlabel pattern outside of tuplabel"))
     | Label(_) => upat
     | Ap(p1, p2) =>
       let (p1', _) = elaborate_pattern(m, p1);
@@ -189,6 +191,9 @@ let rec elaborate = (m: Statics.Map.t, uexp: Exp.t): (DHExp.t, Typ.t) => {
     | Invalid(_)
     | Undefined
     | EmptyHole => uexp
+    | MultiHole([Exp(e1), Exp(e2)]) =>
+      /* Treat two-expression multiholes as seqs */
+      Seq(fst(elaborate(m, e1)), fst(elaborate(m, e2))) |> rewrap
     | MultiHole(stuff) =>
       Any.map_term(
         ~f_exp=(_, exp) => {elaborate(m, exp) |> fst},
@@ -218,7 +223,7 @@ let rec elaborate = (m: Statics.Map.t, uexp: Exp.t): (DHExp.t, Typ.t) => {
       | R(BadInt(s)) => Invalid(s) |> rewrap
       };
     | ListLit(es) =>
-      let (ds, tys) = List.map(elaborate(m), es) |> ListUtil.unzip;
+      let (ds, tys) = List.map(elaborate(m), es) |> List.split;
       let joined_ty =
         Typ.join_all(~empty=Unknown(Internal) |> Typ.temp, ctx, tys);
 
@@ -246,7 +251,7 @@ let rec elaborate = (m: Statics.Map.t, uexp: Exp.t): (DHExp.t, Typ.t) => {
       let (e', _) = elaborate(m, e);
       TypFun(tpat, e', name) |> rewrap;
     | Tuple(es) =>
-      let (ds, _) = List.map(elaborate(m), es) |> ListUtil.unzip;
+      let (ds, _) = List.map(elaborate(m), es) |> List.split;
 
       let expected_labels: list(option(string)) =
         Typ.get_labels(ctx, elaborated_type);
@@ -263,9 +268,14 @@ let rec elaborate = (m: Statics.Map.t, uexp: Exp.t): (DHExp.t, Typ.t) => {
 
       Tuple(ds) |> rewrap;
     | TupLabel(label, e) =>
-      let (label', _) = elaborate(m, label);
-      let (e', _) = elaborate(m, e);
-      TupLabel(label', e') |> rewrap;
+      switch (label.term) {
+      | ExplicitNonlabel => elaborate(m, e) |> fst
+      | _ =>
+        let (label', _) = elaborate(m, label);
+        let (e', _) = elaborate(m, e);
+        TupLabel(label', e') |> rewrap;
+      }
+    | ExplicitNonlabel
     | Label(_) => uexp
     | Dot(e1, e2) =>
       let (e1, _) = elaborate(m, e1);
@@ -344,11 +354,12 @@ let rec elaborate = (m: Statics.Map.t, uexp: Exp.t): (DHExp.t, Typ.t) => {
       }
     | DeferredAp(f, args) =>
       let (f', _) = elaborate(m, f);
-      let (args', _) = List.map(elaborate(m), args) |> ListUtil.unzip;
+      let (args', _) = List.map(elaborate(m), args) |> List.split;
       DeferredAp(f', args') |> rewrap;
     | TypAp(e, ut) =>
       let (e', _) = elaborate(m, e);
-      TypAp(e', ut) |> rewrap;
+      let ut' = Typ.normalize(ctx, ut);
+      TypAp(e', ut') |> rewrap;
     | If(c, t, f) =>
       let (c', _) = elaborate(m, c);
       let (t', t_ty) = elaborate(m, t);
@@ -366,6 +377,10 @@ let rec elaborate = (m: Statics.Map.t, uexp: Exp.t): (DHExp.t, Typ.t) => {
     | Test(e) =>
       let (e', _) = elaborate(m, e);
       Test(e') |> rewrap;
+    | HintedTest(e1, e2) =>
+      let (e1', _) = elaborate(m, e1);
+      let (e2', _) = elaborate(m, e2);
+      HintedTest(e1', e2') |> rewrap;
     | Filter(kind, e) =>
       let (e', _) = elaborate(m, e);
       let kind' =
@@ -412,12 +427,16 @@ let rec elaborate = (m: Statics.Map.t, uexp: Exp.t): (DHExp.t, Typ.t) => {
       let (e1', _) = elaborate(m, e1);
       let (e2', _) = elaborate(m, e2);
       BinOp(op, e1', e2') |> rewrap;
+    | TupleExtension(e1, e2) =>
+      let (e1', _) = elaborate(m, e1);
+      let (e2', _) = elaborate(m, e2);
+      TupleExtension(e1', e2') |> rewrap;
     | BuiltinFun(_) => uexp
     | Match(e, cases) =>
       let (e', _) = elaborate(m, e);
-      let (ps, es) = ListUtil.unzip(cases);
+      let (ps, es) = List.split(cases);
       let (ps', _) =
-        List.map(p => elaborate_pattern(m, p, false), ps) |> ListUtil.unzip;
+        List.map(p => elaborate_pattern(m, p, false), ps) |> List.split;
       let es' =
         List.map(
           e => {
@@ -440,8 +459,9 @@ let rec elaborate = (m: Statics.Map.t, uexp: Exp.t): (DHExp.t, Typ.t) => {
 let fix_typ_ids =
   Exp.map_term(~f_typ=(cont, e) => e |> IdTagged.new_ids |> cont);
 
-let uexp_elab = (m: Statics.Map.t, uexp: Exp.t): ElaborationResult.t =>
+let uexp_elab = (m: Statics.Map.t, uexp: Exp.t): ElaborationResult.t => {
   switch (elaborate(m, uexp)) {
   | exception MissingTypeInfo => DoesNotElaborate
   | (d, ty) => Elaborates(d |> fix_typ_ids, ty)
   };
+};
