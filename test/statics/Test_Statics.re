@@ -8,4 +8,5 @@ let tests =
     Test_Statics_Types.tests,
   ]
   @ Test_Statics_BuiltinsTupleOperations.tests
-  @ [Test_Statics_Fixpoint.tests, Test_Statics_Properties.tests];
+  @ [Test_Statics_Fixpoint.tests, Test_Statics_Properties.tests]
+  @ [Test_Statics_ErrorMessages.tests];

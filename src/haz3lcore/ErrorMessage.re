@@ -1,6 +1,7 @@
 open Util;
 open Language;
 
+[@deriving (show({with_path: false}), sexp, yojson, eq)]
 type fragment =
   | Text(string)
   | Code(string)
@@ -8,6 +9,7 @@ type fragment =
   | Term(Any.t)
   | Label(string);
 
+[@deriving (show({with_path: false}), sexp, yojson, eq)]
 type message = {
   is_error: bool,
   fragments: list(fragment),

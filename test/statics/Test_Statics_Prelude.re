@@ -1,5 +1,6 @@
 open Alcotest;
 open Language;
+open Haz3lcore;
 
 let testable_typ = testable(Fmt.using(Typ.show, Fmt.string), Typ.fast_equal);
 
@@ -130,6 +131,52 @@ let annotated_tree_test = (name, expected_type, expected_error_tree) => {
     "Expected Type",
     expected_type,
     Option.get(typ),
+  );
+};
+let error_message_tree_test =
+    (name, expected_error_tree: Grammar.exp_t(option(ErrorMessage.message))) => {
+  test_case(
+    name,
+    `Quick,
+    () => {
+      let term =
+        fresh(Grammar.map_exp_annotation(_ => (), expected_error_tree));
+      let s = statics(term);
+      let annotated: Grammar.exp_t(option(ErrorMessage.message)) =
+        Grammar.map_exp_annotation(
+          ({ids, _}: IdTagged.IdTag.t) => {
+            let new_info = Id.Map.find_opt(List.hd(ids), s);
+            switch (new_info) {
+            | Some(info) => Some(ErrorMessage.build_message(info))
+            | None =>
+              Alcotest.fail(
+                "No info found for the id: " ++ Id.show(List.hd(ids)),
+              )
+            };
+          },
+          term,
+        );
+
+      let optional_errormessage_tree:
+        testable(Grammar.exp_t(option(ErrorMessage.message))) =
+        testable(
+          Fmt.using(
+            [%derive.show: Grammar.exp_t(option(ErrorMessage.message))],
+            Fmt.string,
+          ),
+          Grammar.equal_exp_t((a, b) =>
+            Util.OptUtil.map2(ErrorMessage.equal_message, a, b)
+            |> Option.value(~default=true)
+          ),
+        );
+
+      Alcotest.check(
+        optional_errormessage_tree,
+        name,
+        expected_error_tree,
+        annotated,
+      );
+    },
   );
 };
 
