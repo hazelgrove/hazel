@@ -55,6 +55,13 @@ module Model = {
     };
   };
 
+  let expected_type = config_type => {
+    switch (config_type) {
+    | ColorScheme => None
+    | Shortcuts => Some(ShortcutConfiguration.expected_type)
+    };
+  };
+
   let perform_side_effect =
       (config_type: config_type, value: Language.Exp.t): unit => {
     switch (config_type) {
@@ -126,6 +133,16 @@ module Model = {
           // Fallback to first config type if name is not recognized
           List.hd(all_of_config_type)
         };
+      print_endline("Unpersisting config: " ++ s);
+      print_endline(
+        "ana type: "
+        ++ (
+          switch (expected_type(config_type)) {
+          | Some(t) => Language.Typ.show(t)
+          | None => "None"
+          }
+        ),
+      );
       (
         config_type,
         OptUtil.get(
@@ -135,7 +152,10 @@ module Model = {
             |> CellEditor.Model.from_persistent_segment,
           m,
         )
-        |> CellEditor.Model.unpersist(~settings),
+        |> CellEditor.Model.unpersist(
+             ~ana=?expected_type(config_type),
+             ~settings,
+           ),
       );
     };
     {
@@ -158,10 +178,10 @@ module Model = {
             )
             |> OptUtil.get(() => {
                  let (_, seg) = default_persisted_segment(config_type);
-
                  (
                    config_type,
                    CellEditor.Model.mk(
+                     ~ana=?expected_type(config_type),
                      Editor.Model.mk(
                        Zipper.unzip(
                          ~direction=Left,

@@ -43,6 +43,7 @@ module Update = {
             editor,
             statics: model.statics,
             dynamics: model.dynamics,
+            ana: model.ana,
           }
         | Error(err) => raise(Action.Failure.Exception(err))
       )

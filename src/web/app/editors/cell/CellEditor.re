@@ -12,13 +12,17 @@ module Model = {
     result: EvalResult.Model.t,
   };
 
-  let mk = editor => {
-    editor: {
-      editor,
-      statics: CachedStatics.empty,
-      dynamics: Language.Dynamics.Map.empty,
-    },
-    result: EvalResult.Model.init,
+  let mk =
+      (~ana: Language.Typ.t=Unknown(SynSwitch) |> Language.Typ.temp, editor) => {
+    {
+      editor: {
+        editor,
+        statics: CachedStatics.empty,
+        dynamics: Language.Dynamics.Map.empty,
+        ana,
+      },
+      result: EvalResult.Model.init,
+    };
   };
   [@deriving (show({with_path: false}), sexp, yojson)]
   type persistent = {
@@ -31,11 +35,18 @@ module Model = {
     result: model.result |> EvalResult.Model.persist,
   };
 
-  let unpersist = (~settings as _, {editor, result}: persistent): t => {
+  let unpersist =
+      (
+        ~ana: Language.Typ.t=Unknown(SynSwitch) |> Language.Typ.temp,
+        ~settings as _,
+        {editor, result}: persistent,
+      )
+      : t => {
     editor: {
       editor: editor |> PersistentZipper.unpersist |> Editor.Model.mk,
       statics: CachedStatics.empty,
       dynamics: Language.Dynamics.Map.empty,
+      ana,
     },
     result: EvalResult.Model.unpersist(result),
   };

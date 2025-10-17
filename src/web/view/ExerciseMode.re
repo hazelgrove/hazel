@@ -375,6 +375,7 @@ module Update = {
               editor,
               statics: cell.editor.statics,
               dynamics: EvalResult.Model.dynamics(cell.result),
+              ana: Unknown(SynSwitch) |> Language.Typ.temp,
             },
             result: cell.result,
           }
@@ -962,6 +963,7 @@ module View = {
         editor: editor.editor.editor,
         statics: editor.editor.statics,
         dynamics: Language.Dynamics.Map.empty,
+        ana: Unknown(SynSwitch) |> Language.Typ.temp,
       },
       result: editor.result,
     };

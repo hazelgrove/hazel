@@ -508,6 +508,7 @@ let get_doc =
           {
             editor,
             statics: CachedStatics.empty,
+            ana: Unknown(SynSwitch) |> Language.Typ.temp,
             dynamics: Dynamics.Map.empty,
           },
         );

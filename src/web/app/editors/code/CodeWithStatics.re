@@ -13,6 +13,7 @@ module Model = {
     // Updated:
     editor: Editor.t,
     statics: CachedStatics.t,
+    ana: Language.Typ.t,
     dynamics: Language.Dynamics.Map.t,
   };
 
@@ -20,11 +21,13 @@ module Model = {
       (
         ~dynamics=Language.Dynamics.Map.empty,
         ~statics=CachedStatics.empty,
+        ~ana=Unknown(SynSwitch) |> Language.Typ.temp,
         editor,
       ) => {
     editor,
     statics,
     dynamics,
+    ana,
   };
 
   let mk_from_exp =
@@ -86,7 +89,7 @@ module Update = {
         ~stitch,
         ~dynamics: Language.Dynamics.Map.t,
         ~is_dynamic_term,
-        {editor, statics, dynamics: _}: Model.t,
+        {editor, statics, ana, dynamics: _}: Model.t,
       )
       : Model.t => {
     let statics =
@@ -96,6 +99,7 @@ module Update = {
             ~stitch,
             ~ctx?,
             ~is_dynamic_term,
+            ~ana,
             editor.state.zipper,
           )
         : statics;
@@ -111,6 +115,7 @@ module Update = {
       editor,
       statics,
       dynamics,
+      ana,
     };
   };
 };

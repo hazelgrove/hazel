@@ -217,6 +217,19 @@ let segment = {
   |> PersistentSegment.persist;
 };
 
+let expected_type = {
+  Language.(
+    IdTagged.FreshGrammar.Typ.(
+      prod(
+        List.map(
+          ({action_name, _}) => tup_label(label(action_name), string()),
+          DefaultConfiguration.shortcuts,
+        ),
+      )
+    )
+  );
+};
+
 let perform_shortcut_side_effect = (value: Language.Exp.t): unit => {
   switch (value.term) {
   | Tuple(tup_labels) =>
