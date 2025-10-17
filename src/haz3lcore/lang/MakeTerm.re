@@ -817,7 +817,13 @@ and unsorted = (sort: Sort.t, skel: Skel.t, seg: Segment.t): unsorted => {
     | Grout(_) => []
     | Projector({syntax, _} as pr) =>
       let _ = log_projector(pr);
-      let sort = Piece.sort(syntax) |> fst;
+      let sort =
+        pr.kind == ProjectorCore.Kind.TypeHole
+          ? Sort.Typ : Piece.sort(syntax) |> fst;
+      /* Temporary hack. Since holes don't carry sorts, projectors on
+       * type holes were getting missorted here, causing them to show as
+       * parse errors upstream. This should be addressed post-splices,
+       * which has a more comprehensive treatement of projector sorts. */
       let seg = Piece.unparenthesize(syntax);
       [go_s(sort, Segment.skel(seg), seg)];
     | Tile({mold, shards, children, _}) =>
