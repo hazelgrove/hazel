@@ -21,7 +21,7 @@ module M: Projector = {
     | _ => None
     };
 
-  let init = (any: Language.Term.Any.t) =>
+  let init = (any: Language.Any.t) =>
     switch (any) {
     | Exp({term: Ap(_dir, {term: LivelitName(_), _}, _), _})
     | Exp({
