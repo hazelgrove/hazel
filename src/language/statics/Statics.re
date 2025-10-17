@@ -631,6 +631,10 @@ and uexp_to_info_map =
           Info.derive_label_inference_info(original_labels, new_labels),
         m,
       );
+    | TupLabel({term: ExplicitNonlabel, _} as label, e) =>
+      let (e, m) = go(~ana, e, m);
+      let (_, m) = go(~label_sort=true, label, m);
+      add(~self=Just(e.ty), ~co_ctx=e.co_ctx, m);
     | TupLabel(label, e) =>
       let (lab, e, m) =
         switch (Typ.matched_label(ctx, ana)) {
@@ -685,6 +689,7 @@ and uexp_to_info_map =
           })
         };
       add(~self, ~co_ctx=CoCtx.union([lab.co_ctx, e.co_ctx]), m);
+    | ExplicitNonlabel => atomic(ExplicitNonlabel)
     | Label(name) when label_sort =>
       let self = Self.Just(Label(name) |> Typ.temp);
       List.exists(l => name == l, duplicates)
@@ -1019,10 +1024,14 @@ and uexp_to_info_map =
       // TODO: factor out code
       let unwrapped_self: Self.exp =
         Common(Just(Arrow(p.ty, e.ty) |> Typ.temp));
-      let Coverage.{is_exhaustive, _} =
+      let Coverage.CheckMatrix.{exhaustiveness, _} =
         Coverage.check([Info.pat_constraint(p)], Typ.normalize(ctx, p.ty));
       let self =
-        is_exhaustive ? unwrapped_self : InexhaustiveMatch(unwrapped_self);
+        switch (exhaustiveness) {
+        | Exhaustive => unwrapped_self
+        | Inexhaustive(unseen_pattern) =>
+          InexhaustiveMatch(unwrapped_self, unseen_pattern)
+        };
       add'(~self, ~co_ctx=CoCtx.mk(ctx, p.ctx, e.co_ctx), m);
     | TypFun(utpat, body, _) =>
       let (name_expected_opt, item) = Typ.matched_forall(ctx, ana);
@@ -1112,13 +1121,17 @@ and uexp_to_info_map =
         go_pat(~is_synswitch=false, ~co_ctx=body.co_ctx, ~ana=ty_p_ana, p, m);
       // TODO: factor out code
       let unwrapped_self: Self.exp = Common(Just(body.ty));
-      let Coverage.{is_exhaustive, _} =
+      let Coverage.CheckMatrix.{exhaustiveness, _} =
         Coverage.check(
           [Info.pat_constraint(p_ana)],
           Typ.normalize(ctx, p_ana.ty),
         );
       let self =
-        is_exhaustive ? unwrapped_self : InexhaustiveMatch(unwrapped_self);
+        switch (exhaustiveness) {
+        | Exhaustive => unwrapped_self
+        | Inexhaustive(unseen_pattern) =>
+          InexhaustiveMatch(unwrapped_self, unseen_pattern)
+        };
       add'(
         ~self,
         ~co_ctx=
@@ -1156,6 +1169,7 @@ and uexp_to_info_map =
           ps,
           m,
         );
+
       let p_ctxs = List.map(Info.pat_ctx, ps');
       let (es, m) =
         List.fold_left2(
@@ -1165,6 +1179,7 @@ and uexp_to_info_map =
           es,
           p_ctxs,
         );
+
       let e_tys = List.map(Info.exp_ty, es);
       let e_co_ctxs =
         List.map2(CoCtx.mk(ctx), p_ctxs, List.map(Info.exp_co_ctx, es));
@@ -1178,19 +1193,26 @@ and uexp_to_info_map =
           ) => {
             let (info, m) =
               go_pat(~is_synswitch=false, ~co_ctx, ~ana=scrut.ty, p, m);
+
             let p_constraint = Info.pat_constraint(info);
             ([p_constraint, ...constraints], m);
           },
           ([], m),
           List.combine(ps, e_co_ctxs),
         );
+
       let constraints = List.rev(constraints);
 
       let normalized_scrut_ty = Typ.normalize(ctx, scrut.ty);
-      let Coverage.{is_exhaustive, redundant_rows} =
+      let Coverage.CheckMatrix.{exhaustiveness, redundant_rows} =
         Coverage.check(constraints, normalized_scrut_ty);
+
       let self =
-        is_exhaustive ? unwrapped_self : InexhaustiveMatch(unwrapped_self);
+        switch (exhaustiveness) {
+        | Exhaustive => unwrapped_self
+        | Inexhaustive(unseen_pattern) =>
+          InexhaustiveMatch(unwrapped_self, unseen_pattern)
+        };
       let add_redundancy = (ps: list(TermBase.pat_t), redundant_rows, m) => {
         List.fold_left(
           (m, row) => {
@@ -1370,6 +1392,7 @@ and upat_to_info_map =
         ~inferred_label,
         ~label_sort,
       );
+
     (info, add_info(ids, InfoPat(info), m));
   };
   let upat_to_info_map =
@@ -1424,7 +1447,8 @@ and upat_to_info_map =
         ),
       (ctx, [], [], m, []),
     );
-  let hole = self => atomic(self, Coverage.Constraint.Hole);
+
+  let hole = self => atomic(self, Coverage.Constraint.Hole(None));
 
   let elaborate_singleton_tuple = (upat: Pat.t, inner_ty, l, m) => {
     let (term, rewrap) = Pat.unwrap(upat);
@@ -1491,7 +1515,12 @@ and upat_to_info_map =
     switch (term) {
     | MultiHole(tms) =>
       let (_, m) = multi(~ctx, ~ancestors, m, tms);
-      add(~self=IsMulti, ~ctx, ~constraint_=Coverage.Constraint.Hole, m);
+      add(
+        ~self=IsMulti,
+        ~ctx,
+        ~constraint_=Coverage.Constraint.Hole(None),
+        m,
+      );
     | Invalid(token) => hole(BadToken(token))
     | EmptyHole => hole(Just(unknown))
     | Atom(c) =>
@@ -1578,6 +1607,11 @@ and upat_to_info_map =
         ~constraint_=Coverage.Constraint.Truth,
         m,
       );
+    | TupLabel({term: ExplicitNonlabel, _} as label, p) =>
+      let (p, m) = go(~ana, ~ctx, p, m);
+      let (_, m) = go(~label_sort=true, ~ctx, ~ana=syn, label, m);
+      (p, add_info(ids, InfoPat(p), m));
+    | ExplicitNonlabel => atomic(ExplicitNonlabel, Coverage.Constraint.Truth)
     | TupLabel(label, p) =>
       let (lab, p, m) =
         switch (Typ.matched_label(ctx, ana)) {
@@ -1818,7 +1852,7 @@ and upat_to_info_map =
       let constraint_ =
         switch (ctr) {
         | Some(ctr) => Coverage.Constraint.Ap(ctr, Some(arg.constraint_))
-        | None => Coverage.Constraint.Hole
+        | None => Coverage.Constraint.Hole(None)
         };
       add(~self=Just(ty_out), ~ctx=arg.ctx, ~constraint_, m);
     | Asc(p, ann) =>
@@ -1892,6 +1926,51 @@ and utyp_to_info_map =
           |> snd;
     let info = Info.derived_typ(~utyp, ~ctx, ~ancestors, ~expects);
     (info, add_info(ids, InfoTyp(info), m));
+  | ProdProjection(t, label) =>
+    let labels =
+      switch (Typ.normalize(ctx, t).term) {
+      | Prod(ts) =>
+        Some(
+          List.filter_map(
+            t => Typ.match_tup_label(t) |> Option.map(fst),
+            ts,
+          ),
+        )
+      | _ => None
+      };
+    let m = go'(~expects=LabelProjectionExpected(labels), label, m) |> snd;
+    let m = go'(~expects=ProductExpected, t, m) |> snd;
+    add'(~expects=TypeExpected, m);
+  | ProdExtension(t1, t2) =>
+    let m = go'(~expects=ProductExpected, t1, m) |> snd;
+    let m = go'(~expects=ProductExpected, t2, m) |> snd;
+    add(m);
+  | ExplicitNonlabel =>
+    let ancestors = List.tl(ancestors); // Recover original ancestors
+
+    let info: Info.typ = {
+      cls: Typ(ExplicitNonlabel),
+      ctx,
+      ancestors,
+      status: InHole(BadToken("_")),
+      expects,
+      term: utyp,
+    };
+    (info, add_info(ids, InfoTyp(info), m));
+  | TupLabel({term: ExplicitNonlabel, _} as label, t) =>
+    let (_, m) = go(t, m);
+
+    let label_info: Info.typ = {
+      cls: Typ(ExplicitNonlabel),
+      ctx,
+      ancestors,
+      status: NotInHole(EmptyLabel),
+      expects,
+      term: utyp,
+    };
+
+    let m = add_info(label.annotation.ids, InfoTyp(label_info), m);
+    add'(~expects=TypeExpected, ~utyp=t, m);
   | TupLabel(label, t) =>
     let expects_label =
       switch (expects) {

@@ -187,7 +187,7 @@ let mk_bad = (ctr, ids, value) => {
 let is_hole_label = (t: string) =>
   t == " " || Token.is_explicit_hole(t) || Token.is_llm_hole(t);
 
-let rec go_s = (s: Sort.t, skel: Skel.t, seg: Segment.t): Term.Any.t =>
+let rec go_s = (s: Sort.t, skel: Skel.t, seg: Segment.t): Any.t =>
   switch (s) {
   | Pat => Pat(pat(unsorted(Pat, skel, seg)))
   | TPat => TPat(tpat(unsorted(TPat, skel, seg)))
@@ -409,14 +409,13 @@ and exp_term: unsorted => (Exp.term, list(Id.t)) = {
         @ [r]
         |> List.map((child: Exp.t) => {
              switch (child) {
-             | {term: Tuple([{term: TupLabel(_) as tl, _}]), _} as tup =>
+             | {term: Tuple([{term: _ as tl, _}]), _} as tup =>
                // We use the Id for the tuple as the ids for the tuplabels
                let (_, rewrap) = IdTagged.unwrap(tup);
                rewrap(tl);
              | _ => child
              }
            });
-
       ret(Tuple(tuple_children));
     | None =>
       switch (tiles) {
@@ -454,6 +453,14 @@ and exp_term: unsorted => (Exp.term, list(Id.t)) = {
           | (["..."], []) => TupleExtension(l, r)
           | (["="], []) =>
             switch (l.term) {
+            | Deferral(_) =>
+              TupLabel(
+                {
+                  annotation: l.annotation,
+                  term: ExplicitNonlabel,
+                },
+                r,
+              ) // Unlabeled tuple using deferred ap in tuplabel
             | Var(name) =>
               TupLabel(
                 {
@@ -595,6 +602,16 @@ and pat_term: unsorted => (Pat.term, list(Id.t)) = {
       switch (tiles) {
       | ([(_id, (["="], []))], []) =>
         switch (l.term) {
+        | Wild =>
+          ret(
+            TupLabel(
+              {
+                annotation: l.annotation,
+                term: ExplicitNonlabel,
+              },
+              r,
+            ),
+          ) // Unlabeled tuple using deferred ap in tuplabel
         | Var(name) =>
           ret(
             TupLabel(
@@ -657,6 +674,7 @@ and typ_term: unsorted => (Typ.term, list(Id.t)) = {
         | (["Float"], []) => Atom(Float)
         | (["String"], []) => Atom(String)
         | (["Nat"], []) => Atom(Nat)
+        | (["_"], []) => ExplicitNonlabel
         | ([t], []) when Token.is_typ_var(t) => Var(t)
         | ([t], []) when Token.is_quoted_label(t) =>
           Label(Token.sub(t, 1, Token.length(t) - 2))
@@ -737,6 +755,21 @@ and typ_term: unsorted => (Typ.term, list(Id.t)) = {
           )
         | _ => ret(TupLabel(l, r))
         }
+      | ([(_id, (["."], []))], []) =>
+        switch (r.term) {
+        | Var(name) =>
+          ret(
+            ProdProjection(
+              l,
+              {
+                annotation: r.annotation,
+                term: Label(name),
+              },
+            ),
+          )
+        | _ => ret(ProdProjection(l, r))
+        }
+      | ([(_id, (["..."], []))], []) => ret(ProdExtension(l, r))
       | _ => ret(hole(tm))
       }
     }
@@ -808,7 +841,7 @@ and rul = (unsorted): Rul.t => {
 and unsorted = (sort: Sort.t, skel: Skel.t, seg: Segment.t): unsorted => {
   /* Remove projectors. We do this here as opposed to removing
    * them in an external call to save a whole-syntax pass. */
-  let tile_kids = (p: Piece.t): list(Term.Any.t) =>
+  let tile_kids = (p: Piece.t): list(Any.t) =>
     switch (p) {
     | Secondary(_)
     | Grout(_) => []

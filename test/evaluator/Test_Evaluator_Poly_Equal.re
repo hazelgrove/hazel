@@ -88,6 +88,12 @@ let tests = (
           bool(false),
           elaborate(parse_exp("type T = +A+B(Int) in B(2) == B(1)")),
         );
+        evaluation_test(
+          "Indet Variables in sum constructors",
+          ~ignore_constructor_types=true,
+          parse_exp("C(x) == C(x)"),
+          elaborate(parse_exp("type T = +C(Int) in C(x) == C(x)")),
+        );
       },
     ),
     test_case(
