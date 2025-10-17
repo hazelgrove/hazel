@@ -550,6 +550,8 @@ let equality =
     | (Unknown(Hole(MultiHole(_))), _) => false
     | (Unknown(Internal), Unknown(Internal)) => true
     | (Unknown(Internal), _) => false
+    | (Unknown(Inconsistent), Unknown(Inconsistent)) => true
+    | (Unknown(Inconsistent), _) => false
 
     // Other forms: compare.
     | (Atom(a1), Atom(a2)) => a1 == a2
