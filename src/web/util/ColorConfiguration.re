@@ -859,7 +859,10 @@ let segment = {
 
   ExpToSegment.exp_to_segment(
     ~settings=
-      ExpToSegment.Settings.editable(~inline=false, ~multiline_lists=true),
+      ExpToSegment.Settings.editable(
+        ~inline=false,
+        ~multiline_list_tuples=true,
+      ),
     exp,
   )
   |> PersistentSegment.persist;

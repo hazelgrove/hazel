@@ -7,7 +7,7 @@ let exp_to_segment_settings: ExpToSegment.Settings.t = {
   hide_fixpoints: false,
   show_filters: true,
   show_unknown_as_hole: true,
-  multiline_lists: false,
+  multiline_list_tuples: false,
 };
 
 let segmentize =

@@ -18,7 +18,7 @@ let context_entry_view = (~globals, entry: Language.Ctx.entry): Node.t => {
         hide_fixpoints: false,
         show_filters: false,
         show_unknown_as_hole: true,
-        multiline_lists: false,
+        multiline_list_tuples: false,
       },
     );
   let div_name = div(~attrs=[clss(["name"])]);

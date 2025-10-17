@@ -13,7 +13,7 @@ module Settings = {
     hide_fixpoints: bool,
     show_filters: bool,
     show_unknown_as_hole: bool,
-    multiline_lists: bool,
+    multiline_list_tuples: bool,
   };
 
   let of_core = (~inline, settings: CoreSettings.t) => {
@@ -23,10 +23,10 @@ module Settings = {
     hide_fixpoints: !settings.evaluation.show_fixpoints,
     show_filters: settings.evaluation.show_stepper_filters,
     show_unknown_as_hole: true,
-    multiline_lists: false,
+    multiline_list_tuples: false,
   };
 
-  let editable = (~multiline_lists, ~inline) => {
+  let editable = (~multiline_list_tuples, ~inline) => {
     {
       inline,
       fold_case_clauses: false,
@@ -34,7 +34,7 @@ module Settings = {
       hide_fixpoints: false,
       show_filters: true,
       show_unknown_as_hole: true,
-      multiline_lists,
+      multiline_list_tuples,
     };
   };
 };
@@ -850,7 +850,8 @@ let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
       IdTagged.ids(exp) |> List.tl |> pad_ids(List.length(xs)),
     );
     let optional_newline = () =>
-      settings.multiline_lists ? [Secondary(mk_newline(Id.mk()))] : [];
+      settings.multiline_list_tuples
+        ? [Secondary(mk_newline(Id.mk()))] : [];
     let form = (x, xs) =>
       mk_form(
         ListLitExp,
@@ -975,10 +976,20 @@ let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
     let+ x = go(x)
     and+ xs = xs |> List.map(go) |> all;
     let ids = IdTagged.ids(exp) |> pad_ids(List.length(xs));
-    x
+    let optional_newline = () =>
+      settings.multiline_list_tuples
+        ? [Secondary(mk_newline(Id.mk()))] : [];
+
+    optional_newline()
+    @ x
     @ List.flatten(
-        List.map2((id, x) => [mk_form(CommaExp, id, [])] @ x, ids, xs),
-      );
+        List.map2(
+          (id, x) => [mk_form(CommaExp, id, [])] @ optional_newline() @ x,
+          ids,
+          xs,
+        ),
+      )
+    @ optional_newline();
   | Label(l) =>
     label_to_pretty(
       ~label_only_position=false,

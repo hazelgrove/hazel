@@ -107,7 +107,8 @@ let qcheck_menhir_maketerm_equivalent_test =
       let segment =
         Haz3lcore.ExpToSegment.(
           exp_to_segment(
-            ~settings=Settings.editable(~inline=true, ~multiline_lists=false),
+            ~settings=
+              Settings.editable(~inline=true, ~multiline_list_tuples=false),
             core_exp,
           )
         );
@@ -173,7 +174,7 @@ let qcheck_menhir_serialized_equivalent_test =
             hide_fixpoints: false,
             show_filters: true,
             show_unknown_as_hole: true,
-            multiline_lists: false,
+            multiline_list_tuples: false,
           },
           core_exp,
         );

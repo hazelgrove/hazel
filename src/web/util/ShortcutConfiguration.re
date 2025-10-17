@@ -183,13 +183,13 @@ module DefaultConfiguration = {
 let shortcut_theme = (shortcuts: list(shortcut)): Language.Exp.t => {
   open Language;
   open IdTagged.FreshGrammar.Exp;
-  let lits =
+  let labeled_elements =
     List.map(
       ({action_name, hotkey}) =>
-        tuple([string(action_name), string(hotkey)]),
+        tup_label(label(action_name), string(hotkey)),
       shortcuts,
     );
-  list_lit(lits);
+  tuple(labeled_elements);
 };
 
 let segment = {
@@ -208,7 +208,10 @@ let segment = {
 
   ExpToSegment.exp_to_segment(
     ~settings=
-      ExpToSegment.Settings.editable(~inline=false, ~multiline_lists=true),
+      ExpToSegment.Settings.editable(
+        ~inline=false,
+        ~multiline_list_tuples=true,
+      ),
     exp,
   )
   |> PersistentSegment.persist;
@@ -216,17 +219,15 @@ let segment = {
 
 let perform_shortcut_side_effect = (value: Language.Exp.t): unit => {
   switch (value.term) {
-  | ListLit(lits) =>
+  | Tuple(tup_labels) =>
+    // We should consider using projection to extract these
     let shortcuts =
       List.concat_map(
-        x => {
-          switch (Unboxing.unbox(Tuple(2), x)) {
-          | Matches([x, y]) =>
-            switch (
-              Unboxing.unbox(Atom(String), x),
-              Unboxing.unbox(Atom(String), y),
-            ) {
-            | (Matches(action_name), Matches(hotkey)) => [
+        (x: Language.Exp.t) => {
+          switch (x.term) {
+          | TupLabel(label, value) =>
+            switch (label.term, Unboxing.unbox(Atom(String), value)) {
+            | (Label(action_name), Matches(hotkey)) => [
                 (action_name, hotkey),
               ]
             | _ => []
@@ -234,7 +235,7 @@ let perform_shortcut_side_effect = (value: Language.Exp.t): unit => {
           | _ => []
           }
         },
-        lits,
+        tup_labels,
       );
     List.iter(
       ((action_name, hotkey)) => {
