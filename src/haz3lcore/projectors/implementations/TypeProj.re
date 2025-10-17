@@ -66,7 +66,7 @@ module M: Projector = {
   type action =
     | ToggleDisplay;
 
-  let init = (any: Term.Any.t): option(model) => {
+  let init = (any: Any.t): option(model) => {
     switch (any) {
     | Exp(_)
     | Typ(_) // TODO This seems to behave oddly on grout
