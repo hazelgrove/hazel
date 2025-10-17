@@ -169,6 +169,8 @@ type status_variant =
 type typ_expects =
   | TypeExpected
   | LabelExpected(status_variant, list(LabeledTuple.label)) // list of duplicate labels
+  | LabelProjectionExpected(option(list(LabeledTuple.label))) // list of labels that exist on the product that is being projected
+  | ProductExpected // Expects a product type (e.g. for product extension)
   | ConstructorExpected(status_variant, Typ.t)
   | VariantExpected(status_variant, Typ.t);
 
@@ -185,9 +187,21 @@ type error_typ =
   | Duplicate(LabeledTuple.label, Typ.t)
   | WantTypeFoundAp
   | WantLabel
+  | InvalidLabel(LabeledTuple.label, list(LabeledTuple.label))
+  | WantProduct(Typ.t)
   | WantConstructorFoundType(Typ.t)
   | WantConstructorFoundAp
   | ParseFailure;
+
+// Not an error mark on this type but on one of its children so we can not give a normalized type
+[@deriving (show({with_path: false}), sexp, yojson, eq)]
+type underdetermined_typ =
+  | ProdExtensionUnderdetermined(list(Typ.t))
+  | ProdProjectionMissingLabel(LabeledTuple.label, list(LabeledTuple.label))
+  | ProdProjectionBadArgs({
+      product: option(Typ.t),
+      label: option(Typ.t),
+    });
 
 /* Type ok statuses for cursor inspector */
 [@deriving (show({with_path: false}), sexp, yojson, eq)]
@@ -195,8 +209,13 @@ type ok_typ =
   | Variant(Constructor.t, Typ.t)
   | VariantIncomplete(Typ.t)
   | TypeAlias(string, Typ.t)
+  | WHNormalizedTo({
+      unnormalized: Typ.t,
+      whnormalized: Typ.t,
+    })
   | Type(Typ.t)
-  | EmptyLabel;
+  | EmptyLabel
+  | TypeUnderdetermined(underdetermined_typ);
 
 [@deriving (show({with_path: false}), sexp, yojson, eq)]
 type status_typ =
@@ -336,7 +355,7 @@ let cls_of: t => Cls.t =
   | InfoTPat({cls, _})
   | Secondary({cls, _}) => cls;
 
-let any_of: t => option(Term.Any.t) =
+let any_of: t => option(Any.t) =
   fun
   | InfoExp({term, _}) => Some(Exp(term))
   | InfoPat({term, _}) => Some(Pat(term))
@@ -387,8 +406,11 @@ let pat_ty: pat => Typ.t = ({ty, _}) => ty;
 let pat_constraint: pat => Coverage.Constraint.t =
   ({constraint_, _}) => constraint_;
 
-let status_common = (ctx: Ctx.t, ty_ana: Typ.t, self: Self.t): status_common =>
+let rec status_common =
+        (ctx: Ctx.t, ty_ana: Typ.t, self: Self.t): status_common =>
   switch (self, ty_ana) {
+  | (_, {term: TupLabel({term: ExplicitNonlabel, _}, ana_inner), _}) =>
+    status_common(ctx, ana_inner, self)
   | (Just(ty), {term: Unknown(SynSwitch), _}) => NotInHole(Syn(ty))
   | (Just(syn), ana) =>
     switch (
@@ -434,6 +456,7 @@ let status_common = (ctx: Ctx.t, ty_ana: Typ.t, self: Self.t): status_common =>
   | (FreeConstructor(name), _) => InHole(NoType(FreeConstructor(name)))
   | (BadToken(name), _) => InHole(NoType(BadToken(name)))
   | (BadLabel(label), _) => InHole(NoType(BadLabel(label)))
+  | (ExplicitNonlabel, _) => NotInHole(Syn(Unknown(Internal) |> Typ.temp))
   | (UnexpectedLabelSort(label), _) =>
     InHole(NoType(UnexpectedLabelSort(label)))
   | (InvalidLabel(label, expected_labels), _) =>
@@ -610,57 +633,114 @@ let rec status_exp = (ctx: Ctx.t, ty_ana, self: Self.exp): status_exp =>
    separate sort. It also determines semantic properties
    such as whether or not a type variable reference is
    free, and whether a ctr name is a dupe. */
-let status_typ = (ctx: Ctx.t, expects: typ_expects, ty: Typ.t): status_typ =>
-  switch (ty.term) {
-  | Unknown(Hole(Invalid(token))) => InHole(BadToken(token))
-  | Unknown(Hole(EmptyHole)) =>
-    switch (expects) {
-    | LabelExpected(_) => NotInHole(EmptyLabel)
-    | _ => NotInHole(Type(ty))
-    }
-  | Unknown(Hole(MultiHole(_tms))) => InHole(ParseFailure)
-  | Var(name) =>
-    switch (expects) {
-    | VariantExpected(Unique, sum_ty)
-    | ConstructorExpected(Unique, sum_ty) =>
-      NotInHole(Variant(name, sum_ty))
-    | VariantExpected(Duplicate, _)
-    | ConstructorExpected(Duplicate, _) =>
-      InHole(DuplicateConstructor(name))
-    | LabelExpected(_) =>
-      switch (Ctx.lookup_alias(ctx, name)) {
-      | Some({term: Label(_), _}) =>
-        NotInHole(TypeAlias(name, Typ.weak_head_normalize(ctx, ty)))
-      | _ => InHole(WantLabel)
+let status_typ = (ctx: Ctx.t, expects: typ_expects, ty: Typ.t): status_typ => {
+  switch (expects, ty.term) {
+  | (_, Unknown(Hole(Invalid(token)))) => InHole(BadToken(token))
+  | (LabelExpected(_), Unknown(Hole(EmptyHole))) => NotInHole(EmptyLabel)
+  | (LabelProjectionExpected(_), Unknown(Hole(EmptyHole))) =>
+    NotInHole(EmptyLabel)
+  | (TypeExpected | ProductExpected, ProdProjection(pty, l)) =>
+    switch (Typ.weak_head_normalize(ctx, pty), l.term) {
+    | ({term: Prod(tys), _}, Label(l)) =>
+      switch (Typ.project_type(tys, l)) {
+      | Some(ty') =>
+        NotInHole(
+          WHNormalizedTo({
+            unnormalized: ty,
+            whnormalized: ty',
+          }),
+        )
+      | None =>
+        NotInHole(
+          TypeUnderdetermined(
+            ProdProjectionMissingLabel(
+              l,
+              List.filter_map(
+                t => Typ.match_tup_label(t) |> Option.map(fst),
+                tys,
+              ),
+            ),
+          ),
+        )
       }
-    | TypeExpected =>
-      switch (Ctx.is_alias(ctx, name)) {
-      | false =>
-        switch (Ctx.is_abstract(ctx, name)) {
-        | false => InHole(FreeTypeVariable(name))
-        | true => NotInHole(Type(Var(name) |> Typ.temp))
-        }
-      | true => NotInHole(TypeAlias(name, Typ.weak_head_normalize(ctx, ty)))
+    | (t1, _) =>
+      NotInHole(
+        TypeUnderdetermined(
+          ProdProjectionBadArgs({
+            product:
+              switch (t1.term) {
+              | Prod(_) => None
+              | _ => Some(Typ.weak_head_normalize(ctx, ty))
+              },
+            label:
+              switch (l.term) {
+              | Label(_) => None
+              | _ => Some(l)
+              },
+          }),
+        ),
+      )
+    }
+  | (TypeExpected | ProductExpected, ProdExtension(t1, t2)) =>
+    switch (
+      Typ.weak_head_normalize(ctx, t1).term,
+      Typ.weak_head_normalize(ctx, t2).term,
+    ) {
+    | (Prod(t1s), Prod(t2s)) =>
+      NotInHole(
+        WHNormalizedTo({
+          unnormalized: ty,
+          whnormalized: Typ.product_extension(t1s, t2s) |> Typ.fresh,
+        }),
+      )
+    | (Prod(_), _) =>
+      NotInHole(TypeUnderdetermined(ProdExtensionUnderdetermined([t2])))
+    | (_, Prod(_)) =>
+      NotInHole(TypeUnderdetermined(ProdExtensionUnderdetermined([t1])))
+    | _ =>
+      NotInHole(TypeUnderdetermined(ProdExtensionUnderdetermined([t1, t2])))
+    }
+  | (ProductExpected, _) =>
+    switch (Typ.weak_head_normalize(ctx, ty)) {
+    | {term: Prod(_), _} as ty => NotInHole(Type(ty))
+    | ty => InHole(WantProduct(ty))
+    }
+  | (_, Unknown(Hole(EmptyHole))) => NotInHole(Type(ty))
+  | (_, Unknown(Hole(MultiHole(_tms)))) => InHole(ParseFailure)
+  | (VariantExpected(Unique, sum_ty), Var(name))
+  | (ConstructorExpected(Unique, sum_ty), Var(name)) =>
+    NotInHole(Variant(name, sum_ty))
+  | (VariantExpected(Duplicate, _), Var(name))
+  | (ConstructorExpected(Duplicate, _), Var(name)) =>
+    InHole(DuplicateConstructor(name))
+  | (TypeExpected, Var(name)) =>
+    switch (Ctx.is_alias(ctx, name)) {
+    | false =>
+      switch (Ctx.is_abstract(ctx, name)) {
+      | false => InHole(FreeTypeVariable(name))
+      | true => NotInHole(Type(Var(name) |> Typ.temp))
       }
+    | true => NotInHole(TypeAlias(name, Typ.weak_head_normalize(ctx, ty)))
     }
-  | Label(name) =>
-    switch (expects) {
-    | TypeExpected => NotInHole(Type(ty))
-    | LabelExpected(Unique, _) => NotInHole(Type(ty))
-    | LabelExpected(Duplicate, dupes) =>
-      List.exists(l => name == l, dupes)
-        ? InHole(Duplicate(name, ty)) : InHole(WantLabel)
-    | ConstructorExpected(_)
-    | VariantExpected(_) => InHole(WantConstructorFoundType(ty))
-    }
-  | _ =>
-    switch (expects) {
-    | TypeExpected => NotInHole(Type(ty))
-    | LabelExpected(_) => InHole(WantLabel)
-    | ConstructorExpected(_)
-    | VariantExpected(_) => InHole(WantConstructorFoundType(ty))
-    }
+  | (TypeExpected, Label(_))
+  | (LabelExpected(Unique, _), Label(_)) => NotInHole(Type(ty))
+  | (LabelExpected(Duplicate, dupes), Label(name)) =>
+    List.exists(l => name == l, dupes)
+      ? InHole(Duplicate(name, ty)) : InHole(WantLabel)
+  | (LabelProjectionExpected(Some(labels)), Label(name)) =>
+    List.mem(name, labels)
+      ? NotInHole(Type(ty)) : InHole(InvalidLabel(name, labels))
+  | (LabelProjectionExpected(None), Label(_)) =>
+    NotInHole(Type(Unknown(Internal) |> Typ.temp)) // Unknown type because the product is unknown
+  | (ConstructorExpected(_), Label(_))
+  | (VariantExpected(_), Label(_)) => InHole(WantConstructorFoundType(ty))
+  | (TypeExpected, _) => NotInHole(Type(ty))
+  | (LabelExpected(_), _)
+  | (LabelProjectionExpected(_), _) => InHole(WantLabel)
+  | (ConstructorExpected(_), _)
+  | (VariantExpected(_), _) => InHole(WantConstructorFoundType(ty))
   };
+};
 
 let status_tpat = (ctx: Ctx.t, utpat: TPat.t): status_tpat =>
   switch (utpat.term) {

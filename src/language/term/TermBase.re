@@ -81,8 +81,6 @@ module rec Any: {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t = any_t;
 
-  let sort: t => Sort.t;
-
   let map_term:
     (
       ~f_exp: (Exp.t => Exp.t, Exp.t) => Exp.t=?,
@@ -94,22 +92,9 @@ module rec Any: {
       t
     ) =>
     t;
-
-  let fast_equal: (t, t) => bool;
-  let equal: (t, t) => bool;
 } = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t = any_t;
-
-  let sort = (any: t): Sort.t =>
-    switch (any) {
-    | Exp(_) => Exp
-    | Pat(_) => Pat
-    | Typ(_) => Typ
-    | TPat(_) => TPat
-    | Rul(_) => Rul
-    | Any(_) => Any
-    };
 
   let map_term =
       (
@@ -139,24 +124,6 @@ module rec Any: {
       };
     x |> f_any(rec_call);
   };
-
-  let fast_equal = (x: t, y: t) =>
-    switch (x, y) {
-    | (Exp(x), Exp(y)) => Exp.fast_equal(x, y)
-    | (Pat(x), Pat(y)) => Pat.fast_equal(x, y)
-    | (Typ(x), Typ(y)) => Typ.fast_equal(x, y)
-    | (TPat(x), TPat(y)) => TPat.fast_equal(x, y)
-    | (Rul(x), Rul(y)) => Rul.fast_equal(x, y)
-    | (Any (), Any ()) => true
-    | (Exp(_), _)
-    | (Pat(_), _)
-    | (Typ(_), _)
-    | (TPat(_), _)
-    | (Rul(_), _)
-    | (Any (), _) => false
-    };
-
-  let equal = fast_equal;
 }
 and Exp: {
   [@deriving (show({with_path: false}), sexp, yojson)]
@@ -176,9 +143,6 @@ and Exp: {
       t
     ) =>
     t;
-
-  let fast_equal: (~ignore_constructor_types: bool=?, t, t) => bool;
-  let equal: (~ignore_constructor_types: bool=?, t, t) => bool;
 } = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type term = exp_term;
@@ -225,6 +189,7 @@ and Exp: {
         | Atom(_)
         | Constructor(_)
         | Label(_)
+        | ExplicitNonlabel
         | Deferral(_)
         | Var(_)
         | LivelitName(_)
@@ -285,142 +250,6 @@ and Exp: {
     };
     x |> f_exp(rec_call);
   };
-
-  let rec fast_equal = (~ignore_constructor_types: bool=false, e1: t, e2: t) => {
-    let fast_equal = fast_equal(~ignore_constructor_types);
-    switch (e1 |> Grammar.Annotated.term_of, e2 |> Grammar.Annotated.term_of) {
-    | (DynamicErrorHole(x, _), _)
-    | (Parens(x), _) => fast_equal(x, e2)
-    | (_, DynamicErrorHole(x, _))
-    | (_, Parens(x)) => fast_equal(e1, x)
-    /* Hack to make EvalResult.calculate recalc after adding a probe.
-     * We should clarify syntactic/semantic equality here,
-     * See https://github.com/hazelgrove/hazel/issues/1563 */
-    | (Probe(x1, _), Probe(x2, _)) => fast_equal(x1, x2)
-    | (Probe(_, _), _) => false
-    | (EmptyHole, EmptyHole) => true
-    | (Undefined, Undefined) => true
-    | (Invalid(s1), Invalid(s2)) => s1 == s2
-    | (MultiHole(xs), MultiHole(ys)) when List.length(xs) == List.length(ys) =>
-      List.equal(Any.fast_equal, xs, ys)
-    | (Deferral(d1), Deferral(d2)) => d1 == d2
-    | (Atom(c1), Atom(c2)) => c1 == c2
-    | (Label(l1), Label(l2)) => l1 == l2
-    | (ListLit(xs), ListLit(ys)) =>
-      List.length(xs) == List.length(ys) && List.equal(fast_equal, xs, ys)
-    | (Constructor(c1, _), Constructor(c2, _))
-        when ignore_constructor_types == true =>
-      c1 == c2
-    | (Constructor(c1, Some(Some(ty1))), Constructor(c2, Some(Some(ty2)))) =>
-      c1 == c2 && Typ.fast_equal(ty1, ty2)
-    | (Constructor(c1, Some(None)), Constructor(c2, Some(None)))
-    | (Constructor(c1, None), Constructor(c2, None)) => c1 == c2
-    | (Fun(p1, e1, t1, _), Fun(p2, e2, t2, _)) =>
-      Pat.fast_equal(p1, p2)
-      && fast_equal(e1, e2)
-      && Option.equal(Typ.fast_equal, t1, t2)
-    | (TypFun(tp1, e1, _), TypFun(tp2, e2, _)) =>
-      TPat.fast_equal(tp1, tp2) && fast_equal(e1, e2)
-    | (Tuple(xs), Tuple(ys)) =>
-      List.length(xs) == List.length(ys) && List.equal(fast_equal, xs, ys)
-    | (Var(v1), Var(v2)) => v1 == v2
-    | (Let(p1, e1, e2), Let(p2, e3, e4)) =>
-      Pat.fast_equal(p1, p2) && fast_equal(e1, e3) && fast_equal(e2, e4)
-    | (FixF(p1, e1, c1), FixF(p2, e2, c2)) =>
-      Pat.fast_equal(p1, p2)
-      && fast_equal(e1, e2)
-      && Option.equal(ClosureEnvironment.id_equal, c1, c2)
-    | (TyAlias(tp1, t1, e1), TyAlias(tp2, t2, e2)) =>
-      TPat.fast_equal(tp1, tp2)
-      && Typ.fast_equal(t1, t2)
-      && fast_equal(e1, e2)
-    | (Use(t1, e1), Use(t2, e2)) =>
-      Typ.fast_equal(t1, t2) && fast_equal(e1, e2)
-    | (Ap(d1, e1, e2), Ap(d2, e3, e4)) =>
-      d1 == d2 && fast_equal(e1, e3) && fast_equal(e2, e4)
-    | (TypAp(e1, t1), TypAp(e2, t2)) =>
-      fast_equal(e1, e2) && Typ.fast_equal(t1, t2)
-    | (DeferredAp(e1, es1), DeferredAp(e2, es2)) =>
-      List.length(es1) == List.length(es2)
-      && fast_equal(e1, e2)
-      && List.equal(fast_equal, es1, es2)
-    | (If(e1, e2, e3), If(e4, e5, e6)) =>
-      fast_equal(e1, e4) && fast_equal(e2, e5) && fast_equal(e3, e6)
-    | (Seq(e1, e2), Seq(e3, e4)) =>
-      fast_equal(e1, e3) && fast_equal(e2, e4)
-    | (Test(e1), Test(e2)) => fast_equal(e1, e2)
-    | (HintedTest(e1, e2), HintedTest(e3, e4)) =>
-      fast_equal(e1, e3) && fast_equal(e2, e4)
-    | (Filter(f1, e1), Filter(f2, e2)) =>
-      StepperFilterKind.fast_equal(f1, f2) && fast_equal(e1, e2)
-    | (Closure(c1, e1), Closure(c2, e2)) =>
-      ClosureEnvironment.id_equal(c1, c2) && fast_equal(e1, e2)
-    | (Cons(e1, e2), Cons(e3, e4)) =>
-      fast_equal(e1, e3) && fast_equal(e2, e4)
-    | (LivelitName(s1), LivelitName(s2)) => s1 == s2
-    | (ListConcat(e1, e2), ListConcat(e3, e4)) =>
-      fast_equal(e1, e3) && fast_equal(e2, e4)
-    | (UnOp(o1, e1), UnOp(o2, e2)) => o1 == o2 && fast_equal(e1, e2)
-    | (BinOp(o1, e1, e2), BinOp(o2, e3, e4)) =>
-      o1 == o2 && fast_equal(e1, e3) && fast_equal(e2, e4)
-    | (BuiltinFun(f1), BuiltinFun(f2)) => f1 == f2
-    | (Match(e1, rls1), Match(e2, rls2)) =>
-      fast_equal(e1, e2)
-      && List.length(rls1) == List.length(rls2)
-      && List.for_all2(
-           ((p1, e1), (p2, e2)) =>
-             Pat.fast_equal(p1, p2) && fast_equal(e1, e2),
-           rls1,
-           rls2,
-         )
-    | (Asc(e1, t1), Asc(e2, t2)) =>
-      fast_equal(e1, e2) && Typ.fast_equal(t1, t2)
-    | (TupLabel(e1, e2), TupLabel(e3, e4)) =>
-      fast_equal(e1, e3) && fast_equal(e2, e4)
-    | (Dot(e1, e2), Dot(e3, e4)) =>
-      fast_equal(e1, e3) && fast_equal(e2, e4)
-    | (TupleExtension(e1, e2), TupleExtension(e3, e4)) =>
-      fast_equal(e1, e3) && fast_equal(e2, e4)
-    | (Invalid(_), _)
-    | (Deferral(_), _)
-    | (Atom(_), _)
-    | (Label(_), _)
-    | (LivelitName(_), _)
-    | (ListLit(_), _)
-    | (Constructor(_), _)
-    | (Fun(_), _)
-    | (TypFun(_), _)
-    | (Tuple(_), _)
-    | (TupLabel(_), _)
-    | (TupleExtension(_), _)
-    | (Dot(_), _)
-    | (Var(_), _)
-    | (Let(_), _)
-    | (FixF(_), _)
-    | (TyAlias(_), _)
-    | (Use(_), _)
-    | (Ap(_), _)
-    | (TypAp(_), _)
-    | (DeferredAp(_), _)
-    | (If(_), _)
-    | (Seq(_), _)
-    | (Test(_), _)
-    | (HintedTest(_, _), _)
-    | (Filter(_), _)
-    | (Closure(_), _)
-    | (Cons(_), _)
-    | (ListConcat(_), _)
-    | (UnOp(_), _)
-    | (BinOp(_), _)
-    | (BuiltinFun(_), _)
-    | (Match(_), _)
-    | (Asc(_), _)
-    | (MultiHole(_), _)
-    | (EmptyHole, _)
-    | (Undefined, _) => false
-    };
-  };
-  let equal = fast_equal;
 }
 and Pat: {
   [@deriving (show({with_path: false}), sexp, yojson)]
@@ -439,9 +268,6 @@ and Pat: {
       t
     ) =>
     t;
-
-  let fast_equal: (t, t) => bool;
-  let equal: (t, t) => bool;
 } = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type term = pat_term;
@@ -474,7 +300,8 @@ and Pat: {
         | Atom(_)
         | Constructor(_)
         | Label(_)
-        | Var(_) => term
+        | Var(_)
+        | ExplicitNonlabel => term
         | MultiHole(things) => MultiHole(List.map(any_map_term, things))
         | ListLit(ts) => ListLit(List.map(pat_map_term, ts))
         | Ap(e1, e2) => Ap(pat_map_term(e1), pat_map_term(e2))
@@ -489,55 +316,6 @@ and Pat: {
     };
     x |> f_pat(rec_call);
   };
-
-  let rec fast_equal = (p1: t, p2: t) =>
-    switch (p1 |> Grammar.Annotated.term_of, p2 |> Grammar.Annotated.term_of) {
-    /* Below is kind of a hack to make EvalResult.calculate go after adding a projector.
-     * We should clarify syntactic/semantic equality here */
-    | (Probe(x1, _), Probe(x2, _)) => fast_equal(x1, x2)
-    | (Probe(_, _), _) => false
-    | (Parens(x), _) => fast_equal(x, p2)
-    | (_, Parens(x)) => fast_equal(p1, x)
-    | (EmptyHole, EmptyHole) => true
-    | (MultiHole(xs), MultiHole(ys)) =>
-      List.length(xs) == List.length(ys)
-      && List.equal(Any.fast_equal, xs, ys)
-    | (Invalid(s1), Invalid(s2)) => s1 == s2
-    | (Wild, Wild) => true
-    | (Atom(c1), Atom(c2)) => c1 == c2
-    | (Label(s1), Label(s2)) => s1 == s2
-    | (Constructor(c1, Some(Some(t1))), Constructor(c2, Some(Some(t2)))) =>
-      c1 == c2 && Typ.fast_equal(t1, t2)
-    | (Constructor(c1, Some(None)), Constructor(c2, Some(None)))
-    | (Constructor(c1, None), Constructor(c2, None)) => c1 == c2
-    | (Var(v1), Var(v2)) => v1 == v2
-    | (ListLit(xs), ListLit(ys)) =>
-      List.length(xs) == List.length(ys) && List.equal(fast_equal, xs, ys)
-    | (Cons(x1, y1), Cons(x2, y2)) =>
-      fast_equal(x1, x2) && fast_equal(y1, y2)
-    | (TupLabel(label1, d1'), TupLabel(label2, d2')) =>
-      fast_equal(label1, label2) && fast_equal(d1', d2')
-    | (Tuple(xs), Tuple(ys)) =>
-      List.length(xs) == List.length(ys) && List.equal(fast_equal, xs, ys)
-    | (Ap(x1, y1), Ap(x2, y2)) => fast_equal(x1, x2) && fast_equal(y1, y2)
-    | (Asc(x1, t1), Asc(x2, u1)) =>
-      fast_equal(x1, x2) && Typ.fast_equal(t1, u1)
-    | (EmptyHole, _)
-    | (MultiHole(_), _)
-    | (Invalid(_), _)
-    | (Wild, _)
-    | (Atom(_), _)
-    | (Label(_), _)
-    | (ListLit(_), _)
-    | (Constructor(_), _)
-    | (Cons(_), _)
-    | (Var(_), _)
-    | (TupLabel(_), _)
-    | (Tuple(_), _)
-    | (Ap(_), _)
-    | (Asc(_), _) => false
-    };
-  let equal = fast_equal;
 }
 and Typ: {
   [@deriving (show({with_path: false}), sexp, yojson)]
@@ -558,11 +336,6 @@ and Typ: {
       t
     ) =>
     t;
-
-  let subst: (t, TPat.t, t) => t;
-
-  let fast_equal: (~alpha_equivalence: bool=?, t, t) => bool;
-  let equal: (t, t) => bool;
 } = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type term = typ_term;
@@ -597,6 +370,7 @@ and Typ: {
         | Unknown(Internal)
         | Atom(_)
         | Label(_)
+        | ExplicitNonlabel
         | Var(_) => term
         | List(t) => List(typ_map_term(t))
         | Unknown(Hole(MultiHole(things))) =>
@@ -617,103 +391,16 @@ and Typ: {
               variants,
             ),
           )
+        | ProdProjection(t1, t2) =>
+          ProdProjection(typ_map_term(t1), typ_map_term(t2))
+        | ProdExtension(t1, t2) =>
+          ProdExtension(typ_map_term(t1), typ_map_term(t2))
         | Rec(tp, t) => Rec(tpat_map_term(tp), typ_map_term(t))
         | Forall(tp, t) => Forall(tpat_map_term(tp), typ_map_term(t))
         },
     };
     x |> f_typ(rec_call);
   };
-
-  let rec subst = (s: t, x: TPat.t, ty: t): typ_t => {
-    switch (TPat.tyvar_of_utpat(x)) {
-    | Some(str) =>
-      let (term, rewrap) = Grammar.Annotated.unwrap(ty);
-      switch (term) {
-      | Atom(_) => ty
-      | Label(name) => Grammar.Label(name) |> rewrap
-      | Unknown(prov) => Unknown(prov) |> rewrap
-      | Arrow(ty1, ty2) =>
-        Arrow(subst(s, x, ty1), subst(s, x, ty2)) |> rewrap
-      | Prod(tys) => Prod(List.map(subst(s, x), tys)) |> rewrap
-      | TupLabel(label, ty) => TupLabel(label, subst(s, x, ty)) |> rewrap
-      | Sum(sm) =>
-        Sum(ConstructorMap.map(Option.map(subst(s, x)), sm)) |> rewrap
-      | Forall(tp2, ty)
-          when TPat.tyvar_of_utpat(x) == TPat.tyvar_of_utpat(tp2) =>
-        Forall(tp2, ty) |> rewrap
-      | Forall(tp2, ty) => Forall(tp2, subst(s, x, ty)) |> rewrap
-      | Rec(tp2, ty) when TPat.tyvar_of_utpat(x) == TPat.tyvar_of_utpat(tp2) =>
-        Rec(tp2, ty) |> rewrap
-      | Rec(tp2, ty) => Rec(tp2, subst(s, x, ty)) |> rewrap
-      | List(ty) => List(subst(s, x, ty)) |> rewrap
-      | Var(y) => str == y ? s : Var(y) |> rewrap
-      | Parens(ty) => Parens(subst(s, x, ty)) |> rewrap
-      };
-    | None => ty
-    };
-  };
-
-  /* Type Equality: This coincides with alpha equivalence for normalized types.
-     Other types may be equivalent but this will not detect so if they are not normalized. */
-
-  let rec eq_internal = (~alpha_equivalence: bool, n: int, t1: t, t2: t) => {
-    switch (Grammar.Annotated.term_of(t1), Grammar.Annotated.term_of(t2)) {
-    | (Parens(t1), _) => eq_internal(~alpha_equivalence, n, t1, t2)
-    | (_, Parens(t2)) => eq_internal(~alpha_equivalence, n, t1, t2)
-    | (TupLabel(label1, t1'), TupLabel(label2, t2')) =>
-      eq_internal(~alpha_equivalence, n, label1, label2)
-      && eq_internal(~alpha_equivalence, n, t1', t2')
-    | (TupLabel(_), _) => false
-    | (Rec(x1, t1), Rec(x2, t2))
-    | (Forall(x1, t1), Forall(x2, t2)) =>
-      if (alpha_equivalence) {
-        let alpha_subst =
-          subst({
-            term: Var("=" ++ string_of_int(n)),
-            annotation: {
-              ids: [Id.invalid],
-            },
-          });
-        eq_internal(
-          ~alpha_equivalence,
-          n + 1,
-          alpha_subst(x1, t1),
-          alpha_subst(x2, t2),
-        );
-      } else {
-        TPat.fast_equal(x1, x2)
-        && eq_internal(~alpha_equivalence, n + 1, t1, t2);
-      }
-    | (Rec(_), _) => false
-    | (Forall(_), _) => false
-    | (Atom(name1), Atom(name2)) => name1 == name2
-    | (Atom(_), _) => false
-    | (Label(name1), Label(name2)) =>
-      LabeledTuple.match_labels(name1, name2)
-    | (Label(_), _) => false
-    | (Unknown(_), Unknown(_)) => true
-    | (Unknown(_), _) => false
-    | (Arrow(t1, t2), Arrow(t1', t2')) =>
-      eq_internal(~alpha_equivalence, n, t1, t1')
-      && eq_internal(~alpha_equivalence, n, t2, t2')
-    | (Arrow(_), _) => false
-    | (Prod(tys1), Prod(tys2)) =>
-      List.equal(eq_internal(~alpha_equivalence, n), tys1, tys2)
-    | (Prod(_), _) => false
-    | (List(t1), List(t2)) => eq_internal(~alpha_equivalence, n, t1, t2)
-    | (List(_), _) => false
-    | (Sum(sm1), Sum(sm2)) =>
-      /* Does not normalize the types. */
-      ConstructorMap.equal(eq_internal(~alpha_equivalence, n), sm1, sm2)
-    | (Sum(_), _) => false
-    | (Var(n1), Var(n2)) => n1 == n2
-    | (Var(_), _) => false
-    };
-  };
-
-  let fast_equal = (~alpha_equivalence=true, t1, t2) =>
-    eq_internal(~alpha_equivalence, 0, t1, t2);
-  let equal: (t, t) => bool = fast_equal(~alpha_equivalence=true);
 }
 and TPat: {
   [@deriving (show({with_path: false}), sexp, yojson)]
@@ -734,9 +421,6 @@ and TPat: {
     t;
 
   let tyvar_of_utpat: t => option(string);
-
-  let fast_equal: (t, t) => bool;
-  let equal: (t, t) => bool;
 } = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type term = tpat_term;
@@ -773,24 +457,6 @@ and TPat: {
     | Var(x) => Some(x)
     | _ => None
     };
-
-  let fast_equal = (tp1: t, tp2: t) =>
-    switch (
-      tp1 |> Grammar.Annotated.term_of,
-      tp2 |> Grammar.Annotated.term_of,
-    ) {
-    | (EmptyHole, EmptyHole) => true
-    | (Invalid(s1), Invalid(s2)) => s1 == s2
-    | (MultiHole(xs), MultiHole(ys)) =>
-      List.length(xs) == List.length(ys)
-      && List.equal(Any.fast_equal, xs, ys)
-    | (Var(x), Var(y)) => x == y
-    | (EmptyHole, _)
-    | (Invalid(_), _)
-    | (MultiHole(_), _)
-    | (Var(_), _) => false
-    };
-  let equal = fast_equal;
 }
 and Rul: {
   [@deriving (show({with_path: false}), sexp, yojson)]
@@ -809,9 +475,6 @@ and Rul: {
       t
     ) =>
     t;
-
-  let fast_equal: (t, t) => bool;
-  let equal: (t, t) => bool;
 } = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type term = rul_term;
@@ -852,27 +515,6 @@ and Rul: {
     };
     x |> f_rul(rec_call);
   };
-
-  let fast_equal = (r1: t, r2: t) =>
-    switch (r1 |> Grammar.Annotated.term_of, r2 |> Grammar.Annotated.term_of) {
-    | (Invalid(s1), Invalid(s2)) => s1 == s2
-    | (MultiHole(xs), MultiHole(ys)) =>
-      List.length(xs) == List.length(ys)
-      && List.equal(Any.fast_equal, xs, ys)
-    | (Rules(e1, rls1), Rules(e2, rls2)) =>
-      Exp.fast_equal(e1, e2)
-      && List.length(rls1) == List.length(rls2)
-      && List.for_all2(
-           ((p1, e1), (p2, e2)) =>
-             Pat.fast_equal(p1, p2) && Exp.fast_equal(e1, e2),
-           rls1,
-           rls2,
-         )
-    | (Invalid(_), _)
-    | (MultiHole(_), _)
-    | (Rules(_), _) => false
-    };
-  let equal = fast_equal;
 }
 
 and Environment: {
@@ -995,8 +637,6 @@ and StepperFilterKind: {
     t;
 
   let map: (Exp.t => Exp.t, t) => t;
-
-  let fast_equal: (t, t) => bool;
 } = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t = stepper_filter_kind_t;
@@ -1034,13 +674,4 @@ and StepperFilterKind: {
         t => t
     );
   };
-
-  let fast_equal = (f1: t, f2: t) =>
-    switch (f1, f2) {
-    | (Filter({pat: e1, act: a1}), Filter({pat: e2, act: a2})) =>
-      Exp.fast_equal(e1, e2) && a1 == a2
-    | (Residue(i1, a1), Residue(i2, a2)) => i1 == i2 && a1 == a2
-    | (Filter(_), _)
-    | (Residue(_), _) => false
-    };
 };

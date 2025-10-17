@@ -122,7 +122,7 @@ let cur_ap = (info: info) =>
   switch (info.statics) {
   | Some(InfoExp({term: {term: Ap(_), _} as ap, _}))
   | Some(InfoExp({term: {term: Probe({term: Ap(_), _} as ap, _), _}, _})) =>
-    Some(Term.Exp.rep_id(ap))
+    Some(Exp.rep_id(ap))
   | _ => None
   };
 
@@ -857,7 +857,7 @@ module M: Projector = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type action = a;
 
-  let init = (any: Term.Any.t) =>
+  let init = (any: Any.t) =>
     switch (any) {
     | Exp(_)
     | Pat(_) => Some()
