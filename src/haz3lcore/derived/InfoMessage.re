@@ -1,3 +1,14 @@
+/**
+ * InfoMessage: Module for generating and formatting informational messages from static analysis.
+ *
+ * This module processes static analysis results (Info.t) and converts them into structured
+ * messages that can be displayed in the UI or printed as strings. It handles both error
+ * conditions and success/informational states.
+ *
+ * Used by:
+ * - CursorInspector: For displaying real-time feedback in the editor UI
+ * - ErrorPrint: For generating string representations of static errors
+ */
 open Util;
 open Language;
 

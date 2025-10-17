@@ -3,7 +3,7 @@ open Node;
 open Util.WebUtil;
 open Language;
 open Haz3lcore;
-open ErrorMessage;
+open InfoMessage;
 
 let errc = "error";
 let okc = "ok";
@@ -97,7 +97,7 @@ let render_ui = (~globals, fragments) =>
     fragments,
   );
 
-let make_status_view = (~globals, msg: ErrorMessage.message) => {
+let make_status_view = (~globals, msg: InfoMessage.message) => {
   let content = render_ui(~globals, msg.fragments);
   if (msg.is_error) {
     div_err(content);

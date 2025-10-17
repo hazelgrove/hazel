@@ -1,7 +1,6 @@
 open Util;
 open Language;
-open ErrorMessage;
-
+open InfoMessage;
 /* Print static errors to a string */
 
 [@deriving (show({with_path: false}), yojson, sexp)]
@@ -40,7 +39,7 @@ module Print = {
   let typ = (ty: Typ.t): string => term(Typ(ty));
 };
 
-let render_string = (fragments: list(ErrorMessage.fragment)): string =>
+let render_string = (fragments: list(InfoMessage.fragment)): string =>
   List.map(
     fun
     | Text(s) => s
@@ -53,7 +52,7 @@ let render_string = (fragments: list(ErrorMessage.fragment)): string =>
   |> String.concat("");
 
 let string_of: Info.t => string =
-  info => render_string(ErrorMessage.build_message(info).fragments);
+  info => render_string(InfoMessage.build_message(info).fragments);
 
 let term_string_of: Info.t => string =
   fun
