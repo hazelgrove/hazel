@@ -184,7 +184,7 @@ module M: Projector = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type action = unit;
 
-  let init = (any: Term.Any.t) =>
+  let init = (any: Any.t) =>
     switch (table_of(any)) {
     | Some(_) => Some()
     | None => None
