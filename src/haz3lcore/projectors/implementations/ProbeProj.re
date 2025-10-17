@@ -366,8 +366,11 @@ let value_view =
     };
   };
 
-  let (seg, length) =
-    abbreviated_seg_of(utility, ClosureLength.get(closure), closure.value);
+  /* Crude way of giving more space when there's only one closure shown.
+   * Really should figure out total length of all closures and divide accordingly */
+  let length = ClosureLength.get(closure);
+  let length = length == 12 && Closures.total(~ap_id, di) == 1 ? 150 : length;
+  let (seg, length) = abbreviated_seg_of(utility, length, closure.value);
 
   div(
     ~attrs=[
