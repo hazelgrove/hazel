@@ -702,7 +702,7 @@ let build_tpat_message = (info: Info.tpat): message => {
   let fragments =
     switch (status) {
     | NotInHole(Empty) => [Text("Fillable with a new alias")]
-    | NotInHole(Var(name)) => [Text("Alias for "), Code(name)] // simplified
+    | NotInHole(Var(_)) => [Term(TPat(info.term))]
     | InHole(NotAVar(NotCapitalized)) => [
         Text("Must begin with a capital letter"),
       ]
