@@ -76,7 +76,13 @@
   stroke: var(--G0) !important;
 }
 .code-deco .refractors svg path.child-line.repl {
-  stroke: var(--PAT) !important;
+  stroke: var(--BR3) !important;
+  /* stroke-dasharray: 0.5 2.5; */
+  opacity: 0.25;
+}
+.code-deco .refractors svg path.child-line.repl-indicated {
+  stroke: var(--G0) !important;
+  stroke-dasharray: none;
 }
 
 .code-deco .refractors svg.shard path {
@@ -118,6 +124,10 @@
 .refractors path.child-line.dashed {
   stroke-dasharray: 0.5 2.5;
   opacity: 0.4;
+}
+.refractors svg:has(.repl-indicated) + svg path.child-line.dashed {
+  stroke: var(--G0) !important;
+  opacity: 1;
 }
 
 .refractors .overlays .projector.probe.indicated.Right .num-closures {
@@ -589,9 +599,22 @@
   animation: flash-border 1s infinite;
 }
 
-.projector.probe.indicated .closure:has(.value.cursor) {
-  /* outline: 1.5px solid var(--R1); */
+.projector.probe.indicated .live-offside.Single .closure:has(.value.cursor) {
+  border-bottom: 1px solid var(--G0);
+}
+
+.projector.probe.indicated
+  .live-offside.Single:focus
+  .closure:has(.value.cursor) {
   border-bottom: 1px solid var(--R1);
+}
+.projector.probe.indicated .live-offside.Many .closure:has(.value.cursor) {
+  outline: 1.5px solid var(--G0);
+}
+.projector.probe.indicated
+  .live-offside.Many:focus
+  .closure:has(.value.cursor) {
+  outline: 1.5px solid var(--R1);
 }
 
 .projector.probe .closure:hover {
