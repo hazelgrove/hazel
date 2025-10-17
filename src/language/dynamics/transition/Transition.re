@@ -50,7 +50,7 @@ type step_kind =
   | InvalidStep
   | VarLookup
   | Seq
-  | LetBind
+  | LetBind(string)
   | WrapClosure
   | FixUnwrap
   | FixClosure
@@ -64,9 +64,11 @@ type step_kind =
   | BuiltinAp(string)
   | UnOp(Operators.op_un)
   | BinOp(Operators.op_bin)
+  | MarkIncomparable
   | Dot
   | Conditional(bool)
   | Projection
+  | TupleExtension
   | ListCons
   | ListConcat
   | CaseApply
@@ -251,11 +253,22 @@ module Transition = (EV: EV_MODE) => {
         req_final(req(state, env), d1 => Let1(dp, d1, d2) |> wrap_ctx, d1);
       let.wrap_closure _ = env;
       let {matches, closures} = matches(dp, d1');
+      let matches_str = {
+        switch (matches) {
+        | IndetMatch
+        | DoesNotMatch => ""
+        | Matches(env) =>
+          VarBstMap.Ordered.to_listo(env)
+          |> List.rev
+          |> List.map(((s, _)) => s)
+          |> String.concat(", ")
+        };
+      };
       let.match env' = (env, matches, env.call_stack);
       Step({
         expr: subst_env(env', d2),
         state_update: capture_closures(env, state, closures),
-        kind: LetBind,
+        kind: LetBind(matches_str),
         is_value: false,
       });
     | TypFun(_)
@@ -402,110 +415,122 @@ module Transition = (EV: EV_MODE) => {
         req_final(req(state, env), d1 => Ap1(dir, d1, d2) |> wrap_ctx, d1)
       and. d2' =
         req_final(req(state, env), d2 => Ap2(dir, d1, d2) |> wrap_ctx, d2);
-      let-unbox unboxed_fun = (Fun, d1');
-      switch (unboxed_fun) {
-      | Constructor(_) => Constructor
-      | FunEnv(dp, d3, function_lexical_env) =>
-        let matches = matches(dp, d2');
-        switch (matches.matches) {
-        | IndetMatch
-        | DoesNotMatch => Indet
-        | Matches(function_arg_env) =>
-          let env'' =
-            evaluate_extend_env(
-              ~ap_id=Term.Exp.rep_id(d),
-              ~call_stack=env.call_stack,
-              function_arg_env,
-              function_lexical_env,
+      switch (d1'.term) {
+      | Asc(d1'', {term: Arrow(t1, t2), _}) =>
+        Step({
+          expr:
+            Asc(Ap(Forward, d1'', Asc(d2', t1) |> fresh) |> fresh, t2)
+            |> fresh,
+          state_update,
+          kind: Ascription,
+          is_value: false,
+        })
+      | _ =>
+        let-unbox unboxed_fun = (Fun, d1');
+        switch (unboxed_fun) {
+        | Constructor(_) => Constructor
+        | FunEnv(dp, d3, function_lexical_env) =>
+          let matches = matches(dp, d2');
+          switch (matches.matches) {
+          | IndetMatch
+          | DoesNotMatch => Indet
+          | Matches(function_arg_env) =>
+            let env'' =
+              evaluate_extend_env(
+                ~ap_id=Exp.rep_id(d),
+                ~call_stack=env.call_stack,
+                function_arg_env,
+                function_lexical_env,
+              );
+            Step({
+              expr: subst_env(env'', d3),
+              state_update: capture_closures(env'', state, matches.closures),
+              kind: FunAp,
+              is_value: false,
+            });
+          };
+        | FunNoEnv(dp, d3) when mode == `Substitution =>
+          let matches = matches(dp, d2');
+          switch (matches.matches) {
+          | IndetMatch
+          | DoesNotMatch => Indet
+          | Matches(function_arg_env) =>
+            Step({
+              expr:
+                subst_env(
+                  function_arg_env |> ClosureEnvironment.of_environment,
+                  d3,
+                ),
+              state_update:
+                capture_closures(
+                  function_arg_env |> ClosureEnvironment.of_environment,
+                  state,
+                  matches.closures,
+                ),
+              kind: FunAp,
+              is_value: false,
+            })
+          };
+        | FunNoEnv(_) => Indet
+        | BuiltinFun(ident) =>
+          let builtin =
+            VarMap.lookup(Builtins.forms_init, ident)
+            |> OptUtil.get(() => {
+                 /* This exception should never be raised because there is
+                    no way for the user to create a BuiltinFun. They are all
+                    inserted into the context before evaluation. */
+                 raise(
+                   EvaluatorError.Exception(InvalidBuiltin(ident)),
+                 )
+               });
+          switch (builtin(d2')) {
+          | Some(expr) =>
+            Step({
+              expr,
+              state_update,
+              kind: BuiltinAp(ident),
+              is_value: false,
+            })
+          | None => Indet
+          };
+        | DeferredAp(d3, d4s) =>
+          let n_args =
+            List.length(
+              List.filter(
+                fun
+                | {term: Deferral(_), _} => true
+                | _ => false: Exp.t => bool,
+                d4s,
+              ),
             );
+          let-unbox args =
+            if (n_args == 1) {
+              (
+                Tuple(n_args),
+                tuple([d2]) // TODO Should we not be going to a tuple?
+              );
+            } else {
+              (Tuple(n_args), d2);
+            };
+          let new_args = {
+            let rec go = (deferred, args) =>
+              switch ((deferred: list(Exp.t))) {
+              | [] => []
+              | [{term: Deferral(_), _}, ...deferred] =>
+                /* I can use List.hd and List.tl here because let-unbox ensure that
+                   there are the correct number of args */
+                [List.hd(args), ...go(deferred, List.tl(args))]
+              | [x, ...deferred] => [x, ...go(deferred, args)]
+              };
+            go(d4s, args);
+          };
           Step({
-            expr: subst_env(env'', d3),
-            state_update: capture_closures(env'', state, matches.closures),
-            kind: FunAp,
+            expr: ap(Forward, d3, tuple(new_args)),
+            state_update,
+            kind: DeferredAp,
             is_value: false,
           });
         };
-      | FunNoEnv(dp, d3) when mode == `Substitution =>
-        let matches = matches(dp, d2');
-        switch (matches.matches) {
-        | IndetMatch
-        | DoesNotMatch => Indet
-        | Matches(function_arg_env) =>
-          Step({
-            expr:
-              subst_env(
-                function_arg_env |> ClosureEnvironment.of_environment,
-                d3,
-              ),
-            state_update:
-              capture_closures(
-                function_arg_env |> ClosureEnvironment.of_environment,
-                state,
-                matches.closures,
-              ),
-            kind: FunAp,
-            is_value: false,
-          })
-        };
-      | FunNoEnv(_) => Indet
-      | BuiltinFun(ident) =>
-        let builtin =
-          VarMap.lookup(Builtins.forms_init, ident)
-          |> OptUtil.get(() => {
-               /* This exception should never be raised because there is
-                  no way for the user to create a BuiltinFun. They are all
-                  inserted into the context before evaluation. */
-               raise(
-                 EvaluatorError.Exception(InvalidBuiltin(ident)),
-               )
-             });
-        switch (builtin(d2')) {
-        | Some(expr) =>
-          Step({
-            expr,
-            state_update,
-            kind: BuiltinAp(ident),
-            is_value: false,
-          })
-        | None => Indet
-        };
-      | DeferredAp(d3, d4s) =>
-        let n_args =
-          List.length(
-            List.filter(
-              fun
-              | {term: Deferral(_), _} => true
-              | _ => false: Exp.t => bool,
-              d4s,
-            ),
-          );
-        let-unbox args =
-          if (n_args == 1) {
-            (
-              Tuple(n_args),
-              tuple([d2]) // TODO Should we not be going to a tuple?
-            );
-          } else {
-            (Tuple(n_args), d2);
-          };
-        let new_args = {
-          let rec go = (deferred, args) =>
-            switch ((deferred: list(Exp.t))) {
-            | [] => []
-            | [{term: Deferral(_), _}, ...deferred] =>
-              /* I can use List.hd and List.tl here because let-unbox ensure that
-                 there are the correct number of args */
-              [List.hd(args), ...go(deferred, List.tl(args))]
-            | [x, ...deferred] => [x, ...go(deferred, args)]
-            };
-          go(d4s, args);
-        };
-        Step({
-          expr: ap(Forward, d3, tuple(new_args)),
-          state_update,
-          kind: DeferredAp,
-          is_value: false,
-        });
       };
     | Deferral(_) =>
       let. _ = otherwise(env, d);
@@ -513,6 +538,7 @@ module Transition = (EV: EV_MODE) => {
     | Atom(_)
     | LivelitName(_)
     | Label(_)
+    | ExplicitNonlabel
     | Constructor(_)
     | BuiltinFun(_) =>
       let. _ = otherwise(env, d);
@@ -605,20 +631,35 @@ module Transition = (EV: EV_MODE) => {
       switch (Operators.semantics_of_bin_op(op)) {
       | Undefined(_) => Indet
       | DefinedPoly(poly_op) =>
-        let expr: t =
-          if (!DHExp.ty_comparable(d1, d2)) {
+        if (!DHExp.ty_comparable(d1, d2)) {
+          let expr =
             DynamicErrorHole(BinOp(op, d1, d2) |> rewrap, Incomparable)
             |> fresh;
-          } else {
-            let res = DHExp.poly_equal(d1, d2);
-            Atom(Bool(poly_op == Equals ? res : !res)) |> fresh;
+          Step({
+            expr,
+            state_update,
+            kind: MarkIncomparable,
+            is_value: false,
+          });
+        } else {
+          switch (DHExp.poly_equal(d1, d2)) {
+          | None => Indet
+          | Some(true) =>
+            Step({
+              expr: Atom(Bool(poly_op == Equals)) |> fresh,
+              state_update,
+              kind: BinOp(op),
+              is_value: false,
+            })
+          | Some(false) =>
+            Step({
+              expr: Atom(Bool(poly_op != Equals)) |> fresh,
+              state_update,
+              kind: BinOp(op),
+              is_value: false,
+            })
           };
-        Step({
-          expr,
-          state_update,
-          kind: BinOp(op),
-          is_value: false,
-        });
+        }
       | Defined(in_ty1, in_ty2, out_ty, f) =>
         let-unbox n1 = (Atom(in_ty1), d1);
         let-unbox n2 = (Atom(in_ty2), d2);
@@ -644,30 +685,60 @@ module Transition = (EV: EV_MODE) => {
         req_final(req(state, env), d1 => Dot1(d1, d2) |> wrap_ctx, d1)
       and. d2' =
         req_final(req(state, env), d2 => Dot2(d1, d2) |> wrap_ctx, d2);
-      switch (DHExp.term_of(d1'), DHExp.term_of(d2')) {
-      | (Tuple(ds), Label(name)) =>
-        switch (LabeledTuple.find_label(Exp.match_tup_label, ds, name)) {
-        | Some({term: TupLabel(_, exp), _}) =>
-          Step({
-            expr: exp,
-            state_update,
-            kind: Dot,
-            is_value: false,
-          })
-        | _ => Indet
-        }
-      | (TupLabel(_, d), Label(name)) =>
-        LabeledTuple.has_same_labels(
-          Exp.match_tup_label(d1'),
-          Some((name, d)),
-        )
-          ? Step({
-              expr: d,
+      switch (DHExp.term_of(d2')) {
+      | Label(name) as lab =>
+        switch (Unboxing.unbox(LabeledTupleProjection(name), d1')) {
+        | Matches(d1'') =>
+          switch (DHExp.term_of(d1'')) {
+          | Tuple(ds) =>
+            let projected =
+              List.filter_map(
+                d => {
+                  switch (Exp.match_tup_label(d)) {
+                  | Some((s, e)) when name == s => Some(e)
+                  | _ => None
+                  }
+                },
+                ds,
+              );
+
+            switch (projected) {
+            | [exp] =>
+              Step({
+                expr: exp,
+                state_update,
+                kind: Dot,
+                is_value: false,
+              })
+            | _ => Indet
+            };
+          | TupLabel(_, d) =>
+            LabeledTuple.has_same_labels(
+              Exp.match_tup_label(d1'),
+              Some((name, d)),
+            )
+              ? Step({
+                  expr: d,
+                  state_update,
+                  kind: Dot,
+                  is_value: false,
+                })
+              : Indet
+          | ListLit(ds) =>
+            let mapped =
+              List.map(d => Dot(d, lab |> Exp.fresh) |> Exp.fresh, ds);
+            let ls = ListLit(mapped) |> Exp.fresh;
+            Step({
+              expr: ls,
               state_update,
               kind: Dot,
               is_value: false,
-            })
-          : Indet
+            });
+          | _ => Indet
+          }
+        | _ => Indet
+        }
+
       | _ => Indet
       };
     | TupLabel(label, d1) =>
@@ -688,6 +759,41 @@ module Transition = (EV: EV_MODE) => {
           ds,
         );
       Constructor;
+    | TupleExtension(e1, e2) =>
+      let. _ = otherwise(env, (e1, e2) => TupleExtension(e1, e2) |> rewrap)
+      and. e1' =
+        req_final(
+          req(state, env),
+          e1 => TupleExtension1(e1, e2) |> wrap_ctx,
+          e1,
+        )
+      and. e2' =
+        req_final(
+          req(state, env),
+          e2 => TupleExtension2(e1, e2) |> wrap_ctx,
+          e2,
+        );
+      let-unbox e1_entries = (LabeledTupleEntries, e1');
+      let-unbox e2_entries = (LabeledTupleEntries, e2');
+
+      let tuple: Grammar.exp_t(IdTagged.IdTag.t) =
+        tuple(
+          List.map(
+            ((lab, d)) =>
+              switch (lab) {
+              | Some(l) => tup_label(label(l), d)
+              | None => d
+              },
+            LabeledTuple.extension(e1_entries, e2_entries),
+          ),
+        );
+
+      Step({
+        expr: tuple,
+        state_update,
+        kind: TupleExtension,
+        is_value: true,
+      });
     | Cons(d1, d2) =>
       let. _ = otherwise(env, (d1, d2) => Cons(d1, d2) |> rewrap)
       and. d1' =
@@ -809,19 +915,31 @@ module Transition = (EV: EV_MODE) => {
       let. _ = otherwise(env, d);
       let.wrap_closure _ = env;
       Indet;
-    | Asc(d, t) =>
-      let. _ = otherwise(env, d => Asc(d, t) |> rewrap)
-      and. d' = req_final(req(state, env), d => Asc(d, t) |> wrap_ctx, d);
-      switch (Ascriptions.transition(Asc(d', t) |> rewrap)) {
-      | Some(d) =>
+    | Asc(d', t) =>
+      switch (Ascriptions.transition(d)) {
+      | Some(d') =>
+        let. _ = otherwise(env, d);
         Step({
-          expr: d,
+          expr: d',
           state_update,
           kind: Ascription,
           is_value: false,
-        })
-      | None => Constructor
-      };
+        });
+      | None =>
+        let. _ = otherwise(env, d => Asc(d, t) |> rewrap)
+        and. d' =
+          req_final(req(state, env), d => Asc(d, t) |> wrap_ctx, d');
+        switch (Ascriptions.transition(Asc(d', t) |> rewrap)) {
+        | Some(d) =>
+          Step({
+            expr: d,
+            state_update,
+            kind: Ascription,
+            is_value: false,
+          })
+        | None => Constructor
+        };
+      }
     | Undefined =>
       let. _ = otherwise(env, d);
       Indet;
@@ -884,7 +1002,7 @@ module Transition = (EV: EV_MODE) => {
 
 let should_hide_step_kind = (~settings: CoreSettings.Evaluation.t) =>
   fun
-  | LetBind
+  | LetBind(_)
   | Seq
   | UpdateTest
   | TypFunAp
@@ -896,6 +1014,7 @@ let should_hide_step_kind = (~settings: CoreSettings.Evaluation.t) =>
   | UnOp(_)
   | ListCons
   | ListConcat
+  | TupleExtension
   | CaseApply
   | Projection // TODO(Matt): We don't want to show projection to the user
   | Conditional(_)
@@ -912,11 +1031,12 @@ let should_hide_step_kind = (~settings: CoreSettings.Evaluation.t) =>
   | BuiltinWrap
   | WrapClosure
   | FixClosure
+  | MarkIncomparable
   | RemoveParens => true;
 
 let stepper_justification: step_kind => string =
   fun
-  | LetBind => "substitution"
+  | LetBind(s) => String.cat("substitution for ", s)
   | Seq => "sequence"
   | FixUnwrap => "unroll fixpoint"
   | UpdateTest => "update test"
@@ -962,4 +1082,6 @@ let stepper_justification: step_kind => string =
   | RemoveUse => "set use type"
   | RemoveParens => "remove parentheses"
   | Dot => "Labeled tuple access"
+  | TupleExtension => "Tuple extension"
+  | MarkIncomparable => "mark equality as incomparable"
   | UnOp(Meta(Unquote)) => failwith("INVALID STEP");

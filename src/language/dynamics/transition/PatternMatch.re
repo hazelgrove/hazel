@@ -1,4 +1,4 @@
-[@deriving show({with_path: false})]
+[@deriving (show({with_path: false}), sexp, yojson)]
 type match_result = Unboxing.unboxed(Environment.t);
 let ( let* ) = Unboxing.( let* );
 
@@ -20,6 +20,12 @@ let rec matches = (capture, dp: Pat.t, d: DHExp.t): match_result => {
   | EmptyHole
   | MultiHole(_)
   | Wild => Matches(Environment.empty)
+  | ExplicitNonlabel =>
+    raise(
+      Failure(
+        "PatternMatch ExplicitNonlabel should not show up since these are removed during elaboration",
+      ),
+    )
   | Atom(c) =>
     let V(value, kind) = Atom.unpack(c);
     let* d' = Unboxing.unbox(Atom(kind), d);
@@ -74,15 +80,14 @@ let matches = (dp: Pat.t, d: DHExp.t): matches_and_closures => {
   /* Closure capture for Probe instrumentation */
   let closure_closures: ref(closure_closures) = ref([]);
   let capture =
-      (pr: Probe.t, dp: Term.Pat.t, d: DHExp.t, inner_match: match_result)
-      : unit =>
+      (pr: Probe.t, dp: Pat.t, d: DHExp.t, inner_match: match_result): unit =>
     switch (inner_match) {
     | DoesNotMatch => ()
     | IndetMatch => ()
     | Matches(env) =>
       closure_closures :=
         List.cons(
-          Dynamics.Probe.Closure.mk(Term.Pat.rep_id(dp), d, env, _, pr),
+          Dynamics.Probe.Closure.mk(Pat.rep_id(dp), d, env, _, pr),
           closure_closures^,
         )
     };

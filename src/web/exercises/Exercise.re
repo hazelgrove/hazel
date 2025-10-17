@@ -680,6 +680,7 @@ let rec append_exp = (e1: Language.Exp.t, e2: Language.Exp.t): Language.Exp.t =>
   | Deferral(_)
   | Atom(_)
   | ListLit(_)
+  | TupleExtension(_)
   | Constructor(_)
   | Closure(_)
   | Fun(_)
@@ -688,6 +689,7 @@ let rec append_exp = (e1: Language.Exp.t, e2: Language.Exp.t): Language.Exp.t =>
   | Tuple(_)
   | TupLabel(_)
   | Label(_)
+  | ExplicitNonlabel
   | Dot(_)
   | Var(_)
   | Ap(_)
