@@ -48,7 +48,7 @@ module Map = {
 
   let bound_in = (m: t, id: Id.t): Binding.s =>
     switch (lookup(id, m)) {
-    | Some(InfoPat({term, _})) => Term.Pat.bindings(term)
+    | Some(InfoPat({term, _})) => Pat.bindings(term)
     | _ => []
     };
 
@@ -66,7 +66,7 @@ module Map = {
         let* ci = lookup(ancestor_id, statics);
         switch (ci) {
         | InfoExp({term: {term: Let(pat, def, _), _}, _}) =>
-          let binds = Term.Pat.bindings(pat);
+          let binds = Pat.bindings(pat);
           List.exists((b: Binding.t) => b.id == binding_id, binds)
             ? Some(IdTagged.rep_id(def)) : climb(rest);
         | InfoExp(_) => None
