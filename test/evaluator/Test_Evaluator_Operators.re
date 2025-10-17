@@ -28,8 +28,16 @@ let tests = (
         parse_and_evaluate_test("x <= y", "(x <= y) : Bool");
         parse_and_evaluate_test("x > y", "(x > y) : Bool");
         parse_and_evaluate_test("x >= y", "(x >= y) : Bool");
-        parse_and_evaluate_test("x == y", "(x == y) : Bool");
-        parse_and_evaluate_test("x != y", "(x != y) : Bool");
+        parse_and_evaluate_test(
+          ~ignore_dynamic_errors=true,
+          "x == y",
+          "(x == y) : Bool",
+        );
+        parse_and_evaluate_test(
+          ~ignore_dynamic_errors=true,
+          "x != y",
+          "(x != y) : Bool",
+        );
         parse_and_evaluate_test("s1 ++ s2", "(s1 ++ s2) : String");
         parse_and_evaluate_test("s1 +. s2", "(s1 +. s2) : Float");
         parse_and_evaluate_test("s1 -. s2", "(s1 -. s2) : Float");

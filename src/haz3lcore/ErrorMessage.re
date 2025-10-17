@@ -5,7 +5,7 @@ type fragment =
   | Text(string)
   | Code(string)
   | Type(Typ.t)
-  | Term(Term.Any.t)
+  | Term(Any.t)
   | Label(string);
 
 type message = {
@@ -190,6 +190,12 @@ let build_common_ok =
       switch (cls, ok) {
       | (Pat(EmptyHole), _) when label_sort => []
       | (Exp(EmptyHole), _) when label_sort => []
+      | (Pat(ExplicitNonlabel), _) when label_sort => [
+          Text("Explicitly unlabeled entry"),
+        ]
+      | (Exp(ExplicitNonlabel), _) when label_sort => [
+          Text("Explicitly unlabeled entry"),
+        ]
       | (Exp(MultiHole) | Pat(MultiHole), _) => [
           Text("Expecting operator or delimiter"),
         ]
@@ -213,7 +219,7 @@ let build_common_ok =
           Type(ana),
         ]
       | (_, Ana(Consistent({ana, syn, _})))
-          when Typ.fast_equal(~alpha_equivalence=false, ana, syn) =>
+          when Equality.semantic.typ(ana, syn) =>
         switch (syn.term) {
         | Label(l) => [Label(l), Text(" is a valid label")]
         | _ =>
@@ -315,6 +321,45 @@ let build_common_ok =
     );
   fragments;
 };
+let build_underdetermined_typ =
+    (underdetermined: Info.underdetermined_typ): list(fragment) => {
+  switch (underdetermined) {
+  | ProdExtensionUnderdetermined(tys) => [
+      Text("Cannot determine type of product extension with argument types:"),
+      ...ListUtil.join(Text(","), List.map(x => Type(x), tys)),
+    ]
+  | ProdProjectionMissingLabel(label, labels) => [
+      Text("Cannot project label "),
+      Label(label),
+      Text(". Valid labels are: "),
+      ...List.map(x => Label(x), labels),
+    ]
+  | ProdProjectionBadArgs({product, label}) =>
+    let product_error =
+      switch (product) {
+      | Some(ty) => [Text("type"), Type(ty), Text("is not a tuple type")]
+      | None => []
+      };
+    let label_error =
+      switch (label) {
+      | Some(ty) => [
+          Text("label"),
+          Type(ty),
+          Text("is not a valid label: "),
+        ]
+      | None => []
+      };
+
+    [Text("Cannot determine projected type because ")]
+    @ (
+      ListUtil.join(
+        [Text(" and ")],
+        [product_error, label_error] |> List.filter(x => x != []),
+      )
+      |> List.concat
+    );
+  };
+};
 
 let build_typ_ok = (cls: Cls.t, ok: Info.ok_typ): list(fragment) => {
   let fragments =
@@ -344,6 +389,12 @@ let build_typ_ok = (cls: Cls.t, ok: Info.ok_typ): list(fragment) => {
         Text("An incomplete sum type constuctor of type"),
         Type(sum_ty),
       ]
+    | WHNormalizedTo({unnormalized, whnormalized}) => [
+        Type(unnormalized),
+        Text("is equal to"),
+        Type(whnormalized),
+      ]
+    | TypeUnderdetermined(ty) => build_underdetermined_typ(ty)
     };
   fragments;
 };
@@ -370,6 +421,25 @@ let build_typ_err = (ok: Info.error_typ): list(fragment) => {
         Text("already used in this sum"),
       ]
     | ParseFailure => [Text("Parse failure")]
+    | InvalidLabel(name, expected_labels) =>
+      switch (expected_labels) {
+      | [] => [
+          Text("Invalid label: "),
+          Label(name),
+          Text(". No labels were expected."),
+        ]
+      | _ => [
+          Text("Invalid label: "),
+          Label(name),
+          Text(" is not part of the expected labels: "),
+          ...List.map(x => Label(x), expected_labels),
+        ]
+      }
+
+    | WantProduct(ty) => [
+        Text("Expected a tuple type, found type"),
+        Type(ty),
+      ]
     };
   fragments;
 };
@@ -405,10 +475,15 @@ let build_exp_message = (info: Info.exp): message => {
   let fragments =
     switch (status) {
     | InHole(FreeVariable(name)) => [Code(name), Text("not found")]
-    | InHole(InexhaustiveMatch(additional_err)) =>
+    | InHole(InexhaustiveMatch(additional_err, example)) =>
       let cls_str = Cls.show(cls);
       switch (additional_err) {
-      | None => [Text(cls_str ++ " is inexhaustive")]
+      | None => [
+          Text(
+            cls_str ++ " is inexhaustive. An example of a missing pattern is ",
+          ),
+          Term(example),
+        ]
       | Some(err) =>
         let cls_str = String.uncapitalize_ascii(cls_str);
         build_common_err(

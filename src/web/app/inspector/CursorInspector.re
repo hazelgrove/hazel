@@ -76,7 +76,7 @@ let code_view_settings: Haz3lcore.ExpToSegment.Settings.t = {
   show_unknown_as_hole: true,
 };
 
-let view_any = (~globals, any: Term.Any.t) =>
+let view_any = (~globals, any: Any.t) =>
   any
   |> CodeViewable.view_any(~globals, ~settings=code_view_settings)
   |> code_box_container;
