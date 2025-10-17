@@ -51,7 +51,7 @@ module Model = {
   let default_persisted_segment = config_type => {
     switch (config_type) {
     | ColorScheme => ("Colors", ColorConfiguration.segment)
-    | Shortcuts => Shortcuts.out
+    | Shortcuts => ("Shortcuts", ShortcutConfiguration.segment)
     };
   };
 
@@ -84,38 +84,7 @@ module Model = {
         );
       | _ => ()
       }
-    | Shortcuts =>
-      switch (value.term) {
-      | ListLit(lits) =>
-        let shortcuts =
-          List.concat_map(
-            x => {
-              switch (Unboxing.unbox(Tuple(2), x)) {
-              | Matches([x, y]) =>
-                switch (
-                  Unboxing.unbox(Atom(String), x),
-                  Unboxing.unbox(Atom(String), y),
-                ) {
-                | (Matches(name), Matches(shortcut)) => [(name, shortcut)]
-                | _ => []
-                }
-              | _ => []
-              }
-            },
-            lits,
-          );
-        List.iter(
-          ((var, hotkey)) => {
-            // abanduk: I would rather not be doing this via side-effect. Talk to mckeenan about threading an action to do this on Page
-            NinjaKeys.update_shortcut_hotkey(
-              var,
-              hotkey,
-            )
-          },
-          shortcuts,
-        );
-      | _ => ()
-      }
+    | Shortcuts => ShortcutConfiguration.perform_shortcut_side_effect(value)
     };
   };
 
