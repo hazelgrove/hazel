@@ -43,7 +43,8 @@ type t =
       typ: Typ.t,
     }) /* Tuple/TupLabel contains malformed labels, duplicate labels, and/or invalid labels */
   | IsMulti /* Multihole, treated as hole */
-  | FreeConstructor(Constructor.t); /* Constructor not bound in context or ana type */
+  | FreeConstructor(Constructor.t) /* Constructor not bound in context or ana type */
+  | ExplicitNonlabel; /* _ used as label in labeled tuple */
 
 [@deriving (show({with_path: false}), sexp, yojson, eq)]
 type error_partial_ap =
@@ -123,6 +124,7 @@ let typ_of: t => option(Typ.t) =
   | Duplicate(_)
   | BadLabel(_)
   | InvalidLabel(_)
+  | ExplicitNonlabel
   | NoJoin(_)
   | UnexpectedLabelSort(_) => None;
 

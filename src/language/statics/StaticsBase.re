@@ -48,7 +48,7 @@ module Map = {
 
   let bound_in = (m: t, id: Id.t): Binding.s =>
     switch (lookup(id, m)) {
-    | Some(InfoPat({term, _})) => Term.Pat.bindings(term)
+    | Some(InfoPat({term, _})) => Pat.bindings(term)
     | _ => []
     };
 };

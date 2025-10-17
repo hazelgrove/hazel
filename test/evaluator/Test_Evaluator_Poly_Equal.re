@@ -88,6 +88,12 @@ let tests = (
           bool(false),
           elaborate(parse_exp("type T = +A+B(Int) in B(2) == B(1)")),
         );
+        evaluation_test(
+          "Indet Variables in sum constructors",
+          ~ignore_constructor_types=true,
+          parse_exp("C(x) == C(x)"),
+          elaborate(parse_exp("type T = +C(Int) in C(x) == C(x)")),
+        );
       },
     ),
     test_case(
@@ -95,11 +101,13 @@ let tests = (
       `Quick,
       () => {
         evaluation_test(
+          ~ignore_dynamic_errors=true,
           "Hidden inconsistency caught in dynamics",
           dynamic_error_hole(elaborate(parse_exp("1 == 1.")), Incomparable),
           elaborate(parse_exp("let x: ? = 1 in let y: ? = 1. in x == y")),
         );
         evaluation_test(
+          ~ignore_dynamic_errors=true,
           "Hidden containing arrow caught in dynamics",
           dynamic_error_hole(
             elaborate(parse_exp("(fun x -> x) == (fun x -> x)")),
@@ -108,6 +116,7 @@ let tests = (
           elaborate(parse_exp("let f = fun x -> x in f == f")),
         );
         evaluation_test(
+          ~ignore_dynamic_errors=true,
           "Labeled tuple with different labels",
           dynamic_error_hole(
             elaborate(parse_exp("(a=1, b=2) == (a=1, c=2)")),
@@ -116,6 +125,7 @@ let tests = (
           elaborate(parse_exp("(a=1, b=2) == (a=1, c=2)")),
         );
         evaluation_test(
+          ~ignore_dynamic_errors=true,
           "Labeled tuple with rearragned labels",
           dynamic_error_hole(
             elaborate(parse_exp("(a=1, b=2) == (b=2, a=1)")),
@@ -124,6 +134,7 @@ let tests = (
           elaborate(parse_exp("(a=1, b=2) == (b=2, a=1)")),
         );
         evaluation_test(
+          ~ignore_dynamic_errors=true,
           "Typfun is not comparable",
           ~ignore_constructor_types=true,
           dynamic_error_hole(
@@ -133,6 +144,7 @@ let tests = (
           elaborate(parse_exp("let f = typfun X -> 1 in f == f")),
         );
         evaluation_test(
+          ~ignore_dynamic_errors=true,
           "Hidden containing arrow in tuple caught in dynamics",
           ~ignore_constructor_types=true,
           dynamic_error_hole(

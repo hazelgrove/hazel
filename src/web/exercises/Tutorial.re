@@ -304,6 +304,7 @@ let rec append_exp = (e1: Language.Exp.t, e2: Language.Exp.t): Language.Exp.t =>
   | TupLabel(_)
   | TupleExtension(_)
   | Label(_)
+  | ExplicitNonlabel
   | Dot(_)
   | Var(_)
   | Ap(_)

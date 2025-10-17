@@ -43,6 +43,8 @@ let rec transition = (~recursive=false, d: DHExp.t): option(DHExp.t) => {
           Exp.(fn(Pat.(asc(p, t1)), asc(e, t2), t, v))
         ),
       )
+    | (TupLabel({term: ExplicitNonlabel, _}, e), _) =>
+      Some(recur(Asc(e, t) |> DHExp.fresh))
     | (TupLabel(l, e), TupLabel(_l2, t)) =>
       // TODO Figure out what to do if the labels don't match
       Some(TupLabel(l, recur(Asc(e, t) |> DHExp.fresh)) |> DHExp.fresh)
@@ -53,7 +55,7 @@ let rec transition = (~recursive=false, d: DHExp.t): option(DHExp.t) => {
         )
         |> DHExp.fresh,
       )
-    | (e, Unknown(_)) => Some(e |> DHExp.fresh)
+    | (_, Unknown(_)) => Some(e)
     | (Atom(value) as d, Atom(typ)) =>
       switch (value, typ) {
       | (Int(_), Int)
@@ -205,6 +207,7 @@ let rec transition = (~recursive=false, d: DHExp.t): option(DHExp.t) => {
     | (Invalid(_), _)
     | (MultiHole(_), _)
     | (Label(_), _)
+    | (ExplicitNonlabel, _)
     | (Var(_), _)
     | (Ap(_), _)
     | (DeferredAp(_), _)
