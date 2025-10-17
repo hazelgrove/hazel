@@ -87,15 +87,14 @@ let matches = (~update_probe, dp: Pat.t, d: DHExp.t): matches_and_closures => {
   /* Closure capture for Probe instrumentation */
   let closure_closures: ref(closure_closures) = ref([]);
   let capture =
-      (pr: Probe.t, dp: Term.Pat.t, d: DHExp.t, inner_match: match_result)
-      : unit =>
+      (pr: Probe.t, dp: Pat.t, d: DHExp.t, inner_match: match_result): unit =>
     switch (inner_match) {
     | DoesNotMatch => ()
     | IndetMatch => ()
     | Matches(env) =>
       closure_closures :=
         List.cons(
-          Dynamics.Probe.Closure.mk(Term.Pat.rep_id(dp), d, env, _, pr),
+          Dynamics.Probe.Closure.mk(Pat.rep_id(dp), d, env, _, pr),
           closure_closures^,
         )
     };
