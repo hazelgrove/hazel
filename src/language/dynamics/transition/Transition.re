@@ -437,7 +437,7 @@ module Transition = (EV: EV_MODE) => {
           | Matches(function_arg_env) =>
             let env'' =
               evaluate_extend_env(
-                ~ap_id=Term.Exp.rep_id(d),
+                ~ap_id=Exp.rep_id(d),
                 ~call_stack=env.call_stack,
                 function_arg_env,
                 function_lexical_env,
@@ -642,14 +642,23 @@ module Transition = (EV: EV_MODE) => {
             is_value: false,
           });
         } else {
-          let res = DHExp.poly_equal(d1, d2);
-          let expr = Atom(Bool(poly_op == Equals ? res : !res)) |> fresh;
-          Step({
-            expr,
-            state_update,
-            kind: BinOp(op),
-            is_value: false,
-          });
+          switch (DHExp.poly_equal(d1, d2)) {
+          | None => Indet
+          | Some(true) =>
+            Step({
+              expr: Atom(Bool(poly_op == Equals)) |> fresh,
+              state_update,
+              kind: BinOp(op),
+              is_value: false,
+            })
+          | Some(false) =>
+            Step({
+              expr: Atom(Bool(poly_op != Equals)) |> fresh,
+              state_update,
+              kind: BinOp(op),
+              is_value: false,
+            })
+          };
         }
       | Defined(in_ty1, in_ty2, out_ty, f) =>
         let-unbox n1 = (Atom(in_ty1), d1);
