@@ -179,7 +179,6 @@ let fast_equal_tests = (
           "Forall alpha equivalent",
           true,
           Typ.fast_equal(
-            ~alpha_equivalence=true,
             Forall(Var("a") |> TPat.temp, Var("a") |> Typ.temp) |> Typ.temp,
             Forall(Var("b") |> TPat.temp, Var("b") |> Typ.temp) |> Typ.temp,
           ),
@@ -188,8 +187,7 @@ let fast_equal_tests = (
           bool,
           "Forall non alpha equivalent",
           false,
-          Typ.fast_equal(
-            ~alpha_equivalence=false,
+          Equality.syntactic.typ(
             Forall(Var("a") |> TPat.temp, Var("a") |> Typ.temp) |> Typ.temp,
             Forall(Var("b") |> TPat.temp, Var("b") |> Typ.temp) |> Typ.temp,
           ),
