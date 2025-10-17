@@ -3,7 +3,16 @@ open Alcotest;
 open Language;
 module Fresh = IdTagged.FreshGrammar;
 let alco_check =
-  (testable(Fmt.using(Exp.show, Fmt.string)))(DHExp.fast_equal)
+  (testable(Fmt.using(Exp.show, Fmt.string)))(
+    // This is syntactic with ignore_wrappers=true
+    Equality.(
+      equality({
+        ...syntactic_settings,
+        ignore_parens: true,
+      })
+    ).
+      exp,
+  )
   |> Alcotest.check;
 
 let strip_wrap =
@@ -40,7 +49,7 @@ let make_term_parse = (s: string) =>
       term,
   );
 
-let menhir_matches = (exp: Term.Exp.t, actual: string) =>
+let menhir_matches = (exp: Exp.t, actual: string) =>
   alco_check(
     "menhir matches expected parse",
     exp,
@@ -50,14 +59,14 @@ let menhir_matches = (exp: Term.Exp.t, actual: string) =>
     ),
   );
 
-let menhir_only_test = (name: string, exp: Term.Exp.t, actual: string) =>
+let menhir_only_test = (name: string, exp: Exp.t, actual: string) =>
   test_case(name, `Quick, () => {menhir_matches(exp, actual)});
 
 let skip_menhir_maketerm_equivalent_test =
     (~speed_level=`Quick, name: string, _actual: string) =>
   test_case(name, speed_level, () => {Alcotest.skip()});
 
-let full_parser_test = (name: string, exp: Term.Exp.t, actual: string) =>
+let full_parser_test = (name: string, exp: Exp.t, actual: string) =>
   test_case(
     name,
     `Quick,
@@ -110,7 +119,13 @@ let qcheck_menhir_maketerm_equivalent_test =
         Conversion.Exp.of_menhir_ast(menhir_parsed);
 
       switch (
-        DHExp.fast_equal(
+        Equality.(
+          equality({
+            ...syntactic_settings,
+            ignore_parens: true,
+          })
+        ).
+          exp(
           make_term_parsed,
           Grammar.map_exp_annotation(
             _ => IdTagged.IdTag.fresh(),
