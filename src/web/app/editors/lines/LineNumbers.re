@@ -13,7 +13,7 @@ module View = {
   let view = (model: Model.t, show_relative_numbers: bool, selected: bool) => {
     let {editor: {syntax: {measured, _}, state: {zipper, _}, _}, _}: Model.t = model;
     let num_rows = List.length(measured.piece_rows);
-    let skip_row = (row: int) =>
+    let skip_row_generic = (row: int, map) =>
       Id.Map.fold(
         (_id, measurement: Measured.measurement, acc) => {
           acc
@@ -21,9 +21,13 @@ module View = {
           && measurement.last.row > row
           && measurement.last.row > measurement.origin.row
         },
-        measured.secondary,
+        map,
         false,
       );
+    let skip_row = (row: int) => {
+      skip_row_generic(row, measured.secondary)
+      || skip_row_generic(row, measured.projectors);
+    };
     let row_counter = ref(0);
     let Point.{row, _} = Zipper.Caret.point(measured, zipper);
     [
