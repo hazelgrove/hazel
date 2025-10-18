@@ -12,14 +12,19 @@ module Model = CodeWithStatics.Model;
 module View = {
   let view = (model: Model.t, show_relative_numbers: bool, selected: bool) => {
     let {editor: {syntax: {measured, _}, state: {zipper, _}, _}, _}: Model.t = model;
-    let num_rows =
-      IntMap.fold(
-        /* The folding function: takes the key, value, and accumulator. */
-        (_, _, count) => count + 1,
-        measured.rows,
-        /* The initial value of the accumulator (count). */
-        0,
+    let num_rows = List.length(measured.piece_rows);
+    let skip_row = (row: int) =>
+      Id.Map.fold(
+        (_id, measurement: Measured.measurement, acc) => {
+          acc
+          || measurement.origin.row < row
+          && measurement.last.row > row
+          && measurement.last.row > measurement.origin.row
+        },
+        measured.secondary,
+        false,
       );
+    let row_counter = ref(0);
     let Point.{row, _} = Zipper.Caret.point(measured, zipper);
     [
       Node.div(
@@ -40,13 +45,19 @@ module View = {
                     ? [Attr.classes(["line-numbers-bold"])] : [],
                 [
                   Text(
-                    show_relative_numbers && selected
-                      ? string_of_int(
-                          abs(i - row) == 0 ? i + 1 : abs(i - row),
-                        )
-                        ++ (i + 1 == num_rows ? "" : "\n")
-                      : string_of_int(i + 1)
-                        ++ (i + 1 == num_rows ? "" : "\n"),
+                    skip_row(i)
+                      ? "\n"
+                      : {
+                        row_counter := row_counter^ + 1;
+                        show_relative_numbers && selected
+                          ? string_of_int(
+                              abs(i - row) == 0
+                                ? row_counter^ : abs(i - row),
+                            )
+                            ++ (row_counter^ == num_rows ? "" : "\n")
+                          : string_of_int(row_counter^)
+                            ++ (row_counter^ == num_rows ? "" : "\n");
+                      },
                   ),
                 ],
               )
