@@ -9,6 +9,11 @@ open WebUtil;
 
 module Model = CodeWithStatics.Model;
 
+/*
+ There are two types of row numbers
+ 1. Row numbers directly from rows, multiline projectors count as multiple rows
+ 2. Processed row numbers, which skip the extra rows of multiline projectors
+ */
 module View = {
   let view = (model: Model.t, show_relative_numbers: bool, selected: bool) => {
     let {editor: {syntax: {measured, _}, state: {zipper, _}, _}, _}: Model.t = model;
@@ -28,16 +33,34 @@ module View = {
       skip_row_generic(row, measured.secondary)
       || skip_row_generic(row, measured.projectors);
     };
-    let row_counter = ref(0);
     let Point.{row, _} = Zipper.Caret.point(measured, zipper);
-    let cursor_row =
-      List.fold_left(
-        (acc, curr_row: int) => {
-          !skip_row(curr_row) && curr_row <= row ? acc + 1 : acc
-        },
-        0,
-        List.init(num_rows, i => i),
-      );
+    /*
+     Returns the processed line numbers, with 0 being a line to skip
+     and 1 being the initial line
+     i is the index of the row we are on
+     acc is the accumulator variable for line numbers
+     */
+    // Takes in the current row index and accumulator
+    // Outputs the processed line number list and the cursor row
+    let rec processed_line_numbers = (i: int, acc: int): (list(int), int) =>
+      if (i == num_rows) {
+        ([], 0);
+      } else {
+        let skip_this_row = skip_row(i);
+        let (returned_processed_list, returned_cursor_row) =
+          skip_this_row
+            ? processed_line_numbers(i + 1, acc)
+            : processed_line_numbers(i + 1, acc + 1);
+        let current_line_number = skip_this_row ? 0 : acc;
+        let cursor_row =
+          if (returned_cursor_row == 0 && i == row) {
+            acc;
+          } else {
+            returned_cursor_row;
+          };
+        ([current_line_number] @ returned_processed_list, cursor_row);
+      };
+    let (processed_list, cursor_row) = processed_line_numbers(0, 1);
     [
       Node.div(
         ~attrs=[
@@ -57,20 +80,22 @@ module View = {
                     ? [Attr.classes(["line-numbers-bold"])] : [],
                 [
                   Text(
-                    skip_row(i)
-                      ? "\n"
-                      : {
-                        row_counter := row_counter^ + 1;
-                        show_relative_numbers && selected
-                          ? string_of_int(
-                              abs(i - row) == 0
-                                ? row_counter^
-                                : abs(row_counter^ - cursor_row),
-                            )
-                            ++ (row_counter^ == num_rows ? "" : "\n")
-                          : string_of_int(row_counter^)
-                            ++ (row_counter^ == num_rows ? "" : "\n");
-                      },
+                    {
+                      let processed_line = List.nth(processed_list, i);
+                      processed_line == 0
+                        ? "\n"
+                        : {
+                          show_relative_numbers && selected
+                            ? string_of_int(
+                                abs(processed_line - cursor_row) == 0
+                                  ? processed_line
+                                  : abs(processed_line - cursor_row),
+                              )
+                              ++ (i == num_rows ? "" : "\n")
+                            : string_of_int(processed_line)
+                              ++ (i == num_rows ? "" : "\n");
+                        };
+                    },
                   ),
                 ],
               )
