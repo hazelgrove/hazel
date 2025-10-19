@@ -30,6 +30,12 @@ module View = {
     };
     let row_counter = ref(0);
     let Point.{row, _} = Zipper.Caret.point(measured, zipper);
+    let cursor_row =
+      List.fold_left(
+        (curr_row, acc: int) => {skip_row(curr_row) ? acc : acc + 1},
+        0,
+        List.init(row, i => i),
+      );
     [
       Node.div(
         ~attrs=[
@@ -56,7 +62,8 @@ module View = {
                         show_relative_numbers && selected
                           ? string_of_int(
                               abs(i - row) == 0
-                                ? row_counter^ : abs(i - row),
+                                ? row_counter^
+                                : abs(row_counter^ - cursor_row + 1),
                             )
                             ++ (row_counter^ == num_rows ? "" : "\n")
                           : string_of_int(row_counter^)
