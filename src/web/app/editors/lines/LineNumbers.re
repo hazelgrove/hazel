@@ -32,9 +32,11 @@ module View = {
     let Point.{row, _} = Zipper.Caret.point(measured, zipper);
     let cursor_row =
       List.fold_left(
-        (curr_row, acc: int) => {skip_row(curr_row) ? acc : acc + 1},
+        (acc, curr_row: int) => {
+          !skip_row(curr_row) && curr_row <= row ? acc + 1 : acc
+        },
         0,
-        List.init(row, i => i),
+        List.init(num_rows, i => i),
       );
     [
       Node.div(
@@ -63,7 +65,7 @@ module View = {
                           ? string_of_int(
                               abs(i - row) == 0
                                 ? row_counter^
-                                : abs(row_counter^ - cursor_row + 1),
+                                : abs(row_counter^ - cursor_row),
                             )
                             ++ (row_counter^ == num_rows ? "" : "\n")
                           : string_of_int(row_counter^)
