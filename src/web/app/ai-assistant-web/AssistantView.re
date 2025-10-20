@@ -627,35 +627,55 @@ let message_input =
         ],
         (),
       ),
-      switch (
-        ListUtil.last_opt(
-          [] /*curr_messages*/ /* todo: change. temporarily repressed.*/,
-        )
-      ) {
-      // todo: change, maybe to allowing for stop button to cancel request
-      | Some(
-          {
-            displayable_content: [Text("...")],
-            raw_content: "...",
-            collapsed: false,
-          }: Model.display,
-        ) =>
+      if ({
+            let mode = settings.mode;
+            let (_, curr_chat) = UpdateBase.get_mode_info(mode, model);
+            curr_chat.awaiting_response;
+          }) {
         div(
           ~attrs=[
-            clss(["send-button-disabled", "icon"]),
-            Attr.title("Submitting Message Disabled"),
+            clss(["quit-button", "icon"]),
+            Attr.on_click(_ => {
+              Virtual_dom.Vdom.Effect.Many([
+                inject(Update.EmployLLMAction(Update.Quit)),
+                Virtual_dom.Vdom.Effect.Stop_propagation,
+              ])
+            }),
+            Attr.title("Quit Request"),
           ],
-          [Icons.send],
-        )
-      | _ =>
-        div(
-          ~attrs=[
-            clss(["send-button", "icon"]),
-            Attr.on_click(send_message),
-            Attr.title("Submit Message"),
-          ],
-          [Icons.send],
-        )
+          [Icons.cancel],
+        );
+      } else {
+        switch (
+          ListUtil.last_opt(
+            [] /*curr_messages*/ /* todo: change. temporarily repressed.*/,
+          )
+        ) {
+        // todo: change, maybe to allowing for stop button to cancel request
+        | Some(
+            {
+              displayable_content: [Text("...")],
+              raw_content: "...",
+              collapsed: false,
+            }: Model.display,
+          ) =>
+          div(
+            ~attrs=[
+              clss(["send-button-disabled", "icon"]),
+              Attr.title("Submitting Message Disabled"),
+            ],
+            [Icons.send],
+          )
+        | _ =>
+          div(
+            ~attrs=[
+              clss(["send-button", "icon"]),
+              Attr.on_click(send_message),
+              Attr.title("Submit Message"),
+            ],
+            [Icons.send],
+          )
+        };
       },
     ],
   );
@@ -1638,5 +1658,15 @@ let view =
         ),
       ],
     );
+
+  // Apply blue cursor theme and disable editing when agent is looping
+  JsUtil.delay(
+    0.0,
+    () => {
+      JsUtil.set_agent_looping_theme(model.agent_looping);
+      JsUtil.set_editor_readonly(model.agent_looping);
+    },
+  );
+
   view;
 };

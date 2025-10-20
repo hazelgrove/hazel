@@ -46,21 +46,21 @@ let action_of = (~tool_name: string, ~args: Maps.StringMap.t(string)): action =>
   | "go_to_child" =>
     let name =
       OptUtil.get_or_fail(
-        "You must specify a name for the child you wish to navigate to",
+        "A name must be provided for the child node to navigate to",
         name,
       );
     Nav(GoToChild(name, index));
   | "go_to_sibling" =>
     let name =
       OptUtil.get_or_fail(
-        "You must specify a name for the sibling you wish to navigate to",
+        "A name must be provided for the sibling node to navigate to",
         name,
       );
     Nav(GoToSibling(NameAndIdx(name, index)));
   | "go_to_binding_site" =>
     let name =
       OptUtil.get_or_fail(
-        "You must specify a name for the variable you wish to navigate to",
+        "A name must be provided for the variable to navigate to",
         name,
       );
     Nav(GoToBindingSite(name, index));
@@ -212,6 +212,14 @@ module Perform = {
 
   let get_inner_term_id =
       (curr_node_info: AssistantTreeHelper.node, inner_term: inner_term): Id.t => {
+    /*
+     Returns the specified "inner_term" from the "curr_node_info"
+
+     E.g. If current node is "x" in a program "let x : Int = 2 + 3 in 100 + 200",
+     calling get_inner_term_id(curr_node_info, Pat) will return the id of the pattern "x : Int",
+     calling get_inner_term_id(curr_node_info, Def) will return the id of the definition "2 + 3",
+     calling get_inner_term_id(curr_node_info, Body) will return the id of the body "100 + 200".
+     */
     switch (curr_node_info.info) {
     | InfoExp({term, _}) =>
       switch (Exp.term_of(term)) {
@@ -228,7 +236,11 @@ module Perform = {
         | Body => Exp.rep_id(body)
         }
       | _ =>
-        raise(Failure("Current node is not a let or type alias expression"))
+        raise(
+          Failure(
+            "UNIMPLEMENTED_NODE_TYPE: Only let and type alias expressions are currently supported as nodes",
+          ),
+        )
       }
     | _ =>
       raise(
@@ -241,14 +253,21 @@ module Perform = {
 
   let static_error_check =
       (
-        ~old_z: option(Zipper.t),
+        ~old_z: option(Zipper.t), // optional arg -- if not provided, assume no errors
         ~new_z: Zipper.t,
         ~mk_statics: Zipper.t => StaticsBase.Map.t,
         ~of_pat: bool,
         ~of_def: bool,
         ~of_body: bool,
       ) => {
-    // We check to see if there have been errors introduced at the current node
+    /*
+     A localized static error check to ensure that newly inserted segments do not introduce any errors.
+
+     This is a localized check, as obligations occuring elsewhere in the program are inevitable for
+     many types of edits.
+
+     of_pat, of_def, and of_body are used to specify which parts of the program to check for errors.
+     */
     let old_errors =
       switch (old_z) {
       | None => []
@@ -292,6 +311,123 @@ module Perform = {
     };
   };
 
+  let statics_map_new_ids =
+      (old_statics: StaticsBase.Map.t, new_statics: StaticsBase.Map.t) => {
+    // Returns only the IDs of the new statics map that are not in the old statics map
+    // This is useful to identify which new static information was added
+    Id.Map.fold(
+      (id, _info, acc) =>
+        // Check if the ID exists in the old statics map
+        switch (StaticsBase.Map.lookup(id, old_statics)) {
+        | Some(_) => acc // ID exists in old map, don't include it
+        | None => [id, ...acc] // ID doesn't exist in old map, include it
+        },
+      new_statics,
+      [],
+    );
+  };
+
+  let introduce =
+      (
+        z: Zipper.t,
+        code: string,
+        return:
+          (Action.Failure.t, option(Zipper.t)) =>
+          result(Zipper.t, Action.Failure.t),
+      ) => {
+    // A wrapper function for trying to paste code into the zipper
+    // Note that we paste a segment; so, we convert the string to a segment
+    // first, and then insert the segment into the zipper. This helps to
+    // avoid potential current buggy parsing issues.
+    Parser.to_segment(code)
+    |> OptUtil.and_then((segment: Segment.t) =>
+         Some(Zipper.insert_segment(z, segment))
+       )
+    |> return(CantPaste);
+  };
+
+  let destruct =
+      (
+        ~defs_exclude_bodies: bool,
+        z: Zipper.t,
+        target_id: Id.t,
+        syntax: CachedSyntax.t,
+      ) => {
+    switch (
+      Select.term(
+        ~defs_exclude_bodies,
+        ~case_rules=false,
+        syntax.term_data,
+        target_id,
+        z,
+      )
+    ) {
+    | Some(z') =>
+      switch (Destruct.go(Left, z')) {
+      | None => Error(Action.Failure.Cant_destruct)
+      | Some(z'') => Ok(z'')
+      }
+    | None => Error(Action.Failure.Cant_select)
+    };
+  };
+
+  let overwrite_term =
+      (
+        z: Zipper.t,
+        target_id: Id.t,
+        code: string,
+        defs_exclude_bodies: bool,
+        syntax: CachedSyntax.t,
+        return:
+          (Action.Failure.t, option(Zipper.t)) =>
+          result(Zipper.t, Action.Failure.t),
+      ) => {
+    // Select the respective term (in this case the definition term)
+    switch (
+      Select.term(
+        ~defs_exclude_bodies,
+        ~case_rules=false,
+        syntax.term_data, // todo: not sure about this arg
+        target_id,
+        z,
+      )
+    ) {
+    | Some(z') =>
+      // Paste the code over the selected tile
+      introduce(z', code, return)
+    | None => Error(Action.Failure.Cant_select)
+    };
+  };
+  let insert_term =
+      (
+        z: Zipper.t,
+        target_id: Id.t,
+        code: string,
+        d: Direction.t,
+        syntax: CachedSyntax.t,
+        return:
+          (Action.Failure.t, option(Zipper.t)) =>
+          result(Zipper.t, Action.Failure.t),
+      ) => {
+    switch (
+      // ' let a = 0 in'
+      Select.term(
+        ~defs_exclude_bodies=true,
+        ~case_rules=false,
+        syntax.term_data, // todo: not sure about this arg, is it right?
+        target_id,
+        z,
+      )
+    ) {
+    | Some(z') =>
+      switch (Move.by_token(d, z')) {
+      | Some(z'') => introduce(z'', code, return)
+      | None => Error(Action.Failure.Cant_move)
+      }
+    | None => Error(Action.Failure.Cant_select)
+    };
+  };
+
   // Tempory wrapper that helps me localize myself while implementing (remove)
   let composition_dispatch =
       (
@@ -304,22 +440,11 @@ module Perform = {
           result(Zipper.t, Action.Failure.t),
         curr_node_info: option(AssistantTreeHelper.node),
       ) => {
-    let introduce = (z, code) => {
-      // A wrapper function for trying to paste code into the zipper
-      // Note that we paste a segment; so, we convert the string to a segment
-      // first, and then insert the segment into the zipper. This helps to
-      // avoid potential current buggy parsing issues.
-      Parser.to_segment(code)
-      |> OptUtil.and_then((segment: Segment.t) =>
-           Some(Zipper.insert_segment(z, segment))
-         )
-      |> return(CantPaste);
-    };
     switch (curr_node_info) {
     | None =>
       switch (a) {
       | Edit(Initialize(u)) =>
-        switch (introduce(Select.all(z), code_of(u))) {
+        switch (introduce(Select.all(z), code_of(u), return)) {
         | Ok(new_z) =>
           let new_statics = mk_statics(new_z);
           // For initialization, check the entire program for errors
@@ -490,64 +615,12 @@ module Perform = {
         //   | None => Error(Action.Failure.Cant_derive_local_AST_information)
         //   };
         // };
-
-        let overwrite_term = (z, target_id, code, defs_exclude_bodies) => {
-          // Select the respective term (in this case the definition term)
-          switch (
-            Select.term(
-              ~defs_exclude_bodies,
-              ~case_rules=false,
-              syntax.term_data, // todo: not sure about this arg
-              target_id,
-              z,
-            )
-          ) {
-          | Some(z') =>
-            // Paste the code over the selected tile
-            introduce(z', code)
-          | None => Error(Action.Failure.Cant_select)
-          };
-        };
-        let insert_term = (z, target_id, code, d) => {
-          switch (
-            Select.term(
-              ~defs_exclude_bodies=true,
-              ~case_rules=false,
-              syntax.term_data, // todo: not sure about this arg, is it right?
-              target_id,
-              z,
-            )
-          ) {
-          | Some(z') =>
-            switch (Move.by_token(d, z')) {
-            | Some(z'') => introduce(z'', code)
-            | None => Error(Action.Failure.Cant_move)
-            }
-          | None => Error(Action.Failure.Cant_select)
-          };
-        };
-        let destruct_term = (~defs_exclude_bodies, z, target_id) => {
-          switch (
-            Select.term(
-              ~defs_exclude_bodies,
-              ~case_rules=false,
-              syntax.term_data,
-              target_id,
-              z,
-            )
-          ) {
-          | Some(z') =>
-            switch (Destruct.go(Left, z')) {
-            | None => Error(Action.Failure.Cant_destruct)
-            | Some(z'') => Ok(z'')
-            }
-          | None => Error(Action.Failure.Cant_select)
-          };
-        };
         switch (e) {
         | UpdateDefinition(u) =>
           let target_id = get_inner_term_id(node, Def);
-          switch (overwrite_term(z, target_id, code_of(u), false)) {
+          switch (
+            overwrite_term(z, target_id, code_of(u), false, syntax, return)
+          ) {
           | Error(e) => Error(e)
           | Ok(new_z) =>
             static_error_check(
@@ -562,7 +635,9 @@ module Perform = {
           };
         | UpdateBody(u) =>
           let target_id = get_inner_term_id(node, Body);
-          switch (overwrite_term(z, target_id, code_of(u), false)) {
+          switch (
+            overwrite_term(z, target_id, code_of(u), false, syntax, return)
+          ) {
           | Error(e) => Error(e)
           | Ok(new_z) =>
             static_error_check(
@@ -580,7 +655,9 @@ module Perform = {
           let target_id = get_inner_term_id(node, Pat);
           let old_pat =
             StaticsBase.Map.lookup(target_id, mk_statics(z)) |> Option.get;
-          switch (overwrite_term(z, target_id, code_of(u), false)) {
+          switch (
+            overwrite_term(z, target_id, code_of(u), false, syntax, return)
+          ) {
           | Error(e) => Error(e)
           | Ok(new_z) =>
             switch (
@@ -602,7 +679,7 @@ module Perform = {
               let target_id = get_inner_term_id(new_node, Pat);
               let new_pat =
                 StaticsBase.Map.lookup(target_id, new_info_map) |> Option.get;
-              Ok(
+              let updated_z =
                 AssistantTreeHelper.update_use_sites_of_pat(
                   ~z=safe_z,
                   ~co_ctx=
@@ -611,13 +688,17 @@ module Perform = {
                     AssistantTreeHelper.get_var_names_from_pat(old_pat),
                   ~new_names=
                     AssistantTreeHelper.get_var_names_from_pat(new_pat),
-                ),
-              );
+                );
+              // Jump back to the original node
+              Move.jump_to_id_indicated(updated_z, target_id)
+              |> return(Action.Failure.Cant_move);
             }
           };
         | UpdateBindingClause(u) =>
           let target_id = Info.id_of(node.info);
-          switch (overwrite_term(z, target_id, code_of(u), true)) {
+          switch (
+            overwrite_term(z, target_id, code_of(u), true, syntax, return)
+          ) {
           | Error(e) => Error(e)
           | Ok(new_z) =>
             static_error_check(
@@ -637,18 +718,27 @@ module Perform = {
               Info.id_of(node.info),
               code_of(u) ++ " ",
               Direction.Left,
+              syntax,
+              return,
             )
           ) {
           | Error(e) => Error(e)
           | Ok(new_z) =>
-            static_error_check(
-              ~old_z=None,
-              ~new_z,
-              ~mk_statics,
-              ~of_pat=true,
-              ~of_def=true,
-              ~of_body=false // optionally, we could make this true
-            )
+            // This single character move is to place the cursor off the following
+            // term in the case it is one it, critically, this helps to assert that
+            // the trailing node in the new insertion is selected
+            switch (Move.by_char_left(new_z)) {
+            | Some(new_z) =>
+              static_error_check(
+                ~old_z=None,
+                ~new_z,
+                ~mk_statics,
+                ~of_pat=true,
+                ~of_def=true,
+                ~of_body=false // optionally, we could make this true
+              )
+            | None => Error(Action.Failure.Cant_move)
+            }
           }
         | InsertAfter(u) =>
           // todo: figure out a better method than magic space
@@ -658,32 +748,65 @@ module Perform = {
               Info.id_of(node.info),
               " " ++ code_of(u),
               Direction.Right,
+              syntax,
+              return,
             )
           ) {
           | Error(e) => Error(e)
           | Ok(new_z) =>
-            static_error_check(
-              ~old_z=None,
-              ~new_z,
-              ~mk_statics,
-              ~of_pat=true,
-              ~of_def=true,
-              ~of_body=false // optionally, we could make this true
-            )
+            // Same logic as insert_before, (see above)
+            switch (Move.by_char_left(new_z)) {
+            | Some(new_z) =>
+              static_error_check(
+                ~old_z=None,
+                ~new_z,
+                ~mk_statics,
+                ~of_pat=true,
+                ~of_def=true,
+                ~of_body=false // optionally, we could make this true
+              )
+            | None => Error(Action.Failure.Cant_move)
+            }
           }
         | DeleteBindingClause =>
-          destruct_term(~defs_exclude_bodies=true, z, Info.id_of(node.info))
+          destruct(
+            ~defs_exclude_bodies=true,
+            z,
+            Info.id_of(node.info),
+            syntax,
+          )
         | DeleteBody =>
           let target_id = get_inner_term_id(node, Body);
-          destruct_term(~defs_exclude_bodies=false, z, target_id);
+          destruct(~defs_exclude_bodies=false, z, target_id, syntax);
         | Initialize(_) =>
           Error(
             Action.Failure.Composition_action_failure(
               "Once a program has let/type alias expressions, you can never use initialize on it ever again.",
             ),
           )
-        };
+        }
       }
+    };
+  };
+
+  let reselect_current_node =
+      (res: result(Zipper.t, Action.Failure.t), mk_statics) => {
+    // Reselects the current node
+    // This is expected to be used after an action is performed on the editor
+    // Useful for testing and nice for UI/UX looks
+    // Technically we select the current node twice now, before and after...
+    // through the midst of it all, I've learned it is better to be safe than to be sorry.
+    switch (res) {
+    | Ok(z) =>
+      switch (AssistantTreeHelper.build_curr_node_info(z, mk_statics(z))) {
+      | Some(curr_node) =>
+        switch (Select.tile(Info.id_of(curr_node.info), z)) {
+        | Some(z) => Ok(z)
+        | None => res
+        }
+      | None => res
+      }
+    | Error(e) => Error(e)
     };
   };
 
@@ -693,6 +816,9 @@ module Perform = {
 
     let res =
       composition_dispatch(a, syntax, z, mk_statics, return, curr_node);
+
+    // // Select the current node.
+    let res = reselect_current_node(res, mk_statics);
 
     //todo: handle res and use schedule_assistant_action to send the result to the assistant and loop
     switch (schedule_tool_response) {

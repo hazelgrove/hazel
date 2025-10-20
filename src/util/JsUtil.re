@@ -297,3 +297,31 @@ let autosize_textarea = (id: string) => {
   el##.style##.height := Js.string("auto");
   el##.style##.height := Js.string(string_of_int(el##.scrollHeight) ++ "px");
 };
+
+/* Agent looping theme functions */
+let set_agent_looping_theme = (enabled: bool) => {
+  let root = Dom_html.document##.documentElement;
+  if (enabled) {
+    root##.classList##add(Js.string("agent-looping"));
+  } else {
+    root##.classList##remove(Js.string("agent-looping"));
+  };
+};
+
+let set_editor_readonly = (readonly: bool) => {
+  // Find all code editor elements and make them read-only
+  let editors =
+    Dom_html.document##querySelectorAll(Js.string(".code-editor"));
+  for (i in 0 to editors##.length - 1) {
+    let editor =
+      Js.Opt.get(editors##item(i), () => failwith("Editor not found"));
+    let editor_element = Js.Unsafe.coerce(editor);
+    if (readonly) {
+      editor_element##.style##.pointerEvents := Js.string("none");
+      editor_element##.style##.opacity := Js.string("0.7");
+    } else {
+      editor_element##.style##.pointerEvents := Js.string("auto");
+      editor_element##.style##.opacity := Js.string("1");
+    };
+  };
+};

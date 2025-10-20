@@ -34,6 +34,7 @@ let print =
       };
     | None => print("DEBUG: No indicated index")
     };
+  | "F7" => ()
   | "F8" =>
     let curr_node =
       AssistantTreeHelper.build_curr_node_info(

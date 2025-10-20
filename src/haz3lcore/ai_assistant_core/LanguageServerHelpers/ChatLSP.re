@@ -3,8 +3,7 @@ open Language;
 
 let get_sketch_and_error_ctx =
     (zipper: Zipper.t, info_map: Statics.Map.t): list(string) => {
-  let sketch_seg =
-    Zipper.smart_seg(~dump_backpack=true, ~erase_buffer=true, zipper);
+  let sketch_seg = Dump.to_segment(zipper);
   let errors = ErrorPrint.all(info_map);
   let static_error_arr =
     switch (errors) {
@@ -55,8 +54,6 @@ module SystemPrompt = {
     CompletionPrompt_cot.self(completion_token);
 
   let hazel_syntax_notes = HazelSyntaxNotes.self;
-
-  let composition_prompt = CompositionPrompt.self;
 
   let mk_suggestion_prompt =
       (

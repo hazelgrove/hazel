@@ -1,5 +1,7 @@
 open Util;
 
+/* Update Action Types are defined here to avoid circular dependencies */
+
 [@deriving (show({with_path: false}), sexp, yojson)]
 type completion =
   | Request(Id.t, bool) // When user presses ?? or ?a
@@ -16,7 +18,6 @@ type composition =
   | Request(string) // User-submitted task, question, etc
   // TODO: maybe remove in the future, this is a hack for selecting the current code the
   //       agent is at, a useful UI feature
-  | Intermediate
   | Loop(int, OpenRouter.tool_contents, status); // Iterative tool completion loop
 
 // Actions to send various kinds of messages to the LLM
@@ -40,7 +41,8 @@ type employ_llm_action =
   | RemoveAndSuggest(string, Id.t)
   | Describe(string, AssistantSettings.mode, Id.t)
   | Summarize(string, AssistantSettings.mode, Id.t)
-  | SetLoop(bool);
+  | SetAgentLooping(bool)
+  | Quit;
 
 // Future Todo: (Check whether) These might be able to be relocated to AssistantSettings
 //              Although, arguably, the chat is inherently part of the assistant model,

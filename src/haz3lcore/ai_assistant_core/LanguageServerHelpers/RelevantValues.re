@@ -98,7 +98,7 @@ let get = (ctx: Ctx.t, ana: Typ.t): string =>
   "# Consider using these variables relevant to the expected type: #\n"
   ++ (
     entries(ctx, ana)
-    |> ListUtil.take_up_to_n(8)
+    |> ListUtil.take(8)
     |> List.map(format_def)
     |> String.concat("\n")
   );

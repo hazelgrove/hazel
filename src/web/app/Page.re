@@ -18,7 +18,6 @@ module Model = {
     editors: Editors.Model.t,
     explain_this: ExplainThisModel.t,
     assistant: AssistantModel.t,
-    assistant_eval: AssistantEval.Model.t,
     selection,
   };
 
@@ -40,7 +39,6 @@ module Store = {
       globals,
       explain_this,
       assistant,
-      assistant_eval: AssistantEval.Model.init(),
       selection: Editors.Selection.default_selection(editors),
     };
   };
@@ -70,7 +68,6 @@ module Update = {
     | Editors(Editors.Update.t)
     | ExplainThis(ExplainThisUpdate.update)
     | Assistant(AssistantWeb.Update.t)
-    | AssistantEval(AssistantEval.Update.t)
     | MakeActive(selection)
     | Benchmark(benchmark_action)
     | Start
@@ -84,7 +81,7 @@ module Update = {
         model: Model.t,
         editor: CodeEditable.Model.t,
       ) =>
-    AssistantUpdateSuggestion.check_req(
+    AssistantModes.Completion.check_req(
       ~schedule_action=a => schedule_action(Assistant(a)),
       ~schedule_setting=a => schedule_action(Globals(Set(Assistant(a)))),
       ~chat_id=model.assistant.current_chats.curr_suggestion_chat,
@@ -95,6 +92,7 @@ module Update = {
     switch (model.editors) {
     | Scratch(m) => (List.nth(m.scratchpads, m.current) |> snd).editor
     | Documentation(m) => (List.nth(m.scratchpads, m.current) |> snd).editor
+    | Tutorial(m) => List.nth(m.exercises, m.current).cells.user_impl.editor
     | Exercises(m) => List.nth(m.exercises, m.current).cells.user_impl.editor
     };
 
@@ -158,7 +156,12 @@ module Update = {
       model |> return_quiet;
     | FinishImportAll(None) => model |> return_quiet
     | FinishImportAll(Some(data)) =>
-      Export.import_all(~import_log, data, ~specs=ExerciseSettings.exercises);
+      Export.import_all(
+        ~import_log,
+        data,
+        ~exercise_specs=ExerciseSettings.exercises,
+        ~tutorial_specs=TutorialSettings.lessons,
+      );
       Store.load() |> return;
     | ExportForInit =>
       let (filename, content) =
@@ -170,13 +173,24 @@ module Update = {
             (current |> fst |> StringUtil.sanitize_filename) ++ ".ml";
 
           let content =
-            [%derive.show: (string, Haz3lcore.PersistentZipper.t)]((
-              current |> fst,
-              current
-              |> snd
-              |> ((e: CellEditor.Model.t) => e.editor)
-              |> CodeWithStatics.Model.persist,
-            ));
+            Haz3lcore.(
+              [%derive.show: (string, PersistentSegment.t)]((
+                current |> fst,
+                current
+                |> snd
+                |> ((e: CellEditor.Model.t) => e.editor)
+                |> (
+                  (e: CodeWithStatics.Model.t) =>
+                    Zipper.zip(e.editor.state.zipper)
+                )
+                |> PersistentSegment.persist,
+              ))
+            );
+          (filename, content);
+        | Tutorial(model) =>
+          let current = List.nth(model.exercises, model.current);
+          let filename = current.editors.module_name ++ ".ml";
+          let content = "not supported";
           (filename, content);
         | Exercises(model) =>
           let current = List.nth(model.exercises, model.current);
@@ -188,7 +202,7 @@ module Update = {
         ~filename,
         ~content_type="text/plain",
         ~contents=
-          "let out : string * Haz3lcore.PersistentZipper.t = " ++ content,
+          "let out : string * Haz3lcore.PersistentSegment.t = " ++ content,
       );
       model |> return_quiet;
     | ActiveEditor(action) =>
@@ -276,20 +290,6 @@ module Update = {
         ...model,
         assistant,
       };
-    | AssistantEval(action) =>
-      let* assistant_eval =
-        AssistantEval.Update.update(
-          ~action,
-          ~model=model.assistant_eval,
-          ~assistant_model=model.assistant,
-          ~schedule_editor_action=a => schedule_action(Editors(a)),
-          ~schedule_action=a => schedule_action(AssistantEval(a)),
-          ~schedule_assistant_action=a => schedule_action(Assistant(a)),
-        );
-      {
-        ...model,
-        assistant_eval,
-      };
     | MakeActive(selection) =>
       {
         ...model,
@@ -318,7 +318,6 @@ module Update = {
     | Editors(action) => Editors.Update.can_undo(action)
     | ExplainThis(action) => ExplainThisUpdate.can_undo(action)
     | Assistant(action) => AssistantUpdate.can_undo(action)
-    | AssistantEval(action) => AssistantEval.Update.can_undo(action)
     | MakeActive(_)
     | Benchmark(_) => false
     | Start => false
@@ -326,10 +325,17 @@ module Update = {
     };
   };
 
-  let calculate = (~schedule_action, ~is_edited, model: Model.t) => {
+  let calculate =
+      (~schedule_action, ~is_edited, ~dynamics: bool, model: Model.t) => {
     let editors =
       Editors.Update.calculate(
-        ~settings=model.globals.settings.core,
+        ~settings=
+          dynamics
+            ? model.globals.settings.core
+            : {
+              ...model.globals.settings.core,
+              dynamics: false,
+            },
         ~schedule_action=a => schedule_action(Editors(a)),
         ~is_edited,
         model.editors,
@@ -412,6 +418,12 @@ module View = {
     };
   };
 
+  let copy = (cursor: Cursor.cursor(Editors.Update.t)): unit => {
+    let str = (cursor.selected_text |> Option.value(~default=() => ""))();
+    ClipboardCache.set(cursor.selection, str);
+    JsUtil.copy(str);
+  };
+
   let handlers =
       (
         ~inject: Update.t => Ui_effect.t(unit),
@@ -453,12 +465,7 @@ module View = {
           if (is_input_field(elId)) {
             ();
           } else {
-            let str =
-              (cursor.selected_text |> Option.value(~default=() => ""))();
-            /* Note that we cannot use the ClipboardCache system here unless
-             * we refine it further to replace unique ids on paste */
-            ClipboardCache.set(cursor.selection, str);
-            JsUtil.copy(str);
+            copy(cursor);
           };
         | None => ()
         };
@@ -472,9 +479,7 @@ module View = {
           if (is_input_field(elId)) {
             Effect.Ignore;
           } else {
-            JsUtil.copy(
-              (cursor.selected_text |> Option.value(~default=() => ""))(),
-            );
+            copy(cursor);
             Option.map(
               inject,
               Selection.handle_key_event(
@@ -506,11 +511,11 @@ module View = {
           if (is_input_field(elId)) {
             Effect.Ignore;
           } else {
-            let pasted_text =
+            let action =
               Js.to_string(evt##.clipboardData##getData(Js.string("text")))
-              |> Str.global_replace(Str.regexp("\n[ ]*"), "\n");
+              |> ClipboardCache.get;
             Dom.preventDefault(evt);
-            switch (cursor.editor_action(Paste(String(pasted_text)))) {
+            switch (cursor.editor_action(action)) {
             | None => Effect.Ignore
             | Some(action) => inject(Editors(action))
             };
@@ -525,7 +530,6 @@ module View = {
       (
         ~globals: Globals.t,
         ~inject: Editors.Update.t => 'a,
-        ~inject_assistant_eval: AssistantEval.Update.t => 'a,
         ~editors: Editors.Model.t,
       ) => {
     NutMenu.(
@@ -554,11 +558,6 @@ module View = {
                 ++ Keyboard.meta(Os.is_mac^ ? Mac : PC)
                 ++ " + k)",
             ),
-            button(
-              Icons.assistant,
-              _ => inject_assistant_eval(AssistantEval.Update.Init),
-              ~tooltip="Run Assistant Eval",
-            ),
             link(
               Icons.github,
               "https://github.com/hazelgrove/hazel",
@@ -579,12 +578,7 @@ module View = {
           ~attrs=[Attr.class_("wrap")],
           [a(~attrs=[Attr.class_("nut-icon")], [Icons.hazelnut])],
         ),
-        nut_menu(
-          ~globals,
-          ~inject=a => inject(Editors(a)),
-          ~inject_assistant_eval=a => inject(AssistantEval(a)),
-          ~editors,
-        ),
+        nut_menu(~globals, ~inject=a => inject(Editors(a)), ~editors),
         div(
           ~attrs=[Attr.class_("wrap")],
           [div(~attrs=[Attr.id("title")], [text("hazel")])],
@@ -612,11 +606,9 @@ module View = {
           editors,
           explain_this: explainThisModel,
           assistant: assistantModel,
-          assistant_eval: assistantEvalModel,
           selection,
         } as model: Model.t,
       ) => {
-    let _ = assistantEvalModel;
     let globals = {
       ...globals,
       inject_global: x => inject(Globals(x)),

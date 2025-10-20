@@ -3,7 +3,7 @@ open AssistantModel;
 
 module Update = {
   /*
-   A fairly thin wrapper around the AssistantUpdate module
+   A thin wrapper around the AssistantUpdate module
    */
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t = AssistantUpdateAction.t;

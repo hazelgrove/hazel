@@ -134,7 +134,7 @@ let go_to_sibling: API.Json.t =
 let go_to_binding_site_description = {|
 Moves the cursor to the specified binding site of the variable reference.
 
-Notice how you are always given a list of variables referenced.
+Notice how you are always given a list of variables referenced at the current node.
 You may navigate to the binding sites (aka definitions) of these variables to view
 their definitions directly! Use either the name or the index of the variable (or both!) to
 navigate to its binding site.

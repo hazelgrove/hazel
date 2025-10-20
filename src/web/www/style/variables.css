@@ -55,6 +55,11 @@
   --GB0: oklch(70% 0.05 120); /* ! nut menu active */
   --GB1: oklch(45% 0.05 120); /* ! nut menu fill */
 
+  /* DREAMY - agent looping theme */
+  --D0: oklch(75% 0.2 200); /* light blue caret */
+  --D1: oklch(88% 0.15 240); /* soft blue selection */
+  --D2: oklch(70% 0.25 280); /* purple shadow */
+
   /* FREE PARKING - ??? */
 
   --textarea-v-stripe: oklch(78% 0.14 6 / 55%);
@@ -77,6 +82,12 @@
 
   --caret-color: var(--R1);
   --error-hole-stroke: var(--R1);
+
+  /* AGENT LOOPING THEME - Dreamy blue/purple theme */
+  --agent-caret-color: var(--D0); /* Light blue caret */
+  --agent-shard-selected: var(--D1); /* Soft blue selection */
+  --agent-shadow-selected: var(--D2); /* Purple shadow for dreamy effect */
+  --agent-cell-selected-accent: var(--D0); /* Light blue accent */
 
   /* CODE TOKENS */
 
@@ -226,3 +237,4 @@
   --modal-back-z: 100;
   --modal-z: 101;
 }
+
