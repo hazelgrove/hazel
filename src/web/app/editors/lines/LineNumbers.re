@@ -25,7 +25,6 @@ module View = {
           acc
           || measurement.origin.row < row
           && measurement.last.row > row
-          && measurement.last.row > measurement.origin.row
         },
         map,
         false,
