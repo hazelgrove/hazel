@@ -350,6 +350,13 @@ let rec rev_concat: (list('a), list('a)) => list('a) =
 let cross = (xs, ys) =>
   List.concat(List.map(x => List.map(y => (x, y), ys), xs));
 
+let rec intersperse = (sep, xs) =>
+  switch (xs) {
+  | [] => []
+  | [x] => [x]
+  | [x, ...xs] => [x, sep, ...intersperse(sep, xs)]
+  };
+
 let rec flat_intersperse = (sep, xss) =>
   switch (xss) {
   | [] => []
@@ -415,11 +422,9 @@ let rec remove_first_n = (n: int, xs: list('a)): list('a) => {
 let slice = (i: int, k: int, xs: list('x)): list('x) =>
   xs |> remove_first_n(i) |> truncate(k);
 
-let take_up_to_n = (n: int, xs: list('a)): list('a) =>
-  switch (split_n_opt(n, xs)) {
-  | Some((xs, _)) => xs
-  | None => xs
-  };
+// TODO Remove once List.take is available in ocaml 5.3
+let take = (n, xs: list('a)) =>
+  List.to_seq(xs) |> Seq.take(n) |> List.of_seq;
 
 /* Move the first element equal to x to the front of the list */
 let lift = (x: 'a, xs: list('a)): list('a) =>
@@ -465,4 +470,44 @@ let map_with_history = (f: (list('y), 'x) => 'y, xs: list('x)): list('y) => {
     };
   };
   aux([], xs);
+};
+
+let rec fold_left2_opt =
+        (
+          f: ('a, 'b, 'c) => option('a),
+          acc: 'a,
+          xs: list('b),
+          ys: list('c),
+        )
+        : option('a) => {
+  switch (xs, ys) {
+  | ([], []) => Some(acc)
+  | ([x, ...xs], [y, ...ys]) =>
+    switch (f(acc, x, y)) {
+    | None => None
+    | Some(acc') => fold_left2_opt(f, acc', xs, ys)
+    }
+  | _ => None
+  };
+};
+
+/**
+ * Similar to List.for_all2 but for functions that return option(bool)
+ * Returns None if any call returns None
+ * Returns Some(false) if any call returns Some(false)
+ * Returns Some(true) if all calls return Some(true)
+ */
+let rec forall2_opt =
+        (f: ('a, 'b) => option(bool), l1: list('a), l2: list('b))
+        : option(bool) => {
+  switch (l1, l2) {
+  | ([], []) => Some(true)
+  | ([x1, ...rest1], [x2, ...rest2]) =>
+    switch (f(x1, x2)) {
+    | None => None
+    | Some(false) => Some(false)
+    | Some(true) => forall2_opt(f, rest1, rest2)
+    }
+  | _ => Some(false) // Different lengths
+  };
 };
