@@ -172,7 +172,7 @@ let build_common_err =
             )
             ++ " have inconsistent types:",
           ),
-          ...ListUtil.join_map(Text(","), ty => [Type(ty)], tys),
+          ...ListUtil.join_map(Text(", "), ty => [Type(ty)], tys),
         ]
       }
     )
@@ -337,7 +337,7 @@ let build_underdetermined_typ =
   switch (underdetermined) {
   | ProdExtensionUnderdetermined(tys) => [
       Text("Cannot determine type of product extension with argument types:"),
-      ...ListUtil.join(Text(","), List.map(x => Type(x), tys)),
+      ...ListUtil.join(Text(", "), List.map(x => Type(x), tys)),
     ]
   | ProdProjectionMissingLabel(label, labels) => [
       Text("Cannot project label "),
@@ -388,7 +388,7 @@ let build_typ_ok = (cls: Cls.t, ok: Info.ok_typ): list(fragment) => {
 
     | TypeAlias(name, ty_lookup) => [
         Type(Var(name) |> Typ.fresh),
-        Text("is an alias for"),
+        Text("is equal to"),
         Type(ty_lookup),
       ]
     | Variant(name, sum_ty) => [
