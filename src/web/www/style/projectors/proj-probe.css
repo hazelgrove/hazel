@@ -377,7 +377,7 @@
 .projector.probe .closure {
   --bottom-border-clr: oklch(0.8 0.06 145.88); /*var(--exp-shadow);*/
   --bkg: var(--exp-base);
-  --below-shadow: #89c58a;
+  --below-shadow: #5487cf;
   --num-levels: 7;
   --base: 0;
 
@@ -446,10 +446,7 @@
   border-bottom-width: 1px;
   border-bottom-style: solid;
   background-color: #f4ecff;
-}
-
-.projector.probe .closure:has(.value.above) .code-text .token {
-  color: #d8bcfe;
+  --bottom-border-clr: #bd92cf;
 }
 
 .projector.probe .live-offside.Many .closure:has(.value.above.indirect) {
@@ -490,13 +487,13 @@
 
 .projector.probe .live-offside.Many .closure:has(.value.above) {
   top: -3.5px;
-  box-shadow: 0 3.5px 0 #e2dbc7bb;
+  box-shadow: 0 3.5px 0 #c8c8c8bb;
   position: relative;
   border-bottom-style: solid;
 }
 .projector.probe .live-offside.Many .closure:has(.value.above.L1) {
   top: -1.5px;
-  box-shadow: 0 1.5px 0 #e2dbc7bb;
+  box-shadow: 0 1.5px 0 #c8c8c8bb;
 }
 .projector.probe .closure:has(.value.below) {
   position: relative;
@@ -514,17 +511,31 @@
   height: calc(1.45em - 4.25px);
 }
 
-.live-offside.Many .closure .cursor-unrelated {
-  background-color: #eaf4ea;
+.live-offside.Many .closure .value.cursor-unrelated {
+  background-color: #ececec;
+}
+.live-offside.Many .closure .value.above {
+  background-color: #f4e5fb;
+}
+.live-offside.Many .closure .value.below {
+  background-color: oklch(0.94 0.03 254.38);
 }
 
-.projector.probe
-  .closure:has(.value.below):not(.cursor-unrelated)
-  .code-text
-  .token {
-  color: oklch(0.91 0.05 255.11);
-  /* opacity: 0.3; */
+.live-offside.Single .closure:has(.value.cursor-unrelated) .code-text .token {
+  color: #808080;
 }
+
+.live-offside.Single .closure:has(.value.above) .code-text .token {
+  color: #d8bcfe;
+}
+
+.live-offside.Single .closure:has(.value.below) .code-text .token {
+  color: oklch(0.91 0.05 255.11);
+}
+.live-offside.Many .closure:has(.value.cursor-unrelated) .code-text .token {
+  color: white;
+}
+
 .projector.probe .closure:has(.value.below.direct) .code-text .token {
   /* color: oklch(0.91 0.05 255.11) !important; */
   /* opacity: 0.3; */
@@ -670,10 +681,15 @@
   color: var(--pat-indicated);
 } */
 
-.projector.probe .value.cursor-unrelated .code-text .token,
-.projector.probe .value.cursor-caller .code-text .token {
+.live-offside.Single .value.cursor-unrelated .code-text .token/*,
+.projector.probe .value.cursor-caller .code-text .token*/ {
   /* color: var(--exp-indicated); */
   color: rgb(102, 102, 102);
+  /* opacity: 0.4; */
+}
+.live-offside.Many .value.cursor-unrelated .code-text .token {
+  /* color: var(--exp-indicated); */
+  color: white;
   /* opacity: 0.4; */
 }
 /* .projector.probe .value.cursor-callee.indirect .code-text .token {
