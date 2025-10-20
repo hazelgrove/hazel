@@ -119,28 +119,13 @@ module Update = {
 
     let ctx_init: Language.Ctx.t = Language.Builtins.ctx_init(Some(Int));
     // This should be a fold over the dynamics map getitng the type for each value
-    let dynamic_types: Id.Map.t(Language.Typ.t) =
-      Id.Map.filter_map(
-        (_, d) => {
+    let dynamic_expressions: Id.Map.t(list(TermBase.exp_t)) =
+      Id.Map.map(
+        d => {
           open Language;
-
-          let statics =
-            Statics.mk(CoreSettings.on, Builtins.ctx_init(Some(Int)));
-          let type_of = (c: Dynamics.Probe.Closure.t) => {
-            IdTagged.rep_id(c.value)
-            |> Id.Map.find_opt(_, statics(c.value))
-            |> Option.bind(
-                 _,
-                 fun
-                 | InfoExp(e) => {
-                     Some(e.ty);
-                   }
-                 | _ => None,
-               );
-          };
-          let types = List.map(type_of, d) |> Util.OptUtil.sequence;
-
-          Option.map(Typ.consistent_join(Ctx.empty), types);
+          // TODO If we can deal with the circular dependencies it would be great to keep the full closure and filter to the closure selector for the statics.
+          let exps = List.map((c: Dynamics.Probe.Closure.t) => c.value, d);
+          exps;
         },
         dynamics,
       );
@@ -149,7 +134,7 @@ module Update = {
       if (settings.dynamic_feedback) {
         let dynamic_info_map =
           Language.Statics.mk(
-            ~dynamics=dynamic_types,
+            ~dynamics=dynamic_expressions,
             settings,
             ctx_init,
             statics.term,

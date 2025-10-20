@@ -139,6 +139,21 @@ and uexp_to_info_map =
       : (Info.exp, Map.t) => {
     let info =
       Info.derived_exp(
+        ~calculate_dynamic_type=
+          uexp => {
+            uexp_to_info_map(
+              ~dynamics=DynamicStatics.Map.empty,
+              ~ctx,
+              ~label_sort=false,
+              ~ancestors,
+              ~duplicates=[],
+              ~expected_labels=None,
+              uexp,
+              m,
+            )
+            |> fst
+            |> (info => info.ty)
+          },
         ~dynamics,
         ~uexp,
         ~ctx,
@@ -189,6 +204,10 @@ and uexp_to_info_map =
   let replace_self = (m: Map.t, original_info: Info.exp, self: Self.exp) => {
     let new_info =
       Info.derived_exp(
+        ~calculate_dynamic_type=
+          uexp => {
+            uexp_to_info_map(~ctx, uexp, m) |> fst |> (info => info.ty)
+          },
         ~dynamics,
         ~uexp=original_info.term,
         ~ctx=original_info.ctx,
@@ -915,6 +934,7 @@ and uexp_to_info_map =
                let uexp_to_info_map = uexp_to_info_map;
                let label_to_info_map = label_to_info_map;
                let add' = add';
+               let dynamics = dynamics;
              }),
             m,
             arg,
@@ -984,6 +1004,7 @@ and uexp_to_info_map =
              let uexp_to_info_map = uexp_to_info_map;
              let label_to_info_map = label_to_info_map;
              let add' = add';
+             let dynamics = dynamics;
            }),
           m,
           args,
@@ -1239,6 +1260,12 @@ and uexp_to_info_map =
               let info =
                 Info.derived_pat(
                   ~dynamics,
+                  ~calculate_dynamic_type=
+                    uexp => {
+                      uexp_to_info_map(~ctx, uexp, m)
+                      |> fst
+                      |> (info => info.ty)
+                    },
                   ~upat=info.term,
                   ~ctx=info.ctx,
                   ~co_ctx=info.co_ctx,
@@ -1403,6 +1430,21 @@ and upat_to_info_map =
       Info.derived_pat(
         ~dynamics,
         ~prev_synswitch,
+        ~calculate_dynamic_type=
+          uexp => {
+            uexp_to_info_map(
+              ~dynamics,
+              ~ancestors,
+              ~duplicates=[],
+              ~ctx,
+              ~expected_labels=None,
+              ~label_sort=false,
+              uexp,
+              m,
+            )
+            |> fst
+            |> (info => info.ty)
+          },
         ~upat,
         ~ctx,
         ~co_ctx,
@@ -1619,7 +1661,21 @@ and upat_to_info_map =
             ~dynamics,
             ~upat,
             ~self=Common(Just(Unknown(Internal) |> Typ.temp)),
-          ),
+            ~ctx,
+            ~calculate_dynamic_type=uexp => {
+            uexp_to_info_map(
+              ~dynamics,
+              ~ctx,
+              ~ancestors,
+              ~expected_labels=None,
+              ~label_sort=false,
+              ~duplicates=[],
+              uexp,
+              m,
+            )
+            |> fst
+            |> (info => info.ty)
+          }),
         );
       let entry =
         Ctx.VarEntry({
@@ -1860,6 +1916,21 @@ and upat_to_info_map =
           let info =
             Info.derived_pat(
               ~dynamics,
+              ~calculate_dynamic_type=
+                uexp => {
+                  uexp_to_info_map(
+                    ~dynamics,
+                    ~ctx,
+                    ~ancestors,
+                    ~expected_labels=None,
+                    ~label_sort=false,
+                    ~duplicates=[],
+                    uexp,
+                    m,
+                  )
+                  |> fst
+                  |> (info => info.ty)
+                },
               ~upat=fn'.term,
               ~ctx=fn'.ctx,
               ~co_ctx=fn'.co_ctx,

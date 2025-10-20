@@ -169,7 +169,20 @@ let handle_tuple_operation =
           arg.annotation.ids,
           InfoExp(
             Info.derived_exp(
-              ~dynamics=DynamicStatics.Map.empty,
+              ~calculate_dynamic_type=
+                uexp => {
+                  uexp_to_info_map(
+                    ~ctx,
+                    ~label_sort=false,
+                    ~ancestors,
+                    ~duplicates=[],
+                    uexp,
+                    m,
+                  )
+                  |> fst
+                  |> (info => info.ty)
+                }, // TODO
+              ~dynamics,
               ~uexp=arg,
               ~ctx,
               ~ana=syn,
@@ -352,7 +365,20 @@ let group_by_label_statics =
           arg.annotation.ids,
           InfoExp(
             Info.derived_exp(
-              ~dynamics=DynamicStatics.Map.empty,
+              ~calculate_dynamic_type=
+                uexp => {
+                  uexp_to_info_map(
+                    ~ctx,
+                    ~label_sort=false,
+                    ~ancestors,
+                    ~duplicates=[],
+                    uexp,
+                    m,
+                  )
+                  |> fst
+                  |> (info => info.ty)
+                }, // TODO
+              ~dynamics,
               ~uexp=arg,
               ~ctx,
               ~ana=syn,

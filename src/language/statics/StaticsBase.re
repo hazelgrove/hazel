@@ -116,4 +116,6 @@ module type ExpressionStatics = {
   let label_to_info_map:
     (option(list(string)), Typ.t, Exp.t, Map.t) =>
     (option(string), Info.exp, Map.t);
+
+  let dynamics: DynamicStatics.Map.t;
 };

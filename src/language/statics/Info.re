@@ -885,6 +885,7 @@ let fixed_typ_exp = (ctx, ty_ana: Typ.t, self: Self.exp): Typ.t =>
 /* Add derivable attributes for expression terms */
 let derived_exp =
     (
+      ~calculate_dynamic_type: Exp.t => Typ.t,
       ~dynamics: DynamicStatics.Map.t,
       ~uexp: Exp.t,
       ~ctx,
@@ -897,11 +898,17 @@ let derived_exp =
       ~label_sort,
     )
     : exp => {
-  let t = DynamicStatics.Map.lookup(uexp |> Exp.rep_id, dynamics); // currently unused
-
   let self: Self.exp =
-    switch (self, t) {
-    | (Common(Just(_)), Some(ty')) => Common(Just(ty'))
+    switch (self) {
+    | Common(Just(t)) when Typ.count_unknowns(t) > 0 =>
+      switch (DynamicStatics.Map.lookup(uexp |> Exp.rep_id, dynamics)) {
+      | None => self
+      | Some([]) => self
+      | Some(exps) =>
+        let dyn_typs = List.map(calculate_dynamic_type, exps);
+        let dyn_typ = Typ.consistent_join(ctx, dyn_typs); // TODO Ctx?
+        Common(Just(dyn_typ));
+      }
     | _ => self
     };
 
@@ -926,17 +933,31 @@ let derived_exp =
 
 /* Add derivable attributes for pattern terms */
 let derived_dynamic_self_pat =
-    (~dynamics: DynamicStatics.Map.t, ~upat: Pat.t, ~self: Self.pat): Self.pat => {
-  let t = DynamicStatics.Map.lookup(upat |> Pat.rep_id, dynamics); // currently unused
-
-  switch (self, t) {
-  | (Common(Just(_)), Some(ty')) => Common(Just(ty'))
+    (
+      ~dynamics: DynamicStatics.Map.t,
+      ~calculate_dynamic_type: Exp.t => Typ.t,
+      ~ctx,
+      ~upat: Pat.t,
+      ~self: Self.pat,
+    )
+    : Self.pat => {
+  switch (self) {
+  | Common(Just(t)) when Typ.count_unknowns(t) > 0 =>
+    switch (DynamicStatics.Map.lookup(upat |> Pat.rep_id, dynamics)) {
+    | None => self
+    | Some([]) => self
+    | Some(exps) =>
+      let dyn_typs = List.map(calculate_dynamic_type, exps);
+      let dyn_typ = Typ.consistent_join(ctx, dyn_typs); // TODO Ctx?
+      Common(Just(dyn_typ));
+    }
   | _ => self
   };
 };
 let derived_pat =
     (
       ~dynamics: DynamicStatics.Map.t,
+      ~calculate_dynamic_type: Exp.t => Typ.t,
       ~upat: Pat.t,
       ~ctx,
       ~co_ctx,
@@ -950,7 +971,14 @@ let derived_pat =
       ~label_sort,
     )
     : pat => {
-  let self: Self.pat = derived_dynamic_self_pat(~dynamics, ~upat, ~self);
+  let self: Self.pat =
+    derived_dynamic_self_pat(
+      ~calculate_dynamic_type,
+      ~dynamics,
+      ~ctx,
+      ~upat,
+      ~self,
+    );
 
   let cls = Cls.Pat(Pat.cls_of_term(upat.term));
   let status = status_pat(ctx, ana, self);
