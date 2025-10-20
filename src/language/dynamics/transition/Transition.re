@@ -48,7 +48,7 @@ open PatternMatch;
 [@deriving (show({with_path: false}), sexp, yojson)]
 type step_kind =
   | InvalidStep
-  | PartialStep(list(string))
+  | PartialStep(step_kind, list(string))
   | VarLookup
   | Seq
   | LetBind(string)
@@ -281,7 +281,9 @@ module Transition = (EV: EV_MODE) => {
         expr: subst_env(env', d2),
         state_update: capture_closures(env, state, closures),
         kind:
-          force_match ? PartialStep(failed_matches) : LetBind(matches_str),
+          force_match
+            ? PartialStep(LetBind(matches_str), failed_matches)
+            : LetBind(matches_str),
         is_value: false,
       });
     | TypFun(_)
@@ -445,8 +447,29 @@ module Transition = (EV: EV_MODE) => {
         | FunEnv(dp, d3, function_lexical_env) =>
           let matches' = matches(dp, d2');
           switch (matches'.matches) {
-          | DoesNotMatch
-          | IndetMatch => Indet
+          | DoesNotMatch => Indet
+          | IndetMatch =>
+            let partial_matches = matches(~force_partial_match=true, dp, d2');
+            let failed_matches = failed_matches(dp, d2');
+            switch (partial_matches.matches) {
+            | IndetMatch
+            | DoesNotMatch => Indet
+            | Matches(function_arg_env) =>
+              let env'' =
+                evaluate_extend_env(
+                  ~ap_id=Term.Exp.rep_id(d),
+                  ~call_stack=env.call_stack,
+                  function_arg_env,
+                  function_lexical_env,
+                );
+              Step({
+                expr: subst_env(env'', d3),
+                state_update:
+                  capture_closures(env'', state, matches'.closures),
+                kind: PartialStep(FunAp, failed_matches),
+                is_value: false,
+              });
+            };
           | Matches(function_arg_env) =>
             let env'' =
               evaluate_extend_env(
@@ -484,7 +507,7 @@ module Transition = (EV: EV_MODE) => {
                     state,
                     matches'.closures,
                   ),
-                kind: PartialStep(failed_matches),
+                kind: PartialStep(FunAp, failed_matches),
                 is_value: false,
               })
             };
@@ -1049,11 +1072,12 @@ let should_hide_step_kind = (~settings: CoreSettings.Evaluation.t) =>
   | MarkIncomparable
   | RemoveParens => true;
 
-let stepper_justification: step_kind => string =
+let rec stepper_justification: step_kind => string =
   fun
   | LetBind(s) => String.cat("substitution for ", s)
-  | PartialStep(failed_matches) =>
-    "partial pattern match (failed to match: "
+  | PartialStep(step, failed_matches) =>
+    stepper_justification(step)
+    ++ " (failed to match: "
     ++ String.concat(", ", failed_matches)
     ++ ")"
   | Seq => "sequence"
