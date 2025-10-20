@@ -33,7 +33,6 @@ type Summary = {
   total_tokens: number;
   cached_tokens: number;
   cached_tokens_supported: boolean;
-  token_events: TokenUsageEvent[];
   failed_or_indet_tests: string[];
   message_log: any[];
 };
@@ -111,12 +110,11 @@ async function runCore(
     url: string;
     outPath: string;
     tokenTotals: { prompt: number; completion: number; total: number; cached: number };
-    tokenEvents: TokenUsageEvent[];
     cachedTokensSupported: boolean;
     lastMessages: any[] | null;
   }
 ): Promise<Summary> {
-  const { task, apiKey, modelValue, url, outPath, tokenTotals, tokenEvents, cachedTokensSupported, lastMessages } = params;
+  const { task, apiKey, modelValue, url, outPath, tokenTotals, cachedTokensSupported, lastMessages } = params;
 
   await page.goto(url, { waitUntil: 'domcontentloaded' });
 
@@ -124,6 +122,8 @@ async function runCore(
   let select = page.locator(S.modeSelect);
   await select.waitFor({ state: 'visible' });
   await select.selectOption({ label: 'Scratch' });
+
+  await page.locator('.code-container > .code').first().click({force: true});
 
   // Put initial program in the editor
   const mod = process.platform === 'darwin' ? 'Meta' : 'Control';
@@ -221,6 +221,16 @@ async function runCore(
   if (container) {
     const messageEls = await container.$$('.message-container');
     for (const el of messageEls) {
+      // Check for collapse indicator and expand if needed
+      const collapseIndicator = await el.$('.collapse-indicator');
+      if (collapseIndicator && await collapseIndicator.isVisible()) {
+        const indicatorText = await collapseIndicator.textContent();
+        if (indicatorText && indicatorText.includes('▼ Show more')) {
+          await collapseIndicator.click();
+          await page.waitForTimeout(200); // Wait for expansion
+        }
+      }
+
       const classes = await el.getAttribute('class') || '';
       // System prompt
       if (classes.includes('system-prompt')) {
@@ -289,12 +299,10 @@ async function runCore(
     total_tokens: tokenTotals.total || (tokenTotals.prompt + tokenTotals.completion),
     cached_tokens: tokenTotals.cached ?? 0,
     cached_tokens_supported: cachedTokensSupported,
-    token_events: tokenEvents,
     failed_or_indet_tests,
     message_log: message_log
   };
 
-  fs.writeFileSync(outPath, JSON.stringify(summary, null, 2), 'utf8');
   return summary;
 }
 
@@ -336,8 +344,8 @@ async function runOnce(attempt: number, params: {
   const work = (async () => {
     try {
       const tokenTotals = { prompt: 0, completion: 0, total: 0, cached: 0 };
-      const tokenEvents: TokenUsageEvent[] = [];
       let cachedTokensSupported = false;
+      const responseTokenData: any[] = []; // Store all response data in order
 
       // Capture OpenRouter chat completion responses
       page.on('request', async (req) => {
@@ -371,17 +379,52 @@ async function runOnce(attempt: number, params: {
           const c = Number(u.completion_tokens ?? 0);
           const t = Number(u.total_tokens ?? (p + c));
           const cached = Number(u.prompt_tokens_details?.cached_tokens ?? 0);
+          const created = Number(data.created ?? 0);
+          
           if (u.prompt_tokens_details && typeof u.prompt_tokens_details.cached_tokens !== 'undefined' && u.prompt_tokens_details.cached_tokens !== null) {
             cachedTokensSupported = true;
           }
 
-          // Save raw event
-          tokenEvents.push({
+          const tokenData: any = {
             prompt_tokens: Number.isFinite(p) ? p : 0,
             completion_tokens: Number.isFinite(c) ? c : 0,
             total_tokens: Number.isFinite(t) ? t : (Number.isFinite(p) && Number.isFinite(c) ? p + c : 0),
             cached_tokens: Number.isFinite(cached) ? cached : 0,
-          });
+            timestamp: created > 0 ? new Date(created * 1000).toISOString() : null
+          };
+
+          // Check for tool calls and capture program state if present
+          if (Array.isArray(data.choices) && data.choices.length > 0 && data.choices[0].message) {
+            const message = data.choices[0].message;
+            if (message.tool_calls && Array.isArray(message.tool_calls)) {
+              tokenData.tool_calls = message.tool_calls;
+              
+              // Wait for tool execution to complete
+              await page.waitForTimeout(500);
+              
+              // Extract program state from localStorage
+              try {
+                const programState = await page.evaluate(() => {
+                  const saveData = localStorage.getItem('SAVE_SCRATCH');
+                  if (saveData) {
+                    const match = saveData.match(/"backup_text":"(.*?)"/);
+                    return match ? match[1] : null;
+                  }
+                  return null;
+                });
+                
+                if (programState) {
+                  // Unescape the JSON string
+                  tokenData.program_state = programState.replace(/\\n/g, '\n').replace(/\\"/g, '"').replace(/\\\\/g, '\\');
+                }
+              } catch (e) {
+                // Ignore localStorage access errors
+              }
+            }
+          }
+
+          // Store token data in order of responses
+          responseTokenData.push(tokenData);
 
           // Update totals
           if (Number.isFinite(p)) tokenTotals.prompt += p;
@@ -391,15 +434,45 @@ async function runOnce(attempt: number, params: {
 
           // Save last message
           if (Array.isArray(data.choices) && data.choices.length > 0 && data.choices[0].message) {
-            // lastMessage = data.choices[0].message;
             // Log the full message object for debugging
-            console.log(JSON.stringify(data.choices[0].message, null, 2));
+            console.log(`Response ${responseTokenData.length - 1}:`, JSON.stringify(data.choices[0].message, null, 2));
           }
         } catch {
           // ignore parse/streaming issues
         }
       });
-      const summary = await runCore(page, ctx, { task, apiKey, modelValue, url, outPath, tokenTotals, tokenEvents, cachedTokensSupported, lastMessages });
+      
+      const summary = await runCore(page, ctx, { task, apiKey, modelValue, url, outPath, tokenTotals, cachedTokensSupported, lastMessages });
+      
+      // Add token data to agent messages based on order
+      let agentIndex = 0;
+      console.log(`Found ${responseTokenData.length} API responses and processing message log with ${summary.message_log.length} messages`);
+      for (const message of summary.message_log) {
+        if (message.type === 'agent') {
+          if (agentIndex < responseTokenData.length) {
+            const tokenData = responseTokenData[agentIndex];
+            console.log(`Associating response ${agentIndex} with agent message ${agentIndex}:`, tokenData);
+            message.prompt_tokens = tokenData.prompt_tokens;
+            message.completion_tokens = tokenData.completion_tokens;
+            message.total_tokens = tokenData.total_tokens;
+            message.cached_tokens = tokenData.cached_tokens;
+            message.timestamp = tokenData.timestamp;
+            if (tokenData.tool_calls) {
+              message.tool_calls = tokenData.tool_calls;
+            }
+            if (tokenData.program_state) {
+              message.program_state = tokenData.program_state;
+            }
+          } else {
+            console.log(`Warning: No token data found for agent message ${agentIndex}`);
+          }
+          agentIndex++;
+        }
+      }
+      
+      // Rewrite the JSON file with the updated summary that includes token data
+      fs.writeFileSync(outPath, JSON.stringify(summary, null, 2), 'utf8');
+      
       // Success: stop trace without saving
       await ctx.tracing.stop();
       return { ok: true as const, summary };

@@ -4,6 +4,9 @@
 
 ## Example Usage
 ```
+$ npm install
+```
+```
 
 $ cd src/llm-tests
 
