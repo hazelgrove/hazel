@@ -6,7 +6,6 @@ open WebUtil;
 /*
  Used to display line numbering alongside cells
  */
-
 module Model = CodeWithStatics.Model;
 
 /*
@@ -22,13 +21,16 @@ module View = {
     let skip_row_generic = (row: int, map) =>
       Id.Map.fold(
         (_id, measurement: Measured.measurement, acc) => {
-          acc
-          || measurement.origin.row < row
-          && measurement.last.row > row
+          acc || measurement.origin.row < row && measurement.last.row > row
         },
         map,
         false,
       );
+    /*
+    Multiline projects are either Tab or Block, so they either
+    1. Defer linebreaks (hence checking for secondary)
+    2. Or are multiline themselves
+    */
     let skip_row = (row: int) => {
       skip_row_generic(row, measured.secondary)
       || skip_row_generic(row, measured.projectors);
@@ -39,7 +41,7 @@ module View = {
      and 1 being the initial line
      i is the index of the row we are on
      acc is the accumulator variable for line numbers
-     */
+    */
     // Takes in the current row index and accumulator
     // Outputs the processed line number list and the cursor row
     let rec processed_line_numbers = (i: int, acc: int): (list(int), int) =>
