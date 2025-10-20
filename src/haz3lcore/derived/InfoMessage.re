@@ -319,7 +319,7 @@ let build_common_ok =
             )
             ++ " have inconsistent types:",
           ),
-          ...ListUtil.join_map(Text(","), ty => [Type(ty)], tys),
+          ...ListUtil.join_map(Text(", "), ty => [Type(ty)], tys),
         ]
         @ [Text("but consistent with expected"), Type(ana)]
       }
@@ -504,7 +504,7 @@ let build_exp_message = (info: Info.exp): message => {
           cls,
           err,
         )
-        @ [Text("; " ++ cls_str ++ " is inexhaustive")];
+        @ [Text("; "), Text(cls_str ++ " is inexhaustive")];
       };
     | InHole(UnusedDeferral) => [
         Text("Deferral must appear as a function argument"),
