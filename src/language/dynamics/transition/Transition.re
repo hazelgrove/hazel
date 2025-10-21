@@ -219,9 +219,9 @@ module Transition = (EV: EV_MODE) => {
         ids: [rep_id(d)],
       });
 
-    let (let.wrap_closure) = (env, f: unit => rule) =>
+    let (let.wrap_closure) = ((env, d'), f: unit => rule) =>
       switch (mode) {
-      | `Environment => wrap_closure_when_done(~in_closure, d, env, f())
+      | `Environment => wrap_closure_when_done(~in_closure, d', env, f())
       | `Substitution => f()
       };
 
@@ -252,7 +252,7 @@ module Transition = (EV: EV_MODE) => {
             is_value,
           });
         | None =>
-          let.wrap_closure _ = env;
+          let.wrap_closure _ = (env, d);
           Indet;
         };
       | `Substitution =>
@@ -272,7 +272,7 @@ module Transition = (EV: EV_MODE) => {
       let. _ = otherwise(env, d1 => Let(dp, d1, d2) |> rewrap)
       and. d1' =
         req_final(req(env), d1 => Let1(dp, d1, d2) |> wrap_ctx, d1);
-      let.wrap_closure _ = env;
+      let.wrap_closure _ = (env, Let(dp, d1', d2) |> rewrap);
       let {matches, closures} = matches(dp, d1');
       let matches_str = {
         switch (matches) {
@@ -299,7 +299,7 @@ module Transition = (EV: EV_MODE) => {
     | TypFun(_)
     | Fun(_, _, _, _) =>
       let. _ = otherwise(env, d);
-      let.wrap_closure _ = env;
+      let.wrap_closure _ = (env, d);
       Value;
     | FixF(dp, d1, None) when mode == `Environment =>
       let. _ = otherwise(env, FixF(dp, d1, None) |> rewrap);
@@ -503,10 +503,10 @@ module Transition = (EV: EV_MODE) => {
             if (n_args == 1) {
               (
                 Tuple(n_args),
-                tuple([d2]) // TODO Should we not be going to a tuple?
+                tuple([d2']) // TODO Should we not be going to a tuple?
               );
             } else {
-              (Tuple(n_args), d2);
+              (Tuple(n_args), d2');
             };
           let new_args = {
             let rec go = (deferred, args) =>
@@ -542,7 +542,7 @@ module Transition = (EV: EV_MODE) => {
     | If(c, d1, d2) =>
       let. _ = otherwise(env, c => If(c, d1, d2) |> rewrap)
       and. c' = req_final(req(env), c => If1(c, d1, d2) |> wrap_ctx, c);
-      let.wrap_closure _ = env;
+      let.wrap_closure _ = (env, If(c', d1, d2) |> rewrap);
       let-unbox b = (Atom(Bool), c');
       Step({
         expr: {
@@ -587,7 +587,7 @@ module Transition = (EV: EV_MODE) => {
           d1 => BinOp1(Bool(And), d1, d2) |> wrap_ctx,
           d1,
         );
-      let.wrap_closure _ = env;
+      let.wrap_closure _ = (env, BinOp(Bool(And), d1', d2) |> rewrap);
       let-unbox b1 = (Atom(Bool), d1');
       Step({
         expr: b1 ? asc(d2, IdTagged.FreshGrammar.Typ.bool()) : bool(false),
@@ -603,7 +603,7 @@ module Transition = (EV: EV_MODE) => {
           d1 => BinOp1(Bool(Or), d1, d2) |> wrap_ctx,
           d1,
         );
-      let.wrap_closure _ = env;
+      let.wrap_closure _ = (env, BinOp(Bool(Or), d1', d2) |> rewrap);
       let-unbox b1 = (Atom(Bool), d1');
       Step({
         expr: b1 ? bool(true) : asc(d2, IdTagged.FreshGrammar.Typ.bool()),
@@ -829,7 +829,7 @@ module Transition = (EV: EV_MODE) => {
           is_value: false,
         })
       | None =>
-        let.wrap_closure _ = env;
+        let.wrap_closure _ = (env, Match(d1, rules) |> rewrap);
         Indet;
       };
     | Closure(env', d) =>
@@ -857,7 +857,7 @@ module Transition = (EV: EV_MODE) => {
       };
     | MultiHole(_) =>
       let. _ = otherwise(env, d);
-      let.wrap_closure _ = env;
+      let.wrap_closure _ = (env, d);
       Indet;
     | EmptyHole
     | Invalid(_) =>
@@ -866,7 +866,7 @@ module Transition = (EV: EV_MODE) => {
       Indet;
     | DynamicErrorHole(_) =>
       let. _ = otherwise(env, d);
-      let.wrap_closure _ = env;
+      let.wrap_closure _ = (env, d);
       Indet;
     | Asc(d', t) =>
       switch (Ascriptions.transition(d)) {
