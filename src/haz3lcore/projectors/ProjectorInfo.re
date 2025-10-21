@@ -10,7 +10,7 @@ let utility: ProjectorBase.utility = {
   let term_to_seg =
     ExpToSegment.any_to_segment(
       ~settings={
-        ...ExpToSegment.Settings.of_core(~inline=false, CoreSettings.off),
+        ...ExpToSegment.Settings.of_core(~inline=true, CoreSettings.off),
         show_unknown_as_hole: false,
       },
     );
