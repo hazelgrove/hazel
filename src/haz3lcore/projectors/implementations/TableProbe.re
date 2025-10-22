@@ -160,7 +160,12 @@ module M: Projector = {
 
                 Exp(final_expr);
               }
-            | _ => failwith("TableProj: sort_column: not an expression"),
+            | e => {
+                print_endline(
+                  "TableProj: sort_column: not an expression: " ++ Any.show(e),
+                );
+                failwith("TableProj: sort_column: not an expression");
+              },
             info.syntax,
           )
         ) {

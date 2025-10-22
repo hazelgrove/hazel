@@ -11,6 +11,7 @@ let return = (error: Action.Failure.t, z: option(Zipper.t)) =>
 
 let go =
     (
+      ~print_segment: Segment.t => string,
       ~statics: CachedStatics.t,
       ~syntax: CachedSyntax.t,
       a: Action.t,
@@ -52,7 +53,7 @@ let go =
   | Project(SetIndicated(Specific(Probe))) =>
     //TODO(andrew): cleanup
     Ok(Refractors.update(~statics, ~syntax, ToggleProbeManual, z))
-  | Project(a) => ProjectorPerform.go(syntax.term_data, a, z)
+  | Project(a) => ProjectorPerform.go(~print_segment, syntax.term_data, a, z)
   | Move(d) =>
     Move.go(
       ~statics=statics.info_map,

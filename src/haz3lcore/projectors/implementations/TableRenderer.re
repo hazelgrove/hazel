@@ -515,7 +515,6 @@ let sort_column_with_direction =
       }
     | None => None
     };
-
   switch (compare_fn) {
   | Some(compare_fn_name) =>
     IdTagged.FreshGrammar.(
@@ -560,7 +559,13 @@ let sort_column_with_direction =
 
               Exp(final_expr);
             }
-          | _ => failwith("TableRenderer: sort_column: not an expression"),
+          | e => {
+              print_endline(
+                "TableRenderer: sort_column: not an expression: "
+                ++ Any.show(e),
+              );
+              failwith("TableRenderer: sort_column: not an expression");
+            },
           info.syntax,
         )
       ) {

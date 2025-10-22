@@ -247,8 +247,9 @@ let mk_view =
     : View.t => {
   let (module P) = ProjectorInit.to_module(p.kind);
   let parent = a => inject(Project(handle(p.id, a)));
-  let local = a =>
+  let local = a => {
     inject(Project(SetModel(p.id, P.update(p.model, info, a))));
+  };
   let view_seg = (~background=?) => simple_code(~background?, font_metrics);
   P.view(p.model, info, ~local, ~parent, ~view_seg);
 };
@@ -333,6 +334,7 @@ let all =
 
 let all_refractors =
     (
+      syntax: CachedSyntax.t,
       inject: Action.t => Ui_effect.t(unit),
       make_active,
       font_metrics: FontMetrics.t,
@@ -340,6 +342,25 @@ let all_refractors =
     ) => {
   let (base_views, overlay_views) =
     refactor_data
+    |> List.map((projector: Model.projector_data) => {
+         let id = projector.p.id;
+
+         let seg =
+           TermData.segment(Id.recover_original(id), syntax.term_data);
+
+         /* Add syntax to info */
+         let info_with_syntax: ProjectorBase.info = {
+           ...projector.info,
+           syntax: Option.value(seg, ~default=projector.info.syntax),
+         };
+
+         (
+           {
+             ...projector,
+             info: info_with_syntax,
+           }: Model.projector_data
+         );
+       })
     |> List.sort(by_measurement)
     |> List.map(
          split_views(~skip_inline=true, inject, make_active, font_metrics),

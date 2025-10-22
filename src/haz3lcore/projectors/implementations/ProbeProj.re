@@ -909,13 +909,14 @@ module M: Projector = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type action = a;
 
-  let init = (any: Any.t) =>
+  let init = (any: Any.t) => {
     switch (any) {
     | Exp(_)
     | Pat(_) => Some({table_modal: None})
     | Any(_) => Some({table_modal: None}) /* Grout don't have sorts rn */
     | _ => None
     };
+  };
 
   let dynamics = true;
 
@@ -939,7 +940,9 @@ module M: Projector = {
       Window.toggle_mode();
       model;
     | NoOp => model
-    | OpenTableModal => {table_modal: Some({menu_state: None})}
+    | OpenTableModal =>
+      print_endline("Model state now Some");
+      {table_modal: Some({menu_state: None})};
     | CloseTableModal => {table_modal: None}
     | TableMenuAction(col, path) => {
         table_modal:
@@ -984,7 +987,7 @@ module M: Projector = {
         /* Render modal backdrop */
         div(
           ~attrs=[
-            Attr.classes(["table-modal-backdrop"]),
+            Attr.classes(["table-modal-backdrop", "live-offside"]),
             Attr.on_click(_ => local(CloseTableModal)),
           ],
           [
@@ -999,7 +1002,10 @@ module M: Projector = {
                 div(
                   ~attrs=[
                     Attr.classes(["table-modal-close"]),
-                    Attr.on_click(_ => local(CloseTableModal)),
+                    Attr.on_click(_ => {
+                      print_endline("Closing table modal");
+                      local(CloseTableModal);
+                    }),
                   ],
                   [Node.text("×")],
                 ),

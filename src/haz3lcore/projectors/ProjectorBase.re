@@ -201,6 +201,6 @@ module Cook = (C: Projector) : Cooked => {
     );
   let placeholder = m =>
     m |> Sexplib.Sexp.of_string |> C.model_of_sexp |> C.placeholder;
-  let update = (m, i, a) =>
+  let update = (m: model, i: info, a: action): model =>
     C.update(m |> deserialize_m, i, a |> deserialize_a) |> serialize_m;
 };

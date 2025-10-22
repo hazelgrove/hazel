@@ -60,7 +60,12 @@ let update =
   ZipperBase.MapPiece.fast_local_seg(update_piece(f, id), id, z);
 
 let go =
-    (term_data: TermData.t, a: Action.project, z: Zipper.t)
+    (
+      ~print_segment: Segment.t => string,
+      term_data: TermData.t,
+      a: Action.project,
+      z: Zipper.t,
+    )
     : result(ZipperBase.t, Action.Failure.t) => {
   let select_term =
     Select.current_term(
@@ -123,18 +128,55 @@ let go =
     | None => Error(Cant_project)
     }
   | SetSyntax(id, seg) =>
-    Ok(
-      update(
-        p =>
-          {
-            ...p,
-            syntax: Segment.parenthesize(seg),
-          },
-        id,
-        z,
-      ),
-    )
+    print_endline("Setting syntax: " ++ Id.show(id));
+    // print_endline("Zipper before: " ++ Zipper.show(z));
+    // print_endline(
+    // "Refractor ids: " ++ ZipperBase.Refractor.Map.show(z.refractors.manuals),
+    // );
+    let tdata = Id.Map.find(Id.recover_original(id), term_data); // partial
+    // print_endline("Found tdata");
+    let base_seg = tdata.base_seg;
+    print_endline("Original base_seg: " ++ print_segment(base_seg));
+
+    print_endline(
+      "Original term segment: "
+      ++ print_segment(
+           Option.get(
+             TermData.segment(
+               ~debug=false,
+               Id.recover_original(id),
+               term_data,
+             ),
+           ),
+         ),
+    );
+    print_endline("New term Segment: " ++ print_segment(seg));
+
+
+    let (l, r) =
+      TermData.extremes_shards(Id.recover_original(id), term_data)
+      |> Option.get;
+    let new_z =
+      Select.shard_range(l, r, z)
+      |> Option.map(Zipper.replace_selection(Right, seg))
+      |> Option.get;
+    print_endline("Zipper after: " ++ (new_z |> Zipper.zip |> print_segment));
+
+
+    Ok(new_z);
   | SetModel(id, model) =>
+    let z =
+      ZipperBase.update_refractor(
+        z,
+        id,
+        pr => {
+          print_endline("Found projector and updating model");
+          {
+            ...pr,
+            model,
+          };
+        },
+      );
     Ok(
       update(
         pr =>
@@ -145,7 +187,7 @@ let go =
         id,
         z,
       ),
-    )
+    );
   | FocusIndicated =>
     switch (Indicated.index(z)) {
     | Some(id) =>

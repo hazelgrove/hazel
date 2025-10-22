@@ -120,6 +120,7 @@ module Update = {
 
   let update =
       (
+        ~print_segment: Segment.t => string,
         ~settings: Language.CoreSettings.t,
         a: Action.t,
         old_statics: CachedStatics.t,
@@ -127,6 +128,7 @@ module Update = {
         {state, syntax}: Model.t,
       )
       : Action.Result.t(Model.t) => {
+    // print_endline("CodeEditable.Update action: " ++ Action.show(a));
     open Result.Syntax;
 
     /* 1. Clear the autocomplete buffer when relevant */
@@ -145,7 +147,8 @@ module Update = {
     let state = update_col_target(~measured=syntax.measured, a, state);
 
     /* 3. Update the zipper */
-    let+ zipper = Perform.go(~statics=old_statics, ~syntax, a, state);
+    let+ zipper =
+      Perform.go(~print_segment, ~statics=old_statics, ~syntax, a, state);
 
     Model.{
       state: {

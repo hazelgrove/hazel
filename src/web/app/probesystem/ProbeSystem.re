@@ -51,7 +51,10 @@ let term_view = (~globals: Globals.t, ~available=8, term: Language.Any.t) =>
   );
 
 let probe_view = (font_metrics, refractor_data, id: Id.t) => {
-  let inject = _ => Ui_effect.Ignore;
+  let inject = (a: Action.t) => {
+    print_endline("ProbeProj inject called" ++ Action.show(a));
+    Ui_effect.Ignore;
+  };
   let projector_data =
     List.find_opt(
       (p: ProjectorView.Model.projector_data) => p.p.id == id,
