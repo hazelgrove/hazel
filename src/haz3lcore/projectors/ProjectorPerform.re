@@ -152,7 +152,6 @@ let go =
     );
     print_endline("New term Segment: " ++ print_segment(seg));
 
-
     let (l, r) =
       TermData.extremes_shards(Id.recover_original(id), term_data)
       |> Option.get;
@@ -161,7 +160,6 @@ let go =
       |> Option.map(Zipper.replace_selection(Right, seg))
       |> Option.get;
     print_endline("Zipper after: " ++ (new_z |> Zipper.zip |> print_segment));
-
 
     Ok(new_z);
   | SetModel(id, model) =>
