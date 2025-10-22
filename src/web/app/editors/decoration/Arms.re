@@ -102,14 +102,15 @@ let r_vertical =
 
 /* This draws a C-shaped path with a hook on the left */
 let l_vertical =
-    (~hx: float, ~min_col: int, ~first: Point.t, ~last: Point.t): path => {
+    (~flip: bool, ~hx: float, ~min_col: int, ~first: Point.t, ~last: Point.t)
+    : path => {
   let vf_delta = first.col == min_col ? 0 : 1;
   let edge_case =
     last.row - first.row == 1 && last.col == min_col && first.col != min_col;
   [
     m(~x=0, ~y=vf_delta)
     |> cmdfudge(~y=float_of_int(vf_delta) *. (-. hx) /. 2.),
-    hook(hx, - vf_delta, vf_delta) /* hacky; don't draw if vf_delta==0 */
+    hook(hx, flip ? vf_delta : - vf_delta, vf_delta) /* hacky; don't draw if vf_delta==0 */
   ]
   @ (
     edge_case
@@ -160,10 +161,10 @@ let inner_lines =
  * C-shaped path between the points, extending leftward to the minimum
  * enclosed leftward column containing program text. */
 let l_path =
-    (~min_col: int, ~last: Point.t, ~hx: float, ~first: Point.t)
+    (~flip: bool, ~min_col: int, ~last: Point.t, ~hx: float, ~first: Point.t)
     : option(positioned_path) =>
   if (last.row > first.row) {
-    Some((first, l_vertical(~hx, ~first, ~last, ~min_col)));
+    Some((first, l_vertical(~flip, ~hx, ~first, ~last, ~min_col)));
   } else if (Point.compare(last, first) > 0) {
     Some((first, l_horizontal(~hx, ~first, ~last)));
   } else {
@@ -204,7 +205,13 @@ let paths =
     let min_col = min_col(~first, ~last, ~rows);
     let shard_rows = Shards.split_by_row(shards);
     List.concat([
-      l_path(~hx, ~min_col, ~first, ~last=snd(List.hd(shards)).origin)
+      l_path(
+        ~flip=false,
+        ~hx,
+        ~min_col,
+        ~first,
+        ~last=snd(List.hd(shards)).origin,
+      )
       |> Option.to_list,
       r_path(~hx, ~min_col, ~first=snd(ListUtil.last(shards)).last, ~last)
       |> Option.to_list,
@@ -415,7 +422,8 @@ module Refractors = {
       )
       : list(Node.t) => {
     let min_col = min_col(~first, ~last, ~rows);
-    let (orig, path) = l_path(~hx, ~min_col, ~first, ~last) |> Option.get;
+    let (orig, path) =
+      l_path(~flip=true, ~hx, ~min_col, ~first, ~last) |> Option.get;
     //TODO(andrew): unhardcode magic 4 offset
     let dashed_length = IntMap.find(last.row, rows).max_col - last.col + 4;
     [
@@ -491,7 +499,15 @@ module Refractors = {
       z.refractors.ephemerals
       |> Id.Map.to_list
       |> List.concat_map(((id, _p)) =>
-           refractor_arms(~id, ~syntax, ~font_metrics, ~cls="repl", ~dynamics)
+           refractor_arms(
+             ~id,
+             ~syntax,
+             ~font_metrics,
+             ~cls=
+               Haz3lcore.Indicated.index(z) == Some(id)
+                 ? "repl-indicated" : "repl",
+             ~dynamics,
+           )
          )
     );
 

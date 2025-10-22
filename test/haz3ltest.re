@@ -22,10 +22,11 @@ let (suite, _) =
       Test_MakeTerm.tests,
       Test_Menhir.tests,
       Test_StringUtil.tests,
-      Test_Typ.tests,
       Test_PatternMatch.tests,
       Test_Id_Transform.tests,
     ]
+    @ Test_Typ.tests
+    @ Test_Info.tests
     @ Test_Statics.tests
     @ Test_Elaboration.tests
     @ Test_Evaluator.tests

@@ -397,7 +397,7 @@ module M: Projector = {
     );
   };
 
-  let init = (_any: Term.Any.t) =>
+  let init = (_any: Any.t) =>
     Some({
       closure: None,
       menu: None,

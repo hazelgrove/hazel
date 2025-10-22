@@ -38,7 +38,7 @@
   left: 1em;
 }
 
-#probesys .live-offside .code .code-text .token {
+#probesys .probe-entry .live-offside .code .code-text .token {
   color: var(--G2) !important;
 }
 
@@ -55,4 +55,21 @@
   position: relative;
   display: flex;
   gap: 1em;
+}
+
+#probesys .legend {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2em;
+  padding: 0.5em;
+  outline: 1px solid var(--BR1);
+  border-radius: 0.3em;
+  color: var(--BR2);
+}
+
+#probesys .legend .projector {
+  position: relative;
+  pointer-events: none;
+  justify-content: start;
+  margin-left: 0.5em;
 }

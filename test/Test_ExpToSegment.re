@@ -26,6 +26,7 @@ let equivalent_to_make_term = (serialized: string) => {
       serialized,
       print_seg(seg),
     );
+    print_seg(exp_to_segment(exp)) |> print_endline;
     check(
       segment,
       "Make term segments equivalent: " ++ serialized,
@@ -34,6 +35,11 @@ let equivalent_to_make_term = (serialized: string) => {
     );
   | _ => Alcotest.fail("Failed to parse term")
   };
+};
+
+let type_equivalent_to_make_term = (type_serialized: string) => {
+  let expr_serialized = "1: " ++ type_serialized;
+  equivalent_to_make_term(expr_serialized);
 };
 
 module TempGrammar =
@@ -348,6 +354,66 @@ let tests = (
           serialized,
         );
       },
+    ),
+    test_case("Dot operator on float", `Quick, () => {
+      check(
+        string,
+        "",
+        {|1.230000 . 4.560000|},
+        print_seg(
+          exp_to_segment(
+            IdTagged.FreshGrammar.Exp.(dot(float(1.23), float(4.56))),
+          ),
+        ),
+      )
+    }),
+    test_case("ProdProjection - basic product type", `Quick, () => {
+      type_equivalent_to_make_term("(a=Int, b=String).a")
+    }),
+    test_case("ProdProjection - empty label", `Quick, () => {
+      type_equivalent_to_make_term("(``=Int).``")
+    }),
+    test_case("ProdProjection - label with spaces", `Quick, () => {
+      type_equivalent_to_make_term(
+        "(`label with spaces`=Int).`label with spaces`",
+      )
+    }),
+    test_case("ProdProjection - type variable", `Quick, () => {
+      type_equivalent_to_make_term("t.a")
+    }),
+    test_case("ProdExtension - product types", `Quick, () => {
+      type_equivalent_to_make_term("(a=Int) ... (b=String)")
+    }),
+    test_case("ProdExtension - type variables", `Quick, () => {
+      type_equivalent_to_make_term("t ... u")
+    }),
+    test_case("ProdExtension - with special labels", `Quick, () => {
+      type_equivalent_to_make_term(
+        "(``=Int) ... (`label with spaces`=String)",
+      )
+    }),
+    test_case("Singleton unlabeled tuple", `Quick, () =>
+      check(
+        string,
+        "Singleton unlabeled tuple",
+        "(_=1)",
+        print_seg(
+          exp_to_segment(IdTagged.FreshGrammar.Exp.(tuple([int(1)]))),
+        ),
+      )
+    ),
+    test_case("Singleton unlabeled tuple type", `Quick, () =>
+      check(
+        string,
+        "Singleton unlabeled tuple type",
+        "(_=Int)",
+        print_seg(
+          ExpToSegment.typ_to_segment(
+            ~settings=exp_to_segment_settings,
+            IdTagged.FreshGrammar.Typ.(prod([int()])),
+          ),
+        ),
+      )
     ),
   ],
 );

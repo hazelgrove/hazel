@@ -33,6 +33,8 @@ module Probe = {
     [@deriving (show({with_path: false}), sexp, yojson, eq)]
     type t = list(entry);
 
+    let empty = [];
+
     /* Selectively elide dynamic information not currently
      * being used in the live probe UI, for (putative, unbenchmarked)
      * performance purposes for worker de/serialization */

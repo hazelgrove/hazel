@@ -86,7 +86,7 @@ let code_view_settings: Haz3lcore.ExpToSegment.Settings.t = {
   show_unknown_as_hole: true,
 };
 
-let view_any = (~globals, any: Term.Any.t) =>
+let view_any = (~globals, any: Any.t) =>
   any
   |> CodeViewable.view_any(~globals, ~settings=code_view_settings)
   |> code_box_container;
@@ -239,6 +239,12 @@ let common_ok_view =
     switch (cls, ok) {
     | (Pat(EmptyHole), _) when label_sort => []
     | (Exp(EmptyHole), _) when label_sort => []
+    | (Pat(ExplicitNonlabel), _) when label_sort => [
+        text("Explicitly unlabeled entry"),
+      ]
+    | (Exp(ExplicitNonlabel), _) when label_sort => [
+        text("Explicitly unlabeled entry"),
+      ]
     | (Exp(MultiHole) | Pat(MultiHole), _) => [
         text("Expecting operator or delimiter"),
       ]
@@ -262,7 +268,7 @@ let common_ok_view =
         view_type(ana),
       ]
     | (_, Ana(Consistent({ana, syn, _})))
-        when Typ.fast_equal(~alpha_equivalence=false, ana, syn) =>
+        when Equality.semantic.typ(ana, syn) =>
       switch (syn.term) {
       | Label(l) => [label_view(l), text(" is a valid label")]
       | _ =>
@@ -347,6 +353,51 @@ let common_ok_view =
   );
 };
 
+let underdetermined_typ_view =
+    (~globals, underdetermined: Info.underdetermined_typ) => {
+  let view_type = view_type(~globals);
+  switch (underdetermined) {
+  | ProdExtensionUnderdetermined(tys) => [
+      text("Cannot determine type of product extension with argument types:"),
+      ...ListUtil.join(text(","), List.map(view_type, tys)),
+    ]
+  | ProdProjectionMissingLabel(label, labels) => [
+      text("Cannot project label "),
+      label_view(label),
+      text(". Valid labels are: "),
+      ...List.map(code, labels),
+    ]
+  | ProdProjectionBadArgs({product, label}) =>
+    let product_error =
+      switch (product) {
+      | Some(ty) => [
+          text("type"),
+          view_type(ty),
+          text("is not a tuple type"),
+        ]
+      | None => []
+      };
+    let label_error =
+      switch (label) {
+      | Some(ty) => [
+          text("label"),
+          view_type(ty),
+          text("is not a valid label: "),
+        ]
+      | None => []
+      };
+
+    [text("Cannot determine projected type because ")]
+    @ (
+      ListUtil.join(
+        [text(" and ")],
+        [product_error, label_error] |> List.filter(x => x != []),
+      )
+      |> List.concat
+    );
+  };
+};
+
 let typ_ok_view = (~globals, cls: Cls.t, ok: Info.ok_typ) => {
   let view_type = view_type(~globals);
   switch (ok) {
@@ -363,8 +414,13 @@ let typ_ok_view = (~globals, cls: Cls.t, ok: Info.ok_typ) => {
 
   | TypeAlias(name, ty_lookup) => [
       view_type(Var(name) |> Typ.fresh),
-      text("is an alias for"),
+      text("is equal to"),
       view_type(ty_lookup),
+    ]
+  | WHNormalizedTo({unnormalized, whnormalized}) => [
+      view_type(unnormalized),
+      text("is equal to"),
+      view_type(whnormalized),
     ]
   | Variant(name, sum_ty) => [
       view_type(Var(name) |> Typ.fresh),
@@ -375,6 +431,8 @@ let typ_ok_view = (~globals, cls: Cls.t, ok: Info.ok_typ) => {
       text("An incomplete sum type constuctor of type"),
       view_type(sum_ty),
     ]
+  | TypeUnderdetermined(underdetermined) =>
+    underdetermined_typ_view(~globals, underdetermined)
   };
 };
 
@@ -390,6 +448,20 @@ let typ_err_view = (~globals, ok: Info.error_typ) => {
   | WantConstructorFoundType(_) => [text("Expected a constructor")]
   | WantTypeFoundAp => [text("Must be part of a sum type")]
   | WantLabel => [text("Expect a valid label")]
+  | InvalidLabel(name, expected_labels) =>
+    switch (expected_labels) {
+    | [] => [
+        text("Invalid label: "),
+        label_view(name),
+        text(". No labels were expected."),
+      ]
+    | _ => [
+        text("Invalid label: "),
+        label_view(name),
+        text(" is not part of the expected labels: "),
+        ...List.map(code, expected_labels),
+      ]
+    }
   | DuplicateLabels(labels, _) => [
       text("Duplicate labels within tuple: "),
       ...List.map(label_view, labels),
@@ -400,6 +472,10 @@ let typ_err_view = (~globals, ok: Info.error_typ) => {
       text("already used in this sum"),
     ]
   | ParseFailure => [text("Parse failure")]
+  | WantProduct(ty) => [
+      text("Expected a tuple type, found type"),
+      view_type(ty),
+    ]
   };
 };
 

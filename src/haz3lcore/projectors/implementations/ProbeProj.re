@@ -379,8 +379,11 @@ let value_view =
     };
   };
 
-  let (seg, length) =
-    abbreviated_seg_of(utility, ClosureLength.get(closure), closure.value);
+  /* Crude way of giving more space when there's only one closure shown.
+   * Really should figure out total length of all closures and divide accordingly */
+  let length = ClosureLength.get(closure);
+  let length = length == 12 && Closures.total(~ap_id, di) == 1 ? 150 : length;
+  let (seg, length) = abbreviated_seg_of(utility, length, closure.value);
 
   /* Check if this closure has table data */
   let has_table = Option.is_some(TR.table_from_exp(closure.value));
@@ -720,7 +723,7 @@ let cur_ap = (info: info) =>
   switch (info.statics) {
   | Some(InfoExp({term: {term: Ap(_), _} as ap, _}))
   | Some(InfoExp({term: {term: Probe({term: Ap(_), _} as ap, _), _}, _})) =>
-    Some(Term.Exp.rep_id(ap))
+    Some(Exp.rep_id(ap))
   | _ => None
   };
 
@@ -906,15 +909,13 @@ module M: Projector = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type action = a;
 
-  let init = (any: Term.Any.t) => {
-    print_endline("Initializing probe for " ++ Term.Any.show(any));
+  let init = (any: Any.t) =>
     switch (any) {
     | Exp(_)
     | Pat(_) => Some({table_modal: None})
     | Any(_) => Some({table_modal: None}) /* Grout don't have sorts rn */
     | _ => None
     };
-  };
 
   let dynamics = true;
 
