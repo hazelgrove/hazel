@@ -63,10 +63,6 @@ type rul_t = Grammar.rul_t(IdTagged.IdTag.t);
 [@deriving (show({with_path: false}), sexp, yojson)]
 type rul_term = Grammar.rul_term(IdTagged.IdTag.t);
 [@deriving (show({with_path: false}), sexp, yojson)]
-type environment_t = Grammar.environment_t(IdTagged.IdTag.t);
-[@deriving (show({with_path: false}), sexp, yojson)]
-type closure_environment_t = Grammar.closure_environment_t(IdTagged.IdTag.t);
-[@deriving (show({with_path: false}), sexp, yojson)]
 type stepper_filter_kind_t = Grammar.stepper_filter_kind_t(IdTagged.IdTag.t);
 [@deriving (show({with_path: false}), sexp, yojson)]
 type type_hole = Grammar.type_hole(IdTagged.IdTag.t);
@@ -517,109 +513,6 @@ and Rul: {
   };
 }
 
-and Environment: {
-  include
-     (module type of VarBstMap.Ordered) with
-      type t_('a) = VarBstMap.Ordered.t_('a);
-  [@deriving (show({with_path: false}), sexp, yojson)]
-  type t = environment_t;
-  let pp: (Format.formatter, t) => unit;
-} = {
-  include VarBstMap.Ordered;
-  [@deriving (show({with_path: false}), sexp, yojson)]
-  type t = environment_t;
-
-  [@deriving show({with_path: false})]
-  type entries = list((Var.t, Exp.t));
-
-  let pp = (f, map: t) => pp_entries(f, VarBstMap.Ordered.to_listo(map));
-}
-
-and ClosureEnvironment: {
-  [@deriving (show({with_path: false}), sexp, yojson)]
-  type t = closure_environment_t;
-
-  let empty: t;
-
-  let of_environment: Environment.t => t;
-
-  let map_of: t => Environment.t;
-  let call_stack_of: t => Probe.call_stack;
-
-  let id_equal: (closure_environment_t, closure_environment_t) => bool;
-
-  let lookup: (t, Var.t) => option(Exp.t);
-  let update_env: (Environment.t => Environment.t, t) => t;
-  let extend_eval:
-    (~ap_id: Id.t=?, ~call_stack: Probe.call_stack, Environment.t, t) => t;
-
-  let to_list: t => list((Var.t, Exp.t));
-} = {
-  module Inner: {
-    [@deriving (show({with_path: false}), sexp, yojson)]
-    type t = closure_environment_t;
-
-    let wrap: (Id.t, Environment.t, Probe.call_stack) => t;
-
-    let id_of: t => Id.t;
-    let map_of: t => Environment.t;
-    let call_stack_of: t => Probe.call_stack;
-  } = {
-    [@deriving (show({with_path: false}), sexp, yojson)]
-    type t = closure_environment_t;
-
-    let wrap = (id, env, call_stack): t => {
-      id,
-      env,
-      call_stack,
-    };
-
-    let id_of = (t: t) => t.id;
-    let map_of = (t: t) => t.env;
-    let call_stack_of = (t: t) => t.call_stack;
-
-    let (sexp_of_t, t_of_sexp) =
-      Util.StructureShareSexp.structure_share_here(
-        id_of,
-        sexp_of_t,
-        t_of_sexp,
-      );
-  };
-  include Inner;
-
-  let to_list = env => env |> map_of |> Environment.to_listo;
-
-  let of_environment = env => wrap(Id.mk(), env, []);
-
-  /* Equals only needs to check environment id's (faster than structural equality
-   * checking.) */
-  let id_equal = (env1, env2) => id_of(env1) == id_of(env2);
-
-  let empty = Environment.empty |> of_environment;
-
-  let lookup = (env, x) =>
-    env |> map_of |> (map => Environment.lookup(map, x));
-
-  let update_env = (f, env) => env |> map_of |> f |> of_environment;
-
-  /* Extend the environment with new bindings. ~ap_id is an optional argument which
-   * will add an entry in a stack of function application syntax ids, used to
-   * represent and track the call stack for use by live value probes. */
-  let extend_eval =
-      (
-        ~ap_id: option(Id.t)=?,
-        ~call_stack: Probe.call_stack,
-        new_bindings: Environment.t,
-        env_to_extend: t,
-      )
-      : t => {
-    {
-      id: Id.mk(),
-      env: Environment.union(new_bindings, map_of(env_to_extend)),
-      call_stack: Option.to_list(ap_id) @ call_stack,
-    };
-  };
-}
 and StepperFilterKind: {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t = stepper_filter_kind_t;
