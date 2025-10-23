@@ -16,7 +16,6 @@ type model'('stepper) = {
   scrut_ty: Calc.saved(Typ.t),
   scrut_co_ctx: Calc.saved(CoCtx.t),
   result: Calc.saved(Exp.t),
-  result_state: Calc.saved(EvaluatorState.t),
   join_exp: Calc.saved(Exp.t),
 };
 
@@ -65,7 +64,6 @@ let init = (~exp: option(Exp.t)=?, ()) => {
     scrut_ty: Calc.Pending,
     scrut_co_ctx: Calc.Pending,
     result: Calc.Pending,
-    result_state: Calc.Pending,
     join_exp: Calc.Pending,
   };
 };
@@ -111,7 +109,6 @@ module F =
       scrut_ty: Calc.Pending,
       scrut_co_ctx: Calc.Pending,
       result: Calc.Pending,
-      result_state: Calc.Pending,
       join_exp: Calc.Pending,
     };
   };
@@ -171,7 +168,6 @@ module F =
         ~hidden: Calc.saved(bool),
         ~exp: Calc.t(Exp.t),
         ~ctx: Calc.t(Ctx.t),
-        ~state: Calc.t(EvaluatorState.t),
         ~editor as _,
         model: model,
       ) => {
@@ -182,7 +178,6 @@ module F =
       scrut_ty,
       scrut_co_ctx,
       result: _,
-      result_state: _,
       join_exp,
     }: model = model;
     let scrut =
@@ -236,7 +231,6 @@ module F =
           ~scrut_co_ctx,
           ~ctx,
           ~exp,
-          ~state,
         ),
         cases,
       );
@@ -264,7 +258,6 @@ module F =
       );
 
     let result = exp |> Calc.save;
-    let result_state = state |> Calc.save;
 
     Some((
       {
@@ -274,11 +267,10 @@ module F =
         scrut_ty: scrut_ty |> Calc.save,
         scrut_co_ctx: scrut_co_ctx |> Calc.save,
         result,
-        result_state,
         join_exp: join_exp |> Calc.save,
       },
       hidden |> Calc.set(false),
-      Some((join_exp, state)),
+      Some(join_exp),
     ));
   };
 
