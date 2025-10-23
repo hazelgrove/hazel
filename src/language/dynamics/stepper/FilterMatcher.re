@@ -4,7 +4,7 @@ let matches_exp = (~denv, d, ~fenv, f) => {
       ...semantic_settings,
       ignore_fixpoints: true,
       use_expr_wildcards:
-        Some((env, exp) => ValueChecker.check_value((), env, exp) != Expr),
+        Some((env, exp) => ValueChecker.check_value(env, exp) != Expr),
       env1: Some(fenv),
       env2: Some(denv),
     })
@@ -16,7 +16,7 @@ let matches_exp = (~denv, d, ~fenv, f) => {
 };
 
 let matches =
-    (~env: ClosureEnvironment.t, ~exp: DHExp.t, ~flt: TermBase.filter)
+    (~env: Environment.t(Exp.t), ~exp: DHExp.t, ~flt: TermBase.filter)
     : option(FilterAction.t) =>
   if (matches_exp(~denv=env, exp, ~fenv=env, flt.pat)) {
     Some(flt.act);
@@ -25,7 +25,12 @@ let matches =
   };
 
 let matches =
-    (~env: ClosureEnvironment.t, ~exp: DHExp.t, ~act: FilterAction.t, flt_env)
+    (
+      ~env: Environment.t(Exp.t),
+      ~exp: DHExp.t,
+      ~act: FilterAction.t,
+      flt_env,
+    )
     : (FilterAction.t, int) => {
   let len = List.length(flt_env);
   let rec matches' = (~env, ~exp, ~act, flt_env, idx) => {
