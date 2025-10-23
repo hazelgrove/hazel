@@ -60,8 +60,7 @@ let tests = (
         ),
         single_step(
           elaborate(parse_exp({|let x  =[1,2,3,4] : [Int] in x|})),
-        )
-        |> Option.map(fst),
+        ),
       )
     }),
   ],
