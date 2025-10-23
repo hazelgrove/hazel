@@ -170,8 +170,8 @@ let rec subst_var = (d1: DHExp.t, x: Var.t, d2: DHExp.t): DHExp.t => {
 }
 
 and subst_var_env =
-    (d1: DHExp.t, x: Var.t, env: ClosureEnvironment.t): ClosureEnvironment.t => {
-  Environment.foldo(
+    (d1: DHExp.t, x: Var.t, env: Environment.t(Exp.t)): Environment.t(Exp.t) => {
+  Environment.fold(
     ((x', d': DHExp.t), map) => {
       let d' =
         switch (DHExp.term_of(d')) {
@@ -179,7 +179,7 @@ and subst_var_env =
          * fixpoint. */
         | FixF(_) =>
           map
-          |> Environment.foldo(
+          |> Environment.fold(
                ((x'', d''), d) => subst_var(d'', x'', d),
                d',
              )
@@ -191,8 +191,8 @@ and subst_var_env =
       Environment.extend(map, (x', d'));
     },
     Environment.empty,
-  )
-  |> ClosureEnvironment.update_env(_, env);
+    env,
+  );
 }
 
 and subst_var_filter =
@@ -201,9 +201,9 @@ and subst_var_filter =
   flt |> TermBase.StepperFilterKind.map(subst_var(d1, x));
 };
 
-let subst = (env: Environment.t, d: DHExp.t): DHExp.t =>
+let subst = (env: Environment.t(Exp.t), d: Exp.t): Exp.t =>
   env
-  |> Environment.foldo(
+  |> Environment.fold(
        (xd: (Var.t, DHExp.t), d2) => {
          let (x, d1) = xd;
          subst_var(d1, x, d2);
