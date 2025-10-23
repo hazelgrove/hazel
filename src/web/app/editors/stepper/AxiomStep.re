@@ -88,7 +88,6 @@ module F =
         ~hidden: Calc.saved(bool),
         ~exp: Calc.t(Exp.t),
         ~ctx as _: Calc.t(Ctx.t),
-        ~state: Calc.t(EvaluatorState.t),
         ~editor as _: Calc.t(CodeSelectable.Model.t),
         model: model,
       ) => {
@@ -111,7 +110,7 @@ module F =
         next_exp: next_exp |> Calc.save,
       },
       hidden |> Calc.set(false),
-      Some((next_exp, state)),
+      Some(next_exp),
     );
   };
 
