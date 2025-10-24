@@ -393,34 +393,60 @@ async function runOnce(attempt: number, params: {
             timestamp: created > 0 ? new Date(created * 1000).toISOString() : null
           };
 
-          // Check for tool calls and capture program state if present
+          // Capture API response metadata: id, role, content, tool_calls, finish_reason
           if (Array.isArray(data.choices) && data.choices.length > 0 && data.choices[0].message) {
-            const message = data.choices[0].message;
+            const choice = data.choices[0];
+            const message = choice.message;
+            tokenData.id = data.id ?? null;
+            tokenData.role = message.role ?? null;
+            if (typeof message.content !== 'undefined') {
+              tokenData.content = message.content;
+            }
             if (message.tool_calls && Array.isArray(message.tool_calls)) {
               tokenData.tool_calls = message.tool_calls;
+            }
+            if (typeof choice.finish_reason !== 'undefined') {
+              tokenData.finish_reason = choice.finish_reason;
+            }
+          }
+
+          // Wait for tool execution to complete
+          await page.waitForTimeout(500);
+          
+          // Extract program state from localStorage
+          try {
+            const result = await page.evaluate(() => {
+              const saveData = localStorage.getItem('SAVE_SCRATCH');
               
-              // Wait for tool execution to complete
-              await page.waitForTimeout(500);
-              
-              // Extract program state from localStorage
-              try {
-                const programState = await page.evaluate(() => {
-                  const saveData = localStorage.getItem('SAVE_SCRATCH');
+              return {
+                saveData,
+                programState: (() => {
                   if (saveData) {
-                    const match = saveData.match(/"backup_text":"(.*?)"/);
+                    const match = saveData.match(/\(backup_text"((?:\\.|[^"\\])*)"\)/);
                     return match ? match[1] : null;
                   }
                   return null;
-                });
-                
-                if (programState) {
-                  // Unescape the JSON string
-                  tokenData.program_state = programState.replace(/\\n/g, '\n').replace(/\\"/g, '"').replace(/\\\\/g, '\\');
-                }
-              } catch (e) {
-                // Ignore localStorage access errors
-              }
+                })()
+              };
+            });
+            
+            // Log the localStorage state in Node.js console
+            console.log('=== COMPLETE LOCALSTORAGE STATE ===');
+            console.log('Raw localStorage SAVE_SCRATCH:', result.saveData);
+            console.log('=== END LOCALSTORAGE STATE ===');
+            
+            const programState = result.programState;
+            console.log('Extracted program state:', programState);
+            if (programState) {
+              // Unescape the JSON string
+              tokenData.program_state = programState.replace(/\\n/g, '\n').replace(/\\"/g, '"').replace(/\\\\/g, '\\');
+              console.log('Final program state:', tokenData.program_state);
+            } else {
+              console.log('No program state found in localStorage');
             }
+          } catch (e) {
+            // Log localStorage access errors for debugging
+            console.log('Failed to extract program state:', e);
           }
 
           // Store token data in order of responses
