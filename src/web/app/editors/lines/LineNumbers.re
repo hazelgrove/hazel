@@ -1,6 +1,7 @@
 open Haz3lcore;
 //open Virtual_dom.Vdom;
 open Util;
+open Util.Sets;
 open WebUtil;
 
 /*
@@ -18,32 +19,20 @@ module View = {
   let view = (model: Model.t, show_relative_numbers: bool, selected: bool) => {
     let {editor: {syntax: {measured, _}, state: {zipper, _}, _}, _}: Model.t = model;
     let num_rows = List.length(measured.piece_rows);
-    let skip_row_generic = (row: int, map) =>
-      Id.Map.fold(
-        (_id, measurement: Measured.measurement, acc) => {
-          acc || measurement.origin.row < row && measurement.last.row > row
-        },
-        map,
-        false,
-      );
+
     /*
      Multiline projects are either Tab or Block, so they either
      1. Defer linebreaks (hence checking for secondary)
      2. Or are multiline themselves
      */
-    let skip_row = (row: int) => {
-      skip_row_generic(row, measured.secondary)
-      || skip_row_generic(row, measured.projectors);
-    };
-
     // This will be used for having a set of line numbers that have prev. been reached
-    let skip_set_generic = (init, map): Util.Sets.SIntSet.t =>
+    let skip_set_generic = (init, map): SIntSet.t =>
       Id.Map.fold(
         (_id, measurement: Measured.measurement, acc) =>
           //measurement.last.row is 1 larger than the actual last row of the measurement
           if (measurement.origin.row + 1 < measurement.last.row) {
             List.fold_left(
-              (acc, i: int) => {Util.Sets.SIntSet.add(i, acc)},
+              (acc, i: int) => {SIntSet.add(i, acc)},
               acc,
               List.init(
                 measurement.last.row - measurement.origin.row - 1, (i: int) => {
@@ -58,9 +47,10 @@ module View = {
       );
 
     let skip_set = {
-      let empty_set = Util.Sets.SIntSet.empty;
-      let another_set = skip_set_generic(empty_set, measured.secondary);
-      skip_set_generic(another_set, measured.projectors);
+      skip_set_generic(
+        skip_set_generic(SIntSet.empty, measured.secondary),
+        measured.projectors,
+      );
     };
 
     let Point.{row, _} = Zipper.Caret.point(measured, zipper);
@@ -77,7 +67,7 @@ module View = {
         ([], 0);
       } else {
         let skip_this_row =
-          Sets.SIntSet.exists((iter: int) => {i == iter}, skip_set);
+          SIntSet.exists((iter: int) => {i == iter}, skip_set);
         let (returned_processed_list, returned_cursor_row) =
           skip_this_row
             ? processed_line_numbers(i + 1, acc)
