@@ -35,6 +35,34 @@ module View = {
       skip_row_generic(row, measured.secondary)
       || skip_row_generic(row, measured.projectors);
     };
+
+    // This will be used for having a set of line numbers that have prev. been reached
+    let skip_set_generic = (init, map): Util.Sets.SIntSet.t =>
+      Id.Map.fold(
+        (_id, measurement: Measured.measurement, acc) =>
+          //measurement.last.row is 1 larger than the actual last row of the measurement
+          if (measurement.origin.row + 1 < measurement.last.row) {
+            List.fold_left(
+              (acc, i: int) => {Util.Sets.SIntSet.add(i, acc)},
+              acc,
+              List.init(
+                measurement.last.row - measurement.origin.row - 1, (i: int) => {
+                measurement.origin.row + 1 + i
+              }),
+            );
+          } else {
+            acc;
+          },
+        map,
+        init,
+      );
+
+    let skip_set = {
+      let empty_set = Util.Sets.SIntSet.empty;
+      let another_set = skip_set_generic(empty_set, measured.secondary);
+      skip_set_generic(another_set, measured.projectors);
+    };
+
     let Point.{row, _} = Zipper.Caret.point(measured, zipper);
     /*
       Returns the processed line numbers, with 0 being a line to skip
@@ -48,7 +76,8 @@ module View = {
       if (i == num_rows) {
         ([], 0);
       } else {
-        let skip_this_row = skip_row(i);
+        let skip_this_row =
+          Sets.SIntSet.exists((iter: int) => {i == iter}, skip_set);
         let (returned_processed_list, returned_cursor_row) =
           skip_this_row
             ? processed_line_numbers(i + 1, acc)
