@@ -152,6 +152,11 @@ let go =
     );
     print_endline("New term Segment: " ++ print_segment(seg));
 
+    // Don't do this
+    let new_id =
+      MakeTerm.from_zip_for_sem(Zipper.unzip(~direction=Right, seg)).term
+      |> Language.Exp.rep_id;
+
     let (l, r) =
       TermData.extremes_shards(Id.recover_original(id), term_data)
       |> Option.get;
@@ -160,6 +165,14 @@ let go =
       |> Option.map(Zipper.replace_selection(Right, seg))
       |> Option.get;
     print_endline("Zipper after: " ++ (new_z |> Zipper.zip |> print_segment));
+
+    // This needs to be generalized in a way that scales
+    let original_refractor_model =
+      Id.Map.find_opt(Id.recover_original(id), z.refractors.manuals)
+      |> Option.map((pr: Base.projector) => pr.model);
+
+    let new_z =
+      MkRefractor.add_single(~model=?original_refractor_model, new_id, new_z);
 
     Ok(new_z);
   | SetModel(id, model) =>

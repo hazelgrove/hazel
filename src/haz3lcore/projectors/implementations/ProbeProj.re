@@ -25,7 +25,8 @@ type action =
   | NoOp
   | OpenTableModal
   | CloseTableModal
-  | TableMenuAction(int, list(string));
+  | TableMenuAction(int, list(string))
+  | CloseMenu;
 
 module Window = {
   [@deriving (show({with_path: false}), sexp, yojson)]
@@ -944,6 +945,10 @@ module M: Projector = {
       print_endline("Model state now Some");
       {table_modal: Some({menu_state: None})};
     | CloseTableModal => {table_modal: None}
+    | CloseMenu => {
+        table_modal:
+          Option.map(_modal => {menu_state: None}, model.table_modal),
+      }
     | TableMenuAction(col, path) => {
         table_modal:
           Option.map(
@@ -966,13 +971,13 @@ module M: Projector = {
           set_syntax: segment => parent(SetSyntax(segment)),
           local_action: action => {
             switch (action) {
-            | CloseMenu => local(CloseTableModal)
+            | CloseMenu => local(CloseMenu)
             | ShowMenu(i) => local(TableMenuAction(i, []))
             | ShowSubmenu(path) => local(TableMenuAction(0, path)) /* TODO: Track current column */
-            | DropColumn(_) => local(CloseTableModal) /* Will be handled by set_syntax */
-            | ConversionColumn(_) => local(CloseTableModal) /* Will be handled by set_syntax */
-            | RenameColumn(_) => local(CloseTableModal) /* Will be handled by set_syntax */
-            | AddColumnAfter(_) => local(CloseTableModal) /* Will be handled by set_syntax */
+            | DropColumn(_) => Ui_effect.Ignore /* Will be handled by set_syntax */
+            | ConversionColumn(_) => Ui_effect.Ignore /* Will be handled by set_syntax */
+            | RenameColumn(_) => Ui_effect.Ignore /* Will be handled by set_syntax */
+            | AddColumnAfter(_) => Ui_effect.Ignore /* Will be handled by set_syntax */
             };
           },
         };
@@ -986,10 +991,7 @@ module M: Projector = {
 
         /* Render modal backdrop */
         div(
-          ~attrs=[
-            Attr.classes(["table-modal-backdrop", "live-offside"]),
-            Attr.on_click(_ => local(CloseTableModal)),
-          ],
+          ~attrs=[Attr.classes(["table-modal-backdrop", "live-offside"])],
           [
             /* Modal content */
             div(
