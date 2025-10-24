@@ -13,6 +13,7 @@ module Model = {
     explainThis: ExplainThisModel.Settings.t,
     assistant: AssistantSettings.t,
     sidebar: SidebarModel.Settings.t,
+    vimzel: bool,
   };
 
   let init = {
@@ -56,6 +57,7 @@ module Model = {
       panel: LanguageDocumentation,
       show: true,
     },
+    vimzel: false,
   };
 
   let fix_instructor_mode = settings =>
@@ -113,7 +115,8 @@ module Update = {
     | Sidebar(SidebarModel.Settings.action)
     | ExplainThis(ExplainThisModel.Settings.action)
     | Assistant(AssistantSettings.action)
-    | FlipAnimations;
+    | FlipAnimations
+    | Vimzel;
 
   let can_undo = (action: t) => {
     switch (action) {
@@ -164,6 +167,10 @@ module Update = {
             ...settings.core,
             flip_animations: !settings.core.flip_animations,
           },
+        }
+      | Vimzel => {
+          ...settings,
+          vimzel: !settings.vimzel,
         }
       | Evaluation(u) =>
         let evaluation = settings.core.evaluation;

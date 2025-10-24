@@ -118,6 +118,7 @@ let dev_group = (~globals) => {
         globals.settings.core.flip_animations,
         FlipAnimations,
       ),
+      ("v", "Vimzel", globals.settings.vimzel, Vimzel),
     ],
   );
 };
