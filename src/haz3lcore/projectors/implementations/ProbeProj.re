@@ -970,10 +970,15 @@ module M: Projector = {
         let action_handler: TR.action_handler = {
           set_syntax: segment => parent(SetSyntax(segment)),
           local_action: action => {
+            let col =
+              switch (model.table_modal) {
+              | Some({menu_state: Some((col, _))}) => col
+              | _ => 0
+              };
             switch (action) {
             | CloseMenu => local(CloseMenu)
             | ShowMenu(i) => local(TableMenuAction(i, []))
-            | ShowSubmenu(path) => local(TableMenuAction(0, path)) /* TODO: Track current column */
+            | ShowSubmenu(path) => local(TableMenuAction(col, path))
             | DropColumn(_) => Ui_effect.Ignore /* Will be handled by set_syntax */
             | ConversionColumn(_) => Ui_effect.Ignore /* Will be handled by set_syntax */
             | RenameColumn(_) => Ui_effect.Ignore /* Will be handled by set_syntax */
