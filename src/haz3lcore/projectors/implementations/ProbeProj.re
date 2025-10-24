@@ -392,7 +392,7 @@ let value_view =
   /* Create table badge if this closure has table data */
   let table_badge =
     has_table
-      ? div(
+      ? span(
           ~attrs=[
             Attr.classes(["table-badge"]),
             Attr.title("Click to view as table"),
@@ -405,38 +405,44 @@ let value_view =
         )
       : Node.div([]);
 
-  div([
-    div(
-      ~attrs=[
-        //Attr.title(Debug.str(~ap_id, closure)),
-        Attr.classes(
-          ["value", length_cls(length)]
-          @ cursor_clss(ap_id, di, closure)
-          @ (Option.is_some(ap_id) ? ["ap"] : [])
-          @ (!is_value(closure.value) ? ["indet"] : [])
-          @ (has_table ? ["has-table"] : []),
-        ),
-        Attr.on_double_click(_ => local(ToggleShowAllVals(index))),
-        Attr.on_pointerdown(evt =>
-          Key.meta_held(evt)
-            ? switch (ap_id, Dynamics.Info.is_in(di)) {
-              | (Some(ap_id), Some(closure_cursor)) =>
-                parent(
-                  DynCursor(
-                    TogglePinCall([ap_id, ...closure_cursor.call_stack]),
-                  ),
-                )
-              | _ => Effect.Ignore
-              }
-            : val_pointerdown(evt)
-        ),
-        Attr.on_pointerup(val_pointerup),
-        Attr.on_mousemove(val_mousemove),
-      ],
-      [view_seg(Sort.Exp, seg)],
-    ),
-    table_badge,
-  ]);
+  div(
+    ~attrs=[
+      // style display flex
+      Attr.style(Css_gen.create(~field="display", ~value="flex")),
+    ],
+    [
+      table_badge,
+      div(
+        ~attrs=[
+          //Attr.title(Debug.str(~ap_id, closure)),
+          Attr.classes(
+            ["value", length_cls(length)]
+            @ cursor_clss(ap_id, di, closure)
+            @ (Option.is_some(ap_id) ? ["ap"] : [])
+            @ (!is_value(closure.value) ? ["indet"] : [])
+            @ (has_table ? ["has-table"] : []),
+          ),
+          Attr.on_double_click(_ => local(ToggleShowAllVals(index))),
+          Attr.on_pointerdown(evt =>
+            Key.meta_held(evt)
+              ? switch (ap_id, Dynamics.Info.is_in(di)) {
+                | (Some(ap_id), Some(closure_cursor)) =>
+                  parent(
+                    DynCursor(
+                      TogglePinCall([ap_id, ...closure_cursor.call_stack]),
+                    ),
+                  )
+                | _ => Effect.Ignore
+                }
+              : val_pointerdown(evt)
+          ),
+          Attr.on_pointerup(val_pointerup),
+          Attr.on_mousemove(val_mousemove),
+        ],
+        [view_seg(Sort.Exp, seg)],
+      ),
+    ],
+  );
 };
 
 let env_val =
@@ -882,7 +888,7 @@ let view = (model: probe_model, local, parent, info: info): Node.t =>
     [text(syntax_str(info.utility, info.syntax)) /*, icon*/],
   );
 
-let overlay_view = (model: probe_model, info: info): Node.t =>
+let overlay_view = (_model: probe_model, info: info): Node.t =>
   switch (info.dynamics) {
   | Some(di) =>
     let ap_id = cur_ap(info);

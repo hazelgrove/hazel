@@ -128,35 +128,12 @@ let go =
     | None => Error(Cant_project)
     }
   | SetSyntax(id, seg) =>
-    print_endline("Setting syntax: " ++ Id.show(id));
-    // print_endline("Zipper before: " ++ Zipper.show(z));
-    // print_endline(
-    // "Refractor ids: " ++ ZipperBase.Refractor.Map.show(z.refractors.manuals),
-    // );
     let tdata = Id.Map.find(Id.recover_original(id), term_data); // partial
-    // print_endline("Found tdata");
     let base_seg = tdata.base_seg;
-    print_endline("Original base_seg: " ++ print_segment(base_seg));
-
-    print_endline(
-      "Original term segment: "
-      ++ print_segment(
-           Option.get(
-             TermData.segment(
-               ~debug=false,
-               Id.recover_original(id),
-               term_data,
-             ),
-           ),
-         ),
-    );
-    print_endline("New term Segment: " ++ print_segment(seg));
-
     // Don't do this
     let new_id =
       MakeTerm.from_zip_for_sem(Zipper.unzip(~direction=Right, seg)).term
       |> Language.Exp.rep_id;
-
     let (l, r) =
       TermData.extremes_shards(Id.recover_original(id), term_data)
       |> Option.get;
@@ -164,16 +141,12 @@ let go =
       Select.shard_range(l, r, z)
       |> Option.map(Zipper.replace_selection(Right, seg))
       |> Option.get;
-    print_endline("Zipper after: " ++ (new_z |> Zipper.zip |> print_segment));
-
     // This needs to be generalized in a way that scales
     let original_refractor_model =
       Id.Map.find_opt(Id.recover_original(id), z.refractors.manuals)
       |> Option.map((pr: Base.projector) => pr.model);
-
     let new_z =
       MkRefractor.add_single(~model=?original_refractor_model, new_id, new_z);
-
     Ok(new_z);
   | SetModel(id, model) =>
     let z =
