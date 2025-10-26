@@ -9,8 +9,8 @@
 }
 
 #probesys .title {
-  text-transform: uppercase;
-  font-weight: bold;
+  /* text-transform: uppercase;
+  font-weight: bold; */
 }
 
 #probesys .main-title {
@@ -58,18 +58,25 @@
 }
 
 #probesys .legend {
-  display: flex;
-  flex-direction: column;
-  gap: 0.2em;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  grid-template-rows: auto auto auto;
+  gap: 0.5rem; /* adjust spacing between items */
+  justify-items: stretch; /* or center if you prefer tighter layout */
   padding: 0.5em;
   outline: 1px solid var(--BR1);
   border-radius: 0.3em;
   color: var(--BR2);
 }
 
+#probesys .legend .title {
+  grid-column: 1 / -1; /* span full width of the grid */
+  justify-self: start; /* left align */
+}
+
 #probesys .legend .projector {
   position: relative;
   pointer-events: none;
-  justify-content: start;
-  margin-left: 0.5em;
+  justify-content: center;
+  text-align: center;
 }

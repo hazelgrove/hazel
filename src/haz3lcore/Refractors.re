@@ -196,3 +196,9 @@ let update =
     | None => z
     }
   };
+
+/* Check if id has either manual or ephermeral probe on it */
+let has_probe = (id: Id.t, z: Zipper.t): bool => {
+  Id.Map.mem(id, z.refractors.manuals)
+  || Id.Map.mem(id, z.refractors.ephemerals);
+};

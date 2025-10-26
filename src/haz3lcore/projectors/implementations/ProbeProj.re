@@ -9,17 +9,20 @@ open Language;
 type closure = Dynamics.Probe.Closure.t;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
+type window =
+  | Single
+  | Many;
+
+[@deriving (show({with_path: false}), sexp, yojson)]
+type settings = {window};
+
+[@deriving (show({with_path: false}), sexp, yojson)]
 type action =
   | ChangeLength(int, int)
   | ToggleShowAllVals(int)
   | NoOp;
 
 module Window = {
-  [@deriving (show({with_path: false}), sexp, yojson)]
-  type mode =
-    | Single
-    | Many;
-
   let mode = ref(Single);
   let offset = Hashtbl.create(100);
 
@@ -730,7 +733,7 @@ let offside_view =
         Attr.on_keydown(
           key_handler(local, ~id, ~ap_id, di, utility, parent),
         ),
-        Attr.classes(["live-offside", Window.get_mode() |> Window.show_mode]),
+        Attr.classes(["live-offside", Window.get_mode() |> show_window]),
       ],
       (num_shown > 0 ? [equals_view] : [])
       @ closure_group_view(
@@ -881,6 +884,7 @@ module M: Projector = {
   let update = update;
 
   let view = (_model, info, ~local, ~parent, ~view_seg) => {
+    //let settings = get_settings();
     View.{
       inline:
         switch (info.syntax) {

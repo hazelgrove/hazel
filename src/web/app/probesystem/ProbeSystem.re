@@ -21,7 +21,7 @@ let exp_view = (~available, term: Language.Exp.t) =>
   |> ExpToSegment.exp_to_segment(
        ~settings=
          ExpToSegment.Settings.of_core(
-           ~inline=false,
+           ~inline=true,
            Language.CoreSettings.off,
          ),
      );
@@ -33,7 +33,7 @@ let pat_view = (~available, term: Language.Pat.t) =>
   |> ExpToSegment.any_to_segment(
        ~settings=
          ExpToSegment.Settings.of_core(
-           ~inline=false,
+           ~inline=true,
            Language.CoreSettings.off,
          ),
      );
@@ -85,7 +85,7 @@ let fancy =
       Attr.on_pointerdown(jump_to(~globals, id)),
     ],
     [
-      term_view(~globals, ~available=8, any),
+      term_view(~globals, ~available=12, any),
       probe_view(
         globals.font_metrics,
         refractor_data,
@@ -162,22 +162,22 @@ let legend_view = (~font_metrics: FontMetrics.t) => {
   div(
     ~attrs=[clss(["legend"])],
     [
-      text("Legend"),
-      legend_closure_view(
-        ~indicated=true,
-        ~ap_id=None,
-        ~indicated_call=None,
-        ~cursor_stack=[Id.invalid],
-        ~closure_stack=[Id.invalid],
-        ~caption="Sample at Dynamic Cursor",
-      ),
+      div(~attrs=[clss(["title"])], [text("Sample Legend")]),
       legend_closure_view(
         ~indicated=false,
         ~ap_id=None,
         ~indicated_call=None,
         ~cursor_stack=[Id.invalid, Id.invalid],
         ~closure_stack=[Id.invalid],
-        ~caption="Sample below Dynamic Cursor",
+        ~caption="Before",
+      ),
+      legend_closure_view(
+        ~indicated=true,
+        ~ap_id=None,
+        ~indicated_call=None,
+        ~cursor_stack=[Id.invalid],
+        ~closure_stack=[Id.invalid],
+        ~caption="At Cursor",
       ),
       legend_closure_view(
         ~indicated=false,
@@ -185,15 +185,7 @@ let legend_view = (~font_metrics: FontMetrics.t) => {
         ~indicated_call=None,
         ~cursor_stack=[Id.invalid],
         ~closure_stack=[Id.invalid, Id.invalid],
-        ~caption="Sample above Dynamic Cursor",
-      ),
-      legend_closure_view(
-        ~indicated=false,
-        ~ap_id=None,
-        ~indicated_call=None,
-        ~cursor_stack=[Id.mk()],
-        ~closure_stack=[Id.invalid],
-        ~caption="Unrelated to Dynamic Cursor",
+        ~caption="After",
       ),
       legend_closure_view(
         ~indicated=false,
@@ -201,7 +193,15 @@ let legend_view = (~font_metrics: FontMetrics.t) => {
         ~ap_id=Some(Id.invalid),
         ~cursor_stack=[Id.invalid, Id.invalid],
         ~closure_stack=[Id.invalid],
-        ~caption="Call above Call Cursor",
+        ~caption="Contains",
+      ),
+      legend_closure_view(
+        ~indicated=false,
+        ~ap_id=None,
+        ~indicated_call=None,
+        ~cursor_stack=[Id.mk()],
+        ~closure_stack=[Id.invalid],
+        ~caption="Off Cursor",
       ),
       legend_closure_view(
         ~indicated=false,
@@ -209,7 +209,7 @@ let legend_view = (~font_metrics: FontMetrics.t) => {
         ~ap_id=None,
         ~cursor_stack=[Id.invalid],
         ~closure_stack=[Id.invalid, Id.invalid],
-        ~caption="Below Indicated Call",
+        ~caption="Inside",
       ),
     ],
   );
@@ -248,7 +248,7 @@ let view =
     [
       div(
         ~attrs=[clss(["header"])],
-        [div(~attrs=[clss(["main-title"])], [text("Probe System")])],
+        [div(~attrs=[clss(["main-title"])], [text("Live Probes")])],
       ),
       legend_view(~font_metrics=globals.font_metrics),
       div([

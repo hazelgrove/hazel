@@ -89,6 +89,10 @@
   fill: var(--exp-base) !important;
 }
 
+.code-deco .refractors svg.shard.probe-indicated path {
+  opacity: 0.4;
+}
+
 .code-deco .refractors svg.shard.indicated {
   filter: drop-shadow(var(--off-x) var(--off-y) var(--blur) var(--G0));
 }
@@ -132,6 +136,10 @@
 
 .refractors .overlays .projector.probe.indicated.Right .num-closures {
   background-color: var(--exp-indicated) !important;
+}
+
+.indication-probed svg.shard.indicated > path {
+  fill: var(--exp-base);
 }
 
 /* INLINE VIEW */
@@ -251,7 +259,7 @@
   color: var(--STONE);
 }
 
-.projector.probe .pin {
+.live-offside .pin {
   pointer-events: auto;
   position: absolute;
   left: -0.85em;
@@ -307,7 +315,7 @@
   color: var(--pat-indicated);
 }
 
-.projector.probe .live-offside .nav-bar {
+.live-offside .nav-bar {
   display: flex;
   flex-direction: row;
   align-items: center;
@@ -317,55 +325,48 @@
   top: 0.35em;
 }
 
-.projector.probe .live-offside .ellipsis {
+.live-offside .ellipsis {
   cursor: pointer;
 }
-.projector.probe .live-offside .ellipsis {
+.live-offside .ellipsis {
   color: var(--exp-base);
 }
-/* .projector.probe.Pat .live-offside .ellipsis {
-  color: var(--pat-base);
-} */
+
 .projector.probe.indicated .live-offside .ellipsis {
   color: var(--exp-indicated);
 }
-/* .projector.probe.indicated.Pat .live-offside .ellipsis {
-  color: var(--pat-indicated);
-} */
-.projector.probe .live-offside .ellipsis:hover {
+
+.live-offside .ellipsis:hover {
   /* filter: brightness(1.2) saturate(2); */
   scale: 1.4;
 }
 
-.projector.probe .live-offside .closure-groups {
+.live-offside .closure-groups {
   display: flex;
   flex-direction: row;
   gap: 2px;
 }
 
-.projector.probe .closure-group {
+.live-offside .closure-group {
   display: flex;
   gap: 2px;
   align-items: center;
 }
 
-.projector.probe .closure-group:not(:last-child)::after {
+.live-offside .closure-group:not(:last-child)::after {
   content: "•";
   font-size: 0.4em;
   margin: -1px;
 }
-.projector.probe .closure-group:not(:last-child)::after {
+.live-offside .closure-group:not(:last-child)::after {
   color: var(--exp-indicated);
 }
-/* .projector.probe.Pat .closure-group:not(:last-child)::after {
-  color: var(--pat-indicated);
-} */
 
-.projector.probe .value {
+.live-offside .value {
   cursor: pointer;
 }
 
-.projector.probe .closure .code {
+.live-offside .closure .code {
   line-height: initial;
 }
 
@@ -374,7 +375,7 @@
 } */
 
 /* TOKEN BKG */
-.projector.probe .closure {
+.live-offside .closure {
   --bottom-border-clr: oklch(0.8 0.06 145.88); /*var(--exp-shadow);*/
   --bkg: var(--exp-base);
   --below-shadow: #5487cf;
@@ -385,18 +386,12 @@
   transition: scale 0.1s ease-in-out, transform 0.1s ease-in-out,
     translate 0.1s ease-in-out, box-shadow 0.1s ease-in-out,
     top 0.1s ease-in-out;
-  /* background-color: var(--bkg); */
+  background-color: var(--bkg);
   border-bottom-color: var(--bottom-border-clr);
   padding: 0 0.1em;
 }
-/* .projector.probe.Pat .closure {
-    --below-shadow: #00aec1;
-  } */
-/* .projector.probe.Pat .closure {
-    --bottom-border-clr: var(--pat-shadow);
-    --bkg: var(--pat-base);
-  } */
-.projector.probe .closure:has(.value.indet) {
+
+.live-offside .closure:has(.value.indet) {
   /* background-color: var(--R0) !important;
   --below-shadow: var(--R2);
   --bottom-border-clr: var(--R2);
@@ -406,42 +401,38 @@
   --bottom-border-clr: oklch(0.4 0 0);
   --inner-shadow: #a2a2a2 !important;
 }
-.projector.probe .closure:has(.value.cursor-callee) {
+.live-offside .closure:has(.value.cursor-callee) {
   --below-shadow: var(--exp-ap-indicated);
 }
-.projector.probe .closure:has(.value.cursor-caller) {
+.live-offside .closure:has(.value.cursor-caller) {
   --caller-accent: var(--exp-ap-indicated);
   --bottom-border-clr: var(--caller-accent);
   --bkg: var(--exp-ap-indicated);
 }
-.projector.probe .closure:has(.value.cursor-caller):not(:hover) {
+.live-offside .closure:has(.value.cursor-caller):not(:hover) {
   outline-style: none;
   border-color: rgb(165, 64, 205);
   border-radius: 0.2em;
   border-bottom-style: dotted;
 }
-.projector.probe .closure:has(.value.cursor-callee):not(:hover) {
+.live-offside .closure:has(.value.cursor-callee):not(:hover) {
   outline-style: none;
   border-color: rgb(72, 130, 224);
   border-radius: 0.2em;
   border-bottom-style: dotted;
 }
-.projector.probe
-  .live-offside.Single:has(
+.live-offside.Single:has(
     .value.cursor-unrelated:not(.below):not(.above):not(:hover)
   ),
-.projector.probe .live-offside:has(.value.cursor-callee.indirect) {
+.live-offside.Single:has(.value.cursor-callee.indirect) {
   filter: contrast(0.32) brightness(1.51) /*blur(2px)*/;
 }
 
-.projector.probe .closure:has(.value.cursor-unrelated.level0) {
+.live-offside .closure:has(.value.cursor-unrelated.level0) {
   --bottom-border-clr: #73e1a3;
 }
-/* .projector.probe.Pat .closure:has(.value.cursor-unrelated.level0) {
-  --bottom-border-clr: #73c1e1;
-} */
 
-.projector.probe .live-offside.Many .closure:has(.value.above) {
+.live-offside.Many .closure:has(.value.above) {
   --below-shadow: oklch(0.9 0.07 300);
   border-bottom-width: 1px;
   border-bottom-style: solid;
@@ -449,80 +440,84 @@
   --bottom-border-clr: #bd92cf;
 }
 
-.projector.probe .live-offside.Many .closure:has(.value.above.indirect) {
+.live-offside.Many .closure:has(.value.above.indirect) {
   --bkg: oklch(0.4 0.18 300);
   box-shadow: inset 24px 25px 0 var(--inner-shadow);
   filter: drop-shadow(0 5.25px 0 var(--below-shadow));
 }
-.projector.probe .live-offside.Many .closure:has(.value.above.direct.L1) {
+.live-offside.Many .closure:has(.value.above.direct.L1) {
   --bkg: oklch(0.7 0.18 300);
   box-shadow: inset 1.5px 1.5px 0 var(--inner-shadow);
   filter: drop-shadow(0 1.5px 0 var(--below-shadow));
 }
-.projector.probe .live-offside.Many .closure:has(.value.above.indirect.L2) {
+.live-offside.Many .closure:has(.value.above.indirect.L2) {
   --bkg: oklch(0.66 0.18 300);
   box-shadow: inset 3px 3px 0 var(--inner-shadow);
   filter: drop-shadow(0 2.25px 0 var(--below-shadow));
 }
-.projector.probe .live-offside.Many .closure:has(.value.above.indirect.L3) {
+.live-offside.Many .closure:has(.value.above.indirect.L3) {
   --bkg: oklch(0.62 0.18 300);
   box-shadow: inset 6px 6px 0 var(--inner-shadow);
   filter: drop-shadow(0 3px 0 var(--below-shadow));
 }
-.projector.probe .live-offside.Many .closure:has(.value.above.indirect.L4) {
+.live-offside.Many .closure:has(.value.above.indirect.L4) {
   --bkg: oklch(0.58 0.18 300);
   box-shadow: inset 9px 9px 0 var(--inner-shadow);
   filter: drop-shadow(0 3.75px 0 var(--below-shadow));
 }
-.projector.probe .live-offside.Many .closure:has(.value.above.indirect.L5) {
+.live-offside.Many .closure:has(.value.above.indirect.L5) {
   --bkg: oklch(0.54 0.18 300);
   box-shadow: inset 14px 14px 0 var(--inner-shadow);
   filter: drop-shadow(0 4.5px 0 var(--below-shadow));
 }
-.projector.probe .live-offside.Many .closure:has(.value.above.indirect.L6) {
+.live-offside.Many .closure:has(.value.above.indirect.L6) {
   --bkg: oklch(0.5 0.18 300);
   box-shadow: inset 18px 18px 0 var(--inner-shadow);
   filter: drop-shadow(0 5.25px 0 var(--below-shadow));
 }
 
-.projector.probe .live-offside.Many .closure:has(.value.above) {
+.live-offside.Many .closure:has(.value.above) {
   top: -3.5px;
   box-shadow: 0 3.5px 0 #c8c8c8bb;
   position: relative;
   border-bottom-style: solid;
 }
-.projector.probe .live-offside.Many .closure:has(.value.above.L1) {
+.live-offside.Many .closure:has(.value.above.L1) {
   top: -1.5px;
   box-shadow: 0 1.5px 0 #c8c8c8bb;
 }
-.projector.probe .closure:has(.value.below) {
+.closure:has(.value.below) {
   position: relative;
   border-top: 1px solid var(--pat-shadow);
   border-radius: 0.05em 0.2em 0.05em 0.2em;
   border: none;
   overflow: hidden;
-  /* background-color: #e5d2ff; */
 }
-.projector.probe .live-offside.Many .closure:has(.value.below) {
+.live-offside.Many .closure:has(.value.below) {
   translate: 0 3px;
   box-shadow: 0px -0.75px 0 var(--below-shadow),
     0px -1.5px 0 var(--below-shadow), 0px -2.25px 0 var(--below-shadow),
     0px -3px 0 var(--below-shadow);
   height: calc(1.45em - 4.25px);
 }
-
-.live-offside.Many .closure .value.cursor-unrelated {
-  background-color: #ececec;
+.live-offside.Many .closure:has(.value.cursor-unrelated) {
+  background-color: #e5efe8;
 }
-.live-offside.Many .closure .value.above {
+.live-offside.Many .closure:has(.value.above) {
   background-color: #f4e5fb;
 }
-.live-offside.Many .closure .value.below {
+.live-offside.Many .closure:has(.value.below) {
   background-color: oklch(0.94 0.03 254.38);
 }
 
 .live-offside.Single .closure:has(.value.cursor-unrelated) .code-text .token {
   color: #808080;
+}
+.live-offside.Many .value.cursor-caller .code-text .token {
+  color: var(--TYP);
+}
+.live-offside.Many .value.cursor-callee .code-text .token {
+  color: var(--PAT);
 }
 
 .live-offside.Single .closure:has(.value.above) .code-text .token {
@@ -536,16 +531,11 @@
   color: white;
 }
 
-.projector.probe .closure:has(.value.below.direct) .code-text .token {
-  /* color: oklch(0.91 0.05 255.11) !important; */
-  /* opacity: 0.3; */
-}
-
-.projector.probe .live-offside.Many .closure:has(.value.above.L2) {
+.live-offside.Many .closure:has(.value.above.L2) {
   top: -2.5px;
   box-shadow: 0 2.5px 0 #d0cab7bb;
 }
-.projector.probe .live-offside.Many .closure:has(.value.below.L1) {
+.live-offside.Many .closure:has(.value.below.L1) {
   border: none;
   translate: 0 0.75px;
   box-shadow: 0px -0.75px 0 var(--below-shadow);
@@ -553,7 +543,7 @@
   height: calc(1.45em - 2px);
 }
 
-.projector.probe .live-offside.Many .closure:has(.value.below.L2) {
+.live-offside.Many .closure:has(.value.below.L2) {
   border: none;
   translate: 0 1.5px;
   box-shadow: 0px -0.75px 0 var(--below-shadow),
@@ -561,7 +551,7 @@
   height: calc(1.45em - 2.75px);
 }
 
-.projector.probe .live-offside.Many .closure:has(.value.below.L3) {
+.live-offside.Many .closure:has(.value.below.L3) {
   border: none;
   translate: 0 2.25px;
   box-shadow: 0px -0.75px 0 var(--below-shadow),
@@ -569,7 +559,7 @@
   height: calc(1.45em - 3.5px);
 }
 
-.projector.probe .live-offside.Many .closure:has(.value.below.L4) {
+.live-offside.Many .closure:has(.value.below.L4) {
   border: none;
   translate: 0 3px;
   box-shadow: 0px -0.75px 0 var(--below-shadow),
@@ -581,15 +571,6 @@
 /* TOKEN BKG INDICATED + HOVER */
 .projector.probe.indicated .Many.closure:has(.value.cursor-unrelated) {
   filter: contrast(0.5) brightness(1.32) saturate(0.7);
-}
-.projector.probe .closure:has(.value.cursor) {
-  background-color: var(--bkg);
-}
-.projector.probe.indicated .closure:has(.value.cursor) {
-  /* background: var(--SAND); */
-  /* outline-width: 1.5px;
-  outline-style: solid;
-  border: none; */
 }
 
 @keyframes flash-border {
@@ -610,10 +591,13 @@
   animation: flash-border 1s infinite;
 }
 
+.live-offside .closure:has(.value.cursor) {
+  background-color: var(--bkg);
+}
 .projector.probe.indicated .live-offside.Single .closure:has(.value.cursor) {
   border-bottom: 1px solid var(--G0);
+  background-color: oklch(from var(--bkg) calc(l * 0.96) calc(c + 0.04) h);
 }
-
 .projector.probe.indicated
   .live-offside.Single:focus
   .closure:has(.value.cursor) {
@@ -628,7 +612,7 @@
   outline: 1.5px solid var(--R1);
 }
 
-.projector.probe .closure:hover {
+.live-offside .closure:hover {
   z-index: var(--projector-indicated-z);
   position: relative;
   /* outline-width: 1.5px;
@@ -637,52 +621,51 @@
   /* filter: drop-shadow(1.5px 3px 0 #95876452) !important; */
 }
 
-.projector.probe .closure:has(.s0) {
+.live-offside .closure:has(.s0) {
   --base: 0;
 }
-.projector.probe .closure:has(.s1) {
+.live-offside .closure:has(.s1) {
   --base: 1;
 }
-.projector.probe .closure:has(.s2) {
+.live-offside .closure:has(.s2) {
   --base: 2;
 }
-.projector.probe .closure:has(.s3) {
+.live-offside .closure:has(.s3) {
   --base: 3;
 }
-.projector.probe .closure:has(.s4) {
+.live-offside .closure:has(.s4) {
   --base: 4;
 }
-.projector.probe .closure:has(.s5) {
+.live-offside .closure:has(.s5) {
   --base: 5;
 }
-.projector.probe .closure:has(.s6) {
+.live-offside .closure:has(.s6) {
   --base: 6;
 }
-.projector.probe .closure:has(.extra) {
+.live-offside .closure:has(.extra) {
   --base: 7;
 }
 
 /* TOKENS */
 
-.projector.probe .value.indet .code-text .token {
+.live-offside .value.indet .code-text .token {
   /* color: var(--R2) !important; */
   color: white;
   filter: none !important;
 }
 
-.projector.probe .value.indet.cursor .code-text .token {
+.live-offside .value.indet.cursor .code-text .token {
   color: grey;
 }
 
-.projector.probe .value.cursor .code-text .token {
+.live-offside.value.cursor .code-text .token {
   color: var(--exp-indicated);
 }
 /* .projector.probe.Pat .value.cursor .code-text .token {
   color: var(--pat-indicated);
 } */
 
-.live-offside.Single .value.cursor-unrelated .code-text .token/*,
-.projector.probe .value.cursor-caller .code-text .token*/ {
+.live-offside.Single .value.cursor-unrelated .code-text .token {
   /* color: var(--exp-indicated); */
   color: rgb(102, 102, 102);
   /* opacity: 0.4; */
@@ -699,14 +682,14 @@
   color: var(--exp-ap-indicated);
 } */
 
-.projector.probe .value .token.explicit-hole {
+.live-offside .value .token.explicit-hole {
   color: white;
   text-shadow: none;
 }
 
 /* LIVE ENV */
 
-.projector.probe .live-env {
+.live-offside .live-env {
   background-color: var(--live-env-bkg);
   border-radius: 0 0.2em 0.2em 0.2em;
   padding: 0.2em;
@@ -718,7 +701,7 @@
   transform-origin: top left;
 }
 
-.projector.probe .live-env .live-env-entry {
+.live-offside.live-env .live-env-entry {
   display: flex;
   flex-direction: row;
   white-space: pre;
