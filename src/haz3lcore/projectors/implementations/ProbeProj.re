@@ -519,9 +519,8 @@ let move_cursor =
   | Some(idx) =>
     let next_idx_maybe = idx - offset;
     if (next_idx_maybe >= 0 && next_idx_maybe < List.length(closures)) {
-      //TODO(andrew): is none appropriate below?
       parent(
-        DynCursor(Capture(List.nth(closures, next_idx_maybe), None)),
+        DynCursor(Capture(List.nth(closures, next_idx_maybe), ap_id)),
       );
     } else {
       Effect.Ignore;

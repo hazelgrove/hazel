@@ -381,14 +381,12 @@
   --below-shadow: #5487cf;
   --num-levels: 7;
   --base: 0;
-
+  padding: 0 0.1em;
+  border-bottom-color: var(--bottom-border-clr);
   border-radius: 0.05em 0.05em 0.05em 0.2em;
   transition: scale 0.1s ease-in-out, transform 0.1s ease-in-out,
     translate 0.1s ease-in-out, box-shadow 0.1s ease-in-out,
     top 0.1s ease-in-out;
-  background-color: var(--bkg);
-  border-bottom-color: var(--bottom-border-clr);
-  padding: 0 0.1em;
 }
 
 .live-offside .closure:has(.value.indet) {
@@ -409,7 +407,7 @@
   --bottom-border-clr: var(--caller-accent);
   --bkg: var(--exp-ap-indicated);
 }
-.live-offside .closure:has(.value.cursor-caller):not(:hover) {
+/* .live-offside .closure:has(.value.cursor-caller):not(:hover) {
   outline-style: none;
   border-color: rgb(165, 64, 205);
   border-radius: 0.2em;
@@ -420,7 +418,7 @@
   border-color: rgb(72, 130, 224);
   border-radius: 0.2em;
   border-bottom-style: dotted;
-}
+} */
 .live-offside.Single:has(
     .value.cursor-unrelated:not(.below):not(.above):not(:hover)
   ),
@@ -511,7 +509,7 @@
 }
 
 .live-offside.Single .closure:has(.value.cursor-unrelated) .code-text .token {
-  color: #808080;
+  color: #707570;
 }
 .live-offside.Many .value.cursor-caller .code-text .token {
   color: var(--TYP);
@@ -527,6 +525,13 @@
 .live-offside.Single .closure:has(.value.below) .code-text .token {
   color: oklch(0.91 0.05 255.11);
 }
+.live-offside.Single .closure:has(.value.cursor-caller) .code-text .token {
+  color: var(--TYP);
+}
+.live-offside.Single .closure:has(.value.cursor-callee) .code-text .token {
+  color: var(--PAT);
+}
+
 .live-offside.Many .closure:has(.value.cursor-unrelated) .code-text .token {
   color: white;
 }
@@ -701,7 +706,7 @@
   transform-origin: top left;
 }
 
-.live-offside.live-env .live-env-entry {
+.live-offside .live-env .live-env-entry {
   display: flex;
   flex-direction: row;
   white-space: pre;

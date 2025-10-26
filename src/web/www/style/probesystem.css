@@ -30,7 +30,7 @@
 }
 
 #probesys .quick-select-deco svg {
-  fill: oklch(0.95 0.05 90);
+  fill: oklch(0.93 0.06 90.1);
 }
 
 #probesys .ephemerals {
@@ -63,10 +63,14 @@
   grid-template-rows: auto auto auto;
   gap: 0.5rem; /* adjust spacing between items */
   justify-items: stretch; /* or center if you prefer tighter layout */
+}
+
+#probesys .panel {
   padding: 0.5em;
   outline: 1px solid var(--BR1);
   border-radius: 0.3em;
   color: var(--BR2);
+  overflow: clip;
 }
 
 #probesys .legend .title {
@@ -74,9 +78,29 @@
   justify-self: start; /* left align */
 }
 
+#probesys .panel.call-cursor .title {
+  padding-bottom: 0.5em;
+}
+
+#probesys .panel.call-cursor {
+  /* display: flex;
+  flex-direction: column;
+  gap: 0.1em; */
+}
+
 #probesys .legend .projector {
   position: relative;
   pointer-events: none;
   justify-content: center;
   text-align: center;
+}
+
+#probesys .is-index .quick-select-deco svg {
+  stroke: var(--BR1);
+  z-index: 1;
+}
+
+#probesys .indicated-call .quick-select-deco svg {
+  stroke: var(--R1);
+  z-index: 2;
 }

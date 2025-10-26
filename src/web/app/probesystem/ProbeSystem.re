@@ -62,7 +62,7 @@ let probe_view = (font_metrics, refractor_data, id: Id.t) => {
     let views = ProjectorView.mk_view(inject, font_metrics, projector_data);
     let offside_view = views.offside |> Option.to_list;
     div(~attrs=[Attr.class_("probe-view")], offside_view);
-  | None => div([text("?")])
+  | None => div([text("Not Probed")])
   };
 };
 
@@ -115,7 +115,7 @@ let div_cs = (cls, node) => div(~attrs=[Attr.classes(cls)], [node]);
 let legend_closure_view =
     (
       ~indicated: bool,
-      ~mode: ProbeProj.Window.mode,
+      ~mode: ProbeProj.window,
       ~font_metrics: FontMetrics.t,
       ~ap_id: option(Id.t),
       ~indicated_call: option(Id.t),
@@ -152,7 +152,7 @@ let legend_closure_view =
   )
   |> div_cs(["closure-group"])
   |> div_cs(["closure-groups"])
-  |> div_cs(["live-offside", ProbeProj.Window.show_mode(mode)])
+  |> div_cs(["live-offside", ProbeProj.show_window(mode)])
   |> div_cs(["projector", "probe", indicated ? "indicated" : "not-indicated"]);
 };
 
@@ -160,7 +160,7 @@ let legend_view = (~font_metrics: FontMetrics.t) => {
   let mode = ProbeProj.Window.get_mode();
   let legend_closure_view = legend_closure_view(~mode, ~font_metrics);
   div(
-    ~attrs=[clss(["legend"])],
+    ~attrs=[clss(["legend", "panel"])],
     [
       div(~attrs=[clss(["title"])], [text("Sample Legend")]),
       legend_closure_view(
@@ -251,35 +251,36 @@ let view =
         [div(~attrs=[clss(["main-title"])], [text("Live Probes")])],
       ),
       legend_view(~font_metrics=globals.font_metrics),
-      div([
-        text("Call Cursor: "),
-        div(
-          List.mapi(
-            (i, id) =>
-              div(
-                i == dyn_cursor.index
-                  ? [
-                    div(
-                      ~attrs=[Attr.create("style", "font-weight: bold;")],
-                      [fancyd(id)],
-                    ),
-                  ]
-                  : [fancyd(id)],
-              ),
-            dyn_cursor.stack,
+      div(
+        ~attrs=[clss(["panel", "call-cursor"])],
+        [
+          div(~attrs=[clss(["title"])], [text("Dynamic Cursor")]),
+          switch (dyn_cursor.indicated_call) {
+          | Some(id) when !List.mem(id, dyn_cursor.stack) =>
+            div(~attrs=[Attr.classes(["indicated-call"])], [fancyd(id)])
+          | _ => div([])
+          },
+          div(
+            List.mapi(
+              (i, id) =>
+                div([
+                  div(
+                    ~attrs=[
+                      Attr.classes([
+                        i == dyn_cursor.index ? "is-index" : "not",
+                        List.mem(id, dyn_cursor.stack)
+                        && Some(id) == dyn_cursor.indicated_call
+                          ? "indicated-call" : "not",
+                      ]),
+                    ],
+                    [fancyd(id)],
+                  ),
+                ]),
+              dyn_cursor.stack,
+            ),
           ),
-        ),
-        br(),
-        text("Indicated Call: "),
-        dyn_cursor.indicated_call
-        |> Option.map(fancyd)
-        |> Option.value(~default=div([text("None")]), _),
-        br(),
-        text("Pinned Call: "),
-        dyn_cursor.pinned_stack
-        |> Option.map(stack => div(List.map(id => fancyd(id), stack)))
-        |> Option.value(~default=div([text("None")]), _),
-      ]),
+        ],
+      ),
       div(
         [br(), text("Manual Probes:"), br()]
         @ List.map(
