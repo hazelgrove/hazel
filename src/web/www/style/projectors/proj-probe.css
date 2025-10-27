@@ -508,6 +508,15 @@
   background-color: oklch(0.94 0.03 254.38);
 }
 
+.live-offside .closure .code-text:after {
+  /* Might have to disable this for multiline display to work */
+  display: none;
+}
+
+.live-offside .closure:has(.value.cursor) .code-text .token {
+  color: var(--exp-indicated);
+}
+
 .live-offside.Single .closure:has(.value.cursor-unrelated) .code-text .token {
   color: #707570;
 }
@@ -697,13 +706,14 @@
 .live-offside .live-env {
   background-color: var(--live-env-bkg);
   border-radius: 0 0.2em 0.2em 0.2em;
-  padding: 0.2em;
+  padding: 0.2em 0.55em;
   display: none;
   position: absolute;
   translate: 0 1px;
   left: 3px;
-  scale: 0.75;
+  /* scale: 0.75; */
   transform-origin: top left;
+  border-bottom: 1px solid var(--BR2);
 }
 
 .live-offside .live-env .live-env-entry {

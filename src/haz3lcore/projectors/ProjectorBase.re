@@ -106,7 +106,15 @@ module View = {
   };
 
   [@deriving (show({with_path: false}), sexp, yojson)]
-  type seg = (~background: bool=?, Sort.t, list(syntax)) => Node.t;
+  type seg =
+    (
+      ~background: bool=?,
+      ~is_single_line: option(unit)=?,
+      ~text_only: option(unit)=?,
+      Sort.t,
+      list(syntax)
+    ) =>
+    Node.t;
 
   let mk = (~overlay=None, ~offside=None, inline) => {
     inline,

@@ -81,6 +81,7 @@ module Window = {
 
 let is_value = (exp: Exp.t) =>
   ValueChecker.check_value(Environment.empty, exp) == Value;
+
 module ClosureLength = {
   let lengths: Hashtbl.t(int, int) = Hashtbl.create(100);
 
@@ -377,7 +378,7 @@ let value_view =
 
   div(
     ~attrs=[
-      //Attr.title(Debug.str(~ap_id, closure)),
+      // Attr.title(Debug.str(~ap_id, closure)),
       Attr.classes(
         ["value", length_cls(length)]
         @ cursor_clss(ap_id, di, closure)
@@ -401,7 +402,7 @@ let value_view =
       Attr.on_pointerup(val_pointerup),
       Attr.on_mousemove(val_mousemove),
     ],
-    [view_seg(Sort.Exp, seg)],
+    [view_seg(~text_only=Option.None, Sort.Exp, seg)],
   );
 };
 
@@ -417,7 +418,7 @@ let env_val =
       | Val(d) =>
         let (seg, _) =
           abbreviated_seg_of(utility, ClosureLength.get(closure), d);
-        view_seg(Sort.Exp, seg);
+        view_seg(~text_only=Option.None, Sort.Exp, seg);
       },
     ],
   );
@@ -709,7 +710,15 @@ let offside_view =
       info: info,
       local,
       parent,
-      view_seg: (~background: bool=?, Sort.t, list(syntax)) => Node.t,
+      view_seg:
+        (
+          ~background: bool=?,
+          ~is_single_line: option(unit)=?,
+          ~text_only: option(unit)=?,
+          Sort.t,
+          list(syntax)
+        ) =>
+        Node.t,
       utility: utility,
     ) =>
   switch (info.dynamics) {
@@ -740,7 +749,10 @@ let offside_view =
           ~hide_env,
           di,
           utility,
-          view_seg,
+          /* NOTE: Right now this is hard set to single_line and text_only
+           * for optimization purposes. This can be relaxed in the future */
+          (~text_only) =>
+            view_seg(~is_single_line=Some(), ~text_only, ~background=false),
           local,
           parent,
           groups,

@@ -39,9 +39,11 @@ let pat_view = (~available, term: Language.Pat.t) =>
      );
 
 let term_view = (~globals: Globals.t, ~available=8, term: Language.Any.t) =>
-  ProjectorView.simple_code(
+  ProjectorView.flex_code(
     ~background=true,
-    globals.font_metrics,
+    ~is_single_line=Some(),
+    ~text_only=Option.None,
+    ~font_metrics=globals.font_metrics,
     Language.Sort.Exp,
     switch (term) {
     | Language.Grammar.Exp(x) => exp_view(~available, x)
@@ -145,7 +147,13 @@ let legend_closure_view =
     ~hide_env=true,
     di,
     ProjectorInfo.utility,
-    ProjectorView.simple_code(~background=false, font_metrics),
+    (~text_only) =>
+      ProjectorView.flex_code(
+        ~font_metrics,
+        ~background=false,
+        ~is_single_line=Some(),
+        ~text_only?,
+      ),
     _ => Effect.Ignore,
     _ => Effect.Ignore,
     (0, closure),
@@ -215,6 +223,12 @@ let legend_view = (~font_metrics: FontMetrics.t) => {
   );
 };
 
+let sketch_view = () =>
+  div(
+    ~attrs=[clss(["sketch"])],
+    [Node.img(~attrs=[Attr.src("../../img/probe-lenses.webp")], ())],
+  );
+
 let view =
     (
       ~globals: Globals.t,
@@ -251,6 +265,7 @@ let view =
         [div(~attrs=[clss(["main-title"])], [text("Live Probes")])],
       ),
       legend_view(~font_metrics=globals.font_metrics),
+      sketch_view(),
       div(
         ~attrs=[clss(["panel", "call-cursor"])],
         [
