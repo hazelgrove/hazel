@@ -61,7 +61,7 @@ let update =
 
 let go =
     (
-      ~print_segment: Segment.t => string,
+      ~print_segment as _: Segment.t => string, //Debug code
       term_data: TermData.t,
       a: Action.project,
       z: Zipper.t,
@@ -128,8 +128,6 @@ let go =
     | None => Error(Cant_project)
     }
   | SetSyntax(id, seg) =>
-    let tdata = Id.Map.find(Id.recover_original(id), term_data); // partial
-    let base_seg = tdata.base_seg;
     // Don't do this
     let new_id =
       MakeTerm.from_zip_for_sem(Zipper.unzip(~direction=Right, seg)).term
