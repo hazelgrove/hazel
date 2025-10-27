@@ -95,6 +95,10 @@
   text-align: center;
 }
 
+#probesys .quick-select-deco svg {
+  stroke: var(--T1);
+}
+
 #probesys .is-index .quick-select-deco svg {
   stroke: var(--BR1);
   z-index: 1;
