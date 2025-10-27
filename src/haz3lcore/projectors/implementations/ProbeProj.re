@@ -80,7 +80,7 @@ module Window = {
 };
 
 let is_value = (exp: Exp.t) =>
-  ValueChecker.check_value((), ClosureEnvironment.empty, exp) == Value;
+  ValueChecker.check_value(Environment.empty, exp) == Value;
 module ClosureLength = {
   let lengths: Hashtbl.t(int, int) = Hashtbl.create(100);
 

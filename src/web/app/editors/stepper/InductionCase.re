@@ -101,7 +101,6 @@ module F = (Stepper: STEPPER) => {
         ~scrut_co_ctx: Calc.t(CoCtx.t),
         ~ctx: Calc.t(Ctx.t),
         ~exp: Calc.t(Exp.t),
-        ~state: Calc.t(EvaluatorState.t),
         model: model,
       ) => {
     let pattern =
@@ -170,7 +169,6 @@ module F = (Stepper: STEPPER) => {
         ~settings, // TODO: this is a little ugly
         ~ctx=inner_ctx,
         ~exp=inner_exp,
-        ~state,
         model.step,
       );
     {
