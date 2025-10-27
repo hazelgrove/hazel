@@ -117,7 +117,7 @@ let div_cs = (cls, node) => div(~attrs=[Attr.classes(cls)], [node]);
 let legend_closure_view =
     (
       ~indicated: bool,
-      ~mode: ProbeProj.window,
+      ~mode: ProbeProj.Settings.window,
       ~font_metrics: FontMetrics.t,
       ~ap_id: option(Id.t),
       ~indicated_call: option(Id.t),
@@ -145,6 +145,7 @@ let legend_closure_view =
   ProbeProj.closure_view(
     ~ap_id,
     ~hide_env=true,
+    ~settings={window: mode},
     di,
     ProjectorInfo.utility,
     (~text_only) =>
@@ -160,12 +161,12 @@ let legend_closure_view =
   )
   |> div_cs(["closure-group"])
   |> div_cs(["closure-groups"])
-  |> div_cs(["live-offside", ProbeProj.show_window(mode)])
+  |> div_cs(["live-offside", ProbeProj.Settings.show_window(mode)])
   |> div_cs(["projector", "probe", indicated ? "indicated" : "not-indicated"]);
 };
 
 let legend_view = (~font_metrics: FontMetrics.t) => {
-  let mode = ProbeProj.Window.get_mode();
+  let mode = ProbeProj.Settings.s^.window;
   let legend_closure_view = legend_closure_view(~mode, ~font_metrics);
   div(
     ~attrs=[clss(["legend", "panel"])],

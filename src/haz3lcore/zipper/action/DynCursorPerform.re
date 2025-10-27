@@ -46,12 +46,7 @@ let reset = (z: Zipper.t): Zipper.t =>
 
 let perform = (z: Zipper.t, a: Action.dyn_cursor): Zipper.t =>
   switch (a) {
-  | Capture(closure, id) =>
-    print_endline(
-      "Capture called, id: "
-      ++ Id.str8(Option.value(id, ~default=Id.invalid)),
-    );
-    capture(z, closure, id);
+  | Capture(closure, id) => capture(z, closure, id)
   | TogglePinCall(call_stack) => toggle_pin_call(z, call_stack)
   | Reset => reset(z)
   };

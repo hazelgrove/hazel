@@ -9,40 +9,43 @@ open Language;
 type closure = Dynamics.Probe.Closure.t;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
-type window =
-  | Single
-  | Many;
-
-[@deriving (show({with_path: false}), sexp, yojson)]
-type settings = {window};
-
-[@deriving (show({with_path: false}), sexp, yojson)]
 type action =
   | ChangeLength(int, int)
   | ToggleShowAllVals(int)
   | NoOp;
 
-module Window = {
-  let mode = ref(Single);
+module Settings = {
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type window =
+    | Single
+    | Many;
+
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type settings = {window};
+
   let offset = Hashtbl.create(100);
 
-  let reset = () => {
+  let s = ref({window: Single});
+
+  let reset_mode = () => {
     Hashtbl.clear(offset);
-    mode := Single;
+    s := {window: Single};
   };
 
-  let max_closures = () =>
-    switch (mode^) {
+  let toggle_mode = () =>
+    switch (s^.window) {
+    | Single => s := {window: Many}
+    | Many => s := {window: Single}
+    };
+};
+
+open Settings;
+
+module Window = {
+  let max_closures = (window: window) =>
+    switch (window) {
     | Single => 1
     | Many => 30
-    };
-
-  let get_mode = () => mode^;
-
-  let toggle_mode = () =>
-    switch (mode^) {
-    | Single => mode := Many
-    | Many => mode := Single
     };
 
   let get_offset = (k: Id.t): int =>
@@ -71,8 +74,8 @@ module Window = {
 
   let set_offset = (k: Id.t, v: int) => Hashtbl.add(offset, k, v);
 
-  let reform = (id, all_closures, cursor_idx): (int, int) => {
-    let max = max_closures();
+  let reform = (~window: window, id, all_closures, cursor_idx): (int, int) => {
+    let max = max_closures(window);
     let new_home = new_offest(cursor_idx, get_offset(id), max, all_closures);
     set_offset(id, new_home);
     (new_home, max);
@@ -89,13 +92,13 @@ module ClosureLength = {
     Hashtbl.clear(lengths);
   };
 
-  let get = (closure: closure): int =>
+  let get = (window: window, closure: closure): int =>
     Hashtbl.find_opt(lengths, closure.closure_id)
     |> Option.value(
          // TODO(andrew): relax 5, special-case multilines eg `case`
          ~default=
            /*!is_value(closure.value)
-             ? 5 :*/ Window.get_mode()
+             ? 5 :*/ window
            == Single
              ? 150 : 12,
        );
@@ -152,7 +155,13 @@ module Closures = {
   };
 
   let select_frames =
-      (~id: Id.t, ~ap_id: option(Id.t), di: Dynamics.Info.t): list(closure) => {
+      (
+        ~settings: settings,
+        ~id: Id.t,
+        ~ap_id: option(Id.t),
+        di: Dynamics.Info.t,
+      )
+      : list(closure) => {
     let closures = filter_frames_by_pin(~ap_id, di);
     let cursor_idx =
       switch (first_index_of_interest(~ap_id, di)) {
@@ -160,7 +169,8 @@ module Closures = {
       | None => 0
       };
     let all_closures = List.length(closures);
-    let (l, r) = Window.reform(id, all_closures, cursor_idx);
+    let (l, r) =
+      Window.reform(~window=settings.window, id, all_closures, cursor_idx);
     ListUtil.slice(l, r, closures);
   };
 
@@ -327,6 +337,7 @@ module Debug = {
 let value_view =
     (
       ~ap_id: option(Id.t),
+      ~settings: settings,
       di: Dynamics.Info.t,
       utility: utility,
       view_seg,
@@ -372,7 +383,7 @@ let value_view =
 
   /* Crude way of giving more space when there's only one closure shown.
    * Really should figure out total length of all closures and divide accordingly */
-  let length = ClosureLength.get(closure);
+  let length = ClosureLength.get(settings.window, closure);
   let length = length == 12 && Closures.total(~ap_id, di) == 1 ? 150 : length;
   let (seg, length) = abbreviated_seg_of(utility, length, closure.value);
 
@@ -407,7 +418,13 @@ let value_view =
 };
 
 let env_val =
-    (closure, view_seg, utility: utility, en: Dynamics.Probe.Env.entry)
+    (
+      ~settings: settings,
+      closure,
+      view_seg,
+      utility: utility,
+      en: Dynamics.Probe.Env.entry,
+    )
     : Node.t => {
   Node.div(
     ~attrs=[Attr.classes(["live-env-entry"])],
@@ -417,20 +434,26 @@ let env_val =
       | Opaque => Node.text("Opaque")
       | Val(d) =>
         let (seg, _) =
-          abbreviated_seg_of(utility, ClosureLength.get(closure), d);
+          abbreviated_seg_of(
+            utility,
+            ClosureLength.get(settings.window, closure),
+            d,
+          );
         view_seg(~text_only=Option.None, Sort.Exp, seg);
       },
     ],
   );
 };
 
-let env_view = (closure: closure, view_seg, utility: utility): Node.t =>
+let env_view =
+    (~settings: settings, closure: closure, view_seg, utility: utility)
+    : Node.t =>
   Node.div(
     ~attrs=[Attr.classes(["live-env"])],
     closure.env
     |> ListUtil.dedup
     |> rm_opaques
-    |> List.map(env_val(closure, view_seg, utility)),
+    |> List.map(env_val(~settings, closure, view_seg, utility)),
   );
 
 let show_pin = (~ap_id: option(Id.t), di: Dynamics.Info.t) => {
@@ -446,6 +469,7 @@ let closure_view =
     (
       ~ap_id: option(Id.t),
       ~hide_env: bool,
+      ~settings: settings,
       di: Dynamics.Info.t,
       utility: utility,
       view_seg,
@@ -456,16 +480,27 @@ let closure_view =
   div(
     ~attrs=[Attr.classes(["closure"])],
     [
-      value_view(~ap_id, di, utility, view_seg, local, parent, closure, index),
+      value_view(
+        ~ap_id,
+        ~settings,
+        di,
+        utility,
+        view_seg,
+        local,
+        parent,
+        closure,
+        index,
+      ),
     ]
     @ pin_view(~ap_id, di)
-    @ (hide_env ? [] : [env_view(closure, view_seg, utility)]),
+    @ (hide_env ? [] : [env_view(~settings, closure, view_seg, utility)]),
   );
 
 let closure_group_view =
     (
       ~ap_id: option(Id.t),
       ~hide_env: bool,
+      ~settings: settings,
       di: Dynamics.Info.t,
       utility,
       view_seg,
@@ -482,6 +517,7 @@ let closure_group_view =
             closure_view(
               ~ap_id,
               ~hide_env,
+              ~settings,
               di,
               utility,
               view_seg,
@@ -533,6 +569,7 @@ let move_cursor =
 let nav_bar_view =
     (
       ap_id: option(Id.t),
+      ~settings: settings,
       di: Dynamics.Info.t,
       num_total: int,
       parent: external_action => Ui_effect.t(unit),
@@ -545,8 +582,8 @@ let nav_bar_view =
       ],
       [],
     );
-  let show_left = num_total < Window.max_closures();
-  let show_right = num_total < Window.max_closures();
+  let show_left = num_total < Window.max_closures(settings.window);
+  let show_right = num_total < Window.max_closures(settings.window);
   div(
     ~attrs=[Attr.classes(["nav-bar"])],
     [nav_arrow(show_left, 1), nav_arrow(show_right, -1)],
@@ -579,9 +616,13 @@ let syntax_str = (utility: utility) =>
   });
 let icon = div(~attrs=[Attr.classes(["icon"])], []);
 
-let round_up = (utility: utility, closure): unit => {
+let round_up = (~settings: settings, utility: utility, closure): unit => {
   let (_, cur) =
-    abbreviated_seg_of(utility, ClosureLength.get(closure), closure.value);
+    abbreviated_seg_of(
+      utility,
+      ClosureLength.get(settings.window, closure),
+      closure.value,
+    );
   let goal = cur + 1;
   let (_, max_len) =
     seg_of_exp(utility, DHExp.strip_ascriptions(closure.value));
@@ -597,9 +638,14 @@ let round_up = (utility: utility, closure): unit => {
   ClosureLength.set(closure.closure_id, find_target(goal));
 };
 
-let round_down = (utility: utility, closure: closure): unit => {
+let round_down =
+    (~settings: settings, utility: utility, closure: closure): unit => {
   let (_, cur) =
-    abbreviated_seg_of(utility, ClosureLength.get(closure), closure.value);
+    abbreviated_seg_of(
+      utility,
+      ClosureLength.get(settings.window, closure),
+      closure.value,
+    );
   let goal = cur - 1;
   let rec find_target = (target: int): int => {
     let attempt_len =
@@ -622,6 +668,7 @@ let key_handler =
       local,
       ~id: Id.t,
       ~ap_id: option(Id.t),
+      ~settings: settings,
       di: Dynamics.Info.t,
       utility,
       parent: external_action => Ui_effect.t(unit),
@@ -647,7 +694,7 @@ let key_handler =
   switch (key.key) {
   | D("Escape") when key.shift == Down =>
     JsUtil.get_elem_by_id(Id.cls(id))##blur;
-    Window.reset();
+    Settings.reset_mode();
     ClosureLength.reset();
     parent(DynCursor(Reset));
   | D("Escape") =>
@@ -655,13 +702,13 @@ let key_handler =
     Ignore;
   | D("ArrowRight") when key.shift == Down =>
     switch (indicated_closure(~ap_id, di)) {
-    | Some(closure) => round_up(utility, closure)
+    | Some(closure) => round_up(~settings, utility, closure)
     | None => ()
     };
     Many([local(NoOp), Stop_propagation, Prevent_default]);
   | D("ArrowLeft") when key.shift == Down =>
     switch (indicated_closure(~ap_id, di)) {
-    | Some(closure) => round_down(utility, closure)
+    | Some(closure) => round_down(~settings, utility, closure)
     | None => ()
     };
     Many([local(NoOp), Stop_propagation, Prevent_default]);
@@ -680,7 +727,7 @@ let key_handler =
       Prevent_default,
     ])
   | D(" ") =>
-    Window.toggle_mode();
+    Settings.toggle_mode();
     Many([local(NoOp), Stop_propagation, Prevent_default]); // trigger redraw
   | _ => Many([Stop_propagation])
   };
@@ -710,6 +757,7 @@ let offside_view =
       info: info,
       local,
       parent,
+      ~settings: settings,
       view_seg:
         (
           ~background: bool=?,
@@ -727,11 +775,11 @@ let offside_view =
     let ap_id = cur_ap(info);
     let hide_env = hide_env(info);
     let num_total = Closures.total(~ap_id, di);
-    let closures = Closures.select_frames(~id, ~ap_id, di);
+    let closures = Closures.select_frames(~settings, ~id, ~ap_id, di);
     let (num_shown, groups) = Closures.collate(closures);
     let is_cut_off = num_shown != num_total && num_shown > 0;
     let extras = [
-      nav_bar_view(ap_id, di, num_total, parent),
+      nav_bar_view(~settings, ap_id, di, num_total, parent),
       ellipsis_view(local),
     ];
     Node.div(
@@ -739,14 +787,15 @@ let offside_view =
         Attr.id(Id.cls(id)),
         Attr.tabindex(0),
         Attr.on_keydown(
-          key_handler(local, ~id, ~ap_id, di, utility, parent),
+          key_handler(local, ~id, ~ap_id, ~settings, di, utility, parent),
         ),
-        Attr.classes(["live-offside", Window.get_mode() |> show_window]),
+        Attr.classes(["live-offside", settings.window |> show_window]),
       ],
       (num_shown > 0 ? [equals_view] : [])
       @ closure_group_view(
           ~ap_id,
           ~hide_env,
+          ~settings,
           di,
           utility,
           /* NOTE: Right now this is hard set to single_line and text_only
@@ -765,7 +814,7 @@ let offside_view =
 let update = (() as m, _info: info, a: action) => {
   switch (a) {
   | ChangeLength(id, len) => ClosureLength.set(id, len)
-  | ToggleShowAllVals(_) => Window.toggle_mode()
+  | ToggleShowAllVals(_) => Settings.toggle_mode()
   | NoOp => m
   };
 };
@@ -796,13 +845,14 @@ let is_pinned = (ap_id: option(Id.t), di: Dynamics.Info.t): bool =>
   | _ => false
   };
 
-let view = (local, parent, info: info): Node.t =>
+let view = (~settings: settings, local, parent, info: info): Node.t =>
   div(
     ~attrs=[
       Attr.id(Id.cls(info.id)),
       Attr.tabindex(0),
       Attr.on_keydown(
         key_handler(
+          ~settings,
           local,
           ~id=info.id,
           ~ap_id=cur_ap(info),
@@ -895,12 +945,12 @@ module M: Projector = {
   let update = update;
 
   let view = (_model, info, ~local, ~parent, ~view_seg) => {
-    //let settings = get_settings();
+    let settings = Settings.s^;
     View.{
       inline:
         switch (info.syntax) {
         | [Grout({id, _})] when id == Id.invalid => Node.div([])
-        | _ => view(local, parent, info)
+        | _ => view(~settings, local, parent, info)
         },
       overlay:
         switch (info.syntax) {
@@ -909,7 +959,16 @@ module M: Projector = {
         | _ => Some(overlay_view(info))
         },
       offside:
-        Some(offside_view(info, local, parent, view_seg, info.utility)),
+        Some(
+          offside_view(
+            ~settings,
+            info,
+            local,
+            parent,
+            view_seg,
+            info.utility,
+          ),
+        ),
     };
   };
 };
