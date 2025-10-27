@@ -4,7 +4,12 @@ open ProjectorBase;
 open Language;
 
 /* TableRenderer - A reusable module for rendering interactive tables with column operations */
+[@deriving (show({with_path: false}), sexp, yojson)]
+type menu_state = option((int, list(string)));
+[@deriving (show({with_path: false}), sexp, yojson)]
+type model = {menu_state};
 
+let init: model = {menu_state: None};
 /* Table actions that can be performed on columns */
 [@deriving (show({with_path: false}), sexp, yojson)]
 type table_action =
@@ -578,7 +583,7 @@ let sort_column_with_direction =
 };
 
 let build_column_menu =
-    (info, h, dyn_type, local_action, set_syntax, menu_path) => {
+    (info, h, dyn_type, local, parent, menu_path: list(string)) => {
   let column_type =
     dyn_type |> Option.bind(_, ty => get_column_type_from_ty(ty, h));
   let columns_opt = dyn_type |> Option.bind(_, get_columns);
@@ -597,7 +602,7 @@ let build_column_menu =
         [
           Action({
             text: "← Back",
-            action: () => local_action(ShowSubmenu([])) // Go back to main menu
+            action: () => local(ShowSubmenu([])) // Go back to main menu
           }),
         ]
         @ List.map(
@@ -606,8 +611,8 @@ let build_column_menu =
                 text: display,
                 action: () =>
                   Effect.Many([
-                    local_action(CloseMenu),
-                    set_syntax(convert_column(info, h, func)),
+                    local(CloseMenu),
+                    parent(SetSyntax(convert_column(info, h, func))),
                   ]),
               }),
             conversions,
@@ -621,15 +626,15 @@ let build_column_menu =
     [
       Action({
         text: "← Back",
-        action: () => local_action(ShowSubmenu([])) // Go back to main menu
+        action: () => local(ShowSubmenu([])) // Go back to main menu
       }),
       Action({
         text: "Ascending",
         action: () =>
           switch (sort_column_with_direction(info, column_type, h, false)) {
           | Some(segment) =>
-            Effect.Many([local_action(CloseMenu), set_syntax(segment)])
-          | None => local_action(CloseMenu)
+            Effect.Many([local(CloseMenu), parent(SetSyntax(segment))])
+          | None => local(CloseMenu)
           },
       }),
       Action({
@@ -637,8 +642,8 @@ let build_column_menu =
         action: () =>
           switch (sort_column_with_direction(info, column_type, h, true)) {
           | Some(segment) =>
-            Effect.Many([local_action(CloseMenu), set_syntax(segment)])
-          | None => local_action(CloseMenu)
+            Effect.Many([local(CloseMenu), parent(SetSyntax(segment))])
+          | None => local(CloseMenu)
           },
       }),
     ]
@@ -649,8 +654,8 @@ let build_column_menu =
         text: "Drop Column",
         action: () =>
           Effect.Many([
-            local_action(CloseMenu),
-            set_syntax(drop_column(info, h)),
+            local(CloseMenu),
+            parent(SetSyntax(drop_column(info, h))),
           ]),
       }),
       Action({
@@ -658,11 +663,11 @@ let build_column_menu =
         action: () => {
           let new_column_name = JsUtil.prompt("New column name:", h);
           switch (new_column_name) {
-          | None => local_action(CloseMenu) // User cancelled
+          | None => local(CloseMenu) // User cancelled
           | Some(new_name) =>
             Effect.Many([
-              local_action(CloseMenu),
-              set_syntax(rename_column(info, h, new_name)),
+              local(CloseMenu),
+              parent(SetSyntax(rename_column(info, h, new_name))),
             ])
           };
         },
@@ -671,8 +676,8 @@ let build_column_menu =
         text: "Add Column After",
         action: () =>
           Effect.Many([
-            local_action(CloseMenu),
-            set_syntax(add_column_after(info, h, "new_column")),
+            local(CloseMenu),
+            parent(SetSyntax(add_column_after(info, h, "new_column"))),
           ]),
       }),
     ];
@@ -689,7 +694,7 @@ let build_column_menu =
             [
               Action({
                 text: "Convert →",
-                action: () => local_action(ShowSubmenu(["Convert"])) // Navigate to conversion submenu
+                action: () => local(ShowSubmenu(["Convert"])) // Navigate to conversion submenu
               }),
             ];
           };
@@ -706,11 +711,13 @@ let build_column_menu =
              text: left ? "Move Left" : "Move Right",
              action: () =>
                Effect.Many([
-                 local_action(CloseMenu),
-                 set_syntax(
-                   OptUtil.get_or_fail(
-                     (left ? "move left" : "move right") ++ " failed",
-                     move_column(info, dyn_type, h, left),
+                 local(CloseMenu),
+                 parent(
+                   SetSyntax(
+                     OptUtil.get_or_fail(
+                       (left ? "move left" : "move right") ++ " failed",
+                       move_column(info, dyn_type, h, left),
+                     ),
                    ),
                  ),
                ]),
@@ -722,7 +729,7 @@ let build_column_menu =
       | Some(_) => [
           Action({
             text: "Sort →",
-            action: () => local_action(ShowSubmenu(["Sort"])) // Navigate to sort submenu
+            action: () => local(ShowSubmenu(["Sort"])) // Navigate to sort submenu
           }),
         ]
       | None => []
@@ -753,9 +760,10 @@ let render_table =
       ~rows: list(list(Exp.t)),
       ~info: info,
       ~view_seg: (Sort.t, Segment.t) => Node.t,
-      ~action_handler: action_handler,
       ~closure_nav: option((Node.t, Node.t)), /* (prev_button, next_button) */
       ~menu_state: option((int, list(string))), /* (column_index, menu_path) */
+      ~local: table_action => Ui_effect.t(unit),
+      ~parent: external_action => Ui_effect.t(unit),
       unit,
     ) => {
   let (prev_button, next_button) =
@@ -765,9 +773,7 @@ let render_table =
     };
 
   let make_menu_button = (i, _h) =>
-    icon_button(~tooltip="Column options", "⋮", _ =>
-      action_handler.local_action(ShowMenu(i))
-    );
+    icon_button(~tooltip="Column options", "⋮", _ => local(ShowMenu(i)));
 
   let header_cells =
     List.mapi(
@@ -789,14 +795,7 @@ let render_table =
           | Some((j, menu_path)) when i == j =>
             let dyn_type = get_dynamic_type(None, info); /* TODO: Pass closure info properly */
             let menu_data =
-              build_column_menu(
-                info,
-                h,
-                dyn_type,
-                action_handler.local_action,
-                action_handler.set_syntax,
-                menu_path,
-              );
+              build_column_menu(info, h, dyn_type, local, parent, menu_path);
             let menu_content = render_menu(menu_data);
             content
             @ [
@@ -831,3 +830,26 @@ let render_table =
     ],
   );
 };
+
+let update: (model, table_action) => model =
+  (model, action) => {
+    switch (action) {
+    | CloseMenu => {menu_state: None}
+    | ShowMenu(i) => {menu_state: Some((i, []))}
+    | ShowSubmenu(path) =>
+      switch (model.menu_state) {
+      | Some((col, _)) => {menu_state: Some((col, path))}
+      | None => model
+      }
+    | _ => model /* Other actions do not affect the menu state */
+    };
+  };
+
+let badge =
+  Node.span(
+    ~attrs=[
+      Attr.classes(["table-badge"]),
+      Attr.title("Click to view as table"),
+    ],
+    [Node.text("📊")],
+  );

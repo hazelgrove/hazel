@@ -7,14 +7,11 @@ open Language;
 
 /* Import the reusable table renderer */
 module TR = TableRenderer;
-[@deriving (show({with_path: false}), sexp, yojson)]
-type menu_state = option((int, list(string)));
-[@deriving (show({with_path: false}), sexp, yojson)]
-type table_model = {menu_state};
+
 [@deriving (show({with_path: false}), sexp, yojson)]
 type closure = Dynamics.Probe.Closure.t;
 [@deriving (show({with_path: false}), sexp, yojson)]
-type otable_model = option(table_model);
+type otable_model = option(TableRenderer.model);
 [@deriving (show({with_path: false}), sexp, yojson)]
 type probe_model = {table_modal: otable_model};
 
@@ -25,8 +22,7 @@ type action =
   | NoOp
   | OpenTableModal
   | CloseTableModal
-  | TableMenuAction(int, list(string))
-  | CloseMenu;
+  | TableMenuAction(TR.table_action);
 
 module Window = {
   [@deriving (show({with_path: false}), sexp, yojson)]
@@ -393,15 +389,8 @@ let value_view =
   let table_badge =
     has_table
       ? span(
-          ~attrs=[
-            Attr.classes(["table-badge"]),
-            Attr.title("Click to view as table"),
-            Attr.on_click(_ => {
-              print_endline("Opening table modal");
-              local(OpenTableModal);
-            }),
-          ],
-          [Node.text("📊")],
+          ~attrs=[Attr.on_click(_ => {local(OpenTableModal)})],
+          [TableRenderer.badge],
         )
       : Node.div([]);
 
@@ -951,48 +940,20 @@ module M: Projector = {
       print_endline("Model state now Some");
       {table_modal: Some({menu_state: None})};
     | CloseTableModal => {table_modal: None}
-    | CloseMenu => {
-        table_modal:
-          Option.map(_modal => {menu_state: None}, model.table_modal),
-      }
-    | TableMenuAction(col, path) => {
-        table_modal:
-          Option.map(
-            _modal => {menu_state: Some((col, path))},
-            model.table_modal,
-          ),
+    | TableMenuAction(action) => {
+        table_modal: Option.map(TR.update(_, action), model.table_modal),
       }
     };
   };
 
   /* Modal overlay for table display */
-  let modal_overlay = (model, info, ~local, ~parent, ~view_seg) => {
+  let modal_overlay =
+      (model, info, ~local: action => Ui_effect.t(unit), ~parent, ~view_seg) => {
     print_endline("Model: " ++ show_model(model));
     switch (model.table_modal) {
     | Some(_) =>
       switch (get_current_table_data(info)) {
       | Some((headers, rows)) =>
-        /* Create action handler for table operations */
-        let action_handler: TR.action_handler = {
-          set_syntax: segment => parent(SetSyntax(segment)),
-          local_action: action => {
-            let col =
-              switch (model.table_modal) {
-              | Some({menu_state: Some((col, _))}) => col
-              | _ => 0
-              };
-            switch (action) {
-            | CloseMenu => local(CloseMenu)
-            | ShowMenu(i) => local(TableMenuAction(i, []))
-            | ShowSubmenu(path) => local(TableMenuAction(col, path))
-            | DropColumn(_) => Ui_effect.Ignore /* Will be handled by set_syntax */
-            | ConversionColumn(_) => Ui_effect.Ignore /* Will be handled by set_syntax */
-            | RenameColumn(_) => Ui_effect.Ignore /* Will be handled by set_syntax */
-            | AddColumnAfter(_) => Ui_effect.Ignore /* Will be handled by set_syntax */
-            };
-          },
-        };
-
         /* Get current menu state */
         let menu_state =
           switch (model.table_modal) {
@@ -1028,9 +989,10 @@ module M: Projector = {
                   ~rows,
                   ~info,
                   ~view_seg,
-                  ~action_handler,
                   ~closure_nav=None,
                   ~menu_state,
+                  ~local=action => local(TableMenuAction(action)),
+                  ~parent=action => {parent(action)},
                   (),
                 ),
               ],
