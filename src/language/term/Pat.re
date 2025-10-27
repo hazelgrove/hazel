@@ -85,13 +85,13 @@ let show_cls: cls => string =
   | Ap => "Constructor application"
   | Asc => "Annotation";
 
-let rec is_var = (pat: t) => {
+let rec is_var = (pat: t): option(Var.t) => {
   switch (pat.term) {
   | Parens(pat)
   | Probe(pat, _)
   | TupLabel(_, pat)
   | Asc(pat, _) => is_var(pat)
-  | Var(_) => true
+  | Var(v) => Some(v)
   | Invalid(_)
   | EmptyHole
   | MultiHole(_)
@@ -103,19 +103,19 @@ let rec is_var = (pat: t) => {
   | Label(_)
   | ExplicitNonlabel
   | Constructor(_)
-  | Ap(_) => false
+  | Ap(_) => None
   };
 };
 
 let rec is_tuple_of_vars = (pat: t) =>
-  is_var(pat)
+  Option.is_some(is_var(pat))
   || (
     switch (pat.term) {
     | Parens(pat)
     | Probe(pat, _)
     | Asc(pat, _)
     | TupLabel(_, pat) => is_tuple_of_vars(pat)
-    | Tuple(pats) => pats |> List.for_all(is_var)
+    | Tuple(pats) => pats |> List.for_all(x => x |> is_var |> Option.is_some)
     | Label(_)
     | ExplicitNonlabel
     | Invalid(_)
@@ -212,9 +212,9 @@ let rec get_bindings = (pat: t) =>
   };
 
 let rec get_num_of_vars = (pat: t) =>
-  if (is_var(pat)) {
-    Some(1);
-  } else {
+  switch (is_var(pat)) {
+  | Some(_) => Some(1)
+  | None =>
     switch (pat.term) {
     | Parens(pat)
     | Probe(pat, _)
@@ -233,7 +233,7 @@ let rec get_num_of_vars = (pat: t) =>
     | Var(_)
     | Constructor(_)
     | Ap(_) => None
-    };
+    }
   };
 
 let ctr_name = (p: t): option(Constructor.t) =>
