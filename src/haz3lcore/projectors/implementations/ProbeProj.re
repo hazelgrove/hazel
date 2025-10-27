@@ -5,15 +5,30 @@ open Node;
 open Js_of_ocaml;
 open Language;
 
-/* Import the reusable table renderer */
+/* Import the reusable renderers */
 module TR = TableRenderer;
+module CR = CalculatorRenderer;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type closure = Dynamics.Probe.Closure.t;
 [@deriving (show({with_path: false}), sexp, yojson)]
 type otable_model = option(TableRenderer.model);
 [@deriving (show({with_path: false}), sexp, yojson)]
-type probe_model = {table_modal: otable_model};
+type ocalculator_model = option(CalculatorRenderer.model);
+[@deriving (show({with_path: false}), sexp, yojson)]
+type probe_model = {
+  table_modal: otable_model,
+  calculator_modal: ocalculator_model,
+};
+
+let probe_model_of_sexp = sexp =>
+  switch (probe_model_of_sexp(sexp)) {
+  | model => model
+  | exception _ => {
+      table_modal: None,
+      calculator_modal: None,
+    }
+  };
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type action =
@@ -22,7 +37,10 @@ type action =
   | NoOp
   | OpenTableModal
   | CloseTableModal
-  | TableMenuAction(TR.action);
+  | TableMenuAction(TR.action)
+  | OpenCalculatorModal
+  | CloseCalculatorModal
+  | CalculatorMenuAction(CR.action);
 
 module Window = {
   [@deriving (show({with_path: false}), sexp, yojson)]
@@ -394,6 +412,15 @@ let value_view =
         )
       : Node.div([]);
 
+  let has_calculator = Option.is_some(CR.init(closure.value));
+  let calculator_badge =
+    has_calculator
+      ? span(
+          ~attrs=[Attr.on_click(_ => {local(OpenCalculatorModal)})],
+          [CalculatorRenderer.badge],
+        )
+      : Node.div([]);
+
   div(
     ~attrs=[
       // style display flex
@@ -401,6 +428,7 @@ let value_view =
     ],
     [
       table_badge,
+      calculator_badge,
       div(
         ~attrs=[
           //Attr.title(Debug.str(~ap_id, closure)),
@@ -409,7 +437,8 @@ let value_view =
             @ cursor_clss(ap_id, di, closure)
             @ (Option.is_some(ap_id) ? ["ap"] : [])
             @ (!is_value(closure.value) ? ["indet"] : [])
-            @ (has_table ? ["has-table"] : []),
+            @ (has_table ? ["has-table"] : [])
+            @ (has_calculator ? ["has-calculator"] : []),
           ),
           Attr.on_double_click(_ => local(ToggleShowAllVals(index))),
           Attr.on_pointerdown(evt =>
@@ -921,8 +950,16 @@ module M: Projector = {
   let init = (any: Any.t) => {
     switch (any) {
     | Exp(_)
-    | Pat(_) => Some({table_modal: None})
-    | Any(_) => Some({table_modal: None}) /* Grout don't have sorts rn */
+    | Pat(_) =>
+      Some({
+        table_modal: None,
+        calculator_modal: None,
+      })
+    | Any(_) =>
+      Some({
+        table_modal: None,
+        calculator_modal: None,
+      }) /* Grout don't have sorts rn */
     | _ => None
     };
   };
@@ -951,20 +988,40 @@ module M: Projector = {
     | NoOp => model
     | OpenTableModal =>
       print_endline("Model state now Some");
-      {table_modal: Some({menu_state: None})};
-    | CloseTableModal => {table_modal: None}
+      {
+        table_modal: Some({menu_state: None}),
+        calculator_modal: model.calculator_modal,
+      };
+    | CloseTableModal => {
+        table_modal: None,
+        calculator_modal: model.calculator_modal,
+      }
     | TableMenuAction(action) => {
         table_modal: Option.map(TR.update(_, action), model.table_modal),
+        calculator_modal: model.calculator_modal,
+      }
+    | OpenCalculatorModal => {
+        table_modal: model.table_modal,
+        calculator_modal: Some(None),
+      }
+    | CloseCalculatorModal => {
+        table_modal: model.table_modal,
+        calculator_modal: None,
+      }
+    | CalculatorMenuAction(action) => {
+        table_modal: model.table_modal,
+        calculator_modal:
+          Option.map(CR.M.update(_, action), model.calculator_modal),
       }
     };
   };
 
-  /* Modal overlay for table display */
+  /* Modal overlay for table and calculator display */
   let modal_overlay =
       (model, info, ~local: action => Ui_effect.t(unit), ~parent, ~view_seg) => {
     print_endline("Model: " ++ show_model(model));
-    switch (model.table_modal) {
-    | Some(model) =>
+    switch (model.table_modal, model.calculator_modal) {
+    | (Some(table_model), _) =>
       switch (get_current_table_data(info)) {
       | Some(_) =>
         /* Render modal backdrop */
@@ -996,7 +1053,7 @@ module M: Projector = {
                   ~view_seg,
                   ~local=action => local(TableMenuAction(action)),
                   ~parent=action => {parent(action)},
-                  ~model,
+                  ~model=table_model,
                   (),
                 ),
               ],
@@ -1005,7 +1062,50 @@ module M: Projector = {
         )
       | None => Node.div([])
       }
-    | None => Node.div([])
+    | (None, Some(calculator_model)) =>
+      switch (get_current(info)) {
+      | Some(exp) when Option.is_some(CR.init(exp)) =>
+        /* Render modal backdrop for calculator */
+        div(
+          ~attrs=[
+            Attr.classes(["calculator-modal-backdrop", "live-offside"]),
+          ],
+          [
+            /* Modal content */
+            div(
+              ~attrs=[
+                Attr.classes(["calculator-modal"]),
+                Attr.on_click(_ => Effect.Stop_propagation),
+              ],
+              [
+                /* Close button */
+                div(
+                  ~attrs=[
+                    Attr.classes(["calculator-modal-close"]),
+                    Attr.on_click(_ => {
+                      print_endline("Closing calculator modal");
+                      local(CloseCalculatorModal);
+                    }),
+                  ],
+                  [Node.text("×")],
+                ),
+                /* Calculator content using CalculatorRenderer */
+                CR.M.render(
+                  ~info,
+                  ~exp=get_current(info) |> Option.get,
+                  ~view_seg,
+                  ~model=calculator_model,
+                  ~local=action => local(CalculatorMenuAction(action)),
+                  ~parent=action => {parent(action)},
+                  (),
+                ),
+              ],
+            ),
+          ],
+        )
+      | _ => Node.div([])
+      }
+    | (None, None) => Node.div([])
     };
   };
 
