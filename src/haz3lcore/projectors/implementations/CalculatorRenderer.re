@@ -26,7 +26,6 @@ type m = option(cal_state);
 type a =
   | SelectOp(op)
   | SetOperand(int)
-  | Apply
   | Clear;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
@@ -102,6 +101,11 @@ let apply_arithmetic_operation = (info: info, operation: op, operand: int) =>
     }
   );
 
+let apply_operation = (info, operation, operand, local, parent) => {
+  let segment = apply_arithmetic_operation(info, operation, operand);
+  Effect.Many([local(Clear), parent(ProjectorBase.SetSyntax(segment))]);
+};
+
 let get_int_value = (exp: Exp.t): option(int) =>
   switch (exp.term) {
   | Atom(atom) =>
@@ -133,7 +137,7 @@ let digit_buttons = (local, current_operand) =>
         ],
         [Node.text(string_of_int(digit))],
       ),
-    [0, 1, 2, 3, 4, 5, 6, 7, 8, 9],
+    [7, 8, 9, 4, 5, 6, 1, 2, 3, 0],
   );
 
 let op_buttons = local =>
@@ -150,7 +154,7 @@ let op_buttons = local =>
        )
      );
 
-let control_buttons = (local, can_apply) => [
+let control_buttons = (info, local, can_apply, state_opt, parent) => [
   Node.button(
     ~attrs=[
       Attr.classes(["calculator-clear"]),
@@ -162,10 +166,10 @@ let control_buttons = (local, can_apply) => [
     ~attrs=[
       Attr.classes(["calculator-apply"] @ (can_apply ? [] : ["disabled"])),
       Attr.on_click(_ =>
-        if (can_apply) {
-          local(Apply);
-        } else {
-          Effect.Ignore;
+        switch (state_opt) {
+        | Some({operation, operand: Some(operand)}) =>
+          apply_operation(info, operation, operand, local, parent)
+        | _ => Effect.Ignore
         }
       ),
     ],
@@ -176,11 +180,12 @@ let control_buttons = (local, can_apply) => [
 /* Main calculator rendering function */
 let render = (~info, ~exp, ~view_seg, ~model, ~local, ~parent, ()) => {
   let current_value = get_int_value(exp) |> Option.value(~default=0);
-  let can_apply =
+  let state_opt =
     switch (model) {
-    | Some({operand: Some(_), _}) => true
-    | _ => false
+    | Some(s) when Option.is_some(s.operand) => Some(s)
+    | _ => None
     };
+  let can_apply = Option.is_some(state_opt);
 
   Node.div(
     ~attrs=[Attr.classes(["calculator"])],
@@ -205,7 +210,7 @@ let render = (~info, ~exp, ~view_seg, ~model, ~local, ~parent, ()) => {
           ),
           Node.div(
             ~attrs=[Attr.classes(["calculator-controls"])],
-            control_buttons(local, can_apply),
+            control_buttons(info, local, can_apply, state_opt, parent),
           ),
         ],
       ),
@@ -226,18 +231,10 @@ let update: (model, action) => model =
         ...state,
         operand: Some(new_operand),
       })
-    | (Apply, Some({operation, operand: Some(operand)} as state)) =>
-      // Apply will be handled in a separate effect, not here
-      Some(state)
     | (Clear, _) => None
     | _ => model
     };
   };
-
-let apply_operation = (info, operation, operand, local, parent) => {
-  let segment = apply_arithmetic_operation(info, operation, operand);
-  Effect.Many([local(Clear), parent(ProjectorBase.SetSyntax(segment))]);
-};
 
 let badge =
   Node.span(
