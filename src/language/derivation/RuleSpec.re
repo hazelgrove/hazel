@@ -99,7 +99,7 @@ let of_spec: Rule.t => Spec.t(M_Id.exp_t, RuleFormula.M_Id.t(bool, unit)) = {
       tests: [],
     }
   | MS_Hole => {
-      concl: MatchedSum(TypHole, TypHole),
+      concl: MatchedSum(TypHole, Sum(TypHole, TypHole)),
       prems: [],
       tests: [],
     }
@@ -109,7 +109,7 @@ let of_spec: Rule.t => Spec.t(M_Id.exp_t, RuleFormula.M_Id.t(bool, unit)) = {
       tests: [],
     }
   | MP_Hole => {
-      concl: MatchedProd(TypHole, TypHole),
+      concl: MatchedProd(TypHole, Prod(TypHole, TypHole)),
       prems: [],
       tests: [],
     }
@@ -119,7 +119,7 @@ let of_spec: Rule.t => Spec.t(M_Id.exp_t, RuleFormula.M_Id.t(bool, unit)) = {
       tests: [],
     }
   | MA_Hole => {
-      concl: MatchedArrow(TypHole, TypHole),
+      concl: MatchedArrow(TypHole, Arrow(TypHole, TypHole)),
       prems: [],
       tests: [],
     }
