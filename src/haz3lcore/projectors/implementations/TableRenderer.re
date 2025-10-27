@@ -278,33 +278,6 @@ let add_column_after =
   );
 };
 
-let get_dynamic_type = (closure: option(int), info: info): option(Typ.t) => {
-  info.dynamics
-  |> Option.bind(_, d =>
-       List.nth_opt(d.closures, closure |> Option.value(~default=0))
-     )
-  |> Option.bind(
-       _,
-       (d: Dynamics.Probe.Closure.t) => {
-         let statics =
-           Statics.mk(CoreSettings.on, Builtins.ctx_init(Some(Int)));
-         let type_of = (c: Dynamics.Probe.Closure.t) => {
-           IdTagged.rep_id(c.value)
-           |> Id.Map.find_opt(_, statics(c.value))
-           |> Option.bind(
-                _,
-                fun
-                | InfoExp(e) => {
-                    Some(e.ty);
-                  }
-                | _ => None,
-              );
-         };
-         type_of(d);
-       },
-     );
-};
-
 let get_dynamic_type = (exp: Exp.t): option(Typ.t) => {
   let statics = Statics.mk(CoreSettings.on, Builtins.ctx_init(Some(Int)));
   IdTagged.rep_id(exp)
@@ -369,62 +342,6 @@ let move_column =
       };
     | None => None
     };
-  | None => None
-  };
-};
-
-let get_column_type = (info: info, column: string) => {
-  switch (info.statics) {
-  | Some(InfoExp({ty, _})) => get_column_type_from_ty(ty, column)
-  | _ => None
-  };
-};
-
-let sort_column =
-    (info: info, column_type: option(Typ.t), header: string)
-    : option(Base.segment) => {
-  let compare_fn =
-    switch (column_type) {
-    | Some(ty) =>
-      switch (Typ.cls_of_term(ty.term)) {
-      | Typ.Atom(Atom.Int) => Some("int_compare")
-      | Typ.Atom(Atom.Float) => Some("float_compare")
-      | Typ.Atom(Atom.String) => Some("string_compare")
-      | _ => None
-      }
-    | None => None
-    };
-
-  switch (compare_fn) {
-  | Some(compare_fn_name) =>
-    IdTagged.FreshGrammar.(
-      apply_transformation(
-        info,
-        Exp.(
-          ap(
-            Forward,
-            var("sort"),
-            tuple([
-              fn(
-                Pat.tuple([Pat.var("r1"), Pat.var("r2")]),
-                ap(
-                  Forward,
-                  var(compare_fn_name),
-                  tuple([
-                    dot(var("r1"), label(header)),
-                    dot(var("r2"), label(header)),
-                  ]),
-                ),
-                None,
-                None,
-              ),
-              deferral(InAp),
-            ]),
-          )
-        ),
-      )
-    )
-    |> Option.some
   | None => None
   };
 };
@@ -766,7 +683,7 @@ let render =
       ~model: model, /* (column_index, menu_path) */
       ~local: action => Ui_effect.t(unit),
       ~parent: external_action => Ui_effect.t(unit),
-      unit,
+      _: unit,
     ) => {
   let make_menu_button = (i, _h) =>
     icon_button(~tooltip="Column options", "⋮", _ => local(ShowMenu(i)));
