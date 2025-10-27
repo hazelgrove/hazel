@@ -16,7 +16,7 @@ module View = {
       (
         ~globals: Globals.t,
         ~info_map,
-        ~env: ClosureEnvironment.t,
+        ~env: Environment.t(Exp.t),
         ~active_selection:
            option((Exp.t, list(Var.t), proof_event => Ui_effect.t(unit))),
         model: Model.t,

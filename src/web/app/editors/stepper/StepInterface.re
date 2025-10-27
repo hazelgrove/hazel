@@ -25,7 +25,6 @@ module type STEP = {
       ~hidden: Calc.saved(bool),
       ~exp: Calc.t(Exp.t),
       ~ctx: Calc.t(SemanticCtx.t),
-      ~state: Calc.t(EvaluatorState.t),
       ~editor: Calc.t(CodeSelectable.Model.t),
       ~info_map: Calc.t(Statics.Map.t),
       ~ana: Calc.t(Typ.t),
@@ -35,7 +34,7 @@ module type STEP = {
       (
         model,
         Calc.t(bool), // Hidden
-        option((Calc.t(Exp.t), Calc.t(EvaluatorState.t))), // Next
+        option(Calc.t(Exp.t)), // Next
         Calc.t(option(bool)) // Truth
       ),
     );
@@ -97,7 +96,6 @@ module type STEPPER = {
       ~settings: Calc.t(CoreSettings.t),
       ~exp: Calc.t(Exp.t),
       ~ctx: Calc.t(SemanticCtx.t),
-      ~state: Calc.t(EvaluatorState.t),
       ~ana: Calc.t(Typ.t),
       model
     ) =>

@@ -7,7 +7,7 @@ module Model = {
   type theorem = {
     name: string,
     ctx: Calc.saved(Ctx.t),
-    env: Calc.saved(ClosureEnvironment.t),
+    env: Calc.saved(Environment.t(Exp.t)),
     sem_ctx: Calc.saved(SemanticCtx.t),
     goal_exp: Calc.saved(Exp.t),
     stepper_view: StepperView.Model.t,
@@ -237,8 +237,7 @@ module Update = {
                         );
                    };
 
-                 let env =
-                   Calc.set(~eq=ClosureEnvironment.id_equal, env', env);
+                 let env = Calc.set(~eq=Environment.id_equal, env', env);
 
                  let sem_ctx =
                    sem_ctx

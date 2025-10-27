@@ -95,7 +95,6 @@ module F =
         ~hidden: Calc.saved(bool),
         ~exp: Calc.t(Exp.t),
         ~ctx: Calc.t(SemanticCtx.t),
-        ~state: Calc.t(EvaluatorState.t),
         ~editor as _: Calc.t(CodeSelectable.Model.t),
         ~info_map as _,
         ~ana: Calc.t(Typ.t),
@@ -123,7 +122,6 @@ module F =
         ~settings,
         ~ctx=inner_ctx,
         ~exp=inner_exp,
-        ~state,
         ~ana,
         inner_stepper,
       );
@@ -153,7 +151,7 @@ module F =
         result_function: result_function |> Calc.save,
       },
       hidden |> Calc.set(false),
-      Some((result_function, state)),
+      Some(result_function),
       validity,
     );
   };

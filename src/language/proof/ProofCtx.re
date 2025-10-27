@@ -84,9 +84,9 @@ let of_ctx = (~builtins, ctx: Ctx.t): t => {
   rules;
 };
 
-let of_env = (~builtins, ~ctx: Ctx.t, env: ClosureEnvironment.t) => {
+let of_env = (~builtins, ~ctx: Ctx.t, env: Environment.t(Exp.t)) => {
   let (_, rules) =
-    ClosureEnvironment.to_list(env)
+    Environment.to_list(env)
     |> List.rev
     |> List.fold_left(
          ((seen_vars, rules), (name, exp)) =>

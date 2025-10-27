@@ -9,7 +9,7 @@ open Util;
 [@deriving (show({with_path: false}), sexp, yojson)]
 type t = {
   ctx: Ctx.t,
-  env: ClosureEnvironment.t,
+  env: Environment.t(Exp.t),
 };
 
 let free_name = (t: t, base: Var.t): Var.t =>
@@ -18,7 +18,7 @@ let free_name = (t: t, base: Var.t): Var.t =>
     List.map((e: Ctx.var_entry) => e.name, Ctx.get_var_entries(t.ctx)),
   );
 
-let of_ctx_and_env: (Ctx.t, ClosureEnvironment.t) => t =
+let of_ctx_and_env: (Ctx.t, Environment.t(Exp.t)) => t =
   (ctx, env) => {
     ctx,
     env,
@@ -37,9 +37,7 @@ let add_entry: (t, Id.t, Var.t, Typ.t, option(Exp.t)) => t =
         }),
       );
     let value = OptUtil.get(() => Exp.fresh(Var(name)), value);
-    let env =
-      env
-      |> ClosureEnvironment.update_env(Environment.extend(_, (name, value)));
+    let env = env |> Environment.extend(_, (name, value));
     {
       ctx,
       env,
@@ -65,16 +63,13 @@ let add_from_pattern = ({ctx, env}: t, pattern: Pat.t, pat_typ: Typ.t) => {
     ProofHacks.dhpat_extend_ctx(pattern, pat_typ, ctx)
     |> Option.value(~default=ctx);
   let env =
-    ClosureEnvironment.update_env(
-      List.fold_left(
-        Environment.extend,
-        _,
-        List.map(
-          v => (v, Exp.fresh(Var(v))),
-          pattern |> Pat.bindings |> Binding.variable_names,
-        ),
-      ),
+    List.fold_left(
+      Environment.extend,
       env,
+      List.map(
+        v => (v, Exp.fresh(Var(v))),
+        pattern |> Pat.bindings |> Binding.variable_names,
+      ),
     );
   {
     ctx,
@@ -92,4 +87,4 @@ let add_hypothesis = (t: t, name: Var.t, hyp: Exp.t): (t, Binding.t) => {
 };
 
 let get_ctx = (t: t): Ctx.t => t.ctx;
-let get_env = (t: t): ClosureEnvironment.t => t.env;
+let get_env = (t: t): Environment.t(Exp.t) => t.env;

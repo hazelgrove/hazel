@@ -67,11 +67,7 @@ let qcheck_stepper_confluence =
           ~step_limit=100,
           elaborated_exp,
         ),
-        full_small_step_reduction(
-          ~state=EvaluatorState.init,
-          ~step_limit=100,
-          elaborated_exp,
-        ),
+        full_small_step_reduction(~step_limit=100, elaborated_exp),
       ) {
       | (Completed((bigstep_exp, _)), Completed(smallstep_exp)) =>
         let show_core_exp = exp =>
@@ -87,7 +83,7 @@ let qcheck_stepper_confluence =
           |> Printer.of_segment(~holes="?", _);
 
         Alcotest.check(
-          testable(Fmt.using(show_core_exp, Fmt.string), DHExp.fast_equal), // Output is easier to view through ExpToSegment. This may result in a loss of information
+          testable(Fmt.using(Exp.show, Fmt.string), Equality.semantic.exp), // Output is easier to view through ExpToSegment. This may result in a loss of information
           "Small step reduction and big step reduction are equal",
           smallstep_exp,
           bigstep_exp,
@@ -194,7 +190,7 @@ let qcheck_preservation_test =
           (stepped, ty);
         }
       ) {
-      | (Some((next, _)), orig_ty) =>
+      | (Some(next), orig_ty) =>
         switch (
           {
             let statics =

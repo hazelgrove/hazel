@@ -27,7 +27,7 @@ module Model = {
     full_exp: Calc.saved(Exp.t),
     assumptions: Calc.saved(option(assumptions)),
     open_box,
-    cached_env: Calc.saved(ClosureEnvironment.t) // TODO[Matt]: remove this later, just to get env into view for now.
+    cached_env: Calc.saved(Environment.t(Exp.t)) // TODO[Matt]: remove this later, just to get env into view for now.
   };
 
   let init = {
@@ -144,7 +144,6 @@ module Update = {
         exp,
         info_map,
         ctx: Calc.t(SemanticCtx.t),
-        _state,
         new_next_steps,
         {
           next_steps: _,
@@ -195,7 +194,7 @@ module Update = {
         let proof_ctx =
           ctx
           |> SemanticCtx.get_env
-          |> ClosureEnvironment.to_list
+          |> Environment.to_list
           |> List.filter_map(((name, exp)) =>
                switch (Exp.term_of(exp)) {
                | Grammar.ProofObject(e) => Some((name, e))
@@ -617,8 +616,7 @@ module View = {
                                        model.cached_env
                                        |> Calc.get_saved_exc(
                                             ~print="env not cached",
-                                          )
-                                       |> ClosureEnvironment.map_of,
+                                          ),
                                      ),
                                 ),
                               )
@@ -638,16 +636,14 @@ module View = {
                                            model.cached_env
                                            |> Calc.get_saved_exc(
                                                 ~print="env not cached",
-                                              )
-                                           |> ClosureEnvironment.map_of,
+                                              ),
                                          ),
                                       unboxed_cached_exp
                                       |> Exp.substitute_closures(
                                            model.cached_env
                                            |> Calc.get_saved_exc(
                                                 ~print="env not cached",
-                                              )
-                                           |> ClosureEnvironment.map_of,
+                                              ),
                                          ),
                                     ),
                                   ),

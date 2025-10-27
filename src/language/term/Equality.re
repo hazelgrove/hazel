@@ -6,7 +6,6 @@ module Typ = TermBase.Typ;
 module TPat = TermBase.TPat;
 module Rul = TermBase.Rul;
 module Any = TermBase.Any;
-module ClosureEnvironment = TermBase.ClosureEnvironment;
 
 /*
     ________  __  _____   __   ____________  __
@@ -77,14 +76,14 @@ type settings = {
                            traversing through massive closures */
   ignore_filters: bool,
   ignore_unknown_provenance: bool, // Treats all holes as equal, including multiholes, emptyholes, invalid and synswitch
-  use_expr_wildcards: option((ClosureEnvironment.t, Exp.t) => bool), // In order to turn this setting on, you must provide a function that decides whether something is a value (i.e. whether it matches $v)
+  use_expr_wildcards: option((Environment.t(Exp.t), Exp.t) => bool), // In order to turn this setting on, you must provide a function that decides whether something is a value (i.e. whether it matches $v)
   ignore_fixpoints: bool, // Hideously unsound, used to hide function steps in the stepper
   free_var_handler: option((Alphas.t, string, Exp.t) => bool), // Note[Matt]: to be used in MatchExp
   /* The following two options shouldn't really be `settings' but they're
      packaged with settings because they remain the same throughout a single
       equality check */
-  env1: option(ClosureEnvironment.t), // The environment to look up variables on the left in
-  env2: option(ClosureEnvironment.t) // The environment to look up variables on the right in
+  env1: option(Environment.t(Exp.t)), // The environment to look up variables on the left in
+  env2: option(Environment.t(Exp.t)) // The environment to look up variables on the right in
 };
 
 let equality =
@@ -146,7 +145,7 @@ let equality =
     // Expression Wildcards:
     | (Constructor("$v", _), _) when Option.is_some(use_expr_wildcards) =>
       let check_value = Option.get(use_expr_wildcards);
-      check_value(Option.value(env2, ~default=ClosureEnvironment.empty), e2);
+      check_value(Option.value(env2, ~default=Environment.empty), e2);
     | (EmptyHole, _) when Option.is_some(use_expr_wildcards) => true
     | (Constructor("$e", _), _) when Option.is_some(use_expr_wildcards) =>
       true
@@ -166,11 +165,11 @@ let equality =
           // Both variables are free, so we first check ctxs, and then use the free_var_handler if provided.
           let lookup1 = {
             let* env1 = env1;
-            ClosureEnvironment.lookup(env1, x);
+            Environment.lookup(env1, x);
           };
           let lookup2 = {
             let* env2 = env2;
-            ClosureEnvironment.lookup(env2, y);
+            Environment.lookup(env2, y);
           };
           switch (lookup1, lookup2) {
           | (Some(v1), Some(v2)) => exp'(v1, v2)
@@ -188,7 +187,7 @@ let equality =
       open OptUtil.Syntax;
       let lookup1 = {
         let* env1 = env1;
-        ClosureEnvironment.lookup(env1, x);
+        Environment.lookup(env1, x);
       };
       switch (lookup1) {
       | Some(v1) => exp'(v1, e2)
@@ -202,7 +201,7 @@ let equality =
       open OptUtil.Syntax;
       let lookup2 = {
         let* env2 = env2;
-        ClosureEnvironment.lookup(env2, y);
+        Environment.lookup(env2, y);
       };
       switch (lookup2) {
       | Some(v2) => exp'(e1, v2)
@@ -229,7 +228,7 @@ let equality =
         exp(Alphas.combine(alphas_exp', alphas_exp), alphas_typ, e1, e2)
         && (
           closures_by_id
-            ? Option.equal(ClosureEnvironment.id_equal, c1, c2)
+            ? Option.equal(Environment.id_equal, c1, c2)
             : Option.equal(
                 failwith(
                   "full closure equality has not been implemented yet",
@@ -295,7 +294,7 @@ let equality =
 
     // Forms with environments. (Note fix also has an environment and is handled above.)
     | (Closure(env1, e1), Closure(env2, e2)) when closures_by_id =>
-      ClosureEnvironment.id_equal(env1, env2) && exp'(e1, e2)
+      Environment.id_equal(env1, env2) && exp'(e1, e2)
     | (Closure(_, _), Closure(_, _)) =>
       failwith("full closure equality has not been implemented yet")
     | (Closure(_), _) => false

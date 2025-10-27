@@ -2,7 +2,7 @@ open Util;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type term =
-  | Closure([@show.opaque] ClosureEnvironment.t, t)
+  | Closure([@show.opaque] Environment.t(Exp.t), t)
   | Filter(TermBase.StepperFilterKind.t, t)
   | Seq1(t, DHExp.t)
   | Seq2(DHExp.t, t)
@@ -10,7 +10,7 @@ type term =
   | Let2(Pat.t, DHExp.t, t)
   | Theorem(Pat.t, DHExp.t, t)
   | Fun(Pat.t, t, option(Typ.t), option(Var.t))
-  | FixF(Pat.t, t, option(ClosureEnvironment.t))
+  | FixF(Pat.t, t, option(Environment.t(Exp.t)))
   | TypAp(t, Typ.t)
   | Ap1(Operators.ap_direction, t, DHExp.t)
   | Ap2(Operators.ap_direction, DHExp.t, t)

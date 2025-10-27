@@ -41,23 +41,6 @@ type deferral_position_t =
   | OutsideAp;
 
 [@deriving (show({with_path: false}), sexp, yojson, eq)]
-type closure_env_strucshare('env) = {
-  id: Id.t,
-  env: 'env,
-  call_stack: Probe.call_stack,
-};
-
-let sexp_of_closure_env_strucshare = f =>
-  StructureShareSexp.structure_share_sexp_of_t(
-    (x: closure_env_strucshare('a)) => x.id,
-    sexp_of_closure_env_strucshare(f),
-  );
-let closure_env_strucshare_of_sexp = f =>
-  StructureShareSexp.structure_share_t_of_sexp(
-    closure_env_strucshare_of_sexp(f),
-  );
-
-[@deriving (show({with_path: false}), sexp, yojson, eq)]
 type any_t('a) =
   | Exp(exp_t('a))
   | Pat(pat_t('a))
@@ -92,7 +75,7 @@ and exp_term('a) =
   | Theorem(pat_t('a), exp_t('a), exp_t('a))
   | ProofObject(exp_t('a))
   | Forall(pat_t('a), exp_t('a))
-  | FixF(pat_t('a), exp_t('a), option(closure_environment_t('a)))
+  | FixF(pat_t('a), exp_t('a), option(Environment.t(exp_t('a))))
   | TyAlias(tpat_t('a), typ_t('a), exp_t('a))
   | Use(typ_t('a), exp_t('a))
   | Ap(Operators.ap_direction, exp_t('a), exp_t('a))
@@ -103,7 +86,7 @@ and exp_term('a) =
   | Test(exp_t('a))
   | HintedTest(exp_t('a), exp_t('a))
   | Filter(stepper_filter_kind_t('a), exp_t('a))
-  | Closure([@show.opaque] closure_environment_t('a), exp_t('a))
+  | Closure([@show.opaque] Environment.t(exp_t('a)), exp_t('a))
   | Parens(exp_t('a)) // (
   | Probe(exp_t('a), Probe.t)
   | Cons(exp_t('a), exp_t('a))
@@ -163,8 +146,6 @@ and rul_term('a) =
   | MultiHole(list(any_t('a)))
   | Rules(exp_t('a), list((pat_t('a), exp_t('a))))
 and rul_t('a) = Annotated.t(rul_term('a), 'a)
-and environment_t('a) = VarBstMap.Ordered.t_(exp_t('a))
-and closure_environment_t('a) = closure_env_strucshare(environment_t('a))
 and stepper_filter_kind_t('a) =
   | Filter(filter('a))
   | Residue(int, FilterAction.t)
@@ -271,7 +252,7 @@ let rec map_exp_annotation: type a b. (a => b, exp_t(a)) => exp_t(b) =
           )
         | Closure(env, e) =>
           Closure(
-            map_closure_environment_annotation(f, env),
+            Environment.map(map_exp_annotation(f), env),
             map_exp_annotation(f, e),
           )
         | Parens(e) => Parens(map_exp_annotation(f, e))
@@ -446,13 +427,6 @@ and map_stepper_filter_kind_annotation:
       })
     | Residue(i, act) => Residue(i, act)
     };
-  }
-and map_closure_environment_annotation:
-  type a b. (a => b, closure_environment_t(a)) => closure_environment_t(b) =
-  (f, {id, env, call_stack}) => {
-    id,
-    env: VarBstMap.Ordered.mapo(((_, y)) => map_exp_annotation(f, y), env),
-    call_stack,
   }
 
 and map_type_provenance_annotation:
@@ -922,17 +896,6 @@ module Factory = (DefaultAnnotation: DefaultAnnotation) => {
       term: Rules(e, l),
       annotation: default_annotation(ann),
     };
-  };
-
-  let environment = (env): environment_t(DefaultAnnotation.t) => {
-    VarBstMap.Ordered.mapo(((_, y)) => map_exp_annotation(x => x, y), env);
-  };
-
-  let closure_environment =
-      (~callstack, id, env): closure_environment_t(DefaultAnnotation.t) => {
-    id,
-    env: environment(env),
-    call_stack: callstack,
   };
 
   module StepperFilter = {

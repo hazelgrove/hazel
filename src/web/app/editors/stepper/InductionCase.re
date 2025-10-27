@@ -105,7 +105,6 @@ module F = (Stepper: STEPPER) => {
         ~exp: Calc.t(Exp.t),
         ~ctx: Calc.t(SemanticCtx.t),
         ~info_map: Calc.t(Statics.Map.t),
-        ~state: Calc.t(EvaluatorState.t),
         ~ana: Calc.t(Typ.t),
         model: model,
       ) => {
@@ -183,9 +182,7 @@ module F = (Stepper: STEPPER) => {
                   elab_pattern |> ProofHacks.pat_to_exp,
                 )
                 |> Exp.fresh
-                |> Exp.substitute_closures(
-                     ClosureEnvironment.map_of(SemanticCtx.get_env(sem_ctx)),
-                   ),
+                |> Exp.substitute_closures(SemanticCtx.get_env(sem_ctx)),
               );
         let (sem_ctx, case_eq_name) =
           switch (case_eq) {
@@ -242,7 +239,6 @@ module F = (Stepper: STEPPER) => {
         ~settings, // TODO: this is a little ugly
         ~ctx=inner_ctx,
         ~exp=inner_exp,
-        ~state,
         ~ana,
         model.step,
       );

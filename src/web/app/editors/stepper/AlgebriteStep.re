@@ -84,7 +84,6 @@ module F =
         ~hidden: Calc.saved(bool),
         ~exp: Calc.t(Exp.t),
         ~ctx as _: Calc.t(SemanticCtx.t),
-        ~state: Calc.t(EvaluatorState.t),
         ~editor as _: Calc.t(CodeSelectable.Model.t),
         ~info_map as _,
         ~ana as _,
@@ -108,7 +107,7 @@ module F =
         next_exp: next_exp |> Calc.save,
       },
       hidden |> Calc.set(false),
-      Some((next_exp, state)),
+      Some(next_exp),
       Calc.OldValue(Some(true)),
     );
   };

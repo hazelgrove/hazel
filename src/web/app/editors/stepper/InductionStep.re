@@ -18,7 +18,6 @@ type model'('stepper) = {
   scrut_ty: Calc.saved(Typ.t),
   scrut_co_ctx: Calc.saved(CoCtx.t),
   result: Calc.saved(Exp.t),
-  result_state: Calc.saved(EvaluatorState.t),
   join_exp: Calc.saved(Exp.t),
   is_exhaustive: Calc.saved(bool),
   validity: Calc.saved(option(bool)),
@@ -66,7 +65,6 @@ let init = (~exp: option(Exp.t)=?, ()) => {
     scrut_ty: Calc.Pending,
     scrut_co_ctx: Calc.Pending,
     result: Calc.Pending,
-    result_state: Calc.Pending,
     join_exp: Calc.Pending,
     is_exhaustive: Calc.Pending,
     validity: Calc.Pending,
@@ -115,7 +113,6 @@ module F =
       scrut_ty: Calc.Pending,
       scrut_co_ctx: Calc.Pending,
       result: Calc.Pending,
-      result_state: Calc.Pending,
       join_exp: Calc.Pending,
       is_exhaustive: Calc.Pending,
       validity: Calc.Pending,
@@ -177,7 +174,6 @@ module F =
         ~hidden: Calc.saved(bool),
         ~exp: Calc.t(Exp.t),
         ~ctx: Calc.t(SemanticCtx.t),
-        ~state: Calc.t(EvaluatorState.t),
         ~editor as _,
         ~info_map,
         ~ana: Calc.t(Typ.t),
@@ -191,7 +187,6 @@ module F =
       scrut_ty,
       scrut_co_ctx,
       result: _,
-      result_state: _,
       join_exp,
       is_exhaustive,
       validity,
@@ -218,7 +213,7 @@ module F =
         let.calc raw = elab_scrut_raw
         and.calc sem_ctx = ctx;
         let env = SemanticCtx.get_env(sem_ctx);
-        DHExp.substitute_closures(env |> ClosureEnvironment.map_of, raw);
+        DHExp.substitute_closures(env, raw);
       };
     let scrut_ty = {
       let self_ty =
@@ -256,7 +251,6 @@ module F =
           ~ctx,
           ~info_map,
           ~exp,
-          ~state,
           ~ana,
         ),
         cases,
@@ -318,7 +312,6 @@ module F =
       };
 
     let result = exp |> Calc.save;
-    let result_state = state |> Calc.save;
 
     Some((
       {
@@ -329,13 +322,12 @@ module F =
         scrut_ty: scrut_ty |> Calc.save,
         scrut_co_ctx: scrut_co_ctx |> Calc.save,
         result,
-        result_state,
         join_exp: join_exp |> Calc.save,
         is_exhaustive: is_exhaustive |> Calc.save,
         validity: validity |> Calc.save,
       },
       hidden |> Calc.set(false),
-      Some((Calc.OldValue(Exp.fresh(Atom(Bool(true)))), state)),
+      Some(Calc.OldValue(Exp.fresh(Atom(Bool(true))))),
       validity,
     ));
   };

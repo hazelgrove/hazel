@@ -383,11 +383,11 @@ let match_exp =
     (
       ~info_map,
       ~alphas=[],
-      ~exp_env: ClosureEnvironment.t,
+      ~exp_env: Environment.t(Exp.t),
       ~exp_r_ctx: match_ctx,
       exp_r: Exp.t,
       exp: Exp.t,
     ) => {
-  let exp = Exp.substitute_closures(ClosureEnvironment.map_of(exp_env), exp);
+  let exp = Exp.substitute_closures(exp_env, exp);
   match_exp(~info_map, alphas, exp_r_ctx, exp_r, exp);
 };
