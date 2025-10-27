@@ -119,8 +119,10 @@ module Main = {
     let hw = name_to_exercise_export(hw_path);
     let export_chapter =
       hw.exercise_data
-      |> List.map(~f=((key, persistent_state)) => {
-           switch (find_id_opt(key, specs)) {
+      |> List.map(~f=
+          ((key, 
+            persistent_state)) => {
+           switch (find_id_opt(specs, key)) {
            | Some((_n, spec)) =>
              let spec =
                unpersist(persistent_state, ~spec, ~instructor_mode=true);
