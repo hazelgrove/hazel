@@ -7,12 +7,9 @@ open Language;
 [@deriving (show({with_path: false}), sexp, yojson)]
 type menu_state = option((int, list(string)));
 [@deriving (show({with_path: false}), sexp, yojson)]
-type model = {menu_state};
-
-let init: model = {menu_state: None};
-/* Table actions that can be performed on columns */
+type m = {menu_state};
 [@deriving (show({with_path: false}), sexp, yojson)]
-type table_action =
+type a =
   | CloseMenu
   | ShowMenu(int)
   | ShowSubmenu(list(string))
@@ -21,11 +18,12 @@ type table_action =
   | RenameColumn(string, string)
   | AddColumnAfter(string, string);
 
-/* Action handler interface - allows the parent to control how actions are handled */
-type action_handler = {
-  set_syntax: Base.segment => Ui_effect.t(unit),
-  local_action: table_action => Ui_effect.t(unit),
-};
+[@deriving (show({with_path: false}), sexp, yojson)]
+type model = m;
+
+/* Table actions that can be performed on columns */
+[@deriving (show({with_path: false}), sexp, yojson)]
+type action = a;
 
 /* Menu item types for the column menu system */
 [@deriving (show({with_path: false}), sexp, yojson)]
@@ -108,14 +106,6 @@ let table_from_exp = (exp: Exp.t) => {
   | _ => None
   };
 };
-
-/* Convert any term to table data if possible */
-let table_of =
-    (any: Any.t): option((list(LabeledTuple.label), list(list(Exp.t)))) =>
-  switch (any) {
-  | Exp(exp) => table_from_exp(exp)
-  | _ => None
-  };
 
 /* Type utilities for column operations */
 let get_column_type_from_ty = (ty: Typ.t, column: string) => {
@@ -312,6 +302,20 @@ let get_dynamic_type = (closure: option(int), info: info): option(Typ.t) => {
          };
          type_of(d);
        },
+     );
+};
+
+let get_dynamic_type = (exp: Exp.t): option(Typ.t) => {
+  let statics = Statics.mk(CoreSettings.on, Builtins.ctx_init(Some(Int)));
+  IdTagged.rep_id(exp)
+  |> Id.Map.find_opt(_, statics(exp))
+  |> Option.bind(
+       _,
+       fun
+       | InfoExp(e) => {
+           Some(e.ty);
+         }
+       | _ => None,
      );
 };
 
@@ -754,27 +758,23 @@ let render_menu = menu_data => {
 };
 
 /* Main table rendering function */
-let render_table =
+let render =
     (
-      ~headers: list(string),
-      ~rows: list(list(Exp.t)),
       ~info: info,
+      ~exp: Exp.t,
       ~view_seg: (Sort.t, Segment.t) => Node.t,
-      ~closure_nav: option((Node.t, Node.t)), /* (prev_button, next_button) */
-      ~menu_state: option((int, list(string))), /* (column_index, menu_path) */
-      ~local: table_action => Ui_effect.t(unit),
+      ~model: model, /* (column_index, menu_path) */
+      ~local: action => Ui_effect.t(unit),
       ~parent: external_action => Ui_effect.t(unit),
       unit,
     ) => {
-  let (prev_button, next_button) =
-    switch (closure_nav) {
-    | Some((prev, next_)) => (Some(prev), Some(next_))
-    | None => (None, None)
-    };
-
   let make_menu_button = (i, _h) =>
     icon_button(~tooltip="Column options", "⋮", _ => local(ShowMenu(i)));
 
+  let (headers, rows) = table_from_exp(exp) |> Option.get;
+  print_endline(
+    "Rendering table with headers: " ++ String.concat(", ", headers),
+  );
   let header_cells =
     List.mapi(
       (i, h) => {
@@ -782,18 +782,13 @@ let render_table =
         let base_content = [Node.text(h), menu_button];
 
         /* Add navigation buttons to first and last columns if provided */
-        let content =
-          switch (prev_button, next_button) {
-          | (Some(prev_btn), _) when i == 0 => [prev_btn] @ base_content
-          | (_, Some(next_btn)) when i == List.length(headers) - 1 =>
-            base_content @ [next_btn]
-          | _ => base_content
-          };
+        let content = base_content;
 
         let full_content =
-          switch (menu_state) {
+          switch (model.menu_state) {
           | Some((j, menu_path)) when i == j =>
-            let dyn_type = get_dynamic_type(None, info); /* TODO: Pass closure info properly */
+            let dyn_type = get_dynamic_type(exp); /* TODO: Pass closure info properly */
+            print_endline("Building menu for column: " ++ h);
             let menu_data =
               build_column_menu(info, h, dyn_type, local, parent, menu_path);
             let menu_content = render_menu(menu_data);
@@ -831,10 +826,13 @@ let render_table =
   );
 };
 
-let update: (model, table_action) => model =
+let update: (model, action) => model =
   (model, action) => {
     switch (action) {
     | CloseMenu => {menu_state: None}
+    | ShowMenu(i) when Some(i) == Option.map(fst, model.menu_state) => {
+        menu_state: None,
+      }
     | ShowMenu(i) => {menu_state: Some((i, []))}
     | ShowSubmenu(path) =>
       switch (model.menu_state) {
@@ -853,3 +851,6 @@ let badge =
     ],
     [Node.text("📊")],
   );
+let init = exp => {
+  table_from_exp(exp) |> Option.map(_ => {menu_state: None});
+};

@@ -22,7 +22,7 @@ type action =
   | NoOp
   | OpenTableModal
   | CloseTableModal
-  | TableMenuAction(TR.table_action);
+  | TableMenuAction(TR.action);
 
 module Window = {
   [@deriving (show({with_path: false}), sexp, yojson)]
@@ -383,7 +383,7 @@ let value_view =
   let (seg, length) = abbreviated_seg_of(utility, length, closure.value);
 
   /* Check if this closure has table data */
-  let has_table = Option.is_some(TR.table_from_exp(closure.value));
+  let has_table = Option.is_some(TR.init(closure.value));
 
   /* Create table badge if this closure has table data */
   let table_badge =
@@ -812,20 +812,33 @@ let get_current_table_data = (info: info) => {
     let ap_id = cur_ap(info);
     /* First try to get the indicated closure */
     switch (Dynamics.Info.first_cursor_closure(ap_id, di)) {
-    | Some(closure) => TR.table_from_exp(closure.value)
+    | Some(closure) => TR.init(closure.value)
     | None =>
       /* Fallback: check if any displayed closure has table data */
       let closures = Closures.select_frames(~id=info.id, ~ap_id, di);
-      List.find_map(
-        (closure: closure) => TR.table_from_exp(closure.value),
-        closures,
-      );
+      List.find_map((closure: closure) => TR.init(closure.value), closures);
     };
   | None => None
   };
 };
 
-let view = (model: probe_model, local, parent, info: info): Node.t =>
+let get_current = (info: info) => {
+  switch (info.dynamics) {
+  | Some(di) =>
+    let ap_id = cur_ap(info);
+    /* First try to get the indicated closure */
+    switch (Dynamics.Info.first_cursor_closure(ap_id, di)) {
+    | Some(closure) => Some(closure.value)
+    | None =>
+      /* Fallback: check if any displayed closure has table data */
+      let closures = Closures.select_frames(~id=info.id, ~ap_id, di);
+      List.find_map((closure: closure) => Some(closure.value), closures); // todo
+    };
+  | None => None
+  };
+};
+
+let view = (_: probe_model, local, parent, info: info): Node.t =>
   div(
     ~attrs=[
       Attr.id(Id.cls(info.id)),
@@ -951,16 +964,9 @@ module M: Projector = {
       (model, info, ~local: action => Ui_effect.t(unit), ~parent, ~view_seg) => {
     print_endline("Model: " ++ show_model(model));
     switch (model.table_modal) {
-    | Some(_) =>
+    | Some(model) =>
       switch (get_current_table_data(info)) {
-      | Some((headers, rows)) =>
-        /* Get current menu state */
-        let menu_state =
-          switch (model.table_modal) {
-          | Some({menu_state: Some((col, path))}) => Some((col, path))
-          | _ => None
-          };
-
+      | Some(_) =>
         /* Render modal backdrop */
         div(
           ~attrs=[Attr.classes(["table-modal-backdrop", "live-offside"])],
@@ -984,21 +990,19 @@ module M: Projector = {
                   [Node.text("×")],
                 ),
                 /* Table content using TableRenderer */
-                TR.render_table(
-                  ~headers,
-                  ~rows,
+                TR.render(
                   ~info,
+                  ~exp=get_current(info) |> Option.get,
                   ~view_seg,
-                  ~closure_nav=None,
-                  ~menu_state,
                   ~local=action => local(TableMenuAction(action)),
                   ~parent=action => {parent(action)},
+                  ~model,
                   (),
                 ),
               ],
             ),
           ],
-        );
+        )
       | None => Node.div([])
       }
     | None => Node.div([])
