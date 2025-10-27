@@ -90,12 +90,7 @@ let step_limited = (t: Alcotest.testable('a)) =>
     Evaluator.equal_step_constrained(equal(t)),
   );
 let single_step = (exp: Exp.t) => {
-  let step =
-    EvaluatorStep.get_status(
-      ~settings=CoreSettings.on,
-      exp,
-      EvaluatorState.init,
-    );
+  let step = EvaluatorStep.get_status(~settings=CoreSettings.on, exp);
   switch (step) {
   | AutoStep(step) => EvaluatorStep.take_step(step)
   | AvailableSteps([step, ..._]) => EvaluatorStep.take_step(step)
@@ -104,24 +99,21 @@ let single_step = (exp: Exp.t) => {
 };
 
 let full_small_step_reduction =
-    (~state=EvaluatorState.init, ~step_limit=1000, exp: TermBase.exp_t)
+    (~step_limit=1000, exp: TermBase.exp_t)
     : Evaluator.step_constrained(Exp.t) => {
-  let rec go =
-          (~state=EvaluatorState.init, ~steps_counter=0, exp: TermBase.exp_t)
-          : option((Exp.t, EvaluatorState.t)) =>
+  let rec go = (~steps_counter=0, exp: TermBase.exp_t): option(Exp.t) =>
     if (steps_counter > step_limit) {
       None;
     } else {
       switch (single_step(exp)) {
-      | Some((new_exp, new_state)) =>
-        go(~state=new_state, ~steps_counter=steps_counter + 1, new_exp)
-      | None => Some((exp, state))
+      | Some(new_exp) => go(~steps_counter=steps_counter + 1, new_exp)
+      | None => Some(exp)
       };
     };
 
-  switch (go(~state, ~steps_counter=0, exp)) {
+  switch (go(~steps_counter=0, exp)) {
   | None => StepLimitExceeded
-  | Some((new_exp, _)) => Completed(new_exp)
+  | Some(new_exp) => Completed(new_exp)
   };
 };
 
