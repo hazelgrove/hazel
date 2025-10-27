@@ -56,7 +56,7 @@
 .projectors .overlays .projector,
 .refractors .overlays .projector {
   pointer-events: none;
-  z-index: var(--projector-overlay-z);
+  /* z-index: var(--projector-overlay-z); */
 }
 
 .projector > svg {

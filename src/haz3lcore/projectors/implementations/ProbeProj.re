@@ -378,7 +378,7 @@ let value_view =
 
   div(
     ~attrs=[
-      // Attr.title(Debug.str(~ap_id, closure)),
+      Attr.title(Debug.str(~ap_id, closure)),
       Attr.classes(
         ["value", length_cls(length)]
         @ cursor_clss(ap_id, di, closure)

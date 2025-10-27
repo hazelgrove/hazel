@@ -440,8 +440,8 @@ module Transition = (EV: EV_MODE) => {
             Step({
               expr: subst_env(env'', d3),
               side_effects: [
-                RecordPatProbes(matches.closures),
                 RecordStackFrame,
+                RecordPatProbes(matches.closures),
               ],
               kind: FunAp,
               is_value: false,
@@ -460,8 +460,8 @@ module Transition = (EV: EV_MODE) => {
                   d3,
                 ),
               side_effects: [
-                RecordPatProbes(matches.closures),
                 RecordStackFrame,
+                RecordPatProbes(matches.closures),
               ],
               kind: FunAp,
               is_value: false,
