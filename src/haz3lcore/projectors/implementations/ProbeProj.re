@@ -404,6 +404,7 @@ module Debug = {
 let renderers: list(packed_renderer) = [
   pack_renderer((module TableRenderer), "table"),
   pack_renderer((module CalculatorRenderer.M), "calculator"),
+  pack_renderer((module CardRenderer), "card"),
 ];
 
 /* Find first compatible renderer for an expression */
