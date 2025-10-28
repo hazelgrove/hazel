@@ -92,10 +92,10 @@
   padding-bottom: 0.5em;
 }
 
-#probesys .panel.call-cursor {
-  /* display: flex;
+#probesys .panel.call-cursor .stack {
+  display: flex;
   flex-direction: column;
-  gap: 0.1em; */
+  gap: 1px;
 }
 
 #probesys .legend .projector {
@@ -105,22 +105,34 @@
   text-align: center;
 }
 
-#probesys .quick-select-deco svg {
-  stroke: var(--T1);
+#probesys .code {
+  outline: 1px solid var(--T1);
 }
 
-#probesys .is-index .quick-select-deco svg {
-  stroke: var(--BR1);
+#probesys .code .code-text:after {
+  /* Might have to disable this for multiline display to work */
+  display: none;
+}
+
+#probesys .is-index .probe-entry > .code {
+  outline: 1px solid var(--BR1);
   z-index: 1;
 }
 
-#probesys .indicated-call .quick-select-deco svg {
-  stroke: var(--R1);
+#probesys .indicated-call .probe-entry > .code {
+  outline: 1px solid var(--R1);
   z-index: 2;
 }
 
 #probesys .indicated-call.not-in-stack {
   padding-bottom: 0.25em;
+}
+
+.probe-entry > .code {
+  background-color: var(--T2);
+  padding: 0 0.4em;
+  border-radius: 0.3em;
+  border-left: 1px solid var(--BR2);
 }
 
 #probesys .after-index .probe-entry .code {
@@ -130,7 +142,7 @@
 #probesys .panel.probes {
   display: flex;
   flex-direction: column;
-  gap: 0.2em;
+  gap: 1px;
   outline: none;
   border-left: 1px solid var(--BR2);
 }
@@ -139,4 +151,22 @@
   border-left: 1px solid var(--BR2);
   padding: 0.5em;
   border-radius: 0.3em;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+#probesys .panel.probes .top-level-body {
+  margin-left: 0.5em;
+  gap: 1px;
+  display: flex;
+  flex-direction: column;
+}
+
+#probesys .panel.probes .top-level-title {
+  position: relative;
+}
+
+#probesys .code:hover {
+  filter: brightness(1.04);
 }

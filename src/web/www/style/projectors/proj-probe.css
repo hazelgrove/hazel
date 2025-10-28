@@ -366,9 +366,9 @@
   cursor: pointer;
 }
 
-.live-offside .closure .code {
+/* .live-offside .closure .code {
   line-height: initial;
-}
+} */
 
 /* .projector.probe .closure:first-child .value:hover .code-text {
   cursor: col-resize;

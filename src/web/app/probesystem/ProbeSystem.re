@@ -3,6 +3,8 @@ open Node;
 open Util.WebUtil;
 open Haz3lcore;
 
+module StaticsBase = Language.StaticsBase;
+
 let jump_to = (~globals: Globals.t, id: Id.t, _) =>
   globals.inject_global(ActiveEditor(Move(Goal(TileId(id)))));
 
@@ -52,14 +54,21 @@ let segment_of =
   };
 
 let term_view =
-    (~globals: Globals.t, ~default, ~available=8, term: Language.Any.t)
+    (
+      ~globals: Globals.t,
+      ~default,
+      ~background,
+      ~text_only,
+      ~available=8,
+      term: Language.Any.t,
+    )
     : option(Node.t) => {
   open Util.OptUtil.Syntax;
   let+ segment = segment_of(~default, ~available, term);
   ProjectorView.flex_code(
-    ~background=true,
+    ~background,
     ~is_single_line=Some(),
-    ~text_only=Option.None,
+    ~text_only,
     ~font_metrics=globals.font_metrics,
     Language.Sort.Exp,
     segment,
@@ -97,7 +106,15 @@ let fancy =
     | Some(InfoPat({term, _})) => Language.Grammar.Pat(term)
     | _ => Language.Grammar.Any()
     };
-  let+ term_view = term_view(~globals, ~default, ~available=12, any);
+  let+ term_view =
+    term_view(
+      ~globals,
+      ~default,
+      ~background=false,
+      ~text_only=Some(),
+      ~available=12,
+      any,
+    );
   div(
     ~attrs=[
       Attr.class_("probe-entry"),
@@ -261,22 +278,21 @@ let call_cursor_view = (~dyn_cursor: Language.Dynamics.Cursor.t, ~fancyd) =>
       | _ => div([])
       },
       div(
+        ~attrs=[clss(["stack"])],
         List.mapi(
           (i, id) =>
-            div([
-              div(
-                ~attrs=[
-                  Attr.classes([
-                    i == dyn_cursor.index ? "is-index" : "not",
-                    i > dyn_cursor.index ? "after-index" : "not",
-                    List.mem(id, dyn_cursor.stack)
-                    && Some(id) == dyn_cursor.indicated_call
-                      ? "indicated-call" : "not",
-                  ]),
-                ],
-                [fancyd(id)],
-              ),
-            ]),
+            div(
+              ~attrs=[
+                Attr.classes([
+                  i == dyn_cursor.index ? "is-index" : "not",
+                  i > dyn_cursor.index ? "after-index" : "not",
+                  List.mem(id, dyn_cursor.stack)
+                  && Some(id) == dyn_cursor.indicated_call
+                    ? "indicated-call" : "not",
+                ]),
+              ],
+              [fancyd(id)],
+            ),
           dyn_cursor.stack,
         ),
       ),
@@ -319,31 +335,172 @@ let prep_refractors =
   |> sort_ids_by_measurement(~measured=syntax.measured);
 };
 
+type refractor_group = {
+  top_pat: option(Language.Pat.t),
+  entries: list((Id.t, probe_type)),
+};
+
+let top_level_pattern =
+    (~info_map: Language.Statics.Map.t, ~id: Id.t): option(Language.Pat.t) =>
+  switch (StaticsBase.let_definition_path(~statics=info_map, ~id)) {
+  | [pat, ..._] => Some(pat)
+  | _ => None
+  };
+
+let same_top_level =
+    (left: option(Language.Pat.t), right: option(Language.Pat.t)): bool =>
+  switch (left, right) {
+  | (Some(lpat), Some(rpat)) => Language.Pat.equal(lpat, rpat)
+  | (None, None) => true
+  | _ => false
+  };
+
+let push_group =
+    (
+      ~label: option(Language.Pat.t),
+      ~entries: list((Id.t, probe_type)),
+      groups: list(refractor_group),
+    )
+    : list(refractor_group) =>
+  switch (entries) {
+  | [] => groups
+  | _ => [
+      {
+        top_pat: label,
+        entries: List.rev(entries),
+      },
+      ...groups,
+    ]
+  };
+
+let group_refractors =
+    (~info_map: Language.Statics.Map.t, entries: list((Id.t, probe_type)))
+    : list(refractor_group) => {
+  let rec loop =
+          (
+            remaining: list((Id.t, probe_type)),
+            current_label: option(Language.Pat.t),
+            current_entries: list((Id.t, probe_type)),
+            groups: list(refractor_group),
+          )
+          : list(refractor_group) =>
+    switch (remaining) {
+    | [] =>
+      let final_groups =
+        push_group(~label=current_label, ~entries=current_entries, groups);
+      List.rev(final_groups);
+    | [entry, ...rest] =>
+      let (id: Id.t, _probe: probe_type) = entry;
+      let label: option(Language.Pat.t) = top_level_pattern(~info_map, ~id);
+      if (same_top_level(label, current_label)) {
+        loop(rest, current_label, [entry, ...current_entries], groups);
+      } else {
+        let updated_groups =
+          push_group(~label=current_label, ~entries=current_entries, groups);
+        loop(rest, label, [entry], updated_groups);
+      };
+    };
+  loop(entries, None, [], []);
+};
+
+let render_entry =
+    (~fancyd: Id.t => option(Node.t), entry: (Id.t, probe_type))
+    : option(Node.t) =>
+  switch (entry) {
+  | (id, Manual(_projector)) => fancyd(id)
+  | (_id, Auto(pairs)) =>
+    Some(
+      div(
+        ~attrs=[clss(["auto"])],
+        List.filter_map(
+          ((pair_id: Id.t, _projector: Base.projector)) => fancyd(pair_id),
+          pairs,
+        ),
+      ),
+    )
+  };
+
+let render_group =
+    (
+      ~globals: Globals.t,
+      ~fancyd: Id.t => option(Node.t),
+      group: refractor_group,
+    )
+    : list(Node.t) => {
+  let body_nodes: list(Node.t) =
+    List.filter_map(
+      (entry: (Id.t, probe_type)) => render_entry(~fancyd, entry),
+      group.entries,
+    );
+  switch (group.top_pat) {
+  | Some(pat) =>
+    let title_option: option(Node.t) =
+      term_view(
+        ~globals,
+        ~default=None,
+        ~background=false,
+        ~available=17,
+        ~text_only=None,
+        Language.Grammar.Pat(pat),
+      );
+    let title_node: Node.t =
+      Option.value(
+        ~default=div([text("Untitled definition")]),
+        title_option,
+      );
+    [
+      div(
+        ~attrs=[clss(["top-level-group"])],
+        [
+          div(~attrs=[clss(["top-level-title"])], [title_node]),
+          div(~attrs=[clss(["top-level-body"])], body_nodes),
+        ],
+      ),
+    ];
+  | None => body_nodes
+  };
+};
+
+let append_group_nodes =
+    (
+      ~globals: Globals.t,
+      ~fancyd: Id.t => option(Node.t),
+      groups: list(refractor_group),
+    )
+    : list(Node.t) => {
+  let rec loop =
+          (remaining: list(refractor_group), acc: list(Node.t))
+          : list(Node.t) =>
+    switch (remaining) {
+    | [] => List.rev(acc)
+    | [group, ...rest] =>
+      let nodes_for_group: list(Node.t) =
+        render_group(~globals, ~fancyd, group);
+      loop(rest, List.rev_append(nodes_for_group, acc));
+    };
+  loop(groups, []);
+};
+
 let probes_panel_view =
     (
+      ~globals: Globals.t,
       ~refractors: Zipper.Refractor.t,
       ~info_map: Language.Statics.Map.t,
       ~syntax: CachedSyntax.t,
-      ~fancyd,
-    ) =>
+      ~fancyd: Id.t => option(Node.t),
+    ) => {
+  let grouped: list(refractor_group) =
+    group_refractors(
+      ~info_map,
+      prep_refractors(~refractors, ~info_map, ~syntax),
+    );
+  let group_nodes: list(Node.t) =
+    append_group_nodes(~globals, ~fancyd, grouped);
   div(
     ~attrs=[clss(["panel", "probes"])],
-    [div(~attrs=[clss(["title"])], [text("Probes")])]
-    @ List.filter_map(
-        ((id, probe_type)) =>
-          switch (probe_type) {
-          | Manual(_) => fancyd(id)
-          | Auto(pairs) =>
-            Some(
-              div(
-                ~attrs=[clss(["auto"])],
-                List.filter_map(((id, _p)) => fancyd(id), pairs),
-              ),
-            )
-          },
-        prep_refractors(~refractors, ~info_map, ~syntax),
-      ),
+    [div(~attrs=[clss(["title"])], [text("Probes")])] @ group_nodes,
   );
+};
 
 let view =
     (
@@ -389,6 +546,7 @@ let view =
         |> Option.value(~default=div([]))
       ),
       probes_panel_view(
+        ~globals,
         ~refractors,
         ~info_map=editor.statics.info_map,
         ~syntax=editor.editor.syntax,
