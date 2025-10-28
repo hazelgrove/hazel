@@ -885,7 +885,7 @@ let fixed_typ_exp = (ctx, ty_ana: Typ.t, self: Self.exp): Typ.t =>
 /* Add derivable attributes for expression terms */
 let derived_exp =
     (
-      ~calculate_dynamic_type: Exp.t => Typ.t,
+      ~calculate_dynamic_type: Exp.t => option(Typ.t),
       ~dynamics: DynamicStatics.Map.t,
       ~uexp: Exp.t,
       ~ctx,
@@ -905,9 +905,13 @@ let derived_exp =
       | None => self
       | Some([]) => self
       | Some(exps) =>
-        let dyn_typs = List.map(calculate_dynamic_type, exps);
-        let dyn_typ = Typ.consistent_join(ctx, dyn_typs); // TODO Ctx?
-        Common(Just(dyn_typ));
+        let dyn_typs = OptUtil.traverse(calculate_dynamic_type, exps);
+        let dyn_typ = Option.map(Typ.consistent_join(ctx), dyn_typs);
+        Common(
+          Just(
+            dyn_typ |> Option.value(~default=Unknown(Internal) |> Typ.temp),
+          ),
+        );
       }
     | _ => self
     };
@@ -935,7 +939,7 @@ let derived_exp =
 let derived_dynamic_self_pat =
     (
       ~dynamics: DynamicStatics.Map.t,
-      ~calculate_dynamic_type: Exp.t => Typ.t,
+      ~calculate_dynamic_type: Exp.t => option(Typ.t),
       ~ctx,
       ~upat: Pat.t,
       ~self: Self.pat,
@@ -947,9 +951,13 @@ let derived_dynamic_self_pat =
     | None => self
     | Some([]) => self
     | Some(exps) =>
-      let dyn_typs = List.map(calculate_dynamic_type, exps);
-      let dyn_typ = Typ.consistent_join(ctx, dyn_typs); // TODO Ctx?
-      Common(Just(dyn_typ));
+      let dyn_typs = OptUtil.traverse(calculate_dynamic_type, exps);
+      let dyn_typ = Option.map(Typ.consistent_join(ctx), dyn_typs);
+      Common(
+        Just(
+          dyn_typ |> Option.value(~default=Unknown(Internal) |> Typ.temp),
+        ),
+      );
     }
   | _ => self
   };
@@ -957,7 +965,7 @@ let derived_dynamic_self_pat =
 let derived_pat =
     (
       ~dynamics: DynamicStatics.Map.t,
-      ~calculate_dynamic_type: Exp.t => Typ.t,
+      ~calculate_dynamic_type: Exp.t => option(Typ.t),
       ~upat: Pat.t,
       ~ctx,
       ~co_ctx,

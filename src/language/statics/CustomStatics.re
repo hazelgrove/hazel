@@ -171,16 +171,21 @@ let handle_tuple_operation =
             Info.derived_exp(
               ~calculate_dynamic_type=
                 uexp => {
-                  uexp_to_info_map(
-                    ~ctx,
-                    ~label_sort=false,
-                    ~ancestors,
-                    ~duplicates=[],
-                    uexp,
-                    m,
-                  )
-                  |> fst
-                  |> (info => info.ty)
+                  let (ie, m) =
+                    uexp_to_info_map(
+                      ~ctx,
+                      ~label_sort=false,
+                      ~ancestors,
+                      ~duplicates=[],
+                      uexp,
+                      m,
+                    );
+
+                  if (StaticsBase.Map.has_errors(m)) {
+                    None;
+                  } else {
+                    Some(ie.ty);
+                  };
                 }, // TODO
               ~dynamics,
               ~uexp=arg,
@@ -367,16 +372,21 @@ let group_by_label_statics =
             Info.derived_exp(
               ~calculate_dynamic_type=
                 uexp => {
-                  uexp_to_info_map(
-                    ~ctx,
-                    ~label_sort=false,
-                    ~ancestors,
-                    ~duplicates=[],
-                    uexp,
-                    m,
-                  )
-                  |> fst
-                  |> (info => info.ty)
+                  let (ie, m) =
+                    uexp_to_info_map(
+                      ~ctx,
+                      ~label_sort=false,
+                      ~ancestors,
+                      ~duplicates=[],
+                      uexp,
+                      m,
+                    );
+
+                  if (StaticsBase.Map.has_errors(m)) {
+                    None;
+                  } else {
+                    Some(ie.ty);
+                  };
                 }, // TODO
               ~dynamics,
               ~uexp=arg,

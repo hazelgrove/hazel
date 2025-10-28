@@ -141,18 +141,22 @@ and uexp_to_info_map =
       Info.derived_exp(
         ~calculate_dynamic_type=
           uexp => {
-            uexp_to_info_map(
-              ~dynamics=DynamicStatics.Map.empty,
-              ~ctx,
-              ~label_sort=false,
-              ~ancestors,
-              ~duplicates=[],
-              ~expected_labels=None,
-              uexp,
-              m,
-            )
-            |> fst
-            |> (info => info.ty)
+            let (ie, m) =
+              uexp_to_info_map(
+                ~dynamics=DynamicStatics.Map.empty,
+                ~ctx,
+                ~label_sort=false,
+                ~ancestors,
+                ~duplicates=[],
+                ~expected_labels=None,
+                uexp,
+                m,
+              );
+            if (StaticsBase.Map.has_errors(m)) {
+              None;
+            } else {
+              Some(ie.ty);
+            };
           },
         ~dynamics,
         ~uexp,
@@ -206,7 +210,12 @@ and uexp_to_info_map =
       Info.derived_exp(
         ~calculate_dynamic_type=
           uexp => {
-            uexp_to_info_map(~ctx, uexp, m) |> fst |> (info => info.ty)
+            let (ie, m) = uexp_to_info_map(~ctx, uexp, m);
+            if (StaticsBase.Map.has_errors(m)) {
+              None;
+            } else {
+              Some(ie.ty);
+            };
           },
         ~dynamics,
         ~uexp=original_info.term,
@@ -1262,9 +1271,12 @@ and uexp_to_info_map =
                   ~dynamics,
                   ~calculate_dynamic_type=
                     uexp => {
-                      uexp_to_info_map(~ctx, uexp, m)
-                      |> fst
-                      |> (info => info.ty)
+                      let (ie, m) = uexp_to_info_map(~ctx, uexp, m);
+                      if (StaticsBase.Map.has_errors(m)) {
+                        None;
+                      } else {
+                        Some(ie.ty);
+                      };
                     },
                   ~upat=info.term,
                   ~ctx=info.ctx,
@@ -1432,18 +1444,22 @@ and upat_to_info_map =
         ~prev_synswitch,
         ~calculate_dynamic_type=
           uexp => {
-            uexp_to_info_map(
-              ~dynamics,
-              ~ancestors,
-              ~duplicates=[],
-              ~ctx,
-              ~expected_labels=None,
-              ~label_sort=false,
-              uexp,
-              m,
-            )
-            |> fst
-            |> (info => info.ty)
+            let (ie, m) =
+              uexp_to_info_map(
+                ~dynamics,
+                ~ancestors,
+                ~duplicates=[],
+                ~ctx,
+                ~expected_labels=None,
+                ~label_sort=false,
+                uexp,
+                m,
+              );
+            if (StaticsBase.Map.has_errors(m)) {
+              None;
+            } else {
+              Some(ie.ty);
+            };
           },
         ~upat,
         ~ctx,
@@ -1663,19 +1679,24 @@ and upat_to_info_map =
             ~self=Common(Just(Unknown(Internal) |> Typ.temp)),
             ~ctx,
             ~calculate_dynamic_type=uexp => {
-            uexp_to_info_map(
-              ~dynamics,
-              ~ctx,
-              ~ancestors,
-              ~expected_labels=None,
-              ~label_sort=false,
-              ~duplicates=[],
-              uexp,
-              m,
-            )
-            |> fst
-            |> (info => info.ty)
-          }),
+              let (ie, m) =
+                uexp_to_info_map(
+                  ~dynamics,
+                  ~ctx,
+                  ~ancestors,
+                  ~expected_labels=None,
+                  ~label_sort=false,
+                  ~duplicates=[],
+                  uexp,
+                  m,
+                );
+              if (StaticsBase.Map.has_errors(m)) {
+                None;
+              } else {
+                Some(ie.ty);
+              };
+            },
+          ),
         );
       let entry =
         Ctx.VarEntry({
@@ -1918,18 +1939,23 @@ and upat_to_info_map =
               ~dynamics,
               ~calculate_dynamic_type=
                 uexp => {
-                  uexp_to_info_map(
-                    ~dynamics,
-                    ~ctx,
-                    ~ancestors,
-                    ~expected_labels=None,
-                    ~label_sort=false,
-                    ~duplicates=[],
-                    uexp,
-                    m,
-                  )
-                  |> fst
-                  |> (info => info.ty)
+                  let (ie, m) =
+                    uexp_to_info_map(
+                      ~dynamics,
+                      ~ctx,
+                      ~ancestors,
+                      ~expected_labels=None,
+                      ~label_sort=false,
+                      ~duplicates=[],
+                      uexp,
+                      m,
+                    );
+
+                  if (StaticsBase.Map.has_errors(m)) {
+                    None;
+                  } else {
+                    Some(ie.ty);
+                  };
                 },
               ~upat=fn'.term,
               ~ctx=fn'.ctx,
