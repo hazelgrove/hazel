@@ -245,12 +245,15 @@ let badge =
     [Node.text("🧮")],
   );
 
-let init = exp =>
+let init = exp => {
+  print_endline("CalculatorRenderer: init called");
+  print_endline("Expression: " ++ Exp.show(exp));
   if (is_int_exp(exp)) {
     Some(None);
   } else {
     None;
   };
+};
 
 module M = {
   [@deriving (show({with_path: false}), sexp, yojson)]

@@ -5,29 +5,84 @@ open Node;
 open Js_of_ocaml;
 open Language;
 
-/* Import the reusable renderers */
-module TR = TableRenderer;
-module CR = CalculatorRenderer;
-
 [@deriving (show({with_path: false}), sexp, yojson)]
 type closure = Dynamics.Probe.Closure.t;
-[@deriving (show({with_path: false}), sexp, yojson)]
-type otable_model = option(TableRenderer.model);
-[@deriving (show({with_path: false}), sexp, yojson)]
-type ocalculator_model = option(CalculatorRenderer.model);
-[@deriving (show({with_path: false}), sexp, yojson)]
-type probe_model = {
-  table_modal: otable_model,
-  calculator_modal: ocalculator_model,
+
+/* Packed renderer type for heterogeneous renderer storage */
+type packed_renderer = {
+  id: string,
+  can_handle: Exp.t => bool,
+  init_packed: Exp.t => option(string),
+  render_packed:
+    (
+      string,
+      ~info: info,
+      ~exp: Exp.t,
+      ~view_seg: (Sort.t, Segment.t) => Node.t,
+      ~local: string => Ui_effect.t(unit),
+      ~parent: external_action => Ui_effect.t(unit),
+      unit
+    ) =>
+    Node.t,
+  update_packed: (string, string) => string,
+  badge: Node.t,
 };
+
+/* Pack a renderer module conforming to RichProbe signature */
+let pack_renderer =
+    (
+      type m,
+      type a,
+      module_impl: (module RichProbe.RichProbe with
+                      type model = m and type action = a),
+      id: string,
+    )
+    : packed_renderer => {
+  module R = (val module_impl);
+
+  let serialize_model = m => m |> R.sexp_of_model |> Sexplib.Sexp.to_string;
+  let deserialize_model = s => s |> Sexplib.Sexp.of_string |> R.model_of_sexp;
+  let serialize_action = a => a |> R.sexp_of_action |> Sexplib.Sexp.to_string;
+  let deserialize_action = s =>
+    s |> Sexplib.Sexp.of_string |> R.action_of_sexp;
+
+  {
+    id,
+    can_handle: exp => Option.is_some(R.init(exp)),
+    init_packed: exp => R.init(exp) |> Option.map(serialize_model),
+    render_packed: (model_str, ~info, ~exp, ~view_seg, ~local, ~parent, ()) =>
+      R.render(
+        ~info,
+        ~exp,
+        ~view_seg,
+        ~model=deserialize_model(model_str),
+        ~local=action => local(serialize_action(action)),
+        ~parent,
+        (),
+      ),
+    update_packed: (model_str, action_str) =>
+      R.update(deserialize_model(model_str), deserialize_action(action_str))
+      |> serialize_model,
+    badge: R.badge,
+  };
+};
+
+[@deriving (show({with_path: false}), sexp, yojson)]
+type active_renderer = {
+  renderer_id: string,
+  model_state: string,
+};
+
+[@deriving (show({with_path: false}), sexp, yojson)]
+type oactive_renderer = option(active_renderer);
+
+[@deriving (show({with_path: false}), sexp, yojson)]
+type probe_model = {active_renderer: oactive_renderer};
 
 let probe_model_of_sexp = sexp =>
   switch (probe_model_of_sexp(sexp)) {
   | model => model
-  | exception _ => {
-      table_modal: None,
-      calculator_modal: None,
-    }
+  | exception _ => {active_renderer: None}
   };
 
 [@deriving (show({with_path: false}), sexp, yojson)]
@@ -35,12 +90,9 @@ type action =
   | ChangeLength(int, int)
   | ToggleShowAllVals(int)
   | NoOp
-  | OpenTableModal
-  | CloseTableModal
-  | TableMenuAction(TR.action)
-  | OpenCalculatorModal
-  | CloseCalculatorModal
-  | CalculatorMenuAction(CR.action);
+  | OpenModal
+  | CloseModal
+  | RendererAction(string);
 
 module Window = {
   [@deriving (show({with_path: false}), sexp, yojson)]
@@ -348,6 +400,16 @@ module Debug = {
     ++ string_of_float(closure.time /. 10000.0);
 };
 
+/* Registry of available renderers - initialized once at module load */
+let renderers: list(packed_renderer) = [
+  pack_renderer((module TableRenderer), "table"),
+  pack_renderer((module CalculatorRenderer.M), "calculator"),
+];
+
+/* Find first compatible renderer for an expression */
+let find_compatible_renderer = (exp: Exp.t): option(packed_renderer) =>
+  List.find_opt(r => r.can_handle(exp), renderers);
+
 let value_view =
     (
       ~ap_id: option(Id.t),
@@ -400,35 +462,24 @@ let value_view =
   let length = length == 12 && Closures.total(~ap_id, di) == 1 ? 150 : length;
   let (seg, length) = abbreviated_seg_of(utility, length, closure.value);
 
-  /* Check if this closure has table data */
-  let has_table = Option.is_some(TR.init(closure.value));
-
-  /* Create table badge if this closure has table data */
-  let table_badge =
-    has_table
-      ? span(
-          ~attrs=[Attr.on_click(_ => {local(OpenTableModal)})],
-          [TableRenderer.badge],
-        )
-      : Node.div([]);
-
-  let has_calculator = Option.is_some(CR.init(closure.value));
-  let calculator_badge =
-    has_calculator
-      ? span(
-          ~attrs=[Attr.on_click(_ => {local(OpenCalculatorModal)})],
-          [CalculatorRenderer.badge],
-        )
-      : Node.div([]);
+  /* Get badges for all compatible renderers for this specific value */
+  let compatible_badges =
+    renderers
+    |> List.filter(r => r.can_handle(closure.value))
+    |> List.map(r =>
+         span(
+           ~attrs=[
+             Attr.on_click(_ => local(OpenModal)),
+             Attr.classes(["renderer-badge"]),
+           ],
+           [r.badge],
+         )
+       );
 
   div(
-    ~attrs=[
-      // style display flex
-      Attr.style(Css_gen.create(~field="display", ~value="flex")),
-    ],
-    [
-      table_badge,
-      calculator_badge,
+    ~attrs=[Attr.style(Css_gen.create(~field="display", ~value="flex"))],
+    compatible_badges
+    @ [
       div(
         ~attrs=[
           //Attr.title(Debug.str(~ap_id, closure)),
@@ -436,9 +487,7 @@ let value_view =
             ["value", length_cls(length)]
             @ cursor_clss(ap_id, di, closure)
             @ (Option.is_some(ap_id) ? ["ap"] : [])
-            @ (!is_value(closure.value) ? ["indet"] : [])
-            @ (has_table ? ["has-table"] : [])
-            @ (has_calculator ? ["has-calculator"] : []),
+            @ (!is_value(closure.value) ? ["indet"] : []),
           ),
           Attr.on_double_click(_ => local(ToggleShowAllVals(index))),
           Attr.on_pointerdown(evt =>
@@ -834,22 +883,6 @@ let is_pinned = (ap_id: option(Id.t), di: Dynamics.Info.t): bool =>
     == Dynamics.Cursor.cur_call(ap_id, closure_cursor)
   | _ => false
   };
-/* Table detection helper */
-let get_current_table_data = (info: info) => {
-  switch (info.dynamics) {
-  | Some(di) =>
-    let ap_id = cur_ap(info);
-    /* First try to get the indicated closure */
-    switch (Dynamics.Info.first_cursor_closure(ap_id, di)) {
-    | Some(closure) => TR.init(closure.value)
-    | None =>
-      /* Fallback: check if any displayed closure has table data */
-      let closures = Closures.select_frames(~id=info.id, ~ap_id, di);
-      List.find_map((closure: closure) => TR.init(closure.value), closures);
-    };
-  | None => None
-  };
-};
 
 let get_current = (info: info) => {
   switch (info.dynamics) {
@@ -867,7 +900,25 @@ let get_current = (info: info) => {
   };
 };
 
-let view = (_: probe_model, local, parent, info: info): Node.t =>
+let view = (_: probe_model, local, parent, info: info): Node.t => {
+  /* Get badges for all compatible renderers */
+  let compatible_badges =
+    switch (get_current(info)) {
+    | Some(exp) =>
+      renderers
+      |> List.filter(r => r.can_handle(exp))
+      |> List.map(r =>
+           span(
+             ~attrs=[
+               Attr.on_click(_ => local(OpenModal)),
+               Attr.classes(["renderer-badge"]),
+             ],
+             [r.badge],
+           )
+         )
+    | None => []
+    };
+
   div(
     ~attrs=[
       Attr.id(Id.cls(info.id)),
@@ -905,10 +956,11 @@ let view = (_: probe_model, local, parent, info: info): Node.t =>
         }
       ),
       Attr.on_pointerdown(_ => {
-        /* Check if we should open table modal */
-        switch (get_current_table_data(info)) {
-        | Some(_) => local(OpenTableModal)
-        | None => probe_default(parent, info)
+        /* Try to open modal with first compatible renderer */
+        switch (get_current(info)) {
+        | Some(exp) when Option.is_some(find_compatible_renderer(exp)) =>
+          local(OpenModal)
+        | _ => probe_default(parent, info)
         }
       }),
       Attr.on_pointerup(_ => {
@@ -916,21 +968,32 @@ let view = (_: probe_model, local, parent, info: info): Node.t =>
         Effect.Ignore;
       }),
     ],
-    [text(syntax_str(info.utility, info.syntax)) /*, icon*/],
+    [
+      div(
+        ~attrs=[Attr.classes(["probe-content"])],
+        [text(syntax_str(info.utility, info.syntax))],
+      ),
+    ]
+    @ compatible_badges,
   );
+};
 
 let overlay_view = (_model: probe_model, info: info): Node.t =>
   switch (info.dynamics) {
   | Some(di) =>
     let ap_id = cur_ap(info);
-    let has_table = Option.is_some(get_current_table_data(info));
+    let has_renderer =
+      switch (get_current(info)) {
+      | Some(exp) => Option.is_some(find_compatible_renderer(exp))
+      | None => false
+      };
     div(
       ~attrs=[
         Attr.classes(
           ["overlay"]
           @ (Option.is_some(ap_id) ? ["ap"] : [])
           @ (is_pinned(ap_id, di) ? ["pinned"] : [])
-          @ (has_table ? ["has-table"] : []),
+          @ (has_renderer ? ["has-renderer"] : []),
         ),
       ],
       [num_closures_view(~ap_id, di)],
@@ -950,16 +1013,8 @@ module M: Projector = {
   let init = (any: Any.t) => {
     switch (any) {
     | Exp(_)
-    | Pat(_) =>
-      Some({
-        table_modal: None,
-        calculator_modal: None,
-      })
-    | Any(_) =>
-      Some({
-        table_modal: None,
-        calculator_modal: None,
-      }) /* Grout don't have sorts rn */
+    | Pat(_) => Some({active_renderer: None})
+    | Any(_) => Some({active_renderer: None}) /* Grout don't have sorts rn */
     | _ => None
     };
   };
@@ -977,7 +1032,7 @@ module M: Projector = {
       /*2 +*/ String.length(syntax_str(info.utility, info.syntax)),
     );
 
-  let update = (model: probe_model, _info: info, action: action) => {
+  let update = (model: probe_model, info: info, action: action) => {
     switch (action) {
     | ChangeLength(id, len) =>
       ClosureLength.set(id, len);
@@ -986,74 +1041,80 @@ module M: Projector = {
       Window.toggle_mode();
       model;
     | NoOp => model
-    | OpenTableModal =>
-      print_endline("Model state now Some");
-      {
-        table_modal: Some({menu_state: None}),
-        calculator_modal: model.calculator_modal,
-      };
-    | CloseTableModal => {
-        table_modal: None,
-        calculator_modal: model.calculator_modal,
+    | OpenModal =>
+      /* Find first compatible renderer and initialize it */
+      switch (get_current(info)) {
+      | Some(exp) =>
+        switch (find_compatible_renderer(exp)) {
+        | Some(renderer) =>
+          switch (renderer.init_packed(exp)) {
+          | Some(initial_state) => {
+              active_renderer:
+                Some({
+                  renderer_id: renderer.id,
+                  model_state: initial_state,
+                }),
+            }
+          | None => model
+          }
+        | None => model
+        }
+      | None => model
       }
-    | TableMenuAction(action) => {
-        table_modal: Option.map(TR.update(_, action), model.table_modal),
-        calculator_modal: model.calculator_modal,
-      }
-    | OpenCalculatorModal => {
-        table_modal: model.table_modal,
-        calculator_modal: Some(None),
-      }
-    | CloseCalculatorModal => {
-        table_modal: model.table_modal,
-        calculator_modal: None,
-      }
-    | CalculatorMenuAction(action) => {
-        table_modal: model.table_modal,
-        calculator_modal:
-          Option.map(CR.M.update(_, action), model.calculator_modal),
+    | CloseModal => {active_renderer: None}
+    | RendererAction(serialized_action) =>
+      /* Route action to active renderer */
+      switch (model.active_renderer) {
+      | Some({renderer_id, model_state}) =>
+        switch (List.find_opt(r => r.id == renderer_id, renderers)) {
+        | Some(renderer) => {
+            active_renderer:
+              Some({
+                renderer_id,
+                model_state:
+                  renderer.update_packed(model_state, serialized_action),
+              }),
+          }
+        | None => model
+        }
+      | None => model
       }
     };
   };
 
-  /* Modal overlay for table and calculator display */
+  /* Modal overlay for dynamic renderer display */
   let modal_overlay =
       (model, info, ~local: action => Ui_effect.t(unit), ~parent, ~view_seg) => {
-    print_endline("Model: " ++ show_model(model));
-    switch (model.table_modal, model.calculator_modal) {
-    | (Some(table_model), _) =>
-      switch (get_current_table_data(info)) {
-      | Some(_) =>
-        /* Render modal backdrop */
+    switch (model.active_renderer, get_current(info)) {
+    | (Some({renderer_id, model_state}), Some(exp)) =>
+      /* Find the renderer and render it */
+      switch (List.find_opt(r => r.id == renderer_id, renderers)) {
+      | Some(renderer) =>
         div(
-          ~attrs=[Attr.classes(["table-modal-backdrop", "live-offside"])],
+          ~attrs=[Attr.classes(["modal-backdrop", "live-offside"])],
           [
-            /* Modal content */
             div(
               ~attrs=[
-                Attr.classes(["table-modal"]),
+                Attr.classes(["modal"]),
                 Attr.on_click(_ => Effect.Stop_propagation),
               ],
               [
                 /* Close button */
                 div(
                   ~attrs=[
-                    Attr.classes(["table-modal-close"]),
-                    Attr.on_click(_ => {
-                      print_endline("Closing table modal");
-                      local(CloseTableModal);
-                    }),
+                    Attr.classes(["modal-close"]),
+                    Attr.on_click(_ => local(CloseModal)),
                   ],
                   [Node.text("×")],
                 ),
-                /* Table content using TableRenderer */
-                TR.render(
+                /* Renderer content */
+                renderer.render_packed(
+                  model_state,
                   ~info,
-                  ~exp=get_current(info) |> Option.get,
+                  ~exp,
                   ~view_seg,
-                  ~local=action => local(TableMenuAction(action)),
-                  ~parent=action => {parent(action)},
-                  ~model=table_model,
+                  ~local=action => local(RendererAction(action)),
+                  ~parent,
                   (),
                 ),
               ],
@@ -1062,50 +1123,7 @@ module M: Projector = {
         )
       | None => Node.div([])
       }
-    | (None, Some(calculator_model)) =>
-      switch (get_current(info)) {
-      | Some(exp) when Option.is_some(CR.init(exp)) =>
-        /* Render modal backdrop for calculator */
-        div(
-          ~attrs=[
-            Attr.classes(["calculator-modal-backdrop", "live-offside"]),
-          ],
-          [
-            /* Modal content */
-            div(
-              ~attrs=[
-                Attr.classes(["calculator-modal"]),
-                Attr.on_click(_ => Effect.Stop_propagation),
-              ],
-              [
-                /* Close button */
-                div(
-                  ~attrs=[
-                    Attr.classes(["calculator-modal-close"]),
-                    Attr.on_click(_ => {
-                      print_endline("Closing calculator modal");
-                      local(CloseCalculatorModal);
-                    }),
-                  ],
-                  [Node.text("×")],
-                ),
-                /* Calculator content using CalculatorRenderer */
-                CR.M.render(
-                  ~info,
-                  ~exp=get_current(info) |> Option.get,
-                  ~view_seg,
-                  ~model=calculator_model,
-                  ~local=action => local(CalculatorMenuAction(action)),
-                  ~parent=action => {parent(action)},
-                  (),
-                ),
-              ],
-            ),
-          ],
-        )
-      | _ => Node.div([])
-      }
-    | (None, None) => Node.div([])
+    | _ => Node.div([])
     };
   };
 

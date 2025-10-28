@@ -689,9 +689,7 @@ let render =
     icon_button(~tooltip="Column options", "⋮", _ => local(ShowMenu(i)));
 
   let (headers, rows) = table_from_exp(exp) |> Option.get;
-  print_endline(
-    "Rendering table with headers: " ++ String.concat(", ", headers),
-  );
+
   let header_cells =
     List.mapi(
       (i, h) => {
