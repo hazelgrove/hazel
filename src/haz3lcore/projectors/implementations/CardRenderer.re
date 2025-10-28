@@ -162,7 +162,22 @@ module Chooser = {
 };
 
 module Singleton = {
-  let view = (info, mode, parent, sort: Sort.t, card: card, local) =>
+  let view = (info, mode, parent, sort: Sort.t, card: card, local) => {
+    let on_mousedown = evt =>
+      switch (Js_of_ocaml.Js.Unsafe.coerce(evt)##.detail == 2) {
+      | _ when Js_of_ocaml.Js.to_bool(evt##.shiftKey) =>
+        switch (mode) {
+        | Choose
+        | Flipped => local(SetMode(Show))
+        | Show => local(SetMode(Choose))
+        }
+      | _ =>
+        switch (mode) {
+        | Flipped => local(SetMode(Show))
+        | _ => local(SetMode(Flipped))
+        }
+      };
+
     Node.div(
       ~attrs=[
         Attr.classes([
@@ -178,7 +193,10 @@ module Singleton = {
       ],
       [
         Node.div(
-          ~attrs=[Attr.classes(["card-wrapper"])],
+          ~attrs=[
+            Attr.classes(["card-wrapper"]),
+            Attr.on_mousedown(on_mousedown),
+          ],
           [
             CardUtil.Card.view(sort, card),
             switch (mode) {
@@ -189,10 +207,26 @@ module Singleton = {
         ),
       ],
     );
+  };
 };
 
 module Hand = {
-  let view = (info, mode, parent, sort: Sort.t, hand: hand, local) =>
+  let view = (info, mode, parent, sort: Sort.t, hand: hand, local) => {
+    let on_mousedown = evt =>
+      switch (Js_of_ocaml.Js.Unsafe.coerce(evt)##.detail == 2) {
+      | _ when Js_of_ocaml.Js.to_bool(evt##.shiftKey) =>
+        switch (mode) {
+        | Choose
+        | Flipped => local(SetMode(Show))
+        | Show => local(SetMode(Choose))
+        }
+      | _ =>
+        switch (mode) {
+        | Flipped => local(SetMode(Show))
+        | _ => local(SetMode(Flipped))
+        }
+      };
+
     Node.div(
       ~attrs=[
         Attr.classes([
@@ -222,6 +256,15 @@ module Hand = {
                     | (Flipped, _) => "flipped"
                     },
                   ]),
+                  Attr.on_mousedown(on_mousedown),
+                  Attr.create(
+                    "style",
+                    Printf.sprintf(
+                      "position: absolute; left: %fpx; z-index: %d;",
+                      mode == Flipped ? 0. : float_of_int(i) *. 8.5,
+                      100 + i,
+                    ),
+                  ),
                 ],
                 [CardUtil.Card.view(sort, card)],
               ),
@@ -230,6 +273,7 @@ module Hand = {
         ),
       ],
     );
+  };
 };
 
 let render =
