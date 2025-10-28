@@ -118,3 +118,25 @@
   stroke: var(--R1);
   z-index: 2;
 }
+
+#probesys .indicated-call.not-in-stack {
+  padding-bottom: 0.25em;
+}
+
+#probesys .after-index .probe-entry .code {
+  opacity: 0.5;
+}
+
+#probesys .panel.probes {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2em;
+  outline: none;
+  border-left: 1px solid var(--BR2);
+}
+
+#probesys .panel.probes .auto {
+  border-left: 1px solid var(--BR2);
+  padding: 0.5em;
+  border-radius: 0.3em;
+}

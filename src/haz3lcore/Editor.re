@@ -189,7 +189,7 @@ module Update = {
     /* 3. Update autoprobes */
     let zipper =
       zipper
-      |> Refractors.add_ids_from_pinned_term(
+      |> Refractors.add_ids_from_auto_term(
            ~term_data=syntax.term_data,
            ~terms=syntax.terms,
            ~measured=syntax.measured,

@@ -40,7 +40,7 @@ let probe_status =
     : List.mem(id, refractors.autos) ? REPL : Non;
 };
 
-let rm_repl = (id: Id.t, z: Zipper.t): Zipper.t =>
+let rm_auto = (id: Id.t, z: Zipper.t): Zipper.t =>
   Zipper.update_refractors(z, refractors =>
     {
       ...refractors,
@@ -65,7 +65,7 @@ let add_manual =
 let toggle_manual =
     (id: Id.t, info_map: Language.Statics.Map.t, z: Zipper.t): Zipper.t =>
   switch (probe_status(id, info_map, z.refractors)) {
-  | REPL => rm_repl(id, z) |> add_manual(id, info_map)
+  | REPL => rm_auto(id, z) |> add_manual(id, info_map)
   | Manual(ids) => rm_manual(ids, z)
   | Non => add_manual(id, info_map, z)
   };
@@ -77,16 +77,13 @@ let ids_from_term =
   |> List.flatten
   |> List.filter_map(Fun.id);
 
-let add_ids_from_pinned_term =
+let add_ids_from_auto_term =
     (~term_data, ~terms, ~measured, ~info_map, z: Zipper.t): Zipper.t => {
   let ids =
-    switch (z.refractors.autos) {
-    | [] => []
-    | [hd, ..._] =>
-      // This ignores other pinned terms... see below
-      ids_from_term(~term_data, ~terms, ~measured, ~info_map, hd)
-    };
-  //TODO(andrew): should there only be one repl at a time? this is sort of what above does but not quite
+    List.concat_map(
+      ids_from_term(~term_data, ~terms, ~measured, ~info_map),
+      z.refractors.autos,
+    );
   Zipper.update_ephemerals(
     _ =>
       List.fold_left(
@@ -103,21 +100,21 @@ let add_ids_from_pinned_term =
   );
 };
 
-let add_repl = (id: Id.t, syntax: CachedSyntax.t, z: Zipper.t): Zipper.t =>
+let add_auto = (id: Id.t, syntax: CachedSyntax.t, z: Zipper.t): Zipper.t =>
   Zipper.update_refractors(z, refractors =>
     {
       ...refractors,
       autos: [id, ...z.refractors.autos],
     }
   )
-  |> add_ids_from_pinned_term(
+  |> add_ids_from_auto_term(
        ~term_data=syntax.term_data,
        ~terms=syntax.terms,
        ~measured=syntax.measured,
        ~info_map=Language.Statics.Map.empty /* TODO: get real info_map */
      );
 
-let toggle_repl =
+let toggle_auto =
     (
       ~syntax: CachedSyntax.t,
       id: Id.t,
@@ -126,9 +123,9 @@ let toggle_repl =
     )
     : Zipper.t =>
   switch (probe_status(id, info_map, z.refractors)) {
-  | REPL => rm_repl(id, z)
-  | Manual(ids) => rm_manual(ids, z) |> add_repl(id, syntax)
-  | Non => add_repl(id, syntax, z)
+  | REPL => rm_auto(id, z)
+  | Manual(ids) => rm_manual(ids, z) |> add_auto(id, syntax)
+  | Non => add_auto(id, syntax, z)
   };
 
 let probe_jump =
@@ -187,7 +184,7 @@ let update =
     }
   | ToggleProbeREPL =>
     switch (Indicated.index(z)) {
-    | Some(id) => toggle_repl(~syntax, id, statics.info_map, z)
+    | Some(id) => toggle_auto(~syntax, id, statics.info_map, z)
     | None => z
     }
   | ProbeJump =>

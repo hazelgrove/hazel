@@ -845,54 +845,54 @@ let is_pinned = (ap_id: option(Id.t), di: Dynamics.Info.t): bool =>
   | _ => false
   };
 
-let view = (~settings: settings, local, parent, info: info): Node.t =>
-  div(
-    ~attrs=[
-      Attr.id(Id.cls(info.id)),
-      Attr.tabindex(0),
-      Attr.on_keydown(
-        key_handler(
-          ~settings,
-          local,
-          ~id=info.id,
-          ~ap_id=cur_ap(info),
-          Option.value(info.dynamics, ~default=Dynamics.Info.init),
-          info.utility,
-          parent,
-        ),
-      ),
-      Attr.classes(
-        ["main"]
-        @ (Option.is_some(cur_ap(info)) ? ["ap"] : [])
-        @ (
-          switch (info.dynamics) {
-          | Some(di) => is_pinned(cur_ap(info), di) ? ["pinned"] : []
-          | None => []
-          }
-        ),
-      ),
-      Attr.on_double_click(_ =>
-        switch (
-          cur_ap(info),
-          info.dynamics |> OptUtil.and_then(Dynamics.Info.is_in),
-        ) {
-        | (Some(ap_id), Some(closure_cursor)) =>
-          parent(
-            DynCursor(TogglePinCall([ap_id, ...closure_cursor.call_stack])),
-          )
-        | _ => Effect.Ignore
-        }
-      ),
-      Attr.on_pointerdown(_
-        /* Select a default cell if one is not already selected */
-        => probe_default(parent, info)),
-      Attr.on_pointerup(_ => {
-        JsUtil.get_elem_by_id(Id.cls(info.id))##blur;
-        Effect.Ignore;
-      }),
-    ],
-    [text(syntax_str(info.utility, info.syntax)) /*, icon*/],
-  );
+// let view = (~settings: settings, local, parent, info: info): Node.t =>
+//   div(
+//     ~attrs=[
+//       Attr.id(Id.cls(info.id)),
+//       Attr.tabindex(0),
+//       Attr.on_keydown(
+//         key_handler(
+//           ~settings,
+//           local,
+//           ~id=info.id,
+//           ~ap_id=cur_ap(info),
+//           Option.value(info.dynamics, ~default=Dynamics.Info.init),
+//           info.utility,
+//           parent,
+//         ),
+//       ),
+//       Attr.classes(
+//         ["main"]
+//         @ (Option.is_some(cur_ap(info)) ? ["ap"] : [])
+//         @ (
+//           switch (info.dynamics) {
+//           | Some(di) => is_pinned(cur_ap(info), di) ? ["pinned"] : []
+//           | None => []
+//           }
+//         ),
+//       ),
+//       Attr.on_double_click(_ =>
+//         switch (
+//           cur_ap(info),
+//           info.dynamics |> OptUtil.and_then(Dynamics.Info.is_in),
+//         ) {
+//         | (Some(ap_id), Some(closure_cursor)) =>
+//           parent(
+//             DynCursor(TogglePinCall([ap_id, ...closure_cursor.call_stack])),
+//           )
+//         | _ => Effect.Ignore
+//         }
+//       ),
+//       Attr.on_pointerdown(_
+//         /* Select a default cell if one is not already selected */
+//         => probe_default(parent, info)),
+//       Attr.on_pointerup(_ => {
+//         JsUtil.get_elem_by_id(Id.cls(info.id))##blur;
+//         Effect.Ignore;
+//       }),
+//     ],
+//     [text(syntax_str(info.utility, info.syntax)) /*, icon*/],
+//   );
 
 let overlay_view = (info: info): Node.t =>
   switch (info.dynamics) {
@@ -947,11 +947,11 @@ module M: Projector = {
   let view = (_model, info, ~local, ~parent, ~view_seg) => {
     let settings = Settings.s^;
     View.{
-      inline:
-        switch (info.syntax) {
-        | [Grout({id, _})] when id == Id.invalid => Node.div([])
-        | _ => view(~settings, local, parent, info)
-        },
+      inline: Node.div([]),
+      // switch (info.syntax) {
+      // | [Grout({id, _})] when id == Id.invalid => Node.div([])
+      // | _ => view(~settings, local, parent, info)
+      // },
       overlay:
         switch (info.syntax) {
         | [Grout({id, _})] when id == Id.invalid =>
