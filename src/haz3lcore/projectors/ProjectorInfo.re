@@ -44,9 +44,9 @@ let mk_info =
   statics: Statics.Map.lookup(p.id, statics),
   dynamics:
     switch (Dynamics.Map.lookup(p.id, dynamics)) {
-    | Some(closures) =>
+    | Some(samples) =>
       Some({
-        closures,
+        samples,
         dyn_cursor,
       })
     | None => None

@@ -148,7 +148,7 @@ let sort_ids_by_measurement = (~measured: Measured.t, ids: list((Id.t, _))) =>
 
 let div_cs = (cls, node) => div(~attrs=[Attr.classes(cls)], [node]);
 
-let legend_closure_view =
+let legend_sample_view =
     (
       ~indicated: bool,
       ~mode: ProbeProj.Settings.window,
@@ -156,19 +156,19 @@ let legend_closure_view =
       ~ap_id: option(Id.t),
       ~indicated_call: option(Id.t),
       ~cursor_stack: list(Id.t),
-      ~closure_stack: list(Id.t),
+      ~sample_stack: list(Id.t),
       ~caption: string,
     ) => {
-  let closure: Language.Dynamics.Probe.Closure.t = {
-    closure_id: 0,
+  let sample: Language.Dynamics.Sample.t = {
+    id: 0,
     syntax_id: Id.invalid,
     value: Language.IdTagged.FreshGrammar.Exp.constructor(caption, None),
-    env: Language.Dynamics.Probe.Env.empty,
-    call_stack: closure_stack,
+    env: Language.Dynamics.SampledEnv.empty,
+    call_stack: sample_stack,
     time: 0.0,
   };
   let di: Language.Dynamics.Info.t = {
-    closures: [closure],
+    samples: [sample],
     dyn_cursor: {
       stack: cursor_stack,
       index: List.length(cursor_stack) - 1,
@@ -176,7 +176,7 @@ let legend_closure_view =
       indicated_call,
     },
   };
-  ProbeProj.closure_view(
+  ProbeProj.sample_view(
     ~ap_id,
     ~hide_env=true,
     ~settings={window: mode},
@@ -191,7 +191,7 @@ let legend_closure_view =
       ),
     _ => Effect.Ignore,
     _ => Effect.Ignore,
-    (0, closure),
+    (0, sample),
   )
   |> div_cs(["closure-group"])
   |> div_cs(["closure-groups"])
@@ -201,57 +201,57 @@ let legend_closure_view =
 
 let legend_view = (~font_metrics: FontMetrics.t) => {
   let mode = ProbeProj.Settings.s^.window;
-  let legend_closure_view = legend_closure_view(~mode, ~font_metrics);
+  let legend_sample_view = legend_sample_view(~mode, ~font_metrics);
   div(
     ~attrs=[clss(["legend", "panel"])],
     [
       div(~attrs=[clss(["title"])], [text("Sample Legend")]),
-      legend_closure_view(
+      legend_sample_view(
         ~indicated=false,
         ~ap_id=None,
         ~indicated_call=None,
         ~cursor_stack=[Id.invalid, Id.invalid],
-        ~closure_stack=[Id.invalid],
+        ~sample_stack=[Id.invalid],
         ~caption="Before",
       ),
-      legend_closure_view(
+      legend_sample_view(
         ~indicated=true,
         ~ap_id=None,
         ~indicated_call=None,
         ~cursor_stack=[Id.invalid],
-        ~closure_stack=[Id.invalid],
+        ~sample_stack=[Id.invalid],
         ~caption="At Cursor",
       ),
-      legend_closure_view(
+      legend_sample_view(
         ~indicated=false,
         ~ap_id=None,
         ~indicated_call=None,
         ~cursor_stack=[Id.invalid],
-        ~closure_stack=[Id.invalid, Id.invalid],
+        ~sample_stack=[Id.invalid, Id.invalid],
         ~caption="After",
       ),
-      legend_closure_view(
+      legend_sample_view(
         ~indicated=false,
         ~indicated_call=None,
         ~ap_id=Some(Id.invalid),
         ~cursor_stack=[Id.invalid, Id.invalid],
-        ~closure_stack=[Id.invalid],
+        ~sample_stack=[Id.invalid],
         ~caption="Contains",
       ),
-      legend_closure_view(
+      legend_sample_view(
         ~indicated=false,
         ~ap_id=None,
         ~indicated_call=None,
         ~cursor_stack=[Id.mk()],
-        ~closure_stack=[Id.invalid],
+        ~sample_stack=[Id.invalid],
         ~caption="Off Cursor",
       ),
-      legend_closure_view(
+      legend_sample_view(
         ~indicated=false,
         ~indicated_call=Some(Id.invalid),
         ~ap_id=None,
         ~cursor_stack=[Id.invalid],
-        ~closure_stack=[Id.invalid, Id.invalid],
+        ~sample_stack=[Id.invalid, Id.invalid],
         ~caption="Inside",
       ),
     ],

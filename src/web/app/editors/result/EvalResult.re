@@ -56,7 +56,7 @@ module Model = {
     };
   };
 
-  let probe_results = (model: t): option(Dynamics.Probe.Map.t) =>
+  let probe_results = (model: t): option(Dynamics.Sample.Map.t) =>
     model.dynamics
     |> Calc.get_saved(None)
     |> Option.map((d: Dynamics.t) => d.probe_map);
@@ -69,7 +69,7 @@ module Model = {
   let dynamics = (model: t): Dynamics.Map.t =>
     switch (probe_results(model)) {
     | Some(dynamics_map) => Dynamics.Map.mk(dynamics_map)
-    | None => Dynamics.Map.mk(Dynamics.Probe.Map.empty)
+    | None => Dynamics.Map.mk(Dynamics.Sample.Map.empty)
     };
 
   let get_elaboration = (model: t): option(Exp.t) =>

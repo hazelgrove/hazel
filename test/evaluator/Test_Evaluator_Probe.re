@@ -24,7 +24,7 @@ let probe_test =
       ({ids, _}: IdTagged.IdTag.t) => {
         let probe_closures = Dynamics.Map.lookup(List.hd(ids), probes);
         Option.map(
-          List.map((c: Dynamics.Probe.Closure.t) =>
+          List.map((c: Dynamics.Sample.t) =>
             Grammar.map_exp_annotation(
               _ => (),
               DHExp.strip_ascriptions(c.value),

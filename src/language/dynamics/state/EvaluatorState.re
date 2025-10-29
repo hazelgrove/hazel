@@ -1,18 +1,18 @@
 [@deriving (show({with_path: false}), sexp, yojson)]
 type t = {
   tests: TestMap.t,
-  probes: Dynamics.Probe.Map.t,
+  probes: Dynamics.Sample.Map.t,
 };
 
 type effect =
   | RecordTest(TestMap.instance_report)
   | RecordExpProbe(Probe.t)
   | RecordStackFrame
-  | RecordPatProbes(PatternMatch.closure_closures);
+  | RecordPatProbes(PatternMatch.sample_closures);
 
 let init = {
   tests: TestMap.empty,
-  probes: Dynamics.Probe.Map.empty,
+  probes: Dynamics.Sample.Map.empty,
 };
 
 let get_tests = ({tests, _}) => tests;
@@ -27,9 +27,9 @@ let add_test = (state: t, instance_report: TestMap.instance_report) => {
       state.tests,
     ),
 };
-let add_closure = (state: t, closure: Dynamics.Probe.Closure.t) => {
+let add_sample = (state: t, sample: Dynamics.Sample.t) => {
   ...state,
-  probes: Dynamics.Probe.Map.extend(closure.syntax_id, closure, state.probes),
+  probes: Dynamics.Sample.Map.extend(sample.syntax_id, sample, state.probes),
 };
 
 let update =
@@ -51,16 +51,15 @@ let update =
         )
       | RecordExpProbe(pr) =>
         let id = DHExp.rep_id(init);
-        let closure =
-          Dynamics.Probe.Closure.mk(id, next, env, call_stack, pr);
-        (call_stack, add_closure(state, closure));
-      | RecordPatProbes(closure_closures) =>
+        let sample = Dynamics.Sample.mk(id, next, env, call_stack, pr);
+        (call_stack, add_sample(state, sample));
+      | RecordPatProbes(sample_closures) =>
         let state =
           List.fold_left(
-            (state, closure_closure) =>
-              add_closure(state, closure_closure(call_stack)),
+            (state, sample_closure) =>
+              add_sample(state, sample_closure(call_stack)),
             state,
-            closure_closures,
+            sample_closures,
           );
         (call_stack, state);
       },

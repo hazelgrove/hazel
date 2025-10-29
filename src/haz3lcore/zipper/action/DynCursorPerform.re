@@ -1,7 +1,8 @@
 open Util;
+open Language;
 
 let update_dyn_cursor =
-    (z: Zipper.t, f: Language.Dynamics.Cursor.t => Language.Dynamics.Cursor.t) =>
+    (z: Zipper.t, f: Dynamics.Cursor.t => Dynamics.Cursor.t) =>
   Zipper.update_refractors(z, refractors =>
     {
       ...refractors,
@@ -10,12 +11,7 @@ let update_dyn_cursor =
   );
 
 let update_pinned_call =
-    (
-      z: Zipper.t,
-      f:
-        option(Language.Probe.call_stack) =>
-        option(Language.Probe.call_stack),
-    ) =>
+    (z: Zipper.t, f: option(Probe.call_stack) => option(Probe.call_stack)) =>
   update_dyn_cursor(z, dyn_cursor =>
     {
       ...dyn_cursor,
@@ -23,16 +19,15 @@ let update_pinned_call =
     }
   );
 
-let capture =
-    (z: Zipper.t, closure: Language.Dynamics.Probe.Closure.t, id): Zipper.t =>
+let capture = (z: Zipper.t, sample: Dynamics.Sample.t, id): Zipper.t =>
   update_dyn_cursor(z, dyn_cursor =>
     {
       ...dyn_cursor,
       indicated_call: id /*!= None ? id : z.refractors.dyn_cursor.indicated_call*/,
       stack:
-        !ListUtil.is_suffix_of(closure.call_stack, dyn_cursor.stack)
-          ? closure.call_stack : dyn_cursor.stack,
-      index: List.length(closure.call_stack) - 1,
+        !ListUtil.is_suffix_of(sample.call_stack, dyn_cursor.stack)
+          ? sample.call_stack : dyn_cursor.stack,
+      index: List.length(sample.call_stack) - 1,
     }
   );
 
@@ -46,7 +41,7 @@ let reset = (z: Zipper.t): Zipper.t =>
 
 let perform = (z: Zipper.t, a: Action.dyn_cursor): Zipper.t =>
   switch (a) {
-  | Capture(closure, id) => capture(z, closure, id)
+  | Capture(sample, id) => capture(z, sample, id)
   | TogglePinCall(call_stack) => toggle_pin_call(z, call_stack)
   | Reset => reset(z)
   };

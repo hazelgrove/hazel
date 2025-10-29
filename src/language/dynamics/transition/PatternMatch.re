@@ -70,37 +70,37 @@ let rec matches = (capture, dp: Pat.t, d: DHExp.t): match_result => {
   };
 };
 
-type closure_closures = list(Probe.call_stack => Dynamics.Probe.Closure.t);
+type sample_closures = list(Probe.call_stack => Dynamics.Sample.t);
 
-type matches_and_closures = {
+type matches_and_samples = {
   matches: match_result,
-  closures: closure_closures,
+  samples: sample_closures,
 };
 
-let matches = (dp: Pat.t, d: DHExp.t): matches_and_closures => {
+let matches = (dp: Pat.t, d: DHExp.t): matches_and_samples => {
   /* Closure capture for Probe instrumentation */
-  let closure_closures: ref(closure_closures) = ref([]);
+  let sample_closures: ref(sample_closures) = ref([]);
   let capture =
       (pr: Probe.t, dp: Pat.t, d: DHExp.t, inner_match: match_result): unit =>
     switch (inner_match) {
     | DoesNotMatch => ()
     | IndetMatch => ()
     | Matches(env) =>
-      closure_closures :=
+      sample_closures :=
         List.cons(
-          Dynamics.Probe.Closure.mk(
+          Dynamics.Sample.mk(
             Pat.rep_id(dp),
             d,
             Environment.of_bindings(env),
             _,
             pr,
           ),
-          closure_closures^,
+          sample_closures^,
         )
     };
   let res = matches(capture, dp, d);
   {
     matches: res,
-    closures: closure_closures^,
+    samples: sample_closures^,
   };
 };
