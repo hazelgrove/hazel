@@ -758,34 +758,13 @@ let view_of_info = (~globals, ci): list(Node.t) => {
   };
 };
 
-let dynamic_type = closures => {
-  let statics = Statics.mk(CoreSettings.on, Builtins.ctx_init(Some(Int)));
-  let type_of = (c: Dynamics.Probe.Closure.t) => {
-    IdTagged.rep_id(c.value)
-    |> Id.Map.find_opt(_, statics(c.value))
-    |> Option.bind(
-         _,
-         fun
-         | InfoExp(e) => {
-             Some(e.ty);
-           }
-         | _ => None,
-       );
-  };
-  let types = List.map(type_of, closures) |> Util.OptUtil.sequence;
-
-  Option.map(Typ.consistent_join(Ctx.empty), types);
-};
-
-let inspector_view =
-    (
-      ~globals,
-      ~dynamics: option(list(Dynamics.Probe.Closure.t)),
-      ci,
-      ~dynamic_info,
-    )
-    : Node.t => {
-  let dyn = Option.bind(dynamics, dynamic_type);
+let inspector_view = (~globals, ci, ~dynamic_info): Node.t => {
+  let dyn =
+    switch (dynamic_info) {
+    | Some(Info.InfoExp({ty, _})) => Some(ty)
+    | Some(Info.InfoPat({ty, _})) => Some(ty)
+    | _ => None
+    };
   /* Determine which info to display: prioritize static errors, then dynamic errors, then normal info */
   let (display_info, is_dynamic_error) =
     if (Info.is_error(ci)) {
@@ -837,12 +816,7 @@ let view =
   | None => err_view("Whitespace or Comment")
   | Some(ci) =>
     bar_view([
-      inspector_view(
-        ~globals,
-        ~dynamics=cursor.dynamics,
-        ci,
-        ~dynamic_info=cursor.dynamic_info,
-      ),
+      inspector_view(~globals, ci, ~dynamic_info=cursor.dynamic_info),
       ProjectorPanel.view(
         ~inject=
           a =>

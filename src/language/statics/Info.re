@@ -906,7 +906,11 @@ let derived_exp =
       | Some([]) => self
       | Some(exps) =>
         let dyn_typs = OptUtil.traverse(calculate_dynamic_type, exps);
-        let dyn_typ = Option.map(Typ.consistent_join(ctx), dyn_typs);
+        let dyn_typ =
+          Option.bind(
+            dyn_typs,
+            Typ.join_all(~empty=Unknown(Internal) |> Typ.temp, ctx),
+          );
         Common(
           Just(
             dyn_typ |> Option.value(~default=Unknown(Internal) |> Typ.temp),
@@ -952,7 +956,11 @@ let derived_dynamic_self_pat =
     | Some([]) => self
     | Some(exps) =>
       let dyn_typs = OptUtil.traverse(calculate_dynamic_type, exps);
-      let dyn_typ = Option.map(Typ.consistent_join(ctx), dyn_typs);
+      let dyn_typ =
+        Option.bind(
+          dyn_typs,
+          Typ.join_all(~empty=Unknown(Internal) |> Typ.temp, ctx),
+        );
       Common(
         Just(
           dyn_typ |> Option.value(~default=Unknown(Internal) |> Typ.temp),
