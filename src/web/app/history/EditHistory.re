@@ -73,7 +73,12 @@ module View = {
       history_log,
     );
 
-  let draw_group = (~inject: Globals.Update.t => Ui_effect.t(unit), grouped) => {
+  let draw_group =
+      (
+        ~inject: Globals.Update.t => Ui_effect.t(unit),
+        grouped: list(list((Id.t, Update.t))),
+        group_clss: string,
+      ) => {
     let action_string = (item: Update.t) => {
       switch (item) {
       | Editors(Scratch(CellAction(MainEditor(Perform(action))))) =>
@@ -110,26 +115,29 @@ module View = {
     };
     List.mapi(
       (i, group) =>
-        div([
-          text("Group " ++ string_of_int(i)),
-          group_view(group),
-          div(
-            ~attrs=[clss(["collapse-group"])],
-            List.map(
-              ((id: Id.t, item: Update.t)) =>
-                div(
-                  ~attrs=[
-                    Attr.on_click(_ => {
-                      print_endline("Click!");
-                      inject(HistoryJump(id));
-                    }),
-                  ],
-                  [text(action_string(item))],
-                ),
-              group,
+        div(
+          ~attrs=[clss([group_clss])],
+          [
+            text("Group " ++ string_of_int(i)),
+            group_view(group),
+            div(
+              ~attrs=[clss(["collapse-group"])],
+              List.map(
+                ((id: Id.t, item: Update.t)) =>
+                  div(
+                    ~attrs=[
+                      Attr.on_click(_ => {
+                        print_endline("Click!");
+                        inject(HistoryJump(id));
+                      }),
+                    ],
+                    [text(action_string(item))],
+                  ),
+                group,
+              ),
             ),
-          ),
-        ]),
+          ],
+        ),
       grouped,
     );
   };
@@ -143,14 +151,14 @@ module View = {
           list(state),
         ),
       ) => {
-    let undo_grouped: list(list((Id.t, Update.t))) =
-      group_history([current, ...undo_stack]);
-
-    let undo_grouped' = List.rev_map(List.rev, undo_grouped);
+    let undo_grouped =
+      List.rev_map(List.rev, group_history([current, ...undo_stack]));
+    let redo_grouped = group_history(redo_stack);
 
     div(
       ~attrs=[Attr.id("edit-history")],
-      draw_group(~inject, undo_grouped'),
+      draw_group(~inject, redo_grouped, "redo")
+      @ draw_group(~inject, undo_grouped, "past"),
     );
   };
 };
