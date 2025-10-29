@@ -50,14 +50,7 @@ module M: Projector = {
   let placeholder = (_, _) => ProjectorCore.Shape.inline(2);
   let update = (model, _, _) => model;
 
-  let view =
-      (
-        _,
-        info,
-        ~local as _,
-        ~parent: external_action => Ui_effect.t(unit),
-        ~view_seg as _,
-      ) =>
+  let view = ({info, parent, _}: View.args(model, action)) =>
     View.mk(
       Node.input(
         ~attrs=
