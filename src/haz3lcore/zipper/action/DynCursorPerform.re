@@ -1,8 +1,7 @@
 open Util;
 open Language;
 
-let update_dyn_cursor =
-    (z: Zipper.t, f: Dynamics.Cursor.t => Dynamics.Cursor.t) =>
+let update_dyn_cursor = (z: Zipper.t, f: DynCursor.t => DynCursor.t) =>
   Zipper.update_refractors(z, refractors =>
     {
       ...refractors,
@@ -19,7 +18,7 @@ let update_pinned_call =
     }
   );
 
-let capture = (z: Zipper.t, sample: Dynamics.Sample.t, id): Zipper.t =>
+let capture = (z: Zipper.t, sample: Sample.t, id): Zipper.t =>
   update_dyn_cursor(z, dyn_cursor =>
     {
       ...dyn_cursor,
@@ -37,7 +36,7 @@ let toggle_pin_call = (z: Zipper.t, call_stack): Zipper.t =>
   });
 
 let reset = (z: Zipper.t): Zipper.t =>
-  update_dyn_cursor(z, _ => Language.Dynamics.Cursor.init);
+  update_dyn_cursor(z, _ => Language.DynCursor.init);
 
 let perform = (z: Zipper.t, a: Action.dyn_cursor): Zipper.t =>
   switch (a) {

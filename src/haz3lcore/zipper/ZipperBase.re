@@ -17,13 +17,13 @@ module Refractor = {
     manuals: Map.t,
     autos: list(Id.t),
     ephemerals: Map.t,
-    dyn_cursor: Language.Dynamics.Cursor.t,
+    dyn_cursor: Language.DynCursor.t,
   };
   let init = {
     manuals: Id.Map.empty,
     autos: [],
     ephemerals: Id.Map.empty,
-    dyn_cursor: Language.Dynamics.Cursor.init,
+    dyn_cursor: Language.DynCursor.init,
   };
 };
 

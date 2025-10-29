@@ -6,7 +6,7 @@ open Js_of_ocaml;
 open Language;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
-type sample = Dynamics.Sample.t;
+type sample = Sample.t;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type action =
@@ -97,7 +97,7 @@ module ClosureLength = {
     |> Option.value(
          // TODO(andrew): relax 5, special-case multilines eg `case`
          ~default=
-           /*!is_value(closure.value)
+           /*!is_value(sample.value)
              ? 5 :*/ window
            == Single
              ? 150 : 12,
@@ -107,9 +107,8 @@ module ClosureLength = {
 };
 
 /* Remove opaque values like function literals */
-let rm_opaques:
-  list(Dynamics.SampledEnv.entry) => list(Dynamics.SampledEnv.entry) =
-  List.filter_map((en: Dynamics.SampledEnv.entry) =>
+let rm_opaques: list(Sample.Env.entry) => list(Sample.Env.entry) =
+  List.filter_map((en: Sample.Env.entry) =>
     switch (en.value) {
     | Opaque => None
     | Val(_) => Some(en)
@@ -134,12 +133,11 @@ module Samples = {
     List.length(filter_frames_by_pin(~ap_id, di));
 
   let first_index_of_interest =
-      (~ap_id: option(Id.t), dyn_cursor: Dynamics.Cursor.t, samples)
-      : option(int) => {
-    let find = (rel: Dynamics.Cursor.relation => bool): option(int) =>
+      (~ap_id: option(Id.t), dyn_cursor: DynCursor.t, samples): option(int) => {
+    let find = (rel: DynCursor.relation => bool): option(int) =>
       List.find_index(
         (sample: sample) =>
-          rel(Dynamics.Cursor.relation(ap_id, dyn_cursor, sample)),
+          rel(DynCursor.relation(ap_id, dyn_cursor, sample)),
         samples,
       );
     switch (find(relation => relation.is_call_cursor)) {
@@ -149,7 +147,7 @@ module Samples = {
       | Some(idx) => Some(idx)
       | None =>
         let a = find(relation => relation.is_below_indicated_call != None);
-        a == None ? find(Dynamics.Cursor.is_related) : a;
+        a == None ? find(DynCursor.is_related) : a;
       }
     // }
     };
@@ -284,7 +282,7 @@ module ValueState = {
 
 let cursor_clss =
     (ap_id: option(Id.t), di: Dynamics.Info.t, sample: sample): list(string) => {
-  let relation = Dynamics.Cursor.relation(ap_id, di.dyn_cursor, sample);
+  let relation = DynCursor.relation(ap_id, di.dyn_cursor, sample);
   (
     switch (
       relation.is_call_cursor,
@@ -319,7 +317,7 @@ module Debug = {
     ++ "\n"
     ++ "ap:"
     ++ (
-      switch (Dynamics.Cursor.cur_call(ap_id, sample)) {
+      switch (DynCursor.cur_call(ap_id, sample)) {
       | Some([ap_id, ..._]) => Id.str3(ap_id)
       | _ => "None"
       }
@@ -422,7 +420,7 @@ let env_val =
       sample,
       view_seg,
       utility: utility,
-      en: Dynamics.SampledEnv.entry,
+      en: Sample.Env.entry,
     )
     : Node.t => {
   Node.div(
@@ -516,7 +514,7 @@ let sample_view =
       (index: int, sample: sample),
     ) =>
   div(
-    ~attrs=[Attr.classes(["closure"])],
+    ~attrs=[Attr.classes(["sample"])],
     [
       value_view(
         ~ap_id,
@@ -564,7 +562,7 @@ let sample_group_view =
     List.map(
       samples =>
         Node.div(
-          ~attrs=[Attr.classes(["closure-group"])],
+          ~attrs=[Attr.classes(["sample-group"])],
           List.map(
             sample_view(
               ~ap_id,
@@ -582,7 +580,7 @@ let sample_group_view =
       groups,
     );
   group_views == []
-    ? [] : [div(~attrs=[Attr.classes(["closure-groups"])], group_views)];
+    ? [] : [div(~attrs=[Attr.classes(["sample-groups"])], group_views)];
 };
 
 let ellipsis_view = (local): Node.t =>
@@ -650,7 +648,7 @@ let num_samples_view = (~ap_id: option(Id.t), di: Dynamics.Info.t) => {
   div(
     ~attrs=[
       Attr.title(string_of_int(num_samples)),
-      Attr.classes(["num-closures"]),
+      Attr.classes(["num-samples"]),
     ],
     [text(description)],
   );
@@ -814,7 +812,7 @@ let offside_view =
   switch (info.dynamics) {
   | Some(di) =>
     let id = info.id;
-    let ap_id = Dynamics.Cursor.cur_ap(info.statics);
+    let ap_id = DynCursor.cur_ap(info.statics);
     let hide_env = hide_env(info);
     let num_total = Samples.total(~ap_id, di);
     let samples = Samples.select_samples(~settings, ~id, ~ap_id, di);
@@ -874,7 +872,7 @@ let probe_default =
     //DynCursor.capture_ap(info);
     switch (di.samples) {
     | [fst, ..._] =>
-      parent(DynCursor(Capture(fst, Dynamics.Cursor.cur_ap(info.statics))))
+      parent(DynCursor(Capture(fst, DynCursor.cur_ap(info.statics))))
     | [] => Effect.Ignore
     }
   | None => Effect.Ignore
@@ -884,7 +882,7 @@ let probe_default =
 //   switch (Dynamics.Info.is_in(di)) {
 //   | Some(dyn_cursor) =>
 //     di.dyn_cursor.pinned_stack
-//     == Dynamics.Cursor.cur_call(ap_id, dyn_cursor)
+//     == DynCursor.cur_call(ap_id, dyn_cursor)
 //   | _ => false
 //   };
 
@@ -940,7 +938,7 @@ let probe_default =
 let overlay_view = (info: info): Node.t =>
   switch (info.dynamics) {
   | Some(di) =>
-    let ap_id = Dynamics.Cursor.cur_ap(info.statics);
+    let ap_id = DynCursor.cur_ap(info.statics);
     div(
       ~attrs=[
         Attr.classes(

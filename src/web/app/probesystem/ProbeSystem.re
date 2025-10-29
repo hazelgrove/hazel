@@ -159,11 +159,11 @@ let legend_sample_view =
       ~sample_stack: list(Id.t),
       ~caption: string,
     ) => {
-  let sample: Language.Dynamics.Sample.t = {
+  let sample: Language.Sample.t = {
     id: 0,
     syntax_id: Id.invalid,
     value: Language.IdTagged.FreshGrammar.Exp.constructor(caption, None),
-    env: Language.Dynamics.SampledEnv.empty,
+    env: Language.Sample.Env.empty,
     call_stack: sample_stack,
     time: 0.0,
   };
@@ -193,8 +193,8 @@ let legend_sample_view =
     _ => Effect.Ignore,
     (0, sample),
   )
-  |> div_cs(["closure-group"])
-  |> div_cs(["closure-groups"])
+  |> div_cs(["sample-group"])
+  |> div_cs(["sample-groups"])
   |> div_cs(["live-offside", ProbeProj.Settings.show_window(mode)])
   |> div_cs(["projector", "probe", indicated ? "indicated" : "not-indicated"]);
 };
@@ -264,7 +264,7 @@ let sketch_view = () =>
     [Node.img(~attrs=[Attr.src("../../img/probe-lenses.webp")], ())],
   );
 
-let call_cursor_view = (~dyn_cursor: Language.Dynamics.Cursor.t, ~fancyd) =>
+let call_cursor_view = (~dyn_cursor: Language.DynCursor.t, ~fancyd) =>
   div(
     ~attrs=[clss(["panel", "call-cursor"])],
     [

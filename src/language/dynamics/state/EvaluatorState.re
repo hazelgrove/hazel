@@ -1,7 +1,7 @@
 [@deriving (show({with_path: false}), sexp, yojson)]
 type t = {
   tests: TestMap.t,
-  probes: Dynamics.Sample.Map.t,
+  probes: Sample.Map.t,
 };
 
 type effect =
@@ -12,7 +12,7 @@ type effect =
 
 let init = {
   tests: TestMap.empty,
-  probes: Dynamics.Sample.Map.empty,
+  probes: Sample.Map.empty,
 };
 
 let get_tests = ({tests, _}) => tests;
@@ -27,9 +27,9 @@ let add_test = (state: t, instance_report: TestMap.instance_report) => {
       state.tests,
     ),
 };
-let add_sample = (state: t, sample: Dynamics.Sample.t) => {
+let add_sample = (state: t, sample: Sample.t) => {
   ...state,
-  probes: Dynamics.Sample.Map.extend(sample.syntax_id, sample, state.probes),
+  probes: Sample.Map.extend(sample.syntax_id, sample, state.probes),
 };
 
 let update =
@@ -51,7 +51,7 @@ let update =
         )
       | RecordExpProbe(pr) =>
         let id = DHExp.rep_id(init);
-        let sample = Dynamics.Sample.mk(id, next, env, call_stack, pr);
+        let sample = Sample.mk(id, next, env, call_stack, pr);
         (call_stack, add_sample(state, sample));
       | RecordPatProbes(sample_closures) =>
         let state =

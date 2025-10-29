@@ -46,7 +46,7 @@
   display: none;
 }
 
-#probesys .probe-view .live-offside > *:not(.closure-groups) {
+#probesys .probe-view .live-offside > *:not(.sample-groups) {
   display: none;
 }
 

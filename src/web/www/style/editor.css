@@ -338,7 +338,7 @@ svg:has(.child-line) {
 .context-menu {
   position: absolute;
   min-width: 160px;
-  z-index: 30; /*TODO(andrew): must be over num-closures */
+  z-index: 30; /*TODO(andrew): must be over num-samples */
   flex-direction: column;
   justify-content: center;
   background-color: var(--menu-bkg);

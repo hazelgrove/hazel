@@ -68,7 +68,7 @@ module Model = {
         indicated: option(Indicated.piece),
         statics: Language.Statics.Map.t,
         dynamics: Language.Dynamics.Map.t,
-        dyn_cursor: Language.Dynamics.Cursor.t,
+        dyn_cursor: Language.DynCursor.t,
         editor_active: bool,
       ) => {
     List.filter_map(
