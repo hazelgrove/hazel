@@ -4,7 +4,7 @@ let exercise : TheoremExerciseSpec.t =
       Option.get (Haz3lcore.Id.of_string "f2132f9f-a452-481b-ba9a-c40e7d2346aa");
     title = "";
     prompt = "";
-    (* prelude =
+    prelude =
       {
         selection = { focus = Left; content = []; mode = Normal };
         relatives =
@@ -45,7 +45,7 @@ let exercise : TheoremExerciseSpec.t =
             ancestors = [];
           };
         caret = Outer;
-      }; *)
+      };
     theorem =
       {
         selection = { focus = Left; content = []; mode = Normal };

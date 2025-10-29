@@ -83,7 +83,10 @@ let qcheck_stepper_confluence =
           |> Printer.of_segment(~holes="?", _);
 
         Alcotest.check(
-          testable(Fmt.using(Exp.show, Fmt.string), Equality.semantic.exp), // Output is easier to view through ExpToSegment. This may result in a loss of information
+          testable(
+            Fmt.using(show_core_exp, Fmt.string),
+            Equality.semantic.exp,
+          ), // Output is easier to view through ExpToSegment. This may result in a loss of information
           "Small step reduction and big step reduction are equal",
           smallstep_exp,
           bigstep_exp,
