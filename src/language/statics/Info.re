@@ -999,14 +999,15 @@ let derived_tpat = (~utpat: TPat.t, ~ctx, ~ancestors): tpat => {
 let get_binding_site = (info: t): option(Id.t) => {
   switch (info) {
   | InfoExp({term: {term: Var(name), _}, ctx, _}) =>
-    let+ entry = Ctx.lookup_var(ctx, name);
-    entry.id;
+    let* entry = Ctx.lookup_var(ctx, name);
+    entry.id == Id.invalid ? None : Some(entry.id);
   | InfoExp({term: {term: Constructor(name, _), _}, ctx, _})
   | InfoPat({term: {term: Constructor(name, _), _}, ctx, _}) =>
-    let+ entry = Ctx.lookup_ctr(ctx, name);
-    entry.id;
+    let* entry = Ctx.lookup_ctr(ctx, name);
+    entry.id == Id.invalid ? None : Some(entry.id);
   | InfoTyp({term: {term: Var(name), _}, ctx, _}) =>
-    Ctx.lookup_tvar_id(ctx, name)
+    let* id = Ctx.lookup_tvar_id(ctx, name);
+    id == Id.invalid ? None : Some(id);
   | _ => None
   };
 };

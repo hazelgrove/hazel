@@ -79,8 +79,28 @@
   justify-content: center;
 }
 
-#probesys .sketch > img {
+#probesys .sketch img {
   width: 140px;
+  transition: all 0.2s ease-in-out;
+}
+
+#probesys .sketch[open] img {
+  width: 25px;
+  position: absolute;
+  top: 10px;
+  right: 13px;
+}
+
+.sketch summary {
+  cursor: pointer;
+  list-style: none;
+  display: inline-flex;
+  align-items: center;
+}
+
+.sketch summary::marker,
+.sketch summary::-webkit-details-marker {
+  display: none;
 }
 
 #probesys .legend .title {

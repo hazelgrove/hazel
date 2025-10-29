@@ -68,7 +68,7 @@ let probes_tab = (~globals: Globals.t): Node.t =>
   tab_of(
     ~panel=Probes,
     ~cls=["probes-button"],
-    ~icon=Icons.glass,
+    ~icon=Icons.shutter,
     ~tooltip="Switch to Probes Panel",
     ~globals,
   );

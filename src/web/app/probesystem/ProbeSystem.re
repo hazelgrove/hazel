@@ -258,10 +258,24 @@ let legend_view = (~font_metrics: FontMetrics.t) => {
   );
 };
 
-let sketch_view = () =>
-  div(
+let sketch_view = (): Node.t =>
+  details(
     ~attrs=[clss(["sketch"])],
-    [Node.img(~attrs=[Attr.src("../../img/probe-lenses.webp")], ())],
+    [
+      summary(
+        ~attrs=[clss(["sketch-toggle"])],
+        [
+          Node.img(
+            ~attrs=[
+              Attr.src("../../img/probe-lenses.webp"),
+              Attr.alt("Probe lenses"),
+            ],
+            (),
+          ),
+        ],
+      ),
+      div(~attrs=[clss(["sketch-body"])], []),
+    ],
   );
 
 let call_cursor_view = (~dyn_cursor: Language.DynCursor.t, ~fancyd) =>
@@ -402,15 +416,13 @@ let render_entry =
   switch (entry) {
   | (id, Manual(_projector)) => fancyd(id)
   | (_id, Auto(pairs)) =>
-    Some(
-      div(
-        ~attrs=[clss(["auto"])],
-        List.filter_map(
-          ((pair_id: Id.t, _projector: Base.projector)) => fancyd(pair_id),
-          pairs,
-        ),
-      ),
-    )
+    let ephemerals =
+      List.filter_map(
+        ((pair_id: Id.t, _projector: Base.projector)) => fancyd(pair_id),
+        pairs,
+      );
+    ephemerals == []
+      ? None : Some(div(~attrs=[clss(["auto"])], ephemerals));
   };
 
 let render_group =
@@ -489,10 +501,12 @@ let probes_panel_view =
     );
   let group_nodes: list(Node.t) =
     append_group_nodes(~globals, ~fancyd, grouped);
-  div(
-    ~attrs=[clss(["panel", "probes"])],
-    [div(~attrs=[clss(["title"])], [text("Probes")])] @ group_nodes,
-  );
+  group_nodes == []
+    ? div([])
+    : div(
+        ~attrs=[clss(["panel", "probes"])],
+        [div(~attrs=[clss(["title"])], [text("Probes")])] @ group_nodes,
+      );
 };
 
 let view =
@@ -524,7 +538,7 @@ let view =
     [
       div(
         ~attrs=[clss(["header"])],
-        [div(~attrs=[clss(["main-title"])], [text("Live Probes")])],
+        [div(~attrs=[clss(["main-title"])], [text("Probearium")])],
       ),
       legend_view(~font_metrics=globals.font_metrics),
       sketch_view(),

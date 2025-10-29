@@ -44,9 +44,9 @@ let manual_probe =
   | Some(InfoExp(_) | InfoPat(_)) => [
       menu_item(
         switch (probe_status) {
-        | Refractors.Manual(_) => "Remove probe"
-        | Refractors.REPL => "Switch to manual"
-        | Refractors.Non => "Add probe"
+        | Manual(_) => "Remove probe"
+        | REPL => "Switch to manual"
+        | Non => "Add probe"
         },
         inject,
         Refractor(ToggleProbeManual),
@@ -66,12 +66,25 @@ let auto_probe =
   | Some(InfoExp(_)) => [
       menu_item(
         switch (probe_status) {
-        | Refractors.Manual(_) => "Switch to auto"
-        | Refractors.REPL => "Remove auto probe"
-        | Refractors.Non => "Add auto probe"
+        | Manual(_) => "Switch to auto"
+        | REPL => "Remove auto probe"
+        | Non => "Add auto probe"
         },
         inject,
         Refractor(ToggleProbeREPL),
+      ),
+    ]
+  | _ => []
+  };
+
+let jump_to_binding =
+    (~inject: Action.t => Ui_effect.t(unit), ci: option(Language.Info.t)) =>
+  switch (OptUtil.and_then(Language.Info.get_binding_site, ci)) {
+  | Some(_) => [
+      menu_item(
+        "Goto definition",
+        inject,
+        Move(Goal(BindingSiteOfIndicatedVar)),
       ),
     ]
   | _ => []
@@ -85,7 +98,7 @@ let step_into =
       z: Zipper.t,
     ) =>
   switch (ci) {
-  | Some(InfoExp(_)) =>
+  | Some(InfoExp({ty, _})) when Language.StaticsBase.is_arrow_like(ty) =>
     switch (Refractors.is_jump_target(info_map, z)) {
     | Some(_) => [menu_item("Step into", inject, Refractor(ProbeJump))]
     | None => []
@@ -102,8 +115,8 @@ let probes_actions =
   let id = Indicated.index(z) |> Option.value(~default=Id.invalid);
   let ci = Indicated.ci_of(z, info_map);
   let probe_status = Refractors.probe_status(id, info_map, z.refractors);
-
-  manual_probe(~inject, probe_status, ci)
+  jump_to_binding(~inject, ci)
+  @ manual_probe(~inject, probe_status, ci)
   @ auto_probe(~inject, probe_status, ci)
   @ step_into(~inject, info_map, ci, z);
 };
