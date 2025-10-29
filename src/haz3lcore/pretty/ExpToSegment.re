@@ -800,17 +800,12 @@ let fold_if = (condition, pieces) =>
     pieces;
   };
 
-let fold_fun_if = (condition, f_name: string, pieces) =>
+let fold_fun_if = (condition, f_name: string, pieces, exp) =>
   switch (condition) {
   | `Fold =>
     let syntax = mk_form(ParensExp, Id.mk(), [pieces]);
     let str = FoldProj.sexp_of_t({text: f_name}) |> Sexplib.Sexp.to_string;
-    switch (MakeTerm.for_projection([syntax])) {
-    | None => failwith("ExpToSegment.fold_fun_if")
-    | Some(any) => [
-        ProjectorInit.init_or_noop_from_str(Fold, syntax, any, str),
-      ]
-    };
+    [ProjectorInit.init_or_noop_from_str(Fold, syntax, Exp(exp), str)];
   | `Text =>
     let name =
       if (String.length(f_name) >= 2) {
@@ -972,7 +967,7 @@ let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
     let name = "<" ++ name ++ ">";
     let fun_form = [mk_form(Fun, id, [p])] @ e;
     [mk_form(ParensExp, exp |> Exp.rep_id, [fun_form])]
-    |> fold_fun_if(settings.fold_fn_bodies, name);
+    |> fold_fun_if(settings.fold_fn_bodies, name, _, inner_exp);
   | LivelitName(s) => text_to_pretty(exp |> Exp.rep_id, Sort.Exp, "^" ++ s)
   | Fun(p, e, t, _) =>
     // TODO: Add optional newlines
@@ -997,7 +992,7 @@ let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
     let name = "<" ++ name ++ ">";
     [mk_form(Fun, id, [p])]
     @ e
-    |> fold_fun_if(settings.fold_fn_bodies, name);
+    |> fold_fun_if(settings.fold_fn_bodies, name, _, exp);
   | Forall(p, e) =>
     let id = exp |> Exp.rep_id;
     let+ p = pat_to_pretty(~settings: Settings.t, p)
@@ -1014,7 +1009,7 @@ let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
       ++ ">";
     [mk_form(TypFun, id, [tp])]
     @ e
-    |> fold_fun_if(settings.fold_fn_bodies, name);
+    |> fold_fun_if(settings.fold_fn_bodies, name, _, exp);
   | Tuple([]) => text_to_pretty(exp |> Exp.rep_id, Sort.Exp, "()")
   | Tuple([{term: TupLabel(_), _} as le]) => go(le)
   | Tuple([x, ...xs]) =>
@@ -1108,7 +1103,7 @@ let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
       "<" ++ (Exp.get_fn_name(exp) |> Option.value(~default="fun")) ++ ">";
     [mk_form(Fix, id, [p])]
     @ e
-    |> fold_fun_if(settings.fold_fn_bodies, name);
+    |> fold_fun_if(settings.fold_fn_bodies, name, _, exp);
   | TyAlias(tp, t, e) =>
     // TODO: Add optional newlines
     let id = exp |> Exp.rep_id;
