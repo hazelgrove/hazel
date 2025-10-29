@@ -169,9 +169,6 @@ module F = (Stepper: STEPPER) => {
         // Note: if the LHS of case_eq is in any way captured by the added variables, then we cannot use it.
         let is_case_eq_captured =
           CoCtx.has_any(scrut_co_ctx, added_variables);
-        print_endline(
-          "is_case_eq_captured: " ++ Bool.to_string(is_case_eq_captured),
-        );
         let case_eq =
           is_case_eq_captured
             ? None
