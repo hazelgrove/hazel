@@ -304,6 +304,14 @@ let cursor_clss =
     | Above(n) => ["above", "L" ++ string_of_int(n)]
     | Unrelated => ["incomparable"]
     }
+  )
+  @ (
+    switch (relation.is_before_cursor) {
+    | Some(1) => ["before"]
+    | Some((-1)) => ["after"]
+    | Some(0) => ["same-time"]
+    | _ => []
+    }
   );
 };
 
@@ -327,7 +335,7 @@ module Debug = {
     ++ "\nstack:\n"
     ++ stack(sample.call_stack)
     ++ "\ntime: "
-    ++ string_of_float(sample.time /. 10000.0);
+    ++ Printf.sprintf("%.0f", sample.time);
 };
 
 let pin_call = (~parent, ~ap_id: option(Id.t), ~di: Dynamics.Info.t) =>
@@ -395,7 +403,7 @@ let value_view =
 
   div(
     ~attrs=[
-      //Attr.title(Debug.str(~ap_id, sample)),
+      Attr.title(Debug.str(~ap_id, sample)),
       Attr.classes(
         ["value", length_cls(length)]
         @ cursor_clss(ap_id, di, sample)

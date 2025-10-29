@@ -174,6 +174,7 @@ let legend_sample_view =
       index: List.length(cursor_stack) - 1,
       pinned_stack: None,
       indicated_call,
+      time: None,
     },
   };
   ProbeProj.sample_view(

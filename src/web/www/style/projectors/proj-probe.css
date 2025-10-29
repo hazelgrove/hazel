@@ -814,3 +814,15 @@
 .projector.probe .nav-arrow:not(.disabled):hover {
   filter: brightness(1.05) saturate(1.05);
 }
+
+/* TEMP COLORS */
+
+/* .projector.probe .live-offside .sample:has(.value.same-time) {
+  background-color: yellowgreen;
+}
+.projector.probe .live-offside .sample:has(.value.before) {
+  background-color: cyan;
+}
+.projector.probe .live-offside .sample:has(.value.after) {
+  background-color: magenta;
+} */

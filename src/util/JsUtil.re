@@ -46,6 +46,8 @@ let date_now = () => {
 
 let timestamp = () => date_now()##valueOf;
 
+let precise_timestamp = () => Js.Unsafe.global##.performance##now()##valueOf;
+
 let download_string_file =
     (~filename: string, ~content_type: string, ~contents: string) => {
   let blob = File.blob_from_string(~contentType=content_type, contents);

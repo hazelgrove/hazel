@@ -87,7 +87,7 @@ let mk =
   value,
   env: Env.filter(env, pr.refs),
   call_stack,
-  time: JsUtil.timestamp(),
+  time: JsUtil.precise_timestamp(),
 };
 
 [@deriving (show({with_path: false}), sexp, yojson)]
