@@ -312,14 +312,7 @@ let prep_refractors =
   let autos =
     refractors.autos
     |> List.map(id => {
-         let ids =
-           Refractors.ids_from_term(
-             ~term_data=syntax.term_data,
-             ~terms=syntax.terms,
-             ~measured=syntax.measured,
-             ~info_map,
-             id,
-           );
+         let ids = Refractors.ids_from_term(~syntax, ~info_map, id);
          let pairs =
            List.filter_map(
              id =>

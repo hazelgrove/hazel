@@ -190,9 +190,7 @@ module Update = {
     let zipper =
       zipper
       |> Refractors.add_ids_from_auto_term(
-           ~term_data=syntax.term_data,
-           ~terms=syntax.terms,
-           ~measured=syntax.measured,
+           ~syntax,
            ~info_map=new_statics.info_map,
          );
 
