@@ -67,8 +67,11 @@ type t = {
   value: DHExp.t, /* Value of expression */
   env: Env.t, /* (Filtered) Environment Values  */
   call_stack: Probe.call_stack, /* Call stacks as ap ids */
-  time: float /* Time of evaluatation */
+  time: float, /* Time of evaluatation */
+  iter: int,
 };
+
+let iter = ref(0);
 
 let mk =
     (
@@ -88,6 +91,10 @@ let mk =
   env: Env.filter(env, pr.refs),
   call_stack,
   time: JsUtil.precise_timestamp(),
+  iter: {
+    iter := iter^ + 1;
+    iter^;
+  },
 };
 
 [@deriving (show({with_path: false}), sexp, yojson)]

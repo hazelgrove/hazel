@@ -25,6 +25,7 @@ let capture = (z: Zipper.t, sample: Sample.t, id): Zipper.t =>
     {
       ...dyn_cursor,
       time: Some(sample.time),
+      iter: sample.iter,
       indicated_call: id /*!= None ? id : z.refractors.dyn_cursor.indicated_call*/,
       stack:
         !ListUtil.is_suffix_of(sample.call_stack, dyn_cursor.stack)

@@ -190,3 +190,14 @@
 #probesys .code:hover {
   filter: brightness(1.04);
 }
+
+#probesys .settings {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5em;
+}
+
+#probesys .settings .named-menu-item {
+  display: flex;
+  gap: 0.5em;
+}

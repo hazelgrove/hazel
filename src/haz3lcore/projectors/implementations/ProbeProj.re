@@ -1,7 +1,7 @@
 open Util;
 open ProjectorBase;
 open Virtual_dom.Vdom;
-open Node;
+
 open Js_of_ocaml;
 open Language;
 
@@ -21,25 +21,79 @@ module Settings = {
     | Many;
 
   [@deriving (show({with_path: false}), sexp, yojson)]
-  type settings = {window};
+  type sample_base =
+    | Calls
+    | Steps;
+
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type settings = {
+    window,
+    sample_base,
+    before_cutoff: option(int),
+    after_cutoff: option(int),
+    caller_cutoff: option(int),
+    callee_cutoff: option(int),
+  };
+
+  type set_action =
+    | ToggleWindow
+    | ToggleSampleBase
+    | ToggleBeforeCutoff
+    | ToggleAfterCutoff
+    | ToggleCallerCutoff
+    | ToggleCalleeCutoff;
+
+  let init = {
+    window: Single,
+    sample_base: Calls,
+    before_cutoff: None,
+    after_cutoff: None,
+    caller_cutoff: None,
+    callee_cutoff: None,
+  };
+
+  let update = (settings: settings, action: set_action): settings =>
+    switch (action) {
+    | ToggleWindow => {
+        ...settings,
+        window: settings.window == Single ? Many : Single,
+      }
+    | ToggleSampleBase => {
+        ...settings,
+        sample_base: settings.sample_base == Calls ? Steps : Calls,
+      }
+    | ToggleBeforeCutoff => {
+        ...settings,
+        before_cutoff: settings.before_cutoff == None ? Some(1) : None,
+      }
+    | ToggleAfterCutoff => {
+        ...settings,
+        after_cutoff: settings.after_cutoff == None ? Some(1) : None,
+      }
+    | ToggleCallerCutoff => {
+        ...settings,
+        caller_cutoff: settings.caller_cutoff == None ? Some(1) : None,
+      }
+    | ToggleCalleeCutoff => {
+        ...settings,
+        callee_cutoff: settings.callee_cutoff == None ? Some(1) : None,
+      }
+    };
 
   let offset = Hashtbl.create(100);
 
-  let s = ref({window: Single});
+  let s = ref(init);
 
   let reset_mode = () => {
     Hashtbl.clear(offset);
-    s := {window: Single};
+    s := init;
   };
 
-  let toggle_mode = () =>
-    switch (s^.window) {
-    | Single => s := {window: Many}
-    | Many => s := {window: Single}
-    };
+  let go = (a: set_action): unit => s := update(s^, a);
 };
 
 open Settings;
+open Node;
 
 module Window = {
   let max_samples = (window: window) =>
@@ -281,7 +335,13 @@ module ValueState = {
 };
 
 let cursor_clss =
-    (ap_id: option(Id.t), di: Dynamics.Info.t, sample: sample): list(string) => {
+    (
+      ~settings: settings,
+      ~ap_id: option(Id.t),
+      di: Dynamics.Info.t,
+      sample: sample,
+    )
+    : list(string) => {
   let relation = DynCursor.relation(ap_id, di.dyn_cursor, sample);
   (
     switch (
@@ -289,29 +349,56 @@ let cursor_clss =
       relation.is_call_above_call_cursor,
       relation.is_below_indicated_call,
     ) {
-    | (true, _, _) => ["cursor"]
+    | (true, _, _) when settings.sample_base == Calls => ["cursor"]
+    | (true, _, _)
+        when settings.sample_base == Steps && sample.iter == di.dyn_cursor.iter => [
+        "cursor",
+      ]
     | (_, Some(0), _) => ["cursor-caller", "direct"]
-    | (_, Some(_), _) => ["cursor-caller", "indirect"]
+    | (_, Some(_), _) when settings.caller_cutoff == None => [
+        "cursor-caller",
+        "indirect",
+      ]
     | (_, _, Some(0)) => ["cursor-callee", "direct"]
-    | (_, _, Some(_)) => ["cursor-callee", "indirect"]
-    | (_, _, None) => ["cursor-unrelated"]
+    | (_, _, Some(_)) when settings.callee_cutoff == None => [
+        "cursor-callee",
+        "indirect",
+      ]
+    | (_, _, _) => ["cursor-unrelated"]
     }
   )
   @ (
-    switch (relation.relative_level_to_cursor) {
-    | Same => ["level0"]
-    | Below(n) => ["below", "L" ++ string_of_int(n)]
-    | Above(n) => ["above", "L" ++ string_of_int(n)]
-    | Unrelated => ["incomparable"]
-    }
-  )
-  @ (
-    switch (relation.is_before_cursor) {
-    | Some(1) => ["before"]
-    | Some((-1)) => ["after"]
-    | Some(0) => ["same-time"]
-    | _ => []
-    }
+    settings.sample_base == Steps
+      ? switch (relation.relative_level_to_cursor) {
+        | Same => ["level0"]
+        | Below(n)
+            when
+              settings.before_cutoff == None
+              || Some(n) <= settings.before_cutoff => [
+            "below",
+            "L" ++ string_of_int(n),
+          ]
+        | Above(n)
+            when
+              settings.after_cutoff == None
+              || Some(n) <= settings.after_cutoff => [
+            "above",
+            "L" ++ string_of_int(n),
+          ]
+        | _ => []
+        }
+      : (
+        switch (relation.is_before_cursor) {
+        | n when n == 0 => ["level0"]
+        | n when n > 0 =>
+          settings.before_cutoff == None || Some(n) <= settings.before_cutoff
+            ? ["below", "L" ++ string_of_int(n)] : []
+        | n when n < 0 =>
+          settings.after_cutoff == None || Some(- n) <= settings.after_cutoff
+            ? ["above", "L" ++ string_of_int(- n)] : []
+        | _ => []
+        }
+      )
   );
 };
 
@@ -403,10 +490,10 @@ let value_view =
 
   div(
     ~attrs=[
-      Attr.title(Debug.str(~ap_id, sample)),
+      // Attr.title(Debug.str(~ap_id, sample)),
       Attr.classes(
         ["value", length_cls(length)]
-        @ cursor_clss(ap_id, di, sample)
+        @ cursor_clss(~settings, ~ap_id, di, sample)
         @ (Option.is_some(ap_id) ? ["ap"] : [])
         @ (!is_value(sample.value) ? ["indet"] : []),
       ),
@@ -783,7 +870,7 @@ let key_handler =
       Prevent_default,
     ])
   | D(" ") =>
-    Settings.toggle_mode();
+    Settings.go(ToggleWindow);
     Many([local(NoOp), Stop_propagation, Prevent_default]); // trigger redraw
   | _ => Many([Stop_propagation])
   };
@@ -862,7 +949,7 @@ let offside_view =
 let update = (() as m, _info: info, a: action) => {
   switch (a) {
   | ChangeLength(id, len) => ClosureLength.set(id, len)
-  | ToggleShowAllVals(_) => Settings.toggle_mode()
+  | ToggleShowAllVals(_) => Settings.go(ToggleWindow)
   | NoOp => m
   };
 };

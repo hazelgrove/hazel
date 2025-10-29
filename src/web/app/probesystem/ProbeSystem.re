@@ -166,6 +166,7 @@ let legend_sample_view =
     env: Language.Sample.Env.empty,
     call_stack: sample_stack,
     time: 0.0,
+    iter: 0,
   };
   let di: Language.Dynamics.Info.t = {
     samples: [sample],
@@ -175,12 +176,16 @@ let legend_sample_view =
       pinned_stack: None,
       indicated_call,
       time: None,
+      iter: 0,
     },
   };
   ProbeProj.sample_view(
     ~ap_id,
     ~hide_env=true,
-    ~settings={window: mode},
+    ~settings={
+      ...ProbeProj.Settings.s^,
+      window: mode,
+    },
     di,
     ProjectorInfo.utility,
     (~text_only) =>
@@ -259,10 +264,79 @@ let legend_view = (~font_metrics: FontMetrics.t) => {
   );
 };
 
-let sketch_view = (): Node.t =>
+let toggle =
+    (~tooltip, ~explain_this_inject, ~label1, ~label2, ~active, ~action) =>
+  Widgets.toggle_named(
+    ~tooltip,
+    active ? label1 : label2,
+    active,
+    _ => {
+      ProbeProj.Settings.go(action);
+      explain_this_inject(ExplainThisUpdate.SpecificityOpen(true));
+    },
+  );
+
+let settings = (~explain_this_inject) => {
+  div(
+    ~attrs=[clss(["settings"])],
+    [
+      toggle(
+        ~tooltip="One or Many Samples",
+        ~explain_this_inject,
+        ~label1="1",
+        ~label2="∞",
+        ~active=ProbeProj.Settings.s^.window == Single,
+        ~action=ToggleWindow,
+      ),
+      toggle(
+        ~tooltip="Color by Calls or Steps",
+        ~explain_this_inject,
+        ~label1="👣",
+        ~label2="📞",
+        ~active=ProbeProj.Settings.s^.sample_base == Steps,
+        ~action=ToggleSampleBase,
+      ),
+      toggle(
+        ~tooltip="Samples Before/Above Cursor",
+        ~explain_this_inject,
+        ~label1="∞",
+        ~label2="1",
+        ~active=ProbeProj.Settings.s^.before_cutoff == None,
+        ~action=ToggleBeforeCutoff,
+      ),
+      toggle(
+        ~tooltip="Samples After/Below Cursor",
+        ~explain_this_inject,
+        ~label1="∞",
+        ~label2="1",
+        ~active=ProbeProj.Settings.s^.after_cutoff == None,
+        ~action=ToggleAfterCutoff,
+      ),
+      toggle(
+        ~tooltip="Callsites containing Cursor",
+        ~explain_this_inject,
+        ~label1="∞",
+        ~label2="1",
+        ~active=ProbeProj.Settings.s^.caller_cutoff == None,
+        ~action=ToggleCallerCutoff,
+      ),
+      toggle(
+        ~tooltip="Samples Inside Call at Cursor",
+        ~explain_this_inject,
+        ~label1="∞",
+        ~label2="1",
+        ~active=ProbeProj.Settings.s^.callee_cutoff == None,
+        ~action=ToggleCalleeCutoff,
+      ),
+    ],
+  );
+};
+
+let sketch_view = (~explain_this_inject): Node.t =>
   details(
     ~attrs=[clss(["sketch"])],
     [
+      settings(~explain_this_inject),
       summary(
         ~attrs=[clss(["sketch-toggle"])],
         [
@@ -514,7 +588,7 @@ let view =
     (
       ~globals: Globals.t,
       ~cursor as _: Cursor.cursor(Editors.Update.t),
-      ~signal as _,
+      ~explain_this_inject,
       ~editor: CodeEditable.Model.t,
     ) => {
   let refractor_data =
@@ -542,7 +616,7 @@ let view =
         [div(~attrs=[clss(["main-title"])], [text("Probearium")])],
       ),
       legend_view(~font_metrics=globals.font_metrics),
-      sketch_view(),
+      sketch_view(~explain_this_inject),
       call_cursor_view(~dyn_cursor=refractors.dyn_cursor, ~fancyd=id =>
         fancy(
           ~refractor_data,

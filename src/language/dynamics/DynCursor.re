@@ -14,6 +14,7 @@ type t = {
   pinned_stack: option(Probe.call_stack),
   indicated_call: option(Id.t),
   time: option(float),
+  iter: int,
 };
 
 let init: t = {
@@ -22,6 +23,7 @@ let init: t = {
   pinned_stack: None,
   indicated_call: None,
   time: None,
+  iter: 0,
 };
 
 let trimmed_stack = (dyn_cursor: t) =>
@@ -58,7 +60,7 @@ type relation = {
   /* Is the current sample below the dynamic cursor, and if so, by how much? */
   is_below_indicated_call: option(int),
   /* Is the current sample a call directly below the dynamic cursor, and if so, by how much? */
-  is_before_cursor: option(int),
+  is_before_cursor: int,
 };
 
 let is_below = ListUtil.suffix_at_depth;
@@ -115,11 +117,7 @@ let relation =
       let* cur_ap = dyn_cursor.indicated_call;
       is_below([cur_ap] @ cursor, this);
     },
-    is_before_cursor:
-      switch (dyn_cursor.time) {
-      | Some(time) => Some(compare(sample.time, time))
-      | None => None
-      },
+    is_before_cursor: sample.iter - dyn_cursor.iter,
   };
 };
 

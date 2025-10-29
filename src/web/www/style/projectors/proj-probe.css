@@ -458,12 +458,12 @@
   border-radius: 0.2em;
   border-bottom-style: dotted;
 } */
-.live-offside.Single:has(
+/* .live-offside.Single:has(
     .value.cursor-unrelated:not(.below):not(.above):not(:hover)
   ),
 .live-offside.Single:has(.value.cursor-callee.indirect) {
-  filter: contrast(0.32) brightness(1.51) /*blur(2px)*/;
-}
+  filter: contrast(0.32) brightness(1.51);
+} */
 
 .live-offside .sample:has(.value.cursor-unrelated.level0) {
   --bottom-border-clr: #73e1a3;
@@ -557,7 +557,7 @@
 }
 
 .live-offside.Single .sample:has(.value.cursor-unrelated) .code-text .token {
-  color: #707570;
+  color: #d4ddd4;
 }
 .live-offside.Many .value.cursor-caller .code-text .token {
   color: var(--TYP);
@@ -745,7 +745,7 @@
   background-color: var(--BR1);
   display: none;
   position: absolute;
-  translate: 0 1px;
+  /* translate: 0 1px; */
   left: 3px;
   /* scale: 0.75; */
   transform-origin: top left;
@@ -817,12 +817,9 @@
 
 /* TEMP COLORS */
 
-/* .projector.probe .live-offside .sample:has(.value.same-time) {
-  background-color: yellowgreen;
-}
 .projector.probe .live-offside .sample:has(.value.before) {
-  background-color: cyan;
+  background-color: #f4e5fb;
 }
 .projector.probe .live-offside .sample:has(.value.after) {
-  background-color: magenta;
-} */
+  background-color: oklch(0.94 0.03 254.38);
+}
