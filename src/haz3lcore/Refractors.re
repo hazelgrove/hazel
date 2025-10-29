@@ -136,17 +136,24 @@ let toggle_auto =
   | Non => add_auto(id, ~syntax, ~info_map, z)
   };
 
-let probe_jump =
-    (~syntax: CachedSyntax.t, info_map: Statics.Map.t, z: Zipper.t)
-    : option(Zipper.t) => {
+let is_jump_target = (info_map: Statics.Map.t, z: Zipper.t): option(Id.t) => {
   let* ci = Indicated.ci_of(z, info_map);
   let* ci =
     switch (ci) {
-    | InfoExp({term: {term: Ap(_, fun_expr, _), _}, _}) =>
+    | InfoExp({
+        term: {term: Ap(_, {term: Var(_), _} as fun_expr, _), _},
+        _,
+      }) =>
       Statics.Map.lookup(IdTagged.rep_id(fun_expr), info_map)
     | _ => Some(ci)
     };
-  let* binding_id = Info.get_binding_site(ci);
+  Info.get_binding_site(ci);
+};
+
+let probe_jump =
+    (~syntax: CachedSyntax.t, info_map: Statics.Map.t, z: Zipper.t)
+    : option(Zipper.t) => {
+  let* binding_id = is_jump_target(info_map, z);
   let* body_id =
     Statics.Map.enclosing_let_of_binding(~statics=info_map, ~binding_id);
   let* ci_body = Statics.Map.lookup(body_id, info_map);

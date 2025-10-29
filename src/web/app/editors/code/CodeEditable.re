@@ -238,7 +238,8 @@ module View = {
               ? [
                 ContextMenu.view(
                   ~inject=a => inject(Perform(a)),
-                  ~measured=model.editor.syntax.measured,
+                  ~syntax=model.editor.syntax,
+                  ~info_map=model.statics.info_map,
                   ~font_metrics=globals.font_metrics,
                   model.editor.state.zipper,
                 ),
