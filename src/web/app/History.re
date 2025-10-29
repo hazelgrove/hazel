@@ -85,7 +85,9 @@ module Update = {
       print_endline("Searching through undo stack");
       let current: list(Updated.t(EditHistory.state)) =
         if (Page.Update.can_undo(model.current.action)) {
-          [model.current |> return]; // TODO Should this always be a |> return?
+          [
+            model.current |> return // TODO Should this always be a |> return?
+          ];
         } else {
           [];
         };
