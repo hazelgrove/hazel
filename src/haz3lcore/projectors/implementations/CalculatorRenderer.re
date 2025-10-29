@@ -18,9 +18,9 @@ type cal_state = {
   operand: option(int),
 };
 
+/* value type defined in module M below */
 [@deriving (show({with_path: false}), sexp, yojson)]
-type m = option(cal_state);
-
+type v = int;
 /* Calculator actions */
 [@deriving (show({with_path: false}), sexp, yojson)]
 type a =
@@ -28,12 +28,19 @@ type a =
   | SetOperand(int)
   | Clear;
 
+/* The calculator model is None initially, then Some(state) when operation is selected */
+[@deriving (show({with_path: false}), sexp, yojson)]
+type m = option(cal_state);
+
 [@deriving (show({with_path: false}), sexp, yojson)]
 type model = m;
 
 /* Calculator actions that can be performed on the integer */
 [@deriving (show({with_path: false}), sexp, yojson)]
 type action = a;
+
+[@deriving (show({with_path: false}), sexp, yojson)]
+type value = v;
 
 /* Reusable UI components */
 let rec display_value = (value: int, pending_op: option(cal_state)) =>
@@ -56,16 +63,20 @@ and op_to_string = op =>
   | Divide => "/"
   };
 
-/* Calculator detection from expressions - detect integer atoms */
-let is_int_exp = (exp: Exp.t) =>
+/* Parse an integer expression into its value */
+let parse = (exp: Exp.t) =>
   switch (exp.term) {
   | Atom(atom) =>
     switch (atom) {
-    | Atom.Int(_)
-    | Atom.SInt(_) => true
-    | _ => false
+    | Atom.SInt(value) => Some(value)
+    | Atom.Int(bigint) =>
+      switch (Bigint.to_int(bigint)) {
+      | Some(i) => Some(i)
+      | None => None // too big for int
+      }
+    | _ => None
     }
-  | _ => false
+  | _ => None
   };
 
 /* Core transformation functions for applying arithmetic operations */
@@ -105,21 +116,6 @@ let apply_operation = (info, operation, operand, local, parent) => {
   let segment = apply_arithmetic_operation(info, operation, operand);
   Effect.Many([local(Clear), parent(ProjectorBase.SetSyntax(segment))]);
 };
-
-let get_int_value = (exp: Exp.t): option(int) =>
-  switch (exp.term) {
-  | Atom(atom) =>
-    switch (atom) {
-    | Atom.SInt(value) => Some(value)
-    | Atom.Int(bigint) =>
-      switch (Bigint.to_int(bigint)) {
-      | Some(i) => Some(i)
-      | None => None /* too big for int */
-      }
-    | _ => None
-    }
-  | _ => None
-  };
 
 /* Calculator buttons */
 let digit_buttons = (local, current_operand) =>
@@ -177,9 +173,13 @@ let control_buttons = (info, local, can_apply, state_opt, parent) => [
   ),
 ];
 
+/* Initialize calculator model from parsed value (int) */
+/* Calculator starts with no operation selected */
+let init = (_v: int) => None;
+
 /* Main calculator rendering function */
-let render = (~info, ~exp, ~view_seg, ~model, ~local, ~parent, ()) => {
-  let current_value = get_int_value(exp) |> Option.value(~default=0);
+let render =
+    (~info, ~exp, ~value: value, ~view_seg, ~model, ~local, ~parent, ()) => {
   let state_opt =
     switch (model) {
     | Some(s) when Option.is_some(s.operand) => Some(s)
@@ -192,7 +192,7 @@ let render = (~info, ~exp, ~view_seg, ~model, ~local, ~parent, ()) => {
     [
       Node.div(
         ~attrs=[Attr.classes(["calculator-display"])],
-        [Node.text(display_value(current_value, model))],
+        [Node.text(display_value(value, model))],
       ),
       Node.div(
         ~attrs=[Attr.classes(["calculator-keypad"])],
@@ -245,23 +245,16 @@ let badge =
     [Node.text("🧮")],
   );
 
-let init = exp => {
-  print_endline("CalculatorRenderer: init called");
-  print_endline("Expression: " ++ Exp.show(exp));
-  if (is_int_exp(exp)) {
-    Some(None);
-  } else {
-    None;
-  };
-};
-
 module M = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type model = m;
   [@deriving (show({with_path: false}), sexp, yojson)]
   type action = a;
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type value = int;
 
   let update = update;
+  let parse = parse;
   let init = init;
   let badge = badge;
   let render = render;

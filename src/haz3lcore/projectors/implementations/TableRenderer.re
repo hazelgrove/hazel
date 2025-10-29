@@ -4,6 +4,10 @@ open ProjectorBase;
 open Language;
 
 /* TableRenderer - A reusable module for rendering interactive tables with column operations */
+
+[@deriving (show({with_path: false}), sexp, yojson)]
+type v = (list(string), list(list(Exp.t))); /* (headers, rows) */
+
 [@deriving (show({with_path: false}), sexp, yojson)]
 type menu_state = option((int, list(string)));
 [@deriving (show({with_path: false}), sexp, yojson)]
@@ -24,6 +28,9 @@ type model = m;
 /* Table actions that can be performed on columns */
 [@deriving (show({with_path: false}), sexp, yojson)]
 type action = a;
+
+[@deriving (show({with_path: false}), sexp, yojson)]
+type value = v;
 
 /* Menu item types for the column menu system */
 [@deriving (show({with_path: false}), sexp, yojson)]
@@ -53,8 +60,8 @@ let icon_button = (~tooltip="", icon_text, action) =>
 
 let max_column_length = 12;
 
-/* Table detection from expressions */
-let table_from_exp = (exp: Exp.t) => {
+/* Parse an expression into table structure */
+let parse = (exp: Exp.t) => {
   switch (exp.term) {
   | ListLit(es) =>
     let data: list(option((list(string), list(TermBase.exp_t)))) =
@@ -76,36 +83,32 @@ let table_from_exp = (exp: Exp.t) => {
                 ),
               );
 
-            let g: option((list(string), list(TermBase.exp_t))) =
-              f |> Option.map(List.split);
-
-            g;
+            f |> Option.map(List.split);
           }
         },
         es,
       );
 
-    let data: option(list((list(string), list(TermBase.exp_t)))) =
-      OptUtil.sequence(data);
-    switch (data) {
-    | Some(data: list((list(string), list(TermBase.exp_t)))) =>
+    let data_opt = OptUtil.sequence(data);
+    switch (data_opt) {
+    | Some(data) =>
       let (headers: list(list(string)), rows: list(list(TermBase.exp_t))) =
         List.split(data);
 
-      // If all the headers aren't the same return None
+      // If all the headers aren't the same or empty table
       switch (headers) {
       | [] => None
-      | [h, ..._] when List.for_all(x => x == h, headers) =>
-        let headers = h;
-        Some((headers, rows));
-
+      | [h, ..._] when List.for_all(x => x == h, headers) => Some((h, rows)) // convert TermBase.exp_t to Exp.t
       | _ => None
       };
-    | _ => None
+    | None => None
     };
   | _ => None
   };
 };
+
+/* Initialize table model from parsed value */
+let init = (_: v) => {menu_state: None};
 
 /* Type utilities for column operations */
 let get_column_type_from_ty = (ty: Typ.t, column: string) => {
@@ -679,6 +682,7 @@ let render =
     (
       ~info: info,
       ~exp: Exp.t,
+      ~value: v,
       ~view_seg: (Sort.t, Segment.t) => Node.t,
       ~model: model, /* (column_index, menu_path) */
       ~local: action => Ui_effect.t(unit),
@@ -688,7 +692,7 @@ let render =
   let make_menu_button = (i, _h) =>
     icon_button(~tooltip="Column options", "⋮", _ => local(ShowMenu(i)));
 
-  let (headers, rows) = table_from_exp(exp) |> Option.get;
+  let (headers, rows) = value;
 
   let header_cells =
     List.mapi(
@@ -766,6 +770,18 @@ let badge =
     ],
     [Node.text("📊")],
   );
-let init = exp => {
-  table_from_exp(exp) |> Option.map(_ => {menu_state: None});
+
+module M = {
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type model = m;
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type action = a;
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type value = v;
+
+  let update = update;
+  let parse = parse;
+  let init = init;
+  let badge = badge;
+  let render = render;
 };

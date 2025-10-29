@@ -25,6 +25,8 @@ type state =
   | Card(card)
   | Hand(hand);
 
+/* value type defined in module M below */
+
 module SyntaxTerm = {
   open IdTagged.FreshGrammar;
 
@@ -276,22 +278,28 @@ module Hand = {
   };
 };
 
+/* Parse an expression into card/hand value */
+let parse = (exp: Exp.t) => SyntaxTerm.any_to_state(Exp(exp));
+
+/* Initialize card renderer model from parsed value */
+let init = (_: state) => {mode: Show};
+
+/* Render the card renderer */
 let render =
     (
       ~info: info,
       ~exp: Exp.t,
+      ~value: state,
       ~view_seg: (Sort.t, Segment.t) => Node.t,
       ~model: m,
       ~local: a => Ui_effect.t(unit),
       ~parent: external_action => Ui_effect.t(unit),
       (),
     ) =>
-  switch (SyntaxTerm.any_to_state(Exp(exp))) {
-  | Some(Card(card)) =>
+  switch (value) {
+  | Card(card) =>
     Singleton.view(info, model.mode, parent, Sort.Exp, card, local)
-  | Some(Hand(hand)) =>
-    Hand.view(info, model.mode, parent, Sort.Exp, hand, local)
-  | None => Node.text("Invalid card/hand")
+  | Hand(hand) => Hand.view(info, model.mode, parent, Sort.Exp, hand, local)
   };
 
 let update: (m, a) => m =
@@ -309,14 +317,17 @@ let badge =
     [Node.text("♠️")],
   );
 
-let init = (exp: Exp.t) =>
-  switch (SyntaxTerm.any_to_state(Exp(exp))) {
-  | Some(_) => Some({mode: Show})
-  | None => None
-  };
+module M = {
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type model = m;
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type action = a;
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type value = state;
 
-[@deriving (show({with_path: false}), sexp, yojson)]
-type model = m;
-
-[@deriving (show({with_path: false}), sexp, yojson)]
-type action = a;
+  let update = update;
+  let parse = parse;
+  let init = init;
+  let badge = badge;
+  let render = render;
+};

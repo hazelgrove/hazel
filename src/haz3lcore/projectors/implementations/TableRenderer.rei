@@ -13,5 +13,8 @@ type a =
   | ConversionColumn(string, string)
   | RenameColumn(string, string)
   | AddColumnAfter(string, string);
+type v = (list(string), list(list(Language.Exp.t))); /* (headers, rows) */
 
-include RichProbe.RichProbe with type model = m and type action = a;
+include
+  RichProbe.RichProbe with
+    type model = m and type action = a and type value = v;

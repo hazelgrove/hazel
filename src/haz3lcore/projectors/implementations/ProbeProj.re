@@ -12,9 +12,11 @@ type closure = Dynamics.Probe.Closure.t;
 type packed_renderer = {
   id: string,
   can_handle: Exp.t => bool,
-  init_packed: Exp.t => option(string),
+  parse_packed: Exp.t => option(string),
+  init_packed: string => string,
   render_packed:
     (
+      string,
       string,
       ~info: info,
       ~exp: Exp.t,
@@ -45,21 +47,32 @@ let pack_renderer =
   let serialize_action = a => a |> R.sexp_of_action |> Sexplib.Sexp.to_string;
   let deserialize_action = s =>
     s |> Sexplib.Sexp.of_string |> R.action_of_sexp;
+  let serialize_value = v => v |> R.sexp_of_value |> Sexplib.Sexp.to_string;
 
   {
     id,
-    can_handle: exp => Option.is_some(R.init(exp)),
-    init_packed: exp => R.init(exp) |> Option.map(serialize_model),
-    render_packed: (model_str, ~info, ~exp, ~view_seg, ~local, ~parent, ()) =>
+    can_handle: exp => Option.is_some(R.parse(exp)),
+    parse_packed: exp => R.parse(exp) |> Option.map(serialize_value),
+    init_packed: value_str => {
+      let v = value_str |> Sexplib.Sexp.of_string |> R.value_of_sexp;
+      let m = R.init(v);
+      serialize_model(m);
+    },
+    render_packed:
+      (model_str, value_str, ~info, ~exp, ~view_seg, ~local, ~parent, ()) => {
+      let value = value_str |> Sexplib.Sexp.of_string |> R.value_of_sexp;
+      let model = model_str |> Sexplib.Sexp.of_string |> R.model_of_sexp;
       R.render(
         ~info,
         ~exp,
+        ~value,
         ~view_seg,
-        ~model=deserialize_model(model_str),
+        ~model,
         ~local=action => local(serialize_action(action)),
         ~parent,
         (),
-      ),
+      );
+    },
     update_packed: (model_str, action_str) =>
       R.update(deserialize_model(model_str), deserialize_action(action_str))
       |> serialize_model,
@@ -71,6 +84,7 @@ let pack_renderer =
 type active_renderer = {
   renderer_id: string,
   model_state: string,
+  value_state: string,
 };
 
 [@deriving (show({with_path: false}), sexp, yojson)]
@@ -404,7 +418,7 @@ module Debug = {
 let renderers: list(packed_renderer) = [
   pack_renderer((module TableRenderer), "table"),
   pack_renderer((module CalculatorRenderer), "calculator"),
-  pack_renderer((module CardRenderer), "card"),
+  pack_renderer((module CardRenderer.M), "card"),
 ];
 
 /* Find first compatible renderer for an expression */
@@ -1048,14 +1062,17 @@ module M: Projector = {
       | Some(exp) =>
         switch (find_compatible_renderer(exp)) {
         | Some(renderer) =>
-          switch (renderer.init_packed(exp)) {
-          | Some(initial_state) => {
+          switch (renderer.parse_packed(exp)) {
+          | Some(value_state) =>
+            let model_state = renderer.init_packed(value_state);
+            {
               active_renderer:
                 Some({
                   renderer_id: renderer.id,
-                  model_state: initial_state,
+                  model_state,
+                  value_state,
                 }),
-            }
+            };
           | None => model
           }
         | None => model
@@ -1066,7 +1083,7 @@ module M: Projector = {
     | RendererAction(serialized_action) =>
       /* Route action to active renderer */
       switch (model.active_renderer) {
-      | Some({renderer_id, model_state}) =>
+      | Some({renderer_id, model_state, value_state}) =>
         switch (List.find_opt(r => r.id == renderer_id, renderers)) {
         | Some(renderer) => {
             active_renderer:
@@ -1074,6 +1091,7 @@ module M: Projector = {
                 renderer_id,
                 model_state:
                   renderer.update_packed(model_state, serialized_action),
+                value_state,
               }),
           }
         | None => model
@@ -1087,7 +1105,7 @@ module M: Projector = {
   let modal_overlay =
       (model, info, ~local: action => Ui_effect.t(unit), ~parent, ~view_seg) => {
     switch (model.active_renderer, get_current(info)) {
-    | (Some({renderer_id, model_state}), Some(exp)) =>
+    | (Some({renderer_id, model_state, value_state}), Some(exp)) =>
       /* Find the renderer and check if it can still handle the expression */
       switch (List.find_opt(r => r.id == renderer_id, renderers)) {
       | Some(renderer) when renderer.can_handle(exp) =>
@@ -1111,6 +1129,7 @@ module M: Projector = {
                 /* Renderer content */
                 renderer.render_packed(
                   model_state,
+                  value_state,
                   ~info,
                   ~exp,
                   ~view_seg,
