@@ -87,31 +87,46 @@ module View = {
       };
     };
     let group_view = (group: list((Id.t, Update.t))) => {
-      switch (group) {
-      | [] => div([]) // Shouldn't happen
-      | [
-          (
-            _,
-            Editors(Scratch(CellAction(MainEditor(Perform(Insert(_)))))),
-          ),
-          ...rest,
-        ] =>
-        let str =
-          List.fold_left(
-            (acc, (_, action: Update.t)) =>
-              switch (action) {
-              | Editors(
-                  Scratch(CellAction(MainEditor(Perform(Insert(s))))),
-                ) =>
-                s ++ acc
-              | _ => acc // Shouldn't happen
-              },
-            "",
-            group,
-          );
-        div([text(str)]);
-      | [(_, first), ...rest] => div([text(action_string(first))])
-      };
+      let elements =
+        switch (group) {
+        | [] => [] // Shouldn't happen
+        | [
+            (
+              _,
+              Editors(
+                Scratch(CellAction(MainEditor(Perform(Insert(_))))),
+              ),
+            ),
+            ...rest,
+          ] =>
+          let str =
+            List.fold_left(
+              (acc, (_, action: Update.t)) =>
+                switch (action) {
+                | Editors(
+                    Scratch(CellAction(MainEditor(Perform(Insert(s))))),
+                  ) =>
+                  s ++ acc
+                | _ => acc // Shouldn't happen
+                },
+              "",
+              group,
+            );
+          [text(str)];
+        | [(_, first), ...rest] => [text(action_string(first))]
+        };
+      div(
+        ~attrs=[
+          Attr.on_click(_ => {
+            switch (group) {
+            | [] => Effect.Ignore
+            | [item, ...items] =>
+              inject(HistoryJump(fst(item)));
+            };
+          }),
+        ],
+        elements,
+      );
     };
     List.mapi(
       (i, group) =>
@@ -125,12 +140,7 @@ module View = {
               List.map(
                 ((id: Id.t, item: Update.t)) =>
                   div(
-                    ~attrs=[
-                      Attr.on_click(_ => {
-                        print_endline("Click!");
-                        inject(HistoryJump(id));
-                      }),
-                    ],
+                    ~attrs=[Attr.on_click(_ => {inject(HistoryJump(id))})],
                     [text(action_string(item))],
                   ),
                 group,
