@@ -50,9 +50,9 @@
   fill: var(--pat-indicated);
   filter: drop-shadow(0.7px 0.7px 0px var(--pat-shadow));
 }
-.projector.probe:has(.ap.pinned) > svg {
-  /* fill: var(--exp-ap-indicated); */
-}
+/* .projector.probe:has(.ap.pinned) > svg {
+  fill: var(--exp-ap-indicated);
+} */
 
 /* REFRACTORS */
 
@@ -278,6 +278,41 @@
 .projector.probe .pin {
   background-color: oklch(0.8 0.18 201.83);
 }
+.live-env-header .pin-icon {
+  height: 1.3em;
+  width: 1.3em;
+  border-radius: 1em;
+  filter: invert(1) saturate(0) brightness(1.5);
+  background: url(../../img/noun-pinned-1560993.svg) #00ffff;
+  background-size: 70%;
+  background-position: center;
+  background-repeat: no-repeat;
+  scale: 0.75;
+}
+.live-env-header:hover .pin-icon {
+  filter: invert(1) brightness(3) saturate(0.4);
+}
+.live-env-header.pinned .pin-icon {
+  filter: invert(1) brightness(1.5);
+}
+
+.live-env-header {
+  margin: 0.2em 0.5em;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  /* background-color: #c3af7a; */
+  outline: 0.6px solid var(--BR4);
+  border-radius: 1em;
+  width: fit-content;
+  padding: 0 0.3em;
+  gap: 0.1em;
+  color: black;
+}
+
+.live-env-header:hover {
+  background-color: var(--T3);
+}
 
 /* OFFSIDE VIEW */
 
@@ -376,6 +411,7 @@
 
 /* TOKEN BKG */
 .live-offside .closure {
+  position: relative;
   --bottom-border-clr: oklch(0.8 0.06 145.88); /*var(--exp-shadow);*/
   --bkg: var(--exp-base);
   --below-shadow: #5487cf;
@@ -628,7 +664,7 @@
 
 .live-offside .closure:hover {
   z-index: var(--projector-indicated-z);
-  position: relative;
+  /* position: relative; */
   /* outline-width: 1.5px;
   outline-style: solid; */
   /* outline-offset: -0.1px; */
@@ -703,10 +739,9 @@
 
 /* LIVE ENV */
 
-.live-offside .live-env {
-  background-color: var(--live-env-bkg);
+.live-offside .sample-dropdown {
   border-radius: 0 0.2em 0.2em 0.2em;
-  padding: 0.2em 0.55em;
+  background-color: var(--BR1);
   display: none;
   position: absolute;
   translate: 0 1px;
@@ -714,6 +749,18 @@
   /* scale: 0.75; */
   transform-origin: top left;
   border-bottom: 1px solid var(--BR2);
+}
+
+.live-offside .live-env {
+  padding: 0.2em 0.55em;
+  background-color: var(--live-env-bkg);
+}
+.live-offside * + .live-env {
+  border-top: 0.6px solid var(--BR3);
+}
+
+.live-offside .sample-dropdown:hover {
+  display: flex;
 }
 
 .live-offside .live-env .live-env-entry {
@@ -726,10 +773,10 @@
   font-size: var(--base-font-size);
 }
 
-.projector.probe.indicated .closure:hover .live-env {
+.projector.probe.indicated .closure:hover .sample-dropdown {
   display: block;
 }
-.projector.probe.indicated .closure:hover .live-env:empty {
+.projector.probe.indicated .closure:hover .sample-dropdown:empty {
   display: none;
 }
 

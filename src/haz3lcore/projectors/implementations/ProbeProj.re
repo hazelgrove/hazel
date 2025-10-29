@@ -334,6 +334,16 @@ module Debug = {
     ++ string_of_float(closure.time /. 10000.0);
 };
 
+let pin_call = (~parent, ~ap_id: option(Id.t), ~di: Dynamics.Info.t) =>
+  switch (ap_id, Dynamics.Info.is_in(di)) {
+  | (Some(ap_id), Some(closure_cursor)) =>
+    print_endline("actually pinning call");
+    parent(DynCursor(TogglePinCall([ap_id, ...closure_cursor.call_stack])));
+  | _ =>
+    print_endline("ignoring");
+    Effect.Ignore;
+  };
+
 let value_view =
     (
       ~ap_id: option(Id.t),
@@ -344,7 +354,7 @@ let value_view =
       local,
       parent: external_action => Ui_effect.t(unit),
       closure: closure,
-      index: int,
+      _index: int,
     ) => {
   let val_pointerdown = (e: Js.t(Dom_html.pointerEvent)) => {
     if (Js.to_bool(e##.shiftKey)) {
@@ -389,26 +399,17 @@ let value_view =
 
   div(
     ~attrs=[
-      Attr.title(Debug.str(~ap_id, closure)),
+      //Attr.title(Debug.str(~ap_id, closure)),
       Attr.classes(
         ["value", length_cls(length)]
         @ cursor_clss(ap_id, di, closure)
         @ (Option.is_some(ap_id) ? ["ap"] : [])
         @ (!is_value(closure.value) ? ["indet"] : []),
       ),
-      Attr.on_double_click(_ => local(ToggleShowAllVals(index))),
+      //Attr.on_double_click(_ => local(ToggleShowAllVals(index))),
       Attr.on_pointerdown(evt =>
         Key.meta_held(evt)
-          ? switch (ap_id, Dynamics.Info.is_in(di)) {
-            | (Some(ap_id), Some(closure_cursor)) =>
-              parent(
-                DynCursor(
-                  TogglePinCall([ap_id, ...closure_cursor.call_stack]),
-                ),
-              )
-            | _ => Effect.Ignore
-            }
-          : val_pointerdown(evt)
+          ? pin_call(~parent, ~ap_id, ~di) : val_pointerdown(evt)
       ),
       Attr.on_pointerup(val_pointerup),
       Attr.on_mousemove(val_mousemove),
@@ -445,25 +446,64 @@ let env_val =
   );
 };
 
-let env_view =
-    (~settings: settings, closure: closure, view_seg, utility: utility)
-    : Node.t =>
-  Node.div(
-    ~attrs=[Attr.classes(["live-env"])],
-    closure.env
-    |> ListUtil.dedup
-    |> rm_opaques
-    |> List.map(env_val(~settings, closure, view_seg, utility)),
-  );
-
-let show_pin = (~ap_id: option(Id.t), di: Dynamics.Info.t) => {
-  di.dyn_cursor.pinned_stack != None
-  && di.dyn_cursor.pinned_stack
-  |> OptUtil.and_then(ListUtil.hd_opt) == ap_id;
+let show_pin = (~ap_id: option(Id.t), di: Dynamics.Info.t, closure: closure) => {
+  switch (ap_id, di.dyn_cursor.pinned_stack) {
+  | (Some(ap_id), Some(pinned_stack)) =>
+    pinned_stack == [ap_id, ...closure.call_stack]
+  | _ => false
+  };
 };
 
-let pin_view = (~ap_id: option(Id.t), di: Dynamics.Info.t) =>
-  show_pin(~ap_id, di) ? [div(~attrs=[Attr.classes(["pin"])], [])] : [];
+let pin_view = (~ap_id: option(Id.t), di: Dynamics.Info.t, closure) =>
+  show_pin(~ap_id, di, closure)
+    ? [div(~attrs=[Attr.classes(["pin"])], [])] : [];
+
+let env_view =
+    (
+      ~settings: settings,
+      ~parent,
+      ~ap_id,
+      ~di,
+      closure: closure,
+      view_seg,
+      utility: utility,
+    )
+    : Node.t =>
+  div(
+    ~attrs=[Attr.classes(["sample-dropdown"])],
+    (
+      ap_id != Option.None
+        ? {
+          let show_pin = show_pin(~ap_id, di, closure);
+          [
+            div(
+              ~attrs=[
+                Attr.classes(
+                  ["live-env-header"] @ (show_pin ? ["pinned"] : []),
+                ),
+                Attr.on_pointerdown(_ => pin_call(~parent, ~ap_id, ~di)),
+              ],
+              [
+                div(~attrs=[Attr.classes(["pin-icon"])], []),
+                text(show_pin ? "Unpin" : "Pin"),
+              ],
+            ),
+          ];
+        }
+        : []
+    )
+    @ {
+      let elems = closure.env |> ListUtil.dedup |> rm_opaques;
+      elems == []
+        ? []
+        : [
+          div(
+            ~attrs=[Attr.classes(["live-env"])],
+            List.map(env_val(~settings, closure, view_seg, utility), elems),
+          ),
+        ];
+    },
+  );
 
 let closure_view =
     (
@@ -492,8 +532,22 @@ let closure_view =
         index,
       ),
     ]
-    @ pin_view(~ap_id, di)
-    @ (hide_env ? [] : [env_view(~settings, closure, view_seg, utility)]),
+    @ pin_view(~ap_id, di, closure)
+    @ (
+      hide_env && ap_id == None
+        ? []
+        : [
+          env_view(
+            ~settings,
+            ~parent,
+            ~ap_id,
+            ~di,
+            closure,
+            view_seg,
+            utility,
+          ),
+        ]
+    ),
   );
 
 let closure_group_view =
@@ -733,14 +787,6 @@ let key_handler =
   };
 };
 
-let cur_ap = (info: info) =>
-  switch (info.statics) {
-  | Some(InfoExp({term: {term: Ap(_), _} as ap, _}))
-  | Some(InfoExp({term: {term: Probe({term: Ap(_), _} as ap, _), _}, _})) =>
-    Some(Exp.rep_id(ap))
-  | _ => None
-  };
-
 /* Don't redundantly show an env for variable references, patterns */
 let hide_env = (info: info): bool =>
   switch (info.statics) {
@@ -772,7 +818,7 @@ let offside_view =
   switch (info.dynamics) {
   | Some(di) =>
     let id = info.id;
-    let ap_id = cur_ap(info);
+    let ap_id = Dynamics.Cursor.cur_ap(info.statics);
     let hide_env = hide_env(info);
     let num_total = Closures.total(~ap_id, di);
     let closures = Closures.select_frames(~settings, ~id, ~ap_id, di);
@@ -831,19 +877,20 @@ let probe_default =
   | Some(di) =>
     //DynCursor.capture_ap(info);
     switch (di.closures) {
-    | [fst, ..._] => parent(DynCursor(Capture(fst, cur_ap(info))))
+    | [fst, ..._] =>
+      parent(DynCursor(Capture(fst, Dynamics.Cursor.cur_ap(info.statics))))
     | [] => Effect.Ignore
     }
   | None => Effect.Ignore
   };
 
-let is_pinned = (ap_id: option(Id.t), di: Dynamics.Info.t): bool =>
-  switch (Dynamics.Info.is_in(di)) {
-  | Some(closure_cursor) =>
-    di.dyn_cursor.pinned_stack
-    == Dynamics.Cursor.cur_call(ap_id, closure_cursor)
-  | _ => false
-  };
+// let is_pinned = (ap_id: option(Id.t), di: Dynamics.Info.t): bool =>
+//   switch (Dynamics.Info.is_in(di)) {
+//   | Some(closure_cursor) =>
+//     di.dyn_cursor.pinned_stack
+//     == Dynamics.Cursor.cur_call(ap_id, closure_cursor)
+//   | _ => false
+//   };
 
 // let view = (~settings: settings, local, parent, info: info): Node.t =>
 //   div(
@@ -897,13 +944,12 @@ let is_pinned = (ap_id: option(Id.t), di: Dynamics.Info.t): bool =>
 let overlay_view = (info: info): Node.t =>
   switch (info.dynamics) {
   | Some(di) =>
-    let ap_id = cur_ap(info);
+    let ap_id = Dynamics.Cursor.cur_ap(info.statics);
     div(
       ~attrs=[
         Attr.classes(
-          ["overlay"]
-          @ (Option.is_some(ap_id) ? ["ap"] : [])
-          @ (is_pinned(ap_id, di) ? ["pinned"] : []),
+          ["overlay"] @ (Option.is_some(ap_id) ? ["ap"] : []),
+          // @ (is_pinned(ap_id, di) ? ["pinned"] : []),
         ),
       ],
       [num_closures_view(~ap_id, di)] /*@ pin_view(info)*/,

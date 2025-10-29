@@ -54,7 +54,14 @@ let rm_manual = (ids: list(Id.t), z: Zipper.t): Zipper.t =>
   Zipper.update_manuals(
     map => Id.Map.filter((id, _) => !List.mem(id, ids), map),
     z,
-  );
+  )
+  |> DynCursorPerform.update_pinned_call(_, p =>
+       switch (p) {
+       | Some([hd, ..._] as call_stack) =>
+         List.mem(hd, ids) ? None : Some(call_stack)
+       | x => x
+       }
+     );
 
 let add_manual =
     (id: Id.t, info_map: Language.Statics.Map.t, z: Zipper.t): Zipper.t => {

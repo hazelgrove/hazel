@@ -116,12 +116,12 @@
 
 #probesys .is-index .probe-entry > .code {
   outline: 1px solid var(--BR1);
-  z-index: 1;
+  /* z-index: 1; */
 }
 
 #probesys .indicated-call .probe-entry > .code {
   outline: 1px solid var(--R1);
-  z-index: 2;
+  /* z-index: 2; */
 }
 
 #probesys .indicated-call.not-in-stack {

@@ -202,6 +202,30 @@ module Cursor = {
     Some([ap_id, ...dyn]);
   };
 
+  let cur_ap = (info: option(Info.t)) =>
+    switch (info) {
+    | Some(
+        InfoExp({term: {term: Ap(_, {term: Constructor(_), _}, _), _}, _}),
+      )
+    | Some(
+        InfoExp({
+          term:
+            {
+              term:
+                Probe({term: Ap(_, {term: Constructor(_), _}, _), _}, _),
+              _,
+            },
+          _,
+        }),
+      ) => Option.None
+    | Some(InfoExp({term: {term: Ap(_), _} as ap, _}))
+    | Some(
+        InfoExp({term: {term: Probe({term: Ap(_), _} as ap, _), _}, _}),
+      ) =>
+      Some(Exp.rep_id(ap))
+    | _ => None
+    };
+
   let relation =
       (ap_id: option(Id.t), dyn_cursor: t, closure: Probe.Closure.t)
       : relation => {
