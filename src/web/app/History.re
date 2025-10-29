@@ -81,23 +81,47 @@ module Update = {
           },
         }
       }
-    | Globals(HistoryJump(id)) => model |> return_quiet
-    /*let rest =
-        ListUtil.drop_while(
+    | Globals(HistoryJump(id)) =>
+      print_endline("Searching through undo stack");
+      let current: list(Updated.t(EditHistory.state)) =
+        if (Page.Update.can_undo(model.current.action)) {
+          [model.current |> return]; // TODO Should this always be a |> return?
+        } else {
+          [];
+        };
+      // Look for history jump in the undo stack
+      let (xs, ys) =
+        ListUtil.take_while(
           (update: Updated.t(EditHistory.state)) => update.model.id != id,
-          model.history_log,
+          model.undo_stack,
         );
-      switch (rest) {
-      | [] => model |> return
-      | [x, ...xs] =>
+      switch (ys) {
+      | [] =>
+        print_endline("Searching through redo stack");
+        // The history jump is not in the undo stack, so look in the redo stack
+        let (xs: list(Updated.t(EditHistory.state)), ys) =
+          ListUtil.take_while(
+            (update: Updated.t(EditHistory.state)) => update.model.id != id,
+            model.redo_stack,
+          );
+        switch (ys) {
+        | [] => model |> return_quiet
+        | [y, ...ys] =>
+          let x: Model.t = {
+            current: y.model,
+            undo_stack: List.rev(xs) @ current @ model.undo_stack,
+            redo_stack: ys,
+          };
+          x |> return;
+        };
+      | [y, ...ys] =>
         let x: Model.t = {
-          current: x.model.page,
-          undo_stack: [],
-          redo_stack: [],
-          history_log: [x, ...xs],
+          current: y.model,
+          undo_stack: ys,
+          redo_stack: List.rev(xs) @ current @ model.redo_stack,
         };
         x |> return;
-      };*/
+      };
     | action =>
       let current =
         Page.Update.update(
