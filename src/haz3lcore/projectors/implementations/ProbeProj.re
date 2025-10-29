@@ -1088,9 +1088,9 @@ module M: Projector = {
       (model, info, ~local: action => Ui_effect.t(unit), ~parent, ~view_seg) => {
     switch (model.active_renderer, get_current(info)) {
     | (Some({renderer_id, model_state}), Some(exp)) =>
-      /* Find the renderer and render it */
+      /* Find the renderer and check if it can still handle the expression */
       switch (List.find_opt(r => r.id == renderer_id, renderers)) {
-      | Some(renderer) =>
+      | Some(renderer) when renderer.can_handle(exp) =>
         div(
           ~attrs=[Attr.classes(["modal-backdrop", "live-offside"])],
           [
@@ -1122,7 +1122,7 @@ module M: Projector = {
             ),
           ],
         )
-      | None => Node.div([])
+      | _ => Node.div([])
       }
     | _ => Node.div([])
     };
