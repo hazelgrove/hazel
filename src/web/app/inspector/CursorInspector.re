@@ -3,6 +3,8 @@ open Node;
 open Util.WebUtil;
 open Util;
 open Language;
+open Typ;
+open Haz3lcore;
 
 let errc = "error";
 let okc = "ok";
@@ -90,17 +92,47 @@ let view_any = (~globals, any: Any.t) =>
   |> CodeViewable.view_any(~globals, ~settings=code_view_settings)
   |> code_box_container;
 
-let view_type = (~globals, typ: Typ.t) =>
-  typ
-  |> CodeViewable.view_typ(~globals, ~settings=code_view_settings)
-  |> code_box_container;
+let dyn_type = (~dyn_info: option(Info.t)): option(Typ.t) =>
+  switch (dyn_info) {
+  | Some(info) =>
+    switch ((info: Info.t)) {
+    | InfoExp({ty, _}) => Some(ty)
+    | InfoPat({ty, _}) => Some(ty)
+    | _ => None
+    }
+  | None => None
+  };
+[@deriving (show({with_path: false}), sexp, yojson)]
+type o = option(Typ.t);
+let view_type = (~globals, ~dynamic_info: option(Info.t), typ: Typ.t) => {
+  let dyn_type =
+    dyn_type(~dyn_info=dynamic_info)
+    |> Option.map(Grammar.map_typ_annotation(_ => IdTagged.IdTag.fresh(), _));
+  let ids: list(Id.t) =
+    Option.map(Typ.diff(typ), dyn_type) |> Option.value(~default=[]);
 
+  print_endline("Type: " ++ [%derive.show: Typ.t](typ));
+  print_endline("Dynamic Type: " ++ [%derive.show: o](dyn_type));
+  print_endline("Diff ids: " ++ [%derive.show: list(Id.t)](ids));
+  let is_dynamic_id = (id: Id.t): bool => {
+    List.mem(id, ids);
+  };
+  dyn_type
+  |> Option.value(~default=typ)
+  |> CodeViewable.view_typ(
+       ~globals,
+       ~settings=code_view_settings,
+       ~is_dynamic=is_dynamic_id,
+     )
+  |> code_box_container;
+};
 let common_err_view =
     (
       ~globals,
       ~introduced_labels: list(LabeledTuple.label),
       ~lifted_ty: option(Typ.t),
       ~inferred_label: option(LabeledTuple.label),
+      ~dynamic_info: option(Info.t),
       cls: Cls.t,
       err: Info.error_common,
     ) => {
@@ -167,11 +199,11 @@ let common_err_view =
       ]
     | Inconsistent(CompareFun(ty)) => [
         text("values cannot be compared:"),
-        view_type(ty),
+        view_type(~dynamic_info=None, ty),
       ]
     | Inconsistent(WithArrow(typ)) => [
         text(":"),
-        view_type(typ) |> code_box_container,
+        view_type(~dynamic_info=None, typ) |> code_box_container,
         text("inconsistent with arrow type"),
       ]
     | Inconsistent(Expectation({ana, syn})) =>
@@ -184,14 +216,17 @@ let common_err_view =
       | _ =>
         [
           text(":"),
-          view_type(syn) |> code_box_container,
+          view_type(~dynamic_info, syn) |> code_box_container,
           text("inconsistent with expected type"),
-          view_type(ana) |> code_box_container,
+          view_type(~dynamic_info=None, ana) |> code_box_container,
         ]
         @ (
           switch (lifted_ty) {
           | None => []
-          | Some(lifted) => [text(" lifted to"), view_type(lifted)]
+          | Some(lifted) => [
+              text(" lifted to"),
+              view_type(~dynamic_info=None, lifted),
+            ]
           }
         )
         @ (
@@ -210,7 +245,10 @@ let common_err_view =
       }
     | Inconsistent(Internal(tys)) => [
         text(elements_noun(cls) ++ " have inconsistent types:"),
-        ...ListUtil.join(text(","), List.map(view_type, tys)),
+        ...ListUtil.join(
+             text(","),
+             List.map(view_type(~dynamic_info=None), tys),
+           ),
       ]
     }
   )
@@ -230,6 +268,7 @@ let common_ok_view =
       ~lifted_ty: option(Typ.t),
       ~inferred_label: option(LabeledTuple.label),
       ~label_sort: bool,
+      ~dynamic_info: option(Info.t),
       cls: Cls.t,
       ok: Info.ok_common,
     ) => {
@@ -251,32 +290,35 @@ let common_ok_view =
     | (Pat(EmptyHole), Syn(_)) => [text("Fillable by any pattern")]
     | (Exp(EmptyHole), Ana(Consistent({ana, _}))) => [
         text("Fillable by any expression of type"),
-        view_type(ana),
+        view_type(~dynamic_info=None, ana),
       ]
     | (Pat(EmptyHole), Ana(Consistent({ana, _}))) => [
         text("Fillable by any pattern of type"),
-        view_type(ana),
+        view_type(~dynamic_info=None, ana),
       ]
     | (_, Syn(syn)) =>
       switch (syn.term) {
       | Label(l) => [label_view(l)]
-      | _ => [text(":"), view_type(syn)]
+      | _ => [text(":"), view_type(~dynamic_info, syn)]
       }
     | (Pat(Var) | Pat(Wild), Ana(Consistent({ana, _}))) => [
         text(":"),
-        view_type(ana),
+        view_type(~dynamic_info, ana),
       ]
     | (_, Ana(Consistent({ana, syn, _})))
         when Equality.semantic.typ(ana, syn) =>
       switch (syn.term) {
       | Label(l) => [label_view(l), text(" is a valid label")]
       | _ =>
-        [text(":"), view_type(syn)]
+        [text(":"), view_type(~dynamic_info, syn)]
         @ [text("equals expected type")]
         @ (
           switch (lifted_ty) {
           | None => []
-          | Some(lifted) => [text(" lifted to"), view_type(lifted)]
+          | Some(lifted) => [
+              text(" lifted to"),
+              view_type(~dynamic_info=None, lifted),
+            ]
           }
         )
         @ (
@@ -305,16 +347,19 @@ let common_ok_view =
         | Label(l) => [code(l), text(" is a valid label")]
         | _ => [
             text(":"),
-            view_type(syn),
+            view_type(~dynamic_info, syn),
             text("consistent with expected type"),
           ]
         }
       )
-      @ [view_type(ana)]
+      @ [view_type(~dynamic_info=None, ana)]
       @ (
         switch (lifted_ty) {
         | None => []
-        | Some(lifted) => [text(" lifted to"), view_type(lifted)]
+        | Some(lifted) => [
+            text(" lifted to"),
+            view_type(~dynamic_info=None, lifted),
+          ]
         }
       )
       @ (
@@ -339,9 +384,15 @@ let common_ok_view =
     | (_, Ana(InternallyInconsistent({ana, nojoin: tys}))) =>
       [
         text(elements_noun(cls) ++ " have inconsistent types:"),
-        ...ListUtil.join(text(","), List.map(view_type, tys)),
+        ...ListUtil.join(
+             text(","),
+             List.map(view_type(~dynamic_info=None), tys),
+           ),
       ]
-      @ [text("but consistent with expected"), view_type(ana)]
+      @ [
+        text("but consistent with expected"),
+        view_type(~dynamic_info=None, ana),
+      ]
     }
   )
   @ (
@@ -358,7 +409,10 @@ let underdetermined_typ_view =
   switch (underdetermined) {
   | ProdExtensionUnderdetermined(tys) => [
       text("Cannot determine type of product extension with argument types:"),
-      ...ListUtil.join(text(","), List.map(view_type, tys)),
+      ...ListUtil.join(
+           text(","),
+           List.map(view_type(~dynamic_info=None), tys),
+         ),
     ]
   | ProdProjectionMissingLabel(label, labels) => [
       text("Cannot project label "),
@@ -371,7 +425,7 @@ let underdetermined_typ_view =
       switch (product) {
       | Some(ty) => [
           text("type"),
-          view_type(ty),
+          view_type(~dynamic_info=None, ty),
           text("is not a tuple type"),
         ]
       | None => []
@@ -380,7 +434,7 @@ let underdetermined_typ_view =
       switch (label) {
       | Some(ty) => [
           text("label"),
-          view_type(ty),
+          view_type(~dynamic_info=None, ty),
           text("is not a valid label: "),
         ]
       | None => []
@@ -398,7 +452,7 @@ let underdetermined_typ_view =
 };
 
 let typ_ok_view = (~globals, cls: Cls.t, ok: Info.ok_typ) => {
-  let view_type = view_type(~globals);
+  let view_type = view_type(~globals, ~dynamic_info=None);
   switch (ok) {
   | EmptyLabel => []
   | Type(_) when cls == Typ(EmptyHole) => [text("Fillable by any type")]
@@ -436,7 +490,7 @@ let typ_ok_view = (~globals, cls: Cls.t, ok: Info.ok_typ) => {
 };
 
 let typ_err_view = (~globals, ok: Info.error_typ) => {
-  let view_type = view_type(~globals);
+  let view_type = view_type(~globals, ~dynamic_info=None);
   switch (ok) {
   | FreeTypeVariable(name) => [
       view_type(Var(name) |> Typ.fresh),
@@ -497,7 +551,13 @@ let rec automatic_inserted_labels_pat =
   };
 
 let rec exp_view =
-        (~globals, cls: Cls.t, status: Info.status_exp, info: Info.exp) => {
+        (
+          ~globals,
+          ~dynamic_info: option(Info.t),
+          cls: Cls.t,
+          status: Info.status_exp,
+          info: Info.exp,
+        ) => {
   let introduced_labels =
     switch (info.label_inference) {
     | Some(MultiLabelInference({introduced_labels, _})) => introduced_labels
@@ -533,7 +593,7 @@ let rec exp_view =
     | Some(err) =>
       let cls_str = String.uncapitalize_ascii(cls_str);
       div_err([
-        exp_view(~globals, cls, InHole(Common(err)), info)
+        exp_view(~globals, ~dynamic_info, cls, InHole(Common(err)), info)
         |> code_box_container,
         text(
           "; "
@@ -587,21 +647,21 @@ let rec exp_view =
     | PivotLabelIsNotString(ty) =>
       div_err([
         text("Pivot column must be a string, but got: "),
-        view_type(ty),
+        view_type(~dynamic_info=None, ty),
       ])
     }
   | InHole(InvalidUseMode({bad_typ, _})) =>
     div_err([
       text("Cannot use type "),
-      view_type(bad_typ) |> code_box_container,
+      view_type(~dynamic_info=None, bad_typ) |> code_box_container,
       text(" for number operators and literals."),
     ])
   | InHole(BadTrivAp(ty)) =>
     div_err([
       text("Function argument type"),
-      view_type(ty),
+      view_type(~dynamic_info=None, ty),
       text("inconsistent with"),
-      view_type(Prod([]) |> Typ.fresh),
+      view_type(~dynamic_info=None, Prod([]) |> Typ.fresh),
     ])
   | InHole(TupleExtensionRequiresTuples) =>
     div_err([text("Tuple extension requires tuple")])
@@ -614,6 +674,7 @@ let rec exp_view =
         ~introduced_labels,
         ~lifted_ty,
         ~inferred_label,
+        ~dynamic_info,
         cls,
         error,
       ),
@@ -636,7 +697,7 @@ let rec exp_view =
   | InHole(BadLivelitModel(_)) =>
     div_err([text("Bad internal livelit model")])
   | NotInHole(AnaDeferralConsistent(ana)) =>
-    div_ok([text("Expecting type"), view_type(ana)])
+    div_ok([text("Expecting type"), view_type(~dynamic_info=None, ana)])
   | NotInHole(Common(ok)) =>
     div_ok(
       common_ok_view(
@@ -645,6 +706,7 @@ let rec exp_view =
         ~reordered,
         ~introduced_labels,
         ~inferred_label,
+        ~dynamic_info,
         ~label_sort=info.label_sort,
         cls,
         ok,
@@ -654,7 +716,13 @@ let rec exp_view =
 };
 
 let rec pat_view =
-        (~globals, cls: Cls.t, status: Info.status_pat, info: Info.pat) => {
+        (
+          ~globals,
+          ~dynamic_info: option(Info.t),
+          cls: Cls.t,
+          status: Info.status_pat,
+          info: Info.pat,
+        ) => {
   let lifted_ty =
     switch (info.label_inference) {
     | Some(SingletonLabelInference(_)) => Some(info.ty)
@@ -676,7 +744,8 @@ let rec pat_view =
     | None => div_err([text("Pattern is redundant")])
     | Some(err) =>
       div_err([
-        pat_view(~globals, cls, InHole(err), info) |> code_box_container,
+        pat_view(~globals, ~dynamic_info, cls, InHole(err), info)
+        |> code_box_container,
         text("; pattern is redundant"),
       ])
     }
@@ -687,6 +756,7 @@ let rec pat_view =
         ~inferred_label,
         ~introduced_labels,
         ~lifted_ty,
+        ~dynamic_info,
         cls,
         error,
       ),
@@ -704,6 +774,7 @@ let rec pat_view =
         ~introduced_labels,
         ~inferred_label,
         ~label_sort=info.label_sort,
+        ~dynamic_info,
         cls,
         ok,
       ),
@@ -728,31 +799,31 @@ let tpat_view = (~globals, _: Cls.t, status: Info.status_tpat) => {
   | InHole(ShadowsType(name, BaseTyp)) =>
     div_err([
       text("Can't shadow base type"),
-      view_type(Var(name) |> Typ.fresh),
+      view_type(~dynamic_info=None, Var(name) |> Typ.fresh),
     ])
   | InHole(ShadowsType(name, TyAlias)) =>
     div_err([
       text("Can't shadow existing alias"),
-      view_type(Var(name) |> Typ.fresh),
+      view_type(~dynamic_info=None, Var(name) |> Typ.fresh),
     ])
   | InHole(ShadowsType(name, TyVar)) =>
     div_err([
       text("Can't shadow existing type variable"),
-      view_type(Var(name) |> Typ.fresh),
+      view_type(~dynamic_info=None, Var(name) |> Typ.fresh),
     ])
   };
 };
 
 let secondary_view = (cls: Cls.t) => div_ok([text(cls |> Cls.show)]);
 
-let view_of_info = (~globals, ci): list(Node.t) => {
+let view_of_info = (~globals, ~dynamic_info, ci): list(Node.t) => {
   let wrapper = status_view => [term_view(~globals, ci), status_view];
   switch (ci) {
   | Secondary(_) => wrapper(div([]))
   | InfoExp({cls, status, _} as ie) =>
-    wrapper(exp_view(~globals, cls, status, ie))
+    wrapper(exp_view(~globals, ~dynamic_info, cls, status, ie))
   | InfoPat({cls, status, _} as ip) =>
-    wrapper(pat_view(~globals, cls, status, ip))
+    wrapper(pat_view(~globals, ~dynamic_info, cls, status, ip))
   | InfoTyp({cls, status, _}) => wrapper(typ_view(~globals, cls, status))
   | InfoTPat({cls, status, _}) => wrapper(tpat_view(~globals, cls, status))
   };
@@ -787,13 +858,13 @@ let inspector_view = (~globals, ci, ~dynamic_info): Node.t => {
         is_dynamic_error ? "dynamic-error" : "",
       ]),
     ],
-    view_of_info(~globals, display_info)
-    @ (
-      switch (dyn) {
-      | None => []
-      | Some(ty) => [text("Dynamic Type:"), view_type(~globals, ty)]
-      }
-    ),
+    view_of_info(~globals, ~dynamic_info, display_info),
+    // @ (
+    //   switch (dyn) {
+    //   | None => []
+    //   | Some(ty) => [text("Dynamic Type:"), view_type(~globals, ty)]
+    //   }
+    // )
   );
 };
 

@@ -193,9 +193,11 @@ module View = {
         ~buffer_ids=Selection.is_buffer(z.selection) ? selection_ids : [],
         ~segment,
         ~shape_map,
+        (),
       );
     let statics_decos =
       Arms.Errors.of_ids(
+        ~is_dynamic=false,
         ~font_metrics=globals.font_metrics,
         ~syntax=model.editor.syntax,
         model.statics.error_ids,
