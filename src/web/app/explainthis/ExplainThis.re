@@ -509,6 +509,7 @@ let get_doc =
             editor,
             statics: CachedStatics.empty,
             dynamics: Dynamics.Map.empty,
+            dynamic_statics: Pending,
           },
         );
       let example_view =

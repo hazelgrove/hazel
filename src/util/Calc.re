@@ -48,6 +48,13 @@ let is_new = (x: t('a)): bool =>
   | NewValue(_) => true
   };
 
+// WARNING: This function is applied on old and new values alike. So it's not incremental.
+let map = (x: t('a), f: 'a => 'b): t('b) =>
+  switch (x) {
+  | OldValue(x) => OldValue(f(x))
+  | NewValue(x) => NewValue(f(x))
+  };
+
 // ================================================================================
 // saved('a) is used to store a value that has been calculated in the model
 [@deriving (show({with_path: false}), sexp, yojson)]

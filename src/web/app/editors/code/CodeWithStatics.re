@@ -1,6 +1,7 @@
-open Util.WebUtil;
 open Haz3lcore;
 open Language;
+open Util;
+open WebUtil;
 
 /* Read-only code viewer with statics, but no interaction. Notably,
    since there is no interaction, the user can see that there is an
@@ -15,6 +16,7 @@ module Model = {
     editor: Editor.t,
     statics: CachedStatics.t,
     dynamics: Language.Dynamics.Map.t,
+    dynamic_statics: Calc.saved((StaticsBase.Map.t, list(Id.t))),
   };
 
   let mk =
@@ -27,6 +29,7 @@ module Model = {
       editor,
       statics,
       dynamics,
+      dynamic_statics: Calc.Pending,
     };
   };
 
@@ -46,8 +49,6 @@ module Model = {
   };
 
   let get_statics = (model: t) => model.statics;
-
-  let get_dynamics = (model: t) => model.dynamics;
 
   let get_cursor_info = (model: t): Cursor.cursor(Action.t) => {
     let info =
@@ -101,9 +102,9 @@ module Update = {
         ~is_edited,
         ~ctx=?,
         ~stitch,
-        ~dynamics: Language.Dynamics.Map.t,
+        ~dynamics: Calc.t(Language.Dynamics.Map.t),
         ~is_dynamic_term,
-        {editor, statics, dynamics: _}: Model.t,
+        {editor, statics, dynamic_statics, dynamics: _}: Model.t,
       )
       : Model.t => {
     let statics =
@@ -119,40 +120,48 @@ module Update = {
 
     let ctx_init: Language.Ctx.t = Language.Builtins.ctx_init(Some(Int));
     // This should be a fold over the dynamics map getitng the type for each value
-    let dynamic_expressions: Id.Map.t(list(TermBase.exp_t)) =
-      Id.Map.map(
-        d => {
-          open Language;
-          // TODO If we can deal with the circular dependencies it would be great to keep the full closure and filter to the closure selector for the statics.
-          let exps = List.map((c: Dynamics.Probe.Closure.t) => c.value, d);
-          exps;
-        },
-        dynamics,
-      );
 
-    let (dynamic_info_map, dynamic_error_ids) =
+    let dynamic_statics =
       if (settings.dynamic_feedback) {
-        let dynamic_info_map =
-          Language.Statics.mk(
-            ~dynamics=dynamic_expressions,
-            settings,
-            ctx_init,
-            statics.term,
-          );
+        Calc.Syntax.(
+          dynamic_statics
+          |> {
+            let.calc dynamics = dynamics;
+            let dynamic_expressions: Id.Map.t(list(TermBase.exp_t)) =
+              Id.Map.map(
+                d => {
+                  open Language;
+                  // TODO If we can deal with the circular dependencies it would be great to keep the full closure and filter to the closure selector for the statics.
+                  let exps =
+                    List.map((c: Dynamics.Probe.Closure.t) => c.value, d);
+                  exps;
+                },
+                dynamics,
+              );
 
-        let dynamic_error_ids =
-          Language.StaticsBase.Map.error_ids(dynamic_info_map)
-          |> List.filter(id => !List.mem(id, statics.error_ids));
+            let dynamic_info_map =
+              Language.Statics.mk(
+                ~dynamics=dynamic_expressions,
+                settings,
+                ctx_init,
+                statics.term,
+              );
 
-        (dynamic_info_map, dynamic_error_ids);
+            let dynamic_error_ids =
+              Language.StaticsBase.Map.error_ids(dynamic_info_map)
+              |> List.filter(id => !List.mem(id, statics.error_ids));
+
+            (dynamic_info_map, dynamic_error_ids);
+          }
+        );
       } else {
-        (Statics.Map.empty, []);
+        Calc.set((Statics.Map.empty, []), dynamic_statics);
       };
 
     let statics: CachedStatics.t = {
       ...statics,
-      dynamic_info_map,
-      dynamic_error_ids,
+      dynamic_info_map: dynamic_statics |> Calc.get_value |> fst,
+      dynamic_error_ids: dynamic_statics |> Calc.get_value |> snd,
     };
 
     let editor =
@@ -160,13 +169,14 @@ module Update = {
         ~settings,
         ~is_edited=true,
         statics,
-        dynamics,
+        Calc.get_value(dynamics),
         editor,
       );
     {
       editor,
       statics,
-      dynamics,
+      dynamics: Calc.get_value(dynamics),
+      dynamic_statics: Calc.save(dynamic_statics),
     };
   };
 };

@@ -180,7 +180,7 @@ module F =
       CodeEditable.Update.calculate(
         ~settings=Calc.get_value(settings),
         ~ctx=Calc.get_value(ctx),
-        ~dynamics=Dynamics.Map.empty,
+        ~dynamics=Calc.OldValue(Dynamics.Map.empty),
         ~is_edited=true,
         ~stitch=x => x,
         ~is_dynamic_term=true,

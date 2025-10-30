@@ -2,7 +2,7 @@ open Haz3lcore;
 open Virtual_dom.Vdom;
 open Node;
 // open ExplainThisUpdate;
-// open Util;
+open Util;
 /* The exercises mode interface for a single exercise. Composed of multiple editors and results. */
 /* This file follows conventions in [docs/ui-architecture.md] */
 module Model = {
@@ -52,7 +52,7 @@ module Model = {
     let test_results =
       Tutorial.map_stitched(
         (_, cell_editor: CellEditor.Model.t) =>
-          cell_editor.result |> EvalResult.Model.test_results,
+          cell_editor.result |> EvalResult.Model.test_results |> Calc.get_value,
         exercise.cells,
       );
 
@@ -66,7 +66,7 @@ module Model = {
     let test_results =
       Tutorial.map_stitched(
         (_, cell_editor: CellEditor.Model.t) =>
-          cell_editor.result |> EvalResult.Model.test_results,
+          cell_editor.result |> EvalResult.Model.test_results |> Calc.get_value,
         exercise.cells,
       );
 
@@ -238,7 +238,9 @@ module Update = {
             editor: {
               editor,
               statics: cell.editor.statics,
-              dynamics: EvalResult.Model.dynamics(cell.result),
+              dynamics:
+                EvalResult.Model.dynamics(cell.result) |> Calc.get_value,
+              dynamic_statics: cell.editor.dynamic_statics,
             },
             result: cell.result,
           }
@@ -415,7 +417,7 @@ module View = {
     let stitched_tests =
       Tutorial.map_stitched(
         (_, cell_editor: CellEditor.Model.t) =>
-          cell_editor.result |> EvalResult.Model.test_results,
+          cell_editor.result |> EvalResult.Model.test_results |> Calc.get_value,
         model.cells,
       );
     let test_count =

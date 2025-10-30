@@ -20,7 +20,6 @@ module Model = {
     cached_settings: Calc.saved(CoreSettings.t),
     elab: Calc.saved(Exp.t),
     result: Calc.t(ProgramResult.t(ProgramResult.inner)),
-    dynamics: Calc.saved(option(Dynamics.t)),
     display,
   };
 
@@ -31,7 +30,6 @@ module Model = {
     cached_settings: Calc.Pending,
     elab: Calc.Pending,
     result: Calc.NewValue(ProgramResult.ResultPending),
-    dynamics: Calc.Pending,
     display: Evaluation(Calc.Pending),
   };
 
@@ -49,28 +47,43 @@ module Model = {
         cached_settings: Calc.Pending,
         elab: Calc.Pending,
         result: Calc.NewValue(ProgramResult.ResultPending),
-        dynamics: Calc.Pending,
         display: Stepper(StepperView.Model.unpersist(stepper)),
       }
     | None => init
     };
   };
-
-  let probe_results = (model: t): option(Dynamics.Probe.Map.t) =>
-    model.dynamics
-    |> Calc.get_saved(None)
-    |> Option.map((d: Dynamics.t) => d.probe_map);
-
-  let test_results = (model: t): option(TestResults.t) =>
-    model.dynamics
-    |> Calc.get_saved(None)
-    |> Option.map((d: Dynamics.t) => d.test_results);
-
-  let dynamics = (model: t): Dynamics.Map.t =>
-    switch (probe_results(model)) {
-    | Some(dynamics_map) => Dynamics.Map.mk(dynamics_map)
-    | None => Dynamics.Map.mk(Dynamics.Probe.Map.empty)
+  let dynamics = (result: ProgramResult.t(ProgramResult.inner)) =>
+    switch (result) {
+    | ProgramResult.ResultPending => None
+    | ProgramResult.ResultFail(_) => None
+    | ProgramResult.ResultOk({state, _}) =>
+      Some(
+        Dynamics.{
+          probe_map: state |> EvaluatorState.get_probes,
+          test_results:
+            state |> EvaluatorState.get_tests |> TestResults.mk_results,
+        },
+      )
     };
+
+  let probe_results = (model: t): Calc.t(option(Dynamics.Map.t)) =>
+    model.result
+    |> Calc.map(_, dynamics)
+    |> Calc.map(_, Option.map((d: Dynamics.t) => d.probe_map));
+
+  let test_results = (model: t): Calc.t(option(TestResults.t)) =>
+    model.result
+    |> Calc.map(_, dynamics)
+    |> Calc.map(_, Option.map((d: Dynamics.t) => d.test_results));
+
+  let dynamics = (model: t): Calc.t(Dynamics.Map.t) =>
+    probe_results(model)
+    |> Calc.map(_, s =>
+         switch (s) {
+         | Some(m) => m
+         | None => Dynamics.Map.mk(Dynamics.Probe.Map.empty)
+         }
+       );
 
   let get_elaboration = (model: t): option(Exp.t) =>
     model.elab |> Calc.get_saved_opt;
@@ -141,7 +154,7 @@ module Update = {
         ~queue_worker: option(Exp.t => unit),
         ~is_edited: bool,
         statics: Haz3lcore.CachedStatics.t,
-        {cached_settings, elab, result, dynamics, display}: Model.t,
+        {cached_settings, elab, result, display}: Model.t,
       ) => {
     // Check whether settings / elab have changed
     let settings =
@@ -177,25 +190,6 @@ module Update = {
         };
       };
 
-    // Turn state into dynamics map
-    let dynamics =
-      dynamics
-      |> {
-        let.calc result = result;
-        switch (result) {
-        | ProgramResult.ResultPending => dynamics |> Calc.get_saved(None)
-        | ProgramResult.ResultFail(_) => dynamics |> Calc.get_saved(None)
-        | ProgramResult.ResultOk({state, _}) =>
-          Some(
-            Dynamics.{
-              probe_map: state |> EvaluatorState.get_probes,
-              test_results:
-                state |> EvaluatorState.get_tests |> TestResults.mk_results,
-            },
-          )
-        };
-      };
-
     // Calculate the display
     let display =
       switch (display) {
@@ -220,7 +214,7 @@ module Update = {
                    ~settings=settings |> Calc.get_value,
                    ~is_dynamic_term=true,
                    ~stitch=_ => exp,
-                   ~dynamics=Dynamics.Map.empty,
+                   ~dynamics=Calc.OldValue(Dynamics.Map.empty),
                    ~is_edited,
                    editor,
                  ),
@@ -238,7 +232,6 @@ module Update = {
         cached_settings: settings |> Calc.save,
         elab: elab |> Calc.save,
         result: result |> Calc.make_old,
-        dynamics: dynamics |> Calc.save,
         display,
       }: Model.t
     );
@@ -453,7 +446,7 @@ module View = {
       let result =
         footer(~globals, ~signal, ~inject, ~selected, ~locked, model);
       let test_overlay = (editor: Haz3lcore.Editor.t) =>
-        switch (Model.test_results(model)) {
+        switch (Model.test_results(model) |> Calc.get_value) {
         | Some(result) => [
             test_result_layer(
               ~font_metrics=globals.font_metrics,
@@ -492,7 +485,7 @@ module View = {
         [node],
         (
           (editor: Haz3lcore.Editor.t) =>
-            switch (Model.test_results(model)) {
+            switch (Model.test_results(model) |> Calc.get_value) {
             | Some(result) => [
                 test_result_layer(
                   ~font_metrics=globals.font_metrics,
@@ -507,9 +500,9 @@ module View = {
 
     // Just showing test results (school mode)
     | `TestResults =>
-      let test_results = Model.test_results(model);
+      let test_results = Model.test_results(model) |> Calc.get_value;
       let test_overlay = (editor: Haz3lcore.Editor.t) =>
-        switch (Model.test_results(model)) {
+        switch (Model.test_results(model) |> Calc.get_value) {
         | Some(result) => [
             test_result_layer(
               ~font_metrics=globals.font_metrics,

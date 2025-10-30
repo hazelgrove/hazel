@@ -69,7 +69,7 @@ let tests = (
             },
             dynamics,
           );
-        let static_feedback =
+        let _static_feedback =
           Statics.mk(
             ~dynamics=dynamic_expressions,
             CoreSettings.on,
@@ -149,7 +149,7 @@ results.`2`|},
             },
             dynamics,
           );
-        let static_feedback =
+        let _static_feedback =
           Statics.mk(
             ~dynamics=dynamic_expressions,
             CoreSettings.on,

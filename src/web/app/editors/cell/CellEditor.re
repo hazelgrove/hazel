@@ -17,6 +17,7 @@ module Model = {
       editor,
       statics: CachedStatics.empty,
       dynamics: Language.Dynamics.Map.empty,
+      dynamic_statics: Pending,
     },
     result: EvalResult.Model.init,
   };
@@ -36,6 +37,7 @@ module Model = {
       editor: editor |> PersistentZipper.unpersist |> Editor.Model.mk,
       statics: CachedStatics.empty,
       dynamics: Language.Dynamics.Map.empty,
+      dynamic_statics: Pending,
     },
     result: EvalResult.Model.unpersist(result),
   };
