@@ -772,7 +772,13 @@ let fold_if = (condition, pieces) =>
 let fold_fun_if = (condition, f_name: string, pieces) =>
   if (condition) {
     let syntax = mk_form(ParensExp, Id.mk(), [pieces]);
-    let str = FoldProj.sexp_of_t({text: f_name}) |> Sexplib.Sexp.to_string;
+    let str =
+      FoldProj.sexp_of_t({
+        text: f_name,
+        expanded: false,
+        always_render: true,
+      })
+      |> Sexplib.Sexp.to_string;
     switch (MakeTerm.for_projection([syntax])) {
     | None => failwith("ExpToSegment.fold_fun_if")
     | Some(any) => [
