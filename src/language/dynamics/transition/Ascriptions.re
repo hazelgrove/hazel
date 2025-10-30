@@ -13,7 +13,7 @@ let rec transition =
           ~update_probe=(
                           _syntax_id: Id.t,
                           _value: DHExp.t,
-                          _env: Environment.t,
+                          _env: Environment.t(Exp.t),
                           _call_stack: Probe.call_stack,
                           _pr: Probe.t,
                         ) =>
@@ -258,7 +258,7 @@ let rec transition_multiple =
           ~update_probe=(
                           _syntax_id: Id.t,
                           _value: DHExp.t,
-                          _env: Environment.t,
+                          _env: Environment.t(Exp.t),
                           _call_stack: Probe.call_stack,
                           _pr: Probe.t,
                         ) =>

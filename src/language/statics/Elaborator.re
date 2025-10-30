@@ -337,7 +337,7 @@ let rec elaborate = (m: Statics.Map.t, uexp: Exp.t): (DHExp.t, Typ.t) => {
     | FixF(p, e, env) =>
       let (p', pty) = elaborate_pattern(m, p, false);
       let (e', _) = elaborate(m, e);
-      FixF(p', Asc(e', pty) |> rewrap, env) |> rewrap; // TODO Consider if there's a better strategy than always ascribing the type
+      FixF(p', Asc(e', pty) |> Exp.fresh, env) |> rewrap; // TODO Consider if there's a better strategy than always ascribing the type
     // These forms are removed in elaboration
     | Use(_, e)
     | TyAlias(_, _, e) =>

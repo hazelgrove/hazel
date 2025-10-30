@@ -27,7 +27,7 @@ type unboxed_tfun =
 [@deriving show({with_path: false})]
 type unboxed_fun =
   | Constructor(string)
-  | FunEnv(Pat.t, Exp.t, [@show.opaque] ClosureEnvironment.t)
+  | FunEnv(Pat.t, Exp.t, [@show.opaque] Environment.t(Exp.t))
   | FunNoEnv(Pat.t, Exp.t)
   | BuiltinFun(string)
   | DeferredAp(DHExp.t, list(DHExp.t));
