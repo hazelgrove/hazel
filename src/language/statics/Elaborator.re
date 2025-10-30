@@ -198,6 +198,7 @@ let rec elaborate_pattern =
     if (probe_unknowns && contains_unknown) {
       switch (dpat) {
       | {term: Probe(_), _} => dpat
+      | {term: TupLabel(_, _), _} => dpat // Tuplabels are not real
       | _ => {
           term: Probe(dpat, Probe.empty),
           annotation: dpat.annotation,
@@ -494,6 +495,7 @@ let rec elaborate =
     if (probe_unknowns && contains_unknown) {
       switch (dhexp) {
       | {term: Probe(_), _} => dhexp
+      | {term: TupLabel(_, _), _} => dhexp // Tuplabels are not real
       | _ => {
           term: Probe(dhexp, Probe.empty),
           annotation: dhexp.annotation,

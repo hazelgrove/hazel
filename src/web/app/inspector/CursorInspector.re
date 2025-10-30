@@ -830,12 +830,6 @@ let view_of_info = (~globals, ~dynamic_info, ci): list(Node.t) => {
 };
 
 let inspector_view = (~globals, ci, ~dynamic_info): Node.t => {
-  let dyn =
-    switch (dynamic_info) {
-    | Some(Info.InfoExp({ty, _})) => Some(ty)
-    | Some(Info.InfoPat({ty, _})) => Some(ty)
-    | _ => None
-    };
   /* Determine which info to display: prioritize static errors, then dynamic errors, then normal info */
   let (display_info, is_dynamic_error) =
     if (Info.is_error(ci)) {
