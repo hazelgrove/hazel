@@ -1146,6 +1146,8 @@ let rec diff = (ty: t, ty': t): list(Id.t) => {
   | (Atom(_), _) => get_ids()
   | (Label(l1), Label(l2)) when l1 == l2 => []
   | (Label(_), _) => get_ids()
+  | (ExplicitNonlabel, ExplicitNonlabel) => []
+  | (ExplicitNonlabel, _) => get_ids()
   | (Var(v1), Var(v2)) when v1 == v2 => []
   | (Var(_), _) => get_ids()
   | (Rec(_tp1, t1), Rec(_tp2, t2)) => diff(t1, t2) // TODO Check tpat
@@ -1161,12 +1163,12 @@ let rec diff = (ty: t, ty': t): list(Id.t) => {
   | (TupLabel(_, _), _) => get_ids()
   | (List(t1), List(t2)) => diff(t1, t2)
   | (List(_), _) => get_ids()
-  | _ =>
-    // TODO
-    raise(
-      Failure(
-        "diff: unsupported types" ++ show(ty) ++ " and " ++ show(ty'),
-      ),
-    )
+  | (ProdProjection(t1, t2), ProdProjection(t1', t2')) =>
+    diff(t1, t1') @ diff(t2, t2')
+  | (ProdProjection(_, _), _) => get_ids()
+  | (ProdExtension(t1, t2), ProdExtension(t1', t2')) =>
+    diff(t1, t1') @ diff(t2, t2')
+  | (ProdExtension(_, _), _) => get_ids()
+  | _ => get_ids()
   };
 };
