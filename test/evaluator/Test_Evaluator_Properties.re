@@ -69,11 +69,7 @@ let qcheck_stepper_confluence =
           ~step_limit=100,
           elaborated_exp,
         ),
-        full_small_step_reduction(
-          ~state=EvaluatorState.init,
-          ~step_limit=100,
-          elaborated_exp,
-        ),
+        full_small_step_reduction(~step_limit=100, elaborated_exp),
       ) {
       | (Completed((bigstep_exp, _)), Completed(smallstep_exp)) =>
         let show_core_exp = exp =>
@@ -197,7 +193,7 @@ let qcheck_preservation_test =
           (stepped, ty);
         }
       ) {
-      | (Some((next, _)), orig_ty) =>
+      | (Some(next), orig_ty) =>
         switch (
           {
             let statics =

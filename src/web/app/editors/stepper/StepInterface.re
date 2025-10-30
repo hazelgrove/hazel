@@ -25,17 +25,10 @@ module type STEP = {
       ~hidden: Calc.saved(bool),
       ~exp: Calc.t(Exp.t),
       ~ctx: Calc.t(Ctx.t),
-      ~state: Calc.t(EvaluatorState.t),
       ~editor: Calc.t(CodeSelectable.Model.t),
       model
     ) =>
-    option(
-      (
-        model,
-        Calc.t(bool),
-        option((Calc.t(Exp.t), Calc.t(EvaluatorState.t))),
-      ),
-    );
+    option((model, Calc.t(bool), option(Calc.t(Exp.t))));
 
   let get_cursor_info: (~focus: focus, model) => Cursor.cursor(action);
 
@@ -94,7 +87,6 @@ module type STEPPER = {
       ~settings: Calc.t(CoreSettings.t),
       ~ctx: Calc.t(Ctx.t),
       ~exp: Calc.t(Exp.t),
-      ~state: Calc.t(EvaluatorState.t),
       model
     ) =>
     (model, Calc.t(Exp.t));
