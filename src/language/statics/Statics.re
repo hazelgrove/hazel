@@ -150,7 +150,7 @@ and uexp_to_info_map =
                 ~duplicates=[],
                 ~expected_labels=None,
                 uexp,
-                m,
+                StaticsBase.Map.empty,
               );
             if (StaticsBase.Map.has_errors(m)) {
               None;
@@ -210,7 +210,8 @@ and uexp_to_info_map =
       Info.derived_exp(
         ~calculate_dynamic_type=
           uexp => {
-            let (ie, m) = uexp_to_info_map(~ctx, uexp, m);
+            let (ie, m) =
+              uexp_to_info_map(~ctx, uexp, StaticsBase.Map.empty);
             if (StaticsBase.Map.has_errors(m)) {
               None;
             } else {
@@ -1271,7 +1272,8 @@ and uexp_to_info_map =
                   ~dynamics,
                   ~calculate_dynamic_type=
                     uexp => {
-                      let (ie, m) = uexp_to_info_map(~ctx, uexp, m);
+                      let (ie, m) =
+                        uexp_to_info_map(~ctx, uexp, StaticsBase.Map.empty);
                       if (StaticsBase.Map.has_errors(m)) {
                         None;
                       } else {
@@ -1453,7 +1455,7 @@ and upat_to_info_map =
                 ~expected_labels=None,
                 ~label_sort=false,
                 uexp,
-                m,
+                StaticsBase.Map.empty,
               );
             if (StaticsBase.Map.has_errors(m)) {
               None;
@@ -1688,7 +1690,7 @@ and upat_to_info_map =
                   ~label_sort=false,
                   ~duplicates=[],
                   uexp,
-                  m,
+                  StaticsBase.Map.empty,
                 );
               if (StaticsBase.Map.has_errors(m)) {
                 None;
@@ -1948,7 +1950,7 @@ and upat_to_info_map =
                       ~label_sort=false,
                       ~duplicates=[],
                       uexp,
-                      m,
+                      StaticsBase.Map.empty,
                     );
 
                   if (StaticsBase.Map.has_errors(m)) {

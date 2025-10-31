@@ -96,8 +96,8 @@ let dyn_type = (~dyn_info: option(Info.t)): option(Typ.t) =>
   switch (dyn_info) {
   | Some(info) =>
     switch ((info: Info.t)) {
-    | InfoExp({ty, _}) => Some(ty)
-    | InfoPat({ty, _}) => Some(ty)
+    | InfoExp({self, _}) => self |> Self.typ_of_exp
+    | InfoPat({self, _}) => self |> Self.typ_of_pat
     | _ => None
     }
   | None => None
