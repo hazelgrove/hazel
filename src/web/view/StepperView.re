@@ -59,9 +59,7 @@ module Update = {
       |> {
         open Calc.Syntax;
         let.calc elab = elab;
-        elab
-        |> Exp.substitute_closures(Builtins.env_init)
-        |> Exp.replace_all_ids;
+        elab |> Substitution.in_exp(Builtins.env_init) |> Exp.replace_all_ids;
       };
     let root =
       StepperBase.Stepper.calculate(~settings, ~ctx, ~exp=elab_subst, root)

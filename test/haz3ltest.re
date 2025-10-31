@@ -24,6 +24,7 @@ let (suite, _) =
       Test_StringUtil.tests,
       Test_PatternMatch.tests,
       Test_Equality.tests,
+      Test_Substitution.tests,
     ]
     @ Test_Typ.tests
     @ Test_Info.tests

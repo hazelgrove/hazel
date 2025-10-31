@@ -228,7 +228,7 @@ module Transition = (EV: EV_MODE) => {
     let subst_env = (env, d) =>
       switch (mode) {
       | `Environment => Closure(env, d) |> fresh
-      | `Substitution => d |> Substitution.subst(env)
+      | `Substitution => d |> Substitution.in_exp(env)
       };
 
     // Transition rules
