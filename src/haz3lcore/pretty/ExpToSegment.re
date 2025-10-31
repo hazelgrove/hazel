@@ -804,7 +804,13 @@ let fold_fun_if = (condition, f_name: string, pieces, exp) =>
   switch (condition) {
   | `Fold =>
     let syntax = mk_form(ParensExp, Id.mk(), [pieces]);
-    let str = FoldProj.sexp_of_t({text: f_name}) |> Sexplib.Sexp.to_string;
+    let str =
+      FoldProj.sexp_of_t({
+        text: f_name,
+        expanded: false,
+        always_render: true,
+      })
+      |> Sexplib.Sexp.to_string;
     [ProjectorInit.init_or_noop_from_str(Fold, syntax, Exp(exp), str)];
   | `Text =>
     let name =
