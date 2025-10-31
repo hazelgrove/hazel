@@ -224,7 +224,7 @@ module Samples = {
     let all_samples = List.length(samples);
     let (l, r) =
       Window.reform(~window=settings.window, id, all_samples, cursor_idx);
-    ListUtil.slice(l, r, samples);
+    ListUtil.slice(l, r, samples) |> List.rev;
   };
 
   let group_by_predicate =
@@ -368,7 +368,7 @@ let cursor_clss =
     }
   )
   @ (
-    settings.sample_base == Steps
+    settings.sample_base == Calls
       ? switch (relation.relative_level_to_cursor) {
         | Same => ["level0"]
         | Below(n)
@@ -391,6 +391,8 @@ let cursor_clss =
         switch (relation.is_before_cursor) {
         | n when n == 0 => ["level0"]
         | n when n > 0 =>
+          /* Choosing not to apply relative labels if the call cursor is there,
+             even though both could be true, to simplify visualy presentation */
           settings.before_cutoff == None || Some(n) <= settings.before_cutoff
             ? ["below", "L" ++ string_of_int(n)] : []
         | n when n < 0 =>
@@ -859,13 +861,13 @@ let key_handler =
     // hack: Prevent_default below stops aggressive horizontal scroll
     // noop to trigger redraw
     Many([
-      move_cursor(~ap_id, di, parent, 1),
+      move_cursor(~ap_id, di, parent, -1),
       Stop_propagation,
       Prevent_default,
     ])
   | D("ArrowLeft") =>
     Many([
-      move_cursor(~ap_id, di, parent, -1),
+      move_cursor(~ap_id, di, parent, 1),
       Stop_propagation,
       Prevent_default,
     ])

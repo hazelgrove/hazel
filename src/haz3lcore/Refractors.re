@@ -2,8 +2,10 @@ open Util;
 open OptUtil.Syntax;
 open Language;
 
-let target_subterm_ids = (id: Id.t, info_map: Statics.Map.t) =>
+let rec target_subterm_ids = (id: Id.t, info_map: Statics.Map.t) =>
   switch (Statics.Map.lookup(id, info_map)) {
+  /* If we're trying to probe a function literal,
+     put probes on paramters and body instead */
   | Some(InfoExp({term: {term: Fun(pat, body, _, _), _}, _})) =>
     /* Unfortunate edge behavior here; since we're inspecting the term,
        it has probes on it from the refractors; we must account for the fact
@@ -20,6 +22,52 @@ let target_subterm_ids = (id: Id.t, info_map: Statics.Map.t) =>
       | _ => IdTagged.rep_id(pat)
       };
     [body_id, pat_id];
+  | Some(InfoExp({term: {term: Let(_pat, def, _), _}, _})) =>
+    /* If trying to probe a let, probe the definition instead */
+    let def_id =
+      switch (def.term) {
+      | Probe(_) => Id.recover_original(IdTagged.rep_id(def))
+      | _ => IdTagged.rep_id(def)
+      };
+    /* Recurse so that if def is a fun literal, the above case will get it */
+    target_subterm_ids(def_id, info_map);
+
+  | Some(InfoExp({term: {term: Var(_), _} as v, _})) =>
+    /* If we're trying to probe variable in function position for an
+       application, probe the whole application instead */
+    switch (Statics.Map.parent_term_of(info_map, IdTagged.rep_id(v))) {
+    | Some(Exp({term: Ap(_, f_expr, _), _} as ap)) when f_expr == v => [
+        IdTagged.rep_id(ap),
+      ]
+    | Some(Exp({term: DeferredAp(f_expr, _), _} as dap)) when f_expr == v =>
+      /* If we're trying to probe a variable in function position in a partially
+         applied function, itself in function position of an application,
+         in particular but not limited to a reverse application chain,
+         probe the whole application instead */
+      switch (Statics.Map.parent_term_of(info_map, IdTagged.rep_id(dap))) {
+      | Some(Exp({term: Ap(_, f_expr, _), _} as ap)) when f_expr == dap => [
+          IdTagged.rep_id(ap),
+        ]
+      | _ => [id]
+      }
+    | _ => [id]
+    }
+  | Some(InfoExp({term: {term: DeferredAp(_), _} as v, _})) =>
+    /* If we're trying to probe a partially applied function in function
+       position of an application, in particular but not limited to a reverse
+       application chain, probe the whole application instead */
+    switch (Statics.Map.parent_term_of(info_map, IdTagged.rep_id(v))) {
+    | Some(Exp({term: Ap(_, f_expr, _), _} as ap)) when f_expr == v => [
+        IdTagged.rep_id(ap),
+      ]
+    | _ => [id]
+    }
+  /* Disallow probing deferrals and labels for now as it's not useful
+     and it also breaks parsing */
+  | Some(InfoExp({term: {term: Deferral(_) | Label(_), _}, _})) => []
+  | Some(InfoExp({term: {term: TyAlias(_), _}, _})) => []
+  /* Disallow probing types pending alexander's stuff */
+  | Some(InfoTyp(_) | InfoTPat(_)) => []
   | _ => [id]
   };
 
@@ -150,7 +198,7 @@ let is_jump_target = (info_map: Statics.Map.t, z: Zipper.t): option(Id.t) => {
   Info.get_binding_site(ci);
 };
 
-let probe_jump =
+let step_into =
     (~syntax: CachedSyntax.t, info_map: Statics.Map.t, z: Zipper.t)
     : option(Zipper.t) => {
   let* binding_id = is_jump_target(info_map, z);
@@ -213,7 +261,7 @@ let update =
     | None => z
     }
   | ProbeJump =>
-    switch (probe_jump(~syntax, info_map, z)) {
+    switch (step_into(~syntax, info_map, z)) {
     | Some(z) => z
     | None => z
     }

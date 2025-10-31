@@ -41,12 +41,7 @@ let pat_view = (~available, term: Language.Pat.t) =>
      );
 
 let segment_of =
-    (
-      ~default=Some([Example.exp("<In Builtin>")]),
-      ~available=8,
-      term: Language.Any.t,
-    )
-    : option(Segment.t) =>
+    (~default, ~available=8, term: Language.Any.t): option(Segment.t) =>
   switch (term) {
   | Exp(x) => Some(exp_view(~available, x))
   | Pat(x) => Some(pat_view(~available, x))
@@ -382,7 +377,7 @@ let call_cursor_view = (~dyn_cursor: Language.DynCursor.t, ~fancyd) =>
               ],
               [fancyd(id)],
             ),
-          dyn_cursor.stack,
+          dyn_cursor.stack |> List.rev,
         ),
       ),
     ],
@@ -621,7 +616,7 @@ let view =
         fancy(
           ~refractor_data,
           ~info_map=editor.statics.info_map,
-          ~default=Some([Example.exp("<In Builtin>")]),
+          ~default=None, /*Some([Example.exp("<In Builtin>")]),*/
           ~globals,
           id,
         )

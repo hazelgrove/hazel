@@ -379,6 +379,9 @@ let ancestors_of: t => ancestors =
   | InfoTPat({ancestors, _}) => ancestors
   | Secondary(_) => []; //TODO
 
+let parent_id_of: t => option(Id.t) =
+  info => info |> ancestors_of |> ListUtil.hd_opt;
+
 let id_of: t => Id.t =
   fun
   | InfoExp(i) => Exp.rep_id(i.term)
