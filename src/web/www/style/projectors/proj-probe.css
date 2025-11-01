@@ -414,7 +414,7 @@
   position: relative;
   --bottom-border-clr: oklch(0.8 0.06 145.88); /*var(--exp-shadow);*/
   --bkg: var(--exp-base);
-  --below-shadow: #5487cf;
+  --below-shadow: #87ace0;
   --num-levels: 7;
   --base: 0;
   padding: 0 0.1em;
@@ -515,7 +515,7 @@
 
 .live-offside.Many .sample:has(.value.above) {
   top: -3.5px;
-  box-shadow: 0 3.5px 0 #c8c8c8bb;
+  box-shadow: 0 3.5px 0 oklch(0.9 0.07 300);
   position: relative;
   border-bottom-style: solid;
 }
@@ -541,10 +541,10 @@
   background-color: #e5efe8;
 }
 .live-offside.Many .sample:has(.value.above) {
-  background-color: #f4e5fb;
+  background-color: #eedaf8;
 }
 .live-offside.Many .sample:has(.value.below) {
-  background-color: oklch(0.94 0.03 254.38);
+  background-color: oklch(0.89 0.04 254.25);
 }
 
 .live-offside .sample .code-text:after {

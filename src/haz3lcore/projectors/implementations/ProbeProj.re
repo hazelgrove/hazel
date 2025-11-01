@@ -186,15 +186,18 @@ module Samples = {
   let total = (~ap_id: option(Id.t), di: Dynamics.Info.t): int =>
     List.length(filter_frames_by_pin(~ap_id, di));
 
-  let first_index_of_interest =
-      (~ap_id: option(Id.t), dyn_cursor: DynCursor.t, samples): option(int) => {
+  let first_related_index =
+      (
+        ~trimmed: bool,
+        ~ap_id: option(Id.t),
+        dyn_cursor: DynCursor.t,
+        samples,
+      )
+      : option(int) => {
     let find = (rel: DynCursor.relation => bool): option(int) =>
-      //TODO(andrew): below uses trimmed in relation and probably shouldnt
       List.find_index(
         (sample: sample) =>
-          rel(
-            DynCursor.relation(~trimmed=false, ~ap_id, dyn_cursor, sample),
-          ),
+          rel(DynCursor.relation(~trimmed, ~ap_id, dyn_cursor, sample)),
         samples,
       );
     switch (find(relation => relation.is_call_cursor)) {
@@ -206,9 +209,55 @@ module Samples = {
         let a = find(relation => relation.is_below_indicated_call != None);
         a == None ? find(DynCursor.is_related) : a;
       }
-    // }
     };
   };
+
+  let best_suffix_match =
+      (~cursor: Probe.call_stack, samples: list(sample)): option(sample) =>
+    List.fold_left(
+      (best: option((sample, int)), sample: sample) => {
+        let score = ListUtil.common_suffix_length(cursor, sample.call_stack);
+        switch (best) {
+        | Some((_, best_score)) when best_score >= score => best
+        | _ => Some((sample, score))
+        };
+      },
+      None,
+      samples,
+    )
+    |> Option.map(fst);
+
+  let closet_to_related_index =
+      (~ap_id: option(Id.t), ~di: Dynamics.Info.t, samples: list(sample))
+      : option(sample) =>
+    switch (samples) {
+    | [] => None
+    | [first_sample, ..._] as all_samples =>
+      let selected: sample =
+        switch (
+          first_related_index(
+            ~trimmed=false,
+            ~ap_id,
+            di.dyn_cursor,
+            all_samples,
+          )
+        ) {
+        | Some(idx) =>
+          List.nth_opt(all_samples, idx)
+          |> Option.value(~default=first_sample)
+        | None =>
+          switch (
+            best_suffix_match(
+              ~cursor=DynCursor.trimmed_stack(di.dyn_cursor),
+              all_samples,
+            )
+          ) {
+          | Some(sample) => sample
+          | None => first_sample
+          }
+        };
+      Some(selected);
+    };
 
   let select_samples =
       (
@@ -219,15 +268,21 @@ module Samples = {
       )
       : list(sample) => {
     let samples = filter_frames_by_pin(~ap_id, di);
-    let cursor_idx =
-      switch (first_index_of_interest(~ap_id, di.dyn_cursor, samples)) {
-      | Some(idx) => idx
-      | None => 0
-      };
-    let all_samples = List.length(samples);
-    let (l, r) =
-      Window.reform(~window=settings.window, id, all_samples, cursor_idx);
-    ListUtil.slice(l, r, samples) |> List.rev;
+    let first_idx =
+      first_related_index(~trimmed=true, ~ap_id, di.dyn_cursor, samples);
+    if (first_idx == None && settings.window == Single) {
+      [];
+    } else {
+      let cursor_idx =
+        switch (first_idx) {
+        | Some(idx) => idx
+        | None => 0
+        };
+      let all_samples = List.length(samples);
+      let (l, r) =
+        Window.reform(~window=settings.window, id, all_samples, cursor_idx);
+      ListUtil.slice(l, r, samples) |> List.rev;
+    };
   };
 
   let group_by_predicate =
@@ -684,11 +739,41 @@ let sample_group_view =
     ? [] : [div(~attrs=[Attr.classes(["sample-groups"])], group_views)];
 };
 
-let ellipsis_view = (local): Node.t =>
+/* Select a default sample by preferring the closest match to the current
+ * dynamic cursor. */
+let mv_least_distant_sample =
+    (
+      ~ap_id: option(Id.t),
+      parent: external_action => Ui_effect.t(unit),
+      dynamics: option(Dynamics.Info.t),
+      _evt,
+    )
+    : Effect.t(unit) =>
+  switch (dynamics) {
+  | Some(di) =>
+    let samples = Samples.filter_frames_by_pin(~ap_id, di);
+    switch (Samples.closet_to_related_index(~ap_id, ~di, samples)) {
+    | Some(selected) => parent(DynCursor(Capture(selected, ap_id)))
+    | None => Effect.Ignore
+    };
+  | None => Effect.Ignore
+  };
+
+let ellipsis_view =
+    (
+      ~ap_id: option(Id.t),
+      local,
+      parent: external_action => Ui_effect.t(unit),
+      info: info,
+    )
+    : Node.t =>
   div(
     ~attrs=[
       Attr.classes(["ellipsis"]),
-      Attr.on_double_click(_ => {local(ToggleShowAllVals(0))}),
+      Attr.on_pointerdown(
+        mv_least_distant_sample(~ap_id, parent, info.dynamics),
+      ),
+      Attr.on_double_click(_ => local(ToggleShowAllVals(0))),
     ],
     [text("⋯")],
   );
@@ -702,7 +787,12 @@ let move_cursor =
     ) => {
   let samples = Samples.filter_frames_by_pin(~ap_id, di);
   let cursor_idx =
-    Samples.first_index_of_interest(~ap_id, di.dyn_cursor, samples);
+    Samples.first_related_index(
+      ~trimmed=true,
+      ~ap_id,
+      di.dyn_cursor,
+      samples,
+    );
   switch (cursor_idx) {
   /* Cursor would be outside window, reset to next visible sample */
   | Some(idx) =>
@@ -918,10 +1008,11 @@ let offside_view =
     let num_total = Samples.total(~ap_id, di);
     let samples = Samples.select_samples(~settings, ~id, ~ap_id, di);
     let (num_shown, groups) = Samples.collate(samples);
-    let is_cut_off = num_shown != num_total && num_shown > 0;
+    let is_cut_off =
+      num_shown != num_total && (num_shown != 0 || num_total != 0);
     let extras = [
       nav_bar_view(~settings, ap_id, di, num_total, parent),
-      ellipsis_view(local),
+      ellipsis_view(~ap_id, local, parent, info),
     ];
     Node.div(
       ~attrs=[
@@ -959,25 +1050,6 @@ let update = (() as m, _info: info, a: action) => {
   | NoOp => m
   };
 };
-
-/* If one of the current probe's cells is not already selected,
- * select the first one */
-let probe_default =
-    (parent: external_action => Ui_effect.t(unit), info: info)
-    : Effect.t(unit) =>
-  switch (info.dynamics) {
-  //| Some(di) when DynCursor.is_in(di) != None =>
-  // DynCursor.capture_ap(info)
-  //TODO(andrew): capture ap only
-  | Some(di) =>
-    //DynCursor.capture_ap(info);
-    switch (di.samples) {
-    | [fst, ..._] =>
-      parent(DynCursor(Capture(fst, DynCursor.cur_ap(info.statics))))
-    | [] => Effect.Ignore
-    }
-  | None => Effect.Ignore
-  };
 
 // let is_pinned = (ap_id: option(Id.t), di: Dynamics.Info.t): bool =>
 //   switch (Dynamics.Info.is_in(di)) {

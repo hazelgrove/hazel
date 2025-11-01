@@ -421,14 +421,14 @@ let candidate_is_allowed =
       candidate_id: Id.t,
       row: row_context,
       env: selection_env,
-      state: selection_state,
+      _state: selection_state,
     )
     : bool =>
   candidate_allowed_by_holes(candidate_id, row, env)
   && candidate_allowed_by_function_types(candidate_id, env)
   && candidate_allowed_by_container(candidate_id, env)
-  && candidate_allowed_by_let_hole(candidate_id, row, env)
-  && candidate_allowed_by_variables(candidate_id, env, state);
+  && candidate_allowed_by_let_hole(candidate_id, row, env);
+//&& candidate_allowed_by_variables(candidate_id, env, state);
 
 let rec extract_candidate_with_end =
         (
