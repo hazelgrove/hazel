@@ -35,6 +35,7 @@ let print =
       };
     | None => print("DEBUG: No indicated index")
     };
+  | "F7" => print(Haz3lcore.BuiltinsPrinter.builtin_value_signatures())
   | _ => print("DEBUG: No action for key: " ++ key)
   };
 };

@@ -101,9 +101,10 @@ let cur_ap = (info: option(Info.t)) =>
   };
 
 let relation =
-    (ap_id: option(Id.t), dyn_cursor: t, sample: Sample.t): relation => {
+    (~trimmed: bool, ~ap_id: option(Id.t), dyn_cursor: t, sample: Sample.t)
+    : relation => {
   let this = sample.call_stack;
-  let cursor = trimmed_stack(dyn_cursor);
+  let cursor = trimmed ? trimmed_stack(dyn_cursor) : dyn_cursor.stack;
   {
     is_call_cursor: cursor == this,
     is_more_precise_than_cursor:

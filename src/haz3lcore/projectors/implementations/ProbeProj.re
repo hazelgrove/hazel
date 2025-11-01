@@ -192,7 +192,9 @@ module Samples = {
       //TODO(andrew): below uses trimmed in relation and probably shouldnt
       List.find_index(
         (sample: sample) =>
-          rel(DynCursor.relation(ap_id, dyn_cursor, sample)),
+          rel(
+            DynCursor.relation(~trimmed=false, ~ap_id, dyn_cursor, sample),
+          ),
         samples,
       );
     switch (find(relation => relation.is_call_cursor)) {
@@ -343,7 +345,8 @@ let cursor_clss =
       sample: sample,
     )
     : list(string) => {
-  let relation = DynCursor.relation(ap_id, di.dyn_cursor, sample);
+  let relation =
+    DynCursor.relation(~trimmed=true, ~ap_id, di.dyn_cursor, sample);
   (
     switch (
       relation.is_call_cursor,
