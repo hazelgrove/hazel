@@ -97,11 +97,11 @@
   font-weight: bold;
 }
 
-.code-container.meta-down .token.token-var {
+.code-container.meta-down .token.ref {
   cursor: pointer;
 }
 
-.code-container.meta-down .token.token-var:hover {
+.code-container.meta-down .token.ref:hover {
   text-decoration: underline;
   text-decoration-style: solid;
   text-underline-offset: 0.08em;

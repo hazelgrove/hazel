@@ -189,6 +189,7 @@ module Samples = {
   let first_index_of_interest =
       (~ap_id: option(Id.t), dyn_cursor: DynCursor.t, samples): option(int) => {
     let find = (rel: DynCursor.relation => bool): option(int) =>
+      //TODO(andrew): below uses trimmed in relation and probably shouldnt
       List.find_index(
         (sample: sample) =>
           rel(DynCursor.relation(ap_id, dyn_cursor, sample)),

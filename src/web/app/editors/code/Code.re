@@ -6,6 +6,13 @@ open Util.WebUtil;
 
 /* Helpers for rendering code text with holes and syntax highlighting */
 
+let is_ref = (token: string, sort: Sort.t) =>
+  sort != Pat
+  && sort != TPat
+  && !Token.is_keyword(token)
+  && !Token.is_base_typ(token)
+  && Token.is_typ_var(token);
+
 let of_delim' =
   Core.Memo.general(
     ~cache_size_bound=10000,
@@ -30,9 +37,7 @@ let of_delim' =
         };
       let plurality = plurality == 1 ? "mono" : "poly";
       let in_buffer = is_in_buffer ? ["in-parsed-buffer"] : [];
-      let var_class =
-        !Token.is_keyword(token) && Token.is_typ_var(token)
-          ? ["token-var"] : [];
+      let var_class = is_ref(token, sort) ? ["ref"] : [];
       span(
         ~attrs=[
           Attr.classes(
