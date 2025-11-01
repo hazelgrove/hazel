@@ -30,8 +30,15 @@ let of_delim' =
         };
       let plurality = plurality == 1 ? "mono" : "poly";
       let in_buffer = is_in_buffer ? ["in-parsed-buffer"] : [];
+      let var_class =
+        !Token.is_keyword(token) && Token.is_typ_var(token)
+          ? ["token-var"] : [];
       span(
-        ~attrs=[Attr.classes(["token", base_cls, plurality] @ in_buffer)],
+        ~attrs=[
+          Attr.classes(
+            ["token", base_cls, plurality] @ in_buffer @ var_class,
+          ),
+        ],
         [Node.text(token)],
       );
     },

@@ -55,7 +55,6 @@ module Update = {
            ~scroll_active={
              switch (action) {
              | Move(Point(_)) => false
-             | Select(Resize(Point(_))) => false
              | Move(_)
              | Select(
                  Resize(_) | Term(_) | Smart(_) | Tile(_) | ToggleFocus |

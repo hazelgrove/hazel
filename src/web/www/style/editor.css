@@ -97,6 +97,17 @@
   font-weight: bold;
 }
 
+.code-container.meta-down .token.token-var {
+  cursor: pointer;
+}
+
+.code-container.meta-down .token.token-var:hover {
+  text-decoration: underline;
+  text-decoration-style: solid;
+  text-underline-offset: 0.08em;
+  filter: brightness(1.5);
+}
+
 @keyframes rainbow {
   0% {
     color: #4477ff;
