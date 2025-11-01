@@ -25,7 +25,8 @@ let test =
   let z = perform(Zipper.init(), mk(init));
   let info_map = mk_statics(z);
   let curr_node_info =
-    Option.get(AssistantTreeHelper.build_curr_node_info(z, info_map));
+    AssistantTreeHelper.HighLevelNode.build(z, info_map)
+    |> AssistantTreeHelper.HighLevelNode.unwrap;
   let refs_in =
     refs_list_to_str_for_testing_only(
       CompositionView.refs_in(

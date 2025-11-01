@@ -109,21 +109,27 @@ let fold_body = (z: Zipper.t, term: Info.t) => {
   };
 };
 
-let prepare_definition = (z: Zipper.t, curr_node: AssistantTreeHelper.node) => {
+let prepare_definition =
+    (z: Zipper.t, node_info: AssistantTreeHelper.HighLevelNode.t) => {
+  let node = AssistantTreeHelper.HighLevelNode.current_of(node_info);
   let children_def_ids =
     List.map(
-      (c: AssistantTreeHelper.node) => get_def_id_of_let(c.info),
-      curr_node.children,
+      (c: AssistantTreeHelper.HighLevelNode.node) =>
+        get_def_id_of_let(c.info),
+      AssistantTreeHelper.HighLevelNode.children_of(node_info.node_map, node),
     );
   let siblings_def_ids =
     List.map(
-      (c: AssistantTreeHelper.node) => get_def_id_of_let(c.info),
-      curr_node.siblings,
+      (c: AssistantTreeHelper.HighLevelNode.node) =>
+        get_def_id_of_let(c.info),
+      AssistantTreeHelper.HighLevelNode.siblings_of(node_info.node_map, node),
     );
   let z = fold_terms(z, children_def_ids);
   let z' = fold_terms(z, siblings_def_ids);
   let z'' =
-    switch (curr_node.parent) {
+    switch (
+      AssistantTreeHelper.HighLevelNode.parent_of(node_info.node_map, node)
+    ) {
     | Some(parent) =>
       switch (fold_body(z', parent.info)) {
       | Ok(z'') =>
@@ -133,7 +139,7 @@ let prepare_definition = (z: Zipper.t, curr_node: AssistantTreeHelper.node) => {
             ~defs_exclude_bodies=false,
             ~case_rules=false,
             CachedSyntax.init(z'').term_data,
-            AssistantTreeHelper.id_of(parent),
+            AssistantTreeHelper.HighLevelNode.id_of(parent),
             z'',
           )
         ) {
@@ -155,7 +161,7 @@ let prepare_definition = (z: Zipper.t, curr_node: AssistantTreeHelper.node) => {
         ~defs_exclude_bodies=true,
         ~case_rules=false,
         CachedSyntax.init(z').term_data,
-        AssistantTreeHelper.id_of(curr_node),
+        AssistantTreeHelper.HighLevelNode.id_of(node),
         z',
       )
     ) {
@@ -166,13 +172,14 @@ let prepare_definition = (z: Zipper.t, curr_node: AssistantTreeHelper.node) => {
 };
 
 let full_definition =
-    (z: Zipper.t, curr_node: AssistantTreeHelper.node): string => {
+    (z: Zipper.t, node_info: AssistantTreeHelper.HighLevelNode.t): string => {
+  let node = AssistantTreeHelper.HighLevelNode.current_of(node_info);
   switch (
     Select.term(
       ~defs_exclude_bodies=true,
       ~case_rules=false,
       CachedSyntax.init(z).term_data,
-      AssistantTreeHelper.id_of(curr_node),
+      AssistantTreeHelper.HighLevelNode.id_of(node),
       z,
     )
   ) {
@@ -182,11 +189,10 @@ let full_definition =
   };
 };
 
-let context = (local_information: AssistantTreeHelper.node): string => {
-  let info = local_information.info;
-  switch (info) {
-  | InfoExp(info) =>
-    let ctx = info.ctx;
+let context = (node_info: AssistantTreeHelper.HighLevelNode.t): string => {
+  let node = AssistantTreeHelper.HighLevelNode.current_of(node_info);
+  switch (node.info) {
+  | InfoExp({ctx, _}) =>
     let bindings: Binding.s =
       List.filter_map(
         (entry: Ctx.entry) => {
@@ -223,14 +229,18 @@ let refs_in =
     (
       ~exclude_rec_refs: bool=false,
       ~exclude_body_refs: bool=false,
-      node: AssistantTreeHelper.node,
+      node_info: AssistantTreeHelper.HighLevelNode.t,
       info_map: Id.Map.t(Info.t),
     )
     : list(Binding.t) => {
+  let node = AssistantTreeHelper.HighLevelNode.current_of(node_info);
   let id = get_def_id_of_let(node.info);
   let refs_of_def = Statics.Map.refs_in(info_map, id);
   let refs_of_node =
-    Statics.Map.refs_in(info_map, AssistantTreeHelper.id_of(node));
+    Statics.Map.refs_in(
+      info_map,
+      AssistantTreeHelper.HighLevelNode.id_of(node),
+    );
 
   // Intersect based on binding IDs
   // This allows us to ignore references in the body AND recursive references in the def
@@ -277,10 +287,10 @@ let str_refs_in =
     (
       ~exclude_rec_refs: bool=false,
       ~exclude_body_refs: bool=false,
-      node: AssistantTreeHelper.node,
+      node_info: AssistantTreeHelper.HighLevelNode.t,
       info_map: Id.Map.t(Info.t),
     )
     : string => {
-  refs_in(~exclude_rec_refs, ~exclude_body_refs, node, info_map)
+  refs_in(~exclude_rec_refs, ~exclude_body_refs, node_info, info_map)
   |> str_of_refs_in;
 };

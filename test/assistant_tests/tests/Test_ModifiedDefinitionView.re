@@ -16,7 +16,7 @@ open Utils_AssistantTests;
 let test = (~name, ~init: string, ~goal): test_case(_) => {
   let z = perform(Zipper.init(), mk(init));
   let info_map = mk_statics(z);
-  let curr_node_info = AssistantTreeHelper.build_curr_node_info(z, info_map);
+  let curr_node_info = AssistantTreeHelper.HighLevelNode.build(z, info_map);
   let prepped_z_str =
     switch (curr_node_info) {
     | Some(node) =>
@@ -62,7 +62,8 @@ let view_definition_tests = [
   test(
     ~name="View Definition (Single Parent, Two Children - At 2nd Child)",
     ~init={|let par1 = let chi1 = 2 in let chi2 = 3 in¦ chi1 + chi2 in par1|},
-    ~goal={|let par1 = let chi1 = ⋱ in §let chi2 = 3 in¦ chi1 + chi2 in ⋱|},
+    ~goal=
+      {|let par1 = let chi1 = ⋱ in §let chi2 = 3 in¦ chi1 + chi2 in ⋱|},
   ),
   // Multiple siblings at same level
   test(

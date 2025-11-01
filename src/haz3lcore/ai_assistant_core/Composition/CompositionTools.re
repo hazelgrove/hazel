@@ -1,15 +1,16 @@
 open Util;
 open OptUtil.Syntax;
+open CompositionView;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type t = list(API.Json.t);
 
 let tools = [
-  NavTools.go_to_parent,
-  NavTools.go_to_child,
-  NavTools.go_to_sibling,
+  // NavTools.go_to_parent, // No current node should have a parent anymore... we nav the top-level nodes
+  // NavTools.go_to_child,
+  NavTools.go_to_sibling, // Only navigation to and from siblings is allowed
   NavTools.go_to_binding_site,
-  EditTools.initialize,
+  EditTools.initialize, // For initializing empty or nodeless programs
   EditTools.update_definition,
   EditTools.update_body,
   EditTools.update_pattern,
@@ -18,7 +19,7 @@ let tools = [
   EditTools.delete_body,
   EditTools.insert_after,
   EditTools.insert_before,
-  ViewTools.view_entire_definition,
+  // ViewTools.view_entire_definition, // No longer needed is this top-level refactor... this is done by default
   // ViewTools.view_context,
 ];
 
@@ -204,14 +205,14 @@ let string_of = (action: action) => {
 module Perform = {
   open Util;
   open Language;
+  open AssistantTreeHelper.HighLevelNode;
 
   type inner_term =
     | Pat
     | Def
     | Body;
 
-  let get_inner_term_id =
-      (curr_node_info: AssistantTreeHelper.node, inner_term: inner_term): Id.t => {
+  let get_inner_term_id = (node_info: t, inner_term: inner_term): Id.t => {
     /*
      Returns the specified "inner_term" from the "curr_node_info"
 
@@ -220,7 +221,7 @@ module Perform = {
      calling get_inner_term_id(curr_node_info, Def) will return the id of the definition "2 + 3",
      calling get_inner_term_id(curr_node_info, Body) will return the id of the body "100 + 200".
      */
-    switch (curr_node_info.info) {
+    switch (current_of(node_info).info) {
     | InfoExp({term, _}) =>
       switch (Exp.term_of(term)) {
       | Let(pat, def, body) =>
@@ -273,11 +274,10 @@ module Perform = {
       | None => []
       | Some(old_z) =>
         let old_info_map = mk_statics(old_z);
-        let old_node =
-          AssistantTreeHelper.build_curr_node_info(old_z, old_info_map)
-          |> Option.get;
+        let old_node_info = build(old_z, old_info_map);
+        let old_node = old_node_info |> unwrap |> current_of;
         let old_subtree =
-          AssistantTreeHelper.subtree_of(
+          GeneralTreeUtils.subtree_of(
             ~info=old_node.info,
             ~orig_info_map=old_info_map,
             ~of_pat,
@@ -287,11 +287,10 @@ module Perform = {
         ErrorPrint.all(old_subtree);
       };
     let new_info_map = mk_statics(new_z);
-    let new_node =
-      AssistantTreeHelper.build_curr_node_info(new_z, new_info_map)
-      |> Option.get;
+    let new_node_info = build(new_z, new_info_map);
+    let new_node = new_node_info |> unwrap |> current_of;
     let new_subtree =
-      AssistantTreeHelper.subtree_of(
+      GeneralTreeUtils.subtree_of(
         ~info=new_node.info,
         ~orig_info_map=new_info_map,
         ~of_pat,
@@ -438,9 +437,9 @@ module Perform = {
         return:
           (Action.Failure.t, option(Zipper.t)) =>
           result(Zipper.t, Action.Failure.t),
-        curr_node_info: option(AssistantTreeHelper.node),
+        node_info: option(t),
       ) => {
-    switch (curr_node_info) {
+    switch (node_info) {
     | None =>
       switch (a) {
       | Edit(Initialize(u)) =>
@@ -463,7 +462,8 @@ module Perform = {
         }
       | _ => Error(Action.Failure.Cant_derive_local_AST_information)
       }
-    | Some(node) =>
+    | Some(node_info) =>
+      let node = node_info |> current_of;
       switch (a) {
       | Nav(n) =>
         switch (n) {
@@ -481,7 +481,7 @@ module Perform = {
           | None => Error(Action.Failure.Cant_select)
           }
         | GoToParent =>
-          switch (node.parent) {
+          switch (parent_of(node_info.node_map, node)) {
           | None => Error(Action.Failure.Cant_move)
           | Some(parent) =>
             switch (Select.tile(Info.id_of(parent.info), z)) {
@@ -495,8 +495,8 @@ module Perform = {
             // the llm provided no index, thus, use the name
             let cands =
               List.filter(
-                (child: AssistantTreeHelper.node) => child.name == who,
-                node.children,
+                (child: node) => child.name == who,
+                children_of(node_info.node_map, node),
               );
             if (List.length(cands) > 1) {
               // No child with this name
@@ -507,18 +507,18 @@ module Perform = {
               // needs to specify how to resolve the ambiguity
               | None => Error(Action.Failure.Cant_move)
               | Some(child) =>
-                Select.tile(Info.id_of(child.info), z)
+                Select.tile(id_of(child), z)
                 |> return(Action.Failure.Cant_select)
               };
             };
           | Some(nth) =>
             // this means the llm provided an index to move to, in which case
             // we default on using that as opposed to the name
-            switch (List.nth_opt(node.children, nth)) {
+            switch (List.nth_opt(children_of(node_info.node_map, node), nth)) {
             // Index does not exist
             | None => Error(Action.Failure.Cant_move)
             | Some(child) =>
-              Select.tile(Info.id_of(child.info), z)
+              Select.tile(id_of(child), z)
               |> return(Action.Failure.Cant_select)
             }
           }
@@ -530,8 +530,8 @@ module Perform = {
               // the llm provided no index, thus, use the name
               let cands =
                 List.filter(
-                  (sibling: AssistantTreeHelper.node) => sibling.name == who,
-                  node.siblings,
+                  (sibling: node) => sibling.name == who,
+                  siblings_of(node_info.node_map, node),
                 );
               if (List.length(cands) > 1) {
                 Error(Action.Failure.Cant_move);
@@ -539,37 +539,45 @@ module Perform = {
                 switch (ListUtil.hd_opt(cands)) {
                 | None => Error(Action.Failure.Cant_move)
                 | Some(sibling) =>
-                  Select.tile(Info.id_of(sibling.info), z)
+                  Select.tile(id_of(sibling), z)
                   |> return(Action.Failure.Cant_select)
                 };
               };
             | Some(nth) =>
               // this means the llm provided an index to move to, in which case
               // we default on using that as opposed to the name
-              switch (List.nth_opt(node.siblings, nth)) {
+              switch (
+                List.nth_opt(siblings_of(node_info.node_map, node), nth)
+              ) {
               | None => Error(Action.Failure.Cant_move)
               | Some(sibling) =>
-                Select.tile(Info.id_of(sibling.info), z)
+                Select.tile(id_of(sibling), z)
                 |> return(Action.Failure.Cant_select)
               }
             }
           | Stepwise(d) =>
-            let len = List.length(node.siblings);
+            let len = List.length(siblings_of(node_info.node_map, node));
             let target_id =
               switch (d) {
               | Left =>
-                List.nth(node.siblings, (node.sibling_idx - 1 + len) mod len)
-                |> AssistantTreeHelper.id_of
+                List.nth(
+                  siblings_of(node_info.node_map, node),
+                  (node.sibling_idx - 1 + len) mod len,
+                )
+                |> id_of
               | Right =>
                 // Don't add 1 here because we filtered out the current node
-                List.nth(node.siblings, (node.sibling_idx + len) mod len)
-                |> AssistantTreeHelper.id_of
+                List.nth(
+                  siblings_of(node_info.node_map, node),
+                  (node.sibling_idx + len) mod len,
+                )
+                |> id_of
               };
             Select.tile(target_id, z) |> return(Action.Failure.Cant_select);
           }
         | GoToBindingSite(who, which) =>
           // Returns a list of binding sites (id, name)
-          let cands = CompositionView.refs_in(node, mk_statics(z));
+          let cands = refs_in(node_info, mk_statics(z));
           // We want to do the following:
           // 1. Find the target variable based on the args provided
           // 2. Navigate to the binding site of this target variable
@@ -617,7 +625,7 @@ module Perform = {
         // };
         switch (e) {
         | UpdateDefinition(u) =>
-          let target_id = get_inner_term_id(node, Def);
+          let target_id = get_inner_term_id(node_info, Def);
           switch (
             overwrite_term(z, target_id, code_of(u), false, syntax, return)
           ) {
@@ -634,7 +642,7 @@ module Perform = {
             )
           };
         | UpdateBody(u) =>
-          let target_id = get_inner_term_id(node, Body);
+          let target_id = get_inner_term_id(node_info, Body);
           switch (
             overwrite_term(z, target_id, code_of(u), false, syntax, return)
           ) {
@@ -652,7 +660,7 @@ module Perform = {
             )
           };
         | UpdatePattern(u) =>
-          let target_id = get_inner_term_id(node, Pat);
+          let target_id = get_inner_term_id(node_info, Pat);
           let old_pat =
             StaticsBase.Map.lookup(target_id, mk_statics(z)) |> Option.get;
           switch (
@@ -673,21 +681,17 @@ module Perform = {
             | Error(e) => Error(e)
             | Ok(safe_z) =>
               let new_info_map = mk_statics(safe_z);
-              let new_node =
-                AssistantTreeHelper.build_curr_node_info(safe_z, new_info_map)
-                |> Option.get;
-              let target_id = get_inner_term_id(new_node, Pat);
+              let new_node_info = build(safe_z, new_info_map);
+              let target_id = get_inner_term_id(new_node_info |> unwrap, Pat);
               let new_pat =
                 StaticsBase.Map.lookup(target_id, new_info_map) |> Option.get;
               let updated_z =
-                AssistantTreeHelper.update_use_sites_of_pat(
+                GeneralTreeUtils.update_use_sites_of_pat(
                   ~z=safe_z,
                   ~co_ctx=
-                    AssistantTreeHelper.get_refs_to(node.info, new_info_map),
-                  ~old_names=
-                    AssistantTreeHelper.get_var_names_from_pat(old_pat),
-                  ~new_names=
-                    AssistantTreeHelper.get_var_names_from_pat(new_pat),
+                    GeneralTreeUtils.get_refs_to(node.info, new_info_map),
+                  ~old_names=GeneralTreeUtils.get_var_names_from_pat(old_pat),
+                  ~new_names=GeneralTreeUtils.get_var_names_from_pat(new_pat),
                 );
               // Jump back to the original node
               Move.jump_to_id_indicated(updated_z, target_id)
@@ -776,7 +780,7 @@ module Perform = {
             syntax,
           )
         | DeleteBody =>
-          let target_id = get_inner_term_id(node, Body);
+          let target_id = get_inner_term_id(node_info, Body);
           destruct(~defs_exclude_bodies=false, z, target_id, syntax);
         | Initialize(_) =>
           Error(
@@ -785,7 +789,7 @@ module Perform = {
             ),
           )
         }
-      }
+      };
     };
   };
 
@@ -798,9 +802,9 @@ module Perform = {
     // through the midst of it all, I've learned it is better to be safe than to be sorry.
     switch (res) {
     | Ok(z) =>
-      switch (AssistantTreeHelper.build_curr_node_info(z, mk_statics(z))) {
-      | Some(curr_node) =>
-        switch (Select.tile(Info.id_of(curr_node.info), z)) {
+      switch (build(z, mk_statics(z))) {
+      | Some(node_info) =>
+        switch (Select.tile(id_of(current_of(node_info)), z)) {
         | Some(z) => Ok(z)
         | None => res
         }
@@ -811,11 +815,10 @@ module Perform = {
   };
 
   let go = (~syntax, ~z, ~a, ~mk_statics, ~return, ~schedule_tool_response) => {
-    let curr_node =
-      AssistantTreeHelper.build_curr_node_info(z, mk_statics(z));
+    let node_info = build(z, mk_statics(z));
 
     let res =
-      composition_dispatch(a, syntax, z, mk_statics, return, curr_node);
+      composition_dispatch(a, syntax, z, mk_statics, return, node_info);
 
     // // Select the current node.
     let res = reselect_current_node(res, mk_statics);

@@ -207,6 +207,7 @@ module Composition = {
      LLM-based agentic code sysnthesis. Differs from code completion in that it can
      navigate the program structure, and perform more complex, multi-step edits.
    */
+  open AssistantTreeHelper.HighLevelNode;
   let max_tool_calls = 40;
 
   // Prompt with appropriate AST context for each message.
@@ -217,165 +218,16 @@ module Composition = {
   // Children nodes: [<name>, <name>, ...]
   // Static errors: <errors>
   let mk_structured_code_map_prompt =
-      (_: ChatLSP.Options.t, z: Zipper.t, info_map: Statics.Map.t)
+      (_: ChatLSP.Options.t, _z: Zipper.t, _info_map: Statics.Map.t)
       : (OpenRouter.message, AssistantModel.display) => {
-    print_endline(
-      "here #a before building sub AST in mk_structured_code_map_prompt",
+    (
+      OpenRouter.mk_user_msg("TODO - UNIMPLEMENTED"),
+      {
+        displayable_content: [Text("TODO - UNIMPLEMENTED")],
+        raw_content: "TODO - UNIMPLEMENTED",
+        collapsed: true,
+      },
     );
-    let curr_node_info =
-      AssistantTreeHelper.build_curr_node_info(z, info_map);
-    print_endline(
-      "here #b after building sub AST in mk_structured_code_map_prompt",
-    );
-
-    switch (curr_node_info) {
-    | None =>
-      // Special case: No let or type alias expressions in the program.
-      // Just dump selection. It is assumed that the entire sketch is selected in this case.
-      let sketch_seg = z.selection.content;
-      let sketch_seg_str = Printer.of_segment(~holes="?", sketch_seg);
-      let sketch_seg_hd_str = "No let or type alias expressions found in the program, unable to derive any meaningful AST information. Selecting the entire program:\n```";
-      let sketch_seg_tl_str = "```";
-      let sketch_str =
-        String.concat(
-          "\n",
-          [sketch_seg_hd_str, sketch_seg_str, sketch_seg_tl_str],
-        );
-
-      let static_errors = ErrorPrint.all(info_map);
-      let static_errors_str =
-        switch (static_errors) {
-        | [] => "\nNo static errors found in the program."
-        | _ => "\nStatic errors: " ++ String.concat(", ", static_errors)
-        };
-
-      let sketch_info_str =
-        String.concat(
-          "\n",
-          [
-            "<Sketch information>",
-            sketch_str,
-            static_errors_str,
-            "</Sketch information>",
-          ],
-        );
-      let local_code_map_str = sketch_info_str;
-
-      (
-        OpenRouter.mk_user_msg(local_code_map_str),
-        {
-          displayable_content: [
-            Text(sketch_seg_hd_str),
-            //Code(sketch_seg), // todo: there's a skel failure happening here
-            Text(sketch_seg_tl_str ++ static_errors_str),
-          ],
-          raw_content: local_code_map_str,
-          collapsed: true,
-        },
-      );
-    | Some(curr_node) =>
-      let curr_node_str = "Current node: " ++ curr_node.name;
-      // This shows the path to the current node now, rather than just the parent node
-      let path_to_node_str =
-        "Path to node: "
-        ++ AssistantTreeHelper.get_path_to_node(curr_node, info_map);
-      let siblings_nodes_str =
-        "Sibling nodes: ["
-        ++ String.concat(
-             ", ",
-             List.mapi(
-               (index, node: AssistantTreeHelper.node) =>
-                 node.name ++ " (index: " ++ string_of_int(index) ++ ")",
-               curr_node.siblings,
-             ),
-           )
-        ++ "]";
-      let children_nodes_str =
-        "Child nodes: ["
-        ++ String.concat(
-             ", ",
-             List.mapi(
-               (index, node: AssistantTreeHelper.node) =>
-                 node.name ++ " (index: " ++ string_of_int(index) ++ ")",
-               curr_node.children,
-             ),
-           )
-        ++ "]";
-
-      let ast_info_str =
-        String.concat(
-          "\n",
-          [
-            "<AST information>",
-            curr_node_str,
-            path_to_node_str,
-            siblings_nodes_str,
-            children_nodes_str,
-            "</AST information>",
-          ],
-        );
-
-      let prepped_z = CompositionView.prepare_definition(z, curr_node);
-
-      let prepped_z_hd_str =
-        "Definition of \""
-        ++ curr_node.name
-        ++ "\"'s parent "
-        ++ (
-          switch (curr_node.parent) {
-          | Some(parent) => "\"" ++ parent.name ++ "\""
-          | None => "(no parent, displaying entire top level of the program)"
-          }
-        )
-        ++ "\":\n```";
-      let prepped_z_str = CompositionView.printer(prepped_z);
-      let prepped_z_tl_str = "```";
-      let def_str =
-        String.concat(
-          "\n",
-          [prepped_z_hd_str, prepped_z_str, prepped_z_tl_str],
-        );
-
-      let static_errors = ErrorPrint.all(info_map);
-      let static_errors_str =
-        switch (static_errors) {
-        | [] => "\nNo static errors found in the program."
-        | _ => "\nStatic errors: " ++ String.concat(", ", static_errors)
-        };
-
-      let refs_in_str =
-        CompositionView.refs_in(curr_node, info_map)
-        |> CompositionView.str_of_refs_in;
-
-      let sketch_info_str =
-        String.concat(
-          "\n",
-          [
-            "<Sketch information>",
-            def_str,
-            refs_in_str,
-            static_errors_str,
-            "</Sketch information>",
-          ],
-        );
-
-      let structured_code_map_str =
-        String.concat("\n", [ast_info_str, sketch_info_str]);
-
-      (
-        OpenRouter.mk_user_msg(structured_code_map_str),
-        {
-          displayable_content: [Text(structured_code_map_str)],
-          // [
-          //   Text(String.concat("\n", [ast_info_str, prepped_z_hd_str])),
-          //   Code(prepped_z),
-          //   Text(prepped_z_tl_str ++ static_errors_str),
-          // ],
-          raw_content: structured_code_map_str,
-          collapsed: true,
-        },
-      );
-    };
   };
 
   let mk_structure_edit_msg = (~tool_call: OpenRouter.tool_call): string =>
@@ -427,8 +279,8 @@ module Composition = {
       let res =
         switch (r) {
         | ViewEntireDefintion =>
-          switch (AssistantTreeHelper.build_curr_node_info(z, info_map)) {
-          | Some(node) => CompositionView.full_definition(z, node)
+          switch (build(z, info_map)) {
+          | Some(node_info) => CompositionView.full_definition(z, node_info)
           | None => "Failed to derive full definition"
           }
         | ShowUseSites => "todo"

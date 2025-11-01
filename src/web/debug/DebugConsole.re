@@ -1,20 +1,18 @@
-open Language;
 open Haz3lcore;
 open Util;
-open AssistantTreeHelper;
 
 let print =
     (~settings: Settings.t, editor: CodeWithStatics.Model.t, key: string)
     : unit => {
   let {editor: {state: {zipper, _}, _}, statics, _}: CodeWithStatics.Model.t = editor;
   let term = statics.term;
-  let map = statics.info_map;
+  let info = statics.info_map;
   let print = print_endline;
   switch (key) {
   | "F1" => zipper |> Zipper.show |> print
   | "F2" => zipper |> Zipper.unselect_and_zip |> Segment.show |> print
   | "F3" => term |> Language.Exp.show |> print
-  | "F4" => map |> Language.Statics.Map.show |> print
+  | "F4" => info |> Language.Statics.Map.show |> print
   | "F5" when settings.core.dynamics =>
     let env_init = Language.Builtins.env_init;
     statics.elaborated
@@ -28,7 +26,7 @@ let print =
     switch (index) {
     | Some(index) =>
       print("id:" ++ Id.to_string(index));
-      switch (Id.Map.find_opt(index, map)) {
+      switch (Id.Map.find_opt(index, info)) {
       | Some(ci) => print(Language.Info.show(ci))
       | None => print("DEBUG: No CI found for index")
       };
@@ -36,74 +34,136 @@ let print =
     };
   | "F7" => ()
   | "F8" =>
-    let curr_node =
-      AssistantTreeHelper.build_curr_node_info(
-        editor.editor.state.zipper,
-        map,
-      );
-    let refs_to =
-      AssistantTreeHelper.get_refs_to(Option.get(curr_node).info, map);
-    print_endline("CoCtx:");
-    print_endline(CoCtx.show(refs_to));
-    ();
-  | "F9" => ()
-  | "F10" =>
-    let context = (local_information: node): string => {
-      let info = local_information.info;
-      switch (info) {
-      | InfoExp(info) =>
-        let ctx = info.ctx;
-        let bindings: Binding.s =
-          List.filter_map(
-            (entry: Ctx.entry) => {
-              let b =
-                switch (entry) {
-                | Ctx.VarEntry(entry) => Ctx.binding_of(ctx, entry.name)
-                | Ctx.TVarEntry(entry) => Ctx.binding_of(ctx, entry.name)
-                | Ctx.ConstructorEntry(entry) =>
-                  Ctx.binding_of(ctx, entry.name)
-                | _ => Ctx.binding_of(ctx, "") // invalid
-                };
-              if (b.id == Id.invalid) {
-                None;
-              } else {
-                Some(b);
-              };
-            },
-            ctx.entries,
-          );
-        "Typing Context: ["
-        ++ String.concat(
-             ", ",
-             List.mapi(
-               (i: int, b: Binding.t) =>
-                 b.name ++ " (Index: " ++ string_of_int(i) ++ ")",
-               bindings,
-             ),
-           )
-        ++ "]";
-      | _ => ""
-      };
+    open AssistantTreeHelper.HighLevelNode;
+    let node_info = build(zipper, info);
+    switch (node_info) {
+    | Some(node_info) =>
+      print("Success!");
+      let node_map = node_info.node_map;
+      // print each item in the map, just their name and path
+      node_map
+      |> Id.Map.bindings
+      |> List.iter(
+           ((id: Id.t, node: AssistantTreeHelper.HighLevelNode.node)) => {
+           let path_str =
+             node.path |> List.map(Id.to_string) |> String.concat(" -> ");
+           print(
+             "Node: "
+             ++ node.name
+             ++ " (id: "
+             ++ Id.to_string(id)
+             ++ ", path: "
+             ++ path_str
+             ++ ")",
+           );
+         });
+    | None => print("Failed to derive full definition")
     };
-    print(
-      context(
-        get_node(
-          build_curr_node_info(
-            editor.editor.state.zipper,
-            editor.statics.info_map,
-          ),
-        ),
-      ),
-    );
-  | "F11" =>
-    //simple curr node id print
-    let _ =
-      CompositionView.prepare_definition(
-        zipper,
-        get_node(build_curr_node_info(zipper, map)),
-      );
-    ();
 
+  | "F9" =>
+    open AssistantTreeHelper.HighLevelNode.Public;
+    let node_info = build(zipper, info);
+    switch (node_info) {
+    | Some(node_info) =>
+      print("=== TREE PRINTING TESTS ===");
+      let node_map = node_info.node_map;
+      let root_node = current_of(node_info);
+
+      print("\n1. Basic Tree Structure:");
+      print("----------------------");
+      print(print_tree(node_map, root_node));
+
+      print("\n2. Tree with Full Paths:");
+      print("------------------------");
+      print(print_tree_with_paths(node_map, root_node));
+
+      print("\n3. Tree with Level/Sibling Indices:");
+      print("-----------------------------------");
+      print(print_tree_with_indices(node_map, root_node));
+
+      print("\n4. Tree Navigation Tests:");
+      print("------------------------");
+
+      // Test finding nodes by level and sibling index
+      let descendants = descendants_of(node_map, root_node);
+      print("Descendants by level:");
+      List.iteri(
+        (level, level_nodes) => {
+          print("Level " ++ string_of_int(level) ++ ":");
+          List.iteri(
+            (sibling_idx, node_id) => {
+              let node = find(node_map, node_id);
+              print(
+                "  L"
+                ++ string_of_int(level)
+                ++ "S"
+                ++ string_of_int(sibling_idx)
+                ++ ": "
+                ++ node.name,
+              );
+            },
+            level_nodes,
+          );
+        },
+        descendants,
+      );
+
+      print("\n5. Sibling Navigation Tests:");
+      print("----------------------------");
+      let all_nodes = node_map |> Id.Map.bindings |> List.map(snd);
+
+      List.iter(
+        node => {
+          let siblings = siblings_of(node_map, node);
+          let sibling_count = List.length(siblings);
+          if (sibling_count > 0) {
+            print(
+              "Node '"
+              ++ node.name
+              ++ "' has "
+              ++ string_of_int(sibling_count)
+              ++ " siblings:",
+            );
+            List.iteri(
+              (idx, sibling) => {
+                let marker = idx == node.sibling_idx ? " <-- CURRENT" : "";
+                print(
+                  "  ["
+                  ++ string_of_int(idx)
+                  ++ "] "
+                  ++ sibling.name
+                  ++ marker,
+                );
+              },
+              siblings,
+            );
+          } else {
+            print("Node '" ++ node.name ++ "' has no siblings");
+          };
+        },
+        all_nodes,
+      );
+
+      print("\n6. Parent-Child Relationships:");
+      print("------------------------------");
+      List.iter(
+        node => {
+          switch (parent_of(node_map, node)) {
+          | Some(parent) =>
+            print(
+              "Node '" ++ node.name ++ "' is child of '" ++ parent.name ++ "'",
+            )
+          | None => print("Node '" ++ node.name ++ "' is a root node")
+          }
+        },
+        all_nodes,
+      );
+
+      print("\n=== END TREE TESTS ===");
+    | None => print("Failed to build tree - cannot run tree printing tests")
+    };
+  | "F10" => ()
+  | "F11" => ()
   | _ => print("DEBUG: No action for key: " ++ key)
   };
 };
