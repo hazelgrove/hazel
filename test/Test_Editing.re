@@ -56,7 +56,7 @@ let perform = (zip: Zipper.t, actions: list(Action.t)): Zipper.t => {
 };
 
 let string_to_ltr_actions = (s: string): list(Action.t) =>
-  s |> Util.StringUtil.to_list |> List.map(c => Action.Insert(c));
+  s |> Token.to_list |> List.map(c => Action.Insert(c));
 
 let mv_l = (n: int): list(Action.t) =>
   List.init(n, _ => Action.Move(Local(Left, ByChar)));
@@ -78,18 +78,25 @@ let mk = (init: string): list(Action.t) => {
    * zipper character-by-character, except for the caret character,
    * and then move left character by character until the indicated
    * caret position is reached */
-
-  let caret_index =
-    switch (StringUtil.search(caret_regexp, init, 0)) {
-    | Some((idx, _)) => idx
-    | None => Alcotest.fail("Failed to find caret in: " ++ init)
+  let rec split =
+          (before: list(string), rest: list(string))
+          : (list(string), list(string)) =>
+    switch (rest) {
+    | [] => Alcotest.fail("Failed to find caret in: " ++ init)
+    | [hd, ...tl] =>
+      if (hd == caret_char) {
+        (List.rev(before), tl);
+      } else {
+        split([hd, ...before], tl);
+      }
     };
-  let init_without_caret = StringUtil.replace(caret_regexp, init, "");
-
+  let (before, after) = split([], Token.to_list(init));
+  let init_without_caret_clusters = before @ after;
+  let init_without_caret =
+    UnicodeGrapheme.of_list(init_without_caret_clusters);
   /* After inserting all characters, we need to move left by the number
    * of characters that come after the caret position */
-  let chars_after_caret = String.length(init_without_caret) - caret_index;
-
+  let chars_after_caret = List.length(after);
   string_to_ltr_actions(init_without_caret) @ mv_l(chars_after_caret);
 };
 
@@ -206,6 +213,31 @@ let insertion_tests = [
     ~name="Inserting string quote inserts closing quote as well",
     ~acts=mk({|¦|}) @ [Insert("\"")],
     ~goal={|"¦"|},
+  ),
+  test(
+    ~name="Paste emoji inside string",
+    ~acts=mk({|"¦"|}) @ [Paste(String("😄"))],
+    ~goal={|"😄¦"|},
+  ),
+  test(
+    ~name="Insert char before emoji",
+    ~acts=mk({|"¦😄"|}) @ [Insert("x")],
+    ~goal={|"x¦😄"|},
+  ),
+  test(
+    ~name="Insert char after emoji",
+    ~acts=mk({|"😄¦"|}) @ [Insert("x")],
+    ~goal={|"😄x¦"|},
+  ),
+  test(
+    ~name="Insert emoji before emoji",
+    ~acts=mk({|"¦😄"|}) @ [Insert("😊")],
+    ~goal={|"😊¦😄"|},
+  ),
+  test(
+    ~name="Insert emoji after emoji",
+    ~acts=mk({|"😄¦"|}) @ [Insert("😊")],
+    ~goal={|"😄😊¦"|},
   ),
   /* INSERTION: GROUT/SPACE TRANSMUTATION */
   /* Prefixes of trailing delimiters get a special concave
@@ -666,6 +698,21 @@ let destruct_tests = [
     ~acts=mk({|if 1 then 2 else¦ 3|}) @ [Destruct(Left)],
     ~goal={|if 1 then 2 els¦ 3|},
   ),
+  test(
+    ~name="Delete emoji inside string",
+    ~acts=mk({|"😄¦😊"|}) @ [Destruct(Left)],
+    ~goal={|"¦😊"|},
+  ),
+  test(
+    ~name="Delete emoji at start of string",
+    ~acts=mk({|"😄¦a"|}) @ [Destruct(Left)],
+    ~goal={|"¦a"|},
+  ),
+  test(
+    ~name="Delete emoji at end of string",
+    ~acts=mk({|"a😄¦"|}) @ [Destruct(Left)],
+    ~goal={|"a¦"|},
+  ),
 ];
 
 let move_tests = [
@@ -928,17 +975,17 @@ let selection_tests = [
     ~name="Move extreme left with multiline selection",
     ~acts=
       mk({|(12345,
-23456789,
-¦345678,
-45678,
-56789)|})
+  23456789,
+  ¦345678,
+  45678,
+  56789)|})
       @ [Action.Select(All)]
       @ [Action.Move(Line(Left))],
     ~goal={|(12345,
-  23456789,
-  345678,
-  45678,
-  ¦56789)|},
+    23456789,
+    345678,
+    45678,
+    ¦56789)|},
   ),
   test(
     ~name="Extend selection left by token",

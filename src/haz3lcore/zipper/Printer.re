@@ -15,11 +15,25 @@ let measured_no_projectors = (~is_single_line, segment: Segment.t) =>
        Id.Map.empty,
      );
 
+let grapheme_index_from_col = (row: string, col: int): int => {
+  let clusters = UnicodeGrapheme.to_array(row);
+  let len = Array.length(clusters);
+  let target_col = max(col, 0);
+  let rec loop = (idx: int, acc: int): int =>
+    if (idx >= len || acc >= target_col) {
+      idx;
+    } else {
+      let cluster = clusters[idx];
+      loop(idx + 1, acc + EmojiWidth.columns_of_cluster(cluster));
+    };
+  loop(0, 0);
+};
+
 let insert_string = (s: string, point: Point.t, rows: list(string)) => {
   switch (ListUtil.split_nth_opt(point.row, rows)) {
-  | Some((pre, caret_row, suf)) when point.col < String.length(caret_row) =>
-    pre @ [StringUtil.insert_nth(point.col, s, caret_row)] @ suf
-  | Some((pre, caret_row, suf)) => pre @ [caret_row ++ s] @ suf
+  | Some((pre, caret_row, suf)) =>
+    let idx = grapheme_index_from_col(caret_row, point.col);
+    pre @ [UnicodeGrapheme.insert_nth(caret_row, idx, s)] @ suf;
   | None => rows
   };
 };
