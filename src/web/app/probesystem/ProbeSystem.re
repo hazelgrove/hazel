@@ -335,15 +335,7 @@ let sketch_view = (~explain_this_inject): Node.t =>
       settings(~explain_this_inject),
       summary(
         ~attrs=[clss(["sketch-toggle"])],
-        [
-          Node.img(
-            ~attrs=[
-              Attr.src("../../img/probe-lenses.webp"),
-              Attr.alt("Probe lenses"),
-            ],
-            (),
-          ),
-        ],
+        [div(~attrs=[clss(["sketch-toggle-image"])], [])],
       ),
       div(~attrs=[clss(["sketch-body"])], []),
     ],
