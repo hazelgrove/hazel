@@ -162,6 +162,7 @@ let legend_sample_view =
     call_stack: sample_stack,
     time: 0.0,
     iter: 0,
+    origin: Language.Sample.Probe,
   };
   let di: Language.Dynamics.Info.t = {
     samples: [sample],
@@ -579,13 +580,94 @@ let probes_panel_view =
       );
 };
 
-let view =
-    (
-      ~globals: Globals.t,
-      ~cursor as _: Cursor.cursor(Editors.Update.t),
-      ~explain_this_inject,
-      ~editor: CodeEditable.Model.t,
-    ) => {
+let print_string = (probes: Language.Sample.Map.t) => {
+  let collect_print_samples =
+      (probes: Language.Sample.Map.t): list(Language.Sample.t) =>
+    Id.Map.fold(
+      (_, samples, acc) =>
+        List.fold_left(
+          (acc, sample) =>
+            sample.Language.Sample.origin == Language.Sample.Print
+              ? [sample, ...acc] : acc,
+          acc,
+          samples,
+        ),
+      probes,
+      [],
+    );
+
+  let collect_print_outputs = (probes: Language.Sample.Map.t): list(string) =>
+    collect_print_samples(probes)
+    |> List.sort((a, b) =>
+         Int.compare(a.Language.Sample.iter, b.Language.Sample.iter)
+       )
+    |> List.map(sample =>
+         sample.Language.Sample.value
+         |> ExpToSegment.exp_to_segment(
+              ~settings=
+                ExpToSegment.Settings.of_core(
+                  ~inline=true,
+                  Language.CoreSettings.off,
+                ),
+            )
+         |> Printer.of_segment(~holes="")
+       );
+
+  let print_summary = (probes: Language.Sample.Map.t): option(string) =>
+    switch (collect_print_outputs(probes)) {
+    | [] => None
+    | outputs => Some(String.concat("\n", outputs))
+    };
+
+  probes |> print_summary;
+};
+
+type panel_mode =
+  | Probes
+  | Prints;
+
+let mode = ref(Probes);
+
+let mode_toggle = (~explain_this_inject) =>
+  Widgets.toggle(
+    ~tooltip="Toggle between Probes and Prints",
+    mode^ == Probes ? "🔍" : "🖨",
+    mode^ == Probes,
+    _ => {
+      mode := mode^ == Probes ? Prints : Probes;
+      explain_this_inject(ExplainThisUpdate.SpecificityOpen(true));
+    },
+  );
+
+let printarium = (~explain_this_inject, ~editor: CodeEditable.Model.t) => [
+  div(
+    ~attrs=[clss(["header"])],
+    [
+      div(
+        ~attrs=[clss(["main-title"])],
+        [text("Printarium"), mode_toggle(~explain_this_inject)],
+      ),
+    ],
+  ),
+  div(
+    ~attrs=[clss(["panel", "prints"])],
+    [
+      //div(~attrs=[clss(["title"])], [text("Prints")]),
+      div(
+        ~attrs=[clss(["body", "code"])],
+        [
+          switch (print_string(editor.dynamics)) {
+          | Some(summary) => text(summary)
+          | None => text("No print outputs")
+          },
+        ],
+      ),
+    ],
+  ),
+];
+
+let probearium =
+    (~globals: Globals.t, ~explain_this_inject, ~editor: CodeEditable.Model.t) => {
   let refractor_data =
     ProjectorView.Model.mk(
       Id.Map.union(
@@ -603,39 +685,56 @@ let view =
       true,
     );
   let refractors = editor.editor.state.zipper.refractors;
+  [
+    div(
+      ~attrs=[clss(["header"])],
+      [
+        div(
+          ~attrs=[clss(["main-title"])],
+          [text("Probearium"), mode_toggle(~explain_this_inject)],
+        ),
+      ],
+    ),
+    legend_view(~font_metrics=globals.font_metrics),
+    sketch_view(~explain_this_inject),
+    call_cursor_view(~dyn_cursor=refractors.dyn_cursor, ~fancyd=id =>
+      fancy(
+        ~refractor_data,
+        ~info_map=editor.statics.info_map,
+        ~default=None, /*Some([Example.exp("<In Builtin>")]),*/
+        ~globals,
+        id,
+      )
+      |> Option.value(~default=div([]))
+    ),
+    probes_panel_view(
+      ~globals,
+      ~refractors,
+      ~info_map=editor.statics.info_map,
+      ~syntax=editor.editor.syntax,
+      ~fancyd=id =>
+      fancy(
+        ~refractor_data,
+        ~info_map=editor.statics.info_map,
+        ~default=None,
+        ~globals,
+        id,
+      )
+    ),
+  ];
+};
+
+let view =
+    (
+      ~globals: Globals.t,
+      ~cursor as _: Cursor.cursor(Editors.Update.t),
+      ~explain_this_inject,
+      ~editor: CodeEditable.Model.t,
+    ) => {
   div(
     ~attrs=[Attr.id("probesys")],
-    [
-      div(
-        ~attrs=[clss(["header"])],
-        [div(~attrs=[clss(["main-title"])], [text("Probearium")])],
-      ),
-      legend_view(~font_metrics=globals.font_metrics),
-      sketch_view(~explain_this_inject),
-      call_cursor_view(~dyn_cursor=refractors.dyn_cursor, ~fancyd=id =>
-        fancy(
-          ~refractor_data,
-          ~info_map=editor.statics.info_map,
-          ~default=None, /*Some([Example.exp("<In Builtin>")]),*/
-          ~globals,
-          id,
-        )
-        |> Option.value(~default=div([]))
-      ),
-      probes_panel_view(
-        ~globals,
-        ~refractors,
-        ~info_map=editor.statics.info_map,
-        ~syntax=editor.editor.syntax,
-        ~fancyd=id =>
-        fancy(
-          ~refractor_data,
-          ~info_map=editor.statics.info_map,
-          ~default=None,
-          ~globals,
-          id,
-        )
-      ),
-    ],
+    mode^ == Probes
+      ? probearium(~globals, ~explain_this_inject, ~editor)
+      : printarium(~explain_this_inject, ~editor),
   );
 };

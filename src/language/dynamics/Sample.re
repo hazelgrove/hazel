@@ -61,6 +61,11 @@ module Env = {
 };
 
 [@deriving (show({with_path: false}), sexp, yojson, eq)]
+type origin =
+  | Probe
+  | Print; /* Println for probes study */
+
+[@deriving (show({with_path: false}), sexp, yojson, eq)]
 type t = {
   id: int, /* Primary ID (unique-ish) */
   syntax_id: Id.t, /* Syntax ID of probed expression */
@@ -69,12 +74,14 @@ type t = {
   call_stack: Probe.call_stack, /* Call stacks as ap ids */
   time: float, /* Time of evaluatation */
   iter: int,
+  origin,
 };
 
 let iter = ref(0);
 
 let mk =
     (
+      ~origin=Probe,
       syntax_id: Id.t,
       value: DHExp.t,
       env: Environment.t(Exp.t),
@@ -95,6 +102,7 @@ let mk =
     iter := iter^ + 1;
     iter^;
   },
+  origin,
 };
 
 [@deriving (show({with_path: false}), sexp, yojson)]

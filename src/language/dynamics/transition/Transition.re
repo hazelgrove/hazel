@@ -469,26 +469,36 @@ module Transition = (EV: EV_MODE) => {
           };
         | FunNoEnv(_) => Indet
         | BuiltinFun(ident) =>
-          let builtin =
-            VarMap.lookup(Builtins.forms_init, ident)
-            |> OptUtil.get(() => {
-                 /* This exception should never be raised because there is
-                    no way for the user to create a BuiltinFun. They are all
-                    inserted into the context before evaluation. */
-                 raise(
-                   EvaluatorError.Exception(InvalidBuiltin(ident)),
-                 )
-               });
-          switch (builtin(d2')) {
-          | Some(expr) =>
+          if (ident == "print") {
+            /* Println for probes study */
             Step({
-              expr,
-              side_effects: [],
+              expr: tuple([]),
+              side_effects: [RecordPrint(d2')],
               kind: BuiltinAp(ident),
-              is_value: false,
-            })
-          | None => Indet
-          };
+              is_value: true,
+            });
+          } else {
+            let builtin =
+              VarMap.lookup(Builtins.forms_init, ident)
+              |> OptUtil.get(() => {
+                   /* This exception should never be raised because there is
+                      no way for the user to create a BuiltinFun. They are all
+                      inserted into the context before evaluation. */
+                   raise(
+                     EvaluatorError.Exception(InvalidBuiltin(ident)),
+                   )
+                 });
+            switch (builtin(d2')) {
+            | Some(expr) =>
+              Step({
+                expr,
+                side_effects: [],
+                kind: BuiltinAp(ident),
+                is_value: false,
+              })
+            | None => Indet
+            };
+          }
         | DeferredAp(d3, d4s) =>
           let n_args =
             List.length(

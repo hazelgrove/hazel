@@ -8,7 +8,8 @@ type effect =
   | RecordTest(TestMap.instance_report)
   | RecordExpProbe(Probe.t)
   | RecordStackFrame
-  | RecordPatProbes(PatternMatch.sample_closures);
+  | RecordPatProbes(PatternMatch.sample_closures)
+  | RecordPrint(DHExp.t); /* Println for probes study */
 
 let init = {
   tests: TestMap.empty,
@@ -62,6 +63,17 @@ let update =
             sample_closures,
           );
         (call_stack, state);
+      | RecordPrint(value) =>
+        let sample =
+          Sample.mk(
+            ~origin=Sample.Print,
+            DHExp.rep_id(init),
+            value,
+            env,
+            call_stack,
+            Probe.empty,
+          );
+        (call_stack, add_sample(state, sample));
       },
     (call_stack, state),
     side_effects,

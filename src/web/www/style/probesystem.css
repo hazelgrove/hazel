@@ -19,6 +19,8 @@
   font-weight: bold;
   color: var(--ui-header-text);
   align-self: flex-start;
+  display: flex;
+  gap: 1em;
 }
 
 #probesys .header {
@@ -200,4 +202,8 @@
 #probesys .settings .named-menu-item {
   display: flex;
   gap: 0.5em;
+}
+
+#probesys .panel.prints .body {
+  white-space: pre;
 }
