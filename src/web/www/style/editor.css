@@ -97,6 +97,15 @@
   font-weight: bold;
 }
 
+.code .emoji-cell {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  vertical-align: baseline;
+  white-space: pre;
+}
+
 .code-container.meta-down .token.ref {
   cursor: pointer;
 }

@@ -24,6 +24,7 @@ let of_delim' =
       is_in_buffer: bool,
       is_complete: bool,
       is_infix_var: bool,
+      font_metrics: FontMetrics.t,
     ): t => {
       let base_cls =
         switch (token) {
@@ -44,7 +45,11 @@ let of_delim' =
             ["token", base_cls, plurality] @ in_buffer @ var_class,
           ),
         ],
-        [Node.text(token)],
+        /* Currently only supporting emojis in strings; this is a
+           conservative choice to guard against perf regressions;
+           it can likely be relaxed. See also Token.bounding_box */
+        base_cls == "string-lit"
+          ? EmojiView.render(~font_metrics, token) : [text(token)],
       );
     },
   );
@@ -108,6 +113,7 @@ let view =
       Tile.is_complete(t),
       Mold.is_infix_op(t.mold)
       && Form.is_infix_delimiter_op_prefix(List.nth(t.label, i)),
+      font_metrics,
     );
 
   let measure_of = p => Measured.find_p(~msg="Text", p, measured);

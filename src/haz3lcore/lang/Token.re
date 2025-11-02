@@ -36,9 +36,6 @@ let abbreviate = StringUtil.abbreviate;
 let num_linebreaks = StringUtil.num_linebreaks;
 let max_line_width = StringUtil.max_line_width;
 
-let bounding_box = (t: t): Point.t =>
-  Point.mk(~row=num_linebreaks(t), ~col=max_line_width(t));
-
 /* Token Recognition Predicates */
 
 /* A. Secondary Notation (Comments, Whitespace, etc.)  */
@@ -245,3 +242,14 @@ let is_projector_invoke = (str: t): bool =>
 
 let mk_projector_invoke = (kind: ProjectorCore.Kind.t): string =>
   append(projector_invoke_prefix, ProjectorCore.Kind.name(kind));
+
+let bounding_box = (t: t): Point.t => {
+  /* Currently only supporting emojis in strings; this is a
+     conservative choice to guard against perf regressions;
+     it can likely be relaxed. See also Code.re */
+  let (row, col) =
+    is_string(t)
+      ? EmojiWidth.bounding_box_for(t)
+      : (num_linebreaks(t), max_line_width(t));
+  Point.mk(~row, ~col);
+};
