@@ -1,23 +1,30 @@
 open Virtual_dom.Vdom;
 open Node;
+open Util;
 
-module EmojiWidth = Util.EmojiWidth;
+/* For Unicode graphemes (in particular emojis) which do not conform
+   to the character grid, we render them as a single cell with a width
+   that matches the number of columns they occupy. This is currently
+   limited to either one or two columns. */
 
 type segment =
   | Text(string)
-  | Emoji(string, EmojiWidth.width);
+  | Grapheme(string, Unicode.Width.t);
 
 let px = (value: float): string => Printf.sprintf("%.3fpx", value);
 
 let segments_for_token = (token: string): list(segment) => {
-  let clusters = EmojiWidth.graphemes(token);
+  let clusters = Unicode.Width.graphemes(token);
   clusters
   |> List.fold_left(
        (acc, cluster) =>
          if (cluster == "") {
            acc;
-         } else if (EmojiWidth.is_emoji_cluster(cluster)) {
-           [Emoji(cluster, EmojiWidth.classify_cluster(cluster)), ...acc];
+         } else if (Unicode.Width.is_emoji_cluster(cluster)) {
+           [
+             Grapheme(cluster, Unicode.Width.classify_cluster(cluster)),
+             ...acc,
+           ];
          } else {
            switch (acc) {
            | [Text(existing), ...rest] => [
@@ -32,10 +39,10 @@ let segments_for_token = (token: string): list(segment) => {
   |> List.rev;
 };
 
-let to_class = (width: EmojiWidth.width): string =>
+let to_class = (width: Unicode.Width.t): string =>
   switch (width) {
-  | One => "emoji-1col"
-  | Two => "emoji-2col"
+  | One => "grapheme-1col"
+  | Two => "grapheme-2col"
   };
 
 let render = (~font_metrics: FontMetrics.t, token: string): list(Node.t) =>
@@ -43,12 +50,12 @@ let render = (~font_metrics: FontMetrics.t, token: string): list(Node.t) =>
   |> List.map(segment =>
        switch (segment) {
        | Text(str) => Node.text(str)
-       | Emoji(grapheme, width) =>
-         let cols = EmojiWidth.columns_of_width(width);
+       | Grapheme(grapheme, width) =>
+         let cols = Unicode.Width.columns_of_width(width);
          let width_px = font_metrics.col_width *. float_of_int(cols);
          span(
            ~attrs=[
-             Attr.classes(["emoji-cell", to_class(width)]),
+             Attr.classes(["grapheme-cell", to_class(width)]),
              Attr.create("style", "width: " ++ px(width_px)),
            ],
            [Node.text(grapheme)],

@@ -92,8 +92,7 @@ let mk = (init: string): list(Action.t) => {
     };
   let (before, after) = split([], Token.to_list(init));
   let init_without_caret_clusters = before @ after;
-  let init_without_caret =
-    UnicodeGrapheme.of_list(init_without_caret_clusters);
+  let init_without_caret = Token.of_list(init_without_caret_clusters);
   /* After inserting all characters, we need to move left by the number
    * of characters that come after the caret position */
   let chars_after_caret = List.length(after);

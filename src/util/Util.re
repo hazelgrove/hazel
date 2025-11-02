@@ -30,8 +30,6 @@ module VarMap = VarMap;
 module ProjectorShape = ProjectorShape;
 module API = API;
 module OpenRouter = OpenRouter;
-module EmojiWidth = EmojiWidth;
-module UnicodeGrapheme = UnicodeGrapheme;
 
 // Used by [@deriving sexp, yojson)]
 include Sexplib.Std;

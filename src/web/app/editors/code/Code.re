@@ -49,7 +49,7 @@ let of_delim' =
            conservative choice to guard against perf regressions;
            it can likely be relaxed. See also Token.bounding_box */
         base_cls == "string-lit"
-          ? EmojiView.render(~font_metrics, token) : [text(token)],
+          ? GraphemeView.render(~font_metrics, token) : [text(token)],
       );
     },
   );

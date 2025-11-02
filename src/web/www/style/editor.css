@@ -97,7 +97,8 @@
   font-weight: bold;
 }
 
-.code .emoji-cell {
+/* For emoji rendering in code */
+.code .grapheme-cell {
   display: inline-flex;
   align-items: center;
   justify-content: center;

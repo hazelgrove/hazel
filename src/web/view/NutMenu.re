@@ -89,7 +89,7 @@ let stepper_group = (~globals: Globals.t) => {
         Evaluation(ShowFilters),
       ),
       (
-        Util.Unicode.castArrowSym,
+        "⇨",
         "Show Ascription Steps",
         s.show_ascription_steps,
         Evaluation(ShowAscriptionSteps),
