@@ -299,10 +299,7 @@ let backpack_find = (tok: Token.t, z: t): option(Tile.t) =>
   };
 
 let insert_segment = (z: t, seg: Segment.t): t =>
-  z
-  |> replace_selection(z.selection.focus, seg)
-  |> unselect
-  |> remold_regrout(Right);
+  z |> replace_selection(Right, seg) |> unselect |> remold_regrout(Right);
 
 let adj_pos = (d: Direction.t, z: t): t =>
   switch (d) {
