@@ -31,7 +31,11 @@ let go =
     |> return(CantIntroduce)
   | Paste(String(clipboard)) =>
     Parser.to_zipper(~zipper_init=z, clipboard) |> return(CantPaste)
-  | Paste(Segment(segment)) => Ok(Zipper.insert_segment(z, segment))
+  | Paste(Segment(segment)) =>
+    z.caret == Outer
+      ? Ok(Zipper.insert_segment(z, segment))
+      : Parser.to_zipper(~zipper_init=z, Printer.of_segment(segment))
+        |> return(CantPaste)
   | Cut =>
     /* System clipboard handling is done in Page.view handlers */
     Destruct.go(Left, z) |> return(Cant_destruct)
