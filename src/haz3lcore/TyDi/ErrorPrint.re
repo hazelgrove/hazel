@@ -33,7 +33,7 @@ module Print = {
   let term = (term: Any.t): string => {
     let settings =
       ExpToSegment.Settings.of_core(~inline=false, CoreSettings.off);
-    term |> ExpToSegment.any_to_pretty(~settings) |> seg(~holes="");
+    term |> ExpToSegment.any_to_segment(~settings) |> seg(~holes="");
   };
 
   let typ = (ty: Typ.t): string => term(Typ(ty));

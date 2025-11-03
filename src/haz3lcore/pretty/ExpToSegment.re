@@ -790,797 +790,890 @@ let fold_fun_if = (condition, f_name: string, pieces) =>
 /* We assume that parentheses have already been added as necessary, and
       that the expression has no Closures or DynamicErrorHoles
    */
-let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
-  let go = (~inline=settings.inline) =>
-    exp_to_pretty(
-      ~settings={
-        ...settings,
-        inline,
-      },
-    );
-  switch (exp |> Exp.term_of) {
-  // Assume these have been removed by the parenthesizer
-  | DynamicErrorHole(_)
-  | Filter(Residue(_), _) => failwith("printing these not implemented yet")
-  | Filter(Filter({pat, act}), e) =>
-    let id = exp |> Exp.rep_id;
-    let* p = go(pat);
-    let+ e = go(e);
-    settings.show_filters
-      ? {
-        let form =
-          switch (act) {
-          | (Step, One) => Form.FilterPause
-          | (Step, All) => Form.FilterDebug
-          | (Eval, One) => Form.FilterHide
-          | (Eval, All) => Form.FilterEval
-          };
-        [mk_form(form, id, [p])] @ e;
-      }
-      : e;
-  // Forms which should be removed by substitute_closures
-  | Closure(_) => failwith("closure not removed before printing")
-  // Other cases
-  | Invalid(x) => text_to_pretty(exp |> Exp.rep_id, Sort.Exp, x)
-  | EmptyHole =>
-    let id = exp |> Exp.rep_id;
-    p_just([
-      Grout({
-        id,
-        shape: Convex,
-      }),
-    ]);
-  | Undefined => text_to_pretty(exp |> Exp.rep_id, Sort.Exp, "undefined")
-  | Atom(c) =>
-    text_to_pretty(exp |> Exp.rep_id, Sort.Exp, Atom.to_literal(c))
-  // TODO: Make sure types are correct
-  | Constructor(c, _t) =>
-    // let id = Id.mk();
-    let+ e = text_to_pretty(exp |> Exp.rep_id, Sort.Exp, c);
-    // and+ t = typ_to_pretty(~settings: Settings.t, t);
-    e;
-  // @ [mk_form("typeasc", id, [])]
-  // @ (t |> fold_if(settings.fold_cast_types));
-  | ListLit([]) => text_to_pretty(exp |> Exp.rep_id, Sort.Exp, "[]")
-  | Deferral(_) => text_to_pretty(exp |> Exp.rep_id, Sort.Exp, "_")
-  | ExplicitNonlabel => text_to_pretty(exp |> Exp.rep_id, Sort.Exp, "_")
-  | ListLit([x, ...xs]) =>
-    // TODO: Add optional newlines
-    let* x = go(x)
-    and* xs = xs |> List.map(go) |> all;
-    let (id, ids) = (
-      IdTagged.ids(exp) |> List.hd,
-      IdTagged.ids(exp) |> List.tl |> pad_ids(List.length(xs)),
-    );
-    let form = (x, xs) =>
-      mk_form(
-        ListLitExp,
-        id,
-        [
-          x
-          @ List.flatten(
-              List.map2(
-                (id, x) => [mk_form(CommaExp, id, [])] @ x,
-                ids,
-                xs,
-              ),
-            ),
-        ],
-      );
-    p_just([form(x, xs)]);
-  | Var(v) => text_to_pretty(exp |> Exp.rep_id, Sort.Exp, v)
-  | BinOp(op, l, r) =>
-    // TODO: Add optional newlines
-    let id = exp |> Exp.rep_id;
-    let+ l = go(l)
-    and+ r = go(r);
-    l
-    @ [
-      Tile({
-        id,
-        label: [Operators.bin_op_to_string(op)],
-        mold: Mold.mk_bin(Precedence.of_bin_op(op), Sort.Exp, []),
-        shards: [0],
-        children: [],
-      }),
-    ]
-    @ r;
-  | TupleExtension(l, r) =>
-    // TODO: Add optional newlines
-    let id = exp |> Exp.rep_id;
-    let+ l = go(l)
-    and+ r = go(r);
-    l
-    @ [
-      Tile({
-        id,
-        label: ["..."],
-        mold: Mold.mk_bin(Precedence.dot, Sort.Exp, []),
-        shards: [0],
-        children: [],
-      }),
-    ]
-    @ r;
-  | MultiHole(es) =>
-    // TODO: Add optional newlines
-    let id = exp |> Exp.rep_id;
-    let+ es = es |> List.map(any_to_pretty(~settings)) |> all;
-    ListUtil.flat_intersperse(
-      Grout({
-        id,
-        shape: Concave,
-      }),
-      es,
-    );
-  | Parens({term: Fun(p, e, _, _), _} as inner_exp)
-  | Probe({term: Fun(p, e, _, _), _} as inner_exp, _) =>
-    // TODO: Add optional newlines
-    let id = inner_exp |> Exp.rep_id;
-    let+ p = pat_to_pretty(~settings: Settings.t, p)
-    and+ e = go(e);
-    let name = Exp.get_fn_name(exp) |> Option.value(~default="anon fun");
-    let name =
-      if (settings.hide_fixpoints && String.ends_with(~suffix="+", name)) {
-        String.sub(name, 0, String.length(name) - 1);
-      } else {
-        name;
-      };
-    let name = "<" ++ name ++ ">";
-    let fun_form = [mk_form(Fun, id, [p])] @ e;
-    [mk_form(ParensExp, exp |> Exp.rep_id, [fun_form])]
-    |> fold_fun_if(settings.fold_fn_bodies, name);
-  | LivelitName(s) => text_to_pretty(exp |> Exp.rep_id, Sort.Exp, "^" ++ s)
-  | Fun(p, e, t, _) =>
-    // TODO: Add optional newlines
-    let id = exp |> Exp.rep_id;
-    let p =
-      switch (t) {
-      | None => p
-      | Some(t) =>
-        let t = t |> Typ.replace_temp;
-        Pat.fresh(Asc(p, t))
-        |> parenthesize_pat(~show_filters=settings.show_filters);
-      };
-    let+ p = pat_to_pretty(~settings: Settings.t, p)
-    and+ e = go(e);
-    let name = Exp.get_fn_name(exp) |> Option.value(~default="anon fun");
-    let name =
-      if (settings.hide_fixpoints && String.ends_with(~suffix="+", name)) {
-        String.sub(name, 0, String.length(name) - 1);
-      } else {
-        name;
-      };
-    let name = "<" ++ name ++ ">";
-    [mk_form(Fun, id, [p])]
-    @ e
-    |> fold_fun_if(settings.fold_fn_bodies, name);
-  | TypFun(tp, e, _) =>
-    // TODO: Add optional newlines
-    let id = exp |> Exp.rep_id;
-    let+ tp = tpat_to_pretty(~settings: Settings.t, tp)
-    and+ e = go(e);
-    let name =
-      "<"
-      ++ (Exp.get_fn_name(exp) |> Option.value(~default="anon typfun"))
-      ++ ">";
-    [mk_form(TypFun, id, [tp])]
-    @ e
-    |> fold_fun_if(settings.fold_fn_bodies, name);
-  | Tuple([]) => text_to_pretty(exp |> Exp.rep_id, Sort.Exp, "()")
-  | Tuple([{term: TupLabel(_), _} as le]) => go(le)
-  | Tuple([x, ...xs]) =>
-    // TODO: Add optional newlines
-    let+ x = go(x)
-    and+ xs = xs |> List.map(go) |> all;
-    let ids = IdTagged.ids(exp) |> pad_ids(List.length(xs));
-    x
-    @ List.flatten(
-        List.map2((id, x) => [mk_form(CommaExp, id, [])] @ x, ids, xs),
-      );
-  | Label(l) =>
-    label_to_pretty(
-      ~label_only_position=false,
-      Sort.Exp,
-      Token.label_quote(l),
-      exp |> Exp.rep_id,
-    )
-  | TupLabel(l, e) =>
-    let* l =
-      switch (l.term) {
-      | Label(l') =>
-        label_to_pretty(
-          ~label_only_position=true,
-          Sort.Exp,
-          l',
-          l |> Exp.rep_id,
+let rec exp_to_pretty =
+        (
+          ~override: Id.t => option(Segment.t),
+          ~settings: Settings.t,
+          exp: Exp.t,
         )
-      | _ => go(l)
-      }
-    and* e = go(e);
-
-    List.flatten([
-      l,
-      [
-        Tile({
-          id: exp |> Exp.rep_id,
-          label: ["="],
-          mold: Mold.mk_bin(Precedence.lab, Sort.Exp, []),
-          shards: [0],
-          children: [],
-        }),
-      ],
-      if (Token.begins_with_potential_operator(Segment.first_string(e))) {
-        [Secondary(mk_space(Id.mk()))] @ e;
-      } else {
-        e;
-      },
-    ]);
-  | Dot(e, l) =>
-    let* e = go(e)
-    and* l =
-      switch (l.term) {
-      | Label(l') =>
-        label_to_pretty(
-          ~label_only_position=true,
-          Sort.Exp,
-          l',
-          l |> Exp.rep_id,
-        )
-      | _ => go(l)
-      };
-    e @ [mk_form(DotExp, exp |> Exp.rep_id, [])] @ l;
-  | Let(p, e1, e2) =>
-    // TODO: Add optional newlines
-    let id = exp |> Exp.rep_id;
-    // This step undoes the adding of fixpoints that happens in elaboration.
-    let e1 = settings.hide_fixpoints ? Exp.unfix(e1, p) : e1;
-    let+ p = pat_to_pretty(~settings: Settings.t, p)
-    and+ e1 = go(e1)
-    and+ e2 = go(e2);
-    let e2 = settings.inline ? e2 : [Secondary(mk_newline(Id.mk()))] @ e2;
-    [mk_form(Let, id, [p, e1])] @ e2;
-  | FixF(p, e, _) =>
-    // TODO: Add optional newlines
-    let id = exp |> Exp.rep_id;
-    let+ p = pat_to_pretty(~settings: Settings.t, p)
-    and+ e = go(e);
-    let name =
-      "<" ++ (Exp.get_fn_name(exp) |> Option.value(~default="fun")) ++ ">";
-    [mk_form(Fix, id, [p])]
-    @ e
-    |> fold_fun_if(settings.fold_fn_bodies, name);
-  | TyAlias(tp, t, e) =>
-    // TODO: Add optional newlines
-    let id = exp |> Exp.rep_id;
-    let+ tp = tpat_to_pretty(~settings: Settings.t, tp)
-    and+ t = typ_to_pretty(~settings: Settings.t, t)
-    and+ e = go(e);
-    let e = settings.inline ? e : [Secondary(mk_newline(Id.mk()))] @ e;
-    [mk_form(TypeAlias, id, [tp, t])] @ e;
-  | Use(t, e) =>
-    let id = exp |> Exp.rep_id;
-    let+ t = typ_to_pretty(~settings: Settings.t, t)
-    and+ e = go(e);
-    let e = settings.inline ? e : [Secondary(mk_newline(Id.mk()))] @ e;
-    [mk_form(Use, id, [t])] @ e;
-  | Ap(Forward, e1, e2) =>
-    let id = exp |> Exp.rep_id;
-    let+ e1 = go(e1)
-    and+ e2 = go(e2);
-    e1 @ [mk_form(ApExp, id, [e2])];
-  | Ap(Reverse, e1, e2) =>
-    // TODO: Add optional newlines
-    let id = exp |> Exp.rep_id;
-    let+ e1 = go(e1)
-    and+ e2 = go(e2);
-    e2
-    @ [
-      Tile({
-        id,
-        label: ["|>"],
-        mold: Mold.mk_bin(Precedence.eqs, Sort.Exp, []),
-        shards: [0],
-        children: [],
-      }),
-    ]
-    @ e1;
-  | TypAp(e, t) =>
-    // TODO: Add optional newlines
-    let id = exp |> Exp.rep_id;
-    let+ e = go(e)
-    and+ tp = typ_to_pretty(~settings: Settings.t, t);
-    e @ [mk_form(ApExpTyp, id, [tp])];
-  | DeferredAp(e, es) =>
-    // TODO: Add optional newlines
-    let+ e = go(e)
-    and+ es = es |> List.map(go) |> all;
-    let (id, ids) = (
-      IdTagged.ids(exp) |> List.hd,
-      IdTagged.ids(exp) |> List.tl |> pad_ids(List.length(es)),
-    );
-    e
-    @ [
-      mk_form(
-        ApExp,
-        id,
-        [
-          (es |> List.hd)
-          @ List.flatten(
-              List.map2(
-                (id, e) => [mk_form(CommaExp, id, [])] @ e,
-                ids |> List.tl,
-                es |> List.tl,
-              ),
-            ),
-        ],
-      ),
-    ];
-  | If(e1, e2, e3) =>
-    let id = exp |> Exp.rep_id;
-    let+ e1 = go(e1)
-    and+ e2 = go(e2)
-    and+ e3 = go(e3);
-    let e2 =
-      settings.inline
-        ? e2
-        : [Secondary(mk_newline(Id.mk()))]
-          @ e2
-          @ [Secondary(mk_newline(Id.mk()))];
-    let e3 = settings.inline ? e3 : [Secondary(mk_newline(Id.mk()))] @ e3;
-    [mk_form(If, id, [e1, e2])] @ e3;
-  | Seq(e1, e2) =>
-    // TODO: Make newline optional
-    let id = exp |> Exp.rep_id;
-    let+ e1 = go(e1)
-    and+ e2 = go(e2);
-    let e2 = settings.inline ? e2 : [Secondary(mk_newline(Id.mk()))] @ e2;
-    e1 @ [mk_form(CellJoin, id, [])] @ e2;
-  | Test(e) =>
-    let id = exp |> Exp.rep_id;
-    let+ e = go(e);
-    [mk_form(Test, id, [e])];
-  | HintedTest(e, hint) =>
-    let id = exp |> Exp.rep_id;
-    let* hint = go(hint)
-    and* e = go(e);
-    [mk_form(HintedTest, id, [hint, e])];
-  | Parens(e) =>
-    // TODO: Add optional newlines
-    let id = exp |> Exp.rep_id;
-    let+ e = go(e);
-    [mk_form(ParensExp, id, [e])];
-  | Probe(e, _) =>
-    /* Not sure about this case*/
-    go(e)
-  | Cons(e1, e2) =>
-    // TODO: Add optional newlines
-    let id = exp |> Exp.rep_id;
-    let+ e1 = go(e1)
-    and+ e2 = go(e2);
-    e1 @ [mk_form(ConsExp, id, [])] @ e2;
-  | ListConcat(e1, e2) =>
-    // TODO: Add optional newlines
-    let id = exp |> Exp.rep_id;
-    let+ e1 = go(e1)
-    and+ e2 = go(e2);
-    e1 @ [mk_form(ListConcat, id, [])] @ e2;
-  | UnOp(Meta(Unquote), e) =>
-    let id = exp |> Exp.rep_id;
-    let+ e = go(e);
-    [mk_form(Unquote, id, [])] @ e;
-  | UnOp(Bool(Not), e) =>
-    let id = exp |> Exp.rep_id;
-    let+ e = go(e);
-    [mk_form(Not, id, [])] @ e;
-  | UnOp(Int(Minus) | Nat(Minus) | Float(Minus) | SInt(Minus), e) =>
-    let id = exp |> Exp.rep_id;
-    let+ e = go(e);
-    [mk_form(UnaryMinus, id, [])] @ e;
-  /* TODO: this isn't actually correct because we could the builtin
-     could have been overriden in this scope; worth fixing when we fix
-     closures. */
-  | BuiltinFun(f) => text_to_pretty(exp |> Exp.rep_id, Sort.Exp, f)
-  | Asc(e, t) =>
-    let id = exp |> Exp.rep_id;
-    let+ e = go(e)
-    and+ t = typ_to_pretty(~settings: Settings.t, t);
-    e @ [mk_form(TypeAsc, id, [])] @ t;
-  | Match(e, rs) =>
-    // TODO: Add newlines
-    let+ e = go(e)
-    and+ rs: list((Segment.t, Segment.t)) = {
-      rs
-      |> List.map(((p, e)) =>
-           (pat_to_pretty(~settings: Settings.t, p), go(e))
-         )
-      |> List.map(((x, y)) => (x, y))
-      |> all;
-    };
-    let (id, ids) = (
-      IdTagged.ids(exp) |> List.hd,
-      IdTagged.ids(exp) |> List.tl |> pad_ids(List.length(rs)),
-    );
-    [
-      mk_form(
-        Case,
-        id,
-        [
-          e
-          @ (
-            List.map2(
-              (id, (p, e)) =>
-                (settings.inline ? [] : [Secondary(mk_newline(Id.mk()))])
-                @ [mk_form(Rule, id, [p])]
-                @ (e |> fold_if(settings.fold_case_clauses)),
-              ids,
-              rs,
-            )
-            |> List.flatten
-          )
-          @ (settings.inline ? [] : [Secondary(mk_newline(Id.mk()))]),
-        ],
-      ),
-    ];
-  };
-}
-and pat_to_pretty = (~settings: Settings.t, pat: Pat.t): pretty => {
-  let go = pat_to_pretty(~settings: Settings.t);
-  switch (pat |> Pat.term_of) {
-  | Invalid(t) => text_to_pretty(pat |> Pat.rep_id, Sort.Pat, t)
-  | EmptyHole =>
-    let id = pat |> Pat.rep_id;
-    p_just([
-      Grout({
-        id,
-        shape: Convex,
-      }),
-    ]);
-  | Wild => text_to_pretty(pat |> Pat.rep_id, Sort.Pat, "_")
-  | ExplicitNonlabel => text_to_pretty(pat |> Pat.rep_id, Sort.Pat, "_")
-  | Var(v) => text_to_pretty(pat |> Pat.rep_id, Sort.Pat, v)
-  | Atom(c) =>
-    text_to_pretty(pat |> Pat.rep_id, Sort.Pat, Atom.to_literal(c))
-  | Constructor(c, _) => text_to_pretty(pat |> Pat.rep_id, Sort.Pat, c)
-  | ListLit([]) => text_to_pretty(pat |> Pat.rep_id, Sort.Pat, "[]")
-  | ListLit([x, ...xs]) =>
-    let* x = go(x)
-    and* xs = xs |> List.map(go) |> all;
-    let (id, ids) = (
-      IdTagged.ids(pat) |> List.hd,
-      IdTagged.ids(pat) |> List.tl |> pad_ids(List.length(xs)),
-    );
-    p_just([
-      mk_form(
-        ListLitPat,
-        id,
-        [
-          x
-          @ List.flatten(
-              List.map2(
-                (id, x) => [mk_form(CommaPat, id, [])] @ x,
-                ids,
-                xs,
-              ),
-            ),
-        ],
-      ),
-    ]);
-  | Cons(p1, p2) =>
-    let id = pat |> Pat.rep_id;
-    let+ p1 = go(p1)
-    and+ p2 = go(p2);
-    p1 @ [mk_form(ConsPat, id, [])] @ p2;
-  | Tuple([]) => text_to_pretty(pat |> Pat.rep_id, Sort.Pat, "()")
-  | Tuple([x, ...xs]) =>
-    let+ x = go(x)
-    and+ xs = xs |> List.map(go) |> all;
-    let ids = IdTagged.ids(pat) |> pad_ids(List.length(xs));
-    x
-    @ List.flatten(
-        List.map2((id, x) => [mk_form(CommaPat, id, [])] @ x, ids, xs),
-      );
-  | TupLabel(l, p) =>
-    let* l =
-      switch (l.term) {
-      | Label(l') =>
-        label_to_pretty(
-          ~label_only_position=true,
-          Sort.Pat,
-          l',
-          l |> Pat.rep_id,
-        )
-      | _ => go(l)
-      }
-    and* p = go(p);
-    List.flatten([
-      l,
-      [
-        Tile({
-          id: pat |> Pat.rep_id,
-          label: ["="],
-          mold: Mold.mk_bin(Precedence.lab, Sort.Pat, []),
-          shards: [0],
-          children: [],
-        }),
-      ],
-      if (Token.begins_with_potential_operator(Segment.first_string(p))) {
-        [Secondary(mk_space(Id.mk()))] @ p;
-      } else {
-        p;
-      },
-    ]);
-  | Label(l) =>
-    text_to_pretty(pat |> Pat.rep_id, Sort.Pat, Token.label_quote(l))
-  | Parens(p) =>
-    let id = pat |> Pat.rep_id;
-    let+ p = go(p);
-    [mk_form(ParensPat, id, [p])];
-  | Probe(p, _) =>
-    /* Not sure about this case*/
-    go(p)
-  | MultiHole(es) =>
-    let id = pat |> Pat.rep_id;
-    let+ es = es |> List.map(any_to_pretty(~settings: Settings.t)) |> all;
-    ListUtil.flat_intersperse(
-      Grout({
-        id,
-        shape: Concave,
-      }),
-      es,
-    );
-  | Ap(p1, p2) =>
-    let id = pat |> Pat.rep_id;
-    let+ p1 = go(p1)
-    and+ p2 = go(p2);
-    p1 @ [mk_form(ApPat, id, [p2])];
-  | Asc(p, t) =>
-    let id = pat |> Pat.rep_id;
-    let+ p = go(p)
-    and+ t = typ_to_pretty(~settings: Settings.t, t);
-    p @ [mk_form(Typeann, id, [])] @ t;
-  };
-}
-and typ_to_pretty = (~settings: Settings.t, typ: Typ.t): pretty => {
-  let go = typ_to_pretty(~settings: Settings.t);
-  let go_constructor: ConstructorMap.variant(Typ.t) => pretty =
-    fun
-    | Variant(c, ids, None) => {
-        text_to_pretty(
-          Option.value(~default=Id.invalid, ListUtil.hd_opt(ids)),
-          Sort.Typ,
-          c,
+        : pretty => {
+  OptUtil.get(
+    () => {
+      let go = (~inline=settings.inline) =>
+        exp_to_pretty(
+          ~settings={
+            ...settings,
+            inline,
+          },
+          ~override,
         );
-      }
-    | Variant(c, ids, Some(x)) => {
-        let+ constructor =
-          text_to_pretty(
-            Option.value(~default=Id.invalid, List.nth_opt(ids, 1)),
-            Sort.Typ,
-            c,
+      let any_to_pretty = any_to_pretty(~override, ~settings);
+      let pat_to_pretty = pat_to_pretty(~override, ~settings);
+      let tpat_to_pretty = tpat_to_pretty(~override, ~settings);
+      let label_to_pretty = label_to_pretty(~override);
+      let typ_to_pretty = typ_to_pretty(~override, ~settings);
+      switch (exp |> Exp.term_of) {
+      // Assume these have been removed by the parenthesizer
+      | DynamicErrorHole(_)
+      | Filter(Residue(_), _) =>
+        failwith("printing these not implemented yet")
+      | Filter(Filter({pat, act}), e) =>
+        let id = exp |> Exp.rep_id;
+        let* p = go(pat);
+        let+ e = go(e);
+        settings.show_filters
+          ? {
+            let form =
+              switch (act) {
+              | (Step, One) => Form.FilterPause
+              | (Step, All) => Form.FilterDebug
+              | (Eval, One) => Form.FilterHide
+              | (Eval, All) => Form.FilterEval
+              };
+            [mk_form(form, id, [p])] @ e;
+          }
+          : e;
+      // Forms which should be removed by substitute_closures
+      | Closure(_) => failwith("closure not removed before printing")
+      // Other cases
+      | Invalid(x) => text_to_pretty(exp |> Exp.rep_id, Sort.Exp, x)
+      | EmptyHole =>
+        let id = exp |> Exp.rep_id;
+        p_just([
+          Grout({
+            id,
+            shape: Convex,
+          }),
+        ]);
+      | Undefined => text_to_pretty(exp |> Exp.rep_id, Sort.Exp, "undefined")
+      | Atom(c) =>
+        text_to_pretty(exp |> Exp.rep_id, Sort.Exp, Atom.to_literal(c))
+      // TODO: Make sure types are correct
+      | Constructor(c, _t) =>
+        // let id = Id.mk();
+        let+ e = text_to_pretty(exp |> Exp.rep_id, Sort.Exp, c);
+        // and+ t = typ_to_pretty(~settings: Settings.t, t);
+        e;
+      // @ [mk_form("typeasc", id, [])]
+      // @ (t |> fold_if(settings.fold_cast_types));
+      | ListLit([]) => text_to_pretty(exp |> Exp.rep_id, Sort.Exp, "[]")
+      | Deferral(_) => text_to_pretty(exp |> Exp.rep_id, Sort.Exp, "_")
+      | ExplicitNonlabel => text_to_pretty(exp |> Exp.rep_id, Sort.Exp, "_")
+      | ListLit([x, ...xs]) =>
+        // TODO: Add optional newlines
+        let* x = go(x)
+        and* xs = xs |> List.map(go) |> all;
+        let (id, ids) = (
+          IdTagged.ids(exp) |> List.hd,
+          IdTagged.ids(exp) |> List.tl |> pad_ids(List.length(xs)),
+        );
+        let form = (x, xs) =>
+          mk_form(
+            ListLitExp,
+            id,
+            [
+              x
+              @ List.flatten(
+                  List.map2(
+                    (id, x) => [mk_form(CommaExp, id, [])] @ x,
+                    ids,
+                    xs,
+                  ),
+                ),
+            ],
           );
-        constructor
+        p_just([form(x, xs)]);
+      | Var(v) => text_to_pretty(exp |> Exp.rep_id, Sort.Exp, v)
+      | BinOp(op, l, r) =>
+        // TODO: Add optional newlines
+        let id = exp |> Exp.rep_id;
+        let+ l = go(l)
+        and+ r = go(r);
+        l
+        @ [
+          Tile({
+            id,
+            label: [Operators.bin_op_to_string(op)],
+            mold: Mold.mk_bin(Precedence.of_bin_op(op), Sort.Exp, []),
+            shards: [0],
+            children: [],
+          }),
+        ]
+        @ r;
+      | TupleExtension(l, r) =>
+        // TODO: Add optional newlines
+        let id = exp |> Exp.rep_id;
+        let+ l = go(l)
+        and+ r = go(r);
+        l
+        @ [
+          Tile({
+            id,
+            label: ["..."],
+            mold: Mold.mk_bin(Precedence.dot, Sort.Exp, []),
+            shards: [0],
+            children: [],
+          }),
+        ]
+        @ r;
+      | MultiHole(es) =>
+        // TODO: Add optional newlines
+        let id = exp |> Exp.rep_id;
+        let+ es = es |> List.map(any_to_pretty) |> all;
+        ListUtil.flat_intersperse(
+          Grout({
+            id,
+            shape: Concave,
+          }),
+          es,
+        );
+      | Parens({term: Fun(p, e, _, _), _} as inner_exp)
+      | Probe({term: Fun(p, e, _, _), _} as inner_exp, _) =>
+        // TODO: Add optional newlines
+        let id = inner_exp |> Exp.rep_id;
+        let+ p = pat_to_pretty(p)
+        and+ e = go(e);
+        let name = Exp.get_fn_name(exp) |> Option.value(~default="anon fun");
+        let name =
+          if (settings.hide_fixpoints && String.ends_with(~suffix="+", name)) {
+            String.sub(name, 0, String.length(name) - 1);
+          } else {
+            name;
+          };
+        let name = "<" ++ name ++ ">";
+        let fun_form = [mk_form(Fun, id, [p])] @ e;
+        [mk_form(ParensExp, exp |> Exp.rep_id, [fun_form])]
+        |> fold_fun_if(settings.fold_fn_bodies, name);
+      | LivelitName(s) =>
+        text_to_pretty(exp |> Exp.rep_id, Sort.Exp, "^" ++ s)
+      | Fun(p, e, t, _) =>
+        // TODO: Add optional newlines
+        let id = exp |> Exp.rep_id;
+        let p =
+          switch (t) {
+          | None => p
+          | Some(t) =>
+            let t = t |> Typ.replace_temp;
+            Pat.fresh(Asc(p, t))
+            |> parenthesize_pat(~show_filters=settings.show_filters);
+          };
+        let+ p = pat_to_pretty(p)
+        and+ e = go(e);
+        let name = Exp.get_fn_name(exp) |> Option.value(~default="anon fun");
+        let name =
+          if (settings.hide_fixpoints && String.ends_with(~suffix="+", name)) {
+            String.sub(name, 0, String.length(name) - 1);
+          } else {
+            name;
+          };
+        let name = "<" ++ name ++ ">";
+        [mk_form(Fun, id, [p])]
+        @ e
+        |> fold_fun_if(settings.fold_fn_bodies, name);
+      | TypFun(tp, e, _) =>
+        // TODO: Add optional newlines
+        let id = exp |> Exp.rep_id;
+        let+ tp = tpat_to_pretty(tp)
+        and+ e = go(e);
+        let name =
+          "<"
+          ++ (Exp.get_fn_name(exp) |> Option.value(~default="anon typfun"))
+          ++ ">";
+        [mk_form(TypFun, id, [tp])]
+        @ e
+        |> fold_fun_if(settings.fold_fn_bodies, name);
+      | Tuple([]) => text_to_pretty(exp |> Exp.rep_id, Sort.Exp, "()")
+      | Tuple([{term: TupLabel(_), _} as le]) => go(le)
+      | Tuple([x, ...xs]) =>
+        // TODO: Add optional newlines
+        let+ x = go(x)
+        and+ xs = xs |> List.map(go) |> all;
+        let ids = IdTagged.ids(exp) |> pad_ids(List.length(xs));
+        x
+        @ List.flatten(
+            List.map2((id, x) => [mk_form(CommaExp, id, [])] @ x, ids, xs),
+          );
+      | Label(l) =>
+        label_to_pretty(
+          ~label_only_position=false,
+          Sort.Exp,
+          Token.label_quote(l),
+          exp |> Exp.rep_id,
+        )
+      | TupLabel(l, e) =>
+        let* l =
+          switch (l.term) {
+          | Label(l') =>
+            label_to_pretty(
+              ~label_only_position=true,
+              Sort.Exp,
+              l',
+              l |> Exp.rep_id,
+            )
+          | _ => go(l)
+          }
+        and* e = go(e);
+
+        List.flatten([
+          l,
+          [
+            Tile({
+              id: exp |> Exp.rep_id,
+              label: ["="],
+              mold: Mold.mk_bin(Precedence.lab, Sort.Exp, []),
+              shards: [0],
+              children: [],
+            }),
+          ],
+          if (Token.begins_with_potential_operator(Segment.first_string(e))) {
+            [Secondary(mk_space(Id.mk()))] @ e;
+          } else {
+            e;
+          },
+        ]);
+      | Dot(e, l) =>
+        let* e = go(e)
+        and* l =
+          switch (l.term) {
+          | Label(l') =>
+            label_to_pretty(
+              ~label_only_position=true,
+              Sort.Exp,
+              l',
+              l |> Exp.rep_id,
+            )
+          | _ => go(l)
+          };
+        e @ [mk_form(DotExp, exp |> Exp.rep_id, [])] @ l;
+      | Let(p, e1, e2) =>
+        // TODO: Add optional newlines
+        let id = exp |> Exp.rep_id;
+        // This step undoes the adding of fixpoints that happens in elaboration.
+        let e1 = settings.hide_fixpoints ? Exp.unfix(e1, p) : e1;
+        let+ p = pat_to_pretty(p)
+        and+ e1 = go(e1)
+        and+ e2 = go(e2);
+        let e2 =
+          settings.inline ? e2 : [Secondary(mk_newline(Id.mk()))] @ e2;
+        [mk_form(Let, id, [p, e1])] @ e2;
+      | FixF(p, e, _) =>
+        // TODO: Add optional newlines
+        let id = exp |> Exp.rep_id;
+        let+ p = pat_to_pretty(p)
+        and+ e = go(e);
+        let name =
+          "<"
+          ++ (Exp.get_fn_name(exp) |> Option.value(~default="fun"))
+          ++ ">";
+        [mk_form(Fix, id, [p])]
+        @ e
+        |> fold_fun_if(settings.fold_fn_bodies, name);
+      | TyAlias(tp, t, e) =>
+        // TODO: Add optional newlines
+        let id = exp |> Exp.rep_id;
+        let+ tp = tpat_to_pretty(tp)
+        and+ t = typ_to_pretty(t)
+        and+ e = go(e);
+        let e = settings.inline ? e : [Secondary(mk_newline(Id.mk()))] @ e;
+        [mk_form(TypeAlias, id, [tp, t])] @ e;
+      | Use(t, e) =>
+        let id = exp |> Exp.rep_id;
+        let+ t = typ_to_pretty(t)
+        and+ e = go(e);
+        let e = settings.inline ? e : [Secondary(mk_newline(Id.mk()))] @ e;
+        [mk_form(Use, id, [t])] @ e;
+      | Ap(Forward, e1, e2) =>
+        let id = exp |> Exp.rep_id;
+        let+ e1 = go(e1)
+        and+ e2 = go(e2);
+        e1 @ [mk_form(ApExp, id, [e2])];
+      | Ap(Reverse, e1, e2) =>
+        // TODO: Add optional newlines
+        let id = exp |> Exp.rep_id;
+        let+ e1 = go(e1)
+        and+ e2 = go(e2);
+        e2
+        @ [
+          Tile({
+            id,
+            label: ["|>"],
+            mold: Mold.mk_bin(Precedence.eqs, Sort.Exp, []),
+            shards: [0],
+            children: [],
+          }),
+        ]
+        @ e1;
+      | TypAp(e, t) =>
+        // TODO: Add optional newlines
+        let id = exp |> Exp.rep_id;
+        let+ e = go(e)
+        and+ tp = typ_to_pretty(t);
+        e @ [mk_form(ApExpTyp, id, [tp])];
+      | DeferredAp(e, es) =>
+        // TODO: Add optional newlines
+        let+ e = go(e)
+        and+ es = es |> List.map(go) |> all;
+        let (id, ids) = (
+          IdTagged.ids(exp) |> List.hd,
+          IdTagged.ids(exp) |> List.tl |> pad_ids(List.length(es)),
+        );
+        e
         @ [
           mk_form(
-            ApTyp,
-            Option.value(~default=Id.invalid, ListUtil.hd_opt(ids)),
-            [go(x)],
+            ApExp,
+            id,
+            [
+              (es |> List.hd)
+              @ List.flatten(
+                  List.map2(
+                    (id, e) => [mk_form(CommaExp, id, [])] @ e,
+                    ids |> List.tl,
+                    es |> List.tl,
+                  ),
+                ),
+            ],
           ),
         ];
-      }
-    | BadEntry(x) => go(x);
-  switch (typ |> Typ.term_of) {
-  | Unknown(Hole(Invalid(s))) =>
-    text_to_pretty(typ |> Typ.rep_id, Sort.Typ, s)
-  | Unknown(Internal)
-  | Unknown(SynSwitch)
-  | Unknown(Hole(EmptyHole)) =>
-    if (settings.show_unknown_as_hole) {
-      let id = typ |> Typ.rep_id;
-      p_just([
-        Grout({
-          id,
-          shape: Convex,
-        }),
-      ]);
-    } else {
-      text_to_pretty(typ |> Typ.rep_id, Sort.Typ, "?");
-    }
-  | Unknown(Hole(MultiHole(es))) =>
-    let id = typ |> Typ.rep_id;
-    let+ es = es |> List.map(any_to_pretty(~settings: Settings.t)) |> all;
-    ListUtil.flat_intersperse(
-      Grout({
-        id,
-        shape: Concave,
-      }),
-      es,
-    );
-  | Var(v) => text_to_pretty(typ |> Typ.rep_id, Sort.Typ, v)
-  | Atom(Int) => text_to_pretty(typ |> Typ.rep_id, Sort.Typ, "Int")
-  | Atom(SInt) => text_to_pretty(typ |> Typ.rep_id, Sort.Typ, "SInt")
-  | Atom(Float) => text_to_pretty(typ |> Typ.rep_id, Sort.Typ, "Float")
-  | Atom(Bool) => text_to_pretty(typ |> Typ.rep_id, Sort.Typ, "Bool")
-  | Atom(String) => text_to_pretty(typ |> Typ.rep_id, Sort.Typ, "String")
-  | Atom(Nat) => text_to_pretty(typ |> Typ.rep_id, Sort.Typ, "Nat")
-  | List(t) =>
-    let id = typ |> Typ.rep_id;
-    let+ t = go(t);
-    [mk_form(ListTyp, id, [t])];
-  | Prod([]) => text_to_pretty(typ |> Typ.rep_id, Sort.Typ, "()")
-  | Prod([t, ...ts]) =>
-    let+ t = go(t)
-    and+ ts = ts |> List.map(go) |> all;
-    t
-    @ List.flatten(
-        List.map2(
-          (id, t) => [mk_form(CommaTyp, id, [])] @ t,
-          IdTagged.ids(typ) |> pad_ids(ts |> List.length),
-          ts,
-        ),
-      );
-  | ExplicitNonlabel => text_to_pretty(typ |> Typ.rep_id, Sort.Typ, "_")
-  | Label(l) =>
-    text_to_pretty(typ |> Typ.rep_id, Sort.Typ, Token.label_quote(l))
-  | TupLabel(l, t) =>
-    let+ l =
-      switch (l.term) {
-      | Label(l') =>
-        label_to_pretty(
-          ~label_only_position=true,
-          Sort.Typ,
-          l',
-          l |> Typ.rep_id,
-        )
-      | _ => go(l)
-      }
-    and+ t = go(t);
-
-    List.flatten([
-      l,
-      [
-        Tile({
-          id: typ |> Typ.rep_id,
-          label: ["="],
-          mold: Mold.mk_bin(Precedence.lab, Sort.Typ, []),
-          shards: [0],
-          children: [],
-        }),
-      ],
-      if (Token.begins_with_potential_operator(Segment.first_string(t))) {
-        [Secondary(mk_space(Id.mk()))] @ t;
-      } else {
-        t;
-      },
-    ]);
-  | ProdProjection(t1, t2) =>
-    let* t1 = go(t1)
-    and* t2 =
-      switch (t2.term) {
-      | Label(l') =>
-        label_to_pretty(
-          ~label_only_position=true,
-          Sort.Typ,
-          l',
-          t2 |> Typ.rep_id,
-        )
-      | _ => go(t2)
+      | If(e1, e2, e3) =>
+        let id = exp |> Exp.rep_id;
+        let+ e1 = go(e1)
+        and+ e2 = go(e2)
+        and+ e3 = go(e3);
+        let e2 =
+          settings.inline
+            ? e2
+            : [Secondary(mk_newline(Id.mk()))]
+              @ e2
+              @ [Secondary(mk_newline(Id.mk()))];
+        let e3 =
+          settings.inline ? e3 : [Secondary(mk_newline(Id.mk()))] @ e3;
+        [mk_form(If, id, [e1, e2])] @ e3;
+      | Seq(e1, e2) =>
+        // TODO: Make newline optional
+        let id = exp |> Exp.rep_id;
+        let+ e1 = go(e1)
+        and+ e2 = go(e2);
+        let e2 =
+          settings.inline ? e2 : [Secondary(mk_newline(Id.mk()))] @ e2;
+        e1 @ [mk_form(CellJoin, id, [])] @ e2;
+      | Test(e) =>
+        let id = exp |> Exp.rep_id;
+        let+ e = go(e);
+        [mk_form(Test, id, [e])];
+      | HintedTest(e, hint) =>
+        let id = exp |> Exp.rep_id;
+        let* hint = go(hint)
+        and* e = go(e);
+        [mk_form(HintedTest, id, [hint, e])];
+      | Parens(e) =>
+        // TODO: Add optional newlines
+        let id = exp |> Exp.rep_id;
+        let+ e = go(e);
+        [mk_form(ParensExp, id, [e])];
+      | Probe(e, _) =>
+        /* Not sure about this case*/
+        go(e)
+      | Cons(e1, e2) =>
+        // TODO: Add optional newlines
+        let id = exp |> Exp.rep_id;
+        let+ e1 = go(e1)
+        and+ e2 = go(e2);
+        e1 @ [mk_form(ConsExp, id, [])] @ e2;
+      | ListConcat(e1, e2) =>
+        // TODO: Add optional newlines
+        let id = exp |> Exp.rep_id;
+        let+ e1 = go(e1)
+        and+ e2 = go(e2);
+        e1 @ [mk_form(ListConcat, id, [])] @ e2;
+      | UnOp(Meta(Unquote), e) =>
+        let id = exp |> Exp.rep_id;
+        let+ e = go(e);
+        [mk_form(Unquote, id, [])] @ e;
+      | UnOp(Bool(Not), e) =>
+        let id = exp |> Exp.rep_id;
+        let+ e = go(e);
+        [mk_form(Not, id, [])] @ e;
+      | UnOp(Int(Minus) | Nat(Minus) | Float(Minus) | SInt(Minus), e) =>
+        let id = exp |> Exp.rep_id;
+        let+ e = go(e);
+        [mk_form(UnaryMinus, id, [])] @ e;
+      /* TODO: this isn't actually correct because we could the builtin
+         could have been overriden in this scope; worth fixing when we fix
+         closures. */
+      | BuiltinFun(f) => text_to_pretty(exp |> Exp.rep_id, Sort.Exp, f)
+      | Asc(e, t) =>
+        let id = exp |> Exp.rep_id;
+        let+ e = go(e)
+        and+ t = typ_to_pretty(t);
+        e @ [mk_form(TypeAsc, id, [])] @ t;
+      | Match(e, rs) =>
+        // TODO: Add newlines
+        let+ e = go(e)
+        and+ rs: list((Segment.t, Segment.t)) = {
+          rs
+          |> List.map(((p, e)) => (pat_to_pretty(p), go(e)))
+          |> List.map(((x, y)) => (x, y))
+          |> all;
+        };
+        let (id, ids) = (
+          IdTagged.ids(exp) |> List.hd,
+          IdTagged.ids(exp) |> List.tl |> pad_ids(List.length(rs)),
+        );
+        [
+          mk_form(
+            Case,
+            id,
+            [
+              e
+              @ (
+                List.map2(
+                  (id, (p, e)) =>
+                    (
+                      settings.inline ? [] : [Secondary(mk_newline(Id.mk()))]
+                    )
+                    @ [mk_form(Rule, id, [p])]
+                    @ (e |> fold_if(settings.fold_case_clauses)),
+                  ids,
+                  rs,
+                )
+                |> List.flatten
+              )
+              @ (settings.inline ? [] : [Secondary(mk_newline(Id.mk()))]),
+            ],
+          ),
+        ];
       };
-    t1 @ [mk_form(ProdProjection, typ |> Typ.rep_id, [])] @ t2;
-  | ProdExtension(t1, t2) =>
-    let+ t1 = go(t1)
-    and+ t2 = go(t2);
-    t1 @ [mk_form(ProdExtension, typ |> Typ.rep_id, [])] @ t2;
-  | Parens(t) =>
-    let id = typ |> Typ.rep_id;
-    let+ t = go(t);
-    [mk_form(ParensTyp, id, [t])];
-  | Rec(tp, t) =>
-    let id = typ |> Typ.rep_id;
-    let+ tp = tpat_to_pretty(~settings: Settings.t, tp)
-    and+ t = go(t);
-    [mk_form(Rec, id, [tp])] @ t;
-  | Forall(tp, t) =>
-    let id = typ |> Typ.rep_id;
-    let+ tp = tpat_to_pretty(~settings: Settings.t, tp)
-    and+ t = go(t);
-    [mk_form(Forall, id, [tp])] @ t;
-  | Arrow(t1, t2) =>
-    let id = typ |> Typ.rep_id;
-    let+ t1 = go(t1)
-    and+ t2 = go(t2);
-    t1 @ [mk_form(TypeArrow, id, [])] @ t2;
-  | Sum([]) => failwith("Empty Sums are not allowed")
-  | Sum([t]) =>
-    let id = typ |> Typ.rep_id;
-    let+ t = go_constructor(t);
-    [mk_form(TypSumSingle, id, [])] @ t;
-  | Sum([t, ...ts]) =>
-    let ids = IdTagged.ids(typ) |> pad_ids(List.length(ts) + 1);
-    let id = List.hd(ids);
-    let ids = List.tl(ids);
-    let+ t = go_constructor(t)
-    and+ ts = ts |> List.map(go_constructor) |> all;
-    [mk_form(TypSumSingle, id, [])]
-    @ t
-    @ List.flatten(
-        List.map2((id, t) => [mk_form(TypPlus, id, [])] @ t, ids, ts),
-      );
-  };
+    },
+    override(exp |> Exp.rep_id),
+  );
 }
-and tpat_to_pretty = (~settings: Settings.t, tpat: TPat.t): pretty => {
-  switch (tpat |> IdTagged.term_of) {
-  | Invalid(t) => text_to_pretty(tpat |> TPat.rep_id, Sort.TPat, t)
-  | EmptyHole =>
-    let id = tpat |> TPat.rep_id;
-    p_just([
-      Grout({
-        id,
-        shape: Convex,
-      }),
-    ]);
-  | MultiHole(xs) =>
-    let id = tpat |> TPat.rep_id;
-    let+ xs = xs |> List.map(any_to_pretty(~settings: Settings.t)) |> all;
-    ListUtil.flat_intersperse(
-      Grout({
-        id,
-        shape: Concave,
-      }),
-      xs,
-    );
-  | Var(v) => text_to_pretty(tpat |> TPat.rep_id, Sort.TPat, v)
-  };
+and pat_to_pretty =
+    (~override: Id.t => option(Segment.t), ~settings: Settings.t, pat: Pat.t)
+    : pretty => {
+  OptUtil.get(
+    () => {
+      let go = pat_to_pretty(~settings: Settings.t, ~override);
+      let label_to_pretty = label_to_pretty(~override);
+      let any_to_pretty = any_to_pretty(~settings: Settings.t, ~override);
+
+      switch (pat |> Pat.term_of) {
+      | Invalid(t) => text_to_pretty(pat |> Pat.rep_id, Sort.Pat, t)
+      | EmptyHole =>
+        let id = pat |> Pat.rep_id;
+        p_just([
+          Grout({
+            id,
+            shape: Convex,
+          }),
+        ]);
+      | Wild => text_to_pretty(pat |> Pat.rep_id, Sort.Pat, "_")
+      | ExplicitNonlabel => text_to_pretty(pat |> Pat.rep_id, Sort.Pat, "_")
+      | Var(v) => text_to_pretty(pat |> Pat.rep_id, Sort.Pat, v)
+      | Atom(c) =>
+        text_to_pretty(pat |> Pat.rep_id, Sort.Pat, Atom.to_literal(c))
+      | Constructor(c, _) => text_to_pretty(pat |> Pat.rep_id, Sort.Pat, c)
+      | ListLit([]) => text_to_pretty(pat |> Pat.rep_id, Sort.Pat, "[]")
+      | ListLit([x, ...xs]) =>
+        let* x = go(x)
+        and* xs = xs |> List.map(go) |> all;
+        let (id, ids) = (
+          IdTagged.ids(pat) |> List.hd,
+          IdTagged.ids(pat) |> List.tl |> pad_ids(List.length(xs)),
+        );
+        p_just([
+          mk_form(
+            ListLitPat,
+            id,
+            [
+              x
+              @ List.flatten(
+                  List.map2(
+                    (id, x) => [mk_form(CommaPat, id, [])] @ x,
+                    ids,
+                    xs,
+                  ),
+                ),
+            ],
+          ),
+        ]);
+      | Cons(p1, p2) =>
+        let id = pat |> Pat.rep_id;
+        let+ p1 = go(p1)
+        and+ p2 = go(p2);
+        p1 @ [mk_form(ConsPat, id, [])] @ p2;
+      | Tuple([]) => text_to_pretty(pat |> Pat.rep_id, Sort.Pat, "()")
+      | Tuple([x, ...xs]) =>
+        let+ x = go(x)
+        and+ xs = xs |> List.map(go) |> all;
+        let ids = IdTagged.ids(pat) |> pad_ids(List.length(xs));
+        x
+        @ List.flatten(
+            List.map2((id, x) => [mk_form(CommaPat, id, [])] @ x, ids, xs),
+          );
+      | TupLabel(l, p) =>
+        let* l =
+          switch (l.term) {
+          | Label(l') =>
+            label_to_pretty(
+              ~label_only_position=true,
+              Sort.Pat,
+              l',
+              l |> Pat.rep_id,
+            )
+          | _ => go(l)
+          }
+        and* p = go(p);
+        List.flatten([
+          l,
+          [
+            Tile({
+              id: pat |> Pat.rep_id,
+              label: ["="],
+              mold: Mold.mk_bin(Precedence.lab, Sort.Pat, []),
+              shards: [0],
+              children: [],
+            }),
+          ],
+          if (Token.begins_with_potential_operator(Segment.first_string(p))) {
+            [Secondary(mk_space(Id.mk()))] @ p;
+          } else {
+            p;
+          },
+        ]);
+      | Label(l) =>
+        text_to_pretty(pat |> Pat.rep_id, Sort.Pat, Token.label_quote(l))
+      | Parens(p) =>
+        let id = pat |> Pat.rep_id;
+        let+ p = go(p);
+        [mk_form(ParensPat, id, [p])];
+      | Probe(p, _) =>
+        /* Not sure about this case*/
+        go(p)
+      | MultiHole(es) =>
+        let id = pat |> Pat.rep_id;
+        let+ es = es |> List.map(any_to_pretty) |> all;
+        ListUtil.flat_intersperse(
+          Grout({
+            id,
+            shape: Concave,
+          }),
+          es,
+        );
+      | Ap(p1, p2) =>
+        let id = pat |> Pat.rep_id;
+        let+ p1 = go(p1)
+        and+ p2 = go(p2);
+        p1 @ [mk_form(ApPat, id, [p2])];
+      | Asc(p, t) =>
+        let id = pat |> Pat.rep_id;
+        let+ p = go(p)
+        and+ t = typ_to_pretty(~settings: Settings.t, ~override, t);
+        p @ [mk_form(Typeann, id, [])] @ t;
+      };
+    },
+    override(pat |> Pat.rep_id),
+  );
 }
-and any_to_pretty = (~settings: Settings.t, any: Any.t): pretty => {
-  switch (any) {
-  | Exp(e) => exp_to_pretty(~settings: Settings.t, e)
-  | Pat(p) => pat_to_pretty(~settings: Settings.t, p)
-  | Typ(t) => typ_to_pretty(~settings: Settings.t, t)
-  | TPat(tp) => tpat_to_pretty(~settings: Settings.t, tp)
-  | Any(_)
-  | Rul(_) =>
-    //TODO: print out invalid rules properly
-    let id = any |> Any.rep_id;
-    p_just([
-      Grout({
-        id,
-        shape: Convex,
-      }),
-    ]);
-  };
+and typ_to_pretty =
+    (~override: Id.t => option(Segment.t), ~settings: Settings.t, typ: Typ.t)
+    : pretty => {
+  OptUtil.get(
+    () => {
+      let go = typ_to_pretty(~settings: Settings.t, ~override);
+      let any_to_pretty = any_to_pretty(~settings: Settings.t, ~override);
+      let label_to_pretty = label_to_pretty(~override);
+      let tpat_to_pretty = tpat_to_pretty(~settings: Settings.t, ~override);
+      let go_constructor: ConstructorMap.variant(Typ.t) => pretty =
+        fun
+        | Variant(c, ids, None) => {
+            text_to_pretty(
+              Option.value(~default=Id.invalid, ListUtil.hd_opt(ids)),
+              Sort.Typ,
+              c,
+            );
+          }
+        | Variant(c, ids, Some(x)) => {
+            let+ constructor =
+              text_to_pretty(
+                Option.value(~default=Id.invalid, List.nth_opt(ids, 1)),
+                Sort.Typ,
+                c,
+              );
+            constructor
+            @ [
+              mk_form(
+                ApTyp,
+                Option.value(~default=Id.invalid, ListUtil.hd_opt(ids)),
+                [go(x)],
+              ),
+            ];
+          }
+        | BadEntry(x) => go(x);
+      switch (typ |> Typ.term_of) {
+      | Unknown(Hole(Invalid(s))) =>
+        text_to_pretty(typ |> Typ.rep_id, Sort.Typ, s)
+      | Unknown(Internal)
+      | Unknown(SynSwitch)
+      | Unknown(Hole(EmptyHole)) =>
+        if (settings.show_unknown_as_hole) {
+          let id = typ |> Typ.rep_id;
+          p_just([
+            Grout({
+              id,
+              shape: Convex,
+            }),
+          ]);
+        } else {
+          text_to_pretty(typ |> Typ.rep_id, Sort.Typ, "?");
+        }
+      | Unknown(Hole(MultiHole(es))) =>
+        let id = typ |> Typ.rep_id;
+        let+ es = es |> List.map(any_to_pretty) |> all;
+        ListUtil.flat_intersperse(
+          Grout({
+            id,
+            shape: Concave,
+          }),
+          es,
+        );
+      | Var(v) => text_to_pretty(typ |> Typ.rep_id, Sort.Typ, v)
+      | Atom(Int) => text_to_pretty(typ |> Typ.rep_id, Sort.Typ, "Int")
+      | Atom(SInt) => text_to_pretty(typ |> Typ.rep_id, Sort.Typ, "SInt")
+      | Atom(Float) => text_to_pretty(typ |> Typ.rep_id, Sort.Typ, "Float")
+      | Atom(Bool) => text_to_pretty(typ |> Typ.rep_id, Sort.Typ, "Bool")
+      | Atom(String) => text_to_pretty(typ |> Typ.rep_id, Sort.Typ, "String")
+      | Atom(Nat) => text_to_pretty(typ |> Typ.rep_id, Sort.Typ, "Nat")
+      | List(t) =>
+        let id = typ |> Typ.rep_id;
+        let+ t = go(t);
+        [mk_form(ListTyp, id, [t])];
+      | Prod([]) => text_to_pretty(typ |> Typ.rep_id, Sort.Typ, "()")
+      | Prod([t, ...ts]) =>
+        let+ t = go(t)
+        and+ ts = ts |> List.map(go) |> all;
+        t
+        @ List.flatten(
+            List.map2(
+              (id, t) => [mk_form(CommaTyp, id, [])] @ t,
+              IdTagged.ids(typ) |> pad_ids(ts |> List.length),
+              ts,
+            ),
+          );
+      | ExplicitNonlabel => text_to_pretty(typ |> Typ.rep_id, Sort.Typ, "_")
+      | Label(l) =>
+        text_to_pretty(typ |> Typ.rep_id, Sort.Typ, Token.label_quote(l))
+      | TupLabel(l, t) =>
+        let+ l =
+          switch (l.term) {
+          | Label(l') =>
+            label_to_pretty(
+              ~label_only_position=true,
+              Sort.Typ,
+              l',
+              l |> Typ.rep_id,
+            )
+          | _ => go(l)
+          }
+        and+ t = go(t);
+
+        List.flatten([
+          l,
+          [
+            Tile({
+              id: typ |> Typ.rep_id,
+              label: ["="],
+              mold: Mold.mk_bin(Precedence.lab, Sort.Typ, []),
+              shards: [0],
+              children: [],
+            }),
+          ],
+          if (Token.begins_with_potential_operator(Segment.first_string(t))) {
+            [Secondary(mk_space(Id.mk()))] @ t;
+          } else {
+            t;
+          },
+        ]);
+      | ProdProjection(t1, t2) =>
+        let* t1 = go(t1)
+        and* t2 =
+          switch (t2.term) {
+          | Label(l') =>
+            label_to_pretty(
+              ~label_only_position=true,
+              Sort.Typ,
+              l',
+              t2 |> Typ.rep_id,
+            )
+          | _ => go(t2)
+          };
+        t1 @ [mk_form(ProdProjection, typ |> Typ.rep_id, [])] @ t2;
+      | ProdExtension(t1, t2) =>
+        let+ t1 = go(t1)
+        and+ t2 = go(t2);
+        t1 @ [mk_form(ProdExtension, typ |> Typ.rep_id, [])] @ t2;
+      | Parens(t) =>
+        let id = typ |> Typ.rep_id;
+        let+ t = go(t);
+        [mk_form(ParensTyp, id, [t])];
+      | Rec(tp, t) =>
+        let id = typ |> Typ.rep_id;
+        let+ tp = tpat_to_pretty(tp)
+        and+ t = go(t);
+        [mk_form(Rec, id, [tp])] @ t;
+      | Forall(tp, t) =>
+        let id = typ |> Typ.rep_id;
+        let+ tp = tpat_to_pretty(tp)
+        and+ t = go(t);
+        [mk_form(Forall, id, [tp])] @ t;
+      | Arrow(t1, t2) =>
+        let id = typ |> Typ.rep_id;
+        let+ t1 = go(t1)
+        and+ t2 = go(t2);
+        t1 @ [mk_form(TypeArrow, id, [])] @ t2;
+      | Sum([]) => failwith("Empty Sums are not allowed")
+      | Sum([t]) =>
+        let id = typ |> Typ.rep_id;
+        let+ t = go_constructor(t);
+        [mk_form(TypSumSingle, id, [])] @ t;
+      | Sum([t, ...ts]) =>
+        let ids = IdTagged.ids(typ) |> pad_ids(List.length(ts) + 1);
+        let id = List.hd(ids);
+        let ids = List.tl(ids);
+        let+ t = go_constructor(t)
+        and+ ts = ts |> List.map(go_constructor) |> all;
+        [mk_form(TypSumSingle, id, [])]
+        @ t
+        @ List.flatten(
+            List.map2((id, t) => [mk_form(TypPlus, id, [])] @ t, ids, ts),
+          );
+      };
+    },
+    override(typ |> Typ.rep_id),
+  );
+}
+and tpat_to_pretty =
+    (
+      ~override: Id.t => option(Segment.t),
+      ~settings: Settings.t,
+      tpat: TPat.t,
+    )
+    : pretty => {
+  OptUtil.get(
+    () =>
+      switch (tpat |> IdTagged.term_of) {
+      | Invalid(t) => text_to_pretty(tpat |> TPat.rep_id, Sort.TPat, t)
+      | EmptyHole =>
+        let id = tpat |> TPat.rep_id;
+        p_just([
+          Grout({
+            id,
+            shape: Convex,
+          }),
+        ]);
+      | MultiHole(xs) =>
+        let id = tpat |> TPat.rep_id;
+        let+ xs =
+          xs
+          |> List.map(any_to_pretty(~settings: Settings.t, ~override))
+          |> all;
+        ListUtil.flat_intersperse(
+          Grout({
+            id,
+            shape: Concave,
+          }),
+          xs,
+        );
+      | Var(v) => text_to_pretty(tpat |> TPat.rep_id, Sort.TPat, v)
+      },
+    override(tpat |> TPat.rep_id),
+  );
+}
+and any_to_pretty =
+    (~override: Id.t => option(Segment.t), ~settings: Settings.t, any: Any.t)
+    : pretty => {
+  OptUtil.get(
+    () =>
+      switch (any) {
+      | Exp(e) => exp_to_pretty(~override, ~settings: Settings.t, e)
+      | Pat(p) => pat_to_pretty(~override, ~settings: Settings.t, p)
+      | Typ(t) => typ_to_pretty(~override, ~settings: Settings.t, t)
+      | TPat(tp) => tpat_to_pretty(~override, ~settings: Settings.t, tp)
+      | Any(_)
+      | Rul(_) =>
+        //TODO: print out invalid rules properly
+        let id = any |> Any.rep_id;
+        p_just([
+          Grout({
+            id,
+            shape: Convex,
+          }),
+        ]);
+      },
+    override(any |> Any.rep_id),
+  );
 }
 and label_to_pretty =
-    (~label_only_position, sort: Sort.t, label: string, id: Uuidm.t): pretty => {
-  text_to_pretty(
-    id,
-    sort,
-    if (label_only_position) {
-      Token.quote_label_when_necessary(label);
-    } else {
-      label;
-    },
+    (
+      ~override: Id.t => option(Segment.t),
+      ~label_only_position,
+      sort: Sort.t,
+      label: string,
+      id: Uuidm.t,
+    )
+    : pretty => {
+  OptUtil.get(
+    () =>
+      text_to_pretty(
+        id,
+        sort,
+        if (label_only_position) {
+          Token.quote_label_when_necessary(label);
+        } else {
+          label;
+        },
+      ),
+    override(id),
   );
 };
 
 let exp_to_segment =
-    (~already_paren=false, ~settings: Settings.t, exp: Exp.t): Segment.t => {
+    (
+      ~override: Id.t => option(Segment.t)=_ => None,
+      ~already_paren=false,
+      ~settings: Settings.t,
+      exp: Exp.t,
+    )
+    : Segment.t => {
   let exp =
     exp |> parenthesize(~already_paren, ~show_filters=settings.show_filters);
-  let p = exp_to_pretty(~settings, exp);
+  let p = exp_to_pretty(~override, ~settings, exp);
   p |> PrettySegment.select;
 };
 
-let typ_to_segment = (~settings, typ: Typ.t): Segment.t => {
+let typ_to_segment =
+    (~override: Id.t => option(Segment.t)=_ => None, ~settings, typ: Typ.t)
+    : Segment.t => {
   let typ = parenthesize_typ(typ);
-  let p = typ_to_pretty(~settings, typ(~show_filters=settings.show_filters));
+  let p =
+    typ_to_pretty(
+      ~override,
+      ~settings,
+      typ(~show_filters=settings.show_filters),
+    );
   p |> PrettySegment.select;
 };
 
 let any_to_segment =
-    (~already_paren=false, ~settings: Settings.t, any: Any.t): Segment.t => {
+    (
+      ~override: Id.t => option(Segment.t)=_ => None,
+      ~already_paren=false,
+      ~settings: Settings.t,
+      any: Any.t,
+    )
+    : Segment.t => {
   let any =
     any
     |> parenthesize_any(~already_paren, ~show_filters=settings.show_filters);
-  let p = any_to_pretty(~settings, any);
+  let p = any_to_pretty(~override, ~settings, any);
   p |> PrettySegment.select;
 };
