@@ -28,7 +28,6 @@ let rec in_exp = (env: Environment.t(Exp.t), exp: Exp.t) =>
         failwith("patterns should be handled separately in substitution"),
     ~f_exp=
       (cont, e) => {
-        print_endline("Substituting in exp: " ++ Exp.show(e));
         let (term, rewrap) = Exp.unwrap(e);
         switch (term) {
         // Variables: lookup if bound
@@ -130,9 +129,6 @@ and in_pat =
     if (x == x') {
       (env_acc |> Environment.extend(_, (x', Exp.fresh(Var(x')))), p);
     } else {
-      print_endline(
-        "Renaming variable " ++ x ++ " to " ++ x' ++ " to avoid capture",
-      );
       (
         env_acc
         |> Environment.extend(_, (x, Exp.fresh(Var(x'))))
