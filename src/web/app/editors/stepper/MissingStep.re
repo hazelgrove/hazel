@@ -612,7 +612,7 @@ module View = {
                                   ),
                                   unboxed_selected_exp,
                                   unboxed_cached_exp
-                                  |> Exp.substitute_closures(
+                                  |> Substitution.in_exp(
                                        model.cached_env
                                        |> Calc.get_saved_exc(
                                             ~print="env not cached",
@@ -632,14 +632,14 @@ module View = {
                                   UpdateResult(
                                     RewriteChecker.check_rewrite(
                                       unboxed_selected_exp
-                                      |> Exp.substitute_closures(
+                                      |> Substitution.in_exp(
                                            model.cached_env
                                            |> Calc.get_saved_exc(
                                                 ~print="env not cached",
                                               ),
                                          ),
                                       unboxed_cached_exp
-                                      |> Exp.substitute_closures(
+                                      |> Substitution.in_exp(
                                            model.cached_env
                                            |> Calc.get_saved_exc(
                                                 ~print="env not cached",

@@ -360,7 +360,7 @@ and match_tpat = (tpat_r: TPat.t, tpat: TPat.t): option(unit) =>
 and match_rul = (_ctx: match_ctx, _rul_r: Rul.t, _rul: Rul.t): option(match_ctx) => None /* TODO */ /* }*/;
 
 let substitute_exp = (sub: match_ctx, exp: Exp.t): Exp.t =>
-  Exp.substitute_closures(
+  Substitution.in_exp(
     Environment.of_bindings(
       List.filter_map(
         ((name, (_, assigned_exp))) =>
@@ -384,6 +384,6 @@ let match_exp =
       exp_r: Exp.t,
       exp: Exp.t,
     ) => {
-  let exp = Exp.substitute_closures(exp_env, exp);
+  let exp = Substitution.in_exp(exp_env, exp);
   match_exp(~info_map, alphas, exp_r_ctx, exp_r, exp);
 };

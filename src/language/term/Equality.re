@@ -254,8 +254,8 @@ let equality =
     | (Let(p1, e1, e2), Let(p2, e3, e4)) =>
       switch (pat'(p1, p2)) {
       | Some(alphas_exp') =>
-        exp(Alphas.combine(alphas_exp', alphas_exp), alphas_typ, e1, e3)
-        && exp(alphas_exp, alphas_typ, e2, e4)
+        exp(alphas_exp, alphas_typ, e1, e3)
+        && exp(Alphas.combine(alphas_exp', alphas_exp), alphas_typ, e2, e4)
       | None => false
       }
     | (Let(_, _, _), _) => false

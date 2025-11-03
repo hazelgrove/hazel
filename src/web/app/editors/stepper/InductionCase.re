@@ -179,7 +179,7 @@ module F = (Stepper: STEPPER) => {
                   elab_pattern |> ProofHacks.pat_to_exp,
                 )
                 |> Exp.fresh
-                |> Exp.substitute_closures(SemanticCtx.get_env(sem_ctx)),
+                |> Substitution.in_exp(SemanticCtx.get_env(sem_ctx)),
               );
         let (sem_ctx, case_eq_name) =
           switch (case_eq) {

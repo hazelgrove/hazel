@@ -191,7 +191,7 @@ module Update = {
       |> List.map(((a, b, c, d)) => {
            let d' =
              ProofRule.exp_to_rule(
-               d |> DHExp.substitute_closures(Environment.empty),
+               d |> Substitution.in_exp(Environment.empty),
              );
            (a, b, c, d');
          })

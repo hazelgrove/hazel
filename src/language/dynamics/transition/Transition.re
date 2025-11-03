@@ -230,7 +230,7 @@ module Transition = (EV: EV_MODE) => {
     let subst_env = (env, d) =>
       switch (mode) {
       | `Environment => Closure(env, d) |> fresh
-      | `Substitution => d |> Substitution.subst(env)
+      | `Substitution => d |> Substitution.in_exp(env)
       };
 
     // Transition rules
@@ -301,7 +301,7 @@ module Transition = (EV: EV_MODE) => {
 
     | Theorem({term: Var(n), _}, e, d1) =>
       let. _ = otherwise(env, d);
-      let e' = Exp.substitute_closures(env, e);
+      let e' = Substitution.in_exp(env, e);
       let env' = Environment.extend(env, (n, ProofObject(e') |> Exp.fresh));
       Step({
         expr: subst_env(env', d1),
@@ -314,7 +314,7 @@ module Transition = (EV: EV_MODE) => {
       Indet;
     | ProofObject(e) =>
       let. _ = otherwise(env, d);
-      let e' = Exp.substitute_closures(env, e);
+      let e' = Substitution.in_exp(env, e);
       switch (mode) {
       | `Substitution => Value
       | `Environment =>

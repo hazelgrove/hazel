@@ -143,5 +143,17 @@ let lookup = (env: t('a), v: Var.t): option('a) => {
 let without_keys = (type a, keys: list(Var.t), env: t(a)): t(a) =>
   filter((name, _) => !List.mem(name, keys), env);
 
+let free_name = (type a, base: Var.t, env: t(a)): Var.t => {
+  let rec aux = (name: Var.t): Var.t =>
+    switch (lookup(env, name)) {
+    | Some(_) => aux(Var.next_name(name))
+    | None => name
+    };
+  aux(base);
+};
+
+let of_list = (type a, lst: list(binding(a))): t(a) =>
+  List.fold_left(extend, empty, lst);
+
 let to_list = (type a, env: t(a)): list(binding(a)) =>
   fold((binding, acc) => [binding, ...acc], [], env);

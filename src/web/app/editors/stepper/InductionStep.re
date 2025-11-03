@@ -213,7 +213,7 @@ module F =
         let.calc raw = elab_scrut_raw
         and.calc sem_ctx = ctx;
         let env = SemanticCtx.get_env(sem_ctx);
-        DHExp.substitute_closures(env, raw);
+        Substitution.in_exp(env, raw);
       };
     let scrut_ty = {
       let self_ty =
