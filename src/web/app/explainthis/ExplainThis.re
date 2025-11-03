@@ -2619,6 +2619,7 @@ let get_doc =
     | Unknown(Hole(Invalid(_))) => simple("Not a type or type operator")
     | Ap(_)
     | Parens(_) => default // Shouldn't be hit?
+    | Ap(_, _) => default // Type application case for exhaustiveness
     }
   | Some(InfoTPat(info)) =>
     switch (info.term.term) {

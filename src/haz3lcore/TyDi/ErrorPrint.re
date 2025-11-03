@@ -108,7 +108,40 @@ let typ_error: Info.error_typ => string =
       String.concat(", ", labels),
     )
   | Duplicate(name, _) => prn("Type %s is already defined", name)
+  | WantProduct(ty) =>
+    prn("Expected a tuple type, found type %s", Print.typ(ty))
   | KindMismatch(ty) => prn("Type %s, expected kind", Print.typ(ty));
+
+let underdetermined_typ: Info.underdetermined_typ => string =
+  fun
+  | ProdExtensionUnderdetermined(tys) =>
+    prn(
+      "Cannot determine type of tuple extension with argument types: %s",
+      List.map(Print.typ, tys) |> String.concat(", "),
+    )
+  | ProdProjectionMissingLabel(label, labels) =>
+    prn(
+      "Cannot project label %s. Valid labels are: %s",
+      label,
+      String.concat(", ", labels),
+    )
+  | ProdProjectionBadArgs({product, label}) =>
+    prn(
+      "Cannot determine projection type because %s",
+      String.concat(
+        " and ",
+        [
+          switch (product) {
+          | Some(ty) => "Type is not a tuple type: " ++ Print.typ(ty)
+          | None => ""
+          },
+          switch (label) {
+          | Some(ty) => "Label is not a valid label: " ++ Print.typ(ty)
+          | None => ""
+          },
+        ],
+      ),
+    );
 
 let tpat_error: Info.error_tpat => string =
   fun

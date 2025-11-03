@@ -20,7 +20,10 @@ type cls =
   | Parens
   | Ap
   | Rec
-  | Forall;
+  | Forall
+  | ProdProjection
+  | ProdExtension
+  | Ap;
 
 include TermBase.Typ;
 
@@ -92,7 +95,10 @@ let cls_of_term: Grammar.typ_term('a) => cls =
   | Ap(_) => Ap
   | Sum(_) => Sum
   | Rec(_) => Rec
-  | Forall(_) => Forall;
+  | Forall(_) => Forall
+  | ProdProjection(_) => ProdProjection
+  | ProdExtension(_) => ProdExtension
+  | Ap(_, _) => Ap;
 
 let show_cls: cls => string =
   fun
@@ -113,10 +119,14 @@ let show_cls: cls => string =
   | Parens => "Parenthesized type"
   | Ap => "Constructor application"
   | Rec => "Recursive type"
-  | Forall => "Forall type";
+  | Forall => "Forall type"
+  | ProdProjection => "Tuple projection"
+  | ProdExtension => "Tuple extension"
+  | Ap => "Type application";
 
 let rec is_arrow = (typ: t) => {
   switch (typ.term) {
+  | Ap(_, _) => false
   | Parens(typ)
   | TupLabel(_, typ) => is_arrow(typ)
   | Arrow(_) => true
@@ -136,6 +146,7 @@ let rec is_arrow = (typ: t) => {
 let is_atom = (ty: t): bool =>
   switch (ty.term) {
   | Atom(_) => true
+  | Ap(_, _)
   | Parens(_)
   | TupLabel(_)
   | Arrow(_)
@@ -147,11 +158,40 @@ let is_atom = (ty: t): bool =>
   | Ap(_)
   | Sum(_)
   | Forall(_)
-  | Rec(_) => false
+  | Rec(_)
+  | ProdProjection(_)
+  | ProdExtension(_) => false
+  };
+
+let rec has_fun = (typ: t) =>
+  switch (typ.term) {
+  | Ap(_, _) => false
+  | Parens(typ)
+  | TupLabel(_, typ)
+  | ProdProjection(typ, _) => has_fun(typ)
+  | Arrow(_)
+  | Forall(_) => true
+  | Unknown(_)
+  | Atom(_)
+  | Label(_)
+  | ExplicitNonlabel
+  | Var(_) => false
+  | List(t) => has_fun(t)
+  | Rec(_, t) => has_fun(t)
+  | Sum(sm) =>
+    List.exists(
+      fun
+      | ConstructorMap.Variant(_, _, Some(t)) => has_fun(t)
+      | _ => false,
+      sm,
+    )
+  | Prod(tys) => List.exists(has_fun, tys)
+  | ProdExtension(t1, t2) => has_fun(t1) || has_fun(t2)
   };
 
 let rec is_forall = (typ: t) => {
   switch (typ.term) {
+  | Ap(_, _) => false
   | Parens(typ)
   | TupLabel(_, typ) => is_forall(typ)
   | Forall(_) => true
@@ -217,6 +257,7 @@ let rec match_tup_label = ty =>
 
 let rec free_vars = (~bound=[], ty: t): list(Var.t) =>
   switch (term_of(ty)) {
+  | Ap(t1, t2) => free_vars(~bound, t1) @ free_vars(~bound, t2)
   | Unknown(_)
   | Atom(_)
   | Label(_) => []
@@ -235,6 +276,7 @@ let rec free_vars = (~bound=[], ty: t): list(Var.t) =>
 
 let rec vars = (ty: t): list(Var.t) =>
   switch (ty.term) {
+  | Ap(t1, t2) => vars(t1) @ vars(t2)
   | Atom(_)
   | Unknown(_) => []
   | Var(x) => [x]
@@ -289,6 +331,7 @@ let fresh_var = (var_name: string) => {
    and leaf) in the type AST. */
 let rec num_nodes = (ty: t): int => {
   switch (ty.term) {
+  | Ap(t1, t2) => 1 + num_nodes(t1) + num_nodes(t2)
   | Atom(_)
   | Unknown(_) => 1
   | Var(_) => 1
@@ -320,6 +363,7 @@ let rec num_nodes = (ty: t): int => {
 /* Number of Unknown constructors in type AST */
 let rec count_unknowns = (ty: t): int =>
   switch (ty.term) {
+  | Ap(t1, t2) => count_unknowns(t1) + count_unknowns(t2)
   | Unknown(_) => 1
   | Atom(_)
   | Var(_) => 0
@@ -348,6 +392,7 @@ let rec count_unknowns = (ty: t): int =>
 
 let rec contains_sum_or_var = (ty: t): bool =>
   switch (ty.term) {
+  | Ap(t1, t2) => contains_sum_or_var(t1) || contains_sum_or_var(t2)
   | Atom(_)
   | Unknown(_) => false
   | Var(_)
@@ -363,6 +408,41 @@ let rec contains_sum_or_var = (ty: t): bool =>
   | TupLabel(_, ty) => contains_sum_or_var(ty)
   };
 
+let rec subst = (s: t, x: TPat.t, ty: t): t => {
+  switch (TPat.tyvar_of_utpat(x)) {
+  | Some(str) =>
+    let (term, rewrap) = Grammar.Annotated.unwrap(ty);
+    switch (term) {
+    | Atom(_) => ty
+    | Label(name) => Grammar.Label(name) |> rewrap
+    | ExplicitNonlabel => ExplicitNonlabel |> rewrap
+    | Unknown(prov) => Unknown(prov) |> rewrap
+    | Arrow(ty1, ty2) =>
+      Arrow(subst(s, x, ty1), subst(s, x, ty2)) |> rewrap
+    | Prod(tys) => Prod(List.map(subst(s, x), tys)) |> rewrap
+    | TupLabel(label, ty) => TupLabel(label, subst(s, x, ty)) |> rewrap
+    | Sum(sm) =>
+      Sum(ConstructorMap.map(Option.map(subst(s, x)), sm)) |> rewrap
+    | Forall(tp2, ty)
+        when TPat.tyvar_of_utpat(x) == TPat.tyvar_of_utpat(tp2) =>
+      Forall(tp2, ty) |> rewrap
+    | Forall(tp2, ty) => Forall(tp2, subst(s, x, ty)) |> rewrap
+    | Rec(tp2, ty) when TPat.tyvar_of_utpat(x) == TPat.tyvar_of_utpat(tp2) =>
+      Rec(tp2, ty) |> rewrap
+    | Rec(tp2, ty) => Rec(tp2, subst(s, x, ty)) |> rewrap
+    | List(ty) => List(subst(s, x, ty)) |> rewrap
+    | Var(y) => str == y ? s : Var(y) |> rewrap
+    | Parens(ty) => Parens(subst(s, x, ty)) |> rewrap
+    | ProdProjection(t1, t2) =>
+      ProdProjection(subst(s, x, t1), subst(s, x, t2)) |> rewrap
+    | ProdExtension(t1, t2) =>
+      ProdExtension(subst(s, x, t1), subst(s, x, t2)) |> rewrap
+    | Ap(t1, t2) => Ap(subst(s, x, t1), subst(s, x, t2)) |> rewrap
+    };
+  | None => ty
+  };
+};
+
 let unroll = (ty: t): t =>
   switch (term_of(ty)) {
   | Rec(tp, ty_body) => subst(ty, tp, ty_body)
@@ -371,8 +451,126 @@ let unroll = (ty: t): t =>
 
 /* Type Equality: This coincides with alpha equivalence for normalized types.
    Other types may be equivalent but this will not detect so if they are not normalized. */
-let equal = (t1: t, t2: t): bool => fast_equal(t1, t2);
+let fast_equal = Equality.semantic.typ;
+let equal = (t1: t, t2: t): bool => Equality.syntactic.typ(t1, t2);
 
+let project_type = (tys: list(t), label: string): option(t) =>
+  switch (LabeledTuple.find_label(match_tup_label, tys, label)) {
+  | Some({term: TupLabel(_, ty), _}) => Some(ty)
+  | _ => None
+  };
+
+let product_extension = (tys1: list(t), tys2: list(t)): term => {
+  let get_lv = (t: t) => {
+    switch (match_tup_label(t)) {
+    | Some((l, t)) => (Some(l), t)
+    | None => (None, t)
+    };
+  };
+
+  let new_tys =
+    LabeledTuple.extension(List.map(get_lv, tys1), List.map(get_lv, tys2))
+    |> List.map(((l, ty)) =>
+         switch (l) {
+         | Some(l) => TupLabel(fresh(Label(l)), ty) |> temp
+         | None => ty
+         }
+       );
+  Prod(new_tys);
+};
+
+let rec weak_head_normalize = (~rec_counter=0, ctx: Ctx.t, ty: t): t => {
+  if (rec_counter > 1000) {
+    failwith("weak_head_normalize exceeded 1000 recursive calls");
+  };
+  switch (term_of(ty)) {
+  | Parens(t) => weak_head_normalize(~rec_counter=rec_counter + 1, ctx, t)
+  | Var(x) =>
+    switch (Ctx.lookup_alias(ctx, x)) {
+    | Some(ty) => weak_head_normalize(~rec_counter=rec_counter + 1, ctx, ty)
+    | None => ty
+    }
+  | Ap(t1, t2) =>
+    let t1' = weak_head_normalize(~rec_counter=rec_counter + 1, ctx, t1);
+    switch (term_of(t1')) {
+    | Forall(tpat, tbody) =>
+      weak_head_normalize(
+        ~rec_counter=rec_counter + 1,
+        ctx,
+        subst(t2, tpat, tbody),
+      )
+    | _ => temp(Ap(t1', t2))
+    };
+  | TupLabel({term: ExplicitNonlabel, _}, ty) =>
+    weak_head_normalize(~rec_counter=rec_counter + 1, ctx, ty)
+  | ProdProjection(ty, label) =>
+    let (_, rewrap) = unwrap(ty);
+
+    let normalized_ty =
+      weak_head_normalize(~rec_counter=rec_counter + 1, ctx, ty);
+
+    (
+      switch (normalized_ty.term, label.term) {
+      | (Prod(tys), Label(l)) => project_type(tys, l)
+      | _ => None // It would be better to do this via a more direct error recovery mechanism in statics
+      }
+    )
+    |> Option.value(~default=Unknown(Internal) |> rewrap);
+  | ProdExtension(t1, t2) =>
+    let (_, rewrap) = unwrap(ty);
+
+    let t1 = weak_head_normalize(~rec_counter=rec_counter + 1, ctx, t1);
+    let t2 = weak_head_normalize(~rec_counter=rec_counter + 1, ctx, t2);
+    switch (t1.term, t2.term) {
+    | (Prod(tys1), Prod(tys2)) => product_extension(tys1, tys2) |> rewrap
+    | _ =>
+      // It would be better to do this via a more direct error recovery mechanism in statics
+      Unknown(Internal) |> rewrap
+    };
+  | _ => ty
+  };
+};
+
+let rec normalize = (~rec_counter=0, ctx: Ctx.t, ty: t): t => {
+  if (rec_counter > 1000) {
+    failwith("normalize exceeded 1000 recursive calls");
+  };
+  let normalize = normalize(~rec_counter=rec_counter + 1);
+  let (term, rewrap) = unwrap(ty);
+  switch (term) {
+  | Var(x) =>
+    switch (Ctx.lookup_alias(ctx, x)) {
+    | Some(ty) => normalize(ctx, ty)
+    | None => ty
+    }
+  | Unknown(_)
+  | Atom(_)
+  | ExplicitNonlabel
+  | Label(_) => ty
+  | Parens(t) => normalize(ctx, t)
+  | List(t) => List(normalize(ctx, t)) |> rewrap
+  | Arrow(t1, t2) =>
+    Arrow(normalize(ctx, t1), normalize(ctx, t2)) |> rewrap
+  | Prod(ts) => Prod(List.map(normalize(ctx), ts)) |> rewrap
+  | ProdProjection(_) => weak_head_normalize(ctx, ty) |> normalize(ctx)
+  | ProdExtension(_) => weak_head_normalize(ctx, ty) |> normalize(ctx)
+  | TupLabel({term: ExplicitNonlabel, _}, ty) => normalize(ctx, ty) // Drop ExplicitNonlabel in normalization
+  | TupLabel(label, ty) =>
+    TupLabel(normalize(ctx, label), normalize(ctx, ty)) |> rewrap
+  | Sum(ts) =>
+    Sum(ConstructorMap.map(Option.map(normalize(ctx)), ts)) |> rewrap
+  | Rec(tpat, ty) =>
+    Rec(tpat, normalize(Ctx.extend_dummy_tvar(ctx, tpat), ty)) |> rewrap
+  | Forall(name, ty) =>
+    Forall(name, normalize(Ctx.extend_dummy_tvar(ctx, name), ty)) |> rewrap
+  | Ap(t1, t2) =>
+    let t1' = normalize(ctx, t1);
+    switch (term_of(t1')) {
+    | Forall(tpat, tbody) => normalize(ctx, subst(t2, tpat, tbody))
+    | _ => Ap(t1', normalize(ctx, t2)) |> rewrap
+    };
+  };
+};
 /* Lattice join on types. This is a LUB join in the hazel2
    sense in that any type dominates Unknown. The optional
    resolve parameter specifies whether, in the case of a type
@@ -381,6 +579,8 @@ let equal = (t1: t, t2: t): bool => fast_equal(t1, t2);
 let rec join = (~resolve=false, ctx: Ctx.t, ty1: t, ty2: t): option(t) => {
   let join' = join(~resolve, ctx);
   switch (term_of(ty1), term_of(ty2)) {
+  | (Ap(_, _), _) => None
+  | (_, Ap(_, _)) => None
   | (_, Parens(ty2)) => join'(ty1, ty2)
   | (Parens(ty1), _) => join'(ty1, ty2)
   | (Unknown(p1), Unknown(p2)) =>
@@ -475,6 +675,12 @@ let rec join = (~resolve=false, ctx: Ctx.t, ty1: t, ty2: t): option(t) => {
 let rec match_synswitch = (t1: t, t2: t) => {
   let (term1, rewrap1) = unwrap(t1);
   switch (term1, term_of(t2)) {
+  | (Ap(f1, a1), Ap(f2, a2)) =>
+    Ap(match_synswitch(f1, f2), match_synswitch(a1, a2)) |> rewrap1
+  | (Ap(f1, a1), _) =>
+    Ap(match_synswitch(f1, t2), match_synswitch(a1, t2)) |> rewrap1
+  | (_, Ap(f2, a2)) =>
+    Ap(match_synswitch(t1, f2), match_synswitch(t1, a2)) |> rewrap1
   | (Parens(t1), _) => Parens(match_synswitch(t1, t2)) |> rewrap1
   | (Unknown(SynSwitch), _) => t2
   // These cases can't have a synswitch inside
@@ -742,6 +948,7 @@ let rec is_unknown = (ty: t): bool =>
 
 let rec is_syn = (ty: t): bool =>
   switch (ty |> term_of) {
+  | Ap(t1, t2) => is_syn(t1) && is_syn(t2)
   | TupLabel(_, x)
   | Parens(x) => is_syn(x)
   | Unknown(SynSwitch) => true
@@ -760,6 +967,7 @@ let rec is_syn = (ty: t): bool =>
 
 let rec is_ana_atom = (ty: t) =>
   switch (ty |> term_of) {
+  | Ap(_, _) => None
   | TupLabel(_, x)
   | Parens(x) => is_ana_atom(x)
   | Atom(a) => Some(a)
@@ -794,6 +1002,7 @@ let rec is_syn_fun = (ty: t): bool =>
 
 let rec is_syn_plus = (ty: t): bool =>
   switch (ty |> term_of) {
+  | Ap(t1, t2) => is_syn_plus(t1) && is_syn_plus(t2)
   | TupLabel(_, x)
   | Parens(x) => is_syn_plus(x)
   | Unknown(SynSwitch) => true
@@ -813,6 +1022,7 @@ let rec is_syn_plus = (ty: t): bool =>
 /* Does the type require parentheses when on the left of an arrow for printing? */
 let rec needs_parens = (ty: t): bool =>
   switch (term_of(ty)) {
+  | Ap(_, _) => true
   | Parens(ty) => needs_parens(ty)
   | Ap(_)
   | Unknown(_)
@@ -839,6 +1049,7 @@ let pretty_print_tvar = (tv: TPat.t): string =>
 /* Essentially recreates web/view/Type.re's view_ty but with string output */
 let rec pretty_print = (ty: t): string =>
   switch (term_of(ty)) {
+  | Ap(t1, t2) => pretty_print(t1) ++ " " ++ paren_pretty_print(t2)
   | Parens(ty) => pretty_print(ty)
   | Ap(_)
   | Unknown(_) => "?"

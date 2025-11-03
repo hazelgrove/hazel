@@ -468,7 +468,15 @@ and Typ: {
     | Parens(t) => of_core(t)
     | Label(s) => LabelType(s)
     | TupLabel(t1, t2) => TupLabelType(of_core(t1), of_core(t2))
-    | Ap(t1, t2) => ApTyp(of_core(t1), of_core(t2))
+    | ProdProjection(t1, t2) => ProdProjection(of_core(t1), of_core(t2))
+    | ProdExtension(t1, t2) => ProdExtension(of_core(t1), of_core(t2))
+    | Ap(t1, _) =>
+      // Call par types by instantiated name
+      switch (t1.term) {
+      | Label(name) => LabelType(name)
+      | Var(x) => TypVar(x)
+      | _ => of_core(t1) // fallback head type
+      }
     | Sum(constructors) =>
       let sumterms =
         List.map(

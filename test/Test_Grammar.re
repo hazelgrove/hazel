@@ -152,6 +152,14 @@ let sample_type = (cls_typ: Typ.cls): Grammar.UnitGrammar.typ => {
       | Label => label("label")
       | MultiHole => unknown(Hole(MultiHole([])))
       | Sum => sum([])
+      | ProdProjection =>
+        prod_projection(
+          unknown(Hole(EmptyHole)),
+          unknown(Hole(EmptyHole)),
+        )
+      | ProdExtension =>
+        prod_extension(unknown(Hole(EmptyHole)), unknown(Hole(EmptyHole)))
+      | Ap => arrow(unknown(Hole(EmptyHole)), unknown(Hole(EmptyHole))) // Added for exhaustiveness
       | Constructor => assert(false) // Excluded because there is no Typ constructor
       }
     )

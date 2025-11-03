@@ -383,7 +383,7 @@ and uexp_to_info_map =
       let ana_ty: Typ.t =
         if (k != Ctx.Abstract) {
           Typ.temp(
-            Unknown(Internal) // TODO reevaluate this Owen
+            Unknown(Internal) // TODO reevaluate this (Owen)
           );
         } else {
           t_info.term;
@@ -1134,6 +1134,7 @@ and uexp_to_info_map =
       let m = utpat_to_info_map(~ctx, ~ancestors, typat, m) |> snd;
       switch (typat.term) {
       | Var(name) when !Ctx.shadows_typ(ctx, name) =>
+        let (param_count, _) = count_forall_params(utyp);
         /* Currently we disallow all type shadowing */
         /* NOTE(andrew): Currently, Typ.to_typ returns Unknown(TypeHole)
            for any type variable reference not in its ctx. So any free variables
@@ -1865,18 +1866,6 @@ and utyp_to_info_map =
     add'(~expects=TypeExpected, m);
   | Label(_) => add(m)
   | Ap(t1, t2) =>
-    let t1_mode: Info.typ_expects =
-      switch (expects) {
-      | VariantExpected(m, sum_ty) =>
-        ConstructorExpected(m, Arrow(t2, sum_ty) |> Typ.temp)
-      | _ =>
-        ConstructorExpected(
-          Unique,
-          Arrow(t2, Unknown(Internal) |> Typ.temp) |> Typ.temp,
-        )
-      };
-    let m = go'(~expects=t1_mode, t1, m) |> snd;
-    let m = go'(~expects=TypeExpected, t2, m) |> snd;
     let k_fun = synth_kind(ctx, t1);
     let k_arg = synth_kind(ctx, t2);
     let kind_add = (status, m) => {
@@ -1905,6 +1894,7 @@ and utyp_to_info_map =
       // Not constructor
       kind_add(Info.InHole(Info.KindMismatch(utyp)), m)
     };
+
   | Sum(variants) =>
     let (m, _) =
       List.fold_left(

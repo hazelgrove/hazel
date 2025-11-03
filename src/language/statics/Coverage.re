@@ -98,6 +98,7 @@ module Ctr = {
     };
     let all_ctrs_of_typ = all_ctrs_of_typ(~rec_count=rec_count + 1);
     switch (ty.term) {
+    | Ap(_, _) => Infinite
     | Sum(map) =>
       Finite(
         map
@@ -233,6 +234,441 @@ module Submatrices = {
     seen_truth: false,
     seen_hole: false,
     first_col_redundant_rows: [],
+  };
+};
+
+module type UnseenPatternList = {
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type pat_t;
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type t;
+
+  let empty: t;
+
+  let is_empty: t => bool;
+
+  /* prepend the constructor to the unseen pattern list. Based on the constructor
+     amd the column type, the list will be modified in different ways.*/
+  let cons_ctr: (Ctr.t, Typ.t, t) => t;
+
+  /* Adds a wildcard with the given status to the beginning of the list*/
+  let cons_wild: t => t;
+
+  /*
+   Generate and prepend the new item to the list based on the type of the column.
+   */
+  let cons_from_type: (Seen.t, Typ.t, Ctr.t, t) => t;
+
+  /*
+   Generate's a type's "default" constructor and adds it to the beginning of thhe
+   unseen pattern list.
+   */
+  let cons_type_default: (Typ.t, Ctr.t, t) => t;
+
+  /*The unseen list as a grammatical pattern*/
+  let to_pat: t => Grammar.any_t(IdTagged.IdTag.t);
+};
+
+// A list of expressions that represents an unseen pattern.
+module UnseenPatternList: UnseenPatternList = {
+  open IdTagged.FreshGrammar.Pat;
+
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type pat_t = Grammar.pat_t(IdTagged.IdTag.t);
+
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type t = {pat: list(pat_t)};
+
+  let empty = {pat: []};
+
+  let is_empty = unseen_pat => {
+    switch (unseen_pat.pat) {
+    | [] => true
+    | _ => false
+    };
+  };
+
+  let cons_pat_t = (pat: pat_t, unseen_pat: t) => {
+    pat: [pat, ...unseen_pat.pat],
+  };
+
+  /* Appends any Ctr to the beginning of the unseen pattern list*/
+  let cons_ctr = (ctr: Ctr.t, col_type: Typ.t, unseen_pattern: t) => {
+    let pat_list = unseen_pattern.pat;
+    let cons_pat_t = (pat, unseen_pattern) =>
+      cons_pat_t(pat, unseen_pattern);
+
+    switch (col_type.term) {
+    // wildcards do nothing special
+    // also resolves an edge case with ctr/col_type mismatch
+    | Ap(_, _) when Ctr.compare(ctr, Ctr.default_ctr) == 0 =>
+      cons_pat_t(wild(), unseen_pattern)
+    | Ap(_, _) => cons_pat_t(wild(), unseen_pattern)
+    | Sum(_)
+    | Rec(_) =>
+      let pat_ctr = constructor(ctr.ctr, None);
+      if (Ctr.num_args_of(ctr) == 0) {
+        cons_pat_t(pat_ctr, unseen_pattern);
+      } else {
+        // absorb the args of the constructor
+        // the empty case can happen if the example is providing a constructor
+        // that has args, but no args are provided
+        switch (pat_list) {
+        | [] => cons_pat_t(ap(pat_ctr, wild()), unseen_pattern)
+        | [hd, ...tl] =>
+          cons_pat_t(
+            // absorb the args of the constructor
+            ap(pat_ctr, hd),
+            {pat: tl},
+          )
+        };
+      };
+    | Prod(_) =>
+      // take the number of elements we need from the unseen list
+      // and package them into the tuple
+      let num_elts = Ctr.num_args_of(ctr);
+      let rec partition_first_n = (n, list, acc) =>
+        if (n == 0) {
+          (acc, list);
+        } else {
+          switch (list) {
+          | [] => (acc, list)
+          | [hd, ...tl] => partition_first_n(n - 1, tl, [hd, ...acc])
+          };
+        };
+
+      let (first_n, tl) = partition_first_n(num_elts, pat_list, []);
+
+      cons_pat_t(tuple(List.rev(first_n)), {pat: tl});
+    | TupLabel(body, _) =>
+      // associate the tuple's labels to element in the unseen list
+      switch (IdTagged.term_of(body)) {
+      | Label(pat_label) =>
+        switch (pat_list) {
+        | [] =>
+          cons_pat_t(wild(), unseen_pattern) |> cons_pat_t(label(pat_label))
+        | [hd, ...tl] =>
+          cons_pat_t(tup_label(label(pat_label), hd), {pat: tl})
+        }
+      | _ => failwith("TupLabel without a label in unseen pattern list")
+      }
+    | List(_) =>
+      switch (ctr.ctr) {
+      | "nil" => cons_pat_t(list_lit([]), unseen_pattern)
+      | "cons" =>
+        switch (pat_list) {
+        | [] => cons_pat_t(cons(wild(), wild()), unseen_pattern) // this shouldn't happen
+        | [hd, ...tl] =>
+          // the structure of the list should have a tuple that contains
+          // the element in the first position, and a cons in the second.
+          // Everything else is just making sure weird errors don't happen.
+          let term = IdTagged.term_of(hd);
+          let cons =
+            switch (term) {
+            | Tuple([fst, snd]) => cons(fst, snd)
+            | _ => cons(wild(), hd)
+            };
+
+          cons_pat_t(cons, {pat: tl});
+        }
+      | _ => cons_pat_t(wild(), unseen_pattern)
+      }
+    | Atom(Bool) =>
+      let boolTyp =
+        switch (ctr.ctr) {
+        | "true" => bool(true)
+        | "false" => bool(false)
+        | _ => wild()
+        };
+      cons_pat_t(boolTyp, unseen_pattern);
+    | Unknown(_) => cons_pat_t(wild(), unseen_pattern)
+    | Atom(Int) =>
+      cons_pat_t(
+        // while the user is perfroming actions, parse errors can occur.
+        // this just inserts a wildcard instead of that happens.
+        try(big_int(Bigint.of_string(ctr.ctr))) {
+        | _ => wild()
+        },
+        unseen_pattern,
+      )
+    | Atom(SInt) =>
+      cons_pat_t(
+        try(sint(int_of_string(ctr.ctr))) {
+        | _ => wild()
+        },
+        unseen_pattern,
+      )
+    | Atom(Float) =>
+      cons_pat_t(
+        try(float(float_of_string(ctr.ctr))) {
+        | _ => wild()
+        },
+        unseen_pattern,
+      )
+    | Atom(Nat) =>
+      cons_pat_t(
+        try(nat(Bigint.of_string(ctr.ctr))) {
+        | _ => wild()
+        },
+        unseen_pattern,
+      )
+    | Atom(String) =>
+      cons_pat_t(
+        // treat any string wildcard as a normal wildcard
+        if (Ctr.compare(ctr, Ctr.default_ctr) == 0) {
+          wild();
+        } else {
+          // ctr has a " as the first character
+          string(
+            String.sub(ctr.ctr, 1, String.length(ctr.ctr) - 1),
+          );
+        },
+        unseen_pattern,
+      )
+    | Arrow(_)
+    | Forall(_)
+    | Var(_) => unseen_pattern
+    | Parens(_)
+    | ProdProjection(_)
+    | ProdExtension(_)
+    | ExplicitNonlabel
+    | Label(_) =>
+      failwith(
+        "prepend_ctr called with a non-normalized type: "
+        ++ Typ.show(col_type),
+      )
+    };
+  };
+
+  let cons_wild = cons_ctr(Ctr.default_ctr, Typ.temp(Unknown(Internal)));
+
+  let find_first_unseen_ctr = (seen_in_col: Seen.t, all_ctrs: Ctr.Map.t('a)) => {
+    seen_in_col.seen_all_ctrs
+      ? Ctr.default_ctr
+      : List.split(Ctr.Map.bindings(all_ctrs))
+        |> fst
+        |> List.find(ctr => !Ctr.Set.mem(ctr, seen_in_col.seen_ctrs));
+  };
+
+  // add a sum type constructor to the unseen pattern list
+  let cons_sum =
+      (col_ctr: Ctr.t, col_type: Typ.t, new_ctr: Ctr.t, unseen_pattern: t) => {
+    // handle the case where the old constructor has arguments
+    // that have accumulated in the list
+    // Do this by just removing them, since the args will
+    // be packaged into a tuple
+    let unseen_pattern_list =
+      switch (unseen_pattern.pat) {
+      | [_, ...tl] when Ctr.num_args_of(col_ctr) > 0 => {pat: tl}
+      | _ => unseen_pattern
+      };
+
+    if (Ctr.num_args_of(new_ctr) > 0) {
+      cons_ctr(new_ctr, col_type, cons_wild(unseen_pattern_list));
+    } else {
+      cons_ctr(new_ctr, col_type, unseen_pattern_list);
+    };
+  };
+
+  /* Takes a type appends it to the start of the list. The list
+     may receive additional modifications outside of just the type
+     being appended. This behavior is type dependent*/
+  let cons_from_type =
+      (
+        seen_in_col: Seen.t,
+        col_type: Typ.t,
+        col_ctr: Ctr.t,
+        unseen_pattern: t,
+      )
+      : t => {
+    let all_ctrs = Ctr.all_ctrs_of_typ(col_type);
+    let pat_list = unseen_pattern.pat;
+
+    switch (col_type.term) {
+    | Ap(_, _) => cons_wild(unseen_pattern)
+    | Sum(_)
+    | Rec(_) =>
+      switch (all_ctrs) {
+      | Unknown
+      | Infinite => cons_wild(unseen_pattern)
+      | Finite(all_ctrs) =>
+        let new_ctr = find_first_unseen_ctr(seen_in_col, all_ctrs);
+        cons_sum(col_ctr, col_type, new_ctr, unseen_pattern);
+      }
+    | Atom(Bool) =>
+      switch (all_ctrs) {
+      | Unknown
+      | Infinite => cons_wild(unseen_pattern)
+      | Finite(all_ctrs) =>
+        cons_ctr(
+          find_first_unseen_ctr(seen_in_col, all_ctrs),
+          col_type,
+          unseen_pattern,
+        )
+      }
+    | List(_) =>
+      switch (all_ctrs) {
+      | Unknown
+      | Infinite => cons_ctr(col_ctr, col_type, unseen_pattern)
+      | Finite(all_ctrs) =>
+        let unseen_ctr = find_first_unseen_ctr(seen_in_col, all_ctrs);
+        let is_unseen_ctr_nil = Ctr.compare(unseen_ctr, Ctr.nil_ctr) == 0;
+        if (Ctr.compare(col_ctr, Ctr.nil_ctr) == 0) {
+          cons_ctr(unseen_ctr, col_type, cons_wild(unseen_pattern));
+        } else if (Ctr.num_args_of(col_ctr) > 0 && is_unseen_ctr_nil) {
+          // if the unseen ctr is a nil, and the current ctr has args,
+          // it's a cons and we need to get rid of those args
+          // it's guaranteed to be a tuple of whatever.
+          // when the user is performing actions, unseen_pattern may be empty
+          switch (pat_list) {
+          | [] => cons_ctr(unseen_ctr, col_type, unseen_pattern)
+          | [_, ...tl] => cons_ctr(unseen_ctr, col_type, {pat: tl})
+          };
+        } else {
+          cons_ctr(unseen_ctr, col_type, unseen_pattern);
+        };
+      }
+    | Prod(_) => cons_ctr(col_ctr, col_type, unseen_pattern)
+    | Unknown(_) => cons_ctr(col_ctr, col_type, unseen_pattern)
+    | TupLabel(_) => cons_ctr(col_ctr, col_type, unseen_pattern)
+    | Atom(Int)
+    | Atom(Nat) =>
+      let rec first_unused_bigint = n => {
+        let big_int = Bigint.of_int(n);
+        IntSet.mem(big_int, seen_in_col.seen_ints)
+          ? first_unused_bigint(n + 1) : Ctr.of_int(Bigint.of_int(n));
+      };
+
+      cons_ctr(first_unused_bigint(0), col_type, unseen_pattern);
+    | Atom(SInt) =>
+      let rec first_unused_sint = n => {
+        SIntSet.mem(n, seen_in_col.seen_sints)
+          ? first_unused_sint(n + 1) : Ctr.of_sint(n);
+      };
+
+      cons_ctr(first_unused_sint(0), col_type, unseen_pattern);
+    | Atom(Float) =>
+      let rec first_unused_float = n => {
+        FloatSet.mem(n, seen_in_col.seen_floats)
+          ? first_unused_float(n +. 1.) : Ctr.of_float(n);
+      };
+
+      cons_ctr(first_unused_float(0.), col_type, unseen_pattern);
+    | Atom(String) =>
+      let rec first_unused_str = n => {
+        StringSet.mem(n, seen_in_col.seen_strings)
+          ? first_unused_str(n ++ "*") : Ctr.of_string(n);
+      };
+
+      cons_ctr(first_unused_str(""), col_type, unseen_pattern);
+    | Arrow(_)
+    | Forall(_)
+    | Var(_) => cons_wild(unseen_pattern)
+    | Parens(_)
+    | ProdProjection(_)
+    | ProdExtension(_)
+    | ExplicitNonlabel
+    | Label(_) =>
+      failwith(
+        "cons_from_type called with a non-normalized type: "
+        ++ Typ.show(col_type),
+      )
+    };
+  };
+
+  let cons_type_default = (col_type: Typ.t, col_ctr: Ctr.t, unseen_pattern: t) => {
+    let all_ctrs = Ctr.all_ctrs_of_typ(col_type);
+    let pat_list = unseen_pattern.pat;
+
+    switch (col_type.term) {
+    | Ap(_, _) => cons_wild(unseen_pattern)
+    | Sum(_)
+    | Rec(_) =>
+      switch (all_ctrs) {
+      | Unknown
+      | Infinite => cons_wild(unseen_pattern)
+      | Finite(all_ctrs) =>
+        let new_ctr = Ctr.Map.choose(all_ctrs) |> fst;
+        cons_sum(col_ctr, col_type, new_ctr, unseen_pattern);
+      }
+    | Atom(Bool) =>
+      switch (all_ctrs) {
+      | Unknown
+      | Infinite => cons_wild(unseen_pattern)
+      | Finite(_) => cons_ctr(Ctr.false_ctr, col_type, unseen_pattern)
+      }
+    | List(_) =>
+      switch (all_ctrs) {
+      | Unknown
+      | Infinite => unseen_pattern
+      | Finite(_) =>
+        // the terminal cons/nil case will have 0 arguments,
+        // so we want to generate a default constructor for it
+        if (Ctr.num_args_of(col_ctr) <= 0) {
+          cons_wild(unseen_pattern);
+        } else {
+          // otherwise, the non-terminal ctr wants to generate
+          // a new argument. So, discard the existing arg
+          switch (pat_list) {
+          | [] => cons_wild(unseen_pattern)
+          | [_, ...tl] => cons_wild({pat: tl})
+          };
+        }
+      }
+    | Prod(_) => cons_ctr(col_ctr, col_type, unseen_pattern)
+    | Unknown(_) => unseen_pattern
+    | TupLabel(_) => cons_ctr(col_ctr, col_type, unseen_pattern)
+    | Atom(Int)
+    | Atom(Nat) => cons_wild(unseen_pattern)
+    | Atom(SInt) => cons_wild(unseen_pattern)
+    | Atom(Float) => cons_wild(unseen_pattern)
+    | Atom(String) => cons_wild(unseen_pattern)
+    | Arrow(_)
+    | Forall(_)
+    | Var(_) => cons_wild(unseen_pattern)
+    | Parens(_)
+    | ProdProjection(_)
+    | ProdExtension(_)
+    | ExplicitNonlabel
+    | Label(_) =>
+      failwith(
+        "prepend_from_type called with a non-normalized type: "
+        ++ Typ.show(col_type),
+      )
+    };
+  };
+
+  let to_pat = (unseen_pattern: t) => {
+    let pat_list = unseen_pattern.pat;
+    Grammar.Pat(
+      switch (List.length(pat_list)) {
+      | 1 => List.hd(pat_list)
+      | 0 => wild()
+      | _ => tuple(pat_list)
+      },
+    );
+  };
+};
+
+module Submatrices = {
+  // [@deriving (show({with_path: false}), sexp, yojson)]
+  type t = {
+    ctrs: Ctr.Map.t(Matrix.t),
+    first_col_exhaustive: bool,
+    first_col_redundant_rows: redundant_rows,
+    seen_data: Seen.t,
+  };
+
+  let rev = (s: t): t => {
+    ...s,
+    ctrs: Ctr.Map.map(Matrix.rev, s.ctrs),
+  };
+
+  let empty = {
+    ctrs: Ctr.Map.empty,
+    first_col_exhaustive: false,
+    first_col_redundant_rows: [],
+    seen_data: Seen.init,
   };
 
   let add_redundant_row_if = (cond: bool, idx: int, redundant_rows) =>

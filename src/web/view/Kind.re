@@ -9,7 +9,6 @@ let rec view = (~globals, kind: Language.Ctx.kind): Node.t => {
     | [x] => [x]
     | [x, ...xs] => [x, sep, ...intersperse(sep, xs)]
     };
-
   switch (kind) {
   | Singleton(ty) =>
     div_c(

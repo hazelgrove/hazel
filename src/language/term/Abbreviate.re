@@ -774,6 +774,13 @@ and abbreviate_typ = (typ: Typ.t): Typ.t => {
 
   let term: Typ.term =
     switch (typ |> Typ.term_of) {
+    | Ap(t1, t2) =>
+      if (available^ <= 2) {
+        indet_term_typ;
+      } else {
+        available := available^ - 2;
+        Ap(abbreviate_typ(t1), abbreviate_typ(t2));
+      }
     | Unknown(prov) => Unknown(prov)
     | Atom(Int) =>
       if (available^ < 3) {

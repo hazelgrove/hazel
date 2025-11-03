@@ -615,6 +615,7 @@ and Typ: {
           )
         | Rec(tp, t) => Rec(tpat_map_term(tp), typ_map_term(t))
         | Forall(tp, t) => Forall(tpat_map_term(tp), typ_map_term(t))
+        | Ap(t1, t2) => Ap(typ_map_term(t1), typ_map_term(t2))
         },
     };
     x |> f_typ(rec_call);

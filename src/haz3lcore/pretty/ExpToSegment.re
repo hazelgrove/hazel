@@ -136,7 +136,9 @@ let external_precedence_typ = (tp: Typ.t) =>
   | Atom(_)
   | Label(_)
   | TupLabel(_) => Precedence.max
-
+  | ProdProjection(_) => Precedence.dot
+  | ProdExtension(_) => Precedence.ap
+  | Ap(_, _) => Precedence.ap
   // Same goes for forms which are already surrounded
   | Parens(_)
   | List(_) => Precedence.max
@@ -470,6 +472,13 @@ and parenthesize_typ =
   | Unknown(SynSwitch)
   | Unknown(Hole(EmptyHole))
   | Atom(_) => typ
+
+  | Ap(t1, t2) =>
+    Ap(
+      parenthesize_typ(t1) |> paren_typ_at(Precedence.ap),
+      parenthesize_typ(t2) |> paren_typ_at(Precedence.ap),
+    )
+    |> rewrap
 
   // Other forms
   | Parens(t) =>
@@ -1270,6 +1279,10 @@ and typ_to_pretty = (~settings: Settings.t, typ: Typ.t): pretty => {
   | Atom(Bool) => text_to_pretty(typ |> Typ.rep_id, Sort.Typ, "Bool")
   | Atom(String) => text_to_pretty(typ |> Typ.rep_id, Sort.Typ, "String")
   | Atom(Nat) => text_to_pretty(typ |> Typ.rep_id, Sort.Typ, "Nat")
+  | Ap(t1, t2) =>
+    let+ t1 = go(t1)
+    and+ t2 = go(t2);
+    t1 @ [mk_form(ApTyp, typ |> Typ.rep_id, [])] @ t2;
   | List(t) =>
     let id = typ |> Typ.rep_id;
     let+ t = go(t);

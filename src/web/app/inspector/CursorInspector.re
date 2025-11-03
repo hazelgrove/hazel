@@ -373,6 +373,11 @@ let typ_err_view = (~globals, ok: Info.error_typ) => {
       view_type(ty),
       text("is ill-kinded"),
     ]
+  | KindMismatch(ty) => [
+      text([@reason.preserve_braces] "Type "),
+      view_type(ty),
+      text("is ill-kinded"),
+    ]
   };
 };
 

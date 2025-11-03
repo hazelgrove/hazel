@@ -125,6 +125,9 @@ and typ_term('a) =
   | Ap(typ_t('a), typ_t('a))
   | Rec(tpat_t('a), typ_t('a))
   | Forall(tpat_t('a), typ_t('a))
+  | ProdProjection(typ_t('a), typ_t('a))
+  | ProdExtension(typ_t('a), typ_t('a))
+  | Ap(typ_t('a), typ_t('a))
 and typ_t('a) = Annotated.t(typ_term('a), 'a)
 and tpat_term('a) =
   | Invalid(string)
@@ -327,6 +330,8 @@ and map_typ_annotation: 'a 'b. ('a => 'b, typ_t('a)) => typ_t('b) =
         | Atom(c) => Atom(c)
         | Var(s) => Var(s)
         | List(t) => List(map_typ_annotation(f, t))
+        | Ap(t1, t2) =>
+          Ap(map_typ_annotation(f, t1), map_typ_annotation(f, t2))
         | Arrow(t1, t2) =>
           Arrow(map_typ_annotation(f, t1), map_typ_annotation(f, t2))
         | Parens(t) => Parens(map_typ_annotation(f, t))
