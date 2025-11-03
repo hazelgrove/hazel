@@ -78,14 +78,7 @@ module M: Projector = {
 
   let dynamics = false;
 
-  let view =
-      (
-        _,
-        info,
-        ~local as _,
-        ~parent: ProjectorBase.external_action => Ui_effect.t(unit),
-        ~view_seg as _,
-      ) => {
+  let view = ({info, parent, _}: View.args(model, action)) => {
     let ctx =
       switch (info.statics) {
       | Some(InfoExp(exp)) => exp.ctx
