@@ -273,7 +273,7 @@ module Transition = (EV: EV_MODE) => {
       and. d1' =
         req_final(req(env), d1 => Let1(dp, d1, d2) |> wrap_ctx, d1);
       let.wrap_closure _ = (env, Let(dp, d1', d2) |> rewrap);
-      let {matches, closures} = matches(dp, d1');
+      let {matches, samples} = matches(dp, d1');
       let matches_str = {
         switch (matches) {
         | IndetMatch
@@ -290,7 +290,7 @@ module Transition = (EV: EV_MODE) => {
         let env' = Environment.add_bindings(env, env');
         Step({
           expr: subst_env(env', d2),
-          side_effects: [RecordPatProbes(closures)],
+          side_effects: [RecordPatProbes(samples)],
           kind: LetBind(matches_str),
           is_value: false,
         });
@@ -440,8 +440,8 @@ module Transition = (EV: EV_MODE) => {
             Step({
               expr: subst_env(env'', d3),
               side_effects: [
-                RecordPatProbes(matches.closures),
                 RecordStackFrame,
+                RecordPatProbes(matches.samples),
               ],
               kind: FunAp,
               is_value: false,
@@ -460,8 +460,8 @@ module Transition = (EV: EV_MODE) => {
                   d3,
                 ),
               side_effects: [
-                RecordPatProbes(matches.closures),
                 RecordStackFrame,
+                RecordPatProbes(matches.samples),
               ],
               kind: FunAp,
               is_value: false,
@@ -814,17 +814,17 @@ module Transition = (EV: EV_MODE) => {
         | [(dp, d2), ...rules] => {
             let matches = matches(dp, d1);
             switch (matches.matches) {
-            | Matches(env') => Some((env', d2, matches.closures))
+            | Matches(env') => Some((env', d2, matches.samples))
             | DoesNotMatch => next_rule(rules)
             | IndetMatch => None
             };
           }
       );
       switch (next_rule(rules)) {
-      | Some((env', d2, closures)) =>
+      | Some((env', d2, samples)) =>
         Step({
           expr: subst_env(Environment.add_bindings(env, env'), d2),
-          side_effects: [RecordPatProbes(closures)],
+          side_effects: [RecordPatProbes(samples)],
           kind: CaseApply,
           is_value: false,
         })

@@ -6,7 +6,7 @@ open Js_of_ocaml;
 open Language;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
-type closure = Dynamics.Probe.Closure.t;
+type sample = Sample.t;
 
 /* Packed renderer type for heterogeneous renderer storage */
 type packed_renderer = {
@@ -108,32 +108,38 @@ type action =
   | CloseModal
   | RendererAction(string);
 
-module Window = {
+module Settings = {
   [@deriving (show({with_path: false}), sexp, yojson)]
-  type mode =
+  type window =
     | Single
     | Many;
 
-  let mode = ref(Single);
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type settings = {window};
+
   let offset = Hashtbl.create(100);
 
-  let reset = () => {
+  let s = ref({window: Single});
+
+  let reset_mode = () => {
     Hashtbl.clear(offset);
-    mode := Single;
+    s := {window: Single};
   };
 
-  let max_closures = () =>
-    switch (mode^) {
+  let toggle_mode = () =>
+    switch (s^.window) {
+    | Single => s := {window: Many}
+    | Many => s := {window: Single}
+    };
+};
+
+open Settings;
+
+module Window = {
+  let max_samples = (window: window) =>
+    switch (window) {
     | Single => 1
     | Many => 30
-    };
-
-  let get_mode = () => mode^;
-
-  let toggle_mode = () =>
-    switch (mode^) {
-    | Single => mode := Many
-    | Many => mode := Single
     };
 
   let get_offset = (k: Id.t): int =>
@@ -142,29 +148,29 @@ module Window = {
     | None => 0
     };
 
-  /* We are displaying a certain window of closures near the closure cursor.
-   * If the closure cursor moves, we want to readjust this window to show the
+  /* We are displaying a certain window of samples near the dynamic cursor.
+   * If the synamic cursor moves, we want to readjust this window to show the
    * cursor, but only if necessary. Thus we compare the cursor position to the
    * current window bounds, and make the minimum change to the window necessary
-   * to show the cursor. As an edge case, if there are less total closures than
+   * to show the cursor. As an edge case, if there are less total samples than
    * the window size, we set the window to begin at zero. */
   let new_offest =
-      (cursor_idx: int, home: int, max_closures: int, all_closures: int): int =>
-    if (all_closures <= max_closures) {
+      (cursor_idx: int, home: int, max_samples: int, all_samples: int): int =>
+    if (all_samples <= max_samples) {
       0;
     } else if (cursor_idx < home) {
       cursor_idx;
-    } else if (cursor_idx >= home + max_closures) {
-      cursor_idx - max_closures + 1;
+    } else if (cursor_idx >= home + max_samples) {
+      cursor_idx - max_samples + 1;
     } else {
       home;
     };
 
   let set_offset = (k: Id.t, v: int) => Hashtbl.add(offset, k, v);
 
-  let reform = (id, all_closures, cursor_idx): (int, int) => {
-    let max = max_closures();
-    let new_home = new_offest(cursor_idx, get_offset(id), max, all_closures);
+  let reform = (~window: window, id, all_samples, cursor_idx): (int, int) => {
+    let max = max_samples(window);
+    let new_home = new_offest(cursor_idx, get_offset(id), max, all_samples);
     set_offset(id, new_home);
     (new_home, max);
   };
@@ -172,6 +178,7 @@ module Window = {
 
 let is_value = (exp: Exp.t) =>
   ValueChecker.check_value(Environment.empty, exp) == Value;
+
 module ClosureLength = {
   let lengths: Hashtbl.t(int, int) = Hashtbl.create(100);
 
@@ -179,13 +186,13 @@ module ClosureLength = {
     Hashtbl.clear(lengths);
   };
 
-  let get = (closure: closure): int =>
-    Hashtbl.find_opt(lengths, closure.closure_id)
+  let get = (window: window, sample: sample): int =>
+    Hashtbl.find_opt(lengths, sample.id)
     |> Option.value(
          // TODO(andrew): relax 5, special-case multilines eg `case`
          ~default=
-           /*!is_value(closure.value)
-             ? 5 :*/ Window.get_mode()
+           /*!is_value(sample.value)
+             ? 5 :*/ window
            == Single
              ? 150 : 12,
        );
@@ -194,39 +201,38 @@ module ClosureLength = {
 };
 
 /* Remove opaque values like function literals */
-let rm_opaques:
-  list(Dynamics.Probe.Env.entry) => list(Dynamics.Probe.Env.entry) =
-  List.filter_map((en: Dynamics.Probe.Env.entry) =>
+let rm_opaques: list(Sample.Env.entry) => list(Sample.Env.entry) =
+  List.filter_map((en: Sample.Env.entry) =>
     switch (en.value) {
     | Opaque => None
     | Val(_) => Some(en)
     }
   );
 
-module Closures = {
+module Samples = {
   let filter_frames_by_pin =
-      (~ap_id: option(Id.t), di: Dynamics.Info.t): list(closure) =>
+      (~ap_id: option(Id.t), di: Dynamics.Info.t): list(sample) =>
     switch (di.dyn_cursor.pinned_stack) {
     | Some(pinned_ap) =>
       List.filter(
-        (closure: closure) =>
+        (sample: sample) =>
           ListUtil.hd_opt(pinned_ap) == ap_id  //TODO(andrew): should this clause exist?? why does this need to know ap_id..
-          || ListUtil.is_suffix_of(pinned_ap, closure.call_stack),
-        di.closures,
+          || ListUtil.is_suffix_of(pinned_ap, sample.call_stack),
+        di.samples,
       )
-    | None => di.closures
+    | None => di.samples
     };
 
   let total = (~ap_id: option(Id.t), di: Dynamics.Info.t): int =>
     List.length(filter_frames_by_pin(~ap_id, di));
 
   let first_index_of_interest =
-      (~ap_id: option(Id.t), di: Dynamics.Info.t): option(int) => {
-    let find = (rel: Dynamics.Cursor.relation => bool): option(int) =>
+      (~ap_id: option(Id.t), dyn_cursor: DynCursor.t, samples): option(int) => {
+    let find = (rel: DynCursor.relation => bool): option(int) =>
       List.find_index(
-        (closure: closure) =>
-          rel(Dynamics.Cursor.relation(ap_id, di.dyn_cursor, closure)),
-        di.closures,
+        (sample: sample) =>
+          rel(DynCursor.relation(ap_id, dyn_cursor, sample)),
+        samples,
       );
     switch (find(relation => relation.is_call_cursor)) {
     | Some(idx) => Some(idx)
@@ -235,23 +241,30 @@ module Closures = {
       | Some(idx) => Some(idx)
       | None =>
         let a = find(relation => relation.is_below_indicated_call != None);
-        a == None ? find(Dynamics.Cursor.is_related) : a;
+        a == None ? find(DynCursor.is_related) : a;
       }
     // }
     };
   };
 
-  let select_frames =
-      (~id: Id.t, ~ap_id: option(Id.t), di: Dynamics.Info.t): list(closure) => {
-    let closures = filter_frames_by_pin(~ap_id, di);
+  let select_samples =
+      (
+        ~settings: settings,
+        ~id: Id.t,
+        ~ap_id: option(Id.t),
+        di: Dynamics.Info.t,
+      )
+      : list(sample) => {
+    let samples = filter_frames_by_pin(~ap_id, di);
     let cursor_idx =
-      switch (first_index_of_interest(~ap_id, di)) {
+      switch (first_index_of_interest(~ap_id, di.dyn_cursor, samples)) {
       | Some(idx) => idx
       | None => 0
       };
-    let all_closures = List.length(closures);
-    let (l, r) = Window.reform(id, all_closures, cursor_idx);
-    ListUtil.slice(l, r, closures);
+    let all_samples = List.length(samples);
+    let (l, r) =
+      Window.reform(~window=settings.window, id, all_samples, cursor_idx);
+    ListUtil.slice(l, r, samples);
   };
 
   let group_by_predicate =
@@ -273,7 +286,7 @@ module Closures = {
     );
   };
 
-  let is_same_call = ((_, c1: closure), (_, c2: closure)): bool => {
+  let is_same_call = ((_, c1: sample), (_, c2: sample)): bool => {
     switch (List.rev(c2.call_stack), List.rev(c1.call_stack)) {
     | ([], _)
     | (_, []) => false
@@ -281,20 +294,18 @@ module Closures = {
     };
   };
 
-  let group =
-      (closures: list((int, closure))): list(list((int, closure))) => {
+  let group = (samples: list((int, sample))): list(list((int, sample))) => {
     let grouped =
-      closures |> group_by_predicate(is_same_call) |> List.map(List.rev);
+      samples |> group_by_predicate(is_same_call) |> List.map(List.rev);
     /* Flatten if all groups are singletons */
     List.for_all(group => List.length(group) == 1, grouped)
       ? [List.concat(grouped)] : grouped;
   };
 
-  let collate =
-      (closures: list(closure)): (int, list(list((int, closure)))) => {
-    let numbered_closures =
-      List.mapi((i, c) => (List.length(closures) - i - 1, c), closures);
-    (List.length(closures), group(numbered_closures));
+  let collate = (samples: list(sample)): (int, list(list((int, sample)))) => {
+    let numbered_samples =
+      List.mapi((i, c) => (List.length(samples) - i - 1, c), samples);
+    (List.length(samples), group(numbered_samples));
   };
 };
 
@@ -364,9 +375,8 @@ module ValueState = {
 };
 
 let cursor_clss =
-    (ap_id: option(Id.t), di: Dynamics.Info.t, closure: closure)
-    : list(string) => {
-  let relation = Dynamics.Cursor.relation(ap_id, di.dyn_cursor, closure);
+    (ap_id: option(Id.t), di: Dynamics.Info.t, sample: sample): list(string) => {
+  let relation = DynCursor.relation(ap_id, di.dyn_cursor, sample);
   (
     switch (
       relation.is_call_cursor,
@@ -395,23 +405,23 @@ module Debug = {
   let stack = (stack: Probe.call_stack): string =>
     stack |> List.map(Id.str3) |> String.concat("\n");
 
-  let str = (~ap_id: option(Id.t), closure: closure): string =>
-    "closure_id: "
-    ++ string_of_int(closure.closure_id)
+  let str = (~ap_id: option(Id.t), sample: sample): string =>
+    "sample id: "
+    ++ string_of_int(sample.id)
     ++ "\n"
     ++ "ap:"
     ++ (
-      switch (Dynamics.Cursor.cur_call(ap_id, closure)) {
+      switch (DynCursor.cur_call(ap_id, sample)) {
       | Some([ap_id, ..._]) => Id.str3(ap_id)
       | _ => "None"
       }
     )
     // ++ "\nvalue:\n"
-    // ++ DHExp.show(closure.value)
+    // ++ DHExp.show(sample.value)
     ++ "\nstack:\n"
-    ++ stack(closure.call_stack)
+    ++ stack(sample.call_stack)
     ++ "\ntime: "
-    ++ string_of_float(closure.time /. 10000.0);
+    ++ string_of_float(sample.time /. 10000.0);
 };
 
 /* Registry of available renderers - initialized once at module load */
@@ -424,17 +434,27 @@ let renderers: list(packed_renderer) = [
 /* Find first compatible renderer for an expression */
 let find_compatible_renderer = (exp: Exp.t): option(packed_renderer) =>
   List.find_opt(r => r.can_handle(exp), renderers);
+let pin_call = (~parent, ~ap_id: option(Id.t), ~di: Dynamics.Info.t) =>
+  switch (ap_id, Dynamics.Info.is_in(di)) {
+  | (Some(ap_id), Some(dyn_cursor)) =>
+    print_endline("actually pinning call");
+    parent(DynCursor(TogglePinCall([ap_id, ...dyn_cursor.call_stack])));
+  | _ =>
+    print_endline("ignoring");
+    Effect.Ignore;
+  };
 
 let value_view =
     (
       ~ap_id: option(Id.t),
+      ~settings: settings,
       di: Dynamics.Info.t,
       utility: utility,
       view_seg,
       local,
       parent: external_action => Ui_effect.t(unit),
-      closure: closure,
-      index: int,
+      sample: sample,
+      _index: int,
     ) => {
   let val_pointerdown = (e: Js.t(Dom_html.pointerEvent)) => {
     if (Js.to_bool(e##.shiftKey)) {
@@ -448,7 +468,7 @@ let value_view =
           col: e##.clientX,
         });
     };
-    parent(DynCursor(Capture(closure, ap_id)));
+    parent(DynCursor(Capture(sample, ap_id)));
   };
 
   let val_pointerup = (e: Js.t(Dom_html.pointerEvent)) => {
@@ -466,21 +486,21 @@ let value_view =
     switch (ValueState.mousedown^) {
     | Some(_) when Js.to_bool(e##.shiftKey) =>
       let goal = pos_rel_to_target(e);
-      local(ChangeLength(closure.closure_id, goal.col));
+      local(ChangeLength(sample.id, goal.col));
     | _ => Effect.Ignore
     };
   };
 
-  /* Crude way of giving more space when there's only one closure shown.
-   * Really should figure out total length of all closures and divide accordingly */
-  let length = ClosureLength.get(closure);
-  let length = length == 12 && Closures.total(~ap_id, di) == 1 ? 150 : length;
-  let (seg, length) = abbreviated_seg_of(utility, length, closure.value);
+  /* Crude way of giving more space when there's only one sample shown.
+   * Really should figure out total length of all samples and divide accordingly */
+  let length = ClosureLength.get(settings.window, sample);
+  let length = length == 12 && Samples.total(~ap_id, di) == 1 ? 150 : length;
+  let (seg, length) = abbreviated_seg_of(utility, length, sample.value);
 
   /* Get badges for all compatible renderers for this specific value */
   let compatible_badges =
     renderers
-    |> List.filter(r => r.can_handle(closure.value))
+    |> List.filter(r => r.can_handle(sample.value))
     |> List.map(r =>
          span(
            ~attrs=[
@@ -497,38 +517,35 @@ let value_view =
     @ [
       div(
         ~attrs=[
-          //Attr.title(Debug.str(~ap_id, closure)),
+          //Attr.title(Debug.str(~ap_id, sample)),
           Attr.classes(
             ["value", length_cls(length)]
-            @ cursor_clss(ap_id, di, closure)
+            @ cursor_clss(ap_id, di, sample)
             @ (Option.is_some(ap_id) ? ["ap"] : [])
-            @ (!is_value(closure.value) ? ["indet"] : []),
+            @ (!is_value(sample.value) ? ["indet"] : []),
           ),
-          Attr.on_double_click(_ => local(ToggleShowAllVals(index))),
+          //Attr.on_double_click(_ => local(ToggleShowAllVals(index))),
           Attr.on_pointerdown(evt =>
             Key.meta_held(evt)
-              ? switch (ap_id, Dynamics.Info.is_in(di)) {
-                | (Some(ap_id), Some(closure_cursor)) =>
-                  parent(
-                    DynCursor(
-                      TogglePinCall([ap_id, ...closure_cursor.call_stack]),
-                    ),
-                  )
-                | _ => Effect.Ignore
-                }
-              : val_pointerdown(evt)
+              ? pin_call(~parent, ~ap_id, ~di) : val_pointerdown(evt)
           ),
           Attr.on_pointerup(val_pointerup),
           Attr.on_mousemove(val_mousemove),
         ],
-        [view_seg(Sort.Exp, seg)],
+        [view_seg(~text_only=Option.None, Sort.Exp, seg)],
       ),
     ],
   );
 };
 
 let env_val =
-    (closure, view_seg, utility: utility, en: Dynamics.Probe.Env.entry)
+    (
+      ~settings: settings,
+      sample,
+      view_seg,
+      utility: utility,
+      en: Sample.Env.entry,
+    )
     : Node.t => {
   Node.div(
     ~attrs=[Attr.classes(["live-env-entry"])],
@@ -538,84 +555,156 @@ let env_val =
       | Opaque => Node.text("Opaque")
       | Val(d) =>
         let (seg, _) =
-          abbreviated_seg_of(utility, ClosureLength.get(closure), d);
-        view_seg(Sort.Exp, seg);
+          abbreviated_seg_of(
+            utility,
+            ClosureLength.get(settings.window, sample),
+            d,
+          );
+        view_seg(~text_only=Option.None, Sort.Exp, seg);
       },
     ],
   );
 };
 
-let env_view = (closure: closure, view_seg, utility: utility): Node.t =>
-  Node.div(
-    ~attrs=[Attr.classes(["live-env"])],
-    closure.env
-    |> ListUtil.dedup
-    |> rm_opaques
-    |> List.map(env_val(closure, view_seg, utility)),
-  );
-
-let show_pin = (~ap_id: option(Id.t), di: Dynamics.Info.t) => {
-  di.dyn_cursor.pinned_stack != None
-  && di.dyn_cursor.pinned_stack
-  |> OptUtil.and_then(ListUtil.hd_opt) == ap_id;
+let show_pin = (~ap_id: option(Id.t), di: Dynamics.Info.t, sample: sample) => {
+  switch (ap_id, di.dyn_cursor.pinned_stack) {
+  | (Some(ap_id), Some(pinned_stack)) =>
+    pinned_stack == [ap_id, ...sample.call_stack]
+  | _ => false
+  };
 };
 
-let pin_view = (~ap_id: option(Id.t), di: Dynamics.Info.t) =>
-  show_pin(~ap_id, di) ? [div(~attrs=[Attr.classes(["pin"])], [])] : [];
+let pin_view = (~ap_id: option(Id.t), di: Dynamics.Info.t, sample) =>
+  show_pin(~ap_id, di, sample)
+    ? [div(~attrs=[Attr.classes(["pin"])], [])] : [];
 
-let closure_view =
+let env_view =
+    (
+      ~settings: settings,
+      ~parent,
+      ~ap_id,
+      ~di,
+      sample: sample,
+      view_seg,
+      utility: utility,
+    )
+    : Node.t =>
+  div(
+    ~attrs=[Attr.classes(["sample-dropdown"])],
+    (
+      ap_id != Option.None
+        ? {
+          let show_pin = show_pin(~ap_id, di, sample);
+          [
+            div(
+              ~attrs=[
+                Attr.classes(
+                  ["live-env-header"] @ (show_pin ? ["pinned"] : []),
+                ),
+                Attr.on_pointerdown(_ => pin_call(~parent, ~ap_id, ~di)),
+              ],
+              [
+                div(~attrs=[Attr.classes(["pin-icon"])], []),
+                text(show_pin ? "Unpin" : "Pin"),
+              ],
+            ),
+          ];
+        }
+        : []
+    )
+    @ {
+      let elems = sample.env |> ListUtil.dedup |> rm_opaques;
+      elems == []
+        ? []
+        : [
+          div(
+            ~attrs=[Attr.classes(["live-env"])],
+            List.map(env_val(~settings, sample, view_seg, utility), elems),
+          ),
+        ];
+    },
+  );
+
+let sample_view =
     (
       ~ap_id: option(Id.t),
       ~hide_env: bool,
+      ~settings: settings,
       di: Dynamics.Info.t,
       utility: utility,
       view_seg,
       local,
       parent,
-      (index: int, closure: closure),
+      (index: int, sample: sample),
     ) =>
   div(
-    ~attrs=[Attr.classes(["closure"])],
+    ~attrs=[Attr.classes(["sample"])],
     [
-      value_view(~ap_id, di, utility, view_seg, local, parent, closure, index),
+      value_view(
+        ~ap_id,
+        ~settings,
+        di,
+        utility,
+        view_seg,
+        local,
+        parent,
+        sample,
+        index,
+      ),
     ]
-    @ pin_view(~ap_id, di)
-    @ (hide_env ? [] : [env_view(closure, view_seg, utility)]),
+    @ pin_view(~ap_id, di, sample)
+    @ (
+      hide_env && ap_id == None
+        ? []
+        : [
+          env_view(
+            ~settings,
+            ~parent,
+            ~ap_id,
+            ~di,
+            sample,
+            view_seg,
+            utility,
+          ),
+        ]
+    ),
   );
 
-let closure_group_view =
+let sample_group_view =
     (
       ~ap_id: option(Id.t),
       ~hide_env: bool,
+      ~settings: settings,
       di: Dynamics.Info.t,
       utility,
       view_seg,
       local,
       parent,
-      groups: list(list((int, closure))),
+      groups: list(list((int, sample))),
     ) => {
   let group_views =
     List.map(
-      closures =>
+      samples =>
         Node.div(
-          ~attrs=[Attr.classes(["closure-group"])],
+          ~attrs=[Attr.classes(["sample-group"])],
           List.map(
-            closure_view(
+            sample_view(
               ~ap_id,
               ~hide_env,
+              ~settings,
               di,
               utility,
               view_seg,
               local,
               parent,
             ),
-            closures,
+            samples,
           ),
         ),
       groups,
     );
   group_views == []
-    ? [] : [div(~attrs=[Attr.classes(["closure-groups"])], group_views)];
+    ? [] : [div(~attrs=[Attr.classes(["sample-groups"])], group_views)];
 };
 
 let ellipsis_view = (local): Node.t =>
@@ -634,17 +723,15 @@ let move_cursor =
       parent: external_action => Ui_effect.t(unit),
       offset: int,
     ) => {
-  let closures = Closures.filter_frames_by_pin(~ap_id, di);
-  let cursor_idx = Closures.first_index_of_interest(~ap_id, di);
+  let samples = Samples.filter_frames_by_pin(~ap_id, di);
+  let cursor_idx =
+    Samples.first_index_of_interest(~ap_id, di.dyn_cursor, samples);
   switch (cursor_idx) {
-  /* Cursor would be outside window, reset to next visible closure */
+  /* Cursor would be outside window, reset to next visible sample */
   | Some(idx) =>
     let next_idx_maybe = idx - offset;
-    if (next_idx_maybe >= 0 && next_idx_maybe < List.length(closures)) {
-      //TODO(andrew): is none appropriate below?
-      parent(
-        DynCursor(Capture(List.nth(closures, next_idx_maybe), None)),
-      );
+    if (next_idx_maybe >= 0 && next_idx_maybe < List.length(samples)) {
+      parent(DynCursor(Capture(List.nth(samples, next_idx_maybe), ap_id)));
     } else {
       Effect.Ignore;
     };
@@ -655,6 +742,7 @@ let move_cursor =
 let nav_bar_view =
     (
       ap_id: option(Id.t),
+      ~settings: settings,
       di: Dynamics.Info.t,
       num_total: int,
       parent: external_action => Ui_effect.t(unit),
@@ -667,8 +755,8 @@ let nav_bar_view =
       ],
       [],
     );
-  let show_left = num_total < Window.max_closures();
-  let show_right = num_total < Window.max_closures();
+  let show_left = num_total < Window.max_samples(settings.window);
+  let show_right = num_total < Window.max_samples(settings.window);
   div(
     ~attrs=[Attr.classes(["nav-bar"])],
     [nav_arrow(show_left, 1), nav_arrow(show_right, -1)],
@@ -678,13 +766,13 @@ let nav_bar_view =
 let equals_view =
   div(~attrs=[Attr.classes(["live-equals"])], [text("≡")]);
 
-let num_closures_view = (~ap_id: option(Id.t), di: Dynamics.Info.t) => {
-  let num_closures = Closures.total(~ap_id, di);
-  let description = num_closures < 1000 ? string_of_int(num_closures) : "1k+";
+let num_samples_view = (~ap_id: option(Id.t), di: Dynamics.Info.t) => {
+  let num_samples = Samples.total(~ap_id, di);
+  let description = num_samples < 1000 ? string_of_int(num_samples) : "1k+";
   div(
     ~attrs=[
-      Attr.title(string_of_int(num_closures)),
-      Attr.classes(["num-closures"]),
+      Attr.title(string_of_int(num_samples)),
+      Attr.classes(["num-samples"]),
     ],
     [text(description)],
   );
@@ -701,49 +789,58 @@ let syntax_str = (utility: utility) =>
   });
 let icon = div(~attrs=[Attr.classes(["icon"])], []);
 
-let round_up = (utility: utility, closure): unit => {
+let round_up = (~settings: settings, utility: utility, sample): unit => {
   let (_, cur) =
-    abbreviated_seg_of(utility, ClosureLength.get(closure), closure.value);
+    abbreviated_seg_of(
+      utility,
+      ClosureLength.get(settings.window, sample),
+      sample.value,
+    );
   let goal = cur + 1;
   let (_, max_len) =
-    seg_of_exp(utility, DHExp.strip_ascriptions(closure.value));
+    seg_of_exp(utility, DHExp.strip_ascriptions(sample.value));
   let rec find_target = (target: int): int => {
     let attempt_len =
-      abbreviated_seg_of(utility, target, closure.value) |> snd;
+      abbreviated_seg_of(utility, target, sample.value) |> snd;
     if (attempt_len < goal && target <= max_len) {
       find_target(target + 1);
     } else {
       target;
     };
   };
-  ClosureLength.set(closure.closure_id, find_target(goal));
+  ClosureLength.set(sample.id, find_target(goal));
 };
 
-let round_down = (utility: utility, closure: closure): unit => {
+let round_down = (~settings: settings, utility: utility, sample: sample): unit => {
   let (_, cur) =
-    abbreviated_seg_of(utility, ClosureLength.get(closure), closure.value);
+    abbreviated_seg_of(
+      utility,
+      ClosureLength.get(settings.window, sample),
+      sample.value,
+    );
   let goal = cur - 1;
   let rec find_target = (target: int): int => {
     let attempt_len =
-      abbreviated_seg_of(utility, target, closure.value) |> snd;
+      abbreviated_seg_of(utility, target, sample.value) |> snd;
     if (attempt_len > goal && target > 0) {
       find_target(target - 1);
     } else {
       target;
     };
   };
-  ClosureLength.set(closure.closure_id, find_target(goal));
+  ClosureLength.set(sample.id, find_target(goal));
 };
 
-let indicated_closure =
-    (~ap_id: option(Id.t), di: Dynamics.Info.t): option(closure) =>
-  Dynamics.Info.first_cursor_closure(ap_id, di);
+let indicated_sample =
+    (~ap_id: option(Id.t), di: Dynamics.Info.t): option(sample) =>
+  Dynamics.Info.first_cursor_sample(ap_id, di);
 
 let key_handler =
     (
       local,
       ~id: Id.t,
       ~ap_id: option(Id.t),
+      ~settings: settings,
       di: Dynamics.Info.t,
       utility,
       parent: external_action => Ui_effect.t(unit),
@@ -754,36 +851,36 @@ let key_handler =
       ultimately need to be able to issue a parent action to move to and focus on
      another projector. for now, should be able to use the Project(Focus(id)) action
      to do both in one; will need to rethink when we want to /create/ probes as well.
-     the probe that we want to move to is going to depend on the closure cursor, but
-     also maybe the row of the closure we're on. alternatively, can maybe avoid
-     row based logic by using closure creation time instead. In any case, want a function
-     that takes the closure cursor and emits a new closure cursor and the id of a
+     the probe that we want to move to is going to depend on the dynamic cursor, but
+     also maybe the row of the sample we're on. alternatively, can maybe avoid
+     row based logic by using sample creation time instead. In any case, want a function
+     that takes the dynamic cursor and emits a new dynamic cursor and the id of a
      probe to jump to. Not sure this is the best approach at all, but for now maybe
      we could add all probe data to a common mutable structure in this module, when
      projectorview.all is called, and use this to calculate the probe id to jump to.
      like basically we're going to treat this mutable cache as a db, and do certain
-     queries. specifically, return all probe_ids that have a closure with equal
-     closure cursor to current, and take the one with the timestamp closet to but
-     before/after the current closure cursor closure timestamp. */
+     queries. specifically, return all probe_ids that have a sample with equal
+     dynamic cursor to current, and take the one with the timestamp closet to but
+     before/after the current dynamic cursor sample timestamp. */
   let key = Key.mk(KeyDown, evt);
   switch (key.key) {
   | D("Escape") when key.shift == Down =>
     JsUtil.get_elem_by_id(Id.cls(id))##blur;
-    Window.reset();
+    Settings.reset_mode();
     ClosureLength.reset();
     parent(DynCursor(Reset));
   | D("Escape") =>
     JsUtil.get_elem_by_id(Id.cls(id))##blur;
     Ignore;
   | D("ArrowRight") when key.shift == Down =>
-    switch (indicated_closure(~ap_id, di)) {
-    | Some(closure) => round_up(utility, closure)
+    switch (indicated_sample(~ap_id, di)) {
+    | Some(sample) => round_up(~settings, utility, sample)
     | None => ()
     };
     Many([local(NoOp), Stop_propagation, Prevent_default]);
   | D("ArrowLeft") when key.shift == Down =>
-    switch (indicated_closure(~ap_id, di)) {
-    | Some(closure) => round_down(utility, closure)
+    switch (indicated_sample(~ap_id, di)) {
+    | Some(sample) => round_down(~settings, utility, sample)
     | None => ()
     };
     Many([local(NoOp), Stop_propagation, Prevent_default]);
@@ -802,19 +899,11 @@ let key_handler =
       Prevent_default,
     ])
   | D(" ") =>
-    Window.toggle_mode();
+    Settings.toggle_mode();
     Many([local(NoOp), Stop_propagation, Prevent_default]); // trigger redraw
   | _ => Many([Stop_propagation])
   };
 };
-
-let cur_ap = (info: info) =>
-  switch (info.statics) {
-  | Some(InfoExp({term: {term: Ap(_), _} as ap, _}))
-  | Some(InfoExp({term: {term: Probe({term: Ap(_), _} as ap, _), _}, _})) =>
-    Some(Exp.rep_id(ap))
-  | _ => None
-  };
 
 /* Don't redundantly show an env for variable references, patterns */
 let hide_env = (info: info): bool =>
@@ -832,20 +921,29 @@ let offside_view =
       info: info,
       local,
       parent,
-      view_seg: (~background: bool=?, Sort.t, list(syntax)) => Node.t,
+      ~settings: settings,
+      view_seg:
+        (
+          ~background: bool=?,
+          ~is_single_line: option(unit)=?,
+          ~text_only: option(unit)=?,
+          Sort.t,
+          list(syntax)
+        ) =>
+        Node.t,
       utility: utility,
     ) =>
   switch (info.dynamics) {
   | Some(di) =>
     let id = info.id;
-    let ap_id = cur_ap(info);
+    let ap_id = DynCursor.cur_ap(info.statics);
     let hide_env = hide_env(info);
-    let num_total = Closures.total(~ap_id, di);
-    let closures = Closures.select_frames(~id, ~ap_id, di);
-    let (num_shown, groups) = Closures.collate(closures);
+    let num_total = Samples.total(~ap_id, di);
+    let samples = Samples.select_samples(~settings, ~id, ~ap_id, di);
+    let (num_shown, groups) = Samples.collate(samples);
     let is_cut_off = num_shown != num_total && num_shown > 0;
     let extras = [
-      nav_bar_view(ap_id, di, num_total, parent),
+      nav_bar_view(~settings, ap_id, di, num_total, parent),
       ellipsis_view(local),
     ];
     Node.div(
@@ -853,17 +951,21 @@ let offside_view =
         Attr.id(Id.cls(id)),
         Attr.tabindex(0),
         Attr.on_keydown(
-          key_handler(local, ~id, ~ap_id, di, utility, parent),
+          key_handler(local, ~id, ~ap_id, ~settings, di, utility, parent),
         ),
-        Attr.classes(["live-offside", Window.get_mode() |> Window.show_mode]),
+        Attr.classes(["live-offside", settings.window |> show_window]),
       ],
       (num_shown > 0 ? [equals_view] : [])
-      @ closure_group_view(
+      @ sample_group_view(
           ~ap_id,
           ~hide_env,
+          ~settings,
           di,
           utility,
-          view_seg,
+          /* NOTE: Right now this is hard set to single_line and text_only
+           * for optimization purposes. This can be relaxed in the future */
+          (~text_only) =>
+            view_seg(~is_single_line=Some(), ~text_only, ~background=false),
           local,
           parent,
           groups,
@@ -884,121 +986,44 @@ let probe_default =
   //TODO(andrew): capture ap only
   | Some(di) =>
     //DynCursor.capture_ap(info);
-    switch (di.closures) {
-    | [fst, ..._] => parent(DynCursor(Capture(fst, cur_ap(info))))
+    switch (di.samples) {
+    | [fst, ..._] =>
+      parent(DynCursor(Capture(fst, DynCursor.cur_ap(info.statics))))
     | [] => Effect.Ignore
     }
   | None => Effect.Ignore
   };
 
-let is_pinned = (ap_id: option(Id.t), di: Dynamics.Info.t): bool =>
-  switch (Dynamics.Info.is_in(di)) {
-  | Some(closure_cursor) =>
-    di.dyn_cursor.pinned_stack
-    == Dynamics.Cursor.cur_call(ap_id, closure_cursor)
-  | _ => false
-  };
-
-let get_current = (info: info) => {
+// let is_pinned = (ap_id: option(Id.t), di: Dynamics.Info.t): bool =>
+//   switch (Dynamics.Info.is_in(di)) {
+//   | Some(dyn_cursor) =>
+//     di.dyn_cursor.pinned_stack
+//     == DynCursor.cur_call(ap_id, dyn_cursor)
+//   | _ => false
+//   };
+let get_current = (~settings, info: info) => {
   switch (info.dynamics) {
   | Some(di) =>
-    let ap_id = cur_ap(info);
+    let ap_id = DynCursor.cur_ap(info.statics);
     /* First try to get the indicated closure */
-    switch (Dynamics.Info.first_cursor_closure(ap_id, di)) {
+    switch (Dynamics.Info.first_cursor_sample(ap_id, di)) {
     | Some(closure) => Some(closure.value)
     | None =>
       /* Fallback: check if any displayed closure has table data */
-      let closures = Closures.select_frames(~id=info.id, ~ap_id, di);
-      List.find_map((closure: closure) => Some(closure.value), closures); // todo
+      let samples =
+        Samples.select_samples(~settings, ~id=info.id, ~ap_id, di);
+      List.find_map((s: sample) => Some(s.value), samples); // todo
     };
   | None => None
   };
 };
 
-let view = (_: probe_model, local, parent, info: info): Node.t => {
-  /* Get badges for all compatible renderers */
-  let compatible_badges =
-    switch (get_current(info)) {
-    | Some(exp) =>
-      renderers
-      |> List.filter(r => r.can_handle(exp))
-      |> List.map(r =>
-           span(
-             ~attrs=[
-               Attr.on_click(_ => local(OpenModal)),
-               Attr.classes(["renderer-badge"]),
-             ],
-             [r.badge],
-           )
-         )
-    | None => []
-    };
-
-  div(
-    ~attrs=[
-      Attr.id(Id.cls(info.id)),
-      Attr.tabindex(0),
-      Attr.on_keydown(
-        key_handler(
-          local,
-          ~id=info.id,
-          ~ap_id=cur_ap(info),
-          Option.value(info.dynamics, ~default=Dynamics.Info.init),
-          info.utility,
-          parent,
-        ),
-      ),
-      Attr.classes(
-        ["main"]
-        @ (Option.is_some(cur_ap(info)) ? ["ap"] : [])
-        @ (
-          switch (info.dynamics) {
-          | Some(di) => is_pinned(cur_ap(info), di) ? ["pinned"] : []
-          | None => []
-          }
-        ),
-      ),
-      Attr.on_double_click(_ =>
-        switch (
-          cur_ap(info),
-          info.dynamics |> OptUtil.and_then(Dynamics.Info.is_in),
-        ) {
-        | (Some(ap_id), Some(closure_cursor)) =>
-          parent(
-            DynCursor(TogglePinCall([ap_id, ...closure_cursor.call_stack])),
-          )
-        | _ => Effect.Ignore
-        }
-      ),
-      Attr.on_pointerdown(_ => {
-        /* Try to open modal with first compatible renderer */
-        switch (get_current(info)) {
-        | Some(exp) when Option.is_some(find_compatible_renderer(exp)) =>
-          local(OpenModal)
-        | _ => probe_default(parent, info)
-        }
-      }),
-      Attr.on_pointerup(_ => {
-        JsUtil.get_elem_by_id(Id.cls(info.id))##blur;
-        Effect.Ignore;
-      }),
-    ],
-    [
-      div(
-        ~attrs=[Attr.classes(["probe-content"])],
-        [text(syntax_str(info.utility, info.syntax))],
-      ),
-    ]
-    @ compatible_badges,
-  );
-};
-
-let overlay_view = (_model: probe_model, info: info): Node.t =>
+let overlay_view = (~settings, _model: probe_model, info: info): Node.t =>
   switch (info.dynamics) {
   | Some(di) =>
-    let ap_id = cur_ap(info);
+    let ap_id = DynCursor.cur_ap(info.statics);
     let has_renderer =
-      switch (get_current(info)) {
+      switch (get_current(~settings, info)) {
       | Some(exp) => Option.is_some(find_compatible_renderer(exp))
       | None => false
       };
@@ -1007,11 +1032,11 @@ let overlay_view = (_model: probe_model, info: info): Node.t =>
         Attr.classes(
           ["overlay"]
           @ (Option.is_some(ap_id) ? ["ap"] : [])
-          @ (is_pinned(ap_id, di) ? ["pinned"] : [])
+          // @ (is_pinned(ap_id, di) ? ["pinned"] : []),
           @ (has_renderer ? ["has-renderer"] : []),
         ),
       ],
-      [num_closures_view(~ap_id, di)],
+      [num_samples_view(~ap_id, di)] /*@ pin_view(info)*/,
     );
   | None => Node.div([])
   };
@@ -1052,13 +1077,14 @@ module M: Projector = {
     | ChangeLength(id, len) =>
       ClosureLength.set(id, len);
       model;
+    // | ChangeLength(id, len) => ClosureLength.set(id, len)
     | ToggleShowAllVals(_) =>
-      Window.toggle_mode();
+      Settings.toggle_mode();
       model;
     | NoOp => model
     | OpenModal =>
       /* Find first compatible renderer and initialize it */
-      switch (get_current(info)) {
+      switch (get_current(~settings=Settings.s^, info)) {
       | Some(exp) =>
         switch (find_compatible_renderer(exp)) {
         | Some(renderer) =>
@@ -1100,11 +1126,17 @@ module M: Projector = {
       }
     };
   };
-
   /* Modal overlay for dynamic renderer display */
   let modal_overlay =
-      (model, info, ~local: action => Ui_effect.t(unit), ~parent, ~view_seg) => {
-    switch (model.active_renderer, get_current(info)) {
+      (
+        ~settings,
+        model,
+        info,
+        ~local: action => Ui_effect.t(unit),
+        ~parent,
+        ~view_seg,
+      ) => {
+    switch (model.active_renderer, get_current(~settings, info)) {
     | (Some({renderer_id, model_state, value_state}), Some(exp)) =>
       /* Find the renderer and check if it can still handle the expression */
       switch (List.find_opt(r => r.id == renderer_id, renderers)) {
@@ -1146,25 +1178,32 @@ module M: Projector = {
     | _ => Node.div([])
     };
   };
-
   let view = (model, info, ~local, ~parent, ~view_seg) => {
+    let settings = Settings.s^;
     View.{
-      inline:
-        switch (info.syntax) {
-        | [Grout({id, _})] when id == Id.invalid => Node.div([])
-        | _ => view(model, local, parent, info)
-        },
+      inline: Node.div([]),
+      // switch (info.syntax) {
+      // | [Grout({id, _})] when id == Id.invalid => Node.div([])
+      // | _ => view(~settings, local, parent, info)
+      // },
       overlay:
         switch (info.syntax) {
         | [Grout({id, _})] when id == Id.invalid =>
-          Some(overlay_view(model, info))
-        | _ => Some(overlay_view(model, info))
+          Some(overlay_view(~settings, model, info))
+        | _ => Some(overlay_view(~settings, model, info))
         },
       offside:
         Some(
           div([
-            offside_view(info, local, parent, view_seg, info.utility),
-            modal_overlay(model, info, ~local, ~parent, ~view_seg),
+            offside_view(
+              ~settings,
+              info,
+              local,
+              parent,
+              view_seg,
+              info.utility,
+            ),
+            modal_overlay(~settings, model, info, ~local, ~parent, ~view_seg),
           ]),
         ),
     };

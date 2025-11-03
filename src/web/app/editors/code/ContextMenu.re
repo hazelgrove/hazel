@@ -25,7 +25,6 @@ let menu_item =
         Effect.Many([
           Effect.Stop_propagation,
           Effect.Prevent_default,
-          //inject(Project(FocusIndicated)),
           inject(action),
         ])
       ),
@@ -34,17 +33,104 @@ let menu_item =
     [text(name)],
   );
 
-let probes_menu = (~inject: Action.t => Ui_effect.t(unit)) =>
-  div_c(
-    "group",
+let manual_probe =
+    (
+      ~inject: Action.t => Ui_effect.t(unit),
+      probe_status: Refractors.probe_status,
+      ci: option(Language.Info.t),
+    ) =>
+  switch (ci) {
+  /* These can be applied to expressions and patterns */
+  | Some(InfoExp(_) | InfoPat(_)) => [
+      menu_item(
+        switch (probe_status) {
+        | Manual(_) => "Remove probe"
+        | REPL => "Switch to manual"
+        | Non => "Add probe"
+        },
+        inject,
+        Refractor(ToggleProbeManual),
+      ),
+    ]
+  | _ => []
+  };
+
+let auto_probe =
+    (
+      ~inject: Action.t => Ui_effect.t(unit),
+      probe_status: Refractors.probe_status,
+      ci: option(Language.Info.t),
+    ) =>
+  switch (ci) {
+  /* Not much reason to put these on patterns... */
+  | Some(InfoExp(_)) => [
+      menu_item(
+        switch (probe_status) {
+        | Manual(_) => "Switch to auto"
+        | REPL => "Remove auto probe"
+        | Non => "Add auto probe"
+        },
+        inject,
+        Refractor(ToggleProbeREPL),
+      ),
+    ]
+  | _ => []
+  };
+
+let jump_to_binding =
+    (~inject: Action.t => Ui_effect.t(unit), ci: option(Language.Info.t)) =>
+  switch (OptUtil.and_then(Language.Info.get_binding_site, ci)) {
+  | Some(_) => [
+      menu_item(
+        "Goto definition",
+        inject,
+        Move(Goal(BindingSiteOfIndicatedVar)),
+      ),
+    ]
+  | _ => []
+  };
+
+let step_into =
+    (
+      ~inject: Action.t => Ui_effect.t(unit),
+      info_map: Language.Statics.Map.t,
+      ci: option(Language.Info.t),
+      z: Zipper.t,
+    ) =>
+  switch (ci) {
+  | Some(InfoExp({ty, _})) when Language.StaticsBase.is_arrow_like(ty) =>
+    switch (Refractors.is_jump_target(info_map, z)) {
+    | Some(_) => [menu_item("Step into", inject, Refractor(ProbeJump))]
+    | None => []
+    }
+  | _ => []
+  };
+
+let probes_actions =
+    (
+      ~inject: Action.t => Ui_effect.t(unit),
+      info_map: Language.Statics.Map.t,
+      z: Zipper.t,
+    ) => {
+  let id = Indicated.index(z) |> Option.value(~default=Id.invalid);
+  let ci = Indicated.ci_of(z, info_map);
+  let probe_status = Refractors.probe_status(id, info_map, z.refractors);
+  jump_to_binding(~inject, ci)
+  @ manual_probe(~inject, probe_status, ci)
+  @ auto_probe(~inject, probe_status, ci)
+  @ step_into(~inject, info_map, ci, z);
+};
+
+let probes_menu = probes_items =>
+  NutMenu.submenu(
+    ~tooltip="",
+    ~icon=div([]),
     [
-      // div_c("name", [text("Probes")]),
       div_c(
-        "contents",
+        "group",
         [
-          menu_item("Toggle probe", inject, Refractor(ToggleProbeManual)),
-          menu_item("Toggle auto", inject, Refractor(ToggleProbeREPL)),
-          menu_item("Step into", inject, Refractor(ProbeJump)),
+          // div_c("name", [text("Probes")]),
+          div_c("contents", probes_items),
         ],
       ),
     ],
@@ -53,17 +139,21 @@ let probes_menu = (~inject: Action.t => Ui_effect.t(unit)) =>
 let view =
     (
       ~inject: Action.t => Ui_effect.t(unit),
-      ~measured: Haz3lcore.Measured.t,
+      ~syntax: Haz3lcore.CachedSyntax.t,
+      ~info_map: Language.Statics.Map.t,
       ~font_metrics: FontMetrics.t,
       z: Haz3lcore.Zipper.t,
     )
     : Node.t => {
-  let caret_point = Zipper.Caret.point(measured, z);
-  div(
-    ~attrs=[
-      Attr.classes(["context-menu", "nut-menu"]),
-      pos_attr(caret_point, font_metrics),
-    ],
-    [NutMenu.submenu(~tooltip="", ~icon=div([]), [probes_menu(~inject)])],
-  );
+  let caret_point = Zipper.Caret.point(syntax.measured, z);
+  let probes_items = probes_actions(~inject, info_map, z);
+  probes_items == []
+    ? div([])
+    : div(
+        ~attrs=[
+          Attr.classes(["context-menu", "nut-menu"]),
+          pos_attr(caret_point, font_metrics),
+        ],
+        [probes_menu(probes_items)],
+      );
 };

@@ -68,7 +68,7 @@ module Model = {
         indicated: option(Indicated.piece),
         statics: Language.Statics.Map.t,
         dynamics: Language.Dynamics.Map.t,
-        dyn_cursor: Language.Dynamics.Cursor.t,
+        dyn_cursor: Language.DynCursor.t,
         editor_active: bool,
       ) => {
     List.filter_map(
@@ -199,9 +199,12 @@ let offside_wrapper =
     [v],
   );
 
-let simple_code = (~background=false, font_metrics, _sort, segment): Node.t => {
+let simple_code =
+    (~background=false, ~is_single_line=?, font_metrics, _sort, segment)
+    : Node.t => {
   let shape_map = ProjectorCore.Shape.Map.empty; /* Assume this doesn't contain projectors */
-  let measured = Measured.of_segment(segment, shape_map, Id.Map.empty);
+  let measured =
+    Measured.of_segment(~is_single_line, segment, shape_map, Id.Map.empty);
   let code =
     Code.view(
       ~measured,
@@ -237,6 +240,44 @@ let simple_code = (~background=false, font_metrics, _sort, segment): Node.t => {
   );
 };
 
+let text_code = (segment): Node.t =>
+  div(
+    ~attrs=[Attr.class_("code")],
+    [
+      span_c(
+        "code-text",
+        [
+          div(
+            ~attrs=[Attr.classes(["token", "Exp"])],
+            [
+              Node.text(
+                Printer.of_segment(
+                  ~holes="?",
+                  ~indent="",
+                  ~is_single_line=true,
+                  segment,
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    ],
+  );
+
+let flex_code =
+    (
+      ~font_metrics,
+      ~background=?,
+      ~is_single_line=?,
+      ~text_only=?,
+      sort,
+      segment,
+    ) =>
+  text_only == Some(Some())
+    ? text_code(segment)
+    : simple_code(~background?, ~is_single_line?, font_metrics, sort, segment);
+
 /* Route top-level metadata to the projector view function. */
 let mk_view =
     (
@@ -247,10 +288,19 @@ let mk_view =
     : View.t => {
   let (module P) = ProjectorInit.to_module(p.kind);
   let parent = a => inject(Project(handle(p.id, a)));
-  let local = a => {
+  let local = a =>
     inject(Project(SetModel(p.id, P.update(p.model, info, a))));
-  };
-  let view_seg = (~background=?) => simple_code(~background?, font_metrics);
+  let view_seg =
+      (~background=?, ~is_single_line=?, ~text_only=?, sort, segment) =>
+    flex_code(
+      ~font_metrics,
+      ~background?,
+      ~is_single_line?,
+      ~text_only?,
+      sort,
+      segment,
+    );
+
   P.view(p.model, info, ~local, ~parent, ~view_seg);
 };
 

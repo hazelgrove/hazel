@@ -9,8 +9,8 @@
 }
 
 #probesys .title {
-  text-transform: uppercase;
-  font-weight: bold;
+  /* text-transform: uppercase;
+  font-weight: bold; */
 }
 
 #probesys .main-title {
@@ -30,7 +30,7 @@
 }
 
 #probesys .quick-select-deco svg {
-  fill: oklch(0.95 0.05 90);
+  fill: oklch(0.93 0.06 90.1);
 }
 
 #probesys .ephemerals {
@@ -46,7 +46,7 @@
   display: none;
 }
 
-#probesys .probe-view .live-offside > *:not(.closure-groups) {
+#probesys .probe-view .live-offside > *:not(.sample-groups) {
   display: none;
 }
 
@@ -58,18 +58,135 @@
 }
 
 #probesys .legend {
-  display: flex;
-  flex-direction: column;
-  gap: 0.2em;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  grid-template-rows: auto auto auto;
+  gap: 0.5rem; /* adjust spacing between items */
+  justify-items: stretch; /* or center if you prefer tighter layout */
+}
+
+#probesys .panel {
   padding: 0.5em;
   outline: 1px solid var(--BR1);
   border-radius: 0.3em;
   color: var(--BR2);
+  overflow: clip;
+}
+
+#probesys .sketch {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+#probesys .sketch img {
+  width: 140px;
+  transition: all 0.2s ease-in-out;
+}
+
+#probesys .sketch[open] img {
+  width: 25px;
+  position: absolute;
+  top: 10px;
+  right: 13px;
+}
+
+.sketch summary {
+  cursor: pointer;
+  list-style: none;
+  display: inline-flex;
+  align-items: center;
+}
+
+.sketch summary::marker,
+.sketch summary::-webkit-details-marker {
+  display: none;
+}
+
+#probesys .legend .title {
+  grid-column: 1 / -1; /* span full width of the grid */
+  justify-self: start; /* left align */
+}
+
+#probesys .panel.call-cursor .title {
+  padding-bottom: 0.5em;
+}
+
+#probesys .panel.call-cursor .stack {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
 }
 
 #probesys .legend .projector {
   position: relative;
   pointer-events: none;
-  justify-content: start;
+  justify-content: center;
+  text-align: center;
+}
+
+#probesys .code {
+  outline: 1px solid var(--T1);
+}
+
+#probesys .code .code-text:after {
+  /* Might have to disable this for multiline display to work */
+  display: none;
+}
+
+#probesys .is-index .probe-entry > .code {
+  outline: 1px solid var(--BR1);
+  /* z-index: 1; */
+}
+
+#probesys .indicated-call .probe-entry > .code {
+  outline: 1px solid var(--R1);
+  /* z-index: 2; */
+}
+
+#probesys .indicated-call.not-in-stack {
+  padding-bottom: 0.25em;
+}
+
+.probe-entry > .code {
+  background-color: var(--T2);
+  padding: 0 0.4em;
+  border-radius: 0.3em;
+  border-left: 1px solid var(--BR2);
+}
+
+#probesys .after-index .probe-entry .code {
+  opacity: 0.5;
+}
+
+#probesys .panel.probes {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  outline: none;
+  border-left: 1px solid var(--BR2);
+}
+
+#probesys .panel.probes .auto {
+  border-left: 1px solid var(--BR2);
+  padding: 0.5em;
+  border-radius: 0.3em;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+#probesys .panel.probes .top-level-body {
   margin-left: 0.5em;
+  gap: 1px;
+  display: flex;
+  flex-direction: column;
+}
+
+#probesys .panel.probes .top-level-title {
+  position: relative;
+}
+
+#probesys .code:hover {
+  filter: brightness(1.04);
 }

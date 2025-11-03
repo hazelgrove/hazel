@@ -43,7 +43,7 @@ type select =
 
 [@deriving (show({with_path: false}), sexp, yojson, eq)]
 type dyn_cursor =
-  | Capture(Language.Dynamics.Probe.Closure.t, option(Id.t))
+  | Capture(Language.Sample.t, option(Id.t))
   | TogglePinCall(Language.Probe.call_stack)
   | Reset;
 

@@ -10,7 +10,7 @@ let utility: ProjectorBase.utility = {
   let term_to_seg =
     ExpToSegment.any_to_segment(
       ~settings={
-        ...ExpToSegment.Settings.of_core(~inline=false, CoreSettings.off),
+        ...ExpToSegment.Settings.of_core(~inline=true, CoreSettings.off),
         show_unknown_as_hole: false,
         fold_fn_bodies: false,
       },
@@ -21,7 +21,9 @@ let utility: ProjectorBase.utility = {
     | None => None
     | Some(s) => Some(s |> fn |> term_to_seg)
     };
-  let seg_to_string = Printer.of_segment(~holes="?");
+  /* NOTE: Setting indent to anything other than "" has serious
+   * perf implications when there are lots of probes on the screen */
+  let seg_to_string = Printer.of_segment(~holes="?", ~indent="");
   {
     term_to_seg,
     seg_to_term,
@@ -33,7 +35,7 @@ let utility: ProjectorBase.utility = {
 let mk_info =
     (
       p: Piece.projector,
-      ~dyn_cursor: Dynamics.Cursor.t,
+      ~dyn_cursor: DynCursor.t,
       ~statics: Statics.Map.t,
       ~dynamics: Dynamics.Map.t,
     )
@@ -43,9 +45,9 @@ let mk_info =
   statics: Statics.Map.lookup(p.id, statics),
   dynamics:
     switch (Dynamics.Map.lookup(p.id, dynamics)) {
-    | Some(closures) =>
+    | Some(samples) =>
       Some({
-        closures,
+        samples,
         dyn_cursor,
       })
     | None => None
@@ -56,7 +58,7 @@ let mk_info =
 module ShapeMapSemantics = {
   let from_semantics =
       (
-        dyn_cursor: Language.Dynamics.Cursor.t,
+        dyn_cursor: Language.DynCursor.t,
         statics: Statics.Map.t,
         dynamics: Dynamics.Map.t,
         p: Base.projector,

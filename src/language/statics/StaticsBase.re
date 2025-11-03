@@ -53,7 +53,7 @@ module Map = {
     };
 
   /* Starting from a binding site id (possibly inside a deep pattern),
-   * climb ancestor ids to find the enclosing let or match, and return
+   * climb ancestor ids to find the enclosing let, and return
    * the id of its body expression. */
   let enclosing_let_of_binding =
       (~statics: t, ~binding_id: Id.t): option(Id.t) => {
@@ -74,6 +74,37 @@ module Map = {
         };
       };
     climb(Info.ancestors_of(ci_binder));
+  };
+};
+
+let let_definition_path = (~statics: Map.t, ~id: Id.t): list(Pat.t) => {
+  let rec contains_id = (target: Id.t, ids: list(Id.t)): bool =>
+    switch (ids) {
+    | [] => false
+    | [head, ...tail] => Id.equal(head, target) || contains_id(target, tail)
+    };
+
+  let rec gather =
+          (remaining: list(Id.t), seen: list(Id.t), acc: list(Pat.t))
+          : list(Pat.t) =>
+    switch (remaining) {
+    | [] => acc
+    | [current_id, ...rest] =>
+      let acc' =
+        switch (Map.lookup(current_id, statics)) {
+        | Some(InfoExp({term: {term: Let(pat, def, _), _}, _})) =>
+          contains_id(IdTagged.rep_id(def), seen) ? [pat, ...acc] : acc
+        | _ => acc
+        };
+      gather(rest, [current_id, ...seen], acc');
+    };
+
+  switch (Map.lookup(id, statics)) {
+  | Some(info) =>
+    let ancestors: list(Id.t) = Info.ancestors_of(info);
+    let collected: list(Pat.t) = gather(ancestors, [id], []);
+    List.rev(collected);
+  | _ => []
   };
 };
 

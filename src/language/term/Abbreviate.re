@@ -540,17 +540,20 @@ let rec abbreviate_exp = (exp: Exp.t): Exp.t => {
           | [] => []
           | [pair, ...pairs] =>
             let hd = abbreviate_pair(pair);
-            if (available^ > 3) {
+            if (available^ > 12) {
               available := available^ - 6; // "| " " => "
               [hd, ...go(pairs)];
-            } else if (pairs == []) {
+              // } else if (available^ > 6) {
+              //   available := available^ - 6; // "| " " => "
+              //   [hd, (flat_ellipses_term_pat(), flat_ellipses_term())];
+            } else if (available^ > 6) {
               [hd];
             } else {
-              available := available^ - 3;
-              [hd, (flat_ellipses_term_pat(), flat_ellipses_term())];
+              [];
             };
           };
-        Match(exp', go(pat_exp_pairs));
+        let pairs = go(pat_exp_pairs);
+        Match(exp', pairs);
       }
 
     | TypAp(e, t) =>

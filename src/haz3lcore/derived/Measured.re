@@ -254,6 +254,7 @@ module MkDeferredLinebreaks = () => {
 let of_segment =
     (
       ~indent_level=Id.Map.empty,
+      ~is_single_line=?,
       seg: Segment.t,
       shape_map: Id.Map.t(ProjectorCore.Shape.t),
       refractor_shape_map: Id.Map.t(int),
@@ -262,7 +263,7 @@ let of_segment =
   module DeferredLinebreaks = MkDeferredLinebreaks();
 
   let indent_level =
-    Id.Map.is_empty(indent_level)
+    Id.Map.is_empty(indent_level) && is_single_line == None
       ? Indentation.level_map(seg) : indent_level;
 
   let indent_of_linebreak = (w: Secondary.t): option(int) =>
@@ -388,7 +389,8 @@ let of_segment =
 };
 
 /* Memoized for perf */
-let of_segment = Core.Memo.general(of_segment);
+let of_segment = (~is_single_line=?) =>
+  Core.Memo.general(of_segment(~is_single_line?));
 
 /* Width in characters of row at measurement.origin */
 let start_row_width = (measurement: measurement, measured: t): int =>

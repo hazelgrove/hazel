@@ -156,7 +156,7 @@ let rec elaborate_pattern =
       Asc(p', Typ.normalize(ctx, t)) |> rewrap;
     | Probe(p, probe) =>
       let (e', _) = elaborate_pattern(m, p);
-      let probe = Dynamics.Probe.instrument_pat(m, Pat.rep_id(upat), probe);
+      let probe = Dynamics.instrument_pat(m, Pat.rep_id(upat), probe);
       Probe(e', probe) |> rewrap;
     | Constructor(c, _) =>
       let ana_ty =
@@ -212,7 +212,7 @@ let rec elaborate = (m: Statics.Map.t, uexp: Exp.t): (DHExp.t, Typ.t) => {
       e';
     | Probe(e, probe) =>
       let (e', _) = elaborate(m, e);
-      let probe = Dynamics.Probe.instrument_exp(m, Exp.rep_id(uexp), probe);
+      let probe = Dynamics.instrument_exp(m, Exp.rep_id(uexp), probe);
       Probe(e', probe) |> rewrap;
     | Deferral(_) => uexp
     | Atom(c) =>

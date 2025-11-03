@@ -405,8 +405,17 @@ module Indicated = {
     };
 
   let term =
-      (~font_metrics: FontMetrics.t, ~syntax: CachedSyntax.t, z: Zipper.t) =>
-    div_c("indication", indicated_piece(~font_metrics, ~syntax, z));
+      (~font_metrics: FontMetrics.t, ~syntax: CachedSyntax.t, z: Zipper.t) => {
+    let is_probed =
+      Refractors.has_probe(
+        Indicated.index(z) |> Option.value(~default=Id.invalid),
+        z,
+      );
+    div_c(
+      is_probed ? "indication-probed" : "indication",
+      indicated_piece(~font_metrics, ~syntax, z),
+    );
+  };
 };
 
 module Refractors = {
@@ -507,6 +516,19 @@ module Refractors = {
                Haz3lcore.Indicated.index(z) == Some(id)
                  ? "repl-indicated" : "repl",
              ~dynamics,
+           )
+           @ (
+             Haz3lcore.Indicated.index(z) == Some(id)
+               ? [
+                 Highlight.indicated_probe(
+                   ~measured=syntax.measured,
+                   ~shape_map=syntax.shape_map,
+                   ~font_metrics,
+                   TermData.segment(id, syntax.term_data)
+                   |> Option.value(~default=[Piece.mk_grout(Convex)]),
+                 ),
+               ]
+               : []
            )
          )
     );
