@@ -628,14 +628,7 @@ module M: Projector = {
     };
 
   let view =
-      (
-        model,
-        info,
-        ~local,
-        ~parent: external_action => Ui_effect.t(unit),
-        ~view_seg as _,
-      )
-      : View.t => {
+      ({model, info, local, parent, _}: View.args(model, action)): View.t => {
     inline:
       switch (SyntaxTerm.get(info)) {
       | (sort, Card(card)) =>
