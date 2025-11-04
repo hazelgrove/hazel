@@ -21,6 +21,7 @@
   justify-content: center;
   background-color: white;
   border-radius: 0.5em;
+  position: relative;
 }
 
 .graph-projector.graph-error {
@@ -34,6 +35,20 @@
 .graph-chart {
   width: calc(100% - 12px);
   height: auto;
+}
+
+.graph-warning-indicator {
+  position: absolute;
+  top: 0.35em;
+  right: 0.45em;
+  font-size: 0.9em;
+  line-height: 1;
+  color: var(--warning-color, var(--Y2));
+  cursor: help;
+}
+
+.graph-projector.graph-error .graph-warning-indicator {
+  color: var(--R2);
 }
 
 .graph-chart .graph-background {
