@@ -28,13 +28,14 @@ module Kind = {
     | Card
     | Livelit
     | TextArea
-    | Exo(Exo.kind);
+    | Exo(Exo.kind)
+    | Graph;
 
   let livelit_projectors: list(t) =
     [Checkbox, Slider, SliderF, TextArea, Card, Livelit]
     @ List.map(x => Exo(x), Exo.all_of_kind);
 
-  let projectors: list(t) = livelit_projectors @ [Fold, Info, Probe];
+  let projectors: list(t) = livelit_projectors @ [Fold, Info, Probe, Graph];
 
   /* A friendly name for each projector. This is used
    * both for identifying a projector in the CSS and for
@@ -52,6 +53,7 @@ module Kind = {
     | Livelit => "livelit"
     | TextArea => "text"
     | Exo(exo_kind) => Exo.name(exo_kind)
+    | Graph => "graph"
     };
 
   /* This must be updated and kept 1-to-1 with the above
@@ -68,6 +70,7 @@ module Kind = {
     | "text" => TextArea
     | "livelit" => Livelit
     | "card" => Card
+    | "graph" => Graph
     | _ => Exo(Exo.of_name(p))
     };
 
