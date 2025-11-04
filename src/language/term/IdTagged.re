@@ -6,6 +6,7 @@ module IdTag = {
 
   let fresh = (): t => {ids: [Id.mk()]};
   let temp = (): t => {ids: [Id.invalid]};
+  let rep_id = ({ids, _}: t) => List.hd(ids);
 };
 
 [@deriving (show({with_path: false}), sexp, yojson)]
