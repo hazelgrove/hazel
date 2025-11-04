@@ -17,6 +17,7 @@ module ClosureWriter =
 
 let rec transition =
         (~recursive=false, d: DHExp.t): ClosureWriter.t(option(DHExp.t)) => {
+  print_endline("Ascriptions.transition called on " ++ DHExp.show(d));
   open ClosureWriter.Syntax;
   let recur = (d: DHExp.t): ClosureWriter.t(DHExp.t) =>
     if (recursive) {
@@ -123,7 +124,7 @@ let rec transition =
       let+ e = recur(Asc(e, Typ.subst(new_ty, tp', t')) |> DHExp.fresh);
       Some(TypFun(tp, e, v) |> DHExp.fresh);
     | (If(e, e1, e2), t) =>
-      let* e = recur(Asc(e, t |> Typ.temp) |> DHExp.fresh);
+      let* e = recur(e);
       let* e1 = recur(Asc(e1, t |> Typ.temp) |> DHExp.fresh);
       let+ e2 = recur(Asc(e2, t |> Typ.temp) |> DHExp.fresh);
       Some(If(e, e1, e2) |> DHExp.fresh);
