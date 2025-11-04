@@ -74,10 +74,7 @@ let test_dynamic_feedback = (~test_name=?, expected_exp: FError.exp) => {
             ~holes="?",
             ExpToSegment.exp_to_segment(
               ~settings=
-                ExpToSegment.Settings.of_core(
-                  ~inline=true,
-                  CoreSettings.off,
-                ),
+                ExpToSegment.Settings.of_core(~inline=true, CoreSettings.off),
               exp_with_ids,
             ),
           )
@@ -142,6 +139,8 @@ let test_dynamic_feedback = (~test_name=?, expected_exp: FError.exp) => {
     actual_exp,
   );
 };
+let inconsistent_exp: Info.error_inconsistent => Info.error =
+  e => Exp(Common(Inconsistent(e)));
 
 let tests = (
   "Evaluator.DynamicFeedback",
@@ -253,30 +252,29 @@ in
       () => {
         open FError;
         open Exp;
-        let inconsistent: Info.error_inconsistent => Info.error =
-          e => Exp(Common(Inconsistent(e)));
+
         test_dynamic_feedback(
           bin_op(
             String(Concat),
             if_(
-                bool(true),
-                asc(
-                  ~ann=
-                    DynamicError(
-                      inconsistent(
-                        Test_Statics_Prelude.FTemp.Typ.(
-                          Expectation({
-                            ana: string(),
-                            syn: int(),
-                          })
-                        ),
+              bool(true),
+              asc(
+                ~ann=
+                  DynamicError(
+                    inconsistent_exp(
+                      Test_Statics_Prelude.FTemp.Typ.(
+                        Expectation({
+                          ana: string(),
+                          syn: int(),
+                        })
                       ),
                     ),
-                  int(1),
-                  Typ.unknown(Internal),
-                ),
-                asc(string("World"), Typ.unknown(Internal)),
+                  ),
+                int(1),
+                Typ.unknown(Internal),
               ),
+              asc(string("World"), Typ.unknown(Internal)),
+            ),
             string("World"),
           ),
         );
@@ -284,11 +282,72 @@ in
           bin_op(
             String(Concat),
             if_(
-                bool(false),
-                asc(int(1), Typ.unknown(Internal)),
-                asc(string("Hello"), Typ.unknown(Internal)),
-              ),
+              bool(false),
+              asc(int(1), Typ.unknown(Internal)),
+              asc(string("Hello"), Typ.unknown(Internal)),
+            ),
             string("World"),
+          ),
+        );
+      },
+    ),
+    test_case(
+      "Unannotated lambda applied to string causes dynamic error",
+      `Quick,
+      () => {
+        open FError;
+        open Exp;
+        let expected_exp: FError.exp =
+          ap(
+            Forward,
+            fn(
+              Pat.var("y"),
+              bin_op(
+                Int(Plus),
+                var(
+                  ~ann=
+                    DynamicError(
+                      inconsistent_exp(
+                        Test_Statics_Prelude.FTemp.Typ.(
+                          Expectation({
+                            ana: int(),
+                            syn: string(),
+                          })
+                        ),
+                      ),
+                    ),
+                  "y",
+                ),
+                int(1),
+              ),
+            ),
+            string(""),
+          );
+        test_dynamic_feedback(
+          ap(
+            Forward,
+            fn(
+              Pat.var("y"),
+              bin_op(
+                Int(Plus),
+                var(
+                  ~ann=
+                    DynamicError(
+                      inconsistent_exp(
+                        Test_Statics_Prelude.FTemp.Typ.(
+                          Expectation({
+                            ana: int(),
+                            syn: string(),
+                          })
+                        ),
+                      ),
+                    ),
+                  "y",
+                ),
+                int(1),
+              ),
+            ),
+            string(""),
           ),
         );
       },
