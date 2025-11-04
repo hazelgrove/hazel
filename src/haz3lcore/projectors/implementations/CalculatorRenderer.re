@@ -81,36 +81,34 @@ let parse = (exp: Exp.t) =>
 
 /* Core transformation functions for applying arithmetic operations */
 let apply_arithmetic_operation = (info: info, operation: op, operand: int) =>
-  IdTagged.FreshGrammar.(
-    switch (
-      info.utility.lift_syntax(
-        fun
-        | Exp({term: exp_term, _}) =>
-          Exp(
-            BinOp(
-              switch (operation) {
-              | Add => Int(Operators.Plus)
-              | Subtract => Int(Operators.Minus)
-              | Multiply => Int(Operators.Times)
-              | Divide => Int(Operators.Divide)
-              },
-              exp_term |> DHExp.fresh,
-              Atom(Atom.SInt(operand)) |> DHExp.fresh,
-            )
-            |> DHExp.fresh,
+  switch (
+    info.utility.lift_syntax(
+      fun
+      | Exp({term: exp_term, _}) =>
+        Exp(
+          BinOp(
+            switch (operation) {
+            | Add => Int(Operators.Plus)
+            | Subtract => Int(Operators.Minus)
+            | Multiply => Int(Operators.Times)
+            | Divide => Int(Operators.Divide)
+            },
+            exp_term |> DHExp.fresh,
+            Atom(Atom.SInt(operand)) |> DHExp.fresh,
           )
-        | _ =>
-          failwith(
-            "CalculatorRenderer: apply_arithmetic_operation: not an expression",
-          ),
-        info.syntax,
-      )
-    ) {
-    | Some(s) => s
-    | None =>
-      failwith("CalculatorRenderer: apply_arithmetic_operation: lift failed")
-    }
-  );
+          |> DHExp.fresh,
+        )
+      | _ =>
+        failwith(
+          "CalculatorRenderer: apply_arithmetic_operation: not an expression",
+        ),
+      info.syntax,
+    )
+  ) {
+  | Some(s) => s
+  | None =>
+    failwith("CalculatorRenderer: apply_arithmetic_operation: lift failed")
+  };
 
 let apply_operation = (info, operation, operand, local, parent) => {
   let segment = apply_arithmetic_operation(info, operation, operand);
@@ -179,7 +177,16 @@ let init = (_v: int) => None;
 
 /* Main calculator rendering function */
 let render =
-    (~info, ~exp, ~value: value, ~view_seg, ~model, ~local, ~parent, ()) => {
+    (
+      ~info,
+      ~exp as _,
+      ~value: value,
+      ~view_seg as _,
+      ~model,
+      ~local,
+      ~parent,
+      (),
+    ) => {
   let state_opt =
     switch (model) {
     | Some(s) when Option.is_some(s.operand) => Some(s)
@@ -226,7 +233,7 @@ let update: (model, action) => model =
         operation,
         operand: None,
       })
-    | (SetOperand(new_operand), Some({operation, _} as state)) =>
+    | (SetOperand(new_operand), Some(state)) =>
       Some({
         ...state,
         operand: Some(new_operand),
@@ -244,18 +251,3 @@ let badge =
     ],
     [Node.text("🧮")],
   );
-
-module M = {
-  [@deriving (show({with_path: false}), sexp, yojson)]
-  type model = m;
-  [@deriving (show({with_path: false}), sexp, yojson)]
-  type action = a;
-  [@deriving (show({with_path: false}), sexp, yojson)]
-  type value = int;
-
-  let update = update;
-  let parse = parse;
-  let init = init;
-  let badge = badge;
-  let render = render;
-};
