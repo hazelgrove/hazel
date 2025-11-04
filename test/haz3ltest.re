@@ -23,6 +23,7 @@ let (suite, _) =
       Test_Menhir.tests,
       Test_StringUtil.tests,
       Test_PatternMatch.tests,
+      Test_WriterMonad.tests,
     ]
     @ Test_Typ.tests
     @ Test_Info.tests
