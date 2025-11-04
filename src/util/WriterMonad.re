@@ -1,5 +1,4 @@
 module type WRITER = {
-  [@deriving sexp]
   type t;
   let empty: t;
   let append: (t, t) => t;
@@ -8,7 +7,6 @@ module type WRITER = {
 module type S = {
   type writer;
 
-  [@deriving sexp]
   type t('a);
   let return: 'a => t('a);
   let bind: (t('a), 'a => t('b)) => t('b);
@@ -19,11 +17,9 @@ module type S = {
 };
 
 module Make = (W: WRITER) => {
-  [@deriving sexp]
   type writer = W.t;
 
   module T = {
-    [@deriving sexp]
     type t('a) = (writer, 'a);
 
     let return = x => (W.empty, x);
