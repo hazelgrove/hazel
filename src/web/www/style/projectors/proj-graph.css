@@ -1,0 +1,89 @@
+/* Graph Projector */
+
+.projector.graph {
+  width: -webkit-fill-available;
+  height: -webkit-fill-available;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  /* width: 95%; */
+}
+
+/* .projector.graph.indicated > svg {
+  fill: var(--G2);
+} */
+
+.graph-projector {
+  width: 92%;
+  /* height: 100%; */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-color: white;
+  border-radius: 0.5em;
+}
+
+.graph-projector.graph-error {
+  /* color: var(--R2); */
+}
+
+.graph-projector.graph-has-data {
+  gap: 0.4em;
+}
+
+.graph-chart {
+  width: calc(100% - 12px);
+  height: auto;
+}
+
+.graph-chart .graph-background {
+  fill: var(--SAND);
+  /* stroke: var(--BR3);
+  stroke-width: 0.5px; */
+}
+
+.graph-axis {
+  stroke: var(--BR2);
+  stroke-width: 1px;
+}
+
+.graph-axis-tick {
+  stroke: var(--BR3);
+  stroke-width: 0.75px;
+}
+
+.graph-axis-label,
+.graph-axis-caption,
+.graph-title,
+.graph-legend-label {
+  font-family: var(--ui-font);
+  fill: var(--FG0);
+}
+
+.graph-axis-label {
+  font-size: 9px;
+}
+
+.graph-axis-caption {
+  font-size: 10px;
+  font-weight: 500;
+}
+
+.graph-title {
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.graph-series-line {
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.graph-legend {
+  font-size: 10px;
+}
+
+.graph-legend-swatch {
+  stroke: var(--BR3);
+  stroke-width: 0.5px;
+}

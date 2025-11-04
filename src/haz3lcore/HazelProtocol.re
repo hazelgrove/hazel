@@ -136,14 +136,14 @@ module JsonCodec = {
   /* Stage 5: Support base types (int, float, string, bool), lists, tuples (plain and labeled), and ADTs; stub out other types with clear errors */
 
   let rec exp_to_yojson =
-          (exp: Language.Term.Exp.t): result(Yojson.Safe.t, string) => {
+          (exp: Language.Exp.t): result(Yojson.Safe.t, string) => {
     /* Helper functions for tuple processing */
     let rec check_tuple_type = (remaining, first_is_labeled) =>
       switch (remaining) {
       | [] => Ok(first_is_labeled)
       | [hd, ...tl] =>
         let is_labeled =
-          switch (Term.Exp.term_of(hd)) {
+          switch (Exp.term_of(hd)) {
           | TupLabel(_, _) => true
           | _ => false
           };
@@ -162,9 +162,9 @@ module JsonCodec = {
       switch (remaining) {
       | [] => Ok(List.rev(acc))
       | [hd, ...tl] =>
-        switch (Term.Exp.term_of(hd)) {
+        switch (Exp.term_of(hd)) {
         | TupLabel(label_exp, value) =>
-          switch (Term.Exp.term_of(label_exp)) {
+          switch (Exp.term_of(label_exp)) {
           | Label(label) =>
             switch (exp_to_yojson(value)) {
             | Ok(json_elem) =>
@@ -286,8 +286,7 @@ module JsonCodec = {
     };
   };
 
-  let any_to_yojson =
-      (any: Language.Term.Any.t): result(Yojson.Safe.t, string) => {
+  let any_to_yojson = (any: Language.Any.t): result(Yojson.Safe.t, string) => {
     switch (any) {
     | Exp(exp) => exp_to_yojson(exp)
     | _ => Error("Only Exp terms are supported in JsonCodec")
@@ -295,7 +294,7 @@ module JsonCodec = {
   };
 
   let rec yojson_to_exp =
-          (json: Yojson.Safe.t): result(Language.Term.Exp.t, string) => {
+          (json: Yojson.Safe.t): result(Language.Exp.t, string) => {
     switch (json) {
     | `Int(i) when i < 0 =>
       try(
@@ -354,7 +353,7 @@ module JsonCodec = {
           | Ok(value_exp) =>
             /* Unwrap unnecessary parens around tuples when used as constructor arguments */
             let unwrapped_exp =
-              switch (Term.Exp.term_of(value_exp)) {
+              switch (Exp.term_of(value_exp)) {
               | Parens({term: Tuple(_), _} as inner_tuple) => inner_tuple
               | _ => value_exp
               };
@@ -487,8 +486,7 @@ module JsonCodec = {
     };
   };
 
-  let yojson_to_any =
-      (json: Yojson.Safe.t): result(Language.Term.Any.t, string) =>
+  let yojson_to_any = (json: Yojson.Safe.t): result(Language.Any.t, string) =>
     switch (yojson_to_exp(json)) {
     | Ok(exp) => Ok(Exp(exp))
     | Error(msg) => Error(msg)

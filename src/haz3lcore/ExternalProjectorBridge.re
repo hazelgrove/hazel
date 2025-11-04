@@ -17,7 +17,7 @@ type entry = {
 };
 
 /* Convert Hazel term to JSON string using JsonCodec */
-let term_to_string = (term: Language.Term.Any.t): option(string) =>
+let term_to_string = (term: Language.Any.t): option(string) =>
   switch (HazelProtocol.JsonCodec.any_to_yojson(term)) {
   | Ok(json) => Some(Yojson.Safe.to_string(json))
   | Error(err) =>
@@ -26,8 +26,7 @@ let term_to_string = (term: Language.Term.Any.t): option(string) =>
   };
 
 /* Convert JSON string to Hazel term using JsonCodec */
-let string_to_term =
-    (value_str: string, exp: Language.Term.Any.t): Language.Term.Any.t =>
+let string_to_term = (value_str: string, exp: Language.Any.t): Language.Any.t =>
   try({
     let json = Yojson.Safe.from_string(value_str);
     switch (HazelProtocol.JsonCodec.yojson_to_any(json)) {

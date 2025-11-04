@@ -70,14 +70,7 @@ module M = (ExoP: {
     );
   };
 
-  let view =
-      (
-        model: model,
-        info: info,
-        ~local: action => Ui_effect.t(unit),
-        ~parent: external_action => Ui_effect.t(unit),
-        ~view_seg as _,
-      ) => {
+  let view = ({model, info, local, parent, _}: View.args(model, action)) => {
     let url = ExternalProjectorBridge.register(parent, local, info, ExoP.exo);
     View.mk(iframe_view(info.id, url, model));
   };

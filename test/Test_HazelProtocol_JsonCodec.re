@@ -2,10 +2,10 @@ open Alcotest;
 open Haz3lcore;
 
 /* Test utilities for converting between strings, JSON, and Hazel terms */
-let string_to_exp = (s: string): option(Language.Term.Exp.t) =>
+let string_to_exp = (s: string): option(Language.Exp.t) =>
   Parser.to_term(s);
 
-let exp_to_string = (exp: Language.Term.Exp.t): string => {
+let exp_to_string = (exp: Language.Exp.t): string => {
   let settings = ExpToSegment.Settings.editable(~inline=true);
   let segment = ExpToSegment.exp_to_segment(~settings, exp);
   Printer.of_segment(~holes="?", segment);
@@ -14,7 +14,7 @@ let exp_to_string = (exp: Language.Term.Exp.t): string => {
 let yojson_testable = testable(Yojson.Safe.pp, Yojson.Safe.equal);
 let yojson_result_testable = result(yojson_testable, string);
 let exp_result_testable =
-  result(testable(Language.Term.Exp.pp, Language.Term.Exp.equal), string);
+  result(testable(Language.Exp.pp, Language.Exp.equal), string);
 
 /* Test helper that checks JSON conversion from Hazel string to expected JSON */
 let test_to_json = (~name, ~hazel_str, ~expected_json) =>
