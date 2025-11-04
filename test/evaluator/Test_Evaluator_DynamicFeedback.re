@@ -28,6 +28,101 @@ module FError =
     };
   });
 
+/**
+ * Helper function to extract dynamic expressions from probe closures.
+ * This logic is shared between multiple test cases.
+ */
+let create_dynamic_expressions =
+    (dynamics: Id.Map.t(list(Dynamics.Probe.Closure.t))) =>
+  Id.Map.map(
+    closures => {
+      Language.(List.map((c: Dynamics.Probe.Closure.t) => c.value, closures))
+    },
+    dynamics,
+  );
+
+/**
+ * Maps static and dynamic error information to error annotations.
+ * Simplifies the nested switch logic with pattern matching.
+ */
+let map_error_annotation = (static_info, dynamic_info) => {
+  let static_error = Option.bind(static_info, Info.error_of);
+  let dynamic_error = Option.bind(dynamic_info, Info.error_of);
+
+  switch (static_error, dynamic_error) {
+  | (Some(e), _) => StaticError(e)
+  | (None, Some(e)) => DynamicError(e)
+  | (None, None) => NoError
+  };
+};
+
+/**
+ * Reusable test function for dynamic feedback validation.
+ * Takes an expected expression with error annotations and verifies
+ * that the dynamic feedback system correctly identifies errors.
+ */
+let test_dynamic_feedback = (expected_exp: FError.exp, test_name: string) => {
+  // Create expression with fresh IDs for static analysis
+  let exp_with_ids: Exp.t =
+    Grammar.map_exp_annotation(_ => IdTagged.IdTag.fresh(), expected_exp);
+
+  // Perform initial static analysis
+  let initial_statics =
+    Statics.mk(CoreSettings.on, Builtins.ctx_init(Some(Int)), exp_with_ids);
+
+  // Elaborate the expression with unknown type probing enabled
+  let elaborated_exp =
+    Elaborator.elaborate(~probe_unknowns=true, initial_statics, exp_with_ids)
+    |> fst;
+
+  // Evaluate the elaborated expression to collect dynamic information
+  let (_, evaluation_state) =
+    Evaluator.evaluate(~env=Builtins.env_init, elaborated_exp);
+
+  // Extract probe data from the evaluation state
+  let probe_data = EvaluatorState.get_probes(evaluation_state);
+
+  // Convert probe closures to dynamic expressions for static re-analysis
+  let dynamic_expressions = create_dynamic_expressions(probe_data);
+
+  // Re-run static analysis with dynamic information
+  let dynamic_statics =
+    Statics.mk(
+      ~dynamics=dynamic_expressions,
+      CoreSettings.on,
+      Builtins.ctx_init(Some(Int)),
+      exp_with_ids,
+    );
+
+  // Map the expression to annotate errors based on static and dynamic feedback
+  let actual_exp: FError.exp =
+    Grammar.map_exp_annotation(
+      id_tag => {
+        let static_info =
+          StaticsBase.Map.lookup(
+            IdTagged.IdTag.rep_id(id_tag),
+            initial_statics,
+          );
+        let dynamic_info =
+          StaticsBase.Map.lookup(
+            IdTagged.IdTag.rep_id(id_tag),
+            dynamic_statics,
+          );
+
+        map_error_annotation(static_info, dynamic_info);
+      },
+      exp_with_ids,
+    );
+
+  // Verify that the actual error annotations match expectations
+  check(
+    Test_Statics_Prelude.annotated_exp'(testable_error),
+    test_name,
+    expected_exp,
+    actual_exp,
+  );
+};
+
 let tests = (
   "Evaluator.DynamicFeedback",
   [
@@ -77,17 +172,8 @@ in
 
         let dynamics = EvaluatorState.get_probes(state);
 
-        let dynamic_expressions: Id.Map.t(list(TermBase.exp_t)) =
-          Id.Map.map(
-            d => {
-              open Language;
-              // TODO If we can deal with the circular dependencies it would be great to keep the full closure and filter to the closure selector for the statics.
-              let exps =
-                List.map((c: Dynamics.Probe.Closure.t) => c.value, d);
-              exps;
-            },
-            dynamics,
-          );
+        // Convert probe closures to dynamic expressions for static re-analysis
+        let dynamic_expressions = create_dynamic_expressions(dynamics);
         let _static_feedback =
           Statics.mk(
             ~dynamics=dynamic_expressions,
@@ -107,7 +193,10 @@ in
       "1 : ? : String",
       `Quick,
       () => {
-        let exp: FError.exp =
+        // Create expected expression with dynamic error annotation
+        // This tests that int(1) : ? : String correctly identifies
+        // the type inconsistency when ? is resolved to int but expected as string
+        let expected_exp: FError.exp =
           FError.(
             Exp.(
               asc(
@@ -134,69 +223,8 @@ in
               )
             )
           );
-        let exp_id: Exp.t =
-          Grammar.map_exp_annotation(_ => IdTagged.IdTag.fresh(), exp);
-        let s =
-          Statics.mk(CoreSettings.on, Builtins.ctx_init(Some(Int)), exp_id);
-        let elaborated =
-          Elaborator.elaborate(~probe_unknowns=true, s, exp_id) |> fst;
-        let (_, state) =
-          Evaluator.evaluate(~env=Builtins.env_init, elaborated);
 
-        let dynamics = EvaluatorState.get_probes(state);
-
-        let dynamic_expressions: Id.Map.t(list(TermBase.exp_t)) =
-          Id.Map.map(
-            d => {
-              open Language;
-              let exps =
-                List.map((c: Dynamics.Probe.Closure.t) => c.value, d);
-              exps;
-            },
-            dynamics,
-          );
-
-        let dynamic_static_feedback =
-          Statics.mk(
-            ~dynamics=dynamic_expressions,
-            CoreSettings.on,
-            Builtins.ctx_init(Some(Int)),
-            exp_id,
-          );
-
-        let actual: FError.exp =
-          Grammar.map_exp_annotation(
-            id_tag => {
-              let foo =
-                StaticsBase.Map.lookup(IdTagged.IdTag.rep_id(id_tag), s);
-
-              switch (Option.bind(foo, Info.error_of)) {
-              | Some(e) => StaticError(e)
-              | None =>
-                switch (
-                  StaticsBase.Map.lookup(
-                    IdTagged.IdTag.rep_id(id_tag),
-                    dynamic_static_feedback,
-                  )
-                ) {
-                | Some(info) =>
-                  switch (Info.error_of(info)) {
-                  | Some(e) => DynamicError(e)
-                  | None => NoError
-                  }
-                | None => NoError
-                }
-              };
-            },
-            exp_id,
-          );
-
-        check(
-          Test_Statics_Prelude.annotated_exp'(testable_error),
-          "Dynamic feedback",
-          exp,
-          actual,
-        );
+        test_dynamic_feedback(expected_exp, "Dynamic feedback");
       },
     ),
   ],
