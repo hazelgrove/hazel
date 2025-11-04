@@ -17,7 +17,6 @@ module ClosureWriter =
 
 let rec transition =
         (~recursive=false, d: DHExp.t): ClosureWriter.t(option(DHExp.t)) => {
-  print_endline("Ascriptions.transition called on " ++ DHExp.show(d));
   open ClosureWriter.Syntax;
   let recur = (d: DHExp.t): ClosureWriter.t(DHExp.t) =>
     if (recursive) {
