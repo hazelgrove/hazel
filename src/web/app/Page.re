@@ -97,8 +97,9 @@ module Update = {
 
   let update_global =
       (
-        ~import_log,
-        ~schedule_action,
+        ~schedule_action: t => unit,
+        ~schedule_undo: unit => unit,
+        ~schedule_redo: unit => unit,
         ~globals: Globals.Model.t,
         action: Globals.Update.t,
         model: Model.t,
@@ -156,7 +157,6 @@ module Update = {
     | FinishImportAll(None) => model |> return_quiet
     | FinishImportAll(Some(data)) =>
       Export.import_all(
-        ~import_log,
         data,
         ~exercise_specs=ExerciseSettings.exercises,
         ~tutorial_specs=TutorialSettings.lessons,
@@ -227,27 +227,39 @@ module Update = {
           editors,
         };
       };
-    | Undo
-    | Redo => failwith("Undo/Redo are handled in the history module")
+    | Undo =>
+      print_endline("Scheduling undo");
+      schedule_undo();
+      model |> return_quiet;
+    | Redo =>
+      print_endline("Scheduling redo");
+      schedule_redo();
+      model |> return_quiet;
     };
   };
 
   let update =
       (
-        ~import_log,
-        ~get_log_and,
         ~schedule_action: t => unit,
+        ~schedule_undo,
+        ~schedule_redo,
         action: t,
         model: Model.t,
       ) => {
     let globals = {
       ...model.globals,
       export_all: Export.export_all,
-      get_log_and,
     };
     switch (action) {
     | Globals(action) =>
-      update_global(~globals, ~import_log, ~schedule_action, action, model)
+      update_global(
+        ~globals,
+        ~schedule_action,
+        ~schedule_undo,
+        ~schedule_redo,
+        action,
+        model,
+      )
     | Editors(action) =>
       let* editors =
         Editors.Update.update(
@@ -591,7 +603,6 @@ module View = {
 
   let main_view =
       (
-        ~get_log_and: (string => unit) => unit,
         ~inject: Update.t => Ui_effect.t(unit),
         ~cursor: Cursor.cursor(Editors.Update.t),
         {
@@ -605,7 +616,6 @@ module View = {
     let globals = {
       ...globals,
       inject_global: x => inject(Globals(x)),
-      get_log_and,
       export_all: Export.export_all,
     };
     let bottom_bar =
@@ -654,13 +664,12 @@ module View = {
     ];
   };
 
-  let view =
-      (~get_log_and, ~inject: Update.t => Ui_effect.t(unit), model: Model.t) => {
+  let view = (~inject: Update.t => Ui_effect.t(unit), model: Model.t) => {
     let cursor = Selection.get_cursor_info(~selection=model.selection, model);
     div(
       ~attrs=[Attr.id("page"), ...handlers(~cursor, ~inject, model)],
       [FontSpecimen.view, JsUtil.clipboard_shim]
-      @ main_view(~get_log_and, ~cursor, ~inject, model),
+      @ main_view(~cursor, ~inject, model),
     );
   };
 };

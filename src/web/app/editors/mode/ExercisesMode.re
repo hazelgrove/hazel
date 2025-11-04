@@ -206,7 +206,7 @@ module Update = {
   };
 
   let export_submission = (~globals: Globals.t) =>
-    globals.get_log_and(log => {
+    Log.get_and(log => {
       let data =
         globals.export_all(
           ~settings=globals.settings.core,

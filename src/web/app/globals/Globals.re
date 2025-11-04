@@ -32,7 +32,6 @@ module Model = {
     /* inject_global is not really part of the model, but added here for
        convenience to avoid having to pass it around everywhere. Can only
        be used in view functions. */
-    get_log_and: (string => unit) => unit,
     export_all:
       (
         ~settings: Language.CoreSettings.t,
@@ -52,10 +51,6 @@ module Model = {
       inject_global: _ =>
         failwith(
           "Cannot use inject_global outside of the main view function!",
-        ),
-      get_log_and: _ =>
-        failwith(
-          "Cannot use get_log_and outside of the main view or update functions!",
         ),
       export_all: (~settings as _, ~instructor_mode as _, ~log as _) =>
         failwith(

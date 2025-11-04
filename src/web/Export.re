@@ -45,8 +45,7 @@ let export_all = (~settings, ~instructor_mode, ~log) => {
   mk_all(~core_settings=settings, ~instructor_mode, ~log) |> yojson_of_all;
 };
 
-let import_all =
-    (~import_log: string => unit, data, ~exercise_specs, ~tutorial_specs) => {
+let import_all = (data, ~exercise_specs, ~tutorial_specs) => {
   let all =
     try(data |> Yojson.Safe.from_string |> all_of_yojson) {
     | _ =>
@@ -73,5 +72,5 @@ let import_all =
     ~tutorial_specs,
     ~instructor_mode,
   );
-  import_log(all.log);
+  Log.import(all.log);
 };

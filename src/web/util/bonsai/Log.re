@@ -48,20 +48,20 @@ module Entry = {
   [@deriving (show({with_path: false}), yojson, sexp)]
   type timestamp = float;
 
-  [@deriving (show({with_path: false}), yojson, sexp)]
-  type t = (timestamp, Page.Update.t);
+  [@deriving (show({with_path: false}), sexp)]
+  type t = (timestamp, string, Sexplib.Sexp.t);
 
-  [@deriving (show({with_path: false}), yojson, sexp)]
+  [@deriving (show({with_path: false}), sexp)]
   type s = list(t);
 
-  let mk = (update): t => {
-    (JsUtil.timestamp(), update);
+  let mk = (component, update): t => {
+    (JsUtil.timestamp(), component, update);
   };
 
-  let save = ((ts, action): t) =>
+  let save = ((ts, component, action): t) =>
     DB.add(
       Printf.sprintf("%.0f", ts),
-      (ts, action) |> sexp_of_t |> Sexplib.Sexp.to_string,
+      (ts, component, action) |> sexp_of_t |> Sexplib.Sexp.to_string,
     );
 };
 
@@ -78,10 +78,8 @@ let import = (data: string): unit =>
     }
   );
 
-let update = (action: Page.Update.t, result: Updated.t('a)): unit =>
-  if (result.logged) {
-    Entry.save(Entry.mk(action));
-  };
+let update = (component: string, action: Sexplib.Sexp.t): unit =>
+  Entry.save(Entry.mk(component, action));
 
 let get_and = (f: string => unit): unit =>
   DB.get_all(entries => f("(" ++ String.concat(" ", entries) ++ ")"));

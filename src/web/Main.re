@@ -19,24 +19,26 @@ let restart_caret_animation = () =>
 
 let apply =
     (
-      model: History.Model.t,
-      action: History.Update.t,
+      model: Page.Model.t,
+      action: Page.Update.t,
       ~schedule_action,
       ~schedule_autosave,
+      ~schedule_undo,
+      ~schedule_redo,
     )
-    : History.Model.t => {
+    : Page.Model.t => {
   restart_caret_animation();
 
   /* This function is split into two phases, update and calculate.
      The intention is that eventually, the calculate phase will be
      done automatically by incremental calculation. */
   // ---------- UPDATE PHASE ----------
-  let updated: Updated.t(History.Model.t) =
+  let updated: Updated.t(Page.Model.t) =
     try(
-      History.Update.update(
-        ~import_log=Log.import,
-        ~get_log_and=Log.get_and,
+      Page.Update.update(
         ~schedule_action,
+        ~schedule_undo,
+        ~schedule_redo,
         action,
         model,
       )
@@ -57,7 +59,7 @@ let apply =
   // ---------- CALCULATE PHASE ----------
   let model' =
     updated.model
-    |> History.Update.calculate(
+    |> Page.Update.calculate(
          ~schedule_action,
          ~is_edited=updated.is_edit,
          ~dynamics=true,
@@ -84,119 +86,143 @@ let apply =
 
 let start = {
   let%sub save_scheduler = BonsaiUtil.Alarm.alarm;
-  let%sub (app_model, app_inject) =
-    Bonsai.state_machine1(
-      (module History.Model),
-      (module History.Update),
-      ~apply_action=
-        (~inject, ~schedule_event, input) => {
-          let schedule_action = x => schedule_event(inject(x));
-          let schedule_autosave = action =>
-            switch (input) {
-            | Active((_, alarm_inject)) =>
-              schedule_event(alarm_inject(action))
-            | Inactive => ()
-            };
-          apply(~schedule_action, ~schedule_autosave);
+  let%sub undo_scope = BonsaiUndo.create_scope();
+  {
+    let%sub (app_model, app_inject) =
+      BonsaiUndo.state_machine_with_undo(
+        (module Page.Model),
+        (module Page.Update),
+        ~apply_action=
+          (~inject, ~schedule_event, input) => {
+            let schedule_action = x => schedule_event(inject(x));
+            let schedule_autosave = action =>
+              switch (input) {
+              | Active(((_, alarm_inject), _)) =>
+                schedule_event(alarm_inject(action))
+              | Inactive => ()
+              };
+            let undo_inject = x =>
+              switch (input) {
+              | Active((_, (_, undo_inject))) => undo_inject(x)
+              | Inactive => Ui_effect.Ignore
+              };
+            apply(
+              ~schedule_action,
+              ~schedule_autosave,
+              ~schedule_undo=
+                () =>
+                  schedule_event(
+                    undo_inject(BonsaiUndo.UndoScope.Action.AddUndo),
+                  ),
+              ~schedule_redo=
+                () =>
+                  schedule_event(
+                    undo_inject(BonsaiUndo.UndoScope.Action.AddRedo),
+                  ),
+            );
+          },
+        ~default_model=
+          Page.Store.load()
+          |> Page.Update.calculate(
+               ~schedule_action=_ => (),
+               ~is_edited=true,
+               ~dynamics=false,
+             ),
+        ~can_undo=Page.Update.can_undo,
+        Bonsai.Value.both(save_scheduler, undo_scope),
+      );
+
+    // Autosave every second
+    let save_effect =
+      Bonsai.Value.map(~f=g => g(Page.Update.Save), app_inject);
+    let%sub () = BonsaiUtil.Alarm.listen(save_scheduler, ~event=save_effect);
+
+    // Update font metrics on resize
+    let%sub size =
+      BonsaiUtil.SizeObserver.observer(
+        () => JsUtil.get_elem_by_id("font-specimen"),
+        ~default=
+          BonsaiUtil.SizeObserver.Size.{
+            width: 10.,
+            height: 10.,
+          },
+      );
+    let%sub () =
+      /* Note: once Bonsai is threaded through the system, we won't need
+         on_change here */
+      Bonsai.Edge.on_change(
+        (module BonsaiUtil.SizeObserver.Size),
+        size,
+        ~callback=
+          app_inject
+          |> Bonsai.Value.map(~f=(i, rect: BonsaiUtil.SizeObserver.Size.t) => {
+               i(
+                 Page.Update.Globals(
+                   SetFontMetrics({
+                     row_height: rect.height,
+                     col_width: rect.width,
+                   }),
+                 ),
+               )
+             }),
+      );
+
+    // Other Initialization
+    let on_startup = (schedule_action, ()): unit => {
+      Os.is_mac :=
+        Dom_html.window##.navigator##.platform##toUpperCase##indexOf(
+          Js.string("MAC"),
+        )
+        >= 0;
+      NinjaKeys.initialize(Shortcut.options(schedule_action));
+      JsUtil.focus_clipboard_shim();
+      schedule_action(
+        Assistant(AssistantUpdate.ChatAction(FilterLoadingMessages)),
+      );
+    };
+    let%sub () =
+      BonsaiUtil.OnStartup.on_startup(
+        {
+          let%map app_inject = app_inject;
+          Bonsai.Effect.Many([
+            // Initialize state
+            Bonsai.Effect.of_sync_fun(
+              on_startup(x => x |> app_inject |> Bonsai.Effect.Expert.handle),
+              (),
+            ),
+            // Initialize evaluation on a worker
+            app_inject(Start),
+          ]);
         },
-      ~default_model=
-        History.Model.init()
-        |> History.Update.calculate(
-             ~schedule_action=_ => (),
-             ~is_edited=true,
-             ~dynamics=false,
-           ),
-      save_scheduler,
-    );
+      );
 
-  // Autosave every second
-  let save_effect =
-    Bonsai.Value.map(~f=g => g(Page.Update.Save), app_inject);
-  let%sub () = BonsaiUtil.Alarm.listen(save_scheduler, ~event=save_effect);
-
-  // Update font metrics on resize
-  let%sub size =
-    BonsaiUtil.SizeObserver.observer(
-      () => JsUtil.get_elem_by_id("font-specimen"),
-      ~default=
-        BonsaiUtil.SizeObserver.Size.{
-          width: 10.,
-          height: 10.,
+    // Triggers after every update
+    let after_display = {
+      let%map model = app_model;
+      Bonsai.Effect.of_sync_fun(
+        () => {
+          if (scroll_to_caret.contents) {
+            scroll_to_caret := false;
+            JsUtil.scroll_cursor_into_view_if_needed();
+          } else {
+            ();
+          };
+          model.globals.settings.core.statics ? Animation.go() : ();
         },
-    );
-  let%sub () =
-    /* Note: once Bonsai is threaded through the system, we won't need
-       on_change here */
-    Bonsai.Edge.on_change(
-      (module BonsaiUtil.SizeObserver.Size),
-      size,
-      ~callback=
-        app_inject
-        |> Bonsai.Value.map(~f=(i, rect: BonsaiUtil.SizeObserver.Size.t) => {
-             i(
-               Page.Update.Globals(
-                 SetFontMetrics({
-                   row_height: rect.height,
-                   col_width: rect.width,
-                 }),
-               ),
-             )
-           }),
-    );
+        (),
+      );
+    };
+    let%sub () = Bonsai.Edge.after_display(after_display);
 
-  // Other Initialization
-  let on_startup = (schedule_action, ()): unit => {
-    Os.is_mac :=
-      Dom_html.window##.navigator##.platform##toUpperCase##indexOf(
-        Js.string("MAC"),
-      )
-      >= 0;
-    NinjaKeys.initialize(Shortcut.options(schedule_action));
-    JsUtil.focus_clipboard_shim();
-    schedule_action(
-      Assistant(AssistantUpdate.ChatAction(FilterLoadingMessages)),
-    );
-  };
-  let%sub () =
-    BonsaiUtil.OnStartup.on_startup(
-      {
-        let%map app_inject = app_inject;
-        Bonsai.Effect.Many([
-          // Initialize state
-          Bonsai.Effect.of_sync_fun(
-            on_startup(x => x |> app_inject |> Bonsai.Effect.Expert.handle),
-            (),
-          ),
-          // Initialize evaluation on a worker
-          app_inject(Start),
-        ]);
-      },
-    );
-
-  // Triggers after every update
-  let after_display = {
-    let%map model = app_model;
-    Bonsai.Effect.of_sync_fun(
-      () => {
-        if (scroll_to_caret.contents) {
-          scroll_to_caret := false;
-          JsUtil.scroll_cursor_into_view_if_needed();
-        } else {
-          ();
-        };
-        model.current.globals.settings.core.statics ? Animation.go() : ();
-      },
-      (),
-    );
-  };
-  let%sub () = Bonsai.Edge.after_display(after_display);
-
-  // View function
-  let%arr app_model = app_model
-  and app_inject = app_inject;
-  History.View.view(app_model, ~inject=app_inject, ~get_log_and=Log.get_and);
+    // View function
+    let%arr app_model = app_model
+    and app_inject = app_inject;
+    Page.View.view(app_model, ~inject=app_inject);
+  }
+  |> BonsaiUndo.set_scope(undo_scope);
 };
 
+// Set global undo scope
 switch (JsUtil.Fragment.get_current()) {
 | Some("debug") => DebugMode.go()
 | _ => Bonsai_web.Start.start(start, ~bind_to_element_with_id="container")
