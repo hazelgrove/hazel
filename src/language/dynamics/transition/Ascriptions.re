@@ -68,7 +68,7 @@ let rec transition =
       ClosureWriter.return(
         Some(
           IdTagged.FreshGrammar.(
-            Exp.(fn(Pat.(asc(p, t1)), asc(e, t2), t, v))
+            Exp.(fn(~typ=?t, ~name=?v, Pat.(asc(p, t1)), asc(e, t2)))
           ),
         ),
       )

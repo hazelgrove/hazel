@@ -184,11 +184,7 @@ let tests =
     "MenhirParser",
     Exp.[
       full_parser_test("Integer Literal", int(8), "8"),
-      full_parser_test(
-        "Fun",
-        fn(Pat.var("x"), var("x"), None, None),
-        "fun x -> x",
-      ),
+      full_parser_test("Fun", fn(Pat.var("x"), var("x")), "fun x -> x"),
       full_parser_test(
         "String Literal",
         string("Hello World"),
@@ -340,12 +336,7 @@ let tests =
       ),
       menhir_only_test(
         "named_function",
-        fn(
-          Pat.var("x"),
-          bin_op(Int(Plus), var("x"), int(5)),
-          None,
-          Some("f"),
-        ),
+        fn(Pat.var("x"), bin_op(Int(Plus), var("x"), int(5)), ~name="f"),
         "named_fun f x -> x + 5",
       ),
       full_parser_test(
@@ -393,8 +384,6 @@ let tests =
             ),
           ),
           empty_hole(),
-          None,
-          None,
         ),
         "fun (b : ? -> ?) -> ?",
       ),

@@ -149,8 +149,6 @@ let tests = (
                     ),
                   ],
                 ),
-                None,
-                None,
               ),
               ap(Forward, var("fact"), int(5)),
             )

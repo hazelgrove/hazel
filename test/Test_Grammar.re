@@ -45,7 +45,7 @@ let sample_expression = (cls_exp: Exp.cls): Grammar.UnitGrammar.exp => {
       | Atom(Nat) => nat(Bigint.one)
       | ListLit => list_lit([])
       | Constructor => constructor("A", None)
-      | Fun => fn(Pat.var("x"), var("x"), None, None)
+      | Fun => fn(Pat.var("x"), var("x"))
       | TypFun => typ_fun(TPat.var("x"), empty_hole(), None)
       | Label => label("label")
       | ExplicitNonlabel => explicit_non_label()

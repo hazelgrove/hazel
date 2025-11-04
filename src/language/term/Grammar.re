@@ -537,8 +537,8 @@ module Factory = (DefaultAnnotation: DefaultAnnotation) => {
       term: Constructor(s, t),
       annotation: default_annotation(ann),
     };
-    let fn = (~ann=?, p, e, t, v): exp_t(DefaultAnnotation.t) => {
-      term: Fun(p, e, t, v),
+    let fn = (~ann=?, ~typ=?, ~name=?, p, e): exp_t(DefaultAnnotation.t) => {
+      term: Fun(p, e, typ, name),
       annotation: default_annotation(ann),
     };
     let typ_fun = (~ann=?, p, e, v): exp_t(DefaultAnnotation.t) => {
