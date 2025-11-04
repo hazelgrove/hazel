@@ -43,12 +43,7 @@ let tests = (
             )
           );
         let matches: PatternMatch.match_result =
-          PatternMatch.matches(
-            ~update_probe=(_, _, _, _, _) => (),
-            pat,
-            expression,
-          ).
-            matches;
+          PatternMatch.matches(pat, expression).matches;
 
         let equal_match_result =
             (r1: PatternMatch.match_result, r2: PatternMatch.match_result)

@@ -211,15 +211,6 @@ module Transition = (EV: EV_MODE) => {
         d,
       )
       : EV.result => {
-    let update_probe' = (id, d, env, call_stack, pr) => {
-      print_endline(
-        "Cannot update probe: "
-        ++ Id.str3(id)
-        ++ " with value "
-        ++ DHExp.show(d),
-      );
-      print_endline("Need to wire this up later.");
-    };
     // Split DHExp into term and id information
     let (term, rewrap) = DHExp.unwrap(d);
     let wrap_ctx = (term): EvalCtx.t =>
@@ -282,8 +273,7 @@ module Transition = (EV: EV_MODE) => {
       and. d1' =
         req_final(req(env), d1 => Let1(dp, d1, d2) |> wrap_ctx, d1);
       let.wrap_closure _ = (env, Let(dp, d1', d2) |> rewrap);
-      let {matches, closures} =
-        matches(~update_probe=update_probe', dp, d1');
+      let {matches, closures} = matches(dp, d1');
       let matches_str = {
         switch (matches) {
         | IndetMatch
@@ -441,7 +431,7 @@ module Transition = (EV: EV_MODE) => {
         switch (unboxed_fun) {
         | Constructor(_) => Constructor
         | FunEnv(dp, d3, replacement_env) =>
-          let matches = matches(~update_probe=update_probe', dp, d2');
+          let matches = matches(dp, d2');
           switch (matches.matches) {
           | IndetMatch
           | DoesNotMatch => Indet
@@ -458,7 +448,7 @@ module Transition = (EV: EV_MODE) => {
             });
           };
         | FunNoEnv(dp, d3) when mode == `Substitution =>
-          let matches = matches(~update_probe=update_probe', dp, d2');
+          let matches = matches(dp, d2');
           switch (matches.matches) {
           | IndetMatch
           | DoesNotMatch => Indet
@@ -822,7 +812,7 @@ module Transition = (EV: EV_MODE) => {
         fun
         | [] => None
         | [(dp, d2), ...rules] => {
-            let matches = matches(~update_probe=update_probe', dp, d1);
+            let matches = matches(dp, d1);
             switch (matches.matches) {
             | Matches(env') => Some((env', d2, matches.closures))
             | DoesNotMatch => next_rule(rules)
@@ -879,32 +869,27 @@ module Transition = (EV: EV_MODE) => {
       let.wrap_closure _ = (env, d);
       Indet;
     | Asc(d', t) =>
-      switch (Ascriptions.transition(~update_probe=update_probe', d)) {
-      | Some(d') =>
+      switch (Ascriptions.transition(d)) {
+      | (closures, Some(d')) =>
         let. _ = otherwise(env, d);
         Step({
           expr: d',
-          side_effects: [],
+          side_effects: [RecordPatProbes(closures)],
           kind: Ascription,
           is_value: false,
         });
-      | None =>
+      | (_, None) =>
         let. _ = otherwise(env, d => Asc(d, t) |> rewrap)
         and. d' = req_final(req(env), d => Asc(d, t) |> wrap_ctx, d');
-        switch (
-          Ascriptions.transition(
-            ~update_probe=update_probe',
-            Asc(d', t) |> rewrap,
-          )
-        ) {
-        | Some(d) =>
+        switch (Ascriptions.transition(Asc(d', t) |> rewrap)) {
+        | (closures, Some(d)) =>
           Step({
             expr: d,
-            side_effects: [],
+            side_effects: [RecordPatProbes(closures)],
             kind: Ascription,
             is_value: false,
           })
-        | None => Constructor
+        | (_, None) => Constructor
         };
       }
     | Undefined =>
