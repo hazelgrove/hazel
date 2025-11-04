@@ -347,5 +347,30 @@ in
         test_dynamic_feedback(exp);
       },
     ),
+    test_case(
+      "Polymorphism",
+      `Quick,
+      () => [@warning "-21"]{
+        open FError;
+        open Exp;
+        
+        Alcotest.skip(); // TODO We need to figure out how to handle this
+        // (typfun a -> fun x : a -> x)@<String>("")
+        let exp: FError.exp =
+          ap(
+            Forward,
+            typ_ap(
+              typ_fun(
+                TPat.var("a"),
+                fn(Pat.(asc(Pat.var("x"), Typ.var("a"))), var("x")),
+                None,
+              ),
+              Typ.string(),
+            ),
+            string(""),
+          );
+        test_dynamic_feedback(exp);
+      },
+    ),
   ],
 );
