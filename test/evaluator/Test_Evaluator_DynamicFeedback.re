@@ -297,7 +297,7 @@ in
       () => {
         open FError;
         open Exp;
-        let expected_exp: FError.exp =
+        let exp: FError.exp =
           ap(
             Forward,
             fn(
@@ -323,33 +323,28 @@ in
             ),
             string(""),
           );
-        test_dynamic_feedback(
-          ap(
-            Forward,
+        test_dynamic_feedback(exp);
+      },
+    ),
+    test_case(
+      "Unannotated lambda called with inconsistent types gives no feedback",
+      `Quick,
+      () => {
+        open FError;
+        open Exp;
+        let exp: FError.exp =
+          let_(
+            Pat.var("f"),
             fn(
-              Pat.var("y"),
-              bin_op(
-                Int(Plus),
-                var(
-                  ~ann=
-                    DynamicError(
-                      inconsistent_exp(
-                        Test_Statics_Prelude.FTemp.Typ.(
-                          Expectation({
-                            ana: int(),
-                            syn: string(),
-                          })
-                        ),
-                      ),
-                    ),
-                  "y",
-                ),
-                int(1),
-              ),
+              Pat.var("x"),
+              list_concat(var("x"), list_lit([string("")])),
             ),
-            string(""),
-          ),
-        );
+            seq(
+              ap(Forward, var("f"), int(1)),
+              ap(Forward, var("f"), float(2.0)),
+            ),
+          );
+        test_dynamic_feedback(exp);
       },
     ),
   ],
