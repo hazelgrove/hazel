@@ -61,10 +61,30 @@ let map_error_annotation = (static_info, dynamic_info) => {
  * Takes an expected expression with error annotations and verifies
  * that the dynamic feedback system correctly identifies errors.
  */
-let test_dynamic_feedback = (expected_exp: FError.exp, test_name: string) => {
+let test_dynamic_feedback = (~test_name=?, expected_exp: FError.exp) => {
   // Create expression with fresh IDs for static analysis
   let exp_with_ids: Exp.t =
     Grammar.map_exp_annotation(_ => IdTagged.IdTag.fresh(), expected_exp);
+
+  let test_name =
+    Util.OptUtil.get(
+      () => {
+        Haz3lcore.(
+          Printer.of_segment(
+            ~holes="?",
+            ExpToSegment.exp_to_segment(
+              ~settings=
+                ExpToSegment.Settings.of_core(
+                  ~inline=true,
+                  CoreSettings.off,
+                ),
+              exp_with_ids,
+            ),
+          )
+        )
+      },
+      test_name,
+    );
 
   // Perform initial static analysis
   let initial_statics =
@@ -190,7 +210,7 @@ in
       },
     ),
     test_case(
-      "1 : ? : String",
+      "Type flows through unknown ascription dynamically",
       `Quick,
       () => {
         // Create expected expression with dynamic error annotation
@@ -224,7 +244,53 @@ in
             )
           );
 
-        test_dynamic_feedback(expected_exp, "Dynamic feedback");
+        test_dynamic_feedback(expected_exp);
+      },
+    ),
+    test_case(
+      "Conditional uses runtime type information",
+      `Quick,
+      () => {
+        open FError;
+        open Exp;
+        let inconsistent: Info.error_inconsistent => Info.error =
+          e => Exp(Common(Inconsistent(e)));
+        test_dynamic_feedback(
+          bin_op(
+            String(Concat),
+            if_(
+                bool(true),
+                asc(
+                  ~ann=
+                    DynamicError(
+                      inconsistent(
+                        Test_Statics_Prelude.FTemp.Typ.(
+                          Expectation({
+                            ana: string(),
+                            syn: int(),
+                          })
+                        ),
+                      ),
+                    ),
+                  int(1),
+                  Typ.unknown(Internal),
+                ),
+                asc(string("World"), Typ.unknown(Internal)),
+              ),
+            string("World"),
+          ),
+        );
+        test_dynamic_feedback(
+          bin_op(
+            String(Concat),
+            if_(
+                bool(false),
+                asc(int(1), Typ.unknown(Internal)),
+                asc(string("Hello"), Typ.unknown(Internal)),
+              ),
+            string("World"),
+          ),
+        );
       },
     ),
   ],
