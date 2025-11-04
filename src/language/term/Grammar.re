@@ -41,6 +41,23 @@ type deferral_position_t =
   | OutsideAp;
 
 [@deriving (show({with_path: false}), sexp, yojson, eq)]
+type closure_env_strucshare('env) = {
+  id: Id.t,
+  env: 'env,
+  call_stack: Probe.call_stack,
+};
+
+let sexp_of_closure_env_strucshare = f =>
+  StructureShareSexp.structure_share_sexp_of_t(
+    (x: closure_env_strucshare('a)) => x.id,
+    sexp_of_closure_env_strucshare(f),
+  );
+let closure_env_strucshare_of_sexp = f =>
+  StructureShareSexp.structure_share_t_of_sexp(
+    closure_env_strucshare_of_sexp(f),
+  );
+
+[@deriving (show({with_path: false}), sexp, yojson, eq)]
 type any_t('a) =
   | Exp(exp_t('a))
   | Pat(pat_t('a))
@@ -66,12 +83,13 @@ and exp_term('a) =
   | TypFun(tpat_t('a), exp_t('a), option(Var.t))
   | Tuple(list(exp_t('a)))
   | Label(string)
+  | ExplicitNonlabel
   | TupLabel(exp_t('a), exp_t('a))
   | Dot(exp_t('a), exp_t('a))
   | LivelitName(string)
   | Var(Var.t)
   | Let(pat_t('a), exp_t('a), exp_t('a))
-  | FixF(pat_t('a), exp_t('a), option(closure_environment_t('a)))
+  | FixF(pat_t('a), exp_t('a), option(Environment.t(exp_t('a))))
   | TyAlias(tpat_t('a), typ_t('a), exp_t('a))
   | Use(typ_t('a), exp_t('a))
   | Ap(Operators.ap_direction, exp_t('a), exp_t('a))
@@ -82,7 +100,7 @@ and exp_term('a) =
   | Test(exp_t('a))
   | HintedTest(exp_t('a), exp_t('a))
   | Filter(stepper_filter_kind_t('a), exp_t('a))
-  | Closure([@show.opaque] closure_environment_t('a), exp_t('a))
+  | Closure([@show.opaque] Environment.t(exp_t('a)), exp_t('a))
   | Parens(exp_t('a)) // (
   | Probe(exp_t('a), Probe.t)
   | Cons(exp_t('a), exp_t('a))
@@ -99,6 +117,7 @@ and pat_term('a) =
   | EmptyHole
   | MultiHole(list(any_t('a)))
   | Wild
+  | ExplicitNonlabel
   | Atom(Atom.t)
   | ListLit(list(pat_t('a)))
   | Constructor(string, option(option(typ_t('a)))) // see comment on constructor expressions
@@ -120,11 +139,14 @@ and typ_term('a) =
   | Arrow(typ_t('a), typ_t('a))
   | Sum(ConstructorMap.t(typ_t('a)))
   | Prod(list(typ_t('a)))
+  | ExplicitNonlabel
   | Label(string)
   | TupLabel(typ_t('a), typ_t('a))
   | Parens(typ_t('a))
   | Rec(tpat_t('a), typ_t('a))
   | Forall(tpat_t('a), typ_t('a))
+  | ProdProjection(typ_t('a), typ_t('a))
+  | ProdExtension(typ_t('a), typ_t('a))
 and typ_t('a) = Annotated.t(typ_term('a), 'a)
 and tpat_term('a) =
   | Invalid(string)
@@ -137,12 +159,6 @@ and rul_term('a) =
   | MultiHole(list(any_t('a)))
   | Rules(exp_t('a), list((pat_t('a), exp_t('a))))
 and rul_t('a) = Annotated.t(rul_term('a), 'a)
-and environment_t('a) = VarBstMap.Ordered.t_(exp_t('a))
-and closure_environment_t('a) = {
-  id: Id.t,
-  env: environment_t('a),
-  call_stack: Probe.call_stack,
-}
 and stepper_filter_kind_t('a) =
   | Filter(filter('a))
   | Residue(int, FilterAction.t)
@@ -191,6 +207,7 @@ let rec map_exp_annotation: type a b. (a => b, exp_t(a)) => exp_t(b) =
           TypFun(map_tpat_annotation(f, p), map_exp_annotation(f, e), v)
         | Tuple(l) => Tuple(List.map(x => map_exp_annotation(f, x), l))
         | Label(l) => Label(l)
+        | ExplicitNonlabel => ExplicitNonlabel
         | TupLabel(l, e) =>
           TupLabel(map_exp_annotation(f, l), map_exp_annotation(f, e))
         | Dot(e1, e2) =>
@@ -239,7 +256,7 @@ let rec map_exp_annotation: type a b. (a => b, exp_t(a)) => exp_t(b) =
           )
         | Closure(env, e) =>
           Closure(
-            map_closure_environment_annotation(f, env),
+            Environment.map(map_exp_annotation(f), env),
             map_exp_annotation(f, e),
           )
         | Parens(e) => Parens(map_exp_annotation(f, e))
@@ -308,6 +325,7 @@ and map_pat_annotation: 'a 'b. ('a => 'b, pat_t('a)) => pat_t('b) =
           Cons(map_pat_annotation(f, p1), map_pat_annotation(f, p2))
         | Var(v) => Var(v)
         | Tuple(l) => Tuple(List.map(x => map_pat_annotation(f, x), l))
+        | ExplicitNonlabel => ExplicitNonlabel
         | Label(l) => Label(l)
         | TupLabel(p1, p2) =>
           TupLabel(map_pat_annotation(f, p1), map_pat_annotation(f, p2))
@@ -341,10 +359,21 @@ and map_typ_annotation: 'a 'b. ('a => 'b, typ_t('a)) => typ_t('b) =
           Forall(map_tpat_annotation(f, tp), map_typ_annotation(f, t))
         | Prod(l) => Prod(List.map(x => map_typ_annotation(f, x), l))
         | Label(l) => Label(l)
+        | ExplicitNonlabel => ExplicitNonlabel
         | TupLabel(t1, t2) =>
           TupLabel(map_typ_annotation(f, t1), map_typ_annotation(f, t2))
         | Sum(m) =>
           Sum(ConstructorMap.map_preserving(map_typ_annotation(f), m))
+        | ProdProjection(t1, t2) =>
+          ProdProjection(
+            map_typ_annotation(f, t1),
+            map_typ_annotation(f, t2),
+          )
+        | ProdExtension(t1, t2) =>
+          ProdExtension(
+            map_typ_annotation(f, t1),
+            map_typ_annotation(f, t2),
+          )
         },
       annotation: new_annotation,
     };
@@ -401,13 +430,6 @@ and map_stepper_filter_kind_annotation:
       })
     | Residue(i, act) => Residue(i, act)
     };
-  }
-and map_closure_environment_annotation:
-  type a b. (a => b, closure_environment_t(a)) => closure_environment_t(b) =
-  (f, {id, env, call_stack}) => {
-    id,
-    env: VarBstMap.Ordered.mapo(((_, y)) => map_exp_annotation(f, y), env),
-    call_stack,
   }
 
 and map_type_provenance_annotation:
@@ -521,6 +543,10 @@ module Factory = (DefaultAnnotation: DefaultAnnotation) => {
     };
     let tuple = (~ann=?, l): exp_t(DefaultAnnotation.t) => {
       term: Tuple(l),
+      annotation: default_annotation(ann),
+    };
+    let explicit_non_label = (~ann=?, ()): exp_t(DefaultAnnotation.t) => {
+      term: ExplicitNonlabel,
       annotation: default_annotation(ann),
     };
     let label = (~ann=?, l): exp_t(DefaultAnnotation.t) => {
@@ -707,6 +733,10 @@ module Factory = (DefaultAnnotation: DefaultAnnotation) => {
       term: Tuple(l),
       annotation: default_annotation(ann),
     };
+    let explicit_non_label = (~ann=?, ()): pat_t(DefaultAnnotation.t) => {
+      term: ExplicitNonlabel,
+      annotation: default_annotation(ann),
+    };
     let label = (~ann=?, l): pat_t(DefaultAnnotation.t) => {
       term: Label(l),
       annotation: default_annotation(ann),
@@ -783,8 +813,20 @@ module Factory = (DefaultAnnotation: DefaultAnnotation) => {
       term: Prod(l),
       annotation: default_annotation(ann),
     };
+    let prod_projection = (~ann=?, t1, t2): typ_t(DefaultAnnotation.t) => {
+      term: ProdProjection(t1, t2),
+      annotation: default_annotation(ann),
+    };
+    let prod_extension = (~ann=?, t1, t2): typ_t(DefaultAnnotation.t) => {
+      term: ProdExtension(t1, t2),
+      annotation: default_annotation(ann),
+    };
     let label = (~ann=?, l): typ_t(DefaultAnnotation.t) => {
       term: Label(l),
+      annotation: default_annotation(ann),
+    };
+    let explicit_non_label = (~ann=?, ()): typ_t(DefaultAnnotation.t) => {
+      term: ExplicitNonlabel,
       annotation: default_annotation(ann),
     };
     let tup_label = (~ann=?, t1, t2): typ_t(DefaultAnnotation.t) => {
@@ -841,17 +883,6 @@ module Factory = (DefaultAnnotation: DefaultAnnotation) => {
       term: Rules(e, l),
       annotation: default_annotation(ann),
     };
-  };
-
-  let environment = (env): environment_t(DefaultAnnotation.t) => {
-    VarBstMap.Ordered.mapo(((_, y)) => map_exp_annotation(x => x, y), env);
-  };
-
-  let closure_environment =
-      (~callstack, id, env): closure_environment_t(DefaultAnnotation.t) => {
-    id,
-    env: environment(env),
-    call_stack: callstack,
   };
 
   module StepperFilter = {

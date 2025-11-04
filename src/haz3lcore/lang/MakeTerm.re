@@ -121,12 +121,12 @@ let return = (wrap, ids, tm) => {
 };
 
 let term_data: ref(TermData.t) = ref(Id.Map.empty);
-let record_term_data = (seg: Segment.t, skel: Skel.t): unit =>
+let record_term_data = (sort: Sort.t, seg: Segment.t, skel: Skel.t): unit =>
   term_data :=
     Aba.get_as(Aba.map_a(List.nth(seg), Skel.root(skel)))
     |> List.fold_left(
          (map, p) =>
-           Id.Map.add(Piece.id(p), TermData.mk(p, skel, seg), map),
+           Id.Map.add(Piece.id(p), TermData.mk(p, sort, skel, seg), map),
          term_data^,
        );
 
@@ -187,17 +187,17 @@ let mk_bad = (ctr, ids, value) => {
 let is_hole_label = (t: string) =>
   t == " " || Token.is_explicit_hole(t) || Token.is_llm_hole(t);
 
-let rec go_s = (s: Sort.t, skel: Skel.t, seg: Segment.t): Term.Any.t =>
+let rec go_s = (s: Sort.t, skel: Skel.t, seg: Segment.t): Any.t =>
   switch (s) {
-  | Pat => Pat(pat(unsorted(skel, seg)))
-  | TPat => TPat(tpat(unsorted(skel, seg)))
-  | Typ => Typ(typ(unsorted(skel, seg)))
-  | Exp => Exp(exp(unsorted(skel, seg)))
-  | Rul => Rul(rul(unsorted(skel, seg)))
+  | Pat => Pat(pat(unsorted(Pat, skel, seg)))
+  | TPat => TPat(tpat(unsorted(TPat, skel, seg)))
+  | Typ => Typ(typ(unsorted(Typ, skel, seg)))
+  | Exp => Exp(exp(unsorted(Exp, skel, seg)))
+  | Rul => Rul(rul(unsorted(Rul, skel, seg)))
   | Any =>
     let sort = Segment.sort_of(skel, seg);
     if (sort == Any) {
-      Exp(exp(unsorted(skel, seg)));
+      Exp(exp(unsorted(Exp, skel, seg)));
     } else {
       go_s(sort, skel, seg);
     };
@@ -409,14 +409,13 @@ and exp_term: unsorted => (Exp.term, list(Id.t)) = {
         @ [r]
         |> List.map((child: Exp.t) => {
              switch (child) {
-             | {term: Tuple([{term: TupLabel(_) as tl, _}]), _} as tup =>
+             | {term: Tuple([{term: _ as tl, _}]), _} as tup =>
                // We use the Id for the tuple as the ids for the tuplabels
                let (_, rewrap) = IdTagged.unwrap(tup);
                rewrap(tl);
              | _ => child
              }
            });
-
       ret(Tuple(tuple_children));
     | None =>
       switch (tiles) {
@@ -454,6 +453,14 @@ and exp_term: unsorted => (Exp.term, list(Id.t)) = {
           | (["..."], []) => TupleExtension(l, r)
           | (["="], []) =>
             switch (l.term) {
+            | Deferral(_) =>
+              TupLabel(
+                {
+                  annotation: l.annotation,
+                  term: ExplicitNonlabel,
+                },
+                r,
+              ) // Unlabeled tuple using deferred ap in tuplabel
             | Var(name) =>
               TupLabel(
                 {
@@ -595,6 +602,16 @@ and pat_term: unsorted => (Pat.term, list(Id.t)) = {
       switch (tiles) {
       | ([(_id, (["="], []))], []) =>
         switch (l.term) {
+        | Wild =>
+          ret(
+            TupLabel(
+              {
+                annotation: l.annotation,
+                term: ExplicitNonlabel,
+              },
+              r,
+            ),
+          ) // Unlabeled tuple using deferred ap in tuplabel
         | Var(name) =>
           ret(
             TupLabel(
@@ -657,6 +674,7 @@ and typ_term: unsorted => (Typ.term, list(Id.t)) = {
         | (["Float"], []) => Atom(Float)
         | (["String"], []) => Atom(String)
         | (["Nat"], []) => Atom(Nat)
+        | (["_"], []) => ExplicitNonlabel
         | ([t], []) when Token.is_typ_var(t) => Var(t)
         | ([t], []) when Token.is_quoted_label(t) =>
           Label(Token.sub(t, 1, Token.length(t) - 2))
@@ -737,6 +755,21 @@ and typ_term: unsorted => (Typ.term, list(Id.t)) = {
           )
         | _ => ret(TupLabel(l, r))
         }
+      | ([(_id, (["."], []))], []) =>
+        switch (r.term) {
+        | Var(name) =>
+          ret(
+            ProdProjection(
+              l,
+              {
+                annotation: r.annotation,
+                term: Label(name),
+              },
+            ),
+          )
+        | _ => ret(ProdProjection(l, r))
+        }
+      | ([(_id, (["..."], []))], []) => ret(ProdExtension(l, r))
       | _ => ret(hole(tm))
       }
     }
@@ -805,10 +838,10 @@ and rul = (unsorted): Rul.t => {
   };
 }
 
-and unsorted = (skel: Skel.t, seg: Segment.t): unsorted => {
+and unsorted = (sort: Sort.t, skel: Skel.t, seg: Segment.t): unsorted => {
   /* Remove projectors. We do this here as opposed to removing
    * them in an external call to save a whole-syntax pass. */
-  let tile_kids = (p: Piece.t): list(Term.Any.t) =>
+  let tile_kids = (p: Piece.t): list(Any.t) =>
     switch (p) {
     | Secondary(_)
     | Grout(_) => []
@@ -826,7 +859,7 @@ and unsorted = (skel: Skel.t, seg: Segment.t): unsorted => {
     };
 
   /* Capture term ranges */
-  record_term_data(seg, skel);
+  record_term_data(sort, seg, skel);
 
   let root: Aba.t(Piece.t, Skel.t) =
     Skel.root(skel) |> Aba.map_a(List.nth(seg));
@@ -869,7 +902,7 @@ let go =
       map := TermMap.empty;
       term_data := Id.Map.empty;
       projectors := Id.Map.empty;
-      let term = exp(unsorted(Segment.skel(seg), seg));
+      let term = exp(unsorted(Exp, Segment.skel(seg), seg));
       {
         term,
         term_data: term_data^,
@@ -895,10 +928,8 @@ let for_projection =
       switch (Segment.skel(seg)) {
       | exception _ => None /* Returns None if any subsegment is non-convex */
       | skel =>
-        let (unsorted, sort) = (
-          unsorted(skel, seg),
-          Segment.sort_of(skel, seg),
-        );
+        let sort = Segment.sort_of(skel, seg);
+        let unsorted = unsorted(sort, skel, seg);
         switch (sort) {
         | Exp =>
           switch (exp(unsorted)) {

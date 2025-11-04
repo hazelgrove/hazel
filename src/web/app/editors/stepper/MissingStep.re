@@ -131,7 +131,6 @@ module Update = {
         ~settings,
         exp,
         ctx: Calc.t(Ctx.t),
-        _state,
         new_next_steps,
         {
           next_steps: _,
@@ -367,11 +366,7 @@ module View = {
                          ),
                      )
                    )
-                |> CodeViewable.view_segment(
-                     ~globals,
-                     ~sort=Exp,
-                     ~shape_map=Haz3lcore.Id.Map.empty,
-                   ),
+                |> CodeViewable.view_segment(~globals),
               ],
             ),
           ],
@@ -521,7 +516,6 @@ module View = {
                               ~inline=false,
                               globals.settings.core,
                             ),
-                          ~shape_map=Haz3lcore.Id.Map.empty,
                           Exp(unboxed_selected_exp),
                         ),
                         Node.text("With: "),

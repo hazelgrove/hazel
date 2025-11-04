@@ -231,21 +231,20 @@ let expander_deco =
       ~options: list((ExplainThisForm.form_id, Segment.t)),
       ~group: ExplainThisForm.group,
       ~doc: ExplainThisForm.form,
-      editor,
+      editor: Editor.Model.t,
     ) => {
-  module Deco =
-    Deco.Deco({
-      let editor = editor;
-      let globals = globals;
-      let statics = CachedStatics.empty;
-    });
-
   switch (doc.expandable_id, List.length(options)) {
   | (None, _)
   | (_, 0 | 1) => div([])
   | (Some((id, _)), _) =>
     let origin =
-      switch (TermData.extreme_measures(id, Deco.term_data, Deco.measured)) {
+      switch (
+        TermData.extreme_measures(
+          id,
+          editor.syntax.term_data,
+          editor.syntax.measured,
+        )
+      ) {
       | Some((origin, _)) => origin
       | None => {
           row: 0,
@@ -281,13 +280,7 @@ let expander_deco =
         ],
         List.map(
           ((id: ExplainThisForm.form_id, segment: Segment.t)): Node.t => {
-            let code_view =
-              CodeViewable.view_segment(
-                ~globals,
-                ~sort=Exp,
-                ~shape_map=ProjectorCore.Shape.Map.empty, // Assume no projectors
-                segment,
-              );
+            let code_view = CodeViewable.view_segment(~globals, segment);
             let classes =
               id == doc.id
                 ? ["selected"] @ get_clss(segment) : get_clss(segment);
@@ -307,7 +300,15 @@ let expander_deco =
       Node.div(~attrs=[clss(["arrow"]), expand_arrow_style], []);
 
     let expandable_deco =
-      div_c("color-highlights", Deco.color_highlight(["expandable"], id));
+      div_c(
+        "color-highlights",
+        Highlight.color(
+          ~syntax=editor.syntax,
+          ~font_metrics,
+          ["expandable"],
+          id,
+        ),
+      );
 
     let expander =
       div(
@@ -473,11 +474,6 @@ let get_doc =
           explanation_msg,
           docs,
         );
-      let sort =
-        switch (info) {
-        | None => Sort.Any
-        | Some(ci) => Info.sort_of(ci)
-        };
       let highlights =
         colorings
         |> List.map(((syntactic_form_id: Id.t, code_id: Id.t)) => {
@@ -498,29 +494,21 @@ let get_doc =
           ~doc,
           editor,
         );
-      let statics = CachedStatics.empty;
-      let dynamics = Dynamics.Map.empty;
-      let highlight_deco = {
-        module Deco =
-          Deco.Deco({
-            let editor = editor;
-            let globals = {
-              ...globals,
-              color_highlights: highlights,
-            };
-            let statics = statics;
-          });
-        [Deco.color_highlights()];
-      };
+      let highlight_deco = [
+        Highlight.colors(
+          ~font_metrics=globals.font_metrics,
+          ~syntax=editor.syntax,
+          highlights,
+        ),
+      ];
       let syntactic_form_view =
         CodeWithStatics.View.view(
           ~globals,
           ~overlays=highlight_deco @ [expander_deco],
-          ~sort,
           {
             editor,
-            statics,
-            dynamics,
+            statics: CachedStatics.empty,
+            dynamics: Dynamics.Map.empty,
           },
         );
       let example_view =
@@ -598,6 +586,7 @@ let get_doc =
         );
       | Undefined => get_message(UndefinedExp.undefined_exps)
       | Deferral(_) => get_message(TerminalExp.deferral_exps)
+      | ExplicitNonlabel => simple("Explicitly unlabeled entry")
       | Atom(Bool(b)) => get_message(TerminalExp.bool_exps(b))
       | Atom(Int(i)) => get_message(TerminalExp.int_exps(i))
       | Atom(SInt(i)) => get_message(TerminalExp.sint_exps(i))
@@ -1155,6 +1144,7 @@ let get_doc =
         | Parens(_)
         | Probe(_)
         | Label(_)
+        | ExplicitNonlabel
         | Asc(_) => default // Shouldn't get hit?
         };
       | Label(name) =>
@@ -1736,6 +1726,7 @@ let get_doc =
             basic(LetExp.lets_ctr);
           }
         | TupLabel(_)
+        | ExplicitNonlabel
         | Label(_)
         | Invalid(_) => default // Shouldn't get hit
         | Parens(_)
@@ -2272,6 +2263,7 @@ let get_doc =
           ),
         TerminalPat.var(v),
       )
+    | ExplicitNonlabel => simple("Explicitly unlabeled entry")
     | Label(name) =>
       get_message(
         ~format=
@@ -2625,6 +2617,9 @@ let get_doc =
       )
     | Sum(_) => get_message(SumTyp.labelled_sum_typs)
     | Unknown(Hole(Invalid(_))) => simple("Not a type or type operator")
+    | ExplicitNonlabel
+    | ProdProjection(_)
+    | ProdExtension(_)
     | Parens(_) => default // Shouldn't be hit?
     }
   | Some(InfoTPat(info)) =>

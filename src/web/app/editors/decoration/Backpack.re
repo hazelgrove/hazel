@@ -123,7 +123,7 @@ let complete_bullshit =
     }
   );
 
-let view =
+let main =
     (
       ~font_metrics: FontMetrics.t,
       ~can_put_down,
@@ -171,4 +171,45 @@ let view =
     ]
     @ [pole(~left, ~pole_top, ~pole_height)],
   );
+};
+
+let view =
+    (
+      ~font_metrics: FontMetrics.t,
+      ~measured: Haz3lcore.Measured.t,
+      ~cached_backpack: list(Haz3lcore.Tile.t),
+      z: Haz3lcore.Zipper.t,
+    )
+    : Node.t => {
+  Haz3lcore.
+    /* If there is a selection, any tiles bisected by the selection
+     * will show as incomplete. While a more intelligent approach is
+     * possible here, I've opted for the simpler option of supressing
+     * backpack display during selection */
+    (
+      Selection.is_empty(z.selection) || Selection.is_buffer(z.selection)
+        ? {
+          let contents =
+            Zipper.local_backpack(z)
+            @ cached_backpack
+            |> ListUtil.dedup
+            |> List.map(Tile.effective_label)
+            |> List.map(List.hd);
+          contents == []
+            ? Node.div([])
+            : main(
+                ~font_metrics,
+                ~can_put_down=Zipper.can_put_down(z),
+                ~caret_d=Zipper.Caret.direction(z),
+                ~ind_d=
+                  switch (Indicated.piece(z)) {
+                  | Some((_, d, _)) => Some(d)
+                  | None => None
+                  },
+                ~origin=Zipper.Caret.point(measured, z),
+                contents,
+              );
+        }
+        : Node.div([])
+    );
 };

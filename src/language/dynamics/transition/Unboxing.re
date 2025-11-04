@@ -27,7 +27,7 @@ type unboxed_tfun =
 [@deriving show({with_path: false})]
 type unboxed_fun =
   | Constructor(string)
-  | FunEnv(Pat.t, Exp.t, [@show.opaque] ClosureEnvironment.t)
+  | FunEnv(Pat.t, Exp.t, [@show.opaque] Environment.t(Exp.t))
   | FunNoEnv(Pat.t, Exp.t)
   | BuiltinFun(string)
   | DeferredAp(DHExp.t, list(DHExp.t));
@@ -230,6 +230,7 @@ let rec unbox: type a. (unbox_request(a), DHExp.t) => unboxed(a) =
     | (
         _,
         Invalid(_) | Undefined | EmptyHole | MultiHole(_) | DynamicErrorHole(_) |
+        ExplicitNonlabel |
         Var(_) |
         Let(_) |
         Fun(_, _, _, _) |
