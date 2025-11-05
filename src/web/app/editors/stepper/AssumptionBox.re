@@ -61,7 +61,7 @@ module View = {
       equality_buttons
       @ [
         Node.text(model.ctx_entry.name ++ ": "),
-        CodeViewable.view_typ(
+        CodeViewable.view_any(
           ~globals,
           ~settings=
             Haz3lcore.ExpToSegment.Settings.of_core(
@@ -69,7 +69,7 @@ module View = {
               ~fold_fn_bodies=`Text,
               globals.settings.core,
             ),
-          model.ctx_entry.typ,
+          Exp(model.ctx_entry.exp),
         ),
       ],
     );
