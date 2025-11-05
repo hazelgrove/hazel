@@ -1,7 +1,5 @@
-open Util;
 open Language;
 open IdTagged.FreshGrammar;
-open OptUtil.Syntax;
 
 let string_to_suit = (s: string): option(CardTypes.suit) =>
   switch (s |> Sexplib.Sexp.of_string |> CardTypes.suit_of_sexp) {

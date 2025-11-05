@@ -1,6 +1,4 @@
-open Util;
 open Virtual_dom.Vdom;
-open Css_gen;
 
 module Card = {
   /* Card images are stored in a spritesheet. The sheet image

@@ -1,4 +1,3 @@
-open Util;
 /* TableRenderer - A reusable module for rendering interactive tables with column operations */
 [@deriving (show({with_path: false}), sexp, yojson)]
 type menu_state = option((int, list(string)));

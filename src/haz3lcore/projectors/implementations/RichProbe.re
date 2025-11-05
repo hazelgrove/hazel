@@ -1,4 +1,3 @@
-open Util;
 open Virtual_dom.Vdom;
 open ProjectorBase;
 open Language;

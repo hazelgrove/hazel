@@ -770,18 +770,3 @@ let badge =
     ],
     [Node.text("📊")],
   );
-
-module M = {
-  [@deriving (show({with_path: false}), sexp, yojson)]
-  type model = m;
-  [@deriving (show({with_path: false}), sexp, yojson)]
-  type action = a;
-  [@deriving (show({with_path: false}), sexp, yojson)]
-  type value = v;
-
-  let update = update;
-  let parse = parse;
-  let init = init;
-  let badge = badge;
-  let render = render;
-};

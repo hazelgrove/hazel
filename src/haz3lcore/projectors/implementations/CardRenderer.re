@@ -3,8 +3,6 @@ open Virtual_dom.Vdom;
 open ProjectorBase;
 open Language;
 open CardTypes;
-open CardSyntax;
-open CardUtil;
 
 /* CardRenderer - Visual renderer for card and hand expressions in probed values */
 
@@ -30,7 +28,7 @@ type state =
 module SyntaxTerm = {
   open IdTagged.FreshGrammar;
 
-  let rec strip_wraps_exp = CardSyntax.strip_wraps_exp;
+  let strip_wraps_exp = CardSyntax.strip_wraps_exp;
 
   let card_to_exp = CardSyntax.card_to_exp;
 
@@ -147,7 +145,7 @@ module Chooser = {
       [CardUtil.Card.view(sort, card)],
     );
 
-  let view = (info, parent, sort: Sort.t, current_card: card) =>
+  let view = (info, parent, sort: Sort.t, _: card) =>
     Node.div(
       ~attrs=[Attr.classes(["chooser"])],
       List.mapi(
@@ -213,7 +211,7 @@ module Singleton = {
 };
 
 module Hand = {
-  let view = (info, mode, parent, sort: Sort.t, hand: hand, local) => {
+  let view = (_, mode, _, sort: Sort.t, hand: hand, local) => {
     let on_mousedown = evt =>
       switch (Js_of_ocaml.Js.Unsafe.coerce(evt)##.detail == 2) {
       | _ when Js_of_ocaml.Js.to_bool(evt##.shiftKey) =>
@@ -288,9 +286,9 @@ let init = (_: state) => {mode: Show};
 let render =
     (
       ~info: info,
-      ~exp: Exp.t,
+      ~exp as _: Exp.t,
       ~value: state,
-      ~view_seg: (Sort.t, Segment.t) => Node.t,
+      ~view_seg as _: (Sort.t, Segment.t) => Node.t,
       ~model: m,
       ~local: a => Ui_effect.t(unit),
       ~parent: external_action => Ui_effect.t(unit),
@@ -303,7 +301,7 @@ let render =
   };
 
 let update: (m, a) => m =
-  (model, action) =>
+  (_, action) =>
     switch (action) {
     | SetMode(new_mode) => {mode: new_mode}
     };
