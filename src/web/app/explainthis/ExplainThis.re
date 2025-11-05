@@ -510,6 +510,7 @@ let get_doc =
             statics: CachedStatics.empty,
             dynamics: Dynamics.Map.empty,
             dynamic_statics: Pending,
+            pinned_call: Pending,
           },
         );
       let example_view =

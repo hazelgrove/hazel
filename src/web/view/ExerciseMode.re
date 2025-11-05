@@ -377,6 +377,7 @@ module Update = {
               dynamics:
                 EvalResult.Model.dynamics(cell.result) |> Calc.get_value,
               dynamic_statics: cell.editor.dynamic_statics,
+              pinned_call: cell.editor.pinned_call,
             },
             result: cell.result,
           }
@@ -965,6 +966,7 @@ module View = {
         statics: editor.editor.statics,
         dynamics: Language.Dynamics.Map.empty,
         dynamic_statics: editor.editor.dynamic_statics,
+        pinned_call: editor.editor.pinned_call,
       },
       result: editor.result,
     };

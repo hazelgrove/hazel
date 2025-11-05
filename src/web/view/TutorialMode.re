@@ -241,6 +241,7 @@ module Update = {
               dynamics:
                 EvalResult.Model.dynamics(cell.result) |> Calc.get_value,
               dynamic_statics: cell.editor.dynamic_statics,
+              pinned_call: cell.editor.pinned_call,
             },
             result: cell.result,
           }

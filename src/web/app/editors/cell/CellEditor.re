@@ -18,6 +18,7 @@ module Model = {
       statics: CachedStatics.empty,
       dynamics: Language.Dynamics.Map.empty,
       dynamic_statics: Pending,
+      pinned_call: Pending,
     },
     result: EvalResult.Model.init,
   };
@@ -38,6 +39,7 @@ module Model = {
       statics: CachedStatics.empty,
       dynamics: Language.Dynamics.Map.empty,
       dynamic_statics: Pending,
+      pinned_call: Pending,
     },
     result: EvalResult.Model.unpersist(result),
   };

@@ -17,6 +17,7 @@ module Model = {
     statics: CachedStatics.t,
     dynamics: Language.Dynamics.Map.t,
     dynamic_statics: Calc.saved((StaticsBase.Map.t, list(Id.t))),
+    pinned_call: Calc.saved(option(list(Id.t))),
   };
 
   let mk =
@@ -30,6 +31,7 @@ module Model = {
       statics,
       dynamics,
       dynamic_statics: Calc.Pending,
+      pinned_call: Calc.Pending,
     };
   };
 
@@ -104,7 +106,7 @@ module Update = {
         ~stitch,
         ~dynamics: Calc.t(Language.Dynamics.Map.t),
         ~is_dynamic_term,
-        {editor, statics, dynamic_statics, dynamics: _}: Model.t,
+        {editor, statics, dynamic_statics, pinned_call, dynamics: _}: Model.t,
       )
       : Model.t => {
     let statics =
@@ -119,17 +121,18 @@ module Update = {
         : statics;
 
     let ctx_init: Language.Ctx.t = Language.Builtins.ctx_init(Some(Int));
-    // This should be a fold over the dynamics map getitng the type for each value
+
+    // Track the current pinned call state
+    let current_pinned_call = Haz3lcore.ProbeProj.DynCursor.get_pinned_call();
+    let pinned_call_t = Calc.set(current_pinned_call, pinned_call);
 
     let dynamic_statics =
       if (settings.dynamic_feedback) {
         Calc.Syntax.(
           dynamic_statics
           |> {
-            let.calc dynamics = dynamics;
-
-            // Get the current pinned call from the global cursor
-            let pinned_call = Haz3lcore.ProbeProj.DynCursor.get_pinned_call();
+            let.calc dynamics = dynamics
+            and.calc pinned_call = pinned_call_t;
 
             // Filter closures based on the pinned call
             let filtered_dynamics =
@@ -184,6 +187,7 @@ module Update = {
       statics,
       dynamics: Calc.get_value(dynamics),
       dynamic_statics: Calc.save(dynamic_statics),
+      pinned_call: Calc.save(pinned_call_t),
     };
   };
 };
