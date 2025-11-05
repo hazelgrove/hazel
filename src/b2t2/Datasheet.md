@@ -13,7 +13,7 @@ https://github.com/brownplt/B2T2/blob/fd227efadf532a20aefd25c7a8580978c2d684a2/D
 
 
 > Q. On what date was this version of the datasheet last updated?
-2024-06-13
+2025-11-05
 
 > Q. If you are not using the latest benchmark available on that date, please explain why not.
 Yes
