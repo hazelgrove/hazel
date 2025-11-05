@@ -2,8 +2,368 @@ open Util;
 open ProjectorBase;
 open Virtual_dom.Vdom;
 open Js_of_ocaml;
+open Language;
 
-module GraphData = GraphProj.GraphData;
+module GraphData = {
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type point = {
+    x: float,
+    y: float,
+  };
+
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type series = {
+    label: string,
+    points: list(point),
+  };
+
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type t = {
+    series: list(series),
+    title: option(string),
+    x_label: option(string),
+    y_label: option(string),
+    x_bounds: (float, float),
+    y_bounds: (float, float),
+  };
+};
+
+type decode_warning = string;
+
+type decoded_graph = {
+  graph: option(GraphData.t),
+  warnings: list(decode_warning),
+};
+
+let float_of_number = (value: DHExp.t): option(float) =>
+  switch (DHExp.term_of(value)) {
+  | Atom(Float(f)) => Some(f)
+  | Atom(Int(i)) => Some(Bigint.to_float(i))
+  | Atom(Nat(i)) => Some(Bigint.to_float(i))
+  | Atom(SInt(i)) => Some(Float.of_int(i))
+  | _ => None
+  };
+
+let string_of_value = (value: DHExp.t): option(string) =>
+  switch (DHExp.term_of(value)) {
+  | Atom(String(s)) => Some(s)
+  | _ => None
+  };
+
+let decode_graph_data = (value: DHExp.t): decoded_graph => {
+  let warnings = ref([]);
+  let warn = msg => warnings := [msg, ...warnings^];
+
+  let decode_point =
+      (~series_label: string, ~point_index: int, point_value: DHExp.t)
+      : option(GraphData.point) =>
+    switch (DHExp.term_of(point_value)) {
+    | Tuple([x_exp, y_exp]) =>
+      switch (float_of_number(x_exp), float_of_number(y_exp)) {
+      | (Some(x), Some(y)) =>
+        Some({
+          x,
+          y,
+        })
+      | _ =>
+        warn(
+          Printf.sprintf(
+            "Series \"%s\" point #%d must contain numeric x and y values.",
+            series_label,
+            point_index + 1,
+          ),
+        );
+        None;
+      }
+    | _ =>
+      warn(
+        Printf.sprintf(
+          "Series \"%s\" point #%d is not a two-element tuple; ignoring.",
+          series_label,
+          point_index + 1,
+        ),
+      );
+      None;
+    };
+
+  let decode_points =
+      (~series_label: string, points_value: DHExp.t): list(GraphData.point) =>
+    switch (DHExp.term_of(points_value)) {
+    | ListLit(point_values) =>
+      let rec loop = (values, index, acc) =>
+        switch (values) {
+        | [] => List.rev(acc)
+        | [value, ...rest] =>
+          let acc =
+            switch (decode_point(~series_label, ~point_index=index, value)) {
+            | Some(point) => [point, ...acc]
+            | None => acc
+            };
+          loop(rest, index + 1, acc);
+        };
+      loop(point_values, 0, []);
+    | _ =>
+      warn(
+        Printf.sprintf(
+          "Series \"%s\" data must be a list of (x, y) tuples.",
+          series_label,
+        ),
+      );
+      [];
+    };
+
+  let decode_series_entry =
+      (~series_index: int, entry_value: DHExp.t): option(GraphData.series) =>
+    switch (DHExp.term_of(entry_value)) {
+    | Tuple([label_exp, points_exp]) =>
+      let fallback_label = Printf.sprintf("Series %d", series_index + 1);
+      let label =
+        switch (string_of_value(label_exp)) {
+        | Some(text) when String.trim(text) != "" => text
+        | Some(_) =>
+          warn(
+            Printf.sprintf(
+              "Series #%d has an empty label; defaulting to \"%s\".",
+              series_index + 1,
+              fallback_label,
+            ),
+          );
+          fallback_label;
+        | None =>
+          warn(
+            Printf.sprintf(
+              "Series #%d label must be a string; defaulting to \"%s\".",
+              series_index + 1,
+              fallback_label,
+            ),
+          );
+          fallback_label;
+        };
+      let points = decode_points(~series_label=label, points_exp);
+      switch (points) {
+      | [] =>
+        warn(
+          Printf.sprintf(
+            "Series \"%s\" does not contain any valid points and was omitted.",
+            label,
+          ),
+        );
+        None;
+      | _ =>
+        Some(
+          GraphData.{
+            label,
+            points,
+          },
+        )
+      };
+    | _ =>
+      warn(
+        Printf.sprintf(
+          "Series #%d is not a (label, points) tuple; ignoring entry.",
+          series_index + 1,
+        ),
+      );
+      None;
+    };
+
+  let decode_series_list = (series_value: DHExp.t): list(GraphData.series) =>
+    switch (DHExp.term_of(series_value)) {
+    | ListLit(entries) =>
+      let rec loop = (values, index, acc) =>
+        switch (values) {
+        | [] => List.rev(acc)
+        | [value, ...rest] =>
+          let acc =
+            switch (decode_series_entry(~series_index=index, value)) {
+            | Some(series) => [series, ...acc]
+            | None => acc
+            };
+          loop(rest, index + 1, acc);
+        };
+      loop(entries, 0, []);
+    | _ =>
+      warn("Graph data must end with a list of (label, points) tuples.");
+      [];
+    };
+
+  let parse_metadata = (fields: list(DHExp.t)) => {
+    let rec loop = (remaining, index, assigned, title, x_label, y_label) =>
+      switch (remaining) {
+      | [] => (title, x_label, y_label)
+      | [field, ...rest] =>
+        switch (string_of_value(field)) {
+        | Some(text) =>
+          switch (assigned) {
+          | 0 => loop(rest, index + 1, 1, Some(text), x_label, y_label)
+          | 1 => loop(rest, index + 1, 2, title, Some(text), y_label)
+          | 2 => loop(rest, index + 1, 3, title, x_label, Some(text))
+          | _ =>
+            warn(
+              Printf.sprintf(
+                "Ignoring extra metadata field #%d; only title, x label, and y label are supported.",
+                index + 1,
+              ),
+            );
+            loop(rest, index + 1, assigned, title, x_label, y_label);
+          }
+        | None =>
+          warn(
+            Printf.sprintf(
+              "Metadata field #%d is not a string and was ignored.",
+              index + 1,
+            ),
+          );
+          loop(rest, index + 1, assigned, title, x_label, y_label);
+        }
+      };
+    loop(fields, 0, 0, None, None, None);
+  };
+
+  let (meta_fields, series_value_opt) =
+    switch (DHExp.term_of(value)) {
+    | Tuple(elements) =>
+      let rec split_last = (items, acc) =>
+        switch (items) {
+        | [] => None
+        | [last] => Some((List.rev(acc), last))
+        | [head, ...tail] => split_last(tail, [head, ...acc])
+        };
+      switch (split_last(elements, [])) {
+      | Some((meta, series_value)) => (meta, Some(series_value))
+      | None =>
+        warn(
+          "Graph tuple must contain at least one element for the series list.",
+        );
+        ([], None);
+      };
+    | ListLit(_) => ([], Some(value))
+    | _ =>
+      warn(
+        "Graph projector expects a tuple or list describing the series data.",
+      );
+      ([], None);
+    };
+
+  let (title, x_label, y_label) = parse_metadata(meta_fields);
+  let series =
+    switch (series_value_opt) {
+    | Some(series_value) => decode_series_list(series_value)
+    | None => []
+    };
+
+  let graph =
+    switch (series) {
+    | [] =>
+      warn("No valid series found to render.");
+      None;
+    | _ =>
+      let update_bounds =
+          ((min_x, max_x, min_y, max_y), point: GraphData.point) => (
+        Float.min(min_x, point.x),
+        Float.max(max_x, point.x),
+        Float.min(min_y, point.y),
+        Float.max(max_y, point.y),
+      );
+      let initial = (
+        Float.infinity,
+        Float.neg_infinity,
+        Float.infinity,
+        Float.neg_infinity,
+      );
+      let (min_x, max_x, min_y, max_y) =
+        List.fold_left(
+          (bounds, series_entry: GraphData.series) =>
+            List.fold_left(update_bounds, bounds, series_entry.points),
+          initial,
+          series,
+        );
+
+      let normalize_range =
+          ((min_value, max_value): (float, float)): (float, float) =>
+        if (Float.is_finite(min_value)
+            && Float.is_finite(max_value)
+            && min_value <= max_value) {
+          if (min_value == max_value) {
+            let padding =
+              if (min_value == 0.) {
+                1.;
+              } else {
+                Float.abs(min_value) *. 0.05;
+              };
+            (min_value -. padding, max_value +. padding);
+          } else {
+            let span = max_value -. min_value;
+            let pad = span *. 0.05;
+            (min_value -. pad, max_value +. pad);
+          };
+        } else {
+          warn(
+            "Could not determine numeric bounds for the provided data; using a default range.",
+          );
+          (0., 1.);
+        };
+
+      Some(
+        GraphData.{
+          series,
+          title,
+          x_label,
+          y_label,
+          x_bounds: normalize_range((min_x, max_x)),
+          y_bounds: normalize_range((min_y, max_y)),
+        },
+      );
+    };
+
+  {
+    graph,
+    warnings: List.rev(warnings^),
+  };
+};
+
+let select_sample = (info: info): option(Dynamics.Probe.Closure.t) =>
+  switch (info.dynamics) {
+  | Some([sample, ..._]) => Some(sample)
+  | _ => None
+  };
+
+let warning_indicator = (warnings: list(string)): option(Node.t) =>
+  switch (warnings) {
+  | [] => None
+  | _ =>
+    let tooltip = String.concat("\n", warnings);
+    Some(
+      Node.div(
+        ~attrs=
+          Attr.[
+            classes(["graph-warning-indicator"]),
+            title(tooltip),
+            create("role", "img"),
+            create("aria-label", tooltip),
+          ],
+        [Node.text("⚠")],
+      ),
+    );
+  };
+
+let wrap_with_warnings =
+    (~classes: list(string), content: list(Node.t), warnings: list(string))
+    : Node.t => {
+  let indicator_child =
+    switch (warning_indicator(warnings)) {
+    | None => []
+    | Some(node) => [node]
+    };
+  Node.div(~attrs=[Attr.classes(classes)], indicator_child @ content);
+};
+
+module Rendering = {
+  let margin_left: float = 56.;
+  let margin_right: float = 16.;
+  let margin_top: float = 26.;
+  let margin_bottom: float = 36.;
+};
 
 let default_width_blocks: int = 56; /* matches legacy graph placeholder */
 let default_height_blocks: int = 12;
@@ -147,13 +507,10 @@ let plot_render =
       Js.Unsafe.obj([|
         ("width", plot_inject_float(width_px)),
         ("height", plot_inject_float(height_px)),
-        ("marginLeft", plot_inject_float(GraphProj.Rendering.margin_left)),
-        ("marginRight", plot_inject_float(GraphProj.Rendering.margin_right)),
-        ("marginTop", plot_inject_float(GraphProj.Rendering.margin_top)),
-        (
-          "marginBottom",
-          plot_inject_float(GraphProj.Rendering.margin_bottom),
-        ),
+        ("marginLeft", plot_inject_float(Rendering.margin_left)),
+        ("marginRight", plot_inject_float(Rendering.margin_right)),
+        ("marginTop", plot_inject_float(Rendering.margin_top)),
+        ("marginBottom", plot_inject_float(Rendering.margin_bottom)),
       |]);
 
     let (min_x, max_x) = data.x_bounds;
@@ -437,7 +794,7 @@ let build_plot_view =
       ],
       [chart, handle],
     );
-  GraphProj.wrap_with_warnings(
+  wrap_with_warnings(
     ~classes=["graph-projector", "graph-observable-plot", "graph-has-data"],
     [shell],
     warnings,
@@ -446,7 +803,7 @@ let build_plot_view =
 
 let build_error_view = (warnings: list(string), message: string): Node.t => {
   ResizeState.reset();
-  GraphProj.wrap_with_warnings(
+  wrap_with_warnings(
     ~classes=["graph-projector", "graph-error"],
     [Node.text(message)],
     warnings,
@@ -507,11 +864,10 @@ module M: Projector = {
       ["projector", "observable-plot"] @ indicated_class;
 
     let node: Node.t =
-      switch (GraphProj.select_sample(info)) {
+      switch (select_sample(info)) {
       | None => build_error_view([], "Awaiting runtime data")
       | Some(sample) =>
-        let decoded: GraphProj.decoded_graph =
-          GraphProj.decode_graph_data(sample.value);
+        let decoded: decoded_graph = decode_graph_data(sample.value);
         switch (decoded.graph) {
         | None =>
           build_error_view(decoded.warnings, "Unable to render graph data")

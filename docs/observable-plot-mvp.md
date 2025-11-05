@@ -3,6 +3,10 @@
 ### 1. Reason ↔︎ JavaScript Integration Details
 
 - **Bundling the runtime:** `src/web/www/prebundle.js` imports `@observablehq/plot` and exposes it on `window.Plot`, alongside the existing `window.Algebrite`. This ensures the Plot API is available to `Js_of_ocaml` code.
+- **Supported data format:** The projector now owns its `GraphData` module and decoder. Hazel programs should provide either:
+  - A tuple whose last element is the series list `(title?, xLabel?, yLabel?, [ (label, [ (x, y), ... ]), ... ])`, or
+  - A bare list of `(label, points)` pairs when no metadata is needed.
+    Each series label must be a string; each point is a two-element tuple of numbers. The decoder emits warnings for malformed items and computes axis bounds with the same heuristics as the legacy SVG projector.
 - **Calling Plot from Reason:** `ObservablePlotProj.re`’s `plot_render` function treats the decoded `GraphData.t` as the source of truth. Points are flattened to `{series, x, y}` rows (`plot_row_to_js` / `plot_rows_to_js_array`) before the projector constructs a Plot configuration.
   - Plot configuration mirrors the original `GraphProj` SVG settings: margins, inner bounds, computed min/max (`plot_inject_float` etc.). This keeps padding and scaling logic consistent while delegating actual drawing to Plot.
   - Plot marks are created through `Js.Unsafe.fun_call(plot_fn("lineY"), ...)`, then composed into a `Plot.plot` call. The resulting DOM node is `appendChild`’d into the projector container after clearing any previous child nodes.
@@ -11,7 +15,7 @@
   - `PlotHookImpl.on_mount` → executes `plot_render` with the decoded data.
   - `PlotHookImpl.update` → reruns `plot_render` whenever the sample value changes (e.g., probe updates).
   - `PlotHookImpl.destroy` → clears the container to avoid lingering DOM when the projector unmounts.
-- **Warning surface:** Rendering still funnels through `GraphProj.wrap_with_warnings`, so decode issues, missing data, or runtime absence show up identically to the original projector (`build_error_view`). The only new branch is the “runtime unavailable” message when `window.Plot` is missing.
+- **Warning surface:** Rendering still wraps the chart with a warning indicator, so decode issues, missing data, or runtime absence show up identically to the original projector (`build_error_view`). The only new branch is the “runtime unavailable” message when `window.Plot` is missing.
 - **Resizable placeholder:** The projector now stores its grid footprint (`width_blocks`/`height_blocks`) in the model, with defaults of 56×12 blocks and minimums of 32×8. A command-drag on the bottom-right handle dispatches resize actions, updating the placeholder and Plot canvas dimensions in lockstep.
 
 ### 2. Observable Plot API Design Considerations & Future Work
