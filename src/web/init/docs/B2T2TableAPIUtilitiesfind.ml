@@ -164,7 +164,8 @@ let out : string * Haz3lcore.PersistentSegment.t =
          99f52146-5250-40ef-a678-6aaeb5331034)(label(\"\\\"red\\\"\"))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children()))))))))(Secondary((id \
-         1d18ddd4-614f-4bdb-bebe-55b2971289dc)(content(Whitespace\"\\n\")))))))))))))))(model\"((text\\\"\\\\226\\\\139\\\\177\\\"))\")))(Secondary((id \
+         1d18ddd4-614f-4bdb-bebe-55b2971289dc)(content(Whitespace\"\\n\")))))))))))))))(model\"((text\\\"\\\\226\\\\139\\\\177\\\")(expanded \
+         false)(always_render false))\")))(Secondary((id \
          7ec2b335-9ec1-4461-a3fe-6e5c9aced963)(content(Whitespace\" \
          \")))))))))(Secondary((id \
          bb7fb2e0-ed71-4b3b-b7f3-4960912a116d)(content(Whitespace\"\\n\"))))(Secondary((id \

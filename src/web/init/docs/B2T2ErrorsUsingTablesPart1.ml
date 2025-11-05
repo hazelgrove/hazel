@@ -583,7 +583,8 @@ let out : string * Haz3lcore.PersistentSegment.t =
          fb0f0a64-2640-4120-ae2f-589e578a1e5b)(label(77))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children()))))))))(Secondary((id \
-         b50f34c3-c6d9-427f-8183-b948574204c9)(content(Whitespace\"\\n\")))))))))))))))(model\"((text\\\"\\\\226\\\\139\\\\177\\\"))\")))(Secondary((id \
+         b50f34c3-c6d9-427f-8183-b948574204c9)(content(Whitespace\"\\n\")))))))))))))))(model\"((text\\\"\\\\226\\\\139\\\\177\\\")(expanded \
+         false)(always_render false))\")))(Secondary((id \
          0df6f473-8ca9-4001-a6f1-0283bd5907f7)(content(Whitespace\" \
          \")))))))))(Secondary((id \
          ae90df30-64e8-466a-a6f1-ca041f9b3584)(content(Whitespace\"\\n\"))))(Secondary((id \
@@ -2174,7 +2175,8 @@ let out : string * Haz3lcore.PersistentSegment.t =
          a72e1100-9c18-44d7-992f-a8d5edf73d0a)(label(false))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))))))))(model\"()\"))))))))(Secondary((id \
-         d6c28fe3-d6d7-4389-ae67-51b049681ffe)(content(Whitespace\"\\n\")))))))))))))))(model\"((text\\\"\\\\226\\\\139\\\\177\\\"))\")))(Secondary((id \
+         d6c28fe3-d6d7-4389-ae67-51b049681ffe)(content(Whitespace\"\\n\")))))))))))))))(model\"((text\\\"\\\\226\\\\139\\\\177\\\")(expanded \
+         false)(always_render false))\")))(Secondary((id \
          c3e2ef44-4920-48c8-8a8f-cef08a72587b)(content(Whitespace\" \
          \")))))))))(Secondary((id \
          a877f085-3c34-41b5-951c-257f0adc2b48)(content(Whitespace\"\\n\"))))(Secondary((id \
@@ -4564,7 +4566,8 @@ let out : string * Haz3lcore.PersistentSegment.t =
          6ff256c9-805e-4a7b-8f59-27172583f7e9)(label(false))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))))))))(model\"()\"))))))))(Secondary((id \
-         de7ee636-23bc-4726-ae6a-d94d8fa6cd28)(content(Whitespace\"\\n\")))))))))))))))(model\"((text\\\"\\\\226\\\\139\\\\177\\\"))\")))(Secondary((id \
+         de7ee636-23bc-4726-ae6a-d94d8fa6cd28)(content(Whitespace\"\\n\")))))))))))))))(model\"((text\\\"\\\\226\\\\139\\\\177\\\")(expanded \
+         false)(always_render false))\")))(Secondary((id \
          4abfcd68-f434-4c3d-93fb-89ed418df64d)(content(Whitespace\" \
          \")))))))))(Secondary((id \
          48b0c27c-f779-45b3-ae5a-43b368e94914)(content(Whitespace\"\\n\"))))(Tile((id \

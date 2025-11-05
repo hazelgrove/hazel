@@ -878,7 +878,8 @@ let out : string * Haz3lcore.PersistentSegment.t =
          Convex)(sort Exp))))))(shards(0 1))(children(((Tile((id \
          7aa6ef42-7d15-48a1-b72d-381d513d6b6d)(label(denominator))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
-         Exp))))))(shards(0))(children()))))))))))))))(model\"((text\\\"\\\\226\\\\139\\\\177\\\"))\")))(Secondary((id \
+         Exp))))))(shards(0))(children()))))))))))))))(model\"((text\\\"\\\\226\\\\139\\\\177\\\")(expanded \
+         false)(always_render false))\")))(Secondary((id \
          1895df73-774d-44c4-a4c4-e18ba18e3547)(content(Whitespace\" \
          \"))))(Secondary((id \
          19d5798c-b637-45b5-be5a-b1a3c187e7d8)(content(Whitespace\"\\n\")))))))))(Secondary((id \

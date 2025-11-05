@@ -362,7 +362,8 @@ let out : string * Haz3lcore.PersistentSegment.t =
          3a0cd0b6-11fb-4a53-a0cf-12f501860cae)(label(77))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children()))))))))(Secondary((id \
-         cb660fd3-49dd-4af7-82c1-e4ff3d5ec2cb)(content(Whitespace\"\\n\")))))))))))))))(model\"((text\\\"\\\\226\\\\139\\\\177\\\"))\")))(Secondary((id \
+         cb660fd3-49dd-4af7-82c1-e4ff3d5ec2cb)(content(Whitespace\"\\n\")))))))))))))))(model\"((text\\\"\\\\226\\\\139\\\\177\\\")(expanded \
+         false)(always_render false))\")))(Secondary((id \
          b4da4174-3686-493e-b204-ffb2cd042a3a)(content(Whitespace\" \
          \")))))))))(Secondary((id \
          7cdb12b1-6797-428b-8d04-56e9de135eb2)(content(Whitespace\" \

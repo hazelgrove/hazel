@@ -166,7 +166,8 @@ let out : string * Haz3lcore.PersistentSegment.t =
          76934d12-b8f7-42ee-aed7-587bd6c3e913)(label(\"\\\"red\\\"\"))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children()))))))))(Secondary((id \
-         54e7fc19-0277-450a-a588-95699f8e9331)(content(Whitespace\"\\n\")))))))))))))))(model\"((text\\\"\\\\226\\\\139\\\\177\\\"))\")))(Secondary((id \
+         54e7fc19-0277-450a-a588-95699f8e9331)(content(Whitespace\"\\n\")))))))))))))))(model\"((text\\\"\\\\226\\\\139\\\\177\\\")(expanded \
+         false)(always_render false))\")))(Secondary((id \
          df3639e9-f475-436e-ba48-f5c11ad63d37)(content(Whitespace\" \
          \")))))))))(Secondary((id \
          014e7452-3038-48c9-a6ef-59f726b896b7)(content(Whitespace\"\\n\"))))(Tile((id \
@@ -304,7 +305,8 @@ let out : string * Haz3lcore.PersistentSegment.t =
          \"))))(Tile((id \
          10ccb8c9-483e-451a-92bc-98a10918c4f9)(label(true))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
-         Exp))))))(shards(0))(children())))))))))))))))))))(model\"((text\\\"\\\\226\\\\139\\\\177\\\"))\")))(Secondary((id \
+         Exp))))))(shards(0))(children())))))))))))))))))))(model\"((text\\\"\\\\226\\\\139\\\\177\\\")(expanded \
+         false)(always_render false))\")))(Secondary((id \
          f04af7aa-da9a-4e01-99c6-3a10cd5f22e5)(content(Whitespace\" \
          \")))))))))(Secondary((id \
          0647a908-8edb-4772-8bad-ad2b43d3a4c9)(content(Whitespace\"\\n\"))))(Secondary((id \
@@ -783,7 +785,8 @@ let out : string * Haz3lcore.PersistentSegment.t =
          39))(sort Typ))))))(shards(0))(children())))(Tile((id \
          8205a2e4-d9b8-4506-93f8-392c5a6d382e)(label(Bool))(mold((out \
          Typ)(in_())(nibs(((shape Convex)(sort Typ))((shape Convex)(sort \
-         Typ))))))(shards(0))(children()))))))))))))))(model\"((text\\\"\\\\226\\\\139\\\\177\\\"))\"))))))))(Secondary((id \
+         Typ))))))(shards(0))(children()))))))))))))))(model\"((text\\\"\\\\226\\\\139\\\\177\\\")(expanded \
+         false)(always_render false))\"))))))))(Secondary((id \
          b1927cfc-6eb7-475d-ae13-a44841688202)(content(Whitespace\"\\n\"))))(Tile((id \
          2024c4eb-7724-4b83-a608-f5b610428c1d)(label(\"(\"\")\"))(mold((out \
          Exp)(in_(Exp))(nibs(((shape(Concave 23))(sort Exp))((shape \
@@ -1245,7 +1248,8 @@ let out : string * Haz3lcore.PersistentSegment.t =
          39))(sort Typ))))))(shards(0))(children())))(Tile((id \
          f05bd419-99a3-4945-b0b7-ba8313f75e10)(label(Bool))(mold((out \
          Typ)(in_())(nibs(((shape Convex)(sort Typ))((shape Convex)(sort \
-         Typ))))))(shards(0))(children())))))))))))))))))))(model\"((text\\\"\\\\226\\\\139\\\\177\\\"))\"))))))))(Secondary((id \
+         Typ))))))(shards(0))(children())))))))))))))))))))(model\"((text\\\"\\\\226\\\\139\\\\177\\\")(expanded \
+         false)(always_render false))\"))))))))(Secondary((id \
          f4f5e481-e67d-47cd-9391-e45de900e689)(content(Whitespace\"\\n\")))))))))(Secondary((id \
          3e59b078-06f4-449d-9678-663f81f6ac25)(content(Whitespace\"\\n\")))))))))(Secondary((id \
          0879dc47-94b5-4ed8-be97-d182037bac4f)(content(Whitespace\"\\n\"))))(Secondary((id \
@@ -1949,7 +1953,8 @@ let out : string * Haz3lcore.PersistentSegment.t =
          39))(sort Typ))))))(shards(0))(children())))(Tile((id \
          03292e38-9d9c-4b6d-819a-b489836e5c17)(label(Bool))(mold((out \
          Typ)(in_())(nibs(((shape Convex)(sort Typ))((shape Convex)(sort \
-         Typ))))))(shards(0))(children())))))))))))))))))))(model\"((text\\\"\\\\226\\\\139\\\\177\\\"))\"))))))))(Secondary((id \
+         Typ))))))(shards(0))(children())))))))))))))))))))(model\"((text\\\"\\\\226\\\\139\\\\177\\\")(expanded \
+         false)(always_render false))\"))))))))(Secondary((id \
          d4a25c04-f684-46e1-8276-4bee74eebe71)(content(Whitespace\"\\n\")))))))))(Secondary((id \
          cfd3b46b-fcb5-452e-8550-c1c39a27763c)(content(Whitespace\"\\n\"))))(Secondary((id \
          a8c8fd3d-b8e5-4ab2-af0a-cbe93de759e9)(content(Whitespace\"\\n\")))))))))(Secondary((id \
