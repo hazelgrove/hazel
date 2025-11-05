@@ -4,16 +4,19 @@ open Virtual_dom.Vdom;
 open Language;
 
 module GraphData = {
+  [@deriving (show({with_path: false}), sexp, yojson)]
   type point = {
     x: float,
     y: float,
   };
 
+  [@deriving (show({with_path: false}), sexp, yojson)]
   type series = {
     label: string,
     points: list(point),
   };
 
+  [@deriving (show({with_path: false}), sexp, yojson)]
   type t = {
     series: list(series),
     title: option(string),
@@ -818,6 +821,36 @@ module Rendering = {
   };
 };
 
+let warning_indicator = (warnings: list(string)): option(Node.t) =>
+  switch (warnings) {
+  | [] => None
+  | _ =>
+    let tooltip = String.concat("\n", warnings);
+    Some(
+      Node.div(
+        ~attrs=
+          Attr.[
+            classes(["graph-warning-indicator"]),
+            title(tooltip),
+            create("role", "img"),
+            create("aria-label", tooltip),
+          ],
+        [Node.text("⚠")],
+      ),
+    );
+  };
+
+let wrap_with_warnings =
+    (~classes: list(string), content: list(Node.t), warnings: list(string))
+    : Node.t => {
+  let indicator_child =
+    switch (warning_indicator(warnings)) {
+    | None => []
+    | Some(node) => [node]
+    };
+  Node.div(~attrs=[Attr.classes(classes)], indicator_child @ content);
+};
+
 module M: Projector = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type model = unit;
@@ -838,40 +871,6 @@ module M: Projector = {
     };
 
   let update = (model: model, _info: info, _action: action): model => model;
-
-  let warning_indicator = (warnings: list(string)): option(Node.t) =>
-    switch (warnings) {
-    | [] => None
-    | _ =>
-      let tooltip = String.concat("\n", warnings);
-      Some(
-        Node.div(
-          ~attrs=
-            Attr.[
-              classes(["graph-warning-indicator"]),
-              title(tooltip),
-              create("role", "img"),
-              create("aria-label", tooltip),
-            ],
-          [Node.text("⚠")],
-        ),
-      );
-    };
-
-  let wrap_with_warnings =
-      (
-        ~classes: list(string),
-        content: list(Node.t),
-        warnings: list(string),
-      )
-      : Node.t => {
-    let indicator_child =
-      switch (warning_indicator(warnings)) {
-      | None => []
-      | Some(node) => [node]
-      };
-    Node.div(~attrs=[Attr.classes(classes)], indicator_child @ content);
-  };
 
   let build_error_view = (~message: string, ~warnings: list(string)): Node.t =>
     wrap_with_warnings(
