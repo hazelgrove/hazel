@@ -5,6 +5,38 @@ open Js_of_ocaml;
 
 module GraphData = GraphProj.GraphData;
 
+let default_width_blocks: int = 56; /* matches legacy graph placeholder */
+let default_height_blocks: int = 12;
+
+let min_width_blocks: int = 32; /* ensure margins + readable plot */
+let min_height_blocks: int = 8;
+
+let col_width = () => Util.font_metrics^.col_width;
+let row_height = () => Util.font_metrics^.row_height;
+
+let width_px_of_blocks = (blocks: int): float =>
+  float_of_int(blocks) *. col_width();
+
+let height_px_of_blocks = (blocks: int): float =>
+  float_of_int(blocks) *. row_height();
+
+let clamp_width_blocks = (blocks: int): int => max(min_width_blocks, blocks);
+let clamp_height_blocks = (blocks: int): int =>
+  max(min_height_blocks, blocks);
+
+let css_size_style = (width_blocks: int, height_blocks: int): string => {
+  let width_px = int_of_float(Float.ceil(width_px_of_blocks(width_blocks)));
+  let height_px =
+    int_of_float(Float.ceil(height_px_of_blocks(height_blocks)));
+  Printf.sprintf("width:%dpx;height:%dpx;", width_px, height_px);
+};
+
+[@deriving (show({with_path: false}), sexp, yojson)]
+type size_model = {
+  width_blocks: int,
+  height_blocks: int,
+};
+
 type plot_row = {
   series_label: string,
   x: float,
@@ -90,7 +122,14 @@ let plot_set_optional_string =
   | Some(text) => Js.Unsafe.set(config, key, plot_inject_string(text))
   };
 
-let plot_render = (data: GraphData.t, element: Js.t(Dom_html.element)): unit => {
+let plot_render =
+    (
+      ~width_blocks: int,
+      ~height_blocks: int,
+      data: GraphData.t,
+      element: Js.t(Dom_html.element),
+    )
+    : unit => {
   plot_clear_children(element);
   if (plot_runtime_available()) {
     let plot_global = Js.Unsafe.get(Js.Unsafe.global, "Plot");
@@ -101,14 +140,20 @@ let plot_render = (data: GraphData.t, element: Js.t(Dom_html.element)): unit => 
     let rows = List.rev(reversed_rows);
     let data_array = plot_rows_to_js_array(rows);
 
+    let width_px = width_px_of_blocks(width_blocks);
+    let height_px = height_px_of_blocks(height_blocks);
+
     let config =
       Js.Unsafe.obj([|
-        ("width", plot_inject_float(500.)),
-        ("height", plot_inject_float(250.)),
-        ("marginLeft", plot_inject_float(56.)),
-        ("marginRight", plot_inject_float(16.)),
-        ("marginTop", plot_inject_float(26.)),
-        ("marginBottom", plot_inject_float(36.)),
+        ("width", plot_inject_float(width_px)),
+        ("height", plot_inject_float(height_px)),
+        ("marginLeft", plot_inject_float(GraphProj.Rendering.margin_left)),
+        ("marginRight", plot_inject_float(GraphProj.Rendering.margin_right)),
+        ("marginTop", plot_inject_float(GraphProj.Rendering.margin_top)),
+        (
+          "marginBottom",
+          plot_inject_float(GraphProj.Rendering.margin_bottom),
+        ),
       |]);
 
     let (min_x, max_x) = data.x_bounds;
@@ -168,7 +213,11 @@ let plot_render = (data: GraphData.t, element: Js.t(Dom_html.element)): unit => 
 
 module PlotHookInput = {
   [@deriving (show({with_path: false}), sexp, yojson)]
-  type t = GraphData.t;
+  type t = {
+    graph: GraphData.t,
+    width_blocks: int,
+    height_blocks: int,
+  };
   let combine = (_left: t, right: t): t => right;
 };
 
@@ -187,7 +236,12 @@ module PlotHookImpl = {
   let on_mount =
       (input: Input.t, _state: State.t, element: Js.t(Dom_html.element))
       : unit =>
-    plot_render(input, element);
+    plot_render(
+      ~width_blocks=input.width_blocks,
+      ~height_blocks=input.height_blocks,
+      input.graph,
+      element,
+    );
 
   let update =
       (
@@ -198,7 +252,12 @@ module PlotHookImpl = {
       )
       : unit => {
     ignore(old_input);
-    plot_render(new_input, element);
+    plot_render(
+      ~width_blocks=new_input.width_blocks,
+      ~height_blocks=new_input.height_blocks,
+      new_input.graph,
+      element,
+    );
   };
 
   let destroy =
@@ -209,60 +268,235 @@ module PlotHookImpl = {
 
 module PlotHook = Virtual_dom.Vdom.Attr.Hooks.Make(PlotHookImpl);
 
-let observable_plot_attr = (data: GraphData.t): Attr.t =>
-  Attr.create_hook("hazel-observable-plot", PlotHook.create(data));
+let observable_plot_attr = (payload: PlotHookInput.t): Attr.t =>
+  Attr.create_hook("hazel-observable-plot", PlotHook.create(payload));
+
+module ResizeState = {
+  type t = {
+    pointer_id: int,
+    capture_target: Js.t(Dom_html.element),
+    start_client_x: float,
+    start_client_y: float,
+    start_width_blocks: int,
+    start_height_blocks: int,
+  };
+
+  let active: ref(option(t)) = ref(None);
+  let last_sent: ref(option((int, int))) = ref(None);
+  let dispatch: ref(option((int, int) => Effect.t(unit))) = ref(None);
+
+  let reset = (): unit => {
+    active := None;
+    last_sent := None;
+    dispatch := None;
+  };
+};
+
+let resize_pointerdown =
+    (
+      ~dispatch: (int, int) => Effect.t(unit),
+      model: size_model,
+      event: Js.t(Dom_html.pointerEvent),
+    ) =>
+  if (!Js.to_bool(event##.metaKey)) {
+    ResizeState.reset();
+    Effect.Ignore;
+  } else {
+    let target = Js.Opt.get(event##.currentTarget, () => failwith("resize"));
+    let element: Js.t(Dom_html.element) = Js.Unsafe.coerce(target);
+    JsUtil.setPointerCapture(element, event##.pointerId);
+    ResizeState.dispatch := Some(dispatch);
+    ResizeState.active :=
+      Some({
+        pointer_id: event##.pointerId,
+        capture_target: element,
+        start_client_x: float_of_int(event##.clientX),
+        start_client_y: float_of_int(event##.clientY),
+        start_width_blocks: model.width_blocks,
+        start_height_blocks: model.height_blocks,
+      });
+    ResizeState.last_sent := None;
+    Effect.Many([Effect.Stop_propagation, Effect.Prevent_default]);
+  };
+
+let resize_pointermove = (event: Js.t(Dom_html.pointerEvent)) => {
+  switch (ResizeState.active^, ResizeState.dispatch^) {
+  | (Some(state), Some(dispatch)) when state.pointer_id == event##.pointerId =>
+    let delta_x = float_of_int(event##.clientX) -. state.start_client_x;
+    let delta_y = float_of_int(event##.clientY) -. state.start_client_y;
+    let start_width_f = float_of_int(state.start_width_blocks);
+    let start_height_f = float_of_int(state.start_height_blocks);
+    let desired_width = start_width_f +. delta_x /. col_width();
+    let desired_height = start_height_f +. delta_y /. row_height();
+    let new_width_blocks =
+      if (desired_width >= start_width_f) {
+        int_of_float(Float.ceil(desired_width));
+      } else {
+        int_of_float(Float.floor(desired_width));
+      };
+    let new_height_blocks =
+      if (desired_height >= start_height_f) {
+        int_of_float(Float.ceil(desired_height));
+      } else {
+        int_of_float(Float.floor(desired_height));
+      };
+    let clamped_width = clamp_width_blocks(new_width_blocks);
+    let clamped_height = clamp_height_blocks(new_height_blocks);
+    let pair = (clamped_width, clamped_height);
+    if (ResizeState.last_sent^ == Some(pair)) {
+      Effect.Ignore;
+    } else {
+      ResizeState.last_sent := Some(pair);
+      Effect.Many([
+        dispatch(clamped_width, clamped_height),
+        Effect.Stop_propagation,
+        Effect.Prevent_default,
+      ]);
+    };
+  | _ => Effect.Ignore
+  };
+};
+
+let finish_resize = (event: Js.t(Dom_html.pointerEvent)): Effect.t(unit) => {
+  switch (ResizeState.active^) {
+  | Some(state) when state.pointer_id == event##.pointerId =>
+    if (JsUtil.hasPointerCapture(state.capture_target, state.pointer_id)) {
+      JsUtil.releasePointerCapture(state.capture_target, state.pointer_id);
+    };
+    ResizeState.reset();
+    Effect.Many([Effect.Stop_propagation, Effect.Prevent_default]);
+  | _ => Effect.Ignore
+  };
+};
+
+let dom_event_target: Js.t(Dom_html.eventTarget) =
+  Js.Unsafe.coerce(Dom_html.document);
+
+let _pointermove_listener =
+  Dom_html.addEventListener(
+    dom_event_target,
+    Dom_html.Event.make("pointermove"),
+    Dom.full_handler((_, event) => {
+      Virtual_dom.Vdom.Effect.Expert.handle(
+        event,
+        resize_pointermove(event),
+      );
+      Js._false;
+    }),
+    Js._false,
+  );
+
+let _pointerup_listener =
+  Dom_html.addEventListener(
+    dom_event_target,
+    Dom_html.Event.make("pointerup"),
+    Dom.full_handler((_, event) => {
+      Virtual_dom.Vdom.Effect.Expert.handle(event, finish_resize(event));
+      Js._false;
+    }),
+    Js._false,
+  );
 
 let runtime_missing_message: string = "Observable Plot runtime unavailable; ensure @observablehq/plot is bundled.";
 
-let build_plot_view = (data: GraphData.t, warnings: list(string)): Node.t => {
-  let container: Node.t =
+let build_plot_view =
+    (
+      ~model: size_model,
+      ~dispatch,
+      data: GraphData.t,
+      warnings: list(string),
+    )
+    : Node.t => {
+  let shell_style = css_size_style(model.width_blocks, model.height_blocks);
+  let chart =
     Node.div(
       ~attrs=[
-        Attr.classes(["observable-plot-canvas"]),
-        observable_plot_attr(data),
+        Attr.classes(["graph-chart", "observable-plot-chart"]),
+        Attr.create("style", "width:100%;height:100%;"),
+        observable_plot_attr({
+          graph: data,
+          width_blocks: model.width_blocks,
+          height_blocks: model.height_blocks,
+        }),
       ],
       [],
     );
+  let handle =
+    Node.div(
+      ~attrs=[
+        Attr.classes(["observable-plot-resize-handle"]),
+        Attr.on_pointerdown(resize_pointerdown(~dispatch, model)),
+      ],
+      [],
+    );
+  let shell =
+    Node.div(
+      ~attrs=[
+        Attr.classes(["observable-plot-shell"]),
+        Attr.create("style", shell_style),
+      ],
+      [chart, handle],
+    );
   GraphProj.wrap_with_warnings(
     ~classes=["graph-projector", "graph-observable-plot", "graph-has-data"],
-    [container],
+    [shell],
     warnings,
   );
 };
 
-let build_error_view = (warnings: list(string), message: string): Node.t =>
+let build_error_view = (warnings: list(string), message: string): Node.t => {
+  ResizeState.reset();
   GraphProj.wrap_with_warnings(
     ~classes=["graph-projector", "graph-error"],
     [Node.text(message)],
     warnings,
   );
-
-let placeholder_shape =
-  ProjectorCore.Shape.{
-    vertical: Block(12),
-    horizontal: 56,
-  };
+};
 
 let has_plot_runtime = plot_runtime_available;
 
 module M: Projector = {
   [@deriving (show({with_path: false}), sexp, yojson)]
-  type model = unit;
+  type model = size_model;
 
   [@deriving (show({with_path: false}), sexp, yojson)]
-  type action = unit;
+  type action =
+    | ResizeTo(int, int);
 
-  let init = (_: Language.Any.t): option(model) => Some();
+  let default_model: model = {
+    width_blocks: default_width_blocks,
+    height_blocks: default_height_blocks,
+  };
+
+  let derived_model_of_sexp = model_of_sexp;
+  let model_of_sexp = (sexp: Sexplib.Sexp.t): model =>
+    switch (derived_model_of_sexp(sexp)) {
+    | exception _ => default_model
+    | m => m
+    };
+
+  let init = (_: Language.Any.t): option(model) => Some(default_model);
 
   let focusable = Focusable.non;
 
   let dynamics = true;
 
-  let placeholder = (_model: model, _info: info): ProjectorCore.Shape.t => placeholder_shape;
+  let placeholder = (model: model, _info: info): ProjectorCore.Shape.t =>
+    ProjectorCore.Shape.{
+      vertical: Block(model.height_blocks),
+      horizontal: model.width_blocks,
+    };
 
-  let update = (model: model, _info: info, _action: action): model => model;
+  let update = (_model: model, _info: info, action: action): model =>
+    switch (action) {
+    | ResizeTo(width_blocks, height_blocks) => {
+        width_blocks: clamp_width_blocks(width_blocks),
+        height_blocks: clamp_height_blocks(height_blocks),
+      }
+    };
 
-  let view = ({info, status, _}: View.args(model, action)): View.t => {
+  let view =
+      ({model, info, local, status, _}: View.args(model, action)): View.t => {
     let indicated_class: list(string) =
       switch (status.indication) {
       | Some(_) => ["indicated"]
@@ -283,7 +517,14 @@ module M: Projector = {
           build_error_view(decoded.warnings, "Unable to render graph data")
         | Some(graph_data) =>
           if (has_plot_runtime()) {
-            build_plot_view(graph_data, decoded.warnings);
+            build_plot_view(
+              ~model,
+              ~dispatch=
+                (width_blocks, height_blocks) =>
+                  local(ResizeTo(width_blocks, height_blocks)),
+              graph_data,
+              decoded.warnings,
+            );
           } else {
             build_error_view(decoded.warnings, runtime_missing_message);
           }

@@ -35,6 +35,31 @@
   gap: 0.4em;
 }
 
+.graph-projector .observable-plot-shell {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.graph-projector .observable-plot-chart {
+  width: 100%;
+  height: 100%;
+}
+
+.graph-projector .observable-plot-resize-handle {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  width: 14px;
+  height: 14px;
+  cursor: nwse-resize;
+  background: linear-gradient(135deg, transparent 50%, rgba(0, 0, 0, 0.25) 50%);
+  border-top: 1px solid rgba(0, 0, 0, 0.15);
+  border-left: 1px solid rgba(0, 0, 0, 0.15);
+  border-top-left-radius: 2px;
+}
+
 .graph-chart {
   width: calc(100% - 12px);
   height: auto;

@@ -12,6 +12,7 @@
   - `PlotHookImpl.update` → reruns `plot_render` whenever the sample value changes (e.g., probe updates).
   - `PlotHookImpl.destroy` → clears the container to avoid lingering DOM when the projector unmounts.
 - **Warning surface:** Rendering still funnels through `GraphProj.wrap_with_warnings`, so decode issues, missing data, or runtime absence show up identically to the original projector (`build_error_view`). The only new branch is the “runtime unavailable” message when `window.Plot` is missing.
+- **Resizable placeholder:** The projector now stores its grid footprint (`width_blocks`/`height_blocks`) in the model, with defaults of 56×12 blocks and minimums of 32×8. A command-drag on the bottom-right handle dispatches resize actions, updating the placeholder and Plot canvas dimensions in lockstep.
 
 ### 2. Observable Plot API Design Considerations & Future Work
 
