@@ -3,8 +3,6 @@ open Virtual_dom.Vdom;
 open ProjectorBase;
 open Language;
 open CardTypes;
-open CardSyntax;
-open CardUtil;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type mode =
@@ -141,7 +139,7 @@ module SyntaxTerm = {
 
   let string_to_rank = CardSyntax.string_to_rank;
 
-  let rec exp_to_card = CardSyntax.exp_to_card;
+  let exp_to_card = CardSyntax.exp_to_card;
 
   let rec pat_to_card = (term: pat): option(card) => {
     switch (term.term) {
