@@ -147,6 +147,8 @@ module DynCursor = {
     s.pinned_call = None;
   };
 
+  let get_pinned_call = () => s.pinned_call;
+
   let capture_cursor = (closure: closure): unit => {
     s.call_cursor = closure.call_stack;
   };

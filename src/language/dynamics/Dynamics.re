@@ -141,6 +141,30 @@ module Map = {
   let empty: t = Probe.Map.empty;
   let mk: t => t = Fun.id;
   let lookup = Probe.Map.lookup;
+
+  /* Filter closures based on pinned call stack.
+   * If no call is pinned, returns all closures.
+   * If a call is pinned, returns only closures where the pinned
+   * call stack is a suffix of the closure's call stack. */
+  let filter_closures_by_pin =
+      (pinned_call: option(list(Id.t)), closures: list(Probe.Closure.t))
+      : list(Probe.Closure.t) =>
+    switch (pinned_call) {
+    | Some(pinned_stack) =>
+      List.filter(
+        (closure: Probe.Closure.t) =>
+          ListUtil.is_suffix_of(pinned_stack, closure.call_stack),
+        closures,
+      )
+    | None => closures
+    };
+
+  /* Apply closure filtering to all probes in the map */
+  let filter_all_by_pin = (pinned_call: option(list(Id.t)), map: t): t =>
+    Id.Map.map(
+      closures => filter_closures_by_pin(pinned_call, closures),
+      map,
+    );
 };
 
 [@deriving (show({with_path: false}), sexp, yojson)]

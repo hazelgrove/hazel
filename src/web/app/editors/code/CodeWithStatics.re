@@ -127,16 +127,23 @@ module Update = {
           dynamic_statics
           |> {
             let.calc dynamics = dynamics;
+
+            // Get the current pinned call from the global cursor
+            let pinned_call = Haz3lcore.ProbeProj.DynCursor.get_pinned_call();
+
+            // Filter closures based on the pinned call
+            let filtered_dynamics =
+              Language.Dynamics.Map.filter_all_by_pin(pinned_call, dynamics);
+
             let dynamic_expressions: Id.Map.t(list(TermBase.exp_t)) =
               Id.Map.map(
                 d => {
                   open Language;
-                  // TODO If we can deal with the circular dependencies it would be great to keep the full closure and filter to the closure selector for the statics.
                   let exps =
                     List.map((c: Dynamics.Probe.Closure.t) => c.value, d);
                   exps;
                 },
-                dynamics,
+                filtered_dynamics,
               );
 
             let dynamic_info_map =
