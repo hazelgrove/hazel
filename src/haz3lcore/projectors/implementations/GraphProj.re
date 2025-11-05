@@ -352,8 +352,8 @@ module Palette = {
 };
 
 module Rendering = {
-  let svg_width: float = 240.;
-  let svg_height: float = 140.;
+  let svg_width: float = 500.;
+  let svg_height: float = 250.;
   let margin_left: float = 56.;
   let margin_right: float = 16.;
   let margin_top: float = 26.;

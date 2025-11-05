@@ -13,9 +13,12 @@
   fill: var(--G2);
 } */
 
-.graph-projector {
-  width: 92%;
+.projector.graph .graph-projector {
+  width: 93%;
   /* height: 100%; */
+}
+.graph-projector {
+  margin: 0.5em;
   display: flex;
   align-items: center;
   justify-content: center;
