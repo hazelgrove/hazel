@@ -683,6 +683,7 @@ let render =
     (
       ~info: info,
       ~exp: Exp.t,
+      ~value: value,
       ~view_seg: (Sort.t, Segment.t) => Node.t,
       ~model: model, /* (column_index, menu_path) */
       ~local: action => Ui_effect.t(unit),

@@ -24,7 +24,7 @@ type packed_renderer = {
       ~parent: external_action => Ui_effect.t(unit),
       unit
     ) =>
-    Node.t,
+    option(Node.t),
   update_packed: (string, string) => string,
   badge: Node.t,
 };
@@ -58,16 +58,24 @@ let pack_renderer =
       serialize_model(m);
     },
     render_packed: (model_str, ~info, ~exp, ~view_seg, ~local, ~parent, ()) => {
+      let v = R.parse(exp);
       let model = model_str |> Sexplib.Sexp.of_string |> R.model_of_sexp;
-      R.render(
-        ~info,
-        ~exp,
-        ~view_seg,
-        ~model,
-        ~local=action => local(serialize_action(action)),
-        ~parent,
-        (),
-      );
+      switch (v) {
+      | Some(value) =>
+        Some(
+          R.render(
+            ~info,
+            ~exp,
+            ~value,
+            ~view_seg,
+            ~model,
+            ~local=action => local(serialize_action(action)),
+            ~parent,
+            (),
+          ),
+        )
+      | None => None
+      };
     },
     update_packed: (model_str, action_str) =>
       R.update(deserialize_model(model_str), deserialize_action(action_str))
@@ -1321,38 +1329,44 @@ module M: Projector = {
         ~local: action => Ui_effect.t(unit),
         ~parent,
         ~view_seg,
-      ) => {
+      )
+      : list(Node.t) => {
     switch (model.active_renderer, get_current(~settings, info)) {
     | (Some({renderer_id, model_state, _}), Some(exp)) =>
       /* Find the renderer and check if it can still handle the expression */
       switch (List.find_opt(r => r.id == renderer_id, renderers)) {
       | Some(renderer) when renderer.can_handle(exp) =>
-        div(
-          ~attrs=[Attr.classes(["modal-backdrop", "live-offside"])],
-          [
+        let rendered =
+          renderer.render_packed(
+            model_state,
+            ~info,
+            ~exp,
+            ~view_seg,
+            ~local=action => local(RendererAction(action)),
+            ~parent,
+            (),
+          );
+        switch (rendered) {
+        | None => []
+        | Some(content) => [
             div(
-              ~attrs=[
-                Attr.classes(["modal"]),
-                Attr.on_click(_ => Effect.Stop_propagation),
-              ],
+              ~attrs=[Attr.classes(["modal-backdrop", "live-offside"])],
               [
-                /* Renderer content */
-                renderer.render_packed(
-                  model_state,
-                  ~info,
-                  ~exp,
-                  ~view_seg,
-                  ~local=action => local(RendererAction(action)),
-                  ~parent,
-                  (),
+                div(
+                  ~attrs=[
+                    Attr.classes(["modal"]),
+                    Attr.on_click(_ => Effect.Stop_propagation),
+                  ],
+                  [content],
                 ),
               ],
             ),
-          ],
-        )
-      | _ => Node.div([])
+          ]
+        };
+
+      | _ => []
       }
-    | _ => Node.div([])
+    | _ => []
     };
   };
   let view =
@@ -1372,17 +1386,26 @@ module M: Projector = {
         },
       offside:
         Some(
-          div([
-            offside_view(
-              ~settings,
-              info,
-              local,
-              parent,
-              view_seg,
-              info.utility,
-            ),
-            modal_overlay(~settings, model, info, ~local, ~parent, ~view_seg),
-          ]),
+          div(
+            [
+              offside_view(
+                ~settings,
+                info,
+                local,
+                parent,
+                view_seg,
+                info.utility,
+              ),
+            ]
+            @ modal_overlay(
+                ~settings,
+                model,
+                info,
+                ~local,
+                ~parent,
+                ~view_seg,
+              ),
+          ),
         ),
     };
   };

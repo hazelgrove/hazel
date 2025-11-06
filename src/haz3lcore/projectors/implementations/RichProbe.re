@@ -35,6 +35,7 @@ module type RichProbe = {
     (
       ~info: info,
       ~exp: Exp.t,
+      ~value: value,
       ~view_seg: (Sort.t, Segment.t) => Node.t,
       ~model: model,
       ~local: action => Ui_effect.t(unit),

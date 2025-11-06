@@ -295,6 +295,7 @@ let render =
     (
       ~info: info,
       ~exp: Exp.t,
+      ~value: value,
       ~view_seg as _: (Sort.t, Segment.t) => Node.t,
       ~model: m,
       ~local: a => Ui_effect.t(unit),
