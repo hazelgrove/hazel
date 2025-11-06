@@ -40,6 +40,7 @@ module type RichProbe = {
       ~model: model,
       ~local: action => Ui_effect.t(unit),
       ~parent: external_action => Ui_effect.t(unit),
+      ~sort: Sort.t,
       unit
     ) =>
     Node.t;

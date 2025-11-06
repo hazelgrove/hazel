@@ -294,15 +294,16 @@ let init = (_: state) => {mode: Show};
 let render =
     (
       ~info: info,
-      ~exp: Exp.t,
+      ~exp as _: Exp.t,
       ~value: value,
       ~view_seg as _: (Sort.t, Segment.t) => Node.t,
       ~model: m,
       ~local: a => Ui_effect.t(unit),
       ~parent: external_action => Ui_effect.t(unit),
+      ~sort as _: Sort.t,
       (),
     ) =>
-  switch (parse(exp) |> Option.get) {
+  switch (value) {
   | Card(card) =>
     Singleton.view(info, model.mode, parent, Sort.Exp, card, local)
   | Hand(hand) => Hand.view(info, model.mode, parent, Sort.Exp, hand, local)

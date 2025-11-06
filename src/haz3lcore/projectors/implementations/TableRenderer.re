@@ -688,6 +688,7 @@ let render =
       ~model: model, /* (column_index, menu_path) */
       ~local: action => Ui_effect.t(unit),
       ~parent: external_action => Ui_effect.t(unit),
+      ~sort: Sort.t,
       _: unit,
     )
     : Node.t => {

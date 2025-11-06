@@ -22,6 +22,7 @@ type packed_renderer = {
       ~view_seg: (Sort.t, Segment.t) => Node.t,
       ~local: string => Ui_effect.t(unit),
       ~parent: external_action => Ui_effect.t(unit),
+      ~sort: Sort.t,
       unit
     ) =>
     option(Node.t),
@@ -57,7 +58,8 @@ let pack_renderer =
       let m = R.init(v);
       serialize_model(m);
     },
-    render_packed: (model_str, ~info, ~exp, ~view_seg, ~local, ~parent, ()) => {
+    render_packed:
+      (model_str, ~info, ~exp, ~view_seg, ~local, ~parent, ~sort, ()) => {
       let v = R.parse(exp);
       let model = model_str |> Sexplib.Sexp.of_string |> R.model_of_sexp;
       switch (v) {
@@ -71,6 +73,7 @@ let pack_renderer =
             ~model,
             ~local=action => local(serialize_action(action)),
             ~parent,
+            ~sort,
             (),
           ),
         )
@@ -1329,6 +1332,7 @@ module M: Projector = {
         ~local: action => Ui_effect.t(unit),
         ~parent,
         ~view_seg,
+        ~sort,
       )
       : list(Node.t) => {
     switch (model.active_renderer, get_current(~settings, info)) {
@@ -1344,6 +1348,7 @@ module M: Projector = {
             ~view_seg,
             ~local=action => local(RendererAction(action)),
             ~parent,
+            ~sort,
             (),
           );
         switch (rendered) {
@@ -1370,8 +1375,12 @@ module M: Projector = {
     };
   };
   let view =
-      ({info, local, parent, view_seg, model, _}: View.args(model, action)) => {
+      (
+        {info, local, parent, view_seg, model, status, _}:
+          View.args(model, action),
+      ) => {
     let settings = Settings.s^;
+    let sort = status.sort;
     View.{
       inline: Node.div([]),
       // switch (info.syntax) {
@@ -1404,6 +1413,7 @@ module M: Projector = {
                 ~local,
                 ~parent,
                 ~view_seg,
+                ~sort,
               ),
           ),
         ),

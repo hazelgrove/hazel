@@ -177,7 +177,17 @@ let init = (_v: int) => None;
 
 /* Main calculator rendering function */
 let render =
-    (~info, ~exp, ~value: value, ~view_seg as _, ~model, ~local, ~parent, ()) => {
+    (
+      ~info,
+      ~exp,
+      ~value: value,
+      ~view_seg as _,
+      ~model,
+      ~local,
+      ~parent,
+      ~sort,
+      (),
+    ) => {
   let value = parse(exp) |> Option.get; // TODO Move the parse to the callsite
   let state_opt =
     switch (model) {
