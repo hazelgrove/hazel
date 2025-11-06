@@ -62,6 +62,7 @@ depends: [
   "crunch" {= "4.0.0" & with-doc}
   "cryptokit" {= "1.16.1"}
   "csexp" {= "1.5.2"}
+  "csv" {= "2.4"}
   "ctypes" {= "0.23.0"}
   "ctypes-foreign" {= "0.23.0"}
   "diffable" {= "v0.16.0"}

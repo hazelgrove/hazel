@@ -27,7 +27,8 @@ module Kind = {
     | Card
     | Livelit
     | TextArea
-    | Table;
+    | Table
+    | Csv;
 
   let livelit_projectors: list(t) = [
     Checkbox,
@@ -37,6 +38,7 @@ module Kind = {
     Card,
     Livelit,
     Table,
+    Csv,
   ];
 
   let projectors: list(t) = livelit_projectors @ [Fold, Info, Probe];
@@ -56,6 +58,7 @@ module Kind = {
     | Livelit => "livelit"
     | TextArea => "text"
     | Table => "table"
+    | Csv => "csv"
     };
 
   /* This must be updated and kept 1-to-1 with the above
@@ -73,6 +76,7 @@ module Kind = {
     | "livelit" => Livelit
     | "card" => Card
     | "table" => Table
+    | "csv" => Csv
     | _ => failwith("Unknown projector kind")
     };
 
