@@ -100,8 +100,7 @@ type action =
   | ChangeLength(int, int)
   | ToggleShowAllVals(int)
   | NoOp
-  | OpenModal
-  | CloseModal
+  | ToggleModal
   | RendererAction(string);
 
 module Settings = {
@@ -656,7 +655,7 @@ let value_view =
     |> List.map(r =>
          span(
            ~attrs=[
-             Attr.on_click(_ => local(OpenModal)),
+             Attr.on_click(_ => {local(ToggleModal)}),
              Attr.classes(["renderer-badge"]),
            ],
            [r.badge],
@@ -1269,30 +1268,33 @@ module M: Projector = {
       Settings.go(ToggleWindow);
       model;
     | NoOp => model
-    | OpenModal =>
-      /* Find first compatible renderer and initialize it */
-      switch (get_current(~settings=Settings.s^, info)) {
-      | Some(exp) =>
-        switch (find_compatible_renderer(exp)) {
-        | Some(renderer) =>
-          switch (renderer.parse_packed(exp)) {
-          | Some(value_state) =>
-            let model_state = renderer.init_packed(value_state);
-            {
-              active_renderer:
-                Some({
-                  renderer_id: renderer.id,
-                  model_state,
-                  value_state,
-                }),
-            };
+    | ToggleModal =>
+      switch (model.active_renderer) {
+      | None =>
+        /* Find first compatible renderer and initialize it */
+        switch (get_current(~settings=Settings.s^, info)) {
+        | Some(exp) =>
+          switch (find_compatible_renderer(exp)) {
+          | Some(renderer) =>
+            switch (renderer.parse_packed(exp)) {
+            | Some(value_state) =>
+              let model_state = renderer.init_packed(value_state);
+              {
+                active_renderer:
+                  Some({
+                    renderer_id: renderer.id,
+                    model_state,
+                    value_state,
+                  }),
+              };
+            | None => model
+            }
           | None => model
           }
         | None => model
         }
-      | None => model
+      | Some(_) => {active_renderer: None}
       }
-    | CloseModal => {active_renderer: None}
     | RendererAction(serialized_action) =>
       /* Route action to active renderer */
       switch (model.active_renderer) {
@@ -1337,14 +1339,6 @@ module M: Projector = {
                 Attr.on_click(_ => Effect.Stop_propagation),
               ],
               [
-                /* Close button */
-                div(
-                  ~attrs=[
-                    Attr.classes(["modal-close"]),
-                    Attr.on_click(_ => local(CloseModal)),
-                  ],
-                  [Node.text("×")],
-                ),
                 /* Renderer content */
                 renderer.render_packed(
                   model_state,
