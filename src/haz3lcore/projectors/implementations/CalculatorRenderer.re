@@ -64,9 +64,9 @@ and op_to_string = op =>
   };
 
 /* Parse an integer expression into its value */
-let parse = (exp: Exp.t) =>
-  switch (exp.term) {
-  | Atom(atom) =>
+let parse = (sort: Sort.t, exp: Exp.t) =>
+  switch (sort, exp.term) {
+  | (Exp, Atom(atom)) =>
     switch (atom) {
     | Atom.SInt(value) => Some(value)
     | Atom.Int(bigint) =>

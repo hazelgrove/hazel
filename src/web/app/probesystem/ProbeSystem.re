@@ -156,7 +156,8 @@ let legend_sample_view =
       ~cursor_stack: list(Id.t),
       ~sample_stack: list(Id.t),
       ~caption: string,
-    ): Node.t => {
+    )
+    : Node.t => {
   let sample: Language.Sample.t = {
     id: 0,
     syntax_id: Id.invalid,

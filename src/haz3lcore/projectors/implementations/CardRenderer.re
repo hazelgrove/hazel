@@ -285,7 +285,8 @@ module Hand = {
 };
 
 /* Parse an expression into card/hand value */
-let parse = (exp: Exp.t) => SyntaxTerm.any_to_state(Exp(exp));
+let parse = (_sort: Sort.t, exp: Exp.t) =>
+  SyntaxTerm.any_to_state(Exp(exp));
 
 /* Initialize card renderer model from parsed value */
 let init = (_: state) => {mode: Show};

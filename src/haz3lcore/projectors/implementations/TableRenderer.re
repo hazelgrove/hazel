@@ -61,7 +61,7 @@ let icon_button = (~tooltip="", icon_text, action) =>
 let max_column_length = 12;
 
 /* Parse an expression into table structure */
-let parse = (exp: Exp.t) => {
+let parse = (_sort: Sort.t, exp: Exp.t) => {
   switch (exp.term) {
   | ListLit(es) =>
     let data: list(option((list(string), list(TermBase.exp_t)))) =

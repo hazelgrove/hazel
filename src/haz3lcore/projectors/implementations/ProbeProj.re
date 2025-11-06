@@ -11,8 +11,8 @@ type sample = Sample.t;
 /* Packed renderer type for heterogeneous renderer storage */
 type packed_renderer = {
   id: string,
-  can_handle: Exp.t => bool,
-  parse_packed: Exp.t => option(string),
+  can_handle: (Sort.t, Exp.t) => bool,
+  parse_packed: (Sort.t, Exp.t) => option(string),
   init_packed: string => string,
   render_packed:
     (
@@ -51,8 +51,9 @@ let pack_renderer =
 
   {
     id,
-    can_handle: exp => Option.is_some(R.parse(exp)),
-    parse_packed: exp => R.parse(exp) |> Option.map(serialize_value),
+    can_handle: (sort, exp) => Option.is_some(R.parse(sort, exp)),
+    parse_packed: (sort, exp) =>
+      R.parse(sort, exp) |> Option.map(serialize_value),
     init_packed: value_str => {
       let v = value_str |> Sexplib.Sexp.of_string |> R.value_of_sexp;
       let m = R.init(v);
@@ -60,7 +61,7 @@ let pack_renderer =
     },
     render_packed:
       (model_str, ~info, ~exp, ~view_seg, ~local, ~parent, ~sort, ()) => {
-      let v = R.parse(exp);
+      let v = R.parse(sort, exp);
       let model = model_str |> Sexplib.Sexp.of_string |> R.model_of_sexp;
       switch (v) {
       | Some(value) =>
@@ -110,7 +111,7 @@ type action =
   | ChangeLength(int, int)
   | ToggleShowAllVals(int)
   | NoOp
-  | ToggleModal
+  | ToggleModal(oactive_renderer)
   | RendererAction(string);
 
 module Settings = {
@@ -593,8 +594,9 @@ let renderers: list(packed_renderer) = [
 ];
 
 /* Find first compatible renderer for an expression */
-let find_compatible_renderer = (exp: Exp.t): option(packed_renderer) =>
-  List.find_opt(r => r.can_handle(exp), renderers);
+let find_compatible_renderer =
+    (sort: Sort.t, exp: Exp.t): option(packed_renderer) =>
+  List.find_opt(r => r.can_handle(sort, exp), renderers);
 let pin_call = (~parent, ~ap_id: option(Id.t), ~di: Dynamics.Info.t) =>
   switch (ap_id, Dynamics.Info.is_in(di)) {
   | (Some(ap_id), Some(dyn_cursor)) =>
@@ -662,11 +664,24 @@ let value_view =
   /* Get badges for all compatible renderers for this specific value */
   let compatible_badges =
     renderers
-    |> List.filter(r => r.can_handle(sample.value))
+    |> List.filter(r => r.can_handle(sort, sample.value))
     |> List.map(r =>
          span(
            ~attrs=[
-             Attr.on_click(_ => {local(ToggleModal)}),
+             Attr.on_click(_ => {
+               let exp = sample.value;
+               let oactive =
+                 switch (r.parse_packed(sort, exp)) {
+                 | Some(value_state) =>
+                   let model_state = r.init_packed(value_state);
+                   Some({
+                     renderer_id: r.id,
+                     model_state,
+                   });
+                 | None => None
+                 };
+               local(ToggleModal(oactive));
+             }),
              Attr.classes(["renderer-badge"]),
            ],
            [r.badge],
@@ -1228,13 +1243,13 @@ let get_current = (~settings, info: info) => {
   };
 };
 
-let overlay_view = (~settings, _model: probe_model, info: info): Node.t =>
+let overlay_view = (~settings, ~sort, _model: probe_model, info: info): Node.t =>
   switch (info.dynamics) {
   | Some(di) =>
     let ap_id = DynCursor.cur_ap(info.statics);
     let has_renderer =
       switch (get_current(~settings, info)) {
-      | Some(exp) => Option.is_some(find_compatible_renderer(exp))
+      | Some(exp) => Option.is_some(find_compatible_renderer(sort, exp))
       | None => false
       };
     div(
@@ -1282,7 +1297,7 @@ module M: Projector = {
       /*2 +*/ String.length(syntax_str(info.utility, info.syntax)),
     );
 
-  let update = (model: probe_model, info: info, action: action) => {
+  let update = (model: probe_model, _info: info, action: action) => {
     switch (action) {
     | ChangeLength(id, len) =>
       ClosureLength.set(id, len);
@@ -1291,30 +1306,9 @@ module M: Projector = {
       Settings.go(ToggleWindow);
       model;
     | NoOp => model
-    | ToggleModal =>
+    | ToggleModal(renderer) =>
       switch (model.active_renderer) {
-      | None =>
-        /* Find first compatible renderer and initialize it */
-        switch (get_current(~settings=Settings.s^, info)) {
-        | Some(exp) =>
-          switch (find_compatible_renderer(exp)) {
-          | Some(renderer) =>
-            switch (renderer.parse_packed(exp)) {
-            | Some(value_state) =>
-              let model_state = renderer.init_packed(value_state);
-              {
-                active_renderer:
-                  Some({
-                    renderer_id: renderer.id,
-                    model_state,
-                  }),
-              };
-            | None => model
-            }
-          | None => model
-          }
-        | None => model
-        }
+      | None => {active_renderer: renderer}
       | Some(_) => {active_renderer: None}
       }
     | RendererAction(serialized_action) =>
@@ -1352,7 +1346,7 @@ module M: Projector = {
     | (Some({renderer_id, model_state, _}), Some(exp)) =>
       /* Find the renderer and check if it can still handle the expression */
       switch (List.find_opt(r => r.id == renderer_id, renderers)) {
-      | Some(renderer) when renderer.can_handle(exp) =>
+      | Some(renderer) when renderer.can_handle(sort, exp) =>
         let rendered =
           renderer.render_packed(
             model_state,
@@ -1403,8 +1397,8 @@ module M: Projector = {
       overlay:
         switch (info.syntax) {
         | [Grout({id, _})] when id == Id.invalid =>
-          Some(overlay_view(~settings, model, info))
-        | _ => Some(overlay_view(~settings, model, info))
+          Some(overlay_view(~settings, ~sort, model, info))
+        | _ => Some(overlay_view(~settings, ~sort, model, info))
         },
       offside:
         Some(

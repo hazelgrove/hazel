@@ -25,7 +25,7 @@ module type RichProbe = {
   let update: (model, action) => model;
   /* Parse an expression into its domain-specific value representation.
      This extracts the structured data needed for interactive visualization. */
-  let parse: Exp.t => option(value);
+  let parse: (Sort.t, Exp.t) => option(value);
   /* Initialize the probe's state from a parsed value. Assumes value is valid. */
   let init: value => model;
 
