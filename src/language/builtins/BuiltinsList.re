@@ -2880,6 +2880,202 @@ let go: ([?], [?], [?]) -> [?] =
         Fresh.(Exp.(var("zip")));
       },
     },
+    {
+      str: {|fun xs ->
+  fold_left(xs, fun (seen, x) ->if mem(seen,x) then seen else seen @ [x], []))|},
+      name: "unique",
+      arg: List(unknown(Internal)),
+      ret: List(unknown(Internal)),
+      imp: {
+        Fresh.(
+          Exp.(
+            fix_f(
+              Pat.var("unique"),
+              fn(
+                Pat.var("xs"),
+                ap(
+                  Forward,
+                  var("fold_left"),
+                  tuple([
+                    var("xs"),
+                    fn(
+                      Pat.tuple([Pat.var("seen"), Pat.var("x")]),
+                      if_(
+                        ap(
+                          Forward,
+                          var("mem"),
+                          tuple([var("seen"), var("x")]),
+                        ),
+                        var("seen"),
+                        ap(
+                          Forward,
+                          var("append"),
+                          tuple([var("seen"), list_lit([var("x")])]),
+                        ),
+                      ),
+                      None,
+                      None,
+                    ),
+                    list_lit([]),
+                  ]),
+                ),
+                None,
+                None,
+              ),
+              None,
+            )
+          )
+        );
+      },
+    },
+    {
+      /*
+        let pivot_table = fun (table, new_col, index, value) ->
+        let indices = map(table, index) |> unique in
+        let new_cols = map(table, new_col) |> unique in
+
+        map(indices, fun idx ->
+          (index=idx) ...
+          (map(new_cols, fun col ->
+            (label=col,
+              value=filter(table, fun r -> index(r) == idx && new_col(r) == col)
+              |>value)
+          ) |> from_lvs)
+        )
+       in
+       */
+
+      str: {|fun (table, new_col, index, value) ->
+  let indices = map(table, index) |> unique in
+  let new_cols = map(table, new_col) |> unique in
+
+  map(indices, fun idx ->
+    (index=idx) ...
+    (map(new_cols, fun col ->
+      (label=col,
+        value=filter(table, fun r -> index(r) == idx && new_col(r) == col)
+        |>value)
+    ) |> from_lvs)
+  )|},
+      name: "pivot_table",
+      arg:
+        Prod([
+          list(unknown(Internal)),
+          arrow(unknown(Internal), unknown(Internal)),
+          arrow(unknown(Internal), unknown(Internal)),
+          arrow(unknown(Internal), unknown(Internal)),
+        ]),
+      ret: List(unknown(Internal)),
+      imp: {
+        open Fresh;
+        open Exp;
+        let indices =
+          ap(
+            Reverse,
+            var("unique"),
+            ap(Forward, var("map"), tuple([var("table"), var("index")])),
+          );
+        let new_cols =
+          ap(
+            Reverse,
+            var("unique"),
+            ap(
+              Forward,
+              var("map"),
+              tuple([var("table"), var("new_col")]),
+            ),
+          );
+
+        // filter(table, fun r -> index(r) == idx && new_col(r) == col)
+        let filtered_values =
+          ap(
+            Forward,
+            var("filter"),
+            tuple([
+              var("table"),
+              fn(
+                Pat.var("r"),
+                bin_op(
+                  Bool(And),
+                  bin_op(
+                    Poly(Equals),
+                    ap(Forward, var("index"), var("r")),
+                    var("idx"),
+                  ),
+                  bin_op(
+                    Poly(Equals),
+                    ap(Forward, var("new_col"), var("r")),
+                    var("col"),
+                  ),
+                ),
+                None,
+                None,
+              ),
+            ]),
+          );
+        /*   (label=col,
+             value=filter(table, fun r -> index(r) == idx && new_col(r) == col)
+             |>value) */
+        let lvs =
+          tuple([
+            tup_label(label("label"), var("col")),
+            tup_label(
+              label("value"),
+              ap(Forward, var("value"), filtered_values),
+            ),
+          ]);
+
+        let from_lvs =
+          ap(
+            Reverse,
+            var("from_lvs"),
+            ap(
+              Forward,
+              var("map"),
+              tuple([
+                var("new_cols"),
+                fn(Pat.var("col"), lvs, None, None),
+              ]),
+            ),
+          );
+
+        let mapped =
+          ap(
+            Forward,
+            var("map"),
+            tuple([
+              var("indices"),
+              fn(
+                Pat.var("idx"),
+                tuple_extension(
+                  tuple([tup_label(label("index"), var("idx"))]),
+                  from_lvs,
+                ),
+                None,
+                None,
+              ),
+            ]),
+          );
+
+        let fn =
+          fn(
+            Pat.tuple([
+              Pat.var("table"),
+              Pat.var("new_col"),
+              Pat.var("index"),
+              Pat.var("value"),
+            ]),
+            let_(
+              Pat.var("indices"),
+              indices,
+              let_(Pat.var("new_cols"), new_cols, mapped),
+            ),
+            None,
+            None,
+          );
+        fix_f(Pat.var("pivot_table"), fn, None);
+      },
+    },
   ]
   // De-alias all aliases
   |> Util.ListUtil.map_with_history((prev, curr) =>

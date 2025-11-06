@@ -446,5 +446,29 @@ let tests = (
         );
       },
     ),
+    test_case("unique", `Quick, () =>
+      parse_and_evaluate_test({|[1, 2, 3]|}, {|unique([1, 2, 2, 3, 1, 3])|})
+    ),
+    test_case("pivot_table", `Quick, () =>
+      parse_and_evaluate_test(
+        {|
+      [(index="x", `A`=2, `B`=1, `C`=0), (index="y", `A`=1, `B`=1, `C`=1)]
+      |},
+        {|pivot_table(
+  [
+    ("A", "x"),
+    ("A", "y"),
+    ("B", "x"),
+    ("B", "y"),
+    ("A", "x"),
+    ("C", "y")
+  ],
+  fun (r, _) -> r,
+  fun (_, c) -> c,
+  length
+)
+|},
+      )
+    ),
   ],
 );
