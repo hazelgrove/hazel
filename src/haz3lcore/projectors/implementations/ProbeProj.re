@@ -17,7 +17,6 @@ type packed_renderer = {
   render_packed:
     (
       string,
-      string,
       ~info: info,
       ~exp: Exp.t,
       ~view_seg: (Sort.t, Segment.t) => Node.t,
@@ -58,14 +57,11 @@ let pack_renderer =
       let m = R.init(v);
       serialize_model(m);
     },
-    render_packed:
-      (model_str, value_str, ~info, ~exp, ~view_seg, ~local, ~parent, ()) => {
-      let value = value_str |> Sexplib.Sexp.of_string |> R.value_of_sexp;
+    render_packed: (model_str, ~info, ~exp, ~view_seg, ~local, ~parent, ()) => {
       let model = model_str |> Sexplib.Sexp.of_string |> R.model_of_sexp;
       R.render(
         ~info,
         ~exp,
-        ~value,
         ~view_seg,
         ~model,
         ~local=action => local(serialize_action(action)),
@@ -1328,7 +1324,7 @@ module M: Projector = {
         ~view_seg,
       ) => {
     switch (model.active_renderer, get_current(~settings, info)) {
-    | (Some({renderer_id, model_state, value_state}), Some(exp)) =>
+    | (Some({renderer_id, model_state, _}), Some(exp)) =>
       /* Find the renderer and check if it can still handle the expression */
       switch (List.find_opt(r => r.id == renderer_id, renderers)) {
       | Some(renderer) when renderer.can_handle(exp) =>
@@ -1352,7 +1348,6 @@ module M: Projector = {
                 /* Renderer content */
                 renderer.render_packed(
                   model_state,
-                  value_state,
                   ~info,
                   ~exp,
                   ~view_seg,

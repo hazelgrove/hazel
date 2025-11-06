@@ -286,15 +286,14 @@ let init = (_: state) => {mode: Show};
 let render =
     (
       ~info: info,
-      ~exp as _: Exp.t,
-      ~value: state,
+      ~exp: Exp.t,
       ~view_seg as _: (Sort.t, Segment.t) => Node.t,
       ~model: m,
       ~local: a => Ui_effect.t(unit),
       ~parent: external_action => Ui_effect.t(unit),
       (),
     ) =>
-  switch (value) {
+  switch (parse(exp) |> Option.get) {
   | Card(card) =>
     Singleton.view(info, model.mode, parent, Sort.Exp, card, local)
   | Hand(hand) => Hand.view(info, model.mode, parent, Sort.Exp, hand, local)
@@ -315,7 +314,7 @@ let badge =
     [Node.text("♠️")],
   );
 
-module M = {
+module M: RichProbe.RichProbe = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type model = m;
   [@deriving (show({with_path: false}), sexp, yojson)]

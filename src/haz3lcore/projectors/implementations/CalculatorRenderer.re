@@ -176,17 +176,8 @@ let control_buttons = (info, local, can_apply, state_opt, parent) => [
 let init = (_v: int) => None;
 
 /* Main calculator rendering function */
-let render =
-    (
-      ~info,
-      ~exp as _,
-      ~value: value,
-      ~view_seg as _,
-      ~model,
-      ~local,
-      ~parent,
-      (),
-    ) => {
+let render = (~info, ~exp, ~view_seg as _, ~model, ~local, ~parent, ()) => {
+  let value = parse(exp) |> Option.get; // TODO Move the parse to the callsite
   let state_opt =
     switch (model) {
     | Some(s) when Option.is_some(s.operand) => Some(s)

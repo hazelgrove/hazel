@@ -682,67 +682,78 @@ let render =
     (
       ~info: info,
       ~exp: Exp.t,
-      ~value: v,
       ~view_seg: (Sort.t, Segment.t) => Node.t,
       ~model: model, /* (column_index, menu_path) */
       ~local: action => Ui_effect.t(unit),
       ~parent: external_action => Ui_effect.t(unit),
       _: unit,
-    ) => {
-  let make_menu_button = (i, _h) =>
-    icon_button(~tooltip="Column options", "⋮", _ => local(ShowMenu(i)));
+    )
+    : Node.t => {
+  // Parse the current expression instead of using the stale stored value
+  switch (parse(exp)) {
+  | Some((headers, rows)) =>
+    let make_menu_button = (i, _h) =>
+      icon_button(~tooltip="Column options", "⋮", _ => local(ShowMenu(i)));
 
-  let (headers, rows) = value;
+    let header_cells =
+      List.mapi(
+        (i, h) => {
+          let menu_button = make_menu_button(i, h);
+          let base_content = [Node.text(h), menu_button];
 
-  let header_cells =
-    List.mapi(
-      (i, h) => {
-        let menu_button = make_menu_button(i, h);
-        let base_content = [Node.text(h), menu_button];
+          /* Add navigation buttons to first and last columns if provided */
+          let content = base_content;
 
-        /* Add navigation buttons to first and last columns if provided */
-        let content = base_content;
+          let full_content =
+            switch (model.menu_state) {
+            | Some((j, menu_path)) when i == j =>
+              let dyn_type = get_dynamic_type(exp); /* TODO: Pass closure info properly */
+              print_endline("Building menu for column: " ++ h);
+              let menu_data =
+                build_column_menu(
+                  info,
+                  h,
+                  dyn_type,
+                  local,
+                  parent,
+                  menu_path,
+                );
+              let menu_content = render_menu(menu_data);
+              content
+              @ [
+                Node.div(
+                  ~attrs=[Attr.classes(["column-menu"])],
+                  menu_content,
+                ),
+              ];
+            | _ => content
+            };
+          Node.th(full_content);
+        },
+        headers,
+      );
 
-        let full_content =
-          switch (model.menu_state) {
-          | Some((j, menu_path)) when i == j =>
-            let dyn_type = get_dynamic_type(exp); /* TODO: Pass closure info properly */
-            print_endline("Building menu for column: " ++ h);
-            let menu_data =
-              build_column_menu(info, h, dyn_type, local, parent, menu_path);
-            let menu_content = render_menu(menu_data);
-            content
-            @ [
-              Node.div(
-                ~attrs=[Attr.classes(["column-menu"])],
-                menu_content,
+    Node.table(
+      ~attrs=[Attr.classes(["table"])],
+      [
+        Node.thead([Node.tr(header_cells)]),
+        Node.tbody(
+          List.map(
+            row =>
+              Node.tr(
+                List.map(
+                  e =>
+                    Node.td([value_view(info, info.utility, view_seg, e)]),
+                  row,
+                ),
               ),
-            ];
-          | _ => content
-          };
-        Node.th(full_content);
-      },
-      headers,
-    );
-
-  Node.table(
-    ~attrs=[Attr.classes(["table"])],
-    [
-      Node.thead([Node.tr(header_cells)]),
-      Node.tbody(
-        List.map(
-          row =>
-            Node.tr(
-              List.map(
-                e => Node.td([value_view(info, info.utility, view_seg, e)]),
-                row,
-              ),
-            ),
-          rows,
+            rows,
+          ),
         ),
-      ),
-    ],
-  );
+      ],
+    );
+  | None => Node.div([]) // If parsing fails, don't display the modal
+  };
 };
 
 let update: (model, action) => model =
