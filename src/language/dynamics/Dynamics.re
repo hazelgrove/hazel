@@ -39,7 +39,8 @@ module Info = {
     let find_cursor =
       List.find_opt(
         sample =>
-          DynCursor.relation(ap_id, di.dyn_cursor, sample).is_call_cursor,
+          DynCursor.relation(~trimmed=true, ~ap_id, di.dyn_cursor, sample).
+            is_call_cursor,
         di.samples,
       );
     switch (find_cursor) {

@@ -19,6 +19,8 @@
   font-weight: bold;
   color: var(--ui-header-text);
   align-self: flex-start;
+  display: flex;
+  gap: 1em;
 }
 
 #probesys .header {
@@ -79,16 +81,23 @@
   justify-content: center;
 }
 
-#probesys .sketch img {
+#probesys .sketch .sketch-toggle-image {
   width: 140px;
+  height: 140px;
   transition: all 0.2s ease-in-out;
+  background-image: url("../img/probe-lenses.webp");
+  background-size: contain;
+  background-repeat: no-repeat;
+  background-position: center;
+  display: inline-block;
 }
 
-#probesys .sketch[open] img {
+#probesys .sketch[open] .sketch-toggle-image {
   width: 25px;
+  height: 25px;
   position: absolute;
-  top: 10px;
-  right: 13px;
+  top: 167px;
+  left: 15px;
 }
 
 .sketch summary {
@@ -189,4 +198,19 @@
 
 #probesys .code:hover {
   filter: brightness(1.04);
+}
+
+#probesys .settings {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5em;
+}
+
+#probesys .settings .named-menu-item {
+  display: flex;
+  gap: 0.5em;
+}
+
+#probesys .panel.prints .body {
+  white-space: pre;
 }

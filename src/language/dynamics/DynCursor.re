@@ -13,6 +13,8 @@ type t = {
   index: int,
   pinned_stack: option(Probe.call_stack),
   indicated_call: option(Id.t),
+  time: option(float),
+  iter: int,
 };
 
 let init: t = {
@@ -20,6 +22,8 @@ let init: t = {
   index: (-1),
   pinned_stack: None,
   indicated_call: None,
+  time: None,
+  iter: 0,
 };
 
 let trimmed_stack = (dyn_cursor: t) =>
@@ -56,6 +60,7 @@ type relation = {
   /* Is the current sample below the dynamic cursor, and if so, by how much? */
   is_below_indicated_call: option(int),
   /* Is the current sample a call directly below the dynamic cursor, and if so, by how much? */
+  is_before_cursor: int,
 };
 
 let is_below = ListUtil.suffix_at_depth;
@@ -96,9 +101,10 @@ let cur_ap = (info: option(Info.t)) =>
   };
 
 let relation =
-    (ap_id: option(Id.t), dyn_cursor: t, sample: Sample.t): relation => {
+    (~trimmed: bool, ~ap_id: option(Id.t), dyn_cursor: t, sample: Sample.t)
+    : relation => {
   let this = sample.call_stack;
-  let cursor = trimmed_stack(dyn_cursor);
+  let cursor = trimmed ? trimmed_stack(dyn_cursor) : dyn_cursor.stack;
   {
     is_call_cursor: cursor == this,
     is_more_precise_than_cursor:
@@ -112,6 +118,7 @@ let relation =
       let* cur_ap = dyn_cursor.indicated_call;
       is_below([cur_ap] @ cursor, this);
     },
+    is_before_cursor: sample.iter - dyn_cursor.iter,
   };
 };
 

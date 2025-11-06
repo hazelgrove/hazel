@@ -97,6 +97,27 @@
   font-weight: bold;
 }
 
+/* For emoji rendering in code */
+.code .grapheme-cell {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  vertical-align: baseline;
+  white-space: pre;
+}
+
+.code-container.meta-down .token.ref {
+  cursor: pointer;
+}
+
+.code-container.meta-down .token.ref:hover {
+  text-decoration: underline;
+  text-decoration-style: solid;
+  text-underline-offset: 0.08em;
+  filter: brightness(1.5);
+}
+
 @keyframes rainbow {
   0% {
     color: #4477ff;

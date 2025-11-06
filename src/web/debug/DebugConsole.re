@@ -35,6 +35,57 @@ let print =
       };
     | None => print("DEBUG: No indicated index")
     };
+  | "F7" => print(Haz3lcore.BuiltinsPrinter.builtin_value_signatures())
+  | "F8" =>
+    let collect_print_samples =
+        ({probes, _}: Language.EvaluatorState.t): list(Language.Sample.t) =>
+      Id.Map.fold(
+        (_, samples, acc) =>
+          List.fold_left(
+            (acc, sample) =>
+              sample.Language.Sample.origin == Language.Sample.Print
+                ? [sample, ...acc] : acc,
+            acc,
+            samples,
+          ),
+        probes,
+        [],
+      );
+
+    let collect_print_outputs =
+        (state: Language.EvaluatorState.t): list(string) =>
+      collect_print_samples(state)
+      |> List.sort((a, b) =>
+           Int.compare(a.Language.Sample.iter, b.Language.Sample.iter)
+         )
+      |> List.map(sample =>
+           sample.Language.Sample.value
+           |> ExpToSegment.exp_to_segment(
+                ~settings=
+                  ExpToSegment.Settings.of_core(
+                    ~inline=true,
+                    Language.CoreSettings.off,
+                  ),
+              )
+           |> Printer.of_segment(~holes="")
+         );
+
+    let print_summary = (state: Language.EvaluatorState.t): option(string) =>
+      switch (collect_print_outputs(state)) {
+      | [] => None
+      | outputs => Some(String.concat("\n", outputs))
+      };
+
+    let env_init = Language.Builtins.env_init;
+    let res =
+      statics.elaborated
+      |> Language.Evaluator.evaluate(~env=env_init)
+      |> snd
+      |> print_summary;
+    switch (res) {
+    | Some(summary) => print(summary)
+    | None => print("No print outputs")
+    };
   | _ => print("DEBUG: No action for key: " ++ key)
   };
 };

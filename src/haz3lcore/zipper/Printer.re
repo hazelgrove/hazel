@@ -17,9 +17,9 @@ let measured_no_projectors = (~is_single_line, segment: Segment.t) =>
 
 let insert_string = (s: string, point: Point.t, rows: list(string)) => {
   switch (ListUtil.split_nth_opt(point.row, rows)) {
-  | Some((pre, caret_row, suf)) when point.col < String.length(caret_row) =>
-    pre @ [StringUtil.insert_nth(point.col, s, caret_row)] @ suf
-  | Some((pre, caret_row, suf)) => pre @ [caret_row ++ s] @ suf
+  | Some((pre, caret_row, suf)) =>
+    let idx = Token.column_to_grapheme_index(caret_row, point.col);
+    pre @ [Token.insert_nth(idx, s, caret_row)] @ suf;
   | None => rows
   };
 };

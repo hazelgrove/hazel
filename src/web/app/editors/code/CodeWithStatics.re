@@ -164,6 +164,11 @@ module View = {
         ~syntax=model.editor.syntax,
         model.statics.error_ids,
       );
-    div_c("code-container", [code_text_view, statics_decos] @ overlays);
+    let container_classes =
+      ["code-container"] @ (globals.meta_down ? ["meta-down"] : []);
+    Node.div(
+      ~attrs=[Attr.classes(container_classes)],
+      [code_text_view, statics_decos] @ overlays,
+    );
   };
 };

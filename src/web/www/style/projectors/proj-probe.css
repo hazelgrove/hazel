@@ -414,7 +414,7 @@
   position: relative;
   --bottom-border-clr: oklch(0.8 0.06 145.88); /*var(--exp-shadow);*/
   --bkg: var(--exp-base);
-  --below-shadow: #5487cf;
+  --below-shadow: #87ace0;
   --num-levels: 7;
   --base: 0;
   padding: 0 0.1em;
@@ -458,12 +458,12 @@
   border-radius: 0.2em;
   border-bottom-style: dotted;
 } */
-.live-offside.Single:has(
+/* .live-offside.Single:has(
     .value.cursor-unrelated:not(.below):not(.above):not(:hover)
   ),
 .live-offside.Single:has(.value.cursor-callee.indirect) {
-  filter: contrast(0.32) brightness(1.51) /*blur(2px)*/;
-}
+  filter: contrast(0.32) brightness(1.51);
+} */
 
 .live-offside .sample:has(.value.cursor-unrelated.level0) {
   --bottom-border-clr: #73e1a3;
@@ -515,7 +515,7 @@
 
 .live-offside.Many .sample:has(.value.above) {
   top: -3.5px;
-  box-shadow: 0 3.5px 0 #c8c8c8bb;
+  box-shadow: 0 3.5px 0 oklch(0.9 0.07 300);
   position: relative;
   border-bottom-style: solid;
 }
@@ -541,10 +541,10 @@
   background-color: #e5efe8;
 }
 .live-offside.Many .sample:has(.value.above) {
-  background-color: #f4e5fb;
+  background-color: #eedaf8;
 }
 .live-offside.Many .sample:has(.value.below) {
-  background-color: oklch(0.94 0.03 254.38);
+  background-color: oklch(0.89 0.04 254.25);
 }
 
 .live-offside .sample .code-text:after {
@@ -557,7 +557,7 @@
 }
 
 .live-offside.Single .sample:has(.value.cursor-unrelated) .code-text .token {
-  color: #707570;
+  color: #d4ddd4;
 }
 .live-offside.Many .value.cursor-caller .code-text .token {
   color: var(--TYP);
@@ -745,7 +745,7 @@
   background-color: var(--BR1);
   display: none;
   position: absolute;
-  translate: 0 1px;
+  /* translate: 0 1px; */
   left: 3px;
   /* scale: 0.75; */
   transform-origin: top left;
@@ -813,4 +813,13 @@
 
 .projector.probe .nav-arrow:not(.disabled):hover {
   filter: brightness(1.05) saturate(1.05);
+}
+
+/* TEMP COLORS */
+
+.projector.probe .live-offside .sample:has(.value.before) {
+  background-color: #f4e5fb;
+}
+.projector.probe .live-offside .sample:has(.value.after) {
+  background-color: oklch(0.94 0.03 254.38);
 }

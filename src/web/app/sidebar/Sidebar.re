@@ -218,7 +218,13 @@ let view =
                 ~model=assistantModel,
                 ~editor,
               )
-            | Probes => ProbeSystem.view(~globals, ~signal, ~cursor, ~editor)
+            | Probes =>
+              ProbeSystem.view(
+                ~globals,
+                ~explain_this_inject,
+                ~cursor,
+                ~editor,
+              )
             },
           ],
         )

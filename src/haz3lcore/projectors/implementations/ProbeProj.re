@@ -1,7 +1,7 @@
 open Util;
 open ProjectorBase;
 open Virtual_dom.Vdom;
-open Node;
+
 open Js_of_ocaml;
 open Language;
 
@@ -115,25 +115,79 @@ module Settings = {
     | Many;
 
   [@deriving (show({with_path: false}), sexp, yojson)]
-  type settings = {window};
+  type sample_base =
+    | Calls
+    | Steps;
+
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type settings = {
+    window,
+    sample_base,
+    before_cutoff: option(int),
+    after_cutoff: option(int),
+    caller_cutoff: option(int),
+    callee_cutoff: option(int),
+  };
+
+  type set_action =
+    | ToggleWindow
+    | ToggleSampleBase
+    | ToggleBeforeCutoff
+    | ToggleAfterCutoff
+    | ToggleCallerCutoff
+    | ToggleCalleeCutoff;
+
+  let init = {
+    window: Single,
+    sample_base: Calls,
+    before_cutoff: None,
+    after_cutoff: None,
+    caller_cutoff: None,
+    callee_cutoff: None,
+  };
+
+  let update = (settings: settings, action: set_action): settings =>
+    switch (action) {
+    | ToggleWindow => {
+        ...settings,
+        window: settings.window == Single ? Many : Single,
+      }
+    | ToggleSampleBase => {
+        ...settings,
+        sample_base: settings.sample_base == Calls ? Steps : Calls,
+      }
+    | ToggleBeforeCutoff => {
+        ...settings,
+        before_cutoff: settings.before_cutoff == None ? Some(1) : None,
+      }
+    | ToggleAfterCutoff => {
+        ...settings,
+        after_cutoff: settings.after_cutoff == None ? Some(1) : None,
+      }
+    | ToggleCallerCutoff => {
+        ...settings,
+        caller_cutoff: settings.caller_cutoff == None ? Some(1) : None,
+      }
+    | ToggleCalleeCutoff => {
+        ...settings,
+        callee_cutoff: settings.callee_cutoff == None ? Some(1) : None,
+      }
+    };
 
   let offset = Hashtbl.create(100);
 
-  let s = ref({window: Single});
+  let s = ref(init);
 
   let reset_mode = () => {
     Hashtbl.clear(offset);
-    s := {window: Single};
+    s := init;
   };
 
-  let toggle_mode = () =>
-    switch (s^.window) {
-    | Single => s := {window: Many}
-    | Many => s := {window: Single}
-    };
+  let go = (a: set_action): unit => s := update(s^, a);
 };
 
 open Settings;
+open Node;
 
 module Window = {
   let max_samples = (window: window) =>
@@ -226,12 +280,18 @@ module Samples = {
   let total = (~ap_id: option(Id.t), di: Dynamics.Info.t): int =>
     List.length(filter_frames_by_pin(~ap_id, di));
 
-  let first_index_of_interest =
-      (~ap_id: option(Id.t), dyn_cursor: DynCursor.t, samples): option(int) => {
+  let first_related_index =
+      (
+        ~trimmed: bool,
+        ~ap_id: option(Id.t),
+        dyn_cursor: DynCursor.t,
+        samples,
+      )
+      : option(int) => {
     let find = (rel: DynCursor.relation => bool): option(int) =>
       List.find_index(
         (sample: sample) =>
-          rel(DynCursor.relation(ap_id, dyn_cursor, sample)),
+          rel(DynCursor.relation(~trimmed, ~ap_id, dyn_cursor, sample)),
         samples,
       );
     switch (find(relation => relation.is_call_cursor)) {
@@ -243,9 +303,55 @@ module Samples = {
         let a = find(relation => relation.is_below_indicated_call != None);
         a == None ? find(DynCursor.is_related) : a;
       }
-    // }
     };
   };
+
+  let best_suffix_match =
+      (~cursor: Probe.call_stack, samples: list(sample)): option(sample) =>
+    List.fold_left(
+      (best: option((sample, int)), sample: sample) => {
+        let score = ListUtil.common_suffix_length(cursor, sample.call_stack);
+        switch (best) {
+        | Some((_, best_score)) when best_score >= score => best
+        | _ => Some((sample, score))
+        };
+      },
+      None,
+      samples,
+    )
+    |> Option.map(fst);
+
+  let closet_to_related_index =
+      (~ap_id: option(Id.t), ~di: Dynamics.Info.t, samples: list(sample))
+      : option(sample) =>
+    switch (samples) {
+    | [] => None
+    | [first_sample, ..._] as all_samples =>
+      let selected: sample =
+        switch (
+          first_related_index(
+            ~trimmed=false,
+            ~ap_id,
+            di.dyn_cursor,
+            all_samples,
+          )
+        ) {
+        | Some(idx) =>
+          List.nth_opt(all_samples, idx)
+          |> Option.value(~default=first_sample)
+        | None =>
+          switch (
+            best_suffix_match(
+              ~cursor=DynCursor.trimmed_stack(di.dyn_cursor),
+              all_samples,
+            )
+          ) {
+          | Some(sample) => sample
+          | None => first_sample
+          }
+        };
+      Some(selected);
+    };
 
   let select_samples =
       (
@@ -256,15 +362,21 @@ module Samples = {
       )
       : list(sample) => {
     let samples = filter_frames_by_pin(~ap_id, di);
-    let cursor_idx =
-      switch (first_index_of_interest(~ap_id, di.dyn_cursor, samples)) {
-      | Some(idx) => idx
-      | None => 0
-      };
-    let all_samples = List.length(samples);
-    let (l, r) =
-      Window.reform(~window=settings.window, id, all_samples, cursor_idx);
-    ListUtil.slice(l, r, samples);
+    let first_idx =
+      first_related_index(~trimmed=true, ~ap_id, di.dyn_cursor, samples);
+    if (first_idx == None && settings.window == Single) {
+      [];
+    } else {
+      let cursor_idx =
+        switch (first_idx) {
+        | Some(idx) => idx
+        | None => 0
+        };
+      let all_samples = List.length(samples);
+      let (l, r) =
+        Window.reform(~window=settings.window, id, all_samples, cursor_idx);
+      ListUtil.slice(l, r, samples) |> List.rev;
+    };
   };
 
   let group_by_predicate =
@@ -375,29 +487,73 @@ module ValueState = {
 };
 
 let cursor_clss =
-    (ap_id: option(Id.t), di: Dynamics.Info.t, sample: sample): list(string) => {
-  let relation = DynCursor.relation(ap_id, di.dyn_cursor, sample);
+    (
+      ~settings: settings,
+      ~ap_id: option(Id.t),
+      di: Dynamics.Info.t,
+      sample: sample,
+    )
+    : list(string) => {
+  let relation =
+    DynCursor.relation(~trimmed=true, ~ap_id, di.dyn_cursor, sample);
   (
     switch (
       relation.is_call_cursor,
       relation.is_call_above_call_cursor,
       relation.is_below_indicated_call,
     ) {
-    | (true, _, _) => ["cursor"]
+    | (true, _, _) when settings.sample_base == Calls => ["cursor"]
+    | (true, _, _)
+        when settings.sample_base == Steps && sample.iter == di.dyn_cursor.iter => [
+        "cursor",
+      ]
     | (_, Some(0), _) => ["cursor-caller", "direct"]
-    | (_, Some(_), _) => ["cursor-caller", "indirect"]
+    | (_, Some(_), _) when settings.caller_cutoff == None => [
+        "cursor-caller",
+        "indirect",
+      ]
     | (_, _, Some(0)) => ["cursor-callee", "direct"]
-    | (_, _, Some(_)) => ["cursor-callee", "indirect"]
-    | (_, _, None) => ["cursor-unrelated"]
+    | (_, _, Some(_)) when settings.callee_cutoff == None => [
+        "cursor-callee",
+        "indirect",
+      ]
+    | (_, _, _) => ["cursor-unrelated"]
     }
   )
   @ (
-    switch (relation.relative_level_to_cursor) {
-    | Same => ["level0"]
-    | Below(n) => ["below", "L" ++ string_of_int(n)]
-    | Above(n) => ["above", "L" ++ string_of_int(n)]
-    | Unrelated => ["incomparable"]
-    }
+    settings.sample_base == Calls
+      ? switch (relation.relative_level_to_cursor) {
+        | Same => ["level0"]
+        | Below(n)
+            when
+              settings.before_cutoff == None
+              || Some(n) <= settings.before_cutoff => [
+            "below",
+            "L" ++ string_of_int(n),
+          ]
+        | Above(n)
+            when
+              settings.after_cutoff == None
+              || Some(n) <= settings.after_cutoff => [
+            "above",
+            "L" ++ string_of_int(n),
+          ]
+        | _ => []
+        }
+      : (
+        switch (relation.is_before_cursor) {
+        | n when n == 0 => ["level0"]
+        | n when n > 0 =>
+          /* Choosing not to apply relative labels if the call cursor is there,
+             even though both could be true, to simplify visualy presentation */
+          settings.before_cutoff == None || Some(n) <= settings.before_cutoff
+            ? ["below", "L" ++ string_of_int(n)] : []
+        | n when n < 0 =>
+          settings.after_cutoff == None || Some(- n) <= settings.after_cutoff
+            ? ["above", "L" ++ string_of_int(- n)] : []
+        | _ => []
+        }
+      )
   );
 };
 
@@ -421,7 +577,7 @@ module Debug = {
     ++ "\nstack:\n"
     ++ stack(sample.call_stack)
     ++ "\ntime: "
-    ++ string_of_float(sample.time /. 10000.0);
+    ++ Printf.sprintf("%.0f", sample.time);
 };
 
 /* Registry of available renderers - initialized once at module load */
@@ -520,7 +676,7 @@ let value_view =
           //Attr.title(Debug.str(~ap_id, sample)),
           Attr.classes(
             ["value", length_cls(length)]
-            @ cursor_clss(ap_id, di, sample)
+            @ cursor_clss(~settings, ~ap_id, di, sample)
             @ (Option.is_some(ap_id) ? ["ap"] : [])
             @ (!is_value(sample.value) ? ["indet"] : []),
           ),
@@ -707,11 +863,41 @@ let sample_group_view =
     ? [] : [div(~attrs=[Attr.classes(["sample-groups"])], group_views)];
 };
 
-let ellipsis_view = (local): Node.t =>
+/* Select a default sample by preferring the closest match to the current
+ * dynamic cursor. */
+let mv_least_distant_sample =
+    (
+      ~ap_id: option(Id.t),
+      parent: external_action => Ui_effect.t(unit),
+      dynamics: option(Dynamics.Info.t),
+      _evt,
+    )
+    : Effect.t(unit) =>
+  switch (dynamics) {
+  | Some(di) =>
+    let samples = Samples.filter_frames_by_pin(~ap_id, di);
+    switch (Samples.closet_to_related_index(~ap_id, ~di, samples)) {
+    | Some(selected) => parent(DynCursor(Capture(selected, ap_id)))
+    | None => Effect.Ignore
+    };
+  | None => Effect.Ignore
+  };
+
+let ellipsis_view =
+    (
+      ~ap_id: option(Id.t),
+      local,
+      parent: external_action => Ui_effect.t(unit),
+      info: info,
+    )
+    : Node.t =>
   div(
     ~attrs=[
       Attr.classes(["ellipsis"]),
-      Attr.on_double_click(_ => {local(ToggleShowAllVals(0))}),
+      Attr.on_pointerdown(
+        mv_least_distant_sample(~ap_id, parent, info.dynamics),
+      ),
+      Attr.on_double_click(_ => local(ToggleShowAllVals(0))),
     ],
     [text("⋯")],
   );
@@ -725,7 +911,12 @@ let move_cursor =
     ) => {
   let samples = Samples.filter_frames_by_pin(~ap_id, di);
   let cursor_idx =
-    Samples.first_index_of_interest(~ap_id, di.dyn_cursor, samples);
+    Samples.first_related_index(
+      ~trimmed=true,
+      ~ap_id,
+      di.dyn_cursor,
+      samples,
+    );
   switch (cursor_idx) {
   /* Cursor would be outside window, reset to next visible sample */
   | Some(idx) =>
@@ -888,18 +1079,18 @@ let key_handler =
     // hack: Prevent_default below stops aggressive horizontal scroll
     // noop to trigger redraw
     Many([
-      move_cursor(~ap_id, di, parent, 1),
+      move_cursor(~ap_id, di, parent, -1),
       Stop_propagation,
       Prevent_default,
     ])
   | D("ArrowLeft") =>
     Many([
-      move_cursor(~ap_id, di, parent, -1),
+      move_cursor(~ap_id, di, parent, 1),
       Stop_propagation,
       Prevent_default,
     ])
   | D(" ") =>
-    Settings.toggle_mode();
+    Settings.go(ToggleWindow);
     Many([local(NoOp), Stop_propagation, Prevent_default]); // trigger redraw
   | _ => Many([Stop_propagation])
   };
@@ -941,10 +1132,11 @@ let offside_view =
     let num_total = Samples.total(~ap_id, di);
     let samples = Samples.select_samples(~settings, ~id, ~ap_id, di);
     let (num_shown, groups) = Samples.collate(samples);
-    let is_cut_off = num_shown != num_total && num_shown > 0;
+    let is_cut_off =
+      num_shown != num_total && (num_shown != 0 || num_total != 0);
     let extras = [
       nav_bar_view(~settings, ap_id, di, num_total, parent),
-      ellipsis_view(local),
+      ellipsis_view(~ap_id, local, parent, info),
     ];
     Node.div(
       ~attrs=[
@@ -1077,9 +1269,8 @@ module M: Projector = {
     | ChangeLength(id, len) =>
       ClosureLength.set(id, len);
       model;
-    // | ChangeLength(id, len) => ClosureLength.set(id, len)
     | ToggleShowAllVals(_) =>
-      Settings.toggle_mode();
+      Settings.go(ToggleWindow);
       model;
     | NoOp => model
     | OpenModal =>
@@ -1178,7 +1369,8 @@ module M: Projector = {
     | _ => Node.div([])
     };
   };
-  let view = (model, info, ~local, ~parent, ~view_seg) => {
+  let view =
+      ({info, local, parent, view_seg, model, _}: View.args(model, action)) => {
     let settings = Settings.s^;
     View.{
       inline: Node.div([]),

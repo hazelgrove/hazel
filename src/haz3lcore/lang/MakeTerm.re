@@ -271,6 +271,7 @@ and exp_term: unsorted => (Exp.term, list(Id.t)) = {
         ret(LivelitName(Token.parse_livelit(t)))
       | ([t], []) when Token.is_var(t) => ret(Var(t))
       | ([t], []) when Token.is_ctr(t) => ret(Constructor(t, None))
+      | (["{", "}"], [Exp(body)])
       | (["(", ")"], [Exp(body)]) => ret(Parens(body))
       | (label, [Exp(body)]) when is_probe_wrap(label) =>
         // Temporary wrapping form to persist projector probes

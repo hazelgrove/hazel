@@ -1,3 +1,4 @@
+open Util.OptUtil.Syntax;
 module Info = Info;
 
 module Map = {
@@ -51,6 +52,17 @@ module Map = {
     | Some(InfoPat({term, _})) => Pat.bindings(term)
     | _ => []
     };
+
+  let parent_ci_of = (map: t, id: Id.t): option(Info.t) => {
+    let* ci = lookup(id, map);
+    let* parent_id = Info.parent_id_of(ci);
+    lookup(parent_id, map);
+  };
+
+  let parent_term_of = (map: t, id: Id.t): option(Any.t) => {
+    let* ci = parent_ci_of(map, id);
+    Info.any_of(ci);
+  };
 
   /* Starting from a binding site id (possibly inside a deep pattern),
    * climb ancestor ids to find the enclosing let, and return

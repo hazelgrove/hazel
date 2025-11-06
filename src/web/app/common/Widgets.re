@@ -43,7 +43,7 @@ let toggle = (~tooltip="", label, active, action) =>
   div(
     ~attrs=[
       clss(["toggle-switch"] @ (active ? ["active"] : [])),
-      Attr.on_click(action),
+      Attr.on_pointerdown(action),
       Attr.title(tooltip),
     ],
     [div(~attrs=[clss(["toggle-knob"])], [text(label)])],

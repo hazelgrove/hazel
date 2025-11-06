@@ -153,6 +153,17 @@ module Update = {
         schedule_action(Globals(FinishImportAll(data)))
       );
       model |> return_quiet;
+    | SetMetaDown(meta_down) =>
+      model.globals.meta_down == meta_down
+        ? model |> return_quiet
+        : {
+            ...model,
+            globals: {
+              ...model.globals,
+              meta_down,
+            },
+          }
+          |> return_quiet
     | FinishImportAll(None) => model |> return_quiet
     | FinishImportAll(Some(data)) =>
       Export.import_all(
@@ -284,7 +295,7 @@ module Update = {
         ...model,
         selection,
       }
-      |> Updated.return
+      |> Updated.return(~scroll_active=false)
     | Benchmark(Start) =>
       List.iter(a => schedule_action(Editors(a)), Benchmark.actions_1);
       schedule_action(Benchmark(Finish));
@@ -441,9 +452,16 @@ module View = {
         ~cursor: Cursor.cursor(Editors.Update.t),
         model: Model.t,
       ) => {
+    let update_meta =
+        (evt: Js.t(Dom_html.keyboardEvent)): list(Effect.t(unit)) => {
+      let meta_down = Js.to_bool(evt##.metaKey);
+      model.globals.meta_down == meta_down
+        ? [] : [inject(Globals(SetMetaDown(meta_down)))];
+    };
     let key_handler =
         (~inject, ~dir: Key.dir, evt: Js.t(Dom_html.keyboardEvent))
-        : Effect.t(unit) =>
+        : Effect.t(unit) => {
+      let meta_effects = update_meta(evt);
       Effect.(
         switch (
           Selection.handle_key_event(
@@ -452,17 +470,23 @@ module View = {
             model,
           )
         ) {
-        | None => Ignore
+        | None => meta_effects == [] ? Ignore : Many(meta_effects)
         | Some(action) =>
-          Many([Prevent_default, Stop_propagation, inject(action)])
+          Many(
+            [Prevent_default, Stop_propagation, inject(action)]
+            @ meta_effects,
+          )
         }
       );
+    };
     [
       Attr.on_keyup(key_handler(~inject, ~dir=KeyUp)),
       Attr.on_keydown(key_handler(~inject, ~dir=KeyDown)),
       Attr.on_blur(_ => {
         JsUtil.focus_clipboard_shim();
-        Effect.Ignore;
+        model.globals.meta_down
+          ? Effect.Many([inject(Globals(SetMetaDown(false)))])
+          : Effect.Ignore;
       }),
       Attr.on_focus(_ => {
         JsUtil.focus_clipboard_shim();
