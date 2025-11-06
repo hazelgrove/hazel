@@ -774,11 +774,50 @@ let update: (model, action) => model =
     };
   };
 
+let icon_size = 20.;
+
+let simple_icon = (~transform="", ~view: string, ds: list(string)) =>
+  /* takes a list of paths as strings, a viewport as a string,
+     and an optional (string) transform to apply to each */
+  Node.create_svg(
+    "svg",
+    ~attrs=
+      Attr.[
+        create("viewBox", view),
+        create("width", Printf.sprintf("%fpx", icon_size)),
+        create("height", Printf.sprintf("%fpx", icon_size)),
+        create("preserveAspectRatio", "none"),
+      ],
+    List.map(
+      d =>
+        Node.create_svg(
+          "path",
+          ~attrs=
+            [Attr.create("d", d)]
+            @ (transform == "" ? [] : [Attr.create("transform", transform)]),
+          [],
+        ),
+      ds,
+    ),
+  );
+
+let table_icon =
+  simple_icon(
+    ~view="0 0 8 8",
+    [
+      "m 1.32307 3.96929 a 0.2645835 0.2645835 0 0 0 -0.26563 0.26367 0.2645835 0.2645835 0 0 0 0.26563 0.26562 h 5.82031 a 0.2645835 0.2645835 0 0 0 0.26562 -0.26562 0.2645835 0.2645835 0 0 0 -0.26562 -0.26367 z",
+      "m 1.85236 1.05913 c -0.43516 0 -0.79492 0.35781 -0.79492 0.79297 v 4.76172 c 0 0.43517 0.35976 0.79492 0.79492 0.79492 h 4.76172 c 0.43517 0 0.79492 -0.35975 0.79492 -0.79492 v -4.76172 c 0 -0.43516 -0.35975 -0.79297 -0.79492 -0.79297 z m 0 0.5293 h 4.76172 c 0.15117 0 0.26563 0.11251 0.26563 0.26367 v 4.76172 c 0 0.15117 -0.11446 0.26562 -0.26563 0.26562 h -4.76172 c -0.15115 0 -0.26562 -0.11445 -0.26562 -0.26562 v -4.76172 c 0 -0.15116 0.11447 -0.26367 0.26562 -0.26367 z",
+      "m 1.32307 5.42437 a 0.2645835 0.2645835 0 0 0 -0.26563 0.26367 0.2645835 0.2645835 0 0 0 0.26563 0.26562 h 5.82031 a 0.2645835 0.2645835 0 0 0 0.26562 -0.26562 0.2645835 0.2645835 0 0 0 -0.26562 -0.26367 z",
+      "m 5.02619 2.91069 v 4.23243 h 0.5293 v -4.23243 z",
+      "m 2.91096 2.91069 v 4.23243 h 0.52929 v -4.23243 z",
+      "m 1.32307 2.51421 a 0.2645835 0.2645835 0 0 0 -0.26563 0.26367 0.2645835 0.2645835 0 0 0 0.26563 0.26563 h 5.82031 a 0.2645835 0.2645835 0 0 0 0.26562 -0.26563 0.2645835 0.2645835 0 0 0 -0.26562 -0.26367 z",
+    ],
+  );
 let badge =
   Node.span(
     ~attrs=[
       Attr.classes(["table-badge"]),
       Attr.title("Click to view as table"),
     ],
-    [Node.text("📊")],
+    [table_icon],
   );
