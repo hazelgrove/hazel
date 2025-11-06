@@ -626,7 +626,7 @@ module PlotHookImpl = {
 module PlotHook = Virtual_dom.Vdom.Attr.Hooks.Make(PlotHookImpl);
 
 let observable_plot_attr = (payload: PlotHookInput.t): Attr.t =>
-  Attr.create_hook("hazel-observable-plot", PlotHook.create(payload));
+  Attr.create_hook("hazel-ObservablePlot", PlotHook.create(payload));
 
 module ResizeState = {
   type t = {
@@ -768,7 +768,7 @@ let build_plot_view =
   let chart =
     Node.div(
       ~attrs=[
-        Attr.classes(["graph-chart", "observable-plot-chart"]),
+        Attr.classes(["graph-chart", "ObservablePlot-chart"]),
         Attr.create("style", "width:100%;height:100%;"),
         observable_plot_attr({
           graph: data,
@@ -781,7 +781,7 @@ let build_plot_view =
   let handle =
     Node.div(
       ~attrs=[
-        Attr.classes(["observable-plot-resize-handle"]),
+        Attr.classes(["ObservablePlot-resize-handle"]),
         Attr.on_pointerdown(resize_pointerdown(~dispatch, model)),
       ],
       [],
@@ -789,13 +789,13 @@ let build_plot_view =
   let shell =
     Node.div(
       ~attrs=[
-        Attr.classes(["observable-plot-shell"]),
-        Attr.create("style", shell_style),
+        Attr.classes(["ObservablePlot-shell"]),
+        //Attr.create("style", shell_style),
       ],
       [chart, handle],
     );
   wrap_with_warnings(
-    ~classes=["graph-projector", "graph-observable-plot", "graph-has-data"],
+    ~classes=["graph-projector", "graph-ObservablePlot", "graph-has-data"],
     [shell],
     warnings,
   );
@@ -861,7 +861,7 @@ module M: Projector = {
       };
 
     let class_list: list(string) =
-      ["projector", "observable-plot"] @ indicated_class;
+      ["projector", "ObservablePlot"] @ indicated_class;
 
     let node: Node.t =
       switch (select_sample(info)) {

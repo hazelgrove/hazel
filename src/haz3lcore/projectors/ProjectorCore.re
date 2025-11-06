@@ -56,7 +56,7 @@ module Kind = {
     | TextArea => "text"
     | Exo(exo_kind) => Exo.name(exo_kind)
     | Graph => "graph"
-    | ObservablePlot => "observable-plot"
+    | ObservablePlot => "ObservablePlot"
     };
 
   /* This must be updated and kept 1-to-1 with the above
@@ -74,7 +74,7 @@ module Kind = {
     | "livelit" => Livelit
     | "card" => Card
     | "graph" => Graph
-    | "observable-plot" => ObservablePlot
+    | "ObservablePlot" => ObservablePlot
     | _ => Exo(Exo.of_name(p))
     };
 
