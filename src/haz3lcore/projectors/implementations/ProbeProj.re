@@ -609,6 +609,7 @@ let value_view =
     (
       ~ap_id: option(Id.t),
       ~settings: settings,
+      ~sort: Sort.t,
       di: Dynamics.Info.t,
       utility: utility,
       view_seg,
@@ -693,7 +694,7 @@ let value_view =
           Attr.on_pointerup(val_pointerup),
           Attr.on_mousemove(val_mousemove),
         ],
-        [view_seg(~text_only=Option.None, Sort.Exp, seg)],
+        [view_seg(~text_only=Option.None, sort, seg)],
       ),
     ],
   );
@@ -702,6 +703,7 @@ let value_view =
 let env_val =
     (
       ~settings: settings,
+      ~sort: Sort.t,
       sample,
       view_seg,
       utility: utility,
@@ -721,7 +723,7 @@ let env_val =
             ClosureLength.get(settings.window, sample),
             d,
           );
-        view_seg(~text_only=Option.None, Sort.Exp, seg);
+        view_seg(~text_only=Option.None, sort, seg);
       },
     ],
   );
@@ -745,6 +747,7 @@ let env_view =
       ~parent,
       ~ap_id,
       ~di,
+      ~sort: Sort.t,
       sample: sample,
       view_seg,
       utility: utility,
@@ -780,7 +783,10 @@ let env_view =
         : [
           div(
             ~attrs=[Attr.classes(["live-env"])],
-            List.map(env_val(~settings, sample, view_seg, utility), elems),
+            List.map(
+              env_val(~settings, ~sort, sample, view_seg, utility),
+              elems,
+            ),
           ),
         ];
     },
@@ -791,6 +797,7 @@ let sample_view =
       ~ap_id: option(Id.t),
       ~hide_env: bool,
       ~settings: settings,
+      ~sort: Sort.t,
       di: Dynamics.Info.t,
       utility: utility,
       view_seg,
@@ -804,6 +811,7 @@ let sample_view =
       value_view(
         ~ap_id,
         ~settings,
+        ~sort,
         di,
         utility,
         view_seg,
@@ -823,6 +831,7 @@ let sample_view =
             ~parent,
             ~ap_id,
             ~di,
+            ~sort,
             sample,
             view_seg,
             utility,
@@ -836,6 +845,7 @@ let sample_group_view =
       ~ap_id: option(Id.t),
       ~hide_env: bool,
       ~settings: settings,
+      ~sort: Sort.t,
       di: Dynamics.Info.t,
       utility,
       view_seg,
@@ -853,6 +863,7 @@ let sample_group_view =
               ~ap_id,
               ~hide_env,
               ~settings,
+              ~sort,
               di,
               utility,
               view_seg,
@@ -1118,6 +1129,7 @@ let offside_view =
       local,
       parent,
       ~settings: settings,
+      ~sort: Sort.t,
       view_seg:
         (
           ~background: bool=?,
@@ -1157,6 +1169,7 @@ let offside_view =
           ~ap_id,
           ~hide_env,
           ~settings,
+          ~sort,
           di,
           utility,
           /* NOTE: Right now this is hard set to single_line and text_only
@@ -1399,6 +1412,7 @@ module M: Projector = {
             [
               offside_view(
                 ~settings,
+                ~sort,
                 info,
                 local,
                 parent,

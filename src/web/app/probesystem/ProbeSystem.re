@@ -156,7 +156,7 @@ let legend_sample_view =
       ~cursor_stack: list(Id.t),
       ~sample_stack: list(Id.t),
       ~caption: string,
-    ) => {
+    ): Node.t => {
   let sample: Language.Sample.t = {
     id: 0,
     syntax_id: Id.invalid,
@@ -185,6 +185,7 @@ let legend_sample_view =
       ...ProbeProj.Settings.s^,
       window: mode,
     },
+    ~sort=Sort.Exp, // TODO Talk to andrew about this
     di,
     ProjectorInfo.utility,
     (~text_only) =>
