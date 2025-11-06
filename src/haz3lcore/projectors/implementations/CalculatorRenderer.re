@@ -179,16 +179,15 @@ let init = (_v: int) => None;
 let render =
     (
       ~info,
-      ~exp,
+      ~exp as _,
       ~value: value,
       ~view_seg as _,
       ~model,
       ~local,
       ~parent,
-      ~sort,
+      ~sort: Sort.t,
       (),
     ) => {
-  let value = parse(exp) |> Option.get; // TODO Move the parse to the callsite
   let state_opt =
     switch (model) {
     | Some(s) when Option.is_some(s.operand) => Some(s)
@@ -196,35 +195,39 @@ let render =
     };
   let can_apply = Option.is_some(state_opt);
 
-  Node.div(
-    ~attrs=[Attr.classes(["calculator"])],
-    [
-      Node.div(
-        ~attrs=[Attr.classes(["calculator-display"])],
-        [Node.text(display_value(value, model))],
-      ),
-      Node.div(
-        ~attrs=[Attr.classes(["calculator-keypad"])],
-        [
-          Node.div(
-            ~attrs=[Attr.classes(["calculator-digits"])],
-            digit_buttons(
-              local,
-              Option.bind(model, ({operand, _}) => operand),
+  if (sort == Sort.Exp) {
+    Node.div(
+      ~attrs=[Attr.classes(["calculator"])],
+      [
+        Node.div(
+          ~attrs=[Attr.classes(["calculator-display"])],
+          [Node.text(display_value(value, model))],
+        ),
+        Node.div(
+          ~attrs=[Attr.classes(["calculator-keypad"])],
+          [
+            Node.div(
+              ~attrs=[Attr.classes(["calculator-digits"])],
+              digit_buttons(
+                local,
+                Option.bind(model, ({operand, _}) => operand),
+              ),
             ),
-          ),
-          Node.div(
-            ~attrs=[Attr.classes(["calculator-ops"])],
-            op_buttons(local),
-          ),
-          Node.div(
-            ~attrs=[Attr.classes(["calculator-controls"])],
-            control_buttons(info, local, can_apply, state_opt, parent),
-          ),
-        ],
-      ),
-    ],
-  );
+            Node.div(
+              ~attrs=[Attr.classes(["calculator-ops"])],
+              op_buttons(local),
+            ),
+            Node.div(
+              ~attrs=[Attr.classes(["calculator-controls"])],
+              control_buttons(info, local, can_apply, state_opt, parent),
+            ),
+          ],
+        ),
+      ],
+    );
+  } else {
+    Node.none;
+  };
 };
 
 let update: (model, action) => model =

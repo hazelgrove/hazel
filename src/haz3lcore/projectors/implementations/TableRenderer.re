@@ -692,6 +692,7 @@ let render =
       _: unit,
     )
     : Node.t => {
+  let is_readonly = sort != Sort.Exp;
   let (headers, rows) = value;
   // Parse the current expression instead of using the stale stored value
   let make_menu_button = (i, _h) =>
@@ -701,7 +702,10 @@ let render =
     List.mapi(
       (i, h) => {
         let menu_button = make_menu_button(i, h);
-        let base_content = [Node.text(h), menu_button];
+        let base_content = [
+          Node.text(h),
+          is_readonly ? Node.none : menu_button,
+        ];
 
         /* Add navigation buttons to first and last columns if provided */
         let content = base_content;
