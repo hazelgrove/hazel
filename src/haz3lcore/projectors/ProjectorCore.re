@@ -65,6 +65,7 @@ module Kind = {
    * name function in order to be able to select the
    * projector in the projector panel menu */
   let of_name = (p: string): t =>
+    // TODO Use a map built from above
     switch (p) {
     | "fold" => Fold
     | "type" => Info

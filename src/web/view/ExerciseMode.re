@@ -376,7 +376,10 @@ module Update = {
             editor: {
               editor,
               statics: cell.editor.statics,
-              dynamics: EvalResult.Model.dynamics(cell.result),
+              dynamics:
+                EvalResult.Model.dynamics(cell.result) |> Calc.get_value,
+              dynamic_statics: cell.editor.dynamic_statics,
+              pinned_call: cell.editor.pinned_call,
               context_menu: false,
             },
             result: cell.result,
@@ -614,7 +617,7 @@ module View = {
     let stitched_tests =
       Exercise.map_stitched(
         (_, cell_editor: CellEditor.Model.t) =>
-          cell_editor.result |> EvalResult.Model.test_results,
+          cell_editor.result |> EvalResult.Model.test_results |> Calc.get_value,
         model.cells,
       );
 
@@ -965,6 +968,8 @@ module View = {
         editor: editor.editor.editor,
         statics: editor.editor.statics,
         dynamics: Language.Dynamics.Map.empty,
+        dynamic_statics: editor.editor.dynamic_statics,
+        pinned_call: editor.editor.pinned_call,
         context_menu: false,
       },
       result: editor.result,

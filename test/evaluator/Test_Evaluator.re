@@ -19,4 +19,5 @@ let tests = [
   Test_Stepper.tests,
   Test_Evaluator_Properties.tests,
   Test_Evaluator_Performance.tests,
+  Test_Evaluator_DynamicFeedback.tests,
 ];

@@ -120,6 +120,7 @@ module View = {
       ~background: bool=?,
       ~is_single_line: option(unit)=?,
       ~text_only: option(unit)=?,
+      ~is_dynamic: Id.t => bool=?,
       Sort.t,
       list(syntax)
     ) =>

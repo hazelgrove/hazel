@@ -621,7 +621,7 @@ and Stepper: {
              ~settings,
              ~is_edited=true,
              ~ctx,
-             ~dynamics=Dynamics.Map.empty,
+             ~dynamics=Calc.OldValue(Dynamics.Map.empty),
              ~stitch=_ =>
              expr
            );

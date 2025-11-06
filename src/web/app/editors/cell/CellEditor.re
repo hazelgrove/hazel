@@ -18,6 +18,8 @@ module Model = {
       statics: CachedStatics.empty,
       dynamics: Language.Dynamics.Map.empty,
       context_menu: false,
+      dynamic_statics: Pending,
+      pinned_call: Pending,
     },
     result: EvalResult.Model.init,
   };
@@ -38,6 +40,8 @@ module Model = {
       statics: CachedStatics.empty,
       dynamics: Language.Dynamics.Map.empty,
       context_menu: false,
+      dynamic_statics: Pending,
+      pinned_call: Pending,
     },
     result: EvalResult.Model.unpersist(result),
   };
@@ -234,7 +238,8 @@ module View = {
               ),
           ~selected=selected == Some(MainEditor),
           ~overlays=overlays(model.editor.editor),
-          ~dynamics=EvalResult.Model.dynamics(model.result),
+          ~dynamics=
+            EvalResult.Model.dynamics(model.result) |> Util.Calc.get_value,
           model.editor,
         ),
       ]

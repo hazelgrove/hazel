@@ -222,8 +222,6 @@ let convert_column =
               ),
             ]),
           ),
-          None,
-          None,
         ),
       )
     )
@@ -248,8 +246,6 @@ let rename_column =
               tup_label(label(new_name), dot(var("r"), label(old_name))),
             ]),
           ),
-          None,
-          None,
         )
       )
     ),
@@ -268,8 +264,6 @@ let add_column_after =
             var("r"),
             tuple([tup_label(label(new_column), empty_hole())]),
           ),
-          None,
-          None,
         ),
       )
     )
@@ -464,8 +458,6 @@ let sort_column_with_direction =
                               dot(var("r2"), label(header)),
                             ]),
                           ),
-                          None,
-                          None,
                         ),
                         deferral(InAp),
                       ]),

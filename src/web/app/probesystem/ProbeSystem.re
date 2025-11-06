@@ -195,6 +195,7 @@ let legend_sample_view =
         ~background=false,
         ~is_single_line=Some(),
         ~text_only?,
+        ~is_dynamic=?None,
       ),
     _ => Effect.Ignore,
     _ => Effect.Ignore,

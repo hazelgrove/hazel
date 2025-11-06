@@ -37,6 +37,9 @@ module Map = {
       map,
     );
 
+  let has_errors = (map: t): bool =>
+    Id.Map.exists((_: Uuidm.t, info: Info.t) => Info.is_error(info), map);
+
   /* The ids of binding sites for for all references in term with `id` */
   let refs_in = (m: t, id: Id.t): Binding.s =>
     switch (lookup(id, m)) {
@@ -183,4 +186,6 @@ module type ExpressionStatics = {
   let label_to_info_map:
     (option(list(string)), Typ.t, Exp.t, Map.t) =>
     (option(string), Info.exp, Map.t);
+
+  let dynamics: DynamicStatics.Map.t;
 };

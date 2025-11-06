@@ -14,9 +14,17 @@ let combine_result = (r1: match_result, r2: match_result): match_result =>
   | (Matches(env1), Matches(env2)) => Matches(env1 @ env2)
   };
 
-let rec matches = (capture, dp: Pat.t, d: DHExp.t): match_result => {
-  let matches = matches(capture);
-  let d = Ascriptions.transition_multiple(d);
+let rec matches =
+        (
+          capture,
+          capture': (Probe.call_stack => Sample.t) => unit, // Use writer
+          dp: Pat.t,
+          d: DHExp.t,
+        )
+        : match_result => {
+  let matches = matches(capture, capture');
+  let (closures, d) = Ascriptions.transition_multiple(d);
+  List.iter(capture', closures);
   switch (DHPat.term_of(dp)) {
   | Invalid(_)
   | EmptyHole
@@ -47,6 +55,12 @@ let rec matches = (capture, dp: Pat.t, d: DHExp.t): match_result => {
   | Ap({term: Constructor(ctr, _), _}, p2) =>
     let* d2 = Unboxing.unbox(SumWithArg(ctr), d);
     matches(p2, d2);
+  | Ap({term: Probe({term: Constructor(ctr, _), _}, _), _}, p2) =>
+    // TODO There's probably a better way to handle the incremental pattern matching for this
+    // TODO We need to actually capture the constructor here
+    // This is addressing https://github.com/hazelgrove/hazel/issues/1987
+    let* d2 = Unboxing.unbox(SumWithArg(ctr), d);
+    matches(p2, d2);
   | Ap(_, _) => IndetMatch // TODO: should this fail?
   | Var(x) => Matches([(x, d)])
   /* Labels are a special case */
@@ -66,7 +80,10 @@ let rec matches = (capture, dp: Pat.t, d: DHExp.t): match_result => {
     capture(pr, dp, d, inner_match);
     inner_match;
   | Asc(p, t1) =>
-    matches(p, Ascriptions.transition_multiple(Asc(d, t1) |> DHExp.fresh))
+    let (closures, d) =
+      Ascriptions.transition_multiple(Asc(d, t1) |> DHExp.fresh);
+    List.iter(capture', closures);
+    matches(p, d);
   };
 };
 
@@ -79,22 +96,25 @@ type matches_and_samples = {
 
 let matches = (dp: Pat.t, d: DHExp.t): matches_and_samples => {
   /* Sample capture for Probe instrumentation */
-  let sample_closures: ref(sample_closures) = ref([]);
+  let samples: ref(sample_closures) = ref([]);
   let capture =
       (pr: Probe.t, dp: Pat.t, d: DHExp.t, inner_match: match_result): unit =>
     switch (inner_match) {
     | DoesNotMatch => ()
     | IndetMatch => ()
     | Matches(env) =>
-      sample_closures :=
+      samples :=
         List.cons(
           Sample.mk(Pat.rep_id(dp), d, Environment.of_bindings(env), _, pr),
-          sample_closures^,
+          samples^,
         )
     };
-  let res = matches(capture, dp, d);
+  let capture' = x => {
+    samples := List.cons(x, samples^);
+  };
+  let res = matches(capture, capture', dp, d);
   {
     matches: res,
-    samples: sample_closures^,
+    samples: samples^,
   };
 };

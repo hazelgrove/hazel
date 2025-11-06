@@ -9,6 +9,7 @@ type cls =
   | MultiHole
   | SynSwitch
   | Internal
+  | Inconsistent
   | Arrow
   | Prod
   | TupLabel
@@ -83,6 +84,7 @@ let cls_of_term: Grammar.typ_term('a) => cls =
   | Unknown(Hole(MultiHole(_))) => MultiHole
   | Unknown(SynSwitch) => SynSwitch
   | Unknown(Internal) => Internal
+  | Unknown(Inconsistent) => Inconsistent
   | Atom(c) => Atom(c)
   | List(_) => List
   | Arrow(_) => Arrow
@@ -96,13 +98,15 @@ let cls_of_term: Grammar.typ_term('a) => cls =
   | Rec(_) => Rec
   | Forall(_) => Forall
   | ProdProjection(_) => ProdProjection
-  | ProdExtension(_) => ProdExtension;
+  | ProdExtension(_) => ProdExtension
+  | Probe(_, _) => EmptyHole;
 
 let show_cls: cls => string =
   fun
   | Invalid => "Invalid type"
   | MultiHole => "Broken type"
   | EmptyHole => "Type hole"
+  | Inconsistent => "Join of Inconsistent types"
   | SynSwitch => "Synthetic type"
   | Internal => "Internal type"
   | Atom(_) => "Base type"
@@ -138,14 +142,16 @@ let rec is_arrow = (typ: t) => {
   | Rec(_)
   | ProdProjection(_)
   | ProdExtension(_) => false
+  | Probe(typ, _) => is_arrow(typ)
   };
 };
 
-let is_atom = (ty: t): bool =>
+let rec is_atom = (ty: t): bool =>
   switch (ty.term) {
   | Atom(_) => true
-  | Parens(_)
-  | TupLabel(_)
+  | Parens(ty)
+  | TupLabel(_, ty) => is_atom(ty)
+  | Probe(ty, _) => is_atom(ty)
   | Arrow(_)
   | Unknown(_)
   | List(_)
@@ -183,6 +189,7 @@ let rec has_fun = (typ: t) =>
     )
   | Prod(tys) => List.exists(has_fun, tys)
   | ProdExtension(t1, t2) => has_fun(t1) || has_fun(t2)
+  | Probe(typ, _) => has_fun(typ)
   };
 
 let rec is_forall = (typ: t) => {
@@ -202,6 +209,7 @@ let rec is_forall = (typ: t) => {
   | Rec(_)
   | ProdProjection(_)
   | ProdExtension(_) => false
+  | Probe(typ, _) => is_forall(typ)
   };
 };
 
@@ -238,6 +246,8 @@ let join_type_provenance =
   | (Internal, SynSwitch) => SynSwitch
   | (Internal | Hole(_), _)
   | (_, Hole(_)) => Internal
+  | (Inconsistent, _)
+  | (_, Inconsistent) => Inconsistent
   | (SynSwitch, SynSwitch) => SynSwitch
   };
 
@@ -274,6 +284,7 @@ let rec free_vars = (~bound=[], ty: t): list(Var.t) =>
   | Rec(x, ty)
   | Forall(x, ty) =>
     free_vars(~bound=(x |> TPat.tyvar_of_utpat |> Option.to_list) @ bound, ty)
+  | Probe(ty, _) => free_vars(~bound, ty)
   };
 
 let rec vars = (ty: t): list(Var.t) =>
@@ -305,6 +316,7 @@ let rec vars = (ty: t): list(Var.t) =>
   | TupLabel(_, ty)
   | ProdProjection(ty, _) => vars(ty)
   | ProdExtension(ty1, ty2) => vars(ty1) @ vars(ty2)
+  | Probe(ty, _) => vars(ty)
   };
 let rec aliases_deep = (ctx: Ctx.t, ty: t): list((string, t)) => {
   let defs =
@@ -360,6 +372,7 @@ let rec num_nodes = (ty: t): int => {
   | TupLabel(_, ty) => 1 + num_nodes(ty)
   | ProdProjection(ty1, ty2) => 1 + num_nodes(ty1) + num_nodes(ty2)
   | ProdExtension(ty1, ty2) => 1 + num_nodes(ty1) + num_nodes(ty2)
+  | Probe(ty, _) => 1 + num_nodes(ty)
   };
 };
 
@@ -392,6 +405,7 @@ let rec count_unknowns = (ty: t): int =>
   | TupLabel(_, ty) => count_unknowns(ty)
   | ProdProjection(ty1, _) => count_unknowns(ty1)
   | ProdExtension(ty1, ty2) => count_unknowns(ty1) + count_unknowns(ty2)
+  | Probe(ty, _) => count_unknowns(ty)
   };
 
 let rec contains_sum_or_var = (ty: t): bool =>
@@ -412,6 +426,7 @@ let rec contains_sum_or_var = (ty: t): bool =>
   | ExplicitNonlabel
   | Label(_) => false
   | TupLabel(_, ty) => contains_sum_or_var(ty)
+  | Probe(ty, _) => contains_sum_or_var(ty)
   };
 
 let rec subst = (s: t, x: TPat.t, ty: t): t => {
@@ -439,6 +454,7 @@ let rec subst = (s: t, x: TPat.t, ty: t): t => {
     | List(ty) => List(subst(s, x, ty)) |> rewrap
     | Var(y) => str == y ? s : Var(y) |> rewrap
     | Parens(ty) => Parens(subst(s, x, ty)) |> rewrap
+    | Probe(ty, info) => Probe(subst(s, x, ty), info) |> rewrap
     | ProdProjection(t1, t2) =>
       ProdProjection(subst(s, x, t1), subst(s, x, t2)) |> rewrap
     | ProdExtension(t1, t2) =>
@@ -560,6 +576,7 @@ let rec normalize = (~rec_counter=0, ctx: Ctx.t, ty: t): t => {
     Rec(tpat, normalize(Ctx.extend_dummy_tvar(ctx, tpat), ty)) |> rewrap
   | Forall(name, ty) =>
     Forall(name, normalize(Ctx.extend_dummy_tvar(ctx, name), ty)) |> rewrap
+  | Probe(ty, probe) => Probe(normalize(ctx, ty), probe) |> rewrap
   };
 };
 /* Lattice join on types. This is a LUB join in the hazel2
@@ -567,15 +584,27 @@ let rec normalize = (~rec_counter=0, ctx: Ctx.t, ty: t): t => {
    resolve parameter specifies whether, in the case of a type
    variable and a succesful join, to return the resolved join type,
    or to return the (first) type variable for readability */
-let rec join = (~resolve=false, ctx: Ctx.t, ty1: t, ty2: t): option(t) => {
-  let join' = join(~resolve, ctx);
+let rec join =
+        (
+          ~inconsistent: option(t)=?,
+          ~resolve=false,
+          ctx: Ctx.t,
+          ty1: t,
+          ty2: t,
+        )
+        : option(t) => {
+  let join' = join(~inconsistent?, ~resolve, ctx);
   switch (term_of(ty1), term_of(ty2)) {
   | (_, Parens(ty2)) => join'(ty1, ty2)
   | (Parens(ty1), _) => join'(ty1, ty2)
   | (TupLabel({term: ExplicitNonlabel, _}, ty1'), _) => join'(ty1', ty2)
   | (_, TupLabel({term: ExplicitNonlabel, _}, ty2')) => join'(ty1, ty2')
+  | (Probe(ty1, _), _) => join'(ty1, ty2)
+  | (_, Probe(ty2, _)) => join'(ty1, ty2)
   | (Unknown(p1), Unknown(p2)) =>
     Some(Unknown(join_type_provenance(p1, p2)) |> temp)
+  | (Unknown(Inconsistent), _) => Some(ty1)
+  | (_, Unknown(Inconsistent)) => Some(ty2)
   | (Unknown(_), _) => Some(ty2)
   | (_, Unknown(_)) => Some(ty1)
   | (Var(n1), Var(n2)) =>
@@ -609,7 +638,7 @@ let rec join = (~resolve=false, ctx: Ctx.t, ty1: t, ty2: t): option(t) => {
       };
     let+ ty_body = join(~resolve, ctx, ty1', ty2);
     Rec(tp1, ty_body) |> temp;
-  | (Rec(_), _) => None
+  | (Rec(_), _) => inconsistent
   | (Forall(x1, ty1), Forall(x2, ty2)) =>
     let ty1' =
       switch (TPat.tyvar_of_utpat(x2)) {
@@ -625,25 +654,25 @@ let rec join = (~resolve=false, ctx: Ctx.t, ty1: t, ty2: t): option(t) => {
      be exposed to the user. We preserve the variable name of the
      second type to preserve synthesized type variable names, which
      come from user annotations. */
-  | (Forall(_), _) => None
+  | (Forall(_), _) => inconsistent
   | (Atom(c1), Atom(c2)) when c1 == c2 => Some(ty1)
-  | (Atom(_), _) => None
+  | (Atom(_), _) => inconsistent
   | (Label(_), Label("")) => Some(ty1)
   | (Label(""), Label(_)) => Some(ty2)
   | (Label(name1), Label(name2))
       when LabeledTuple.match_labels(name1, name2) =>
     Some(ty1)
-  | (Label(_), _) => None
+  | (Label(_), _) => inconsistent
   | (Arrow(ty1, ty2), Arrow(ty1', ty2')) =>
     let* ty1 = join'(ty1, ty1');
     let+ ty2 = join'(ty2, ty2');
     Arrow(ty1, ty2) |> temp;
-  | (Arrow(_), _) => None
+  | (Arrow(_), _) => inconsistent
   | (TupLabel(lab1, ty1'), TupLabel(lab2, ty2')) =>
     let* lab = join'(lab1, lab2);
     let+ ty = join'(ty1', ty2');
     TupLabel(lab, ty) |> temp;
-  | (TupLabel(_), _) => None
+  | (TupLabel(_), _) => inconsistent
   | (Prod(tys1), Prod(tys2)) =>
     if (List.length(tys1) != List.length(tys2)) {
       None;
@@ -652,18 +681,18 @@ let rec join = (~resolve=false, ctx: Ctx.t, ty1: t, ty2: t): option(t) => {
       let+ tys = OptUtil.sequence(tys);
       Prod(tys) |> temp;
     }
-  | (Prod(_), _) => None
+  | (Prod(_), _) => inconsistent
   | (Sum(sm1), Sum(sm2)) =>
     let+ sm' = ConstructorMap.join(equal, join(~resolve, ctx), sm1, sm2);
     Sum(sm') |> temp;
-  | (Sum(_), _) => None
+  | (Sum(_), _) => inconsistent
   | (List(ty1), List(ty2)) =>
     let+ ty = join'(ty1, ty2);
     List(ty) |> temp;
-  | (List(_), _) => None
+  | (List(_), _) => inconsistent
   // We would prefer for this to be a sort difference and never appear in a join.
   // These get marked in statics but that does not remove them from the utyp's propagated on parents.
-  | (ExplicitNonlabel, _) => None
+  | (ExplicitNonlabel, _) => inconsistent
   };
 };
 
@@ -705,18 +734,38 @@ let rec match_synswitch = (t1: t, t2: t) => {
   // HACK[Matt]: The only possible forall is `Forall Syn -> Syn`
   | (Forall(_), Forall(_)) => t2
   | (Forall(_), _) => t1
+  | (Probe(ty1, _), _) =>
+    Probe(match_synswitch(ty1, t2), Probe.empty) |> rewrap1
   };
 };
 
-let join_all = (~empty: t, ctx: Ctx.t, ts: list(t)): option(t) =>
+let join_all =
+    (~inconsistent=?, ~empty: t, ctx: Ctx.t, ts: list(t)): option(t) =>
   List.fold_left(
-    (acc, ty) => OptUtil.and_then(join(ctx, ty), acc),
+    (acc, ty) => OptUtil.and_then(join(~inconsistent?, ctx, ty), acc),
     Some(empty),
     ts,
   );
 
 let is_consistent = (ctx: Ctx.t, ty1: t, ty2: t): bool =>
   join(ctx, ty1, ty2) != None;
+
+/*
+    Computes the most precise type that is consistent with all input types.
+    Like a multi-way join, but if any ground types are inconsistent, replaces
+    that position with an "unknown" type rather than failing.
+    This operation is NOT associative — applying it pairwise may yield
+    a different result than applying it to the whole list at once.
+ */
+let consistent_join = (ctx: Ctx.t, tys: list(t)): t => {
+  join_all(
+    ~inconsistent=Unknown(Inconsistent) |> temp,
+    ~empty=Unknown(SynSwitch) |> temp,
+    ctx,
+    tys,
+  )
+  |> Option.value(~default=Unknown(SynSwitch) |> temp);
+};
 
 /**
    * Determines if one type (`ty1`) is more precise than another type (`ty2`) within a given context (`ctx`).
@@ -892,6 +941,7 @@ let rec is_syn = (ty: t): bool =>
   | ProdProjection(_)
   | ProdExtension(_)
   | ExplicitNonlabel => false
+  | Probe(ty, _) => is_syn(ty)
   };
 
 let rec is_ana_atom = (ty: t) =>
@@ -911,6 +961,7 @@ let rec is_ana_atom = (ty: t) =>
   | ProdProjection(_)
   | ProdExtension(_)
   | Sum(_) => None
+  | Probe(ty, _) => is_ana_atom(ty)
   };
 
 let rec is_syn_plus = (ty: t): bool =>
@@ -931,6 +982,7 @@ let rec is_syn_plus = (ty: t): bool =>
   | Sum(_)
   | ProdProjection(_)
   | ProdExtension(_) => false
+  | Probe(ty, _) => is_syn_plus(ty)
   };
 
 /* Does the type require parentheses when on the left of an arrow for printing? */
@@ -951,6 +1003,7 @@ let rec needs_parens = (ty: t): bool =>
   | Arrow(_, _)
   | Prod(_)
   | Sum(_) => true /* disambiguate between (A + B) -> C and A + (B -> C) */
+  | Probe(ty, _) => needs_parens(ty)
   };
 
 let pretty_print_tvar = (tv: TPat.t): string =>
@@ -1006,6 +1059,7 @@ let rec pretty_print = (ty: t): string =>
     "rec " ++ pretty_print_tvar(tv) ++ " -> " ++ pretty_print(t)
   | Forall(tv, t) =>
     "forall " ++ pretty_print_tvar(tv) ++ " -> " ++ pretty_print(t)
+  | Probe(ty, _) => pretty_print(ty)
   }
 and ctr_pretty_print =
   fun
@@ -1067,3 +1121,54 @@ let remove_duplicate_labels =
  * @return A product type representing the combination of the input types
  */
 let to_product = (tys: list(t)): t => TempGrammar.Typ.(prod(tys));
+
+/* Computes the list of ids in t' that are not in t. Assumes initial ids are distinct. Only returns the id of the root difference. */
+let rec diff = (ty: t, ty': t): list(Id.t) => {
+  let get_ids = () => {
+    let ids = ref([]);
+    let _ =
+      Grammar.map_typ_annotation(
+        (t: IdTagged.IdTag.t) => {
+          ids := t.ids @ ids^;
+          t;
+        },
+        ty': t,
+      );
+    ids^;
+  };
+  switch (term_of(ty), term_of(ty')) {
+  | (Probe(t1, _), _) => diff(t1, ty')
+  | (_, Probe(t2, _)) => diff(ty, t2)
+  | (Parens(t1), Parens(t2)) => diff(t1, t2)
+  | (Unknown(_), Unknown(_)) => []
+  | (Unknown(_), _) => get_ids()
+  | (Atom(c1), Atom(c2)) when c1 == c2 => []
+  | (Atom(_), _) => get_ids()
+  | (Label(l1), Label(l2)) when l1 == l2 => []
+  | (Label(_), _) => get_ids()
+  | (ExplicitNonlabel, ExplicitNonlabel) => []
+  | (ExplicitNonlabel, _) => get_ids()
+  | (Var(v1), Var(v2)) when v1 == v2 => []
+  | (Var(_), _) => get_ids()
+  | (Rec(_tp1, t1), Rec(_tp2, t2)) => diff(t1, t2) // TODO Check tpat
+  | (Rec(_), _) => get_ids()
+  | (Forall(_tp1, t1), Forall(_tp2, t2)) => diff(t1, t2) // TODO Check tpat
+  | (Forall(_), _) => get_ids()
+  | (Arrow(t1a, t1b), Arrow(t2a, t2b)) => diff(t1a, t2a) @ diff(t1b, t2b)
+  | (Arrow(_), _) => get_ids()
+  | (Prod(tys1), Prod(tys2)) when List.length(tys1) == List.length(tys2) =>
+    List.map2(diff, tys1, tys2) |> List.concat
+  | (Prod(_), _) => get_ids()
+  | (TupLabel(l1, t1), TupLabel(l2, t2)) => diff(l1, l2) @ diff(t1, t2)
+  | (TupLabel(_, _), _) => get_ids()
+  | (List(t1), List(t2)) => diff(t1, t2)
+  | (List(_), _) => get_ids()
+  | (ProdProjection(t1, t2), ProdProjection(t1', t2')) =>
+    diff(t1, t1') @ diff(t2, t2')
+  | (ProdProjection(_, _), _) => get_ids()
+  | (ProdExtension(t1, t2), ProdExtension(t1', t2')) =>
+    diff(t1, t1') @ diff(t2, t2')
+  | (ProdExtension(_, _), _) => get_ids()
+  | _ => get_ids()
+  };
+};

@@ -7,6 +7,8 @@ type t = {
   elaborated: Exp.t,
   info_map: Statics.Map.t,
   error_ids: list(Id.t),
+  dynamic_info_map: Statics.Map.t,
+  dynamic_error_ids: list(Id.t),
 };
 
 let empty: t = {
@@ -24,10 +26,16 @@ let empty: t = {
   },
   info_map: Id.Map.empty,
   error_ids: [],
+  dynamic_info_map: Id.Map.empty,
+  dynamic_error_ids: [],
 };
 
 let elaborate =
-  Core.Memo.general(~cache_size_bound=1000, Elaborator.uexp_elab);
+  Core.Memo.general(
+    ~cache_size_bound=1000,
+    (probe_unknowns: bool, info_map: Statics.Map.t, term: Exp.t) =>
+    Elaborator.uexp_elab(~probe_unknowns, info_map, term)
+  );
 
 let dh_err = (error: string): DHExp.t => Var(error) |> DHExp.fresh;
 
@@ -45,7 +53,7 @@ let init_from_term = (~settings, ~is_dynamic_term, ~ctx=?, term): t => {
     | _ when !settings.dynamics && !settings.elaborate =>
       dh_err("Dynamics & Elaboration disabled")
     | _ =>
-      switch (elaborate(info_map, term)) {
+      switch (elaborate(settings.dynamic_feedback, info_map, term)) {
       | DoesNotElaborate => dh_err("Elaboration returns None")
       | Elaborates(d, _) => d
       }
@@ -55,6 +63,8 @@ let init_from_term = (~settings, ~is_dynamic_term, ~ctx=?, term): t => {
     elaborated,
     info_map,
     error_ids,
+    dynamic_info_map: Statics.Map.empty,
+    dynamic_error_ids: [],
   };
 };
 

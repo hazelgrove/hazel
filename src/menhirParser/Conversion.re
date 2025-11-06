@@ -257,8 +257,8 @@ module rec Exp: {
     | Fun(p, e, name_opt) =>
       switch (name_opt) {
       | Some(name_str) =>
-        fn(Pat.of_menhir_ast(p), of_menhir_ast(e), None, Some(name_str))
-      | None => fn(Pat.of_menhir_ast(p), of_menhir_ast(e), None, None)
+        fn(Pat.of_menhir_ast(p), of_menhir_ast(e), ~name=name_str)
+      | None => fn(Pat.of_menhir_ast(p), of_menhir_ast(e))
       }
     | ApExp(e1, args) =>
       switch (args) {
@@ -512,6 +512,7 @@ and Typ: {
           constructors,
         );
       SumTyp(sumterms);
+    | Probe(typ, _) => of_core(typ)
     };
   };
 }

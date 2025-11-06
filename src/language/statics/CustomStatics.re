@@ -169,6 +169,25 @@ let handle_tuple_operation =
           arg.annotation.ids,
           InfoExp(
             Info.derived_exp(
+              ~calculate_dynamic_type=
+                uexp => {
+                  let (ie, m) =
+                    uexp_to_info_map(
+                      ~ctx,
+                      ~label_sort=false,
+                      ~ancestors,
+                      ~duplicates=[],
+                      uexp,
+                      m,
+                    );
+
+                  if (StaticsBase.Map.has_errors(m)) {
+                    None;
+                  } else {
+                    Some(ie.ty);
+                  };
+                }, // TODO
+              ~dynamics,
               ~uexp=arg,
               ~ctx,
               ~ana=syn,
@@ -351,6 +370,25 @@ let group_by_label_statics =
           arg.annotation.ids,
           InfoExp(
             Info.derived_exp(
+              ~calculate_dynamic_type=
+                uexp => {
+                  let (ie, m) =
+                    uexp_to_info_map(
+                      ~ctx,
+                      ~label_sort=false,
+                      ~ancestors,
+                      ~duplicates=[],
+                      uexp,
+                      m,
+                    );
+
+                  if (StaticsBase.Map.has_errors(m)) {
+                    None;
+                  } else {
+                    Some(ie.ty);
+                  };
+                }, // TODO
+              ~dynamics,
               ~uexp=arg,
               ~ctx,
               ~ana=syn,

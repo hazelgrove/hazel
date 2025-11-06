@@ -171,6 +171,7 @@ module Composition = {
   let statics_of_exp_seg =
       (init_ctx: Ctx.t, sketch: Segment.t): (Info.exp, Statics.Map.t) =>
     Statics.uexp_to_info_map(
+      ~dynamics=DynamicStatics.Map.empty,
       ~ctx=init_ctx,
       ~ancestors=[],
       MakeTerm.go(Id.Map.empty, sketch).term,
@@ -406,6 +407,7 @@ module ErrorRound = {
   let statics_of_exp_zipper =
       (init_ctx: Ctx.t, z: Zipper.t): (Info.exp, Statics.Map.t) =>
     Statics.uexp_to_info_map(
+      ~dynamics=DynamicStatics.Map.empty,
       ~ctx=init_ctx,
       ~ancestors=[],
       MakeTerm.from_zip_for_sem(z).term,

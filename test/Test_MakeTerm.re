@@ -45,7 +45,7 @@ let tests =
         exp_check(
           let_(
             Pat.var("f"),
-            fn(Pat.var("x"), var("x"), None, None), // It seems as though the function naming happens during elaboration and not during parsing
+            fn(Pat.var("x"), var("x")), // It seems as though the function naming happens during elaboration and not during parsing
             int(1),
           ),
           "let f = fun x -> x in 1",
@@ -55,7 +55,7 @@ let tests =
         exp_check(
           let_(
             Pat.empty_hole(),
-            fn(Pat.var("x"), empty_hole(), None, None),
+            fn(Pat.var("x"), empty_hole()),
             empty_hole(),
           ),
           "let    = fun x ->   in  ",
@@ -192,8 +192,6 @@ let tests =
           fn(
             Pat.(tuple([tup_label(label("a"), empty_hole())])),
             empty_hole(),
-            None,
-            None,
           ),
           {|fun (`a`=?) -> ?|},
         )

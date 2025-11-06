@@ -70,7 +70,7 @@ let tests =
           check(
             option(exp),
             "Function",
-            Some(Exp.(fn(Pat.empty_hole(), empty_hole(), None, None))),
+            Some(Exp.(fn(Pat.empty_hole(), empty_hole()))),
             introduce_expression(Typ.(arrow(int(), int()))),
           )
         }),

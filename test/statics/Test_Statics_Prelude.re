@@ -81,6 +81,14 @@ let annotate_static_errors = (exp: TermBase.exp_t, info_map: Statics.Map.t) => {
   );
 };
 
+let annotated_exp': testable('a) => testable(Grammar.exp_t('a)) =
+  t => {
+    let fmt' = Grammar.pp_exp_t(pp(t));
+    let eq' = Grammar.equal_exp_t(equal(t));
+
+    testable(fmt', eq');
+  };
+
 let annotated_exp: testable(Grammar.exp_t(option(Info.error))) =
   testable(
     Fmt.using(

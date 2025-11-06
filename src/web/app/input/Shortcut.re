@@ -170,6 +170,12 @@ let shortcuts = (sys: Util.Key.sys): list(t) =>
     mk_shortcut(
       ~section="Settings",
       ~mdIcon="tune",
+      "Toggle Dynamic Feedback",
+      Globals(Set(DynamicFeedback)),
+    ),
+    mk_shortcut(
+      ~section="Settings",
+      ~mdIcon="tune",
       "Toggle Show Elaboration",
       Globals(Set(Elaborate)),
     ),

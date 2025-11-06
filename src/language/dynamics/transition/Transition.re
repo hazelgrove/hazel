@@ -880,26 +880,26 @@ module Transition = (EV: EV_MODE) => {
       Indet;
     | Asc(d', t) =>
       switch (Ascriptions.transition(d)) {
-      | Some(d') =>
+      | (closures, Some(d')) =>
         let. _ = otherwise(env, d);
         Step({
           expr: d',
-          side_effects: [],
+          side_effects: [RecordPatProbes(closures)],
           kind: Ascription,
           is_value: false,
         });
-      | None =>
+      | (_, None) =>
         let. _ = otherwise(env, d => Asc(d, t) |> rewrap)
         and. d' = req_final(req(env), d => Asc(d, t) |> wrap_ctx, d');
         switch (Ascriptions.transition(Asc(d', t) |> rewrap)) {
-        | Some(d) =>
+        | (closures, Some(d)) =>
           Step({
             expr: d,
-            side_effects: [],
+            side_effects: [RecordPatProbes(closures)],
             kind: Ascription,
             is_value: false,
           })
-        | None => Constructor
+        | (_, None) => Constructor
         };
       }
     | Undefined =>

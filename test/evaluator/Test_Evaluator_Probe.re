@@ -149,8 +149,6 @@ let tests = (
                     ),
                   ],
                 ),
-                None,
-                None,
               ),
               ap(Forward, var("fact"), int(5)),
             )
@@ -331,6 +329,32 @@ let tests = (
             )
           ),
         )
+      )
+    }),
+    test_case("Probe around unknown type", `Quick, () => {
+      PGrammar.(
+        probe_test(
+          {|3 : PROBE(?)|},
+          Exp.(
+            asc(
+              int(3),
+              Typ.probe(
+                ~ann=[probed_value(Atom(Int(Bigint.of_int(3))))],
+                Typ.unknown(Internal),
+                {refs: []},
+              ),
+            )
+          ),
+        )
+      )
+    }),
+    test_case("Probe on constructor pattern still pattern matches", `Quick, () => {
+      parse_and_evaluate_test(
+        {hazel|1|hazel},
+        {hazel|case Some("int", 3)
+| None => 0
+| ^^probe(Some(d)) => 1
+end|hazel},
       )
     }),
   ],

@@ -499,6 +499,10 @@ let equality =
     // Wrappers when ignored: unwrap.
     | (Parens(x), _) when ignore_parens => typ'(x, t2)
     | (_, Parens(x)) when ignore_parens => typ'(t1, x)
+    | (Probe(x, _), _) when ignore_probes => typ'(x, t2)
+    | (_, Probe(x, _)) when ignore_probes => typ'(t1, x)
+    | (Probe(x, _), Probe(y, _)) => typ'(x, y)
+    | (Probe(_), _) => false
     | (TupLabel({term: ExplicitNonlabel, _}, t1), _)
         when ignore_explicit_unlabelling =>
       typ'(t1, t2)
@@ -549,6 +553,8 @@ let equality =
     | (Unknown(Hole(MultiHole(_))), _) => false
     | (Unknown(Internal), Unknown(Internal)) => true
     | (Unknown(Internal), _) => false
+    | (Unknown(Inconsistent), Unknown(Inconsistent)) => true
+    | (Unknown(Inconsistent), _) => false
 
     // Other forms: compare.
     | (Atom(a1), Atom(a2)) => a1 == a2

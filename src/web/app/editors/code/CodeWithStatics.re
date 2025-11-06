@@ -1,6 +1,7 @@
-open Util;
-open Util.WebUtil;
 open Haz3lcore;
+open Language;
+open Util;
+open WebUtil;
 
 /* Read-only code viewer with statics, but no interaction. Notably,
    since there is no interaction, the user can see that there is an
@@ -16,6 +17,8 @@ module Model = {
     context_menu: bool,
     statics: CachedStatics.t,
     dynamics: Language.Dynamics.Map.t,
+    dynamic_statics: Calc.saved((StaticsBase.Map.t, list(Id.t))),
+    pinned_call: Calc.saved(DynCursor.t),
   };
 
   let mk =
@@ -24,10 +27,14 @@ module Model = {
         ~statics=CachedStatics.empty,
         editor,
       ) => {
-    editor,
-    statics,
-    dynamics,
-    context_menu: false,
+    {
+      editor,
+      statics,
+      dynamics,
+      dynamic_statics: Calc.Pending,
+      pinned_call: Calc.Pending,
+      context_menu: false,
+    };
   };
 
   let mk_from_exp =
@@ -47,27 +54,38 @@ module Model = {
 
   let get_statics = (model: t) => model.statics;
 
-  let get_dynamics = (model: t) => model.dynamics;
-
   let get_cursor_info = (model: t): Cursor.cursor(Action.t) => {
-    info: Indicated.ci_of(model.editor.state.zipper, model.statics.info_map),
-    indicated_piece:
-      Indicated.piece''(model.editor.state.zipper)
-      |> Option.map(((p, _, _)) => p),
-    selected_text:
-      Some(
-        () =>
-          Printer.of_segment(
-            ~refractors=model.editor.state.zipper.refractors.manuals,
-            model.editor.state.zipper.selection.content,
-          ),
-      ),
-    selection: Some(model.editor.state.zipper.selection.content),
-    editor: Some(model.editor),
-    editor_read_only: true,
-    editor_action: x => Some(x),
-    undo_action: None,
-    redo_action: None,
+    let info =
+      Indicated.ci_of(model.editor.state.zipper, model.statics.info_map);
+    let dynamic_info =
+      Indicated.ci_of(
+        model.editor.state.zipper,
+        model.statics.dynamic_info_map,
+      );
+    let id = Indicated.index(model.editor.state.zipper);
+    {
+      info,
+      dynamic_info,
+      dynamics:
+        Option.bind(id, Language.Dynamics.Map.lookup(_, model.dynamics)),
+      indicated_piece:
+        Indicated.piece''(model.editor.state.zipper)
+        |> Option.map(((p, _, _)) => p),
+      selected_text:
+        Some(
+          () =>
+            Printer.of_segment(
+              ~refractors=model.editor.state.zipper.refractors.manuals,
+              model.editor.state.zipper.selection.content,
+            ),
+        ),
+      selection: Some(model.editor.state.zipper.selection.content),
+      editor: Some(model.editor),
+      editor_read_only: true,
+      editor_action: x => Some(x),
+      undo_action: None,
+      redo_action: None,
+    };
   };
 
   [@deriving (show({with_path: false}), sexp, yojson)]
@@ -87,13 +105,20 @@ module Update = {
   /* Calculates the statics for the editor. */
   let calculate =
       (
-        ~settings,
+        ~settings: Language.CoreSettings.t,
         ~is_edited,
         ~ctx=?,
         ~stitch,
-        ~dynamics: Language.Dynamics.Map.t,
+        ~dynamics: Calc.t(Language.Dynamics.Map.t),
         ~is_dynamic_term,
-        {editor, statics, context_menu, _}: Model.t,
+        {
+          editor,
+          statics,
+          dynamic_statics,
+          pinned_call,
+          context_menu,
+          dynamics: _,
+        }: Model.t,
       )
       : Model.t => {
     //TODO(andrew): resolve this cycle
@@ -103,7 +128,7 @@ module Update = {
         ~settings,
         ~is_edited,
         statics,
-        dynamics,
+        Calc.get_value(dynamics),
         editor,
       );
     let statics =
@@ -116,6 +141,68 @@ module Update = {
             editor.state.zipper,
           )
         : statics;
+
+    let ctx_init: Language.Ctx.t = Language.Builtins.ctx_init(Some(Int));
+
+    // Track the current pinned call state
+    let dyn_cursor = editor.state.zipper.refractors.dyn_cursor;
+    let pinned_call_t = Calc.set(dyn_cursor, pinned_call);
+
+    let dynamic_statics =
+      if (settings.dynamic_feedback) {
+        Calc.Syntax.(
+          dynamic_statics
+          |> {
+            let.calc dynamics = dynamics
+            and.calc dyn_cursor = pinned_call_t;
+
+            // Filter closures based on the pinned call
+            let filtered_dynamics =
+              DynCursor.filter_all_by_pin(dyn_cursor, dynamics);
+
+            let dynamic_expressions: Id.Map.t(list(TermBase.exp_t)) =
+              Id.Map.map(
+                d => {
+                  open Language;
+                  let exps = List.map((c: Sample.t) => c.value, d);
+                  exps;
+                },
+                filtered_dynamics,
+              );
+
+            let dynamic_info_map =
+              Language.Statics.mk(
+                ~dynamics=dynamic_expressions,
+                settings,
+                ctx_init,
+                statics.term,
+              );
+
+            let dynamic_error_ids =
+              Language.StaticsBase.Map.error_ids(dynamic_info_map)
+              |> List.filter(id => !List.mem(id, statics.error_ids));
+
+            (dynamic_info_map, dynamic_error_ids);
+          }
+        );
+      } else {
+        Calc.set((Statics.Map.empty, []), dynamic_statics);
+      };
+
+    let statics: CachedStatics.t = {
+      ...statics,
+      dynamic_info_map: dynamic_statics |> Calc.get_value |> fst,
+      dynamic_error_ids: dynamic_statics |> Calc.get_value |> snd,
+    };
+
+    let editor =
+      Editor.Update.calculate(
+        ~settings,
+        ~is_edited=true,
+        statics,
+        Calc.get_value(dynamics),
+        editor,
+      );
     {
       // let editor =
       //   Editor.Update.calculate(
@@ -128,8 +215,10 @@ module Update = {
 
       editor,
       statics,
-      dynamics,
       context_menu,
+      dynamics: Calc.get_value(dynamics),
+      dynamic_statics: Calc.save(dynamic_statics),
+      pinned_call: Calc.Pending,
     };
   };
 };
@@ -156,19 +245,29 @@ module View = {
         ~buffer_ids=Selection.is_buffer(z.selection) ? selection_ids : [],
         ~segment,
         ~shape_map,
-        ~refractor_shape_map=Id.Map.empty //Id.Map.map(_ => 2, z.refractors.map),
+        ~refractor_shape_map=Id.Map.empty, //Id.Map.map(_ => 2, z.refractors.map),
+        (),
       );
     let statics_decos =
       Arms.Errors.of_ids(
+        ~is_dynamic=false,
         ~font_metrics=globals.font_metrics,
         ~syntax=model.editor.syntax,
         model.statics.error_ids,
+      );
+
+    let dynamic_static_decos =
+      Arms.Errors.of_ids(
+        ~is_dynamic=true,
+        ~font_metrics=globals.font_metrics,
+        ~syntax=model.editor.syntax,
+        model.statics.dynamic_error_ids,
       );
     let container_classes =
       ["code-container"] @ (globals.meta_down ? ["meta-down"] : []);
     Node.div(
       ~attrs=[Attr.classes(container_classes)],
-      [code_text_view, statics_decos] @ overlays,
+      [code_text_view, statics_decos, dynamic_static_decos] @ overlays,
     );
   };
 };

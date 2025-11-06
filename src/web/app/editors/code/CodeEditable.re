@@ -47,6 +47,8 @@ module Update = {
             statics: model.statics,
             dynamics: model.dynamics,
             context_menu: false,
+            dynamic_statics: model.dynamic_statics,
+            pinned_call: model.pinned_call,
           }
         | Error(err) => raise(Action.Failure.Exception(err))
       )

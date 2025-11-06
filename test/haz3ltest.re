@@ -25,6 +25,7 @@ let (suite, _) =
       Test_StringUtil.tests,
       Test_PatternMatch.tests,
       Test_Id_Transform.tests,
+      Test_WriterMonad.tests,
     ]
     @ Test_Typ.tests
     @ Test_Info.tests

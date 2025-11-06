@@ -129,3 +129,18 @@ let is_related = relation =>
   | Same => true
   | Unrelated => false
   };
+
+// TODO Combine with probproj version
+let filter_frames_by_pin = (samples, dyn_cursor: t): list(Sample.t) =>
+  switch (dyn_cursor.pinned_stack) {
+  | Some(pinned_ap) =>
+    List.filter(
+      (sample: Sample.t) =>
+        ListUtil.is_suffix_of(pinned_ap, sample.call_stack),
+      samples,
+    )
+  | None => samples
+  };
+
+let filter_all_by_pin = (dyn_cursor: t, map: Sample.Map.t): Sample.Map.t =>
+  Id.Map.map(closures => filter_frames_by_pin(closures, dyn_cursor), map);

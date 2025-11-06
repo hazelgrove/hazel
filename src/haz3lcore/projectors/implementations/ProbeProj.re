@@ -1150,6 +1150,7 @@ let offside_view =
           ~background: bool=?,
           ~is_single_line: option(unit)=?,
           ~text_only: option(unit)=?,
+          ~is_dynamic: Id.t => bool=?,
           Sort.t,
           list(syntax)
         ) =>
@@ -1190,7 +1191,12 @@ let offside_view =
           /* NOTE: Right now this is hard set to single_line and text_only
            * for optimization purposes. This can be relaxed in the future */
           (~text_only) =>
-            view_seg(~is_single_line=Some(), ~text_only, ~background=false),
+            view_seg(
+              ~is_single_line=Some(),
+              ~text_only,
+              ~is_dynamic=?None,
+              ~background=false,
+            ),
           local,
           parent,
           groups,

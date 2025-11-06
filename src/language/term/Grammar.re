@@ -147,6 +147,7 @@ and typ_term('a) =
   | Forall(tpat_t('a), typ_t('a))
   | ProdProjection(typ_t('a), typ_t('a))
   | ProdExtension(typ_t('a), typ_t('a))
+  | Probe(typ_t('a), Probe.t)
 and typ_t('a) = Annotated.t(typ_term('a), 'a)
 and tpat_term('a) =
   | Invalid(string)
@@ -170,6 +171,7 @@ and type_provenance('a) =
   | SynSwitch
   | Hole(type_hole('a))
   | Internal
+  | Inconsistent
 and filter('a) = {
   pat: exp_t('a),
   act: FilterAction.t,
@@ -374,6 +376,7 @@ and map_typ_annotation: 'a 'b. ('a => 'b, typ_t('a)) => typ_t('b) =
             map_typ_annotation(f, t1),
             map_typ_annotation(f, t2),
           )
+        | Probe(t, probe) => Probe(map_typ_annotation(f, t), probe)
         },
       annotation: new_annotation,
     };
@@ -441,6 +444,7 @@ and map_type_provenance_annotation:
     | SynSwitch => SynSwitch
     | Hole(h) => Hole(map_type_hole_annotation(f, h))
     | Internal => Internal
+    | Inconsistent => Inconsistent
     };
   }
 and map_type_hole_annotation:
@@ -533,8 +537,8 @@ module Factory = (DefaultAnnotation: DefaultAnnotation) => {
       term: Constructor(s, t),
       annotation: default_annotation(ann),
     };
-    let fn = (~ann=?, p, e, t, v): exp_t(DefaultAnnotation.t) => {
-      term: Fun(p, e, t, v),
+    let fn = (~ann=?, ~typ=?, ~name=?, p, e): exp_t(DefaultAnnotation.t) => {
+      term: Fun(p, e, typ, name),
       annotation: default_annotation(ann),
     };
     let typ_fun = (~ann=?, p, e, v): exp_t(DefaultAnnotation.t) => {
@@ -847,6 +851,10 @@ module Factory = (DefaultAnnotation: DefaultAnnotation) => {
     };
     let empty_hole = (~ann=?, ()): typ_t(DefaultAnnotation.t) => {
       term: Unknown(Hole(EmptyHole)),
+      annotation: default_annotation(ann),
+    };
+    let probe = (~ann=?, t, probe): typ_t(DefaultAnnotation.t) => {
+      term: Probe(t, probe),
       annotation: default_annotation(ann),
     };
   };
