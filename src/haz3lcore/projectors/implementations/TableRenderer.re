@@ -266,12 +266,7 @@ let add_column_after =
           Pat.var("r"),
           tuple_extension(
             var("r"),
-            tuple([
-              tup_label(
-                label(new_column),
-                var("\"\"") // Empty string as default value
-              ),
-            ]),
+            tuple([tup_label(label(new_column), empty_hole())]),
           ),
           None,
           None,
@@ -598,11 +593,17 @@ let build_column_menu =
       }),
       Action({
         text: "Add Column After",
-        action: () =>
-          Effect.Many([
-            local(CloseMenu),
-            parent(SetSyntax(add_column_after(info, h, "new_column"))),
-          ]),
+        action: () => {
+          let new_column_name = JsUtil.prompt("New column name:", "");
+          switch (new_column_name) {
+          | None => local(CloseMenu) // User cancelled
+          | Some(new_name) =>
+            Effect.Many([
+              local(CloseMenu),
+              parent(SetSyntax(add_column_after(info, h, new_name))),
+            ])
+          };
+        },
       }),
     ];
 
