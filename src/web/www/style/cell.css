@@ -316,3 +316,15 @@
   width: 50px;
   font-size: 12px;
 }
+
+.renderer-badge {
+  background-color: #f0f0f0;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.renderer-badge:hover {
+  background-color: #e0e0e0;
+}
