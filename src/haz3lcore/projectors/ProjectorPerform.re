@@ -128,24 +128,45 @@ let go =
     | None => Error(Cant_project)
     }
   | SetSyntax(id, seg) =>
-    // Don't do this
-    let new_id =
-      MakeTerm.from_zip_for_sem(Zipper.unzip(~direction=Right, seg)).term
-      |> Language.Exp.rep_id;
-    let (l, r) =
-      TermData.extremes_shards(Id.recover_original(id), term_data)
-      |> Option.get;
-    let new_z =
-      Select.shard_range(l, r, z)
-      |> Option.map(Zipper.replace_selection(Right, seg))
-      |> Option.get;
     // This needs to be generalized in a way that scales
+    // TODO Handle auto refractors
     let original_refractor_model =
       Id.Map.find_opt(Id.recover_original(id), z.refractors.manuals)
       |> Option.map((pr: Base.projector) => pr.model);
-    let new_z =
-      MkRefractor.add_single(~model=?original_refractor_model, new_id, new_z);
-    Ok(new_z);
+    switch (original_refractor_model) {
+    | Some(_) =>
+      // Don't do this
+      let new_id =
+        MakeTerm.from_zip_for_sem(Zipper.unzip(~direction=Right, seg)).term
+        |> Language.Exp.rep_id;
+      let (l, r) =
+        TermData.extremes_shards(Id.recover_original(id), term_data)
+        |> Option.get;
+      let new_z =
+        Select.shard_range(l, r, z)
+        |> Option.map(Zipper.replace_selection(Right, seg))
+        |> Option.get;
+
+      let new_z =
+        MkRefractor.add_single(
+          ~model=?original_refractor_model,
+          new_id,
+          new_z,
+        );
+      Ok(new_z);
+    | None =>
+      Ok(
+        update(
+          p =>
+            {
+              ...p,
+              syntax: Segment.parenthesize(seg),
+            },
+          id,
+          z,
+        ),
+      )
+    };
   | SetModel(id, model) =>
     let z =
       ZipperBase.update_refractor(
