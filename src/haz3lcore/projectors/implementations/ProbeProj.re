@@ -80,7 +80,6 @@ let pack_renderer =
 type active_renderer = {
   renderer_id: string,
   model_state: string,
-  value_state: string,
 };
 
 [@deriving (show({with_path: false}), sexp, yojson)]
@@ -1284,7 +1283,6 @@ module M: Projector = {
                   Some({
                     renderer_id: renderer.id,
                     model_state,
-                    value_state,
                   }),
               };
             | None => model
@@ -1298,7 +1296,7 @@ module M: Projector = {
     | RendererAction(serialized_action) =>
       /* Route action to active renderer */
       switch (model.active_renderer) {
-      | Some({renderer_id, model_state, value_state}) =>
+      | Some({renderer_id, model_state}) =>
         switch (List.find_opt(r => r.id == renderer_id, renderers)) {
         | Some(renderer) => {
             active_renderer:
@@ -1306,7 +1304,6 @@ module M: Projector = {
                 renderer_id,
                 model_state:
                   renderer.update_packed(model_state, serialized_action),
-                value_state,
               }),
           }
         | None => model
