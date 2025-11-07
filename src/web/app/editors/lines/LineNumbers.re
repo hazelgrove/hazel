@@ -1,7 +1,6 @@
 open Haz3lcore;
 //open Virtual_dom.Vdom;
 open Util;
-open Util.Sets;
 open WebUtil;
 
 /*
@@ -9,107 +8,77 @@ open WebUtil;
  */
 module Model = CodeWithStatics.Model;
 
-/*
- Line numbering works by:
- 1. Having a skip_rows function to check if a certain row should not be displayed (in the cases of multiline GUIs)
- 2. Having a processed_line_numbers function to return a list of line numbers that each row should display (either a number or 0, indicating this row should not be display)
- 3. processed_line_numbers also returns the current display row of the cursor
-  */
 module View = {
   let view = (model: Model.t, show_relative_numbers: bool, selected: bool) => {
     let {editor: {syntax: {measured, _}, state: {zipper, _}, _}, _}: Model.t = model;
     let num_rows = List.length(measured.piece_rows);
-
-    /*
-     Multiline projects are either Tab or Block, so they either
-     1. Defer linebreaks (hence checking for secondary)
-     2. Or are multiline themselves
-     */
-    // This will be used for having a set of line numbers that have prev. been reached
-    let skip_set_generic = (init, map): SIntSet.t =>
-      Id.Map.fold(
-        (_id, measurement: Measured.measurement, acc) =>
-          //measurement.last.row is 1 larger than the actual last row of the measurement
-          if (measurement.origin.row + 1 < measurement.last.row) {
-            List.fold_left(
-              (acc, i: int) => {SIntSet.add(i, acc)},
-              acc,
-              List.init(
-                measurement.last.row - measurement.origin.row - 1, (i: int) => {
-                measurement.origin.row + 1 + i
-              }),
-            );
-          } else {
-            acc;
-          },
-        map,
-        init,
-      );
-
-    /*
-     let skip_set = {
-       skip_set_generic(
-         skip_set_generic(SIntSet.empty, measured.secondary),
-         measured.projectors,
-       );
-     };
-     */
-
-    //try checking for empty piece rows
-    let (skip_set, _) =
-      List.fold_left(
-        (acc: (SIntSet.t, int), pieces: list(Piece.t)) => {
-          let (set, curr_row) = acc;
-          switch (pieces) {
-          | [] => (SIntSet.add(curr_row, set), curr_row + 1)
-          | _ => (set, curr_row + 1)
-          };
-        },
-        (SIntSet.empty, 0),
-        List.rev(measured.piece_rows),
-      );
-
+    let empty_row = row => {
+      let result = List.nth_opt(List.rev(measured.piece_rows), row);
+      switch (result) {
+      | Some(value) =>
+        switch (value) {
+        | [] => true
+        | _ => false
+        }
+      | None => true // The row doesn't actually exist, hence it's empty
+      };
+    };
     let Point.{row, _} = Zipper.Caret.point(measured, zipper);
+    let cursor_row_index = row;
     /*
-      Returns the processed line numbers, with 0 being a line to skip
-      and 1 being the initial line
-      i is the index of the row we are on
-      acc is the accumulator variable for line numbers
+     Recursively builds a list of line numbers for display, skipping empty rows.
+
+     Parameters:
+       - row_index: Current row being processed (0-indexed)
+       - line_count: The line number to assign to the current non-empty row
+
+     Returns: (line_numbers, cursor_line_number) where:
+       - line_numbers: List where 0 indicates skip this row, non-zero is the display line number
+       - cursor_line_number: The line number where the cursor is located (0 if not found yet)
      */
-    // Takes in the current row index and accumulator
-    // Outputs the processed line number list and the cursor row
-    let rec processed_line_numbers = (i: int, acc: int): (list(int), int) =>
-      if (i == num_rows) {
+    let rec processed_line_numbers =
+            (row_index: int, line_count: int): (list(int), int) =>
+      if (row_index == num_rows) {
         ([], 0);
       } else {
-        let skip_this_row =
-          SIntSet.exists((iter: int) => {i == iter}, skip_set);
-        let (returned_processed_list, returned_cursor_row) =
-          skip_this_row
-            ? processed_line_numbers(i + 1, acc)
-            : processed_line_numbers(i + 1, acc + 1);
-        let current_line_number = skip_this_row ? 0 : acc;
-        let cursor_row =
-          if (returned_cursor_row == 0 && i == row) {
-            acc;
+        let is_row_empty = empty_row(row_index);
+        let (returned_processed_list, returned_cursor_line_number) =
+          is_row_empty
+            ? processed_line_numbers(row_index + 1, line_count)
+            : processed_line_numbers(row_index + 1, line_count + 1);
+        let current_line_number = is_row_empty ? 0 : line_count;
+        let cursor_line_number =
+          if (returned_cursor_line_number == 0 && row_index == cursor_row_index) {
+            line_count;
           } else {
-            returned_cursor_row;
+            returned_cursor_line_number;
           };
-        ([current_line_number] @ returned_processed_list, cursor_row);
+        (
+          [current_line_number] @ returned_processed_list,
+          cursor_line_number,
+        );
       };
-    let (processed_list, cursor_row) = processed_line_numbers(0, 1);
+    let (processed_list, cursor_line_number) = processed_line_numbers(0, 1);
+    /*
+     Converts a row index to its display text.
+     Returns "\n" for empty rows, or the line number (absolute or relative) with newline.
+     */
     let index_to_text = (i): string => {
-      let processed_line = List.nth(processed_list, i);
-      processed_line == 0
-        ? "\n"
+      let line_number = List.nth(processed_list, i);
+      line_number == 0
+        ? "\n"  // if this is a line we want to skip
         : {
-          show_relative_numbers && selected
-            ? string_of_int(
-                abs(processed_line - cursor_row) == 0
-                  ? processed_line : abs(processed_line - cursor_row),
-              )
-              ++ (i == num_rows ? "" : "\n")
-            : string_of_int(processed_line) ++ (i == num_rows ? "" : "\n");
+          (
+            if (show_relative_numbers && selected) {
+              string_of_int(
+                abs(line_number - cursor_line_number) == 0
+                  ? line_number : abs(line_number - cursor_line_number),
+              );
+            } else {
+              string_of_int(line_number);
+            }
+          )
+          ++ (i == num_rows ? "" : "\n"); // Add a line break if this is not the last row
         };
     };
     let index_to_span = (i): Node.t => {
