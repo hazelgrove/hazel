@@ -46,12 +46,28 @@ module View = {
         init,
       );
 
-    let skip_set = {
-      skip_set_generic(
-        skip_set_generic(SIntSet.empty, measured.secondary),
-        measured.projectors,
+    /*
+     let skip_set = {
+       skip_set_generic(
+         skip_set_generic(SIntSet.empty, measured.secondary),
+         measured.projectors,
+       );
+     };
+     */
+
+    //try checking for empty piece rows
+    let (skip_set, _) =
+      List.fold_left(
+        (acc: (SIntSet.t, int), pieces: list(Piece.t)) => {
+          let (set, curr_row) = acc;
+          switch (pieces) {
+          | [] => (SIntSet.add(curr_row, set), curr_row + 1)
+          | _ => (set, curr_row + 1)
+          };
+        },
+        (SIntSet.empty, 0),
+        List.rev(measured.piece_rows),
       );
-    };
 
     let Point.{row, _} = Zipper.Caret.point(measured, zipper);
     /*
