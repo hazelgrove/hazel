@@ -148,10 +148,7 @@ module Update = {
     let dyn_cursor = editor.state.zipper.refractors.dyn_cursor;
 
     let pinned_call_t =
-      Util.TimeUtil.measure_time(
-        ~threshold=100., "Setting dyn_cursor", true, () =>
-        Calc.set(dyn_cursor, pinned_call)
-      );
+      Calc.set(~msg="dyn_cursor", dyn_cursor, pinned_call);
     let dynamic_statics =
       if (settings.dynamic_feedback) {
         Calc.Syntax.(
@@ -162,7 +159,7 @@ module Update = {
 
             Util.TimeUtil.measure_time(
               "Calculating dynamic statics",
-              ~threshold=500.,
+              ~threshold=1000.,
               true,
               () => {
                 // Filter closures based on the pinned call
@@ -181,7 +178,7 @@ module Update = {
 
                 let dynamic_info_map =
                   Util.TimeUtil.measure_time(
-                    ~threshold=500.,
+                    ~threshold=1000.,
                     "Calculating static map from dynamics",
                     true,
                     () =>
@@ -234,7 +231,7 @@ module Update = {
       context_menu,
       dynamics: Calc.get_value(dynamics),
       dynamic_statics: Calc.save(dynamic_statics),
-      pinned_call: Calc.Pending,
+      pinned_call: Calc.save(pinned_call_t),
     };
   };
 };
