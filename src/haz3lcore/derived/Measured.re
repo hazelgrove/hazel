@@ -329,7 +329,7 @@ let of_segment =
         let map =
           add_piece_row(
             origin.row,
-            [Piece.Secondary(Secondary.mk_newline(Id.mk())), ...seg],
+            [Piece.Secondary(Secondary.mk_empty(Id.mk())), ...seg],
             map,
           );
         let map =
@@ -349,7 +349,11 @@ let of_segment =
         ? {
           let g = DeferredLinebreaks.of_secondary();
           add_n_rows(origin, indent, g, map)
-          |> add_piece_row(origin.row, seg, _)
+          |> add_piece_row(
+               origin.row,
+               [Piece.Secondary(Secondary.mk_empty(Id.mk())), ...seg],
+               _,
+             )
           |> add_n_empty_piece_rows(g - 1);
         }
         : map;
