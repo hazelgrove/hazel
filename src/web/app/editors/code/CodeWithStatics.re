@@ -147,8 +147,7 @@ module Update = {
     // Track the current pinned call state
     let dyn_cursor = editor.state.zipper.refractors.dyn_cursor;
 
-    let pinned_call_t =
-      Calc.set(~msg="dyn_cursor", dyn_cursor, pinned_call);
+    let pinned_call_t = Calc.set(dyn_cursor, pinned_call);
     let dynamic_statics =
       if (settings.dynamic_feedback) {
         Calc.Syntax.(
