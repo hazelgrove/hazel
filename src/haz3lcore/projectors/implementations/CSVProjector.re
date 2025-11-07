@@ -7,17 +7,24 @@ let clss = Attr.classes;
 module M: Projector = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type model =
-    | NoFile(bool) // Boolean to enable headers before file upload
-    | FileSelected({filename: string}); // Filename after file is selected
+    | NoFile // No file selected
+    | FileLoaded({
+        filename: string,
+        content: string,
+        with_headers: bool,
+      }); // File loaded with header toggle
   [@deriving (show({with_path: false}), sexp, yojson)]
   type action =
-    | SetFileName(string)
-    | ToggleHeaders // Toggle whether the CSV has headers
+    | SetFile({
+        filename: string,
+        content: string,
+      })
+    | ToggleHeaders
     | Reset;
 
   let init = (a: Language.Any.t): option(model) => {
     switch (a) {
-    | Exp({term: ListLit([]), _}) => Some(NoFile(false)) // No file selected, no headers
+    | Exp({term: ListLit([]), _}) => Some(NoFile) // No file selected
     | _ => None
     };
   };
@@ -90,19 +97,29 @@ module M: Projector = {
   let dynamics = false;
   let placeholder = (m, _) =>
     switch (m) {
-    | FileSelected({filename}) =>
-      ProjectorCore.Shape.inline(String.length(filename) + 2)
-    | NoFile(_) => ProjectorCore.Shape.inline(13)
+    | FileLoaded({filename, _}) =>
+      ProjectorCore.Shape.inline(String.length(filename) + 10) // Account for toggle
+    | NoFile => ProjectorCore.Shape.inline(13)
     };
   let update = (m: model, _, action: action) => {
     switch (action) {
-    | SetFileName(filename) => FileSelected({filename: filename})
+    | SetFile({filename, content}) =>
+      FileLoaded({
+        filename,
+        content,
+        with_headers: true,
+      })
     | ToggleHeaders =>
       switch (m) {
-      | NoFile(has_headers) => NoFile(!has_headers)
-      | FileSelected(_) => m
+      | FileLoaded({filename, content, with_headers}) =>
+        FileLoaded({
+          filename,
+          content,
+          with_headers: !with_headers,
+        })
+      | _ => m
       }
-    | Reset => NoFile(false)
+    | Reset => NoFile
     };
   };
 
@@ -138,69 +155,36 @@ module M: Projector = {
     );
   };
 
-  let view =
-      (
-        model: model,
-        info,
-        ~local,
-        ~parent: external_action => Ui_effect.t(unit),
-        ~view_seg as _,
-      ) =>
+  let view = ({model, info, local, parent, _}: View.args(model, action)) =>
     View.mk(
       Node.span(
         switch (model) {
-        | NoFile(has_headers) => [
-            Node.input(
-              ~attrs=
-                [
-                  Attr.create("type", "checkbox"),
-                  Attr.on_input((_, _) => local(ToggleHeaders)),
-                  Attr.title("Parse CSV with headers"),
-                ]
-                @ (
-                  switch (has_headers) {
-                  | true => [Attr.checked]
-                  | _ => []
-                  }
-                ),
-              (),
-            ),
+        | NoFile => [
             file_select_button(
-              ~tooltip="Import CSV",
+              ~tooltip="Load CSV",
               "import-csv",
-              model
-              |> (
-                m =>
-                  switch (m) {
-                  | NoFile(_) => "Upload CSV"
-                  | FileSelected({filename}) => filename
-                  }
-              ),
+              "Load CSV",
               (file: option(Js_of_ocaml.Js.t(Js_of_ocaml.File.file))) => {
               switch (file) {
               | Some(file) =>
                 JsUtil.read_file(
                   file,
                   content => {
-                    let csv_data = Option.value(~default="", content);
-                    let csv_data: CsvUtil.csv_data =
-                      switch (model) {
-                      | NoFile(true) =>
-                        WithHeaders(CsvUtil.parse_csv_with_headers(csv_data))
-                      | _ =>
-                        WithoutHeaders(
-                          CsvUtil.parse_csv_without_headers(csv_data),
-                        )
-                      };
-
+                    let filename = file##.name |> Js_of_ocaml.Js.to_string;
+                    let content = Option.value(~default="", content);
+                    let csv_data =
+                      CsvUtil.WithHeaders(
+                        CsvUtil.parse_csv_with_headers(content),
+                      );
                     Bonsai.Effect.Expert.handle(
                       Effect.Many([
-                        parent(SetSyntax(put(info, csv_data))),
                         local(
-                          SetFileName(
-                            file##.name |> Js_of_ocaml.Js.to_string,
-                          ),
+                          SetFile({
+                            filename,
+                            content,
+                          }),
                         ),
+                        parent(SetSyntax(put(info, csv_data))),
                       ]),
                     );
                   },
@@ -210,20 +194,59 @@ module M: Projector = {
               }
             }),
           ]
-        | FileSelected({filename}) => [
-            Node.span(
-              ~attrs=[
-                Attr.on_click(_ => {
-                  Effect.Many([
-                    local(Reset),
-                    parent(SetSyntax(reset_syntax(info))),
-                  ])
-                }),
-                Attr.class_("cancel-button"),
+        | FileLoaded({filename, content, with_headers}) => [
+            Node.div(
+              ~attrs=[Attr.class_("csv-loaded-container")],
+              [
+                Node.span(
+                  ~attrs=[
+                    Attr.on_click(_ => {
+                      Effect.Many([
+                        local(Reset),
+                        parent(SetSyntax(reset_syntax(info))),
+                      ])
+                    }),
+                    Attr.class_("reset-button"),
+                    Attr.title("Reset projector"),
+                  ],
+                  [Node.text("⟲")],
+                ),
+                Node.span(
+                  ~attrs=[Attr.class_("csv-loaded-filename")],
+                  [Node.text(filename)],
+                ),
+                Node.div(
+                  ~attrs=[
+                    clss(
+                      ["toggle-switch"] @ (with_headers ? ["active"] : []),
+                    ),
+                    Attr.on_click(_ => {
+                      let csv_data =
+                        if (with_headers) {
+                          CsvUtil.WithoutHeaders(
+                            CsvUtil.parse_csv_without_headers(content),
+                          );
+                        } else {
+                          CsvUtil.WithHeaders(
+                            CsvUtil.parse_csv_with_headers(content),
+                          );
+                        };
+                      Effect.Many([
+                        local(ToggleHeaders),
+                        parent(SetSyntax(put(info, csv_data))),
+                      ]);
+                    }),
+                    Attr.title("Toggle headers"),
+                  ],
+                  [
+                    Node.div(
+                      ~attrs=[clss(["toggle-knob"])],
+                      [Node.text("H")],
+                    ),
+                  ],
+                ),
               ],
-              [Node.text("✘")],
             ),
-            Node.text(filename),
           ]
         },
       ),

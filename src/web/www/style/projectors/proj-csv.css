@@ -2,3 +2,8 @@
     cursor: pointer;
     color: var(--R1);
 }
+
+.projector.csv .csv-loaded-container .toggle-switch {
+    margin-left: 0.5em;
+    cursor: pointer;
+}
