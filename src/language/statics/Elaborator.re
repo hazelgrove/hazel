@@ -283,7 +283,7 @@ let rec elaborate = (m: Statics.Map.t, uexp: Exp.t): (DHExp.t, Typ.t) => {
     | Var(_) => uexp
     | Let(p, def, body) =>
       let rewritten_term =
-        // If ID not in map, error is thrown on Ln 223 already
+        // If ID not in map, error already thrown when calling elaborated_type
         switch (Id.Map.find(Exp.rep_id(uexp), m)) {
         | InfoExp({rewrite_id: Some(id), _}) =>
           switch (Id.Map.find(id, m)) {
@@ -294,9 +294,7 @@ let rec elaborate = (m: Statics.Map.t, uexp: Exp.t): (DHExp.t, Typ.t) => {
         };
       switch (rewritten_term) {
       | Some(term) =>
-        print_endline("__NEW SYNTAX__");
         let (dhexp, _) = elaborate(m, term);
-        //print_endline("ELA_NEW dhexp = " ++ DHExp.show(dhexp));
         dhexp;
       | None =>
         let add_name: (option(string), DHExp.t) => DHExp.t = (

@@ -125,9 +125,6 @@ let check_annotated_function_helper = (pat: Pat.t): option((Pat.t, Pat.t)) => {
   | Ap(func_name, args) =>
     switch (IdTagged.term_of(func_name)) {
     | Var(_) =>
-      // let (new_arg, in_type, _) = caf_input_type(args);
-      //print_endline("STA CAF new_type = " ++ UTyp.show(in_type));
-      // let func_type = UTyp.Arrow(in_type, ret_type) |> pat_rule;
       let args =
         switch (args.term) {
         | Tuple([]) => Tuple([]) |> Pat.fresh
@@ -143,7 +140,6 @@ let check_annotated_function_helper = (pat: Pat.t): option((Pat.t, Pat.t)) => {
 /*
  * Check whether a particular let binding is an annotated function under the new syntax.
  * It is parsed as a constructor syntax.
- * I am not sure what is the top-level pattern; the only thing similar seems to be UPat.Ap.
  * UPDATE 0604: The third argument is revised to be return type as opposed to function type.
  */
 let check_annotated_function =
@@ -152,7 +148,7 @@ let check_annotated_function =
   let (inner_pat, ret_type) =
     switch (pat_term) {
     | Asc(inner_pat, ret_type) => (inner_pat, Some(ret_type))
-    | _ => (pat, None) // (pat, UTyp.Unknown(Hole(EmptyHole)) |> pat_rule)
+    | _ => (pat, None)
     };
   check_annotated_function_helper(inner_pat)
   |> Option.map(((name, arg)) => (name, arg, ret_type));

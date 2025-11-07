@@ -1073,10 +1073,6 @@ and uexp_to_info_map =
         switch (check_annotated_function(p)) {
         | Some((f_name, f_args, _)) =>
           let def: Exp.t = Fun(f_args, def, None, None) |> Exp.fresh;
-          // let p': UPat.t =
-          //   UPat.Cast(f_name, f_type, Typ.temp(Unknown(Internal)))
-          //   |> UPat.fresh;
-          // let (_, m) = go_pat(~is_synswitch=true, ~co_ctx=CoCtx.empty, ~mode=Syn, p, m);
           Some(Let(f_name, def, body) |> Exp.fresh);
         | None => None
         };
