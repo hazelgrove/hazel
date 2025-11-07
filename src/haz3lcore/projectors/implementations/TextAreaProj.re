@@ -124,7 +124,7 @@ module M: Projector = {
   };
   let update = (model, _, _) => model;
 
-  let view = (_, info, ~local as _, ~parent, ~view_seg as _) =>
+  let view = ({info, parent, _}: View.args(model, action)) =>
     View.mk(
       Node.div(
         ~attrs=[Attr.classes(["wrapper"])],
