@@ -146,8 +146,12 @@ module Update = {
 
     // Track the current pinned call state
     let dyn_cursor = editor.state.zipper.refractors.dyn_cursor;
-    let pinned_call_t = Calc.set(dyn_cursor, pinned_call);
 
+    let pinned_call_t =
+      Util.TimeUtil.measure_time(
+        ~threshold=100., "Setting dyn_cursor", true, () =>
+        Calc.set(dyn_cursor, pinned_call)
+      );
     let dynamic_statics =
       if (settings.dynamic_feedback) {
         Calc.Syntax.(
@@ -156,33 +160,45 @@ module Update = {
             let.calc dynamics = dynamics
             and.calc dyn_cursor = pinned_call_t;
 
-            // Filter closures based on the pinned call
-            let filtered_dynamics =
-              DynCursor.filter_all_by_pin(dyn_cursor, dynamics);
+            Util.TimeUtil.measure_time(
+              "Calculating dynamic statics",
+              ~threshold=500.,
+              true,
+              () => {
+                // Filter closures based on the pinned call
+                let filtered_dynamics =
+                  DynCursor.filter_all_by_pin(dyn_cursor, dynamics);
 
-            let dynamic_expressions: Id.Map.t(list(TermBase.exp_t)) =
-              Id.Map.map(
-                d => {
-                  open Language;
-                  let exps = List.map((c: Sample.t) => c.value, d);
-                  exps;
-                },
-                filtered_dynamics,
-              );
+                let dynamic_expressions: Id.Map.t(list(TermBase.exp_t)) =
+                  Id.Map.map(
+                    d => {
+                      open Language;
+                      let exps = List.map((c: Sample.t) => c.value, d);
+                      exps;
+                    },
+                    filtered_dynamics,
+                  );
 
-            let dynamic_info_map =
-              Language.Statics.mk(
-                ~dynamics=dynamic_expressions,
-                settings,
-                ctx_init,
-                statics.term,
-              );
+                let dynamic_info_map =
+                  Util.TimeUtil.measure_time(
+                    ~threshold=500.,
+                    "Calculating static map from dynamics",
+                    true,
+                    () =>
+                    Language.Statics.mk_uncached(
+                      ~dynamics=dynamic_expressions,
+                      ctx_init,
+                      statics.term,
+                    )
+                  );
 
-            let dynamic_error_ids =
-              Language.StaticsBase.Map.error_ids(dynamic_info_map)
-              |> List.filter(id => !List.mem(id, statics.error_ids));
+                let dynamic_error_ids =
+                  Language.StaticsBase.Map.error_ids(dynamic_info_map)
+                  |> List.filter(id => !List.mem(id, statics.error_ids));
 
-            (dynamic_info_map, dynamic_error_ids);
+                (dynamic_info_map, dynamic_error_ids);
+              },
+            );
           }
         );
       } else {

@@ -2276,3 +2276,16 @@ let mk =
       exp,
     ) =>
   core.statics ? mk(dynamics, ctx, exp) : Id.Map.empty;
+
+let mk_uncached = (~dynamics: DynamicStatics.Map.t, ctx, exp) =>
+  uexp_to_info_map(
+    ~dynamics,
+    ~ctx,
+    ~ancestors=[],
+    ~duplicates=[],
+    ~expected_labels=None,
+    ~label_sort=false,
+    exp,
+    Id.Map.empty,
+  )
+  |> snd;

@@ -908,17 +908,27 @@ let derived_exp =
       | None => self
       | Some([]) => self
       | Some(exps) =>
-        let dyn_typs = OptUtil.traverse(calculate_dynamic_type, exps);
-        let dyn_typ =
-          Option.bind(
-            dyn_typs,
-            Typ.join_all(~empty=Unknown(Internal) |> Typ.temp, ctx),
-          );
-        Common(
-          Just(
-            dyn_typ |> Option.value(~default=Unknown(Internal) |> Typ.temp),
-          ),
-        );
+        TimeUtil.measure_time(
+          ~threshold=500.,
+          "Deriving dynamic expression type",
+          true,
+          () => {
+            let dyn_typs = OptUtil.traverse(calculate_dynamic_type, exps);
+            let dyn_typ =
+              Option.bind(
+                dyn_typs,
+                Typ.join_all(~empty=Unknown(Internal) |> Typ.temp, ctx),
+              );
+            (
+              Common(
+                Just(
+                  dyn_typ
+                  |> Option.value(~default=Unknown(Internal) |> Typ.temp),
+                ),
+              ): Self.exp
+            );
+          },
+        )
       }
     | _ => self
     };
@@ -958,17 +968,27 @@ let derived_dynamic_self_pat =
     | None => self
     | Some([]) => self
     | Some(exps) =>
-      let dyn_typs = OptUtil.traverse(calculate_dynamic_type, exps);
-      let dyn_typ =
-        Option.bind(
-          dyn_typs,
-          Typ.join_all(~empty=Unknown(Internal) |> Typ.temp, ctx),
-        );
-      Common(
-        Just(
-          dyn_typ |> Option.value(~default=Unknown(Internal) |> Typ.temp),
-        ),
-      );
+      TimeUtil.measure_time(
+        ~threshold=500.,
+        "Deriving dynamic pattern type",
+        true,
+        () => {
+          let dyn_typs = OptUtil.traverse(calculate_dynamic_type, exps);
+          let dyn_typ =
+            Option.bind(
+              dyn_typs,
+              Typ.join_all(~empty=Unknown(Internal) |> Typ.temp, ctx),
+            );
+          (
+            Common(
+              Just(
+                dyn_typ
+                |> Option.value(~default=Unknown(Internal) |> Typ.temp),
+              ),
+            ): Self.pat
+          );
+        },
+      )
     }
   | _ => self
   };

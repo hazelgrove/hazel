@@ -30,12 +30,15 @@ let print_times =
   Printf.printf(" ]\n%!");
 };
 
-let measure_time = (name: string, measure: bool, f: unit => 'a): 'a =>
+let measure_time =
+    (~threshold=0., name: string, measure: bool, f: unit => 'a): 'a =>
   if (measure) {
     let start_time = Sys.time();
     let x = f();
     let end_time = Sys.time();
-    print_time(name, start_time, end_time);
+    if (end_time -. start_time >= threshold /. 1000.0) {
+      print_time(name, start_time, end_time);
+    };
     x;
   } else {
     f();
