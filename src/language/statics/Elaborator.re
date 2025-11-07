@@ -281,6 +281,22 @@ let rec elaborate = (m: Statics.Map.t, uexp: Exp.t): (DHExp.t, Typ.t) => {
       let (e1, _) = elaborate(m, e1);
       Dot(e1, e2) |> rewrap;
     | Var(_) => uexp
+    | Let(
+        {
+          term: Ap({term: Invalid(name), _}, {term: Asc(_param, _typ), _}),
+          _,
+        },
+        _def,
+        body,
+      )
+        when
+          Util.StringUtil.match(
+            Util.StringUtil.regexp("^(\\^)([a-z][A-Za-z0-9_]*)$"),
+            name,
+          ) =>
+      //TODO(andrew)
+      let (body, _) = elaborate(m, body);
+      body;
     | Let(p, def, body) =>
       let add_name: (option(string), DHExp.t) => DHExp.t = (
         (name, exp) => {

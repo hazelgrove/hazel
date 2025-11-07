@@ -7,6 +7,7 @@ type kind =
   | ExoNool
   | Petrinaut
   | CatColLab;
+//| Dyn(string);
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type size = {
@@ -22,6 +23,16 @@ type shape =
 [@deriving (show({with_path: false}), sexp, yojson)]
 type action =
   | Resize(int, int);
+
+[@deriving (show({with_path: false}), sexp, yojson)]
+type nu = {
+  name: string,
+  shape,
+  url: string,
+  prod: string,
+  typ: Language.Typ.t,
+  size,
+};
 
 type info = {
   kind,

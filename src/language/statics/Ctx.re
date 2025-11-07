@@ -34,11 +34,28 @@ type node_or_list =
   | List(list(Virtual_dom.Vdom.Node.t));
 
 [@deriving (show({with_path: false}), sexp, yojson)]
+type shape =
+  | Block
+  | Tab;
+
+[@deriving (show({with_path: false}), sexp, yojson)]
+type exo_nu = {
+  id: Id.t,
+  name: string,
+  typ: TermBase.Typ.t,
+  url: string,
+  shape,
+  width: Bigint.t,
+  height: Bigint.t,
+};
+
+[@deriving (show({with_path: false}), sexp, yojson)]
 type entry =
   | VarEntry(var_entry)
   | ConstructorEntry(var_entry)
   | TVarEntry(tvar_entry)
-  | LivelitEntry(LivelitCtx.raw_livelit);
+  | LivelitEntry(LivelitCtx.raw_livelit)
+  | ExoEntry(exo_nu);
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type t = {
@@ -112,7 +129,8 @@ let get_id: entry => Id.t =
   | VarEntry({id, _})
   | ConstructorEntry({id, _})
   | TVarEntry({id, _}) => id
-  | LivelitEntry({name, _}) => Id.mk_str(name);
+  | LivelitEntry({name, _}) => Id.mk_str(name)
+  | ExoEntry({id, _}) => id;
 
 let lookup_var = (ctx: t, name: string): option(var_entry) =>
   List.find_map(
@@ -246,6 +264,10 @@ let filter_shadowed = (ctx: t): t => {
              VarSet.mem(name, term_set)
                ? (ctx, term_set, typ_set)
                : ([entry, ...ctx], VarSet.add(name, term_set), typ_set)
+           | ExoEntry({name, _}) =>
+             VarSet.mem(name, term_set)
+               ? (ctx, term_set, typ_set)
+               : ([entry, ...ctx], VarSet.add(name, term_set), typ_set)
            }
          },
          ([], VarSet.empty, VarSet.empty),
@@ -263,6 +285,7 @@ let filter_stepper_filter_variables = (ctx: t): t => {
            | VarEntry({name, _})
            | ConstructorEntry({name, _})
            | LivelitEntry({name, _})
+           | ExoEntry({name, _})
            | TVarEntry({name, _}) =>
              if (String.starts_with(~prefix="$", name)) {
                ctx;

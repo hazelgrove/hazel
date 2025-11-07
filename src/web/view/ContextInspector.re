@@ -59,6 +59,19 @@ let context_entry_view = (~globals, entry: Language.Ctx.entry): Node.t => {
         view_type(expansion_t),
       ],
     )
+  | ExoEntry({name, typ, _}) =>
+    //TODO(andrew)
+    div(
+      ~attrs=[
+        Attr.on_click(_ => globals.inject_global(jump_to(entry))),
+        clss(["context-entry", "code", "exo-entry"]),
+      ],
+      [
+        div_name([text(name)]),
+        div(~attrs=[clss(["seperator"])], [text(":")]),
+        view_type(typ),
+      ],
+    )
   };
 };
 

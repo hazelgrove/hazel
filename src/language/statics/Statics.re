@@ -1065,6 +1065,77 @@ and uexp_to_info_map =
         ~co_ctx=body.co_ctx,
         m,
       );
+    | Let(
+        {
+          term: Ap({term: Invalid(name), _}, {term: Asc(_param, typ), _}),
+          _,
+        },
+        {
+          term:
+            Parens({
+              term:
+                Tuple([
+                  {
+                    term:
+                      TupLabel(
+                        {term: Label("url"), _},
+                        {term: Atom(String(url)), _},
+                      ),
+                    _,
+                  },
+                  {
+                    term:
+                      TupLabel(
+                        {term: Label("shape"), _},
+                        {term: Atom(String(shape)), _},
+                      ),
+                    _,
+                  },
+                  {
+                    term:
+                      TupLabel(
+                        {term: Label("width"), _},
+                        {term: Atom(Int(width)), _},
+                      ),
+                    _,
+                  },
+                  {
+                    term:
+                      TupLabel(
+                        {term: Label("height"), _},
+                        {term: Atom(Int(height)), _},
+                      ),
+                    _,
+                  },
+                ]),
+              _,
+            }),
+          _,
+        },
+        body,
+      )
+        when
+          Util.StringUtil.match(
+            Util.StringUtil.regexp("^(\\^)([a-z][A-Za-z0-9_]*)$"),
+            name,
+          ) =>
+      print_endline("Exodef case");
+      let entry: Ctx.exo_nu = {
+        id: Exp.rep_id(uexp),
+        name,
+        typ,
+        url,
+        shape: shape |> Sexplib.Sexp.of_string |> Ctx.shape_of_sexp,
+        width,
+        height,
+      };
+      let ctx = Ctx.extend(ctx, ExoEntry(entry));
+      let (body, m) = go'(~ctx, ~ana, body, m);
+      add'(
+        ~self=Common(Just(body.ty)),
+        ~co_ctx=body.co_ctx, //TODO(andrew)
+        m,
+      );
     | Let(p, def, body) =>
       let (p_syn, _) =
         go_pat(~is_synswitch=true, ~co_ctx=CoCtx.empty, ~ana=syn, p, m);
