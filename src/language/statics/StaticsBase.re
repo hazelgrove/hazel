@@ -87,9 +87,9 @@ let is_recursive = (ctx, p, def, syn: Typ.t) => {
 };
 
 let anon_syn = Unknown(SynSwitch |> Prov.anonymous) |> Typ.temp;
-let syn = Unknown(SynSwitch |> Prov.fresh) |> Typ.temp;
-let fresh_internal = Unknown(Internal |> Prov.fresh) |> Typ.fresh;
-let temp_internal = Unknown(Internal |> Prov.fresh) |> Typ.temp;
+let mk_temp_syn = () => Unknown(SynSwitch |> Prov.fresh) |> Typ.temp;
+let mk_fresh_internal = () => Unknown(Internal |> Prov.fresh) |> Typ.fresh;
+let mk_temp_internal = () => Unknown(Internal |> Prov.fresh) |> Typ.temp;
 
 module type ExpressionStatics = {
   let uexp_to_info_map:

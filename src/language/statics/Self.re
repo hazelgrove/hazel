@@ -280,5 +280,5 @@ let poly_eq =
       CompareFun(ty),
       cons,
     )
-  | Some(_) => (Just(Atom(Bool) |> Typ.fresh), [])
+  | Some((_, cons)) => (Just(Atom(Bool) |> Typ.fresh), cons)
   };
