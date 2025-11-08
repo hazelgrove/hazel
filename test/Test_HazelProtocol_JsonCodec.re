@@ -27,6 +27,17 @@ let test_to_json = (~name, ~hazel_str, ~expected_json) =>
     }
   });
 
+let test_to_json_error =
+    (~name: string, ~hazel_str: string, ~expected_error: string) =>
+  test_case(name, `Quick, () => {
+    switch (string_to_exp(hazel_str)) {
+    | Some(exp) =>
+      let result = Haz3lcore.HazelProtocol.JsonCodec.exp_to_yojson(exp);
+      check(yojson_result_testable, name, Error(expected_error), result);
+    | None => fail("Failed to parse Hazel string: " ++ hazel_str)
+    }
+  });
+
 /* Test helper that checks JSON conversion from JSON to expected Hazel string */
 let test_from_json = (~name, ~json, ~expected_hazel) =>
   test_case(
@@ -328,6 +339,16 @@ let tests = (
           ("name", `String("point")),
         ]),
     ),
+    test_to_json(
+      ~name="labeled_tuple_to_json: keyword label unsanitized",
+      ~hazel_str={|(type__=42)|},
+      ~expected_json=`Assoc([("type", `Int(42))]),
+    ),
+    test_to_json(
+      ~name="labeled_tuple_to_json: multiple keyword labels",
+      ~hazel_str={|(type__=1, let__=2)|},
+      ~expected_json=`Assoc([("type", `Int(1)), ("let", `Int(2))]),
+    ),
     test_from_json(
       ~name="json_to_labeled_tuple: singleton",
       ~json=`Assoc([("label", `Int(42))]),
@@ -343,6 +364,11 @@ let tests = (
         ]),
       ~expected_hazel={|(x=10, y=20, name="point")|},
     ),
+    test_from_json(
+      ~name="json_to_labeled_tuple: keyword label sanitized",
+      ~json=`Assoc([("type", `Int(42))]),
+      ~expected_hazel={|(type__=42)|},
+    ),
     test_round_trip(
       ~name="labeled_tuple_round_trip: singleton",
       ~hazel_str={|(label=42)|},
@@ -350,6 +376,22 @@ let tests = (
     test_round_trip(
       ~name="labeled_tuple_round_trip: all_labeled",
       ~hazel_str={|(x=10, y=20, name="point")|},
+    ),
+    test_round_trip(
+      ~name="labeled_tuple_round_trip: keyword label",
+      ~hazel_str={|(type__=42)|},
+    ),
+    test_to_json_error(
+      ~name="labeled_tuple_to_json: keyword unsanitization duplicate",
+      ~hazel_str={|(type__=1, type__=2)|},
+      ~expected_error=
+        "Duplicate labeled tuple key after keyword unsanitization: type",
+    ),
+    test_error(
+      ~name="json_to_labeled_tuple: keyword sanitization duplicate",
+      ~json=`Assoc([("type__", `Int(1)), ("type", `Int(2))]),
+      ~expected_error=
+        "Duplicate labeled tuple key after keyword sanitization: type__",
     ),
     /* Stage 5: ADT tests */
     test_to_json(

@@ -135,6 +135,38 @@ let from_hazel_to_js = (msg: from_hazel_message): Js.t(_) => {
 module JsonCodec = {
   /* Stage 5: Support base types (int, float, string, bool), lists, tuples (plain and labeled), and ADTs; stub out other types with clear errors */
 
+  let keyword_escape_suffix: string = "__";
+
+  let has_keyword_escape_suffix = (label: string): bool => {
+    let suffix_length: int = String.length(keyword_escape_suffix);
+    let label_length: int = String.length(label);
+    label_length >= suffix_length
+    && String.sub(label, label_length - suffix_length, suffix_length)
+    == keyword_escape_suffix;
+  };
+
+  let strip_keyword_escape_suffix = (label: string): option(string) =>
+    if (has_keyword_escape_suffix(label)) {
+      let prefix_length: int =
+        String.length(label) - String.length(keyword_escape_suffix);
+      Some(String.sub(label, 0, prefix_length));
+    } else {
+      None;
+    };
+
+  let escape_label_for_hazel = (label: string): string =>
+    if (Token.is_keyword(label)) {
+      label ++ keyword_escape_suffix;
+    } else {
+      label;
+    };
+
+  let unescape_label_from_hazel = (label: string): string =>
+    switch (strip_keyword_escape_suffix(label)) {
+    | Some(prefix) when Token.is_keyword(prefix) => prefix
+    | _ => label
+    };
+
   let rec exp_to_yojson =
           (exp: Language.Exp.t): result(Yojson.Safe.t, string) => {
     /* Helper functions for tuple processing */
@@ -158,7 +190,13 @@ module JsonCodec = {
         };
       };
 
-    let rec convert_labeled_elements = (acc, remaining) =>
+    let rec convert_labeled_elements =
+            (
+              acc: list((string, Yojson.Safe.t)),
+              used_labels: list(string),
+              remaining: list(Language.Exp.t),
+            )
+            : result(list((string, Yojson.Safe.t)), string) =>
       switch (remaining) {
       | [] => Ok(List.rev(acc))
       | [hd, ...tl] =>
@@ -168,7 +206,19 @@ module JsonCodec = {
           | Label(label) =>
             switch (exp_to_yojson(value)) {
             | Ok(json_elem) =>
-              convert_labeled_elements([(label, json_elem), ...acc], tl)
+              let json_key: string = unescape_label_from_hazel(label);
+              if (List.mem(json_key, used_labels)) {
+                Error(
+                  "Duplicate labeled tuple key after keyword unsanitization: "
+                  ++ json_key,
+                );
+              } else {
+                convert_labeled_elements(
+                  [(json_key, json_elem), ...acc],
+                  [json_key, ...used_labels],
+                  tl,
+                );
+              };
             | Error(msg) => Error(msg)
             }
           | _ => Error("Invalid label in labeled tuple")
@@ -191,7 +241,6 @@ module JsonCodec = {
         | Error(msg) => Error(msg)
         }
       };
-
     switch (exp.term) {
     | Atom(Int(i)) =>
       switch (Bigint.to_int(i)) {
@@ -224,7 +273,7 @@ module JsonCodec = {
       | Error(msg) => Error(msg)
       | Ok(Some(true)) =>
         /* All labeled */
-        switch (convert_labeled_elements([], elements)) {
+        switch (convert_labeled_elements([], [], elements)) {
         | Ok(pairs) => Ok(`Assoc(pairs))
         | Error(msg) => Error(msg)
         }
@@ -249,7 +298,7 @@ module JsonCodec = {
         | Error(msg) => Error(msg)
         | Ok(Some(true)) =>
           /* All labeled */
-          switch (convert_labeled_elements([], elements)) {
+          switch (convert_labeled_elements([], [], elements)) {
           | Ok(pairs) => Ok(`Assoc(pairs))
           | Error(msg) => Error(msg)
           }
@@ -452,22 +501,40 @@ module JsonCodec = {
             };
           } else {
             /* Labeled tuple: create tuple with TupLabel elements */
-            let rec convert_labeled_elements = (acc, remaining) =>
+            let rec convert_labeled_elements =
+                    (
+                      acc: list(Language.Exp.t),
+                      used_labels: list(string),
+                      remaining: list((string, Yojson.Safe.t)),
+                    )
+                    : result(list(Language.Exp.t), string) =>
               switch (remaining) {
               | [] => Ok(List.rev(acc))
               | [(key, value), ...tl] =>
-                switch (yojson_to_exp(value)) {
-                | Ok(exp_elem) =>
-                  let labeled_elem =
-                    Language.IdTagged.FreshGrammar.Exp.tup_label(
-                      Language.IdTagged.FreshGrammar.Exp.label(key),
-                      exp_elem,
+                let hazel_label: string = escape_label_for_hazel(key);
+                if (List.mem(hazel_label, used_labels)) {
+                  Error(
+                    "Duplicate labeled tuple key after keyword sanitization: "
+                    ++ hazel_label,
+                  );
+                } else {
+                  switch (yojson_to_exp(value)) {
+                  | Ok(exp_elem) =>
+                    let labeled_elem: Language.Exp.t =
+                      Language.IdTagged.FreshGrammar.Exp.tup_label(
+                        Language.IdTagged.FreshGrammar.Exp.label(hazel_label),
+                        exp_elem,
+                      );
+                    convert_labeled_elements(
+                      [labeled_elem, ...acc],
+                      [hazel_label, ...used_labels],
+                      tl,
                     );
-                  convert_labeled_elements([labeled_elem, ...acc], tl);
-                | Error(msg) => Error(msg)
-                }
+                  | Error(msg) => Error(msg)
+                  };
+                };
               };
-            switch (convert_labeled_elements([], pairs)) {
+            switch (convert_labeled_elements([], [], pairs)) {
             | Ok(elements) =>
               Ok(
                 Language.IdTagged.FreshGrammar.Exp.parens(

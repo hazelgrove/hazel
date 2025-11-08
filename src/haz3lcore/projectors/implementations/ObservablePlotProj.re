@@ -384,12 +384,12 @@ let clamp_width_blocks = (blocks: int): int => max(min_width_blocks, blocks);
 let clamp_height_blocks = (blocks: int): int =>
   max(min_height_blocks, blocks);
 
-let css_size_style = (width_blocks: int, height_blocks: int): string => {
-  let width_px = int_of_float(Float.ceil(width_px_of_blocks(width_blocks)));
-  let height_px =
-    int_of_float(Float.ceil(height_px_of_blocks(height_blocks)));
-  Printf.sprintf("width:%dpx;height:%dpx;", width_px, height_px);
-};
+// let css_size_style = (width_blocks: int, height_blocks: int): string => {
+//   let width_px = int_of_float(Float.ceil(width_px_of_blocks(width_blocks)));
+//   let height_px =
+//     int_of_float(Float.ceil(height_px_of_blocks(height_blocks)));
+//   Printf.sprintf("width:%dpx;height:%dpx;", width_px, height_px);
+// };
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type size_model = {
@@ -764,7 +764,7 @@ let build_plot_view =
       warnings: list(string),
     )
     : Node.t => {
-  let shell_style = css_size_style(model.width_blocks, model.height_blocks);
+  //let shell_style = css_size_style(model.width_blocks, model.height_blocks);
   let chart =
     Node.div(
       ~attrs=[
