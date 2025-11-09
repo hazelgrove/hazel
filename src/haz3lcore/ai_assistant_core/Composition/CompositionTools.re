@@ -569,7 +569,7 @@ module Perform = {
                 // Don't add 1 here because we filtered out the current node
                 List.nth(
                   siblings_of(node_info.node_map, node),
-                  (node.sibling_idx + len) mod len,
+                  (node.sibling_idx + 1 + len) mod len,
                 )
                 |> id_of
               };

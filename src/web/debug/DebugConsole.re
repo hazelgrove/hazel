@@ -125,7 +125,7 @@ let print =
               ++ " siblings:",
             );
             List.iteri(
-              (idx, sibling) => {
+              (idx: int, sibling: AssistantTreeHelper.HighLevelNode.node) => {
                 let marker = idx == node.sibling_idx ? " <-- CURRENT" : "";
                 print(
                   "  ["
