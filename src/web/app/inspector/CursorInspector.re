@@ -758,43 +758,14 @@ let view_of_info = (~globals, ci): list(Node.t) => {
   };
 };
 
-let dynamic_type = closures => {
-  let statics = Statics.mk(CoreSettings.on, Builtins.ctx_init(Some(Int)));
-  let type_of = (c: Dynamics.Probe.Closure.t) => {
-    IdTagged.rep_id(c.value)
-    |> Id.Map.find_opt(_, statics(c.value))
-    |> Option.bind(
-         _,
-         fun
-         | InfoExp(e) => {
-             Some(e.ty);
-           }
-         | _ => None,
-       );
-  };
-  let types = List.map(type_of, closures) |> Util.OptUtil.sequence;
-
-  Option.map(Typ.consistent_join(Ctx.empty), types);
-};
-
-let inspector_view =
-    (~globals, ~dynamics: option(list(Dynamics.Probe.Closure.t)), ci)
-    : Node.t => {
-  let dyn = Option.bind(dynamics, dynamic_type);
+let inspector_view = (~globals, ci): Node.t =>
   div(
     ~attrs=[
       Attr.id("cursor-inspector"),
       clss([Info.is_error(ci) ? errc : okc]),
     ],
-    view_of_info(~globals, ci)
-    @ (
-      switch (dyn) {
-      | None => []
-      | Some(ty) => [text("Dynamic Type:"), view_type(~globals, ty)]
-      }
-    ),
+    view_of_info(~globals, ci),
   );
-};
 
 let view =
     (
@@ -815,7 +786,7 @@ let view =
   | None => err_view("Whitespace or Comment")
   | Some(ci) =>
     bar_view([
-      inspector_view(~globals, ~dynamics=cursor.dynamics, ci),
+      inspector_view(~globals, ci),
       ProjectorPanel.view(
         ~inject=
           a =>
