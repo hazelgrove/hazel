@@ -931,6 +931,25 @@ let tests = (
           Exp.(
             asc(
               parens(
+                ~ann=
+                  Some(
+                    Exp(
+                      Common(
+                        Inconsistent(
+                          FTemp.Typ.(
+                            Expectation({
+                              ana: int(),
+                              syn:
+                                prod([
+                                  tup_label(label("a"), int()),
+                                  tup_label(label("b"), int()),
+                                ]),
+                            })
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
                 tuple(
                   ~ann=
                     Some(
