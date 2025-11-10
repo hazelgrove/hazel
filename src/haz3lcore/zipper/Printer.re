@@ -50,7 +50,14 @@ let add_caret =
 };
 
 let add_indent = (measured: Measured.t, indent: string, i: int, r: string) =>
-  StringUtil.repeat(Measured.Rows.find(i, measured.rows).indent, indent) ++ r;
+  try(
+    StringUtil.repeat(Measured.Rows.find(i, measured.rows).indent, indent)
+    ++ r
+  ) {
+  | Not_found =>
+    print_endline("Printer.add_indent: Not_found");
+    r;
+  };
 
 let add_indents =
     (~is_single_line, segment, measured, indent: string, rows: list(string)) =>
@@ -63,6 +70,7 @@ let add_indents =
       | Some(m) => m
       | None => measured_no_projectors(~is_single_line, segment)
       };
+    print_endline("Printer.add_indents: indent ====" ++ indent ++ "===");
     List.mapi(add_indent(measured, indent), rows);
   };
 
@@ -73,7 +81,7 @@ let of_segment =
     (
       ~holes=" ",
       ~concave_holes=" ",
-      ~indent=" ",
+      ~indent="",
       ~refractors=Id.Map.empty,
       ~caret: option((string, Point.t))=None,
       ~selection_anchor: option((string, Point.t))=None,
@@ -91,7 +99,10 @@ let of_segment =
        ~projector_to_segment=Triggers.projector_to_invoke,
      )
   |> String.split_on_char('\n')
-  |> add_indents(~is_single_line, segment, measured, indent)
+  |> (
+    is_single_line
+      ? Fun.id : add_indents(~is_single_line, segment, measured, indent)
+  )
   |> add_caret(~caret, ~selection_anchor)
   |> String.concat("\n");
 
