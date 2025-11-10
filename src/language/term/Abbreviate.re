@@ -24,6 +24,113 @@ let is_flat_ellipses = (term: IdTagged.t(Exp.term)): bool =>
   };
 let available = ref(0);
 
+module AbbrevBudget = {
+  let with_budget = (~budget: int, ~run: unit => 'a): ('a, int) => {
+    let prev: int = available^;
+    let limited: int =
+      if (budget < 0) {
+        0;
+      } else if (budget > prev) {
+        prev;
+      } else {
+        budget;
+      };
+    available := limited;
+    let result: 'a = run();
+    let remaining: int = available^;
+    let consumed: int = limited - remaining;
+    let next_total: int = {
+      let diff: int = prev - consumed;
+      diff < 0 ? 0 : diff;
+    };
+    available := next_total;
+    (result, consumed);
+  };
+
+  let split_evenly = (~total: int, ~parts: int): list(int) =>
+    if (parts <= 0) {
+      [];
+    } else if (total <= 0) {
+      let rec zeros = (count: int, acc: list(int)): list(int) =>
+        count <= 0 ? acc : zeros(count - 1, [0, ...acc]);
+      zeros(parts, []);
+    } else {
+      let base: int = total / parts;
+      let remainder: int = total mod parts;
+      let rec distribute = (index: int, acc: list(int)): list(int) =>
+        index < 0
+          ? acc
+          : distribute(
+              index - 1,
+              [base + (index < remainder ? 1 : 0), ...acc],
+            );
+      distribute(parts - 1, []);
+    };
+
+  let label_cap = (~label: Exp.t, ~available: int): int => {
+    let estimated_label_len: int =
+      switch (label |> Exp.term_of) {
+      | Label(name) => String.length(name)
+      | Var(name) => String.length(name)
+      | Invalid(str) => String.length(str)
+      | Atom(String(str)) => String.length(str)
+      | _ => 1
+      };
+    let desired: int = estimated_label_len + 1;
+    let half: int = available / 2;
+    let proposed: int = half < desired ? desired : half;
+    let capped: int = proposed < 1 ? 1 : proposed;
+    capped > available ? available : capped;
+  };
+};
+
+module AbbrevSequence = {
+  let separator_cost: int = 2;
+  let ellipsis_cost: int = 3;
+
+  let rec consume =
+          (
+            items: list(Exp.t),
+            budgets: list(int),
+            ~abbreviate: Exp.t => Exp.t,
+          )
+          : list(Exp.t) =>
+    switch (items, budgets) {
+    | ([], _) => []
+    | ([item, ...rest], [budget, ...rest_budgets]) =>
+      let (abbreviated_item: Exp.t, _): (Exp.t, int) =
+        AbbrevBudget.with_budget(~budget, ~run=() => abbreviate(item));
+      if (rest == []) {
+        [abbreviated_item];
+      } else if (available^ > ellipsis_cost) {
+        available := available^ - separator_cost;
+        [abbreviated_item, ...consume(rest, rest_budgets, ~abbreviate)];
+      } else {
+        available := available^ - ellipsis_cost;
+        [abbreviated_item, flat_ellipses_term()];
+      };
+    | (_, _) => []
+    };
+
+  let run = (~items: list(Exp.t), ~abbreviate: Exp.t => Exp.t): list(Exp.t) => {
+    let count: int = List.length(items);
+    if (count <= 0) {
+      [];
+    } else {
+      let separators_needed: int =
+        count <= 1 ? 0 : (count - 1) * separator_cost;
+      let available_now: int = available^;
+      let available_for_items: int = {
+        let diff: int = available_now - separators_needed;
+        diff < 0 ? 0 : diff;
+      };
+      let budgets: list(int) =
+        AbbrevBudget.split_evenly(~total=available_for_items, ~parts=count);
+      consume(items, budgets, ~abbreviate);
+    };
+  };
+};
+
 let abbreviate_str = (min_len: int, s: string): string => {
   let len = String.length(s);
   let ellipsis = flat_ellipses;
@@ -56,7 +163,6 @@ let rec abbreviate_exp = (exp: Exp.t): Exp.t => {
       term,
     };
   };
-
   let wrap_or = (term, str): Exp.term =>
     if (available^ > String.length(str)) {
       available := available^ - String.length(str);
@@ -65,24 +171,26 @@ let rec abbreviate_exp = (exp: Exp.t): Exp.t => {
       Invalid(abbreviate_str(available^, str));
     };
 
-  let abbreviate_seq = xs => {
-    let rec go = xs =>
-      switch (xs) {
+  let abbreviate_list_seq = (xs: list(Exp.t)): list(Exp.t) => {
+    let rec go = (seq: list(Exp.t)): list(Exp.t) =>
+      switch (seq) {
       | [] => []
-      | [x, ...xs] =>
-        let hd = abbreviate_exp(x);
+      | [x, ...rest] =>
+        let head: Exp.t = abbreviate_exp(x);
         if (available^ > 3) {
           available := available^ - 2; // comma space
-          [hd, ...go(xs)];
-        } else if (xs == []) {
-          [hd];
+          [head, ...go(rest)];
+        } else if (rest == []) {
+          [head];
         } else {
           available := available^ - 3;
-          [hd, flat_ellipses_term()];
+          [head, flat_ellipses_term()];
         };
       };
     go(xs);
   };
+  let abbreviate_tuple_seq = (xs: list(Exp.t)): list(Exp.t) =>
+    AbbrevSequence.run(~items=xs, ~abbreviate=abbreviate_exp);
 
   // Helper to handle cases where we need to check available space and potentially return indet_term
   let handle_op_indet =
@@ -159,15 +267,25 @@ let rec abbreviate_exp = (exp: Exp.t): Exp.t => {
         ListLit([flat_ellipses_term()]);
       } else {
         available := available^ - 2; // square brackets
-        ListLit(abbreviate_seq(xs));
+        ListLit(abbreviate_list_seq(xs));
       }
-    | Tuple([_, _, ..._] as xs) => Tuple(abbreviate_seq(xs))
+    | Tuple([_, _, ..._] as xs) => Tuple(abbreviate_tuple_seq(xs))
     | TupLabel(e1, e2) =>
       if (available^ <= 3) {
         Invalid(flat_ellipses);
       } else {
         available := available^ - 3;
-        TupLabel(abbreviate_exp(e1), abbreviate_exp(e2));
+        let label_budget: int =
+          AbbrevBudget.label_cap(~label=e1, ~available=available^);
+        let (label', _): (Exp.t, int) =
+          AbbrevBudget.with_budget(~budget=label_budget, ~run=() =>
+            abbreviate_exp(e1)
+          );
+        let (value', _): (Exp.t, int) =
+          AbbrevBudget.with_budget(~budget=available^, ~run=() =>
+            abbreviate_exp(e2)
+          );
+        TupLabel(label', value');
       }
     | Dot(e1, e2) =>
       if (available^ <= 3) {

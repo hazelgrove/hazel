@@ -18,6 +18,7 @@ let (suite, _) =
       Test_OptUtil.tests,
       Test_Grammar.tests,
       Test_ExpToSegment.tests,
+      Test_Abbreviate.tests,
       Test_LabeledTuple.tests,
       Test_MakeTerm.tests,
       Test_Menhir.tests,
