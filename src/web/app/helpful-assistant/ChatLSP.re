@@ -173,7 +173,7 @@ module Composition = {
     Statics.uexp_to_info_map(
       ~ctx=init_ctx,
       ~ancestors=[],
-      MakeTerm.go(sketch).term,
+      MakeTerm.go(Id.Map.empty, sketch).term,
       Id.Map.empty,
       ~duplicates=[],
       ~expected_labels=None,
@@ -378,7 +378,10 @@ module ErrorRound = {
               ~holes="",
               ~concave_holes=" ",
               ~projector_to_segment=Triggers.projector_to_invoke,
-            ),
+              ~refractors=Id.Map.empty,
+              ~refractor_seg_to_seg=(a, b) =>
+              (a, b)
+            ), //TODO(andrew)
             orphans,
           );
         Error(

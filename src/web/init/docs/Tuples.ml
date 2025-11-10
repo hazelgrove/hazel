@@ -3506,145 +3506,103 @@ let out : string * Haz3lcore.PersistentSegment.t =
          b2365e57-2738-4cb0-b7f4-c1d14c857a6e)(content(Whitespace\"\\n\")))))))))))))))(model\"((text\\\"\\\\226\\\\139\\\\177\\\")(expanded \
          false)(always_render false))\"))))";
       backup_text =
-        "# Tuples can have labels, including ones with special characters or \
-         spaces using backticks ` #\n\
-         let labeled_tuple = (a=1, b=2.0, c=true, `the-answer`=42, `multi \
-         word`=\"yes\") in\n\n\
-         # These labels can be projected #\n\
-         test labeled_tuple.a == 1 end;\n\
-         test labeled_tuple.b == 2.0 end;\n\
-         test labeled_tuple.`the-answer` == 42 end;\n\
-         test labeled_tuple.`multi word` == \"yes\" end;\n\n\
-         # These can be encoded in the types #\n\
-         let typed_lt : (a=Int, b=Float, c=Bool, `the-answer`=Int, `multi \
-         word`=String) = labeled_tuple in\n\n\
-         # Labels are optional and can be interspersed throughout a tuple #\n\
-         let mixed_labels : (Int, a=String, Float, flag=Bool) = (1, a=\"String \
-         Value\", 2.5, flag=true) in\n\n\
-         type Person = (String, age=Int, favorite_color=String) in\n\n\
-         # These labels can be automatically applied based on the type \
-         expectation #\n\
-         let alice : Person = (\"Alice\", 22, \"Blue\") in\n\
-         test alice.age == 22 end;\n\n\
-         # Explicitly Labeled elements are automatically reordered #\n\
-         let bob : Person = (age=25, favorite_color=\"Red\", \"Bob\") in\n\n\
-         # Destructuring #\n\
-         let (bobs_name, age=bobs_age, favorite_color=bobs_favorite_color) = \
-         bob in\n\n\
-         # As Labeled Function Arguments #\n\
-         let make_person = fun name=n, age=a -> (n, a, favorite_color=\"red\") \
-         in\n\
-         let consistent_variable_arg = (name=\"Valid\", age=1) in\n\
-         let more_people : [Person] = [\n\
-         make_person(\"Bob\", 25),                # Labels Elided #\n\
-         make_person(name=\"Alice\", age=22),     # Labels Present #\n\
-         make_person(age=23, \"Mallory\"),        # Labels Rearranging #\n\
-         make_person(consistent_variable_arg)   # Variables with labels #\n\
-         ] in\n\n\
-         # Labeled args can also be inferred from the type signature #\n\
-         let make_name : (first=String, last=String) -> String = fun f, b -> f \
-         ++ \" \" ++ b in\n\
-         test string_compare(make_name(first=\"Hay\", last=\"Zul\"), \"Hay \
-         Zul\") == Eq end;\n\n\
-         # Args can also be used like a tuple and projected #\n\
-         let make_name : (first=String, last=String) -> String = fun args -> \
-         args.first ++ \" \" ++ args.last in  \n\n\
-         # Projection over Lists of Labeled Tuples #\n\
-         let people : [(name=String, age=Int)] = [\n\
-         (name=\"Alice\", age=30),\n\
-         (name=\"Bob\", age=25),\n\
-         (name=\"Charlie\", age=28)\n\
-         ] in\n\
-         ^^probe(people.age);  \n\
-         ^^probe(people.name);\n\
-         # --- Type-level operators for projection and extension --- #\n\n\
-         # Type-level projection mirrors expression-level projection #\n\
-         let name_only : Person.favorite_color = \"Red\" in\n\
-         let age_only : Person.age = 30 in\n\n\
-         # Type-level extension mirrors expression-level extension #\n\
-         type Base = (a=Int, b=Int, Int) in\n\
-         type Extended = Base ... (b=String, c=Int) in\n\
-         # Extended is (a=Int, b=String, Int, c=Int) #\n\
-         let e : Extended = (a=1, b=\"\", 1, c=2) in\n\n\
-         # `to_lvs`: Convert a labeled tuple into a list of (label, value) \
-         entries #\n\
-         # Example: Character attributes as key-value pairs #\n\
-         let ^^type(attributes) = (strength=10, agility=8, intelligence=7, \
-         `magic bonus`=2) in       \n\
-         let ^^probe(lvs) =   \n\
-         ^^type(to_lvs(attributes)) \n\
-         in  \n\n\
-         # `from_lvs`: Convert a list of (label, value) pairs back into a \
-         labeled tuple #\n\
-         # This is the inverse of `to_lvs` when applied to labeled-only tuples #\n\
-         let entries : [(label=String, value=Int)] = [(\"strength\", 10), \
-         (\"agility\", 8), (\"intelligence\", 7)] in\n\
-         let reconstructed = from_lvs(entries) in\n\
-         ^^probe(reconstructed);\n\
-         # Edge case: duplicate labels in from_lvs (projection is stuck) #\n\
-         ^^fold((\n\
-         let entries_with_dupes : [(label=String, value=Int)] = [(\"x\", 1), \
-         (\"x\", 2)] in\n\
-         let ^^probe(duplicate_entries) = from_lvs(entries_with_dupes) in\n\
-         ^^probe(duplicate_entries.x)\n\
-         ));\n\
-        \                 \n\
-         # Tuple Extension using `...` #\n\
-         # This expression merges two tuples, updating existing labels and \
-         appending new ones or unlabeled values to the end #\n\
-         # Example: combining experimental measurements with sensor metadata #\n\
-         let ^^type(reading) =(1618033, temperature=22.5,humidity=0.55) in\n\
-         let ^^type(metadata) =(sensor_id=\"A17\",humidity=0.52) in\n\
-         let ^^type(enriched_reading) = reading ... metadata in\n\
-         ^^probe(enriched_reading);\n\n\
-         # Singleton unlabeled tuples #\n\
-         # Write a single unlabeled field using an underscore #\n\
-         let single = (_=1) in\n\
-         let typed_single : (_=Int) = (_=42) in\n\n\
-         # Useful for extension with just one field #\n\
-         let base = (name=\"Alice\", age=30) in\n\
-         let ^^probe(extended) = base ... (_=\"Engineer\") in\n\n\
-         # Label Selection and Projection #\n\
-         let tup = (a=1,b=2,3,c=4) in        \n\
-         # select_labels keeps selected labels and preserves them #   \n\
-         ^^probe(select_labels(tup, `a`, `b`));\n\
-         # project_labels keeps selected labels but drops label names #\n\
-         ^^probe(project_labels(tup, `a`, `b`));\n\
-         # omit_labels removes the given labels from the tuple #\n\
-         ^^probe(omit_labels(tup, `a`, `b`)); \n\
-         # Edge case: project_labels, omit_labels resulting in singleton \
-         unlabeled tuple #\n\
-         ^^fold((\n\
-         let tup = (a=1, b=2, c=3, 4) in\n\
-         ^^probe(project_labels(tup, `a`));\n\
-         ^^probe(omit_labels(tup, `a`, `b`, `c`))\n\
-         ));\n\n\
-         # omit_all_labels removes all labels from a tuple #\n\
-         let ^^type(dropped) = omit_all_labels(a=1, b=\"str\", true, c=4) in\n\
-         ^^probe(dropped); \n\n\
-         # Edge case: dropping label of singleton labeled tuple gives a \
-         singleton unlabeled tuple #\n\
-         let ^^type(i) = \n\
-         omit_all_labels((a=1)) in\n\
-         ^^probe(i);\n\n\
-         # Static Errors #\n\
-         ^^fold((\n\
-         type duplicated_label = (a=Int, a=String) in\n\
-         let incorrect_sort = (1=\"hello\") in\n\
-         let extra_label : (a=String, b=Int, Float) = (a=\"hello\", b=3, c=1.) \
-         in\n\
-         let bad_projection = extra_label.d in\n\n\
-         let missing_labels =\n\
-         select_labels((a=1, b=2, c=3), `a`, `z`);\n\
-         project_labels((a=1, b=2, c=3), `b`, `q`);\n\
-         omit_labels((x=1, y=2), `x`, `not there`) in\n\
-         let sort_errors =\n\
-         select_labels((a=1, b=2), 1) in\n\
-         let not_a_tuple =\n\
-         project_labels(1, `a`) in\n\
-         let arity_error = \n\
-         select_labels((a=1, b=2));\n\
-         omit_all_labels(3)\n\
-         in  \n\
-         ))";
+        "letlabeled_tuple=(a=1,`multi \
+         word`=\"yes\")intestlabeled_tuple.a==1end;testlabeled_tuple.b==2.0end;testlabeled_tuple.`the-answer`==42end;testlabeled_tuple.`multi \
+         word`==\"yes\"end;lettyped_lt:(a=Int,`multi \
+         word`=String)=labeled_tupleinletmixed_labels:(Int,flag=Bool)=(1,flag=true)intypePerson=(String,favorite_color=String)inletalice:Person=(\"Alice\",\"Blue\")intestalice.age==22end;letbob:Person=(age=25,\"Bob\")inlet(bobs_name,favorite_color=bobs_favorite_color)=bobinletmake_person=funname=n,age=a->(n,favorite_color=\"red\")inletconsistent_variable_arg=(name=\"Valid\",age=1)inletmore_people:[Person]=[make_person(\"Bob\",25),make_person(consistent_variable_arg)]inletmake_name:(first=String,last=String)->String=funf,b->f++\" \
+         \"++binteststring_compare(make_name(first=\"Hay\",last=\"Zul\"),\"Hay \
+         Zul\")==Eqend;letmake_name:(first=String,last=String)->String=funargs->args.first++\" \
+         \"++args.lastinletpeople:[(name=String,age=Int)]=[(name=\"Alice\",age=30),(name=\"Charlie\",age=28)]in^^probe(age.people);^^probe(name.people);let^^type(attributes)=(strength=10,`magic \
+         bonus`=2)inlet^^probe(lvs)=^^type(to_lvs(attributes))inletentries:[(label=String,value=Int)]=[(\"strength\",10),(\"intelligence\",7)]inletreconstructed=from_lvs(entries)in^^probe(reconstructed);^^fold((letentries_with_dupes:[(label=String,value=Int)]=[(\"x\",1),(\"x\",2)]inlet^^probe(duplicate_entries)=from_lvs(entries_with_dupes)in^^probe(x.duplicate_entries)));let^^type(reading)=(1618033,humidity=0.55)inlet^^type(metadata)=(sensor_id=\"A17\",humidity=0.52)inlet^^type(enriched_reading)=reading...metadatain^^probe(enriched_reading);lettup=(a=1,c=4)in^^probe((tup,`b`)) \
+         select_labels;^^probe((tup,`b`)) project_labels;^^probe((tup,`b`)) \
+         omit_labels;^^fold((lettup=(a=1,4)in^^probe((tup,`a`)) \
+         project_labels;^^probe((tup,`c`)) \
+         omit_labels));let^^type(dropped)=omit_all_labels(a=1,c=4)in^^probe(dropped);let^^type(i)=omit_all_labels((a=1))in^^probe(i);^^fold((typeduplicated_label=(a=Int,a=String)inletincorrect_sort=(1=\"hello\")inletextra_label:(a=String,Float)=(a=\"hello\",c=1.)inletbad_projection=extra_label.dinletmissing_labels=select_labels((a=1,c=3),`z`);project_labels((a=1,c=3),`q`);omit_labels((x=1,y=2),`not \
+         there`)inletsort_errors=select_labels((a=1,b=2),1)inletnot_a_tuple=project_labels(1,`a`)inletarity_error=select_labels((a=1,b=2));omit_all_labels(3)in))";
+      refractors =
+        "((32ec9719-88a1-423e-bb3a-42c15afa2af5((id \
+         32ec9719-88a1-423e-bb3a-42c15afa2af6)(kind Probe)(syntax(Tile((id \
+         17195528-49ba-4701-bae6-7089fa9b9afe)(label(\"(\"\")\"))(mold((out \
+         Any)(in_(Any))(nibs(((shape Convex)(sort Any))((shape Convex)(sort \
+         Any))))))(shards(0 1))(children(((Grout((id \
+         00000000-0000-0000-0000-000000000000)(shape \
+         Convex)))))))))(model\"()\")))(472385f2-a17e-4242-87dd-8b277d69262e((id \
+         472385f2-a17e-4242-87dd-8b277d69262f)(kind Probe)(syntax(Tile((id \
+         d11c7081-c014-4fff-8391-69977c21bcc5)(label(\"(\"\")\"))(mold((out \
+         Any)(in_(Any))(nibs(((shape Convex)(sort Any))((shape Convex)(sort \
+         Any))))))(shards(0 1))(children(((Grout((id \
+         00000000-0000-0000-0000-000000000000)(shape \
+         Convex)))))))))(model\"()\")))(4e1539e3-c831-4fdd-a9e3-e3e83b336a30((id \
+         4e1539e3-c831-4fdd-a9e3-e3e83b336a31)(kind Probe)(syntax(Tile((id \
+         ae4dda93-f462-40ec-a22f-3ae4398a1e9e)(label(\"(\"\")\"))(mold((out \
+         Any)(in_(Any))(nibs(((shape Convex)(sort Any))((shape Convex)(sort \
+         Any))))))(shards(0 1))(children(((Grout((id \
+         00000000-0000-0000-0000-000000000000)(shape \
+         Convex)))))))))(model\"()\")))(5cecd991-e3c2-4642-b750-844ec905a8cc((id \
+         5cecd991-e3c2-4642-b750-844ec905a8cd)(kind Probe)(syntax(Tile((id \
+         aa25968e-a201-4e9b-a938-39c8d15cb9b1)(label(\"(\"\")\"))(mold((out \
+         Any)(in_(Any))(nibs(((shape Convex)(sort Any))((shape Convex)(sort \
+         Any))))))(shards(0 1))(children(((Grout((id \
+         00000000-0000-0000-0000-000000000000)(shape \
+         Convex)))))))))(model\"()\")))(61fab7c5-a1fd-42da-9cbc-6927599853e4((id \
+         61fab7c5-a1fd-42da-9cbc-6927599853e5)(kind Probe)(syntax(Tile((id \
+         bcaa6b2e-659c-4ec2-aef9-355e00dd77f9)(label(\"(\"\")\"))(mold((out \
+         Any)(in_(Any))(nibs(((shape Convex)(sort Any))((shape Convex)(sort \
+         Any))))))(shards(0 1))(children(((Grout((id \
+         00000000-0000-0000-0000-000000000000)(shape \
+         Convex)))))))))(model\"()\")))(632a2ce3-472f-496b-915d-55d9e491b736((id \
+         632a2ce3-472f-496b-915d-55d9e491b737)(kind Probe)(syntax(Tile((id \
+         9db3bc32-49e0-46aa-af57-55138206ee70)(label(\"(\"\")\"))(mold((out \
+         Any)(in_(Any))(nibs(((shape Convex)(sort Any))((shape Convex)(sort \
+         Any))))))(shards(0 1))(children(((Grout((id \
+         00000000-0000-0000-0000-000000000000)(shape \
+         Convex)))))))))(model\"()\")))(685f27e6-440d-49b4-803b-884c4d9d7909((id \
+         685f27e6-440d-49b4-803b-884c4d9d7900)(kind Probe)(syntax(Tile((id \
+         478e1a1d-e14c-4e58-a463-427d047b64c8)(label(\"(\"\")\"))(mold((out \
+         Any)(in_(Any))(nibs(((shape Convex)(sort Any))((shape Convex)(sort \
+         Any))))))(shards(0 1))(children(((Grout((id \
+         00000000-0000-0000-0000-000000000000)(shape \
+         Convex)))))))))(model\"()\")))(6adb64ce-9410-4240-8025-e18d766b87c8((id \
+         6adb64ce-9410-4240-8025-e18d766b87c9)(kind Probe)(syntax(Tile((id \
+         1dcacb80-6b7f-4559-9b0c-c9c45d1d2b49)(label(\"(\"\")\"))(mold((out \
+         Any)(in_(Any))(nibs(((shape Convex)(sort Any))((shape Convex)(sort \
+         Any))))))(shards(0 1))(children(((Grout((id \
+         00000000-0000-0000-0000-000000000000)(shape \
+         Convex)))))))))(model\"()\")))(7ba12c9a-3725-43fd-b28b-c77792adc238((id \
+         7ba12c9a-3725-43fd-b28b-c77792adc239)(kind Probe)(syntax(Tile((id \
+         966c4a7a-d1d8-4794-bf84-e30520e894fc)(label(\"(\"\")\"))(mold((out \
+         Any)(in_(Any))(nibs(((shape Convex)(sort Any))((shape Convex)(sort \
+         Any))))))(shards(0 1))(children(((Grout((id \
+         00000000-0000-0000-0000-000000000000)(shape \
+         Convex)))))))))(model\"()\")))(89177a06-5de9-40f1-a2f8-d50e0ec59d16((id \
+         89177a06-5de9-40f1-a2f8-d50e0ec59d17)(kind Probe)(syntax(Tile((id \
+         e7b2c4a0-6c3c-410b-8768-3e2b5c25303f)(label(\"(\"\")\"))(mold((out \
+         Any)(in_(Any))(nibs(((shape Convex)(sort Any))((shape Convex)(sort \
+         Any))))))(shards(0 1))(children(((Grout((id \
+         00000000-0000-0000-0000-000000000000)(shape \
+         Convex)))))))))(model\"()\")))(a0afd978-44f1-4b90-8594-f6907d79d1b2((id \
+         a0afd978-44f1-4b90-8594-f6907d79d1b3)(kind Probe)(syntax(Tile((id \
+         56637ca5-c3c8-459e-9e0c-c692ba1dbfbc)(label(\"(\"\")\"))(mold((out \
+         Any)(in_(Any))(nibs(((shape Convex)(sort Any))((shape Convex)(sort \
+         Any))))))(shards(0 1))(children(((Grout((id \
+         00000000-0000-0000-0000-000000000000)(shape \
+         Convex)))))))))(model\"()\")))(be9fce23-fe2a-40ad-b4e1-6d87326e854e((id \
+         be9fce23-fe2a-40ad-b4e1-6d87326e854f)(kind Probe)(syntax(Tile((id \
+         17d198a0-ff6c-4488-ad2a-c6b208309b21)(label(\"(\"\")\"))(mold((out \
+         Any)(in_(Any))(nibs(((shape Convex)(sort Any))((shape Convex)(sort \
+         Any))))))(shards(0 1))(children(((Grout((id \
+         00000000-0000-0000-0000-000000000000)(shape \
+         Convex)))))))))(model\"()\")))(eacef65f-3f69-4078-b491-505a566c2233((id \
+         eacef65f-3f69-4078-b491-505a566c2234)(kind Probe)(syntax(Tile((id \
+         cf87ffcf-9a54-4e02-855f-12280f465437)(label(\"(\"\")\"))(mold((out \
+         Any)(in_(Any))(nibs(((shape Convex)(sort Any))((shape Convex)(sort \
+         Any))))))(shards(0 1))(children(((Grout((id \
+         00000000-0000-0000-0000-000000000000)(shape \
+         Convex)))))))))(model\"()\")))(f50c275e-e042-417c-bc20-33197ee28461((id \
+         f50c275e-e042-417c-bc20-33197ee28462)(kind Probe)(syntax(Tile((id \
+         79af974c-f8f2-4041-bb89-feda533e6daa)(label(\"(\"\")\"))(mold((out \
+         Any)(in_(Any))(nibs(((shape Convex)(sort Any))((shape Convex)(sort \
+         Any))))))(shards(0 1))(children(((Grout((id \
+         00000000-0000-0000-0000-000000000000)(shape \
+         Convex)))))))))(model\"()\"))))";
     } )

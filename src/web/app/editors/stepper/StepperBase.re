@@ -826,6 +826,7 @@ and Stepper: {
                 )
               | _ => []
               },
+            ~dynamics=Dynamics.Map.empty, //TODO(andrew)
             StepperEditor.Model.{
               editor: model.editor |> Calc.get_saved_exc(~print="Editor"),
               taken_steps,

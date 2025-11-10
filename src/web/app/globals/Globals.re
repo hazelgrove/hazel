@@ -15,7 +15,8 @@ module Action = {
     | ExportForInit
     | ActiveEditor(Haz3lcore.Action.t)
     | Undo // These two currently happen at the editor level, and are just
-    | Redo; // global actions so they can be accessed by the command palette
+    | Redo // global actions so they can be accessed by the command palette
+    | SetMetaDown(bool);
 };
 
 module Model = {
@@ -25,6 +26,7 @@ module Model = {
     settings: Settings.t,
     // State:
     font_metrics: FontMetrics.t,
+    meta_down: bool,
     // Calculated:
     color_highlights: option(ColorSteps.colorMap),
     // Other:
@@ -48,6 +50,7 @@ module Model = {
     {
       font_metrics: FontMetrics.init,
       settings,
+      meta_down: false,
       color_highlights: None,
       inject_global: _ =>
         failwith(
@@ -94,6 +97,7 @@ module Update = {
     | ActiveEditor(_) => false
     | Undo => false
     | Redo => false
+    | SetMetaDown(_) => false
     };
   };
 };

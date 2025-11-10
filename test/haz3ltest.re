@@ -24,6 +24,7 @@ let (suite, _) =
       Test_StringUtil.tests,
       Test_PatternMatch.tests,
       Test_HazelProtocol_JsonCodec.tests,
+      Test_Id_Transform.tests,
     ]
     @ Test_Typ.tests
     @ Test_Info.tests
@@ -31,6 +32,7 @@ let (suite, _) =
     @ Test_Elaboration.tests
     @ Test_Evaluator.tests
     @ Test_Editing.tests
+    @ Test_AutoProbe.tests
     @ Test_Indentation.tests
     @ [Test_Coverage.tests, Test_Unboxing.tests]
     @ Test_Introduce.tests

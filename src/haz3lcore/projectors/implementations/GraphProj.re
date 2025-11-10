@@ -321,9 +321,13 @@ let decode_graph_data = (value: DHExp.t): decoded_graph => {
   };
 };
 
-let select_sample = (info: info): option(Dynamics.Probe.Closure.t) =>
+let select_sample = (info: info): option(Sample.t) =>
   switch (info.dynamics) {
-  | Some([sample, ..._]) => Some(sample)
+  | Some(x) =>
+    switch (x.samples) {
+    | [sample, ..._] => Some(sample)
+    | _ => None
+    }
   | _ => None
   };
 
@@ -886,7 +890,7 @@ module M: Projector = {
       warnings,
     );
 
-  let interpret_sample = (sample: Dynamics.Probe.Closure.t): decoded_graph =>
+  let interpret_sample = (sample: Sample.t): decoded_graph =>
     decode_graph_data(sample.value);
 
   let view = ({info, status, _}: View.args(model, action)): View.t => {

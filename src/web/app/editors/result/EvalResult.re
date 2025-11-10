@@ -56,7 +56,7 @@ module Model = {
     };
   };
 
-  let probe_results = (model: t): option(Dynamics.Probe.Map.t) =>
+  let probe_results = (model: t): option(Sample.Map.t) =>
     model.dynamics
     |> Calc.get_saved(None)
     |> Option.map((d: Dynamics.t) => d.probe_map);
@@ -69,7 +69,7 @@ module Model = {
   let dynamics = (model: t): Dynamics.Map.t =>
     switch (probe_results(model)) {
     | Some(dynamics_map) => Dynamics.Map.mk(dynamics_map)
-    | None => Dynamics.Map.mk(Dynamics.Probe.Map.empty)
+    | None => Dynamics.Map.mk(Sample.Map.empty)
     };
 
   let get_elaboration = (model: t): option(Exp.t) =>
@@ -312,14 +312,17 @@ module View = {
     let editor = Option.map(snd, editor);
     let code_view =
       Option.map(
-        CodeSelectable.View.view(
-          ~signal=
-            fun
-            | MakeActive => signal(MakeActive(Evaluation())),
-          ~inject=a => inject(EvalEditorAction(a)),
-          ~globals,
-          ~selected,
-        ),
+        (editor: CodeSelectable.Model.t) =>
+          CodeSelectable.View.view(
+            ~signal=
+              fun
+              | MakeActive => signal(MakeActive(Evaluation())),
+            ~inject=a => inject(EvalEditorAction(a)),
+            ~globals,
+            ~selected,
+            ~dynamics=editor.dynamics,
+            editor,
+          ),
         editor,
       );
     let exn_view =

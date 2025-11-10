@@ -133,6 +133,8 @@ let record_term_data = (sort: Sort.t, seg: Segment.t, skel: Skel.t): unit =>
 /* Map to collect projector ids */
 let projectors: ref(Id.Map.t(Piece.projector)) = ref(Id.Map.empty);
 
+let rf_map: ref(Id.Map.t(_)) = ref(Id.Map.empty);
+
 /* Strip a projector from a segment and log it in the map */
 let log_projector = (pr: Base.projector): unit => {
   projectors := Id.Map.add(pr.id, pr, projectors^);
@@ -206,6 +208,23 @@ let rec go_s = (s: Sort.t, skel: Skel.t, seg: Segment.t): Any.t =>
 and exp = unsorted => {
   let (term, inner_ids) = exp_term(unsorted);
   let ids = ids(unsorted) @ inner_ids;
+  //TODO(andrew): cleanup, document
+  let (term, ids) =
+    switch (Id.Map.find_opt(List.hd(ids), rf_map^)) {
+    | Some(_guy) => (
+        Probe(
+          {
+            annotation: {
+              ids: ids,
+            },
+            term,
+          },
+          Probe.empty,
+        ): TermBase.exp_term,
+        [Id.transform_variant(List.hd(ids))],
+      )
+    | None => (term, ids)
+    };
   let e: TermBase.exp_t =
     return(
       e => Exp(e),
@@ -252,6 +271,7 @@ and exp_term: unsorted => (Exp.term, list(Id.t)) = {
         ret(LivelitName(Token.parse_livelit(t)))
       | ([t], []) when Token.is_var(t) => ret(Var(t))
       | ([t], []) when Token.is_ctr(t) => ret(Constructor(t, None))
+      | (["{", "}"], [Exp(body)])
       | (["(", ")"], [Exp(body)]) => ret(Parens(body))
       | (label, [Exp(body)]) when is_probe_wrap(label) =>
         // Temporary wrapping form to persist projector probes
@@ -512,6 +532,23 @@ and exp_term: unsorted => (Exp.term, list(Id.t)) = {
 and pat = unsorted => {
   let (term, inner_ids) = pat_term(unsorted);
   let ids = ids(unsorted) @ inner_ids;
+  //TODO(andrew): cleanup, document
+  let (term, ids) =
+    switch (Id.Map.find_opt(List.hd(ids), rf_map^)) {
+    | Some(_guy) => (
+        Probe(
+          {
+            annotation: {
+              ids: ids,
+            },
+            term,
+          },
+          Probe.empty,
+        ): TermBase.pat_term,
+        [Id.transform_variant(List.hd(ids))],
+      )
+    | None => (term, ids)
+    };
   let p =
     return(
       p => Pat(p),
@@ -898,10 +935,11 @@ and unsorted = (sort: Sort.t, skel: Skel.t, seg: Segment.t): unsorted => {
 let go =
   Core.Memo.general(
     ~cache_size_bound=1000,
-    seg => {
+    (refractor_mapping, seg) => {
       map := TermMap.empty;
       term_data := Id.Map.empty;
       projectors := Id.Map.empty;
+      rf_map := refractor_mapping;
       let term = exp(unsorted(Exp, Segment.skel(seg), seg));
       {
         term,
@@ -959,7 +997,15 @@ let for_projection =
     }
   );
 
-let from_zip_for_sem = (z: Zipper.t) => go(Dump.to_segment(z));
+let from_zip_for_sem = (z: Zipper.t) => {
+  let refractor_mapping =
+    Id.Map.union(
+      (_, _, b) => Some(b),
+      z.refractors.manuals,
+      z.refractors.ephemerals,
+    );
+  go(refractor_mapping, Dump.to_segment(z));
+};
 
 let from_zip_for_sem =
   Core.Memo.general(~cache_size_bound=1000, from_zip_for_sem);

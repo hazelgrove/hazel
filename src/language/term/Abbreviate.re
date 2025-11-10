@@ -540,17 +540,20 @@ let rec abbreviate_exp = (exp: Exp.t): Exp.t => {
           | [] => []
           | [pair, ...pairs] =>
             let hd = abbreviate_pair(pair);
-            if (available^ > 3) {
+            if (available^ > 12) {
               available := available^ - 6; // "| " " => "
               [hd, ...go(pairs)];
-            } else if (pairs == []) {
+              // } else if (available^ > 6) {
+              //   available := available^ - 6; // "| " " => "
+              //   [hd, (flat_ellipses_term_pat(), flat_ellipses_term())];
+            } else if (available^ > 6) {
               [hd];
             } else {
-              available := available^ - 3;
-              [hd, (flat_ellipses_term_pat(), flat_ellipses_term())];
+              [];
             };
           };
-        Match(exp', go(pat_exp_pairs));
+        let pairs = go(pat_exp_pairs);
+        Match(exp', pairs);
       }
 
     | TypAp(e, t) =>
@@ -983,7 +986,7 @@ and abbreviate_any = (any: Any.t): Any.t =>
   | Pat(p) => Pat(abbreviate_pat(p))
   | Typ(t) => Typ(abbreviate_typ(t))
   | TPat(tp) => TPat(abbreviate_tpat(tp))
-  | Rul(_r) => failwith("TODO")
+  | Rul(_) => any
   | Any(_) => any
   };
 
@@ -995,5 +998,16 @@ let abbreviate_exp = (~available as a=12, exp: Exp.t): (Exp.t, int) => {
     ? (flat_ellipses_term(), length_exp)
     : {
       (exp, length_exp);
+    };
+};
+
+let abbreviate_pat = (~available as a=12, pat: Pat.t): (Pat.t, int) => {
+  available := a;
+  let pat = abbreviate_pat(pat);
+  let length_pat = a - available^;
+  a < 0 || a <= 1 && length_pat > 1
+    ? (flat_ellipses_term_pat(), length_pat)
+    : {
+      (pat, length_pat);
     };
 };

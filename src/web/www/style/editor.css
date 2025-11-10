@@ -97,6 +97,27 @@
   font-weight: bold;
 }
 
+/* For emoji rendering in code */
+.code .grapheme-cell {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  vertical-align: baseline;
+  white-space: pre;
+}
+
+.code-container.meta-down .token.ref {
+  cursor: pointer;
+}
+
+.code-container.meta-down .token.ref:hover {
+  text-decoration: underline;
+  text-decoration-style: solid;
+  text-underline-offset: 0.08em;
+  filter: brightness(1.5);
+}
+
 @keyframes rainbow {
   0% {
     color: #4477ff;
@@ -333,4 +354,35 @@ svg:has(.child-line) {
 
 .restructuring-genie {
   z-index: var(--backpack-z);
+}
+
+.context-menu {
+  position: absolute;
+  min-width: 160px;
+  z-index: 30; /*TODO(andrew): must be over num-samples */
+  flex-direction: column;
+  justify-content: center;
+  background-color: var(--menu-bkg);
+  border-radius: 0 0 0.5em 0;
+  outline: 0.6px solid var(--menu-outline);
+  box-shadow: 0px 10px 20px var(--menu-shadow);
+  padding: 0.2em;
+}
+.context-menu .group .contents {
+  display: flex;
+  flex-direction: column;
+}
+.context-menu .named-menu-item {
+  display: flex;
+  align-items: center;
+  color: var(--menu-item-text);
+  cursor: pointer;
+  gap: 0.5em;
+}
+.context-menu .group .contents .named-menu-item {
+  padding: 0.05em 0.5em 0.05em 0.7em;
+}
+.context-menu .group .contents .named-menu-item:hover {
+  background-color: var(--SAND);
+  border-radius: 0.2em;
 }

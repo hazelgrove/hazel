@@ -5,12 +5,57 @@ type caret =
   | Outer
   | Inner(int);
 
+module Refractor = {
+  module Map = {
+    [@deriving (show({with_path: false}), sexp, yojson, eq)]
+    type t = Id.Map.t(Base.projector);
+    let empty = Id.Map.empty;
+  };
+
+  [@deriving (show({with_path: false}), sexp, yojson, eq)]
+  type t = {
+    manuals: Map.t,
+    autos: list(Id.t),
+    ephemerals: Map.t,
+    dyn_cursor: Language.DynCursor.t,
+  };
+  let init = {
+    manuals: Id.Map.empty,
+    autos: [],
+    ephemerals: Id.Map.empty,
+    dyn_cursor: Language.DynCursor.init,
+  };
+};
+
 // assuming single backpack, shards may appear in selection, backpack, or siblings
 [@deriving (show({with_path: false}), sexp, yojson, eq)]
 type t = {
   selection: Selection.t,
   relatives: Relatives.t,
   caret,
+  /* Like projectors but not replacing syntax */
+  refractors: Refractor.t,
+};
+
+let update_refractors = (z: t, f: Refractor.t => Refractor.t): t => {
+  ...z,
+  refractors: f(z.refractors),
+};
+
+let update_manuals = (f, z: t): t => {
+  ...z,
+  refractors: {
+    ...z.refractors,
+    manuals: f(z.refractors.manuals),
+  },
+};
+
+let update_ephemerals = (f, z: t): t => {
+  ...z,
+  refractors: {
+    ...z.refractors,
+    ephemerals: f(z.refractors.ephemerals),
+  },
 };
 
 let update_relatives = (f: Relatives.t => Relatives.t, z: t): t => {

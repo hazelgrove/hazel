@@ -85,6 +85,60 @@ let str3 = (id: t) => id |> to_string |> String.sub(_, 0, 3);
 let str8 = (id: t) => id |> to_string |> String.sub(_, 0, 8);
 let cls = (id: t) => "id" ++ str8(id);
 
+/* Reversible UUID transformation functions */
+let transform_variant: t => t =
+  (id: t) => {
+    let uuid_str = to_string(id);
+    let len = String.length(uuid_str);
+    if (len > 0) {
+      let last_char = uuid_str.[len - 1];
+      let new_last_char =
+        switch (last_char) {
+        | '0' .. '8' => Char.chr(Char.code(last_char) + 1)
+        | '9' => '0'
+        | 'a' .. 'e' => Char.chr(Char.code(last_char) + 1)
+        | 'f' => 'a'
+        | _ => last_char /* shouldn't happen in valid UUID */
+        };
+      let new_str =
+        String.mapi((i, c) => i == len - 1 ? new_last_char : c, uuid_str);
+      of_string(new_str)
+      |> OptUtil.get(_ =>
+           failwith("transform_variant: invalid UUID generated")
+         );
+    } else {
+      failwith("transform_variant: empty UUID string");
+    };
+  };
+
+let recover_original: t => t =
+  (variant_id: t) => {
+    let uuid_str = to_string(variant_id);
+    let len = String.length(uuid_str);
+    if (len > 0) {
+      let last_char = uuid_str.[len - 1];
+      let original_last_char =
+        switch (last_char) {
+        | '1' .. '9' => Char.chr(Char.code(last_char) - 1)
+        | '0' => '9'
+        | 'b' .. 'f' => Char.chr(Char.code(last_char) - 1)
+        | 'a' => 'f'
+        | _ => last_char /* shouldn't happen in valid UUID */
+        };
+      let original_str =
+        String.mapi(
+          (i, c) => i == len - 1 ? original_last_char : c,
+          uuid_str,
+        );
+      of_string(original_str)
+      |> OptUtil.get(_ =>
+           failwith("recover_original: invalid UUID generated")
+         );
+    } else {
+      failwith("recover_original: empty UUID string");
+    };
+  };
+
 [@deriving (sexp, yojson)]
 type binding('v) = (t, 'v);
 

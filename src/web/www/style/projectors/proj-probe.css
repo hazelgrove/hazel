@@ -3,8 +3,8 @@
   --code-text: var(--token-exp);
   --live-env-bkg: var(--T3);
 
-  --num-closures: var(--Y1);
-  --num-closures-indicated: var(--R1);
+  --num-samples: var(--Y1);
+  --num-samples-indicated: var(--R1);
 
   --exp-ap: hsl(265, 75%, 80%);
   --pat-ap: hsl(220, 75%, 80%);
@@ -26,7 +26,7 @@
 
 /* Turn off caret when text projector is focused */
 /* TODO: Generalize this logic to other projectors */
-.code-deco:has(~ .projectors .projector.probe *:focus) #caret .caret-path {
+.code-deco:has(~ .refractors *:focus) #caret .caret-path {
   fill: #0000;
 }
 
@@ -50,8 +50,96 @@
   fill: var(--pat-indicated);
   filter: drop-shadow(0.7px 0.7px 0px var(--pat-shadow));
 }
-.projector.probe:has(.ap.pinned) > svg {
-  /* fill: var(--exp-ap-indicated); */
+/* .projector.probe:has(.ap.pinned) > svg {
+  fill: var(--exp-ap-indicated);
+} */
+
+/* REFRACTORS */
+
+.refractors .projector.probe.indicated.Exp > svg {
+  fill: var(--exp-base);
+}
+.refractors .projector.probe.indicated.Pat > svg {
+  fill: var(--pat-base);
+}
+.refractors .base .projector.probe {
+  pointer-events: none;
+}
+.refractors .base .projector.probe .live-offside {
+  pointer-events: all;
+}
+
+.refractors .base .projector.probe > svg {
+  display: none;
+}
+.code-deco .refractors svg path.child-line {
+  stroke: var(--G0) !important;
+}
+.code-deco .refractors svg path.child-line.repl {
+  stroke: var(--BR3) !important;
+  /* stroke-dasharray: 0.5 2.5; */
+  opacity: 0.25;
+}
+.code-deco .refractors svg path.child-line.repl-indicated {
+  stroke: var(--G0) !important;
+  stroke-dasharray: none;
+}
+
+.code-deco .refractors svg.shard path {
+  fill: var(--exp-base) !important;
+}
+
+.code-deco .refractors svg.shard.probe-indicated path {
+  opacity: 0.4;
+}
+
+.code-deco .refractors svg.shard.indicated {
+  filter: drop-shadow(var(--off-x) var(--off-y) var(--blur) var(--G0));
+}
+
+.refractors .overlays .projector.probe .num-samples {
+  right: -0.85em;
+  top: 1.05em;
+  transform-origin: top right;
+  scale: 0.6;
+  font-size: 0.8em;
+  padding: 0.1em;
+  min-width: 1.2em;
+  pointer-events: none;
+}
+
+.refractors .projector.probe .sample .code {
+  line-height: 1.41;
+}
+
+.refractors .live-offside .live-equals {
+  display: none;
+}
+
+.refractors svg:has(.child-line) {
+  z-index: 2; /* TODO(andrew) */
+}
+
+.refractors .child-line {
+  /* To make it align to shard shadows */
+  translate: 0 0.02px;
+}
+
+.refractors path.child-line.dashed {
+  stroke-dasharray: 0.5 2.5;
+  opacity: 0.4;
+}
+.refractors svg:has(.repl-indicated) + svg path.child-line.dashed {
+  stroke: var(--G0) !important;
+  opacity: 1;
+}
+
+.refractors .overlays .projector.probe.indicated.Right .num-samples {
+  background-color: var(--exp-indicated) !important;
+}
+
+.indication-probed svg.shard.indicated > path {
+  fill: var(--exp-base);
 }
 
 /* INLINE VIEW */
@@ -59,6 +147,8 @@
 .projector.probe .main {
   font-family: var(--code-font);
   font-size: var(--base-font-size);
+  line-height: var(--line-height);
+  white-space: pre;
   color: var(--code-text);
   display: flex;
   flex-direction: row;
@@ -71,7 +161,7 @@
 .cell-item:not(.selected):not(.error) .projector.probe.indicated .main {
   color: white;
 }
-.projector.probe .main:focus {
+.projector.probe .live-offside:focus {
   outline: none;
 }
 
@@ -107,7 +197,7 @@
 
 /* OVERLAY VIEW */
 
-.overlays .projector.probe .num-closures {
+.overlays .projector.probe .num-samples {
   pointer-events: auto;
   position: absolute;
   right: -0.55em;
@@ -125,17 +215,27 @@
   --original-bg: inherit;
   background-color: var(--original-bg);
 }
-.overlays .projector.probe.Exp .num-closures {
+.overlays .projector.probe.Exp .num-samples {
+  --original-bg: var(--exp-base);
+  color: var(--exp-shadow);
+}
+.overlays .projector.probe.Pat .num-samples {
+  --original-bg: var(--pat-base);
+  color: var(--PAT);
+}
+.overlays .projector.probe.indicated.Exp .num-samples {
   --original-bg: var(--exp-indicated);
+  color: var(--SAND);
 }
-.overlays .projector.probe.Pat .num-closures {
+.overlays .projector.probe.indicated.Pat .num-samples {
   --original-bg: var(--pat-indicated);
+  color: var(--SAND);
 }
-.overlays .projector.probe.error:not(.selected) .num-closures {
+.overlays .projector.probe.error:not(.selected) .num-samples {
   --original-bg: var(--R1);
 }
-.overlays .projector.probe.selected .num-closures {
-  --original-bg: var(--num-closures);
+.overlays .projector.probe.selected .num-samples {
+  --original-bg: var(--num-samples);
   color: black;
 }
 
@@ -149,21 +249,21 @@
     background-color: var(--original-bg);
   }
 }
-.overlays .projector.probe.indicated.Right .num-closures {
+.overlays .projector.probe.indicated.Right .num-samples {
   /* Commented out for now due to desync problem */
   /* animation: 1s blink-probe-caret step-end infinite; */
-  background-color: var(--num-closures-indicated) !important;
+  background-color: var(--num-samples-indicated) !important;
 }
 
-.overlays .projector.probe.selected:not(.indicated) .num-closures {
+.overlays .projector.probe.selected:not(.indicated) .num-samples {
   color: var(--STONE);
 }
 
-.overlays .projector.probe .pin {
+.live-offside .pin {
   pointer-events: auto;
   position: absolute;
-  left: -0.9em;
-  top: -0.2em;
+  left: -0.85em;
+  top: -0.4em;
   height: 1.3em;
   width: 1.3em;
   border-radius: 1em;
@@ -175,8 +275,43 @@
   transform-origin: top right;
   scale: 0.6;
 }
-.overlays .projector.probe .pin {
+.projector.probe .pin {
   background-color: oklch(0.8 0.18 201.83);
+}
+.live-env-header .pin-icon {
+  height: 1.3em;
+  width: 1.3em;
+  border-radius: 1em;
+  filter: invert(1) saturate(0) brightness(1.5);
+  background: url(../../img/noun-pinned-1560993.svg) #00ffff;
+  background-size: 70%;
+  background-position: center;
+  background-repeat: no-repeat;
+  scale: 0.75;
+}
+.live-env-header:hover .pin-icon {
+  filter: invert(1) brightness(3) saturate(0.4);
+}
+.live-env-header.pinned .pin-icon {
+  filter: invert(1) brightness(1.5);
+}
+
+.live-env-header {
+  margin: 0.2em 0.5em;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  /* background-color: #c3af7a; */
+  outline: 0.6px solid var(--BR4);
+  border-radius: 1em;
+  width: fit-content;
+  padding: 0 0.3em;
+  gap: 0.1em;
+  color: black;
+}
+
+.live-env-header:hover {
+  background-color: var(--T3);
 }
 
 /* OFFSIDE VIEW */
@@ -215,7 +350,7 @@
   color: var(--pat-indicated);
 }
 
-.projector.probe .live-offside .nav-bar {
+.live-offside .nav-bar {
   display: flex;
   flex-direction: row;
   align-items: center;
@@ -225,192 +360,235 @@
   top: 0.35em;
 }
 
-.projector.probe .live-offside .ellipsis {
+.live-offside .ellipsis {
   cursor: pointer;
 }
-.projector.probe .live-offside .ellipsis {
+.live-offside .ellipsis {
   color: var(--exp-base);
 }
-/* .projector.probe.Pat .live-offside .ellipsis {
-  color: var(--pat-base);
-} */
+
 .projector.probe.indicated .live-offside .ellipsis {
   color: var(--exp-indicated);
 }
-/* .projector.probe.indicated.Pat .live-offside .ellipsis {
-  color: var(--pat-indicated);
-} */
-.projector.probe .live-offside .ellipsis:hover {
+
+.live-offside .ellipsis:hover {
   /* filter: brightness(1.2) saturate(2); */
   scale: 1.4;
 }
 
-.projector.probe .live-offside .closure-groups {
+.live-offside .sample-groups {
   display: flex;
   flex-direction: row;
   gap: 2px;
 }
 
-.projector.probe .closure-group {
+.live-offside .sample-group {
   display: flex;
   gap: 2px;
   align-items: center;
 }
 
-.projector.probe .closure-group:not(:last-child)::after {
+.live-offside .sample-group:not(:last-child)::after {
   content: "•";
   font-size: 0.4em;
   margin: -1px;
 }
-.projector.probe .closure-group:not(:last-child)::after {
+.live-offside .sample-group:not(:last-child)::after {
   color: var(--exp-indicated);
 }
-/* .projector.probe.Pat .closure-group:not(:last-child)::after {
-  color: var(--pat-indicated);
-} */
 
-.projector.probe .value {
+.live-offside .value {
   cursor: pointer;
 }
 
-.projector.probe .closure .code {
+/* .live-offside .sample .code {
   line-height: initial;
-}
+} */
 
-/* .projector.probe .closure:first-child .value:hover .code-text {
+/* .projector.probe .sample:first-child .value:hover .code-text {
   cursor: col-resize;
 } */
 
 /* TOKEN BKG */
-.projector.probe .closure {
+.live-offside .sample {
+  position: relative;
+  --bottom-border-clr: oklch(0.8 0.06 145.88); /*var(--exp-shadow);*/
+  --bkg: var(--exp-base);
+  --below-shadow: #87ace0;
+  --num-levels: 7;
+  --base: 0;
+  padding: 0 0.1em;
+  border-bottom-color: var(--bottom-border-clr);
   border-radius: 0.05em 0.05em 0.05em 0.2em;
   transition: scale 0.1s ease-in-out, transform 0.1s ease-in-out,
-    translate 0.1s ease-in-out, border 0.1s ease-in-out,
-    box-shadow 0.1s ease-in-out, top 0.1s ease-in-out;
-  background-color: var(--bkg);
-  border-bottom-color: var(--bottom-border-clr);
+    translate 0.1s ease-in-out, box-shadow 0.1s ease-in-out,
+    top 0.1s ease-in-out;
 }
-.projector.probe .closure {
-  --bottom-border-clr: var(--exp-shadow);
-  --bkg: var(--exp-base);
-}
-/* .projector.probe.Pat .closure {
-  --bottom-border-clr: var(--pat-shadow);
-  --bkg: var(--pat-base);
-} */
-.projector.probe .closure:has(.value.indet) {
+
+.live-offside .sample:has(.value.indet) {
   /* background-color: var(--R0) !important;
   --below-shadow: var(--R2);
   --bottom-border-clr: var(--R2);
   --inner-shadow: #f59393 !important; */
-  background-color: oklch(0.87 0 0) !important;
+  background-color: var(--T2) !important;
   --below-shadow: oklch(0.46 0 0);
   --bottom-border-clr: oklch(0.4 0 0);
   --inner-shadow: #a2a2a2 !important;
 }
-.projector.probe .closure:has(.value.cursor-callee) {
+.live-offside .sample:has(.value.indet.cursor) {
+  background-color: var(--T3) !important;
+}
+.live-offside .sample:has(.value.cursor-callee) {
   --below-shadow: var(--exp-ap-indicated);
 }
-.projector.probe .closure:has(.value.cursor-caller) {
+.live-offside .sample:has(.value.cursor-caller) {
   --caller-accent: var(--exp-ap-indicated);
   --bottom-border-clr: var(--caller-accent);
   --bkg: var(--exp-ap-indicated);
 }
-.projector.probe .closure:has(.value.cursor-caller):not(:hover) {
-  outline-width: 1px;
-  outline-style: solid;
-  outline-color: var(--caller-accent);
+/* .live-offside .sample:has(.value.cursor-caller):not(:hover) {
+  outline-style: none;
+  border-color: rgb(165, 64, 205);
+  border-radius: 0.2em;
+  border-bottom-style: dotted;
 }
-.projector.probe .closure:has(.value.cursor-unrelated),
-.projector.probe .closure:has(.value.cursor-callee.indirect) {
-  filter: contrast(0.32) brightness(1.51) saturate(0.7);
-}
-
-.projector.probe .closure:has(.value.cursor-unrelated.level0) {
-  --bottom-border-clr: #73e1a3;
-}
-/* .projector.probe.Pat .closure:has(.value.cursor-unrelated.level0) {
-  --bottom-border-clr: #73c1e1;
+.live-offside .sample:has(.value.cursor-callee):not(:hover) {
+  outline-style: none;
+  border-color: rgb(72, 130, 224);
+  border-radius: 0.2em;
+  border-bottom-style: dotted;
+} */
+/* .live-offside.Single:has(
+    .value.cursor-unrelated:not(.below):not(.above):not(:hover)
+  ),
+.live-offside.Single:has(.value.cursor-callee.indirect) {
+  filter: contrast(0.32) brightness(1.51);
 } */
 
-.projector.probe .closure:has(.value.above) {
+.live-offside .sample:has(.value.cursor-unrelated.level0) {
+  --bottom-border-clr: #73e1a3;
+}
+
+.live-offside.Many .sample:has(.value.above) {
   --below-shadow: oklch(0.9 0.07 300);
-  --inner-shadow: #551da0;
   border-bottom-width: 1px;
   border-bottom-style: solid;
+  background-color: #f4ecff;
+  --bottom-border-clr: #bd92cf;
 }
-.projector.probe .closure:has(.value.above.indirect) {
+
+.live-offside.Many .sample:has(.value.above.indirect) {
   --bkg: oklch(0.4 0.18 300);
   box-shadow: inset 24px 25px 0 var(--inner-shadow);
   filter: drop-shadow(0 5.25px 0 var(--below-shadow));
 }
-.projector.probe .closure:has(.value.above.direct.L1) {
+.live-offside.Many .sample:has(.value.above.direct.L1) {
   --bkg: oklch(0.7 0.18 300);
   box-shadow: inset 1.5px 1.5px 0 var(--inner-shadow);
   filter: drop-shadow(0 1.5px 0 var(--below-shadow));
 }
-.projector.probe .closure:has(.value.above.indirect.L2) {
+.live-offside.Many .sample:has(.value.above.indirect.L2) {
   --bkg: oklch(0.66 0.18 300);
   box-shadow: inset 3px 3px 0 var(--inner-shadow);
   filter: drop-shadow(0 2.25px 0 var(--below-shadow));
 }
-.projector.probe .closure:has(.value.above.indirect.L3) {
+.live-offside.Many .sample:has(.value.above.indirect.L3) {
   --bkg: oklch(0.62 0.18 300);
   box-shadow: inset 6px 6px 0 var(--inner-shadow);
   filter: drop-shadow(0 3px 0 var(--below-shadow));
 }
-.projector.probe .closure:has(.value.above.indirect.L4) {
+.live-offside.Many .sample:has(.value.above.indirect.L4) {
   --bkg: oklch(0.58 0.18 300);
   box-shadow: inset 9px 9px 0 var(--inner-shadow);
   filter: drop-shadow(0 3.75px 0 var(--below-shadow));
 }
-.projector.probe .closure:has(.value.above.indirect.L5) {
+.live-offside.Many .sample:has(.value.above.indirect.L5) {
   --bkg: oklch(0.54 0.18 300);
   box-shadow: inset 14px 14px 0 var(--inner-shadow);
   filter: drop-shadow(0 4.5px 0 var(--below-shadow));
 }
-.projector.probe .closure:has(.value.above.indirect.L6) {
+.live-offside.Many .sample:has(.value.above.indirect.L6) {
   --bkg: oklch(0.5 0.18 300);
   box-shadow: inset 18px 18px 0 var(--inner-shadow);
   filter: drop-shadow(0 5.25px 0 var(--below-shadow));
 }
 
-.projector.probe .closure {
-  --below-shadow: #00c17d;
-}
-/* .projector.probe.Pat .closure {
-  --below-shadow: #00aec1;
-} */
-
-.projector.probe .closure:has(.value.above) {
+.live-offside.Many .sample:has(.value.above) {
   top: -3.5px;
-  box-shadow: 0 3.5px 0 #d0cab7bb;
+  box-shadow: 0 3.5px 0 oklch(0.9 0.07 300);
   position: relative;
   border-bottom-style: solid;
 }
-.projector.probe .closure:has(.value.above.L1) {
+.live-offside.Many .sample:has(.value.above.L1) {
   top: -1.5px;
-  box-shadow: 0 1.5px 0 #d0cab7bb;
+  box-shadow: 0 1.5px 0 #c8c8c8bb;
 }
-.projector.probe .closure:has(.value.below) {
+.sample:has(.value.below) {
   position: relative;
   border-top: 1px solid var(--pat-shadow);
-  /* border-bottom: none; */
   border-radius: 0.05em 0.2em 0.05em 0.2em;
   border: none;
+  overflow: hidden;
+}
+.live-offside.Many .sample:has(.value.below) {
   translate: 0 3px;
   box-shadow: 0px -0.75px 0 var(--below-shadow),
     0px -1.5px 0 var(--below-shadow), 0px -2.25px 0 var(--below-shadow),
     0px -3px 0 var(--below-shadow);
   height: calc(1.45em - 4.25px);
-  overflow: hidden;
+}
+.live-offside.Many .sample:has(.value.cursor-unrelated) {
+  background-color: #e5efe8;
+}
+.live-offside.Many .sample:has(.value.above) {
+  background-color: #eedaf8;
+}
+.live-offside.Many .sample:has(.value.below) {
+  background-color: oklch(0.89 0.04 254.25);
 }
 
-.projector.probe .closure:has(.value.above.L2) {
+.live-offside .sample .code-text:after {
+  /* Might have to disable this for multiline display to work */
+  display: none;
+}
+
+.live-offside .sample:has(.value.cursor) .code-text .token {
+  color: var(--exp-indicated);
+}
+
+.live-offside.Single .sample:has(.value.cursor-unrelated) .code-text .token {
+  color: #d4ddd4;
+}
+.live-offside.Many .value.cursor-caller .code-text .token {
+  color: var(--TYP);
+}
+.live-offside.Many .value.cursor-callee .code-text .token {
+  color: var(--PAT);
+}
+
+.live-offside.Single .sample:has(.value.above) .code-text .token {
+  color: #d8bcfe;
+}
+
+.live-offside.Single .sample:has(.value.below) .code-text .token {
+  color: oklch(0.91 0.05 255.11);
+}
+.live-offside.Single .sample:has(.value.cursor-caller) .code-text .token {
+  color: var(--TYP);
+}
+.live-offside.Single .sample:has(.value.cursor-callee) .code-text .token {
+  color: var(--PAT);
+}
+
+.live-offside.Many .sample:has(.value.cursor-unrelated) .code-text .token {
+  color: white;
+}
+
+.live-offside.Many .sample:has(.value.above.L2) {
   top: -2.5px;
   box-shadow: 0 2.5px 0 #d0cab7bb;
 }
-.projector.probe .closure:has(.value.below.L1) {
+.live-offside.Many .sample:has(.value.below.L1) {
   border: none;
   translate: 0 0.75px;
   box-shadow: 0px -0.75px 0 var(--below-shadow);
@@ -418,7 +596,7 @@
   height: calc(1.45em - 2px);
 }
 
-.projector.probe .closure:has(.value.below.L2) {
+.live-offside.Many .sample:has(.value.below.L2) {
   border: none;
   translate: 0 1.5px;
   box-shadow: 0px -0.75px 0 var(--below-shadow),
@@ -426,7 +604,7 @@
   height: calc(1.45em - 2.75px);
 }
 
-.projector.probe .closure:has(.value.below.L3) {
+.live-offside.Many .sample:has(.value.below.L3) {
   border: none;
   translate: 0 2.25px;
   box-shadow: 0px -0.75px 0 var(--below-shadow),
@@ -434,7 +612,7 @@
   height: calc(1.45em - 3.5px);
 }
 
-.projector.probe .closure:has(.value.below.L4) {
+.live-offside.Many .sample:has(.value.below.L4) {
   border: none;
   translate: 0 3px;
   box-shadow: 0px -0.75px 0 var(--below-shadow),
@@ -444,136 +622,149 @@
 }
 
 /* TOKEN BKG INDICATED + HOVER */
-.projector.probe.indicated .closure:has(.value.cursor-unrelated) {
+.projector.probe.indicated .Many.sample:has(.value.cursor-unrelated) {
   filter: contrast(0.5) brightness(1.32) saturate(0.7);
 }
-.projector.probe.indicated .closure:has(.value.cursor) {
-  background: white;
-  outline-width: 1.5px;
-  outline-style: solid;
-  border: none;
+
+@keyframes flash-border {
+  0%,
+  50% {
+    border-bottom-color: var(--R1);
+  }
+  51%,
+  100% {
+    border-bottom-color: transparent;
+  }
+}
+.projector.probe:not(.indicated) .sample:hover {
+  /* outline-color: var(--exp-indicated); */
+  /* outline-width: 0;
+  outline-style: none; */
+  border-bottom: 1px double var(--R1);
+  animation: flash-border 1s infinite;
 }
 
-.projector.probe .closure:hover,
-.projector.probe.indicated .closure:has(.value.cursor) {
-  outline-color: var(--exp-indicated);
+.live-offside .sample:has(.value.cursor) {
+  background-color: var(--bkg);
 }
-.projector.probe.indicated:has(*:focus) .closure:has(.value.cursor) {
-  outline-color: var(--R1);
+.projector.probe.indicated .live-offside.Single .sample:has(.value.cursor) {
+  border-bottom: 1px solid var(--G0);
+  background-color: oklch(from var(--bkg) calc(l * 0.96) calc(c + 0.04) h);
 }
-/* .projector.probe.indicated.Pat .closure:has(.value.cursor),
-.projector.probe.Pat .closure:hover {
-  outline-color: var(--pat-indicated);
-} */
-.projector.probe.indicated .closure:has(.value.cursor.ap),
-.projector.probe.Exp .closure:has(.value.ap):hover {
-  /* outline-color: var(--exp-ap-indicated); */
+.projector.probe.indicated
+  .live-offside.Single:focus
+  .sample:has(.value.cursor) {
+  border-bottom: 1px solid var(--R1);
 }
-.projector.probe .closure:hover {
+.projector.probe.indicated .live-offside.Many .sample:has(.value.cursor) {
+  outline: 1.5px solid var(--G0);
+}
+.projector.probe.indicated .live-offside.Many:focus .sample:has(.value.cursor) {
+  outline: 1.5px solid var(--R1);
+}
+
+.live-offside .sample:hover {
   z-index: var(--projector-indicated-z);
-  position: relative;
-  outline-width: 1.5px;
-  outline-style: solid;
+  /* position: relative; */
+  /* outline-width: 1.5px;
+  outline-style: solid; */
   /* outline-offset: -0.1px; */
-  position: relative;
-  filter: drop-shadow(1.5px 3px 0 #95876452) !important;
+  /* filter: drop-shadow(1.5px 3px 0 #95876452) !important; */
 }
 
-.projector.probe .closure {
-  --num-levels: 7;
-  --base: 0;
-  --init: calc(0.18 * (var(--num-levels) - var(--base)) / var(--num-levels));
-  --first-scale: calc(1 + var(--init));
-  --second-scale: calc(1 + (var(--init) * 2 / 3));
-  --third-scale: calc(1 + (var(--init) * 1 / 3));
-}
-.projector.probe .closure:has(.s0) {
+.live-offside .sample:has(.s0) {
   --base: 0;
 }
-.projector.probe .closure:has(.s1) {
+.live-offside .sample:has(.s1) {
   --base: 1;
 }
-.projector.probe .closure:has(.s2) {
+.live-offside .sample:has(.s2) {
   --base: 2;
 }
-.projector.probe .closure:has(.s3) {
+.live-offside .sample:has(.s3) {
   --base: 3;
 }
-.projector.probe .closure:has(.s4) {
+.live-offside .sample:has(.s4) {
   --base: 4;
 }
-.projector.probe .closure:has(.s5) {
+.live-offside .sample:has(.s5) {
   --base: 5;
 }
-.projector.probe .closure:has(.s6) {
+.live-offside .sample:has(.s6) {
   --base: 6;
 }
-.projector.probe .closure:has(.extra) {
+.live-offside .sample:has(.extra) {
   --base: 7;
-}
-.projector.probe .closure:hover {
-  scale: var(--first-scale);
-}
-.projector.probe .closure:hover + .closure,
-.projector.probe .closure:has(+ .closure:hover) {
-  scale: var(--second-scale);
-}
-.projector.probe .closure:hover + * + .closure,
-.projector.probe .closure:has(+ * + .closure:hover) {
-  scale: var(--third-scale);
 }
 
 /* TOKENS */
 
-.projector.probe .value.indet .code-text .token {
+.live-offside .value.indet .code-text .token {
   /* color: var(--R2) !important; */
   color: white;
   filter: none !important;
 }
 
-.projector.probe .value.indet.cursor .code-text .token {
+.live-offside .value.indet.cursor .code-text .token {
   color: grey;
 }
 
-.projector.probe .value.cursor .code-text .token {
+.live-offside.value.cursor .code-text .token {
   color: var(--exp-indicated);
 }
 /* .projector.probe.Pat .value.cursor .code-text .token {
   color: var(--pat-indicated);
 } */
 
-.projector.probe .value.cursor-unrelated .code-text .token,
-.projector.probe .value.cursor-caller .code-text .token {
-  /* filter: invert(1) brightness(10); */
-  color: white;
+.live-offside.Single .value.cursor-unrelated .code-text .token {
+  /* color: var(--exp-indicated); */
+  color: rgb(102, 102, 102);
+  /* opacity: 0.4; */
 }
-.projector.probe .value.cursor-callee.indirect .code-text .token {
+.live-offside.Many .value.cursor-unrelated .code-text .token {
+  /* color: var(--exp-indicated); */
+  color: white;
+  /* opacity: 0.4; */
+}
+/* .projector.probe .value.cursor-callee.indirect .code-text .token {
   color: white;
 }
 .projector.probe .value.cursor-callee.direct .code-text .token {
   color: var(--exp-ap-indicated);
-}
+} */
 
-.projector.probe .value .token.explicit-hole {
+.live-offside .value .token.explicit-hole {
   color: white;
   text-shadow: none;
 }
 
 /* LIVE ENV */
 
-.projector.probe .live-env {
-  background-color: var(--live-env-bkg);
+.live-offside .sample-dropdown {
   border-radius: 0 0.2em 0.2em 0.2em;
-  padding: 0.2em;
+  background-color: var(--BR1);
   display: none;
   position: absolute;
-  /* top: 1.4em; */
+  /* translate: 0 1px; */
   left: 3px;
-  scale: 0.86;
+  /* scale: 0.75; */
   transform-origin: top left;
+  border-bottom: 1px solid var(--BR2);
 }
 
-.projector.probe .live-env .live-env-entry {
+.live-offside .live-env {
+  padding: 0.2em 0.55em;
+  background-color: var(--live-env-bkg);
+}
+.live-offside * + .live-env {
+  border-top: 0.6px solid var(--BR3);
+}
+
+.live-offside .sample-dropdown:hover {
+  display: flex;
+}
+
+.live-offside .live-env .live-env-entry {
   display: flex;
   flex-direction: row;
   white-space: pre;
@@ -583,10 +774,10 @@
   font-size: var(--base-font-size);
 }
 
-.projector.probe.indicated .closure:hover .live-env {
+.projector.probe.indicated .sample:hover .sample-dropdown {
   display: block;
 }
-.projector.probe.indicated .closure:hover .live-env:empty {
+.projector.probe.indicated .sample:hover .sample-dropdown:empty {
   display: none;
 }
 
@@ -622,4 +813,13 @@
 
 .projector.probe .nav-arrow:not(.disabled):hover {
   filter: brightness(1.05) saturate(1.05);
+}
+
+/* TEMP COLORS */
+
+.projector.probe .live-offside .sample:has(.value.before) {
+  background-color: #f4e5fb;
+}
+.projector.probe .live-offside .sample:has(.value.after) {
+  background-color: oklch(0.94 0.03 254.38);
 }

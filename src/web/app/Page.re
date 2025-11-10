@@ -153,6 +153,17 @@ module Update = {
         schedule_action(Globals(FinishImportAll(data)))
       );
       model |> return_quiet;
+    | SetMetaDown(meta_down) =>
+      model.globals.meta_down == meta_down
+        ? model |> return_quiet
+        : {
+            ...model,
+            globals: {
+              ...model.globals,
+              meta_down,
+            },
+          }
+          |> return_quiet
     | FinishImportAll(None) => model |> return_quiet
     | FinishImportAll(Some(data)) =>
       Export.import_all(
@@ -177,11 +188,7 @@ module Update = {
                 current |> fst,
                 current
                 |> snd
-                |> ((e: CellEditor.Model.t) => e.editor)
-                |> (
-                  (e: CodeWithStatics.Model.t) =>
-                    Zipper.zip(e.editor.state.zipper)
-                )
+                |> (e => e.editor.editor.state.zipper)
                 |> PersistentSegment.persist,
               ))
             );
@@ -288,7 +295,7 @@ module Update = {
         ...model,
         selection,
       }
-      |> Updated.return
+      |> Updated.return(~scroll_active=false)
     | Benchmark(Start) =>
       List.iter(a => schedule_action(Editors(a)), Benchmark.actions_1);
       schedule_action(Benchmark(Finish));
@@ -411,9 +418,31 @@ module View = {
     };
   };
 
+  let selection_has_refractors =
+      (
+        refractors: Haz3lcore.Zipper.Refractor.t,
+        selection: Haz3lcore.Segment.t,
+      )
+      : bool =>
+    if (Id.Map.is_empty(refractors.manuals)) {
+      false;
+    } else {
+      let ids = Haz3lcore.Segment.ids(selection);
+      List.exists(Id.Map.mem(_, refractors.manuals), ids);
+    };
+
   let copy = (cursor: Cursor.cursor(Editors.Update.t)): unit => {
     let str = (cursor.selected_text |> Option.value(~default=() => ""))();
-    ClipboardCache.set(cursor.selection, str);
+    let should_set =
+      switch (cursor.editor, cursor.selection) {
+      | (Some(editor), Some(selection)) =>
+        /* If the selection contains refractors, we forgo the segment cache
+         * for the sake of preserving refractors in the copy via expanding
+         * their text invocation form, i.e. ^^refractor_name(<syntax>) */
+        !selection_has_refractors(editor.state.zipper.refractors, selection)
+      | _ => true
+      };
+    should_set ? ClipboardCache.set(cursor.selection, str) : ();
     JsUtil.copy(str);
   };
 
@@ -423,9 +452,16 @@ module View = {
         ~cursor: Cursor.cursor(Editors.Update.t),
         model: Model.t,
       ) => {
+    let update_meta =
+        (evt: Js.t(Dom_html.keyboardEvent)): list(Effect.t(unit)) => {
+      let meta_down = Js.to_bool(evt##.metaKey);
+      model.globals.meta_down == meta_down
+        ? [] : [inject(Globals(SetMetaDown(meta_down)))];
+    };
     let key_handler =
         (~inject, ~dir: Key.dir, evt: Js.t(Dom_html.keyboardEvent))
-        : Effect.t(unit) =>
+        : Effect.t(unit) => {
+      let meta_effects = update_meta(evt);
       Effect.(
         switch (
           Selection.handle_key_event(
@@ -434,17 +470,23 @@ module View = {
             model,
           )
         ) {
-        | None => Ignore
+        | None => meta_effects == [] ? Ignore : Many(meta_effects)
         | Some(action) =>
-          Many([Prevent_default, Stop_propagation, inject(action)])
+          Many(
+            [Prevent_default, Stop_propagation, inject(action)]
+            @ meta_effects,
+          )
         }
       );
+    };
     [
       Attr.on_keyup(key_handler(~inject, ~dir=KeyUp)),
       Attr.on_keydown(key_handler(~inject, ~dir=KeyDown)),
       Attr.on_blur(_ => {
         JsUtil.focus_clipboard_shim();
-        Effect.Ignore;
+        model.globals.meta_down
+          ? Effect.Many([inject(Globals(SetMetaDown(false)))])
+          : Effect.Ignore;
       }),
       Attr.on_focus(_ => {
         JsUtil.focus_clipboard_shim();
@@ -617,6 +659,7 @@ module View = {
     let sidebar =
       Sidebar.view(
         ~globals,
+        ~cursor,
         ~explain_this_inject=action => inject(ExplainThis(action)),
         ~assistant_inject=action => inject(Assistant(action)),
         ~signal=

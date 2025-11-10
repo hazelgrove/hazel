@@ -22,15 +22,15 @@ let probe_test =
   let probed: Grammar.exp_t(list(Grammar.exp_t(unit))) =
     Grammar.map_exp_annotation(
       ({ids, _}: IdTagged.IdTag.t) => {
-        let probe_closures = Dynamics.Map.lookup(List.hd(ids), probes);
+        let probe_samples = Dynamics.Map.lookup(List.hd(ids), probes);
         Option.map(
-          List.map((c: Dynamics.Probe.Closure.t) =>
+          List.map((c: Sample.t) =>
             Grammar.map_exp_annotation(
               _ => (),
               DHExp.strip_ascriptions(c.value),
             )
           ), // Idk why there's ascriptions on the probed values
-          probe_closures,
+          probe_samples,
         )
         |> Option.value(~default=[]);
       },

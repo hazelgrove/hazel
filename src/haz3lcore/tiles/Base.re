@@ -36,19 +36,50 @@ let unparenthesize = (piece: piece): segment =>
   };
 
 let rec segment_to_string =
-        (~holes=" ", ~concave_holes=" ", ~projector_to_segment, seg: segment)
-        : string =>
+        (
+          ~holes=" ",
+          ~concave_holes=" ",
+          ~refractors: Id.Map.t(_)=Id.Map.empty,
+          ~refractor_seg_to_seg:
+             (Id.Map.t(_), segment) => (Id.Map.t(_), segment),
+          ~projector_to_segment,
+          seg: segment,
+        )
+        : string => {
+  //TODO(andrew): reinstate when whitespace issue is resolved
+  //let (refractors, seg) = refractor_seg_to_seg(refractors, seg);
   seg
   |> List.map(
-       piece_to_string(~holes, ~concave_holes, ~projector_to_segment),
+       piece_to_string(
+         ~holes,
+         ~concave_holes,
+         ~refractors,
+         ~refractor_seg_to_seg,
+         ~projector_to_segment,
+       ),
      )
-  |> String.concat("")
+  |> String.concat("");
+}
 and piece_to_string =
-    (~holes: string, ~concave_holes: string, ~projector_to_segment, p: piece)
+    (
+      ~holes: string,
+      ~concave_holes: string,
+      ~refractors: Id.Map.t(_),
+      ~refractor_seg_to_seg,
+      ~projector_to_segment,
+      p: piece,
+    )
     : string =>
   switch (p) {
   | Tile(t) =>
-    tile_to_string(~holes, ~concave_holes, ~projector_to_segment, t)
+    tile_to_string(
+      ~holes,
+      ~concave_holes,
+      ~refractors,
+      ~refractor_seg_to_seg,
+      ~projector_to_segment,
+      t,
+    )
   | Grout({shape: Concave, _}) => concave_holes
   | Grout({shape: Convex, _}) => holes
   | Secondary(w) => Secondary.get_string(w.content)
@@ -56,16 +87,31 @@ and piece_to_string =
     segment_to_string(
       ~holes,
       ~concave_holes,
+      ~refractors,
+      ~refractor_seg_to_seg,
       ~projector_to_segment,
       projector_to_segment(p),
     )
   }
 and tile_to_string =
-    (~holes: string, ~concave_holes: string, ~projector_to_segment, t: tile)
+    (
+      ~holes: string,
+      ~concave_holes: string,
+      ~refractors: Id.Map.t(_),
+      ~refractor_seg_to_seg,
+      ~projector_to_segment,
+      t: tile,
+    )
     : string =>
   Aba.mk(t.shards, t.children)
   |> Aba.join(
        List.nth(t.label),
-       segment_to_string(~holes, ~concave_holes, ~projector_to_segment),
+       segment_to_string(
+         ~holes,
+         ~concave_holes,
+         ~refractors,
+         ~refractor_seg_to_seg,
+         ~projector_to_segment,
+       ),
      )
   |> String.concat("");
