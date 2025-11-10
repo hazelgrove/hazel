@@ -543,6 +543,24 @@ let tests = (
         FIError.(
           Exp.(
             parens(
+              ~ann=
+                Some(
+                  FTemp.Typ.(
+                    Exp(
+                      Common(
+                        TupleLabelError({
+                          malformed_labels: [],
+                          duplicate_labels: ["a", "a"],
+                          invalid_labels: [],
+                          typ:
+                            prod([
+                              tup_label(label("a"), unknown(Internal)),
+                            ]),
+                        }),
+                      )
+                    ),
+                  ),
+                ),
               tuple(
                 ~ann=
                   Some(
@@ -657,6 +675,28 @@ let tests = (
         FIError.(
           Exp.(
             parens(
+              ~ann=
+                Some(
+                  FTemp.(
+                    Exp(
+                      Common(
+                        TupleLabelError({
+                          malformed_labels: [
+                            Exp.(Exp(multi_hole([Exp(label("1"))]))),
+                          ],
+                          duplicate_labels: [],
+                          invalid_labels: [],
+                          typ:
+                            Typ.(
+                              prod([
+                                tup_label(unknown(Internal), string()),
+                              ])
+                            ),
+                        }),
+                      )
+                    )
+                  ),
+                ),
               tuple(
                 ~ann=
                   Some(
@@ -750,6 +790,29 @@ let tests = (
         FIError.(
           Exp.(
             parens(
+              ~ann=
+                Some(
+                  FTemp.(
+                    Exp(
+                      Common(
+                        TupleLabelError({
+                          malformed_labels: [
+                            Exp.(Exp(multi_hole([Exp(int(1))]))),
+                          ],
+                          duplicate_labels: [],
+                          invalid_labels: [],
+                          typ:
+                            Typ.(
+                              prod([
+                                tup_label(unknown(Internal), string()),
+                                tup_label(label("a"), int()),
+                              ])
+                            ),
+                        }),
+                      )
+                    )
+                  ),
+                ),
               tuple(
                 ~ann=
                   Some(
