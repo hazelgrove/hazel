@@ -350,10 +350,11 @@ in
     test_case(
       "Polymorphism",
       `Quick,
-      () => [@warning "-21"]{
+      () => {
+        [@warning "-21"]
         open FError;
         open Exp;
-        
+
         Alcotest.skip(); // TODO We need to figure out how to handle this
         // (typfun a -> fun x : a -> x)@<String>("")
         let exp: FError.exp =

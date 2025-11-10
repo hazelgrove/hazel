@@ -162,10 +162,7 @@ Ok(Lam("yo", Var("yo"))))|},
         int(42),
         ap(
           Forward,
-          deferred_ap(
-            fn(Pat.(var("f")), var("f"), None, None),
-            [deferral(InAp)],
-          ),
+          deferred_ap(fn(Pat.(var("f")), var("f")), [deferral(InAp)]),
           int(42),
         ),
       )
