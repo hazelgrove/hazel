@@ -17,7 +17,8 @@ let self_ty = (info: option(Info.t)): option(Typ.t) =>
   | Some(InfoPat({self, _})) => Self.typ_of_pat(self)
   | _ => None
   };
-
+[@deriving show({with_path: false})]
+type o('a) = option('a);
 let totalize_ty = (expected_ty: option(Typ.t)): Typ.t =>
   switch (expected_ty) {
   | Some(expected_ty) => expected_ty
@@ -76,16 +77,7 @@ module M: Projector = {
   let dynamics = true;
   let focusable = Focusable.non;
 
-  let _display_ty = (model, statics, dyn_typ): option(Typ.t) =>
-    switch (model) {
-    | Dynamic => Some(dyn_typ)
-    | _ when expected_ty(statics) |> totalize_ty |> Typ.is_syn =>
-      statics |> self_ty
-    | Self => statics |> self_ty
-    | Expected => statics |> expected_ty
-    };
-
-  let display_mode = (model: model, statics: option(Language.Info.t)): string =>
+  let display_mode = (model: model, statics: option(Language.Info.t)): string => {
     switch (model) {
     | Dynamic => "↦"
     | _ when self_ty(statics) == expected_ty(statics) => "⇔"
@@ -93,7 +85,7 @@ module M: Projector = {
     | Self => "⇒"
     | Expected => "⇐"
     };
-
+  };
   let mode_view = (model, info) =>
     div(
       ~attrs=[Attr.classes(["mode"])],
@@ -117,6 +109,10 @@ module M: Projector = {
           List.mem(id, ids);
         };
         (is_dynamic_id, dyn_typ);
+      | Expected when expected_ty(info.statics) |> totalize_ty |> Typ.is_syn => (
+          (_ => false),
+          self_ty(info.statics) |> totalize_ty,
+        )
       | Expected => ((_ => false), expected_ty(info.statics) |> totalize_ty)
       | Self => ((_ => false), self_ty(info.statics) |> totalize_ty)
       };
