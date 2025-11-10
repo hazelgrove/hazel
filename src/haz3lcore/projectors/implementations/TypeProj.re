@@ -17,8 +17,7 @@ let self_ty = (info: option(Info.t)): option(Typ.t) =>
   | Some(InfoPat({self, _})) => Self.typ_of_pat(self)
   | _ => None
   };
-[@deriving show({with_path: false})]
-type o('a) = option('a);
+
 let totalize_ty = (expected_ty: option(Typ.t)): Typ.t =>
   switch (expected_ty) {
   | Some(expected_ty) => expected_ty
@@ -125,12 +124,18 @@ module M: Projector = {
     );
   };
 
-  let update = (model, _, a: action) =>
+  let update = (model, info, a: action) => {
+    let has_expected =
+      switch (expected_ty(info.statics)) {
+      | Some(ty) => !Typ.is_syn(ty)
+      | None => false
+      };
     switch (a, model) {
-    | (ToggleDisplay, Expected) => Self
+    | (ToggleDisplay, Expected) => if (has_expected) {Self} else {Dynamic}
     | (ToggleDisplay, Self) => Dynamic
-    | (ToggleDisplay, Dynamic) => Expected
+    | (ToggleDisplay, Dynamic) => if (has_expected) {Expected} else {Self}
     };
+  };
 
   let syntax_str = (info: info) => {
     let max_len = 30;
