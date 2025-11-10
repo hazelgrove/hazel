@@ -2,7 +2,10 @@ open Util;
 
 module IdTag = {
   [@deriving (show({with_path: false}), sexp, yojson, eq)]
-  type t = {ids: list(Id.t)};
+  type t = {
+    [@show.opaque]
+    ids: list(Id.t),
+  };
 
   let fresh = (): t => {ids: [Id.mk()]};
   let temp = (): t => {ids: [Id.invalid]};
@@ -12,10 +15,10 @@ module IdTag = {
 type t('a) = Grammar.Annotated.t('a, IdTag.t);
 
 // To be used if you want to remove the id from the debug output
-let pp: ((Format.formatter, 'a) => unit, Format.formatter, t('a)) => unit =
-  (fmt_a, formatter, ta) => {
-    fmt_a(formatter, ta.term);
-  };
+// let pp: ((Format.formatter, 'a) => unit, Format.formatter, t('a)) => unit =
+//   (fmt_a, formatter, ta) => {
+//     fmt_a(formatter, ta.term);
+//   };
 let fresh = (term: 'a): Grammar.Annotated.t('a, IdTag.t) => {
   {
     term,
