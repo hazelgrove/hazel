@@ -446,24 +446,6 @@
   --bottom-border-clr: var(--caller-accent);
   --bkg: var(--exp-ap-indicated);
 }
-/* .live-offside .sample:has(.value.cursor-caller):not(:hover) {
-  outline-style: none;
-  border-color: rgb(165, 64, 205);
-  border-radius: 0.2em;
-  border-bottom-style: dotted;
-}
-.live-offside .sample:has(.value.cursor-callee):not(:hover) {
-  outline-style: none;
-  border-color: rgb(72, 130, 224);
-  border-radius: 0.2em;
-  border-bottom-style: dotted;
-} */
-/* .live-offside.Single:has(
-    .value.cursor-unrelated:not(.below):not(.above):not(:hover)
-  ),
-.live-offside.Single:has(.value.cursor-callee.indirect) {
-  filter: contrast(0.32) brightness(1.51);
-} */
 
 .live-offside .sample:has(.value.cursor-unrelated.level0) {
   --bottom-border-clr: #73e1a3;
@@ -547,47 +529,6 @@
   background-color: oklch(0.89 0.04 254.25);
 }
 
-.live-offside .sample .code-text:after {
-  /* Might have to disable this for multiline display to work */
-  display: none;
-}
-
-.live-offside .sample:has(.value.cursor) .code-text .token {
-  color: var(--exp-indicated);
-}
-.indicated .live-offside .sample:has(.value.cursor) .code-text .token {
-  color: #247e3d;
-}
-
-.live-offside.Single .sample:has(.value.cursor-unrelated) .code-text .token {
-  color: #d4ddd4;
-}
-.live-offside.Many .value.cursor-caller .code-text .token {
-  color: var(--TYP);
-}
-.live-offside.Many .value.cursor-callee .code-text .token {
-  color: var(--PAT);
-}
-.live-offside.Single .sample:has(.value.above) .code-text .token {
-  color: oklch(0.68 0.12 343.53);
-}
-.live-offside.Single .sample:has(.value.above) {
-  background-color: oklab(0.93 0.06 -0.01 / 1);
-}
-.live-offside.Single .sample:has(.value.below) .code-text .token {
-  color: oklch(0.76 0.08 193.44);
-}
-.live-offside.Single .sample:has(.value.cursor-caller) .code-text .token {
-  color: oklch(0.58 0.21 346.68);
-}
-.live-offside.Single .sample:has(.value.cursor-callee) .code-text .token {
-  color: var(--PAT);
-}
-
-.live-offside.Many .sample:has(.value.cursor-unrelated) .code-text .token {
-  color: white;
-}
-
 .live-offside.Many .sample:has(.value.above.L2) {
   top: -2.5px;
   box-shadow: 0 2.5px 0 #d0cab7bb;
@@ -652,11 +593,18 @@
   background-color: var(--bkg);
 }
 
+/* Fallback style for when above/below are turned off */
+.live-offside.Single .sample {
+  background-color: #d6eed6;
+}
 .live-offside.Single .sample:has(.value.below) {
   background-color: oklch(0.93 0.03 195.61);
 }
-.live-offside.Single .sample:has(.value.above) {
+/* .live-offside.Single .sample:has(.value.above) {
   background-color: oklab(0.83 0.08 -0.05 / 0.5);
+} */
+.live-offside.Single .sample:has(.value.above) {
+  background-color: oklch(0.93 0.06 -0.01);
 }
 .projector.probe.indicated .live-offside.Single .sample:has(.value.cursor) {
   border-bottom: 1px solid var(--G0);
@@ -711,7 +659,6 @@
 /* TOKENS */
 
 .live-offside .value.indet .code-text .token {
-  /* color: var(--R2) !important; */
   color: white;
   filter: none !important;
 }
@@ -720,33 +667,49 @@
   color: grey;
 }
 
-.live-offside.value.cursor .code-text .token {
-  color: var(--exp-indicated);
-}
-/* .projector.probe.Pat .value.cursor .code-text .token {
-  color: var(--pat-indicated);
-} */
-
-.live-offside.Single .value.cursor-unrelated .code-text .token {
-  /* color: var(--exp-indicated); */
-  color: rgb(102, 102, 102);
-  /* opacity: 0.4; */
-}
-.live-offside.Many .value.cursor-unrelated .code-text .token {
-  /* color: var(--exp-indicated); */
-  color: white;
-  /* opacity: 0.4; */
-}
-/* .projector.probe .value.cursor-callee.indirect .code-text .token {
-  color: white;
-}
-.projector.probe .value.cursor-callee.direct .code-text .token {
-  color: var(--exp-ap-indicated);
-} */
-
 .live-offside .value .token.explicit-hole {
   color: white;
   text-shadow: none;
+}
+
+.live-offside .sample .code-text:after {
+  /* Might have to disable this for multiline display to work */
+  display: none;
+}
+.indicated .live-offside .value.cursor .code-text .token {
+  color: #247e3d;
+}
+
+.live-offside .value.cursor .code-text .token {
+  color: var(--exp-indicated);
+}
+
+.live-offside.Many .value.cursor-unrelated .code-text .token {
+  color: white;
+}
+/* .live-offside.Single .value.cursor-unrelated .code-text .token {
+  color: rgb(102, 102, 102);
+} */
+.live-offside.Single .value.cursor-unrelated .code-text .token {
+  color: #437543;
+}
+.live-offside.Single .value.above .code-text .token {
+  color: oklch(0.68 0.12 343.53);
+}
+.live-offside.Single .value.below .code-text .token {
+  color: oklch(0.76 0.08 193.44);
+}
+.live-offside.Many .value.above.cursor-caller .code-text .token,
+.live-offside.Single .value.above.cursor-caller .code-text .token {
+  color: oklch(0.58 0.21 346.68);
+}
+.live-offside.Many .value.below.cursor-callee .code-text .token,
+.live-offside.Single .value.below.cursor-callee .code-text .token {
+  color: var(--PAT);
+}
+
+.live-offside.Many .sample:has(.value.cursor-unrelated) .code-text .token {
+  color: white;
 }
 
 /* LIVE ENV */

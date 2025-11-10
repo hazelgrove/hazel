@@ -346,14 +346,15 @@ let call_cursor_view = (~dyn_cursor: Language.DynCursor.t, ~fancyd) =>
     ~attrs=[clss(["panel", "call-cursor"])],
     [
       div(~attrs=[clss(["title"])], [text("Dynamic Cursor")]),
-      switch (dyn_cursor.indicated_call) {
-      | Some(id) when !List.mem(id, dyn_cursor.stack) =>
-        div(
-          ~attrs=[Attr.classes(["indicated-call", "not-in-stack"])],
-          [fancyd(id)],
-        )
-      | _ => div([])
-      },
+      // NOTE: choosing not to show indicated ap when not in cursor
+      // switch (dyn_cursor.indicated_call) {
+      // | Some(id) when !List.mem(id, dyn_cursor.stack) =>
+      //   div(
+      //     ~attrs=[Attr.classes(["indicated-call", "not-in-stack"])],
+      //     [fancyd(id)],
+      //   )
+      // | _ => div([])
+      // },
       div(
         ~attrs=[clss(["stack"])],
         List.mapi(

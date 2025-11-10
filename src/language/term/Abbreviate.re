@@ -27,6 +27,15 @@ let is_flat_ellipses = (term: IdTagged.t(Exp.term)): bool =>
 let available = ref(0);
 
 module AbbrevBudget = {
+  let label_estimated_length = (~label: Exp.t): int =>
+    switch (label |> Exp.term_of) {
+    | Label(name) => String.length(name)
+    | Var(name) => String.length(name)
+    | Invalid(str) => String.length(str)
+    | Atom(String(str)) => String.length(str)
+    | _ => 0
+    };
+
   let with_budget = (~budget: int, ~run: unit => 'a): ('a, int) => {
     let prev: int = available^;
     let limited: int =
@@ -70,19 +79,23 @@ module AbbrevBudget = {
     };
 
   let label_cap = (~label: Exp.t, ~available: int): int => {
-    let estimated_label_len: int =
-      switch (label |> Exp.term_of) {
-      | Label(name) => String.length(name)
-      | Var(name) => String.length(name)
-      | Invalid(str) => String.length(str)
-      | Atom(String(str)) => String.length(str)
-      | _ => 1
-      };
+    let estimated_label_len: int = label_estimated_length(~label);
     let desired: int = estimated_label_len + 1;
     let half: int = available / 2;
     let proposed: int = half < desired ? desired : half;
     let capped: int = proposed < 1 ? 1 : proposed;
     capped > available ? available : capped;
+  };
+
+  let label_min_budget = (~label: Exp.t): int => {
+    let est: int = label_estimated_length(~label);
+    if (est >= 3) {
+      3;
+    } else if (est == 2) {
+      2;
+    } else {
+      1;
+    };
   };
 };
 
@@ -335,8 +348,24 @@ let rec abbreviate_exp = (exp: Exp.t): Exp.t => {
         Invalid(flat_ellipses);
       } else {
         available := available^ - 3;
+        let remaining: int = available^;
+        let label_min_budget: int =
+          if (remaining <= 0) {
+            0;
+          } else {
+            min(AbbrevBudget.label_min_budget(~label=e1), remaining);
+          };
+        let label_preferred: int =
+          min(
+            AbbrevBudget.label_cap(~label=e1, ~available=remaining),
+            remaining,
+          );
         let label_budget: int =
-          AbbrevBudget.label_cap(~label=e1, ~available=available^);
+          if (label_preferred < label_min_budget) {
+            label_min_budget;
+          } else {
+            label_preferred;
+          };
         let (label', _): (Exp.t, int) =
           AbbrevBudget.with_budget(~budget=label_budget, ~run=() =>
             abbreviate_exp(e1)
