@@ -555,6 +555,9 @@
 .live-offside .sample:has(.value.cursor) .code-text .token {
   color: var(--exp-indicated);
 }
+.indicated .live-offside .sample:has(.value.cursor) .code-text .token {
+  color: #247e3d;
+}
 
 .live-offside.Single .sample:has(.value.cursor-unrelated) .code-text .token {
   color: #d4ddd4;
@@ -565,13 +568,11 @@
 .live-offside.Many .value.cursor-callee .code-text .token {
   color: var(--PAT);
 }
-
 .live-offside.Single .sample:has(.value.above) .code-text .token {
-  color: #d8bcfe;
+  color: oklch(0.68 0.11 317.84 / 1);
 }
-
 .live-offside.Single .sample:has(.value.below) .code-text .token {
-  color: oklch(0.91 0.05 255.11);
+  color: oklch(0.76 0.08 193.44);
 }
 .live-offside.Single .sample:has(.value.cursor-caller) .code-text .token {
   color: var(--TYP);
@@ -646,6 +647,13 @@
 
 .live-offside .sample:has(.value.cursor) {
   background-color: var(--bkg);
+}
+
+.live-offside.Single .sample:has(.value.below) {
+  background-color: oklch(0.93 0.03 195.61);
+}
+.live-offside.Single .sample:has(.value.above) {
+  background-color: oklab(0.83 0.08 -0.05 / 0.5);
 }
 .projector.probe.indicated .live-offside.Single .sample:has(.value.cursor) {
   border-bottom: 1px solid var(--G0);

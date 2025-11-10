@@ -9,6 +9,8 @@
  * with ExpToSeg. This should probably be rewritten to
  * use that somehow. */
 
+open Util;
+
 let flat_ellipses = "…"; //"⋱"; // "┄"
 let flat_ellipses_term = () =>
   IdTagged.fresh(Invalid(flat_ellipses): Exp.term);
@@ -150,6 +152,59 @@ let abbreviate_str = (min_len: int, s: string): string => {
   };
 };
 
+let is_comment_token = (s: string): bool => {
+  let len: int = String.length(s);
+  if (len == 1) {
+    s == "#";
+  } else if (len >= 2 && s.[0] == '#' && s.[len - 1] == '#') {
+    let rec loop = (idx: int): bool =>
+      if (idx >= len - 1) {
+        true;
+      } else {
+        let ch: char = s.[idx];
+        ch == '#' || ch == '\n' ? false : loop(idx + 1);
+      };
+    loop(1);
+  } else {
+    false;
+  };
+};
+
+let take_grapheme_prefix =
+    (count: int, clusters: list(string)): list(string) => {
+  let rec loop =
+          (remaining: int, rest: list(string), acc: list(string))
+          : list(string) =>
+    if (remaining <= 0) {
+      List.rev(acc);
+    } else {
+      switch (rest) {
+      | [] => List.rev(acc)
+      | [hd, ...tl] => loop(remaining - 1, tl, [hd, ...acc])
+      };
+    };
+  loop(count, clusters, []);
+};
+
+let abbreviate_string_token = (~min_len: int, s: string): string => {
+  let grapheme_len: int = Unicode.length(s);
+  let ellipsis: string = flat_ellipses;
+  if (grapheme_len < 2) {
+    s;
+  } else if (grapheme_len <= min_len || min_len < 1) {
+    available := available^ - String.length(s);
+    s;
+  } else {
+    let clusters: list(string) = Unicode.to_list(s);
+    let prefix_clusters: list(string) =
+      take_grapheme_prefix(min_len > 0 ? min_len - 1 : 0, clusters);
+    let prefix: string = String.concat("", prefix_clusters);
+    let truncated: string = prefix ++ ellipsis;
+    available := available^ - String.length(truncated);
+    truncated;
+  };
+};
+
 let indet_term: Exp.term = Invalid("?");
 let indet_term_typ: Typ.term = Unknown(Internal);
 let indet_term_pat: Pat.term = Invalid("?");
@@ -234,9 +289,14 @@ let rec abbreviate_exp = (exp: Exp.t): Exp.t => {
       Invalid("<" ++ InvalidOperationError.show(err) ++ ">")
 
     // Atomic string cases
-    | Invalid(x) => Invalid(abbreviate_str(available^, x))
+    | Invalid(x) =>
+      let abbreviated =
+        is_comment_token(x)
+          ? abbreviate_string_token(~min_len=available^, x)
+          : abbreviate_str(available^, x);
+      Invalid(abbreviated);
     | Atom(String(s)) =>
-      let str = abbreviate_str(available^, s);
+      let str = abbreviate_string_token(~min_len=available^, s);
       available := available^ - 2; // for quotes in printed representation
       Atom(String(str));
     | Var(v) => Var(abbreviate_str(available^, v))
@@ -775,7 +835,7 @@ and abbreviate_pat = (pat: Pat.t): Pat.t => {
     | Atom(Float(f)) =>
       Invalid(abbreviate_str(available^, string_of_float(f)))
     | Atom(String(s)) =>
-      let str = abbreviate_str(available^, s);
+      let str = abbreviate_string_token(~min_len=available^, s);
       available := available^ - 2; // for quotes in printed representation
       Atom(String(str));
     | Atom(Bool(b)) => wrap_or(Atom(Bool(b)), string_of_bool(b))
@@ -880,7 +940,12 @@ and abbreviate_pat = (pat: Pat.t): Pat.t => {
         MultiHole(List.map(abbreviate_any, things));
       }
 
-    | Invalid(str) => Invalid(abbreviate_str(available^, str))
+    | Invalid(str) =>
+      let abbreviated =
+        is_comment_token(str)
+          ? abbreviate_string_token(~min_len=available^, str)
+          : abbreviate_str(available^, str);
+      Invalid(abbreviated);
     | EmptyHole => EmptyHole
     | Constructor(name, typ) =>
       if (available^ <= 1) {
@@ -1086,7 +1151,12 @@ and abbreviate_tpat = (tpat: TPat.t): TPat.t => {
   let term =
     switch (tpat.term) {
     | EmptyHole => tpat.term
-    | Invalid(str) => Invalid(abbreviate_str(available^, str))
+    | Invalid(str) =>
+      let abbreviated =
+        is_comment_token(str)
+          ? abbreviate_string_token(~min_len=available^, str)
+          : abbreviate_str(available^, str);
+      Invalid(abbreviated);
     | Var(v) => Var(abbreviate_str(available^, v))
     | MultiHole(things) =>
       if (available^ <= 1) {
