@@ -388,7 +388,7 @@ and uexp_to_info_map =
     | Parens(e)
     | Probe(e, _) =>
       let (e, m) = go(~ana, e, m);
-      add(~self=Just(e.ty), ~co_ctx=e.co_ctx, m);
+      add'(~self=e.self, ~co_ctx=e.co_ctx, m);
     | UnOp(Meta(Unquote), e) when is_in_filter =>
       let e: Exp.t = {
         annotation: {
