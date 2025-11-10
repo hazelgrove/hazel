@@ -28,8 +28,8 @@ let handle_key_event = (k: Key.t): option(Action.t) => {
     | (Up, "ArrowRight") => now(Move(Local(Right, ByChar)))
     | (Up, "ArrowUp") => now(Move(Vertical(Up)))
     | (Up, "ArrowDown") => now(Move(Vertical(Down)))
-    | (Up, "Home") => now(Move(Start))
-    | (Up, "End") => now(Move(End))
+    | (Up, "Home") => now(Move(Line(Left)))
+    | (Up, "End") => now(Move(Line(Right)))
     | (Up, "Backspace") => now(Destruct(Left))
     | (Up, "Delete") => now(Destruct(Right))
     | (Up, "Escape") => now(Unselect(None))
@@ -39,8 +39,8 @@ let handle_key_event = (k: Key.t): option(Action.t) => {
     | (Down, "ArrowRight") => now(Select(Resize(Local(Right, ByToken))))
     | (Down, "ArrowUp") => now(Select(Resize(Vertical(Up))))
     | (Down, "ArrowDown") => now(Select(Resize(Vertical(Down))))
-    | (Down, "Home") => now(Select(Resize(Start)))
-    | (Down, "End") => now(Select(Resize(End)))
+    | (Down, "Home") => now(Select(Resize(Line(Left))))
+    | (Down, "End") => now(Select(Resize(Line(Right))))
     | (_, "Enter") => now(Insert(Token.linebreak))
     | _ when String.length(key) == 1 =>
       /* Note: length==1 prevent specials like
