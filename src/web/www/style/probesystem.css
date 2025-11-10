@@ -40,9 +40,9 @@
   left: 1em;
 }
 
-#probesys .probe-entry .live-offside .code .code-text .token {
+/* #probesys .probe-entry .live-offside .code .code-text .token {
   color: var(--G2) !important;
-}
+} */
 
 #probesys .probe-view .live-env {
   display: none;
@@ -134,9 +134,9 @@
   text-align: center;
 }
 
-#probesys .code {
+/* #probesys .code {
   outline: 1px solid var(--T1);
-}
+} */
 
 #probesys .code .code-text:after {
   /* Might have to disable this for multiline display to work */
