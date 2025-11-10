@@ -201,7 +201,7 @@ let rec elaborate_pattern =
       | _ => {
           term: Probe(dpat, Probe.empty),
           annotation: dpat.annotation,
-        } // Think about whether it's safe to reuse ids here
+        }
       };
     } else {
       dpat;
@@ -497,7 +497,7 @@ let rec elaborate =
       | _ => {
           term: Probe(dhexp, Probe.empty),
           annotation: dhexp.annotation,
-        } // Think about whether it's safe to reuse ids here
+        }
       };
     } else {
       dhexp;
