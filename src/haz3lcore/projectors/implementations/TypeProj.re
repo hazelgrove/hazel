@@ -117,11 +117,6 @@ module M: Projector = {
             dyn_typ,
           );
         let is_dynamic_id = (id: Id.t): bool => {
-          if (List.mem(id, ids)) {
-            print_endline("Was dynamic id: " ++ Id.str3(id));
-          } else {
-            ();
-          };
           List.mem(id, ids);
         };
         (is_dynamic_id, dyn_typ);
