@@ -832,6 +832,31 @@ let tests = (
             let_(
               Pat.(
                 asc(
+                  ~ann=
+                    Some(
+                      Pat(
+                        Common(
+                          Inconsistent(
+                            FTemp.Typ.(
+                              Expectation({
+                                ana:
+                                  prod([
+                                    tup_label(label("c"), int()),
+                                    tup_label(label("a"), string()),
+                                  ]),
+                                syn:
+                                  parens(
+                                    prod([
+                                      int(),
+                                      tup_label(label("a"), string()),
+                                    ]),
+                                  ),
+                              })
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
                   var("extra_label"),
                   Typ.(
                     parens(prod([int(), tup_label(label("a"), string())]))
