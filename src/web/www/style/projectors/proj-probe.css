@@ -569,13 +569,16 @@
   color: var(--PAT);
 }
 .live-offside.Single .sample:has(.value.above) .code-text .token {
-  color: oklch(0.68 0.11 317.84 / 1);
+  color: oklch(0.68 0.12 343.53);
+}
+.live-offside.Single .sample:has(.value.above) {
+  background-color: oklab(0.93 0.06 -0.01 / 1);
 }
 .live-offside.Single .sample:has(.value.below) .code-text .token {
   color: oklch(0.76 0.08 193.44);
 }
 .live-offside.Single .sample:has(.value.cursor-caller) .code-text .token {
-  color: var(--TYP);
+  color: oklch(0.58 0.21 346.68);
 }
 .live-offside.Single .sample:has(.value.cursor-callee) .code-text .token {
   color: var(--PAT);
