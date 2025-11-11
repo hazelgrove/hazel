@@ -1,3 +1,4 @@
+open Language;
 open Alcotest;
 open Test_Statics_Prelude;
 open FTemp;
@@ -529,112 +530,71 @@ let tests = (
         ),
       )
     }),
-    test_case("Duplicate label synthesis", `Quick, () => {
-      annotated_tree_test(
-        {|(a="hello", a=3)|},
-        prod([tup_label(label("a"), unknown(Internal))]),
-        FIError.(
-          Exp.(
-            parens(
-              ~ann=
-                Some(
-                  FTemp.Typ.(
-                    Exp(
-                      Common(
-                        TupleLabelError({
-                          malformed_labels: [],
-                          duplicate_labels: ["a", "a"],
-                          invalid_labels: [],
-                          typ:
-                            prod([
-                              tup_label(label("a"), unknown(Internal)),
-                            ]),
-                        }),
-                      ),
-                    )
-                  ),
-                ),
-              tuple(
-                ~ann=
-                  Some(
+    test_case(
+      "Duplicate label synthesis",
+      `Quick,
+      () => {
+        let duplicate_a_tuple_exp_ann: option(Info.error) =
+          Some(
+            Exp(
+              Common(
+                TupleLabelError({
+                  malformed_labels: [],
+                  duplicate_labels: ["a", "a"],
+                  invalid_labels: [],
+                  typ:
                     FTemp.Typ.(
-                      Exp(
-                        Common(
-                          TupleLabelError({
-                            malformed_labels: [],
-                            duplicate_labels: ["a", "a"],
-                            invalid_labels: [],
-                            typ:
-                              prod([
-                                tup_label(label("a"), unknown(Internal)),
-                              ]),
-                          }),
-                        ),
-                      )
+                      prod([tup_label(label("a"), unknown(Internal))])
                     ),
-                  ),
-                [
-                  tup_label(
-                    ~ann=
-                      Some(
-                        FTemp.Typ.(
-                          Exp(
-                            Common(
-                              TupleLabelError({
-                                malformed_labels: [],
-                                duplicate_labels: ["a"],
-                                invalid_labels: [],
-                                typ: tup_label(label("a"), string()),
-                              }),
-                            ),
-                          )
-                        ),
-                      ),
-                    label(
-                      ~ann=
-                        Some(
-                          FTemp.Typ.(
-                            Exp(Common(DuplicateLabel("a", label("a"))))
-                          ),
-                        ),
-                      "a",
-                    ),
-                    string("hello"),
-                  ),
-                  tup_label(
-                    ~ann=
-                      Some(
-                        FTemp.Typ.(
-                          Exp(
-                            Common(
-                              TupleLabelError({
-                                malformed_labels: [],
-                                duplicate_labels: ["a"],
-                                invalid_labels: [],
-                                typ: tup_label(label("a"), int()),
-                              }),
-                            ),
-                          )
-                        ),
-                      ),
-                    label(
-                      ~ann=
-                        Some(
-                          FTemp.Typ.(
-                            Exp(Common(DuplicateLabel("a", label("a"))))
-                          ),
-                        ),
-                      "a",
-                    ),
-                    int(3),
-                  ),
-                ],
+                }),
               ),
+            ),
+          );
+        let label_error: option(Info.error) =
+          Some(Exp(Common(DuplicateLabel("a", FTemp.Typ.label("a")))));
+        let tup_label_error = (typ): option(Info.error) =>
+          Some(
+            FTemp.Typ.(
+              Exp(
+                Common(
+                  TupleLabelError({
+                    malformed_labels: [],
+                    duplicate_labels: ["a"],
+                    invalid_labels: [],
+                    typ: tup_label(label("a"), typ),
+                  }),
+                ),
+              )
+            ),
+          );
+        annotated_tree_test(
+          {|(a="hello", a=3)|},
+          prod([tup_label(label("a"), unknown(Internal))]),
+          FIError.(
+            Exp.(
+              parens(
+                ~ann=duplicate_a_tuple_exp_ann,
+                tuple(
+                  ~ann=duplicate_a_tuple_exp_ann,
+                  [
+                    tup_label(
+                      ~ann=tup_label_error(FTemp.Typ.string()),
+                      label(~ann=label_error, "a"),
+                      string("hello"),
+                    ),
+                    tup_label(
+                      ~ann=tup_label_error(FTemp.Typ.int()),
+                      label(~ann=label_error, "a"),
+                      int(3),
+                    ),
+                  ],
+                ),
+              )
             )
-          )
-        ),
-      )
-    }),
+          ),
+        );
+      },
+    ),
     test_case("Bad label projection", `Quick, () => {
       annotated_tree_test(
         {|(1, 2) . 1|},
@@ -1066,223 +1026,142 @@ let tests = (
       {|([(a=1) : ?]).a|},
       Some(list(unknown(Internal))),
     ),
-    test_case("Nested tuple with duplicate labels", `Quick, () => {
-      annotated_tree_test(
-        {|((a=1,a=2), 3)|},
-        prod([prod([tup_label(label("a"), unknown(Internal))]), int()]),
-        FIError.(
-          Exp.(
-            tuple([
-              tuple(
-                ~ann=
-                  Some(
-                    FTemp.Typ.(
-                      Exp(
-                        Common(
-                          TupleLabelError({
-                            malformed_labels: [],
-                            duplicate_labels: ["a", "a"],
-                            invalid_labels: [],
-                            typ:
-                              prod([
-                                tup_label(label("a"), unknown(Internal)),
-                              ]),
-                          }),
-                        ),
-                      )
-                    ),
-                  ),
-                [
-                  tup_label(
-                    ~ann=
-                      Some(
-                        FTemp.Typ.(
-                          Exp(
-                            Common(
-                              TupleLabelError({
-                                malformed_labels: [],
-                                duplicate_labels: ["a"],
-                                invalid_labels: [],
-                                typ: tup_label(label("a"), int()),
-                              }),
-                            ),
-                          )
-                        ),
-                      ),
-                    label(
-                      ~ann=
-                        Some(
-                          FTemp.Typ.(
-                            Exp(Common(DuplicateLabel("a", label("a"))))
-                          ),
-                        ),
-                      "a",
-                    ),
-                    int(1),
-                  ),
-                  tup_label(
-                    ~ann=
-                      Some(
-                        FTemp.Typ.(
-                          Exp(
-                            Common(
-                              TupleLabelError({
-                                malformed_labels: [],
-                                duplicate_labels: ["a"],
-                                invalid_labels: [],
-                                typ: tup_label(label("a"), int()),
-                              }),
-                            ),
-                          )
-                        ),
-                      ),
-                    label(
-                      ~ann=
-                        Some(
-                          FTemp.Typ.(
-                            Exp(Common(DuplicateLabel("a", label("a"))))
-                          ),
-                        ),
-                      "a",
-                    ),
-                    int(2),
-                  ),
-                ],
-              ),
-              int(3),
-            ])
-          )
-        ),
-      )
-    }),
-    test_case("Duplicate labels in patterns collapse duplicates", `Quick, () => {
-      annotated_tree_test(
-        {|fun (a=a, a=b) -> 1|},
-        arrow(prod([tup_label(label("a"), unknown(Internal))]), int()),
-        FIError.(
-          Exp.(
-            fn(
-              Pat.(
-                parens(
+    test_case(
+      "Nested tuple with duplicate labels",
+      `Quick,
+      () => {
+        let duplicate_a_label_exp_ann: option(Info.error) =
+          Some(Exp(Common(DuplicateLabel("a", FTemp.Typ.label("a")))));
+        let tup_label_error: option(Info.error) =
+          Some(
+            Typ.(
+              Exp(
+                Common(
+                  TupleLabelError({
+                    malformed_labels: [],
+                    duplicate_labels: ["a"],
+                    invalid_labels: [],
+                    typ: tup_label(label("a"), int()),
+                  }),
+                ),
+              )
+            ),
+          );
+        annotated_tree_test(
+          {|((a=1,a=2), 3)|},
+          prod([prod([tup_label(label("a"), unknown(Internal))]), int()]),
+          FIError.(
+            Exp.(
+              tuple([
+                tuple(
                   ~ann=
                     Some(
-                      Pat(
-                        Common(
-                          TupleLabelError({
-                            malformed_labels: [],
-                            duplicate_labels: ["a", "a"],
-                            invalid_labels: [],
-                            typ:
-                              FTemp.Typ.(
-                                prod([
-                                  tup_label(label("a"), unknown(Internal)),
-                                ])
-                              ),
-                          }),
-                        ),
-                      ),
-                    ),
-                  tuple(
-                    ~ann=
-                      Some(
-                        Pat(
+                      FTemp.Typ.(
+                        Exp(
                           Common(
                             TupleLabelError({
                               malformed_labels: [],
                               duplicate_labels: ["a", "a"],
                               invalid_labels: [],
                               typ:
-                                FTemp.Typ.(
-                                  prod([
-                                    tup_label(
-                                      label("a"),
-                                      unknown(Internal),
-                                    ),
-                                  ])
-                                ),
+                                prod([
+                                  tup_label(label("a"), unknown(Internal)),
+                                ]),
                             }),
                           ),
-                        ),
+                        )
                       ),
-                    [
-                      tup_label(
-                        ~ann=
-                          Some(
-                            Pat(
-                              Common(
-                                TupleLabelError({
-                                  malformed_labels: [],
-                                  duplicate_labels: ["a"],
-                                  invalid_labels: [],
-                                  typ:
-                                    FTemp.Typ.(
-                                      tup_label(
-                                        label("a"),
-                                        unknown(Internal),
-                                      )
-                                    ),
-                                }),
-                              ),
-                            ),
-                          ),
-                        label(
-                          ~ann=
-                            Some(
-                              Pat(
-                                Common(
-                                  DuplicateLabel("a", FTemp.Typ.label("a")),
-                                ),
-                              ),
-                            ),
-                          "a",
-                        ),
-                        var("a"),
-                      ),
-                      tup_label(
-                        ~ann=
-                          Some(
-                            Pat(
-                              Common(
-                                TupleLabelError({
-                                  malformed_labels: [],
-                                  duplicate_labels: ["a"],
-                                  invalid_labels: [],
-                                  typ:
-                                    FTemp.Typ.(
-                                      tup_label(
-                                        label("a"),
-                                        unknown(Internal),
-                                      )
-                                    ),
-                                }),
-                              ),
-                            ),
-                          ),
-                        label(
-                          ~ann=
-                            Some(
-                              Pat(
-                                Common(
-                                  DuplicateLabel("a", FTemp.Typ.label("a")),
-                                ),
-                              ),
-                            ),
-                          "a",
-                        ),
-                        var("b"),
-                      ),
-                    ],
-                  ),
-                )
-              ),
-              int(1),
-              None,
-              None,
+                    ),
+                  [
+                    tup_label(
+                      ~ann=tup_label_error,
+                      label(~ann=duplicate_a_label_exp_ann, "a"),
+                      int(1),
+                    ),
+                    tup_label(
+                      ~ann=tup_label_error,
+                      label(~ann=duplicate_a_label_exp_ann, "a"),
+                      int(2),
+                    ),
+                  ],
+                ),
+                int(3),
+              ])
             )
-          )
-        ),
-      )
-    }),
+          ),
+        );
+      },
+    ),
+    test_case(
+      "Duplicate labels in patterns collapse duplicates",
+      `Quick,
+      () => {
+        let duplicate_a_tuple_pat_ann: option(Info.error) =
+          Some(
+            Pat(
+              Common(
+                TupleLabelError({
+                  malformed_labels: [],
+                  duplicate_labels: ["a", "a"],
+                  invalid_labels: [],
+                  typ:
+                    FTemp.Typ.(
+                      prod([tup_label(label("a"), unknown(Internal))])
+                    ),
+                }),
+              ),
+            ),
+          );
+        let single_duplicate_a_pat_ann: option(Info.error) =
+          Some(
+            Pat(
+              Common(
+                TupleLabelError({
+                  malformed_labels: [],
+                  duplicate_labels: ["a"],
+                  invalid_labels: [],
+                  typ: FTemp.Typ.(tup_label(label("a"), unknown(Internal))),
+                }),
+              ),
+            ),
+          );
+        let duplicate_a_label_pat_ann: option(Info.error) =
+          Some(Pat(Common(DuplicateLabel("a", FTemp.Typ.label("a")))));
+        annotated_tree_test(
+          {|fun (a=a, a=b) -> 1|},
+          arrow(prod([tup_label(label("a"), unknown(Internal))]), int()),
+          FIError.(
+            Exp.(
+              fn(
+                Pat.(
+                  parens(
+                    ~ann=duplicate_a_tuple_pat_ann,
+                    tuple(
+                      ~ann=duplicate_a_tuple_pat_ann,
+                      [
+                        tup_label(
+                          ~ann=single_duplicate_a_pat_ann,
+                          label(~ann=duplicate_a_label_pat_ann, "a"),
+                          var("a"),
+                        ),
+                        tup_label(
+                          ~ann=single_duplicate_a_pat_ann,
+                          label(~ann=duplicate_a_label_pat_ann, "a"),
+                          var("b"),
+                        ),
+                      ],
+                    ),
+                  )
+                ),
+                int(1),
+                None,
+                None,
+              )
+            )
+          ),
+        );
+      },
+    ),
   ]
   @ TupleExtension.tests
   @ ProductProjection.tests
