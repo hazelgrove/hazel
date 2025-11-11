@@ -441,29 +441,22 @@ let tests = (
               parens(
                 ~ann=
                   Some(
-                    FTemp.Typ.(
-                      Exp(
-                        Common(
-                          Inconsistent(
-                            Expectation({
-                              ana:
-                                parens(
-                                  prod([
-                                    tup_label(label("a"), int()),
-                                    tup_label(label("b"), float()),
-                                    string(),
-                                  ]),
-                                ),
-                              syn:
-                                prod([
-                                  tup_label(label("a"), int()),
-                                  tup_label(label("b"), float()),
-                                  tup_label(label("z"), string()),
-                                ]),
-                            }),
-                          ),
-                        ),
-                      )
+                    Exp(
+                      Common(
+                        TupleLabelError({
+                          malformed_labels: [],
+                          duplicate_labels: [],
+                          invalid_labels: ["z"],
+                          typ:
+                            FTemp.Typ.(
+                              prod([
+                                tup_label(label("a"), int()),
+                                tup_label(label("b"), float()),
+                                string(),
+                              ])
+                            ),
+                        }),
+                      ),
                     ),
                   ),
                 tuple(
@@ -480,7 +473,7 @@ let tests = (
                                 prod([
                                   tup_label(label("a"), int()),
                                   tup_label(label("b"), float()),
-                                  tup_label(label("z"), string()),
+                                  string(),
                                 ])
                               ),
                           }),
@@ -557,8 +550,8 @@ let tests = (
                               tup_label(label("a"), unknown(Internal)),
                             ]),
                         }),
-                      )
-                    ),
+                      ),
+                    )
                   ),
                 ),
               tuple(
@@ -688,12 +681,10 @@ let tests = (
                           invalid_labels: [],
                           typ:
                             Typ.(
-                              prod([
-                                tup_label(unknown(Internal), string()),
-                              ])
+                              prod([tup_label(unknown(Internal), string())])
                             ),
                         }),
-                      )
+                      ),
                     )
                   ),
                 ),
@@ -809,7 +800,7 @@ let tests = (
                               ])
                             ),
                         }),
-                      )
+                      ),
                     )
                   ),
                 ),
@@ -895,31 +886,6 @@ let tests = (
             let_(
               Pat.(
                 asc(
-                  ~ann=
-                    Some(
-                      Pat(
-                        Common(
-                          Inconsistent(
-                            FTemp.Typ.(
-                              Expectation({
-                                ana:
-                                  prod([
-                                    tup_label(label("c"), int()),
-                                    tup_label(label("a"), string()),
-                                  ]),
-                                syn:
-                                  parens(
-                                    prod([
-                                      int(),
-                                      tup_label(label("a"), string()),
-                                    ]),
-                                  ),
-                              })
-                            ),
-                          ),
-                        ),
-                      ),
-                    ),
                   var("extra_label"),
                   Typ.(
                     parens(prod([int(), tup_label(label("a"), string())]))
@@ -931,24 +897,15 @@ let tests = (
                   Some(
                     Exp(
                       Common(
-                        Inconsistent(
-                          FTemp.Typ.(
-                            Expectation({
-                              ana:
-                                parens(
-                                  prod([
-                                    int(),
-                                    tup_label(label("a"), string()),
-                                  ]),
-                                ),
-                              syn:
-                                prod([
-                                  tup_label(label("c"), int()),
-                                  tup_label(label("a"), string()),
-                                ]),
-                            })
-                          ),
-                        ),
+                        TupleLabelError({
+                          malformed_labels: [],
+                          duplicate_labels: [],
+                          invalid_labels: ["c"],
+                          typ:
+                            FTemp.Typ.(
+                              prod([int(), tup_label(label("a"), string())])
+                            ),
+                        }),
                       ),
                     ),
                   ),
@@ -964,7 +921,7 @@ let tests = (
                             typ:
                               FTemp.Typ.(
                                 prod([
-                                  tup_label(label("c"), int()),
+                                  int(),
                                   tup_label(label("a"), string()),
                                 ])
                               ),
