@@ -1166,7 +1166,25 @@ let tests = (
                 parens(
                   ~ann=
                     Some(
-                      FTemp.Typ.(
+                      Pat(
+                        Common(
+                          TupleLabelError({
+                            malformed_labels: [],
+                            duplicate_labels: ["a", "a"],
+                            invalid_labels: [],
+                            typ:
+                              FTemp.Typ.(
+                                prod([
+                                  tup_label(label("a"), unknown(Internal)),
+                                ])
+                              ),
+                          }),
+                        ),
+                      ),
+                    ),
+                  tuple(
+                    ~ann=
+                      Some(
                         Pat(
                           Common(
                             TupleLabelError({
@@ -1184,31 +1202,6 @@ let tests = (
                                 ),
                             }),
                           ),
-                        )
-                      ),
-                    ),
-                  tuple(
-                    ~ann=
-                      Some(
-                        FTemp.Typ.(
-                          Pat(
-                            Common(
-                              TupleLabelError({
-                                malformed_labels: [],
-                                duplicate_labels: ["a", "a"],
-                                invalid_labels: [],
-                                typ:
-                                  FTemp.Typ.(
-                                    prod([
-                                      tup_label(
-                                        label("a"),
-                                        unknown(Internal),
-                                      ),
-                                    ])
-                                  ),
-                              }),
-                            ),
-                          )
                         ),
                       ),
                     [
@@ -1248,23 +1241,21 @@ let tests = (
                       tup_label(
                         ~ann=
                           Some(
-                            FTemp.Typ.(
-                              Pat(
-                                Common(
-                                  TupleLabelError({
-                                    malformed_labels: [],
-                                    duplicate_labels: ["a"],
-                                    invalid_labels: [],
-                                    typ:
-                                      FTemp.Typ.(
-                                        tup_label(
-                                          label("a"),
-                                          unknown(Internal),
-                                        )
-                                      ),
-                                  }),
-                                ),
-                              )
+                            Pat(
+                              Common(
+                                TupleLabelError({
+                                  malformed_labels: [],
+                                  duplicate_labels: ["a"],
+                                  invalid_labels: [],
+                                  typ:
+                                    FTemp.Typ.(
+                                      tup_label(
+                                        label("a"),
+                                        unknown(Internal),
+                                      )
+                                    ),
+                                }),
+                              ),
                             ),
                           ),
                         label(
