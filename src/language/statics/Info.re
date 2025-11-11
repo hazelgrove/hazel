@@ -796,31 +796,36 @@ let fixed_typ_ok: ok_pat => Typ.t =
   | Ana(InternallyInconsistent({ana, _})) => ana;
 
 let fixed_typ_err_common: (error_common, Typ.t) => Typ.t =
-  (err, ana) =>
+  (err, ana) => {
+    let typ_or_ana = ty =>
+      if (Typ.is_syn_plus(ana)) {
+        ty;
+      } else {
+        ana;
+      };
     switch (err) {
     | NoType(FreeConstructor(c)) =>
-      if (Typ.is_syn_plus(ana)) {
+      typ_or_ana(
         Sum([
           ConstructorMap.Variant(c, [Id.invalid], None),
           ConstructorMap.BadEntry(Unknown(Internal) |> Typ.temp),
         ])
-        |> Typ.temp;
-      } else {
-        ana;
-      }
+        |> Typ.temp,
+      )
     | NoType(BadToken(_))
     | NoType(BadLabel(_))
     | NoType(InvalidLabel(_))
     | NoType(UnexpectedLabelSort(_)) => Unknown(Internal) |> Typ.temp
     | TupleLabelError({typ, _})
-    | DuplicateLabel(_, typ) => typ
+    | DuplicateLabel(_, typ) => typ_or_ana(typ)
     | Inconsistent(Expectation({ana, _})) => ana
     | Inconsistent(Internal(_)) => Unknown(Internal) |> Typ.temp // Should this be some sort of meet?
-    | Inconsistent(CompareFun(_)) => Atom(Bool) |> Typ.temp
+    | Inconsistent(CompareFun(_)) => typ_or_ana(Atom(Bool) |> Typ.temp)
     | Inconsistent(WithArrow(_)) =>
       Arrow(Unknown(Internal) |> Typ.temp, Unknown(Internal) |> Typ.temp)
       |> Typ.temp
     };
+  };
 
 let fixed_typ_err: (error_exp, Typ.t) => Typ.t =
   (err, ana) =>
