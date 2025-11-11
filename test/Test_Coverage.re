@@ -1074,30 +1074,6 @@ in ?|},
     ],
   );
 
-let labeled_tuple_additional_error =
-  has_errors(
-    "Labeled Tuple Additional Error Test",
-    {|case () | _ => ""| {{{([], a=?)}}} => "" end|},
-    [
-      Info.Pat(
-        Redundant(
-          Some(
-            Common(
-              TupleLabelError({
-                malformed_labels: [],
-                duplicate_labels: ["a"],
-                invalid_labels: [],
-                typ:
-                  Test_Statics_Prelude.FTemp.Typ.(
-                    prod([list(unknown(Internal)), unknown(Internal)])
-                  ),
-              }),
-            ),
-          ),
-        ),
-      ),
-    ],
-  );
 
 let labeled_tuple_additional_error = {
   test_case("Labeled Tuple Additional Error Test", `Quick, () => {
