@@ -1821,16 +1821,19 @@ and upat_to_info_map =
           ([], [], []),
           info_pats,
         );
+
+      let ty_list = Typ.remove_duplicate_labels(~duplicate_labels, tys);
+
       let self =
         List.is_empty(malformed_labels)
         && List.is_empty(duplicate_labels)
         && List.is_empty(invalid_labels)
-          ? Self.Just(Prod(tys) |> Typ.temp)
+          ? Self.Just(Prod(ty_list) |> Typ.temp)
           : Self.TupleLabelError({
               malformed_labels,
               duplicate_labels,
               invalid_labels,
-              typ: Prod(tys) |> Typ.temp,
+              typ: Prod(ty_list) |> Typ.temp,
             });
 
       add(
