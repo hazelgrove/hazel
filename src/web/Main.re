@@ -200,7 +200,12 @@ let start = {
   // View function
   let%arr app_model = app_model
   and app_inject = app_inject;
-  History.View.view(app_model, ~inject=app_inject, ~get_log_and=Log.get_and);
+  History.View.view(
+    app_model,
+    ~inject=app_inject,
+    ~get_log_and=Log.get_and,
+    ~next_log=Util.ListUtil.hd_opt(app_model.future_log),
+  );
 };
 
 switch (JsUtil.Fragment.get_current()) {

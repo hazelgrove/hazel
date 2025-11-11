@@ -9,6 +9,7 @@ module Model = {
     current: state,
     undo_stack: list(Updated.t(state)),
     redo_stack: list(Updated.t(state)),
+    future_log: list(Page.Update.t),
   };
 
   let equal = (===);
@@ -17,6 +18,7 @@ module Model = {
     current: Page.Store.load(),
     undo_stack: [],
     redo_stack: [],
+    future_log: [],
   };
 };
 
@@ -46,6 +48,7 @@ module Update = {
           ...x,
           model: {
             current: x.model,
+            future_log: model.future_log,
             undo_stack: rest,
             redo_stack: [
               {
@@ -66,6 +69,7 @@ module Update = {
           ...x,
           model: {
             current: x.model,
+            future_log: model.future_log,
             undo_stack: [
               {
                 ...x,
@@ -77,6 +81,73 @@ module Update = {
           },
         }
       }
+    | Globals(NextLog) =>
+      switch (model.future_log) {
+      | [] =>
+        print_endline("No next log action to perform");
+        model |> return_quiet;
+      | [next, ...rest] =>
+        print_endline(
+          "Applying next log action: " ++ Page.Update.show(next),
+        );
+        let updated =
+          try(
+            Page.Update.update(
+              ~import_log,
+              ~get_log_and,
+              ~schedule_action,
+              next,
+              model.current,
+            )
+          ) {
+          | _ =>
+            print_endline("Failed to apply log action");
+            model.current |> Updated.return_quiet;
+          };
+        {
+          ...updated,
+          model: {
+            current: updated.model,
+            undo_stack: [
+              {
+                ...updated,
+                model: model.current,
+              },
+              ...model.undo_stack,
+            ],
+            redo_stack: model.redo_stack,
+            future_log: rest,
+          },
+        };
+      }
+    | Globals(InitImportLog(f)) =>
+      JsUtil.read_file(f, data =>
+        schedule_action(Globals(FinishImportLog(data)))
+      );
+      model |> return_quiet;
+    | Globals(FinishImportLog(None)) =>
+      print_endline("Log import failed");
+      model |> return_quiet;
+    | Globals(FinishImportLog(Some(data))) =>
+      let actions =
+        data
+        |> Export.import_just_log
+        |> Sexplib.Sexp.of_string
+        |> Log.Entry.s_of_sexp
+        |> (
+          x => {
+            print_endline(
+              "Imported log entries: " ++ string_of_int(List.length(x)),
+            );
+            x;
+          }
+        )
+        |> List.map(((_ts, action)) => action);
+      {
+        ...model,
+        future_log: model.future_log @ actions,
+      }
+      |> return_quiet;
     | action =>
       let current =
         Page.Update.update(
@@ -92,6 +163,7 @@ module Update = {
           ...current,
           model: {
             current: current.model,
+            future_log: model.future_log,
             undo_stack: [
               {
                 ...current,
@@ -109,6 +181,7 @@ module Update = {
             current: current.model,
             undo_stack: model.undo_stack,
             redo_stack: model.redo_stack,
+            future_log: model.future_log,
           },
         };
       };
@@ -127,6 +200,7 @@ module Update = {
       |> Page.Update.calculate(~schedule_action, ~is_edited, ~dynamics),
     undo_stack: model.undo_stack,
     redo_stack: model.redo_stack,
+    future_log: model.future_log,
   };
 };
 

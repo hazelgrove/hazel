@@ -568,6 +568,18 @@ module View = {
         },
         ~tooltip="Import Submission",
       );
+    let import_logs =
+      Widgets.file_select_button_named(
+        "import-logs",
+        Icons.import,
+        file => {
+          switch (file) {
+          | None => Virtual_dom.Vdom.Effect.Ignore
+          | Some(file) => globals.inject_global(InitImportLog(file))
+          }
+        },
+        ~tooltip="Import Logs",
+      );
 
     let reset_hazel =
       button_named(
@@ -597,7 +609,7 @@ module View = {
       NutMenu.item_group(
         ~inject,
         "File",
-        [export_submission, import_submission],
+        [export_submission, import_submission, import_logs],
       );
 
     let reset_group_exercises = () =>

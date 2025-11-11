@@ -51,8 +51,11 @@ module Action = {
     | JumpToTile(Haz3lcore.Id.t) // Perform(Select(Term(Id(id, Left))))
     | InitImportAll([@opaque] Js_of_ocaml.Js.t(Js_of_ocaml.File.file))
     | FinishImportAll(option(string))
+    | InitImportLog([@opaque] Js_of_ocaml.Js.t(Js_of_ocaml.File.file))
+    | FinishImportLog(option(string))
     | ExportForInit
     | ActiveEditor(Haz3lcore.Action.t)
+    | NextLog
     | Undo // These two currently happen at the editor level, and are just
     | Redo // global actions so they can be accessed by the command palette
     | SetMetaDown(bool)
@@ -141,6 +144,9 @@ module Update = {
     | Redo => false
     | SetMetaDown(_) => false
     | UpdateVisibleRows(_) => false
+    | InitImportLog(_) => false
+    | FinishImportLog(_) => false
+    | NextLog => false
     };
   };
 };

@@ -85,3 +85,26 @@ let update = (action: Page.Update.t, result: Updated.t('a)): unit =>
 
 let get_and = (f: string => unit): unit =>
   DB.get_all(entries => f("(" ++ String.concat(" ", entries) ++ ")"));
+
+let to_actions = () => {
+  print_endline("HELLO??");
+  let actions = ref([]);
+  DB.get_all(entries => {
+    print_endline(
+      "num of entries: " ++ string_of_int(List.length(entries)),
+    );
+    entries
+    |> List.iter(entry_str =>
+         try({
+           let (_ts, action) =
+             entry_str |> Sexplib.Sexp.of_string |> Entry.t_of_sexp;
+           actions := [action, ...actions^];
+         }) {
+         | _ => print_endline("Log.to_actions: Deserialization error")
+         }
+       );
+    actions := List.rev(actions^);
+  });
+  print_endline("num of actions: " ++ string_of_int(List.length(actions^)));
+  actions^;
+};
