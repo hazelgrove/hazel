@@ -42,9 +42,7 @@ type error_inconsistent =
   /* Inconsistent match or listlit */
   | Internal(list(Typ.t))
   /* Bad type equality due to function inside */
-  | CompareFun(Typ.t)
-  /* Bad function position */
-  | WithArrow(Typ.t);
+  | CompareFun(Typ.t);
 
 [@deriving (show({with_path: false}), sexp, yojson, eq)]
 type error_no_type =
@@ -537,10 +535,7 @@ let rec status_pat = (ctx: Ctx.t, ty_ana: Typ.t, self: Self.pat): status_pat =>
         ) =>
         Some(err)
       | NotInHole(_) => None
-      | InHole(
-          Common(Inconsistent(WithArrow(_))) | ExpectedConstructor |
-          Redundant(_),
-        ) =>
+      | InHole(ExpectedConstructor | Redundant(_)) =>
         // ExpectedConstructor cannot be a reason to hole-wrap the entire pattern
         failwith("InHole(Redundant(impossible_err))")
       };
@@ -568,12 +563,7 @@ let rec status_exp = (ctx: Ctx.t, ty_ana, self: Self.exp): status_exp =>
       | InHole(Common(Inconsistent(Internal(_)) as inconsistent_err)) =>
         Some(inconsistent_err)
       | NotInHole(_)
-      | InHole(
-          Common(
-            Inconsistent(Expectation(_) | WithArrow(_) | CompareFun(_)),
-          ),
-        ) =>
-        None /* Type checking should fail and these errors would be nullified */
+      | InHole(Common(Inconsistent(Expectation(_) | CompareFun(_)))) => None /* Type checking should fail and these errors would be nullified */
       | InHole(Common(NoType(_)))
       | InHole(Common(TupleLabelError(_)))
       | InHole(Common(DuplicateLabel(_)))
@@ -821,9 +811,6 @@ let fixed_typ_err_common: (error_common, Typ.t) => Typ.t =
     | Inconsistent(Expectation({ana, _})) => ana
     | Inconsistent(Internal(_)) => Unknown(Internal) |> Typ.temp // Should this be some sort of meet?
     | Inconsistent(CompareFun(_)) => typ_or_ana(Atom(Bool) |> Typ.temp)
-    | Inconsistent(WithArrow(_)) =>
-      Arrow(Unknown(Internal) |> Typ.temp, Unknown(Internal) |> Typ.temp)
-      |> Typ.temp
     };
   };
 

@@ -169,11 +169,6 @@ let common_err_view =
         text("values cannot be compared:"),
         view_type(ty),
       ]
-    | Inconsistent(WithArrow(typ)) => [
-        text(":"),
-        view_type(typ) |> code_box_container,
-        text("inconsistent with arrow type"),
-      ]
     | Inconsistent(Expectation({ana, syn})) =>
       switch (syn.term, ana.term) {
       | (Label(syn_l), Label(an_label)) => [
