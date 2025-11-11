@@ -1066,6 +1066,92 @@ let tests = (
       {|([(a=1) : ?]).a|},
       Some(list(unknown(Internal))),
     ),
+    test_case("Nested tuple with duplicate labels", `Quick, () => {
+      annotated_tree_test(
+        {|((a=1,a=2), 3)|},
+        prod([prod([tup_label(label("a"), unknown(Internal))]), int()]),
+        FIError.(
+          Exp.(
+            tuple([
+              tuple(
+                ~ann=
+                  Some(
+                    FTemp.Typ.(
+                      Exp(
+                        Common(
+                          TupleLabelError({
+                            malformed_labels: [],
+                            duplicate_labels: ["a"],
+                            invalid_labels: [],
+                            typ: tup_label(label("a"), string()),
+                          }),
+                        ),
+                      )
+                    ),
+                  ),
+                [
+                  tup_label(
+                    ~ann=
+                      Some(
+                        FTemp.Typ.(
+                          Exp(
+                            Common(
+                              TupleLabelError({
+                                malformed_labels: [],
+                                duplicate_labels: ["a"],
+                                invalid_labels: [],
+                                typ: tup_label(label("a"), string()),
+                              }),
+                            ),
+                          )
+                        ),
+                      ),
+                    label(
+                      ~ann=
+                        Some(
+                          FTemp.Typ.(
+                            Exp(Common(DuplicateLabel("a", label("a"))))
+                          ),
+                        ),
+                      "a",
+                    ),
+                    int(1),
+                  ),
+                  tup_label(
+                    ~ann=
+                      Some(
+                        FTemp.Typ.(
+                          Exp(
+                            Common(
+                              TupleLabelError({
+                                malformed_labels: [],
+                                duplicate_labels: ["a"],
+                                invalid_labels: [],
+                                typ: tup_label(label("a"), string()),
+                              }),
+                            ),
+                          )
+                        ),
+                      ),
+                    label(
+                      ~ann=
+                        Some(
+                          FTemp.Typ.(
+                            Exp(Common(DuplicateLabel("a", label("a"))))
+                          ),
+                        ),
+                      "a",
+                    ),
+                    int(2),
+                  ),
+                ],
+              ),
+              int(3),
+            ])
+          )
+        ),
+      )
+    }),
   ]
   @ TupleExtension.tests
   @ ProductProjection.tests
