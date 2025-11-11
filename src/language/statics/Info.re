@@ -633,7 +633,7 @@ let rec status_exp = (ctx: Ctx.t, ty_ana, self: Self.exp): status_exp =>
    separate sort. It also determines semantic properties
    such as whether or not a type variable reference is
    free, and whether a ctr name is a dupe. */
-let status_typ = (ctx: Ctx.t, expects: typ_expects, ty: Typ.t): status_typ => {
+let rec status_typ = (ctx: Ctx.t, expects: typ_expects, ty: Typ.t): status_typ => {
   switch (expects, ty.term) {
   | (_, Unknown(Hole(Invalid(token)))) => InHole(BadToken(token))
   | (LabelExpected(_), Unknown(Hole(EmptyHole))) => NotInHole(EmptyLabel)
@@ -734,11 +734,13 @@ let status_typ = (ctx: Ctx.t, expects: typ_expects, ty: Typ.t): status_typ => {
     NotInHole(Type(Unknown(Internal) |> Typ.temp)) // Unknown type because the product is unknown
   | (ConstructorExpected(_), Label(_))
   | (VariantExpected(_), Label(_)) => InHole(WantConstructorFoundType(ty))
-  | (TypeExpected, _) => NotInHole(Type(ty))
+
   | (LabelExpected(_), _)
   | (LabelProjectionExpected(_), _) => InHole(WantLabel)
   | (ConstructorExpected(_), _)
   | (VariantExpected(_), _) => InHole(WantConstructorFoundType(ty))
+  | (_, Parens(t)) => status_typ(ctx, expects, t)
+  | (TypeExpected, _) => NotInHole(Type(ty))
   };
 };
 
