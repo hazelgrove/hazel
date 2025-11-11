@@ -1374,7 +1374,15 @@ and upat_to_info_map =
       m: Map.t,
     )
     : (Info.pat, Map.t) => {
-  let add = (~self, ~ctx, ~constraint_, ~label_inference=?, m) => {
+  let add' =
+      (
+        ~self: Self.pat,
+        ~ctx: Ctx.t,
+        ~constraint_: Coverage.Constraint.t,
+        ~label_inference: option(Info.label_inference(Info.pat))=?,
+        m: Id.Map.t(Info.t),
+      )
+      : (Info.pat, Map.t) => {
     let prev_synswitch =
       switch (Id.Map.find_opt(Pat.rep_id(upat), m)) {
       | Some(Info.InfoPat({ana, ty, _})) when Typ.is_syn_plus(ana) =>
@@ -1391,7 +1399,11 @@ and upat_to_info_map =
         ~co_ctx,
         ~ana,
         ~ancestors,
-        ~self=Common(Option.value(~default=self, override_self)),
+        ~self=
+          Option.value(
+            ~default=self,
+            override_self |> Option.map((s): Self.pat => Common(s)),
+          ),
         ~constraint_,
         ~label_inference,
         ~inferred_label,
@@ -1399,6 +1411,17 @@ and upat_to_info_map =
       );
 
     (info, add_info(ids, InfoPat(info), m));
+  };
+  let add =
+      (
+        ~self: Self.t,
+        ~ctx: Ctx.t,
+        ~constraint_: Coverage.Constraint.t,
+        ~label_inference: option(Info.label_inference(Info.pat))=?,
+        m: Id.Map.t(Info.t),
+      )
+      : (Info.pat, Map.t) => {
+    add'(~self=Common(self), ~ctx, ~constraint_, ~label_inference?, m);
   };
   let upat_to_info_map =
       (
@@ -1774,15 +1797,18 @@ and upat_to_info_map =
       let (malformed_labels, duplicate_labels, invalid_labels) =
         List.fold_left(
           ((a, b, c), e: Info.pat) => {
-            switch (e.status) {
-            | InHole(
-                Common(
-                  TupleLabelError({
-                    malformed_labels,
-                    duplicate_labels,
-                    invalid_labels,
-                    _,
-                  }),
+            switch (e.term.term, e.status) {
+            | (
+                TupLabel(_, _),
+                InHole(
+                  Common(
+                    TupleLabelError({
+                      malformed_labels,
+                      duplicate_labels,
+                      invalid_labels,
+                      _,
+                    }),
+                  ),
                 ),
               ) => (
                 a @ malformed_labels,
@@ -1823,7 +1849,7 @@ and upat_to_info_map =
     | Parens(p)
     | Probe(p, _) =>
       let (p, m) = go(~ctx, ~ana, p, m);
-      add(~self=Just(p.ty), ~ctx=p.ctx, ~constraint_=p.constraint_, m);
+      add'(~self=p.self, ~ctx=p.ctx, ~constraint_=p.constraint_, m);
     | Constructor(ctr, ty) =>
       let self = Self.of_ctr(ctx, ctr, ana, ty);
       atomic(self, Coverage.Constraint.Ap(ctr, None));
