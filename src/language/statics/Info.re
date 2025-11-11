@@ -530,17 +530,15 @@ let rec status_pat = (ctx: Ctx.t, ty_ana: Typ.t, self: Self.pat): status_pat =>
       | InHole(
           Common(
             Inconsistent(Internal(_) | Expectation(_) | CompareFun(_)) |
-            NoType(_),
+            NoType(_) |
+            DuplicateLabel(_) |
+            TupleLabelError(_),
           ) as err,
         ) =>
         Some(err)
       | NotInHole(_) => None
       | InHole(
-          Common(
-            DuplicateLabel(_) | TupleLabelError(_) |
-            Inconsistent(WithArrow(_)),
-          ) |
-          ExpectedConstructor |
+          Common(Inconsistent(WithArrow(_))) | ExpectedConstructor |
           Redundant(_),
         ) =>
         // ExpectedConstructor cannot be a reason to hole-wrap the entire pattern
