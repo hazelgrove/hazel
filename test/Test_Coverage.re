@@ -1074,7 +1074,6 @@ in ?|},
     ],
   );
 
-
 let labeled_tuple_additional_error = {
   test_case("Labeled Tuple Additional Error Test", `Quick, () => {
     Test_Statics_Prelude.(
