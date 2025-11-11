@@ -586,17 +586,21 @@ and uexp_to_info_map =
       let ty_list = List.map(Info.exp_ty, es');
 
       let (malformed_labels, duplicate_labels, invalid_labels) =
-        List.fold_left(
-          ((a, b, c), e: Info.exp) => {
-            switch (e.status) {
-            | InHole(
-                Common(
-                  TupleLabelError({
-                    malformed_labels,
-                    duplicate_labels,
-                    invalid_labels,
-                    _,
-                  }),
+        List.fold_left2(
+          ((a, b, c), e: Exp.t, e_info: Info.exp) => {
+            // Only collect errors from TupLabel elements
+            switch (e.term, e_info.status) {
+            | (
+                TupLabel(_, _),
+                InHole(
+                  Common(
+                    TupleLabelError({
+                      malformed_labels,
+                      duplicate_labels,
+                      invalid_labels,
+                      _,
+                    }),
+                  ),
                 ),
               ) => (
                 a @ malformed_labels,
@@ -607,6 +611,7 @@ and uexp_to_info_map =
             }
           },
           ([], [], []),
+          es,
           es',
         );
 

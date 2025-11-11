@@ -1081,9 +1081,12 @@ let tests = (
                         Common(
                           TupleLabelError({
                             malformed_labels: [],
-                            duplicate_labels: ["a"],
+                            duplicate_labels: ["a", "a"],
                             invalid_labels: [],
-                            typ: tup_label(label("a"), string()),
+                            typ:
+                              prod([
+                                tup_label(label("a"), unknown(Internal)),
+                              ]),
                           }),
                         ),
                       )
@@ -1100,7 +1103,7 @@ let tests = (
                                 malformed_labels: [],
                                 duplicate_labels: ["a"],
                                 invalid_labels: [],
-                                typ: tup_label(label("a"), string()),
+                                typ: tup_label(label("a"), int()),
                               }),
                             ),
                           )
@@ -1127,7 +1130,7 @@ let tests = (
                                 malformed_labels: [],
                                 duplicate_labels: ["a"],
                                 invalid_labels: [],
-                                typ: tup_label(label("a"), string()),
+                                typ: tup_label(label("a"), int()),
                               }),
                             ),
                           )
