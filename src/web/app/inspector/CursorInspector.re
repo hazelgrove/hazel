@@ -421,10 +421,6 @@ let typ_ok_view = (~globals, cls: Cls.t, ok: Info.ok_typ) => {
       text("is a sum type constuctor of type"),
       view_type(sum_ty),
     ]
-  | VariantIncomplete(sum_ty) => [
-      text("An incomplete sum type constuctor of type"),
-      view_type(sum_ty),
-    ]
   | TypeUnderdetermined(underdetermined) =>
     underdetermined_typ_view(~globals, underdetermined)
   };

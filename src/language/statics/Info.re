@@ -205,7 +205,6 @@ type underdetermined_typ =
 [@deriving (show({with_path: false}), sexp, yojson, eq)]
 type ok_typ =
   | Variant(Constructor.t, Typ.t)
-  | VariantIncomplete(Typ.t)
   | TypeAlias(string, Typ.t)
   | WHNormalizedTo({
       unnormalized: Typ.t,
