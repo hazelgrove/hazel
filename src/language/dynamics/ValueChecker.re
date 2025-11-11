@@ -31,7 +31,7 @@ module ValueCheckerEVMode: {
       ([], Value),
     );
 
-  let otherwise = (_, _) => ((), Value);
+  let otherwise = (_, _, _) => ((), Value);
 
   let (let.) = ((v, r), rule) =>
     switch (r, rule(v)) {
@@ -49,20 +49,40 @@ module ValueCheckerEVMode: {
 
 module CV = Transition(ValueCheckerEVMode);
 
-let rec check_value = (~in_closure=?, env, d) =>
-  CV.transition(check_value, ~mode=`Environment, ~in_closure?, env, d);
+let rec check_value =
+        (
+          ~in_closure=?,
+          env: Environment.t(Exp.t),
+          ty_env: Environment.t(Typ.t),
+          d,
+        ) =>
+  CV.transition(
+    check_value,
+    ~mode=`Environment,
+    ~in_closure?,
+    env,
+    ty_env,
+    d,
+  );
 
-let rec check_value_mod_ctx = (~in_closure=?, env, d) =>
+let rec check_value_mod_ctx =
+        (
+          ~in_closure=?,
+          env: Environment.t(Exp.t),
+          ty_env: Environment.t(Typ.t),
+          d,
+        ) =>
   switch (DHExp.term_of(d)) {
   | Var(x) =>
     switch (Environment.lookup(env, x)) {
-    | Some(v) => check_value_mod_ctx(~in_closure?, env, v)
+    | Some(v) => check_value_mod_ctx(~in_closure?, env, ty_env, v)
     | None =>
       CV.transition(
         check_value_mod_ctx,
         ~mode=`Environment,
         ~in_closure?,
         env,
+        ty_env,
         d,
       )
     }
@@ -72,6 +92,7 @@ let rec check_value_mod_ctx = (~in_closure=?, env, d) =>
       ~mode=`Environment,
       ~in_closure?,
       env,
+      ty_env,
       d,
     )
   };

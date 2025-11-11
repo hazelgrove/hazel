@@ -6,8 +6,14 @@ type step_constrained('a) =
   | Completed('a);
 
 let evaluate:
-  (~env: Environment.t(Exp.t), Exp.t) => (Exp.t, EvaluatorState.t);
+  (~env: Environment.t(Exp.t), ~ty_env: Environment.t(Typ.t), Exp.t) =>
+  (Exp.t, EvaluatorState.t);
 
 let evaluate_and_limit:
-  (~step_limit: int=?, ~env: Environment.t(Exp.t), Exp.t) =>
+  (
+    ~step_limit: int=?,
+    ~env: Environment.t(Exp.t),
+    ~ty_env: Environment.t(Typ.t),
+    Exp.t
+  ) =>
   step_constrained((Exp.t, EvaluatorState.t));

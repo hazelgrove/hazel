@@ -436,10 +436,10 @@ let rec elaborate =
           })
         };
       Filter(kind', e') |> rewrap;
-    | Closure(env, e) =>
+    | Closure(env, tenv, e) =>
       // Should we be elaborating the contents of the environment?
       let (e', _) = elaborate(m, e);
-      Closure(env, e') |> rewrap;
+      Closure(env, tenv, e') |> rewrap;
     | Cons(e1, e2) =>
       let (e1', _) = elaborate(m, e1);
       let (e2', _) = elaborate(m, e2);

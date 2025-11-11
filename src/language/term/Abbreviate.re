@@ -608,10 +608,10 @@ let rec abbreviate_exp = (exp: Exp.t): Exp.t => {
         };
       }
 
-    | Closure(env, exp) =>
+    | Closure(env, tenv, exp) =>
       handle_unary(
         ~cost=1, // space between terms
-        ~make_term=e' => Closure(env, e'),
+        ~make_term=e' => Closure(env, tenv, e'),
         exp,
       )
 

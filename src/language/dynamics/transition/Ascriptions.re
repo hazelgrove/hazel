@@ -33,9 +33,11 @@ let rec transition =
       let+ () =
         ClosureWriter.tell([
           Dynamics.Probe.Closure.mk(
+            ~source="Ascriptions",
             Typ.rep_id(t),
             e,
             Environment.empty,
+            Environment.empty, // TODO
             _,
             p,
           ),
@@ -60,10 +62,10 @@ let rec transition =
     | (e, Parens(t)) =>
       // This is an impossible case since types should be normalized before coming to transitions
       transition(~recursive, Asc(e |> DHExp.fresh, t) |> DHExp.fresh)
-    | (Closure(ce, d), t) =>
+    | (Closure(ce, tenv, d), t) =>
       let+ d' =
         transition(~recursive, Asc(d, t |> Typ.fresh) |> DHExp.fresh);
-      Option.map(d' => Closure(ce, d') |> DHExp.fresh, d');
+      Option.map(d' => Closure(ce, tenv, d') |> DHExp.fresh, d');
     | (Fun(p, e, t, v), Arrow(t1, t2)) =>
       ClosureWriter.return(
         Some(

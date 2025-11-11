@@ -354,7 +354,7 @@ and uexp_to_info_map =
   // This is the case where we aren't a singleton labeled tuple
   let default_case = () => {
     switch (term) {
-    | Closure(_, e) =>
+    | Closure(_, _, e) =>
       // TODO: implement closure type checking properly - see how dynamic type assignment does it
       let (e, m) = go(~ana, e, m);
       add(~self=Just(e.ty), ~co_ctx=e.co_ctx, m);

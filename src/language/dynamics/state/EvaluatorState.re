@@ -37,6 +37,7 @@ let update =
       state: t,
       call_stack: list(Id.t),
       env: Environment.t(Exp.t),
+      ty_env: Environment.t(Typ.t),
       init: DHExp.t,
       next: DHExp.t,
       side_effects: list(effect),
@@ -51,8 +52,29 @@ let update =
         )
       | RecordExpProbe(pr) =>
         let id = DHExp.rep_id(init);
+        print_endline(
+          "EvaluatorStateEnv: "
+          ++ [%derive.show: list(Environment.binding(Exp.t))](
+               Environment.to_bindings(env),
+             ),
+        );
+
+        print_endline(
+          "EvaluatorStateTEnv: "
+          ++ [%derive.show: list(Environment.binding(Typ.t))](
+               Environment.to_bindings(ty_env),
+             ),
+        );
         let closure =
-          Dynamics.Probe.Closure.mk(id, next, env, call_stack, pr);
+          Dynamics.Probe.Closure.mk(
+            ~source="EvaluatorState",
+            id,
+            next,
+            env,
+            ty_env,
+            call_stack,
+            pr,
+          );
         (call_stack, add_closure(state, closure));
       | RecordPatProbes(closure_closures) =>
         let state =

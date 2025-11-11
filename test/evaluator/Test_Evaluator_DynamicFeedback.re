@@ -94,7 +94,11 @@ let test_dynamic_feedback = (~test_name=?, expected_exp: FError.exp) => {
 
   // Evaluate the elaborated expression to collect dynamic information
   let (_, evaluation_state) =
-    Evaluator.evaluate(~env=Builtins.env_init, elaborated_exp);
+    Evaluator.evaluate(
+      ~env=Builtins.env_init,
+      ~ty_env=Environment.empty,
+      elaborated_exp,
+    );
 
   // Extract probe data from the evaluation state
   let probe_data = EvaluatorState.get_probes(evaluation_state);
@@ -187,7 +191,11 @@ in
           )
           |> fst;
         let (result, state: EvaluatorState.t) =
-          Evaluator.evaluate(~env=Builtins.env_init, elaborated);
+          Evaluator.evaluate(
+            ~env=Builtins.env_init,
+            ~ty_env=Environment.empty,
+            elaborated,
+          );
 
         let dynamics = EvaluatorState.get_probes(state);
 

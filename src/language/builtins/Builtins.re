@@ -14,12 +14,7 @@ let builtins =
   @ List.map(const_builtin, BuiltinsBase.numeric_constants)
   @ List.map(fn_builtin, BuiltinsTupleOperations.builtins);
 
-let builtins =
-  List.sort(
-    (a: builtin, b: builtin) =>
-      String.compare(name_of_builtin(b), name_of_builtin(a)),
-    builtins,
-  );
+let builtins: list(builtin) = [];
 
 /* Check for accidental duplicates */
 let _ = to_map(builtins);

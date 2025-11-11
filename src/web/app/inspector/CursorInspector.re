@@ -111,9 +111,6 @@ let view_type = (~globals, ~dynamic_info: option(Info.t), typ: Typ.t) => {
   let ids: list(Id.t) =
     Option.map(Typ.diff(typ), dyn_type) |> Option.value(~default=[]);
 
-  print_endline("Type: " ++ [%derive.show: Typ.t](typ));
-  print_endline("Dynamic Type: " ++ [%derive.show: o](dyn_type));
-  print_endline("Diff ids: " ++ [%derive.show: list(Id.t)](ids));
   let is_dynamic_id = (id: Id.t): bool => {
     List.mem(id, ids);
   };

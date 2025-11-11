@@ -278,9 +278,12 @@ let equality =
     | (TyAlias(_, _, _), _) => false
 
     // Forms with environments. (Note fix also has an environment and is handled above.)
-    | (Closure(env1, e1), Closure(env2, e2)) when closures_by_id =>
-      Environment.id_equal(env1, env2) && exp'(e1, e2)
-    | (Closure(_, _), Closure(_, _)) =>
+    | (Closure(env1, tenv1, e1), Closure(env2, tenv2, e2))
+        when closures_by_id =>
+      Environment.id_equal(env1, env2)
+      && Environment.id_equal(tenv1, tenv2)
+      && exp'(e1, e2)
+    | (Closure(_, _, _), Closure(_, _, _)) =>
       failwith("full closure equality has not been implemented yet")
     | (Closure(_), _) => false
 

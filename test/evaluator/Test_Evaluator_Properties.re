@@ -21,6 +21,7 @@ let qcheck_evaluator_does_not_crash_test =
       switch (
         Evaluator.evaluate_and_limit(
           ~env=Builtins.env_init,
+          ~ty_env=Environment.empty,
           ~step_limit=10000,
           exp,
         )
@@ -66,6 +67,7 @@ let qcheck_stepper_confluence =
       switch (
         Evaluator.evaluate_and_limit(
           ~env=Builtins.env_init,
+          ~ty_env=Environment.empty,
           ~step_limit=100,
           elaborated_exp,
         ),
@@ -137,12 +139,14 @@ let qcheck_pattern_equivalence_test =
         let evaluated_first =
           Evaluator.evaluate_and_limit(
             ~env=Builtins.env_init,
+            ~ty_env=Environment.empty,
             ~step_limit=10000,
             elaborated_first,
           );
         let evaluated_second =
           Evaluator.evaluate_and_limit(
             ~env=Builtins.env_init,
+            ~ty_env=Environment.empty,
             ~step_limit=1000000,
             elaborated_second,
           );

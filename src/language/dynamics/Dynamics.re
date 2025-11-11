@@ -71,28 +71,35 @@ module Probe = {
       syntax_id: Id.t, /* Syntax ID of probed expression */
       value: DHExp.t, /* Value of expression */
       env: Env.t, /* (Filtered) Environment Values  */
+      ty_env: Environment.t(Typ.t), /* Type Environment */
       call_stack: Probe.call_stack, /* Call stacks as ap ids */
       time: float /* Time of evaluatation */
     };
 
     let mk =
         (
+          ~source="Unknown",
           syntax_id: Id.t,
           value: DHExp.t,
           env: Environment.t(Exp.t),
+          ty_env: Environment.t(Typ.t),
           call_stack: Probe.call_stack,
           pr: Probe.t,
         ) => {
-      /* Below hash provides a coarse-grained identification of
-       * closures currently used to keep display-length data between
-       * similar runs. May want to alter this or simply used a fresh
-       * UUID depending on future desiderata */
-      closure_id: Hashtbl.hash((call_stack, value, pr)),
-      syntax_id,
-      value,
-      env: Env.filter(env, pr.refs),
-      call_stack,
-      time: JsUtil.timestamp(),
+      print_endline("creating closure from source: " ++ source);
+      {
+        /* Below hash provides a coarse-grained identification of
+         * closures currently used to keep display-length data between
+         * similar runs. May want to alter this or simply used a fresh
+         * UUID depending on future desiderata */
+        closure_id: Hashtbl.hash((call_stack, value, pr)),
+        syntax_id,
+        value,
+        env: Env.filter(env, pr.refs),
+        ty_env,
+        call_stack,
+        time: JsUtil.timestamp(),
+      };
     };
   };
 
