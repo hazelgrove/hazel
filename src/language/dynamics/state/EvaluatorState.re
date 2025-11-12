@@ -52,19 +52,19 @@ let update =
         )
       | RecordExpProbe(pr) =>
         let id = DHExp.rep_id(init);
-        print_endline(
-          "EvaluatorStateEnv: "
-          ++ [%derive.show: list(Environment.binding(Exp.t))](
-               Environment.to_bindings(env),
-             ),
-        );
+        // print_endline(
+        //   "EvaluatorStateEnv: "
+        //   ++ [%derive.show: list(Environment.binding(Exp.t))](
+        //        Environment.to_bindings(env),
+        //      ),
+        // );
 
-        print_endline(
-          "EvaluatorStateTEnv: "
-          ++ [%derive.show: list(Environment.binding(Typ.t))](
-               Environment.to_bindings(ty_env),
-             ),
-        );
+        // print_endline(
+        //   "EvaluatorStateTEnv: "
+        //   ++ [%derive.show: list(Environment.binding(Typ.t))](
+        //        Environment.to_bindings(ty_env),
+        //      ),
+        // );
         let closure =
           Dynamics.Probe.Closure.mk(
             ~source="EvaluatorState",
@@ -80,7 +80,13 @@ let update =
         let state =
           List.fold_left(
             (state, closure_closure) =>
-              add_closure(state, closure_closure(call_stack)),
+              add_closure(
+                state,
+                {
+                  ...closure_closure(call_stack),
+                  ty_env // I could also use the ty_env from the closure itself, but this is more up-to-date
+                },
+              ),
             state,
             closure_closures,
           );

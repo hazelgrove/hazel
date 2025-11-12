@@ -94,7 +94,9 @@ type matches_and_closures = {
   closures: closure_closures,
 };
 
-let matches = (dp: Pat.t, d: DHExp.t): matches_and_closures => {
+let matches =
+    (~ty_env: Environment.t(Typ.t), dp: Pat.t, d: DHExp.t)
+    : matches_and_closures => {
   /* Closure capture for Probe instrumentation */
   let closure_closures: ref(closure_closures) = ref([]);
   let capture =
@@ -110,7 +112,7 @@ let matches = (dp: Pat.t, d: DHExp.t): matches_and_closures => {
             Pat.rep_id(dp),
             d,
             Environment.of_bindings(env),
-            Environment.empty, // TODO
+            ty_env,
             _,
             pr,
           ),

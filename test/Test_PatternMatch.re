@@ -43,7 +43,8 @@ let tests = (
             )
           );
         let matches: PatternMatch.match_result =
-          PatternMatch.matches(pat, expression).matches;
+          PatternMatch.matches(~ty_env=Environment.empty, pat, expression).
+            matches;
 
         let equal_match_result =
             (r1: PatternMatch.match_result, r2: PatternMatch.match_result)

@@ -138,13 +138,21 @@ module Update = {
             let filtered_dynamics =
               Language.Dynamics.Map.filter_all_by_pin(pinned_call, dynamics);
 
-            let dynamic_expressions: Id.Map.t(list(TermBase.exp_t)) =
+            let dynamic_expressions: Language.DynamicStatics.Map.t =
               Id.Map.map(
                 d => {
                   open Language;
                   let exps =
                     List.map((c: Dynamics.Probe.Closure.t) => c.value, d);
-                  exps;
+
+                  let ty_envs =
+                    List.map((c: Dynamics.Probe.Closure.t) => c.ty_env, d);
+                  (
+                    {
+                      exps,
+                      ty_envs,
+                    }: Language.DynamicStatics.Map.entry
+                  );
                 },
                 filtered_dynamics,
               );

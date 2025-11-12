@@ -86,7 +86,6 @@ module Probe = {
           call_stack: Probe.call_stack,
           pr: Probe.t,
         ) => {
-      print_endline("creating closure from source: " ++ source);
       {
         /* Below hash provides a coarse-grained identification of
          * closures currently used to keep display-length data between

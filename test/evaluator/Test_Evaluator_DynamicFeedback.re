@@ -35,8 +35,12 @@ module FError =
 let create_dynamic_expressions =
     (dynamics: Id.Map.t(list(Dynamics.Probe.Closure.t))) =>
   Id.Map.map(
-    closures => {
-      Language.(List.map((c: Dynamics.Probe.Closure.t) => c.value, closures))
+    (closures: list(Dynamics.Probe.Closure.t)): DynamicStatics.Map.entry => {
+      Language.{
+        exps: List.map((c: Dynamics.Probe.Closure.t) => c.value, closures),
+        ty_envs:
+          List.map((c: Dynamics.Probe.Closure.t) => c.ty_env, closures),
+      }
     },
     dynamics,
   );

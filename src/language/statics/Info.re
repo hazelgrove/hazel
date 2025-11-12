@@ -407,14 +407,21 @@ let pat_constraint: pat => Coverage.Constraint.t =
   ({constraint_, _}) => constraint_;
 
 let rec status_common =
-        (ctx: Ctx.t, ty_ana: Typ.t, self: Self.t): status_common =>
+        (
+          ~dynamic_type_env: option(Environment.t(Typ.t))=?,
+          ctx: Ctx.t,
+          ty_ana: Typ.t,
+          self: Self.t,
+        )
+        : status_common =>
   switch (self, ty_ana) {
   | (_, {term: TupLabel({term: ExplicitNonlabel, _}, ana_inner), _}) =>
-    status_common(ctx, ana_inner, self)
+    status_common(~dynamic_type_env?, ctx, ana_inner, self)
   | (Just(ty), {term: Unknown(SynSwitch), _}) => NotInHole(Syn(ty))
   | (Just(syn), ana) =>
     switch (
       Typ.join(
+        ~dynamic_type_env?,
         ctx,
         ana,
         syn /* Note: the ordering of ana, syn matters */
@@ -432,6 +439,16 @@ let rec status_common =
           ),
         )
       | _ =>
+        print_endline(
+          "Typ join failed between ana: "
+          ++ [%derive.show: Typ.t](ana)
+          ++ " and syn: "
+          ++ [%derive.show: Typ.t](syn),
+        );
+        print_endline(
+          "Dynamic type env: "
+          ++ [%derive.show: option(Environment.t(Typ.t))](dynamic_type_env),
+        );
         InHole(
           Inconsistent(
             Expectation({
@@ -439,7 +456,7 @@ let rec status_common =
               syn,
             }),
           ),
-        )
+        );
       }
     | Some(join) =>
       NotInHole(
@@ -487,7 +504,7 @@ let rec status_common =
     InHole(Inconsistent(Internal(Typ.of_source(tys))))
   | (NoJoin(wrap, tys), ana) =>
     let syn: Typ.t = Self.join_of(wrap, Unknown(Internal) |> Typ.temp);
-    switch (Typ.join(ctx, ana, syn)) {
+    switch (Typ.join(~dynamic_type_env?, ctx, ana, syn)) {
     | None =>
       switch (ana.term, syn.term) {
       | (Label(_), Label(_)) =>
@@ -522,11 +539,13 @@ let rec status_common =
     };
   };
 
-let rec status_pat = (ctx: Ctx.t, ty_ana: Typ.t, self: Self.pat): status_pat =>
+let rec status_pat =
+        (~dynamic_type_env=?, ctx: Ctx.t, ty_ana: Typ.t, self: Self.pat)
+        : status_pat =>
   switch (self) {
   | Redundant(self) =>
     let additional_err =
-      switch (status_pat(ctx, ty_ana, self)) {
+      switch (status_pat(~dynamic_type_env?, ctx, ty_ana, self)) {
       | InHole(
           Common(
             Inconsistent(Internal(_) | Expectation(_) | CompareFun(_)) |
@@ -551,7 +570,7 @@ let rec status_pat = (ctx: Ctx.t, ty_ana: Typ.t, self: Self.pat): status_pat =>
     InHole(Common(NoType(FreeConstructor(name))))
   | ExpectedConstructor(_) => InHole(ExpectedConstructor)
   | Common(self_pat) =>
-    switch (status_common(ctx, ty_ana, self_pat)) {
+    switch (status_common(~dynamic_type_env?, ctx, ty_ana, self_pat)) {
     | NotInHole(ok_pat) => NotInHole(ok_pat)
     | InHole(err_pat) => InHole(Common(err_pat))
     }
@@ -561,12 +580,19 @@ let rec status_pat = (ctx: Ctx.t, ty_ana: Typ.t, self: Self.pat): status_pat =>
    depending on the mode, which represents the expectations of the
    surrounding syntactic context, and the self which represents the
    makeup of the expression / pattern itself. */
-let rec status_exp = (ctx: Ctx.t, ty_ana, self: Self.exp): status_exp =>
+let rec status_exp =
+        (
+          ~dynamic_type_env: option(Environment.t(Typ.t))=?,
+          ctx: Ctx.t,
+          ty_ana,
+          self: Self.exp,
+        )
+        : status_exp =>
   switch (self) {
   | Free(name) => InHole(FreeVariable(name))
   | InexhaustiveMatch(self, example) =>
     let additional_err =
-      switch (status_exp(ctx, ty_ana, self)) {
+      switch (status_exp(~dynamic_type_env?, ctx, ty_ana, self)) {
       | InHole(Common(Inconsistent(Internal(_)) as inconsistent_err)) =>
         Some(inconsistent_err)
       | NotInHole(_)
@@ -620,7 +646,7 @@ let rec status_exp = (ctx: Ctx.t, ty_ana, self: Self.exp): status_exp =>
   | LabelNotFound(label, labels) => InHole(LabelNotFound(label, labels))
   | BadLivelitModel(typ) => InHole(BadLivelitModel(typ))
   | Common(self_exp) =>
-    switch (status_common(ctx, ty_ana, self_exp)) {
+    switch (status_common(~dynamic_type_env?, ctx, ty_ana, self_exp)) {
     | NotInHole(ok_exp) => NotInHole(Common(ok_exp))
     | InHole(err_exp) => InHole(Common(err_exp))
     }
@@ -862,25 +888,57 @@ let fixed_typ_err_pat: (error_pat, Typ.t) => Typ.t =
     | Common(err) => fixed_typ_err_common(err, ana)
     };
 
-let fixed_typ_pat = (ctx, ty_ana: Typ.t, self: Self.pat): Typ.t => {
+let fixed_typ_pat =
+    (~dynamic_type_env=?, ctx, ty_ana: Typ.t, self: Self.pat): Typ.t => {
   // TODO: get rid of unwrapping (probably by changing the implementation of error_exp.Redundant)
   let self =
     switch (self) {
     | Redundant(self) => self
     | _ => self
     };
-  switch (status_pat(ctx, ty_ana, self)) {
+  switch (status_pat(~dynamic_type_env?, ctx, ty_ana, self)) {
   | InHole(err) => fixed_typ_err_pat(err, ty_ana)
   | NotInHole(ok) => fixed_typ_ok(ok)
   };
 };
 
-let fixed_typ_exp = (ctx, ty_ana: Typ.t, self: Self.exp): Typ.t =>
-  switch (status_exp(ctx, ty_ana, self)) {
+let fixed_typ_exp =
+    (~dynamic_type_env=?, ctx, ty_ana: Typ.t, self: Self.exp): Typ.t =>
+  switch (status_exp(~dynamic_type_env?, ctx, ty_ana, self)) {
   | InHole(err) => fixed_typ_err(err, ty_ana)
   | NotInHole(AnaDeferralConsistent(ana)) => ana
   | NotInHole(Common(ok)) => fixed_typ_ok(ok)
   };
+
+let dynamic_type_env = (ctx, dynamics_exp) =>
+  Option.map((de: DynamicStatics.Map.entry) => de.ty_envs, dynamics_exp)
+  |> Option.map(envs => {
+       // TODO Switch to stream and make sure the environments are trimmed
+       let vars =
+         envs
+         |> List.concat_map(Environment.to_bindings)
+         |> List.map(fst)
+         |> ListUtil.dedup;
+
+       let vars_with_joined_types =
+         vars
+         |> List.map(var => {
+              let tys =
+                envs
+                |> List.filter_map(env =>
+                     switch (Environment.lookup(env, var)) {
+                     | Some(ty) => Some(ty)
+                     | None => None
+                     }
+                   );
+              (
+                var,
+                Typ.join_all(~empty=Unknown(Internal) |> Typ.temp, ctx, tys)
+                |> Option.value(~default=Unknown(Internal) |> Typ.temp),
+              );
+            });
+       Environment.of_bindings(vars_with_joined_types);
+     });
 
 /* Add derivable attributes for expression terms */
 let derived_exp =
@@ -898,13 +956,15 @@ let derived_exp =
       ~label_sort,
     )
     : exp => {
+  let dynamics_exp = DynamicStatics.Map.lookup(uexp |> Exp.rep_id, dynamics);
+
   let self: Self.exp =
     switch (self) {
     | Common(Just(t)) when Typ.count_unknowns(t) > 0 =>
-      switch (DynamicStatics.Map.lookup(uexp |> Exp.rep_id, dynamics)) {
+      switch (dynamics_exp) {
       | None => self
-      | Some([]) => self
-      | Some(exps) =>
+      | Some({exps: [], _}) => self
+      | Some({exps, _}) =>
         let dyn_typs = OptUtil.traverse(calculate_dynamic_type, exps);
         let dyn_typ =
           Option.bind(
@@ -919,10 +979,30 @@ let derived_exp =
       }
     | _ => self
     };
+  let dynamic_type_env = dynamic_type_env(ctx, dynamics_exp);
 
   let cls = Cls.Exp(Exp.cls_of_term(uexp.term));
-  let status = status_exp(ctx, ana, self);
-  let ty = fixed_typ_exp(ctx, ana, self);
+  let status = status_exp(~dynamic_type_env?, ctx, ana, self);
+  switch (status) {
+  | InHole(_) =>
+    print_endline(
+      "Dynamics expressions: "
+      ++ [%derive.show: option(DynamicStatics.Map.entry)](dynamics_exp),
+    );
+    print_endline(
+      "In Hole"
+      ++ (
+        switch (dynamic_type_env) {
+        | None => ": None"
+        | Some(env) => "Found"
+        }
+      ),
+    );
+    print_endline("Exp: " ++ Exp.show(uexp));
+    print_endline("Rep_id" ++ Id.show(uexp |> Exp.rep_id));
+  | _ => ()
+  };
+  let ty = fixed_typ_exp(~dynamic_type_env?, ctx, ana, self);
   {
     cls,
     self,
@@ -953,8 +1033,8 @@ let derived_dynamic_self_pat =
   | Common(Just(t)) when Typ.count_unknowns(t) > 0 =>
     switch (DynamicStatics.Map.lookup(upat |> Pat.rep_id, dynamics)) {
     | None => self
-    | Some([]) => self
-    | Some(exps) =>
+    | Some({exps: [], _}) => self
+    | Some({exps, _}) =>
       let dyn_typs = OptUtil.traverse(calculate_dynamic_type, exps);
       let dyn_typ =
         Option.bind(
@@ -995,9 +1075,11 @@ let derived_pat =
       ~upat,
       ~self,
     );
+  let dynamics_exp = DynamicStatics.Map.lookup(upat |> Pat.rep_id, dynamics);
+  let dynamic_type_env = dynamic_type_env(ctx, dynamics_exp);
 
   let cls = Cls.Pat(Pat.cls_of_term(upat.term));
-  let status = status_pat(ctx, ana, self);
+  let status = status_pat(~dynamic_type_env?, ctx, ana, self);
   let ty = fixed_typ_pat(ctx, ana, self);
 
   // replace constraints with Hole if this info has an error

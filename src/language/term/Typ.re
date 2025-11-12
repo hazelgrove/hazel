@@ -586,6 +586,7 @@ let rec normalize = (~rec_counter=0, ctx: Ctx.t, ty: t): t => {
    or to return the (first) type variable for readability */
 let rec join =
         (
+          ~dynamic_type_env: option(Environment.t(t))=?,
           ~inconsistent: option(t)=?,
           ~resolve=false,
           ctx: Ctx.t,
@@ -593,107 +594,145 @@ let rec join =
           ty2: t,
         )
         : option(t) => {
-  let join' = join(~inconsistent?, ~resolve, ctx);
-  switch (term_of(ty1), term_of(ty2)) {
-  | (_, Parens(ty2)) => join'(ty1, ty2)
-  | (Parens(ty1), _) => join'(ty1, ty2)
-  | (TupLabel({term: ExplicitNonlabel, _}, ty1'), _) => join'(ty1', ty2)
-  | (_, TupLabel({term: ExplicitNonlabel, _}, ty2')) => join'(ty1, ty2')
-  | (Probe(ty1, _), _) => join'(ty1, ty2)
-  | (_, Probe(ty2, _)) => join'(ty1, ty2)
-  | (Unknown(p1), Unknown(p2)) =>
-    Some(Unknown(join_type_provenance(p1, p2)) |> temp)
-  | (Unknown(Inconsistent), _) => Some(ty1)
-  | (_, Unknown(Inconsistent)) => Some(ty2)
-  | (Unknown(_), _) => Some(ty2)
-  | (_, Unknown(_)) => Some(ty1)
-  | (Var(n1), Var(n2)) =>
-    if (n1 == n2) {
-      Some(ty1);
-    } else {
-      let* ty1 = Ctx.lookup_alias(ctx, n1);
-      let* ty2 = Ctx.lookup_alias(ctx, n2);
-      let+ ty_join = join'(ty1, ty2);
-      !resolve && equal(ty1, ty_join) ? ty1 : ty_join;
-    }
-  | (Var(name), _) =>
-    let* ty_name = Ctx.lookup_alias(ctx, name);
-    let+ ty_join = join'(ty_name, ty2);
-    !resolve && equal(ty_name, ty_join) ? ty1 : ty_join;
-  | (_, Var(name)) =>
-    let* ty_name = Ctx.lookup_alias(ctx, name);
-    let+ ty_join = join'(ty_name, ty1);
-    !resolve && equal(ty_name, ty_join) ? ty2 : ty_join;
-  /* Note: Ordering of Unknown, Var, and Rec above is load-bearing! */
-  | (ProdProjection(_), _) => join'(weak_head_normalize(ctx, ty1), ty2)
-  | (_, ProdProjection(_)) => join'(ty1, weak_head_normalize(ctx, ty2))
-  | (ProdExtension(_), _) => join'(weak_head_normalize(ctx, ty1), ty2)
-  | (_, ProdExtension(_)) => join'(ty1, weak_head_normalize(ctx, ty2))
-  | (Rec(tp1, ty1), Rec(tp2, ty2)) =>
-    let ctx = Ctx.extend_dummy_tvar(ctx, tp1);
-    let ty1' =
-      switch (TPat.tyvar_of_utpat(tp2)) {
-      | Some(x2) => subst(Var(x2) |> temp, tp1, ty1)
-      | None => ty1
-      };
-    let+ ty_body = join(~resolve, ctx, ty1', ty2);
-    Rec(tp1, ty_body) |> temp;
-  | (Rec(_), _) => inconsistent
-  | (Forall(x1, ty1), Forall(x2, ty2)) =>
-    let ty1' =
-      switch (TPat.tyvar_of_utpat(x2)) {
-      | Some(x2) => subst(Var(x2) |> temp, x1, ty1)
-      | None => ty1
-      };
-    let ctx = Ctx.extend_dummy_tvar(ctx, x2);
-    let+ ty_body = join(~resolve, ctx, ty1', ty2);
-    Forall(x2, ty_body) |> temp;
-  /* Note for above: there is no danger of free variable capture as
-     subst itself performs capture avoiding substitution. However this
-     may generate internal type variable names that in corner cases can
-     be exposed to the user. We preserve the variable name of the
-     second type to preserve synthesized type variable names, which
-     come from user annotations. */
-  | (Forall(_), _) => inconsistent
-  | (Atom(c1), Atom(c2)) when c1 == c2 => Some(ty1)
-  | (Atom(_), _) => inconsistent
-  | (Label(_), Label("")) => Some(ty1)
-  | (Label(""), Label(_)) => Some(ty2)
-  | (Label(name1), Label(name2))
-      when LabeledTuple.match_labels(name1, name2) =>
-    Some(ty1)
-  | (Label(_), _) => inconsistent
-  | (Arrow(ty1, ty2), Arrow(ty1', ty2')) =>
-    let* ty1 = join'(ty1, ty1');
-    let+ ty2 = join'(ty2, ty2');
-    Arrow(ty1, ty2) |> temp;
-  | (Arrow(_), _) => inconsistent
-  | (TupLabel(lab1, ty1'), TupLabel(lab2, ty2')) =>
-    let* lab = join'(lab1, lab2);
-    let+ ty = join'(ty1', ty2');
-    TupLabel(lab, ty) |> temp;
-  | (TupLabel(_), _) => inconsistent
-  | (Prod(tys1), Prod(tys2)) =>
-    if (List.length(tys1) != List.length(tys2)) {
-      None;
-    } else {
-      let* tys = ListUtil.map2_opt(join', tys1, tys2);
-      let+ tys = OptUtil.sequence(tys);
-      Prod(tys) |> temp;
-    }
-  | (Prod(_), _) => inconsistent
-  | (Sum(sm1), Sum(sm2)) =>
-    let+ sm' = ConstructorMap.join(equal, join(~resolve, ctx), sm1, sm2);
-    Sum(sm') |> temp;
-  | (Sum(_), _) => inconsistent
-  | (List(ty1), List(ty2)) =>
-    let+ ty = join'(ty1, ty2);
-    List(ty) |> temp;
-  | (List(_), _) => inconsistent
-  // We would prefer for this to be a sort difference and never appear in a join.
-  // These get marked in statics but that does not remove them from the utyp's propagated on parents.
-  | (ExplicitNonlabel, _) => inconsistent
+  let join' = join(~dynamic_type_env?, ~inconsistent?, ~resolve, ctx);
+  let ret =
+    switch (term_of(ty1), term_of(ty2)) {
+    | (_, Parens(ty2)) => join'(ty1, ty2)
+    | (Parens(ty1), _) => join'(ty1, ty2)
+    | (TupLabel({term: ExplicitNonlabel, _}, ty1'), _) => join'(ty1', ty2)
+    | (_, TupLabel({term: ExplicitNonlabel, _}, ty2')) => join'(ty1, ty2')
+    | (Probe(ty1, _), _) => join'(ty1, ty2)
+    | (_, Probe(ty2, _)) => join'(ty1, ty2)
+    | (Unknown(p1), Unknown(p2)) =>
+      Some(Unknown(join_type_provenance(p1, p2)) |> temp)
+    | (Unknown(Inconsistent), _) => Some(ty1)
+    | (_, Unknown(Inconsistent)) => Some(ty2)
+    | (Unknown(_), _) => Some(ty2)
+    | (_, Unknown(_)) => Some(ty1)
+    | (Var(n1), Var(n2)) =>
+      if (n1 == n2) {
+        Some(ty1);
+      } else {
+        let* ty1 =
+          Ctx.lookup_alias(ctx, n1)
+          |> OptUtil.or_else(
+               _,
+               dynamic_type_env
+               |> Option.bind(_, env => Environment.lookup(env, n1)),
+             );
+        let* ty2 =
+          Ctx.lookup_alias(ctx, n2)
+          |> OptUtil.or_else(
+               _,
+               dynamic_type_env
+               |> Option.bind(_, env => Environment.lookup(env, n2)),
+             );
+        let+ ty_join = join'(ty1, ty2);
+        !resolve && equal(ty1, ty_join) ? ty1 : ty_join;
+      }
+    | (Var(name), _) =>
+      let* ty_name =
+        Ctx.lookup_alias(ctx, name)
+        |> OptUtil.or_else(
+             _,
+             dynamic_type_env
+             |> Option.bind(_, env => Environment.lookup(env, name)),
+           );
+      let+ ty_join = join'(ty_name, ty2);
+      !resolve && equal(ty_name, ty_join) ? ty1 : ty_join;
+    | (_, Var(name)) =>
+      let* ty_name =
+        Ctx.lookup_alias(ctx, name)
+        |> OptUtil.or_else(
+             _,
+             dynamic_type_env
+             |> Option.bind(_, env => Environment.lookup(env, name)),
+           );
+      let+ ty_join = join'(ty_name, ty1);
+      !resolve && equal(ty_name, ty_join) ? ty2 : ty_join;
+    /* Note: Ordering of Unknown, Var, and Rec above is load-bearing! */
+    | (ProdProjection(_), _) => join'(weak_head_normalize(ctx, ty1), ty2)
+    | (_, ProdProjection(_)) => join'(ty1, weak_head_normalize(ctx, ty2))
+    | (ProdExtension(_), _) => join'(weak_head_normalize(ctx, ty1), ty2)
+    | (_, ProdExtension(_)) => join'(ty1, weak_head_normalize(ctx, ty2))
+    | (Rec(tp1, ty1), Rec(tp2, ty2)) =>
+      let ctx = Ctx.extend_dummy_tvar(ctx, tp1);
+      let ty1' =
+        switch (TPat.tyvar_of_utpat(tp2)) {
+        | Some(x2) => subst(Var(x2) |> temp, tp1, ty1)
+        | None => ty1
+        };
+      let+ ty_body = join(~resolve, ctx, ty1', ty2);
+      Rec(tp1, ty_body) |> temp;
+    | (Rec(_), _) => inconsistent
+    | (Forall(x1, ty1), Forall(x2, ty2)) =>
+      let ty1' =
+        switch (TPat.tyvar_of_utpat(x2)) {
+        | Some(x2) => subst(Var(x2) |> temp, x1, ty1)
+        | None => ty1
+        };
+      let ctx = Ctx.extend_dummy_tvar(ctx, x2);
+      let+ ty_body = join(~resolve, ctx, ty1', ty2);
+      Forall(x2, ty_body) |> temp;
+    /* Note for above: there is no danger of free variable capture as
+       subst itself performs capture avoiding substitution. However this
+       may generate internal type variable names that in corner cases can
+       be exposed to the user. We preserve the variable name of the
+       second type to preserve synthesized type variable names, which
+       come from user annotations. */
+    | (Forall(_), _) => inconsistent
+    | (Atom(c1), Atom(c2)) when c1 == c2 => Some(ty1)
+    | (Atom(_), _) => inconsistent
+    | (Label(_), Label("")) => Some(ty1)
+    | (Label(""), Label(_)) => Some(ty2)
+    | (Label(name1), Label(name2))
+        when LabeledTuple.match_labels(name1, name2) =>
+      Some(ty1)
+    | (Label(_), _) => inconsistent
+    | (Arrow(ty1, ty2), Arrow(ty1', ty2')) =>
+      let* ty1 = join'(ty1, ty1');
+      let+ ty2 = join'(ty2, ty2');
+      Arrow(ty1, ty2) |> temp;
+    | (Arrow(_), _) => inconsistent
+    | (TupLabel(lab1, ty1'), TupLabel(lab2, ty2')) =>
+      let* lab = join'(lab1, lab2);
+      let+ ty = join'(ty1', ty2');
+      TupLabel(lab, ty) |> temp;
+    | (TupLabel(_), _) => inconsistent
+    | (Prod(tys1), Prod(tys2)) =>
+      if (List.length(tys1) != List.length(tys2)) {
+        None;
+      } else {
+        let* tys = ListUtil.map2_opt(join', tys1, tys2);
+        let+ tys = OptUtil.sequence(tys);
+        Prod(tys) |> temp;
+      }
+    | (Prod(_), _) => inconsistent
+    | (Sum(sm1), Sum(sm2)) =>
+      let+ sm' = ConstructorMap.join(equal, join(~resolve, ctx), sm1, sm2);
+      Sum(sm') |> temp;
+    | (Sum(_), _) => inconsistent
+    | (List(ty1), List(ty2)) =>
+      let+ ty = join'(ty1, ty2);
+      List(ty) |> temp;
+    | (List(_), _) => inconsistent
+    // We would prefer for this to be a sort difference and never appear in a join.
+    // These get marked in statics but that does not remove them from the utyp's propagated on parents.
+    | (ExplicitNonlabel, _) => inconsistent
+    };
+  if (ret == None) {
+    switch (dynamic_type_env) {
+    | Some(env) =>
+      print_endline(
+        "Environment: " ++ [%derive.show: Environment.t(t)](env),
+      );
+      print_endline("ty1: " ++ [%derive.show: t](ty1));
+      print_endline("ty2: " ++ [%derive.show: t](ty2));
+    | None => ()
+    };
   };
+
+  ret;
 };
 
 /* REQUIRES NORMALIZED TYPES
