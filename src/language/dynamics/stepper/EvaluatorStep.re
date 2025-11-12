@@ -99,10 +99,9 @@ let rec matches =
         // TODO: Should this env include the bound variables?
         let+ ctx = matches(env, flt, ctx, exp, act, idx);
         Fun(dp, ctx, ty, name) |> rewrap;
-      | FixF(name, ctx, env') =>
-        let+ ctx =
-          matches(Option.value(~default=env, env'), flt, ctx, exp, act, idx);
-        FixF(name, ctx, env') |> rewrap;
+      | FixF(name, ctx) =>
+        let+ ctx = matches(env, flt, ctx, exp, act, idx);
+        FixF(name, ctx) |> rewrap;
       | Ap1(dir, ctx, d2) =>
         let+ ctx = matches(env, flt, ctx, exp, act, idx);
         Ap1(dir, ctx, d2) |> rewrap;

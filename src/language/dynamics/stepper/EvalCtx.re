@@ -9,7 +9,7 @@ type term =
   | Let1(Pat.t, t, DHExp.t)
   | Let2(Pat.t, DHExp.t, t)
   | Fun(Pat.t, t, option(Typ.t), option(Var.t))
-  | FixF(Pat.t, t, option(Environment.t(Exp.t)))
+  | FixF(Pat.t, t)
   | TypAp(t, Typ.t)
   | Ap1(Operators.ap_direction, t, DHExp.t)
   | Ap2(Operators.ap_direction, DHExp.t, t)
@@ -158,7 +158,7 @@ let rec compose = (ctx: t, d: DHExp.t): DHExp.t => {
     | Fun(dp, ctx, typ, v) =>
       let d = compose(ctx, d);
       Fun(dp, d, typ, v) |> wrap;
-    | FixF(v, ctx, env) =>
+    | FixF(v, ctx) =>
       let d = compose(ctx, d);
       FixF(v, d) |> wrap;
     | Asc(ctx, ty1) =>
