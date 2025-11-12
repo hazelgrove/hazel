@@ -80,13 +80,7 @@ let update =
         let state =
           List.fold_left(
             (state, closure_closure) =>
-              add_closure(
-                state,
-                {
-                  ...closure_closure(call_stack),
-                  ty_env // I could also use the ty_env from the closure itself, but this is more up-to-date
-                },
-              ),
+              add_closure(state, closure_closure(call_stack)),
             state,
             closure_closures,
           );

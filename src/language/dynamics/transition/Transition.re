@@ -544,7 +544,7 @@ module Transition = (EV: EV_MODE) => {
           //        Environment.to_bindings(ty_env'),
           //      ),
           // );
-          let matches = matches(~ty_env, dp, d2');
+          let matches = matches(~ty_env=ty_env', dp, d2');
           switch (matches.matches) {
           | IndetMatch
           | DoesNotMatch => Indet
