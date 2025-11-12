@@ -488,7 +488,7 @@ let rec abbreviate_exp = (exp: Exp.t): Exp.t => {
         };
       }
 
-    | FixF(p, e, t) =>
+    | FixF(p, e) =>
       if (available^ < 3) {
         indet_term;
       } else if (available^ <= 3) {
@@ -506,7 +506,7 @@ let rec abbreviate_exp = (exp: Exp.t): Exp.t => {
           // " -> "
           available := available^ - 4;
           let e' = abbreviate_exp(e);
-          FixF(p', e', t);
+          FixF(p', e');
         } else {
           FixF(
             p',
@@ -514,7 +514,6 @@ let rec abbreviate_exp = (exp: Exp.t): Exp.t => {
               ...e,
               term: indet_term,
             },
-            t,
           );
         };
       }

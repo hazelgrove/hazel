@@ -1138,7 +1138,7 @@ and uexp_to_info_map =
           CoCtx.union([def.co_ctx, CoCtx.mk(ctx, p_ana.ctx, body.co_ctx)]),
         m,
       );
-    | FixF(p, e, _) =>
+    | FixF(p, e) =>
       let (p', _) =
         go_pat(~is_synswitch=false, ~co_ctx=CoCtx.empty, ~ana, p, m);
       let (e', m) = go'(~ctx=p'.ctx, ~ana=p'.ty, e, m);

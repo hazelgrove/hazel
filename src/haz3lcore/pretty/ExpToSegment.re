@@ -289,11 +289,10 @@ let rec parenthesize =
       parenthesize(e2) |> paren_assoc_at(Precedence.let_),
     )
     |> rewrap
-  | FixF(p, e, c) =>
+  | FixF(p, e) =>
     FixF(
       parenthesize_pat(p) |> paren_pat_at(Precedence.min),
       parenthesize(e) |> paren_assoc_at(Precedence.fun_),
-      c // TODO: Parenthesize through closure
     )
     |> rewrap
   | TyAlias(tp, t, e) =>
@@ -1039,7 +1038,7 @@ let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
     and+ e2 = go(e2);
     let e2 = settings.inline ? e2 : [Secondary(mk_newline(Id.mk()))] @ e2;
     [mk_form(Let, id, [p, e1])] @ e2;
-  | FixF(p, e, _) =>
+  | FixF(p, e) =>
     // TODO: Add optional newlines
     let id = exp |> Exp.rep_id;
     let+ p = pat_to_pretty(~settings: Settings.t, p)

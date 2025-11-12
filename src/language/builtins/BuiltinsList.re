@@ -40,7 +40,6 @@ let builtins =
                 None,
                 Some("length+"),
               ),
-              None,
             )
           )
         );
@@ -85,7 +84,6 @@ let builtins =
                 None,
                 Some("map+"),
               ),
-              None,
             )
           )
         );
@@ -135,7 +133,6 @@ let builtins =
                 None,
                 Some("filter+"),
               ),
-              None,
             )
           )
         );
@@ -189,7 +186,6 @@ let builtins =
                 None,
                 Some("fold_left+"),
               ),
-              None,
             )
           )
         );
@@ -231,7 +227,6 @@ let builtins =
                 None,
                 Some("flat_map+"),
               ),
-              None,
             )
           )
         );
@@ -283,7 +278,6 @@ let builtins =
                 None,
                 Some("zip+"),
               ),
-              None,
             )
           )
         );
@@ -330,7 +324,6 @@ let builtins =
                 None,
                 Some("unzip+"),
               ),
-              None,
             )
           )
         );
@@ -368,7 +361,6 @@ let builtins =
                 None,
                 Some("reverse+"),
               ),
-              None,
             )
           )
         );
@@ -418,7 +410,6 @@ let builtins =
                 None,
                 Some("take+"),
               ),
-              None,
             )
           )
         );
@@ -464,7 +455,6 @@ let builtins =
                 None,
                 Some("drop+"),
               ),
-              None,
             )
           )
         );
@@ -500,7 +490,6 @@ let builtins =
                 None,
                 Some("range+"),
               ),
-              None,
             )
           )
         );
@@ -552,14 +541,12 @@ let builtins =
                       None,
                       None,
                     ),
-                    None,
                   ),
                   tuple([var("xs"), int(0)]),
                 ),
                 None,
                 Some("enumerate+"),
               ),
-              None,
             )
           )
         );
@@ -602,7 +589,6 @@ let builtins =
                 None,
                 Some("any+"),
               ),
-              None,
             )
           )
         );
@@ -645,7 +631,6 @@ let builtins =
                 None,
                 Some("all+"),
               ),
-              None,
             )
           )
         );
@@ -691,7 +676,6 @@ let builtins =
                 None,
                 Some("intersperse+"),
               ),
-              None,
             )
           )
         );
@@ -713,7 +697,6 @@ let builtins =
                 None,
                 Some("cons+"),
               ),
-              None,
             )
           )
         );
@@ -744,7 +727,6 @@ let builtins =
                 None,
                 Some("hd+"),
               ),
-              None,
             )
           )
         );
@@ -775,7 +757,6 @@ let builtins =
                 None,
                 Some("tl+"),
               ),
-              None,
             )
           )
         );
@@ -806,7 +787,6 @@ let builtins =
                 None,
                 Some("is_empty+"),
               ),
-              None,
             )
           )
         );
@@ -851,7 +831,6 @@ let builtins =
                 None,
                 Some("nth+"),
               ),
-              None,
             )
           )
         );
@@ -904,7 +883,6 @@ let builtins =
                 None,
                 Some("fold_right+"),
               ),
-              None,
             )
           )
         );
@@ -926,7 +904,6 @@ let builtins =
                 None,
                 Some("append+"),
               ),
-              None,
             )
           )
         );
@@ -963,7 +940,6 @@ let builtins =
                 None,
                 Some("concat+"),
               ),
-              None,
             )
           )
         );
@@ -1027,14 +1003,12 @@ let builtins =
                       None,
                       None,
                     ),
-                    None,
                   ),
                   tuple([var("xs"), var("f"), int(0)]),
                 ),
                 None,
                 Some("mapi+"),
               ),
-              None,
             )
           )
         );
@@ -1110,14 +1084,12 @@ let builtins =
                       None,
                       Some("filteri_helper+"),
                     ),
-                    None,
                   ),
                   tuple([var("xs"), var("f"), int(0)]),
                 ),
                 None,
                 Some("filteri+"),
               ),
-              None,
             )
           )
         );
@@ -1151,7 +1123,6 @@ let builtins =
                 None,
                 Some("mem+"),
               ),
-              None,
             )
           )
         );
@@ -1208,7 +1179,6 @@ let builtins =
                 None,
                 Some("partition+"),
               ),
-              None,
             )
           )
         );
@@ -1246,7 +1216,6 @@ let builtins =
                 None,
                 Some("rev_append+"),
               ),
-              None,
             )
           )
         );
@@ -1319,7 +1288,6 @@ let builtins =
                 None,
                 Some("fold_left2+"),
               ),
-              None,
             )
           )
         );
@@ -1396,7 +1364,6 @@ let builtins =
                 None,
                 Some("fold_right2+"),
               ),
-              None,
             )
           )
         );
@@ -1460,7 +1427,6 @@ let builtins =
                 None,
                 Some("map2+"),
               ),
-              None,
             )
           )
         );
@@ -1519,7 +1485,6 @@ let builtins =
                 None,
                 Some("all2+"),
               ),
-              None,
             )
           )
         );
@@ -1581,7 +1546,6 @@ let builtins =
                 None,
                 Some("any2+"),
               ),
-              None,
             )
           )
         );
@@ -1624,7 +1588,6 @@ let builtins =
                 None,
                 Some("find+"),
               ),
-              None,
             )
           )
         );
@@ -1670,7 +1633,6 @@ let builtins =
                 None,
                 Some("take_while+"),
               ),
-              None,
             )
           )
         );
@@ -1713,7 +1675,6 @@ let builtins =
                 None,
                 Some("drop_while+"),
               ),
-              None,
             )
           )
         );
@@ -1777,7 +1738,6 @@ let builtins =
                 None,
                 Some("filter_map+"),
               ),
-              None,
             )
           )
         );
@@ -1822,7 +1782,6 @@ let builtins =
                 None,
                 Some("nth_opt+"),
               ),
-              None,
             )
           )
         );
@@ -1865,7 +1824,6 @@ let builtins =
                 None,
                 Some("find_opt+"),
               ),
-              None,
             )
           )
         );
@@ -1923,14 +1881,12 @@ let builtins =
                       None,
                       Some("find_index_helper+"),
                     ),
-                    None,
                   ),
                   tuple([var("xs"), var("pred"), int(0)]),
                 ),
                 None,
                 Some("find_index+"),
               ),
-              None,
             )
           )
         );
@@ -1987,7 +1943,6 @@ let builtins =
                 None,
                 Some("find_map+"),
               ),
-              None,
             )
           )
         );
@@ -2063,14 +2018,12 @@ let builtins =
                       None,
                       Some("find_mapi_helper+"),
                     ),
-                    None,
                   ),
                   tuple([var("xs"), var("f"), int(0)]),
                 ),
                 None,
                 Some("find_mapi+"),
               ),
-              None,
             )
           )
         );
@@ -2123,14 +2076,12 @@ let builtins =
                       None,
                       Some("init_helper+"),
                     ),
-                    None,
                   ),
                   tuple([var("n"), var("f"), int(0)]),
                 ),
                 None,
                 Some("init+"),
               ),
-              None,
             )
           )
         );
@@ -2179,7 +2130,6 @@ let builtins =
                 None,
                 Some("assoc+"),
               ),
-              None,
             )
           )
         );
@@ -2228,7 +2178,6 @@ let builtins =
                 None,
                 Some("assoc_opt+"),
               ),
-              None,
             )
           )
         );
@@ -2277,7 +2226,6 @@ let builtins =
                 None,
                 Some("mem_assoc+"),
               ),
-              None,
             )
           )
         );
@@ -2333,7 +2281,6 @@ let builtins =
                 None,
                 Some("remove_assoc+"),
               ),
-              None,
             )
           )
         );
@@ -2404,7 +2351,6 @@ let builtins =
                 None,
                 Some("partition_map+"),
               ),
-              None,
             )
           )
         );
@@ -2558,7 +2504,6 @@ let go: ([?], [?], [?]) -> [?] =
                           None,
                           Some("go+"),
                         ),
-                        None,
                       ),
                       ap(
                         Forward,
@@ -2605,7 +2550,6 @@ let go: ([?], [?], [?]) -> [?] =
                         None,
                         Some("split+"),
                       ),
-                      None,
                     ),
                     let_(
                       Pat.var("merge_sort"),
@@ -2653,7 +2597,6 @@ let go: ([?], [?], [?]) -> [?] =
                           None,
                           Some("merge_sort+"),
                         ),
-                        None,
                       ),
                       ap(Forward, var("merge_sort"), var("xs")),
                     ),
@@ -2662,7 +2605,6 @@ let go: ([?], [?], [?]) -> [?] =
                 None,
                 Some("sort+"),
               ),
-              None,
             )
           )
         );
@@ -2699,7 +2641,6 @@ let go: ([?], [?], [?]) -> [?] =
                 None,
                 Some("slice+"),
               ),
-              None,
             )
           )
         );
@@ -2733,7 +2674,6 @@ let go: ([?], [?], [?]) -> [?] =
                 None,
                 Some("hd_opt+"),
               ),
-              None,
             )
           )
         );
@@ -2767,7 +2707,6 @@ let go: ([?], [?], [?]) -> [?] =
                 None,
                 Some("tl_opt+"),
               ),
-              None,
             )
           )
         );

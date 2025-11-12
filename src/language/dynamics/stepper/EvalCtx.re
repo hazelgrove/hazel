@@ -160,7 +160,7 @@ let rec compose = (ctx: t, d: DHExp.t): DHExp.t => {
       Fun(dp, d, typ, v) |> wrap;
     | FixF(v, ctx, env) =>
       let d = compose(ctx, d);
-      FixF(v, d, env) |> wrap;
+      FixF(v, d) |> wrap;
     | Asc(ctx, ty1) =>
       let d = compose(ctx, d);
       Asc(d, ty1) |> wrap;

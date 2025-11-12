@@ -209,7 +209,7 @@ and Exp: {
         | Dot(e1, e2) => Dot(exp_map_term(e1), exp_map_term(e2))
         | Let(p, e1, e2) =>
           Let(pat_map_term(p), exp_map_term(e1), exp_map_term(e2))
-        | FixF(p, e, env) => FixF(pat_map_term(p), exp_map_term(e), env)
+        | FixF(p, e) => FixF(pat_map_term(p), exp_map_term(e))
         | TyAlias(tp, t, e) =>
           TyAlias(tpat_map_term(tp), typ_map_term(t), exp_map_term(e))
         | Use(t, e) => Use(typ_map_term(t), exp_map_term(e))

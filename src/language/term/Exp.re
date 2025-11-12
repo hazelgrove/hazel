@@ -439,7 +439,7 @@ let rec substitute_closures =
             n,
           )
           |> rewrap;
-        | FixF(p, e, Some(env)) =>
+        | FixF(p, e) =>
           let pat_bound_vars = Pat.bound_vars(p);
           FixF(
             p,
@@ -449,7 +449,6 @@ let rec substitute_closures =
               pat_bound_vars @ new_bound_vars,
               e,
             ),
-            None,
           )
           |> rewrap;
         // Cases with binders: remove binder from env
@@ -484,19 +483,6 @@ let rec substitute_closures =
                }),
           )
           |> rewrap
-        | FixF(p, e, None) =>
-          let pat_bound_vars = Pat.bound_vars(p);
-          FixF(
-            p,
-            substitute_closures(
-              env |> Environment.without_keys(pat_bound_vars),
-              pat_bound_vars @ old_bound_vars,
-              pat_bound_vars @ new_bound_vars,
-              e,
-            ),
-            None,
-          )
-          |> rewrap;
         // Other cases: recurse
         | Invalid(_)
         | EmptyHole
@@ -541,7 +527,7 @@ let substitute_closures = substitute_closures(_, [], []);
 
 let unfix = (e: t, p: Pat.t) => {
   switch (e.term) {
-  | FixF(p1, e1, _) =>
+  | FixF(p1, e1) =>
     if (Pat.fast_equal(p, p1)) {
       e1;
     } else {
@@ -554,7 +540,7 @@ let unfix = (e: t, p: Pat.t) => {
 let rec get_fn_name = (e: t) => {
   switch (e.term) {
   | Fun(_, _, _, n) => n
-  | FixF(_, e, _) => get_fn_name(e)
+  | FixF(_, e) => get_fn_name(e)
   | Parens(e)
   | Probe(e, _) => get_fn_name(e)
   | TypFun(_, _, n) => n

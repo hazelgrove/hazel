@@ -91,7 +91,7 @@ let rec find_fn = (name: string, uexp: Exp.t, l: list(Exp.t)): list(Exp.t) => {
   | Tuple(ul) =>
     List.fold_left((acc, u1) => {find_fn(name, u1, acc)}, l, ul)
   | TypFun(_, body, _)
-  | FixF(_, body, _)
+  | FixF(_, body)
   | Fun(_, body, _, _) => l |> find_fn(name, body)
   | TupLabel(_, u1)
   | TypAp(u1, _)
@@ -208,7 +208,7 @@ let rec var_mention = (name: string, uexp: Exp.t): bool => {
   | TupLabel(_, u)
   | Filter(_, u) => var_mention(name, u)
   | DynamicErrorHole(u, _) => var_mention(name, u)
-  | FixF(args, body, _) =>
+  | FixF(args, body) =>
     var_mention_upat(name, args) ? false : var_mention(name, body)
   | Closure(_, u) => var_mention(name, u)
   | BuiltinFun(_) => false
@@ -255,7 +255,7 @@ let rec var_applied = (name: string, uexp: Exp.t): bool => {
   | LivelitName(_)
   | Deferral(_) => false
   | Fun(args, body, _, _)
-  | FixF(args, body, _) =>
+  | FixF(args, body) =>
     var_mention_upat(name, args) ? false : var_applied(name, body)
   | ListLit(l)
   | Tuple(l) =>
@@ -350,7 +350,7 @@ let rec tail_check = (name: string, uexp: Exp.t): bool => {
   | Var(_)
   | LivelitName(_)
   | BuiltinFun(_) => true
-  | FixF(args, body, _)
+  | FixF(args, body)
   | Fun(args, body, _, _) =>
     var_mention_upat(name, args) ? false : tail_check(name, body)
   | Let(p, def, body) =>

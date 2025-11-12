@@ -323,14 +323,14 @@ let rec elaborate = (m: Statics.Map.t, uexp: Exp.t): (DHExp.t, Typ.t) => {
         let def = add_name(Option.map(s => s ++ "+", Pat.get_var(p)), def);
         let (body, _) = elaborate(m, body);
         let fixf =
-          (FixF(p, def, None): Exp.term)
+          (FixF(p, def): Exp.term)
           |> IdTagged.fresh_deterministic(DHExp.rep_id(uexp));
         Let(p, fixf, body) |> rewrap;
       };
-    | FixF(p, e, env) =>
+    | FixF(p, e) =>
       let (p', pty) = elaborate_pattern(m, p, false);
       let (e', _) = elaborate(m, e);
-      FixF(p', Asc(e', pty) |> Exp.fresh, env) |> rewrap; // TODO Consider if there's a better strategy than always ascribing the type
+      FixF(p', Asc(e', pty) |> Exp.fresh) |> rewrap; // TODO Consider if there's a better strategy than always ascribing the type
     // These forms are removed in elaboration
     | Use(_, e)
     | TyAlias(_, _, e) =>

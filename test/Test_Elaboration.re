@@ -934,7 +934,7 @@ x
     alco_check_menhir("Sequence test (menhir)", seq_str, seq_uexp);
 
   let fixf_str = "fix x -> (1 : ?)";
-  let fixf_uexp: Exp.t = Exp.(fix_f(Pat.var("x"), int(1), None));
+  let fixf_uexp: Exp.t = Exp.(fix_f(Pat.var("x"), int(1)));
   let fixf_menhir = () =>
     alco_check_menhir("FixF test (menhir)", fixf_str, fixf_uexp);
 

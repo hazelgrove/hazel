@@ -121,10 +121,10 @@ let rec match_exp =
     let* ctx = match_exp(alphas, ctx, d1, d2);
     match_exp(alphas' @ alphas, ctx, e1, e2);
   | (Let(_, _, _), _) => None
-  | (FixF(p1, e1, _), FixF(p2, e2, _)) =>
+  | (FixF(p1, e1), FixF(p2, e2)) =>
     let* alphas' = match_pat(p1, p2);
     match_exp(alphas' @ alphas, ctx, e1, e2);
-  | (FixF(_, _, _), _) => None
+  | (FixF(_, _), _) => None
   | (TyAlias(tp1, t1, e1), TyAlias(tp2, t2, e2)) =>
     // TODO: type alpha equivalence
     let* () = match_tpat(tp1, tp2);

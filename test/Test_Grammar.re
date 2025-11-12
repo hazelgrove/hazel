@@ -57,7 +57,7 @@ let sample_expression = (cls_exp: Exp.cls): Grammar.UnitGrammar.exp => {
       | LivelitAp => livelit_ap(Forward, livelit_name("^slider"), int(1))
       | Var => var("x")
       | Let => let_(Pat.empty_hole(), empty_hole(), empty_hole())
-      | FixF => fix_f(Pat.empty_hole(), empty_hole(), None)
+      | FixF => fix_f(Pat.empty_hole(), empty_hole())
       | TyAlias =>
         ty_alias(
           TPat.empty_hole(),

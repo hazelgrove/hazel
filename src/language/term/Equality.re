@@ -222,26 +222,15 @@ let equality =
     | (Filter(_), _) => false
 
     // Forms with expression binders
-    | (FixF(p1, e1, c1), FixF(p2, e2, c2)) =>
+    | (FixF(p1, e1), FixF(p2, e2)) =>
       switch (pat'(p1, p2)) {
       | Some(alphas_exp') =>
         exp(Alphas.combine(alphas_exp', alphas_exp), alphas_typ, e1, e2)
-        && (
-          closures_by_id
-            ? Option.equal(Environment.id_equal, c1, c2)
-            : Option.equal(
-                failwith(
-                  "full closure equality has not been implemented yet",
-                ),
-                c1,
-                c2,
-              )
-        )
       | None => false
       }
-    | (FixF(_, e, _), _) when ignore_fixpoints => exp'(e, e2)
-    | (_, FixF(_, e, _)) when ignore_fixpoints => exp'(e1, e)
-    | (FixF(_, _, _), _) => false
+    | (FixF(_, e), _) when ignore_fixpoints => exp'(e, e2)
+    | (_, FixF(_, e)) when ignore_fixpoints => exp'(e1, e)
+    | (FixF(_, _), _) => false
     | (Fun(p1, e1, t1, f1), Fun(p2, e2, t2, f2)) =>
       switch (pat'(p1, p2)) {
       | Some(alphas_exp') =>

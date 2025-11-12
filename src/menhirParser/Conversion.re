@@ -240,7 +240,7 @@ module rec Exp: {
       }
     | Let(p, e1, e2) =>
       let_(Pat.of_menhir_ast(p), of_menhir_ast(e1), of_menhir_ast(e2))
-    | FixF(p, e) => fix_f(Pat.of_menhir_ast(p), of_menhir_ast(e), None)
+    | FixF(p, e) => fix_f(Pat.of_menhir_ast(p), of_menhir_ast(e))
     | TypFun(t, e) =>
       typ_fun(TPat.of_menhir_ast(t), of_menhir_ast(e), None)
     | Undefined => undefined()
@@ -342,7 +342,7 @@ module rec Exp: {
     | Tuple(l) => TupleExp(List.map(of_core, l))
     | TupleExtension(e1, e2) => TupleExp([of_core(e1), of_core(e2)])
     | Let(p, e1, e2) => Let(Pat.of_core(p), of_core(e1), of_core(e2))
-    | FixF(p, e, _) => FixF(Pat.of_core(p), of_core(e))
+    | FixF(p, e) => FixF(Pat.of_core(p), of_core(e))
     | TypFun(tp, e, _) => TypFun(TPat.of_core(tp), of_core(e))
     | Undefined => Undefined
     | TyAlias(tp, ty, e) =>

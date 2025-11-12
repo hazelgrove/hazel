@@ -245,7 +245,7 @@ module Transition = (EV: EV_MODE) => {
         | Some(d) =>
           let is_value =
             switch (d |> Exp.term_of) {
-            | FixF(_, _, _) => false // fixpoints aren't final
+            | FixF(_, _) => false // fixpoints aren't final
             | Let(_, _, _) => false // could be mutually-recursive fixpoint
             | _ => true // all other closure entries should be final
             };
@@ -305,26 +305,16 @@ module Transition = (EV: EV_MODE) => {
       let. _ = otherwise(env, d);
       let.wrap_closure _ = (env, d);
       Value;
-    | FixF(dp, d1, None) when mode == `Environment =>
-      let. _ = otherwise(env, FixF(dp, d1, None) |> rewrap);
-      Step({
-        expr: FixF(dp, d1, Some(env)) |> rewrap,
-        side_effects: [],
-        kind: FixClosure,
-        is_value: false,
-      });
-    | FixF(dp, d1, fix_env) =>
+    | FixF(dp, d1) =>
       let. _ = otherwise(env, d);
       let env' =
         switch (Pat.is_var(dp)) {
-        | Some(v) => [
-            (v, FixF(Var(v) |> Pat.fresh, d1, fix_env) |> rewrap),
-          ]
+        | Some(v) => [(v, FixF(Var(v) |> Pat.fresh, d1) |> rewrap)]
         | None =>
           // If the pattern is not a single variable, we need to unpack the results of inner evaulations
           List.map(
             (Binding.{name: v, id: _}) =>
-              (v, let_(dp, FixF(dp, d1, fix_env) |> rewrap, var(v))),
+              (v, let_(dp, FixF(dp, d1) |> rewrap, var(v))),
             Pat.bindings(dp),
           )
         };

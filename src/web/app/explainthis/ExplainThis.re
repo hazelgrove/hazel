@@ -1733,7 +1733,7 @@ let get_doc =
         | Probe(_) => default // Shouldn't get hit?
         | Asc(_) => default // Shouldn't get hit?
         };
-      | FixF(pat, body, _) =>
+      | FixF(pat, body) =>
         message_single(
           FixFExp.single(
             ~pat_id=Pat.rep_id(pat),

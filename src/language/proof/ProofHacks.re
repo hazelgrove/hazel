@@ -309,11 +309,11 @@ let rec replace_exp = (replace, replace_coctx, with_exp, with_coctx, in_exp) => 
           } else {
             continue(exp);
           }
-        | FixF(p, e, env) =>
+        | FixF(p, e) =>
           if (is_bound(p)) {
             exp;
           } else {
-            FixF(p, replace_exp(e), env) |> rewrap;
+            FixF(p, replace_exp(e)) |> rewrap;
           }
         | Match(e, cases) =>
           Match(
