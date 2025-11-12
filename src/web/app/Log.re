@@ -108,3 +108,18 @@ let to_actions = () => {
   print_endline("num of actions: " ++ string_of_int(List.length(actions^)));
   actions^;
 };
+
+// If the user switched browsers or devices, they may have imported a save state from another device, this includes the log from the previous device in a complete stitched log.
+let rec flatten_imports =
+        (~of_data: string => list(Page.Update.t), log: list(Page.Update.t))
+        : list(Page.Update.t) => {
+  let rec inner = (log: list(Page.Update.t)) => {
+    switch (log) {
+    | [] => []
+    | [Globals(FinishImportAll(Some(data))), ..._rest] =>
+      flatten_imports(~of_data, of_data(data))
+    | [x, ...rest] => [x, ...inner(rest)]
+    };
+  };
+  log |> List.rev |> inner;
+};

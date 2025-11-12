@@ -129,11 +129,16 @@ module Update = {
       print_endline("Log import failed");
       model |> return_quiet;
     | Globals(FinishImportLog(Some(data))) =>
-      let actions =
-        data
-        |> Export.import_just_log
+      let of_data = (data: string): list(Page.Update.t) =>
+        Export.import_just_log(data)
         |> Sexplib.Sexp.of_string
         |> Log.Entry.s_of_sexp
+        |> List.map(((_ts, action)) => action);
+      let actions =
+        data
+        |> of_data
+        |> Log.flatten_imports(~of_data)
+        |> List.rev
         |> (
           x => {
             print_endline(
@@ -141,8 +146,7 @@ module Update = {
             );
             x;
           }
-        )
-        |> List.map(((_ts, action)) => action);
+        );
       {
         ...model,
         future_log: model.future_log @ actions,
