@@ -1,6 +1,5 @@
 open Util;
 open PatternMatch;
-open TPat;
 
 /* Transition.re
 
@@ -435,7 +434,8 @@ module Transition = (EV: EV_MODE) => {
           let ty_env' = Environment.add_bindings(ty_env, [(var_name, tau)]);
           let expr =
             DHExp.assign_name_if_none(
-              Closure(env, ty_env', tfbody) |> fresh,
+              Closure(env, ty_env', DHExp.ty_subst(tau, utpat, tfbody))
+              |> fresh,
               Option.map(
                 x => x ++ "@<" ++ Typ.pretty_print(tau) ++ ">",
                 name,
@@ -472,7 +472,8 @@ module Transition = (EV: EV_MODE) => {
           let ty_env' = Environment.add_bindings(ty_env, [(var_name, tau)]);
           let expr =
             DHExp.assign_name_if_none(
-              Closure(env, ty_env', tfbody) |> fresh,
+              Closure(env, ty_env', DHExp.ty_subst(tau, utpat, tfbody))
+              |> fresh,
               Option.map(
                 x => x ++ "@<" ++ Typ.pretty_print(tau) ++ ">",
                 name,

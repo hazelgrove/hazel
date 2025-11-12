@@ -113,7 +113,7 @@ let hide_env = (info: info): bool =>
   | Some(
       InfoExp({term: {term: Var(_) | Probe({term: Var(_), _}, _), _}, _}),
     ) =>
-    true
+    false // TODO What we want to do is filter out the env entries that correspond to the variable and only show if there are other entries
   | Some(InfoPat(_)) => true
   | _ => false
   };
@@ -574,6 +574,23 @@ let env_val =
   );
 };
 
+let ty_env_val =
+    (view_seg, utility: utility, (name, typ): (Var.t, Typ.t)): Node.t => {
+  let seg = utility.term_to_seg(Typ(typ));
+  Node.div(
+    ~attrs=[Attr.classes(["live-ty-env-entry"])],
+    [Node.text(name ++ " : "), view_seg(Sort.Typ, seg)],
+  );
+};
+
+let ty_env_view = (closure: closure, view_seg, utility: utility): Node.t =>
+  Node.div(
+    ~attrs=[Attr.classes(["live-ty-env"])],
+    closure.ty_env
+    |> Environment.to_bindings
+    |> List.map(ty_env_val(view_seg, utility)),
+  );
+
 let env_view = (closure: closure, view_seg, utility: utility): Node.t =>
   Node.div(
     ~attrs=[Attr.classes(["live-env"])],
@@ -594,7 +611,8 @@ let closure_view =
   div(
     ~attrs=[Attr.classes(["closure"])],
     [value_view(info, utility, view_seg, local, closure, index)]
-    @ (hide_env(info) ? [] : [env_view(closure, view_seg, utility)]),
+    @ (hide_env(info) ? [] : [env_view(closure, view_seg, utility)])
+    @ (hide_env(info) ? [] : [ty_env_view(closure, view_seg, utility)]),
   );
 
 let closure_group_view =
