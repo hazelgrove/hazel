@@ -752,6 +752,15 @@
   border-bottom: 1px solid var(--BR2);
 }
 
+.live-offside .sample-dropdown.collapsible {
+  display: block;
+  position: static;
+  left: auto;
+  margin-top: 0.5em;
+  border-radius: 0.2em;
+  border: 1px solid var(--BR3);
+}
+
 .live-offside .live-env {
   padding: 0.2em 0.55em;
   background-color: var(--live-env-bkg);

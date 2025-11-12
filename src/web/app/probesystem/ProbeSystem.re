@@ -199,6 +199,11 @@ let legend_sample_view =
       ),
     _ => Effect.Ignore,
     _ => Effect.Ignore,
+    {
+      active_renderer: None,
+      env_collapsed: false,
+      mock_collapsed: false,
+    },
     (0, sample),
   )
   |> div_cs(["sample-group"])

@@ -98,12 +98,20 @@ type active_renderer = {
 type oactive_renderer = option(active_renderer);
 
 [@deriving (show({with_path: false}), sexp, yojson)]
-type probe_model = {active_renderer: oactive_renderer};
+type probe_model = {
+  active_renderer: oactive_renderer,
+  env_collapsed: bool,
+  mock_collapsed: bool,
+};
 
 let probe_model_of_sexp = sexp =>
   switch (probe_model_of_sexp(sexp)) {
   | model => model
-  | exception _ => {active_renderer: None}
+  | exception _ => {
+      active_renderer: None,
+      env_collapsed: false,
+      mock_collapsed: false,
+    }
   };
 
 [@deriving (show({with_path: false}), sexp, yojson)]
@@ -112,7 +120,9 @@ type action =
   | ToggleShowAllVals(int)
   | NoOp
   | ToggleModal(oactive_renderer)
-  | RendererAction(string);
+  | RendererAction(string)
+  | ToggleEnvCollapsed
+  | ToggleMockCollapsed;
 
 module Settings = {
   [@deriving (show({with_path: false}), sexp, yojson)]
@@ -756,6 +766,30 @@ let pin_view = (~ap_id: option(Id.t), di: Dynamics.Info.t, sample) =>
   show_pin(~ap_id, di, sample)
     ? [div(~attrs=[Attr.classes(["pin"])], [])] : [];
 
+let mock_env: list(Sample.Env.entry) = [
+  {
+    binding: {
+      name: "x",
+      id: Id.invalid,
+    },
+    value: Val(Exp.fresh(Atom(Int(Bigint.of_int(42))))),
+  },
+  {
+    binding: {
+      name: "flag",
+      id: Id.invalid,
+    },
+    value: Val(Exp.fresh(Atom(Bool(true)))),
+  },
+  {
+    binding: {
+      name: "msg",
+      id: Id.invalid,
+    },
+    value: Val(Exp.fresh(Atom(String("hello")))),
+  },
+];
+
 let env_view =
     (
       ~settings: settings,
@@ -766,10 +800,36 @@ let env_view =
       sample: sample,
       view_seg,
       utility: utility,
+      ~local,
+      ~model,
     )
-    : Node.t =>
+    : Node.t => {
+  let elems = sample.env |> ListUtil.dedup |> rm_opaques;
+  let has_env = elems != [];
+  let header =
+    div(
+      ~attrs=[
+        Attr.classes(["live-env-header"]),
+        Attr.on_click(_ => local(ToggleEnvCollapsed)),
+      ],
+      [text("Environment " ++ (model.env_collapsed ? "▶" : "▼"))],
+    );
+  let content =
+    if (model.env_collapsed || !has_env) {
+      [];
+    } else {
+      [
+        div(
+          ~attrs=[Attr.classes(["live-env"])],
+          List.map(
+            env_val(~settings, ~sort, sample, view_seg, utility),
+            elems,
+          ),
+        ),
+      ];
+    };
   div(
-    ~attrs=[Attr.classes(["sample-dropdown"])],
+    ~attrs=[Attr.classes(["sample-dropdown", "collapsible"])],
     (
       ap_id != Option.None
         ? {
@@ -791,21 +851,60 @@ let env_view =
         }
         : []
     )
-    @ {
-      let elems = sample.env |> ListUtil.dedup |> rm_opaques;
-      elems == []
-        ? []
-        : [
-          div(
-            ~attrs=[Attr.classes(["live-env"])],
-            List.map(
-              env_val(~settings, ~sort, sample, view_seg, utility),
-              elems,
-            ),
-          ),
-        ];
-    },
+    @ (has_env ? [header] : [])
+    @ content,
   );
+};
+
+let mock_view =
+    (
+      ~settings: settings,
+      ~sort: Sort.t,
+      view_seg,
+      utility: utility,
+      ~local,
+      ~model,
+    )
+    : Node.t => {
+  let header =
+    div(
+      ~attrs=[
+        Attr.classes(["live-env-header"]),
+        Attr.on_click(_ => local(ToggleMockCollapsed)),
+      ],
+      [text("Mock Data " ++ (model.mock_collapsed ? "▶" : "▼"))],
+    );
+  let content =
+    if (model.mock_collapsed) {
+      [];
+    } else {
+      [
+        div(
+          ~attrs=[Attr.classes(["live-env"])],
+          List.map(
+            env_val(
+              ~settings,
+              ~sort,
+              {
+                id: 0,
+                syntax_id: Id.invalid,
+                call_stack: [],
+                env: [],
+                value: Exp.fresh(EmptyHole),
+                iter: 0,
+                time: 0.0,
+                origin: Sample.Probe,
+              },
+              view_seg,
+              utility,
+            ),
+            mock_env,
+          ),
+        ),
+      ];
+    };
+  div(~attrs=[Attr.classes(["sample-dropdown", "collapsible"])], [header] @ content);
+};
 
 let sample_view =
     (
@@ -818,6 +917,7 @@ let sample_view =
       view_seg,
       local,
       parent,
+      model,
       (index: int, sample: sample),
     ) =>
   div(
@@ -850,6 +950,8 @@ let sample_view =
             sample,
             view_seg,
             utility,
+            ~local,
+            ~model,
           ),
         ]
     ),
@@ -866,6 +968,7 @@ let sample_group_view =
       view_seg,
       local,
       parent,
+      model,
       groups: list(list((int, sample))),
     ) => {
   let group_views =
@@ -884,6 +987,7 @@ let sample_group_view =
               view_seg,
               local,
               parent,
+              model,
             ),
             samples,
           ),
@@ -915,13 +1019,7 @@ let mv_least_distant_sample =
   };
 
 let ellipsis_view =
-    (
-      ~ap_id: option(Id.t),
-      local,
-      parent: external_action => Ui_effect.t(unit),
-      info: info,
-    )
-    : Node.t =>
+    (~ap_id: option(Id.t), local, parent, info: info): Node.t =>
   div(
     ~attrs=[
       Attr.classes(["ellipsis"]),
@@ -1143,6 +1241,7 @@ let offside_view =
       info: info,
       local,
       parent,
+      model,
       ~settings: settings,
       ~sort: Sort.t,
       view_seg:
@@ -1171,6 +1270,15 @@ let offside_view =
       nav_bar_view(~settings, ap_id, di, num_total, parent),
       ellipsis_view(~ap_id, local, parent, info),
     ];
+    let view_seg_lambda = (~text_only, sort, seg) =>
+      view_seg(
+        ~is_single_line=Some(),
+        ~text_only,
+        ~is_dynamic=?None,
+        ~background=false,
+        sort,
+        seg
+      );
     Node.div(
       ~attrs=[
         Attr.id(Id.cls(id)),
@@ -1188,19 +1296,13 @@ let offside_view =
           ~sort,
           di,
           utility,
-          /* NOTE: Right now this is hard set to single_line and text_only
-           * for optimization purposes. This can be relaxed in the future */
-          (~text_only) =>
-            view_seg(
-              ~is_single_line=Some(),
-              ~text_only,
-              ~is_dynamic=?None,
-              ~background=false,
-            ),
+          view_seg_lambda,
           local,
           parent,
+          model,
           groups,
         )
+      @ [mock_view(~settings, ~sort, view_seg_lambda, utility, ~local, ~model)]
       @ (is_cut_off ? extras : []),
     );
   | _ => Node.div([])
@@ -1284,8 +1386,18 @@ module M: Projector = {
   let init = (any: Any.t) => {
     switch (any) {
     | Exp(_)
-    | Pat(_) => Some({active_renderer: None})
-    | Any(_) => Some({active_renderer: None}) /* Grout don't have sorts rn */
+    | Pat(_) =>
+      Some({
+        active_renderer: None,
+        env_collapsed: false,
+        mock_collapsed: false,
+      })
+    | Any(_) =>
+      Some({
+        active_renderer: None,
+        env_collapsed: false,
+        mock_collapsed: false,
+      }) /* Grout don't have sorts rn */
     | _ => None
     };
   };
@@ -1314,8 +1426,8 @@ module M: Projector = {
     | NoOp => model
     | ToggleModal(renderer) =>
       switch (model.active_renderer) {
-      | None => {active_renderer: renderer}
-      | Some(_) => {active_renderer: None}
+      | None => {...model, active_renderer: renderer}
+      | Some(_) => {...model, active_renderer: None}
       }
     | RendererAction(serialized_action) =>
       /* Route action to active renderer */
@@ -1323,6 +1435,7 @@ module M: Projector = {
       | Some({renderer_id, model_state}) =>
         switch (List.find_opt(r => r.id == renderer_id, renderers)) {
         | Some(renderer) => {
+            ...model,
             active_renderer:
               Some({
                 renderer_id,
@@ -1333,6 +1446,14 @@ module M: Projector = {
         | None => model
         }
       | None => model
+      }
+    | ToggleEnvCollapsed => {
+        ...model,
+        env_collapsed: !model.env_collapsed,
+      }
+    | ToggleMockCollapsed => {
+        ...model,
+        mock_collapsed: !model.mock_collapsed,
       }
     };
   };
@@ -1411,11 +1532,12 @@ module M: Projector = {
           div(
             [
               offside_view(
-                ~settings,
-                ~sort,
                 info,
                 local,
                 parent,
+                model,
+                ~settings,
+                ~sort,
                 view_seg,
                 info.utility,
               ),
