@@ -774,8 +774,8 @@ let join_all =
     ts,
   );
 
-let rec meet = (~resolve=false, ctx: Ctx.t, ty1: t, ty2: t): t => {
-  let meet' = meet(~resolve, ctx);
+let rec meet = (ctx: Ctx.t, ty1: t, ty2: t): t => {
+  let meet' = meet(ctx);
   switch (term_of(ty1), term_of(ty2)) {
   | (_, Parens(ty2)) => meet'(ty1, ty2)
   | (Parens(ty1), _) => meet'(ty1, ty2)
@@ -799,7 +799,7 @@ let rec meet = (~resolve=false, ctx: Ctx.t, ty1: t, ty2: t): t => {
     switch (Ctx.lookup_alias(ctx, name)) {
     | Some(ty_name) =>
       let ty_meet = meet'(ty_name, ty1);
-      !resolve && equal(ty_name, ty_meet) ? ty2 : ty_meet;
+      ty_meet;
     | None => Unknown(Internal) |> temp
     }
   /* Note: Ordering of Unknown, Var, and Rec above is load-bearing! */
@@ -814,7 +814,7 @@ let rec meet = (~resolve=false, ctx: Ctx.t, ty1: t, ty2: t): t => {
       | Some(x2) => subst(Var(x2) |> temp, tp1, ty1)
       | None => ty1
       };
-    let ty_body = meet(~resolve, ctx, ty1', ty2);
+    let ty_body = meet(ctx, ty1', ty2);
     Rec(tp1, ty_body) |> temp;
   | (Rec(_), _) => Unknown(Internal) |> temp
   | (Forall(x1, ty1), Forall(x2, ty2)) =>
@@ -824,7 +824,7 @@ let rec meet = (~resolve=false, ctx: Ctx.t, ty1: t, ty2: t): t => {
       | None => ty1
       };
     let ctx = Ctx.extend_dummy_tvar(ctx, x2);
-    let ty_body = meet(~resolve, ctx, ty1', ty2);
+    let ty_body = meet(ctx, ty1', ty2);
     Forall(x2, ty_body) |> temp;
   /* Note for above: there is no danger of free variable capture as
      subst itself performs capture avoiding substitution. However this
