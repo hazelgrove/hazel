@@ -425,7 +425,7 @@ let rec substitute_closures =
           }
         // Forms with environments: look up in new environment
         | Closure(env, _, e) =>
-          substitute_closures(env, [], new_bound_vars, e);
+          substitute_closures(env, [], new_bound_vars, e)
         | Fun(p, e, t, n) =>
           let pat_bound_vars = Pat.bound_vars(p);
           Fun(
