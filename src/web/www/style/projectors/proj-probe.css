@@ -414,7 +414,7 @@
   position: relative;
   --bottom-border-clr: none;
   --bkg: var(--exp-base);
-  --below-shadow: #    --below-shadow: oklch(0.8 0.09 23o);;
+  --below-shadow: oklch(0.8 0.09 230);
   --num-levels: 7;
   --base: 0;
   padding: 0 0.1em;
