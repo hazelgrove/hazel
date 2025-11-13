@@ -189,15 +189,12 @@ module Transition = (EV: EV_MODE) => {
     switch (in_closure, r) {
     | (_, Step(_)) => r
     | (None, Constructor | Indet | Value) =>
-      print_endline(
-        "Wrapping closure around expression: " ++ DHExp.show(expr),
-      );
       Step({
         expr: closure(env, ty_env, expr),
         side_effects: [],
         kind: WrapClosure,
         is_value: false,
-      });
+      })
     | (Some(f), Constructor | Indet | Value) =>
       f();
       r;
@@ -227,20 +224,6 @@ module Transition = (EV: EV_MODE) => {
         d,
       )
       : EV.result => {
-    // print_endline("D:" ++ DHExp.show(d));
-    // print_endline(
-    //   "TyEnv: "
-    //   ++ [%derive.show: list(Environment.binding(Typ.t))](
-    //        Environment.to_bindings(ty_env),
-    //      ),
-    // );
-    // print_endline(
-    //   "Env: "
-    //   ++ [%derive.show: list(Environment.binding(Exp.t))](
-    //        Environment.to_bindings(env),
-    //      ),
-    // );
-
     // Split DHExp into term and id information
     let (term, rewrap) = DHExp.unwrap(d);
     let wrap_ctx = (term): EvalCtx.t =>
@@ -417,18 +400,12 @@ module Transition = (EV: EV_MODE) => {
       and. d' =
         req_final(req(env, ty_env), d => TypAp(d, tau) |> wrap_ctx, d);
       let-unbox typfun = (TypFun, d');
-      // print_endline(
-      //   "Type applying to tau: "
-      //   ++ [%derive.show: Unboxing.unboxed_tfun](typfun),
-      // );
+
       switch (typfun) {
       | TypFun(utpat, tfbody, name) =>
         /* Create a closure with the type argument in the type environment */
         let tvar = TPat.tyvar_of_utpat(utpat);
-        // print_endline(
-        //   "Applying type function with tvar: "
-        //   ++ [%derive.show: option(string)](tvar),
-        // );
+
         switch (tvar) {
         | Some(var_name) =>
           let ty_env' = Environment.add_bindings(ty_env, [(var_name, tau)]);
@@ -441,7 +418,6 @@ module Transition = (EV: EV_MODE) => {
                 name,
               ),
             );
-          // print_endline("Exp: " ++ [%derive.show: Exp.t](expr));
           Step({
             expr,
             side_effects: [],
@@ -538,12 +514,6 @@ module Transition = (EV: EV_MODE) => {
         switch (unboxed_fun) {
         | Constructor(_) => Constructor
         | FunEnv(dp, d3, replacement_env, ty_env') =>
-          // print_endline(
-          //   "FunEnv tyenv: "
-          //   ++ [%derive.show: list(Environment.binding(Typ.t))](
-          //        Environment.to_bindings(ty_env'),
-          //      ),
-          // );
           let matches = matches(~ty_env=ty_env', dp, d2');
           switch (matches.matches) {
           | IndetMatch
@@ -1044,13 +1014,6 @@ module Transition = (EV: EV_MODE) => {
       let.wrap_closure _ = (env, ty_env, d);
       Indet;
     | Asc(d', t) =>
-      // print_endline("Typ: " ++ [%derive.show: Typ.t](t));
-      // print_endline(
-      //   "Ascription env: "
-      //   ++ [%derive.show: list(Environment.binding(Typ.t))](
-      //        Environment.to_bindings(ty_env),
-      //      ),
-      // );
       switch (Ascriptions.transition(~ty_env, d)) {
       | (closures, Some(d')) =>
         let. _ = otherwise(env, ty_env, d);

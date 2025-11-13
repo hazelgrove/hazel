@@ -446,7 +446,7 @@ let rec status_common =
               syn,
             }),
           ),
-        );
+        )
       }
     | Some(join) =>
       NotInHole(
