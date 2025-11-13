@@ -14,8 +14,6 @@ let builtins =
   @ List.map(const_builtin, BuiltinsBase.numeric_constants)
   @ List.map(fn_builtin, BuiltinsTupleOperations.builtins);
 
-let builtins: list(builtin) = [];
-
 /* Check for accidental duplicates */
 let _ = to_map(builtins);
 

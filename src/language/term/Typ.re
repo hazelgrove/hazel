@@ -792,7 +792,7 @@ let rec meet = (~resolve=false, ctx: Ctx.t, ty1: t, ty2: t): t => {
     switch (Ctx.lookup_alias(ctx, name)) {
     | Some(ty_name) =>
       let ty_meet = meet'(ty_name, ty2);
-      !resolve && equal(ty_name, ty_meet) ? ty1 : ty_meet;
+      ty_meet;
     | None => Unknown(Internal) |> temp
     }
   | (_, Var(name)) =>
@@ -858,9 +858,9 @@ let rec meet = (~resolve=false, ctx: Ctx.t, ty1: t, ty2: t): t => {
       Prod(tys) |> temp;
     }
   | (Prod(_), _) => Unknown(Internal) |> temp
-  | (Sum(sm1), Sum(sm2)) =>
-    let sm' = ConstructorMap.meet(equal, meet(~resolve, ctx), sm1, sm2);
-    Sum(sm') |> temp;
+  | (Sum(sm1), Sum(sm2)) when ConstructorMap.equal(fast_equal, sm1, sm2) =>
+    // I think the map has to be fully equal to have a meet
+    Sum(sm1) |> temp
   | (Sum(_), _) => Unknown(Internal) |> temp
   | (List(ty1), List(ty2)) =>
     let ty = meet'(ty1, ty2);
