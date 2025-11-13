@@ -127,6 +127,32 @@ let join_entry =
   | _ => None
   };
 
+let meet_entry =
+    (meet: ('a, 'a) => 'a, (x: variant('a), y: variant('a)))
+    : option(variant('a)) =>
+  switch (x, y) {
+  | (Variant(ctr1, ids1, Some(value1)), Variant(ctr2, _, Some(value2)))
+      when Constructor.equal(ctr1, ctr2) =>
+    Some(Variant(ctr1, ids1, Some(meet(value1, value2))))
+  | (Variant(ctr1, ids1, None), Variant(ctr2, _, None))
+      when Constructor.equal(ctr1, ctr2) =>
+    Some(Variant(ctr1, ids1, None))
+  | (BadEntry(x), BadEntry(y)) => Some(BadEntry(x)) // Keep first bad entry
+  | _ => None
+  };
+
+let meet =
+    (eq: ('a, 'a) => bool, meet: ('a, 'a) => 'a, m1: t('a), m2: t('a))
+    : t('a) => {
+  let (inter, _, _) = venn_regions(same_constructor(eq), m1, m2);
+  let meet_entries = List.filter_map(meet_entry(meet), inter);
+  if (List.length(meet_entries) == List.length(inter)) {
+    meet_entries;
+  } else {
+    [];
+  };
+};
+
 let join =
     (
       eq: ('a, 'a) => bool,

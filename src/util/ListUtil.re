@@ -511,3 +511,9 @@ let rec forall2_opt =
   | _ => Some(false) // Different lengths
   };
 };
+
+let reduce = (f: ('a, 'a) => 'a, xs: list('a)): option('a) =>
+  switch (xs) {
+  | [] => None
+  | [x, ...xs] => Some(List.fold_left((acc, x) => f(acc, x), x, xs))
+  };
