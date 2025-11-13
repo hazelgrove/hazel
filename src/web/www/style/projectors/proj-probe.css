@@ -379,7 +379,7 @@
 .live-offside .sample-groups {
   display: flex;
   flex-direction: row;
-  gap: 2px;
+  gap: 6px;
 }
 
 .live-offside .sample-group {
@@ -412,9 +412,9 @@
 /* TOKEN BKG */
 .live-offside .sample {
   position: relative;
-  --bottom-border-clr: oklch(0.8 0.06 145.88); /*var(--exp-shadow);*/
+  --bottom-border-clr: none;
   --bkg: var(--exp-base);
-  --below-shadow: #87ace0;
+  --below-shadow: #    --below-shadow: oklch(0.8 0.09 23o);;
   --num-levels: 7;
   --base: 0;
   padding: 0 0.1em;
@@ -438,25 +438,40 @@
 .live-offside .sample:has(.value.indet.cursor) {
   background-color: var(--T3) !important;
 }
-.live-offside .sample:has(.value.cursor-callee) {
+/* .live-offside .sample:has(.value.cursor-callee) {
   --below-shadow: var(--exp-ap-indicated);
 }
 .live-offside .sample:has(.value.cursor-caller) {
   --caller-accent: var(--exp-ap-indicated);
   --bottom-border-clr: var(--caller-accent);
   --bkg: var(--exp-ap-indicated);
-}
+} */
 
 .live-offside .sample:has(.value.cursor-unrelated.level0) {
   --bottom-border-clr: #73e1a3;
 }
 
+.live-offside .sample:has(.value.below) {
+  background-color: oklch(0.93 0.03 195);
+}
+.live-offside .sample:has(.value.above) {
+  background-color: oklch(0.93 0.06 -0.01);
+}
 .live-offside.Many .sample:has(.value.above) {
-  --below-shadow: oklch(0.9 0.07 300);
+  position: relative;
+  top: -3.5px;
+  --bottom-border-clr: #bd92cf;
+  --below-shadow: oklch(0.89 0.05 355);
+  box-shadow: 0 3.5px 0 var(--below-shadow);
   border-bottom-width: 1px;
   border-bottom-style: solid;
-  background-color: #f4ecff;
-  --bottom-border-clr: #bd92cf;
+}
+.live-offside.Many .sample:has(.value.below) {
+  translate: 0 3px;
+  box-shadow: 0px -0.75px 0 var(--below-shadow),
+    0px -1.5px 0 var(--below-shadow), 0px -2.25px 0 var(--below-shadow),
+    0px -3px 0 var(--below-shadow);
+  height: calc(1.45em - 4.25px);
 }
 
 .live-offside.Many .sample:has(.value.above.indirect) {
@@ -495,12 +510,6 @@
   filter: drop-shadow(0 5.25px 0 var(--below-shadow));
 }
 
-.live-offside.Many .sample:has(.value.above) {
-  top: -3.5px;
-  box-shadow: 0 3.5px 0 oklch(0.9 0.07 300);
-  position: relative;
-  border-bottom-style: solid;
-}
 .live-offside.Many .sample:has(.value.above.L1) {
   top: -1.5px;
   box-shadow: 0 1.5px 0 #c8c8c8bb;
@@ -512,21 +521,9 @@
   border: none;
   overflow: hidden;
 }
-.live-offside.Many .sample:has(.value.below) {
-  translate: 0 3px;
-  box-shadow: 0px -0.75px 0 var(--below-shadow),
-    0px -1.5px 0 var(--below-shadow), 0px -2.25px 0 var(--below-shadow),
-    0px -3px 0 var(--below-shadow);
-  height: calc(1.45em - 4.25px);
-}
-.live-offside.Many .sample:has(.value.cursor-unrelated) {
+.live-offside.Many
+  .sample:has(.value.cursor-unrelated:not(.above):not(.below)) {
   background-color: #e5efe8;
-}
-.live-offside.Many .sample:has(.value.above) {
-  background-color: #eedaf8;
-}
-.live-offside.Many .sample:has(.value.below) {
-  background-color: oklch(0.89 0.04 254.25);
 }
 
 .live-offside.Many .sample:has(.value.above.L2) {
@@ -597,15 +594,7 @@
 .live-offside.Single .sample {
   background-color: #d6eed6;
 }
-.live-offside.Single .sample:has(.value.below) {
-  background-color: oklch(0.93 0.03 195.61);
-}
-/* .live-offside.Single .sample:has(.value.above) {
-  background-color: oklab(0.83 0.08 -0.05 / 0.5);
-} */
-.live-offside.Single .sample:has(.value.above) {
-  background-color: oklch(0.93 0.06 -0.01);
-}
+
 .projector.probe.indicated .live-offside.Single .sample:has(.value.cursor) {
   border-bottom: 1px solid var(--G0);
   background-color: oklch(from var(--bkg) calc(l * 0.96) calc(c + 0.04) h);
