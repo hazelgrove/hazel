@@ -720,18 +720,6 @@ let rec join =
     // These get marked in statics but that does not remove them from the utyp's propagated on parents.
     | (ExplicitNonlabel, _) => inconsistent
     };
-  if (ret == None) {
-    switch (dynamic_type_env) {
-    | Some(env) =>
-      print_endline(
-        "Environment: " ++ [%derive.show: Environment.t(t)](env),
-      );
-      print_endline("ty1: " ++ [%derive.show: t](ty1));
-      print_endline("ty2: " ++ [%derive.show: t](ty2));
-    | None => ()
-    };
-  };
-
   ret;
 };
 
@@ -799,17 +787,7 @@ let rec meet = (~resolve=false, ctx: Ctx.t, ty1: t, ty2: t): t => {
     Unknown(join_type_provenance(p1, p2)) |> temp
   | (Unknown(_), _) => ty1
   | (_, Unknown(_)) => ty2
-  | (Var(n1), Var(n2)) =>
-    if (n1 == n2) {
-      ty1;
-    } else {
-      switch (Ctx.lookup_alias(ctx, n1), Ctx.lookup_alias(ctx, n2)) {
-      | (Some(ty1), Some(ty2)) =>
-        let ty_meet = meet'(ty1, ty2);
-        !resolve && equal(ty1, ty_meet) ? ty1 : ty_meet;
-      | _ => Unknown(Internal) |> temp
-      };
-    }
+  | (Var(n1), Var(n2)) when n1 == n2 => ty1
   | (Var(name), _) =>
     switch (Ctx.lookup_alias(ctx, name)) {
     | Some(ty_name) =>

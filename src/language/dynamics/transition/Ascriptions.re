@@ -33,7 +33,6 @@ let rec transition =
       let+ () =
         ClosureWriter.tell([
           Dynamics.Probe.Closure.mk(
-            ~source="Ascriptions",
             Typ.rep_id(t),
             e,
             Environment.empty,

@@ -66,15 +66,7 @@ let update =
         //      ),
         // );
         let closure =
-          Dynamics.Probe.Closure.mk(
-            ~source="EvaluatorState",
-            id,
-            next,
-            env,
-            ty_env,
-            call_stack,
-            pr,
-          );
+          Dynamics.Probe.Closure.mk(id, next, env, ty_env, call_stack, pr);
         (call_stack, add_closure(state, closure));
       | RecordPatProbes(closure_closures) =>
         let state =

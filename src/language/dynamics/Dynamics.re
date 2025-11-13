@@ -78,7 +78,6 @@ module Probe = {
 
     let mk =
         (
-          ~source="Unknown",
           syntax_id: Id.t,
           value: DHExp.t,
           env: Environment.t(Exp.t),

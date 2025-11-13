@@ -1000,25 +1000,7 @@ let derived_exp =
 
   let cls = Cls.Exp(Exp.cls_of_term(uexp.term));
   let status = status_exp(~dynamic_type_env?, ctx, ana, self);
-  switch (status) {
-  | InHole(_) =>
-    print_endline(
-      "Dynamics expressions: "
-      ++ [%derive.show: option(DynamicStatics.Map.entry)](dynamics_exp),
-    );
-    print_endline(
-      "In Hole"
-      ++ (
-        switch (dynamic_type_env) {
-        | None => ": None"
-        | Some(env) => "Found"
-        }
-      ),
-    );
-    print_endline("Exp: " ++ Exp.show(uexp));
-    print_endline("Rep_id" ++ Id.show(uexp |> Exp.rep_id));
-  | _ => ()
-  };
+
   let ty = fixed_typ_exp(~dynamic_type_env?, ctx, ana, self);
   {
     cls,

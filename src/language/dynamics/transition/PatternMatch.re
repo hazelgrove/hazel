@@ -108,7 +108,6 @@ let matches =
       closure_closures :=
         List.cons(
           Dynamics.Probe.Closure.mk(
-            ~source="PatternMatch",
             Pat.rep_id(dp),
             d,
             Environment.of_bindings(env),
