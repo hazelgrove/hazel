@@ -16,14 +16,15 @@ let combine_result = (r1: match_result, r2: match_result): match_result =>
 
 let rec matches =
         (
+          ~ty_env,
           capture,
           capture': (Probe.call_stack => Dynamics.Probe.Closure.t) => unit, // Use writer
           dp: Pat.t,
           d: DHExp.t,
         )
         : match_result => {
-  let matches = matches(capture, capture');
-  let (closures, d) = Ascriptions.transition_multiple(d);
+  let matches = matches(~ty_env, capture, capture');
+  let (closures, d) = Ascriptions.transition_multiple(~ty_env, d);
   List.iter(capture', closures);
   switch (DHPat.term_of(dp)) {
   | Invalid(_)
@@ -81,7 +82,7 @@ let rec matches =
     inner_match;
   | Asc(p, t1) =>
     let (closures, d) =
-      Ascriptions.transition_multiple(Asc(d, t1) |> DHExp.fresh);
+      Ascriptions.transition_multiple(~ty_env, Asc(d, t1) |> DHExp.fresh);
     List.iter(capture', closures);
     matches(p, d);
   };
@@ -121,7 +122,7 @@ let matches =
   let capture' = x => {
     closure_closures := List.cons(x, closure_closures^);
   };
-  let res = matches(capture, capture', dp, d);
+  let res = matches(~ty_env, capture, capture', dp, d);
   {
     matches: res,
     closures: closure_closures^,

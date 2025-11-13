@@ -439,16 +439,6 @@ let rec status_common =
           ),
         )
       | _ =>
-        print_endline(
-          "Typ join failed between ana: "
-          ++ [%derive.show: Typ.t](ana)
-          ++ " and syn: "
-          ++ [%derive.show: Typ.t](syn),
-        );
-        print_endline(
-          "Dynamic type env: "
-          ++ [%derive.show: option(Environment.t(Typ.t))](dynamic_type_env),
-        );
         InHole(
           Inconsistent(
             Expectation({
@@ -1079,7 +1069,7 @@ let derived_pat =
 
   let cls = Cls.Pat(Pat.cls_of_term(upat.term));
   let status = status_pat(~dynamic_type_env?, ctx, ana, self);
-  let ty = fixed_typ_pat(ctx, ana, self);
+  let ty = fixed_typ_pat(~dynamic_type_env?, ctx, ana, self);
 
   // replace constraints with Hole if this info has an error
   let constraint_': Coverage.Constraint.t =

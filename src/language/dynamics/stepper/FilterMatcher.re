@@ -6,7 +6,7 @@ let matches_exp = (~denv, d, ~fenv, f) => {
       use_expr_wildcards:
         Some(
           (env, exp) =>
-            ValueChecker.check_value(env, Environment.empty, exp) != Expr // TODO talk to Matthew about the type enviornment
+            ValueChecker.check_value(env, Environment.empty, exp) != Expr
         ),
       env1: Some(fenv),
       env2: Some(denv),

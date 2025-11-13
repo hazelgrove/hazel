@@ -1051,7 +1051,7 @@ module Transition = (EV: EV_MODE) => {
       //        Environment.to_bindings(ty_env),
       //      ),
       // );
-      switch (Ascriptions.transition(d)) {
+      switch (Ascriptions.transition(~ty_env, d)) {
       | (closures, Some(d')) =>
         let. _ = otherwise(env, ty_env, d);
         Step({
@@ -1064,7 +1064,7 @@ module Transition = (EV: EV_MODE) => {
         let. _ = otherwise(env, ty_env, d => Asc(d, t) |> rewrap)
         and. d' =
           req_final(req(env, ty_env), d => Asc(d, t) |> wrap_ctx, d');
-        switch (Ascriptions.transition(Asc(d', t) |> rewrap)) {
+        switch (Ascriptions.transition(~ty_env, Asc(d', t) |> rewrap)) {
         | (closures, Some(d)) =>
           Step({
             expr: d,
