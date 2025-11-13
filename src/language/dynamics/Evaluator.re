@@ -134,15 +134,6 @@ let rec evaluate =
           init: DHExp.t,
         )
         : EvaluatorEVMode.result => {
-  // print_endline(
-  //   "Evaluate ty_env: "
-  //   ++ [%derive.show: list(Environment.binding(Typ.t))](
-  //        Environment.to_bindings(ty_env),
-  //      ),
-  // );
-  // if (!List.is_empty(Environment.to_bindings(ty_env))) {
-  //   print_endline("Non-empty environment for " ++ Exp.show(init));
-  // };
   open Trampoline.Syntax;
   let.trampoline (is_finished, effects, next) =
     Eval.transition(
