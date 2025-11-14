@@ -1093,15 +1093,6 @@ and uexp_to_info_map =
             };
           };
 
-          print_endline(
-            "Type instantiations: "
-            ++ [%derive.show:
-                 Id.Map.t(list(DynamicStatics.type_instantiation))
-               ](
-                 dynamics.type_inst_probes,
-               ),
-          );
-
           let ctx_body =
             switch (
               DynamicStatics.Map.lookup_type_inst(
@@ -1119,13 +1110,12 @@ and uexp_to_info_map =
                 },
               )
             | Some(insts) =>
-              print_endline("Found some dynamic instantiations for " ++ name);
               DynamicStatics.extend_ctx_with_instantiations(
                 ctx,
                 name,
                 TPat.rep_id(utpat),
                 insts,
-              );
+              )
             };
 
           (mode_body, ctx_body);
