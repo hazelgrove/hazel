@@ -470,15 +470,15 @@ module Transition = (EV: EV_MODE) => {
         let-unbox unboxed_fun = (Fun, d1');
         switch (unboxed_fun) {
         | Constructor(_) => Constructor
-        | FunEnv(dp, d3, replacement_env, ty_env') =>
-          let matches = matches(~ty_env=ty_env', dp, d2');
+        | FunEnv(dp, d3, replacement_env, ty_env) =>
+          let matches = matches(~ty_env, dp, d2');
           switch (matches.matches) {
           | IndetMatch
           | DoesNotMatch => Indet
           | Matches(added_env) =>
             let env'' = Environment.add_bindings(replacement_env, added_env);
             Step({
-              expr: subst_env(env'', ty_env', d3),
+              expr: subst_env(env'', ty_env, d3),
               side_effects: [
                 RecordPatProbes(matches.closures),
                 RecordStackFrame,
