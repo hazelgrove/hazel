@@ -93,6 +93,15 @@ let test_dynamic_feedback = (~test_name=?, expected_exp: FError.exp) => {
   let initial_statics =
     Statics.mk(CoreSettings.on, Builtins.ctx_init(Some(Int)), exp_with_ids);
 
+  let original_errors =
+    StaticsBase.Map.errors(initial_statics) |> List.map(snd);
+  Alcotest.check(
+    Alcotest.list(Test_Statics_Prelude.testable_error),
+    "Expect no static errors initially",
+    [],
+    original_errors,
+  );
+
   // Elaborate the expression with unknown type probing enabled
   let elaborated_exp =
     Elaborator.elaborate(~probe_unknowns=true, initial_statics, exp_with_ids)
@@ -362,30 +371,96 @@ in
       },
     ),
     test_case(
-      "Polymorphism",
+      "typfun uses dynamic type env with correct type",
       `Quick,
       () => {
-        [@warning "-21"]
         open FError;
         open Exp;
 
-        Alcotest.skip(); // TODO We need to figure out how to handle this
-        // (typfun a -> fun x : a -> x)@<String>("")
         let exp: FError.exp =
           ap(
             Forward,
             typ_ap(
               typ_fun(
                 TPat.var("a"),
-                fn(Pat.(asc(Pat.var("x"), Typ.var("a"))), var("x")),
+                fn(
+                  Pat.(asc(Pat.var("x"), Typ.var("a"))),
+                  asc(var("x"), Typ.var("a")),
+                ),
                 None,
               ),
               Typ.string(),
             ),
             string(""),
           );
-        test_dynamic_feedback(exp);
+        test_dynamic_feedback(
+          ~test_name={|(typfun a -> fun x : a -> (x : a))@<String>("")|},
+          exp,
+        );
       },
     ),
+    test_case(
+      "typfun uses dynamic type env with incorrect type",
+      `Quick,
+      () => {
+        open FError;
+        open Exp;
+
+        let exp: FError.exp =
+          ap(
+            Forward,
+            typ_ap(
+              typ_fun(
+                TPat.var("a"),
+                fn(
+                  Pat.var("x"),
+                  asc(
+                    asc(
+                      ~ann=
+                        DynamicError(
+                          Exp(
+                            Common(
+                              Inconsistent(
+                                Test_Statics_Prelude.FTemp.Typ.(
+                                  Expectation({
+                                    ana: var("a"),
+                                    syn: string(),
+                                  })
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                      var("x"),
+                      Typ.unknown(Hole(EmptyHole)),
+                    ),
+                    Typ.var("a"),
+                  ),
+                ),
+                None,
+              ),
+              Typ.int(),
+            ),
+            string(""),
+          );
+        test_dynamic_feedback(
+          ~test_name={|(typfun a -> fun x -> (x : ? : a))@<Int>("")|},
+          exp,
+        );
+      },
+    ),
+    test_case(
+      "Polymorphism with dynamic type environment in unevaluated code",
+      `Quick,
+      () => {
+      [@warning "-21"]
+      {
+        Alcotest.skip(); // Unfortunately the way I've done this the there is no type environment captured for unevaluated code
+        let program = {|(typfun a -> fun (g) -> (fun () -> g : a))@<String>("")|};
+        let exp = parse_exp(program);
+        let no_errors = Grammar.map_exp_annotation(_ => NoError, exp);
+        test_dynamic_feedback(~test_name=program, no_errors);
+      }
+    }),
   ],
 );
