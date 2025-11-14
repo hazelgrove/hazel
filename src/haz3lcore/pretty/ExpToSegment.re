@@ -40,7 +40,7 @@ module Settings = {
 let rec external_precedence = (exp: Exp.t): Precedence.t => {
   switch (Exp.term_of(exp)) {
   // Forms which we are about to strip, so we just look inside
-  | Closure(_, _, x)
+  | Closure(_, x)
   | DynamicErrorHole(x, _) => external_precedence(x)
 
   // Binary operations are handled in Precedence.re
@@ -207,7 +207,7 @@ let rec parenthesize =
   | Undefined => exp
 
   // Forms that currently need to stripped before outputting
-  | Closure(_, _, x)
+  | Closure(_, x)
   | DynamicErrorHole(x, _) => parenthesize(x)
   | Filter(Filter({pat, act}), x) =>
     Filter(

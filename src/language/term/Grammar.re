@@ -100,11 +100,7 @@ and exp_term('a) =
   | Test(exp_t('a))
   | HintedTest(exp_t('a), exp_t('a))
   | Filter(stepper_filter_kind_t('a), exp_t('a))
-  | Closure(
-      Environment.t(exp_t('a)),
-      Environment.t(typ_t('a)),
-      exp_t('a),
-    )
+  | Closure(Environment.t(exp_t('a)), exp_t('a))
   | Parens(exp_t('a)) // (
   | Probe(exp_t('a), Probe.t)
   | Cons(exp_t('a), exp_t('a))
@@ -260,10 +256,9 @@ let rec map_exp_annotation: type a b. (a => b, exp_t(a)) => exp_t(b) =
             map_stepper_filter_kind_annotation(f, k),
             map_exp_annotation(f, e),
           )
-        | Closure(env, tenv, e) =>
+        | Closure(env, e) =>
           Closure(
             Environment.map(map_exp_annotation(f), env),
-            Environment.map(map_typ_annotation(f), tenv),
             map_exp_annotation(f, e),
           )
         | Parens(e) => Parens(map_exp_annotation(f, e))
@@ -634,8 +629,8 @@ module Factory = (DefaultAnnotation: DefaultAnnotation) => {
       term: Filter(k, e),
       annotation: default_annotation(ann),
     };
-    let closure = (~ann=?, env, tenv, e): exp_t(DefaultAnnotation.t) => {
-      term: Closure(env, tenv, e),
+    let closure = (~ann=?, env, e): exp_t(DefaultAnnotation.t) => {
+      term: Closure(env, e),
       annotation: default_annotation(ann),
     };
     let parens = (~ann=?, e): exp_t(DefaultAnnotation.t) => {

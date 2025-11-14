@@ -16,12 +16,11 @@ module ClosureWriter =
   });
 
 let rec transition =
-        (~ty_env, ~recursive=false, d: DHExp.t)
-        : ClosureWriter.t(option(DHExp.t)) => {
+        (~recursive=false, d: DHExp.t): ClosureWriter.t(option(DHExp.t)) => {
   open ClosureWriter.Syntax;
   let recur = (d: DHExp.t): ClosureWriter.t(DHExp.t) =>
     if (recursive) {
-      let+ d' = transition(~ty_env, ~recursive, d);
+      let+ d' = transition(~recursive, d);
       Option.value(~default=d, d');
     } else {
       ClosureWriter.return(d);
@@ -37,7 +36,6 @@ let rec transition =
             Typ.rep_id(t),
             e,
             Environment.empty,
-            ty_env,
             _,
             p,
           ),
@@ -61,19 +59,11 @@ let rec transition =
       }
     | (e, Parens(t)) =>
       // This is an impossible case since types should be normalized before coming to transitions
-      transition(
-        ~ty_env,
-        ~recursive,
-        Asc(e |> DHExp.fresh, t) |> DHExp.fresh,
-      )
-    | (Closure(ce, tenv, d), t) =>
+      transition(~recursive, Asc(e |> DHExp.fresh, t) |> DHExp.fresh)
+    | (Closure(ce, d), t) =>
       let+ d' =
-        transition(
-          ~ty_env,
-          ~recursive,
-          Asc(d, t |> Typ.fresh) |> DHExp.fresh,
-        );
-      Option.map(d' => Closure(ce, tenv, d') |> DHExp.fresh, d');
+        transition(~recursive, Asc(d, t |> Typ.fresh) |> DHExp.fresh);
+      Option.map(d' => Closure(ce, d') |> DHExp.fresh, d');
     | (Fun(p, e, t, v), Arrow(t1, t2)) =>
       ClosureWriter.return(
         Some(
@@ -260,11 +250,10 @@ let rec transition =
   };
 };
 
-let rec transition_multiple =
-        (~ty_env, d: DHExp.t): (closure_closures, DHExp.t) => {
-  switch (transition(~ty_env, ~recursive=true, d)) {
+let rec transition_multiple = (d: DHExp.t): (closure_closures, DHExp.t) => {
+  switch (transition(~recursive=true, d)) {
   | (closures, Some(d'')) =>
-    let (c, d) = transition_multiple(~ty_env, d'');
+    let (c, d) = transition_multiple(d'');
     (closures @ c, d);
   | _ => ([], d)
   };

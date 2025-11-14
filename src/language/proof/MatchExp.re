@@ -167,9 +167,8 @@ let rec match_exp =
     match_exp(alphas, ctx, e1, e2)
   | (Filter(_, _), _) => None
   // Note: This code should never be called with closures
-  | (Closure(_, _, e1), Closure(_, _, e2)) =>
-    match_exp(alphas, ctx, e1, e2)
-  | (Closure(_, _, _), _) => None
+  | (Closure(_, e1), Closure(_, e2)) => match_exp(alphas, ctx, e1, e2)
+  | (Closure(_, _), _) => None
   | (Cons(e1, e2), Cons(e3, e4)) =>
     let* ctx = match_exp(alphas, ctx, e1, e3);
     match_exp(alphas, ctx, e2, e4);

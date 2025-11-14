@@ -19,10 +19,7 @@ let print =
   | "F5" when settings.core.dynamics =>
     let env_init = Language.Builtins.env_init;
     statics.elaborated
-    |> Language.Evaluator.evaluate(
-         ~env=env_init,
-         ~ty_env=Language.Environment.empty,
-       )
+    |> Language.Evaluator.evaluate(~env=env_init)
     |> fst
     |> Language.DHExp.show
     |> print;

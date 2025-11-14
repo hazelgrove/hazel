@@ -71,7 +71,6 @@ module Probe = {
       syntax_id: Id.t, /* Syntax ID of probed expression */
       value: DHExp.t, /* Value of expression */
       env: Env.t, /* (Filtered) Environment Values  */
-      ty_env: Environment.t(Typ.t), /* Type Environment */
       call_stack: Probe.call_stack, /* Call stacks as ap ids */
       time: float /* Time of evaluatation */
     };
@@ -81,7 +80,6 @@ module Probe = {
           syntax_id: Id.t,
           value: DHExp.t,
           env: Environment.t(Exp.t),
-          ty_env: Environment.t(Typ.t),
           call_stack: Probe.call_stack,
           pr: Probe.t,
         ) => {
@@ -94,7 +92,6 @@ module Probe = {
         syntax_id,
         value,
         env: Env.filter(env, pr.refs),
-        ty_env,
         call_stack,
         time: JsUtil.timestamp(),
       };

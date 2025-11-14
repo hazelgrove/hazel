@@ -147,10 +147,7 @@ module Update = {
             let dynamic_expressions: Id.Map.t(DynamicStatics.Map.entry) =
               Id.Map.map(
                 List.map((c: Dynamics.Probe.Closure.t): DynamicStatics.sample =>
-                  {
-                    exp: c.value,
-                    ty_env: c.ty_env,
-                  }
+                  {exp: c.value}
                 ),
                 filtered_dynamics,
               );

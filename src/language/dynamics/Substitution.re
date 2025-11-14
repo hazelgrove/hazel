@@ -75,12 +75,12 @@ let rec subst_var = (d1: DHExp.t, x: Var.t, d2: DHExp.t): DHExp.t => {
       Fun(dp, d3, ty, s) |> rewrap;
     }
   | TypFun(tpat, d3, s) => TypFun(tpat, subst_var(d1, x, d3), s) |> rewrap
-  | Closure(env, tenv, d3) =>
+  | Closure(env, d3) =>
     /* Closure shouldn't appear during substitution (which
        only is called from elaboration currently) */
     let env' = subst_var_env(d1, x, env);
     let d3' = subst_var(d1, x, d3);
-    Closure(env', tenv, d3') |> rewrap;
+    Closure(env', d3') |> rewrap;
   | Ap(dir, d3, d4) =>
     let d3 = subst_var(d1, x, d3);
     let d4 = subst_var(d1, x, d4);

@@ -32,13 +32,7 @@ module Response = {
 
 let work = (res: Request.value): Response.value =>
   Util.TimeUtil.measure_time("Evaluate time", true, () =>
-    switch (
-      Language.Evaluator.evaluate(
-        ~env=Language.Builtins.env_init,
-        ~ty_env=Language.Environment.empty,
-        res,
-      )
-    ) {
+    switch (Language.Evaluator.evaluate(~env=Language.Builtins.env_init, res)) {
     | exception (Language.EvaluatorError.Exception(reason)) =>
       print_endline(
         "EvaluatorError:" ++ Language.EvaluatorError.show(reason),

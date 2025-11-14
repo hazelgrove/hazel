@@ -49,7 +49,6 @@ let update =
       state: t,
       call_stack: list(Id.t),
       env: Environment.t(Exp.t),
-      ty_env: Environment.t(Typ.t),
       init: DHExp.t,
       next: DHExp.t,
       side_effects: list(effect),
@@ -65,7 +64,7 @@ let update =
       | RecordExpProbe(pr) =>
         let id = DHExp.rep_id(init);
         let closure =
-          Dynamics.Probe.Closure.mk(id, next, env, ty_env, call_stack, pr);
+          Dynamics.Probe.Closure.mk(id, next, env, call_stack, pr);
         (call_stack, add_closure(state, closure));
       | RecordPatProbes(closure_closures) =>
         let state =

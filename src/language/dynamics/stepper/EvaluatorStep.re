@@ -5,16 +5,14 @@ module EvalObj = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t = {
     env: Environment.t(Exp.t), // technically can be calculated from ctx
-    ty_env: Environment.t(Typ.t),
     d_loc: DHExp.t,
     ctx: EvalCtx.t,
     knd: step_kind,
   };
 
-  let mk = (ctx, env, ty_env, d_loc, knd) => {
+  let mk = (ctx, env, d_loc, knd) => {
     ctx,
     env,
-    ty_env,
     d_loc,
     knd,
   };
@@ -71,9 +69,9 @@ let rec matches =
           ids,
         });
       switch ((term: EvalCtx.term)) {
-      | Closure(env, tenv, ctx) =>
+      | Closure(env, ctx) =>
         let+ ctx = matches(env, flt, ctx, exp, act, idx);
-        Closure(env, tenv, ctx) |> rewrap;
+        Closure(env, ctx) |> rewrap;
       | Filter(Filter(flt'), ctx) =>
         let flt = flt |> FilterEnvironment.extends(flt');
         let+ ctx = matches(env, flt, ctx, exp, act, idx);
@@ -262,13 +260,7 @@ module Decompose = {
   } = {
     type state = ref(EvaluatorState.t);
     type requirement('a) = (Result.t, 'a);
-    type requirements('a, 'b) = (
-      'b,
-      Result.t,
-      Environment.t(Exp.t),
-      Environment.t(Typ.t),
-      'a,
-    );
+    type requirements('a, 'b) = ('b, Result.t, Environment.t(Exp.t), 'a);
     type result = Result.t;
 
     let (&&): (Result.t, Result.t) => Result.t =
@@ -311,14 +303,13 @@ module Decompose = {
     let (let.): (requirements('a, DHExp.t), 'a => rule) => result =
       (rq: requirements('a, TermBase.exp_t), rl) =>
         switch (rq) {
-        | (_, Result.Step(_) as r, _, _, _) => r
-        | (undo, r, env, ty_env, v) =>
+        | (_, Result.Step(_) as r, _, _) => r
+        | (undo, r, env, v) =>
           switch (rl(v)) {
           | Constructor => r
           | Value => Result.BoxedValue
           | Indet => Result.Indet
-          | Step(s) =>
-            Result.Step([EvalObj.mk(Mark, env, ty_env, undo, s.kind)])
+          | Step(s) => Result.Step([EvalObj.mk(Mark, env, undo, s.kind)])
           // TODO: Actually show these exceptions to the user!
           | exception (EvaluatorError.Exception(_)) => Result.Indet
           }
@@ -327,21 +318,9 @@ module Decompose = {
     let (and.):
       (requirements('a, 'c => 'b), requirement('c)) =>
       requirements(('a, 'c), 'b) =
-      ((u, r1, env, ty_env, v1), (r2, v2)) => (
-        u(v2),
-        r1 && r2,
-        env,
-        ty_env,
-        (v1, v2),
-      );
+      ((u, r1, env, v1), (r2, v2)) => (u(v2), r1 && r2, env, (v1, v2));
 
-    let otherwise = (env, ty_env, o) => (
-      o,
-      Result.BoxedValue,
-      env,
-      ty_env,
-      (),
-    );
+    let otherwise = (env, o) => (o, Result.BoxedValue, env, ());
   };
 
   module Decomp = Transition(DecomposeEVMode);
@@ -384,18 +363,17 @@ module TakeStep = {
 
     let (and.) = (x1, x2) => (x1, x2);
 
-    let otherwise = (_, _, _) => ();
+    let otherwise = (_, _) => ();
   };
 
   module TakeStepEV = Transition(TakeStepEVMode);
 
-  let take_step = (~in_closure=?, env, ty_env, d) =>
+  let take_step = (~in_closure=?, env, d) =>
     TakeStepEV.transition(
-      (~in_closure as _=?, _, _, _) => None,
+      (~in_closure as _=?, _, _) => None,
       ~mode=`Substitution,
       ~in_closure?,
       env,
-      ty_env,
       d,
     )
     |> Option.map(DHExp.replace_all_ids);
@@ -405,7 +383,7 @@ let take_step = TakeStep.take_step;
 
 let decompose = (d: DHExp.t) => {
   let env = Builtins.env_init;
-  let rs = Decompose.decompose(env, Environment.empty, d);
+  let rs = Decompose.decompose(env, d);
   Decompose.Result.unbox(rs);
 };
 
@@ -440,7 +418,7 @@ let get_step_id = (step: step): Id.t => step.d_loc |> DHExp.rep_id;
 let get_step_kind = (step: step): step_kind => step.knd;
 
 let take_step = (step: EvalObj.t) => {
-  let+ next_expr = take_step(step.env, step.ty_env, step.d_loc);
+  let+ next_expr = take_step(step.env, step.d_loc);
   let next_expr = {
     ...next_expr,
     annotation: IdTagged.IdTag.{ids: step.d_loc |> IdTagged.ids},

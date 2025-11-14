@@ -586,7 +586,6 @@ let rec normalize = (~rec_counter=0, ctx: Ctx.t, ty: t): t => {
    or to return the (first) type variable for readability */
 let rec join =
         (
-          ~dynamic_type_env: option(Environment.t(t))=?,
           ~inconsistent: option(t)=?,
           ~resolve=false,
           ctx: Ctx.t,
@@ -594,7 +593,7 @@ let rec join =
           ty2: t,
         )
         : option(t) => {
-  let join' = join(~dynamic_type_env?, ~inconsistent?, ~resolve, ctx);
+  let join' = join(~inconsistent?, ~resolve, ctx);
   let ret =
     switch (term_of(ty1), term_of(ty2)) {
     | (_, Parens(ty2)) => join'(ty1, ty2)
@@ -613,41 +612,20 @@ let rec join =
       if (n1 == n2) {
         Some(ty1);
       } else {
-        let* ty1 =
-          Ctx.lookup_alias(ctx, n1)
-          |> OptUtil.or_else(
-               _,
-               dynamic_type_env
-               |> Option.bind(_, env => Environment.lookup(env, n1)),
-             );
-        let* ty2 =
-          Ctx.lookup_alias(ctx, n2)
-          |> OptUtil.or_else(
-               _,
-               dynamic_type_env
-               |> Option.bind(_, env => Environment.lookup(env, n2)),
-             );
+        let* ty1 = Ctx.lookup_alias(ctx, n1);
+
+        let* ty2 = Ctx.lookup_alias(ctx, n2);
+
         let+ ty_join = join'(ty1, ty2);
         !resolve && equal(ty1, ty_join) ? ty1 : ty_join;
       }
     | (Var(name), _) =>
-      let* ty_name =
-        Ctx.lookup_alias(ctx, name)
-        |> OptUtil.or_else(
-             _,
-             dynamic_type_env
-             |> Option.bind(_, env => Environment.lookup(env, name)),
-           );
+      let* ty_name = Ctx.lookup_alias(ctx, name);
+
       let+ ty_join = join'(ty_name, ty2);
       !resolve && equal(ty_name, ty_join) ? ty1 : ty_join;
     | (_, Var(name)) =>
-      let* ty_name =
-        Ctx.lookup_alias(ctx, name)
-        |> OptUtil.or_else(
-             _,
-             dynamic_type_env
-             |> Option.bind(_, env => Environment.lookup(env, name)),
-           );
+      let* ty_name = Ctx.lookup_alias(ctx, name);
       let+ ty_join = join'(ty_name, ty1);
       !resolve && equal(ty_name, ty_join) ? ty2 : ty_join;
     /* Note: Ordering of Unknown, Var, and Rec above is load-bearing! */

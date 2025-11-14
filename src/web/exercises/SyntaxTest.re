@@ -103,7 +103,7 @@ let rec find_fn = (name: string, uexp: Exp.t, l: list(Exp.t)): list(Exp.t) => {
   | Use(_, u1)
   | Test(u1)
   | HintedTest(u1, _)
-  | Closure(_, _, u1)
+  | Closure(_, u1)
   | Filter(_, u1) => l |> find_fn(name, u1)
   | Ap(_, u1, u2)
   | Dot(u1, u2)
@@ -210,7 +210,7 @@ let rec var_mention = (name: string, uexp: Exp.t): bool => {
   | DynamicErrorHole(u, _) => var_mention(name, u)
   | FixF(args, body, _) =>
     var_mention_upat(name, args) ? false : var_mention(name, body)
-  | Closure(_, _, u) => var_mention(name, u)
+  | Closure(_, u) => var_mention(name, u)
   | BuiltinFun(_) => false
   | Asc(d, _) => var_mention(name, d)
   | Ap(_, u1, u2)
@@ -367,7 +367,7 @@ let rec tail_check = (name: string, uexp: Exp.t): bool => {
   | Asc(u, _)
   | TupLabel(_, u)
   | Filter(_, u)
-  | Closure(_, _, u)
+  | Closure(_, u)
   | TypFun(_, u, _)
   | TypAp(u, _)
   | Parens(u)

@@ -43,10 +43,7 @@ let create_dynamic_expressions =
       closures =>
         List.map(
           (c: Dynamics.Probe.Closure.t): DynamicStatics.sample =>
-            {
-              exp: c.value,
-              ty_env: c.ty_env,
-            },
+            {exp: c.value},
           closures,
         ),
       probe_data,
@@ -127,11 +124,7 @@ let test_dynamic_feedback = (~test_name=?, expected_exp: FError.exp) => {
 
   // Evaluate the elaborated expression to collect dynamic information
   let (_, evaluation_state) =
-    Evaluator.evaluate(
-      ~env=Builtins.env_init,
-      ~ty_env=Environment.empty,
-      elaborated_exp,
-    );
+    Evaluator.evaluate(~env=Builtins.env_init, elaborated_exp);
 
   // Extract probe data and type instantiations from the evaluation state
   let probe_data = EvaluatorState.get_probes(evaluation_state);
@@ -226,11 +219,7 @@ in
           )
           |> fst;
         let (result, state: EvaluatorState.t) =
-          Evaluator.evaluate(
-            ~env=Builtins.env_init,
-            ~ty_env=Environment.empty,
-            elaborated,
-          );
+          Evaluator.evaluate(~env=Builtins.env_init, elaborated);
 
         let dynamics = EvaluatorState.get_probes(state);
         let type_insts = EvaluatorState.get_type_insts(state);

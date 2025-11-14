@@ -22,9 +22,7 @@ let testable_exp =
       exp,
   );
 let evaluate = unevaluated =>
-  unevaluated
-  |> Evaluator.evaluate(~env=Builtins.env_init, ~ty_env=Environment.empty)
-  |> fst;
+  unevaluated |> Evaluator.evaluate(~env=Builtins.env_init) |> fst;
 let dhexp_typ = testable_exp();
 
 let evaluation_test =
@@ -44,7 +42,7 @@ let evaluation_test =
 
 let evaluate_probes = unevaluated =>
   unevaluated
-  |> Evaluator.evaluate(~env=Builtins.env_init, ~ty_env=Environment.empty)
+  |> Evaluator.evaluate(~env=Builtins.env_init)
   |> snd
   |> EvaluatorState.get_probes;
 
@@ -127,12 +125,7 @@ let full_preservation_test = (uexp: TermBase.exp_t): unit => {
     Elaborator.elaborate(~probe_unknowns=false, statics, uexp);
 
   let evaluated =
-    Evaluator.evaluate(
-      ~env=Builtins.env_init,
-      ~ty_env=Environment.empty,
-      elaborated,
-    )
-    |> fst;
+    Evaluator.evaluate(~env=Builtins.env_init, elaborated) |> fst;
   let new_statics =
     Statics.mk(CoreSettings.on, Builtins.ctx_init(Some(Int)), evaluated);
 

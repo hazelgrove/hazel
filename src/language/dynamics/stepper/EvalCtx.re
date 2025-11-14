@@ -2,11 +2,7 @@ open Util;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type term =
-  | Closure(
-      [@show.opaque] Environment.t(Exp.t),
-      [@show.opaque] Environment.t(Typ.t),
-      t,
-    )
+  | Closure([@show.opaque] Environment.t(Exp.t), t)
   | Filter(TermBase.StepperFilterKind.t, t)
   | Seq1(t, DHExp.t)
   | Seq2(DHExp.t, t)
@@ -63,9 +59,9 @@ let rec compose = (ctx: t, d: DHExp.t): DHExp.t => {
   | Term({term, ids}) =>
     let wrap = DHExp.mk(ids);
     switch (term) {
-    | Closure(env, tenv, ctx) =>
+    | Closure(env, ctx) =>
       let d = compose(ctx, d);
-      Closure(env, tenv, d) |> wrap;
+      Closure(env, d) |> wrap;
     | Filter(flt, ctx) =>
       let d = compose(ctx, d);
       Filter(flt, d) |> wrap;

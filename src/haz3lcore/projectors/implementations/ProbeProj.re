@@ -78,7 +78,7 @@ module Window = {
 };
 
 let is_value = (exp: Exp.t) =>
-  ValueChecker.check_value(Environment.empty, Environment.empty, exp) == Value;
+  ValueChecker.check_value(Environment.empty, exp) == Value;
 module ClosureLength = {
   let lengths: Hashtbl.t(int, int) = Hashtbl.create(100);
 
@@ -113,8 +113,8 @@ let hide_env = (info: info): bool =>
   | Some(
       InfoExp({term: {term: Var(_) | Probe({term: Var(_), _}, _), _}, _}),
     ) =>
-    false // TODO What we want to do is filter out the env entries that correspond to the variable and only show if there are other entries
-  | Some(InfoPat(_)) => false
+    true
+  | Some(InfoPat(_)) => true
   | _ => false
   };
 
@@ -574,38 +574,14 @@ let env_val =
   );
 };
 
-let ty_env_val =
-    (view_seg, utility: utility, (name, typ): (Var.t, Typ.t)): Node.t => {
-  let seg = utility.term_to_seg(Typ(typ));
+let env_view = (closure: closure, view_seg, utility: utility): Node.t =>
   Node.div(
-    ~attrs=[Attr.classes(["live-ty-env-entry"])],
-    [Node.text(name ++ " : "), view_seg(Sort.Typ, seg)],
-  );
-};
-
-let ty_env_view = (closure: closure, view_seg, utility: utility): Node.t =>
-  Node.div(
-    ~attrs=[Attr.classes(["live-ty-env"])],
-    closure.ty_env
-    |> Environment.to_bindings
-    |> List.map(ty_env_val(view_seg, utility)),
-  );
-
-let env_view = (closure: closure, view_seg, utility: utility): Node.t => {
-  let env_entries =
+    ~attrs=[Attr.classes(["live-env"])],
     closure.env
     |> ListUtil.dedup
     |> rm_opaques
-    |> List.map(env_val(closure, view_seg, utility));
-  let ty_env_entries =
-    closure.ty_env
-    |> Environment.to_bindings
-    |> List.map(ty_env_val(view_seg, utility));
-  Node.div(
-    ~attrs=[Attr.classes(["live-env"])],
-    env_entries @ ty_env_entries,
+    |> List.map(env_val(closure, view_seg, utility)),
   );
-};
 
 let closure_view =
     (
@@ -618,7 +594,7 @@ let closure_view =
   div(
     ~attrs=[Attr.classes(["closure"])],
     [value_view(info, utility, view_seg, local, closure, index)]
-    @ [env_view(closure, view_seg, utility)],
+    @ (hide_env(info) ? [] : [env_view(closure, view_seg, utility)]),
   );
 
 let closure_group_view =

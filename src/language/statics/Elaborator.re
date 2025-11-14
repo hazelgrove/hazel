@@ -174,7 +174,7 @@ let rec elaborate_pattern =
     // Type annotations should already appeard
     | Parens(p) =>
       let (p', _) = elaborate_pattern(m, p);
-      Parens(p') |> rewrap; // Necessary to rewrap to preserve ids for implicit probes on parens
+      p';
     | Asc(p, t) =>
       let (p', _) = elaborate_pattern(m, p);
       Asc(p', Typ.normalize(ctx, t)) |> rewrap;
@@ -258,7 +258,7 @@ let rec elaborate =
       Asc(elaborate(m, e) |> fst, Typ.normalize(ctx, t)) |> rewrap
     | Parens(e) =>
       let (e', _) = elaborate(m, e);
-      Parens(e') |> rewrap; // Necessary to rewrap to preserve ids for implicit probes on parens
+      e';
     | Probe(e, probe) =>
       let (e', _) = elaborate(m, e);
       let probe = Dynamics.Probe.instrument_exp(m, Exp.rep_id(uexp), probe);
@@ -442,10 +442,10 @@ let rec elaborate =
           })
         };
       Filter(kind', e') |> rewrap;
-    | Closure(env, tenv, e) =>
+    | Closure(env, e) =>
       // Should we be elaborating the contents of the environment?
       let (e', _) = elaborate(m, e);
-      Closure(env, tenv, e') |> rewrap;
+      Closure(env, e') |> rewrap;
     | Cons(e1, e2) =>
       let (e1', _) = elaborate(m, e1);
       let (e2', _) = elaborate(m, e2);

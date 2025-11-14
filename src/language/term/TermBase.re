@@ -223,7 +223,7 @@ and Exp: {
         | Test(e) => Test(exp_map_term(e))
         | HintedTest(e, h) => HintedTest(exp_map_term(e), exp_map_term(h))
         | Filter(f, e) => Filter(flt_map_term(f), exp_map_term(e))
-        | Closure(env, tenv, e) => Closure(env, tenv, exp_map_term(e))
+        | Closure(env, e) => Closure(env, exp_map_term(e))
         | Parens(e) => Parens(exp_map_term(e))
         | Probe(e, tag) => Probe(exp_map_term(e), tag)
         | Cons(e1, e2) => Cons(exp_map_term(e1), exp_map_term(e2))

@@ -3,7 +3,7 @@ open Language;
 open Test_Evaluator_Prelude;
 let evaluate_probes = unevaluated =>
   unevaluated
-  |> Evaluator.evaluate(~env=Builtins.env_init, ~ty_env=Environment.empty)
+  |> Evaluator.evaluate(~env=Builtins.env_init)
   |> snd
   |> EvaluatorState.get_probes;
 

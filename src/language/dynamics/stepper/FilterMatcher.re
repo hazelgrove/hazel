@@ -4,10 +4,7 @@ let matches_exp = (~denv, d, ~fenv, f) => {
       ...semantic_settings,
       ignore_fixpoints: true,
       use_expr_wildcards:
-        Some(
-          (env, exp) =>
-            ValueChecker.check_value(env, Environment.empty, exp) != Expr,
-        ),
+        Some((env, exp) => ValueChecker.check_value(env, exp) != Expr),
       env1: Some(fenv),
       env2: Some(denv),
     })

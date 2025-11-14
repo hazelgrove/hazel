@@ -4,7 +4,6 @@ let evaluate = exp =>
   fst(
     Evaluator.evaluate(
       ~env=Builtins.env_init,
-      ~ty_env=Environment.empty,
       fst(
         Elaborator.elaborate(
           ~probe_unknowns=false,

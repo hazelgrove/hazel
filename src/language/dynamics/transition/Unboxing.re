@@ -20,26 +20,14 @@ open Util;
     Note unboxing only works one layer deep, if we have a list of lists then
     the inner lists may still have indet ascriptions around them after unboxing.
     */
-[@deriving show({with_path: false})]
+
 type unboxed_tfun =
-  | TypFun(TPat.t, Exp.t, option(string))
-  | TypFunEnv(
-      TPat.t,
-      Exp.t,
-      option(string),
-      [@show.opaque] Environment.t(Exp.t),
-      [@show.opaque] Environment.t(Typ.t),
-    );
+  | TypFun(TPat.t, Exp.t, option(string));
 
 [@deriving show({with_path: false})]
 type unboxed_fun =
   | Constructor(string)
-  | FunEnv(
-      Pat.t,
-      Exp.t,
-      [@show.opaque] Environment.t(Exp.t),
-      [@show.opaque] Environment.t(Typ.t),
-    )
+  | FunEnv(Pat.t, Exp.t, [@show.opaque] Environment.t(Exp.t))
   | FunNoEnv(Pat.t, Exp.t)
   | BuiltinFun(string)
   | DeferredAp(DHExp.t, list(DHExp.t));
@@ -191,15 +179,15 @@ let rec unbox: type a. (unbox_request(a), DHExp.t) => unboxed(a) =
     | (SumWithArg(_), Ap(_, {term: Constructor(_), _}, _)) => DoesNotMatch
     /* Function-like things can look like the following when values */
     | (Fun, Constructor(name, _)) => Matches(Constructor(name)) // Perhaps we should check if the constructor actually is a function?
-    | (Fun, Closure(env', tenv, {term: Fun(dp, d3, _, _), _})) =>
-      Matches(FunEnv(dp, d3, env', tenv))
+    | (Fun, Closure(env', {term: Fun(dp, d3, _, _), _})) =>
+      Matches(FunEnv(dp, d3, env'))
     | (Fun, Fun(dp, d3, _, _)) => Matches(FunNoEnv(dp, d3))
     | (Fun, BuiltinFun(name)) => Matches(BuiltinFun(name))
     | (Fun, DeferredAp(d1, ds)) => Matches(DeferredAp(d1, ds))
 
     /* TypFun-like things can look like the following when values */
-    | (TypFun, Closure(env', tenv, {term: TypFun(utpat, tfbody, name), _})) =>
-      Matches(TypFunEnv(utpat, tfbody, name, env', tenv))
+    | (TypFun, Closure(env', {term: TypFun(utpat, tfbody, name), _})) =>
+      Matches(TypFun(utpat, Closure(env', tfbody) |> Exp.fresh, name))
     | (TypFun, TypFun(utpat, tfbody, name)) =>
       Matches(TypFun(utpat, tfbody, name))
     /* Forms that are the wrong type of value - these cases indicate an error */
