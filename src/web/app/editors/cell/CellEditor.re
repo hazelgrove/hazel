@@ -17,6 +17,7 @@ module Model = {
       editor,
       statics: CachedStatics.empty,
       dynamics: Language.Dynamics.Map.empty,
+      type_inst_map: Language.Dynamics.TypeInstMap.empty,
       dynamic_statics: Pending,
       pinned_call: Pending,
     },
@@ -38,6 +39,7 @@ module Model = {
       editor: editor |> PersistentZipper.unpersist |> Editor.Model.mk,
       statics: CachedStatics.empty,
       dynamics: Language.Dynamics.Map.empty,
+      type_inst_map: Language.Dynamics.TypeInstMap.empty,
       dynamic_statics: Pending,
       pinned_call: Pending,
     },
@@ -106,6 +108,7 @@ module Update = {
         ~is_edited,
         ~stitch,
         ~dynamics=EvalResult.Model.dynamics(result),
+        ~type_inst_map=EvalResult.Model.type_inst_map(result),
         ~is_dynamic_term=false,
         editor,
       );

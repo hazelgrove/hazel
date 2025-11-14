@@ -29,23 +29,41 @@ module FError =
   });
 
 /**
- * Helper function to extract dynamic expressions from probe closures.
+ * Helper function to extract dynamic expressions from probe closures and type instantiations.
  * This logic is shared between multiple test cases.
  */
 let create_dynamic_expressions =
-    (dynamics: Id.Map.t(list(Dynamics.Probe.Closure.t))) =>
-  Id.Map.map(
-    closures =>
+    (
+      probe_data: Id.Map.t(list(Dynamics.Probe.Closure.t)),
+      type_insts: Dynamics.TypeInstMap.t,
+    )
+    : DynamicStatics.Map.t => {
+  DynamicStatics.Map.mk(
+    Id.Map.map(
+      closures =>
+        List.map(
+          (c: Dynamics.Probe.Closure.t): DynamicStatics.sample =>
+            {
+              exp: c.value,
+              ty_env: c.ty_env,
+            },
+          closures,
+        ),
+      probe_data,
+    ),
+    Id.Map.map(
       List.map(
-        (c: Dynamics.Probe.Closure.t): DynamicStatics.sample =>
-          {
-            exp: c.value,
-            ty_env: c.ty_env,
-          },
-        closures,
+        (inst: Dynamics.TypeInstantiation.t): DynamicStatics.type_instantiation =>
+        {
+          tpat_id: inst.tpat_id,
+          type_var: inst.type_var,
+          instantiated_type: inst.instantiated_type,
+        }
       ),
-    dynamics,
+      type_insts,
+    ),
   );
+};
 
 /**
  * Maps static and dynamic error information to error annotations.
@@ -115,11 +133,13 @@ let test_dynamic_feedback = (~test_name=?, expected_exp: FError.exp) => {
       elaborated_exp,
     );
 
-  // Extract probe data from the evaluation state
+  // Extract probe data and type instantiations from the evaluation state
   let probe_data = EvaluatorState.get_probes(evaluation_state);
+  let type_insts = EvaluatorState.get_type_insts(evaluation_state);
 
-  // Convert probe closures to dynamic expressions for static re-analysis
-  let dynamic_expressions = create_dynamic_expressions(probe_data);
+  // Convert probe closures and type instantiations to dynamic expressions for static re-analysis
+  let dynamic_expressions =
+    create_dynamic_expressions(probe_data, type_insts);
 
   // Re-run static analysis with dynamic information
   let dynamic_statics =
@@ -213,9 +233,11 @@ in
           );
 
         let dynamics = EvaluatorState.get_probes(state);
+        let type_insts = EvaluatorState.get_type_insts(state);
 
-        // Convert probe closures to dynamic expressions for static re-analysis
-        let dynamic_expressions = create_dynamic_expressions(dynamics);
+        // Convert probe closures and type instantiations to dynamic expressions for static re-analysis
+        let dynamic_expressions =
+          create_dynamic_expressions(dynamics, type_insts);
         let _static_feedback =
           Statics.mk(
             ~dynamics=dynamic_expressions,
@@ -455,7 +477,7 @@ in
       () => {
       [@warning "-21"]
       {
-        Alcotest.skip(); // Unfortunately the way I've done this the there is no type environment captured for unevaluated code
+        // Alcotest.skip(); // Unfortunately the way I've done this the there is no type environment captured for unevaluated code
         let program = {|(typfun a -> fun (g) -> (fun () -> g : a))@<String>("")|};
         let exp = parse_exp(program);
         let no_errors = Grammar.map_exp_annotation(_ => NoError, exp);

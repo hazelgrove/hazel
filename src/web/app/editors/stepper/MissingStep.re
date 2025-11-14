@@ -211,6 +211,7 @@ module Update = {
             ~is_edited=true,
             ~is_dynamic_term=true,
             ~dynamics=Calc.OldValue(Dynamics.Map.empty),
+            ~type_inst_map=Calc.OldValue(Dynamics.TypeInstMap.empty),
             ~stitch=x => x,
             ~ctx=Calc.get_value(ctx),
             editor,

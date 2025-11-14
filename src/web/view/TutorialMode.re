@@ -240,6 +240,8 @@ module Update = {
               statics: cell.editor.statics,
               dynamics:
                 EvalResult.Model.dynamics(cell.result) |> Calc.get_value,
+
+              type_inst_map: Language.Dynamics.TypeInstMap.empty,
               dynamic_statics: cell.editor.dynamic_statics,
               pinned_call: cell.editor.pinned_call,
             },

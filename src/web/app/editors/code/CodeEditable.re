@@ -43,6 +43,7 @@ module Update = {
             editor,
             statics: model.statics,
             dynamics: model.dynamics,
+            type_inst_map: model.type_inst_map,
             dynamic_statics: model.dynamic_statics,
             pinned_call: model.pinned_call,
           }

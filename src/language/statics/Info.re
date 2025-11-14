@@ -976,13 +976,11 @@ let derived_exp =
       ~uexp,
       ~self,
     );
-  let dynamics_exp = DynamicStatics.Map.lookup(uexp |> Exp.rep_id, dynamics);
-  let dynamic_type_env = DynamicStatics.dynamic_type_env(ctx, dynamics_exp);
 
   let cls = Cls.Exp(Exp.cls_of_term(uexp.term));
-  let status = status_exp(~dynamic_type_env?, ctx, ana, self);
+  let status = status_exp(~dynamic_type_env=?None, ctx, ana, self);
 
-  let ty = fixed_typ_exp(~dynamic_type_env?, ctx, ana, self);
+  let ty = fixed_typ_exp(~dynamic_type_env=?None, ctx, ana, self);
   {
     cls,
     self,

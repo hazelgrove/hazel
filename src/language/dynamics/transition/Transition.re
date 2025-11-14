@@ -408,6 +408,22 @@ module Transition = (EV: EV_MODE) => {
         };
       let expr = DHExp.ty_subst(tau, utpat, tfbody);
 
+      /* Record type instantiation for dynamic feedback */
+      let side_effects =
+        switch (TPat.tyvar_of_utpat(utpat)) {
+        | Some(var_name) => [
+            EvaluatorState.RecordTypeInstantiation(
+              Dynamics.TypeInstantiation.{
+                tpat_id: TPat.rep_id(utpat),
+                type_var: var_name,
+                instantiated_type: tau,
+                time: JsUtil.timestamp(),
+              },
+            ),
+          ]
+        | None => []
+        };
+
       Step({
         expr:
           (
@@ -430,7 +446,7 @@ module Transition = (EV: EV_MODE) => {
                  name,
                ),
              ),
-        side_effects: [],
+        side_effects,
         kind: TypFunAp,
         is_value: false,
       });
