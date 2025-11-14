@@ -913,8 +913,9 @@ let derived_dynamic_self_common =
   | Just(t) when Typ.count_unknowns(t) > 0 =>
     switch (DynamicStatics.Map.lookup(term_id, dynamics)) {
     | None => self_common
-    | Some({exps: [], _}) => self_common
-    | Some({exps, _}) =>
+    | Some([]) => self_common
+    | Some(entry) =>
+      let exps = List.map((s: DynamicStatics.sample) => s.exp, entry);
       let dyn_typs = OptUtil.traverse(calculate_dynamic_type, exps);
       let dyn_typ =
         Option.bind(

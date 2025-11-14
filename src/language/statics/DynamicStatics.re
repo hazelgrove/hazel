@@ -1,20 +1,26 @@
 open Util;
 
+[@deriving (show({with_path: false}), sexp, yojson)]
+type sample = {
+  exp: Exp.t,
+  ty_env: Environment.t(Typ.t),
+};
+
 module Map = {
   [@deriving (show({with_path: false}), sexp, yojson)]
-  type entry = {
-    exps: list(Exp.t),
-    ty_envs: list(Environment.t(Typ.t)),
-  };
+  type entry = list(sample);
   [@deriving (show({with_path: false}), sexp, yojson)]
-  type t = Id.Map.t(entry); // Probably put these in one list
+  type t = Id.Map.t(entry);
 
   let empty = Id.Map.empty;
   let lookup = Id.Map.find_opt;
 };
 
 let dynamic_type_env = (ctx, dynamics_exp) =>
-  Option.map((de: Map.entry) => de.ty_envs, dynamics_exp)
+  Option.map(
+    (de: Map.entry) => List.map((s: sample) => s.ty_env, de),
+    dynamics_exp,
+  )
   |> Option.map(envs => {
        module StringSet = Set.Make(String);
 

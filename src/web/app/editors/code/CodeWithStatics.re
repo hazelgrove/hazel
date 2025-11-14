@@ -15,17 +15,13 @@ module Model = {
     // Updated:
     editor: Editor.t,
     statics: CachedStatics.t,
-    dynamics: Language.Dynamics.Map.t,
+    dynamics: Dynamics.Map.t,
     dynamic_statics: Calc.saved((StaticsBase.Map.t, list(Id.t))),
     pinned_call: Calc.saved(option(list(Id.t))),
   };
 
   let mk =
-      (
-        ~dynamics=Language.Dynamics.Map.empty,
-        ~statics=CachedStatics.empty,
-        editor,
-      ) => {
+      (~dynamics=Dynamics.Map.empty, ~statics=CachedStatics.empty, editor) => {
     {
       editor,
       statics,
@@ -35,12 +31,7 @@ module Model = {
     };
   };
 
-  let mk_from_exp =
-      (
-        ~settings: Language.CoreSettings.t,
-        ~inline=false,
-        term: Language.Exp.t,
-      ) => {
+  let mk_from_exp = (~settings: CoreSettings.t, ~inline=false, term: Exp.t) => {
     ExpToSegment.exp_to_segment(
       term,
       ~settings=ExpToSegment.Settings.of_core(~inline, settings),
@@ -64,8 +55,7 @@ module Model = {
     {
       info,
       dynamic_info,
-      dynamics:
-        Option.bind(id, Language.Dynamics.Map.lookup(_, model.dynamics)),
+      dynamics: Option.bind(id, Dynamics.Map.lookup(_, model.dynamics)),
       indicated_piece:
         Indicated.piece''(model.editor.state.zipper)
         |> Option.map(((p, _, _)) => p),
@@ -100,11 +90,11 @@ module Update = {
   /* Calculates the statics for the editor. */
   let calculate =
       (
-        ~settings: Language.CoreSettings.t,
+        ~settings: CoreSettings.t,
         ~is_edited,
         ~ctx=?,
         ~stitch,
-        ~dynamics: Calc.t(Language.Dynamics.Map.t),
+        ~dynamics: Calc.t(Dynamics.Map.t),
         ~is_dynamic_term,
         {editor, statics, dynamic_statics, pinned_call, dynamics: _}: Model.t,
       )
@@ -120,7 +110,7 @@ module Update = {
           )
         : statics;
 
-    let ctx_init: Language.Ctx.t = Language.Builtins.ctx_init(Some(Int));
+    let ctx_init: Ctx.t = Builtins.ctx_init(Some(Int));
 
     // Track the current pinned call state
     let current_pinned_call = Haz3lcore.ProbeProj.DynCursor.get_pinned_call();
@@ -136,29 +126,24 @@ module Update = {
 
             // Filter closures based on the pinned call
             let filtered_dynamics =
-              Language.Dynamics.Map.filter_all_by_pin(pinned_call, dynamics);
+              Dynamics.Map.filter_all_by_pin(pinned_call, dynamics);
 
-            let dynamic_expressions: Language.DynamicStatics.Map.t =
+            let dynamic_expressions: DynamicStatics.Map.t =
               Id.Map.map(
-                d => {
-                  open Language;
-                  let exps =
-                    List.map((c: Dynamics.Probe.Closure.t) => c.value, d);
-
-                  let ty_envs =
-                    List.map((c: Dynamics.Probe.Closure.t) => c.ty_env, d);
-                  (
-                    {
-                      exps,
-                      ty_envs,
-                    }: Language.DynamicStatics.Map.entry
-                  );
-                },
+                d =>
+                  List.map(
+                    (c: Dynamics.Probe.Closure.t): DynamicStatics.sample =>
+                      {
+                        exp: c.value,
+                        ty_env: c.ty_env,
+                      },
+                    d,
+                  ),
                 filtered_dynamics,
               );
 
             let dynamic_info_map =
-              Language.Statics.mk(
+              Statics.mk(
                 ~dynamics=dynamic_expressions,
                 settings,
                 ctx_init,
@@ -166,7 +151,7 @@ module Update = {
               );
 
             let dynamic_error_ids =
-              Language.StaticsBase.Map.error_ids(dynamic_info_map)
+              StaticsBase.Map.error_ids(dynamic_info_map)
               |> List.filter(id => !List.mem(id, statics.error_ids));
 
             (dynamic_info_map, dynamic_error_ids);
