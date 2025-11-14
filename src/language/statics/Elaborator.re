@@ -174,7 +174,7 @@ let rec elaborate_pattern =
     // Type annotations should already appeard
     | Parens(p) =>
       let (p', _) = elaborate_pattern(m, p);
-      p';
+      Parens(p') |> rewrap; // Necessary to rewrap to preserve ids for implicit probes on parens
     | Asc(p, t) =>
       let (p', _) = elaborate_pattern(m, p);
       Asc(p', Typ.normalize(ctx, t)) |> rewrap;
