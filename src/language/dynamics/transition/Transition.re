@@ -396,87 +396,45 @@ module Transition = (EV: EV_MODE) => {
         is_value: true,
       });
     | TypAp(d, tau) =>
+      /* Rule ITTLam */
       let. _ = otherwise(env, ty_env, d => TypAp(d, tau) |> rewrap)
       and. d' =
         req_final(req(env, ty_env), d => TypAp(d, tau) |> wrap_ctx, d);
       let-unbox typfun = (TypFun, d');
-
-      switch (typfun) {
-      | TypFun(utpat, tfbody, name) =>
-        /* Create a closure with the type argument in the type environment */
-        let tvar = TPat.tyvar_of_utpat(utpat);
-
-        switch (tvar) {
-        | Some(var_name) =>
-          let ty_env' = Environment.add_bindings(ty_env, [(var_name, tau)]);
-          let expr =
-            DHExp.assign_name_if_none(
-              Closure(env, ty_env', DHExp.ty_subst(tau, utpat, tfbody))
-              |> fresh,
-              Option.map(
-                x => x ++ "@<" ++ Typ.pretty_print(tau) ++ ">",
-                name,
-              ),
-            );
-          Step({
-            expr,
-            side_effects: [],
-            kind: TypFunAp,
-            is_value: false,
-          });
-        | None =>
-          Step({
-            expr:
-              DHExp.assign_name_if_none(
-                DHExp.ty_subst(tau, utpat, tfbody),
-                Option.map(
-                  x => x ++ "@<" ++ Typ.pretty_print(tau) ++ ">",
-                  name,
-                ),
-              ),
-            side_effects: [],
-            kind: TypFunAp,
-            is_value: false,
-          })
+      let (utpat, tfbody, name, env, ty_env) =
+        switch (typfun) {
+        | TypFun(utpat, tfbody, name) => (utpat, tfbody, name, env, ty_env)
+        | TypFunEnv(utpat, tfbody, name, env, ty_env) => (
+            utpat,
+            tfbody,
+            name,
+            env,
+            ty_env,
+          )
         };
-      | TypFunEnv(utpat, tfbody, name, env, ty_env) =>
-        /* Create a closure with the type argument in the type environment */
-        let tvar = TPat.tyvar_of_utpat(utpat);
+      /* Create a closure with the type argument in the type environment */
+      let tvar = TPat.tyvar_of_utpat(utpat);
+      let name =
+        Option.map(x => x ++ "@<" ++ Typ.pretty_print(tau) ++ ">", name);
+      let expr = DHExp.ty_subst(tau, utpat, tfbody);
+      let expr =
+        (
+          switch (tvar) {
+          | Some(var_name) =>
+            let ty_env' =
+              Environment.add_bindings(ty_env, [(var_name, tau)]);
+            Closure(env, ty_env', expr) |> fresh;
+          | None => expr
+          }
+        )
+        |> DHExp.assign_name_if_none(_, name);
 
-        switch (tvar) {
-        | Some(var_name) =>
-          let ty_env' = Environment.add_bindings(ty_env, [(var_name, tau)]);
-          let expr =
-            DHExp.assign_name_if_none(
-              Closure(env, ty_env', DHExp.ty_subst(tau, utpat, tfbody))
-              |> fresh,
-              Option.map(
-                x => x ++ "@<" ++ Typ.pretty_print(tau) ++ ">",
-                name,
-              ),
-            );
-          Step({
-            expr,
-            side_effects: [],
-            kind: TypFunAp,
-            is_value: false,
-          });
-        | None =>
-          Step({
-            expr:
-              DHExp.assign_name_if_none(
-                DHExp.ty_subst(tau, utpat, tfbody),
-                Option.map(
-                  x => x ++ "@<" ++ Typ.pretty_print(tau) ++ ">",
-                  name,
-                ),
-              ),
-            side_effects: [],
-            kind: TypFunAp,
-            is_value: false,
-          })
-        };
-      };
+      Step({
+        expr,
+        side_effects: [],
+        kind: TypFunAp,
+        is_value: false,
+      });
     | DeferredAp(d1, ds) =>
       let. _ =
         otherwise(env, ty_env, (d1, ds) => DeferredAp(d1, ds) |> rewrap)
