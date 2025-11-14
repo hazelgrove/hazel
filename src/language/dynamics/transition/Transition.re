@@ -403,34 +403,33 @@ module Transition = (EV: EV_MODE) => {
       let-unbox typfun = (TypFun, d');
       let (utpat, tfbody, name, env, ty_env) =
         switch (typfun) {
-        | TypFun(utpat, tfbody, name) => (utpat, tfbody, name, env, ty_env)
-        | TypFunEnv(utpat, tfbody, name, env, ty_env) => (
-            utpat,
-            tfbody,
-            name,
-            env,
-            ty_env,
-          )
+        | TypFun(u, t, n) => (u, t, n, env, ty_env)
+        | TypFunEnv(u, t, n, e, te) => (u, t, n, e, te)
         };
-      /* Create a closure with the type argument in the type environment */
-      let tvar = TPat.tyvar_of_utpat(utpat);
-      let name =
-        Option.map(x => x ++ "@<" ++ Typ.pretty_print(tau) ++ ">", name);
       let expr = DHExp.ty_subst(tau, utpat, tfbody);
-      let expr =
-        (
-          switch (tvar) {
-          | Some(var_name) =>
-            let ty_env' =
-              Environment.add_bindings(ty_env, [(var_name, tau)]);
-            Closure(env, ty_env', expr) |> fresh;
-          | None => expr
-          }
-        )
-        |> DHExp.assign_name_if_none(_, name);
 
       Step({
-        expr,
+        expr:
+          (
+            switch (TPat.tyvar_of_utpat(utpat)) {
+            | Some(var_name) =>
+              /* Create a closure with the type argument in the type environment */
+              Closure(
+                env,
+                Environment.add_bindings(ty_env, [(var_name, tau)]),
+                expr,
+              )
+              |> fresh
+            | None => expr
+            }
+          )
+          |> DHExp.assign_name_if_none(
+               _,
+               Option.map(
+                 x => x ++ "@<" ++ Typ.pretty_print(tau) ++ ">",
+                 name,
+               ),
+             ),
         side_effects: [],
         kind: TypFunAp,
         is_value: false,
