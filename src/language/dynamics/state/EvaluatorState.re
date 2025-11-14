@@ -10,7 +10,7 @@ type effect =
   | RecordExpProbe(Probe.t)
   | RecordStackFrame
   | RecordPatProbes(PatternMatch.closure_closures)
-  | RecordTypeInstantiation(Dynamics.TypeInstantiation.t);
+  | RecordTypeInstantiation(Probe.call_stack => Dynamics.TypeInstantiation.t);
 
 let init = {
   tests: TestMap.empty,
@@ -75,9 +75,9 @@ let update =
             closure_closures,
           );
         (call_stack, state);
-      | RecordTypeInstantiation(inst) => (
+      | RecordTypeInstantiation(type_inst_closure) => (
           call_stack,
-          add_type_inst(state, inst),
+          add_type_inst(state, type_inst_closure(call_stack)),
         )
       },
     (call_stack, state),

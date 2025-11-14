@@ -138,6 +138,7 @@ module TypeInstantiation = {
     tpat_id: Id.t, /* ID of the type pattern */
     type_var: string, /* Variable name (e.g., "a") */
     instantiated_type: Typ.t, /* The concrete type (e.g., String) */
+    call_stack: list(Id.t), /* Call stack at instantiation time */
     time: float /* Timestamp */
   };
 };
@@ -162,6 +163,23 @@ module TypeInstMap = {
       map,
     );
   };
+  let filter_type_instantiations_by_pin =
+      (pinned_call: option(list(Id.t)), closures: list('a)): list('a) =>
+    switch (pinned_call) {
+    | Some(pinned_stack) =>
+      List.filter(
+        (closure: TypeInstantiation.t) =>
+          ListUtil.is_suffix_of(pinned_stack, closure.call_stack),
+        closures,
+      )
+    | None => closures
+    };
+
+  let filter_all_by_pin = (pinned_call: option(list(Id.t)), map: t): t =>
+    Id.Map.map(
+      closures => filter_type_instantiations_by_pin(pinned_call, closures),
+      map,
+    );
 };
 
 module Info = {

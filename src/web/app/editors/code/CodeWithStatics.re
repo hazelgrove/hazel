@@ -152,6 +152,12 @@ module Update = {
                 filtered_dynamics,
               );
 
+            let filtered_type_inst_map: Dynamics.TypeInstMap.t =
+              Dynamics.TypeInstMap.filter_all_by_pin(
+                pinned_call,
+                type_inst_map,
+              );
+
             let type_inst_probes: Id.Map.t(DynamicStatics.Map.type_inst_entry) =
               Id.Map.map(
                 List.map(
@@ -162,7 +168,7 @@ module Update = {
                     instantiated_type: inst.instantiated_type,
                   }
                 ),
-                type_inst_map,
+                filtered_type_inst_map,
               );
 
             let dynamic_info_map =

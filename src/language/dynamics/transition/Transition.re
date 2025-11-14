@@ -403,12 +403,14 @@ module Transition = (EV: EV_MODE) => {
             switch (TPat.tyvar_of_utpat(utpat)) {
             | Some(var_name) => [
                 EvaluatorState.RecordTypeInstantiation(
-                  Dynamics.TypeInstantiation.{
-                    tpat_id: TPat.rep_id(utpat),
-                    type_var: var_name,
-                    instantiated_type: tau,
-                    time: JsUtil.timestamp(),
-                  },
+                  call_stack =>
+                    Dynamics.TypeInstantiation.{
+                      tpat_id: TPat.rep_id(utpat),
+                      type_var: var_name,
+                      instantiated_type: tau,
+                      call_stack,
+                      time: JsUtil.timestamp(),
+                    },
                 ),
               ]
             | None => []
