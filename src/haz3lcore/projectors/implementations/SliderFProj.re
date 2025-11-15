@@ -38,6 +38,7 @@ module M: Projector = {
             term: Atom(Float(float_of_string(v))),
           })
         | _ => failwith("SliderF: Put: not float literal"),
+        Inline.Compound,
         info.syntax,
       )
     ) {

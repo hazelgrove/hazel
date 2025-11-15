@@ -66,13 +66,31 @@ module Model = {
         indicated: option(Indicated.piece),
         statics: Language.Statics.Map.t,
         dynamics: Language.Dynamics.Map.t,
+        dyn_cursor: Language.DynCursor.t,
         editor_active: bool,
       ) => {
     List.filter_map(
       ((id, _)) => {
+        //TODO(andrew): cleanup, document hax
         let* p = Id.Map.find_opt(id, projectors);
-        let+ measurement = Measured.find_pr_opt(p, measured);
-        let info = ProjectorInfo.mk_info(p, ~statics, ~dynamics);
+        let+ measurement =
+          switch (Measured.find_pr_opt(p, measured)) {
+          | None =>
+            /* Refractors case */
+            //TODO(andrew): document
+            switch (TermData.extreme_measures(id, term_data, measured)) {
+            | None => None
+            | Some((_l, r)) =>
+              Some(
+                Measured.{
+                  origin: r,
+                  last: r,
+                },
+              )
+            }
+          | Some(m) => Some(m)
+          };
+        let info = ProjectorInfo.mk_info(p, ~dyn_cursor, ~statics, ~dynamics);
         {
           p,
           info,
@@ -163,6 +181,7 @@ let handle = (id, action: external_action): Action.project =>
   | Remove => RemoveIndicated
   | Escape(d) => Escape(id, d)
   | SetSyntax(f) => SetSyntax(id, f)
+  | DynCursor(a) => DynCursor(a)
   };
 
 let offside_wrapper =
@@ -180,14 +199,18 @@ let offside_wrapper =
     [v],
   );
 
-let simple_code = (~background=false, font_metrics, _sort, segment): Node.t => {
+let simple_code =
+    (~background=false, ~is_single_line=?, font_metrics, _sort, segment)
+    : Node.t => {
   let shape_map = ProjectorCore.Shape.Map.empty; /* Assume this doesn't contain projectors */
-  let measured = Measured.of_segment(segment, shape_map);
+  let measured =
+    Measured.of_segment(~is_single_line, segment, shape_map, Id.Map.empty);
   let code =
     Code.view(
       ~measured,
       ~settings=Settings.Model.init,
       ~shape_map,
+      ~refractor_shape_map=Id.Map.empty, //TODO(andrew)
       ~font_metrics,
       ~term_data=Id.Map.empty,
       ~buffer_ids=[],
@@ -217,6 +240,44 @@ let simple_code = (~background=false, font_metrics, _sort, segment): Node.t => {
   );
 };
 
+let text_code = (segment): Node.t =>
+  div(
+    ~attrs=[Attr.class_("code")],
+    [
+      span_c(
+        "code-text",
+        [
+          div(
+            ~attrs=[Attr.classes(["token", "Exp"])],
+            [
+              Node.text(
+                Printer.of_segment(
+                  ~holes="?",
+                  ~indent="",
+                  ~is_single_line=true,
+                  segment,
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    ],
+  );
+
+let flex_code =
+    (
+      ~font_metrics,
+      ~background=?,
+      ~is_single_line=?,
+      ~text_only=?,
+      sort,
+      segment,
+    ) =>
+  text_only == Some(Some())
+    ? text_code(segment)
+    : simple_code(~background?, ~is_single_line?, font_metrics, sort, segment);
+
 /* Route top-level metadata to the projector view function. */
 let mk_view =
     (
@@ -232,7 +293,16 @@ let mk_view =
     local: a =>
       inject(Project(SetModel(p.id, P.update(p.model, info, a)))),
     parent: a => inject(Project(handle(p.id, a))),
-    view_seg: (~background=?) => simple_code(~background?, font_metrics),
+    view_seg:
+      (~background=?, ~is_single_line=?, ~text_only=?, sort, segment) =>
+      flex_code(
+        ~font_metrics,
+        ~background?,
+        ~is_single_line?,
+        ~text_only?,
+        sort,
+        segment,
+      ),
     status,
   });
 };
@@ -244,6 +314,7 @@ let split_views =
       inject: Action.t => Ui_effect.t(unit),
       make_active,
       font_metrics: FontMetrics.t,
+      ~skip_inline: bool,
       {p, offside_base, measurement, status, _} as projector_data: Model.projector_data,
     )
     : (Node.t, option(Node.t)) => {
@@ -264,7 +335,7 @@ let split_views =
       |> Option.map(offside_wrapper(font_metrics, offside_base))
       |> Option.to_list;
     wrapper(
-      [views.inline]
+      (skip_inline ? [] : [views.inline])
       @ [backing_deco(~font_metrics, ~measurement, p)]
       @ offside_view,
     );
@@ -301,12 +372,37 @@ let all =
   let (base_views, overlay_views) =
     projector_data
     |> List.sort(by_measurement)
-    |> List.map(split_views(inject, make_active, font_metrics))
+    |> List.map(
+         split_views(~skip_inline=false, inject, make_active, font_metrics),
+       )
     |> List.split;
   let overlay_views = List.filter_map(Fun.id, overlay_views);
   [
     div_c(
       "projectors",
+      [div_c("base", base_views), div_c("overlays", overlay_views)],
+    ),
+  ];
+};
+
+let all_refractors =
+    (
+      inject: Action.t => Ui_effect.t(unit),
+      make_active,
+      font_metrics: FontMetrics.t,
+      refactor_data: list(Model.projector_data),
+    ) => {
+  let (base_views, overlay_views) =
+    refactor_data
+    |> List.sort(by_measurement)
+    |> List.map(
+         split_views(~skip_inline=true, inject, make_active, font_metrics),
+       )
+    |> List.split;
+  let overlay_views = List.filter_map(Fun.id, overlay_views);
+  [
+    div_c(
+      "refractors",
       [div_c("base", base_views), div_c("overlays", overlay_views)],
     ),
   ];

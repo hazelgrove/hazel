@@ -1,3 +1,4 @@
+open Util;
 open Util.WebUtil;
 open Haz3lcore;
 
@@ -12,6 +13,7 @@ module Model = {
   type t = {
     // Updated:
     editor: Editor.t,
+    context_menu: bool,
     statics: CachedStatics.t,
     dynamics: Language.Dynamics.Map.t,
   };
@@ -25,12 +27,13 @@ module Model = {
     editor,
     statics,
     dynamics,
+    context_menu: false,
   };
 
   let mk_from_exp =
       (
         ~settings: Language.CoreSettings.t,
-        ~inline=false,
+        ~inline=Inline.Compound,
         term: Language.Exp.t,
       ) => {
     ExpToSegment.exp_to_segment(
@@ -53,7 +56,11 @@ module Model = {
       |> Option.map(((p, _, _)) => p),
     selected_text:
       Some(
-        () => Printer.of_segment(model.editor.state.zipper.selection.content),
+        () =>
+          Printer.of_segment(
+            ~refractors=model.editor.state.zipper.refractors.manuals,
+            model.editor.state.zipper.selection.content,
+          ),
       ),
     selection: Some(model.editor.state.zipper.selection.content),
     editor: Some(model.editor),
@@ -86,9 +93,19 @@ module Update = {
         ~stitch,
         ~dynamics: Language.Dynamics.Map.t,
         ~is_dynamic_term,
-        {editor, statics, dynamics: _}: Model.t,
+        {editor, statics, context_menu, _}: Model.t,
       )
       : Model.t => {
+    //TODO(andrew): resolve this cycle
+    // might be problematic not to calc editor again below...
+    let editor =
+      Editor.Update.calculate(
+        ~settings,
+        ~is_edited,
+        statics,
+        dynamics,
+        editor,
+      );
     let statics =
       is_edited
         ? CachedStatics.init(
@@ -99,18 +116,20 @@ module Update = {
             editor.state.zipper,
           )
         : statics;
-    let editor =
-      Editor.Update.calculate(
-        ~settings,
-        ~is_edited,
-        statics,
-        dynamics,
-        editor,
-      );
     {
+      // let editor =
+      //   Editor.Update.calculate(
+      //     ~settings,
+      //     ~is_edited,
+      //     statics,
+      //     dynamics,
+      //     editor,
+      //   );
+
       editor,
       statics,
       dynamics,
+      context_menu,
     };
   };
 };
@@ -137,6 +156,7 @@ module View = {
         ~buffer_ids=Selection.is_buffer(z.selection) ? selection_ids : [],
         ~segment,
         ~shape_map,
+        ~refractor_shape_map=Id.Map.empty //Id.Map.map(_ => 2, z.refractors.map),
       );
     let statics_decos =
       Arms.Errors.of_ids(
@@ -144,6 +164,11 @@ module View = {
         ~syntax=model.editor.syntax,
         model.statics.error_ids,
       );
-    div_c("code-container", [code_text_view, statics_decos] @ overlays);
+    let container_classes =
+      ["code-container"] @ (globals.meta_down ? ["meta-down"] : []);
+    Node.div(
+      ~attrs=[Attr.classes(container_classes)],
+      [code_text_view, statics_decos] @ overlays,
+    );
   };
 };

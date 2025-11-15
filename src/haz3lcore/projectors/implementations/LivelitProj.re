@@ -98,6 +98,7 @@ module M: Projector = {
             let updated_segment =
               info.utility.lift_syntax(
                 replace_model_term(new_model),
+                Inline.Compound,
                 info.syntax,
               );
 

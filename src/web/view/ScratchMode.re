@@ -20,6 +20,7 @@ module Model = {
     model.current,
     List.map(
       ((s: string, m: CellEditor.Model.t)) => {
+        //TODO(andrew): reinstate
         let current_segment = Zipper.zip(m.editor.editor.state.zipper);
         let original = Init.find_documentation_slide(s);
         let original_segment =
@@ -28,7 +29,6 @@ module Model = {
                PersistentZipper.unpersist(pce.editor)
              )
           |> Option.map(Zipper.zip);
-
         if (Option.equal(
               Base.equal_segment,
               original_segment,

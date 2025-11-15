@@ -18,6 +18,7 @@ type syntax = Base.piece;
 
 /* Global actions available to handlers in all projectors */
 type external_action =
+  | DynCursor(Action.dyn_cursor)
   | Remove /* Remove projector entirely */
   | Escape(Util.Direction.t) /* Pass focus to parent editor */
   | SetSyntax(Base.segment); /* Set underlying syntax */
@@ -35,7 +36,8 @@ type utility = {
    * proactively attempt to parenthesize resulting non-single
    * piece terms. As such, sorts that do not have parentheses
    * (currently all degenerate cases) will throw an error */
-  lift_syntax: (Any.t => Any.t, Base.segment) => option(Base.segment),
+  lift_syntax:
+    (Any.t => Any.t, Inline.t, Base.segment) => option(Base.segment),
 };
 
 module Focusable = {
@@ -115,7 +117,15 @@ module View = {
   };
 
   [@deriving (show({with_path: false}), sexp, yojson)]
-  type seg = (~background: bool=?, Sort.t, list(syntax)) => Node.t;
+  type seg =
+    (
+      ~background: bool=?,
+      ~is_single_line: option(unit)=?,
+      ~text_only: option(unit)=?,
+      Sort.t,
+      list(syntax)
+    ) =>
+    Node.t;
 
   [@deriving (show({with_path: false}), sexp, yojson)]
   type args('model, 'action) = {

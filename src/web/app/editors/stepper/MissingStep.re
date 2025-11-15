@@ -361,7 +361,7 @@ module View = {
                      exp_to_segment(
                        ~settings=
                          Settings.of_core(
-                           ~inline=false,
+                           ~inline=Compound,
                            globals.settings.core,
                          ),
                      )
@@ -513,7 +513,7 @@ module View = {
                           ~globals,
                           ~settings=
                             ExpToSegment.Settings.of_core(
-                              ~inline=false,
+                              ~inline=Compound,
                               globals.settings.core,
                             ),
                           Exp(unboxed_selected_exp),
@@ -534,6 +534,7 @@ module View = {
                                 | Some(RewriteEditor ()) => true
                                 | _ => false
                                 },
+                              ~dynamics=Dynamics.Map.empty,
                               editor,
                             ),
                           ],

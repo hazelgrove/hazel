@@ -239,6 +239,7 @@ module Update = {
               editor,
               statics: cell.editor.statics,
               dynamics: EvalResult.Model.dynamics(cell.result),
+              context_menu: false,
             },
             result: cell.result,
           }

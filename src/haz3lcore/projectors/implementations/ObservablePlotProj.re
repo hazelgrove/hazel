@@ -322,9 +322,20 @@ let decode_graph_data = (value: DHExp.t): decoded_graph => {
   };
 };
 
-let select_sample = (info: info): option(Dynamics.Probe.Closure.t) =>
+let select_sample = (info: info): option(Sample.t) =>
   switch (info.dynamics) {
-  | Some([sample, ..._]) => Some(sample)
+  | Some(x) =>
+    switch (
+      ProbeProj.Samples.first_related_index(
+        ~trimmed=false,
+        ~ap_id=None,
+        x.dyn_cursor,
+        x.samples,
+      )
+    ) {
+    | Some(idx) => Some(List.nth(x.samples, idx))
+    | None => None
+    }
   | _ => None
   };
 

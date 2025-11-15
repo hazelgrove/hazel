@@ -1,6 +1,7 @@
 let out : string * Haz3lcore.PersistentSegment.t =
   ( "nool",
     {
+      refractors = "()";
       segment =
         "((Tile((id 9a78614d-1272-4898-961c-52e1af27678f)(label(type = \
          in))(mold((out Exp)(in_(TPat Typ))(nibs(((shape Convex)(sort \

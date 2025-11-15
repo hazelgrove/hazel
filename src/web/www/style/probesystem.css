@@ -1,0 +1,216 @@
+#probesys {
+  display: flex;
+  flex: 1;
+  padding: 1em;
+  flex-direction: column;
+  overflow-y: auto;
+  gap: 1em;
+  overflow-x: hidden; /* Prevent outer scroll */
+}
+
+#probesys .title {
+  /* text-transform: uppercase;
+  font-weight: bold; */
+}
+
+#probesys .main-title {
+  text-transform: uppercase;
+  font-size: 1em;
+  font-weight: bold;
+  color: var(--ui-header-text);
+  align-self: flex-start;
+  display: flex;
+  gap: 1em;
+}
+
+#probesys .header {
+  display: flex;
+  width: 100%;
+  justify-content: space-between;
+  align-items: center;
+  font-weight: bold;
+}
+
+#probesys .quick-select-deco svg {
+  fill: oklch(0.93 0.06 90.1);
+}
+
+#probesys .ephemerals {
+  position: relative;
+  left: 1em;
+}
+
+/* #probesys .probe-entry .live-offside .code .code-text .token {
+  color: var(--G2) !important;
+} */
+
+#probesys .probe-view .live-env {
+  display: none;
+}
+
+#probesys .probe-view .live-offside > *:not(.sample-groups) {
+  display: none;
+}
+
+#probesys .probe-entry {
+  cursor: pointer;
+  position: relative;
+  display: flex;
+  gap: 1em;
+}
+
+#probesys .legend {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  grid-template-rows: auto auto auto;
+  gap: 0.5rem; /* adjust spacing between items */
+  justify-items: stretch; /* or center if you prefer tighter layout */
+}
+
+#probesys .panel {
+  padding: 0.5em;
+  outline: 1px solid var(--BR1);
+  border-radius: 0.3em;
+  color: var(--BR2);
+  overflow: clip;
+}
+
+#probesys .sketch {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+#probesys .sketch .sketch-toggle-image {
+  width: 140px;
+  height: 140px;
+  transition: all 0.2s ease-in-out;
+  background-image: url("../img/probe-lenses.webp");
+  background-size: contain;
+  background-repeat: no-repeat;
+  background-position: center;
+  display: inline-block;
+}
+
+#probesys .sketch[open] .sketch-toggle-image {
+  width: 25px;
+  height: 25px;
+  position: absolute;
+  top: 167px;
+  left: 15px;
+}
+
+.sketch summary {
+  cursor: pointer;
+  list-style: none;
+  display: inline-flex;
+  align-items: center;
+}
+
+.sketch summary::marker,
+.sketch summary::-webkit-details-marker {
+  display: none;
+}
+
+#probesys .legend .title {
+  grid-column: 1 / -1; /* span full width of the grid */
+  justify-self: start; /* left align */
+}
+
+#probesys .panel.call-cursor .title {
+  padding-bottom: 0.5em;
+}
+
+#probesys .panel.call-cursor .stack {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+#probesys .legend .projector {
+  position: relative;
+  pointer-events: none;
+  justify-content: center;
+  text-align: center;
+}
+
+/* #probesys .code {
+  outline: 1px solid var(--T1);
+} */
+
+#probesys .code .code-text:after {
+  /* Might have to disable this for multiline display to work */
+  display: none;
+}
+
+#probesys .is-index .probe-entry > .code {
+  outline: 1px solid var(--BR1);
+  /* z-index: 1; */
+}
+
+#probesys .indicated-call .probe-entry > .code {
+  outline: 1px solid var(--R1);
+  /* z-index: 2; */
+}
+
+#probesys .indicated-call.not-in-stack {
+  padding-bottom: 0.25em;
+}
+
+.probe-entry > .code {
+  background-color: var(--T2);
+  padding: 0 0.4em;
+  border-radius: 0.3em;
+  border-left: 1px solid var(--BR2);
+}
+
+#probesys .after-index .probe-entry .code {
+  opacity: 0.5;
+}
+
+#probesys .panel.probes {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  outline: none;
+  border-left: 1px solid var(--BR2);
+}
+
+#probesys .panel.probes .auto {
+  border-left: 1px solid var(--BR2);
+  padding: 0.5em;
+  border-radius: 0.3em;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+#probesys .panel.probes .top-level-body {
+  margin-left: 0.5em;
+  gap: 1px;
+  display: flex;
+  flex-direction: column;
+}
+
+#probesys .panel.probes .top-level-title {
+  position: relative;
+}
+
+#probesys .code:hover {
+  filter: brightness(1.04);
+}
+
+#probesys .settings {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5em;
+}
+
+#probesys .settings .named-menu-item {
+  display: flex;
+  gap: 0.5em;
+}
+
+#probesys .panel.prints .body {
+  white-space: pre;
+}

@@ -14,6 +14,7 @@ module Update = {
   type t =
     | Perform(Action.t)
     | TAB
+    | ToggleContextMenu
     | DebugConsole(string);
 
   exception CantReset;
@@ -22,6 +23,7 @@ module Update = {
     switch (action) {
     | Perform(action) => Action.is_historic(action)
     | TAB => true
+    | ToggleContextMenu => false
     | DebugConsole(_) => false
     };
   };
@@ -43,6 +45,7 @@ module Update = {
             editor,
             statics: model.statics,
             dynamics: model.dynamics,
+            context_menu: false,
           }
         | Error(err) => raise(Action.Failure.Exception(err))
       )
@@ -51,6 +54,7 @@ module Update = {
            ~recalculate=true,
            ~scroll_active={
              switch (action) {
+             | Move(Point(_)) => false
              | Move(_)
              | Select(
                  Resize(_) | Term(_) | Smart(_) | Tile(_) | ToggleFocus |
@@ -65,9 +69,12 @@ module Update = {
              | Cut
              | Reparse
              | Introduce
+             | Refractor(ProbeJump)
              | Dump => true
              | Project(_)
              | Unselect(_)
+             | Refractor(_)
+             | DynCursor(_)
              | Select(All) => false
              };
            },
@@ -80,6 +87,12 @@ module Update = {
     | DebugConsole(key) =>
       DebugConsole.print(~settings, model, key);
       model |> Updated.return_quiet;
+    | ToggleContextMenu =>
+      {
+        ...model,
+        context_menu: !model.context_menu,
+      }
+      |> Updated.return
     | TAB =>
       /* Attempt to act intelligently when TAB is pressed.
        * TODO: Consider more advanced TAB logic. Instead
@@ -203,6 +216,7 @@ module View = {
         ~inject: Update.t => Ui_effect.t(unit),
         ~selected: bool,
         ~overlays: list(Node.t)=[],
+        ~dynamics: Language.Dynamics.Map.t,
         model: Model.t,
       ) => {
     let edit_decos =
@@ -212,7 +226,52 @@ module View = {
             ~syntax=model.editor.syntax,
             ~globals,
           )
+          @ [
+            Arms.Refractors.all(
+              ~font_metrics=globals.font_metrics,
+              ~syntax=model.editor.syntax,
+              ~dynamics,
+              model.editor.state.zipper,
+            ),
+          ]
+          @ (
+            model.context_menu
+              ? [
+                ContextMenu.view(
+                  ~inject=a => inject(Perform(a)),
+                  ~syntax=model.editor.syntax,
+                  ~info_map=model.statics.info_map,
+                  ~font_metrics=globals.font_metrics,
+                  model.editor.state.zipper,
+                ),
+              ]
+              : []
+          )
         : [];
+    let refractor_data =
+      ProjectorView.Model.mk(
+        Id.Map.union(
+          (_, _, b) => Some(b),
+          model.editor.state.zipper.refractors.manuals,
+          model.editor.state.zipper.refractors.ephemerals,
+        ),
+        model.editor.syntax.shape_map,
+        model.editor.syntax.measured,
+        model.editor.syntax.term_data,
+        model.editor.syntax.selection_ids,
+        Indicated.piece(model.editor.state.zipper),
+        model.statics.info_map,
+        dynamics,
+        model.editor.state.zipper.refractors.dyn_cursor,
+        selected,
+      );
+    let refractors_model =
+      ProjectorView.all_refractors(
+        x => inject(Perform(x)),
+        signal(MakeActive),
+        globals.font_metrics,
+        refractor_data,
+      );
     let projectors =
       ProjectorView.all(
         x => inject(Perform(x)),
@@ -226,14 +285,16 @@ module View = {
           model.editor.syntax.selection_ids,
           Indicated.piece(model.editor.state.zipper),
           model.statics.info_map,
-          model.dynamics,
+          dynamics,
+          model.editor.state.zipper.refractors.dyn_cursor,
           selected,
         ),
       );
     let overlays =
       [Node.div(~attrs=[Attr.classes(["code-deco"])], edit_decos)]
       @ [Node.div(~attrs=[Attr.classes(["overlays"])], overlays)]
-      @ projectors;
+      @ projectors
+      @ refractors_model;
     let code_view = CodeWithStatics.View.view(~globals, ~overlays, model);
 
     let loc = (e: Pointer.Event.t) =>
@@ -245,18 +306,28 @@ module View = {
 
     let move_or_select = (mouse: Pointer.Event.t, pointer_id: int) =>
       switch (mouse) {
-      | {shift: Down, _} =>
+      | {button: Left, shift: Down, _} =>
         Effect.Many([
           signal(MakeActive),
           inject(Perform(Select(Resize(Point(loc(mouse)))))),
         ])
-      | {sys: PC, ctrl: Down, _}
-      | {sys: Mac, meta: Down, _} =>
+      | {button: Left, sys: PC, ctrl: Down, _}
+      | {button: Left, sys: Mac, meta: Down, _} =>
         Effect.Many([
           signal(MakeActive),
           inject(Perform(Move(Point(loc(mouse))))),
           inject(Perform(Move(Goal(BindingSiteOfIndicatedVar)))),
         ])
+      | {button: Right, ctrl, _} when ctrl != Down =>
+        print_endline(
+          "right click detected. stopping prop, preventing default",
+        );
+        Effect.Many([
+          //Effect.Stop_propagation,
+          Effect.Prevent_default,
+          inject(Perform(Move(Point(loc(mouse))))),
+          inject(ToggleContextMenu),
+        ]);
       | {button: Left, _} =>
         MouseState.pointerdown(loc(mouse));
         let click_count = MouseState.count();
@@ -294,6 +365,16 @@ module View = {
       ~attrs=[
         Attr.classes(
           ["cell-item", "code-editor"] @ (selected ? ["selected"] : []),
+        ),
+        Attr.on_contextmenu(evt =>
+          switch (Pointer.Event.mk(evt)) {
+          | {button: Right, ctrl: Up, _} =>
+            print_endline(
+              "right click with no ctrl hold detected. stopping prop, preventing default",
+            );
+            Effect.Many([Effect.Stop_propagation, Effect.Prevent_default]);
+          | _ => Effect.Ignore
+          }
         ),
         Attr.on_pointerdown(evt =>
           move_or_select(Pointer.Event.mk(evt), Pointer.Event.id_of(evt))

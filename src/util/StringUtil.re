@@ -56,7 +56,7 @@ let plain_search: (string, string, int) => int =
 let to_lines = String.split_on_char('\n');
 
 let line_widths = (s: string): list(int) =>
-  s |> to_lines |> List.map(String.length);
+  s |> to_lines |> List.map(Unicode.length);
 
 let max_line_width = (s: string): int =>
   s |> line_widths |> List.fold_left(max, 0);

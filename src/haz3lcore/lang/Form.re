@@ -169,6 +169,7 @@ type compound_form =
   | ParensPat
   | ParensTyp
   | ParensTPat
+  | BlockExp
   | ApExpEmpty
   | ApExp
   | ApPat
@@ -254,6 +255,7 @@ let get: compound_form => t =
   | ListLitExp => mk_op_c(LT, ["[", "]"], Exp, [Exp])
   | ListLitPat => mk_op_c(LT, ["[", "]"], Pat, [Pat])
   | ListTyp => mk_op_c(LT, ["[", "]"], Typ, [Typ])
+  | BlockExp => mk_op_c(LT, ["{", "}"], Exp, [Exp])
   //NOTE(andrew): parens being below aps is load-bearing, unfortunately
   | ParensExp => mk_parens(Exp)
   | ParensPat => mk_parens(Pat)

@@ -38,6 +38,7 @@ module M: Projector = {
             term: Atom(Bool(!b)),
           })
         | _ => failwith("Checkbox: Toggle: not boolean literal"),
+        Inline.Compound,
         info.syntax,
       )
     ) {

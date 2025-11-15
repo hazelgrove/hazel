@@ -7,7 +7,7 @@ open Language;
 
 module Settings = {
   type t = {
-    inline: bool,
+    inline: Inline.t,
     fold_case_clauses: bool,
     fold_fn_bodies: bool,
     hide_fixpoints: bool,
@@ -860,7 +860,13 @@ let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
           x
           @ List.flatten(
               List.map2(
-                (id, x) => [mk_form(CommaExp, id, [])] @ x,
+                (id, x) =>
+                  [mk_form(CommaExp, id, [])]
+                  @ (
+                    settings.inline == Zzt
+                      ? [Secondary(mk_newline(Id.mk()))] : []
+                  )
+                  @ x,
                 ids,
                 xs,
               ),
@@ -975,7 +981,16 @@ let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
     let ids = IdTagged.ids(exp) |> pad_ids(List.length(xs));
     x
     @ List.flatten(
-        List.map2((id, x) => [mk_form(CommaExp, id, [])] @ x, ids, xs),
+        List.map2(
+          (id, x) =>
+            [mk_form(CommaExp, id, [])]
+            @ (
+              settings.inline == Zzt ? [Secondary(mk_newline(Id.mk()))] : []
+            )
+            @ x,
+          ids,
+          xs,
+        ),
       );
   | Label(l) =>
     label_to_pretty(
@@ -1037,7 +1052,9 @@ let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
     let+ p = pat_to_pretty(~settings: Settings.t, p)
     and+ e1 = go(e1)
     and+ e2 = go(e2);
-    let e2 = settings.inline ? e2 : [Secondary(mk_newline(Id.mk()))] @ e2;
+    let e2 =
+      settings.inline == Single
+        ? e2 : [Secondary(mk_newline(Id.mk()))] @ e2;
     [mk_form(Let, id, [p, e1])] @ e2;
   | FixF(p, e, _) =>
     // TODO: Add optional newlines
@@ -1055,13 +1072,15 @@ let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
     let+ tp = tpat_to_pretty(~settings: Settings.t, tp)
     and+ t = typ_to_pretty(~settings: Settings.t, t)
     and+ e = go(e);
-    let e = settings.inline ? e : [Secondary(mk_newline(Id.mk()))] @ e;
+    let e =
+      settings.inline == Single ? e : [Secondary(mk_newline(Id.mk()))] @ e;
     [mk_form(TypeAlias, id, [tp, t])] @ e;
   | Use(t, e) =>
     let id = exp |> Exp.rep_id;
     let+ t = typ_to_pretty(~settings: Settings.t, t)
     and+ e = go(e);
-    let e = settings.inline ? e : [Secondary(mk_newline(Id.mk()))] @ e;
+    let e =
+      settings.inline == Single ? e : [Secondary(mk_newline(Id.mk()))] @ e;
     [mk_form(Use, id, [t])] @ e;
   | Ap(Forward, e1, e2) =>
     let id = exp |> Exp.rep_id;
@@ -1121,19 +1140,23 @@ let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
     and+ e2 = go(e2)
     and+ e3 = go(e3);
     let e2 =
-      settings.inline
+      settings.inline == Single
         ? e2
         : [Secondary(mk_newline(Id.mk()))]
           @ e2
           @ [Secondary(mk_newline(Id.mk()))];
-    let e3 = settings.inline ? e3 : [Secondary(mk_newline(Id.mk()))] @ e3;
+    let e3 =
+      settings.inline == Single
+        ? e3 : [Secondary(mk_newline(Id.mk()))] @ e3;
     [mk_form(If, id, [e1, e2])] @ e3;
   | Seq(e1, e2) =>
     // TODO: Make newline optional
     let id = exp |> Exp.rep_id;
     let+ e1 = go(e1)
     and+ e2 = go(e2);
-    let e2 = settings.inline ? e2 : [Secondary(mk_newline(Id.mk()))] @ e2;
+    let e2 =
+      settings.inline == Single
+        ? e2 : [Secondary(mk_newline(Id.mk()))] @ e2;
     e1 @ [mk_form(CellJoin, id, [])] @ e2;
   | Test(e) =>
     let id = exp |> Exp.rep_id;
@@ -1209,7 +1232,10 @@ let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
           @ (
             List.map2(
               (id, (p, e)) =>
-                (settings.inline ? [] : [Secondary(mk_newline(Id.mk()))])
+                (
+                  settings.inline == Single
+                    ? [] : [Secondary(mk_newline(Id.mk()))]
+                )
                 @ [mk_form(Rule, id, [p])]
                 @ (e |> fold_if(settings.fold_case_clauses)),
               ids,
@@ -1217,7 +1243,10 @@ let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
             )
             |> List.flatten
           )
-          @ (settings.inline ? [] : [Secondary(mk_newline(Id.mk()))]),
+          @ (
+            settings.inline == Single
+              ? [] : [Secondary(mk_newline(Id.mk()))]
+          ),
         ],
       ),
     ];

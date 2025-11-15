@@ -186,6 +186,14 @@ module Update = {
         syntax,
       );
 
+    /* 3. Update autoprobes */
+    let zipper =
+      zipper
+      |> Refractors.add_ids_from_auto_term(
+           ~syntax,
+           ~info_map=new_statics.info_map,
+         );
+
     Model.{
       state: {
         ...state,

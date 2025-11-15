@@ -23,7 +23,12 @@ module Print = {
     let segment = remove_projectors(segment);
     Printer.of_segment(
       ~holes,
-      ~measured=Measured.of_segment(segment, Id.Map.empty),
+      ~measured=
+        Measured.of_segment(
+          segment,
+          ProjectorCore.Shape.Map.empty,
+          Id.Map.empty,
+        ),
       ~caret=None,
       ~indent=" ",
       segment,
@@ -32,7 +37,7 @@ module Print = {
 
   let term = (term: Any.t): string => {
     let settings =
-      ExpToSegment.Settings.of_core(~inline=false, CoreSettings.off);
+      ExpToSegment.Settings.of_core(~inline=Compound, CoreSettings.off);
     term |> ExpToSegment.any_to_pretty(~settings) |> seg(~holes="");
   };
 

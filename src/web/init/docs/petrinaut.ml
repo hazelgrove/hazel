@@ -1,6 +1,7 @@
 let out : string * Haz3lcore.PersistentSegment.t =
   ( "petrinaut",
     {
+      refractors = "()";
       segment =
         "((Tile((id ffa92f03-2a47-47e1-9f0c-b6dfde23e093)(label(let = \
          in))(mold((out Exp)(in_(Pat Exp))(nibs(((shape Convex)(sort \

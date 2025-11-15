@@ -9,6 +9,7 @@
 @import "style/type-display.css";
 @import "style/explainthis.css";
 @import "style/assistant.css";
+@import "style/probesystem.css";
 @import "style/sidebar.css";
 @import "style/exercise-mode.css";
 @import "style/tutorial-mode.css";
@@ -87,11 +88,13 @@ select {
 }
 
 #main {
-  grid-row: 1 / span 2;
+  /* grid-row: 1 / span 2; */
+  /* TODO(andrew): fix backpack visibility */
+  grid-row: 2 / span 1;
   grid-column: 1 / span 1;
   overflow: auto;
   padding: 0;
-  padding-top: 2em;
+  /* padding-top: 2em; */
   background-color: var(--main-bkg);
   display: flex;
   flex-direction: column;

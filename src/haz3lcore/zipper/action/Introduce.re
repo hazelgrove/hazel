@@ -220,7 +220,7 @@ module Make =
     let seg =
       I.to_segment(
         ~settings={
-          inline: true,
+          inline: Single,
           fold_case_clauses: false,
           fold_fn_bodies: false,
           hide_fixpoints: false,

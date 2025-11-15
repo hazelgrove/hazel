@@ -7,7 +7,7 @@ open OptUtil.Syntax;
 let exp_to_seg =
   ExpToSegment.exp_to_segment(
     ~settings=
-      ExpToSegment.Settings.of_core(~inline=true, Language.CoreSettings.on),
+      ExpToSegment.Settings.of_core(~inline=Single, Language.CoreSettings.on),
   );
 
 let invoked_projector = (name: string, syntax: Segment.t): option(Piece.t) => {
@@ -18,6 +18,18 @@ let invoked_projector = (name: string, syntax: Segment.t): option(Piece.t) => {
 
 let expand_projector = (z: t): option(t) => {
   switch (z.relatives.siblings |> fst |> List.rev) {
+  | [
+      Tile({label: ["(", ")"], children: [syntax], _}),
+      Tile({label: [name], _}),
+      ...rest,
+    ]
+      when name == "^^probe" =>
+    //TODO(andrew): clarify probe case
+    Zipper.update_siblings(((_, r)) => (syntax @ List.rev(rest), r), z)
+    |> MkRefractor.add_single(
+         Segment.root_id(Segment.skel(syntax), syntax),
+       )
+    |> Option.some
   | [
       Tile({label: ["(", ")"], children: [syntax], _}),
       Tile({label: [name], _}),
@@ -44,14 +56,14 @@ let expand_projector = (z: t): option(t) => {
   };
 };
 
-let projector_to_invoke: Base.projector => Segment.t =
-  pr => [
-    Piece.mk_tile(
-      Form.mk_atom_op(Exp, Token.mk_projector_invoke(pr.kind)),
-      [],
-    ),
-    Piece.mk_tile(Form.get(ApExp), [Piece.unparenthesize(pr.syntax)]),
-  ];
+let refractor_to_invoke =
+    (kind: ProjectorCore.Kind.t, seg: Segment.t): Segment.t => [
+  Piece.mk_tile(Form.mk_atom_op(Exp, Token.mk_projector_invoke(kind)), []),
+  Piece.mk_tile(Form.get(ApExp), [seg]),
+];
+
+let projector_to_invoke = (pr: Base.projector): Segment.t =>
+  refractor_to_invoke(pr.kind, Piece.unparenthesize(pr.syntax));
 
 let expand_livelit = (~ctx, z: t): option(t) =>
   switch (z.relatives.siblings |> fst |> List.rev) {
@@ -101,3 +113,41 @@ let destruct = (z: t): option(t) =>
     Some(Zipper.update_siblings(((_, r)) => (l @ last, r), z));
   | _ => None
   };
+
+let refractor_seg_to_seg =
+    (refractors: Id.Map.t(Base.projector), seg: Segment.t)
+    : (Id.Map.t(Base.projector), Segment.t) => {
+  //TODO(andrew): make this support n-ary ops
+  //TODO(andrew): This unfortuately seems to remove all secondary....
+  let foo = root => [List.nth(seg, Aba.first_a(root))];
+  let rec go = (map, skel: Skel.t): (Id.Map.t(Base.projector), Segment.t) => {
+    let (map, res) =
+      switch (skel) {
+      | Op(root) => (map, foo(root))
+      | Pre(root, l) =>
+        let (map, seg) = go(map, l);
+        (map, foo(root) @ seg);
+      | Post(r, root) =>
+        let (map, seg) = go(map, r);
+        (map, seg @ foo(root));
+      | Bin(l, root, r) =>
+        let (map1, seg1) = go(map, l);
+        let (map2, seg2) = go(map1, r);
+        (map2, seg1 @ foo(root) @ seg2);
+      };
+    let root_id = Segment.root_id(skel, seg);
+    switch (Id.Map.find_opt(root_id, refractors)) {
+    | Some(pr) => (
+        Id.Map.remove(root_id, map),
+        refractor_to_invoke(pr.kind, res),
+      )
+    | None => (map, res)
+    };
+  };
+  Id.Map.is_empty(refractors)
+    ? (refractors, seg)
+    : {
+      let (map, seg) = go(refractors, Segment.skel(seg));
+      (map, seg);
+    };
+};

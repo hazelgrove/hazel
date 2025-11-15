@@ -11,7 +11,7 @@ let view = (~globals, kind: Language.Ctx.kind): Node.t =>
         CodeViewable.view_typ(
           ~globals,
           ~settings={
-            inline: true,
+            inline: Single,
             fold_case_clauses: false,
             fold_fn_bodies: false,
             hide_fixpoints: false,

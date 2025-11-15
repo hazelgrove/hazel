@@ -77,7 +77,7 @@ let elements_noun: Cls.t => string =
     failwith("elements_noun: " ++ Cls.show(cls) ++ " cls has no elements");
 
 let code_view_settings: Haz3lcore.ExpToSegment.Settings.t = {
-  inline: true,
+  inline: Single,
   fold_case_clauses: false,
   fold_fn_bodies: false,
   hide_fixpoints: false,
