@@ -69,7 +69,11 @@ let mk_entry =
       target_origin,
       init_json,
       json_to_segment: (str: string) =>
-        info.utility.lift_syntax(string_to_term(str), info.syntax),
+        info.utility.lift_syntax(
+          string_to_term(str),
+          Inline.Zzt,
+          info.syntax,
+        ),
       url:
         Printf.sprintf(
           "%s/?id=%s&parentOrigin=%s",

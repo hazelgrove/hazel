@@ -7,7 +7,9 @@ open Exp;
 
 let exp_to_segment =
   ExpToSegment.(
-    exp_to_segment(~settings=Settings.of_core(~inline=true, CoreSettings.on))
+    exp_to_segment(
+      ~settings=Settings.of_core(~inline=Single, CoreSettings.on),
+    )
   );
 let tests = (
   "Evaluator.Livelit",

@@ -3,7 +3,7 @@ open Language;
 /* Just a convenience for getting a string of the current builtin functions */
 
 let builtin_printer_settings: ExpToSegment.Settings.t =
-  ExpToSegment.Settings.of_core(~inline=true, CoreSettings.off);
+  ExpToSegment.Settings.of_core(~inline=Single, CoreSettings.off);
 
 let builtin_typ: BuiltinsUtil.builtin => Typ.t =
   (builtin: BuiltinsUtil.builtin) =>

@@ -5,7 +5,7 @@ open Base;
 open EditingPrelude;
 
 let exp_to_segment_settings: ExpToSegment.Settings.t = {
-  inline: true,
+  inline: Single,
   fold_case_clauses: false,
   fold_fn_bodies: false,
   hide_fixpoints: false,

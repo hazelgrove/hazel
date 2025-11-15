@@ -75,7 +75,7 @@ let qcheck_stepper_confluence =
           |> ExpToSegment.exp_to_segment(
                ~settings=
                  ExpToSegment.Settings.of_core(
-                   ~inline=true,
+                   ~inline=Single,
                    CoreSettings.off,
                  ),
                _,
@@ -108,7 +108,7 @@ let show_core_exp = exp =>
   exp
   |> ExpToSegment.exp_to_segment(
        ~settings=
-         ExpToSegment.Settings.of_core(~inline=true, CoreSettings.off),
+         ExpToSegment.Settings.of_core(~inline=Single, CoreSettings.off),
        _,
      )
   |> Printer.of_segment(~holes="?", _);

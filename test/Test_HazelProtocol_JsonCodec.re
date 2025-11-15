@@ -6,7 +6,7 @@ let string_to_exp = (s: string): option(Language.Exp.t) =>
   Parser.to_term(s);
 
 let exp_to_string = (exp: Language.Exp.t): string => {
-  let settings = ExpToSegment.Settings.editable(~inline=true);
+  let settings = ExpToSegment.Settings.editable(~inline=Single);
   let segment = ExpToSegment.exp_to_segment(~settings, exp);
   Printer.of_segment(~holes="?", segment);
 };

@@ -106,6 +106,58 @@ let step_into =
   | _ => []
   };
 
+let livelit_actions =
+    (~inject: Action.t => Ui_effect.t(unit), ci: option(Language.Info.t)) => {
+  switch (ci) {
+  | Some(InfoExp({ty, ctx, _})) =>
+    (
+      Language.Typ.is_consistent(
+        ctx,
+        ty,
+        Language.IdTagged.FreshGrammar.Typ.list(
+          Language.IdTagged.FreshGrammar.Typ.prod([
+            Language.IdTagged.FreshGrammar.Typ.string(),
+            Language.IdTagged.FreshGrammar.Typ.unknown(Internal),
+          ]),
+        ),
+      )
+        ? [
+          menu_item(
+            "Livelit: Plot",
+            inject,
+            Project(SetIndicated(Specific(ObservablePlot))),
+          ),
+        ]
+        : []
+    )
+    @ (
+      Language.Typ.is_consistent(
+        ctx,
+        ty,
+        Language.IdTagged.FreshGrammar.Typ.prod([
+          Language.IdTagged.FreshGrammar.Typ.tup_label(
+            Language.IdTagged.FreshGrammar.Typ.unknown(Internal),
+            Language.IdTagged.FreshGrammar.Typ.unknown(Internal),
+          ),
+          Language.IdTagged.FreshGrammar.Typ.tup_label(
+            Language.IdTagged.FreshGrammar.Typ.unknown(Internal),
+            Language.IdTagged.FreshGrammar.Typ.unknown(Internal),
+          ),
+        ]),
+      )
+        ? [
+          menu_item(
+            "Livelit:Petrinaut",
+            inject,
+            Project(SetIndicated(Specific(Exo(Petrinaut)))),
+          ),
+        ]
+        : []
+    )
+  | _ => []
+  };
+};
+
 let probes_actions =
     (
       ~inject: Action.t => Ui_effect.t(unit),
@@ -118,7 +170,8 @@ let probes_actions =
   jump_to_binding(~inject, ci)
   @ manual_probe(~inject, probe_status, ci)
   @ auto_probe(~inject, probe_status, ci)
-  @ step_into(~inject, info_map, ci, z);
+  @ step_into(~inject, info_map, ci, z)
+  @ livelit_actions(~inject, ci);
 };
 
 let probes_menu = probes_items =>

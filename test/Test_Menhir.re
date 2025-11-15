@@ -106,7 +106,10 @@ let qcheck_menhir_maketerm_equivalent_test =
     core_exp => {
       let segment =
         Haz3lcore.ExpToSegment.(
-          exp_to_segment(~settings=Settings.editable(~inline=true), core_exp)
+          exp_to_segment(
+            ~settings=Settings.editable(~inline=Single),
+            core_exp,
+          )
         );
 
       let serialized = Haz3lcore.Printer.of_segment(~holes="?", segment);
@@ -164,7 +167,7 @@ let qcheck_menhir_serialized_equivalent_test =
       let segment =
         Haz3lcore.ExpToSegment.exp_to_segment(
           ~settings={
-            inline: true,
+            inline: Single,
             fold_case_clauses: false,
             fold_fn_bodies: false,
             hide_fixpoints: false,

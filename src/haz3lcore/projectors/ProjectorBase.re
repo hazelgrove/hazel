@@ -36,7 +36,8 @@ type utility = {
    * proactively attempt to parenthesize resulting non-single
    * piece terms. As such, sorts that do not have parentheses
    * (currently all degenerate cases) will throw an error */
-  lift_syntax: (Any.t => Any.t, Base.segment) => option(Base.segment),
+  lift_syntax:
+    (Any.t => Any.t, Inline.t, Base.segment) => option(Base.segment),
 };
 
 module Focusable = {

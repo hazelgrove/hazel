@@ -478,7 +478,7 @@ module View = {
           |> Haz3lcore.ExpToSegment.(
                exp_to_segment(
                  ~settings=
-                   Settings.of_core(~inline=false, globals.settings.core),
+                   Settings.of_core(~inline=Compound, globals.settings.core),
                )
              )
           |> CodeViewable.view_segment(~globals)

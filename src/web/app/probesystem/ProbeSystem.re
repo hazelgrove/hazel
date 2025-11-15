@@ -23,7 +23,7 @@ let exp_view = (~available, term: Language.Exp.t) =>
   |> ExpToSegment.exp_to_segment(
        ~settings=
          ExpToSegment.Settings.of_core(
-           ~inline=true,
+           ~inline=Single,
            Language.CoreSettings.off,
          ),
      );
@@ -35,7 +35,7 @@ let pat_view = (~available, term: Language.Pat.t) =>
   |> ExpToSegment.any_to_segment(
        ~settings=
          ExpToSegment.Settings.of_core(
-           ~inline=true,
+           ~inline=Single,
            Language.CoreSettings.off,
          ),
      );
@@ -599,7 +599,7 @@ let print_string = (probes: Language.Sample.Map.t) => {
          |> ExpToSegment.exp_to_segment(
               ~settings=
                 ExpToSegment.Settings.of_core(
-                  ~inline=true,
+                  ~inline=Single,
                   Language.CoreSettings.off,
                 ),
             )
