@@ -348,7 +348,7 @@ module Local = {
 };
 
 module Public = {
-  let print = (~z: Zipper.t, ~info_map: Id.Map.t(Info.t)): string => {
-    Local.Printer.print(~z, ~info_map);
+  let print = {
+    Local.Printer.print;
   };
 };

@@ -953,6 +953,7 @@ let text_block =
           | User => "user-message"
           | Assistant => "llm-message"
           | System(AssistantPrompt) => "system-prompt-message"
+          | System(AgentView) => "system-prompt-message"
           | System(InternalError) => "system-error-message"
           | Tool => "tool-message"
           },
@@ -1017,6 +1018,7 @@ let code_block =
         | User => "user"
         | Assistant => "llm"
         | System(AssistantPrompt) => "system-prompt"
+        | System(AgentView) => "system-prompt"
         | System(InternalError) => "system-error"
         | Tool => "tool"
         },
@@ -1208,6 +1210,7 @@ let message_display =
                     | System(AssistantPrompt) => "system-prompt"
                     | System(InternalError) => "system-error"
                     | Tool => "tool"
+                    | System(AgentView) => "system-agent-view"
                     },
                   ]),
                   is_last_message ? Attr.id("last-message") : Attr.empty,
@@ -1245,6 +1248,13 @@ let message_display =
                               ~attrs=[clss(["system-prompt-identifier"])],
                               [text("System")],
                             )
+                          | System(AgentView) =>
+                            div(
+                              ~attrs=[
+                                clss(["system-agent-view-identifier"]),
+                              ],
+                              [text("Agent View")],
+                            )
                           | System(InternalError) =>
                             div(
                               ~attrs=[clss(["system-error-identifier"])],
@@ -1258,22 +1268,34 @@ let message_display =
                           },
                         ],
                       ),
-                      message.role == System(AssistantPrompt)
-                        ? div(
-                            ~attrs=[clss(["show-prompt-button"])],
-                            [
-                              Widgets.button(
-                                ~tooltip="Show Prompt", Icons.doc, _ =>
-                                toggle_collapse(true, index)
-                              ),
-                            ],
-                          )
-                        : None,
+                      switch (message.role) {
+                      | System(AssistantPrompt) =>
+                        div(
+                          ~attrs=[clss(["show-prompt-button"])],
+                          [
+                            Widgets.button(~tooltip="Show Prompt", Icons.doc, _ =>
+                              toggle_collapse(true, index)
+                            ),
+                          ],
+                        )
+                      | System(AgentView) =>
+                        div(
+                          ~attrs=[clss(["show-prompt-button"])],
+                          [
+                            Widgets.button(
+                              ~tooltip="Show Agent View", Icons.assistant, _ =>
+                              toggle_collapse(true, index)
+                            ),
+                          ],
+                        )
+                      | _ => None
+                      },
                     ],
                   ),
                 ]
                 @ {
                   message.role == System(AssistantPrompt)
+                  || message.role == System(AgentView)
                     ? [None]
                     : {
                       let parsed_blocks = message.display.displayable_content;
@@ -1385,7 +1407,11 @@ let prompt_display =
   let display =
     List.find_mapi(
       (index: int, message: unwrapped_message) => {
-        message.role == System(AssistantPrompt) && !message.display.collapsed
+        (
+          message.role == System(AssistantPrompt)
+          || message.role == System(AgentView)
+        )
+        && !message.display.collapsed
           ? Some(
               div(
                 ~attrs=[

@@ -53,7 +53,7 @@ module Local = {
     };
   };
 
-  module ActionUtils = {
+  module PerformUtils = {
     let static_error_check =
         (
           ~old_z: option(Zipper.t), // optional arg -- if not provided, assume no errors existed
@@ -245,7 +245,7 @@ module Local = {
     | None =>
       switch (a) {
       | Edit(Initialize(code)) =>
-        switch (ActionUtils.introduce(Select.all(z), code, return)) {
+        switch (PerformUtils.introduce(Select.all(z), code, return)) {
         | Ok(new_z) =>
           let new_statics = mk_statics(new_z);
           // For initialization, check the entire program for errors
@@ -287,7 +287,7 @@ module Local = {
         | UpdateDefinition(path, code) =>
           let target_id = path_to_node(node_map, path);
           switch (
-            ActionUtils.overwrite_term(
+            PerformUtils.overwrite_term(
               z,
               target_id,
               code,
@@ -298,7 +298,7 @@ module Local = {
           ) {
           | Error(e) => Error(e)
           | Ok(new_z) =>
-            ActionUtils.static_error_check(
+            PerformUtils.static_error_check(
               ~old_z=Some(z),
               ~old_node=Some(node_map |> Id.Map.find(target_id)),
               ~new_z,
@@ -313,7 +313,7 @@ module Local = {
         | UpdateBody(path, code) =>
           let target_id = path_to_node(node_map, path);
           switch (
-            ActionUtils.overwrite_term(
+            PerformUtils.overwrite_term(
               z,
               target_id,
               code,
@@ -324,7 +324,7 @@ module Local = {
           ) {
           | Error(e) => Error(e)
           | Ok(new_z) =>
-            ActionUtils.static_error_check(
+            PerformUtils.static_error_check(
               ~old_z=Some(z),
               ~old_node=Some(node_map |> Id.Map.find(target_id)),
               ~new_node=node_map |> Id.Map.find(target_id),
@@ -338,7 +338,7 @@ module Local = {
         | UpdatePattern(path, code) =>
           let target_id = path_to_node(node_map, path);
           switch (
-            ActionUtils.overwrite_term(
+            PerformUtils.overwrite_term(
               z,
               target_id,
               code,
@@ -350,7 +350,7 @@ module Local = {
           | Error(e) => Error(e)
           | Ok(new_z) =>
             switch (
-              ActionUtils.static_error_check(
+              PerformUtils.static_error_check(
                 ~old_z=Some(z),
                 ~old_node=Some(node_map |> Id.Map.find(target_id)),
                 ~new_node=node_map |> Id.Map.find(target_id),
@@ -369,7 +369,7 @@ module Local = {
         | UpdateBindingClause(path, code) =>
           let target_id = path_to_node(node_map, path);
           switch (
-            ActionUtils.overwrite_term(
+            PerformUtils.overwrite_term(
               z,
               target_id,
               code,
@@ -380,7 +380,7 @@ module Local = {
           ) {
           | Error(e) => Error(e)
           | Ok(new_z) =>
-            ActionUtils.static_error_check(
+            PerformUtils.static_error_check(
               ~old_z=Some(z),
               ~old_node=Some(node_map |> Id.Map.find(target_id)),
               ~new_node=node_map |> Id.Map.find(target_id),
@@ -395,7 +395,7 @@ module Local = {
           // todo: figure out a better method than magic space
           let target_id = path_to_node(node_map, path);
           switch (
-            ActionUtils.insert_term(
+            PerformUtils.insert_term(
               z,
               path_to_node(node_map, path),
               code ++ " ",
@@ -411,7 +411,7 @@ module Local = {
             // the trailing node in the new insertion is selected
             switch (Move.by_char_left(new_z)) {
             | Some(new_z) =>
-              ActionUtils.static_error_check(
+              PerformUtils.static_error_check(
                 ~old_z=None,
                 ~old_node=None,
                 ~new_node=node_map |> Id.Map.find(target_id),
@@ -428,7 +428,7 @@ module Local = {
           // todo: figure out a better method than magic space
           let target_id = path_to_node(node_map, path);
           switch (
-            ActionUtils.insert_term(
+            PerformUtils.insert_term(
               z,
               path_to_node(node_map, path),
               " " ++ code,
@@ -442,7 +442,7 @@ module Local = {
             // Same logic as insert_before, (see above)
             switch (Move.by_char_left(new_z)) {
             | Some(new_z) =>
-              ActionUtils.static_error_check(
+              PerformUtils.static_error_check(
                 ~old_z=None,
                 ~old_node=None,
                 ~new_node=node_map |> Id.Map.find(target_id),
@@ -457,7 +457,7 @@ module Local = {
           };
         | DeleteBindingClause(path) =>
           let target_id = path_to_node(node_map, path);
-          ActionUtils.destruct(
+          PerformUtils.destruct(
             ~defs_exclude_bodies=true,
             z,
             target_id,
@@ -465,7 +465,7 @@ module Local = {
           );
         | DeleteBody(path) =>
           let target_id = path_to_node(node_map, path);
-          ActionUtils.destruct(
+          PerformUtils.destruct(
             ~defs_exclude_bodies=false,
             z,
             target_id,
@@ -516,7 +516,7 @@ module Local = {
       | Ok(_) =>
         schedule_tool_response(
           AssistantUpdateAction.Success(
-            "Action has been applied to the editor",
+            "Action has been applied to the editor -- TODO: make more informative",
           ),
         )
       | Error(Composition_action_failure(e)) =>

@@ -245,15 +245,37 @@ let create_chat_descriptor =
     : ();
 };
 
+let filter_out_agent_view =
+    (messages: list(Model.message)): list(Model.message) => {
+  List.filter(
+    (message: Model.message) => {message.role != System(AgentView)},
+    messages,
+  );
+};
+
+let has_new_agent_view = (messages: list(Model.message)): bool => {
+  List.exists(
+    (message: Model.message) => {message.role == System(AgentView)},
+    messages,
+  );
+};
+
 let update_chat =
     (
       ~context_usage: option(int)=?,
       chat: Model.chat,
       messages: list(Model.message),
     ) => {
+  let updated_messages =
+    if (has_new_agent_view(messages)) {
+      // We hinge off the precondition that either zero or one AgentView message is present in the new messages list.
+      filter_out_agent_view(chat.messages) @ messages;
+    } else {
+      chat.messages @ messages;
+    };
   {
     ...chat,
-    messages: chat.messages @ messages,
+    messages: updated_messages,
     context_usage:
       switch (context_usage) {
       | Some(context_usage) => context_usage
@@ -529,15 +551,15 @@ let update =
               zipper,
               info_map,
             );
-          let ctx_message: Model.message = {
+          let agent_view: Model.message = {
             content: Some(local_code_map_str),
             display: Some(display),
-            role: System(AssistantPrompt),
+            role: System(AgentView),
             sketch_snapshot: None,
           };
 
           let updated_chat =
-            update_chat(curr_chat, [content_message, ctx_message]);
+            update_chat(curr_chat, [content_message, agent_view]);
 
           mk_llm_call(
             ~mode,
@@ -578,33 +600,21 @@ let update =
           let updated_chat =
             switch (status) {
             | Success(response) =>
-              let display = {
-                ...display,
-                displayable_content: [
-                  Text(response),
-                  ...display.displayable_content,
-                ],
-                raw_content: response ++ display.raw_content,
-              };
-              let response_message: Model.message = {
+              print_endline("Here #8 : Success status: " ++ response);
+              let tool_response_message: Model.message = {
                 content:
-                  // TODO: fix this logic, because it is messy and redundant.
-                  // We should maybe have mk_structured_code_map_prompt always
-                  // return an openrouter tool message, and deliberately inject
-                  // an assistant tool call and tool response initially...
-                  // or, if that is not feasible, then we should make the logic flow
-                  // simpler to track overall
-                  Some(
-                    OpenRouter.mk_tool_msg(
-                      response ++ local_code_map_str,
-                      tool_contents,
-                    ),
-                  ),
-                display: Some(display),
+                  Some(OpenRouter.mk_tool_msg(response, tool_contents)),
+                display: Some(Model.mk_message_display(~content=response)),
                 role: System(AssistantPrompt),
                 sketch_snapshot: None,
               };
-              update_chat(curr_chat, [response_message]);
+              let agent_view: Model.message = {
+                content: Some(OpenRouter.mk_user_msg(local_code_map_str)),
+                display: Some(display),
+                role: System(AgentView),
+                sketch_snapshot: None,
+              };
+              update_chat(curr_chat, [tool_response_message, agent_view]);
             | Failure(err) =>
               let err_message: Model.message = {
                 content: Some(OpenRouter.mk_tool_msg(err, tool_contents)),
@@ -1288,7 +1298,10 @@ let update =
                   | None => None
                   },
               };
-            } else if (msg.role == System(AssistantPrompt)
+            } else if ((
+                         msg.role == System(AssistantPrompt)
+                         || msg.role == System(AgentView)
+                       )
                        && is_prompt_display) {
               {
                 ...msg,

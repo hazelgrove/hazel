@@ -12,7 +12,12 @@ type system =
   // The system prompt for the model.
   // Send this to the model.
   // Display to user as expandable/collapsable system message.
-  | AssistantPrompt;
+  | AssistantPrompt
+  // Agent view of the codebase.
+  // Only one should ever exist in a chat at a time.
+  | AgentView;
+// // Tool response from our backend.
+// | ToolResponse;
 
 // Role of the entity sending the message.
 // This is kept separate from the OpenRouter.role type,
@@ -32,6 +37,7 @@ let string_of_role =
   fun
   | System(AssistantPrompt) => "System"
   | System(InternalError) => "Error"
+  | System(AgentView) => "Agent View"
   | User => "User"
   | Assistant => "Assistant"
   | Tool => "Tool";
