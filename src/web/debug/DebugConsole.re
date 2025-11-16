@@ -33,20 +33,21 @@ let print =
     | None => print("DEBUG: No indicated index")
     };
   | "F7" => ()
-  | "F8" =>
-    open AssistantTreeHelper.HighLevelNode;
-    let node_info = build(zipper, info);
-    switch (node_info) {
-    | Some(node_info) =>
-      print("Success!");
-      let node_map = node_info.node_map;
-      // print each item in the map, just their name and path
+  | "F8" => ()
+  | "F9" =>
+    open AssistantTreeHelper.HighLevelNodeMap.Public;
+    let node_map = build(zipper, info);
+    // Print all nodes and their paths
+    switch (node_map) {
+    | Some(node_map) =>
       node_map
       |> Id.Map.bindings
       |> List.iter(
-           ((id: Id.t, node: AssistantTreeHelper.HighLevelNode.node)) => {
+           ((id: Id.t, node: AssistantTreeHelper.HighLevelNodeMap.node)) => {
            let path_str =
-             node.path |> List.map(Id.to_string) |> String.concat(" -> ");
+             node.path
+             |> List.map((path_id: Id.t) => id_to_name(node_map, path_id))
+             |> String.concat("/");
            print(
              "Node: "
              ++ node.name
@@ -56,111 +57,8 @@ let print =
              ++ path_str
              ++ ")",
            );
-         });
-    | None => print("Failed to derive full definition")
-    };
-
-  | "F9" =>
-    open AssistantTreeHelper.HighLevelNode.Public;
-    let node_info = build(zipper, info);
-    switch (node_info) {
-    | Some(node_info) =>
-      print("=== TREE PRINTING TESTS ===");
-      let node_map = node_info.node_map;
-      let root_node = current_of(node_info);
-
-      print("\n1. Basic Tree Structure:");
-      print("----------------------");
-      print(print_tree(node_map, root_node));
-
-      print("\n2. Tree with Full Paths:");
-      print("------------------------");
-      print(print_tree_with_paths(node_map, root_node));
-
-      print("\n3. Tree with Level/Sibling Indices:");
-      print("-----------------------------------");
-      print(print_tree_with_indices(node_map, root_node));
-
-      print("\n4. Tree Navigation Tests:");
-      print("------------------------");
-
-      // Test finding nodes by level and sibling index
-      let descendants = descendants_of(node_map, root_node);
-      print("Descendants by level:");
-      List.iteri(
-        (level, level_nodes) => {
-          print("Level " ++ string_of_int(level) ++ ":");
-          List.iteri(
-            (sibling_idx, node_id) => {
-              let node = find(node_map, node_id);
-              print(
-                "  L"
-                ++ string_of_int(level)
-                ++ "S"
-                ++ string_of_int(sibling_idx)
-                ++ ": "
-                ++ node.name,
-              );
-            },
-            level_nodes,
-          );
-        },
-        descendants,
-      );
-
-      print("\n5. Sibling Navigation Tests:");
-      print("----------------------------");
-      let all_nodes = node_map |> Id.Map.bindings |> List.map(snd);
-
-      List.iter(
-        node => {
-          let siblings = siblings_of(node_map, node);
-          let sibling_count = List.length(siblings);
-          if (sibling_count > 0) {
-            print(
-              "Node '"
-              ++ node.name
-              ++ "' has "
-              ++ string_of_int(sibling_count)
-              ++ " siblings:",
-            );
-            List.iteri(
-              (idx: int, sibling: AssistantTreeHelper.HighLevelNode.node) => {
-                let marker = idx == node.sibling_idx ? " <-- CURRENT" : "";
-                print(
-                  "  ["
-                  ++ string_of_int(idx)
-                  ++ "] "
-                  ++ sibling.name
-                  ++ marker,
-                );
-              },
-              siblings,
-            );
-          } else {
-            print("Node '" ++ node.name ++ "' has no siblings");
-          };
-        },
-        all_nodes,
-      );
-
-      print("\n6. Parent-Child Relationships:");
-      print("------------------------------");
-      List.iter(
-        node => {
-          switch (parent_of(node_map, node)) {
-          | Some(parent) =>
-            print(
-              "Node '" ++ node.name ++ "' is child of '" ++ parent.name ++ "'",
-            )
-          | None => print("Node '" ++ node.name ++ "' is a root node")
-          }
-        },
-        all_nodes,
-      );
-
-      print("\n=== END TREE TESTS ===");
-    | None => print("Failed to build tree - cannot run tree printing tests")
+         })
+    | None => print("DEBUG: No node map found")
     };
   | "F10" => ()
   | "F11" => ()

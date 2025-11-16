@@ -26,6 +26,7 @@ let exercise : Tutorial.spec =
             ancestors = [];
           };
         caret = Outer;
+        agent_view = AgentState.init;
       };
     hidden_tests =
       {
@@ -129,6 +130,7 @@ let exercise : Tutorial.spec =
                 ancestors = [];
               };
             caret = Outer;
+            agent_view = AgentState.init;
           };
         hints = [ "Did you type out the given expression correctly?" ];
       };
@@ -166,6 +168,7 @@ let shadow_exercise : Tutorial.spec =
             ancestors = [];
           };
         caret = Outer;
+        agent_view = AgentState.init;
       };
     hidden_tests =
       {
@@ -269,6 +272,7 @@ let shadow_exercise : Tutorial.spec =
                 ancestors = [];
               };
             caret = Outer;
+            agent_view = AgentState.init;
           };
         hints = [ "Have you shadowed x to 7?" ];
       };

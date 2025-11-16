@@ -131,7 +131,7 @@ let go =
     |> Insert.go(char, ~ci=Indicated.ci_of(z, statics.info_map))
     |> return(Cant_insert)
   | Composition((a, schedule_tool_response)) =>
-    CompositionTools.Perform.go(
+    CompositionGo.Public.go(
       ~syntax,
       ~z,
       ~a,

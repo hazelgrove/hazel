@@ -38,6 +38,7 @@ let bools_ex : Tutorial.spec =
             ancestors = [];
           };
         caret = Outer;
+        agent_view = AgentState.init;
       };
     hidden_tests =
       {
@@ -299,6 +300,7 @@ let bools_ex : Tutorial.spec =
                 ancestors = [];
               };
             caret = Outer;
+            agent_view = AgentState.init;
           };
         hints =
           [
@@ -334,6 +336,7 @@ let cond_ex : Tutorial.spec =
             ancestors = [];
           };
         caret = Outer;
+        agent_view = AgentState.init;
       };
     hidden_tests =
       {
@@ -437,6 +440,7 @@ let cond_ex : Tutorial.spec =
                 ancestors = [];
               };
             caret = Outer;
+            agent_view = AgentState.init;
           };
         hints =
           [
@@ -474,6 +478,7 @@ let func_ex : Tutorial.spec =
             ancestors = [];
           };
         caret = Outer;
+        agent_view = AgentState.init;
       };
     hidden_tests =
       {
@@ -577,6 +582,7 @@ let func_ex : Tutorial.spec =
                 ancestors = [];
               };
             caret = Outer;
+            agent_view = AgentState.init;
           };
         hints = [ "Did you copy in the given expression correctly?" ];
       };

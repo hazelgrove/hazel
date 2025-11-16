@@ -289,7 +289,7 @@ let mk_llm_call =
   | (key, model_id) =>
     let tools =
       if (mode == TaskCompletion) {
-        CompositionTools.tools;
+        CompositionUtils.Public.tools;
       } else {
         [];
       };
@@ -992,9 +992,9 @@ let update =
               chat_id,
             );
           let action =
-            CompositionTools.action_of(
+            CompositionUtils.Public.action_of(
               ~tool_name=tool_call.tool_name,
-              ~args=API.Json.get_string_kvs(tool_call.args),
+              ~args=tool_call.args,
             );
           AssistantModes.Composition.apply_editor_action(
             ~z=zipper,

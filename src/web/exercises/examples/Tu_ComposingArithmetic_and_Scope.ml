@@ -28,6 +28,7 @@ let exercise : Tutorial.spec =
             ancestors = [];
           };
         caret = Outer;
+        agent_view = AgentState.init;
       };
     hidden_tests =
       {
@@ -131,6 +132,7 @@ let exercise : Tutorial.spec =
                 ancestors = [];
               };
             caret = Outer;
+            agent_view = AgentState.init;
           };
         hints = [ "Check the expression in the editor!" ];
       };
@@ -164,6 +166,7 @@ let scope_exercise : Tutorial.spec =
             ancestors = [];
           };
         caret = Outer;
+        agent_view = AgentState.init;
       };
     hidden_tests =
       {
@@ -267,6 +270,7 @@ let scope_exercise : Tutorial.spec =
                 ancestors = [];
               };
             caret = Outer;
+            agent_view = AgentState.init;
           };
         hints = [ "Make sure you use x as your variable" ];
       };

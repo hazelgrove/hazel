@@ -138,7 +138,7 @@ let is_edit: t => bool =
   | Copy
   | Move(_)
   | Select(_)
-  | Composition((Nav(_), _))
+  | Composition((View(_), _))
   | Composition((Read(_), _))
   | Unselect(_) => false
   | Project(p) =>
@@ -157,7 +157,7 @@ let is_historic: t => bool =
   | Copy
   | Move(_)
   | Select(_)
-  | Composition((Nav(_), _))
+  | Composition((View(_), _))
   | Composition((Read(_), _))
   | Unselect(_) => false
   | Cut
@@ -185,7 +185,7 @@ let prevent_in_read_only_editor = (a: t) =>
   | Copy
   | Move(_)
   | Unselect(_)
-  | Composition((Nav(_), _))
+  | Composition((View(_), _))
   | Composition((Read(_), _))
   | Select(_) => false
   | Buffer(Set(_) | Accept | Clear)

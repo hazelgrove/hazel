@@ -100,29 +100,6 @@ let handle_key_event = (k: Key.t): option(Action.t) => {
     | "å" => now(Move(Local(Left, ByToken)))
     | "d"
     | "∆" => now(Move(Local(Right, ByToken)))
-    | "/"
-    | "÷" =>
-      now(Composition(CompositionActions.default(Nav(SelectCurrent))))
-    | "ArrowUp" =>
-      now(Composition(CompositionActions.default(Nav(GoToParent))))
-    | "ArrowDown" =>
-      now(
-        Composition(
-          CompositionActions.default(Nav(GoToChild("", Some(0)))),
-        ),
-      )
-    | "ArrowLeft" =>
-      now(
-        Composition(
-          CompositionActions.default(Nav(GoToSibling(Stepwise(Left)))),
-        ),
-      )
-    | "ArrowRight" =>
-      now(
-        Composition(
-          CompositionActions.default(Nav(GoToSibling(Stepwise(Right)))),
-        ),
-      )
     | "f"
     | "ƒ" => Some(Project(SetIndicated(Specific(Fold))))
     | "v"

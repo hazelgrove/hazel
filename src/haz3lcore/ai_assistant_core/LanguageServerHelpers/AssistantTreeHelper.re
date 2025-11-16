@@ -273,7 +273,7 @@ module Namer = {
   };
 };
 
-module HighLevelNode = {
+module HighLevelNodeMap = {
   type node = {
     // The term associated with this node
     info: Info.t,
@@ -294,12 +294,7 @@ module HighLevelNode = {
     // ...
   };
 
-  type node_map = Id.Map.t(node);
-
-  type t = {
-    current: Id.t,
-    node_map,
-  };
+  type t = Id.Map.t(node);
 
   let id_of = (node: node) => {
     Info.id_of(node.info);
@@ -309,7 +304,7 @@ module HighLevelNode = {
     Option.get(t);
   };
 
-  let find = (node_map: node_map, id: Id.t) => {
+  let find = (node_map: t, id: Id.t) => {
     switch (Id.Map.find_opt(id, node_map)) {
     | Some(node) => node
     | None =>
@@ -319,7 +314,7 @@ module HighLevelNode = {
     };
   };
 
-  let id_to_name = (node_map: node_map, id: Id.t): string => {
+  let id_to_name = (node_map: t, id: Id.t): string => {
     find(node_map, id).name;
   };
 
@@ -337,22 +332,18 @@ module HighLevelNode = {
     );
   };
 
-  let current_of = (t: t) => {
-    find(t.node_map, t.current);
-  };
-
-  let parent_of = (node_map: node_map, node: node): option(node) => {
+  let parent_of = (node_map: t, node: node): option(node) => {
     switch (parent_id_of(node)) {
     | Some(p_id) => Some(find(node_map, p_id))
     | None => None
     };
   };
 
-  let children_of = (node_map: node_map, node: node): list(node) => {
+  let children_of = (node_map: t, node: node): list(node) => {
     List.map((id: Id.t) => find(node_map, id), node.children);
   };
 
-  let descendants_of = (node_map: node_map, node: node): list(list(Id.t)) => {
+  let descendants_of = (node_map: t, node: node): list(list(Id.t)) => {
     let rec build_levels =
             (current_level: list(Id.t), acc: list(list(Id.t)))
             : list(list(Id.t)) =>
@@ -374,7 +365,7 @@ module HighLevelNode = {
     build_levels(node.children, []);
   };
 
-  let siblings_of = (node_map: node_map, node: node): list(node) => {
+  let siblings_of = (node_map: t, node: node): list(node) => {
     List.map((id: Id.t) => find(node_map, id), node.siblings);
   };
 
@@ -392,7 +383,7 @@ module HighLevelNode = {
     );
   };
 
-  let add_child = (node_map: node_map, parent: Id.t, child: Id.t): node_map => {
+  let add_child = (node_map: t, parent: Id.t, child: Id.t): t => {
     switch (Id.Map.find_opt(parent, node_map)) {
     | Some(parent_node) =>
       Id.Map.add(
@@ -407,8 +398,7 @@ module HighLevelNode = {
     };
   };
 
-  let init_node =
-      (info: Info.t, path: list(Id.t), node_map: node_map): node_map => {
+  let init_node = (info: Info.t, path: list(Id.t), node_map: t): t => {
     print_endline(
       "Constructing node for the id: " ++ Id.to_string(Info.id_of(info)),
     );
@@ -444,10 +434,10 @@ module HighLevelNode = {
           (
             candidate: Info.t,
             path: list(Id.t),
-            node_map: node_map,
+            node_map: t,
             info_map: Id.Map.t(Info.t),
           )
-          : node_map => {
+          : t => {
     print_endline(
       "Building children for the id: " ++ Id.to_string(Info.id_of(candidate)),
     );
@@ -497,7 +487,7 @@ module HighLevelNode = {
         );
         let es_mapped = List.map(exp_to_info, es);
         List.fold_left(
-          (acc_map: node_map, e: Info.t) => {
+          (acc_map: t, e: Info.t) => {
             let new_node_map = build_children(e, path, acc_map, info_map);
             Id.Map.merge(
               (_: Id.t, n1: option(node), n2: option(node)) =>
@@ -530,7 +520,7 @@ module HighLevelNode = {
     |> Option.value(~default=-1);
   };
 
-  let build_siblings_and_trim = (node_map: node_map): node_map => {
+  let build_siblings_and_trim = (node_map: t): t => {
     /*
      * Builds the siblings list for each node by:
      * 1. First trimming the dummy root from all paths (removing the head)
@@ -565,6 +555,47 @@ module HighLevelNode = {
            node_map,
          );
     node_map;
+  };
+
+  let gather_top_level = (node_map: t): list(Id.t) => {
+    // If the node has no parent, then it is a top-level node
+    // XXX: Hacky, cause it could be done more efficiently either on the fly or in
+    // build_siblings_and_trim...
+    node_map
+    |> Id.Map.bindings
+    |> List.filter_map(((id: Id.t, node: node)) => {
+         switch (parent_of(node_map, node)) {
+         | Some(_) => None
+         | None => Some(id)
+         }
+       });
+  };
+
+  let split_path = (path: string): list(string) => {
+    String.split_on_char('/', path);
+  };
+
+  let id_path_to_name_path =
+      (id_path: list(Id.t), node_map: t): list(string) => {
+    List.map((id: Id.t) => id_to_name(node_map, id), id_path);
+  };
+
+  let path_to_node = (node_map: t, path: string): Id.t => {
+    let path_names = split_path(path);
+    // Convert each node's path (list of Ids) to a list of names and compare
+    // XXX: Very hacky and ineffecient (O(n) in size of node_map)
+    // TODO: Implement a method which improves the efficiency of this operation
+    Option.get(
+      node_map
+      |> Id.Map.bindings
+      |> List.find_map(((id: Id.t, node: node)) =>
+           if (id_path_to_name_path(node.path, node_map) == path_names) {
+             Some(id);
+           } else {
+             None;
+           }
+         ),
+    );
   };
 
   let build = (zipper: Zipper.t, info_map: Id.Map.t(Info.t)): option(t) => {
@@ -605,155 +636,7 @@ module HighLevelNode = {
       let node_map = build_siblings_and_trim(node_map);
       // Remove the dummy root from the node map
       let node_map = Id.Map.remove(dummy_root, node_map);
-      Some({
-        current: Info.id_of(top_level_term),
-        node_map,
-      });
-    };
-  };
-
-  module Printer = {
-    let print_tree = (node_map: node_map, root_node: node): string => {
-      let rec print_node =
-              (node: node, prefix: string, is_last: bool, is_root: bool)
-              : string => {
-        let current_line =
-          if (is_root) {
-            node.name;
-          } else {
-            let connector = is_last ? "└── " : "├── ";
-            prefix ++ connector ++ node.name;
-          };
-
-        let children = children_of(node_map, node);
-        let children_count = List.length(children);
-
-        if (children_count == 0) {
-          current_line;
-        } else {
-          let new_prefix =
-            if (is_root) {
-              "";
-            } else {
-              prefix ++ (is_last ? "    " : "│   ");
-            };
-
-          let children_lines =
-            children
-            |> List.mapi((i, child) => {
-                 let is_last_child = i == children_count - 1;
-                 print_node(child, new_prefix, is_last_child, false);
-               })
-            |> String.concat("\n");
-
-          current_line ++ "\n" ++ children_lines;
-        };
-      };
-
-      print_node(root_node, "", true, true);
-    };
-
-    let print_tree_with_paths = (node_map: node_map, root_node: node): string => {
-      let rec print_node =
-              (node: node, prefix: string, is_last: bool, is_root: bool)
-              : string => {
-        let path_str =
-          node.path |> List.map(Id.to_string) |> String.concat(" -> ");
-
-        let current_line =
-          if (is_root) {
-            node.name ++ " (path: " ++ path_str ++ ")";
-          } else {
-            let connector = is_last ? "└── " : "├── ";
-            prefix ++ connector ++ node.name ++ " (path: " ++ path_str ++ ")";
-          };
-
-        let children = children_of(node_map, node);
-        let children_count = List.length(children);
-
-        if (children_count == 0) {
-          current_line;
-        } else {
-          let new_prefix =
-            if (is_root) {
-              "";
-            } else {
-              prefix ++ (is_last ? "    " : "│   ");
-            };
-
-          let children_lines =
-            children
-            |> List.mapi((i, child) => {
-                 let is_last_child = i == children_count - 1;
-                 print_node(child, new_prefix, is_last_child, false);
-               })
-            |> String.concat("\n");
-
-          current_line ++ "\n" ++ children_lines;
-        };
-      };
-
-      print_node(root_node, "", true, true);
-    };
-
-    let print_tree_with_indices =
-        (node_map: node_map, root_node: node): string => {
-      let rec print_node =
-              (
-                node: node,
-                prefix: string,
-                is_last: bool,
-                is_root: bool,
-                level: int,
-                sibling_idx: int,
-              )
-              : string => {
-        let current_line =
-          if (is_root) {
-            node.name ++ " [root]";
-          } else {
-            let connector = is_last ? "└── " : "├── ";
-            let level_info =
-              "L"
-              ++ string_of_int(level)
-              ++ "S"
-              ++ string_of_int(sibling_idx);
-            prefix ++ connector ++ node.name ++ " [" ++ level_info ++ "]";
-          };
-
-        let children = children_of(node_map, node);
-        let children_count = List.length(children);
-
-        if (children_count == 0) {
-          current_line;
-        } else {
-          let new_prefix =
-            if (is_root) {
-              "";
-            } else {
-              prefix ++ (is_last ? "    " : "│   ");
-            };
-
-          let children_lines =
-            children
-            |> List.mapi((i, child) => {
-                 let is_last_child = i == children_count - 1;
-                 print_node(
-                   child,
-                   new_prefix,
-                   is_last_child,
-                   false,
-                   level + 1,
-                   i,
-                 );
-               })
-            |> String.concat("\n");
-
-          current_line ++ "\n" ++ children_lines;
-        };
-      };
-
-      print_node(root_node, "", true, true, 0, 0);
+      Some(node_map);
     };
   };
 
@@ -765,8 +648,8 @@ module HighLevelNode = {
      */
     let build =
       // Builds the definition-based tree
+      // Main driver function, does most the heavy lifting
       build;
-
     let id_of =
       // Gets the id of a node
       id_of;
@@ -779,9 +662,6 @@ module HighLevelNode = {
     let id_to_name =
       // Gets the name of a node given its id
       id_to_name;
-    let current_of =
-      // Gets the current node
-      current_of;
     let parent_of =
       // Gets the parent of a node
       parent_of;
@@ -800,14 +680,11 @@ module HighLevelNode = {
     let prev_sibling_of =
       // Gets the previous sibling of a node
       prev_sibling_of;
-    let print_tree =
-      // Prints the tree structure in a visual format
-      Printer.print_tree;
-    let print_tree_with_paths =
-      // Prints the tree structure with full paths for each node
-      Printer.print_tree_with_paths;
-    let print_tree_with_indices =
-      // Prints the tree structure with level and sibling indices
-      Printer.print_tree_with_indices;
+    let gather_top_level =
+      // Gathers the top-level nodes from the tree
+      gather_top_level;
+    let path_to_node =
+      // Gets the node id from a path
+      path_to_node;
   };
 };

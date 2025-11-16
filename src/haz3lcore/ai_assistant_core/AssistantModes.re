@@ -207,7 +207,6 @@ module Composition = {
      LLM-based agentic code sysnthesis. Differs from code completion in that it can
      navigate the program structure, and perform more complex, multi-step edits.
    */
-  open AssistantTreeHelper.HighLevelNode;
   let max_tool_calls = 40;
 
   // Prompt with appropriate AST context for each message.
@@ -218,13 +217,14 @@ module Composition = {
   // Children nodes: [<name>, <name>, ...]
   // Static errors: <errors>
   let mk_structured_code_map_prompt =
-      (_: ChatLSP.Options.t, _z: Zipper.t, _info_map: Statics.Map.t)
+      (_: ChatLSP.Options.t, z: Zipper.t, info_map: Id.Map.t(Info.t))
       : (OpenRouter.message, AssistantModel.display) => {
+    let sketch_snapshot = CompositionView.Public.print(~z, ~info_map);
     (
-      OpenRouter.mk_user_msg("TODO - UNIMPLEMENTED"),
+      OpenRouter.mk_user_msg(sketch_snapshot),
       {
-        displayable_content: [Text("TODO - UNIMPLEMENTED")],
-        raw_content: "TODO - UNIMPLEMENTED",
+        displayable_content: [Text(sketch_snapshot)],
+        raw_content: sketch_snapshot,
         collapsed: true,
       },
     );
@@ -236,13 +236,9 @@ module Composition = {
     try({
       let tool_name = tool_call.tool_name;
       let args = tool_call.args;
-      let action =
-        CompositionTools.action_of(
-          ~tool_name,
-          ~args=API.Json.get_string_kvs(args),
-        );
+      let action = CompositionUtils.Public.action_of(~tool_name, ~args);
       let _enclose_in_backticks = (str: string) => "```" ++ str ++ "```";
-      "Agent called tool: " ++ CompositionTools.string_of(action);
+      "Agent called tool: " ++ CompositionUtils.Public.string_of(action);
     }) {
     | Failure(err) =>
       "The agent may have called tools with invalid arguments: " ++ err
@@ -269,23 +265,15 @@ module Composition = {
       (
         ~z: Zipper.t,
         ~info_map: Id.Map.t(Info.t),
-        ~action: CompositionTools.action,
+        ~action: CompositionActions.composition_action,
         ~schedule_editor_action: Editor.Update.t => unit,
         ~schedule_tool_response: AssistantUpdateAction.status => unit,
       )
       : unit => {
+    let _ = z;
+    let _ = info_map;
     switch (action) {
-    | Read(r) =>
-      let res =
-        switch (r) {
-        | ViewEntireDefintion =>
-          switch (build(z, info_map)) {
-          | Some(node_info) => CompositionView.full_definition(z, node_info)
-          | None => "Failed to derive full definition"
-          }
-        | ShowUseSites => "todo"
-        };
-      schedule_tool_response(Success(res));
+    | Read(_r) => schedule_tool_response(Success("todo"))
     | _ =>
       schedule_editor_action(
         Action.Composition((action, Some(schedule_tool_response))),

@@ -251,6 +251,7 @@ let exercise : Exercise.spec =
               ];
           };
         caret = Outer;
+        agent_view = AgentState.init;
       };
     correct_impl =
       {
@@ -778,6 +779,7 @@ let exercise : Exercise.spec =
               ];
           };
         caret = Outer;
+        agent_view = AgentState.init;
       };
     your_tests =
       {
@@ -1028,6 +1030,7 @@ let exercise : Exercise.spec =
                 ancestors = [];
               };
             caret = Outer;
+            agent_view = AgentState.init;
           };
         required = 6;
         provided = 2;
@@ -1205,6 +1208,7 @@ let exercise : Exercise.spec =
             ancestors = [];
           };
         caret = Outer;
+        agent_view = AgentState.init;
       };
     hidden_bugs =
       [
@@ -1404,6 +1408,7 @@ let exercise : Exercise.spec =
                   ancestors = [];
                 };
               caret = Outer;
+              agent_view = AgentState.init;
             };
           hint = "always returns false";
         };
@@ -1603,6 +1608,7 @@ let exercise : Exercise.spec =
                   ancestors = [];
                 };
               caret = Outer;
+              agent_view = AgentState.init;
             };
           hint = "always returns true";
         };
@@ -2392,6 +2398,7 @@ let exercise : Exercise.spec =
                   ancestors = [];
                 };
               caret = Outer;
+              agent_view = AgentState.init;
             };
           hint = "incorrect base case";
         };
@@ -3097,6 +3104,7 @@ let exercise : Exercise.spec =
                 ancestors = [];
               };
             caret = Outer;
+            agent_view = AgentState.init;
           };
         hints = [ "zero" ];
       };
