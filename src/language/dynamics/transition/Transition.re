@@ -400,22 +400,24 @@ module Transition = (EV: EV_MODE) => {
               ),
             ),
           side_effects:
-            switch (TPat.tyvar_of_utpat(utpat)) {
-            | Some(var_name) => [
-                RecordStackFrame,
-                EvaluatorState.RecordTypeInstantiation(
-                  call_stack =>
-                    Dynamics.TypeInstantiation.{
-                      tpat_id: TPat.rep_id(utpat),
-                      type_var: var_name,
-                      instantiated_type: tau,
-                      call_stack,
-                      time: JsUtil.timestamp(),
-                    },
-                ),
-              ]
-            | None => []
-            },
+            [EvaluatorState.RecordStackFrame]
+            @ (
+              switch (TPat.tyvar_of_utpat(utpat)) {
+              | Some(var_name) => [
+                  EvaluatorState.RecordTypeInstantiation(
+                    call_stack =>
+                      Dynamics.TypeInstantiation.{
+                        tpat_id: TPat.rep_id(utpat),
+                        type_var: var_name,
+                        instantiated_type: tau,
+                        call_stack,
+                        time: JsUtil.timestamp(),
+                      },
+                  ),
+                ]
+              | None => []
+              }
+            ),
           kind: TypFunAp,
           is_value: false,
         })
