@@ -402,6 +402,7 @@ module Transition = (EV: EV_MODE) => {
           side_effects:
             switch (TPat.tyvar_of_utpat(utpat)) {
             | Some(var_name) => [
+                RecordStackFrame,
                 EvaluatorState.RecordTypeInstantiation(
                   call_stack =>
                     Dynamics.TypeInstantiation.{
