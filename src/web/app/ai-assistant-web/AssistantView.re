@@ -1689,8 +1689,9 @@ let view =
   JsUtil.delay(
     0.0,
     () => {
-      JsUtil.set_agent_looping_theme(model.agent_looping);
-      JsUtil.set_editor_readonly(model.agent_looping);
+      // todo: maybe use later
+      JsUtil.set_agent_view_flag_theme(false);
+      JsUtil.set_editor_readonly(false);
     },
   );
 

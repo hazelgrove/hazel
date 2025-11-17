@@ -359,17 +359,12 @@ let mk_llm_call =
       )
     | _ => ()
     };
-    let model =
-      update_model_chat_history(
-        ~model,
-        ~mode,
-        ~updated_chat,
-        ~awaiting_response=true,
-      );
-    {
-      ...model,
-      agent_looping: mode == TaskCompletion,
-    };
+    update_model_chat_history(
+      ~model,
+      ~mode,
+      ~updated_chat,
+      ~awaiting_response=true,
+    );
   };
 };
 
@@ -789,10 +784,6 @@ let update =
     if (!curr_chat.awaiting_response) {
       model;
     } else {
-      let model = {
-        ...model,
-        agent_looping: false,
-      };
       // todo: Should this be a user, assistant, or system message?
       //       We could make it assistant and put it in the first-person.
       let system_message: Model.message = {
@@ -922,22 +913,16 @@ let update =
           // if (eval_mode) {
           //   schedule_eval_action(CollectResults);
           // };
-          schedule_action(EmployLLMAction(SetAgentLooping(false)));
-          let model =
-            update_model_chat_history(
-              ~model,
-              ~mode,
-              ~updated_chat,
-              ~awaiting_response=false,
-            );
-          {
-            ...model,
-            agent_looping: false,
-          };
+
+          update_model_chat_history(
+            ~model,
+            ~mode,
+            ~updated_chat,
+            ~awaiting_response=false,
+          );
 
         | (_, 0) =>
           // The agent ran out of fuel. We should experiment with this in the future.
-          schedule_action(EmployLLMAction(SetAgentLooping(false)));
           schedule_action(
             InternalError(
               "By default, we stop the agent after "
@@ -948,17 +933,12 @@ let update =
             ),
           );
           summarize_chat();
-          let model =
-            update_model_chat_history(
-              ~model,
-              ~mode,
-              ~updated_chat,
-              ~awaiting_response=false,
-            );
-          {
-            ...model,
-            agent_looping: false,
-          };
+          update_model_chat_history(
+            ~model,
+            ~mode,
+            ~updated_chat,
+            ~awaiting_response=false,
+          );
 
         | (Some(tool_call), _) =>
           let updated_chat = {
@@ -1014,17 +994,12 @@ let update =
             ~schedule_tool_response=(res: AssistantUpdateAction.status) => {
             schedule_action(loop_message(res))
           });
-          let model =
-            update_model_chat_history(
-              ~model,
-              ~mode,
-              ~updated_chat,
-              ~awaiting_response=false,
-            );
-          {
-            ...model,
-            agent_looping: true,
-          };
+          update_model_chat_history(
+            ~model,
+            ~mode,
+            ~updated_chat,
+            ~awaiting_response=false,
+          );
         };
       | CompletionErrorRound(zipper, fuel, tileId) =>
         /* --- todo: test if this works --- */
@@ -1195,10 +1170,6 @@ let update =
         ~updated_past_chats,
         ~chat_id=curr_chat_id,
       );
-    | SetAgentLooping(agent_looping) => {
-        ...model,
-        agent_looping,
-      }
     | Quit =>
       // Set awaiting_promise to false and add a system message
       let quit_message: Model.message = {
@@ -1209,17 +1180,12 @@ let update =
       };
       let (_, curr_chat) = get_mode_info(settings.mode, model);
       let updated_chat = update_chat(curr_chat, [quit_message]);
-      let model =
-        update_model_chat_history(
-          ~model,
-          ~mode=settings.mode,
-          ~updated_chat,
-          ~awaiting_response=false,
-        );
-      {
-        ...model,
-        agent_looping: false,
-      };
+      update_model_chat_history(
+        ~model,
+        ~mode=settings.mode,
+        ~updated_chat,
+        ~awaiting_response=false,
+      );
     };
 
   | ChatAction(action) =>
