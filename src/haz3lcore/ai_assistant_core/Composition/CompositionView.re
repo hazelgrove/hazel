@@ -304,45 +304,48 @@ module Local = {
     let concave_char = "~";
 
     let print = (~z: Zipper.t, ~info_map: Id.Map.t(Info.t)): string => {
-      let node_map =
-        Option.get(AssistantTreeHelper.HighLevelNodeMap.build(z, info_map));
-      // Step 1: Expand everything for agent view
-      print_endline("here #1, expanding everything");
-      let all_ids = Id.Map.bindings(info_map) |> List.map(fst);
-      let z' = ViewUtils.expand_terms(~z, ~ids=all_ids);
+      let node_map = AssistantTreeHelper.HighLevelNodeMap.build(z, info_map);
+      switch (node_map) {
+      | None =>
+        Printer.of_zipper(
+          ~holes=convex_char,
+          ~concave_holes=concave_char,
+          ~special_folds=true,
+          z,
+        )
+      | Some(node_map) =>
+        // Step 1: Expand everything for agent view
+        // TODO: Skipping for now. Bottleneck.
+        // print_endline("here #1, expanding everything");
+        // let all_ids = Id.Map.bindings(info_map) |> List.map(fst);
+        // let z' = ViewUtils.expand_terms(~z, ~ids=all_ids);
 
-      // Step 2: Collapse all top level definitions for agent view,
-      // except for the ones that are expanded, given by the agent view's expanded list
-      print_endline(
-        "here #2, collapsing all top level definitions for agent view, except for the ones that are expanded",
-      );
-      let all_top_level_ids = Id.Map.bindings(node_map) |> List.map(fst);
-      let expanded_ids =
-        List.map(
-          (path: string) => path_to_node(node_map, path),
-          z.agent_view.expanded_paths,
+        // Step 2: Collapse all top level definitions for agent view,
+        // except for the ones that are expanded, given by the agent view's expanded list
+        let all_top_level_ids = Id.Map.bindings(node_map) |> List.map(fst);
+        let expanded_ids =
+          List.map(
+            (path: string) => path_to_id(node_map, path),
+            z.agent_view.expanded_paths,
+          );
+        let ids_to_collapse =
+          all_top_level_ids
+          |> List.filter((id: Id.t) => !List.mem(id, expanded_ids));
+        print_endline(
+          "here #2.1, ids to collapse: "
+          ++ String.concat(", ", List.map(Id.to_string, ids_to_collapse)),
         );
-      let ids_to_collapse =
-        all_top_level_ids
-        |> List.filter((id: Id.t) => !List.mem(id, expanded_ids));
-      print_endline(
-        "here #2.1, ids to collapse: "
-        ++ String.concat(", ", List.map(Id.to_string, ids_to_collapse)),
-      );
-      let z'' =
-        ViewUtils.collapse_definitions(
-          ~z=z',
-          ~ids=ids_to_collapse,
-          ~info_map,
-        );
+        let z' =
+          ViewUtils.collapse_definitions(~z, ~ids=ids_to_collapse, ~info_map);
 
-      print_endline("here #3, printing zipper");
-      Printer.of_zipper(
-        ~holes=convex_char,
-        ~concave_holes=concave_char,
-        ~special_folds=true,
-        z'',
-      );
+        print_endline("here #3, printing zipper");
+        Printer.of_zipper(
+          ~holes=convex_char,
+          ~concave_holes=concave_char,
+          ~special_folds=true,
+          z',
+        );
+      };
     };
   };
 };

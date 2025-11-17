@@ -113,6 +113,7 @@ module Failure = {
     | Cant_redo
     | CantIntroduce
     | Cant_derive_local_AST_information
+    | Cant_view
     | Composition_action_failure(string);
 
   exception Exception(t);

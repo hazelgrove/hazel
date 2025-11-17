@@ -229,6 +229,51 @@ module Local = {
     };
   };
 
+  let initialize_dispatch =
+      (
+        z: Zipper.t,
+        mk_statics: Zipper.t => StaticsBase.Map.t,
+        return:
+          (Action.Failure.t, option(Zipper.t)) =>
+          result(Zipper.t, Action.Failure.t),
+        code: string,
+      ) => {
+    switch (PerformUtils.introduce(Select.all(z), code, return)) {
+    | Ok(new_z) =>
+      let new_statics = mk_statics(new_z);
+      // For initialization, check the entire program for errors
+      let new_errors = ErrorPrint.all(new_statics);
+      if (List.length(new_errors) > 0) {
+        Error(
+          Action.Failure.Composition_action_failure(
+            "Not applying the action you requested as it would have the following static error(s): "
+            ++ String.concat(", ", new_errors),
+          ),
+        );
+      } else {
+        Ok(new_z);
+      };
+    | Error(e) => Error(e)
+    };
+  };
+
+  let view_dispatch = (a: CompositionActions.view_action, z: Zipper.t) => {
+    switch (a) {
+    | Expand(paths) =>
+      let z' = {
+        ...z,
+        agent_view: AgentState.add_paths(paths, z.agent_view),
+      };
+      Ok(z');
+    | Collapse(paths) =>
+      let z' = {
+        ...z,
+        agent_view: AgentState.remove_paths(paths, z.agent_view),
+      };
+      Ok(z');
+    };
+  };
+
   // Tempory wrapper that helps me localize myself while implementing (remove)
   let composition_dispatch =
       (
@@ -245,47 +290,21 @@ module Local = {
     | None =>
       switch (a) {
       | Edit(Initialize(code)) =>
-        switch (PerformUtils.introduce(Select.all(z), code, return)) {
-        | Ok(new_z) =>
-          let new_statics = mk_statics(new_z);
-          // For initialization, check the entire program for errors
-          let new_errors = ErrorPrint.all(new_statics);
-          if (List.length(new_errors) > 0) {
-            Error(
-              Action.Failure.Composition_action_failure(
-                "Not applying the action you requested as it would have the following static error(s): "
-                ++ String.concat(", ", new_errors),
-              ),
-            );
-          } else {
-            Ok(new_z);
-          };
-        | Error(e) => Error(e)
-        }
+        initialize_dispatch(z, mk_statics, return, code)
       | _ => Error(Action.Failure.Cant_derive_local_AST_information)
       }
     | Some(node_map) =>
       switch (a) {
-      | View(Expand(paths)) =>
-        let z' = {
-          ...z,
-          agent_view: AgentState.add_paths(paths, z.agent_view),
-        };
-        print_endline("paths now: " ++ String.concat(", ", paths));
-        Ok(z');
-      | View(Collapse(paths)) =>
-        let z' = {
-          ...z,
-          agent_view: AgentState.remove_paths(paths, z.agent_view),
-        };
-        print_endline("paths now: " ++ String.concat(", ", paths));
-        Ok(z');
-      | Read(ShowUseSites(_path)) => Ok(z)
-      | Read(ShowReferences(_path)) => Ok(z)
+      | View(a) => view_dispatch(a, z)
+      | Read(ShowUseSites(_path))
+      | Read(ShowReferences(_path)) => Ok(z) // TODO: Implement
       | Edit(e) =>
         switch (e) {
         | UpdateDefinition(path, code) =>
-          let target_id = path_to_node(node_map, path);
+          print_endline("here #16, path is: " ++ path);
+          let node = path_to_node(node_map, path);
+          print_endline("here #17, node is: " ++ node.name);
+          let target_id = Utils.get_inner_term_id(Def, node);
           switch (
             PerformUtils.overwrite_term(
               z,
@@ -297,21 +316,11 @@ module Local = {
             )
           ) {
           | Error(e) => Error(e)
-          | Ok(new_z) =>
-            PerformUtils.static_error_check(
-              ~old_z=Some(z),
-              ~old_node=Some(node_map |> Id.Map.find(target_id)),
-              ~new_z,
-              ~new_node=node_map |> Id.Map.find(target_id),
-              ~mk_statics,
-              ~of_pat=true, // set pat to true here because could be case def is made recursive
-              // or something else... errors in def can be dependent on pat (in Hazel)
-              ~of_def=true,
-              ~of_body=false,
-            )
+          | Ok(new_z) => Ok(new_z)
           };
         | UpdateBody(path, code) =>
-          let target_id = path_to_node(node_map, path);
+          let node = path_to_node(node_map, path);
+          let target_id = Utils.get_inner_term_id(Body, node);
           switch (
             PerformUtils.overwrite_term(
               z,
@@ -323,20 +332,11 @@ module Local = {
             )
           ) {
           | Error(e) => Error(e)
-          | Ok(new_z) =>
-            PerformUtils.static_error_check(
-              ~old_z=Some(z),
-              ~old_node=Some(node_map |> Id.Map.find(target_id)),
-              ~new_node=node_map |> Id.Map.find(target_id),
-              ~new_z,
-              ~mk_statics,
-              ~of_pat=true,
-              ~of_def=true,
-              ~of_body=true,
-            )
+          | Ok(new_z) => Ok(new_z)
           };
         | UpdatePattern(path, code) =>
-          let target_id = path_to_node(node_map, path);
+          let node = path_to_node(node_map, path);
+          let target_id = Utils.get_inner_term_id(Pat, node);
           switch (
             PerformUtils.overwrite_term(
               z,
@@ -348,26 +348,10 @@ module Local = {
             )
           ) {
           | Error(e) => Error(e)
-          | Ok(new_z) =>
-            switch (
-              PerformUtils.static_error_check(
-                ~old_z=Some(z),
-                ~old_node=Some(node_map |> Id.Map.find(target_id)),
-                ~new_node=node_map |> Id.Map.find(target_id),
-                ~new_z,
-                ~mk_statics,
-                ~of_pat=true,
-                ~of_def=false,
-                ~of_body=false,
-              )
-            ) {
-            | Error(e) => Error(e)
-            | Ok(safe_z) => Ok(safe_z)
-            // TODO: Update all use sites of the pattern
-            }
+          | Ok(new_z) => Ok(new_z)
           };
         | UpdateBindingClause(path, code) =>
-          let target_id = path_to_node(node_map, path);
+          let target_id = path_to_id(node_map, path);
           switch (
             PerformUtils.overwrite_term(
               z,
@@ -379,58 +363,33 @@ module Local = {
             )
           ) {
           | Error(e) => Error(e)
-          | Ok(new_z) =>
-            PerformUtils.static_error_check(
-              ~old_z=Some(z),
-              ~old_node=Some(node_map |> Id.Map.find(target_id)),
-              ~new_node=node_map |> Id.Map.find(target_id),
-              ~new_z,
-              ~mk_statics,
-              ~of_pat=true,
-              ~of_def=true,
-              ~of_body=false,
-            )
+          | Ok(new_z) => Ok(new_z)
           };
         | InsertBefore(path, code) =>
           // todo: figure out a better method than magic space
-          let target_id = path_to_node(node_map, path);
+          let target_id = path_to_id(node_map, path);
           switch (
-            PerformUtils.insert_term(
-              z,
-              path_to_node(node_map, path),
-              code ++ " ",
-              Direction.Left,
-              syntax,
-              return,
-            )
+            {
+              PerformUtils.insert_term(
+                z,
+                target_id,
+                code ++ " ",
+                Direction.Left,
+                syntax,
+                return,
+              );
+            }
           ) {
           | Error(e) => Error(e)
-          | Ok(new_z) =>
-            // This single character move is to place the cursor off the following
-            // term in the case it is one it, critically, this helps to assert that
-            // the trailing node in the new insertion is selected
-            switch (Move.by_char_left(new_z)) {
-            | Some(new_z) =>
-              PerformUtils.static_error_check(
-                ~old_z=None,
-                ~old_node=None,
-                ~new_node=node_map |> Id.Map.find(target_id),
-                ~new_z,
-                ~mk_statics,
-                ~of_pat=true,
-                ~of_def=true,
-                ~of_body=false // optionally, we could make this true
-              )
-            | None => Error(Action.Failure.Cant_move)
-            }
+          | Ok(new_z) => Ok(new_z)
           };
         | InsertAfter(path, code) =>
           // todo: figure out a better method than magic space
-          let target_id = path_to_node(node_map, path);
+          let target_id = path_to_id(node_map, path);
           switch (
             PerformUtils.insert_term(
               z,
-              path_to_node(node_map, path),
+              target_id,
               " " ++ code,
               Direction.Right,
               syntax,
@@ -438,25 +397,10 @@ module Local = {
             )
           ) {
           | Error(e) => Error(e)
-          | Ok(new_z) =>
-            // Same logic as insert_before, (see above)
-            switch (Move.by_char_left(new_z)) {
-            | Some(new_z) =>
-              PerformUtils.static_error_check(
-                ~old_z=None,
-                ~old_node=None,
-                ~new_node=node_map |> Id.Map.find(target_id),
-                ~new_z,
-                ~mk_statics,
-                ~of_pat=true,
-                ~of_def=true,
-                ~of_body=false // optionally, we could make this true
-              )
-            | None => Error(Action.Failure.Cant_move)
-            }
+          | Ok(new_z) => Ok(new_z)
           };
         | DeleteBindingClause(path) =>
-          let target_id = path_to_node(node_map, path);
+          let target_id = path_to_id(node_map, path);
           PerformUtils.destruct(
             ~defs_exclude_bodies=true,
             z,
@@ -464,7 +408,8 @@ module Local = {
             syntax,
           );
         | DeleteBody(path) =>
-          let target_id = path_to_node(node_map, path);
+          let node = path_to_node(node_map, path);
+          let target_id = Utils.get_inner_term_id(Body, node);
           PerformUtils.destruct(
             ~defs_exclude_bodies=false,
             z,
@@ -496,6 +441,39 @@ module Local = {
     };
   };
 
+  let freshen_paths =
+      (z: Zipper.t, mk_statics: Zipper.t => StaticsBase.Map.t)
+      : result(Zipper.t, Action.Failure.t) => {
+    // This function removes any stale paths from the agent view list
+    // This can happen if variables are changed or deleted from the editor itself
+    let node_map = build(z, mk_statics(z));
+    switch (node_map) {
+    | None =>
+      Ok({
+        ...z,
+        agent_view: AgentState.init,
+      })
+    | Some(node_map) =>
+      Ok({
+        ...z,
+        agent_view: {
+          expanded_paths:
+            List.filter(
+              (path: string) => {
+                switch (
+                  Id.Map.find_opt(path_to_id(node_map, path), node_map)
+                ) {
+                | Some(_) => true
+                | None => false
+                }
+              },
+              z.agent_view.expanded_paths,
+            ),
+        },
+      })
+    };
+  };
+
   let go = (~syntax, ~z, ~a, ~mk_statics, ~return, ~schedule_tool_response) => {
     let node_map = build(z, mk_statics(z));
 
@@ -505,7 +483,10 @@ module Local = {
       ) {
       | Ok(new_z) =>
         // TODO: Add repositioning of cursor here. ONLY possible if we have a separate editor state for the agent.
-        Ok(new_z)
+        switch (freshen_paths(new_z, mk_statics)) {
+        | Ok(new_z) => Ok(new_z)
+        | Error(e) => Error(e)
+        }
       | Error(e) => Error(e)
       };
 

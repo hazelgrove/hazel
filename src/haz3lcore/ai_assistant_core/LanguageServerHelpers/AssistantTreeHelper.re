@@ -130,20 +130,28 @@ module Utils = {
           switch (candidate) {
           | InfoExp({term, _}) =>
             switch (Exp.term_of(term)) {
-            | Let(_, def, _) =>
+            | Let(pat, def, body) =>
+              let pat_id = Pat.rep_id(pat);
               let def_id = Exp.rep_id(def);
-              // Check if departure point is in the definition position of the candidate
-              if (Id.equal(def_id, Info.id_of(departure_point))) {
-                // it is, set this is as the new nominee for the top-level node
+              let body_id = Exp.rep_id(body);
+              // Check if departure point is in the pattern, definition, or body position of the candidate
+              if (Id.equal(def_id, Info.id_of(departure_point))
+                  || Id.equal(body_id, Info.id_of(departure_point))
+                  || Id.equal(pat_id, Info.id_of(departure_point))) {
+                // if it is, then set this is as the new nominee for the top-level node
                 Some(
                   candidate,
                 );
               } else {
                 nominee;
               };
-            | TyAlias(_, def, _) =>
-              let def_id = Typ.rep_id(def);
-              if (Id.equal(def_id, Info.id_of(departure_point))) {
+            | TyAlias(tpat, tdef, body) =>
+              let tpat_id = TPat.rep_id(tpat);
+              let tdef_id = Typ.rep_id(tdef);
+              let body_id = Exp.rep_id(body);
+              if (Id.equal(tdef_id, Info.id_of(departure_point))
+                  || Id.equal(body_id, Info.id_of(departure_point))
+                  || Id.equal(tpat_id, Info.id_of(departure_point))) {
                 Some(candidate);
               } else {
                 nominee;
@@ -199,7 +207,8 @@ module MoveOffWhitespaceHelper = {
     };
   };
 
-  let rec move_to_non_whitespace = (z: Zipper.t, d: Direction.t): Zipper.t => {
+  let rec move_to_non_whitespace =
+          (z: Zipper.t, d: Direction.t): option(Zipper.t) => {
     /*
      Iteratively move the cursor to the left.
      If moving left becomes stagnant, try and move right.
@@ -212,11 +221,11 @@ module MoveOffWhitespaceHelper = {
           if (d == Left) {
             move_to_non_whitespace(z, Right);
           } else {
-            raise(Failure("Couldn't move to non-whitespace"));
+            None;
           }
         };
       }
-      : z;
+      : Some(z);
   };
 };
 
@@ -580,7 +589,7 @@ module HighLevelNodeMap = {
     List.map((id: Id.t) => id_to_name(node_map, id), id_path);
   };
 
-  let path_to_node = (node_map: t, path: string): Id.t => {
+  let path_to_id = (node_map: t, path: string): Id.t => {
     let path_names = split_path(path);
     // Convert each node's path (list of Ids) to a list of names and compare
     // XXX: Very hacky and ineffecient (O(n) in size of node_map)
@@ -598,6 +607,10 @@ module HighLevelNodeMap = {
     );
   };
 
+  let path_to_node = (node_map: t, path: string): node => {
+    find(node_map, path_to_id(node_map, path));
+  };
+
   let build = (zipper: Zipper.t, info_map: Id.Map.t(Info.t)): option(t) => {
     // Move to a valid, non-secondary, non-grout, non-convex term
     let valid_zipper =
@@ -605,11 +618,14 @@ module HighLevelNodeMap = {
 
     switch (
       {
+        let* valid_zipper = valid_zipper;
         let* current_term = Indicated.ci_of(valid_zipper, info_map);
         Utils.top_level_term_of(~start_point=current_term, ~info_map);
       }
     ) {
-    | None => None
+    | None =>
+      print_endline("No top level term found");
+      None;
     | Some(top_level_term) =>
       let oldest_ancestor =
         Utils.get_oldest_ancestor(top_level_term, info_map);
@@ -683,8 +699,11 @@ module HighLevelNodeMap = {
     let gather_top_level =
       // Gathers the top-level nodes from the tree
       gather_top_level;
-    let path_to_node =
+    let path_to_id =
       // Gets the node id from a path
+      path_to_id;
+    let path_to_node =
+      // Gets the node from a path
       path_to_node;
   };
 };
