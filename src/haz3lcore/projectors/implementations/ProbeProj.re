@@ -102,6 +102,7 @@ type probe_model = {
   active_renderer: oactive_renderer,
   env_collapsed: bool,
   mock_collapsed: bool,
+  stack_collapsed: bool,
 };
 
 let probe_model_of_sexp = sexp =>
@@ -111,6 +112,7 @@ let probe_model_of_sexp = sexp =>
       active_renderer: None,
       env_collapsed: false,
       mock_collapsed: false,
+      stack_collapsed: false,
     }
   };
 
@@ -122,7 +124,8 @@ type action =
   | ToggleModal(oactive_renderer)
   | RendererAction(string)
   | ToggleEnvCollapsed
-  | ToggleMockCollapsed;
+  | ToggleMockCollapsed
+  | ToggleStackCollapsed;
 
 module Settings = {
   [@deriving (show({with_path: false}), sexp, yojson)]
@@ -856,6 +859,35 @@ let env_view =
   );
 };
 
+let stack_view = (sample: sample, ~local, ~model): Node.t => {
+  let has_stack = sample.call_stack != [];
+  let header =
+    div(
+      ~attrs=[
+        Attr.classes(["live-stack-header"]),
+        Attr.on_click(_ => local(ToggleStackCollapsed)),
+      ],
+      [text("Call Stack " ++ (model.stack_collapsed ? "▶" : "▼"))],
+    );
+  let content =
+    if (model.stack_collapsed || !has_stack) {
+      [];
+    } else {
+      [
+        div(
+          ~attrs=[Attr.classes(["call-stack"])],
+          [
+            text(String.concat("\n", List.map(Id.str3, sample.call_stack))),
+          ],
+        ),
+      ];
+    };
+  div(
+    ~attrs=[Attr.classes(["sample-dropdown", "collapsible"])],
+    has_stack ? [header] @ content : [],
+  );
+};
+
 let sample_view =
     (
       ~ap_id: option(Id.t),
@@ -904,7 +936,8 @@ let sample_view =
             ~model,
           ),
         ]
-    ),
+    )
+    @ (ap_id == None ? [stack_view(sample, ~local, ~model)] : []),
   );
 
 let sample_group_view =
@@ -1339,12 +1372,14 @@ module M: Projector = {
         active_renderer: None,
         env_collapsed: false,
         mock_collapsed: false,
+        stack_collapsed: false,
       })
     | Any(_) =>
       Some({
         active_renderer: None,
         env_collapsed: false,
         mock_collapsed: false,
+        stack_collapsed: false,
       }) /* Grout don't have sorts rn */
     | _ => None
     };
@@ -1408,6 +1443,10 @@ module M: Projector = {
     | ToggleMockCollapsed => {
         ...model,
         mock_collapsed: !model.mock_collapsed,
+      }
+    | ToggleStackCollapsed => {
+        ...model,
+        stack_collapsed: !model.stack_collapsed,
       }
     };
   };
