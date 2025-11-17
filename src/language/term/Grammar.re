@@ -7,18 +7,18 @@ module Annotated = {
     annotation: 'b,
   };
   /* uncomment to make terms pp without annotation */
-  //   let pp:
-  //     type a b.
-  //       (
-  //         (Format.formatter, a) => unit,
-  //         (Format.formatter, b) => unit,
-  //         Format.formatter,
-  //         t(a, b)
-  //       ) =>
-  //       unit =
-  //     (fmt_a, _, fmtr, t) => {
-  //       fmt_a(fmtr, t.term);
-  //     };
+  // let pp:
+  //   type a b.
+  //     (
+  //       (Format.formatter, a) => unit,
+  //       (Format.formatter, b) => unit,
+  //       Format.formatter,
+  //       t(a, b)
+  //     ) =>
+  //     unit =
+  //   (fmt_a, _, fmtr, t) => {
+  //     fmt_a(fmtr, t.term);
+  //   };
 
   let term_of = x => x.term;
   let unwrap = x => (
@@ -100,7 +100,7 @@ and exp_term('a) =
   | Test(exp_t('a))
   | HintedTest(exp_t('a), exp_t('a))
   | Filter(stepper_filter_kind_t('a), exp_t('a))
-  | Closure([@show.opaque] Environment.t(exp_t('a)), exp_t('a))
+  | Closure(Environment.t(exp_t('a)), exp_t('a))
   | Parens(exp_t('a)) // (
   | Probe(exp_t('a), Probe.t)
   | Cons(exp_t('a), exp_t('a))

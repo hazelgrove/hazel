@@ -378,6 +378,8 @@ module Update = {
               statics: cell.editor.statics,
               dynamics:
                 EvalResult.Model.dynamics(cell.result) |> Calc.get_value,
+              type_inst_map:
+                EvalResult.Model.type_inst_map(cell.result) |> Calc.get_value,
               dynamic_statics: cell.editor.dynamic_statics,
               pinned_call: cell.editor.pinned_call,
               context_menu: false,
@@ -968,6 +970,7 @@ module View = {
         editor: editor.editor.editor,
         statics: editor.editor.statics,
         dynamics: Language.Dynamics.Map.empty,
+        type_inst_map: Language.Dynamics.TypeInstMap.empty,
         dynamic_statics: editor.editor.dynamic_statics,
         pinned_call: editor.editor.pinned_call,
         context_menu: false,

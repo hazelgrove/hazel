@@ -2,6 +2,7 @@
 type t = {
   tests: TestMap.t,
   probes: Sample.Map.t,
+  type_insts: Dynamics.TypeInstMap.t,
 };
 
 type effect =
@@ -9,16 +10,20 @@ type effect =
   | RecordExpProbe(Probe.t)
   | RecordStackFrame
   | RecordPatProbes(PatternMatch.sample_closures)
-  | RecordPrint(DHExp.t); /* Println for probes study */
+  | RecordPrint(DHExp.t)
+  | RecordTypeInstantiation(Probe.call_stack => Dynamics.TypeInstantiation.t); /* Println for probes study */
 
 let init = {
   tests: TestMap.empty,
   probes: Sample.Map.empty,
+  type_insts: Dynamics.TypeInstMap.empty,
 };
 
 let get_tests = ({tests, _}) => tests;
 
 let get_probes = ({probes, _}) => probes;
+
+let get_type_insts = ({type_insts, _}) => type_insts;
 
 let add_test = (state: t, instance_report: TestMap.instance_report) => {
   ...state,
@@ -31,6 +36,12 @@ let add_test = (state: t, instance_report: TestMap.instance_report) => {
 let add_sample = (state: t, sample: Sample.t) => {
   ...state,
   probes: Sample.Map.extend(sample.syntax_id, sample, state.probes),
+};
+
+let add_type_inst = (state: t, inst: Dynamics.TypeInstantiation.t) => {
+  ...state,
+  type_insts:
+    Dynamics.TypeInstMap.extend(inst.tpat_id, inst, state.type_insts),
 };
 
 let update =
@@ -74,6 +85,10 @@ let update =
             Probe.empty,
           );
         (call_stack, add_sample(state, sample));
+      | RecordTypeInstantiation(type_inst_closure) => (
+          call_stack,
+          add_type_inst(state, type_inst_closure(call_stack)),
+        )
       },
     (call_stack, state),
     side_effects,

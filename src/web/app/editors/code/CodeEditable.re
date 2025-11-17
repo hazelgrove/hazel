@@ -47,6 +47,7 @@ module Update = {
             statics: model.statics,
             dynamics: model.dynamics,
             context_menu: false,
+            type_inst_map: model.type_inst_map,
             dynamic_statics: model.dynamic_statics,
             pinned_call: model.pinned_call,
           }

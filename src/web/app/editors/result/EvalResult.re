@@ -63,6 +63,7 @@ module Model = {
           probe_map: state |> EvaluatorState.get_probes,
           test_results:
             state |> EvaluatorState.get_tests |> TestResults.mk_results,
+          type_inst_map: state |> EvaluatorState.get_type_insts,
         },
       )
     };
@@ -76,6 +77,15 @@ module Model = {
     model.result
     |> Calc.map(_, dynamics)
     |> Calc.map(_, Option.map((d: Dynamics.t) => d.test_results));
+  let type_inst_map = (model: t): Calc.t(Dynamics.TypeInstMap.t) =>
+    model.result
+    |> Calc.map(_, dynamics)
+    |> Calc.map(_, s =>
+         switch (s) {
+         | Some(d) => d.type_inst_map
+         | None => Dynamics.TypeInstMap.empty
+         }
+       );
 
   let dynamics = (model: t): Calc.t(Sample.Map.t) =>
     probe_results(model)
@@ -216,6 +226,7 @@ module Update = {
                    ~is_dynamic_term=true,
                    ~stitch=_ => exp,
                    ~dynamics=Calc.OldValue(Dynamics.Map.empty),
+                   ~type_inst_map=Calc.OldValue(Dynamics.TypeInstMap.empty),
                    ~is_edited,
                    editor,
                  ),

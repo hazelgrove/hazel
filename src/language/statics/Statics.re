@@ -1092,15 +1092,32 @@ and uexp_to_info_map =
             | _ => item
             };
           };
+
           let ctx_body =
-            Ctx.extend_tvar(
-              ctx,
-              {
+            switch (
+              DynamicStatics.Map.lookup_type_inst(
+                TPat.rep_id(utpat),
+                dynamics,
+              )
+            ) {
+            | None =>
+              Ctx.extend_tvar(
+                ctx,
+                {
+                  name,
+                  id: TPat.rep_id(utpat),
+                  kind: Abstract,
+                },
+              )
+            | Some(insts) =>
+              DynamicStatics.extend_ctx_with_instantiations(
+                ctx,
                 name,
-                id: TPat.rep_id(utpat),
-                kind: Abstract,
-              },
-            );
+                TPat.rep_id(utpat),
+                insts,
+              )
+            };
+
           (mode_body, ctx_body);
         | Some(_)
         | None => (item, ctx)

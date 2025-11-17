@@ -16,33 +16,29 @@ module Model = {
     editor: Editor.t,
     context_menu: bool,
     statics: CachedStatics.t,
-    dynamics: Language.Dynamics.Map.t,
+    dynamics: Dynamics.Map.t, // TODO Combine dynamics and type_inst_map
+    type_inst_map: Dynamics.TypeInstMap.t,
     dynamic_statics: Calc.saved((StaticsBase.Map.t, list(Id.t))),
     pinned_call: Calc.saved(DynCursor.t),
   };
 
   let mk =
       (
-        ~dynamics=Language.Dynamics.Map.empty,
+        ~dynamics=Dynamics.Map.empty,
+        ~type_inst_map=Dynamics.TypeInstMap.empty,
         ~statics=CachedStatics.empty,
         editor,
       ) => {
-    {
-      editor,
-      statics,
-      dynamics,
-      dynamic_statics: Calc.Pending,
-      pinned_call: Calc.Pending,
-      context_menu: false,
-    };
+    editor,
+    statics,
+    dynamics,
+    type_inst_map,
+    dynamic_statics: Calc.Pending,
+    pinned_call: Calc.Pending,
+    context_menu: false,
   };
 
-  let mk_from_exp =
-      (
-        ~settings: Language.CoreSettings.t,
-        ~inline=false,
-        term: Language.Exp.t,
-      ) => {
+  let mk_from_exp = (~settings: CoreSettings.t, ~inline=false, term: Exp.t) => {
     ExpToSegment.exp_to_segment(
       term,
       ~settings=ExpToSegment.Settings.of_core(~inline, settings),
@@ -66,8 +62,7 @@ module Model = {
     {
       info,
       dynamic_info,
-      dynamics:
-        Option.bind(id, Language.Dynamics.Map.lookup(_, model.dynamics)),
+      dynamics: Option.bind(id, Dynamics.Map.lookup(_, model.dynamics)),
       indicated_piece:
         Indicated.piece''(model.editor.state.zipper)
         |> Option.map(((p, _, _)) => p),
@@ -105,11 +100,12 @@ module Update = {
   /* Calculates the statics for the editor. */
   let calculate =
       (
-        ~settings: Language.CoreSettings.t,
+        ~settings: CoreSettings.t,
         ~is_edited,
         ~ctx=?,
         ~stitch,
-        ~dynamics: Calc.t(Language.Dynamics.Map.t),
+        ~dynamics: Calc.t(Dynamics.Map.t),
+        ~type_inst_map: Calc.t(Dynamics.TypeInstMap.t),
         ~is_dynamic_term,
         {
           editor,
@@ -117,6 +113,7 @@ module Update = {
           dynamic_statics,
           pinned_call,
           context_menu,
+          type_inst_map: _,
           dynamics: _,
         }: Model.t,
       )
@@ -142,7 +139,7 @@ module Update = {
           )
         : statics;
 
-    let ctx_init: Language.Ctx.t = Language.Builtins.ctx_init(Some(Int));
+    let ctx_init: Ctx.t = Builtins.ctx_init(Some(Int));
 
     // Track the current pinned call state
     let dyn_cursor = editor.state.zipper.refractors.dyn_cursor;
@@ -154,47 +151,56 @@ module Update = {
           dynamic_statics
           |> {
             let.calc dynamics = dynamics
-            and.calc dyn_cursor = pinned_call_t;
+            and.calc type_inst_map = type_inst_map
+            and.calc pinned_call = pinned_call_t;
 
-            Util.TimeUtil.measure_time(
-              "Calculating dynamic statics",
-              ~threshold=1000.,
-              true,
-              () => {
-                // Filter closures based on the pinned call
-                let filtered_dynamics =
-                  DynCursor.filter_all_by_pin(dyn_cursor, dynamics);
+            // Filter closures based on the pinned call
+            let filtered_dynamics: Dynamics.Map.t =
+              DynCursor.filter_all_by_pin(pinned_call, dynamics);
 
-                let dynamic_expressions: Id.Map.t(list(TermBase.exp_t)) =
-                  Id.Map.map(
-                    d => {
-                      open Language;
-                      let exps = List.map((c: Sample.t) => c.value, d);
-                      exps;
-                    },
-                    filtered_dynamics,
-                  );
+            let dynamic_expressions: Id.Map.t(DynamicStatics.Map.entry) =
+              Id.Map.map(
+                List.map((c: Sample.t): DynamicStatics.sample =>
+                  {exp: c.value}
+                ),
+                filtered_dynamics,
+              );
 
-                let dynamic_info_map =
-                  Util.TimeUtil.measure_time(
-                    ~threshold=1000.,
-                    "Calculating static map from dynamics",
-                    true,
-                    () =>
-                    Language.Statics.mk_uncached(
-                      ~dynamics=dynamic_expressions,
-                      ctx_init,
-                      statics.term,
-                    )
-                  );
+            let filtered_type_inst_map: Dynamics.TypeInstMap.t =
+              Dynamics.TypeInstMap.filter_all_by_pin(
+                pinned_call.pinned_stack,
+                type_inst_map,
+              );
 
-                let dynamic_error_ids =
-                  Language.StaticsBase.Map.error_ids(dynamic_info_map)
-                  |> List.filter(id => !List.mem(id, statics.error_ids));
+            let type_inst_probes: Id.Map.t(DynamicStatics.Map.type_inst_entry) =
+              Id.Map.map(
+                List.map(
+                  (inst: Dynamics.TypeInstantiation.t): DynamicStatics.type_instantiation =>
+                  {
+                    tpat_id: inst.tpat_id,
+                    type_var: inst.type_var,
+                    instantiated_type: inst.instantiated_type,
+                  }
+                ),
+                filtered_type_inst_map,
+              );
 
-                (dynamic_info_map, dynamic_error_ids);
-              },
-            );
+            let dynamic_info_map =
+              Statics.mk(
+                ~dynamics={
+                  exp_probes: dynamic_expressions,
+                  type_inst_probes,
+                },
+                settings,
+                ctx_init,
+                statics.term,
+              );
+
+            let dynamic_error_ids =
+              StaticsBase.Map.error_ids(dynamic_info_map)
+              |> List.filter(id => !List.mem(id, statics.error_ids));
+
+            (dynamic_info_map, dynamic_error_ids);
           }
         );
       } else {
@@ -229,6 +235,7 @@ module Update = {
       statics,
       context_menu,
       dynamics: Calc.get_value(dynamics),
+      type_inst_map: Calc.get_value(type_inst_map),
       dynamic_statics: Calc.save(dynamic_statics),
       pinned_call: Calc.save(pinned_call_t),
     };

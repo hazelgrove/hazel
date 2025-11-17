@@ -153,7 +153,7 @@ let rec evaluate =
 };
 
 let evaluate_and_limit =
-    (~step_limit: option(int)=?, ~env, d: DHExp.t)
+    (~step_limit: option(int)=?, ~env: Environment.t(Exp.t), d: DHExp.t)
     : step_constrained((Exp.t, EvaluatorState.t)) => {
   let state = ref(EvaluatorState.init);
   let result = evaluate(~call_stack=[], state, env, d);
@@ -168,7 +168,8 @@ let evaluate_and_limit =
   };
 };
 
-let evaluate = (~env, d: DHExp.t): (Exp.t, EvaluatorState.t) => {
+let evaluate =
+    (~env: Environment.t(Exp.t), d: DHExp.t): (Exp.t, EvaluatorState.t) => {
   switch (evaluate_and_limit(~env, d)) {
   | Completed((x, state)) => (x, state)
   | StepLimitExceeded =>

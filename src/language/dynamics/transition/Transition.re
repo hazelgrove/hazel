@@ -141,13 +141,17 @@ type rule =
   | Indet
   | Value;
 
-let (let-unbox) = ((request, v), f) =>
-  switch (Unboxing.unbox(request, v)) {
+let (let-unboxed) = (unboxed: Unboxing.unboxed('a), f) =>
+  switch (unboxed) {
   | IndetMatch
   | DoesNotMatch => Indet
   | Matches(n) => f(n)
   };
 
+let (let-unbox) = ((request, v), f) => {
+  let-unboxed result = Unboxing.unbox(request, v);
+  f(result);
+};
 module type EV_MODE = {
   type state;
   type result;
@@ -395,7 +399,22 @@ module Transition = (EV: EV_MODE) => {
                 name,
               ),
             ),
-          side_effects: [],
+          side_effects:
+            switch (TPat.tyvar_of_utpat(utpat)) {
+            | Some(var_name) => [
+                EvaluatorState.RecordTypeInstantiation(
+                  call_stack =>
+                    Dynamics.TypeInstantiation.{
+                      tpat_id: TPat.rep_id(utpat),
+                      type_var: var_name,
+                      instantiated_type: tau,
+                      call_stack,
+                      time: JsUtil.timestamp(),
+                    },
+                ),
+              ]
+            | None => []
+            },
           kind: TypFunAp,
           is_value: false,
         })
@@ -509,14 +528,11 @@ module Transition = (EV: EV_MODE) => {
                 d4s,
               ),
             );
-          let-unbox args =
+          let-unboxed args =
             if (n_args == 1) {
-              (
-                Tuple(n_args),
-                tuple([d2']) // TODO Should we not be going to a tuple?
-              );
+              Matches([d2']);
             } else {
-              (Tuple(n_args), d2');
+              Unboxing.unbox(Tuple(n_args), d2');
             };
           let new_args = {
             let rec go = (deferred, args) =>
@@ -531,7 +547,16 @@ module Transition = (EV: EV_MODE) => {
             go(d4s, args);
           };
           Step({
-            expr: ap(Forward, d3, tuple(new_args)),
+            expr:
+              ap(
+                Forward,
+                d3,
+                switch (new_args) {
+                | [{term: TupLabel(_, _), _}] => tuple(new_args)
+                | [d] => d
+                | _ => tuple(new_args)
+                },
+              ),
             side_effects: [],
             kind: DeferredAp,
             is_value: false,
