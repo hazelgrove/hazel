@@ -694,7 +694,21 @@ let probearium =
       [
         div(
           ~attrs=[clss(["main-title"])],
-          [text("Probearium"), mode_toggle(~explain_this_inject)],
+          [
+            text("Probearium"),
+            mode_toggle(~explain_this_inject),
+            div(
+              ~attrs=[
+                Attr.classes(["reset-button"]),
+                Attr.on_click(_ =>
+                  globals.inject_global(
+                    ActiveEditor(Project(DynCursor(Reset))),
+                  )
+                ),
+              ],
+              [text("Reset Dyncursor")],
+            ),
+          ],
         ),
       ],
     ),
