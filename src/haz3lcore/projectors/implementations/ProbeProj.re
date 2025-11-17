@@ -856,56 +856,6 @@ let env_view =
   );
 };
 
-let mock_view =
-    (
-      ~settings: settings,
-      ~sort: Sort.t,
-      view_seg,
-      utility: utility,
-      ~local,
-      ~model,
-    )
-    : Node.t => {
-  let header =
-    div(
-      ~attrs=[
-        Attr.classes(["live-env-header"]),
-        Attr.on_click(_ => local(ToggleMockCollapsed)),
-      ],
-      [text("Mock Data " ++ (model.mock_collapsed ? "▶" : "▼"))],
-    );
-  let content =
-    if (model.mock_collapsed) {
-      [];
-    } else {
-      [
-        div(
-          ~attrs=[Attr.classes(["live-env"])],
-          List.map(
-            env_val(
-              ~settings,
-              ~sort,
-              {
-                id: 0,
-                syntax_id: Id.invalid,
-                call_stack: [],
-                env: [],
-                value: Exp.fresh(EmptyHole),
-                iter: 0,
-                time: 0.0,
-                origin: Sample.Probe,
-              },
-              view_seg,
-              utility,
-            ),
-            mock_env,
-          ),
-        ),
-      ];
-    };
-  div(~attrs=[Attr.classes(["sample-dropdown", "collapsible"])], [header] @ content);
-};
-
 let sample_view =
     (
       ~ap_id: option(Id.t),
@@ -1018,8 +968,7 @@ let mv_least_distant_sample =
   | None => Effect.Ignore
   };
 
-let ellipsis_view =
-    (~ap_id: option(Id.t), local, parent, info: info): Node.t =>
+let ellipsis_view = (~ap_id: option(Id.t), local, parent, info: info): Node.t =>
   div(
     ~attrs=[
       Attr.classes(["ellipsis"]),
@@ -1277,7 +1226,7 @@ let offside_view =
         ~is_dynamic=?None,
         ~background=false,
         sort,
-        seg
+        seg,
       );
     Node.div(
       ~attrs=[
@@ -1302,7 +1251,6 @@ let offside_view =
           model,
           groups,
         )
-      @ [mock_view(~settings, ~sort, view_seg_lambda, utility, ~local, ~model)]
       @ (is_cut_off ? extras : []),
     );
   | _ => Node.div([])
@@ -1426,8 +1374,14 @@ module M: Projector = {
     | NoOp => model
     | ToggleModal(renderer) =>
       switch (model.active_renderer) {
-      | None => {...model, active_renderer: renderer}
-      | Some(_) => {...model, active_renderer: None}
+      | None => {
+          ...model,
+          active_renderer: renderer,
+        }
+      | Some(_) => {
+          ...model,
+          active_renderer: None,
+        }
       }
     | RendererAction(serialized_action) =>
       /* Route action to active renderer */
