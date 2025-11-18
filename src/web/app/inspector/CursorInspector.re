@@ -111,9 +111,6 @@ let view_type = (~globals, ~dynamic_info: option(Info.t), typ: Typ.t) => {
   let ids: list(Id.t) =
     Option.map(Typ.diff(typ), dyn_type) |> Option.value(~default=[]);
 
-  print_endline("Type: " ++ [%derive.show: Typ.t](typ));
-  print_endline("Dynamic Type: " ++ [%derive.show: o](dyn_type));
-  print_endline("Diff ids: " ++ [%derive.show: list(Id.t)](ids));
   let is_dynamic_id = (id: Id.t): bool => {
     List.mem(id, ids);
   };
@@ -829,8 +826,7 @@ let view_of_info = (~globals, ~dynamic_info, ci): list(Node.t) => {
   };
 };
 
-let inspector_view = (~globals, ci, ~dynamic_info): Node.t => {
-  /* Determine which info to display: prioritize static errors, then dynamic errors, then normal info */
+let inspector_view = (~globals, ~dynamic_info, ci): Node.t => {
   let (display_info, is_dynamic_error) =
     if (Info.is_error(ci)) {
       (
@@ -853,12 +849,6 @@ let inspector_view = (~globals, ci, ~dynamic_info): Node.t => {
       ]),
     ],
     view_of_info(~globals, ~dynamic_info, display_info),
-    // @ (
-    //   switch (dyn) {
-    //   | None => []
-    //   | Some(ty) => [text("Dynamic Type:"), view_type(~globals, ty)]
-    //   }
-    // )
   );
 };
 
@@ -881,7 +871,7 @@ let view =
   | None => err_view("Whitespace or Comment")
   | Some(ci) =>
     bar_view([
-      inspector_view(~globals, ci, ~dynamic_info=cursor.dynamic_info),
+      inspector_view(~globals, ~dynamic_info=cursor.dynamic_info, ci),
       ProjectorPanel.view(
         ~inject=
           a =>
