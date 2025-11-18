@@ -52,33 +52,37 @@ module Model = {
     | None => init
     };
   };
-  let dynamics = (result: ProgramResult.t(ProgramResult.inner)) =>
-    switch (result) {
-    | ProgramResult.ResultPending => None
-    | ProgramResult.ResultFail(_) => None
-    | ProgramResult.ResultOk({state, _}) =>
-      Some(
-        Dynamics.{
-          probe_map: state |> EvaluatorState.get_probes,
-          test_results:
-            state |> EvaluatorState.get_tests |> TestResults.mk_results,
-          type_inst_map: state |> EvaluatorState.get_type_insts,
-        },
-      )
-    };
+
+  let dynamics = (model: t) =>
+    model.result
+    |> Calc.map(
+         _,
+         fun
+         | ProgramResult.ResultPending => None
+         | ProgramResult.ResultFail(_) => None
+         | ProgramResult.ResultOk({state, _}) =>
+           Some(
+             Dynamics.{
+               probe_map: state |> EvaluatorState.get_probes,
+               test_results:
+                 state |> EvaluatorState.get_tests |> TestResults.mk_results,
+               type_inst_map: state |> EvaluatorState.get_type_insts,
+             },
+           ),
+       );
 
   let probe_results = (model: t): Calc.t(option(Dynamics.Map.t)) =>
-    model.result
-    |> Calc.map(_, dynamics)
+    model
+    |> dynamics
     |> Calc.map(_, Option.map((d: Dynamics.t) => d.probe_map));
 
   let test_results = (model: t): Calc.t(option(TestResults.t)) =>
-    model.result
-    |> Calc.map(_, dynamics)
+    model
+    |> dynamics
     |> Calc.map(_, Option.map((d: Dynamics.t) => d.test_results));
   let type_inst_map = (model: t): Calc.t(Dynamics.TypeInstMap.t) =>
-    model.result
-    |> Calc.map(_, dynamics)
+    model
+    |> dynamics
     |> Calc.map(_, s =>
          switch (s) {
          | Some(d) => d.type_inst_map
@@ -87,8 +91,8 @@ module Model = {
        );
 
   let dynamics = (model: t): Calc.t(Dynamics.t) =>
-    model.result
-    |> Calc.map(_, dynamics)
+    model
+    |> dynamics
     |> Calc.map(_, s =>
          switch (s) {
          | Some(m) => m
