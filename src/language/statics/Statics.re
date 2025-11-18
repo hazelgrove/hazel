@@ -1137,7 +1137,6 @@ and uexp_to_info_map =
               p,
               m,
             );
-
           (def, p_ana'.ctx, m, ty_p_ana);
         } else {
           let (def_base, _) = go'(~ctx=p_syn.ctx, ~ana=p_syn.ty, def, m);
