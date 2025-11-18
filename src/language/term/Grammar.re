@@ -100,7 +100,7 @@ and exp_term('a) =
   | Test(exp_t('a))
   | HintedTest(exp_t('a), exp_t('a))
   | Filter(stepper_filter_kind_t('a), exp_t('a))
-  | Closure(Environment.t(exp_t('a)), exp_t('a))
+  | Closure([@show.opaque] Environment.t(exp_t('a)), exp_t('a))
   | Parens(exp_t('a)) // (
   | Probe(exp_t('a), Probe.t)
   | Cons(exp_t('a), exp_t('a))
