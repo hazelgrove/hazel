@@ -119,7 +119,7 @@ let rec elaborate_pattern =
     elaborate_pattern(~probe_unknowns, m, upat, in_container);
 
   let contains_unknown =
-    Option.map(t => Typ.count_unknowns(t) > 0, Self.typ_of_pat(self))
+    Option.map(Typ.contains_unknown, Self.typ_of_pat(self))
     |> Option.value(~default=true);
   let (term, rewrap) = Pat.unwrap(upat);
   let dpat =
@@ -230,7 +230,7 @@ let rec elaborate =
     elaborated_type(m, uexp);
 
   let contains_unknown =
-    Option.map(t => Typ.count_unknowns(t) > 0, Self.typ_of_exp(self))
+    Option.map(Typ.contains_unknown, Self.typ_of_exp(self))
     |> Option.value(~default=true);
   let (_, rewrap) = Exp.unwrap(uexp);
   let uexp = rewrap(statics_pseudo_elaborated.term);

@@ -511,3 +511,18 @@ let rec forall2_opt =
   | _ => Some(false) // Different lengths
   };
 };
+
+/**
+ * Reduces a list of elements using a binary function, returning an option.
+ * This is similar to fold_left but explicitly handles empty lists by returning None
+ * rather than requiring an initial accumulator value.
+ *
+ * @param f The binary combining function
+ * @param xs The list of elements to combine
+ * @return Some of the accumulated result if xs is non-empty, None if xs is empty
+ */
+let reduce = (f: ('a, 'a) => 'a, xs: list('a)): option('a) =>
+  switch (xs) {
+  | [] => None
+  | [x, ...xs] => Some(List.fold_left((acc, x) => f(acc, x), x, xs))
+  };

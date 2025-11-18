@@ -284,7 +284,7 @@ module Update = {
           )
         | exception (Failure(_)) => (
             CachedStatics.empty,
-            Language.Dynamics.Map.empty,
+            Language.Dynamics.empty,
           )
         };
       let* new_editor =
@@ -443,20 +443,20 @@ module Update = {
         prelude:
           calculate(
             cells.prelude.editor.statics,
-            cells.prelude.editor.dynamics,
+            cells.prelude.editor.dynamics.probe_map,
             model.editors.prelude,
           ),
         correct_impl:
           calculate(
             cells.test_validation.editor.statics,
-            cells.test_validation.editor.dynamics,
+            cells.test_validation.editor.dynamics.probe_map,
             model.editors.correct_impl,
           ),
         your_tests: {
           tests:
             calculate(
               cells.user_tests.editor.statics,
-              cells.user_tests.editor.dynamics,
+              cells.user_tests.editor.dynamics.probe_map,
               model.editors.your_tests.tests,
             ),
           required: model.editors.your_tests.required,
@@ -465,7 +465,7 @@ module Update = {
         your_impl:
           calculate(
             cells.user_impl.editor.statics,
-            cells.user_impl.editor.dynamics,
+            cells.user_impl.editor.dynamics.probe_map,
             model.editors.your_impl,
           ),
         hidden_bugs:
@@ -476,7 +476,7 @@ module Update = {
                 impl:
                   calculate(
                     cell.editor.statics,
-                    cell.editor.dynamics,
+                    cell.editor.dynamics.probe_map,
                     editor.impl,
                   ),
                 hint: editor.hint,
@@ -488,7 +488,7 @@ module Update = {
           tests:
             calculate(
               cells.hidden_tests.editor.statics,
-              cells.hidden_tests.editor.dynamics,
+              cells.hidden_tests.editor.dynamics.probe_map,
               model.editors.hidden_tests.tests,
             ),
           hints: model.editors.hidden_tests.hints,
@@ -964,7 +964,7 @@ module View = {
       editor: {
         editor: editor.editor.editor,
         statics: editor.editor.statics,
-        dynamics: Language.Dynamics.Map.empty,
+        dynamics: Language.Dynamics.empty,
         dynamic_statics: editor.editor.dynamic_statics,
         pinned_call: editor.editor.pinned_call,
       },

@@ -882,6 +882,58 @@ let fixed_typ_exp = (ctx, ty_ana: Typ.t, self: Self.exp): Typ.t =>
   | NotInHole(Common(ok)) => fixed_typ_ok(ok)
   };
 
+let derived_dynamic_self_common =
+    (
+      ~dynamics: DynamicStatics.Map.t,
+      ~calculate_dynamic_type: Exp.t => option(Typ.t),
+      ~ctx,
+      ~term_id: Id.t,
+      ~self_common: Self.t,
+    )
+    : Self.t => {
+  switch (self_common) {
+  | Just(t) when Typ.count_unknowns(t) > 0 =>
+    switch (DynamicStatics.Map.lookup(term_id, dynamics)) {
+    | None => self_common
+    | Some([]) => self_common
+    | Some(entry) =>
+      let exps = List.map((s: DynamicStatics.sample) => s.exp, entry);
+      let dyn_typs = OptUtil.traverse(calculate_dynamic_type, exps);
+      let dyn_typ =
+        Option.bind(
+          dyn_typs,
+          Typ.join_all(~empty=Unknown(Internal) |> Typ.temp, ctx),
+        );
+      Just(dyn_typ |> Option.value(~default=Unknown(Internal) |> Typ.temp));
+    }
+  | _ => self_common
+  };
+};
+
+let derived_dynamic_self_exp =
+    (
+      ~dynamics: DynamicStatics.Map.t,
+      ~calculate_dynamic_type: Exp.t => option(Typ.t),
+      ~ctx,
+      ~uexp: Exp.t,
+      ~self: Self.exp,
+    )
+    : Self.exp => {
+  switch (self) {
+  | Common(self_common) =>
+    Common(
+      derived_dynamic_self_common(
+        ~dynamics,
+        ~calculate_dynamic_type,
+        ~ctx,
+        ~term_id=uexp |> Exp.rep_id,
+        ~self_common,
+      ),
+    )
+  | _ => self
+  };
+};
+
 /* Add derivable attributes for expression terms */
 let derived_exp =
     (
@@ -899,29 +951,17 @@ let derived_exp =
     )
     : exp => {
   let self: Self.exp =
-    switch (self) {
-    | Common(Just(t)) when Typ.count_unknowns(t) > 0 =>
-      switch (DynamicStatics.Map.lookup(uexp |> Exp.rep_id, dynamics)) {
-      | None => self
-      | Some([]) => self
-      | Some(exps) =>
-        let dyn_typs = OptUtil.traverse(calculate_dynamic_type, exps);
-        let dyn_typ =
-          Option.bind(
-            dyn_typs,
-            Typ.join_all(~empty=Unknown(Internal) |> Typ.temp, ctx),
-          );
-        Common(
-          Just(
-            dyn_typ |> Option.value(~default=Unknown(Internal) |> Typ.temp),
-          ),
-        );
-      }
-    | _ => self
-    };
+    derived_dynamic_self_exp(
+      ~calculate_dynamic_type,
+      ~dynamics,
+      ~ctx,
+      ~uexp,
+      ~self,
+    );
 
   let cls = Cls.Exp(Exp.cls_of_term(uexp.term));
   let status = status_exp(ctx, ana, self);
+
   let ty = fixed_typ_exp(ctx, ana, self);
   {
     cls,
@@ -950,23 +990,16 @@ let derived_dynamic_self_pat =
     )
     : Self.pat => {
   switch (self) {
-  | Common(Just(t)) when Typ.count_unknowns(t) > 0 =>
-    switch (DynamicStatics.Map.lookup(upat |> Pat.rep_id, dynamics)) {
-    | None => self
-    | Some([]) => self
-    | Some(exps) =>
-      let dyn_typs = OptUtil.traverse(calculate_dynamic_type, exps);
-      let dyn_typ =
-        Option.bind(
-          dyn_typs,
-          Typ.join_all(~empty=Unknown(Internal) |> Typ.temp, ctx),
-        );
-      Common(
-        Just(
-          dyn_typ |> Option.value(~default=Unknown(Internal) |> Typ.temp),
-        ),
-      );
-    }
+  | Common(self_common) =>
+    Common(
+      derived_dynamic_self_common(
+        ~dynamics,
+        ~calculate_dynamic_type,
+        ~ctx,
+        ~term_id=upat |> Pat.rep_id,
+        ~self_common,
+      ),
+    )
   | _ => self
   };
 };

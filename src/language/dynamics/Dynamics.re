@@ -128,6 +128,62 @@ module Probe = {
   };
 };
 
+module TypeInstantiation = {
+  /* A type instantiation records when a type variable is instantiated
+   * with a concrete type during type application evaluation */
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type t = {
+    tpat_id: Id.t, /* ID of the type pattern */
+    type_var: string, /* Variable name (e.g., "a") */
+    instantiated_type: Typ.t, /* The concrete type (e.g., String) */
+    call_stack: list(Id.t), /* Call stack at instantiation time */
+    time: float /* Timestamp */
+  };
+};
+
+module TypeInstMap = {
+  /* Type applications recorded during evaluation, indexed by the
+   * TPat ids of the type parameters */
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type t = Id.Map.t(list(TypeInstantiation.t));
+
+  let empty = Id.Map.empty;
+  let lookup = Id.Map.find_opt;
+
+  let extend = (id, inst: TypeInstantiation.t, map: t) => {
+    Id.Map.update(
+      id,
+      opt =>
+        switch (opt) {
+        | Some(a) => Some(a @ [inst])
+        | None => Some([inst])
+        },
+      map,
+    );
+  };
+  let filter_type_instantiations_by_pin =
+      (
+        pinned_call: option(list(Id.t)),
+        closures: list(TypeInstantiation.t),
+      )
+      : list(TypeInstantiation.t) =>
+    switch (pinned_call) {
+    | Some(pinned_stack) =>
+      List.filter(
+        (closure: TypeInstantiation.t) =>
+          ListUtil.is_suffix_of(pinned_stack, closure.call_stack),
+        closures,
+      )
+    | None => closures
+    };
+
+  let filter_all_by_pin = (pinned_call: option(list(Id.t)), map: t): t =>
+    Id.Map.map(
+      closures => filter_type_instantiations_by_pin(pinned_call, closures),
+      map,
+    );
+};
+
 module Info = {
   /* Collected closures for a given id */
   [@deriving (show({with_path: false}), sexp, yojson)]
@@ -170,5 +226,30 @@ module Map = {
 [@deriving (show({with_path: false}), sexp, yojson)]
 type t = {
   probe_map: Probe.Map.t,
+  type_inst_map: TypeInstMap.t,
   test_results: TestResults.t,
+};
+
+let empty: t = {
+  probe_map: Probe.Map.empty,
+  type_inst_map: TypeInstMap.empty,
+  test_results: {
+    test_map: [],
+    statuses: [],
+    hints: [],
+    descriptions: [],
+    total: 0,
+    passing: 0,
+    failing: 0,
+    unfinished: 0,
+  },
+};
+
+let filter_all_by_pin = (pinned_call: option(list(Id.t)), dyn: t): t => {
+  {
+    probe_map: Map.filter_all_by_pin(pinned_call, dyn.probe_map),
+    type_inst_map:
+      TypeInstMap.filter_all_by_pin(pinned_call, dyn.type_inst_map),
+    test_results: dyn.test_results,
+  };
 };

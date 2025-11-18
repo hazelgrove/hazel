@@ -167,6 +167,86 @@ let join_tests = (
   ],
 );
 
+// TODO We want this property but it's not currently passing for forall and rec types so it's not included below
+let meet_precision_property =
+  QCheck_alcotest.to_alcotest(
+    QCheck.Test.make(
+      ~name="Typ.meet is less precise than inputs",
+      ~count=100000,
+      QCheck.(
+        QCheck_Util.(
+          pair(
+            arb_typ(~minimal_idents=true, 10),
+            arb_typ(~minimal_idents=true, 10),
+          )
+        )
+      ),
+      ((t1, t2)) => {
+        let ctx = Builtins.ctx_init(Some(Int));
+        let m = Typ.meet(ctx, t1, t2);
+        Typ.is_more_precise(ctx, Typ.normalize(ctx, t1), m)
+        && Typ.is_more_precise(ctx, Typ.normalize(ctx, t2), m);
+      },
+    ),
+  );
+
+let meet_tests = (
+  "Typ.meet",
+  IdTagged.FreshGrammar.Typ.[
+    test_case(
+      "equal atomic types",
+      `Quick,
+      () => {
+        let t = Typ.meet(Builtins.ctx_init(None), int(), int());
+        check(typ, "Meet of equal atomic types", int(), t);
+      },
+    ),
+    test_case(
+      "Unknown and atomic type",
+      `Quick,
+      () => {
+        let t = Typ.meet(Builtins.ctx_init(None), unknown(Internal), int());
+        check(typ, "Meet of Unknown and atomic type", unknown(Internal), t);
+      },
+    ),
+    test_case(
+      "Sum type with same variants",
+      `Quick,
+      () => {
+        let t =
+          Typ.meet(
+            Builtins.ctx_init(None),
+            sum([
+              Variant("A", [], Some(int())),
+              Variant("B", [], Some(bool())),
+            ]),
+            sum([
+              Variant("A", [], Some(int())),
+              Variant("B", [], Some(bool())),
+            ]),
+          );
+        check(
+          typ,
+          "Meet of sum types with same variants",
+          sum([
+            Variant("A", [], Some(int())),
+            Variant("B", [], Some(bool())),
+          ]),
+          t,
+        );
+      },
+    ),
+    test_case(
+      "Unbound variables",
+      `Quick,
+      () => {
+        let t = Typ.meet(Builtins.ctx_init(None), var("a"), var("b"));
+        check(typ, "Meet of unbound variables", unknown(Internal), t);
+      },
+    ),
+  ],
+);
+
 let fast_equal_tests = (
   "Typ.fast_equal",
   [
@@ -300,4 +380,4 @@ let fast_equal_tests = (
   ],
 );
 
-let tests = [join_tests, fast_equal_tests];
+let tests = [join_tests, meet_tests, fast_equal_tests];

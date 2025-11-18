@@ -130,7 +130,7 @@ module Update = {
           )
         | exception (Failure(_)) => (
             CachedStatics.empty,
-            Language.Dynamics.Map.empty,
+            Language.Dynamics.empty,
           )
         };
       let* new_editor =
@@ -240,6 +240,7 @@ module Update = {
               statics: cell.editor.statics,
               dynamics:
                 EvalResult.Model.dynamics(cell.result) |> Calc.get_value,
+
               dynamic_statics: cell.editor.dynamic_statics,
               pinned_call: cell.editor.pinned_call,
             },
@@ -303,7 +304,7 @@ module Update = {
         your_impl:
           calculate(
             cells.user_impl.editor.statics,
-            cells.user_impl.editor.dynamics,
+            cells.user_impl.editor.dynamics.probe_map,
             model.editors.your_impl,
           ),
         display_hint: model.editors.display_hint,
@@ -311,7 +312,7 @@ module Update = {
           tests:
             calculate(
               cells.hidden_tests.editor.statics,
-              cells.hidden_tests.editor.dynamics,
+              cells.hidden_tests.editor.dynamics.probe_map,
               model.editors.hidden_tests.tests,
             ),
           hints: model.editors.hidden_tests.hints,

@@ -16,7 +16,7 @@ module Model = {
     editor: {
       editor,
       statics: CachedStatics.empty,
-      dynamics: Language.Dynamics.Map.empty,
+      dynamics: Language.Dynamics.empty,
       dynamic_statics: Pending,
       pinned_call: Pending,
     },
@@ -37,7 +37,7 @@ module Model = {
     editor: {
       editor: editor |> PersistentZipper.unpersist |> Editor.Model.mk,
       statics: CachedStatics.empty,
-      dynamics: Language.Dynamics.Map.empty,
+      dynamics: Language.Dynamics.empty,
       dynamic_statics: Pending,
       pinned_call: Pending,
     },
