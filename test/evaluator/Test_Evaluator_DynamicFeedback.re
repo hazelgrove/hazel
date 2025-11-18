@@ -1,6 +1,3 @@
-/* These are very simple tests to make sure we're not
-   doing exponential blowup in the evaluator */
-
 open Alcotest;
 open Test_Evaluator_Prelude;
 open Language;
