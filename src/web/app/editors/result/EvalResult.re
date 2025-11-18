@@ -86,12 +86,13 @@ module Model = {
          }
        );
 
-  let dynamics = (model: t): Calc.t(Dynamics.Map.t) =>
-    probe_results(model)
+  let dynamics = (model: t): Calc.t(Dynamics.t) =>
+    model.result
+    |> Calc.map(_, dynamics)
     |> Calc.map(_, s =>
          switch (s) {
          | Some(m) => m
-         | None => Dynamics.Map.mk(Dynamics.Probe.Map.empty)
+         | None => Dynamics.empty
          }
        );
 
@@ -224,8 +225,7 @@ module Update = {
                    ~settings=settings |> Calc.get_value,
                    ~is_dynamic_term=true,
                    ~stitch=_ => exp,
-                   ~dynamics=Calc.OldValue(Dynamics.Map.empty),
-                   ~type_inst_map=Calc.OldValue(Dynamics.TypeInstMap.empty),
+                   ~dynamics=Calc.OldValue(Dynamics.empty),
                    ~is_edited,
                    editor,
                  ),

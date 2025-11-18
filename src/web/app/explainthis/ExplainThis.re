@@ -508,8 +508,7 @@ let get_doc =
           {
             editor,
             statics: CachedStatics.empty,
-            dynamics: Dynamics.Map.empty,
-            type_inst_map: Dynamics.TypeInstMap.empty,
+            dynamics: Dynamics.empty,
             dynamic_statics: Pending,
             pinned_call: Pending,
           },

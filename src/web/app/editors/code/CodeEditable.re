@@ -33,7 +33,7 @@ module Update = {
         ~settings=settings.core,
         action,
         model.statics,
-        model.dynamics,
+        model.dynamics.probe_map,
         model.editor,
       )
       |> (
@@ -43,7 +43,6 @@ module Update = {
             editor,
             statics: model.statics,
             dynamics: model.dynamics,
-            type_inst_map: model.type_inst_map,
             dynamic_statics: model.dynamic_statics,
             pinned_call: model.pinned_call,
           }
@@ -229,7 +228,7 @@ module View = {
           model.editor.syntax.selection_ids,
           Indicated.piece(model.editor.state.zipper),
           model.statics.info_map,
-          model.dynamics,
+          model.dynamics.probe_map,
           selected,
         ),
       );

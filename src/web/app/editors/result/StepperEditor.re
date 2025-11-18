@@ -39,8 +39,7 @@ module Update = {
         ~settings,
         ~is_edited,
         ~stitch,
-        ~dynamics: Calc.t(Language.Dynamics.Map.t),
-        ~type_inst_map: Calc.t(Language.Dynamics.TypeInstMap.t),
+        ~dynamics: Calc.t(Language.Dynamics.t),
         {editor, taken_steps, next_steps, refls}: Model.t,
       )
       : Model.t => {
@@ -50,7 +49,6 @@ module Update = {
         ~is_edited,
         ~stitch,
         ~dynamics,
-        ~type_inst_map,
         ~is_dynamic_term=true,
         editor,
       );

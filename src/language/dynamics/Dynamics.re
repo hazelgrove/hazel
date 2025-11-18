@@ -229,3 +229,27 @@ type t = {
   type_inst_map: TypeInstMap.t,
   test_results: TestResults.t,
 };
+
+let empty: t = {
+  probe_map: Probe.Map.empty,
+  type_inst_map: TypeInstMap.empty,
+  test_results: {
+    test_map: [],
+    statuses: [],
+    hints: [],
+    descriptions: [],
+    total: 0,
+    passing: 0,
+    failing: 0,
+    unfinished: 0,
+  },
+};
+
+let filter_all_by_pin = (pinned_call: option(list(Id.t)), dyn: t): t => {
+  {
+    probe_map: Map.filter_all_by_pin(pinned_call, dyn.probe_map),
+    type_inst_map:
+      TypeInstMap.filter_all_by_pin(pinned_call, dyn.type_inst_map),
+    test_results: dyn.test_results,
+  };
+};
