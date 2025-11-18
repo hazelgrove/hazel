@@ -142,7 +142,7 @@ module TypeInstantiation = {
 };
 
 module TypeInstMap = {
-  /* Type instantiations recorded during evaluation, indexed by the
+  /* Type applications recorded during evaluation, indexed by the
    * TPat ids of the type parameters */
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t = Id.Map.t(list(TypeInstantiation.t));
@@ -162,7 +162,11 @@ module TypeInstMap = {
     );
   };
   let filter_type_instantiations_by_pin =
-      (pinned_call: option(list(Id.t)), closures: list('a)): list('a) =>
+      (
+        pinned_call: option(list(Id.t)),
+        closures: list(TypeInstantiation.t),
+      )
+      : list(TypeInstantiation.t) =>
     switch (pinned_call) {
     | Some(pinned_stack) =>
       List.filter(
