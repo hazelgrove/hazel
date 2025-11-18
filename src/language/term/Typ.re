@@ -24,7 +24,8 @@ type cls =
   | Rec
   | Forall
   | ProdProjection
-  | ProdExtension;
+  | ProdExtension
+  | Probe;
 
 include TermBase.Typ;
 
@@ -100,7 +101,7 @@ let cls_of_term: Grammar.typ_term('a) => cls =
   | Forall(_) => Forall
   | ProdProjection(_) => ProdProjection
   | ProdExtension(_) => ProdExtension
-  | Probe(_, _) => EmptyHole;
+  | Probe(_, _) => Probe;
 
 let show_cls: cls => string =
   fun
@@ -124,7 +125,8 @@ let show_cls: cls => string =
   | Rec => "Recursive type"
   | Forall => "Forall type"
   | ProdProjection => "Tuple projection"
-  | ProdExtension => "Tuple extension";
+  | ProdExtension => "Tuple extension"
+  | Probe => "Probed type";
 
 let rec is_arrow = (typ: t) => {
   switch (typ.term) {

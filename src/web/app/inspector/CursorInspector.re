@@ -826,8 +826,7 @@ let view_of_info = (~globals, ~dynamic_info, ci): list(Node.t) => {
   };
 };
 
-let inspector_view = (~globals, ci, ~dynamic_info): Node.t => {
-  /* Determine which info to display: prioritize static errors, then dynamic errors, then normal info */
+let inspector_view = (~globals, ~dynamic_info, ci): Node.t => {
   let (display_info, is_dynamic_error) =
     if (Info.is_error(ci)) {
       (
@@ -850,12 +849,6 @@ let inspector_view = (~globals, ci, ~dynamic_info): Node.t => {
       ]),
     ],
     view_of_info(~globals, ~dynamic_info, display_info),
-    // @ (
-    //   switch (dyn) {
-    //   | None => []
-    //   | Some(ty) => [text("Dynamic Type:"), view_type(~globals, ty)]
-    //   }
-    // )
   );
 };
 
@@ -878,7 +871,7 @@ let view =
   | None => err_view("Whitespace or Comment")
   | Some(ci) =>
     bar_view([
-      inspector_view(~globals, ci, ~dynamic_info=cursor.dynamic_info),
+      inspector_view(~globals, ~dynamic_info=cursor.dynamic_info, ci),
       ProjectorPanel.view(
         ~inject=
           a =>

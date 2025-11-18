@@ -2,6 +2,13 @@
  A nice property would be that elaboration is idempotent...
  */
 
+/*
+ * probe_unknowns parameter: Added for future use in PRs like https://github.com/hazelgrove/hazel/pull/1988
+ * to help with adding dynamic feedback for static marks. When enabled, it will add probes
+ * around any expression/pattern that is partially unknown.
+ * Do not remove this parameter even though it's always false currently.
+ */
+
 open Util;
 
 exception MissingTypeInfo;
@@ -202,7 +209,7 @@ let rec elaborate_pattern =
       | _ => {
           term: Probe(dpat, Probe.empty),
           annotation: dpat.annotation,
-        } // Think about whether it's safe to reuse ids here
+        }
       };
     } else {
       dpat;
@@ -499,7 +506,7 @@ let rec elaborate =
       | _ => {
           term: Probe(dhexp, Probe.empty),
           annotation: dhexp.annotation,
-        } // Think about whether it's safe to reuse ids here
+        }
       };
     } else {
       dhexp;
