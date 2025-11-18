@@ -464,12 +464,11 @@ in
       "Polymorphism with dynamic type environment in unevaluated code",
       `Quick,
       () => {
-      {
         let program = {|(typfun a -> fun (g) -> (fun () -> g : a))@<String>("")|};
         let exp = parse_exp(program);
         let no_errors = Grammar.map_exp_annotation(_ => NoError, exp);
         test_dynamic_feedback(~test_name=program, no_errors);
-      }
-    }),
+      },
+    ),
   ],
 );
