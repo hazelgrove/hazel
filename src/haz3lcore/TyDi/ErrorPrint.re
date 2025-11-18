@@ -43,7 +43,7 @@ let render_string = (fragments: list(InfoMessage.fragment)): string =>
   List.map(
     fun
     | Text(s) => s
-    | Code(s) => "\"" ++ s ++ "\""
+    | Code(s) => "`" ++ s ++ "`"
     | Type(ty) => Print.typ(ty)
     | Term(term) => Print.term(term)
     | Label(s) => Token.quote_label_when_necessary(s),
