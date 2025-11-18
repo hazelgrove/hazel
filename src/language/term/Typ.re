@@ -1,6 +1,5 @@
 open Util;
 open OptUtil.Syntax;
-open ListUtil;
 
 [@deriving (show({with_path: false}), sexp, yojson, enumerate, eq)]
 type cls =
