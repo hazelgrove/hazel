@@ -429,6 +429,34 @@ let rec contains_sum_or_var = (ty: t): bool =>
   | Probe(ty, _) => contains_sum_or_var(ty)
   };
 
+let rec contains_unknown = (ty: t): bool =>
+  switch (ty.term) {
+  | Unknown(_) => true
+  | Atom(_)
+  | Var(_) => false
+  | Arrow(t1, t2) => contains_unknown(t1) || contains_unknown(t2)
+  | Prod(tys) => List.exists(contains_unknown, tys)
+  | Sum(sm) =>
+    List.exists(
+      fun
+      | ConstructorMap.BadEntry(_) => false
+      | Variant(_, _, ty) =>
+        Option.map(contains_unknown, ty) |> Option.value(~default=false),
+      sm,
+    )
+  | Rec(_, ty) => contains_unknown(ty)
+  | List(ty) => contains_unknown(ty)
+  | Parens(ty) => contains_unknown(ty)
+  | Forall(_, ty) => contains_unknown(ty)
+  | ProdProjection(ty1, _) => contains_unknown(ty1)
+  | ProdExtension(ty1, ty2) =>
+    contains_unknown(ty1) || contains_unknown(ty2)
+  | ExplicitNonlabel
+  | Label(_) => false
+  | TupLabel(_, ty) => contains_unknown(ty)
+  | Probe(ty, _) => contains_unknown(ty)
+  };
+
 let rec subst = (s: t, x: TPat.t, ty: t): t => {
   switch (TPat.tyvar_of_utpat(x)) {
   | Some(str) =>
