@@ -123,8 +123,9 @@ let cur_ap = (info: info) =>
   | Some(InfoExp({term: {term: Ap(_), _} as ap, _}))
   | Some(InfoExp({term: {term: Probe({term: Ap(_), _} as ap, _), _}, _}))
   | Some(InfoExp({term: {term: TypAp(_), _} as ap, _}))
-  | Some(InfoExp({term: {term: Probe({term: TypAp(_), _} as ap, _), _}, _}))
-   =>
+  | Some(
+      InfoExp({term: {term: Probe({term: TypAp(_), _} as ap, _), _}, _}),
+    ) =>
     Some(Exp.rep_id(ap))
   | _ => None
   };
