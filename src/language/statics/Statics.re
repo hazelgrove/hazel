@@ -945,6 +945,15 @@ and uexp_to_info_map =
                let label_to_info_map = label_to_info_map;
                let add' = add';
                let dynamics = dynamics;
+               let calculate_dynamic_type = uexp => {
+                 let (ie, m) =
+                   uexp_to_info_map(~ctx, uexp, StaticsBase.Map.empty);
+                 if (StaticsBase.Map.has_errors(m)) {
+                   None;
+                 } else {
+                   Some(ie.ty);
+                 };
+               };
              }),
             m,
             arg,
@@ -1015,6 +1024,15 @@ and uexp_to_info_map =
              let label_to_info_map = label_to_info_map;
              let add' = add';
              let dynamics = dynamics;
+             let calculate_dynamic_type = uexp => {
+               let (ie, m) =
+                 uexp_to_info_map(~ctx, uexp, StaticsBase.Map.empty);
+               if (StaticsBase.Map.has_errors(m)) {
+                 None;
+               } else {
+                 Some(ie.ty);
+               };
+             };
            }),
           m,
           args,

@@ -121,4 +121,6 @@ module type ExpressionStatics = {
     (option(string), Info.exp, Map.t);
 
   let dynamics: DynamicStatics.Map.t;
+
+  let calculate_dynamic_type: Exp.t => option(Typ.t);
 };
