@@ -142,6 +142,3 @@ let lookup = (env: t('a), v: Var.t): option('a) => {
 
 let without_keys = (type a, keys: list(Var.t), env: t(a)): t(a) =>
   filter((name, _) => !List.mem(name, keys), env);
-
-let to_bindings = (type a, env: t(a)): list(binding(a)) =>
-  fold((binding, acc) => [binding, ...acc], [], env);

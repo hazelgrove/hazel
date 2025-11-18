@@ -1,5 +1,6 @@
 open Util;
 open OptUtil.Syntax;
+open ListUtil;
 
 [@deriving (show({with_path: false}), sexp, yojson, enumerate, eq)]
 type cls =
@@ -878,6 +879,13 @@ let rec meet = (ctx: Ctx.t, ty1: t, ty2: t): t => {
   };
 };
 
+/**
+ * Computes the meet of all types in a list.
+ *
+ * @param ctx The type checking context containing variable bindings and aliases
+ * @param ts The list of types to find the meet of
+ * @return Some of the meet type if all types can be met, None if the list is empty or types are incompatible
+ */
 let meet_all = (ctx: Ctx.t, ts: list(t)): option(t) =>
   ListUtil.reduce((acc, ty) => meet(ctx, acc, ty), ts);
 
