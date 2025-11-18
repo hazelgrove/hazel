@@ -364,49 +364,24 @@ in
       "Unannotated lambda called with inconsistent types gives no feedback",
       `Quick,
       () => {
-        open FError;
-        open Exp;
-        let exp: FError.exp =
-          let_(
-            Pat.var("f"),
-            fn(
-              Pat.var("x"),
-              list_concat(var("x"), list_lit([string("")])),
-            ),
-            seq(
-              ap(Forward, var("f"), int(1)),
-              ap(Forward, var("f"), float(2.0)),
-            ),
-          );
-        test_dynamic_feedback(exp);
+        let program = {|let f = fun x -> x @ [""] in f(1);f(2.0)|};
+        let exp = parse_exp(program);
+        let no_errors = Grammar.map_exp_annotation(_ => NoError, exp);
+
+        test_dynamic_feedback(no_errors);
       },
     ),
     test_case(
       "typfun uses dynamic type env with correct type",
       `Quick,
       () => {
-        open FError;
-        open Exp;
+        let program = {|typfun a -> fun x : a -> (x : a))@<String>("")|};
+        let exp = parse_exp(program);
+        let no_errors = Grammar.map_exp_annotation(_ => NoError, exp);
 
-        let exp: FError.exp =
-          ap(
-            Forward,
-            typ_ap(
-              typ_fun(
-                TPat.var("a"),
-                fn(
-                  Pat.(asc(Pat.var("x"), Typ.var("a"))),
-                  asc(var("x"), Typ.var("a")),
-                ),
-                None,
-              ),
-              Typ.string(),
-            ),
-            string(""),
-          );
         test_dynamic_feedback(
           ~test_name={|(typfun a -> fun x : a -> (x : a))@<String>("")|},
-          exp,
+          no_errors,
         );
       },
     ),
