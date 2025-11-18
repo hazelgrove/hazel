@@ -464,9 +464,7 @@ in
       "Polymorphism with dynamic type environment in unevaluated code",
       `Quick,
       () => {
-      [@warning "-21"]
       {
-        // Alcotest.skip(); // Unfortunately the way I've done this the there is no type environment captured for unevaluated code
         let program = {|(typfun a -> fun (g) -> (fun () -> g : a))@<String>("")|};
         let exp = parse_exp(program);
         let no_errors = Grammar.map_exp_annotation(_ => NoError, exp);
