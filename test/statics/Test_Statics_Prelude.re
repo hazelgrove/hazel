@@ -81,7 +81,7 @@ let annotate_static_errors = (exp: TermBase.exp_t, info_map: Statics.Map.t) => {
   );
 };
 
-let annotated_exp': testable('a) => testable(Grammar.exp_t('a)) =
+let annotated_exp: testable('a) => testable(Grammar.exp_t('a)) =
   t => {
     let fmt' = Grammar.pp_exp_t(pp(t));
     let eq' = Grammar.equal_exp_t(equal(t));
@@ -89,13 +89,12 @@ let annotated_exp': testable('a) => testable(Grammar.exp_t('a)) =
     testable(fmt', eq');
   };
 
-let annotated_exp: testable(Grammar.exp_t(option(Info.error))) =
-  testable(
-    Fmt.using(
-      [%derive.show: Grammar.exp_t(option(Info.error))],
-      Fmt.string,
+let error_exp: testable(Grammar.exp_t(option(Info.error))) =
+  annotated_exp(
+    testable(
+      Fmt.using([%derive.show: option(Info.error)], Fmt.string),
+      Option.equal(Info.equal_error),
     ),
-    Grammar.equal_exp_t(Option.equal(Info.equal_error)),
   );
 
 let fresh = (exp: Grammar.exp_t(unit)): TermBase.exp_t => {
@@ -132,7 +131,7 @@ let annotated_tree_test = (name, expected_type, expected_error_tree) => {
   let annotated: Grammar.exp_t(option(Info.error)) =
     annotate_static_errors(term, s);
   let typ = type_of(~static_map=s, term);
-  Alcotest.check(annotated_exp, name, expected_error_tree, annotated);
+  Alcotest.check(error_exp, name, expected_error_tree, annotated);
   Alcotest.check(
     testable_typ,
     "Expected Type",

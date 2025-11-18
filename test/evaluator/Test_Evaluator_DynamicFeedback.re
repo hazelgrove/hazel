@@ -164,7 +164,7 @@ let test_dynamic_feedback = (~test_name=?, expected_exp: FError.exp) => {
 
   // Verify that the actual error annotations match expectations
   check(
-    Test_Statics_Prelude.annotated_exp'(testable_error),
+    Test_Statics_Prelude.annotated_exp(testable_error),
     test_name,
     expected_exp,
     actual_exp,
