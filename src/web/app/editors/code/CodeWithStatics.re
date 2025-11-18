@@ -179,7 +179,7 @@ module Update = {
     let editor =
       Editor.Update.calculate(
         ~settings,
-        ~is_edited=true,
+        ~is_edited,
         statics,
         Calc.get_value(dynamics).probe_map,
         editor,
