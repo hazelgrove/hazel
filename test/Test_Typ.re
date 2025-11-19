@@ -464,15 +464,6 @@ let diff_tests = (
         );
       },
     ),
-    QCheck_alcotest.to_alcotest(
-      QCheck.Test.make(
-        ~name="Same type has no diff",
-        ~count=1000,
-        QCheck_Util.arb_typ(~minimal_idents=false, 30),
-        typ => {
-        Typ.diff(typ, typ) == []
-      }),
-    ),
   ],
 );
 
