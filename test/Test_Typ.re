@@ -299,7 +299,7 @@ let fast_equal_tests = (
     ),
   ],
 );
-
+let testable_id = testable(Fmt.using(Id.show, Fmt.string), (==));
 let diff_tests = (
   "Typ.diff",
   [
@@ -421,6 +421,46 @@ let diff_tests = (
           "diff on vars with different names",
           expected,
           Typ.diff(var1, var2),
+        );
+      },
+    ),
+    test_case(
+      "Recursive types with same tpat and type",
+      `Quick,
+      () => {
+        let tpat_x = TPat.fresh(Var("x"));
+        let var_x = Typ.fresh(Var("x"));
+        let rec1 = Typ.fresh(Rec(tpat_x, var_x));
+        let rec2 = Typ.fresh(Rec(tpat_x, var_x));
+        let expected = [];
+        check(
+          list(testable_id),
+          "diff on recursive types with different tpats",
+          expected,
+          Typ.diff(rec1, rec2),
+        );
+      },
+    ),
+    test_case(
+      "Recursive types with different tpats",
+      `Quick,
+      () => {
+        let rec1 =
+          Typ.fresh(Rec(TPat.fresh(Var("x")), Typ.fresh(Var("x"))));
+        let tpat_y = TPat.fresh(Var("y"));
+        let var_y = Typ.fresh(Var("y"));
+        let rec2 = Typ.fresh(Rec(tpat_y, var_y));
+
+        let expected = [
+          TPat.rep_id(tpat_y),
+          Typ.rep_id(var_y),
+          Typ.rep_id(rec2),
+        ];
+        check(
+          list(testable_id),
+          "diff on recursive types with different tpats",
+          expected,
+          Typ.diff(rec1, rec2),
         );
       },
     ),

@@ -1154,9 +1154,12 @@ let rec diff = (ty: t, ty': t): list(Id.t) => {
   | (ExplicitNonlabel, _) => get_ids()
   | (Var(v1), Var(v2)) when v1 == v2 => []
   | (Var(_), _) => get_ids()
-  | (Rec(_tp1, t1), Rec(_tp2, t2)) => diff(t1, t2) // TODO Check tpat
+  | (Rec(tp1, t1), Rec(tp2, t2)) when Equality.syntactic.tpat(tp1, tp2) =>
+    diff(t1, t2)
   | (Rec(_), _) => get_ids()
-  | (Forall(_tp1, t1), Forall(_tp2, t2)) => diff(t1, t2) // TODO Check tpat
+  | (Forall(tp1, t1), Forall(tp2, t2))
+      when Equality.syntactic.tpat(tp1, tp2) =>
+    diff(t1, t2)
   | (Forall(_), _) => get_ids()
   | (Arrow(t1a, t1b), Arrow(t2a, t2b)) => diff(t1a, t2a) @ diff(t1b, t2b)
   | (Arrow(_), _) => get_ids()
