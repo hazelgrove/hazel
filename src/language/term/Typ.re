@@ -1142,6 +1142,8 @@ let rec diff = (ty: t, ty': t): list(Id.t) => {
   | (Probe(t1, _), _) => diff(t1, ty')
   | (_, Probe(t2, _)) => diff(ty, t2)
   | (Parens(t1), Parens(t2)) => diff(t1, t2)
+  | (Parens(t1), _) => diff(t1, ty')
+  | (_, Parens(t2)) => diff(ty, t2)
   | (Unknown(_), Unknown(_)) => []
   | (Unknown(_), _) => get_ids()
   | (Atom(c1), Atom(c2)) when c1 == c2 => []
@@ -1174,6 +1176,5 @@ let rec diff = (ty: t, ty': t): list(Id.t) => {
   | (Sum(sm1), Sum(sm2)) when ConstructorMap.equal(fast_equal, sm1, sm2) =>
     []
   | (Sum(_), _) => get_ids()
-  | _ => raise(Failure("diff: incompatible types"))
   };
 };
