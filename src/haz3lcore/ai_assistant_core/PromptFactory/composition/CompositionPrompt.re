@@ -62,6 +62,8 @@ let toolkit_instructions = [
   "It is your duty to adequately manage what is expanded and collapsed. Try to only retain meaningul information expanded, things you readily need.",
   "This is a critical step here, as it helps keep costs at bay, and avoids overwhelming you with too much unnecessary information.",
   "These actions will never modify the program itself. They are purely for controlling the view of what you see in the program.\n",
+  "Critically, there is no notion of 'we' for this view. ONLY YOU are able to see this view. These user sees their own view of the program.",
+  "(note that by 'view' here, we mean what is expanded/collapsed.",
   "2. Read: These tools are used to gather additional information from the program, and do not modify the program/AST.",
   "Think of these as powerful language server tools.\n",
   "3. Edit: These tools are used to modify the program. \n",
@@ -85,10 +87,33 @@ let notes = [
   "* \"definition\" - the tiles between the \"=\" and \"in\" delimiters, exclusive\n",
   "* \"body\" - the tiles after the \"in\" delimiter, exclusive\n",
   "* \"binding clause\" - the tiles between the \"let\" and \"in\" delimiters, or the \"type\" and \"in\" delimiters, inclusive\n",
+  "\nTHESE TOOLS ARE ONLY AVAILABLE TO YOU.",
+  "The user has their OWN text editor interface.",
+  "They see their own view of the program, and you see your own view of the program.",
+  "They interact with the program in their own way, and you interact with the program in your own way (with these tools).",
+  "They technically should know nothing about the tools unless they have backend knowledge.",
+];
+
+let indentation_instructions = [
   "\nAnother super important note—when writing code, you should use line breaks to neatly format the code.",
-  "NEVER try to indent code, as Hazel's formatter will automatically indent and format the code for you wherever you insert line breaks.",
-  "NEVER write code without using line breaks when line breaks are highly necessary.",
-  "\n</Notes>",
+  "Hazel's formatter will automatically indent the code for you wherever you insert line breaks.",
+  "ALWAYS ALWAYS ALWAYS use line breaks when necessary to allow Hazel's formatter to format your code.",
+  "We REPEAT, ALWAYS ALWAYS ALWAYS use line breaks, OTHERWISE Hazel canNOT pretty format the code and it will NOT be human readable!!!",
+  "Indenting is so important and crucial, and such a simple, surefire way to make your code readable. Please always use it.",
+  "\n</indentationInstructions>",
+];
+
+let todo_list_instructions = [
+  "<todoListInstructions>\n",
+  "You also have some tools available to you for maintaining a todo list.",
+  "This is a SUPER useful tool you should ALWAYS utilize.",
+  "We repeat. Utilize. The. Todo. List. Tool.",
+  "When planning large or small tasks, utilize this tool.",
+  "Almost always your first tool call should be to update the todo list, especially if one does not exist.",
+  "This todo list will always be displayed as the latest message for you, meaning it will greatly help you manage you task at hand.",
+  "You should aim to keep titles concise, as they are unique identifiers for the todo items, and make descriptions very detailed.",
+  "Check off items as necessary. Uncheck if necessary. If you want to change a title/description/ordering, you should call new_todo_list to overwrite the existing one.",
+  "\n</todoListInstructions>",
 ];
 
 let comments_in_hazel = [
@@ -120,7 +145,8 @@ let self =
   @ instructions
   @ toolkit_instructions
   @ notes
+  @ indentation_instructions
+  @ todo_list_instructions
   @ hazel_syntax_notes
-  @ comments_in_hazel
-  @ hazel_documentation(~summarized=true);
+  @ comments_in_hazel;
 //@ few_shot_comp_examples;

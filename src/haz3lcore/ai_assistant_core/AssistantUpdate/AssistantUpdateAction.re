@@ -67,6 +67,21 @@ type external_api_action =
   | SetListOfLLMs(list(OpenRouter.model_info));
 
 [@deriving (show({with_path: false}), sexp, yojson)]
+type todo_action =
+  | NewTodoList(list(AssistantModel.todo_item))
+  | DeleteTodoList
+  | AddTodoItems(list(AssistantModel.todo_item))
+  | CheckTodoItems(list(string))
+  | UncheckTodoItems(list(string));
+
+[@deriving (show({with_path: false}), sexp, yojson)]
+type agentic_self_action =
+  | TodoAction(todo_action);
+
+[@deriving (show({with_path: false}), sexp, yojson)]
+type agentic_self_payload = (agentic_self_action, Id.t, status => unit);
+
+[@deriving (show({with_path: false}), sexp, yojson)]
 type t =
   | SendMessage(send_message, option(Zipper.t), Id.t)
   | HandleResponse(handle_response, OpenRouter.reply, Id.t)
@@ -74,4 +89,5 @@ type t =
   | ChatAction(chat_action)
   | InternalError(string, AssistantSettings.mode, Id.t)
   | ExternalAPIAction(external_api_action)
-  | InitializeAssistant;
+  | InitializeAssistant
+  | AgenticSelfAction(agentic_self_payload);

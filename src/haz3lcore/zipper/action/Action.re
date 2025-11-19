@@ -94,7 +94,7 @@ type t =
   | Insert(string)
   | Put_down
   | Introduce
-  | Composition(CompositionActions.payload)
+  | Composition(CompositionActions.editor_payload)
   | Dump;
 
 module Failure = {

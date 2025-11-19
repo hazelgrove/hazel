@@ -45,7 +45,7 @@ let assistant_tab = (~globals: Globals.t): Node.t => {
     ~attrs=[clss(["assistant-button"])],
     [
       tab(
-        Icons.hazelnut_agent,
+        Icons.corylus,
         ~tooltip="Switch to Helpful Assistant",
         switch_assistant,
         globals.settings.sidebar.panel == HelpfulAssistant

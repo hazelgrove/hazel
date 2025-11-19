@@ -324,8 +324,8 @@ module Local = {
         // except for the ones that are expanded, given by the agent view's expanded list
         let all_top_level_ids = Id.Map.bindings(node_map) |> List.map(fst);
         let expanded_ids =
-          List.map(
-            (path: string) => path_to_id(node_map, path),
+          List.filter_map(
+            (path: string) => path_to_id_opt(node_map, path),
             z.agent_view.expanded_paths,
           );
         let ids_to_collapse =

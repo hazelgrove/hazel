@@ -33,7 +33,7 @@ module Completion = {
 
   let mk_ctx_prompt =
       (
-        options: ChatLSP.Options.t,
+        options: InitPrompts.Options.t,
         ci: Info.t,
         sketch: Segment.t,
         hole_label: string,
@@ -217,14 +217,28 @@ module Composition = {
   // Children nodes: [<name>, <name>, ...]
   // Static errors: <errors>
   let mk_structured_code_map_prompt =
-      (_: ChatLSP.Options.t, z: Zipper.t, info_map: Id.Map.t(Info.t))
+      (z: Zipper.t, info_map: Id.Map.t(Info.t))
       : (OpenRouter.message, AssistantModel.display) => {
-    let sketch_snapshot = CompositionView.Public.print(~z, ~info_map);
+    let sketch_snapshot =
+      "<Codebase View>\n```"
+      ++ CompositionView.Public.print(~z, ~info_map)
+      ++ "```\n</Codebase View>\n";
+    let static_errors = ErrorPrint.all(info_map);
+    let static_errors_str =
+      "\n<Static Errors>\n"
+      ++ (
+        switch (static_errors) {
+        | [] => "No static errors found in the program."
+        | _ => String.concat(", ", static_errors)
+        }
+      )
+      ++ "\n</Static Errors>\n";
+    let res = sketch_snapshot ++ static_errors_str;
     (
-      OpenRouter.mk_user_msg(sketch_snapshot),
+      OpenRouter.mk_user_msg(res),
       {
-        displayable_content: [Text(sketch_snapshot)],
-        raw_content: sketch_snapshot,
+        displayable_content: [Text(res)],
+        raw_content: res,
         collapsed: true,
       },
     );
@@ -267,17 +281,24 @@ module Composition = {
         ~info_map: Id.Map.t(Info.t),
         ~action: CompositionActions.composition_action,
         ~schedule_editor_action: Editor.Update.t => unit,
+        ~schedule_assistant_action: AssistantUpdateAction.t => unit,
         ~schedule_tool_response: AssistantUpdateAction.status => unit,
+        ~chat_id: Id.t,
       )
       : unit => {
     let _ = z;
     let _ = info_map;
     switch (action) {
-    | Read(_r) => schedule_tool_response(Success("todo"))
-    | _ =>
-      schedule_editor_action(
-        Action.Composition((action, Some(schedule_tool_response))),
-      )
+    | Editor(editor_action) =>
+      switch (editor_action) {
+      | Read(_r) => schedule_tool_response(Success("todo"))
+      | _ =>
+        let payload = (editor_action, schedule_tool_response);
+        schedule_editor_action(Action.Composition(payload));
+      }
+    | Assistant(agentic_self_action) =>
+      let payload = (agentic_self_action, chat_id, schedule_tool_response);
+      schedule_assistant_action(AgenticSelfAction(payload));
     };
   };
 };

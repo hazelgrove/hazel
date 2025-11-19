@@ -63,15 +63,21 @@ type view_action =
 
 // AddToolLabel_1.0: Make the action types (above) and add their cases to the funs (below)
 [@deriving (show({with_path: false}), sexp, yojson, eq)]
-type composition_action =
+type editor_action =
   | View(view_action) // Main source of ingesting the codebase
   | Read(read_action) // Language server helpers
   | Edit(edit_action); // Main source of editing the codebase
 
 [@deriving (show({with_path: false}), sexp, yojson)]
-type payload = (
-  composition_action,
-  option(AssistantUpdateAction.status => unit),
-);
+type editor_payload = (editor_action, AssistantUpdateAction.status => unit);
 
-let default = (a: composition_action) => (a, None);
+[@deriving (show({with_path: false}), sexp, yojson)]
+type composition_action =
+  | Editor(editor_action)
+  | Assistant(AssistantUpdateAction.agentic_self_action);
+
+[@deriving (show({with_path: false}), sexp, yojson)]
+type composition_payload = (
+  composition_action,
+  AssistantUpdateAction.status => unit,
+);

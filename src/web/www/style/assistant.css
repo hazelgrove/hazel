@@ -958,6 +958,32 @@
   text-align: center;
 }
 
+#assistant .system-todo-list {
+  align-items: center;
+  justify-content: center;
+}
+
+#assistant .system-todo-list-message {
+  padding: 16px 20px;
+  background-color: var(--T1);
+  border: 0.75px solid var(--BR3);
+  border-radius: 8px;
+  font-size: 0.9em;
+  max-width: 600px;
+  margin: 0 auto;
+  word-wrap: break-word;
+  white-space: pre-wrap;
+  text-align: left;
+  color: var(--STONE);
+}
+
+#assistant .system-todo-list-identifier {
+  display: flex;
+  align-items: center;
+  gap: 0.5em;
+  justify-content: center;
+}
+
 /* Agent looping theme - applies dreamy blue/purple colors when agent is actively editing */
 .agent-looping {
   --caret-color: var(--agent-caret-color);

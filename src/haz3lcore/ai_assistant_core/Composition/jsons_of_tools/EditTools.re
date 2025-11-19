@@ -8,7 +8,6 @@ This tool is only meant for this special case.
 It may never be used once a program has let/type alias expressions.
 
 Parameters:
-path: string — slash-delimited path to the program root (pass "root")
 code: string — new code to replace the program with
 
 Example(s):
@@ -17,7 +16,7 @@ The current program is:
 ```
 ?
 ```
-Calling initialize(path="root", code="let a = 3 in
+Calling initialize(code="let a = 3 in
 a * 2") would result in the program
 ```
 let a = 3 in a * 2
@@ -28,7 +27,7 @@ The current program is:
 ```
 5 * 10
 ```
-Calling initialize(path="root", code="let a  = 5
+Calling initialize(code="let a  = 5
 in let b = 10
 in a * b") would result in the program
 ```
@@ -52,18 +51,6 @@ let initialize: API.Json.t =
               "properties",
               `Assoc([
                 (
-                  "path",
-                  `Assoc([
-                    ("type", `String("string")),
-                    (
-                      "description",
-                      `String(
-                        "Slash-delimited path to the program root (use \"root\").",
-                      ),
-                    ),
-                  ]),
-                ),
-                (
                   "code",
                   `Assoc([
                     ("type", `String("string")),
@@ -75,7 +62,7 @@ let initialize: API.Json.t =
                 ),
               ]),
             ),
-            ("required", `List([`String("path"), `String("code")])),
+            ("required", `List([`String("code")])),
           ]),
         ),
       ]),

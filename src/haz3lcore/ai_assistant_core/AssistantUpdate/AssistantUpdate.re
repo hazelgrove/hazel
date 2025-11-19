@@ -245,6 +245,221 @@ let create_chat_descriptor =
     : ();
 };
 
+module TodoListUtils = {
+  type todo_action_result =
+    | Success(Model.t, string)
+    | Failure(string);
+
+  let find_todo_item =
+      (todo_list: Model.todo_list, todo_item_name: string)
+      : option(Model.todo_item) => {
+    // Finds the todo item with the given name
+    List.find_opt(
+      (todo_item: Model.todo_item) => todo_item.title == todo_item_name,
+      todo_list,
+    );
+  };
+
+  let filter_out_todo_list =
+      (messages: list(Model.message)): list(Model.message) => {
+    List.filter(
+      (message: Model.message) => {message.role != System(TodoList)},
+      messages,
+    );
+  };
+
+  let check_uncheck_todo_item =
+      (
+        check: bool,
+        todo_list: Model.todo_list,
+        todo_item_name: string,
+        model: Model.t,
+        mode: AssistantSettings.mode,
+        curr_chat: Model.chat,
+      )
+      : todo_action_result => {
+    switch (find_todo_item(todo_list, todo_item_name)) {
+    | Some(todo_item) =>
+      try({
+        let updated_todo_item = {
+          ...todo_item,
+          completed: check,
+        };
+        let updated_todo_list =
+          List.map(
+            (todo_item: Model.todo_item) =>
+              if (todo_item.title == todo_item_name) {
+                updated_todo_item;
+              } else {
+                todo_item;
+              },
+            todo_list,
+          );
+        let new_model =
+          update_model_chat_history(
+            ~model,
+            ~mode,
+            ~updated_chat={
+              ...curr_chat,
+              todo_list: Some(updated_todo_list),
+            },
+            ~awaiting_response=false,
+          );
+        Success(new_model, "Todo item \"" ++ todo_item_name ++ "\" checked");
+      }) {
+      | _ =>
+        Failure("Failed to check the todo item \"" ++ todo_item_name ++ "\"")
+      }
+    | None =>
+      Failure(
+        "Todo item \""
+        ++ todo_item_name
+        ++ "\" not found in the todo list. Make sure the todo item name is correct.",
+      )
+    };
+  };
+
+  let mk_todo_list_message = (todo_list: Model.todo_list): Model.message => {
+    let text =
+      String.concat(
+        "\n",
+        List.map(AssistantModel.todo_item_to_string, todo_list),
+      );
+    {
+      content: Some(OpenRouter.mk_user_msg(text)),
+      display: Some(Model.mk_message_display(~content=text)),
+      role: System(TodoList),
+      sketch_snapshot: None,
+    };
+  };
+
+  let todo_dispatch =
+      (
+        ~action: AssistantUpdateAction.todo_action,
+        ~chat_id: Id.t,
+        ~model: Model.t,
+        ~schedule_tool_response: AssistantUpdateAction.status => unit,
+      )
+      : Model.t => {
+    let curr_chat =
+      OptUtil.get_or_fail(
+        "Failed to find the current chat",
+        Id.Map.find_opt(chat_id, model.chat_history.past_composition_chats),
+      );
+    let mode = AssistantSettings.TaskCompletion;
+    let res: todo_action_result =
+      switch (action) {
+      | NewTodoList(todo_list) =>
+        try({
+          let new_model =
+            update_model_chat_history(
+              ~model,
+              ~mode,
+              ~updated_chat={
+                ...curr_chat,
+                todo_list: Some(todo_list),
+              },
+              ~awaiting_response=false,
+            );
+          Success(new_model, "Todo list updated");
+        }) {
+        | _ => Failure("Failed to update the todo list")
+        }
+      | DeleteTodoList =>
+        try({
+          let new_model =
+            update_model_chat_history(
+              ~model,
+              ~mode,
+              ~updated_chat={
+                ...curr_chat,
+                todo_list: None,
+              },
+              ~awaiting_response=false,
+            );
+          Success(new_model, "Todo list deleted");
+        }) {
+        | _ => Failure("Failed to delete the todo list")
+        }
+      | AddTodoItems(todo_items) =>
+        try({
+          let new_model =
+            update_model_chat_history(
+              ~model,
+              ~mode,
+              ~updated_chat={
+                ...curr_chat,
+                todo_list: {
+                  switch (curr_chat.todo_list) {
+                  | Some(todo_list) => Some(todo_list @ todo_items)
+                  | None => Some(todo_items)
+                  };
+                },
+              },
+              ~awaiting_response=false,
+            );
+          Success(new_model, "Todo items added");
+        }) {
+        | _ => Failure("Failed to add the todo items")
+        }
+      | CheckTodoItems(titles) =>
+        switch (curr_chat.todo_list) {
+        | Some(todo_list) =>
+          List.fold_left(
+            (result: todo_action_result, title: string) => {
+              switch (result) {
+              | Success(model, _) =>
+                check_uncheck_todo_item(
+                  true,
+                  todo_list,
+                  title,
+                  model,
+                  mode,
+                  curr_chat,
+                )
+              | Failure(message) => raise(Failure(message))
+              }
+            },
+            Success(model, "Todo items checked"),
+            titles,
+          )
+        | None => Failure("No todo list exists")
+        }
+      | UncheckTodoItems(titles) =>
+        switch (curr_chat.todo_list) {
+        | Some(todo_list) =>
+          List.fold_left(
+            (result: todo_action_result, title: string) => {
+              switch (result) {
+              | Success(model, _) =>
+                check_uncheck_todo_item(
+                  false,
+                  todo_list,
+                  title,
+                  model,
+                  mode,
+                  curr_chat,
+                )
+              | Failure(message) => raise(Failure(message))
+              }
+            },
+            Success(model, "Todo items unchecked"),
+            titles,
+          )
+        | None => Failure("No todo list exists")
+        }
+      };
+    switch (res) {
+    | Success(new_model, message) =>
+      schedule_tool_response(Success(message));
+      new_model;
+    | Failure(message) =>
+      schedule_tool_response(Failure(message));
+      model;
+    };
+  };
+};
+
 let filter_out_agent_view =
     (messages: list(Model.message)): list(Model.message) => {
   List.filter(
@@ -264,14 +479,22 @@ let update_chat =
     (
       ~context_usage: option(int)=?,
       chat: Model.chat,
-      messages: list(Model.message),
+      new_messages: list(Model.message),
     ) => {
   let updated_messages =
-    if (has_new_agent_view(messages)) {
+    if (has_new_agent_view(new_messages)) {
       // We hinge off the precondition that either zero or one AgentView message is present in the new messages list.
-      filter_out_agent_view(chat.messages) @ messages;
+      filter_out_agent_view(chat.messages) @ new_messages;
     } else {
-      chat.messages @ messages;
+      chat.messages @ new_messages;
+    };
+  let updated_messages =
+    switch (chat.todo_list) {
+    | Some(todo_list) =>
+      let todo_list_message = TodoListUtils.mk_todo_list_message(todo_list);
+      TodoListUtils.filter_out_todo_list(updated_messages)
+      @ [todo_list_message];
+    | None => updated_messages
     };
   {
     ...chat,
@@ -445,13 +668,14 @@ let can_undo = (action: t) => {
   | InternalError(_) => false
   | ExternalAPIAction(_) => false
   | InitializeAssistant => false
+  | AgenticSelfAction(_) => false
   };
 };
 
 let update =
     (
       ~settings: AssistantSettings.t,
-      ~action,
+      ~action: AssistantUpdateAction.t,
       ~model: Model.t,
       // todo: Find a way to track unqique editor between concurrent actions
       ~zipper: Zipper.t,
@@ -542,7 +766,6 @@ let update =
             mk_user_content_message(~content, ~role=User, ~zipper);
           let (local_code_map_str, display) =
             AssistantModes.Composition.mk_structured_code_map_prompt(
-              ChatLSP.Options.init,
               zipper,
               info_map,
             );
@@ -584,7 +807,6 @@ let update =
           //    an end output to the user (implying no more looping) or a new tool call.
           let (local_code_map_str, display) =
             AssistantModes.Composition.mk_structured_code_map_prompt(
-              ChatLSP.Options.init,
               zipper,
               info_map,
             );
@@ -661,7 +883,7 @@ let update =
               let* index = Indicated.index(zipper);
               let+ ci = Id.Map.find_opt(index, info_map);
               AssistantModes.Completion.mk_ctx_prompt(
-                ChatLSP.Options.init,
+                InitPrompts.Options.init,
                 ci,
                 sketch_seg,
                 (advanced_reasoning ? "?a" : "??") ++ tag,
@@ -690,7 +912,7 @@ let update =
               HandleResponse(
                 CompletionErrorRound(
                   zipper,
-                  ChatLSP.Options.init.error_rounds_max,
+                  InitPrompts.Options.init.error_rounds_max,
                   tile_id,
                 ),
                 response,
@@ -749,7 +971,7 @@ let update =
           if (fuel < 0) {
             let content =
               "By default we stop the assistant after "
-              ++ string_of_int(ChatLSP.Options.init.error_rounds_max)
+              ++ string_of_int(InitPrompts.Options.init.error_rounds_max)
               ++ " error rounds.";
             schedule_action(InternalError(content, mode, updated_chat.id));
             model;
@@ -989,8 +1211,10 @@ let update =
           AssistantModes.Composition.apply_editor_action(
             ~z=zipper,
             ~info_map,
+            ~chat_id,
             ~action,
             ~schedule_editor_action,
+            ~schedule_assistant_action=schedule_action,
             ~schedule_tool_response=(res: AssistantUpdateAction.status) => {
             schedule_action(loop_message(res))
           });
@@ -1421,5 +1645,15 @@ let update =
       }
     }
   | InitializeAssistant => AssistantModel.init()
+  | AgenticSelfAction((agentic_self_action, chat_id, schedule_tool_response)) =>
+    switch (agentic_self_action) {
+    | TodoAction(todo_action) =>
+      TodoListUtils.todo_dispatch(
+        ~action=todo_action,
+        ~chat_id,
+        ~model,
+        ~schedule_tool_response,
+      )
+    }
   };
 };

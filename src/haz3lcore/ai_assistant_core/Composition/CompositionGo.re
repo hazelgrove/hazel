@@ -54,17 +54,36 @@ module Local = {
   };
 
   module PerformUtils = {
+    let edit_action_to_static_error_scrutiny =
+        (~edit_action: CompositionActions.edit_action): (bool, bool, bool) => {
+      // Returns (of_pat, of_def, of_body), i.e. which parts of the program to check for static errors.
+      switch (edit_action) {
+      | Initialize(_) =>
+        raise(
+          Failure(
+            "Initialize action handles static error checking on its own.",
+          ),
+        )
+      | UpdateDefinition(_) => (true, true, false)
+      | UpdateBody(_) => (true, true, true)
+      | UpdatePattern(_) => (true, false, false)
+      | UpdateBindingClause(_) => (false, true, false)
+      | InsertBefore(_) => (false, false, false)
+      | InsertAfter(_) => (false, false, false)
+      | DeleteBindingClause(_) => (false, true, false)
+      | DeleteBody(_) => (false, false, true)
+      };
+    };
+
     let static_error_check =
         (
-          ~old_z: option(Zipper.t), // optional arg -- if not provided, assume no errors existed
-          ~old_node: option(node),
-          ~new_z: Zipper.t,
+          ~edit_action: CompositionActions.edit_action,
+          ~initial_node: option(node),
+          ~initial_info_map: Id.Map.t(Info.t),
           ~new_node: node,
-          ~mk_statics: Zipper.t => StaticsBase.Map.t,
-          ~of_pat: bool,
-          ~of_def: bool,
-          ~of_body: bool,
-        ) => {
+          ~new_info_map: Id.Map.t(Info.t),
+        )
+        : option(string) => {
       /*
        A localized static error check to ensure that newly inserted segments do not introduce any errors.
 
@@ -73,23 +92,22 @@ module Local = {
 
        of_pat, of_def, and of_body are used to specify which parts of the program to check for errors.
        */
-      let old_errors =
-        switch (old_z, old_node) {
-        | (None, _)
-        | (_, None) => []
-        | (Some(old_z), Some(old_node)) =>
-          let old_info_map = mk_statics(old_z);
-          let old_subtree =
+      let (of_pat, of_def, of_body) =
+        edit_action_to_static_error_scrutiny(~edit_action);
+      let initial_errors =
+        switch (initial_node) {
+        | None => []
+        | Some(initial_node) =>
+          let initial_subtree =
             GeneralTreeUtils.subtree_of(
-              ~info=old_node.info,
-              ~orig_info_map=old_info_map,
+              ~info=initial_node.info,
+              ~orig_info_map=initial_info_map,
               ~of_pat,
               ~of_def,
               ~of_body,
             );
-          ErrorPrint.all(old_subtree);
+          ErrorPrint.all(initial_subtree);
         };
-      let new_info_map = mk_statics(new_z);
       let new_subtree =
         GeneralTreeUtils.subtree_of(
           ~info=new_node.info,
@@ -99,15 +117,13 @@ module Local = {
           ~of_body,
         );
       let new_errors = ErrorPrint.all(new_subtree);
-      if (List.length(new_errors) > List.length(old_errors)) {
-        Error(
-          Action.Failure.Composition_action_failure(
-            "Not applying the action you requested as it would have the following static error(s): "
-            ++ String.concat(", ", new_errors),
-          ),
+      if (List.length(new_errors) > List.length(initial_errors)) {
+        Some(
+          "Not applying the action you requested as it would have the following static error(s): "
+          ++ String.concat(", ", new_errors),
         );
       } else {
-        Ok(new_z);
+        None;
       };
     };
 
@@ -274,155 +290,295 @@ module Local = {
     };
   };
 
+  let edit_dispatch =
+      (
+        ~e: CompositionActions.edit_action,
+        ~initial_z: Zipper.t,
+        ~initial_node_map: node_map,
+        ~initial_info_map: Id.Map.t(Info.t),
+        ~syntax: CachedSyntax.t,
+        ~return:
+           (Action.Failure.t, option(Zipper.t)) =>
+           result(Zipper.t, Action.Failure.t),
+        ~mk_statics: Zipper.t => StaticsBase.Map.t,
+      ) => {
+    switch (e) {
+    | UpdateDefinition(path, code) =>
+      let initial_node = path_to_node(initial_node_map, path);
+      let target_id = Utils.get_inner_term_id(Def, initial_node);
+      switch (
+        PerformUtils.overwrite_term(
+          initial_z,
+          target_id,
+          code,
+          false,
+          syntax,
+          return,
+        )
+      ) {
+      | Error(e) => Error(e)
+      | Ok(new_z) =>
+        let new_info_map = mk_statics(new_z);
+        switch (build(new_z, new_info_map)) {
+        | None => Error(Action.Failure.Cant_derive_local_AST_information)
+        | Some(new_node_map) =>
+          switch (
+            PerformUtils.static_error_check(
+              ~edit_action=e,
+              ~initial_node=Some(initial_node),
+              ~initial_info_map,
+              ~new_node=node_of_cursor(new_node_map, new_z, new_info_map),
+              ~new_info_map,
+            )
+          ) {
+          | Some(e) => Error(Action.Failure.Composition_action_failure(e))
+          | None => Ok(new_z)
+          }
+        };
+      };
+    | UpdateBody(path, code) =>
+      let initial_node = path_to_node(initial_node_map, path);
+      let target_id = Utils.get_inner_term_id(Body, initial_node);
+      switch (
+        PerformUtils.overwrite_term(
+          initial_z,
+          target_id,
+          code,
+          false,
+          syntax,
+          return,
+        )
+      ) {
+      | Error(e) => Error(e)
+      | Ok(new_z) =>
+        let new_info_map = mk_statics(new_z);
+        switch (build(new_z, new_info_map)) {
+        | None => Error(Action.Failure.Cant_derive_local_AST_information)
+        | Some(new_node_map) =>
+          switch (
+            PerformUtils.static_error_check(
+              ~edit_action=e,
+              ~initial_node=Some(initial_node),
+              ~initial_info_map,
+              ~new_node=node_of_cursor(new_node_map, new_z, new_info_map),
+              ~new_info_map,
+            )
+          ) {
+          | Some(e) => Error(Action.Failure.Composition_action_failure(e))
+          | None => Ok(new_z)
+          }
+        };
+      };
+    | UpdatePattern(path, code) =>
+      let initial_node = path_to_node(initial_node_map, path);
+      let target_id = Utils.get_inner_term_id(Pat, initial_node);
+      let old_pat =
+        StaticsBase.Map.lookup(target_id, initial_info_map)
+        |> OptUtil.get_or_fail(
+             "Failed trying to rename all occurences of the pattern. Could not find the old pattern in the statics map.",
+           );
+      switch (
+        PerformUtils.overwrite_term(
+          initial_z,
+          target_id,
+          code,
+          false,
+          syntax,
+          return,
+        )
+      ) {
+      | Error(e) => Error(e)
+      | Ok(new_z) =>
+        let new_info_map = mk_statics(new_z);
+        switch (build(new_z, new_info_map)) {
+        | None => Error(Action.Failure.Cant_derive_local_AST_information)
+        | Some(new_node_map) =>
+          switch (
+            PerformUtils.static_error_check(
+              ~edit_action=e,
+              ~initial_info_map,
+              ~initial_node=Some(initial_node),
+              ~new_info_map,
+              ~new_node=node_of_cursor(new_node_map, new_z, new_info_map),
+            )
+          ) {
+          | Some(e) => Error(Action.Failure.Composition_action_failure(e))
+          | None =>
+            let new_node = node_of_cursor(new_node_map, new_z, new_info_map);
+            let new_target_id = Utils.get_inner_term_id(Pat, new_node);
+            let new_pat =
+              StaticsBase.Map.lookup(new_target_id, new_info_map)
+              |> OptUtil.get_or_fail(
+                   "Failed trying to rename all occurences of the pattern. Could not find the new pattern in the statics map.",
+                 );
+            Ok(
+              GeneralTreeUtils.update_use_sites_of_pat(
+                ~z=new_z,
+                ~co_ctx=
+                  GeneralTreeUtils.get_refs_to(
+                    initial_node.info,
+                    new_info_map,
+                  ),
+                ~old_names=GeneralTreeUtils.get_var_names_from_pat(old_pat),
+                ~new_names=GeneralTreeUtils.get_var_names_from_pat(new_pat),
+              ),
+            );
+          }
+        };
+      };
+    | UpdateBindingClause(path, code) =>
+      let initial_node = path_to_node(initial_node_map, path);
+      let target_id = path_to_id(initial_node_map, path);
+      switch (
+        PerformUtils.overwrite_term(
+          initial_z,
+          target_id,
+          code,
+          true,
+          syntax,
+          return,
+        )
+      ) {
+      | Error(e) => Error(e)
+      | Ok(new_z) =>
+        let new_info_map = mk_statics(new_z);
+        switch (build(new_z, new_info_map)) {
+        | None => Error(Action.Failure.Cant_derive_local_AST_information)
+        | Some(new_node_map) =>
+          switch (
+            PerformUtils.static_error_check(
+              ~edit_action=e,
+              ~initial_info_map,
+              ~initial_node=Some(initial_node),
+              ~new_info_map,
+              ~new_node=node_of_cursor(new_node_map, new_z, new_info_map),
+            )
+          ) {
+          | Some(e) => Error(Action.Failure.Composition_action_failure(e))
+          | None => Ok(new_z)
+          }
+        };
+      };
+    | InsertBefore(path, code) =>
+      // todo: figure out a better method than magic space
+      let target_id = path_to_id(initial_node_map, path);
+      switch (
+        {
+          PerformUtils.insert_term(
+            initial_z,
+            target_id,
+            code ++ " ",
+            Direction.Left,
+            syntax,
+            return,
+          );
+        }
+      ) {
+      | Error(e) => Error(e)
+      | Ok(new_z) =>
+        let new_info_map = mk_statics(new_z);
+        let old_errors = ErrorPrint.all(initial_info_map);
+        let new_errors = ErrorPrint.all(new_info_map);
+        if (List.length(new_errors) > List.length(old_errors)) {
+          Error(
+            Action.Failure.Composition_action_failure(
+              "Not applying the action you requested as it would introduce new static error(s): "
+              ++ String.concat(", ", new_errors),
+            ),
+          );
+        } else {
+          Ok(new_z);
+        };
+      };
+    | InsertAfter(path, code) =>
+      // todo: figure out a better method than magic space
+      let target_id = path_to_id(initial_node_map, path);
+      switch (
+        PerformUtils.insert_term(
+          initial_z,
+          target_id,
+          " " ++ code,
+          Direction.Right,
+          syntax,
+          return,
+        )
+      ) {
+      | Error(e) => Error(e)
+      | Ok(new_z) =>
+        let new_info_map = mk_statics(new_z);
+        let old_errors = ErrorPrint.all(initial_info_map);
+        let new_errors = ErrorPrint.all(new_info_map);
+        if (List.length(new_errors) > List.length(old_errors)) {
+          Error(
+            Action.Failure.Composition_action_failure(
+              "Not applying the action you requested as it would introduce new static error(s): "
+              ++ String.concat(", ", new_errors),
+            ),
+          );
+        } else {
+          Ok(new_z);
+        };
+      };
+    | DeleteBindingClause(path) =>
+      let target_id = path_to_id(initial_node_map, path);
+      PerformUtils.destruct(
+        ~defs_exclude_bodies=true,
+        initial_z,
+        target_id,
+        syntax,
+      );
+    | DeleteBody(path) =>
+      let node = path_to_node(initial_node_map, path);
+      let target_id = Utils.get_inner_term_id(Body, node);
+      PerformUtils.destruct(
+        ~defs_exclude_bodies=false,
+        initial_z,
+        target_id,
+        syntax,
+      );
+    | Initialize(_) =>
+      Error(
+        Action.Failure.Composition_action_failure(
+          "Once a program has let/type alias expressions, you can never use initialize on it ever again.",
+        ),
+      )
+    };
+  };
+
   // Tempory wrapper that helps me localize myself while implementing (remove)
   let composition_dispatch =
       (
-        a: CompositionActions.composition_action,
+        a: CompositionActions.editor_action,
         syntax: CachedSyntax.t,
         z: Zipper.t,
         mk_statics: Zipper.t => StaticsBase.Map.t,
         return:
           (Action.Failure.t, option(Zipper.t)) =>
           result(Zipper.t, Action.Failure.t),
-        node_map: option(node_map),
       ) => {
-    switch (node_map) {
+    let initial_info_map = mk_statics(z);
+    switch (build(z, initial_info_map)) {
     | None =>
       switch (a) {
       | Edit(Initialize(code)) =>
         initialize_dispatch(z, mk_statics, return, code)
       | _ => Error(Action.Failure.Cant_derive_local_AST_information)
       }
-    | Some(node_map) =>
+    | Some(initial_node_map) =>
       switch (a) {
       | View(a) => view_dispatch(a, z)
       | Read(ShowUseSites(_path))
       | Read(ShowReferences(_path)) => Ok(z) // TODO: Implement
       | Edit(e) =>
-        switch (e) {
-        | UpdateDefinition(path, code) =>
-          print_endline("here #16, path is: " ++ path);
-          let node = path_to_node(node_map, path);
-          print_endline("here #17, node is: " ++ node.name);
-          let target_id = Utils.get_inner_term_id(Def, node);
-          switch (
-            PerformUtils.overwrite_term(
-              z,
-              target_id,
-              code,
-              false,
-              syntax,
-              return,
-            )
-          ) {
-          | Error(e) => Error(e)
-          | Ok(new_z) => Ok(new_z)
-          };
-        | UpdateBody(path, code) =>
-          let node = path_to_node(node_map, path);
-          let target_id = Utils.get_inner_term_id(Body, node);
-          switch (
-            PerformUtils.overwrite_term(
-              z,
-              target_id,
-              code,
-              false,
-              syntax,
-              return,
-            )
-          ) {
-          | Error(e) => Error(e)
-          | Ok(new_z) => Ok(new_z)
-          };
-        | UpdatePattern(path, code) =>
-          let node = path_to_node(node_map, path);
-          let target_id = Utils.get_inner_term_id(Pat, node);
-          switch (
-            PerformUtils.overwrite_term(
-              z,
-              target_id,
-              code,
-              false,
-              syntax,
-              return,
-            )
-          ) {
-          | Error(e) => Error(e)
-          | Ok(new_z) => Ok(new_z)
-          };
-        | UpdateBindingClause(path, code) =>
-          let target_id = path_to_id(node_map, path);
-          switch (
-            PerformUtils.overwrite_term(
-              z,
-              target_id,
-              code,
-              true,
-              syntax,
-              return,
-            )
-          ) {
-          | Error(e) => Error(e)
-          | Ok(new_z) => Ok(new_z)
-          };
-        | InsertBefore(path, code) =>
-          // todo: figure out a better method than magic space
-          let target_id = path_to_id(node_map, path);
-          switch (
-            {
-              PerformUtils.insert_term(
-                z,
-                target_id,
-                code ++ " ",
-                Direction.Left,
-                syntax,
-                return,
-              );
-            }
-          ) {
-          | Error(e) => Error(e)
-          | Ok(new_z) => Ok(new_z)
-          };
-        | InsertAfter(path, code) =>
-          // todo: figure out a better method than magic space
-          let target_id = path_to_id(node_map, path);
-          switch (
-            PerformUtils.insert_term(
-              z,
-              target_id,
-              " " ++ code,
-              Direction.Right,
-              syntax,
-              return,
-            )
-          ) {
-          | Error(e) => Error(e)
-          | Ok(new_z) => Ok(new_z)
-          };
-        | DeleteBindingClause(path) =>
-          let target_id = path_to_id(node_map, path);
-          PerformUtils.destruct(
-            ~defs_exclude_bodies=true,
-            z,
-            target_id,
-            syntax,
-          );
-        | DeleteBody(path) =>
-          let node = path_to_node(node_map, path);
-          let target_id = Utils.get_inner_term_id(Body, node);
-          PerformUtils.destruct(
-            ~defs_exclude_bodies=false,
-            z,
-            target_id,
-            syntax,
-          );
-        | Initialize(_) =>
-          Error(
-            Action.Failure.Composition_action_failure(
-              "Once a program has let/type alias expressions, you can never use initialize on it ever again.",
-            ),
-          )
-        }
+        edit_dispatch(
+          ~e,
+          ~initial_z=z,
+          ~initial_node_map,
+          ~initial_info_map,
+          ~syntax,
+          ~return,
+          ~mk_statics,
+        )
       }
     };
   };
@@ -430,7 +586,12 @@ module Local = {
   let get_initial_cursor_position = (z: Zipper.t, info_map: Id.Map.t(Info.t)) => {
     switch (Indicated.ci_of(z, info_map)) {
     | Some(ci) => Info.id_of(ci)
-    | None => raise(Failure("No indicated piece found"))
+    | None =>
+      raise(
+        Failure(
+          "No indicated piece found when getting initial cursor position.",
+        ),
+      )
     };
   };
 
@@ -460,9 +621,7 @@ module Local = {
           expanded_paths:
             List.filter(
               (path: string) => {
-                switch (
-                  Id.Map.find_opt(path_to_id(node_map, path), node_map)
-                ) {
+                switch (path_to_id_opt(node_map, path)) {
                 | Some(_) => true
                 | None => false
                 }
@@ -474,51 +633,58 @@ module Local = {
     };
   };
 
-  let go = (~syntax, ~z, ~a, ~mk_statics, ~return, ~schedule_tool_response) => {
-    let node_map = build(z, mk_statics(z));
-
+  let go =
+      (
+        ~syntax: CachedSyntax.t,
+        ~z: Zipper.t,
+        ~a: CompositionActions.editor_action,
+        ~mk_statics: Zipper.t => StaticsBase.Map.t,
+        ~return:
+           (Action.Failure.t, option(Zipper.t)) =>
+           result(Zipper.t, Action.Failure.t),
+        ~schedule_tool_response: AssistantUpdateAction.status => unit,
+      ) => {
     let res =
-      switch (
-        composition_dispatch(a, syntax, z, mk_statics, return, node_map)
-      ) {
-      | Ok(new_z) =>
-        // TODO: Add repositioning of cursor here. ONLY possible if we have a separate editor state for the agent.
-        switch (freshen_paths(new_z, mk_statics)) {
-        | Ok(new_z) => Ok(new_z)
+      try(
+        switch (composition_dispatch(a, syntax, z, mk_statics, return)) {
+        | Ok(new_z) =>
+          switch (freshen_paths(new_z, mk_statics)) {
+          | Ok(new_z) => Ok(new_z)
+          | Error(e) => Error(e)
+          }
         | Error(e) => Error(e)
         }
-      | Error(e) => Error(e)
+      ) {
+      | Failure(e) => Error(Action.Failure.Composition_action_failure(e))
       };
 
     //todo: handle res and use schedule_assistant_action to send the result to the assistant and loop
-    switch (schedule_tool_response) {
-    | Some(schedule_tool_response) =>
-      switch (res) {
-      | Ok(_) =>
-        schedule_tool_response(
-          AssistantUpdateAction.Success(
-            "Action has been applied to the editor -- TODO: make more informative",
-          ),
-        )
-      | Error(Composition_action_failure(e)) =>
-        schedule_tool_response(AssistantUpdateAction.Failure(e))
-      | _ =>
-        schedule_tool_response(
-          AssistantUpdateAction.Failure(
-            "An error occured when applying your changes to the editor",
-          ),
-        )
-      }
-    | None =>
-      // Composition action was not sourced from an ai assistant tool call,
-      // just return the action performed on the editor (no feedback to send)
-      ()
+    switch (res) {
+    | Ok(_) =>
+      schedule_tool_response(
+        AssistantUpdateAction.Success(
+          "Action has been applied to the editor -- TODO: make more informative",
+        ),
+      )
+    | Error(Composition_action_failure(e)) =>
+      schedule_tool_response(AssistantUpdateAction.Failure(e))
+    | Error(Action.Failure.Cant_derive_local_AST_information) =>
+      schedule_tool_response(
+        AssistantUpdateAction.Failure(
+          "Could not derive an AST with definition nodes for the program. Make sure to call initialize to overwrite the current program, and introduce a program with definition-based nodes. i.e. You tried calling a tool that requres deinitions to exist in the program.",
+        ),
+      )
+    | _ =>
+      schedule_tool_response(
+        AssistantUpdateAction.Failure(
+          "An error occured when applying your changes to the editor",
+        ),
+      )
     };
+
     res;
   };
 };
 module Public = {
-  let go = (~syntax, ~z, ~a, ~mk_statics, ~return, ~schedule_tool_response) => {
-    Local.go(~syntax, ~z, ~a, ~mk_statics, ~return, ~schedule_tool_response);
-  };
+  let go = Local.go;
 };

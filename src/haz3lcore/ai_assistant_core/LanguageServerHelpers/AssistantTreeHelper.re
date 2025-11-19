@@ -392,6 +392,18 @@ module HighLevelNodeMap = {
     );
   };
 
+  let lowest_enclosing_node_of = (info: Info.t, node_map: t): option(node) => {
+    switch (Id.Map.find_opt(Info.id_of(info), node_map)) {
+    | Some(node) => Some(node)
+    | None =>
+      let ancestors = Info.ancestors_of(info);
+      List.find_map(
+        (ancestor: Id.t) => Id.Map.find_opt(ancestor, node_map),
+        ancestors,
+      );
+    };
+  };
+
   let add_child = (node_map: t, parent: Id.t, child: Id.t): t => {
     switch (Id.Map.find_opt(parent, node_map)) {
     | Some(parent_node) =>
@@ -589,36 +601,75 @@ module HighLevelNodeMap = {
     List.map((id: Id.t) => id_to_name(node_map, id), id_path);
   };
 
+  let path_to_id_opt = (node_map: t, path: string): option(Id.t) => {
+    let path_names = split_path(path);
+    // Convert each node's path (list of Ids) to a list of names and compare
+    // XXX: Very hacky and ineffecient (O(n) in size of node_map)
+    // TODO: Implement a method which improves the efficiency of this operation
+    Id.Map.bindings(node_map)
+    |> List.find_map(((id: Id.t, node: node)) =>
+         if (id_path_to_name_path(node.path, node_map) == path_names) {
+           Some(id);
+         } else {
+           None;
+         }
+       );
+  };
+
   let path_to_id = (node_map: t, path: string): Id.t => {
     let path_names = split_path(path);
     // Convert each node's path (list of Ids) to a list of names and compare
     // XXX: Very hacky and ineffecient (O(n) in size of node_map)
     // TODO: Implement a method which improves the efficiency of this operation
-    Option.get(
-      node_map
-      |> Id.Map.bindings
-      |> List.find_map(((id: Id.t, node: node)) =>
-           if (id_path_to_name_path(node.path, node_map) == path_names) {
-             Some(id);
-           } else {
-             None;
-           }
-         ),
-    );
+    try(
+      Option.get(
+        Id.Map.bindings(node_map)
+        |> List.find_map(((id: Id.t, node: node)) =>
+             if (id_path_to_name_path(node.path, node_map) == path_names) {
+               Some(id);
+             } else {
+               None;
+             }
+           ),
+      )
+    ) {
+    | _ => raise(Failure("Path \"" ++ path ++ "\" not found in node map"))
+    };
   };
 
   let path_to_node = (node_map: t, path: string): node => {
     find(node_map, path_to_id(node_map, path));
   };
 
-  let build = (zipper: Zipper.t, info_map: Id.Map.t(Info.t)): option(t) => {
-    // Move to a valid, non-secondary, non-grout, non-convex term
-    let valid_zipper =
-      MoveOffWhitespaceHelper.move_to_non_whitespace(zipper, Left);
-
+  let node_of_cursor =
+      (node_map: t, z: Zipper.t, info_map: Id.Map.t(Info.t)): node => {
     switch (
       {
-        let* valid_zipper = valid_zipper;
+        let* valid_zipper =
+          MoveOffWhitespaceHelper.move_to_non_whitespace(z, Left);
+        Indicated.ci_of(valid_zipper, info_map);
+      }
+    ) {
+    | None =>
+      raise(
+        Failure(
+          "No current position found for cursor when trying to get node of cursor",
+        ),
+      )
+    | Some(info) =>
+      switch (lowest_enclosing_node_of(info, node_map)) {
+      | Some(node) => node
+      | None => raise(Failure("No lowest enclosing node found for cursor"))
+      }
+    };
+  };
+
+  let build = (zipper: Zipper.t, info_map: Id.Map.t(Info.t)): option(t) => {
+    // Move to a valid, non-secondary, non-grout, non-convex term
+    switch (
+      {
+        let* valid_zipper =
+          MoveOffWhitespaceHelper.move_to_non_whitespace(zipper, Left);
         let* current_term = Indicated.ci_of(valid_zipper, info_map);
         Utils.top_level_term_of(~start_point=current_term, ~info_map);
       }
@@ -702,8 +753,15 @@ module HighLevelNodeMap = {
     let path_to_id =
       // Gets the node id from a path
       path_to_id;
+    let path_to_id_opt =
+      // Gets the node id from a path, returns None if the path is not found
+      path_to_id_opt;
     let path_to_node =
       // Gets the node from a path
       path_to_node;
+    let node_of_cursor =
+      // Gets the node at the cursor position
+      // Useful for post-edit checks and operations
+      node_of_cursor;
   };
 };

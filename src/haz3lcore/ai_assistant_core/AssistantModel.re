@@ -15,7 +15,10 @@ type system =
   | AssistantPrompt
   // Agent view of the codebase.
   // Only one should ever exist in a chat at a time.
-  | AgentView;
+  | AgentView
+  // The agent's todo list.
+  // Only one should ever exist in a chat at a time.
+  | TodoList;
 // // Tool response from our backend.
 // | ToolResponse;
 
@@ -38,6 +41,7 @@ let string_of_role =
   | System(AssistantPrompt) => "System"
   | System(InternalError) => "Error"
   | System(AgentView) => "Agent View"
+  | System(TodoList) => "Todo List"
   | User => "User"
   | Assistant => "Assistant"
   | Tool => "Tool";
@@ -74,6 +78,27 @@ type message = {
   sketch_snapshot,
 };
 
+[@deriving (show({with_path: false}), sexp, yojson, eq)]
+type todo_item = {
+  title: string, // Will also serve as a unique identifier for the todo item
+  description: string, // Description of the todo item
+  completed: bool // Whether the todo item has been completed
+  // TODO: Add fields to tie it to code?
+};
+
+[@deriving (show({with_path: false}), sexp, yojson)]
+type todo_list = list(todo_item);
+
+let todo_item_to_string = (todo_item: todo_item): string => {
+  " [ "
+  ++ (todo_item.completed ? "X" : " ")
+  ++ " ] "
+  ++ todo_item.title
+  ++ " - "
+  ++ todo_item.description
+  ++ " - ";
+};
+
 // A chat is a collection of messages, attached to an ID
 // We also include a timestamp, a descriptor, and a loading dots flag for stylistic purposes.
 [@deriving (show({with_path: false}), sexp, yojson)]
@@ -84,6 +109,7 @@ type chat = {
   timestamp: float,
   context_usage: int,
   awaiting_response: bool,
+  todo_list: option(todo_list),
 };
 
 // We save the history of past chats as a hash map with chat IDs as keys.
@@ -162,12 +188,7 @@ let mk_mode_prompt = (~mode: AssistantSettings.mode): OpenRouter.message => {
   let prompt =
     switch (mode) {
     | HazelTutor => InitPrompts.mk_tutor()
-    | CodeSuggestion =>
-      InitPrompts.mk_suggestion(
-        ChatLSP.Options.init,
-        "code_suggestion",
-        false,
-      )
+    | CodeSuggestion => InitPrompts.mk_suggestion("code_suggestion", false)
     | TaskCompletion => InitPrompts.mk_composition()
     };
   prompt;
@@ -197,6 +218,7 @@ let init_chat = (mode: AssistantSettings.mode): chat => {
     timestamp: JsUtil.timestamp(),
     context_usage: 0,
     awaiting_response: false,
+    todo_list: None,
   };
 };
 
@@ -215,6 +237,7 @@ let new_chat = (model: t, mode: AssistantSettings.mode): chat => {
     timestamp: JsUtil.timestamp(),
     context_usage: 0,
     awaiting_response: false,
+    todo_list: None,
   };
 };
 
@@ -272,6 +295,7 @@ let null_model = (): t => {
     timestamp: JsUtil.timestamp(),
     context_usage: 0,
     awaiting_response: false,
+    todo_list: None,
   };
   {
     init_prompt_data: {

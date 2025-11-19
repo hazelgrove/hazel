@@ -954,6 +954,7 @@ let text_block =
           | Assistant => "llm-message"
           | System(AssistantPrompt) => "system-prompt-message"
           | System(AgentView) => "system-prompt-message"
+          | System(TodoList) => "system-todo-list-message"
           | System(InternalError) => "system-error-message"
           | Tool => "tool-message"
           },
@@ -1021,6 +1022,7 @@ let code_block =
         | System(AgentView) => "system-prompt"
         | System(InternalError) => "system-error"
         | Tool => "tool"
+        | System(TodoList) => "system-todo-list"
         },
       ]),
     ],
@@ -1132,15 +1134,15 @@ let initial_display =
     ? div(
         ~attrs=[clss(["initial-display"])],
         [
-          Icons.hazelnut_agent,
+          Icons.corylus,
           div(
             ~attrs=[clss(["initial-display-text"])],
             [
               text(
                 switch (settings.mode) {
-                | HazelTutor => "Hi, I'm Hazelbot! Ask me anything about Hazel."
-                | CodeSuggestion => "Hi, I'm Hazelbot! Ask me for code suggestions."
-                | TaskCompletion => "Hi, I'm Hazelbot! Let's work on your task together."
+                | HazelTutor => "Hey, I'm Corylus. Let's learn about Hazel together."
+                | CodeSuggestion => "Hey, I'm Corylus. Type '??' in an expression hole in the code and see the dialogue between the language server and me here."
+                | TaskCompletion => "Hey, I'm Corylus. Let's work on your task together."
                 },
               ),
             ],
@@ -1149,7 +1151,7 @@ let initial_display =
             ~attrs=[clss(["disclaimer-display-text"])],
             [
               text(
-                "AI-based technologies, such as Hazelbot, are prone to making mistakes. Always verify critical information independently.",
+                "AI-based technologies, such as Corylus, are prone to making mistakes. Always verify critical information independently.",
               ),
             ],
           ),
@@ -1211,6 +1213,7 @@ let message_display =
                     | System(InternalError) => "system-error"
                     | Tool => "tool"
                     | System(AgentView) => "system-agent-view"
+                    | System(TodoList) => "system-todo-list"
                     },
                   ]),
                   is_last_message ? Attr.id("last-message") : Attr.empty,
@@ -1229,17 +1232,17 @@ let message_display =
                             | CodeSuggestion =>
                               div(
                                 ~attrs=[clss(["llm-identifier"])],
-                                [Icons.hazelnut_agent, text("Assistant")],
+                                [Icons.corylus, text("Assistant")],
                               )
                             | TaskCompletion =>
                               div(
                                 ~attrs=[clss(["llm-identifier"])],
-                                [Icons.hazelnut_agent, text("Agent")],
+                                [Icons.corylus, text("Agent")],
                               )
                             | HazelTutor =>
                               div(
                                 ~attrs=[clss(["llm-identifier"])],
-                                [Icons.hazelnut_agent, text("Tutor")],
+                                [Icons.corylus, text("Tutor")],
                               )
                             }
 
@@ -1254,6 +1257,11 @@ let message_display =
                                 clss(["system-agent-view-identifier"]),
                               ],
                               [text("Agent View")],
+                            )
+                          | System(TodoList) =>
+                            div(
+                              ~attrs=[clss(["system-todo-list-identifier"])],
+                              [text("Todo List")],
                             )
                           | System(InternalError) =>
                             div(
