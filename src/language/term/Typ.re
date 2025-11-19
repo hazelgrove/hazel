@@ -1124,7 +1124,7 @@ let remove_duplicate_labels =
  */
 let to_product = (tys: list(t)): t => TempGrammar.Typ.(prod(tys));
 
-/* Computes the list of ids in t' that are not in t. Assumes initial ids are distinct. Only returns the id of the root difference. */
+/* Computes the list of ids in t' that are not in t. Assumes initial ids are distinct otherwise you may get incorrect ids. */
 let rec diff = (ty: t, ty': t): list(Id.t) => {
   let get_ids = () => {
     let ids = ref([]);
