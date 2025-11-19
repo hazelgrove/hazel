@@ -1,25 +1,21 @@
 open Language;
 
+/* Number of IDs required for ExpToSegment compatibility per type constructor */
 let necessary_ids: Typ.t => int =
   ty => {
     switch (ty.term) {
-    | Parens(_) => 1
-    | Prod([]) => 1
-    | Prod(tys) => List.length(tys) - 1
-    | Sum(tys) => List.length(tys) + 1
-    | _ => 1
+    | Prod([]) => 1 /* Empty product (unit-like) */
+    | Prod(tys) => List.length(tys) - 1 /* One ID per separator */
+    | Sum(tys) => List.length(tys) + 1 /* Constructors + prefix */
+    | _ => 1 /* Default for other type constructors */
     };
   };
 
-/*
-  * This function pads the ids of a type to ensure that there are enough ids to be used so that ExpToSegment does not need to create new ids.
-  * This is important for maintaining the correspondence between type ids and the resulting segment ids. Specifically if you're using the the ids from the type to
-  * affect styling in the segment, you want to ensure that the ids in the type are the ones that get used.
-  *
-  * @param ty - The type to pad ids for.
-  * @return A new type with padded ids.
+/**
+ * Pads type IDs to ensure ExpToSegment uses them instead of creating new ones,
+ * preserving ID correspondence for styling. Test_PadIds property test that checks
+ *  ExpToSegment compatibility and padding equivalence.
  */
-
 let pad_typ_ids = (ty: Typ.t): Typ.t => {
   Typ.map_term(
     ~f_typ=

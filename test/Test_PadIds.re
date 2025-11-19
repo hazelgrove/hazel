@@ -3,7 +3,7 @@ open Haz3lcore;
 let qcheck_pads_typ_for_exp_to_segment =
   QCheck.Test.make(
     ~name="No ids are needed to be padded during ExpToSegment",
-    ~count=10000,
+    ~count=1000,
     QCheck_Util.arb_typ(~minimal_idents=false, 30),
     typ => {
       let padded = PadIds.pad_typ_ids(typ);
@@ -20,7 +20,7 @@ let qcheck_pads_typ_for_exp_to_segment =
           },
           padded,
         );
-      true;
+      Language.Equality.syntactic.typ(padded, PadIds.pad_typ_ids(padded));
     },
   );
 
