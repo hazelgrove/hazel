@@ -300,4 +300,131 @@ let fast_equal_tests = (
   ],
 );
 
-let tests = [join_tests, fast_equal_tests];
+let diff_tests = (
+  "Typ.diff",
+  [
+    QCheck_alcotest.to_alcotest(
+      QCheck.Test.make(
+        ~name="diff identity",
+        ~count=1000,
+        QCheck_Util.arb_typ(~minimal_idents=true, 7),
+        typ =>
+        Typ.diff(typ, typ) == []
+      ),
+    ),
+    test_case(
+      "diff root different atom types",
+      `Quick,
+      () => {
+        let int_typ = Typ.fresh(Atom(Atom.Int));
+        let float_typ = Typ.fresh(Atom(Atom.Float));
+        let expected = [Typ.rep_id(float_typ)];
+        check(
+          testable(
+            Fmt.using(
+              ids => String.concat(", ", List.map(Id.show, ids)),
+              Fmt.string,
+            ),
+            (==),
+          ),
+          "diff on different atom types",
+          expected,
+          Typ.diff(int_typ, float_typ),
+        );
+      },
+    ),
+    test_case(
+      "diff arrow different codomain",
+      `Quick,
+      () => {
+        let int_typ = Typ.fresh(Atom(Atom.Int));
+        let float_typ = Typ.fresh(Atom(Atom.Float));
+        let arrow1 = Typ.fresh(Arrow(int_typ, int_typ));
+        let arrow2 = Typ.fresh(Arrow(int_typ, float_typ));
+        let expected = [Typ.rep_id(float_typ)];
+        check(
+          testable(
+            Fmt.using(
+              ids => String.concat(", ", List.map(Id.show, ids)),
+              Fmt.string,
+            ),
+            (==),
+          ),
+          "diff on arrows with different codomains",
+          expected,
+          Typ.diff(arrow1, arrow2),
+        );
+      },
+    ),
+    test_case(
+      "diff list different element",
+      `Quick,
+      () => {
+        let int_typ = Typ.fresh(Atom(Atom.Int));
+        let float_typ = Typ.fresh(Atom(Atom.Float));
+        let list1 = Typ.fresh(List(int_typ));
+        let list2 = Typ.fresh(List(float_typ));
+        let expected = [Typ.rep_id(float_typ)];
+        check(
+          testable(
+            Fmt.using(
+              ids => String.concat(", ", List.map(Id.show, ids)),
+              Fmt.string,
+            ),
+            (==),
+          ),
+          "diff on lists with different elements",
+          expected,
+          Typ.diff(list1, list2),
+        );
+      },
+    ),
+    test_case(
+      "diff arrow different domain",
+      `Quick,
+      () => {
+        let int_typ = Typ.fresh(Atom(Atom.Int));
+        let float_typ = Typ.fresh(Atom(Atom.Float));
+        let string_typ = Typ.fresh(Atom(Atom.String));
+        let arrow1 = Typ.fresh(Arrow(int_typ, string_typ));
+        let arrow2 = Typ.fresh(Arrow(float_typ, string_typ));
+        let expected = [Typ.rep_id(float_typ)];
+        check(
+          testable(
+            Fmt.using(
+              ids => String.concat(", ", List.map(Id.show, ids)),
+              Fmt.string,
+            ),
+            (==),
+          ),
+          "diff on arrows with different domains",
+          expected,
+          Typ.diff(arrow1, arrow2),
+        );
+      },
+    ),
+    test_case(
+      "diff var different names",
+      `Quick,
+      () => {
+        let var1 = Typ.fresh(Var("x"));
+        let var2 = Typ.fresh(Var("y"));
+        let expected = [Typ.rep_id(var2)];
+        check(
+          testable(
+            Fmt.using(
+              ids => String.concat(", ", List.map(Id.show, ids)),
+              Fmt.string,
+            ),
+            (==),
+          ),
+          "diff on vars with different names",
+          expected,
+          Typ.diff(var1, var2),
+        );
+      },
+    ),
+  ],
+);
+
+let tests = [join_tests, fast_equal_tests, diff_tests];

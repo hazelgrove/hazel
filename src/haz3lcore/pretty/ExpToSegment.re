@@ -13,6 +13,7 @@ module Settings = {
     hide_fixpoints: bool,
     show_filters: bool,
     show_unknown_as_hole: bool,
+    raise_if_padding: bool,
   };
 
   let of_core = (~inline, settings: CoreSettings.t) => {
@@ -22,6 +23,7 @@ module Settings = {
     hide_fixpoints: !settings.evaluation.show_fixpoints,
     show_filters: settings.evaluation.show_stepper_filters,
     show_unknown_as_hole: true,
+    raise_if_padding: false,
   };
 
   let editable = (~inline) => {
@@ -32,6 +34,7 @@ module Settings = {
       hide_fixpoints: false,
       show_filters: true,
       show_unknown_as_hole: true,
+      raise_if_padding: false,
     };
   };
 };
@@ -742,9 +745,12 @@ let mk_form = (form_name: Form.compound_form, id, children): Piece.t => {
 
 /* HACK[Matt]: Sometimes terms that should have multiple ids won't because
    evaluation only ever gives them one */
-let pad_ids = (n: int, ids: list(Id.t)): list(Id.t) => {
+let pad_ids = (~settings: Settings.t, n: int, ids: list(Id.t)): list(Id.t) => {
   let len = List.length(ids);
   if (len < n) {
+    if (settings.raise_if_padding) {
+      raise(Failure("Padding required but not enough ids provided."));
+    };
     ids @ List.init(n - len, _ => Id.mk());
   } else {
     ListUtil.split_n(n, ids) |> fst;
@@ -801,6 +807,7 @@ let fold_fun_if = (condition, f_name: string, pieces) =>
       that the expression has no Closures or DynamicErrorHoles
    */
 let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
+  let pad_ids = pad_ids(~settings);
   let go = (~inline=settings.inline) =>
     exp_to_pretty(
       ~settings={
@@ -1235,6 +1242,7 @@ let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
 }
 and pat_to_pretty = (~settings: Settings.t, pat: Pat.t): pretty => {
   let go = pat_to_pretty(~settings: Settings.t);
+  let pad_ids = pad_ids(~settings);
   switch (pat |> Pat.term_of) {
   | Invalid(t) => text_to_pretty(pat |> Pat.rep_id, Sort.Pat, t)
   | EmptyHole =>
@@ -1352,6 +1360,7 @@ and pat_to_pretty = (~settings: Settings.t, pat: Pat.t): pretty => {
 }
 and typ_to_pretty = (~settings: Settings.t, typ: Typ.t): pretty => {
   let go = typ_to_pretty(~settings: Settings.t);
+  let pad_ids = pad_ids(~settings);
   let go_constructor: ConstructorMap.variant(Typ.t) => pretty =
     fun
     | Variant(c, ids, None) => {

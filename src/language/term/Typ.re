@@ -1126,37 +1126,54 @@ let to_product = (tys: list(t)): t => TempGrammar.Typ.(prod(tys));
 
 /* Computes the list of ids in t' that are not in t. Assumes initial ids are distinct. Only returns the id of the root difference. */
 let rec diff = (ty: t, ty': t): list(Id.t) => {
+  let get_ids = () => {
+    let ids = ref([]);
+    let _ =
+      Grammar.map_typ_annotation(
+        (t: IdTagged.IdTag.t) => {
+          ids := t.ids @ ids^;
+          t;
+        },
+        ty': t,
+      );
+    ids^;
+  };
   switch (term_of(ty), term_of(ty')) {
   | (Probe(t1, _), _) => diff(t1, ty')
   | (_, Probe(t2, _)) => diff(ty, t2)
   | (Parens(t1), Parens(t2)) => diff(t1, t2)
   | (Unknown(_), Unknown(_)) => []
-  | (Unknown(_), _) => [ty' |> rep_id]
+  | (Unknown(_), _) => get_ids()
   | (Atom(c1), Atom(c2)) when c1 == c2 => []
-  | (Atom(_), _) => [ty' |> rep_id]
+  | (Atom(_), _) => get_ids()
   | (Label(l1), Label(l2)) when l1 == l2 => []
-  | (Label(_), _) => [ty' |> rep_id]
+  | (Label(_), _) => get_ids()
+  | (ExplicitNonlabel, ExplicitNonlabel) => []
+  | (ExplicitNonlabel, _) => get_ids()
   | (Var(v1), Var(v2)) when v1 == v2 => []
-  | (Var(_), _) => [ty' |> rep_id]
+  | (Var(_), _) => get_ids()
   | (Rec(_tp1, t1), Rec(_tp2, t2)) => diff(t1, t2) // TODO Check tpat
-  | (Rec(_), _) => [ty' |> rep_id]
+  | (Rec(_), _) => get_ids()
   | (Forall(_tp1, t1), Forall(_tp2, t2)) => diff(t1, t2) // TODO Check tpat
-  | (Forall(_), _) => [ty' |> rep_id]
+  | (Forall(_), _) => get_ids()
   | (Arrow(t1a, t1b), Arrow(t2a, t2b)) => diff(t1a, t2a) @ diff(t1b, t2b)
-  | (Arrow(_), _) => [ty' |> rep_id]
+  | (Arrow(_), _) => get_ids()
   | (Prod(tys1), Prod(tys2)) when List.length(tys1) == List.length(tys2) =>
     List.map2(diff, tys1, tys2) |> List.concat
-  | (Prod(_), _) => [ty' |> rep_id]
+  | (Prod(_), _) => get_ids()
   | (TupLabel(l1, t1), TupLabel(l2, t2)) => diff(l1, l2) @ diff(t1, t2)
-  | (TupLabel(_, _), _) => [ty' |> rep_id]
+  | (TupLabel(_, _), _) => get_ids()
   | (List(t1), List(t2)) => diff(t1, t2)
-  | (List(_), _) => [ty' |> rep_id]
-  | _ =>
-    // TODO
-    raise(
-      Failure(
-        "diff: unsupported types" ++ show(ty) ++ " and " ++ show(ty'),
-      ),
-    )
+  | (List(_), _) => get_ids()
+  | (ProdProjection(t1, t2), ProdProjection(t1', t2')) =>
+    diff(t1, t1') @ diff(t2, t2')
+  | (ProdProjection(_, _), _) => get_ids()
+  | (ProdExtension(t1, t2), ProdExtension(t1', t2')) =>
+    diff(t1, t1') @ diff(t2, t2')
+  | (ProdExtension(_, _), _) => get_ids()
+  | (Sum(sm1), Sum(sm2)) when ConstructorMap.equal(fast_equal, sm1, sm2) =>
+    []
+  | (Sum(_), _) => get_ids()
+  | _ => raise(Failure("diff: incompatible types"))
   };
 };

@@ -219,14 +219,7 @@ module Make =
 
     let seg =
       I.to_segment(
-        ~settings={
-          inline: true,
-          fold_case_clauses: false,
-          fold_fn_bodies: false,
-          hide_fixpoints: false,
-          show_filters: true,
-          show_unknown_as_hole: true,
-        },
+        ~settings=ExpToSegment.Settings.editable(~inline=true),
         term,
         already_parenthesized(z),
       );

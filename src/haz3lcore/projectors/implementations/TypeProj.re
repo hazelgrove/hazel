@@ -96,14 +96,10 @@ module M: Projector = {
       switch (model) {
       | Dynamic =>
         let self_ty = self_ty(info.statics);
-        let dyn_typ =
-          get_dynamic_typ(info)
-          |> Grammar.map_typ_annotation(_ => IdTagged.IdTag.fresh(), _);
-        let ids: list(Id.t) =
-          Typ.diff(
-            Option.value(~default=Typ.fresh(Unknown(Internal)), self_ty),
-            dyn_typ,
-          );
+        let dyn_typ = get_dynamic_typ(info) |> PadIds.pad_typ_ids;
+        let sty =
+          Option.value(~default=Typ.fresh(Unknown(Internal)), self_ty);
+        let ids: list(Id.t) = Typ.diff(sty, dyn_typ);
         let is_dynamic_id = (id: Id.t): bool => {
           List.mem(id, ids);
         };
