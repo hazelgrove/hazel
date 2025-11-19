@@ -320,13 +320,7 @@ let diff_tests = (
         let float_typ = Typ.fresh(Atom(Atom.Float));
         let expected = [Typ.rep_id(float_typ)];
         check(
-          testable(
-            Fmt.using(
-              ids => String.concat(", ", List.map(Id.show, ids)),
-              Fmt.string,
-            ),
-            (==),
-          ),
+          list(testable_id),
           "diff on different atom types",
           expected,
           Typ.diff(int_typ, float_typ),
@@ -343,13 +337,7 @@ let diff_tests = (
         let arrow2 = Typ.fresh(Arrow(int_typ, float_typ));
         let expected = [Typ.rep_id(float_typ)];
         check(
-          testable(
-            Fmt.using(
-              ids => String.concat(", ", List.map(Id.show, ids)),
-              Fmt.string,
-            ),
-            (==),
-          ),
+          list(testable_id),
           "diff on arrows with different codomains",
           expected,
           Typ.diff(arrow1, arrow2),
@@ -366,13 +354,7 @@ let diff_tests = (
         let list2 = Typ.fresh(List(float_typ));
         let expected = [Typ.rep_id(float_typ)];
         check(
-          testable(
-            Fmt.using(
-              ids => String.concat(", ", List.map(Id.show, ids)),
-              Fmt.string,
-            ),
-            (==),
-          ),
+          list(testable_id),
           "diff on lists with different elements",
           expected,
           Typ.diff(list1, list2),
@@ -390,13 +372,7 @@ let diff_tests = (
         let arrow2 = Typ.fresh(Arrow(float_typ, string_typ));
         let expected = [Typ.rep_id(float_typ)];
         check(
-          testable(
-            Fmt.using(
-              ids => String.concat(", ", List.map(Id.show, ids)),
-              Fmt.string,
-            ),
-            (==),
-          ),
+          list(testable_id),
           "diff on arrows with different domains",
           expected,
           Typ.diff(arrow1, arrow2),
@@ -411,13 +387,7 @@ let diff_tests = (
         let var2 = Typ.fresh(Var("y"));
         let expected = [Typ.rep_id(var2)];
         check(
-          testable(
-            Fmt.using(
-              ids => String.concat(", ", List.map(Id.show, ids)),
-              Fmt.string,
-            ),
-            (==),
-          ),
+          list(testable_id),
           "diff on vars with different names",
           expected,
           Typ.diff(var1, var2),
