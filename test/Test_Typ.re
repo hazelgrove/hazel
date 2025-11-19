@@ -430,9 +430,8 @@ let diff_tests = (
         ~count=1000,
         QCheck_Util.arb_typ(~minimal_idents=false, 30),
         typ => {
-          Typ.diff(typ, typ) == []
-        }
-      ),
+        Typ.diff(typ, typ) == []
+      }),
     ),
   ],
 );
