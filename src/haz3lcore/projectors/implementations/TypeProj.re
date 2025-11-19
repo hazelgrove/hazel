@@ -47,7 +47,10 @@ let get_dynamic_typ = (info: info): Typ.t => {
            };
            let types = List.map(type_of, d) |> Util.OptUtil.sequence;
 
-           Option.map(Typ.consistent_join(Ctx.empty), types);
+           Option.bind(
+             types,
+             Typ.join_all(~empty=Typ.fresh(Unknown(Internal)), Ctx.empty),
+           );
          },
        )
     |> Option.value(~default=Typ.fresh(Unknown(Internal)));

@@ -2406,7 +2406,6 @@ let get_doc =
     switch (bypass_parens_typ(term).term) {
     | Unknown(SynSwitch)
     | Unknown(Internal)
-    | Unknown(Inconsistent)
     | Unknown(Hole(EmptyHole)) => get_message(HoleTyp.empty_hole)
     | Unknown(Hole(MultiHole(_))) => get_message(HoleTyp.multi_hole)
     | Atom(Int) => get_message(TerminalTyp.int)

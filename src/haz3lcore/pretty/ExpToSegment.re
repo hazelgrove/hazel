@@ -138,7 +138,6 @@ let rec external_precedence_typ = (tp: Typ.t) =>
   | Unknown(Internal)
   | Unknown(SynSwitch)
   | Unknown(Hole(EmptyHole))
-  | Unknown(Inconsistent)
   | Var(_)
   | Atom(_)
   | Label(_)
@@ -507,7 +506,6 @@ and parenthesize_typ =
   | Var(_)
   | Unknown(Hole(Invalid(_)))
   | Unknown(Internal)
-  | Unknown(Inconsistent)
   | Unknown(SynSwitch)
   | Unknown(Hole(EmptyHole))
   | Atom(_) => typ
@@ -1391,7 +1389,6 @@ and typ_to_pretty = (~settings: Settings.t, typ: Typ.t): pretty => {
   | Unknown(Hole(Invalid(s))) =>
     text_to_pretty(typ |> Typ.rep_id, Sort.Typ, s)
   | Unknown(Internal)
-  | Unknown(Inconsistent)
   | Unknown(SynSwitch)
   | Unknown(Hole(EmptyHole)) =>
     if (settings.show_unknown_as_hole) {
