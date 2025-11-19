@@ -1,6 +1,5 @@
 open Alcotest;
 open Language;
-let testable_typ = testable(Fmt.using(Typ.show, Fmt.string), Typ.fast_equal);
 
 let typ = testable(Fmt.using(Typ.show, Fmt.string), Typ.fast_equal);
 
@@ -18,7 +17,7 @@ let join_tests = (
             Forall(Var("b") |> TPat.temp, Var("b") |> Typ.temp) |> Typ.temp,
           );
         check(
-          option(testable_typ),
+          option(typ),
           "Forall alpha equivalent",
           Some(
             Forall(Var("a") |> TPat.temp, Var("a") |> Typ.temp) |> Typ.temp,
