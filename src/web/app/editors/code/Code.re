@@ -123,21 +123,16 @@ let view =
   let rec of_segment = (seg: Segment.t): list(Node.t) =>
     List.concat_map(
       fun
-      | Piece.Tile(t) =>
-        if (Tile.id(t) |> is_dynamic) {
-          [
-            span(
-              ~attrs=[Attr.classes(["dynamic"])],
-              Aba.mk(t.shards, t.children)
-              |> Aba.join(i => [of_delim(t, i)], of_segment)
-              |> List.concat,
-            ),
-          ];
-        } else {
-          Aba.mk(t.shards, t.children)
-          |> Aba.join(i => [of_delim(t, i)], of_segment)
-          |> List.concat;
-        }
+      | Piece.Tile(t) => [
+          span(
+            ~attrs=[
+              Attr.classes(Tile.id(t) |> is_dynamic ? ["dynamic"] : []),
+            ],
+            Aba.mk(t.shards, t.children)
+            |> Aba.join(i => [of_delim(t, i)], of_segment)
+            |> List.concat,
+          ),
+        ]
       | Grout(g) => [of_grout(g)]
       | Secondary(s) => [of_secondary(s)]
       | Projector(pr) => [of_projector(pr)],

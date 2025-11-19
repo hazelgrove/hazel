@@ -1,6 +1,5 @@
 open Alcotest;
 open Language;
-let testable_typ = testable(Fmt.using(Typ.show, Fmt.string), Typ.fast_equal);
 
 let typ = testable(Fmt.using(Typ.show, Fmt.string), Typ.fast_equal);
 
@@ -18,7 +17,7 @@ let join_tests = (
             Forall(Var("b") |> TPat.temp, Var("b") |> Typ.temp) |> Typ.temp,
           );
         check(
-          option(testable_typ),
+          option(typ),
           "Forall alpha equivalent",
           Some(
             Forall(Var("a") |> TPat.temp, Var("a") |> Typ.temp) |> Typ.temp,
@@ -274,110 +273,144 @@ let fast_equal_tests = (
         );
       },
     ),
+  ],
+);
+let testable_id = testable(Fmt.using(Id.show, Fmt.string), (==));
+let diff_tests = (
+  "Typ.diff",
+  [
+    QCheck_alcotest.to_alcotest(
+      QCheck.Test.make(
+        ~name="diff identity",
+        ~count=1000,
+        QCheck_Util.arb_typ(~minimal_idents=true, 7),
+        typ =>
+        Typ.diff(typ, typ) == []
+      ),
+    ),
     test_case(
-      "consistent_join on equivalent atomic types",
+      "diff root different atom types",
       `Quick,
       () => {
-        open IdTagged.FreshGrammar.Typ;
-        let t3 =
-          Typ.consistent_join(
-            Builtins.ctx_init(Some(Int)),
-            [string(), string()],
-          );
+        let int_typ = Typ.fresh(Atom(Atom.Int));
+        let float_typ = Typ.fresh(Atom(Atom.Float));
+        let expected = [Typ.rep_id(float_typ)];
         check(
-          testable_typ,
-          "consistent_join on equivalent atomic types",
-          string(),
-          t3,
+          list(testable_id),
+          "diff on different atom types",
+          expected,
+          Typ.diff(int_typ, float_typ),
         );
       },
     ),
     test_case(
-      "consistent_join on inconsistent atomic types",
+      "diff arrow different codomain",
       `Quick,
       () => {
-        open IdTagged.FreshGrammar.Typ;
-        let t3 =
-          Typ.consistent_join(
-            Builtins.ctx_init(Some(Int)),
-            [string(), int()],
-          );
+        let int_typ = Typ.fresh(Atom(Atom.Int));
+        let float_typ = Typ.fresh(Atom(Atom.Float));
+        let arrow1 = Typ.fresh(Arrow(int_typ, int_typ));
+        let arrow2 = Typ.fresh(Arrow(int_typ, float_typ));
+        let expected = [Typ.rep_id(float_typ)];
         check(
-          testable_typ,
-          "consistent_join on inconsistent atomic types",
-          unknown(Internal),
-          t3,
+          list(testable_id),
+          "diff on arrows with different codomains",
+          expected,
+          Typ.diff(arrow1, arrow2),
         );
       },
     ),
     test_case(
-      "consistent_join on lists of inconsistent atomic types",
+      "diff list different element",
       `Quick,
       () => {
-        open IdTagged.FreshGrammar.Typ;
-        let t3 =
-          Typ.consistent_join(
-            Builtins.ctx_init(Some(Int)),
-            [list(string()), list(int())],
-          );
+        let int_typ = Typ.fresh(Atom(Atom.Int));
+        let float_typ = Typ.fresh(Atom(Atom.Float));
+        let list1 = Typ.fresh(List(int_typ));
+        let list2 = Typ.fresh(List(float_typ));
+        let expected = [Typ.rep_id(float_typ)];
         check(
-          testable_typ,
-          "consistent_join on equivalent function types",
-          list(unknown(Internal)),
-          t3,
+          list(testable_id),
+          "diff on lists with different elements",
+          expected,
+          Typ.diff(list1, list2),
         );
       },
     ),
     test_case(
-      "consistent_join on arrow types with inconsistent parts",
+      "diff arrow different domain",
       `Quick,
       () => {
-        open IdTagged.FreshGrammar.Typ;
-        let t3 =
-          Typ.consistent_join(
-            Builtins.ctx_init(Some(Int)),
-            [arrow(string(), list(int())), arrow(int(), list(string()))],
-          );
+        let int_typ = Typ.fresh(Atom(Atom.Int));
+        let float_typ = Typ.fresh(Atom(Atom.Float));
+        let string_typ = Typ.fresh(Atom(Atom.String));
+        let arrow1 = Typ.fresh(Arrow(int_typ, string_typ));
+        let arrow2 = Typ.fresh(Arrow(float_typ, string_typ));
+        let expected = [Typ.rep_id(float_typ)];
         check(
-          testable_typ,
-          "consistent_join on arrow types with inconsistent parts",
-          arrow(unknown(Inconsistent), list(unknown(Inconsistent))),
-          t3,
+          list(testable_id),
+          "diff on arrows with different domains",
+          expected,
+          Typ.diff(arrow1, arrow2),
         );
       },
     ),
     test_case(
-      "Consistent join collapses unknowns",
+      "diff var different names",
       `Quick,
       () => {
-        open IdTagged.FreshGrammar.Typ;
-        let t3 =
-          Typ.consistent_join(
-            Builtins.ctx_init(Some(Int)),
-            [unknown(Hole(EmptyHole)), int()],
-          );
-        check(testable_typ, "Consistent join collapses unknowns", int(), t3);
+        let var1 = Typ.fresh(Var("x"));
+        let var2 = Typ.fresh(Var("y"));
+        let expected = [Typ.rep_id(var2)];
+        check(
+          list(testable_id),
+          "diff on vars with different names",
+          expected,
+          Typ.diff(var1, var2),
+        );
       },
     ),
     test_case(
-      "Consistent join does not collapse inconsistent unknowns",
+      "Recursive types with same tpat and type",
       `Quick,
       () => {
-        open IdTagged.FreshGrammar.Typ;
-        let t3 =
-          Typ.consistent_join(
-            Builtins.ctx_init(Some(Int)),
-            [int(), string(), float()],
-          );
+        let tpat_x = TPat.fresh(Var("x"));
+        let var_x = Typ.fresh(Var("x"));
+        let rec1 = Typ.fresh(Rec(tpat_x, var_x));
+        let rec2 = Typ.fresh(Rec(tpat_x, var_x));
+        let expected = [];
         check(
-          testable_typ,
-          "Consistent join does not collapse inconsistent unknowns",
-          unknown(Inconsistent),
-          t3,
+          list(testable_id),
+          "diff on recursive types with different tpats",
+          expected,
+          Typ.diff(rec1, rec2),
+        );
+      },
+    ),
+    test_case(
+      "Recursive types with different tpats",
+      `Quick,
+      () => {
+        let rec1 =
+          Typ.fresh(Rec(TPat.fresh(Var("x")), Typ.fresh(Var("x"))));
+        let tpat_y = TPat.fresh(Var("y"));
+        let var_y = Typ.fresh(Var("y"));
+        let rec2 = Typ.fresh(Rec(tpat_y, var_y));
+
+        let expected = [
+          TPat.rep_id(tpat_y),
+          Typ.rep_id(var_y),
+          Typ.rep_id(rec2),
+        ];
+        check(
+          list(testable_id),
+          "diff on recursive types with different tpats",
+          expected,
+          Typ.diff(rec1, rec2),
         );
       },
     ),
   ],
 );
 
-let tests = [join_tests, meet_tests, fast_equal_tests];
+let tests = [join_tests, fast_equal_tests, meet_tests, diff_tests];

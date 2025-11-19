@@ -514,19 +514,11 @@ let rec elaborate =
   (dhexp, elaborated_type);
 };
 
-//let dhexp_of_uexp = Core.Memo.general(~cache_size_bound=1000, dhexp_of_uexp);
-
-/* This function gives a new id to all the types
-   in the expression. It does this to get rid of
-   all the invalid ids we added to prevent generating
-   too many new ids */
-let fix_typ_ids = Exp.map_term(~f_typ=(cont, e) => e |> cont);
-
 let uexp_elab =
     (~probe_unknowns: bool, m: Statics.Map.t, uexp: Exp.t)
     : ElaborationResult.t => {
   switch (elaborate(~probe_unknowns, m, uexp)) {
   | exception MissingTypeInfo => DoesNotElaborate
-  | (d, ty) => Elaborates(d |> fix_typ_ids, ty)
+  | (d, ty) => Elaborates(d, ty)
   };
 };
