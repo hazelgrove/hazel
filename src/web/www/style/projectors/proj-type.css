@@ -94,3 +94,7 @@
 .projector.type .offside .code .token.explicit-hole {
   color: white;
 }
+
+.dynamic > .token.Typ {
+  color: green;
+}

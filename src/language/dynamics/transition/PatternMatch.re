@@ -14,9 +14,17 @@ let combine_result = (r1: match_result, r2: match_result): match_result =>
   | (Matches(env1), Matches(env2)) => Matches(env1 @ env2)
   };
 
-let rec matches = (capture, dp: Pat.t, d: DHExp.t): match_result => {
-  let matches = matches(capture);
-  let d = Ascriptions.transition_multiple(d);
+let rec matches =
+        (
+          capture,
+          capture': (Probe.call_stack => Dynamics.Probe.Closure.t) => unit, // Use writer
+          dp: Pat.t,
+          d: DHExp.t,
+        )
+        : match_result => {
+  let matches = matches(capture, capture');
+  let (closures, d) = Ascriptions.transition_multiple(d);
+  List.iter(capture', closures);
   switch (DHPat.term_of(dp)) {
   | Invalid(_)
   | EmptyHole
@@ -66,7 +74,10 @@ let rec matches = (capture, dp: Pat.t, d: DHExp.t): match_result => {
     capture(pr, dp, d, inner_match);
     inner_match;
   | Asc(p, t1) =>
-    matches(p, Ascriptions.transition_multiple(Asc(d, t1) |> DHExp.fresh))
+    let (closures, d) =
+      Ascriptions.transition_multiple(Asc(d, t1) |> DHExp.fresh);
+    List.iter(capture', closures);
+    matches(p, d);
   };
 };
 
@@ -98,7 +109,10 @@ let matches = (dp: Pat.t, d: DHExp.t): matches_and_closures => {
           closure_closures^,
         )
     };
-  let res = matches(capture, dp, d);
+  let capture' = x => {
+    closure_closures := List.cons(x, closure_closures^);
+  };
+  let res = matches(capture, capture', dp, d);
   {
     matches: res,
     closures: closure_closures^,

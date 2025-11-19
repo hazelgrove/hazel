@@ -954,6 +954,7 @@ and abbreviate_typ = (typ: Typ.t): Typ.t => {
           );
         };
       }
+    | Probe(typ, _) => abbreviate_typ(typ).term
     };
   rewrap(term);
 }

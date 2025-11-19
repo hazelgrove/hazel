@@ -20,6 +20,7 @@ let dhexp_typ =
 let mk_map = Statics.mk(CoreSettings.on, Builtins.ctx_init(Some(Int)));
 let dhexp_of_uexp = u =>
   Elaborator.elaborate(
+    ~probe_unknowns=false,
     Statics.mk(CoreSettings.on, Builtins.ctx_init(Some(Int)), u),
     u,
   )
@@ -385,7 +386,7 @@ module PlainTests = {
         let uexp = parse_exp(expression);
         let statics = mk_map(uexp);
         Alcotest.skip();
-        let _ = Elaborator.elaborate(statics, uexp);
+        let _ = Elaborator.elaborate(~probe_unknowns=false, statics, uexp);
         ();
       }
     });
@@ -682,7 +683,7 @@ in 1|},
         exp => {
         switch (mk_map(exp)) {
         | statics =>
-          switch (Elaborator.elaborate(statics, exp)) {
+          switch (Elaborator.elaborate(~probe_unknowns=false, statics, exp)) {
           | _ => true
           | exception (Failure(msg) as e) =>
             switch (msg) {

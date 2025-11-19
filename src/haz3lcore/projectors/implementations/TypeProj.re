@@ -15,6 +15,7 @@ let self_ty = (info: option(Info.t)): option(Typ.t) =>
   switch (info) {
   | Some(InfoExp({self, _})) => Self.typ_of_exp(self)
   | Some(InfoPat({self, _})) => Self.typ_of_pat(self)
+  | Some(InfoTyp({term, _})) => Some(term)
   | _ => None
   };
 
@@ -24,11 +25,41 @@ let totalize_ty = (expected_ty: option(Typ.t)): Typ.t =>
   | None => Typ.fresh(Unknown(Internal))
   };
 
+let get_dynamic_typ = (info: info): Typ.t => {
+  let dynamic_typ =
+    info.dynamics
+    |> Option.bind(
+         _,
+         (d: Dynamics.Info.t) => {
+           let statics =
+             Statics.mk(CoreSettings.on, Builtins.ctx_init(Some(Int)));
+           let type_of = (c: Dynamics.Probe.Closure.t) => {
+             IdTagged.rep_id(c.value)
+             |> Id.Map.find_opt(_, statics(c.value))
+             |> Option.bind(
+                  _,
+                  fun
+                  | InfoExp(e) => {
+                      Some(e.ty);
+                    }
+                  | _ => None,
+                );
+           };
+           let types = List.map(type_of, d) |> Util.OptUtil.sequence;
+
+           Option.map(Typ.consistent_join(Ctx.empty), types);
+         },
+       )
+    |> Option.value(~default=Typ.fresh(Unknown(Internal)));
+  dynamic_typ;
+};
+
 module M: Projector = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type model =
     | Expected
-    | Self;
+    | Self
+    | Dynamic;
 
   [@deriving (show({with_path: false}), sexp, yojson)]
   type action =
@@ -37,31 +68,25 @@ module M: Projector = {
   let init = (any: Any.t): option(model) => {
     switch (any) {
     | Exp(_)
-    | Pat(_) => Some(Expected)
+    | Pat(_)
+    | Typ(_) => Some(Expected)
     | Any () => Some(Expected) /* Grout don't have sorts rn */
     | _ => None
     };
   };
 
-  let dynamics = false;
+  let dynamics = true;
   let focusable = Focusable.non;
 
-  let display_ty = (model, statics): option(Typ.t) =>
+  let display_mode = (model: model, statics: option(Language.Info.t)): string => {
     switch (model) {
-    | _ when expected_ty(statics) |> totalize_ty |> Typ.is_syn =>
-      statics |> self_ty
-    | Self => statics |> self_ty
-    | Expected => statics |> expected_ty
-    };
-
-  let display_mode = (model: model, statics: option(Language.Info.t)): string =>
-    switch (model) {
+    | Dynamic => "↦"
     | _ when self_ty(statics) == expected_ty(statics) => "⇔"
     | _ when expected_ty(statics) |> totalize_ty |> Typ.is_syn => "⇒"
     | Self => "⇒"
     | Expected => "⇐"
     };
-
+  };
   let mode_view = (model, info) =>
     div(
       ~attrs=[Attr.classes(["mode"])],
@@ -69,18 +94,46 @@ module M: Projector = {
     );
 
   let typ_view = (model, info: info, utility, view_seg: View.seg) => {
-    let typ = display_ty(model, info.statics) |> totalize_ty;
+    let (is_dynamic, typ) =
+      switch (model) {
+      | Dynamic =>
+        let self_ty = self_ty(info.statics);
+        let dyn_typ = get_dynamic_typ(info) |> PadIds.pad_typ_ids;
+        let sty =
+          Option.value(~default=Typ.fresh(Unknown(Internal)), self_ty);
+        let ids: list(Id.t) = Typ.diff(sty, dyn_typ);
+        let is_dynamic_id = (id: Id.t): bool => {
+          List.mem(id, ids);
+        };
+        (is_dynamic_id, dyn_typ);
+      | Expected when expected_ty(info.statics) |> totalize_ty |> Typ.is_syn => (
+          (_ => false),
+          self_ty(info.statics) |> totalize_ty,
+        )
+      | Expected => ((_ => false), expected_ty(info.statics) |> totalize_ty)
+      | Self => ((_ => false), self_ty(info.statics) |> totalize_ty)
+      };
+
     div(
       ~attrs=[Attr.classes(["type-cell"])],
-      [Typ(typ) |> utility.term_to_seg |> view_seg(Sort.Typ)],
+      [
+        Typ(typ) |> utility.term_to_seg |> view_seg(~is_dynamic, Sort.Typ, _),
+      ],
     );
   };
 
-  let update = (model, _, a: action) =>
+  let update = (model, info, a: action) => {
+    let has_expected =
+      switch (expected_ty(info.statics)) {
+      | Some(ty) => !Typ.is_syn(ty)
+      | None => false
+      };
     switch (a, model) {
-    | (ToggleDisplay, Expected) => Self
-    | (ToggleDisplay, Self) => Expected
+    | (ToggleDisplay, Expected) => if (has_expected) {Self} else {Dynamic}
+    | (ToggleDisplay, Self) => Dynamic
+    | (ToggleDisplay, Dynamic) => if (has_expected) {Expected} else {Self}
     };
+  };
 
   let syntax_str = (info: info) => {
     let max_len = 30;

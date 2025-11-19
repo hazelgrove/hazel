@@ -171,11 +171,20 @@ let offside_wrapper =
     [v],
   );
 
-let simple_code = (~background=false, font_metrics, _sort, segment): Node.t => {
+let simple_code =
+    (
+      ~background=false,
+      ~is_dynamic=(_: Id.t) => false,
+      font_metrics,
+      _sort,
+      segment,
+    )
+    : Node.t => {
   let shape_map = ProjectorCore.Shape.Map.empty; /* Assume this doesn't contain projectors */
   let measured = Measured.of_segment(segment, shape_map);
   let code =
     Code.view(
+      ~is_dynamic,
       ~measured,
       ~settings=Settings.Model.init,
       ~shape_map,
@@ -217,13 +226,15 @@ let mk_view =
     )
     : View.t => {
   let (module P) = ProjectorInit.to_module(p.kind);
+
   P.view({
     model: p.model,
     info,
     local: a =>
       inject(Project(SetModel(p.id, P.update(p.model, info, a)))),
     parent: a => inject(Project(handle(p.id, a))),
-    view_seg: (~background=?) => simple_code(~background?, font_metrics),
+    view_seg: (~background=?, ~is_dynamic=?) =>
+      simple_code(~background?, ~is_dynamic?, font_metrics),
     status,
   });
 };

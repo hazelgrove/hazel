@@ -5,4 +5,4 @@
  (libraries web menhirParser junit_alcotest bisect_ppx.runtime)
  (modes js)
  (preprocess
-  (pps ppx_deriving.show)))
+  (pps ppx_deriving.show ppx_sexp_conv)))

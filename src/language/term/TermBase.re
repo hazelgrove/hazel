@@ -394,6 +394,7 @@ and Typ: {
           ProdExtension(typ_map_term(t1), typ_map_term(t2))
         | Rec(tp, t) => Rec(tpat_map_term(tp), typ_map_term(t))
         | Forall(tp, t) => Forall(tpat_map_term(tp), typ_map_term(t))
+        | Probe(t, probe) => Probe(typ_map_term(t), probe)
         },
     };
     x |> f_typ(rec_call);

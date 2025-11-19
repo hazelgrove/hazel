@@ -147,6 +147,7 @@ and typ_term('a) =
   | Forall(tpat_t('a), typ_t('a))
   | ProdProjection(typ_t('a), typ_t('a))
   | ProdExtension(typ_t('a), typ_t('a))
+  | Probe(typ_t('a), Probe.t)
 and typ_t('a) = Annotated.t(typ_term('a), 'a)
 and tpat_term('a) =
   | Invalid(string)
@@ -375,6 +376,7 @@ and map_typ_annotation: 'a 'b. ('a => 'b, typ_t('a)) => typ_t('b) =
             map_typ_annotation(f, t1),
             map_typ_annotation(f, t2),
           )
+        | Probe(t, probe) => Probe(map_typ_annotation(f, t), probe)
         },
       annotation: new_annotation,
     };
@@ -849,6 +851,10 @@ module Factory = (DefaultAnnotation: DefaultAnnotation) => {
     };
     let empty_hole = (~ann=?, ()): typ_t(DefaultAnnotation.t) => {
       term: Unknown(Hole(EmptyHole)),
+      annotation: default_annotation(ann),
+    };
+    let probe = (~ann=?, t, probe): typ_t(DefaultAnnotation.t) => {
+      term: Probe(t, probe),
       annotation: default_annotation(ann),
     };
   };

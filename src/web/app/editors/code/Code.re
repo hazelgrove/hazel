@@ -49,6 +49,7 @@ let whitespace_token =
 
 let view =
     (
+      ~is_dynamic=(_: Id.t) => false,
       ~measured: Measured.t,
       ~settings: Settings.Model.t,
       ~shape_map: ProjectorCore.Shape.Map.t,
@@ -122,10 +123,16 @@ let view =
   let rec of_segment = (seg: Segment.t): list(Node.t) =>
     List.concat_map(
       fun
-      | Piece.Tile(t) =>
-        Aba.mk(t.shards, t.children)
-        |> Aba.join(i => [of_delim(t, i)], of_segment)
-        |> List.concat
+      | Piece.Tile(t) => [
+          span(
+            ~attrs=[
+              Attr.classes(Tile.id(t) |> is_dynamic ? ["dynamic"] : []),
+            ],
+            Aba.mk(t.shards, t.children)
+            |> Aba.join(i => [of_delim(t, i)], of_segment)
+            |> List.concat,
+          ),
+        ]
       | Grout(g) => [of_grout(g)]
       | Secondary(s) => [of_secondary(s)]
       | Projector(pr) => [of_projector(pr)],

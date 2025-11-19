@@ -68,6 +68,11 @@ let mk_str: string => t = s => Uuidm.v5(namespace_uuid, s);
 let compare: (t, t) => int = Uuidm.compare;
 let to_string: (~upper: bool=?, t) => string = Uuidm.to_string;
 let of_string: (~pos: int=?, string) => option(t) = Uuidm.of_string;
+
+let str3 = (id: t) => id |> to_string |> String.sub(_, 0, 3);
+let str8 = (id: t) => id |> to_string |> String.sub(_, 0, 8);
+let cls = (id: t) => "id" ++ str8(id);
+
 let pp: (Format.formatter, t) => unit =
   (f, id) =>
     Format.fprintf(
@@ -80,10 +85,6 @@ let show = id =>
     "Option.get(Haz3lcore.Id.of_string(\"%s\"))",
     to_string(id),
   );
-
-let str3 = (id: t) => id |> to_string |> String.sub(_, 0, 3);
-let str8 = (id: t) => id |> to_string |> String.sub(_, 0, 8);
-let cls = (id: t) => "id" ++ str8(id);
 
 [@deriving (sexp, yojson)]
 type binding('v) = (t, 'v);

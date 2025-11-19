@@ -664,7 +664,7 @@ and typ_term: unsorted => (Typ.term, list(Id.t)) = {
   fun
   | Op(tiles) as tm =>
     switch (tiles) {
-    | ([(_id, tile)], []) =>
+    | ([(id, tile)], []) =>
       ret(
         switch (tile) {
         | ([t], []) when Token.is_empty_tuple(t) => Prod([])
@@ -679,7 +679,9 @@ and typ_term: unsorted => (Typ.term, list(Id.t)) = {
         | ([t], []) when Token.is_quoted_label(t) =>
           Label(Token.sub(t, 1, Token.length(t) - 2))
         | (["(", ")"], [Typ(body)]) => Parens(body)
-        | (label, [Typ(body)]) when is_probe_wrap(label) => body.term
+        | (label, [Typ(body)]) when is_probe_wrap(label) =>
+          let should = should_instrument(id);
+          should ? Probe(body, Probe.empty) : body.term;
         | (["[", "]"], [Typ(body)]) => List(body)
         | ([t], []) when is_hole_label(t) => hole(tm)
         | ([t], []) => Unknown(Hole(Invalid(t)))

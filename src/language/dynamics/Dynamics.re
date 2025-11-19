@@ -119,12 +119,12 @@ module Probe = {
 
   /* Intercepts a probe form and adds in static semantic information
    * to guide dynamic information gathering  */
-  let instrument_exp = (m: Statics.Map.t, id: Id.t, _: Probe.t): Probe.t => {
-    refs: Statics.Map.refs_in(m, id),
+  let instrument_exp = (m: StaticsBase.Map.t, id: Id.t, _: Probe.t): Probe.t => {
+    refs: StaticsBase.Map.refs_in(m, id),
   };
 
-  let instrument_pat = (m: Statics.Map.t, id: Id.t, _: Probe.t): Probe.t => {
-    refs: Statics.Map.bound_in(m, id),
+  let instrument_pat = (m: StaticsBase.Map.t, id: Id.t, _: Probe.t): Probe.t => {
+    refs: StaticsBase.Map.bound_in(m, id),
   };
 };
 
