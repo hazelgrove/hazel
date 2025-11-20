@@ -138,7 +138,7 @@ let prefixes = (s: string): list(string) => {
 
 // Removes double quotes from string and escapes newlines
 let sanitize_for_string_expression = (s: string): string => {
-  s |> replace(regexp("\""), _, "") |> replace(regexp("\n"), _, "\\n"); // Escape newlines
+  s |> replace(regexp("\""), _, "") |> replace(regexp("\n"), _, "\\n");
 };
 
 let sanitize_for_label = (s: string): string => {
