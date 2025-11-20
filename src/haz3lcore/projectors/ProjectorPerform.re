@@ -123,14 +123,18 @@ let go =
     | None => Error(Cant_project)
     }
   | SetSyntax(id, seg) =>
+    // Check for existing refractors (automatic ephemeral or manual) that control this projector
+    let original_id = Id.recover_original(id);
     let ephemeral_model =
-      Id.Map.find_opt(Id.recover_original(id), z.refractors.ephemerals)
+      Id.Map.find_opt(original_id, z.refractors.ephemerals)
       |> Option.map((pr: Base.projector) => pr.model);
     let manual_refractor_model =
-      Id.Map.find_opt(Id.recover_original(id), z.refractors.manuals)
+      Id.Map.find_opt(original_id, z.refractors.manuals)
       |> Option.map((pr: Base.projector) => pr.model);
     switch (manual_refractor_model, ephemeral_model) {
     | (Some(refractor_model), _) =>
+      // Manual refractor exists: update the selection to this projector's term range,
+      // replace with new syntax, and create a new refractor probe monitoring the updated term
       let new_id =
         MakeTerm.from_zip_for_sem(Zipper.unzip(~direction=Right, seg)).term
         |> Language.Exp.rep_id;
@@ -146,6 +150,8 @@ let go =
         MkRefractor.add_single(~model=refractor_model, new_id, new_z);
       Ok(new_z);
     | (_, Some(_)) =>
+      // Ephemeral refractor exists: update selection and replace syntax,
+      // but don't create new refractor as this is handled automatically
       let (l, r) =
         TermData.extremes_shards(Id.recover_original(id), term_data)
         |> Option.get;
@@ -156,6 +162,7 @@ let go =
         |> Option.get;
       Ok(new_z);
     | (None, None) =>
+      // No refractor: simply update the projector's internal syntax representation
       Ok(
         update(
           p =>
