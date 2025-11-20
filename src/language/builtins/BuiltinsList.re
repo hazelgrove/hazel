@@ -2929,22 +2929,6 @@ let go: ([?], [?], [?]) -> [?] =
       },
     },
     {
-      /*
-        let pivot_table = fun (table, new_col, index, value) ->
-        let indices = map(table, index) |> unique in
-        let new_cols = map(table, new_col) |> unique in
-
-        map(indices, fun idx ->
-          (index=idx) ...
-          (map(new_cols, fun col ->
-            (label=col,
-              value=filter(table, fun r -> index(r) == idx && new_col(r) == col)
-              |>value)
-          ) |> from_lvs)
-        )
-       in
-       */
-
       str: {|fun (table, new_col, index, value) ->
   let indices = map(table, index) |> unique in
   let new_cols = map(table, new_col) |> unique in
