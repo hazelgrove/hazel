@@ -32,7 +32,6 @@ module Update = {
       (~settings: Settings.t, action: t, model: Model.t): Updated.t(Model.t) => {
     let perform = (action: Action.t, model: Model.t) =>
       Editor.Update.update(
-        ~print_segment=Printer.of_segment,
         ~settings=settings.core,
         action,
         model.statics,

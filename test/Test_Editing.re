@@ -44,7 +44,7 @@ let perform = (zip: Zipper.t, actions: list(Action.t)): Zipper.t => {
     );
   List.fold_left(
     (z: Zipper.t, a: Action.t) =>
-      switch (perform(~print_segment=Printer.of_segment, a, z)) {
+      switch (perform(a, z)) {
       | Ok(z) => z
       | Error(err) =>
         print_endline("Zipper: " ++ Zipper.show(z));

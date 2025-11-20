@@ -60,12 +60,7 @@ let update =
   ZipperBase.MapPiece.fast_local_seg(update_piece(f, id), id, z);
 
 let go =
-    (
-      ~print_segment as _: Segment.t => string, //Debug code
-      term_data: TermData.t,
-      a: Action.project,
-      z: Zipper.t,
-    )
+    (term_data: TermData.t, a: Action.project, z: Zipper.t)
     : result(ZipperBase.t, Action.Failure.t) => {
   let select_term =
     Select.current_term(
