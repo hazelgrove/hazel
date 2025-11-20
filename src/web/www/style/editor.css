@@ -356,7 +356,6 @@ svg:has(.child-line) {
   z-index: var(--backpack-z);
 }
 
-
 .context-menu {
   position: absolute;
   min-width: 160px;

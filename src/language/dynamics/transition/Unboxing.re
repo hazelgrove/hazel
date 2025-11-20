@@ -84,7 +84,6 @@ let rec unbox: type a. (unbox_request(a), DHExp.t) => unboxed(a) =
   (request, expr) => {
     switch (request, DHExp.term_of(expr)) {
     /* $e and $v could have any type, but are indet */
-    | (_, Parens(e)) => unbox(request, e) // TODO Currently for Proj only move this into there
     | (_, UnOp(Meta(Unquote), _)) => IndetMatch
     | (_, Constructor(c, _)) when String.starts_with(c, ~prefix="$") =>
       IndetMatch
@@ -245,6 +244,7 @@ let rec unbox: type a. (unbox_request(a), DHExp.t) => unboxed(a) =
         Test(_) |
         HintedTest(_) |
         Filter(_) |
+        Parens(_) |
         Closure(_) |
         Probe(_) |
         ListConcat(_) |
