@@ -2881,8 +2881,8 @@ let go: ([?], [?], [?]) -> [?] =
       },
     },
     {
-      str: {|fun xs ->
-  fold_left(xs, fun (seen, x) ->if mem(seen,x) then seen else seen @ [x], []))|},
+      str: {|fix unique -> fun xs ->
+              (xs, fun (seen, x) -> if mem(seen, x) then seen else seen @ [x], []))|},
       name: "unique",
       arg: List(unknown(Internal)),
       ret: List(unknown(Internal)),
@@ -2929,18 +2929,17 @@ let go: ([?], [?], [?]) -> [?] =
       },
     },
     {
-      str: {|fun (table, new_col, index, value) ->
-  let indices = map(table, index) |> unique in
-  let new_cols = map(table, new_col) |> unique in
+      str: {hazel|fix pivot_table -> fun (table, new_col, index, value) ->
+             let indices = map(table, index) |> unique in
+             let new_cols = map(table, new_col) |> unique in
 
-  map(indices, fun idx ->
-    (index=idx) ...
-    (map(new_cols, fun col ->
-      (label=col,
-        value=filter(table, fun r -> index(r) == idx && new_col(r) == col)
-        |>value)
-    ) |> from_lvs)
-  )|},
+             map(indices, fun idx ->
+                (index=idx) ...
+                (map(new_cols, fun col ->
+                  (label=col,
+                    value=filter(table, fun r -> index(r) == idx && new_col(r) == col)
+                    |>value)
+                ) |> from_lvs))|hazel},
       name: "pivot_table",
       arg:
         Prod([
