@@ -10,7 +10,7 @@ let tests = [
         "lift simple exp to segment",
         `Quick,
         () => {
-          let source_program = {hz|(1 + ## 4 + 3) + (5 +     6    -   7)|hz};
+          let source_program = {hazel|(1 + ## 4 + 3) + (5 +     6    -   7)|hazel};
           let parsed = Parser.to_segment(source_program) |> Option.get;
           let transformation = (exp: TermBase.exp_t): Exp.t =>
             switch (exp.term) {
@@ -51,10 +51,10 @@ let tests = [
         "preserve CST in nested function calls",
         `Quick,
         () => {
-          let source_program = {hz|f(g(h(x
+          let source_program = {hazel|f(g(h(x
           + 5
           + 6)))
-          |hz};
+          |hazel};
           let parsed = Parser.to_segment(source_program) |> Option.get;
           let transformation = (exp: TermBase.exp_t): Exp.t =>
             switch (exp.term) {
@@ -86,9 +86,9 @@ let tests = [
             );
 
           let serialized = Printer.of_segment(lifted_segment);
-          let expected_output = {hz|h(g(f(x
+          let expected_output = {hazel|h(g(f(x
           + 5
-          + 6)))|hz};
+          + 6)))|hazel};
           Alcotest.check(
             string,
             "Nested function calls preserve CST",
@@ -101,7 +101,7 @@ let tests = [
         "Wrap let binding around existing program",
         `Quick,
         () => {
-          let source_program = {hz|let empty_hole =   in
+          let source_program = {hazel|let empty_hole =   in
 
 # Non-empty holes are the red boxes around type errors #
 # (you can still run programs with non-empty holes) #
@@ -110,7 +110,7 @@ let non_empty_hole : Int = true in
 # Booleans #
 let bool: Bool = true in
 let operators = !true && false || true in
-5 + 6|hz};
+5 + 6|hazel};
           let parsed = Parser.to_segment(source_program) |> Option.get;
           let transformation = (exp: TermBase.exp_t): Exp.t => {
             IdTagged.FreshGrammar.(Exp.(let_(Pat.var("y"), int(3), exp)));
@@ -118,13 +118,16 @@ let operators = !true && false || true in
           let lifted_segment: Segment.t =
             LiftToSegment.lift_segment(
               ~settings=
-                ExpToSegment.Settings.of_core(~inline=false, CoreSettings.off),
+                ExpToSegment.Settings.of_core(
+                  ~inline=false,
+                  CoreSettings.off,
+                ),
               transformation,
               parsed,
             );
 
           let serialized = Printer.of_segment(~holes="", lifted_segment);
-          let expected_output = {|let y = 3 in
+          let expected_output = {hazel|let y = 3 in
 let empty_hole =   in
 
 # Non-empty holes are the red boxes around type errors #
@@ -134,7 +137,7 @@ let non_empty_hole : Int = true in
 # Booleans #
 let bool: Bool = true in
 let operators = !true && false || true in
-5 + 6|};
+5 + 6|hazel};
           Alcotest.check(
             string,
             "Let binding wrapped around existing program preserves existing program",
@@ -143,6 +146,50 @@ let operators = !true && false || true in
           );
         },
       ),
+      test_case(
+        "Modify leaf and root formatting is preserved",
+        `Quick,
+        () => {
+          let source_program = {hazel|let   x   = 5  in
+# Comment #
+let y = 3 in
+x + y|hazel};
+          let transformation = (exp: TermBase.exp_t): Exp.t =>
+            Exp.map_term(~f_exp=(cont, exp) => {
+              switch (exp.term) {
+              | BinOp(op, left, right) =>
+                BinOp(
+                  op,
+                  right,
+                  left,
+                )
+                |> Exp.fresh
+              | _ => cont(exp)
+              }
+            },
+            exp);
+
+          let parsed = Parser.to_segment(source_program) |> Option.get;
+          let lifted_segment: Segment.t =
+            LiftToSegment.lift_segment(
+              ~settings=
+                ExpToSegment.Settings.of_core(~inline=true, CoreSettings.off),
+              transformation,
+              parsed,
+            );
+          let serialized = Printer.of_segment(lifted_segment);
+          let expected_output = {hazel|let   x   = 5  in
+# Comment #
+let y = 3 in
+y + x|hazel}
+          Alcotest.check(
+            string,
+            "Leaf and root formatting preserved after transformation",
+            expected_output,
+            serialized,
+          );
+        },
+      )
     ],
   ),
 ];
