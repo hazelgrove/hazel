@@ -80,24 +80,9 @@ let extreme_measures = (id: Id.t, data: t, measured: Measured.t) =>
   };
 
 /* The segment corresponding to the `id` term */
-let segment = (~debug=false, id: Id.t, data: t): option(Segment.t) => {
+let segment = (id: Id.t, data: t): option(Segment.t) => {
   let+ {base_seg, skel, _} = Id.Map.find_opt(id, data);
   let (l, r) = Skel.range(skel);
-  if (debug) {
-    print_endline(
-      "Termdata.segment Base_seg: " ++ [%derive.show: Segment.t](base_seg),
-    );
-    print_endline(
-      "Termdata.segment Skel range: "
-      ++ string_of_int(l)
-      ++ ", "
-      ++ string_of_int(r),
-    );
-    print_endline(
-      "Termdata.segment: "
-      ++ [%derive.show: Segment.t](ListUtil.sublist((l, r + 1), base_seg)),
-    );
-  };
   ListUtil.sublist((l, r + 1), base_seg);
 };
 
