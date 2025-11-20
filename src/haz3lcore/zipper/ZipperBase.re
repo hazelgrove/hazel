@@ -65,7 +65,7 @@ let update_refractor =
           } else {
             projector;
           },
-        z.refractors.manuals,
+        z.refractors.ephemerals,
       ),
   },
 };
@@ -85,6 +85,8 @@ let update_ephemerals = (f, z: t): t => {
     ephemerals: f(z.refractors.ephemerals),
   },
 };
+
+let get_ephemerals = (z: t): Refractor.Map.t => z.refractors.ephemerals;
 
 let update_relatives = (f: Relatives.t => Relatives.t, z: t): t => {
   ...z,

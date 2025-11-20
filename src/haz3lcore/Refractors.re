@@ -149,17 +149,23 @@ let add_ids_from_auto_term =
   let ids =
     List.concat_map(ids_from_term(~syntax, ~info_map), z.refractors.autos);
   Zipper.update_ephemerals(
-    _ =>
+    (ephemerals: ZipperBase.Refractor.Map.t) => {
       List.fold_left(
         (map, id) =>
-          Id.Map.add(
+          Id.Map.update(
             id,
-            MkRefractor.mk(Probe, Id.transform_variant(id)),
+            existing =>
+              switch (existing) {
+              | Some(existing_refractor) => Some(existing_refractor)
+              | None =>
+                Some(MkRefractor.mk(Probe, Id.transform_variant(id)))
+              },
             map,
           ),
-        Id.Map.empty,
+        ephemerals,
         ids,
-      ),
+      )
+    },
     z,
   );
 };

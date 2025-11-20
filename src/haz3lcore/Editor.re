@@ -128,7 +128,6 @@ module Update = {
         {state, syntax}: Model.t,
       )
       : Action.Result.t(Model.t) => {
-    // print_endline("CodeEditable.Update action: " ++ Action.show(a));
     open Result.Syntax;
 
     /* 1. Clear the autocomplete buffer when relevant */
