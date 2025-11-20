@@ -72,7 +72,11 @@ module SyntaxTerm = {
   };
 
   let put = (info: info, new_state: state): option(Base.segment) =>
-    info.utility.lift_syntax(_ => state_to_any(new_state), info.syntax);
+    info.utility.lift_syntax(
+      ~inline=true,
+      _ => state_to_any(new_state),
+      info.syntax,
+    );
 };
 
 module Chooser = {

@@ -188,7 +188,11 @@ module SyntaxTerm = {
   };
 
   let put = (info, syntax): option(Base.segment) =>
-    info.utility.lift_syntax(_ => syntax_to_any(syntax), info.syntax);
+    info.utility.lift_syntax(
+      ~inline=true,
+      _ => syntax_to_any(syntax),
+      info.syntax,
+    );
 
   let get_opt = (any: Any.t): option(state) =>
     switch (any |> any_to_syntax) {

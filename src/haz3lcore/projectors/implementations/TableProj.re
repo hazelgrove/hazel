@@ -100,7 +100,7 @@ let len_seg = (utility: utility, seg: Segment.t): int =>
   seg |> utility.seg_to_string |> String.length;
 
 let seg_of_exp = (utility: utility, exp: Exp.t): (Segment.t, int) => {
-  let seg = utility.term_to_seg(Exp(exp));
+  let seg = utility.term_to_seg(~inline=true, Exp(exp));
   (seg, len_seg(utility, seg));
 };
 

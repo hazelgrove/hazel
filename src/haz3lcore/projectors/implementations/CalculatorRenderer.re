@@ -83,6 +83,7 @@ let parse = (sort: Sort.t, exp: Exp.t) =>
 let apply_arithmetic_operation = (info: info, operation: op, operand: int) =>
   switch (
     info.utility.lift_syntax(
+      ~inline=true,
       fun
       | Exp({term: exp_term, _}) =>
         Exp(
