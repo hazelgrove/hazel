@@ -123,6 +123,10 @@ let go =
     | None => Error(Cant_project)
     }
   | SetSyntax(id, seg) =>
+    // Ensure seg is parenthesized unless it already is
+    let parenthesized_piece =
+      Segment.unparenthesize(seg) |> Segment.parenthesize;
+    let parenthesized_seg = [parenthesized_piece];
     // Check for existing refractors (automatic ephemeral or manual) that control this projector
     let original_id = Id.recover_original(id);
     let ephemeral_model =
@@ -136,14 +140,17 @@ let go =
       // Manual refractor exists: update the selection to this projector's term range,
       // replace with new syntax, and create a new refractor probe monitoring the updated term
       let new_id =
-        MakeTerm.from_zip_for_sem(Zipper.unzip(~direction=Right, seg)).term
+        MakeTerm.from_zip_for_sem(
+          Zipper.unzip(~direction=Right, parenthesized_seg),
+        ).
+          term
         |> Language.Exp.rep_id;
       let (l, r) =
         TermData.extremes_shards(Id.recover_original(id), term_data)
         |> Option.get;
       let new_z =
         Select.shard_range(l, r, z)
-        |> Option.map(Zipper.replace_selection(Right, seg))
+        |> Option.map(Zipper.replace_selection(Right, parenthesized_seg))
         |> Option.get;
 
       let new_z =
@@ -158,7 +165,7 @@ let go =
 
       let new_z =
         Select.shard_range(l, r, z)
-        |> Option.map(Zipper.replace_selection(Right, seg))
+        |> Option.map(Zipper.replace_selection(Right, parenthesized_seg))
         |> Option.get;
       Ok(new_z);
     | (None, None) =>
@@ -168,7 +175,7 @@ let go =
           p =>
             {
               ...p,
-              syntax: Segment.parenthesize(seg),
+              syntax: parenthesized_piece,
             },
           id,
           z,
