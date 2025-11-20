@@ -301,7 +301,7 @@ let diff_tests = (
         let expected = [];
         check(
           list(testable_id),
-          "diff on recursive types with different tpats",
+          "diff on recursive types with same tpats",
           expected,
           Typ.diff(rec1, rec2),
         );
