@@ -145,29 +145,37 @@ let go =
         ).
           term
         |> Language.Exp.rep_id;
-      let (l, r) =
-        TermData.extremes_shards(Id.recover_original(id), term_data)
-        |> Option.get;
-      let new_z =
-        Select.shard_range(l, r, z)
-        |> Option.map(Zipper.replace_selection(Right, parenthesized_seg))
-        |> Option.get;
 
-      let new_z =
-        MkRefractor.add_single(~model=refractor_model, new_id, new_z);
-      Ok(new_z);
+      let new_z = {
+        open OptUtil.Syntax;
+        let* (l, r) =
+          TermData.extremes_shards(Id.recover_original(id), term_data);
+        let+ z = Select.shard_range(l, r, z);
+        let z = Zipper.replace_selection(Right, parenthesized_seg, z);
+        MkRefractor.add_single(~model=refractor_model, new_id, z);
+      };
+
+      switch (new_z) {
+      | Some(z) => Ok(z)
+      | None => Error(Cant_project)
+      };
     | (_, Some(_)) =>
       // Ephemeral refractor exists: update selection and replace syntax,
       // but don't create new refractor as this is handled automatically
-      let (l, r) =
-        TermData.extremes_shards(Id.recover_original(id), term_data)
-        |> Option.get;
 
-      let new_z =
-        Select.shard_range(l, r, z)
-        |> Option.map(Zipper.replace_selection(Right, parenthesized_seg))
-        |> Option.get;
-      Ok(new_z);
+      let new_z = {
+        open OptUtil.Syntax;
+        let* (l, r) =
+          TermData.extremes_shards(Id.recover_original(id), term_data);
+        let+ z = Select.shard_range(l, r, z);
+        let z = Zipper.replace_selection(Right, parenthesized_seg, z);
+        z;
+      };
+
+      switch (new_z) {
+      | Some(z) => Ok(z)
+      | None => Error(Cant_project)
+      };
     | (None, None) =>
       // No refractor: simply update the projector's internal syntax representation
       Ok(
