@@ -55,7 +55,9 @@ module Update = {
       | [] =>
         print_endline("Cannot undo");
         model |> Updated.raise_invalid_action;
-      | [x, ...rest] => {
+      | [x, ...rest] =>
+        Log.Entry.save(Log.Entry.mk(action));
+        {
           ...x,
           model: {
             current: x.model,
@@ -70,14 +72,16 @@ module Update = {
             ],
             replay_toggle: model.replay_toggle,
           },
-        }
+        };
       }
     | Globals(Redo) =>
       switch (model.redo_stack) {
       | [] =>
         print_endline("Cannot redo");
         model |> Updated.raise_invalid_action;
-      | [x, ...rest] => {
+      | [x, ...rest] =>
+        Log.Entry.save(Log.Entry.mk(action));
+        {
           ...x,
           model: {
             current: x.model,
@@ -92,7 +96,7 @@ module Update = {
             redo_stack: rest,
             replay_toggle: model.replay_toggle,
           },
-        }
+        };
       }
     | Globals(Log(a)) =>
       switch (a) {
