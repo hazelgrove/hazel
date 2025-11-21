@@ -88,7 +88,7 @@ let new_todo_list: API.Json.t =
     ),
   ]);
 
-let add_todo_item_description = {|
+let add_todo_items_description = {|
 Description:
 Adds new todo items to the existing todo list, or, creates a new todo list with the given todo items.
 
@@ -99,7 +99,7 @@ todo_items: list({
 }) — the list of todo items to add
 
 Example(s):
-Calling add_todo_item(todo_items = [{"title": "Task 1", "description": "Do something"}]) would add the todo item to the existing list.
+Calling add_todo_items(todo_items = [{"title": "Task 1", "description": "Do something"}]) would add the todo item to the existing list.
 |};
 
 let add_todo_items: API.Json.t =
@@ -109,7 +109,7 @@ let add_todo_items: API.Json.t =
       "function",
       `Assoc([
         ("name", `String("add_todo_items")),
-        ("description", `String(add_todo_item_description)),
+        ("description", `String(add_todo_items_description)),
         (
           "parameters",
           `Assoc([

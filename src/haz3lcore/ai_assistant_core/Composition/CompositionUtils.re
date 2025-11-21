@@ -52,7 +52,7 @@ module Local = {
     };
   };
 
-  let action_of = (~tool_name: string, ~args: API.Json.t): action => {
+  let action_of = (~tool_name: string, ~args: API.Json.t): option(action) => {
     /* Possible arguments */
     /* Parsing here to avoid redundancy */
     /* Argument(s) may or may not be provided depending on the tool called */
@@ -125,33 +125,44 @@ module Local = {
       };
     };
 
-    switch (tool_name) {
-    | "expand" => Editor(View(Expand(get_paths())))
-    | "collapse" => Editor(View(Collapse(get_paths())))
-    | "initialize" => Editor(Edit(Initialize(get_code())))
-    | "update_definition" =>
-      Editor(Edit(UpdateDefinition(get_path(), get_code())))
-    | "update_body" => Editor(Edit(UpdateBody(get_path(), get_code())))
-    | "update_pattern" =>
-      Editor(Edit(UpdatePattern(get_path(), get_code())))
-    | "update_binding_clause" =>
-      Editor(Edit(UpdateBindingClause(get_path(), get_code())))
-    | "insert_after" => Editor(Edit(InsertAfter(get_path(), get_code())))
-    | "insert_before" => Editor(Edit(InsertBefore(get_path(), get_code())))
-    | "delete_binding_clause" =>
-      Editor(Edit(DeleteBindingClause(get_path())))
-    | "delete_body" => Editor(Edit(DeleteBody(get_path())))
-    | "new_todo_list" =>
-      Assistant(TodoAction(NewTodoList(get_todo_items())))
-    | "delete_todo_list" => Assistant(TodoAction(DeleteTodoList))
-    | "add_todo_items" =>
-      Assistant(TodoAction(AddTodoItems(get_todo_items())))
-    | "check_todo_items" =>
-      Assistant(TodoAction(CheckTodoItems(get_titles_list())))
-    | "uncheck_todo_items" =>
-      Assistant(TodoAction(UncheckTodoItems(get_titles_list())))
-    | _ => raise(Failure("The tool called does not exist."))
-    };
+    let action =
+      try({
+        let action =
+          switch (tool_name) {
+          | "expand" => Editor(View(Expand(get_paths())))
+          | "collapse" => Editor(View(Collapse(get_paths())))
+          | "initialize" => Editor(Edit(Initialize(get_code())))
+          | "update_definition" =>
+            Editor(Edit(UpdateDefinition(get_path(), get_code())))
+          | "update_body" =>
+            Editor(Edit(UpdateBody(get_path(), get_code())))
+          | "update_pattern" =>
+            Editor(Edit(UpdatePattern(get_path(), get_code())))
+          | "update_binding_clause" =>
+            Editor(Edit(UpdateBindingClause(get_path(), get_code())))
+          | "insert_after" =>
+            Editor(Edit(InsertAfter(get_path(), get_code())))
+          | "insert_before" =>
+            Editor(Edit(InsertBefore(get_path(), get_code())))
+          | "delete_binding_clause" =>
+            Editor(Edit(DeleteBindingClause(get_path())))
+          | "delete_body" => Editor(Edit(DeleteBody(get_path())))
+          | "new_todo_list" =>
+            Assistant(TodoAction(NewTodoList(get_todo_items())))
+          | "delete_todo_list" => Assistant(TodoAction(DeleteTodoList))
+          | "add_todo_items" =>
+            Assistant(TodoAction(AddTodoItems(get_todo_items())))
+          | "check_todo_items" =>
+            Assistant(TodoAction(CheckTodoItems(get_titles_list())))
+          | "uncheck_todo_items" =>
+            Assistant(TodoAction(UncheckTodoItems(get_titles_list())))
+          | _ => raise(Failure("The tool called does not exist."))
+          };
+        Some(action);
+      }) {
+      | _ => None
+      };
+    action;
   };
 
   let string_of = (action: action) => {
@@ -205,7 +216,7 @@ module Local = {
 
 module Public = {
   let tools = Local.tools;
-  let action_of = (~tool_name: string, ~args: API.Json.t): action => {
+  let action_of = (~tool_name: string, ~args: API.Json.t): option(action) => {
     Local.action_of(~tool_name, ~args);
   };
   let string_of = (action: action) => {

@@ -1208,16 +1208,30 @@ let update =
               ~tool_name=tool_call.tool_name,
               ~args=tool_call.args,
             );
-          AssistantModes.Composition.apply_editor_action(
-            ~z=zipper,
-            ~info_map,
-            ~chat_id,
-            ~action,
-            ~schedule_editor_action,
-            ~schedule_assistant_action=schedule_action,
-            ~schedule_tool_response=(res: AssistantUpdateAction.status) => {
-            schedule_action(loop_message(res))
-          });
+          switch (action) {
+          | None =>
+            print_endline(
+              "Unknown tool call: " ++ tool_call.tool_name ++ ". Ignoring.",
+            );
+            schedule_action(
+              loop_message(
+                Failure(
+                  "Unrecognized tool call \"" ++ tool_call.tool_name ++ "\"",
+                ),
+              ),
+            );
+          | Some(action) =>
+            AssistantModes.Composition.apply_editor_action(
+              ~z=zipper,
+              ~info_map,
+              ~chat_id,
+              ~action,
+              ~schedule_editor_action,
+              ~schedule_assistant_action=schedule_action,
+              ~schedule_tool_response=(res: AssistantUpdateAction.status) => {
+              schedule_action(loop_message(res))
+            })
+          };
           update_model_chat_history(
             ~model,
             ~mode,

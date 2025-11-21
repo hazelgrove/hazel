@@ -1232,17 +1232,17 @@ let message_display =
                             | CodeSuggestion =>
                               div(
                                 ~attrs=[clss(["llm-identifier"])],
-                                [Icons.corylus, text("Assistant")],
+                                [Icons.corylus, text("Corylus")],
                               )
                             | TaskCompletion =>
                               div(
                                 ~attrs=[clss(["llm-identifier"])],
-                                [Icons.corylus, text("Agent")],
+                                [Icons.corylus, text("Corylus")],
                               )
                             | HazelTutor =>
                               div(
                                 ~attrs=[clss(["llm-identifier"])],
-                                [Icons.corylus, text("Tutor")],
+                                [Icons.corylus, text("Corylus")],
                               )
                             }
 

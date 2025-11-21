@@ -252,7 +252,11 @@ module Composition = {
       let args = tool_call.args;
       let action = CompositionUtils.Public.action_of(~tool_name, ~args);
       let _enclose_in_backticks = (str: string) => "```" ++ str ++ "```";
-      "Agent called tool: " ++ CompositionUtils.Public.string_of(action);
+      switch (action) {
+      | Some(action) =>
+        "Agent called tool: " ++ CompositionUtils.Public.string_of(action)
+      | None => "Agent called unknown tool: " ++ tool_name ++ ". Ignoring."
+      };
     }) {
     | Failure(err) =>
       "The agent may have called tools with invalid arguments: " ++ err
