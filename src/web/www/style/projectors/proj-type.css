@@ -95,6 +95,6 @@
   color: white;
 }
 
-.dynamic > .token.Typ.mono {
+.dynamic > .token.Typ {
   color: green;
 }

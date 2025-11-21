@@ -1,6 +1,3 @@
-/* These are very simple tests to make sure we're not
-   doing exponential blowup in the evaluator */
-
 open Alcotest;
 open Test_Evaluator_Prelude;
 open Language;
@@ -29,10 +26,10 @@ module FError =
   });
 
 /**
- * Helper function to extract dynamic expressions from probe closures and type instantiations.
+ * Helper function to assemble dynamic statics map from probe closures and type instantiations.
  * This logic is shared between multiple test cases.
  */
-let create_dynamic_expressions =
+let mk_dynamic_statics =
     (
       probe_data: Id.Map.t(list(Sample.t)),
       type_insts: Dynamics.TypeInstMap.t,
@@ -130,8 +127,7 @@ let test_dynamic_feedback = (~test_name=?, expected_exp: FError.exp) => {
   let type_insts = EvaluatorState.get_type_insts(evaluation_state);
 
   // Convert probe closures and type instantiations to dynamic expressions for static re-analysis
-  let dynamic_expressions =
-    create_dynamic_expressions(probe_data, type_insts);
+  let dynamic_expressions = mk_dynamic_statics(probe_data, type_insts);
 
   // Re-run static analysis with dynamic information
   let dynamic_statics =
@@ -164,7 +160,7 @@ let test_dynamic_feedback = (~test_name=?, expected_exp: FError.exp) => {
 
   // Verify that the actual error annotations match expectations
   check(
-    Test_Statics_Prelude.annotated_exp'(testable_error),
+    Test_Statics_Prelude.annotated_exp(testable_error),
     test_name,
     expected_exp,
     actual_exp,
@@ -224,8 +220,7 @@ in
         let type_insts = EvaluatorState.get_type_insts(state);
 
         // Convert probe closures and type instantiations to dynamic expressions for static re-analysis
-        let dynamic_expressions =
-          create_dynamic_expressions(dynamics, type_insts);
+        let dynamic_expressions = mk_dynamic_statics(dynamics, type_insts);
         let _static_feedback =
           Statics.mk(
             ~dynamics=dynamic_expressions,
@@ -363,49 +358,24 @@ in
       "Unannotated lambda called with inconsistent types gives no feedback",
       `Quick,
       () => {
-        open FError;
-        open Exp;
-        let exp: FError.exp =
-          let_(
-            Pat.var("f"),
-            fn(
-              Pat.var("x"),
-              list_concat(var("x"), list_lit([string("")])),
-            ),
-            seq(
-              ap(Forward, var("f"), int(1)),
-              ap(Forward, var("f"), float(2.0)),
-            ),
-          );
-        test_dynamic_feedback(exp);
+        let program = {|let f = fun x -> x @ [""] in f(1);f(2.0)|};
+        let exp = parse_exp(program);
+        let no_errors = Grammar.map_exp_annotation(_ => NoError, exp);
+
+        test_dynamic_feedback(no_errors);
       },
     ),
     test_case(
       "typfun uses dynamic type env with correct type",
       `Quick,
       () => {
-        open FError;
-        open Exp;
+        let program = {|typfun a -> fun x : a -> (x : a))@<String>("")|};
+        let exp = parse_exp(program);
+        let no_errors = Grammar.map_exp_annotation(_ => NoError, exp);
 
-        let exp: FError.exp =
-          ap(
-            Forward,
-            typ_ap(
-              typ_fun(
-                TPat.var("a"),
-                fn(
-                  Pat.(asc(Pat.var("x"), Typ.var("a"))),
-                  asc(var("x"), Typ.var("a")),
-                ),
-                None,
-              ),
-              Typ.string(),
-            ),
-            string(""),
-          );
         test_dynamic_feedback(
           ~test_name={|(typfun a -> fun x : a -> (x : a))@<String>("")|},
-          exp,
+          no_errors,
         );
       },
     ),
@@ -463,14 +433,11 @@ in
       "Polymorphism with dynamic type environment in unevaluated code",
       `Quick,
       () => {
-      [@warning "-21"]
-      {
-        // Alcotest.skip(); // Unfortunately the way I've done this the there is no type environment captured for unevaluated code
         let program = {|(typfun a -> fun (g) -> (fun () -> g : a))@<String>("")|};
         let exp = parse_exp(program);
         let no_errors = Grammar.map_exp_annotation(_ => NoError, exp);
         test_dynamic_feedback(~test_name=program, no_errors);
-      }
-    }),
+      },
+    ),
   ],
 );

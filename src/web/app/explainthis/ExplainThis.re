@@ -509,10 +509,9 @@ let get_doc =
             editor,
             statics: CachedStatics.empty,
             context_menu: false,
-            type_inst_map: Dynamics.TypeInstMap.empty,
+            dynamics: Dynamics.empty,
             dynamic_statics: Pending,
             pinned_call: Pending,
-            dynamics: Sample.Map.empty,
           },
         );
       let example_view =
@@ -2410,7 +2409,6 @@ let get_doc =
     switch (bypass_parens_typ(term).term) {
     | Unknown(SynSwitch)
     | Unknown(Internal)
-    | Unknown(Inconsistent)
     | Unknown(Hole(EmptyHole)) => get_message(HoleTyp.empty_hole)
     | Unknown(Hole(MultiHole(_))) => get_message(HoleTyp.multi_hole)
     | Atom(Int) => get_message(TerminalTyp.int)

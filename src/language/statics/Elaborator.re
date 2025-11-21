@@ -2,6 +2,13 @@
  A nice property would be that elaboration is idempotent...
  */
 
+/*
+ * probe_unknowns parameter: Added for future use in PRs like https://github.com/hazelgrove/hazel/pull/1988
+ * to help with adding dynamic feedback for static marks. When enabled, it will add probes
+ * around any expression/pattern that is partially unknown.
+ * Do not remove this parameter even though it's always false currently.
+ */
+
 open Util;
 
 exception MissingTypeInfo;
@@ -112,10 +119,7 @@ let rec elaborate_pattern =
     elaborate_pattern(~probe_unknowns, m, upat, in_container);
 
   let contains_unknown =
-    Option.map(
-      t => Typ.count_unknowns(t) > 0 || Typ.contains_sum_or_var(t),
-      Self.typ_of_pat(self),
-    )
+    Option.map(Typ.contains_unknown, Self.typ_of_pat(self))
     |> Option.value(~default=true);
   let (term, rewrap) = Pat.unwrap(upat);
   let dpat =
@@ -201,11 +205,11 @@ let rec elaborate_pattern =
     if (probe_unknowns && contains_unknown) {
       switch (dpat) {
       | {term: Probe(_), _} => dpat
-      | {term: TupLabel(_, _), _} => dpat // Tuplabels are not real
+      | {term: TupLabel(_, _), _} => dpat // TupLabels can not have probes
       | _ => {
           term: Probe(dpat, Probe.empty),
           annotation: dpat.annotation,
-        } // Think about whether it's safe to reuse ids here
+        }
       };
     } else {
       dpat;
@@ -226,10 +230,7 @@ let rec elaborate =
     elaborated_type(m, uexp);
 
   let contains_unknown =
-    Option.map(
-      t => Typ.count_unknowns(t) > 0 || Typ.contains_sum_or_var(t),
-      Self.typ_of_exp(self),
-    )
+    Option.map(Typ.contains_unknown, Self.typ_of_exp(self))
     |> Option.value(~default=true);
   let (_, rewrap) = Exp.unwrap(uexp);
   let uexp = rewrap(statics_pseudo_elaborated.term);
@@ -501,11 +502,11 @@ let rec elaborate =
     if (probe_unknowns && contains_unknown) {
       switch (dhexp) {
       | {term: Probe(_), _} => dhexp
-      | {term: TupLabel(_, _), _} => dhexp // Tuplabels are not real
+      | {term: TupLabel(_, _), _} => dhexp // TupLabels can not have probes
       | _ => {
           term: Probe(dhexp, Probe.empty),
           annotation: dhexp.annotation,
-        } // Think about whether it's safe to reuse ids here
+        }
       };
     } else {
       dhexp;
@@ -513,19 +514,11 @@ let rec elaborate =
   (dhexp, elaborated_type);
 };
 
-//let dhexp_of_uexp = Core.Memo.general(~cache_size_bound=1000, dhexp_of_uexp);
-
-/* This function gives a new id to all the types
-   in the expression. It does this to get rid of
-   all the invalid ids we added to prevent generating
-   too many new ids */
-let fix_typ_ids = Exp.map_term(~f_typ=(cont, e) => e |> cont);
-
 let uexp_elab =
     (~probe_unknowns: bool, m: Statics.Map.t, uexp: Exp.t)
     : ElaborationResult.t => {
   switch (elaborate(~probe_unknowns, m, uexp)) {
   | exception MissingTypeInfo => DoesNotElaborate
-  | (d, ty) => Elaborates(d |> fix_typ_ids, ty)
+  | (d, ty) => Elaborates(d, ty)
   };
 };

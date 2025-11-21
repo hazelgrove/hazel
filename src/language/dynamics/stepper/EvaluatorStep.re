@@ -301,7 +301,7 @@ module Decompose = {
     };
 
     let (let.): (requirements('a, DHExp.t), 'a => rule) => result =
-      (rq: requirements('a, TermBase.exp_t), rl) =>
+      (rq, rl) =>
         switch (rq) {
         | (_, Result.Step(_) as r, _, _) => r
         | (undo, r, env, v) =>

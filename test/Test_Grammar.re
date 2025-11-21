@@ -147,7 +147,6 @@ let sample_type = (cls_typ: Typ.cls): Grammar.UnitGrammar.typ => {
       | EmptyHole => unknown(Hole(EmptyHole))
       | SynSwitch => unknown(SynSwitch)
       | Internal => unknown(Internal)
-      | Inconsistent => unknown(Inconsistent)
       | Label => label("label")
       | ExplicitNonlabel => explicit_non_label()
       | MultiHole => unknown(Hole(MultiHole([])))
@@ -160,6 +159,7 @@ let sample_type = (cls_typ: Typ.cls): Grammar.UnitGrammar.typ => {
       | ProdExtension =>
         prod_extension(unknown(Hole(EmptyHole)), unknown(Hole(EmptyHole)))
       | Constructor => assert(false) // Excluded because there is no Typ constructor
+      | Probe => probe(unknown(Hole(EmptyHole)), Probe.empty)
       }
     )
   );

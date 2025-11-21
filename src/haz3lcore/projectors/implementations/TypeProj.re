@@ -8,7 +8,6 @@ let expected_ty = (info: option(Info.t)): option(Typ.t) =>
   switch (info) {
   | Some(InfoExp({ana, _}))
   | Some(InfoPat({ana, _})) => Some(ana)
-  | Some(InfoTyp({term, _})) => Some(term) // TODO Expected doesn't make sense for types
   | _ => None
   };
 
@@ -50,7 +49,7 @@ let get_dynamic_typ = (info: info): Typ.t => {
 
            Option.bind(
              types,
-             Typ.join_all(~empty=Unknown(Internal) |> Typ.temp, Ctx.empty),
+             Typ.join_all(~empty=Typ.fresh(Unknown(Internal)), Ctx.empty),
            );
          },
        )
@@ -72,8 +71,8 @@ module M: Projector = {
   let init = (any: Any.t): option(model) => {
     switch (any) {
     | Exp(_)
-    | Typ(_) // TODO This seems to behave oddly on grout
-    | Pat(_) => Some(Expected)
+    | Pat(_)
+    | Typ(_) => Some(Expected)
     | Any () => Some(Expected) /* Grout don't have sorts rn */
     | _ => None
     };
@@ -82,16 +81,7 @@ module M: Projector = {
   let dynamics = true;
   let focusable = Focusable.non;
 
-  let _display_ty = (model, statics, dyn_typ): option(Typ.t) =>
-    switch (model) {
-    | Dynamic => Some(dyn_typ)
-    | _ when expected_ty(statics) |> totalize_ty |> Typ.is_syn =>
-      statics |> self_ty
-    | Self => statics |> self_ty
-    | Expected => statics |> expected_ty
-    };
-
-  let display_mode = (model: model, statics: option(Language.Info.t)): string =>
+  let display_mode = (model: model, statics: option(Language.Info.t)): string => {
     switch (model) {
     | Dynamic => "↦"
     | _ when self_ty(statics) == expected_ty(statics) => "⇔"
@@ -99,7 +89,7 @@ module M: Projector = {
     | Self => "⇒"
     | Expected => "⇐"
     };
-
+  };
   let mode_view = (model, info) =>
     div(
       ~attrs=[Attr.classes(["mode"])],
@@ -110,19 +100,21 @@ module M: Projector = {
     let (is_dynamic, typ) =
       switch (model) {
       | Dynamic =>
-        let self_ty = self_ty(info.statics);
         let dyn_typ =
           get_dynamic_typ(info)
-          |> Grammar.map_typ_annotation(_ => IdTagged.IdTag.fresh(), _);
-        let ids: list(Id.t) =
-          Typ.diff(
-            Option.value(~default=Typ.fresh(Unknown(Internal)), self_ty),
-            dyn_typ,
+          |> Grammar.map_typ_annotation(_ => IdTagged.IdTag.fresh())
+          |> PadIds.pad_typ_ids;
+        let self_ty =
+          Option.value(
+            ~default=Typ.fresh(Unknown(Internal)),
+            self_ty(info.statics),
           );
-        let is_dynamic_id = (id: Id.t): bool => {
-          List.mem(id, ids);
-        };
-        (is_dynamic_id, dyn_typ);
+        let dynamic_ids: list(Id.t) = Typ.diff(self_ty, dyn_typ);
+        (List.mem(_, dynamic_ids), dyn_typ);
+      | Expected when expected_ty(info.statics) |> totalize_ty |> Typ.is_syn => (
+          (_ => false),
+          self_ty(info.statics) |> totalize_ty,
+        )
       | Expected => ((_ => false), expected_ty(info.statics) |> totalize_ty)
       | Self => ((_ => false), self_ty(info.statics) |> totalize_ty)
       };
@@ -135,12 +127,18 @@ module M: Projector = {
     );
   };
 
-  let update = (model, _, a: action) =>
+  let update = (model, info, a: action) => {
+    let has_expected =
+      switch (expected_ty(info.statics)) {
+      | Some(ty) => !Typ.is_syn(ty)
+      | None => false
+      };
     switch (a, model) {
-    | (ToggleDisplay, Expected) => Self
+    | (ToggleDisplay, Expected) => if (has_expected) {Self} else {Dynamic}
     | (ToggleDisplay, Self) => Dynamic
-    | (ToggleDisplay, Dynamic) => Expected
+    | (ToggleDisplay, Dynamic) => if (has_expected) {Expected} else {Self}
     };
+  };
 
   let syntax_str = (info: info) => {
     let max_len = 30;

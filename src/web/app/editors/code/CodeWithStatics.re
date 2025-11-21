@@ -16,26 +16,20 @@ module Model = {
     editor: Editor.t,
     context_menu: bool,
     statics: CachedStatics.t,
-    dynamics: Dynamics.Map.t, // TODO Combine dynamics and type_inst_map
-    type_inst_map: Dynamics.TypeInstMap.t,
+    dynamics: Dynamics.t,
     dynamic_statics: Calc.saved((StaticsBase.Map.t, list(Id.t))),
     pinned_call: Calc.saved(DynCursor.t),
   };
 
-  let mk =
-      (
-        ~dynamics=Dynamics.Map.empty,
-        ~type_inst_map=Dynamics.TypeInstMap.empty,
-        ~statics=CachedStatics.empty,
-        editor,
-      ) => {
-    editor,
-    statics,
-    dynamics,
-    type_inst_map,
-    dynamic_statics: Calc.Pending,
-    pinned_call: Calc.Pending,
-    context_menu: false,
+  let mk = (~dynamics=Dynamics.empty, ~statics=CachedStatics.empty, editor) => {
+    {
+      editor,
+      statics,
+      dynamics,
+      dynamic_statics: Calc.Pending,
+      pinned_call: Calc.Pending,
+      context_menu: false,
+    };
   };
 
   let mk_from_exp = (~settings: CoreSettings.t, ~inline=false, term: Exp.t) => {
@@ -62,7 +56,8 @@ module Model = {
     {
       info,
       dynamic_info,
-      dynamics: Option.bind(id, Dynamics.Map.lookup(_, model.dynamics)),
+      dynamics:
+        Option.bind(id, Dynamics.Map.lookup(_, model.dynamics.probe_map)),
       indicated_piece:
         Indicated.piece''(model.editor.state.zipper)
         |> Option.map(((p, _, _)) => p),
@@ -104,17 +99,15 @@ module Update = {
         ~is_edited,
         ~ctx=?,
         ~stitch,
-        ~dynamics: Calc.t(Dynamics.Map.t),
-        ~type_inst_map: Calc.t(Dynamics.TypeInstMap.t),
+        ~dynamics: Calc.t(Dynamics.t),
         ~is_dynamic_term,
         {
           editor,
           statics,
           dynamic_statics,
           pinned_call,
-          context_menu,
-          type_inst_map: _,
           dynamics: _,
+          context_menu,
         }: Model.t,
       )
       : Model.t => {
@@ -125,7 +118,7 @@ module Update = {
         ~settings,
         ~is_edited,
         statics,
-        Calc.get_value(dynamics),
+        Calc.get_value(dynamics).probe_map,
         editor,
       );
     let statics =
@@ -150,26 +143,18 @@ module Update = {
         Calc.Syntax.(
           dynamic_statics
           |> {
-            let.calc dynamics = dynamics
-            and.calc type_inst_map = type_inst_map
+            let.calc dyn = dynamics
             and.calc pinned_call = pinned_call_t;
 
-            // Filter closures based on the pinned call
-            let filtered_dynamics: Dynamics.Map.t =
-              DynCursor.filter_all_by_pin(pinned_call, dynamics);
+            let filtered_dynamics =
+              Dynamics.filter_all_by_pin(pinned_call, dyn);
 
             let dynamic_expressions: Id.Map.t(DynamicStatics.Map.entry) =
               Id.Map.map(
                 List.map((c: Sample.t): DynamicStatics.sample =>
                   {exp: c.value}
                 ),
-                filtered_dynamics,
-              );
-
-            let filtered_type_inst_map: Dynamics.TypeInstMap.t =
-              Dynamics.TypeInstMap.filter_all_by_pin(
-                pinned_call.pinned_stack,
-                type_inst_map,
+                filtered_dynamics.probe_map,
               );
 
             let type_inst_probes: Id.Map.t(DynamicStatics.Map.type_inst_entry) =
@@ -182,7 +167,7 @@ module Update = {
                     instantiated_type: inst.instantiated_type,
                   }
                 ),
-                filtered_type_inst_map,
+                filtered_dynamics.type_inst_map,
               );
 
             let dynamic_info_map =
@@ -216,9 +201,9 @@ module Update = {
     let editor =
       Editor.Update.calculate(
         ~settings,
-        ~is_edited=true,
+        ~is_edited,
         statics,
-        Calc.get_value(dynamics),
+        Calc.get_value(dynamics).probe_map,
         editor,
       );
     {
@@ -235,7 +220,6 @@ module Update = {
       statics,
       context_menu,
       dynamics: Calc.get_value(dynamics),
-      type_inst_map: Calc.get_value(type_inst_map),
       dynamic_statics: Calc.save(dynamic_statics),
       pinned_call: Calc.save(pinned_call_t),
     };

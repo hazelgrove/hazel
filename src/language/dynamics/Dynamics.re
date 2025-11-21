@@ -27,7 +27,7 @@ module TypeInstantiation = {
 };
 
 module TypeInstMap = {
-  /* Type instantiations recorded during evaluation, indexed by the
+  /* Type applications recorded during evaluation, indexed by the
    * TPat ids of the type parameters */
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t = Id.Map.t(list(TypeInstantiation.t));
@@ -47,8 +47,9 @@ module TypeInstMap = {
     );
   };
   let filter_type_instantiations_by_pin =
-      (pinned_call: option(list(Id.t)), closures: list('a)): list('a) =>
-    switch (pinned_call) {
+      (pinned_call: DynCursor.t, closures: list(TypeInstantiation.t))
+      : list(TypeInstantiation.t) =>
+    switch (pinned_call.pinned_stack) {
     | Some(pinned_stack) =>
       List.filter(
         (closure: TypeInstantiation.t) =>
@@ -57,8 +58,7 @@ module TypeInstMap = {
       )
     | None => closures
     };
-
-  let filter_all_by_pin = (pinned_call: option(list(Id.t)), map: t): t =>
+  let filter_all_by_pin = (pinned_call: DynCursor.t, map: t): t =>
     Id.Map.map(
       closures => filter_type_instantiations_by_pin(pinned_call, closures),
       map,
@@ -114,4 +114,24 @@ type t = {
   probe_map: Sample.Map.t,
   type_inst_map: TypeInstMap.t,
   test_results: TestResults.t,
+};
+
+let empty: t = {
+  probe_map: Sample.Map.empty,
+  type_inst_map: TypeInstMap.empty,
+  test_results: {
+    test_map: [],
+    statuses: [],
+    hints: [],
+    descriptions: [],
+    total: 0,
+    passing: 0,
+    failing: 0,
+    unfinished: 0,
+  },
+};
+let filter_all_by_pin = (dyn_cursor: DynCursor.t, map: t): t => {
+  probe_map: DynCursor.filter_all_by_pin(dyn_cursor, map.probe_map),
+  type_inst_map: TypeInstMap.filter_all_by_pin(dyn_cursor, map.type_inst_map),
+  test_results: map.test_results,
 };

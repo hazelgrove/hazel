@@ -18,6 +18,7 @@ let view = (~globals, kind: Language.Ctx.kind): Node.t =>
             hide_fixpoints: false,
             show_filters: false,
             show_unknown_as_hole: true,
+            raise_if_padding: false,
           },
           ty,
         ),

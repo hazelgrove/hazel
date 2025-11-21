@@ -660,7 +660,7 @@ let printarium = (~explain_this_inject, ~editor: CodeEditable.Model.t) => [
       div(
         ~attrs=[clss(["body", "code"])],
         [
-          switch (print_string(editor.dynamics)) {
+          switch (print_string(editor.dynamics.probe_map)) {
           | Some(summary) => text(summary)
           | None => text("No print outputs")
           },
@@ -684,7 +684,7 @@ let probearium =
       editor.editor.syntax.selection_ids,
       Indicated.piece(editor.editor.state.zipper),
       editor.statics.info_map,
-      editor.dynamics,
+      editor.dynamics.probe_map,
       editor.editor.state.zipper.refractors.dyn_cursor,
       true,
     );
