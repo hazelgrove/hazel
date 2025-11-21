@@ -9,7 +9,6 @@ type cls =
   | MultiHole
   | SynSwitch
   | Internal
-  | Inconsistent
   | Arrow
   | Prod
   | TupLabel
@@ -85,7 +84,6 @@ let cls_of_term: Grammar.typ_term('a) => cls =
   | Unknown(Hole(MultiHole(_))) => MultiHole
   | Unknown(SynSwitch) => SynSwitch
   | Unknown(Internal) => Internal
-  | Unknown(Inconsistent) => Inconsistent
   | Atom(c) => Atom(c)
   | List(_) => List
   | Arrow(_) => Arrow
@@ -107,7 +105,6 @@ let show_cls: cls => string =
   | Invalid => "Invalid type"
   | MultiHole => "Broken type"
   | EmptyHole => "Type hole"
-  | Inconsistent => "Join of Inconsistent types"
   | SynSwitch => "Synthetic type"
   | Internal => "Internal type"
   | Atom(_) => "Base type"
@@ -248,8 +245,6 @@ let join_type_provenance =
   | (Internal, SynSwitch) => SynSwitch
   | (Internal | Hole(_), _)
   | (_, Hole(_)) => Internal
-  | (Inconsistent, _)
-  | (_, Inconsistent) => Inconsistent
   | (SynSwitch, SynSwitch) => SynSwitch
   };
 
@@ -614,16 +609,8 @@ let rec normalize = (~rec_counter=0, ctx: Ctx.t, ty: t): t => {
    resolve parameter specifies whether, in the case of a type
    variable and a succesful join, to return the resolved join type,
    or to return the (first) type variable for readability */
-let rec join =
-        (
-          ~inconsistent: option(t)=?,
-          ~resolve=false,
-          ctx: Ctx.t,
-          ty1: t,
-          ty2: t,
-        )
-        : option(t) => {
-  let join' = join(~inconsistent?, ~resolve, ctx);
+let rec join = (~resolve=false, ctx: Ctx.t, ty1: t, ty2: t): option(t) => {
+  let join' = join(~resolve, ctx);
   switch (term_of(ty1), term_of(ty2)) {
   | (_, Parens(ty2)) => join'(ty1, ty2)
   | (Parens(ty1), _) => join'(ty1, ty2)
@@ -633,8 +620,6 @@ let rec join =
   | (_, Probe(ty2, _)) => join'(ty1, ty2)
   | (Unknown(p1), Unknown(p2)) =>
     Some(Unknown(join_type_provenance(p1, p2)) |> temp)
-  | (Unknown(Inconsistent), _) => Some(ty1)
-  | (_, Unknown(Inconsistent)) => Some(ty2)
   | (Unknown(_), _) => Some(ty2)
   | (_, Unknown(_)) => Some(ty1)
   | (Var(n1), Var(n2)) =>
@@ -668,7 +653,7 @@ let rec join =
       };
     let+ ty_body = join(~resolve, ctx, ty1', ty2);
     Rec(tp1, ty_body) |> temp;
-  | (Rec(_), _) => inconsistent
+  | (Rec(_), _) => None
   | (Forall(x1, ty1), Forall(x2, ty2)) =>
     let ty1' =
       switch (TPat.tyvar_of_utpat(x2)) {
@@ -684,25 +669,25 @@ let rec join =
      be exposed to the user. We preserve the variable name of the
      second type to preserve synthesized type variable names, which
      come from user annotations. */
-  | (Forall(_), _) => inconsistent
+  | (Forall(_), _) => None
   | (Atom(c1), Atom(c2)) when c1 == c2 => Some(ty1)
-  | (Atom(_), _) => inconsistent
+  | (Atom(_), _) => None
   | (Label(_), Label("")) => Some(ty1)
   | (Label(""), Label(_)) => Some(ty2)
   | (Label(name1), Label(name2))
       when LabeledTuple.match_labels(name1, name2) =>
     Some(ty1)
-  | (Label(_), _) => inconsistent
+  | (Label(_), _) => None
   | (Arrow(ty1, ty2), Arrow(ty1', ty2')) =>
     let* ty1 = join'(ty1, ty1');
     let+ ty2 = join'(ty2, ty2');
     Arrow(ty1, ty2) |> temp;
-  | (Arrow(_), _) => inconsistent
+  | (Arrow(_), _) => None
   | (TupLabel(lab1, ty1'), TupLabel(lab2, ty2')) =>
     let* lab = join'(lab1, lab2);
     let+ ty = join'(ty1', ty2');
     TupLabel(lab, ty) |> temp;
-  | (TupLabel(_), _) => inconsistent
+  | (TupLabel(_), _) => None
   | (Prod(tys1), Prod(tys2)) =>
     if (List.length(tys1) != List.length(tys2)) {
       None;
@@ -711,18 +696,18 @@ let rec join =
       let+ tys = OptUtil.sequence(tys);
       Prod(tys) |> temp;
     }
-  | (Prod(_), _) => inconsistent
+  | (Prod(_), _) => None
   | (Sum(sm1), Sum(sm2)) =>
     let+ sm' = ConstructorMap.join(equal, join(~resolve, ctx), sm1, sm2);
     Sum(sm') |> temp;
-  | (Sum(_), _) => inconsistent
+  | (Sum(_), _) => None
   | (List(ty1), List(ty2)) =>
     let+ ty = join'(ty1, ty2);
     List(ty) |> temp;
-  | (List(_), _) => inconsistent
+  | (List(_), _) => None
   // We would prefer for this to be a sort difference and never appear in a join.
   // These get marked in statics but that does not remove them from the utyp's propagated on parents.
-  | (ExplicitNonlabel, _) => inconsistent
+  | (ExplicitNonlabel, _) => None
   };
 };
 
@@ -769,10 +754,9 @@ let rec match_synswitch = (t1: t, t2: t) => {
   };
 };
 
-let join_all =
-    (~inconsistent=?, ~empty: t, ctx: Ctx.t, ts: list(t)): option(t) =>
+let join_all = (~empty: t, ctx: Ctx.t, ts: list(t)): option(t) =>
   List.fold_left(
-    (acc, ty) => OptUtil.and_then(join(~inconsistent?, ctx, ty), acc),
+    (acc, ty) => OptUtil.and_then(join(ctx, ty), acc),
     Some(empty),
     ts,
   );
@@ -887,23 +871,6 @@ let meet_all = (ctx: Ctx.t, ts: list(t)): option(t) =>
 
 let is_consistent = (ctx: Ctx.t, ty1: t, ty2: t): bool =>
   join(ctx, ty1, ty2) != None;
-
-/*
-    Computes the most precise type that is consistent with all input types.
-    Like a multi-way join, but if any ground types are inconsistent, replaces
-    that position with an "unknown" type rather than failing.
-    This operation is NOT associative — applying it pairwise may yield
-    a different result than applying it to the whole list at once.
- */
-let consistent_join = (ctx: Ctx.t, tys: list(t)): t => {
-  join_all(
-    ~inconsistent=Unknown(Inconsistent) |> temp,
-    ~empty=Unknown(SynSwitch) |> temp,
-    ctx,
-    tys,
-  )
-  |> Option.value(~default=Unknown(SynSwitch) |> temp);
-};
 
 /**
    * Determines if one type (`ty1`) is more precise than another type (`ty2`) within a given context (`ctx`).
@@ -1260,7 +1227,7 @@ let remove_duplicate_labels =
  */
 let to_product = (tys: list(t)): t => TempGrammar.Typ.(prod(tys));
 
-/* Computes the list of ids in t' that are not in t. Assumes initial ids are distinct. Only returns the id of the root difference. */
+/* Computes the list of ids in t' that are not in t. Assumes initial ids are distinct otherwise you may get incorrect ids. */
 let rec diff = (ty: t, ty': t): list(Id.t) => {
   let get_ids = () => {
     let ids = ref([]);
@@ -1278,6 +1245,8 @@ let rec diff = (ty: t, ty': t): list(Id.t) => {
   | (Probe(t1, _), _) => diff(t1, ty')
   | (_, Probe(t2, _)) => diff(ty, t2)
   | (Parens(t1), Parens(t2)) => diff(t1, t2)
+  | (Parens(t1), _) => diff(t1, ty')
+  | (_, Parens(t2)) => diff(ty, t2)
   | (Unknown(_), Unknown(_)) => []
   | (Unknown(_), _) => get_ids()
   | (Atom(c1), Atom(c2)) when c1 == c2 => []
@@ -1288,9 +1257,12 @@ let rec diff = (ty: t, ty': t): list(Id.t) => {
   | (ExplicitNonlabel, _) => get_ids()
   | (Var(v1), Var(v2)) when v1 == v2 => []
   | (Var(_), _) => get_ids()
-  | (Rec(_tp1, t1), Rec(_tp2, t2)) => diff(t1, t2) // TODO Check tpat
+  | (Rec(tp1, t1), Rec(tp2, t2)) when Equality.syntactic.tpat(tp1, tp2) =>
+    diff(t1, t2)
   | (Rec(_), _) => get_ids()
-  | (Forall(_tp1, t1), Forall(_tp2, t2)) => diff(t1, t2) // TODO Check tpat
+  | (Forall(tp1, t1), Forall(tp2, t2))
+      when Equality.syntactic.tpat(tp1, tp2) =>
+    diff(t1, t2)
   | (Forall(_), _) => get_ids()
   | (Arrow(t1a, t1b), Arrow(t2a, t2b)) => diff(t1a, t2a) @ diff(t1b, t2b)
   | (Arrow(_), _) => get_ids()
@@ -1307,6 +1279,8 @@ let rec diff = (ty: t, ty': t): list(Id.t) => {
   | (ProdExtension(t1, t2), ProdExtension(t1', t2')) =>
     diff(t1, t1') @ diff(t2, t2')
   | (ProdExtension(_, _), _) => get_ids()
-  | _ => get_ids()
+  | (Sum(sm1), Sum(sm2)) when ConstructorMap.equal(fast_equal, sm1, sm2) =>
+    []
+  | (Sum(_), _) => get_ids()
   };
 };
