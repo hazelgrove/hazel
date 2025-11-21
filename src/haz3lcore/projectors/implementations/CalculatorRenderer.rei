@@ -8,7 +8,7 @@ type op =
 [@deriving (show({with_path: false}), sexp, yojson)]
 type cal_state = {
   operation: op,
-  operand: option(int),
+  operand: option(Bigint.t),
 };
 
 [@deriving (show({with_path: false}), sexp, yojson)]
@@ -18,7 +18,7 @@ type m = option(cal_state);
 [@deriving (show({with_path: false}), sexp, yojson)]
 type a =
   | SelectOp(op)
-  | SetOperand(int)
+  | SetOperand(Bigint.t)
   | Clear;
 
 include RichProbe.RichProbe with type model = m and type action = a;

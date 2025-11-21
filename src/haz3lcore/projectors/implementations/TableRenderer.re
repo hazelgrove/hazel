@@ -485,13 +485,7 @@ let sort_column_with_direction =
 
               Exp(final_expr);
             }
-          | e => {
-              print_endline(
-                "TableRenderer: sort_column: not an expression: "
-                ++ Any.show(e),
-              );
-              failwith("TableRenderer: sort_column: not an expression");
-            },
+          | _ => failwith("TableRenderer: sort_column: not an expression"),
           info.syntax,
         )
       ) {

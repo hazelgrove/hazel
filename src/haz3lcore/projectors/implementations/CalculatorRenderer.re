@@ -15,17 +15,17 @@ type op =
 [@deriving (show({with_path: false}), sexp, yojson)]
 type cal_state = {
   operation: op,
-  operand: option(int),
+  operand: option(Bigint.t),
 };
 
 /* value type defined in module M below */
 [@deriving (show({with_path: false}), sexp, yojson)]
-type v = int;
+type v = Bigint.t;
 /* Calculator actions */
 [@deriving (show({with_path: false}), sexp, yojson)]
 type a =
   | SelectOp(op)
-  | SetOperand(int)
+  | SetOperand(Bigint.t)
   | Clear;
 
 /* The calculator model is None initially, then Some(state) when operation is selected */
@@ -43,17 +43,17 @@ type action = a;
 type value = v;
 
 /* Reusable UI components */
-let rec display_value = (value: int, pending_op: option(cal_state)) =>
+let rec display_value = (value: Bigint.t, pending_op: option(cal_state)) =>
   switch (pending_op) {
-  | None => string_of_int(value)
+  | None => Bigint.to_string(value)
   | Some({operation, operand: None}) =>
-    string_of_int(value) ++ " " ++ op_to_string(operation) ++ " ?"
+    Bigint.to_string(value) ++ " " ++ op_to_string(operation) ++ " ?"
   | Some({operation, operand: Some(op_val)}) =>
-    string_of_int(value)
+    Bigint.to_string(value)
     ++ " "
     ++ op_to_string(operation)
     ++ " "
-    ++ string_of_int(op_val)
+    ++ Bigint.to_string(op_val)
   }
 and op_to_string = op =>
   switch (op) {
@@ -68,19 +68,15 @@ let parse = (sort: Sort.t, exp: Exp.t) =>
   switch (sort, exp.term) {
   | (Exp, Atom(atom)) =>
     switch (atom) {
-    | Atom.SInt(value) => Some(value)
-    | Atom.Int(bigint) =>
-      switch (Bigint.to_int(bigint)) {
-      | Some(i) => Some(i)
-      | None => None // too big for int
-      }
+    | Atom.Int(bigint) => Some(bigint)
     | _ => None
     }
   | _ => None
   };
 
 /* Core transformation functions for applying arithmetic operations */
-let apply_arithmetic_operation = (info: info, operation: op, operand: int) =>
+let apply_arithmetic_operation =
+    (info: info, operation: op, operand: Bigint.t) =>
   switch (
     info.utility.lift_syntax(
       ~inline=true,
@@ -95,7 +91,7 @@ let apply_arithmetic_operation = (info: info, operation: op, operand: int) =>
             | Divide => Int(Operators.Divide)
             },
             exp_term |> DHExp.fresh,
-            Atom(Atom.SInt(operand)) |> DHExp.fresh,
+            Atom(Atom.Int(operand)) |> DHExp.fresh,
           )
           |> DHExp.fresh,
         )
@@ -117,16 +113,23 @@ let apply_operation = (info, operation, operand, local, parent) => {
 };
 
 /* Calculator buttons */
-let digit_buttons = (local, current_operand) =>
+let digit_buttons = (local, current_operand) => {
   List.map(
-    digit =>
+    (digit: int) =>
       Node.button(
         ~attrs=[
           Attr.classes(["calculator-digit"]),
           Attr.on_click(_ =>
             switch (current_operand) {
-            | None => local(SetOperand(digit))
-            | Some(current) => local(SetOperand(current * 10 + digit))
+            | None => local(SetOperand(Bigint.of_int(digit)))
+            | Some(current) =>
+              local(
+                Bigint.(
+                  SetOperand(
+                    current * Bigint.of_int(10) + Bigint.of_int(digit),
+                  )
+                ),
+              )
             }
           ),
         ],
@@ -134,6 +137,7 @@ let digit_buttons = (local, current_operand) =>
       ),
     [7, 8, 9, 4, 5, 6, 1, 2, 3, 0],
   );
+};
 
 let op_buttons = local =>
   [
@@ -174,7 +178,7 @@ let control_buttons = (info, local, can_apply, state_opt, parent) => [
 
 /* Initialize calculator model from parsed value (int) */
 /* Calculator starts with no operation selected */
-let init = (_v: int) => None;
+let init = (_v: Bigint.t) => None;
 
 /* Main calculator rendering function */
 let render =

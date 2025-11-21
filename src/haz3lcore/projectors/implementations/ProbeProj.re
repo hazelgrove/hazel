@@ -597,6 +597,7 @@ let renderers: list(packed_renderer) = [
 let find_compatible_renderer =
     (sort: Sort.t, exp: Exp.t): option(packed_renderer) =>
   List.find_opt(r => r.can_handle(sort, exp), renderers);
+
 let pin_call = (~parent, ~ap_id: option(Id.t), ~di: Dynamics.Info.t) =>
   switch (ap_id, Dynamics.Info.is_in(di)) {
   | (Some(ap_id), Some(dyn_cursor)) =>
@@ -1200,25 +1201,6 @@ let offside_view =
   | _ => Node.div([])
   };
 
-/* If one of the current probe's cells is not already selected,
- * select the first one */
-let probe_default =
-    (parent: external_action => Ui_effect.t(unit), info: info)
-    : Effect.t(unit) =>
-  switch (info.dynamics) {
-  //| Some(di) when DynCursor.is_in(di) != None =>
-  // DynCursor.capture_ap(info)
-  //TODO(andrew): capture ap only
-  | Some(di) =>
-    //DynCursor.capture_ap(info);
-    switch (di.samples) {
-    | [fst, ..._] =>
-      parent(DynCursor(Capture(fst, DynCursor.cur_ap(info.statics))))
-    | [] => Effect.Ignore
-    }
-  | None => Effect.Ignore
-  };
-
 // let is_pinned = (ap_id: option(Id.t), di: Dynamics.Info.t): bool =>
 //   switch (Dynamics.Info.is_in(di)) {
 //   | Some(dyn_cursor) =>
@@ -1234,10 +1216,10 @@ let get_current = (~settings, info: info) => {
     switch (Dynamics.Info.first_cursor_sample(ap_id, di)) {
     | Some(closure) => Some(closure.value)
     | None =>
-      /* Fallback: check if any displayed closure has table data */
+      /* Fallback: get the first sample */
       let samples =
         Samples.select_samples(~settings, ~id=info.id, ~ap_id, di);
-      List.find_map((s: sample) => Some(s.value), samples); // todo
+      ListUtil.hd_opt(samples) |> Option.map((s: sample) => s.value);
     };
   | None => None
   };
