@@ -144,7 +144,7 @@ module Local = {
     | "new_todo_list" =>
       Assistant(TodoAction(NewTodoList(get_todo_items())))
     | "delete_todo_list" => Assistant(TodoAction(DeleteTodoList))
-    | "add_todo_item" =>
+    | "add_todo_items" =>
       Assistant(TodoAction(AddTodoItems(get_todo_items())))
     | "check_todo_items" =>
       Assistant(TodoAction(CheckTodoItems(get_titles_list())))
@@ -189,7 +189,7 @@ module Local = {
       ++ "\")"
     | Assistant(TodoAction(DeleteTodoList)) => "delete_todo_list()"
     | Assistant(TodoAction(AddTodoItems(todo_items))) =>
-      "add_todo_item("
+      "add_todo_items("
       ++ String.concat(
            ", ",
            List.map(AssistantModel.todo_item_to_string, todo_items),
