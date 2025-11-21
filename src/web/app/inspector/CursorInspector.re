@@ -93,34 +93,25 @@ let view_any = (~globals, any: Any.t) =>
   |> CodeViewable.view_any(~globals, ~settings=code_view_settings)
   |> code_box_container;
 
-let dyn_type = (~dyn_info: option(Info.t)): option(Typ.t) =>
-  switch (dyn_info) {
-  | Some(info) =>
-    switch ((info: Info.t)) {
-    | InfoExp({self, _}) => self |> Self.typ_of_exp
-    | InfoPat({self, _}) => self |> Self.typ_of_pat
-    | _ => None
-    }
-  | None => None
-  };
-[@deriving (show({with_path: false}), sexp, yojson)]
-type o = option(Typ.t);
 let view_type = (~globals, ~dynamic_info: option(Info.t), typ: Typ.t) => {
   let dyn_type =
-    dyn_type(~dyn_info=dynamic_info)
+    (
+      switch (dynamic_info) {
+      | Some(InfoExp({self, _})) => self |> Self.typ_of_exp
+      | Some(InfoPat({self, _})) => self |> Self.typ_of_pat
+      | _ => None
+      }
+    )
     |> Option.map(Grammar.map_typ_annotation(_ => IdTagged.IdTag.fresh(), _));
-  let ids: list(Id.t) =
+  let dynamic_ids: list(Id.t) =
     Option.map(Typ.diff(typ), dyn_type) |> Option.value(~default=[]);
 
-  let is_dynamic_id = (id: Id.t): bool => {
-    List.mem(id, ids);
-  };
   dyn_type
   |> Option.value(~default=typ)
   |> CodeViewable.view_typ(
        ~globals,
        ~settings=code_view_settings,
-       ~is_dynamic=is_dynamic_id,
+       ~is_dynamic=List.mem(_, dynamic_ids),
      )
   |> code_box_container;
 };
