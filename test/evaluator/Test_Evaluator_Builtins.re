@@ -3,7 +3,7 @@ open Language;
 open Test_Evaluator_Prelude;
 open IdTagged.FreshGrammar;
 open Exp;
-
+open Haz3lcore;
 let tests = (
   "Evaluator.Builtins",
   [
@@ -120,6 +120,55 @@ let tests = (
           tuple([string("foo"), string("hazel"), int(0)]),
         ),
       )
+    ),
+    test_case(
+      "Comparisons",
+      `Quick,
+      () => {
+        let comparisons = [
+          ("int_compare", int(1), int(2), BuiltinsADT.Ord.lt),
+          ("int_compare", int(2), int(1), BuiltinsADT.Ord.gt),
+          ("int_compare", int(2), int(2), BuiltinsADT.Ord.eq),
+          ("float_compare", float(1.0), float(2.0), BuiltinsADT.Ord.lt),
+          ("float_compare", float(2.0), float(1.0), BuiltinsADT.Ord.gt),
+          ("float_compare", float(2.0), float(2.0), BuiltinsADT.Ord.eq),
+          (
+            "string_compare",
+            string("apple"),
+            string("banana"),
+            BuiltinsADT.Ord.lt,
+          ),
+          (
+            "string_compare",
+            string("banana"),
+            string("apple"),
+            BuiltinsADT.Ord.gt,
+          ),
+          (
+            "string_compare",
+            string("cherry"),
+            string("cherry"),
+            BuiltinsADT.Ord.eq,
+          ),
+        ];
+        List.iter(
+          ((fname, arg1, arg2, expected)) => {
+            let exp = ap(Forward, builtin_fun(fname), tuple([arg1, arg2]));
+            let exp_to_segment =
+              ExpToSegment.(
+                exp_to_segment(
+                  ~settings=Settings.of_core(~inline=true, CoreSettings.on),
+                )
+              );
+            evaluation_test(
+              exp_to_segment(exp) |> Printer.of_segment,
+              expected,
+              ap(Forward, builtin_fun(fname), tuple([arg1, arg2])),
+            );
+          },
+          comparisons,
+        );
+      },
     ),
   ],
 );
