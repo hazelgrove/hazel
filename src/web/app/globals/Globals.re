@@ -44,6 +44,15 @@ module VisibleRows = {
 };
 
 module Action = {
+  [@deriving (show({with_path: false}), yojson, sexp)]
+  type log =
+    | InitImport([@opaque] Js_of_ocaml.Js.t(Js_of_ocaml.File.file))
+    | FinishImport(option(string))
+    | NextLog
+    | SkipLog
+    | SkipExercise
+    | ToggleReplay;
+
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t =
     | SetFontMetrics(FontMetrics.t)
@@ -51,13 +60,11 @@ module Action = {
     | JumpToTile(Haz3lcore.Id.t) // Perform(Select(Term(Id(id, Left))))
     | InitImportAll([@opaque] Js_of_ocaml.Js.t(Js_of_ocaml.File.file))
     | FinishImportAll(option(string))
-    | InitImportLog([@opaque] Js_of_ocaml.Js.t(Js_of_ocaml.File.file))
-    | FinishImportLog(option(string))
     | ExportForInit
     | ActiveEditor(Haz3lcore.Action.t)
-    | NextLog
     | Undo // These two currently happen at the editor level, and are just
     | Redo // global actions so they can be accessed by the command palette
+    | Log(log)
     | SetMetaDown(bool)
     | UpdateVisibleRows(VisibleRows.t);
 };
@@ -144,9 +151,7 @@ module Update = {
     | Redo => false
     | SetMetaDown(_) => false
     | UpdateVisibleRows(_) => false
-    | InitImportLog(_) => false
-    | FinishImportLog(_) => false
-    | NextLog => false
+    | Log(_) => false
     };
   };
 };

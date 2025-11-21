@@ -168,10 +168,10 @@ module Update = {
     | (Scratch(_), Exercises(_))
     | (Scratch(_), Tutorial(_))
     | (Exercises(_), Scratch(_))
-    | (Exercises(_), Documentation(_)) => model |> return_quiet
+    | (Exercises(_), Tutorial(_))
+    | (Exercises(_), Documentation(_)) => model |> raise_invalid_action
     | (SwitchMode(Scratch), Scratch(_))
     | (SwitchMode(Documentation), Documentation(_))
-    | (Exercises(_), Tutorial(_)) => model |> return_quiet
     | (SwitchMode(Exercises), Exercises(_)) => model |> return_quiet
     | (SwitchMode(Scratch), _) =>
       Model.Scratch(
@@ -185,7 +185,7 @@ module Update = {
         |> ScratchMode.Model.unpersist(~settings=globals.settings.core),
       )
       |> return
-    | (SwitchMode(Tutorial), Tutorial(_)) => model |> return_quiet
+    | (SwitchMode(Tutorial), Tutorial(_)) => model |> raise_invalid_action
     | (SwitchMode(Tutorial), _) =>
       Model.Tutorial(
         TutorialsMode.Store.load(

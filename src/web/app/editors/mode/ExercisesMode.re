@@ -347,7 +347,7 @@ module Update = {
         current: model.current,
         exercises: new_exercises,
       };
-    | (_, Exercise(_)) => model |> return_quiet
+    | (_, Exercise(_)) => model |> raise_invalid_action
     | (Theorem(ex), TheoremExercise(action)) =>
       let* new_current =
         TheoremExerciseMode.Update.update(
@@ -365,7 +365,7 @@ module Update = {
         current: model.current,
         exercises: new_exercises,
       };
-    | (_, TheoremExercise(_)) => model |> return_quiet
+    | (_, TheoremExercise(_)) => model |> raise_invalid_action
     | (_, SwitchExercise(n)) =>
       Model.{
         current: n,
@@ -575,7 +575,7 @@ module View = {
         file => {
           switch (file) {
           | None => Virtual_dom.Vdom.Effect.Ignore
-          | Some(file) => globals.inject_global(InitImportLog(file))
+          | Some(file) => globals.inject_global(Log(InitImport(file)))
           }
         },
         ~tooltip="Import Logs",

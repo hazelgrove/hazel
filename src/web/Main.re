@@ -56,12 +56,21 @@ let apply =
     };
   // ---------- CALCULATE PHASE ----------
   let model' =
-    updated.model
-    |> History.Update.calculate(
-         ~schedule_action,
-         ~is_edited=updated.is_edit,
-         ~dynamics=true,
-       );
+    try(
+      updated.model
+      |> History.Update.calculate(
+           ~schedule_action,
+           ~is_edited=updated.is_edit,
+           ~dynamics=true,
+         )
+    ) {
+    | _ =>
+      print_endline("ERROR: Exception during calculate phase");
+      {
+        ...model,
+        replay_toggle: false,
+      };
+    };
 
   if (updated.is_edit) {
     schedule_autosave(
@@ -113,6 +122,22 @@ let start = {
   let save_effect =
     Bonsai.Value.map(~f=g => g(Page.Update.Save), app_inject);
   let%sub () = BonsaiUtil.Alarm.listen(save_scheduler, ~event=save_effect);
+
+  let replay_effect = {
+    let%map app_inject = app_inject
+    and model = app_model;
+    Ui_effect.Many(
+      model.replay_toggle
+        ? [app_inject(Page.Update.Globals(Log(NextLog)))] : [],
+    );
+  };
+
+  let%sub () =
+    Bonsai.Clock.every(
+      ~when_to_start_next_effect=`Wait_period_after_previous_effect_finishes_blocking,
+      Core.Time_ns.Span.of_sec(0.1),
+      replay_effect,
+    );
 
   // Update font metrics on resize
   let%sub size =
@@ -200,12 +225,24 @@ let start = {
   // View function
   let%arr app_model = app_model
   and app_inject = app_inject;
-  History.View.view(
-    app_model,
-    ~inject=app_inject,
-    ~get_log_and=Log.get_and,
-    ~next_log=Util.ListUtil.hd_opt(app_model.future_log),
-  );
+  try(
+    History.View.view(
+      app_model,
+      ~inject=app_inject,
+      ~get_log_and=Log.get_and,
+      ~next_log=
+        Util.ListUtil.hd_opt(app_model.future_log) |> Option.map(snd),
+    )
+  ) {
+  | exc =>
+    print_endline(
+      "ERROR: Exception during view: " ++ Printexc.to_string(exc),
+    );
+    WebUtil.Node.div(
+      ~attrs=[WebUtil.Attr.id("page")],
+      [WebUtil.Node.text("An error occurred.")],
+    );
+  };
 };
 
 switch (JsUtil.Fragment.get_current()) {

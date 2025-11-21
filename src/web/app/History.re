@@ -9,7 +9,8 @@ module Model = {
     current: state,
     undo_stack: list(Updated.t(state)),
     redo_stack: list(Updated.t(state)),
-    future_log: list(Page.Update.t),
+    future_log: list((float, Page.Update.t)),
+    replay_toggle: bool,
   };
 
   let equal = (===);
@@ -19,6 +20,7 @@ module Model = {
     undo_stack: [],
     redo_stack: [],
     future_log: [],
+    replay_toggle: false,
   };
 };
 
@@ -27,6 +29,15 @@ module Update = {
 
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t = Page.Update.t;
+
+  // let sexp = Page.Update.sexp_of_t(action);
+  // For now, we don't ignore any actions; add here if needed
+  // check if str contains "(Select (Term (Id" (ignoring whitespace)
+  // let str = Sexplib.Sexp.to_string(sexp);
+  // StringUtil.match(StringUtil.regexp("Select\\s*\\(Term\\s*\\(Id"), str);
+  let ignore_if_action_fails_in_log_replay = (_action: t): bool => {
+    false;
+  };
 
   [@deriving (show({with_path: false}), sexp, yojson)]
   let update =
@@ -43,7 +54,7 @@ module Update = {
       switch (model.undo_stack) {
       | [] =>
         print_endline("Cannot undo");
-        model |> return_quiet;
+        model |> Updated.raise_invalid_action;
       | [x, ...rest] => {
           ...x,
           model: {
@@ -57,6 +68,7 @@ module Update = {
               },
               ...model.redo_stack,
             ],
+            replay_toggle: model.replay_toggle,
           },
         }
       }
@@ -64,7 +76,7 @@ module Update = {
       switch (model.redo_stack) {
       | [] =>
         print_endline("Cannot redo");
-        model |> return_quiet;
+        model |> Updated.raise_invalid_action;
       | [x, ...rest] => {
           ...x,
           model: {
@@ -78,80 +90,130 @@ module Update = {
               ...model.undo_stack,
             ],
             redo_stack: rest,
+            replay_toggle: model.replay_toggle,
           },
         }
       }
-    | Globals(NextLog) =>
-      switch (model.future_log) {
-      | [] =>
-        print_endline("No next log action to perform");
-        model |> return_quiet;
-      | [next, ...rest] =>
-        print_endline(
-          "Applying next log action: " ++ Page.Update.show(next),
+    | Globals(Log(a)) =>
+      switch (a) {
+      | InitImport(f) =>
+        JsUtil.read_file(f, data =>
+          schedule_action(Globals(Log(FinishImport(data))))
         );
-        let updated =
-          try(
-            Page.Update.update(
-              ~import_log,
-              ~get_log_and,
-              ~schedule_action,
-              next,
-              model.current,
-            )
-          ) {
+        model |> Updated.return_quiet;
+      | FinishImport(None) =>
+        print_endline("Log import failed");
+        model |> Updated.return_quiet;
+      | FinishImport(Some(data)) =>
+        let of_data = (data: string): list((float, Page.Update.t)) =>
+          Export.import_just_log(data)
+          |> Sexplib.Sexp.of_string
+          |> Log.Entry.s_of_sexp_opt
+          |> List.filter_map(x => x);
+        // |> List.filter(((ts, _action)) => ts > 1757794060000.0);
+        let actions =
+          data
+          |> of_data
+          |> Log.flatten_imports(~of_data)
+          |> (
+            x => {
+              print_endline(
+                "Imported log entries: " ++ string_of_int(List.length(x)),
+              );
+              x;
+            }
+          );
+        {
+          ...model,
+          future_log: model.future_log @ actions,
+        }
+        |> Updated.return_quiet;
+      | NextLog =>
+        switch (model.future_log) {
+        | [] =>
+          print_endline("No next log action to perform");
+          model |> Updated.return_quiet;
+        | [(t, next), ...rest] =>
+          print_endline(
+            "Applying next log action: "
+            ++ JsUtil.print_timestamp(t)
+            ++ " :: "
+            ++ Page.Update.show(next),
+          );
+          try({
+            let updated =
+              Page.Update.update(
+                ~import_log,
+                ~get_log_and,
+                ~schedule_action,
+                next,
+                model.current,
+              );
+            {
+              ...updated,
+              model: {
+                current: updated.model,
+                undo_stack: [
+                  {
+                    ...updated,
+                    model: model.current,
+                  },
+                  ...model.undo_stack,
+                ],
+                redo_stack: model.redo_stack,
+                future_log: rest,
+                replay_toggle: model.replay_toggle,
+              },
+            };
+          }) {
           | _ =>
             print_endline("Failed to apply log action");
-            model.current |> Updated.return_quiet;
+            Model.{
+              ...model,
+              future_log:
+                ignore_if_action_fails_in_log_replay(next)
+                  ? rest : model.future_log,
+              replay_toggle:
+                ignore_if_action_fails_in_log_replay(next)
+                  ? model.replay_toggle : false,
+            }
+            |> Updated.return_quiet;
+          };
+        }
+      | SkipLog =>
+        print_endline("Skipping the next log entry");
+        switch (model.future_log) {
+        | [] =>
+          print_endline("No log entry to skip");
+          model |> return_quiet;
+        | [(_, _), ...rest] =>
+          {
+            ...model,
+            future_log: rest,
+          }
+          |> return_quiet
+        };
+      | SkipExercise =>
+        print_endline("Skipping to the next exercise in the log");
+        let rec skip_to_next_exercise = (log: list((float, Page.Update.t))) =>
+          switch (log) {
+          | [] => []
+          | [(_, Editors(SwitchMode(_))), ..._] as rest => rest
+          | [(_, Editors(Exercises(SwitchExercise(_)))), ..._] as rest => rest
+          | [(_, _), ...rest] => skip_to_next_exercise(rest)
           };
         {
-          ...updated,
-          model: {
-            current: updated.model,
-            undo_stack: [
-              {
-                ...updated,
-                model: model.current,
-              },
-              ...model.undo_stack,
-            ],
-            redo_stack: model.redo_stack,
-            future_log: rest,
-          },
-        };
+          ...model,
+          future_log: skip_to_next_exercise(model.future_log),
+        }
+        |> return_quiet;
+      | ToggleReplay =>
+        Model.{
+          ...model,
+          replay_toggle: !model.replay_toggle,
+        }
+        |> return_quiet
       }
-    | Globals(InitImportLog(f)) =>
-      JsUtil.read_file(f, data =>
-        schedule_action(Globals(FinishImportLog(data)))
-      );
-      model |> return_quiet;
-    | Globals(FinishImportLog(None)) =>
-      print_endline("Log import failed");
-      model |> return_quiet;
-    | Globals(FinishImportLog(Some(data))) =>
-      let of_data = (data: string): list(Page.Update.t) =>
-        Export.import_just_log(data)
-        |> Sexplib.Sexp.of_string
-        |> Log.Entry.s_of_sexp
-        |> List.map(((_ts, action)) => action);
-      let actions =
-        data
-        |> of_data
-        |> Log.flatten_imports(~of_data)
-        |> List.rev
-        |> (
-          x => {
-            print_endline(
-              "Imported log entries: " ++ string_of_int(List.length(x)),
-            );
-            x;
-          }
-        );
-      {
-        ...model,
-        future_log: model.future_log @ actions,
-      }
-      |> return_quiet;
     | action =>
       let current =
         Page.Update.update(
@@ -176,6 +238,7 @@ module Update = {
               ...model.undo_stack,
             ],
             redo_stack: [],
+            replay_toggle: model.replay_toggle,
           },
         };
       } else {
@@ -186,6 +249,7 @@ module Update = {
             undo_stack: model.undo_stack,
             redo_stack: model.redo_stack,
             future_log: model.future_log,
+            replay_toggle: model.replay_toggle,
           },
         };
       };
@@ -205,6 +269,7 @@ module Update = {
     undo_stack: model.undo_stack,
     redo_stack: model.redo_stack,
     future_log: model.future_log,
+    replay_toggle: model.replay_toggle,
   };
 };
 

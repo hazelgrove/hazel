@@ -131,7 +131,7 @@ module Update = {
           model.editors,
         );
       switch (jump) {
-      | None => model |> Updated.return_quiet
+      | None => model |> Updated.raise_invalid_action
       | Some((action, selection)) =>
         let* editors =
           Editors.Update.update(
@@ -244,9 +244,7 @@ module Update = {
           editors,
         };
       };
-    | InitImportLog(_)
-    | FinishImportLog(_)
-    | NextLog
+    | Log(_)
     | Undo
     | Redo =>
       failwith("Undo/Redo/Log import are handled in the history module")
@@ -667,14 +665,34 @@ module View = {
       @ (
         next_log
         |> Option.map(_ =>
-             Widgets.button(
-               text(">>"),
-               _ => Ui_effect.Many([inject(Globals(NextLog))]),
-               ~tooltip="Play next action from imported log",
-             )
+             [
+               Widgets.button(
+                 text("next"),
+                 _ => Ui_effect.Many([inject(Globals(Log(NextLog)))]),
+                 ~tooltip="Play next action from imported log",
+               ),
+               Widgets.button(
+                 text("skip"),
+                 _ => Ui_effect.Many([inject(Globals(Log(SkipLog)))]),
+                 ~tooltip="Skip the rest of the imported log",
+               ),
+               Widgets.button(
+                 text("skip exercise"),
+                 _ => Ui_effect.Many([inject(Globals(Log(SkipExercise)))]),
+                 ~tooltip="Skip to the next exercise in the imported log",
+               ),
+             ]
            )
         |> Option.to_list
-      ),
+        |> List.flatten
+      )
+      @ [
+        Widgets.button(
+          text("play/pause"),
+          _ => Ui_effect.Many([inject(Globals(Log(ToggleReplay)))]),
+          ~tooltip="Toggle replaying imported log automatically",
+        ),
+      ],
     );
 
   let main_view =

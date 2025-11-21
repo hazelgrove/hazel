@@ -63,6 +63,20 @@ module Entry = {
       Printf.sprintf("%.0f", ts),
       (ts, action) |> sexp_of_t |> Sexplib.Sexp.to_string,
     );
+
+  let s_of_sexp_opt = (sexp: Sexplib.Sexp.t): list(option(t)) =>
+    switch (sexp) {
+    | Sexplib.Sexp.List(lst) =>
+      List.rev_map(
+        entry_sexp =>
+          try(Some(t_of_sexp(entry_sexp))) {
+          | _ => None
+          },
+        lst,
+      )
+      |> List.rev
+    | _ => []
+    };
 };
 
 let import = (data: string): unit =>
@@ -110,16 +124,23 @@ let to_actions = () => {
 };
 
 // If the user switched browsers or devices, they may have imported a save state from another device, this includes the log from the previous device in a complete stitched log.
-let rec flatten_imports =
-        (~of_data: string => list(Page.Update.t), log: list(Page.Update.t))
-        : list(Page.Update.t) => {
-  let rec inner = (log: list(Page.Update.t)) => {
+let flatten_imports =
+    (
+      ~of_data: string => list((float, Page.Update.t)),
+      log: list((float, Page.Update.t)),
+    )
+    : list((float, Page.Update.t)) => {
+  let rec inner =
+          (
+            log: list((float, Page.Update.t)),
+            acc: list((float, Page.Update.t)),
+          ) => {
     switch (log) {
-    | [] => []
-    | [Globals(FinishImportAll(Some(data))), ..._rest] =>
-      flatten_imports(~of_data, of_data(data))
-    | [x, ...rest] => [x, ...inner(rest)]
+    | [] => acc
+    | [(_t, Globals(FinishImportAll(Some(data)))), ..._rest] =>
+      inner(List.rev(of_data(data)), acc)
+    | [x, ...rest] => inner(rest, [x, ...acc])
     };
   };
-  log |> List.rev |> inner;
+  log |> List.rev |> inner(_, []);
 };
