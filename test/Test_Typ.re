@@ -356,6 +356,25 @@ let diff_tests = (
       },
     ),
     test_case(
+      "(Int, a) ~ (Int, String)",
+      `Quick,
+      () => {
+        let int_typ = Typ.fresh(Atom(Atom.Int));
+        let string_typ = Typ.fresh(Atom(Atom.String));
+        let var_a = Typ.fresh(Var("a"));
+        let expected = [Typ.rep_id(string_typ)];
+        check(
+          list(testable_id),
+          "diff on (Int, a) ~ (Int, String)",
+          expected,
+          Typ.diff(
+            Typ.fresh(Prod([int_typ, var_a])),
+            Typ.fresh(Prod([int_typ, string_typ])),
+          ),
+        );
+      },
+    ),
+    test_case(
       "diff var different names",
       `Quick,
       () => {
@@ -381,7 +400,7 @@ let diff_tests = (
         let expected = [];
         check(
           list(testable_id),
-          "diff on recursive types with different tpats",
+          "diff on recursive types with same tpats",
           expected,
           Typ.diff(rec1, rec2),
         );
