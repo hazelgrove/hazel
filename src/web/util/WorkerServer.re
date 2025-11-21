@@ -33,7 +33,8 @@ module Response = {
 let work = (res: Request.value): Response.value =>
   switch (Language.Evaluator.evaluate(~env=Language.Builtins.env_init, res)) {
   | exception (Language.EvaluatorError.Exception(reason)) =>
-    Error(Language.ProgramResult.EvaulatorError(reason))
+    print_endline("EvaluatorError:" ++ Language.EvaluatorError.show(reason));
+    Error(Language.ProgramResult.EvaulatorError(reason));
   | exception exn =>
     print_endline("EXN:" ++ Printexc.to_string(exn));
     Error(Language.ProgramResult.UnknownException(Printexc.to_string(exn)));
