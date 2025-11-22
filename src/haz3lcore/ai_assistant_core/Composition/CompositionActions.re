@@ -74,7 +74,7 @@ type editor_payload = (editor_action, AssistantUpdateAction.status => unit);
 [@deriving (show({with_path: false}), sexp, yojson)]
 type composition_action =
   | Editor(editor_action)
-  | Assistant(AssistantUpdateAction.agentic_self_action);
+  | Assistant(AssistantUpdateAction.composition_model_agent_action);
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type composition_payload = (

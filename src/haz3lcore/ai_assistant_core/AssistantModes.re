@@ -253,9 +253,13 @@ module Composition = {
       let action = CompositionUtils.Public.action_of(~tool_name, ~args);
       let _enclose_in_backticks = (str: string) => "```" ++ str ++ "```";
       switch (action) {
-      | Some(action) =>
+      | Action(action) =>
         "Agent called tool: " ++ CompositionUtils.Public.string_of(action)
-      | None => "Agent called unknown tool: " ++ tool_name ++ ". Ignoring."
+      | Failure(s) =>
+        "Agent called tool: "
+        ++ tool_call.tool_name
+        ++ "\nBut a failure occured: "
+        ++ s
       };
     }) {
     | Failure(err) =>
@@ -300,9 +304,11 @@ module Composition = {
         let payload = (editor_action, schedule_tool_response);
         schedule_editor_action(Action.Composition(payload));
       }
-    | Assistant(agentic_self_action) =>
-      let payload = (agentic_self_action, chat_id, schedule_tool_response);
-      schedule_assistant_action(AgenticSelfAction(payload));
+    | Assistant(composition_model_action) =>
+      let payload = (composition_model_action, schedule_tool_response);
+      schedule_assistant_action(
+        CompositionModelAction(AgentAction(payload), chat_id),
+      );
     };
   };
 };

@@ -472,7 +472,7 @@ let mk_input_handlers =
   let curr_chat_id =
     switch (mode) {
     | CodeSuggestion => model.current_chats.curr_suggestion_chat
-    | TaskCompletion => model.current_chats.curr_composition_chat
+    | Composition => model.current_chats.curr_composition_chat
     | HazelTutor => model.current_chats.curr_tutor_chat
     };
   let curr_messages =
@@ -480,7 +480,7 @@ let mk_input_handlers =
     | CodeSuggestion =>
       Id.Map.find(curr_chat_id, model.chat_history.past_suggestion_chats).
         messages
-    | TaskCompletion =>
+    | Composition =>
       Id.Map.find(curr_chat_id, model.chat_history.past_composition_chats).
         messages
     | HazelTutor =>
@@ -518,7 +518,7 @@ let mk_input_handlers =
             model.current_chats.curr_suggestion_chat,
           ),
         )
-      | TaskCompletion =>
+      | Composition =>
         inject(
           Update.SendMessage(
             Composition(Request(content), false),
@@ -611,7 +611,7 @@ let message_input =
             switch (settings.mode) {
             | HazelTutor => "Ask a question about Hazel (or anything)..."
             | CodeSuggestion => "Followup with a question about the agent's code suggestion..."
-            | TaskCompletion => "Ask the agent to help clarify, plan, or write code..."
+            | Composition => "Ask the agent to help clarify, plan, or write code..."
             },
           ),
           Attr.type_("text"),
@@ -913,7 +913,7 @@ let text_block =
               switch (settings.mode) {
               | HazelTutor => "Ask a question about Hazel (or anything)..."
               | CodeSuggestion => "Followup with a question about the agent's code suggestion..."
-              | TaskCompletion => "Ask the agent to help clarify, plan, or write code..."
+              | Composition => "Ask the agent to help clarify, plan, or write code..."
               },
             ),
             Attr.property("autocomplete", Js.Unsafe.inject("off")),
@@ -1140,9 +1140,9 @@ let initial_display =
             [
               text(
                 switch (settings.mode) {
-                | HazelTutor => "Hey, I'm Corylus. Let's learn about Hazel together."
-                | CodeSuggestion => "Hey, I'm Corylus. Type '??' in an expression hole in the code and see the dialogue between the language server and me here."
-                | TaskCompletion => "Hey, I'm Corylus. Let's work on your task together."
+                | HazelTutor => "Hi, I'm Corylus. Let's learn about Hazel together."
+                | CodeSuggestion => "Hi, I'm Corylus. Type '??' in an expression hole and see the suggestion dialogue here."
+                | Composition => "Hi, I'm Corylus. Let's work on your task together."
                 },
               ),
             ],
@@ -1234,7 +1234,7 @@ let message_display =
                                 ~attrs=[clss(["llm-identifier"])],
                                 [Icons.corylus, text("Corylus")],
                               )
-                            | TaskCompletion =>
+                            | Composition =>
                               div(
                                 ~attrs=[clss(["llm-identifier"])],
                                 [Icons.corylus, text("Corylus")],
@@ -1334,17 +1334,17 @@ let message_display =
       ),
     );
   // Autoscroll to loading dots if they exist (only once per loading session)
-  JsUtil.delay(0.0, () => {
-    Js.Opt.iter(
-      Dom_html.document##getElementById(Js.string("loading-dots-anchor")),
-      el => {
-        let _ = Js.Unsafe.coerce(el)##scrollIntoView();
-        // Change the ID so we don't scroll to it again
-        Js.Unsafe.coerce(el)##.id :=
-          Js.string("loading-dots-anchor-scrolled");
-      },
-    )
-  });
+  // JsUtil.delay(0.0, () => {
+  //   Js.Opt.iter(
+  //     Dom_html.document##getElementById(Js.string("loading-dots-anchor")),
+  //     el => {
+  //       let _ = Js.Unsafe.coerce(el)##scrollIntoView();
+  //       // Change the ID so we don't scroll to it again
+  //       Js.Unsafe.coerce(el)##.id :=
+  //         Js.string("loading-dots-anchor-scrolled");
+  //     },
+  //   )
+  // });
   div(
     ~attrs=[clss(["message-display-container"])],
     message_nodes
@@ -1376,13 +1376,13 @@ let get_sidebar_width = () => {
           String.sub(width_str, 0, String.length(width_str) - 2),
         )
       ) {
-      | Invalid_argument(_) => 400 // default width on error
+      | Invalid_argument(_) => 450 // default width on error
       };
     } else {
-      400; // default width if no 'px' suffix
+      450; // default width if no 'px' suffix
     };
   } else {
-    400; // default width
+    450; // default width
   };
 };
 
@@ -1463,43 +1463,120 @@ let prompt_display =
   };
 };
 
-let mode_buttons =
+let view_buttons =
+    (
+      ~inject: Update.t => Ui_effect.t(unit),
+      ~model: Model.t,
+      ~settings: AssistantSettings.t,
+    )
+    : Node.t => {
+  let (_, curr_chat) = UpdateBase.get_mode_info(settings.mode, model);
+  let active_view = curr_chat.composition_model.active_view;
+
+  let view_button = (view: CompositionModel.active_view, label: string) => {
+    let switch_view = _ =>
+      Virtual_dom.Vdom.Effect.Many([
+        inject(
+          Update.CompositionModelAction(
+            UIAction(SwitchView(view)),
+            curr_chat.id,
+          ),
+        ),
+        Virtual_dom.Vdom.Effect.Stop_propagation,
+      ]);
+    div(
+      ~attrs=[
+        clss(["view-button", active_view == view ? "active" : ""]),
+        Attr.on_click(switch_view),
+      ],
+      [text(label)],
+    );
+  };
+
+  div(
+    ~attrs=[clss(["view-buttons"])],
+    [view_button(Chat, "Chat"), view_button(Todos, "Workbench")],
+  );
+};
+
+let mode_dropdown =
     (
       ~inject_global: Globals.Action.t => Ui_effect.t(unit),
       ~settings: AssistantSettings.t,
     )
     : Node.t => {
-  let mode_button =
-      (mode: AssistantSettings.mode, label: string, ~disabled: bool) => {
-    let switch_mode = _ =>
-      Virtual_dom.Vdom.Effect.Many([
-        inject_global(Set(Assistant(SwitchMode(mode)))),
-        Virtual_dom.Vdom.Effect.Stop_propagation,
-      ]);
-    div(
-      ~attrs=[
-        clss([
-          "mode-button",
-          settings.mode == mode ? "active" : "",
-          disabled ? "disabled" : "",
-        ]),
-        Attr.on_click(disabled ? _ => Effect.Many([]) : switch_mode),
-      ],
-      [
-        text(label),
-        disabled
-          ? div(~attrs=[clss(["hover-view"])], [text("Coming soon!")])
-          : None,
-      ],
-    );
+  let handle_change = (event, _) => {
+    let target = Js.Unsafe.coerce(event)##.target;
+    let value = target##.value;
+    let mode =
+      switch (Js.to_string(value)) {
+      | "HazelTutor" => AssistantSettings.HazelTutor
+      | "CodeSuggestion" => AssistantSettings.CodeSuggestion
+      | "Composition" => AssistantSettings.Composition
+      | _ => AssistantSettings.Composition
+      };
+    inject_global(Set(Assistant(SwitchMode(mode))));
   };
 
+  let current_mode_string =
+    switch (settings.mode) {
+    | HazelTutor => "HazelTutor"
+    | CodeSuggestion => "CodeSuggestion"
+    | Composition => "Composition"
+    };
+
+  let mode_label =
+    switch (settings.mode) {
+    | HazelTutor => "Tutor"
+    | CodeSuggestion => "Suggest"
+    | Composition => "Compose"
+    };
+
   div(
-    ~attrs=[clss(["mode-buttons"])],
+    ~attrs=[clss(["mode-dropdown-container"])],
     [
-      mode_button(HazelTutor, "Tutor", ~disabled=false),
-      mode_button(CodeSuggestion, "Suggest", ~disabled=false),
-      mode_button(TaskCompletion, "Compose", ~disabled=false),
+      span(
+        ~attrs=[clss(["mode-dropdown-label"])],
+        [
+          text(mode_label),
+          span(
+            ~attrs=[clss(["dropdown-arrow"])],
+            [text(" \226\150\188")],
+          ),
+        ],
+      ),
+      select(
+        ~attrs=[
+          Attr.on_change(handle_change),
+          clss(["mode-dropdown-select"]),
+          Attr.value(current_mode_string),
+        ],
+        [
+          option(
+            ~attrs=[
+              Attr.value("Composition"),
+              current_mode_string == "Composition"
+                ? Attr.selected : Attr.empty,
+            ],
+            [text("Compose")],
+          ),
+          option(
+            ~attrs=[
+              Attr.value("CodeSuggestion"),
+              current_mode_string == "CodeSuggestion"
+                ? Attr.selected : Attr.empty,
+            ],
+            [text("Suggest")],
+          ),
+          option(
+            ~attrs=[
+              Attr.value("HazelTutor"),
+              current_mode_string == "HazelTutor" ? Attr.selected : Attr.empty,
+            ],
+            [text("Tutor")],
+          ),
+        ],
+      ),
     ],
   );
 };
@@ -1525,7 +1602,7 @@ let history_menu =
           switch (settings.mode) {
           | HazelTutor => text("Tutor History")
           | CodeSuggestion => text("Suggestion History")
-          | TaskCompletion => text("Task History")
+          | Composition => text("Task History")
           },
         ],
       ),
@@ -1598,6 +1675,105 @@ let history_menu =
   );
 };
 
+let todo_list_display =
+    (~model: Model.t, ~settings: AssistantSettings.t): Node.t => {
+  let (_, curr_chat) = UpdateBase.get_mode_info(settings.mode, model);
+  let active_todo_list = curr_chat.composition_model.active_todo_list;
+
+  switch (active_todo_list) {
+  | None =>
+    div(~attrs=[clss(["no-todo-list"])], [text("No active todo list.")])
+  | Some(todo_list) =>
+    div(
+      ~attrs=[clss(["todo-list-container"])],
+      [
+        div(~attrs=[clss(["todo-list-title"])], [text(todo_list.title)]),
+        div(
+          ~attrs=[clss(["todo-items"])],
+          List.map(
+            (item: CompositionModel.todo_item) => {
+              div(
+                ~attrs=[clss(["todo-item"])],
+                [
+                  div(
+                    ~attrs=[
+                      clss([
+                        "todo-status-icon",
+                        item.completed ? "completed" : "incomplete",
+                      ]),
+                    ],
+                    [
+                      item.completed
+                        ? Node.create_svg(
+                            "svg",
+                            ~attrs=[
+                              Attr.create("viewBox", "0 0 24 24"),
+                              Attr.create("width", "16px"),
+                              Attr.create("height", "16px"),
+                            ],
+                            [
+                              Node.create_svg(
+                                "circle",
+                                ~attrs=[
+                                  Attr.create("cx", "12"),
+                                  Attr.create("cy", "12"),
+                                  Attr.create("r", "10"),
+                                  Attr.create("fill", "var(--primary-color)"),
+                                ],
+                                [],
+                              ),
+                              Node.create_svg(
+                                "path",
+                                ~attrs=[
+                                  Attr.create(
+                                    "d",
+                                    "M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z",
+                                  ),
+                                  Attr.create("fill", "white"),
+                                ],
+                                [],
+                              ),
+                            ],
+                          )
+                        : Node.create_svg(
+                            "svg",
+                            ~attrs=[
+                              Attr.create("viewBox", "0 0 24 24"),
+                              Attr.create("width", "16px"),
+                              Attr.create("height", "16px"),
+                            ],
+                            [
+                              Node.create_svg(
+                                "circle",
+                                ~attrs=[
+                                  Attr.create("cx", "12"),
+                                  Attr.create("cy", "12"),
+                                  Attr.create("r", "9"),
+                                  Attr.create("stroke", "var(--BR3)"),
+                                  Attr.create("stroke-width", "2"),
+                                  Attr.create("fill", "transparent"),
+                                ],
+                                [],
+                              ),
+                            ],
+                          ),
+                    ],
+                  ),
+                  div(
+                    ~attrs=[clss(["todo-item-title"])],
+                    [text(item.title)],
+                  ),
+                ],
+              )
+            },
+            todo_list.items,
+          ),
+        ),
+      ],
+    )
+  };
+};
+
 let view =
     (
       ~globals: Globals.t,
@@ -1607,6 +1783,14 @@ let view =
     ) => {
   let settings = globals.settings;
   let inject_global = globals.inject_global;
+
+  let (_, curr_chat) =
+    UpdateBase.get_mode_info(settings.assistant.mode, model);
+  let active_view = curr_chat.composition_model.active_view;
+  let show_todos =
+    settings.assistant.mode == Composition
+    && active_view == CompositionModel.Todos;
+
   /* For debugging: Uncomment to view chat history
      let curr_chat =
        Id.Map.find(
@@ -1638,31 +1822,54 @@ let view =
         div(
           ~attrs=[clss(["header"])],
           [
-            settings.assistant.ongoing_chat
-              ? mode_buttons(~inject_global, ~settings=settings.assistant)
-              : div(
-                  ~attrs=[clss(["main-title"])],
-                  [text("Assistant Settings")],
-                ),
-            settings.assistant.ongoing_chat
-              ? history_button(~inject, ~inject_global) : None,
-            settings.assistant.ongoing_chat
-              ? new_chat_button(~inject, ~model) : None,
-            settings.assistant.ongoing_chat
-              ? settings_button(~inject_global)
-              : resume_chat_button(~inject_global),
+            div(
+              ~attrs=[clss(["header-left-group"])],
+              [
+                settings.assistant.ongoing_chat
+                && settings.assistant.mode == Composition
+                  ? view_buttons(
+                      ~inject,
+                      ~model,
+                      ~settings=settings.assistant,
+                    )
+                  : None,
+              ],
+            ),
+            div(
+              ~attrs=[clss(["header-right-group"])],
+              [
+                settings.assistant.ongoing_chat
+                  ? mode_dropdown(
+                      ~inject_global,
+                      ~settings=settings.assistant,
+                    )
+                  : div(
+                      ~attrs=[clss(["main-title"])],
+                      [text("Assistant Settings")],
+                    ),
+                settings.assistant.ongoing_chat
+                  ? history_button(~inject, ~inject_global) : None,
+                settings.assistant.ongoing_chat
+                  ? new_chat_button(~inject, ~model) : None,
+                settings.assistant.ongoing_chat
+                  ? settings_button(~inject_global)
+                  : resume_chat_button(~inject_global),
+              ],
+            ),
           ],
         ),
         settings.assistant.ongoing_chat
-          ? message_display(
-              ~globals,
-              ~inject,
-              ~model,
-              ~settings=settings.assistant,
-              ~signal,
-            )
+          ? show_todos
+              ? todo_list_display(~model, ~settings=settings.assistant)
+              : message_display(
+                  ~globals,
+                  ~inject,
+                  ~model,
+                  ~settings=settings.assistant,
+                  ~signal,
+                )
           : None,
-        settings.assistant.ongoing_chat
+        settings.assistant.ongoing_chat && !show_todos
           ? message_input(
               ~signal,
               ~inject,

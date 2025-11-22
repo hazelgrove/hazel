@@ -2,17 +2,20 @@ open Util;
 
 let new_todo_list_description = {|
 Description:
-Initializes a new todo list, or overwrites the existing todo list with the given list of todo items.
+If a todo list with the given name does not exist, creates a new todo list with the provided todo items
+and sets it as the active todo list. If a todo list with the given name already exists in the archive,
+overwrites the existing todo list with the provided one and sets it as the active todo list. Note that this
+will set all todo items in the new todo list as incomplete by default.
 
 Parameters:
-todo_items: list({
+todo_list: {
   title: string,
-  description: string
-}) — the list of todo items to initialize
-
-Example(s):
-Calling new_todo_list(todo_items = [{"title": "a", "description": "b"}, {"title": "c", "description": "d"}]) would result in the todo list:
-[{"title": "a", "description": "b", "completed": false}, {"title": "c", "description": "d", "completed": false}]
+  description: string,
+  items: list({
+    title: string,
+    description: string
+  })
+} — the todo list to create or overwrite
 |};
 
 let new_todo_list: API.Json.t =
@@ -31,57 +34,135 @@ let new_todo_list: API.Json.t =
               "properties",
               `Assoc([
                 (
-                  "todo_items",
+                  "todo_list",
                   `Assoc([
-                    ("type", `String("array")),
+                    ("type", `String("object")),
                     (
                       "description",
-                      `String("The list of todo items to initialize."),
+                      `String("The todo list to create or overwrite."),
                     ),
                     (
-                      "items",
+                      "properties",
                       `Assoc([
-                        ("type", `String("object")),
                         (
-                          "properties",
+                          "title",
                           `Assoc([
-                            (
-                              "title",
-                              `Assoc([
-                                ("type", `String("string")),
-                                (
-                                  "description",
-                                  `String(
-                                    "The title of the todo item. This will also serve as a unique identifier for the todo item in the future. Try to keep short and concise.",
-                                  ),
-                                ),
-                              ]),
-                            ),
+                            ("type", `String("string")),
                             (
                               "description",
+                              `String(
+                                "The title of the todo list. Be concise. This will be used as a unique identifing key in the todo list archive.",
+                              ),
+                            ),
+                          ]),
+                        ),
+                        (
+                          "description",
+                          `Assoc([
+                            ("type", `String("string")),
+                            (
+                              "description",
+                              `String(
+                                "A high-level description of the todo list. Be descriptive here. This will help provide context and clarity about the purpose and scope of the todo list and task at hand.",
+                              ),
+                            ),
+                          ]),
+                        ),
+                        (
+                          "items",
+                          `Assoc([
+                            ("type", `String("array")),
+                            (
+                              "items",
                               `Assoc([
-                                ("type", `String("string")),
+                                ("type", `String("object")),
                                 (
-                                  "description",
-                                  `String(
-                                    "The description of the todo item.",
-                                  ),
+                                  "properties",
+                                  `Assoc([
+                                    (
+                                      "title",
+                                      `Assoc([
+                                        ("type", `String("string")),
+                                        (
+                                          "description",
+                                          `String(
+                                            "The title of the todo item. This will also serve as a unique identifier for the todo item in the future. Try to keep short and concise.",
+                                          ),
+                                        ),
+                                      ]),
+                                    ),
+                                    (
+                                      "description",
+                                      `Assoc([
+                                        ("type", `String("string")),
+                                        (
+                                          "description",
+                                          `String(
+                                            "The description of the todo item. Be as detailed as necessary to convey the subtask at hand. This will help provide clarity on what needs to be done.",
+                                          ),
+                                        ),
+                                      ]),
+                                    ),
+                                  ]),
+                                ),
+                                (
+                                  "required",
+                                  `List([
+                                    `String("title"),
+                                    `String("description"),
+                                  ]),
                                 ),
                               ]),
                             ),
                           ]),
                         ),
-                        (
-                          "required",
-                          `List([`String("title"), `String("description")]),
-                        ),
+                      ]),
+                    ),
+                    (
+                      "required",
+                      `List([
+                        `String("title"),
+                        `String("description"),
+                        `String("items"),
                       ]),
                     ),
                   ]),
                 ),
               ]),
             ),
-            ("required", `List([`String("todo_items")])),
+            ("required", `List([`String("todo_list")])),
+          ]),
+        ),
+      ]),
+    ),
+  ]);
+
+let archive_todo_list_description = {|
+Description:
+Archives the active todo list, and sets the active todo list to None.
+
+Parameters:
+None
+
+Example(s):
+Calling archive_todo_list() will result in the active todo list being set to None,
+and the previous active todo list being stored in the todo list archive.
+|};
+
+let archive_todo_list: API.Json.t =
+  `Assoc([
+    ("type", `String("function")),
+    (
+      "function",
+      `Assoc([
+        ("name", `String("archive_todo_list")),
+        ("description", `String(archive_todo_list_description)),
+        (
+          "parameters",
+          `Assoc([
+            ("type", `String("object")),
+            ("properties", `Assoc([])),
+            ("required", `List([])),
           ]),
         ),
       ]),
@@ -175,38 +256,7 @@ let add_todo_items: API.Json.t =
     ),
   ]);
 
-let delete_todo_list_description = {|
-Description:
-Deletes the entire todo list, removing all todo items.
-
-Parameters:
-None
-
-Example(s):
-Calling delete_todo_list() would result in an empty todo list.
-|};
-
-let delete_todo_list: API.Json.t =
-  `Assoc([
-    ("type", `String("function")),
-    (
-      "function",
-      `Assoc([
-        ("name", `String("delete_todo_list")),
-        ("description", `String(delete_todo_list_description)),
-        (
-          "parameters",
-          `Assoc([
-            ("type", `String("object")),
-            ("properties", `Assoc([])),
-            ("required", `List([])),
-          ]),
-        ),
-      ]),
-    ),
-  ]);
-
-let check_todo_items_description = {|
+let mark_todo_items_complete_description = {|
 Description:
 Marks todo items as completed by their titles.
 
@@ -215,18 +265,18 @@ titles: list(string) — the list of titles of the todo items to mark as complet
 
 Example(s):
 Given a todo list with items [{"title": "Task 1", "description": "Do something", "completed": false}, {"title": "Task 2", "description": "Do something else", "completed": false}],
-Calling check_todo_items(titles = ["Task 1", "Task 2"]) would result in:
+Calling mark_todo_items_complete(titles = ["Task 1", "Task 2"]) would result in:
 [{"title": "Task 1", "description": "Do something", "completed": true}, {"title": "Task 2", "description": "Do something else", "completed": true}]
 |};
 
-let check_todo_items: API.Json.t =
+let mark_todo_items_complete: API.Json.t =
   `Assoc([
     ("type", `String("function")),
     (
       "function",
       `Assoc([
-        ("name", `String("check_todo_items")),
-        ("description", `String(check_todo_items_description)),
+        ("name", `String("mark_todo_items_complete")),
+        ("description", `String(mark_todo_items_complete_description)),
         (
           "parameters",
           `Assoc([
@@ -256,7 +306,7 @@ let check_todo_items: API.Json.t =
     ),
   ]);
 
-let uncheck_todo_items_description = {|
+let mark_todo_items_incomplete_description = {|
 Description:
 Marks todo items as not completed (unchecks them) by their titles.
 
@@ -265,18 +315,18 @@ titles: list(string) — the list of titles of the todo items to mark as not com
 
 Example(s):
 Given a todo list with items [{"title": "Task 1", "description": "Do something", "completed": true}, {"title": "Task 2", "description": "Do something else", "completed": true}],
-Calling uncheck_todo_items(titles = ["Task 1", "Task 2"]) would result in:
+Calling mark_todo_items_incomplete(titles = ["Task 1", "Task 2"]) would result in:
 [{"title": "Task 1", "description": "Do something", "completed": false}, {"title": "Task 2", "description": "Do something else", "completed": false}]
 |};
 
-let uncheck_todo_items: API.Json.t =
+let mark_todo_items_incomplete: API.Json.t =
   `Assoc([
     ("type", `String("function")),
     (
       "function",
       `Assoc([
-        ("name", `String("uncheck_todo_items")),
-        ("description", `String(uncheck_todo_items_description)),
+        ("name", `String("mark_todo_items_incomplete")),
+        ("description", `String(mark_todo_items_incomplete_description)),
         (
           "parameters",
           `Assoc([

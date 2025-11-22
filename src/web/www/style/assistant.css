@@ -27,10 +27,13 @@
 
 #assistant .header {
   display: flex;
-  width: 100%;
-  justify-content: space-between;
+  flex-direction: row;
   align-items: center;
-  font-weight: bold;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--SAND);
+  background-color: var(--ui-bkg);
+  justify-content: space-between;
+  flex-shrink: 0;
 }
 
 #assistant .settings-box {
@@ -1013,4 +1016,148 @@
 
 #assistant .quit-button:active {
   background-color: var(--Y2);
+}
+
+/* New styles for header layout */
+#assistant .header-left {
+  display: flex;
+  align-items: center;
+  gap: 1em;
+}
+
+#assistant .header-right {
+  display: flex;
+  align-items: center;
+  gap: 0.5em;
+}
+
+#assistant .header-left-group,
+#assistant .header-right-group {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+/* View Buttons (Chat / Todos) */
+#assistant .view-buttons {
+  display: flex;
+  gap: 20px;
+}
+
+#assistant .view-button {
+  cursor: pointer;
+  font-size: 0.9em;
+  color: var(--BR3);
+  padding-bottom: 2px;
+  border-bottom: 2px solid transparent;
+  transition: all 0.2s ease;
+}
+
+#assistant .view-button:hover {
+  color: var(--BR4);
+}
+
+#assistant .view-button.active {
+  color: var(--BR4);
+  border-bottom-color: var(--BR4);
+  font-weight: 500;
+}
+
+/* Mode Dropdown */
+#assistant .mode-dropdown-container {
+  position: relative;
+  display: inline-block;
+  cursor: pointer;
+}
+
+#assistant .mode-dropdown-label {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-size: 0.9em;
+  color: var(--BR4);
+  background-color: transparent;
+  transition: background-color 0.2s;
+}
+
+#assistant .mode-dropdown-container:hover .mode-dropdown-label {
+  background-color: var(--T2);
+}
+
+#assistant .dropdown-arrow {
+  font-size: 0.7em;
+  opacity: 0.7;
+}
+
+#assistant .mode-dropdown-select {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  opacity: 0;
+  cursor: pointer;
+  appearance: none; /* Remove default arrow */
+}
+
+/* Todos Placeholder */
+#assistant .todos-placeholder {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--BR3);
+  font-style: italic;
+}
+
+/* Todo List Styling */
+#assistant .todo-list-container {
+  margin: 10px;
+  padding: 10px;
+  border: 1px solid var(--SAND);
+  border-radius: 8px;
+  background-color: var(--ui-bkg);
+}
+
+#assistant .todo-list-title {
+  font-weight: bold;
+  text-decoration: underline;
+  margin-bottom: 10px;
+  text-align: center;
+  color: var(--BR4);
+}
+
+#assistant .todo-items {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+#assistant .todo-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+#assistant .todo-status-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  flex-shrink: 0;
+}
+
+#assistant .todo-item-title {
+  font-size: 0.9em;
+  color: var(--BR4);
+}
+
+#assistant .no-todo-list {
+  padding: 20px;
+  text-align: center;
+  color: var(--BR3);
+  font-style: italic;
 }

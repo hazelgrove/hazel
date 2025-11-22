@@ -3,7 +3,7 @@ open Util;
 [@deriving (show({with_path: false}), sexp, yojson)]
 type mode =
   | CodeSuggestion
-  | TaskCompletion
+  | Composition
   | HazelTutor;
 
 [@deriving (show({with_path: false}), sexp, yojson)]

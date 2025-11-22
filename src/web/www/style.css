@@ -104,7 +104,7 @@ select {
   background-color: var(--T1);
   position: relative;
   min-width: 300px;
-  width: 400px;
+  width: 450px;
   scrollbar-color: var(--main-scroll-thumb) var(--NONE);
   scrollbar-width: thin;
 }

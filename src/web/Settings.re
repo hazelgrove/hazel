@@ -48,7 +48,7 @@ module Model = {
       highlight: NoHighlight,
     },
     assistant: {
-      mode: CodeSuggestion,
+      mode: Composition,
       ongoing_chat: false,
       show_history: false,
       show_api_key: false,

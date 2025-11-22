@@ -649,7 +649,7 @@ module Local = {
         switch (composition_dispatch(a, syntax, z, mk_statics, return)) {
         | Ok(new_z) =>
           switch (freshen_paths(new_z, mk_statics)) {
-          | Ok(new_z) => Ok(new_z)
+          | Ok(new_z) => Ok(Dump.to_zipper(new_z))
           | Error(e) => Error(e)
           }
         | Error(e) => Error(e)
@@ -671,7 +671,7 @@ module Local = {
     | Error(Action.Failure.Cant_derive_local_AST_information) =>
       schedule_tool_response(
         AssistantUpdateAction.Failure(
-          "Could not derive an AST with definition nodes for the program. Make sure to call initialize to overwrite the current program, and introduce a program with definition-based nodes. i.e. You tried calling a tool that requres deinitions to exist in the program.",
+          "Could not derive an AST with definition nodes for the program. Maybe you meant to call initialize? Make sure to call initialize to overwrite the current program, and introduce a program with definition-based nodes. i.e. You tried calling a tool that requres deinitions to exist in the program.",
         ),
       )
     | _ =>

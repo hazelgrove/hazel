@@ -24,10 +24,10 @@ module Local = {
     // ViewTools.view_entire_definition, // No longer needed is this top-level refactor... this is done by default
     // ViewTools.view_context,
     TodoListTools.new_todo_list,
-    TodoListTools.delete_todo_list,
+    TodoListTools.archive_todo_list,
     TodoListTools.add_todo_items,
-    TodoListTools.check_todo_items,
-    TodoListTools.uncheck_todo_items,
+    TodoListTools.mark_todo_items_complete,
+    TodoListTools.mark_todo_items_incomplete,
   ];
 
   let get_string_arg = (~arg: option(string), ~fail_with: string) => {
@@ -52,7 +52,11 @@ module Local = {
     };
   };
 
-  let action_of = (~tool_name: string, ~args: API.Json.t): option(action) => {
+  type action_wrapper =
+    | Action(action)
+    | Failure(string);
+
+  let action_of = (~tool_name: string, ~args: API.Json.t): action_wrapper => {
     /* Possible arguments */
     /* Parsing here to avoid redundancy */
     /* Argument(s) may or may not be provided depending on the tool called */
@@ -111,17 +115,37 @@ module Local = {
         raise(Failure("A description must be provided for the todo item"))
       };
     };
-    let todo_item_of_json =
-        (todo_item_json: API.Json.t): AssistantModel.todo_item => {
+    let get_todo_item =
+        (todo_item_json: API.Json.t): CompositionModel.todo_item => {
       title: get_title(todo_item_json),
       description: get_description(todo_item_json),
       completed: false,
     };
-    let get_todo_items = (): list(AssistantModel.todo_item) => {
-      switch (API.Json.dot("todo_items", args)) {
+    let get_todo_items =
+        (todo_items_json: API.Json.t): list(CompositionModel.todo_item) => {
+      switch (API.Json.dot("items", todo_items_json)) {
       | Some(`List(todo_list_json)) =>
-        List.map(todo_item_of_json, todo_list_json)
-      | _ => raise(Failure("A todo list must be provided for the action"))
+        List.map(get_todo_item, todo_list_json)
+      | _ =>
+        raise(
+          Failure("A list of todo items must be provided for the action"),
+        )
+      };
+    };
+    let get_todo_list = (): CompositionModel.todo_list => {
+      let todo_list_json =
+        switch (API.Json.dot("todo_list", args)) {
+        | Some(todo_list_json) => todo_list_json
+        | _ => raise(Failure("A todo list must be provided for the action"))
+        };
+      let title = get_title(todo_list_json);
+      let description = get_description(todo_list_json);
+      let items = get_todo_items(todo_list_json);
+      {
+        title,
+        description,
+        items,
+        last_updated: JsUtil.timestamp(),
       };
     };
 
@@ -148,19 +172,22 @@ module Local = {
             Editor(Edit(DeleteBindingClause(get_path())))
           | "delete_body" => Editor(Edit(DeleteBody(get_path())))
           | "new_todo_list" =>
-            Assistant(TodoAction(NewTodoList(get_todo_items())))
-          | "delete_todo_list" => Assistant(TodoAction(DeleteTodoList))
+            Assistant(TodoAction(NewTodoList(get_todo_list())))
+          | "archive_todo_list" =>
+            Assistant(TodoAction(ArchiveActiveTodoList))
           | "add_todo_items" =>
-            Assistant(TodoAction(AddTodoItems(get_todo_items())))
-          | "check_todo_items" =>
-            Assistant(TodoAction(CheckTodoItems(get_titles_list())))
-          | "uncheck_todo_items" =>
-            Assistant(TodoAction(UncheckTodoItems(get_titles_list())))
+            Assistant(TodoAction(AddTodoItems(get_todo_items(args))))
+          | "mark_todo_items_complete" =>
+            Assistant(TodoAction(MarkTodoItemsComplete(get_titles_list())))
+          | "mark_todo_items_incomplete" =>
+            Assistant(
+              TodoAction(MarkTodoItemsIncomplete(get_titles_list())),
+            )
           | _ => raise(Failure("The tool called does not exist."))
           };
-        Some(action);
+        Action(action);
       }) {
-      | _ => None
+      | Failure(s: string) => Failure(s)
       };
     action;
   };
@@ -193,30 +220,28 @@ module Local = {
       "insert_before(\"" ++ path ++ "\", \"" ++ code ++ "\")"
     | Assistant(TodoAction(NewTodoList(todo_list))) =>
       "new_todo_list(\""
+      ++ CompositionModel.todo_list_to_string(todo_list)
+      ++ "\")"
+    | Assistant(TodoAction(ArchiveActiveTodoList)) => "archive_todo_list()"
+    | Assistant(TodoAction(AddTodoItems(todo_items))) =>
+      "add_todo_items(\""
       ++ String.concat(
            ", ",
-           List.map(AssistantModel.todo_item_to_string, todo_list),
+           List.map(CompositionModel.todo_item_to_string, todo_items),
          )
       ++ "\")"
-    | Assistant(TodoAction(DeleteTodoList)) => "delete_todo_list()"
-    | Assistant(TodoAction(AddTodoItems(todo_items))) =>
-      "add_todo_items("
-      ++ String.concat(
-           ", ",
-           List.map(AssistantModel.todo_item_to_string, todo_items),
-         )
-      ++ ")"
-    | Assistant(TodoAction(CheckTodoItems(titles))) =>
-      "check_todo_items(\"" ++ String.concat(", ", titles) ++ "\")"
-    | Assistant(TodoAction(UncheckTodoItems(titles))) =>
-      "uncheck_todo_items(\"" ++ String.concat(", ", titles) ++ "\")"
+    | Assistant(TodoAction(MarkTodoItemsComplete(titles))) =>
+      "mark_todo_items_complete(\"" ++ String.concat(", ", titles) ++ "\")"
+    | Assistant(TodoAction(MarkTodoItemsIncomplete(titles))) =>
+      "mark_todo_items_incomplete(\"" ++ String.concat(", ", titles) ++ "\")"
     };
   };
 };
 
 module Public = {
   let tools = Local.tools;
-  let action_of = (~tool_name: string, ~args: API.Json.t): option(action) => {
+  let action_of =
+      (~tool_name: string, ~args: API.Json.t): Local.action_wrapper => {
     Local.action_of(~tool_name, ~args);
   };
   let string_of = (action: action) => {
