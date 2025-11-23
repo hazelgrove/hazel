@@ -1471,7 +1471,7 @@ let view_buttons =
     )
     : Node.t => {
   let (_, curr_chat) = UpdateBase.get_mode_info(settings.mode, model);
-  let active_view = curr_chat.composition_model.active_view;
+  let active_view = curr_chat.composition_model.view_settings.active_view;
 
   let view_button = (view: CompositionModel.active_view, label: string) => {
     let switch_view = _ =>
@@ -1596,16 +1596,7 @@ let history_menu =
       ),
     ],
     [
-      div(
-        ~attrs=[clss(["history-menu-header"])],
-        [
-          switch (settings.mode) {
-          | HazelTutor => text("Tutor History")
-          | CodeSuggestion => text("Suggestion History")
-          | Composition => text("Task History")
-          },
-        ],
-      ),
+      div(~attrs=[clss(["history-menu-header"])], [text("Chat History")]),
       div(
         ~attrs=[clss(["history-menu-list"])],
         List.map(
@@ -1675,51 +1666,209 @@ let history_menu =
   );
 };
 
-let todo_list_display =
-    (~model: Model.t, ~settings: AssistantSettings.t): Node.t => {
-  let (_, curr_chat) = UpdateBase.get_mode_info(settings.mode, model);
-  let active_todo_list = curr_chat.composition_model.active_todo_list;
+let todo_archive_button = (~inject, ~chat_id: Id.t): Node.t => {
+  let tooltip = "Task Archive";
+  let toggle_archive = _ =>
+    Virtual_dom.Vdom.Effect.Many([
+      inject(
+        Update.CompositionModelAction(
+          UIAction(ToggleArchiveVisibility),
+          chat_id,
+        ),
+      ),
+      Virtual_dom.Vdom.Effect.Stop_propagation,
+    ]);
+  div(
+    ~attrs=[clss(["assistant-button", "todo-archive-button"])],
+    [Widgets.button(~tooltip, Icons.library, toggle_archive)],
+  );
+};
 
-  switch (active_todo_list) {
-  | None =>
-    div(~attrs=[clss(["no-todo-list"])], [text("No active todo list.")])
-  | Some(todo_list) =>
-    div(
-      ~attrs=[clss(["todo-list-container"])],
-      [
-        div(~attrs=[clss(["todo-list-title"])], [text(todo_list.title)]),
+let todo_archive_menu =
+    (~model: Model.t, ~settings: AssistantSettings.t, ~inject, ~chat_id: Id.t)
+    : Node.t => {
+  let (_, curr_chat) = UpdateBase.get_mode_info(settings.mode, model);
+  let todo_archive = curr_chat.composition_model.todo_archive;
+  let sorted_archive = CompositionModel.sorted_todo_archive(todo_archive);
+
+  div(
+    ~attrs=[
+      Attr.id("todo-archive-menu"),
+      Attr.create(
+        "style",
+        "right: " ++ string_of_int(get_sidebar_width() + 20) ++ "px",
+      ),
+    ],
+    [
+      div(~attrs=[clss(["history-menu-header"])], [text("Task Archive")]),
+      div(
+        ~attrs=[clss(["history-menu-list"])],
+        List.map(
+          (todo_list: CompositionModel.todo_list) =>
+            div(
+              ~attrs=[
+                curr_chat.composition_model.active_task
+                |> Option.map((task: CompositionModel.active_task) =>
+                     task.active_todo_list.title == todo_list.title
+                   )
+                |> Option.value(~default=false)
+                  ? clss(["history-menu-item", "active"])
+                  : clss(["history-menu-item"]),
+                Attr.on_click(_ => {
+                  Virtual_dom.Vdom.Effect.Many([
+                    inject(
+                      Update.CompositionModelAction(
+                        UIAction(ManualSetActiveTodoList(todo_list.title)),
+                        chat_id,
+                      ),
+                    ),
+                    Virtual_dom.Vdom.Effect.Stop_propagation,
+                  ])
+                }),
+              ],
+              [
+                div(
+                  ~attrs=[clss(["history-menu-item-content"])],
+                  [text(todo_list.title)],
+                ),
+                div(
+                  ~attrs=[clss(["history-menu-item-actions"])],
+                  [
+                    div(
+                      ~attrs=[clss(["history-menu-item-time"])],
+                      [
+                        text(
+                          TimeUtil.format_time_diff(todo_list.last_updated),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          sorted_archive,
+        ),
+      ),
+    ],
+  );
+};
+
+let todo_list_display =
+    (~model: Model.t, ~settings: AssistantSettings.t, ~inject): Node.t => {
+  let (_, curr_chat) = UpdateBase.get_mode_info(settings.mode, model);
+  let chat_id = curr_chat.id;
+
+  div(
+    ~attrs=[clss(["todo-list-view"])],
+    [
+      div(
+        ~attrs=[clss(["todo-archive-button-container"])],
+        [todo_archive_button(~inject, ~chat_id)],
+      ),
+      switch (curr_chat.composition_model.active_task) {
+      | None =>
         div(
-          ~attrs=[clss(["todo-items"])],
-          List.map(
-            (item: CompositionModel.todo_item) => {
-              div(
-                ~attrs=[clss(["todo-item"])],
-                [
+          ~attrs=[clss(["no-todo-list"])],
+          [text("No active todo list.")],
+        )
+      | Some(active_task) =>
+        div(
+          ~attrs=[clss(["todo-list-container"])],
+          [
+            div(
+              ~attrs=[clss(["todo-list-title"])],
+              [text(active_task.active_todo_list.title)],
+            ),
+            div(
+              ~attrs=[clss(["todo-items"])],
+              List.map(
+                (item: CompositionModel.todo_item) => {
+                  let is_active =
+                    switch (active_task.active_todo_item) {
+                    | Some(active_item) => active_item.title == item.title
+                    | None => false
+                    };
                   div(
                     ~attrs=[
-                      clss([
-                        "todo-status-icon",
-                        item.completed ? "completed" : "incomplete",
-                      ]),
+                      clss(["todo-item", item.expanded ? "expanded" : ""]),
+                      Attr.on_click(_ =>
+                        inject(
+                          Update.CompositionModelAction(
+                            UIAction(ExpandTodoItem(item.title)),
+                            chat_id,
+                          ),
+                        )
+                      ),
                     ],
                     [
-                      item.completed
-                        ? Icons.circle_with_check : Icons.circle_with_no_check,
+                      div(
+                        ~attrs=[
+                          clss([
+                            "todo-status-icon",
+                            CompositionModel.is_completed(item)
+                              ? "completed" : "incomplete",
+                            is_active && !CompositionModel.is_completed(item)
+                              ? "active-todo" : "",
+                          ]),
+                        ],
+                        [
+                          CompositionModel.is_completed(item)
+                            ? Icons.circle_with_check
+                            : Icons.circle_with_no_check,
+                        ],
+                      ),
+                      div(
+                        ~attrs=[clss(["todo-item-content"])],
+                        [
+                          div(
+                            ~attrs=[clss(["todo-item-title"])],
+                            [text(item.title)],
+                          ),
+                          item.expanded
+                            ? div(
+                                ~attrs=[clss(["todo-item-details"])],
+                                [
+                                  div(
+                                    ~attrs=[clss(["todo-detail-header"])],
+                                    [text("Description")],
+                                  ),
+                                  div(
+                                    ~attrs=[clss(["todo-detail-text"])],
+                                    [text(item.description)],
+                                  ),
+                                  switch (item.task_completion_info) {
+                                  | Some(info) =>
+                                    div(
+                                      ~attrs=[clss(["todo-detail-section"])],
+                                      [
+                                        div(
+                                          ~attrs=[clss(["todo-detail-header"])],
+                                          [text("Summary of Changes")],
+                                        ),
+                                        div(
+                                          ~attrs=[clss(["todo-detail-text"])],
+                                          [text(info.summary)],
+                                        ),
+                                      ],
+                                    )
+                                  | None => None
+                                  },
+                                ],
+                              )
+                            : None,
+                        ],
+                      ),
                     ],
-                  ),
-                  div(
-                    ~attrs=[clss(["todo-item-title"])],
-                    [text(item.title)],
-                  ),
-                ],
-              )
-            },
-            todo_list.items,
-          ),
-        ),
-      ],
-    )
-  };
+                  );
+                },
+                active_task.active_todo_list.items,
+              ),
+            ),
+          ],
+        )
+      },
+    ],
+  );
 };
 
 let view =
@@ -1734,10 +1883,14 @@ let view =
 
   let (_, curr_chat) =
     UpdateBase.get_mode_info(settings.assistant.mode, model);
-  let active_view = curr_chat.composition_model.active_view;
+  let active_view = curr_chat.composition_model.view_settings.active_view;
   let show_todos =
     settings.assistant.mode == Composition
     && active_view == CompositionModel.Todos;
+
+  let show_archive =
+    settings.assistant.mode == Composition
+    && curr_chat.composition_model.view_settings.show_archive;
 
   /* For debugging: Uncomment to view chat history
      let curr_chat =
@@ -1808,7 +1961,11 @@ let view =
         ),
         settings.assistant.ongoing_chat
           ? show_todos
-              ? todo_list_display(~model, ~settings=settings.assistant)
+              ? todo_list_display(
+                  ~model,
+                  ~settings=settings.assistant,
+                  ~inject,
+                )
               : message_display(
                   ~globals,
                   ~inject,
@@ -1838,6 +1995,16 @@ let view =
           ? None : llm_model_id_input(~inject, ~model, ~signal),
         settings.assistant.ongoing_chat && settings.assistant.show_history
           ? history_menu(~model, ~settings=settings.assistant, ~inject) : None,
+        settings.assistant.ongoing_chat
+        && show_archive
+        && curr_chat.composition_model.view_settings.active_view == Todos
+          ? todo_archive_menu(
+              ~model,
+              ~settings=settings.assistant,
+              ~inject,
+              ~chat_id=curr_chat.id,
+            )
+          : None,
         prompt_display(
           ~globals,
           ~model,

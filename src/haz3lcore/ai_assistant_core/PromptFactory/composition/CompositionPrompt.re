@@ -116,6 +116,16 @@ let todo_list_instructions = [
   "This todo list will always be displayed as the latest message for you, meaning it will greatly help you manage you task at hand.",
   "You should aim to keep titles concise, as they are unique identifiers for the todo items, and make descriptions very detailed.",
   "Check off items as necessary. Uncheck if necessary. If you want to change a title/description/ordering, you should call new_todo_list to overwrite the existing one.",
+  "What is also very improtant is that you always set an active todo item (when doing something with code, not when just answering a users question.).",
+  "This will help keep track of what the actually item you are actually focusing on is, and will help communicate to the user what this item is as well.",
+  "Again, basic flow for todo list usage should be:\n",
+  "1.a. Create a new one with new_todo_list tool call if necessary.\n",
+  "1.b. If a todo list exists, update it as necessary with new_todo_list tool call.\n",
+  "2. Set an active todo item when working on code-related tasks.\n",
+  "3. Check off items as you complete them.\n",
+  "4. Set new active todo items as you move on to new tasks.\n",
+  "5. Repeat steps 1-4 as necessary until the task is complete!\n",
+  "6. Once complete, archive the todo list with the archive_active_todo_list tool call.\n",
   "\n</todoListInstructions>",
 ];
 

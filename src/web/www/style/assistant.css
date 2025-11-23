@@ -1048,13 +1048,14 @@
   cursor: pointer;
   font-size: 0.9em;
   color: var(--BR3);
+  padding-top: 4px;
   padding-bottom: 2px;
   border-bottom: 2px solid transparent;
   transition: all 0.2s ease;
 }
 
 #assistant .view-button:hover {
-  color: var(--BR4);
+  color: var(--Y3);
 }
 
 #assistant .view-button.active {
@@ -1083,7 +1084,8 @@
 }
 
 #assistant .mode-dropdown-container:hover .mode-dropdown-label {
-  background-color: var(--T2);
+  color: var(--Y3);
+  transition: all 0.2s ease;
 }
 
 #assistant .dropdown-arrow {
@@ -1137,8 +1139,51 @@
 
 #assistant .todo-item {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   gap: 16px;
+  cursor: pointer;
+  padding: 4px 0;
+}
+
+#assistant .todo-item:hover .todo-item-title {
+  text-decoration: underline;
+}
+
+#assistant .todo-item-content {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  flex: 1;
+}
+
+#assistant .todo-item-details {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding-top: 4px;
+  padding-bottom: 4px;
+  font-size: 0.9em;
+  color: var(--STONE);
+}
+
+#assistant .todo-detail-header {
+  font-weight: bold;
+  font-size: 0.85em;
+  text-transform: uppercase;
+  color: var(--BR4);
+  margin-top: 4px;
+}
+
+#assistant .todo-detail-text {
+  white-space: pre-wrap;
+  line-height: 1.4;
+}
+
+#assistant .todo-detail-section {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-top: 8px;
 }
 
 #assistant .todo-status-icon {
@@ -1151,11 +1196,16 @@
 }
 
 #assistant .todo-status-icon.completed svg {
-  fill: var(--PAT);
+  fill: var(--D0);
 }
 
 #assistant .todo-status-icon.incomplete svg {
   fill: var(--GB0);
+}
+
+#assistant .todo-status-icon.active-todo svg {
+  fill: var(--agent-shadow-selected);
+  filter: drop-shadow(0 0 3px var(--agent-shadow-selected));
 }
 
 #assistant .todo-item-title {
@@ -1168,4 +1218,42 @@
   text-align: center;
   color: var(--STONE);
   font-style: italic;
+}
+
+/* Todo Archive Menu */
+#assistant #todo-archive-menu {
+  position: absolute;
+  top: 3.5em;
+  width: 350px;
+  border-radius: 2px;
+  box-shadow: 0 4px 12px var(--SHADOW);
+  z-index: 1000;
+  overflow: hidden;
+  animation: slideIn 0.2s ease-out;
+}
+
+/* Todo List View Container */
+.todo-list-view {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  width: 100%;
+  position: relative;
+}
+
+/* Todo Archive Button */
+.todo-archive-button-container {
+  padding: 8px;
+  display: flex;
+  justify-content: flex-start;
+}
+
+.todo-archive-button {
+  fill: var(--BR4);
+}
+
+.todo-archive-button:hover {
+  cursor: pointer;
+  fill: var(--Y3);
+  transition: all 0.2s ease;
 }

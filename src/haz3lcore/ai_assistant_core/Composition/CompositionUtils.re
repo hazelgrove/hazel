@@ -26,8 +26,10 @@ module Local = {
     TodoListTools.new_todo_list,
     TodoListTools.archive_todo_list,
     TodoListTools.add_todo_items,
-    TodoListTools.mark_todo_items_complete,
-    TodoListTools.mark_todo_items_incomplete,
+    TodoListTools.mark_todo_item_complete,
+    TodoListTools.mark_todo_item_incomplete,
+    TodoListTools.set_active_todo_item,
+    TodoListTools.unset_active_todo_item,
   ];
 
   let get_string_arg = (~arg: option(string), ~fail_with: string) => {
@@ -87,25 +89,16 @@ module Local = {
       | _ => raise(Failure("A code must be provided for the action"))
       };
     };
-    let get_titles_list = () => {
-      switch (API.Json.dot("titles", args)) {
-      | Some(`List(titles)) =>
-        List.map(
-          (title: API.Json.t) =>
-            switch (title) {
-            | `String(title) => title
-            | _ => raise(Failure("Titles must be provided for the action"))
-            },
-          titles,
-        )
-      | _ =>
-        raise(Failure("A list of titles must be provided for the action"))
-      };
-    };
     let get_title = (item: API.Json.t) => {
       switch (API.Json.dot("title", item)) {
       | Some(`String(title)) => title
       | _ => raise(Failure("A title must be provided for the todo item"))
+      };
+    };
+    let get_summary = (item: API.Json.t) => {
+      switch (API.Json.dot("summary", item)) {
+      | Some(`String(summary)) => summary
+      | _ => raise(Failure("A summary must be provided for the todo item"))
       };
     };
     let get_description = (item: API.Json.t) => {
@@ -119,7 +112,8 @@ module Local = {
         (todo_item_json: API.Json.t): CompositionModel.todo_item => {
       title: get_title(todo_item_json),
       description: get_description(todo_item_json),
-      completed: false,
+      task_completion_info: None, // New items can't be completed yet
+      expanded: false,
     };
     let get_todo_items =
         (todo_items_json: API.Json.t): list(CompositionModel.todo_item) => {
@@ -177,12 +171,18 @@ module Local = {
             Assistant(TodoAction(ArchiveActiveTodoList))
           | "add_todo_items" =>
             Assistant(TodoAction(AddTodoItems(get_todo_items(args))))
-          | "mark_todo_items_complete" =>
-            Assistant(TodoAction(MarkTodoItemsComplete(get_titles_list())))
-          | "mark_todo_items_incomplete" =>
+          | "mark_todo_item_complete" =>
             Assistant(
-              TodoAction(MarkTodoItemsIncomplete(get_titles_list())),
+              TodoAction(
+                MarkTodoItemComplete(get_title(args), get_summary(args)),
+              ),
             )
+          | "mark_todo_item_incomplete" =>
+            Assistant(TodoAction(MarkTodoItemIncomplete(get_title(args))))
+          | "set_active_todo_item" =>
+            Assistant(TodoAction(SetActiveTodoItem(get_title(args))))
+          | "unset_active_todo_item" =>
+            Assistant(TodoAction(UnsetActiveTodoItem))
           | _ => raise(Failure("The tool called does not exist."))
           };
         Action(action);
@@ -230,10 +230,13 @@ module Local = {
            List.map(CompositionModel.todo_item_to_string, todo_items),
          )
       ++ "\")"
-    | Assistant(TodoAction(MarkTodoItemsComplete(titles))) =>
-      "mark_todo_items_complete(\"" ++ String.concat(", ", titles) ++ "\")"
-    | Assistant(TodoAction(MarkTodoItemsIncomplete(titles))) =>
-      "mark_todo_items_incomplete(\"" ++ String.concat(", ", titles) ++ "\")"
+    | Assistant(TodoAction(MarkTodoItemComplete(title, summary))) =>
+      "mark_todo_item_complete(\"" ++ title ++ "\", \"" ++ summary ++ "\")"
+    | Assistant(TodoAction(MarkTodoItemIncomplete(title))) =>
+      "mark_todo_item_incomplete(\"" ++ title ++ "\")"
+    | Assistant(TodoAction(SetActiveTodoItem(title))) =>
+      "set_active_todo_item(\"" ++ title ++ "\")"
+    | Assistant(TodoAction(UnsetActiveTodoItem)) => "unset_active_todo_item()"
     };
   };
 };

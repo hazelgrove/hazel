@@ -73,8 +73,10 @@ type todo_action =
   | NewTodoList(CompositionModel.todo_list)
   | ArchiveActiveTodoList
   | AddTodoItems(list(CompositionModel.todo_item))
-  | MarkTodoItemsComplete(list(string))
-  | MarkTodoItemsIncomplete(list(string));
+  | MarkTodoItemComplete(string, string)
+  | MarkTodoItemIncomplete(string)
+  | SetActiveTodoItem(string)
+  | UnsetActiveTodoItem;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type composition_model_agent_action =
@@ -88,7 +90,10 @@ type composition_model_payload = (
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type composition_model_ui_action =
-  | SwitchView(CompositionModel.active_view);
+  | SwitchView(CompositionModel.active_view)
+  | ToggleArchiveVisibility
+  | ManualSetActiveTodoList(string)
+  | ExpandTodoItem(string);
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type composition_model_action =

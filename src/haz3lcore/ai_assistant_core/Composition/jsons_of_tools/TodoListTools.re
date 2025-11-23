@@ -256,27 +256,28 @@ let add_todo_items: API.Json.t =
     ),
   ]);
 
-let mark_todo_items_complete_description = {|
+let mark_todo_item_complete_description = {|
 Description:
-Marks todo items as completed by their titles.
+Marks a todo item as complete via title key lookup. Sets the summary of changes made to complete the todo item.
 
 Parameters:
-titles: list(string) — the list of titles of the todo items to mark as completed
+title: string — the title of the todo item to mark as completed
+summary: string — a summary of changes made to complete the todo item
 
 Example(s):
-Given a todo list with items [{"title": "Task 1", "description": "Do something", "completed": false}, {"title": "Task 2", "description": "Do something else", "completed": false}],
-Calling mark_todo_items_complete(titles = ["Task 1", "Task 2"]) would result in:
-[{"title": "Task 1", "description": "Do something", "completed": true}, {"title": "Task 2", "description": "Do something else", "completed": true}]
+Given a todo list with items [{"title": "Task 1", "description": "Do something", "task_completion_info": None}, {"title": "Task 2", "description": "Do something else", "task_completion_info": None}],
+Calling mark_todo_item_complete(title = "Task 1", summary = "Completed the task") would result in:
+[{"title": "Task 1", "description": "Do something", "task_completion_info": {"summary": "Completed the task"}}, {"title": "Task 2", "description": "Do something else", "task_completion_info": None}]
 |};
 
-let mark_todo_items_complete: API.Json.t =
+let mark_todo_item_complete: API.Json.t =
   `Assoc([
     ("type", `String("function")),
     (
       "function",
       `Assoc([
-        ("name", `String("mark_todo_items_complete")),
-        ("description", `String(mark_todo_items_complete_description)),
+        ("name", `String("mark_todo_item_complete")),
+        ("description", `String(mark_todo_item_complete_description)),
         (
           "parameters",
           `Assoc([
@@ -285,48 +286,59 @@ let mark_todo_items_complete: API.Json.t =
               "properties",
               `Assoc([
                 (
-                  "titles",
+                  "title",
                   `Assoc([
-                    ("type", `String("array")),
+                    ("type", `String("string")),
                     (
                       "description",
                       `String(
-                        "The list of titles of the todo items to mark as completed. Each title must match the title of an existing todo item.",
+                        "The title of the todo item to mark as completed. The title must match the title of an existing todo item.",
                       ),
                     ),
-                    ("items", `Assoc([("type", `String("string"))])),
+                  ]),
+                ),
+                (
+                  "summary",
+                  `Assoc([
+                    ("type", `String("string")),
+                    (
+                      "description",
+                      `String(
+                        "The summary of changes made to complete the todo item. Be descriptive.",
+                      ),
+                    ),
                   ]),
                 ),
               ]),
             ),
-            ("required", `List([`String("titles")])),
+            ("required", `List([`String("title"), `String("summary")])),
           ]),
         ),
       ]),
     ),
   ]);
 
-let mark_todo_items_incomplete_description = {|
+let mark_todo_item_incomplete_description = {|
 Description:
-Marks todo items as not completed (unchecks them) by their titles.
+Marks the todo item as incomplete via title key lookup.
 
 Parameters:
-titles: list(string) — the list of titles of the todo items to mark as not completed
+title: string — the title of the todo item to mark as not completed
 
 Example(s):
-Given a todo list with items [{"title": "Task 1", "description": "Do something", "completed": true}, {"title": "Task 2", "description": "Do something else", "completed": true}],
-Calling mark_todo_items_incomplete(titles = ["Task 1", "Task 2"]) would result in:
-[{"title": "Task 1", "description": "Do something", "completed": false}, {"title": "Task 2", "description": "Do something else", "completed": false}]
+Given a todo list with items [{"title": "Task 1", "description": "Do something", "completion_status": {"summary": "We have completed this item"}}, {"title": "Task 2", "description": "Do something else", "completion_info": None}],
+Calling mark_todo_item_incomplete(title = "Task 1") would result in:
+[{"title": "Task 1", "description": "Do something", "completion_status": None}, {"title": "Task 2", "description": "Do something else", "completion_status": None}}]
 |};
 
-let mark_todo_items_incomplete: API.Json.t =
+let mark_todo_item_incomplete: API.Json.t =
   `Assoc([
     ("type", `String("function")),
     (
       "function",
       `Assoc([
-        ("name", `String("mark_todo_items_incomplete")),
-        ("description", `String(mark_todo_items_incomplete_description)),
+        ("name", `String("mark_todo_item_incomplete")),
+        ("description", `String(mark_todo_item_incomplete_description)),
         (
           "parameters",
           `Assoc([
@@ -335,21 +347,98 @@ let mark_todo_items_incomplete: API.Json.t =
               "properties",
               `Assoc([
                 (
-                  "titles",
+                  "title",
                   `Assoc([
-                    ("type", `String("array")),
+                    ("type", `String("string")),
                     (
                       "description",
                       `String(
-                        "The list of titles of the todo items to mark as not completed. Each title must match the title of an existing todo item.",
+                        "The title of the todo item to mark as not completed. Must match an existing todo item title.",
                       ),
                     ),
-                    ("items", `Assoc([("type", `String("string"))])),
                   ]),
                 ),
               ]),
             ),
-            ("required", `List([`String("titles")])),
+            ("required", `List([`String("title")])),
+          ]),
+        ),
+      ]),
+    ),
+  ]);
+
+let set_active_todo_item_description = {|
+Description:
+Sets the active todo item by its title. This is useful for focusing the agent's attention on a specific task.
+
+Parameters:
+title: string — the title of the todo item to set as active
+
+Example(s):
+Calling set_active_todo_item(title = "Task 1") would set "Task 1" as the active todo item.
+|};
+
+let set_active_todo_item: API.Json.t =
+  `Assoc([
+    ("type", `String("function")),
+    (
+      "function",
+      `Assoc([
+        ("name", `String("set_active_todo_item")),
+        ("description", `String(set_active_todo_item_description)),
+        (
+          "parameters",
+          `Assoc([
+            ("type", `String("object")),
+            (
+              "properties",
+              `Assoc([
+                (
+                  "title",
+                  `Assoc([
+                    ("type", `String("string")),
+                    (
+                      "description",
+                      `String(
+                        "The title of the todo item to set as active. Must match an existing todo item title.",
+                      ),
+                    ),
+                  ]),
+                ),
+              ]),
+            ),
+            ("required", `List([`String("title")])),
+          ]),
+        ),
+      ]),
+    ),
+  ]);
+
+let unset_active_todo_item_description = {|
+Description:
+Unsets the currently active todo item. This indicates that no specific task is currently being focused on.
+
+Parameters:
+None
+
+Example(s):
+Calling unset_active_todo_item() will result in no todo item being active.
+|};
+
+let unset_active_todo_item: API.Json.t =
+  `Assoc([
+    ("type", `String("function")),
+    (
+      "function",
+      `Assoc([
+        ("name", `String("unset_active_todo_item")),
+        ("description", `String(unset_active_todo_item_description)),
+        (
+          "parameters",
+          `Assoc([
+            ("type", `String("object")),
+            ("properties", `Assoc([])),
+            ("required", `List([])),
           ]),
         ),
       ]),
