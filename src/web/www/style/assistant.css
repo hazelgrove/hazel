@@ -30,7 +30,7 @@
   flex-direction: row;
   align-items: center;
   padding: 8px 12px;
-  border-bottom: 1px solid var(--SAND);
+  border-bottom: 1px solid var(--BR3);
   background-color: var(--ui-bkg);
   justify-content: space-between;
   flex-shrink: 0;
@@ -1073,7 +1073,7 @@
 #assistant .mode-dropdown-label {
   display: flex;
   align-items: center;
-  gap: 4px;
+  gap: 8px;
   padding: 4px 8px;
   border-radius: 4px;
   font-size: 0.9em;
@@ -1089,6 +1089,7 @@
 #assistant .dropdown-arrow {
   font-size: 0.7em;
   opacity: 0.7;
+  padding-top: 0.1em;
 }
 
 #assistant .mode-dropdown-select {
@@ -1114,31 +1115,30 @@
 
 /* Todo List Styling */
 #assistant .todo-list-container {
-  margin: 10px;
-  padding: 10px;
-  border: 1px solid var(--SAND);
+  margin: 12px;
+  padding: 28px;
+  border: 1px solid var(--BR3);
   border-radius: 8px;
   background-color: var(--ui-bkg);
 }
 
 #assistant .todo-list-title {
-  font-weight: bold;
   text-decoration: underline;
   margin-bottom: 10px;
   text-align: center;
-  color: var(--BR4);
+  color: var(--STONE);
 }
 
 #assistant .todo-items {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 20px;
 }
 
 #assistant .todo-item {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 16px;
 }
 
 #assistant .todo-status-icon {
@@ -1150,14 +1150,22 @@
   flex-shrink: 0;
 }
 
+#assistant .todo-status-icon.completed svg {
+  fill: var(--PAT);
+}
+
+#assistant .todo-status-icon.incomplete svg {
+  fill: var(--GB0);
+}
+
 #assistant .todo-item-title {
   font-size: 0.9em;
-  color: var(--BR4);
+  color: var(--STONE);
 }
 
 #assistant .no-todo-list {
   padding: 20px;
   text-align: center;
-  color: var(--BR3);
+  color: var(--STONE);
   font-style: italic;
 }

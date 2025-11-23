@@ -1704,59 +1704,7 @@ let todo_list_display =
                     ],
                     [
                       item.completed
-                        ? Node.create_svg(
-                            "svg",
-                            ~attrs=[
-                              Attr.create("viewBox", "0 0 24 24"),
-                              Attr.create("width", "16px"),
-                              Attr.create("height", "16px"),
-                            ],
-                            [
-                              Node.create_svg(
-                                "circle",
-                                ~attrs=[
-                                  Attr.create("cx", "12"),
-                                  Attr.create("cy", "12"),
-                                  Attr.create("r", "10"),
-                                  Attr.create("fill", "var(--primary-color)"),
-                                ],
-                                [],
-                              ),
-                              Node.create_svg(
-                                "path",
-                                ~attrs=[
-                                  Attr.create(
-                                    "d",
-                                    "M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z",
-                                  ),
-                                  Attr.create("fill", "white"),
-                                ],
-                                [],
-                              ),
-                            ],
-                          )
-                        : Node.create_svg(
-                            "svg",
-                            ~attrs=[
-                              Attr.create("viewBox", "0 0 24 24"),
-                              Attr.create("width", "16px"),
-                              Attr.create("height", "16px"),
-                            ],
-                            [
-                              Node.create_svg(
-                                "circle",
-                                ~attrs=[
-                                  Attr.create("cx", "12"),
-                                  Attr.create("cy", "12"),
-                                  Attr.create("r", "9"),
-                                  Attr.create("stroke", "var(--BR3)"),
-                                  Attr.create("stroke-width", "2"),
-                                  Attr.create("fill", "transparent"),
-                                ],
-                                [],
-                              ),
-                            ],
-                          ),
+                        ? Icons.circle_with_check : Icons.circle_with_no_check,
                     ],
                   ),
                   div(
