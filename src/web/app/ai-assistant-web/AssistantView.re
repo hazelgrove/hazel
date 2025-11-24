@@ -1291,7 +1291,7 @@ let message_display =
                           ~attrs=[clss(["show-prompt-button"])],
                           [
                             Widgets.button(
-                              ~tooltip="Show Agent View", Icons.assistant, _ =>
+                              ~tooltip="Show Agent View", Icons.agent_view, _ =>
                               toggle_collapse(true, index)
                             ),
                           ],
