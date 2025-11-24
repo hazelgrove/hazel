@@ -20,7 +20,8 @@ type a =
   | DropColumn(string)
   | ConversionColumn(string, string)
   | RenameColumn(string, string)
-  | AddColumnAfter(string, string);
+  | AddColumnAfter(string, string)
+  | GroupByColumn(string);
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type model = m;
@@ -266,6 +267,24 @@ let add_column_after =
           ),
         ),
       )
+    )
+  );
+};
+
+let group_by_column = (info: info, column: string): Base.segment => {
+  IdTagged.FreshGrammar.(
+    apply_transformation(
+      info,
+      Exp.(
+        ap(
+          Forward,
+          var("group_on_key"),
+          tuple([
+            deferral(InAp),
+            fn(Pat.var("row"), dot(var("row"), label(column))),
+          ]),
+        )
+      ),
     )
   );
 };
@@ -596,6 +615,14 @@ let build_column_menu =
             ])
           };
         },
+      }),
+      Action({
+        text: "Group By Column",
+        action: () =>
+          Effect.Many([
+            local(CloseMenu),
+            parent(SetSyntax(group_by_column(info, h))),
+          ]),
       }),
     ];
 
