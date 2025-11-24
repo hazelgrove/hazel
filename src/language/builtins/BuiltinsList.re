@@ -2813,8 +2813,8 @@ let go: ([?], [?], [?]) -> [?] =
       },
     },
     {
-      str: {|fun xs ->
-  fold_left(xs, fun (seen, x) ->if mem(seen,x) then seen else seen @ [x], []))|},
+      str: {|fix unique -> fun xs ->
+              (xs, fun (seen, x) -> if mem(seen, x) then seen else seen @ [x], []))|},
       name: "unique",
       arg: List(unknown(Internal)),
       ret: List(unknown(Internal)),
@@ -2857,34 +2857,17 @@ let go: ([?], [?], [?]) -> [?] =
       },
     },
     {
-      /*
-        let pivot_table = fun (table, new_col, index, value) ->
-        let indices = map(table, index) |> unique in
-        let new_cols = map(table, new_col) |> unique in
+      str: {hazel|fix pivot_table -> fun (table, new_col, index, value) ->
+             let indices = map(table, index) |> unique in
+             let new_cols = map(table, new_col) |> unique in
 
-        map(indices, fun idx ->
-          (index=idx) ...
-          (map(new_cols, fun col ->
-            (label=col,
-              value=filter(table, fun r -> index(r) == idx && new_col(r) == col)
-              |>value)
-          ) |> from_lvs)
-        )
-       in
-       */
-
-      str: {|fun (table, new_col, index, value) ->
-  let indices = map(table, index) |> unique in
-  let new_cols = map(table, new_col) |> unique in
-
-  map(indices, fun idx ->
-    (index=idx) ...
-    (map(new_cols, fun col ->
-      (label=col,
-        value=filter(table, fun r -> index(r) == idx && new_col(r) == col)
-        |>value)
-    ) |> from_lvs)
-  )|},
+             map(indices, fun idx ->
+                (index=idx) ...
+                (map(new_cols, fun col ->
+                  (label=col,
+                    value=filter(table, fun r -> index(r) == idx && new_col(r) == col)
+                    |>value)
+                ) |> from_lvs))|hazel},
       name: "pivot_table",
       arg:
         Prod([
@@ -2993,6 +2976,119 @@ let go: ([?], [?], [?]) -> [?] =
             ),
           );
         fix_f(Pat.var("pivot_table"), fn, None);
+      },
+    },
+    {
+      str: {|fix group_on_key -> fun (xs, f) -> fold_left(xs, fun (acc, x) ->
+        let update_groups = fix update_groups -> fun (acc, key, x) ->
+          case acc
+          | [] => [(key, [x])]
+          | (k, g) :: acc => if k == key then (k, x :: g) :: acc else (k, g) :: update_groups(acc, key, x)
+          end in update_groups(acc, f(x), x), [])|},
+      name: "group_on_key",
+      arg:
+        Prod([
+          list(unknown(Internal)),
+          arrow(unknown(Internal), unknown(Internal)),
+        ]),
+      ret: List(prod([unknown(Internal), list(unknown(Internal))])),
+      imp: {
+        Fresh.(
+          Exp.(
+            fix_f(
+              Pat.var("group_on_key"),
+              fn(
+                Pat.tuple([Pat.var("xs"), Pat.var("f")]),
+                ap(
+                  Forward,
+                  var("fold_left"),
+                  tuple([
+                    var("xs"),
+                    let_(
+                      Pat.var("update_groups"),
+                      fix_f(
+                        Pat.var("update_groups"),
+                        fn(
+                          Pat.tuple([
+                            Pat.var("acc"),
+                            Pat.var("key"),
+                            Pat.var("x"),
+                          ]),
+                          match(
+                            var("acc"),
+                            [
+                              (
+                                Pat.list_lit([]),
+                                list_lit([
+                                  tuple([
+                                    var("key"),
+                                    list_lit([var("x")]),
+                                  ]),
+                                ]),
+                              ),
+                              (
+                                Pat.cons(
+                                  Pat.tuple([Pat.var("k"), Pat.var("g")]),
+                                  Pat.var("acc_tail"),
+                                ),
+                                if_(
+                                  bin_op(
+                                    Poly(Equals),
+                                    var("k"),
+                                    var("key"),
+                                  ),
+                                  cons(
+                                    tuple([
+                                      var("k"),
+                                      list_concat(
+                                        var("g"),
+                                        list_lit([var("x")]),
+                                      ),
+                                    ]),
+                                    var("acc_tail"),
+                                  ),
+                                  cons(
+                                    tuple([var("k"), var("g")]),
+                                    ap(
+                                      Forward,
+                                      var("update_groups"),
+                                      tuple([
+                                        var("acc_tail"),
+                                        var("key"),
+                                        var("x"),
+                                      ]),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                          ~name="update_groups+",
+                        ),
+                        None,
+                      ),
+                      fn(
+                        Pat.tuple([Pat.var("acc"), Pat.var("x")]),
+                        ap(
+                          Forward,
+                          var("update_groups"),
+                          tuple([
+                            var("acc"),
+                            ap(Forward, var("f"), var("x")),
+                            var("x"),
+                          ]),
+                        ),
+                      ),
+                    ),
+                    list_lit([]),
+                  ]),
+                ),
+                ~name="group_on_key+",
+              ),
+              None,
+            )
+          )
+        );
       },
     },
   ]
