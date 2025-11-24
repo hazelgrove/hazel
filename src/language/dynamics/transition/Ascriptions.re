@@ -26,7 +26,7 @@ let rec transition = (~recursive=false, d: DHExp.t): option(DHExp.t) => {
             Typ.unroll(t'),
           ) =>
       switch (
-        Typ.join(Ctx.empty, Typ.unroll(t |> Typ.temp), Typ.unroll(t'))
+        Typ.meet(Ctx.empty, Typ.unroll(t |> Typ.temp), Typ.unroll(t'))
       ) {
       | Some(t) => Some(recur(Asc(e, t) |> DHExp.fresh))
       | None => None //TODO  This is an impossible case since we checked consistency

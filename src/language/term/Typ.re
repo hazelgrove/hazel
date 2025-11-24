@@ -224,10 +224,10 @@ type source = {
 let of_source = List.map((source: source) => source.ty);
 
 /* How type provenance information should be collated when
-   joining unknown types. This probably requires more thought,
+   meeting unknown types. This probably requires more thought,
    but right now TypeHole strictly predominates over Internal
    which strictly predominates over SynSwitch. */
-let join_type_provenance =
+let meet_type_provenance =
     (p1: TermBase.type_provenance, p2: TermBase.type_provenance)
     : TermBase.type_provenance =>
   switch (p1, p2) {
@@ -562,20 +562,18 @@ let rec normalize = (~rec_counter=0, ctx: Ctx.t, ty: t): t => {
     Forall(name, normalize(Ctx.extend_dummy_tvar(ctx, name), ty)) |> rewrap
   };
 };
-/* Lattice join on types. This is a LUB join in the hazel2
-   sense in that any type dominates Unknown. The optional
-   resolve parameter specifies whether, in the case of a type
-   variable and a succesful join, to return the resolved join type,
-   or to return the (first) type variable for readability */
-let rec join = (~resolve=false, ctx: Ctx.t, ty1: t, ty2: t): option(t) => {
-  let join' = join(~resolve, ctx);
+/* Lattice meet on types. This was called 'join' in the 2019 Hazelnut live paper,
+   but we're now calling it 'meet' to clarify that Unknown represents the top
+   (least precise) element in the precision ordering: specific types dominate Unknown. */
+let rec meet = (~resolve=false, ctx: Ctx.t, ty1: t, ty2: t): option(t) => {
+  let meet' = meet(~resolve, ctx);
   switch (term_of(ty1), term_of(ty2)) {
-  | (_, Parens(ty2)) => join'(ty1, ty2)
-  | (Parens(ty1), _) => join'(ty1, ty2)
-  | (TupLabel({term: ExplicitNonlabel, _}, ty1'), _) => join'(ty1', ty2)
-  | (_, TupLabel({term: ExplicitNonlabel, _}, ty2')) => join'(ty1, ty2')
+  | (_, Parens(ty2)) => meet'(ty1, ty2)
+  | (Parens(ty1), _) => meet'(ty1, ty2)
+  | (TupLabel({term: ExplicitNonlabel, _}, ty1'), _) => meet'(ty1', ty2)
+  | (_, TupLabel({term: ExplicitNonlabel, _}, ty2')) => meet'(ty1, ty2')
   | (Unknown(p1), Unknown(p2)) =>
-    Some(Unknown(join_type_provenance(p1, p2)) |> temp)
+    Some(Unknown(meet_type_provenance(p1, p2)) |> temp)
   | (Unknown(_), _) => Some(ty2)
   | (_, Unknown(_)) => Some(ty1)
   | (Var(n1), Var(n2)) =>
@@ -584,22 +582,22 @@ let rec join = (~resolve=false, ctx: Ctx.t, ty1: t, ty2: t): option(t) => {
     } else {
       let* ty1 = Ctx.lookup_alias(ctx, n1);
       let* ty2 = Ctx.lookup_alias(ctx, n2);
-      let+ ty_join = join'(ty1, ty2);
-      !resolve && equal(ty1, ty_join) ? ty1 : ty_join;
+      let+ ty_meet = meet'(ty1, ty2);
+      !resolve && equal(ty1, ty_meet) ? ty1 : ty_meet;
     }
   | (Var(name), _) =>
     let* ty_name = Ctx.lookup_alias(ctx, name);
-    let+ ty_join = join'(ty_name, ty2);
-    !resolve && equal(ty_name, ty_join) ? ty1 : ty_join;
+    let+ ty_meet = meet'(ty_name, ty2);
+    !resolve && equal(ty_name, ty_meet) ? ty1 : ty_meet;
   | (_, Var(name)) =>
     let* ty_name = Ctx.lookup_alias(ctx, name);
-    let+ ty_join = join'(ty_name, ty1);
-    !resolve && equal(ty_name, ty_join) ? ty2 : ty_join;
+    let+ ty_meet = meet'(ty_name, ty1);
+    !resolve && equal(ty_name, ty_meet) ? ty2 : ty_meet;
   /* Note: Ordering of Unknown, Var, and Rec above is load-bearing! */
-  | (ProdProjection(_), _) => join'(weak_head_normalize(ctx, ty1), ty2)
-  | (_, ProdProjection(_)) => join'(ty1, weak_head_normalize(ctx, ty2))
-  | (ProdExtension(_), _) => join'(weak_head_normalize(ctx, ty1), ty2)
-  | (_, ProdExtension(_)) => join'(ty1, weak_head_normalize(ctx, ty2))
+  | (ProdProjection(_), _) => meet'(weak_head_normalize(ctx, ty1), ty2)
+  | (_, ProdProjection(_)) => meet'(ty1, weak_head_normalize(ctx, ty2))
+  | (ProdExtension(_), _) => meet'(weak_head_normalize(ctx, ty1), ty2)
+  | (_, ProdExtension(_)) => meet'(ty1, weak_head_normalize(ctx, ty2))
   | (Rec(tp1, ty1), Rec(tp2, ty2)) =>
     let ctx = Ctx.extend_dummy_tvar(ctx, tp1);
     let ty1' =
@@ -607,7 +605,7 @@ let rec join = (~resolve=false, ctx: Ctx.t, ty1: t, ty2: t): option(t) => {
       | Some(x2) => subst(Var(x2) |> temp, tp1, ty1)
       | None => ty1
       };
-    let+ ty_body = join(~resolve, ctx, ty1', ty2);
+    let+ ty_body = meet(~resolve, ctx, ty1', ty2);
     Rec(tp1, ty_body) |> temp;
   | (Rec(_), _) => None
   | (Forall(x1, ty1), Forall(x2, ty2)) =>
@@ -617,7 +615,7 @@ let rec join = (~resolve=false, ctx: Ctx.t, ty1: t, ty2: t): option(t) => {
       | None => ty1
       };
     let ctx = Ctx.extend_dummy_tvar(ctx, x2);
-    let+ ty_body = join(~resolve, ctx, ty1', ty2);
+    let+ ty_body = meet(~resolve, ctx, ty1', ty2);
     Forall(x2, ty_body) |> temp;
   /* Note for above: there is no danger of free variable capture as
      subst itself performs capture avoiding substitution. However this
@@ -635,33 +633,33 @@ let rec join = (~resolve=false, ctx: Ctx.t, ty1: t, ty2: t): option(t) => {
     Some(ty1)
   | (Label(_), _) => None
   | (Arrow(ty1, ty2), Arrow(ty1', ty2')) =>
-    let* ty1 = join'(ty1, ty1');
-    let+ ty2 = join'(ty2, ty2');
+    let* ty1 = meet'(ty1, ty1');
+    let+ ty2 = meet'(ty2, ty2');
     Arrow(ty1, ty2) |> temp;
   | (Arrow(_), _) => None
   | (TupLabel(lab1, ty1'), TupLabel(lab2, ty2')) =>
-    let* lab = join'(lab1, lab2);
-    let+ ty = join'(ty1', ty2');
+    let* lab = meet'(lab1, lab2);
+    let+ ty = meet'(ty1', ty2');
     TupLabel(lab, ty) |> temp;
   | (TupLabel(_), _) => None
   | (Prod(tys1), Prod(tys2)) =>
     if (List.length(tys1) != List.length(tys2)) {
       None;
     } else {
-      let* tys = ListUtil.map2_opt(join', tys1, tys2);
+      let* tys = ListUtil.map2_opt(meet', tys1, tys2);
       let+ tys = OptUtil.sequence(tys);
       Prod(tys) |> temp;
     }
   | (Prod(_), _) => None
   | (Sum(sm1), Sum(sm2)) =>
-    let+ sm' = ConstructorMap.join(equal, join(~resolve, ctx), sm1, sm2);
+    let+ sm' = ConstructorMap.join(equal, meet(~resolve, ctx), sm1, sm2);
     Sum(sm') |> temp;
   | (Sum(_), _) => None
   | (List(ty1), List(ty2)) =>
-    let+ ty = join'(ty1, ty2);
+    let+ ty = meet'(ty1, ty2);
     List(ty) |> temp;
   | (List(_), _) => None
-  // We would prefer for this to be a sort difference and never appear in a join.
+  // We would prefer for this to be a sort difference and never appear in a meet.
   // These get marked in statics but that does not remove them from the utyp's propagated on parents.
   | (ExplicitNonlabel, _) => None
   };
@@ -708,15 +706,15 @@ let rec match_synswitch = (t1: t, t2: t) => {
   };
 };
 
-let join_all = (~empty: t, ctx: Ctx.t, ts: list(t)): option(t) =>
+let meet_all = (~empty: t, ctx: Ctx.t, ts: list(t)): option(t) =>
   List.fold_left(
-    (acc, ty) => OptUtil.and_then(join(ctx, ty), acc),
+    (acc, ty) => OptUtil.and_then(meet(ctx, ty), acc),
     Some(empty),
     ts,
   );
 
 let is_consistent = (ctx: Ctx.t, ty1: t, ty2: t): bool =>
-  join(ctx, ty1, ty2) != None;
+  meet(ctx, ty1, ty2) != None;
 
 /**
    * Determines if one type (`ty1`) is more precise than another type (`ty2`) within a given context (`ctx`).
@@ -724,10 +722,10 @@ let is_consistent = (ctx: Ctx.t, ty1: t, ty2: t): bool =>
    * @return - `true` if `ty1` is more precise than `ty2`, otherwise `false`.
    */
 let is_more_precise = (ctx: Ctx.t, ty1: t, ty2: t): bool => {
-  let joined = join(ctx, ty1, ty2);
-  switch (joined) {
+  let met = meet(ctx, ty1, ty2);
+  switch (met) {
   | None => false
-  | Some(joined) => Equality.semantic.typ(joined, ty1)
+  | Some(met) => Equality.semantic.typ(met, ty1)
   };
 };
 

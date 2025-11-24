@@ -232,25 +232,25 @@ let add_source =
   );
 
 let match = (ctx: Ctx.t, tys: list(Typ.t), ids: list(Id.t)): t =>
-  switch (Typ.join_all(~empty=Unknown(Internal) |> Typ.fresh, ctx, tys)) {
+  switch (Typ.meet_all(~empty=Unknown(Internal) |> Typ.fresh, ctx, tys)) {
   | None => NoJoin(Id, add_source(ids, tys))
   | Some(ty) => Just(ty)
   };
 
 let listlit = (~empty, ctx: Ctx.t, tys: list(Typ.t), ids: list(Id.t)): t =>
-  switch (Typ.join_all(~empty, ctx, tys)) {
+  switch (Typ.meet_all(~empty, ctx, tys)) {
   | None => NoJoin(List, add_source(ids, tys))
   | Some(ty) => Just(List(ty) |> Typ.fresh)
   };
 
 let list_concat = (ctx: Ctx.t, tys: list(Typ.t), ids: list(Id.t)): t =>
-  switch (Typ.join_all(~empty=Unknown(Internal) |> Typ.fresh, ctx, tys)) {
+  switch (Typ.meet_all(~empty=Unknown(Internal) |> Typ.fresh, ctx, tys)) {
   | None => NoJoin(List, add_source(ids, tys))
   | Some(ty) => Just(ty)
   };
 
 let poly_eq = (ctx: Ctx.t, tys: list(Typ.t), ids: list(Id.t)): t =>
-  switch (Typ.join_all(~empty=Unknown(Internal) |> Typ.fresh, ctx, tys)) {
+  switch (Typ.meet_all(~empty=Unknown(Internal) |> Typ.fresh, ctx, tys)) {
   | None => NoJoin(PolyEq, add_source(ids, tys))
   | Some(ty) when ty |> Typ.normalize(ctx) |> Typ.has_fun => CompareFun(ty)
   | Some(_) => Just(Atom(Bool) |> Typ.fresh)

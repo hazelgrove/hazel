@@ -414,7 +414,7 @@ let rec status_common =
   | (Just(ty), {term: Unknown(SynSwitch), _}) => NotInHole(Syn(ty))
   | (Just(syn), ana) =>
     switch (
-      Typ.join(
+      Typ.meet(
         ctx,
         ana,
         syn /* Note: the ordering of ana, syn matters */
@@ -487,7 +487,7 @@ let rec status_common =
     InHole(Inconsistent(Internal(Typ.of_source(tys))))
   | (NoJoin(wrap, tys), ana) =>
     let syn: Typ.t = Self.join_of(wrap, Unknown(Internal) |> Typ.temp);
-    switch (Typ.join(ctx, ana, syn)) {
+    switch (Typ.meet(ctx, ana, syn)) {
     | None =>
       switch (ana.term, syn.term) {
       | (Label(_), Label(_)) =>

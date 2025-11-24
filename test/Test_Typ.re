@@ -4,14 +4,14 @@ open Language;
 let typ = testable(Fmt.using(Typ.show, Fmt.string), Typ.fast_equal);
 
 let join_tests = (
-  "Typ.join",
+  "Typ.meet",
   IdTagged.FreshGrammar.Typ.[
     test_case(
       "Typ join on polymorphic types",
       `Quick,
       () => {
         let t =
-          Typ.join(
+          Typ.meet(
             Builtins.ctx_init(Some(Int)),
             Forall(Var("a") |> TPat.temp, Var("a") |> Typ.temp) |> Typ.temp,
             Forall(Var("b") |> TPat.temp, Var("b") |> Typ.temp) |> Typ.temp,
@@ -31,7 +31,7 @@ let join_tests = (
       `Quick,
       () => {
         let t =
-          Typ.join(
+          Typ.meet(
             Builtins.ctx_init(None),
             int(),
             prod_projection(
@@ -50,7 +50,7 @@ let join_tests = (
       `Quick,
       () => {
         let t =
-          Typ.join(
+          Typ.meet(
             Builtins.ctx_init(None),
             int(),
             prod_projection(unknown(Internal), label("a")),
@@ -68,7 +68,7 @@ let join_tests = (
       `Quick,
       () => {
         let t =
-          Typ.join(
+          Typ.meet(
             Builtins.ctx_init(None),
             int(),
             prod_projection(
@@ -92,7 +92,7 @@ let join_tests = (
       `Quick,
       () => {
         let t =
-          Typ.join(
+          Typ.meet(
             Builtins.ctx_init(None),
             prod_extension(
               prod([
@@ -135,7 +135,7 @@ let join_tests = (
       `Quick,
       () => {
         let t =
-          Typ.join(
+          Typ.meet(
             Builtins.ctx_init(None),
             prod_extension(
               prod([
