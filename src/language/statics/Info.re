@@ -114,11 +114,11 @@ type error_pat =
 [@deriving (show({with_path: false}), sexp, yojson, eq)]
 type ok_ana =
   /* The expected (ana) type and the self (syn) type are
-     consistent, as witnessed by their joint type (join) */
+     consistent, as witnessed by their meet type */
   | Consistent({
       ana: Typ.t,
       syn: Typ.t,
-      join: Typ.t,
+      meet: Typ.t,
     })
   /* A match expression or list literal which, in synthetic position,
      would be marked as internally inconsistent, but is considered
@@ -126,7 +126,7 @@ type ok_ana =
      (often Unknown) for the types of the branches/elements */
   | InternallyInconsistent({
       ana: Typ.t,
-      nojoin: list(Typ.t),
+      nomeet: list(Typ.t),
     });
 
 [@deriving (show({with_path: false}), sexp, yojson, eq)]
@@ -441,13 +441,13 @@ let rec status_common =
           ),
         )
       }
-    | Some(join) =>
+    | Some(meet) =>
       NotInHole(
         Ana(
           Consistent({
             ana,
             syn,
-            join,
+            meet,
           }),
         ),
       )
@@ -482,11 +482,11 @@ let rec status_common =
   | (Duplicate(lab, _), _) =>
     InHole(DuplicateLabel(lab, Unknown(Internal) |> Typ.temp))
   | (IsMulti, _) => NotInHole(Syn(Unknown(Internal) |> Typ.temp))
-  | (NoJoin(PolyEq, tys), _)
-  | (NoJoin(_, tys), {term: Unknown(SynSwitch), _}) =>
+  | (NoMeet(PolyEq, tys), _)
+  | (NoMeet(_, tys), {term: Unknown(SynSwitch), _}) =>
     InHole(Inconsistent(Internal(Typ.of_source(tys))))
-  | (NoJoin(wrap, tys), ana) =>
-    let syn: Typ.t = Self.join_of(wrap, Unknown(Internal) |> Typ.temp);
+  | (NoMeet(wrap, tys), ana) =>
+    let syn: Typ.t = Self.meet_of(wrap, Unknown(Internal) |> Typ.temp);
     switch (Typ.meet(ctx, ana, syn)) {
     | None =>
       switch (ana.term, syn.term) {
@@ -515,7 +515,7 @@ let rec status_common =
         Ana(
           InternallyInconsistent({
             ana,
-            nojoin: Typ.of_source(tys),
+            nomeet: Typ.of_source(tys),
           }),
         ),
       )
@@ -792,7 +792,7 @@ let is_error = (ci: t): bool => {
 let fixed_typ_ok: ok_pat => Typ.t =
   fun
   | Syn(syn) => syn
-  | Ana(Consistent({join, _})) => join
+  | Ana(Consistent({meet, _})) => meet
   | Ana(InternallyInconsistent({ana, _})) => ana;
 
 let fixed_typ_err_common: (error_common, Typ.t) => Typ.t =

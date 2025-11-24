@@ -652,7 +652,7 @@ let rec meet = (~resolve=false, ctx: Ctx.t, ty1: t, ty2: t): option(t) => {
     }
   | (Prod(_), _) => None
   | (Sum(sm1), Sum(sm2)) =>
-    let+ sm' = ConstructorMap.join(equal, meet(~resolve, ctx), sm1, sm2);
+    let+ sm' = ConstructorMap.meet(equal, meet(~resolve, ctx), sm1, sm2);
     Sum(sm') |> temp;
   | (Sum(_), _) => None
   | (List(ty1), List(ty2)) =>

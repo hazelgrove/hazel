@@ -32,7 +32,7 @@ let qcheck_evaluator_does_not_crash_test =
             when
               List.exists(
                 (==)(msg),
-                ["type application in dynamics", "Type join of ap"] // "type application in dynamics" https://github.com/hazelgrove/hazel/issues/1625
+                ["type application in dynamics", "Type meet of ap"] // "type application in dynamics" https://github.com/hazelgrove/hazel/issues/1625
               ) =>
           print_endline("Skipping failure: " ++ msg);
           true;

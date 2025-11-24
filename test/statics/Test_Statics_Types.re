@@ -16,7 +16,7 @@ let tests = (
       {|fun (?: (Float((+ A(Bool))))) -> ""|},
     ),
     skip_known_bug(
-      "Type join of ap", // https://github.com/hazelgrove/hazel/issues/1459
+      "Type meet of ap", // https://github.com/hazelgrove/hazel/issues/1459
       "type x = Int(Float) in let y : x =  1",
     ),
   ],

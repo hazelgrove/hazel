@@ -3,11 +3,11 @@ open Language;
 
 let typ = testable(Fmt.using(Typ.show, Fmt.string), Typ.fast_equal);
 
-let join_tests = (
+let meet_tests = (
   "Typ.meet",
   IdTagged.FreshGrammar.Typ.[
     test_case(
-      "Typ join on polymorphic types",
+      "Typ meet on polymorphic types",
       `Quick,
       () => {
         let t =
@@ -27,7 +27,7 @@ let join_tests = (
       },
     ),
     test_case(
-      "Typ join on product projection with fully known types",
+      "Typ meet on product projection with fully known types",
       `Quick,
       () => {
         let t =
@@ -46,7 +46,7 @@ let join_tests = (
       },
     ),
     test_case(
-      "Typ join on product projection with unknown types",
+      "Typ meet on product projection with unknown types",
       `Quick,
       () => {
         let t =
@@ -64,7 +64,7 @@ let join_tests = (
       },
     ),
     test_case(
-      "Typ join on product projection with unknown label",
+      "Typ meet on product projection with unknown label",
       `Quick,
       () => {
         let t =
@@ -88,7 +88,7 @@ let join_tests = (
       },
     ),
     test_case(
-      "Typ join on product extension with fully known extension types",
+      "Typ meet on product extension with fully known extension types",
       `Quick,
       () => {
         let t =
@@ -131,7 +131,7 @@ let join_tests = (
       },
     ),
     test_case(
-      "Typ join on two product extensions with known extension types",
+      "Typ meet on two product extensions with known extension types",
       `Quick,
       () => {
         let t =
@@ -196,4 +196,4 @@ let fast_equal_tests = (
   ],
 );
 
-let tests = [join_tests, fast_equal_tests];
+let tests = [meet_tests, fast_equal_tests];
