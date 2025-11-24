@@ -137,6 +137,7 @@ let prefixes = (s: string): list(string) => {
 };
 
 // Removes double quotes from string and escapes newlines
+// Update once https://github.com/hazelgrove/hazel/issues/786 is done
 let sanitize_for_string_expression = (s: string): string => {
   s |> replace(regexp("\""), _, "") |> replace(regexp("\n"), _, "\\n");
 };
