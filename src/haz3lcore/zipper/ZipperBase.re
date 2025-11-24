@@ -11,6 +11,7 @@ type t = {
   selection: Selection.t,
   relatives: Relatives.t,
   caret,
+  agent_view: AgentState.t,
 };
 
 let update_relatives = (f: Relatives.t => Relatives.t, z: t): t => {

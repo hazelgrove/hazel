@@ -23,7 +23,7 @@ let get_mode_info = (mode: AssistantSettings.mode, model: Model.t) => {
         model.chat_history.past_suggestion_chats,
       ),
     )
-  | TaskCompletion => (
+  | Composition => (
       model.chat_history.past_composition_chats,
       Id.Map.find(
         model.current_chats.curr_composition_chat,
@@ -55,7 +55,7 @@ let resculpt_model =
         mode == CodeSuggestion
           ? updated_past_chats : model.chat_history.past_suggestion_chats,
       past_composition_chats:
-        mode == TaskCompletion
+        mode == Composition
           ? updated_past_chats : model.chat_history.past_composition_chats,
     },
     // This is tentative. Keep this if we want the user to be shown the most recent chat.
@@ -68,7 +68,7 @@ let resculpt_model =
         mode == CodeSuggestion
           ? chat_id : model.current_chats.curr_suggestion_chat,
       curr_composition_chat:
-        mode == TaskCompletion
+        mode == Composition
           ? chat_id : model.current_chats.curr_composition_chat,
     },
   };
@@ -108,7 +108,7 @@ let update_model_chat_history =
           },
         model.chat_history.past_suggestion_chats,
       )
-    | TaskCompletion =>
+    | Composition =>
       Id.Map.update(
         updated_chat.id,
         maybe_chat =>
@@ -129,7 +129,7 @@ let update_model_chat_history =
         ...model.chat_history,
         past_suggestion_chats: new_chat,
       }
-    | TaskCompletion => {
+    | Composition => {
         ...model.chat_history,
         past_composition_chats: new_chat,
       }
@@ -166,7 +166,7 @@ let create_chat_descriptor =
         switch (mode) {
         | HazelTutor => "This is known to be a chat between a hazel user and an LLM acting as a tutor."
         | CodeSuggestion => "This is known to be a chat between a hazel user and an LLM acting as a code suggestion assistant. This means there won't be much dialogue, rather just a prompt, code contexts, and a code suggestion (potentially with a chain of thought), so please do your best to summarize based on the code context and the code suggestion."
-        | TaskCompletion => "This is known to be a chat between a student and an LLM acting as a task completion assistant."
+        | Composition => "This is known to be a chat between a student and an LLM acting as a task completion assistant."
         },
         "With this said, please now provide a summary for the conversation: ",
       ],
@@ -245,15 +245,358 @@ let create_chat_descriptor =
     : ();
 };
 
+module TodoListUtils = {
+  type todo_action_result =
+    | Success(Model.t, string)
+    | Failure(string);
+
+  let mk_active_task_message =
+      (active_task: option(CompositionModel.active_task)): Model.message => {
+    let string_of_todo_list =
+      CompositionModel.active_task_to_string(active_task);
+    {
+      content: Some(OpenRouter.mk_user_msg(string_of_todo_list)),
+      display: Some(Model.mk_message_display(~content=string_of_todo_list)),
+      role: System(TodoList),
+      sketch_snapshot: None // Some(editor), todo: figure out how to serialize editor
+    };
+  };
+
+  let find_todo_item =
+      (todo_list: CompositionModel.todo_list, todo_item_name: string)
+      : option(CompositionModel.todo_item) => {
+    // Finds the todo item with the given name
+    List.find_opt(
+      (todo_item: CompositionModel.todo_item) =>
+        todo_item.title == todo_item_name,
+      todo_list.items,
+    );
+  };
+
+  let update_todo_item =
+      (
+        todo_list: CompositionModel.todo_list,
+        updated_item: CompositionModel.todo_item,
+      )
+      : CompositionModel.todo_list => {
+    let updated_items =
+      List.map(
+        (item: CompositionModel.todo_item) =>
+          item.title == updated_item.title ? updated_item : item,
+        todo_list.items,
+      );
+    {
+      ...todo_list,
+      items: updated_items,
+      last_updated: JsUtil.timestamp(),
+    };
+  };
+
+  let filter_out_todo_list =
+      (messages: list(Model.message)): list(Model.message) => {
+    List.filter(
+      (message: Model.message) => {message.role != System(TodoList)},
+      messages,
+    );
+  };
+
+  let set_todo_item_completeness =
+      (
+        completion_summary: option(string),
+        todo_list: CompositionModel.todo_list,
+        todo_item_name: string,
+      )
+      : CompositionModel.todo_item => {
+    switch (find_todo_item(todo_list, todo_item_name)) {
+    | Some(todo_item) => {
+        ...todo_item,
+        task_completion_info: {
+          switch (completion_summary) {
+          | Some(summary) => Some({summary: summary})
+          | None => None
+          };
+        },
+      }
+    | None =>
+      raise(
+        Failure(
+          "Todo item \""
+          ++ todo_item_name
+          ++ "\" not found in the currently active todo list",
+        ),
+      )
+    };
+  };
+
+  let expand_todo_item =
+      (todo_list: CompositionModel.todo_list, todo_item_name: string)
+      : CompositionModel.todo_item => {
+    switch (find_todo_item(todo_list, todo_item_name)) {
+    | Some(todo_item) => {
+        ...todo_item,
+        expanded: !todo_item.expanded,
+      }
+    | None =>
+      raise(
+        Failure(
+          "Todo item \""
+          ++ todo_item_name
+          ++ "\" not found in the currently active todo list",
+        ),
+      )
+    };
+  };
+
+  let todo_dispatch =
+      (
+        ~action: AssistantUpdateAction.todo_action,
+        ~chat_id: Id.t,
+        ~model: Model.t,
+        ~schedule_tool_response: AssistantUpdateAction.status => unit,
+      )
+      : Model.t => {
+    let curr_chat =
+      OptUtil.get_or_fail(
+        "Failed to find the current chat",
+        Id.Map.find_opt(chat_id, model.chat_history.past_composition_chats),
+      );
+    let mode = AssistantSettings.Composition;
+    let res: todo_action_result =
+      switch (action) {
+      | NewTodoList(todo_list) =>
+        try({
+          let new_model =
+            update_model_chat_history(
+              ~model,
+              ~mode,
+              ~updated_chat={
+                ...curr_chat,
+                composition_model:
+                  CompositionModel.update_active_todo_list(
+                    ~model=curr_chat.composition_model,
+                    ~new_todo_list=todo_list,
+                  ),
+              },
+              ~awaiting_response=false,
+            );
+          Success(new_model, "Todo list updated");
+        }) {
+        | _ => Failure("Failed to update the todo list")
+        }
+      | ArchiveActiveTodoList =>
+        try({
+          let new_model =
+            update_model_chat_history(
+              ~model,
+              ~mode,
+              ~updated_chat={
+                ...curr_chat,
+                composition_model:
+                  CompositionModel.remove_active_todo_list(
+                    curr_chat.composition_model,
+                  ),
+              },
+              ~awaiting_response=false,
+            );
+          Success(new_model, "Todo list deleted");
+        }) {
+        | _ => Failure("Failed to delete the todo list")
+        }
+      | AddTodoItems(todo_items) =>
+        try({
+          let new_todo_list =
+            switch (curr_chat.composition_model.active_task) {
+            | Some(active_task) => {
+                ...active_task.active_todo_list,
+                items: active_task.active_todo_list.items @ todo_items,
+                last_updated: JsUtil.timestamp(),
+              }
+            | None => raise(Failure("No active todo list to add items to"))
+            };
+          let new_model =
+            update_model_chat_history(
+              ~model,
+              ~mode,
+              ~updated_chat={
+                ...curr_chat,
+                composition_model:
+                  CompositionModel.update_active_todo_list(
+                    ~model=curr_chat.composition_model,
+                    ~new_todo_list,
+                  ),
+              },
+              ~awaiting_response=false,
+            );
+          Success(new_model, "Todo items added");
+        }) {
+        | Failure(s: string) => Failure(s)
+        }
+      | MarkTodoItemComplete(title, summary) =>
+        switch (curr_chat.composition_model.active_task) {
+        | Some(active_task) =>
+          try({
+            let new_todo_item =
+              set_todo_item_completeness(
+                Some(summary),
+                active_task.active_todo_list,
+                title,
+              );
+            let new_todo_list =
+              update_todo_item(active_task.active_todo_list, new_todo_item);
+            let new_model =
+              update_model_chat_history(
+                ~model,
+                ~mode,
+                ~updated_chat={
+                  ...curr_chat,
+                  composition_model:
+                    CompositionModel.update_active_todo_list(
+                      ~model=curr_chat.composition_model,
+                      ~new_todo_list,
+                    ),
+                },
+                ~awaiting_response=false,
+              );
+            Success(new_model, "Todo items checked");
+          }) {
+          | Failure(s: string) => Failure(s)
+          }
+        | None => Failure("No todo list exists")
+        }
+      | MarkTodoItemIncomplete(title) =>
+        switch (curr_chat.composition_model.active_task) {
+        | Some(active_task) =>
+          try({
+            let new_todo_item =
+              set_todo_item_completeness(
+                None,
+                active_task.active_todo_list,
+                title,
+              );
+            let new_todo_list =
+              update_todo_item(active_task.active_todo_list, new_todo_item);
+            let new_model =
+              update_model_chat_history(
+                ~model,
+                ~mode,
+                ~updated_chat={
+                  ...curr_chat,
+                  composition_model:
+                    CompositionModel.update_active_todo_list(
+                      ~model=curr_chat.composition_model,
+                      ~new_todo_list,
+                    ),
+                },
+                ~awaiting_response=false,
+              );
+            Success(new_model, "Todo items checked");
+          }) {
+          | Failure(s: string) => Failure(s)
+          }
+        | None => Failure("No todo list exists")
+        }
+      | SetActiveTodoItem(title) =>
+        switch (curr_chat.composition_model.active_task) {
+        | Some(active_task) =>
+          try({
+            let todo_item =
+              find_todo_item(active_task.active_todo_list, title)
+              |> OptUtil.get_or_fail("Todo item not found.");
+            let new_model =
+              update_model_chat_history(
+                ~model,
+                ~mode,
+                ~updated_chat={
+                  ...curr_chat,
+                  composition_model:
+                    CompositionModel.change_active_todo_item(
+                      ~model=curr_chat.composition_model,
+                      ~new_active_todo=Some(todo_item),
+                    ),
+                },
+                ~awaiting_response=false,
+              );
+            Success(new_model, "Active todo item set");
+          }) {
+          | Failure(s: string) => Failure(s)
+          }
+        | None => Failure("No active todo list exists")
+        }
+      | UnsetActiveTodoItem =>
+        switch (curr_chat.composition_model.active_task) {
+        | Some(_active_task) =>
+          try({
+            let new_model =
+              update_model_chat_history(
+                ~model,
+                ~mode,
+                ~updated_chat={
+                  ...curr_chat,
+                  composition_model:
+                    CompositionModel.change_active_todo_item(
+                      ~model=curr_chat.composition_model,
+                      ~new_active_todo=None,
+                    ),
+                },
+                ~awaiting_response=false,
+              );
+            Success(new_model, "Active todo item unset");
+          }) {
+          | Failure(s: string) => Failure(s)
+          }
+        | None => Failure("No active todo list exists")
+        }
+      };
+    switch (res) {
+    | Success(new_model, message) =>
+      schedule_tool_response(Success(message));
+      new_model;
+    | Failure(message) =>
+      schedule_tool_response(Failure(message));
+      model;
+    };
+  };
+};
+
+let filter_out_agent_view =
+    (messages: list(Model.message)): list(Model.message) => {
+  List.filter(
+    (message: Model.message) => {message.role != System(AgentView)},
+    messages,
+  );
+};
+
+let has_new_agent_view = (messages: list(Model.message)): bool => {
+  List.exists(
+    (message: Model.message) => {message.role == System(AgentView)},
+    messages,
+  );
+};
+
 let update_chat =
     (
       ~context_usage: option(int)=?,
       chat: Model.chat,
-      messages: list(Model.message),
+      new_messages: list(Model.message),
     ) => {
+  let updated_messages =
+    if (has_new_agent_view(new_messages)) {
+      // We hinge off the precondition that either zero or one AgentView message is present in the new messages list.
+      filter_out_agent_view(chat.messages) @ new_messages;
+    } else {
+      chat.messages @ new_messages;
+    };
+  let updated_messages = {
+    let todo_list_message =
+      TodoListUtils.mk_active_task_message(
+        chat.composition_model.active_task,
+      );
+    TodoListUtils.filter_out_todo_list(updated_messages)
+    @ [todo_list_message];
+  };
   {
     ...chat,
-    messages: chat.messages @ messages,
+    messages: updated_messages,
     context_usage:
       switch (context_usage) {
       | Some(context_usage) => context_usage
@@ -288,8 +631,8 @@ let mk_llm_call =
     model;
   | (key, model_id) =>
     let tools =
-      if (mode == TaskCompletion) {
-        CompositionTools.tools;
+      if (mode == Composition) {
+        CompositionUtils.Public.tools;
       } else {
         [];
       };
@@ -320,7 +663,7 @@ let mk_llm_call =
             switch (mode) {
             | HazelTutor => "HazelTutor"
             | CodeSuggestion => "CodeSuggestion"
-            | TaskCompletion => "TaskCompletion"
+            | Composition => "Composition"
             };
           ();
           print_endline(
@@ -337,17 +680,12 @@ let mk_llm_call =
       )
     | _ => ()
     };
-    let model =
-      update_model_chat_history(
-        ~model,
-        ~mode,
-        ~updated_chat,
-        ~awaiting_response=true,
-      );
-    {
-      ...model,
-      agent_looping: mode == TaskCompletion,
-    };
+    update_model_chat_history(
+      ~model,
+      ~mode,
+      ~updated_chat,
+      ~awaiting_response=true,
+    );
   };
 };
 
@@ -428,13 +766,14 @@ let can_undo = (action: t) => {
   | InternalError(_) => false
   | ExternalAPIAction(_) => false
   | InitializeAssistant => false
+  | CompositionModelAction(_) => false
   };
 };
 
 let update =
     (
       ~settings: AssistantSettings.t,
-      ~action,
+      ~action: AssistantUpdateAction.t,
       ~model: Model.t,
       // todo: Find a way to track unqique editor between concurrent actions
       ~zipper: Zipper.t,
@@ -501,7 +840,7 @@ let update =
           "Here #6 : Composition Eval mode is set to "
           ++ string_of_bool(eval_mode),
         );
-        let mode = AssistantSettings.TaskCompletion;
+        let mode = AssistantSettings.Composition;
         let curr_chat =
           Id.Map.find(chat_id, model.chat_history.past_composition_chats);
         switch (kind) {
@@ -525,19 +864,18 @@ let update =
             mk_user_content_message(~content, ~role=User, ~zipper);
           let (local_code_map_str, display) =
             AssistantModes.Composition.mk_structured_code_map_prompt(
-              ChatLSP.Options.init,
               zipper,
               info_map,
             );
-          let ctx_message: Model.message = {
+          let agent_view: Model.message = {
             content: Some(local_code_map_str),
             display: Some(display),
-            role: System(AssistantPrompt),
+            role: System(AgentView),
             sketch_snapshot: None,
           };
 
           let updated_chat =
-            update_chat(curr_chat, [content_message, ctx_message]);
+            update_chat(curr_chat, [content_message, agent_view]);
 
           mk_llm_call(
             ~mode,
@@ -567,7 +905,6 @@ let update =
           //    an end output to the user (implying no more looping) or a new tool call.
           let (local_code_map_str, display) =
             AssistantModes.Composition.mk_structured_code_map_prompt(
-              ChatLSP.Options.init,
               zipper,
               info_map,
             );
@@ -578,33 +915,21 @@ let update =
           let updated_chat =
             switch (status) {
             | Success(response) =>
-              let display = {
-                ...display,
-                displayable_content: [
-                  Text(response),
-                  ...display.displayable_content,
-                ],
-                raw_content: response ++ display.raw_content,
-              };
-              let response_message: Model.message = {
+              print_endline("Here #8 : Success status: " ++ response);
+              let tool_response_message: Model.message = {
                 content:
-                  // TODO: fix this logic, because it is messy and redundant.
-                  // We should maybe have mk_structured_code_map_prompt always
-                  // return an openrouter tool message, and deliberately inject
-                  // an assistant tool call and tool response initially...
-                  // or, if that is not feasible, then we should make the logic flow
-                  // simpler to track overall
-                  Some(
-                    OpenRouter.mk_tool_msg(
-                      response ++ local_code_map_str,
-                      tool_contents,
-                    ),
-                  ),
-                display: Some(display),
+                  Some(OpenRouter.mk_tool_msg(response, tool_contents)),
+                display: Some(Model.mk_message_display(~content=response)),
                 role: System(AssistantPrompt),
                 sketch_snapshot: None,
               };
-              update_chat(curr_chat, [response_message]);
+              let agent_view: Model.message = {
+                content: Some(OpenRouter.mk_user_msg(local_code_map_str)),
+                display: Some(display),
+                role: System(AgentView),
+                sketch_snapshot: None,
+              };
+              update_chat(curr_chat, [tool_response_message, agent_view]);
             | Failure(err) =>
               let err_message: Model.message = {
                 content: Some(OpenRouter.mk_tool_msg(err, tool_contents)),
@@ -656,7 +981,7 @@ let update =
               let* index = Indicated.index(zipper);
               let+ ci = Id.Map.find_opt(index, info_map);
               AssistantModes.Completion.mk_ctx_prompt(
-                ChatLSP.Options.init,
+                InitPrompts.Options.init,
                 ci,
                 sketch_seg,
                 (advanced_reasoning ? "?a" : "??") ++ tag,
@@ -685,7 +1010,7 @@ let update =
               HandleResponse(
                 CompletionErrorRound(
                   zipper,
-                  ChatLSP.Options.init.error_rounds_max,
+                  InitPrompts.Options.init.error_rounds_max,
                   tile_id,
                 ),
                 response,
@@ -744,7 +1069,7 @@ let update =
           if (fuel < 0) {
             let content =
               "By default we stop the assistant after "
-              ++ string_of_int(ChatLSP.Options.init.error_rounds_max)
+              ++ string_of_int(InitPrompts.Options.init.error_rounds_max)
               ++ " error rounds.";
             schedule_action(InternalError(content, mode, updated_chat.id));
             model;
@@ -779,10 +1104,6 @@ let update =
     if (!curr_chat.awaiting_response) {
       model;
     } else {
-      let model = {
-        ...model,
-        agent_looping: false,
-      };
       // todo: Should this be a user, assistant, or system message?
       //       We could make it assistant and put it in the first-person.
       let system_message: Model.message = {
@@ -819,7 +1140,7 @@ let update =
         )
       | CompositionLoopRound(_) => (
           Id.Map.find(chat_id, model.chat_history.past_composition_chats),
-          AssistantSettings.TaskCompletion,
+          AssistantSettings.Composition,
         )
       | CompletionErrorRound(_) => (
           Id.Map.find(chat_id, model.chat_history.past_suggestion_chats),
@@ -912,22 +1233,16 @@ let update =
           // if (eval_mode) {
           //   schedule_eval_action(CollectResults);
           // };
-          schedule_action(EmployLLMAction(SetAgentLooping(false)));
-          let model =
-            update_model_chat_history(
-              ~model,
-              ~mode,
-              ~updated_chat,
-              ~awaiting_response=false,
-            );
-          {
-            ...model,
-            agent_looping: false,
-          };
+
+          update_model_chat_history(
+            ~model,
+            ~mode,
+            ~updated_chat,
+            ~awaiting_response=false // false because no tool call
+          );
 
         | (_, 0) =>
           // The agent ran out of fuel. We should experiment with this in the future.
-          schedule_action(EmployLLMAction(SetAgentLooping(false)));
           schedule_action(
             InternalError(
               "By default, we stop the agent after "
@@ -938,17 +1253,12 @@ let update =
             ),
           );
           summarize_chat();
-          let model =
-            update_model_chat_history(
-              ~model,
-              ~mode,
-              ~updated_chat,
-              ~awaiting_response=false,
-            );
-          {
-            ...model,
-            agent_looping: false,
-          };
+          update_model_chat_history(
+            ~model,
+            ~mode,
+            ~updated_chat,
+            ~awaiting_response=false // false because out of fuel
+          );
 
         | (Some(tool_call), _) =>
           let updated_chat = {
@@ -992,29 +1302,32 @@ let update =
               chat_id,
             );
           let action =
-            CompositionTools.action_of(
+            CompositionUtils.Public.action_of(
               ~tool_name=tool_call.tool_name,
-              ~args=API.Json.get_string_kvs(tool_call.args),
+              ~args=tool_call.args,
             );
-          AssistantModes.Composition.apply_editor_action(
-            ~z=zipper,
-            ~info_map,
-            ~action,
-            ~schedule_editor_action,
-            ~schedule_tool_response=(res: AssistantUpdateAction.status) => {
-            schedule_action(loop_message(res))
-          });
-          let model =
-            update_model_chat_history(
-              ~model,
-              ~mode,
-              ~updated_chat,
-              ~awaiting_response=false,
-            );
-          {
-            ...model,
-            agent_looping: true,
+          switch (action) {
+          | Failure(s) =>
+            print_endline(s);
+            schedule_action(loop_message(Failure(s)));
+          | Action(action) =>
+            AssistantModes.Composition.apply_editor_action(
+              ~z=zipper,
+              ~info_map,
+              ~chat_id,
+              ~action,
+              ~schedule_editor_action,
+              ~schedule_assistant_action=schedule_action,
+              ~schedule_tool_response=(res: AssistantUpdateAction.status) => {
+              schedule_action(loop_message(res))
+            })
           };
+          update_model_chat_history(
+            ~model,
+            ~mode,
+            ~updated_chat,
+            ~awaiting_response=false,
+          );
         };
       | CompletionErrorRound(zipper, fuel, tileId) =>
         /* --- todo: test if this works --- */
@@ -1177,7 +1490,7 @@ let update =
         switch (mode) {
         | HazelTutor => model.current_chats.curr_tutor_chat
         | CodeSuggestion => model.current_chats.curr_suggestion_chat
-        | TaskCompletion => model.current_chats.curr_composition_chat
+        | Composition => model.current_chats.curr_composition_chat
         };
       resculpt_model(
         ~model,
@@ -1185,10 +1498,6 @@ let update =
         ~updated_past_chats,
         ~chat_id=curr_chat_id,
       );
-    | SetAgentLooping(agent_looping) => {
-        ...model,
-        agent_looping,
-      }
     | Quit =>
       // Set awaiting_promise to false and add a system message
       let quit_message: Model.message = {
@@ -1199,17 +1508,12 @@ let update =
       };
       let (_, curr_chat) = get_mode_info(settings.mode, model);
       let updated_chat = update_chat(curr_chat, [quit_message]);
-      let model =
-        update_model_chat_history(
-          ~model,
-          ~mode=settings.mode,
-          ~updated_chat,
-          ~awaiting_response=false,
-        );
-      {
-        ...model,
-        agent_looping: false,
-      };
+      update_model_chat_history(
+        ~model,
+        ~mode=settings.mode,
+        ~updated_chat,
+        ~awaiting_response=false,
+      );
     };
 
   | ChatAction(action) =>
@@ -1288,7 +1592,10 @@ let update =
                   | None => None
                   },
               };
-            } else if (msg.role == System(AssistantPrompt)
+            } else if ((
+                         msg.role == System(AssistantPrompt)
+                         || msg.role == System(AgentView)
+                       )
                        && is_prompt_display) {
               {
                 ...msg,
@@ -1442,5 +1749,111 @@ let update =
       }
     }
   | InitializeAssistant => AssistantModel.init()
+  | CompositionModelAction(action, chat_id) =>
+    let mode = AssistantSettings.Composition;
+    let curr_chat =
+      OptUtil.get_or_fail(
+        "Failed to find the current chat",
+        Id.Map.find_opt(chat_id, model.chat_history.past_composition_chats),
+      );
+    switch (action) {
+    | AgentAction((action, schedule_tool_response)) =>
+      switch (action) {
+      | TodoAction(action) =>
+        TodoListUtils.todo_dispatch(
+          ~model,
+          ~chat_id,
+          ~action,
+          ~schedule_tool_response,
+        )
+      }
+    | UIAction(action) =>
+      switch (action) {
+      | SwitchView(view) =>
+        update_model_chat_history(
+          ~model,
+          ~mode,
+          ~updated_chat={
+            ...curr_chat,
+            composition_model: {
+              ...curr_chat.composition_model,
+              view_settings: {
+                active_view: view,
+                show_archive:
+                  curr_chat.composition_model.view_settings.show_archive,
+              },
+            },
+          },
+          ~awaiting_response=curr_chat.awaiting_response,
+        )
+      | ToggleArchiveVisibility =>
+        update_model_chat_history(
+          ~model,
+          ~mode,
+          ~updated_chat={
+            ...curr_chat,
+            composition_model: {
+              ...curr_chat.composition_model,
+              view_settings: {
+                active_view:
+                  curr_chat.composition_model.view_settings.active_view,
+                show_archive:
+                  !curr_chat.composition_model.view_settings.show_archive,
+              },
+            },
+          },
+          ~awaiting_response=curr_chat.awaiting_response,
+        )
+      | ManualSetActiveTodoList(title) =>
+        let todo_archive = curr_chat.composition_model.todo_archive;
+        let todo_list =
+          Maps.StringMap.find_opt(title, todo_archive)
+          |> OptUtil.get_or_fail(
+               "Todo list not found during [MANUAL] change: " ++ title,
+             );
+        update_model_chat_history(
+          ~model,
+          ~mode,
+          ~updated_chat={
+            ...curr_chat,
+            composition_model:
+              CompositionModel.update_active_todo_list(
+                ~model=curr_chat.composition_model,
+                ~new_todo_list=todo_list,
+              ),
+          },
+          ~awaiting_response=curr_chat.awaiting_response,
+        );
+      | ExpandTodoItem(title) =>
+        update_model_chat_history(
+          ~model,
+          ~mode,
+          ~updated_chat={
+            ...curr_chat,
+            composition_model: {
+              switch (curr_chat.composition_model.active_task) {
+              | Some(active_task) =>
+                let new_todo_item =
+                  TodoListUtils.expand_todo_item(
+                    active_task.active_todo_list,
+                    title,
+                  );
+                let new_todo_list =
+                  TodoListUtils.update_todo_item(
+                    active_task.active_todo_list,
+                    new_todo_item,
+                  );
+                CompositionModel.update_active_todo_list(
+                  ~model=curr_chat.composition_model,
+                  ~new_todo_list,
+                );
+              | None => raise(Failure("No active task to expand item in"))
+              };
+            },
+          },
+          ~awaiting_response=curr_chat.awaiting_response,
+        )
+      }
+    };
   };
 };

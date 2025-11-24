@@ -7,27 +7,11 @@ open Util;
  */
 
 [@deriving (show({with_path: false}), sexp, yojson, eq)]
-type via =
-  | NameAndIdx(string, option(int))
-  | Stepwise(Direction.t);
+// The path string should be formatted as "name/name/name/..."
+type path = string;
 
-// --- Navigation Actions ---
-// These actions are used to navigate the AST, and do not modify the program
-// or provide additional information to the LLM. They strictly move the cursor
-// through the AST.
 [@deriving (show({with_path: false}), sexp, yojson, eq)]
-type nav_action =
-  // This is mainly for user's to select the current node
-  | SelectCurrent
-  // Goes to the parent node of the current node in the AST
-  | GoToParent
-  // Goes to the child node of the current node in the AST
-  | GoToChild(string, option(int))
-  // Jumps to the root node of the AST
-  | GoToSibling(via)
-  // Goes to the binding site of the indicated variable
-  | GoToBindingSite(string, option(int))
-  | GoToUseSite(string, option(int));
+type code = string;
 
 // --- File-Read Actions ---
 // These actions are used purely to read information from the program,
@@ -44,48 +28,56 @@ type nav_action =
 [@deriving (show({with_path: false}), sexp, yojson, eq)]
 type read_action =
   // Lists all the use sites of the indicated variable
-  | ShowUseSites
+  | ShowUseSites(path)
   // Displays the typing context/scope at the current let expression in the AST
   // | ShowContext //todo: technically this is accomplished via showing sibs/parent
   // Displays the entire definition of the current node, with no child/sub definitions abstracted away
-  | ViewEntireDefintion;
+  | ShowReferences(path);
 
 // --- Edit Actions ---
-// These actions are used to modify the program. They do provide additional
-// information to the LLM (via reading), but may move the cursor (eg. removing
-// a node will require the cursor to be moved elsewhere).
-[@deriving (show({with_path: false}), sexp, yojson, eq)]
-type user =
-  | LLM(string)
-  | Human; // prompt user for string
 
 [@deriving (show({with_path: false}), sexp, yojson, eq)]
 type edit_action =
-  | Initialize(user)
-  | UpdateDefinition(user)
-  | UpdateBody(user)
-  | UpdatePattern(user)
-  | UpdateBindingClause(user)
-  | DeleteBindingClause
-  | DeleteBody
-  | InsertAfter(user)
-  | InsertBefore(user);
+  | Initialize(code)
+  | UpdateDefinition(path, code)
+  | UpdateBody(path, code)
+  | UpdatePattern(path, code)
+  | UpdateBindingClause(path, code)
+  | DeleteBindingClause(path)
+  | DeleteBody(path)
+  | InsertAfter(path, code)
+  | InsertBefore(path, code);
 
 [@deriving (show({with_path: false}), sexp, yojson, eq)]
 type view_action =
-  | ShowReferences;
+  // Leave out option(int) index param for now.
+  // TODO: add later. resort to prompting to avoid shadowing ambiguity for now.
+  | Expand(list(path))
+  | Collapse(list(path));
+// TODO: Uncomment once we add functionality for file systems.
+// This would require a separate file_path and variable_path in Expand and Collapse actions.
+/*
+ | Open(path)
+ | Close(path);
+ */
 
 // AddToolLabel_1.0: Make the action types (above) and add their cases to the funs (below)
 [@deriving (show({with_path: false}), sexp, yojson, eq)]
-type composition_action =
-  | Nav(nav_action)
-  | Read(read_action)
-  | Edit(edit_action);
+type editor_action =
+  | View(view_action) // Main source of ingesting the codebase
+  | Read(read_action) // Language server helpers
+  | Edit(edit_action); // Main source of editing the codebase
 
 [@deriving (show({with_path: false}), sexp, yojson)]
-type payload = (
-  composition_action,
-  option(AssistantUpdateAction.status => unit),
-);
+type editor_payload = (editor_action, AssistantUpdateAction.status => unit);
 
-let default = (a: composition_action) => (a, None);
+[@deriving (show({with_path: false}), sexp, yojson)]
+type composition_action =
+  | Editor(editor_action)
+  | Assistant(AssistantUpdateAction.composition_model_agent_action);
+
+[@deriving (show({with_path: false}), sexp, yojson)]
+type composition_payload = (
+  composition_action,
+  AssistantUpdateAction.status => unit,
+);

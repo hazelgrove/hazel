@@ -1,3 +1,5 @@
+open Haz3lcore
+
 let exercise : Exercise.spec =
   {
     id =
@@ -27,6 +29,7 @@ let exercise : Exercise.spec =
             ancestors = [];
           };
         caret = Outer;
+        agent_view = AgentState.init;
       };
     correct_impl =
       {
@@ -48,6 +51,7 @@ let exercise : Exercise.spec =
             ancestors = [];
           };
         caret = Outer;
+        agent_view = AgentState.init;
       };
     your_tests =
       {
@@ -71,6 +75,7 @@ let exercise : Exercise.spec =
                 ancestors = [];
               };
             caret = Outer;
+            agent_view = AgentState.init;
           };
         required = 0;
         provided = 0;
@@ -95,6 +100,7 @@ let exercise : Exercise.spec =
             ancestors = [];
           };
         caret = Outer;
+        agent_view = AgentState.init;
       };
     hidden_bugs = [];
     hidden_tests =
@@ -119,6 +125,7 @@ let exercise : Exercise.spec =
                 ancestors = [];
               };
             caret = Outer;
+            agent_view = AgentState.init;
           };
         hints = [];
       };

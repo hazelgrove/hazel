@@ -12,7 +12,15 @@ type system =
   // The system prompt for the model.
   // Send this to the model.
   // Display to user as expandable/collapsable system message.
-  | AssistantPrompt;
+  | AssistantPrompt
+  // Agent view of the codebase.
+  // Only one should ever exist in a chat at a time.
+  | AgentView
+  // The agent's todo list.
+  // Only one should ever exist in a chat at a time.
+  | TodoList;
+// // Tool response from our backend.
+// | ToolResponse;
 
 // Role of the entity sending the message.
 // This is kept separate from the OpenRouter.role type,
@@ -32,6 +40,8 @@ let string_of_role =
   fun
   | System(AssistantPrompt) => "System"
   | System(InternalError) => "Error"
+  | System(AgentView) => "Agent View"
+  | System(TodoList) => "Todo List"
   | User => "User"
   | Assistant => "Assistant"
   | Tool => "Tool";
@@ -78,6 +88,7 @@ type chat = {
   timestamp: float,
   context_usage: int,
   awaiting_response: bool,
+  composition_model: CompositionModel.t,
 };
 
 // We save the history of past chats as a hash map with chat IDs as keys.
@@ -131,10 +142,6 @@ type t = {
   // Loading in and parsing the prompts is an expensive operation, so we perform this eagerly,
   // before the user sends their first request. This is currently done when the user sets an API key.
   init_prompt_data,
-  // We make this universal to the model. It really only serves for
-  // UI effects. It doesn't make sense to make it local to a chat, since an
-  // "agent" is really in the editor... not necessarily the chat.
-  agent_looping: bool,
 };
 
 // Allow for the displaying of chats in chronological order.
@@ -160,13 +167,8 @@ let mk_mode_prompt = (~mode: AssistantSettings.mode): OpenRouter.message => {
   let prompt =
     switch (mode) {
     | HazelTutor => InitPrompts.mk_tutor()
-    | CodeSuggestion =>
-      InitPrompts.mk_suggestion(
-        ChatLSP.Options.init,
-        "code_suggestion",
-        false,
-      )
-    | TaskCompletion => InitPrompts.mk_composition()
+    | CodeSuggestion => InitPrompts.mk_suggestion("code_suggestion", false)
+    | Composition => InitPrompts.mk_composition()
     };
   prompt;
 };
@@ -195,6 +197,7 @@ let init_chat = (mode: AssistantSettings.mode): chat => {
     timestamp: JsUtil.timestamp(),
     context_usage: 0,
     awaiting_response: false,
+    composition_model: CompositionModel.init(),
   };
 };
 
@@ -204,7 +207,7 @@ let new_chat = (model: t, mode: AssistantSettings.mode): chat => {
     | HazelTutor => model.init_prompt_data.init_tutor_chat.messages
     | CodeSuggestion =>
       model.init_prompt_data.init_suggestion_chat_basic.messages
-    | TaskCompletion => model.init_prompt_data.init_composition_chat.messages
+    | Composition => model.init_prompt_data.init_composition_chat.messages
     };
   {
     messages: init_message,
@@ -213,6 +216,7 @@ let new_chat = (model: t, mode: AssistantSettings.mode): chat => {
     timestamp: JsUtil.timestamp(),
     context_usage: 0,
     awaiting_response: false,
+    composition_model: CompositionModel.init(),
   };
 };
 
@@ -224,7 +228,7 @@ let init = (): t => {
   let (init_tutor_chat, init_suggestion_chat, init_composition_chat) = (
     init_chat(HazelTutor),
     init_chat(CodeSuggestion),
-    init_chat(TaskCompletion),
+    init_chat(Composition),
   );
   {
     init_prompt_data: {
@@ -258,7 +262,6 @@ let init = (): t => {
       },
       api_key: "",
     },
-    agent_looping: false,
   };
 };
 
@@ -271,6 +274,7 @@ let null_model = (): t => {
     timestamp: JsUtil.timestamp(),
     context_usage: 0,
     awaiting_response: false,
+    composition_model: CompositionModel.init(),
   };
   {
     init_prompt_data: {
@@ -302,7 +306,6 @@ let null_model = (): t => {
       },
       api_key: "",
     },
-    agent_looping: false,
   };
 };
 

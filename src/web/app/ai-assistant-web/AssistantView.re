@@ -472,7 +472,7 @@ let mk_input_handlers =
   let curr_chat_id =
     switch (mode) {
     | CodeSuggestion => model.current_chats.curr_suggestion_chat
-    | TaskCompletion => model.current_chats.curr_composition_chat
+    | Composition => model.current_chats.curr_composition_chat
     | HazelTutor => model.current_chats.curr_tutor_chat
     };
   let curr_messages =
@@ -480,7 +480,7 @@ let mk_input_handlers =
     | CodeSuggestion =>
       Id.Map.find(curr_chat_id, model.chat_history.past_suggestion_chats).
         messages
-    | TaskCompletion =>
+    | Composition =>
       Id.Map.find(curr_chat_id, model.chat_history.past_composition_chats).
         messages
     | HazelTutor =>
@@ -518,7 +518,7 @@ let mk_input_handlers =
             model.current_chats.curr_suggestion_chat,
           ),
         )
-      | TaskCompletion =>
+      | Composition =>
         inject(
           Update.SendMessage(
             Composition(Request(content), false),
@@ -611,7 +611,7 @@ let message_input =
             switch (settings.mode) {
             | HazelTutor => "Ask a question about Hazel (or anything)..."
             | CodeSuggestion => "Followup with a question about the agent's code suggestion..."
-            | TaskCompletion => "Ask the agent to help clarify, plan, or write code..."
+            | Composition => "Ask the agent to help clarify, plan, or write code..."
             },
           ),
           Attr.type_("text"),
@@ -913,7 +913,7 @@ let text_block =
               switch (settings.mode) {
               | HazelTutor => "Ask a question about Hazel (or anything)..."
               | CodeSuggestion => "Followup with a question about the agent's code suggestion..."
-              | TaskCompletion => "Ask the agent to help clarify, plan, or write code..."
+              | Composition => "Ask the agent to help clarify, plan, or write code..."
               },
             ),
             Attr.property("autocomplete", Js.Unsafe.inject("off")),
@@ -953,6 +953,8 @@ let text_block =
           | User => "user-message"
           | Assistant => "llm-message"
           | System(AssistantPrompt) => "system-prompt-message"
+          | System(AgentView) => "system-prompt-message"
+          | System(TodoList) => "system-todo-list-message"
           | System(InternalError) => "system-error-message"
           | Tool => "tool-message"
           },
@@ -1017,8 +1019,10 @@ let code_block =
         | User => "user"
         | Assistant => "llm"
         | System(AssistantPrompt) => "system-prompt"
+        | System(AgentView) => "system-prompt"
         | System(InternalError) => "system-error"
         | Tool => "tool"
+        | System(TodoList) => "system-todo-list"
         },
       ]),
     ],
@@ -1130,15 +1134,15 @@ let initial_display =
     ? div(
         ~attrs=[clss(["initial-display"])],
         [
-          Icons.hazelnut_agent,
+          Icons.corylus,
           div(
             ~attrs=[clss(["initial-display-text"])],
             [
               text(
                 switch (settings.mode) {
-                | HazelTutor => "Hi, I'm Hazelbot! Ask me anything about Hazel."
-                | CodeSuggestion => "Hi, I'm Hazelbot! Ask me for code suggestions."
-                | TaskCompletion => "Hi, I'm Hazelbot! Let's work on your task together."
+                | HazelTutor => "Hi, I'm Corylus. Let's learn about Hazel together."
+                | CodeSuggestion => "Hi, I'm Corylus. Type '??' in an expression hole and see the suggestion dialogue here."
+                | Composition => "Hi, I'm Corylus. Let's work on your task together."
                 },
               ),
             ],
@@ -1147,7 +1151,7 @@ let initial_display =
             ~attrs=[clss(["disclaimer-display-text"])],
             [
               text(
-                "AI-based technologies, such as Hazelbot, are prone to making mistakes. Always verify critical information independently.",
+                "AI-based technologies, such as Corylus, are prone to making mistakes. Always verify critical information independently.",
               ),
             ],
           ),
@@ -1208,6 +1212,8 @@ let message_display =
                     | System(AssistantPrompt) => "system-prompt"
                     | System(InternalError) => "system-error"
                     | Tool => "tool"
+                    | System(AgentView) => "system-agent-view"
+                    | System(TodoList) => "system-todo-list"
                     },
                   ]),
                   is_last_message ? Attr.id("last-message") : Attr.empty,
@@ -1226,17 +1232,17 @@ let message_display =
                             | CodeSuggestion =>
                               div(
                                 ~attrs=[clss(["llm-identifier"])],
-                                [Icons.hazelnut_agent, text("Assistant")],
+                                [Icons.corylus, text("Corylus")],
                               )
-                            | TaskCompletion =>
+                            | Composition =>
                               div(
                                 ~attrs=[clss(["llm-identifier"])],
-                                [Icons.hazelnut_agent, text("Agent")],
+                                [Icons.corylus, text("Corylus")],
                               )
                             | HazelTutor =>
                               div(
                                 ~attrs=[clss(["llm-identifier"])],
-                                [Icons.hazelnut_agent, text("Tutor")],
+                                [Icons.corylus, text("Corylus")],
                               )
                             }
 
@@ -1244,6 +1250,18 @@ let message_display =
                             div(
                               ~attrs=[clss(["system-prompt-identifier"])],
                               [text("System")],
+                            )
+                          | System(AgentView) =>
+                            div(
+                              ~attrs=[
+                                clss(["system-agent-view-identifier"]),
+                              ],
+                              [text("Agent View")],
+                            )
+                          | System(TodoList) =>
+                            div(
+                              ~attrs=[clss(["system-todo-list-identifier"])],
+                              [text("Todo List")],
                             )
                           | System(InternalError) =>
                             div(
@@ -1258,22 +1276,34 @@ let message_display =
                           },
                         ],
                       ),
-                      message.role == System(AssistantPrompt)
-                        ? div(
-                            ~attrs=[clss(["show-prompt-button"])],
-                            [
-                              Widgets.button(
-                                ~tooltip="Show Prompt", Icons.doc, _ =>
-                                toggle_collapse(true, index)
-                              ),
-                            ],
-                          )
-                        : None,
+                      switch (message.role) {
+                      | System(AssistantPrompt) =>
+                        div(
+                          ~attrs=[clss(["show-prompt-button"])],
+                          [
+                            Widgets.button(~tooltip="Show Prompt", Icons.doc, _ =>
+                              toggle_collapse(true, index)
+                            ),
+                          ],
+                        )
+                      | System(AgentView) =>
+                        div(
+                          ~attrs=[clss(["show-prompt-button"])],
+                          [
+                            Widgets.button(
+                              ~tooltip="Show Agent View", Icons.agent_view, _ =>
+                              toggle_collapse(true, index)
+                            ),
+                          ],
+                        )
+                      | _ => None
+                      },
                     ],
                   ),
                 ]
                 @ {
                   message.role == System(AssistantPrompt)
+                  || message.role == System(AgentView)
                     ? [None]
                     : {
                       let parsed_blocks = message.display.displayable_content;
@@ -1304,17 +1334,17 @@ let message_display =
       ),
     );
   // Autoscroll to loading dots if they exist (only once per loading session)
-  JsUtil.delay(0.0, () => {
-    Js.Opt.iter(
-      Dom_html.document##getElementById(Js.string("loading-dots-anchor")),
-      el => {
-        let _ = Js.Unsafe.coerce(el)##scrollIntoView();
-        // Change the ID so we don't scroll to it again
-        Js.Unsafe.coerce(el)##.id :=
-          Js.string("loading-dots-anchor-scrolled");
-      },
-    )
-  });
+  // JsUtil.delay(0.0, () => {
+  //   Js.Opt.iter(
+  //     Dom_html.document##getElementById(Js.string("loading-dots-anchor")),
+  //     el => {
+  //       let _ = Js.Unsafe.coerce(el)##scrollIntoView();
+  //       // Change the ID so we don't scroll to it again
+  //       Js.Unsafe.coerce(el)##.id :=
+  //         Js.string("loading-dots-anchor-scrolled");
+  //     },
+  //   )
+  // });
   div(
     ~attrs=[clss(["message-display-container"])],
     message_nodes
@@ -1346,13 +1376,13 @@ let get_sidebar_width = () => {
           String.sub(width_str, 0, String.length(width_str) - 2),
         )
       ) {
-      | Invalid_argument(_) => 400 // default width on error
+      | Invalid_argument(_) => 450 // default width on error
       };
     } else {
-      400; // default width if no 'px' suffix
+      450; // default width if no 'px' suffix
     };
   } else {
-    400; // default width
+    450; // default width
   };
 };
 
@@ -1385,7 +1415,11 @@ let prompt_display =
   let display =
     List.find_mapi(
       (index: int, message: unwrapped_message) => {
-        message.role == System(AssistantPrompt) && !message.display.collapsed
+        (
+          message.role == System(AssistantPrompt)
+          || message.role == System(AgentView)
+        )
+        && !message.display.collapsed
           ? Some(
               div(
                 ~attrs=[
@@ -1429,43 +1463,120 @@ let prompt_display =
   };
 };
 
-let mode_buttons =
+let view_buttons =
+    (
+      ~inject: Update.t => Ui_effect.t(unit),
+      ~model: Model.t,
+      ~settings: AssistantSettings.t,
+    )
+    : Node.t => {
+  let (_, curr_chat) = UpdateBase.get_mode_info(settings.mode, model);
+  let active_view = curr_chat.composition_model.view_settings.active_view;
+
+  let view_button = (view: CompositionModel.active_view, label: string) => {
+    let switch_view = _ =>
+      Virtual_dom.Vdom.Effect.Many([
+        inject(
+          Update.CompositionModelAction(
+            UIAction(SwitchView(view)),
+            curr_chat.id,
+          ),
+        ),
+        Virtual_dom.Vdom.Effect.Stop_propagation,
+      ]);
+    div(
+      ~attrs=[
+        clss(["view-button", active_view == view ? "active" : ""]),
+        Attr.on_click(switch_view),
+      ],
+      [text(label)],
+    );
+  };
+
+  div(
+    ~attrs=[clss(["view-buttons"])],
+    [view_button(Chat, "Chat"), view_button(Todos, "Workbench")],
+  );
+};
+
+let mode_dropdown =
     (
       ~inject_global: Globals.Action.t => Ui_effect.t(unit),
       ~settings: AssistantSettings.t,
     )
     : Node.t => {
-  let mode_button =
-      (mode: AssistantSettings.mode, label: string, ~disabled: bool) => {
-    let switch_mode = _ =>
-      Virtual_dom.Vdom.Effect.Many([
-        inject_global(Set(Assistant(SwitchMode(mode)))),
-        Virtual_dom.Vdom.Effect.Stop_propagation,
-      ]);
-    div(
-      ~attrs=[
-        clss([
-          "mode-button",
-          settings.mode == mode ? "active" : "",
-          disabled ? "disabled" : "",
-        ]),
-        Attr.on_click(disabled ? _ => Effect.Many([]) : switch_mode),
-      ],
-      [
-        text(label),
-        disabled
-          ? div(~attrs=[clss(["hover-view"])], [text("Coming soon!")])
-          : None,
-      ],
-    );
+  let handle_change = (event, _) => {
+    let target = Js.Unsafe.coerce(event)##.target;
+    let value = target##.value;
+    let mode =
+      switch (Js.to_string(value)) {
+      | "HazelTutor" => AssistantSettings.HazelTutor
+      | "CodeSuggestion" => AssistantSettings.CodeSuggestion
+      | "Composition" => AssistantSettings.Composition
+      | _ => AssistantSettings.Composition
+      };
+    inject_global(Set(Assistant(SwitchMode(mode))));
   };
 
+  let current_mode_string =
+    switch (settings.mode) {
+    | HazelTutor => "HazelTutor"
+    | CodeSuggestion => "CodeSuggestion"
+    | Composition => "Composition"
+    };
+
+  let mode_label =
+    switch (settings.mode) {
+    | HazelTutor => "Tutor"
+    | CodeSuggestion => "Suggest"
+    | Composition => "Compose"
+    };
+
   div(
-    ~attrs=[clss(["mode-buttons"])],
+    ~attrs=[clss(["mode-dropdown-container"])],
     [
-      mode_button(HazelTutor, "Tutor", ~disabled=false),
-      mode_button(CodeSuggestion, "Suggest", ~disabled=false),
-      mode_button(TaskCompletion, "Compose", ~disabled=false),
+      span(
+        ~attrs=[clss(["mode-dropdown-label"])],
+        [
+          text(mode_label),
+          span(
+            ~attrs=[clss(["dropdown-arrow"])],
+            [text(" \226\150\188")],
+          ),
+        ],
+      ),
+      select(
+        ~attrs=[
+          Attr.on_change(handle_change),
+          clss(["mode-dropdown-select"]),
+          Attr.value(current_mode_string),
+        ],
+        [
+          option(
+            ~attrs=[
+              Attr.value("Composition"),
+              current_mode_string == "Composition"
+                ? Attr.selected : Attr.empty,
+            ],
+            [text("Compose")],
+          ),
+          option(
+            ~attrs=[
+              Attr.value("CodeSuggestion"),
+              current_mode_string == "CodeSuggestion"
+                ? Attr.selected : Attr.empty,
+            ],
+            [text("Suggest")],
+          ),
+          option(
+            ~attrs=[
+              Attr.value("HazelTutor"),
+              current_mode_string == "HazelTutor" ? Attr.selected : Attr.empty,
+            ],
+            [text("Tutor")],
+          ),
+        ],
+      ),
     ],
   );
 };
@@ -1485,16 +1596,7 @@ let history_menu =
       ),
     ],
     [
-      div(
-        ~attrs=[clss(["history-menu-header"])],
-        [
-          switch (settings.mode) {
-          | HazelTutor => text("Tutor History")
-          | CodeSuggestion => text("Suggestion History")
-          | TaskCompletion => text("Task History")
-          },
-        ],
-      ),
+      div(~attrs=[clss(["history-menu-header"])], [text("Chat History")]),
       div(
         ~attrs=[clss(["history-menu-list"])],
         List.map(
@@ -1564,6 +1666,215 @@ let history_menu =
   );
 };
 
+let todo_archive_button = (~inject, ~chat_id: Id.t): Node.t => {
+  let tooltip = "Task Archive";
+  let toggle_archive = _ =>
+    Virtual_dom.Vdom.Effect.Many([
+      inject(
+        Update.CompositionModelAction(
+          UIAction(ToggleArchiveVisibility),
+          chat_id,
+        ),
+      ),
+      Virtual_dom.Vdom.Effect.Stop_propagation,
+    ]);
+  div(
+    ~attrs=[clss(["assistant-button", "todo-archive-button"])],
+    [Widgets.button(~tooltip, Icons.library, toggle_archive)],
+  );
+};
+
+let todo_archive_menu =
+    (~model: Model.t, ~settings: AssistantSettings.t, ~inject, ~chat_id: Id.t)
+    : Node.t => {
+  let (_, curr_chat) = UpdateBase.get_mode_info(settings.mode, model);
+  let todo_archive = curr_chat.composition_model.todo_archive;
+  let sorted_archive = CompositionModel.sorted_todo_archive(todo_archive);
+
+  div(
+    ~attrs=[
+      Attr.id("todo-archive-menu"),
+      Attr.create(
+        "style",
+        "right: " ++ string_of_int(get_sidebar_width() + 20) ++ "px",
+      ),
+    ],
+    [
+      div(~attrs=[clss(["history-menu-header"])], [text("Task Archive")]),
+      div(
+        ~attrs=[clss(["history-menu-list"])],
+        List.map(
+          (todo_list: CompositionModel.todo_list) =>
+            div(
+              ~attrs=[
+                curr_chat.composition_model.active_task
+                |> Option.map((task: CompositionModel.active_task) =>
+                     task.active_todo_list.title == todo_list.title
+                   )
+                |> Option.value(~default=false)
+                  ? clss(["history-menu-item", "active"])
+                  : clss(["history-menu-item"]),
+                Attr.on_click(_ => {
+                  Virtual_dom.Vdom.Effect.Many([
+                    inject(
+                      Update.CompositionModelAction(
+                        UIAction(ManualSetActiveTodoList(todo_list.title)),
+                        chat_id,
+                      ),
+                    ),
+                    Virtual_dom.Vdom.Effect.Stop_propagation,
+                  ])
+                }),
+              ],
+              [
+                div(
+                  ~attrs=[clss(["history-menu-item-content"])],
+                  [text(todo_list.title)],
+                ),
+                div(
+                  ~attrs=[clss(["history-menu-item-actions"])],
+                  [
+                    div(
+                      ~attrs=[clss(["history-menu-item-time"])],
+                      [
+                        text(
+                          TimeUtil.format_time_diff(todo_list.last_updated),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          sorted_archive,
+        ),
+      ),
+    ],
+  );
+};
+
+let todo_list_display =
+    (~model: Model.t, ~settings: AssistantSettings.t, ~inject): Node.t => {
+  let (_, curr_chat) = UpdateBase.get_mode_info(settings.mode, model);
+  let chat_id = curr_chat.id;
+
+  div(
+    ~attrs=[clss(["todo-list-view"])],
+    [
+      div(
+        ~attrs=[clss(["todo-archive-button-container"])],
+        [todo_archive_button(~inject, ~chat_id)],
+      ),
+      switch (curr_chat.composition_model.active_task) {
+      | None =>
+        div(
+          ~attrs=[clss(["no-todo-list"])],
+          [text("No active todo list.")],
+        )
+      | Some(active_task) =>
+        div(
+          ~attrs=[clss(["todo-list-container"])],
+          [
+            div(
+              ~attrs=[clss(["todo-list-title"])],
+              [text(active_task.active_todo_list.title)],
+            ),
+            div(
+              ~attrs=[clss(["todo-items"])],
+              List.map(
+                (item: CompositionModel.todo_item) => {
+                  let is_active =
+                    switch (active_task.active_todo_item) {
+                    | Some(active_item) => active_item.title == item.title
+                    | None => false
+                    };
+                  div(
+                    ~attrs=[
+                      clss(["todo-item", item.expanded ? "expanded" : ""]),
+                      Attr.on_click(_ =>
+                        inject(
+                          Update.CompositionModelAction(
+                            UIAction(ExpandTodoItem(item.title)),
+                            chat_id,
+                          ),
+                        )
+                      ),
+                    ],
+                    [
+                      div(
+                        ~attrs=[
+                          clss([
+                            "todo-status-icon",
+                            CompositionModel.is_completed(item)
+                              ? "completed" : "incomplete",
+                            is_active && !CompositionModel.is_completed(item)
+                              ? "active-todo" : "",
+                          ]),
+                        ],
+                        [
+                          CompositionModel.is_completed(item)
+                            ? Icons.circle_with_check
+                            : Icons.circle_with_no_check,
+                        ],
+                      ),
+                      div(
+                        ~attrs=[clss(["todo-item-content"])],
+                        [
+                          div(
+                            ~attrs=[clss(["todo-item-title"])],
+                            [text(item.title)],
+                          ),
+                          item.expanded
+                            ? div(
+                                ~attrs=[clss(["todo-item-details"])],
+                                [
+                                  div(
+                                    ~attrs=[clss(["todo-detail-header"])],
+                                    [text("Description")],
+                                  ),
+                                  div(
+                                    ~attrs=[clss(["todo-detail-text"])],
+                                    [text(item.description)],
+                                  ),
+                                  switch (item.task_completion_info) {
+                                  | Some(info) =>
+                                    div(
+                                      ~attrs=[clss(["todo-detail-section"])],
+                                      [
+                                        div(
+                                          ~attrs=[
+                                            clss(["todo-detail-header"]),
+                                          ],
+                                          [text("Summary of Changes")],
+                                        ),
+                                        div(
+                                          ~attrs=[
+                                            clss(["todo-detail-text"]),
+                                          ],
+                                          [text(info.summary)],
+                                        ),
+                                      ],
+                                    )
+                                  | None => None
+                                  },
+                                ],
+                              )
+                            : None,
+                        ],
+                      ),
+                    ],
+                  );
+                },
+                active_task.active_todo_list.items,
+              ),
+            ),
+          ],
+        )
+      },
+    ],
+  );
+};
+
 let view =
     (
       ~globals: Globals.t,
@@ -1573,6 +1884,18 @@ let view =
     ) => {
   let settings = globals.settings;
   let inject_global = globals.inject_global;
+
+  let (_, curr_chat) =
+    UpdateBase.get_mode_info(settings.assistant.mode, model);
+  let active_view = curr_chat.composition_model.view_settings.active_view;
+  let show_todos =
+    settings.assistant.mode == Composition
+    && active_view == CompositionModel.Todos;
+
+  let show_archive =
+    settings.assistant.mode == Composition
+    && curr_chat.composition_model.view_settings.show_archive;
+
   /* For debugging: Uncomment to view chat history
      let curr_chat =
        Id.Map.find(
@@ -1604,31 +1927,58 @@ let view =
         div(
           ~attrs=[clss(["header"])],
           [
-            settings.assistant.ongoing_chat
-              ? mode_buttons(~inject_global, ~settings=settings.assistant)
-              : div(
-                  ~attrs=[clss(["main-title"])],
-                  [text("Assistant Settings")],
-                ),
-            settings.assistant.ongoing_chat
-              ? history_button(~inject, ~inject_global) : None,
-            settings.assistant.ongoing_chat
-              ? new_chat_button(~inject, ~model) : None,
-            settings.assistant.ongoing_chat
-              ? settings_button(~inject_global)
-              : resume_chat_button(~inject_global),
+            div(
+              ~attrs=[clss(["header-left-group"])],
+              [
+                settings.assistant.ongoing_chat
+                && settings.assistant.mode == Composition
+                  ? view_buttons(
+                      ~inject,
+                      ~model,
+                      ~settings=settings.assistant,
+                    )
+                  : None,
+              ],
+            ),
+            div(
+              ~attrs=[clss(["header-right-group"])],
+              [
+                settings.assistant.ongoing_chat
+                  ? mode_dropdown(
+                      ~inject_global,
+                      ~settings=settings.assistant,
+                    )
+                  : div(
+                      ~attrs=[clss(["main-title"])],
+                      [text("Assistant Settings")],
+                    ),
+                settings.assistant.ongoing_chat
+                  ? history_button(~inject, ~inject_global) : None,
+                settings.assistant.ongoing_chat
+                  ? new_chat_button(~inject, ~model) : None,
+                settings.assistant.ongoing_chat
+                  ? settings_button(~inject_global)
+                  : resume_chat_button(~inject_global),
+              ],
+            ),
           ],
         ),
         settings.assistant.ongoing_chat
-          ? message_display(
-              ~globals,
-              ~inject,
-              ~model,
-              ~settings=settings.assistant,
-              ~signal,
-            )
+          ? show_todos
+              ? todo_list_display(
+                  ~model,
+                  ~settings=settings.assistant,
+                  ~inject,
+                )
+              : message_display(
+                  ~globals,
+                  ~inject,
+                  ~model,
+                  ~settings=settings.assistant,
+                  ~signal,
+                )
           : None,
-        settings.assistant.ongoing_chat
+        settings.assistant.ongoing_chat && !show_todos
           ? message_input(
               ~signal,
               ~inject,
@@ -1649,6 +1999,16 @@ let view =
           ? None : llm_model_id_input(~inject, ~model, ~signal),
         settings.assistant.ongoing_chat && settings.assistant.show_history
           ? history_menu(~model, ~settings=settings.assistant, ~inject) : None,
+        settings.assistant.ongoing_chat
+        && show_archive
+        && curr_chat.composition_model.view_settings.active_view == Todos
+          ? todo_archive_menu(
+              ~model,
+              ~settings=settings.assistant,
+              ~inject,
+              ~chat_id=curr_chat.id,
+            )
+          : None,
         prompt_display(
           ~globals,
           ~model,
@@ -1663,8 +2023,9 @@ let view =
   JsUtil.delay(
     0.0,
     () => {
-      JsUtil.set_agent_looping_theme(model.agent_looping);
-      JsUtil.set_editor_readonly(model.agent_looping);
+      // todo: maybe use later
+      JsUtil.set_agent_view_flag_theme(false);
+      JsUtil.set_editor_readonly(false);
     },
   );
 

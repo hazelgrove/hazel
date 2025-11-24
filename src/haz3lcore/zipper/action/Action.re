@@ -94,7 +94,7 @@ type t =
   | Insert(string)
   | Put_down
   | Introduce
-  | Composition(CompositionActions.payload)
+  | Composition(CompositionActions.editor_payload)
   | Dump;
 
 module Failure = {
@@ -113,6 +113,7 @@ module Failure = {
     | Cant_redo
     | CantIntroduce
     | Cant_derive_local_AST_information
+    | Cant_view
     | Composition_action_failure(string);
 
   exception Exception(t);
@@ -138,7 +139,7 @@ let is_edit: t => bool =
   | Copy
   | Move(_)
   | Select(_)
-  | Composition((Nav(_), _))
+  | Composition((View(_), _))
   | Composition((Read(_), _))
   | Unselect(_) => false
   | Project(p) =>
@@ -157,7 +158,7 @@ let is_historic: t => bool =
   | Copy
   | Move(_)
   | Select(_)
-  | Composition((Nav(_), _))
+  | Composition((View(_), _))
   | Composition((Read(_), _))
   | Unselect(_) => false
   | Cut
@@ -185,7 +186,7 @@ let prevent_in_read_only_editor = (a: t) =>
   | Copy
   | Move(_)
   | Unselect(_)
-  | Composition((Nav(_), _))
+  | Composition((View(_), _))
   | Composition((Read(_), _))
   | Select(_) => false
   | Buffer(Set(_) | Accept | Clear)

@@ -41,7 +41,6 @@ type employ_llm_action =
   | RemoveAndSuggest(string, Id.t)
   | Describe(string, AssistantSettings.mode, Id.t)
   | Summarize(string, AssistantSettings.mode, Id.t)
-  | SetAgentLooping(bool)
   | Quit;
 
 // Future Todo: (Check whether) These might be able to be relocated to AssistantSettings
@@ -68,6 +67,40 @@ type external_api_action =
   | SetListOfLLMs(list(OpenRouter.model_info));
 
 [@deriving (show({with_path: false}), sexp, yojson)]
+type todo_action =
+  // Creates a new todo list if the name does not exist in the archive, otherwise,
+  // overwrites the existing todo list with the provided one and sets as active.
+  | NewTodoList(CompositionModel.todo_list)
+  | ArchiveActiveTodoList
+  | AddTodoItems(list(CompositionModel.todo_item))
+  | MarkTodoItemComplete(string, string)
+  | MarkTodoItemIncomplete(string)
+  | SetActiveTodoItem(string)
+  | UnsetActiveTodoItem;
+
+[@deriving (show({with_path: false}), sexp, yojson)]
+type composition_model_agent_action =
+  | TodoAction(todo_action);
+
+[@deriving (show({with_path: false}), sexp, yojson)]
+type composition_model_payload = (
+  composition_model_agent_action,
+  status => unit,
+);
+
+[@deriving (show({with_path: false}), sexp, yojson)]
+type composition_model_ui_action =
+  | SwitchView(CompositionModel.active_view)
+  | ToggleArchiveVisibility
+  | ManualSetActiveTodoList(string)
+  | ExpandTodoItem(string);
+
+[@deriving (show({with_path: false}), sexp, yojson)]
+type composition_model_action =
+  | AgentAction(composition_model_payload)
+  | UIAction(composition_model_ui_action);
+
+[@deriving (show({with_path: false}), sexp, yojson)]
 type t =
   | SendMessage(send_message, option(Zipper.t), Id.t)
   | HandleResponse(handle_response, OpenRouter.reply, Id.t)
@@ -75,4 +108,5 @@ type t =
   | ChatAction(chat_action)
   | InternalError(string, AssistantSettings.mode, Id.t)
   | ExternalAPIAction(external_api_action)
-  | InitializeAssistant;
+  | InitializeAssistant
+  | CompositionModelAction(composition_model_action, Id.t);

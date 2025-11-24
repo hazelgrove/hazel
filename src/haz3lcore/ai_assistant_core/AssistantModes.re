@@ -33,7 +33,7 @@ module Completion = {
 
   let mk_ctx_prompt =
       (
-        options: ChatLSP.Options.t,
+        options: InitPrompts.Options.t,
         ci: Info.t,
         sketch: Segment.t,
         hole_label: string,
@@ -217,165 +217,31 @@ module Composition = {
   // Children nodes: [<name>, <name>, ...]
   // Static errors: <errors>
   let mk_structured_code_map_prompt =
-      (_: ChatLSP.Options.t, z: Zipper.t, info_map: Statics.Map.t)
+      (z: Zipper.t, info_map: Id.Map.t(Info.t))
       : (OpenRouter.message, AssistantModel.display) => {
-    print_endline(
-      "here #a before building sub AST in mk_structured_code_map_prompt",
-    );
-    let curr_node_info =
-      AssistantTreeHelper.build_curr_node_info(z, info_map);
-    print_endline(
-      "here #b after building sub AST in mk_structured_code_map_prompt",
-    );
-
-    switch (curr_node_info) {
-    | None =>
-      // Special case: No let or type alias expressions in the program.
-      // Just dump selection. It is assumed that the entire sketch is selected in this case.
-      let sketch_seg = z.selection.content;
-      let sketch_seg_str = Printer.of_segment(~holes="?", sketch_seg);
-      let sketch_seg_hd_str = "No let or type alias expressions found in the program, unable to derive any meaningful AST information. Selecting the entire program:\n```";
-      let sketch_seg_tl_str = "```";
-      let sketch_str =
-        String.concat(
-          "\n",
-          [sketch_seg_hd_str, sketch_seg_str, sketch_seg_tl_str],
-        );
-
-      let static_errors = ErrorPrint.all(info_map);
-      let static_errors_str =
+    let sketch_snapshot =
+      "<Codebase View>\n```"
+      ++ CompositionView.Public.print(~z, ~info_map)
+      ++ "```\n</Codebase View>\n";
+    let static_errors = ErrorPrint.all(info_map);
+    let static_errors_str =
+      "\n<Static Errors>\n"
+      ++ (
         switch (static_errors) {
-        | [] => "\nNo static errors found in the program."
-        | _ => "\nStatic errors: " ++ String.concat(", ", static_errors)
-        };
-
-      let sketch_info_str =
-        String.concat(
-          "\n",
-          [
-            "<Sketch information>",
-            sketch_str,
-            static_errors_str,
-            "</Sketch information>",
-          ],
-        );
-      let local_code_map_str = sketch_info_str;
-
-      (
-        OpenRouter.mk_user_msg(local_code_map_str),
-        {
-          displayable_content: [
-            Text(sketch_seg_hd_str),
-            //Code(sketch_seg), // todo: there's a skel failure happening here
-            Text(sketch_seg_tl_str ++ static_errors_str),
-          ],
-          raw_content: local_code_map_str,
-          collapsed: true,
-        },
-      );
-    | Some(curr_node) =>
-      let curr_node_str = "Current node: " ++ curr_node.name;
-      // This shows the path to the current node now, rather than just the parent node
-      let path_to_node_str =
-        "Path to node: "
-        ++ AssistantTreeHelper.get_path_to_node(curr_node, info_map);
-      let siblings_nodes_str =
-        "Sibling nodes: ["
-        ++ String.concat(
-             ", ",
-             List.mapi(
-               (index, node: AssistantTreeHelper.node) =>
-                 node.name ++ " (index: " ++ string_of_int(index) ++ ")",
-               curr_node.siblings,
-             ),
-           )
-        ++ "]";
-      let children_nodes_str =
-        "Child nodes: ["
-        ++ String.concat(
-             ", ",
-             List.mapi(
-               (index, node: AssistantTreeHelper.node) =>
-                 node.name ++ " (index: " ++ string_of_int(index) ++ ")",
-               curr_node.children,
-             ),
-           )
-        ++ "]";
-
-      let ast_info_str =
-        String.concat(
-          "\n",
-          [
-            "<AST information>",
-            curr_node_str,
-            path_to_node_str,
-            siblings_nodes_str,
-            children_nodes_str,
-            "</AST information>",
-          ],
-        );
-
-      let prepped_z = CompositionView.prepare_definition(z, curr_node);
-
-      let prepped_z_hd_str =
-        "Definition of \""
-        ++ curr_node.name
-        ++ "\"'s parent "
-        ++ (
-          switch (curr_node.parent) {
-          | Some(parent) => "\"" ++ parent.name ++ "\""
-          | None => "(no parent, displaying entire top level of the program)"
-          }
-        )
-        ++ "\":\n```";
-      let prepped_z_str = CompositionView.printer(prepped_z);
-      let prepped_z_tl_str = "```";
-      let def_str =
-        String.concat(
-          "\n",
-          [prepped_z_hd_str, prepped_z_str, prepped_z_tl_str],
-        );
-
-      let static_errors = ErrorPrint.all(info_map);
-      let static_errors_str =
-        switch (static_errors) {
-        | [] => "\nNo static errors found in the program."
-        | _ => "\nStatic errors: " ++ String.concat(", ", static_errors)
-        };
-
-      let refs_in_str =
-        CompositionView.refs_in(curr_node, info_map)
-        |> CompositionView.str_of_refs_in;
-
-      let sketch_info_str =
-        String.concat(
-          "\n",
-          [
-            "<Sketch information>",
-            def_str,
-            refs_in_str,
-            static_errors_str,
-            "</Sketch information>",
-          ],
-        );
-
-      let structured_code_map_str =
-        String.concat("\n", [ast_info_str, sketch_info_str]);
-
-      (
-        OpenRouter.mk_user_msg(structured_code_map_str),
-        {
-          displayable_content: [Text(structured_code_map_str)],
-          // [
-          //   Text(String.concat("\n", [ast_info_str, prepped_z_hd_str])),
-          //   Code(prepped_z),
-          //   Text(prepped_z_tl_str ++ static_errors_str),
-          // ],
-          raw_content: structured_code_map_str,
-          collapsed: true,
-        },
-      );
-    };
+        | [] => "No static errors found in the program."
+        | _ => String.concat(", ", static_errors)
+        }
+      )
+      ++ "\n</Static Errors>\n";
+    let res = sketch_snapshot ++ static_errors_str;
+    (
+      OpenRouter.mk_user_msg(res),
+      {
+        displayable_content: [Text(res)],
+        raw_content: res,
+        collapsed: true,
+      },
+    );
   };
 
   let mk_structure_edit_msg = (~tool_call: OpenRouter.tool_call): string =>
@@ -384,13 +250,17 @@ module Composition = {
     try({
       let tool_name = tool_call.tool_name;
       let args = tool_call.args;
-      let action =
-        CompositionTools.action_of(
-          ~tool_name,
-          ~args=API.Json.get_string_kvs(args),
-        );
+      let action = CompositionUtils.Public.action_of(~tool_name, ~args);
       let _enclose_in_backticks = (str: string) => "```" ++ str ++ "```";
-      "Agent called tool: " ++ CompositionTools.string_of(action);
+      switch (action) {
+      | Action(action) =>
+        "Agent called tool: " ++ CompositionUtils.Public.string_of(action)
+      | Failure(s) =>
+        "Agent called tool: "
+        ++ tool_call.tool_name
+        ++ "\nBut a failure occured: "
+        ++ s
+      };
     }) {
     | Failure(err) =>
       "The agent may have called tools with invalid arguments: " ++ err
@@ -417,27 +287,28 @@ module Composition = {
       (
         ~z: Zipper.t,
         ~info_map: Id.Map.t(Info.t),
-        ~action: CompositionTools.action,
+        ~action: CompositionActions.composition_action,
         ~schedule_editor_action: Editor.Update.t => unit,
+        ~schedule_assistant_action: AssistantUpdateAction.t => unit,
         ~schedule_tool_response: AssistantUpdateAction.status => unit,
+        ~chat_id: Id.t,
       )
       : unit => {
+    let _ = z;
+    let _ = info_map;
     switch (action) {
-    | Read(r) =>
-      let res =
-        switch (r) {
-        | ViewEntireDefintion =>
-          switch (AssistantTreeHelper.build_curr_node_info(z, info_map)) {
-          | Some(node) => CompositionView.full_definition(z, node)
-          | None => "Failed to derive full definition"
-          }
-        | ShowUseSites => "todo"
-        };
-      schedule_tool_response(Success(res));
-    | _ =>
-      schedule_editor_action(
-        Action.Composition((action, Some(schedule_tool_response))),
-      )
+    | Editor(editor_action) =>
+      switch (editor_action) {
+      | Read(_r) => schedule_tool_response(Success("todo"))
+      | _ =>
+        let payload = (editor_action, schedule_tool_response);
+        schedule_editor_action(Action.Composition(payload));
+      }
+    | Assistant(composition_model_action) =>
+      let payload = (composition_model_action, schedule_tool_response);
+      schedule_assistant_action(
+        CompositionModelAction(AgentAction(payload), chat_id),
+      );
     };
   };
 };

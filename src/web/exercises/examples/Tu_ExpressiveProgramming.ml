@@ -25,6 +25,7 @@ let exercise : Tutorial.spec =
             ancestors = [];
           };
         caret = Outer;
+        agent_view = AgentState.init;
       };
     hidden_tests =
       {
@@ -128,6 +129,7 @@ let exercise : Tutorial.spec =
                 ancestors = [];
               };
             caret = Outer;
+            agent_view = AgentState.init;
           };
         hints = [ "Reread the question!" ];
       };

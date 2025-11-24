@@ -28,6 +28,7 @@ let exercise : Tutorial.spec =
             ancestors = [];
           };
         caret = Outer;
+        agent_view = AgentState.init;
       };
     hidden_tests =
       {
@@ -219,6 +220,7 @@ let exercise : Tutorial.spec =
                 ancestors = [];
               };
             caret = Outer;
+            agent_view = AgentState.init;
           };
         hints =
           [
@@ -257,6 +259,7 @@ let comp_exercise : Tutorial.spec =
             ancestors = [];
           };
         caret = Outer;
+        agent_view = AgentState.init;
       };
     hidden_tests =
       {
@@ -360,6 +363,7 @@ let comp_exercise : Tutorial.spec =
                 ancestors = [];
               };
             caret = Outer;
+            agent_view = AgentState.init;
           };
         hints =
           [ "Make sure to embed a let expression as shown in the description!" ];

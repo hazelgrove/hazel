@@ -299,7 +299,7 @@ let autosize_textarea = (id: string) => {
 };
 
 /* Agent looping theme functions */
-let set_agent_looping_theme = (enabled: bool) => {
+let set_agent_view_flag_theme = (enabled: bool) => {
   let root = Dom_html.document##.documentElement;
   if (enabled) {
     root##.classList##add(Js.string("agent-looping"));

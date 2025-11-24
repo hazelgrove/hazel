@@ -1,5 +1,4 @@
 open Js_of_ocaml;
-open Haz3lcore;
 
 type t = {
   update_action: option(Page.Update.t),
@@ -40,155 +39,6 @@ let instructor_shortcuts: list(t) = [
   ),
 ];
 
-let composition_shortcuts: list(t) = [
-  mk_shortcut(
-    ~hotkey="alt+UpArrow",
-    ~mdIcon="arrow_upward",
-    ~section="Navigation",
-    "Go To Parent Binding",
-    Globals(
-      ActiveEditor(
-        Composition(CompositionActions.default(Nav(GoToParent))),
-      ),
-    ),
-  ),
-  mk_shortcut(
-    ~hotkey="alt+RightArrow",
-    ~mdIcon="arrow_forward",
-    ~section="Navigation",
-    "Go To Next Sibling Binding",
-    Globals(
-      ActiveEditor(
-        Composition(
-          CompositionActions.default(Nav(GoToSibling(Stepwise(Right)))),
-        ),
-      ),
-    ),
-  ),
-  mk_shortcut(
-    ~hotkey="alt+LeftArrow",
-    ~mdIcon="arrow_back",
-    ~section="Navigation",
-    "Go To Previous Sibling Binding",
-    Globals(
-      ActiveEditor(
-        Composition(
-          CompositionActions.default(Nav(GoToSibling(Stepwise(Left)))),
-        ),
-      ),
-    ),
-  ),
-  mk_shortcut(
-    ~hotkey="alt+DownArrow",
-    ~mdIcon="arrow_downward",
-    ~section="Navigation",
-    "Go To First Child Binding",
-    Globals(
-      ActiveEditor(
-        Composition(
-          CompositionActions.default(Nav(GoToChild("", Some(0)))),
-        ),
-      ),
-    ),
-  ),
-  mk_shortcut(
-    ~mdIcon="edit",
-    ~section="Edit",
-    "Insert Before",
-    Globals(
-      ActiveEditor(
-        Composition(CompositionActions.default(Edit(InsertBefore(Human)))),
-      ),
-    ),
-  ),
-  mk_shortcut(
-    ~mdIcon="edit",
-    ~section="Edit",
-    "Insert After",
-    Globals(
-      ActiveEditor(
-        Composition(CompositionActions.default(Edit(InsertAfter(Human)))),
-      ),
-    ),
-  ),
-  mk_shortcut(
-    ~mdIcon="edit",
-    ~section="Edit",
-    "Delete Binding Clause",
-    Globals(
-      ActiveEditor(
-        Composition(CompositionActions.default(Edit(DeleteBindingClause))),
-      ),
-    ),
-  ),
-  mk_shortcut(
-    ~mdIcon="edit",
-    ~section="Edit",
-    "Delete Body",
-    Globals(
-      ActiveEditor(
-        Composition(CompositionActions.default(Edit(DeleteBody))),
-      ),
-    ),
-  ),
-  mk_shortcut(
-    ~mdIcon="edit",
-    ~section="Edit",
-    "Update Definition",
-    Globals(
-      ActiveEditor(
-        Composition(
-          CompositionActions.default(Edit(UpdateDefinition(Human))),
-        ),
-      ),
-    ),
-  ),
-  mk_shortcut(
-    ~mdIcon="edit",
-    ~section="Edit",
-    "Update Body",
-    Globals(
-      ActiveEditor(
-        Composition(CompositionActions.default(Edit(UpdateBody(Human)))),
-      ),
-    ),
-  ),
-  mk_shortcut(
-    ~mdIcon="edit",
-    ~section="Edit",
-    "Update Pattern",
-    Globals(
-      ActiveEditor(
-        Composition(
-          CompositionActions.default(Edit(UpdatePattern(Human))),
-        ),
-      ),
-    ),
-  ),
-  mk_shortcut(
-    ~mdIcon="edit",
-    ~section="Edit",
-    "Update Binding Clause",
-    Globals(
-      ActiveEditor(
-        Composition(
-          CompositionActions.default(Edit(UpdateBindingClause(Human))),
-        ),
-      ),
-    ),
-  ),
-  mk_shortcut(
-    ~mdIcon="edit",
-    ~section="Edit",
-    "Update All",
-    Globals(
-      ActiveEditor(
-        Composition(CompositionActions.default(Edit(Initialize(Human)))),
-      ),
-    ),
-  ),
-];
-
 // List of shortcuts configured to show up in the command palette and have hotkey support
 let shortcuts = (sys: Util.Key.sys): list(t) =>
   [
@@ -226,7 +76,6 @@ let shortcuts = (sys: Util.Key.sys): list(t) =>
       // Tab is overloaded so not setting it here
     ),
   ]
-  @ composition_shortcuts
   @ [
     mk_shortcut(
       ~hotkey=Keyboard.meta(sys) ++ "+d",

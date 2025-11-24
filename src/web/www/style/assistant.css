@@ -27,10 +27,13 @@
 
 #assistant .header {
   display: flex;
-  width: 100%;
-  justify-content: space-between;
+  flex-direction: row;
   align-items: center;
-  font-weight: bold;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--BR3);
+  background-color: var(--ui-bkg);
+  justify-content: space-between;
+  flex-shrink: 0;
 }
 
 #assistant .settings-box {
@@ -958,6 +961,32 @@
   text-align: center;
 }
 
+#assistant .system-todo-list {
+  align-items: center;
+  justify-content: center;
+}
+
+#assistant .system-todo-list-message {
+  padding: 16px 20px;
+  background-color: var(--T1);
+  border: 0.75px solid var(--BR3);
+  border-radius: 8px;
+  font-size: 0.9em;
+  max-width: 600px;
+  margin: 0 auto;
+  word-wrap: break-word;
+  white-space: pre-wrap;
+  text-align: left;
+  color: var(--STONE);
+}
+
+#assistant .system-todo-list-identifier {
+  display: flex;
+  align-items: center;
+  gap: 0.5em;
+  justify-content: center;
+}
+
 /* Agent looping theme - applies dreamy blue/purple colors when agent is actively editing */
 .agent-looping {
   --caret-color: var(--agent-caret-color);
@@ -987,4 +1016,244 @@
 
 #assistant .quit-button:active {
   background-color: var(--Y2);
+}
+
+/* New styles for header layout */
+#assistant .header-left {
+  display: flex;
+  align-items: center;
+  gap: 1em;
+}
+
+#assistant .header-right {
+  display: flex;
+  align-items: center;
+  gap: 0.5em;
+}
+
+#assistant .header-left-group,
+#assistant .header-right-group {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+/* View Buttons (Chat / Todos) */
+#assistant .view-buttons {
+  display: flex;
+  gap: 20px;
+}
+
+#assistant .view-button {
+  cursor: pointer;
+  font-size: 0.9em;
+  color: var(--BR3);
+  padding-top: 4px;
+  padding-bottom: 2px;
+  border-bottom: 2px solid transparent;
+  transition: all 0.2s ease;
+}
+
+#assistant .view-button:hover {
+  color: var(--Y3);
+}
+
+#assistant .view-button.active {
+  color: var(--BR4);
+  border-bottom-color: var(--BR4);
+  font-weight: 500;
+}
+
+/* Mode Dropdown */
+#assistant .mode-dropdown-container {
+  position: relative;
+  display: inline-block;
+  cursor: pointer;
+}
+
+#assistant .mode-dropdown-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-size: 0.9em;
+  color: var(--BR4);
+  background-color: transparent;
+  transition: background-color 0.2s;
+}
+
+#assistant .mode-dropdown-container:hover .mode-dropdown-label {
+  color: var(--Y3);
+  transition: all 0.2s ease;
+}
+
+#assistant .dropdown-arrow {
+  font-size: 0.7em;
+  opacity: 0.7;
+  padding-top: 0.1em;
+}
+
+#assistant .mode-dropdown-select {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  opacity: 0;
+  cursor: pointer;
+  appearance: none; /* Remove default arrow */
+}
+
+/* Todos Placeholder */
+#assistant .todos-placeholder {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--BR3);
+  font-style: italic;
+}
+
+/* Todo List Styling */
+#assistant .todo-list-container {
+  margin: 12px;
+  padding: 28px;
+  border: 1px solid var(--BR3);
+  border-radius: 8px;
+  background-color: var(--ui-bkg);
+}
+
+#assistant .todo-list-title {
+  text-decoration: underline;
+  margin-bottom: 10px;
+  text-align: center;
+  color: var(--STONE);
+}
+
+#assistant .todo-items {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+#assistant .todo-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 16px;
+  cursor: pointer;
+  padding: 4px 0;
+}
+
+#assistant .todo-item:hover .todo-item-title {
+  text-decoration: underline;
+}
+
+#assistant .todo-item-content {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  flex: 1;
+}
+
+#assistant .todo-item-details {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding-top: 4px;
+  padding-bottom: 4px;
+  font-size: 0.9em;
+  color: var(--STONE);
+}
+
+#assistant .todo-detail-header {
+  font-weight: bold;
+  font-size: 0.85em;
+  text-transform: uppercase;
+  color: var(--BR4);
+  margin-top: 4px;
+}
+
+#assistant .todo-detail-text {
+  white-space: pre-wrap;
+  line-height: 1.4;
+}
+
+#assistant .todo-detail-section {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-top: 8px;
+}
+
+#assistant .todo-status-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  flex-shrink: 0;
+}
+
+#assistant .todo-status-icon.completed svg {
+  fill: var(--D0);
+}
+
+#assistant .todo-status-icon.incomplete svg {
+  fill: var(--GB0);
+}
+
+#assistant .todo-status-icon.active-todo svg {
+  fill: var(--agent-shadow-selected);
+  filter: drop-shadow(0 0 3px var(--agent-shadow-selected));
+}
+
+#assistant .todo-item-title {
+  font-size: 0.9em;
+  color: var(--STONE);
+}
+
+#assistant .no-todo-list {
+  padding: 20px;
+  text-align: center;
+  color: var(--STONE);
+  font-style: italic;
+}
+
+/* Todo Archive Menu */
+#assistant #todo-archive-menu {
+  position: absolute;
+  top: 3.5em;
+  width: 350px;
+  border-radius: 2px;
+  box-shadow: 0 4px 12px var(--SHADOW);
+  z-index: 1000;
+  overflow: hidden;
+  animation: slideIn 0.2s ease-out;
+}
+
+/* Todo List View Container */
+.todo-list-view {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  width: 100%;
+  position: relative;
+}
+
+/* Todo Archive Button */
+.todo-archive-button-container {
+  padding: 8px;
+  display: flex;
+  justify-content: flex-start;
+}
+
+.todo-archive-button {
+  fill: var(--BR4);
+}
+
+.todo-archive-button:hover {
+  cursor: pointer;
+  fill: var(--Y3);
+  transition: all 0.2s ease;
 }

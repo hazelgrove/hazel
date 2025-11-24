@@ -18,6 +18,7 @@ let init: unit => t =
       ancestors: [],
     },
     caret: Outer,
+    agent_view: AgentState.init,
   };
 
 let next_blank = _ => Id.mk();
@@ -41,6 +42,7 @@ let unzip = (~direction: Direction.t=Right, seg: Segment.t): t => {
     ancestors: [],
   },
   caret: Outer,
+  agent_view: AgentState.init,
 };
 
 let regrout = (d: Direction.t, z: t): t => {
