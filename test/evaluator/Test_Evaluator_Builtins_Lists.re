@@ -449,6 +449,12 @@ let tests = (
     test_case("unique", `Quick, () =>
       parse_and_evaluate_test({|[1, 2, 3]|}, {|unique([1, 2, 2, 3, 1, 3])|})
     ),
+    test_case("group_on_key by parity", `Quick, () =>
+      parse_and_evaluate_test(
+        {|[(1, [1, 3]), (0, [2, 4])]|},
+        {|group_on_key([1, 2, 3, 4], fun x -> int_mod(x, 2))|},
+      )
+    ),
     test_case("pivot_table", `Quick, () =>
       parse_and_evaluate_test(
         {|

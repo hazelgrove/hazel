@@ -3059,6 +3059,123 @@ let go: ([?], [?], [?]) -> [?] =
         fix_f(Pat.var("pivot_table"), fn, None);
       },
     },
+    {
+      str: {|fix group_on_key -> fun (xs, f) -> fold_left(xs, fun (acc, x) ->
+        let update_groups = fix update_groups -> fun (acc, key, x) ->
+          case acc
+          | [] => [(key, [x])]
+          | (k, g) :: acc => if k == key then (k, x :: g) :: acc else (k, g) :: update_groups(acc, key, x)
+          end in update_groups(acc, f(x), x), [])|},
+      name: "group_on_key",
+      arg:
+        Prod([
+          list(unknown(Internal)),
+          arrow(unknown(Internal), unknown(Internal)),
+        ]),
+      ret: List(prod([unknown(Internal), list(unknown(Internal))])),
+      imp: {
+        Fresh.(
+          Exp.(
+            fix_f(
+              Pat.var("group_on_key"),
+              fn(
+                Pat.tuple([Pat.var("xs"), Pat.var("f")]),
+                ap(
+                  Forward,
+                  var("fold_left"),
+                  tuple([
+                    var("xs"),
+                    let_(
+                      Pat.var("update_groups"),
+                      fix_f(
+                        Pat.var("update_groups"),
+                        fn(
+                          Pat.tuple([
+                            Pat.var("acc"),
+                            Pat.var("key"),
+                            Pat.var("x"),
+                          ]),
+                          match(
+                            var("acc"),
+                            [
+                              (
+                                Pat.list_lit([]),
+                                list_lit([
+                                  tuple([
+                                    var("key"),
+                                    list_lit([var("x")]),
+                                  ]),
+                                ]),
+                              ),
+                              (
+                                Pat.cons(
+                                  Pat.tuple([Pat.var("k"), Pat.var("g")]),
+                                  Pat.var("acc_tail"),
+                                ),
+                                if_(
+                                  bin_op(
+                                    Poly(Equals),
+                                    var("k"),
+                                    var("key"),
+                                  ),
+                                  cons(
+                                    tuple([
+                                      var("k"),
+                                      list_concat(
+                                        var("g"),
+                                        list_lit([var("x")]),
+                                      ),
+                                    ]),
+                                    var("acc_tail"),
+                                  ),
+                                  cons(
+                                    tuple([var("k"), var("g")]),
+                                    ap(
+                                      Forward,
+                                      var("update_groups"),
+                                      tuple([
+                                        var("acc_tail"),
+                                        var("key"),
+                                        var("x"),
+                                      ]),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                          None,
+                          Some("update_groups+"),
+                        ),
+                        None,
+                      ),
+                      fn(
+                        Pat.tuple([Pat.var("acc"), Pat.var("x")]),
+                        ap(
+                          Forward,
+                          var("update_groups"),
+                          tuple([
+                            var("acc"),
+                            ap(Forward, var("f"), var("x")),
+                            var("x"),
+                          ]),
+                        ),
+                        None,
+                        None,
+                      ),
+                    ),
+                    list_lit([]),
+                  ]),
+                ),
+                None,
+                Some("group_on_key+"),
+              ),
+              None,
+            )
+          )
+        );
+      },
+    },
   ]
   // De-alias all aliases
   |> Util.ListUtil.map_with_history((prev, curr) =>
