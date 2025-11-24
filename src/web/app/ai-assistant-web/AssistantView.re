@@ -1842,11 +1842,15 @@ let todo_list_display =
                                       ~attrs=[clss(["todo-detail-section"])],
                                       [
                                         div(
-                                          ~attrs=[clss(["todo-detail-header"])],
+                                          ~attrs=[
+                                            clss(["todo-detail-header"]),
+                                          ],
                                           [text("Summary of Changes")],
                                         ),
                                         div(
-                                          ~attrs=[clss(["todo-detail-text"])],
+                                          ~attrs=[
+                                            clss(["todo-detail-text"]),
+                                          ],
                                           [text(info.summary)],
                                         ),
                                       ],
