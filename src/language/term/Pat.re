@@ -238,7 +238,9 @@ let rec get_num_of_vars = (pat: t) =>
 
 let ctr_name = (p: t): option(Constructor.t) =>
   switch (p.term) {
-  | Constructor(name, _) => Some(name)
+  | Constructor(name, _)
+  | Parens({term: Constructor(name, _), _})
+  | Probe({term: Constructor(name, _), _}, _) => Some(name)
   | _ => None
   };
 
