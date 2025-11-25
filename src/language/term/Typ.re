@@ -484,6 +484,47 @@ let product_extension = (tys1: list(t), tys2: list(t)): term => {
   Prod(new_tys);
 };
 
+/**
+ * Removes duplicate labels from a given list of types inside a tuple.
+ *
+ * For each label in the list of duplicate labels, keeps only the first occurrence,
+ * replacing its type with Unknown(Internal), and removes all subsequent occurrences.
+ *
+ * @param duplicate_labels - The list of duplicate labels.
+ * @param tys - The list of types to remove duplicates from.
+ * @return A new list of types where, for each duplicate label, only the first occurrence
+ *         is kept (with type Unknown(Internal)), and all subsequent occurrences are removed.
+ */
+let remove_duplicate_labels =
+    (~duplicate_labels: list(LabeledTuple.label), tys: list(t)): list(t) => {
+  let (_, rev_deduplicated) =
+    List.fold_left(
+      ((seen_duplicates, rev_deduplicated_types), ty) => {
+        let tup_label = match_tup_label(ty);
+        switch (tup_label) {
+        | Some((l, _))
+            when
+              List.mem(l, duplicate_labels) && List.mem(l, seen_duplicates) => (
+            seen_duplicates,
+            rev_deduplicated_types,
+          )
+        | Some((l, _)) when List.mem(l, duplicate_labels) => (
+            [l, ...seen_duplicates],
+            [
+              TupLabel(Label(l) |> temp, Unknown(Internal) |> temp) |> temp,
+              ...rev_deduplicated_types,
+            ],
+          )
+        | Some(_) => (seen_duplicates, [ty, ...rev_deduplicated_types])
+        | None => (seen_duplicates, [ty, ...rev_deduplicated_types])
+        };
+      },
+      ([], []),
+      tys,
+    );
+  List.rev(rev_deduplicated);
+};
+
 let rec weak_head_normalize = (~rec_counter=0, ctx: Ctx.t, ty: t): t => {
   if (rec_counter > 1000) {
     failwith("weak_head_normalize exceeded 1000 recursive calls");
@@ -510,6 +551,16 @@ let rec weak_head_normalize = (~rec_counter=0, ctx: Ctx.t, ty: t): t => {
       }
     )
     |> Option.value(~default=Unknown(Internal) |> rewrap);
+  | Prod(ts) =>
+    let (_, rewrap) = unwrap(ty);
+    let duplicate_labels =
+      LabeledTuple.get_duplicate_labels(match_tup_label, ts);
+    if (List.is_empty(duplicate_labels)) {
+      ty;
+    } else {
+      let cleaned_ts = remove_duplicate_labels(~duplicate_labels, ts);
+      Prod(cleaned_ts) |> rewrap;
+    };
   | ProdExtension(t1, t2) =>
     let (_, rewrap) = unwrap(ty);
 
@@ -563,12 +614,9 @@ let rec normalize = (~rec_counter=0, ctx: Ctx.t, ty: t): t => {
   };
 };
 /* Lattice join on types. This is a LUB join in the hazel2
-   sense in that any type dominates Unknown. The optional
-   resolve parameter specifies whether, in the case of a type
-   variable and a succesful join, to return the resolved join type,
-   or to return the (first) type variable for readability */
-let rec join = (~resolve=false, ctx: Ctx.t, ty1: t, ty2: t): option(t) => {
-  let join' = join(~resolve, ctx);
+   sense in that any type dominates Unknown.  */
+let rec join = (ctx: Ctx.t, ty1: t, ty2: t): option(t) => {
+  let join' = join(ctx);
   switch (term_of(ty1), term_of(ty2)) {
   | (_, Parens(ty2)) => join'(ty1, ty2)
   | (Parens(ty1), _) => join'(ty1, ty2)
@@ -582,19 +630,23 @@ let rec join = (~resolve=false, ctx: Ctx.t, ty1: t, ty2: t): option(t) => {
     if (n1 == n2) {
       Some(ty1);
     } else {
-      let* ty1 = Ctx.lookup_alias(ctx, n1);
-      let* ty2 = Ctx.lookup_alias(ctx, n2);
-      let+ ty_join = join'(ty1, ty2);
-      !resolve && equal(ty1, ty_join) ? ty1 : ty_join;
+      let ty1' = Ctx.lookup_alias(ctx, n1);
+      let ty2' = Ctx.lookup_alias(ctx, n2);
+      switch (ty1', ty2') {
+      | (Some(ty1), Some(ty2)) => join'(ty1, ty2)
+      | (Some(ty1), None) => join'(ty1, ty2)
+      | (None, Some(ty2)) => join'(ty1, ty2)
+      | (None, None) => None
+      };
     }
   | (Var(name), _) =>
     let* ty_name = Ctx.lookup_alias(ctx, name);
     let+ ty_join = join'(ty_name, ty2);
-    !resolve && equal(ty_name, ty_join) ? ty1 : ty_join;
+    equal(ty_name, ty_join) ? ty1 : ty_join;
   | (_, Var(name)) =>
     let* ty_name = Ctx.lookup_alias(ctx, name);
     let+ ty_join = join'(ty_name, ty1);
-    !resolve && equal(ty_name, ty_join) ? ty2 : ty_join;
+    equal(ty_name, ty_join) ? ty2 : ty_join;
   /* Note: Ordering of Unknown, Var, and Rec above is load-bearing! */
   | (ProdProjection(_), _) => join'(weak_head_normalize(ctx, ty1), ty2)
   | (_, ProdProjection(_)) => join'(ty1, weak_head_normalize(ctx, ty2))
@@ -607,7 +659,7 @@ let rec join = (~resolve=false, ctx: Ctx.t, ty1: t, ty2: t): option(t) => {
       | Some(x2) => subst(Var(x2) |> temp, tp1, ty1)
       | None => ty1
       };
-    let+ ty_body = join(~resolve, ctx, ty1', ty2);
+    let+ ty_body = join(ctx, ty1', ty2);
     Rec(tp1, ty_body) |> temp;
   | (Rec(_), _) => None
   | (Forall(x1, ty1), Forall(x2, ty2)) =>
@@ -617,7 +669,7 @@ let rec join = (~resolve=false, ctx: Ctx.t, ty1: t, ty2: t): option(t) => {
       | None => ty1
       };
     let ctx = Ctx.extend_dummy_tvar(ctx, x2);
-    let+ ty_body = join(~resolve, ctx, ty1', ty2);
+    let+ ty_body = join(ctx, ty1', ty2);
     Forall(x2, ty_body) |> temp;
   /* Note for above: there is no danger of free variable capture as
      subst itself performs capture avoiding substitution. However this
@@ -645,16 +697,29 @@ let rec join = (~resolve=false, ctx: Ctx.t, ty1: t, ty2: t): option(t) => {
     TupLabel(lab, ty) |> temp;
   | (TupLabel(_), _) => None
   | (Prod(tys1), Prod(tys2)) =>
+    let tys1 =
+      remove_duplicate_labels(
+        ~duplicate_labels=
+          LabeledTuple.get_duplicate_labels(match_tup_label, tys1),
+        tys1,
+      );
+    let tys2 =
+      remove_duplicate_labels(
+        ~duplicate_labels=
+          LabeledTuple.get_duplicate_labels(match_tup_label, tys2),
+        tys2,
+      );
+
     if (List.length(tys1) != List.length(tys2)) {
       None;
     } else {
       let* tys = ListUtil.map2_opt(join', tys1, tys2);
       let+ tys = OptUtil.sequence(tys);
       Prod(tys) |> temp;
-    }
+    };
   | (Prod(_), _) => None
   | (Sum(sm1), Sum(sm2)) =>
-    let+ sm' = ConstructorMap.join(equal, join(~resolve, ctx), sm1, sm2);
+    let+ sm' = ConstructorMap.join(equal, join(ctx), sm1, sm2);
     Sum(sm') |> temp;
   | (Sum(_), _) => None
   | (List(ty1), List(ty2)) =>
@@ -1019,46 +1084,6 @@ and paren_pretty_print = typ =>
   } else {
     pretty_print(typ);
   };
-
-/**
- * Removes duplicate labels from a given list of types inside a tuple.
- *
- * This function takes a list of types and returns a new list with all
- * duplicate labels replaced with their first occurence and the unknown type.
- *
- * @param duplicate_labels - The list of duplicate labels.
- * @param tys - The list of types to remove duplicates from.
- * @return A new list of types with duplicates removed.
- */
-let remove_duplicate_labels =
-    (~duplicate_labels: list(LabeledTuple.label), tys: list(t)): list(t) => {
-  snd(
-    List.fold_left(
-      ((seen_duplicates, deduplicated_types), ty) => {
-        let tup_label = match_tup_label(ty);
-        switch (tup_label) {
-        | Some((l, _))
-            when
-              List.mem(l, duplicate_labels) && List.mem(l, seen_duplicates) => (
-            seen_duplicates,
-            deduplicated_types,
-          )
-        | Some((l, _)) when List.mem(l, duplicate_labels) => (
-            [l] @ seen_duplicates,
-            deduplicated_types
-            @ [
-              TupLabel(Label(l) |> temp, Unknown(Internal) |> temp) |> temp,
-            ],
-          )
-        | Some(_) => (seen_duplicates, deduplicated_types @ [ty])
-        | None => (seen_duplicates, deduplicated_types @ [ty])
-        };
-      },
-      ([], []),
-      tys,
-    ),
-  );
-};
 
 /**
  * Converts a list of types (`tys`) into a product type.
