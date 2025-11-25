@@ -39,7 +39,7 @@ let out : string * Haz3lcore.PersistentSegment.t =
          Pat)(in_())(nibs(((shape(Concave 24))(sort Pat))((shape(Concave \
          24))(sort Typ))))))(shards(0))(children())))(Secondary((id \
          879817d6-a285-4107-abd2-94504bbba38e)(content(Whitespace\" \
-         \"))))(Tile((id 49546b40-32af-493d-a6f5-217c84dcaeaf)(label(forall \
+         \"))))(Tile((id 49546b40-32af-493d-a6f5-217c84dcaeaf)(label(poly \
          ->))(mold((out Typ)(in_(TPat))(nibs(((shape Convex)(sort \
          Typ))((shape(Concave 36))(sort Typ))))))(shards(0 \
          1))(children(((Secondary((id \
@@ -134,7 +134,7 @@ let out : string * Haz3lcore.PersistentSegment.t =
          Pat)(in_())(nibs(((shape(Concave 24))(sort Pat))((shape(Concave \
          24))(sort Typ))))))(shards(0))(children())))(Secondary((id \
          0b493024-0cc3-413b-a09e-c481b253e17a)(content(Whitespace\" \
-         \"))))(Tile((id 76c3602f-8384-4f85-a0c3-0c1197cf9e69)(label(forall \
+         \"))))(Tile((id 76c3602f-8384-4f85-a0c3-0c1197cf9e69)(label(poly \
          ->))(mold((out Typ)(in_(TPat))(nibs(((shape Convex)(sort \
          Typ))((shape(Concave 36))(sort Typ))))))(shards(0 \
          1))(children(((Secondary((id \
@@ -2201,7 +2201,7 @@ let out : string * Haz3lcore.PersistentSegment.t =
          Pat)(in_())(nibs(((shape(Concave 24))(sort Pat))((shape(Concave \
          24))(sort Typ))))))(shards(0))(children())))(Secondary((id \
          31f65ce4-dd9d-4f45-a69b-f57801d08bd9)(content(Whitespace\" \
-         \"))))(Tile((id 73f9dc13-7c16-4fce-9e11-3008fed2de6a)(label(forall \
+         \"))))(Tile((id 73f9dc13-7c16-4fce-9e11-3008fed2de6a)(label(poly \
          ->))(mold((out Typ)(in_(TPat))(nibs(((shape Convex)(sort \
          Typ))((shape(Concave 36))(sort Typ))))))(shards(0 \
          1))(children(((Secondary((id \
@@ -2213,7 +2213,7 @@ let out : string * Haz3lcore.PersistentSegment.t =
          f2626441-0622-479f-b560-2211c67c0d9e)(content(Whitespace\" \
          \")))))))))(Secondary((id \
          7d19c259-c49a-4376-8125-d15eeb177aa7)(content(Whitespace\" \
-         \"))))(Tile((id 3f3ebc09-76bf-459e-a3d1-933b5393dd66)(label(forall \
+         \"))))(Tile((id 3f3ebc09-76bf-459e-a3d1-933b5393dd66)(label(poly \
          ->))(mold((out Typ)(in_(TPat))(nibs(((shape Convex)(sort \
          Typ))((shape(Concave 36))(sort Typ))))))(shards(0 \
          1))(children(((Secondary((id \
@@ -2225,7 +2225,7 @@ let out : string * Haz3lcore.PersistentSegment.t =
          d302f590-3fe4-485c-bf3c-06d1b09d057e)(content(Whitespace\" \
          \")))))))))(Secondary((id \
          2e4f52ce-c607-48ad-a870-a9cc481eab57)(content(Whitespace\" \
-         \"))))(Tile((id 115ac869-8801-4245-a02f-dce83d1f2036)(label(forall \
+         \"))))(Tile((id 115ac869-8801-4245-a02f-dce83d1f2036)(label(poly \
          ->))(mold((out Typ)(in_(TPat))(nibs(((shape Convex)(sort \
          Typ))((shape(Concave 36))(sort Typ))))))(shards(0 \
          1))(children(((Secondary((id \
@@ -5353,11 +5353,11 @@ let out : string * Haz3lcore.PersistentSegment.t =
         "type Image = ? in\n\
          # Representing column names as projection functions for better error \
          localization since we don't do first-class labels #\n\
-         let scatter_plot : forall row -> ([row], row -> Int, row -> Int) -> \
+         let scatter_plot : poly row -> ([row], row -> Int, row -> Int) -> \
          Image = ? in\n\
          # Using ? for the categorical variables #\n\
-         let pie_chart : forall row -> ([row], row -> ?, row -> Int) -> Image \
-         = ? in\n\n\
+         let pie_chart : poly row -> ([row], row -> ?, row -> Int) -> Image = \
+         ? in\n\n\
          let mid_final =\n\
          type GradebookEntry = (name=String, age=Int, quiz1=Int, quiz2=Int, \
          midterm=Int, quiz3=Int, quiz4=Int, final=Int) in\n\
@@ -5412,8 +5412,8 @@ let out : string * Haz3lcore.PersistentSegment.t =
          # Using alternative buildColumn that takes projection to new tuple #\n\
          # The version taking a string can be used but it would give no static \
          errors #\n\
-         let build_column: forall r1 -> forall r2 -> forall r3 -> ([r1], r1 -> \
-         r2, (r1,r2) -> r3) -> [r3]=\n\
+         let build_column: poly r1 -> poly r2 -> poly r3 -> ([r1], r1 -> r2, \
+         (r1,r2) -> r3) -> [r3]=\n\
          typfun r1 -> typfun r2 -> typfun r3 -> \n\
          fun (table, project, build_result) -> map(table, fun r: r1 -> \
          build_result(r, project(r)))\n\

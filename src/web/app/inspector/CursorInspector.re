@@ -79,7 +79,7 @@ let elements_noun: Cls.t => string =
 let code_view_settings: Haz3lcore.ExpToSegment.Settings.t = {
   inline: true,
   fold_case_clauses: false,
-  fold_fn_bodies: false,
+  fold_fn_bodies: `NoFold,
   hide_fixpoints: false,
   show_filters: false,
   show_unknown_as_hole: true,
@@ -626,6 +626,11 @@ let rec exp_view =
     ])
   | InHole(BadLivelitModel(_)) =>
     div_err([text("Bad internal livelit model")])
+  | InHole(BadTheorem(typ)) =>
+    div_err([
+      text("Theorem pattern is not of the form p : t, got "),
+      view_type(typ),
+    ])
   | NotInHole(AnaDeferralConsistent(ana)) =>
     div_ok([text("Expecting type"), view_type(ana)])
   | NotInHole(Common(ok)) =>

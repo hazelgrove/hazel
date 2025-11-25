@@ -101,7 +101,9 @@ type error_exp =
   /* Label not found in tuple for dot operator */
   | LabelNotFound(LabeledTuple.label, list(LabeledTuple.label))
   /* Bad Livelit model */
-  | BadLivelitModel(Typ.t);
+  | BadLivelitModel(Typ.t)
+  /* Bad Theorem */
+  | BadTheorem(Typ.t);
 
 [@deriving (show({with_path: false}), sexp, yojson, eq)]
 type error_pat =
@@ -577,6 +579,7 @@ let rec status_exp = (ctx: Ctx.t, ty_ana, self: Self.exp): status_exp =>
           BadLivelitModel(_) |
           BadOperator(_) |
           LabelNotFound(_) |
+          BadTheorem(_) |
           BuiltinError(_),
         ) =>
         failwith("InHole(InexhaustiveMatch(impossible_err))")
@@ -611,6 +614,7 @@ let rec status_exp = (ctx: Ctx.t, ty_ana, self: Self.exp): status_exp =>
     | NotInHole(ok_exp) => NotInHole(Common(ok_exp))
     | InHole(err_exp) => InHole(Common(err_exp))
     }
+  | BadTheorem(typ) => InHole(BadTheorem(typ))
   };
 
 /* This logic determines whether a type should be put
@@ -842,7 +846,8 @@ let fixed_typ_err: (error_exp, Typ.t) => Typ.t =
     | BuiltinError(ToLvsMissingLabelsOnTuple(ty)) => ty
     | Common(err) => fixed_typ_err_common(err, ana)
     | InvalidUseMode({inner_typ, _}) => inner_typ
-    | BadLivelitModel(ana) => ana
+    | BadLivelitModel(ana)
+    | BadTheorem(ana) => ana
     };
 
 let fixed_typ_err_pat: (error_pat, Typ.t) => Typ.t =

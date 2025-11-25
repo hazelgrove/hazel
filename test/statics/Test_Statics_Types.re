@@ -11,7 +11,7 @@ let tests = (
   x : F|},
       Some(
         FTemp.(
-          Typ.(forall(TPat.var("a"), arrow(unknown(Internal), var("a"))))
+          Typ.(poly(TPat.var("a"), arrow(unknown(Internal), var("a"))))
         ),
       ),
     ),
