@@ -4,6 +4,4 @@ let exercises: list(Exercise.exercise_spec) = [
   Implementation(Ex_OddlyRecursive.exercise),
   Implementation(Ex_RecursiveFibonacci.exercise),
   Theorem(ReverseReverse.exercise),
-  Implementation(BlankExercise.exercise),
-  Theorem(TheoremTemplate.exercise),
 ];
