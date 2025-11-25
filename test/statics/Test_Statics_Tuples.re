@@ -1036,6 +1036,42 @@ let tests = (
         ),
       )
     }),
+    test_case("Duplicat label leaves non-labeled unaffected", `Quick, () => {
+      annotated_tree_test(
+        "? : (a=Int, a=String, Float)",
+        Typ.prod([
+          tup_label(label("a"), int()),
+          tup_label(label("a"), string()),
+          float(),
+        ]),
+        FIError.(
+          Exp.(
+            asc(
+              empty_hole(),
+              Typ.(
+                prod([
+                  tup_label(
+                    label(
+                      ~ann=Some(Typ(Duplicate("a", FTemp.Typ.label("a")))),
+                      "a",
+                    ),
+                    int(),
+                  ),
+                  tup_label(
+                    label(
+                      ~ann=Some(Typ(Duplicate("a", FTemp.Typ.label("a")))),
+                      "a",
+                    ),
+                    string(),
+                  ),
+                  float(),
+                ])
+              ),
+            )
+          )
+        ),
+      )
+    }),
   ]
   @ TupleExtension.tests
   @ ProductProjection.tests

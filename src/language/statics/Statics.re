@@ -1919,7 +1919,17 @@ and utyp_to_info_map =
       List.is_empty(duplicate_labels)
         ? map_m(go, ts, m) |> snd
         : map_m(
-            go'(~expects=LabelExpected(Duplicate, duplicate_labels)),
+            (t: Typ.t) =>
+              go'(
+                ~expects=
+                  switch (t.term) {
+                  | Label(_)
+                  | TupLabel(_, _) =>
+                    LabelExpected(Duplicate, duplicate_labels)
+                  | _ => TypeExpected
+                  },
+                t,
+              ),
             ts,
             m,
           )
