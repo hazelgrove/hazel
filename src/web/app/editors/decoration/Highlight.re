@@ -115,17 +115,6 @@ let of_segment =
     let children_shards =
       t.children |> List.mapi(index => of_segment(shape_at(index)));
     if (List.length(tile_shards) != List.length(children_shards) + 1) {
-      print_endline(
-        "Highlight.of_tile: shard mismatch:"
-        ++ "tile: "
-        ++ Tile.show(t)
-        ++ "tile_Shards:"
-        ++ string_of_int(List.length(tile_shards))
-        ++ ", children_Shards:"
-        ++ string_of_int(List.length(children_shards)),
-      );
-      //contents of tile_shards:
-      print_endline("contents of shards:" ++ Measured.Shards.show(shards));
       failwith(
         "Highlight.of_tile: shard mismatch:"
         ++ "tile: "
