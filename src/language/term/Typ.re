@@ -497,32 +497,32 @@ let product_extension = (tys1: list(t), tys2: list(t)): term => {
  */
 let remove_duplicate_labels =
     (~duplicate_labels: list(LabeledTuple.label), tys: list(t)): list(t) => {
-  snd(
+  let (_, rev_deduplicated) =
     List.fold_left(
-      ((seen_duplicates, deduplicated_types), ty) => {
+      ((seen_duplicates, rev_deduplicated_types), ty) => {
         let tup_label = match_tup_label(ty);
         switch (tup_label) {
         | Some((l, _))
             when
               List.mem(l, duplicate_labels) && List.mem(l, seen_duplicates) => (
             seen_duplicates,
-            deduplicated_types,
+            rev_deduplicated_types,
           )
         | Some((l, _)) when List.mem(l, duplicate_labels) => (
             [l, ...seen_duplicates],
-            deduplicated_types
-            @ [
+            [
               TupLabel(Label(l) |> temp, Unknown(Internal) |> temp) |> temp,
+              ...rev_deduplicated_types,
             ],
           )
-        | Some(_) => (seen_duplicates, deduplicated_types @ [ty])
-        | None => (seen_duplicates, deduplicated_types @ [ty])
+        | Some(_) => (seen_duplicates, [ty, ...rev_deduplicated_types])
+        | None => (seen_duplicates, [ty, ...rev_deduplicated_types])
         };
       },
       ([], []),
       tys,
-    ),
-  );
+    );
+  List.rev(rev_deduplicated);
 };
 
 let rec weak_head_normalize = (~rec_counter=0, ctx: Ctx.t, ty: t): t => {
