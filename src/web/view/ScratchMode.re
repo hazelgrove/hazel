@@ -136,9 +136,13 @@ module Update = {
   };
 
   let export_scratch_slide = (model: Model.t): unit => {
-    Store.save(model |> Model.persist);
-    let data = Store.export();
-    let current_name = List.nth(model.scratchpads, model.current) |> fst;
+    let (current_name, current_editor) =
+      List.nth(model.scratchpads, model.current);
+    let persistent = CellEditor.Model.persist(current_editor);
+    let data =
+      persistent
+      |> CellEditor.Model.sexp_of_persistent
+      |> Sexplib.Sexp.to_string;
     let filename = current_name |> StringUtil.sanitize_filename;
     JsUtil.download_string_file(
       ~filename,
