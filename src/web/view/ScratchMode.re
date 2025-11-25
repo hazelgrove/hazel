@@ -529,7 +529,7 @@ module View = {
           | Some(file) => inject(InitImportScratchpad(file))
           }
         },
-        ~accept=[`Extension("txt")],
+        ~accept=[],
         ~tooltip="Import Scratchpad",
       );
 
