@@ -627,12 +627,9 @@ let rec normalize = (~rec_counter=0, ctx: Ctx.t, ty: t): t => {
   };
 };
 /* Lattice join on types. This is a LUB join in the hazel2
-   sense in that any type dominates Unknown. The optional
-   resolve parameter specifies whether, in the case of a type
-   variable and a succesful join, to return the resolved join type,
-   or to return the (first) type variable for readability */
-let rec join = (~resolve=false, ctx: Ctx.t, ty1: t, ty2: t): option(t) => {
-  let join' = join(~resolve, ctx);
+   sense in that any type dominates Unknown.  */
+let rec join = (ctx: Ctx.t, ty1: t, ty2: t): option(t) => {
+  let join' = join(ctx);
   switch (term_of(ty1), term_of(ty2)) {
   | (_, Parens(ty2)) => join'(ty1, ty2)
   | (Parens(ty1), _) => join'(ty1, ty2)
@@ -646,19 +643,23 @@ let rec join = (~resolve=false, ctx: Ctx.t, ty1: t, ty2: t): option(t) => {
     if (n1 == n2) {
       Some(ty1);
     } else {
-      let* ty1 = Ctx.lookup_alias(ctx, n1);
-      let* ty2 = Ctx.lookup_alias(ctx, n2);
-      let+ ty_join = join'(ty1, ty2);
-      !resolve && equal(ty1, ty_join) ? ty1 : ty_join;
+      let ty1' = Ctx.lookup_alias(ctx, n1);
+      let ty2' = Ctx.lookup_alias(ctx, n2);
+      switch (ty1', ty2') {
+      | (Some(ty1), Some(ty2)) => join'(ty1, ty2)
+      | (Some(ty1), None) => join'(ty1, ty2)
+      | (None, Some(ty2)) => join'(ty1, ty2)
+      | (None, None) => None
+      };
     }
   | (Var(name), _) =>
     let* ty_name = Ctx.lookup_alias(ctx, name);
     let+ ty_join = join'(ty_name, ty2);
-    !resolve && equal(ty_name, ty_join) ? ty1 : ty_join;
+    equal(ty_name, ty_join) ? ty1 : ty_join;
   | (_, Var(name)) =>
     let* ty_name = Ctx.lookup_alias(ctx, name);
     let+ ty_join = join'(ty_name, ty1);
-    !resolve && equal(ty_name, ty_join) ? ty2 : ty_join;
+    equal(ty_name, ty_join) ? ty2 : ty_join;
   /* Note: Ordering of Unknown, Var, and Rec above is load-bearing! */
   | (ProdProjection(_), _) => join'(weak_head_normalize(ctx, ty1), ty2)
   | (_, ProdProjection(_)) => join'(ty1, weak_head_normalize(ctx, ty2))
@@ -671,7 +672,7 @@ let rec join = (~resolve=false, ctx: Ctx.t, ty1: t, ty2: t): option(t) => {
       | Some(x2) => subst(Var(x2) |> temp, tp1, ty1)
       | None => ty1
       };
-    let+ ty_body = join(~resolve, ctx, ty1', ty2);
+    let+ ty_body = join(ctx, ty1', ty2);
     Rec(tp1, ty_body) |> temp;
   | (Rec(_), _) => None
   | (Poly(x1, ty1), Poly(x2, ty2)) =>
@@ -681,7 +682,7 @@ let rec join = (~resolve=false, ctx: Ctx.t, ty1: t, ty2: t): option(t) => {
       | None => ty1
       };
     let ctx = Ctx.extend_dummy_tvar(ctx, x2);
-    let+ ty_body = join(~resolve, ctx, ty1', ty2);
+    let+ ty_body = join(ctx, ty1', ty2);
     Poly(x2, ty_body) |> temp;
   /* Note for above: there is no danger of free variable capture as
      subst itself performs capture avoiding substitution. However this
@@ -731,7 +732,7 @@ let rec join = (~resolve=false, ctx: Ctx.t, ty1: t, ty2: t): option(t) => {
     };
   | (Prod(_), _) => None
   | (Sum(sm1), Sum(sm2)) =>
-    let+ sm' = ConstructorMap.join(equal, join(~resolve, ctx), sm1, sm2);
+    let+ sm' = ConstructorMap.join(equal, join(ctx), sm1, sm2);
     Sum(sm') |> temp;
   | (Sum(_), _) => None
   | (List(ty1), List(ty2)) =>

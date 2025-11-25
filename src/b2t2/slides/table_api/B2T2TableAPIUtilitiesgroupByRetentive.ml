@@ -1649,7 +1649,7 @@ let out : string * Haz3lcore.PersistentSegment.t =
          Pat)(in_())(nibs(((shape(Concave 24))(sort Pat))((shape(Concave \
          24))(sort Typ))))))(shards(0))(children())))(Secondary((id \
          7caed6e4-d14a-45ef-8049-ce4549a1d5f3)(content(Whitespace\" \
-         \"))))(Tile((id 72cf7d6a-4c7b-4053-b533-7b695e049b72)(label(forall \
+         \"))))(Tile((id 72cf7d6a-4c7b-4053-b533-7b695e049b72)(label(poly \
          ->))(mold((out Typ)(in_(TPat))(nibs(((shape Convex)(sort \
          Typ))((shape(Concave 36))(sort Typ))))))(shards(0 \
          1))(children(((Secondary((id \
@@ -1661,7 +1661,7 @@ let out : string * Haz3lcore.PersistentSegment.t =
          1325c4ef-502e-4a35-84d7-8c993f1f6322)(content(Whitespace\" \
          \")))))))))(Secondary((id \
          2dbdf606-bfd4-440c-999d-9dd8af22e151)(content(Whitespace\" \
-         \"))))(Tile((id f11c4d08-e1f1-485a-b46a-4483f6564a5c)(label(forall \
+         \"))))(Tile((id f11c4d08-e1f1-485a-b46a-4483f6564a5c)(label(poly \
          ->))(mold((out Typ)(in_(TPat))(nibs(((shape Convex)(sort \
          Typ))((shape(Concave 36))(sort Typ))))))(shards(0 \
          1))(children(((Secondary((id \
@@ -2289,7 +2289,7 @@ let out : string * Haz3lcore.PersistentSegment.t =
          (enforced=^^check(false), \"nrows(t2) == \
          length(removeDuplicates(getColumn(t1, c)))\")\n\
          ] in\n\n\
-         let group_by_retentive : forall row -> forall key -> ([row], (row -> \
+         let group_by_retentive : poly row -> poly key -> ([row], (row -> \
          key)) -> [(key=key, groups=[row])] =\n\
          typfun row ->  typfun key -> fun (t1, c) ->\n\
          case t1\n\

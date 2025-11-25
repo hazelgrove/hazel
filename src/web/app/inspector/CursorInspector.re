@@ -169,11 +169,6 @@ let common_err_view =
         text("values cannot be compared:"),
         view_type(ty),
       ]
-    | Inconsistent(WithArrow(typ)) => [
-        text(":"),
-        view_type(typ) |> code_box_container,
-        text("inconsistent with arrow type"),
-      ]
     | Inconsistent(Expectation({ana, syn})) =>
       switch (syn.term, ana.term) {
       | (Label(syn_l), Label(an_label)) => [
@@ -424,10 +419,6 @@ let typ_ok_view = (~globals, cls: Cls.t, ok: Info.ok_typ) => {
   | Variant(name, sum_ty) => [
       view_type(Var(name) |> Typ.fresh),
       text("is a sum type constuctor of type"),
-      view_type(sum_ty),
-    ]
-  | VariantIncomplete(sum_ty) => [
-      text("An incomplete sum type constuctor of type"),
       view_type(sum_ty),
     ]
   | TypeUnderdetermined(underdetermined) =>
