@@ -487,12 +487,13 @@ let product_extension = (tys1: list(t), tys2: list(t)): term => {
 /**
  * Removes duplicate labels from a given list of types inside a tuple.
  *
- * This function takes a list of types and returns a new list with all
- * duplicate labels replaced with their first occurence and the unknown type.
+ * For each label in the list of duplicate labels, keeps only the first occurrence,
+ * replacing its type with Unknown(Internal), and removes all subsequent occurrences.
  *
  * @param duplicate_labels - The list of duplicate labels.
  * @param tys - The list of types to remove duplicates from.
- * @return A new list of types with duplicates removed.
+ * @return A new list of types where, for each duplicate label, only the first occurrence
+ *         is kept (with type Unknown(Internal)), and all subsequent occurrences are removed.
  */
 let remove_duplicate_labels =
     (~duplicate_labels: list(LabeledTuple.label), tys: list(t)): list(t) => {
