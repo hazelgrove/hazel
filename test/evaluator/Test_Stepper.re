@@ -71,14 +71,27 @@ let tests = (
         // in elaboration or stepping. The expression should step to an indeterminate
         // form without crashing.
         let exp = parse_exp({|(fix   ->  )()|});
-        let elaborated = elaborate(exp);
-        // Just verify that stepping doesn't crash - it should terminate
-        let result = full_small_step_reduction(~step_limit=100, elaborated);
-        // The result should either complete (to an indet form) or hit step limit
-        // but should NOT crash with "normalize exceeded 1000 recursive calls"
-        switch (result) {
-        | Completed(_) => ()
-        | StepLimitExceeded => ()
+        try({
+          let elaborated = elaborate(exp);
+          // Just verify that stepping doesn't crash - it should terminate
+          let result = full_small_step_reduction(~step_limit=100, elaborated);
+          // The result should either complete (to an indet form) or hit step limit
+          // but should NOT crash with "normalize exceeded 1000 recursive calls"
+          switch (result) {
+          | Completed(_) => ()
+          | StepLimitExceeded => ()
+          };
+        }) {
+        | Failure(msg)
+            when
+              String.equal(msg, "normalize exceeded 1000 recursive calls")
+              || String.equal(
+                   msg,
+                   "weak_head_normalize exceeded 1000 recursive calls",
+                 ) =>
+          Alcotest.fail(
+            "Expression (fix -> )() caused infinite recursion: " ++ msg,
+          )
         };
       },
     ),
