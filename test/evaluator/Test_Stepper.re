@@ -63,5 +63,24 @@ let tests = (
         ),
       )
     }),
+    test_case(
+      "Fix with empty holes does not cause infinite recursion",
+      `Quick,
+      () => {
+        // This test verifies that (fix -> )() doesn't cause infinite recursion
+        // in elaboration or stepping. The expression should step to an indeterminate
+        // form without crashing.
+        let exp = parse_exp({|(fix   ->  )()|});
+        let elaborated = elaborate(exp);
+        // Just verify that stepping doesn't crash - it should terminate
+        let result = full_small_step_reduction(~step_limit=100, elaborated);
+        // The result should either complete (to an indet form) or hit step limit
+        // but should NOT crash with "normalize exceeded 1000 recursive calls"
+        switch (result) {
+        | Completed(_) => ()
+        | StepLimitExceeded => ()
+        };
+      },
+    ),
   ],
 );
