@@ -172,6 +172,26 @@ let tests = [
           Some([("x", (hole_typ, Some(var("y"))))]),
         ),
       ),
+      test_case(
+        "Match equality with shadowing 1",
+        `Quick,
+        match_check(
+          ~ctx_in=[("x", (hole_typ, None))],
+          "x == x",
+          "[x] == [x]",
+          Some([("x", (hole_typ, Some(list_lit([var("x")]))))]),
+        ),
+      ),
+      test_case(
+        "Match equality with shadowing 2",
+        `Quick,
+        match_check(
+          ~ctx_in=[("x", (hole_typ, None))],
+          "x == x",
+          "x == x",
+          Some([("x", (hole_typ, Some(var("x"))))]),
+        ),
+      ),
     ],
   ),
 ];

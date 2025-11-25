@@ -134,7 +134,13 @@ module View = {
           ? signal(TakeStep(x))
           : inject(Select(Term(Id(List.nth(model.next_steps, x), Right))))
       )
-    @ refl_steps(model.refls, ~inject=x => signal(Refl(x)));
+    @ refl_steps(model.refls, ~inject=x => {
+        Some(List.nth(model.refls, x)) == selected_id
+          ? signal(Refl(x))
+          : {
+            inject(Select(Term(Id(List.nth(model.refls, x), Right))));
+          }
+      });
   };
 
   let view =
