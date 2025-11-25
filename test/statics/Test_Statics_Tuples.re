@@ -1002,6 +1002,40 @@ let tests = (
       {|([(a=1) : ?]).a|},
       Some(list(unknown(Internal))),
     ),
+    test_case("Duplicate labels in type", `Quick, () => {
+      annotated_tree_test(
+        "(a=?) : (a=Int, a=String)",
+        Typ.prod([
+          tup_label(label("a"), int()),
+          tup_label(label("a"), string()),
+        ]),
+        FIError.(
+          Exp.(
+            asc(
+              tuple([tup_label(label("a"), empty_hole())]),
+              Typ.(
+                prod([
+                  tup_label(
+                    label(
+                      ~ann=Some(Typ(Duplicate("a", FTemp.Typ.label("a")))),
+                      "a",
+                    ),
+                    int(),
+                  ),
+                  tup_label(
+                    label(
+                      ~ann=Some(Typ(Duplicate("a", FTemp.Typ.label("a")))),
+                      "a",
+                    ),
+                    string(),
+                  ),
+                ])
+              ),
+            )
+          )
+        ),
+      )
+    }),
   ]
   @ TupleExtension.tests
   @ ProductProjection.tests
