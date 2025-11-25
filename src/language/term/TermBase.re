@@ -209,6 +209,10 @@ and Exp: {
         | Dot(e1, e2) => Dot(exp_map_term(e1), exp_map_term(e2))
         | Let(p, e1, e2) =>
           Let(pat_map_term(p), exp_map_term(e1), exp_map_term(e2))
+        | Theorem(p, e1, e2) =>
+          Theorem(pat_map_term(p), exp_map_term(e1), exp_map_term(e2))
+        | ProofObject(t) => ProofObject(exp_map_term(t))
+        | Forall(p, e) => Forall(pat_map_term(p), exp_map_term(e))
         | FixF(p, e, env) => FixF(pat_map_term(p), exp_map_term(e), env)
         | TyAlias(tp, t, e) =>
           TyAlias(tpat_map_term(tp), typ_map_term(t), exp_map_term(e))
@@ -356,6 +360,8 @@ and Typ: {
       Any.map_term(~f_exp, ~f_pat, ~f_typ, ~f_tpat, ~f_rul, ~f_any);
     let tpat_map_term =
       TPat.map_term(~f_exp, ~f_pat, ~f_typ, ~f_tpat, ~f_rul, ~f_any);
+    let exp_map_term =
+      Exp.map_term(~f_exp, ~f_pat, ~f_typ, ~f_tpat, ~f_rul, ~f_any);
     let rec_call = ({term, _} as exp: t) => {
       ...exp,
       term:
@@ -392,7 +398,8 @@ and Typ: {
         | ProdExtension(t1, t2) =>
           ProdExtension(typ_map_term(t1), typ_map_term(t2))
         | Rec(tp, t) => Rec(tpat_map_term(tp), typ_map_term(t))
-        | Forall(tp, t) => Forall(tpat_map_term(tp), typ_map_term(t))
+        | Poly(tp, t) => Poly(tpat_map_term(tp), typ_map_term(t))
+        | ProofOf(e) => ProofOf(exp_map_term(e))
         },
     };
     x |> f_typ(rec_call);

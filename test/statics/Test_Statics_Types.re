@@ -3,6 +3,18 @@ open Test_Statics_Prelude;
 let tests = (
   "Statics.Types",
   [
+    fully_consistent_typecheck(
+      "Type alias works for typfun variable",
+      {|typfun a -> fun y ->
+  let x :a =  ? in
+  type F = a in
+  x : F|},
+      Some(
+        FTemp.(
+          Typ.(poly(TPat.var("a"), arrow(unknown(Internal), var("a"))))
+        ),
+      ),
+    ),
     skip_known_bug(
       "Typ.weak_head_normalize infinite recursion", // https://github.com/hazelgrove/hazel/issues/1621
       "type y = y in type ? = y in ?",

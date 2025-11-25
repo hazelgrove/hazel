@@ -159,7 +159,7 @@ let rec get_fun_var = (pat: t) => {
   | Probe(pat, _)
   | TupLabel(_, pat) => get_fun_var(pat)
   | Asc(pat, t1) =>
-    if (Typ.is_arrow(t1) || Typ.is_forall(t1)) {
+    if (Typ.is_arrow(t1) || Typ.is_poly(t1)) {
       get_var(pat) |> Option.map(var => var);
     } else {
       None;
