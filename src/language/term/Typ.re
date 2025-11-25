@@ -633,10 +633,14 @@ let rec join = (~resolve=false, ctx: Ctx.t, ty1: t, ty2: t): option(t) => {
     if (n1 == n2) {
       Some(ty1);
     } else {
-      let* ty1 = Ctx.lookup_alias(ctx, n1);
-      let* ty2 = Ctx.lookup_alias(ctx, n2);
-      let+ ty_join = join'(ty1, ty2);
-      !resolve && equal(ty1, ty_join) ? ty1 : ty_join;
+      let ty1' = Ctx.lookup_alias(ctx, n1);
+      let ty2' = Ctx.lookup_alias(ctx, n2);
+      switch (ty1', ty2') {
+      | (Some(ty1), Some(ty2)) => join'(ty1, ty2)
+      | (Some(ty1), None) => join'(ty1, ty2)
+      | (None, Some(ty2)) => join'(ty1, ty2)
+      | (None, None) => None
+      };
     }
   | (Var(name), _) =>
     let* ty_name = Ctx.lookup_alias(ctx, name);
