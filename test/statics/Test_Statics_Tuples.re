@@ -1036,7 +1036,7 @@ let tests = (
         ),
       )
     }),
-    test_case("Duplicat label leaves non-labeled unaffected", `Quick, () => {
+    test_case("Duplicate label leaves non-labeled unaffected", `Quick, () => {
       annotated_tree_test(
         "? : (a=Int, a=String, Float)",
         Typ.prod([
