@@ -937,7 +937,7 @@ let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
       switch (t) {
       | None => p
       | Some(t) =>
-        let t = t |> Typ.replace_temp;
+        let t = t |> Exp.replace_all_ids_typ;
         Pat.fresh(Asc(p, t))
         |> parenthesize_pat(~show_filters=settings.show_filters);
       };
