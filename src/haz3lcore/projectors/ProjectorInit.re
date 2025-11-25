@@ -25,6 +25,7 @@ let to_module = (kind: ProjectorCore.Kind.t): (module Cooked) =>
 
      ))
   | Graph => (module Cook(GraphProj.M))
+  | Patchwork => (module Cook(PatchworkProj.M))
   | ObservablePlot => (module Cook(ObservablePlotProj.M))
   };
 
