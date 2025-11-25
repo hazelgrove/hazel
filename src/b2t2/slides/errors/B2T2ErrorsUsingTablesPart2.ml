@@ -35,7 +35,7 @@ let out : string * Haz3lcore.PersistentSegment.t =
          Pat)(in_())(nibs(((shape(Concave 24))(sort Pat))((shape(Concave \
          24))(sort Typ))))))(shards(0))(children())))(Secondary((id \
          91620cb1-a567-4346-a178-e106b3af3a8d)(content(Whitespace\" \
-         \"))))(Tile((id ac43d759-aa4f-499d-8f9f-abf06759693e)(label(forall \
+         \"))))(Tile((id ac43d759-aa4f-499d-8f9f-abf06759693e)(label(poly \
          ->))(mold((out Typ)(in_(TPat))(nibs(((shape Convex)(sort \
          Typ))((shape(Concave 36))(sort Typ))))))(shards(0 \
          1))(children(((Secondary((id \
@@ -130,7 +130,7 @@ let out : string * Haz3lcore.PersistentSegment.t =
          Pat)(in_())(nibs(((shape(Concave 24))(sort Pat))((shape(Concave \
          24))(sort Typ))))))(shards(0))(children())))(Secondary((id \
          32c0015f-4999-4203-94dd-542be1ed9430)(content(Whitespace\" \
-         \"))))(Tile((id 2c68a7d8-db6d-4f70-b305-ffbc00e4c503)(label(forall \
+         \"))))(Tile((id 2c68a7d8-db6d-4f70-b305-ffbc00e4c503)(label(poly \
          ->))(mold((out Typ)(in_(TPat))(nibs(((shape Convex)(sort \
          Typ))((shape(Concave 36))(sort Typ))))))(shards(0 \
          1))(children(((Secondary((id \
@@ -2318,7 +2318,7 @@ let out : string * Haz3lcore.PersistentSegment.t =
          Pat)(in_())(nibs(((shape(Concave 24))(sort Pat))((shape(Concave \
          24))(sort Typ))))))(shards(0))(children())))(Secondary((id \
          521cc1fd-7040-487c-9d5e-d3b263e51913)(content(Whitespace\" \
-         \"))))(Tile((id 3e802e64-ef39-4fc9-b334-76323ea23837)(label(forall \
+         \"))))(Tile((id 3e802e64-ef39-4fc9-b334-76323ea23837)(label(poly \
          ->))(mold((out Typ)(in_(TPat))(nibs(((shape Convex)(sort \
          Typ))((shape(Concave 36))(sort Typ))))))(shards(0 \
          1))(children(((Secondary((id \
@@ -2330,7 +2330,7 @@ let out : string * Haz3lcore.PersistentSegment.t =
          b1d3e6b8-7332-4018-adc1-a16bc2eaf354)(content(Whitespace\" \
          \")))))))))(Secondary((id \
          a2aaabcd-2fd2-40c5-bc08-69d4a76e6f72)(content(Whitespace\" \
-         \"))))(Tile((id 0d8b355b-0b12-412f-b924-78d7ee37d246)(label(forall \
+         \"))))(Tile((id 0d8b355b-0b12-412f-b924-78d7ee37d246)(label(poly \
          ->))(mold((out Typ)(in_(TPat))(nibs(((shape Convex)(sort \
          Typ))((shape(Concave 36))(sort Typ))))))(shards(0 \
          1))(children(((Secondary((id \
@@ -2342,7 +2342,7 @@ let out : string * Haz3lcore.PersistentSegment.t =
          eac07aef-2bf8-46cb-a747-749b063c1e70)(content(Whitespace\" \
          \")))))))))(Secondary((id \
          86fe1c14-0e23-45fc-a39e-eff153c94d17)(content(Whitespace\" \
-         \"))))(Tile((id 69d34c7e-9523-4680-93cc-a1519cce0d40)(label(forall \
+         \"))))(Tile((id 69d34c7e-9523-4680-93cc-a1519cce0d40)(label(poly \
          ->))(mold((out Typ)(in_(TPat))(nibs(((shape Convex)(sort \
          Typ))((shape(Concave 36))(sort Typ))))))(shards(0 \
          1))(children(((Secondary((id \
@@ -4570,10 +4570,10 @@ let out : string * Haz3lcore.PersistentSegment.t =
         "type Image = in\n\
          # Representing column names as projection functions for better error \
          localization since we don't do first-class labels #\n\
-         let scatter_plot : forall row -> ([row], row -> Int, row -> Int) -> \
+         let scatter_plot : poly row -> ([row], row -> Int, row -> Int) -> \
          Image =   in\n\
          # Using ? for the categorical variables #\n\
-         let pie_chart : forall row -> ([row], row -> ?, row -> Int) -> Image \
+         let pie_chart : poly row -> ([row], row -> ?, row -> Int) -> Image \
          =   in\n\n\
          let brown_get_acne =  \n\
          type JellyNamed = (name=String, get_acne=Bool, red=Bool, black=Bool, \
@@ -4621,9 +4621,8 @@ let out : string * Haz3lcore.PersistentSegment.t =
          filter(groups, fun g -> g.value != proj(row))\n\
          end in\n\n\
          fold_left(t1, go, []): [(value=v, count=Int)]) in\n\
-         let build_column: forall r1 -> forall r2 -> forall r3 -> ([r1], r1 -> \
-         r2, (r1,r2) -> r3) -> [r3]= ^^fold(typfun r1 -> typfun r2 -> typfun \
-         r3 -> \n\
+         let build_column: poly r1 -> poly r2 -> poly r3 -> ([r1], r1 -> r2, \
+         (r1,r2) -> r3) -> [r3]= ^^fold(typfun r1 -> typfun r2 -> typfun r3 -> \n\
          fun (table, project, build_result) -> map(table, fun r: r1 -> \
          build_result(r, project(r)))) in\n\
          let incorrect =\n\

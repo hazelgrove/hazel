@@ -551,7 +551,7 @@ let out : string * Haz3lcore.PersistentSegment.t =
          Pat)(in_())(nibs(((shape(Concave 24))(sort Pat))((shape(Concave \
          24))(sort Typ))))))(shards(0))(children())))(Secondary((id \
          39b29a49-7529-449a-8190-efb6b4e70288)(content(Whitespace\" \
-         \"))))(Tile((id 91752ad0-15c0-421e-8a5d-86d156eb9170)(label(forall \
+         \"))))(Tile((id 91752ad0-15c0-421e-8a5d-86d156eb9170)(label(poly \
          ->))(mold((out Typ)(in_(TPat))(nibs(((shape Convex)(sort \
          Typ))((shape(Concave 36))(sort Typ))))))(shards(0 \
          1))(children(((Secondary((id \
@@ -563,7 +563,7 @@ let out : string * Haz3lcore.PersistentSegment.t =
          ecd8b81d-a7e9-4a76-b427-101f982584e1)(content(Whitespace\" \
          \")))))))))(Secondary((id \
          c8704723-8dcb-48e5-ba9d-4e0d2e6b15b3)(content(Whitespace\" \
-         \"))))(Tile((id 2dd707f5-fe45-402d-920a-7ecca657e0b4)(label(forall \
+         \"))))(Tile((id 2dd707f5-fe45-402d-920a-7ecca657e0b4)(label(poly \
          ->))(mold((out Typ)(in_(TPat))(nibs(((shape Convex)(sort \
          Typ))((shape(Concave 36))(sort Typ))))))(shards(0 \
          1))(children(((Secondary((id \
@@ -575,7 +575,7 @@ let out : string * Haz3lcore.PersistentSegment.t =
          b51b76ae-08e5-44a8-8bf2-330cb6de5ff4)(content(Whitespace\" \
          \")))))))))(Secondary((id \
          ebd99340-7f9f-4337-8e3b-61c1662d6c1a)(content(Whitespace\" \
-         \"))))(Tile((id 2e496f18-5faf-4b1a-a4e7-83f7dde478b3)(label(forall \
+         \"))))(Tile((id 2e496f18-5faf-4b1a-a4e7-83f7dde478b3)(label(poly \
          ->))(mold((out Typ)(in_(TPat))(nibs(((shape Convex)(sort \
          Typ))((shape(Concave 36))(sort Typ))))))(shards(0 \
          1))(children(((Secondary((id \
@@ -1215,8 +1215,8 @@ let out : string * Haz3lcore.PersistentSegment.t =
          (enforced=^^check(true), \"schema(r3) == schema(t2)\"),\n\
          (enforced=^^check(true), \"schema(t2) == schema(r4)\")\n\
          ] in\n\
-         let select_many : forall r1 -> forall r2 -> forall r3 -> ([r1], \
-         (r1,Int) -> [r2], (r1,r2) -> r3) -> [r3] =\n\
+         let select_many : poly r1 -> poly r2 -> poly r3 -> ([r1], (r1,Int) -> \
+         [r2], (r1,r2) -> r3) -> [r3] =\n\
          typfun r1 -> typfun r2 -> typfun r3 ->\n\
          fun (t1:[r1], project:((r1,Int) -> [r2]), result:((r1,r2) -> r3)) ->\n\
          enumerate(t1)\n\
