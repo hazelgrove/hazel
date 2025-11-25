@@ -708,19 +708,13 @@ and typ_term: unsorted => (Typ.term, list(Id.t)) = {
     }
   | Pre(tiles, Typ(t)) as tm =>
     switch (tiles) {
-    | ([(_, (["+"], []))], []) =>
-      ret(Sum([parse_sum_term(t)] |> ConstructorMap.mk(~mk_bad)))
+    | ([(_, (["+"], []))], []) => ret(Sum([parse_sum_term(t)]))
     | _ => ret(hole(tm))
     }
   | Bin(Typ(t1), tiles, Typ(t2)) as tm when is_typ_bsum(tiles) != None =>
     switch (is_typ_bsum(tiles)) {
     | Some(between_kids) =>
-      ret(
-        Sum(
-          List.map(parse_sum_term, [t1] @ between_kids @ [t2])
-          |> ConstructorMap.mk(~mk_bad),
-        ),
-      )
+      ret(Sum(List.map(parse_sum_term, [t1] @ between_kids @ [t2])))
     | None => ret(hole(tm))
     }
   | Bin(Typ(l), tiles, Typ(r)) as tm =>
