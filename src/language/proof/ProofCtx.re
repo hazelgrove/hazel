@@ -109,7 +109,7 @@ let of_env = (~builtins, ~ctx: Ctx.t, env: Environment.t(Exp.t)) => {
                name,
                rule,
                typ,
-               exp,
+               exp: e,
                is_captured,
              };
              ([name, ...seen_vars], [entry, ...rules]);
