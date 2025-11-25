@@ -484,6 +484,47 @@ let product_extension = (tys1: list(t), tys2: list(t)): term => {
   Prod(new_tys);
 };
 
+/**
+ * Removes duplicate labels from a given list of types inside a tuple.
+ *
+ * For each label in the list of duplicate labels, keeps only the first occurrence,
+ * replacing its type with Unknown(Internal), and removes all subsequent occurrences.
+ *
+ * @param duplicate_labels - The list of duplicate labels.
+ * @param tys - The list of types to remove duplicates from.
+ * @return A new list of types where, for each duplicate label, only the first occurrence
+ *         is kept (with type Unknown(Internal)), and all subsequent occurrences are removed.
+ */
+let remove_duplicate_labels =
+    (~duplicate_labels: list(LabeledTuple.label), tys: list(t)): list(t) => {
+  let (_, rev_deduplicated) =
+    List.fold_left(
+      ((seen_duplicates, rev_deduplicated_types), ty) => {
+        let tup_label = match_tup_label(ty);
+        switch (tup_label) {
+        | Some((l, _))
+            when
+              List.mem(l, duplicate_labels) && List.mem(l, seen_duplicates) => (
+            seen_duplicates,
+            rev_deduplicated_types,
+          )
+        | Some((l, _)) when List.mem(l, duplicate_labels) => (
+            [l, ...seen_duplicates],
+            [
+              TupLabel(Label(l) |> temp, Unknown(Internal) |> temp) |> temp,
+              ...rev_deduplicated_types,
+            ],
+          )
+        | Some(_) => (seen_duplicates, [ty, ...rev_deduplicated_types])
+        | None => (seen_duplicates, [ty, ...rev_deduplicated_types])
+        };
+      },
+      ([], []),
+      tys,
+    );
+  List.rev(rev_deduplicated);
+};
+
 let rec weak_head_normalize = (~rec_counter=0, ctx: Ctx.t, ty: t): t => {
   if (rec_counter > 1000) {
     failwith("weak_head_normalize exceeded 1000 recursive calls");
@@ -510,6 +551,16 @@ let rec weak_head_normalize = (~rec_counter=0, ctx: Ctx.t, ty: t): t => {
       }
     )
     |> Option.value(~default=Unknown(Internal) |> rewrap);
+  | Prod(ts) =>
+    let (_, rewrap) = unwrap(ty);
+    let duplicate_labels =
+      LabeledTuple.get_duplicate_labels(match_tup_label, ts);
+    if (List.is_empty(duplicate_labels)) {
+      ty;
+    } else {
+      let cleaned_ts = remove_duplicate_labels(~duplicate_labels, ts);
+      Prod(cleaned_ts) |> rewrap;
+    };
   | ProdExtension(t1, t2) =>
     let (_, rewrap) = unwrap(ty);
 
@@ -645,13 +696,26 @@ let rec join = (~resolve=false, ctx: Ctx.t, ty1: t, ty2: t): option(t) => {
     TupLabel(lab, ty) |> temp;
   | (TupLabel(_), _) => None
   | (Prod(tys1), Prod(tys2)) =>
+    let tys1 =
+      remove_duplicate_labels(
+        ~duplicate_labels=
+          LabeledTuple.get_duplicate_labels(match_tup_label, tys1),
+        tys1,
+      );
+    let tys2 =
+      remove_duplicate_labels(
+        ~duplicate_labels=
+          LabeledTuple.get_duplicate_labels(match_tup_label, tys2),
+        tys2,
+      );
+
     if (List.length(tys1) != List.length(tys2)) {
       None;
     } else {
       let* tys = ListUtil.map2_opt(join', tys1, tys2);
       let+ tys = OptUtil.sequence(tys);
       Prod(tys) |> temp;
-    }
+    };
   | (Prod(_), _) => None
   | (Sum(sm1), Sum(sm2)) =>
     let+ sm' = ConstructorMap.join(equal, join(~resolve, ctx), sm1, sm2);
@@ -1019,46 +1083,6 @@ and paren_pretty_print = typ =>
   } else {
     pretty_print(typ);
   };
-
-/**
- * Removes duplicate labels from a given list of types inside a tuple.
- *
- * This function takes a list of types and returns a new list with all
- * duplicate labels replaced with their first occurence and the unknown type.
- *
- * @param duplicate_labels - The list of duplicate labels.
- * @param tys - The list of types to remove duplicates from.
- * @return A new list of types with duplicates removed.
- */
-let remove_duplicate_labels =
-    (~duplicate_labels: list(LabeledTuple.label), tys: list(t)): list(t) => {
-  snd(
-    List.fold_left(
-      ((seen_duplicates, deduplicated_types), ty) => {
-        let tup_label = match_tup_label(ty);
-        switch (tup_label) {
-        | Some((l, _))
-            when
-              List.mem(l, duplicate_labels) && List.mem(l, seen_duplicates) => (
-            seen_duplicates,
-            deduplicated_types,
-          )
-        | Some((l, _)) when List.mem(l, duplicate_labels) => (
-            [l] @ seen_duplicates,
-            deduplicated_types
-            @ [
-              TupLabel(Label(l) |> temp, Unknown(Internal) |> temp) |> temp,
-            ],
-          )
-        | Some(_) => (seen_duplicates, deduplicated_types @ [ty])
-        | None => (seen_duplicates, deduplicated_types @ [ty])
-        };
-      },
-      ([], []),
-      tys,
-    ),
-  );
-};
 
 /**
  * Converts a list of types (`tys`) into a product type.
