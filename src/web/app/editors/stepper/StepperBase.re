@@ -1022,7 +1022,28 @@ and Stepper: {
                       inject(AddAxiomStep(name, idx, e1, dir, eq))
                     | AddAlgebriteStep(idx, e1, e2) =>
                       inject(AddAlgebriteStep(idx, e1, e2))
-                    | TakeStep(i) => inject(StepForward(i)),
+                    | TakeStep(i) => inject(StepForward(i))
+                    | Refl(i) => {
+                        let refl_exps =
+                          switch (model.step_kind) {
+                          | MissingStep(m) =>
+                            m.refls |> Calc.get_saved_exc(~print="refls")
+                          | _ => []
+                          };
+                        let from_exp = List.nth(refl_exps, i);
+                        inject(
+                          AddAxiomStep(
+                            "reflexivity",
+                            ProofHacks.exp_idx(
+                              from_exp,
+                              model.expr |> Calc.get_saved_exc(~print="expr"),
+                            ),
+                            from_exp,
+                            Direction.Right,
+                            "Reflexive(==)",
+                          ),
+                        );
+                      },
                   ~editor=model.editor |> Calc.get_saved_exc(~print="Editor"),
                   m,
                 )

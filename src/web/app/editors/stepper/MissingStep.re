@@ -334,7 +334,8 @@ module View = {
     | AddAxiomStep(string, int, Exp.t, Direction.t, string)
     | AddAlgebriteStep(int, Exp.t, Exp.t)
     | MakeActive(Selection.t)
-    | TakeStep(int);
+    | TakeStep(int)
+    | Refl(int);
 
   let get_segment_bounds = (~measured: Measured.t, segment: Segment.t) => {
     let* first_piece = ListUtil.hd_opt(segment);
@@ -428,6 +429,20 @@ module View = {
         | None => None
         };
 
+      let show_refl_button =
+        switch (
+          model.selected_exp |> Calc.get_saved_exc(~print="Selected Exp")
+        ) {
+        | Some(selected_exp) =>
+          List.find_index(
+            x => x == (selected_exp |> Exp.rep_id),
+            model.refls
+            |> Calc.get_saved_exc(~print="refls")
+            |> List.map(refl => refl |> Exp.rep_id),
+          )
+        | None => None
+        };
+
       let show_function_body_button = {
         Calc.get_saved_exc(model.selected_exp)
         == Some(Calc.get_saved_exc(model.full_exp))
@@ -446,6 +461,23 @@ module View = {
                 proof_button(
                   ~callback=Ui_effect.Many([signal(TakeStep(idx))]),
                   "Step",
+                ),
+              ]
+            }
+          )
+          @ (
+            switch (show_refl_button) {
+            | None => []
+            | Some(idx) => [
+                proof_button(
+                  ~callback=
+                    Ui_effect.Many([
+                      globals.inject_global(
+                        Set(Evaluation(ForceShowRecord)),
+                      ),
+                      signal(Refl(idx)),
+                    ]),
+                  "Reflexivity",
                 ),
               ]
             }
