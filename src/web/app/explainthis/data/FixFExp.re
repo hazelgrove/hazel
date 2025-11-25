@@ -34,13 +34,6 @@ let single = (~pat_id: Id.t, ~body_id: Id.t): Simple.t => {
   /* (E) Additional more concrete examples and associated explanations */
   examples: [
     {
-      sub_id: Fix1,
-      term: mk_example("fix x -> x + 1"),
-      message: {|
-              Tries to create the infinite expression (((...) + 1) + 1) + 1 but times out
-              |},
-    },
-    {
       sub_id: Fix2,
       term:
         mk_example(
