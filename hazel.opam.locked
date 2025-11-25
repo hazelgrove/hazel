@@ -62,6 +62,7 @@ depends: [
   "crunch" {= "4.0.0" & with-doc}
   "cryptokit" {= "1.16.1"}
   "csexp" {= "1.5.2"}
+  "csv" {= "2.4"}
   "ctypes" {= "0.23.0"}
   "ctypes-foreign" {= "0.23.0"}
   "diffable" {= "v0.16.0"}
@@ -151,6 +152,7 @@ depends: [
   "ppx_base" {= "v0.16.0"}
   "ppx_bench" {= "v0.16.0"}
   "ppx_bin_prot" {= "v0.16.0"}
+  "ppx_blob" {= "0.9.0"}
   "ppx_cold" {= "v0.16.0"}
   "ppx_compare" {= "v0.16.0"}
   "ppx_css" {= "v0.16.0"}

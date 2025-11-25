@@ -136,6 +136,16 @@ let prefixes = (s: string): list(string) => {
   };
 };
 
+// Removes double quotes from string and escapes newlines
+// Update once https://github.com/hazelgrove/hazel/issues/786 is done
+let sanitize_for_string_expression = (s: string): string => {
+  s |> replace(regexp("\""), _, "") |> replace(regexp("\n"), _, "\\n");
+};
+
+let sanitize_for_label = (s: string): string => {
+  s |> replace(regexp("`"), _, "");
+};
+
 // AI generated function
 // checks if 'sub' is a subsequence of 's'
 // (i.e., all characters of 'sub' appear in 's' in the same order, but not necessarily consecutively)
