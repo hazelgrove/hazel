@@ -243,11 +243,19 @@ let equality =
     | (Let(p1, e1, e2), Let(p2, e3, e4)) =>
       switch (pat'(p1, p2)) {
       | Some(alphas_exp') =>
-        exp(Alphas.combine(alphas_exp', alphas_exp), alphas_typ, e1, e3)
-        && exp(alphas_exp, alphas_typ, e2, e4)
+        exp(alphas_exp, alphas_typ, e1, e3)
+        && exp(Alphas.combine(alphas_exp', alphas_exp), alphas_typ, e2, e4)
       | None => false
       }
     | (Let(_, _, _), _) => false
+    | (Theorem(p1, e1, e2), Theorem(p2, e3, e4)) =>
+      switch (pat'(p1, p2)) {
+      | Some(alphas_exp') =>
+        exp(alphas_exp, alphas_typ, e1, e3)
+        && exp(Alphas.combine(alphas_exp', alphas_exp), alphas_typ, e2, e4)
+      | None => false
+      }
+    | (Theorem(_, _, _), _) => false
 
     // Forms with type binders
     | (TypFun(tp1, e1, _), TypFun(tp2, e2, _)) =>
@@ -265,6 +273,13 @@ let equality =
       | None => false
       }
     | (TyAlias(_, _, _), _) => false
+    | (Forall(p1, e1), Forall(p2, e2)) =>
+      switch (pat'(p1, p2)) {
+      | Some(alphas_exp') =>
+        exp(Alphas.combine(alphas_exp', alphas_exp), alphas_typ, e1, e2)
+      | None => false
+      }
+    | (Forall(_, _), _) => false
 
     // Forms with environments. (Note fix also has an environment and is handled above.)
     | (Closure(env1, e1), Closure(env2, e2)) when closures_by_id =>
@@ -375,6 +390,8 @@ let equality =
     | (ListConcat(e11, e12), ListConcat(e21, e22)) =>
       exp'(e11, e21) && exp'(e12, e22)
     | (ListConcat(_, _), _) => false
+    | (ProofObject(e1), ProofObject(e2)) => exp'(e1, e2)
+    | (ProofObject(_), _) => false
     };
   }
   and pat =
@@ -482,6 +499,7 @@ let equality =
       (alphas_exp: Alphas.t, alphas_typ: Alphas.t, t1: Typ.t, t2: Typ.t): bool => {
     // This function takes alphas_exp for the theorem keyword branches which have expressions in types.
     let any' = any(alphas_exp, alphas_typ);
+    let exp' = exp(alphas_exp, alphas_typ);
     let typ' = typ(alphas_exp, alphas_typ);
     let tpat' = tpat;
     switch (t1 |> Grammar.Annotated.term_of, t2 |> Grammar.Annotated.term_of) {
@@ -507,13 +525,13 @@ let equality =
       | None => false
       }
     | (Rec(_, _), _) => false
-    | (Forall(tp1, t1), Forall(tp2, t2)) =>
+    | (Poly(tp1, t1), Poly(tp2, t2)) =>
       switch (tpat'(tp1, tp2)) {
       | Some(alphas_typ') =>
         typ(alphas_exp, Alphas.combine(alphas_typ', alphas_typ), t1, t2)
       | None => false
       }
-    | (Forall(_, _), _) => false
+    | (Poly(_, _), _) => false
 
     // Type variables: special case depending on alpha equivalence.
     | (Var(x), Var(y)) =>
@@ -567,6 +585,8 @@ let equality =
     | (ProdExtension(t1, t2), ProdExtension(t1', t2')) =>
       typ'(t1, t1') && typ'(t2, t2')
     | (ProdExtension(_), _) => false
+    | (ProofOf(e1), ProofOf(e2)) => exp'(e1, e2)
+    | (ProofOf(_), _) => false
     };
   }
   and tpat = (tp1: TPat.t, tp2: TPat.t): option(Alphas.t) => {
