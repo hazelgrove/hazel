@@ -530,16 +530,14 @@ let rec status_pat = (ctx: Ctx.t, ty_ana: Typ.t, self: Self.pat): status_pat =>
       | InHole(
           Common(
             Inconsistent(Internal(_) | Expectation(_) | CompareFun(_)) |
-            NoType(_),
+            NoType(_) |
+            TupleLabelError(_),
           ) as err,
         ) =>
         Some(err)
       | NotInHole(_) => None
       | InHole(
-          Common(
-            DuplicateLabel(_) | TupleLabelError(_) |
-            Inconsistent(WithArrow(_)),
-          ) |
+          Common(DuplicateLabel(_) | Inconsistent(WithArrow(_))) |
           ExpectedConstructor |
           Redundant(_),
         ) =>
