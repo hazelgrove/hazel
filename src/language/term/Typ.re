@@ -509,7 +509,7 @@ let remove_duplicate_labels =
             deduplicated_types,
           )
         | Some((l, _)) when List.mem(l, duplicate_labels) => (
-            [l] @ seen_duplicates,
+            [l, ...seen_duplicates],
             deduplicated_types
             @ [
               TupLabel(Label(l) |> temp, Unknown(Internal) |> temp) |> temp,
