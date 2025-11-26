@@ -691,9 +691,7 @@ in 1|},
                   List.exists(
                     (==)(msg),
                     [
-                      "type application in dynamics", // https://github.com/hazelgrove/hazel/issues/1459?issue=hazelgrove%7Chazel%7C1625
-                      "normalize exceeded 1000 recursive calls", // https://github.com/hazelgrove/hazel/issues/1627
-                      "Type meet of ap" // https://github.com/hazelgrove/hazel/issues/1459?issue=hazelgrove%7Chazel%7C1625
+                      "normalize exceeded 1000 recursive calls" // https://github.com/hazelgrove/hazel/issues/1627
                     ],
                   ) =>
               print_endline("Known failure: " ++ Printexc.to_string(e));

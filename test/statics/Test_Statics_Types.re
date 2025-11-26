@@ -1,5 +1,5 @@
 open Test_Statics_Prelude;
-
+open Alcotest;
 let tests = (
   "Statics.Types",
   [
@@ -27,9 +27,24 @@ let tests = (
       "all_ctrs_of_type called with a non-normalized type", // https://github.com/hazelgrove/hazel/issues/1626
       {|fun (?: (Float((+ A(Bool))))) -> ""|},
     ),
-    skip_known_bug(
-      "Type meet of ap", // https://github.com/hazelgrove/hazel/issues/1459
-      "type x = Int(Float) in let y : x =  1",
+    test_case(
+      "Type parse failure",
+      `Quick,
+      () => {
+        open Language;
+        // This was https://github.com/hazelgrove/hazel/issues/1459 which used to crash statics
+        let exp = parse_exp("type x = Int(Float) in let y : x =  1");
+        let s = statics(exp);
+
+        let errors = Statics.Map.errors(s) |> List.map(snd);
+
+        check(
+          list(testable_error),
+          "Has parse failure error",
+          [Typ(ParseFailure)],
+          errors,
+        );
+      },
     ),
   ],
 );
