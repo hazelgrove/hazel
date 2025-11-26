@@ -671,7 +671,7 @@ in 1|},
       "let [(A: (Bool(Bool))), (_: (String))] = 0 in ()",
     ),
     skip_known_bug(
-      "Type join of ap", // TODO https://github.com/hazelgrove/hazel/issues/1625
+      "Type meet of ap", // TODO https://github.com/hazelgrove/hazel/issues/1625
       "type x = + B((poly x -> ?)(?)) in case a | B => 0| B => 0 end",
     ),
     QCheck_alcotest.to_alcotest(
@@ -691,9 +691,7 @@ in 1|},
                   List.exists(
                     (==)(msg),
                     [
-                      "type application in dynamics", // https://github.com/hazelgrove/hazel/issues/1459?issue=hazelgrove%7Chazel%7C1625
-                      "normalize exceeded 1000 recursive calls", // https://github.com/hazelgrove/hazel/issues/1627
-                      "Type join of ap" // https://github.com/hazelgrove/hazel/issues/1459?issue=hazelgrove%7Chazel%7C1625
+                      "normalize exceeded 1000 recursive calls" // https://github.com/hazelgrove/hazel/issues/1627
                     ],
                   ) =>
               print_endline("Known failure: " ++ Printexc.to_string(e));
