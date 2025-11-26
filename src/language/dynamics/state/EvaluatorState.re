@@ -1,5 +1,8 @@
+open Util;
+
 [@deriving (show({with_path: false}), sexp, yojson)]
 type t = {
+  theorems: list((Id.t, string, Environment.t(Exp.t), Exp.t)),
   tests: TestMap.t,
   probes: Dynamics.Probe.Map.t,
 };
@@ -8,16 +11,20 @@ type effect =
   | RecordTest(TestMap.instance_report)
   | RecordExpProbe(Probe.t)
   | RecordStackFrame
-  | RecordPatProbes(PatternMatch.closure_closures);
+  | RecordPatProbes(PatternMatch.closure_closures)
+  | RecordTheorem(Id.t, string, Environment.t(Exp.t), Exp.t);
 
 let init = {
   tests: TestMap.empty,
   probes: Dynamics.Probe.Map.empty,
+  theorems: [],
 };
 
 let get_tests = ({tests, _}) => tests;
 
 let get_probes = ({probes, _}) => probes;
+
+let get_theorems = ({theorems, _}) => theorems;
 
 let add_test = (state: t, instance_report: TestMap.instance_report) => {
   ...state,
@@ -30,6 +37,13 @@ let add_test = (state: t, instance_report: TestMap.instance_report) => {
 let add_closure = (state: t, closure: Dynamics.Probe.Closure.t) => {
   ...state,
   probes: Dynamics.Probe.Map.extend(closure.syntax_id, closure, state.probes),
+};
+
+let add_theorem = ({theorems, _} as es, id, name, env, goal) => {
+  {
+    ...es,
+    theorems: theorems |> List.append([(id, name, env, goal)]),
+  };
 };
 
 let update =
@@ -63,6 +77,10 @@ let update =
             closure_closures,
           );
         (call_stack, state);
+      | RecordTheorem(id, name, env, goal) => (
+          call_stack,
+          add_theorem(state, id, name, env, goal),
+        )
       },
     (call_stack, state),
     side_effects,

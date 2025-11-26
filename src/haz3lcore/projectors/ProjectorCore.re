@@ -26,7 +26,8 @@ module Kind = {
     | SliderF
     | Card
     | Livelit
-    | TextArea;
+    | TextArea
+    | Csv;
 
   let livelit_projectors: list(t) = [
     Checkbox,
@@ -35,6 +36,7 @@ module Kind = {
     TextArea,
     Card,
     Livelit,
+    Csv,
   ];
 
   let projectors: list(t) = livelit_projectors @ [Fold, Info, Probe];
@@ -53,6 +55,7 @@ module Kind = {
     | Card => "card"
     | Livelit => "livelit"
     | TextArea => "text"
+    | Csv => "csv"
     };
 
   module StringMap = Map.Make(String);

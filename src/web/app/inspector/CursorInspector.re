@@ -79,7 +79,7 @@ let elements_noun: Cls.t => string =
 let code_view_settings: Haz3lcore.ExpToSegment.Settings.t = {
   inline: true,
   fold_case_clauses: false,
-  fold_fn_bodies: false,
+  fold_fn_bodies: `NoFold,
   hide_fixpoints: false,
   show_filters: false,
   show_unknown_as_hole: true,
@@ -169,11 +169,6 @@ let common_err_view =
     | Inconsistent(CompareFun(ty)) => [
         text("values cannot be compared:"),
         view_type(ty),
-      ]
-    | Inconsistent(WithArrow(typ)) => [
-        text(":"),
-        view_type(typ) |> code_box_container,
-        text("inconsistent with arrow type"),
       ]
     | Inconsistent(Expectation({ana, syn})) =>
       switch (syn.term, ana.term) {
@@ -427,10 +422,6 @@ let typ_ok_view = (~globals, cls: Cls.t, ok: Info.ok_typ) => {
       text("is a sum type constuctor of type"),
       view_type(sum_ty),
     ]
-  | VariantIncomplete(sum_ty) => [
-      text("An incomplete sum type constuctor of type"),
-      view_type(sum_ty),
-    ]
   | TypeUnderdetermined(underdetermined) =>
     underdetermined_typ_view(~globals, underdetermined)
   };
@@ -636,6 +627,11 @@ let rec exp_view =
     ])
   | InHole(BadLivelitModel(_)) =>
     div_err([text("Bad internal livelit model")])
+  | InHole(BadTheorem(typ)) =>
+    div_err([
+      text("Theorem pattern is not of the form p : t, got "),
+      view_type(typ),
+    ])
   | NotInHole(AnaDeferralConsistent(ana)) =>
     div_ok([text("Expecting type"), view_type(ana)])
   | NotInHole(Common(ok)) =>

@@ -13,14 +13,14 @@ let join_tests = (
         let t =
           Typ.join(
             Builtins.ctx_init(Some(Int)),
-            Forall(Var("a") |> TPat.temp, Var("a") |> Typ.temp) |> Typ.temp,
-            Forall(Var("b") |> TPat.temp, Var("b") |> Typ.temp) |> Typ.temp,
+            Poly(Var("a") |> TPat.temp, Var("a") |> Typ.temp) |> Typ.temp,
+            Poly(Var("b") |> TPat.temp, Var("b") |> Typ.temp) |> Typ.temp,
           );
         check(
-          option(typ),
-          "Forall alpha equivalent",
+          option(testable(Fmt.using(Typ.show, Fmt.string), Typ.fast_equal)),
+          "Type all alpha equivalent",
           Some(
-            Forall(Var("a") |> TPat.temp, Var("a") |> Typ.temp) |> Typ.temp,
+            Poly(Var("a") |> TPat.temp, Var("a") |> Typ.temp) |> Typ.temp,
           ),
           t,
         );
@@ -175,20 +175,20 @@ let fast_equal_tests = (
       () => {
         check(
           bool,
-          "Forall alpha equivalent",
+          "Poly alpha equivalent",
           true,
           Typ.fast_equal(
-            Forall(Var("a") |> TPat.temp, Var("a") |> Typ.temp) |> Typ.temp,
-            Forall(Var("b") |> TPat.temp, Var("b") |> Typ.temp) |> Typ.temp,
+            Poly(Var("a") |> TPat.temp, Var("a") |> Typ.temp) |> Typ.temp,
+            Poly(Var("b") |> TPat.temp, Var("b") |> Typ.temp) |> Typ.temp,
           ),
         );
         check(
           bool,
-          "Forall non alpha equivalent",
+          "Poly non alpha equivalent",
           false,
           Equality.syntactic.typ(
-            Forall(Var("a") |> TPat.temp, Var("a") |> Typ.temp) |> Typ.temp,
-            Forall(Var("b") |> TPat.temp, Var("b") |> Typ.temp) |> Typ.temp,
+            Poly(Var("a") |> TPat.temp, Var("a") |> Typ.temp) |> Typ.temp,
+            Poly(Var("b") |> TPat.temp, Var("b") |> Typ.temp) |> Typ.temp,
           ),
         );
       },
