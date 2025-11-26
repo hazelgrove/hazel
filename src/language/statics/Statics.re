@@ -1909,8 +1909,8 @@ and upat_to_info_map =
       let fn_ana = Arrow(syn, ana) |> Typ.temp;
       let (fn', m) = go(~ctx, ~ana=fn_ana, fn, m);
       let m = {
-        switch (fn |> Pat.term_of) {
-        | Constructor(_) => m
+        switch (ctr) {
+        | Some(_) => m
         | _ =>
           let info =
             Info.derived_pat(

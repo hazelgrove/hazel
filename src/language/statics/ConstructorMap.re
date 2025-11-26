@@ -9,27 +9,6 @@ type variant('a) =
 [@deriving (show({with_path: false}), sexp, yojson)]
 type t('a) = list(variant('a));
 
-let mk =
-    (
-      ~mk_bad: (Constructor.t, list(Id.t), option('a)) => 'a,
-      with_duplicates: list(variant('a)),
-    )
-    : t('a) => {
-  let rec go = (xs, seen: list(Constructor.t)) => {
-    switch (xs) {
-    | [] => []
-    | [BadEntry(x), ...xs] => [BadEntry(x), ...go(xs, seen)]
-    | [Variant(ctr, ids, value), ...xs] =>
-      if (List.mem(ctr, seen)) {
-        [BadEntry(mk_bad(ctr, ids, value)), ...go(xs, seen)];
-      } else {
-        [Variant(ctr, ids, value), ...go(xs, List.cons(ctr, seen))];
-      }
-    };
-  };
-  go(with_duplicates, []);
-};
-
 let equal_constructor =
     (eq: ('a, 'a) => bool, x: variant('a), y: variant('a)): bool =>
   switch (x, y) {

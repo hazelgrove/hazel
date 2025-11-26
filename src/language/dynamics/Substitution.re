@@ -23,9 +23,6 @@
 let rec in_exp = (env: Environment.t(Exp.t), exp: Exp.t) =>
   Exp.map_term(
     ~f_typ=_ => in_typ(env),
-    ~f_pat=
-      (_, _) =>
-        failwith("patterns should be handled separately in substitution"),
     ~f_exp=
       (cont, e) => {
         let (term, rewrap) = Exp.unwrap(e);
