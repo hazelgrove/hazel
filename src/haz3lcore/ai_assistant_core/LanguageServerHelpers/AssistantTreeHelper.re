@@ -596,6 +596,60 @@ module HighLevelNodeMap = {
     String.split_on_char('/', path);
   };
 
+  /* Compute edit distance between two lists of strings using the Levenshtein algorithm */
+  let levenshtein_list_distance = (a: list(string), b: list(string)): int => {
+    let a_len = List.length(a);
+    let b_len = List.length(b);
+    /* Fast-paths */
+    if (a_len == 0) {
+      b_len;
+    } else if (b_len == 0) {
+      a_len;
+    } else {
+      let a_arr = Array.of_list(a);
+      let b_arr = Array.of_list(b);
+      let prev = Array.init(b_len + 1, i => i);
+      let curr = Array.make(b_len + 1, 0);
+
+      let min3 = (x, y, z) => {
+        let m =
+          if (x < y) {
+            x;
+          } else {
+            y;
+          };
+        if (m < z) {
+          m;
+        } else {
+          z;
+        };
+      };
+
+      for (i in 1 to a_len) {
+        curr[0] = i;
+        let ai = a_arr[i - 1];
+        for (j in 1 to b_len) {
+          let bj = b_arr[j - 1];
+          let cost =
+            if (ai == bj) {
+              0;
+            } else {
+              1;
+            };
+          let deletion = prev[j] + 1;
+          let insertion = curr[j - 1] + 1;
+          let substitution = prev[j - 1] + cost;
+          curr[j] = min3(deletion, insertion, substitution);
+        };
+        /* copy curr into prev for next iteration */
+        for (k in 0 to b_len) {
+          prev[k] = curr[k];
+        };
+      };
+      prev[b_len];
+    };
+  };
+
   let id_path_to_name_path =
       (id_path: list(Id.t), node_map: t): list(string) => {
     List.map((id: Id.t) => id_to_name(node_map, id), id_path);
@@ -616,6 +670,61 @@ module HighLevelNodeMap = {
        );
   };
 
+  let closest_valid_path_to_ill_path = (node_map: t, path: string): string => {
+    // Returns the most similar name of a node in the tree to the given ill-formed path
+    // This uses the levenshtein distance to find the closest match
+    let path_names = split_path(path);
+
+    /* Helper to compute distance between a candidate node's name-path and the input */
+    let distance_for_node = (node: node): int => {
+      let candidate_names = id_path_to_name_path(node.path, node_map);
+      levenshtein_list_distance(path_names, candidate_names);
+    };
+
+    /* Iterate over the map to find the minimum distance candidate */
+    switch (Id.Map.bindings(node_map)) {
+    | [] =>
+      raise(Failure("No nodes to compare when searching for closest path"))
+    | bindings =>
+      /* fold to find (best_id, best_node, best_distance) */
+      let (first_id, first_node) = List.hd(bindings);
+      let initial_acc = (
+        first_id,
+        first_node,
+        distance_for_node(first_node),
+      );
+
+      let (best_id, _best_node, _best_dist) =
+        List.fold_left(
+          ((acc_id, acc_node, acc_d), (id, node)) => {
+            let d = distance_for_node(node);
+            if (d < acc_d) {
+              (id, node, d);
+            } else if (d == acc_d) {
+              /* Tie-breaker: prefer shorter candidate path (fewer segments)
+                 which tends to yield simpler / more specific matches */
+              if (List.length(node.path) < List.length(acc_node.path)) {
+                (id, node, d);
+              } else {
+                (acc_id, acc_node, acc_d);
+              };
+            } else {
+              (acc_id, acc_node, acc_d);
+            };
+          },
+          /* initial accumulator is the first binding */
+          initial_acc,
+          List.tl(bindings),
+        );
+
+      let path = find(node_map, best_id).path;
+      String.concat(
+        "/",
+        List.map((id: Id.t) => id_to_name(node_map, id), path),
+      );
+    };
+  };
+
   let path_to_id = (node_map: t, path: string): Id.t => {
     let path_names = split_path(path);
     // Convert each node's path (list of Ids) to a list of names and compare
@@ -633,7 +742,17 @@ module HighLevelNodeMap = {
            ),
       )
     ) {
-    | _ => raise(Failure("Path \"" ++ path ++ "\" not found in node map"))
+    | _ =>
+      raise(
+        Failure(
+          "Path \""
+          ++ path
+          ++ "\" not found in node map"
+          ++ "\nPerhaps you meant \"["
+          ++ closest_valid_path_to_ill_path(node_map, path)
+          ++ "]\"?",
+        ),
+      )
     };
   };
 
