@@ -115,7 +115,7 @@ let tests = (
         parse_and_evaluate_test(
           {|(1,1)|},
           {|let dub = typfun T -> fun x : T -> (x, x) : (T, T) in
-          let ascribed = dub : forall a -> a -> (a, a) in
+          let ascribed = dub : poly a -> a -> (a, a) in
           ascribed@<Int>(1)|},
         );
       },

@@ -1,5 +1,8 @@
+open Util;
+
 [@deriving (show({with_path: false}), sexp, yojson)]
 type t = {
+  theorems: list((Id.t, string, Environment.t(Exp.t), Exp.t)),
   tests: TestMap.t,
   probes: Dynamics.Probe.Map.t,
   type_insts: Dynamics.TypeInstMap.t,
@@ -10,12 +13,14 @@ type effect =
   | RecordExpProbe(Probe.t)
   | RecordStackFrame
   | RecordPatProbes(PatternMatch.closure_closures)
-  | RecordTypeInstantiation(Probe.call_stack => Dynamics.TypeInstantiation.t);
+  | RecordTypeInstantiation(Probe.call_stack => Dynamics.TypeInstantiation.t)
+  | RecordTheorem(Id.t, string, Environment.t(Exp.t), Exp.t);
 
 let init = {
   tests: TestMap.empty,
   probes: Dynamics.Probe.Map.empty,
   type_insts: Dynamics.TypeInstMap.empty,
+  theorems: [],
 };
 
 let get_tests = ({tests, _}) => tests;
@@ -23,6 +28,7 @@ let get_tests = ({tests, _}) => tests;
 let get_probes = ({probes, _}) => probes;
 
 let get_type_insts = ({type_insts, _}) => type_insts;
+let get_theorems = ({theorems, _}) => theorems;
 
 let add_test = (state: t, instance_report: TestMap.instance_report) => {
   ...state,
@@ -42,6 +48,12 @@ let add_type_inst = (state: t, inst: Dynamics.TypeInstantiation.t) => {
   ...state,
   type_insts:
     Dynamics.TypeInstMap.extend(inst.tpat_id, inst, state.type_insts),
+};
+let add_theorem = ({theorems, _} as es, id, name, env, goal) => {
+  {
+    ...es,
+    theorems: theorems |> List.append([(id, name, env, goal)]),
+  };
 };
 
 let update =
@@ -78,6 +90,10 @@ let update =
       | RecordTypeInstantiation(type_inst_closure) => (
           call_stack,
           add_type_inst(state, type_inst_closure(call_stack)),
+        )
+      | RecordTheorem(id, name, env, goal) => (
+          call_stack,
+          add_theorem(state, id, name, env, goal),
         )
       },
     (call_stack, state),

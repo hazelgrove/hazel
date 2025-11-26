@@ -195,6 +195,7 @@ let skip_known_bug = (message: string, expression: string) =>
     }
   });
 
+// FactoryInfoError
 module FIError =
   Grammar.Factory({
     type t = option(Info.error);

@@ -700,18 +700,18 @@ let builtins =
       },
     },
     {
-      str: {|fix hd -> fun xs -> case xs
-             | [] => error("hd: empty list")
+      str: {|fix head -> fun xs -> case xs
+             | [] => error("head: empty list")
              | x :: _ => x
            end|},
-      name: "hd",
+      name: "head",
       arg: List(unknown(Internal)),
       ret: Unknown(Internal),
       imp: {
         Fresh.(
           Exp.(
             fix_f(
-              Pat.var("hd"),
+              Pat.var("head"),
               fn(
                 Pat.var("xs"),
                 match(
@@ -721,7 +721,7 @@ let builtins =
                     (Pat.cons(Pat.var("x"), Pat.wild()), var("x")),
                   ],
                 ),
-                ~name="hd+",
+                ~name="head+",
               ),
               None,
             )
@@ -730,18 +730,18 @@ let builtins =
       },
     },
     {
-      str: {|fix tl -> fun xs -> case xs
-             | [] => error("tl: empty list")
+      str: {|fix tail -> fun xs -> case xs
+             | [] => error("tail: empty list")
              | _ :: xs => xs
            end|},
-      name: "tl",
+      name: "tail",
       arg: List(unknown(Internal)),
       ret: List(unknown(Internal)),
       imp: {
         Fresh.(
           Exp.(
             fix_f(
-              Pat.var("tl"),
+              Pat.var("tail"),
               fn(
                 Pat.var("xs"),
                 match(
@@ -751,7 +751,7 @@ let builtins =
                     (Pat.cons(Pat.wild(), Pat.var("xs")), var("xs")),
                   ],
                 ),
-                ~name="tl+",
+                ~name="tail+",
               ),
               None,
             )

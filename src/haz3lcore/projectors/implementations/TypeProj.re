@@ -49,7 +49,7 @@ let get_dynamic_typ = (info: info): Typ.t => {
 
            Option.bind(
              types,
-             Typ.join_all(~empty=Typ.fresh(Unknown(Internal)), Ctx.empty),
+             Typ.meet_all(~empty=Typ.fresh(Unknown(Internal)), Ctx.empty),
            );
          },
        )

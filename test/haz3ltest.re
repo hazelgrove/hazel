@@ -16,6 +16,7 @@ let (suite, _) =
     [
       Test_ListUtil.tests,
       Test_OptUtil.tests,
+      Test_CsvUtil.tests,
       Test_Grammar.tests,
       Test_ExpToSegment.tests,
       Test_LabeledTuple.tests,
@@ -24,6 +25,8 @@ let (suite, _) =
       Test_StringUtil.tests,
       Test_PatternMatch.tests,
       Test_WriterMonad.tests,
+      Test_Equality.tests,
+      Test_Substitution.tests,
     ]
     @ Test_Typ.tests
     @ Test_Info.tests

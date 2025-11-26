@@ -25,21 +25,13 @@ let single = (~pat_id: Id.t, ~body_id: Id.t): Simple.t => {
   /* (D) The explanation which will appear in the sidebar below the abstract */
   explanation:
     Printf.sprintf(
-      "Recursively replaces all occurences of the [*pattern*](%s) inside the [*body*](%s) with the entire [*body*](%s) itself, effectively creating an infinite expression. Unless [*pattern*](%s) is a function, it is likely to evaluate forever.",
+      "Recursively replaces all occurences of the [*pattern*](%s) inside the [*body*](%s) with the entire fixpoint itself, effectively creating an infinite expression. Unless [*body*](%s) is a function, it is likely to evaluate forever.",
       pat_id |> Id.to_string,
       body_id |> Id.to_string,
       body_id |> Id.to_string,
-      pat_id |> Id.to_string,
     ),
   /* (E) Additional more concrete examples and associated explanations */
   examples: [
-    {
-      sub_id: Fix1,
-      term: mk_example("fix x -> x + 1"),
-      message: {|
-              Tries to create the infinite expression (((...) + 1) + 1) + 1 but times out
-              |},
-    },
     {
       sub_id: Fix2,
       term:

@@ -3,35 +3,35 @@ open Language;
 
 let typ = testable(Fmt.using(Typ.show, Fmt.string), Typ.fast_equal);
 
-let join_tests = (
-  "Typ.join",
+let meet_tests = (
+  "Typ.meet",
   IdTagged.FreshGrammar.Typ.[
     test_case(
-      "Typ join on polymorphic types",
+      "Typ meet on polymorphic types",
       `Quick,
       () => {
         let t =
-          Typ.join(
+          Typ.meet(
             Builtins.ctx_init(Some(Int)),
-            Forall(Var("a") |> TPat.temp, Var("a") |> Typ.temp) |> Typ.temp,
-            Forall(Var("b") |> TPat.temp, Var("b") |> Typ.temp) |> Typ.temp,
+            Poly(Var("a") |> TPat.temp, Var("a") |> Typ.temp) |> Typ.temp,
+            Poly(Var("b") |> TPat.temp, Var("b") |> Typ.temp) |> Typ.temp,
           );
         check(
-          option(typ),
-          "Forall alpha equivalent",
+          option(testable(Fmt.using(Typ.show, Fmt.string), Typ.fast_equal)),
+          "Type all alpha equivalent",
           Some(
-            Forall(Var("a") |> TPat.temp, Var("a") |> Typ.temp) |> Typ.temp,
+            Poly(Var("a") |> TPat.temp, Var("a") |> Typ.temp) |> Typ.temp,
           ),
           t,
         );
       },
     ),
     test_case(
-      "Typ join on product projection with fully known types",
+      "Typ meet on product projection with fully known types",
       `Quick,
       () => {
         let t =
-          Typ.join(
+          Typ.meet(
             Builtins.ctx_init(None),
             int(),
             prod_projection(
@@ -42,33 +42,33 @@ let join_tests = (
               label("a"),
             ),
           );
-        check(option(typ), "Joined product projections", Some(int()), t);
+        check(option(typ), "Meet product projections", Some(int()), t);
       },
     ),
     test_case(
-      "Typ join on product projection with unknown types",
+      "Typ meet on product projection with unknown types",
       `Quick,
       () => {
         let t =
-          Typ.join(
+          Typ.meet(
             Builtins.ctx_init(None),
             int(),
             prod_projection(unknown(Internal), label("a")),
           );
         check(
           option(typ),
-          "Joined product projections with unknown",
+          "Meet product projections with unknown",
           Some(int()),
           t,
         );
       },
     ),
     test_case(
-      "Typ join on product projection with unknown label",
+      "Typ meet on product projection with unknown label",
       `Quick,
       () => {
         let t =
-          Typ.join(
+          Typ.meet(
             Builtins.ctx_init(None),
             int(),
             prod_projection(
@@ -81,18 +81,18 @@ let join_tests = (
           );
         check(
           option(typ),
-          "Joined product projections with unknown label",
+          "Meet product projections with unknown label",
           Some(int()),
           t,
         );
       },
     ),
     test_case(
-      "Typ join on product extension with fully known extension types",
+      "Typ meet on product extension with fully known extension types",
       `Quick,
       () => {
         let t =
-          Typ.join(
+          Typ.meet(
             Builtins.ctx_init(None),
             prod_extension(
               prod([
@@ -116,7 +116,7 @@ let join_tests = (
           );
         check(
           option(typ),
-          "Joined product extensions",
+          "Meet product extensions",
           Some(
             prod([
               tup_label(label("a"), int()),
@@ -131,11 +131,11 @@ let join_tests = (
       },
     ),
     test_case(
-      "Typ join on two product extensions with known extension types",
+      "Typ meet on two product extensions with known extension types",
       `Quick,
       () => {
         let t =
-          Typ.join(
+          Typ.meet(
             Builtins.ctx_init(None),
             prod_extension(
               prod([
@@ -151,7 +151,7 @@ let join_tests = (
           );
         check(
           option(typ),
-          "Joined product extensions",
+          "Meet product extensions",
           Some(
             prod([
               tup_label(label("a"), int()),
@@ -167,10 +167,10 @@ let join_tests = (
 );
 
 // TODO We want this property but it's not currently passing for forall and rec types so it's not included below
-let meet_precision_property =
+let join_precision_property =
   QCheck_alcotest.to_alcotest(
     QCheck.Test.make(
-      ~name="Typ.meet is less precise than inputs",
+      ~name="Typ.join is less precise than inputs",
       ~count=100000,
       QCheck.(
         QCheck_Util.(
@@ -182,30 +182,30 @@ let meet_precision_property =
       ),
       ((t1, t2)) => {
         let ctx = Builtins.ctx_init(Some(Int));
-        let m = Typ.meet(ctx, t1, t2);
+        let m = Typ.join(ctx, t1, t2);
         Typ.is_more_precise(ctx, Typ.normalize(ctx, t1), m)
         && Typ.is_more_precise(ctx, Typ.normalize(ctx, t2), m);
       },
     ),
   );
 
-let meet_tests = (
-  "Typ.meet",
+let join_tests = (
+  "Typ.join",
   IdTagged.FreshGrammar.Typ.[
     test_case(
       "equal atomic types",
       `Quick,
       () => {
-        let t = Typ.meet(Builtins.ctx_init(None), int(), int());
-        check(typ, "Meet of equal atomic types", int(), t);
+        let t = Typ.join(Builtins.ctx_init(None), int(), int());
+        check(typ, "join of equal atomic types", int(), t);
       },
     ),
     test_case(
       "Unknown and atomic type",
       `Quick,
       () => {
-        let t = Typ.meet(Builtins.ctx_init(None), unknown(Internal), int());
-        check(typ, "Meet of Unknown and atomic type", unknown(Internal), t);
+        let t = Typ.join(Builtins.ctx_init(None), unknown(Internal), int());
+        check(typ, "join of Unknown and atomic type", unknown(Internal), t);
       },
     ),
     test_case(
@@ -213,7 +213,7 @@ let meet_tests = (
       `Quick,
       () => {
         let t =
-          Typ.meet(
+          Typ.join(
             Builtins.ctx_init(None),
             sum([
               Variant("A", [], Some(int())),
@@ -226,7 +226,7 @@ let meet_tests = (
           );
         check(
           typ,
-          "Meet of sum types with same variants",
+          "Join of sum types with same variants",
           sum([
             Variant("A", [], Some(int())),
             Variant("B", [], Some(bool())),
@@ -239,8 +239,8 @@ let meet_tests = (
       "Unbound variables",
       `Quick,
       () => {
-        let t = Typ.meet(Builtins.ctx_init(None), var("a"), var("b"));
-        check(typ, "Meet of unbound variables", unknown(Internal), t);
+        let t = Typ.join(Builtins.ctx_init(None), var("a"), var("b"));
+        check(typ, "Join of unbound variables", unknown(Internal), t);
       },
     ),
   ],
@@ -255,20 +255,20 @@ let fast_equal_tests = (
       () => {
         check(
           bool,
-          "Forall alpha equivalent",
+          "Poly alpha equivalent",
           true,
           Typ.fast_equal(
-            Forall(Var("a") |> TPat.temp, Var("a") |> Typ.temp) |> Typ.temp,
-            Forall(Var("b") |> TPat.temp, Var("b") |> Typ.temp) |> Typ.temp,
+            Poly(Var("a") |> TPat.temp, Var("a") |> Typ.temp) |> Typ.temp,
+            Poly(Var("b") |> TPat.temp, Var("b") |> Typ.temp) |> Typ.temp,
           ),
         );
         check(
           bool,
-          "Forall non alpha equivalent",
+          "Poly non alpha equivalent",
           false,
           Equality.syntactic.typ(
-            Forall(Var("a") |> TPat.temp, Var("a") |> Typ.temp) |> Typ.temp,
-            Forall(Var("b") |> TPat.temp, Var("b") |> Typ.temp) |> Typ.temp,
+            Poly(Var("a") |> TPat.temp, Var("a") |> Typ.temp) |> Typ.temp,
+            Poly(Var("b") |> TPat.temp, Var("b") |> Typ.temp) |> Typ.temp,
           ),
         );
       },

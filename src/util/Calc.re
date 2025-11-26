@@ -18,6 +18,18 @@ let combine = (x: t('a), y: t('b)): t(('a, 'b)) =>
     NewValue((x, y))
   };
 
+let combine_list = (xs: list(t('a))): t(list('a)) =>
+  List.fold_left(
+    (acc, x) =>
+      switch (acc, x) {
+      | (OldValue(acc), OldValue(x)) => OldValue([x, ...acc])
+      | (OldValue(acc) | NewValue(acc), OldValue(x) | NewValue(x)) =>
+        NewValue([x, ...acc])
+      },
+    OldValue([]),
+    xs |> List.rev,
+  );
+
 let make_old = (x: t('a)): t('a) =>
   switch (x) {
   | OldValue(x)
@@ -53,6 +65,12 @@ let map = (x: t('a), f: 'a => 'b): t('b) =>
   switch (x) {
   | OldValue(x) => OldValue(f(x))
   | NewValue(x) => NewValue(f(x))
+  };
+
+let old_if_same = (~eq: ('a, 'a) => bool=(==), x: 'a, y: t('a)): t('a) =>
+  switch (y) {
+  | NewValue(y) when eq(x, y) => OldValue(x)
+  | _ => NewValue(x)
   };
 
 // ================================================================================
@@ -95,6 +113,15 @@ let saved_pair = ((x: saved('a), y: saved('b))): saved(('a, 'b)) =>
   | (Pending, _)
   | (_, Pending) => Pending
   | (Calculated(x), Calculated(y)) => Calculated((x, y))
+  };
+
+let saved_3 =
+    ((x: saved('a), y: saved('b), z: saved('c))): saved(('a, 'b, 'c)) =>
+  switch (x, y, z) {
+  | (Pending, _, _)
+  | (_, Pending, _)
+  | (_, _, Pending) => Pending
+  | (Calculated(x), Calculated(y), Calculated(z)) => Calculated((x, y, z))
   };
 
 /* Using update, we can make a value of saved('a) that recalculates whenever
@@ -141,6 +168,14 @@ let saved_to_option = get_saved_opt;
 // ================================================================================
 // Helper functions:
 
+let old_if_same' =
+    (~eq: ('a, 'a) => bool=(==), x: saved('a), y: t('a)): t('a) =>
+  switch (y, x) {
+  | (NewValue(y), Calculated(x)) when eq(y, x) => OldValue(y)
+  | (NewValue(y), _) => NewValue(y)
+  | (OldValue(y), _) => OldValue(y)
+  };
+
 let to_option = (x: t(option('a))): option(t('a)) => {
   switch (x) {
   | OldValue(Some(x)) => Some(OldValue(x))
@@ -157,12 +192,12 @@ let to_pair = (x: t(('a, 'b))): (t('a), t('b)) => {
   };
 };
 
-let pair_saved = (x: saved('a), y: saved('b)): saved(('a, 'b)) =>
-  switch (x, y) {
-  | (Pending, _)
-  | (_, Pending) => Pending
-  | (Calculated(x), Calculated(y)) => Calculated((x, y))
+let to_3 = (x: t(('a, 'b, 'c))): (t('a), t('b), t('c)) => {
+  switch (x) {
+  | OldValue((x, y, z)) => (OldValue(x), OldValue(y), OldValue(z))
+  | NewValue((x, y, z)) => (NewValue(x), NewValue(y), NewValue(z))
   };
+};
 
 module Syntax = {
   let (let.calc) = update;

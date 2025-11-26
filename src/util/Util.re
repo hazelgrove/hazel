@@ -10,6 +10,7 @@ module MapUtil = MapUtil;
 module Monads = Monads;
 module OptUtil = OptUtil;
 module PairUtil = PairUtil;
+module CsvUtil = CsvUtil;
 module Result = Result;
 module StateMonad = StateMonad;
 module WriterMonad = WriterMonad;

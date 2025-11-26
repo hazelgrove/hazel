@@ -37,8 +37,7 @@ module Probe = {
       | Fun(_)
       | FixF(_)
       | Closure(_) => Opaque
-      | _ =>
-        Val(d |> DHExp.strip_ascriptions |> Exp.substitute_closures(env))
+      | _ => Val(d |> DHExp.strip_ascriptions |> Substitution.in_exp(env))
       };
 
     let mk_entry = (env: Environment.t(Exp.t), {name, id, _}: Binding.t) =>
@@ -228,11 +227,13 @@ type t = {
   probe_map: Probe.Map.t,
   type_inst_map: TypeInstMap.t,
   test_results: TestResults.t,
+  theorems: list((Id.t, string, Environment.t(Exp.t), Exp.t)),
 };
 
 let empty: t = {
   probe_map: Probe.Map.empty,
   type_inst_map: TypeInstMap.empty,
+  theorems: [],
   test_results: {
     test_map: [],
     statuses: [],
@@ -251,5 +252,6 @@ let filter_all_by_pin = (pinned_call: option(list(Id.t)), dyn: t): t => {
     type_inst_map:
       TypeInstMap.filter_all_by_pin(pinned_call, dyn.type_inst_map),
     test_results: dyn.test_results,
+    theorems: dyn.theorems,
   };
 };
