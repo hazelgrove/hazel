@@ -249,313 +249,6 @@ module TodoListUtils = {
   type todo_action_result =
     | Success(Model.t, string)
     | Failure(string);
-
-  let mk_active_task_message =
-      (active_task: option(CompositionModel.active_task)): Model.message => {
-    let string_of_todo_list =
-      CompositionModel.active_task_to_string(active_task);
-    {
-      content: Some(OpenRouter.mk_user_msg(string_of_todo_list)),
-      display: Some(Model.mk_message_display(~content=string_of_todo_list)),
-      role: System(TodoList),
-      sketch_snapshot: None // Some(editor), todo: figure out how to serialize editor
-    };
-  };
-
-  let find_todo_item =
-      (todo_list: CompositionModel.todo_list, todo_item_name: string)
-      : option(CompositionModel.todo_item) => {
-    // Finds the todo item with the given name
-    List.find_opt(
-      (todo_item: CompositionModel.todo_item) =>
-        todo_item.title == todo_item_name,
-      todo_list.items,
-    );
-  };
-
-  let update_todo_item =
-      (
-        todo_list: CompositionModel.todo_list,
-        updated_item: CompositionModel.todo_item,
-      )
-      : CompositionModel.todo_list => {
-    let updated_items =
-      List.map(
-        (item: CompositionModel.todo_item) =>
-          item.title == updated_item.title ? updated_item : item,
-        todo_list.items,
-      );
-    {
-      ...todo_list,
-      items: updated_items,
-      last_updated: JsUtil.timestamp(),
-    };
-  };
-
-  let filter_out_todo_list =
-      (messages: list(Model.message)): list(Model.message) => {
-    List.filter(
-      (message: Model.message) => {message.role != System(TodoList)},
-      messages,
-    );
-  };
-
-  let set_todo_item_completeness =
-      (
-        completion_summary: option(string),
-        todo_list: CompositionModel.todo_list,
-        todo_item_name: string,
-      )
-      : CompositionModel.todo_item => {
-    switch (find_todo_item(todo_list, todo_item_name)) {
-    | Some(todo_item) => {
-        ...todo_item,
-        task_completion_info: {
-          switch (completion_summary) {
-          | Some(summary) => Some({summary: summary})
-          | None => None
-          };
-        },
-      }
-    | None =>
-      raise(
-        Failure(
-          "Todo item \""
-          ++ todo_item_name
-          ++ "\" not found in the currently active todo list",
-        ),
-      )
-    };
-  };
-
-  let expand_todo_item =
-      (todo_list: CompositionModel.todo_list, todo_item_name: string)
-      : CompositionModel.todo_item => {
-    switch (find_todo_item(todo_list, todo_item_name)) {
-    | Some(todo_item) => {
-        ...todo_item,
-        expanded: !todo_item.expanded,
-      }
-    | None =>
-      raise(
-        Failure(
-          "Todo item \""
-          ++ todo_item_name
-          ++ "\" not found in the currently active todo list",
-        ),
-      )
-    };
-  };
-
-  let todo_dispatch =
-      (
-        ~action: AssistantUpdateAction.todo_action,
-        ~chat_id: Id.t,
-        ~model: Model.t,
-        ~schedule_tool_response: AssistantUpdateAction.status => unit,
-      )
-      : Model.t => {
-    let curr_chat =
-      OptUtil.get_or_fail(
-        "Failed to find the current chat",
-        Id.Map.find_opt(chat_id, model.chat_history.past_composition_chats),
-      );
-    let mode = AssistantSettings.Composition;
-    let res: todo_action_result =
-      switch (action) {
-      | NewTodoList(todo_list) =>
-        try({
-          let new_model =
-            update_model_chat_history(
-              ~model,
-              ~mode,
-              ~updated_chat={
-                ...curr_chat,
-                composition_model:
-                  CompositionModel.update_active_todo_list(
-                    ~model=curr_chat.composition_model,
-                    ~new_todo_list=todo_list,
-                  ),
-              },
-              ~awaiting_response=false,
-            );
-          Success(new_model, "Todo list updated");
-        }) {
-        | _ => Failure("Failed to update the todo list")
-        }
-      | ArchiveActiveTodoList =>
-        try({
-          let new_model =
-            update_model_chat_history(
-              ~model,
-              ~mode,
-              ~updated_chat={
-                ...curr_chat,
-                composition_model:
-                  CompositionModel.remove_active_todo_list(
-                    curr_chat.composition_model,
-                  ),
-              },
-              ~awaiting_response=false,
-            );
-          Success(new_model, "Todo list deleted");
-        }) {
-        | _ => Failure("Failed to delete the todo list")
-        }
-      | AddTodoItems(todo_items) =>
-        try({
-          let new_todo_list =
-            switch (curr_chat.composition_model.active_task) {
-            | Some(active_task) => {
-                ...active_task.active_todo_list,
-                items: active_task.active_todo_list.items @ todo_items,
-                last_updated: JsUtil.timestamp(),
-              }
-            | None => raise(Failure("No active todo list to add items to"))
-            };
-          let new_model =
-            update_model_chat_history(
-              ~model,
-              ~mode,
-              ~updated_chat={
-                ...curr_chat,
-                composition_model:
-                  CompositionModel.update_active_todo_list(
-                    ~model=curr_chat.composition_model,
-                    ~new_todo_list,
-                  ),
-              },
-              ~awaiting_response=false,
-            );
-          Success(new_model, "Todo items added");
-        }) {
-        | Failure(s: string) => Failure(s)
-        }
-      | MarkTodoItemComplete(title, summary) =>
-        switch (curr_chat.composition_model.active_task) {
-        | Some(active_task) =>
-          try({
-            let new_todo_item =
-              set_todo_item_completeness(
-                Some(summary),
-                active_task.active_todo_list,
-                title,
-              );
-            let new_todo_list =
-              update_todo_item(active_task.active_todo_list, new_todo_item);
-            let new_model =
-              update_model_chat_history(
-                ~model,
-                ~mode,
-                ~updated_chat={
-                  ...curr_chat,
-                  composition_model:
-                    CompositionModel.update_active_todo_list(
-                      ~model=curr_chat.composition_model,
-                      ~new_todo_list,
-                    ),
-                },
-                ~awaiting_response=false,
-              );
-            Success(new_model, "Todo items checked");
-          }) {
-          | Failure(s: string) => Failure(s)
-          }
-        | None => Failure("No todo list exists")
-        }
-      | MarkTodoItemIncomplete(title) =>
-        switch (curr_chat.composition_model.active_task) {
-        | Some(active_task) =>
-          try({
-            let new_todo_item =
-              set_todo_item_completeness(
-                None,
-                active_task.active_todo_list,
-                title,
-              );
-            let new_todo_list =
-              update_todo_item(active_task.active_todo_list, new_todo_item);
-            let new_model =
-              update_model_chat_history(
-                ~model,
-                ~mode,
-                ~updated_chat={
-                  ...curr_chat,
-                  composition_model:
-                    CompositionModel.update_active_todo_list(
-                      ~model=curr_chat.composition_model,
-                      ~new_todo_list,
-                    ),
-                },
-                ~awaiting_response=false,
-              );
-            Success(new_model, "Todo items checked");
-          }) {
-          | Failure(s: string) => Failure(s)
-          }
-        | None => Failure("No todo list exists")
-        }
-      | SetActiveTodoItem(title) =>
-        switch (curr_chat.composition_model.active_task) {
-        | Some(active_task) =>
-          try({
-            let todo_item =
-              find_todo_item(active_task.active_todo_list, title)
-              |> OptUtil.get_or_fail("Todo item not found.");
-            let new_model =
-              update_model_chat_history(
-                ~model,
-                ~mode,
-                ~updated_chat={
-                  ...curr_chat,
-                  composition_model:
-                    CompositionModel.change_active_todo_item(
-                      ~model=curr_chat.composition_model,
-                      ~new_active_todo=Some(todo_item),
-                    ),
-                },
-                ~awaiting_response=false,
-              );
-            Success(new_model, "Active todo item set");
-          }) {
-          | Failure(s: string) => Failure(s)
-          }
-        | None => Failure("No active todo list exists")
-        }
-      | UnsetActiveTodoItem =>
-        switch (curr_chat.composition_model.active_task) {
-        | Some(_active_task) =>
-          try({
-            let new_model =
-              update_model_chat_history(
-                ~model,
-                ~mode,
-                ~updated_chat={
-                  ...curr_chat,
-                  composition_model:
-                    CompositionModel.change_active_todo_item(
-                      ~model=curr_chat.composition_model,
-                      ~new_active_todo=None,
-                    ),
-                },
-                ~awaiting_response=false,
-              );
-            Success(new_model, "Active todo item unset");
-          }) {
-          | Failure(s: string) => Failure(s)
-          }
-        | None => Failure("No active todo list exists")
-        }
-      };
-    switch (res) {
-    | Success(new_model, message) =>
-      schedule_tool_response(Success(message));
-      new_model;
-    | Failure(message) =>
-      schedule_tool_response(Failure(message));
-      model;
-    };
-  };
 };
 
 let filter_out_agent_view =
@@ -569,6 +262,28 @@ let filter_out_agent_view =
 let has_new_agent_view = (messages: list(Model.message)): bool => {
   List.exists(
     (message: Model.message) => {message.role == System(AgentView)},
+    messages,
+  );
+};
+
+let mk_active_task_message =
+    (composition_model: CompositionAgentWorkbench.Model.t): Model.message => {
+  let content =
+    CompositionAgentWorkbench.Utils.MainUtils.active_task_to_pretty_string(
+      composition_model,
+    );
+  {
+    content: Some(OpenRouter.mk_system_msg(content)),
+    display: Some(Model.mk_message_display(~content)),
+    role: System(AgentWorkbench),
+    sketch_snapshot: None,
+  };
+};
+
+let filter_out_task_message =
+    (messages: list(Model.message)): list(Model.message) => {
+  List.filter(
+    (message: Model.message) => {message.role != System(AgentWorkbench)},
     messages,
   );
 };
@@ -587,12 +302,8 @@ let update_chat =
       chat.messages @ new_messages;
     };
   let updated_messages = {
-    let todo_list_message =
-      TodoListUtils.mk_active_task_message(
-        chat.composition_model.active_task,
-      );
-    TodoListUtils.filter_out_todo_list(updated_messages)
-    @ [todo_list_message];
+    let todo_list_message = mk_active_task_message(chat.composition_model);
+    filter_out_task_message(updated_messages) @ [todo_list_message];
   };
   {
     ...chat,
@@ -766,7 +477,7 @@ let can_undo = (action: t) => {
   | InternalError(_) => false
   | ExternalAPIAction(_) => false
   | InitializeAssistant => false
-  | CompositionModelAction(_) => false
+  | CompositionAgentWorkbenchAction(_) => false
   };
 };
 
@@ -1749,110 +1460,59 @@ let update =
       }
     }
   | InitializeAssistant => AssistantModel.init()
-  | CompositionModelAction(action, chat_id) =>
+  | CompositionAgentWorkbenchAction(action, caller, chat_id) =>
     let mode = AssistantSettings.Composition;
     let curr_chat =
       OptUtil.get_or_fail(
         "Failed to find the current chat",
         Id.Map.find_opt(chat_id, model.chat_history.past_composition_chats),
       );
-    switch (action) {
-    | AgentAction((action, schedule_tool_response)) =>
-      switch (action) {
-      | TodoAction(action) =>
-        TodoListUtils.todo_dispatch(
+    let composition_model_res =
+      CompositionAgentWorkbench.Update.Action.update(
+        ~model=curr_chat.composition_model,
+        ~action,
+      );
+    switch (caller) {
+    | User =>
+      switch (composition_model_res) {
+      | Success(updated_composition_model) =>
+        update_model_chat_history(
           ~model,
-          ~chat_id,
-          ~action,
-          ~schedule_tool_response,
+          ~mode,
+          ~updated_chat={
+            ...curr_chat,
+            composition_model: updated_composition_model,
+          },
+          ~awaiting_response=curr_chat.awaiting_response,
         )
+      | Failure(err) =>
+        print_endline("Composition Agent Workbench Action Error: " ++ err);
+        model;
       }
-    | UIAction(action) =>
-      switch (action) {
-      | SwitchView(view) =>
+    | Agent(schedule_tool_response) =>
+      switch (composition_model_res) {
+      | Success(updated_composition_model) =>
+        schedule_tool_response(
+          Success(
+            "Composition workbench action performed successfully. Changes applied.",
+          ),
+        );
         update_model_chat_history(
           ~model,
           ~mode,
           ~updated_chat={
             ...curr_chat,
-            composition_model: {
-              ...curr_chat.composition_model,
-              view_settings: {
-                active_view: view,
-                show_archive:
-                  curr_chat.composition_model.view_settings.show_archive,
-              },
-            },
-          },
-          ~awaiting_response=curr_chat.awaiting_response,
-        )
-      | ToggleArchiveVisibility =>
-        update_model_chat_history(
-          ~model,
-          ~mode,
-          ~updated_chat={
-            ...curr_chat,
-            composition_model: {
-              ...curr_chat.composition_model,
-              view_settings: {
-                active_view:
-                  curr_chat.composition_model.view_settings.active_view,
-                show_archive:
-                  !curr_chat.composition_model.view_settings.show_archive,
-              },
-            },
-          },
-          ~awaiting_response=curr_chat.awaiting_response,
-        )
-      | ManualSetActiveTodoList(title) =>
-        let todo_archive = curr_chat.composition_model.todo_archive;
-        let todo_list =
-          Maps.StringMap.find_opt(title, todo_archive)
-          |> OptUtil.get_or_fail(
-               "Todo list not found during [MANUAL] change: " ++ title,
-             );
-        update_model_chat_history(
-          ~model,
-          ~mode,
-          ~updated_chat={
-            ...curr_chat,
-            composition_model:
-              CompositionModel.update_active_todo_list(
-                ~model=curr_chat.composition_model,
-                ~new_todo_list=todo_list,
-              ),
+            composition_model: updated_composition_model,
           },
           ~awaiting_response=curr_chat.awaiting_response,
         );
-      | ExpandTodoItem(title) =>
-        update_model_chat_history(
-          ~model,
-          ~mode,
-          ~updated_chat={
-            ...curr_chat,
-            composition_model: {
-              switch (curr_chat.composition_model.active_task) {
-              | Some(active_task) =>
-                let new_todo_item =
-                  TodoListUtils.expand_todo_item(
-                    active_task.active_todo_list,
-                    title,
-                  );
-                let new_todo_list =
-                  TodoListUtils.update_todo_item(
-                    active_task.active_todo_list,
-                    new_todo_item,
-                  );
-                CompositionModel.update_active_todo_list(
-                  ~model=curr_chat.composition_model,
-                  ~new_todo_list,
-                );
-              | None => raise(Failure("No active task to expand item in"))
-              };
-            },
-          },
-          ~awaiting_response=curr_chat.awaiting_response,
-        )
+      | Failure(err) =>
+        schedule_tool_response(
+          Failure(
+            "Failed to perform the composition workbench action:\n" ++ err,
+          ),
+        );
+        model;
       }
     };
   };

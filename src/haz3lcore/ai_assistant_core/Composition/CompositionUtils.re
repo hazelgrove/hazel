@@ -23,13 +23,15 @@ module Local = {
     EditTools.insert_before,
     // ViewTools.view_entire_definition, // No longer needed is this top-level refactor... this is done by default
     // ViewTools.view_context,
-    TodoListTools.new_todo_list,
-    TodoListTools.archive_todo_list,
-    TodoListTools.add_todo_items,
-    TodoListTools.mark_todo_item_complete,
-    TodoListTools.mark_todo_item_incomplete,
-    TodoListTools.set_active_todo_item,
-    TodoListTools.unset_active_todo_item,
+    WorkbenchTools.create_new_task,
+    WorkbenchTools.set_active_task,
+    WorkbenchTools.unset_active_task,
+    WorkbenchTools.set_active_subtask,
+    WorkbenchTools.unset_active_subtask,
+    WorkbenchTools.mark_active_task_complete,
+    WorkbenchTools.mark_active_task_incomplete,
+    WorkbenchTools.mark_active_subtask_complete,
+    WorkbenchTools.mark_active_subtask_incomplete,
   ];
 
   let get_string_arg = (~arg: option(string), ~fail_with: string) => {
@@ -108,39 +110,46 @@ module Local = {
         raise(Failure("A description must be provided for the todo item"))
       };
     };
-    let get_todo_item =
-        (todo_item_json: API.Json.t): CompositionModel.todo_item => {
-      title: get_title(todo_item_json),
-      description: get_description(todo_item_json),
-      task_completion_info: None, // New items can't be completed yet
-      expanded: false,
+    let json_to_subtask =
+        (item: API.Json.t): CompositionAgentWorkbench.Model.subtask => {
+      let title = get_title(item);
+      let description = get_description(item);
+      CompositionAgentWorkbench.Utils.SubtaskUtils.mk(~title, ~description);
     };
-    let get_todo_items =
-        (todo_items_json: API.Json.t): list(CompositionModel.todo_item) => {
-      switch (API.Json.dot("items", todo_items_json)) {
-      | Some(`List(todo_list_json)) =>
-        List.map(get_todo_item, todo_list_json)
-      | _ =>
-        raise(
-          Failure("A list of todo items must be provided for the action"),
-        )
-      };
+    let _get_subtask = (): CompositionAgentWorkbench.Model.subtask => {
+      let subtask_json =
+        switch (API.Json.dot("subtask", args)) {
+        | Some(subtask_json) => subtask_json
+        | _ => raise(Failure("Each subtask must be a JSON object"))
+        };
+      json_to_subtask(subtask_json);
     };
-    let get_todo_list = (): CompositionModel.todo_list => {
-      let todo_list_json =
-        switch (API.Json.dot("todo_list", args)) {
-        | Some(todo_list_json) => todo_list_json
+    let get_subtasks =
+        (item: API.Json.t): list(CompositionAgentWorkbench.Model.subtask) => {
+      let subtasks_json =
+        switch (API.Json.dot("subtasks", item)) {
+        | Some(`List(subtasks_json)) => subtasks_json
+        | _ =>
+          raise(
+            Failure("A list of subtasks must be provided for the action"),
+          )
+        };
+      List.map(json_to_subtask, subtasks_json);
+    };
+    let get_task = (): CompositionAgentWorkbench.Model.task => {
+      let task_json =
+        switch (API.Json.dot("task", args)) {
+        | Some(task_json) => task_json
         | _ => raise(Failure("A todo list must be provided for the action"))
         };
-      let title = get_title(todo_list_json);
-      let description = get_description(todo_list_json);
-      let items = get_todo_items(todo_list_json);
-      {
-        title,
-        description,
-        items,
-        last_updated: JsUtil.timestamp(),
-      };
+      let title = get_title(task_json);
+      let description = get_description(task_json);
+      let subtasks = get_subtasks(task_json);
+      CompositionAgentWorkbench.Utils.TaskUtils.mk(
+        ~title,
+        ~description,
+        ~subtasks,
+      );
     };
 
     let action =
@@ -165,24 +174,20 @@ module Local = {
           | "delete_binding_clause" =>
             Editor(Edit(DeleteBindingClause(get_path())))
           | "delete_body" => Editor(Edit(DeleteBody(get_path())))
-          | "new_todo_list" =>
-            Assistant(TodoAction(NewTodoList(get_todo_list())))
-          | "archive_todo_list" =>
-            Assistant(TodoAction(ArchiveActiveTodoList))
-          | "add_todo_items" =>
-            Assistant(TodoAction(AddTodoItems(get_todo_items(args))))
-          | "mark_todo_item_complete" =>
-            Assistant(
-              TodoAction(
-                MarkTodoItemComplete(get_title(args), get_summary(args)),
-              ),
-            )
-          | "mark_todo_item_incomplete" =>
-            Assistant(TodoAction(MarkTodoItemIncomplete(get_title(args))))
-          | "set_active_todo_item" =>
-            Assistant(TodoAction(SetActiveTodoItem(get_title(args))))
-          | "unset_active_todo_item" =>
-            Assistant(TodoAction(UnsetActiveTodoItem))
+          | "create_new_task" => Assistant(CreateNewTask(get_task()))
+          | "unset_active_task" => Assistant(UnsetActiveTask)
+          | "set_active_task" => Assistant(SetActiveTask(get_title(args)))
+          | "unset_active_subtask" => Assistant(UnsetActiveSubtask)
+          | "set_active_subtask" =>
+            Assistant(SetActiveSubtask(get_title(args)))
+          | "mark_active_task_complete" =>
+            Assistant(MarkActiveTaskComplete(get_summary(args)))
+          | "mark_active_task_incomplete" =>
+            Assistant(MarkActiveTaskIncomplete)
+          | "mark_active_subtask_complete" =>
+            Assistant(MarkActiveSubtaskComplete(get_summary(args)))
+          | "mark_active_subtask_incomplete" =>
+            Assistant(MarkActiveSubtaskIncomplete)
           | _ => raise(Failure("The tool called does not exist."))
           };
         Action(action);
@@ -218,25 +223,19 @@ module Local = {
       "insert_after(\"" ++ path ++ "\", \"" ++ code ++ "\")"
     | Editor(Edit(InsertBefore(path, code))) =>
       "insert_before(\"" ++ path ++ "\", \"" ++ code ++ "\")"
-    | Assistant(TodoAction(NewTodoList(todo_list))) =>
-      "new_todo_list(\""
-      ++ CompositionModel.todo_list_to_string(todo_list)
-      ++ "\")"
-    | Assistant(TodoAction(ArchiveActiveTodoList)) => "archive_todo_list()"
-    | Assistant(TodoAction(AddTodoItems(todo_items))) =>
-      "add_todo_items(\""
-      ++ String.concat(
-           ", ",
-           List.map(CompositionModel.todo_item_to_string, todo_items),
-         )
-      ++ "\")"
-    | Assistant(TodoAction(MarkTodoItemComplete(title, summary))) =>
-      "mark_todo_item_complete(\"" ++ title ++ "\", \"" ++ summary ++ "\")"
-    | Assistant(TodoAction(MarkTodoItemIncomplete(title))) =>
-      "mark_todo_item_incomplete(\"" ++ title ++ "\")"
-    | Assistant(TodoAction(SetActiveTodoItem(title))) =>
-      "set_active_todo_item(\"" ++ title ++ "\")"
-    | Assistant(TodoAction(UnsetActiveTodoItem)) => "unset_active_todo_item()"
+    | Assistant(CreateNewTask(_)) => "create_new_task(<task>)"
+    | Assistant(UnsetActiveTask) => "unset_active_task"
+    | Assistant(SetActiveTask(task_title)) =>
+      "set_active_task(\"" ++ task_title ++ "\")"
+    | Assistant(UnsetActiveSubtask) => "unset_active_subtask"
+    | Assistant(SetActiveSubtask(subtask_title)) =>
+      "set_active_subtask(\"" ++ subtask_title ++ "\")"
+    | Assistant(MarkActiveTaskComplete(summary)) =>
+      "mark_active_task_complete(\"" ++ summary ++ "\")"
+    | Assistant(MarkActiveTaskIncomplete) => "mark_active_task_incomplete"
+    | Assistant(MarkActiveSubtaskComplete(summary)) =>
+      "mark_active_subtask_complete(\"" ++ summary ++ "\")"
+    | Assistant(MarkActiveSubtaskIncomplete) => "mark_active_subtask_incomplete"
     };
   };
 };

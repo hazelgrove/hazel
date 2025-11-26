@@ -16,9 +16,9 @@ type system =
   // Agent view of the codebase.
   // Only one should ever exist in a chat at a time.
   | AgentView
-  // The agent's todo list.
+  // The agent's task/todo list.
   // Only one should ever exist in a chat at a time.
-  | TodoList;
+  | AgentWorkbench;
 // // Tool response from our backend.
 // | ToolResponse;
 
@@ -41,7 +41,7 @@ let string_of_role =
   | System(AssistantPrompt) => "System"
   | System(InternalError) => "Error"
   | System(AgentView) => "Agent View"
-  | System(TodoList) => "Todo List"
+  | System(AgentWorkbench) => "Todo List"
   | User => "User"
   | Assistant => "Assistant"
   | Tool => "Tool";
@@ -88,7 +88,7 @@ type chat = {
   timestamp: float,
   context_usage: int,
   awaiting_response: bool,
-  composition_model: CompositionModel.t,
+  composition_model: CompositionAgentWorkbench.Model.t,
 };
 
 // We save the history of past chats as a hash map with chat IDs as keys.
@@ -197,7 +197,7 @@ let init_chat = (mode: AssistantSettings.mode): chat => {
     timestamp: JsUtil.timestamp(),
     context_usage: 0,
     awaiting_response: false,
-    composition_model: CompositionModel.init(),
+    composition_model: CompositionAgentWorkbench.Utils.MainUtils.init(),
   };
 };
 
@@ -216,7 +216,7 @@ let new_chat = (model: t, mode: AssistantSettings.mode): chat => {
     timestamp: JsUtil.timestamp(),
     context_usage: 0,
     awaiting_response: false,
-    composition_model: CompositionModel.init(),
+    composition_model: CompositionAgentWorkbench.Utils.MainUtils.init(),
   };
 };
 
@@ -274,7 +274,7 @@ let null_model = (): t => {
     timestamp: JsUtil.timestamp(),
     context_usage: 0,
     awaiting_response: false,
-    composition_model: CompositionModel.init(),
+    composition_model: CompositionAgentWorkbench.Utils.MainUtils.init(),
   };
   {
     init_prompt_data: {
