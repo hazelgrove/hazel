@@ -305,10 +305,13 @@ module Composition = {
         schedule_editor_action(Action.Composition(payload));
       }
     | Assistant(composition_model_action) =>
-      let payload = (composition_model_action, schedule_tool_response);
       schedule_assistant_action(
-        CompositionModelAction(AgentAction(payload), chat_id),
-      );
+        CompositionAgentWorkbenchAction(
+          BackendAction(composition_model_action),
+          Agent(schedule_tool_response),
+          chat_id,
+        ),
+      )
     };
   };
 };
