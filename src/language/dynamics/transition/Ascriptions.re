@@ -50,7 +50,7 @@ let rec transition =
             Typ.unroll(t'),
           ) =>
       switch (
-        Typ.join(Ctx.empty, Typ.unroll(t |> Typ.temp), Typ.unroll(t'))
+        Typ.meet(Ctx.empty, Typ.unroll(t |> Typ.temp), Typ.unroll(t'))
       ) {
       | Some(t) =>
         let+ d' = recur(Asc(e, t) |> DHExp.fresh);

@@ -21,7 +21,7 @@ open Util;
    */
 
 [@deriving (show({with_path: false}), sexp, yojson)]
-type join_type =
+type meet_type =
   | Id
   | List
   | PolyEq;
@@ -29,7 +29,7 @@ type join_type =
 [@deriving (show({with_path: false}), sexp, yojson)]
 type t =
   | Just(Typ.t) /* Just a regular type */
-  | NoJoin(join_type, list(Typ.source)) /* Inconsistent types for e.g match, listlits */
+  | NoMeet(meet_type, list(Typ.source)) /* Inconsistent types for e.g match, listlits */
   | Duplicate(LabeledTuple.label, t) /* Duplicate label, marked as duplicate */
   | CompareFun(Typ.t) /* Type equality failed because of arrow type inside */
   | BadToken(string) /* Invalid expression token, continues with undefined behavior */
@@ -95,7 +95,7 @@ type pat =
   | ExpectedConstructor(pat)
   | Common(t);
 
-let join_of = (j: join_type, ty: Typ.t): Typ.t =>
+let meet_of = (j: meet_type, ty: Typ.t): Typ.t =>
   switch (j) {
   | Id => ty
   | PolyEq => ty
@@ -125,7 +125,7 @@ let typ_of: t => option(Typ.t) =
   | BadLabel(_)
   | InvalidLabel(_)
   | ExplicitNonlabel
-  | NoJoin(_)
+  | NoMeet(_)
   | UnexpectedLabelSort(_) => None;
 
 let typ_of_exp: exp => option(Typ.t) =
@@ -234,26 +234,26 @@ let add_source =
   );
 
 let match = (ctx: Ctx.t, tys: list(Typ.t), ids: list(Id.t)): t =>
-  switch (Typ.join_all(~empty=Unknown(Internal) |> Typ.fresh, ctx, tys)) {
-  | None => NoJoin(Id, add_source(ids, tys))
+  switch (Typ.meet_all(~empty=Unknown(Internal) |> Typ.fresh, ctx, tys)) {
+  | None => NoMeet(Id, add_source(ids, tys))
   | Some(ty) => Just(ty)
   };
 
 let listlit = (~empty, ctx: Ctx.t, tys: list(Typ.t), ids: list(Id.t)): t =>
-  switch (Typ.join_all(~empty, ctx, tys)) {
-  | None => NoJoin(List, add_source(ids, tys))
+  switch (Typ.meet_all(~empty, ctx, tys)) {
+  | None => NoMeet(List, add_source(ids, tys))
   | Some(ty) => Just(List(ty) |> Typ.fresh)
   };
 
 let list_concat = (ctx: Ctx.t, tys: list(Typ.t), ids: list(Id.t)): t =>
-  switch (Typ.join_all(~empty=Unknown(Internal) |> Typ.fresh, ctx, tys)) {
-  | None => NoJoin(List, add_source(ids, tys))
+  switch (Typ.meet_all(~empty=Unknown(Internal) |> Typ.fresh, ctx, tys)) {
+  | None => NoMeet(List, add_source(ids, tys))
   | Some(ty) => Just(ty)
   };
 
 let poly_eq = (ctx: Ctx.t, tys: list(Typ.t), ids: list(Id.t)): t =>
-  switch (Typ.join_all(~empty=Unknown(Internal) |> Typ.fresh, ctx, tys)) {
-  | None => NoJoin(PolyEq, add_source(ids, tys))
+  switch (Typ.meet_all(~empty=Unknown(Internal) |> Typ.fresh, ctx, tys)) {
+  | None => NoMeet(PolyEq, add_source(ids, tys))
   | Some(ty) when ty |> Typ.normalize(ctx) |> Typ.has_fun => CompareFun(ty)
   | Some(_) => Just(Atom(Bool) |> Typ.fresh)
   };

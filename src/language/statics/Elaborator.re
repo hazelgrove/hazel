@@ -273,11 +273,11 @@ let rec elaborate =
       };
     | ListLit(es) =>
       let (ds, tys) = List.map(elaborate(m), es) |> List.split;
-      let joined_ty =
-        Typ.join_all(~empty=Unknown(Internal) |> Typ.temp, ctx, tys);
+      let meet_ty =
+        Typ.meet_all(~empty=Unknown(Internal) |> Typ.temp, ctx, tys);
 
       let ds' =
-        List.map2((d, t) => fresh_ascription(d, t, joined_ty), ds, tys);
+        List.map2((d, t) => fresh_ascription(d, t, meet_ty), ds, tys);
       ListLit(ds') |> rewrap;
     | LivelitName(_) => uexp
     | Constructor(c, _) =>

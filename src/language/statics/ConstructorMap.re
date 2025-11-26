@@ -91,13 +91,13 @@ let venn_regions =
   go(xs, ys, [], [], [], []);
 };
 
-let join_entry =
-    (join: ('a, 'a) => option('a), (x: variant('a), y: variant('a)))
+let meet_entry =
+    (meet: ('a, 'a) => option('a), (x: variant('a), y: variant('a)))
     : option(variant('a)) =>
   switch (x, y) {
   | (Variant(ctr1, ids1, Some(value1)), Variant(ctr2, _, Some(value2)))
       when Constructor.equal(ctr1, ctr2) =>
-    let+ value = join(value1, value2);
+    let+ value = meet(value1, value2);
     Variant(ctr1, ids1, Some(value));
   | (Variant(ctr1, ids1, None), Variant(ctr2, _, None))
       when Constructor.equal(ctr1, ctr2) =>
@@ -106,27 +106,27 @@ let join_entry =
   | _ => None
   };
 
-let join =
+let meet =
     (
       eq: ('a, 'a) => bool,
-      join: ('a, 'a) => option('a),
+      meet: ('a, 'a) => option('a),
       m1: t('a),
       m2: t('a),
     )
     : option(t('a)) => {
   let (inter, left, right) = venn_regions(same_constructor(eq), m1, m2);
-  let join_entries = List.filter_map(join_entry(join), inter);
-  if (List.length(join_entries) == List.length(inter)) {
+  let meet_entries = List.filter_map(meet_entry(meet), inter);
+  if (List.length(meet_entries) == List.length(inter)) {
     switch (
       has_good_entry(left),
       has_bad_entry(m1),
       has_good_entry(right),
       has_bad_entry(m2),
     ) {
-    | (_, true, _, true) => Some(join_entries @ left @ right)
-    | (false, true, _, _) => Some(join_entries @ right)
-    | (_, _, false, true) => Some(join_entries @ left)
-    | _ when left == [] && right == [] => Some(join_entries)
+    | (_, true, _, true) => Some(meet_entries @ left @ right)
+    | (false, true, _, _) => Some(meet_entries @ right)
+    | (_, _, false, true) => Some(meet_entries @ left)
+    | _ when left == [] && right == [] => Some(meet_entries)
     | _ => None
     };
   } else {

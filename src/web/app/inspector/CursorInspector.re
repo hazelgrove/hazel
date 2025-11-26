@@ -332,7 +332,7 @@ let common_ok_view =
         | true => [text(" after reordering by labels ")]
         }
       )
-    | (_, Ana(InternallyInconsistent({ana, nojoin: tys}))) =>
+    | (_, Ana(InternallyInconsistent({ana, nomeet: tys}))) =>
       [
         text(elements_noun(cls) ++ " have inconsistent types:"),
         ...ListUtil.join(text(","), List.map(view_type, tys)),
