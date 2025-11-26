@@ -199,7 +199,7 @@ module Update = {
     let elab = Calc.set(~eq=Exp.fast_equal, statics.elaborated, elab);
 
     // Calculate the result
-    let result =
+    let result: Calc.t(ProgramResult.t(ProgramResult.inner)) =
       result
       |> {
         let.calc_t elab = elab
@@ -275,36 +275,17 @@ module Update = {
           ),
         )
       };
-    // todo abandukwala Talk to Matt about where this should be happening
-    let dynamics =
-      result
-      |> Calc.map(
-           _,
-           fun
-           | ProgramResult.ResultPending => None
-           | ProgramResult.ResultFail(_) => None
-           | ProgramResult.ResultOk({state, _}) =>
-             Some(
-               Dynamics.{
-                 probe_map: state |> EvaluatorState.get_probes,
-                 test_results:
-                   state |> EvaluatorState.get_tests |> TestResults.mk_results,
-                 type_inst_map: state |> EvaluatorState.get_type_insts,
-                 theorems: state |> EvaluatorState.get_theorems,
-               },
-             ),
-         );
+
     // HACK[Matt]: say that statics is updated iff dynamics is updated
     let statics: Calc.t('a) =
-      switch (dynamics) {
+      switch (result) {
       | NewValue(_) => NewValue(statics)
       | OldValue(_) => OldValue(statics)
       };
 
     let theorems =
       Calc.get_value(settings).dynamics
-        ? theorems
-          |> Theorems.Update.calculate(~settings, ~statics, ~dynamics)
+        ? theorems |> Theorems.Update.calculate(~settings, ~statics, ~result)
         : theorems;
 
     (
