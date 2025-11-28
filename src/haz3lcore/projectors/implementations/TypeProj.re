@@ -34,7 +34,7 @@ module M: Projector = {
   type action =
     | ToggleDisplay;
 
-  let init = (any: Term.Any.t): option(model) => {
+  let init = (any: Any.t): option(model) => {
     switch (any) {
     | Exp(_)
     | Pat(_) => Some(Expected)
@@ -98,7 +98,7 @@ module M: Projector = {
 
   let icon = div(~attrs=[Attr.classes(["icon"])], []);
 
-  let view = (model, info, ~local, ~parent as _, ~view_seg) =>
+  let view = ({model, info, local, view_seg, _}: View.args(model, action)) =>
     View.{
       inline:
         div(

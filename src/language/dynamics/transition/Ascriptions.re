@@ -26,7 +26,7 @@ let rec transition = (~recursive=false, d: DHExp.t): option(DHExp.t) => {
             Typ.unroll(t'),
           ) =>
       switch (
-        Typ.join(Ctx.empty, Typ.unroll(t |> Typ.temp), Typ.unroll(t'))
+        Typ.meet(Ctx.empty, Typ.unroll(t |> Typ.temp), Typ.unroll(t'))
       ) {
       | Some(t) => Some(recur(Asc(e, t) |> DHExp.fresh))
       | None => None //TODO  This is an impossible case since we checked consistency
@@ -43,6 +43,8 @@ let rec transition = (~recursive=false, d: DHExp.t): option(DHExp.t) => {
           Exp.(fn(Pat.(asc(p, t1)), asc(e, t2), t, v))
         ),
       )
+    | (TupLabel({term: ExplicitNonlabel, _}, e), _) =>
+      Some(recur(Asc(e, t) |> DHExp.fresh))
     | (TupLabel(l, e), TupLabel(_l2, t)) =>
       // TODO Figure out what to do if the labels don't match
       Some(TupLabel(l, recur(Asc(e, t) |> DHExp.fresh)) |> DHExp.fresh)
@@ -53,7 +55,7 @@ let rec transition = (~recursive=false, d: DHExp.t): option(DHExp.t) => {
         )
         |> DHExp.fresh,
       )
-    | (e, Unknown(_)) => Some(e |> DHExp.fresh)
+    | (_, Unknown(_)) => Some(e)
     | (Atom(value) as d, Atom(typ)) =>
       switch (value, typ) {
       | (Int(_), Int)
@@ -82,7 +84,7 @@ let rec transition = (~recursive=false, d: DHExp.t): option(DHExp.t) => {
         )
         |> DHExp.fresh,
       )
-    | (TypFun(tp, e, v), Forall(tp', t')) =>
+    | (TypFun(tp, e, v), Poly(tp', t')) =>
       let new_ty: Typ.t =
         switch (TPat.tyvar_of_utpat(tp)) {
         | Some(tyvar) => Var(tyvar) |> Typ.temp
@@ -139,6 +141,8 @@ let rec transition = (~recursive=false, d: DHExp.t): option(DHExp.t) => {
     | (Constructor(_, Some(Some(t))), t')
         when Typ.is_consistent(Ctx.empty, Typ.unroll(t), t' |> Typ.temp) =>
       Some(e)
+    | (ProofObject(e1), ProofOf(e2)) when Exp.fast_equal(e1, e2) =>
+      Some(ProofObject(e1) |> DHExp.fresh)
     | (Test(_), Prod([])) => Some(e)
     // These are non-value cases we're handling to process ascriptions as early as possible
     | (BinOp(bin_op, _, _), _) =>
@@ -192,6 +196,8 @@ let rec transition = (~recursive=false, d: DHExp.t): option(DHExp.t) => {
     | (TypAp(_), _)
     | (Filter(_), _)
     | (TyAlias(_), _)
+    | (Theorem(_), _)
+    | (Forall(_), _)
     | (Asc(_), _) => None
     // These are non-value cases we don't want to handle
     | (EmptyHole, _)
@@ -201,6 +207,7 @@ let rec transition = (~recursive=false, d: DHExp.t): option(DHExp.t) => {
     | (Invalid(_), _)
     | (MultiHole(_), _)
     | (Label(_), _)
+    | (ExplicitNonlabel, _)
     | (Var(_), _)
     | (Ap(_), _)
     | (DeferredAp(_), _)
@@ -219,6 +226,7 @@ let rec transition = (~recursive=false, d: DHExp.t): option(DHExp.t) => {
     | (Test(_), _)
     | (HintedTest(_), _)
     | (Cons(_), _)
+    | (ProofObject(_), _)
     | (Constructor(_), _) => None
     }
   | _ => None

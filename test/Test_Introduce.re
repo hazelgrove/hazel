@@ -58,7 +58,12 @@ let introduction_test = (before: string, expected: string) => {
 };
 
 let introduce_expression = (x: Typ.t): option(Exp.t) =>
-  Haz3lcore.Introduce.IntroduceExp.introduce(x)
+  Haz3lcore.Introduce.IntroduceExp.introduce(
+    Typ.weak_head_normalize(
+      Builtins.ctx_init(Some(Operators.default_mode)),
+      x,
+    ),
+  )
   |> Option.map(((a, _b, _c)) => a);
 
 let tests =
@@ -178,7 +183,7 @@ let tests =
             option(exp),
             "Function",
             Some(Exp.(typ_fun(TPat.empty_hole(), empty_hole(), None))),
-            introduce_expression(Typ.(forall(TPat.var("a"), var("a")))),
+            introduce_expression(Typ.(poly(TPat.var("a"), var("a")))),
           )
         }),
         test_case("String", `Quick, () => {
@@ -197,6 +202,25 @@ let tests =
             introduce_expression(Typ.(list(int()))),
           )
         }),
+        test_case(
+          "Duplicate labels in product",
+          `Quick,
+          () => {
+            let duplicate_prod =
+              Typ.(
+                prod([
+                  tup_label(label("a"), int()),
+                  tup_label(label("a"), string()),
+                ])
+              );
+            check(
+              option(exp),
+              "Duplicate labels should introduce single label",
+              Some(Exp.(tuple([tup_label(label("a"), empty_hole())]))),
+              introduce_expression(duplicate_prod),
+            );
+          },
+        ),
       ],
     ),
     (

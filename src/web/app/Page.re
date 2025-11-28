@@ -93,7 +93,7 @@ module Update = {
     | Scratch(m) => (List.nth(m.scratchpads, m.current) |> snd).editor
     | Documentation(m) => (List.nth(m.scratchpads, m.current) |> snd).editor
     | Tutorial(m) => List.nth(m.exercises, m.current).cells.user_impl.editor
-    | Exercises(m) => List.nth(m.exercises, m.current).cells.user_impl.editor
+    | Exercises(m) => ExercisesMode.Model.get_editor(m)
     };
 
   let update_global =
@@ -194,7 +194,8 @@ module Update = {
           (filename, content);
         | Exercises(model) =>
           let current = List.nth(model.exercises, model.current);
-          let filename = current.editors.module_name ++ ".ml";
+          let filename =
+            ExercisesMode.Model.get_exercise_name(current) ++ ".ml";
           let content = "not supported";
           (filename, content);
         };

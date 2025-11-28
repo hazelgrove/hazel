@@ -151,7 +151,8 @@ let inconsistent_typecheck = (name, exp) => {
     },
   );
 };
-let fully_consistent_typecheck = (name, serialized, expected) => {
+let fully_consistent_typecheck =
+    (~normalize=false, name, serialized, expected) => {
   test_case(
     name,
     `Quick,
@@ -159,7 +160,12 @@ let fully_consistent_typecheck = (name, serialized, expected) => {
       let exp = parse_exp(serialized);
       let s = statics(exp);
       let errors = List.map(snd, Statics.Map.errors(s));
-      let actual_type = type_of(~static_map=s, exp);
+      let actual_type =
+        type_of(~static_map=s, exp)
+        |> Option.map(
+             normalize
+               ? Typ.normalize(Builtins.ctx_init(Some(Int))) : Fun.id,
+           );
       Alcotest.check(list(testable_error), "Static Errors", [], errors);
       Alcotest.check(
         Alcotest.option(testable_typ),
@@ -182,6 +188,7 @@ let skip_known_bug = (message: string, expression: string) =>
     }
   });
 
+// FactoryInfoError
 module FIError =
   Grammar.Factory({
     type t = option(Info.error);

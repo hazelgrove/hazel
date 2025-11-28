@@ -19,7 +19,8 @@ let parse_float_string s =
 
 }
 (* TODO We don't yet support negative floats in MakeTerm *)
-let float = ['0'-'9']* '.' ['0'-'9']*
+(* Require leading digits before dot *)
+let float = ['0'-'9']+ '.' ['0'-'9']*
 (* negative ints are done through unop *)
 let int = ['0'-'9'] ['0'-'9']*
 
@@ -66,6 +67,7 @@ rule token =
     | "=>" { EQUAL_ARROW }
     | "=" { SINGLE_EQUAL }
     | "..." { TUPLE_EXTENSION }
+    | "." { DOT }
     (* Poly ops*)
     | "==" { DOUBLE_EQUAL }
     | "!=" { NOT_EQUAL }
@@ -134,7 +136,7 @@ rule token =
     | "?tp" {TP_TPAT}
     | "?e" {E_EXP}
     | "named_fun" {NAMED_FUN}
-    | "forall" {FORALL}
+    | "poly" {POLY}
     | "rec" {REC}
     | identifier as i { IDENT(i) }
     | constructor_ident as i { CONSTRUCTOR_IDENT(i)}

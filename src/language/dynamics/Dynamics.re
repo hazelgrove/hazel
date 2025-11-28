@@ -32,16 +32,15 @@ module Probe = {
     /* Selectively elide dynamic information not currently
      * being used in the live probe UI, for (putative, unbenchmarked)
      * performance purposes for worker de/serialization */
-    let elide = (env: Environment.t, d: DHExp.t) =>
+    let elide = (env: Environment.t(Exp.t), d: DHExp.t) =>
       switch ((d |> DHExp.strip_ascriptions).term) {
       | Fun(_)
       | FixF(_)
       | Closure(_) => Opaque
-      | _ =>
-        Val(d |> DHExp.strip_ascriptions |> Exp.substitute_closures(env))
+      | _ => Val(d |> DHExp.strip_ascriptions |> Substitution.in_exp(env))
       };
 
-    let mk_entry = (env: Environment.t, {name, id, _}: Binding.t) =>
+    let mk_entry = (env: Environment.t(Exp.t), {name, id, _}: Binding.t) =>
       switch (Environment.lookup(env, name)) {
       | Some(d) =>
         let binding =
@@ -56,7 +55,7 @@ module Probe = {
       | None => None
       };
 
-    let filter = (env: Environment.t, bound_in: Binding.s) =>
+    let filter = (env: Environment.t(Exp.t), bound_in: Binding.s) =>
       List.filter_map(mk_entry(env), bound_in);
   };
 
@@ -79,7 +78,7 @@ module Probe = {
         (
           syntax_id: Id.t,
           value: DHExp.t,
-          env: Environment.t,
+          env: Environment.t(Exp.t),
           call_stack: Probe.call_stack,
           pr: Probe.t,
         ) => {
@@ -147,4 +146,5 @@ module Map = {
 type t = {
   probe_map: Probe.Map.t,
   test_results: TestResults.t,
+  theorems: list((Id.t, string, Environment.t(Exp.t), Exp.t)),
 };

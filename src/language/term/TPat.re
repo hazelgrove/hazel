@@ -8,6 +8,8 @@ type cls =
 include TermBase.TPat;
 
 let term_of: t => term = IdTagged.term_of;
+let fast_equal = Equality.syntactic.tpat;
+let equal = fast_equal;
 
 let rep_id: t => Id.t = IdTagged.rep_id;
 
