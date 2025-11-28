@@ -1,7 +1,7 @@
 open Util;
 open Language;
 open Language.Statics;
-open AssistantTreeHelper.HighLevelNodeMap.Public;
+open HighLevelNodeMap.Public;
 
 /*
  Follows a programming practice/pattern here of separating logic local to the file into a "local" module,
@@ -190,7 +190,7 @@ module Local = {
   };
 
   module ContextUtils = {
-    let context_of = (node: AssistantTreeHelper.HighLevelNodeMap.node): string => {
+    let context_of = (node: HighLevelNodeMap.node): string => {
       switch (node.info) {
       | InfoExp({ctx, _}) =>
         let bindings: Binding.s =
@@ -231,16 +231,13 @@ module Local = {
           ~exclude_rec_refs: bool=false,
           ~exclude_body_refs: bool=false,
           info_map: Id.Map.t(Info.t),
-          node: AssistantTreeHelper.HighLevelNodeMap.node,
+          node: HighLevelNodeMap.node,
         )
         : list(Binding.t) => {
       let id = Utils.get_def_id_of_let(node.info);
       let refs_of_def = Statics.Map.refs_in(info_map, id);
       let refs_of_node =
-        Statics.Map.refs_in(
-          info_map,
-          AssistantTreeHelper.HighLevelNodeMap.id_of(node),
-        );
+        Statics.Map.refs_in(info_map, HighLevelNodeMap.id_of(node));
 
       // Intersect based on binding IDs
       // This allows us to ignore references in the body AND recursive references in the def
@@ -291,7 +288,7 @@ module Local = {
           ~exclude_rec_refs: bool=false,
           ~exclude_body_refs: bool=false,
           info_map: Id.Map.t(Info.t),
-          node: AssistantTreeHelper.HighLevelNodeMap.node,
+          node: HighLevelNodeMap.node,
         )
         : string => {
       refs_in(~exclude_rec_refs, ~exclude_body_refs, info_map, node)
@@ -304,7 +301,7 @@ module Local = {
     let concave_char = "~";
 
     let print = (~z: Zipper.t, ~info_map: Id.Map.t(Info.t)): string => {
-      let node_map = AssistantTreeHelper.HighLevelNodeMap.build(z, info_map);
+      let node_map = HighLevelNodeMap.build(z, info_map);
       switch (node_map) {
       | None =>
         Printer.of_zipper(

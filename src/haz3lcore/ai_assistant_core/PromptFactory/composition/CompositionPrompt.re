@@ -106,32 +106,34 @@ let indentation_instructions = [
   "\n</indentationInstructions>",
 ];
 
-let todo_list_instructions = [
-  "<todoListInstructions>\n",
-  "You also have some tools available to you for maintaining a todo list.",
+let task_management_instructions = [
+  "<taskManagementInstructions>\n",
+  "You also have some tools available to you for maintaining a tasks/todo lists.",
   "This is a SUPER useful tool you should ALWAYS utilize.",
-  "We repeat. Utilize. The. Todo. List. Tool.",
+  "We repeat. Utilize. The. Task. Tools.",
   "When planning large or small tasks, utilize this tool.",
-  "Almost always your first tool call should be to update the todo list, especially if one does not exist.",
-  "This todo list will always be displayed as the latest message for you, meaning it will greatly help you manage you task at hand.",
-  "You should aim to keep titles concise, as they are unique identifiers for the todo items, and make descriptions very detailed.",
-  "Check off items as necessary. Uncheck if necessary. If you want to change a title/description/ordering, you should call new_todo_list to overwrite the existing one.",
-  "What is also very improtant is that you always set an active todo item (when doing something with code, not when just answering a users question.).",
-  "This will help keep track of what the actually item you are actually focusing on is, and will help communicate to the user what this item is as well.",
+  "Even just a small refactor... we store all of them, so the user can easily read through all tasks you've done, small or large.",
+  "Almost always your first tool call should be to create a task, especially if one does not yet exist.",
+  "This task list will always be displayed as the latest message for you, meaning it will greatly help you manage your overall goal at hand.",
+  "You should aim to keep titles concise, as they are unique identifiers for the subtask items, and make descriptions very detailed.",
+  "Check off items as necessary. Uncheck if necessary. Add more subtasks as necessary. Reorder subtasks if necessary.",
+  "You must always have an active task and subtask set when working on code-related tasks.",
+  "This will help keep track of the subtask/subgoal you are focusing on.",
+  "And it will help communicate to the user what this objective is as well, and the actions you take to complete it.",
   "Again, basic flow for todo list usage should be:\n",
-  "1.a. Create a new one with new_todo_list tool call if necessary.\n",
-  "1.b. If a todo list exists, update it as necessary with new_todo_list tool call.\n",
-  "2. Set an active todo item when working on code-related tasks.\n",
-  "3. Check off items as you complete them.\n",
-  "4. Set new active todo items as you move on to new tasks.\n",
+  "1.a. Create a new task if you need to intialize one.\n",
+  "1.b. If a *relevant* task exists already, just continue to use it! You can always add more subtasks if needed.\n",
+  "2. Set an active subtask before working on code-related tasks.\n",
+  "3. Mark off subtasks as you complete them.\n",
+  "4. Set new active subtasks as you move on to new tasks, try to go in order.\n",
   "5. Repeat steps 1-4 as necessary until the task is complete!\n",
-  "6. Once complete, archive the todo list with the archive_active_todo_list tool call.\n",
-  "\n</todoListInstructions>",
+  "6. Once complete, mark the task itself as complete, offering a descriptive summary. This will depend on the task and complexity of the implementation, but this summary could range from a brief overview to a multi-paragraph explanation.\n",
+  "\n</taskManagementInstructions>",
 ];
 
 let comments_in_hazel = [
   "<commentsInHazel>\n",
-  "Whenver writing a comment in Hazel, YOU MUST follow the comment syntax exactly... the syntax is as follows: ",
+  "Whenever writing a comment in Hazel, YOU MUST follow the comment syntax exactly... the syntax is as follows: ",
   "```\n",
   " # comment #\n",
   "```\n",
@@ -159,7 +161,7 @@ let self =
   @ toolkit_instructions
   @ notes
   @ indentation_instructions
-  @ todo_list_instructions
+  @ task_management_instructions
   @ hazel_syntax_notes
   @ comments_in_hazel;
 //@ few_shot_comp_examples;

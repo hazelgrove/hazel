@@ -1,9 +1,9 @@
 open Util;
-open AssistantTreeHelper.HighLevelNodeMap.Public;
+open HighLevelNodeMap.Public;
 open Language;
 
-type node_map = AssistantTreeHelper.HighLevelNodeMap.t;
-type node = AssistantTreeHelper.HighLevelNodeMap.node;
+type node_map = HighLevelNodeMap.t;
+type node = HighLevelNodeMap.node;
 
 module Local = {
   type inner_term =
@@ -467,7 +467,7 @@ module Local = {
           PerformUtils.insert_term(
             initial_z,
             target_id,
-            code ++ " ",
+            "\n" ++ code ++ "\n",
             Direction.Left,
             syntax,
             return,
@@ -497,7 +497,7 @@ module Local = {
         PerformUtils.insert_term(
           initial_z,
           target_id,
-          " " ++ code,
+          "\n" ++ code ++ "\n",
           Direction.Right,
           syntax,
           return,

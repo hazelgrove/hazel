@@ -1,7 +1,7 @@
 open Util;
 open Language;
 open Language.Statics;
-open AssistantTreeHelper.Utils;
+open HighLevelNodeMap.Utils;
 
 let subtree_of =
     (

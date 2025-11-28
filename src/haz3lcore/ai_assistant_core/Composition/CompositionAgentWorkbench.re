@@ -1,4 +1,5 @@
 open Util;
+open OptUtil.Syntax;
 
 module Model = {
   module UI = {
@@ -169,6 +170,18 @@ module Utils = {
       |> List.filter_map((title: string) =>
            Maps.StringMap.find_opt(title, task.subtasks)
          );
+    };
+
+    let get_incompleted_subtasks = (task: task): list(subtask) => {
+      // Returns a list of all incompleted subtasks in the given task
+      ordered_subtasks_of(task)
+      |> List.filter((subtask: subtask) => !is_completed(subtask));
+    };
+
+    let get_next_incomplete_subtask_title = (task: task): option(string) => {
+      // Returns the next incompleted subtask in the given task, if any
+      let* subtask = get_incompleted_subtasks(task) |> ListUtil.hd_opt;
+      Some(subtask.title);
     };
 
     let find_task = (model: t, task_name: string): option(task) => {
@@ -467,7 +480,9 @@ module Update = {
         | MarkActiveTaskComplete(string) // summary
         | MarkActiveTaskIncomplete
         | MarkActiveSubtaskComplete(string) // summary
-        | MarkActiveSubtaskIncomplete;
+        | MarkActiveSubtaskIncomplete
+        | AddNewSubtaskToActiveTask(subtask) // title, description;
+        | ReorderSubtasksInActiveTask(list(string)); // list of subtask titles in new order
     };
 
     [@deriving (show({with_path: false}), sexp, yojson, eq)]
@@ -499,6 +514,22 @@ module Update = {
             ...active_task,
             active_subtask: subtask_name,
           };
+          let updated_task =
+            switch (TaskUtils.active_subtask(updated_task)) {
+            | None => updated_task
+            | Some(active_subtask) =>
+              let updated_subtask = {
+                ...active_subtask,
+                metadata: {
+                  ...active_subtask.metadata,
+                  began_at: JsUtil.timestamp(),
+                },
+              };
+              TaskUtils.write_subtask(
+                ~task=updated_task,
+                ~subtask=updated_subtask,
+              );
+            };
           write_task(~model, ~task=updated_task);
         | None => Failure("No active task to unset active subtask from")
         };
@@ -546,7 +577,7 @@ module Update = {
               let updated_subtask = {
                 ...subtask,
                 subtask_ui: {
-                  expanded: true,
+                  expanded: !subtask.subtask_ui.expanded,
                 },
               };
               let updated_task =
@@ -568,6 +599,12 @@ module Update = {
           let model = {
             ...model,
             active_task: Some(new_task.title),
+            t_ui: {
+              ...model.t_ui,
+              display_task:
+                model.t_ui.display_task == None
+                  ? Some(new_task.title) : model.t_ui.display_task,
+            },
           };
           UpdateUtils.write_task(~model, ~task=new_task);
         | UnsetActiveTask =>
@@ -606,21 +643,32 @@ module Update = {
           switch (MainUtils.active_task(model)) {
           | None => Failure("No active task to mark complete")
           | Some(active_task) =>
-            let clock_it = JsUtil.timestamp();
-            let task = {
-              ...active_task,
-              completion_info:
-                Some({
-                  summary,
-                  elapsed_time: clock_it -. active_task.metadata.began_at,
-                }),
-              metadata: {
-                ...active_task.metadata,
-                completed_at: Some(clock_it),
-                last_updated_at: clock_it,
-              },
-            };
-            UpdateUtils.write_task(~model, ~task);
+            switch (TaskUtils.get_incompleted_subtasks(active_task)) {
+            | [] =>
+              let clock_it = JsUtil.timestamp();
+              let task = {
+                ...active_task,
+                completion_info:
+                  Some({
+                    summary,
+                    elapsed_time: clock_it -. active_task.metadata.began_at,
+                  }),
+                metadata: {
+                  ...active_task.metadata,
+                  completed_at: Some(clock_it),
+                  last_updated_at: clock_it,
+                },
+              };
+              UpdateUtils.write_task(~model, ~task);
+            | incompleted_subtasks =>
+              let incompleted_titles =
+                incompleted_subtasks
+                |> List.map((subtask: subtask) => subtask.title);
+              Failure(
+                "Cannot mark active task complete. Please complete the following subtasks first before marking the task complete: "
+                ++ String.concat(", ", incompleted_titles),
+              );
+            }
           }
         | MarkActiveTaskIncomplete =>
           /*
@@ -668,7 +716,13 @@ module Update = {
               };
               let updated_task =
                 TaskUtils.write_subtask(
-                  ~task=active_task,
+                  ~task={
+                    ...active_task,
+                    active_subtask:
+                      Utils.TaskUtils.get_next_incomplete_subtask_title(
+                        active_task,
+                      ),
+                  },
                   ~subtask=updated_subtask,
                 );
               UpdateUtils.write_task(~model, ~task=updated_task);
@@ -703,6 +757,43 @@ module Update = {
             }
           }
         // | _ => Failure("unimplemented")
+        | AddNewSubtaskToActiveTask(new_subtask) =>
+          /*
+           - Adds the given new subtask to the active task's subtasks
+           - Appends the new subtask's title to the active task's subtask ordering
+           */
+          switch (MainUtils.active_task(model)) {
+          | None => Failure("No active task to add new subtask to")
+          | Some(active_task) =>
+            let updated_task =
+              TaskUtils.write_subtask(
+                ~task=active_task,
+                ~subtask=new_subtask,
+              );
+            let updated_task = {
+              ...updated_task,
+              subtask_ordering:
+                List.append(
+                  updated_task.subtask_ordering,
+                  [new_subtask.title],
+                ),
+            };
+            UpdateUtils.write_task(~model, ~task=updated_task);
+          }
+        | ReorderSubtasksInActiveTask(new_ordering) =>
+          /*
+           - Reorders the subtasks in the active task according to the given new ordering
+           - The new ordering is a list of subtask titles
+           */
+          switch (MainUtils.active_task(model)) {
+          | None => Failure("No active task to reorder subtasks in")
+          | Some(active_task) =>
+            let updated_task = {
+              ...active_task,
+              subtask_ordering: new_ordering,
+            };
+            UpdateUtils.write_task(~model, ~task=updated_task);
+          }
         }
       };
     };

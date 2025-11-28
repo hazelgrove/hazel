@@ -75,7 +75,7 @@ let create_new_task: API.Json.t =
                           ]),
                         ),
                         (
-                          "items",
+                          "subtasks",
                           `Assoc([
                             ("type", `String("array")),
                             (
@@ -379,6 +379,9 @@ let mark_active_subtask_complete_description = {|
 Description:
 Marks the currently active subtask as complete.
 Sets the completion summary of the active subtask with the given summary.
+Also automatically tries to set the next incomplete subtask (if any) as the active subtask in the currently active task;
+the "next" incomplete subtask is determined by the ordering of subtasks in the active task.
+No subtask will be active if all subtasks in the currently active task are marked complete.
 
 Parameters:
 summary: string — a summary of changes made to complete the active subtask
@@ -443,6 +446,135 @@ let mark_active_subtask_incomplete: API.Json.t =
             ("type", `String("object")),
             ("properties", `Assoc([])),
             ("required", `List([])),
+          ]),
+        ),
+      ]),
+    ),
+  ]);
+
+let add_new_subtask_to_active_task_description = {|
+Description:
+Adds a new subtask to the currently active task.
+The new subtask will be appended to the end of the active task's subtask ordering.
+If you want to change this ordering, you can call the reorder_subtasks_in_active_task tool later on.
+This requires an active task to be set, otherwise nothing will happen.
+
+Parameters:
+subtask: {
+  title: string,
+  description: string
+} — the new subtask to add to the active task
+|};
+
+let add_new_subtask_to_active_task: API.Json.t =
+  `Assoc([
+    ("type", `String("function")),
+    (
+      "function",
+      `Assoc([
+        ("name", `String("add_new_subtask_to_active_task")),
+        ("description", `String(add_new_subtask_to_active_task_description)),
+        (
+          "parameters",
+          `Assoc([
+            ("type", `String("object")),
+            (
+              "properties",
+              `Assoc([
+                (
+                  "subtask",
+                  `Assoc([
+                    ("type", `String("object")),
+                    ("description", `String("The subtask to add.")),
+                    (
+                      "properties",
+                      `Assoc([
+                        (
+                          "title",
+                          `Assoc([
+                            ("type", `String("string")),
+                            (
+                              "description",
+                              `String(
+                                "The title of the subtask. This will also serve as a unique identifier for the subtask relative to the rest of the subtasks belonging to this specific task. Try to keep short and concise.",
+                              ),
+                            ),
+                          ]),
+                        ),
+                        (
+                          "description",
+                          `Assoc([
+                            ("type", `String("string")),
+                            (
+                              "description",
+                              `String(
+                                "The description of the subtask. Be as detailed as necessary to convey the subtask at hand. This will help provide clarity on what needs to be done. Jot down any relevant details and/or pseudocode that will help guide the implementation process.",
+                              ),
+                            ),
+                          ]),
+                        ),
+                      ]),
+                    ),
+                    (
+                      "required",
+                      `List([`String("title"), `String("description")]),
+                    ),
+                  ]),
+                ),
+              ]),
+            ),
+            ("required", `List([`String("subtask")])),
+          ]),
+        ),
+      ]),
+    ),
+  ]);
+
+let reorder_subtasks_in_active_task_description = {|
+Description:
+Reorders the subtasks in the currently active task according to the given new ordering.
+The new ordering is a list of subtask titles.
+This requires an active task to be set, otherwise nothing will happen.
+Make sure to use the exact titles of the subtasks as they appear in the active task's subtasks, otherwise this tool call will fail.
+
+Parameters:
+subtasks_ordering: list(string) — the new ordering of subtask titles
+|};
+
+let reorder_subtasks_in_active_task: API.Json.t =
+  `Assoc([
+    ("type", `String("function")),
+    (
+      "function",
+      `Assoc([
+        ("name", `String("reorder_subtasks_in_active_task")),
+        (
+          "description",
+          `String(reorder_subtasks_in_active_task_description),
+        ),
+        (
+          "parameters",
+          `Assoc([
+            ("type", `String("object")),
+            (
+              "properties",
+              `Assoc([
+                (
+                  "subtasks_ordering",
+                  `Assoc([
+                    ("type", `String("array")),
+                    ("items", `Assoc([("type", `String("string"))])),
+                    (
+                      "description",
+                      `String(
+                        "The new ordering of subtasks (referenced by their titles (aka keys/unique identifiers)) for the active task.",
+                      ),
+                    ),
+                  ]),
+                ),
+              ]),
+            ),
+            ("required", `List([`String("subtasks_ordering")])),
           ]),
         ),
       ]),

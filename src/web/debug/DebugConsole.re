@@ -35,15 +35,14 @@ let print =
   | "F7" => ()
   | "F8" => ()
   | "F9" =>
-    open AssistantTreeHelper.HighLevelNodeMap.Public;
+    open HighLevelNodeMap.Public;
     let node_map = build(zipper, info);
     // Print all nodes and their paths
     switch (node_map) {
     | Some(node_map) =>
       node_map
       |> Id.Map.bindings
-      |> List.iter(
-           ((id: Id.t, node: AssistantTreeHelper.HighLevelNodeMap.node)) => {
+      |> List.iter(((id: Id.t, node: HighLevelNodeMap.node)) => {
            let path_str =
              node.path
              |> List.map((path_id: Id.t) => id_to_name(node_map, path_id))
