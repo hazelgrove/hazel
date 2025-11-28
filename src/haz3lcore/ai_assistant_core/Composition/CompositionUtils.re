@@ -1,7 +1,13 @@
 open Util;
 open CompositionActions;
 
+[@deriving (show({with_path: false}), sexp, yojson)]
 type action = CompositionActions.composition_action;
+
+[@deriving (show({with_path: false}), sexp, yojson)]
+type action_wrapper =
+  | Action(action)
+  | Failure(string);
 
 module Local = {
   [@deriving (show({with_path: false}), sexp, yojson)]
@@ -55,10 +61,6 @@ module Local = {
       raise(Failure("A list of paths must be provided for the action"))
     };
   };
-
-  type action_wrapper =
-    | Action(action)
-    | Failure(string);
 
   let action_of = (~tool_name: string, ~args: API.Json.t): action_wrapper => {
     /* Possible arguments */
@@ -116,7 +118,7 @@ module Local = {
       let description = get_description(item);
       CompositionAgentWorkbench.Utils.SubtaskUtils.mk(~title, ~description);
     };
-    let _get_subtask = (): CompositionAgentWorkbench.Model.subtask => {
+    let get_subtask = (): CompositionAgentWorkbench.Model.subtask => {
       let subtask_json =
         switch (API.Json.dot("subtask", args)) {
         | Some(subtask_json) => subtask_json
@@ -135,6 +137,27 @@ module Local = {
           )
         };
       List.map(json_to_subtask, subtasks_json);
+    };
+    let get_subtasks_ordering = (): list(string) => {
+      let subtasks_ordering_json =
+        switch (API.Json.dot("subtasks_ordering", args)) {
+        | Some(`List(subtasks_ordering_json)) => subtasks_ordering_json
+        | _ =>
+          raise(
+            Failure(
+              "A list of subtask titles (subtask ordering) must be provided for the action",
+            ),
+          )
+        };
+      List.map(
+        (title: API.Json.t) =>
+          switch (title) {
+          | `String(title) => title
+          | _ =>
+            raise(Failure("Subtask titles in the ordering must be strings"))
+          },
+        subtasks_ordering_json,
+      );
     };
     let get_task = (): CompositionAgentWorkbench.Model.task => {
       let task_json =
@@ -188,6 +211,10 @@ module Local = {
             Assistant(MarkActiveSubtaskComplete(get_summary(args)))
           | "mark_active_subtask_incomplete" =>
             Assistant(MarkActiveSubtaskIncomplete)
+          | "add_new_subtask_to_active_task" =>
+            Assistant(AddNewSubtaskToActiveTask(get_subtask()))
+          | "reorder_subtasks_in_active_task" =>
+            Assistant(ReorderSubtasksInActiveTask(get_subtasks_ordering()))
           | _ => raise(Failure("The tool called does not exist."))
           };
         Action(action);
@@ -223,7 +250,10 @@ module Local = {
       "insert_after(\"" ++ path ++ "\", \"" ++ code ++ "\")"
     | Editor(Edit(InsertBefore(path, code))) =>
       "insert_before(\"" ++ path ++ "\", \"" ++ code ++ "\")"
-    | Assistant(CreateNewTask(_)) => "create_new_task(<task>)"
+    | Assistant(CreateNewTask(task)) =>
+      "create_new_task( "
+      ++ CompositionAgentWorkbench.Utils.TaskUtils.task_to_json_string(task)
+      ++ " )"
     | Assistant(UnsetActiveTask) => "unset_active_task"
     | Assistant(SetActiveTask(task_title)) =>
       "set_active_task(\"" ++ task_title ++ "\")"
@@ -236,14 +266,24 @@ module Local = {
     | Assistant(MarkActiveSubtaskComplete(summary)) =>
       "mark_active_subtask_complete(\"" ++ summary ++ "\")"
     | Assistant(MarkActiveSubtaskIncomplete) => "mark_active_subtask_incomplete"
+    | Assistant(AddNewSubtaskToActiveTask(subtask)) =>
+      "add_new_subtask_to_active_task( "
+      ++ CompositionAgentWorkbench.Utils.SubtaskUtils.subtask_to_json_string(
+           subtask,
+         )
+      ++ ")"
+    | Assistant(ReorderSubtasksInActiveTask(subtasks_ordering)) =>
+      "reorder_subtasks_in_active_task( \"["
+      ++ String.concat(", ", subtasks_ordering)
+      ++ "]\" )"
     };
   };
 };
 
 module Public = {
+  [@der]
   let tools = Local.tools;
-  let action_of =
-      (~tool_name: string, ~args: API.Json.t): Local.action_wrapper => {
+  let action_of = (~tool_name: string, ~args: API.Json.t): action_wrapper => {
     Local.action_of(~tool_name, ~args);
   };
   let string_of = (action: action) => {

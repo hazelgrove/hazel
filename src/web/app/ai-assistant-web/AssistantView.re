@@ -1714,8 +1714,9 @@ let todo_archive_menu =
                 CompositionAgentWorkbench.Utils.MainUtils.active_task(
                   curr_chat.composition_model,
                 )
-                |> Option.map((task: CompositionAgentWorkbench.Model.task) =>
-                     task.title == task.title
+                |> Option.map(
+                     (active_task: CompositionAgentWorkbench.Model.task) =>
+                     active_task.title == task.title
                    )
                 |> Option.value(~default=false)
                   ? clss(["history-menu-item", "active"])
@@ -1725,6 +1726,13 @@ let todo_archive_menu =
                     inject(
                       Update.CompositionAgentWorkbenchAction(
                         UIAction(SetDisplayTask(task.title)),
+                        User,
+                        chat_id,
+                      ),
+                    ),
+                    inject(
+                      Update.CompositionAgentWorkbenchAction(
+                        BackendAction(SetActiveTask(task.title)),
                         User,
                         chat_id,
                       ),
@@ -1762,7 +1770,7 @@ let todo_archive_menu =
   );
 };
 
-let todo_list_display =
+let task_display =
     (~model: Model.t, ~settings: AssistantSettings.t, ~inject): Node.t => {
   let (_, curr_chat) = UpdateBase.get_mode_info(settings.mode, model);
   let chat_id = curr_chat.id;
@@ -1788,9 +1796,23 @@ let todo_list_display =
         div(
           ~attrs=[clss(["todo-list-container"])],
           [
+            /* Title row: show title on the left and (if completed) elapsed time on the right */
             div(
               ~attrs=[clss(["todo-list-title"])],
-              [text(active_task.title)],
+              [
+                div(
+                  ~attrs=[clss(["todo-list-title-left"])],
+                  [text(active_task.title)],
+                ),
+                switch (active_task.completion_info) {
+                | Some(info) =>
+                  div(
+                    ~attrs=[clss(["todo-list-title-time"])],
+                    [text(TimeUtil.format_duration_ms(info.elapsed_time))],
+                  )
+                | None => None
+                },
+              ],
             ),
             div(
               ~attrs=[clss(["todo-items"])],
@@ -1846,16 +1868,47 @@ let todo_list_display =
                         ~attrs=[clss(["todo-item-content"])],
                         [
                           div(
-                            ~attrs=[clss(["todo-item-title"])],
-                            [text(subtask.title)],
+                            ~attrs=[clss(["todo-item-title-row"])],
+                            [
+                              div(
+                                ~attrs=[clss(["todo-item-title"])],
+                                [text(subtask.title)],
+                              ),
+                              /* Show elapsed time on the header (if completed) */
+                              switch (subtask.completion_info) {
+                              | Some(info) =>
+                                div(
+                                  ~attrs=[clss(["todo-item-title-time"])],
+                                  [
+                                    text(
+                                      TimeUtil.format_duration_ms(
+                                        info.elapsed_time,
+                                      ),
+                                    ),
+                                  ],
+                                )
+                              | None => None
+                              },
+                            ],
                           ),
                           subtask.subtask_ui.expanded
                             ? div(
                                 ~attrs=[clss(["todo-item-details"])],
                                 [
+                                  /* Header row for the details section: label + elapsed time (if completed) */
                                   div(
-                                    ~attrs=[clss(["todo-detail-header"])],
-                                    [text("Description")],
+                                    ~attrs=[
+                                      clss(["todo-detail-header-row"]),
+                                    ],
+                                    [
+                                      div(
+                                        ~attrs=[
+                                          clss(["todo-detail-header"]),
+                                        ],
+                                        [text("Description")],
+                                      ),
+                                      None,
+                                    ],
                                   ),
                                   div(
                                     ~attrs=[clss(["todo-detail-text"])],
@@ -1905,7 +1958,7 @@ let todo_list_display =
 let view =
     (
       ~globals: Globals.t,
-      ~signal,
+      ~signal: event => Ui_effect.t(unit),
       ~inject: Update.t => Ui_effect.t(unit),
       ~model: Model.t,
     ) => {
@@ -1991,11 +2044,7 @@ let view =
         ),
         settings.assistant.ongoing_chat
           ? show_todos
-              ? todo_list_display(
-                  ~model,
-                  ~settings=settings.assistant,
-                  ~inject,
-                )
+              ? task_display(~model, ~settings=settings.assistant, ~inject)
               : message_display(
                   ~globals,
                   ~inject,

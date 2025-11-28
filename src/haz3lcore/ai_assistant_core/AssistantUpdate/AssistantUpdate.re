@@ -277,6 +277,7 @@ let mk_active_task_message =
     display: Some(Model.mk_message_display(~content)),
     role: System(AgentWorkbench),
     sketch_snapshot: None,
+    tool_calls: [],
   };
 };
 
@@ -407,7 +408,8 @@ let mk_user_content_message =
     content: Some(OpenRouter.mk_user_msg(content)),
     display: Some(Model.mk_message_display(~content)),
     role,
-    sketch_snapshot: None // Some(editor), todo: figure out how to serialize editor
+    sketch_snapshot: None, // Some(editor), todo: figure out how to serialize editor
+    tool_calls: [],
   };
 };
 
@@ -532,6 +534,7 @@ let update =
             ),
           role: System(AssistantPrompt),
           sketch_snapshot: None,
+          tool_calls: [],
         };
 
         let updated_chat =
@@ -583,6 +586,7 @@ let update =
             display: Some(display),
             role: System(AgentView),
             sketch_snapshot: None,
+            tool_calls: [],
           };
 
           let updated_chat =
@@ -633,12 +637,14 @@ let update =
                 display: Some(Model.mk_message_display(~content=response)),
                 role: System(AssistantPrompt),
                 sketch_snapshot: None,
+                tool_calls: [],
               };
               let agent_view: Model.message = {
                 content: Some(OpenRouter.mk_user_msg(local_code_map_str)),
                 display: Some(display),
                 role: System(AgentView),
                 sketch_snapshot: None,
+                tool_calls: [],
               };
               update_chat(curr_chat, [tool_response_message, agent_view]);
             | Failure(err) =>
@@ -647,6 +653,7 @@ let update =
                 display: Some(Model.mk_message_display(~content=err)),
                 role: System(InternalError),
                 sketch_snapshot: None,
+                tool_calls: [],
               };
               update_chat(curr_chat, [err_message]);
             };
@@ -709,6 +716,7 @@ let update =
                 Some(Model.mk_message_display(~content=ctx_prompt.content)),
               role: System(AssistantPrompt),
               sketch_snapshot: None,
+              tool_calls: [],
             };
             let updated_chat = update_chat(new_chat, [ctx_message]);
 
@@ -744,6 +752,7 @@ let update =
             display: Some(Model.mk_message_display(~content=ctx.content)),
             role: System(AssistantPrompt),
             sketch_snapshot: None,
+            tool_calls: [],
           };
           let content_message =
             mk_user_content_message(~content, ~role=User, ~zipper);
@@ -773,6 +782,7 @@ let update =
               Some(Model.mk_message_display(~content=error_message.content)),
             role: System(AssistantPrompt),
             sketch_snapshot: None,
+            tool_calls: [],
           };
           let updated_chat = update_chat(curr_chat, [error_message]);
 
@@ -822,6 +832,7 @@ let update =
         display: Some(Model.mk_message_display(~content)),
         role: System(InternalError),
         sketch_snapshot: None,
+        tool_calls: [],
       };
 
       // Note: We aren't sending a message here, but we do add it to the chat history.
@@ -868,6 +879,7 @@ let update =
       model;
     } else {
       // todo: turning off for now to save credits
+      // fixme: uncomment to enable chat descriptors again
       //create_chat_descriptor(~model, ~schedule_action, ~mode, ~chat_id);
       let threshold =
         int_of_float(
@@ -883,10 +895,9 @@ let update =
       let content = reply.content;
       print_endline("content: " ++ content);
       // Todo: Allow for multiple tool calls
-      let tool_call = ListUtil.hd_opt(reply.tool_calls);
+      let tool_calls_json = reply.tool_calls_json;
       let assistant_message: Model.message = {
-        content:
-          Some(OpenRouter.mk_assistant_msg(content, reply.tool_calls_json)),
+        content: Some(OpenRouter.mk_assistant_msg(content, tool_calls_json)),
         display:
           switch (content) {
           | "" => None
@@ -894,6 +905,7 @@ let update =
           },
         role: Assistant,
         sketch_snapshot: None,
+        tool_calls: [],
       };
 
       // This commented out code below is for streaming, if we ever choose to add
@@ -936,8 +948,8 @@ let update =
           ++ string_of_bool(eval_mode),
         );
         // This is step (3) from the directed graph above --
-        switch (tool_call, fuel) {
-        | (None, _) =>
+        switch (tool_calls_json, fuel) {
+        | ([], _) =>
           // The agent did not make a tool call, thus there is nothing to handle on the backend,
           // we can proceed as if there were a normal LLM chat interaction.
           summarize_chat();
@@ -971,7 +983,44 @@ let update =
             ~awaiting_response=false // false because out of fuel
           );
 
-        | (Some(tool_call), _) =>
+        | (tool_calls_json, _) =>
+          let parse_tool_args = (args: API.Json.t): API.Json.t => {
+            switch (args) {
+            | `String(str) =>
+              try(Yojson.Safe.from_string(str)) {
+              | _ => args
+              }
+            | json => json
+            };
+          };
+          let tool_calls: list(OpenRouter.tool_call) =
+            List.filter_map(
+              (tool_call: API.Json.t) => {
+                let* id = API.Json.dot("id", tool_call);
+                let* id = API.Json.str(id);
+                let* tool_call = API.Json.dot("function", tool_call);
+                let* name = API.Json.dot("name", tool_call);
+                let* name = API.Json.str(name);
+                let* args = API.Json.dot("arguments", tool_call);
+                let parsed_args = parse_tool_args(args);
+                let tool_call: OpenRouter.tool_call = {
+                  id,
+                  tool_name: name,
+                  args: parsed_args,
+                };
+                Some(tool_call);
+              },
+              tool_calls_json,
+            );
+          let _actions =
+            List.map(
+              (tc: OpenRouter.tool_call) =>
+                CompositionUtils.Public.action_of(
+                  ~tool_name=tc.tool_name,
+                  ~args=tc.args,
+                ),
+              tool_calls,
+            );
           let updated_chat = {
             let structure_edit_message: Model.message = {
               content: None,
@@ -980,12 +1029,13 @@ let update =
                   Model.mk_message_display(
                     ~content=
                       AssistantModes.Composition.mk_structure_edit_msg(
-                        ~tool_call,
+                        ~tool_call=List.hd(tool_calls),
                       ),
                   ),
                 ),
               role: Tool,
               sketch_snapshot: None,
+              tool_calls: [()] // TODO: fill in with converted action
             };
             update_chat(
               curr_chat,
@@ -1002,8 +1052,8 @@ let update =
                 Loop(
                   fuel - 1,
                   {
-                    tool_call_id: tool_call.id,
-                    name: tool_call.tool_name,
+                    tool_call_id: List.hd(tool_calls).id,
+                    name: List.hd(tool_calls).tool_name,
                   },
                   status,
                 ),
@@ -1014,8 +1064,8 @@ let update =
             );
           let action =
             CompositionUtils.Public.action_of(
-              ~tool_name=tool_call.tool_name,
-              ~args=tool_call.args,
+              ~tool_name=List.hd(tool_calls).tool_name,
+              ~args=List.hd(tool_calls).args,
             );
           switch (action) {
           | Failure(s) =>
@@ -1154,6 +1204,7 @@ let update =
           ),
         role: Tool,
         sketch_snapshot: None,
+        tool_calls: [],
       };
       let summarized_chat_message: Model.message = {
         // note: making this an outgoing assistant message, but displaying as system message,
@@ -1164,6 +1215,7 @@ let update =
         display: Some(Model.mk_message_display(~content)),
         role: System(AssistantPrompt),
         sketch_snapshot: None,
+        tool_calls: [],
       };
       let updated_chat =
         update_chat(
@@ -1216,6 +1268,7 @@ let update =
         display: Some(Model.mk_message_display(~content="User quit early")),
         role: System(InternalError),
         sketch_snapshot: None,
+        tool_calls: [],
       };
       let (_, curr_chat) = get_mode_info(settings.mode, model);
       let updated_chat = update_chat(curr_chat, [quit_message]);

@@ -1125,10 +1125,24 @@
 }
 
 #assistant .todo-list-title {
-  text-decoration: underline;
   margin-bottom: 10px;
-  text-align: center;
+  /* switch to flex so we can show the title and the elapsed time on one line */
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
   color: var(--STONE);
+}
+
+#assistant .todo-list-title-left {
+  font-weight: 600;
+  font-size: 1.05em;
+}
+
+#assistant .todo-list-title-time {
+  font-size: 0.85em;
+  color: var(--STONE);
+  opacity: 0.7;
+  margin-left: 12px;
 }
 
 #assistant .todo-items {
@@ -1174,6 +1188,18 @@
   margin-top: 4px;
 }
 
+#assistant .todo-detail-header-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+#assistant .todo-detail-elapsed {
+  font-size: 0.85em;
+  color: var(--STONE);
+  opacity: 0.75;
+}
+
 #assistant .todo-detail-text {
   white-space: pre-wrap;
   line-height: 1.4;
@@ -1211,6 +1237,19 @@
 #assistant .todo-item-title {
   font-size: 0.9em;
   color: var(--STONE);
+}
+
+#assistant .todo-item-title-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+#assistant .todo-item-title-time {
+  font-size: 0.85em;
+  color: var(--STONE);
+  opacity: 0.75;
+  margin-left: 8px;
 }
 
 #assistant .no-todo-list {

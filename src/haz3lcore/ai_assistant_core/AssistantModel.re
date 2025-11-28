@@ -76,6 +76,7 @@ type message = {
   display: option(display),
   role,
   sketch_snapshot,
+  tool_calls: list(unit),
 };
 
 // A chat is a collection of messages, attached to an ID
@@ -190,6 +191,7 @@ let init_chat = (mode: AssistantSettings.mode): chat => {
         display: Some(mk_message_display(~content=init_message.content)),
         role: System(AssistantPrompt),
         sketch_snapshot: None,
+        tool_calls: [],
       },
     ],
     id: Id.mk(),

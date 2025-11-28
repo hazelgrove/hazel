@@ -64,7 +64,6 @@ type usage = {
 [@deriving (show({with_path: false}), sexp, yojson)]
 type reply = {
   content: string,
-  tool_calls: list(tool_call),
   tool_calls_json: list(Json.t),
   usage,
 };
@@ -199,18 +198,7 @@ let first_message_content = (choices: Json.t): option(string) => {
   Json.str(content);
 };
 
-let parse_tool_args = (args: Json.t): Json.t => {
-  switch (args) {
-  | `String(str) =>
-    try(Yojson.Safe.from_string(str)) {
-    | _ => args
-    }
-  | json => json
-  };
-};
-
-let first_message_tool_call =
-    (choices: Json.t): (list(tool_call), list(Json.t)) => {
+let first_message_tool_call = (choices: Json.t): list(Json.t) => {
   let get_tool_calls = (choices: Json.t): option(list(Json.t)) => {
     let* choices = Json.list(choices);
     let* hd = ListUtil.hd_opt(choices);
@@ -220,28 +208,8 @@ let first_message_tool_call =
     Some(tool_calls_json);
   };
   switch (get_tool_calls(choices)) {
-  | Some(tool_calls_json) =>
-    let tool_calls: list(tool_call) =
-      List.filter_map(
-        (tool_call: Json.t) => {
-          let* id = Json.dot("id", tool_call);
-          let* id = Json.str(id);
-          let* tool_call = Json.dot("function", tool_call);
-          let* name = Json.dot("name", tool_call);
-          let* name = Json.str(name);
-          let* args = Json.dot("arguments", tool_call);
-          let parsed_args = parse_tool_args(args);
-          let tool_call: tool_call = {
-            id,
-            tool_name: name,
-            args: parsed_args,
-          };
-          Some(tool_call);
-        },
-        tool_calls_json,
-      );
-    (tool_calls, tool_calls_json);
-  | None => ([], [])
+  | Some(tool_calls_json) => tool_calls_json
+  | None => []
   };
 };
 
@@ -268,11 +236,10 @@ let handle_chat = (~db=ignore, response: option(Json.t)): option(result) => {
     let* choices = Json.dot("choices", json);
     let* usage = Json.dot("usage", json);
     let* content = first_message_content(choices);
-    let (tool_calls, tool_calls_json) = first_message_tool_call(choices);
+    let tool_calls_json = first_message_tool_call(choices);
     let+ usage = of_usage(usage);
     Reply({
       content,
-      tool_calls,
       tool_calls_json,
       usage,
     });

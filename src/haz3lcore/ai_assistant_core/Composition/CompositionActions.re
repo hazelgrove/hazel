@@ -36,7 +36,7 @@ type read_action =
 
 // --- Edit Actions ---
 
-[@deriving (show({with_path: false}), sexp, yojson, eq)]
+[@deriving (show({with_path: false}), sexp, yojson)]
 type edit_action =
   | Initialize(code)
   | UpdateDefinition(path, code)
@@ -62,7 +62,7 @@ type view_action =
  */
 
 // AddToolLabel_1.0: Make the action types (above) and add their cases to the funs (below)
-[@deriving (show({with_path: false}), sexp, yojson, eq)]
+[@deriving (show({with_path: false}), sexp, yojson)]
 type editor_action =
   | View(view_action) // Main source of ingesting the codebase
   | Read(read_action) // Language server helpers

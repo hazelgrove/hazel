@@ -64,3 +64,35 @@ let format_time_diff = (prior: float): string => {
       : Printf.sprintf("%.0f days ago", diff_days);
   };
 };
+
+let format_duration_ms = (ms: float): string => {
+  /*
+     ms is in milliseconds; convert to human-friendly string
+     Examples:
+       <1000 -> "<1s"
+       1500 -> "1.5s"
+       62000 -> "1m 2s"
+       3660000 -> "1h 1m 0s"
+   */
+  let total_seconds = ms /. 1000.0;
+  if (total_seconds < 1.0) {
+    "<1s";
+  } else if (total_seconds < 60.0) {
+    if (total_seconds < 10.0) {
+      Printf.sprintf("%.1fs", total_seconds);
+    } else {
+      Printf.sprintf("%.0fs", total_seconds);
+    };
+  } else if (total_seconds < 3600.0) {
+    let mins = floor(total_seconds /. 60.0) |> int_of_float;
+    let secs =
+      int_of_float(floor(total_seconds -. float_of_int(mins) *. 60.0));
+    Printf.sprintf("%dm %ds", mins, secs);
+  } else {
+    let hours = floor(total_seconds /. 3600.0) |> int_of_float;
+    let remainder = total_seconds -. float_of_int(hours) *. 3600.0;
+    let mins = floor(remainder /. 60.0) |> int_of_float;
+    let secs = int_of_float(floor(remainder -. float_of_int(mins) *. 60.0));
+    Printf.sprintf("%dh %dm %ds", hours, mins, secs);
+  };
+};

@@ -22,8 +22,8 @@
   //   let z = perform(Zipper.init(), mk(init));
   //   let info_map = mk_statics(z);
   //   let curr_node_info =
-  //     AssistantTreeHelper.HighLevelNode.build(z, info_map)
-  //     |> AssistantTreeHelper.HighLevelNode.unwrap;
+  //     HighLevelNodeMap.HighLevelNode.build(z, info_map)
+  //     |> HighLevelNodeMap.HighLevelNode.unwrap;
   //   let refs_in =
   //     refs_list_to_str_for_testing_only(
   //       CompositionView.refs_in(
