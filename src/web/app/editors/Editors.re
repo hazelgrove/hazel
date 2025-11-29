@@ -77,7 +77,7 @@ module Store = {
         Model.Projects(
           ProjectMode.Store.load()
           |> ProjectMode.Store.integrate_share
-          |> ProjectMode.Model.unpersist(~settings),
+          |> ProjectMode.Persistent.unpersist(~settings),
         )
       };
     };
@@ -99,7 +99,7 @@ module Store = {
       ExercisesMode.Store.save(~instructor_mode, m);
     | Model.Projects(m) =>
       StoreMode.save(Projects);
-      ProjectMode.Store.save(ProjectMode.Model.persist(m));
+      ProjectMode.Store.save(ProjectMode.Persistent.persist(m));
     };
   };
 };
@@ -243,7 +243,7 @@ module Update = {
     | (SwitchMode(Projects), _) =>
       Model.Projects(
         ProjectMode.Store.load()
-        |> ProjectMode.Model.unpersist(~settings=globals.settings.core),
+        |> ProjectMode.Persistent.unpersist(~settings=globals.settings.core),
       )
       |> return
     };
