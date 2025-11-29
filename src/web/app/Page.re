@@ -87,14 +87,6 @@ module Update = {
       ~editor,
     );
 
-  let get_editor = (model: Model.t): CodeEditable.Model.t =>
-    switch (model.editors) {
-    | Scratch(m) => (List.nth(m.scratchpads, m.current) |> snd).editor
-    | Documentation(m) => (List.nth(m.scratchpads, m.current) |> snd).editor
-    | Tutorial(m) => List.nth(m.exercises, m.current).cells.user_impl.editor
-    | Exercises(m) => List.nth(m.exercises, m.current).cells.user_impl.editor
-    };
-
   let update_global =
       (
         ~import_log,
@@ -196,6 +188,8 @@ module Update = {
           let filename = current.editors.module_name ++ ".ml";
           let content = "not supported";
           (filename, content);
+        | Projects(_) =>
+          failwith("ExportForInit not supported for Projects yet")
         };
       JsUtil.download_string_file(
         ~filename,
@@ -269,20 +263,7 @@ module Update = {
         ...model,
         explain_this,
       };
-    | Assistant(action) =>
-      let* assistant =
-        AssistantUpdate.update(
-          ~action,
-          ~settings=globals.settings,
-          ~model=model.assistant,
-          ~editor=get_editor(model),
-          ~schedule_action=a => schedule_action(Assistant(a)),
-          ~schedule_editor_action=a => schedule_action(Editors(a)),
-        );
-      {
-        ...model,
-        assistant,
-      };
+    | Assistant(_action) => model |> Updated.return_quiet // Todo: Large refactoring of agent architecture
     | MakeActive(selection) =>
       {
         ...model,
@@ -621,10 +602,10 @@ module View = {
         ~assistant_inject=action => inject(Assistant(action)),
         ~signal=
           fun
-          | MakeActive(s) => inject(MakeActive(Scratch(s))),
+          | ScratchMode.View.MakeActive(s) =>
+            inject(MakeActive(Scratch(s))),
         ~explainThisModel,
         ~assistantModel,
-        ~editor=Update.get_editor(model),
         cursor.info,
       );
 

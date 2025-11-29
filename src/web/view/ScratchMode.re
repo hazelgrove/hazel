@@ -75,7 +75,11 @@ module Store = {
     let key = Store.Scratch;
     let default = () =>
       Init.startup.scratch
-      |> PairUtil.map_snd(List.map(PairUtil.map_snd(x => Some(x))));
+      |> PairUtil.map_snd(
+           List.map(
+             PairUtil.map_snd((x: CellEditor.Model.persistent) => Some(x)),
+           ),
+         );
   });
 
   let integrate_share = (model: t): t => {

@@ -174,7 +174,6 @@ let view =
       ~signal,
       ~explainThisModel: ExplainThisModel.t,
       ~assistantModel: AssistantModel.t,
-      ~editor,
       info: option(Language.Info.t),
     ) => {
   let sub =
@@ -191,14 +190,7 @@ let view =
                 ~explainThisModel,
                 info,
               )
-            | HelpfulAssistant =>
-              AssistantView.view(
-                ~globals,
-                ~signal,
-                ~inject=assistant_inject,
-                ~model=assistantModel,
-                ~editor,
-              )
+            | HelpfulAssistant => None // Todo: Large refactoring of agent architecture
             },
           ],
         )
