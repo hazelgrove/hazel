@@ -97,10 +97,33 @@ module Update = {
   };
 
   let update =
-      (~globals, ~schedule_action: t => unit, action: t, model: Model.t)
+      (
+        ~settings,
+        ~globals,
+        ~schedule_action: t => unit,
+        action: t,
+        model: Model.t,
+      )
       : Updated.t(Model.t) => {
     switch (action) {
-    | CellAction(cell_action) => Updated.return_quiet(model)
+    | CellAction(a) =>
+      switch (FileSystem.Utils.current_file(model.file_system)) {
+      | None => Updated.return_quiet(model)
+      | Some(file) =>
+        let* new_ed = CellEditor.Update.update(~settings, a, file.editor);
+        let new_file = {
+          ...file,
+          editor: new_ed,
+        };
+        let new_file_system =
+          FileSystem.Utils.add(
+            file.path,
+            FileSystem.Model.File(new_file),
+            model.file_system,
+          );
+        let model: Model.t = {file_system: new_file_system};
+        model;
+      }
     | FileSystemAction(file_system_action) =>
       let* new_fs =
         FileSystem.Update.update(file_system_action, model.file_system);

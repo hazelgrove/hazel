@@ -167,9 +167,10 @@ module Utils = {
     };
 
   let current_file = (model: Model.t): option(Model.file) => {
-    switch (
-      Maps.StringMap.find_opt(string_of_path(model.current), model.file_tree)
-    ) {
+    /* Use Utils.find_opt so we get the same backwards-compatible path lookup
+       behaviour as the rest of the file system helpers (in particular, the
+       special handling of the legacy root "" key). */
+    switch (find_opt(model.current, model)) {
     | Some(File(file)) => Some(file)
     | _ => None
     };

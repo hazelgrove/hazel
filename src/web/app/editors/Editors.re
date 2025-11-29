@@ -180,6 +180,7 @@ module Update = {
     | (Projects(action), Projects(m)) =>
       let* m' =
         ProjectMode.Update.update(
+          ~settings=globals.settings,
           ~globals,
           ~schedule_action=a => schedule_action(Projects(a)),
           action,

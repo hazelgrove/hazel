@@ -23,6 +23,12 @@
   background-color: var(--main-bkg);
 }
 
+/* Cell editor styling in project mode - match ScratchMode appearance */
+#project-mode-main .cell {
+  flex-grow: 1;
+  background-color: var(--cell-active);
+}
+
 /* File system sidebar */
 
 #project-sidebar {
