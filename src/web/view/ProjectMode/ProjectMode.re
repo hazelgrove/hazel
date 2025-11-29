@@ -4,19 +4,62 @@ open OptUtil.Syntax;
 
 /* This file follows conventions in [docs/ui-architecture.md] */
 
-module Model = {
-  [@deriving (show({with_path: false}), sexp, yojson)]
-  type project = {
-    id: Id.t,
-    name: string,
-    file_system: FileSystem.Model.t,
-    // agent: Agent.Model.t
-    // ...
+module Project = {
+  module Model = {
+    [@deriving (show({with_path: false}), sexp, yojson)]
+    type t = {
+      id: Id.t,
+      name: string,
+      file_system: FileSystem.Model.t,
+      // agent: Agent.Model.t
+      // ...
+    };
   };
 
+  module Persistent = {
+    [@deriving (show({with_path: false}), sexp, yojson)]
+    type t = {
+      id: Id.t,
+      name: string,
+      file_system: FileSystem.Persistent.t,
+      // agent: Agent.Persistent.t
+      // ...
+    };
+
+    let persist = (model: Model.t): t => {
+      {
+        id: model.id,
+        name: model.name,
+        file_system: FileSystem.Persistent.persist(model.file_system),
+      };
+    };
+
+    let unpersist = (~settings, p: t): Model.t => {
+      {
+        id: p.id,
+        name: p.name,
+        file_system:
+          FileSystem.Persistent.unpersist(~settings, p.file_system),
+      };
+    };
+  };
+
+  module Utils = {
+    let mk_new_project = (name: string): Model.t => {
+      let id = Id.mk();
+      {
+        id,
+        name,
+        file_system: FileSystem.Utils.init(),
+      };
+    };
+  };
+};
+
+module Model = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t = {
-    projects: Id.Map.t(project),
+    projects: Id.Map.t(Project.Model.t),
     current: Id.t,
     // ...
   };
@@ -24,58 +67,35 @@ module Model = {
 
 module Persistent = {
   [@deriving (show({with_path: false}), sexp, yojson)]
-  type project = {
-    id: Id.t,
-    name: string,
-    file_system: FileSystem.Persistent.t,
-    // agent: Agent.Persistent.t
-    // ...
-  };
-
-  [@deriving (show({with_path: false}), sexp, yojson)]
   type t = {
-    projects: Id.Map.t(project),
+    projects: Id.Map.t(Project.Persistent.t),
     current: Id.t,
     // ...
   };
 
   let persist = (model: Model.t): t => {
-    projects:
-      Id.Map.map(
-        (project: Model.project) =>
-          {
-            id: project.id,
-            name: project.name,
-            file_system: FileSystem.Persistent.persist(project.file_system),
-          },
-        model.projects,
-      ),
+    projects: Id.Map.map(Project.Persistent.persist, model.projects),
     current: model.current,
   };
 
   let unpersist = (~settings, p: t): Model.t => {
     projects:
-      Id.Map.map(
-        (p: project): Model.project =>
-          {
-            id: p.id,
-            name: p.name,
-            file_system:
-              FileSystem.Persistent.unpersist(~settings, p.file_system),
-          },
-        p.projects,
-      ),
+      Id.Map.map(Project.Persistent.unpersist(~settings), p.projects),
     current: p.current,
   };
 };
 
 module Utils = {
-  let current_project = (model: Model.t): Model.project => {
-    Id.Map.find_opt(model.current, model.projects)
+  let find_project = (id: Id.t, model: Model.t): option(Project.Model.t) => {
+    Id.Map.find_opt(id, model.projects);
+  };
+
+  let current_project = (model: Model.t): Project.Model.t => {
+    find_project(model.current, model)
     |> OptUtil.get_or_fail("Current project not found");
   };
 
-  let add_project = (model: Model.t, project: Model.project): Model.t => {
+  let add_project = (model: Model.t, project: Project.Model.t): Model.t => {
     {
       // Adds new binding or overwrites the existing binding to the project map
 
@@ -84,20 +104,11 @@ module Utils = {
     };
   };
 
-  let mk_new_project = (name: string): Model.project => {
-    let id = Id.mk();
-    {
-      id,
-      name,
-      file_system: FileSystem.Utils.init(),
-    };
-  };
-
-  let sorted_projects = (model: Model.t): list(Model.project) => {
+  let sorted_projects = (model: Model.t): list(Project.Model.t) => {
     // We sort projects by name
     Id.Map.bindings(model.projects)
-    |> List.map(((_, project: Model.project)) => project)
-    |> List.sort((a: Model.project, b: Model.project) =>
+    |> List.map(((_, project: Project.Model.t)) => project)
+    |> List.sort((a: Project.Model.t, b: Project.Model.t) =>
          String.compare(a.name, b.name)
        );
   };
@@ -114,7 +125,7 @@ module Store = {
         let file_system: FileSystem.Persistent.t =
           FileSystem.Persistent.persist(FileSystem.Utils.init());
         let id = Id.mk();
-        let project: Persistent.project = {
+        let project: Project.Persistent.t = {
           id,
           name: root,
           file_system,
@@ -134,10 +145,67 @@ module Store = {
 
 module Update = {
   open Updated;
+
+  module ProjectMapUpdate = {
+    [@deriving (show({with_path: false}), sexp, yojson)]
+    type t =
+      | SwitchProject(Id.t)
+      | AddNewProject(string)
+      | DeleteProject(Id.t)
+      | RenameProject(Id.t, string);
+
+    let can_undo = (_action: t) => {
+      true;
+    };
+
+    let switch_project = (id: Id.t, model: Model.t): Updated.t(Model.t) => {
+      {
+        ...model,
+        current: id,
+      }
+      |> Updated.return_quiet;
+    };
+
+    let add_new_project = (name: string, model: Model.t): Updated.t(Model.t) => {
+      let project = Project.Utils.mk_new_project(name);
+      Utils.add_project(model, project) |> Updated.return_quiet;
+    };
+
+    let delete_project = (id: Id.t, model: Model.t): Updated.t(Model.t) => {
+      {
+        ...model,
+        projects: Id.Map.remove(id, model.projects),
+      }
+      |> Updated.return_quiet;
+    };
+
+    let rename_project =
+        (id: Id.t, name: string, model: Model.t): Updated.t(Model.t) => {
+      let project =
+        Utils.find_project(id, model)
+        |> OptUtil.get_or_fail("Project not found");
+      let renamed_project = {
+        ...project,
+        name,
+      };
+      Utils.add_project(model, renamed_project) |> Updated.return_quiet;
+    };
+
+    let update = (action: t, model: Model.t): Updated.t(Model.t) => {
+      switch (action) {
+      | SwitchProject(id) => switch_project(id, model)
+      | AddNewProject(name) => add_new_project(name, model)
+      | DeleteProject(id) => delete_project(id, model)
+      | RenameProject(id, name) => rename_project(id, name, model)
+      };
+    };
+  };
+
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t =
     | CellAction(CellEditor.Update.t)
-    | FileSystemAction(FileSystem.Update.t);
+    | FileSystemAction(FileSystem.Update.t)
+    | ProjectMapAction(ProjectMapUpdate.t);
 
   let can_undo = (_action: t) => {
     false;
@@ -201,6 +269,8 @@ module Update = {
           file_system: new_fs,
         },
       );
+    | ProjectMapAction(project_map_action) =>
+      ProjectMapUpdate.update(project_map_action, model)
     };
   };
 
