@@ -68,6 +68,118 @@ let file_menu = (~globals as _, ~inject as _, _: Model.t) => {
   [];
 };
 
-let top_bar = (~globals as _, ~inject as _, _model: Model.t) => {
-  [Virtual_dom.Vdom.Node.div([])];
+let top_bar = (~globals as _, ~inject: Update.t => 'a, model: Model.t) => {
+  open Virtual_dom.Vdom;
+  open Node;
+  open Util.WebUtil;
+  open Util.JsUtil;
+  open Js_of_ocaml;
+  module W = Widgets;
+  module I = Icons;
+
+  let sorted_projects = Utils.sorted_projects(model);
+  let current_id = model.current;
+
+  let project_tabs =
+    List.map(
+      (project: ProjectMode.Project.Model.t) => {
+        let is_current = project.id == current_id;
+        div(
+          ~attrs=[
+            clss([
+              "project-tab",
+              ...is_current ? ["project-tab-current"] : [],
+            ]),
+            Attr.on_click(_ =>
+              inject(Update.ProjectMapAction(SwitchProject(project.id)))
+            ),
+          ],
+          [
+            div(~attrs=[clss(["project-tab-name"])], [text(project.name)]),
+            div(
+              ~attrs=[clss(["project-tab-actions"])],
+              [
+                div(
+                  ~attrs=[clss(["project-tab-actions-icon"])],
+                  [
+                    W.button(~tooltip="Project actions", I.hamburger, _ =>
+                      Effect.Ignore
+                    ),
+                  ],
+                ),
+                div(
+                  ~attrs=[clss(["project-tab-actions-menu"])],
+                  [
+                    W.button(
+                      ~tooltip="Rename",
+                      I.rename,
+                      _ => {
+                        let name_opt =
+                          JsUtil.prompt(
+                            "Enter new project name:",
+                            project.name,
+                          );
+                        switch (name_opt) {
+                        | None => Effect.Ignore
+                        | Some(n) =>
+                          inject(
+                            Update.ProjectMapAction(
+                              RenameProject(project.id, n),
+                            ),
+                          )
+                        };
+                      },
+                    ),
+                    W.button(
+                      ~tooltip="Delete",
+                      I.delete,
+                      _ => {
+                        let confirmed =
+                          JsUtil.confirm(
+                            "Are you sure you want to delete this project? This will delete all files in the project.",
+                          );
+                        confirmed
+                          ? inject(
+                              Update.ProjectMapAction(
+                                DeleteProject(project.id),
+                              ),
+                            )
+                          : Effect.Ignore;
+                      },
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ],
+        );
+      },
+      sorted_projects,
+    );
+
+  let add_project_btn =
+    div(
+      ~attrs=[clss(["project-tab-add"])],
+      [
+        W.button(
+          ~tooltip="Add new project",
+          I.add_project,
+          _ => {
+            let name_opt =
+              JsUtil.prompt("Enter new project name:", "NewProject");
+            switch (name_opt) {
+            | None => Effect.Ignore
+            | Some(n) => inject(Update.ProjectMapAction(AddNewProject(n)))
+            };
+          },
+        ),
+      ],
+    );
+
+  [
+    div(
+      ~attrs=[Attr.id("project-tabs-container")],
+      project_tabs @ [add_project_btn],
+    ),
+  ];
 };

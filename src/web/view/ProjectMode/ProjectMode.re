@@ -163,21 +163,27 @@ module Update = {
         ...model,
         current: id,
       }
-      |> Updated.return_quiet;
+      |> Updated.return;
     };
 
     let add_new_project = (name: string, model: Model.t): Updated.t(Model.t) => {
       let project = Project.Utils.mk_new_project(name);
-      Utils.add_project(model, project) |> Updated.return_quiet;
+      Utils.add_project(model, project) |> Updated.return;
     };
 
-    let delete_project = (id: Id.t, model: Model.t): Updated.t(Model.t) => {
-      {
-        ...model,
-        projects: Id.Map.remove(id, model.projects),
-      }
-      |> Updated.return_quiet;
-    };
+    let delete_project = (id: Id.t, model: Model.t): Updated.t(Model.t) =>
+      if (Id.Map.cardinal(model.projects) <= 1) {
+        failwith("Must have at least one project.");
+      } else {
+        let new_current = Id.Map.choose(model.projects) |> fst;
+        (
+          {
+            projects: Id.Map.remove(id, model.projects),
+            current: new_current,
+          }: Model.t
+        )
+        |> Updated.return;
+      };
 
     let rename_project =
         (id: Id.t, name: string, model: Model.t): Updated.t(Model.t) => {
@@ -208,7 +214,7 @@ module Update = {
     | ProjectMapAction(ProjectMapUpdate.t);
 
   let can_undo = (_action: t) => {
-    false;
+    true;
   };
 
   let export_project = (model: Model.t): unit => {

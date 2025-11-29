@@ -286,7 +286,7 @@
   justify-content: center;
 }
 
-#top-bar #editor-mode .icon:hover {
+#top-bar .icon:hover {
   scale: unset;
   border-radius: 1em;
   background-color: var(--SAND);
