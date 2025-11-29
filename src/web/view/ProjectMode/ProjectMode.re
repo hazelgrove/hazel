@@ -57,7 +57,7 @@ module Store = {
             };
             let file_tree =
               Maps.StringMap.singleton(
-                root,
+                FileSystem.Utils.string_of_path([root]),
                 FileSystem.Persistent.Folder(root_project_folder),
               );
             file_tree;
@@ -233,8 +233,12 @@ module View = {
     | MakeActive(Selection.t);
 
   let project_sidebar = (~globals, ~inject, model: Model.t) => {
-    []; // A left-hand side sidebar for project navigation
-      // Displays the file system tree as clickable items
+    FileSystem.View.view(
+      ~globals,
+      ~inject=a => inject(Update.FileSystemAction(a)),
+      ~selected=None,
+      model.file_system,
+    );
   };
 
   let view =
@@ -245,25 +249,45 @@ module View = {
         ~selected: option(Selection.t),
         model: Model.t,
       ) => {
-    switch (FileSystem.Utils.current_file(model.file_system)) {
-    | None => []
-    | Some(file) => [
-        CellEditor.View.view(
-          ~globals,
-          ~signal=
-            fun
-            | MakeActive(selection) => signal(MakeActive(Cell(selection))),
-          ~inject=a => inject(CellAction(a)),
-          ~selected=
-            switch (selected) {
-            | Some(Selection.Cell(s)) => Some(s)
-            | _ => None
-            },
-          ~locked=false,
-          file.editor,
-        ),
-      ]
-    };
+    let sidebar = project_sidebar(~globals, ~inject, model);
+
+    let main_content =
+      switch (FileSystem.Utils.current_file(model.file_system)) {
+      | None => []
+      | Some(file) => [
+          CellEditor.View.view(
+            ~globals,
+            ~signal=
+              fun
+              | MakeActive(selection) =>
+                signal(MakeActive(Cell(selection))),
+            ~inject=a => inject(CellAction(a)),
+            ~selected=
+              switch (selected) {
+              | Some(Selection.Cell(s)) => Some(s)
+              | _ => None
+              },
+            ~locked=false,
+            file.editor,
+          ),
+        ]
+      };
+
+    [
+      Virtual_dom.Vdom.Node.div(
+        ~attrs=[Virtual_dom.Vdom.Attr.id("project-mode")],
+        [
+          Virtual_dom.Vdom.Node.div(
+            ~attrs=[Virtual_dom.Vdom.Attr.id("project-mode-sidebar")],
+            sidebar,
+          ),
+          Virtual_dom.Vdom.Node.div(
+            ~attrs=[Virtual_dom.Vdom.Attr.id("project-mode-main")],
+            main_content,
+          ),
+        ],
+      ),
+    ];
   };
 
   let file_menu = (~globals as _, ~inject as _, _: Model.t) => {
