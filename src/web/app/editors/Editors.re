@@ -472,10 +472,10 @@ module View = {
         m,
       )
     | Projects(m) =>
-      ProjectMode.View.view(
+      ProjectModeView.view(
         ~signal=
           fun
-          | ProjectMode.View.MakeActive(s: ProjectMode.Selection.t) =>
+          | ProjectModeView.MakeActive(s: ProjectMode.Selection.t) =>
             signal(MakeActive(Projects(s))),
         ~globals,
         ~selected=
@@ -510,7 +510,7 @@ module View = {
         e,
       )
     | Projects(p) =>
-      ProjectMode.View.file_menu(
+      ProjectModeView.file_menu(
         ~globals,
         ~inject=x => inject(Update.Projects(x)),
         p,
@@ -589,7 +589,7 @@ module View = {
           m,
         )
       | Projects(m) =>
-        ProjectMode.View.top_bar(
+        ProjectModeView.top_bar(
           ~globals,
           ~inject=a => Update.Projects(a) |> inject,
           m,

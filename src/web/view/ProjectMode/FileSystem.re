@@ -141,6 +141,25 @@ module Utils = {
     };
   };
 
+  let init = (): Model.t => {
+    let root = "";
+    {
+      file_tree: {
+        let root_project_folder: Model.folder = {
+          path: [root],
+          name: root,
+          children: [],
+          expanded: true,
+        };
+        Maps.StringMap.singleton(
+          string_of_path([root]),
+          Model.Folder(root_project_folder),
+        );
+      },
+      current: [root],
+    };
+  };
+
   let find_opt =
       (path: Model.path, model: Model.t): option(Model.file_tree_node) => {
     /* Primary lookup uses the canonical string_of_path key.
@@ -176,7 +195,7 @@ module Utils = {
     };
   };
 
-  let add =
+  let add_file_system =
       (path: Model.path, node: Model.file_tree_node, model: Model.t): Model.t => {
     let new_file_tree =
       Maps.StringMap.add(string_of_path(path), node, model.file_tree);
@@ -262,9 +281,10 @@ module Update = {
           ...parent_folder,
           children: parent_folder.children @ [new_path],
         };
-        let model' = Utils.add(new_path, Model.File(new_file), model);
+        let model' =
+          Utils.add_file_system(new_path, Model.File(new_file), model);
         let model'' =
-          Utils.add(
+          Utils.add_file_system(
             parent_folder_path,
             Model.Folder(updated_parent_folder),
             model',
@@ -296,9 +316,10 @@ module Update = {
           ...parent_folder,
           children: parent_folder.children @ [new_path],
         };
-        let model' = Utils.add(new_path, Model.Folder(new_folder), model);
+        let model' =
+          Utils.add_file_system(new_path, Model.Folder(new_folder), model);
         let model'' =
-          Utils.add(
+          Utils.add_file_system(
             parent_folder_path,
             Model.Folder(updated_parent_folder),
             model',
@@ -322,7 +343,11 @@ module Update = {
         let parent_folder =
           Utils.remove_child_from_folder(path, parent_folder_path, model');
         let model'' =
-          Utils.add(parent_folder_path, Model.Folder(parent_folder), model');
+          Utils.add_file_system(
+            parent_folder_path,
+            Model.Folder(parent_folder),
+            model',
+          );
         Success(model'');
       | Some(Model.Folder(folder)) =>
         let children = folder.children;
@@ -341,15 +366,16 @@ module Update = {
           );
         switch (result) {
         | Success(model') =>
+          let model'' = Utils.remove(path, model');
           let parent_folder =
-            Utils.remove_child_from_folder(path, parent_folder_path, model');
-          let model'' =
-            Utils.add(
+            Utils.remove_child_from_folder(path, parent_folder_path, model'');
+          let model''' =
+            Utils.add_file_system(
               parent_folder_path,
               Model.Folder(parent_folder),
-              model',
+              model'',
             );
-          Success(model'');
+          Success(model''');
         | Failure(error_msg) => Failure(error_msg)
         };
       | None => Failure("File or folder does not exist.")
@@ -366,7 +392,8 @@ module Update = {
         ...file,
         path: new_path,
       };
-      let model'' = Utils.add(new_path, Model.File(new_file), model');
+      let model'' =
+        Utils.add_file_system(new_path, Model.File(new_file), model');
       // Update the name of the path in the parent folder
       let parent_folder_path = Utils.parent_folder(old_path);
       let parent_folder =
@@ -376,7 +403,7 @@ module Update = {
         children: parent_folder.children @ [new_path],
       };
       let model''' =
-        Utils.add(
+        Utils.add_file_system(
           parent_folder_path,
           Model.Folder(new_parent_folder),
           model'',
@@ -407,7 +434,7 @@ module Update = {
           path: new_path,
         };
         let model''' =
-          Utils.add(new_path, Model.Folder(new_folder), model'');
+          Utils.add_file_system(new_path, Model.Folder(new_folder), model'');
         // Done
         // Update the name of the path in the parent folder
         let parent_folder_path = Utils.parent_folder(old_path);
@@ -422,7 +449,7 @@ module Update = {
           children: parent_folder.children @ [new_path],
         };
         let model'''' =
-          Utils.add(
+          Utils.add_file_system(
             parent_folder_path,
             Model.Folder(new_parent_folder),
             model''',
@@ -448,7 +475,8 @@ module Update = {
           ...file,
           name: new_name,
         };
-        let model'' = Utils.add(path, Model.File(new_file), model');
+        let model'' =
+          Utils.add_file_system(path, Model.File(new_file), model');
         let new_path = List.rev(List.tl(List.rev(path))) @ [new_name];
         rename_paths(model'', path, new_path);
       | Some(Model.Folder(folder)) =>
@@ -457,7 +485,8 @@ module Update = {
           ...folder,
           name: new_name,
         };
-        let model'' = Utils.add(path, Model.Folder(new_folder), model');
+        let model'' =
+          Utils.add_file_system(path, Model.Folder(new_folder), model');
         let new_path = List.rev(List.tl(List.rev(path))) @ [new_name];
         rename_paths(model'', path, new_path);
       | None => Failure("File or folder does not exist.")
@@ -499,291 +528,11 @@ module Update = {
           ...folder,
           expanded: !folder.expanded,
         };
-        Utils.add(path, Model.Folder(updated_folder), model)
+        Utils.add_file_system(path, Model.Folder(updated_folder), model)
         |> Updated.return_quiet;
       | Some(Model.File(_)) =>
         failwith("Path is not a folder. Cannot toggle expansion on a file.")
       | None => failwith("Folder does not exist.")
       }
     };
-};
-
-module View = {
-  open Virtual_dom.Vdom;
-  open Node;
-  open Util.WebUtil;
-  open Util.JsUtil;
-  open Js_of_ocaml;
-  module W = Widgets;
-  module I = Icons;
-
-  let path_equal = (p1: Model.path, p2: Model.path): bool =>
-    List.length(p1) == List.length(p2) && List.for_all2((==), p1, p2);
-
-  let rec render_node =
-          (
-            ~inject: Update.t => 'a,
-            ~model: Model.t,
-            ~depth: int,
-            node_path: Model.path,
-          )
-          : list(Node.t) => {
-    let indent_px = 8 * depth;
-    let is_current = path_equal(model.current, node_path);
-
-    let base_classes =
-      ["project-fs-item"] @ (is_current ? ["project-fs-item-current"] : []);
-
-    let base_attrs = [clss(base_classes)];
-
-    switch (Utils.find_opt(node_path, model)) {
-    | None => []
-    | Some(Model.File(file)) => [
-        div(
-          ~attrs=
-            List.concat([
-              base_attrs,
-              [
-                Attr.on_click(_ => inject(Update.SetCurrentFile(file.path))),
-              ],
-            ]),
-          [
-            div(
-              ~attrs=[clss(["project-fs-row"])],
-              [
-                div(
-                  ~attrs=[
-                    clss(["project-fs-name"]),
-                    Attr.style(Css_gen.padding_left(`Px(indent_px))),
-                  ],
-                  [text(file.name)],
-                ),
-                div(
-                  ~attrs=[clss(["project-fs-actions"])],
-                  [
-                    div(
-                      ~attrs=[clss(["project-fs-actions-icon"])],
-                      [
-                        W.button(~tooltip="File actions", I.hamburger, _ =>
-                          Effect.Ignore
-                        ),
-                      ],
-                    ),
-                    div(
-                      ~attrs=[clss(["project-fs-actions-menu"])],
-                      [
-                        W.button(
-                          ~tooltip="Rename",
-                          I.rename,
-                          _ => {
-                            let current_name =
-                              switch (Utils.find_opt(node_path, model)) {
-                              | Some(Model.File(f)) => f.name
-                              | _ => ""
-                              };
-                            let name_opt =
-                              JsUtil.prompt(
-                                "Enter new file name (without .hz):",
-                                current_name,
-                              );
-                            switch (name_opt) {
-                            | None => Effect.Ignore
-                            | Some(n) => inject(Update.Rename(node_path, n))
-                            };
-                          },
-                        ),
-                        W.button(
-                          ~tooltip="Delete",
-                          I.delete,
-                          _ => {
-                            let confirmed =
-                              JsUtil.confirm(
-                                "Are you sure you want to delete this file?",
-                              );
-                            confirmed
-                              ? inject(Update.Delete(node_path))
-                              : Effect.Ignore;
-                          },
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          ],
-        ),
-      ]
-    | Some(Model.Folder(folder)) =>
-      // Root folder is represented as the project and is bold; other folders normal
-      let is_root = folder.path == [""];
-      let folder_label =
-        div(
-          ~attrs=base_attrs,
-          [
-            div(
-              ~attrs=[clss(["project-fs-row"])],
-              [
-                div(
-                  ~attrs=[
-                    clss(
-                      [
-                        "project-fs-name", /* make folder label behave like file label */
-                        "project-fs-folder",
-                        ...folder.expanded
-                             ? ["project-fs-folder-expanded"] : [],
-                      ]
-                      @ (is_root ? ["project-fs-root-folder"] : []),
-                    ),
-                    Attr.style(Css_gen.padding_left(`Px(indent_px))),
-                    Attr.on_click(_ =>
-                      inject(Update.ToggleFolderExpansion(folder.path))
-                    ),
-                  ],
-                  [
-                    div(
-                      ~attrs=[clss(["project-fs-disclosure"])],
-                      [text(folder.expanded ? "▾" : "▸")],
-                    ),
-                    div([text(is_root ? "Project" : folder.name)]),
-                  ],
-                ),
-                div(
-                  ~attrs=[clss(["project-fs-actions"])],
-                  [
-                    div(
-                      ~attrs=[clss(["project-fs-actions-icon"])],
-                      [
-                        W.button(~tooltip="Folder actions", I.hamburger, _ =>
-                          Effect.Ignore
-                        ),
-                      ],
-                    ),
-                    div(
-                      ~attrs=[clss(["project-fs-actions-menu"])],
-                      {
-                        let add_file_btn =
-                          W.button(
-                            ~tooltip="Add file",
-                            I.add_file,
-                            _ => {
-                              let name_opt =
-                                JsUtil.prompt(
-                                  "Enter new file name (without .hz):",
-                                  "NewFile",
-                                );
-                              switch (name_opt) {
-                              | None => Effect.Ignore
-                              | Some(n) =>
-                                inject(Update.AddNewFile(folder.path, n))
-                              };
-                            },
-                          );
-                        let add_folder_btn =
-                          W.button(
-                            ~tooltip="Add folder",
-                            I.add_folder,
-                            _ => {
-                              let name_opt =
-                                JsUtil.prompt(
-                                  "Enter new folder name:",
-                                  "NewFolder",
-                                );
-                              switch (name_opt) {
-                              | None => Effect.Ignore
-                              | Some(n) =>
-                                inject(Update.AddNewFolder(folder.path, n))
-                              };
-                            },
-                          );
-                        let rename_btns =
-                          is_root
-                            ? []
-                            : [
-                              W.button(
-                                ~tooltip="Rename",
-                                I.rename,
-                                _ => {
-                                  let current_name = folder.name;
-                                  let name_opt =
-                                    JsUtil.prompt(
-                                      "Enter new folder name:",
-                                      current_name,
-                                    );
-                                  switch (name_opt) {
-                                  | None => Effect.Ignore
-                                  | Some(n) =>
-                                    inject(Update.Rename(folder.path, n))
-                                  };
-                                },
-                              ),
-                            ];
-                        let delete_btns =
-                          is_root
-                            ? []
-                            : [
-                              W.button(
-                                ~tooltip="Delete",
-                                I.delete,
-                                _ => {
-                                  let confirmed =
-                                    JsUtil.confirm(
-                                      "Are you sure you want to delete this folder and all its contents?",
-                                    );
-                                  confirmed
-                                    ? inject(Update.Delete(folder.path))
-                                    : Effect.Ignore;
-                                },
-                              ),
-                            ];
-                        [add_file_btn, add_folder_btn]
-                        @ rename_btns
-                        @ delete_btns;
-                      },
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          ],
-        );
-
-      let children_nodes =
-        folder.expanded
-          ? List.concat(
-              List.map(
-                (child_path: Model.path) =>
-                  render_node(~inject, ~model, ~depth=depth + 1, child_path),
-                folder.children,
-              ),
-            )
-          : [];
-
-      [folder_label] @ children_nodes;
-    };
-  };
-
-  let view =
-      // File system tree view is a left-hand side sidebar for project navigation
-      // It injects updates to the file system tree
-      (
-        ~globals as _,
-        ~inject: Update.t => 'a,
-        ~selected: option(Selection.t),
-        model: Model.t,
-      ) => {
-    /* For now we assume a single root folder at path [""] */
-    let root_path: Model.path = [""];
-    [
-      div(
-        ~attrs=[Attr.id("project-sidebar")],
-        [
-          div(
-            ~attrs=[clss(["project-fs-container"])],
-            render_node(~inject, ~model, ~depth=0, root_path),
-          ),
-        ],
-      ),
-    ];
-  };
 };

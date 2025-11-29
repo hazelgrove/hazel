@@ -6,36 +6,100 @@ open OptUtil.Syntax;
 
 module Model = {
   [@deriving (show({with_path: false}), sexp, yojson)]
-  type t = {
+  type project = {
+    id: Id.t,
+    name: string,
     file_system: FileSystem.Model.t,
     // agent: Agent.Model.t
+    // ...
+  };
+
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type t = {
+    projects: Id.Map.t(project),
+    current: Id.t,
     // ...
   };
 };
 
 module Persistent = {
   [@deriving (show({with_path: false}), sexp, yojson)]
-  type t = {
-    file_tree: FileSystem.Persistent.t,
+  type project = {
+    id: Id.t,
+    name: string,
+    file_system: FileSystem.Persistent.t,
     // agent: Agent.Persistent.t
     // ...
   };
 
-  let persist = (model: Model.t): t => {
-    file_tree: FileSystem.Persistent.persist(model.file_system),
-    // agent: Agent.Persistent.persist(model.agent),
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type t = {
+    projects: Id.Map.t(project),
+    current: Id.t,
     // ...
+  };
+
+  let persist = (model: Model.t): t => {
+    projects:
+      Id.Map.map(
+        (project: Model.project) =>
+          {
+            id: project.id,
+            name: project.name,
+            file_system: FileSystem.Persistent.persist(project.file_system),
+          },
+        model.projects,
+      ),
+    current: model.current,
   };
 
   let unpersist = (~settings, p: t): Model.t => {
-    file_system: FileSystem.Persistent.unpersist(~settings, p.file_tree),
-    // agent: Agent.Persistent.unpersist(~settings, p.agent),
-    // ...
+    projects:
+      Id.Map.map(
+        (p: project): Model.project =>
+          {
+            id: p.id,
+            name: p.name,
+            file_system:
+              FileSystem.Persistent.unpersist(~settings, p.file_system),
+          },
+        p.projects,
+      ),
+    current: p.current,
+  };
+};
+
+module Utils = {
+  let current_project = (model: Model.t): Model.project => {
+    Id.Map.find_opt(model.current, model.projects)
+    |> OptUtil.get_or_fail("Current project not found");
   };
 
-  let integrate_share = (model: t): t => {
-    // TODO: I'm not really sure what this is supposed to do yet
-    model;
+  let add_project = (model: Model.t, project: Model.project): Model.t => {
+    {
+      // Adds new binding or overwrites the existing binding to the project map
+
+      ...model,
+      projects: Id.Map.add(project.id, project, model.projects),
+    };
+  };
+
+  let mk_new_project = (name: string): Model.project => {
+    let id = Id.mk();
+    {
+      id,
+      name,
+      file_system: FileSystem.Utils.init(),
+    };
+  };
+
+  let sorted_projects = (model: Model.t): list(Model.project) => {
+    // We sort projects by name
+    Id.Map.bindings(model.projects)
+    |> List.map(((_, project: Model.project)) => project)
+    |> List.sort((a: Model.project, b: Model.project) =>
+         String.compare(a.name, b.name)
+       );
   };
 };
 
@@ -46,25 +110,19 @@ module Store = {
     let key = Store.Project;
     let default: unit => t =
       () => {
-        let root = ""; // root name is the empty string
-        let file_tree: FileSystem.Persistent.t = {
-          file_tree: {
-            let root_project_folder: FileSystem.Persistent.folder = {
-              path: [root],
-              name: root,
-              children: [],
-              expanded: true,
-            };
-            let file_tree =
-              Maps.StringMap.singleton(
-                FileSystem.Utils.string_of_path([root]),
-                FileSystem.Persistent.Folder(root_project_folder),
-              );
-            file_tree;
-          },
-          current: [root],
+        let root = "MyHazelProject";
+        let file_system: FileSystem.Persistent.t =
+          FileSystem.Persistent.persist(FileSystem.Utils.init());
+        let id = Id.mk();
+        let project: Persistent.project = {
+          id,
+          name: root,
+          file_system,
         };
-        {file_tree: file_tree};
+        {
+          projects: Id.Map.singleton(id, project),
+          current: id,
+        };
       };
   });
 
@@ -105,9 +163,10 @@ module Update = {
         model: Model.t,
       )
       : Updated.t(Model.t) => {
+    let curr_project = Utils.current_project(model);
     switch (action) {
     | CellAction(a) =>
-      switch (FileSystem.Utils.current_file(model.file_system)) {
+      switch (FileSystem.Utils.current_file(curr_project.file_system)) {
       | None => Updated.return_quiet(model)
       | Some(file) =>
         let* new_ed = CellEditor.Update.update(~settings, a, file.editor);
@@ -115,20 +174,33 @@ module Update = {
           ...file,
           editor: new_ed,
         };
-        let new_file_system =
-          FileSystem.Utils.add(
+        let updated_file_system =
+          FileSystem.Utils.add_file_system(
             file.path,
             FileSystem.Model.File(new_file),
-            model.file_system,
+            curr_project.file_system,
           );
-        let model: Model.t = {file_system: new_file_system};
-        model;
+        Utils.add_project(
+          model,
+          {
+            ...curr_project,
+            file_system: updated_file_system,
+          },
+        );
       }
     | FileSystemAction(file_system_action) =>
       let* new_fs =
-        FileSystem.Update.update(file_system_action, model.file_system);
-      let new_model: Model.t = {file_system: new_fs};
-      new_model;
+        FileSystem.Update.update(
+          file_system_action,
+          curr_project.file_system,
+        );
+      Utils.add_project(
+        model,
+        {
+          ...curr_project,
+          file_system: new_fs,
+        },
+      );
     };
   };
 
@@ -140,7 +212,8 @@ module Update = {
         model: Model.t,
       )
       : Model.t => {
-    switch (FileSystem.Utils.current_file(model.file_system)) {
+    let curr_project = Utils.current_project(model);
+    switch (FileSystem.Utils.current_file(curr_project.file_system)) {
     | None => model // No current file to calculate
     | Some(file) =>
       let worker_request = ref([]);
@@ -191,17 +264,18 @@ module Update = {
         editor: new_ed,
       };
       let updated_file_system =
-        Maps.StringMap.add(
-          FileSystem.Utils.string_of_path(file.path),
+        FileSystem.Utils.add_file_system(
+          file.path,
           FileSystem.Model.File(updated_file),
-          model.file_system.file_tree,
+          curr_project.file_system,
         );
-      {
-        file_system: {
-          ...model.file_system,
-          file_tree: updated_file_system,
+      Utils.add_project(
+        model,
+        {
+          ...curr_project,
+          file_system: updated_file_system,
         },
-      };
+      );
     };
   };
 };
@@ -219,7 +293,10 @@ module Selection = {
     // If an editor is not set (eg. only a folder exists), we return the empty cursor
     switch (selection) {
     | Cell(selection) =>
-      let file = FileSystem.Utils.current_file(model.file_system);
+      let file =
+        FileSystem.Utils.current_file(
+          Utils.current_project(model).file_system,
+        );
       switch (file) {
       | None => empty
       | Some(file) =>
@@ -237,7 +314,10 @@ module Selection = {
     | Cell(selection) =>
       switch (event) {
       | _ =>
-        let* file = FileSystem.Utils.current_file(model.file_system);
+        let* file =
+          FileSystem.Utils.current_file(
+            Utils.current_project(model).file_system,
+          );
         CellEditor.Selection.handle_key_event(~selection, ~event, file.editor)
         |> Option.map(x => Update.CellAction(x));
       }
@@ -245,79 +325,11 @@ module Selection = {
     };
 
   let jump_to_tile = (tile: Id.t, model: Model.t): option((Update.t, t)) => {
-    let* file = FileSystem.Utils.current_file(model.file_system);
+    let* file =
+      FileSystem.Utils.current_file(
+        Utils.current_project(model).file_system,
+      );
     CellEditor.Selection.jump_to_tile(tile, file.editor)
     |> Option.map(((x, y)) => (Update.CellAction(x), Cell(y)));
-  };
-};
-
-module View = {
-  type event =
-    | MakeActive(Selection.t);
-
-  let project_sidebar = (~globals, ~inject, model: Model.t) => {
-    FileSystem.View.view(
-      ~globals,
-      ~inject=a => inject(Update.FileSystemAction(a)),
-      ~selected=None,
-      model.file_system,
-    );
-  };
-
-  let view =
-      (
-        ~globals,
-        ~signal: event => 'a,
-        ~inject: Update.t => 'a,
-        ~selected: option(Selection.t),
-        model: Model.t,
-      ) => {
-    let sidebar = project_sidebar(~globals, ~inject, model);
-
-    let main_content =
-      switch (FileSystem.Utils.current_file(model.file_system)) {
-      | None => []
-      | Some(file) => [
-          CellEditor.View.view(
-            ~globals,
-            ~signal=
-              fun
-              | MakeActive(selection) =>
-                signal(MakeActive(Cell(selection))),
-            ~inject=a => inject(CellAction(a)),
-            ~selected=
-              switch (selected) {
-              | Some(Selection.Cell(s)) => Some(s)
-              | _ => None
-              },
-            ~locked=false,
-            file.editor,
-          ),
-        ]
-      };
-
-    [
-      Virtual_dom.Vdom.Node.div(
-        ~attrs=[Virtual_dom.Vdom.Attr.id("project-mode")],
-        [
-          Virtual_dom.Vdom.Node.div(
-            ~attrs=[Virtual_dom.Vdom.Attr.id("project-mode-sidebar")],
-            sidebar,
-          ),
-          Virtual_dom.Vdom.Node.div(
-            ~attrs=[Virtual_dom.Vdom.Attr.id("project-mode-main")],
-            main_content,
-          ),
-        ],
-      ),
-    ];
-  };
-
-  let file_menu = (~globals as _, ~inject as _, _: Model.t) => {
-    [];
-  };
-
-  let top_bar = (~globals as _, ~inject as _, _model: Model.t) => {
-    [Virtual_dom.Vdom.Node.div([])];
   };
 };
