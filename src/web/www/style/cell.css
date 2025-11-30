@@ -26,6 +26,11 @@
 
 #main.Scratch,
 #main.Documentation {
+  background-color: var(--ui-bkg);
+}
+
+:is(#main.Scratch,
+#main.Documentation) > * > .code-editor {
   background-color: var(--cell-active);
 }
 
@@ -40,6 +45,7 @@
   padding-top: 3.5em;
   display: flex;
   flex-direction: column;
+  justify-content: flex-start;
   gap: 1.2em;
   background-color: var(--ui-bkg);
   scrollbar-color: var(--main-scroll-thumb) var(--NONE);

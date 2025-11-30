@@ -68,7 +68,7 @@ module Store = {
       | Exercises =>
         Model.Exercises(
           ExercisesMode.Store.load(~settings, ~instructor_mode)
-          |> ExercisesMode.Model.unpersist(~instructor_mode),
+          |> ExercisesMode.Model.unpersist(~settings, ~instructor_mode),
         )
       };
     };
@@ -205,6 +205,7 @@ module Update = {
           ~instructor_mode=globals.settings.instructor_mode,
         )
         |> ExercisesMode.Model.unpersist(
+             ~settings=globals.settings,
              ~instructor_mode=globals.settings.instructor_mode,
            ),
       )
@@ -259,7 +260,7 @@ module Selection = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t =
     | Scratch(ScratchMode.Selection.t)
-    | Exercises(ExerciseMode.Selection.t)
+    | Exercises(ExercisesMode.Selection.t)
     | Tutorial(TutorialMode.Selection.t);
 
   let get_cursor_info = (~selection: t, editors: Model.t): cursor(Update.t) => {
@@ -336,7 +337,8 @@ module Selection = {
     | Model.Scratch(_) => Scratch(Cell(MainEditor))
     | Model.Documentation(_) => Scratch(Cell(MainEditor))
     | Model.Tutorial(_) => Tutorial(Cell(Tutorial.YourImpl, MainEditor))
-    | Model.Exercises(_) => Exercises(Cell(Exercise.Prelude, MainEditor));
+    | Model.Exercises(_) =>
+      Exercises(Implementation(Cell(Exercise.Prelude, MainEditor)));
 };
 
 module View = {
@@ -403,9 +405,9 @@ module View = {
       )
     | Exercises(m) =>
       ExercisesMode.View.view(
-        ~signal=
+        ~take_focus=
           fun
-          | MakeActive(s) => signal(MakeActive(Exercises(s))),
+          | s => signal(MakeActive(Exercises(s))),
         ~globals,
         ~selection=
           switch (selection) {

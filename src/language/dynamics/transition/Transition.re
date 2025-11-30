@@ -102,6 +102,8 @@ type step_kind =
   | VarLookup
   | Seq
   | LetBind(string)
+  | TheoremBind
+  | RecordTheorem
   | WrapClosure
   | FixUnwrap
   | FixClosure
@@ -141,13 +143,17 @@ type rule =
   | Indet
   | Value;
 
-let (let-unbox) = ((request, v), f) =>
-  switch (Unboxing.unbox(request, v)) {
+let (let-unboxed) = (unboxed: Unboxing.unboxed('a), f) =>
+  switch (unboxed) {
   | IndetMatch
   | DoesNotMatch => Indet
   | Matches(n) => f(n)
   };
 
+let (let-unbox) = ((request, v), f) => {
+  let-unboxed result = Unboxing.unbox(request, v);
+  f(result);
+};
 module type EV_MODE = {
   type state;
   type result;
@@ -228,37 +234,38 @@ module Transition = (EV: EV_MODE) => {
     let subst_env = (env, d) =>
       switch (mode) {
       | `Environment => Closure(env, d) |> fresh
-      | `Substitution => d |> Substitution.subst(env)
+      | `Substitution => d |> Substitution.in_exp(env)
       };
 
     // Transition rules
     switch (term) {
     | Var(x) =>
-      switch (mode) {
-      | `Environment =>
-        let. _ = otherwise(env, Var(x) |> rewrap);
-        switch (Environment.lookup(env, x)) {
-        | Some(d) =>
-          let is_value =
-            switch (d |> Exp.term_of) {
-            | FixF(_, _, _) => false // fixpoints aren't final
-            | Let(_, _, _) => false // could be mutually-recursive fixpoint
-            | _ => true // all other closure entries should be final
-            };
-          Step({
-            expr: d |> fast_copy(Id.mk()),
-            side_effects: [],
-            kind: VarLookup,
-            is_value,
-          });
-        | None =>
-          let.wrap_closure _ = (env, d);
-          Indet;
-        };
-      | `Substitution =>
-        let. _ = otherwise(env, d);
+      // switch (mode) {
+      // | `Environment =>
+      let. _ = otherwise(env, Var(x) |> rewrap);
+      switch (Environment.lookup(env, x)) {
+      | Some({term: Var(y), _}) when x == y => Indet // Used in proof to refer to a bound variable.
+      | Some(d) =>
+        let is_value =
+          switch (d |> Exp.term_of) {
+          | FixF(_, _, _) => false // fixpoints aren't final
+          | Let(_, _, _) => false // could be mutually-recursive fixpoint
+          | _ => true // all other closure entries should be final
+          };
+        Step({
+          expr: d |> fast_copy(Id.mk()),
+          side_effects: [],
+          kind: VarLookup,
+          is_value,
+        });
+      | None =>
+        let.wrap_closure _ = (env, d);
         Indet;
-      }
+      };
+    // | `Substitution =>
+    //   let. _ = otherwise(env, d);
+    //   Indet;
+    // }
     | Seq(d1, d2) =>
       let. _ = otherwise(env, d1 => Seq(d1, d2) |> rewrap)
       and. _ = req_final(req(env), d1 => Seq1(d1, d2) |> wrap_ctx, d1);
@@ -296,6 +303,38 @@ module Transition = (EV: EV_MODE) => {
         });
       };
 
+    | Theorem({term: Var(n), _}, e, d1) =>
+      let. _ = otherwise(env, d);
+      let e' = Substitution.in_exp(env, e);
+      let env' = Environment.extend(env, (n, ProofObject(e') |> Exp.fresh));
+      Step({
+        expr: subst_env(env', d1),
+        side_effects: [RecordTheorem(DHExp.rep_id(d), n, env, e')],
+        kind: TheoremBind,
+        is_value: false,
+      });
+    | Theorem(_) =>
+      let. _ = otherwise(env, d);
+      Indet;
+    | ProofObject(e) =>
+      let. _ = otherwise(env, d);
+      let e' = Substitution.in_exp(env, e);
+      switch (mode) {
+      | `Substitution => Value
+      | `Environment =>
+        Step({
+          expr: d,
+          side_effects: [
+            RecordTheorem(DHExp.rep_id(d), "<anon theorem>", env, e'),
+          ],
+          kind: RecordTheorem,
+          is_value: true,
+        })
+      };
+    // Note[Matt]: we could make this spin, but for now it's indet
+    | Forall(_) =>
+      let. _ = otherwise(env, d);
+      Indet;
     | TypFun(_)
     | Fun(_, _, _, _) =>
       let. _ = otherwise(env, d);
@@ -499,14 +538,11 @@ module Transition = (EV: EV_MODE) => {
                 d4s,
               ),
             );
-          let-unbox args =
+          let-unboxed args =
             if (n_args == 1) {
-              (
-                Tuple(n_args),
-                tuple([d2']) // TODO Should we not be going to a tuple?
-              );
+              Matches([d2']);
             } else {
-              (Tuple(n_args), d2');
+              Unboxing.unbox(Tuple(n_args), d2');
             };
           let new_args = {
             let rec go = (deferred, args) =>
@@ -521,7 +557,16 @@ module Transition = (EV: EV_MODE) => {
             go(d4s, args);
           };
           Step({
-            expr: ap(Forward, d3, tuple(new_args)),
+            expr:
+              ap(
+                Forward,
+                d3,
+                switch (new_args) {
+                | [{term: TupLabel(_, _), _}] => tuple(new_args)
+                | [d] => d
+                | _ => tuple(new_args)
+                },
+              ),
             side_effects: [],
             kind: DeferredAp,
             is_value: false,
@@ -622,15 +667,7 @@ module Transition = (EV: EV_MODE) => {
       | Undefined(_) => Indet
       | DefinedPoly(poly_op) =>
         if (!DHExp.ty_comparable(d1, d2)) {
-          let expr =
-            DynamicErrorHole(BinOp(op, d1, d2) |> rewrap, Incomparable)
-            |> fresh;
-          Step({
-            expr,
-            side_effects: [],
-            kind: MarkIncomparable,
-            is_value: false,
-          });
+          Indet;
         } else {
           switch (DHExp.poly_equal(d1, d2)) {
           | None => Indet
@@ -639,7 +676,7 @@ module Transition = (EV: EV_MODE) => {
               expr: Atom(Bool(poly_op == Equals)) |> fresh,
               side_effects: [],
               kind: BinOp(op),
-              is_value: false,
+              is_value: true,
             })
           | Some(false) =>
             Step({
@@ -845,7 +882,7 @@ module Transition = (EV: EV_MODE) => {
           d1 => Closure(env', d1) |> wrap_ctx,
           d,
         );
-      if (needs_closure^) {
+      if (needs_closure^ || mode == `Substitution) {
         Constructor;
       } else {
         Step({
@@ -864,8 +901,10 @@ module Transition = (EV: EV_MODE) => {
       let. _ = otherwise(env, d);
       // let.wrap_closure _ = env;  // uncomment for hole closures
       Indet;
-    | DynamicErrorHole(_) =>
-      let. _ = otherwise(env, d);
+    | DynamicErrorHole(d, err) =>
+      let. _ = otherwise(env, d => DynamicErrorHole(d, err) |> rewrap)
+      and. _ =
+        req_final(req(env), d1 => DynamicErrorHole(d1, err) |> wrap_ctx, d);
       let.wrap_closure _ = (env, d);
       Indet;
     | Asc(d', t) =>
@@ -946,6 +985,7 @@ module Transition = (EV: EV_MODE) => {
 let should_hide_step_kind = (~settings: CoreSettings.Evaluation.t) =>
   fun
   | LetBind(_)
+  | TheoremBind
   | Seq
   | UpdateTest
   | TypFunAp
@@ -963,8 +1003,8 @@ let should_hide_step_kind = (~settings: CoreSettings.Evaluation.t) =>
   | Conditional(_)
   | RemoveTypeAlias
   | RemoveUse
-  | InvalidStep => false
-  | VarLookup => !settings.show_lookup_steps
+  | InvalidStep
+  | VarLookup => false
   | AscriptionTypAp
   | AscriptionAp
   | Ascription => !settings.show_ascription_steps
@@ -975,11 +1015,14 @@ let should_hide_step_kind = (~settings: CoreSettings.Evaluation.t) =>
   | WrapClosure
   | FixClosure
   | MarkIncomparable
+  | RecordTheorem
   | RemoveParens => true;
 
 let stepper_justification: step_kind => string =
   fun
   | LetBind(s) => String.cat("substitution for ", s)
+  | TheoremBind => "theorem substitution"
+  | RecordTheorem => "record theorem"
   | Seq => "sequence"
   | FixUnwrap => "unroll fixpoint"
   | UpdateTest => "update test"
