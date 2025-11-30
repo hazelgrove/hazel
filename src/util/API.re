@@ -76,6 +76,13 @@ module Json = {
     let* pairs = get_kvs(json);
     List.assoc_opt(key, pairs);
   };
+
+  module Parsers = {
+    let int_field = (json: t, field: string): option(int) => {
+      let* num = dot(field, json);
+      int(num);
+    };
+  };
 };
 
 let receive = (~debug=true, request: request): option(Json.t) =>

@@ -82,7 +82,7 @@ let top_bar = (~globals as _, ~inject: Update.t => 'a, model: Model.t) => {
 
   let project_tabs =
     List.map(
-      (project: ProjectMode.Project.Model.t) => {
+      (project: Project.Model.t) => {
         let is_current = project.id == current_id;
         div(
           ~attrs=[

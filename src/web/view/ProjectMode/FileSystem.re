@@ -289,7 +289,10 @@ module Update = {
             Model.Folder(updated_parent_folder),
             model',
           );
-        Success(model'');
+        Success({
+          ...model'',
+          current: new_path,
+        });
       };
     | Some(File(_)) =>
       Failure("Cannot add file to a file. Please select a folder.")
@@ -520,7 +523,7 @@ module Update = {
         ...model,
         current: path,
       }
-      |> Updated.return_quiet
+      |> Updated.return
     | ToggleFolderExpansion(path) =>
       switch (Utils.find_opt(path, model)) {
       | Some(Model.Folder(folder)) =>

@@ -4,58 +4,6 @@ open OptUtil.Syntax;
 
 /* This file follows conventions in [docs/ui-architecture.md] */
 
-module Project = {
-  module Model = {
-    [@deriving (show({with_path: false}), sexp, yojson)]
-    type t = {
-      id: Id.t,
-      name: string,
-      file_system: FileSystem.Model.t,
-      // agent: Agent.Model.t
-      // ...
-    };
-  };
-
-  module Persistent = {
-    [@deriving (show({with_path: false}), sexp, yojson)]
-    type t = {
-      id: Id.t,
-      name: string,
-      file_system: FileSystem.Persistent.t,
-      // agent: Agent.Persistent.t
-      // ...
-    };
-
-    let persist = (model: Model.t): t => {
-      {
-        id: model.id,
-        name: model.name,
-        file_system: FileSystem.Persistent.persist(model.file_system),
-      };
-    };
-
-    let unpersist = (~settings, p: t): Model.t => {
-      {
-        id: p.id,
-        name: p.name,
-        file_system:
-          FileSystem.Persistent.unpersist(~settings, p.file_system),
-      };
-    };
-  };
-
-  module Utils = {
-    let mk_new_project = (name: string): Model.t => {
-      let id = Id.mk();
-      {
-        id,
-        name,
-        file_system: FileSystem.Utils.init(),
-      };
-    };
-  };
-};
-
 module Model = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t = {
@@ -175,14 +123,13 @@ module Update = {
       if (Id.Map.cardinal(model.projects) <= 1) {
         failwith("Must have at least one project.");
       } else {
-        let new_current = Id.Map.choose(model.projects) |> fst;
-        (
-          {
-            projects: Id.Map.remove(id, model.projects),
-            current: new_current,
-          }: Model.t
-        )
-        |> Updated.return;
+        let new_projects = Id.Map.remove(id, model.projects);
+        let new_current = Id.Map.choose(new_projects) |> fst;
+        let new_model: Model.t = {
+          projects: new_projects,
+          current: new_current,
+        };
+        new_model |> Updated.return;
       };
 
     let rename_project =

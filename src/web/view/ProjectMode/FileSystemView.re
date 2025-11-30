@@ -17,7 +17,7 @@ let path_equal = (p1: Model.path, p2: Model.path): bool =>
 let rec render_node =
         (
           ~inject: Update.t => 'a,
-          ~project: ProjectMode.Project.Model.t,
+          ~project: Project.Model.t,
           ~depth: int,
           node_path: Model.path,
         )
@@ -263,7 +263,7 @@ let view =
       ~globals as _,
       ~inject: Update.t => 'a,
       ~selected: option(Selection.t),
-      project: ProjectMode.Project.Model.t,
+      project: Project.Model.t,
     ) => {
   /* For now we assume a single root folder at path [""] */
   let root_path: Model.path = [""];
