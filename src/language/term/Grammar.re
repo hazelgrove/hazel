@@ -41,23 +41,6 @@ type deferral_position_t =
   | OutsideAp;
 
 [@deriving (show({with_path: false}), sexp, yojson, eq)]
-type closure_env_strucshare('env) = {
-  id: Id.t,
-  env: 'env,
-  call_stack: Probe.call_stack,
-};
-
-let sexp_of_closure_env_strucshare = f =>
-  StructureShareSexp.structure_share_sexp_of_t(
-    (x: closure_env_strucshare('a)) => x.id,
-    sexp_of_closure_env_strucshare(f),
-  );
-let closure_env_strucshare_of_sexp = f =>
-  StructureShareSexp.structure_share_t_of_sexp(
-    closure_env_strucshare_of_sexp(f),
-  );
-
-[@deriving (show({with_path: false}), sexp, yojson, eq)]
 type any_t('a) =
   | Exp(exp_t('a))
   | Pat(pat_t('a))
@@ -89,6 +72,9 @@ and exp_term('a) =
   | LivelitName(string)
   | Var(Var.t)
   | Let(pat_t('a), exp_t('a), exp_t('a))
+  | Theorem(pat_t('a), exp_t('a), exp_t('a))
+  | ProofObject(exp_t('a))
+  | Forall(pat_t('a), exp_t('a))
   | FixF(pat_t('a), exp_t('a), option(Environment.t(exp_t('a))))
   | TyAlias(tpat_t('a), typ_t('a), exp_t('a))
   | Use(typ_t('a), exp_t('a))
@@ -144,7 +130,8 @@ and typ_term('a) =
   | TupLabel(typ_t('a), typ_t('a))
   | Parens(typ_t('a))
   | Rec(tpat_t('a), typ_t('a))
-  | Forall(tpat_t('a), typ_t('a))
+  | Poly(tpat_t('a), typ_t('a))
+  | ProofOf(exp_t('a))
   | ProdProjection(typ_t('a), typ_t('a))
   | ProdExtension(typ_t('a), typ_t('a))
 and typ_t('a) = Annotated.t(typ_term('a), 'a)
@@ -219,6 +206,15 @@ let rec map_exp_annotation: type a b. (a => b, exp_t(a)) => exp_t(b) =
             map_exp_annotation(f, e1),
             map_exp_annotation(f, e2),
           )
+        | Theorem(p, e1, e2) =>
+          Theorem(
+            map_pat_annotation(f, p),
+            map_exp_annotation(f, e1),
+            map_exp_annotation(f, e2),
+          )
+        | ProofObject(t) => ProofObject(map_exp_annotation(f, t))
+        | Forall(p, e) =>
+          Forall(map_pat_annotation(f, p), map_exp_annotation(f, e))
         | FixF(p, e, _) =>
           FixF(map_pat_annotation(f, p), map_exp_annotation(f, e), None)
         | TyAlias(p, t, e) =>
@@ -355,8 +351,9 @@ and map_typ_annotation: 'a 'b. ('a => 'b, typ_t('a)) => typ_t('b) =
         | Parens(t) => Parens(map_typ_annotation(f, t))
         | Rec(tp, t) =>
           Rec(map_tpat_annotation(f, tp), map_typ_annotation(f, t))
-        | Forall(tp, t) =>
-          Forall(map_tpat_annotation(f, tp), map_typ_annotation(f, t))
+        | Poly(tp, t) =>
+          Poly(map_tpat_annotation(f, tp), map_typ_annotation(f, t))
+        | ProofOf(e) => ProofOf(map_exp_annotation(f, e))
         | Prod(l) => Prod(List.map(x => map_typ_annotation(f, x), l))
         | Label(l) => Label(l)
         | ExplicitNonlabel => ExplicitNonlabel
@@ -579,6 +576,18 @@ module Factory = (DefaultAnnotation: DefaultAnnotation) => {
     };
     let let_ = (~ann=?, p, e1, e2): exp_t(DefaultAnnotation.t) => {
       term: Let(p, e1, e2),
+      annotation: default_annotation(ann),
+    };
+    let theorem = (~ann=?, p, e1, e2): exp_t(DefaultAnnotation.t) => {
+      term: Theorem(p, e1, e2),
+      annotation: default_annotation(ann),
+    };
+    let proof_object = (~ann=?, t): exp_t(DefaultAnnotation.t) => {
+      term: ProofObject(t),
+      annotation: default_annotation(ann),
+    };
+    let forall = (~ann=?, p, e): exp_t(DefaultAnnotation.t) => {
+      term: Forall(p, e),
       annotation: default_annotation(ann),
     };
     let fix_f = (~ann=?, p, e, env): exp_t(DefaultAnnotation.t) => {
@@ -841,8 +850,12 @@ module Factory = (DefaultAnnotation: DefaultAnnotation) => {
       term: Rec(tp, t),
       annotation: default_annotation(ann),
     };
-    let forall = (~ann=?, tp, t): typ_t(DefaultAnnotation.t) => {
-      term: Forall(tp, t),
+    let poly = (~ann=?, tp, t): typ_t(DefaultAnnotation.t) => {
+      term: Poly(tp, t),
+      annotation: default_annotation(ann),
+    };
+    let proof_of = (~ann=?, e): typ_t(DefaultAnnotation.t) => {
+      term: ProofOf(e),
       annotation: default_annotation(ann),
     };
     let empty_hole = (~ann=?, ()): typ_t(DefaultAnnotation.t) => {

@@ -242,6 +242,12 @@ let shortcuts = (sys: Util.Key.sys): list(t) =>
     mk_shortcut(
       ~mdIcon="download",
       ~section="Export",
+      "Encode Scratch Slide in URL",
+      Editors(Scratch(Encode)),
+    ),
+    mk_shortcut(
+      ~mdIcon="download",
+      ~section="Export",
       "Export For Init",
       Globals(ExportForInit),
     ),
