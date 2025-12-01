@@ -77,6 +77,8 @@ let apply =
     );
   };
   if (updated.scroll_active) {
+    // print_endline("scroll_to_caret: true");
+    // print_endline("action: " ++ Page.Update.show(action));
     scroll_to_caret := true;
   };
   model';
