@@ -8,7 +8,7 @@ module Model = {
     id: Id.t,
     name: string,
     file_system: FileSystem.Model.t,
-    agent: AgentModel.t,
+    agent: Agent.Model.t,
     // agent: Agent.Model.t
     // ...
   };

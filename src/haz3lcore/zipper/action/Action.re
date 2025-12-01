@@ -106,7 +106,8 @@ module Failure = {
     | CantAccept
     | Cant_undo
     | Cant_redo
-    | CantIntroduce;
+    | CantIntroduce
+    | Composition_action_failure(string);
 
   exception Exception(t);
 };

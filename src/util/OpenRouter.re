@@ -174,7 +174,7 @@ module Reply = {
     [@deriving (show({with_path: false}), sexp, yojson)]
     type t = {
       content: string,
-      tool_call: option(tool_call),
+      tool_calls: list(tool_call),
       usage,
     };
   };
@@ -252,16 +252,7 @@ module Utils = {
     };
   };
 
-  let first_message_tool_call =
-      (choices: Json.t): option(Reply.Model.tool_call) => {
-    let* choices = Json.list(choices);
-    let* hd = ListUtil.hd_opt(choices);
-    let* message = Json.dot("message", hd);
-
-    let* tool_calls = Json.dot("tool_calls", message);
-    let* tool_calls = Json.list(tool_calls);
-    let* tool_call = ListUtil.hd_opt(tool_calls);
-
+  let parse_tool_call = (tool_call: Json.t): option(Reply.Model.tool_call) => {
     let* id = Json.dot("id", tool_call);
     let* id = Json.str(id);
 
@@ -279,6 +270,22 @@ module Utils = {
       args: parsed_args,
     };
     Some(tool_call);
+  };
+
+  let parse_tool_calls = (choices: Json.t): list(Reply.Model.tool_call) => {
+    let tool_calls = {
+      let* choices = Json.list(choices);
+      let* hd = ListUtil.hd_opt(choices);
+      let* message = Json.dot("message", hd);
+
+      let* tool_calls = Json.dot("tool_calls", message);
+      Json.list(tool_calls);
+    };
+
+    switch (tool_calls) {
+    | Some(tool_calls) => List.filter_map(parse_tool_call, tool_calls)
+    | None => []
+    };
   };
 
   let parse_errs = (json: Json.t): option(Model.error) => {
@@ -308,11 +315,11 @@ module Utils = {
       let* choices = Json.dot("choices", json);
       let* usage = Json.dot("usage", json);
       let* content = first_message_content(choices);
-      let tool_call = first_message_tool_call(choices);
+      let tool_calls = parse_tool_calls(choices);
       let+ usage = of_usage(usage);
       Model.Reply({
         content,
-        tool_call,
+        tool_calls,
         usage,
       });
     };

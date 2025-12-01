@@ -11,7 +11,6 @@ module Model = {
     instructor_mode: bool,
     benchmark: bool,
     explainThis: ExplainThisModel.Settings.t,
-    assistant: AssistantSettings.t,
     sidebar: SidebarModel.Settings.t,
   };
 
@@ -45,12 +44,6 @@ module Model = {
       show: true,
       show_feedback: false,
       highlight: NoHighlight,
-    },
-    assistant: {
-      mode: CodeSuggestion,
-      ongoing_chat: false,
-      show_history: false,
-      show_api_key: false,
     },
     sidebar: {
       panel: LanguageDocumentation,
@@ -112,7 +105,6 @@ module Update = {
     | Evaluation(evaluation)
     | Sidebar(SidebarModel.Settings.action)
     | ExplainThis(ExplainThisModel.Settings.action)
-    | Assistant(AssistantSettings.action)
     | FlipAnimations;
 
   let can_undo = (action: t) => {
@@ -263,37 +255,6 @@ module Update = {
           ...settings,
           explainThis,
         };
-      | Assistant(u) =>
-        switch (u) {
-        | UpdateChatStatus => {
-            ...settings,
-            assistant: {
-              ...settings.assistant,
-              ongoing_chat: !settings.assistant.ongoing_chat,
-            },
-          }
-        | SwitchMode(mode) => {
-            ...settings,
-            assistant: {
-              ...settings.assistant,
-              mode,
-            },
-          }
-        | ToggleHistory => {
-            ...settings,
-            assistant: {
-              ...settings.assistant,
-              show_history: !settings.assistant.show_history,
-            },
-          }
-        | ToggleAPIKeyVisibility => {
-            ...settings,
-            assistant: {
-              ...settings.assistant,
-              show_api_key: !settings.assistant.show_api_key,
-            },
-          }
-        }
       | Benchmark => {
           ...settings,
           benchmark: !settings.benchmark,
