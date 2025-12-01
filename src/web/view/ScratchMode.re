@@ -338,22 +338,31 @@ module Update = {
         schedule_action(FinishImportScratchpad(data))
       );
       model |> return_quiet;
-    | FinishImportScratchpad(None) => model |> return_quiet
-    | FinishImportScratchpad(Some(data)) =>
-      let key = List.nth(model.scratchpads, model.current) |> fst;
-      let new_data =
-        data
-        |> Sexplib.Sexp.of_string
-        |> CellEditor.Model.persistent_of_sexp
-        |> CellEditor.Model.unpersist(~settings=settings.core);
+    | FinishImportScratchpad(data) =>
+      // reset file input so same file can be re-imported if desired
+      JsUtil.reset_file_input("import-scratchpad");
+      switch (data) {
+      | None => model |> return_quiet
+      | Some(data) =>
+        let key = List.nth(model.scratchpads, model.current) |> fst;
+        let new_data =
+          data
+          |> Sexplib.Sexp.of_string
+          |> CellEditor.Model.persistent_of_sexp
+          |> CellEditor.Model.unpersist(~settings=settings.core);
 
-      let scratchpads =
-        ListUtil.put_nth(model.current, (key, new_data), model.scratchpads);
-      {
-        ...model,
-        scratchpads,
-      }
-      |> Updated.return;
+        let scratchpads =
+          ListUtil.put_nth(
+            model.current,
+            (key, new_data),
+            model.scratchpads,
+          );
+        {
+          ...model,
+          scratchpads,
+        }
+        |> Updated.return;
+      };
     | Export =>
       export_scratch_slide(model);
       model |> Updated.return_quiet;
