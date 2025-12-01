@@ -76,6 +76,35 @@ type paste =
   | Segment(Segment.t);
 
 [@deriving (show({with_path: false}), sexp, yojson, eq)]
+type read_action =
+  // Lists all the use sites of the indicated variable
+  | ShowUseSites(string)
+  // Displays the typing context/scope at the current let expression in the AST
+  // | ShowContext //todo: technically this is accomplished via showing sibs/parent
+  // Displays the entire definition of the current node, with no child/sub definitions abstracted away
+  | ShowReferences(string);
+
+// --- Edit Actions ---
+
+[@deriving (show({with_path: false}), sexp, yojson, eq)]
+type edit_action =
+  | Initialize(string) // Code
+  | UpdateDefinition(string, string) // Path, Code
+  | UpdateBody(string, string) // Path, Code
+  | UpdatePattern(string, string) // Path, Code
+  | UpdateBindingClause(string, string) // Path, Code
+  | DeleteBindingClause(string) // Path
+  | DeleteBody(string) // Path
+  | InsertAfter(string, string) // Path, Code
+  | InsertBefore(string, string); // Path, Code
+
+// AddToolLabel_1.0: Make the action types (above) and add their cases to the funs (below)
+[@deriving (show({with_path: false}), sexp, yojson, eq)]
+type agent_editor_action =
+  | Read(read_action) // Language server helpers
+  | Edit(edit_action); // Main source of editing the codebase
+
+[@deriving (show({with_path: false}), sexp, yojson, eq)]
 type t =
   | Reparse
   | Buffer(buffer)
@@ -90,7 +119,8 @@ type t =
   | Insert(string)
   | Put_down
   | Introduce
-  | Dump;
+  | Dump
+  | AgentEditorAction(agent_editor_action);
 
 module Failure = {
   [@deriving (show({with_path: false}), sexp, yojson, eq)]
@@ -107,7 +137,8 @@ module Failure = {
     | Cant_undo
     | Cant_redo
     | CantIntroduce
-    | Composition_action_failure(string);
+    | Composition_action_failure(string)
+    | Cant_derive_local_AST_information;
 
   exception Exception(t);
 };
@@ -127,6 +158,7 @@ let is_edit: t => bool =
   | Put_down
   | Introduce
   | Buffer(Accept | Clear | Set(_))
+  | AgentEditorAction(_)
   | Dump => true
   | Copy
   | Move(_)
@@ -157,6 +189,7 @@ let is_historic: t => bool =
   | Destruct(_)
   | Put_down
   | Introduce
+  | AgentEditorAction(_)
   | Dump => true
   | Project(p) =>
     switch (p) {
@@ -182,6 +215,7 @@ let prevent_in_read_only_editor = (a: t) =>
   | Insert(_)
   | Put_down
   | Introduce
+  | AgentEditorAction(_)
   | Dump => true
   | Project(p) =>
     switch (p) {
@@ -222,4 +256,5 @@ let should_animate: t => bool =
   | Copy
   | Move(_)
   | Project(_)
+  | AgentEditorAction(_)
   | Dump => true;

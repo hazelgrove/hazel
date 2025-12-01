@@ -132,7 +132,6 @@ module Update = {
       (
         ~globals: Globals.t,
         ~schedule_action: t => unit,
-        ~send_assistant_insertion_info: CodeEditable.Model.t => unit,
         action: t,
         model: Model.t,
       ) => {
@@ -141,7 +140,6 @@ module Update = {
       let* scratch =
         ScratchMode.Update.update(
           ~schedule_action=a => schedule_action(Scratch(a)),
-          ~send_assistant_insertion_info,
           ~is_documentation=false,
           ~settings=globals.settings,
           action,
@@ -153,7 +151,6 @@ module Update = {
         ScratchMode.Update.update(
           ~settings=globals.settings,
           ~schedule_action=a => schedule_action(Scratch(a)),
-          ~send_assistant_insertion_info,
           ~is_documentation=true,
           action,
           m,

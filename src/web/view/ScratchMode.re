@@ -229,7 +229,6 @@ module Update = {
   let update =
       (
         ~schedule_action,
-        ~send_assistant_insertion_info: CodeEditable.Model.t => unit,
         ~settings: Settings.t,
         ~is_documentation: bool,
         action,
@@ -244,12 +243,6 @@ module Update = {
       let new_model = {
         ...model,
         scratchpads: new_sp,
-      };
-      switch (a) {
-      // Check for assistant hole completion triggers
-      | MainEditor(Perform(Insert(_))) =>
-        send_assistant_insertion_info(new_ed.editor)
-      | _ => ()
       };
       new_model;
     | SwitchSlide(i) =>

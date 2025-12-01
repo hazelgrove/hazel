@@ -68,6 +68,7 @@ module Update = {
              | Dump => true
              | Project(_)
              | Unselect(_)
+             | AgentEditorAction(_)
              | Select(All) => false
              };
            },

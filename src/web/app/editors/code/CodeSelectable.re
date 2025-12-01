@@ -49,7 +49,8 @@ module Update = {
         Buffer(_) |
         Project(_) |
         Introduce |
-        Dump,
+        Dump |
+        AgentEditorAction(_),
       )
     | DebugConsole(_)
     | TAB => None;

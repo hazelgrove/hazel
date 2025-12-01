@@ -119,4 +119,7 @@ let go =
     |> return(Cant_insert)
   | Put_down => Zipper.put_down(z) |> return(Cant_put_down)
   | Dump => Ok(Dump.to_zipper(z))
+  | AgentEditorAction(_) =>
+    /* Agent editor actions are handled elsewhere; no-op here */
+    Ok(z)
   };

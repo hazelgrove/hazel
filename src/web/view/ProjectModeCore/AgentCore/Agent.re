@@ -1,6 +1,6 @@
-open Haz3lcore;
 open Util;
 open OptUtil.Syntax;
+open Haz3lcore;
 
 /* Thinkpad
    We will want 3 types of display messages
@@ -275,6 +275,8 @@ module Chat = {
       title: string,
       message_map: Id.Map.t(Message.Model.t),
       root: Id.t,
+      agent_view: AgentContext.Model.t,
+      agent_workbench: AgentWorkbench.Model.t // The agent's todo lists/workbench associated with this chat
     };
   };
 
@@ -359,6 +361,8 @@ module Chat = {
         title: "New Chat",
         message_map: Id.Map.singleton(system_prompt.id, system_prompt),
         root: system_prompt.id,
+        agent_view: AgentContext.Utils.init(),
+        agent_workbench: AgentWorkbench.Utils.MainUtils.init(),
       };
       let dev_notes = Message.Utils.mk_developer_notes_message(dev_notes);
       append(dev_notes, chat);
@@ -371,7 +375,9 @@ module Chat = {
       type t =
         | AppendMessage(Message.Model.t)
         | SwitchBranch(Id.t, Id.t)
-        | BranchOff(Id.t, Message.Model.t);
+        | BranchOff(Id.t, Message.Model.t)
+        | AgentViewAction(AgentContext.Update.action)
+        | WorkbenchAction(AgentWorkbench.Update.Action.action);
     };
 
     let update = (action: Action.t, model: Model.t): Model.t => {
@@ -383,6 +389,26 @@ module Chat = {
         let truncated_model = Utils.truncate(fork_id, model);
         let branched_model = Utils.append(message, truncated_model);
         branched_model;
+      | AgentViewAction(agent_view_action) => {
+          ...model,
+          agent_view:
+            AgentContext.Update.update(agent_view_action, model.agent_view),
+        }
+      | WorkbenchAction(workbench_action) => {
+          ...model,
+          agent_workbench: {
+            switch (
+              AgentWorkbench.Update.update(
+                ~model=model.agent_workbench,
+                ~action=workbench_action,
+              )
+            ) {
+            | AgentWorkbench.Update.Action.Success(updated_workbench) => updated_workbench
+            | AgentWorkbench.Update.Action.Failure(msg) =>
+              failwith("[Chat.Update] Failed to update workbench: " ++ msg)
+            };
+          },
+        }
       };
     };
   };
@@ -489,6 +515,19 @@ module Agent = {
       chat_system: ChatSystem.Model.t,
       prompting,
       api_params,
+    };
+  };
+
+  module Persistent = {
+    [@deriving (show({with_path: false}), sexp, yojson)]
+    type t = Model.t;
+
+    let persist = (model: Model.t): t => {
+      model;
+    };
+
+    let unpersist = (p: t): Model.t => {
+      p;
     };
   };
 

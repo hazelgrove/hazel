@@ -82,6 +82,57 @@ module Json = {
       let* num = dot(field, json);
       int(num);
     };
+
+    let get_json = (item: t, entity: string) => {
+      switch (dot(entity, item)) {
+      | Some(value) => value
+      | None =>
+        raise(
+          Failure(
+            "The entity " ++ entity ++ " must be provided for this action",
+          ),
+        )
+      };
+    };
+
+    let get_string = (item: t, entity: string) => {
+      switch (dot(entity, item)) {
+      | Some(`String(entity)) => entity
+      | _ =>
+        raise(
+          Failure(
+            "A string for " ++ entity ++ " must be provided for this action",
+          ),
+        )
+      };
+    };
+
+    let get_json_list = (item: t, entities: string) => {
+      switch (dot(entities, item)) {
+      | Some(`List(entities_list)) => entities_list
+      | _ =>
+        raise(
+          Failure(
+            "A list of " ++ entities ++ " must be provided for the action",
+          ),
+        )
+      };
+    };
+
+    let get_string_list = (item: t, entities: string) => {
+      let entities_list = get_json_list(item, entities);
+      List.map(
+        (entity: t) =>
+          switch (entity) {
+          | `String(entity) => entity
+          | _ =>
+            raise(
+              Failure("Each " ++ entities ++ " in the list must be a string"),
+            )
+          },
+        entities_list,
+      );
+    };
   };
 };
 

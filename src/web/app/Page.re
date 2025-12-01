@@ -16,7 +16,6 @@ module Model = {
     globals: Globals.Model.t,
     editors: Editors.Model.t,
     explain_this: ExplainThisModel.t,
-    assistant: AssistantModel.t,
     selection,
   };
 
@@ -32,12 +31,10 @@ module Store = {
         ~instructor_mode=globals.settings.instructor_mode,
       );
     let explain_this = ExplainThisModel.Store.load();
-    let assistant = AssistantModel.Store.load();
     {
       editors,
       globals,
       explain_this,
-      assistant,
       selection: Editors.Selection.default_selection(editors),
     };
   };
@@ -49,7 +46,6 @@ module Store = {
     );
     Globals.Model.save(m.globals);
     ExplainThisModel.Store.save(m.explain_this);
-    AssistantModel.Store.save(m.assistant);
   };
 };
 
@@ -66,26 +62,12 @@ module Update = {
     | Globals(Globals.Update.t)
     | Editors(Editors.Update.t)
     | ExplainThis(ExplainThisUpdate.update)
-    | Assistant(AssistantUpdate.t)
     | MakeActive(selection)
     | Benchmark(benchmark_action)
     | Start
     | Save;
 
   let equal = (===);
-
-  let assistant_callback =
-      (
-        ~schedule_action: t => unit,
-        model: Model.t,
-        editor: CodeEditable.Model.t,
-      ) =>
-    AssistantUpdate.check_req(
-      ~schedule_action=a => schedule_action(Assistant(a)),
-      ~schedule_setting=a => schedule_action(Globals(Set(Assistant(a)))),
-      ~chat_id=model.assistant.current_chats.curr_suggestion_chat,
-      ~editor,
-    );
 
   let update_global =
       (
@@ -129,8 +111,6 @@ module Update = {
           Editors.Update.update(
             ~globals,
             ~schedule_action=a => schedule_action(Editors(a)),
-            ~send_assistant_insertion_info=
-              assistant_callback(~schedule_action, model),
             action,
             model.editors,
           );
@@ -211,8 +191,6 @@ module Update = {
           Editors.Update.update(
             ~globals=model.globals,
             ~schedule_action=a => schedule_action(Editors(a)),
-            ~send_assistant_insertion_info=
-              assistant_callback(~schedule_action, model),
             action,
             model.editors,
           );
@@ -247,8 +225,6 @@ module Update = {
         Editors.Update.update(
           ~globals,
           ~schedule_action=a => schedule_action(Editors(a)),
-          ~send_assistant_insertion_info=
-            assistant_callback(~schedule_action, model),
           action,
           model.editors,
         );
@@ -263,7 +239,6 @@ module Update = {
         ...model,
         explain_this,
       };
-    | Assistant(_action) => model |> Updated.return_quiet // Todo: Large refactoring of agent architecture
     | MakeActive(selection) =>
       {
         ...model,
@@ -291,7 +266,6 @@ module Update = {
     | Globals(action) => Globals.Update.can_undo(action)
     | Editors(action) => Editors.Update.can_undo(action)
     | ExplainThis(action) => ExplainThisUpdate.can_undo(action)
-    | Assistant(action) => AssistantUpdate.can_undo(action)
     | MakeActive(_)
     | Benchmark(_) => false
     | Start => false
@@ -575,13 +549,7 @@ module View = {
         ~get_log_and: (string => unit) => unit,
         ~inject: Update.t => Ui_effect.t(unit),
         ~cursor: Cursor.cursor(Editors.Update.t),
-        {
-          globals,
-          editors,
-          explain_this: explainThisModel,
-          assistant: assistantModel,
-          selection,
-        } as model: Model.t,
+        {globals, editors, explain_this: explainThisModel, selection} as model: Model.t,
       ) => {
     let globals = {
       ...globals,
@@ -599,13 +567,7 @@ module View = {
       Sidebar.view(
         ~globals,
         ~explain_this_inject=action => inject(ExplainThis(action)),
-        ~assistant_inject=action => inject(Assistant(action)),
-        ~signal=
-          fun
-          | ScratchMode.View.MakeActive(s) =>
-            inject(MakeActive(Scratch(s))),
         ~explainThisModel,
-        ~assistantModel,
         cursor.info,
       );
 

@@ -170,10 +170,7 @@ let view =
     (
       ~globals: Globals.t,
       ~explain_this_inject,
-      ~assistant_inject,
-      ~signal,
       ~explainThisModel: ExplainThisModel.t,
-      ~assistantModel: AssistantModel.t,
       info: option(Language.Info.t),
     ) => {
   let sub =

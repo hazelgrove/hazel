@@ -1,4 +1,3 @@
-open Haz3lcore;
 open Util;
 open OptUtil.Syntax;
 
@@ -8,7 +7,7 @@ module Model = {
     id: Id.t,
     name: string,
     file_system: FileSystem.Model.t,
-    agent: Agent.Model.t,
+    agent: Agent.Agent.Model.t,
     // agent: Agent.Model.t
     // ...
   };
@@ -20,7 +19,7 @@ module Persistent = {
     id: Id.t,
     name: string,
     file_system: FileSystem.Persistent.t,
-    // agent: Agent.Persistent.t
+    agent: Agent.Agent.Persistent.t,
     // ...
   };
 
@@ -29,6 +28,7 @@ module Persistent = {
       id: model.id,
       name: model.name,
       file_system: FileSystem.Persistent.persist(model.file_system),
+      agent: Agent.Agent.Persistent.persist(model.agent),
     };
   };
 
@@ -37,6 +37,7 @@ module Persistent = {
       id: p.id,
       name: p.name,
       file_system: FileSystem.Persistent.unpersist(~settings, p.file_system),
+      agent: Agent.Agent.Persistent.unpersist(p.agent),
     };
   };
 };
@@ -48,6 +49,7 @@ module Utils = {
       id,
       name,
       file_system: FileSystem.Utils.init(),
+      agent: Agent.Agent.Utils.init(),
     };
   };
 };

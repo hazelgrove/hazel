@@ -1,4 +1,3 @@
-open Haz3lcore;
 open Util;
 open OptUtil.Syntax;
 
@@ -73,10 +72,12 @@ module Store = {
         let file_system: FileSystem.Persistent.t =
           FileSystem.Persistent.persist(FileSystem.Utils.init());
         let id = Id.mk();
+        let agent = Agent.Agent.Persistent.persist(Agent.Agent.Utils.init());
         let project: Project.Persistent.t = {
           id,
           name: root,
           file_system,
+          agent,
         };
         {
           projects: Id.Map.singleton(id, project),

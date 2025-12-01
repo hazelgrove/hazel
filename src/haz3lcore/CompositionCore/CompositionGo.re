@@ -55,7 +55,7 @@ module Local = {
 
   module PerformUtils = {
     let edit_action_to_static_error_scrutiny =
-        (~edit_action: CompositionActions.edit_action): (bool, bool, bool) => {
+        (~edit_action: Action.edit_action): (bool, bool, bool) => {
       // Returns (of_pat, of_def, of_body), i.e. which parts of the program to check for static errors.
       switch (edit_action) {
       | Initialize(_) =>
@@ -77,7 +77,7 @@ module Local = {
 
     let static_error_check =
         (
-          ~edit_action: CompositionActions.edit_action,
+          ~edit_action: Action.edit_action,
           ~initial_node: option(node),
           ~initial_info_map: Id.Map.t(Info.t),
           ~new_node: node,
@@ -273,26 +273,9 @@ module Local = {
     };
   };
 
-  let view_dispatch = (a: CompositionActions.view_action, z: Zipper.t) => {
-    switch (a) {
-    | Expand(paths) =>
-      let z' = {
-        ...z,
-        agent_view: AgentState.add_paths(paths, z.agent_view),
-      };
-      Ok(z');
-    | Collapse(paths) =>
-      let z' = {
-        ...z,
-        agent_view: AgentState.remove_paths(paths, z.agent_view),
-      };
-      Ok(z');
-    };
-  };
-
   let edit_dispatch =
       (
-        ~e: CompositionActions.edit_action,
+        ~e: Action.edit_action,
         ~initial_z: Zipper.t,
         ~initial_node_map: node_map,
         ~initial_info_map: Id.Map.t(Info.t),
@@ -548,7 +531,7 @@ module Local = {
   // Tempory wrapper that helps me localize myself while implementing (remove)
   let composition_dispatch =
       (
-        a: CompositionActions.editor_action,
+        a: Action.agent_editor_action,
         syntax: CachedSyntax.t,
         z: Zipper.t,
         mk_statics: Zipper.t => StaticsBase.Map.t,
@@ -566,7 +549,6 @@ module Local = {
       }
     | Some(initial_node_map) =>
       switch (a) {
-      | View(a) => view_dispatch(a, z)
       | Read(ShowUseSites(_path))
       | Read(ShowReferences(_path)) => Ok(z) // TODO: Implement
       | Edit(e) =>
@@ -602,42 +584,11 @@ module Local = {
     };
   };
 
-  let freshen_paths =
-      (z: Zipper.t, mk_statics: Zipper.t => StaticsBase.Map.t)
-      : result(Zipper.t, Action.Failure.t) => {
-    // This function removes any stale paths from the agent view list
-    // This can happen if variables are changed or deleted from the editor itself
-    let node_map = build(z, mk_statics(z));
-    switch (node_map) {
-    | None =>
-      Ok({
-        ...z,
-        agent_view: AgentState.init,
-      })
-    | Some(node_map) =>
-      Ok({
-        ...z,
-        agent_view: {
-          expanded_paths:
-            List.filter(
-              (path: string) => {
-                switch (path_to_id_opt(node_map, path)) {
-                | Some(_) => true
-                | None => false
-                }
-              },
-              z.agent_view.expanded_paths,
-            ),
-        },
-      })
-    };
-  };
-
   let go =
       (
         ~syntax: CachedSyntax.t,
         ~z: Zipper.t,
-        ~a: CompositionActions.editor_action,
+        ~a: Action.agent_editor_action,
         ~mk_statics: Zipper.t => StaticsBase.Map.t,
         ~return:
            (Action.Failure.t, option(Zipper.t)) =>
@@ -647,11 +598,7 @@ module Local = {
     let res =
       try(
         switch (composition_dispatch(a, syntax, z, mk_statics, return)) {
-        | Ok(new_z) =>
-          switch (freshen_paths(new_z, mk_statics)) {
-          | Ok(new_z) => Ok(Dump.to_zipper(new_z))
-          | Error(e) => Error(e)
-          }
+        | Ok(new_z) => Ok(Dump.to_zipper(new_z))
         | Error(e) => Error(e)
         }
       ) {
