@@ -51,3 +51,10 @@
 .projector.table>.code {
     overflow-y: scroll;
 }
+
+
+.modal:has(.table) {
+    max-height: 350px;
+    overflow-y: auto;
+  }
+  
