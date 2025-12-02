@@ -185,6 +185,8 @@ module Update = {
         model: Model.t,
       )
       : Updated.t(Model.t) => {
+    let _ = globals;
+    let _ = schedule_action;
     let curr_project = Utils.current_project(model);
     switch (action) {
     | CellAction(a) =>

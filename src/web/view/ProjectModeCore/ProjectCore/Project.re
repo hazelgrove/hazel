@@ -1,5 +1,4 @@
 open Util;
-open OptUtil.Syntax;
 
 module Model = {
   [@deriving (show({with_path: false}), sexp, yojson)]

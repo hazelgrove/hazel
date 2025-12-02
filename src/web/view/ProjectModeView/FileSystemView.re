@@ -1,11 +1,8 @@
 open Haz3lcore;
 open Util;
-open OptUtil.Syntax;
 open Virtual_dom.Vdom;
 open Node;
 open Util.WebUtil;
-open Util.JsUtil;
-open Js_of_ocaml;
 module W = Widgets;
 module I = Icons;
 
@@ -265,6 +262,7 @@ let view =
       ~selected: option(Selection.t),
       project: Project.Model.t,
     ) => {
+  let _ = selected;
   /* For now we assume a single root folder at path [""] */
   let root_path: Model.path = [""];
   [

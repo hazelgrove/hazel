@@ -1,6 +1,4 @@
-open Haz3lcore;
 open Util;
-open OptUtil.Syntax;
 
 open ProjectMode;
 
@@ -72,8 +70,6 @@ let top_bar = (~globals as _, ~inject: Update.t => 'a, model: Model.t) => {
   open Virtual_dom.Vdom;
   open Node;
   open Util.WebUtil;
-  open Util.JsUtil;
-  open Js_of_ocaml;
   module W = Widgets;
   module I = Icons;
 

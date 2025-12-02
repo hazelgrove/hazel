@@ -1,5 +1,4 @@
 open Util;
-open OptUtil.Syntax;
 open Haz3lcore;
 
 /* Thinkpad
@@ -689,6 +688,7 @@ module Agent = {
           editor: CellEditor.Model.t,
           schedule_action: Action.t => unit,
         ) => {
+      let _ = schedule_action;
       let new_message = Message.Utils.mk_agent_message(reply.content);
       let updated_chat_system =
         ChatSystem.Update.update(
