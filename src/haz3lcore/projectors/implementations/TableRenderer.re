@@ -21,7 +21,10 @@ type a =
   | ConversionColumn(string, string)
   | RenameColumn(string, string)
   | AddColumnAfter(string, string)
-  | GroupByColumn(string);
+  | GroupByColumn(string)
+  | FilterGreaterThan(string)
+  | FilterLessThan(string)
+  | FilterEquals(string);
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type model = m;
@@ -150,6 +153,14 @@ let get_columns = (ty: Typ.t): option(list(string)) => {
   };
 };
 
+let strip_parens =
+  Exp.map_term(~f_exp=(continue, e) =>
+    switch (e.term) {
+    | Parens(inner) => continue(inner)
+    | _ => continue(e)
+    }
+  );
+
 /* Core transformation functions */
 let apply_transformation = (info: info, transformation: Exp.t) => {
   IdTagged.FreshGrammar.(
@@ -158,7 +169,15 @@ let apply_transformation = (info: info, transformation: Exp.t) => {
         ~inline=false,
         fun
         | Exp({term: exp_term, _}) =>
-          Exp(Exp.(ap(Reverse, transformation, exp_term |> DHExp.fresh)))
+          Exp(
+            Exp.(
+              ap(
+                Reverse,
+                transformation,
+                strip_parens(exp_term |> DHExp.fresh),
+              )
+            ),
+          )
 
         | _ =>
           failwith("TableRenderer: apply_transformation: not an expression"),
@@ -283,6 +302,27 @@ let group_by_column = (info: info, column: string): Base.segment => {
           tuple([
             deferral(InAp),
             fn(Pat.var("row"), dot(var("row"), label(column))),
+          ]),
+        )
+      ),
+    )
+  );
+};
+
+let filter_by_column = (op, info: info, column: string): Base.segment => {
+  IdTagged.FreshGrammar.(
+    apply_transformation(
+      info,
+      Exp.(
+        ap(
+          Forward,
+          var("filter"),
+          tuple([
+            deferral(InAp),
+            fn(
+              Pat.var("row"),
+              bin_op(op, dot(var("row"), label(column)), empty_hole()),
+            ),
           ]),
         )
       ),
@@ -518,6 +558,69 @@ let build_column_menu =
 
   // If we're in a submenu, show that submenu
   switch (menu_path) {
+  | ["Filter"] =>
+    // Show filter submenu
+
+    [
+      Action({
+        text: "← Back",
+        action: () => local(ShowSubmenu([])) // Go back to main menu
+      }),
+    ]
+    @ {
+      let gt_op: option(Operators.op_bin) =
+        switch (Option.map(Typ.term_of, column_type)) {
+        | Some(Atom(Int)) => Some(Int(GreaterThan))
+        | Some(Atom(Float)) => Some(Float(GreaterThan))
+        | _ => None
+        };
+      let lt_op: option(Operators.op_bin) =
+        switch (Option.map(Typ.term_of, column_type)) {
+        | Some(Atom(Int)) => Some(Int(LessThan))
+        | Some(Atom(Float)) => Some(Float(LessThan))
+        | _ => None
+        };
+      (
+        switch (gt_op) {
+        | Some(op) => [
+            Action({
+              text: "Greater than",
+              action: () =>
+                Effect.Many([
+                  local(CloseMenu),
+                  parent(SetSyntax(filter_by_column(op, info, h))),
+                ]),
+            }),
+          ]
+        | None => []
+        }
+      )
+      @ (
+        switch (lt_op) {
+        | Some(op) => [
+            Action({
+              text: "Less than",
+              action: () =>
+                Effect.Many([
+                  local(CloseMenu),
+                  parent(SetSyntax(filter_by_column(op, info, h))),
+                ]),
+            }),
+          ]
+        | None => []
+        }
+      )
+      @ [
+        Action({
+          text: "Equals",
+          action: () =>
+            Effect.Many([
+              local(CloseMenu),
+              parent(SetSyntax(filter_by_column(Poly(Equals), info, h))),
+            ]),
+        }),
+      ];
+    }
   | ["Convert"] =>
     // Show conversion submenu
     switch (column_type) {
@@ -675,7 +778,26 @@ let build_column_menu =
       | None => []
       };
 
-    base_items @ conversion_submenu @ move_items @ sort_submenu;
+    let filter_submenu =
+      switch (column_type) {
+      | Some(ty) =>
+        switch (Typ.cls_of_term(ty.term)) {
+        | Typ.Atom(Atom.Int | Atom.Float) => [
+            Action({
+              text: "Filter →",
+              action: () => local(ShowSubmenu(["Filter"])) // Navigate to filter submenu
+            }),
+          ]
+        | _ => []
+        }
+      | None => []
+      };
+
+    base_items
+    @ conversion_submenu
+    @ move_items
+    @ sort_submenu
+    @ filter_submenu;
   | _ => [] // Unknown menu path
   };
 };

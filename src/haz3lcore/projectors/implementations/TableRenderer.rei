@@ -12,7 +12,10 @@ type a =
   | ConversionColumn(string, string)
   | RenameColumn(string, string)
   | AddColumnAfter(string, string)
-  | GroupByColumn(string);
+  | GroupByColumn(string)
+  | FilterGreaterThan(string)
+  | FilterLessThan(string)
+  | FilterEquals(string);
 type v = (list(string), list(list(Language.Exp.t))); /* (headers, rows) */
 
 include
