@@ -13,6 +13,13 @@ type model'('stepper) = {
   step: 'stepper,
   last_exp: Calc.saved(Exp.t),
   hypo_points: Calc.saved(list(Exp.t)),
+  inner_ctx: Calc.saved(Ctx.t),
+};
+
+[@deriving (show({with_path: false}), sexp, yojson)]
+type persistent'('stepper) = {
+  pattern: CodeEditable.Model.persistent,
+  stepper: 'stepper,
 };
 
 [@deriving (show({with_path: false}), sexp, yojson)]
@@ -27,6 +34,7 @@ type focus'('stepper) =
 
 module F = (Stepper: STEPPER) => {
   type model = model'(Stepper.model);
+  type persistent = persistent'(Stepper.persistent);
   type action = action'(Stepper.action);
   type focus = focus'(Stepper.focus);
 
@@ -37,6 +45,26 @@ module F = (Stepper: STEPPER) => {
     step: Stepper.init,
     last_exp: Calc.Pending,
     hypo_points: Calc.Pending,
+    inner_ctx: Calc.Pending,
+  };
+
+  let persist = (model: model) => {
+    {
+      pattern: CodeEditable.Model.persist(model.pattern),
+      stepper: Stepper.persist(model.step),
+    };
+  };
+
+  let unpersist = (p: persistent) => {
+    {
+      pattern: CodeEditable.Model.unpersist(p.pattern),
+      elab_pattern: Calc.Pending,
+      inner_exp: Calc.Pending,
+      step: Stepper.unpersist(p.stepper),
+      last_exp: Calc.Pending,
+      hypo_points: Calc.Pending,
+      inner_ctx: Calc.Pending,
+    };
   };
 
   let update = (~settings: Settings.t, action: action, model: model) => {
@@ -70,9 +98,9 @@ module F = (Stepper: STEPPER) => {
         ~settings: Calc.t(CoreSettings.t),
         ~elab_scrut: Calc.t(Exp.t),
         ~scrut_ty: Calc.t(Typ.t),
+        ~scrut_co_ctx: Calc.t(CoCtx.t),
         ~ctx: Calc.t(Ctx.t),
         ~exp: Calc.t(Exp.t),
-        ~state: Calc.t(EvaluatorState.t),
         model: model,
       ) => {
     let pattern =
@@ -103,10 +131,13 @@ module F = (Stepper: STEPPER) => {
         open Calc.Syntax;
         let.calc elab_pattern = elab_pattern
         and.calc elab_scrut = elab_scrut
+        and.calc scrut_co_ctx = scrut_co_ctx
         and.calc exp = exp;
-        DHExp.replace_exp(
+        ProofHacks.replace_exp(
           elab_scrut,
+          scrut_co_ctx,
           elab_pattern |> ProofHacks.pat_to_exp,
+          elab_pattern |> Pat.bindings |> CoCtx.of_bindings,
           exp,
         );
       };
@@ -123,12 +154,21 @@ module F = (Stepper: STEPPER) => {
         )
         |> List.map(v => Exp.fresh(Var(v)));
       };
+    let inner_ctx =
+      model.inner_ctx
+      |> {
+        open Calc.Syntax;
+        let.calc elab_pattern = elab_pattern
+        and.calc scrut_ty = scrut_ty
+        and.calc ctx = ctx;
+        ProofHacks.dhpat_extend_ctx(elab_pattern, scrut_ty, ctx)
+        |> Option.value(~default=ctx);
+      };
     let (stepper, last_exp) =
       Stepper.calculate(
         ~settings, // TODO: this is a little ugly
-        ~ctx,
+        ~ctx=inner_ctx,
         ~exp=inner_exp,
-        ~state,
         model.step,
       );
     {
@@ -138,6 +178,7 @@ module F = (Stepper: STEPPER) => {
       hypo_points: hypo_points |> Calc.save,
       step: stepper,
       last_exp: last_exp |> Calc.save,
+      inner_ctx: inner_ctx |> Calc.save,
     };
   };
 

@@ -48,6 +48,7 @@ type unsorted =
 type t = {
   term: Exp.t,
   terms: TermMap.t,
+  term_data: TermData.t,
   projectors: Id.Map.t(Piece.projector),
 };
 
@@ -119,6 +120,16 @@ let return = (wrap, ids, tm) => {
   tm;
 };
 
+let term_data: ref(TermData.t) = ref(Id.Map.empty);
+let record_term_data = (sort: Sort.t, seg: Segment.t, skel: Skel.t): unit =>
+  term_data :=
+    Aba.get_as(Aba.map_a(List.nth(seg), Skel.root(skel)))
+    |> List.fold_left(
+         (map, p) =>
+           Id.Map.add(Piece.id(p), TermData.mk(p, sort, skel, seg), map),
+         term_data^,
+       );
+
 /* Map to collect projector ids */
 let projectors: ref(Id.Map.t(Piece.projector)) = ref(Id.Map.empty);
 
@@ -141,8 +152,20 @@ let should_instrument = (id: Id.t): bool =>
 let parse_sum_term: Typ.t => ConstructorMap.variant(Typ.t) =
   fun
   | {term: Var(ctr), annotation: {ids, _}} => Variant(ctr, ids, None)
+  /* Constructor applications in sum type definitions are implemented as having type sort;
+     until they are reimplemented as their own sort, we must prevent these from being parsed
+     into types, where they can go on to mess with statics. Thus we let them fall through to
+     be parsed as multiholes, and then recognize them when we parse sum type definitions */
   | {
-      term: Ap({term: Var(ctr), annotation: {ids: ids_ctr, _}}, u),
+      term:
+        Unknown(
+          Hole(
+            MultiHole([
+              Typ({term: Var(ctr), annotation: {ids: ids_ctr, _}}),
+              Typ(u),
+            ]),
+          ),
+        ),
       annotation: {ids: ids_ap, _},
     } =>
     Variant(ctr, ids_ctr @ ids_ap, Some(u))
@@ -157,35 +180,26 @@ let mk_bad = (ctr, ids, value) => {
   };
   switch (value) {
   | None => t
-  | Some(u) => Ap(t, u) |> Typ.fresh
+  | Some(u) => Unknown(Hole(MultiHole([Typ(t), Typ(u)]))) |> Typ.fresh
   };
 };
 
 let is_hole_label = (t: string) =>
-  t == " " || Form.is_explicit_hole(t) || Form.is_llm_hole(t);
+  t == " " || Token.is_explicit_hole(t) || Token.is_llm_hole(t);
 
-let rec go_s = (s: Sort.t, skel: Skel.t, seg: Segment.t): Term.Any.t =>
+let rec go_s = (s: Sort.t, skel: Skel.t, seg: Segment.t): Any.t =>
   switch (s) {
-  | Pat => Pat(pat(unsorted(skel, seg)))
-  | TPat => TPat(tpat(unsorted(skel, seg)))
-  | Typ => Typ(typ(unsorted(skel, seg)))
-  | Exp => Exp(exp(unsorted(skel, seg)))
-  | Rul => Rul(rul(unsorted(skel, seg)))
+  | Pat => Pat(pat(unsorted(Pat, skel, seg)))
+  | TPat => TPat(tpat(unsorted(TPat, skel, seg)))
+  | Typ => Typ(typ(unsorted(Typ, skel, seg)))
+  | Exp => Exp(exp(unsorted(Exp, skel, seg)))
+  | Rul => Rul(rul(unsorted(Rul, skel, seg)))
   | Any =>
-    let tm = unsorted(skel, seg);
-    let ids = ids(tm);
-    switch (ListUtil.hd_opt(ids)) {
-    | None => Exp(exp(unsorted(skel, seg)))
-    | Some(id) =>
-      switch (TileMap.find_opt(id, TileMap.mk(seg))) {
-      | None => Exp(exp(unsorted(skel, seg)))
-      | Some(t) =>
-        if (t.mold.out == Any) {
-          Exp(exp(unsorted(skel, seg)));
-        } else {
-          go_s(t.mold.out, skel, seg);
-        }
-      }
+    let sort = Segment.sort_of(skel, seg);
+    if (sort == Any) {
+      Exp(exp(unsorted(Exp, skel, seg)));
+    } else {
+      go_s(sort, skel, seg);
     };
   }
 
@@ -220,29 +234,48 @@ and exp_term: unsorted => (Exp.term, list(Id.t)) = {
     // single-tile case
     | ([(id, t)], []) =>
       switch (t) {
-      | ([t], []) when Form.is_empty_tuple(t) => ret(Tuple([]))
-      | ([t], []) when Form.is_wild(t) => ret(Deferral(OutsideAp))
-      | ([t], []) when Form.is_empty_list(t) => ret(ListLit([]))
-      | ([t], []) when Form.is_bool(t) =>
+      | ([t], []) when Token.is_empty_tuple(t) => ret(Tuple([]))
+      | ([t], []) when Token.is_wild(t) => ret(Deferral(OutsideAp))
+      | ([t], []) when Token.is_empty_list(t) => ret(ListLit([]))
+      | ([t], []) when Token.is_bool(t) =>
         ret(Atom(Bool(bool_of_string(t))))
-      | ([t], []) when Form.is_undefined(t) => ret(Undefined)
-      | ([t], []) when Form.is_int(t) =>
+      | ([t], []) when Token.is_undefined(t) => ret(Undefined)
+      | ([t], []) when Token.is_int(t) =>
         ret(Atom(Int(Bigint.of_string(t))))
-      | ([t], []) when Form.is_string(t) =>
-        ret(Atom(String(Form.strip_quotes(t))))
-      | ([t], []) when Form.is_float(t) =>
+      | ([t], []) when Token.is_string(t) =>
+        ret(Atom(String(Token.strip_quotes(t))))
+      | ([t], []) when Token.is_quoted_label(t) =>
+        ret(Label(Token.strip_quotes(~quote=Token.label_delim, t)))
+      | ([t], []) when Token.is_float(t) =>
         ret(Atom(Float(float_of_string(t))))
-      | ([t], []) when Form.is_livelit(t) =>
-        ret(LivelitName(Form.parse_livelit(t)))
-      | ([t], []) when Form.is_var(t) => ret(Var(t))
-      | ([t], []) when Form.is_ctr(t) => ret(Constructor(t, None))
+      | ([t], []) when Token.is_livelit(t) =>
+        ret(LivelitName(Token.parse_livelit(t)))
+      | ([t], []) when Token.is_var(t) => ret(Var(t))
+      | ([t], []) when Token.is_ctr(t) => ret(Constructor(t, None))
       | (["(", ")"], [Exp(body)]) => ret(Parens(body))
       | (label, [Exp(body)]) when is_probe_wrap(label) =>
         // Temporary wrapping form to persist projector probes
         ret(should_instrument(id) ? Probe(body, Probe.empty) : body.term)
       | (["[", "]"], [Exp(body)]) =>
         switch (body) {
-        | {annotation: {ids}, term: Tuple(es)} => (ListLit(es), ids)
+        | {annotation: {ids}, term: Tuple(es)} =>
+          // Addresses tup_labels in lists like: [l=32, 1]
+          (
+            ListLit(
+              List.map(
+                (list_item: Grammar.exp_t(IdTagged.IdTag.t)) => {
+                  let (e, rewrap) = IdTagged.unwrap(list_item);
+                  switch (e) {
+                  | TupLabel(_) =>
+                    rewrap(Tuple([e |> Exp.fresh]): TermBase.exp_term)
+                  | _ => list_item
+                  };
+                },
+                es,
+              ),
+            ),
+            ids,
+          )
         | term => ret(ListLit([term]))
         }
       | (["test", "end"], [Exp(test)]) => ret(Test(test))
@@ -256,7 +289,7 @@ and exp_term: unsorted => (Exp.term, list(Id.t)) = {
         | Invalid(string) => (Invalid(string), ids)
         }
       | ([t], []) when is_hole_label(t) => ret(hole(tm))
-      | ([t], []) when t != " " && !Form.is_explicit_hole(t) =>
+      | ([t], []) when t != " " && !Token.is_explicit_hole(t) =>
         ret(Invalid(t))
       | _ => ret(hole(tm))
       }
@@ -341,8 +374,8 @@ and exp_term: unsorted => (Exp.term, list(Id.t)) = {
           term: Deferral(InAp),
         };
         switch (arg.term) {
-        | Var(l) when Form.is_livelit(l) =>
-          ret(LivelitName(Form.parse_livelit(l)))
+        | Var(l) when Token.is_livelit(l) =>
+          ret(LivelitName(Token.parse_livelit(l)))
         | _ when Exp.is_deferral(arg) =>
           ret(DeferredAp(l, [use_deferral(arg)]))
         | Tuple(es) when List.exists(Exp.is_deferral, es) => (
@@ -376,14 +409,13 @@ and exp_term: unsorted => (Exp.term, list(Id.t)) = {
         @ [r]
         |> List.map((child: Exp.t) => {
              switch (child) {
-             | {term: Tuple([{term: TupLabel(_) as tl, _}]), _} as tup =>
+             | {term: Tuple([{term: _ as tl, _}]), _} as tup =>
                // We use the Id for the tuple as the ids for the tuplabels
                let (_, rewrap) = IdTagged.unwrap(tup);
                rewrap(tl);
              | _ => child
              }
            });
-
       ret(Tuple(tuple_children));
     | None =>
       switch (tiles) {
@@ -418,8 +450,17 @@ and exp_term: unsorted => (Exp.term, list(Id.t)) = {
           | ([";"], []) => Seq(l, r)
           | (["++"], []) => BinOp(String(Concat), l, r)
           | (["$=="], []) => BinOp(String(Equals), l, r)
+          | (["..."], []) => TupleExtension(l, r)
           | (["="], []) =>
             switch (l.term) {
+            | Deferral(_) =>
+              TupLabel(
+                {
+                  annotation: l.annotation,
+                  term: ExplicitNonlabel,
+                },
+                r,
+              ) // Unlabeled tuple using deferred ap in tuplabel
             | Var(name) =>
               TupLabel(
                 {
@@ -428,6 +469,7 @@ and exp_term: unsorted => (Exp.term, list(Id.t)) = {
                 },
                 r,
               )
+            | Label(_) => TupLabel(l, r)
             | EmptyHole => TupLabel(l, r)
             | _ =>
               let (e_term, rewrap) = IdTagged.unwrap(l);
@@ -447,6 +489,7 @@ and exp_term: unsorted => (Exp.term, list(Id.t)) = {
                   term: Label(name),
                 },
               )
+            | Label(_) => Dot(l, r)
             | EmptyHole => Dot(l, r)
             | _ =>
               let (e_term, rewrap) = IdTagged.unwrap(r);
@@ -494,17 +537,21 @@ and pat_term: unsorted => (Pat.term, list(Id.t)) = {
     | ([(id, tile)], []) =>
       ret(
         switch (tile) {
-        | ([t], []) when Form.is_empty_tuple(t) => Tuple([])
-        | ([t], []) when Form.is_empty_list(t) => ListLit([])
-        | ([t], []) when Form.is_bool(t) => Atom(Bool(bool_of_string(t)))
-        | ([t], []) when Form.is_float(t) =>
+        | ([t], []) when Token.is_empty_tuple(t) => Tuple([])
+        | ([t], []) when Token.is_empty_list(t) => ListLit([])
+        | ([t], []) when Token.is_bool(t) =>
+          Atom(Bool(bool_of_string(t)))
+        | ([t], []) when Token.is_float(t) =>
           Atom(Float(float_of_string(t)))
-        | ([t], []) when Form.is_int(t) => Atom(Int(Bigint.of_string(t)))
-        | ([t], []) when Form.is_string(t) =>
-          Atom(String(Form.strip_quotes(t)))
-        | ([t], []) when Form.is_var(t) => Var(t)
-        | ([t], []) when Form.is_wild(t) => Wild
-        | ([t], []) when Form.is_ctr(t) => Constructor(t, None)
+        | ([t], []) when Token.is_int(t) =>
+          Atom(Int(Bigint.of_string(t)))
+        | ([t], []) when Token.is_string(t) =>
+          Atom(String(Token.strip_quotes(t)))
+        | ([t], []) when Token.is_quoted_label(t) =>
+          Label(Token.strip_quotes(~quote=Token.label_delim, t))
+        | ([t], []) when Token.is_var(t) => Var(t)
+        | ([t], []) when Token.is_wild(t) => Wild
+        | ([t], []) when Token.is_ctr(t) => Constructor(t, None)
         | (["(", ")"], [Pat(body)]) => Parens(body)
         | (label, [Pat(body)]) when is_probe_wrap(label) =>
           should_instrument(id) ? Probe(body, Probe.empty) : body.term
@@ -555,6 +602,16 @@ and pat_term: unsorted => (Pat.term, list(Id.t)) = {
       switch (tiles) {
       | ([(_id, (["="], []))], []) =>
         switch (l.term) {
+        | Wild =>
+          ret(
+            TupLabel(
+              {
+                annotation: l.annotation,
+                term: ExplicitNonlabel,
+              },
+              r,
+            ),
+          ) // Unlabeled tuple using deferred ap in tuplabel
         | Var(name) =>
           ret(
             TupLabel(
@@ -565,6 +622,7 @@ and pat_term: unsorted => (Pat.term, list(Id.t)) = {
               r,
             ),
           )
+        | Label(_) => ret(TupLabel(l, r))
         | EmptyHole => ret(TupLabel(l, r))
         | _ =>
           let (e_term, rewrap) = IdTagged.unwrap(l);
@@ -609,14 +667,17 @@ and typ_term: unsorted => (Typ.term, list(Id.t)) = {
     | ([(_id, tile)], []) =>
       ret(
         switch (tile) {
-        | ([t], []) when Form.is_empty_tuple(t) => Prod([])
+        | ([t], []) when Token.is_empty_tuple(t) => Prod([])
         | (["Bool"], []) => Atom(Bool)
         | (["Int"], []) => Atom(Int)
         | (["SInt"], []) => Atom(SInt)
         | (["Float"], []) => Atom(Float)
         | (["String"], []) => Atom(String)
         | (["Nat"], []) => Atom(Nat)
-        | ([t], []) when Form.is_typ_var(t) => Var(t)
+        | (["_"], []) => ExplicitNonlabel
+        | ([t], []) when Token.is_typ_var(t) => Var(t)
+        | ([t], []) when Token.is_quoted_label(t) =>
+          Label(Token.sub(t, 1, Token.length(t) - 2))
         | (["(", ")"], [Typ(body)]) => Parens(body)
         | (label, [Typ(body)]) when is_probe_wrap(label) => body.term
         | (["[", "]"], [Typ(body)]) => List(body)
@@ -627,9 +688,9 @@ and typ_term: unsorted => (Typ.term, list(Id.t)) = {
       )
     | _ => ret(hole(tm))
     }
-  | Post(Typ(t), tiles) as tm =>
+  | Post(Typ(_t), tiles) as tm =>
     switch (tiles) {
-    | ([(_, (["(", ")"], [Typ(typ)]))], []) => ret(Ap(t, typ))
+    /* Type aps which would otherwise be parsed here are recognized in sum type parsing above */
     | _ => ret(hole(tm))
     }
   /* forall and rec have to be before sum so that they bind tighter.
@@ -694,6 +755,21 @@ and typ_term: unsorted => (Typ.term, list(Id.t)) = {
           )
         | _ => ret(TupLabel(l, r))
         }
+      | ([(_id, (["."], []))], []) =>
+        switch (r.term) {
+        | Var(name) =>
+          ret(
+            ProdProjection(
+              l,
+              {
+                annotation: r.annotation,
+                term: Label(name),
+              },
+            ),
+          )
+        | _ => ret(ProdProjection(l, r))
+        }
+      | ([(_id, (["..."], []))], []) => ret(ProdExtension(l, r))
       | _ => ret(hole(tm))
       }
     }
@@ -722,7 +798,7 @@ and tpat_term: unsorted => TPat.term = {
     | ([(_id, tile)], []) =>
       ret(
         switch (tile) {
-        | ([t], []) when Form.is_typ_var(t) => Var(t)
+        | ([t], []) when Token.is_typ_var(t) => Var(t)
         | ([t], []) when is_hole_label(t) => hole(tm)
         | ([t], []) => Invalid(t)
         | (label, [TPat(body)]) when is_probe_wrap(label) => body.term
@@ -754,18 +830,18 @@ and rul = (unsorted): Rul.t => {
           List.combine(ps, leading_clauses @ [last_clause]),
           ids(unsorted),
         )
-      | None => mk_rules(e, [], [])
+      | None => mk_rules(e, [], [Id.invalid])
       }
-    | _ => mk_rules(e, [], [])
+    | _ => mk_rules(e, [], [Id.invalid])
     }
-  | _ => mk_rules(e, [], [])
+  | _ => mk_rules(e, [], [Id.invalid])
   };
 }
 
-and unsorted = (skel: Skel.t, seg: Segment.t): unsorted => {
+and unsorted = (sort: Sort.t, skel: Skel.t, seg: Segment.t): unsorted => {
   /* Remove projectors. We do this here as opposed to removing
    * them in an external call to save a whole-syntax pass. */
-  let tile_kids = (p: Piece.t): list(Term.Any.t) =>
+  let tile_kids = (p: Piece.t): list(Any.t) =>
     switch (p) {
     | Secondary(_)
     | Grout(_) => []
@@ -781,6 +857,9 @@ and unsorted = (skel: Skel.t, seg: Segment.t): unsorted => {
            go_s(s, Segment.skel(kid), kid);
          })
     };
+
+  /* Capture term ranges */
+  record_term_data(sort, seg, skel);
 
   let root: Aba.t(Piece.t, Skel.t) =
     Skel.root(skel) |> Aba.map_a(List.nth(seg));
@@ -821,10 +900,12 @@ let go =
     ~cache_size_bound=1000,
     seg => {
       map := TermMap.empty;
+      term_data := Id.Map.empty;
       projectors := Id.Map.empty;
-      let term = exp(unsorted(Segment.skel(seg), seg));
+      let term = exp(unsorted(Exp, Segment.skel(seg), seg));
       {
         term,
+        term_data: term_data^,
         terms: map^,
         projectors: projectors^,
       };
@@ -847,10 +928,8 @@ let for_projection =
       switch (Segment.skel(seg)) {
       | exception _ => None /* Returns None if any subsegment is non-convex */
       | skel =>
-        let (unsorted, sort) = (
-          unsorted(skel, seg),
-          Segment.sort_of(skel, seg),
-        );
+        let sort = Segment.sort_of(skel, seg);
+        let unsorted = unsorted(sort, skel, seg);
         switch (sort) {
         | Exp =>
           switch (exp(unsorted)) {
@@ -880,14 +959,7 @@ let for_projection =
     }
   );
 
-let from_zip_for_sem =
-    (~dump_backpack: bool, ~erase_buffer: bool, z: Zipper.t) => {
-  let seg = Zipper.smart_seg(~dump_backpack, ~erase_buffer, z);
-  go(seg);
-};
+let from_zip_for_sem = (z: Zipper.t) => go(Dump.to_segment(z));
 
 let from_zip_for_sem =
-  Core.Memo.general(
-    ~cache_size_bound=1000,
-    from_zip_for_sem(~dump_backpack=true, ~erase_buffer=true),
-  );
+  Core.Memo.general(~cache_size_bound=1000, from_zip_for_sem);

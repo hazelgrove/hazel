@@ -4,7 +4,7 @@ open Transition;
 module EvalObj = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t = {
-    env: ClosureEnvironment.t, // technically can be calculated from ctx
+    env: Environment.t(Exp.t), // technically can be calculated from ctx
     d_loc: DHExp.t,
     ctx: EvalCtx.t,
     knd: step_kind,
@@ -24,15 +24,22 @@ module EvalObj = {
 
   [@deriving (show({with_path: false}), sexp, yojson)]
   type persistent = {
-    old_id: Id.t, // The id of the term about to be stepped
-    new_id: Id.t, // The id of the term after it is stepped
-    knd: step_kind,
+    exp_idx: int, // The index of the expression being stepped
+    at_exp: Exp.t // The expression being stepped
+  };
+
+  let persist = (obj: t): persistent => {
+    let full_exp = EvalCtx.compose(obj.ctx, obj.d_loc);
+    {
+      exp_idx: ProofHacks.exp_idx(obj.d_loc, full_exp),
+      at_exp: obj.d_loc,
+    };
   };
 };
 
 let rec matches =
         (
-          env: ClosureEnvironment.t,
+          env: Environment.t(Exp.t),
           flt: FilterEnvironment.t,
           ctx: EvalCtx.t,
           exp: DHExp.t,
@@ -129,6 +136,12 @@ let rec matches =
       | BinOp2(op, d1, ctx) =>
         let+ ctx = matches(env, flt, ctx, exp, act, idx);
         BinOp2(op, d1, ctx) |> rewrap;
+      | TupleExtension1(ctx, d2) =>
+        let+ ctx = matches(env, flt, ctx, exp, act, idx);
+        TupleExtension1(ctx, d2) |> rewrap;
+      | TupleExtension2(d1, ctx) =>
+        let+ ctx = matches(env, flt, ctx, exp, act, idx);
+        TupleExtension2(d1, ctx) |> rewrap;
       | Tuple(ctx, ds) =>
         let+ ctx = matches(env, flt, ctx, exp, act, idx);
         Tuple(ctx, ds) |> rewrap;
@@ -205,7 +218,7 @@ let should_hide_eval_obj =
     (Eval, x);
   } else {
     let (act, _, ctx) =
-      matches(ClosureEnvironment.empty, [], x.ctx, x.d_loc, (Step, One), 0);
+      matches(Environment.empty, [], x.ctx, x.d_loc, (Step, One), 0);
     switch (act) {
     | (Eval, _) => (
         Eval,
@@ -247,7 +260,7 @@ module Decompose = {
   } = {
     type state = ref(EvaluatorState.t);
     type requirement('a) = (Result.t, 'a);
-    type requirements('a, 'b) = ('b, Result.t, ClosureEnvironment.t, 'a);
+    type requirements('a, 'b) = ('b, Result.t, Environment.t(Exp.t), 'a);
     type result = Result.t;
 
     let (&&): (Result.t, Result.t) => Result.t =
@@ -265,7 +278,7 @@ module Decompose = {
     let req_final = (cont, wr, d) => {
       (
         switch (cont(d)) {
-        | Result.Indet => Result.BoxedValue
+        | Result.Indet => Result.Indet
         | Result.BoxedValue => Result.BoxedValue
         | Result.Step(objs) =>
           Result.Step(List.map(EvalObj.wrap(wr), objs))
@@ -290,17 +303,16 @@ module Decompose = {
     let (let.): (requirements('a, DHExp.t), 'a => rule) => result =
       (rq, rl) =>
         switch (rq) {
-        | (_, Result.Indet, _, _) => Result.Indet
-        | (undo, Result.BoxedValue, env, v) =>
+        | (_, Result.Step(_) as r, _, _) => r
+        | (undo, r, env, v) =>
           switch (rl(v)) {
-          | Constructor => Result.BoxedValue
+          | Constructor => r
           | Value => Result.BoxedValue
           | Indet => Result.Indet
           | Step(s) => Result.Step([EvalObj.mk(Mark, env, undo, s.kind)])
           // TODO: Actually show these exceptions to the user!
           | exception (EvaluatorError.Exception(_)) => Result.Indet
           }
-        | (_, Result.Step(_) as r, _, _) => r
         };
 
     let (and.):
@@ -309,21 +321,16 @@ module Decompose = {
       ((u, r1, env, v1), (r2, v2)) => (u(v2), r1 && r2, env, (v1, v2));
 
     let otherwise = (env, o) => (o, Result.BoxedValue, env, ());
-    let update_test = (state, id, v) =>
-      state := EvaluatorState.add_test(state^, id, v);
-    let update_probe = (state, closure: Dynamics.Probe.Closure.t) =>
-      state := EvaluatorState.add_closure(state^, closure);
   };
 
   module Decomp = Transition(DecomposeEVMode);
-  let rec decompose = (~in_closure=?, state, env, exp) => {
+  let rec decompose = (~in_closure=?, env, exp) => {
     switch (exp) {
     | _ =>
       Decomp.transition(
         decompose,
         ~mode=`Substitution,
         ~in_closure?,
-        state,
         env,
         exp,
       )
@@ -348,9 +355,7 @@ module TakeStep = {
 
     let (let.) = (rq: requirements('a, DHExp.t), rl: 'a => rule) =>
       switch (rl(rq)) {
-      | Step({expr, state_update, _}) =>
-        state_update();
-        Some(expr);
+      | Step({expr, _}) => Some(expr)
       | Constructor
       | Value
       | Indet => None
@@ -359,22 +364,15 @@ module TakeStep = {
     let (and.) = (x1, x2) => (x1, x2);
 
     let otherwise = (_, _) => ();
-
-    let update_test = (state, id, v) =>
-      state := EvaluatorState.add_test(state^, id, v);
-
-    let update_probe = (state, closure: Dynamics.Probe.Closure.t) =>
-      state := EvaluatorState.add_closure(state^, closure);
   };
 
   module TakeStepEV = Transition(TakeStepEVMode);
 
-  let take_step = (~in_closure=?, state, env, d) =>
+  let take_step = (~in_closure=?, env, d) =>
     TakeStepEV.transition(
-      (~in_closure as _=?, _, _, _) => None,
+      (~in_closure as _=?, _, _) => None,
       ~mode=`Substitution,
       ~in_closure?,
-      state,
       env,
       d,
     )
@@ -383,9 +381,9 @@ module TakeStep = {
 
 let take_step = TakeStep.take_step;
 
-let decompose = (d: DHExp.t, es: EvaluatorState.t) => {
-  let env = ClosureEnvironment.of_environment(Builtins.env_init);
-  let rs = Decompose.decompose(ref(es), env, d);
+let decompose = (d: DHExp.t) => {
+  let env = Builtins.env_init;
+  let rs = Decompose.decompose(env, d);
   Decompose.Result.unbox(rs);
 };
 
@@ -396,13 +394,18 @@ open OptUtil.Syntax;
 type step = EvalObj.t;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
+type persistent = EvalObj.persistent;
+
+let persist = EvalObj.persist;
+
+[@deriving (show({with_path: false}), sexp, yojson)]
 type status =
   | AutoStep(step)
   | AvailableSteps(list(step));
 
-let get_status = (~settings: CoreSettings.t, exp, state) => {
+let get_status = (~settings: CoreSettings.t, exp) => {
   let eos =
-    decompose(exp, state)
+    decompose(exp)
     |> List.map(should_hide_eval_obj(~settings=settings.evaluation)); // NOTE: should_hide_eval_obj actually changes the eval obj to do filter bookkeeping!!!
   switch (List.find_opt(((x, _)) => x == FilterAction.Eval, eos)) {
   | Some((_, x)) => AutoStep(x)
@@ -415,34 +418,28 @@ let get_step_id = (step: step): Id.t => step.d_loc |> DHExp.rep_id;
 let get_step_kind = (step: step): step_kind => step.knd;
 
 let take_step = (step: EvalObj.t) => {
-  let state = ref(EvaluatorState.init); // HACK: state isn't actually carried through the stepper...
-  let+ next_expr = take_step(state, step.env, step.d_loc);
+  let+ next_expr = take_step(step.env, step.d_loc);
   let next_expr = {
     ...next_expr,
     annotation: IdTagged.IdTag.{ids: step.d_loc |> IdTagged.ids},
   };
-  let next_state = state^;
   let next_expr =
     EvalCtx.compose(step.ctx, next_expr)
-    |> Exp.replace_all_ids
-    |> DHExp.substitute_closures(Builtins.env_init);
-  (next_expr, next_state);
+    |> DHExp.substitute_closures(Builtins.env_init)
+    |> Exp.replace_all_ids;
+  next_expr;
 };
 
-let refresh_step =
-    (
-      ~settings: CoreSettings.t,
-      exp: Exp.t,
-      state: EvaluatorState.t,
-      step: step,
-    ) => {
+let refresh_step = (~settings: CoreSettings.t, exp: Exp.t, step: persistent) => {
   let eos =
-    decompose(exp, state)
+    decompose(exp)
     |> List.map(should_hide_eval_obj(~settings=settings.evaluation)); // NOTE: should_hide_eval_obj actually changes the eval obj to do filter bookkeeping!!!
+  let* desired_id =
+    ProofHacks.nth_exp(step.at_exp, step.exp_idx, exp)
+    |> Option.map(IdTagged.ids);
   let* (h, x) =
     List.find_opt(
-      ((_, step': step)) =>
-        IdTagged.ids(step'.d_loc) == IdTagged.ids(step.d_loc),
+      ((_, step': step)) => IdTagged.ids(step'.d_loc) == desired_id,
       eos,
     );
   Some((h, x));

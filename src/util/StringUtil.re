@@ -67,23 +67,15 @@ let num_linebreaks = (s: string) => {
   s |> String.to_seq |> Seq.filter((==)('\n')) |> Seq.length;
 };
 
-// let escape_linebreaks: string => string = replace(regexp("\n"), "\\n");
-// let unescape_linebreaks: string => string = replace(regexp("\\\\n"), "\n");
-// let trim_leading = replace(regexp("\n[ ]*"), "\n");
-
-/* WEIRD: figure out why above dont work. When they're
- * gone we can remove Re.Str entirely */
-
-let escape_linebreaks: string => string =
-  Re.Str.global_replace(Re.Str.regexp("\n"), "\\n");
+let escape_linebreaks: string => string = replace(regexp("\n"), _, "\\n");
 
 let unescape_linebreaks: string => string =
-  Re.Str.global_replace(Re.Str.regexp("\\\\n"), "\n");
+  replace(regexp("\\\\n"), _, "\n");
 
 let trim_leading = (s: string): string => {
   s
-  |> Re.Str.global_replace(Re.Str.regexp("^[ ]*"), "")  // Remove leading spaces at start
-  |> Re.Str.global_replace(Re.Str.regexp("\n[ ]*"), "\n"); // Remove leading spaces after newlines
+  |> replace(regexp("^[ ]*"), _, "")  // Remove leading spaces at start
+  |> replace(regexp("\n[ ]*"), _, "\n"); // Remove leading spaces after newlines
 };
 
 let isEmptyOrWhitespace = str => {
@@ -142,4 +134,14 @@ let prefixes = (s: string): list(string) => {
   } else {
     aux(1);
   };
+};
+
+// Removes double quotes from string and escapes newlines
+// Update once https://github.com/hazelgrove/hazel/issues/786 is done
+let sanitize_for_string_expression = (s: string): string => {
+  s |> replace(regexp("\""), _, "") |> replace(regexp("\n"), _, "\\n");
+};
+
+let sanitize_for_label = (s: string): string => {
+  s |> replace(regexp("`"), _, "");
 };

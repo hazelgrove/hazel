@@ -78,7 +78,7 @@ module Window = {
 };
 
 let is_value = (exp: Exp.t) =>
-  ValueChecker.check_value((), ClosureEnvironment.empty, exp) == Value;
+  ValueChecker.check_value(Environment.empty, exp) == Value;
 module ClosureLength = {
   let lengths: Hashtbl.t(int, int) = Hashtbl.create(100);
 
@@ -118,14 +118,11 @@ let hide_env = (info: info): bool =>
   | _ => false
   };
 
-let show_purps = ref(false);
-
 let cur_ap = (info: info) =>
   switch (info.statics) {
   | Some(InfoExp({term: {term: Ap(_), _} as ap, _}))
-  | Some(InfoExp({term: {term: Probe({term: Ap(_), _} as ap, _), _}, _}))
-      when show_purps^ =>
-    Some(Term.Exp.rep_id(ap))
+  | Some(InfoExp({term: {term: Probe({term: Ap(_), _} as ap, _), _}, _})) =>
+    Some(Exp.rep_id(ap))
   | _ => None
   };
 
@@ -686,7 +683,7 @@ let syntax_str = (utility: utility) =>
     let max_len = 30;
     let seg = Segment.unparenthesize(seg);
     let str = utility.seg_to_string(seg);
-    let str = Re.Str.global_replace(Re.Str.regexp("\n"), " ", str);
+    let str = StringUtil.replace(StringUtil.regexp("\n"), str, " ");
     String.length(str) > max_len
       ? String.sub(str, 0, max_len) ++ "..." : str;
   });
@@ -834,14 +831,6 @@ let view = (local, parent, info: info): Node.t =>
         JsUtil.get_elem_by_id(Id.cls(info.id))##blur;
         Effect.Ignore;
       }),
-      Attr.on_mouseenter(_ => {
-        show_purps := true;
-        local(NoOp);
-      }),
-      Attr.on_mouseleave(_ => {
-        show_purps := false;
-        local(NoOp);
-      }),
     ],
     [text(syntax_str(info.utility, info.syntax)), icon],
   );
@@ -868,7 +857,7 @@ module M: Projector = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type action = a;
 
-  let init = (any: Term.Any.t) =>
+  let init = (any: Any.t) =>
     switch (any) {
     | Exp(_)
     | Pat(_) => Some()
@@ -891,7 +880,7 @@ module M: Projector = {
 
   let update = update;
 
-  let view = (_model, info, ~local, ~parent, ~view_seg) =>
+  let view = ({info, local, parent, view_seg, _}: View.args(model, action)) =>
     View.{
       inline: view(local, parent, info),
       overlay: Some(overlay_view(info)),

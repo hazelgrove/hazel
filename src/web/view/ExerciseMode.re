@@ -276,10 +276,21 @@ module Update = {
       // Redirect to editors
       let editor =
         Exercise.main_editor_of_state(~selection=pos, model.editors);
+      let (statics, dynamics) =
+        switch (Exercise.get_stitched(pos, model.cells)) {
+        | cell_editor => (
+            cell_editor.editor.statics,
+            cell_editor.editor.dynamics,
+          )
+        | exception (Failure(_)) => (
+            CachedStatics.empty,
+            Language.Dynamics.Map.empty,
+          )
+        };
       let* new_editor =
         // Hack[Matt]: put Editor.t into a CodeEditor.t to use its update function
         editor
-        |> CodeEditable.Model.mk
+        |> CodeEditable.Model.mk(~statics, ~dynamics)
         |> CodeEditable.Update.update(~settings, action);
       {
         ...model,
@@ -377,6 +388,7 @@ module Update = {
         stitched_elabs,
         model.cells,
       );
+
     WorkerClient.request(
       worker_request^,
       ~handler=
@@ -410,6 +422,7 @@ module Update = {
         ();
       },
     );
+
     /* The following section pulls statics back from cells into the editors
        There are many ad-hoc things about this code, including the fact that
        one of the editors is shown in two cells, so we arbitrarily choose which
@@ -529,15 +542,19 @@ module Selection = {
   };
 
   let jump_to_tile =
-      (~settings: Settings.t, tile, model: Model.t): option((Update.t, t)) => {
+      (~settings: Settings.t, id: Id.t, model: Model.t)
+      : option((Update.t, t)) => {
     Exercise.positioned_editors(model.editors)
     |> List.find_opt(((p, e: Editor.t)) =>
-         TileMap.find_opt(tile, e.syntax.tiles) != None
+         TermData.root_tile(id, e.syntax.term_data) != None
          && Exercise.visible_in(p, ~instructor_mode=settings.instructor_mode)
        )
     |> Option.map(((pos, _)) =>
          (
-           Update.Editor(pos, MainEditor(Perform(Jump(TileId(tile))))),
+           Update.Editor(
+             pos,
+             MainEditor(Perform(Move(Goal(TileId(id))))),
+           ),
            Cell(pos, CellEditor.Selection.MainEditor),
          )
        );
@@ -594,7 +611,7 @@ module View = {
     let stitched_tests =
       Exercise.map_stitched(
         (_, cell_editor: CellEditor.Model.t) =>
-          cell_editor.result |> EvalResult.Model.make_test_report,
+          cell_editor.result |> EvalResult.Model.test_results,
         model.cells,
       );
 
@@ -606,7 +623,7 @@ module View = {
         (
           ~caption: string,
           ~subcaption: option(string)=?,
-          ~result_kind=EvalResult.View.NoResults,
+          ~result_kind=`NoResults,
           this_pos: Exercise.pos,
           cell: CellEditor.Model.t,
         ) => {
@@ -962,7 +979,7 @@ module View = {
           ~caption="Test Validation",
           ~subcaption,
           ~result_kind=
-            Custom(
+            `Custom(
               Grading.TestValidationReport.view(
                 ~globals,
                 ~signal_jump=
@@ -970,7 +987,7 @@ module View = {
                     inject(
                       Editor(
                         YourTestsValidation,
-                        MainEditor(Perform(Jump(TileId(id)))),
+                        MainEditor(Perform(Move(Goal(TileId(id))))),
                       ),
                     ),
                 ~signal_editing_test_val_rep=
@@ -1054,7 +1071,7 @@ module View = {
         globals.settings.instructor_mode
           ? "Student's Implementation" : "Your Implementation";
       Always(
-        editor_view(YourImpl, user_impl, ~caption, ~result_kind=EvalResults),
+        editor_view(YourImpl, user_impl, ~caption, ~result_kind=`EvalResults),
       );
     };
 
@@ -1083,7 +1100,7 @@ module View = {
           user_tests,
           ~caption="Implementation Validation",
           ~subcaption,
-          ~result_kind=TestResults,
+          ~result_kind=`TestResults,
         ),
       );
     };
@@ -1102,7 +1119,7 @@ module View = {
               inject(
                 Editor(
                   YourTestsTesting,
-                  MainEditor(Perform(Jump(TileId(id)))),
+                  MainEditor(Perform(Move(Goal(TileId(id))))),
                 ),
               ),
           ~inject_set_editing_impl_grd_rep=

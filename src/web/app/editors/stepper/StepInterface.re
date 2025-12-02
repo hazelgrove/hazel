@@ -5,9 +5,15 @@ module type STEP = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type model;
   [@deriving (show({with_path: false}), sexp, yojson)]
+  type persistent;
+  [@deriving (show({with_path: false}), sexp, yojson)]
   type action;
   [@deriving (show({with_path: false}), sexp, yojson)]
   type focus;
+
+  let persist: model => persistent;
+
+  let unpersist: persistent => model;
 
   let update: (~settings: Settings.t, action, model) => Updated.t(model);
 
@@ -19,17 +25,10 @@ module type STEP = {
       ~hidden: Calc.saved(bool),
       ~exp: Calc.t(Exp.t),
       ~ctx: Calc.t(Ctx.t),
-      ~state: Calc.t(EvaluatorState.t),
       ~editor: Calc.t(CodeSelectable.Model.t),
       model
     ) =>
-    option(
-      (
-        model,
-        Calc.t(bool),
-        option((Calc.t(Exp.t), Calc.t(EvaluatorState.t))),
-      ),
-    );
+    option((model, Calc.t(bool), option(Calc.t(Exp.t))));
 
   let get_cursor_info: (~focus: focus, model) => Cursor.cursor(action);
 
@@ -67,11 +66,17 @@ module type STEPPER = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type model;
   [@deriving (show({with_path: false}), sexp, yojson)]
+  type persistent;
+  [@deriving (show({with_path: false}), sexp, yojson)]
   type action;
   [@deriving (show({with_path: false}), sexp, yojson)]
   type focus;
 
   let init: model;
+
+  let persist: model => persistent;
+
+  let unpersist: persistent => model;
 
   let update: (~settings: Settings.t, action, model) => Updated.t(model);
 
@@ -82,7 +87,6 @@ module type STEPPER = {
       ~settings: Calc.t(CoreSettings.t),
       ~ctx: Calc.t(Ctx.t),
       ~exp: Calc.t(Exp.t),
-      ~state: Calc.t(EvaluatorState.t),
       model
     ) =>
     (model, Calc.t(Exp.t));

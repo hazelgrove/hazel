@@ -30,7 +30,7 @@ module Print = {
     );
   };
 
-  let term = (term: Term.Any.t): string => {
+  let term = (term: Any.t): string => {
     let settings =
       ExpToSegment.Settings.of_core(~inline=false, CoreSettings.off);
     term |> ExpToSegment.any_to_pretty(~settings) |> seg(~holes="");
@@ -47,6 +47,7 @@ let common_error: Info.error_common => string =
   | NoType(InvalidLabel(_)) => "Invalid label"
   | DuplicateLabel(_, _) => "Duplicate label"
   | TupleLabelError(_) => "Invalid tuple label"
+  | NoType(UnexpectedLabelSort(_)) => "Unexpected label sort"
   | NoType(BadToken(token)) => prn("\"%s\" isn't a valid token", token)
   | Inconsistent(WithArrow(ty)) =>
     prn("type %s is not consistent with arrow type", Print.typ(ty))
@@ -67,7 +68,29 @@ let common_error: Info.error_common => string =
 
 let exp_error: Info.error_exp => string =
   fun
-  | WantTuple => "Expected a tuple"
+  | DotOperatorRequiresTuple => "Expected a tuple"
+  | TupleExtensionRequiresTuples => "Expected tuples for both arguments"
+  | BuiltinError(ArgumentMustBeTuple) => "Argument must be a tuple"
+  | BuiltinError(ProjectLabelsMissingLabels(labels)) =>
+    prn(
+      "Projected tuple does not have the following labels: %s",
+      String.concat(", ", labels),
+    )
+  | BuiltinError(MissingLabels(labels)) =>
+    prn(
+      "Tuple does not have the following labels: %s",
+      String.concat(", ", labels),
+    )
+  | BuiltinError(ToLvsMissingLabelsOnTuple(ty)) =>
+    prn(
+      "All entries in the argument must have labels, but some were not provided: %s",
+      Print.typ(ty),
+    )
+  | BuiltinError(AtLeast2Arguments) => "Must have 2 or more direct arguments"
+  | BuiltinError(Exactly2Arguments) => "Must have exactly 2 direct arguments"
+  | BuiltinError(ArgumentMustBeListOfTuples) => "Argument must be a list of labeled tuples"
+  | BuiltinError(PivotLabelIsNotString(ty)) =>
+    prn("Pivot column must be a string, but got: %s", Print.typ(ty))
   | LabelNotFound(_, _) => "Label not found"
   | UnboundLivelit(_) => "Livelit unbound and not found"
   | BadTrivAp(ty) =>
@@ -101,15 +124,54 @@ let typ_error: Info.error_typ => string =
   | WantTypeFoundAp => "Constructor application must be in sum"
   | DuplicateConstructor(name) =>
     prn("Constructor %s already used in this sum", name)
-  | WantTuple => "Expected a tuple"
   | WantLabel => "Expected a label"
+  | ParseFailure => "Parse failure"
+  | InvalidLabel(name, labels) =>
+    prn(
+      "Label %s is not valid. Valid labels are: %s",
+      name,
+      String.concat(", ", labels),
+    )
   | DuplicateLabels(labels, ty) =>
     prn(
       "Duplicate labels in type %s: %s",
       Print.typ(ty),
       String.concat(", ", labels),
     )
-  | Duplicate(name, _) => prn("Type %s is already defined", name);
+  | Duplicate(name, _) => prn("Type %s is already defined", name)
+  | WantProduct(ty) =>
+    prn("Expected a tuple type, found type %s", Print.typ(ty));
+
+let underdetermined_typ: Info.underdetermined_typ => string =
+  fun
+  | ProdExtensionUnderdetermined(tys) =>
+    prn(
+      "Cannot determine type of tuple extension with argument types: %s",
+      List.map(Print.typ, tys) |> String.concat(", "),
+    )
+  | ProdProjectionMissingLabel(label, labels) =>
+    prn(
+      "Cannot project label %s. Valid labels are: %s",
+      label,
+      String.concat(", ", labels),
+    )
+  | ProdProjectionBadArgs({product, label}) =>
+    prn(
+      "Cannot determine projection type because %s",
+      String.concat(
+        " and ",
+        [
+          switch (product) {
+          | Some(ty) => "Type is not a tuple type: " ++ Print.typ(ty)
+          | None => ""
+          },
+          switch (label) {
+          | Some(ty) => "Label is not a valid label: " ++ Print.typ(ty)
+          | None => ""
+          },
+        ],
+      ),
+    );
 
 let tpat_error: Info.error_tpat => string =
   fun

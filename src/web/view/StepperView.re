@@ -6,24 +6,31 @@ open Language;
 module Model = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t = {
-    cached_settings: Calc.saved(CoreSettings.t),
-    cached_elab: Calc.saved(Exp.t),
     cached_elab_subst: Calc.saved(Exp.t),
     ctx: Calc.saved(Ctx.t),
     root: StepperBase.step_model,
   };
 
   let init = {
-    cached_settings: Calc.Pending,
-    cached_elab: Calc.Pending,
     cached_elab_subst: Calc.Pending,
     ctx: Calc.Pending,
     root: StepperBase.init_step,
   };
 
-  let get_state = (m: t) => StepperBase.Stepper.get_state(m.root);
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type persistent = {root: StepperBase.persistent_step};
 
-  let get_elaboration = (m: t) => m.cached_elab |> Calc.saved_to_option;
+  let persist = (model: t): persistent => {
+    root: StepperBase.Stepper.persist(model.root),
+  };
+
+  let unpersist = (p: persistent): t => {
+    {
+      cached_elab_subst: Calc.Pending,
+      ctx: Calc.Pending,
+      root: StepperBase.Stepper.unpersist(p.root),
+    };
+  };
 };
 
 module Update = {
@@ -41,53 +48,25 @@ module Update = {
 
   let calculate =
       (
-        ~settings,
-        elab: Exp.t,
-        {ctx, cached_settings, cached_elab, cached_elab_subst, root}: Model.t,
+        ~settings: Calc.t(CoreSettings.t),
+        elab: Calc.t(Exp.t),
+        {ctx, cached_elab_subst, root}: Model.t,
       )
       : Model.t => {
-    let settings =
-      cached_settings
-      |> Calc.set(settings, ~eq=(a, b) => {
-           CoreSettings.{
-             ...a,
-             evaluation: {
-               ...a.evaluation,
-               show_settings: true,
-               stepper_history: true,
-             },
-           }
-           == CoreSettings.{
-                ...b,
-                evaluation: {
-                  ...b.evaluation,
-                  show_settings: true,
-                  stepper_history: true,
-                },
-              }
-         });
-    let elab = cached_elab |> Calc.set(~eq=Exp.fast_equal, elab);
     let ctx = ctx |> Calc.const(() => Builtins.ctx_init(None));
     let elab_subst =
       cached_elab_subst
       |> {
         open Calc.Syntax;
         let.calc elab = elab;
-        Substitution.subst(Builtins.env_init, elab);
+        elab
+        |> Exp.substitute_closures(Builtins.env_init)
+        |> Exp.replace_all_ids;
       };
-    let state = Calc.OldValue(EvaluatorState.init);
     let root =
-      StepperBase.Stepper.calculate(
-        ~settings,
-        ~ctx,
-        ~exp=elab_subst,
-        ~state,
-        root,
-      )
+      StepperBase.Stepper.calculate(~settings, ~ctx, ~exp=elab_subst, root)
       |> fst;
     {
-      cached_settings: settings |> Calc.save,
-      cached_elab: elab |> Calc.save,
       cached_elab_subst: elab_subst |> Calc.save,
       ctx: ctx |> Calc.save,
       root,

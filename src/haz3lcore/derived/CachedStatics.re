@@ -40,7 +40,8 @@ let init_from_term = (~settings, ~is_dynamic_term, ~ctx=?, term): t => {
       ctx,
     );
   let info_map = Statics.mk(settings, ctx_init, term);
-  let (error_ids, warning_ids) = Statics.Map.error_and_warning_ids(info_map);
+  let error_ids = Statics.Map.error_ids(info_map);
+  let warning_ids = Statics.Map.warning_ids(info_map);
   let elaborated =
     switch () {
     | _ when !settings.statics => dh_err("Statics disabled")

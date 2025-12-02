@@ -21,6 +21,7 @@ module Model = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t = {
     next_steps: Calc.saved(EvaluatorStep.status),
+    refls: Calc.saved(list(Exp.t)),
     selected_id: Calc.saved(option(Id.t)),
     selected_exp: Calc.saved(option(Exp.t)),
     full_exp: Calc.saved(Exp.t),
@@ -30,6 +31,7 @@ module Model = {
 
   let init = {
     next_steps: Calc.Pending,
+    refls: Calc.Pending,
     selected_id: Calc.Pending,
     selected_exp: Calc.Pending,
     full_exp: Calc.Pending,
@@ -41,6 +43,13 @@ module Model = {
     |> Calc.saved_to_option
     |> Option.join
     |> OptUtil.get(() => EmptyHole |> Exp.fresh);
+
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type persistent = unit;
+
+  let persist = (_: t): persistent => ();
+
+  let unpersist = (_: persistent): t => init;
 };
 
 module Update = {
@@ -122,10 +131,10 @@ module Update = {
         ~settings,
         exp,
         ctx: Calc.t(Ctx.t),
-        _state,
         new_next_steps,
         {
           next_steps: _,
+          refls,
           rewrites,
           selected_exp,
           full_exp: _,
@@ -171,6 +180,27 @@ module Update = {
         let* exp' = exp;
         Some(Model.{rewrites: ProofCtx.get_rewrites(Axioms.v, exp')});
       };
+    let refls =
+      refls
+      |> {
+        let.calc exp = exp
+        and.calc new_next_steps = new_next_steps;
+        let next_steps =
+          new_next_steps
+          |> (
+            fun
+            | EvaluatorStep.AutoStep(_) => []
+            | EvaluatorStep.AvailableSteps(steps) => steps
+          );
+        ProofHacks.find_refls(exp)
+        |> List.filter(e =>
+             !
+               List.exists(
+                 s => e |> Exp.rep_id == EvaluatorStep.get_step_id(s),
+                 next_steps,
+               )
+           );
+      };
     let open_box =
       switch (open_box) {
       | RewritesOpen({editor, cached_exp, cached_result}) =>
@@ -209,6 +239,7 @@ module Update = {
       };
     {
       next_steps: new_next_steps |> Calc.save,
+      refls: refls |> Calc.save,
       rewrites: rewrites |> Calc.save,
       full_exp: exp |> Calc.save,
       selected_exp: selected_exp |> Calc.save,
@@ -251,7 +282,7 @@ module View = {
     | AddInduction(option(Exp.t))
     | AddForall
     | HideStepper
-    | AddAxiomStep(Exp.t, Exp.t)
+    | AddAxiomStep(string, int, Exp.t, Exp.t)
     | MakeActive(Selection.t);
 
   let get_segment_bounds = (~measured: Measured.t, segment: Segment.t) => {
@@ -312,7 +343,18 @@ module View = {
               "axiom-row",
               [
                 Widgets.button(Icons.star, _ =>
-                  signal(AddAxiomStep(Model.get_selected_exp(model), exp))
+                  signal(
+                    AddAxiomStep(
+                      "axiom step",
+                      ProofHacks.exp_idx(
+                        Model.get_selected_exp(model),
+                        model.full_exp
+                        |> Calc.get_saved_exc(~print="full_exp"),
+                      ),
+                      Model.get_selected_exp(model),
+                      exp,
+                    ),
+                  )
                 ),
                 exp
                 |> Haz3lcore.ExpToSegment.(
@@ -324,11 +366,7 @@ module View = {
                          ),
                      )
                    )
-                |> CodeViewable.view_segment(
-                     ~globals,
-                     ~sort=Exp,
-                     ~shape_map=Haz3lcore.Id.Map.empty,
-                   ),
+                |> CodeViewable.view_segment(~globals),
               ],
             ),
           ],
@@ -478,7 +516,6 @@ module View = {
                               ~inline=false,
                               globals.settings.core,
                             ),
-                          ~shape_map=Haz3lcore.Id.Map.empty,
                           Exp(unboxed_selected_exp),
                         ),
                         Node.text("With: "),
@@ -513,6 +550,12 @@ module View = {
                               _ =>
                               signal(
                                 AddAxiomStep(
+                                  "rewrite",
+                                  ProofHacks.exp_idx(
+                                    unboxed_selected_exp,
+                                    model.full_exp
+                                    |> Calc.get_saved_exc(~print="full_exp"),
+                                  ),
                                   unboxed_selected_exp,
                                   unboxed_cached_exp,
                                 ),

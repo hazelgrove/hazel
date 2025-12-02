@@ -11,7 +11,8 @@ let builtins =
   @ List.map(hazel_fn_builtin, BuiltinsList.builtins)
   @ List.map(hazel_fn_builtin, BuiltinsADT.builtins)
   @ List.map(fn_builtin, BuiltinsBase.numeric_fns)
-  @ List.map(const_builtin, BuiltinsBase.numeric_constants);
+  @ List.map(const_builtin, BuiltinsBase.numeric_constants)
+  @ List.map(fn_builtin, BuiltinsTupleOperations.builtins);
 
 let builtins =
   List.sort(
@@ -36,7 +37,7 @@ let ctx_init: option(Operators.mode) => Ctx.t =
 
 let forms_init: forms = List.filter_map(form_of_builtin, builtins);
 
-let env_init: Environment.t =
+let env_init: Environment.t(Exp.t) =
   builtins
   |> List.map(imp_of_builtin)
   |> List.fold_left(Environment.extend, Environment.empty);

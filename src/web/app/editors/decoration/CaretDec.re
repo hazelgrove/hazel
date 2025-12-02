@@ -1,4 +1,5 @@
 open Util;
+open WebUtil;
 
 module Profile = {
   type t = {
@@ -18,11 +19,11 @@ let caret_base_path = (side, shape): list(SvgUtil.Path.cmd) =>
     float_of_int(0),
   );
 
-let view =
+let main =
     (
       ~font_metrics: FontMetrics.t,
       ~profile as {shape, side, origin}: Profile.t,
-    ) => {
+    ) =>
   DecUtil.code_svg(
     ~font_metrics,
     ~origin,
@@ -34,5 +35,32 @@ let view =
     /* Make caret as tall as shard + shard's shadow */
     ~height_fudge=ShardDec.shadow_dy *. font_metrics.row_height,
     caret_base_path(side, shape),
+  );
+
+let view =
+    (
+      ~measured: Haz3lcore.Measured.t,
+      ~font_metrics: FontMetrics.t,
+      z: Haz3lcore.Zipper.t,
+    )
+    : Node.t => {
+  open Haz3lcore;
+  let side =
+    switch (Indicated.piece(z)) {
+    | _
+        when
+          !Selection.is_empty(z.selection)
+          && !Selection.is_buffer(z.selection) =>
+      z.selection.focus
+    | Some((_, side, _)) => Direction.toggle(side)
+    | _ => Right
+    };
+  main(
+    ~font_metrics,
+    ~profile={
+      side,
+      origin: Zipper.Caret.point(measured, z),
+      shape: Zipper.Caret.direction(z),
+    },
   );
 };
