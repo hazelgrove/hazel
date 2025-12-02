@@ -5,9 +5,10 @@ open Language;
 
 let max_column_length = 12;
 
-let extract_labeled_tuple_entries =
-    (exp: Exp.t): option(list((LabeledTuple.label, DHExp.t))) => {
+let rec extract_labeled_tuple_entries =
+        (exp: Exp.t): option(list((LabeledTuple.label, DHExp.t))) => {
   switch (exp.term) {
+  | Parens(e) => extract_labeled_tuple_entries(e)
   | Tuple(es) =>
     OptUtil.traverse(
       (e: Exp.t) => {
