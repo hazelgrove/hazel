@@ -122,7 +122,9 @@ module M: Projector = {
     div(
       ~attrs=[Attr.classes(["type-cell"])],
       [
-        Typ(typ) |> utility.term_to_seg |> view_seg(~is_dynamic, Sort.Typ, _),
+        Typ(typ)
+        |> utility.term_to_seg(~inline=true)
+        |> view_seg(~is_dynamic, Sort.Typ, _),
       ],
     );
   };

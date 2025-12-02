@@ -60,12 +60,7 @@ let update =
   ZipperBase.MapPiece.fast_local_seg(update_piece(f, id), id, z);
 
 let go =
-    (
-      ~print_segment as _: Segment.t => string, //Debug code
-      term_data: TermData.t,
-      a: Action.project,
-      z: Zipper.t,
-    )
+    (term_data: TermData.t, a: Action.project, z: Zipper.t)
     : result(ZipperBase.t, Action.Failure.t) => {
   let select_term =
     Select.current_term(
@@ -128,39 +123,67 @@ let go =
     | None => Error(Cant_project)
     }
   | SetSyntax(id, seg) =>
-    // This needs to be generalized in a way that scales
-    // TODO Handle auto refractors
-    let original_refractor_model =
-      Id.Map.find_opt(Id.recover_original(id), z.refractors.manuals)
+    // Ensure seg is parenthesized unless it already is
+    let parenthesized_piece =
+      Segment.unparenthesize(seg) |> Segment.parenthesize;
+    let parenthesized_seg = [parenthesized_piece];
+    // Check for existing refractors (automatic ephemeral or manual) that control this projector
+    let original_id = Id.recover_original(id);
+    let ephemeral_model =
+      Id.Map.find_opt(original_id, z.refractors.ephemerals)
       |> Option.map((pr: Base.projector) => pr.model);
-    switch (original_refractor_model) {
-    | Some(_) =>
-      // Don't do this
+    let manual_refractor_model =
+      Id.Map.find_opt(original_id, z.refractors.manuals)
+      |> Option.map((pr: Base.projector) => pr.model);
+    switch (manual_refractor_model, ephemeral_model) {
+    | (Some(refractor_model), _) =>
+      // Manual refractor exists: update the selection to this projector's term range,
+      // replace with new syntax, and create a new refractor probe monitoring the updated term
       let new_id =
-        MakeTerm.from_zip_for_sem(Zipper.unzip(~direction=Right, seg)).term
+        MakeTerm.from_zip_for_sem(
+          Zipper.unzip(~direction=Right, parenthesized_seg),
+        ).
+          term
         |> Language.Exp.rep_id;
-      let (l, r) =
-        TermData.extremes_shards(Id.recover_original(id), term_data)
-        |> Option.get;
-      let new_z =
-        Select.shard_range(l, r, z)
-        |> Option.map(Zipper.replace_selection(Right, seg))
-        |> Option.get;
 
-      let new_z =
-        MkRefractor.add_single(
-          ~model=?original_refractor_model,
-          new_id,
-          new_z,
-        );
-      Ok(new_z);
-    | None =>
+      let new_z = {
+        open OptUtil.Syntax;
+        let* (l, r) =
+          TermData.extremes_shards(Id.recover_original(id), term_data);
+        let+ z = Select.shard_range(l, r, z);
+        let z = Zipper.replace_selection(Right, parenthesized_seg, z);
+        MkRefractor.add_single(~model=refractor_model, new_id, z);
+      };
+
+      switch (new_z) {
+      | Some(z) => Ok(z)
+      | None => Error(Cant_project)
+      };
+    | (_, Some(_)) =>
+      // Ephemeral refractor exists: update selection and replace syntax,
+      // but don't create new refractor as this is handled automatically
+
+      let new_z = {
+        open OptUtil.Syntax;
+        let* (l, r) =
+          TermData.extremes_shards(Id.recover_original(id), term_data);
+        let+ z = Select.shard_range(l, r, z);
+        let z = Zipper.replace_selection(Right, parenthesized_seg, z);
+        z;
+      };
+
+      switch (new_z) {
+      | Some(z) => Ok(z)
+      | None => Error(Cant_project)
+      };
+    | (None, None) =>
+      // No refractor: simply update the projector's internal syntax representation
       Ok(
         update(
           p =>
             {
               ...p,
-              syntax: Segment.parenthesize(seg),
+              syntax: parenthesized_piece,
             },
           id,
           z,
@@ -169,17 +192,12 @@ let go =
     };
   | SetModel(id, model) =>
     let z =
-      ZipperBase.update_refractor(
-        z,
-        id,
-        pr => {
-          print_endline("Found projector and updating model");
-          {
-            ...pr,
-            model,
-          };
-        },
-      );
+      ZipperBase.update_refractor(z, id, pr => {
+        {
+          ...pr,
+          model,
+        }
+      });
     Ok(
       update(
         pr =>

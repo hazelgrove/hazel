@@ -71,10 +71,7 @@ let term_view =
 };
 
 let probe_view = (font_metrics, refractor_data, id: Id.t) => {
-  let inject = (a: Action.t) => {
-    print_endline("ProbeProj inject called" ++ Action.show(a));
-    Ui_effect.Ignore;
-  };
+  let inject = _ => Ui_effect.Ignore;
   let projector_data =
     List.find_opt(
       (p: ProjectorView.Model.projector_data) => p.p.id == id,
@@ -186,7 +183,7 @@ let legend_sample_view =
       ...ProbeProj.Settings.s^,
       window: mode,
     },
-    ~sort=Sort.Exp, // TODO Talk to andrew about this
+    ~sort=Sort.Exp,
     di,
     ProjectorInfo.utility,
     (~text_only) =>

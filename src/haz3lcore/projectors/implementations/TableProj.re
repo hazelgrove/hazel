@@ -5,42 +5,32 @@ open Language;
 
 let max_column_length = 12;
 
+let extract_labeled_tuple_entries =
+    (exp: Exp.t): option(list((LabeledTuple.label, DHExp.t))) => {
+  switch (exp.term) {
+  | Tuple(es) =>
+    OptUtil.traverse(
+      (e: Exp.t) => {
+        switch (e.term) {
+        | TupLabel({term: Label(l), _}, inner) => Some((l, inner))
+        | _ => None
+        }
+      },
+      es,
+    )
+  | _ => None
+  };
+};
+
 let table_of =
     (any: Any.t): option((list(LabeledTuple.label), list(list(Exp.t)))) =>
   switch (any) {
   | Exp({term: ListLit(es), _}) =>
-    print_endline("Processing ListLit...");
-    let data: list(option((list(string), list(TermBase.exp_t)))) =
-      List.map(
-        e => {
-          switch (Unboxing.unbox(LabeledTupleEntries, e)) {
-          // TODO Stop doing this with unboxing and deconstruct it here with the parens
-          | IndetMatch => None
-          | DoesNotMatch => None
-          | Matches(entries: list((option(string), TermBase.exp_t))) =>
-            let f: option(list((string, TermBase.exp_t))) =
-              OptUtil.sequence(
-                List.map(
-                  ((label, value)) =>
-                    switch (label) {
-                    | Some(l) => Some((l, value))
-                    | None => None
-                    },
-                  entries,
-                ),
-              );
-
-            let g: option((list(string), list(TermBase.exp_t))) =
-              f |> Option.map(List.split);
-
-            g;
-          }
-        },
+    let data =
+      OptUtil.traverse(
+        e => extract_labeled_tuple_entries(e) |> Option.map(List.split),
         es,
       );
-
-    let data: option(list((list(string), list(TermBase.exp_t)))) =
-      OptUtil.sequence(data);
     switch (data) {
     | Some(data: list((list(string), list(TermBase.exp_t)))) =>
       let (headers: list(list(string)), rows: list(list(TermBase.exp_t))) =
@@ -100,7 +90,7 @@ let len_seg = (utility: utility, seg: Segment.t): int =>
   seg |> utility.seg_to_string |> String.length;
 
 let seg_of_exp = (utility: utility, exp: Exp.t): (Segment.t, int) => {
-  let seg = utility.term_to_seg(Exp(exp));
+  let seg = utility.term_to_seg(~inline=true, Exp(exp));
   (seg, len_seg(utility, seg));
 };
 

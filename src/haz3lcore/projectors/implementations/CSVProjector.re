@@ -74,6 +74,7 @@ module M: Projector = {
 
     switch (
       info.utility.lift_syntax(
+        ~inline=false,
         fun
         | Exp(any) =>
           Exp({

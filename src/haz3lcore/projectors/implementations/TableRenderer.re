@@ -155,6 +155,7 @@ let apply_transformation = (info: info, transformation: Exp.t) => {
   IdTagged.FreshGrammar.(
     switch (
       info.utility.lift_syntax(
+        ~inline=false,
         fun
         | Exp({term: exp_term, _}) =>
           Exp(Exp.(ap(Reverse, transformation, exp_term |> DHExp.fresh)))
@@ -362,7 +363,7 @@ let len_seg = (utility: utility, seg: Segment.t): int =>
   seg |> utility.seg_to_string |> String.length;
 
 let seg_of_exp = (utility: utility, exp: Exp.t): (Segment.t, int) => {
-  let seg = utility.term_to_seg(Exp(exp));
+  let seg = utility.term_to_seg(~inline=true, Exp(exp));
   (seg, len_seg(utility, seg));
 };
 
@@ -457,6 +458,7 @@ let sort_column_with_direction =
     IdTagged.FreshGrammar.(
       switch (
         info.utility.lift_syntax(
+          ~inline=false,
           fun
           | Exp({term: exp_term, _}) => {
               let sort_expr =
@@ -494,13 +496,7 @@ let sort_column_with_direction =
 
               Exp(final_expr);
             }
-          | e => {
-              print_endline(
-                "TableRenderer: sort_column: not an expression: "
-                ++ Any.show(e),
-              );
-              failwith("TableRenderer: sort_column: not an expression");
-            },
+          | _ => failwith("TableRenderer: sort_column: not an expression"),
           info.syntax,
         )
       ) {
