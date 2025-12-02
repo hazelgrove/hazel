@@ -1,0 +1,258 @@
+[
+  {
+    "filename": "submission_349980734.json",
+    "total_actions": 10986,
+    "duration_seconds": 1092681.306,
+    "actions_per_second": 0.010054166699544505,
+    "induction_actions": 1249,
+    "session_type": "theorem_focused",
+    "induction_success_rate": 0.9342948717948718,
+    "action_types": {
+      "other": 1316,
+      "implementation": 7562,
+      "stepper": 565,
+      "theorem": 279,
+      "induction": 1264
+    },
+    "sample_actions": [
+      "Globals(FinishImportAll(\"{\\\"settings\\\":\\\"((captions true"
+    ],
+    "has_induction": true,
+    "induction_events": 1249,
+    "timing_distribution": {
+      "early_induction": 0,
+      "mid_induction": 82,
+      "late_induction": 1167
+    }
+  },
+  {
+    "filename": "submission_349549369.json",
+    "total_actions": 10847,
+    "duration_seconds": 1195814.988,
+    "actions_per_second": 0.009070801176477645,
+    "induction_actions": 1061,
+    "session_type": "theorem_focused",
+    "induction_success_rate": 0.9886792452830189,
+    "action_types": {
+      "other": 859,
+      "implementation": 8765,
+      "stepper": 18,
+      "theorem": 133,
+      "induction": 1072
+    },
+    "sample_actions": [
+      "Editors(SwitchMode Exercises"
+    ],
+    "has_induction": true,
+    "induction_events": 1061,
+    "timing_distribution": {
+      "early_induction": 0,
+      "mid_induction": 868,
+      "late_induction": 193
+    }
+  },
+  {
+    "filename": "submission_348406434.json",
+    "total_actions": 20929,
+    "duration_seconds": 1147085.191,
+    "actions_per_second": 0.01824537546488123,
+    "induction_actions": 1988,
+    "session_type": "theorem_focused",
+    "induction_success_rate": 0.46227364185110664,
+    "action_types": {
+      "other": 1867,
+      "implementation": 16526,
+      "theorem": 190,
+      "induction": 2346
+    },
+    "sample_actions": [
+      "Globals(FinishImportAll(\"{\\\"settings\\\":\\\"((captions true"
+    ],
+    "has_induction": true,
+    "induction_events": 1988,
+    "timing_distribution": {
+      "early_induction": 0,
+      "mid_induction": 994,
+      "late_induction": 994
+    }
+  },
+  {
+    "filename": "submission_350046114.json",
+    "total_actions": 4092,
+    "duration_seconds": 79626.2,
+    "actions_per_second": 0.05139012033727593,
+    "induction_actions": 1235,
+    "session_type": "theorem_focused",
+    "induction_success_rate": 0.9578947368421052,
+    "action_types": {
+      "other": 226,
+      "implementation": 2125,
+      "stepper": 268,
+      "theorem": 227,
+      "induction": 1246
+    },
+    "sample_actions": [
+      "Editors(SwitchMode Scratch"
+    ],
+    "has_induction": true,
+    "induction_events": 1235,
+    "timing_distribution": {
+      "early_induction": 386,
+      "mid_induction": 849,
+      "late_induction": 0
+    }
+  },
+  {
+    "filename": "submission_349144175.json",
+    "total_actions": 2645,
+    "duration_seconds": 685680.762,
+    "actions_per_second": 0.003857480254054437,
+    "induction_actions": 772,
+    "session_type": "theorem_focused",
+    "induction_success_rate": 0.9727979274611399,
+    "action_types": {
+      "other": 274,
+      "implementation": 1490,
+      "theorem": 84,
+      "induction": 797
+    },
+    "sample_actions": [
+      "Globals(FinishImportAll(\"{\\\"settings\\\":\\\"((captions true"
+    ],
+    "has_induction": true,
+    "induction_events": 772,
+    "timing_distribution": {
+      "early_induction": 225,
+      "mid_induction": 547,
+      "late_induction": 0
+    }
+  },
+  {
+    "filename": "submission_349944161.json",
+    "total_actions": 23169,
+    "duration_seconds": 1299083.885,
+    "actions_per_second": 0.017834875998019174,
+    "induction_actions": 827,
+    "session_type": "implementation_focused",
+    "induction_success_rate": 0.9032648125755743,
+    "action_types": {
+      "other": 3456,
+      "implementation": 18280,
+      "stepper": 86,
+      "theorem": 496,
+      "induction": 851
+    },
+    "sample_actions": [
+      "Globals(FinishImportAll(\"{\\\"settings\\\":\\\"((captions true"
+    ],
+    "has_induction": true,
+    "induction_events": 827,
+    "timing_distribution": {
+      "early_induction": 0,
+      "mid_induction": 0,
+      "late_induction": 827
+    }
+  },
+  {
+    "filename": "submission_348781861.json",
+    "total_actions": 6280,
+    "duration_seconds": 15204.631,
+    "actions_per_second": 0.41303205582562313,
+    "induction_actions": 4574,
+    "session_type": "theorem_focused",
+    "induction_success_rate": 0.8441189331001312,
+    "action_types": {
+      "other": 118,
+      "theorem": 1248,
+      "induction": 4640,
+      "implementation": 274
+    },
+    "sample_actions": [
+      "Editors(SwitchMode Exercises"
+    ],
+    "has_induction": true,
+    "induction_events": 4574,
+    "timing_distribution": {
+      "early_induction": 1006,
+      "mid_induction": 2377,
+      "late_induction": 1191
+    }
+  },
+  {
+    "filename": "submission_349856151.json",
+    "total_actions": 11294,
+    "duration_seconds": 1538622.228,
+    "actions_per_second": 0.007340333315397807,
+    "induction_actions": 828,
+    "session_type": "theorem_focused",
+    "induction_success_rate": 0.8490338164251208,
+    "action_types": {
+      "other": 1036,
+      "implementation": 8959,
+      "theorem": 450,
+      "induction": 849
+    },
+    "sample_actions": [
+      "Editors(SwitchMode Exercises"
+    ],
+    "has_induction": true,
+    "induction_events": 828,
+    "timing_distribution": {
+      "early_induction": 0,
+      "mid_induction": 0,
+      "late_induction": 828
+    }
+  },
+  {
+    "filename": "submission_349265175.json",
+    "total_actions": 11073,
+    "duration_seconds": 1049840.917,
+    "actions_per_second": 0.01054731228388577,
+    "induction_actions": 854,
+    "session_type": "theorem_focused",
+    "induction_success_rate": 0.9683470105509965,
+    "action_types": {
+      "other": 1218,
+      "implementation": 8520,
+      "stepper": 59,
+      "theorem": 363,
+      "induction": 913
+    },
+    "sample_actions": [
+      "Globals(FinishImportAll(\"{\\\"settings\\\":\\\"((captions true"
+    ],
+    "has_induction": true,
+    "induction_events": 854,
+    "timing_distribution": {
+      "early_induction": 0,
+      "mid_induction": 0,
+      "late_induction": 854
+    }
+  },
+  {
+    "filename": "submission_348627900.json",
+    "total_actions": 10393,
+    "duration_seconds": 708110.702,
+    "actions_per_second": 0.014677083640518116,
+    "induction_actions": 2345,
+    "session_type": "theorem_focused",
+    "induction_success_rate": 0.9982942430703625,
+    "action_types": {
+      "other": 527,
+      "implementation": 7133,
+      "stepper": 87,
+      "theorem": 219,
+      "induction": 2427
+    },
+    "sample_actions": [
+      "Globals(FinishImportAll(\"{\\\"settings\\\":\\\"((captions true"
+    ],
+    "has_induction": true,
+    "induction_events": 2345,
+    "timing_distribution": {
+      "early_induction": 0,
+      "mid_induction": 2014,
+      "late_induction": 331
+    }
+  }
+]

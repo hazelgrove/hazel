@@ -1,0 +1,458 @@
+[
+  {
+    "filename": "submission_349980734.json",
+    "total_actions": 10986,
+    "duration_seconds": 1092681.306,
+    "actions_per_second": 0.010054166699544505,
+    "induction_actions": 1264,
+    "session_type": "implementation_focused",
+    "action_types": {
+      "other": 1316,
+      "implementation": 7562,
+      "stepper": 565,
+      "theorem": 279,
+      "induction": 1264
+    },
+    "sample_actions": [
+      "Globals(FinishImportAll(\\\"{\\\\\\\"settings\\\\\\\":\\\\\\\"((captions true",
+      "Editors(Scratch(CellAction(MainEditor(Perform(Move(Point((row 69",
+      "Editors(Exercises(Exercise(Editor YourTestsTesting(MainEditor(Perform(Select(Resize(Point((row 5",
+      "Editors(Exercises(Exercise(Editor YourImpl(MainEditor(Perform(Select(Resize(Point((row 7",
+      "Editors(Exercises(Exercise(Editor YourTestsValidation(MainEditor(Perform(Select(Resize(Point((row 0",
+      "Editors(Exercises(Exercise(Editor YourTestsValidation(MainEditor(Perform(Select(Resize(Point((row 7",
+      "Editors(Exercises(SwitchExercise 7",
+      "MakeActive(Exercises(Cell YourImpl MainEditor",
+      "MakeActive(Exercises(TheoremExercise(Theorem(Result(Theorems(582e3e40-aeb2-42a2-8e05-60f2f3821d7c(St...",
+      "Editors(Exercises(Exercise(Editor YourImpl(MainEditor(Perform(Insert n",
+      "Editors(Exercises(TheoremExercise(Theorem(ResultAction(TheoremsAction(TheoremUpdate 582e3e40-aeb2-42..."
+    ],
+    "has_induction": true,
+    "first_action": "Globals(FinishImportAll(\\\"{\\\\\\\"settings\\\\\\\":\\\\\\\"((captions true",
+    "last_action": "Editors(Exercises(TheoremExercise(Theorem(ResultAction(TheoremsAction(TheoremUpdate 582e3e40-aeb2-42a2-8e05-60f2f3821d7c(StepKindAction(InductionStep(CaseUpdate 1(StepUpdate(NextStep(NextStep(NextStep(NextStep(NextStep(NextStep(NextStep(NextStep(NextStep(NextStep(NextStep(NextStep(NextStep(NextStep(NextStep(NextStep(NextStep(NextStep(EditorAction(Select(Resize(Point((row -1"
+  },
+  {
+    "filename": "submission_349549369.json",
+    "total_actions": 10847,
+    "duration_seconds": 1195814.988,
+    "actions_per_second": 0.009070801176477645,
+    "induction_actions": 1072,
+    "session_type": "implementation_focused",
+    "action_types": {
+      "other": 859,
+      "implementation": 8765,
+      "stepper": 18,
+      "theorem": 133,
+      "induction": 1072
+    },
+    "sample_actions": [
+      "Editors(SwitchMode Exercises",
+      "Editors(Exercises(Exercise(Editor YourTestsValidation(MainEditor(Perform(Insert l",
+      "Editors(Exercises(Exercise(Editor YourTestsValidation(MainEditor(Perform(Insert\\\"(\\\"",
+      "Editors(Exercises(Exercise(Editor YourTestsValidation(MainEditor(Perform(Move(Local Right ByChar",
+      "Editors(Exercises(Exercise(Editor YourImpl(MainEditor(Perform(Insert f",
+      "Editors(Exercises(Exercise(Editor YourImpl(MainEditor(Perform(Insert u",
+      "Editors(Exercises(TheoremExercise(Theorem(ResultAction(TheoremsAction(TheoremUpdate ea6e557f-8e5e-46...",
+      "Editors(Scratch(CellAction(MainEditor(Perform(Move(Point((row 0",
+      "Editors(Scratch(CellAction(MainEditor(Perform(Insert f",
+      "Editors(Exercises(Exercise(Editor YourTestsValidation(MainEditor(Perform(Destruct Left",
+      "Editors(Exercises(TheoremExercise(Theorem(ResultAction(TheoremsAction(TheoremUpdate 582e3e40-aeb2-42..."
+    ],
+    "has_induction": true,
+    "first_action": "Editors(SwitchMode Exercises",
+    "last_action": "Editors(Exercises(TheoremExercise(Theorem(ResultAction(TheoremsAction(TheoremUpdate 582e3e40-aeb2-42a2-8e05-60f2f3821d7c(StepKindAction(InductionStep(CaseUpdate 1(StepUpdate(NextStep(NextStep(NextStep(NextStep(NextStep(NextStep(NextStep(NextStep(NextStep(NextStep(NextStep(NextStep(NextStep(NextStep(NextStep(NextStep(NextStep(NextStep(EditorAction(Select(Smart 2"
+  },
+  {
+    "filename": "submission_348406434.json",
+    "total_actions": 20929,
+    "duration_seconds": 1147085.191,
+    "actions_per_second": 0.01824537546488123,
+    "induction_actions": 2346,
+    "session_type": "implementation_focused",
+    "action_types": {
+      "other": 1867,
+      "implementation": 16526,
+      "theorem": 190,
+      "induction": 2346
+    },
+    "sample_actions": [
+      "Globals(FinishImportAll(\\\"{\\\\\\\"settings\\\\\\\":\\\\\\\"((captions true",
+      "Editors(Exercises(Exercise(Editor YourTestsValidation(MainEditor(Perform(Insert n",
+      "Editors(Exercises(Exercise(Editor YourTestsValidation(MainEditor(Perform(Insert n",
+      "Editors(Exercises(Exercise(Editor YourImpl(MainEditor(Perform(Insert l",
+      "MakeActive(Exercises(Cell YourImpl MainEditor",
+      "Editors(Exercises(Exercise(Editor YourTestsTesting(MainEditor(Perform(Move(Local Right ByChar",
+      "Editors(Exercises(Exercise(Editor YourImpl(MainEditor(Perform(Insert d",
+      "Editors(Exercises(Exercise(Editor YourImpl(MainEditor(Perform(Insert\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\"...",
+      "Editors(Exercises(Exercise(Editor YourImpl(MainEditor(Perform(Select(Resize(Point((row 1",
+      "Editors(Exercises(Exercise(Editor YourTestsValidation(MainEditor(Perform(Insert n",
+      "Editors(Exercises(Exercise(Editor YourTestsValidation(MainEditor(Perform(Destruct Left"
+    ],
+    "has_induction": true,
+    "first_action": "Globals(FinishImportAll(\\\"{\\\\\\\"settings\\\\\\\":\\\\\\\"((captions true",
+    "last_action": "Editors(Exercises(Exercise(Editor YourTestsValidation(MainEditor(Perform(Move(Point((row 2"
+  },
+  {
+    "filename": "submission_350046114.json",
+    "total_actions": 4092,
+    "duration_seconds": 79626.2,
+    "actions_per_second": 0.05139012033727593,
+    "induction_actions": 1246,
+    "session_type": "implementation_focused",
+    "action_types": {
+      "other": 226,
+      "implementation": 2125,
+      "stepper": 268,
+      "theorem": 227,
+      "induction": 1246
+    },
+    "sample_actions": [
+      "Editors(SwitchMode Scratch",
+      "Editors(Scratch(CellAction(ResultAction(StepperAction(NextStep(NextStep(NextStep(NextStep(NextStep(N...",
+      "Editors(Exercises(TheoremExercise(Theorem(ResultAction(TheoremsAction(TheoremUpdate 582e3e40-aeb2-42...",
+      "Editors(Exercises(TheoremExercise(Theorem(ResultAction(TheoremsAction(TheoremUpdate 582e3e40-aeb2-42...",
+      "Editors(Exercises(TheoremExercise(Theorem(ResultAction(TheoremsAction(TheoremUpdate ea6e557f-8e5e-46...",
+      "Editors(Exercises(TheoremExercise(Theorem(ResultAction(TheoremsAction(TheoremUpdate 1e21d443-8d5f-43...",
+      "Editors(Exercises(Exercise(Editor YourTestsValidation(MainEditor(Perform(Destruct Left",
+      "Editors(Exercises(Exercise(Editor YourImpl(MainEditor(Perform(Insert O",
+      "Editors(Exercises(Exercise(Editor YourImpl(MainEditor(Perform(Select(Resize(Point((row 21",
+      "MakeActive(Exercises(Implementation(Cell YourImpl MainEditor",
+      "MakeActive(Exercises(Implementation(Cell YourImpl MainEditor"
+    ],
+    "has_induction": true,
+    "first_action": "Editors(SwitchMode Scratch",
+    "last_action": "Editors(Exercises(Exercise(Editor YourImpl(MainEditor(Perform(Move(Point((row 17"
+  },
+  {
+    "filename": "submission_349144175.json",
+    "total_actions": 2645,
+    "duration_seconds": 685680.762,
+    "actions_per_second": 0.003857480254054437,
+    "induction_actions": 797,
+    "session_type": "implementation_focused",
+    "action_types": {
+      "other": 274,
+      "implementation": 1490,
+      "theorem": 84,
+      "induction": 797
+    },
+    "sample_actions": [
+      "Globals(FinishImportAll(\\\"{\\\\\\\"settings\\\\\\\":\\\\\\\"((captions true",
+      "MakeActive(Exercises(Cell YourTestsValidation MainEditor",
+      "Editors(Exercises(TheoremExercise(Theorem(ResultAction(TheoremsAction(TheoremUpdate 582e3e40-aeb2-42...",
+      "Editors(Exercises(TheoremExercise(Theorem(ResultAction(TheoremsAction(TheoremUpdate ea6e557f-8e5e-46...",
+      "Editors(Exercises(TheoremExercise(Theorem(ResultAction(TheoremsAction(TheoremUpdate 1e21d443-8d5f-43...",
+      "Editors(Exercises(Exercise(Editor YourTestsValidation(MainEditor(Perform(Insert\\\"",
+      "Editors(Exercises(Exercise(Editor YourTestsValidation(MainEditor(Perform(Destruct Left",
+      "Editors(Exercises(Exercise(Editor YourTestsValidation(MainEditor(Perform(Destruct Left",
+      "Editors(Exercises(Exercise(Editor YourTestsValidation(MainEditor(Perform(Insert N",
+      "Editors(Exercises(Exercise(Editor YourImpl(MainEditor(Perform(Insert p",
+      "Editors(Exercises(Exercise(Editor YourImpl(MainEditor(Perform(Insert a"
+    ],
+    "has_induction": true,
+    "first_action": "Globals(FinishImportAll(\\\"{\\\\\\\"settings\\\\\\\":\\\\\\\"((captions true",
+    "last_action": "Editors(Exercises(SwitchExercise 2"
+  },
+  {
+    "filename": "submission_349944161.json",
+    "total_actions": 23169,
+    "duration_seconds": 1299083.885,
+    "actions_per_second": 0.017834875998019174,
+    "induction_actions": 851,
+    "session_type": "implementation_focused",
+    "action_types": {
+      "other": 3456,
+      "implementation": 18280,
+      "stepper": 86,
+      "theorem": 496,
+      "induction": 851
+    },
+    "sample_actions": [
+      "Globals(FinishImportAll(\\\"{\\\\\\\"settings\\\\\\\":\\\\\\\"((captions true",
+      "Editors(Scratch(CellAction(MainEditor(Perform(Insert n",
+      "Editors(Exercises(Exercise(Editor YourImpl(MainEditor(Perform(Select(Resize(Point((row 2",
+      "MakeActive(Scratch(Cell MainEditor",
+      "MakeActive(Exercises(Cell YourImpl MainEditor",
+      "Editors(Exercises(Exercise(Editor YourImpl(MainEditor(Perform(Insert\\\\\\\\\\\\\\\" \\\\\\\\\\\\\\\"",
+      "Editors(Exercises(Exercise(Editor YourImpl(MainEditor(Perform(Insert v",
+      "Editors(Exercises(Exercise(Editor YourImpl(MainEditor(Perform(Insert p",
+      "Editors(Exercises(Exercise(Editor YourImpl(MainEditor(Perform(Insert\\\\\\\\\\\\\\\" \\\\\\\\\\\\\\\"",
+      "Editors(Exercises(TheoremExercise(Theorem(ResultAction(TheoremsAction(TheoremUpdate ea6e557f-8e5e-46...",
+      "Editors(Exercises(SwitchExercise 1"
+    ],
+    "has_induction": true,
+    "first_action": "Globals(FinishImportAll(\\\"{\\\\\\\"settings\\\\\\\":\\\\\\\"((captions true",
+    "last_action": "Editors(Exercises(Exercise(Editor YourTestsTesting(MainEditor(Perform(Select(Resize(Point((row 2"
+  },
+  {
+    "filename": "submission_348781861.json",
+    "total_actions": 6280,
+    "duration_seconds": 15204.631,
+    "actions_per_second": 0.41303205582562313,
+    "induction_actions": 4640,
+    "session_type": "theorem_focused",
+    "action_types": {
+      "other": 118,
+      "theorem": 1248,
+      "induction": 4640,
+      "implementation": 274
+    },
+    "sample_actions": [
+      "Editors(SwitchMode Exercises",
+      "MakeActive(Exercises(TheoremExercise(Theorem(Result(Theorems(582e3e40-aeb2-42a2-8e05-60f2f3821d7c(St...",
+      "Editors(Exercises(TheoremExercise(Theorem(ResultAction(TheoremsAction(TheoremUpdate 582e3e40-aeb2-42...",
+      "MakeActive(Exercises(TheoremExercise(Theorem(Result(Theorems(582e3e40-aeb2-42a2-8e05-60f2f3821d7c(St...",
+      "Editors(Exercises(TheoremExercise(Theorem(ResultAction(TheoremsAction(TheoremUpdate 582e3e40-aeb2-42...",
+      "Editors(Exercises(TheoremExercise(Theorem(ResultAction(TheoremsAction(TheoremUpdate 582e3e40-aeb2-42...",
+      "Editors(Exercises(TheoremExercise(Theorem(ResultAction(TheoremsAction(TheoremUpdate 582e3e40-aeb2-42...",
+      "Editors(Exercises(TheoremExercise(Theorem(ResultAction(TheoremsAction(TheoremUpdate 582e3e40-aeb2-42...",
+      "Editors(Exercises(TheoremExercise(Theorem(ResultAction(TheoremsAction(TheoremUpdate 582e3e40-aeb2-42...",
+      "Editors(Scratch(CellAction(MainEditor(Perform(Move(Local Right ByChar"
+    ],
+    "has_induction": true,
+    "first_action": "Editors(SwitchMode Exercises",
+    "last_action": "Editors(Exercises(SwitchExercise 0"
+  },
+  {
+    "filename": "submission_349856151.json",
+    "total_actions": 11294,
+    "duration_seconds": 1538622.228,
+    "actions_per_second": 0.007340333315397807,
+    "induction_actions": 849,
+    "session_type": "implementation_focused",
+    "action_types": {
+      "other": 1036,
+      "implementation": 8959,
+      "theorem": 450,
+      "induction": 849
+    },
+    "sample_actions": [
+      "Editors(SwitchMode Exercises",
+      "Editors(Exercises(Exercise(Editor YourTestsValidation(MainEditor(Perform(Select(Resize(Point((row 1",
+      "Editors(Exercises(Exercise(Editor YourImpl(MainEditor(Perform(Insert 1",
+      "Editors(Exercises(Exercise(Editor YourImpl(MainEditor(Perform(Insert 1",
+      "Editors(Exercises(Exercise(Editor YourImpl(MainEditor(Perform(Insert\\\" \\\"",
+      "Editors(Exercises(Exercise(Editor YourImpl(MainEditor(Perform(Insert c",
+      "MakeActive(Exercises(Cell YourTestsValidation MainEditor",
+      "Editors(Exercises(Exercise(Editor YourTestsValidation(MainEditor(Perform(Move(Local Right ByChar",
+      "Editors(Exercises(Exercise(Editor YourTestsValidation(MainEditor(Perform(Select(Resize(Point((row 1",
+      "Editors(Exercises(TheoremExercise(Theorem(MainEditor(Perform(Move(Point((row 8",
+      "Editors(Exercises(SwitchExercise 1"
+    ],
+    "has_induction": true,
+    "first_action": "Editors(SwitchMode Exercises",
+    "last_action": "Editors(Exercises(SwitchExercise 0"
+  },
+  {
+    "filename": "submission_349265175.json",
+    "total_actions": 11073,
+    "duration_seconds": 1049840.917,
+    "actions_per_second": 0.01054731228388577,
+    "induction_actions": 913,
+    "session_type": "implementation_focused",
+    "action_types": {
+      "other": 1218,
+      "implementation": 8520,
+      "stepper": 59,
+      "theorem": 363,
+      "induction": 913
+    },
+    "sample_actions": [
+      "Globals(FinishImportAll(\\\"{\\\\\\\"settings\\\\\\\":\\\\\\\"((captions true",
+      "Editors(Exercises(Exercise(Editor YourTestsValidation(MainEditor(Perform(Insert\\\\\\\\\\\\\\\" \\\\\\\\\\\\\\\"",
+      "Editors(Exercises(Exercise(Editor YourTestsValidation(MainEditor(Perform(Insert t",
+      "Editors(Exercises(Exercise(Editor YourImpl(MainEditor(Perform(Select(Resize(Point((row 4",
+      "Editors(Exercises(Exercise(Editor YourImpl(MainEditor(Perform(Select(Resize(Point((row 3",
+      "Editors(Exercises(Exercise(Editor YourTestsValidation(MainEditor(Perform(Insert\\\\\\\\\\\\\\\" \\\\\\\\\\\\\\\"",
+      "Editors(Exercises(Exercise(Editor YourImpl(MainEditor(Perform(Select(Resize(Point((row 4",
+      "Editors(Exercises(Exercise(Editor YourTestsValidation(MainEditor(Perform(Destruct Left",
+      "Editors(Exercises(Exercise(Editor YourTestsValidation(MainEditor(Perform(Select(Resize(Point((row 1",
+      "MakeActive(Exercises(TheoremExercise(Theorem(Result(Theorems(582e3e40-aeb2-42a2-8e05-60f2f3821d7c(St...",
+      "Editors(Exercises(TheoremExercise(Theorem(ResultAction(TheoremsAction(TheoremUpdate 582e3e40-aeb2-42..."
+    ],
+    "has_induction": true,
+    "first_action": "Globals(FinishImportAll(\\\"{\\\\\\\"settings\\\\\\\":\\\\\\\"((captions true",
+    "last_action": "Editors(Exercises(TheoremExercise(Theorem(ResultAction(TheoremsAction(TheoremUpdate 582e3e40-aeb2-42a2-8e05-60f2f3821d7c(StepKindAction(InductionStep(CaseUpdate 1(StepUpdate(NextStep(NextStep(NextStep(NextStep(NextStep(NextStep(NextStep(NextStep(NextStep(NextStep(NextStep(NextStep(NextStep(NextStep(NextStep(NextStep(NextStep(NextStep(NextStep(EditorAction(Select(Smart 2"
+  },
+  {
+    "filename": "submission_348627900.json",
+    "total_actions": 10393,
+    "duration_seconds": 708110.702,
+    "actions_per_second": 0.014677083640518116,
+    "induction_actions": 2427,
+    "session_type": "implementation_focused",
+    "action_types": {
+      "other": 527,
+      "implementation": 7133,
+      "stepper": 87,
+      "theorem": 219,
+      "induction": 2427
+    },
+    "sample_actions": [
+      "Globals(FinishImportAll(\\\"{\\\\\\\"settings\\\\\\\":\\\\\\\"((captions true",
+      "Editors(Exercises(Exercise(Editor YourTestsValidation(MainEditor(Perform(Move(Local Right ByChar",
+      "Editors(Exercises(Exercise(Editor YourTestsValidation(MainEditor(Perform(Select(Resize(Point((row 12",
+      "Editors(Exercises(Exercise(Editor YourImpl(MainEditor(Perform(Insert\\\\\\\\\\\\\\\" \\\\\\\\\\\\\\\"",
+      "Editors(Exercises(Exercise(Editor YourImpl(MainEditor(Perform(Move(Vertical Up",
+      "Editors(Exercises(Exercise(Editor YourImpl(MainEditor(Perform(Insert\\\\\\\\\\\\\\\" \\\\\\\\\\\\\\\"",
+      "MakeActive(Exercises(TheoremExercise(Theorem(Result(Theorems(ea6e557f-8e5e-46fa-86c9-4cc92e532f65(Ne...",
+      "Editors(Exercises(TheoremExercise(Theorem(ResultAction(TheoremsAction(TheoremUpdate ea6e557f-8e5e-46...",
+      "Editors(Scratch(CellAction(MainEditor(Perform(Move(Point((row 0",
+      "Editors(Scratch(CellAction(MainEditor(Perform(Move(Local Right ByChar",
+      "Editors(Exercises(Exercise(Editor YourTestsValidation(MainEditor(Perform(Move(Local Right ByChar"
+    ],
+    "has_induction": true,
+    "first_action": "Globals(FinishImportAll(\\\"{\\\\\\\"settings\\\\\\\":\\\\\\\"((captions true",
+    "last_action": "Editors(Exercises(SwitchExercise 2"
+  },
+  {
+    "filename": "submission_349835873.json",
+    "total_actions": 10855,
+    "duration_seconds": 73762.302,
+    "actions_per_second": 0.1471618930764932,
+    "induction_actions": 5283,
+    "session_type": "implementation_focused",
+    "action_types": {
+      "other": 426,
+      "theorem": 402,
+      "induction": 5283,
+      "implementation": 4744
+    },
+    "sample_actions": [
+      "Editors(SwitchMode Exercises",
+      "Editors(Exercises(TheoremExercise(Theorem(ResultAction(TheoremsAction(TheoremUpdate 1e21d443-8d5f-43...",
+      "Editors(Exercises(Exercise(Editor YourImpl(MainEditor(Perform(Select(Resize(Point((row 3",
+      "Editors(Exercises(TheoremExercise(Theorem(ResultAction(TheoremsAction(TheoremUpdate 582e3e40-aeb2-42...",
+      "Editors(Exercises(Exercise(Editor YourTestsValidation(MainEditor(Perform(Destruct Left",
+      "Editors(Exercises(TheoremExercise(Theorem(ResultAction(TheoremsAction(TheoremUpdate 582e3e40-aeb2-42...",
+      "Editors(Exercises(TheoremExercise(Theorem(ResultAction(TheoremsAction(TheoremUpdate 1e21d443-8d5f-43...",
+      "Editors(Exercises(Exercise(Editor YourImpl(MainEditor(Perform(Insert e",
+      "Editors(Exercises(TheoremExercise(Theorem(ResultAction(TheoremsAction(TheoremUpdate ea6e557f-8e5e-46...",
+      "MakeActive(Exercises(Implementation(Cell YourTestsValidation MainEditor",
+      "Editors(Exercises(TheoremExercise(Theorem(ResultAction(TheoremsAction(TheoremUpdate 582e3e40-aeb2-42..."
+    ],
+    "has_induction": true,
+    "first_action": "Editors(SwitchMode Exercises",
+    "last_action": "Editors(Exercises(TheoremExercise(Theorem(ResultAction(TheoremsAction(TheoremUpdate 582e3e40-aeb2-42a2-8e05-60f2f3821d7c(StepKindAction(InductionStep(CaseUpdate 1(StepUpdate(NextStep(NextStep(NextStep(NextStep(NextStep(NextStep(NextStep(NextStep(NextStep(NextStep(NextStep(NextStep(NextStep(NextStep(NextStep(NextStep(NextStep(NextStep(EditorAction(Select(Resize(Point((row 0"
+  },
+  {
+    "filename": "submission_349949426.json",
+    "total_actions": 9698,
+    "duration_seconds": 1108975.52,
+    "actions_per_second": 0.008745008185572932,
+    "induction_actions": 1977,
+    "session_type": "implementation_focused",
+    "action_types": {
+      "other": 992,
+      "implementation": 6216,
+      "stepper": 231,
+      "theorem": 282,
+      "induction": 1977
+    },
+    "sample_actions": [
+      "Editors(SwitchMode Exercises",
+      "Editors(Exercises(Exercise(Editor YourTestsValidation(MainEditor(Perform(Move(Point((row 2",
+      "Editors(Exercises(Exercise(Editor YourTestsValidation(MainEditor(Perform(Move(Point((row 3",
+      "Editors(Exercises(Exercise(Editor YourImpl(MainEditor(Perform(Insert :",
+      "Editors(Exercises(Exercise(Editor YourTestsValidation(MainEditor(Perform(Insert t",
+      "Editors(Exercises(Exercise(Editor YourImpl(MainEditor(Perform(Insert c",
+      "Editors(Exercises(Exercise(Editor YourImpl(ResultAction(StepperAction(NextStep(NextStep(NextStep(Nex...",
+      "Editors(Exercises(TheoremExercise(Theorem(ResultAction(TheoremsAction(TheoremUpdate 582e3e40-aeb2-42...",
+      "Editors(Exercises(TheoremExercise(Theorem(ResultAction(TheoremsAction(TheoremUpdate ea6e557f-8e5e-46...",
+      "Editors(Exercises(Exercise(Editor YourImpl(MainEditor(Perform(Select(Resize(Point((row 5",
+      "MakeActive(Exercises(TheoremExercise(Theorem(Result(Theorems(582e3e40-aeb2-42a2-8e05-60f2f3821d7c(Ne..."
+    ],
+    "has_induction": true,
+    "first_action": "Editors(SwitchMode Exercises",
+    "last_action": "Editors(Exercises(SwitchExercise 2"
+  },
+  {
+    "filename": "submission_350061112.json",
+    "total_actions": 26993,
+    "duration_seconds": 63693825.092,
+    "actions_per_second": 0.00042379304369004437,
+    "induction_actions": 2,
+    "session_type": "implementation_focused",
+    "action_types": {
+      "implementation": 25681,
+      "other": 1310,
+      "induction": 2
+    },
+    "sample_actions": [
+      "PerformAction(Insert 2",
+      "PerformAction(Move(Local(Left ByChar",
+      "PerformAction(Insert n",
+      "PerformAction(Insert a",
+      "PerformAction(Insert l",
+      "PerformAction(Insert\\\" \\\"",
+      "PerformAction(Insert r",
+      "PerformAction(Move(Local(Left ByChar",
+      "PerformAction(Move(Local(Right ByChar",
+      "PerformAction(Select(Resize(Goal(Point((row 20",
+      "Editors(Exercises(SwitchExercise 2"
+    ],
+    "has_induction": true,
+    "first_action": "PerformAction(Insert 2",
+    "last_action": "Editors(Exercises(SwitchExercise 0"
+  },
+  {
+    "filename": "submission_348413518.json",
+    "total_actions": 5750,
+    "duration_seconds": 983967.29,
+    "actions_per_second": 0.005843690190148495,
+    "induction_actions": 817,
+    "session_type": "implementation_focused",
+    "action_types": {
+      "other": 504,
+      "implementation": 4354,
+      "stepper": 4,
+      "theorem": 71,
+      "induction": 817
+    },
+    "sample_actions": [
+      "Editors(SwitchMode Exercises",
+      "Editors(Exercises(Exercise(Editor YourImpl(MainEditor(Perform(Insert f",
+      "Editors(Exercises(Exercise(Editor YourImpl(MainEditor(Perform(Move(Point((row 4",
+      "Editors(Exercises(Exercise(Editor YourTestsValidation(MainEditor(Perform(Insert e",
+      "Editors(Exercises(Exercise(Editor YourTestsValidation(MainEditor(Perform(Paste(String\\\\\\\\\\\\\\\"\\\\\\\\\\\\\\...",
+      "Editors(Exercises(Exercise(Editor YourTestsValidation(MainEditor(Perform(Insert c",
+      "Editors(Exercises(Exercise(Editor YourImpl(MainEditor(Perform(Destruct Left",
+      "Editors(Exercises(Exercise(Editor YourTestsValidation(MainEditor(Perform(Insert N",
+      "Editors(Exercises(Exercise(Editor YourImpl(MainEditor(Perform(Insert =",
+      "MakeActive(Exercises(TheoremExercise(Theorem(Result(Theorems(582e3e40-aeb2-42a2-8e05-60f2f3821d7c(St..."
+    ],
+    "has_induction": true,
+    "first_action": "Editors(SwitchMode Exercises",
+    "last_action": "Editors(Exercises(TheoremExercise(Theorem(ResultAction(TheoremsAction(TheoremUpdate 1e21d443-8d5f-43fe-96ab-950e29d6e139(StepKindAction(InductionStep(CaseUpdate 1(StepUpdate(NextStep(NextStep(NextStep(NextStep(NextStep(NextStep(AddAxiomStep reflexivity 0((term(BinOp(Poly Equals"
+  },
+  {
+    "filename": "submission_349441241.json",
+    "total_actions": 3981,
+    "duration_seconds": 9970.648,
+    "actions_per_second": 0.3992719430071145,
+    "induction_actions": 2724,
+    "session_type": "mixed",
+    "action_types": {
+      "other": 163,
+      "theorem": 213,
+      "induction": 2724,
+      "implementation": 711,
+      "stepper": 170
+    },
+    "sample_actions": [
+      "Editors(Exercises(SwitchExercise 1",
+      "Editors(Exercises(TheoremExercise(Theorem(ResultAction(TheoremsAction(TheoremUpdate ea6e557f-8e5e-46...",
+      "Editors(Exercises(TheoremExercise(Theorem(ResultAction(TheoremsAction(TheoremUpdate ea6e557f-8e5e-46...",
+      "Editors(Exercises(TheoremExercise(Theorem(ResultAction(TheoremsAction(TheoremUpdate ea6e557f-8e5e-46...",
+      "MakeActive(Exercises(TheoremExercise(Theorem(Result(Theorems(ea6e557f-8e5e-46fa-86c9-4cc92e532f65(Ne...",
+      "Editors(Exercises(TheoremExercise(Theorem(ResultAction(TheoremsAction(TheoremUpdate ea6e557f-8e5e-46...",
+      "Editors(Exercises(TheoremExercise(Theorem(ResultAction(TheoremsAction(TheoremUpdate ea6e557f-8e5e-46...",
+      "Editors(Exercises(TheoremExercise(Theorem(ResultAction(TheoremsAction(TheoremUpdate 582e3e40-aeb2-42...",
+      "Editors(Scratch(CellAction(MainEditor(Perform(Select(Resize(Point((row 0",
+      "Editors(Scratch(CellAction(MainEditor(Perform(Destruct Left",
+      "Editors(Exercises(SwitchExercise 2"
+    ],
+    "has_induction": true,
+    "first_action": "Editors(Exercises(SwitchExercise 1",
+    "last_action": "Editors(Exercises(SwitchExercise 2"
+  }
+]

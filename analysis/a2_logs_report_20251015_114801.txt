@@ -1,0 +1,294 @@
+A2 Logs Analysis Report
+==================================================
+
+Analyzed 15 log files
+Timestamp: 2025-10-15 11:48:01.123074
+
+OVERALL STATISTICS:
+  Total actions across all files: 168985
+  Total duration: 74682251.7 seconds
+  Files with induction: 15/15
+  Average actions per file: 11265.7
+  Average duration per file: 4978816.8 seconds
+
+DETAILED FILE ANALYSIS:
+------------------------------
+
+File: submission_349980734.json
+  Actions: 10986
+  Duration: 1092681.3s
+  Actions/sec: 0.01
+  Induction actions: 1264
+  Session type: implementation_focused
+  Action types:
+    other: 1316 (12.0%)
+    implementation: 7562 (68.8%)
+    stepper: 565 (5.1%)
+    theorem: 279 (2.5%)
+    induction: 1264 (11.5%)
+  Sample actions:
+    1. Globals(FinishImportAll(\"{\\\"settings\\\":\\\"((captions true
+    2. Editors(Scratch(CellAction(MainEditor(Perform(Move(Point((row 69
+    3. Editors(Exercises(Exercise(Editor YourTestsTesting(MainEditor(Perform(Select(Resize(Point((row 5
+  First action: Globals(FinishImportAll(\"{\\\"settings\\\":\\\"((captions true
+  Last action: Editors(Exercises(TheoremExercise(Theorem(ResultAction(TheoremsAction(TheoremUpdate 582e3e40-aeb2-42a2-8e05-60f2f3821d7c(StepKindAction(InductionStep(CaseUpdate 1(StepUpdate(NextStep(NextStep(NextStep(NextStep(NextStep(NextStep(NextStep(NextStep(NextStep(NextStep(NextStep(NextStep(NextStep(NextStep(NextStep(NextStep(NextStep(NextStep(EditorAction(Select(Resize(Point((row -1
+
+File: submission_349549369.json
+  Actions: 10847
+  Duration: 1195815.0s
+  Actions/sec: 0.01
+  Induction actions: 1072
+  Session type: implementation_focused
+  Action types:
+    other: 859 (7.9%)
+    implementation: 8765 (80.8%)
+    stepper: 18 (0.2%)
+    theorem: 133 (1.2%)
+    induction: 1072 (9.9%)
+  Sample actions:
+    1. Editors(SwitchMode Exercises
+    2. Editors(Exercises(Exercise(Editor YourTestsValidation(MainEditor(Perform(Insert l
+    3. Editors(Exercises(Exercise(Editor YourTestsValidation(MainEditor(Perform(Insert\"(\"
+  First action: Editors(SwitchMode Exercises
+  Last action: Editors(Exercises(TheoremExercise(Theorem(ResultAction(TheoremsAction(TheoremUpdate 582e3e40-aeb2-42a2-8e05-60f2f3821d7c(StepKindAction(InductionStep(CaseUpdate 1(StepUpdate(NextStep(NextStep(NextStep(NextStep(NextStep(NextStep(NextStep(NextStep(NextStep(NextStep(NextStep(NextStep(NextStep(NextStep(NextStep(NextStep(NextStep(NextStep(EditorAction(Select(Smart 2
+
+File: submission_348406434.json
+  Actions: 20929
+  Duration: 1147085.2s
+  Actions/sec: 0.02
+  Induction actions: 2346
+  Session type: implementation_focused
+  Action types:
+    other: 1867 (8.9%)
+    implementation: 16526 (79.0%)
+    theorem: 190 (0.9%)
+    induction: 2346 (11.2%)
+  Sample actions:
+    1. Globals(FinishImportAll(\"{\\\"settings\\\":\\\"((captions true
+    2. Editors(Exercises(Exercise(Editor YourTestsValidation(MainEditor(Perform(Insert n
+    3. Editors(Exercises(Exercise(Editor YourTestsValidation(MainEditor(Perform(Insert n
+  First action: Globals(FinishImportAll(\"{\\\"settings\\\":\\\"((captions true
+  Last action: Editors(Exercises(Exercise(Editor YourTestsValidation(MainEditor(Perform(Move(Point((row 2
+
+File: submission_350046114.json
+  Actions: 4092
+  Duration: 79626.2s
+  Actions/sec: 0.05
+  Induction actions: 1246
+  Session type: implementation_focused
+  Action types:
+    other: 226 (5.5%)
+    implementation: 2125 (51.9%)
+    stepper: 268 (6.5%)
+    theorem: 227 (5.5%)
+    induction: 1246 (30.4%)
+  Sample actions:
+    1. Editors(SwitchMode Scratch
+    2. Editors(Scratch(CellAction(ResultAction(StepperAction(NextStep(NextStep(NextStep(NextStep(NextStep(N...
+    3. Editors(Exercises(TheoremExercise(Theorem(ResultAction(TheoremsAction(TheoremUpdate 582e3e40-aeb2-42...
+  First action: Editors(SwitchMode Scratch
+  Last action: Editors(Exercises(Exercise(Editor YourImpl(MainEditor(Perform(Move(Point((row 17
+
+File: submission_349144175.json
+  Actions: 2645
+  Duration: 685680.8s
+  Actions/sec: 0.00
+  Induction actions: 797
+  Session type: implementation_focused
+  Action types:
+    other: 274 (10.4%)
+    implementation: 1490 (56.3%)
+    theorem: 84 (3.2%)
+    induction: 797 (30.1%)
+  Sample actions:
+    1. Globals(FinishImportAll(\"{\\\"settings\\\":\\\"((captions true
+    2. MakeActive(Exercises(Cell YourTestsValidation MainEditor
+    3. Editors(Exercises(TheoremExercise(Theorem(ResultAction(TheoremsAction(TheoremUpdate 582e3e40-aeb2-42...
+  First action: Globals(FinishImportAll(\"{\\\"settings\\\":\\\"((captions true
+  Last action: Editors(Exercises(SwitchExercise 2
+
+File: submission_349944161.json
+  Actions: 23169
+  Duration: 1299083.9s
+  Actions/sec: 0.02
+  Induction actions: 851
+  Session type: implementation_focused
+  Action types:
+    other: 3456 (14.9%)
+    implementation: 18280 (78.9%)
+    stepper: 86 (0.4%)
+    theorem: 496 (2.1%)
+    induction: 851 (3.7%)
+  Sample actions:
+    1. Globals(FinishImportAll(\"{\\\"settings\\\":\\\"((captions true
+    2. Editors(Scratch(CellAction(MainEditor(Perform(Insert n
+    3. Editors(Exercises(Exercise(Editor YourImpl(MainEditor(Perform(Select(Resize(Point((row 2
+  First action: Globals(FinishImportAll(\"{\\\"settings\\\":\\\"((captions true
+  Last action: Editors(Exercises(Exercise(Editor YourTestsTesting(MainEditor(Perform(Select(Resize(Point((row 2
+
+File: submission_348781861.json
+  Actions: 6280
+  Duration: 15204.6s
+  Actions/sec: 0.41
+  Induction actions: 4640
+  Session type: theorem_focused
+  Action types:
+    other: 118 (1.9%)
+    theorem: 1248 (19.9%)
+    induction: 4640 (73.9%)
+    implementation: 274 (4.4%)
+  Sample actions:
+    1. Editors(SwitchMode Exercises
+    2. MakeActive(Exercises(TheoremExercise(Theorem(Result(Theorems(582e3e40-aeb2-42a2-8e05-60f2f3821d7c(St...
+    3. Editors(Exercises(TheoremExercise(Theorem(ResultAction(TheoremsAction(TheoremUpdate 582e3e40-aeb2-42...
+  First action: Editors(SwitchMode Exercises
+  Last action: Editors(Exercises(SwitchExercise 0
+
+File: submission_349856151.json
+  Actions: 11294
+  Duration: 1538622.2s
+  Actions/sec: 0.01
+  Induction actions: 849
+  Session type: implementation_focused
+  Action types:
+    other: 1036 (9.2%)
+    implementation: 8959 (79.3%)
+    theorem: 450 (4.0%)
+    induction: 849 (7.5%)
+  Sample actions:
+    1. Editors(SwitchMode Exercises
+    2. Editors(Exercises(Exercise(Editor YourTestsValidation(MainEditor(Perform(Select(Resize(Point((row 1
+    3. Editors(Exercises(Exercise(Editor YourImpl(MainEditor(Perform(Insert 1
+  First action: Editors(SwitchMode Exercises
+  Last action: Editors(Exercises(SwitchExercise 0
+
+File: submission_349265175.json
+  Actions: 11073
+  Duration: 1049840.9s
+  Actions/sec: 0.01
+  Induction actions: 913
+  Session type: implementation_focused
+  Action types:
+    other: 1218 (11.0%)
+    implementation: 8520 (76.9%)
+    stepper: 59 (0.5%)
+    theorem: 363 (3.3%)
+    induction: 913 (8.2%)
+  Sample actions:
+    1. Globals(FinishImportAll(\"{\\\"settings\\\":\\\"((captions true
+    2. Editors(Exercises(Exercise(Editor YourTestsValidation(MainEditor(Perform(Insert\\\\\\\" \\\\\\\"
+    3. Editors(Exercises(Exercise(Editor YourTestsValidation(MainEditor(Perform(Insert t
+  First action: Globals(FinishImportAll(\"{\\\"settings\\\":\\\"((captions true
+  Last action: Editors(Exercises(TheoremExercise(Theorem(ResultAction(TheoremsAction(TheoremUpdate 582e3e40-aeb2-42a2-8e05-60f2f3821d7c(StepKindAction(InductionStep(CaseUpdate 1(StepUpdate(NextStep(NextStep(NextStep(NextStep(NextStep(NextStep(NextStep(NextStep(NextStep(NextStep(NextStep(NextStep(NextStep(NextStep(NextStep(NextStep(NextStep(NextStep(NextStep(EditorAction(Select(Smart 2
+
+File: submission_348627900.json
+  Actions: 10393
+  Duration: 708110.7s
+  Actions/sec: 0.01
+  Induction actions: 2427
+  Session type: implementation_focused
+  Action types:
+    other: 527 (5.1%)
+    implementation: 7133 (68.6%)
+    stepper: 87 (0.8%)
+    theorem: 219 (2.1%)
+    induction: 2427 (23.4%)
+  Sample actions:
+    1. Globals(FinishImportAll(\"{\\\"settings\\\":\\\"((captions true
+    2. Editors(Exercises(Exercise(Editor YourTestsValidation(MainEditor(Perform(Move(Local Right ByChar
+    3. Editors(Exercises(Exercise(Editor YourTestsValidation(MainEditor(Perform(Select(Resize(Point((row 12
+  First action: Globals(FinishImportAll(\"{\\\"settings\\\":\\\"((captions true
+  Last action: Editors(Exercises(SwitchExercise 2
+
+File: submission_349835873.json
+  Actions: 10855
+  Duration: 73762.3s
+  Actions/sec: 0.15
+  Induction actions: 5283
+  Session type: implementation_focused
+  Action types:
+    other: 426 (3.9%)
+    theorem: 402 (3.7%)
+    induction: 5283 (48.7%)
+    implementation: 4744 (43.7%)
+  Sample actions:
+    1. Editors(SwitchMode Exercises
+    2. Editors(Exercises(TheoremExercise(Theorem(ResultAction(TheoremsAction(TheoremUpdate 1e21d443-8d5f-43...
+    3. Editors(Exercises(Exercise(Editor YourImpl(MainEditor(Perform(Select(Resize(Point((row 3
+  First action: Editors(SwitchMode Exercises
+  Last action: Editors(Exercises(TheoremExercise(Theorem(ResultAction(TheoremsAction(TheoremUpdate 582e3e40-aeb2-42a2-8e05-60f2f3821d7c(StepKindAction(InductionStep(CaseUpdate 1(StepUpdate(NextStep(NextStep(NextStep(NextStep(NextStep(NextStep(NextStep(NextStep(NextStep(NextStep(NextStep(NextStep(NextStep(NextStep(NextStep(NextStep(NextStep(NextStep(EditorAction(Select(Resize(Point((row 0
+
+File: submission_349949426.json
+  Actions: 9698
+  Duration: 1108975.5s
+  Actions/sec: 0.01
+  Induction actions: 1977
+  Session type: implementation_focused
+  Action types:
+    other: 992 (10.2%)
+    implementation: 6216 (64.1%)
+    stepper: 231 (2.4%)
+    theorem: 282 (2.9%)
+    induction: 1977 (20.4%)
+  Sample actions:
+    1. Editors(SwitchMode Exercises
+    2. Editors(Exercises(Exercise(Editor YourTestsValidation(MainEditor(Perform(Move(Point((row 2
+    3. Editors(Exercises(Exercise(Editor YourTestsValidation(MainEditor(Perform(Move(Point((row 3
+  First action: Editors(SwitchMode Exercises
+  Last action: Editors(Exercises(SwitchExercise 2
+
+File: submission_350061112.json
+  Actions: 26993
+  Duration: 63693825.1s
+  Actions/sec: 0.00
+  Induction actions: 2
+  Session type: implementation_focused
+  Action types:
+    implementation: 25681 (95.1%)
+    other: 1310 (4.9%)
+    induction: 2 (0.0%)
+  Sample actions:
+    1. PerformAction(Insert 2
+    2. PerformAction(Move(Local(Left ByChar
+    3. PerformAction(Insert n
+  First action: PerformAction(Insert 2
+  Last action: Editors(Exercises(SwitchExercise 0
+
+File: submission_348413518.json
+  Actions: 5750
+  Duration: 983967.3s
+  Actions/sec: 0.01
+  Induction actions: 817
+  Session type: implementation_focused
+  Action types:
+    other: 504 (8.8%)
+    implementation: 4354 (75.7%)
+    stepper: 4 (0.1%)
+    theorem: 71 (1.2%)
+    induction: 817 (14.2%)
+  Sample actions:
+    1. Editors(SwitchMode Exercises
+    2. Editors(Exercises(Exercise(Editor YourImpl(MainEditor(Perform(Insert f
+    3. Editors(Exercises(Exercise(Editor YourImpl(MainEditor(Perform(Move(Point((row 4
+  First action: Editors(SwitchMode Exercises
+  Last action: Editors(Exercises(TheoremExercise(Theorem(ResultAction(TheoremsAction(TheoremUpdate 1e21d443-8d5f-43fe-96ab-950e29d6e139(StepKindAction(InductionStep(CaseUpdate 1(StepUpdate(NextStep(NextStep(NextStep(NextStep(NextStep(NextStep(AddAxiomStep reflexivity 0((term(BinOp(Poly Equals
+
+File: submission_349441241.json
+  Actions: 3981
+  Duration: 9970.6s
+  Actions/sec: 0.40
+  Induction actions: 2724
+  Session type: mixed
+  Action types:
+    other: 163 (4.1%)
+    theorem: 213 (5.4%)
+    induction: 2724 (68.4%)
+    implementation: 711 (17.9%)
+    stepper: 170 (4.3%)
+  Sample actions:
+    1. Editors(Exercises(SwitchExercise 1
+    2. Editors(Exercises(TheoremExercise(Theorem(ResultAction(TheoremsAction(TheoremUpdate ea6e557f-8e5e-46...
+    3. Editors(Exercises(TheoremExercise(Theorem(ResultAction(TheoremsAction(TheoremUpdate ea6e557f-8e5e-46...
+  First action: Editors(Exercises(SwitchExercise 1
+  Last action: Editors(Exercises(SwitchExercise 2
+

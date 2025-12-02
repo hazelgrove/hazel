@@ -1,0 +1,16 @@
+filename,total_actions,duration_seconds,actions_per_second,induction_actions,session_type,has_induction,first_action,last_action
+submission_349980734.json,10986,1092681.31,0.01,1264,implementation_focused,True,Globals(FinishImportAll(\"{\\\"settings\\\":\\\"((,Editors(Exercises(TheoremExercise(Theorem(ResultAc
+submission_349549369.json,10847,1195814.99,0.01,1072,implementation_focused,True,Editors(SwitchMode Exercises,Editors(Exercises(TheoremExercise(Theorem(ResultAc
+submission_348406434.json,20929,1147085.19,0.02,2346,implementation_focused,True,Globals(FinishImportAll(\"{\\\"settings\\\":\\\"((,Editors(Exercises(Exercise(Editor YourTestsValidat
+submission_350046114.json,4092,79626.20,0.05,1246,implementation_focused,True,Editors(SwitchMode Scratch,Editors(Exercises(Exercise(Editor YourImpl(MainEdi
+submission_349144175.json,2645,685680.76,0.00,797,implementation_focused,True,Globals(FinishImportAll(\"{\\\"settings\\\":\\\"((,Editors(Exercises(SwitchExercise 2
+submission_349944161.json,23169,1299083.89,0.02,851,implementation_focused,True,Globals(FinishImportAll(\"{\\\"settings\\\":\\\"((,Editors(Exercises(Exercise(Editor YourTestsTesting
+submission_348781861.json,6280,15204.63,0.41,4640,theorem_focused,True,Editors(SwitchMode Exercises,Editors(Exercises(SwitchExercise 0
+submission_349856151.json,11294,1538622.23,0.01,849,implementation_focused,True,Editors(SwitchMode Exercises,Editors(Exercises(SwitchExercise 0
+submission_349265175.json,11073,1049840.92,0.01,913,implementation_focused,True,Globals(FinishImportAll(\"{\\\"settings\\\":\\\"((,Editors(Exercises(TheoremExercise(Theorem(ResultAc
+submission_348627900.json,10393,708110.70,0.01,2427,implementation_focused,True,Globals(FinishImportAll(\"{\\\"settings\\\":\\\"((,Editors(Exercises(SwitchExercise 2
+submission_349835873.json,10855,73762.30,0.15,5283,implementation_focused,True,Editors(SwitchMode Exercises,Editors(Exercises(TheoremExercise(Theorem(ResultAc
+submission_349949426.json,9698,1108975.52,0.01,1977,implementation_focused,True,Editors(SwitchMode Exercises,Editors(Exercises(SwitchExercise 2
+submission_350061112.json,26993,63693825.09,0.00,2,implementation_focused,True,PerformAction(Insert 2,Editors(Exercises(SwitchExercise 0
+submission_348413518.json,5750,983967.29,0.01,817,implementation_focused,True,Editors(SwitchMode Exercises,Editors(Exercises(TheoremExercise(Theorem(ResultAc
+submission_349441241.json,3981,9970.65,0.40,2724,mixed,True,Editors(Exercises(SwitchExercise 1,Editors(Exercises(SwitchExercise 2

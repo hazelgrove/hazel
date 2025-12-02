@@ -1,0 +1,65 @@
+LOG PATTERN COMPARISON REPORT
+==================================================
+
+ORIGINAL EXAMPLE FILES:
+------------------------------
+File: haz3l-demo.json
+  Actions: 8466
+  Duration: 1194888.7s
+  Actions/sec: 0.007
+  Induction actions: 1123
+  Has induction: True
+  First action: MakeActive(Tutorial(Cell YourImpl MainEditor
+  Last action: Editors(Exercises(SwitchExercise 2
+
+File: final_version.json
+  Actions: 26993
+  Duration: 63693825.1s
+  Actions/sec: 0.000
+  Induction actions: 2
+  Has induction: True
+  First action: PerformAction(Insert 2
+  Last action: Editors(Exercises(SwitchExercise 0
+
+A2 LOGS SAMPLE (15 files):
+------------------------------
+Average actions per file: 11170.8
+Average duration per file: 881175.1s
+Average actions/sec: 0.056
+Total induction actions: 15733
+Files with induction: 10/10
+Average induction actions per file: 1573.3
+
+RANGES:
+  Actions: 2645 - 23169
+  Duration: 15204.6s - 1538622.2s
+  Induction actions: 772 - 4574
+
+SESSION TYPE DISTRIBUTION:
+  theorem_focused: 9 files
+  implementation_focused: 1 files
+
+KEY DIFFERENCES:
+------------------------------
+1. SCALE DIFFERENCE:
+   Original examples: 17729.5 actions, 32444356.9s duration
+   A2 logs: 11170.8 actions, 881175.1s duration
+   A2 logs are 0.6x larger in actions
+   A2 logs are 0.0x longer in duration
+
+2. INDUCTION PATTERNS:
+   Original examples: 562.5 induction actions per file
+   A2 logs: 1573.3 induction actions per file
+   A2 logs have 2.8x more induction actions
+
+3. ACTIVITY PATTERNS:
+   Original examples: 0.004 actions/sec
+   A2 logs: 0.056 actions/sec
+   A2 logs are 14.8x more active
+
+4. INDUCTION FREQUENCY:
+   Original examples: 2/2 files have induction
+   A2 logs: 10/10 files have induction
+   A2 logs have 100.0% files with induction
+   Original examples have 100.0% files with induction
+
