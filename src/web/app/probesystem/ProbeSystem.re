@@ -200,7 +200,6 @@ let legend_sample_view =
       active_renderer: None,
       env_collapsed: false,
       mock_collapsed: false,
-      stack_collapsed: false,
     },
     (0, sample),
   )
