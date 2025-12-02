@@ -240,6 +240,10 @@ module rec Exp: {
       }
     | Let(p, e1, e2) =>
       let_(Pat.of_menhir_ast(p), of_menhir_ast(e1), of_menhir_ast(e2))
+    | Theorem(p, e1, e2) =>
+      theorem(Pat.of_menhir_ast(p), of_menhir_ast(e1), of_menhir_ast(e2))
+    | ProofObject(t) => proof_object(Exp.of_menhir_ast(t))
+    | ForallExp(p, e) => forall(Pat.of_menhir_ast(p), of_menhir_ast(e))
     | FixF(p, e) => fix_f(Pat.of_menhir_ast(p), of_menhir_ast(e), None)
     | TypFun(t, e) =>
       typ_fun(TPat.of_menhir_ast(t), of_menhir_ast(e), None)
@@ -342,6 +346,10 @@ module rec Exp: {
     | Tuple(l) => TupleExp(List.map(of_core, l))
     | TupleExtension(e1, e2) => TupleExp([of_core(e1), of_core(e2)])
     | Let(p, e1, e2) => Let(Pat.of_core(p), of_core(e1), of_core(e2))
+    | Theorem(p, e1, e2) =>
+      Theorem(Pat.of_core(p), of_core(e1), of_core(e2))
+    | ProofObject(t) => ProofObject(Exp.of_core(t))
+    | Forall(p, e) => ForallExp(Pat.of_core(p), Exp.of_core(e))
     | FixF(p, e, _) => FixF(Pat.of_core(p), of_core(e))
     | TypFun(tp, e, _) => TypFun(TPat.of_core(tp), of_core(e))
     | Undefined => Undefined
@@ -459,10 +467,11 @@ and Typ: {
           sumterms,
         );
       parens(sum(converted_terms));
-    | ForallType(tp, t) =>
-      parens(forall(TPat.of_menhir_ast(tp), of_menhir_ast(t)))
+    | PolyType(tp, t) =>
+      parens(poly(TPat.of_menhir_ast(tp), of_menhir_ast(t)))
     | RecType(tp, t) =>
       parens(rec_(TPat.of_menhir_ast(tp), of_menhir_ast(t)))
+    | ProofOfType(e) => proof_of(Exp.of_menhir_ast(e))
     | IndicationTyp(t) => {
         annotation: true,
         term: of_menhir_ast(t).term,
@@ -491,8 +500,9 @@ and Typ: {
     | List(t) => ArrayType(of_core(t))
     | Arrow(t1, t2) => ArrowType(of_core(t1), of_core(t2))
     | Unknown(p) => UnknownType(of_core_type_provenance(p))
-    | Forall(tp, t) => ForallType(TPat.of_core(tp), of_core(t))
+    | Poly(tp, t) => PolyType(TPat.of_core(tp), of_core(t))
     | Rec(tp, t) => RecType(TPat.of_core(tp), of_core(t))
+    | ProofOf(e) => ProofOfType(Exp.of_core(e))
     | Parens(t) => of_core(t)
     | Label(s) => LabelType(s)
     | ExplicitNonlabel => (ExplicitNonlabel: AST.typ)

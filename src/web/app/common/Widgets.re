@@ -49,13 +49,22 @@ let toggle = (~tooltip="", label, active, action) =>
     [div(~attrs=[clss(["toggle-knob"])], [text(label)])],
   );
 
-let toggle_named = (~tooltip="", icon, active, action) =>
+let toggle_named = (~tooltip="", ~warning=?, icon, active, action) =>
   div(
     ~attrs=[
       clss(["named-menu-item"] @ (active ? ["active"] : [])),
       Attr.on_pointerdown(action),
     ],
-    [toggle(icon, active, _ => Effect.Ignore), div([text(tooltip)])],
+    [
+      toggle(icon, active, _ => Effect.Ignore),
+      div([
+        text(tooltip),
+        switch (warning) {
+        | Some(msg) => span(~attrs=[Attr.title(msg)], [text("⚠️")])
+        | None => none
+        },
+      ]),
+    ],
   );
 
 let file_select_button = (~tooltip="", id, icon, on_input) => {

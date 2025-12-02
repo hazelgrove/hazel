@@ -45,7 +45,7 @@ let rec transition =
             Typ.unroll(t'),
           ) =>
       switch (
-        Typ.join(Ctx.empty, Typ.unroll(t |> Typ.temp), Typ.unroll(t'))
+        Typ.meet(Ctx.empty, Typ.unroll(t |> Typ.temp), Typ.unroll(t'))
       ) {
       | Some(t) =>
         let+ d' = recur(Asc(e, t) |> DHExp.fresh);
@@ -109,7 +109,7 @@ let rec transition =
       let* d1 = recur(Asc(d1, ty) |> DHExp.fresh);
       let+ d2 = recur(Asc(d2, t) |> DHExp.fresh);
       Some(Cons(d1, d2) |> DHExp.fresh);
-    | (TypFun(tp, e, v), Forall(tp', t')) =>
+    | (TypFun(tp, e, v), Poly(tp', t')) =>
       let new_ty: Typ.t =
         switch (TPat.tyvar_of_utpat(tp)) {
         | Some(tyvar) => Var(tyvar) |> Typ.temp
@@ -156,6 +156,8 @@ let rec transition =
     | (Constructor(_, Some(Some(t))), t')
         when Typ.is_consistent(Ctx.empty, Typ.unroll(t), t' |> Typ.temp) =>
       ClosureWriter.return(Some(e))
+    | (ProofObject(e1), ProofOf(e2)) when Exp.fast_equal(e1, e2) =>
+      ClosureWriter.return(Some(ProofObject(e1) |> DHExp.fresh))
     | (Test(_), Prod([])) => ClosureWriter.return(Some(e))
     // These are non-value cases we're handling to process ascriptions as early as possible
     | (BinOp(bin_op, _, _), _) =>
@@ -211,6 +213,8 @@ let rec transition =
     | (TypAp(_), _)
     | (Filter(_), _)
     | (TyAlias(_), _)
+    | (Theorem(_), _)
+    | (Forall(_), _)
     | (Asc(_), _) => ClosureWriter.return(None)
     // These are non-value cases we don't want to handle
     | (EmptyHole, _)
@@ -239,7 +243,8 @@ let rec transition =
     | (Test(_), _)
     | (HintedTest(_), _)
     | (Cons(_), _)
-    | (Constructor(_), _) => ClosureWriter.return(None)
+    | (Constructor(_), _)
+    | (ProofObject(_), _) => ClosureWriter.return(None)
     }
   | _ => ClosureWriter.return(None)
   };

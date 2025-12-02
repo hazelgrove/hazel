@@ -39,13 +39,13 @@ let elaborate =
 
 let dh_err = (error: string): DHExp.t => Var(error) |> DHExp.fresh;
 
-let init_from_term = (~settings, ~is_dynamic_term, ~ctx=?, term): t => {
+let init_from_term = (~settings, ~is_dynamic_term, ~ctx=?, ~ana=?, term): t => {
   let ctx_init =
     Option.value(
       ~default=Builtins.ctx_init(is_dynamic_term ? None : Some(Int)),
       ctx,
     );
-  let info_map = Statics.mk(settings, ctx_init, term);
+  let info_map = Statics.mk(~ana?, settings, ctx_init, term);
   let error_ids = Statics.Map.error_ids(info_map);
   let elaborated =
     switch () {
@@ -74,11 +74,12 @@ let init =
       ~is_dynamic_term,
       ~stitch,
       ~ctx=?,
+      ~ana=?,
       z: Zipper.t,
     )
     : t => {
   let term = MakeTerm.from_zip_for_sem(z).term |> stitch;
-  init_from_term(~settings, ~ctx?, ~is_dynamic_term, term);
+  init_from_term(~settings, ~ctx?, ~is_dynamic_term, ~ana?, term);
 };
 
 let init =
@@ -87,7 +88,8 @@ let init =
       ~is_dynamic_term,
       ~stitch,
       ~ctx=?,
+      ~ana=?,
       z: Zipper.t,
     ) =>
   settings.statics
-    ? init(~settings, ~stitch, ~ctx?, ~is_dynamic_term, z) : empty;
+    ? init(~settings, ~stitch, ~ctx?, ~is_dynamic_term, ~ana?, z) : empty;

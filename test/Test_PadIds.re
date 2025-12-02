@@ -12,7 +12,7 @@ let qcheck_pads_typ_for_exp_to_segment =
           ~settings={
             inline: false,
             fold_case_clauses: false,
-            fold_fn_bodies: false,
+            fold_fn_bodies: `NoFold,
             hide_fixpoints: false,
             show_filters: true,
             show_unknown_as_hole: true,

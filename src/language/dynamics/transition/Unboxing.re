@@ -89,6 +89,9 @@ let rec unbox: type a. (unbox_request(a), DHExp.t) => unboxed(a) =
     | (_, Constructor(c, _)) when String.starts_with(c, ~prefix="$") =>
       IndetMatch
 
+    /* proofs can also have any type, but are indet */
+    | (_, ProofObject(_)) => IndetMatch
+
     /* TupLabels can be anything except for tuplabels with unmatching labels */
     | (TupLabel(tuplabel), TupLabel(_, e)) =>
       if (Option.equal(
@@ -233,6 +236,8 @@ let rec unbox: type a. (unbox_request(a), DHExp.t) => unboxed(a) =
         ExplicitNonlabel |
         Var(_) |
         Let(_) |
+        Theorem(_) |
+        Forall(_) |
         Fun(_, _, _, _) |
         TypAp(_) |
         FixF(_) |

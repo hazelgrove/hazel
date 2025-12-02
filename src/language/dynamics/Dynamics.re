@@ -114,11 +114,13 @@ type t = {
   probe_map: Sample.Map.t,
   type_inst_map: TypeInstMap.t,
   test_results: TestResults.t,
+  theorems: list((Id.t, string, Environment.t(Exp.t), Exp.t)),
 };
 
 let empty: t = {
   probe_map: Sample.Map.empty,
   type_inst_map: TypeInstMap.empty,
+  theorems: [],
   test_results: {
     test_map: [],
     statuses: [],
@@ -130,8 +132,14 @@ let empty: t = {
     unfinished: 0,
   },
 };
+// let filter_all_by_pin = (dyn_cursor: DynCursor.t, map: t): t => {
+//   probe_map: DynCursor.filter_all_by_pin(dyn_cursor, map.probe_map),
+//   type_inst_map: TypeInstMap.filter_all_by_pin(dyn_cursor, map.type_inst_map),
+//   test_results: map.test_results,
+
 let filter_all_by_pin = (dyn_cursor: DynCursor.t, map: t): t => {
   probe_map: DynCursor.filter_all_by_pin(dyn_cursor, map.probe_map),
   type_inst_map: TypeInstMap.filter_all_by_pin(dyn_cursor, map.type_inst_map),
   test_results: map.test_results,
+  theorems: map.theorems,
 };

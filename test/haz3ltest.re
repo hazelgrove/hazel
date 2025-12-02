@@ -26,6 +26,8 @@ let (suite, _) =
       Test_PatternMatch.tests,
       Test_Id_Transform.tests,
       Test_WriterMonad.tests,
+      Test_Equality.tests,
+      Test_Substitution.tests,
     ]
     @ Test_Typ.tests
     @ Test_Info.tests

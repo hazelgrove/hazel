@@ -141,7 +141,7 @@ module IntroduceExp: Introducable with type t = Exp.t = {
               )
             ),
           )
-        | Forall(_, _) =>
+        | Poly(_, _) =>
           Some(
             TPat.empty_hole()
             |> (
@@ -239,8 +239,8 @@ let introduce = (ci: option(Info.t), z: Zipper.t) => {
         _,
       }),
     ) =>
-    module IP = Make(IntroduceExp);
-    IP.introduce(z, Typ.weak_head_normalize(ctx, ana), ctx);
+    module IE = Make(IntroduceExp);
+    IE.introduce(z, Typ.weak_head_normalize(ctx, ana), ctx);
 
   | Some(
       InfoPat({

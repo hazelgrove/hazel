@@ -283,35 +283,9 @@
   color: var(--context-inspector-colon);
 }
 
-@keyframes dynamic-error-pulse {
-  0%, 100% {
-    filter: brightness(1) saturate(1);
-  }
-  80% {
-    filter: brightness(1.05) saturate(5);
-  }
-}
-
-/* Dynamic error styling - placed after regular error styles to take precedence */
-#cursor-inspector.dynamic-error.error {
-  border-color: var(--dynamic-error-hole-stroke);
-  animation: dynamic-error-pulse 2s ease-in-out infinite;
-}
-
-#cursor-inspector.dynamic-error.error .ci-header {
-  background-color: oklch(0.92 0.12 15);
-  color: oklch(0.35 0.25 15);
-  outline-color: var(--dynamic-error-hole-stroke);
-}
-
-#cursor-inspector.dynamic-error.error .ci-header .gamma {
-  background-color: oklch(0.75 0.2 15);
-}
-
-#cursor-inspector.dynamic-error.error .status {
-  color: oklch(0.35 0.25 15);
-}
-
-#cursor-inspector.dynamic-error.error .divider {
-  color: oklch(0.35 0.25 15);
+.dynamic-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
 }

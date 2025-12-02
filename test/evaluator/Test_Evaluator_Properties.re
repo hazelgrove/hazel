@@ -33,7 +33,7 @@ let qcheck_evaluator_does_not_crash_test =
             when
               List.exists(
                 (==)(msg),
-                ["type application in dynamics", "Type join of ap"] // "type application in dynamics" https://github.com/hazelgrove/hazel/issues/1625
+                ["type application in dynamics", "Type meet of ap"] // "type application in dynamics" https://github.com/hazelgrove/hazel/issues/1625
               ) =>
           print_endline("Skipping failure: " ++ msg);
           true;
@@ -85,7 +85,10 @@ let qcheck_stepper_confluence =
           |> Printer.of_segment(~holes="?", _);
 
         Alcotest.check(
-          testable(Fmt.using(show_core_exp, Fmt.string), DHExp.fast_equal), // Output is easier to view through ExpToSegment. This may result in a loss of information
+          testable(
+            Fmt.using(show_core_exp, Fmt.string),
+            Equality.semantic.exp,
+          ), // Output is easier to view through ExpToSegment. This may result in a loss of information
           "Small step reduction and big step reduction are equal",
           smallstep_exp,
           bigstep_exp,

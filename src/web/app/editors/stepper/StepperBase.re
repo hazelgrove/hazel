@@ -15,6 +15,7 @@ type step_kind_model =
   | ForallStep(ForallStep.model'(step_model))
   | MissingStep(MissingStep.Model.t)
   | AxiomStep(AxiomStep.model'(step_model))
+  | AlgebriteStep(AlgebriteStep.model'(step_model))
 
 and step_model = {
   // Calculated
@@ -25,6 +26,8 @@ and step_model = {
   next_step: option(step_model),
   // Calculated
   hidden: Calc.saved(bool),
+  proof_validity: Calc.saved(option(bool)),
+  editor_info_map: Calc.saved(Statics.Map.t),
 };
 
 let init_step = {
@@ -33,6 +36,8 @@ let init_step = {
   step_kind: MissingStep(MissingStep.Model.init),
   next_step: None,
   hidden: Calc.Pending,
+  proof_validity: Calc.Pending,
+  editor_info_map: Calc.Pending,
 };
 
 [@deriving (show({with_path: false}), sexp, yojson)]
@@ -42,6 +47,7 @@ type persistent_step_kind =
   | ForallStep(ForallStep.persistent'(persistent_step))
   | MissingStep(MissingStep.Model.persistent)
   | AxiomStep(AxiomStep.persistent'(persistent_step))
+  | AlgebriteStep(AlgebriteStep.persistent'(persistent_step))
 
 and persistent_step = {
   step_kind: persistent_step_kind,
@@ -55,6 +61,7 @@ type step_kind_action =
   | ForallStep(ForallStep.action'(step_action))
   | MissingStep(MissingStep.Update.t)
   | AxiomStep(AxiomStep.action'(step_action))
+  | AlgebriteStep(AlgebriteStep.action'(step_action))
 
 and step_action =
   | StepKindAction(step_kind_action)
@@ -64,7 +71,8 @@ and step_action =
   | StepForward(int)
   | AddInduction(option(Exp.t))
   | AddForall
-  | AddAxiomStep(string, int, Exp.t, Exp.t);
+  | AddAxiomStep(string, int, Exp.t, Direction.t, string)
+  | AddAlgebriteStep(int, Exp.t, Exp.t);
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type step_kind_focus =
@@ -73,6 +81,7 @@ type step_kind_focus =
   | ForallStep(ForallStep.focus'(step_focus))
   | MissingStep(MissingStep.Selection.t)
   | AxiomStep(AxiomStep.focus'(step_focus))
+  | AlgebriteStep(AlgebriteStep.focus'(step_focus))
 
 and step_focus =
   | StepKindFocus(step_kind_focus)
@@ -97,6 +106,7 @@ module rec StepKind: {
   module ForallStep = ForallStep.F(Stepper);
   module MissingStep = MissingStep; // This could be functorized too.
   module AxiomStep = AxiomStep.F(Stepper);
+  module AlgebriteStep = AlgebriteStep.F(Stepper);
 
   [@deriving (show({with_path: false}), sexp, yojson)]
   type model = step_kind_model;
@@ -114,6 +124,7 @@ module rec StepKind: {
     | ForallStep(m) => ForallStep(ForallStep.persist(m))
     | MissingStep(m) => MissingStep(MissingStep.Model.persist(m))
     | AxiomStep(m) => AxiomStep(AxiomStep.persist(m))
+    | AlgebriteStep(m) => AlgebriteStep(AlgebriteStep.persist(m))
     };
   };
 
@@ -124,6 +135,7 @@ module rec StepKind: {
     | ForallStep(m) => ForallStep(ForallStep.unpersist(m))
     | MissingStep(m) => MissingStep(MissingStep.Model.unpersist(m))
     | AxiomStep(m) => AxiomStep(AxiomStep.unpersist(m))
+    | AlgebriteStep(m) => AlgebriteStep(AlgebriteStep.unpersist(m))
     };
   };
 
@@ -152,9 +164,13 @@ module rec StepKind: {
       | (AxiomStep(a), AxiomStep(m)) =>
         let* s = AxiomStep.update(~settings, a, m);
         (AxiomStep(s): model);
+      | (AlgebriteStep(a), AlgebriteStep(m)) =>
+        let* s = AlgebriteStep.update(~settings, a, m);
+        (AlgebriteStep(s): model);
       | (
           SingleStep(_) | InductionStep(_) | ForallStep(_) | MissingStep(_) |
-          AxiomStep(_),
+          AxiomStep(_) |
+          AlgebriteStep(_),
           _,
         ) =>
         model |> Updated.return_quiet
@@ -169,6 +185,7 @@ module rec StepKind: {
     | ForallStep(action) => ForallStep.can_undo(action)
     | MissingStep(action) => MissingStep.Update.can_undo(action)
     | AxiomStep(action) => AxiomStep.can_undo(action)
+    | AlgebriteStep(action) => AlgebriteStep.can_undo(action)
     };
   };
 
@@ -177,31 +194,60 @@ module rec StepKind: {
             ~settings: Calc.t(CoreSettings.t),
             ~hidden: Calc.saved(bool),
             ~exp: Calc.t(Exp.t),
-            ~ctx: Calc.t(Ctx.t),
+            ~ctx: Calc.t(SemanticCtx.t),
             ~editor: Calc.t(CodeSelectable.Model.t),
+            ~info_map: Calc.t(Statics.Map.t),
+            ~ana,
             model: model,
           ) =>
     switch (model) {
     | SingleStep(m) =>
-      let+ (m, h, e) =
-        SingleStep.calculate(~settings, ~hidden, ~exp, ~ctx, ~editor, m);
-      (SingleStep(m): model, h, e);
+      let+ (m, h, e, v) =
+        SingleStep.calculate(
+          ~settings,
+          ~hidden,
+          ~exp,
+          ~ctx,
+          ~editor,
+          ~info_map,
+          ~ana,
+          m,
+        );
+      (SingleStep(m): model, h, e, v);
     | InductionStep(m) =>
-      let+ (m, h, e) =
-        InductionStep.calculate(~settings, ~hidden, ~exp, ~ctx, ~editor, m);
-      (InductionStep(m): model, h, e);
+      let+ (m, h, e, v) =
+        InductionStep.calculate(
+          ~settings,
+          ~hidden,
+          ~exp,
+          ~ctx,
+          ~editor,
+          ~info_map,
+          ~ana,
+          m,
+        );
+      (InductionStep(m): model, h, e, v);
     | ForallStep(m) =>
-      let+ (m, h, e) =
-        ForallStep.calculate(~settings, ~hidden, ~exp, ~ctx, ~editor, m);
-      (ForallStep(m): model, h, e);
+      let+ (m, h, e, v) =
+        ForallStep.calculate(
+          ~settings,
+          ~hidden,
+          ~exp,
+          ~ctx,
+          ~editor,
+          ~info_map,
+          ~ana,
+          m,
+        );
+      (ForallStep(m): model, h, e, v);
     | MissingStep(missing_step) =>
       let next_steps =
         missing_step.next_steps
         |> {
           let.calc settings = settings
-          and.calc exp = exp;
-
-          EvaluatorStep.get_status(~settings, exp);
+          and.calc exp = exp
+          and.calc ctx = ctx;
+          EvaluatorStep.get_status(~settings, exp, SemanticCtx.get_env(ctx));
         };
       let next_step_to_take =
         Calc.Calculated(None)
@@ -217,6 +263,7 @@ module rec StepKind: {
       | Some(evalobj) =>
         calculate(
           ~settings,
+          ~info_map,
           ~exp=exp |> Calc.make_new,
           ~ctx=ctx |> Calc.make_new,
           SingleStep({
@@ -226,6 +273,7 @@ module rec StepKind: {
           }): model,
           ~hidden,
           ~editor,
+          ~ana,
         )
       | None =>
         Some((
@@ -233,6 +281,7 @@ module rec StepKind: {
             MissingStep.Update.calculate(
               ~settings=settings |> Calc.get_value,
               exp,
+              info_map,
               ctx,
               next_steps,
               missing_step,
@@ -241,12 +290,47 @@ module rec StepKind: {
           ),
           Calc.set(false, hidden),
           None,
+          Calc.NewValue(
+            // TODO: Incremental validity check
+            DHExp.fast_equal(
+              exp |> Calc.get_value,
+              Exp.temp(Atom(Bool(true))),
+            )
+              ? Some(true)
+              : DHExp.fast_equal(
+                  exp |> Calc.get_value,
+                  Exp.temp(Atom(Bool(false))),
+                )
+                  ? Some(false) : None,
+          ),
         ))
       };
     | AxiomStep(m) =>
-      let+ (m, h, e) =
-        AxiomStep.calculate(~settings, ~hidden, ~exp, ~ctx, ~editor, m);
-      (AxiomStep(m): model, h, e);
+      let+ (m, h, e, v) =
+        AxiomStep.calculate(
+          ~settings,
+          ~hidden,
+          ~exp,
+          ~ctx,
+          ~editor,
+          ~info_map,
+          ~ana,
+          m,
+        );
+      (AxiomStep(m): model, h, e, v);
+    | AlgebriteStep(m) =>
+      let+ (m, h, e, v) =
+        AlgebriteStep.calculate(
+          ~settings,
+          ~hidden,
+          ~exp,
+          ~ctx,
+          ~editor,
+          ~info_map,
+          ~ana,
+          m,
+        );
+      (AlgebriteStep(m): model, h, e, v);
     };
 
   let get_cursor_info = (~focus: focus, model: model) =>
@@ -268,9 +352,13 @@ module rec StepKind: {
       | (AxiomStep(focus), AxiomStep(model)) =>
         let+ focus_info = AxiomStep.get_cursor_info(~focus, model);
         (AxiomStep(focus_info): action);
+      | (AlgebriteStep(focus), AlgebriteStep(model)) =>
+        let+ focus_info = AlgebriteStep.get_cursor_info(~focus, model);
+        (AlgebriteStep(focus_info): action);
       | (
           SingleStep(_) | InductionStep(_) | ForallStep(_) | MissingStep(_) |
-          AxiomStep(_),
+          AxiomStep(_) |
+          AlgebriteStep(_),
           _,
         ) => Cursor.empty
       }
@@ -294,9 +382,13 @@ module rec StepKind: {
     | (AxiomStep(focus), AxiomStep(model)) =>
       AxiomStep.handle_key_event(~focus, ~event, model)
       |> Option.map((x): action => AxiomStep(x))
+    | (AlgebriteStep(focus), AlgebriteStep(model)) =>
+      AlgebriteStep.handle_key_event(~focus, ~event, model)
+      |> Option.map((x): action => AlgebriteStep(x))
     | (
         SingleStep(_) | InductionStep(_) | ForallStep(_) | MissingStep(_) |
-        AxiomStep(_),
+        AxiomStep(_) |
+        AlgebriteStep(_),
         _,
       ) =>
       None
@@ -361,6 +453,17 @@ module rec StepKind: {
             },
           ~inject=x => inject(AxiomStep(x)),
           ~take_focus=x => take_focus(AxiomStep(x)),
+          m,
+        )
+      | AlgebriteStep(m) =>
+        AlgebriteStep.view_content(
+          ~focus=
+            switch (focus) {
+            | Some(AlgebriteStep(f)) => Some(f)
+            | _ => None
+            },
+          ~inject=x => inject(AlgebriteStep(x)),
+          ~take_focus=x => take_focus(AlgebriteStep(x)),
           m,
         )
       };
@@ -450,6 +553,22 @@ module rec StepKind: {
         ~is_toplevel,
         m,
       )
+    | AlgebriteStep(m) =>
+      AlgebriteStep.view_justification(
+        ~globals,
+        ~focus=
+          switch (focus) {
+          | Some(AlgebriteStep(f)) => Some(f)
+          | Some(_)
+          | None => None
+          },
+        ~inject=x => inject(AlgebriteStep(x)),
+        ~take_focus=x => take_focus(AlgebriteStep(x)),
+        ~hide_stepper,
+        ~undo,
+        ~is_toplevel,
+        m,
+      )
     };
 }
 
@@ -460,6 +579,7 @@ and Stepper: {
       type persistent = persistent_step and
       type action = step_action and
       type focus = step_focus;
+  let get_validity: step_model => option(bool);
 } = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type model = step_model;
@@ -476,6 +596,8 @@ and Stepper: {
     step_kind: MissingStep(MissingStep.Model.init),
     next_step: None,
     hidden: Calc.Pending,
+    proof_validity: Calc.Pending,
+    editor_info_map: Calc.Pending,
   };
 
   let rec persist = (model: model): persistent => {
@@ -492,8 +614,16 @@ and Stepper: {
       step_kind: StepKind.unpersist(p.step_kind),
       next_step: p.next_step |> Option.map(unpersist),
       hidden: Calc.Pending,
+      proof_validity: Calc.Pending,
+      editor_info_map: Calc.Pending,
     };
   };
+
+  let get_validity = (model: model) =>
+    model.proof_validity
+    |> Calc.get_saved_exc(
+         ~print="get_validity called before calculate on stepper",
+       );
 
   let rec update =
           (~settings, action: step_action, model: step_model)
@@ -562,7 +692,11 @@ and Stepper: {
         }
         |> return
       | (AddForall, _, _) => model |> return_quiet
-      | (AddAxiomStep(name, at_idx, at_exp, with_exp), MissingStep(_), _) =>
+      | (
+          AddAxiomStep(name, at_idx, at_exp, direction, equality),
+          MissingStep(_),
+          _,
+        ) =>
         {
           ...model,
           step_kind:
@@ -570,12 +704,26 @@ and Stepper: {
               name,
               at_idx,
               at_exp,
+              direction,
+              equality,
+              next_exp: Calc.Pending,
+            }),
+        }
+        |> return
+      | (AddAxiomStep(_, _, _, _, _), _, _) => model |> return_quiet
+      | (AddAlgebriteStep(at_idx, at_exp, with_exp), MissingStep(_), _) =>
+        {
+          ...model,
+          step_kind:
+            AlgebriteStep({
+              at_idx,
+              at_exp,
               with_exp,
               next_exp: Calc.Pending,
             }),
         }
         |> return
-      | (AddAxiomStep(_, _, _, _), _, _) => model |> return_quiet
+      | (AddAlgebriteStep(_, _, _), _, _) => model |> return_quiet
       | (StepKindAction(sk_action), _, _) =>
         let* new_step_kind =
           StepKind.update(~settings, sk_action, model.step_kind);
@@ -596,6 +744,7 @@ and Stepper: {
     | AddInduction(_) => true
     | AddForall => true
     | AddAxiomStep(_) => true
+    | AddAlgebriteStep(_) => true
     | StepKindAction(action) => StepKind.can_undo(action)
     };
   };
@@ -603,36 +752,45 @@ and Stepper: {
   let rec calculate =
           (
             ~settings: Calc.t(CoreSettings.t),
-            ~ctx: Calc.t(Ctx.t),
             ~exp as expr: Calc.t(Exp.t),
-            {expr: _, editor, step_kind, next_step, hidden}: step_model,
+            ~ctx: Calc.t(SemanticCtx.t),
+            ~ana: Calc.t(Typ.t),
+            {
+              expr: _,
+              editor,
+              step_kind,
+              next_step,
+              hidden,
+              proof_validity,
+              editor_info_map: info_map,
+            }: step_model,
           )
-          : (step_model, Calc.t(Exp.t)) => {
+          : (step_model, Calc.t(Exp.t), Calc.t(option(bool))) => {
     let editor =
       editor
       |> {
         let.calc settings = settings
         and.calc expr = expr
-        and.calc ctx = ctx;
-        expr
-        |> CodeWithStatics.Model.mk_from_exp(~settings)
-        |> CodeSelectable.Update.calculate(
-             ~is_dynamic_term=true,
-             ~settings,
-             ~is_edited=true,
-             ~ctx,
-             ~dynamics=Calc.OldValue(Dynamics.empty),
-             ~stitch=_ =>
-             expr
-           );
+        and.calc _ctx = ctx
+        and.calc _ana = ana;
+
+        expr |> CodeWithStatics.Model.mk_from_exp(~settings);
       };
-    let (step_kind, hidden, next_expr) =
+    let info_map =
+      info_map
+      |> {
+        let.calc editor: CodeSelectable.Model.t = editor;
+        editor.statics.info_map;
+      };
+    let (step_kind, hidden, next_expr, inner_validity) =
       StepKind.calculate(
         ~settings,
         ~ctx,
         ~exp=expr,
         ~hidden,
         ~editor,
+        ~info_map,
+        ~ana,
         step_kind,
       )
       |> OptUtil.get(() =>
@@ -643,28 +801,59 @@ and Stepper: {
                 ~exp=expr,
                 ~hidden,
                 ~editor,
+                ~info_map,
+                ~ana,
               )
            |> Option.get
          );
-    let (next_step, last_expr) =
+    let (next_step, last_expr, next_validity) =
       switch (next_expr) {
       | Some(next_expr) =>
         let next_step = Option.value(~default=init, next_step);
-        let (next_step, last_expr) =
-          calculate(~settings, ~ctx, ~exp=next_expr, next_step);
-        (Some(next_step), last_expr);
-      | None => (None, expr)
+        let (next_step, last_expr, next_validity) =
+          calculate(~settings, ~exp=next_expr, ~ctx, ~ana, next_step);
+        (Some(next_step), last_expr, next_validity);
+      | None => (None, expr, inner_validity)
       };
+
+    let proof_validity =
+      proof_validity
+      |> {
+        let.calc next_validity = next_validity
+        and.calc inner_validity = inner_validity;
+        switch (next_validity, inner_validity) {
+        | (Some(true), Some(true)) => Some(true)
+        | (Some(false), Some(false)) => Some(false)
+        | _ => None
+        };
+      };
+
+    // TODO: Make editor calculation more incremental
+    let editor =
+      CodeSelectable.Update.calculate(
+        ~is_dynamic_term=true,
+        ~settings=Calc.get_value(settings),
+        ~is_edited=true,
+        ~ctx=Calc.get_value(ctx) |> SemanticCtx.get_ctx,
+        ~dynamics=NewValue(Dynamics.empty),
+        ~ana=Calc.get_value(ana),
+        ~stitch=_ => Calc.get_value(expr),
+        Calc.get_value(editor),
+      );
+
     (
       {
         expr: expr |> Calc.save,
 
-        editor: editor |> Calc.save,
+        editor: Calc.Calculated(editor),
         step_kind,
         next_step,
         hidden: hidden |> Calc.save,
+        proof_validity: proof_validity |> Calc.save,
+        editor_info_map: info_map |> Calc.save,
       },
       last_expr,
+      proof_validity,
     );
   };
 
@@ -759,6 +948,12 @@ and Stepper: {
             |> List.map(step => step |> EvaluatorStep.get_step_id)
           | _ => []
           };
+        let selected_exp =
+          switch (model.step_kind) {
+          | MissingStep(m) =>
+            m.selected_exp |> Calc.get_saved_opt |> Option.join
+          | _ => None
+          };
         let refls =
           switch (model.step_kind) {
           | MissingStep(m) when globals.settings.core.evaluation.enable_proof =>
@@ -790,7 +985,8 @@ and Stepper: {
                         model.expr |> Calc.get_saved_exc(~print="expr"),
                       ),
                       from_exp,
-                      Exp.fresh(Atom(Bool(true))),
+                      Direction.Right,
+                      "Reflexive(==)",
                     ),
                   );
                 },
@@ -800,12 +996,16 @@ and Stepper: {
               | Some(Here(_)) => true
               | _ => false
               },
+            ~selected_id=selected_exp |> Option.map(Exp.rep_id),
             ~overlays=
               switch (model.step_kind) {
               | MissingStep(m)
                   when globals.settings.core.evaluation.enable_proof =>
                 MissingStep.View.view_overlay(
                   ~globals,
+                  ~info_map=
+                    model.editor_info_map
+                    |> Calc.get_saved_exc(~print="info_map"),
                   ~inject=x => inject(StepKindAction(MissingStep(x))),
                   ~selected=
                     switch (focus) {
@@ -819,8 +1019,32 @@ and Stepper: {
                       take_focus(StepKindFocus(MissingStep(s)))
                     | AddForall => inject(AddForall)
                     | AddInduction(exp) => inject(AddInduction(exp))
-                    | AddAxiomStep(name, idx, e1, e2) =>
-                      inject(AddAxiomStep(name, idx, e1, e2)),
+                    | AddAxiomStep(name, idx, e1, dir, eq) =>
+                      inject(AddAxiomStep(name, idx, e1, dir, eq))
+                    | AddAlgebriteStep(idx, e1, e2) =>
+                      inject(AddAlgebriteStep(idx, e1, e2))
+                    | TakeStep(i) => inject(StepForward(i))
+                    | Refl(i) => {
+                        let refl_exps =
+                          switch (model.step_kind) {
+                          | MissingStep(m) =>
+                            m.refls |> Calc.get_saved_exc(~print="refls")
+                          | _ => []
+                          };
+                        let from_exp = List.nth(refl_exps, i);
+                        inject(
+                          AddAxiomStep(
+                            "reflexivity",
+                            ProofHacks.exp_idx(
+                              from_exp,
+                              model.expr |> Calc.get_saved_exc(~print="expr"),
+                            ),
+                            from_exp,
+                            Direction.Right,
+                            "Reflexive(==)",
+                          ),
+                        );
+                      },
                   ~editor=model.editor |> Calc.get_saved_exc(~print="Editor"),
                   m,
                 )

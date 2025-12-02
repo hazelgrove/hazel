@@ -274,11 +274,11 @@ let rec elaborate =
       };
     | ListLit(es) =>
       let (ds, tys) = List.map(elaborate(m), es) |> List.split;
-      let joined_ty =
-        Typ.join_all(~empty=Unknown(Internal) |> Typ.temp, ctx, tys);
+      let meet_ty =
+        Typ.meet_all(~empty=Unknown(Internal) |> Typ.temp, ctx, tys);
 
       let ds' =
-        List.map2((d, t) => fresh_ascription(d, t, joined_ty), ds, tys);
+        List.map2((d, t) => fresh_ascription(d, t, meet_ty), ds, tys);
       ListLit(ds') |> rewrap;
     | LivelitName(_) => uexp
     | Constructor(c, _) =>
@@ -297,6 +297,10 @@ let rec elaborate =
       let (p', typ) = elaborate_pattern(m, p, false);
       let (e', _) = elaborate(m, e);
       Fun(p', e', Some(typ), n) |> rewrap;
+    | Forall(p, e) =>
+      let (p', _) = elaborate_pattern(m, p, false);
+      let (e', _) = elaborate(m, e);
+      Forall(p', e') |> rewrap;
     | TypFun(tpat, e, name) =>
       let (e', _) = elaborate(m, e);
       TypFun(tpat, e', name) |> rewrap;
@@ -377,6 +381,14 @@ let rec elaborate =
           |> IdTagged.fresh_deterministic(DHExp.rep_id(uexp));
         Let(p, fixf, body) |> rewrap;
       };
+    | Theorem(p, e1, e2) =>
+      let (p', _) = elaborate_pattern(m, p, false);
+      let (e1', _) = elaborate(m, e1);
+      let (e2', _) = elaborate(m, e2);
+      Theorem(p', e1', e2') |> rewrap;
+    | ProofObject(e) =>
+      let (e', _) = elaborate(m, e);
+      ProofObject(e') |> rewrap;
     | FixF(p, e, env) =>
       let (p', pty) = elaborate_pattern(m, p, false);
       let (e', _) = elaborate(m, e);

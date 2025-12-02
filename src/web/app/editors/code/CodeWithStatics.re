@@ -101,6 +101,7 @@ module Update = {
         ~stitch,
         ~dynamics: Calc.t(Dynamics.t),
         ~is_dynamic_term,
+        ~ana=?,
         {
           editor,
           statics,
@@ -127,6 +128,7 @@ module Update = {
             ~settings,
             ~stitch,
             ~ctx?,
+            ~ana?,
             ~is_dynamic_term,
             editor.state.zipper,
           )

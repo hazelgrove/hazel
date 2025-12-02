@@ -38,7 +38,7 @@ module Env = {
     | Fun(_)
     | FixF(_)
     | Closure(_) => Opaque
-    | _ => Val(d |> DHExp.strip_ascriptions |> Exp.substitute_closures(env))
+    | _ => Val(d |> DHExp.strip_ascriptions |> Substitution.in_exp(env))
     };
 
   let mk_entry = (env: Environment.t(Exp.t), {name, id, _}: Binding.t) =>

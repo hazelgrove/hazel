@@ -12,7 +12,7 @@ let utility: ProjectorBase.utility = {
       ~settings={
         ...ExpToSegment.Settings.of_core(~inline=false, CoreSettings.off), // TODO Thread inline option
         show_unknown_as_hole: false,
-        fold_fn_bodies: false,
+        fold_fn_bodies: `NoFold,
       },
     );
   let lift_syntax =

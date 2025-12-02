@@ -70,6 +70,27 @@ let tests =
           "type x = Int in 1",
         )
       ),
+      test_case(
+        "Duplicate constructors in type alias don't become bad entries",
+        `Quick,
+        ()
+        // turning them into bad entries led to this regression
+        // https://github.com/hazelgrove/hazel/issues/1458
+        =>
+          exp_check(
+            ty_alias(
+              TPat.var("A2"),
+              Typ.(
+                sum([
+                  Variant("A", [Util.Id.mk()], None),
+                  Variant("A", [Util.Id.mk()], None),
+                ])
+              ),
+              empty_hole(),
+            ),
+            "type A2 = A + A in ?",
+          )
+        ),
       test_case("Singleton Labeled Tuple ascription in let", `Quick, () =>
         exp_check(
           let_(

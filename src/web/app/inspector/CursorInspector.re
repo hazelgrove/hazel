@@ -52,7 +52,7 @@ let ctx_toggle = (~globals: Globals.t): Node.t =>
     //[text("Γ")],
   );
 
-let term_view = (~globals: Globals.t, ci) => {
+let term_view = (~globals: Globals.t, ~is_dynamic_error, ci) => {
   let sort = Info.is_label(ci) ? "Label" : ci |> Info.sort_of |> Sort.show;
 
   div(
@@ -61,6 +61,17 @@ let term_view = (~globals: Globals.t, ci) => {
     ],
     [
       ctx_toggle(~globals),
+      is_dynamic_error
+        ? div(
+            ~attrs=[
+              Attr.title(
+                "Dynamic type inference error - this error is based on the actual types observed during program evaluation, which fill in unknown static types",
+              ),
+              clss(["dynamic-icon"]),
+            ],
+            [text("⚡")],
+          )
+        : div_empty,
       div(~attrs=[clss(["term-tag"])], [text(sort)]),
       div(~attrs=[clss(["divider"])], [text("/")]),
       cls_view(ci),
@@ -81,8 +92,8 @@ let elements_noun: Cls.t => string =
 let code_view_settings: Haz3lcore.ExpToSegment.Settings.t = {
   inline: true,
   fold_case_clauses: false,
-  fold_fn_bodies: false,
   project_tables: false,
+  fold_fn_bodies: `NoFold,
   hide_fixpoints: false,
   show_filters: false,
   show_unknown_as_hole: true,
@@ -190,11 +201,6 @@ let common_err_view =
     | Inconsistent(CompareFun(ty)) => [
         text("values cannot be compared:"),
         view_type(~dynamic_info=None, ty),
-      ]
-    | Inconsistent(WithArrow(typ)) => [
-        text(":"),
-        view_type(~dynamic_info=None, typ) |> code_box_container,
-        text("inconsistent with arrow type"),
       ]
     | Inconsistent(Expectation({ana, syn})) =>
       switch (syn.term, ana.term) {
@@ -371,7 +377,7 @@ let common_ok_view =
         | true => [text(" after reordering by labels ")]
         }
       )
-    | (_, Ana(InternallyInconsistent({ana, nojoin: tys}))) =>
+    | (_, Ana(InternallyInconsistent({ana, nomeet: tys}))) =>
       [
         text(elements_noun(cls) ++ " have inconsistent types:"),
         ...ListUtil.join(
@@ -468,10 +474,6 @@ let typ_ok_view = (~globals, cls: Cls.t, ok: Info.ok_typ) => {
   | Variant(name, sum_ty) => [
       view_type(Var(name) |> Typ.fresh),
       text("is a sum type constuctor of type"),
-      view_type(sum_ty),
-    ]
-  | VariantIncomplete(sum_ty) => [
-      text("An incomplete sum type constuctor of type"),
       view_type(sum_ty),
     ]
   | TypeUnderdetermined(underdetermined) =>
@@ -686,6 +688,11 @@ let rec exp_view =
     ])
   | InHole(BadLivelitModel(_)) =>
     div_err([text("Bad internal livelit model")])
+  | InHole(BadTheorem(typ)) =>
+    div_err([
+      text("Theorem pattern is not of the form p : t, got "),
+      view_type(~dynamic_info=None, typ),
+    ])
   | NotInHole(AnaDeferralConsistent(ana)) =>
     div_ok([text("Expecting type"), view_type(~dynamic_info=None, ana)])
   | NotInHole(Common(ok)) =>
@@ -806,8 +813,12 @@ let tpat_view = (~globals, _: Cls.t, status: Info.status_tpat) => {
 
 let secondary_view = (cls: Cls.t) => div_ok([text(cls |> Cls.show)]);
 
-let view_of_info = (~globals, ~dynamic_info, ci): list(Node.t) => {
-  let wrapper = status_view => [term_view(~globals, ci), status_view];
+let view_of_info =
+    (~globals, ~dynamic_info, ~is_dynamic_error, ci): list(Node.t) => {
+  let wrapper = status_view => [
+    term_view(~globals, ~is_dynamic_error, ci),
+    status_view,
+  ];
   switch (ci) {
   | Secondary(_) => wrapper(div([]))
   | InfoExp({cls, status, _} as ie) =>
@@ -841,7 +852,7 @@ let inspector_view = (~globals, ~dynamic_info, ci): Node.t => {
         is_dynamic_error ? "dynamic-error" : "",
       ]),
     ],
-    view_of_info(~globals, ~dynamic_info, display_info),
+    view_of_info(~globals, ~dynamic_info, ~is_dynamic_error, display_info),
   );
 };
 

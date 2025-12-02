@@ -18,5 +18,19 @@ let tests = (
         );
       },
     ),
+    test_case(
+      "Basic csv without header",
+      `Quick,
+      () => {
+        let csv_string = {csv|1,2,3
+4,5,6|csv};
+        check(
+          list(list(string)),
+          "Returns value",
+          [["1", "2", "3"], ["4", "5", "6"]],
+          CsvUtil.parse_csv_without_headers(csv_string),
+        );
+      },
+    ),
   ],
 );

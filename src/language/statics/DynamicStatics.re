@@ -49,7 +49,7 @@ module Map = {
 let extend_ctx_with_instantiations =
     (ctx: Ctx.t, name, tpat_id: Id.t, insts: list(type_instantiation)): Ctx.t => {
   let new_ty =
-    Typ.meet_all(ctx, List.map(inst => inst.instantiated_type, insts))
+    Typ.join_all(ctx, List.map(inst => inst.instantiated_type, insts))
     |> Option.value(~default=Unknown(Internal) |> Typ.temp);
   Ctx.extend_tvar(
     ctx,

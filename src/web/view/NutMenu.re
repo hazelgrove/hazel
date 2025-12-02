@@ -24,8 +24,8 @@ let submenu = (~tooltip, ~icon, menu) =>
 // SETTINGS MENU
 
 let settings_group = (~globals: Globals.t, name: string, ts) => {
-  let toggle = ((_icon, tooltip, bool, setting)) =>
-    toggle_named("", ~tooltip, bool, _ =>
+  let toggle = ((_icon, tooltip, bool, setting, warning: option(string))) =>
+    toggle_named("", ~tooltip, ~warning?, bool, _ =>
       globals.inject_global(Set(setting))
     );
   div_c(
@@ -42,16 +42,23 @@ let semantics_group = (~globals) => {
     ~globals,
     "Semantics",
     [
-      ("τ", "Types", globals.settings.core.statics, Statics),
-      ("⇲", "Completion", globals.settings.core.assist, Assist),
-      ("𝛿", "Evaluation", globals.settings.core.dynamics, Dynamics),
+      ("τ", "Types", globals.settings.core.statics, Statics, None),
+      ("⇲", "Completion", globals.settings.core.assist, Assist, None),
+      ("𝛿", "Evaluation", globals.settings.core.dynamics, Dynamics, None),
+      (
+        "?",
+        "Docs",
+        globals.settings.sidebar.show,
+        Sidebar(ToggleShow),
+        None,
+      ),
       (
         "🔄",
         "Dynamic Feedback",
         globals.settings.core.dynamic_feedback,
         DynamicFeedback,
+        Some("May slow down editor performance"),
       ),
-      ("?", "Docs", globals.settings.sidebar.show, Sidebar(ToggleShow)),
       // (
       //   "👍",
       //   "Feedback",
@@ -68,10 +75,10 @@ let values_group = (~globals: Globals.t) => {
     ~globals,
     "Value Display",
     [
-      ("λ", "Functions", s.show_fn_bodies, Evaluation(ShowFnBodies)),
-      ("|", "Cases", s.show_case_clauses, Evaluation(ShowCaseClauses)),
-      ("f", "Fixpoints", s.show_fixpoints, Evaluation(ShowFixpoints)),
-      ("☰", "Tables", s.project_tables, Evaluation(ProjectTables)),
+      ("λ", "Functions", s.show_fn_bodies, Evaluation(ShowFnBodies), None),
+      ("|", "Cases", s.show_case_clauses, Evaluation(ShowCaseClauses), None),
+      ("f", "Fixpoints", s.show_fixpoints, Evaluation(ShowFixpoints), None),
+      ("☰", "Tables", s.project_tables, Evaluation(ProjectTables), None),
     ],
   );
 };
@@ -82,30 +89,40 @@ let stepper_group = (~globals: Globals.t) => {
     ~globals,
     "Stepper",
     [
-      ("🔍", "Show lookups", s.show_lookup_steps, Evaluation(ShowLookups)),
+      (
+        "🔍",
+        "Show lookups",
+        s.show_lookup_steps,
+        Evaluation(ShowLookups),
+        None,
+      ),
       (
         "🤫",
         "Show hidden",
         s.show_hidden_steps,
         Evaluation(ShowHiddenSteps),
+        None,
       ),
       (
         "⏯️",
         "Show filters",
         s.show_stepper_filters,
         Evaluation(ShowFilters),
+        None,
       ),
       (
         "⇨",
         "Show Ascription Steps",
         s.show_ascription_steps,
         Evaluation(ShowAscriptionSteps),
+        None,
       ),
       (
         "π",
         "Proof Steps (experimental)",
         s.enable_proof,
         Evaluation(EnableProof),
+        None,
       ),
     ],
   );
@@ -116,14 +133,27 @@ let dev_group = (~globals) => {
     ~globals,
     "Developer",
     [
-      ("✓", "Benchmarks", globals.settings.benchmark, Benchmark),
-      ("𝑒", "Elaboration", globals.settings.core.elaborate, Elaborate),
-      ("↵", "Whitespace", globals.settings.secondary_icons, SecondaryIcons),
+      ("✓", "Benchmarks", globals.settings.benchmark, Benchmark, None),
+      (
+        "𝑒",
+        "Elaboration",
+        globals.settings.core.elaborate,
+        Elaborate,
+        None,
+      ),
+      (
+        "↵",
+        "Whitespace",
+        globals.settings.secondary_icons,
+        SecondaryIcons,
+        None,
+      ),
       (
         "a",
         "Animations",
         globals.settings.core.flip_animations,
         FlipAnimations,
+        None,
       ),
     ],
   );
