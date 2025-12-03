@@ -138,12 +138,22 @@ module View = {
         ~segment,
         ~shape_map,
       );
-    let statics_decos =
+    let error_decos =
       Arms.Errors.of_ids(
         ~font_metrics=globals.font_metrics,
         ~syntax=model.editor.syntax,
-        model.statics.error_ids @ model.statics.warning_ids,
+        model.statics.error_ids,
       );
-    div_c("code-container", [code_text_view, statics_decos] @ overlays);
+    let warning_decos =
+      Arms.Errors.of_ids(
+        ~is_warning=true,
+        ~font_metrics=globals.font_metrics,
+        ~syntax=model.editor.syntax,
+        model.statics.warning_ids,
+      );
+    div_c(
+      "code-container",
+      [code_text_view, error_decos, warning_decos] @ overlays,
+    );
   };
 };

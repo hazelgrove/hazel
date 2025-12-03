@@ -209,7 +209,8 @@ svg.shard.selected > path {
   stroke: var(--shard-selected);
 }
 
-.errors .errors-piece svg.shard {
+.errors .errors-piece svg.shard,
+.warnings .warnings-piece svg.shard {
   z-index: var(--err-hole-z);
   filter: none;
 }
@@ -224,14 +225,14 @@ svg.shard.selected > path {
   fill: var(--error-hole-fill);
 }
 
-.warnings svg.shard.error > path,
-.warnings .errors-piece svg .child-line {
+.warnings .warnings-piece svg.shard > path,
+.warnings .warnings-piece svg .child-line {
   stroke: var(--warning-hole-stroke);
   stroke-width: 0.75px;
   stroke-dasharray: 1, 1;
   stroke-linecap: butt;
 }
-.warnings svg.shard.error > path {
+.warnings .warnings-piece svg.shard > path {
   fill: var(--warning-hole-fill);
 }
 
