@@ -175,13 +175,14 @@ module Update = {
         );
       Model.Exercises(m');
     | (Projects(action), Projects(m)) =>
+      let schedule_action = (a: ProjectMode.Update.t) =>
+        schedule_action(Projects(a));
       let* m' =
         ProjectMode.Update.update(
-          ~settings=globals.settings,
-          ~globals,
-          ~schedule_action=a => schedule_action(Projects(a)),
+          globals.settings,
           action,
           m,
+          schedule_action,
         );
       Model.Projects(m');
     | (Projects(_), Scratch(_))

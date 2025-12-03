@@ -36,36 +36,85 @@ let unparenthesize = (piece: piece): segment =>
   };
 
 let rec segment_to_string =
-        (~holes=" ", ~concave_holes=" ", ~projector_to_segment, seg: segment)
+        (
+          ~holes=" ",
+          ~concave_holes=" ",
+          ~special_folds=false,
+          ~projector_to_segment,
+          seg: segment,
+        )
         : string =>
   seg
   |> List.map(
-       piece_to_string(~holes, ~concave_holes, ~projector_to_segment),
+       piece_to_string(
+         ~holes,
+         ~concave_holes,
+         ~projector_to_segment,
+         ~special_folds,
+       ),
      )
   |> String.concat("")
 and piece_to_string =
-    (~holes: string, ~concave_holes: string, ~projector_to_segment, p: piece)
+    (
+      ~holes: string,
+      ~concave_holes: string,
+      ~projector_to_segment,
+      ~special_folds,
+      p: piece,
+    )
     : string =>
   switch (p) {
   | Tile(t) =>
-    tile_to_string(~holes, ~concave_holes, ~projector_to_segment, t)
+    tile_to_string(
+      ~holes,
+      ~concave_holes,
+      ~projector_to_segment,
+      ~special_folds,
+      t,
+    )
   | Grout({shape: Concave, _}) => concave_holes
   | Grout({shape: Convex, _}) => holes
   | Secondary(w) => Secondary.get_string(w.content)
   | Projector(p) =>
-    segment_to_string(
-      ~holes,
-      ~concave_holes,
-      ~projector_to_segment,
-      projector_to_segment(p),
-    )
+    if (special_folds) {
+      switch (p.kind) {
+      | ProjectorCore.Kind.Fold => "⋱"
+      | _ =>
+        segment_to_string(
+          ~holes,
+          ~concave_holes,
+          ~projector_to_segment,
+          ~special_folds,
+          projector_to_segment(p),
+        )
+      };
+    } else {
+      segment_to_string(
+        ~holes,
+        ~concave_holes,
+        ~projector_to_segment,
+        ~special_folds,
+        projector_to_segment(p),
+      );
+    }
   }
 and tile_to_string =
-    (~holes: string, ~concave_holes: string, ~projector_to_segment, t: tile)
+    (
+      ~holes: string,
+      ~concave_holes: string,
+      ~projector_to_segment,
+      ~special_folds,
+      t: tile,
+    )
     : string =>
   Aba.mk(t.shards, t.children)
   |> Aba.join(
        List.nth(t.label),
-       segment_to_string(~holes, ~concave_holes, ~projector_to_segment),
+       segment_to_string(
+         ~holes,
+         ~concave_holes,
+         ~projector_to_segment,
+         ~special_folds,
+       ),
      )
   |> String.concat("");

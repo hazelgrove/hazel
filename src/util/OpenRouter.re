@@ -3,21 +3,40 @@ open OptUtil.Syntax;
 open Sexplib.Std;
 open Ppx_yojson_conv_lib.Yojson_conv;
 
-module Message = {
+module Reply = {
   module Model = {
     [@deriving (show({with_path: false}), sexp, yojson)]
-    type tool_contents = {
-      tool_call_id: string,
-      name: string,
+    type usage = {
+      prompt_tokens: int,
+      completion_tokens: int,
+      total_tokens: int,
     };
 
+    [@deriving (show({with_path: false}), sexp, yojson)]
+    type tool_call = {
+      id: string,
+      name: string,
+      args: Json.t,
+    };
+
+    [@deriving (show({with_path: false}), sexp, yojson)]
+    type t = {
+      content: string,
+      tool_calls: list(tool_call),
+      usage,
+    };
+  };
+};
+
+module Message = {
+  module Model = {
     [@deriving (show({with_path: false}), sexp, yojson)]
     type role =
       | System
       | Developer
       | User
       | Assistant
-      | Tool(tool_contents);
+      | Tool(Reply.Model.tool_call);
 
     [@deriving (show({with_path: false}), sexp, yojson)]
     type t = {
@@ -37,12 +56,12 @@ module Message = {
 
     let json_of_message = (message: Model.t): Json.t =>
       switch (message.role) {
-      | Tool(tool_contents) =>
+      | Tool(tool_call) =>
         `Assoc([
           ("role", `String(string_of_role(message.role))),
           ("content", `String(message.content)),
-          ("tool_call_id", `String(tool_contents.tool_call_id)),
-          ("name", `String(tool_contents.name)),
+          ("tool_call_id", `String(tool_call.id)),
+          ("name", `String(tool_call.name)),
         ])
       | _ =>
         `Assoc([
@@ -68,8 +87,8 @@ module Message = {
       content,
     };
     let mk_tool_msg =
-        (content: string, tool_contents: Model.tool_contents): Model.t => {
-      role: Tool(tool_contents),
+        (content: string, tool_call: Reply.Model.tool_call): Model.t => {
+      role: Tool(tool_call),
       content,
     };
   };
@@ -151,31 +170,6 @@ module Payload = {
         | None => ("prompt", `Null)
         },
       ]);
-    };
-  };
-};
-
-module Reply = {
-  module Model = {
-    [@deriving (show({with_path: false}), sexp, yojson)]
-    type usage = {
-      prompt_tokens: int,
-      completion_tokens: int,
-      total_tokens: int,
-    };
-
-    [@deriving (show({with_path: false}), sexp, yojson)]
-    type tool_call = {
-      id: string,
-      name: string,
-      args: Json.t,
-    };
-
-    [@deriving (show({with_path: false}), sexp, yojson)]
-    type t = {
-      content: string,
-      tool_calls: list(tool_call),
-      usage,
     };
   };
 };
@@ -342,11 +336,11 @@ module AvailableLLMs = {
     };
 
     [@deriving (show({with_path: false}), sexp, yojson)]
-    type t = {data: list(llm_info)};
+    type t = list(llm_info);
   };
 
   module Utils = {
-    let get_models = (~key, ~handler): unit => {
+    let get_models = (~key: string, ~handler: option(Json.t) => unit): unit => {
       print_endline("API: GETting OpenRouter models");
       request(
         ~method=GET,
@@ -447,7 +441,7 @@ module AvailableLLMs = {
                   StringUtil.match(StringUtil.regexp("free"), model.name),
                 sorted,
               );
-            Some({data: free @ paid});
+            Some(free @ paid);
           | _ => None
           }
         | _ => None

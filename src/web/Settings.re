@@ -12,6 +12,7 @@ module Model = {
     benchmark: bool,
     explainThis: ExplainThisModel.Settings.t,
     sidebar: SidebarModel.Settings.t,
+    agent_globals: AgentGlobals.Model.t,
   };
 
   let init = {
@@ -49,6 +50,7 @@ module Model = {
       panel: LanguageDocumentation,
       show: true,
     },
+    agent_globals: AgentGlobals.init(),
   };
 
   let fix_instructor_mode = settings =>

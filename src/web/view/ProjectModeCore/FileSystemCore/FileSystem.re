@@ -134,7 +134,11 @@ module Utils = {
     let parts = String.split_on_char('/', path);
     if (List.length(parts) == 0) {
       [""];
-    } else if (List.hd(parts) == "") {
+    } else if (ListUtil.hd_opt(parts)
+               |> OptUtil.get_or_fail(
+                    "[FileSystem.Utils.path_of_string] Failed to get first part of path",
+                  )
+               == "") {
       List.tl(parts);
     } else {
       parts;

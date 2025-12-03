@@ -31,9 +31,18 @@ open Haz3lcore;
    - User
    - Tool
    - Developer
-
-
    */
+
+module Failure = {
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type t =
+    | Info(string);
+};
+
+module Result = {
+  include Result;
+  type t('success) = Result.t('success, Failure.t);
+};
 
 module Message = {
   module Model = {
@@ -44,8 +53,8 @@ module Message = {
 
     [@deriving (show({with_path: false}), sexp, yojson)]
     type tool_result_kind =
-      | ToolCall
-      | ToolResult;
+      | Success
+      | Failure;
 
     [@deriving (show({with_path: false}), sexp, yojson)]
     type system_kind =
@@ -154,7 +163,7 @@ module Message = {
     let mk_tool_result_message =
         (
           content: string,
-          tool_contents: OpenRouter.Message.Model.tool_contents,
+          tool_call: OpenRouter.Reply.Model.tool_call,
           tool_result_kind: Model.tool_result_kind,
         )
         : Model.t => {
@@ -168,9 +177,7 @@ module Message = {
         timestamp: JsUtil.timestamp(),
         role: System(ToolResult(tool_result_kind)),
         api_message:
-          Some(
-            OpenRouter.Message.Utils.mk_tool_msg(api_content, tool_contents),
-          ),
+          Some(OpenRouter.Message.Utils.mk_tool_msg(api_content, tool_call)),
         children: [],
         current_child: None,
       };
@@ -263,6 +270,12 @@ module Message = {
 
 module Chat = {
   module Model = {
+    [@deriving (show({with_path: false}), sexp, yojson)]
+    type context = {
+      agent_editor_view: Message.Model.t,
+      static_errors_info: Message.Model.t,
+    };
+
     // Chats are a tree of messages
     // The user can branch off from the current or past message and create threads
     // The current thread is made via linearizing the branch denoted by the current head
@@ -275,7 +288,8 @@ module Chat = {
       message_map: Id.Map.t(Message.Model.t),
       root: Id.t,
       agent_view: AgentContext.Model.t,
-      agent_workbench: AgentWorkbench.Model.t // The agent's todo lists/workbench associated with this chat
+      agent_workbench: AgentWorkbench.Model.t, // The agent's todo lists/workbench associated with this chat
+      context: option(context),
     };
   };
 
@@ -297,10 +311,11 @@ module Chat = {
         | None => messages
         | Some(child_id) =>
           let child_msg = find_message(child_id, chat);
-          go(child_msg, messages @ [msg]);
+          go(child_msg, messages @ [child_msg]);
         };
       };
-      go(find_message(chat.root, chat), []);
+      let root_msg = find_message(chat.root, chat);
+      go(find_message(chat.root, chat), [root_msg]);
     };
 
     let api_messages_of_messages =
@@ -312,7 +327,10 @@ module Chat = {
       // Calling linearize makes this a little costly
       // but it also keeps code safer rather than storing a current tail pointer
       let linear = linearize(chat);
-      List.hd(List.rev(linear));
+      ListUtil.hd_opt(List.rev(linear))
+      |> OptUtil.get_or_fail(
+           "[Chat.Utils.current_tail] Failed to get current tail",
+         );
     };
 
     let update_message = (message: Message.Model.t, chat: Model.t): Model.t => {
@@ -326,8 +344,17 @@ module Chat = {
       // Inserts a new message at the current tail of the chat
 
       // Add new message's id to the current tail message's children
+      print_endline("[Chat.Utils.append] Adding new message to the chat");
       let tail_msg = current_tail(chat);
+      print_endline(
+        "[Chat.Utils.append] Current tail message: "
+        ++ Message.Model.show(tail_msg),
+      );
       let updated_tail_msg = Message.Utils.add_child(tail_msg, new_msg.id);
+      print_endline(
+        "[Chat.Utils.append] Updated tail message: "
+        ++ Message.Model.show(updated_tail_msg),
+      );
       let updated_chat = update_message(updated_tail_msg, chat);
 
       // Add the new message to the chat
@@ -353,7 +380,34 @@ module Chat = {
       update_message(updated_fork_msg, chat);
     };
 
+    let update_context =
+        (
+          agent_editor_view: Message.Model.t,
+          static_errors_info: Message.Model.t,
+          chat: Model.t,
+        )
+        : Model.t => {
+      {
+        ...chat,
+        context:
+          Some({
+            agent_editor_view,
+            static_errors_info,
+          }),
+      };
+    };
+
+    let get = (chat: Model.t): list(Message.Model.t) => {
+      let linear = linearize(chat);
+      switch (chat.context) {
+      | Some(context) =>
+        linear @ [context.agent_editor_view, context.static_errors_info]
+      | None => linear
+      };
+    };
+
     let init = (~system_prompt: string, ~dev_notes: string): Model.t => {
+      print_endline("[Chat.Utils.init] Initializing chat");
       let system_prompt = Message.Utils.mk_prompt_message(system_prompt);
       let chat: Model.t = {
         id: Id.mk(),
@@ -362,9 +416,20 @@ module Chat = {
         root: system_prompt.id,
         agent_view: AgentContext.Utils.init(),
         agent_workbench: AgentWorkbench.Utils.MainUtils.init(),
+        context: None,
       };
+      print_endline("[Chat.Utils.init] Created system prompt");
       let dev_notes = Message.Utils.mk_developer_notes_message(dev_notes);
-      append(dev_notes, chat);
+      let chat = append(dev_notes, chat);
+      print_endline("[Chat.Utils.init] Appended dev notes");
+      print_endline(
+        "[Chat.Utils.init] Debugging via printing current messages and message map",
+      );
+      print_endline(
+        "[Chat.Utils.init] Current messages: "
+        ++ String.concat("\n", List.map(Message.Model.show, get(chat))),
+      );
+      chat;
     };
   };
 
@@ -375,39 +440,47 @@ module Chat = {
         | AppendMessage(Message.Model.t)
         | SwitchBranch(Id.t, Id.t)
         | BranchOff(Id.t, Message.Model.t)
-        | AgentViewAction(AgentContext.Update.action)
-        | WorkbenchAction(AgentWorkbench.Update.Action.action);
+        | AgentContextAction(AgentContext.Update.action)
+        | WorkbenchAction(AgentWorkbench.Update.Action.action)
+        | UpdateContext(Message.Model.t, Message.Model.t);
     };
 
-    let update = (action: Action.t, model: Model.t): Model.t => {
+    let update = (action: Action.t, model: Model.t): Result.t(Model.t) => {
       switch (action) {
-      | AppendMessage(message) => Utils.append(message, model)
+      | AppendMessage(message) => Ok(Utils.append(message, model))
       | SwitchBranch(fork_id, new_child_id) =>
-        Utils.switch_branch(~fork_id, ~new_child_id, model)
+        Ok(Utils.switch_branch(~fork_id, ~new_child_id, model))
       | BranchOff(fork_id, message) =>
         let truncated_model = Utils.truncate(fork_id, model);
         let branched_model = Utils.append(message, truncated_model);
-        branched_model;
-      | AgentViewAction(agent_view_action) => {
+        Ok(branched_model);
+      | AgentContextAction(agent_context_action) =>
+        Ok({
           ...model,
           agent_view:
-            AgentContext.Update.update(agent_view_action, model.agent_view),
-        }
-      | WorkbenchAction(workbench_action) => {
-          ...model,
-          agent_workbench: {
-            switch (
-              AgentWorkbench.Update.update(
-                ~model=model.agent_workbench,
-                ~action=workbench_action,
-              )
-            ) {
-            | AgentWorkbench.Update.Action.Success(updated_workbench) => updated_workbench
-            | AgentWorkbench.Update.Action.Failure(msg) =>
-              failwith("[Chat.Update] Failed to update workbench: " ++ msg)
-            };
-          },
-        }
+            AgentContext.Update.update(
+              agent_context_action,
+              model.agent_view,
+            ),
+        })
+      | WorkbenchAction(workbench_action) =>
+        let workbench =
+          AgentWorkbench.Update.update(
+            ~model=model.agent_workbench,
+            ~action=workbench_action,
+          );
+        switch (workbench) {
+        | Success(updated_workbench) =>
+          Ok({
+            ...model,
+            agent_workbench: updated_workbench,
+          })
+        | Failure(error) => Error(Failure.Info(error))
+        };
+      | UpdateContext(agent_editor_view, static_errors_info) =>
+        Ok(
+          Utils.update_context(agent_editor_view, static_errors_info, model),
+        )
       };
     };
   };
@@ -472,19 +545,25 @@ module ChatSystem = {
         | NewChat(string, string)
         | DeleteChat(Id.t)
         | ChatAction(Chat.Update.Action.t, Id.t);
+
+      [@deriving (show({with_path: false}), sexp, yojson)]
+      type result =
+        | Success(Model.t)
+        | Failure(string);
     };
 
-    let update = (action: Action.t, model: Model.t): Model.t => {
+    let update = (action: Action.t, model: Model.t): Result.t(Model.t) => {
       switch (action) {
-      | SwitchChat(chat_id) => Utils.switch_chat(chat_id, model)
+      | SwitchChat(chat_id) => Ok(Utils.switch_chat(chat_id, model))
       | NewChat(system_prompt, dev_notes) =>
-        Utils.new_chat(~system_prompt, ~dev_notes, model)
-      | DeleteChat(chat_id) => Utils.delete_chat(chat_id, model)
+        Ok(Utils.new_chat(~system_prompt, ~dev_notes, model))
+      | DeleteChat(chat_id) => Ok(Utils.delete_chat(chat_id, model))
       | ChatAction(chat_action, chat_id) =>
         switch (
           Chat.Update.update(chat_action, Utils.find_chat(chat_id, model))
         ) {
-        | updated_chat => Utils.update_chat(updated_chat, model)
+        | Ok(updated_chat) => Ok(Utils.update_chat(updated_chat, model))
+        | Error(error) => Error(error)
         }
       };
     };
@@ -503,17 +582,9 @@ module Agent = {
     };
 
     [@deriving (show({with_path: false}), sexp, yojson)]
-    type api_params = {
-      available_llms: list(OpenRouter.AvailableLLMs.Model.t),
-      llm_id: option(string),
-      api_key: option(string),
-    };
-
-    [@deriving (show({with_path: false}), sexp, yojson)]
     type t = {
       chat_system: ChatSystem.Model.t,
       prompting,
-      api_params,
     };
   };
 
@@ -541,13 +612,104 @@ module Agent = {
           system_prompt,
           dev_notes,
         },
-        api_params: {
-          available_llms: [],
-          // for adhoc testing, explicitly set
-          llm_id: None,
-          // for adhoc testing, explicitly set !WARNING: NEVER PUSH TO PRODUCTION WITH THIS SET!
-          api_key: None,
-        },
+      };
+    };
+  };
+
+  module ToolCallHandler = {
+    [@deriving (show({with_path: false}), sexp, yojson)]
+    type action = CompositionActions.action;
+
+    [@deriving (show({with_path: false}), sexp, yojson)]
+    type result =
+      | Success(Model.t, Updated.t(CellEditor.Model.t))
+      | Failure(string);
+
+    let update =
+        (
+          ~settings: Settings.t,
+          action: action,
+          agent: Model.t,
+          editor: CodeWithStatics.Model.t,
+          chat_id: Id.t,
+        )
+        : Result.t((Model.t, CodeWithStatics.Model.t)) => {
+      switch (action) {
+      | EditorAction(agent_editor_action) =>
+        let action = Action.AgentEditorAction(agent_editor_action);
+        let updated_editor =
+          Editor.Update.update(
+            ~settings=settings.core,
+            action,
+            editor.statics,
+            editor.dynamics,
+            editor.editor,
+          );
+        switch (updated_editor) {
+        | Ok(updated_editor) =>
+          Ok((
+            agent,
+            CodeWithStatics.Model.{
+              editor: updated_editor,
+              statics: editor.statics,
+              dynamics: editor.dynamics,
+            },
+          ))
+        | Error(err) =>
+          switch (err) {
+          | Action.Failure.Composition_action_failure(msg) =>
+            Error(Failure.Info(msg))
+          | _ =>
+            Error(
+              Failure.Info(
+                "Unknown error occured when trying to apply tool request to editor",
+              ),
+            )
+          }
+        };
+      | WorkbenchAction(workbench_action) =>
+        let action =
+          AgentWorkbench.Update.Action.BackendAction(workbench_action);
+        let chat_system =
+          ChatSystem.Update.update(
+            ChatSystem.Update.Action.ChatAction(
+              Chat.Update.Action.WorkbenchAction(action),
+              chat_id,
+            ),
+            agent.chat_system,
+          );
+        switch (chat_system) {
+        | Ok(updated_chat_system) =>
+          Ok((
+            {
+              ...agent,
+              chat_system: updated_chat_system,
+            },
+            editor,
+          ))
+        | Error(error) => Error(error)
+        };
+      | AgentContextAction(agent_context_action) =>
+        let action = agent_context_action;
+        let chat_system =
+          ChatSystem.Update.update(
+            ChatSystem.Update.Action.ChatAction(
+              Chat.Update.Action.AgentContextAction(action),
+              chat_id,
+            ),
+            agent.chat_system,
+          );
+        switch (chat_system) {
+        | Ok(updated_chat_system) =>
+          Ok((
+            {
+              ...agent,
+              chat_system: updated_chat_system,
+            },
+            editor,
+          ))
+        | Error(error) => Error(error)
+        };
       };
     };
   };
@@ -557,13 +719,9 @@ module Agent = {
       [@deriving (show({with_path: false}), sexp, yojson)]
       type t =
         | ChatSystemAction(ChatSystem.Update.Action.t)
-        | SendMessage(string, Id.t)
+        | SendMessage(Message.Model.t, Id.t)
         | HandleLLMResponse(OpenRouter.Reply.Model.t, Id.t);
     };
-
-    type result =
-      | Success(Model.t, CellEditor.Model.t)
-      | Failure(string);
 
     let send_llm_request =
         (
@@ -600,15 +758,15 @@ module Agent = {
 
     let send_message =
         (
-          content: string,
+          ~api_key: option(string),
+          ~llm_id: option(string),
+          new_message: Message.Model.t,
           chat_id: Id.t,
           model: Model.t,
-          editor: CellEditor.Model.t,
           schedule_action: Action.t => unit,
         )
-        : result => {
+        : Result.t(Model.t) => {
       let chat_system = model.chat_system;
-      let new_message = Message.Utils.mk_user_message(content);
       let chat_system =
         ChatSystem.Update.update(
           ChatSystem.Update.Action.ChatAction(
@@ -617,66 +775,83 @@ module Agent = {
           ),
           chat_system,
         );
-      switch (model.api_params.api_key, model.api_params.llm_id) {
+      switch (api_key, llm_id) {
       | (None, _) =>
         let api_failure_message =
           Message.Utils.mk_api_failure_message(
             "An API key is required. Please set an API key in the settings.",
           );
-        let updated_chat_system =
-          ChatSystem.Update.update(
-            ChatSystem.Update.Action.ChatAction(
-              AppendMessage(api_failure_message),
-              chat_id,
-            ),
-            chat_system,
-          );
-        Success(
-          {
-            ...model,
-            chat_system: updated_chat_system,
-          },
-          editor,
-        );
+        switch (chat_system) {
+        | Ok(chat_system) =>
+          switch (
+            ChatSystem.Update.update(
+              ChatSystem.Update.Action.ChatAction(
+                AppendMessage(api_failure_message),
+                chat_id,
+              ),
+              chat_system,
+            )
+          ) {
+          | Ok(chat_system) =>
+            Ok({
+              ...model,
+              chat_system,
+            })
+          | Error(error) => Error(error)
+          }
+        | Error(error) => Error(error)
+        };
       | (_, None) =>
         let api_failure_message =
           Message.Utils.mk_api_failure_message(
             "LLM ID is required. Please select an LLM in the settings.",
           );
-        let updated_chat_system =
-          ChatSystem.Update.update(
-            ChatSystem.Update.Action.ChatAction(
-              AppendMessage(api_failure_message),
-              chat_id,
-            ),
-            chat_system,
-          );
-        Success(
-          {
-            ...model,
-            chat_system: updated_chat_system,
-          },
-          editor,
-        );
+        switch (chat_system) {
+        | Ok(chat_system) =>
+          switch (
+            ChatSystem.Update.update(
+              ChatSystem.Update.Action.ChatAction(
+                AppendMessage(api_failure_message),
+                chat_id,
+              ),
+              chat_system,
+            )
+          ) {
+          | Ok(chat_system) =>
+            Ok({
+              ...model,
+              chat_system,
+            })
+          | Error(error) => Error(error)
+          }
+        | Error(error) => Error(error)
+        };
       | (Some(api_key), Some(llm_id)) =>
-        send_llm_request(
-          ~api_key,
-          ~payload=
-            OpenRouter.Payload.Utils.mk_default(
-              ~model_id=llm_id,
-              ~messages=
-                Chat.Utils.api_messages_of_messages(
-                  Chat.Utils.linearize(
-                    ChatSystem.Utils.find_chat(chat_id, chat_system),
+        switch (chat_system) {
+        | Ok(chat_system) =>
+          send_llm_request(
+            ~api_key,
+            ~payload=
+              OpenRouter.Payload.Utils.mk_default(
+                ~model_id=llm_id,
+                ~messages=
+                  Chat.Utils.api_messages_of_messages(
+                    Chat.Utils.get(
+                      ChatSystem.Utils.find_chat(chat_id, chat_system),
+                    ),
                   ),
-                ),
-              ~prompt=None,
-              ~tools=[],
-            ),
-          ~schedule_action,
-          ~chat_id,
-        );
-        Success(model, editor);
+                ~prompt=None,
+                ~tools=[],
+              ),
+            ~schedule_action,
+            ~chat_id,
+          );
+          Ok({
+            ...model,
+            chat_system,
+          });
+        | Error(error) => Error(error)
+        }
       };
     };
 
@@ -685,12 +860,14 @@ module Agent = {
           reply: OpenRouter.Reply.Model.t,
           chat_id: Id.t,
           model: Model.t,
-          editor: CellEditor.Model.t,
+          cell_editor: CellEditor.Model.t,
+          settings: Settings.t,
           schedule_action: Action.t => unit,
-        ) => {
-      let _ = schedule_action;
+        )
+        : (Model.t, Updated.t(CellEditor.Model.t)) => {
+      let tool_call = ListUtil.hd_opt(reply.tool_calls);
       let new_message = Message.Utils.mk_agent_message(reply.content);
-      let updated_chat_system =
+      let chat_system =
         ChatSystem.Update.update(
           ChatSystem.Update.Action.ChatAction(
             Chat.Update.Action.AppendMessage(new_message),
@@ -698,13 +875,124 @@ module Agent = {
           ),
           model.chat_system,
         );
-      Success(
-        {
+      switch (chat_system) {
+      | Ok(chat_system) =>
+        let model = {
           ...model,
-          chat_system: updated_chat_system,
-        },
-        editor,
-      );
+          chat_system,
+        };
+        switch (tool_call) {
+        | Some(tool_call) =>
+          switch (
+            CompositionUtils.Public.action_of(
+              ~tool_name=tool_call.name,
+              ~args=tool_call.args,
+            )
+          ) {
+          | Action(action) =>
+            switch (
+              ToolCallHandler.update(
+                ~settings,
+                action,
+                model,
+                cell_editor.editor,
+                chat_id,
+              )
+            ) {
+            | Ok((model, editor)) =>
+              let curr_chat =
+                ChatSystem.Utils.find_chat(chat_id, model.chat_system);
+              let agent_editor_view_string =
+                CompositionView.Public.print(
+                  editor.editor,
+                  curr_chat.agent_view,
+                );
+              let agent_editor_view_message =
+                Message.Utils.mk_agent_editor_view_message(
+                  agent_editor_view_string,
+                );
+              let static_errors_info_string =
+                ErrorPrint.all(
+                  Perform.mk_statics(editor.editor.state.zipper),
+                );
+              let static_errors_info_message =
+                Message.Utils.mk_static_errors_info_message(
+                  static_errors_info_string |> String.concat("\n"),
+                );
+              let chat_system =
+                ChatSystem.Update.update(
+                  ChatSystem.Update.Action.ChatAction(
+                    Chat.Update.Action.UpdateContext(
+                      agent_editor_view_message,
+                      static_errors_info_message,
+                    ),
+                    chat_id,
+                  ),
+                  model.chat_system,
+                );
+              schedule_action(
+                Action.SendMessage(
+                  Message.Utils.mk_tool_result_message(
+                    "Tool Call Applied Successfully.",
+                    tool_call,
+                    Success,
+                  ),
+                  chat_id,
+                ),
+              );
+              switch (chat_system) {
+              | Ok(chat_system) => (
+                  {
+                    ...model,
+                    chat_system,
+                  },
+                  {
+                    ...cell_editor,
+                    editor,
+                  }
+                  |> Updated.return,
+                )
+              | Error(error) =>
+                failwith(
+                  switch (error) {
+                  | Failure.Info(msg) => msg
+                  },
+                )
+              };
+            | Error(error) =>
+              switch (error) {
+              | Failure.Info(msg) =>
+                schedule_action(
+                  Action.SendMessage(
+                    Message.Utils.mk_tool_result_message(
+                      msg,
+                      tool_call,
+                      Failure,
+                    ),
+                    chat_id,
+                  ),
+                );
+                (model, cell_editor |> Updated.return_quiet);
+              }
+            }
+          | Failure(msg) =>
+            schedule_action(
+              Action.SendMessage(
+                Message.Utils.mk_tool_result_message(msg, tool_call, Failure),
+                chat_id,
+              ),
+            );
+            (model, cell_editor |> Updated.return_quiet);
+          }
+        | None => (model, cell_editor |> Updated.return_quiet)
+        };
+      | Error(error) =>
+        failwith(
+          switch (error) {
+          | Failure.Info(msg) => msg
+          },
+        )
+      };
     };
 
     let update =
@@ -712,24 +1000,57 @@ module Agent = {
           action: Action.t,
           model: Model.t,
           editor: CellEditor.Model.t,
+          settings: Settings.t,
           schedule_action: Action.t => unit,
         )
-        : result => {
+        : (Model.t, Updated.t(CellEditor.Model.t)) => {
       switch (action) {
       | ChatSystemAction(chat_archive_action) =>
-        let updated_chat_system =
+        let chat_system =
           ChatSystem.Update.update(chat_archive_action, model.chat_system);
-        Success(
-          {
-            ...model,
-            chat_system: updated_chat_system,
-          },
-          editor,
-        );
-      | SendMessage(content, chat_id) =>
-        send_message(content, chat_id, model, editor, schedule_action)
+        switch (chat_system) {
+        | Ok(chat_system) => (
+            {
+              ...model,
+              chat_system,
+            },
+            editor |> Updated.return_quiet,
+          )
+        | Error(error) =>
+          failwith(
+            switch (error) {
+            | Failure.Info(msg) => msg
+            },
+          )
+        };
+      | SendMessage(message, chat_id) =>
+        switch (
+          send_message(
+            ~api_key=settings.agent_globals.api_key,
+            ~llm_id=AgentGlobals.get_active_llm_id(settings.agent_globals),
+            message,
+            chat_id,
+            model,
+            schedule_action,
+          )
+        ) {
+        | Ok(model) => (model, editor |> Updated.return_quiet)
+        | Error(error) =>
+          failwith(
+            switch (error) {
+            | Failure.Info(msg) => msg
+            },
+          )
+        }
       | HandleLLMResponse(reply, chat_id) =>
-        handle_llm_response(reply, chat_id, model, editor, schedule_action)
+        handle_llm_response(
+          reply,
+          chat_id,
+          model,
+          editor,
+          settings,
+          schedule_action,
+        )
       };
     };
   };

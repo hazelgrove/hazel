@@ -157,9 +157,9 @@ module Update = {
 
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t =
-    | CellAction(CellEditor.Update.t)
     | FileSystemAction(FileSystem.Update.t)
-    | ProjectMapAction(ProjectMapUpdate.t);
+    | ProjectMapAction(ProjectMapUpdate.t)
+    | Project(Project.Update.action, option(Id.t));
 
   let can_undo = (_action: t) => {
     true;
@@ -178,40 +178,39 @@ module Update = {
 
   let update =
       (
-        ~settings,
-        ~globals,
-        ~schedule_action: t => unit,
+        settings: Settings.t,
         action: t,
         model: Model.t,
+        schedule_action: t => unit,
       )
       : Updated.t(Model.t) => {
-    let _ = globals;
-    let _ = schedule_action;
     let curr_project = Utils.current_project(model);
     switch (action) {
-    | CellAction(a) =>
-      switch (FileSystem.Utils.current_file(curr_project.file_system)) {
-      | None => Updated.return_quiet(model)
-      | Some(file) =>
-        let* new_ed = CellEditor.Update.update(~settings, a, file.editor);
-        let new_file = {
-          ...file,
-          editor: new_ed,
-        };
-        let updated_file_system =
-          FileSystem.Utils.add_file_system(
-            file.path,
-            FileSystem.Model.File(new_file),
-            curr_project.file_system,
-          );
-        Utils.add_project(
-          model,
+    | Project(project_action, project_id) =>
+      // By passing the project_id, we allow the schedule_action to be scoped to
+      // asynchronously updating the specified project in particular,
+      // independent of whether the user changes projects or not.
+      let schedule_action = (a: Project.Update.action) =>
+        schedule_action(Project(a, project_id));
+      let project =
+        switch (
           {
-            ...curr_project,
-            file_system: updated_file_system,
-          },
+            open OptUtil.Syntax;
+            let* project_id = project_id;
+            Utils.find_project(project_id, model);
+          }
+        ) {
+        | None => curr_project
+        | Some(project) => project
+        };
+      let* project =
+        Project.Update.update(
+          project_action,
+          project,
+          settings,
+          schedule_action,
         );
-      }
+      Utils.add_project(model, project);
     | FileSystemAction(file_system_action) =>
       let* new_fs =
         FileSystem.Update.update(
@@ -261,26 +260,39 @@ module Update = {
           ~handler=
             r =>
               schedule_action(
-                CellAction(
-                  ResultAction(
-                    UpdateResult(
-                      switch (r |> List.hd |> snd) {
-                      | Ok((r, s)) =>
-                        Language.ProgramResult.ResultOk({
-                          result: r,
-                          state: s,
-                        })
-                      | Error(e) => Language.ProgramResult.ResultFail(e)
-                      },
+                Project(
+                  CellAction(
+                    ResultAction(
+                      UpdateResult(
+                        switch (
+                          r
+                          |> ListUtil.hd_opt
+                          |> OptUtil.get_or_fail(
+                               "[ProjectMode.Update.calculate] Failed to get result",
+                             )
+                          |> snd
+                        ) {
+                        | Ok((r, s)) =>
+                          Language.ProgramResult.ResultOk({
+                            result: r,
+                            state: s,
+                          })
+                        | Error(e) => Language.ProgramResult.ResultFail(e)
+                        },
+                      ),
                     ),
                   ),
+                  None,
                 ),
               ),
           ~timeout=
             _ =>
               schedule_action(
-                CellAction(
-                  ResultAction(UpdateResult(ResultFail(Timeout))),
+                Project(
+                  CellAction(
+                    ResultAction(UpdateResult(ResultFail(Timeout))),
+                  ),
+                  None,
                 ),
               ),
         )
@@ -328,7 +340,7 @@ module Selection = {
       | Some(file) =>
         let+ a =
           CellEditor.Selection.get_cursor_info(~selection, file.editor);
-        Update.CellAction(a);
+        Update.Project(CellAction(a), None);
       };
     | TextBox => empty
     };
@@ -345,7 +357,7 @@ module Selection = {
             Utils.current_project(model).file_system,
           );
         CellEditor.Selection.handle_key_event(~selection, ~event, file.editor)
-        |> Option.map(x => Update.CellAction(x));
+        |> Option.map(x => Update.Project(CellAction(x), None));
       }
     | TextBox => None
     };
@@ -356,6 +368,8 @@ module Selection = {
         Utils.current_project(model).file_system,
       );
     CellEditor.Selection.jump_to_tile(tile, file.editor)
-    |> Option.map(((x, y)) => (Update.CellAction(x), Cell(y)));
+    |> Option.map(((x, y)) =>
+         (Update.Project(CellAction(x), None), Cell(y))
+       );
   };
 };

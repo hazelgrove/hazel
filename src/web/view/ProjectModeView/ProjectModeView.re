@@ -33,7 +33,7 @@ let view =
           ~signal=
             fun
             | MakeActive(selection) => signal(MakeActive(Cell(selection))),
-          ~inject=a => inject(CellAction(a)),
+          ~inject=a => inject(Update.Project(CellAction(a), None)),
           ~selected=
             switch (selected) {
             | Some(Selection.Cell(s)) => Some(s)
