@@ -162,7 +162,11 @@ let request =
   debug ? Yojson.Safe.pp(Format.std_formatter, body) : ();
   let request = XmlHttpRequest.create();
   request##.onreadystatechange :=
-    Js.wrap_callback(_ => handler(receive(request)));
+    Js.wrap_callback(_ =>
+      if (request##.readyState == XmlHttpRequest.DONE) {
+        handler(receive(request));
+      }
+    );
   request##.withCredentials := with_credentials |> Js.bool;
   request##_open(
     method |> string_of_method |> Js.string,

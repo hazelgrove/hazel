@@ -187,7 +187,7 @@ let view =
                 ~explainThisModel,
                 info,
               )
-            | HelpfulAssistant => None // Todo: Large refactoring of agent architecture
+            | HelpfulAssistant => AgentView.view(~globals)
             },
           ],
         )

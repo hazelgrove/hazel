@@ -1,5 +1,4 @@
 open Util;
-open OptUtil.Syntax;
 open Haz3lcore;
 
 module Model = {
@@ -64,7 +63,7 @@ module Persistent = {
     current: path,
   };
 
-  let rec persist_file_tree = (ft: Model.file_tree): file_tree => {
+  let persist_file_tree = (ft: Model.file_tree): file_tree => {
     Maps.StringMap.map(
       fun
       | Model.File(file: Model.file) =>
@@ -90,7 +89,7 @@ module Persistent = {
     current: model.current,
   };
 
-  let rec unpersist_file_tree = (~settings, pft: file_tree): Model.file_tree => {
+  let unpersist_file_tree = (~settings, pft: file_tree): Model.file_tree => {
     Maps.StringMap.map(
       fun
       | File(p_file: file) =>
@@ -245,7 +244,6 @@ module Utils = {
 };
 
 module Update = {
-  open Updated;
   open Model;
 
   [@deriving (show({with_path: false}), sexp, yojson)]

@@ -72,7 +72,7 @@ module Update = {
   let update_global =
       (
         ~import_log,
-        ~schedule_action,
+        ~schedule_action: t => unit,
         ~globals: Globals.Model.t,
         action: Globals.Update.t,
         model: Model.t,
@@ -89,7 +89,10 @@ module Update = {
       |> Updated.return_quiet(~scroll_active=true)
     | Set(action) =>
       let* settings =
-        Settings.Update.update(~action, ~settings=model.globals.settings);
+        Settings.Update.update(
+          ~action, ~settings=model.globals.settings, ~schedule_action=a =>
+          schedule_action(Globals(Set(a)))
+        );
       {
         ...model,
         globals: {

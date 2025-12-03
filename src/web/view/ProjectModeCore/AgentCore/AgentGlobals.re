@@ -42,7 +42,8 @@ module Update = {
   type action =
     | SetApiKey(string)
     | SetActiveLlm(OpenRouter.AvailableLLMs.Model.llm_info)
-    | SetAvailableLLMs(OpenRouter.AvailableLLMs.Model.t);
+    | SetAvailableLLMs(OpenRouter.AvailableLLMs.Model.t)
+    | SwitchInterface(Model.screen);
 
   let update =
       (action: action, model: Model.t, schedule_action: action => unit)
@@ -50,7 +51,7 @@ module Update = {
     switch (action) {
     | SetApiKey(api_key) =>
       OpenRouter.AvailableLLMs.Utils.get_models(
-        ~key=api_key, ~handler=(response: option(API.Json.t)) => {
+        ~key=api_key, ~handler=response => {
         switch (response) {
         | Some(json) =>
           switch (
@@ -78,6 +79,10 @@ module Update = {
     | SetAvailableLLMs(available_llms) => {
         ...model,
         available_llms,
+      }
+    | SwitchInterface(screen) => {
+        ...model,
+        active_screen: screen,
       }
     };
   };

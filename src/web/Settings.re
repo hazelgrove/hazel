@@ -107,6 +107,7 @@ module Update = {
     | Evaluation(evaluation)
     | Sidebar(SidebarModel.Settings.action)
     | ExplainThis(ExplainThisModel.Settings.action)
+    | AgentGlobals(AgentGlobals.Update.action)
     | FlipAnimations;
 
   let can_undo = (action: t) => {
@@ -116,7 +117,9 @@ module Update = {
     };
   };
 
-  let update = (~action, ~settings: Model.t): Updated.t(Model.t) => {
+  let update =
+      (~action, ~settings: Model.t, ~schedule_action: t => unit)
+      : Updated.t(Model.t) => {
     (
       switch (action) {
       | Statics => {
@@ -276,6 +279,17 @@ module Update = {
       | InstructorMode => {
           ...settings, //TODO[Matt]: Make sure instructor mode actually makes prelude read-only
           instructor_mode: !settings.instructor_mode,
+        }
+      | AgentGlobals(agent_globals_action) =>
+        // AgentGlobals updates are handled at Page level with proper async scheduling
+        // This case should not be reached, but we include it for completeness
+        {
+          ...settings,
+          agent_globals:
+            AgentGlobals.Update.update(
+              agent_globals_action, settings.agent_globals, a =>
+              schedule_action(AgentGlobals(a))
+            ) // Dummy schedule_action - will be handled at Page level
         }
       }
     )

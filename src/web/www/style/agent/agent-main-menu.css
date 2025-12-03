@@ -1,0 +1,250 @@
+/* Agent Main Menu Styles */
+
+.agent-main-menu {
+  display: flex;
+  flex-direction: column;
+  gap: 2em;
+  padding: 1.5em;
+  height: 100%;
+  overflow-y: auto;
+  background-color: var(--ui-bkg);
+}
+
+.agent-main-menu-section {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75em;
+}
+
+.agent-main-menu-label {
+  font-size: 0.9em;
+  font-weight: bold;
+  color: var(--BR4);
+  margin-bottom: 0.25em;
+}
+
+.agent-main-menu-info {
+  font-size: 0.8em;
+  color: var(--STONE);
+  opacity: 0.8;
+  line-height: 1.4;
+}
+
+.agent-main-menu-info a {
+  color: var(--BR3);
+  text-decoration: underline;
+}
+
+.agent-main-menu-info a:hover {
+  color: var(--BR4);
+}
+
+/* API Key Container */
+.agent-api-key-container {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 0.75em;
+}
+
+/* API Key Button (Widgets.button_named) - text-only */
+.agent-main-menu .named-menu-item {
+  display: inline-flex;
+  align-items: center;
+  cursor: pointer;
+  padding: 0;
+  border-radius: 0;
+  background: none;
+  font-size: 0.75em;
+  color: var(--STONE);
+  transition: color 0.15s ease;
+}
+
+.agent-main-menu .named-menu-item:hover {
+  color: var(--BR3);
+}
+
+.agent-main-menu .named-menu-item:active {
+  color: var(--BR4);
+}
+
+/* API Key Input */
+.agent-api-key-input {
+  width: 100%;
+  padding: 0.5em 0.75em;
+  border-radius: 4px;
+  border: 0.6px solid var(--BR2);
+  background-color: var(--SAND);
+  color: var(--STONE);
+  font-family: var(--code-font);
+  font-size: 0.8em;
+  outline: none;
+  box-sizing: border-box;
+  white-space: nowrap;
+  overflow-x: auto;
+}
+
+.agent-api-key-input:hover {
+  border-color: var(--BR3);
+}
+
+.agent-api-key-input:focus {
+  border-color: var(--BR3);
+  outline: 0.6px solid var(--BR3);
+}
+
+.agent-api-key-input::placeholder {
+  color: var(--BR2);
+  opacity: 0.6;
+}
+
+/* LLM list container */
+.llm-list-container {
+  max-height: 20em;
+  border-radius: 4px;
+  border: 0.6px solid var(--BR2);
+  background-color: var(--T1);
+  overflow-y: auto;
+  box-sizing: border-box;
+  padding: 0.4em 0.2em;
+}
+
+.llm-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25em;
+}
+
+.llm-item {
+  padding: 0.4em 0.6em;
+  border-radius: 3px;
+  background-color: var(--T2);
+  color: var(--STONE);
+  cursor: pointer;
+  font-size: 0.8em;
+  transition: background-color 0.15s ease, border-color 0.15s ease;
+}
+
+.llm-item:hover {
+  background-color: var(--T3);
+}
+
+.llm-item.active {
+  border: 0.6px solid var(--BR3);
+  background-color: var(--T3);
+}
+
+.llm-name {
+  font-weight: 500;
+}
+
+.llm-pricing {
+  margin-top: 0.1em;
+  font-size: 0.75em;
+  color: var(--BR2);
+}
+
+.llm-empty {
+  font-size: 0.8em;
+  color: var(--BR2);
+  padding: 0.4em 0.6em;
+}
+
+.llm-current {
+  margin-top: 0.5em;
+  display: flex;
+  flex-direction: column;
+  gap: 0.1em;
+  font-size: 0.8em;
+  color: var(--STONE);
+}
+
+.llm-current-label {
+  font-size: 0.75em;
+  color: var(--BR3);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.llm-current-name {
+  font-weight: 500;
+}
+
+.llm-current-pricing {
+  font-size: 0.75em;
+  color: var(--BR2);
+}
+
+/* Confirm Settings Button */
+.confirm-settings-button-container {
+  display: flex;
+  justify-content: center;
+  margin-top: auto;
+  padding-top: 1em;
+}
+
+.confirm-settings-button {
+  display: inline-flex;
+  align-items: center;
+  cursor: pointer;
+  padding: 0;
+  border-radius: 0;
+  background: none;
+  font-size: 0.75em;
+  color: var(--STONE);
+  transition: color 0.15s ease;
+}
+
+.confirm-settings-button:hover {
+  color: var(--BR3);
+}
+
+.confirm-settings-button:active {
+  color: var(--BR4);
+}
+
+/* Chat Interface */
+.chat-interface-container {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  padding: 1.5em;
+  background-color: var(--ui-bkg);
+}
+
+.chat-interface-placeholder {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--STONE);
+  font-size: 0.9em;
+}
+
+.back-to-menu-button-container {
+  display: flex;
+  justify-content: center;
+  margin-top: auto;
+  padding-top: 1em;
+}
+
+.back-to-menu-button {
+  display: inline-flex;
+  align-items: center;
+  cursor: pointer;
+  padding: 0;
+  border-radius: 0;
+  background: none;
+  font-size: 0.75em;
+  color: var(--STONE);
+  transition: color 0.15s ease;
+}
+
+.back-to-menu-button:hover {
+  color: var(--BR3);
+}
+
+.back-to-menu-button:active {
+  color: var(--BR4);
+}
+
