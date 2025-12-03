@@ -25,7 +25,7 @@ let utility: ProjectorBase.utility = {
    * perf implications when there are lots of probes on the screen */
   let seg_to_string = Printer.of_segment(~holes="?", ~indent="");
   {
-    term_to_seg: term_to_seg(Inline.Compound),
+    term_to_seg: term_to_seg(Inline.Single), //TODO(andrew): hack, fix properly (Inline.Compount, or thread)
     seg_to_term,
     lift_syntax,
     seg_to_string,
