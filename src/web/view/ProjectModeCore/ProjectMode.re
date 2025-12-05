@@ -142,7 +142,7 @@ module Update = {
         ...project,
         name,
       };
-      Utils.add_project(model, renamed_project) |> Updated.return_quiet;
+      Utils.add_project(model, renamed_project) |> Updated.return;
     };
 
     let update = (action: t, model: Model.t): Updated.t(Model.t) => {

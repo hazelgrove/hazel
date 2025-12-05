@@ -416,7 +416,46 @@ module View = {
           if (is_input_field(elId)) {
             ();
           } else {
-            copy(cursor);
+            // Check if the target is within a system-message or agent-message
+            let el = Js.Unsafe.coerce(el);
+            let rec has_class_rec =
+                    (
+                      el: Js.t(Dom_html.element),
+                      class_name: string,
+                      depth: int,
+                    )
+                    : bool =>
+              if (depth > 5) {
+                false; // Prevent infinite recursion
+              } else {
+                let contains =
+                  el##.classList##contains(Js.string(class_name));
+                if (Js.to_bool(contains)) {
+                  true;
+                } else {
+                  switch (Js.Opt.to_option(el##.parentNode)) {
+                  | Some(parent_node) =>
+                    switch (
+                      Js.Opt.to_option(
+                        Dom_html.CoerceTo.element(parent_node),
+                      )
+                    ) {
+                    | Some(parent) =>
+                      has_class_rec(parent, class_name, depth + 1)
+                    | None => false
+                    }
+                  | None => false
+                  };
+                };
+              };
+            let has_class = (class_name: string) =>
+              has_class_rec(el, class_name, 0);
+            // If it's a system/agent message, allow default copy behavior
+            if (has_class("system-message") || has_class("agent-message")) {
+              ();
+            } else {
+              copy(cursor);
+            };
           };
         | None => ()
         };
@@ -569,11 +608,16 @@ module View = {
     let sidebar =
       Sidebar.view(
         ~globals,
-        ~explain_this_inject=action => inject(ExplainThis(action)),
+        ~explain_this_inject=
+          (action: ExplainThisUpdate.update) => inject(ExplainThis(action)),
         ~explainThisModel,
+        ~editors_inject=(a: Editors.Update.t) => inject(Editors(a)),
+        ~editors,
+        ~signal=
+          fun
+          | MakeActive(selection) => inject(MakeActive(selection)),
         cursor.info,
       );
-
     let editors_view =
       Editors.View.view(
         ~globals,

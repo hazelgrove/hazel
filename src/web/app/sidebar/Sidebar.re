@@ -171,6 +171,9 @@ let view =
       ~globals: Globals.t,
       ~explain_this_inject,
       ~explainThisModel: ExplainThisModel.t,
+      ~editors_inject,
+      ~editors: Editors.Model.t,
+      ~signal,
       info: option(Language.Info.t),
     ) => {
   let sub =
@@ -187,7 +190,8 @@ let view =
                 ~explainThisModel,
                 info,
               )
-            | HelpfulAssistant => AgentView.view(~globals)
+            | HelpfulAssistant =>
+              AgentView.view(~globals, ~editors_inject, ~editors, ~signal)
             },
           ],
         )

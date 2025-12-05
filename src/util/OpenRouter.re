@@ -23,7 +23,7 @@ module Reply = {
     type t = {
       content: string,
       tool_calls: list(tool_call),
-      usage,
+      usage: option(usage),
     };
   };
 };
@@ -117,7 +117,6 @@ module Payload = {
       tools: list(Json.t),
       stream: bool,
       messages: list(Message.Model.t),
-      prompt: option(string),
     };
   };
   module Utils = {
@@ -131,7 +130,6 @@ module Payload = {
         (
           ~model_id: string,
           ~messages: list(Message.Model.t),
-          ~prompt: option(string),
           ~tools: list(Json.t),
         )
         : Model.t => {
@@ -140,9 +138,8 @@ module Payload = {
       temperature: 0.9,
       top_p: 1.0,
       tools,
-      stream: false,
+      stream: true,
       messages,
-      prompt,
     };
 
     let mk_reasoning = (reasoning: Model.reasoning): Json.t =>
@@ -165,10 +162,6 @@ module Payload = {
           "messages",
           `List(List.map(Message.Utils.json_of_message, payload.messages)),
         ),
-        switch (payload.prompt) {
-        | Some(prompt) => ("prompt", `String(prompt))
-        | None => ("prompt", `Null)
-        },
       ]);
     };
   };
@@ -190,7 +183,9 @@ module Utils = {
   let chat =
       (~key: string, ~body: Json.t, ~handler: option(Json.t) => unit): unit => {
     print_endline("API: POSTing OpenRouter request");
-    request(
+    request_stream(
+      ~debug=true,
+      ~with_credentials=false,
       ~method=POST,
       ~url="https://openrouter.ai/api/v1/chat/completions",
       ~headers=[
@@ -198,7 +193,9 @@ module Utils = {
         ("Authorization", "Bearer " ++ key),
       ],
       ~body,
-      handler,
+      ~on_chunk=handler,
+      ~on_complete=() =>
+      ()
     );
   };
 
@@ -230,9 +227,12 @@ module Utils = {
   let first_message_content = (choices: Json.t): option(string) => {
     let* choices = Json.list(choices);
     let* hd = ListUtil.hd_opt(choices);
-    let* message = Json.dot("message", hd);
-
-    let* content = Json.dot("content", message);
+    let* delta =
+      switch (Json.dot("message", hd)) {
+      | Some(message) => Some(message)
+      | None => Json.dot("delta", hd)
+      };
+    let* content = Json.dot("content", delta);
     Json.str(content);
   };
 
@@ -299,7 +299,6 @@ module Utils = {
   let handle_chat =
       (~db: string => unit=ignore, response: option(Json.t))
       : option(Model.result) => {
-    db("OpenAI: Chat response:");
     Option.map(r => r |> Json.to_string |> db, response) |> ignore;
     let* json = response;
 
@@ -307,15 +306,19 @@ module Utils = {
     | Some(e) => Some(Model.Error(e))
     | None =>
       let* choices = Json.dot("choices", json);
-      let* usage = Json.dot("usage", json);
       let* content = first_message_content(choices);
       let tool_calls = parse_tool_calls(choices);
-      let+ usage = of_usage(usage);
-      Model.Reply({
-        content,
-        tool_calls,
-        usage,
-      });
+      let usage = {
+        let* usage = Json.dot("usage", json);
+        of_usage(usage);
+      };
+      Some(
+        Model.Reply({
+          content,
+          tool_calls,
+          usage,
+        }),
+      );
     };
   };
 };

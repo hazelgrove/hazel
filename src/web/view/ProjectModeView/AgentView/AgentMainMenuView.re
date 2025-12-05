@@ -6,7 +6,9 @@ open Js_of_ocaml;
 open Widgets;
 // open Icons;
 
-let view = (~globals: Globals.t): Node.t => {
+let view =
+    (~globals: Globals.t, ~signal: Editors.View.signal => Effect.t(unit))
+    : Node.t => {
   let agent_globals = globals.settings.agent_globals;
 
   let format_price_per_million = (price: string): string => {
@@ -134,6 +136,18 @@ let view = (~globals: Globals.t): Node.t => {
                   Attr.placeholder("Enter your OpenRouter API key"),
                   Attr.type_("password"),
                   Attr.property("autocomplete", Js.Unsafe.inject("off")),
+                  Attr.on_focus(_ => {
+                    Effect.Many([
+                      signal(
+                        Editors.View.MakeActive(
+                          Editors.Selection.Projects(
+                            ProjectMode.Selection.TextBox,
+                          ),
+                        ),
+                      ),
+                      Effect.Stop_propagation,
+                    ])
+                  }),
                   Attr.on_keydown(handle_api_key_keydown),
                   Attr.on_copy(_ => Effect.Stop_propagation),
                   Attr.on_paste(_ => Effect.Stop_propagation),

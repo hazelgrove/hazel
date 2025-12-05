@@ -1,0 +1,396 @@
+/* Chat Messages View Styles */
+
+.chat-messages-view {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  overflow: hidden;
+}
+
+.chat-messages-container {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: 1em;
+  display: flex;
+  flex-direction: column;
+  gap: 1em;
+}
+
+/* Message Container Base */
+.message-container {
+  display: flex;
+  width: 100%;
+}
+
+/* User Messages - Right aligned */
+.user-message-container {
+  justify-content: flex-end;
+}
+
+.user-message-wrapper {
+  max-width: 70%;
+  display: flex;
+  flex-direction: column;
+}
+
+.user-message-input-container {
+  position: relative;
+}
+
+.user-message-input {
+  padding: 0.6em 0.8em;
+  padding-right: 2.5em; /* Add padding for the send button */
+  border-radius: 8px;
+  border: 0.6px solid var(--BR2);
+  background-color: var(--T1);
+  color: var(--STONE);
+  font-family: var(--code-font);
+  font-size: 0.9em;
+  line-height: 1.4;
+  resize: none;
+  overflow-y: auto;
+  min-height: 2.5em;
+  max-height: 200px;
+  width: 100%;
+  box-sizing: border-box;
+  outline: none;
+  transition: border-color 0.15s ease, background-color 0.15s ease;
+}
+
+.user-message-input:hover {
+  border-color: var(--BR3);
+  background-color: var(--T2);
+}
+
+.user-message-input:focus {
+  border-color: var(--BR3);
+  background-color: var(--T2);
+  outline: 0.6px solid var(--BR3);
+}
+
+/* Agent Messages - Left aligned */
+.agent-message-container {
+  justify-content: flex-start;
+}
+
+.agent-message-wrapper {
+  max-width: 70%;
+  display: flex;
+  flex-direction: column;
+}
+
+.agent-message {
+  padding: 0.6em 0.8em;
+  border-radius: 8px;
+  background-color: var(--T2);
+  color: var(--STONE);
+  font-size: 0.9em;
+  line-height: 1.4;
+  word-wrap: break-word;
+  white-space: pre-wrap;
+  user-select: text;
+  -webkit-user-select: text;
+  -moz-user-select: text;
+  -ms-user-select: text;
+  cursor: text;
+}
+
+/* System Messages - Centered */
+.system-message-container {
+  justify-content: center;
+  align-items: center;
+}
+
+.system-message {
+  padding: 0.5em 0.8em;
+  border-radius: 6px;
+  background-color: var(--T1);
+  color: var(--BR2);
+  font-size: 0.85em;
+  line-height: 1.3;
+  word-wrap: break-word;
+  white-space: pre-wrap;
+  opacity: 0.7;
+  max-width: 80%;
+  text-align: center;
+  user-select: text;
+  -webkit-user-select: text;
+  -moz-user-select: text;
+  -ms-user-select: text;
+  cursor: text;
+}
+
+.system-message-container.error .system-message {
+  background-color: var(--ERRHOLE);
+  color: var(--R4);
+  opacity: 1;
+}
+
+/* Input Container at Bottom */
+.chat-input-container {
+  padding: 0.8em 1em;
+  border-top: 0.6px solid var(--BR2);
+  background-color: var(--ui-bkg);
+  display: flex;
+  align-items: flex-end;
+  gap: 0.5em;
+}
+
+.chat-message-input-container {
+  position: relative;
+  width: 100%;
+  max-width: 100%;
+}
+
+.chat-message-input {
+  width: 100%;
+  padding: 0.6em 0.8em;
+  padding-right: 2.5em; /* Add padding for the send button */
+  border-radius: 8px;
+  border: 0.6px solid var(--BR2);
+  background-color: var(--SAND);
+  color: var(--STONE);
+  font-family: var(--code-font);
+  font-size: 0.9em;
+  line-height: 1.4;
+  resize: none;
+  overflow-y: auto;
+  min-height: 2.5em;
+  max-height: 200px;
+  box-sizing: border-box;
+  outline: none;
+  transition: border-color 0.15s ease, background-color 0.15s ease;
+}
+
+.chat-message-input:hover {
+  border-color: var(--BR3);
+  background-color: var(--T1);
+}
+
+.chat-message-input:focus {
+  border-color: var(--BR3);
+  background-color: var(--T1);
+  outline: 0.6px solid var(--BR3);
+}
+
+.chat-message-input::placeholder {
+  color: var(--BR2);
+  opacity: 0.6;
+}
+
+/* Send Button - Small circular hollow button */
+.send-button {
+  width: 32px;
+  height: 32px;
+  border: 0.75px solid var(--BR3);
+  background-color: transparent;
+  border-radius: 50%;
+  cursor: pointer;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 0;
+  padding: 0;
+  fill: var(--STONE);
+}
+
+.send-button svg {
+  width: 16px;
+  height: 16px;
+}
+
+.send-button:hover {
+  background-color: var(--Y1);
+  border-color: var(--BR4);
+}
+
+.send-button:active {
+  background-color: var(--Y2);
+}
+
+.send-button-disabled {
+  width: 32px;
+  height: 32px;
+  border: 0.75px solid var(--BR2);
+  background-color: transparent;
+  border-radius: 50%;
+  cursor: not-allowed;
+  pointer-events: none;
+  opacity: 0.4;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 0;
+  padding: 0;
+  fill: var(--STONE);
+}
+
+.send-button-disabled svg {
+  width: 16px;
+  height: 16px;
+}
+
+.send-button-disabled:hover {
+  background-color: transparent;
+  box-shadow: none;
+}
+
+/* User message send button - positioned inside textarea, bottom right */
+.user-message-input-container .user-message-send-button {
+  position: absolute;
+  bottom: 0.6em;
+  right: 0.35em;
+  width: 24px;
+  height: 24px;
+  border: 0.75px solid var(--BR3);
+  background-color: var(--T1);
+  border-radius: 50%;
+  cursor: pointer;
+  display: none; /* Hidden by default */
+  align-items: center;
+  justify-content: center;
+  line-height: 0;
+  padding: 0;
+  fill: var(--STONE);
+  z-index: 10;
+  pointer-events: auto;
+}
+
+/* Show send button when textarea is focused */
+.user-message-input-container:focus-within .user-message-send-button {
+  display: flex;
+}
+
+.user-message-input-container .user-message-send-button svg {
+  width: 12px;
+  height: 12px;
+}
+
+.user-message-input-container .user-message-send-button:hover {
+  background-color: var(--Y1);
+  border-color: var(--BR4);
+}
+
+.user-message-input-container .user-message-send-button:active {
+  background-color: var(--Y2);
+}
+
+/* Chat message send button - positioned inside textarea, bottom right */
+.chat-message-input-container .chat-message-send-button {
+  position: absolute;
+  bottom: 0.6em;
+  right: 0.35em;
+  width: 24px;
+  height: 24px;
+  border: 0.75px solid var(--BR3);
+  background-color: var(--T1);
+  border-radius: 50%;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 0;
+  padding: 0;
+  fill: var(--STONE);
+  z-index: 10;
+  pointer-events: auto;
+}
+
+.chat-message-input-container .chat-message-send-button.send-button-disabled {
+  border: 0.75px solid var(--BR2);
+  background-color: transparent;
+  cursor: not-allowed;
+  pointer-events: none;
+  opacity: 0.4;
+}
+
+.chat-message-input-container .chat-message-send-button svg {
+  width: 12px;
+  height: 12px;
+}
+
+.chat-message-input-container .chat-message-send-button:hover {
+  background-color: var(--Y1);
+  border-color: var(--BR4);
+}
+
+.chat-message-input-container .chat-message-send-button:active {
+  background-color: var(--Y2);
+}
+
+/* View Buttons in Header */
+.chat-view-buttons {
+  display: flex;
+  gap: 0.5em;
+  align-items: center;
+}
+
+.chat-view-button {
+  padding: 0;
+  background: none;
+  border: none;
+  color: var(--STONE);
+  font-size: 0.85em;
+  cursor: pointer;
+  transition: color 0.15s ease, text-decoration 0.15s ease;
+  text-decoration: none;
+}
+
+.chat-view-button:hover {
+  color: var(--BR3);
+}
+
+.chat-view-button.active {
+  color: var(--BR4);
+  text-decoration: underline;
+  text-underline-offset: 0.3em;
+}
+
+/* Branch Navigation */
+.branch-navigation {
+  display: flex !important;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 0.5em;
+  margin-top: 0.15em;
+  padding: 0;
+  width: 100%;
+  align-self: flex-end; /* Align to the right */
+}
+
+.branch-nav-button {
+  cursor: pointer;
+  display: flex !important;
+  align-items: center;
+  justify-content: center;
+  line-height: 0;
+  padding: 0;
+  fill: var(--BR3);
+  opacity: 0.7;
+  transition: opacity 0.15s ease, fill 0.15s ease;
+  background: none;
+  border: none;
+  width: auto;
+  height: auto;
+}
+
+.branch-nav-button svg {
+  width: 10px;
+  height: 10px;
+  display: block;
+  fill: inherit;
+}
+
+.branch-nav-button:hover {
+  opacity: 1;
+  fill: var(--BR4);
+}
+
+.branch-nav-button:active {
+  opacity: 0.9;
+  fill: var(--BR4);
+}
+

@@ -180,6 +180,108 @@ let request =
   request##send(body |> Json.to_string |> Js.string |> Js.Opt.return);
 };
 
+/* Parse a single SSE line */
+let parse_sse_line = (line: string): option(Json.t) => {
+  let trimmed = String.trim(line);
+
+  /* Skip empty lines and comments (lines starting with ':') */
+  if (trimmed == "" || trimmed.[0] == ':') {
+    None;
+  } else if (String.starts_with(~prefix="data: ", trimmed)) {
+    let data_start = 6; /* Length of "data: " */
+    let data =
+      String.sub(trimmed, data_start, String.length(trimmed) - data_start);
+    let data = String.trim(data);
+
+    /* Check for stream end */
+    if (data == "[DONE]") {
+      None;
+    } else {
+      try(Some(Json.from_string(data))) {
+      | _ => None
+      };
+    };
+  } else {
+    None;
+  };
+};
+
+/* New streaming request handler */
+let request_stream =
+    (
+      ~debug=false,
+      ~with_credentials=false,
+      ~method: method,
+      ~url: string,
+      ~headers: list((string, string))=[],
+      ~body: Json.t=`Null,
+      ~on_chunk: option(Json.t) => unit,
+      ~on_complete: unit => unit,
+    )
+    : unit => {
+  debug ? Yojson.Safe.pp(Format.std_formatter, body) : ();
+  let request = XmlHttpRequest.create();
+
+  let processed_length = ref(0);
+
+  /* Handle progressive chunks */
+  request##.onreadystatechange :=
+    Js.wrap_callback(_ => {
+      switch (request##.readyState) {
+      | XmlHttpRequest.LOADING
+      | XmlHttpRequest.DONE =>
+        Js.Opt.case(
+          request##.responseText,
+          () => (),
+          responseText => {
+            let text = Js.to_string(responseText);
+            let new_text =
+              String.sub(
+                text,
+                processed_length^,
+                String.length(text) - processed_length^,
+              );
+            processed_length := String.length(text);
+
+            /* Process each line */
+            let lines = String.split_on_char('\n', new_text);
+            List.iter(
+              line => {
+                switch (parse_sse_line(line)) {
+                | Some(json) => on_chunk(Some(json))
+                | None => ()
+                }
+              },
+              lines,
+            );
+
+            /* Call on_complete when done */
+            if (request##.readyState == XmlHttpRequest.DONE) {
+              on_complete();
+            };
+          },
+        )
+      | _ => ()
+      }
+    });
+
+  request##.withCredentials := with_credentials |> Js.bool;
+  request##_open(
+    method |> string_of_method |> Js.string,
+    url |> Js.string,
+    true |> Js.bool,
+  );
+
+  List.iter(
+    ((key, value)) => {
+      request##setRequestHeader(Js.string(key), Js.string(value))
+    },
+    headers,
+  );
+
+  request##send(body |> Json.to_string |> Js.string |> Js.Opt.return);
+};
+
 let node_request =
     (
       ~debug=false,

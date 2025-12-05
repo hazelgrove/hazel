@@ -10,6 +10,8 @@
 @import "style/explainthis.css";
 @import "style/assistant.css";
 @import "style/agent/agent-main-menu.css";
+@import "style/agent/agent-chat.css";
+@import "style/agent/agent-chat-messages.css";
 @import "style/sidebar.css";
 @import "style/project.css";
 @import "style/exercise-mode.css";

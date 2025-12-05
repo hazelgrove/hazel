@@ -534,7 +534,7 @@ module Update = {
           expanded: !folder.expanded,
         };
         Utils.add_file_system(path, Model.Folder(updated_folder), model)
-        |> Updated.return_quiet;
+        |> Updated.return;
       | Some(Model.File(_)) =>
         failwith("Path is not a folder. Cannot toggle expansion on a file.")
       | None => failwith("Folder does not exist.")
