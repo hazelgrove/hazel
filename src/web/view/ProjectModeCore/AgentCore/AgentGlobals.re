@@ -18,15 +18,7 @@ module Model = {
 let init = (): Model.t => {
   active_screen: MainMenu,
   api_key: None,
-  active_llm:
-    Some({
-      id: "google/gemini-2.5-flash",
-      name: "Gemini 2.5 Flash",
-      pricing: {
-        prompt: "0.3",
-        completion: "2.5",
-      },
-    }),
+  active_llm: None,
   available_llms: [],
 };
 

@@ -151,7 +151,7 @@
   border: 0.6px solid var(--BR2);
   background-color: var(--SAND);
   color: var(--STONE);
-  font-family: var(--code-font);
+  /* font-family: var(--code-font); */
   font-size: 0.9em;
   line-height: 1.4;
   resize: none;
@@ -165,12 +165,12 @@
 
 .chat-message-input:hover {
   border-color: var(--BR3);
-  background-color: var(--T1);
+  background-color: var(--SAND);
 }
 
 .chat-message-input:focus {
   border-color: var(--BR3);
-  background-color: var(--T1);
+  background-color: var(--SAND);
   outline: 0.6px solid var(--BR3);
 }
 
@@ -202,12 +202,12 @@
 }
 
 .send-button:hover {
-  background-color: var(--Y1);
+  background-color: var(--T2);
   border-color: var(--BR4);
 }
 
 .send-button:active {
-  background-color: var(--Y2);
+  background-color: var(--T3);
 }
 
 .send-button-disabled {
@@ -270,12 +270,12 @@
 }
 
 .user-message-input-container .user-message-send-button:hover {
-  background-color: var(--Y1);
+  background-color: var(--T2);
   border-color: var(--BR4);
 }
 
 .user-message-input-container .user-message-send-button:active {
-  background-color: var(--Y2);
+  background-color: var(--T3);
 }
 
 /* Chat message send button - positioned inside textarea, bottom right */
@@ -313,12 +313,12 @@
 }
 
 .chat-message-input-container .chat-message-send-button:hover {
-  background-color: var(--Y1);
+  background-color: var(--T2);
   border-color: var(--BR4);
 }
 
 .chat-message-input-container .chat-message-send-button:active {
-  background-color: var(--Y2);
+  background-color: var(--T3);
 }
 
 /* View Buttons in Header */
@@ -392,5 +392,42 @@
 .branch-nav-button:active {
   opacity: 0.9;
   fill: var(--BR4);
+}
+
+/* Loading Dots Animation */
+.agent-message-loading-dots {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0.6em 0.8em;
+}
+
+.agent-message-loading-dots .dot {
+  width: 8px;
+  height: 8px;
+  background-color: var(--STONE);
+  border-radius: 50%;
+  animation: agent-dot-bounce 1.4s infinite ease-in-out both;
+}
+
+.agent-message-loading-dots .dot1 {
+  animation-delay: -0.32s;
+}
+
+.agent-message-loading-dots .dot2 {
+  animation-delay: -0.16s;
+}
+
+@keyframes agent-dot-bounce {
+  0%,
+  80%,
+  100% {
+    transform: scale(0.7);
+    opacity: 0.5;
+  }
+  40% {
+    transform: scale(1);
+    opacity: 1;
+  }
 }
 

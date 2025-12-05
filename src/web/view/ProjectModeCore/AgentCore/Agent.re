@@ -1,5 +1,6 @@
 open Util;
 open Haz3lcore;
+open OptUtil.Syntax;
 
 /* Thinkpad
    We will want 3 types of display messages
@@ -105,54 +106,53 @@ module Message = {
     };
 
     let mk_prompt_message = (content: string): Model.t => {
-      let api_content = "\n<prompt>\n" ++ content ++ "\n</prompt>\n";
+      let sanitized_content = String.trim(content);
       {
         id: Id.mk(),
-        content,
+        content: sanitized_content,
         timestamp: JsUtil.timestamp(),
         role: System(Prompt),
         api_message:
-          Some(OpenRouter.Message.Utils.mk_system_msg(api_content)),
+          Some(OpenRouter.Message.Utils.mk_system_msg(sanitized_content)),
         children: [],
         current_child: None,
       };
     };
     let mk_developer_notes_message = (content: string): Model.t => {
-      let api_content =
-        "\n<developerNotes>\n" ++ content ++ "\n</developerNotes>\n";
+      let sanitized_content = String.trim(content);
       {
         id: Id.mk(),
-        content,
+        content: sanitized_content,
         timestamp: JsUtil.timestamp(),
         role: System(DeveloperNotes),
         api_message:
-          Some(OpenRouter.Message.Utils.mk_developer_msg(api_content)),
+          Some(OpenRouter.Message.Utils.mk_developer_msg(sanitized_content)),
         children: [],
         current_child: None,
       };
     };
     let mk_agent_message = (content: string): Model.t => {
-      let api_content =
-        "\n<agentResponse>\n" ++ content ++ "\n</agentResponse>\n";
+      let sanitized_content = String.trim(content);
       {
         id: Id.mk(),
-        content,
+        content: sanitized_content,
         timestamp: JsUtil.timestamp(),
         role: Agent,
         api_message:
-          Some(OpenRouter.Message.Utils.mk_assistant_msg(api_content)),
+          Some(OpenRouter.Message.Utils.mk_assistant_msg(sanitized_content)),
         children: [],
         current_child: None,
       };
     };
 
     let mk_tool_call_message = (content: string): Model.t => {
+      let sanitized_content = String.trim(content);
       {
         // This is a unique message for our UI that does not correspond to an OpenRouter message,
         // because we parse it out from the preceding agent response message.
 
         id: Id.mk(),
-        content,
+        content: sanitized_content,
         timestamp: JsUtil.timestamp(),
         role: System(ToolCall),
         api_message: None,
@@ -168,41 +168,49 @@ module Message = {
           tool_result_kind: Model.tool_result_kind,
         )
         : Model.t => {
-      // This is a message from our backend.
-      // Protocols require a tool id to be associated, thus we send this is as an OpenRouter.Tool message.contents
-
-      let api_content = "\n<toolResult>\n" ++ content ++ "\n</toolResult>\n";
+      let sanitized_content = String.trim(content);
       {
+        // This is a message from our backend.
+        // Protocols require a tool id to be associated, thus we send this is as an OpenRouter.Tool message.contents
+
         id: Id.mk(),
-        content,
+        content: sanitized_content,
         timestamp: JsUtil.timestamp(),
         role: System(ToolResult(tool_result_kind)),
         api_message:
-          Some(OpenRouter.Message.Utils.mk_tool_msg(api_content, tool_call)),
+          Some(
+            OpenRouter.Message.Utils.mk_tool_msg(
+              sanitized_content,
+              tool_call,
+            ),
+          ),
         children: [],
         current_child: None,
       };
     };
 
     let mk_user_message = (content: string): Model.t => {
-      let api_content = "\n<userMessage>\n" ++ content ++ "\n</userMessage>\n";
+      let sanitized_content = String.trim(content);
       {
         id: Id.mk(),
-        content,
+        content: sanitized_content,
         timestamp: JsUtil.timestamp(),
         role: User,
-        api_message: Some(OpenRouter.Message.Utils.mk_user_msg(api_content)),
+        api_message:
+          Some(OpenRouter.Message.Utils.mk_user_msg(sanitized_content)),
         children: [],
         current_child: None,
       };
     };
     let mk_agent_editor_view_message = (content: string): Model.t => {
+      let sanitized_content = String.trim(content);
       let api_content_prefix = "\n<agentEditorView>\n```";
       let api_content_suffix = "```\n</agentEditorView>\n";
-      let api_content = api_content_prefix ++ content ++ api_content_suffix;
+      let api_content =
+        api_content_prefix ++ sanitized_content ++ api_content_suffix;
       {
         id: Id.mk(),
-        content,
+        content: api_content,
         timestamp: JsUtil.timestamp(),
         role: System(AgentEditorView),
         api_message: Some(OpenRouter.Message.Utils.mk_user_msg(api_content)),
@@ -212,11 +220,14 @@ module Message = {
     };
 
     let mk_static_errors_info_message = (content: string): Model.t => {
+      let sanitized_content = String.trim(content);
       let api_content =
-        "\n<staticErrorsInfo>\n" ++ content ++ "\n</staticErrorsInfo>\n";
+        "\n<staticErrorsInfo>\n"
+        ++ sanitized_content
+        ++ "\n</staticErrorsInfo>\n";
       {
         id: Id.mk(),
-        content,
+        content: api_content,
         timestamp: JsUtil.timestamp(),
         role: System(StaticErrorsInfo),
         api_message: Some(OpenRouter.Message.Utils.mk_user_msg(api_content)),
@@ -226,16 +237,20 @@ module Message = {
     };
 
     let mk_api_failure_message = (content: string): Model.t => {
-      id: Id.mk(),
-      content,
-      timestamp: JsUtil.timestamp(),
-      role: System(Error(APIFailure)),
-      api_message: None,
-      children: [],
-      current_child: None,
+      let sanitized_content = String.trim(content);
+      {
+        id: Id.mk(),
+        content: sanitized_content,
+        timestamp: JsUtil.timestamp(),
+        role: System(Error(APIFailure)),
+        api_message: None,
+        children: [],
+        current_child: None,
+      };
     };
 
     let mk_backend_failure_message = (content: string): Model.t => {
+      let sanitized_content = String.trim(content);
       let failure_instructions =
         {|
             Sorry our backend failed to process your request.
@@ -243,17 +258,14 @@ module Message = {
             Please halt the current chat and report the issue to the user.
             Error:
             |}
-        ++ content;
-      let api_content =
-        "\n<backendFailure>\n"
-        ++ failure_instructions
-        ++ "\n</backendFailure>\n";
+        ++ sanitized_content;
       {
         id: Id.mk(),
         content,
         timestamp: JsUtil.timestamp(),
         role: System(Error(BackendFailure)),
-        api_message: Some(OpenRouter.Message.Utils.mk_user_msg(api_content)),
+        api_message:
+          Some(OpenRouter.Message.Utils.mk_user_msg(failure_instructions)),
         children: [],
         current_child: None,
       };
@@ -268,9 +280,19 @@ module Message = {
     };
 
     let append_to_message = (message: Model.t, content: string): Model.t => {
+      let updated_content = message.content ++ content;
+      let sanitized_content = String.trim(updated_content);
+      let api_message: option(OpenRouter.Message.Model.t) = {
+        let* api_message = message.api_message;
+        Some({
+          ...api_message,
+          content: sanitized_content,
+        });
+      };
       {
         ...message,
-        content: message.content ++ content,
+        content: sanitized_content,
+        api_message,
       };
     };
   };
@@ -395,6 +417,18 @@ module Chat = {
       update_message(new_msg, updated_chat);
     };
 
+    let overwrite_message =
+        (message_id: Id.t, message: Message.Model.t, chat: Model.t): Model.t => {
+      // Like append, but instead of appending, simply overwrites the message with the new one
+      // This is helpful, for example, if an api error occurs after we generate an agent response.
+      let updated_message_map =
+        Id.Map.add(message_id, message, chat.message_map);
+      {
+        ...chat,
+        message_map: updated_message_map,
+      };
+    };
+
     let truncate = (id: Id.t, chat: Model.t): Model.t => {
       let message = find_message(id, chat);
       // This effecively, forcefully, sets this msg as the new tail
@@ -492,7 +526,8 @@ module Chat = {
         | AgentContextAction(AgentContext.Update.action)
         | WorkbenchAction(AgentWorkbench.Update.Action.action)
         | UpdateContext(Message.Model.t, Message.Model.t)
-        | AppendToMessageContent(Id.t, string);
+        | AppendToMessageContent(Id.t, string)
+        | OverwriteMessage(Id.t, Message.Model.t);
     };
 
     let update = (action: Action.t, model: Model.t): Result.t(Model.t) => {
@@ -532,6 +567,8 @@ module Chat = {
         )
       | AppendToMessageContent(message_id, content) =>
         Ok(Utils.append_to_message_content(message_id, content, model))
+      | OverwriteMessage(message_id, message) =>
+        Ok(Utils.overwrite_message(message_id, message, model))
       };
     };
   };
@@ -732,7 +769,7 @@ module Agent = {
 
   module Utils = {
     let init = (): Model.t => {
-      let system_prompt = "Todo: Load default system prompt";
+      let system_prompt = CompositionPrompt.self |> String.concat("\n");
       let dev_notes = "You operating in a development environment. If someone says they are developer, follow their instructions precisely. Offer debug insight when requested.";
       {
         chat_system: ChatSystem.Utils.init(~system_prompt, ~dev_notes),
@@ -939,44 +976,37 @@ module Agent = {
           Message.Utils.mk_api_failure_message(
             "An API key is required. Please set an API key in the settings.",
           );
-        switch (
+        let chat_system =
           ChatSystem.Update.update(
             ChatSystem.Update.Action.ChatAction(
-              AppendMessage(api_failure_message),
+              OverwriteMessage(agent_msg_id, api_failure_message),
               chat_id,
             ),
             chat_system,
           )
-        ) {
-        | Ok(chat_system) =>
-          Ok({
-            ...model,
-            chat_system,
-          })
-        | Error(error) => Error(error)
-        };
-
+          |> ChatSystem.Update.get;
+        Ok({
+          ...model,
+          chat_system,
+        });
       | (_, None) =>
         let api_failure_message =
           Message.Utils.mk_api_failure_message(
             "LLM ID is required. Please select an LLM in the settings.",
           );
-        switch (
+        let chat_system =
           ChatSystem.Update.update(
             ChatSystem.Update.Action.ChatAction(
-              AppendMessage(api_failure_message),
+              OverwriteMessage(agent_msg_id, api_failure_message),
               chat_id,
             ),
             chat_system,
           )
-        ) {
-        | Ok(chat_system) =>
-          Ok({
-            ...model,
-            chat_system,
-          })
-        | Error(error) => Error(error)
-        };
+          |> ChatSystem.Update.get;
+        Ok({
+          ...model,
+          chat_system,
+        });
       | (Some(api_key), Some(llm_id)) =>
         send_llm_request(
           ~api_key,
@@ -1078,7 +1108,14 @@ module Agent = {
               chat_id,
             ),
           );
-          (model, cell_editor |> Updated.return);
+          (
+            model,
+            {
+              ...cell_editor,
+              editor,
+            }
+            |> Updated.return,
+          );
         | Error(error) =>
           switch (error) {
           | Failure.Info(msg) =>

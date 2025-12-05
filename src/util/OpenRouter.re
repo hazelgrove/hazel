@@ -184,7 +184,7 @@ module Utils = {
       (~key: string, ~body: Json.t, ~handler: option(Json.t) => unit): unit => {
     print_endline("API: POSTing OpenRouter request");
     request_stream(
-      ~debug=true,
+      ~debug=false,
       ~with_credentials=false,
       ~method=POST,
       ~url="https://openrouter.ai/api/v1/chat/completions",
@@ -270,9 +270,13 @@ module Utils = {
     let tool_calls = {
       let* choices = Json.list(choices);
       let* hd = ListUtil.hd_opt(choices);
-      let* message = Json.dot("message", hd);
+      let* delta =
+        switch (Json.dot("message", hd)) {
+        | Some(message) => Some(message)
+        | None => Json.dot("delta", hd)
+        };
 
-      let* tool_calls = Json.dot("tool_calls", message);
+      let* tool_calls = Json.dot("tool_calls", delta);
       Json.list(tool_calls);
     };
 
@@ -305,9 +309,21 @@ module Utils = {
     switch (parse_errs(json)) {
     | Some(e) => Some(Model.Error(e))
     | None =>
-      let* choices = Json.dot("choices", json);
-      let* content = first_message_content(choices);
-      let tool_calls = parse_tool_calls(choices);
+      let content =
+        switch (
+          {
+            let* choices = Json.dot("choices", json);
+            first_message_content(choices);
+          }
+        ) {
+        | Some(content) => content
+        | None => ""
+        };
+      let tool_calls =
+        switch (Json.dot("choices", json)) {
+        | Some(choices) => parse_tool_calls(choices)
+        | None => []
+        };
       let usage = {
         let* usage = Json.dot("usage", json);
         of_usage(usage);

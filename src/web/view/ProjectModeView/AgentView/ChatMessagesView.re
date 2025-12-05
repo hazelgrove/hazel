@@ -212,8 +212,10 @@ let view =
   };
 
   // Render a message based on its role
+  let num_messages = List.length(messages);
   let render_message = (index: int, message: Agent.Message.Model.t) => {
     let branch_nav = render_branch_navigation(message);
+    let is_last_message = index == num_messages - 1;
     switch (message.role) {
     | Agent.Message.Model.User =>
       // User messages on the right, editable
@@ -326,16 +328,27 @@ let view =
       );
     | Agent.Message.Model.Agent =>
       // Agent messages on the left
+      let message_content =
+        if (message.content == "" && is_last_message) {
+          // Show loading dots animation only for the last message when content is empty
+          div(
+            ~attrs=[clss(["agent-message-loading-dots"])],
+            [
+              div(~attrs=[clss(["dot", "dot1"])], []),
+              div(~attrs=[clss(["dot", "dot2"])], []),
+              div(~attrs=[clss(["dot"])], []),
+            ],
+          );
+        } else {
+          div(~attrs=[clss(["agent-message"])], [text(message.content)]);
+        };
       div(
         ~attrs=[clss(["message-container", "agent-message-container"])],
         [
           div(
             ~attrs=[clss(["agent-message-wrapper"])],
             [
-              div(
-                ~attrs=[clss(["agent-message"])],
-                [text(message.content)],
-              ),
+              message_content,
               switch (branch_nav) {
               | Some(nav) => nav
               | None => div(~attrs=[], [])
@@ -343,7 +356,7 @@ let view =
             ],
           ),
         ],
-      )
+      );
     | Agent.Message.Model.System(system_kind) =>
       // System messages centered, greyed out (or red if error)
       let is_error =

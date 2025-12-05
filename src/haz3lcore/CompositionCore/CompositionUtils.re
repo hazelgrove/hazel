@@ -140,7 +140,8 @@ module Local = {
               WorkbenchAction(
                 CreateNewTask(
                   {
-                    AgentWorkbench.Utils.TaskUtils.json_to_task(args);
+                    let task_json = API.Json.Parsers.get_json(args, "task");
+                    AgentWorkbench.Utils.TaskUtils.json_to_task(task_json);
                   },
                 ),
               )
@@ -167,7 +168,13 @@ module Local = {
             | "add_new_subtask_to_active_task" =>
               WorkbenchAction(
                 AddNewSubtaskToActiveTask(
-                  AgentWorkbench.Utils.SubtaskUtils.json_to_subtask(args),
+                  {
+                    let subtask_json =
+                      API.Json.Parsers.get_json(args, "subtask");
+                    AgentWorkbench.Utils.SubtaskUtils.json_to_subtask(
+                      subtask_json,
+                    );
+                  },
                 ),
               )
             | "reorder_subtasks_in_active_task" =>
