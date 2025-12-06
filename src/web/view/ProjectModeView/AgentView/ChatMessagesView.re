@@ -3,7 +3,8 @@ open Node;
 open Util.WebUtil;
 open Util;
 open Js_of_ocaml;
-open Icons;
+
+open JsUtil;
 
 let _ = confirm; // Temporary. Silencing warnings from unused Icon open.
 
@@ -464,6 +465,11 @@ let view =
       div(
         ~attrs=[clss(["message-container", "user-message-container"])],
         [
+          // User identifier
+          div(
+            ~attrs=[clss(["message-identifier", "user-identifier"])],
+            [text("You")],
+          ),
           div(
             ~attrs=[clss(["user-message-wrapper"])],
             [
@@ -571,35 +577,82 @@ let view =
         ],
       );
     | Agent.ChunkedUIChat.Model.AgentResponseChunk(agent_chunk) =>
-      // Agent response chunk - display all content in a single block
+      // Agent response chunk - display messages linearly
       let is_last_chunk = index == num_chunks - 1;
-      let all_content_empty =
-        List.for_all(
-          (content: string) => content == "",
-          agent_chunk.agent_content,
-        );
-      let agent_content_display =
-        if (all_content_empty && is_last_chunk) {
-          // Show loading dots if last chunk and all content is empty
-          div(
-            ~attrs=[clss(["agent-message-loading-dots"])],
-            [
-              div(~attrs=[clss(["dot", "dot1"])], []),
-              div(~attrs=[clss(["dot", "dot2"])], []),
-              div(~attrs=[clss(["dot"])], []),
-            ],
-          );
+
+      // Render each message in the content list linearly
+      let linear_messages_display =
+        agent_chunk.content
+        |> List.map((msg: Agent.Message.Model.t) => {
+             switch (msg.role) {
+             | Agent =>
+               // Agent message content
+               if (msg.content == "" && is_last_chunk) {
+                 // Show loading dots if last chunk and content is empty
+                 div(
+                   ~attrs=[clss(["agent-message-loading-dots"])],
+                   [
+                     div(~attrs=[clss(["dot", "dot1"])], []),
+                     div(~attrs=[clss(["dot", "dot2"])], []),
+                     div(~attrs=[clss(["dot"])], []),
+                   ],
+                 );
+               } else if (msg.content != "") {
+                 div(
+                   ~attrs=[clss(["agent-message"])],
+                   [text(msg.content)],
+                 );
+               } else {
+                 div(~attrs=[], []);
+               }
+             | ToolResult(tool_call, success) =>
+               // Tool call message - display inline
+               let status_text = success ? "[success]" : "[failure]";
+               div(
+                 ~attrs=[clss(["agent-tool-call-inline"])],
+                 [
+                   div(
+                     ~attrs=[clss(["tool-call-display"])],
+                     [text(tool_call.name ++ " " ++ status_text)],
+                   ),
+                 ],
+               );
+             | _ => div(~attrs=[], [])
+             }
+           });
+
+      // Check if we should show loading dots (last chunk with all empty agent messages)
+      let has_loading_dots =
+        is_last_chunk
+        && List.for_all(
+             (msg: Agent.Message.Model.t) =>
+               switch (msg.role) {
+               | Agent => msg.content == ""
+               | _ => false
+               },
+             agent_chunk.content,
+           )
+        && List.length(agent_chunk.content) > 0;
+
+      let linear_display =
+        if (has_loading_dots) {
+          [
+            // Show loading dots if last chunk and all agent content is empty
+            div(
+              ~attrs=[clss(["agent-message-loading-dots"])],
+              [
+                div(~attrs=[clss(["dot", "dot1"])], []),
+                div(~attrs=[clss(["dot", "dot2"])], []),
+                div(~attrs=[clss(["dot"])], []),
+              ],
+            ),
+          ];
         } else {
-          // Join all agent content strings with double line breaks
-          let combined_content =
-            agent_chunk.agent_content
-            |> List.filter((s: string) => s != "")
-            |> String.concat("\n\n");
-          div(~attrs=[clss(["agent-message"])], [text(combined_content)]);
+          linear_messages_display;
         };
 
-      // Render tool calls - separated by double line breaks
-      let tool_calls_display =
+      // Render all tool calls at the end - separated by double line breaks
+      let tool_calls_summary_display =
         if (List.length(agent_chunk.tool_calls) > 0) {
           let tool_call_texts =
             agent_chunk.tool_calls
@@ -626,9 +679,14 @@ let view =
       div(
         ~attrs=[clss(["message-container", "agent-message-container"])],
         [
+          // Corylus identifier
+          div(
+            ~attrs=[clss(["message-identifier", "llm-identifier"])],
+            [Icons.corylus, text("Corylus")],
+          ),
           div(
             ~attrs=[clss(["agent-message-wrapper"])],
-            [agent_content_display, tool_calls_display],
+            linear_display @ [tool_calls_summary_display],
           ),
         ],
       );
@@ -706,6 +764,90 @@ let view =
     ]);
   };
 
+  // Export OpenRouter messages function
+  let export_chat = _ => {
+    let messages = Agent.Chat.Utils.get(current_chat);
+    let api_messages = Agent.Chat.Utils.api_messages_of_messages(messages);
+    let messages_json =
+      `List(
+        List.map(OpenRouter.Message.Utils.json_of_message, api_messages),
+      );
+    let filename =
+      StringUtil.sanitize_filename(current_chat.title)
+      ++ "_openrouter_"
+      ++ string_of_float(current_chat.created_at);
+    download_json(filename, messages_json);
+    Effect.Stop_propagation;
+  };
+
+  // Copy chat as human-readable text function with toast notification
+  let copy_chat = _ => {
+    let messages = Agent.Chat.Utils.get(current_chat);
+    // Filter out system messages (Prompt, DeveloperNotes, etc.) for user-facing view
+    let user_facing_messages =
+      List.filter(
+        (msg: Agent.Message.Model.t) =>
+          switch (msg.role) {
+          | Agent.Message.Model.System(_) => false
+          | _ => true
+          },
+        messages,
+      );
+    let format_message = (msg: Agent.Message.Model.t): string => {
+      switch (msg.role) {
+      | Agent.Message.Model.User => "User: " ++ msg.content ++ "\n\n"
+      | Agent.Message.Model.Agent => "LLM: " ++ msg.content ++ "\n\n"
+      | Agent.Message.Model.ToolResult(tool_call, success) =>
+        "Tool Call: "
+        ++ tool_call.name
+        ++ " "
+        ++ (success ? "[success]" : "[failure]")
+        ++ "\n\n"
+      | Agent.Message.Model.System(_) => ""
+      };
+    };
+    let formatted_text =
+      List.fold_left(
+        (acc, msg) => acc ++ format_message(msg),
+        "",
+        user_facing_messages,
+      );
+    // Copy using clipboard shim approach (same as JsUtil.copy but with execCommand copy)
+    JsUtil.focus_clipboard_shim();
+    Js.Opt.iter(
+      Dom_html.document##getElementById(Js.string("clipboard-shim")),
+      clipboard_shim_el => {
+        let clipboard_shim = Js.Unsafe.coerce(clipboard_shim_el);
+        clipboard_shim##.value := Js.string(formatted_text);
+        ignore(clipboard_shim##select);
+        // Execute copy command
+        ignore(
+          Dom_html.document##execCommand(
+            Js.string("copy"),
+            Js.bool(false),
+            Js.Opt.empty,
+          ),
+        );
+      },
+    );
+    // Show toast notification
+    Js.Opt.iter(
+      Dom_html.document##getElementById(Js.string("copy-toast")),
+      toast => {
+        toast##.classList##add(Js.string("show"));
+        ignore(
+          Dom_html.window##setTimeout(
+            Js.wrap_callback(() => {
+              toast##.classList##remove(Js.string("show"))
+            }),
+            2000.0,
+          ),
+        );
+      },
+    );
+    Effect.Stop_propagation;
+  };
+
   // Check current view and render appropriate view
   switch (current_chat.current_view) {
   | Agent.Chat.Model.Messages =>
@@ -713,6 +855,11 @@ let view =
     div(
       ~attrs=[clss(["chat-messages-view"])],
       [
+        // Toast notification for copy
+        div(
+          ~attrs=[clss(["copy-toast"]), Attr.id("copy-toast")],
+          [text("Copied!")],
+        ),
         // Chunks display area
         div(
           ~attrs=[clss(["chat-messages-container"])],
@@ -722,53 +869,81 @@ let view =
         div(
           ~attrs=[clss(["chat-input-container"])],
           [
-            // Action buttons row - above input, aligned to top left
+            // Action buttons row - above input, left side buttons and right side export
             div(
               ~attrs=[clss(["chat-action-buttons-row"])],
               [
-                // Prompt button
-                if (chunked_chat.prompt != "") {
-                  div(
-                    ~attrs=[
-                      clss(["chat-action-button", "icon"]),
-                      Attr.on_click(switch_to_prompt),
-                      Attr.title("View System Prompt"),
-                    ],
-                    [Icons.prompt],
-                  );
-                } else {
-                  div(~attrs=[], []);
-                },
-                // Dev Notes button
-                if (chunked_chat.developer_notes != "") {
-                  div(
-                    ~attrs=[
-                      clss(["chat-action-button", "icon"]),
-                      Attr.on_click(switch_to_dev_notes),
-                      Attr.title("View Developer Notes"),
-                    ],
-                    [Icons.wrench],
-                  );
-                } else {
-                  div(~attrs=[], []);
-                },
-                // Agent View button
+                // Left side buttons
                 div(
-                  ~attrs=[
-                    clss(["chat-action-button", "icon"]),
-                    Attr.on_click(switch_to_agent_view),
-                    Attr.title("View Agent Editor View"),
+                  ~attrs=[clss(["chat-action-buttons-left"])],
+                  [
+                    // Prompt button
+                    if (chunked_chat.prompt != "") {
+                      div(
+                        ~attrs=[
+                          clss(["chat-action-button", "icon"]),
+                          Attr.on_click(switch_to_prompt),
+                          Attr.title("View System Prompt"),
+                        ],
+                        [Icons.prompt],
+                      );
+                    } else {
+                      div(~attrs=[], []);
+                    },
+                    // Dev Notes button
+                    if (chunked_chat.developer_notes != "") {
+                      div(
+                        ~attrs=[
+                          clss(["chat-action-button", "icon"]),
+                          Attr.on_click(switch_to_dev_notes),
+                          Attr.title("View Developer Notes"),
+                        ],
+                        [Icons.wrench],
+                      );
+                    } else {
+                      div(~attrs=[], []);
+                    },
+                    // Agent View button
+                    div(
+                      ~attrs=[
+                        clss(["chat-action-button", "icon"]),
+                        Attr.on_click(switch_to_agent_view),
+                        Attr.title("View Agent Editor View"),
+                      ],
+                      [Icons.agent_view],
+                    ),
+                    // Static Errors button
+                    div(
+                      ~attrs=[
+                        clss(["chat-action-button", "icon"]),
+                        Attr.on_click(switch_to_static_errors),
+                        Attr.title("View Static Errors"),
+                      ],
+                      [Icons.error_info],
+                    ),
                   ],
-                  [Icons.agent_view],
                 ),
-                // Static Errors button
+                // Right side export and copy buttons
                 div(
-                  ~attrs=[
-                    clss(["chat-action-button", "icon"]),
-                    Attr.on_click(switch_to_static_errors),
-                    Attr.title("View Static Errors"),
+                  ~attrs=[clss(["chat-action-buttons-right"])],
+                  [
+                    div(
+                      ~attrs=[
+                        clss(["chat-action-button", "icon"]),
+                        Attr.on_click(export_chat),
+                        Attr.title("Export OpenRouter Messages (JSON)"),
+                      ],
+                      [Icons.export],
+                    ),
+                    div(
+                      ~attrs=[
+                        clss(["chat-action-button", "icon"]),
+                        Attr.on_click(copy_chat),
+                        Attr.title("Copy Chat (Human-readable)"),
+                      ],
+                      [Icons.copy],
+                    ),
                   ],
-                  [Icons.error_info],
                 ),
               ],
             ),

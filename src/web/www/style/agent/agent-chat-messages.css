@@ -22,7 +22,41 @@
 /* Message Container Base */
 .message-container {
   display: flex;
+  flex-direction: column;
   width: 100%;
+}
+
+/* Message Identifiers */
+.message-identifier {
+  font-size: 0.8em;
+  color: var(--STONE);
+  opacity: 0.7;
+  margin-bottom: 4px;
+  padding: 0 4px;
+  user-select: text;
+  -webkit-user-select: text;
+  -moz-user-select: text;
+  -ms-user-select: text;
+  cursor: text;
+}
+
+.llm-identifier {
+  display: flex;
+  align-items: center;
+  gap: 0.5em;
+}
+
+.llm-identifier svg {
+  width: 14px;
+  height: 14px;
+  fill: var(--STONE);
+  opacity: 0.7;
+}
+
+.user-identifier {
+  align-self: flex-end;
+  text-align: right;
+  padding: 0 10px;
 }
 
 /* User Messages - Full width */
@@ -145,8 +179,45 @@
   display: flex;
   flex-direction: row;
   align-items: center;
+  justify-content: space-between;
   gap: 0.75em;
   padding-bottom: 0.25em;
+}
+
+.chat-action-buttons-left {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 0.75em;
+}
+
+.chat-action-buttons-right {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 0.75em;
+}
+
+/* Toast notification for copy */
+.copy-toast {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  color: var(--GOLD);
+  font-size: 1.2em;
+  opacity: 0;
+  transition: opacity 0.3s ease;
+  pointer-events: none;
+  z-index: 10000;
+  background: none;
+  padding: 0;
+  border: none;
+  box-shadow: none;
+}
+
+.copy-toast.show {
+  opacity: 1;
 }
 
 .chat-action-button {
@@ -455,11 +526,21 @@
   margin-top: 0.5em;
 }
 
+.agent-tool-call-inline {
+  margin-top: 0.5em;
+  margin-bottom: 0.5em;
+}
+
 .tool-call-display {
   font-size: 0.75em;
   color: var(--BR2);
   opacity: 0.8;
   white-space: pre-wrap;
+  user-select: text;
+  -webkit-user-select: text;
+  -moz-user-select: text;
+  -ms-user-select: text;
+  cursor: text;
 }
 
 /* Prompt and Developer Notes Display */

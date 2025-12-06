@@ -99,69 +99,6 @@ let view =
     ]);
   };
 
-  // Sub-view handlers (Prompt, Dev Notes, Agent View, Static Errors)
-  let switch_to_prompt = _ => {
-    Effect.Many([
-      agent_inject(
-        Agent.Agent.Update.Action.ChatSystemAction(
-          Agent.ChatSystem.Update.Action.ChatAction(
-            Agent.Chat.Update.Action.SwitchView(Agent.Chat.Model.Prompt),
-            current_chat_id,
-          ),
-        ),
-      ),
-      Effect.Stop_propagation,
-    ]);
-  };
-
-  let switch_to_dev_notes = _ => {
-    Effect.Many([
-      agent_inject(
-        Agent.Agent.Update.Action.ChatSystemAction(
-          Agent.ChatSystem.Update.Action.ChatAction(
-            Agent.Chat.Update.Action.SwitchView(
-              Agent.Chat.Model.DeveloperNotes,
-            ),
-            current_chat_id,
-          ),
-        ),
-      ),
-      Effect.Stop_propagation,
-    ]);
-  };
-
-  let switch_to_agent_view = _ => {
-    Effect.Many([
-      agent_inject(
-        Agent.Agent.Update.Action.ChatSystemAction(
-          Agent.ChatSystem.Update.Action.ChatAction(
-            Agent.Chat.Update.Action.SwitchView(
-              Agent.Chat.Model.AgentEditorView,
-            ),
-            current_chat_id,
-          ),
-        ),
-      ),
-      Effect.Stop_propagation,
-    ]);
-  };
-
-  let switch_to_static_errors = _ => {
-    Effect.Many([
-      agent_inject(
-        Agent.Agent.Update.Action.ChatSystemAction(
-          Agent.ChatSystem.Update.Action.ChatAction(
-            Agent.Chat.Update.Action.SwitchView(
-              Agent.Chat.Model.StaticErrors,
-            ),
-            current_chat_id,
-          ),
-        ),
-      ),
-      Effect.Stop_propagation,
-    ]);
-  };
-
   div(
     ~attrs=[clss(["chat-view-container"])],
     [

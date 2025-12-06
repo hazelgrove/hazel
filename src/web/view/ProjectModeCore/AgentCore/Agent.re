@@ -575,7 +575,7 @@ module ChunkedUIChat = {
 
     [@deriving (show({with_path: false}), sexp, yojson)]
     type agent_response_chunk = {
-      agent_content: list(string),
+      content: list(Message.Model.t),
       agent_reasoning: list(string),
       tool_calls: list(tool_call_info_nugget),
       // add workbench info
@@ -607,7 +607,7 @@ module ChunkedUIChat = {
 
     let mk_agent_response_chunk = (message: Message.Model.t): Model.chunk => {
       AgentResponseChunk({
-        agent_content: [message.content],
+        content: [message],
         agent_reasoning: [],
         tool_calls: [],
       });
@@ -657,8 +657,7 @@ module ChunkedUIChat = {
             | AgentResponseChunk(agent_response_chunk) =>
               let agent_response_chunk = {
                 ...agent_response_chunk,
-                agent_content:
-                  agent_response_chunk.agent_content @ [message.content],
+                content: agent_response_chunk.content @ [message],
               };
               let log =
                 (acc_model.log |> List.rev |> List.tl |> List.rev)
@@ -711,6 +710,7 @@ module ChunkedUIChat = {
               switch (curr_last_chunk) {
               | AgentResponseChunk(agent_response_chunk) => {
                   ...agent_response_chunk,
+                  content: agent_response_chunk.content @ [message],
                   tool_calls:
                     agent_response_chunk.tool_calls @ [tool_call_info_nugget],
                 }
