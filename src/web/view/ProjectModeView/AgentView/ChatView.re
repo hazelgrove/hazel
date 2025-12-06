@@ -212,31 +212,59 @@ let view =
         // Within Chat screen, switch between ChatMessages and Workbench
         let current_chat =
           Agent.ChatSystem.Utils.find_chat(current_chat_id, chat_system);
-        switch (current_chat.current_view) {
-        | Agent.Chat.Model.Messages =>
-          ChatMessagesView.view(
-            ~globals,
-            ~agent_model,
-            ~agent_inject,
-            ~signal,
-          )
-        | Agent.Chat.Model.Workbench =>
-          div(
-            ~attrs=[clss(["chat-view-content"])],
-            [text("Workbench View (Coming Soon)")],
-          )
-        | Agent.Chat.Model.Prompt
-        | Agent.Chat.Model.DeveloperNotes
-        | Agent.Chat.Model.AgentEditorView
-        | Agent.Chat.Model.StaticErrors =>
-          // These views are handled within ChatMessagesView
-          ChatMessagesView.view(
-            ~globals,
-            ~agent_model,
-            ~agent_inject,
-            ~signal,
-          )
-        };
+        let chunked_chat = Agent.ChunkedUIChat.Utils.mk(current_chat);
+        // Content view (messages or workbench)
+        let content_view =
+          switch (current_chat.current_view) {
+          | Agent.Chat.Model.Messages =>
+            ChatMessagesView.view(
+              ~globals,
+              ~agent_model,
+              ~agent_inject,
+              ~signal,
+            )
+          | Agent.Chat.Model.Workbench =>
+            WorkbenchView.view(~globals, ~agent_model, ~agent_inject, ~signal)
+          | Agent.Chat.Model.Prompt
+          | Agent.Chat.Model.DeveloperNotes
+          | Agent.Chat.Model.AgentEditorView
+          | Agent.Chat.Model.StaticErrors =>
+            // These views are handled within ChatMessagesView
+            ChatMessagesView.view(
+              ~globals,
+              ~agent_model,
+              ~agent_inject,
+              ~signal,
+            )
+          };
+        // Shared bottom bar (only show for Messages and Workbench views)
+        let show_bottom_bar =
+          switch (current_chat.current_view) {
+          | Agent.Chat.Model.Messages
+          | Agent.Chat.Model.Workbench => true
+          | Agent.Chat.Model.Prompt
+          | Agent.Chat.Model.DeveloperNotes
+          | Agent.Chat.Model.AgentEditorView
+          | Agent.Chat.Model.StaticErrors => false
+          };
+        div(
+          ~attrs=[clss(["chat-view-content-with-bottom-bar"])],
+          [
+            content_view,
+            if (show_bottom_bar) {
+              ChatBottomBar.view(
+                ~globals,
+                ~agent_model,
+                ~agent_inject,
+                ~signal,
+                ~chunked_chat,
+                ~current_chat_id,
+              );
+            } else {
+              div(~attrs=[], []);
+            },
+          ],
+        );
       | Agent.ChatSystem.Model.History =>
         div(
           ~attrs=[clss(["chat-view-content", "history-view"])],

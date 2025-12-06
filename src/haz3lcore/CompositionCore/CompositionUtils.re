@@ -26,15 +26,15 @@ module Local = {
     EditTools.insert_before,
     // ViewTools.view_entire_definition, // No longer needed is this top-level refactor... this is done by default
     // ViewTools.view_context,
-    // WorkbenchTools.create_new_task,
-    // WorkbenchTools.set_active_task,
-    // WorkbenchTools.unset_active_task,
-    // WorkbenchTools.set_active_subtask,
-    // WorkbenchTools.unset_active_subtask,
-    // WorkbenchTools.mark_active_task_complete,
-    // WorkbenchTools.mark_active_task_incomplete,
-    // WorkbenchTools.mark_active_subtask_complete,
-    // WorkbenchTools.mark_active_subtask_incomplete,
+    WorkbenchTools.create_new_task,
+    WorkbenchTools.set_active_task,
+    WorkbenchTools.unset_active_task,
+    WorkbenchTools.set_active_subtask,
+    WorkbenchTools.unset_active_subtask,
+    WorkbenchTools.mark_active_task_complete,
+    WorkbenchTools.mark_active_task_incomplete,
+    WorkbenchTools.mark_active_subtask_complete,
+    WorkbenchTools.mark_active_subtask_incomplete,
   ];
 
   let get_string_arg = (~arg: option(string), ~fail_with: string) => {
@@ -140,19 +140,25 @@ module Local = {
               WorkbenchAction(
                 CreateNewTask(
                   {
-                    let task_json = API.Json.Parsers.get_json(args, "task");
+                    let task_json =
+                      switch (API.Json.dot("task", args)) {
+                      | Some(task_obj) =>
+                        // Format 1: nested in "task" field (from schema)
+                        task_obj
+                      | None =>
+                        // Format 2: direct format (LLM sends task object directly)
+                        args
+                      };
                     AgentWorkbench.Utils.TaskUtils.json_to_task(task_json);
                   },
                 ),
               )
             | "unset_active_task" => WorkbenchAction(UnsetActiveTask)
             | "set_active_task" =>
-              WorkbenchAction(SetActiveTask(get_string(args, "task_title")))
+              WorkbenchAction(SetActiveTask(get_string(args, "title")))
             | "unset_active_subtask" => WorkbenchAction(UnsetActiveSubtask)
             | "set_active_subtask" =>
-              WorkbenchAction(
-                SetActiveSubtask(get_string(args, "subtask_title")),
-              )
+              WorkbenchAction(SetActiveSubtask(get_string(args, "title")))
             | "mark_active_task_complete" =>
               WorkbenchAction(
                 MarkActiveTaskComplete(get_string(args, "summary")),

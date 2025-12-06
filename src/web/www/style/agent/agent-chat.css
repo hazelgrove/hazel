@@ -90,6 +90,26 @@
   padding: 1em;
 }
 
+/* Content with bottom bar - flex column layout */
+.chat-view-content-with-bottom-bar {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  overflow: hidden;
+  min-height: 0; /* Important for flex children */
+}
+
+.chat-view-content-with-bottom-bar > *:first-child {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+  min-height: 0; /* Important for flex children to shrink */
+}
+
+.chat-view-content-with-bottom-bar > *:last-child {
+  flex-shrink: 0; /* Bottom bar should not shrink */
+}
+
 /* History View */
 .history-view {
   display: flex;

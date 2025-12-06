@@ -112,7 +112,7 @@ module Persistent = {
 
   let unpersist = (~settings, p: t): Model.t => {
     file_tree: unpersist_file_tree(~settings, p.file_tree),
-    current: [""] /* TODO: Unpersist current file path, defaulting to root for now */,
+    current: p.current,
   };
 };
 
@@ -145,20 +145,21 @@ module Utils = {
   };
 
   let init = (): Model.t => {
+    // Initializes a new file system with the root folder as the current folder
+    // It also places a read_me.hz file in the root folder
     let root = "";
+    let root_project_folder: Model.folder = {
+      path: [root],
+      name: root,
+      children: [],
+      expanded: true,
+    };
     {
-      file_tree: {
-        let root_project_folder: Model.folder = {
-          path: [root],
-          name: root,
-          children: [],
-          expanded: true,
-        };
+      file_tree:
         Maps.StringMap.singleton(
           string_of_path([root]),
           Model.Folder(root_project_folder),
-        );
-      },
+        ),
       current: [root],
     };
   };
@@ -297,7 +298,9 @@ module Update = {
         });
       };
     | Some(File(_)) =>
-      Failure("Cannot add file to a file. Please select a folder.")
+      Failure(
+        "Cannot add file to a file. This indicates a bug, cause this code should be unreachable.",
+      )
     | None => Failure("Parent folder does not exist.")
     };
   };

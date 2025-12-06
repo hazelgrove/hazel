@@ -6,6 +6,7 @@
   height: 100%;
   overflow: hidden;
   position: relative; /* For absolute positioning of floating buttons */
+  min-height: 0; /* Important for flex children */
 }
 
 .chat-messages-container {
@@ -172,6 +173,7 @@
   display: flex;
   flex-direction: column;
   gap: 0.5em;
+  flex-shrink: 0; /* Prevent shrinking */
 }
 
 /* Action buttons row - above input */
@@ -218,6 +220,187 @@
 
 .copy-toast.show {
   opacity: 1;
+}
+
+/* Workbench View Styles */
+.workbench-view {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  overflow: hidden;
+  min-height: 0; /* Important for flex children */
+  position: relative;
+}
+
+.todo-archive-button-container {
+  display: flex;
+  justify-content: flex-start;
+  padding: 0.5em 1em;
+  border-bottom: 0.6px solid var(--BR2);
+  flex-shrink: 0;
+}
+
+.workbench-content {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+  min-height: 0; /* Important for flex children */
+}
+
+.no-todo-list {
+  padding: 2em 1em;
+  text-align: center;
+  color: var(--STONE);
+  opacity: 0.6;
+  font-size: 0.9em;
+}
+
+.todo-list-container {
+  padding: 1em;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5em;
+}
+
+.todo-list-title {
+  display: flex;
+  flex-direction: row;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.5em 0;
+  border-bottom: 0.6px solid var(--BR2);
+  margin-bottom: 0.5em;
+}
+
+.todo-list-title-left {
+  font-weight: 600;
+  color: var(--STONE);
+  font-size: 1em;
+}
+
+.todo-list-title-time {
+  font-size: 0.8em;
+  color: var(--BR2);
+}
+
+.todo-items {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5em;
+}
+
+.todo-item {
+  display: flex;
+  flex-direction: row;
+  align-items: flex-start;
+  gap: 0.75em;
+  padding: 0.75em;
+  border-radius: 6px;
+  background-color: var(--T1);
+  cursor: pointer;
+  transition: background-color 0.15s ease;
+}
+
+.todo-item:hover {
+  background-color: var(--T2);
+}
+
+.todo-item.expanded {
+  background-color: var(--T2);
+}
+
+.todo-status-icon {
+  flex-shrink: 0;
+  width: 20px;
+  height: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  fill: var(--STONE);
+  opacity: 0.5;
+  transition: opacity 0.15s ease, fill 0.15s ease;
+}
+
+.todo-status-icon.completed {
+  fill: var(--BR3);
+  opacity: 1;
+}
+
+.todo-status-icon.active-todo {
+  fill: var(--BR3);
+  opacity: 1;
+}
+
+.todo-item-content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5em;
+}
+
+.todo-item-title-row {
+  display: flex;
+  flex-direction: row;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.todo-item-title {
+  font-weight: 500;
+  color: var(--STONE);
+  font-size: 0.9em;
+}
+
+.todo-item-title-time {
+  font-size: 0.75em;
+  color: var(--BR2);
+}
+
+.todo-item-details {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75em;
+  padding-top: 0.5em;
+  border-top: 0.6px solid var(--BR2);
+}
+
+.todo-detail-header-row {
+  display: flex;
+  flex-direction: row;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.todo-detail-header {
+  font-weight: 600;
+  color: var(--STONE);
+  font-size: 0.85em;
+}
+
+.todo-detail-text {
+  color: var(--STONE);
+  font-size: 0.85em;
+  line-height: 1.4;
+  white-space: pre-wrap;
+}
+
+.todo-detail-section {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5em;
+}
+
+.todo-archive-menu {
+  position: absolute;
+  right: 0;
+  top: 0;
+  width: 300px;
+  height: 100%;
+  background-color: var(--ui-bkg);
+  border-left: 0.6px solid var(--BR2);
+  z-index: 1000;
+  display: flex;
+  flex-direction: column;
 }
 
 .chat-action-button {
@@ -439,7 +622,7 @@
 
 .chat-view-buttons {
   display: flex;
-  gap: 3.0em; /* Increased gap between Chat and Workbench */
+  gap: 1.5em; /* Increased gap between Chat and Workbench */
   align-items: center;
 }
 

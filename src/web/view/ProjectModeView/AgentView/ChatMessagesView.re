@@ -100,7 +100,7 @@ module ViewComponents = {
     );
   };
 
-  let agent_editor_view_component =
+  let context_view =
       (
         ~content: string,
         ~agent_inject: Agent.Agent.Update.Action.t => Effect.t(unit),
@@ -113,10 +113,7 @@ module ViewComponents = {
         div(
           ~attrs=[clss(["view-header"])],
           [
-            div(
-              ~attrs=[clss(["view-title"])],
-              [text("Agent Editor View")],
-            ),
+            div(~attrs=[clss(["view-title"])], [text("Agent Context")]),
             div(
               ~attrs=[
                 clss(["view-close-button", "icon"]),
@@ -142,51 +139,6 @@ module ViewComponents = {
         ),
         div(
           ~attrs=[clss(["view-content", "system-message"])],
-          [text(content)],
-        ),
-      ],
-    );
-  };
-
-  let static_errors_view =
-      (
-        ~content: string,
-        ~agent_inject: Agent.Agent.Update.Action.t => Effect.t(unit),
-        ~chat_id: Id.t,
-      )
-      : Node.t => {
-    div(
-      ~attrs=[clss(["full-screen-view"])],
-      [
-        div(
-          ~attrs=[clss(["view-header"])],
-          [
-            div(~attrs=[clss(["view-title"])], [text("Static Errors")]),
-            div(
-              ~attrs=[
-                clss(["view-close-button", "icon"]),
-                Attr.on_click(_ =>
-                  Effect.Many([
-                    agent_inject(
-                      Agent.Agent.Update.Action.ChatSystemAction(
-                        Agent.ChatSystem.Update.Action.ChatAction(
-                          Agent.Chat.Update.Action.SwitchView(
-                            Agent.Chat.Model.Messages,
-                          ),
-                          chat_id,
-                        ),
-                      ),
-                    ),
-                    Effect.Stop_propagation,
-                  ])
-                ),
-              ],
-              [Icons.cancel],
-            ),
-          ],
-        ),
-        div(
-          ~attrs=[clss(["view-content", "system-message", "error"])],
           [text(content)],
         ),
       ],
@@ -273,48 +225,6 @@ let view =
           Js.string(scroll_height > max_height ? "auto" : "hidden");
       },
     );
-  };
-
-  // Get current text box content from model
-  let current_text = chat_system.ui.current_text_box_content;
-
-  // Handle textarea input - Attr.on_input provides (event, string)
-  let handle_textarea_input = (_event, value: string) => {
-    JsUtil.delay(0.0, () => autosize_textarea("chat-message-input"));
-    Effect.Many([
-      agent_inject(
-        Agent.Agent.Update.Action.ChatSystemAction(
-          Agent.ChatSystem.Update.Action.SaveTextBoxContent(value),
-        ),
-      ),
-      Effect.Stop_propagation,
-    ]);
-  };
-
-  // Send message handler
-  let send_message = _ => {
-    let message_content = String.trim(current_text);
-    if (String.length(message_content) > 0) {
-      // Create user message
-      let user_message = Agent.Message.Utils.mk_user_message(message_content);
-      // Send the message and clear the text box
-      Effect.Many([
-        agent_inject(
-          Agent.Agent.Update.Action.SendMessage(
-            user_message,
-            current_chat_id,
-          ),
-        ),
-        agent_inject(
-          Agent.Agent.Update.Action.ChatSystemAction(
-            Agent.ChatSystem.Update.Action.SaveTextBoxContent(""),
-          ),
-        ),
-        Effect.Stop_propagation,
-      ]);
-    } else {
-      Effect.Stop_propagation;
-    };
   };
 
   // Send handler for editable user messages
@@ -596,78 +506,43 @@ let view =
       );
     | Agent.ChunkedUIChat.Model.AgentResponseChunk(agent_chunk) =>
       // Agent response chunk - display messages linearly
-      let is_last_chunk = index == num_chunks - 1;
-
       // Render each message in the content list linearly
+      // Filter out empty agent messages - don't display them at all
       let linear_messages_display =
         agent_chunk.content
-        |> List.map((msg: Agent.Message.Model.t) => {
+        |> List.filter_map((msg: Agent.Message.Model.t) => {
              switch (msg.role) {
              | Agent =>
-               // Agent message content
-               if (msg.content == "" && is_last_chunk) {
-                 // Show loading dots if last chunk and content is empty
-                 div(
-                   ~attrs=[clss(["agent-message-loading-dots"])],
-                   [
-                     div(~attrs=[clss(["dot", "dot1"])], []),
-                     div(~attrs=[clss(["dot", "dot2"])], []),
-                     div(~attrs=[clss(["dot"])], []),
-                   ],
-                 );
-               } else if (msg.content != "") {
-                 div(
-                   ~attrs=[clss(["agent-message"])],
-                   [text(msg.content)],
+               // Only show agent message if it has content
+               if (msg.content != "" && String.trim(msg.content) != "") {
+                 Some(
+                   div(
+                     ~attrs=[clss(["agent-message"])],
+                     [text(msg.content)],
+                   ),
                  );
                } else {
-                 div(~attrs=[], []);
+                 None; // Don't display empty agent messages
                }
              | ToolResult(tool_call, success) =>
                // Tool call message - display inline
                let status_text = success ? "[success]" : "[failure]";
-               div(
-                 ~attrs=[clss(["agent-tool-call-inline"])],
-                 [
-                   div(
-                     ~attrs=[clss(["tool-call-display"])],
-                     [text(tool_call.name ++ " " ++ status_text)],
-                   ),
-                 ],
+               Some(
+                 div(
+                   ~attrs=[clss(["agent-tool-call-inline"])],
+                   [
+                     div(
+                       ~attrs=[clss(["tool-call-display"])],
+                       [text(tool_call.name ++ " " ++ status_text)],
+                     ),
+                   ],
+                 ),
                );
-             | _ => div(~attrs=[], [])
+             | _ => None
              }
            });
 
-      // Check if we should show loading dots (last chunk with all empty agent messages)
-      let has_loading_dots =
-        is_last_chunk
-        && List.for_all(
-             (msg: Agent.Message.Model.t) =>
-               switch (msg.role) {
-               | Agent => msg.content == ""
-               | _ => false
-               },
-             agent_chunk.content,
-           )
-        && List.length(agent_chunk.content) > 0;
-
-      let linear_display =
-        if (has_loading_dots) {
-          [
-            // Show loading dots if last chunk and all agent content is empty
-            div(
-              ~attrs=[clss(["agent-message-loading-dots"])],
-              [
-                div(~attrs=[clss(["dot", "dot1"])], []),
-                div(~attrs=[clss(["dot", "dot2"])], []),
-                div(~attrs=[clss(["dot"])], []),
-              ],
-            ),
-          ];
-        } else {
-          linear_messages_display;
-        };
+      let linear_display = linear_messages_display;
 
       // Render all tool calls at the end - separated by double line breaks
       let tool_calls_summary_display =
@@ -700,7 +575,7 @@ let view =
           // Corylus identifier
           div(
             ~attrs=[clss(["message-identifier", "llm-identifier"])],
-            [Icons.corylus, text("Corylus")],
+            [Icons.corylus, text("Filbert")],
           ),
           div(
             ~attrs=[clss(["agent-message-wrapper"])],
@@ -719,157 +594,10 @@ let view =
     };
   };
 
-  // Handler functions for icon buttons
-  let switch_to_prompt = _ => {
-    Effect.Many([
-      agent_inject(
-        Agent.Agent.Update.Action.ChatSystemAction(
-          Agent.ChatSystem.Update.Action.ChatAction(
-            Agent.Chat.Update.Action.SwitchView(Agent.Chat.Model.Prompt),
-            current_chat_id,
-          ),
-        ),
-      ),
-      Effect.Stop_propagation,
-    ]);
-  };
-
-  let switch_to_dev_notes = _ => {
-    Effect.Many([
-      agent_inject(
-        Agent.Agent.Update.Action.ChatSystemAction(
-          Agent.ChatSystem.Update.Action.ChatAction(
-            Agent.Chat.Update.Action.SwitchView(
-              Agent.Chat.Model.DeveloperNotes,
-            ),
-            current_chat_id,
-          ),
-        ),
-      ),
-      Effect.Stop_propagation,
-    ]);
-  };
-
-  let switch_to_agent_view = _ => {
-    Effect.Many([
-      agent_inject(
-        Agent.Agent.Update.Action.ChatSystemAction(
-          Agent.ChatSystem.Update.Action.ChatAction(
-            Agent.Chat.Update.Action.SwitchView(
-              Agent.Chat.Model.AgentEditorView,
-            ),
-            current_chat_id,
-          ),
-        ),
-      ),
-      Effect.Stop_propagation,
-    ]);
-  };
-
-  let switch_to_static_errors = _ => {
-    Effect.Many([
-      agent_inject(
-        Agent.Agent.Update.Action.ChatSystemAction(
-          Agent.ChatSystem.Update.Action.ChatAction(
-            Agent.Chat.Update.Action.SwitchView(
-              Agent.Chat.Model.StaticErrors,
-            ),
-            current_chat_id,
-          ),
-        ),
-      ),
-      Effect.Stop_propagation,
-    ]);
-  };
-
-  // Export OpenRouter messages function
-  let export_chat = _ => {
-    let messages = Agent.Chat.Utils.get(current_chat);
-    let api_messages = Agent.Chat.Utils.api_messages_of_messages(messages);
-    let messages_json =
-      `List(
-        List.map(OpenRouter.Message.Utils.json_of_message, api_messages),
-      );
-    let filename =
-      StringUtil.sanitize_filename(current_chat.title)
-      ++ "_openrouter_"
-      ++ string_of_float(current_chat.created_at);
-    download_json(filename, messages_json);
-    Effect.Stop_propagation;
-  };
-
-  // Copy chat as human-readable text function with toast notification
-  let copy_chat = _ => {
-    let messages = Agent.Chat.Utils.get(current_chat);
-    // Filter out system messages (Prompt, DeveloperNotes, etc.) for user-facing view
-    let user_facing_messages =
-      List.filter(
-        (msg: Agent.Message.Model.t) =>
-          switch (msg.role) {
-          | Agent.Message.Model.System(_) => false
-          | _ => true
-          },
-        messages,
-      );
-    let format_message = (msg: Agent.Message.Model.t): string => {
-      switch (msg.role) {
-      | Agent.Message.Model.User => "User: " ++ msg.content ++ "\n\n"
-      | Agent.Message.Model.Agent => "LLM: " ++ msg.content ++ "\n\n"
-      | Agent.Message.Model.ToolResult(tool_call, success) =>
-        "Tool Call: "
-        ++ tool_call.name
-        ++ " "
-        ++ (success ? "[success]" : "[failure]")
-        ++ "\n\n"
-      | Agent.Message.Model.System(_) => ""
-      };
-    };
-    let formatted_text =
-      List.fold_left(
-        (acc, msg) => acc ++ format_message(msg),
-        "",
-        user_facing_messages,
-      );
-    // Copy using clipboard shim approach (same as JsUtil.copy but with execCommand copy)
-    JsUtil.focus_clipboard_shim();
-    Js.Opt.iter(
-      Dom_html.document##getElementById(Js.string("clipboard-shim")),
-      clipboard_shim_el => {
-        let clipboard_shim = Js.Unsafe.coerce(clipboard_shim_el);
-        clipboard_shim##.value := Js.string(formatted_text);
-        ignore(clipboard_shim##select);
-        // Execute copy command
-        ignore(
-          Dom_html.document##execCommand(
-            Js.string("copy"),
-            Js.bool(false),
-            Js.Opt.empty,
-          ),
-        );
-      },
-    );
-    // Show toast notification
-    Js.Opt.iter(
-      Dom_html.document##getElementById(Js.string("copy-toast")),
-      toast => {
-        toast##.classList##add(Js.string("show"));
-        ignore(
-          Dom_html.window##setTimeout(
-            Js.wrap_callback(() => {
-              toast##.classList##remove(Js.string("show"))
-            }),
-            2000.0,
-          ),
-        );
-      },
-    );
-    Effect.Stop_propagation;
-  };
-
   // Check current view and render appropriate view
   switch (current_chat.current_view) {
   | Agent.Chat.Model.Messages =>
-    // Normal messages view
+    // Normal messages view (content only, bottom bar handled in ChatView)
     div(
       ~attrs=[clss(["chat-messages-view"])],
       [
@@ -882,200 +610,6 @@ let view =
         div(
           ~attrs=[clss(["chat-messages-container"])],
           List.mapi(render_chunk, chunked_chat.log),
-        ),
-        // Input area at bottom with buttons above
-        div(
-          ~attrs=[clss(["chat-input-container"])],
-          [
-            // Action buttons row - above input, left side buttons and right side export
-            div(
-              ~attrs=[clss(["chat-action-buttons-row"])],
-              [
-                // Left side buttons
-                div(
-                  ~attrs=[clss(["chat-action-buttons-left"])],
-                  [
-                    // Prompt button
-                    if (chunked_chat.prompt != "") {
-                      div(
-                        ~attrs=[
-                          clss(["chat-action-button", "icon"]),
-                          Attr.on_click(switch_to_prompt),
-                          Attr.title("View System Prompt"),
-                        ],
-                        [Icons.prompt],
-                      );
-                    } else {
-                      div(~attrs=[], []);
-                    },
-                    // Dev Notes button
-                    if (chunked_chat.developer_notes != "") {
-                      div(
-                        ~attrs=[
-                          clss(["chat-action-button", "icon"]),
-                          Attr.on_click(switch_to_dev_notes),
-                          Attr.title("View Developer Notes"),
-                        ],
-                        [Icons.wrench],
-                      );
-                    } else {
-                      div(~attrs=[], []);
-                    },
-                    // Agent View button
-                    div(
-                      ~attrs=[
-                        clss(["chat-action-button", "icon"]),
-                        Attr.on_click(switch_to_agent_view),
-                        Attr.title("View Agent Editor View"),
-                      ],
-                      [Icons.agent_view],
-                    ),
-                    // Static Errors button
-                    div(
-                      ~attrs=[
-                        clss(["chat-action-button", "icon"]),
-                        Attr.on_click(switch_to_static_errors),
-                        Attr.title("View Static Errors"),
-                      ],
-                      [Icons.error_info],
-                    ),
-                  ],
-                ),
-                // Right side export and copy buttons
-                div(
-                  ~attrs=[clss(["chat-action-buttons-right"])],
-                  [
-                    div(
-                      ~attrs=[
-                        clss(["chat-action-button", "icon"]),
-                        Attr.on_click(export_chat),
-                        Attr.title("Export OpenRouter Messages (JSON)"),
-                      ],
-                      [Icons.export],
-                    ),
-                    div(
-                      ~attrs=[
-                        clss(["chat-action-button", "icon"]),
-                        Attr.on_click(copy_chat),
-                        Attr.title("Copy Chat (Human-readable)"),
-                      ],
-                      [Icons.copy],
-                    ),
-                  ],
-                ),
-              ],
-            ),
-            div(
-              ~attrs=[clss(["chat-message-input-container"])],
-              [
-                textarea(
-                  ~attrs=[
-                    clss(["chat-message-input"]),
-                    Attr.id("chat-message-input"),
-                    Attr.placeholder("Type your message..."),
-                    Attr.property("autocomplete", Js.Unsafe.inject("off")),
-                    Attr.on_focus(_ => {
-                      // Lock height on focus to prevent resizing while typing
-                      Js.Opt.iter(
-                        Dom_html.document##getElementById(
-                          Js.string("chat-message-input"),
-                        ),
-                        el => {
-                          let textarea = Js.Unsafe.coerce(el);
-                          let current_height = textarea##.offsetHeight;
-                          textarea##.style##.height :=
-                            Js.string(string_of_int(current_height) ++ "px");
-                          textarea##.style##.overflowY := Js.string("auto");
-                        },
-                      );
-                      Effect.Many([
-                        signal(
-                          Editors.View.MakeActive(
-                            Editors.Selection.Projects(
-                              ProjectMode.Selection.TextBox,
-                            ),
-                          ),
-                        ),
-                        Effect.Stop_propagation,
-                      ]);
-                    }),
-                    Attr.on_blur(_ => {
-                      // Resize on blur to fit content
-                      JsUtil.delay(0.0, () =>
-                        autosize_textarea("chat-message-input")
-                      );
-                      Effect.Stop_propagation;
-                    }),
-                    Attr.on_input(handle_textarea_input),
-                    Attr.on_keydown(event => {
-                      let key =
-                        Js.Optdef.to_option(Js.Unsafe.get(event, "key"));
-                      let shift_pressed = Key.shift_held(event);
-                      switch (key) {
-                      | Some("Enter") when !shift_pressed =>
-                        // Enter without Shift: send message and blur
-                        Js.Opt.iter(
-                          Dom_html.document##getElementById(
-                            Js.string("chat-message-input"),
-                          ),
-                          el => {
-                            let textarea = Js.Unsafe.coerce(el);
-                            textarea##blur();
-                          },
-                        );
-                        Effect.Many([
-                          send_message(),
-                          Effect.Prevent_default,
-                          Effect.Stop_propagation,
-                        ]);
-                      | Some("Enter") =>
-                        // Shift+Enter: allow default (newline)
-                        Effect.Stop_propagation
-                      | _ => Effect.Stop_propagation
-                      };
-                    }),
-                    Attr.on_copy(_ => Effect.Stop_propagation),
-                    Attr.on_paste(_ => {
-                      // Resize after paste
-                      JsUtil.delay(0.0, () =>
-                        autosize_textarea("chat-message-input")
-                      );
-                      Effect.Stop_propagation;
-                    }),
-                    Attr.on_cut(_ => Effect.Stop_propagation),
-                    Attr.string_property("value", current_text),
-                  ],
-                  [text(current_text)],
-                ),
-                if (String.length(String.trim(current_text)) > 0) {
-                  div(
-                    ~attrs=[
-                      clss([
-                        "send-button",
-                        "icon",
-                        "chat-message-send-button",
-                      ]),
-                      Attr.on_click(send_message),
-                      Attr.title("Send Message"),
-                    ],
-                    [Icons.send],
-                  );
-                } else {
-                  div(
-                    ~attrs=[
-                      clss([
-                        "send-button-disabled",
-                        "icon",
-                        "chat-message-send-button",
-                      ]),
-                      Attr.title("Send Message Disabled"),
-                    ],
-                    [Icons.send],
-                  );
-                },
-              ],
-            ),
-          ],
         ),
       ],
     )
@@ -1091,15 +625,11 @@ let view =
       ~agent_inject,
       ~chat_id=current_chat_id,
     )
-  | Agent.Chat.Model.AgentEditorView =>
-    ViewComponents.agent_editor_view_component(
-      ~content=chunked_chat.agent_view,
-      ~agent_inject,
-      ~chat_id=current_chat_id,
-    )
+  | Agent.Chat.Model.AgentEditorView
   | Agent.Chat.Model.StaticErrors =>
-    ViewComponents.static_errors_view(
-      ~content=chunked_chat.static_errors,
+    // Both AgentEditorView and StaticErrors now show context
+    ViewComponents.context_view(
+      ~content=chunked_chat.context,
       ~agent_inject,
       ~chat_id=current_chat_id,
     )

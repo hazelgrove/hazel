@@ -52,8 +52,7 @@ module Message = {
       | ApiFailure
       | DeveloperNotes // Only one should exist
       | Prompt // Only one should exist
-      | AgentEditorView // Only one should exist
-      | StaticErrorsInfo; // Only one should exist
+      | Context;
 
     [@deriving (show({with_path: false}), sexp, yojson)]
     // Separating like such, as agent messages appear on left
@@ -175,35 +174,57 @@ module Message = {
         current_child: None,
       };
     };
-    let mk_agent_editor_view_message = (content: string): Model.t => {
-      let sanitized_content = String.trim(content);
-      let api_content_prefix = "\n<agentEditorView>\n```";
-      let api_content_suffix = "```\n</agentEditorView>\n";
-      let api_content =
-        api_content_prefix ++ sanitized_content ++ api_content_suffix;
-      {
-        id: Id.mk(),
-        content: api_content,
-        timestamp: JsUtil.timestamp(),
-        role: System(AgentEditorView),
-        api_message: Some(OpenRouter.Message.Utils.mk_user_msg(api_content)),
-        children: [],
-        current_child: None,
-      };
-    };
+    let mk_context_message =
+        (
+          agent_editor_content: string,
+          static_errors_content: string,
+          workbench_content: string,
+        )
+        : Model.t => {
+      let sanitized_agent_editor_content = String.trim(agent_editor_content);
+      let sanitized_static_errors_content =
+        String.trim(static_errors_content);
+      let sanitized_workbench_content = String.trim(workbench_content);
 
-    let mk_static_errors_info_message = (content: string): Model.t => {
-      let sanitized_content = String.trim(content);
-      let api_content =
-        "\n<staticErrorsInfo>\n"
-        ++ sanitized_content
-        ++ "\n</staticErrorsInfo>\n";
+      let agent_editor_content_prefix = "\n<agentEditorView>\n```";
+      let agent_editor_content_suffix = "```\n</agentEditorView>\n";
+      let agent_editor_content =
+        agent_editor_content_prefix
+        ++ sanitized_agent_editor_content
+        ++ agent_editor_content_suffix;
+
+      let static_errors_content_prefix = "\n<staticErrorsInfo>\n";
+      let static_errors_content_suffix = "\n</staticErrorsInfo>\n";
+      let static_errors_content =
+        static_errors_content_prefix
+        ++ sanitized_static_errors_content
+        ++ static_errors_content_suffix;
+
+      let workbench_content_prefix = "\n<workbenchTaskInfo>\n";
+      let workbench_content_suffix = "\n</workbenchTaskInfo>\n";
+      let workbench_content =
+        workbench_content_prefix
+        ++ sanitized_workbench_content
+        ++ workbench_content_suffix;
+
+      let context_prefix = "\n<context>\n";
+      let context_suffix = "\n</context>\n";
+      let context_content =
+        context_prefix
+        ++ agent_editor_content
+        ++ static_errors_content
+        ++ workbench_content
+        ++ context_suffix;
+      let content =
+        context_content
+        ++ "\nNOTE: This is an automated message triggered before every message send. This is to provide you with rich information of the current task, editor, code, and project as a whole.";
+
       {
         id: Id.mk(),
-        content: api_content,
+        content,
         timestamp: JsUtil.timestamp(),
-        role: System(StaticErrorsInfo),
-        api_message: Some(OpenRouter.Message.Utils.mk_user_msg(api_content)),
+        role: System(Context),
+        api_message: Some(OpenRouter.Message.Utils.mk_user_msg(content)),
         children: [],
         current_child: None,
       };
@@ -274,12 +295,6 @@ module Message = {
 module Chat = {
   module Model = {
     [@deriving (show({with_path: false}), sexp, yojson)]
-    type context = {
-      agent_editor_view: Message.Model.t,
-      static_errors_info: Message.Model.t,
-    };
-
-    [@deriving (show({with_path: false}), sexp, yojson)]
     type current_view =
       | Messages
       | Workbench
@@ -301,7 +316,7 @@ module Chat = {
       root: Id.t,
       agent_view: AgentContext.Model.t,
       agent_workbench: AgentWorkbench.Model.t, // The agent's todo lists/workbench associated with this chat
-      context: option(context),
+      context: option(Message.Model.t),
       created_at: float,
       current_view,
     };
@@ -433,19 +448,19 @@ module Chat = {
     };
 
     let update_context =
-        (
-          agent_editor_view: Message.Model.t,
-          static_errors_info: Message.Model.t,
-          chat: Model.t,
-        )
+        (agent_editor_view: string, static_errors_info: string, chat: Model.t)
         : Model.t => {
+      let workbench =
+        Message.Utils.mk_context_message(
+          agent_editor_view,
+          static_errors_info,
+          AgentWorkbench.Utils.MainUtils.active_task_to_pretty_string(
+            chat.agent_workbench,
+          ),
+        );
       {
         ...chat,
-        context:
-          Some({
-            agent_editor_view,
-            static_errors_info,
-          }),
+        context: Some(workbench),
       };
     };
 
@@ -465,8 +480,7 @@ module Chat = {
     let get = (chat: Model.t): list(Message.Model.t) => {
       let linear = linearize(chat);
       switch (chat.context) {
-      | Some(context) =>
-        linear @ [context.agent_editor_view, context.static_errors_info]
+      | Some(context) => linear @ [context]
       | None => linear
       };
     };
@@ -500,7 +514,7 @@ module Chat = {
         | BranchOff(Id.t)
         | AgentContextAction(AgentContext.Update.action)
         | WorkbenchAction(AgentWorkbench.Update.Action.action)
-        | UpdateContext(Message.Model.t, Message.Model.t)
+        | UpdateContext(string, string)
         | AppendToMessageContent(Id.t, string)
         | OverwriteMessage(Id.t, Message.Model.t)
         | SwitchView(Model.current_view);
@@ -591,8 +605,7 @@ module ChunkedUIChat = {
     type t = {
       prompt: string,
       developer_notes: string,
-      agent_view: string,
-      static_errors: string,
+      context: string,
       log: list(chunk),
     };
   };
@@ -617,8 +630,7 @@ module ChunkedUIChat = {
       {
         prompt: "",
         developer_notes: "",
-        agent_view: "",
-        static_errors: "",
+        context: "",
         log: [],
       };
     };
@@ -687,16 +699,10 @@ module ChunkedUIChat = {
               developer_notes: message.content,
             };
             convert_helper(rest, updated_model);
-          | System(AgentEditorView) =>
+          | System(Context) =>
             let updated_model = {
               ...acc_model,
-              agent_view: message.content,
-            };
-            convert_helper(rest, updated_model);
-          | System(StaticErrorsInfo) =>
-            let updated_model = {
-              ...acc_model,
-              static_errors: message.content,
+              context: message.content,
             };
             convert_helper(rest, updated_model);
           | ToolResult(tool_call, success) =>
@@ -1209,20 +1215,15 @@ module Agent = {
       let curr_chat = ChatSystem.Utils.find_chat(chat_id, model.chat_system);
       let agent_editor_view_string =
         CompositionView.Public.print(editor.editor, curr_chat.agent_view);
-      let agent_editor_view_message =
-        Message.Utils.mk_agent_editor_view_message(agent_editor_view_string);
       let static_errors_info_string =
-        ErrorPrint.all(Perform.mk_statics(editor.editor.state.zipper));
-      let static_errors_info_message =
-        Message.Utils.mk_static_errors_info_message(
-          static_errors_info_string |> String.concat("\n"),
-        );
+        ErrorPrint.all(Perform.mk_statics(editor.editor.state.zipper))
+        |> String.concat("\n");
       let chat_system =
         ChatSystem.Update.update(
           ChatSystem.Update.Action.ChatAction(
             Chat.Update.Action.UpdateContext(
-              agent_editor_view_message,
-              static_errors_info_message,
+              agent_editor_view_string,
+              static_errors_info_string,
             ),
             chat_id,
           ),
