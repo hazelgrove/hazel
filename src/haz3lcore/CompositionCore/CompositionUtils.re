@@ -26,15 +26,15 @@ module Local = {
     EditTools.insert_before,
     // ViewTools.view_entire_definition, // No longer needed is this top-level refactor... this is done by default
     // ViewTools.view_context,
-    WorkbenchTools.create_new_task,
-    WorkbenchTools.set_active_task,
-    WorkbenchTools.unset_active_task,
-    WorkbenchTools.set_active_subtask,
-    WorkbenchTools.unset_active_subtask,
-    WorkbenchTools.mark_active_task_complete,
-    WorkbenchTools.mark_active_task_incomplete,
-    WorkbenchTools.mark_active_subtask_complete,
-    WorkbenchTools.mark_active_subtask_incomplete,
+    // WorkbenchTools.create_new_task,
+    // WorkbenchTools.set_active_task,
+    // WorkbenchTools.unset_active_task,
+    // WorkbenchTools.set_active_subtask,
+    // WorkbenchTools.unset_active_subtask,
+    // WorkbenchTools.mark_active_task_complete,
+    // WorkbenchTools.mark_active_task_incomplete,
+    // WorkbenchTools.mark_active_subtask_complete,
+    // WorkbenchTools.mark_active_subtask_incomplete,
   ];
 
   let get_string_arg = (~arg: option(string), ~fail_with: string) => {

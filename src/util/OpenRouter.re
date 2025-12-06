@@ -138,7 +138,7 @@ module Payload = {
       temperature: 0.9,
       top_p: 1.0,
       tools,
-      stream: true,
+      stream: false,
       messages,
     };
 
@@ -183,7 +183,21 @@ module Utils = {
   let chat =
       (~key: string, ~body: Json.t, ~handler: option(Json.t) => unit): unit => {
     print_endline("API: POSTing OpenRouter request");
-    request_stream(
+    // request_stream(
+    //   ~debug=false,
+    //   ~with_credentials=false,
+    //   ~method=POST,
+    //   ~url="https://openrouter.ai/api/v1/chat/completions",
+    //   ~headers=[
+    //     ("Content-Type", "application/json"),
+    //     ("Authorization", "Bearer " ++ key),
+    //   ],
+    //   ~body,
+    //   ~on_chunk=handler,
+    //   ~on_complete=() =>
+    //   ()
+    // );
+    request(
       ~debug=false,
       ~with_credentials=false,
       ~method=POST,
@@ -193,9 +207,7 @@ module Utils = {
         ("Authorization", "Bearer " ++ key),
       ],
       ~body,
-      ~on_chunk=handler,
-      ~on_complete=() =>
-      ()
+      handler,
     );
   };
 

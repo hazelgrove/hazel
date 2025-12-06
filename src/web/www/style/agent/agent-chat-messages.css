@@ -98,8 +98,10 @@
 
 /* System Messages - Centered */
 .system-message-container {
+  display: flex;
   justify-content: center;
   align-items: center;
+  width: 100%;
 }
 
 .system-message {
@@ -392,6 +394,29 @@
 .branch-nav-button:active {
   opacity: 0.9;
   fill: var(--BR4);
+}
+
+/* Tool Calls Display */
+.agent-tool-calls {
+  margin-top: 0.5em;
+}
+
+.tool-call-display {
+  font-size: 0.75em;
+  color: var(--BR2);
+  opacity: 0.8;
+  white-space: pre-wrap;
+}
+
+/* Prompt and Developer Notes Display */
+.prompt-display,
+.developer-notes-display {
+  margin-bottom: 0.5em;
+}
+
+.editor-view-display,
+.static-errors-display {
+  margin-top: 0.5em;
 }
 
 /* Loading Dots Animation */

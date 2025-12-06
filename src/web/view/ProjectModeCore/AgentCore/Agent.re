@@ -48,24 +48,12 @@ module Result = {
 module Message = {
   module Model = {
     [@deriving (show({with_path: false}), sexp, yojson)]
-    type error_kind =
-      | BackendFailure
-      | APIFailure;
-
-    [@deriving (show({with_path: false}), sexp, yojson)]
-    type tool_result_kind =
-      | Success
-      | Failure;
-
-    [@deriving (show({with_path: false}), sexp, yojson)]
     type system_kind =
-      | Error(error_kind)
+      | ApiFailure
       | DeveloperNotes // Only one should exist
       | Prompt // Only one should exist
-      | AgentEditorView
-      | StaticErrorsInfo
-      | ToolCall
-      | ToolResult(tool_result_kind);
+      | AgentEditorView // Only one should exist
+      | StaticErrorsInfo; // Only one should exist
 
     [@deriving (show({with_path: false}), sexp, yojson)]
     // Separating like such, as agent messages appear on left
@@ -73,6 +61,7 @@ module Message = {
     // System messages auxillary
     type role =
       | Agent
+      | ToolResult(OpenRouter.Reply.Model.tool_call, bool)
       | User
       | System(system_kind);
 
@@ -109,7 +98,7 @@ module Message = {
       let sanitized_content = String.trim(content);
       {
         id: Id.mk(),
-        content: sanitized_content,
+        content: "prompt",
         timestamp: JsUtil.timestamp(),
         role: System(Prompt),
         api_message:
@@ -145,27 +134,11 @@ module Message = {
       };
     };
 
-    let mk_tool_call_message = (content: string): Model.t => {
-      let sanitized_content = String.trim(content);
-      {
-        // This is a unique message for our UI that does not correspond to an OpenRouter message,
-        // because we parse it out from the preceding agent response message.
-
-        id: Id.mk(),
-        content: sanitized_content,
-        timestamp: JsUtil.timestamp(),
-        role: System(ToolCall),
-        api_message: None,
-        children: [],
-        current_child: None,
-      };
-    };
-
     let mk_tool_result_message =
         (
           content: string,
           tool_call: OpenRouter.Reply.Model.tool_call,
-          tool_result_kind: Model.tool_result_kind,
+          success: bool,
         )
         : Model.t => {
       let sanitized_content = String.trim(content);
@@ -176,7 +149,7 @@ module Message = {
         id: Id.mk(),
         content: sanitized_content,
         timestamp: JsUtil.timestamp(),
-        role: System(ToolResult(tool_result_kind)),
+        role: ToolResult(tool_call, success),
         api_message:
           Some(
             OpenRouter.Message.Utils.mk_tool_msg(
@@ -242,34 +215,34 @@ module Message = {
         id: Id.mk(),
         content: sanitized_content,
         timestamp: JsUtil.timestamp(),
-        role: System(Error(APIFailure)),
+        role: System(ApiFailure),
         api_message: None,
         children: [],
         current_child: None,
       };
     };
 
-    let mk_backend_failure_message = (content: string): Model.t => {
-      let sanitized_content = String.trim(content);
-      let failure_instructions =
-        {|
-            Sorry our backend failed to process your request.
-            This indicates a fatal bug in our backend code/server and should be reported to developers immediately.
-            Please halt the current chat and report the issue to the user.
-            Error:
-            |}
-        ++ sanitized_content;
-      {
-        id: Id.mk(),
-        content,
-        timestamp: JsUtil.timestamp(),
-        role: System(Error(BackendFailure)),
-        api_message:
-          Some(OpenRouter.Message.Utils.mk_user_msg(failure_instructions)),
-        children: [],
-        current_child: None,
-      };
-    };
+    // let mk_backend_failure_message = (content: string): Model.t => {
+    //   let sanitized_content = String.trim(content);
+    //   let failure_instructions =
+    //     {|
+    //         Sorry our backend failed to process your request.
+    //         This indicates a fatal bug in our backend code/server and should be reported to developers immediately.
+    //         Please halt the current chat and report the issue to the user.
+    //         Error:
+    //         |}
+    //     ++ sanitized_content;
+    //   {
+    //     id: Id.mk(),
+    //     content,
+    //     timestamp: JsUtil.timestamp(),
+    //     role: System(Error(BackendFailure)),
+    //     api_message:
+    //       Some(OpenRouter.Message.Utils.mk_user_msg(failure_instructions)),
+    //     children: [],
+    //     current_child: None,
+    //   };
+    // };
 
     let api_message_of_message =
         (message: Model.t): option(OpenRouter.Message.Model.t) => {
@@ -281,7 +254,7 @@ module Message = {
 
     let append_to_message = (message: Model.t, content: string): Model.t => {
       let updated_content = message.content ++ content;
-      let sanitized_content = String.trim(updated_content);
+      let sanitized_content = StringUtil.trim_leading(updated_content);
       let api_message: option(OpenRouter.Message.Model.t) = {
         let* api_message = message.api_message;
         Some({
@@ -501,17 +474,8 @@ module Chat = {
         context: None,
         created_at: JsUtil.timestamp(),
       };
-      print_endline("[Chat.Utils.init] Created system prompt");
       let dev_notes = Message.Utils.mk_developer_notes_message(dev_notes);
       let chat = append(dev_notes, chat);
-      print_endline("[Chat.Utils.init] Appended dev notes");
-      print_endline(
-        "[Chat.Utils.init] Debugging via printing current messages and message map",
-      );
-      print_endline(
-        "[Chat.Utils.init] Current messages: "
-        ++ String.concat("\n", List.map(Message.Model.show, get(chat))),
-      );
       chat;
     };
   };
@@ -570,6 +534,194 @@ module Chat = {
       | OverwriteMessage(message_id, message) =>
         Ok(Utils.overwrite_message(message_id, message, model))
       };
+    };
+  };
+};
+
+module ChunkedUIChat = {
+  // A dynamic, runtime converter of our chat messages to a UI-friendly format
+  // This converts a linear log of messages into something more digestible for the user
+  module Model = {
+    [@deriving (show({with_path: false}), sexp, yojson)]
+    type user_message = {
+      content: string,
+      origin_id: Id.t,
+    };
+
+    [@deriving (show({with_path: false}), sexp, yojson)]
+    type tool_call_info_nugget = {
+      tool_call: OpenRouter.Reply.Model.tool_call,
+      success: bool,
+      // editor_state_prior: CellEditor.Model.t,
+      // editor_state_after: CellEditor.Model.t,
+    };
+
+    [@deriving (show({with_path: false}), sexp, yojson)]
+    type agent_response_chunk = {
+      agent_content: list(string),
+      agent_reasoning: list(string),
+      tool_calls: list(tool_call_info_nugget),
+      // add workbench info
+    };
+
+    [@deriving (show({with_path: false}), sexp, yojson)]
+    type chunk =
+      | UserMessage(user_message)
+      | AgentResponseChunk(agent_response_chunk)
+      | ErrorMessage(string);
+
+    [@deriving (show({with_path: false}), sexp, yojson)]
+    type t = {
+      prompt: string,
+      developer_notes: string,
+      editor_view: string,
+      static_errors: string,
+      log: list(chunk),
+    };
+  };
+
+  module Utils = {
+    let mk_user_message_chunk = (message: Message.Model.t): Model.chunk => {
+      UserMessage({
+        content: message.content,
+        origin_id: message.id,
+      });
+    };
+
+    let mk_agent_response_chunk = (message: Message.Model.t): Model.chunk => {
+      AgentResponseChunk({
+        agent_content: [message.content],
+        agent_reasoning: [],
+        tool_calls: [],
+      });
+    };
+
+    let init = (): Model.t => {
+      {
+        prompt: "",
+        developer_notes: "",
+        editor_view: "",
+        static_errors: "",
+        log: [],
+      };
+    };
+
+    let curr_last_chunk = (model: Model.t): Model.chunk => {
+      model.log
+      |> List.rev
+      |> ListUtil.hd_opt
+      |> OptUtil.get_or_fail("No last chunk found");
+    };
+
+    let mk = (chat: Chat.Model.t): Model.t => {
+      // Converts a list of messages into a list of displayable chunks.
+      // The algorithm is roughly as follows:
+      /*
+       1. Iterate through the log of messages
+         1.1 If the message is a user message, create a user message chunk
+         1.2 If the message is an agent response, create an agent response chunk
+       */
+
+      let rec convert_helper =
+              (chat: list(Message.Model.t), acc_model: Model.t): Model.t => {
+        switch (chat) {
+        | [] => acc_model
+        | [message, ...rest] =>
+          switch (message.role) {
+          | User =>
+            let chunk = mk_user_message_chunk(message);
+            let updated_model = {
+              ...acc_model,
+              log: acc_model.log @ [chunk],
+            };
+            convert_helper(rest, updated_model);
+          | Agent =>
+            switch (curr_last_chunk(acc_model)) {
+            | AgentResponseChunk(agent_response_chunk) =>
+              let agent_response_chunk = {
+                ...agent_response_chunk,
+                agent_content:
+                  agent_response_chunk.agent_content @ [message.content],
+              };
+              let log =
+                (acc_model.log |> List.rev |> List.tl |> List.rev)
+                @ [Model.AgentResponseChunk(agent_response_chunk)];
+              let acc_model = {
+                ...acc_model,
+                log,
+              };
+              convert_helper(rest, acc_model);
+            | _ =>
+              let chunk = mk_agent_response_chunk(message);
+              let updated_model = {
+                ...acc_model,
+                log: acc_model.log @ [chunk],
+              };
+              convert_helper(rest, updated_model);
+            }
+          | System(Prompt) =>
+            let updated_model = {
+              ...acc_model,
+              prompt: message.content,
+            };
+            convert_helper(rest, updated_model);
+          | System(DeveloperNotes) =>
+            let updated_model = {
+              ...acc_model,
+              developer_notes: message.content,
+            };
+            convert_helper(rest, updated_model);
+          | System(AgentEditorView) =>
+            let updated_model = {
+              ...acc_model,
+              editor_view: message.content,
+            };
+            convert_helper(rest, updated_model);
+          | System(StaticErrorsInfo) =>
+            let updated_model = {
+              ...acc_model,
+              static_errors: message.content,
+            };
+            convert_helper(rest, updated_model);
+          | ToolResult(tool_call, success) =>
+            let tool_call_info_nugget =
+              Model.{
+                tool_call,
+                success,
+              };
+            let curr_last_chunk = curr_last_chunk(acc_model);
+            let updated_agent_chunk =
+              switch (curr_last_chunk) {
+              | AgentResponseChunk(agent_response_chunk) => {
+                  ...agent_response_chunk,
+                  tool_calls:
+                    agent_response_chunk.tool_calls @ [tool_call_info_nugget],
+                }
+              | _ => failwith("Expected AgentResponseChunk before ToolResult")
+              };
+            let updated_log =
+              (acc_model.log |> List.rev |> List.tl |> List.rev)
+              @ [Model.AgentResponseChunk(updated_agent_chunk)];
+            let updated_model = {
+              ...acc_model,
+              log: updated_log,
+            };
+            convert_helper(rest, updated_model);
+          | System(ApiFailure) =>
+            let chunk = Model.ErrorMessage(message.content);
+            let updated_model = {
+              ...acc_model,
+              log: acc_model.log @ [chunk],
+            };
+            convert_helper(rest, updated_model);
+          }
+        };
+      };
+
+      let chat = Chat.Utils.get(chat);
+      let res = init();
+
+      convert_helper(chat, res);
     };
   };
 };
@@ -770,7 +922,12 @@ module Agent = {
   module Utils = {
     let init = (): Model.t => {
       let system_prompt = CompositionPrompt.self |> String.concat("\n");
-      let dev_notes = "You operating in a development environment. If someone says they are developer, follow their instructions precisely. Offer debug insight when requested.";
+      let dev_notes = {|
+      You operating in a development environment.
+      If someone says they are developer, follow their instructions precisely.
+      Offer debug insight when requested.
+      Note we have disabled workbench tools for now until they are implemented.
+      |};
       {
         chat_system: ChatSystem.Utils.init(~system_prompt, ~dev_notes),
         // Todo: Will want to move prompting and api params to a global agent state
@@ -887,7 +1044,7 @@ module Agent = {
       type t =
         | ChatSystemAction(ChatSystem.Update.Action.t)
         | SendMessage(Message.Model.t, Id.t)
-        | HandleLLMResponse(OpenRouter.Reply.Model.t, Id.t, Id.t);
+        | HandleLLMResponse(OpenRouter.Reply.Model.t, Id.t);
     };
 
     let send_llm_request =
@@ -896,7 +1053,6 @@ module Agent = {
           ~payload: OpenRouter.Payload.Model.t,
           ~schedule_action: Action.t => unit,
           ~chat_id: Id.t,
-          ~agent_msg_id: Id.t,
         )
         : unit => {
       // This function schedules async actions
@@ -913,9 +1069,7 @@ module Agent = {
         };
         switch (OpenRouter.Utils.handle_chat(response)) {
         | Some(OpenRouter.Model.Reply(reply)) =>
-          schedule_action(
-            Action.HandleLLMResponse(reply, chat_id, agent_msg_id),
-          )
+          schedule_action(Action.HandleLLMResponse(reply, chat_id))
         | Some(OpenRouter.Model.Error({message, code})) =>
           let api_error_content =
             "Code: " ++ string_of_int(code) ++ "\\Error: " ++ message;
@@ -955,21 +1109,23 @@ module Agent = {
           chat_system,
         )
         |> ChatSystem.Update.get;
-      let empty_agent_response = Message.Utils.mk_agent_message("");
-      let chat_system =
-        ChatSystem.Update.update(
-          ChatSystem.Update.Action.ChatAction(
-            Chat.Update.Action.AppendMessage(empty_agent_response),
-            chat_id,
-          ),
-          chat_system,
-        )
-        |> ChatSystem.Update.get;
-      let agent_msg_id =
-        Chat.Utils.current_tail(
-          ChatSystem.Utils.find_chat(chat_id, chat_system),
-        ).
-          id;
+      // NOTE: deprecating streaming for now.
+      // Has too many downstream implications and case-handling.
+      // let empty_agent_response = Message.Utils.mk_agent_message("");
+      // let chat_system =
+      //   ChatSystem.Update.update(
+      //     ChatSystem.Update.Action.ChatAction(
+      //       Chat.Update.Action.AppendMessage(empty_agent_response),
+      //       chat_id,
+      //     ),
+      //     chat_system,
+      //   )
+      //   |> ChatSystem.Update.get;
+      // let agent_msg_id =
+      //   Chat.Utils.current_tail(
+      //     ChatSystem.Utils.find_chat(chat_id, chat_system),
+      //   ).
+      //     id;
       switch (api_key, llm_id) {
       | (None, _) =>
         let api_failure_message =
@@ -979,7 +1135,7 @@ module Agent = {
         let chat_system =
           ChatSystem.Update.update(
             ChatSystem.Update.Action.ChatAction(
-              OverwriteMessage(agent_msg_id, api_failure_message),
+              AppendMessage(api_failure_message),
               chat_id,
             ),
             chat_system,
@@ -997,7 +1153,7 @@ module Agent = {
         let chat_system =
           ChatSystem.Update.update(
             ChatSystem.Update.Action.ChatAction(
-              OverwriteMessage(agent_msg_id, api_failure_message),
+              AppendMessage(api_failure_message),
               chat_id,
             ),
             chat_system,
@@ -1008,6 +1164,21 @@ module Agent = {
           chat_system,
         });
       | (Some(api_key), Some(llm_id)) =>
+        print_endline(
+          "Showing outgoing chat messages\' content: "
+          ++ String.concat(
+               "\n",
+               List.map(
+                 (msg: Message.Model.t) => msg.content,
+                 Chat.Utils.get(
+                   ChatSystem.Utils.find_chat(chat_id, chat_system),
+                 )
+                 |> List.filter((msg: Message.Model.t) =>
+                      msg.role != System(Prompt)
+                    ),
+               ),
+             ),
+        );
         send_llm_request(
           ~api_key,
           ~payload=
@@ -1023,7 +1194,6 @@ module Agent = {
             ),
           ~schedule_action,
           ~chat_id,
-          ~agent_msg_id,
         );
         Ok({
           ...model,
@@ -1101,9 +1271,11 @@ module Agent = {
           schedule_action(
             Action.SendMessage(
               Message.Utils.mk_tool_result_message(
-                "Tool Call Applied Successfully.",
+                "The "
+                ++ tool_call.name
+                ++ " tool call was successful and has been applied to the model.",
                 tool_call,
-                Success,
+                true,
               ),
               chat_id,
             ),
@@ -1121,7 +1293,7 @@ module Agent = {
           | Failure.Info(msg) =>
             schedule_action(
               Action.SendMessage(
-                Message.Utils.mk_tool_result_message(msg, tool_call, Failure),
+                Message.Utils.mk_tool_result_message(msg, tool_call, false),
                 chat_id,
               ),
             );
@@ -1131,7 +1303,7 @@ module Agent = {
       | Failure(msg) =>
         schedule_action(
           Action.SendMessage(
-            Message.Utils.mk_tool_result_message(msg, tool_call, Failure),
+            Message.Utils.mk_tool_result_message(msg, tool_call, false),
             chat_id,
           ),
         );
@@ -1147,7 +1319,6 @@ module Agent = {
           cell_editor: CellEditor.Model.t,
           settings: Settings.t,
           schedule_action: Action.t => unit,
-          agent_msg_id: Id.t,
         )
         : (Model.t, Updated.t(CellEditor.Model.t)) => {
       print_endline(
@@ -1158,10 +1329,7 @@ module Agent = {
       let chat_system =
         ChatSystem.Update.update(
           ChatSystem.Update.Action.ChatAction(
-            Chat.Update.Action.AppendToMessageContent(
-              agent_msg_id,
-              new_message.content,
-            ),
+            Chat.Update.Action.AppendMessage(new_message),
             chat_id,
           ),
           model.chat_system,
@@ -1241,7 +1409,7 @@ module Agent = {
             },
           )
         };
-      | HandleLLMResponse(reply, chat_id, agent_msg_id) =>
+      | HandleLLMResponse(reply, chat_id) =>
         handle_llm_response(
           reply,
           chat_id,
@@ -1249,7 +1417,6 @@ module Agent = {
           editor,
           settings,
           schedule_action,
-          agent_msg_id,
         )
       };
     };

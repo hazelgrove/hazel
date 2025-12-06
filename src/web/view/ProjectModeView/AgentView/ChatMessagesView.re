@@ -19,7 +19,7 @@ let view =
   let current_chat_id = chat_system.current;
   let current_chat =
     Agent.ChatSystem.Utils.find_chat(current_chat_id, chat_system);
-  let messages = Agent.Chat.Utils.get(current_chat);
+  let chunked_chat = Agent.ChunkedUIChat.Utils.mk(current_chat);
 
   // Auto-resize textarea helper
   let autosize_textarea = (id: string) => {
@@ -122,102 +122,14 @@ let view =
   };
 
   // Helper function to render branch navigation buttons
-  let render_branch_navigation = (message: Agent.Message.Model.t) => {
-    // Find the parent of this message
-    let parent_opt =
-      try(Some(Agent.Chat.Utils.parent_of(message.id, current_chat))) {
-      | _ => None
-      };
-    switch (parent_opt) {
-    | Some(parent) =>
-      let num_children = List.length(parent.children);
-      if (num_children > 1) {
-        // Find current message's index among parent's children
-        let rec find_index = (idx: int, children: list(Id.t)): int => {
-          switch (children) {
-          | [] => 0
-          | [hd, ...tl] =>
-            if (hd == message.id) {
-              idx;
-            } else {
-              find_index(idx + 1, tl);
-            }
-          };
-        };
-        let current_index = find_index(0, parent.children);
-        // Calculate next and previous indices using modulo
-        let next_index = (current_index + 1) mod num_children;
-        let prev_index = (current_index - 1 + num_children) mod num_children;
-        // Get sibling IDs
-        let next_sibling_id = List.nth(parent.children, next_index);
-        let prev_sibling_id = List.nth(parent.children, prev_index);
-        Some(
-          div(
-            ~attrs=[clss(["branch-navigation"])],
-            [
-              div(
-                ~attrs=[
-                  clss(["branch-nav-button", "branch-nav-left"]),
-                  Attr.on_click(_ => {
-                    Effect.Many([
-                      agent_inject(
-                        Agent.Agent.Update.Action.ChatSystemAction(
-                          Agent.ChatSystem.Update.Action.ChatAction(
-                            Agent.Chat.Update.Action.SwitchBranch(
-                              parent.id,
-                              prev_sibling_id,
-                            ),
-                            current_chat_id,
-                          ),
-                        ),
-                      ),
-                      Effect.Stop_propagation,
-                    ])
-                  }),
-                  Attr.title("Previous branch"),
-                ],
-                [Icons.back],
-              ),
-              div(
-                ~attrs=[
-                  clss(["branch-nav-button", "branch-nav-right"]),
-                  Attr.on_click(_ => {
-                    Effect.Many([
-                      agent_inject(
-                        Agent.Agent.Update.Action.ChatSystemAction(
-                          Agent.ChatSystem.Update.Action.ChatAction(
-                            Agent.Chat.Update.Action.SwitchBranch(
-                              parent.id,
-                              next_sibling_id,
-                            ),
-                            current_chat_id,
-                          ),
-                        ),
-                      ),
-                      Effect.Stop_propagation,
-                    ])
-                  }),
-                  Attr.title("Next branch"),
-                ],
-                [Icons.forward],
-              ),
-            ],
-          ),
-        );
-      } else {
-        None;
-      };
-    | None => None
-    };
-  };
+  // Note: Branch navigation may need to be reworked for chunked UI model
+  // For now, we'll skip it or implement it differently if needed
 
-  // Render a message based on its role
-  let num_messages = List.length(messages);
-  let render_message = (index: int, message: Agent.Message.Model.t) => {
-    let branch_nav = render_branch_navigation(message);
-    let is_last_message = index == num_messages - 1;
-    switch (message.role) {
-    | Agent.Message.Model.User =>
+  // Render a chunk from the chunked UI model
+  let num_chunks = List.length(chunked_chat.log);
+  let render_chunk = (index: int, chunk: Agent.ChunkedUIChat.Model.chunk) => {
+    switch (chunk) {
+    | Agent.ChunkedUIChat.Model.UserMessage(user_msg) =>
       // User messages on the right, editable
       let unique_id = "user-message-input-" ++ string_of_int(index);
       div(
@@ -233,17 +145,15 @@ let view =
                     ~attrs=[
                       clss(["user-message-input"]),
                       Attr.id(unique_id),
-                      Attr.value(message.content),
+                      Attr.value(user_msg.content),
                       Attr.property("autocomplete", Js.Unsafe.inject("off")),
                       Attr.on_focus(_ => {
-                        // Lock height on focus to prevent resizing - maintain current size
                         Js.Opt.iter(
                           Dom_html.document##getElementById(
                             Js.string(unique_id),
                           ),
                           el => {
                             let textarea = Js.Unsafe.coerce(el);
-                            // Get the current computed height and lock it
                             let current_height = textarea##.offsetHeight;
                             textarea##.style##.height :=
                               Js.string(
@@ -264,7 +174,6 @@ let view =
                         ]);
                       }),
                       Attr.on_blur(_ => {
-                        // Reset height on blur to allow natural sizing when not focused
                         Js.Opt.iter(
                           Dom_html.document##getElementById(
                             Js.string(unique_id),
@@ -278,7 +187,6 @@ let view =
                       }),
                       Attr.on_input((_event, _value) => {
                         Effect.Stop_propagation
-                               // Don't resize while typing - keep current height
                       }),
                       Attr.on_copy(_ => Effect.Stop_propagation),
                       Attr.on_paste(_ => {
@@ -287,7 +195,7 @@ let view =
                       }),
                       Attr.on_cut(_ => Effect.Stop_propagation),
                     ],
-                    [text(message.content)],
+                    [text(user_msg.content)],
                   ),
                   div(
                     ~attrs=[
@@ -297,7 +205,6 @@ let view =
                         "user-message-send-button",
                       ]),
                       Attr.on_mousedown(_event => {
-                        // Prevent textarea from losing focus when clicking button
                         Js.Opt.iter(
                           Dom_html.document##getElementById(
                             Js.string(unique_id),
@@ -308,7 +215,7 @@ let view =
                           },
                         );
                         Effect.Many([
-                          send_edited_message(message.id, unique_id),
+                          send_edited_message(user_msg.origin_id, unique_id),
                           Effect.Prevent_default,
                         ]);
                       }),
@@ -318,19 +225,21 @@ let view =
                   ),
                 ],
               ),
-              switch (branch_nav) {
-              | Some(nav) => nav
-              | None => div(~attrs=[], [])
-              },
             ],
           ),
         ],
       );
-    | Agent.Message.Model.Agent =>
-      // Agent messages on the left
-      let message_content =
-        if (message.content == "" && is_last_message) {
-          // Show loading dots animation only for the last message when content is empty
+    | Agent.ChunkedUIChat.Model.AgentResponseChunk(agent_chunk) =>
+      // Agent response chunk - display all content in a single block
+      let is_last_chunk = index == num_chunks - 1;
+      let all_content_empty =
+        List.for_all(
+          (content: string) => content == "",
+          agent_chunk.agent_content,
+        );
+      let agent_content_display =
+        if (all_content_empty && is_last_chunk) {
+          // Show loading dots if last chunk and all content is empty
           div(
             ~attrs=[clss(["agent-message-loading-dots"])],
             [
@@ -340,56 +249,125 @@ let view =
             ],
           );
         } else {
-          div(~attrs=[clss(["agent-message"])], [text(message.content)]);
+          // Join all agent content strings with double line breaks
+          let combined_content =
+            agent_chunk.agent_content
+            |> List.filter((s: string) => s != "")
+            |> String.concat("\n\n");
+          div(~attrs=[clss(["agent-message"])], [text(combined_content)]);
         };
+
+      // Render tool calls - separated by double line breaks
+      let tool_calls_display =
+        if (List.length(agent_chunk.tool_calls) > 0) {
+          let tool_call_texts =
+            agent_chunk.tool_calls
+            |> List.map(
+                 (nugget: Agent.ChunkedUIChat.Model.tool_call_info_nugget) => {
+                 let status_text = nugget.success ? "[success]" : "[failure]";
+                 nugget.tool_call.name ++ " " ++ status_text;
+               });
+          // Join with double line breaks
+          let combined_tool_calls = String.concat("\n\n", tool_call_texts);
+          div(
+            ~attrs=[clss(["agent-tool-calls"])],
+            [
+              div(
+                ~attrs=[clss(["tool-call-display"])],
+                [text(combined_tool_calls)],
+              ),
+            ],
+          );
+        } else {
+          div(~attrs=[], []);
+        };
+
       div(
         ~attrs=[clss(["message-container", "agent-message-container"])],
         [
           div(
             ~attrs=[clss(["agent-message-wrapper"])],
-            [
-              message_content,
-              switch (branch_nav) {
-              | Some(nav) => nav
-              | None => div(~attrs=[], [])
-              },
-            ],
+            [agent_content_display, tool_calls_display],
           ),
         ],
       );
-    | Agent.Message.Model.System(system_kind) =>
-      // System messages centered, greyed out (or red if error)
-      let is_error =
-        switch (system_kind) {
-        | Agent.Message.Model.Error(_) => true
-        | _ => false
-        };
+    | Agent.ChunkedUIChat.Model.ErrorMessage(error_content) =>
+      // Error messages centered, red
       div(
         ~attrs=[
-          clss(
-            ["message-container", "system-message-container"]
-            @ (is_error ? ["error"] : []),
-          ),
+          clss(["message-container", "system-message-container", "error"]),
         ],
-        [
-          div(~attrs=[clss(["system-message"])], [text(message.content)]),
-          switch (branch_nav) {
-          | Some(nav) => nav
-          | None => div(~attrs=[], [])
-          },
-        ],
-      );
+        [div(~attrs=[clss(["system-message"])], [text(error_content)])],
+      )
     };
   };
 
   div(
     ~attrs=[clss(["chat-messages-view"])],
     [
-      // Messages display area
+      // Prompt and Developer Notes at top
+      if (chunked_chat.prompt != "") {
+        div(
+          ~attrs=[clss(["system-message-container", "prompt-display"])],
+          [
+            div(
+              ~attrs=[clss(["system-message"])],
+              [text(chunked_chat.prompt)],
+            ),
+          ],
+        );
+      } else {
+        div(~attrs=[], []);
+      },
+      if (chunked_chat.developer_notes != "") {
+        div(
+          ~attrs=[
+            clss(["system-message-container", "developer-notes-display"]),
+          ],
+          [
+            div(
+              ~attrs=[clss(["system-message"])],
+              [text(chunked_chat.developer_notes)],
+            ),
+          ],
+        );
+      } else {
+        div(~attrs=[], []);
+      },
+      // Chunks display area
       div(
         ~attrs=[clss(["chat-messages-container"])],
-        List.mapi(render_message, messages),
+        List.mapi(render_chunk, chunked_chat.log),
       ),
+      // Editor view and static errors at bottom
+      if (chunked_chat.editor_view != "") {
+        div(
+          ~attrs=[clss(["system-message-container", "editor-view-display"])],
+          [
+            div(
+              ~attrs=[clss(["system-message"])],
+              [text(chunked_chat.editor_view)],
+            ),
+          ],
+        );
+      } else {
+        div(~attrs=[], []);
+      },
+      if (chunked_chat.static_errors != "") {
+        div(
+          ~attrs=[
+            clss(["system-message-container", "static-errors-display"]),
+          ],
+          [
+            div(
+              ~attrs=[clss(["system-message"])],
+              [text(chunked_chat.static_errors)],
+            ),
+          ],
+        );
+      } else {
+        div(~attrs=[], []);
+      },
       // Input area at bottom
       div(
         ~attrs=[clss(["chat-input-container"])],
