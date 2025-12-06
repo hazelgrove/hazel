@@ -25,13 +25,13 @@
   width: 100%;
 }
 
-/* User Messages - Right aligned */
+/* User Messages - Full width */
 .user-message-container {
-  justify-content: flex-end;
+  justify-content: flex-start;
 }
 
 .user-message-wrapper {
-  max-width: 70%;
+  width: 100%;
   display: flex;
   flex-direction: column;
 }
@@ -45,15 +45,17 @@
   padding-right: 2.5em; /* Add padding for the send button */
   border-radius: 8px;
   border: 0.6px solid var(--BR2);
-  background-color: var(--T1);
+  background-color: var(--SAND);
   color: var(--STONE);
-  font-family: var(--code-font);
+  /* font-family: var(--code-font); */
   font-size: 0.9em;
   line-height: 1.4;
   resize: none;
   overflow-y: auto;
+  overflow-x: hidden;
   min-height: 2.5em;
-  max-height: 200px;
+  max-height: 400px;
+  height: auto;
   width: 100%;
   box-sizing: border-box;
   outline: none;
@@ -62,12 +64,12 @@
 
 .user-message-input:hover {
   border-color: var(--BR3);
-  background-color: var(--T2);
+  background-color: var(--SAND);
 }
 
 .user-message-input:focus {
   border-color: var(--BR3);
-  background-color: var(--T2);
+  background-color: var(--SAND);
   outline: 0.6px solid var(--BR3);
 }
 
@@ -77,15 +79,12 @@
 }
 
 .agent-message-wrapper {
-  max-width: 70%;
+  max-width: 100%;
   display: flex;
   flex-direction: column;
 }
 
 .agent-message {
-  padding: 0.6em 0.8em;
-  border-radius: 8px;
-  background-color: var(--T2);
   color: var(--STONE);
   font-size: 0.9em;
   line-height: 1.4;
@@ -282,8 +281,8 @@
   position: absolute;
   bottom: 0.6em;
   right: 0.35em;
-  width: 24px;
-  height: 24px;
+  width: 20px;
+  height: 20px;
   border: 0.75px solid var(--BR3);
   background-color: var(--T1);
   border-radius: 50%;
@@ -322,8 +321,8 @@
   position: absolute;
   bottom: 0.6em;
   right: 0.35em;
-  width: 24px;
-  height: 24px;
+  width: 20px;
+  height: 20px;
   border: 0.75px solid var(--BR3);
   background-color: var(--T1);
   border-radius: 50%;
@@ -438,6 +437,17 @@
 .branch-nav-button:active {
   opacity: 0.9;
   fill: var(--BR4);
+}
+
+.branch-nav-button.disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
+  pointer-events: none;
+}
+
+.branch-nav-button.disabled:hover {
+  opacity: 0.3;
+  fill: var(--BR3);
 }
 
 /* Tool Calls Display */

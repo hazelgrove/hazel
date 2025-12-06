@@ -259,7 +259,13 @@ let view =
         let textarea = Js.Unsafe.coerce(el);
         textarea##.style##.height := Js.string("auto");
         let scroll_height = textarea##.scrollHeight;
-        let max_height = 200; // max height in pixels
+        // Use max-height from CSS (400px for user messages, 200px for chat input)
+        let max_height =
+          if (String.starts_with(~prefix="user-message-input-", id)) {
+            400;
+          } else {
+            200;
+          };
         let height = min(scroll_height, max_height);
         textarea##.style##.height := Js.string(string_of_int(height) ++ "px");
         textarea##.style##.overflowY :=
@@ -352,8 +358,101 @@ let view =
   };
 
   // Helper function to render branch navigation buttons
-  // Note: Branch navigation may need to be reworked for chunked UI model
-  // For now, we'll skip it or implement it differently if needed
+  let render_branch_navigation = (message_id: Id.t): Node.t => {
+    // Find parent message and check if it has multiple children
+    let parent_msg_opt =
+      try(Some(Agent.Chat.Utils.parent_of(message_id, current_chat))) {
+      | _ => None
+      };
+    switch (parent_msg_opt) {
+    | Some(parent_msg) =>
+      let num_children = List.length(parent_msg.children);
+      if (num_children > 1) {
+        // Find current child index
+        let current_child_opt = parent_msg.current_child;
+        let current_index =
+          switch (current_child_opt) {
+          | Some(current_child_id) =>
+            let rec find_index = (idx: int, children: list(Id.t)): int =>
+              switch (children) {
+              | [] => 0
+              | [id, ..._] when id == current_child_id => idx
+              | [_, ...rest] => find_index(idx + 1, rest)
+              };
+            find_index(0, parent_msg.children);
+          | None => 0
+          };
+        let can_go_left = current_index > 0;
+        let can_go_right = current_index < num_children - 1;
+        let switch_to_prev = _ =>
+          if (can_go_left) {
+            let prev_child_id =
+              List.nth(parent_msg.children, current_index - 1);
+            Effect.Many([
+              agent_inject(
+                Agent.Agent.Update.Action.ChatSystemAction(
+                  Agent.ChatSystem.Update.Action.ChatAction(
+                    Agent.Chat.Update.Action.SwitchBranch(
+                      parent_msg.id,
+                      prev_child_id,
+                    ),
+                    current_chat_id,
+                  ),
+                ),
+              ),
+              Effect.Stop_propagation,
+            ]);
+          } else {
+            Effect.Stop_propagation;
+          };
+        let switch_to_next = _ =>
+          if (can_go_right) {
+            let next_child_id =
+              List.nth(parent_msg.children, current_index + 1);
+            Effect.Many([
+              agent_inject(
+                Agent.Agent.Update.Action.ChatSystemAction(
+                  Agent.ChatSystem.Update.Action.ChatAction(
+                    Agent.Chat.Update.Action.SwitchBranch(
+                      parent_msg.id,
+                      next_child_id,
+                    ),
+                    current_chat_id,
+                  ),
+                ),
+              ),
+              Effect.Stop_propagation,
+            ]);
+          } else {
+            Effect.Stop_propagation;
+          };
+        div(
+          ~attrs=[clss(["branch-navigation"])],
+          [
+            div(
+              ~attrs=[
+                clss(["branch-nav-button", can_go_left ? "" : "disabled"]),
+                Attr.on_click(switch_to_prev),
+                Attr.title("Previous branch"),
+              ],
+              [Icons.back],
+            ),
+            div(
+              ~attrs=[
+                clss(["branch-nav-button", can_go_right ? "" : "disabled"]),
+                Attr.on_click(switch_to_next),
+                Attr.title("Next branch"),
+              ],
+              [Icons.forward],
+            ),
+          ],
+        );
+      } else {
+        div(~attrs=[], []);
+      };
+    | None => div(~attrs=[], [])
+    };
+  };
 
   // Render a chunk from the chunked UI model
   let num_chunks = List.length(chunked_chat.log);
@@ -378,20 +477,7 @@ let view =
                       Attr.value(user_msg.content),
                       Attr.property("autocomplete", Js.Unsafe.inject("off")),
                       Attr.on_focus(_ => {
-                        Js.Opt.iter(
-                          Dom_html.document##getElementById(
-                            Js.string(unique_id),
-                          ),
-                          el => {
-                            let textarea = Js.Unsafe.coerce(el);
-                            let current_height = textarea##.offsetHeight;
-                            textarea##.style##.height :=
-                              Js.string(
-                                string_of_int(current_height) ++ "px",
-                              );
-                            textarea##.style##.overflowY := Js.string("auto");
-                          },
-                        );
+                        JsUtil.delay(0.0, () => autosize_textarea(unique_id));
                         Effect.Many([
                           signal(
                             Editors.View.MakeActive(
@@ -404,19 +490,42 @@ let view =
                         ]);
                       }),
                       Attr.on_blur(_ => {
-                        Js.Opt.iter(
-                          Dom_html.document##getElementById(
-                            Js.string(unique_id),
-                          ),
-                          el => {
-                            let textarea = Js.Unsafe.coerce(el);
-                            textarea##.style##.height := Js.string("auto");
-                          },
-                        );
+                        JsUtil.delay(0.0, () => autosize_textarea(unique_id));
                         Effect.Stop_propagation;
                       }),
                       Attr.on_input((_event, _value) => {
-                        Effect.Stop_propagation
+                        JsUtil.delay(0.0, () => autosize_textarea(unique_id));
+                        Effect.Stop_propagation;
+                      }),
+                      Attr.on_keydown(event => {
+                        let key =
+                          Js.Optdef.to_option(Js.Unsafe.get(event, "key"));
+                        let shift_pressed = Key.shift_held(event);
+                        switch (key) {
+                        | Some("Enter") when !shift_pressed =>
+                          // Enter without Shift: send message and blur
+                          Js.Opt.iter(
+                            Dom_html.document##getElementById(
+                              Js.string(unique_id),
+                            ),
+                            el => {
+                              let textarea = Js.Unsafe.coerce(el);
+                              textarea##blur();
+                            },
+                          );
+                          Effect.Many([
+                            send_edited_message(
+                              user_msg.origin_id,
+                              unique_id,
+                            ),
+                            Effect.Prevent_default,
+                            Effect.Stop_propagation,
+                          ]);
+                        | Some("Enter") =>
+                          // Shift+Enter: allow default (newline)
+                          Effect.Stop_propagation
+                        | _ => Effect.Stop_propagation
+                        };
                       }),
                       Attr.on_copy(_ => Effect.Stop_propagation),
                       Attr.on_paste(_ => {
@@ -455,6 +564,8 @@ let view =
                   ),
                 ],
               ),
+              // Branch navigation buttons below the input container
+              render_branch_navigation(user_msg.origin_id),
             ],
           ),
         ],
@@ -703,6 +814,33 @@ let view =
                       Effect.Stop_propagation;
                     }),
                     Attr.on_input(handle_textarea_input),
+                    Attr.on_keydown(event => {
+                      let key =
+                        Js.Optdef.to_option(Js.Unsafe.get(event, "key"));
+                      let shift_pressed = Key.shift_held(event);
+                      switch (key) {
+                      | Some("Enter") when !shift_pressed =>
+                        // Enter without Shift: send message and blur
+                        Js.Opt.iter(
+                          Dom_html.document##getElementById(
+                            Js.string("chat-message-input"),
+                          ),
+                          el => {
+                            let textarea = Js.Unsafe.coerce(el);
+                            textarea##blur();
+                          },
+                        );
+                        Effect.Many([
+                          send_message(),
+                          Effect.Prevent_default,
+                          Effect.Stop_propagation,
+                        ]);
+                      | Some("Enter") =>
+                        // Shift+Enter: allow default (newline)
+                        Effect.Stop_propagation
+                      | _ => Effect.Stop_propagation
+                      };
+                    }),
                     Attr.on_copy(_ => Effect.Stop_propagation),
                     Attr.on_paste(_ => {
                       // Resize after paste
