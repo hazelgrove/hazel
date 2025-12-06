@@ -457,11 +457,29 @@ let view =
 
   // Render a chunk from the chunked UI model
   let num_chunks = List.length(chunked_chat.log);
+
+  // Auto-size all user message textareas after chunks are rendered
+  // Use requestAnimationFrame to ensure DOM is ready
+  ignore(
+    Dom_html.window##requestAnimationFrame(
+      Js.wrap_callback((_timestamp: float) => {
+        JsUtil.delay(0.0, () => {
+          for (i in 0 to num_chunks - 1) {
+            let id = "user-message-input-" ++ string_of_int(i);
+            autosize_textarea(id);
+          }
+        })
+      }),
+    ),
+  );
+
   let render_chunk = (index: int, chunk: Agent.ChunkedUIChat.Model.chunk) => {
     switch (chunk) {
     | Agent.ChunkedUIChat.Model.UserMessage(user_msg) =>
       // User messages on the right, editable
       let unique_id = "user-message-input-" ++ string_of_int(index);
+      // Auto-size on mount - run after element is inserted into DOM
+      ignore(JsUtil.delay(0.0, () => autosize_textarea(unique_id)));
       div(
         ~attrs=[clss(["message-container", "user-message-container"])],
         [

@@ -200,12 +200,12 @@
 
 /* Toast notification for copy */
 .copy-toast {
-  position: fixed;
+  position: absolute;
   top: 50%;
   left: 50%;
   transform: translate(-50%, -50%);
-  color: var(--GOLD);
-  font-size: 1.2em;
+  color: var(--BR2);
+  font-size: 0.9em;
   opacity: 0;
   transition: opacity 0.3s ease;
   pointer-events: none;
