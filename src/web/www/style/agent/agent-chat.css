@@ -5,6 +5,13 @@
   flex-direction: column;
   height: 100%;
   background-color: var(--ui-bkg);
+  position: relative;
+  /* Ensure resize handle is accessible */
+  pointer-events: none;
+}
+
+.chat-view-container > * {
+  pointer-events: auto;
 }
 
 /* Header */

@@ -64,4 +64,6 @@
   cursor: col-resize;
   background-color: transparent;
   transition: background-color 0.2s ease;
+  z-index: 1000; /* Ensure resize handle is above other content */
+  pointer-events: auto;
 }

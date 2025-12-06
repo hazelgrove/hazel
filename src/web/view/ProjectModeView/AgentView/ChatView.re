@@ -70,12 +70,14 @@ let view =
     List.rev(Agent.ChatSystem.Utils.chats_to_list(chat_system));
 
   // View selection handlers (Chat vs Workbench)
+  let current_chat_id = chat_system.current;
   let switch_to_chat_messages = _ => {
     Effect.Many([
       agent_inject(
         Agent.Agent.Update.Action.ChatSystemAction(
-          Agent.ChatSystem.Update.Action.SwitchView(
-            Agent.ChatSystem.Model.ChatMessages,
+          Agent.ChatSystem.Update.Action.ChatAction(
+            Agent.Chat.Update.Action.SwitchView(Agent.Chat.Model.Messages),
+            current_chat_id,
           ),
         ),
       ),
@@ -87,8 +89,72 @@ let view =
     Effect.Many([
       agent_inject(
         Agent.Agent.Update.Action.ChatSystemAction(
-          Agent.ChatSystem.Update.Action.SwitchView(
-            Agent.ChatSystem.Model.Workbench,
+          Agent.ChatSystem.Update.Action.ChatAction(
+            Agent.Chat.Update.Action.SwitchView(Agent.Chat.Model.Workbench),
+            current_chat_id,
+          ),
+        ),
+      ),
+      Effect.Stop_propagation,
+    ]);
+  };
+
+  // Sub-view handlers (Prompt, Dev Notes, Agent View, Static Errors)
+  let switch_to_prompt = _ => {
+    Effect.Many([
+      agent_inject(
+        Agent.Agent.Update.Action.ChatSystemAction(
+          Agent.ChatSystem.Update.Action.ChatAction(
+            Agent.Chat.Update.Action.SwitchView(Agent.Chat.Model.Prompt),
+            current_chat_id,
+          ),
+        ),
+      ),
+      Effect.Stop_propagation,
+    ]);
+  };
+
+  let switch_to_dev_notes = _ => {
+    Effect.Many([
+      agent_inject(
+        Agent.Agent.Update.Action.ChatSystemAction(
+          Agent.ChatSystem.Update.Action.ChatAction(
+            Agent.Chat.Update.Action.SwitchView(
+              Agent.Chat.Model.DeveloperNotes,
+            ),
+            current_chat_id,
+          ),
+        ),
+      ),
+      Effect.Stop_propagation,
+    ]);
+  };
+
+  let switch_to_agent_view = _ => {
+    Effect.Many([
+      agent_inject(
+        Agent.Agent.Update.Action.ChatSystemAction(
+          Agent.ChatSystem.Update.Action.ChatAction(
+            Agent.Chat.Update.Action.SwitchView(
+              Agent.Chat.Model.AgentEditorView,
+            ),
+            current_chat_id,
+          ),
+        ),
+      ),
+      Effect.Stop_propagation,
+    ]);
+  };
+
+  let switch_to_static_errors = _ => {
+    Effect.Many([
+      agent_inject(
+        Agent.Agent.Update.Action.ChatSystemAction(
+          Agent.ChatSystem.Update.Action.ChatAction(
+            Agent.Chat.Update.Action.SwitchView(
+              Agent.Chat.Model.StaticErrors,
+            ),
+            current_chat_id,
           ),
         ),
       ),
@@ -108,36 +174,49 @@ let view =
             [
               // View selection buttons (only show when in Chat screen)
               if (chat_system.ui.active_screen == Agent.ChatSystem.Model.Chat) {
+                let current_chat =
+                  Agent.ChatSystem.Utils.find_chat(
+                    current_chat_id,
+                    chat_system,
+                  );
+                let is_chat_view_active =
+                  switch (current_chat.current_view) {
+                  | Agent.Chat.Model.Messages
+                  | Agent.Chat.Model.Prompt
+                  | Agent.Chat.Model.DeveloperNotes
+                  | Agent.Chat.Model.AgentEditorView
+                  | Agent.Chat.Model.StaticErrors => true
+                  | Agent.Chat.Model.Workbench => false
+                  };
+                let is_workbench_active =
+                  current_chat.current_view == Agent.Chat.Model.Workbench;
                 div(
-                  ~attrs=[clss(["chat-view-buttons"])],
+                  ~attrs=[clss(["chat-view-buttons-container"])],
                   [
                     div(
-                      ~attrs=[
-                        clss(
-                          ["chat-view-button"]
-                          @ (
-                            chat_system.ui.active_view
-                            == Agent.ChatSystem.Model.ChatMessages
-                              ? ["active"] : []
-                          ),
+                      ~attrs=[clss(["chat-view-buttons"])],
+                      [
+                        div(
+                          ~attrs=[
+                            clss(
+                              ["chat-view-button"]
+                              @ (is_chat_view_active ? ["active"] : []),
+                            ),
+                            Attr.on_click(switch_to_chat_messages),
+                          ],
+                          [text("Chat")],
                         ),
-                        Attr.on_click(switch_to_chat_messages),
-                      ],
-                      [text("Chat")],
-                    ),
-                    div(
-                      ~attrs=[
-                        clss(
-                          ["chat-view-button"]
-                          @ (
-                            chat_system.ui.active_view
-                            == Agent.ChatSystem.Model.Workbench
-                              ? ["active"] : []
-                          ),
+                        div(
+                          ~attrs=[
+                            clss(
+                              ["chat-view-button"]
+                              @ (is_workbench_active ? ["active"] : []),
+                            ),
+                            Attr.on_click(switch_to_workbench),
+                          ],
+                          [text("Workbench")],
                         ),
-                        Attr.on_click(switch_to_workbench),
                       ],
-                      [text("Workbench")],
                     ),
                   ],
                 );
@@ -194,20 +273,33 @@ let view =
       switch (chat_system.ui.active_screen) {
       | Agent.ChatSystem.Model.Chat =>
         // Within Chat screen, switch between ChatMessages and Workbench
-        switch (chat_system.ui.active_view) {
-        | Agent.ChatSystem.Model.ChatMessages =>
+        let current_chat =
+          Agent.ChatSystem.Utils.find_chat(current_chat_id, chat_system);
+        switch (current_chat.current_view) {
+        | Agent.Chat.Model.Messages =>
           ChatMessagesView.view(
             ~globals,
             ~agent_model,
             ~agent_inject,
             ~signal,
           )
-        | Agent.ChatSystem.Model.Workbench =>
+        | Agent.Chat.Model.Workbench =>
           div(
             ~attrs=[clss(["chat-view-content"])],
             [text("Workbench View (Coming Soon)")],
           )
-        }
+        | Agent.Chat.Model.Prompt
+        | Agent.Chat.Model.DeveloperNotes
+        | Agent.Chat.Model.AgentEditorView
+        | Agent.Chat.Model.StaticErrors =>
+          // These views are handled within ChatMessagesView
+          ChatMessagesView.view(
+            ~globals,
+            ~agent_model,
+            ~agent_inject,
+            ~signal,
+          )
+        };
       | Agent.ChatSystem.Model.History =>
         div(
           ~attrs=[clss(["chat-view-content", "history-view"])],

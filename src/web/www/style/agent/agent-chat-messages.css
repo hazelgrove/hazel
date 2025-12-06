@@ -5,6 +5,7 @@
   flex-direction: column;
   height: 100%;
   overflow: hidden;
+  position: relative; /* For absolute positioning of floating buttons */
 }
 
 .chat-messages-container {
@@ -12,6 +13,7 @@
   overflow-y: auto;
   overflow-x: hidden;
   padding: 1em;
+  padding-top: 0.5em; /* Reduced top padding to account for sticky buttons */
   display: flex;
   flex-direction: column;
   gap: 1em;
@@ -135,14 +137,49 @@
   border-top: 0.6px solid var(--BR2);
   background-color: var(--ui-bkg);
   display: flex;
-  align-items: flex-end;
+  flex-direction: column;
   gap: 0.5em;
+}
+
+/* Action buttons row - above input */
+.chat-action-buttons-row {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 0.75em;
+  padding-bottom: 0.25em;
+}
+
+.chat-action-button {
+  width: 20px;
+  height: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  padding: 0;
+}
+
+.chat-action-button svg {
+  fill: var(--menu-icon);
+  width: 16px;
+  height: 16px;
+  transition: fill 0.15s ease-in-out;
+}
+
+.chat-action-button:hover svg {
+  fill: var(--BR3);
+  animation: jello 0.6s ease 0s 1 normal forwards;
 }
 
 .chat-message-input-container {
   position: relative;
   width: 100%;
   max-width: 100%;
+  display: flex;
+  flex-direction: row;
+  align-items: flex-end;
+  gap: 0.5em;
 }
 
 .chat-message-input {
@@ -324,9 +361,15 @@
 }
 
 /* View Buttons in Header */
+.chat-view-buttons-container {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25em;
+}
+
 .chat-view-buttons {
   display: flex;
-  gap: 0.5em;
+  gap: 3.0em; /* Increased gap between Chat and Workbench */
   align-items: center;
 }
 
@@ -350,6 +393,7 @@
   text-decoration: underline;
   text-underline-offset: 0.3em;
 }
+
 
 /* Branch Navigation */
 .branch-navigation {
@@ -417,6 +461,125 @@
 .editor-view-display,
 .static-errors-display {
   margin-top: 0.5em;
+}
+
+/* View Icon Buttons Bar */
+.view-buttons-bar {
+  display: flex;
+  flex-direction: row;
+  gap: 0.5em;
+  padding: 0.5em;
+  justify-content: center;
+  align-items: center;
+  border-bottom: 0.6px solid var(--BR2);
+  background-color: var(--T1);
+}
+
+.view-icon-button {
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 0.4em;
+  cursor: pointer;
+  transition: background-color 0.15s ease-in-out, transform 0.1s ease-in-out;
+  padding: 0.25em;
+}
+
+.view-icon-button:hover {
+  background-color: var(--menu-item-hover-bkg);
+  transform: scale(1.1);
+}
+
+.view-icon-button svg {
+  fill: var(--menu-icon);
+  width: 18px;
+  height: 18px;
+  transition: transform 0.15s ease-in-out, filter 0.15s ease-in-out;
+}
+
+.view-icon-button:hover svg {
+  transform: scale(1.15);
+  filter: brightness(1.2);
+  animation: jello 0.6s ease 0s 1 normal forwards;
+}
+
+.view-icon-button.disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+.view-icon-button.disabled:hover {
+  transform: scale(1);
+  background-color: transparent;
+}
+
+.view-icon-button.disabled:hover svg {
+  transform: scale(1);
+  filter: none;
+  animation: none;
+}
+
+/* Full Screen Views */
+.full-screen-view {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  width: 100%;
+  overflow: hidden;
+}
+
+.view-header {
+  display: flex;
+  flex-direction: row;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.75em 1em;
+  border-bottom: 0.6px solid var(--BR2);
+  background-color: var(--T1);
+}
+
+.view-title {
+  font-size: 1em;
+  font-weight: 600;
+  color: var(--STONE);
+}
+
+.view-close-button {
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 0.3em;
+  cursor: pointer;
+  transition: background-color 0.15s ease-in-out, transform 0.1s ease-in-out;
+}
+
+.view-close-button:hover {
+  background-color: var(--menu-item-hover-bkg);
+  transform: scale(1.1);
+}
+
+.view-close-button svg {
+  fill: var(--menu-icon);
+  width: 16px;
+  height: 16px;
+  transition: transform 0.15s ease-in-out, filter 0.15s ease-in-out;
+}
+
+.view-close-button:hover svg {
+  transform: scale(1.15);
+  filter: brightness(1.2);
+  animation: wobble 0.6s ease 0s 1 normal forwards;
+}
+
+.view-content {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: 1em;
 }
 
 /* Loading Dots Animation */

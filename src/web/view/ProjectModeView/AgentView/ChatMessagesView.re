@@ -7,6 +7,236 @@ open Icons;
 
 let _ = confirm; // Temporary. Silencing warnings from unused Icon open.
 
+// View components for different views
+module ViewComponents = {
+  let prompt_view =
+      (
+        ~content: string,
+        ~agent_inject: Agent.Agent.Update.Action.t => Effect.t(unit),
+        ~chat_id: Id.t,
+      )
+      : Node.t => {
+    div(
+      ~attrs=[clss(["full-screen-view"])],
+      [
+        div(
+          ~attrs=[clss(["view-header"])],
+          [
+            div(~attrs=[clss(["view-title"])], [text("System Prompt")]),
+            div(
+              ~attrs=[
+                clss(["view-close-button", "icon"]),
+                Attr.on_click(_ =>
+                  Effect.Many([
+                    agent_inject(
+                      Agent.Agent.Update.Action.ChatSystemAction(
+                        Agent.ChatSystem.Update.Action.ChatAction(
+                          Agent.Chat.Update.Action.SwitchView(
+                            Agent.Chat.Model.Messages,
+                          ),
+                          chat_id,
+                        ),
+                      ),
+                    ),
+                    Effect.Stop_propagation,
+                  ])
+                ),
+              ],
+              [Icons.cancel],
+            ),
+          ],
+        ),
+        div(
+          ~attrs=[clss(["view-content", "system-message"])],
+          [text(content)],
+        ),
+      ],
+    );
+  };
+
+  let developer_notes_view =
+      (
+        ~content: string,
+        ~agent_inject: Agent.Agent.Update.Action.t => Effect.t(unit),
+        ~chat_id: Id.t,
+      )
+      : Node.t => {
+    div(
+      ~attrs=[clss(["full-screen-view"])],
+      [
+        div(
+          ~attrs=[clss(["view-header"])],
+          [
+            div(~attrs=[clss(["view-title"])], [text("Developer Notes")]),
+            div(
+              ~attrs=[
+                clss(["view-close-button", "icon"]),
+                Attr.on_click(_ =>
+                  Effect.Many([
+                    agent_inject(
+                      Agent.Agent.Update.Action.ChatSystemAction(
+                        Agent.ChatSystem.Update.Action.ChatAction(
+                          Agent.Chat.Update.Action.SwitchView(
+                            Agent.Chat.Model.Messages,
+                          ),
+                          chat_id,
+                        ),
+                      ),
+                    ),
+                    Effect.Stop_propagation,
+                  ])
+                ),
+              ],
+              [Icons.cancel],
+            ),
+          ],
+        ),
+        div(
+          ~attrs=[clss(["view-content", "system-message"])],
+          [text(content)],
+        ),
+      ],
+    );
+  };
+
+  let agent_editor_view_component =
+      (
+        ~content: string,
+        ~agent_inject: Agent.Agent.Update.Action.t => Effect.t(unit),
+        ~chat_id: Id.t,
+      )
+      : Node.t => {
+    div(
+      ~attrs=[clss(["full-screen-view"])],
+      [
+        div(
+          ~attrs=[clss(["view-header"])],
+          [
+            div(
+              ~attrs=[clss(["view-title"])],
+              [text("Agent Editor View")],
+            ),
+            div(
+              ~attrs=[
+                clss(["view-close-button", "icon"]),
+                Attr.on_click(_ =>
+                  Effect.Many([
+                    agent_inject(
+                      Agent.Agent.Update.Action.ChatSystemAction(
+                        Agent.ChatSystem.Update.Action.ChatAction(
+                          Agent.Chat.Update.Action.SwitchView(
+                            Agent.Chat.Model.Messages,
+                          ),
+                          chat_id,
+                        ),
+                      ),
+                    ),
+                    Effect.Stop_propagation,
+                  ])
+                ),
+              ],
+              [Icons.cancel],
+            ),
+          ],
+        ),
+        div(
+          ~attrs=[clss(["view-content", "system-message"])],
+          [text(content)],
+        ),
+      ],
+    );
+  };
+
+  let static_errors_view =
+      (
+        ~content: string,
+        ~agent_inject: Agent.Agent.Update.Action.t => Effect.t(unit),
+        ~chat_id: Id.t,
+      )
+      : Node.t => {
+    div(
+      ~attrs=[clss(["full-screen-view"])],
+      [
+        div(
+          ~attrs=[clss(["view-header"])],
+          [
+            div(~attrs=[clss(["view-title"])], [text("Static Errors")]),
+            div(
+              ~attrs=[
+                clss(["view-close-button", "icon"]),
+                Attr.on_click(_ =>
+                  Effect.Many([
+                    agent_inject(
+                      Agent.Agent.Update.Action.ChatSystemAction(
+                        Agent.ChatSystem.Update.Action.ChatAction(
+                          Agent.Chat.Update.Action.SwitchView(
+                            Agent.Chat.Model.Messages,
+                          ),
+                          chat_id,
+                        ),
+                      ),
+                    ),
+                    Effect.Stop_propagation,
+                  ])
+                ),
+              ],
+              [Icons.cancel],
+            ),
+          ],
+        ),
+        div(
+          ~attrs=[clss(["view-content", "system-message", "error"])],
+          [text(content)],
+        ),
+      ],
+    );
+  };
+
+  let workbench_view =
+      (
+        ~agent_inject: Agent.Agent.Update.Action.t => Effect.t(unit),
+        ~chat_id: Id.t,
+      )
+      : Node.t => {
+    div(
+      ~attrs=[clss(["full-screen-view"])],
+      [
+        div(
+          ~attrs=[clss(["view-header"])],
+          [
+            div(~attrs=[clss(["view-title"])], [text("Workbench")]),
+            div(
+              ~attrs=[
+                clss(["view-close-button", "icon"]),
+                Attr.on_click(_ =>
+                  Effect.Many([
+                    agent_inject(
+                      Agent.Agent.Update.Action.ChatSystemAction(
+                        Agent.ChatSystem.Update.Action.ChatAction(
+                          Agent.Chat.Update.Action.SwitchView(
+                            Agent.Chat.Model.Messages,
+                          ),
+                          chat_id,
+                        ),
+                      ),
+                    ),
+                    Effect.Stop_propagation,
+                  ])
+                ),
+              ],
+              [Icons.cancel],
+            ),
+          ],
+        ),
+        div(
+          ~attrs=[clss(["view-content"])],
+          [text("Workbench view - to be implemented")],
+        ),
+      ],
+    );
+  };
+};
+
 let view =
     (
       ~globals as _: Globals.t,
@@ -302,157 +532,247 @@ let view =
     };
   };
 
-  div(
-    ~attrs=[clss(["chat-messages-view"])],
-    [
-      // Prompt and Developer Notes at top
-      if (chunked_chat.prompt != "") {
-        div(
-          ~attrs=[clss(["system-message-container", "prompt-display"])],
-          [
-            div(
-              ~attrs=[clss(["system-message"])],
-              [text(chunked_chat.prompt)],
-            ),
-          ],
-        );
-      } else {
-        div(~attrs=[], []);
-      },
-      if (chunked_chat.developer_notes != "") {
-        div(
-          ~attrs=[
-            clss(["system-message-container", "developer-notes-display"]),
-          ],
-          [
-            div(
-              ~attrs=[clss(["system-message"])],
-              [text(chunked_chat.developer_notes)],
-            ),
-          ],
-        );
-      } else {
-        div(~attrs=[], []);
-      },
-      // Chunks display area
-      div(
-        ~attrs=[clss(["chat-messages-container"])],
-        List.mapi(render_chunk, chunked_chat.log),
+  // Handler functions for icon buttons
+  let switch_to_prompt = _ => {
+    Effect.Many([
+      agent_inject(
+        Agent.Agent.Update.Action.ChatSystemAction(
+          Agent.ChatSystem.Update.Action.ChatAction(
+            Agent.Chat.Update.Action.SwitchView(Agent.Chat.Model.Prompt),
+            current_chat_id,
+          ),
+        ),
       ),
-      // Editor view and static errors at bottom
-      if (chunked_chat.editor_view != "") {
-        div(
-          ~attrs=[clss(["system-message-container", "editor-view-display"])],
-          [
-            div(
-              ~attrs=[clss(["system-message"])],
-              [text(chunked_chat.editor_view)],
+      Effect.Stop_propagation,
+    ]);
+  };
+
+  let switch_to_dev_notes = _ => {
+    Effect.Many([
+      agent_inject(
+        Agent.Agent.Update.Action.ChatSystemAction(
+          Agent.ChatSystem.Update.Action.ChatAction(
+            Agent.Chat.Update.Action.SwitchView(
+              Agent.Chat.Model.DeveloperNotes,
             ),
-          ],
-        );
-      } else {
-        div(~attrs=[], []);
-      },
-      if (chunked_chat.static_errors != "") {
-        div(
-          ~attrs=[
-            clss(["system-message-container", "static-errors-display"]),
-          ],
-          [
-            div(
-              ~attrs=[clss(["system-message"])],
-              [text(chunked_chat.static_errors)],
+            current_chat_id,
+          ),
+        ),
+      ),
+      Effect.Stop_propagation,
+    ]);
+  };
+
+  let switch_to_agent_view = _ => {
+    Effect.Many([
+      agent_inject(
+        Agent.Agent.Update.Action.ChatSystemAction(
+          Agent.ChatSystem.Update.Action.ChatAction(
+            Agent.Chat.Update.Action.SwitchView(
+              Agent.Chat.Model.AgentEditorView,
             ),
-          ],
-        );
-      } else {
-        div(~attrs=[], []);
-      },
-      // Input area at bottom
-      div(
-        ~attrs=[clss(["chat-input-container"])],
-        [
-          div(
-            ~attrs=[clss(["chat-message-input-container"])],
-            [
-              textarea(
-                ~attrs=[
-                  clss(["chat-message-input"]),
-                  Attr.id("chat-message-input"),
-                  Attr.placeholder("Type your message..."),
-                  Attr.property("autocomplete", Js.Unsafe.inject("off")),
-                  Attr.on_focus(_ => {
-                    // Lock height on focus to prevent resizing while typing
-                    Js.Opt.iter(
-                      Dom_html.document##getElementById(
-                        Js.string("chat-message-input"),
-                      ),
-                      el => {
-                        let textarea = Js.Unsafe.coerce(el);
-                        let current_height = textarea##.offsetHeight;
-                        textarea##.style##.height :=
-                          Js.string(string_of_int(current_height) ++ "px");
-                        textarea##.style##.overflowY := Js.string("auto");
-                      },
-                    );
-                    Effect.Many([
-                      signal(
-                        Editors.View.MakeActive(
-                          Editors.Selection.Projects(
-                            ProjectMode.Selection.TextBox,
+            current_chat_id,
+          ),
+        ),
+      ),
+      Effect.Stop_propagation,
+    ]);
+  };
+
+  let switch_to_static_errors = _ => {
+    Effect.Many([
+      agent_inject(
+        Agent.Agent.Update.Action.ChatSystemAction(
+          Agent.ChatSystem.Update.Action.ChatAction(
+            Agent.Chat.Update.Action.SwitchView(
+              Agent.Chat.Model.StaticErrors,
+            ),
+            current_chat_id,
+          ),
+        ),
+      ),
+      Effect.Stop_propagation,
+    ]);
+  };
+
+  // Check current view and render appropriate view
+  switch (current_chat.current_view) {
+  | Agent.Chat.Model.Messages =>
+    // Normal messages view
+    div(
+      ~attrs=[clss(["chat-messages-view"])],
+      [
+        // Chunks display area
+        div(
+          ~attrs=[clss(["chat-messages-container"])],
+          List.mapi(render_chunk, chunked_chat.log),
+        ),
+        // Input area at bottom with buttons above
+        div(
+          ~attrs=[clss(["chat-input-container"])],
+          [
+            // Action buttons row - above input, aligned to top left
+            div(
+              ~attrs=[clss(["chat-action-buttons-row"])],
+              [
+                // Prompt button
+                if (chunked_chat.prompt != "") {
+                  div(
+                    ~attrs=[
+                      clss(["chat-action-button", "icon"]),
+                      Attr.on_click(switch_to_prompt),
+                      Attr.title("View System Prompt"),
+                    ],
+                    [Icons.prompt],
+                  );
+                } else {
+                  div(~attrs=[], []);
+                },
+                // Dev Notes button
+                if (chunked_chat.developer_notes != "") {
+                  div(
+                    ~attrs=[
+                      clss(["chat-action-button", "icon"]),
+                      Attr.on_click(switch_to_dev_notes),
+                      Attr.title("View Developer Notes"),
+                    ],
+                    [Icons.wrench],
+                  );
+                } else {
+                  div(~attrs=[], []);
+                },
+                // Agent View button
+                div(
+                  ~attrs=[
+                    clss(["chat-action-button", "icon"]),
+                    Attr.on_click(switch_to_agent_view),
+                    Attr.title("View Agent Editor View"),
+                  ],
+                  [Icons.agent_view],
+                ),
+                // Static Errors button
+                div(
+                  ~attrs=[
+                    clss(["chat-action-button", "icon"]),
+                    Attr.on_click(switch_to_static_errors),
+                    Attr.title("View Static Errors"),
+                  ],
+                  [Icons.error_info],
+                ),
+              ],
+            ),
+            div(
+              ~attrs=[clss(["chat-message-input-container"])],
+              [
+                textarea(
+                  ~attrs=[
+                    clss(["chat-message-input"]),
+                    Attr.id("chat-message-input"),
+                    Attr.placeholder("Type your message..."),
+                    Attr.property("autocomplete", Js.Unsafe.inject("off")),
+                    Attr.on_focus(_ => {
+                      // Lock height on focus to prevent resizing while typing
+                      Js.Opt.iter(
+                        Dom_html.document##getElementById(
+                          Js.string("chat-message-input"),
+                        ),
+                        el => {
+                          let textarea = Js.Unsafe.coerce(el);
+                          let current_height = textarea##.offsetHeight;
+                          textarea##.style##.height :=
+                            Js.string(string_of_int(current_height) ++ "px");
+                          textarea##.style##.overflowY := Js.string("auto");
+                        },
+                      );
+                      Effect.Many([
+                        signal(
+                          Editors.View.MakeActive(
+                            Editors.Selection.Projects(
+                              ProjectMode.Selection.TextBox,
+                            ),
                           ),
                         ),
-                      ),
-                      Effect.Stop_propagation,
-                    ]);
-                  }),
-                  Attr.on_blur(_ => {
-                    // Resize on blur to fit content
-                    JsUtil.delay(0.0, () =>
-                      autosize_textarea("chat-message-input")
-                    );
-                    Effect.Stop_propagation;
-                  }),
-                  Attr.on_input(handle_textarea_input),
-                  Attr.on_copy(_ => Effect.Stop_propagation),
-                  Attr.on_paste(_ => {
-                    // Resize after paste
-                    JsUtil.delay(0.0, () =>
-                      autosize_textarea("chat-message-input")
-                    );
-                    Effect.Stop_propagation;
-                  }),
-                  Attr.on_cut(_ => Effect.Stop_propagation),
-                  Attr.string_property("value", current_text),
-                ],
-                [text(current_text)],
-              ),
-              if (String.length(String.trim(current_text)) > 0) {
-                div(
-                  ~attrs=[
-                    clss(["send-button", "icon", "chat-message-send-button"]),
-                    Attr.on_click(send_message),
-                    Attr.title("Send Message"),
+                        Effect.Stop_propagation,
+                      ]);
+                    }),
+                    Attr.on_blur(_ => {
+                      // Resize on blur to fit content
+                      JsUtil.delay(0.0, () =>
+                        autosize_textarea("chat-message-input")
+                      );
+                      Effect.Stop_propagation;
+                    }),
+                    Attr.on_input(handle_textarea_input),
+                    Attr.on_copy(_ => Effect.Stop_propagation),
+                    Attr.on_paste(_ => {
+                      // Resize after paste
+                      JsUtil.delay(0.0, () =>
+                        autosize_textarea("chat-message-input")
+                      );
+                      Effect.Stop_propagation;
+                    }),
+                    Attr.on_cut(_ => Effect.Stop_propagation),
+                    Attr.string_property("value", current_text),
                   ],
-                  [Icons.send],
-                );
-              } else {
-                div(
-                  ~attrs=[
-                    clss([
-                      "send-button-disabled",
-                      "icon",
-                      "chat-message-send-button",
-                    ]),
-                    Attr.title("Send Message Disabled"),
-                  ],
-                  [Icons.send],
-                );
-              },
-            ],
-          ),
-        ],
-      ),
-    ],
-  );
+                  [text(current_text)],
+                ),
+                if (String.length(String.trim(current_text)) > 0) {
+                  div(
+                    ~attrs=[
+                      clss([
+                        "send-button",
+                        "icon",
+                        "chat-message-send-button",
+                      ]),
+                      Attr.on_click(send_message),
+                      Attr.title("Send Message"),
+                    ],
+                    [Icons.send],
+                  );
+                } else {
+                  div(
+                    ~attrs=[
+                      clss([
+                        "send-button-disabled",
+                        "icon",
+                        "chat-message-send-button",
+                      ]),
+                      Attr.title("Send Message Disabled"),
+                    ],
+                    [Icons.send],
+                  );
+                },
+              ],
+            ),
+          ],
+        ),
+      ],
+    )
+  | Agent.Chat.Model.Prompt =>
+    ViewComponents.prompt_view(
+      ~content=chunked_chat.prompt,
+      ~agent_inject,
+      ~chat_id=current_chat_id,
+    )
+  | Agent.Chat.Model.DeveloperNotes =>
+    ViewComponents.developer_notes_view(
+      ~content=chunked_chat.developer_notes,
+      ~agent_inject,
+      ~chat_id=current_chat_id,
+    )
+  | Agent.Chat.Model.AgentEditorView =>
+    ViewComponents.agent_editor_view_component(
+      ~content=chunked_chat.agent_view,
+      ~agent_inject,
+      ~chat_id=current_chat_id,
+    )
+  | Agent.Chat.Model.StaticErrors =>
+    ViewComponents.static_errors_view(
+      ~content=chunked_chat.static_errors,
+      ~agent_inject,
+      ~chat_id=current_chat_id,
+    )
+  | Agent.Chat.Model.Workbench =>
+    ViewComponents.workbench_view(~agent_inject, ~chat_id=current_chat_id)
+  };
 };

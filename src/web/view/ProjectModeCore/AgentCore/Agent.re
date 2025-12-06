@@ -279,6 +279,15 @@ module Chat = {
       static_errors_info: Message.Model.t,
     };
 
+    [@deriving (show({with_path: false}), sexp, yojson)]
+    type current_view =
+      | Messages
+      | Workbench
+      | AgentEditorView
+      | StaticErrors
+      | Prompt
+      | DeveloperNotes;
+
     // Chats are a tree of messages
     // The user can branch off from the current or past message and create threads
     // The current thread is made via linearizing the branch denoted by the current head
@@ -294,6 +303,7 @@ module Chat = {
       agent_workbench: AgentWorkbench.Model.t, // The agent's todo lists/workbench associated with this chat
       context: option(context),
       created_at: float,
+      current_view,
     };
   };
 
@@ -473,6 +483,7 @@ module Chat = {
         agent_workbench: AgentWorkbench.Utils.MainUtils.init(),
         context: None,
         created_at: JsUtil.timestamp(),
+        current_view: Messages,
       };
       let dev_notes = Message.Utils.mk_developer_notes_message(dev_notes);
       let chat = append(dev_notes, chat);
@@ -491,7 +502,8 @@ module Chat = {
         | WorkbenchAction(AgentWorkbench.Update.Action.action)
         | UpdateContext(Message.Model.t, Message.Model.t)
         | AppendToMessageContent(Id.t, string)
-        | OverwriteMessage(Id.t, Message.Model.t);
+        | OverwriteMessage(Id.t, Message.Model.t)
+        | SwitchView(Model.current_view);
     };
 
     let update = (action: Action.t, model: Model.t): Result.t(Model.t) => {
@@ -533,6 +545,11 @@ module Chat = {
         Ok(Utils.append_to_message_content(message_id, content, model))
       | OverwriteMessage(message_id, message) =>
         Ok(Utils.overwrite_message(message_id, message, model))
+      | SwitchView(current_view) =>
+        Ok({
+          ...model,
+          current_view,
+        })
       };
     };
   };
@@ -574,7 +591,7 @@ module ChunkedUIChat = {
     type t = {
       prompt: string,
       developer_notes: string,
-      editor_view: string,
+      agent_view: string,
       static_errors: string,
       log: list(chunk),
     };
@@ -600,7 +617,7 @@ module ChunkedUIChat = {
       {
         prompt: "",
         developer_notes: "",
-        editor_view: "",
+        agent_view: "",
         static_errors: "",
         log: [],
       };
@@ -674,7 +691,7 @@ module ChunkedUIChat = {
           | System(AgentEditorView) =>
             let updated_model = {
               ...acc_model,
-              editor_view: message.content,
+              agent_view: message.content,
             };
             convert_helper(rest, updated_model);
           | System(StaticErrorsInfo) =>
@@ -734,14 +751,8 @@ module ChatSystem = {
       | History;
 
     [@deriving (show({with_path: false}), sexp, yojson)]
-    type active_view =
-      | ChatMessages
-      | Workbench;
-
-    [@deriving (show({with_path: false}), sexp, yojson)]
     type ui = {
       active_screen,
-      active_view,
       current_text_box_content: string,
     };
 
@@ -808,7 +819,6 @@ module ChatSystem = {
         current: initial_chat.id,
         ui: {
           active_screen: Chat,
-          active_view: ChatMessages,
           current_text_box_content: "",
         },
       };
@@ -823,7 +833,6 @@ module ChatSystem = {
         | NewChat(string, string)
         | DeleteChat(Id.t)
         | SwitchScreen(Model.active_screen)
-        | SwitchView(Model.active_view)
         | SaveTextBoxContent(string)
         | ChatAction(Chat.Update.Action.t, Id.t);
 
@@ -857,14 +866,6 @@ module ChatSystem = {
           ui: {
             ...model.ui,
             active_screen,
-          },
-        })
-      | SwitchView(active_view) =>
-        Ok({
-          ...model,
-          ui: {
-            ...model.ui,
-            active_view,
           },
         })
       | SaveTextBoxContent(content) =>
