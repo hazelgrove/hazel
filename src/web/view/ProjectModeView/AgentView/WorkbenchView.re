@@ -4,16 +4,17 @@ open Util.WebUtil;
 open Util;
 open Haz3lcore;
 
-// Format duration in seconds to human-readable string
-let format_duration_ms = (seconds: float): string => {
-  let total_ms = seconds *. 1000.0;
-  if (total_ms < 1000.0) {
-    Printf.sprintf("%.0fms", total_ms);
-  } else if (total_ms < 60000.0) {
-    Printf.sprintf("%.1fs", seconds);
+// Format duration in milliseconds to human-readable string
+// elapsed_time is stored in milliseconds (from JsUtil.timestamp() differences)
+let format_duration_ms = (milliseconds: float): string => {
+  let total_seconds = milliseconds /. 1000.0;
+  if (milliseconds < 1000.0) {
+    Printf.sprintf("%.0fms", milliseconds);
+  } else if (milliseconds < 60000.0) {
+    Printf.sprintf("%.1fs", total_seconds);
   } else {
-    let minutes = floor(seconds /. 60.0);
-    let remaining_seconds = seconds -. minutes *. 60.0;
+    let minutes = floor(total_seconds /. 60.0);
+    let remaining_seconds = total_seconds -. minutes *. 60.0;
     Printf.sprintf("%.0fm %.0fs", minutes, remaining_seconds);
   };
 };
@@ -64,6 +65,94 @@ let view =
     );
   };
 
+  // Toggle tool result expansion
+  let toggle_tool_result_expanded =
+      (~subtask_title: string, ~tool_result_index: int, ~expanded: bool)
+      : Effect.t(unit) => {
+    inject_workbench_ui_action(
+      AgentWorkbench.Update.Action.UIAction.SetToolResultExpanded(
+        subtask_title,
+        tool_result_index,
+        !expanded,
+      ),
+    );
+  };
+
+  // Render a tool result (reused from ChatMessagesView pattern)
+  let render_tool_result =
+      (
+        ~subtask_title: string,
+        ~tool_result_index: int,
+        ~tool_result: OpenRouter.Reply.Model.tool_result,
+      )
+      : Node.t => {
+    let toggle_expanded = _ => {
+      Effect.Many([
+        toggle_tool_result_expanded(
+          ~subtask_title,
+          ~tool_result_index,
+          ~expanded=tool_result.expanded,
+        ),
+        Effect.Stop_propagation,
+      ]);
+    };
+    let status_icon = tool_result.success ? Icons.confirm : Icons.cancel;
+    let status_class =
+      tool_result.success ? "tool-call-success" : "tool-call-failure";
+    div(
+      ~attrs=[clss(["agent-tool-call-inline"])],
+      [
+        div(
+          ~attrs=[
+            clss([
+              "tool-call-header",
+              tool_result.expanded ? "expanded" : "",
+            ]),
+            Attr.on_click(toggle_expanded),
+          ],
+          [
+            div(
+              ~attrs=[clss(["tool-call-status-icon", status_class])],
+              [status_icon],
+            ),
+            div(
+              ~attrs=[clss(["tool-call-name"])],
+              [text(tool_result.tool_call.name)],
+            ),
+          ],
+        ),
+        if (tool_result.expanded) {
+          div(
+            ~attrs=[clss(["tool-call-content"])],
+            [
+              div(
+                ~attrs=[clss(["tool-call-args"])],
+                [
+                  div(
+                    ~attrs=[clss(["tool-call-args-label"])],
+                    [text("Arguments:")],
+                  ),
+                  div(
+                    ~attrs=[clss(["tool-call-args-value"])],
+                    [
+                      text(
+                        Yojson.Safe.pretty_to_string(
+                          tool_result.tool_call.args,
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ],
+          );
+        } else {
+          div(~attrs=[], []);
+        },
+      ],
+    );
+  };
+
   // Render a subtask
   let render_subtask =
       (
@@ -96,6 +185,11 @@ let view =
           ~attrs=[clss(status_classes)],
           [
             is_completed ? Icons.circle_with_check : Icons.circle_with_no_check,
+            if (is_active_and_incomplete) {
+              Icons.solid_circle;
+            } else {
+              Node.text("");
+            },
           ],
         ),
         div(
@@ -151,6 +245,34 @@ let view =
                       ],
                     )
                   | None => div(~attrs=[], [])
+                  },
+                  if (List.length(subtask.tools_used) > 0) {
+                    div(
+                      ~attrs=[clss(["todo-detail-section"])],
+                      [
+                        div(
+                          ~attrs=[clss(["todo-detail-header"])],
+                          [text("Tools Used")],
+                        ),
+                        div(
+                          ~attrs=[clss(["todo-tool-results"])],
+                          List.mapi(
+                            (
+                              index: int,
+                              tool_result: OpenRouter.Reply.Model.tool_result,
+                            ) =>
+                              render_tool_result(
+                                ~subtask_title=subtask.title,
+                                ~tool_result_index=index,
+                                ~tool_result,
+                              ),
+                            subtask.tools_used,
+                          ),
+                        ),
+                      ],
+                    );
+                  } else {
+                    div(~attrs=[], []);
                   },
                 ],
               );
@@ -219,9 +341,9 @@ let view =
             ~attrs=[clss(["history-menu-list"])],
             List.map(
               (task: AgentWorkbench.Model.task) => {
-                let is_active =
-                  switch (workbench.active_task) {
-                  | Some(active_title) => active_title == task.title
+                let is_displayed =
+                  switch (workbench.t_ui.display_task) {
+                  | Some(displayed_title) => displayed_title == task.title
                   | None => false
                   };
                 let switch_to_task = _ => {
@@ -231,27 +353,14 @@ let view =
                         task.title,
                       ),
                     ),
-                    agent_inject(
-                      Agent.Agent.Update.Action.ChatSystemAction(
-                        Agent.ChatSystem.Update.Action.ChatAction(
-                          Agent.Chat.Update.Action.WorkbenchAction(
-                            AgentWorkbench.Update.Action.BackendAction(
-                              AgentWorkbench.Update.Action.BackendAction.SetActiveTask(
-                                task.title,
-                              ),
-                            ),
-                          ),
-                          current_chat_id,
-                        ),
-                      ),
-                    ),
                     Effect.Stop_propagation,
                   ]);
                 };
                 div(
                   ~attrs=[
                     clss(
-                      ["history-menu-item"] @ (is_active ? ["active"] : []),
+                      ["history-menu-item"]
+                      @ (is_displayed ? ["active"] : []),
                     ),
                     Attr.on_click(switch_to_task),
                   ],
@@ -307,13 +416,17 @@ let view =
       div(
         ~attrs=[clss(["workbench-content"])],
         [
-          switch (AgentWorkbench.Utils.MainUtils.active_task(workbench)) {
+          switch (AgentWorkbench.Utils.MainUtils.displayed_task(workbench)) {
+          | Some(displayed_task) => render_active_task(displayed_task)
           | None =>
-            div(
-              ~attrs=[clss(["no-todo-list"])],
-              [text("No active task.")],
-            )
-          | Some(active_task) => render_active_task(active_task)
+            switch (AgentWorkbench.Utils.MainUtils.active_task(workbench)) {
+            | Some(active_task) => render_active_task(active_task)
+            | None =>
+              div(
+                ~attrs=[clss(["no-todo-list"])],
+                [text("No active task.")],
+              )
+            }
           },
         ],
       ),

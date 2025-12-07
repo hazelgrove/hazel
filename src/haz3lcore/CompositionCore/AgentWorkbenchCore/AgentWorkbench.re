@@ -47,7 +47,7 @@ module Model = {
   type subtask = {
     title: string, // Will also serve as a unique identifier for the subtask item
     description: string, // Description of the subtask item
-    tools_used: list(tool_usage_info), // TODO: List of tools used for this subtask item
+    tools_used: list(OpenRouter.Reply.Model.tool_result), // TODO: List of tools used for this subtask item
     completion_info: option(completion_info),
     subtask_ui: UI.subtask_ui,
     metadata,
@@ -60,7 +60,6 @@ module Model = {
     description: string,
     subtasks: Maps.StringMap.t(subtask), // Map of title -> subtask, (titles are keys)
     subtask_ordering: list(string), // List of subtask titles in the order they should be completed
-    tools_used: list(tool_usage_info),
     completion_info: option(completion_info),
     active_subtask: option(string),
     task_ui: UI.task_ui,
@@ -270,7 +269,6 @@ module Utils = {
         description,
         subtasks: subtask_map,
         subtask_ordering,
-        tools_used: [],
         completion_info: None,
         active_subtask: None,
         task_ui: {
@@ -483,7 +481,12 @@ module Update = {
         // Toggles whether the task dictionary archive is shown
         | ToggleShowTaskDictionary
         | SetDisplayTask(string)
-        | ExpandSubtask(string);
+        | ExpandSubtask(string)
+        | SetToolResultExpanded(string, int, bool) // subtask_title, tool_result_index, expanded
+        | AddToolResultToActiveSubtask(
+            OpenRouter.Reply.Model.tool_call,
+            bool,
+          );
     };
 
     module BackendAction = {
@@ -599,6 +602,64 @@ module Update = {
             let updated_task =
               TaskUtils.write_subtask(
                 ~task=displayed_task,
+                ~subtask=updated_subtask,
+              );
+            UpdateUtils.write_task(~model, ~task=updated_task);
+          }
+        }
+      | SetToolResultExpanded(subtask_title, tool_result_index, expanded) =>
+        switch (MainUtils.displayed_task(model)) {
+        | None => Failure("No displayed task to update tool result in")
+        | Some(displayed_task) =>
+          switch (SubtaskUtils.find_subtask(displayed_task, subtask_title)) {
+          | None =>
+            Failure("Subtask not found in displayed task: " ++ subtask_title)
+          | Some(subtask) =>
+            let tools_used =
+              List.mapi(
+                (index: int, tool_result: OpenRouter.Reply.Model.tool_result) =>
+                  index == tool_result_index
+                    ? {
+                      ...tool_result,
+                      expanded,
+                    }
+                    : tool_result,
+                subtask.tools_used,
+              );
+            let updated_subtask = {
+              ...subtask,
+              tools_used,
+            };
+            let updated_task =
+              TaskUtils.write_subtask(
+                ~task=displayed_task,
+                ~subtask=updated_subtask,
+              );
+            UpdateUtils.write_task(~model, ~task=updated_task);
+          }
+        }
+      | AddToolResultToActiveSubtask(tool_call, success) =>
+        switch (MainUtils.active_task(model)) {
+        | None => Success(model)
+        | Some(active_task) =>
+          switch (TaskUtils.active_subtask(active_task)) {
+          | None => Success(model)
+          | Some(active_subtask) =>
+            let updated_subtask = {
+              ...active_subtask,
+              tools_used:
+                active_subtask.tools_used
+                @ [
+                  {
+                    tool_call,
+                    success,
+                    expanded: false,
+                  },
+                ],
+            };
+            let updated_task =
+              TaskUtils.write_subtask(
+                ~task=active_task,
                 ~subtask=updated_subtask,
               );
             UpdateUtils.write_task(~model, ~task=updated_task);

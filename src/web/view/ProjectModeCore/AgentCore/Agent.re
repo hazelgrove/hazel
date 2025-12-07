@@ -60,7 +60,7 @@ module Message = {
     // System messages auxillary
     type role =
       | Agent
-      | ToolResult(OpenRouter.Reply.Model.tool_call, bool)
+      | ToolResult(OpenRouter.Reply.Model.tool_result)
       | User
       | System(system_kind);
 
@@ -148,7 +148,12 @@ module Message = {
         id: Id.mk(),
         content: sanitized_content,
         timestamp: JsUtil.timestamp(),
-        role: ToolResult(tool_call, success),
+        role:
+          ToolResult({
+            tool_call,
+            success,
+            expanded: false,
+          }),
         api_message:
           Some(
             OpenRouter.Message.Utils.mk_tool_msg(
@@ -287,6 +292,30 @@ module Message = {
         ...message,
         content: sanitized_content,
         api_message,
+      };
+    };
+  };
+
+  module Update = {
+    [@deriving (show({with_path: false}), sexp, yojson)]
+    type action =
+      | SetToolResultExpanded(bool);
+
+    let update = (action: action, model: Model.t): Model.t => {
+      switch (action) {
+      | SetToolResultExpanded(expanded) =>
+        switch (model.role) {
+        | ToolResult(tool_result) =>
+          let updated_tool_result = {
+            ...tool_result,
+            expanded,
+          };
+          {
+            ...model,
+            role: ToolResult(updated_tool_result),
+          };
+        | _ => model
+        }
       };
     };
   };
@@ -517,7 +546,8 @@ module Chat = {
         | UpdateContext(string, string)
         | AppendToMessageContent(Id.t, string)
         | OverwriteMessage(Id.t, Message.Model.t)
-        | SwitchView(Model.current_view);
+        | SwitchView(Model.current_view)
+        | MessageAction(Id.t, Message.Update.action);
     };
 
     let update = (action: Action.t, model: Model.t): Result.t(Model.t) => {
@@ -564,6 +594,10 @@ module Chat = {
           ...model,
           current_view,
         })
+      | MessageAction(message_id, message_action) =>
+        let message = Utils.find_message(message_id, model);
+        let updated_message = Message.Update.update(message_action, message);
+        Ok(Utils.update_message(updated_message, model));
       };
     };
   };
@@ -580,18 +614,10 @@ module ChunkedUIChat = {
     };
 
     [@deriving (show({with_path: false}), sexp, yojson)]
-    type tool_call_info_nugget = {
-      tool_call: OpenRouter.Reply.Model.tool_call,
-      success: bool,
-      // editor_state_prior: CellEditor.Model.t,
-      // editor_state_after: CellEditor.Model.t,
-    };
-
-    [@deriving (show({with_path: false}), sexp, yojson)]
     type agent_response_chunk = {
       content: list(Message.Model.t),
       agent_reasoning: list(string),
-      tool_calls: list(tool_call_info_nugget),
+      tool_results: list(OpenRouter.Reply.Model.tool_result),
       // add workbench info
     };
 
@@ -622,7 +648,7 @@ module ChunkedUIChat = {
       AgentResponseChunk({
         content: [message],
         agent_reasoning: [],
-        tool_calls: [],
+        tool_results: [],
       });
     };
 
@@ -705,20 +731,15 @@ module ChunkedUIChat = {
               context: message.content,
             };
             convert_helper(rest, updated_model);
-          | ToolResult(tool_call, success) =>
-            let tool_call_info_nugget =
-              Model.{
-                tool_call,
-                success,
-              };
+          | ToolResult(tool_result) =>
             let curr_last_chunk = curr_last_chunk(acc_model);
             let updated_agent_chunk =
               switch (curr_last_chunk) {
               | AgentResponseChunk(agent_response_chunk) => {
                   ...agent_response_chunk,
                   content: agent_response_chunk.content @ [message],
-                  tool_calls:
-                    agent_response_chunk.tool_calls @ [tool_call_info_nugget],
+                  tool_results:
+                    agent_response_chunk.tool_results @ [tool_result],
                 }
               | _ => failwith("Expected AgentResponseChunk before ToolResult")
               };
@@ -1243,6 +1264,36 @@ module Agent = {
       };
     };
 
+    let add_tool_result_to_active_subtask =
+        (
+          ~tool_call: OpenRouter.Reply.Model.tool_call,
+          ~success: bool,
+          ~model: Model.t,
+          ~chat_id: Id.t,
+        )
+        : Model.t => {
+      let chat_system =
+        ChatSystem.Update.update(
+          ChatSystem.Update.Action.ChatAction(
+            Chat.Update.Action.WorkbenchAction(
+              AgentWorkbench.Update.Action.UIAction(
+                AgentWorkbench.Update.Action.UIAction.AddToolResultToActiveSubtask(
+                  tool_call,
+                  success,
+                ),
+              ),
+            ),
+            chat_id,
+          ),
+          model.chat_system,
+        )
+        |> ChatSystem.Update.get;
+      {
+        ...model,
+        chat_system,
+      };
+    };
+
     let handle_tool_call =
         (
           ~tool_call: OpenRouter.Reply.Model.tool_call,
@@ -1270,6 +1321,13 @@ module Agent = {
         ) {
         | Ok((model, editor)) =>
           let model = update_context(model, editor, chat_id);
+          let model =
+            add_tool_result_to_active_subtask(
+              ~tool_call,
+              ~success=true,
+              ~model,
+              ~chat_id,
+            );
           schedule_action(
             Action.SendMessage(
               Message.Utils.mk_tool_result_message(
@@ -1293,6 +1351,13 @@ module Agent = {
         | Error(error) =>
           switch (error) {
           | Failure.Info(msg) =>
+            let model =
+              add_tool_result_to_active_subtask(
+                ~tool_call,
+                ~success=false,
+                ~model,
+                ~chat_id,
+              );
             schedule_action(
               Action.SendMessage(
                 Message.Utils.mk_tool_result_message(msg, tool_call, false),
@@ -1335,31 +1400,23 @@ module Agent = {
             chat_id,
           ),
           model.chat_system,
-        );
-      switch (chat_system) {
-      | Ok(chat_system) =>
-        let model = {
-          ...model,
-          chat_system,
-        };
-        switch (tool_call) {
-        | Some(tool_call) =>
-          handle_tool_call(
-            ~tool_call,
-            ~model,
-            ~cell_editor,
-            ~settings,
-            ~schedule_action,
-            ~chat_id,
-          )
-        | None => (model, cell_editor |> Updated.return_quiet)
-        };
-      | Error(error) =>
-        failwith(
-          switch (error) {
-          | Failure.Info(msg) => msg
-          },
         )
+        |> ChatSystem.Update.get;
+      let model = {
+        ...model,
+        chat_system,
+      };
+      switch (tool_call) {
+      | Some(tool_call) =>
+        handle_tool_call(
+          ~tool_call,
+          ~model,
+          ~cell_editor,
+          ~settings,
+          ~schedule_action,
+          ~chat_id,
+        )
+      | None => (model, cell_editor |> Updated.return_quiet)
       };
     };
 

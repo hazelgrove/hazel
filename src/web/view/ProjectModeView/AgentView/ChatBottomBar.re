@@ -157,11 +157,11 @@ let view =
       switch (msg.role) {
       | Agent.Message.Model.User => "User: " ++ msg.content ++ "\n\n"
       | Agent.Message.Model.Agent => "LLM: " ++ msg.content ++ "\n\n"
-      | Agent.Message.Model.ToolResult(tool_call, success) =>
+      | Agent.Message.Model.ToolResult(tool_result) =>
         "Tool Call: "
-        ++ tool_call.name
+        ++ tool_result.tool_call.name
         ++ " "
-        ++ (success ? "[success]" : "[failure]")
+        ++ (tool_result.success ? "[success]" : "[failure]")
         ++ "\n\n"
       | Agent.Message.Model.System(_) => ""
       };

@@ -20,6 +20,13 @@ module Reply = {
     };
 
     [@deriving (show({with_path: false}), sexp, yojson)]
+    type tool_result = {
+      tool_call,
+      success: bool,
+      expanded: bool,
+    };
+
+    [@deriving (show({with_path: false}), sexp, yojson)]
     type t = {
       content: string,
       tool_calls: list(tool_call),

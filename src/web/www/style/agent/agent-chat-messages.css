@@ -150,7 +150,6 @@
   word-wrap: break-word;
   white-space: pre-wrap;
   opacity: 0.7;
-  max-width: 80%;
   text-align: center;
   user-select: text;
   -webkit-user-select: text;
@@ -322,13 +321,52 @@
 }
 
 .todo-status-icon.completed {
-  fill: var(--BR3);
+  fill: var(--PAT);
   opacity: 1;
 }
 
+@keyframes inner-glow {
+  0% {
+    opacity: 0.7;
+    transform: translate(-50%, -50%) scale(0.55);
+    filter: drop-shadow(0 0 3px oklch(from var(--BR2) l c h / 0.4)) drop-shadow(0 0 5px oklch(from var(--BR2) l c h / 0.3));
+  }
+  50% {
+    opacity: 0.9;
+    transform: translate(-50%, -50%) scale(0.55);
+    filter: drop-shadow(0 0 6px oklch(from var(--BR2) l c h / 0.7)) drop-shadow(0 0 10px oklch(from var(--BR2) l c h / 0.5));
+  }
+  100% {
+    opacity: 0.7;
+    transform: translate(-50%, -50%) scale(0.55);
+    filter: drop-shadow(0 0 3px oklch(from var(--BR2) l c h / 0.4)) drop-shadow(0 0 5px oklch(from var(--BR2) l c h / 0.3));
+  }
+}
+
 .todo-status-icon.active-todo {
-  fill: var(--BR3);
+  fill: var(--BR2);
   opacity: 1;
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.todo-status-icon.active-todo > svg:first-child {
+  position: relative;
+  z-index: 1;
+}
+
+.todo-status-icon.active-todo > svg:last-child {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 20px;
+  height: 20px;
+  fill: var(--BR2);
+  z-index: 0;
+  animation: inner-glow 2s infinite ease-in-out;
+  pointer-events: none;
 }
 
 .todo-item-content {
@@ -390,6 +428,13 @@
   gap: 0.5em;
 }
 
+.todo-tool-results {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5em;
+  margin-top: 0.5em;
+}
+
 .todo-archive-menu {
   position: absolute;
   right: 0;
@@ -401,6 +446,93 @@
   z-index: 1000;
   display: flex;
   flex-direction: column;
+}
+
+.history-menu-header {
+  padding: 12px 16px;
+  background-color: var(--T1);
+  color: var(--STONE);
+  font-weight: bold;
+  border-bottom: 1px solid var(--SAND);
+  font-size: 0.9em;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  flex-shrink: 0;
+}
+
+.history-menu-list {
+  background: var(--T2);
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: 4px 0;
+}
+
+.history-menu-list::-webkit-scrollbar {
+  width: 8px;
+}
+
+.history-menu-list::-webkit-scrollbar-track {
+  background: var(--UI-Background);
+}
+
+.history-menu-list::-webkit-scrollbar-thumb {
+  background: var(--SAND);
+  border-radius: 4px;
+}
+
+.history-menu-item {
+  padding: 10px 16px;
+  background-color: var(--T2);
+  color: var(--STONE);
+  cursor: pointer;
+  transition: background-color 0.15s ease, padding-left 0.15s ease;
+  border-bottom: 1px solid var(--SAND);
+  font-size: 0.9em;
+  display: flex;
+  align-items: center;
+  user-select: none;
+}
+
+.history-menu-item.active {
+  background-color: var(--T3);
+  color: var(--STONE);
+  font-weight: 500;
+}
+
+.history-menu-item:hover:not(.active) {
+  background-color: var(--T4);
+  padding-left: 18px;
+}
+
+.history-menu-item:active {
+  background-color: var(--T3);
+}
+
+.history-menu-item-content {
+  flex: 1;
+  margin-right: 8px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.history-menu-item-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.history-menu-item-time {
+  font-size: 0.725em;
+  color: var(--BR2);
+  margin-left: 8px;
+  white-space: nowrap;
+}
+
+.history-menu-item:last-child {
+  border-bottom: none;
 }
 
 .chat-action-button {
@@ -705,20 +837,97 @@
 }
 
 /* Tool Calls Display */
-.agent-tool-calls {
-  margin-top: 0.5em;
-}
-
 .agent-tool-call-inline {
   margin-top: 0.5em;
   margin-bottom: 0.5em;
+  border: 0.6px solid var(--BR2);
+  border-radius: 4px;
+  background-color: var(--T2);
+  overflow: hidden;
 }
 
-.tool-call-display {
+.tool-call-header {
+  display: flex;
+  align-items: center;
+  gap: 0.5em;
+  padding: 0.5em 0.75em;
+  cursor: pointer;
+  transition: background-color 0.15s ease;
+  user-select: none;
+}
+
+.tool-call-header:hover {
+  background-color: var(--T3);
+}
+
+.tool-call-header.expanded {
+  border-bottom: 0.6px solid var(--BR2);
+}
+
+.tool-call-status-icon {
+  flex-shrink: 0;
+  width: 16px;
+  height: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.tool-call-status-icon svg {
+  width: 16px;
+  height: 16px;
+}
+
+.tool-call-status-icon.tool-call-success {
+  fill: var(--G0);
+}
+
+.tool-call-status-icon.tool-call-failure {
+  fill: var(--R1);
+}
+
+.tool-call-name {
+  font-size: 0.85em;
+  color: var(--STONE);
+  font-weight: 500;
+  flex: 1;
+}
+
+.tool-call-content {
+  padding: 0.75em;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75em;
+  background-color: var(--T1);
+}
+
+.tool-call-args,
+.tool-call-result {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25em;
+}
+
+.tool-call-args-label,
+.tool-call-result-label {
   font-size: 0.75em;
   color: var(--BR2);
-  opacity: 0.8;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.tool-call-args-value,
+.tool-call-result-value {
+  font-size: 0.8em;
+  color: var(--STONE);
+  font-family: var(--code-font);
   white-space: pre-wrap;
+  word-break: break-word;
+  padding: 0.5em;
+  background-color: var(--T2);
+  border-radius: 3px;
+  border: 0.6px solid var(--BR2);
   user-select: text;
   -webkit-user-select: text;
   -moz-user-select: text;

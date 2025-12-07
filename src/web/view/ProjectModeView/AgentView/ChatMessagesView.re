@@ -3,6 +3,7 @@ open Node;
 open Util.WebUtil;
 open Util;
 open Js_of_ocaml;
+open Yojson.Safe;
 
 open JsUtil;
 
@@ -524,17 +525,97 @@ let view =
                } else {
                  None; // Don't display empty agent messages
                }
-             | ToolResult(tool_call, success) =>
-               // Tool call message - display inline
-               let status_text = success ? "[success]" : "[failure]";
+             | ToolResult(tool_result) =>
+               // Tool call message - display inline with expand/collapse
+               let toggle_expanded = _ => {
+                 Effect.Many([
+                   agent_inject(
+                     Agent.Agent.Update.Action.ChatSystemAction(
+                       Agent.ChatSystem.Update.Action.ChatAction(
+                         Agent.Chat.Update.Action.MessageAction(
+                           msg.id,
+                           Agent.Message.Update.SetToolResultExpanded(
+                             !tool_result.expanded,
+                           ),
+                         ),
+                         current_chat_id,
+                       ),
+                     ),
+                   ),
+                   Effect.Stop_propagation,
+                 ]);
+               };
+               let status_icon =
+                 tool_result.success ? Icons.confirm : Icons.cancel;
+               let status_class =
+                 tool_result.success
+                   ? "tool-call-success" : "tool-call-failure";
                Some(
                  div(
                    ~attrs=[clss(["agent-tool-call-inline"])],
                    [
                      div(
-                       ~attrs=[clss(["tool-call-display"])],
-                       [text(tool_call.name ++ " " ++ status_text)],
+                       ~attrs=[
+                         clss([
+                           "tool-call-header",
+                           tool_result.expanded ? "expanded" : "",
+                         ]),
+                         Attr.on_click(toggle_expanded),
+                       ],
+                       [
+                         div(
+                           ~attrs=[
+                             clss(["tool-call-status-icon", status_class]),
+                           ],
+                           [status_icon],
+                         ),
+                         div(
+                           ~attrs=[clss(["tool-call-name"])],
+                           [text(tool_result.tool_call.name)],
+                         ),
+                       ],
                      ),
+                     if (tool_result.expanded) {
+                       div(
+                         ~attrs=[clss(["tool-call-content"])],
+                         [
+                           div(
+                             ~attrs=[clss(["tool-call-args"])],
+                             [
+                               div(
+                                 ~attrs=[clss(["tool-call-args-label"])],
+                                 [text("Arguments:")],
+                               ),
+                               div(
+                                 ~attrs=[clss(["tool-call-args-value"])],
+                                 [
+                                   text(
+                                     pretty_to_string(
+                                       tool_result.tool_call.args,
+                                     ),
+                                   ),
+                                 ],
+                               ),
+                             ],
+                           ),
+                           div(
+                             ~attrs=[clss(["tool-call-result"])],
+                             [
+                               div(
+                                 ~attrs=[clss(["tool-call-result-label"])],
+                                 [text("Result:")],
+                               ),
+                               div(
+                                 ~attrs=[clss(["tool-call-result-value"])],
+                                 [text(msg.content)],
+                               ),
+                             ],
+                           ),
+                         ],
+                       );
+                     } else {
+                       div(~attrs=[], []);
+                     },
                    ],
                  ),
                );
@@ -544,31 +625,6 @@ let view =
 
       let linear_display = linear_messages_display;
 
-      // Render all tool calls at the end - separated by double line breaks
-      let tool_calls_summary_display =
-        if (List.length(agent_chunk.tool_calls) > 0) {
-          let tool_call_texts =
-            agent_chunk.tool_calls
-            |> List.map(
-                 (nugget: Agent.ChunkedUIChat.Model.tool_call_info_nugget) => {
-                 let status_text = nugget.success ? "[success]" : "[failure]";
-                 nugget.tool_call.name ++ " " ++ status_text;
-               });
-          // Join with double line breaks
-          let combined_tool_calls = String.concat("\n\n", tool_call_texts);
-          div(
-            ~attrs=[clss(["agent-tool-calls"])],
-            [
-              div(
-                ~attrs=[clss(["tool-call-display"])],
-                [text(combined_tool_calls)],
-              ),
-            ],
-          );
-        } else {
-          div(~attrs=[], []);
-        };
-
       div(
         ~attrs=[clss(["message-container", "agent-message-container"])],
         [
@@ -577,10 +633,7 @@ let view =
             ~attrs=[clss(["message-identifier", "llm-identifier"])],
             [Icons.corylus, text("Filbert")],
           ),
-          div(
-            ~attrs=[clss(["agent-message-wrapper"])],
-            linear_display @ [tool_calls_summary_display],
-          ),
+          div(~attrs=[clss(["agent-message-wrapper"])], linear_display),
         ],
       );
     | Agent.ChunkedUIChat.Model.ErrorMessage(error_content) =>
