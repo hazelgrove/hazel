@@ -29,7 +29,6 @@ module StructureShareSexp = StructureShareSexp;
 module VarMap = VarMap;
 module ProjectorShape = ProjectorShape;
 module API = API;
-module OpenRouter = OpenRouter;
 
 // Used by [@deriving sexp, yojson)]
 include Sexplib.Std;

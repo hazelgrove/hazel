@@ -240,6 +240,16 @@ module Utils = {
          );
     };
 
+    let set_first_subtask_as_active = (task: task): task => {
+      switch (ListUtil.hd_opt(task.subtask_ordering)) {
+      | Some(subtask_title) => {
+          ...task,
+          active_subtask: Some(subtask_title),
+        }
+      | None => task
+      };
+    };
+
     let active_subtask = (task: task): option(subtask) => {
       switch (task.active_subtask) {
       | Some(active_subtask_name) => find_subtask(task, active_subtask_name)
@@ -483,10 +493,7 @@ module Update = {
         | SetDisplayTask(string)
         | ExpandSubtask(string)
         | SetToolResultExpanded(string, int, bool) // subtask_title, tool_result_index, expanded
-        | AddToolResultToActiveSubtask(
-            OpenRouter.Reply.Model.tool_call,
-            bool,
-          );
+        | AddToolResultToActiveSubtask(OpenRouter.Reply.Model.tool_result);
     };
 
     module BackendAction = {
@@ -583,6 +590,7 @@ module Update = {
           t_ui: {
             ...model.t_ui,
             display_task: Some(task_title),
+            show_archive: false,
           },
         })
       | ExpandSubtask(subtask_title) =>
@@ -638,7 +646,7 @@ module Update = {
             UpdateUtils.write_task(~model, ~task=updated_task);
           }
         }
-      | AddToolResultToActiveSubtask(tool_call, success) =>
+      | AddToolResultToActiveSubtask(tool_result) =>
         switch (MainUtils.active_task(model)) {
         | None => Success(model)
         | Some(active_task) =>
@@ -647,15 +655,7 @@ module Update = {
           | Some(active_subtask) =>
             let updated_subtask = {
               ...active_subtask,
-              tools_used:
-                active_subtask.tools_used
-                @ [
-                  {
-                    tool_call,
-                    success,
-                    expanded: false,
-                  },
-                ],
+              tools_used: active_subtask.tools_used @ [tool_result],
             };
             let updated_task =
               TaskUtils.write_subtask(
@@ -673,15 +673,19 @@ module Update = {
            - Writes the new task to the model's task dictionary
            - Sets it as the active task
          */
+        let new_task = TaskUtils.set_first_subtask_as_active(new_task);
+        let model =
+          switch (UpdateUtils.write_task(~model, ~task=new_task)) {
+          | Success(updated_model) => updated_model
+          | Failure(_) => model
+          };
         let model = {
           ...model,
           active_task: Some(new_task.title),
           t_ui: {
             ...model.t_ui,
-            display_task:
-              model.t_ui.display_task == None
-                ? Some(new_task.title) : model.t_ui.display_task,
-          },
+            display_task: Some(new_task.title),
+          } // todo: retain or override curr display task?
         };
         UpdateUtils.write_task(~model, ~task=new_task);
       | UnsetActiveTask =>

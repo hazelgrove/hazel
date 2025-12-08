@@ -1,4 +1,5 @@
-open API;
+open Util;
+open Util.API;
 open OptUtil.Syntax;
 open Sexplib.Std;
 open Ppx_yojson_conv_lib.Yojson_conv;
@@ -20,10 +21,18 @@ module Reply = {
     };
 
     [@deriving (show({with_path: false}), sexp, yojson)]
+    type diff = {
+      old_segment: Segment.t,
+      new_segment: option(Segment.t),
+    };
+
+    [@deriving (show({with_path: false}), sexp, yojson)]
     type tool_result = {
       tool_call,
       success: bool,
       expanded: bool,
+      diff: option(diff),
+      content: string,
     };
 
     [@deriving (show({with_path: false}), sexp, yojson)]
@@ -69,6 +78,7 @@ module Message = {
           ("content", `String(message.content)),
           ("tool_call_id", `String(tool_call.id)),
           ("name", `String(tool_call.name)),
+          ("arguments", `String(Yojson.Safe.to_string(tool_call.args))),
         ])
       | _ =>
         `Assoc([

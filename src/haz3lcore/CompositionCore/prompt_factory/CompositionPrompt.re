@@ -22,6 +22,11 @@ let role = [
 let instructions = [
   "<instructions>\n",
   "You may explain and reason about the program/task/user query, but aim to keep your thinking and explanations concise and to the point.",
+  "If they are small, atomic edits, you may omit the explanation and just call the tool directly.",
+  "You may also choose to explain the edit later on or in the task/subtask completion summary.",
+  "Avoid directly mentioning your reasoning in the content of your responses.",
+  "Instead, reason internally, and tell the user what you are actually doing, if necessary.",
+  "NEVER use first person pronouns in your responses. Instead just tell the user what you find, what you do, etc. WITHOUT the use of 'I', 'me', 'my', 'mine', 'us', 'our', 'ourselves', etc.",
   "If the user wants you to implement a feature that is quite complex, you should break it down into smaller tasks to work through step by step.",
   "After calling a tool, you should pick up immediately from where you left off—No need to repeat or summarize what you've been doing.",
   "You should avoid explicitly mentioning tool calls to the user. Rather, explain what you are doing to the codebase in a way that is natural and easy to understand.",
@@ -102,7 +107,11 @@ let indentation_instructions = [
   "Hazel's formatter will automatically indent the code for you wherever you insert line breaks.",
   "ALWAYS ALWAYS ALWAYS use line breaks when necessary to allow Hazel's formatter to format your code.",
   "We REPEAT, ALWAYS ALWAYS ALWAYS use line breaks, OTHERWISE Hazel canNOT pretty format the code and it will NOT be human readable!!!",
-  "Indenting is so important and crucial, and such a simple, surefire way to make your code readable. Please always use it.",
+  "Indenting is so important and crucial, and such a simple, surefire way to make your code readable. Please always use it.
+  Here is an example of an incorrectly indented code block:
+  ```
+
+  ```",
   "\n</indentationInstructions>",
 ];
 
@@ -162,4 +171,5 @@ let self =
   @ indentation_instructions
   @ task_management_instructions
   @ hazel_syntax_notes
-  @ comments_in_hazel /*@ few_shot_comp_examples*/;
+  @ comments_in_hazel
+  @ few_shot_comp_examples;

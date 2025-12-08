@@ -3,7 +3,6 @@ open Node;
 open Util.WebUtil;
 open Util;
 open Js_of_ocaml;
-open Yojson.Safe;
 
 open JsUtil;
 
@@ -193,7 +192,7 @@ module ViewComponents = {
 
 let view =
     (
-      ~globals as _: Globals.t,
+      ~globals: Globals.t,
       ~agent_model: Agent.Agent.Model.t,
       ~agent_inject: Agent.Agent.Update.Action.t => Effect.t(unit),
       ~signal: Editors.View.signal => Effect.t(unit),
@@ -545,78 +544,11 @@ let view =
                    Effect.Stop_propagation,
                  ]);
                };
-               let status_icon =
-                 tool_result.success ? Icons.confirm : Icons.cancel;
-               let status_class =
-                 tool_result.success
-                   ? "tool-call-success" : "tool-call-failure";
                Some(
-                 div(
-                   ~attrs=[clss(["agent-tool-call-inline"])],
-                   [
-                     div(
-                       ~attrs=[
-                         clss([
-                           "tool-call-header",
-                           tool_result.expanded ? "expanded" : "",
-                         ]),
-                         Attr.on_click(toggle_expanded),
-                       ],
-                       [
-                         div(
-                           ~attrs=[
-                             clss(["tool-call-status-icon", status_class]),
-                           ],
-                           [status_icon],
-                         ),
-                         div(
-                           ~attrs=[clss(["tool-call-name"])],
-                           [text(tool_result.tool_call.name)],
-                         ),
-                       ],
-                     ),
-                     if (tool_result.expanded) {
-                       div(
-                         ~attrs=[clss(["tool-call-content"])],
-                         [
-                           div(
-                             ~attrs=[clss(["tool-call-args"])],
-                             [
-                               div(
-                                 ~attrs=[clss(["tool-call-args-label"])],
-                                 [text("Arguments:")],
-                               ),
-                               div(
-                                 ~attrs=[clss(["tool-call-args-value"])],
-                                 [
-                                   text(
-                                     pretty_to_string(
-                                       tool_result.tool_call.args,
-                                     ),
-                                   ),
-                                 ],
-                               ),
-                             ],
-                           ),
-                           div(
-                             ~attrs=[clss(["tool-call-result"])],
-                             [
-                               div(
-                                 ~attrs=[clss(["tool-call-result-label"])],
-                                 [text("Result:")],
-                               ),
-                               div(
-                                 ~attrs=[clss(["tool-call-result-value"])],
-                                 [text(msg.content)],
-                               ),
-                             ],
-                           ),
-                         ],
-                       );
-                     } else {
-                       div(~attrs=[], []);
-                     },
-                   ],
+                 ToolResultView.view(
+                   ~globals,
+                   ~tool_result,
+                   ~toggle_expanded,
                  ),
                );
              | _ => None

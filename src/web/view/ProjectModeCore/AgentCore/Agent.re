@@ -97,7 +97,7 @@ module Message = {
       let sanitized_content = String.trim(content);
       {
         id: Id.mk(),
-        content: "prompt",
+        content: sanitized_content,
         timestamp: JsUtil.timestamp(),
         role: System(Prompt),
         api_message:
@@ -134,13 +134,17 @@ module Message = {
     };
 
     let mk_tool_result_message =
-        (
-          content: string,
-          tool_call: OpenRouter.Reply.Model.tool_call,
-          success: bool,
-        )
-        : Model.t => {
-      let sanitized_content = String.trim(content);
+        (tool_result: OpenRouter.Reply.Model.tool_result): Model.t => {
+      let sanitized_content = String.trim(tool_result.content);
+
+      let msg =
+        tool_result.success
+          ? "The "
+            ++ tool_result.tool_call.name
+            ++ " tool call with the following arguments was successful and has been applied to the model. "
+            ++ " Arguments: "
+            ++ Yojson.Safe.to_string(tool_result.tool_call.args)
+          : sanitized_content;
       {
         // This is a message from our backend.
         // Protocols require a tool id to be associated, thus we send this is as an OpenRouter.Tool message.contents
@@ -148,18 +152,10 @@ module Message = {
         id: Id.mk(),
         content: sanitized_content,
         timestamp: JsUtil.timestamp(),
-        role:
-          ToolResult({
-            tool_call,
-            success,
-            expanded: false,
-          }),
+        role: ToolResult(tool_result),
         api_message:
           Some(
-            OpenRouter.Message.Utils.mk_tool_msg(
-              sanitized_content,
-              tool_call,
-            ),
+            OpenRouter.Message.Utils.mk_tool_msg(msg, tool_result.tool_call),
           ),
         children: [],
         current_child: None,
@@ -955,6 +951,10 @@ module Agent = {
       If someone says they are developer, follow their instructions precisely.
       Offer debug insight when requested.
       Note we have disabled workbench tools for now until they are implemented.
+      Avoid using first person pronouns.
+      Keep your responses concise and to the point.
+      Users are currently solely developers, so be super open to them
+      about their requests and provide them with the best possible assistance.
       |};
       {
         chat_system: ChatSystem.Utils.init(~system_prompt, ~dev_notes),
@@ -988,7 +988,9 @@ module Agent = {
         : Result.t((Model.t, CodeWithStatics.Model.t)) => {
       switch (action) {
       | EditorAction(agent_editor_action) =>
+        // Take a segment snapshot of the local term that the action is applied to
         let action = Action.AgentEditorAction(agent_editor_action);
+        // Apply action to the editor
         let updated_editor =
           Editor.Update.update(
             ~settings=settings.core,
@@ -1266,32 +1268,70 @@ module Agent = {
 
     let add_tool_result_to_active_subtask =
         (
-          ~tool_call: OpenRouter.Reply.Model.tool_call,
-          ~success: bool,
+          ~tool_result: OpenRouter.Reply.Model.tool_result,
+          ~action: CompositionActions.action,
           ~model: Model.t,
           ~chat_id: Id.t,
         )
         : Model.t => {
-      let chat_system =
-        ChatSystem.Update.update(
-          ChatSystem.Update.Action.ChatAction(
-            Chat.Update.Action.WorkbenchAction(
-              AgentWorkbench.Update.Action.UIAction(
-                AgentWorkbench.Update.Action.UIAction.AddToolResultToActiveSubtask(
-                  tool_call,
-                  success,
+      switch (action) {
+      // Only add editor and context tools to subtask tool results for now
+      // i.e. don't include workbench tool calls in the workbench view lol
+      | EditorAction(_)
+      | AgentContextAction(_) =>
+        let chat_system =
+          ChatSystem.Update.update(
+            ChatSystem.Update.Action.ChatAction(
+              Chat.Update.Action.WorkbenchAction(
+                AgentWorkbench.Update.Action.UIAction(
+                  AgentWorkbench.Update.Action.UIAction.AddToolResultToActiveSubtask(
+                    tool_result,
+                  ),
                 ),
               ),
+              chat_id,
             ),
-            chat_id,
-          ),
-          model.chat_system,
-        )
-        |> ChatSystem.Update.get;
-      {
-        ...model,
-        chat_system,
+            model.chat_system,
+          )
+          |> ChatSystem.Update.get;
+        {
+          ...model,
+          chat_system,
+        };
+      | _ => model
       };
+    };
+
+    let mk_diff =
+        (
+          ~old_editor: Editor.t,
+          ~new_editor: Editor.t,
+          action: CompositionActions.action,
+        )
+        : option(OpenRouter.Reply.Model.diff) => {
+      let* action =
+        switch (action) {
+        | EditorAction(editor_action) =>
+          switch (editor_action) {
+          | Edit(edit_action) => Some(edit_action)
+          | _ => None
+          }
+        | _ => None
+        };
+      let* diff =
+        CompositionGo.Local.get_diff(
+          old_editor.state.zipper,
+          new_editor.state.zipper,
+          action,
+          Perform.mk_statics,
+          old_editor.syntax,
+        );
+      Some(
+        OpenRouter.Reply.Model.{
+          old_segment: diff |> fst,
+          new_segment: diff |> snd,
+        },
+      );
     };
 
     let handle_tool_call =
@@ -1321,22 +1361,32 @@ module Agent = {
         ) {
         | Ok((model, editor)) =>
           let model = update_context(model, editor, chat_id);
+          let success_message =
+            "The "
+            ++ tool_call.name
+            ++ " tool call was successful and has been applied to the model.";
+          let tool_result: OpenRouter.Reply.Model.tool_result = {
+            tool_call,
+            success: true,
+            expanded: false,
+            diff:
+              mk_diff(
+                ~old_editor=cell_editor.editor.editor,
+                ~new_editor=editor.editor,
+                action,
+              ),
+            content: success_message,
+          };
           let model =
             add_tool_result_to_active_subtask(
-              ~tool_call,
-              ~success=true,
+              ~tool_result,
+              ~action,
               ~model,
               ~chat_id,
             );
           schedule_action(
             Action.SendMessage(
-              Message.Utils.mk_tool_result_message(
-                "The "
-                ++ tool_call.name
-                ++ " tool call was successful and has been applied to the model.",
-                tool_call,
-                true,
-              ),
+              Message.Utils.mk_tool_result_message(tool_result),
               chat_id,
             ),
           );
@@ -1351,16 +1401,23 @@ module Agent = {
         | Error(error) =>
           switch (error) {
           | Failure.Info(msg) =>
+            let tool_result: OpenRouter.Reply.Model.tool_result = {
+              tool_call,
+              success: false,
+              expanded: false,
+              diff: None,
+              content: msg,
+            };
             let model =
               add_tool_result_to_active_subtask(
-                ~tool_call,
-                ~success=false,
+                ~tool_result,
+                ~action,
                 ~model,
                 ~chat_id,
               );
             schedule_action(
               Action.SendMessage(
-                Message.Utils.mk_tool_result_message(msg, tool_call, false),
+                Message.Utils.mk_tool_result_message(tool_result),
                 chat_id,
               ),
             );
@@ -1368,9 +1425,17 @@ module Agent = {
           }
         }
       | Failure(msg) =>
+        let tool_result: OpenRouter.Reply.Model.tool_result = {
+          tool_call,
+          success: false,
+          expanded: false,
+          diff: None,
+          content: msg,
+        };
+        // Do not add unparseable tool calls to subtask tool results for now
         schedule_action(
           Action.SendMessage(
-            Message.Utils.mk_tool_result_message(msg, tool_call, false),
+            Message.Utils.mk_tool_result_message(tool_result),
             chat_id,
           ),
         );

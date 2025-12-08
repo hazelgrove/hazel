@@ -21,7 +21,7 @@ let format_duration_ms = (milliseconds: float): string => {
 
 let view =
     (
-      ~globals as _: Globals.t,
+      ~globals: Globals.t,
       ~agent_model: Agent.Agent.Model.t,
       ~agent_inject: Agent.Agent.Update.Action.t => Effect.t(unit),
       ~signal as _: Editors.View.signal => Effect.t(unit),
@@ -58,6 +58,19 @@ let view =
     );
   };
 
+  // Set active task as displayed task
+  let set_active_as_displayed = _ => {
+    switch (AgentWorkbench.Utils.MainUtils.active_task(workbench)) {
+    | Some(active_task) =>
+      inject_workbench_ui_action(
+        AgentWorkbench.Update.Action.UIAction.SetDisplayTask(
+          active_task.title,
+        ),
+      )
+    | None => Effect.Ignore
+    };
+  };
+
   // Expand/collapse subtask
   let expand_subtask = (subtask_title: string) => {
     inject_workbench_ui_action(
@@ -78,7 +91,7 @@ let view =
     );
   };
 
-  // Render a tool result (reused from ChatMessagesView pattern)
+  // Render a tool result using shared component
   let render_tool_result =
       (
         ~subtask_title: string,
@@ -96,61 +109,7 @@ let view =
         Effect.Stop_propagation,
       ]);
     };
-    let status_icon = tool_result.success ? Icons.confirm : Icons.cancel;
-    let status_class =
-      tool_result.success ? "tool-call-success" : "tool-call-failure";
-    div(
-      ~attrs=[clss(["agent-tool-call-inline"])],
-      [
-        div(
-          ~attrs=[
-            clss([
-              "tool-call-header",
-              tool_result.expanded ? "expanded" : "",
-            ]),
-            Attr.on_click(toggle_expanded),
-          ],
-          [
-            div(
-              ~attrs=[clss(["tool-call-status-icon", status_class])],
-              [status_icon],
-            ),
-            div(
-              ~attrs=[clss(["tool-call-name"])],
-              [text(tool_result.tool_call.name)],
-            ),
-          ],
-        ),
-        if (tool_result.expanded) {
-          div(
-            ~attrs=[clss(["tool-call-content"])],
-            [
-              div(
-                ~attrs=[clss(["tool-call-args"])],
-                [
-                  div(
-                    ~attrs=[clss(["tool-call-args-label"])],
-                    [text("Arguments:")],
-                  ),
-                  div(
-                    ~attrs=[clss(["tool-call-args-value"])],
-                    [
-                      text(
-                        Yojson.Safe.pretty_to_string(
-                          tool_result.tool_call.args,
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-            ],
-          );
-        } else {
-          div(~attrs=[], []);
-        },
-      ],
-    );
+    ToolResultView.view(~globals, ~tool_result, ~toggle_expanded);
   };
 
   // Render a subtask
@@ -346,6 +305,29 @@ let view =
                   | Some(displayed_title) => displayed_title == task.title
                   | None => false
                   };
+                let is_active =
+                  switch (workbench.active_task) {
+                  | Some(active_title) => active_title == task.title
+                  | None => false
+                  };
+                let is_completed =
+                  switch (task.completion_info) {
+                  | Some(_) => true
+                  | None => false
+                  };
+                let is_active_and_incomplete = is_active && !is_completed;
+                let task_icon_classes =
+                  ["todo-status-icon"]
+                  @ (is_completed ? ["completed"] : ["incomplete"])
+                  @ (is_active_and_incomplete ? ["active-todo"] : []);
+                let task_icon_content =
+                  if (is_active_and_incomplete) {
+                    [Icons.circle_with_no_check, Icons.solid_circle];
+                  } else if (is_completed) {
+                    [Icons.circle_with_check];
+                  } else {
+                    [Icons.circle_with_no_check];
+                  };
                 let switch_to_task = _ => {
                   Effect.Many([
                     inject_workbench_ui_action(
@@ -365,6 +347,7 @@ let view =
                     Attr.on_click(switch_to_task),
                   ],
                   [
+                    div(~attrs=[clss(task_icon_classes)], task_icon_content),
                     div(
                       ~attrs=[clss(["history-menu-item-content"])],
                       [text(task.title)],
@@ -398,7 +381,7 @@ let view =
   div(
     ~attrs=[clss(["workbench-view"])],
     [
-      // Archive button
+      // Archive button and active task button
       div(
         ~attrs=[clss(["todo-archive-button-container"])],
         [
@@ -410,6 +393,31 @@ let view =
             ],
             [Icons.library],
           ),
+          switch (AgentWorkbench.Utils.MainUtils.active_task(workbench)) {
+          | Some(active_task) =>
+            switch (active_task.completion_info) {
+            | None =>
+              div(
+                ~attrs=[
+                  clss(["active-task-button"]),
+                  Attr.on_click(set_active_as_displayed),
+                  Attr.title("Jump to active task"),
+                ],
+                [
+                  div(
+                    ~attrs=[clss(["todo-status-icon", "active-todo"])],
+                    [Icons.circle_with_no_check, Icons.solid_circle],
+                  ),
+                  div(
+                    ~attrs=[clss(["active-task-title"])],
+                    [text(active_task.title)],
+                  ),
+                ],
+              )
+            | Some(_) => div(~attrs=[], [])
+            }
+          | None => div(~attrs=[], [])
+          },
         ],
       ),
       // Task display or empty state (scrollable content)

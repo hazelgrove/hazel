@@ -1,6 +1,7 @@
 open Util;
 open HighLevelNodeMap.Public;
 open Language;
+open OptUtil.Syntax;
 
 type node_map = HighLevelNodeMap.t;
 type node = HighLevelNodeMap.node;
@@ -50,6 +51,62 @@ module Local = {
           ),
         )
       };
+    };
+  };
+
+  let segment_of_term =
+      (zipper: Zipper.t, target_id: option(Id.t), syntax: CachedSyntax.t)
+      : option(Segment.t) => {
+    switch (target_id) {
+    | Some(target_id) =>
+      let* zipper =
+        Select.term(
+          ~defs_exclude_bodies=true,
+          ~case_rules=false,
+          syntax.term_data,
+          target_id,
+          zipper,
+        );
+      Some(zipper.selection.content);
+    | _ =>
+      let zipper = Select.all(zipper);
+      Some(zipper.selection.content);
+    };
+  };
+
+  let get_diff =
+      (
+        old_zipper: Zipper.t,
+        new_zipper: Zipper.t,
+        action: Action.edit_action,
+        mk_statics: Zipper.t => StaticsBase.Map.t,
+        syntax: CachedSyntax.t,
+      )
+      : option((Segment.t, option(Segment.t))) => {
+    switch (action) {
+    | InsertBefore(_)
+    | InsertAfter(_)
+    | Initialize(_) =>
+      let* old_segment = segment_of_term(old_zipper, None, syntax);
+      let new_segment = segment_of_term(new_zipper, None, syntax);
+      Some((old_segment, new_segment));
+    | UpdateDefinition(path, _)
+    | UpdateBody(path, _)
+    | UpdatePattern(path, _)
+    | UpdateBindingClause(path, _)
+    | DeleteBindingClause(path)
+    | DeleteBody(path) =>
+      let* old_node_map =
+        HighLevelNodeMap.build(old_zipper, mk_statics(old_zipper));
+      let* new_node_map =
+        HighLevelNodeMap.build(new_zipper, mk_statics(new_zipper));
+      let old_target_id = path_to_id(old_node_map, path);
+      let new_target_id = path_to_id(new_node_map, path);
+      let* old_segment =
+        segment_of_term(old_zipper, Some(old_target_id), syntax);
+      let new_segment =
+        segment_of_term(new_zipper, Some(new_target_id), syntax);
+      Some((old_segment, new_segment));
     };
   };
 

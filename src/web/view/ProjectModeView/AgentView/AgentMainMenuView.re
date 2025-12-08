@@ -1,9 +1,9 @@
 open Virtual_dom.Vdom;
 open Node;
 open Util.WebUtil;
-open Util;
 open Js_of_ocaml;
 open Widgets;
+open Haz3lcore;
 // open Icons;
 
 let view =

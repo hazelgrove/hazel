@@ -233,10 +233,31 @@
 
 .todo-archive-button-container {
   display: flex;
-  justify-content: flex-start;
+  justify-content: space-between;
+  align-items: center;
   padding: 0.5em 1em;
   border-bottom: 0.6px solid var(--BR2);
   flex-shrink: 0;
+}
+
+.active-task-button {
+  display: flex;
+  align-items: center;
+  gap: 0.5em;
+  cursor: pointer;
+  padding: 0.25em 0.5em;
+  border-radius: 4px;
+  transition: background-color 0.15s ease;
+}
+
+.active-task-button:hover {
+  background-color: var(--T2);
+}
+
+.active-task-title {
+  font-size: 0.85em;
+  color: var(--STONE);
+  font-weight: 500;
 }
 
 .workbench-content {
@@ -327,24 +348,24 @@
 
 @keyframes inner-glow {
   0% {
-    opacity: 0.7;
-    transform: translate(-50%, -50%) scale(0.55);
-    filter: drop-shadow(0 0 3px oklch(from var(--BR2) l c h / 0.4)) drop-shadow(0 0 5px oklch(from var(--BR2) l c h / 0.3));
+    opacity: 1.0;
+    transform: translate(-50%, -50%) scale(0.6);
+    filter: drop-shadow(0 0 3px oklch(from var(--exp-ap) l c h / 0.4)) drop-shadow(0 0 5px oklch(from var(--exp-ap) l c h / 0.3));
   }
   50% {
-    opacity: 0.9;
-    transform: translate(-50%, -50%) scale(0.55);
-    filter: drop-shadow(0 0 6px oklch(from var(--BR2) l c h / 0.7)) drop-shadow(0 0 10px oklch(from var(--BR2) l c h / 0.5));
+    opacity: 0.55;
+    transform: translate(-50%, -50%) scale(0.6);
+    filter: drop-shadow(0 0 6px oklch(from var(--exp-ap) l c h / 0.7)) drop-shadow(0 0 10px oklch(from var(--exp-ap) l c h / 0.5));
   }
   100% {
-    opacity: 0.7;
-    transform: translate(-50%, -50%) scale(0.55);
-    filter: drop-shadow(0 0 3px oklch(from var(--BR2) l c h / 0.4)) drop-shadow(0 0 5px oklch(from var(--BR2) l c h / 0.3));
+    opacity: 1.0;
+    transform: translate(-50%, -50%) scale(0.6);
+    filter: drop-shadow(0 0 3px oklch(from var(--exp-ap) l c h / 0.4)) drop-shadow(0 0 5px oklch(from var(--exp-ap) l c h / 0.3));
   }
 }
 
 .todo-status-icon.active-todo {
-  fill: var(--BR2);
+  fill: var(--exp-ap);
   opacity: 1;
   position: relative;
   display: flex;
@@ -363,9 +384,9 @@
   left: 50%;
   width: 20px;
   height: 20px;
-  fill: var(--BR2);
+  fill: var(--exp-ap);
   z-index: 0;
-  animation: inner-glow 2s infinite ease-in-out;
+  animation: inner-glow 2.5s infinite ease-in-out;
   pointer-events: none;
 }
 
@@ -491,7 +512,12 @@
   font-size: 0.9em;
   display: flex;
   align-items: center;
+  gap: 0.5em;
   user-select: none;
+}
+
+.history-menu-item .todo-status-icon {
+  flex-shrink: 0;
 }
 
 .history-menu-item.active {
@@ -933,6 +959,60 @@
   -moz-user-select: text;
   -ms-user-select: text;
   cursor: text;
+}
+
+.tool-call-diff-container {
+  margin-top: 0.75em;
+  width: 100%;
+  overflow-x: auto;
+  overflow-y: hidden;
+  -webkit-overflow-scrolling: touch;
+}
+
+.tool-call-diff-scrollable {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75em;
+  min-width: max-content;
+  transform: scale(0.95);
+  transform-origin: top left;
+}
+
+.tool-call-diff-segment {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5em;
+  min-width: max-content;
+}
+
+.tool-call-diff-label {
+  font-size: 0.75em;
+  color: var(--BR2);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.tool-call-diff-segment > div:last-child {
+  overflow-x: auto;
+  overflow-y: hidden;
+  min-width: max-content;
+}
+
+.tool-call-diff-segment .code {
+  font-size: 0.75em;
+}
+
+.tool-call-diff-segment .code * {
+  font-size: inherit;
+}
+
+.tool-call-diff-empty {
+  font-size: 0.85em;
+  color: var(--BR2);
+  font-style: italic;
+  padding: 0.5em;
+  text-align: center;
 }
 
 /* Prompt and Developer Notes Display */

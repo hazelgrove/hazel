@@ -3,6 +3,7 @@ open Node;
 open Util.WebUtil;
 open Util;
 open Js_of_ocaml;
+open Haz3lcore;
 
 open JsUtil;
 
