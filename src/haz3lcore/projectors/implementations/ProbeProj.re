@@ -277,7 +277,7 @@ module Samples = {
       : list(sample) => {
     let samples = filter_frames_by_pin(~ap_id, di);
     let first_idx =
-      first_related_index(~trimmed=true, ~ap_id, di.dyn_cursor, samples);
+      first_related_index(~trimmed=false, ~ap_id, di.dyn_cursor, samples);
     if (first_idx == None && settings.window == Single) {
       [];
     } else {
