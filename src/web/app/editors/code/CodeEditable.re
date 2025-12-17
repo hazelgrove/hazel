@@ -55,11 +55,9 @@ module Update = {
            ~scroll_active={
              switch (action) {
              | Move(Point(_)) => false
+             | Select(All) => false
              | Move(_)
-             | Select(
-                 Resize(_) | Term(_) | Smart(_) | Tile(_) | ToggleFocus |
-                 SetFocus(_),
-               )
+             | Select(_)
              | Destruct(_)
              | Insert(_)
              | Put_down
@@ -74,8 +72,7 @@ module Update = {
              | Project(_)
              | Unselect(_)
              | Refractor(_)
-             | DynCursor(_)
-             | Select(All) => false
+             | DynCursor(_) => false
              };
            },
          );
@@ -352,12 +349,17 @@ module View = {
       Effect.Ignore;
     };
 
-    let drag_select = (pointer: Pointer.Event.t) =>
+    let drag_select = (pointer: Pointer.Event.t) => {
+      let current_loc = loc(pointer);
       switch (pointer) {
-      | {button: Left, _} when MouseState.is_button_down() =>
-        inject(Perform(Select(Resize(Point(loc(pointer))))))
+      | {button: Left, _}
+          when
+            MouseState.is_button_down()
+            && !Point.equals(current_loc, MouseState.get_down_loc()) =>
+        inject(Perform(Select(Resize(Point(current_loc)))))
       | _ => Effect.Ignore
       };
+    };
 
     Node.div(
       ~attrs=[
