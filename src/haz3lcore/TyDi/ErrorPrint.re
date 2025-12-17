@@ -30,7 +30,7 @@ module Print = {
     );
   };
 
-  let term = (term: Term.Any.t): string => {
+  let term = (term: Any.t): string => {
     let settings =
       ExpToSegment.Settings.of_core(~inline=false, CoreSettings.off);
     term |> ExpToSegment.any_to_pretty(~settings) |> seg(~holes="");
@@ -50,8 +50,6 @@ let common_error: Info.error_common => string =
   | TupleLabelError(_) => "Invalid tuple label"
   | NoType(UnexpectedLabelSort(_)) => "Unexpected label sort"
   | NoType(BadToken(token)) => prn("\"%s\" isn't a valid token", token)
-  | Inconsistent(WithArrow(ty)) =>
-    prn("type %s is not consistent with arrow type", Print.typ(ty))
   | Inconsistent(CompareFun(ty)) =>
     prn("values of type %s cannot be compared", Print.typ(ty))
   | NoType(FreeConstructor(_name)) => prn("Constructor is not defined")
@@ -107,6 +105,8 @@ let exp_error: Info.error_exp => string =
   | InexhaustiveMatch(_) => "Match is not exhaustive" //TODO: elaborate
   | UnusedDeferral => "Unused deferral" //TODO: better message
   | BadPartialAp(_) => "Bad partial application" //TODO: elaborate
+  | BadTheorem(typ) =>
+    prn("Theorem pattern is not of the form p : t, got %s", Print.typ(typ))
   | Common(error) => common_error(error);
 
 let pat_error: Info.error_pat => string =
@@ -127,13 +127,52 @@ let typ_error: Info.error_typ => string =
     prn("Constructor %s already used in this sum", name)
   | WantLabel => "Expected a label"
   | ParseFailure => "Parse failure"
+  | InvalidLabel(name, labels) =>
+    prn(
+      "Label %s is not valid. Valid labels are: %s",
+      name,
+      String.concat(", ", labels),
+    )
   | DuplicateLabels(labels, ty) =>
     prn(
       "Duplicate labels in type %s: %s",
       Print.typ(ty),
       String.concat(", ", labels),
     )
-  | Duplicate(name, _) => prn("Type %s is already defined", name);
+  | Duplicate(name, _) => prn("Type %s is already defined", name)
+  | WantProduct(ty) =>
+    prn("Expected a tuple type, found type %s", Print.typ(ty));
+
+let underdetermined_typ: Info.underdetermined_typ => string =
+  fun
+  | ProdExtensionUnderdetermined(tys) =>
+    prn(
+      "Cannot determine type of tuple extension with argument types: %s",
+      List.map(Print.typ, tys) |> String.concat(", "),
+    )
+  | ProdProjectionMissingLabel(label, labels) =>
+    prn(
+      "Cannot project label %s. Valid labels are: %s",
+      label,
+      String.concat(", ", labels),
+    )
+  | ProdProjectionBadArgs({product, label}) =>
+    prn(
+      "Cannot determine projection type because %s",
+      String.concat(
+        " and ",
+        [
+          switch (product) {
+          | Some(ty) => "Type is not a tuple type: " ++ Print.typ(ty)
+          | None => ""
+          },
+          switch (label) {
+          | Some(ty) => "Label is not a valid label: " ++ Print.typ(ty)
+          | None => ""
+          },
+        ],
+      ),
+    );
 
 let tpat_error: Info.error_tpat => string =
   fun

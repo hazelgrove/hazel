@@ -1,6 +1,10 @@
 open Test_Statics_Prelude;
 open FTemp;
 open Typ;
+open Util;
+
+let testable_id =
+  Alcotest.(testable(Fmt.using(Id.show, Fmt.string), Id.equal));
 
 let tests = (
   "Statics.Sums",
@@ -388,6 +392,40 @@ end
     |},
       Some(unknown(Internal)),
     ),
+    Alcotest.test_case(
+      "Sum type duplicate constructor",
+      `Quick,
+      () => {
+        let id1 = Id.mk();
+        let id2 = Id.mk();
+        open Language;
+        let exp =
+          IdTagged.FreshGrammar.(
+            Exp.(
+              ty_alias(
+                TPat.var("A2"),
+                Typ.(
+                  sum([
+                    Variant("A", [id1], None),
+                    Variant("A", [id2], None),
+                  ])
+                ),
+                Exp.empty_hole(),
+              )
+            )
+          );
+
+        let error = Statics.Map.errors(statics(exp)) |> List.assoc(id2);
+        Alcotest.(
+          check(
+            testable_error,
+            "duplicate constructor present",
+            Typ(DuplicateConstructor("A")),
+            error,
+          )
+        );
+      },
+    ),
     // ======================== KNOWN BUGS ==============================
     skip_known_bug(
       // inconsistent_typecheck(
@@ -395,20 +433,6 @@ end
       // #err: invalid type name#
       {|
     type badTypeName = ? in ?
-    |},
-      // |> parse_exp,
-    ),
-    // Issue #1458
-    skip_known_bug(
-      // inconsistent_typecheck(
-      "duplicate constructors",
-      // #err: already used#
-      {|
-    type Dupes =
-      + Guy(Bool)
-      + Guy(Int)
-      + Guy
-    in ?
     |},
       // |> parse_exp,
     ),

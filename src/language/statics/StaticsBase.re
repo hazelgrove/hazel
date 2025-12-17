@@ -48,7 +48,7 @@ module Map = {
 
   let bound_in = (m: t, id: Id.t): Binding.s =>
     switch (lookup(id, m)) {
-    | Some(InfoPat({term, _})) => Term.Pat.bindings(term)
+    | Some(InfoPat({term, _})) => Pat.bindings(term)
     | _ => []
     };
 };
@@ -67,7 +67,7 @@ let rec is_arrow_like = (t: Typ.t) => {
   switch (t |> Typ.term_of) {
   | Unknown(_) => true
   | Arrow(_) => true
-  | Forall(_, t) => is_arrow_like(t)
+  | Poly(_, t) => is_arrow_like(t)
   | _ => false
   };
 };

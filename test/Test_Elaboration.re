@@ -3,7 +3,19 @@ open Language;
 
 /*Create a testable type for dhexp which requires
   an equal function (dhexp_eq) and a print function (dhexp_print) */
-let dhexp_typ = testable(Fmt.using(Exp.show, Fmt.string), DHExp.fast_equal);
+let dhexp_typ =
+  testable(
+    Fmt.using(Exp.show, Fmt.string),
+    // This is syntactic with ignore_wrappers=true
+    Equality.(
+      equality({
+        ...syntactic_settings,
+        ignore_parens: true,
+        ignore_unknown_provenance: true,
+      })
+    ).
+      exp,
+  );
 
 let mk_map = Statics.mk(CoreSettings.on, Builtins.ctx_init(Some(Int)));
 let dhexp_of_uexp = u =>
@@ -659,8 +671,8 @@ in 1|},
       "let [(A: (Bool(Bool))), (_: (String))] = 0 in ()",
     ),
     skip_known_bug(
-      "Type join of ap", // TODO https://github.com/hazelgrove/hazel/issues/1625
-      "type x = + B((forall x -> ?)(?)) in case a | B => 0| B => 0 end",
+      "Type meet of ap", // TODO https://github.com/hazelgrove/hazel/issues/1625
+      "type x = + B((poly x -> ?)(?)) in case a | B => 0| B => 0 end",
     ),
     QCheck_alcotest.to_alcotest(
       QCheck.Test.make(
@@ -679,9 +691,7 @@ in 1|},
                   List.exists(
                     (==)(msg),
                     [
-                      "type application in dynamics", // https://github.com/hazelgrove/hazel/issues/1459?issue=hazelgrove%7Chazel%7C1625
-                      "normalize exceeded 1000 recursive calls", // https://github.com/hazelgrove/hazel/issues/1627
-                      "Type join of ap" // https://github.com/hazelgrove/hazel/issues/1459?issue=hazelgrove%7Chazel%7C1625
+                      "normalize exceeded 1000 recursive calls" // https://github.com/hazelgrove/hazel/issues/1627
                     ],
                   ) =>
               print_endline("Known failure: " ++ Printexc.to_string(e));
@@ -702,7 +712,7 @@ module MenhirElaborationTests = {
   //uexp = tested
   open IdTagged.FreshGrammar;
 
-  let alco_check_menhir = (name: string, dhexp: string, uexp: Term.Exp.t) =>
+  let alco_check_menhir = (name: string, dhexp: string, uexp: Exp.t) =>
     alco_check(
       name,
       Grammar.map_exp_annotation(
