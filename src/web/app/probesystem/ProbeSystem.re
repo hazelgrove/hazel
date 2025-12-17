@@ -163,6 +163,8 @@ let legend_sample_view =
     time: 0.0,
     iter: 0,
     origin: Language.Sample.Probe,
+    step_start: 0,
+    step_end: 0,
   };
   let di: Language.Dynamics.Info.t = {
     samples: [sample],

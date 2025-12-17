@@ -75,19 +75,24 @@ type t = {
   time: float, /* Time of evaluatation */
   iter: int,
   origin,
+  step_start: int, /* Step count when expression began evaluation */
+  step_end: int /* Step count when expression finished evaluation */
 };
 
 let iter = ref(0);
 
 let mk =
     (
-      ~origin=Probe,
+      ~origin: origin=Probe,
+      ~step_start: int,
+      ~step_end: int,
       syntax_id: Id.t,
       value: DHExp.t,
       env: Environment.t(Exp.t),
       call_stack: Probe.call_stack,
       pr: Probe.t,
-    ) => {
+    )
+    : t => {
   /* Below hash provides a coarse-grained identification of
    * samples currently used to keep display-length data between
    * similar runs. May want to alter this or simply used a fresh
@@ -103,6 +108,8 @@ let mk =
     iter^;
   },
   origin,
+  step_start,
+  step_end,
 };
 
 [@deriving (show({with_path: false}), sexp, yojson)]

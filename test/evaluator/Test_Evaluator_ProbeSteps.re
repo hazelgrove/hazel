@@ -1,0 +1,246 @@
+open Alcotest;
+open Language;
+open Test_Evaluator_Prelude;
+
+/**
+ * Tests for probe step range relationships.
+ *
+ * Probes are created using the ^^probe(...) syntax.
+ *
+ * These tests verify the relative temporal relationships between probe samples:
+ * - DisjointBefore: sample A finished before sample B started
+ * - DisjointAfter: sample A started after sample B finished
+ * - ContainedWithin: sample A's range is inside sample B's range
+ * - Contains: sample A's range contains sample B's range
+ * - Equal: same step range
+ */
+
+/* Relationship predicates */
+
+let disjoint_before = (a: Sample.t, b: Sample.t): bool =>
+  a.step_end < b.step_start;
+
+let disjoint_after = (a: Sample.t, b: Sample.t): bool =>
+  a.step_start > b.step_end;
+
+let contained_within = (a: Sample.t, b: Sample.t): bool =>
+  b.step_start <= a.step_start && a.step_end <= b.step_end;
+
+let contains = (a: Sample.t, b: Sample.t): bool =>
+  a.step_start <= b.step_start && b.step_end <= a.step_end;
+
+type relationship =
+  | DisjointBefore
+  | DisjointAfter
+  | ContainedWithin
+  | Contains
+  | Equal;
+
+let classify = (a: Sample.t, b: Sample.t): relationship =>
+  if (disjoint_before(a, b)) {
+    DisjointBefore;
+  } else if (disjoint_after(a, b)) {
+    DisjointAfter;
+  } else if (a.step_start == b.step_start && a.step_end == b.step_end) {
+    Equal;
+  } else if (contained_within(a, b)) {
+    ContainedWithin;
+  } else {
+    Contains;
+  };
+
+let show_relationship =
+  fun
+  | DisjointBefore => "DisjointBefore"
+  | DisjointAfter => "DisjointAfter"
+  | ContainedWithin => "ContainedWithin"
+  | Contains => "Contains"
+  | Equal => "Equal";
+
+let relationship_testable =
+  testable(Fmt.using(show_relationship, Fmt.string), (==));
+
+/* Helper to get all samples from evaluated code */
+let get_all_samples = (code: string): list(Sample.t) => {
+  let uexp = parse_exp(code);
+  let elaborated = elaborate(uexp);
+  let (_, state) = Evaluator.evaluate(~env=Builtins.env_init, elaborated);
+  let probes = EvaluatorState.get_probes(state);
+  Id.Map.bindings(probes) |> List.concat_map(snd);
+};
+
+/* Basic probe tests - verify probes work */
+let basic_tests = [
+  test_case(
+    "Single probe creates one sample",
+    `Quick,
+    () => {
+      let samples = get_all_samples({|^^probe(1 + 2)|});
+      check(int, "One sample", 1, List.length(samples));
+    },
+  ),
+  test_case(
+    "Probe sample has valid step range",
+    `Quick,
+    () => {
+      let samples = get_all_samples({|^^probe(1 + 2)|});
+      switch (samples) {
+      | [s] =>
+        check(
+          bool,
+          "step_end >= step_start",
+          true,
+          s.step_end >= s.step_start,
+        );
+        check(bool, "step_start >= 0", true, s.step_start >= 0);
+      | _ => fail("Expected exactly one sample")
+      };
+    },
+  ),
+  test_case(
+    "Nested expression probe has wider range",
+    `Quick,
+    () => {
+      /* Probe around a let expression should span multiple steps */
+      let samples = get_all_samples({|^^probe(let x = 1 + 2 in x * 3)|});
+      switch (samples) {
+      | [s] =>
+        check(
+          bool,
+          "Range spans multiple steps",
+          true,
+          s.step_end > s.step_start,
+        )
+      | _ => fail("Expected exactly one sample")
+      };
+    },
+  ),
+];
+
+/* Sequential probe tests */
+let sequential_tests = [
+  test_case(
+    "Two sequential probes are disjoint",
+    `Quick,
+    () => {
+      /* Two probes evaluated one after the other */
+      let samples = get_all_samples({|^^probe(1 + 2) + ^^probe(3 + 4)|});
+      switch (samples) {
+      | [a, b] =>
+        let rel = classify(a, b);
+        check(
+          bool,
+          "Sequential probes are disjoint",
+          true,
+          rel == DisjointBefore || rel == DisjointAfter,
+        );
+      | _ =>
+        fail(
+          Printf.sprintf("Expected 2 samples, got %d", List.length(samples)),
+        )
+      };
+    },
+  ),
+  test_case(
+    "Three sequential probes maintain order",
+    `Quick,
+    () => {
+      let samples = get_all_samples({|^^probe(1) + ^^probe(2) + ^^probe(3)|});
+      check(int, "Three samples", 3, List.length(samples));
+
+      /* All pairs should be disjoint */
+      let rec check_disjoint =
+        fun
+        | []
+        | [_] => ()
+        | [a, b, ...rest] => {
+            check(
+              bool,
+              "Pairwise disjoint",
+              true,
+              disjoint_before(a, b) || disjoint_after(a, b),
+            );
+            check_disjoint([b, ...rest]);
+          };
+      check_disjoint(samples);
+    },
+  ),
+];
+
+/* Nesting tests */
+let nesting_tests = [
+  test_case(
+    "Inner probe contained within outer probe",
+    `Quick,
+    () => {
+      /* Outer probe contains inner probe */
+      let samples = get_all_samples({|^^probe(1 + ^^probe(2 + 3))|});
+      switch (samples) {
+      | [a, b] =>
+        /* One should contain the other */
+        let rel = classify(a, b);
+        check(
+          bool,
+          "One contains the other",
+          true,
+          rel == Contains || rel == ContainedWithin,
+        );
+      | _ =>
+        fail(
+          Printf.sprintf("Expected 2 samples, got %d", List.length(samples)),
+        )
+      };
+    },
+  ),
+];
+
+/* Recursive function tests */
+let recursive_tests = [
+  test_case(
+    "Outer recursive calls contain inner calls",
+    `Quick,
+    () => {
+      let samples =
+        get_all_samples(
+          {|
+        let rec sum = fun n =>
+          if n <= 0 then 0 else n + ^^probe(sum(n - 1))
+        in sum(3)
+      |},
+        );
+
+      /* Sort by step_start (earlier = outer call) */
+      let sorted =
+        List.sort(
+          (a: Sample.t, b: Sample.t) => compare(a.step_start, b.step_start),
+          samples,
+        );
+
+      switch (sorted) {
+      | [first, ...rest] when List.length(rest) > 0 =>
+        /* First (outermost) should contain all others */
+        List.iter(
+          (inner: Sample.t) =>
+            check(
+              bool,
+              "Outer contains inner",
+              true,
+              contains(first, inner),
+            ),
+          rest,
+        )
+      | _ => () /* Not enough samples */
+      };
+    },
+  ),
+];
+
+let tests = (
+  "Evaluator.ProbeSteps",
+  List.concat([
+    basic_tests,
+    sequential_tests,
+    nesting_tests,
+    recursive_tests,
+  ]),
+);

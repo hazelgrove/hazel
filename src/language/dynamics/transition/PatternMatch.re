@@ -70,7 +70,8 @@ let rec matches = (capture, dp: Pat.t, d: DHExp.t): match_result => {
   };
 };
 
-type sample_closures = list(Probe.call_stack => Sample.t);
+/* Sample closures now take call_stack, step_start, and step_end */
+type sample_closures = list((Probe.call_stack, int, int) => Sample.t);
 
 type matches_and_samples = {
   matches: match_result,
@@ -88,7 +89,16 @@ let matches = (dp: Pat.t, d: DHExp.t): matches_and_samples => {
     | Matches(env) =>
       sample_closures :=
         List.cons(
-          Sample.mk(Pat.rep_id(dp), d, Environment.of_bindings(env), _, pr),
+          (call_stack: Probe.call_stack, step_start: int, step_end: int) =>
+            Sample.mk(
+              ~step_start,
+              ~step_end,
+              Pat.rep_id(dp),
+              d,
+              Environment.of_bindings(env),
+              call_stack,
+              pr,
+            ),
           sample_closures^,
         )
     };

@@ -134,6 +134,16 @@ let rec evaluate =
         )
         : EvaluatorEVMode.result => {
   open Trampoline.Syntax;
+
+  /* If we're starting to evaluate a Probe, record the current step count.
+   * This captures "where we were" before the inner expression starts evaluating. */
+  switch (DHExp.term_of(init)) {
+  | Probe(_, _) =>
+    let probe_id = DHExp.rep_id(init);
+    state := EvaluatorState.record_probe_start(state^, probe_id);
+  | _ => ()
+  };
+
   let.trampoline (is_finished, effects, next) =
     Eval.transition(
       (~in_closure=?, env, init) =>

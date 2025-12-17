@@ -482,6 +482,8 @@ module Debug = {
     // ++ DHExp.show(sample.value)
     ++ "\nstack:\n"
     ++ stack(sample.call_stack)
+    ++ "\nstep-range:\n"
+    ++ Printf.sprintf("[%d, %d]", sample.step_start, sample.step_end)
     ++ "\ntime: "
     ++ Printf.sprintf("%.0f", sample.time);
 };
@@ -551,7 +553,7 @@ let value_view =
 
   div(
     ~attrs=[
-      // Attr.title(Debug.str(~ap_id, sample)),
+      Attr.title(Debug.str(~ap_id, sample)),
       Attr.classes(
         ["value", length_cls(length)]
         @ cursor_clss(~settings, ~ap_id, di, sample)
