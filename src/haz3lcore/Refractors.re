@@ -213,6 +213,36 @@ let step_into =
     | Non => add_auto(body_id, ~syntax, ~info_map, z)
     //toggle_manual(~syntax, body_id, ~info_map, z)
     };
+
+  //TODO(andrew): need to first set dyn_cursor to current thing if not already set...
+
+  // set pin and dyn cursor
+  let* ap_id =
+    switch (Indicated.ci_of(z, info_map)) {
+    | Some(InfoExp({term: {term: Ap(_, _, _), _} as ap, _})) =>
+      Some(IdTagged.rep_id(ap))
+    | _ =>
+      let* indicated_id = Indicated.index(z);
+      switch (Statics.Map.parent_term_of(info_map, indicated_id)) {
+      | Some(Exp({term: Ap(_, _, _), _} as ap)) =>
+        Some(IdTagged.rep_id(ap))
+      | _ => None
+      };
+    };
+  let z =
+    DynCursorPerform.update_dyn_cursor(
+      z,
+      _ => {
+        // need to trim before adding ap
+        let trimmed = DynCursor.trimmed_stack(z.refractors.dyn_cursor);
+        {
+          ...z.refractors.dyn_cursor,
+          stack: [ap_id, ...trimmed],
+          index: List.length(trimmed),
+          pinned_stack: Some([ap_id, ...trimmed]),
+        };
+      },
+    );
   switch (ci_body) {
   | InfoExp({term: {term: Fun(pat, _body, _, _), _}, _}) =>
     let jump_target_id =
