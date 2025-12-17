@@ -117,37 +117,80 @@ let destruct = (z: t): option(t) =>
 let refractor_seg_to_seg =
     (refractors: Id.Map.t(Base.projector), seg: Segment.t)
     : (Id.Map.t(Base.projector), Segment.t) => {
-  //TODO(andrew): make this support n-ary ops
-  //TODO(andrew): This unfortuately seems to remove all secondary....
-  let foo = root => [List.nth(seg, Aba.first_a(root))];
-  let rec go = (map, skel: Skel.t): (Id.Map.t(Base.projector), Segment.t) => {
-    let (map, res) =
+  /* This function transforms a segment by wrapping terms that have refractors
+   * with their invocation syntax (e.g., ^^probe(...)).
+   *
+   * Key insight: We recursively process children first, then concatenate:
+   *   left_result @ middle_slice @ right_result
+   * where middle_slice comes from the ORIGINAL segment (preserving Secondary).
+   * This way original indices stay valid since we only read, never modify. */
+
+  let rec go =
+          (map: Id.Map.t(Base.projector), skel: Skel.t)
+          : (Id.Map.t(Base.projector), Segment.t) => {
+    let (map, result) =
       switch (skel) {
-      | Op(root) => (map, foo(root))
-      | Pre(root, l) =>
-        let (map, seg) = go(map, l);
-        (map, foo(root) @ seg);
-      | Post(r, root) =>
-        let (map, seg) = go(map, r);
-        (map, seg @ foo(root));
-      | Bin(l, root, r) =>
-        let (map1, seg1) = go(map, l);
-        let (map2, seg2) = go(map1, r);
-        (map2, seg1 @ foo(root) @ seg2);
+      | Op(root) =>
+        /* Leaf node: slice the full range including any Secondary.
+         * For n-ary ops like tuples, root is an Aba with multiple indices. */
+        let indices = Aba.get_as(root);
+        let first_idx = List.hd(indices);
+        let last_idx = ListUtil.last(indices);
+        (map, ListUtil.sublist((first_idx, last_idx + 1), seg));
+
+      | Pre(root, child) =>
+        /* Prefix operator: root pieces come before child */
+        let (_, child_start) = Skel.range(child);
+        let root_indices = Aba.get_as(root);
+        let root_start = List.hd(root_indices);
+
+        let (map, child_result) = go(map, child);
+
+        /* Prefix slice: from root start to just before child */
+        let prefix = ListUtil.sublist((root_start, child_start), seg);
+        (map, prefix @ child_result);
+
+      | Post(child, root) =>
+        /* Postfix operator: child comes before root pieces */
+        let (_, child_end) = Skel.range(child);
+        let root_indices = Aba.get_as(root);
+        let root_end = ListUtil.last(root_indices);
+
+        let (map, child_result) = go(map, child);
+
+        /* Postfix slice: from after child to end of root */
+        let postfix = ListUtil.sublist((child_end + 1, root_end + 1), seg);
+        (map, child_result @ postfix);
+
+      | Bin(left, _root, right) =>
+        /* Binary operator: left @ middle @ right
+         * Middle includes the operator and surrounding Secondary */
+        let (_, left_end) = Skel.range(left);
+        let (right_start, _) = Skel.range(right);
+
+        let (map, left_result) = go(map, left);
+        let (map, right_result) = go(map, right);
+
+        /* Middle slice from ORIGINAL segment - this preserves Secondary! */
+        let middle = ListUtil.sublist((left_end + 1, right_start), seg);
+        (map, left_result @ middle @ right_result);
       };
+
+    /* Check if this term needs to be wrapped with a refractor invocation */
     let root_id = Segment.root_id(skel, seg);
-    switch (Id.Map.find_opt(root_id, refractors)) {
+    switch (Id.Map.find_opt(root_id, map)) {
     | Some(pr) => (
         Id.Map.remove(root_id, map),
-        refractor_to_invoke(pr.kind, res),
+        refractor_to_invoke(pr.kind, result),
       )
-    | None => (map, res)
+    | None => (map, result)
     };
   };
-  Id.Map.is_empty(refractors)
-    ? (refractors, seg)
-    : {
-      let (map, seg) = go(refractors, Segment.skel(seg));
-      (map, seg);
-    };
+
+  if (Id.Map.is_empty(refractors)) {
+    (refractors, seg);
+  } else {
+    let (map, new_seg) = go(refractors, Segment.skel(seg));
+    (map, new_seg);
+  };
 };
