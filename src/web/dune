@@ -63,6 +63,14 @@
    bonsai.ppx_bonsai)))
 
 (executable
+ (name gradescope)
+ (modules Gradescope)
+ (libraries ppx_yojson_conv.expander haz3lcore web)
+ (modes js)
+ (preprocess
+  (pps ppx_yojson_conv ppx_let ppx_sexp_conv ppx_deriving.show)))
+
+(executable
  (name worker)
  (modules Worker)
  (libraries workerServer)

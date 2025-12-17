@@ -148,13 +148,6 @@ module Model = {
     | Theorem(_) => "(* Theorem exercises do not have an exportable transitionary module *)\n"
     };
 
-  let export_grading_module = (e: exercise): string =>
-    switch (e) {
-    | Implementation(e) =>
-      Exercise.export_grading_module(e.editors.module_name, {eds: e.editors})
-    | Theorem(_) => "(* Theorem exercises do not have an exportable grading module *)\n"
-    };
-
   // Used for the assistant or something
   let get_editor = (model: t): CodeEditable.Model.t => {
     let current = List.nth(model.exercises, model.current);
@@ -290,8 +283,7 @@ module Update = {
     | TheoremExercise(TheoremExerciseMode.Update.t)
     | ExportModule
     | ExportSubmission
-    | ExportTransitionary
-    | ExportGrading;
+    | ExportTransitionary;
 
   let can_undo = (action: t) => {
     switch (action) {
@@ -301,7 +293,6 @@ module Update = {
     | ExportModule => false
     | ExportSubmission => false
     | ExportTransitionary => false
-    | ExportGrading => false
     };
   };
   let export_exercise_module = (exercises: Model.t): unit => {
@@ -332,15 +323,6 @@ module Update = {
     let filename = (exercise |> Model.get_exercise_name) ++ ".ml";
     let content_type = "text/plain";
     let contents = Model.export_transitionary_module(exercise);
-    JsUtil.download_string_file(~filename, ~content_type, ~contents);
-  };
-
-  let export_instructor_grading_report = (exercises: Model.t) => {
-    let exercise = Model.get_current(exercises);
-    // .ml files because show uses OCaml syntax (dune handles seamlessly)
-    let filename = (exercise |> Model.get_exercise_name) ++ "_grading.ml";
-    let content_type = "text/plain";
-    let contents = Model.export_grading_module(exercise);
     JsUtil.download_string_file(~filename, ~content_type, ~contents);
   };
 
@@ -401,10 +383,6 @@ module Update = {
     | (_, ExportTransitionary) =>
       Store.save(~instructor_mode=globals.settings.instructor_mode, model);
       export_transitionary(model);
-      model |> return_quiet;
-    | (_, ExportGrading) =>
-      Store.save(~instructor_mode=globals.settings.instructor_mode, model);
-      export_instructor_grading_report(model);
       model |> return_quiet;
     };
   };
@@ -571,13 +549,6 @@ module View = {
         ~tooltip="Export Transitionary Exercise Module",
       );
 
-    let instructor_grading_export =
-      Widgets.button_named(
-        Icons.export,
-        _ => {inject(ExportGrading)},
-        ~tooltip="Export Grading Exercise Module",
-      );
-
     let export_submission =
       Widgets.button_named(
         Icons.star,
@@ -640,11 +611,7 @@ module View = {
       NutMenu.item_group(
         ~inject,
         "Developer Export",
-        [
-          instructor_export,
-          instructor_transitionary_export,
-          instructor_grading_export,
-        ],
+        [instructor_export, instructor_transitionary_export],
       );
 
     if (globals.settings.instructor_mode) {

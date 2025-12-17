@@ -1,23 +1,20 @@
 open Util;
 open Haz3lcore;
 
-let output_header_grading = _module_name =>
-  "module Exercise = GradePrelude.Exercise\n" ++ "let prompt = ()\n";
+[@deriving (show({with_path: false}), sexp, yojson)]
+type hint = string;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type wrong_impl('code) = {
   impl: 'code,
-  hint: string,
+  hint,
 };
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type hidden_tests('code) = {
   tests: 'code,
-  hints: list(string),
+  hints: list(hint),
 };
-
-[@deriving (show({with_path: false}), sexp, yojson)]
-type hint = string;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type syntax_test = (hint, SyntaxTest.predicate);
@@ -448,7 +445,7 @@ let delete_buggy_impl = (state: state, index: int) => {
 };
 
 let edit_buggy_impl = (state: state, idx: int, impl: Editor.t, new_hint: hint) => {
-  let buggy_impl = {
+  let buggy_impl: wrong_impl(Editor.t) = {
     impl,
     hint: new_hint,
   };
@@ -489,9 +486,9 @@ let update_mut_test_rep =
       (i, bug) => {
         let new_hint = List.nth_opt(new_hints, i);
         switch (new_hint) {
-        | Some(hint) => {
+        | Some(hint_string) => {
             ...bug,
-            hint,
+            hint: hint_string,
           }
         | None => bug
         };
@@ -878,14 +875,6 @@ let export_transitionary_module = (module_name, {eds, _}: state) => {
     ++ "let exercise: Exercise.spec = Exercise.transition(";
   let record = show_p(transitionary_editor_pp, eds);
   let data = prefix ++ record ++ ")\n";
-  data;
-};
-
-let export_grading_module = (module_name, {eds, _}: state) => {
-  let header = output_header_grading(module_name);
-  let prefix = "let exercise: Exercise.spec = ";
-  let record = show_p(editor_pp, eds);
-  let data = header ++ prefix ++ record ++ "\n";
   data;
 };
 
