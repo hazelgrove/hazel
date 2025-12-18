@@ -1,1 +1,0 @@
-Note: most of this directory was vibe coded by Claude, and is based on the Perl version at https://github.com/eecs490/gradescope-utils.

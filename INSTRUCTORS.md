@@ -39,6 +39,6 @@ NOTE: This is only relevant to the EECS490 repo (which include the haz3lschool b
 
 1. Update the `src/haz3lschool/Specs.re` module with `<module_name>.exercise`.
 
-2. Run `make gradescope ZIP=<path to submissions zipfile> COURSE=<course_id> ASSIGNMENT=<assignment_id>` under project root to generate grade reports and upload them to Gradescope. 
+2. Run `make grade SUBMISSION=<path to submission json>` under project root to generate a grade report.
 
-To change the output format, adjust `Main.gen_grading_report` function in `Gradescope.re` .
+TODO: currently batch grading, export to gradescope, and autograder generation are have regressed. Next time 490 is taught, these can be added by consulting with commit b715dba2ce2949b7277a2d4de0451ccbea6a878c. 

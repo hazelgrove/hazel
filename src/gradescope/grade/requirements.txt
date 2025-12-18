@@ -1,2 +1,0 @@
-# Python requirements for gradescope-utils Python implementation
-PyYAML>=5.4.1

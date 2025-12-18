@@ -1,20 +1,11 @@
 #!/usr/bin/env python3
-"""
-Python implementation of the complete Hazel grading pipeline
-Equivalent to the complex Perl pipeline command
-"""
 
 import json
 import sys
 import subprocess
 import tempfile
-import os
 from pathlib import Path
 import argparse
-
-# Import our utility modules
-from proj import project_element
-from cat import cat_directory
 
 def run_hazel_grader(student_json_str, hazel_path):
     """
@@ -37,28 +28,9 @@ def run_hazel_grader(student_json_str, hazel_path):
         
         # Write input JSON
         with open(input_file, 'w') as f:
-            if isinstance(student_json_str, str):
-                # Try to parse as JSON first (double-encoded case)
-                try:
-                    # First decode: "\"abc\"" -> "abc" 
-                    decoded_once = json.loads(student_json_str)
-                    if isinstance(decoded_once, str):
-                        # Try to decode again: "abc" -> actual JSON
-                        try:
-                            final_json = json.loads(decoded_once)
-                            json.dump(final_json, f, indent=2)
-                        except json.JSONDecodeError:
-                            # decoded_once is just a string, not JSON
-                            json.dump(decoded_once, f)
-                    else:
-                        # decoded_once is already proper JSON
-                        json.dump(decoded_once, f, indent=2)
-                except json.JSONDecodeError:
-                    # student_json_str is not valid JSON, treat as raw string
-                    json.dump(student_json_str, f)
-            else:
-                json.dump(student_json_str, f, indent=2)
-        
+            decoded = json.loads(student_json_str)
+            json.dump(decoded, f, indent=2)
+
         # Run Hazel grader
         cmd = [
             "node",
@@ -67,7 +39,7 @@ def run_hazel_grader(student_json_str, hazel_path):
             str(input_file),
             str(output_file)
         ]
-        
+
         try:
             result = subprocess.run(
                 cmd,
