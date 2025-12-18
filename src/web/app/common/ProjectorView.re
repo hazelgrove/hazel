@@ -191,7 +191,7 @@ let offside_wrapper =
   );
 
 let simple_code =
-    (~background=false, ~is_single_line=?, font_metrics, _sort, segment)
+    (~background=false, ~is_single_line=false, font_metrics, _sort, segment)
     : Node.t => {
   let shape_map = ProjectorCore.Shape.Map.empty; /* Assume this doesn't contain projectors */
   let measured =
@@ -257,17 +257,16 @@ let text_code = (segment): Node.t =>
   );
 
 let flex_code =
-    (
-      ~font_metrics,
-      ~background=?,
-      ~is_single_line=?,
-      ~text_only=?,
-      sort,
-      segment,
-    ) =>
-  text_only == Some(Some())
+    (~font_metrics, ~background=?, ~text_only=false, sort, segment) =>
+  text_only
     ? text_code(segment)
-    : simple_code(~background?, ~is_single_line?, font_metrics, sort, segment);
+    : simple_code(
+        ~background?,
+        ~is_single_line=true,
+        font_metrics,
+        sort,
+        segment,
+      );
 
 /* Route top-level metadata to the projector view function. */
 let mk_view =
@@ -284,16 +283,8 @@ let mk_view =
     local: a =>
       inject(Project(SetModel(p.id, P.update(p.model, info, a)))),
     parent: a => inject(Project(handle(p.id, a))),
-    view_seg:
-      (~background=?, ~is_single_line=?, ~text_only=?, sort, segment) =>
-      flex_code(
-        ~font_metrics,
-        ~background?,
-        ~is_single_line?,
-        ~text_only?,
-        sort,
-        segment,
-      ),
+    view_seg: (~background=?, ~text_only=?, sort, segment) =>
+      flex_code(~font_metrics, ~background?, ~text_only?, sort, segment),
     status,
   });
 };

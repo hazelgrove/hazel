@@ -62,7 +62,6 @@ let term_view =
   let+ segment = segment_of(~default, ~available, term);
   ProjectorView.flex_code(
     ~background,
-    ~is_single_line=Some(),
     ~text_only,
     ~font_metrics=globals.font_metrics,
     Language.Sort.Exp,
@@ -106,7 +105,7 @@ let fancy =
       ~globals,
       ~default,
       ~background=false,
-      ~text_only=Some(),
+      ~text_only=true,
       ~available=12,
       any,
     );
@@ -191,12 +190,7 @@ let legend_sample_view =
     di,
     ProjectorInfo.utility,
     (~text_only) =>
-      ProjectorView.flex_code(
-        ~font_metrics,
-        ~background=false,
-        ~is_single_line=Some(),
-        ~text_only?,
-      ),
+      ProjectorView.flex_code(~font_metrics, ~background=false, ~text_only),
     _ => Effect.Ignore,
     _ => Effect.Ignore,
     (0, sample),
@@ -548,7 +542,7 @@ let render_group =
         ~default=None,
         ~background=false,
         ~available=17,
-        ~text_only=None,
+        ~text_only=false,
         Language.Grammar.Pat(pat),
       );
     let title_node: Node.t =

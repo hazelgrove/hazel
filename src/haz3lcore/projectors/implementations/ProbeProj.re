@@ -615,7 +615,7 @@ let value_view =
       Attr.on_pointerup(val_pointerup),
       Attr.on_mousemove(val_mousemove),
     ],
-    [view_seg(~text_only=Option.None, Sort.Exp, seg)],
+    [view_seg(~text_only=false, Sort.Exp, seg)],
   );
 };
 
@@ -641,7 +641,7 @@ let env_val =
             ClosureLength.get(settings.window, sample),
             d,
           );
-        view_seg(~text_only=Option.None, Sort.Exp, seg);
+        view_seg(~text_only=false, Sort.Exp, seg);
       },
     ],
   );
@@ -1039,13 +1039,7 @@ let offside_view =
       parent,
       ~settings: settings,
       view_seg:
-        (
-          ~background: bool=?,
-          ~is_single_line: option(unit)=?,
-          ~text_only: option(unit)=?,
-          Sort.t,
-          list(syntax)
-        ) =>
+        (~background: bool=?, ~text_only: bool=?, Sort.t, list(syntax)) =>
         Node.t,
       utility: utility,
     ) =>
@@ -1079,10 +1073,7 @@ let offside_view =
           ~settings,
           di,
           utility,
-          /* NOTE: Right now this is hard set to single_line and text_only
-           * for optimization purposes. This can be relaxed in the future */
-          (~text_only) =>
-            view_seg(~is_single_line=Some(), ~text_only, ~background=false),
+          (~text_only) => view_seg(~text_only, ~background=false),
           local,
           parent,
           groups,
