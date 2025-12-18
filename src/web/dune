@@ -20,7 +20,7 @@
  (instrumentation
   (backend bisect_ppx))
  (modules
-  (:standard \ Main Gradescope)
+  (:standard \ Main GradingReport)
   \
   Worker
   WorkerServer)
@@ -63,8 +63,8 @@
    bonsai.ppx_bonsai)))
 
 (executable
- (name gradescope)
- (modules Gradescope)
+ (name gradingReport)
+ (modules GradingReport)
  (libraries ppx_yojson_conv.expander haz3lcore web)
  (modes js)
  (preprocess

@@ -13,95 +13,9 @@ from pathlib import Path
 import argparse
 
 # Import our utility modules
-from join import join_gradescope_zip, join_gradescope_zip_with_function
+from join import join_gradescope_zip_with_function
 from proj import project_element
 from cat import cat_directory
-
-
-
-
-
-def run_hazel_grader(student_json_str, hazel_path):
-    """
-    Run the Hazel grader on student JSON
-    Uses: node -r ./src/web/www/polyfill_worker.js _build/default/src/web/gradescope.bc.js <input> <output>
-    """
-    
-    # Find the required Hazel files
-    polyfill_file = hazel_path / "src/web/www/polyfill_worker.js"
-    gradescope_file = hazel_path / "_build/default/src/web/gradescope.bc.js"
-    
-    if not polyfill_file.exists():
-        raise FileNotFoundError(f"Hazel polyfill not found: {polyfill_file}")
-    if not gradescope_file.exists():
-        raise FileNotFoundError(f"Hazel gradescope.bc.js not found: {gradescope_file}")
-    
-    with tempfile.TemporaryDirectory() as tmpdir:
-        input_file = Path(tmpdir) / "input.json"
-        output_file = Path(tmpdir) / "output.json"
-        
-        # Write input JSON
-        with open(input_file, 'w') as f:
-            if isinstance(student_json_str, str):
-                # Try to parse as JSON first (double-encoded case)
-                try:
-                    # First decode: "\"abc\"" -> "abc" 
-                    decoded_once = json.loads(student_json_str)
-                    if isinstance(decoded_once, str):
-                        # Try to decode again: "abc" -> actual JSON
-                        try:
-                            final_json = json.loads(decoded_once)
-                            json.dump(final_json, f, indent=2)
-                        except json.JSONDecodeError:
-                            # decoded_once is just a string, not JSON
-                            json.dump(decoded_once, f)
-                    else:
-                        # decoded_once is already proper JSON
-                        json.dump(decoded_once, f, indent=2)
-                except json.JSONDecodeError:
-                    # student_json_str is not valid JSON, treat as raw string
-                    json.dump(student_json_str, f)
-            else:
-                json.dump(student_json_str, f, indent=2)
-        
-        # Run Hazel grader
-        cmd = [
-            "node",
-            "-r", str(polyfill_file),
-            str(gradescope_file),
-            str(input_file),
-            str(output_file)
-        ]
-        
-        try:
-            result = subprocess.run(
-                cmd,
-                cwd=hazel_path,
-                capture_output=True,
-                text=True,
-                check=True
-            )
-            
-            # Read output
-            if output_file.exists():
-                with open(output_file, 'r') as f:
-                    return f.read().strip()
-            else:
-                return result.stdout.strip()
-                
-        except subprocess.CalledProcessError as e:
-            print(f"[error] Hazel grader failed: {e.stderr}", file=sys.stderr)
-            raise
-
-
-def hazel_transform(value, hazel_path):
-    """Transform function for Hazel grading"""
-    try:
-        return run_hazel_grader(value, hazel_path)
-    except Exception as e:
-        print(f"[error] Hazel processing failed: {e}", file=sys.stderr)
-        return "Hazel grader error"
-
 
 def cat_function(submission_dir):
     """
@@ -132,8 +46,10 @@ def process_hazel_pipeline(zip_path, hazel_path):
     graded_submissions = {}
     total = len(submissions)
     for i, (key, value) in enumerate(submissions.items(), 1):
-        print(f"  Processing {key} ({i}/{total})...", file=sys.stderr)
-        graded_submissions[key] = hazel_transform(value, hazel_path)
+        print( (key, value))
+    # for i, (key, value) in enumerate(submissions.items(), 1):
+    #     print(f"  Processing {key} ({i}/{total})...", file=sys.stderr)
+    #     graded_submissions[key] = hazel_transform(value, hazel_path)
     
     # Return combined result as [token2uniqname, graded_submissions]
     return [token2uniqname, graded_submissions]
