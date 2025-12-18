@@ -15,6 +15,7 @@ type t = {
   indicated_call: option(Id.t),
   time: option(float),
   iter: int,
+  step_range: option((int, int)),
 };
 
 let init: t = {
@@ -24,6 +25,7 @@ let init: t = {
   indicated_call: None,
   time: None,
   iter: 0,
+  step_range: None,
 };
 
 let trimmed_stack = (dyn_cursor: t) =>
@@ -48,6 +50,35 @@ type relative_level =
   | Below(int)
   | Same
   | Unrelated;
+
+/* Step-range containment relationship between two samples */
+type step_containment =
+  | StepEqual /* Same step range */
+  | StepContainedWithin /* This sample is strictly inside the focus */
+  | StepContains /* This sample strictly contains the focus */
+  | StepDisjointBefore /* This sample finishes before focus starts */
+  | StepDisjointAfter /* This sample starts after focus finishes */
+  | StepNoFocus; /* No focus sample to compare against */
+
+let step_containment =
+    (~focus_range: option((int, int)), sample: Sample.t): step_containment =>
+  switch (focus_range) {
+  | None => StepNoFocus
+  | Some((fs, fe)) =>
+    let (ss, se) = (sample.step_start, sample.step_end);
+    if (ss == fs && se == fe) {
+      StepEqual;
+    } else if (ss >= fs && se <= fe) {
+      StepContainedWithin;
+    } else if (ss <= fs && se >= fe) {
+      StepContains;
+    } else if (se < fs) {
+      StepDisjointBefore;
+    } else {
+      StepDisjointAfter;
+                       /* ss > fe */
+    };
+  };
 
 /* How is the current sample related to the dynamic cursor? */
 type relation = {

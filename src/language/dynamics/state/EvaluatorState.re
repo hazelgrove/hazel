@@ -102,7 +102,10 @@ let update =
         let state = clear_probe_start(state, probe_id);
         (call_stack, add_sample(state, sample));
       | RecordPatProbes(sample_closures) =>
-        /* Pattern probes happen within a single step, so start == end */
+        /* Pattern probes are recorded at the current step, then we
+         * increment to ensure patterns don't share step boundaries
+         * with subsequent expressions (which would cause incorrect
+         * containment classification in StepRange mode) */
         let step = state.step_count;
         let state =
           List.fold_left(
@@ -114,6 +117,11 @@ let update =
             state,
             sample_closures,
           );
+        /* Advance step count past pattern evaluation */
+        let state = {
+          ...state,
+          step_count: state.step_count + 1,
+        };
         (call_stack, state);
       | RecordPrint(value) =>
         /* Print happens in a single step */

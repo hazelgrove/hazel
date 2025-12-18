@@ -23,7 +23,8 @@ module Settings = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type sample_base =
     | Calls
-    | Steps;
+    | Steps
+    | StepRange;
 
   [@deriving (show({with_path: false}), sexp, yojson)]
   type settings = {
@@ -60,7 +61,12 @@ module Settings = {
       }
     | ToggleSampleBase => {
         ...settings,
-        sample_base: settings.sample_base == Calls ? Steps : Calls,
+        sample_base:
+          switch (settings.sample_base) {
+          | Calls => Steps
+          | Steps => StepRange
+          | StepRange => Calls
+          },
       }
     | ToggleBeforeCutoff => {
         ...settings,
@@ -400,67 +406,108 @@ let cursor_clss =
       sample: sample,
     )
     : list(string) => {
-  let relation =
-    DynCursor.relation(~trimmed=true, ~ap_id, di.dyn_cursor, sample);
-  (
+  switch (settings.sample_base) {
+  | Calls =>
+    let relation =
+      DynCursor.relation(~trimmed=true, ~ap_id, di.dyn_cursor, sample);
+    let cursor_class =
+      switch (
+        relation.is_call_cursor,
+        relation.is_call_above_call_cursor,
+        relation.is_below_indicated_call,
+      ) {
+      | (true, _, _) => ["cursor"]
+      | (_, Some(0), _) => ["cursor-caller", "direct"]
+      | (_, Some(_), _) when settings.caller_cutoff == None => [
+          "cursor-caller",
+          "indirect",
+        ]
+      | (_, _, Some(0)) => ["cursor-callee", "direct"]
+      | (_, _, Some(_)) when settings.callee_cutoff == None => [
+          "cursor-callee",
+          "indirect",
+        ]
+      | (_, _, _) => ["cursor-unrelated"]
+      };
+    let level_class =
+      switch (relation.relative_level_to_cursor) {
+      | Same => ["level0"]
+      | Below(n)
+          when
+            settings.before_cutoff == None
+            || Some(n) <= settings.before_cutoff => [
+          "below",
+          "L" ++ string_of_int(n),
+        ]
+      | Above(n)
+          when
+            settings.after_cutoff == None || Some(n) <= settings.after_cutoff => [
+          "above",
+          "L" ++ string_of_int(n),
+        ]
+      | _ => []
+      };
+    cursor_class @ level_class;
+
+  | Steps =>
+    let relation =
+      DynCursor.relation(~trimmed=true, ~ap_id, di.dyn_cursor, sample);
+    let cursor_class =
+      switch (
+        relation.is_call_cursor,
+        relation.is_call_above_call_cursor,
+        relation.is_below_indicated_call,
+      ) {
+      | (true, _, _) when sample.iter == di.dyn_cursor.iter => ["cursor"]
+      | (_, Some(0), _) => ["cursor-caller", "direct"]
+      | (_, Some(_), _) when settings.caller_cutoff == None => [
+          "cursor-caller",
+          "indirect",
+        ]
+      | (_, _, Some(0)) => ["cursor-callee", "direct"]
+      | (_, _, Some(_)) when settings.callee_cutoff == None => [
+          "cursor-callee",
+          "indirect",
+        ]
+      | (_, _, _) => ["cursor-unrelated"]
+      };
+    let level_class =
+      switch (relation.is_before_cursor) {
+      | n when n == 0 => ["level0"]
+      | n when n > 0 =>
+        settings.before_cutoff == None || Some(n) <= settings.before_cutoff
+          ? ["below", "L" ++ string_of_int(n)] : []
+      | n when n < 0 =>
+        settings.after_cutoff == None || Some(- n) <= settings.after_cutoff
+          ? ["above", "L" ++ string_of_int(- n)] : []
+      | _ => []
+      };
+    cursor_class @ level_class;
+
+  | StepRange =>
+    /* StepRange mode: color samples based on step-range containment
+       relative to the focused (cursor) sample. Returns complete class
+       list matching the legend categories:
+       - At Cursor (StepEqual): cursor + level0
+       - Inside (StepContainedWithin): cursor-callee + below
+       - Contains (StepContains): cursor-caller + above
+       - Before (StepDisjointBefore): cursor-unrelated + above
+       - After (StepDisjointAfter): cursor-unrelated + below
+       - Off Cursor (StepNoFocus): cursor-unrelated only */
     switch (
-      relation.is_call_cursor,
-      relation.is_call_above_call_cursor,
-      relation.is_below_indicated_call,
-    ) {
-    | (true, _, _) when settings.sample_base == Calls => ["cursor"]
-    | (true, _, _)
-        when settings.sample_base == Steps && sample.iter == di.dyn_cursor.iter => [
-        "cursor",
-      ]
-    | (_, Some(0), _) => ["cursor-caller", "direct"]
-    | (_, Some(_), _) when settings.caller_cutoff == None => [
-        "cursor-caller",
-        "indirect",
-      ]
-    | (_, _, Some(0)) => ["cursor-callee", "direct"]
-    | (_, _, Some(_)) when settings.callee_cutoff == None => [
-        "cursor-callee",
-        "indirect",
-      ]
-    | (_, _, _) => ["cursor-unrelated"]
-    }
-  )
-  @ (
-    settings.sample_base == Calls
-      ? switch (relation.relative_level_to_cursor) {
-        | Same => ["level0"]
-        | Below(n)
-            when
-              settings.before_cutoff == None
-              || Some(n) <= settings.before_cutoff => [
-            "below",
-            "L" ++ string_of_int(n),
-          ]
-        | Above(n)
-            when
-              settings.after_cutoff == None
-              || Some(n) <= settings.after_cutoff => [
-            "above",
-            "L" ++ string_of_int(n),
-          ]
-        | _ => []
-        }
-      : (
-        switch (relation.is_before_cursor) {
-        | n when n == 0 => ["level0"]
-        | n when n > 0 =>
-          /* Choosing not to apply relative labels if the call cursor is there,
-             even though both could be true, to simplify visualy presentation */
-          settings.before_cutoff == None || Some(n) <= settings.before_cutoff
-            ? ["below", "L" ++ string_of_int(n)] : []
-        | n when n < 0 =>
-          settings.after_cutoff == None || Some(- n) <= settings.after_cutoff
-            ? ["above", "L" ++ string_of_int(- n)] : []
-        | _ => []
-        }
+      DynCursor.step_containment(
+        ~focus_range=di.dyn_cursor.step_range,
+        sample,
       )
-  );
+    ) {
+    | StepEqual => ["cursor", "level0"]
+    | StepContainedWithin => ["cursor-caller", "direct", "above", "L1"]
+    | StepContains => ["cursor-callee", "direct", "below", "L1"]
+    | StepDisjointBefore => ["cursor-unrelated", "above", "L1"]
+    | StepDisjointAfter => ["cursor-unrelated", "below", "L1"]
+    | StepNoFocus => ["cursor-unrelated"]
+    }
+  };
 };
 
 module Debug = {

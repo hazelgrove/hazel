@@ -32,6 +32,7 @@ let capture = (z: Zipper.t, sample: Sample.t, id): Zipper.t =>
         !ListUtil.is_suffix_of(sample.call_stack, dyn_cursor.stack)
           ? sample.call_stack : dyn_cursor.stack,
       index: List.length(sample.call_stack) - 1,
+      step_range: Some((sample.step_start, sample.step_end)),
     }
   );
 

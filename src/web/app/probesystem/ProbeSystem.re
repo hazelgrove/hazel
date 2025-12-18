@@ -152,8 +152,11 @@ let legend_sample_view =
       ~indicated_call: option(Id.t),
       ~cursor_stack: list(Id.t),
       ~sample_stack: list(Id.t),
+      ~step_range: (int, int),
+      ~focus_step_range: option((int, int)),
       ~caption: string,
     ) => {
+  let (step_start, step_end) = step_range;
   let sample: Language.Sample.t = {
     id: 0,
     syntax_id: Id.invalid,
@@ -163,8 +166,8 @@ let legend_sample_view =
     time: 0.0,
     iter: 0,
     origin: Language.Sample.Probe,
-    step_start: 0,
-    step_end: 0,
+    step_start,
+    step_end,
   };
   let di: Language.Dynamics.Info.t = {
     samples: [sample],
@@ -175,6 +178,7 @@ let legend_sample_view =
       indicated_call,
       time: None,
       iter: 0,
+      step_range: focus_step_range,
     },
   };
   ProbeProj.sample_view(
@@ -205,6 +209,8 @@ let legend_sample_view =
 
 let legend_view = (~font_metrics: FontMetrics.t) => {
   let mode = ProbeProj.Settings.s^.window;
+  /* Focus step range for StepRange mode comparisons */
+  let focus = Some((10, 20));
   let legend_sample_view = legend_sample_view(~mode, ~font_metrics);
   div(
     ~attrs=[clss(["legend", "panel"])],
@@ -216,6 +222,8 @@ let legend_view = (~font_metrics: FontMetrics.t) => {
         ~indicated_call=None,
         ~cursor_stack=[Id.invalid, Id.invalid],
         ~sample_stack=[Id.invalid],
+        ~step_range=(0, 5),
+        ~focus_step_range=focus,
         ~caption="Before",
       ),
       legend_sample_view(
@@ -224,6 +232,8 @@ let legend_view = (~font_metrics: FontMetrics.t) => {
         ~indicated_call=None,
         ~cursor_stack=[Id.invalid],
         ~sample_stack=[Id.invalid],
+        ~step_range=(10, 20),
+        ~focus_step_range=None,
         ~caption="At Cursor",
       ),
       legend_sample_view(
@@ -232,6 +242,8 @@ let legend_view = (~font_metrics: FontMetrics.t) => {
         ~indicated_call=None,
         ~cursor_stack=[Id.invalid],
         ~sample_stack=[Id.invalid, Id.invalid],
+        ~step_range=(25, 30),
+        ~focus_step_range=focus,
         ~caption="After",
       ),
       legend_sample_view(
@@ -240,6 +252,8 @@ let legend_view = (~font_metrics: FontMetrics.t) => {
         ~ap_id=Some(Id.invalid),
         ~cursor_stack=[Id.invalid, Id.invalid],
         ~sample_stack=[Id.invalid],
+        ~step_range=(5, 25),
+        ~focus_step_range=focus,
         ~caption="Contains",
       ),
       legend_sample_view(
@@ -248,6 +262,8 @@ let legend_view = (~font_metrics: FontMetrics.t) => {
         ~indicated_call=None,
         ~cursor_stack=[Id.mk()],
         ~sample_stack=[Id.invalid],
+        ~step_range=(0, 0),
+        ~focus_step_range=None,
         ~caption="Off Cursor",
       ),
       legend_sample_view(
@@ -256,6 +272,8 @@ let legend_view = (~font_metrics: FontMetrics.t) => {
         ~ap_id=None,
         ~cursor_stack=[Id.invalid],
         ~sample_stack=[Id.invalid, Id.invalid],
+        ~step_range=(12, 18),
+        ~focus_step_range=focus,
         ~caption="Inside",
       ),
     ],
@@ -286,14 +304,33 @@ let settings = (~explain_this_inject) => {
         ~active=ProbeProj.Settings.s^.window == Single,
         ~action=ToggleWindow,
       ),
-      toggle(
-        ~tooltip="Color by Calls or Steps",
-        ~explain_this_inject,
-        ~label1="👣",
-        ~label2="📞",
-        ~active=ProbeProj.Settings.s^.sample_base == Steps,
-        ~action=ToggleSampleBase,
-      ),
+      {
+        /* 3-way cycle toggle for sample coloring mode */
+        let (icon, tooltip) =
+          switch (ProbeProj.Settings.s^.sample_base) {
+          | Calls => (
+              "\xF0\x9F\x93\x9E",
+              "Color by Calls (click to switch to Steps)",
+            )
+          | Steps => (
+              "\xF0\x9F\x91\xA3",
+              "Color by Steps (click to switch to StepRange)",
+            )
+          | StepRange => (
+              "\xE2\x8F\xB1",
+              "Color by StepRange (click to switch to Calls)",
+            )
+          };
+        Widgets.toggle(
+          ~tooltip,
+          icon,
+          false,
+          _ => {
+            ProbeProj.Settings.go(ToggleSampleBase);
+            explain_this_inject(ExplainThisUpdate.SpecificityOpen(true));
+          },
+        );
+      },
       toggle(
         ~tooltip="Samples Before/Above Cursor",
         ~explain_this_inject,
