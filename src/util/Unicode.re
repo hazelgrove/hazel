@@ -1,3 +1,4 @@
+[@coverage exclude_file];
 open Js_of_ocaml;
 
 /* Lightweight Unicode grapheme helpers shared by text editing
