@@ -1,5 +1,4 @@
 open Util;
-open OptUtil.Syntax;
 open Language;
 
 //TODO(andrew): abstract out non-zipper parts of this to DynCursor.re
