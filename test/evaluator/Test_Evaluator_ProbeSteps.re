@@ -124,7 +124,7 @@ let sequential_tests = [
     `Quick,
     () => {
       /* Two probes evaluated one after the other */
-      let samples = get_all_samples({|^^probe(1 + 2) + ^^probe(3 + 4)|});
+      let samples = get_all_samples({|^^probe((1 + 2)) + ^^probe((3 + 4))|});
       switch (samples) {
       | [a, b] =>
         let rel = classify(a, b);
@@ -174,7 +174,7 @@ let nesting_tests = [
     `Quick,
     () => {
       /* Outer probe contains inner probe */
-      let samples = get_all_samples({|^^probe(1 + ^^probe(2 + 3))|});
+      let samples = get_all_samples({|^^probe(1 + ^^probe((2 + 3)))|});
       switch (samples) {
       | [a, b] =>
         /* One should contain the other */

@@ -1,7 +1,6 @@
 let out : string * Haz3lcore.PersistentSegment.t =
   ( "Projectors",
     {
-      refractors = "()";
       segment =
         "((Secondary((id \
          1f09cbe5-8f56-4b9c-a4f4-d55a5d654890)(content(Comment\"# _____  \
@@ -173,66 +172,9 @@ let out : string * Haz3lcore.PersistentSegment.t =
          \"))))(Secondary((id \
          910a9383-b804-4c30-91dc-6f280ff45eb3)(content(Whitespace\" \
          \")))))))))(Secondary((id \
-         26c2b53e-59d1-453f-a2d2-f2cac2d8a756)(content(Whitespace\"\\n\"))))(Secondary((id \
-         8dea089d-9400-4118-837f-8db3b34b3a85)(content(Whitespace\"\\n\"))))(Secondary((id \
-         fada94e0-24a7-426c-bf45-9d61e9c8e1a6)(content(Comment\"# C. A live \
-         probe shows a term's value(s).           #\"))))(Secondary((id \
-         0c78c7c7-b311-4a91-98e0-d8ed3047a8ce)(content(Whitespace\"\\n\"))))(Secondary((id \
-         dc5908d3-1d38-40c4-8c90-31ec129dd1d0)(content(Comment\"#    See the \
-         Probes slide for more information.      #\"))))(Secondary((id \
-         9c961c33-eeb3-4bfa-bc43-2a5a7f9e1595)(content(Whitespace\"\\n\"))))(Secondary((id \
-         5d1ce38b-b7bf-4f02-933a-31090cea2f19)(content(Whitespace\"\\n\"))))(Tile((id \
-         95f3e793-241f-4fe4-9f5a-68e6f1ffab68)(label(let = in))(mold((out \
-         Exp)(in_(Pat Exp))(nibs(((shape Convex)(sort Exp))((shape(Concave \
-         40))(sort Exp))))))(shards(0 1 2))(children(((Secondary((id \
-         441c3eed-33ca-4af3-b07d-862ad0a7ec27)(content(Whitespace\" \
-         \"))))(Tile((id \
-         7e62035c-fdd6-4f4c-bddc-b7a949cee38b)(label(val))(mold((out \
-         Pat)(in_())(nibs(((shape Convex)(sort Pat))((shape Convex)(sort \
-         Pat))))))(shards(0))(children())))(Tile((id \
-         9e59ca6a-ec3a-4d80-8fed-c473ee3d798c)(label(:))(mold((out \
-         Pat)(in_())(nibs(((shape(Concave 24))(sort Pat))((shape(Concave \
-         24))(sort Typ))))))(shards(0))(children())))(Secondary((id \
-         ac91e28c-38e5-42ab-8ebb-378b87f25dc2)(content(Whitespace\" \
-         \"))))(Tile((id \
-         a95b276f-566c-4bce-bd28-a80dbfb3ccba)(label(Int))(mold((out \
-         Typ)(in_())(nibs(((shape Convex)(sort Typ))((shape Convex)(sort \
-         Typ))))))(shards(0))(children())))(Secondary((id \
-         913e36d0-0dac-4e87-bb7f-9659f8cf9799)(content(Whitespace\" \
-         \")))))((Secondary((id \
-         264b9f81-8f2b-41a7-8bd5-2be3ce3e5485)(content(Whitespace\" \
-         \"))))(Secondary((id \
-         3e2162cc-1e77-46e3-9f36-207bd7a8c5e4)(content(Whitespace\" \
-         \"))))(Projector((id d79d5f0b-aa9a-4d88-90c7-4b3e4ebd6381)(kind \
-         Probe)(syntax(Tile((id \
-         49e8427c-b19e-4f7a-9d22-6440276fbe04)(label(\"(\"\")\"))(mold((out \
-         Exp)(in_(Exp))(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
-         Exp))))))(shards(0 1))(children(((Tile((id \
-         eb77354b-2f2b-4ea3-8cba-10a685b341bc)(label(\"(\"\")\"))(mold((out \
-         Exp)(in_(Exp))(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
-         Exp))))))(shards(0 1))(children(((Tile((id \
-         e4bfee58-db4e-4c4b-8018-8eb23969a4de)(label(1))(mold((out \
-         Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
-         Exp))))))(shards(0))(children())))(Secondary((id \
-         ada6de0d-59d3-4e8c-9cf8-9bbaa8651b33)(content(Whitespace\" \
-         \"))))(Tile((id \
-         9a2061f9-7d46-4f0e-abb6-8921b219e13c)(label(+))(mold((out \
-         Exp)(in_())(nibs(((shape(Concave 28))(sort Exp))((shape(Concave \
-         28))(sort Exp))))))(shards(0))(children())))(Secondary((id \
-         593df527-6b02-47be-a6f3-b838d1b34dfb)(content(Whitespace\" \
-         \"))))(Tile((id \
-         18fec5af-f2e9-40e4-95fd-747f3bb715f4)(label(1))(mold((out \
-         Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
-         Exp))))))(shards(0))(children()))))))))))))))(model\"()\")))(Secondary((id \
-         b02f943f-5f37-4955-8eb9-f0f41b02e543)(content(Whitespace\" \
-         \"))))(Secondary((id \
-         36853fb7-2a8f-4b4f-8e3f-108b17436d9c)(content(Whitespace\" \
-         \"))))(Secondary((id \
-         996019e9-b95b-4217-99bc-9d52cee3ad49)(content(Whitespace\" \
-         \")))))))))(Secondary((id \
          495710ca-9f93-4e78-9d8e-aac51496b457)(content(Whitespace\"\\n\"))))(Secondary((id \
          c1af9186-1fd3-4cdf-bc63-71ced3a3eabe)(content(Whitespace\"\\n\"))))(Secondary((id \
-         2b5319c1-e462-40c2-aa4b-04d3fcfd9ce1)(content(Comment\"# D. \
+         57add6d7-3022-414b-b69f-cd6b0db03ff0)(content(Comment\"# C. \
          Projectors applying to specific data literals.  #\"))))(Secondary((id \
          49e4f4fb-cf30-41c6-b048-5911fa350050)(content(Whitespace\"\\n\"))))(Secondary((id \
          6e6932b1-73fc-4a0e-b241-5df18666a24d)(content(Comment\"#    These can \
@@ -679,10 +621,7 @@ let out : string * Haz3lcore.PersistentSegment.t =
          #    Type probes can be applied using alt/option-t.  #\n\
          #    Doubleclick toggles inferred/synthesized types. #\n\n\
          let typ: (Int -> Bool) = ^^type()   in\n\n\
-         # C. A live probe shows a term's value(s).           #\n\
-         #    See the Probes slide for more information.      #\n\n\
-         let val: Int =  ^^probe((1 + 1))   in\n\n\
-         # D. Projectors applying to specific data literals.  #\n\
+         # C. Projectors applying to specific data literals.  #\n\
          #    These can be applied using alt/option-l.        #\n\
          #    Three base types literals use inline views:     #\n\n\
          let guard: Bool = ^^check(true) in\n\
@@ -707,4 +646,5 @@ let out : string * Haz3lcore.PersistentSegment.t =
          # and are persisted as ^^projector_name(data) when   #\n\
          # pasted externally; pasting this here projects it.  #\n\n\
          ^^fold(\"Put it back\")";
+      refractors = "()";
     } )
