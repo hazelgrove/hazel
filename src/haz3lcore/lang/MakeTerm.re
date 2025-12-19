@@ -299,6 +299,8 @@ and exp_term: unsorted => (Exp.term, list(Id.t)) = {
         | term => ret(ListLit([term]))
         }
       | (["test", "end"], [Exp(test)]) => ret(Test(test))
+      | (["proof_object", "end"], [Exp(proof)]) =>
+        ret(ProofObject(proof))
       | (["hint", "test", "end"], [Exp(hint), Exp(test)]) =>
         ret(HintedTest(test, hint))
       | (["case", "end"], [Rul({term, annotation: {ids, _}})]) =>
@@ -324,9 +326,12 @@ and exp_term: unsorted => (Exp.term, list(Id.t)) = {
         | (["-"], []) => UnOp(Int(Minus), r)
         | (["!"], []) => UnOp(Bool(Not), r)
         | (["fun", "->"], [Pat(pat)]) => Fun(pat, r, None, None)
+        | (["forall", "->"], [Pat(pat)]) => Forall(pat, r)
         | (["fix", "->"], [Pat(pat)]) => FixF(pat, r, None)
         | (["typfun", "->"], [TPat(tpat)]) => TypFun(tpat, r, None)
         | (["let", "=", "in"], [Pat(pat), Exp(def)]) => Let(pat, def, r)
+        | (["theorem", "=", "in"], [Pat(pat), Exp(thm)]) =>
+          Theorem(pat, thm, r)
         | (["hide", "in"], [Exp(filter)]) =>
           Filter(
             Filter({
@@ -712,6 +717,7 @@ and typ_term: unsorted => (Typ.term, list(Id.t)) = {
         | (["String"], []) => Atom(String)
         | (["Nat"], []) => Atom(Nat)
         | (["_"], []) => ExplicitNonlabel
+        | (["proof_of", "end"], [Exp(exp)]) => ProofOf(exp)
         | ([t], []) when Token.is_typ_var(t) => Var(t)
         | ([t], []) when Token.is_quoted_label(t) =>
           Label(Token.sub(t, 1, Token.length(t) - 2))
@@ -730,11 +736,11 @@ and typ_term: unsorted => (Typ.term, list(Id.t)) = {
     /* Type aps which would otherwise be parsed here are recognized in sum type parsing above */
     | _ => ret(hole(tm))
     }
-  /* forall and rec have to be before sum so that they bind tighter.
+  /* poly and rec have to be before sum so that they bind tighter.
    * Thus `rec A -> Left(A) + Right(B)` get parsed as `rec A -> (Left(A) + Right(B))`
    * If this is below the case for sum, then it gets parsed as an invalid form. */
-  | Pre(([(_id, (["forall", "->"], [TPat(tpat)]))], []), Typ(t)) =>
-    ret(Forall(tpat, t))
+  | Pre(([(_id, (["poly", "->"], [TPat(tpat)]))], []), Typ(t)) =>
+    ret(Poly(tpat, t))
   | Pre(([(_id, (["rec", "->"], [TPat(tpat)]))], []), Typ(t)) =>
     ret(Rec(tpat, t))
   | Pre(tiles, Typ({term: Sum(t0), annotation: {ids, _}})) as tm =>
@@ -745,19 +751,13 @@ and typ_term: unsorted => (Typ.term, list(Id.t)) = {
     }
   | Pre(tiles, Typ(t)) as tm =>
     switch (tiles) {
-    | ([(_, (["+"], []))], []) =>
-      ret(Sum([parse_sum_term(t)] |> ConstructorMap.mk(~mk_bad)))
+    | ([(_, (["+"], []))], []) => ret(Sum([parse_sum_term(t)]))
     | _ => ret(hole(tm))
     }
   | Bin(Typ(t1), tiles, Typ(t2)) as tm when is_typ_bsum(tiles) != None =>
     switch (is_typ_bsum(tiles)) {
     | Some(between_kids) =>
-      ret(
-        Sum(
-          List.map(parse_sum_term, [t1] @ between_kids @ [t2])
-          |> ConstructorMap.mk(~mk_bad),
-        ),
-      )
+      ret(Sum(List.map(parse_sum_term, [t1] @ between_kids @ [t2])))
     | None => ret(hole(tm))
     }
   | Bin(Typ(l), tiles, Typ(r)) as tm =>

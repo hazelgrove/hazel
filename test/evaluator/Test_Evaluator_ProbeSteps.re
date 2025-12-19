@@ -203,7 +203,7 @@ let recursive_tests = [
       let samples =
         get_all_samples(
           {|
-        let rec sum = fun n =>
+        let sum = fun n =>
           if n <= 0 then 0 else n + ^^probe(sum(n - 1))
         in sum(3)
       |},

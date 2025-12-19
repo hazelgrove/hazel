@@ -7,7 +7,7 @@ open EditingPrelude;
 let exp_to_segment_settings: ExpToSegment.Settings.t = {
   inline: true,
   fold_case_clauses: false,
-  fold_fn_bodies: false,
+  fold_fn_bodies: `NoFold,
   hide_fixpoints: false,
   show_filters: true,
   show_unknown_as_hole: true,
@@ -37,7 +37,7 @@ let equivalent_to_make_term = (serialized: string) => {
 };
 
 let type_equivalent_to_make_term = (type_serialized: string) => {
-  let expr_serialized = "1: " ++ type_serialized;
+  let expr_serialized = "1:" ++ type_serialized;
   equivalent_to_make_term(expr_serialized);
 };
 
@@ -113,7 +113,7 @@ let tests = (
         check(
           Alcotest.string,
           "ascribed sum type constructor in pattern",
-          "let []: (+ Jg) = ? in ?",
+          "let []:(+ Jg) = ? in ?",
           serialized,
         );
       },

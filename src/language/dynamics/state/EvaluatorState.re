@@ -1,14 +1,12 @@
 open Util;
 
-/* pending_probe_starts is transient state only needed during evaluation,
- * so we exclude it from serialization by making it opaque */
 [@deriving (show({with_path: false}), sexp, yojson)]
 type t = {
+  theorems: list((Id.t, string, Environment.t(Exp.t), Exp.t)),
   tests: TestMap.t,
   probes: Sample.Map.t,
   step_count: int,
-  [@sexp.opaque] [@yojson.opaque]
-  pending_probe_starts: Id.Map.t(int),
+  pending_probe_starts: Id.Map.t(int) /* Transient state only needed during evaluation */
 };
 
 type effect =
@@ -16,6 +14,7 @@ type effect =
   | RecordExpProbe(Probe.t)
   | RecordStackFrame
   | RecordPatProbes(PatternMatch.sample_closures)
+  | RecordTheorem(Id.t, string, Environment.t(Exp.t), Exp.t)
   | RecordPrint(DHExp.t); /* Println for probes study */
 
 let init: t = {
@@ -23,6 +22,7 @@ let init: t = {
   probes: Sample.Map.empty,
   step_count: 0,
   pending_probe_starts: Id.Map.empty,
+  theorems: [],
 };
 
 let get_step_count = ({step_count, _}: t): int => step_count;
@@ -45,6 +45,8 @@ let get_tests = ({tests, _}) => tests;
 
 let get_probes = ({probes, _}) => probes;
 
+let get_theorems = ({theorems, _}) => theorems;
+
 let add_test = (state: t, instance_report: TestMap.instance_report) => {
   ...state,
   tests:
@@ -56,6 +58,13 @@ let add_test = (state: t, instance_report: TestMap.instance_report) => {
 let add_sample = (state: t, sample: Sample.t) => {
   ...state,
   probes: Sample.Map.extend(sample.syntax_id, sample, state.probes),
+};
+
+let add_theorem = ({theorems, _} as es, id, name, env, goal) => {
+  {
+    ...es,
+    theorems: theorems |> List.append([(id, name, env, goal)]),
+  };
 };
 
 let update =
@@ -138,6 +147,10 @@ let update =
             Probe.empty,
           );
         (call_stack, add_sample(state, sample));
+      | RecordTheorem(id, name, env, goal) => (
+          call_stack,
+          add_theorem(state, id, name, env, goal),
+        )
       },
     (call_stack, state),
     side_effects,

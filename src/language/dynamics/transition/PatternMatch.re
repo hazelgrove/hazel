@@ -44,10 +44,13 @@ let rec matches = (capture, dp: Pat.t, d: DHExp.t): match_result => {
   | Constructor(ctr, _) =>
     let* () = Unboxing.unbox(SumNoArg(ctr), d);
     Matches([]);
-  | Ap({term: Constructor(ctr, _), _}, p2) =>
-    let* d2 = Unboxing.unbox(SumWithArg(ctr), d);
-    matches(p2, d2);
-  | Ap(_, _) => IndetMatch // TODO: should this fail?
+  | Ap(c, p2) =>
+    switch (Pat.ctr_name(c)) {
+    | Some(ctr) =>
+      let* d2 = Unboxing.unbox(SumWithArg(ctr), d);
+      matches(p2, d2);
+    | None => IndetMatch
+    }
   | Var(x) => Matches([(x, d)])
   /* Labels are a special case */
   | Label(name) =>
