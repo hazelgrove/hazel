@@ -24,8 +24,10 @@ let expand_projector = (z: t): option(t) => {
       ...rest,
     ]
       when name == "^^probe" =>
-    //TODO(andrew): clarify probe case
-    Zipper.update_siblings(((_, r)) => (syntax @ List.rev(rest), r), z)
+    /* Left siblings are stored as [oldest, ..., newest]. After List.rev we have
+     * [newest(parens), ^^probe, ...rest] where rest is [third_newest, ..., oldest].
+     * We want syntax in the newest position: [oldest, ..., third_newest, syntax...] */
+    Zipper.update_siblings(((_, r)) => (List.rev(rest) @ syntax, r), z)
     |> MkRefractor.add_single(
          Segment.root_id(Segment.skel(syntax), syntax),
        )
@@ -120,60 +122,108 @@ let refractor_seg_to_seg =
   /* This function transforms a segment by wrapping terms that have refractors
    * with their invocation syntax (e.g., ^^probe(...)).
    *
-   * Key insight: We recursively process children first, then concatenate:
-   *   left_result @ middle_slice @ right_result
-   * where middle_slice comes from the ORIGINAL segment (preserving Secondary).
-   * This way original indices stay valid since we only read, never modify. */
+   * Key insight: We recursively process ALL child skeletons (including those
+   * inside compound operator Abas), interleaving their results with slices
+   * from the original segment to preserve Secondary (whitespace/comments).
+   *
+   * The Aba structure for a compound operator like `let x = 1 in`:
+   *   ([let_idx, eq_idx, in_idx], [pat_skel, def_skel])
+   * The children between delimiters must be recursively processed. */
 
-  let rec go =
-          (map: Id.Map.t(Base.projector), skel: Skel.t)
+  /* Process an Aba root, returning segment from first_a to last_a (inclusive).
+   * Recursively processes all child skeletons in the Aba. */
+  let rec go_aba =
+          (map: Id.Map.t(Base.projector), root: Skel.root)
           : (Id.Map.t(Base.projector), Segment.t) => {
+    let indices = Aba.get_as(root);
+    let children = Aba.get_bs(root);
+    switch (indices, children) {
+    | ([single_idx], []) =>
+      /* Atomic operator: just slice around this single index */
+      (map, ListUtil.sublist((single_idx, single_idx + 1), seg))
+    | ([first_idx, ...rest_indices], children) =>
+      /* Compound operator: interleave index slices with processed children.
+       * For indices [i0, i1, i2] and children [c0, c1]:
+       *   slice(i0, c0_start) @ go(c0) @ slice(c0_end+1, i1) @
+       *   slice(i1, c1_start) @ go(c1) @ slice(c1_end+1, i2) @ slice(i2, i2+1) */
+      let rec go_interleave =
+              (
+                map: Id.Map.t(Base.projector),
+                prev_idx: int,
+                indices: list(int),
+                children: list(Skel.t),
+              )
+              : (Id.Map.t(Base.projector), Segment.t) =>
+        switch (indices, children) {
+        | ([], []) =>
+          /* After last index: include slice for the final token */
+          (map, ListUtil.sublist((prev_idx, prev_idx + 1), seg))
+        | ([next_idx, ...rest_indices], [child, ...rest_children]) =>
+          /* Process: slice from prev token to child, then child, then continue */
+          let (child_start, child_end) = Skel.range(child);
+          let before_child = ListUtil.sublist((prev_idx, child_start), seg);
+          let (map, child_result) = go(map, child);
+          let after_child = ListUtil.sublist((child_end + 1, next_idx), seg);
+          let (map, rest_result) =
+            go_interleave(map, next_idx, rest_indices, rest_children);
+          (map, before_child @ child_result @ after_child @ rest_result);
+        | _ => failwith("Aba invariant violated: indices/children mismatch")
+        };
+      go_interleave(map, first_idx, rest_indices, children);
+    | ([], _) => failwith("Aba invariant violated: empty indices")
+    };
+  }
+  and go =
+      (map: Id.Map.t(Base.projector), skel: Skel.t)
+      : (Id.Map.t(Base.projector), Segment.t) => {
     let (map, result) =
       switch (skel) {
       | Op(root) =>
-        /* Leaf node: slice the full range including any Secondary.
-         * For n-ary ops like tuples, root is an Aba with multiple indices. */
-        let indices = Aba.get_as(root);
-        let first_idx = List.hd(indices);
-        let last_idx = ListUtil.last(indices);
-        (map, ListUtil.sublist((first_idx, last_idx + 1), seg));
+        /* Operator (may be compound like tuple): process the Aba */
+        go_aba(map, root)
 
       | Pre(root, child) =>
-        /* Prefix operator: root pieces come before child */
-        let (_, child_start) = Skel.range(child);
+        /* Prefix operator: root Aba comes before the trailing child */
+        let root_indices = Aba.get_as(root);
+        let root_end = ListUtil.last(root_indices);
+        let (child_start, _) = Skel.range(child);
+
+        let (map, root_result) = go_aba(map, root);
+        let between = ListUtil.sublist((root_end + 1, child_start), seg);
+        let (map, child_result) = go(map, child);
+
+        (map, root_result @ between @ child_result);
+
+      | Post(child, root) =>
+        /* Postfix operator: child comes before root Aba */
+        let (_, child_end) = Skel.range(child);
         let root_indices = Aba.get_as(root);
         let root_start = List.hd(root_indices);
 
         let (map, child_result) = go(map, child);
+        let between = ListUtil.sublist((child_end + 1, root_start), seg);
+        let (map, root_result) = go_aba(map, root);
 
-        /* Prefix slice: from root start to just before child */
-        let prefix = ListUtil.sublist((root_start, child_start), seg);
-        (map, prefix @ child_result);
+        (map, child_result @ between @ root_result);
 
-      | Post(child, root) =>
-        /* Postfix operator: child comes before root pieces */
-        let (_, child_end) = Skel.range(child);
-        let root_indices = Aba.get_as(root);
-        let root_end = ListUtil.last(root_indices);
-
-        let (map, child_result) = go(map, child);
-
-        /* Postfix slice: from after child to end of root */
-        let postfix = ListUtil.sublist((child_end + 1, root_end + 1), seg);
-        (map, child_result @ postfix);
-
-      | Bin(left, _root, right) =>
-        /* Binary operator: left @ middle @ right
-         * Middle includes the operator and surrounding Secondary */
+      | Bin(left, root, right) =>
+        /* Binary operator: left @ (root Aba) @ right */
         let (_, left_end) = Skel.range(left);
         let (right_start, _) = Skel.range(right);
+        let root_indices = Aba.get_as(root);
+        let root_start = List.hd(root_indices);
+        let root_end = ListUtil.last(root_indices);
 
         let (map, left_result) = go(map, left);
+        let before_root = ListUtil.sublist((left_end + 1, root_start), seg);
+        let (map, root_result) = go_aba(map, root);
+        let after_root = ListUtil.sublist((root_end + 1, right_start), seg);
         let (map, right_result) = go(map, right);
 
-        /* Middle slice from ORIGINAL segment - this preserves Secondary! */
-        let middle = ListUtil.sublist((left_end + 1, right_start), seg);
-        (map, left_result @ middle @ right_result);
+        (
+          map,
+          left_result @ before_root @ root_result @ after_root @ right_result,
+        );
       };
 
     /* Check if this term needs to be wrapped with a refractor invocation */
@@ -190,7 +240,22 @@ let refractor_seg_to_seg =
   if (Id.Map.is_empty(refractors)) {
     (refractors, seg);
   } else {
-    let (map, new_seg) = go(refractors, Segment.skel(seg));
-    (map, new_seg);
+    /* Segment.skel throws exceptions for incomplete/malformed segments
+     * (e.g., "1 +" without the right operand). In such cases, return
+     * the segment unchanged. */
+    try({
+      let skel = Segment.skel(seg);
+      let (skel_start, skel_end) = Skel.range(skel);
+      let (map, new_seg) = go(refractors, skel);
+      /* Preserve any leading/trailing Secondary (whitespace/comments) that
+       * fall outside the skel range, since skel only tracks tile indices */
+      let leading = ListUtil.sublist((0, skel_start), seg);
+      let trailing =
+        ListUtil.sublist((skel_end + 1, List.length(seg)), seg);
+      (map, leading @ new_seg @ trailing);
+    }) {
+    | Skel.Nonconvex_segment
+    | Failure(_) => (refractors, seg)
+    };
   };
 };

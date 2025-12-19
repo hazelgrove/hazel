@@ -1,219 +1,116 @@
 /**
- * Tests for refractor serialization - specifically testing that whitespace
- * is preserved when probes are serialized to invocation syntax.
+ * Parser/Printer round-trip tests for refractor (probe) serialization.
  *
- * The issue: When serializing segments with refractors (probes stored indirectly
- * via term IDs), the skel-based approach in `refractor_seg_to_seg` discards
- * whitespace (all Secondary content including comments).
- *
- * Example:
- *   Input: "1 + 2 * 3" with probes on + and * expressions
- *   Expected: "^^probe(1 + ^^probe(2 * 3))"
- *   Actual (broken): "^^probe(1+^^probe(2*3))"
- *
- * Status: The `refractor_seg_to_seg` call in Base.re is currently commented out
- * because of this whitespace issue. These tests document the expected behavior
- * and demonstrate the bug in the `refractor_seg_to_seg` function directly.
+ * These tests verify that parse(code) |> print == code, which naturally tests:
+ * - Whitespace preservation in refractor_seg_to_seg
+ * - Probe/refractor serialization (^^probe syntax)
+ * - Correct ordering of syntax elements
  */
 open Alcotest;
 open Haz3lcore;
-open Util;
 
-/* Parse code and get the term with its term data */
-let parse_with_term_data = (code: string): option((Segment.t, MakeTerm.t)) => {
-  switch (Parser.to_segment(code)) {
-  | Some(seg) =>
-    let mt = MakeTerm.go(Id.Map.empty, seg);
-    Some((seg, mt));
-  | None => None
-  };
-};
-
-/* Find the term ID of a bin op expression by its operator string.
- * This walks the term structure to find binary operations. */
-let rec find_binop_ids = (op_str: string, exp: Language.Exp.t): list(Id.t) => {
-  open Language;
-  let ids = IdTagged.(exp.annotation.ids);
-  let term_ids =
-    switch (exp.term) {
-    | BinOp(_, e1, e2) =>
-      /* Check if this is the operator we're looking for */
-      let is_target =
-        switch (exp.term) {
-        | BinOp(Int(Plus), _, _) when op_str == "+" => true
-        | BinOp(Int(Times), _, _) when op_str == "*" => true
-        | BinOp(Int(Minus), _, _) when op_str == "-" => true
-        | BinOp(Int(Divide), _, _) when op_str == "/" => true
-        | _ => false
-        };
-      let this_ids = is_target ? ids : [];
-      this_ids @ find_binop_ids(op_str, e1) @ find_binop_ids(op_str, e2);
-    | Parens(e) => find_binop_ids(op_str, e)
-    | Let(_, def, body) =>
-      find_binop_ids(op_str, def) @ find_binop_ids(op_str, body)
-    | If(cond, then_, else_) =>
-      find_binop_ids(op_str, cond)
-      @ find_binop_ids(op_str, then_)
-      @ find_binop_ids(op_str, else_)
-    | Tuple(es) => List.concat_map(find_binop_ids(op_str), es)
-    | ListLit(es) => List.concat_map(find_binop_ids(op_str), es)
-    | Ap(_, e1, e2) =>
-      find_binop_ids(op_str, e1) @ find_binop_ids(op_str, e2)
-    | Fun(_, e, _, _) => find_binop_ids(op_str, e)
-    | _ => []
-    };
-  term_ids;
-};
-
-/* Create a refractor map from a list of term IDs */
-let make_refractors = (ids: list(Id.t)): Id.Map.t(Base.projector) =>
-  List.fold_left(
-    (map: Id.Map.t(Base.projector), id: Id.t) =>
-      Id.Map.add(id, MkRefractor.mk(Probe, Id.transform_variant(id)), map),
-    Id.Map.empty,
-    ids,
-  );
-
-/* Serialize a segment with refractors to a string */
-let serialize_with_refractors =
-    (refractors: Id.Map.t(Base.projector), seg: Segment.t): string =>
-  Printer.of_segment(~holes="?", ~refractors, seg);
-
-/* Test helper to verify serialization preserves whitespace */
-let test_refractor_whitespace =
-    (
-      ~name: string,
-      ~code: string,
-      ~probe_ops: list(string),
-      ~expected: string,
-    )
-    : test_case(_) =>
+/* Round-trip test: parse then print should give back the original. */
+let test_round_trip = (~name: string, ~code: string): test_case(_) =>
   test_case(name, `Quick, () => {
-    switch (parse_with_term_data(code)) {
-    | None => fail("Failed to parse code: " ++ code)
-    | Some((seg, mt)) =>
-      /* Find all binop IDs for the specified operators */
-      let ids =
-        List.concat_map(
-          (op: string) => find_binop_ids(op, mt.term),
-          probe_ops,
-        );
-
-      /* Create refractors for those IDs */
-      let refractors = make_refractors(ids);
-
-      /* Serialize and compare */
-      let actual = serialize_with_refractors(refractors, seg);
-
-      check(string, "Serialization with probes", expected, actual);
+    switch (Parser.to_zipper(code)) {
+    | None => fail("Failed to parse: " ++ code)
+    | Some(z) =>
+      let result = Printer.of_zipper(z);
+      print_endline("Input:  " ++ code);
+      print_endline("Output: " ++ result);
+      check(string, "Round trip", code, result);
     }
   });
 
-/* These tests verify the expected end-to-end behavior of Printer.of_segment
- * when refractors are passed in. Currently these will FAIL because the
- * refractor_seg_to_seg call is commented out in Base.re, so refractors
- * are not being converted to ^^probe(...) syntax at all. */
-let whitespace_preservation_tests = [
-  test_refractor_whitespace(
-    ~name="Simple addition with probe - whitespace preserved",
-    ~code="1 + 2",
-    ~probe_ops=["+"],
-    ~expected="^^probe(1 + 2)",
+/* Basic round-trip tests without probes */
+let basic_tests = [
+  /* Simple expressions */
+  test_round_trip(~name="Integer", ~code="1"),
+  test_round_trip(~name="Binary operation", ~code="1 + 2"),
+  test_round_trip(~name="Multiple spaces", ~code="1  +  2"),
+  test_round_trip(~name="Let expression", ~code="let x = 1 in x"),
+  test_round_trip(~name="Lambda", ~code="fun x -> x + 1"),
+  test_round_trip(~name="If expression", ~code="if true then 1 else 2"),
+  /* More realistic programs */
+  test_round_trip(
+    ~name="Factorial",
+    ~code=
+      "let fact = fun n -> if n <= 0 then 1 else n * fact(n - 1) in fact(5)",
   ),
-  test_refractor_whitespace(
-    ~name="Nested operators with probes - whitespace preserved",
-    ~code="1 + 2 * 3",
-    ~probe_ops=["+", "*"],
-    ~expected="^^probe(1 + ^^probe(2 * 3))",
+  test_round_trip(
+    ~name="List map",
+    ~code=
+      "let map = fun f -> fun xs -> case xs | [] => [] | hd::tl => f(hd)::map(f)(tl) end in map(fun x -> x + 1)([1, 2, 3])",
   ),
-  test_refractor_whitespace(
-    ~name="Single multiplication - whitespace preserved",
-    ~code="2 * 3",
-    ~probe_ops=["*"],
-    ~expected="^^probe(2 * 3)",
+  test_round_trip(
+    ~name="Fibonacci",
+    ~code=
+      "let fib = fun n -> if n <= 1 then n else fib(n - 1) + fib(n - 2) in fib(10)",
   ),
-  test_refractor_whitespace(
-    ~name="Multiple spaces between operators",
-    ~code="1  +  2",
-    ~probe_ops=["+"],
-    ~expected="^^probe(1  +  2)",
+  test_round_trip(
+    ~name="Fold left",
+    ~code=
+      "let fold = fun f -> fun acc -> fun xs -> case xs | [] => acc | hd::tl => fold(f)(f(acc, hd))(tl) end in fold(fun (a, b) -> a + b)(0)([1, 2, 3, 4, 5])",
   ),
-  test_refractor_whitespace(
-    ~name="Complex expression with all operators probed",
-    ~code="1 + 2 * 3 - 4",
-    ~probe_ops=["+", "*", "-"],
-    ~expected="^^probe(^^probe(1 + ^^probe(2 * 3)) - 4)",
+  test_round_trip(
+    ~name="Filter",
+    ~code=
+      "let filter = fun p -> fun xs -> case xs | [] => [] | hd::tl => if p(hd) then hd::filter(p)(tl) else filter(p)(tl) end in filter(fun x -> x > 2)([1, 2, 3, 4])",
   ),
 ];
 
-/* Direct test of refractor_seg_to_seg function.
- * This tests the actual bug: when refractor_seg_to_seg transforms a segment,
- * it loses whitespace because it rebuilds the segment using Skel which
- * only tracks piece indices, not Secondary (whitespace/comments) content. */
-let test_refractor_seg_to_seg =
-    (~name: string, ~code: string, ~expected_with_whitespace: string)
-    : test_case(_) =>
-  test_case(name, `Quick, () => {
-    switch (parse_with_term_data(code)) {
-    | None => fail("Failed to parse code: " ++ code)
-    | Some((seg, mt)) =>
-      /* Find the root expression's ID */
-      let root_id = List.hd(mt.term.annotation.ids);
-      let refractors = make_refractors([root_id]);
-
-      /* Call refractor_seg_to_seg directly */
-      let (remaining_refractors, new_seg) =
-        Triggers.refractor_seg_to_seg(refractors, seg);
-
-      /* The refractor should have been consumed */
-      check(
-        bool,
-        "Refractor was consumed",
-        true,
-        Id.Map.is_empty(remaining_refractors),
-      );
-
-      /* Serialize the new segment to see the result */
-      let result = Printer.of_segment(~holes="?", new_seg);
-
-      /* Print debug info for test output */
-      print_endline("Input: " ++ code);
-      print_endline("Expected: " ++ expected_with_whitespace);
-      print_endline("Actual: " ++ result);
-
-      /* This test documents the expected behavior (with whitespace preserved).
-       * Currently this FAILS because refractor_seg_to_seg loses whitespace. */
-      check(
-        string,
-        "Output preserves whitespace",
-        expected_with_whitespace,
-        result,
-      );
-    }
-  });
-
-let direct_function_tests = [
-  test_refractor_seg_to_seg(
-    ~name="refractor_seg_to_seg on 1 + 2 preserves spaces",
-    ~code="1 + 2",
-    ~expected_with_whitespace="^^probe(1 + 2)",
+/* Probe round-trip tests */
+let probe_tests = [
+  /* Simple probes */
+  test_round_trip(~name="Probe on atom", ~code="^^probe(1)"),
+  test_round_trip(~name="Probe on binop", ~code="^^probe(1 + 2)"),
+  test_round_trip(~name="Probe in let def", ~code="let x = ^^probe(1) in x"),
+  test_round_trip(~name="Nested probes", ~code="^^probe(1 + ^^probe(2 * 3))"),
+  /* Probed factorial - probes on recursive call and result */
+  test_round_trip(
+    ~name="Probed factorial",
+    ~code=
+      "let fact = fun n -> ^^probe(if n <= 0 then 1 else ^^probe(n * ^^probe(fact(n - 1)))) in fact(5)",
   ),
-  test_refractor_seg_to_seg(
-    ~name="refractor_seg_to_seg on 1 + 2 * 3 preserves spaces",
-    ~code="1 + 2 * 3",
-    ~expected_with_whitespace="^^probe(1 + 2 * 3)",
+  /* Probed map - probes on function application and recursive structure */
+  test_round_trip(
+    ~name="Probed map",
+    ~code=
+      "let map = fun f -> fun xs -> case xs | [] => [] | hd::tl => ^^probe(f(hd))::^^probe(map(f)(tl)) end in map(fun x -> ^^probe(x + 1))([1, 2, 3])",
   ),
-  test_refractor_seg_to_seg(
-    ~name="refractor_seg_to_seg preserves multiple spaces",
-    ~code="1  +  2",
-    ~expected_with_whitespace="^^probe(1  +  2)",
+  /* Probed fibonacci - probes on both recursive branches and sum */
+  test_round_trip(
+    ~name="Probed fibonacci",
+    ~code=
+      "let fib = fun n -> if n <= 1 then n else ^^probe(^^probe(fib(n - 1)) + ^^probe(fib(n - 2))) in ^^probe(fib(10))",
+  ),
+  /* Probed fold - probes on accumulator and fold steps */
+  test_round_trip(
+    ~name="Probed fold",
+    ~code=
+      "let fold = fun f -> fun acc -> fun xs -> case xs | [] => ^^probe(acc) | hd::tl => ^^probe(fold(f)(^^probe(f(acc, hd)))(tl)) end in fold(fun (a, b) -> a + b)(0)([1, 2, 3])",
+  ),
+  /* Probed filter with nested conditional probes */
+  test_round_trip(
+    ~name="Probed filter",
+    ~code=
+      "let filter = fun p -> fun xs -> case xs | [] => [] | hd::tl => if ^^probe(p(hd)) then hd::^^probe(filter(p)(tl)) else ^^probe(filter(p)(tl)) end in filter(fun x -> ^^probe(x > 2))([1, 2, 3, 4])",
+  ),
+  /* Deeply nested probes in arithmetic */
+  test_round_trip(
+    ~name="Deep nested probes (note this depends on associativity)",
+    ~code=
+      "^^probe(^^probe(^^probe(1 * 2) + ^^probe(3 * 4)) , ^^probe(^^probe(5) + 6))",
+  ),
+  /* Probed let chain */
+  test_round_trip(
+    ~name="Probed let chain",
+    ~code=
+      "let x = ^^probe(1 + 2) in let y = ^^probe(x * 3) in let z = ^^probe(y - 1) in ^^probe(x + y + z)",
   ),
 ];
 
 let tests = [
-  (
-    "RefractorSerialization.WhitespacePreservation",
-    whitespace_preservation_tests,
-  ),
-  ("RefractorSerialization.DirectFunction", direct_function_tests),
+  ("RoundTrip.Basic", basic_tests),
+  ("RoundTrip.Probes", probe_tests),
 ];
