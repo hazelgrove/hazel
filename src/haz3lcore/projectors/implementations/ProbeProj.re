@@ -14,6 +14,12 @@ type action =
   | ToggleShowAllVals(int)
   | NoOp;
 
+/* Categorizes why no samples are shown for a probe */
+type empty_status =
+  | NoSamplesExist /* di.samples is empty - probe was never evaluated */
+  | HiddenByPin /* samples exist but filtered out by current pin */
+  | NotAligned; /* Single mode: samples exist but none align with cursor */
+
 module Settings = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type window =
@@ -328,9 +334,26 @@ module Samples = {
 
   let collate = (samples: list(sample)): (int, list(list((int, sample)))) => {
     let numbered_samples =
-      List.mapi((i, c) => (List.length(samples) - i - 1, c), samples);
+      List.mapi(
+        (i: int, c: sample) => (List.length(samples) - i - 1, c),
+        samples,
+      );
     (List.length(samples), group(numbered_samples));
   };
+
+  /* Determine why no samples are shown, if applicable.
+   * Returns None if samples ARE shown, Some(status) otherwise.
+   * Note: NoSamplesExist is handled upstream when info.dynamics is None,
+   * since the dynamics map only has entries for probes with samples. */
+  let get_empty_status =
+      (~num_total: int, ~num_shown: int): option(empty_status) =>
+    if (num_shown > 0) {
+      None;
+    } else if (num_total == 0) {
+      Some(HiddenByPin);
+    } else {
+      Some(NotAligned);
+    };
 };
 
 let abbreviate = (exp: Exp.t, available: int): Exp.t => {
@@ -827,6 +850,49 @@ let ellipsis_view =
     [text("⋯")],
   );
 
+/* Unified view for explaining why no samples are shown */
+let empty_status_view =
+    (
+      ~ap_id: option(Id.t),
+      ~status: empty_status,
+      local,
+      parent: external_action => Ui_effect.t(unit),
+      info: info,
+    )
+    : Node.t =>
+  switch (status) {
+  | NoSamplesExist =>
+    div(
+      ~attrs=[
+        Attr.classes(["empty-status", "no-samples"]),
+        Attr.title("No samples recorded for this probe"),
+      ],
+      [text("∅")],
+    )
+  | HiddenByPin =>
+    div(
+      ~attrs=[
+        Attr.classes(["empty-status", "hidden-by-pin"]),
+        Attr.title("Samples hidden by pin — click to unpin"),
+        Attr.on_pointerdown(_ => parent(DynCursor(Reset))),
+      ],
+      [text("⊠")],
+    )
+  | NotAligned =>
+    /* Reuse existing ellipsis behavior for not-aligned case */
+    div(
+      ~attrs=[
+        Attr.classes(["empty-status", "not-aligned"]),
+        Attr.title("Samples not aligned with cursor — click to align"),
+        Attr.on_pointerdown(
+          mv_least_distant_sample(~ap_id, parent, info.dynamics),
+        ),
+        Attr.on_double_click(_ => local(ToggleShowAllVals(0))),
+      ],
+      [text("⋯")],
+    )
+  };
+
 let move_cursor =
     (
       ~ap_id: option(Id.t),
@@ -1051,12 +1117,17 @@ let offside_view =
     let num_total = Samples.total(~ap_id, di);
     let samples = Samples.select_samples(~settings, ~id, ~ap_id, di);
     let (num_shown, groups) = Samples.collate(samples);
-    let is_cut_off =
-      num_shown != num_total && (num_shown != 0 || num_total != 0);
-    let extras = [
+
+    /* Determine what to show when no samples are displayed */
+    let empty_status = Samples.get_empty_status(~num_total, ~num_shown);
+
+    /* Overflow indicator: shown when samples ARE displayed but more exist */
+    let has_overflow = num_shown > 0 && num_shown < num_total;
+    let overflow_extras = [
       nav_bar_view(~settings, ap_id, di, num_total, parent),
       ellipsis_view(~ap_id, local, parent, info),
     ];
+
     Node.div(
       ~attrs=[
         Attr.id(Id.cls(id)),
@@ -1066,21 +1137,38 @@ let offside_view =
         ),
         Attr.classes(["live-offside", settings.window |> show_window]),
       ],
-      (num_shown > 0 ? [equals_view] : [])
-      @ sample_group_view(
-          ~ap_id,
-          ~hide_env,
-          ~settings,
-          di,
-          utility,
-          (~text_only) => view_seg(~text_only, ~background=false),
-          local,
-          parent,
-          groups,
-        )
-      @ (is_cut_off ? extras : []),
+      switch (empty_status) {
+      | Some(status) => [
+          empty_status_view(~ap_id, ~status, local, parent, info),
+        ]
+      | None =>
+        [equals_view]
+        @ sample_group_view(
+            ~ap_id,
+            ~hide_env,
+            ~settings,
+            di,
+            utility,
+            (~text_only: bool) => view_seg(~text_only, ~background=false),
+            local,
+            parent,
+            groups,
+          )
+        @ (has_overflow ? overflow_extras : [])
+      },
     );
-  | _ => Node.div([])
+  | None =>
+    /* No dynamics info means probe was never evaluated */
+    let ap_id = DynCursor.cur_ap(info.statics);
+    Node.div(
+      ~attrs=[
+        Attr.id(Id.cls(info.id)),
+        Attr.classes(["live-offside", settings.window |> show_window]),
+      ],
+      [
+        empty_status_view(~ap_id, ~status=NoSamplesExist, local, parent, info),
+      ],
+    );
   };
 
 let update = (() as m, _info: info, a: action) => {
