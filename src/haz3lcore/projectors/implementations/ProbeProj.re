@@ -865,7 +865,7 @@ let empty_status_view =
     div(
       ~attrs=[
         Attr.classes(["empty-status", "no-samples"]),
-        Attr.title("No samples recorded for this probe"),
+        Attr.title("This expression was never evaluated"),
       ],
       [text("∅")],
     )
@@ -876,7 +876,7 @@ let empty_status_view =
         Attr.title("Samples hidden by pin — click to unpin"),
         Attr.on_pointerdown(_ => parent(DynCursor(Reset))),
       ],
-      [text("⊠")],
+      [text("⍟")] //📌◌🔒
     )
   | NotAligned =>
     /* Reuse existing ellipsis behavior for not-aligned case */
@@ -889,7 +889,7 @@ let empty_status_view =
         ),
         Attr.on_double_click(_ => local(ToggleShowAllVals(0))),
       ],
-      [text("⋯")],
+      [text("⊖")],
     )
   };
 

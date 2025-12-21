@@ -786,3 +786,13 @@
 .projector.probe .live-offside .sample:has(.value.after) {
   background-color: oklch(0.94 0.03 254.38);
 }
+
+/* Indicator explaining why no samples are shown */
+.empty-status {
+  cursor: pointer;
+  filter: sepia(1);
+  /* scale: 0.8; */
+}
+.empty-status.no-samples {
+  cursor: default;
+}
