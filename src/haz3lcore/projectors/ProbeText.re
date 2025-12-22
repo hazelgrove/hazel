@@ -68,7 +68,7 @@ let format_value = (~max_length: int=50, value: Exp.t): string => {
  * Returns None if samples exist, Some(status) if empty. */
 let get_empty_status =
     (~window: Sample.Window.mode, samples: list(Sample.t))
-    : option(Sample.empty_status) =>
+    : option(Sample.Selection.empty_status) =>
   switch (samples) {
   | [] => Some(NoSamplesExist)
   | _ when window == Single =>

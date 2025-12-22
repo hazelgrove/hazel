@@ -11,9 +11,6 @@ type action =
   | ToggleShowAllVals(int)
   | NoOp;
 
-/* Re-export from Sample for backwards compatibility */
-type empty_status = Sample.empty_status;
-
 module Settings = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type sample_base =
@@ -137,14 +134,7 @@ module SampleLength = {
 
   let get = (window: Sample.Window.mode, sample: Sample.t): int =>
     Hashtbl.find_opt(lengths, sample.id)
-    |> Option.value(
-         // TODO(andrew): relax 5, special-case multilines eg `case`
-         ~default=
-           /*!ValueChecker.is_value(sample.value)
-             ? 5 :*/ window
-           == Single
-             ? 150 : 12,
-       );
+    |> Option.value(~default=window == Single ? 150 : 12);
 
   let set = (id: int, length: int): unit => Hashtbl.add(lengths, id, length);
 };
@@ -556,7 +546,7 @@ let env_view =
         : []
     )
     @ {
-      let elems = sample.env |> ListUtil.dedup |> Sample.rm_opaques;
+      let elems = sample.env |> ListUtil.dedup |> Sample.Env.remove_opaques;
       elems == []
         ? []
         : [
@@ -704,7 +694,7 @@ let ellipsis_view =
 let empty_status_view =
     (
       ~ap_id: option(Id.t),
-      ~status: empty_status,
+      ~status: Sample.Selection.empty_status,
       local,
       parent: external_action => Ui_effect.t(unit),
       info: info,

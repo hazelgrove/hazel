@@ -1,9 +1,8 @@
 open Util;
 
 /* A probe sample records a value and an environment,
- * along with a `stack` which records
- * partial information about the execution trace prior to
- * the creation of the sample */
+ * along with a `stack` which records partial information
+ * about the execution trace prior to the sample being taken */
 
 module Env = {
   /* To avoid unnecessary de/serialization from evaluation worker,
@@ -72,7 +71,7 @@ module Env = {
 [@deriving (show({with_path: false}), sexp, yojson, eq)]
 type origin =
   | Probe
-  | Print; /* Println for probes study */
+  | Print; /* Print statements for probes study */
 
 [@deriving (show({with_path: false}), sexp, yojson, eq)]
 type t = {
@@ -83,7 +82,7 @@ type t = {
   call_stack: Probe.call_stack, /* Call stacks as ap ids */
   time: float, /* Time of evaluatation */
   iter: int, /* A count index of each sample taken */
-  origin,
+  origin, /* Is this sample from a probe or a print statement */
   step_start: int, /* Step count when expression began evaluation */
   step_end: int /* Step count when expression finished evaluation */
 };
@@ -144,16 +143,6 @@ module Map = {
       map,
     );
 };
-
-/* Categorizes why no samples are shown for a probe */
-[@deriving (show({with_path: false}), sexp, yojson)]
-type empty_status =
-  | NoSamplesExist /* Probe was never evaluated */
-  | HiddenByPin /* Samples exist but filtered by current pin */
-  | NotAligned; /* Single mode: samples exist but none align with cursor */
-
-/* Backwards compatibility alias */
-let rm_opaques = Env.remove_opaques;
 
 /* Display mode for probe samples */
 module Window = {
@@ -343,6 +332,25 @@ module Cursor = {
 
 /* Sample selection and filtering logic */
 module Selection = {
+  /* Categorizes why no samples are shown for a probe */
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type empty_status =
+    | NoSamplesExist /* Probe was never evaluated */
+    | HiddenByPin /* Samples exist but filtered by current pin */
+    | NotAligned; /* Single mode: samples exist but none align with cursor */
+
+  /* Determine why no samples are shown.
+   * Returns None if samples ARE shown, Some(status) if empty. */
+  let get_empty_status =
+      (~num_total: int, ~num_shown: int): option(empty_status) =>
+    if (num_shown > 0) {
+      None;
+    } else if (num_total == 0) {
+      Some(HiddenByPin);
+    } else {
+      Some(NotAligned);
+    };
+
   /* Filter samples by pinned call stack */
   let filter_by_pin =
       (
@@ -456,18 +464,6 @@ module Selection = {
       List.mapi((i, s) => (List.length(samples) - i - 1, s), samples);
     (List.length(samples), group_by_call(numbered));
   };
-
-  /* Determine why no samples are shown.
-   * Returns None if samples ARE shown, Some(status) if empty. */
-  let get_empty_status =
-      (~num_total: int, ~num_shown: int): option(empty_status) =>
-    if (num_shown > 0) {
-      None;
-    } else if (num_total == 0) {
-      Some(HiddenByPin);
-    } else {
-      Some(NotAligned);
-    };
 
   /* Select samples to display based on cursor position and window mode.
    * Pure function - offset is passed in and new offset returned. */
