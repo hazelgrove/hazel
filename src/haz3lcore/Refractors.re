@@ -302,3 +302,66 @@ let has_probe = (id: Id.t, z: Zipper.t): bool => {
   Id.Map.mem(id, z.refractors.manuals)
   || Id.Map.mem(id, z.refractors.ephemerals);
 };
+
+/* Auto-probe mode: automatically place an auto-probe on the top-level
+ * definition body that the cursor is currently inside. */
+
+/* Remove the auto_def probe if present */
+let clear_auto_def =
+    (~syntax: CachedSyntax.t, ~info_map: Statics.Map.t, z: Zipper.t): Zipper.t =>
+  switch (z.refractors.auto_def) {
+  | None => z
+  | Some(old_id) =>
+    rm_auto(~syntax, ~info_map, old_id, z)
+    |> Zipper.update_refractors(_, r =>
+         {
+           ...r,
+           auto_def: None,
+         }
+       )
+  };
+
+/* Get the top-level definition body ID that the cursor is currently inside */
+let current_toplevel_def =
+    (info_map: Statics.Map.t, z: Zipper.t): option(Id.t) =>
+  switch (Indicated.index(z)) {
+  | None => None
+  | Some(cursor_id) =>
+    StaticsBase.toplevel_def_body_id(~statics=info_map, ~id=cursor_id)
+  };
+
+/* Update the auto_def probe based on current cursor position.
+ * Only reconstitutes the probe when the cursor moves to a different
+ * top-level definition. */
+let update_auto_def_probe =
+    (~syntax: CachedSyntax.t, ~info_map: Statics.Map.t, z: Zipper.t): Zipper.t => {
+  let current_def = current_toplevel_def(info_map, z);
+  let prev_def = z.refractors.auto_def;
+
+  /* If same definition, no change needed */
+  if (Option.equal(Id.equal, current_def, prev_def)) {
+    z;
+  } else {
+    /* Remove old auto-probe if exists */
+    let z =
+      switch (prev_def) {
+      | Some(old_id) => rm_auto(~syntax, ~info_map, old_id, z)
+      | None => z
+      };
+
+    /* Add new auto-probe if inside a definition */
+    let z =
+      switch (current_def) {
+      | Some(new_id) => add_auto(new_id, ~syntax, ~info_map, z)
+      | None => z
+      };
+
+    /* Update auto_def tracking */
+    Zipper.update_refractors(z, r =>
+      {
+        ...r,
+        auto_def: current_def,
+      }
+    );
+  };
+};

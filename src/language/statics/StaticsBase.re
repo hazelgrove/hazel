@@ -120,6 +120,43 @@ let let_definition_path = (~statics: Map.t, ~id: Id.t): list(Pat.t) => {
   };
 };
 
+/* Returns the definition body ID of the top-level (outermost) let
+ * expression containing the given id, if any. This is used for
+ * auto-probe mode to determine which definition the cursor is in. */
+let toplevel_def_body_id = (~statics: Map.t, ~id: Id.t): option(Id.t) => {
+  let rec contains_id = (target: Id.t, ids: list(Id.t)): bool =>
+    switch (ids) {
+    | [] => false
+    | [head, ...tail] => Id.equal(head, target) || contains_id(target, tail)
+    };
+
+  /* Gather all (def_id, ancestors_remaining) pairs for enclosing lets */
+  let rec gather =
+          (remaining: list(Id.t), seen: list(Id.t), acc: list(Id.t))
+          : list(Id.t) =>
+    switch (remaining) {
+    | [] => acc
+    | [current_id, ...rest] =>
+      let acc' =
+        switch (Map.lookup(current_id, statics)) {
+        | Some(InfoExp({term: {term: Let(_, def, _), _}, _})) =>
+          contains_id(IdTagged.rep_id(def), seen)
+            ? [IdTagged.rep_id(def), ...acc] : acc
+        | _ => acc
+        };
+      gather(rest, [current_id, ...seen], acc');
+    };
+
+  switch (Map.lookup(id, statics)) {
+  | Some(info) =>
+    let ancestors: list(Id.t) = Info.ancestors_of(info);
+    let def_ids = gather(ancestors, [id], []);
+    /* def_ids is ordered innermost-first, so last is the top-level def */
+    Util.ListUtil.last_opt(def_ids);
+  | _ => None
+  };
+};
+
 let map_m = (f, xs, m: Map.t) =>
   List.fold_left(
     ((xs, m), x) => f(x, m) |> (((x, m)) => (xs @ [x], m)),

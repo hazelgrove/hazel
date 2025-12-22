@@ -337,6 +337,7 @@ module Update = {
               ...model.globals.settings.core,
               dynamics: false,
             },
+        ~auto_probe_mode=model.globals.settings.auto_probe_mode,
         ~schedule_action=a => schedule_action(Editors(a)),
         ~is_edited,
         model.editors,
@@ -391,6 +392,24 @@ module Selection = {
     | {key: D("Z" | "z"), sys: Mac, shift: Up, meta: Down, ctrl: Up, alt: Up}
     | {key: D("Z" | "z"), sys: PC, shift: Up, meta: Up, ctrl: Down, alt: Up} =>
       Some(Update.Globals(Undo))
+    /* Toggle auto-probe mode: Cmd+Shift+P (Mac) or Ctrl+Shift+P (PC) */
+    | {
+        key: D("P" | "p"),
+        sys: Mac,
+        shift: Down,
+        meta: Down,
+        ctrl: Up,
+        alt: Up,
+      }
+    | {
+        key: D("P" | "p"),
+        sys: PC,
+        shift: Down,
+        meta: Up,
+        ctrl: Down,
+        alt: Up,
+      } =>
+      Some(Update.Globals(Set(AutoProbeMode)))
     | _ =>
       Editors.Selection.handle_key_event(~selection, ~event, model.editors)
       |> Option.map(x => Update.Editors(x))
@@ -606,6 +625,19 @@ module View = {
     );
   };
 
+  let auto_probe_indicator = (~globals: Globals.t, ~inject) =>
+    globals.settings.auto_probe_mode
+      ? [
+        Widgets.toggle(
+          ~tooltip="Auto-probe mode active (Cmd/Ctrl+Shift+P to toggle)",
+          "🔬",
+          true,
+          _ =>
+          inject(Update.Globals(Set(AutoProbeMode)))
+        ),
+      ]
+      : [];
+
   let top_bar = (~globals, ~inject: Update.t => Ui_effect.t(unit), ~editors) =>
     div(
       ~attrs=[Attr.id("top-bar")],
@@ -618,6 +650,10 @@ module View = {
         div(
           ~attrs=[Attr.class_("wrap")],
           [div(~attrs=[Attr.id("title")], [text("hazel")])],
+        ),
+        div(
+          ~attrs=[Attr.class_("wrap")],
+          auto_probe_indicator(~globals, ~inject),
         ),
         div(
           ~attrs=[Attr.class_("wrap")],

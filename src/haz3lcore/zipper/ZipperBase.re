@@ -18,12 +18,16 @@ module Refractor = {
     autos: list(Id.t),
     ephemerals: Map.t,
     dyn_cursor: Language.DynCursor.t,
+    /* For auto-probe mode: the body ID of the top-level definition
+       currently being auto-probed (if any) */
+    auto_def: option(Id.t),
   };
   let init = {
     manuals: Id.Map.empty,
     autos: [],
     ephemerals: Id.Map.empty,
     dyn_cursor: Language.DynCursor.init,
+    auto_def: None,
   };
 
   let persist = (refractors: t): string =>

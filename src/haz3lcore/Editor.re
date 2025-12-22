@@ -159,6 +159,7 @@ module Update = {
   let calculate =
       (
         ~settings: Language.CoreSettings.t,
+        ~auto_probe_mode: bool,
         ~is_edited,
         new_statics: CachedStatics.t,
         new_dynamics: Dynamics.Map.t,
@@ -186,13 +187,30 @@ module Update = {
         syntax,
       );
 
-    /* 3. Update autoprobes */
+    /* 3. Update autoprobes from manual autos list */
     let zipper =
       zipper
       |> Refractors.add_ids_from_auto_term(
            ~syntax,
            ~info_map=new_statics.info_map,
          );
+
+    /* 4. Handle auto-probe mode */
+    let zipper =
+      if (auto_probe_mode) {
+        Refractors.update_auto_def_probe(
+          ~syntax,
+          ~info_map=new_statics.info_map,
+          zipper,
+        );
+      } else {
+        /* If mode is off, clear any existing auto_def probe */
+        Refractors.clear_auto_def(
+          ~syntax,
+          ~info_map=new_statics.info_map,
+          zipper,
+        );
+      };
 
     Model.{
       state: {

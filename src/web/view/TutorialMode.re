@@ -291,7 +291,12 @@ module Update = {
        one of the editors is shown in two cells, so we arbitrarily choose which
        statics to take */
     let editors: Tutorial.p('a) = {
-      let calculate = Editor.Update.calculate(~settings, ~is_edited);
+      let calculate =
+        Editor.Update.calculate(
+          ~settings,
+          ~auto_probe_mode=false,
+          ~is_edited,
+        );
       {
         id: model.editors.id,
         title: model.editors.title,
