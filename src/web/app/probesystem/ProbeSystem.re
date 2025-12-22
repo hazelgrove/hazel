@@ -145,7 +145,7 @@ let div_cs = (cls, node) => div(~attrs=[Attr.classes(cls)], [node]);
 let legend_sample_view =
     (
       ~indicated: bool,
-      ~mode: ProbeProj.Settings.window,
+      ~mode: Language.Sample.Window.mode,
       ~font_metrics: FontMetrics.t,
       ~ap_id: option(Id.t),
       ~indicated_call: option(Id.t),
@@ -197,7 +197,7 @@ let legend_sample_view =
   )
   |> div_cs(["sample-group"])
   |> div_cs(["sample-groups"])
-  |> div_cs(["live-offside", ProbeProj.Settings.show_window(mode)])
+  |> div_cs(["live-offside", Language.Sample.Window.show_mode(mode)])
   |> div_cs(["projector", "probe", indicated ? "indicated" : "not-indicated"]);
 };
 

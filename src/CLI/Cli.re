@@ -78,13 +78,13 @@ let probe_hazel = (many: bool, path: string): unit => {
     let (_, probe_map) = Run.evaluate_with_probes(term);
 
     /* Format output with probe values */
-    let window: Haz3lcore.ProbeProj.Settings.window = many ? Many : Single;
+    let window: Language.Sample.Window.mode =
+      many ? Language.Sample.Window.Many : Language.Sample.Window.Single;
     let output =
       Haz3lcore.ProbeText.of_segment(
         ~window,
         ~probe_map,
         ~refractors,
-        ~utility=Haz3lcore.ProjectorInfo.utility,
         segment,
       );
     print_endline(output);
