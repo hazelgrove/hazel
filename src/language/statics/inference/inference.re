@@ -179,7 +179,9 @@ module Solution = {
     };
   };
 };
-let cyclic_solution: Solution.t = Unknown(Hole(CycleHole) |> Prov.anonymous);
+
+let mk_cyclic_solution: Solution.t =
+  Unknown(Hole(CycleHole) |> Prov.anonymous);
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type canonical_constramnot =
@@ -314,7 +316,8 @@ let rec unfold_constramnot =
     }
   | (Arrow(l1, l2), Arrow(r1, r2)) =>
     unfold_constramnot(Con(l1, r1)) @ unfold_constramnot(Con(l2, r2))
-  | (Prod(l_args), Prod(r_args)) => unfold_constramnot_prod(l_args, r_args)
+  | (Prod(l_args), Prod(r_args)) =>
+    unfold_constramnot_produdct(l_args, r_args)
   | (Label(_), Label(_)) => []
   | (TupLabel(l_label, l_typ), TupLabel(r_label, r_typ)) =>
     unfold_constramnot(Con(l_label, r_label))
@@ -338,10 +341,7 @@ let rec unfold_constramnot =
   | (Forall(_), _) => []
   };
 }
-and unfold_constramnot_prod = (args1, args2): list(canonical_constramnot) =>
-  // if both lists do not have identical labels or lengths,
-  // we should treat them as two different tuples
-  //
+and unfold_constramnot_produdct = (args1, args2): list(canonical_constramnot) =>
   if (List.length(args1) == List.length(args2)) {
     List.fold_left2(
       (acc, t1, t2) => acc @ unfold_constramnot(Con(t1, t2)),
@@ -452,41 +452,65 @@ module PossibleProvTypesMap: {
     };
 
   let update_prov_map_of_constramnot =
-      (c: canonical_constramnot, m: t, sm: SolutionMap.t): t => {
+      (c: canonical_constramnot, prov_map: t, sol_map: SolutionMap.t): t => {
     switch (c) {
-    | Con(p, Unknown(q))
+    // a provenance is directly constrained to another provenance, in which
+    // case once solved, both of them should have identical solutions, so
+    // they are merged
+    | Con(prov, Unknown(other_prov))
         when
           !(
-            SolutionMap.mem(StringProv.of_prov(p), sm)
-            || SolutionMap.mem(StringProv.of_prov(q), sm)
+            SolutionMap.mem(StringProv.of_prov(prov), sol_map)
+            || SolutionMap.mem(StringProv.of_prov(other_prov), sol_map)
           ) =>
-      let m = add_if_absent(p, m);
-      let m = add_if_absent(q, m);
+      let prov_map' =
+        add_if_absent(prov, prov_map) |> add_if_absent(other_prov);
       let _ =
-        UnionFind.merge(merge_data, lookup_prov(p, m), lookup_prov(q, m));
-      m;
-    | Con(p, t) when !SolutionMap.mem(StringProv.of_prov(p), sm) =>
-      let m = add_if_absent(p, m);
-      let qs = unsolved_provs_in_typ(t, sm);
-      let m = List.fold_left((m, q) => add_if_absent(q, m), m, qs);
+        UnionFind.merge(
+          merge_data,
+          lookup_prov(prov, prov_map'),
+          lookup_prov(other_prov, prov_map'),
+        );
+      prov_map';
 
+    // a provenance is constraint to a type (e.g. ?1 ~ ?2 -> ?3), in which case
+    // the provenance should dominate all provenances in the type
+    | Con(prov, constrained_typ)
+        when !SolutionMap.mem(StringProv.of_prov(prov), sol_map) =>
+      let prov_map = add_if_absent(prov, prov_map);
+
+      let provs_in_constrained_typ =
+        unsolved_provs_in_typ(constrained_typ, sol_map);
+      let prov_map =
+        List.fold_left(
+          (m, q) => add_if_absent(q, m),
+          prov_map,
+          provs_in_constrained_typ,
+        );
+
+      // the provenances in the type are dominated by prov
       List.iter(
         q => {
           update_data(
             q,
-            (Internal |> Prov.anonymous, [p], PossibleTypeSet.empty),
-            m,
+            (Internal |> Prov.anonymous, [prov], PossibleTypeSet.empty),
+            prov_map,
           )
         },
-        qs,
+        provs_in_constrained_typ,
       );
+
       update_data(
-        p,
-        (Internal |> Prov.anonymous, [], PossibleTypeSet.singleton(t)),
-        m,
+        prov,
+        (
+          Internal |> Prov.anonymous,
+          [],
+          PossibleTypeSet.singleton(constrained_typ),
+        ),
+        prov_map,
       );
-      m;
-    | _ => m
+      prov_map;
+    | _ => prov_map
     };
   };
 
@@ -499,6 +523,11 @@ module PossibleProvTypesMap: {
     );
   };
 
+  /* finds a dominant provenance, or if there is none, then picks one that
+      is cyclic
+
+     An example of dominant provenance is a in: ?a ~ ?L(a) -> ?R(a)
+      */
   let find_dominant_provs = (m: t): (list(Prov.t), bool) => {
     let dom =
       List.filter_map(
@@ -642,15 +671,6 @@ let rec refine_solution =
   | (Sum(_) as s, t)
   | (Var(_) as s, t)
   | (Forall(_, _) as s, t) => Multi([s, solution_of_typ(prov, t)])
-  // | (Multi([]), _)
-  // | (Multi([Hole, ..._]), _)
-  // | (Multi([Multi(_), ..._]), _)
-  // | (Multi([Cyclic, ..._]), _) => failwith("impossible")
-  // | (Multi([Num, ...ss]), Num) => Multi([Num, ...ss])
-  // | (Multi([Arrow(s1, s2), ...ss]), Num) =>
-  //   Multi([Num, Arrow(s1, s2), ...ss])
-  // | (Multi([Num, ...ss]), Arrow(t1, t2)) => Multi(todo)
-  // | (Multi(ss), Arrow(t1, t2)) => Multi(todo)
   };
 };
 
@@ -879,35 +899,38 @@ let extend_sol_map =
   //   List.map(s => show_canonical_constramnot(s), canonical_cs),
   // )
   // |> print_endline;
-  let m = PossibleProvTypesMap.of_constramnots(canonical_cs, sol_map); // compute provenance map
+  let prov_map = PossibleProvTypesMap.of_constramnots(canonical_cs, sol_map); // compute provenance map
   // print_endline("Provenance Map:");
   // print_endline(string_of_prov_map(m));
-  switch (PossibleProvTypesMap.find_dominant_provs(m)) {
+  switch (PossibleProvTypesMap.find_dominant_provs(prov_map)) {
   // if you find a dominant provenance...
   | ([], _) => None
-  | ([p, ..._], is_cyclic) =>
+  | ([prov_to_solve, ..._], is_solution_cyclic) =>
     Some(
       {
         // print_endline(
         //   "Solving: " ++ (StringProv.of_prov(p) |> StringProv.show),
         // );
-        let s = solve_prov(p, m); // solve it
+        let sol = solve_prov(prov_to_solve, prov_map); // solve it
         // print_endline("Solution: " ++ show_solution(s));
+
+        // identify all provenances that are merged with the provenance
+        // that was just solved
         let equiv_provs: list(StringProv.t) =
           List.filter_map(
-            ((p', _)) =>
-              if (UnionFind.eq(
-                    PossibleProvTypesMap.lookup_prov(p, m),
-                    PossibleProvTypesMap.find(p', m),
-                  )) {
-                Some
-                  (p');
-                  // let (canonical_p, _, _) = UnionFind.get(p_elem);
-                  // Some(canonical_p);
+            ((other_prov, _)) => {
+              let are_provs_equivalent =
+                UnionFind.eq(
+                  PossibleProvTypesMap.lookup_prov(prov_to_solve, prov_map),
+                  PossibleProvTypesMap.find(other_prov, prov_map),
+                );
+              if (are_provs_equivalent) {
+                Some(other_prov);
               } else {
                 None;
-              },
-            PossibleProvTypesMap.bindings(m),
+              };
+            },
+            PossibleProvTypesMap.bindings(prov_map),
           );
         // print_endline(
         //   "Equivalent provs: "
@@ -915,53 +938,73 @@ let extend_sol_map =
         // );
 
         let cyclic_provs' =
-          if (is_cyclic) {
+          if (is_solution_cyclic) {
             List.append(cyclic_provs, equiv_provs);
           } else {
             cyclic_provs;
           };
 
-        let st = Solution.solution_typ(s); // turn it into a type
+        let solution_type = Solution.solution_typ(sol); // turn it into a type
 
-        let cs' =
+        // replace the unsolved provenances in the constraints
+        // with the solution type we just derived
+        // e.g. ?1 ~ Int; { ?1 } -> { ?2 } ==> { Int } -> { ?2 }
+        let constraints' =
           List.fold_left(
-            (cs_acc, pss) => {solution_typ_replace_cons(pss, cs_acc, st, m)},
+            (cs_acc, pss) => {
+              solution_typ_replace_cons(pss, cs_acc, solution_type, prov_map)
+            },
             constraints,
             equiv_provs,
-          ); // replace it with the solution type in constraints
+          );
 
-        // let sm' = solution_typ_replace_sol_map(...)
-        let sm' =
+        // extend the solution map with the provenances we just solved
+        // once solved, a provenance will never be re-added to the map
+        let sol_map' =
           List.fold_left(
-            (sm_acc, pss) => SolutionMap.add(pss, s, sm_acc),
+            (sm_acc, pss) => SolutionMap.add(pss, sol, sm_acc),
             sol_map,
             equiv_provs,
-          ); // and extend the solution map
+          );
 
+        // identify all the provenances in the solution, so we can
+        // later check if the solution contains a provenance that
+        // we just solved
         let all_provs_in_sol =
-          List.map(StringProv.of_prov, Solution.all_provs_in_sol(s));
-        let sm'' =
+          List.map(StringProv.of_prov, Solution.all_provs_in_sol(sol));
+
+        // replace the solutions of all existing provenances with
+        // we just generated
+        let sol_map'' =
           List.fold_left(
-            (sm_acc, pss) => {
-              let cyclic = List.mem(pss, all_provs_in_sol);
+            (sol_map_acc, curr_prov) => {
+              // a prov is defined to be cyclic if we solved for it, but it
+              // appears inside the solution
+              let is_prov_cyclic = List.mem(curr_prov, all_provs_in_sol);
               SolutionMap.map(
-                sol => {
-                  let (s', replaced) =
-                    solution_replace_solution(pss, sol, s);
-                  if (replaced && cyclic) {
-                    s;
+                sol_to_update => {
+                  let (updated_sol, replaced_any) =
+                    solution_replace_solution(curr_prov, sol_to_update, sol);
+
+                  if (replaced_any && is_prov_cyclic) {
+                    // if the solution is cyclic, then the original solution should
+                    // be identical to sol, except with possibly a few more substitutions
+                    // of the cyclic solution.
+                    // to make the substitution count consistent, replace the old solution
+                    // TODO: i think this might have edge cases, when a cyclic solution is nested
+                    sol;
                   } else {
-                    s';
+                    updated_sol;
                   };
                 },
-                sm_acc,
+                sol_map_acc,
               );
             },
-            sm',
+            sol_map',
             equiv_provs,
-          ); // and replace it with the solution in the existing solutions
+          );
 
-        (cs', sm'', cyclic_provs');
+        (constraints', sol_map'', cyclic_provs');
       },
     )
   };
@@ -977,24 +1020,25 @@ let rec solve_rec =
   switch (extend_sol_map(cs, sm, cyclic_provs)) {
   | None =>
     // print_endline("No dominant provenances");
-    // relax solution to have no cycles
-    let sm' =
+    // relax solution to have no cycles (i.e. replace any un-substituted
+    // provnances with cycles)
+    let sol_map' =
       List.fold_left(
-        (sm, pss) => {
+        (sol_map, pss) => {
           PossibleProvTypesMap.map(
             sol => {
               let (sol, _) =
-                solution_replace_solution(pss, sol, cyclic_solution);
+                solution_replace_solution(pss, sol, mk_cyclic_solution);
               sol;
             },
-            sm,
+            sol_map,
           )
         },
         sm,
         cyclic_provs,
       );
     // print_endline(string_of_constramnots(cs));
-    sm';
+    sol_map';
   | Some((cs', sm', cyclic_provs')) => solve_rec(cs', sm', cyclic_provs')
   };
 };
