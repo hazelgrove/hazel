@@ -12,6 +12,24 @@ let rec cartesian_product = (lists: list(list(Typ.t))): list(list(Typ.t)) =>
     List.concat_map(h => List.map(t => [h, ...t], tl_product), hd);
   };
 
+module StringProv = {
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type t = (string, Id.t);
+  let compare = ((k1, id1), (k2, id2)) => {
+    let id_compare = Id.compare(id1, id2);
+    if (id_compare != 0) {
+      id_compare;
+    } else {
+      String.compare(k1, k2);
+    };
+  };
+
+  let of_prov = (p: Prov.t): t => (
+    Prov.to_string(Prov.term_of(p)),
+    IdTagged.rep_id(p),
+  );
+};
+
 module Solution = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t =
@@ -89,6 +107,34 @@ module Solution = {
     | Rec(_, _)
     | Forall(_, _)
     | Arrow(_) => typ_of_solution(sol)
+    };
+  };
+
+  let rec of_typ = (prov: Prov.t, typ: Typ.term): t => {
+    switch (typ) {
+    | Atom(t) => Atom(t)
+    | Unknown(u) => Unknown(u)
+    | Sum(s) => Sum(s)
+    | Prod(elts) =>
+      Prod(List.map(e => of_typ(prov, Typ.term_of(e)), elts))
+    | Rec(pat, ty) =>
+      Rec(pat |> IdTagged.term_of, of_typ(prov, ty |> Typ.term_of))
+    | Forall(pat, ty) =>
+      Forall(pat |> IdTagged.term_of, of_typ(prov, ty |> Typ.term_of))
+    | List(elt) => List(of_typ(prov, elt |> Typ.term_of))
+    | Label(s) => Label(s)
+    | TupLabel(l, t) =>
+      TupLabel(
+        of_typ(prov, l |> Typ.term_of),
+        of_typ(prov, t |> Typ.term_of),
+      )
+    | Var(v) => Var(v)
+    | Parens(term) => of_typ(prov, term |> Typ.term_of)
+    | Arrow(t1, t2) =>
+      Arrow(
+        of_typ(prov, t1 |> Typ.term_of),
+        of_typ(prov, t2 |> Typ.term_of),
+      )
     };
   };
 
@@ -178,6 +224,138 @@ module Solution = {
       );
     };
   };
+
+  let rec replace_solution =
+          (prov_to_replace: StringProv.t, sol: t, sol': t): (t, bool) => {
+    let fold_solutions =
+      List.fold_left(
+        ((sols, changed), sol) => {
+          let (sol', c) = replace_solution(prov_to_replace, sol, sol');
+          ([sol', ...sols], c || changed);
+        },
+        ([], false),
+      );
+
+    switch (sol) {
+    | Unknown({term: Hole(CycleHole), _}) => (sol, false)
+    | Unknown(q) when prov_to_replace == StringProv.of_prov(q) => (
+        sol',
+        true,
+      )
+    | Unknown(_) => (sol, false)
+    | Prod(ss) =>
+      let (ss', changed) = fold_solutions(ss);
+      (Prod(List.rev(ss')), changed);
+    | Multi(ss) =>
+      let (ss', changed) = fold_solutions(ss);
+      (Multi(List.rev(ss')), changed);
+    | Atom(_) => (sol, false)
+    | Sum(_) => (sol, false)
+    | Var(_) => (sol, false)
+    | Label(_) => (sol, false)
+    | TupLabel(label, body) =>
+      let (label', changed1) =
+        replace_solution(prov_to_replace, label, sol');
+      let (body', changed2) = replace_solution(prov_to_replace, body, sol');
+      (TupLabel(label', body'), changed1 || changed2);
+    | Rec(pat, body) =>
+      let (body', changed) = replace_solution(prov_to_replace, body, sol');
+      (Rec(pat, body'), changed);
+    | Forall(pat, body) =>
+      let (body', changed) = replace_solution(prov_to_replace, body, sol');
+      (Forall(pat, body'), changed);
+    | List(t) =>
+      let (t', changed) = replace_solution(prov_to_replace, t, sol');
+      (List(t'), changed);
+    | Arrow(s1, s2) =>
+      let (s1', changed1) = replace_solution(prov_to_replace, s1, sol');
+      let (s2', changed2) = replace_solution(prov_to_replace, s2, sol');
+      (Arrow(s1', s2'), changed1 || changed2);
+    };
+  };
+
+  // multiholes idk lol???
+  let rec refine_solution = (prov: Prov.t, sol: t, typ: Typ.term): t => {
+    switch (sol, typ) {
+    | (s, Unknown({term: Hole(CycleHole), _}) as t)
+    | (Unknown({term: Hole(CycleHole), _}) as s, t) =>
+      Multi([s, of_typ(prov, t)])
+    | (Unknown(p), t) when !is_identified_provenance(p) => of_typ(p, t)
+    | (s, Unknown(p)) when !is_identified_provenance(p) => s
+    | (Unknown(_) as s, _) => s
+    | (_, Unknown(_) as t) => of_typ(prov, t)
+    | (Atom(a1), Atom(a2)) when a1 == a2 => Atom(a1)
+    | (Atom(a1), Atom(a2)) => Multi([Atom(a1), Atom(a2)])
+    | (List(l1), List(l2)) =>
+      List(refine_solution(prov, l1, l2 |> Typ.term_of))
+    | (Sum(s1), Sum(s2)) =>
+      if (s1 == s2) {
+        Sum(s1);
+      } else {
+        Multi([Sum(s1), Sum(s2)]);
+      }
+    | (Prod(p1), Prod(p2)) =>
+      if (List.length(p1) == List.length(p2)) {
+        Prod(
+          List.map2(
+            (e1, e2) => refine_solution(prov, e1, e2 |> Typ.term_of),
+            p1,
+            p2,
+          ),
+        );
+      } else {
+        Multi([
+          Prod(p1),
+          Prod(List.map(e => of_typ(prov, e |> Typ.term_of), p2)),
+        ]);
+      }
+    | (Label(s1), Label(s2)) =>
+      if (s1 == s2) {
+        Label(s1);
+      } else {
+        Multi([Label(s1), Label(s2)]);
+      }
+    | (TupLabel(l1, r1), TupLabel(l2, r2)) =>
+      TupLabel(
+        refine_solution(prov, l1, l2 |> Typ.term_of),
+        refine_solution(prov, r1, r2 |> Typ.term_of),
+      )
+    | (Rec(pat1, ty1), Rec(pat2, ty2)) =>
+      if (pat1 == (pat2 |> IdTagged.term_of)) {
+        Rec(pat1, refine_solution(prov, ty1, ty2 |> Typ.term_of));
+      } else {
+        Multi([
+          Rec(pat1, ty1),
+          Rec(pat2 |> IdTagged.term_of, of_typ(prov, ty2 |> Typ.term_of)),
+        ]);
+      }
+    | (Forall(pat1, ty1), Forall(pat2, ty2)) =>
+      if (pat1 == (pat2 |> IdTagged.term_of)) {
+        Forall(pat1, refine_solution(prov, ty1, ty2 |> Typ.term_of));
+      } else {
+        Multi([
+          Forall(pat1, ty1),
+          Forall(pat2 |> IdTagged.term_of, of_typ(prov, ty2 |> Typ.term_of)),
+        ]);
+      }
+    | (Arrow(s1, s2), Arrow(t1, t2)) =>
+      Arrow(
+        refine_solution(prov, s1, t1 |> Typ.term_of),
+        refine_solution(prov, s2, t2 |> Typ.term_of),
+      )
+    | (Multi(ss), t) => Multi(ss @ [of_typ(prov, t)]) // TODO: compress possibilities
+    | (Atom(_) as s, t)
+    | (List(_) as s, t)
+    | (Label(_) as s, t)
+    | (TupLabel(_, _) as s, t)
+    | (Rec(_, _) as s, t)
+    | (Arrow(_, _) as s, t)
+    | (Prod(_) as s, t)
+    | (Sum(_) as s, t)
+    | (Var(_) as s, t)
+    | (Forall(_, _) as s, t) => Multi([s, of_typ(prov, t)])
+    };
+  };
 };
 
 let mk_cyclic_solution: Solution.t =
@@ -186,24 +364,6 @@ let mk_cyclic_solution: Solution.t =
 [@deriving (show({with_path: false}), sexp, yojson)]
 type canonical_constramnot =
   | Con(Prov.t, Typ.term);
-
-module StringProv = {
-  [@deriving (show({with_path: false}), sexp, yojson)]
-  type t = (string, Id.t);
-  let compare = ((k1, id1), (k2, id2)) => {
-    let id_compare = Id.compare(id1, id2);
-    if (id_compare != 0) {
-      id_compare;
-    } else {
-      String.compare(k1, k2);
-    };
-  };
-
-  let of_prov = (p: Prov.t): t => (
-    Prov.to_string(Prov.term_of(p)),
-    IdTagged.rep_id(p),
-  );
-};
 
 module ProvMap = {
   [@deriving (sexp, yojson)]
@@ -242,6 +402,7 @@ module SolutionMap: {
   type t = ProvMap.t(Solution.t);
 
   let lookup_prov: (Prov.t, t) => option(Solution.t);
+  let replace_cycles: (t, list(StringProv.t)) => t;
 } = {
   include ProvMap;
   [@deriving (show({with_path: false}), sexp, yojson)]
@@ -249,6 +410,20 @@ module SolutionMap: {
 
   let lookup_prov = (p: Prov.t, m: t): option(Solution.t) =>
     ProvMap.find_opt(StringProv.of_prov(p), m);
+
+  // relax solution to have no cycles (i.e. replace any un-substituted
+  // provnances with cycles)
+  let replace_cycles =
+    List.fold_left((sol_map, prov) => {
+      map(
+        sol => {
+          let (sol, _) =
+            Solution.replace_solution(prov, sol, mk_cyclic_solution);
+          sol;
+        },
+        sol_map,
+      )
+    });
 };
 
 let rec provs_in_typ = (~include_prov=_ => true, t: Typ.term): list(Prov.t) => {
@@ -555,125 +730,6 @@ module PossibleProvTypesMap: {
   };
 };
 
-let rec solution_of_typ = (prov: Prov.t, typ: Typ.term): Solution.t => {
-  switch (typ) {
-  | Atom(t) => Atom(t)
-  | Unknown(u) => Unknown(u)
-  | Sum(s) => Sum(s)
-  | Prod(elts) =>
-    Prod(List.map(e => solution_of_typ(prov, Typ.term_of(e)), elts))
-  | Rec(pat, ty) =>
-    Rec(pat |> IdTagged.term_of, solution_of_typ(prov, ty |> Typ.term_of))
-  | Forall(pat, ty) =>
-    Forall(pat |> IdTagged.term_of, solution_of_typ(prov, ty |> Typ.term_of))
-  | List(elt) => List(solution_of_typ(prov, elt |> Typ.term_of))
-  | Label(s) => Label(s)
-  | TupLabel(l, t) =>
-    TupLabel(
-      solution_of_typ(prov, l |> Typ.term_of),
-      solution_of_typ(prov, t |> Typ.term_of),
-    )
-  | Var(v) => Var(v)
-  | Parens(term) => solution_of_typ(prov, term |> Typ.term_of)
-  | Arrow(t1, t2) =>
-    Arrow(
-      solution_of_typ(prov, t1 |> Typ.term_of),
-      solution_of_typ(prov, t2 |> Typ.term_of),
-    )
-  };
-};
-
-// multiholes idk lol???
-let rec refine_solution =
-        (prov: Prov.t, sol: Solution.t, typ: Typ.term): Solution.t => {
-  switch (sol, typ) {
-  | (s, Unknown({term: Hole(CycleHole), _}) as t)
-  | (Unknown({term: Hole(CycleHole), _}) as s, t) =>
-    Multi([s, solution_of_typ(prov, t)])
-  | (Unknown(p), t) when !is_identified_provenance(p) =>
-    solution_of_typ(p, t)
-  | (s, Unknown(p)) when !is_identified_provenance(p) => s
-  | (Unknown(_) as s, _) => s
-  | (_, Unknown(_) as t) => solution_of_typ(prov, t)
-  | (Atom(a1), Atom(a2)) when a1 == a2 => Atom(a1)
-  | (Atom(a1), Atom(a2)) => Multi([Atom(a1), Atom(a2)])
-  | (List(l1), List(l2)) =>
-    List(refine_solution(prov, l1, l2 |> Typ.term_of))
-  | (Sum(s1), Sum(s2)) =>
-    if (s1 == s2) {
-      Sum(s1);
-    } else {
-      Multi([Sum(s1), Sum(s2)]);
-    }
-  | (Prod(p1), Prod(p2)) =>
-    if (List.length(p1) == List.length(p2)) {
-      Prod(
-        List.map2(
-          (e1, e2) => refine_solution(prov, e1, e2 |> Typ.term_of),
-          p1,
-          p2,
-        ),
-      );
-    } else {
-      Multi([
-        Prod(p1),
-        Prod(List.map(e => solution_of_typ(prov, e |> Typ.term_of), p2)),
-      ]);
-    }
-  | (Label(s1), Label(s2)) =>
-    if (s1 == s2) {
-      Label(s1);
-    } else {
-      Multi([Label(s1), Label(s2)]);
-    }
-  | (TupLabel(l1, r1), TupLabel(l2, r2)) =>
-    TupLabel(
-      refine_solution(prov, l1, l2 |> Typ.term_of),
-      refine_solution(prov, r1, r2 |> Typ.term_of),
-    )
-  | (Rec(pat1, ty1), Rec(pat2, ty2)) =>
-    if (pat1 == (pat2 |> IdTagged.term_of)) {
-      Rec(pat1, refine_solution(prov, ty1, ty2 |> Typ.term_of));
-    } else {
-      Multi([
-        Rec(pat1, ty1),
-        Rec(
-          pat2 |> IdTagged.term_of,
-          solution_of_typ(prov, ty2 |> Typ.term_of),
-        ),
-      ]);
-    }
-  | (Forall(pat1, ty1), Forall(pat2, ty2)) =>
-    if (pat1 == (pat2 |> IdTagged.term_of)) {
-      Forall(pat1, refine_solution(prov, ty1, ty2 |> Typ.term_of));
-    } else {
-      Multi([
-        Forall(pat1, ty1),
-        Forall(
-          pat2 |> IdTagged.term_of,
-          solution_of_typ(prov, ty2 |> Typ.term_of),
-        ),
-      ]);
-    }
-  | (Arrow(s1, s2), Arrow(t1, t2)) =>
-    Arrow(
-      refine_solution(prov, s1, t1 |> Typ.term_of),
-      refine_solution(prov, s2, t2 |> Typ.term_of),
-    )
-  | (Multi(ss), t) => Multi(ss @ [solution_of_typ(prov, t)]) // TODO: compress possibilities
-  | (Atom(_) as s, t)
-  | (List(_) as s, t)
-  | (Label(_) as s, t)
-  | (TupLabel(_, _) as s, t)
-  | (Rec(_, _) as s, t)
-  | (Arrow(_, _) as s, t)
-  | (Prod(_) as s, t)
-  | (Sum(_) as s, t)
-  | (Var(_) as s, t)
-  | (Forall(_, _) as s, t) => Multi([s, solution_of_typ(prov, t)])
-  };
-};
-
 let solve_prov =
     (prov: Prov.t, prov_tys_map: PossibleProvTypesMap.t): Solution.t => {
   let (_, _, ts) =
@@ -682,7 +738,7 @@ let solve_prov =
     );
   let ts_list = PossibleTypeSet.to_list(ts);
   List.fold_left(
-    refine_solution(prov),
+    Solution.refine_solution(prov),
     Solution.Unknown(Hole(EmptyHole) |> Prov.anonymous),
     ts_list,
   );
@@ -796,52 +852,6 @@ let rec solution_typ_replace_typ =
       solution_typ_replace_typ(prov, t2 |> Typ.term_of, sol_typ, prov_map)
       |> Typ.temp,
     )
-  };
-};
-
-let rec solution_replace_solution =
-        (prov: StringProv.t, sol: Solution.t, sol': Solution.t)
-        : (Solution.t, bool) => {
-  let fold_solutions =
-    List.fold_left(
-      ((sols, changed), sol) => {
-        let (sol', c) = solution_replace_solution(prov, sol, sol');
-        ([sol', ...sols], c || changed);
-      },
-      ([], false),
-    );
-
-  switch (sol) {
-  | Unknown({term: Hole(CycleHole), _}) => (sol, false)
-  | Unknown(q) when prov == StringProv.of_prov(q) => (sol', true)
-  | Unknown(_) => (sol, false)
-  | Prod(ss) =>
-    let (ss', changed) = fold_solutions(ss);
-    (Prod(List.rev(ss')), changed);
-  | Multi(ss) =>
-    let (ss', changed) = fold_solutions(ss);
-    (Multi(List.rev(ss')), changed);
-  | Atom(_) => (sol, false)
-  | Sum(_) => (sol, false)
-  | Var(_) => (sol, false)
-  | Label(_) => (sol, false)
-  | TupLabel(label, body) =>
-    let (label', changed1) = solution_replace_solution(prov, label, sol');
-    let (body', changed2) = solution_replace_solution(prov, body, sol');
-    (TupLabel(label', body'), changed1 || changed2);
-  | Rec(pat, body) =>
-    let (body', changed) = solution_replace_solution(prov, body, sol');
-    (Rec(pat, body'), changed);
-  | Forall(pat, body) =>
-    let (body', changed) = solution_replace_solution(prov, body, sol');
-    (Forall(pat, body'), changed);
-  | List(t) =>
-    let (t', changed) = solution_replace_solution(prov, t, sol');
-    (List(t'), changed);
-  | Arrow(s1, s2) =>
-    let (s1', changed1) = solution_replace_solution(prov, s1, sol');
-    let (s2', changed2) = solution_replace_solution(prov, s2, sol');
-    (Arrow(s1', s2'), changed1 || changed2);
   };
 };
 
@@ -984,7 +994,7 @@ let extend_sol_map =
               SolutionMap.map(
                 sol_to_update => {
                   let (updated_sol, replaced_any) =
-                    solution_replace_solution(curr_prov, sol_to_update, sol);
+                    Solution.replace_solution(curr_prov, sol_to_update, sol);
 
                   if (replaced_any && is_prov_cyclic) {
                     // if the solution is cyclic, then the original solution should
@@ -1012,33 +1022,16 @@ let extend_sol_map =
 
 let rec solve_rec =
         (
-          cs: list(Typ.equivalence),
-          sm: SolutionMap.t,
+          constraints: list(Typ.equivalence),
+          sol_map: SolutionMap.t,
           cyclic_provs: list(StringProv.t),
         )
         : SolutionMap.t => {
-  switch (extend_sol_map(cs, sm, cyclic_provs)) {
+  switch (extend_sol_map(constraints, sol_map, cyclic_provs)) {
   | None =>
     // print_endline("No dominant provenances");
-    // relax solution to have no cycles (i.e. replace any un-substituted
-    // provnances with cycles)
-    let sol_map' =
-      List.fold_left(
-        (sol_map, pss) => {
-          PossibleProvTypesMap.map(
-            sol => {
-              let (sol, _) =
-                solution_replace_solution(pss, sol, mk_cyclic_solution);
-              sol;
-            },
-            sol_map,
-          )
-        },
-        sm,
-        cyclic_provs,
-      );
     // print_endline(string_of_constramnots(cs));
-    sol_map';
+    SolutionMap.replace_cycles(sol_map, cyclic_provs)
   | Some((cs', sm', cyclic_provs')) => solve_rec(cs', sm', cyclic_provs')
   };
 };
