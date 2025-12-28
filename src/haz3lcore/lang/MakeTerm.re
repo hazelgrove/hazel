@@ -496,6 +496,7 @@ and exp_term: unsorted => (Exp.term, list(Id.t)) = {
               )
             | Label(_) => Dot(l, r)
             | EmptyHole => Dot(l, r)
+            | Atom(_) => Dot(l, r)
             | _ =>
               let (e_term, rewrap) = IdTagged.unwrap(r);
 

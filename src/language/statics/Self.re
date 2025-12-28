@@ -34,6 +34,7 @@ type t =
   | CompareFun(Typ.t) /* Type equality failed because of arrow type inside */
   | BadToken(string) /* Invalid expression token, continues with undefined behavior */
   | BadLabel(Any.t) /* TupLabel label component is not a valid Label*/
+  | TupleProjectionOutOfBounds(Typ.t, int) /* Tuple projection index is out of bounds */
   | InvalidLabel(LabeledTuple.label, list(LabeledTuple.label)) /* Invalid label in a labeled tuple where these labels are expected */
   | UnexpectedLabelSort(LabeledTuple.label) /* A label is present but not expected */
   | TupleLabelError({
@@ -124,6 +125,7 @@ let typ_of: t => option(Typ.t) =
   | Duplicate(_)
   | BadLabel(_)
   | InvalidLabel(_)
+  | TupleProjectionOutOfBounds(_, _)
   | ExplicitNonlabel
   | NoMeet(_)
   | UnexpectedLabelSort(_) => None;

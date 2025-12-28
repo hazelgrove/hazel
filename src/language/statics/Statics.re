@@ -711,6 +711,7 @@ and uexp_to_info_map =
 
     | Dot(e1, e2) =>
       let (info_e1, m) = go(~ana=syn, e1, m);
+      let (info_e2_atom, m_atom) = go(~ana=Atom(Int) |> Typ.temp, e2, m);
       let (info_e2, m) =
         go(~label_sort=true, ~ana=Label("") |> Typ.temp, e2, m);
 
@@ -757,6 +758,24 @@ and uexp_to_info_map =
             ~co_ctx=info_e2.co_ctx,
             m,
           )
+        | Atom(c) =>
+          switch (Atom.unbox(Int, c)) {
+          | Some(i) =>
+            let index = Bigint.to_int(i);
+            let element = List.nth_opt(ts, Option.get(index));
+            switch (element) {
+            | Some(typ) =>
+              add(~self=Just(typ), ~co_ctx=info_e2_atom.co_ctx, m_atom)
+            | None =>
+              add(
+                ~self=TupleProjectionOutOfBounds(Exp(e1), index),
+                ~co_ctx=info_e2.co_ctx,
+                m,
+              )
+            };
+          //Bad labels are placeholder errors
+          | None => add(~self=BadLabel(Exp(e2)), ~co_ctx=info_e2.co_ctx, m)
+          }
         | _ => add(~self=BadLabel(Exp(e2)), ~co_ctx=info_e2.co_ctx, m)
         };
       | List({term: Prod(ts), _}) =>

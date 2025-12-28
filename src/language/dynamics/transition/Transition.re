@@ -119,6 +119,7 @@ type step_kind =
   | BinOp(Operators.op_bin)
   | MarkIncomparable
   | Dot
+  | TupleProjection
   | Conditional(bool)
   | Projection
   | TupleExtension
@@ -763,7 +764,26 @@ module Transition = (EV: EV_MODE) => {
           }
         | _ => Indet
         }
-
+      | Atom(_) =>
+        switch (Unboxing.unbox(Atom(Int), d2')) {
+        | Matches(n) =>
+          switch (DHExp.term_of(d1')) {
+          | Tuple(ds) =>
+            let projected = List.nth_opt(ds, n |> Bigint.to_int_exn);
+            switch (projected) {
+            | Some(exp) =>
+              Step({
+                expr: exp,
+                side_effects: [],
+                kind: Dot,
+                is_value: false,
+              })
+            | None => Indet
+            };
+          | _ => Indet
+          }
+        | _ => Indet
+        }
       | _ => Indet
       };
     | TupLabel(label, d1) =>
@@ -994,6 +1014,7 @@ let should_hide_step_kind = (~settings: CoreSettings.Evaluation.t) =>
   | BuiltinAp(_)
   | BinOp(_)
   | Dot
+  | TupleProjection
   | UnOp(_)
   | ListCons
   | ListConcat
@@ -1068,6 +1089,7 @@ let stepper_justification: step_kind => string =
   | RemoveUse => "set use type"
   | RemoveParens => "remove parentheses"
   | Dot => "Labeled tuple access"
+  | TupleProjection => "tuple projection"
   | TupleExtension => "Tuple extension"
   | MarkIncomparable => "mark equality as incomparable"
   | UnOp(Meta(Unquote)) => failwith("INVALID STEP");

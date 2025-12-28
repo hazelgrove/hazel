@@ -54,7 +54,8 @@ type error_no_type =
   | BadLabel(Any.t)
   /* Invalid label in tuple */
   | InvalidLabel(LabeledTuple.label, list(LabeledTuple.label))
-  | UnexpectedLabelSort(LabeledTuple.label) /* A Label is present but not expected */;
+  | UnexpectedLabelSort(LabeledTuple.label) /* A Label is present but not expected */
+  | TupleProjectionOutOfBounds(Any.t, int) /* Tuple projection index is out of bounds */;
 
 /* Errors which can apply to either expression or patterns */
 [@deriving (show({with_path: false}), sexp, yojson, eq)]
@@ -455,6 +456,8 @@ let rec status_common =
   | (FreeConstructor(name), _) => InHole(NoType(FreeConstructor(name)))
   | (BadToken(name), _) => InHole(NoType(BadToken(name)))
   | (BadLabel(label), _) => InHole(NoType(BadLabel(label)))
+  | (TupleProjectionOutOfBounds(typ, index), _) =>
+    InHole(NoType(BadLabel(typ, index)))
   | (ExplicitNonlabel, _) => NotInHole(Syn(Unknown(Internal) |> Typ.temp))
   | (UnexpectedLabelSort(label), _) =>
     InHole(NoType(UnexpectedLabelSort(label)))
