@@ -2814,7 +2814,7 @@ let go: ([?], [?], [?]) -> [?] =
     },
     {
       str: {|fix unique -> fun xs ->
-              (xs, fun (seen, x) -> if mem(seen, x) then seen else seen @ [x], []))|},
+              fold_left(xs, fun (seen, x) -> if mem(seen, x) then seen else seen @ [x], [])|},
       name: "unique",
       arg: List(unknown(Internal)),
       ret: List(unknown(Internal)),
