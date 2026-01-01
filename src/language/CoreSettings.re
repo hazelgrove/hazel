@@ -36,7 +36,7 @@ type t = {
   elaborate: bool,
   assist: bool,
   dynamics: bool,
-  dynamic_feedback: bool,
+  live_typing: bool,
   flip_animations: bool,
   evaluation: Evaluation.t,
 };
@@ -46,7 +46,7 @@ let off: t = {
   elaborate: false,
   assist: false,
   dynamics: false,
-  dynamic_feedback: false,
+  live_typing: false,
   flip_animations: false,
   evaluation: Evaluation.init,
 };
@@ -56,7 +56,7 @@ let on: t = {
   elaborate: true,
   assist: true,
   dynamics: true,
-  dynamic_feedback: true,
+  live_typing: true,
   flip_animations: true,
   evaluation: Evaluation.init,
 };

@@ -119,7 +119,7 @@ module Update = {
     let pinned_call_t = Calc.set(current_pinned_call, pinned_call);
 
     let dynamic_statics =
-      if (settings.dynamic_feedback) {
+      if (settings.live_typing) {
         Calc.Syntax.(
           dynamic_statics
           |> {

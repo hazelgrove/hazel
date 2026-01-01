@@ -3,10 +3,8 @@
  */
 
 /*
- * probe_unknowns parameter: Added for future use in PRs like https://github.com/hazelgrove/hazel/pull/1988
- * to help with adding dynamic feedback for static marks. When enabled, it will add probes
+ * probe_unknowns parameter: Added for live typing. When enabled, it will add probes
  * around any expression/pattern that is partially unknown.
- * Do not remove this parameter even though it's always false currently.
  */
 
 open Util;

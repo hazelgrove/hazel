@@ -75,11 +75,11 @@ let map_error_annotation = (static_info, dynamic_info) => {
 };
 
 /**
- * Reusable test function for dynamic feedback validation.
+ * Reusable test function for live typing validation.
  * Takes an expected expression with error annotations and verifies
- * that the dynamic feedback system correctly identifies errors.
+ * that the live typing system correctly identifies errors.
  */
-let test_dynamic_feedback = (~test_name=?, expected_exp: FError.exp) => {
+let test_live_typing = (~test_name=?, expected_exp: FError.exp) => {
   // Create expression with fresh IDs for static analysis
   let exp_with_ids: Exp.t =
     Grammar.map_exp_annotation(_ => IdTagged.IdTag.fresh(), expected_exp);
@@ -139,7 +139,7 @@ let test_dynamic_feedback = (~test_name=?, expected_exp: FError.exp) => {
       exp_with_ids,
     );
 
-  // Map the expression to annotate errors based on static and dynamic feedback
+  // Map the expression to annotate errors based on static and live typing
   let actual_exp: FError.exp =
     Grammar.map_exp_annotation(
       id_tag => {
@@ -171,7 +171,7 @@ let inconsistent_exp: Info.error_inconsistent => Info.error =
   e => Exp(Common(Inconsistent(e)));
 
 let tests = (
-  "Evaluator.DynamicFeedback",
+  "Evaluator.LiveTyping",
   [
     test_case(
       "dynamic in-editor feedback",
@@ -272,7 +272,7 @@ in
             )
           );
 
-        test_dynamic_feedback(expected_exp);
+        test_live_typing(expected_exp);
       },
     ),
     test_case(
@@ -282,7 +282,7 @@ in
         open FError;
         open Exp;
 
-        test_dynamic_feedback(
+        test_live_typing(
           bin_op(
             String(Concat),
             if_(
@@ -307,7 +307,7 @@ in
             string("World"),
           ),
         );
-        test_dynamic_feedback(
+        test_live_typing(
           bin_op(
             String(Concat),
             if_(
@@ -352,7 +352,7 @@ in
             ),
             string(""),
           );
-        test_dynamic_feedback(exp);
+        test_live_typing(exp);
       },
     ),
     test_case(
@@ -363,7 +363,7 @@ in
         let exp = parse_exp(program);
         let no_errors = Grammar.map_exp_annotation(_ => NoError, exp);
 
-        test_dynamic_feedback(no_errors);
+        test_live_typing(no_errors);
       },
     ),
     test_case(
@@ -374,7 +374,7 @@ in
         let exp = parse_exp(program);
         let no_errors = Grammar.map_exp_annotation(_ => NoError, exp);
 
-        test_dynamic_feedback(
+        test_live_typing(
           ~test_name={|(typfun a -> fun x : a -> (x : a))@<String>("")|},
           no_errors,
         );
@@ -424,7 +424,7 @@ in
             ),
             string(""),
           );
-        test_dynamic_feedback(
+        test_live_typing(
           ~test_name={|(typfun a -> fun x -> (x : ? : a))@<Int>("")|},
           exp,
         );
@@ -437,7 +437,7 @@ in
         let program = {|(typfun a -> fun (g) -> (fun () -> g : a))@<String>("")|};
         let exp = parse_exp(program);
         let no_errors = Grammar.map_exp_annotation(_ => NoError, exp);
-        test_dynamic_feedback(~test_name=program, no_errors);
+        test_live_typing(~test_name=program, no_errors);
       },
     ),
   ],

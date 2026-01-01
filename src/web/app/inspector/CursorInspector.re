@@ -65,7 +65,7 @@ let term_view = (~globals: Globals.t, ~is_dynamic_error, ci) => {
         ? div(
             ~attrs=[
               Attr.title(
-                "Dynamic type inference error - this error is based on the actual types observed during program evaluation, which fill in unknown static types",
+                "Live typing error - this error is based on the actual types observed during program evaluation, which fill in unknown static types",
               ),
               clss(["dynamic-icon"]),
             ],
