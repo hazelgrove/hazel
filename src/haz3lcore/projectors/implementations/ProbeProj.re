@@ -78,7 +78,7 @@ module Window = {
 };
 
 let is_value = (exp: Exp.t) =>
-  ValueChecker.check_value((), ClosureEnvironment.empty, exp) == Value;
+  ValueChecker.check_value(Environment.empty, exp) == Value;
 module ClosureLength = {
   let lengths: Hashtbl.t(int, int) = Hashtbl.create(100);
 
@@ -122,7 +122,7 @@ let cur_ap = (info: info) =>
   switch (info.statics) {
   | Some(InfoExp({term: {term: Ap(_), _} as ap, _}))
   | Some(InfoExp({term: {term: Probe({term: Ap(_), _} as ap, _), _}, _})) =>
-    Some(Term.Exp.rep_id(ap))
+    Some(Exp.rep_id(ap))
   | _ => None
   };
 
@@ -857,7 +857,7 @@ module M: Projector = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type action = a;
 
-  let init = (any: Term.Any.t) =>
+  let init = (any: Any.t) =>
     switch (any) {
     | Exp(_)
     | Pat(_) => Some()
@@ -880,7 +880,7 @@ module M: Projector = {
 
   let update = update;
 
-  let view = (_model, info, ~local, ~parent, ~view_seg) =>
+  let view = ({info, local, parent, view_seg, _}: View.args(model, action)) =>
     View.{
       inline: view(local, parent, info),
       overlay: Some(overlay_view(info)),

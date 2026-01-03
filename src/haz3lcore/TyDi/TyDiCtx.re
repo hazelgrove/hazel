@@ -9,11 +9,11 @@ let free_variables =
     ((name, entries)) =>
       switch (Ctx.lookup_var(ctx, name)) {
       | None =>
-        let (joint_use_typ, _) = CoCtx.join(ctx, entries);
-        if (Typ.is_consistent(ctx, expected_ty, joint_use_typ)) {
+        let (meet_use_typ, _) = CoCtx.meet(ctx, entries);
+        if (Typ.is_consistent(ctx, expected_ty, meet_use_typ)) {
           Some({
             content: name,
-            strategy: Pat(FromCoCtx(joint_use_typ)),
+            strategy: Pat(FromCoCtx(meet_use_typ)),
           });
         } else {
           None;

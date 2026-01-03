@@ -19,7 +19,7 @@ module M: Projector = {
   type action =
     | NextTyp;
 
-  let init = (any: Term.Any.t): option(model) => {
+  let init = (any: Any.t): option(model) => {
     switch (any) {
     | Typ({term: Unknown(_), _}) => Some(Typ(0))
     | _ => Some(Typ(0))
@@ -82,7 +82,7 @@ module M: Projector = {
 
   // let icon = div(~attrs=[Attr.classes(["icon"])], []);
 
-  let view = (model, info, ~local, ~parent as _, ~view_seg) =>
+  let view = ({model, info, local, view_seg, _}: View.args(model, action)) =>
     View.{
       inline:
         div(

@@ -21,23 +21,13 @@ let startup: PersistentData.t = {
       Cards.out,
       Probes.out,
       Livelits.out,
-      // GUIDEExpressiveProgramming.out,
-      // GUIDEComposingExpressions.out,
-      // GUIDEComputingEquationally.out,
-      // GUIDEVariables.out,
-      // GUIDECompositionality.out,
-      // GUIDEScope.out,
-      // GUIDEShadowing.out,
-      // GUIDEBoolsandTypes.out,
-      // GUIDEConditionals.out,
-      // GUIDEFunctions.out,
-      // TESTSTypesandStaticErrors.out,
     ]
-    |> List.map(((name, content)) =>
+    @ B2t2.Slides.all_slides
+    |> List.map(((name, content: PersistentSegment.t)) =>
          (
            name,
            {
-             editor: content,
+             editor: content |> PersistentSegment.to_persistent_zipper,
              result: EvalResult.Model.init |> EvalResult.Model.persist,
            }: CellEditor.Model.persistent,
          )

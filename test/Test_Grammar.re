@@ -48,6 +48,7 @@ let sample_expression = (cls_exp: Exp.cls): Grammar.UnitGrammar.exp => {
       | Fun => fn(Pat.var("x"), var("x"), None, None)
       | TypFun => typ_fun(TPat.var("x"), empty_hole(), None)
       | Label => label("label")
+      | ExplicitNonlabel => explicit_non_label()
       | TupLabel => tup_label(label("label"), empty_hole())
       | Tuple => tuple([])
       | TupleExtension => tuple_extension(empty_hole(), empty_hole())
@@ -56,6 +57,9 @@ let sample_expression = (cls_exp: Exp.cls): Grammar.UnitGrammar.exp => {
       | LivelitAp => livelit_ap(Forward, livelit_name("^slider"), int(1))
       | Var => var("x")
       | Let => let_(Pat.empty_hole(), empty_hole(), empty_hole())
+      | Theorem => theorem(Pat.empty_hole(), empty_hole(), empty_hole())
+      | ProofObject => proof_object(Exp.empty_hole())
+      | Forall => forall(Pat.empty_hole(), empty_hole())
       | FixF => fix_f(Pat.empty_hole(), empty_hole(), None)
       | TyAlias =>
         ty_alias(
@@ -79,11 +83,7 @@ let sample_expression = (cls_exp: Exp.cls): Grammar.UnitGrammar.exp => {
         module M = {
           include VarBstMap.Ordered;
         };
-
-        closure(
-          closure_environment(~callstack=[], Id.mk(), M.empty),
-          empty_hole(),
-        );
+        closure(Environment.empty, empty_hole());
       | Parens => parens(empty_hole())
       | Probe => probe(empty_hole(), Probe.empty)
       | Cons => cons(empty_hole(), empty_hole())
@@ -123,6 +123,7 @@ let sample_pattern = (cls_pat: Pat.cls): Grammar.UnitGrammar.pat => {
       | Ap => ap(empty_hole(), empty_hole())
       | Asc => asc(empty_hole(), Typ.string())
       | Wild => wild()
+      | ExplicitNonlabel => explicit_non_label()
       }
     )
   );
@@ -130,52 +131,56 @@ let sample_pattern = (cls_pat: Pat.cls): Grammar.UnitGrammar.pat => {
 
 let sample_type = (cls_typ: Typ.cls): Grammar.UnitGrammar.typ => {
   Grammar.UnitGrammar.(
-    Typ.(
-      switch (cls_typ) {
-      | Invalid => unknown(TypeProvenance.hole(Invalid("invalid")))
-      | Atom(Bool) => bool()
-      | Atom(Int) => int()
-      | Atom(SInt) => sint()
-      | Atom(Float) => float()
-      | Atom(String) => string()
-      | Atom(Nat) => nat()
-      | List => list(unknown(TypeProvenance.hole(EmptyHole)))
-      | Arrow =>
-        arrow(
-          unknown(TypeProvenance.hole(EmptyHole)),
-          unknown(TypeProvenance.hole(EmptyHole)),
-        )
-      | Var => var("x")
-      | Prod => prod([])
-      | TupLabel =>
-        tup_label(
-          unknown(TypeProvenance.hole(EmptyHole)),
-          unknown(TypeProvenance.hole(EmptyHole)),
-        )
-      | Parens => parens(unknown(TypeProvenance.hole(EmptyHole)))
-      | Rec => rec_(TPat.var("x"), unknown(TypeProvenance.hole(EmptyHole)))
-      | Forall =>
-        forall(TPat.var("x"), unknown(TypeProvenance.hole(EmptyHole)))
-      | EmptyHole => unknown(TypeProvenance.hole(EmptyHole))
-      | CycleHole => unknown(TypeProvenance.hole(CycleHole))
-      | SynSwitch => unknown(TypeProvenance.syn_switch())
-      | Internal => unknown(TypeProvenance.internal())
-      | LArrow => unknown(TypeProvenance.(larrow(Hole(EmptyHole))))
-      | RArrow => unknown(TypeProvenance.(rarrow(Hole(EmptyHole))))
-      | NProduct => unknown(TypeProvenance.(nproduct(0, Hole(EmptyHole))))
-      | MList => unknown(TypeProvenance.(mlist(Hole(EmptyHole))))
-      | RForall => unknown(TypeProvenance.rforall(Hole(EmptyHole)))
-      | TupLabelProv =>
-        unknown(TypeProvenance.(tup_label_label(Hole(EmptyHole))))
-      | TupLabelArg =>
-        unknown(TypeProvenance.(tup_label_arg(Hole(EmptyHole))))
-      | Join =>
-        unknown(TypeProvenance.(join(hole(EmptyHole), hole(EmptyHole))))
-      | Label => label("label")
-      | MultiHole => unknown(TypeProvenance.hole(MultiHole([])))
-      | Sum => sum([])
-      | Constructor => assert(false) // Excluded because there is no Typ constructor
-      }
+    TypeProvenance.(
+      Typ.(
+        switch (cls_typ) {
+        | Invalid => unknown(hole(Invalid("invalid")))
+        | Atom(Bool) => bool()
+        | Atom(Int) => int()
+        | Atom(SInt) => sint()
+        | Atom(Float) => float()
+        | Atom(String) => string()
+        | Atom(Nat) => nat()
+        | List => list(unknown(hole(EmptyHole)))
+        | Arrow =>
+          arrow(unknown(hole(EmptyHole)), unknown(hole(EmptyHole)))
+        | Var => var("x")
+        | Prod => prod([])
+        | TupLabel =>
+          tup_label(unknown(hole(EmptyHole)), unknown(hole(EmptyHole)))
+        | Parens => parens(unknown(hole(EmptyHole)))
+        | Rec => rec_(TPat.var("x"), unknown(hole(EmptyHole)))
+        | Poly => poly(TPat.var("x"), unknown(hole(EmptyHole)))
+        | EmptyHole => unknown(hole(EmptyHole))
+        | CycleHole => unknown(hole(CycleHole))
+        | SynSwitch => unknown(syn_switch())
+        | Internal => unknown(internal())
+        | LArrow => unknown(larrow(Hole(EmptyHole)))
+        | RArrow => unknown(rarrow(Hole(EmptyHole)))
+        | NProduct => unknown(nproduct(0, Hole(EmptyHole)))
+        | MList => unknown(mlist(Hole(EmptyHole)))
+        | RForall => unknown(rforall(Hole(EmptyHole)))
+        | TupLabelProv => unknown(tup_label_label(Hole(EmptyHole)))
+        | TupLabelArg => unknown(tup_label_arg(Hole(EmptyHole)))
+        | Join => unknown(join(hole(EmptyHole), hole(EmptyHole)))
+        | Label => label("label")
+        | ExplicitNonlabel => explicit_non_label()
+        | MultiHole => unknown(hole(MultiHole([])))
+        | ProofOf => proof_of(Exp.var("x"))
+        | Sum => sum([])
+        | ProdProjection =>
+          prod_projection(
+            unknown(hole(EmptyHole)),
+            unknown(hole(EmptyHole)),
+          )
+        | ProdExtension =>
+          prod_extension(
+            unknown(hole(EmptyHole)),
+            unknown(hole(EmptyHole)),
+          )
+        | Constructor => assert(false) // Excluded because there is no Typ constructor
+        }
+      )
     )
   );
 };

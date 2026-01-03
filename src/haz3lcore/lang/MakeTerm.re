@@ -190,7 +190,7 @@ let mk_bad = (ctr, ids, value) => {
 let is_hole_label = (t: string) =>
   t == " " || Token.is_explicit_hole(t) || Token.is_llm_hole(t);
 
-let rec go_s = (s: Sort.t, skel: Skel.t, seg: Segment.t): Term.Any.t =>
+let rec go_s = (s: Sort.t, skel: Skel.t, seg: Segment.t): Any.t =>
   switch (s) {
   | Pat => Pat(pat(unsorted(Pat, skel, seg)))
   | TPat => TPat(tpat(unsorted(TPat, skel, seg)))
@@ -282,6 +282,8 @@ and exp_term: unsorted => (Exp.term, list(Id.t)) = {
         | term => ret(ListLit([term]))
         }
       | (["test", "end"], [Exp(test)]) => ret(Test(test))
+      | (["proof_object", "end"], [Exp(proof)]) =>
+        ret(ProofObject(proof))
       | (["hint", "test", "end"], [Exp(hint), Exp(test)]) =>
         ret(HintedTest(test, hint))
       | (["case", "end"], [Rul({term, annotation: {ids, _}})]) =>
@@ -307,9 +309,12 @@ and exp_term: unsorted => (Exp.term, list(Id.t)) = {
         | (["-"], []) => UnOp(Int(Minus), r)
         | (["!"], []) => UnOp(Bool(Not), r)
         | (["fun", "->"], [Pat(pat)]) => Fun(pat, r, None, None)
+        | (["forall", "->"], [Pat(pat)]) => Forall(pat, r)
         | (["fix", "->"], [Pat(pat)]) => FixF(pat, r, None)
         | (["typfun", "->"], [TPat(tpat)]) => TypFun(tpat, r, None)
         | (["let", "=", "in"], [Pat(pat), Exp(def)]) => Let(pat, def, r)
+        | (["theorem", "=", "in"], [Pat(pat), Exp(thm)]) =>
+          Theorem(pat, thm, r)
         | (["hide", "in"], [Exp(filter)]) =>
           Filter(
             Filter({
@@ -412,14 +417,13 @@ and exp_term: unsorted => (Exp.term, list(Id.t)) = {
         @ [r]
         |> List.map((child: Exp.t) => {
              switch (child) {
-             | {term: Tuple([{term: TupLabel(_) as tl, _}]), _} as tup =>
+             | {term: Tuple([{term: _ as tl, _}]), _} as tup =>
                // We use the Id for the tuple as the ids for the tuplabels
                let (_, rewrap) = IdTagged.unwrap(tup);
                rewrap(tl);
              | _ => child
              }
            });
-
       ret(Tuple(tuple_children));
     | None =>
       switch (tiles) {
@@ -457,6 +461,14 @@ and exp_term: unsorted => (Exp.term, list(Id.t)) = {
           | (["..."], []) => TupleExtension(l, r)
           | (["="], []) =>
             switch (l.term) {
+            | Deferral(_) =>
+              TupLabel(
+                {
+                  annotation: l.annotation,
+                  term: ExplicitNonlabel,
+                },
+                r,
+              ) // Unlabeled tuple using deferred ap in tuplabel
             | Var(name) =>
               TupLabel(
                 {
@@ -598,6 +610,16 @@ and pat_term: unsorted => (Pat.term, list(Id.t)) = {
       switch (tiles) {
       | ([(_id, (["="], []))], []) =>
         switch (l.term) {
+        | Wild =>
+          ret(
+            TupLabel(
+              {
+                annotation: l.annotation,
+                term: ExplicitNonlabel,
+              },
+              r,
+            ),
+          ) // Unlabeled tuple using deferred ap in tuplabel
         | Var(name) =>
           ret(
             TupLabel(
@@ -660,6 +682,8 @@ and typ_term: unsorted => (Typ.term, list(Id.t)) = {
         | (["Float"], []) => Atom(Float)
         | (["String"], []) => Atom(String)
         | (["Nat"], []) => Atom(Nat)
+        | (["_"], []) => ExplicitNonlabel
+        | (["proof_of", "end"], [Exp(exp)]) => ProofOf(exp)
         | ([t], []) when Token.is_typ_var(t) => Var(t)
         | ([t], []) when Token.is_quoted_label(t) =>
           Label(Token.sub(t, 1, Token.length(t) - 2))
@@ -678,11 +702,11 @@ and typ_term: unsorted => (Typ.term, list(Id.t)) = {
     /* Type aps which would otherwise be parsed here are recognized in sum type parsing above */
     | _ => ret(hole(tm))
     }
-  /* forall and rec have to be before sum so that they bind tighter.
+  /* poly and rec have to be before sum so that they bind tighter.
    * Thus `rec A -> Left(A) + Right(B)` get parsed as `rec A -> (Left(A) + Right(B))`
    * If this is below the case for sum, then it gets parsed as an invalid form. */
-  | Pre(([(_id, (["forall", "->"], [TPat(tpat)]))], []), Typ(t)) =>
-    ret(Forall(tpat, t))
+  | Pre(([(_id, (["poly", "->"], [TPat(tpat)]))], []), Typ(t)) =>
+    ret(Poly(tpat, t))
   | Pre(([(_id, (["rec", "->"], [TPat(tpat)]))], []), Typ(t)) =>
     ret(Rec(tpat, t))
   | Pre(tiles, Typ({term: Sum(t0), annotation: {ids, _}})) as tm =>
@@ -693,19 +717,13 @@ and typ_term: unsorted => (Typ.term, list(Id.t)) = {
     }
   | Pre(tiles, Typ(t)) as tm =>
     switch (tiles) {
-    | ([(_, (["+"], []))], []) =>
-      ret(Sum([parse_sum_term(t)] |> ConstructorMap.mk(~mk_bad)))
+    | ([(_, (["+"], []))], []) => ret(Sum([parse_sum_term(t)]))
     | _ => ret(hole(tm))
     }
   | Bin(Typ(t1), tiles, Typ(t2)) as tm when is_typ_bsum(tiles) != None =>
     switch (is_typ_bsum(tiles)) {
     | Some(between_kids) =>
-      ret(
-        Sum(
-          List.map(parse_sum_term, [t1] @ between_kids @ [t2])
-          |> ConstructorMap.mk(~mk_bad),
-        ),
-      )
+      ret(Sum(List.map(parse_sum_term, [t1] @ between_kids @ [t2])))
     | None => ret(hole(tm))
     }
   | Bin(Typ(l), tiles, Typ(r)) as tm =>
@@ -740,6 +758,21 @@ and typ_term: unsorted => (Typ.term, list(Id.t)) = {
           )
         | _ => ret(TupLabel(l, r))
         }
+      | ([(_id, (["."], []))], []) =>
+        switch (r.term) {
+        | Var(name) =>
+          ret(
+            ProdProjection(
+              l,
+              {
+                annotation: r.annotation,
+                term: Label(name),
+              },
+            ),
+          )
+        | _ => ret(ProdProjection(l, r))
+        }
+      | ([(_id, (["..."], []))], []) => ret(ProdExtension(l, r))
       | _ => ret(hole(tm))
       }
     }
@@ -811,7 +844,7 @@ and rul = (unsorted): Rul.t => {
 and unsorted = (sort: Sort.t, skel: Skel.t, seg: Segment.t): unsorted => {
   /* Remove projectors. We do this here as opposed to removing
    * them in an external call to save a whole-syntax pass. */
-  let tile_kids = (p: Piece.t): list(Term.Any.t) =>
+  let tile_kids = (p: Piece.t): list(Any.t) =>
     switch (p) {
     | Secondary(_)
     | Grout(_) => []

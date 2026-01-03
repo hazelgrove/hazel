@@ -70,6 +70,27 @@ let tests =
           "type x = Int in 1",
         )
       ),
+      test_case(
+        "Duplicate constructors in type alias don't become bad entries",
+        `Quick,
+        ()
+        // turning them into bad entries led to this regression
+        // https://github.com/hazelgrove/hazel/issues/1458
+        =>
+          exp_check(
+            ty_alias(
+              TPat.var("A2"),
+              Typ.(
+                sum([
+                  Variant("A", [Util.Id.mk()], None),
+                  Variant("A", [Util.Id.mk()], None),
+                ])
+              ),
+              empty_hole(),
+            ),
+            "type A2 = A + A in ?",
+          )
+        ),
       test_case("Singleton Labeled Tuple ascription in let", `Quick, () =>
         exp_check(
           let_(
@@ -231,6 +252,58 @@ let tests =
         exp_check(
           ap(Forward, livelit_name("slider"), int(50)),
           "^slider(50)",
+        )
+      ),
+      test_case("Product extension in ascription", `Quick, () =>
+        exp_check(
+          asc(
+            empty_hole(),
+            Typ.(
+              prod_extension(
+                prod([tup_label(label("a"), int()), string()]),
+                prod([
+                  tup_label(label("b"), int()),
+                  tup_label(label("c"), float()),
+                ]),
+              )
+            ),
+          ),
+          "? : (a=Int, String) ... (b=Int, c=Float)",
+        )
+      ),
+      test_case("Singleton unlabeled tuple", `Quick, () =>
+        exp_check(
+          tuple([tup_label(explicit_non_label(), int(1))]),
+          "(_ = 1)",
+        )
+      ),
+      test_case("Multiple unlabeled tuple entries", `Quick, () =>
+        exp_check(
+          tuple([
+            tup_label(explicit_non_label(), int(1)),
+            tup_label(explicit_non_label(), int(2)),
+            tup_label(explicit_non_label(), int(3)),
+          ]),
+          "(_ = 1, _ = 2, _ = 3)",
+        )
+      ),
+      test_case("Explicit unlabeled in type", `Quick, () =>
+        exp_check(
+          asc(
+            empty_hole(),
+            Typ.(prod([tup_label(explicit_non_label(), int())])),
+          ),
+          "? : (_=Int)",
+        )
+      ),
+      test_case("Explicit unlabeled in pattern", `Quick, () =>
+        exp_check(
+          let_(
+            Pat.(tuple([tup_label(explicit_non_label(), var("x"))])),
+            tuple([tup_label(explicit_non_label(), int(1))]),
+            var("x"),
+          ),
+          {|let (_=x) = (_=1) in x|},
         )
       ),
     ],

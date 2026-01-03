@@ -37,7 +37,9 @@ let ctx_init: option(Operators.mode) => Ctx.t =
 
 let forms_init: forms = List.filter_map(form_of_builtin, builtins);
 
-let env_init: Environment.t =
+let env_init: Environment.t(Exp.t) =
   builtins
   |> List.map(imp_of_builtin)
   |> List.fold_left(Environment.extend, Environment.empty);
+
+let closure_env: Environment.t(Exp.t) = env_init;

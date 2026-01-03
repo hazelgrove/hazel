@@ -174,9 +174,7 @@ let tests = (
             constructor(
               "B",
               Some(
-                Some(
-                  Typ.(forall(TPat.empty_hole(), unknown(syn_switch()))),
-                ),
+                Some(Typ.(poly(TPat.empty_hole(), unknown(syn_switch())))),
               ),
             ),
             Typ.unknown(hole(EmptyHole)),

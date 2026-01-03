@@ -316,5 +316,22 @@ let tests = (
         probe_test({|let PROBE(x) : (a=String) = "a" in x|}, uexp);
       },
     ),
+    test_case("Probe around ascription to unknown type", `Quick, () => {
+      PGrammar.(
+        probe_test(
+          {|PROBE(1 + 2) : ?|},
+          Exp.(
+            asc(
+              probe(
+                ~ann=[probed_value(Atom(Int(Bigint.of_int(3))))],
+                bin_op(Int(Plus), int(1), int(2)),
+                {refs: []},
+              ),
+              Typ.unknown(~ann=[], TypeProvenance.internal()),
+            )
+          ),
+        )
+      )
+    }),
   ],
 );

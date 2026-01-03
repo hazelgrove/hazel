@@ -68,11 +68,11 @@ let singleton = (name, id, expected_ty): t => [
   ),
 ];
 
-let join: (Ctx.t, list(entry)) => (Typ.t, list(Typ.equivalence)) =
+let meet: (Ctx.t, list(entry)) => (Typ.t, list(Typ.equivalence)) =
   (ctx, entries) => {
     let expected_tys = List.map(entry => entry.expected_ty, entries);
     switch (
-      Typ.join_all(
+      Typ.meet_all(
         ~empty=Unknown(Internal |> Prov.fresh) |> Typ.fresh,
         ctx,
         expected_tys,

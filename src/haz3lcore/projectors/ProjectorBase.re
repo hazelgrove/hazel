@@ -112,7 +112,31 @@ module View = {
   };
 
   [@deriving (show({with_path: false}), sexp, yojson)]
+  type status = {
+    kind: ProjectorCore.Kind.t,
+    sort: Sort.t, /* What sort does the parent editor attribute to the projector? */
+    indication: option(Direction.t), /* Is the parent editor caret adjacent? */
+    selected: bool, /* Is the projector contained within a selection? */
+    error: bool /* Is there an error mark on the projector? */
+  };
+
+  [@deriving (show({with_path: false}), sexp, yojson)]
   type seg = (~background: bool=?, Sort.t, list(syntax)) => Node.t;
+
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type args('model, 'action) = {
+    model: 'model,
+    info,
+    /* A callback for the projector's own actions */
+    local: 'action => Ui_effect.t(unit),
+    /* A callback for parent editor actions */
+    parent: external_action => Ui_effect.t(unit),
+    /* Creates a non-interactive embedded syntax view,
+     * provided here to address a dependency cycle */
+    view_seg: seg,
+    /* Parent editor context on the projector */
+    status,
+  };
 
   let mk = (~overlay=None, ~offside=None, inline) => {
     inline,
@@ -159,19 +183,7 @@ module type Projector = {
    * information during evaluation */
   let dynamics: bool;
   /* Renders the DOM views for the projector */
-  let view:
-    (
-      model,
-      info,
-      /* A callback for the projector's own actions */
-      ~local: action => Ui_effect.t(unit),
-      /* A callback for parent editor actions */
-      ~parent: external_action => Ui_effect.t(unit),
-      /* Creates a non-interactive embedded syntax view,
-       * provided here to address a dependency cycle */
-      ~view_seg: View.seg
-    ) =>
-    View.t;
+  let view: View.args(model, action) => View.t;
   /* The space left for the projector in the base editor */
   let placeholder: (model, info) => ProjectorCore.Shape.t;
   /* Update the local projector model given an action */
@@ -197,14 +209,15 @@ module Cook = (C: Projector) : Cooked => {
   let init = any => C.init(any) |> Option.map(serialize_m);
   let focusable = C.focusable;
   let dynamics = C.dynamics;
-  let view = (m, info, ~local, ~parent, ~view_seg) =>
-    C.view(
-      deserialize_m(m),
-      info,
-      ~local=a => local(serialize_a(a)),
-      ~parent,
-      ~view_seg,
-    );
+  let view = (args: View.args(model, action)) =>
+    C.view({
+      model: deserialize_m(args.model),
+      info: args.info,
+      local: a => args.local(serialize_a(a)),
+      parent: args.parent,
+      view_seg: args.view_seg,
+      status: args.status,
+    });
   let placeholder = m =>
     m |> Sexplib.Sexp.of_string |> C.model_of_sexp |> C.placeholder;
   let update = (m, i, a) =>

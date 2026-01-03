@@ -214,7 +214,7 @@ filter@<(label=String, value=Bool)>(fun a,b ->b, lvs).label|};
         check(
           dhexp_typ,
           program,
-          parse_exp({|1|}),
+          parse_exp({|(_=1)|}),
           parse_and_evaluate(program),
         );
       },
@@ -227,7 +227,7 @@ filter@<(label=String, value=Bool)>(fun a,b ->b, lvs).label|};
         check(
           dhexp_typ,
           program,
-          parse_exp({|2|}),
+          parse_exp({|(_=2)|}),
           parse_and_evaluate(program),
         );
       },
@@ -240,7 +240,7 @@ filter@<(label=String, value=Bool)>(fun a,b ->b, lvs).label|};
         check(
           dhexp_typ,
           program,
-          parse_exp({|1|}),
+          parse_exp({|(_=1)|}),
           parse_and_evaluate(program),
         );
       },

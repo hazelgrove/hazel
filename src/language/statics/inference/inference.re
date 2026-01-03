@@ -1,5 +1,8 @@
 open Util;
 
+// TODO:
+// * I just kind aput stuff for the prod types, they probably need actual thought
+
 let is_identified_provenance = (p: Prov.t) =>
   IdTagged.rep_id(p) != Id.invalid;
 
@@ -42,35 +45,36 @@ module Solution = {
     | Label(string)
     | TupLabel(t, t)
     | Rec(TPat.term, t)
-    | Forall(TPat.term, t)
+    | Poly(TPat.term, t)
     | Var(string)
+    | ExplicitNonlabel
+    | ProofOf(Exp.t)
+    | ProdProjection(t, t)
+    | ProdExtension(t, t)
     | Multi(list(t));
 
-  let rec typ_of_solution = (sol: t): Typ.term => {
+  let rec to_typ = (sol: t): Typ.term => {
     switch (sol) {
     | Unknown(p) => Unknown(p)
     | Atom(a) => Atom(a)
     | Arrow(s1, s2) =>
-      Arrow(
-        typ_of_solution(s1) |> Typ.temp,
-        typ_of_solution(s2) |> Typ.temp,
-      )
+      Arrow(to_typ(s1) |> Typ.temp, to_typ(s2) |> Typ.temp)
     | Multi(_) => Unknown(Hole(EmptyHole) |> Prov.anonymous)
-    | List(elt) => List(typ_of_solution(elt) |> Typ.temp)
+    | List(elt) => List(to_typ(elt) |> Typ.temp)
     | Sum(sm) => Sum(sm)
-    | Prod(elts) =>
-      Prod(List.map(e => typ_of_solution(e) |> Typ.temp, elts))
+    | Prod(elts) => Prod(List.map(e => to_typ(e) |> Typ.temp, elts))
     | Label(l) => Label(l)
     | TupLabel(label, ty) =>
-      TupLabel(
-        typ_of_solution(label) |> Typ.temp,
-        typ_of_solution(ty) |> Typ.temp,
-      )
-    | Rec(pat, ty) =>
-      Rec(pat |> IdTagged.temp, typ_of_solution(ty) |> Typ.temp)
-    | Forall(pat, ty) =>
-      Forall(pat |> IdTagged.temp, typ_of_solution(ty) |> Typ.temp)
+      TupLabel(to_typ(label) |> Typ.temp, to_typ(ty) |> Typ.temp)
+    | Rec(pat, ty) => Rec(pat |> IdTagged.temp, to_typ(ty) |> Typ.temp)
+    | Poly(pat, ty) => Poly(pat |> IdTagged.temp, to_typ(ty) |> Typ.temp)
     | Var(v) => Var(v)
+    | ProofOf(exp) => ProofOf(exp)
+    | ExplicitNonlabel => ExplicitNonlabel
+    | ProdExtension(ty1, ty2) =>
+      ProdExtension(to_typ(ty1) |> Typ.temp, to_typ(ty2) |> Typ.temp)
+    | ProdProjection(ty1, ty2) =>
+      ProdProjection(to_typ(ty1) |> Typ.temp, to_typ(ty2) |> Typ.temp)
     };
   };
 
@@ -79,16 +83,20 @@ module Solution = {
     | Unknown(p) when is_identified_provenance(p) => [p]
     | Unknown(_) => []
     | Atom(_) => []
+    | ProdExtension(t1, t2) => all_provs_in_sol(t1) @ all_provs_in_sol(t2)
+    | ProdProjection(t1, t2) => all_provs_in_sol(t1) @ all_provs_in_sol(t2)
     | Arrow(t1, t2) => all_provs_in_sol(t1) @ all_provs_in_sol(t2)
     | List(elt) => all_provs_in_sol(elt)
     | Prod(args) => List.concat_map(all_provs_in_sol, args)
     | Label(_) => []
     | Sum(_) => []
+    | ExplicitNonlabel => []
     | TupLabel(l, r) => all_provs_in_sol(l) @ all_provs_in_sol(r)
     | Rec(_, ty) => all_provs_in_sol(ty)
-    | Forall(_, ty) => all_provs_in_sol(ty)
+    | Poly(_, ty) => all_provs_in_sol(ty)
     | Var(_) => []
     | Multi(ss) => List.concat_map(all_provs_in_sol, ss)
+    | ProofOf(_) => []
     };
   };
   ();
@@ -105,8 +113,12 @@ module Solution = {
     | Label(_)
     | TupLabel(_, _)
     | Rec(_, _)
-    | Forall(_, _)
-    | Arrow(_) => typ_of_solution(sol)
+    | Poly(_, _)
+    | ProofOf(_)
+    | ExplicitNonlabel
+    | ProdExtension(_)
+    | ProdProjection(_)
+    | Arrow(_) => to_typ(sol)
     };
   };
 
@@ -119,9 +131,11 @@ module Solution = {
       Prod(List.map(e => of_typ(prov, Typ.term_of(e)), elts))
     | Rec(pat, ty) =>
       Rec(pat |> IdTagged.term_of, of_typ(prov, ty |> Typ.term_of))
-    | Forall(pat, ty) =>
-      Forall(pat |> IdTagged.term_of, of_typ(prov, ty |> Typ.term_of))
+    | Poly(pat, ty) =>
+      Poly(pat |> IdTagged.term_of, of_typ(prov, ty |> Typ.term_of))
     | List(elt) => List(of_typ(prov, elt |> Typ.term_of))
+    | ProofOf(exp) => ProofOf(exp)
+    | ExplicitNonlabel => ExplicitNonlabel
     | Label(s) => Label(s)
     | TupLabel(l, t) =>
       TupLabel(
@@ -135,6 +149,16 @@ module Solution = {
         of_typ(prov, t1 |> Typ.term_of),
         of_typ(prov, t2 |> Typ.term_of),
       )
+    | ProdProjection(t1, t2) =>
+      ProdProjection(
+        of_typ(prov, t1 |> Typ.term_of),
+        of_typ(prov, t2 |> Typ.term_of),
+      )
+    | ProdExtension(t1, t2) =>
+      ProdExtension(
+        of_typ(prov, t1 |> Typ.term_of),
+        of_typ(prov, t2 |> Typ.term_of),
+      )
     };
   };
 
@@ -144,14 +168,18 @@ module Solution = {
    */
   let rec has_multiple_types = (sol: t): bool =>
     switch (sol) {
+    | ProofOf(_)
+    | ExplicitNonlabel => false
     | Label(_) => false
     | TupLabel(ty1, ty2) =>
       has_multiple_types(ty1) || has_multiple_types(ty2)
+    | ProdExtension(ty1, ty2)
+    | ProdProjection(ty1, ty2)
     | Arrow(ty1, ty2) => has_multiple_types(ty1) || has_multiple_types(ty2)
     | Atom(_) => false
     | Var(_) => false
     | Unknown(_) => false
-    | Forall(_, ty) => has_multiple_types(ty)
+    | Poly(_, ty) => has_multiple_types(ty)
     | Rec(_, ty) => has_multiple_types(ty)
     | List(ty) => has_multiple_types(ty)
     | Sum(_) => false
@@ -169,12 +197,28 @@ module Solution = {
    */
   let rec all_types_from_solution = (sol: t): list(Typ.t) => {
     switch (sol) {
+    | ProofOf(exp) => [ProofOf(exp) |> Typ.temp]
+    | ExplicitNonlabel => [ExplicitNonlabel |> Typ.temp]
     | Label(l) => [Label(l) |> Typ.temp]
     | TupLabel(l, r) =>
       let t1_tys = all_types_from_solution(l);
       let t2_tys = all_types_from_solution(r);
       List.concat_map(
         t1 => List.map(t2 => {TupLabel(t1, t2) |> Typ.temp}, t2_tys),
+        t1_tys,
+      );
+    | ProdProjection(t1, t2) =>
+      let t1_tys = all_types_from_solution(t1);
+      let t2_tys = all_types_from_solution(t2);
+      List.concat_map(
+        t1 => List.map(t2 => {ProdProjection(t1, t2) |> Typ.temp}, t2_tys),
+        t1_tys,
+      );
+    | ProdExtension(t1, t2) =>
+      let t1_tys = all_types_from_solution(t1);
+      let t2_tys = all_types_from_solution(t2);
+      List.concat_map(
+        t1 => List.map(t2 => {ProdExtension(t1, t2) |> Typ.temp}, t2_tys),
         t1_tys,
       );
     | Arrow(t1, t2) =>
@@ -187,9 +231,9 @@ module Solution = {
     | Atom(a) => [Atom(a) |> Typ.temp]
     | Var(v) => [Var(v) |> Typ.temp]
     | Unknown(p) => [Unknown(p) |> Typ.temp]
-    | Forall(pat, ty) =>
+    | Poly(pat, ty) =>
       List.map(
-        ty => {Forall(pat |> IdTagged.temp, ty) |> Typ.temp},
+        ty => {Poly(pat |> IdTagged.temp, ty) |> Typ.temp},
         all_types_from_solution(ty),
       )
     | Rec(pat, ty) =>
@@ -252,6 +296,7 @@ module Solution = {
     | Atom(_) => (sol, false)
     | Sum(_) => (sol, false)
     | Var(_) => (sol, false)
+    | ExplicitNonlabel => (sol, false)
     | Label(_) => (sol, false)
     | TupLabel(label, body) =>
       let (label', changed1) =
@@ -261,9 +306,9 @@ module Solution = {
     | Rec(pat, body) =>
       let (body', changed) = replace_solution(prov_to_replace, body, sol');
       (Rec(pat, body'), changed);
-    | Forall(pat, body) =>
+    | Poly(pat, body) =>
       let (body', changed) = replace_solution(prov_to_replace, body, sol');
-      (Forall(pat, body'), changed);
+      (Poly(pat, body'), changed);
     | List(t) =>
       let (t', changed) = replace_solution(prov_to_replace, t, sol');
       (List(t'), changed);
@@ -271,6 +316,15 @@ module Solution = {
       let (s1', changed1) = replace_solution(prov_to_replace, s1, sol');
       let (s2', changed2) = replace_solution(prov_to_replace, s2, sol');
       (Arrow(s1', s2'), changed1 || changed2);
+    | ProdProjection(s1, s2) =>
+      let (s1', changed1) = replace_solution(prov_to_replace, s1, sol');
+      let (s2', changed2) = replace_solution(prov_to_replace, s2, sol');
+      (ProdProjection(s1', s2'), changed1 || changed2);
+    | ProdExtension(s1, s2) =>
+      let (s1', changed1) = replace_solution(prov_to_replace, s1, sol');
+      let (s2', changed2) = replace_solution(prov_to_replace, s2, sol');
+      (ProdExtension(s1', s2'), changed1 || changed2);
+    | ProofOf(_) => (sol, false)
     };
   };
 
@@ -288,12 +342,7 @@ module Solution = {
     | (Atom(a1), Atom(a2)) => Multi([Atom(a1), Atom(a2)])
     | (List(l1), List(l2)) =>
       List(refine_solution(prov, l1, l2 |> Typ.term_of))
-    | (Sum(s1), Sum(s2)) =>
-      if (s1 == s2) {
-        Sum(s1);
-      } else {
-        Multi([Sum(s1), Sum(s2)]);
-      }
+    | (Sum(s1), Sum(s2)) when s1 == s2 => Sum(s1)
     | (Prod(p1), Prod(p2)) =>
       if (List.length(p1) == List.length(p2)) {
         Prod(
@@ -309,6 +358,9 @@ module Solution = {
           Prod(List.map(e => of_typ(prov, e |> Typ.term_of), p2)),
         ]);
       }
+    | (ProofOf(exp1), ProofOf(exp2)) when Exp.equal(exp1, exp2) =>
+      ProofOf(exp1)
+    | (ExplicitNonlabel, ExplicitNonlabel) => ExplicitNonlabel
     | (Label(s1), Label(s2)) =>
       if (s1 == s2) {
         Label(s1);
@@ -329,13 +381,13 @@ module Solution = {
           Rec(pat2 |> IdTagged.term_of, of_typ(prov, ty2 |> Typ.term_of)),
         ]);
       }
-    | (Forall(pat1, ty1), Forall(pat2, ty2)) =>
+    | (Poly(pat1, ty1), Poly(pat2, ty2)) =>
       if (pat1 == (pat2 |> IdTagged.term_of)) {
-        Forall(pat1, refine_solution(prov, ty1, ty2 |> Typ.term_of));
+        Poly(pat1, refine_solution(prov, ty1, ty2 |> Typ.term_of));
       } else {
         Multi([
-          Forall(pat1, ty1),
-          Forall(pat2 |> IdTagged.term_of, of_typ(prov, ty2 |> Typ.term_of)),
+          Poly(pat1, ty1),
+          Poly(pat2 |> IdTagged.term_of, of_typ(prov, ty2 |> Typ.term_of)),
         ]);
       }
     | (Arrow(s1, s2), Arrow(t1, t2)) =>
@@ -343,17 +395,31 @@ module Solution = {
         refine_solution(prov, s1, t1 |> Typ.term_of),
         refine_solution(prov, s2, t2 |> Typ.term_of),
       )
+    | (ProdProjection(s1, s2), ProdProjection(t1, t2)) =>
+      ProdProjection(
+        refine_solution(prov, s1, t1 |> Typ.term_of),
+        refine_solution(prov, s2, t2 |> Typ.term_of),
+      )
+    | (ProdExtension(s1, s2), ProdExtension(t1, t2)) =>
+      ProdExtension(
+        refine_solution(prov, s1, t1 |> Typ.term_of),
+        refine_solution(prov, s2, t2 |> Typ.term_of),
+      )
     | (Multi(ss), t) => Multi(ss @ [of_typ(prov, t)]) // TODO: compress possibilities
     | (Atom(_) as s, t)
     | (List(_) as s, t)
+    | (ExplicitNonlabel as s, t)
     | (Label(_) as s, t)
     | (TupLabel(_, _) as s, t)
     | (Rec(_, _) as s, t)
     | (Arrow(_, _) as s, t)
+    | (ProdProjection(_) as s, t)
+    | (ProdExtension(_) as s, t)
     | (Prod(_) as s, t)
     | (Sum(_) as s, t)
     | (Var(_) as s, t)
-    | (Forall(_, _) as s, t) => Multi([s, of_typ(prov, t)])
+    | (Poly(_, _) as s, t)
+    | (ProofOf(_) as s, t) => Multi([s, of_typ(prov, t)])
     };
   };
 };
@@ -445,8 +511,14 @@ let rec provs_in_typ = (~include_prov=_ => true, t: Typ.term): list(Prov.t) => {
   | Sum(_) => []
   | Parens(term) => provs_in_typ(~include_prov, term |> Typ.term_of)
   | Rec(_, ty) => provs_in_typ(~include_prov, ty |> Typ.term_of)
-  | Forall(_, ty) => provs_in_typ(~include_prov, ty |> Typ.term_of)
+  | Poly(_, ty) => provs_in_typ(~include_prov, ty |> Typ.term_of)
   | Var(_) => []
+  | ProofOf(_) => []
+  | ExplicitNonlabel => []
+  | ProdProjection(ty1, ty2)
+  | ProdExtension(ty1, ty2) =>
+    provs_in_typ(~include_prov, ty1 |> Typ.term_of)
+    @ provs_in_typ(~include_prov, ty2 |> Typ.term_of)
   };
 };
 
@@ -502,8 +574,10 @@ let rec unfold_constramnot =
   | (List(l), List(r)) => unfold_constramnot(Con(l, r))
   | (Var(_), Var(_)) => []
   | (Rec(_, l_ty), Rec(_, r_ty)) => unfold_constramnot(Con(l_ty, r_ty))
-  | (Forall(_, l_ty), Forall(_, r_ty)) =>
-    unfold_constramnot(Con(l_ty, r_ty))
+  | (Poly(_, l_ty), Poly(_, r_ty)) => unfold_constramnot(Con(l_ty, r_ty))
+  | (ProdProjection(l1, l2), ProdProjection(r1, r2))
+  | (ProdExtension(l1, l2), ProdExtension(r1, r2)) =>
+    unfold_constramnot(Con(l1, r1)) @ unfold_constramnot(Con(l2, r2))
   | (Atom(_), _)
   | (Arrow(_), _)
   | (Var(_), _)
@@ -513,7 +587,11 @@ let rec unfold_constramnot =
   | (Sum(_), _)
   | (List(_), _)
   | (Rec(_), _)
-  | (Forall(_), _) => []
+  | (Poly(_), _)
+  | (ProdExtension(_), _)
+  | (ProdProjection(_), _)
+  | (ExplicitNonlabel, _)
+  | (ProofOf(_), _) => []
   };
 }
 and unfold_constramnot_produdct = (args1, args2): list(canonical_constramnot) =>
@@ -807,8 +885,8 @@ let rec solution_typ_replace_typ =
       solution_typ_replace_typ(prov, t |> Typ.term_of, sol_typ, prov_map)
       |> Typ.temp,
     )
-  | Forall(pat, body) =>
-    Forall(
+  | Poly(pat, body) =>
+    Poly(
       pat,
       solution_typ_replace_typ(prov, body |> Typ.term_of, sol_typ, prov_map)
       |> Typ.temp,
@@ -847,6 +925,22 @@ let rec solution_typ_replace_typ =
     )
   | Arrow(t1, t2) =>
     Arrow(
+      solution_typ_replace_typ(prov, t1 |> Typ.term_of, sol_typ, prov_map)
+      |> Typ.temp,
+      solution_typ_replace_typ(prov, t2 |> Typ.term_of, sol_typ, prov_map)
+      |> Typ.temp,
+    )
+  | ProofOf(_) as st => st
+  | ExplicitNonlabel as st => st
+  | ProdExtension(t1, t2) =>
+    ProdExtension(
+      solution_typ_replace_typ(prov, t1 |> Typ.term_of, sol_typ, prov_map)
+      |> Typ.temp,
+      solution_typ_replace_typ(prov, t2 |> Typ.term_of, sol_typ, prov_map)
+      |> Typ.temp,
+    )
+  | ProdProjection(t1, t2) =>
+    ProdProjection(
       solution_typ_replace_typ(prov, t1 |> Typ.term_of, sol_typ, prov_map)
       |> Typ.temp,
       solution_typ_replace_typ(prov, t2 |> Typ.term_of, sol_typ, prov_map)

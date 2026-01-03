@@ -185,12 +185,7 @@ module ProjectLabels = {
     fully_consistent_typecheck(
       "project_labels with single appropriate labels",
       {|project_labels((a=1, b=true, c=3), `a`)|},
-      Some(int()),
-    ),
-    fully_consistent_typecheck(
-      "project_labels to singleton",
-      {|project_labels((a=1, b=true), `a`)|},
-      Some(int()),
+      Some(prod([int()])),
     ),
     test_case("project_labels with non-label", `Quick, () =>
       annotated_tree_test(
@@ -226,7 +221,7 @@ module ProjectLabels = {
     test_case("project_labels with label not in tuple", `Quick, () =>
       annotated_tree_test(
         {|project_labels((a=1, b=true, c=3), `d`)|},
-        unknown(internal()),
+        prod([unknown(internal())]),
         FIError.Exp.(
           ap(
             Forward,
@@ -322,7 +317,7 @@ module ProjectLabels = {
     test_case("project_labels with first arg unknown type", `Quick, () =>
       annotated_tree_test(
         {|project_labels(?, `a`)|},
-        unknown(internal()),
+        prod([unknown(internal())]),
         FIError.Exp.(
           ap(
             Forward,
@@ -536,7 +531,7 @@ module SelectLabels = {
     test_case("select_labels with label not in tuple", `Quick, () =>
       annotated_tree_test(
         {|select_labels((a=1, b=true, c=3), `d`)|},
-        unknown(internal()),
+        prod([unknown(internal())]),
         FIError.Exp.(
           ap(
             Forward,
@@ -617,7 +612,7 @@ module SelectLabels = {
     test_case("select_labels with first arg unknown type", `Quick, () =>
       annotated_tree_test(
         {|select_labels(?, `a`)|},
-        unknown(internal()),
+        prod([unknown(internal())]),
         FIError.Exp.(
           ap(
             Forward,
@@ -1202,7 +1197,7 @@ module OmitLabels = {
     fully_consistent_typecheck(
       "omit_labels to singleton unlabeled",
       {|omit_labels((a=1, 2), `a`)|},
-      Some(int()),
+      Some(prod([int()])),
     ),
     test_case("omit_labels with deferral as first arg", `Quick, () => {
       annotated_tree_test(
@@ -1286,7 +1281,7 @@ module OmitAllLabels = {
     fully_consistent_typecheck(
       "omit_all_labels to singleton",
       {|omit_all_labels((a=1))|},
-      Some(int()),
+      Some(prod([int()])),
     ),
     fully_consistent_typecheck(
       "Omit all labels with type alias and autolabels",

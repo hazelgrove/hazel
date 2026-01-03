@@ -92,6 +92,7 @@ type atomic_form =
   | EmptyList
   | EmptyTuple
   | Deferral
+  | ExplicitNonlabel
   | TyVar
   | TyVarP
   | Ctr
@@ -148,6 +149,8 @@ type compound_form =
   | DotTyp
   | TypeAsc
   | TypPlus
+  | ProdProjection
+  | ProdExtension
   // UNARY PREFIX OPERATORS
   | Not
   | TypSumSingle
@@ -173,10 +176,13 @@ type compound_form =
   | ApExpTyp
   | Case
   | Test
+  | ProofOf
+  | ProofObject
   | HintedTest
   | Fun
   | Fix
   | TypFun
+  | Poly
   | Forall
   | Rec
   | Rule
@@ -189,6 +195,7 @@ type compound_form =
   | Use
   // TRIPLE DELIMITERS
   | Let
+  | Theorem
   | TypeAlias
   | If;
 
@@ -236,6 +243,8 @@ let get: compound_form => t =
   | TypeAsc => mk_infix(":", Exp, ~l=Exp, ~r=Typ, P.asc)
   | TupleExtension => mk_infix("...", Exp, P.plus)
   | TypPlus => mk_infix("+", Typ, P.type_plus)
+  | ProdProjection => mk_infix(".", Typ, P.dot)
+  | ProdExtension => mk_infix("...", Typ, P.ap)
   // UNARY PREFIX OPERATORS
   | Not => mk_prefix("!", Exp, P.not_)
   | TypSumSingle => mk_prefix("+", Typ, P.or_)
@@ -264,7 +273,9 @@ let get: compound_form => t =
   | Fun => mk_pre_c(L, ["fun", "->"], P.fun_, Exp, [Pat])
   | Fix => mk_pre_c(L, ["fix", "->"], P.fun_, Exp, [Pat])
   | TypFun => mk_pre_c(L, ["typfun", "->"], P.fun_, Exp, [TPat])
-  | Forall => mk_pre_c(L, ["forall", "->"], P.fun_, Typ, [TPat])
+  | Poly => mk_pre_c(L, ["poly", "->"], P.fun_, Typ, [TPat])
+  | Forall => mk_pre_c(L, ["forall", "->"], P.fun_, Exp, [Pat])
+  | ProofObject => mk_op_c(L, ["proof_object", "indeed"], Exp, [Exp])
   | Rec => mk_pre_c(L, ["rec", "->"], P.fun_, Typ, [TPat])
   | Rule =>
     mk(L, ["|", "=>"], Mold.mk_bin'(P.rule_sep, Rul, Exp, [Pat], Exp))
@@ -275,6 +286,8 @@ let get: compound_form => t =
   | FilterPause => mk_pre_c(L, ["pause", "in"], P.let_, Exp, [Exp])
   | FilterDebug => mk_pre_c(L, ["debug", "in"], P.let_, Exp, [Exp])
   | Use => mk_pre_c(L, ["use", "in"], P.let_, Exp, [Typ])
+  | Theorem => mk_pre_c(L, ["theorem", "=", "in"], P.let_, Exp, [Pat, Exp])
+  | ProofOf => mk_op_c(L, ["proof_of", "end"], Typ, [Exp])
   // TRIPLE DELIMITERS
   | Let => mk_pre_c(L, ["let", "=", "in"], P.let_, Exp, [Pat, Exp])
   | TypeAlias => mk_pre_c(L, ["type", "=", "in"], P.let_, Exp, [TPat, Typ])
@@ -377,6 +390,7 @@ let get_atomic_form: atomic_form => (Token.t => bool, list(Mold.t)) =
   | EmptyList => (Token.is_empty_list, [op(Exp), op(Pat)])
   | EmptyTuple => (Token.is_empty_tuple, [op(Exp), op(Pat), op(Typ)])
   | Deferral => (Token.is_wild, [op(Exp)])
+  | ExplicitNonlabel => (Token.is_wild, [op(Typ)])
   | TyVar => (Token.is_typ_var, [op(Typ)])
   | TyVarP => (Token.is_typ_var, [op(TPat)])
   | Ctr => (Token.is_ctr, [op(Exp), op(Pat)])

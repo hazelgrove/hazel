@@ -110,6 +110,7 @@ let rec elaborate_pattern =
       let (p1', _) = elaborate_pattern(m, p1);
       let (p2', _) = elaborate_pattern(m, p2);
       Cons(p1', p2') |> rewrap;
+    | TupLabel({term: ExplicitNonlabel, _}, p) => p
     | TupLabel(lab, p) =>
       let (plab, _) = elaborate_pattern(m, lab);
       let (p', _) = elaborate_pattern(m, p);
@@ -134,6 +135,8 @@ let rec elaborate_pattern =
         );
 
       Tuple(ps') |> rewrap;
+    | ExplicitNonlabel =>
+      raise(Failure("Explicit nonlabel pattern outside of tuplabel"))
     | Label(_) => upat
     | Ap(p1, p2) =>
       let (p1', _) = elaborate_pattern(m, p1);
@@ -221,17 +224,16 @@ let rec elaborate = (m: Statics.Map.t, uexp: Exp.t): (DHExp.t, Typ.t) => {
       };
     | ListLit(es) =>
       let (ds, tys) = List.map(elaborate(m), es) |> List.split;
-      let (joined_ty, _) =
+      let (meet_ty, _) =
         OptUtil.unzip(
-          Typ.join_all(
+          Typ.meet_all(
             ~empty=Unknown(Internal |> Prov.anonymous) |> Typ.temp,
             ctx,
             tys,
           ),
         );
-
       let ds' =
-        List.map2((d, t) => fresh_ascription(d, t, joined_ty), ds, tys);
+        List.map2((d, t) => fresh_ascription(d, t, meet_ty), ds, tys);
       ListLit(ds') |> rewrap;
     | LivelitName(_) => uexp
     | Constructor(c, _) =>
@@ -250,6 +252,10 @@ let rec elaborate = (m: Statics.Map.t, uexp: Exp.t): (DHExp.t, Typ.t) => {
       let (p', typ) = elaborate_pattern(m, p, false);
       let (e', _) = elaborate(m, e);
       Fun(p', e', Some(typ), n) |> rewrap;
+    | Forall(p, e) =>
+      let (p', _) = elaborate_pattern(m, p, false);
+      let (e', _) = elaborate(m, e);
+      Forall(p', e') |> rewrap;
     | TypFun(tpat, e, name) =>
       let (e', _) = elaborate(m, e);
       TypFun(tpat, e', name) |> rewrap;
@@ -271,9 +277,14 @@ let rec elaborate = (m: Statics.Map.t, uexp: Exp.t): (DHExp.t, Typ.t) => {
 
       Tuple(ds) |> rewrap;
     | TupLabel(label, e) =>
-      let (label', _) = elaborate(m, label);
-      let (e', _) = elaborate(m, e);
-      TupLabel(label', e') |> rewrap;
+      switch (label.term) {
+      | ExplicitNonlabel => elaborate(m, e) |> fst
+      | _ =>
+        let (label', _) = elaborate(m, label);
+        let (e', _) = elaborate(m, e);
+        TupLabel(label', e') |> rewrap;
+      }
+    | ExplicitNonlabel
     | Label(_) => uexp
     | Dot(e1, e2) =>
       let (e1, _) = elaborate(m, e1);
@@ -325,10 +336,18 @@ let rec elaborate = (m: Statics.Map.t, uexp: Exp.t): (DHExp.t, Typ.t) => {
           |> IdTagged.fresh_deterministic(DHExp.rep_id(uexp));
         Let(p, fixf, body) |> rewrap;
       };
+    | Theorem(p, e1, e2) =>
+      let (p', _) = elaborate_pattern(m, p, false);
+      let (e1', _) = elaborate(m, e1);
+      let (e2', _) = elaborate(m, e2);
+      Theorem(p', e1', e2') |> rewrap;
+    | ProofObject(e) =>
+      let (e', _) = elaborate(m, e);
+      ProofObject(e') |> rewrap;
     | FixF(p, e, env) =>
       let (p', pty) = elaborate_pattern(m, p, false);
       let (e', _) = elaborate(m, e);
-      FixF(p', Asc(e', pty) |> rewrap, env) |> rewrap; // TODO Consider if there's a better strategy than always ascribing the type
+      FixF(p', Asc(e', pty) |> Exp.fresh, env) |> rewrap; // TODO Consider if there's a better strategy than always ascribing the type
     // These forms are removed in elaboration
     | Use(_, e)
     | TyAlias(_, _, e) =>

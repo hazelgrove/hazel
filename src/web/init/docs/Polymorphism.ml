@@ -1,9 +1,8 @@
-let out : string * Haz3lcore.PersistentZipper.t =
+let out : string * Haz3lcore.PersistentSegment.t =
   ( "Polymorphism",
     {
-      zipper =
-        "((selection((focus Left)(content())(mode \
-         Normal)))(relatives((siblings(()((Secondary((id \
+      segment =
+        "((Secondary((id \
          28724395-ea08-46df-bc33-e8638e48818a)(content(Comment\"# Polymorphism \
          #\"))))(Secondary((id \
          067efd4f-6736-4ee9-a92e-cb2df6235924)(content(Whitespace\"\\n\"))))(Secondary((id \
@@ -106,7 +105,7 @@ let out : string * Haz3lcore.PersistentZipper.t =
          dad422c7-98f9-45ab-92c6-daf5f19e7261)(content(Whitespace\"\\n\"))))(Secondary((id \
          ce573f56-3cac-41c3-9ab0-698a328e2552)(content(Whitespace\"\\n\"))))(Secondary((id \
          97fb9700-98a5-4e1a-80ae-8f74de142dcc)(content(Comment\"# We can \
-         annotate the type of a type function with a forall. \
+         annotate the type of a type function with a poly. \
          #\"))))(Secondary((id \
          27030c61-fdba-4ed1-98f1-d8acbcf4f082)(content(Whitespace\"\\n\"))))(Tile((id \
          2f7eae08-d259-4b06-9d4e-1f55b8eaec43)(label(let = in))(mold((out \
@@ -123,7 +122,7 @@ let out : string * Haz3lcore.PersistentZipper.t =
          Pat)(in_())(nibs(((shape(Concave 24))(sort Pat))((shape(Concave \
          24))(sort Typ))))))(shards(0))(children())))(Secondary((id \
          3abcd370-8aae-46b0-aac8-508963fcf2a3)(content(Whitespace\" \
-         \"))))(Tile((id e401e100-eb39-459b-bad4-3b78e47c96d0)(label(forall \
+         \"))))(Tile((id e401e100-eb39-459b-bad4-3b78e47c96d0)(label(poly \
          ->))(mold((out Typ)(in_(TPat))(nibs(((shape Convex)(sort \
          Typ))((shape(Concave 36))(sort Typ))))))(shards(0 \
          1))(children(((Secondary((id \
@@ -135,7 +134,7 @@ let out : string * Haz3lcore.PersistentZipper.t =
          046396d9-d1be-47d0-9883-629f84736ad6)(content(Whitespace\" \
          \")))))))))(Secondary((id \
          b0cbafd0-307a-4af9-86f6-8fdd14933cef)(content(Whitespace\" \
-         \"))))(Tile((id 91705755-b3d1-471d-911a-9c4e5f416338)(label(forall \
+         \"))))(Tile((id 91705755-b3d1-471d-911a-9c4e5f416338)(label(poly \
          ->))(mold((out Typ)(in_(TPat))(nibs(((shape Convex)(sort \
          Typ))((shape(Concave 36))(sort Typ))))))(shards(0 \
          1))(children(((Secondary((id \
@@ -295,7 +294,7 @@ let out : string * Haz3lcore.PersistentZipper.t =
          Pat)(in_())(nibs(((shape(Concave 24))(sort Pat))((shape(Concave \
          24))(sort Typ))))))(shards(0))(children())))(Secondary((id \
          6da7fa0c-c54b-459c-8a24-f7456ade1d84)(content(Whitespace\" \
-         \"))))(Tile((id 3ffd2af7-31c1-42a5-a4bd-f77d5867a65d)(label(forall \
+         \"))))(Tile((id 3ffd2af7-31c1-42a5-a4bd-f77d5867a65d)(label(poly \
          ->))(mold((out Typ)(in_(TPat))(nibs(((shape Convex)(sort \
          Typ))((shape(Concave 36))(sort Typ))))))(shards(0 \
          1))(children(((Secondary((id \
@@ -307,7 +306,7 @@ let out : string * Haz3lcore.PersistentZipper.t =
          a1f25fed-bcb7-4637-8f21-7adf1a796b7e)(content(Whitespace\" \
          \")))))))))(Secondary((id \
          c178d47a-196d-4547-8b76-a164be7663b3)(content(Whitespace\" \
-         \"))))(Tile((id 50190fc2-3860-45d3-bb73-e71f536058ba)(label(forall \
+         \"))))(Tile((id 50190fc2-3860-45d3-bb73-e71f536058ba)(label(poly \
          ->))(mold((out Typ)(in_(TPat))(nibs(((shape Convex)(sort \
          Typ))((shape(Concave 36))(sort Typ))))))(shards(0 \
          1))(children(((Secondary((id \
@@ -323,7 +322,7 @@ let out : string * Haz3lcore.PersistentZipper.t =
          f52cb539-d0ef-4e84-82ca-41f223664782)(label(\"(\"\")\"))(mold((out \
          Typ)(in_(Typ))(nibs(((shape Convex)(sort Typ))((shape Convex)(sort \
          Typ))))))(shards(0 1))(children(((Tile((id \
-         da5ab7f3-9557-4b81-8876-cbdb2f26471e)(label(forall ->))(mold((out \
+         da5ab7f3-9557-4b81-8876-cbdb2f26471e)(label(poly ->))(mold((out \
          Typ)(in_(TPat))(nibs(((shape Convex)(sort Typ))((shape(Concave \
          36))(sort Typ))))))(shards(0 1))(children(((Secondary((id \
          c784fc73-36d3-4f30-8285-a6777476c5c1)(content(Whitespace\" \
@@ -577,7 +576,7 @@ let out : string * Haz3lcore.PersistentZipper.t =
          Pat)(in_())(nibs(((shape(Concave 24))(sort Pat))((shape(Concave \
          24))(sort Typ))))))(shards(0))(children())))(Secondary((id \
          97c3f05b-6f9e-4585-9259-7cd76cf3962d)(content(Whitespace\" \
-         \"))))(Tile((id dd962db5-e94e-4dcd-a1ab-aebe96627f16)(label(forall \
+         \"))))(Tile((id dd962db5-e94e-4dcd-a1ab-aebe96627f16)(label(poly \
          ->))(mold((out Typ)(in_(TPat))(nibs(((shape Convex)(sort \
          Typ))((shape(Concave 36))(sort Typ))))))(shards(0 \
          1))(children(((Secondary((id \
@@ -635,7 +634,7 @@ let out : string * Haz3lcore.PersistentZipper.t =
          Pat)(in_())(nibs(((shape(Concave 24))(sort Pat))((shape(Concave \
          24))(sort Typ))))))(shards(0))(children())))(Secondary((id \
          9d01f2fc-9c46-41b3-a274-aeb4d5036657)(content(Whitespace\" \
-         \"))))(Tile((id 868adf8b-97e6-4360-b99d-c7d329b0974b)(label(forall \
+         \"))))(Tile((id 868adf8b-97e6-4360-b99d-c7d329b0974b)(label(poly \
          ->))(mold((out Typ)(in_(TPat))(nibs(((shape Convex)(sort \
          Typ))((shape(Concave 36))(sort Typ))))))(shards(0 \
          1))(children(((Secondary((id \
@@ -647,7 +646,7 @@ let out : string * Haz3lcore.PersistentZipper.t =
          2b2036ad-1543-4ce9-9a23-69285fa853c9)(content(Whitespace\" \
          \")))))))))(Secondary((id \
          56b0e3ba-7434-4ab9-b673-28c1ec4e1d9a)(content(Whitespace\" \
-         \"))))(Tile((id d371c074-4e07-4e85-a05d-6e3407a3a20b)(label(forall \
+         \"))))(Tile((id d371c074-4e07-4e85-a05d-6e3407a3a20b)(label(poly \
          ->))(mold((out Typ)(in_(TPat))(nibs(((shape Convex)(sort \
          Typ))((shape(Concave 36))(sort Typ))))))(shards(0 \
          1))(children(((Secondary((id \
@@ -1441,8 +1440,7 @@ let out : string * Haz3lcore.PersistentZipper.t =
          \"))))(Tile((id \
          f2588d63-a57f-4e02-ba63-2f7c7e099483)(label(ex5))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
-         Exp))))))(shards(0))(children())))))))))))(ancestors())))(caret \
-         Outer))";
+         Exp))))))(shards(0))(children())))))))))";
       backup_text =
         "# Polymorphism #\n\n\
          # We can take types as parameters to type functions, #\n\
@@ -1450,22 +1448,22 @@ let out : string * Haz3lcore.PersistentZipper.t =
          let id = typfun A -> fun x : A -> x in\n\n\
          # Such functions are applied like so: #\n\
          let ex1 = id@<Int>(1) in # 1 #\n\n\
-         # We can annotate the type of a type function with a forall. #\n\
-         let const : forall A -> forall B -> A -> B -> A = \n\
+         # We can annotate the type of a type function with a poly. #\n\
+         let const : poly A -> poly B -> A -> B -> A = \n\
          typfun A -> typfun B -> fun x -> fun y -> x in\n\
          let ex2 = const@<Int>@<String>(2)(\"Hello World\") in # 2 #\n\n\
          # We can go beyond rank 1 polymorphism: #\n\
-         let apply_both : forall A -> forall B -> (forall D -> D -> D) -> (A , \
-         B) -> (A , B) =\n\
+         let apply_both : poly A -> poly B -> (poly D -> D -> D) -> (A , B) -> \
+         (A , B) =\n\
          typfun A -> typfun B -> fun f -> fun (x, y) -> (f@<A>(x), f@<B>(y)) \
          in  \n\
          let ex3 = apply_both@<Int>@<String>(id)(3, \"Hello World\") in # (3, \
          \"Hello World\") # \n\n\
          # Finally, here is a more in-depth, yet applicable example: \
          polymorphic map #\n\
-         let emptylist : forall A -> [A] = typfun A -> [] in # polymorphic \
+         let emptylist : poly A -> [A] = typfun A -> [] in # polymorphic \
          constant #\n\
-         let map : forall A -> forall B -> (A -> B) -> ([A] -> [B]) = \n\
+         let map : poly A -> poly B -> (A -> B) -> ([A] -> [B]) = \n\
          typfun A -> typfun B -> fun f : (A -> B) -> fun l : [A] -> \n\
          case l\n\
          | h :: t => f(h) :: map@<A>@<B>(f)(t)\n\

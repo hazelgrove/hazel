@@ -1,9 +1,8 @@
-let out : string * Haz3lcore.PersistentZipper.t =
+let out : string * Haz3lcore.PersistentSegment.t =
   ( "Basic Reference",
     {
-      zipper =
-        "((selection((focus Left)(content())(mode \
-         Normal)))(relatives((siblings(()((Secondary((id \
+      segment =
+        "((Secondary((id \
          aca843fa-ed08-4307-84d7-48ebf26e77a0)(content(Comment\"# Hazel \
          Language Quick Reference #\"))))(Secondary((id \
          5f018e7f-0929-4f23-9744-b418adde69cf)(content(Whitespace\"\\n\"))))(Secondary((id \
@@ -2106,7 +2105,7 @@ let out : string * Haz3lcore.PersistentZipper.t =
          Pat)(in_())(nibs(((shape(Concave 24))(sort Pat))((shape(Concave \
          24))(sort Typ))))))(shards(0))(children())))(Secondary((id \
          b75fafac-4fae-41ca-b151-15355cb0ad14)(content(Whitespace\" \
-         \"))))(Tile((id 82e2f2ec-993d-41d4-b3b2-f06e94d6dde1)(label(forall \
+         \"))))(Tile((id 82e2f2ec-993d-41d4-b3b2-f06e94d6dde1)(label(poly \
          ->))(mold((out Typ)(in_(TPat))(nibs(((shape Convex)(sort \
          Typ))((shape(Concave 36))(sort Typ))))))(shards(0 \
          1))(children(((Secondary((id \
@@ -2183,7 +2182,7 @@ let out : string * Haz3lcore.PersistentZipper.t =
          Pat)(in_())(nibs(((shape(Concave 24))(sort Pat))((shape(Concave \
          24))(sort Typ))))))(shards(0))(children())))(Secondary((id \
          b8125e27-899c-4fe7-ac79-5508f5a9f72d)(content(Whitespace\"\\n\"))))(Tile((id \
-         eb3ee8fd-b64b-41c4-8e26-910160cff4b1)(label(forall ->))(mold((out \
+         eb3ee8fd-b64b-41c4-8e26-910160cff4b1)(label(poly ->))(mold((out \
          Typ)(in_(TPat))(nibs(((shape Convex)(sort Typ))((shape(Concave \
          36))(sort Typ))))))(shards(0 1))(children(((Secondary((id \
          f0bd24e2-51eb-4aa4-b6aa-b2f1cd6a9322)(content(Whitespace\" \
@@ -2194,7 +2193,7 @@ let out : string * Haz3lcore.PersistentZipper.t =
          ee5c3695-4c8e-4fc2-b6b7-744281c0ffd4)(content(Whitespace\" \
          \")))))))))(Secondary((id \
          dcc6fcb4-aeae-493b-a5c6-ecc4e43f7874)(content(Whitespace\" \
-         \"))))(Tile((id ac7eadd7-98af-498b-be9c-2c528f1cc5a4)(label(forall \
+         \"))))(Tile((id ac7eadd7-98af-498b-be9c-2c528f1cc5a4)(label(poly \
          ->))(mold((out Typ)(in_(TPat))(nibs(((shape Convex)(sort \
          Typ))((shape(Concave 36))(sort Typ))))))(shards(0 \
          1))(children(((Secondary((id \
@@ -2210,7 +2209,7 @@ let out : string * Haz3lcore.PersistentZipper.t =
          5e3042d9-e24f-4002-87fc-3a7e73755aa6)(label(\"(\"\")\"))(mold((out \
          Typ)(in_(Typ))(nibs(((shape Convex)(sort Typ))((shape Convex)(sort \
          Typ))))))(shards(0 1))(children(((Tile((id \
-         e6abbcfa-a6fa-460f-8723-7f7cd2ef3053)(label(forall ->))(mold((out \
+         e6abbcfa-a6fa-460f-8723-7f7cd2ef3053)(label(poly ->))(mold((out \
          Typ)(in_(TPat))(nibs(((shape Convex)(sort Typ))((shape(Concave \
          36))(sort Typ))))))(shards(0 1))(children(((Secondary((id \
          9051efe0-83c1-4f46-b158-dc6394748155)(content(Whitespace\" \
@@ -2317,7 +2316,7 @@ let out : string * Haz3lcore.PersistentZipper.t =
          Pat)(in_())(nibs(((shape(Concave 24))(sort Pat))((shape(Concave \
          24))(sort Typ))))))(shards(0))(children())))(Secondary((id \
          fb7c398f-c9cd-475d-8edd-60dccd50cdf8)(content(Whitespace\" \
-         \"))))(Tile((id 0cc47f40-4da5-4b11-b58a-faa5a1f0fc7f)(label(forall \
+         \"))))(Tile((id 0cc47f40-4da5-4b11-b58a-faa5a1f0fc7f)(label(poly \
          ->))(mold((out Typ)(in_(TPat))(nibs(((shape Convex)(sort \
          Typ))((shape(Concave 36))(sort Typ))))))(shards(0 \
          1))(children(((Secondary((id \
@@ -2443,7 +2442,7 @@ let out : string * Haz3lcore.PersistentZipper.t =
          Pat)(in_())(nibs(((shape(Concave 24))(sort Pat))((shape(Concave \
          24))(sort Typ))))))(shards(0))(children())))(Secondary((id \
          466061f3-c1f8-4c14-ab36-75d11c867e60)(content(Whitespace\" \
-         \"))))(Tile((id fd86ea26-4995-4208-a3c1-05fd5ea9f839)(label(forall \
+         \"))))(Tile((id fd86ea26-4995-4208-a3c1-05fd5ea9f839)(label(poly \
          ->))(mold((out Typ)(in_(TPat))(nibs(((shape Convex)(sort \
          Typ))((shape(Concave 36))(sort Typ))))))(shards(0 \
          1))(children(((Secondary((id \
@@ -2706,7 +2705,7 @@ let out : string * Haz3lcore.PersistentZipper.t =
          \"))))(Tile((id \
          79cdae6f-64ae-437d-b6eb-ae6ec050e7d0)(label(2))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
-         Exp))))))(shards(0))(children()))))))(ancestors())))(caret Outer))";
+         Exp))))))(shards(0))(children()))))";
       backup_text =
         "# Hazel Language Quick Reference #\n\n\
          # Empty holes stand for missing expressions, patterns, or types #\n\
@@ -2802,18 +2801,18 @@ let out : string * Haz3lcore.PersistentZipper.t =
          end\n\
          in\n\n\
          # Polymorphic Functions #\n\
-         let poly_id: forall a -> a -> a =\n\
+         let poly_id: poly a -> a -> a =\n\
          typfun a -> fun x: a -> x\n\
          in\n\
          let\n\
          apply_both:\n\
-         forall a -> forall b -> (forall c -> c -> c) -> ((a, b) -> (a, b))\n\
+         poly a -> poly b -> (poly c -> c -> c) -> ((a, b) -> (a, b))\n\
          =\n\
          typfun a -> typfun b ->\n\
-         fun f: forall c -> (c -> c) ->\n\
+         fun f: poly c -> (c -> c) ->\n\
          fun (x, y): (a, b) -> (f@<a>(x), f@<b>(y))\n\
          in\n\
-         let list_length: forall a -> [a] -> Int =\n\
+         let list_length: poly a -> [a] -> Int =\n\
          typfun a -> fun l : [a] ->\n\
          case l\n\
          | [] => 0\n\

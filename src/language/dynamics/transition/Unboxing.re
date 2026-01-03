@@ -27,7 +27,7 @@ type unboxed_tfun =
 [@deriving show({with_path: false})]
 type unboxed_fun =
   | Constructor(string)
-  | FunEnv(Pat.t, Exp.t, [@show.opaque] ClosureEnvironment.t)
+  | FunEnv(Pat.t, Exp.t, [@show.opaque] Environment.t(Exp.t))
   | FunNoEnv(Pat.t, Exp.t)
   | BuiltinFun(string)
   | DeferredAp(DHExp.t, list(DHExp.t));
@@ -87,6 +87,9 @@ let rec unbox: type a. (unbox_request(a), DHExp.t) => unboxed(a) =
     | (_, UnOp(Meta(Unquote), _)) => IndetMatch
     | (_, Constructor(c, _)) when String.starts_with(c, ~prefix="$") =>
       IndetMatch
+
+    /* proofs can also have any type, but are indet */
+    | (_, ProofObject(_)) => IndetMatch
 
     /* TupLabels can be anything except for tuplabels with unmatching labels */
     | (TupLabel(tuplabel), TupLabel(_, e)) =>
@@ -230,8 +233,11 @@ let rec unbox: type a. (unbox_request(a), DHExp.t) => unboxed(a) =
     | (
         _,
         Invalid(_) | Undefined | EmptyHole | MultiHole(_) | DynamicErrorHole(_) |
+        ExplicitNonlabel |
         Var(_) |
         Let(_) |
+        Theorem(_) |
+        Forall(_) |
         Fun(_, _, _, _) |
         TypAp(_) |
         FixF(_) |

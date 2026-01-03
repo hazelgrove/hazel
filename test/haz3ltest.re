@@ -16,15 +16,19 @@ let (suite, _) =
     [
       Test_ListUtil.tests,
       Test_OptUtil.tests,
+      Test_CsvUtil.tests,
       Test_Grammar.tests,
       Test_ExpToSegment.tests,
       Test_LabeledTuple.tests,
       Test_MakeTerm.tests,
       Test_Menhir.tests,
       Test_StringUtil.tests,
-      Test_Typ.tests,
       Test_PatternMatch.tests,
+      Test_Equality.tests,
+      Test_Substitution.tests,
     ]
+    @ Test_Typ.tests
+    @ Test_Info.tests
     @ Test_Statics.tests
     @ Test_Elaboration.tests
     @ Test_Evaluator.tests
