@@ -162,7 +162,7 @@ let sample_type = (cls_typ: Typ.cls): Grammar.UnitGrammar.typ => {
         | RForall => unknown(rforall(Hole(EmptyHole)))
         | TupLabelProv => unknown(tup_label_label(Hole(EmptyHole)))
         | TupLabelArg => unknown(tup_label_arg(Hole(EmptyHole)))
-        | Join => unknown(join(hole(EmptyHole), hole(EmptyHole)))
+        | Meet => unknown(join(hole(EmptyHole), hole(EmptyHole)))
         | Label => label("label")
         | ExplicitNonlabel => explicit_non_label()
         | MultiHole => unknown(hole(MultiHole([])))

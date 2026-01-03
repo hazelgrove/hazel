@@ -17,7 +17,7 @@ type cls =
   | RForall
   | TupLabelProv
   | TupLabelArg
-  | Join
+  | Meet
   | Arrow
   | Prod
   | TupLabel
@@ -96,7 +96,7 @@ let cls_of_term: Grammar.typ_term('a) => cls =
   | Unknown({term: RForall(_), _}) => RForall
   | Unknown({term: TupLabel(_), _}) => TupLabelProv
   | Unknown({term: TupLabelArg(_), _}) => TupLabelArg
-  | Unknown({term: Join(_), _}) => Join
+  | Unknown({term: Meet(_), _}) => Meet
   | Atom(c) => Atom(c)
   | List(_) => List
   | Arrow(_) => Arrow
@@ -128,7 +128,7 @@ let show_cls: cls => string =
   | RForall => "Right Forall prov type"
   | TupLabelProv => "Tuple label prov"
   | TupLabelArg => "Tuple arg prov"
-  | Join => "Join prov"
+  | Meet => "Join prov"
   | Atom(_) => "Base type"
   | Var => "Type variable"
   | Constructor => "Sum constructor"
@@ -262,7 +262,7 @@ let meet_type_provenance =
   if (p1 == p2) {
     (p1, []);
   } else {
-    let join_prov = Join(p1, p2) |> Prov.fresh;
+    let join_prov = Meet(p1, p2) |> Prov.fresh;
     let join_hole = Unknown(join_prov) |> temp;
     (
       join_prov,
@@ -1168,7 +1168,7 @@ and is_prov_syn = (prov: Prov.term): bool => {
   | TupLabel(p)
   | TupLabelArg(p)
   | MList(p) => is_prov_syn(p)
-  | Join(p1, p2) =>
+  | Meet(p1, p2) =>
     is_prov_syn(p1 |> Prov.term_of) || is_prov_syn(p2 |> Prov.term_of)
   | SynSwitch => true
   | Internal => false

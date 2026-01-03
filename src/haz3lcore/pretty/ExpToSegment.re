@@ -154,7 +154,7 @@ let external_precedence_typ = (tp: Typ.t) =>
   | Unknown({term: RForall(_), _}) // TODO (THI): this probably needs to be recursive?
   | Unknown({term: TupLabel(_), _}) // TODO (THI): this probably needs to be recursive?
   | Unknown({term: TupLabelArg(_), _}) // TODO (THI): this probably needs to be recursive?
-  | Unknown({term: Join(_), _}) // TODO (THI): this probably needs to be recursive?
+  | Unknown({term: Meet(_), _}) // TODO (THI): this probably needs to be recursive?
   | Var(_)
   | Atom(_)
   | Label(_)
@@ -548,7 +548,7 @@ and parenthesize_typ =
   | Unknown({term: RForall(_), _})
   | Unknown({term: TupLabel(_), _})
   | Unknown({term: TupLabelArg(_), _})
-  | Unknown({term: Join(_), _})
+  | Unknown({term: Meet(_), _})
   | Atom(_) => typ
 
   // Other forms
@@ -1460,7 +1460,7 @@ and typ_to_pretty = (~settings: Settings.t, typ: Typ.t): pretty => {
   | Unknown({term: RForall(_), _})
   | Unknown({term: TupLabel(_), _})
   | Unknown({term: TupLabelArg(_), _})
-  | Unknown({term: Join(_), _})
+  | Unknown({term: Meet(_), _})
   | Unknown({term: Hole(EmptyHole), _}) // TOOD: (THI) need special cycle hole graphic
   | Unknown({term: Hole(CycleHole), _}) =>
     if (settings.show_unknown_as_hole) {

@@ -224,8 +224,9 @@ let rec elaborate = (m: Statics.Map.t, uexp: Exp.t): (DHExp.t, Typ.t) => {
       };
     | ListLit(es) =>
       let (ds, tys) = List.map(elaborate(m), es) |> List.split;
-      let (meet_ty, _) =
-        OptUtil.unzip(
+      let meet_ty =
+        Option.map(
+          fst,
           Typ.meet_all(
             ~empty=Unknown(Internal |> Prov.anonymous) |> Typ.temp,
             ctx,

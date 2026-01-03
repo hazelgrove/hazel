@@ -622,12 +622,12 @@ let equality =
     | (LArrow(p1'), LArrow(p2')) => typ_prov'(p1', p2')
     | (NProduct(n1, p1'), NProduct(n2, p2')) when n1 == n2 =>
       typ_prov'(p1', p2')
-    | (Join(j1, j2), Join(j3, j4)) =>
-      typ_prov'(j1 |> Prov.term_of, j3 |> Prov.term_of)
-      && typ_prov'(j2 |> Prov.term_of, j4 |> Prov.term_of)
-      || typ_prov'(j1 |> Prov.term_of, j4 |> Prov.term_of)
-      && typ_prov'(j2 |> Prov.term_of, j3 |> Prov.term_of)
-    | (Join(_), _)
+    | (Meet(m1, m2), Meet(m3, m4)) =>
+      typ_prov'(m1 |> Prov.term_of, m3 |> Prov.term_of)
+      && typ_prov'(m2 |> Prov.term_of, m4 |> Prov.term_of)
+      || typ_prov'(m1 |> Prov.term_of, m4 |> Prov.term_of)
+      && typ_prov'(m2 |> Prov.term_of, m3 |> Prov.term_of)
+    | (Meet(_), _)
     | (TupLabelArg(_), _)
     | (TupLabel(_), _)
     | (RForall(_), _)

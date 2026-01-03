@@ -2461,7 +2461,7 @@ let get_doc =
     | Unknown({term: RForall(_), _}) // TODO: (THI) might need to be recursive
     | Unknown({term: TupLabel(_), _}) // TODO: (THI) might need to be recursive
     | Unknown({term: TupLabelArg(_), _}) // TODO: (THI) might need to be recursive
-    | Unknown({term: Join(_), _}) // TODO: (THI) might need to be recursive
+    | Unknown({term: Meet(_), _}) // TODO: (THI) might need to be recursive
     | Unknown({term: Hole(CycleHole), _}) // TODO: (THI) needs a custom message
     | Unknown({term: Hole(EmptyHole), _}) => get_message(HoleTyp.empty_hole)
     | Unknown({term: Hole(MultiHole(_)), _}) =>

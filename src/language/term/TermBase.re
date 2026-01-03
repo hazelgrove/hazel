@@ -711,8 +711,8 @@ and Prov: {
     | RForall(p) => "->RA(" ++ to_string(p) ++ ")"
     | TupLabel(p) => "(" ++ to_string(p) ++ ")="
     | TupLabelArg(p) => "=(" ++ to_string(p) ++ ")"
-    | Join(p1, p2) =>
-      "J("
+    | Meet(p1, p2) =>
+      "M("
       ++ Prov.to_string(IdTagged.term_of(p1))
       ++ ", "
       ++ Prov.to_string(IdTagged.term_of(p2))
@@ -760,7 +760,7 @@ and Prov: {
           | RForall(p) => RForall(prov_map_temp_term(p))
           | TupLabel(p) => TupLabel(prov_map_temp_term(p))
           | TupLabelArg(p) => TupLabelArg(prov_map_temp_term(p))
-          | Join(p1, p2) => Join(prov_map_term(p1), prov_map_term(p2))
+          | Meet(p1, p2) => Meet(prov_map_term(p1), prov_map_term(p2))
           },
       };
     };
