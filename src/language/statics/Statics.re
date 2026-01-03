@@ -2651,6 +2651,8 @@ let mk =
           Id.Map.empty,
         );
 
+      // Map.show(map) |> print_endline;
+
       let inference_sols = Inference.solve(info.constraints);
       // Inference.ProvMap.iter(
       //   (key, sol) => {

@@ -35,7 +35,7 @@ module StringProv = {
 
 module Solution = {
   [@deriving (show({with_path: false}), sexp, yojson)]
-  type t =
+  type term =
     | Unknown(Prov.t)
     | Atom(Atom.cls)
     | List(t)
@@ -44,42 +44,48 @@ module Solution = {
     | Prod(list(t))
     | Label(string)
     | TupLabel(t, t)
-    | Rec(TPat.term, t)
-    | Poly(TPat.term, t)
+    | Rec(TPat.t, t)
+    | Poly(TPat.t, t)
     | Var(string)
     | ExplicitNonlabel
     | ProofOf(Exp.t)
     | ProdProjection(t, t)
     | ProdExtension(t, t)
-    | Multi(list(t));
+    | Multi(list(t))
+  and t = Grammar.Annotated.t(term, IdTagged.IdTag.t);
 
-  let rec to_typ = (sol: t): Typ.term => {
-    switch (sol) {
-    | Unknown(p) => Unknown(p)
-    | Atom(a) => Atom(a)
-    | Arrow(s1, s2) =>
-      Arrow(to_typ(s1) |> Typ.temp, to_typ(s2) |> Typ.temp)
-    | Multi(_) => Unknown(Hole(EmptyHole) |> Prov.anonymous)
-    | List(elt) => List(to_typ(elt) |> Typ.temp)
-    | Sum(sm) => Sum(sm)
-    | Prod(elts) => Prod(List.map(e => to_typ(e) |> Typ.temp, elts))
-    | Label(l) => Label(l)
-    | TupLabel(label, ty) =>
-      TupLabel(to_typ(label) |> Typ.temp, to_typ(ty) |> Typ.temp)
-    | Rec(pat, ty) => Rec(pat |> IdTagged.temp, to_typ(ty) |> Typ.temp)
-    | Poly(pat, ty) => Poly(pat |> IdTagged.temp, to_typ(ty) |> Typ.temp)
-    | Var(v) => Var(v)
-    | ProofOf(exp) => ProofOf(exp)
-    | ExplicitNonlabel => ExplicitNonlabel
-    | ProdExtension(ty1, ty2) =>
-      ProdExtension(to_typ(ty1) |> Typ.temp, to_typ(ty2) |> Typ.temp)
-    | ProdProjection(ty1, ty2) =>
-      ProdProjection(to_typ(ty1) |> Typ.temp, to_typ(ty2) |> Typ.temp)
-    };
+  let term_of = IdTagged.term_of;
+  let temp = IdTagged.temp;
+
+  let rec to_typ = (sol: t): Typ.t => {
+    let (unwrapped_sol, rewrap): (term, Typ.term => Typ.t) =
+      IdTagged.unwrap(sol);
+    (
+      switch (unwrapped_sol) {
+      | Unknown(p) => Unknown(p)
+      | Atom(a) => Atom(a)
+      | Arrow(s1, s2) => Arrow(to_typ(s1), to_typ(s2))
+      | Multi(_) => Unknown(Hole(EmptyHole) |> Prov.anonymous)
+      | List(elt) => List(to_typ(elt))
+      | Sum(sm) => Sum(sm)
+      | Prod(elts) => Prod(List.map(e => to_typ(e), elts))
+      | Label(l) => Label(l)
+      | TupLabel(label, ty) => TupLabel(to_typ(label), to_typ(ty))
+      | Rec(pat, ty) => Rec(pat, to_typ(ty))
+      | Poly(pat, ty) => Poly(pat, to_typ(ty))
+      | Var(v) => Var(v)
+      | ProofOf(exp) => ProofOf(exp)
+      | ExplicitNonlabel => ExplicitNonlabel
+      | ProdExtension(ty1, ty2) => ProdExtension(to_typ(ty1), to_typ(ty2))
+      | ProdProjection(ty1, ty2) =>
+        ProdProjection(to_typ(ty1), to_typ(ty2))
+      }
+    )
+    |> rewrap;
   };
 
   let rec all_provs_in_sol = (sol: t): list(Prov.t) => {
-    switch (sol) {
+    switch (sol |> term_of) {
     | Unknown(p) when is_identified_provenance(p) => [p]
     | Unknown(_) => []
     | Atom(_) => []
@@ -101,10 +107,12 @@ module Solution = {
   };
   ();
 
-  let solution_typ = (sol: t): Typ.term => {
-    switch (sol) {
+  let solution_typ = (sol: t): Typ.t => {
+    let (unwrapped_sol, rewrap): (term, Typ.term => Typ.t) =
+      IdTagged.unwrap(sol);
+    switch (unwrapped_sol) {
     | Unknown(_)
-    | Multi(_) => Unknown(Hole(EmptyHole) |> Prov.anonymous)
+    | Multi(_) => Unknown(Hole(EmptyHole) |> Prov.anonymous) |> rewrap
     | Atom(_)
     | Sum(_)
     | List(_)
@@ -122,43 +130,28 @@ module Solution = {
     };
   };
 
-  let rec of_typ = (prov: Prov.t, typ: Typ.term): t => {
-    switch (typ) {
-    | Atom(t) => Atom(t)
-    | Unknown(u) => Unknown(u)
-    | Sum(s) => Sum(s)
-    | Prod(elts) =>
-      Prod(List.map(e => of_typ(prov, Typ.term_of(e)), elts))
-    | Rec(pat, ty) =>
-      Rec(pat |> IdTagged.term_of, of_typ(prov, ty |> Typ.term_of))
-    | Poly(pat, ty) =>
-      Poly(pat |> IdTagged.term_of, of_typ(prov, ty |> Typ.term_of))
-    | List(elt) => List(of_typ(prov, elt |> Typ.term_of))
-    | ProofOf(exp) => ProofOf(exp)
-    | ExplicitNonlabel => ExplicitNonlabel
-    | Label(s) => Label(s)
-    | TupLabel(l, t) =>
-      TupLabel(
-        of_typ(prov, l |> Typ.term_of),
-        of_typ(prov, t |> Typ.term_of),
-      )
-    | Var(v) => Var(v)
-    | Parens(term) => of_typ(prov, term |> Typ.term_of)
-    | Arrow(t1, t2) =>
-      Arrow(
-        of_typ(prov, t1 |> Typ.term_of),
-        of_typ(prov, t2 |> Typ.term_of),
-      )
+  let rec of_typ = (typ: Typ.t): t => {
+    let (unwrapped_typ, rewrap): (TermBase.typ_term, term => t) =
+      IdTagged.unwrap(typ);
+    switch (unwrapped_typ) {
+    | Atom(t) => Atom(t) |> rewrap
+    | Unknown(u) => Unknown(u) |> rewrap
+    | Sum(s) => Sum(s) |> rewrap
+    | Prod(elts) => Prod(List.map(e => of_typ(e), elts)) |> rewrap
+    | Rec(pat, ty) => Rec(pat, of_typ(ty)) |> rewrap
+    | Poly(pat, ty) => Poly(pat, of_typ(ty)) |> rewrap
+    | List(elt) => List(of_typ(elt)) |> rewrap
+    | ProofOf(exp) => ProofOf(exp) |> rewrap
+    | ExplicitNonlabel => ExplicitNonlabel |> rewrap
+    | Label(s) => Label(s) |> rewrap
+    | TupLabel(l, t) => TupLabel(of_typ(l), of_typ(t)) |> rewrap
+    | Var(v) => Var(v) |> rewrap
+    | Parens(term) => of_typ(term)
+    | Arrow(t1, t2) => Arrow(of_typ(t1), of_typ(t2)) |> rewrap
     | ProdProjection(t1, t2) =>
-      ProdProjection(
-        of_typ(prov, t1 |> Typ.term_of),
-        of_typ(prov, t2 |> Typ.term_of),
-      )
+      ProdProjection(of_typ(t1), of_typ(t2)) |> rewrap
     | ProdExtension(t1, t2) =>
-      ProdExtension(
-        of_typ(prov, t1 |> Typ.term_of),
-        of_typ(prov, t2 |> Typ.term_of),
-      )
+      ProdExtension(of_typ(t1), of_typ(t2)) |> rewrap
     };
   };
 
@@ -167,7 +160,7 @@ module Solution = {
    * when the solution possesses a multi anywhere
    */
   let rec has_multiple_types = (sol: t): bool =>
-    switch (sol) {
+    switch (sol |> term_of) {
     | ProofOf(_)
     | ExplicitNonlabel => false
     | Label(_) => false
@@ -196,7 +189,8 @@ module Solution = {
    * through statics. Would have a performance penalty though
    */
   let rec all_types_from_solution = (sol: t): list(Typ.t) => {
-    switch (sol) {
+    // should IDs be preserved?
+    switch (sol |> term_of) {
     | ProofOf(exp) => [ProofOf(exp) |> Typ.temp]
     | ExplicitNonlabel => [ExplicitNonlabel |> Typ.temp]
     | Label(l) => [Label(l) |> Typ.temp]
@@ -231,14 +225,15 @@ module Solution = {
     | Atom(a) => [Atom(a) |> Typ.temp]
     | Var(v) => [Var(v) |> Typ.temp]
     | Unknown(p) => [Unknown(p) |> Typ.temp]
+    // TODO: i am not sure if the patterns should preserve their ids
     | Poly(pat, ty) =>
       List.map(
-        ty => {Poly(pat |> IdTagged.temp, ty) |> Typ.temp},
+        ty => {Poly(pat, ty) |> Typ.temp},
         all_types_from_solution(ty),
       )
     | Rec(pat, ty) =>
       List.map(
-        ty => {Rec(pat |> IdTagged.temp, ty) |> Typ.temp},
+        ty => {Rec(pat, ty) |> Typ.temp},
         all_types_from_solution(ty),
       )
     | Sum(sm) => [Sum(sm) |> Typ.temp]
@@ -280,7 +275,8 @@ module Solution = {
         ([], false),
       );
 
-    switch (sol) {
+    let (unwrapped_sol, rewrap) = IdTagged.unwrap(sol);
+    switch (unwrapped_sol) {
     | Unknown({term: Hole(CycleHole), _}) => (sol, false)
     | Unknown(q) when prov_to_replace == StringProv.of_prov(q) => (
         sol',
@@ -289,10 +285,10 @@ module Solution = {
     | Unknown(_) => (sol, false)
     | Prod(ss) =>
       let (ss', changed) = fold_solutions(ss);
-      (Prod(List.rev(ss')), changed);
+      (Prod(List.rev(ss')) |> rewrap, changed);
     | Multi(ss) =>
       let (ss', changed) = fold_solutions(ss);
-      (Multi(List.rev(ss')), changed);
+      (Multi(List.rev(ss')) |> rewrap, changed);
     | Atom(_) => (sol, false)
     | Sum(_) => (sol, false)
     | Var(_) => (sol, false)
@@ -302,110 +298,104 @@ module Solution = {
       let (label', changed1) =
         replace_solution(prov_to_replace, label, sol');
       let (body', changed2) = replace_solution(prov_to_replace, body, sol');
-      (TupLabel(label', body'), changed1 || changed2);
+      (TupLabel(label', body') |> rewrap, changed1 || changed2);
     | Rec(pat, body) =>
       let (body', changed) = replace_solution(prov_to_replace, body, sol');
-      (Rec(pat, body'), changed);
+      (Rec(pat, body') |> rewrap, changed);
     | Poly(pat, body) =>
       let (body', changed) = replace_solution(prov_to_replace, body, sol');
-      (Poly(pat, body'), changed);
+      (Poly(pat, body') |> rewrap, changed);
     | List(t) =>
       let (t', changed) = replace_solution(prov_to_replace, t, sol');
-      (List(t'), changed);
+      (List(t') |> rewrap, changed);
     | Arrow(s1, s2) =>
       let (s1', changed1) = replace_solution(prov_to_replace, s1, sol');
       let (s2', changed2) = replace_solution(prov_to_replace, s2, sol');
-      (Arrow(s1', s2'), changed1 || changed2);
+      (Arrow(s1', s2') |> rewrap, changed1 || changed2);
     | ProdProjection(s1, s2) =>
       let (s1', changed1) = replace_solution(prov_to_replace, s1, sol');
       let (s2', changed2) = replace_solution(prov_to_replace, s2, sol');
-      (ProdProjection(s1', s2'), changed1 || changed2);
+      (ProdProjection(s1', s2') |> rewrap, changed1 || changed2);
     | ProdExtension(s1, s2) =>
       let (s1', changed1) = replace_solution(prov_to_replace, s1, sol');
       let (s2', changed2) = replace_solution(prov_to_replace, s2, sol');
-      (ProdExtension(s1', s2'), changed1 || changed2);
+      (ProdExtension(s1', s2') |> rewrap, changed1 || changed2);
     | ProofOf(_) => (sol, false)
     };
   };
 
   // multiholes idk lol???
-  let rec refine_solution = (prov: Prov.t, sol: t, typ: Typ.term): t => {
-    switch (sol, typ) {
+  let rec refine_solution = (prov: Prov.t, sol: t, typ: Typ.t): t => {
+    let (unwrapped_sol, rewrap_sol) = IdTagged.unwrap(sol);
+    let (unwrapped_typ, rewrap_typ) = IdTagged.unwrap(typ);
+
+    // TODO: I am not sure if just trashing the type's ID is the right
+    // approach, but what are you going to do...
+    switch (unwrapped_sol, unwrapped_typ) {
     | (s, Unknown({term: Hole(CycleHole), _}) as t)
     | (Unknown({term: Hole(CycleHole), _}) as s, t) =>
-      Multi([s, of_typ(prov, t)])
-    | (Unknown(p), t) when !is_identified_provenance(p) => of_typ(p, t)
-    | (s, Unknown(p)) when !is_identified_provenance(p) => s
-    | (Unknown(_) as s, _) => s
-    | (_, Unknown(_) as t) => of_typ(prov, t)
-    | (Atom(a1), Atom(a2)) when a1 == a2 => Atom(a1)
-    | (Atom(a1), Atom(a2)) => Multi([Atom(a1), Atom(a2)])
+      Multi([s |> rewrap_sol, of_typ(t |> rewrap_typ)]) |> temp
+    | (Unknown(p), t) when !is_identified_provenance(p) =>
+      of_typ(t |> rewrap_typ)
+    | (s, Unknown(p)) when !is_identified_provenance(p) => s |> rewrap_sol
+    | (Unknown(_) as s, _) => s |> rewrap_sol
+    | (_, Unknown(_) as t) => of_typ(t |> rewrap_typ)
+
+    | (Atom(a1), Atom(a2)) when a1 == a2 => Atom(a1) |> rewrap_sol
+    | (Atom(_) as s, Atom(_) as t) =>
+      Multi([s |> rewrap_sol, of_typ(t |> rewrap_typ)]) |> temp
     | (List(l1), List(l2)) =>
-      List(refine_solution(prov, l1, l2 |> Typ.term_of))
-    | (Sum(s1), Sum(s2)) when s1 == s2 => Sum(s1)
-    | (Prod(p1), Prod(p2)) =>
+      List(refine_solution(prov, l1, l2)) |> rewrap_sol
+    | (Sum(s1), Sum(s2)) when s1 == s2 => Sum(s1) |> rewrap_sol
+    | (Prod(p1), Prod(p2) as t) =>
       if (List.length(p1) == List.length(p2)) {
-        Prod(
-          List.map2(
-            (e1, e2) => refine_solution(prov, e1, e2 |> Typ.term_of),
-            p1,
-            p2,
-          ),
-        );
+        Prod(List.map2(refine_solution(prov), p1, p2)) |> rewrap_sol;
       } else {
-        Multi([
-          Prod(p1),
-          Prod(List.map(e => of_typ(prov, e |> Typ.term_of), p2)),
-        ]);
+        Multi([Prod(p1) |> rewrap_sol, of_typ(t |> rewrap_typ)]) |> temp;
       }
     | (ProofOf(exp1), ProofOf(exp2)) when Exp.equal(exp1, exp2) =>
-      ProofOf(exp1)
-    | (ExplicitNonlabel, ExplicitNonlabel) => ExplicitNonlabel
-    | (Label(s1), Label(s2)) =>
+      ProofOf(exp1) |> rewrap_sol
+    | (ExplicitNonlabel, ExplicitNonlabel) => ExplicitNonlabel |> rewrap_sol
+    | (Label(s1), Label(s2) as t) =>
       if (s1 == s2) {
-        Label(s1);
+        Label(s1) |> rewrap_sol;
       } else {
-        Multi([Label(s1), Label(s2)]);
+        Multi([Label(s1) |> rewrap_sol, of_typ(t |> rewrap_typ)]) |> temp;
       }
     | (TupLabel(l1, r1), TupLabel(l2, r2)) =>
-      TupLabel(
-        refine_solution(prov, l1, l2 |> Typ.term_of),
-        refine_solution(prov, r1, r2 |> Typ.term_of),
-      )
-    | (Rec(pat1, ty1), Rec(pat2, ty2)) =>
-      if (pat1 == (pat2 |> IdTagged.term_of)) {
-        Rec(pat1, refine_solution(prov, ty1, ty2 |> Typ.term_of));
+      TupLabel(refine_solution(prov, l1, l2), refine_solution(prov, r1, r2))
+      |> rewrap_sol
+    | (Rec(pat1, ty1), Rec(pat2, ty2) as t) =>
+      if (TPat.equal(pat1, pat2)) {
+        Rec(pat1, refine_solution(prov, ty1, ty2)) |> rewrap_sol;
       } else {
-        Multi([
-          Rec(pat1, ty1),
-          Rec(pat2 |> IdTagged.term_of, of_typ(prov, ty2 |> Typ.term_of)),
-        ]);
+        Multi([Rec(pat1, ty1) |> rewrap_sol, of_typ(t |> rewrap_typ)])
+        |> temp;
       }
-    | (Poly(pat1, ty1), Poly(pat2, ty2)) =>
-      if (pat1 == (pat2 |> IdTagged.term_of)) {
-        Poly(pat1, refine_solution(prov, ty1, ty2 |> Typ.term_of));
+    | (Poly(pat1, ty1), Poly(pat2, ty2) as t) =>
+      // TODO: hmm how does equality work here
+      if (TPat.equal(pat1, pat2)) {
+        Poly(pat1, refine_solution(prov, ty1, ty2)) |> rewrap_sol;
       } else {
-        Multi([
-          Poly(pat1, ty1),
-          Poly(pat2 |> IdTagged.term_of, of_typ(prov, ty2 |> Typ.term_of)),
-        ]);
+        Multi([Poly(pat1, ty1) |> rewrap_sol, of_typ(t |> rewrap_typ)])
+        |> temp;
       }
     | (Arrow(s1, s2), Arrow(t1, t2)) =>
-      Arrow(
-        refine_solution(prov, s1, t1 |> Typ.term_of),
-        refine_solution(prov, s2, t2 |> Typ.term_of),
-      )
+      Arrow(refine_solution(prov, s1, t1), refine_solution(prov, s2, t2))
+      |> rewrap_sol
     | (ProdProjection(s1, s2), ProdProjection(t1, t2)) =>
       ProdProjection(
-        refine_solution(prov, s1, t1 |> Typ.term_of),
-        refine_solution(prov, s2, t2 |> Typ.term_of),
+        refine_solution(prov, s1, t1),
+        refine_solution(prov, s2, t2),
       )
+      |> rewrap_sol
     | (ProdExtension(s1, s2), ProdExtension(t1, t2)) =>
       ProdExtension(
-        refine_solution(prov, s1, t1 |> Typ.term_of),
-        refine_solution(prov, s2, t2 |> Typ.term_of),
+        refine_solution(prov, s1, t1),
+        refine_solution(prov, s2, t2),
       )
-    | (Multi(ss), t) => Multi(ss @ [of_typ(prov, t)]) // TODO: compress possibilities
+      |> rewrap_sol
+    | (Multi(ss), t) => Multi(ss @ [of_typ(t |> rewrap_typ)]) |> rewrap_sol // TODO: compress possibilities
     | (Atom(_) as s, t)
     | (List(_) as s, t)
     | (ExplicitNonlabel as s, t)
@@ -419,17 +409,18 @@ module Solution = {
     | (Sum(_) as s, t)
     | (Var(_) as s, t)
     | (Poly(_, _) as s, t)
-    | (ProofOf(_) as s, t) => Multi([s, of_typ(prov, t)])
+    | (ProofOf(_) as s, t) =>
+      Multi([s |> rewrap_sol, of_typ(t |> rewrap_typ)]) |> temp
     };
   };
 };
 
 let mk_cyclic_solution: Solution.t =
-  Unknown(Hole(CycleHole) |> Prov.anonymous);
+  Solution.Unknown(Hole(CycleHole) |> Prov.anonymous) |> Solution.temp;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type canonical_constramnot =
-  | Con(Prov.t, Typ.term);
+  | Con(Prov.t, Typ.t);
 
 module ProvMap = {
   [@deriving (sexp, yojson)]
@@ -492,37 +483,33 @@ module SolutionMap: {
     });
 };
 
-let rec provs_in_typ = (~include_prov=_ => true, t: Typ.term): list(Prov.t) => {
-  switch (t) {
+let rec provs_in_typ = (~include_prov=_ => true, t: Typ.t): list(Prov.t) => {
+  switch (t |> Typ.term_of) {
   | Unknown(p) when is_identified_provenance(p) && include_prov(p) => [p]
   | Unknown(_) => []
   | Atom(_) => []
   | Arrow(t1, t2) =>
-    provs_in_typ(~include_prov, t1 |> Typ.term_of)
-    @ provs_in_typ(~include_prov, t2 |> Typ.term_of)
+    provs_in_typ(~include_prov, t1) @ provs_in_typ(~include_prov, t2)
   | Prod(args) =>
-    List.map(t => provs_in_typ(~include_prov, t |> Typ.term_of), args)
-    |> List.flatten
+    List.map(t => provs_in_typ(~include_prov, t), args) |> List.flatten
   | Label(_) => []
   | TupLabel(label, arg) =>
-    provs_in_typ(~include_prov, label |> Typ.term_of)
-    @ provs_in_typ(~include_prov, arg |> Typ.term_of)
-  | List(elt) => provs_in_typ(~include_prov, elt |> Typ.term_of)
+    provs_in_typ(~include_prov, label) @ provs_in_typ(~include_prov, arg)
+  | List(elt) => provs_in_typ(~include_prov, elt)
   | Sum(_) => []
-  | Parens(term) => provs_in_typ(~include_prov, term |> Typ.term_of)
-  | Rec(_, ty) => provs_in_typ(~include_prov, ty |> Typ.term_of)
-  | Poly(_, ty) => provs_in_typ(~include_prov, ty |> Typ.term_of)
+  | Parens(term) => provs_in_typ(~include_prov, term)
+  | Rec(_, ty) => provs_in_typ(~include_prov, ty)
+  | Poly(_, ty) => provs_in_typ(~include_prov, ty)
   | Var(_) => []
   | ProofOf(_) => []
   | ExplicitNonlabel => []
   | ProdProjection(ty1, ty2)
   | ProdExtension(ty1, ty2) =>
-    provs_in_typ(~include_prov, ty1 |> Typ.term_of)
-    @ provs_in_typ(~include_prov, ty2 |> Typ.term_of)
+    provs_in_typ(~include_prov, ty1) @ provs_in_typ(~include_prov, ty2)
   };
 };
 
-let unsolved_provs_in_typ = (t: Typ.term, sm: SolutionMap.t) => {
+let unsolved_provs_in_typ = (t: Typ.t, sm: SolutionMap.t) => {
   let filter = (p: Prov.t) => !SolutionMap.mem(StringProv.of_prov(p), sm);
   provs_in_typ(t, ~include_prov=filter);
 };
@@ -545,19 +532,19 @@ let rec unfold_constramnot =
   // | (_, Unknown({term: Hole(EmptyHole), _})) => []
   | (Unknown(p), Unknown(q)) =>
     if (is_identified_provenance(p) && is_identified_provenance(q)) {
-      [Con(p, Unknown(q))];
+      [Con(p, Unknown(q) |> Typ.temp)];
     } else {
       [];
     }
   | (Unknown(p), t) =>
     if (is_identified_provenance(p)) {
-      [Con(p, t)];
+      [Con(p, t |> Typ.temp)];
     } else {
       [];
     }
   | (t, Unknown(p)) =>
     if (is_identified_provenance(p)) {
-      [Con(p, t)];
+      [Con(p, t |> Typ.temp)];
     } else {
       [];
     }
@@ -630,14 +617,14 @@ let unfold_constramnots: list(Typ.equivalence) => list(canonical_constramnot) =
 // TODO: this needs to be a proper set to get rid of duplicate types
 // Temp fix just prevent duplicaste insertion
 module PossibleTypeSet: {
-  type t = list(Typ.term);
+  type t = list(Typ.t);
   let union: (t, t) => t;
   let empty: t;
-  let singleton: Typ.term => t;
+  let singleton: Typ.t => t;
   let to_list: t => t;
-  let add: (Typ.term, t) => t;
+  let add: (Typ.t, t) => t;
 } = {
-  type t = list(Typ.term);
+  type t = list(Typ.t);
 
   // let set_contains = (x: Typ.term, ts: t) =>
   //   List.exists(
@@ -650,12 +637,12 @@ module PossibleTypeSet: {
   //     ts,
   //   );
 
-  let add = (x: Typ.term, ts: t) => [x, ...ts];
+  let add = (x: Typ.t, ts: t) => [x, ...ts];
 
   // Fold for dedup
   let union = (a, b) => List.fold_left((acc, t) => add(t, acc), a, b);
   let empty = [];
-  let singleton = (t: Typ.term): t => [t];
+  let singleton = (t: Typ.t): t => [t];
   let to_list = (t: t) => t;
 };
 
@@ -710,7 +697,7 @@ module PossibleProvTypesMap: {
     // a provenance is directly constrained to another provenance, in which
     // case once solved, both of them should have identical solutions, so
     // they are merged
-    | Con(prov, Unknown(other_prov))
+    | Con(prov, {term: Unknown(other_prov), _})
         when
           !(
             SolutionMap.mem(StringProv.of_prov(prov), sol_map)
@@ -817,7 +804,7 @@ let solve_prov =
   let ts_list = PossibleTypeSet.to_list(ts);
   List.fold_left(
     Solution.refine_solution(prov),
-    Solution.Unknown(Hole(EmptyHole) |> Prov.anonymous),
+    Solution.Unknown(Hole(EmptyHole) |> Prov.anonymous) |> Solution.temp,
     ts_list,
   );
 };
@@ -835,7 +822,10 @@ let string_of_data = ((_, ps, ts): PossibleProvTypesMap.data): string =>
   ++ "] | ["
   ++ String.concat(
        ", ",
-       List.map(TermBase.show_typ_term, PossibleTypeSet.to_list(ts)),
+       List.map(
+         t => t |> Typ.term_of |> TermBase.show_typ_term,
+         PossibleTypeSet.to_list(ts),
+       ),
      )
   ++ "]";
 
@@ -870,82 +860,63 @@ let string_of_prov_map = (m: PossibleProvTypesMap.t): string => {
 let rec solution_typ_replace_typ =
         (
           prov: StringProv.t,
-          typ: Typ.term,
-          sol_typ: Typ.term,
+          typ: Typ.t,
+          sol_typ: Typ.t,
           prov_map: PossibleProvTypesMap.t,
         )
-        : Typ.term => {
-  switch (typ) {
+        : Typ.t => {
+  let (unwrapped_typ, rewrap_typ) = Typ.unwrap(typ);
+  switch (unwrapped_typ) {
   | Unknown(q) when prov == StringProv.of_prov(q) => sol_typ
   // | Hole(q) => Hole(q)
-  | Unknown(_) as u => u
-  | Atom(_) as atom => atom
+  | Unknown(_) as u => u |> rewrap_typ
+  | Atom(_) as atom => atom |> rewrap_typ
   | List(t) =>
-    List(
-      solution_typ_replace_typ(prov, t |> Typ.term_of, sol_typ, prov_map)
-      |> Typ.temp,
-    )
+    List(solution_typ_replace_typ(prov, t, sol_typ, prov_map)) |> rewrap_typ
   | Poly(pat, body) =>
-    Poly(
-      pat,
-      solution_typ_replace_typ(prov, body |> Typ.term_of, sol_typ, prov_map)
-      |> Typ.temp,
-    )
-  | Sum(_) as sum => sum
-  | Var(_) as var => var
+    Poly(pat, solution_typ_replace_typ(prov, body, sol_typ, prov_map))
+    |> rewrap_typ
+  | Sum(_) as sum => sum |> rewrap_typ
+  | Var(_) as var => var |> rewrap_typ
   | Prod(args) =>
     Prod(
       List.map(
-        arg =>
-          solution_typ_replace_typ(
-            prov,
-            arg |> Typ.term_of,
-            sol_typ,
-            prov_map,
-          )
-          |> Typ.temp,
+        arg => solution_typ_replace_typ(prov, arg, sol_typ, prov_map),
         args,
       ),
     )
-  | Label(_) as label => label
+    |> rewrap_typ
+  | Label(_) as label => label |> rewrap_typ
   | TupLabel(label, ty) =>
     TupLabel(
-      solution_typ_replace_typ(prov, label |> Typ.term_of, sol_typ, prov_map)
-      |> Typ.temp,
-      solution_typ_replace_typ(prov, ty |> Typ.term_of, sol_typ, prov_map)
-      |> Typ.temp,
+      solution_typ_replace_typ(prov, label, sol_typ, prov_map),
+      solution_typ_replace_typ(prov, ty, sol_typ, prov_map),
     )
-  | Parens(term) =>
-    solution_typ_replace_typ(prov, term |> Typ.term_of, sol_typ, prov_map)
+    |> rewrap_typ
+  | Parens(term) => solution_typ_replace_typ(prov, term, sol_typ, prov_map)
   | Rec(pat, body) =>
-    Rec(
-      pat,
-      solution_typ_replace_typ(prov, body |> Typ.term_of, sol_typ, prov_map)
-      |> Typ.temp,
-    )
+    Rec(pat, solution_typ_replace_typ(prov, body, sol_typ, prov_map))
+    |> rewrap_typ
   | Arrow(t1, t2) =>
     Arrow(
-      solution_typ_replace_typ(prov, t1 |> Typ.term_of, sol_typ, prov_map)
-      |> Typ.temp,
-      solution_typ_replace_typ(prov, t2 |> Typ.term_of, sol_typ, prov_map)
-      |> Typ.temp,
+      solution_typ_replace_typ(prov, t1, sol_typ, prov_map),
+      solution_typ_replace_typ(prov, t2, sol_typ, prov_map),
     )
-  | ProofOf(_) as st => st
-  | ExplicitNonlabel as st => st
+    |> rewrap_typ
+  | ProofOf(_) as st => st |> rewrap_typ
+  | ExplicitNonlabel as st => st |> rewrap_typ
   | ProdExtension(t1, t2) =>
     ProdExtension(
-      solution_typ_replace_typ(prov, t1 |> Typ.term_of, sol_typ, prov_map)
-      |> Typ.temp,
-      solution_typ_replace_typ(prov, t2 |> Typ.term_of, sol_typ, prov_map)
-      |> Typ.temp,
+      solution_typ_replace_typ(prov, t1, sol_typ, prov_map),
+      solution_typ_replace_typ(prov, t2, sol_typ, prov_map),
     )
+    |> rewrap_typ
   | ProdProjection(t1, t2) =>
     ProdProjection(
-      solution_typ_replace_typ(prov, t1 |> Typ.term_of, sol_typ, prov_map)
-      |> Typ.temp,
-      solution_typ_replace_typ(prov, t2 |> Typ.term_of, sol_typ, prov_map)
-      |> Typ.temp,
+      solution_typ_replace_typ(prov, t1, sol_typ, prov_map),
+      solution_typ_replace_typ(prov, t2, sol_typ, prov_map),
     )
+    |> rewrap_typ
   };
 };
 
@@ -953,25 +924,13 @@ let solution_typ_replace_con =
     (
       prov_to_replace: StringProv.t,
       Con(cons_t1, cons_t2): Typ.equivalence,
-      sol_typ: Typ.term,
+      sol_typ: Typ.t,
       prov_map: PossibleProvTypesMap.t,
     )
     : Typ.equivalence => {
   Con(
-    solution_typ_replace_typ(
-      prov_to_replace,
-      cons_t1 |> Typ.term_of,
-      sol_typ,
-      prov_map,
-    )
-    |> Typ.temp,
-    solution_typ_replace_typ(
-      prov_to_replace,
-      cons_t2 |> Typ.term_of,
-      sol_typ,
-      prov_map,
-    )
-    |> Typ.temp,
+    solution_typ_replace_typ(prov_to_replace, cons_t1, sol_typ, prov_map),
+    solution_typ_replace_typ(prov_to_replace, cons_t2, sol_typ, prov_map),
   );
 };
 
@@ -979,7 +938,7 @@ let solution_typ_replace_cons =
     (
       prov_to_replace: StringProv.t,
       constraints: list(Typ.equivalence),
-      sol_typ: Typ.term,
+      sol_typ: Typ.t,
       prov_map: PossibleProvTypesMap.t,
     )
     : list(Typ.equivalence) =>
