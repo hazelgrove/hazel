@@ -2,6 +2,7 @@ open Alcotest;
 open Test_Statics_Prelude;
 open FTemp;
 open Typ;
+open TypeProvenance;
 
 let tests = (
   "Statics.Functions",
@@ -9,7 +10,7 @@ let tests = (
     fully_consistent_typecheck(
       "Function with unknown param",
       "fun x -> 4 + 5",
-      Some(Typ.(arrow(unknown(Internal), int()))),
+      Some(Typ.(arrow(unknown(internal()), int()))),
     ),
     fully_consistent_typecheck(
       "Function with known param",
@@ -20,7 +21,7 @@ let tests = (
       "Function with labeled param",
       "fun (a=x) -> 4",
       Some(
-        arrow(prod([tup_label(label("a"), unknown(Internal))]), int()),
+        arrow(prod([tup_label(label("a"), unknown(internal()))]), int()),
       ),
     ),
     fully_consistent_typecheck(
@@ -58,15 +59,15 @@ let tests = (
       {|?(1, _, _)|},
       Some(
         arrow(
-          prod([unknown(Internal), unknown(Internal)]),
-          unknown(Internal),
+          prod([unknown(internal()), unknown(internal())]),
+          unknown(internal()),
         ),
       ),
     ),
     test_case("Wrong number of deferrals", `Quick, () =>
       annotated_tree_test(
         {|string_sub(_, _, 2, 3)|},
-        unknown(Internal),
+        unknown(internal()),
         FIError.Exp.(
           deferred_ap(
             ~ann=
@@ -90,8 +91,8 @@ let tests = (
       annotated_tree_test(
         {|(? : (? -> ?))(1, _, _)|},
         arrow(
-          prod([unknown(Internal), unknown(Internal)]),
-          unknown(Internal),
+          prod([unknown(internal()), unknown(internal())]),
+          unknown(internal()),
         ),
         FIError.(
           Exp.(
@@ -99,9 +100,11 @@ let tests = (
               asc(
                 empty_hole(),
                 Typ.(
-                  arrow(
-                    unknown(Hole(EmptyHole)),
-                    unknown(Hole(EmptyHole)),
+                  TypeProvenance.(
+                    arrow(
+                      unknown(hole(EmptyHole)),
+                      unknown(hole(EmptyHole)),
+                    )
                   )
                 ),
               ),

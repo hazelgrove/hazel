@@ -87,7 +87,10 @@ let is_recursive = (ctx, p, def, syn: Typ.t) => {
   };
 };
 
-let syn = Unknown(SynSwitch) |> Typ.temp;
+let anon_syn = Unknown(SynSwitch |> Prov.anonymous) |> Typ.temp;
+let mk_temp_syn = () => Unknown(SynSwitch |> Prov.fresh) |> Typ.temp;
+let mk_fresh_internal = () => Unknown(Internal |> Prov.fresh) |> Typ.fresh;
+let mk_temp_internal = () => Unknown(Internal |> Prov.fresh) |> Typ.temp;
 
 module type ExpressionStatics = {
   let uexp_to_info_map:
@@ -110,6 +113,7 @@ module type ExpressionStatics = {
       ~label_inference: Info.label_inference(Info.exp)=?,
       ~self: Self.exp,
       ~co_ctx: CoCtx.t,
+      ~constraints: list(Typ.equivalence),
       Map.t
     ) =>
     (Info.exp, Map.t);

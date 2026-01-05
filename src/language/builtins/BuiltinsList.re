@@ -14,7 +14,7 @@ let builtins =
                | x :: xs => 1 + length(xs)
              end|},
       name: "length",
-      arg: List(unknown(Internal)),
+      arg: List(unknown(Internal |> Prov.fresh)),
       ret: Atom(Int),
       imp: {
         Fresh.(
@@ -54,10 +54,13 @@ let builtins =
       name: "map",
       arg:
         Prod([
-          list(unknown(Internal)),
-          arrow(unknown(Internal), unknown(Internal)),
+          list(unknown(Internal |> Prov.fresh)),
+          arrow(
+            unknown(Internal |> Prov.fresh),
+            unknown(Internal |> Prov.fresh),
+          ),
         ]),
-      ret: List(unknown(Internal)),
+      ret: List(unknown(Internal |> Prov.fresh)),
       imp: {
         Fresh.(
           Exp.(
@@ -98,8 +101,11 @@ let builtins =
            end|},
       name: "filter",
       arg:
-        Prod([list(unknown(Internal)), arrow(unknown(Internal), bool())]),
-      ret: List(unknown(Internal)),
+        Prod([
+          list(unknown(Internal |> Prov.fresh)),
+          arrow(unknown(Internal |> Prov.fresh), bool()),
+        ]),
+      ret: List(unknown(Internal |> Prov.fresh)),
       imp: {
         Fresh.(
           Exp.(
@@ -149,14 +155,17 @@ let builtins =
       name: "fold_left",
       arg:
         Prod([
-          list(unknown(Internal)),
+          list(unknown(Internal |> Prov.fresh)),
           arrow(
-            prod([unknown(Internal), unknown(Internal)]),
-            unknown(Internal),
+            prod([
+              unknown(Internal |> Prov.fresh),
+              unknown(Internal |> Prov.fresh),
+            ]),
+            unknown(Internal |> Prov.fresh),
           ),
-          unknown(Internal),
+          unknown(Internal |> Prov.fresh),
         ]),
-      ret: Typ.term_of(unknown(Internal)),
+      ret: Typ.term_of(unknown(Internal |> Prov.fresh)),
       imp: {
         Fresh.(
           Exp.(
@@ -200,10 +209,13 @@ let builtins =
       name: "flat_map",
       arg:
         Prod([
-          list(unknown(Internal)),
-          arrow(unknown(Internal), list(unknown(Internal))),
+          list(unknown(Internal |> Prov.fresh)),
+          arrow(
+            unknown(Internal |> Prov.fresh),
+            list(unknown(Internal |> Prov.fresh)),
+          ),
         ]),
-      ret: List(unknown(Internal)),
+      ret: List(unknown(Internal |> Prov.fresh)),
       imp: {
         Fresh.(
           Exp.(
@@ -244,8 +256,18 @@ let builtins =
              | (x :: xs, y :: ys) => (x,y) :: zip(xs,ys)
            end|},
       name: "zip",
-      arg: Prod([list(unknown(Internal)), list(unknown(Internal))]),
-      ret: List(prod([unknown(Internal), unknown(Internal)])),
+      arg:
+        Prod([
+          list(unknown(Internal |> Prov.fresh)),
+          list(unknown(Internal |> Prov.fresh)),
+        ]),
+      ret:
+        List(
+          prod([
+            unknown(Internal |> Prov.fresh),
+            unknown(Internal |> Prov.fresh),
+          ]),
+        ),
       imp: {
         Fresh.(
           Exp.(
@@ -295,8 +317,18 @@ let builtins =
              | ((a,b) :: xs) => let (as, bs) = unzip(xs) in ((a :: as), (b ::bs))
            end|},
       name: "unzip",
-      arg: List(prod([unknown(Internal), unknown(Internal)])),
-      ret: Prod([list(unknown(Internal)), list(unknown(Internal))]),
+      arg:
+        List(
+          prod([
+            unknown(Internal |> Prov.fresh),
+            unknown(Internal |> Prov.fresh),
+          ]),
+        ),
+      ret:
+        Prod([
+          list(unknown(Internal |> Prov.fresh)),
+          list(unknown(Internal |> Prov.fresh)),
+        ]),
       imp: {
         Fresh.(
           Exp.(
@@ -343,8 +375,8 @@ let builtins =
            end|},
       /* Faster (possibly) than tail-rec variant in medium-length cases since @ is builtin */
       name: "reverse",
-      arg: List(unknown(Internal)),
-      ret: List(unknown(Internal)),
+      arg: List(unknown(Internal |> Prov.fresh)),
+      ret: List(unknown(Internal |> Prov.fresh)),
       imp: {
         Fresh.(
           Exp.(
@@ -382,8 +414,8 @@ let builtins =
              | x :: xs => x :: take(xs, n - 1)
            end|},
       name: "take",
-      arg: Prod([list(unknown(Internal)), int()]),
-      ret: List(unknown(Internal)),
+      arg: Prod([list(unknown(Internal |> Prov.fresh)), int()]),
+      ret: List(unknown(Internal |> Prov.fresh)),
       imp: {
         Fresh.(
           Exp.(
@@ -431,8 +463,8 @@ let builtins =
              | x :: xs => drop(xs, n - 1)
            end|},
       name: "drop",
-      arg: Prod([list(unknown(Internal)), int()]),
-      ret: List(unknown(Internal)),
+      arg: Prod([list(unknown(Internal |> Prov.fresh)), int()]),
+      ret: List(unknown(Internal |> Prov.fresh)),
       imp: {
         Fresh.(
           Exp.(
@@ -514,8 +546,8 @@ let builtins =
            end)((xs, 0))
            |},
       name: "enumerate",
-      arg: List(unknown(Internal)),
-      ret: List(prod([int(), unknown(Internal)])),
+      arg: List(unknown(Internal |> Prov.fresh)),
+      ret: List(prod([int(), unknown(Internal |> Prov.fresh)])),
       imp: {
         Fresh.(
           Exp.(
@@ -572,7 +604,10 @@ let builtins =
            end|},
       name: "any",
       arg:
-        Prod([list(unknown(Internal)), arrow(unknown(Internal), bool())]),
+        Prod([
+          list(unknown(Internal |> Prov.fresh)),
+          arrow(unknown(Internal |> Prov.fresh), bool()),
+        ]),
       ret: Atom(Bool),
       imp: {
         Fresh.(
@@ -615,7 +650,10 @@ let builtins =
            end|},
       name: "all",
       arg:
-        Prod([list(unknown(Internal)), arrow(unknown(Internal), bool())]),
+        Prod([
+          list(unknown(Internal |> Prov.fresh)),
+          arrow(unknown(Internal |> Prov.fresh), bool()),
+        ]),
       ret: Atom(Bool),
       imp: {
         Fresh.(
@@ -658,8 +696,12 @@ let builtins =
              | x :: xs => x :: sep :: intersperse(xs, sep)
            end|},
       name: "intersperse",
-      arg: Prod([list(unknown(Internal)), unknown(Internal)]),
-      ret: List(unknown(Internal)),
+      arg:
+        Prod([
+          list(unknown(Internal |> Prov.fresh)),
+          unknown(Internal |> Prov.fresh),
+        ]),
+      ret: List(unknown(Internal |> Prov.fresh)),
       imp: {
         Fresh.(
           Exp.(
@@ -700,8 +742,12 @@ let builtins =
     {
       str: {|fix cons -> fun (x, xs) -> x :: xs|},
       name: "cons",
-      arg: Prod([unknown(Internal), list(unknown(Internal))]),
-      ret: List(unknown(Internal)),
+      arg:
+        Prod([
+          unknown(Internal |> Prov.fresh),
+          list(unknown(Internal |> Prov.fresh)),
+        ]),
+      ret: List(unknown(Internal |> Prov.fresh)),
       imp: {
         Fresh.(
           Exp.(
@@ -725,8 +771,8 @@ let builtins =
              | x :: _ => x
            end|},
       name: "head",
-      arg: List(unknown(Internal)),
-      ret: Unknown(Internal),
+      arg: List(unknown(Internal |> Prov.fresh)),
+      ret: Unknown(Internal |> Prov.fresh),
       imp: {
         Fresh.(
           Exp.(
@@ -756,8 +802,8 @@ let builtins =
              | _ :: xs => xs
            end|},
       name: "tail",
-      arg: List(unknown(Internal)),
-      ret: List(unknown(Internal)),
+      arg: List(unknown(Internal |> Prov.fresh)),
+      ret: List(unknown(Internal |> Prov.fresh)),
       imp: {
         Fresh.(
           Exp.(
@@ -787,7 +833,7 @@ let builtins =
              | _ => false
            end|},
       name: "is_empty",
-      arg: List(unknown(Internal)),
+      arg: List(unknown(Internal |> Prov.fresh)),
       ret: Atom(Bool),
       imp: {
         Fresh.(
@@ -818,8 +864,8 @@ let builtins =
              | x :: xs => if n == 0 then x else nth(xs, n - 1)
            end|},
       name: "nth",
-      arg: Prod([list(unknown(Internal)), int()]),
-      ret: Unknown(Internal),
+      arg: Prod([list(unknown(Internal |> Prov.fresh)), int()]),
+      ret: Unknown(Internal |> Prov.fresh),
       imp: {
         Fresh.(
           Exp.(
@@ -865,14 +911,17 @@ let builtins =
       name: "fold_right",
       arg:
         Prod([
-          list(unknown(Internal)),
+          list(unknown(Internal |> Prov.fresh)),
           arrow(
-            prod([unknown(Internal), unknown(Internal)]),
-            unknown(Internal),
+            prod([
+              unknown(Internal |> Prov.fresh),
+              unknown(Internal |> Prov.fresh),
+            ]),
+            unknown(Internal |> Prov.fresh),
           ),
-          unknown(Internal),
+          unknown(Internal |> Prov.fresh),
         ]),
-      ret: Unknown(Internal),
+      ret: Unknown(Internal |> Prov.fresh),
       imp: {
         Fresh.(
           Exp.(
@@ -913,8 +962,12 @@ let builtins =
     {
       str: {|fix append -> fun (xs, ys) -> xs @ ys|},
       name: "append",
-      arg: Prod([list(unknown(Internal)), list(unknown(Internal))]),
-      ret: List(unknown(Internal)),
+      arg:
+        Prod([
+          list(unknown(Internal |> Prov.fresh)),
+          list(unknown(Internal |> Prov.fresh)),
+        ]),
+      ret: List(unknown(Internal |> Prov.fresh)),
       imp: {
         Fresh.(
           Exp.(
@@ -938,8 +991,8 @@ let builtins =
              | xs :: xss => xs @ concat(xss)
            end|},
       name: "concat",
-      arg: List(list(unknown(Internal))),
-      ret: List(unknown(Internal)),
+      arg: List(list(unknown(Internal |> Prov.fresh))),
+      ret: List(unknown(Internal |> Prov.fresh)),
       imp: {
         Fresh.(
           Exp.(
@@ -978,10 +1031,13 @@ let builtins =
       name: "mapi",
       arg:
         Prod([
-          list(unknown(Internal)),
-          arrow(prod([int(), unknown(Internal)]), unknown(Internal)),
+          list(unknown(Internal |> Prov.fresh)),
+          arrow(
+            prod([int(), unknown(Internal |> Prov.fresh)]),
+            unknown(Internal |> Prov.fresh),
+          ),
         ]),
-      ret: List(unknown(Internal)),
+      ret: List(unknown(Internal |> Prov.fresh)),
       imp: {
         Fresh.(
           Exp.(
@@ -1049,10 +1105,10 @@ let builtins =
       name: "filteri",
       arg:
         Prod([
-          list(unknown(Internal)),
-          arrow(prod([int(), unknown(Internal)]), bool()),
+          list(unknown(Internal |> Prov.fresh)),
+          arrow(prod([int(), unknown(Internal |> Prov.fresh)]), bool()),
         ]),
-      ret: List(unknown(Internal)),
+      ret: List(unknown(Internal |> Prov.fresh)),
       imp: {
         Fresh.(
           Exp.(
@@ -1126,7 +1182,11 @@ let builtins =
     {
       str: {|fix mem -> fun (xs, x) -> any(xs, fun t -> x == t)|},
       name: "mem",
-      arg: Prod([list(unknown(Internal)), unknown(Internal)]),
+      arg:
+        Prod([
+          list(unknown(Internal |> Prov.fresh)),
+          unknown(Internal |> Prov.fresh),
+        ]),
       ret: Atom(Bool),
       imp: {
         Fresh.(
@@ -1165,8 +1225,15 @@ let builtins =
            end|},
       name: "partition",
       arg:
-        Prod([list(unknown(Internal)), arrow(unknown(Internal), bool())]),
-      ret: Prod([list(unknown(Internal)), list(unknown(Internal))]),
+        Prod([
+          list(unknown(Internal |> Prov.fresh)),
+          arrow(unknown(Internal |> Prov.fresh), bool()),
+        ]),
+      ret:
+        Prod([
+          list(unknown(Internal |> Prov.fresh)),
+          list(unknown(Internal |> Prov.fresh)),
+        ]),
       imp: {
         Fresh.(
           Exp.(
@@ -1220,8 +1287,12 @@ let builtins =
              | x :: xs => rev_append(xs, x :: ys)
            end|},
       name: "rev_append",
-      arg: Prod([list(unknown(Internal)), list(unknown(Internal))]),
-      ret: List(unknown(Internal)),
+      arg:
+        Prod([
+          list(unknown(Internal |> Prov.fresh)),
+          list(unknown(Internal |> Prov.fresh)),
+        ]),
+      ret: List(unknown(Internal |> Prov.fresh)),
       imp: {
         Fresh.(
           Exp.(
@@ -1261,19 +1332,19 @@ let builtins =
       name: "fold_left2",
       arg:
         Prod([
-          list(unknown(Internal)),
-          list(unknown(Internal)),
+          list(unknown(Internal |> Prov.fresh)),
+          list(unknown(Internal |> Prov.fresh)),
           arrow(
             prod([
-              unknown(Internal),
-              unknown(Internal),
-              unknown(Internal),
+              unknown(Internal |> Prov.fresh),
+              unknown(Internal |> Prov.fresh),
+              unknown(Internal |> Prov.fresh),
             ]),
-            unknown(Internal),
+            unknown(Internal |> Prov.fresh),
           ),
-          unknown(Internal),
+          unknown(Internal |> Prov.fresh),
         ]),
-      ret: Unknown(Internal),
+      ret: Unknown(Internal |> Prov.fresh),
       imp: {
         Fresh.(
           Exp.(
@@ -1334,19 +1405,19 @@ let builtins =
       name: "fold_right2",
       arg:
         Prod([
-          list(unknown(Internal)),
-          list(unknown(Internal)),
+          list(unknown(Internal |> Prov.fresh)),
+          list(unknown(Internal |> Prov.fresh)),
           arrow(
             prod([
-              unknown(Internal),
-              unknown(Internal),
-              unknown(Internal),
+              unknown(Internal |> Prov.fresh),
+              unknown(Internal |> Prov.fresh),
+              unknown(Internal |> Prov.fresh),
             ]),
-            unknown(Internal),
+            unknown(Internal |> Prov.fresh),
           ),
-          unknown(Internal),
+          unknown(Internal |> Prov.fresh),
         ]),
-      ret: Unknown(Internal),
+      ret: Unknown(Internal |> Prov.fresh),
       imp: {
         Fresh.(
           Exp.(
@@ -1411,14 +1482,17 @@ let builtins =
       name: "map2",
       arg:
         Prod([
-          list(unknown(Internal)),
-          list(unknown(Internal)),
+          list(unknown(Internal |> Prov.fresh)),
+          list(unknown(Internal |> Prov.fresh)),
           arrow(
-            prod([unknown(Internal), unknown(Internal)]),
-            unknown(Internal),
+            prod([
+              unknown(Internal |> Prov.fresh),
+              unknown(Internal |> Prov.fresh),
+            ]),
+            unknown(Internal |> Prov.fresh),
           ),
         ]),
-      ret: List(unknown(Internal)),
+      ret: List(unknown(Internal |> Prov.fresh)),
       imp: {
         Fresh.(
           Exp.(
@@ -1475,9 +1549,15 @@ let builtins =
       name: "all2",
       arg:
         Prod([
-          list(unknown(Internal)),
-          list(unknown(Internal)),
-          arrow(prod([unknown(Internal), unknown(Internal)]), bool()),
+          list(unknown(Internal |> Prov.fresh)),
+          list(unknown(Internal |> Prov.fresh)),
+          arrow(
+            prod([
+              unknown(Internal |> Prov.fresh),
+              unknown(Internal |> Prov.fresh),
+            ]),
+            bool(),
+          ),
         ]),
       ret: Atom(Bool),
       imp: {
@@ -1534,9 +1614,15 @@ let builtins =
       name: "any2",
       arg:
         Prod([
-          list(unknown(Internal)),
-          list(unknown(Internal)),
-          arrow(prod([unknown(Internal), unknown(Internal)]), bool()),
+          list(unknown(Internal |> Prov.fresh)),
+          list(unknown(Internal |> Prov.fresh)),
+          arrow(
+            prod([
+              unknown(Internal |> Prov.fresh),
+              unknown(Internal |> Prov.fresh),
+            ]),
+            bool(),
+          ),
         ]),
       ret: Atom(Bool),
       imp: {
@@ -1594,8 +1680,11 @@ let builtins =
            end|},
       name: "find",
       arg:
-        Prod([list(unknown(Internal)), arrow(unknown(Internal), bool())]),
-      ret: Unknown(Internal),
+        Prod([
+          list(unknown(Internal |> Prov.fresh)),
+          arrow(unknown(Internal |> Prov.fresh), bool()),
+        ]),
+      ret: Unknown(Internal |> Prov.fresh),
       imp: {
         Fresh.(
           Exp.(
@@ -1637,8 +1726,11 @@ let builtins =
            end|},
       name: "take_while",
       arg:
-        Prod([list(unknown(Internal)), arrow(unknown(Internal), bool())]),
-      ret: List(unknown(Internal)),
+        Prod([
+          list(unknown(Internal |> Prov.fresh)),
+          arrow(unknown(Internal |> Prov.fresh), bool()),
+        ]),
+      ret: List(unknown(Internal |> Prov.fresh)),
       imp: {
         Fresh.(
           Exp.(
@@ -1683,8 +1775,11 @@ let builtins =
            end|},
       name: "drop_while",
       arg:
-        Prod([list(unknown(Internal)), arrow(unknown(Internal), bool())]),
-      ret: List(unknown(Internal)),
+        Prod([
+          list(unknown(Internal |> Prov.fresh)),
+          arrow(unknown(Internal |> Prov.fresh), bool()),
+        ]),
+      ret: List(unknown(Internal |> Prov.fresh)),
       imp: {
         Fresh.(
           Exp.(
@@ -1730,10 +1825,13 @@ let builtins =
       name: "filter_map",
       arg:
         Prod([
-          list(unknown(Internal)),
-          arrow(unknown(Internal), unknown(Internal)),
+          list(unknown(Internal |> Prov.fresh)),
+          arrow(
+            unknown(Internal |> Prov.fresh),
+            unknown(Internal |> Prov.fresh),
+          ),
         ]),
-      ret: List(unknown(Internal)),
+      ret: List(unknown(Internal |> Prov.fresh)),
       imp: {
         Fresh.(
           Exp.(
@@ -1789,8 +1887,8 @@ let builtins =
              | x :: xs => if n == 0 then Some(x) else nth_opt(xs, n - 1)
            end|},
       name: "nth_opt",
-      arg: Prod([list(unknown(Internal)), int()]),
-      ret: Unknown(Internal),
+      arg: Prod([list(unknown(Internal |> Prov.fresh)), int()]),
+      ret: Unknown(Internal |> Prov.fresh),
       imp: {
         Fresh.(
           Exp.(
@@ -1835,8 +1933,11 @@ let builtins =
            end|},
       name: "find_opt",
       arg:
-        Prod([list(unknown(Internal)), arrow(unknown(Internal), bool())]),
-      ret: Unknown(Internal),
+        Prod([
+          list(unknown(Internal |> Prov.fresh)),
+          arrow(unknown(Internal |> Prov.fresh), bool()),
+        ]),
+      ret: Unknown(Internal |> Prov.fresh),
       imp: {
         Fresh.(
           Exp.(
@@ -1879,8 +1980,11 @@ let builtins =
            end|},
       name: "find_index",
       arg:
-        Prod([list(unknown(Internal)), arrow(unknown(Internal), bool())]),
-      ret: Unknown(Internal),
+        Prod([
+          list(unknown(Internal |> Prov.fresh)),
+          arrow(unknown(Internal |> Prov.fresh), bool()),
+        ]),
+      ret: Unknown(Internal |> Prov.fresh),
       imp: {
         Fresh.(
           Exp.(
@@ -1947,10 +2051,13 @@ let builtins =
       name: "find_map",
       arg:
         Prod([
-          list(unknown(Internal)),
-          arrow(unknown(Internal), unknown(Internal)),
+          list(unknown(Internal |> Prov.fresh)),
+          arrow(
+            unknown(Internal |> Prov.fresh),
+            unknown(Internal |> Prov.fresh),
+          ),
         ]),
-      ret: Unknown(Internal),
+      ret: Unknown(Internal |> Prov.fresh),
       imp: {
         Fresh.(
           Exp.(
@@ -2005,10 +2112,13 @@ let builtins =
       name: "find_mapi",
       arg:
         Prod([
-          list(unknown(Internal)),
-          arrow(prod([int(), unknown(Internal)]), unknown(Internal)),
+          list(unknown(Internal |> Prov.fresh)),
+          arrow(
+            prod([int(), unknown(Internal |> Prov.fresh)]),
+            unknown(Internal |> Prov.fresh),
+          ),
         ]),
-      ret: Unknown(Internal),
+      ret: Unknown(Internal |> Prov.fresh),
       imp: {
         Fresh.(
           Exp.(
@@ -2081,8 +2191,8 @@ let builtins =
            fix init_helper -> fun (n, f, i) -> if i >= n then [] else f(i) :: init_helper(n, f, i + 1)
            end|},
       name: "init",
-      arg: Prod([int(), arrow(int(), unknown(Internal))]),
-      ret: List(unknown(Internal)),
+      arg: Prod([int(), arrow(int(), unknown(Internal |> Prov.fresh))]),
+      ret: List(unknown(Internal |> Prov.fresh)),
       imp: {
         Fresh.(
           Exp.(
@@ -2144,10 +2254,15 @@ let builtins =
       name: "assoc",
       arg:
         Prod([
-          list(prod([unknown(Internal), unknown(Internal)])),
-          unknown(Internal),
+          list(
+            prod([
+              unknown(Internal |> Prov.fresh),
+              unknown(Internal |> Prov.fresh),
+            ]),
+          ),
+          unknown(Internal |> Prov.fresh),
         ]),
-      ret: Unknown(Internal),
+      ret: Unknown(Internal |> Prov.fresh),
       imp: {
         Fresh.(
           Exp.(
@@ -2193,10 +2308,15 @@ let builtins =
       name: "assoc_opt",
       arg:
         Prod([
-          list(prod([unknown(Internal), unknown(Internal)])),
-          unknown(Internal),
+          list(
+            prod([
+              unknown(Internal |> Prov.fresh),
+              unknown(Internal |> Prov.fresh),
+            ]),
+          ),
+          unknown(Internal |> Prov.fresh),
         ]),
-      ret: Unknown(Internal),
+      ret: Unknown(Internal |> Prov.fresh),
       imp: {
         Fresh.(
           Exp.(
@@ -2242,8 +2362,13 @@ let builtins =
       name: "mem_assoc",
       arg:
         Prod([
-          list(prod([unknown(Internal), unknown(Internal)])),
-          unknown(Internal),
+          list(
+            prod([
+              unknown(Internal |> Prov.fresh),
+              unknown(Internal |> Prov.fresh),
+            ]),
+          ),
+          unknown(Internal |> Prov.fresh),
         ]),
       ret: Atom(Bool),
       imp: {
@@ -2291,10 +2416,21 @@ let builtins =
       name: "remove_assoc",
       arg:
         Prod([
-          list(prod([unknown(Internal), unknown(Internal)])),
-          unknown(Internal),
+          list(
+            prod([
+              unknown(Internal |> Prov.fresh),
+              unknown(Internal |> Prov.fresh),
+            ]),
+          ),
+          unknown(Internal |> Prov.fresh),
         ]),
-      ret: List(prod([unknown(Internal), unknown(Internal)])),
+      ret:
+        List(
+          prod([
+            unknown(Internal |> Prov.fresh),
+            unknown(Internal |> Prov.fresh),
+          ]),
+        ),
       imp: {
         Fresh.(
           Exp.(
@@ -2351,10 +2487,17 @@ let builtins =
       name: "partition_map",
       arg:
         Prod([
-          list(unknown(Internal)),
-          arrow(unknown(Internal), unknown(Internal)),
+          list(unknown(Internal |> Prov.fresh)),
+          arrow(
+            unknown(Internal |> Prov.fresh),
+            unknown(Internal |> Prov.fresh),
+          ),
         ]),
-      ret: Prod([list(unknown(Internal)), list(unknown(Internal))]),
+      ret:
+        Prod([
+          list(unknown(Internal |> Prov.fresh)),
+          list(unknown(Internal |> Prov.fresh)),
+        ]),
       imp: {
         Fresh.(
           Exp.(
@@ -2447,10 +2590,16 @@ let go: ([?], [?], [?]) -> [?] =
       name: "sort",
       arg:
         Prod([
-          arrow(prod([unknown(Internal), unknown(Internal)]), Ord.t),
-          list(unknown(Internal)),
+          arrow(
+            prod([
+              unknown(Internal |> Prov.fresh),
+              unknown(Internal |> Prov.fresh),
+            ]),
+            Ord.t,
+          ),
+          list(unknown(Internal |> Prov.fresh)),
         ]),
-      ret: List(unknown(Internal)),
+      ret: List(unknown(Internal |> Prov.fresh)),
       imp: {
         Fresh.(
           Exp.(
@@ -2671,8 +2820,8 @@ let go: ([?], [?], [?]) -> [?] =
     {
       str: {|fix slice -> fun (start, end, xs) -> take(drop(xs, start), end - start)|},
       name: "slice",
-      arg: Prod([int(), int(), list(unknown(Internal))]),
-      ret: List(unknown(Internal)),
+      arg: Prod([int(), int(), list(unknown(Internal |> Prov.fresh))]),
+      ret: List(unknown(Internal |> Prov.fresh)),
       imp: {
         Fresh.(
           Exp.(
@@ -2711,8 +2860,8 @@ let go: ([?], [?], [?]) -> [?] =
              | x :: _ => Some(x)
            end|},
       name: "hd_opt",
-      arg: List(unknown(Internal)),
-      ret: Unknown(Internal),
+      arg: List(unknown(Internal |> Prov.fresh)),
+      ret: Unknown(Internal |> Prov.fresh),
       imp: {
         Fresh.(
           Exp.(
@@ -2745,8 +2894,8 @@ let go: ([?], [?], [?]) -> [?] =
              | _ :: xs => Some(xs)
            end|},
       name: "tl_opt",
-      arg: List(unknown(Internal)),
-      ret: Unknown(Internal),
+      arg: List(unknown(Internal |> Prov.fresh)),
+      ret: Unknown(Internal |> Prov.fresh),
       imp: {
         Fresh.(
           Exp.(
@@ -2777,7 +2926,10 @@ let go: ([?], [?], [?]) -> [?] =
       str: {|any|}, //alias
       name: "contains",
       arg:
-        Prod([list(unknown(Internal)), arrow(unknown(Internal), bool())]),
+        Prod([
+          list(unknown(Internal |> Prov.fresh)),
+          arrow(unknown(Internal |> Prov.fresh), bool()),
+        ]),
       ret: Atom(Bool),
       imp: {
         Fresh.(Exp.(var("any")));
@@ -2786,8 +2938,8 @@ let go: ([?], [?], [?]) -> [?] =
     {
       str: {|concat|}, //alias
       name: "flatten",
-      arg: List(list(unknown(Internal))),
-      ret: List(unknown(Internal)),
+      arg: List(list(unknown(Internal |> Prov.fresh))),
+      ret: List(unknown(Internal |> Prov.fresh)),
       imp: {
         Fresh.(Exp.(var("concat")));
       },
@@ -2795,8 +2947,8 @@ let go: ([?], [?], [?]) -> [?] =
     {
       str: {|reverse|}, //alias
       name: "rev",
-      arg: List(unknown(Internal)),
-      ret: List(unknown(Internal)),
+      arg: List(unknown(Internal |> Prov.fresh)),
+      ret: List(unknown(Internal |> Prov.fresh)),
       imp: {
         Fresh.(Exp.(var("reverse")));
       },
@@ -2805,7 +2957,10 @@ let go: ([?], [?], [?]) -> [?] =
       str: {|any|}, //alias
       name: "exists",
       arg:
-        Prod([list(unknown(Internal)), arrow(unknown(Internal), bool())]),
+        Prod([
+          list(unknown(Internal |> Prov.fresh)),
+          arrow(unknown(Internal |> Prov.fresh), bool()),
+        ]),
       ret: Atom(Bool),
       imp: {
         Fresh.(Exp.(var("any")));
@@ -2815,7 +2970,10 @@ let go: ([?], [?], [?]) -> [?] =
       str: {|all|}, //alias
       name: "for_all",
       arg:
-        Prod([list(unknown(Internal)), arrow(unknown(Internal), bool())]),
+        Prod([
+          list(unknown(Internal |> Prov.fresh)),
+          arrow(unknown(Internal |> Prov.fresh), bool()),
+        ]),
       ret: Atom(Bool),
       imp: {
         Fresh.(Exp.(var("all")));
@@ -2826,9 +2984,15 @@ let go: ([?], [?], [?]) -> [?] =
       name: "exists2",
       arg:
         Prod([
-          list(unknown(Internal)),
-          list(unknown(Internal)),
-          arrow(prod([unknown(Internal), unknown(Internal)]), bool()),
+          list(unknown(Internal |> Prov.fresh)),
+          list(unknown(Internal |> Prov.fresh)),
+          arrow(
+            prod([
+              unknown(Internal |> Prov.fresh),
+              unknown(Internal |> Prov.fresh),
+            ]),
+            bool(),
+          ),
         ]),
       ret: Atom(Bool),
       imp: {
@@ -2840,9 +3004,15 @@ let go: ([?], [?], [?]) -> [?] =
       name: "for_all2",
       arg:
         Prod([
-          list(unknown(Internal)),
-          list(unknown(Internal)),
-          arrow(prod([unknown(Internal), unknown(Internal)]), bool()),
+          list(unknown(Internal |> Prov.fresh)),
+          list(unknown(Internal |> Prov.fresh)),
+          arrow(
+            prod([
+              unknown(Internal |> Prov.fresh),
+              unknown(Internal |> Prov.fresh),
+            ]),
+            bool(),
+          ),
         ]),
       ret: Atom(Bool),
       imp: {
@@ -2854,10 +3024,13 @@ let go: ([?], [?], [?]) -> [?] =
       name: "concat_map",
       arg:
         Prod([
-          list(unknown(Internal)),
-          arrow(unknown(Internal), list(unknown(Internal))),
+          list(unknown(Internal |> Prov.fresh)),
+          arrow(
+            unknown(Internal |> Prov.fresh),
+            list(unknown(Internal |> Prov.fresh)),
+          ),
         ]),
-      ret: List(unknown(Internal)),
+      ret: List(unknown(Internal |> Prov.fresh)),
       imp: {
         Fresh.(Exp.(var("flat_map")));
       },
@@ -2865,8 +3038,18 @@ let go: ([?], [?], [?]) -> [?] =
     {
       str: {|unzip|}, //alias
       name: "split",
-      arg: List(prod([unknown(Internal), unknown(Internal)])),
-      ret: Prod([list(unknown(Internal)), list(unknown(Internal))]),
+      arg:
+        List(
+          prod([
+            unknown(Internal |> Prov.fresh),
+            unknown(Internal |> Prov.fresh),
+          ]),
+        ),
+      ret:
+        Prod([
+          list(unknown(Internal |> Prov.fresh)),
+          list(unknown(Internal |> Prov.fresh)),
+        ]),
       imp: {
         Fresh.(Exp.(var("unzip")));
       },
@@ -2874,8 +3057,18 @@ let go: ([?], [?], [?]) -> [?] =
     {
       str: {|zip|}, //alias
       name: "combine",
-      arg: Prod([list(unknown(Internal)), list(unknown(Internal))]),
-      ret: List(prod([unknown(Internal), unknown(Internal)])),
+      arg:
+        Prod([
+          list(unknown(Internal |> Prov.fresh)),
+          list(unknown(Internal |> Prov.fresh)),
+        ]),
+      ret:
+        List(
+          prod([
+            unknown(Internal |> Prov.fresh),
+            unknown(Internal |> Prov.fresh),
+          ]),
+        ),
       imp: {
         Fresh.(Exp.(var("zip")));
       },

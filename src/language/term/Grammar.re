@@ -118,7 +118,7 @@ and pat_term('a) =
   | Asc(pat_t('a), typ_t('a))
 and pat_t('a) = Annotated.t(pat_term('a), 'a)
 and typ_term('a) =
-  | Unknown(type_provenance('a))
+  | Unknown(type_provenance_t('a))
   | Atom(Atom.cls)
   | Var(string)
   | List(typ_t('a))
@@ -152,11 +152,21 @@ and stepper_filter_kind_t('a) =
 and type_hole('a) =
   | Invalid(string)
   | EmptyHole
+  | CycleHole
   | MultiHole(list(any_t('a)))
 and type_provenance('a) =
   | SynSwitch
   | Hole(type_hole('a))
   | Internal
+  | LArrow(type_provenance('a))
+  | RArrow(type_provenance('a))
+  | NProduct(int, type_provenance('a))
+  | MList(type_provenance('a))
+  | RForall(type_provenance('a))
+  | TupLabel(type_provenance('a))
+  | TupLabelArg(type_provenance('a))
+  | Meet(type_provenance_t('a), type_provenance_t('a))
+and type_provenance_t('a) = Annotated.t(type_provenance('a), 'a)
 and filter('a) = {
   pat: exp_t('a),
   act: FilterAction.t,
@@ -342,7 +352,7 @@ and map_typ_annotation: 'a 'b. ('a => 'b, typ_t('a)) => typ_t('b) =
     {
       term:
         switch (term) {
-        | Unknown(p) => Unknown(map_type_provenance_annotation(f, p))
+        | Unknown(p) => Unknown(map_type_provenance_t_annotation(f, p))
         | Atom(c) => Atom(c)
         | Var(s) => Var(s)
         | List(t) => List(map_typ_annotation(f, t))
@@ -438,6 +448,30 @@ and map_type_provenance_annotation:
     | SynSwitch => SynSwitch
     | Hole(h) => Hole(map_type_hole_annotation(f, h))
     | Internal => Internal
+    | LArrow(p) => LArrow(map_type_provenance_annotation(f, p))
+    | RArrow(p) => RArrow(map_type_provenance_annotation(f, p))
+    | NProduct(n, p) => NProduct(n, map_type_provenance_annotation(f, p))
+    | MList(p) => MList(map_type_provenance_annotation(f, p))
+    | RForall(p) => RForall(map_type_provenance_annotation(f, p))
+    | TupLabel(p) => TupLabel(map_type_provenance_annotation(f, p))
+    | TupLabelArg(p) => TupLabelArg(map_type_provenance_annotation(f, p))
+    | Meet(p1, p2) =>
+      Meet(
+        map_type_provenance_t_annotation(f, p1),
+        map_type_provenance_t_annotation(f, p2),
+      )
+    };
+  }
+and map_type_provenance_t_annotation:
+  'a 'b.
+  ('a => 'b, type_provenance_t('a)) => type_provenance_t('b)
+ =
+  (f, e) => {
+    let (term, annotation) = (e.term, e.annotation);
+    let new_annotation = f(annotation);
+    {
+      term: map_type_provenance_annotation(f, term),
+      annotation: new_annotation,
     };
   }
 and map_type_hole_annotation:
@@ -448,6 +482,7 @@ and map_type_hole_annotation:
     switch (e) {
     | Invalid(s) => Invalid(s)
     | EmptyHole => EmptyHole
+    | CycleHole => CycleHole
     | MultiHole(l) => MultiHole(List.map(x => map_any_annotation(f, x), l))
     };
   };
@@ -462,7 +497,7 @@ module Factory = (DefaultAnnotation: DefaultAnnotation) => {
   type pat = pat_t(DefaultAnnotation.t);
   type typ = typ_t(DefaultAnnotation.t);
   type tpat = tpat_t(DefaultAnnotation.t);
-  type typ_provenance = type_provenance(DefaultAnnotation.t);
+  type typ_provenance = type_provenance_t(DefaultAnnotation.t);
 
   let default_annotation = ann =>
     Option.value(~default=DefaultAnnotation.default_value(), ann);
@@ -858,8 +893,13 @@ module Factory = (DefaultAnnotation: DefaultAnnotation) => {
       term: ProofOf(e),
       annotation: default_annotation(ann),
     };
-    let empty_hole = (~ann=?, ()): typ_t(DefaultAnnotation.t) => {
-      term: Unknown(Hole(EmptyHole)),
+    // TODO: might need a separate annotation for the prov
+    let empty_hole = (~ann=?, ~prov_ann=?, ()): typ_t(DefaultAnnotation.t) => {
+      term:
+        Unknown({
+          term: Hole(EmptyHole),
+          annotation: default_annotation(prov_ann),
+        }),
       annotation: default_annotation(ann),
     };
   };
@@ -923,14 +963,71 @@ module Factory = (DefaultAnnotation: DefaultAnnotation) => {
   };
 
   module TypeProvenance = {
-    let syn_switch = (): type_provenance(DefaultAnnotation.t) => {
-      SynSwitch;
+    let syn_switch = (~ann=?, ()): type_provenance_t(DefaultAnnotation.t) => {
+      {
+        term: SynSwitch,
+        annotation: default_annotation(ann),
+      };
     };
-    let hole = (h): type_provenance(DefaultAnnotation.t) => {
-      Hole(h);
+    let hole = (~ann=?, h): type_provenance_t(DefaultAnnotation.t) => {
+      {
+        term: Hole(h),
+        annotation: default_annotation(ann),
+      };
     };
-    let internal = (): type_provenance(DefaultAnnotation.t) => {
-      Internal;
+    let internal = (~ann=?, ()): type_provenance_t(DefaultAnnotation.t) => {
+      {
+        term: Internal,
+        annotation: default_annotation(ann),
+      };
+    };
+    let larrow = (~ann=?, p): type_provenance_t(DefaultAnnotation.t) => {
+      {
+        term: LArrow(p),
+        annotation: default_annotation(ann),
+      };
+    };
+    let rarrow = (~ann=?, p): type_provenance_t(DefaultAnnotation.t) => {
+      {
+        term: RArrow(p),
+        annotation: default_annotation(ann),
+      };
+    };
+    let nproduct = (~ann=?, n, p): type_provenance_t(DefaultAnnotation.t) => {
+      {
+        term: NProduct(n, p),
+        annotation: default_annotation(ann),
+      };
+    };
+    let mlist = (~ann=?, p): type_provenance_t(DefaultAnnotation.t) => {
+      {
+        term: MList(p),
+        annotation: default_annotation(ann),
+      };
+    };
+    let rforall = (~ann=?, p): type_provenance_t(DefaultAnnotation.t) => {
+      {
+        term: RForall(p),
+        annotation: default_annotation(ann),
+      };
+    };
+    let tup_label_label = (~ann=?, p): type_provenance_t(DefaultAnnotation.t) => {
+      {
+        term: TupLabel(p),
+        annotation: default_annotation(ann),
+      };
+    };
+    let tup_label_arg = (~ann=?, p): type_provenance_t(DefaultAnnotation.t) => {
+      {
+        term: TupLabelArg(p),
+        annotation: default_annotation(ann),
+      };
+    };
+    let join = (~ann=?, p1, p2): type_provenance_t(DefaultAnnotation.t) => {
+      {
+        term: Meet(p1, p2),
+        annotation: default_annotation(ann),
+      };
     };
   };
 };

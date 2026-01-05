@@ -62,6 +62,7 @@ module Model = {
         selection_ids: list(Id.t),
         indicated: option(Indicated.piece),
         statics: Language.Statics.Map.t,
+        inference: Language.Inference.SolutionMap.t,
         dynamics: Language.Dynamics.Map.t,
         editor_active: bool,
       ) => {
@@ -69,7 +70,7 @@ module Model = {
       ((id, _)) => {
         let* p = Id.Map.find_opt(id, projectors);
         let+ measurement = Measured.find_pr_opt(p, measured);
-        let info = ProjectorInfo.mk_info(p, ~statics, ~dynamics);
+        let info = ProjectorInfo.mk_info(p, ~statics, ~inference, ~dynamics);
         {
           p,
           info,

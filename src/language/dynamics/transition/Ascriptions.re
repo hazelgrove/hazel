@@ -28,7 +28,7 @@ let rec transition = (~recursive=false, d: DHExp.t): option(DHExp.t) => {
       switch (
         Typ.meet(Ctx.empty, Typ.unroll(t |> Typ.temp), Typ.unroll(t'))
       ) {
-      | Some(t) => Some(recur(Asc(e, t) |> DHExp.fresh))
+      | Some((t, _)) => Some(recur(Asc(e, t) |> DHExp.fresh))
       | None => None //TODO  This is an impossible case since we checked consistency
       }
     | (e, Parens(t)) =>
@@ -88,7 +88,7 @@ let rec transition = (~recursive=false, d: DHExp.t): option(DHExp.t) => {
       let new_ty: Typ.t =
         switch (TPat.tyvar_of_utpat(tp)) {
         | Some(tyvar) => Var(tyvar) |> Typ.temp
-        | None => Unknown(Internal) |> Typ.temp
+        | None => Unknown(Internal |> Prov.fresh) |> Typ.temp
         };
       Some(
         TypFun(

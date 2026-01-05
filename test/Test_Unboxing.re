@@ -203,11 +203,11 @@ let tests = (
                 asc(
                   tup_label(
                     label("j"),
-                    asc(int(1), Typ.unknown(Internal)),
+                    asc(int(1), Typ.unknown(Internal |> Prov.fresh)),
                   ),
-                  Typ.unknown(Internal),
+                  Typ.unknown(Internal |> Prov.fresh),
                 ),
-                asc(int(3), Typ.unknown(Internal)),
+                asc(int(3), Typ.unknown(Internal |> Prov.fresh)),
               ])
             );
           check(

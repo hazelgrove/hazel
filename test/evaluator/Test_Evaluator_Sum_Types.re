@@ -3,6 +3,7 @@ open Language;
 open Test_Evaluator_Prelude;
 open IdTagged.FreshGrammar;
 open Exp;
+open TypeProvenance;
 
 let tests = (
   "Evaluator.SumTypes",
@@ -71,7 +72,7 @@ let tests = (
                 Some(
                   Typ.sum([
                     Variant("T", [], None),
-                    BadEntry(Typ.unknown(Internal)),
+                    BadEntry(Typ.unknown(internal())),
                   ]),
                 ),
               ),
@@ -100,12 +101,12 @@ let tests = (
                     Some(
                       Typ.(
                         arrow(
-                          unknown(Hole(EmptyHole)),
+                          unknown(hole(EmptyHole)),
                           sum([
                             Variant(
                               "B",
                               [],
-                              Some(unknown(Hole(EmptyHole))),
+                              Some(unknown(hole(EmptyHole))),
                             ),
                           ]),
                         )
@@ -114,7 +115,7 @@ let tests = (
                   ),
                 ),
                 Typ.(
-                  sum([Variant("B", [], Some(unknown(Hole(EmptyHole))))])
+                  sum([Variant("B", [], Some(unknown(hole(EmptyHole))))])
                 ),
               )
             ),
@@ -127,7 +128,10 @@ let tests = (
           "Indet when unboxing constructor as list",
           let_(
             Pat.list_lit([]),
-            constructor("On", Some(Some(Typ.(list(unknown(SynSwitch)))))), // This type on the constructor can't be right
+            constructor(
+              "On",
+              Some(Some(Typ.(list(unknown(syn_switch()))))),
+            ), // This type on the constructor can't be right
             empty_hole(),
           ),
           elaborate(parse_exp("type g = + On in let [] = On in")),
@@ -136,7 +140,10 @@ let tests = (
           "Indet when unboxing constructor as cons",
           let_(
             Pat.(cons(wild(), list_lit([]))),
-            constructor("B", Some(Some(Typ.(list(unknown(SynSwitch)))))), // This type on the constructor can't be right
+            constructor(
+              "B",
+              Some(Some(Typ.(list(unknown(syn_switch()))))),
+            ), // This type on the constructor can't be right
             empty_hole(),
           ),
           elaborate(parse_exp("let (_:: []) = type y = + B in B in ?")),
@@ -167,10 +174,10 @@ let tests = (
             constructor(
               "B",
               Some(
-                Some(Typ.(poly(TPat.empty_hole(), unknown(SynSwitch)))),
+                Some(Typ.(poly(TPat.empty_hole(), unknown(syn_switch())))),
               ),
             ),
-            Typ.unknown(Hole(EmptyHole)),
+            Typ.unknown(hole(EmptyHole)),
           ),
           elaborate(
             parse_exp("type y = + B in case true | a => B end @<?>"),

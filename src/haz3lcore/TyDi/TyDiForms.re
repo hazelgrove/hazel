@@ -10,7 +10,7 @@ let leading_expander = " ";
  * running Statics, but for now, new forms e.g. operators must be added
  * below manually.  */
 module Typ = {
-  let unk: Typ.t = Unknown(Internal) |> Typ.fresh;
+  let unk: Typ.t = Unknown(Internal |> Prov.fresh) |> Typ.fresh;
 
   let of_const_mono_delim: list((Token.t, Typ.t)) = [
     ("true", Atom(Bool) |> Typ.fresh),
@@ -32,11 +32,11 @@ module Typ = {
   ];
 
   let of_infix_delim: list((Token.t, Typ.term)) = [
-    ("|>", Unknown(Internal)),
+    ("|>", Unknown(Internal |> Prov.fresh)),
     (",", Prod([unk, unk])),
     ("::", List(unk)),
     ("@", List(unk)),
-    (";", Unknown(Internal)),
+    (";", Unknown(Internal |> Prov.fresh)),
     ("&&", Atom(Bool)),
     ("\\/", Atom(Bool)),
     ("||", Atom(Bool)),
@@ -71,7 +71,7 @@ module Typ = {
     fun
     | InfoExp({ana, _})
     | InfoPat({ana, _}) => ana
-    | _ => Unknown(Internal) |> Typ.fresh;
+    | _ => Unknown(Internal |> Prov.fresh) |> Typ.fresh;
 
   let filter_by =
       (

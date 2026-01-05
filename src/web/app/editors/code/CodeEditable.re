@@ -225,6 +225,7 @@ module View = {
           model.editor.syntax.selection_ids,
           Indicated.piece(model.editor.state.zipper),
           model.statics.info_map,
+          model.statics.inference_map,
           model.dynamics,
           selected,
         ),

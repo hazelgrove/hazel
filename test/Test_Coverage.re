@@ -30,7 +30,7 @@ let has_errors =
       let (e, ids) =
         MenhirParser.Conversion.Exp.get_indicated_ids(indicated_exp);
 
-      let s = statics(e);
+      let (s, _) = statics(e);
       let errors_map = Statics.Map.collect_errors(s);
       let actual_errors =
         switch (actual_errors_filter) {
@@ -1102,8 +1102,14 @@ let labeled_tuple_additional_error = {
                                     typ:
                                       FTemp.Typ.(
                                         prod([
-                                          list(unknown(Internal)),
-                                          unknown(Internal),
+                                          list(
+                                            unknown(
+                                              FTemp.TypeProvenance.internal(),
+                                            ),
+                                          ),
+                                          unknown(
+                                            FTemp.TypeProvenance.internal(),
+                                          ),
                                         ])
                                       ),
                                   }),
@@ -1127,7 +1133,9 @@ let labeled_tuple_additional_error = {
                                       FTemp.Typ.(
                                         tup_label(
                                           label("a"),
-                                          unknown(Internal),
+                                          unknown(
+                                            FTemp.TypeProvenance.internal(),
+                                          ),
                                         )
                                       ),
                                   }),

@@ -20,7 +20,7 @@ let dhexp_typ =
 let mk_map = Statics.mk(CoreSettings.on, Builtins.ctx_init(Some(Int)));
 let dhexp_of_uexp = u =>
   Elaborator.elaborate(
-    Statics.mk(CoreSettings.on, Builtins.ctx_init(Some(Int)), u),
+    Statics.mk(CoreSettings.on, Builtins.ctx_init(Some(Int)), u) |> fst,
     u,
   )
   |> fst;
@@ -89,7 +89,7 @@ module PlainTests = {
       fn(
         Pat.var("x"),
         bin_op(Int(Plus), int(4), int(5)),
-        Some(Typ.unknown(Hole(EmptyHole))),
+        Some(Typ.unknown(TypeProvenance.(hole(EmptyHole)))),
         None,
       )
     );
@@ -383,7 +383,7 @@ module PlainTests = {
       [@warning "-21"]
       {
         let uexp = parse_exp(expression);
-        let statics = mk_map(uexp);
+        let (statics, _) = mk_map(uexp);
         Alcotest.skip();
         let _ = Elaborator.elaborate(statics, uexp);
         ();
@@ -606,7 +606,14 @@ module PlainTests = {
               Pat.(tuple([tup_label(label("a"), var("x"))])),
               var("x"),
               Some(
-                Typ.(prod([tup_label(label("a"), unknown(Internal))])),
+                Typ.(
+                  prod([
+                    tup_label(
+                      label("a"),
+                      unknown(TypeProvenance.internal()),
+                    ),
+                  ])
+                ),
               ),
               None,
             ),
@@ -680,7 +687,7 @@ in 1|},
         ~count=10000,
         QCheck_Util.arb_exp(~minimal_idents=true, 50),
         exp => {
-        switch (mk_map(exp)) {
+        switch (mk_map(exp) |> fst) {
         | statics =>
           switch (Elaborator.elaborate(statics, exp)) {
           | _ => true

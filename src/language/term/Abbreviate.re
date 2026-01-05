@@ -44,7 +44,7 @@ let abbreviate_str = (min_len: int, s: string): string => {
 };
 
 let indet_term: Exp.term = Invalid("?");
-let indet_term_typ: Typ.term = Unknown(Internal);
+let indet_term_typ: Typ.term = Unknown(Internal |> Prov.fresh);
 let indet_term_pat: Pat.term = Invalid("?");
 let indet_term_rul: Rul.term = Invalid("?");
 let indet_term_tpat: TPat.term = Invalid("?");

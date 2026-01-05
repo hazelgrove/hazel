@@ -22,22 +22,25 @@ let tests = (
                 asc(
                   tup_label(
                     label("var"),
-                    asc(string("get_acne"), Typ.unknown(Internal)),
+                    asc(
+                      string("get_acne"),
+                      Typ.unknown(Internal |> Prov.fresh),
+                    ),
                   ),
-                  Typ.unknown(Internal),
+                  Typ.unknown(Internal |> Prov.fresh),
                 ),
                 asc(
                   tup_label(
                     label("val"),
-                    asc(bool(true), Typ.unknown(Internal)),
+                    asc(bool(true), Typ.unknown(Internal |> Prov.fresh)),
                   ),
-                  Typ.unknown(Internal),
+                  Typ.unknown(Internal |> Prov.fresh),
                 ),
               ]),
               Typ.(
                 prod([
-                  tup_label(label("var"), unknown(SynSwitch)),
-                  tup_label(label("val"), unknown(SynSwitch)),
+                  tup_label(label("var"), unknown(SynSwitch |> Prov.fresh)),
+                  tup_label(label("val"), unknown(SynSwitch |> Prov.fresh)),
                 ])
               ),
             )

@@ -110,7 +110,11 @@ module F =
         and.calc ctx = ctx;
         switch (exp |> Exp.term_of) {
         | Fun(p, d1, t, _) =>
-          let t = OptUtil.get(() => Typ.fresh(Unknown(Internal)), t);
+          let t =
+            OptUtil.get(
+              () => Typ.fresh(Unknown(Internal |> Prov.anonymous)),
+              t,
+            );
           Some((SemanticCtx.add_from_pattern(ctx, p, t), d1));
         | _ => None
         };
@@ -137,7 +141,7 @@ module F =
             Fun(
               Pat.fresh(EmptyHole),
               last,
-              Some(Typ.fresh(Unknown(Internal))),
+              Some(Typ.fresh(Unknown(Internal |> Prov.anonymous))),
               None,
             ),
           )

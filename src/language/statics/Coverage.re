@@ -85,12 +85,21 @@ module Ctr = {
 
   let arity_of = (ctr, all_ctrs: all_ctrs): arity =>
     switch (all_ctrs) {
-    | Unknown => List.init(ctr.num_args, _ => Unknown(Internal) |> Typ.temp)
-    | Infinite => List.init(ctr.num_args, _ => Unknown(Internal) |> Typ.temp)
+    | Unknown =>
+      List.init(ctr.num_args, _ =>
+        Unknown(Internal |> Prov.fresh) |> Typ.temp
+      )
+    | Infinite =>
+      List.init(ctr.num_args, _ =>
+        Unknown(Internal |> Prov.fresh) |> Typ.temp
+      )
     | Finite(all_ctrs) =>
       switch (Map.find_opt(ctr, all_ctrs)) {
       | Some(arity) => arity
-      | None => List.init(ctr.num_args, _ => Unknown(Internal) |> Typ.temp)
+      | None =>
+        List.init(ctr.num_args, _ =>
+          Unknown(Internal |> Prov.fresh) |> Typ.temp
+        )
       }
     };
 
@@ -430,7 +439,8 @@ module UnseenPatternList: UnseenPatternList = {
     };
   };
 
-  let cons_wild = cons_ctr(Ctr.default_ctr, Typ.temp(Unknown(Internal)));
+  let cons_wild =
+    cons_ctr(Ctr.default_ctr, Typ.temp(Unknown(Internal |> Prov.fresh)));
 
   let find_first_unseen_ctr = (seen_in_col: Seen.t, all_ctrs: Ctr.Map.t('a)) => {
     seen_in_col.seen_all_ctrs

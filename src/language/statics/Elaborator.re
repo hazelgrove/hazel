@@ -16,7 +16,7 @@ module ElaborationResult = {
 let fresh_ascription = (d: Exp.t, t: Typ.t, t': option(Typ.t)) => {
   IdTagged.FreshGrammar.Exp.(
     switch (t') {
-    | Some({term: Unknown(Internal), _}) => d
+    | Some({term: Unknown({term: Internal, _}), _}) => d
     | Some(ty) when !Typ.fast_equal(ty, t) => asc(d, ty)
     | _ => d
     }
@@ -225,8 +225,14 @@ let rec elaborate = (m: Statics.Map.t, uexp: Exp.t): (DHExp.t, Typ.t) => {
     | ListLit(es) =>
       let (ds, tys) = List.map(elaborate(m), es) |> List.split;
       let meet_ty =
-        Typ.meet_all(~empty=Unknown(Internal) |> Typ.temp, ctx, tys);
-
+        Option.map(
+          fst,
+          Typ.meet_all(
+            ~empty=Unknown(Internal |> Prov.anonymous) |> Typ.temp,
+            ctx,
+            tys,
+          ),
+        );
       let ds' =
         List.map2((d, t) => fresh_ascription(d, t, meet_ty), ds, tys);
       ListLit(ds') |> rewrap;
@@ -423,10 +429,16 @@ let rec elaborate = (m: Statics.Map.t, uexp: Exp.t): (DHExp.t, Typ.t) => {
       switch (e.term) {
       // TODO: confirm whether these types are correct
       | Var("e") =>
-        Constructor("$e", Some(Some(Unknown(Internal) |> Typ.fresh)))
+        Constructor(
+          "$e",
+          Some(Some(Unknown(Internal |> Prov.anonymous) |> Typ.fresh)),
+        )
         |> rewrap
       | Var("v") =>
-        Constructor("$v", Some(Some(Unknown(Internal) |> Typ.fresh)))
+        Constructor(
+          "$v",
+          Some(Some(Unknown(Internal |> Prov.anonymous) |> Typ.fresh)),
+        )
         |> rewrap
       | _ => EmptyHole |> rewrap
       }

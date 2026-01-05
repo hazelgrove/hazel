@@ -158,14 +158,16 @@ let parse_sum_term: Typ.t => ConstructorMap.variant(Typ.t) =
      be parsed as multiholes, and then recognize them when we parse sum type definitions */
   | {
       term:
-        Unknown(
-          Hole(
-            MultiHole([
-              Typ({term: Var(ctr), annotation: {ids: ids_ctr, _}}),
-              Typ(u),
-            ]),
-          ),
-        ),
+        Unknown({
+          term:
+            Hole(
+              MultiHole([
+                Typ({term: Var(ctr), annotation: {ids: ids_ctr, _}}),
+                Typ(u),
+              ]),
+            ),
+          _,
+        }),
       annotation: {ids: ids_ap, _},
     } =>
     Variant(ctr, ids_ctr @ ids_ap, Some(u))
@@ -180,7 +182,8 @@ let mk_bad = (ctr, ids, value) => {
   };
   switch (value) {
   | None => t
-  | Some(u) => Unknown(Hole(MultiHole([Typ(t), Typ(u)]))) |> Typ.fresh
+  | Some(u) =>
+    Unknown(Hole(MultiHole([Typ(t), Typ(u)])) |> Prov.fresh) |> Typ.fresh
   };
 };
 
@@ -688,7 +691,7 @@ and typ_term: unsorted => (Typ.term, list(Id.t)) = {
         | (label, [Typ(body)]) when is_probe_wrap(label) => body.term
         | (["[", "]"], [Typ(body)]) => List(body)
         | ([t], []) when is_hole_label(t) => hole(tm)
-        | ([t], []) => Unknown(Hole(Invalid(t)))
+        | ([t], []) => Unknown(Hole(Invalid(t)) |> Prov.fresh)
         | _ => hole(tm)
         },
       )
@@ -847,7 +850,13 @@ and unsorted = (sort: Sort.t, skel: Skel.t, seg: Segment.t): unsorted => {
     | Grout(_) => []
     | Projector({syntax, _} as pr) =>
       let _ = log_projector(pr);
-      let sort = Piece.sort(syntax) |> fst;
+      let sort =
+        pr.kind == ProjectorCore.Kind.TypeHole
+          ? Sort.Typ : Piece.sort(syntax) |> fst;
+      /* Temporary hack. Since holes don't carry sorts, projectors on
+       * type holes were getting missorted here, causing them to show as
+       * parse errors upstream. This should be addressed post-splices,
+       * which has a more comprehensive treatement of projector sorts. */
       let seg = Piece.unparenthesize(syntax);
       [go_s(sort, Segment.skel(seg), seg)];
     | Tile({mold, shards, children, _}) =>

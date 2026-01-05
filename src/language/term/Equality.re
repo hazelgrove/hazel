@@ -509,9 +509,9 @@ let equality =
   and typ =
       (alphas_exp: Alphas.t, alphas_typ: Alphas.t, t1: Typ.t, t2: Typ.t): bool => {
     // This function takes alphas_exp for the theorem keyword branches which have expressions in types.
-    let any' = any(alphas_exp, alphas_typ);
     let exp' = exp(alphas_exp, alphas_typ);
     let typ' = typ(alphas_exp, alphas_typ);
+    let typ_prov' = typ_prov(alphas_exp, alphas_typ);
     let tpat' = tpat;
     switch (t1 |> Grammar.Annotated.term_of, t2 |> Grammar.Annotated.term_of) {
     // Wrappers when ignored: unwrap.
@@ -555,19 +555,8 @@ let equality =
 
     // Holes: equal if provenance is ignored
     | (Unknown(_), Unknown(_)) when ignore_unknown_provenance => true
-    | (Unknown(SynSwitch), Unknown(SynSwitch)) => true
-    | (Unknown(SynSwitch), _) => false
-    | (Unknown(Hole(Invalid(s1))), Unknown(Hole(Invalid(s2)))) => s1 == s2
-    | (Unknown(Hole(Invalid(_))), _) => false
-    | (Unknown(Hole(EmptyHole)), Unknown(Hole(EmptyHole))) => true
-    | (Unknown(Hole(EmptyHole)), _) => false
-    | (Unknown(Hole(MultiHole(xs1))), Unknown(Hole(MultiHole(xs2))))
-        when List.length(xs1) == List.length(xs2) =>
-      List.equal(any', xs1, xs2)
-    | (Unknown(Hole(MultiHole(_))), _) => false
-    | (Unknown(Internal), Unknown(Internal)) => true
-    | (Unknown(Internal), _) => false
-
+    | (Unknown({term: p1, _}), Unknown({term: p2, _})) => typ_prov'(p1, p2)
+    | (Unknown(_), _) => false
     // Other forms: compare.
     | (Atom(a1), Atom(a2)) => a1 == a2
     | (Atom(_), _) => false
@@ -598,6 +587,54 @@ let equality =
     | (ProdExtension(_), _) => false
     | (ProofOf(e1), ProofOf(e2)) => exp'(e1, e2)
     | (ProofOf(_), _) => false
+    };
+  }
+  and typ_prov =
+      (
+        alphas_exp: Alphas.t,
+        alphas_typ: Alphas.t,
+        p1: Prov.term,
+        p2: Prov.term,
+      )
+      : bool => {
+    let typ_prov' = typ_prov(alphas_exp, alphas_typ);
+    let any' = any(alphas_exp, alphas_typ);
+    switch (p1, p2) {
+    | (SynSwitch, SynSwitch) => true
+    | (SynSwitch, _) => false
+    | (Hole(Invalid(s1)), Hole(Invalid(s2))) => s1 == s2
+    | (Hole(Invalid(_)), _) => false
+    | (Hole(EmptyHole), Hole(EmptyHole)) => true
+    | (Hole(EmptyHole), _) => false
+    | (Hole(CycleHole), Hole(CycleHole)) => true
+    | (Hole(CycleHole), _) => false
+    | (Hole(MultiHole(xs1)), Hole(MultiHole(xs2)))
+        when List.length(xs1) == List.length(xs2) =>
+      List.equal(any', xs1, xs2)
+    | (Hole(MultiHole(_)), _) => false
+    | (Internal, Internal) => true
+    | (Internal, _) => false
+    | (TupLabelArg(p1'), TupLabelArg(p2'))
+    | (TupLabel(p1'), TupLabel(p2'))
+    | (RForall(p1'), RForall(p2'))
+    | (MList(p1'), MList(p2'))
+    | (RArrow(p1'), LArrow(p2'))
+    | (LArrow(p1'), LArrow(p2')) => typ_prov'(p1', p2')
+    | (NProduct(n1, p1'), NProduct(n2, p2')) when n1 == n2 =>
+      typ_prov'(p1', p2')
+    | (Meet(m1, m2), Meet(m3, m4)) =>
+      typ_prov'(m1 |> Prov.term_of, m3 |> Prov.term_of)
+      && typ_prov'(m2 |> Prov.term_of, m4 |> Prov.term_of)
+      || typ_prov'(m1 |> Prov.term_of, m4 |> Prov.term_of)
+      && typ_prov'(m2 |> Prov.term_of, m3 |> Prov.term_of)
+    | (Meet(_), _)
+    | (TupLabelArg(_), _)
+    | (TupLabel(_), _)
+    | (RForall(_), _)
+    | (MList(_), _)
+    | (NProduct(_), _)
+    | (LArrow(_), _)
+    | (RArrow(_), _) => false
     };
   }
   and tpat = (tp1: TPat.t, tp2: TPat.t): option(Alphas.t) => {

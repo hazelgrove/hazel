@@ -1,6 +1,7 @@
 open Test_Statics_Prelude;
 open FTemp;
 open Typ;
+open TypeProvenance;
 open Util;
 
 let testable_id =
@@ -24,28 +25,28 @@ end
       {|
     type ? = ? in ?
     |},
-      Some(unknown(Internal)),
+      Some(unknown(internal())),
     ),
     fully_consistent_typecheck(
       "single null sum type",
       {|
     type SingleNull = +One in ?
     |},
-      Some(unknown(Internal)),
+      Some(unknown(internal())),
     ),
     fully_consistent_typecheck(
       "single sum type",
       {|
     type Single = +F(Int) in ?
     |},
-      Some(unknown(Internal)),
+      Some(unknown(internal())),
     ),
     fully_consistent_typecheck(
       "partial sum type",
       {|
     type Partial = Ok(?) + ? in ?
     |},
-      Some(unknown(Internal)),
+      Some(unknown(internal())),
     ),
     fully_consistent_typecheck(
       "double alias",
@@ -53,7 +54,7 @@ end
     type GoodSum = A + B + C(Int) in
     type DoubleAlias = GoodSum in ?
     |},
-      Some(unknown(Internal)),
+      Some(unknown(internal())),
     ),
     fully_consistent_typecheck(
       "vertical leading",
@@ -65,7 +66,7 @@ end
       + C(Bool->Bool)
     in ?
     |},
-      Some(unknown(Internal)),
+      Some(unknown(internal())),
     ),
     inconsistent_typecheck(
       "tuple as type name",
@@ -148,7 +149,7 @@ end
     type CompoundAlias = (Int, Anonymous + Sum) in
     let _: CompoundAlias = (1, Sum) in ?
     |},
-      Some(unknown(Internal)),
+      Some(unknown(internal())),
     ),
     inconsistent_typecheck(
       "unbound type var in function",
@@ -165,7 +166,7 @@ end
     type Yorp = Int -> (Inside + Ouside) in
     let _: Yorp = fun _ -> Inside in ?
     |},
-      Some(unknown(Internal)),
+      Some(unknown(internal())),
     ),
     inconsistent_typecheck(
       "unbound type var in sum",
@@ -182,7 +183,7 @@ end
     type Gargs = [BigGuy + Small] in
     let _: Gargs = [BigGuy] in ?
     |},
-      Some(unknown(Internal)),
+      Some(unknown(internal())),
     ),
     fully_consistent_typecheck(
       "analytic sum types in sum with cons",
@@ -190,7 +191,7 @@ end
     type Gargs = [BigGuy + Small] in
     let _: Gargs = BigGuy :: [BigGuy] in ?
     |},
-      Some(unknown(Internal)),
+      Some(unknown(internal())),
     ),
     inconsistent_typecheck(
       "unbound type var in sum with cons",
@@ -206,7 +207,7 @@ end
     type Tork2 = +Blob in
     let x:Tork1 = Blob in ?
     |},
-      Some(unknown(Internal)),
+      Some(unknown(internal())),
     ),
     fully_consistent_typecheck(
       "exp tests: happy",
@@ -220,7 +221,7 @@ end
     let _ : (Yo + Dawg, Int) = (Dawg,5) in
     let _ : DoubleAlias = C(4) in ?
     |},
-      Some(unknown(Internal)),
+      Some(unknown(internal())),
     ),
     inconsistent_typecheck(
       "inconsistent type with arrow",
@@ -266,7 +267,7 @@ end
     case Yo(1):(+Yo(Int)) | Yo(1) => ? | _ => ? end;
     case Yo :(+Yo) | Yo : +Yo => ? end;
     |},
-      Some(unknown(Internal)),
+      Some(unknown(internal())),
     ),
     inconsistent_typecheck(
       "pattern constructor tests: errors",
@@ -357,7 +358,8 @@ end
             )
           );
 
-        let error = Statics.Map.errors(statics(exp)) |> List.assoc(id2);
+        let error =
+          Statics.Map.errors(statics(exp) |> fst) |> List.assoc(id2);
         Alcotest.(
           check(
             testable_error,

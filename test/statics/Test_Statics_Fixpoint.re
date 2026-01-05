@@ -20,7 +20,10 @@ let tests = (
                           Inconsistent(
                             Expectation({
                               ana: prod([]),
-                              syn: list(unknown(Internal)),
+                              syn:
+                                FTemp.TypeProvenance.(
+                                  list(unknown(internal()))
+                                ),
                             }),
                           )
                         ),

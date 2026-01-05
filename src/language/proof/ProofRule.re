@@ -16,7 +16,11 @@ let rec exp_to_rule = (exp: Exp.t): t =>
   switch (exp |> Exp.term_of) {
   | Forall(p, e) =>
     let bindings' =
-      ProofHacks.dhpat_extend_ctx(p, Typ.temp(Unknown(Internal)), Ctx.empty)
+      ProofHacks.dhpat_extend_ctx(
+        p,
+        Typ.temp(Unknown(Internal |> Prov.fresh)),
+        Ctx.empty,
+      )
       |> Option.map((x: Ctx.t) => x.entries)
       |> OptUtil.get(() => []);
     let {bindings, /* assumptions, */ conclusion} = exp_to_rule(e);
@@ -133,7 +137,7 @@ let get_coctx = (ctx: Ctx.t, ana: Typ.t, rule: t): CoCtx.t => {
   /* TODO[Matt]: using full statics here feels a little overblown
      especially given we need to fake some settings to it, perhaps
      discuss with Andrew */
-  let statics = Statics.mk(~ana, CoreSettings.on, full_ctx, c_exp);
+  let (statics, _) = Statics.mk(~ana, CoreSettings.on, full_ctx, c_exp);
   let root_id = Exp.rep_id(c_exp);
   let info = Statics.Map.lookup(root_id, statics);
   let inner_coctx =

@@ -68,13 +68,17 @@ let singleton = (name, id, expected_ty): t => [
   ),
 ];
 
-let meet: (Ctx.t, list(entry)) => Typ.t =
+let meet: (Ctx.t, list(entry)) => (Typ.t, list(Typ.equivalence)) =
   (ctx, entries) => {
     let expected_tys = List.map(entry => entry.expected_ty, entries);
     switch (
-      Typ.meet_all(~empty=Unknown(Internal) |> Typ.fresh, ctx, expected_tys)
+      Typ.meet_all(
+        ~empty=Unknown(Internal |> Prov.fresh) |> Typ.fresh,
+        ctx,
+        expected_tys,
+      )
     ) {
-    | None => Unknown(Internal) |> Typ.fresh
+    | None => (Unknown(Internal |> Prov.fresh) |> Typ.fresh, [])
     | Some(ty) => ty
     };
   };
@@ -91,7 +95,7 @@ let of_bindings = (bindings: Binding.s): t =>
         [
           {
             id: b.id,
-            expected_ty: Typ.fresh(Unknown(Internal)),
+            expected_ty: Typ.fresh(Unknown(Internal |> Prov.fresh)),
           },
         ],
       ),

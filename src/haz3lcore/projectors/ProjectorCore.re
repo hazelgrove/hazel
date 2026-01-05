@@ -20,6 +20,7 @@ module Kind = {
   type t =
     | Fold
     | Info
+    | TypeHole
     | Probe
     | Checkbox
     | Slider
@@ -39,7 +40,8 @@ module Kind = {
     Csv,
   ];
 
-  let projectors: list(t) = livelit_projectors @ [Fold, Info, Probe];
+  let projectors: list(t) =
+    livelit_projectors @ [Fold, Info, Probe, TypeHole];
 
   /* A friendly name for each projector. This is used
    * both for identifying a projector in the CSS and for
@@ -48,6 +50,7 @@ module Kind = {
     switch (p) {
     | Fold => "fold"
     | Info => "type"
+    | TypeHole => "type-hole"
     | Probe => "probe"
     | Checkbox => "check"
     | Slider => "slider"
@@ -65,6 +68,7 @@ module Kind = {
     switch (p) {
     | "fold" => Fold
     | "type" => Info
+    | "type-hole" => TypeHole
     | "probe" => Probe
     | "check" => Checkbox
     | "slider" => Slider

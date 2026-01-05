@@ -1,13 +1,15 @@
 open StaticsBase;
 
+// TODO: (THI) fill in constraint generation
+
 type tuple_entry =
   | Unlabeled(Typ.t)
   | Labeled(option(string), Typ.t);
 type tuple_type = list(tuple_entry);
 
 // Constants and helper functions
-let unknown = Unknown(Internal) |> Typ.temp;
-let syn = Unknown(SynSwitch) |> Typ.temp;
+let unknown = Unknown(Internal |> Prov.fresh) |> Typ.temp;
+let syn = Unknown(SynSwitch |> Prov.fresh) |> Typ.temp;
 
 let typ_entry_to_tuple_entry = (entry: Typ.t) => {
   switch (entry.term) {
@@ -135,6 +137,7 @@ let invalid_args_fallback =
     add'(
       ~self=error,
       ~co_ctx=CoCtx.union([fn_info.co_ctx, arg_info.co_ctx]),
+      ~constraints=[],
       m,
     );
   );
@@ -178,6 +181,7 @@ let handle_tuple_operation =
               ~label_inference=None,
               ~inferred_label=None,
               ~label_sort=false,
+              ~constraints=[],
             ),
           ),
           m,
@@ -187,6 +191,7 @@ let handle_tuple_operation =
       add'(
         ~self=Common(Just(result_type)),
         ~co_ctx=CoCtx.union([fn_info.co_ctx, tup_info.co_ctx]),
+        ~constraints=[],
         m,
       );
     | _ =>
@@ -361,6 +366,7 @@ let group_by_label_statics =
               ~label_inference=None,
               ~inferred_label=None,
               ~label_sort=false,
+              ~constraints=[],
             ),
           ),
           m,
@@ -398,6 +404,7 @@ let group_by_label_statics =
       add'(
         ~self=Common(Just(unknown)),
         ~co_ctx=CoCtx.union([fn_info.co_ctx, table_info.co_ctx]),
+        ~constraints=[],
         m,
       );
     | _ =>
@@ -425,7 +432,7 @@ let to_lvs_statics =
       arg: Exp.t,
     ) => {
   open S;
-  let (ty_in, ty_out) = Typ.matched_arrow(ctx, fn_info.ty);
+  let (ty_in, ty_out, _) = Typ.matched_arrow(ctx, fn_info.ty);
   let (arg, m) = uexp_to_info_map(~ctx, ~ana=ty_in, arg, m);
 
   switch (Typ.normalize(ctx, arg.ty).term) {
@@ -435,13 +442,13 @@ let to_lvs_statics =
     switch (entries) {
     | Some(entries) =>
       let val_typs = List.map(snd, entries);
-      let joined_typ =
+      let (joined_typ, _: list(Typ.equivalence)) =
         Util.OptUtil.fold_left_opt(
-          (acc, t) => Typ.meet(ctx, acc, t),
+          (acc, t) => Typ.meet(ctx, acc |> fst, t),
           val_typs,
-          unknown,
+          (unknown, []: list(Typ.equivalence)),
         )
-        |> Option.value(~default=unknown);
+        |> Option.value(~default=(unknown, []: list(Typ.equivalence)));
 
       add'(
         ~self=
@@ -458,12 +465,14 @@ let to_lvs_statics =
             ),
           ),
         ~co_ctx=CoCtx.union([fn_info.co_ctx, arg.co_ctx]),
+        ~constraints=[],
         m,
       );
     | _ =>
       add'(
         ~self=BuiltinError(ToLvsMissingLabelsOnTuple(ty_out)),
         ~co_ctx=CoCtx.union([fn_info.co_ctx, arg.co_ctx]),
+        ~constraints=[],
         m,
       )
     };
@@ -471,12 +480,14 @@ let to_lvs_statics =
     add'(
       ~self=Common(Just(ty_out)),
       ~co_ctx=CoCtx.union([fn_info.co_ctx, arg.co_ctx]),
+      ~constraints=[],
       m,
     )
   | _ =>
     add'(
       ~self=BuiltinError(ToLvsMissingLabelsOnTuple(ty_out)),
       ~co_ctx=CoCtx.union([fn_info.co_ctx, arg.co_ctx]),
+      ~constraints=[],
       m,
     )
   };
@@ -494,7 +505,7 @@ let omit_all_labels_statics =
       arg: Exp.t,
     ) => {
   S.(
-    let (ty_in, ty_out) = Typ.matched_arrow(ctx, fn_info.ty);
+    let (ty_in, ty_out, _) = Typ.matched_arrow(ctx, fn_info.ty);
     let (arg, m) = uexp_to_info_map(~ctx, ~ana=ty_in, arg, m);
 
     switch (Typ.normalize(ctx, arg.ty).term) {
@@ -512,18 +523,21 @@ let omit_all_labels_statics =
       add'(
         ~self=Common(Just(Typ.to_product(entries))),
         ~co_ctx=CoCtx.union([fn_info.co_ctx, arg.co_ctx]),
+        ~constraints=[],
         m,
       );
     | Unknown(_) =>
       add'(
         ~self=Common(Just(ty_out)),
         ~co_ctx=CoCtx.union([fn_info.co_ctx, arg.co_ctx]),
+        ~constraints=[],
         m,
       )
     | _ =>
       add'(
         ~self=BuiltinError(ArgumentMustBeTuple),
         ~co_ctx=CoCtx.union([fn_info.co_ctx, arg.co_ctx]),
+        ~constraints=[],
         m,
       )
     };
@@ -572,6 +586,7 @@ let custom_statics_deferred_ap =
       add'(
         ~self=Common(Just(Arrow(unknown, unknown) |> Typ.temp)),
         ~co_ctx=CoCtx.union([fn_info.co_ctx, tup_info.co_ctx]),
+        ~constraints=[],
         m,
       );
 
@@ -583,6 +598,7 @@ let custom_statics_deferred_ap =
       add'(
         ~self=Common(Just(unknown)),
         ~co_ctx=CoCtx.union([fn_info.co_ctx, table_info.co_ctx]),
+        ~constraints=[],
         m,
       );
 
@@ -592,6 +608,7 @@ let custom_statics_deferred_ap =
       add'(
         ~self=Common(Just(unknown)),
         ~co_ctx=CoCtx.union([fn_info.co_ctx, arg_info.co_ctx]),
+        ~constraints=[],
         m,
       );
 
@@ -618,6 +635,7 @@ let custom_statics_deferred_ap =
       add'(
         ~self=BuiltinError(AtLeast2Arguments),
         ~co_ctx=combined_co_ctx,
+        ~constraints=[],
         m,
       );
 
@@ -644,6 +662,7 @@ let custom_statics_deferred_ap =
       add'(
         ~self=BuiltinError(Exactly2Arguments),
         ~co_ctx=combined_co_ctx,
+        ~constraints=[],
         m,
       );
 
@@ -674,6 +693,7 @@ let custom_statics_deferred_ap =
       add'(
         ~self=Common(Just(Arrow(ty_in', unknown) |> Typ.temp)),
         ~co_ctx=combined_co_ctx,
+        ~constraints=[],
         m,
       );
     }

@@ -1,5 +1,6 @@
 open Alcotest;
 open Language;
+open Util;
 
 let typ = testable(Fmt.using(Typ.show, Fmt.string), Typ.fast_equal);
 
@@ -22,7 +23,7 @@ let meet_tests = (
           Some(
             Poly(Var("a") |> TPat.temp, Var("a") |> Typ.temp) |> Typ.temp,
           ),
-          t,
+          OptUtil.unzip(t) |> fst,
         );
       },
     ),
@@ -41,7 +42,8 @@ let meet_tests = (
               ]),
               label("a"),
             ),
-          );
+          )
+          |> Option.map(fst);
         check(option(typ), "Meet product projections", Some(int()), t);
       },
     ),
@@ -53,8 +55,9 @@ let meet_tests = (
           Typ.meet(
             Builtins.ctx_init(None),
             int(),
-            prod_projection(unknown(Internal), label("a")),
-          );
+            prod_projection(unknown(Internal |> Prov.fresh), label("a")),
+          )
+          |> Option.map(fst);
         check(
           option(typ),
           "Meet product projections with unknown",
@@ -76,9 +79,10 @@ let meet_tests = (
                 tup_label(label("a"), int()),
                 tup_label(label("b"), bool()),
               ]),
-              unknown(Internal),
+              unknown(Internal |> Prov.fresh),
             ),
-          );
+          )
+          |> Option.map(fst);
         check(
           option(typ),
           "Meet product projections with unknown label",
@@ -107,13 +111,14 @@ let meet_tests = (
               ]),
             ),
             prod([
-              tup_label(unknown(Internal), int()),
-              unknown(Internal),
-              tup_label(label("b"), unknown(Internal)),
-              unknown(Internal),
+              tup_label(unknown(Internal |> Prov.fresh), int()),
+              unknown(Internal |> Prov.fresh),
+              tup_label(label("b"), unknown(Internal |> Prov.fresh)),
+              unknown(Internal |> Prov.fresh),
               nat(),
             ]),
-          );
+          )
+          |> Option.map(fst);
         check(
           option(typ),
           "Meet product extensions",
@@ -148,7 +153,8 @@ let meet_tests = (
               prod([tup_label(label("a"), int())]),
               prod([tup_label(label("b"), float()), string()]),
             ),
-          );
+          )
+          |> Option.map(fst);
         check(
           option(typ),
           "Meet product extensions",

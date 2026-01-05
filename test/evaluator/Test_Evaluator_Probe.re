@@ -327,7 +327,7 @@ let tests = (
                 bin_op(Int(Plus), int(1), int(2)),
                 {refs: []},
               ),
-              Typ.unknown(~ann=[], Internal),
+              Typ.unknown(~ann=[], TypeProvenance.internal()),
             )
           ),
         )

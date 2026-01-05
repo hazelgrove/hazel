@@ -51,7 +51,7 @@ let match_check =
 open Language.IdTagged.FreshGrammar;
 open Exp;
 
-let hole_typ = Typ.unknown(Internal);
+let hole_typ = Typ.unknown(Internal |> Language.Prov.fresh);
 
 let tests = [
   (

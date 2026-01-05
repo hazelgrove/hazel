@@ -2,6 +2,7 @@ open Test_Statics_Prelude;
 open FTemp;
 open Alcotest;
 open Typ;
+open TypeProvenance;
 
 let tests = (
   "Statics.Lists",
@@ -9,7 +10,7 @@ let tests = (
     test_case("A @ A", `Quick, () => {
       annotated_tree_test(
         "A @ A",
-        list(unknown(Internal)),
+        list(unknown(internal())),
         FIError.Exp.(
           let a =
             constructor(
@@ -24,7 +25,7 @@ let tests = (
     test_case("Free variable list concatenation", `Quick, () => {
       annotated_tree_test(
         "a @ a",
-        list(unknown(Internal)),
+        list(unknown(internal())),
         FIError.Exp.(
           let a = var(~ann=Some(Exp(FreeVariable("a"))), "a");
           list_concat(a, a)

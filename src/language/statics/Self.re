@@ -115,7 +115,7 @@ let typ_of: t => option(Typ.t) =
     Some(
       Sum([
         ConstructorMap.Variant(name, [Id.invalid], None),
-        ConstructorMap.BadEntry(Unknown(Internal) |> Typ.temp),
+        ConstructorMap.BadEntry(Unknown(Internal |> Prov.fresh) |> Typ.temp),
       ])
       |> Typ.temp,
     )
@@ -233,27 +233,56 @@ let add_source =
     }
   );
 
-let match = (ctx: Ctx.t, tys: list(Typ.t), ids: list(Id.t)): t =>
-  switch (Typ.meet_all(~empty=Unknown(Internal) |> Typ.fresh, ctx, tys)) {
-  | None => NoMeet(Id, add_source(ids, tys))
-  | Some(ty) => Just(ty)
+let match =
+    (ctx: Ctx.t, tys: list(Typ.t), ids: list(Id.t))
+    : (t, list(Typ.equivalence)) =>
+  switch (
+    Typ.meet_all(
+      ~empty=Unknown(Internal |> Prov.fresh) |> Typ.fresh,
+      ctx,
+      tys,
+    )
+  ) {
+  | None => (NoMeet(Id, add_source(ids, tys)), [])
+  | Some((ty, cons)) => (Just(ty), cons)
   };
 
-let listlit = (~empty, ctx: Ctx.t, tys: list(Typ.t), ids: list(Id.t)): t =>
+let listlit =
+    (~empty, ctx: Ctx.t, tys: list(Typ.t), ids: list(Id.t))
+    : (t, list(Typ.equivalence)) =>
   switch (Typ.meet_all(~empty, ctx, tys)) {
-  | None => NoMeet(List, add_source(ids, tys))
-  | Some(ty) => Just(List(ty) |> Typ.fresh)
+  | None => (NoMeet(List, add_source(ids, tys)), [])
+  | Some((ty, cons)) => (Just(List(ty) |> Typ.fresh), cons)
   };
 
-let list_concat = (ctx: Ctx.t, tys: list(Typ.t), ids: list(Id.t)): t =>
-  switch (Typ.meet_all(~empty=Unknown(Internal) |> Typ.fresh, ctx, tys)) {
-  | None => NoMeet(List, add_source(ids, tys))
-  | Some(ty) => Just(ty)
+let list_concat =
+    (ctx: Ctx.t, tys: list(Typ.t), ids: list(Id.t))
+    : (t, list(Typ.equivalence)) =>
+  switch (
+    Typ.meet_all(
+      ~empty=Unknown(Internal |> Prov.fresh) |> Typ.fresh,
+      ctx,
+      tys,
+    )
+  ) {
+  | None => (NoMeet(List, add_source(ids, tys)), [])
+  | Some((ty, cons)) => (Just(ty), cons)
   };
 
-let poly_eq = (ctx: Ctx.t, tys: list(Typ.t), ids: list(Id.t)): t =>
-  switch (Typ.meet_all(~empty=Unknown(Internal) |> Typ.fresh, ctx, tys)) {
-  | None => NoMeet(PolyEq, add_source(ids, tys))
-  | Some(ty) when ty |> Typ.normalize(ctx) |> Typ.has_fun => CompareFun(ty)
-  | Some(_) => Just(Atom(Bool) |> Typ.fresh)
+let poly_eq =
+    (ctx: Ctx.t, tys: list(Typ.t), ids: list(Id.t))
+    : (t, list(Typ.equivalence)) =>
+  switch (
+    Typ.meet_all(
+      ~empty=Unknown(Internal |> Prov.fresh) |> Typ.fresh,
+      ctx,
+      tys,
+    )
+  ) {
+  | None => (NoMeet(PolyEq, add_source(ids, tys)), [])
+  | Some((ty, cons)) when ty |> Typ.normalize(ctx) |> Typ.has_fun => (
+      CompareFun(ty),
+      cons,
+    )
+  | Some((_, cons)) => (Just(Atom(Bool) |> Typ.fresh), cons)
   };

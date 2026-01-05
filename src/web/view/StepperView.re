@@ -50,7 +50,7 @@ module Update = {
         ~settings: Calc.t(CoreSettings.t),
         ~ctx: Calc.t(SemanticCtx.t),
         elab: Calc.t(Exp.t),
-        ~ana=Calc.OldValue(Typ.fresh(Unknown(SynSwitch))),
+        ~ana=Calc.OldValue(Typ.fresh(Unknown(SynSwitch |> Prov.fresh))),
         {cached_elab_subst, root}: Model.t,
       )
       : Model.t => {

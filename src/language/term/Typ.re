@@ -6,9 +6,18 @@ type cls =
   | Atom(Atom.cls)
   | Invalid
   | EmptyHole
+  | CycleHole
   | MultiHole
   | SynSwitch
   | Internal
+  | LArrow
+  | RArrow
+  | NProduct
+  | MList
+  | RForall
+  | TupLabelProv
+  | TupLabelArg
+  | Meet
   | Arrow
   | Prod
   | TupLabel
@@ -35,13 +44,7 @@ let fresh: term => t = IdTagged.fresh;
 /* fresh assigns a random id, whereas temp assigns Id.invalid, which
    is a lot faster, and since we so often make types and throw them away
    shortly after, it makes sense to use it. */
-let temp: term => t =
-  term => {
-    term,
-    annotation: {
-      ids: [Id.invalid],
-    },
-  };
+let temp: term => t = IdTagged.temp;
 
 let all_ids_temp = {
   let f:
@@ -73,17 +76,27 @@ let (replace_temp, replace_temp_exp) = {
 
 let hole = (tms: list(TermBase.Any.t)): TermBase.Typ.term =>
   switch (tms) {
-  | [] => Unknown(Hole(EmptyHole))
-  | [_, ..._] => Unknown(Hole(MultiHole(tms)))
+  | [] => Unknown((Hole(EmptyHole): TermBase.Prov.term) |> IdTagged.fresh)
+  | [_, ..._] =>
+    Unknown((Hole(MultiHole(tms)): TermBase.Prov.term) |> IdTagged.fresh)
   };
 
 let cls_of_term: Grammar.typ_term('a) => cls =
   fun
-  | Unknown(Hole(Invalid(_))) => Invalid
-  | Unknown(Hole(EmptyHole)) => EmptyHole
-  | Unknown(Hole(MultiHole(_))) => MultiHole
-  | Unknown(SynSwitch) => SynSwitch
-  | Unknown(Internal) => Internal
+  | Unknown({term: Hole(Invalid(_)), _}) => Invalid
+  | Unknown({term: Hole(EmptyHole), _}) => EmptyHole
+  | Unknown({term: Hole(CycleHole), _}) => CycleHole
+  | Unknown({term: Hole(MultiHole(_)), _}) => MultiHole
+  | Unknown({term: SynSwitch, _}) => SynSwitch
+  | Unknown({term: Internal, _}) => Internal
+  | Unknown({term: LArrow(_), _}) => LArrow
+  | Unknown({term: RArrow(_), _}) => RArrow
+  | Unknown({term: NProduct(_), _}) => NProduct
+  | Unknown({term: MList(_), _}) => MList
+  | Unknown({term: RForall(_), _}) => RForall
+  | Unknown({term: TupLabel(_), _}) => TupLabelProv
+  | Unknown({term: TupLabelArg(_), _}) => TupLabelArg
+  | Unknown({term: Meet(_), _}) => Meet
   | Atom(c) => Atom(c)
   | List(_) => List
   | Arrow(_) => Arrow
@@ -105,8 +118,17 @@ let show_cls: cls => string =
   | Invalid => "Invalid type"
   | MultiHole => "Broken type"
   | EmptyHole => "Type hole"
+  | CycleHole => "Cycle type hole"
   | SynSwitch => "Synthetic type"
   | Internal => "Internal type"
+  | LArrow => "Left arrow prov type"
+  | RArrow => "Right arrow prov type"
+  | NProduct => "Tuple prov type"
+  | MList => "List prov type"
+  | RForall => "Right Forall prov type"
+  | TupLabelProv => "Tuple label prov"
+  | TupLabelArg => "Tuple arg prov"
+  | Meet => "Join prov"
   | Atom(_) => "Base type"
   | Var => "Type variable"
   | Constructor => "Sum constructor"
@@ -235,17 +257,20 @@ let of_source = List.map((source: source) => source.ty);
    but right now TypeHole strictly predominates over Internal
    which strictly predominates over SynSwitch. */
 let meet_type_provenance =
-    (p1: TermBase.type_provenance, p2: TermBase.type_provenance)
-    : TermBase.type_provenance =>
-  switch (p1, p2) {
-  | (Hole(h1), Hole(h2)) when h1 == h2 => Hole(h1)
-  | (Hole(EmptyHole), Hole(EmptyHole) | SynSwitch)
-  | (SynSwitch, Hole(EmptyHole)) => Hole(EmptyHole)
-  | (SynSwitch, Internal)
-  | (Internal, SynSwitch) => SynSwitch
-  | (Internal | Hole(_), _)
-  | (_, Hole(_)) => Internal
-  | (SynSwitch, SynSwitch) => SynSwitch
+    (p1: Prov.t, p2: Prov.t)
+    : (TermBase.type_provenance_t, list(equivalence)) =>
+  if (p1 == p2) {
+    (p1, []);
+  } else {
+    let join_prov = Meet(p1, p2) |> Prov.fresh;
+    let join_hole = Unknown(join_prov) |> temp;
+    (
+      join_prov,
+      [
+        Con(Unknown(p1) |> temp, join_hole),
+        Con(Unknown(p2) |> temp, join_hole),
+      ],
+    );
   };
 
 let rec match_tup_optional_label = (ty: t) =>
@@ -321,7 +346,14 @@ let rec aliases_deep = (ctx: Ctx.t, ty: t): list((string, t)) => {
       var =>
         switch (Ctx.lookup_alias(ctx, var)) {
         | Some(ty) => [(var, ty)]
-        | None => [(var, fresh(Unknown(Internal)))]
+        | None => [
+            (
+              var,
+              fresh(
+                Unknown((Internal: TermBase.Prov.term) |> IdTagged.fresh),
+              ),
+            ),
+          ]
         },
       vars(ty),
     )
@@ -523,7 +555,11 @@ let remove_duplicate_labels =
         | Some((l, _)) when List.mem(l, duplicate_labels) => (
             [l, ...seen_duplicates],
             [
-              TupLabel(Label(l) |> temp, Unknown(Internal) |> temp) |> temp,
+              TupLabel(
+                Label(l) |> temp,
+                Unknown(Internal |> Prov.fresh) |> temp,
+              )
+              |> temp,
               ...rev_deduplicated_types,
             ],
           )
@@ -562,7 +598,7 @@ let rec weak_head_normalize = (~rec_counter=0, ctx: Ctx.t, ty: t): t => {
       | _ => None // It would be better to do this via a more direct error recovery mechanism in statics
       }
     )
-    |> Option.value(~default=Unknown(Internal) |> rewrap);
+    |> Option.value(~default=Unknown(Internal |> Prov.fresh) |> rewrap);
   | Prod(ts) =>
     let (_, rewrap) = unwrap(ty);
     let duplicate_labels =
@@ -582,7 +618,7 @@ let rec weak_head_normalize = (~rec_counter=0, ctx: Ctx.t, ty: t): t => {
     | (Prod(tys1), Prod(tys2)) => product_extension(tys1, tys2) |> rewrap
     | _ =>
       // It would be better to do this via a more direct error recovery mechanism in statics
-      Unknown(Internal) |> rewrap
+      Unknown(Internal |> Prov.fresh) |> rewrap
     };
   | _ => ty
   };
@@ -630,7 +666,9 @@ let rec normalize = (~rec_counter=0, ctx: Ctx.t, ty: t): t => {
 /* Lattice meet on types. This was called 'join' in the 2019 Hazelnut live paper,
    but we're now calling it 'meet' to clarify that Unknown represents the top
    (least precise) element in the precision ordering: specific types dominate Unknown. */
-let rec meet = (ctx: Ctx.t, ty1: t, ty2: t): option(t) => {
+let rec meet =
+        (~resolve=false, ctx: Ctx.t, ty1: t, ty2: t)
+        : option((t, list(equivalence))) => {
   let meet' = meet(ctx);
   switch (term_of(ty1), term_of(ty2)) {
   | (_, Parens(ty2)) => meet'(ty1, ty2)
@@ -638,12 +676,13 @@ let rec meet = (ctx: Ctx.t, ty1: t, ty2: t): option(t) => {
   | (TupLabel({term: ExplicitNonlabel, _}, ty1'), _) => meet'(ty1', ty2)
   | (_, TupLabel({term: ExplicitNonlabel, _}, ty2')) => meet'(ty1, ty2')
   | (Unknown(p1), Unknown(p2)) =>
-    Some(Unknown(meet_type_provenance(p1, p2)) |> temp)
-  | (Unknown(_), _) => Some(ty2)
-  | (_, Unknown(_)) => Some(ty1)
+    let (prov, cons) = meet_type_provenance(p1, p2);
+    Some((Unknown(prov) |> temp, cons));
+  | (Unknown(_), _) => Some((ty2, []))
+  | (_, Unknown(_)) => Some((ty1, []))
   | (Var(n1), Var(n2)) =>
     if (n1 == n2) {
-      Some(ty1);
+      Some((ty1, []));
     } else {
       let ty1' = Ctx.lookup_alias(ctx, n1);
       let ty2' = Ctx.lookup_alias(ctx, n2);
@@ -656,12 +695,12 @@ let rec meet = (ctx: Ctx.t, ty1: t, ty2: t): option(t) => {
     }
   | (Var(name), _) =>
     let* ty_name = Ctx.lookup_alias(ctx, name);
-    let+ ty_meet = meet'(ty_name, ty2);
-    equal(ty_name, ty_meet) ? ty1 : ty_meet;
+    let+ (ty_meet, cons) = meet'(ty_name, ty2);
+    (equal(ty_name, ty_meet) ? ty1 : ty_meet, cons);
   | (_, Var(name)) =>
     let* ty_name = Ctx.lookup_alias(ctx, name);
-    let+ ty_meet = meet'(ty_name, ty1);
-    equal(ty_name, ty_meet) ? ty2 : ty_meet;
+    let+ (ty_meet, cons) = meet'(ty_name, ty1);
+    (equal(ty_name, ty_meet) ? ty2 : ty_meet, cons);
   /* Note: Ordering of Unknown, Var, and Rec above is load-bearing! */
   | (ProdProjection(_), _) => meet'(weak_head_normalize(ctx, ty1), ty2)
   | (_, ProdProjection(_)) => meet'(ty1, weak_head_normalize(ctx, ty2))
@@ -674,8 +713,8 @@ let rec meet = (ctx: Ctx.t, ty1: t, ty2: t): option(t) => {
       | Some(x2) => subst(Var(x2) |> temp, tp1, ty1)
       | None => ty1
       };
-    let+ ty_body = meet(ctx, ty1', ty2);
-    Rec(tp1, ty_body) |> temp;
+    let+ (ty_body, cons) = meet(~resolve, ctx, ty1', ty2);
+    (Rec(tp1, ty_body) |> temp, cons);
   | (Rec(_), _) => None
   | (Poly(x1, ty1), Poly(x2, ty2)) =>
     let ty1' =
@@ -684,8 +723,8 @@ let rec meet = (ctx: Ctx.t, ty1: t, ty2: t): option(t) => {
       | None => ty1
       };
     let ctx = Ctx.extend_dummy_tvar(ctx, x2);
-    let+ ty_body = meet(ctx, ty1', ty2);
-    Poly(x2, ty_body) |> temp;
+    let+ (ty_body, meet_cons) = meet(~resolve, ctx, ty1', ty2);
+    (Poly(x2, ty_body) |> temp, meet_cons);
   /* Note for above: there is no danger of free variable capture as
      subst itself performs capture avoiding substitution. However this
      may generate internal type variable names that in corner cases can
@@ -693,23 +732,23 @@ let rec meet = (ctx: Ctx.t, ty1: t, ty2: t): option(t) => {
      second type to preserve synthesized type variable names, which
      come from user annotations. */
   | (Poly(_), _) => None
-  | (Atom(c1), Atom(c2)) when c1 == c2 => Some(ty1)
+  | (Atom(c1), Atom(c2)) when c1 == c2 => Some((ty1, []))
   | (Atom(_), _) => None
-  | (Label(_), Label("")) => Some(ty1)
-  | (Label(""), Label(_)) => Some(ty2)
+  | (Label(_), Label("")) => Some((ty1, []))
+  | (Label(""), Label(_)) => Some((ty2, []))
   | (Label(name1), Label(name2))
       when LabeledTuple.match_labels(name1, name2) =>
-    Some(ty1)
+    Some((ty1, []))
   | (Label(_), _) => None
   | (Arrow(ty1, ty2), Arrow(ty1', ty2')) =>
-    let* ty1 = meet'(ty1, ty1');
-    let+ ty2 = meet'(ty2, ty2');
-    Arrow(ty1, ty2) |> temp;
+    let* (ty1, meet_cons1) = meet'(ty1, ty1');
+    let+ (ty2, meet_cons2) = meet'(ty2, ty2');
+    (Arrow(ty1, ty2) |> temp, meet_cons1 @ meet_cons2);
   | (Arrow(_), _) => None
   | (TupLabel(lab1, ty1'), TupLabel(lab2, ty2')) =>
-    let* lab = meet'(lab1, lab2);
-    let+ ty = meet'(ty1', ty2');
-    TupLabel(lab, ty) |> temp;
+    let* (lab, lab_cons) = meet'(lab1, lab2);
+    let+ (ty, ty_cons) = meet'(ty1', ty2');
+    (TupLabel(lab, ty) |> temp, lab_cons @ ty_cons);
   | (TupLabel(_), _) => None
   | (Prod(tys1), Prod(tys2)) =>
     let tys1 =
@@ -729,20 +768,25 @@ let rec meet = (ctx: Ctx.t, ty1: t, ty2: t): option(t) => {
       None;
     } else {
       let* tys = ListUtil.map2_opt(meet', tys1, tys2);
-      let+ tys = OptUtil.sequence(tys);
-      Prod(tys) |> temp;
+      let* tys = OptUtil.sequence(tys);
+      let+ (tys, ty_cons) = Some(List.split(tys));
+      (Prod(tys) |> temp, List.flatten(ty_cons));
     };
   | (Prod(_), _) => None
   | (Sum(sm1), Sum(sm2)) =>
-    let+ sm' = ConstructorMap.meet(equal, meet(ctx), sm1, sm2);
-    Sum(sm') |> temp;
+    let meet = (a, b) => {
+      let+ (meeted, _) = meet(~resolve, ctx, a, b);
+      meeted;
+    };
+    let+ sm' = ConstructorMap.meet(equal, meet, sm1, sm2);
+    (Sum(sm') |> temp, []);
   | (Sum(_), _) => None
   | (List(ty1), List(ty2)) =>
-    let+ ty = meet'(ty1, ty2);
-    List(ty) |> temp;
+    let+ (ty, ty_cons) = meet'(ty1, ty2);
+    (List(ty) |> temp, ty_cons);
   | (List(_), _) => None
   | (ProofOf(e1), ProofOf(e2)) =>
-    Equality.semantic.exp(e1, e2) ? Some(ty1) : None
+    Equality.semantic.exp(e1, e2) ? Some((ty1, [])) : None
   | (ProofOf(_), _) => None
   // We would prefer for this to be a sort difference and never appear in a meet.
   // These get marked in statics but that does not remove them from the utyp's propagated on parents.
@@ -756,7 +800,7 @@ let rec match_synswitch = (t1: t, t2: t) => {
   let (term1, rewrap1) = unwrap(t1);
   switch (term1, term_of(t2)) {
   | (Parens(t1), _) => Parens(match_synswitch(t1, t2)) |> rewrap1
-  | (Unknown(SynSwitch), _) => t2
+  | (Unknown({term: SynSwitch, _}), _) => t2
   // These cases can't have a synswitch inside
   | (Unknown(_), _)
   | (Atom(_), _)
@@ -792,12 +836,21 @@ let rec match_synswitch = (t1: t, t2: t) => {
   };
 };
 
-let meet_all = (~empty: t, ctx: Ctx.t, ts: list(t)): option(t) =>
-  List.fold_left(
-    (acc, ty) => OptUtil.and_then(meet(ctx, ty), acc),
-    Some(empty),
-    ts,
-  );
+let meet_all =
+    (~empty: t, ctx: Ctx.t, ts: list(t)): option((t, list(equivalence))) => {
+  let+ (ty, cons) =
+    List.fold_left(
+      (acc: option((t, list(list(equivalence)))), ty: t) => {
+        let* (acc_ty, acc_cons) = acc;
+        let+ (meet_ty, meet_cons) = meet(ctx, ty, acc_ty);
+        (meet_ty, [meet_cons, ...acc_cons]);
+      },
+      Some((empty, [])),
+      ts,
+    );
+
+  (ty, List.flatten(cons));
+};
 
 let is_consistent = (ctx: Ctx.t, ty1: t, ty2: t): bool =>
   meet(ctx, ty1, ty2) != None;
@@ -811,36 +864,98 @@ let is_more_precise = (ctx: Ctx.t, ty1: t, ty2: t): bool => {
   let met = meet(ctx, ty1, ty2);
   switch (met) {
   | None => false
-  | Some(met) => Equality.semantic.typ(met, ty1)
+  | Some((met, _)) => Equality.semantic.typ(met, ty1)
   };
+};
+
+let matched_arrow_of_prov = ({term: t, annotation}: Prov.t, ty: t) => {
+  let left_arr =
+    Unknown({
+      term: LArrow(t),
+      annotation,
+    })
+    |> temp;
+  let right_arr =
+    Unknown({
+      term: RArrow(t),
+      annotation,
+    })
+    |> temp;
+  (left_arr, right_arr, [Con(ty, Arrow(left_arr, right_arr) |> temp)]);
 };
 
 let rec matched_arrow_strict = (ctx, ty) =>
   switch (term_of(weak_head_normalize(ctx, ty))) {
   | Parens(ty) => matched_arrow_strict(ctx, ty)
-  | Arrow(ty_in, ty_out) => Some((ty_in, ty_out))
-  | Unknown(SynSwitch) =>
-    Some((Unknown(SynSwitch) |> temp, Unknown(SynSwitch) |> temp))
+  | Arrow(ty_in, ty_out) => Some((ty_in, ty_out, []))
+  | Unknown({term: SynSwitch, _} as prov) =>
+    Some(matched_arrow_of_prov(prov, ty))
   | _ => None
   };
 
-let matched_arrow = (ctx, ty) =>
-  matched_arrow_strict(ctx, ty)
-  |> Option.value(
-       ~default=(Unknown(Internal) |> temp, Unknown(Internal) |> temp),
-     );
+let matched_arrow = (ctx, ty) => {
+  switch (matched_arrow_strict(ctx, ty)) {
+  | Some(v) => v
+  | None =>
+    switch (term_of(weak_head_normalize(ctx, ty))) {
+    | Unknown({term: t, annotation}) =>
+      matched_arrow_of_prov(
+        {
+          term: t,
+          annotation,
+        },
+        ty,
+      )
+    | _ =>
+      let prov = (Internal: TermBase.Prov.term) |> IdTagged.temp;
+      matched_arrow_of_prov(prov, ty);
+    }
+  };
+};
+
+let matched_poly_of_prov = ({term, annotation}: Prov.t, ty) => {
+  let r_forall =
+    Unknown({
+      term: RForall(term),
+      annotation,
+    })
+    |> temp;
+  (
+    None,
+    r_forall,
+    [Con(ty, Poly(EmptyHole |> TPat.fresh, r_forall) |> temp)],
+  );
+};
 
 let rec matched_poly_strict = (ctx, ty) =>
   switch (term_of(weak_head_normalize(ctx, ty))) {
   | Parens(ty) => matched_poly_strict(ctx, ty)
-  | Poly(t, ty) => Some((Some(t), ty))
-  | Unknown(SynSwitch) => Some((None, Unknown(SynSwitch) |> temp))
+  | Poly(t, ty) => Some((Some(t), ty, []))
+  | Unknown({term: SynSwitch, annotation}) =>
+    Some(
+      matched_poly_of_prov(
+        {
+          term: SynSwitch,
+          annotation,
+        },
+        ty,
+      ),
+    )
   | _ => None
   };
 
-let matched_poly = (ctx, ty) =>
-  matched_poly_strict(ctx, ty)
-  |> Option.value(~default=(None, Unknown(Internal) |> temp));
+let matched_poly = (ctx, ty) => {
+  switch (matched_poly_strict(ctx, ty)) {
+  | Some(r) => r
+  | None =>
+    let prov =
+      switch (term_of(weak_head_normalize(ctx, ty))) {
+      | Unknown(prov) => prov
+      | _ => Internal |> Prov.fresh
+      };
+    matched_poly_of_prov(prov, ty);
+  };
+};
 
 let rec get_labels = (ctx, ty): list(option(string)) => {
   let ty = weak_head_normalize(ctx, ty);
@@ -851,17 +966,31 @@ let rec get_labels = (ctx, ty): list(option(string)) => {
   };
 };
 
+// TODO: (THI) document
+let matched_prod_of_prov =
+    ({term, annotation}: TermBase.type_provenance_t, es, ty) => {
+  let prod_provs =
+    List.init(List.length(es), n =>
+      Unknown({
+        term: NProduct(n, term),
+        annotation,
+      })
+      |> temp
+    );
+  (prod_provs, [Con(ty, Prod(prod_provs) |> temp)]);
+};
+
 let rec matched_prod_strict:
   type a.
     (Ctx.t, list(a), a => option((string, a)), t, (string, a) => a) =>
-    (list(a), option(list(t))) =
+    (list(a), option(list(t)), list(equivalence)) =
   (ctx: Ctx.t, es, get_label_es, ty: t, constructor) => {
     switch (term_of(weak_head_normalize(ctx, ty))) {
     | Parens(ty) =>
       matched_prod_strict(ctx, es, get_label_es, ty, constructor)
     | Prod(tys: list(t)) =>
       if (List.length(es) != List.length(tys)) {
-        (es, None);
+        (es, None, []);
       } else {
         (
           LabeledTuple.rearrange(
@@ -872,56 +1001,109 @@ let rec matched_prod_strict:
             constructor,
           ),
           Some(tys),
+          [],
         );
       }
-    | Unknown(SynSwitch) => (
-        es,
-        Some(List.init(List.length(es), _ => Unknown(SynSwitch) |> temp)),
-      )
-    | _ => (es, None)
+    | Unknown({term: SynSwitch, _} as p) =>
+      let (provs, constraints) = matched_prod_of_prov(p, es, ty);
+      (es, Some(provs), constraints);
+    | _ => (es, None, [])
     };
   };
 
 let matched_prod = (ctx, es, get_label_es, ty, constructor) => {
-  let (es, tys_opt) =
+  let (es, tys_opt, constraints) =
     matched_prod_strict(ctx, es, get_label_es, ty, constructor);
-  (
-    es,
-    tys_opt
-    |> Option.value(
-         ~default=List.init(List.length(es), _ => Unknown(Internal) |> temp),
-       ),
-  );
+  let (a, constraints') =
+    switch (tys_opt) {
+    | Some(p) => (p, constraints)
+    | None =>
+      switch (term_of(weak_head_normalize(ctx, ty))) {
+      | Unknown(p) => matched_prod_of_prov(p, es, ty)
+      | _ =>
+        let prov = Internal |> Prov.fresh;
+        matched_prod_of_prov(prov, es, ty);
+      }
+    };
+  (es, a, constraints');
+};
+
+// TODO: (THI) document
+let matched_list_hole_of_prov =
+    ({term, annotation}: TermBase.type_provenance_t, ty) => {
+  let list_ty =
+    Unknown({
+      term: MList(term),
+      annotation,
+    })
+    |> temp;
+  (list_ty, [Con(ty, List(list_ty) |> temp)]);
 };
 
 let rec matched_list_strict = (ctx, ty) =>
   switch (term_of(weak_head_normalize(ctx, ty))) {
   | Parens(ty) => matched_list_strict(ctx, ty)
-  | List(ty) => Some(ty)
-  | Unknown(SynSwitch) => Some(Unknown(SynSwitch) |> temp)
-  | _ => None
+  | List(ty) => (Some(ty), [])
+  | Unknown(prov) when prov.term == SynSwitch =>
+    let (list_ty, constraints) = matched_list_hole_of_prov(prov, ty);
+    (Some(list_ty), constraints);
+  | _ => (None, [])
   };
 
-let matched_list = (ctx, ty) =>
-  matched_list_strict(ctx, ty)
-  |> Option.value(~default=Unknown(Internal) |> temp);
+let matched_list_strict_without_constraints = (ctx, ty) =>
+  switch (matched_list_strict(ctx, ty)) {
+  | (Some(ty), _) => Some(ty)
+  | (None, _) => None
+  };
 
+let matched_list = (ctx, ty) => {
+  let (list_ty_opt, constraints) = matched_list_strict(ctx, ty);
+  let (list_ty, constraints') =
+    switch (list_ty_opt) {
+    | Some(list_ty) => (list_ty, constraints)
+    | None =>
+      switch (term_of(weak_head_normalize(ctx, ty))) {
+      | Unknown(prov) => matched_list_hole_of_prov(prov, ty)
+      | _ =>
+        let prov = Internal |> Prov.fresh;
+        matched_list_hole_of_prov(prov, ty);
+      }
+    };
+
+  (list_ty, constraints');
+  // |> Option.value(~default=Unknown(Internal |> Prov.fresh) |> temp);
+};
+
+// TODO: (THI) does this need constraints and special provenances?
 let rec matched_args_strict = (ctx, ty, arity): Either.t('a, int) => {
   switch (term_of(weak_head_normalize(ctx, ty))) {
   | Parens(ty) => matched_args_strict(ctx, ty, arity)
   | Prod(tys) when List.length(tys) == arity => L(tys)
   | Prod(tys) => R(List.length(tys))
   | _ when arity == 1 => L([ty])
-  | Unknown(_) => L(List.init(arity, _ => Unknown(Internal) |> temp))
+  | Unknown(_) =>
+    L(List.init(arity, _ => Unknown(Internal |> Prov.fresh) |> temp))
   | _ => R(1)
   };
 };
 
-let matched_label = (ctx, ty): option((t, t)) =>
+let matched_label = (ctx, ty): option((t, t, list(equivalence))) =>
   switch (term_of(weak_head_normalize(ctx, ty))) {
-  | TupLabel({term: Label(ml), _}, ty) => Some((Label(ml) |> temp, ty))
-  | Unknown(SynSwitch) =>
-    Some((Unknown(SynSwitch) |> temp, Unknown(SynSwitch) |> temp))
+  | TupLabel({term: Label(ml), _}, ty) => Some((Label(ml) |> temp, ty, []))
+  | Unknown({term: t, annotation}) when t == SynSwitch =>
+    let label =
+      Unknown({
+        term: TupLabel(t),
+        annotation,
+      })
+      |> temp;
+    let arg =
+      Unknown({
+        term: TupLabelArg(t),
+        annotation,
+      })
+      |> temp;
+    Some((label, arg, [Con(ty, TupLabel(label, arg) |> temp)]));
   | _ => None
   };
 
@@ -962,8 +1144,7 @@ let rec is_syn = (ty: t): bool =>
   switch (ty |> term_of) {
   | TupLabel(_, x)
   | Parens(x) => is_syn(x)
-  | Unknown(SynSwitch) => true
-  | Unknown(_)
+  | Unknown(p) => is_prov_syn(p |> Prov.term_of)
   | Atom(_)
   | Label(_)
   | Var(_)
@@ -973,11 +1154,27 @@ let rec is_syn = (ty: t): bool =>
   | List(_)
   | Arrow(_)
   | Prod(_)
-  | Sum(_)
+  | Sum(_) => false
   | ProdProjection(_)
   | ProdExtension(_)
   | ExplicitNonlabel => false
+  }
+and is_prov_syn = (prov: Prov.term): bool => {
+  switch (prov) {
+  | LArrow(p)
+  | RArrow(p)
+  | NProduct(_, p)
+  | RForall(p)
+  | TupLabel(p)
+  | TupLabelArg(p)
+  | MList(p) => is_prov_syn(p)
+  | Meet(p1, p2) =>
+    is_prov_syn(p1 |> Prov.term_of) || is_prov_syn(p2 |> Prov.term_of)
+  | SynSwitch => true
+  | Internal => false
+  | Hole(_) => false
   };
+};
 
 let rec is_ana_atom = (ty: t) =>
   switch (ty |> term_of) {
@@ -1003,11 +1200,10 @@ let rec is_syn_plus = (ty: t): bool =>
   switch (ty |> term_of) {
   | TupLabel(_, x)
   | Parens(x) => is_syn_plus(x)
-  | Unknown(SynSwitch) => true
+  | Unknown(p) => is_prov_syn(p |> Prov.term_of)
   | Arrow(t1, t2) => is_syn(t1) && is_syn_plus(t2)
   | Poly(_, t) => is_syn(t)
   | ProofOf(_)
-  | Unknown(_)
   | Atom(_)
   | ExplicitNonlabel
   | Label(_)

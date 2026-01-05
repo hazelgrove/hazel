@@ -11,7 +11,12 @@ let tests = (
   x : F|},
       Some(
         FTemp.(
-          Typ.(poly(TPat.var("a"), arrow(unknown(Internal), var("a"))))
+          Typ.(
+            poly(
+              TPat.var("a"),
+              arrow(unknown(TypeProvenance.internal()), var("a")),
+            )
+          )
         ),
       ),
     ),
@@ -34,7 +39,7 @@ let tests = (
         open Language;
         // This was https://github.com/hazelgrove/hazel/issues/1459 which used to crash statics
         let exp = parse_exp("type x = Int(Float) in let y : x =  1");
-        let s = statics(exp);
+        let (s, _) = statics(exp);
 
         let errors = Statics.Map.errors(s) |> List.map(snd);
 

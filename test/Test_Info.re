@@ -14,7 +14,7 @@ let status_typ_tests = (
           Info.status_typ(
             Builtins.ctx_init(Some(Int)),
             TypeExpected,
-            Unknown(Hole(Invalid("x"))) |> Typ.temp,
+            Unknown(Hole(Invalid("x")) |> Prov.fresh) |> Typ.temp,
           );
 
         check(
@@ -34,7 +34,7 @@ let status_typ_tests = (
       `Quick,
       () => {
         let ctx = Builtins.ctx_init(Some(Int));
-        let ty = Unknown(Hole(EmptyHole)) |> Typ.temp;
+        let ty = Unknown(Hole(EmptyHole) |> Prov.fresh) |> Typ.temp;
         let status = Info.status_typ(ctx, LabelExpected(Unique, []), ty);
         check(
           testable(
@@ -52,7 +52,7 @@ let status_typ_tests = (
       `Quick,
       () => {
         let ctx = Builtins.ctx_init(Some(Int));
-        let ty = Unknown(Hole(EmptyHole)) |> Typ.temp;
+        let ty = Unknown(Hole(EmptyHole) |> Prov.fresh) |> Typ.temp;
         let status = Info.status_typ(ctx, TypeExpected, ty);
         check(
           testable(
@@ -71,7 +71,7 @@ let status_typ_tests = (
       `Quick,
       () => {
         let ctx = Builtins.ctx_init(Some(Int));
-        let ty = Unknown(Hole(MultiHole([]))) |> Typ.temp;
+        let ty = Unknown(Hole(MultiHole([])) |> Prov.fresh) |> Typ.temp;
         let status = Info.status_typ(ctx, TypeExpected, ty);
         check(
           testable(

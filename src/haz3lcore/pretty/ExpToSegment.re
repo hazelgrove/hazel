@@ -142,10 +142,19 @@ let external_precedence_pat = (dp: Pat.t) =>
 let external_precedence_typ = (tp: Typ.t) =>
   switch (Typ.term_of(tp)) {
   // Indivisible forms never need parentheses around them
-  | Unknown(Hole(Invalid(_)))
-  | Unknown(Internal)
-  | Unknown(SynSwitch)
-  | Unknown(Hole(EmptyHole))
+  | Unknown({term: Hole(Invalid(_)), _})
+  | Unknown({term: Internal, _})
+  | Unknown({term: SynSwitch, _})
+  | Unknown({term: Hole(EmptyHole), _})
+  | Unknown({term: Hole(CycleHole), _})
+  | Unknown({term: LArrow(_), _}) // TODO (THI): this probably needs to be recursive?
+  | Unknown({term: RArrow(_), _}) // TODO (THI): this probably needs to be recursive?
+  | Unknown({term: NProduct(_), _}) // TODO (THI): this probably needs to be recursive?
+  | Unknown({term: MList(_), _}) // TODO (THI): this probably needs to be recursive?
+  | Unknown({term: RForall(_), _}) // TODO (THI): this probably needs to be recursive?
+  | Unknown({term: TupLabel(_), _}) // TODO (THI): this probably needs to be recursive?
+  | Unknown({term: TupLabelArg(_), _}) // TODO (THI): this probably needs to be recursive?
+  | Unknown({term: Meet(_), _}) // TODO (THI): this probably needs to be recursive?
   | Var(_)
   | Atom(_)
   | Label(_)
@@ -166,7 +175,7 @@ let external_precedence_typ = (tp: Typ.t) =>
   | Poly(_, _) => Precedence.let_
 
   // Matt: I think multiholes are min because we don't know the precedence of the `⟩?⟨`s
-  | Unknown(Hole(MultiHole(_))) => Precedence.min
+  | Unknown({term: Hole(MultiHole(_)), _}) => Precedence.min
   };
 
 let paren_at = (internal_precedence: Precedence.t, exp: Exp.t): Exp.t =>
@@ -527,10 +536,19 @@ and parenthesize_typ =
   switch (term) {
   // Indivisible forms dont' change
   | Var(_)
-  | Unknown(Hole(Invalid(_)))
-  | Unknown(Internal)
-  | Unknown(SynSwitch)
-  | Unknown(Hole(EmptyHole))
+  | Unknown({term: Hole(Invalid(_)), _})
+  | Unknown({term: Internal, _})
+  | Unknown({term: SynSwitch, _})
+  | Unknown({term: Hole(EmptyHole), _})
+  | Unknown({term: Hole(CycleHole), _})
+  | Unknown({term: LArrow(_), _})
+  | Unknown({term: RArrow(_), _})
+  | Unknown({term: NProduct(_), _})
+  | Unknown({term: MList(_), _})
+  | Unknown({term: RForall(_), _})
+  | Unknown({term: TupLabel(_), _})
+  | Unknown({term: TupLabelArg(_), _})
+  | Unknown({term: Meet(_), _})
   | Atom(_) => typ
 
   // Other forms
@@ -620,9 +638,10 @@ and parenthesize_typ =
       ),
     )
     |> rewrap
-  | Unknown(Hole(MultiHole(xs))) =>
+  | Unknown({term: Hole(MultiHole(xs)), _}) =>
     Unknown(
-      Hole(MultiHole(List.map(parenthesize_any(~show_filters), xs))),
+      Hole(MultiHole(List.map(parenthesize_any(~show_filters), xs)))
+      |> Prov.fresh,
     )
     |> rewrap
   };
@@ -1430,11 +1449,20 @@ and typ_to_pretty = (~settings: Settings.t, typ: Typ.t): pretty => {
       }
     | BadEntry(x) => go(x);
   switch (typ |> Typ.term_of) {
-  | Unknown(Hole(Invalid(s))) =>
+  | Unknown({term: Hole(Invalid(s)), _}) =>
     text_to_pretty(typ |> Typ.rep_id, Sort.Typ, s)
-  | Unknown(Internal)
-  | Unknown(SynSwitch)
-  | Unknown(Hole(EmptyHole)) =>
+  | Unknown({term: Internal, _})
+  | Unknown({term: SynSwitch, _})
+  | Unknown({term: LArrow(_), _})
+  | Unknown({term: RArrow(_), _})
+  | Unknown({term: MList(_), _})
+  | Unknown({term: NProduct(_), _})
+  | Unknown({term: RForall(_), _})
+  | Unknown({term: TupLabel(_), _})
+  | Unknown({term: TupLabelArg(_), _})
+  | Unknown({term: Meet(_), _})
+  | Unknown({term: Hole(EmptyHole), _}) // TOOD: (THI) need special cycle hole graphic
+  | Unknown({term: Hole(CycleHole), _}) =>
     if (settings.show_unknown_as_hole) {
       let id = typ |> Typ.rep_id;
       p_just([
@@ -1446,7 +1474,7 @@ and typ_to_pretty = (~settings: Settings.t, typ: Typ.t): pretty => {
     } else {
       text_to_pretty(typ |> Typ.rep_id, Sort.Typ, "?");
     }
-  | Unknown(Hole(MultiHole(es))) =>
+  | Unknown({term: Hole(MultiHole(es)), _}) =>
     let id = typ |> Typ.rep_id;
     let+ es = es |> List.map(any_to_pretty(~settings: Settings.t)) |> all;
     ListUtil.flat_intersperse(

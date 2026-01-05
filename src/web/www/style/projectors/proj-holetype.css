@@ -1,0 +1,142 @@
+/* PROJECTOR: INFO */
+
+:root {
+  --code-text: var(--token-exp);
+  --main-base: hsl(281, 80%, 95%);
+  --main-shadow: hsl(228, 40%, 25%);
+  --main-indicated: var(--TYP);
+}
+
+/* BACKING */
+
+.projector.type-hole>svg {
+  filter: drop-shadow(0.7px 0.7px 0px var(--BR3));
+}
+
+.projector.type-hole.indicated>svg {
+  /* fill: var(--main-indicated); */
+  filter: drop-shadow(0.7px 0.7px 0px var(--main-shadow));
+}
+
+.projector.type-hole.selected>svg {
+  filter: none;
+}
+
+/* INLINE VIEW */
+
+.projector.type-hole:hover {
+  color: var(--BLACK);
+}
+
+.projector.type-hole .main {
+  font-family: var(--code-font);
+  font-size: var(--base-font-size);
+  color: var(--code-text);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+}
+
+.projector.type-hole.indicated:not(.selected):not(.error) .main {
+  color: white;
+}
+
+.projector.type-hole .icon {
+  width: 16px;
+  height: 16px;
+  background-image: url(../../img/noun-microscope-7023456.svg);
+  background-size: cover;
+  filter: invert(1) brightness(0.4) sepia(1) saturate(1.8) hue-rotate(245deg);
+}
+
+.projector.type-hole.indicated:not(.selected):not(.error) .main .icon {
+  filter: invert(1);
+}
+
+/* OFFSIDE VIEW */
+/* 
+.projector.type-hole .offside {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.6em;
+}
+
+.projector.type-hole .offside .mode {
+  font-weight: 800;
+  color: var(--main-base);
+  filter: brightness(0.9);
+}
+
+.projector.type-hole.indicated .offside .mode {
+  opacity: 100%;
+  color: var(--main-indicated);
+}
+
+.projector.type-hole .offside .type-cell {
+  border-radius: 0.05em 0.05em 0.05em 0.2em;
+  background-color: var(--main-base);
+  border-bottom: 1px solid var(--main-indicated);
+}
+
+.projector.type-hole.indicated .offside .type-cell {
+  outline-width: 1px;
+  outline-style: solid;
+  outline-color: var(--main-indicated);
+  border-color: var(--main-indicated);
+}
+
+.projector.type-hole .offside .code {
+  position: relative;
+  line-height: initial;
+}
+
+.projector.type-hole .offside .code .token.explicit-hole {
+  color: white;
+} */
+
+.projector.type-hole .nav-bar {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  position: relative;
+  gap: 2px;
+}
+
+.projector.type-hole:not(.indicated) .nav-bar {
+  position: absolute;
+  opacity: 0% !important;
+}
+
+.projector.type-hole .nav-arrow {
+  width: 10px;
+  height: 13px;
+  color: var(--exp-indicated);
+  background: url(../../img/noun-arrow-3130579.svg);
+  background-size: cover;
+}
+
+.projector.type-hole .nav-arrow:not(.disabled) {
+  cursor: pointer;
+}
+
+.projector.type-hole .nav-arrow:last-child {
+  transform: rotate(180deg);
+}
+
+.projector.type-hole .nav-arrow {
+  filter: invert(1) brightness(0.6) sepia(1) hue-rotate(150deg) saturate(1);
+}
+
+.projector.type-hole:not(.indicated) .nav-arrow {
+  pointer-events: none;
+  opacity: 0% !important;
+}
+
+.projector.type-hole .nav-arrow.disabled {
+  opacity: 15%;
+}
+
+.projector.type-hole .nav-arrow:not(.disabled):hover {
+  filter: brightness(1.05) saturate(1.05);
+}

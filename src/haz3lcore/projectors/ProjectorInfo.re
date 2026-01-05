@@ -1,4 +1,5 @@
 open Language;
+open Util;
 
 /* Projector data which is dependent on semantics,
  * separated out for dependency reasons */
@@ -30,29 +31,72 @@ let utility: ProjectorBase.utility = {
 };
 
 let mk_info =
-    (p: Piece.projector, ~statics: Statics.Map.t, ~dynamics: Dynamics.Map.t)
+    (
+      p: Piece.projector,
+      ~statics: Statics.Map.t,
+      ~inference: Inference.SolutionMap.t,
+      ~dynamics: Dynamics.Map.t,
+    )
     : ProjectorBase.info => {
-  id: p.id,
-  syntax: Piece.unparenthesize(p.syntax),
-  statics: Statics.Map.lookup(p.id, statics),
-  dynamics: Dynamics.Map.lookup(p.id, dynamics),
-  utility,
+  let statics = Statics.Map.lookup(p.id, statics);
+  let inference_solution =
+    switch (statics) {
+    | Some(InfoTyp(info)) =>
+      switch (info.term) {
+      | {term: Unknown(p), _} =>
+        Inference.SolutionMap.lookup_prov(p, inference)
+      | _ => None
+      }
+    | _ => None
+    };
+
+  {
+    id: p.id,
+    syntax: Piece.unparenthesize(p.syntax),
+    statics,
+    inference:
+      OptUtil.and_then(
+        s =>
+          if (Inference.Solution.has_multiple_types(s)) {
+            Some(
+              ProjectorBase.Many(
+                lazy(Inference.Solution.all_types_from_solution(s)),
+              ),
+            );
+          } else {
+            Some(
+              ProjectorBase.Single(
+                Inference.Solution.all_types_from_solution(s) |> List.hd,
+              ),
+            );
+          },
+        inference_solution,
+      ),
+    dynamics: Dynamics.Map.lookup(p.id, dynamics),
+    utility,
+  };
 };
 
 module ShapeMapSemantics = {
   let from_semantics =
-      (statics: Statics.Map.t, dynamics: Dynamics.Map.t, p: Base.projector)
+      (
+        statics: Statics.Map.t,
+        inference: Inference.SolutionMap.t,
+        dynamics: Dynamics.Map.t,
+        p: Base.projector,
+      )
       : ProjectorCore.Shape.t => {
     let (module P) = ProjectorInit.to_module(p.kind);
-    P.placeholder(p.model, mk_info(p, ~statics, ~dynamics));
+    P.placeholder(p.model, mk_info(p, ~statics, ~inference, ~dynamics));
   };
 
   let mk =
       (
         proj_map: Id.Map.t(Base.projector),
         statics: Statics.Map.t,
+        inference: Inference.SolutionMap.t,
         dynamics: Dynamics.Map.t,
       )
       : Id.Map.t(ProjectorCore.Shape.t) =>
-    Id.Map.map(from_semantics(statics, dynamics), proj_map);
+    Id.Map.map(from_semantics(statics, inference, dynamics), proj_map);
 };

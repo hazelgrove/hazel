@@ -2452,10 +2452,20 @@ let get_doc =
     }
   | Some(InfoTyp({term, _} as typ_info)) =>
     switch (bypass_parens_typ(term).term) {
-    | Unknown(SynSwitch)
-    | Unknown(Internal)
-    | Unknown(Hole(EmptyHole)) => get_message(HoleTyp.empty_hole)
-    | Unknown(Hole(MultiHole(_))) => get_message(HoleTyp.multi_hole)
+    | Unknown({term: SynSwitch, _})
+    | Unknown({term: Internal, _})
+    | Unknown({term: LArrow(_), _}) // TODO: (THI) might need to be recursive
+    | Unknown({term: RArrow(_), _}) // TODO: (THI) might need to be recursive
+    | Unknown({term: MList(_), _}) // TODO: (THI) might need to be recursive
+    | Unknown({term: NProduct(_), _}) // TODO: (THI) might need to be recursive
+    | Unknown({term: RForall(_), _}) // TODO: (THI) might need to be recursive
+    | Unknown({term: TupLabel(_), _}) // TODO: (THI) might need to be recursive
+    | Unknown({term: TupLabelArg(_), _}) // TODO: (THI) might need to be recursive
+    | Unknown({term: Meet(_), _}) // TODO: (THI) might need to be recursive
+    | Unknown({term: Hole(CycleHole), _}) // TODO: (THI) needs a custom message
+    | Unknown({term: Hole(EmptyHole), _}) => get_message(HoleTyp.empty_hole)
+    | Unknown({term: Hole(MultiHole(_)), _}) =>
+      get_message(HoleTyp.multi_hole)
     | Atom(Int) => get_message(TerminalTyp.int)
     | Atom(SInt) => get_message(TerminalTyp.sint)
     | Atom(Float) => get_message(TerminalTyp.float)
@@ -2678,7 +2688,8 @@ let get_doc =
         TerminalTyp.var(v),
       )
     | Sum(_) => get_message(SumTyp.labelled_sum_typs)
-    | Unknown(Hole(Invalid(_))) => simple("Not a type or type operator")
+    | Unknown({term: Hole(Invalid(_)), _}) =>
+      simple("Not a type or type operator")
     | ExplicitNonlabel
     | ProdProjection(_)
     | ProdExtension(_)

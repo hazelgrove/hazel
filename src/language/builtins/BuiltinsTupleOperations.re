@@ -5,8 +5,12 @@ open Util;
 let builtins: list(BuiltinsUtil.fn) = [
   {
     name: "group_by_label",
-    arg: Prod([list(unknown(Internal)), unknown(Internal)]),
-    ret: Unknown(Internal),
+    arg:
+      Prod([
+        list(unknown(Internal |> Prov.fresh)),
+        unknown(Internal |> Prov.fresh),
+      ]),
+    ret: Unknown(Internal |> Prov.fresh),
     imp:
       binary((d: DHExp.t, lab: DHExp.t) => {
         switch (lab.term) {
@@ -40,12 +44,12 @@ let builtins: list(BuiltinsUtil.fn) = [
   },
   {
     name: "to_lvs",
-    arg: Unknown(Internal),
+    arg: Unknown(Internal |> Prov.fresh),
     ret:
       List(
         prod([
           tup_label(label("label"), string()),
-          tup_label(label("value"), unknown(Internal)),
+          tup_label(label("value"), unknown(Internal |> Prov.fresh)),
         ]),
       ),
     imp: (e: DHExp.t) => {
@@ -85,10 +89,10 @@ let builtins: list(BuiltinsUtil.fn) = [
       List(
         prod([
           tup_label(label("label"), string()),
-          tup_label(label("value"), unknown(Internal)),
+          tup_label(label("value"), unknown(Internal |> Prov.fresh)),
         ]),
       ),
-    ret: Unknown(Internal),
+    ret: Unknown(Internal |> Prov.fresh),
     imp: (e: DHExp.t) => {
       open OptUtil.Syntax;
       let-unbox elems: list(Exp.t) = (ListLit, e);
@@ -125,8 +129,8 @@ let builtins: list(BuiltinsUtil.fn) = [
   },
   {
     name: "project_labels",
-    arg: Unknown(Internal),
-    ret: Unknown(Internal),
+    arg: Unknown(Internal |> Prov.fresh),
+    ret: Unknown(Internal |> Prov.fresh),
     imp: d => {
       let-unbox args = (LabeledTupleEntries, d);
       switch (args) {
@@ -163,8 +167,8 @@ let builtins: list(BuiltinsUtil.fn) = [
   },
   {
     name: "select_labels",
-    arg: Unknown(Internal),
-    ret: Unknown(Internal),
+    arg: Unknown(Internal |> Prov.fresh),
+    ret: Unknown(Internal |> Prov.fresh),
     imp: d => {
       let-unbox args = (LabeledTupleEntries, d);
       switch (args) {
@@ -204,8 +208,8 @@ let builtins: list(BuiltinsUtil.fn) = [
   },
   {
     name: "omit_labels",
-    arg: Unknown(Internal),
-    ret: Unknown(Internal),
+    arg: Unknown(Internal |> Prov.fresh),
+    ret: Unknown(Internal |> Prov.fresh),
     imp: d => {
       let-unbox args = (LabeledTupleEntries, d);
       switch (args) {
@@ -256,8 +260,8 @@ let builtins: list(BuiltinsUtil.fn) = [
   },
   {
     name: "omit_all_labels",
-    arg: Unknown(Internal),
-    ret: Unknown(Internal),
+    arg: Unknown(Internal |> Prov.fresh),
+    ret: Unknown(Internal |> Prov.fresh),
     imp: d => {
       let-unbox entries = (LabeledTupleEntries, d);
       let entries = List.filter_map(((_, e)) => Some(e), entries);

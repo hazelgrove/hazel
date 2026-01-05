@@ -188,7 +188,7 @@ let v: ProofCtx.t =
        Forall(
          Asc(
            Var("xs") |> Pat.fresh,
-           List(Unknown(Internal) |> Typ.temp) |> Typ.fresh,
+           List(Unknown(Internal |> Prov.fresh) |> Typ.temp) |> Typ.fresh,
          )
          |> Pat.fresh,
          BinOp(
@@ -206,7 +206,7 @@ let v: ProofCtx.t =
        Forall(
          Asc(
            Var("xs") |> Pat.fresh,
-           List(Unknown(Internal) |> Typ.temp) |> Typ.fresh,
+           List(Unknown(Internal |> Prov.fresh) |> Typ.temp) |> Typ.fresh,
          )
          |> Pat.fresh,
          BinOp(
@@ -222,18 +222,21 @@ let v: ProofCtx.t =
   |> ProofCtx.add_exp(
        "Assoc(::, @)",
        Forall(
-         Asc(Var("x") |> Pat.fresh, Unknown(Internal) |> Typ.fresh)
+         Asc(
+           Var("x") |> Pat.fresh,
+           Unknown(Internal |> Prov.fresh) |> Typ.fresh,
+         )
          |> Pat.fresh,
          Forall(
            Asc(
              Var("xs") |> Pat.fresh,
-             List(Unknown(Internal) |> Typ.temp) |> Typ.fresh,
+             List(Unknown(Internal |> Prov.fresh) |> Typ.temp) |> Typ.fresh,
            )
            |> Pat.fresh,
            Forall(
              Asc(
                Var("ys") |> Pat.fresh,
-               List(Unknown(Internal) |> Typ.temp) |> Typ.fresh,
+               List(Unknown(Internal |> Prov.fresh) |> Typ.temp) |> Typ.fresh,
              )
              |> Pat.fresh,
              BinOp(
@@ -264,19 +267,19 @@ let v: ProofCtx.t =
        Forall(
          Asc(
            Var("xs") |> Pat.fresh,
-           List(Unknown(Internal) |> Typ.temp) |> Typ.fresh,
+           List(Unknown(Internal |> Prov.fresh) |> Typ.temp) |> Typ.fresh,
          )
          |> Pat.fresh,
          Forall(
            Asc(
              Var("ys") |> Pat.fresh,
-             List(Unknown(Internal) |> Typ.temp) |> Typ.fresh,
+             List(Unknown(Internal |> Prov.fresh) |> Typ.temp) |> Typ.fresh,
            )
            |> Pat.fresh,
            Forall(
              Asc(
                Var("zs") |> Pat.fresh,
-               List(Unknown(Internal) |> Typ.temp) |> Typ.fresh,
+               List(Unknown(Internal |> Prov.fresh) |> Typ.temp) |> Typ.fresh,
              )
              |> Pat.fresh,
              BinOp(

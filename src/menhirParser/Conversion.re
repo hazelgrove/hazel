@@ -427,9 +427,10 @@ and Typ: {
   let of_core: IndicatedG.typ => AST.typ;
 } = {
   open IndicatedG.Typ;
+  open IndicatedG.TypeProvenance;
   let rec of_menhir_ast = (typ: AST.typ): IndicatedG.typ => {
     switch (typ) {
-    | InvalidTyp(s) => unknown(Hole(Invalid(s)))
+    | InvalidTyp(s) => unknown(hole(Invalid(s)))
     | IntType => int()
     | SIntType => sint()
     | FloatType => float()
@@ -438,8 +439,8 @@ and Typ: {
     | NatType => nat()
     | UnknownType(p) =>
       switch (p) {
-      | Internal => unknown(Internal)
-      | EmptyHole => unknown(Hole(EmptyHole))
+      | Internal => unknown(internal())
+      | EmptyHole => unknown(hole(EmptyHole))
       }
     | TypVar(s) => var(s)
     | TupleType([t]) => parens(of_menhir_ast(t))
@@ -447,7 +448,7 @@ and Typ: {
     | LabelType(s) => label(s)
     | ExplicitNonlabel => explicit_non_label()
     | TupLabelType(t1, t2) =>
-      tup_label(of_menhir_ast(t1), of_menhir_ast(t2))
+      IndicatedG.Typ.tup_label(of_menhir_ast(t1), of_menhir_ast(t2))
     | ArrayType(t) => list(of_menhir_ast(t))
     | ArrowType(t1, t2) => arrow(of_menhir_ast(t1), of_menhir_ast(t2))
     | ProdProjection(t1, t2) =>
@@ -482,8 +483,8 @@ and Typ: {
   let of_core_type_provenance =
       (p: IndicatedG.typ_provenance): AST.typ_provenance => {
     switch (p) {
-    | Internal => Internal
-    | Hole(EmptyHole) => EmptyHole
+    | {term: Internal, _} => Internal
+    | {term: Hole(EmptyHole), _} => EmptyHole
     | _ => raise(Failure("Unknown type_provenance"))
     };
   };
