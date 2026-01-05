@@ -17,7 +17,7 @@ module M: Projector = {
 
   [@deriving (show({with_path: false}), sexp, yojson)]
   type action =
-    | NextTyp;
+    | MoveCursor(int);
 
   let init = (any: Any.t): option(model) => {
     switch (any) {
@@ -28,6 +28,21 @@ module M: Projector = {
 
   let dynamics = false;
   let focusable = Focusable.non;
+
+  let nav_bar_view = local => {
+    let nav_arrow = (offset: int): Node.t =>
+      Node.div(
+        ~attrs=[
+          Attr.classes(["nav-arrow"]),
+          Attr.on_click(_ => local(MoveCursor(offset))),
+        ],
+        [],
+      );
+    div(
+      ~attrs=[Attr.classes(["nav-bar"])],
+      [nav_arrow(-1), nav_arrow(1)],
+    );
+  };
 
   let display_ty = (model: model, inference): option(Typ.t) => {
     switch (model) {
@@ -56,29 +71,19 @@ module M: Projector = {
 
   let update = (model, info, a: action) =>
     switch (a, model) {
-    | (NextTyp, Typ(0)) => Typ(1)
-    | (NextTyp, Typ(i)) =>
+    | (MoveCursor(offset), Typ(i)) =>
       switch (info.inference) {
-      | Some(inf) =>
+      | Some(sol_count) =>
         let num_tys =
-          switch (inf) {
+          switch (sol_count) {
           | Single(_) => 1
           | Many(inf) => List.length(Lazy.force(inf))
           };
-        Typ(i mod num_tys + 1);
+        let next_typ_index = (i + offset) mod num_tys;
+        Typ(next_typ_index <= 0 ? num_tys : next_typ_index);
       | None => Typ(0)
       }
     };
-
-  let placeholder = (model, info) =>
-    ProjectorCore.Shape.inline(
-      1
-      + String.length(
-          Typ(display_ty(model, info.inference) |> totalize_ty)
-          |> info.utility.term_to_seg
-          |> info.utility.seg_to_string,
-        ),
-    );
 
   let has_single_type = (info: info): bool =>
     switch (info.inference) {
@@ -87,17 +92,25 @@ module M: Projector = {
     | None => false
     };
 
+  let placeholder = (model, info) =>
+    ProjectorCore.Shape.inline(
+      (has_single_type(info) ? 1 : 3)
+      + String.length(
+          Typ(display_ty(model, info.inference) |> totalize_ty)
+          |> info.utility.term_to_seg
+          |> info.utility.seg_to_string,
+        ),
+    );
+
   // let icon = div(~attrs=[Attr.classes(["icon"])], []);
 
   let view = ({model, info, local, view_seg, _}: View.args(model, action)) =>
     View.{
       inline:
         div(
-          ~attrs=[
-            Attr.classes(["main"]),
-            Attr.on_click(_ => local(NextTyp)),
-          ],
-          [typ_view(model, info, info.utility, view_seg)],
+          ~attrs=[Attr.classes(["main"])],
+          (has_single_type(info) ? [] : [nav_bar_view(local)])
+          @ [typ_view(model, info, info.utility, view_seg)],
         ),
       offside: None,
       overlay: None,

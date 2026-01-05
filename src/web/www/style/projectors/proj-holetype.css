@@ -35,7 +35,6 @@
   cursor: pointer;
   display: flex;
   align-items: center;
-  gap: 0.4em;
 }
 
 .projector.type-hole.indicated:not(.selected):not(.error) .main {
@@ -55,7 +54,7 @@
 }
 
 /* OFFSIDE VIEW */
-
+/* 
 .projector.type-hole .offside {
   display: flex;
   align-items: center;
@@ -94,4 +93,50 @@
 
 .projector.type-hole .offside .code .token.explicit-hole {
   color: white;
+} */
+
+.projector.type-hole .nav-bar {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  position: relative;
+  gap: 2px;
+}
+
+.projector.type-hole:not(.indicated) .nav-bar {
+  position: absolute;
+  opacity: 0% !important;
+}
+
+.projector.type-hole .nav-arrow {
+  width: 10px;
+  height: 13px;
+  color: var(--exp-indicated);
+  background: url(../../img/noun-arrow-3130579.svg);
+  background-size: cover;
+}
+
+.projector.type-hole .nav-arrow:not(.disabled) {
+  cursor: pointer;
+}
+
+.projector.type-hole .nav-arrow:last-child {
+  transform: rotate(180deg);
+}
+
+.projector.type-hole .nav-arrow {
+  filter: invert(1) brightness(0.6) sepia(1) hue-rotate(150deg) saturate(1);
+}
+
+.projector.type-hole:not(.indicated) .nav-arrow {
+  pointer-events: none;
+  opacity: 0% !important;
+}
+
+.projector.type-hole .nav-arrow.disabled {
+  opacity: 15%;
+}
+
+.projector.type-hole .nav-arrow:not(.disabled):hover {
+  filter: brightness(1.05) saturate(1.05);
 }
