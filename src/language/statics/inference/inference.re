@@ -596,24 +596,6 @@ and unfold_constramnot_produdct = (args1, args2): list(canonical_constramnot) =>
 let unfold_constramnots: list(Typ.equivalence) => list(canonical_constramnot) =
   List.concat_map(unfold_constramnot);
 
-// let rec provs_in_constramnots: list(canonical_constramnot) => list(Prov.t) =
-//   fun
-//   | [] => []
-//   | [(p, t), ...tl] => [p] @ provs_in_typ(t) @ provs_in_constramnots(tl);
-
-// let uniq_provs: list(Prov.t) => list(Prov.t) =
-//   List.sort_uniq((p1, p2) =>
-//     String.compare(string_of_prov(p1), string_of_prov(p2))
-//   );
-
-// module PossibleType = {
-//   type t = (Htyp.t, String.t)
-
-//   let compare = ((_, s1): t, (_, s2): t): int => {
-//     String.compare(s1, s2)
-//   };
-// };
-
 // TODO: this needs to be a proper set to get rid of duplicate types
 // Temp fix just prevent duplicaste insertion
 module PossibleTypeSet: {
@@ -626,18 +608,9 @@ module PossibleTypeSet: {
 } = {
   type t = list(Typ.t);
 
-  // let set_contains = (x: Typ.term, ts: t) =>
-  //   List.exists(
-  //     (y: Typ.term) =>
-  //       Typ.equal(
-  //         ~consider_prov_equivalence=true,
-  //         Typ.temp(y),
-  //         Typ.temp(x),
-  //       ),
-  //     ts,
-  //   );
+  let set_contains = (x: Typ.t, ts: t) => List.exists(Typ.equal(x), ts);
 
-  let add = (x: Typ.t, ts: t) => [x, ...ts];
+  let add = (x: Typ.t, ts: t) => !set_contains(x, ts) ? [x, ...ts] : ts;
 
   // Fold for dedup
   let union = (a, b) => List.fold_left((acc, t) => add(t, acc), a, b);
