@@ -48,10 +48,10 @@ module M: Projector = {
 
   let typ_view = (model: model, info: info, utility, view_seg: View.seg) => {
     let typ = display_ty(model, info.inference) |> totalize_ty;
-    div(
-      ~attrs=[Attr.classes(["type-cell"])],
-      [Typ(typ) |> utility.term_to_seg |> view_seg(Sort.Typ)],
-    );
+    div([
+      // ~attrs=[Attr.classes(["type-cell"])],
+      Typ(typ) |> utility.term_to_seg |> view_seg(Sort.Typ),
+    ]);
   };
 
   let update = (model, info, a: action) =>
@@ -79,6 +79,13 @@ module M: Projector = {
           |> info.utility.seg_to_string,
         ),
     );
+
+  let has_single_type = (info: info): bool =>
+    switch (info.inference) {
+    | Some(Single(_)) => true
+    | Some(Many(_))
+    | None => false
+    };
 
   // let icon = div(~attrs=[Attr.classes(["icon"])], []);
 

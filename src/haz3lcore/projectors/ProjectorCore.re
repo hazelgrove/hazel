@@ -50,7 +50,7 @@ module Kind = {
     switch (p) {
     | Fold => "fold"
     | Info => "type"
-    | TypeHole => "type hole"
+    | TypeHole => "type-hole"
     | Probe => "probe"
     | Checkbox => "check"
     | Slider => "slider"
@@ -68,7 +68,7 @@ module Kind = {
     switch (p) {
     | "fold" => Fold
     | "type" => Info
-    | "type hole" => TypeHole
+    | "type-hole" => TypeHole
     | "probe" => Probe
     | "check" => Checkbox
     | "slider" => Slider
