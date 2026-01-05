@@ -22,7 +22,8 @@ module M: Projector = {
   let init = (any: Any.t): option(model) => {
     switch (any) {
     | Typ({term: Unknown(_), _}) => Some(Typ(0))
-    | _ => Some(Typ(0))
+    | Any(_) => Some(Typ(0))
+    | _ => None
     };
   };
 
