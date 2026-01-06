@@ -558,12 +558,13 @@ module Selection = {
       : option((Update.t, t)) => {
     Exercise.positioned_editors(model.editors)
     |> List.find_opt(((p, e: Editor.Model.t)) =>
-         TermData.root_tile_opt(id, e.syntax.term_data) != None
+         TermData.root_tile_opt(id, Calc.get_saved_exc(e.syntax).term_data)
+         != None
          && Exercise.visible_in(p, ~instructor_mode=settings.instructor_mode)
        )
     |> Option.map(((pos, _)) =>
          (
-           Update.Editor(pos, MainEditor(Perform(Jump(TileId(id))))),
+           Update.Editor(pos, MainEditor(Jump(TileId(id)))),
            Cell(pos, CellEditor.Selection.MainEditor(Editor.Focus.here())),
          )
        );

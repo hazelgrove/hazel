@@ -306,7 +306,7 @@ let infix_delimiter_ops_prefixes: list(string) =
        };
      })
   |> List.concat
-  |> List.filter(is_potential_operand)
+  |> List.filter(Token.is_potential_operand)
   |> List.sort_uniq(compare)
   |> List.map(StringUtil.prefixes)
   |> List.concat;
@@ -323,7 +323,7 @@ let instant_putdowns: list(string) =
   |> List.filter_map(((_, f)) =>
        switch (f.label) {
        | [_, ...trailing] =>
-         Some(List.filter(s => !match(var_regexp, s), trailing))
+         Some(List.filter(s => !Token.match(Token.var_regexp, s), trailing))
        | _ => None
        }
      )

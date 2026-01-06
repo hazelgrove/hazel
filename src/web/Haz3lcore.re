@@ -156,7 +156,7 @@ and Editor: {
 
   // TODO: refactor these helper functions away
   let get_measured: Model.t => Measured.t;
-  let get_tiles: Model.t => TileMap.t;
+  let get_term_data: Model.t => TermData.t;
   let get_z: Model.t => Haz3lcorep.Zipper.t;
   let of_zipper: Zipper.t => Model.t; // TODO: Replace with persistence logic
   let get_trailing_hole_ctx:
@@ -209,7 +209,7 @@ and Editor: {
          );
     };
 
-    let split = Haz3lcorep.Editor.Model.split;
+    /* split was removed - see comment in Editor.re */
 
     let get_z = (m: t) => m |> Haz3lcorep.Editor.Model.get_z;
 
@@ -277,7 +277,12 @@ and Editor: {
       );
 
     let jump_to_tile_action = (tile, model: Model.t) =>
-      switch (TileMap.find_opt(tile, Calc.get_saved_exc(model.syntax).tiles)) {
+      switch (
+        TermData.root_tile_opt(
+          tile,
+          Calc.get_saved_exc(model.syntax).term_data,
+        )
+      ) {
       | Some(_) => Some(Haz3lcorep.Action.Jump(TileId(tile)))
       | None => None
       };
@@ -288,7 +293,7 @@ and Editor: {
   };
 
   let get_measured = (m: Model.t) => Calc.get_saved_exc(m.syntax).measured;
-  let get_tiles = (m: Model.t) => Calc.get_saved_exc(m.syntax).tiles;
+  let get_term_data = (m: Model.t) => Calc.get_saved_exc(m.syntax).term_data;
 
   module Focus = {
     [@deriving (show({with_path: false}), sexp, yojson)]

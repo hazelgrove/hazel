@@ -134,10 +134,7 @@ let tests = (
         check(
           option(segment),
           "2-ary",
-          Parser.to_segment(
-            ~projector_init=Parser.default_projector_init,
-            "(1, 2)",
-          ),
+          Parser.to_segment("(1, 2)"),
           Some(exp_to_segment(tuple([int(1), int(2)]))),
         );
       },
@@ -151,10 +148,7 @@ let tests = (
         check(
           option(segment),
           "Singleton Labeled",
-          Parser.to_segment(
-            ~projector_init=Parser.default_projector_init,
-            "(x=1)",
-          ),
+          Parser.to_segment("(x=1)"),
           Some(exp_to_segment(tuple([tup_label(label("x"), int(1))]))),
         );
         equivalent_to_make_term({|(x=1, y=2)|});

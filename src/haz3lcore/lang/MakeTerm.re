@@ -141,14 +141,21 @@ let log_projector = (pr: Base.projector): unit => {
 
 /* Check if a term should be instrumented with a probe.
  * Precondition: The relevant projector must have been
- * logged before this is called */
-let should_instrument = (id: Id.t): bool =>
-  switch (Id.Map.find_opt(id, projectors^)) {
-  | Some(pr) =>
-    let (module P) = ProjectorInit.to_module(pr.kind);
-    P.dynamics;
-  | None => failwith("MakeTerm.exp: projector not found")
-  };
+ * logged before this is called.
+ *
+ * COMMENTED OUT: This function relies on ProjectorInit.to_module which
+ * no longer exists after the dev merge. The calls to should_instrument
+ * are also commented out (see TODOs below). To reinstate, rewrite using
+ * the Projector.dispatch pattern from Projector.re, which is the current
+ * way to call into projector modules and access fields like P.dynamics.
+ */
+// let should_instrument = (id: Id.t): bool =>
+//   switch (Id.Map.find_opt(id, projectors^)) {
+//   | Some(pr) =>
+//     let (module P) = ProjectorInit.to_module(pr.kind);
+//     P.dynamics;
+//   | None => failwith("MakeTerm.exp: projector not found")
+//   };
 
 let parse_sum_term: Typ.t => ConstructorMap.variant(Typ.t) =
   fun
@@ -195,7 +202,7 @@ let rec go_s =
   | Any =>
     let sort = Segment.sort_of(skel, seg);
     if (sort == Any) {
-      Exp(exp(unsorted(skel, seg)));
+      Exp(exp(unsorted(Exp, skel, seg)));
     } else {
       go_s(~of_projector, ~log_projector, sort, skel, seg);
     };

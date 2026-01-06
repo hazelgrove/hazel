@@ -70,12 +70,12 @@ module F =
     };
   };
 
-  let update = (~settings: Settings.t, action: action, model: model) => {
+  let update = (~globals: Globals.t, action: action, model: model) => {
     Updated.(
       switch (action) {
       | InnerExp(a) =>
         let* new_inner_step =
-          Stepper.update(~settings, a, model.inner_stepper);
+          Stepper.update(~globals, a, model.inner_stepper);
         {
           ...model,
           inner_stepper: new_inner_step,
@@ -91,6 +91,7 @@ module F =
 
   let calculate =
       (
+        ~globals: Globals.t,
         ~settings: Calc.t(CoreSettings.t),
         ~hidden: Calc.saved(bool),
         ~exp: Calc.t(Exp.t),
@@ -119,6 +120,7 @@ module F =
       |> Option.map(Calc.to_pair);
     let (inner_stepper, last) =
       Stepper.calculate(
+        ~globals,
         ~settings,
         ~ctx=bindings,
         ~exp=inner_exp,
@@ -155,14 +157,23 @@ module F =
     );
   };
 
-  let get_cursor_info = (~focus: focus, model: model) =>
-    Cursor.(
-      switch (focus) {
-      | InnerExp(a) =>
-        let+ ci = Stepper.get_cursor_info(~focus=a, model.inner_stepper);
-        (InnerExp(ci): action);
-      }
-    );
+  let get_cursor_info =
+      (
+        ~globals: Globals.t,
+        ~inject: action => Ui_effect.t(unit),
+        ~focus: focus,
+        model: model,
+      )
+      : Haz3lcore.Cursor.t =>
+    switch (focus) {
+    | InnerExp(a) =>
+      Stepper.get_cursor_info(
+        ~globals,
+        ~inject=x => inject(InnerExp(x)),
+        ~focus=a,
+        model.inner_stepper,
+      )
+    };
 
   let handle_key_event =
       (~focus: focus, ~event: Key.t, model: model): option(action) =>

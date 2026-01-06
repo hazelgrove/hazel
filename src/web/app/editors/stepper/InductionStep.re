@@ -9,7 +9,7 @@ open StepInterface;
 [@deriving (show({with_path: false}), sexp, yojson)]
 type model'('stepper) = {
   // Updated
-  scrut: CodeEditable.Model.t,
+  scrut: EditorManager.Model.t,
   cases: list(InductionCase.model'('stepper)),
   // Calculated
   elab_scrut: Calc.saved(Exp.t),
@@ -22,28 +22,28 @@ type model'('stepper) = {
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type persistent'('stepper) = {
-  scrut: CodeEditable.Model.persistent,
+  scrut: EditorManager.Model.persistent,
   cases: list(InductionCase.persistent'('stepper)),
 };
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type action'('step) =
-  | ScrutUpdate(CodeEditable.Update.t)
+  | ScrutUpdate(EditorManager.Update.t)
   | CaseUpdate(int, InductionCase.action'('step))
   | AddCase
   | RemoveCase(int);
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type focus'('step) =
-  | Scrut(CodeEditable.Selection.t)
+  | Scrut(Editor.Focus.t)
   | Case(int, InductionCase.focus'('step));
 
 let init = (~exp: option(Exp.t)=?, ()) => {
   let scrut =
     switch (exp) {
     | Some(e) =>
-      CodeEditable.Model.mk(
-        Editor.Model.mk(
+      EditorManager.Model.of_editor(
+        Editor.of_zipper(
           Zipper.unzip(
             ExpToSegment.exp_to_segment(
               ~settings=ExpToSegment.Settings.editable(~inline=true),
@@ -52,7 +52,7 @@ let init = (~exp: option(Exp.t)=?, ()) => {
           ),
         ),
       )
-    | None => CodeEditable.Model.mk(Editor.Model.mk(Zipper.init()))
+    | None => EditorManager.Model.of_editor(Editor.of_zipper(Zipper.init()))
     };
   {
     scrut,
@@ -92,16 +92,20 @@ module F =
   [@deriving (show({with_path: false}), sexp, yojson)]
   type focus = focus'(Stepper.focus);
 
-  let persist = (model: model) => {
+  let persist = (model: model): persistent => {
     {
-      scrut: CodeEditable.Model.persist(model.scrut),
+      scrut: model.scrut.editor |> Editor.get_z |> PersistentZipper.persist,
       cases: List.map(InductionCase.persist, model.cases),
     };
   };
 
-  let unpersist = (p: persistent) => {
+  let unpersist = (p: persistent): model => {
     {
-      scrut: CodeEditable.Model.unpersist(p.scrut),
+      scrut:
+        p.scrut
+        |> PersistentZipper.unpersist
+        |> Editor.of_zipper
+        |> EditorManager.Model.of_editor,
       cases: List.map(InductionCase.unpersist, p.cases),
       elab_scrut: Calc.Pending,
       scrut_ty: Calc.Pending,
@@ -112,12 +116,18 @@ module F =
     };
   };
 
-  let update = (~settings: Settings.t, action: action, model: model) => {
+  let update = (~globals: Globals.t, action: action, model: model) => {
+    let common: Common.global = Globals.to_common_global(globals);
     Updated.(
       switch (action) {
       | ScrutUpdate(a) =>
         let* new_scrut =
-          CodeEditable.Update.update(~settings, a, model.scrut);
+          EditorManager.Update.update(
+            ~common,
+            ~dynamics=Dynamics.Map.empty,
+            a,
+            model.scrut,
+          );
         {
           ...model,
           scrut: new_scrut,
@@ -125,7 +135,7 @@ module F =
       | CaseUpdate(i, a) =>
         switch (List.nth_opt(model.cases, i)) {
         | Some(case) =>
-          let* new_case = InductionCase.update(~settings, a, case);
+          let* new_case = InductionCase.update(~globals, a, case);
           {
             ...model,
             cases: ListUtil.put_nth(i, new_case, model.cases),
@@ -153,9 +163,9 @@ module F =
     );
   };
 
-  let can_undo = a =>
+  let can_undo = (a: action): bool =>
     switch (a) {
-    | ScrutUpdate(action) => CodeEditable.Update.can_undo(action)
+    | ScrutUpdate(action) => EditorManager.Update.can_undo(action)
     | CaseUpdate(_, action) => InductionCase.can_undo(action)
     | AddCase => true
     | RemoveCase(_) => true
@@ -163,6 +173,7 @@ module F =
 
   let calculate =
       (
+        ~globals: Globals.t,
         ~settings: Calc.t(CoreSettings.t),
         ~hidden: Calc.saved(bool),
         ~exp: Calc.t(Exp.t),
@@ -182,28 +193,21 @@ module F =
       join_exp,
     }: model = model;
     let scrut =
-      CodeEditable.Update.calculate(
-        ~settings=Calc.get_value(settings),
+      EditorManager.Update.calculate(
+        ~common=Globals.to_common_global(globals),
         ~ctx=Calc.get_value(ctx),
         ~dynamics=Dynamics.Map.empty,
-        ~is_edited=true,
         ~stitch=x => x,
         ~is_dynamic_term=true,
         scrut,
       );
+    let statics = EditorManager.Model.get_statics(scrut);
     let elab_scrut =
-      Calc.set(
-        ~eq=Exp.fast_equal,
-        CodeEditable.Model.get_statics(scrut).elaborated,
-        elab_scrut,
-      );
+      Calc.set(~eq=Exp.fast_equal, statics.elaborated, elab_scrut);
     let scrut_ty = {
       let self_ty =
         switch (
-          Id.Map.find_opt(
-            Exp.rep_id(CodeEditable.Model.get_statics(scrut).elaborated),
-            CodeEditable.Model.get_statics(scrut).info_map,
-          )
+          Id.Map.find_opt(Exp.rep_id(statics.elaborated), statics.info_map)
         ) {
         | Some(Info.InfoExp({ty, _})) => ty
         | _ => raise(Elaborator.MissingTypeInfo)
@@ -213,10 +217,7 @@ module F =
     let scrut_co_ctx = {
       let self_co_ctx =
         switch (
-          Id.Map.find_opt(
-            Exp.rep_id(CodeEditable.Model.get_statics(scrut).elaborated),
-            CodeEditable.Model.get_statics(scrut).info_map,
-          )
+          Id.Map.find_opt(Exp.rep_id(statics.elaborated), statics.info_map)
         ) {
         | Some(Info.InfoExp({co_ctx, _})) => co_ctx
         | _ => CoCtx.empty
@@ -226,6 +227,7 @@ module F =
     let cases =
       List.map(
         InductionCase.calculate(
+          ~globals,
           ~settings,
           ~scrut_ty,
           ~elab_scrut,
@@ -278,29 +280,43 @@ module F =
     ));
   };
 
-  let get_cursor_info = (~focus: focus, model: model) =>
-    Cursor.(
-      switch (focus) {
-      | Scrut(a) =>
-        let+ ci =
-          CodeEditable.Selection.get_cursor_info(~selection=a, model.scrut);
-        ScrutUpdate(ci);
-      | Case(i, a) =>
-        switch (List.nth_opt(model.cases, i)) {
-        | Some(case) =>
-          let+ ci = InductionCase.get_cursor_info(~focus=a, case);
-          CaseUpdate(i, ci);
-        | None => Cursor.empty
-        }
-      }
-    );
-
-  let handle_key_event = (~focus: focus, ~event: Key.t, model: model) =>
+  let get_cursor_info =
+      (
+        ~globals: Globals.t,
+        ~inject: action => Ui_effect.t(unit),
+        ~focus: focus,
+        model: model,
+      )
+      : Haz3lcore.Cursor.t =>
     switch (focus) {
-    | Scrut(a) =>
-      let editor = model.scrut;
-      CodeEditable.Selection.handle_key_event(~selection=a, editor, event)
-      |> Option.map(x => ScrutUpdate(x));
+    | Scrut(ed_focus) =>
+      EditorManager.Focus.get_cursor_info(
+        ~common=Globals.to_common_global(globals),
+        ~dynamics=Language.Dynamics.Map.empty,
+        ~inject=x => inject(ScrutUpdate(x)),
+        ~read_only=false,
+        model.scrut,
+        ed_focus,
+      )
+    | Case(i, a) =>
+      switch (List.nth_opt(model.cases, i)) {
+      | Some(case) =>
+        InductionCase.get_cursor_info(
+          ~globals,
+          ~inject=x => inject(CaseUpdate(i, x)),
+          ~focus=a,
+          case,
+        )
+      | None => Haz3lcore.Cursor.empty
+      }
+    };
+
+  let handle_key_event =
+      (~focus: focus, ~event: Key.t, model: model): option(action) =>
+    switch (focus) {
+    | Scrut(_) =>
+      // Use standard keyboard handler for editor actions
+      Keyboard.handle_key_event(event) |> Option.map(x => ScrutUpdate(x))
     | Case(i, a) =>
       switch (List.nth_opt(model.cases, i)) {
       | Some(case) =>
@@ -334,21 +350,33 @@ module F =
         ~is_toplevel as _: bool,
         model: model,
       ) => {
-    let scrut_editor =
-      CodeEditable.View.view(
-        ~globals,
-        ~signal=
-          fun
-          | MakeActive => take_focus(Scrut()),
-        ~inject=x => inject(ScrutUpdate(x)),
-        ~selected=
-          switch (focus) {
-          | Some(Scrut(_)) => true
-          | Some(_)
-          | None => false
-          },
-        model.scrut,
+    let scrut_editor = {
+      let statics = EditorManager.Model.get_statics(model.scrut);
+      let common: Common.t = {
+        settings: globals.settings.core,
+        font_metrics: globals.font_metrics,
+        secondary_icons: globals.settings.secondary_icons,
+        color_highlights: globals.color_highlights,
+        statics,
+        dynamics: Dynamics.Map.empty,
+      };
+      Editor.View.view(
+        ~common,
+        ~mode=
+          Editable({
+            inject: x => inject(ScrutUpdate(x)),
+            take_focus: _ => take_focus(Scrut(Editor.Focus.here())),
+            escape: _ => Ui_effect.Ignore,
+            focus:
+              switch (focus) {
+              | Some(Scrut(f)) => Some(f)
+              | _ => None
+              },
+          }),
+        ~sort=Sort.Exp,
+        model.scrut.editor,
       );
+    };
 
     let add_case_button =
       Widgets.button(

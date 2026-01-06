@@ -49,13 +49,7 @@ module Update = {
       : Model.t => {
     let editor =
       CodeSelectable.Update.calculate(
-        ~common=
-          Common.{
-            settings: globals.settings.core,
-            font_metrics: globals.font_metrics,
-            secondary_icons: globals.settings.secondary_icons,
-            color_highlights: globals.color_highlights,
-          },
+        ~common=Globals.to_common_global(globals),
         ~stitch,
         ~dynamics,
         ~is_dynamic_term=true,
@@ -79,7 +73,7 @@ module Selection = {
 
 module View = {
   type event =
-    | MakeActive
+    | MakeActive(Editor.Focus.t)
     | TakeStep(int)
     | Refl(int);
 
@@ -96,14 +90,11 @@ module View = {
         Deco.Deco({
           let editor = model.editor.editor;
           let globals =
-            Common.{
-              settings: globals.settings.core,
-              font_metrics: globals.font_metrics,
-              secondary_icons: globals.settings.secondary_icons,
-              color_highlights: globals.color_highlights,
-              statics: model.editor |> EditorManager.Model.get_statics,
-              dynamics: Language.Dynamics.Map.empty,
-            };
+            Common.t_of_global(
+              ~statics=model.editor |> EditorManager.Model.get_statics,
+              ~dynamics=Language.Dynamics.Map.empty,
+              Globals.to_common_global(globals),
+            );
         });
       overlays
       @ Deco.taken_steps(model.taken_steps)
@@ -113,14 +104,12 @@ module View = {
     CodeSelectable.View.view(
       ~take_focus=f => signal(MakeActive(f)),
       ~focus=selected,
-      ~common={
-        settings: globals.settings.core,
-        font_metrics: globals.font_metrics,
-        secondary_icons: globals.settings.secondary_icons,
-        color_highlights: globals.color_highlights,
-        statics: model.editor |> EditorManager.Model.get_statics,
-        dynamics: Language.Dynamics.Map.empty,
-      },
+      ~common=
+        Common.t_of_global(
+          ~statics=model.editor |> EditorManager.Model.get_statics,
+          ~dynamics=Language.Dynamics.Map.empty,
+          Globals.to_common_global(globals),
+        ),
       ~overlays,
       model.editor.editor,
     );

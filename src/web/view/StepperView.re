@@ -39,9 +39,9 @@ module Update = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t = StepperBase.step_action;
 
-  let update = (~settings, action, model: Model.t) => {
+  let update = (~globals, action, model: Model.t) => {
     open Updated;
-    let* root = StepperBase.Stepper.update(~settings, action, model.root);
+    let* root = StepperBase.Stepper.update(~globals, action, model.root);
     {
       ...model,
       root,
@@ -50,6 +50,7 @@ module Update = {
 
   let calculate =
       (
+        ~globals: Globals.t,
         ~settings: Calc.t(CoreSettings.t),
         elab: Calc.t(Exp.t),
         {ctx, cached_elab_subst, root}: Model.t,
@@ -66,6 +67,7 @@ module Update = {
     let state = Calc.OldValue(EvaluatorState.init);
     let root =
       StepperBase.Stepper.calculate(
+        ~globals,
         ~settings,
         ~ctx,
         ~exp=elab_subst,
@@ -87,12 +89,20 @@ module Focus = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t = StepperBase.step_focus;
 
-  //let get_cursor_info = StepperBase.Selection.get_cursor_info_stepper;
-  open Cursor;
-
-  let get_cursor_info = (~focus: t, model: Model.t): cursor(Update.t) => {
-    let+ ci = StepperBase.Stepper.get_cursor_info(~focus, model.root);
-    ci;
+  let get_cursor_info =
+      (
+        ~globals: Globals.t,
+        ~inject: Update.t => Ui_effect.t(unit),
+        ~focus: t,
+        model: Model.t,
+      )
+      : Haz3lcore.Cursor.t => {
+    StepperBase.Stepper.get_cursor_info(
+      ~globals,
+      ~inject,
+      ~focus,
+      model.root,
+    );
   };
 
   let handle_key_event = (~focus: t, ~event, model: Model.t) =>

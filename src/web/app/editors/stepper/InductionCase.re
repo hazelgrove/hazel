@@ -6,7 +6,7 @@ open StepInterface;
 [@deriving (show({with_path: false}), sexp, yojson)]
 type model'('stepper) = {
   // Updated
-  pattern: CodeEditable.Model.t,
+  pattern: EditorManager.Model.t,
   // Calculated
   elab_pattern: Calc.saved(Pat.t),
   inner_exp: Calc.saved(Exp.t),
@@ -18,18 +18,18 @@ type model'('stepper) = {
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type persistent'('stepper) = {
-  pattern: CodeEditable.Model.persistent,
+  pattern: EditorManager.Model.persistent,
   stepper: 'stepper,
 };
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type action'('stepper) =
-  | PatternUpdate(CodeEditable.Update.t)
+  | PatternUpdate(EditorManager.Update.t)
   | StepUpdate('stepper);
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type focus'('stepper) =
-  | Pattern(CodeSelectable.Selection.t)
+  | Pattern(Editor.Focus.t)
   | Stepper('stepper);
 
 module F = (Stepper: STEPPER) => {
@@ -39,7 +39,7 @@ module F = (Stepper: STEPPER) => {
   type focus = focus'(Stepper.focus);
 
   let init = {
-    pattern: CodeEditable.Model.mk(Editor.Model.mk(Zipper.init())),
+    pattern: EditorManager.Model.of_editor(Editor.of_zipper(Zipper.init())),
     elab_pattern: Calc.Pending,
     inner_exp: Calc.Pending,
     step: Stepper.init,
@@ -48,16 +48,20 @@ module F = (Stepper: STEPPER) => {
     inner_ctx: Calc.Pending,
   };
 
-  let persist = (model: model) => {
+  let persist = (model: model): persistent => {
     {
-      pattern: CodeEditable.Model.persist(model.pattern),
+      pattern: model.pattern.editor |> Editor.get_z |> PersistentZipper.persist,
       stepper: Stepper.persist(model.step),
     };
   };
 
-  let unpersist = (p: persistent) => {
+  let unpersist = (p: persistent): model => {
     {
-      pattern: CodeEditable.Model.unpersist(p.pattern),
+      pattern:
+        p.pattern
+        |> PersistentZipper.unpersist
+        |> Editor.of_zipper
+        |> EditorManager.Model.of_editor,
       elab_pattern: Calc.Pending,
       inner_exp: Calc.Pending,
       step: Stepper.unpersist(p.stepper),
@@ -67,18 +71,24 @@ module F = (Stepper: STEPPER) => {
     };
   };
 
-  let update = (~settings: Settings.t, action: action, model: model) => {
+  let update = (~globals: Globals.t, action: action, model: model) => {
+    let common: Common.global = Globals.to_common_global(globals);
     Updated.(
       switch (action) {
       | PatternUpdate(a) =>
         let* new_pattern =
-          CodeEditable.Update.update(~settings, a, model.pattern);
+          EditorManager.Update.update(
+            ~common,
+            ~dynamics=Dynamics.Map.empty,
+            a,
+            model.pattern,
+          );
         {
           ...model,
           pattern: new_pattern,
         };
       | StepUpdate(a) =>
-        let* new_step = Stepper.update(~settings, a, model.step);
+        let* new_step = Stepper.update(~globals, a, model.step);
         {
           ...model,
           step: new_step,
@@ -87,14 +97,15 @@ module F = (Stepper: STEPPER) => {
     );
   };
 
-  let can_undo = a =>
+  let can_undo = (a: action): bool =>
     switch (a) {
-    | PatternUpdate(action) => CodeEditable.Update.can_undo(action)
+    | PatternUpdate(action) => EditorManager.Update.can_undo(action)
     | StepUpdate(action) => Stepper.can_undo(action)
     };
 
   let calculate =
       (
+        ~globals: Globals.t,
         ~settings: Calc.t(CoreSettings.t),
         ~elab_scrut: Calc.t(Exp.t),
         ~scrut_ty: Calc.t(Typ.t),
@@ -105,10 +116,10 @@ module F = (Stepper: STEPPER) => {
         model: model,
       ) => {
     let pattern =
-      CodeEditable.Update.calculate(
-        ~settings=Calc.get_value(settings),
+      EditorManager.Update.calculate(
+        ~common=Globals.to_common_global(globals),
         ~dynamics=Dynamics.Map.empty,
-        ~is_edited=true, // This editor technically edits Exps, but we want a Pat, so we put it in a function to emulate that.
+        // This editor technically edits Exps, but we want a Pat, so we put it in a function to emulate that.
         ~stitch=
           x =>
             x
@@ -119,11 +130,11 @@ module F = (Stepper: STEPPER) => {
         ~is_dynamic_term=true,
         model.pattern,
       );
+    let statics = EditorManager.Model.get_statics(pattern);
     let elab_pattern =
       Calc.set(
         ~eq=Pat.fast_equal,
-        CodeEditable.Model.get_statics(pattern).elaborated
-        |> ProofHacks.remove_wrapping_function,
+        statics.elaborated |> ProofHacks.remove_wrapping_function,
         model.elab_pattern,
       );
     let inner_exp =
@@ -149,7 +160,7 @@ module F = (Stepper: STEPPER) => {
         let.calc elab_pattern = elab_pattern
         and.calc scrut_ty = scrut_ty;
         ProofHacks.get_inductive_hypotheses(
-          CodeEditable.Model.get_statics(pattern).info_map,
+          statics.info_map,
           scrut_ty,
           elab_pattern,
         )
@@ -167,7 +178,8 @@ module F = (Stepper: STEPPER) => {
       };
     let (stepper, last_exp) =
       Stepper.calculate(
-        ~settings, // TODO: this is a little ugly
+        ~globals,
+        ~settings,
         ~ctx=inner_ctx,
         ~exp=inner_exp,
         ~state,
@@ -184,34 +196,43 @@ module F = (Stepper: STEPPER) => {
     };
   };
 
-  let get_cursor_info = (~focus: focus, model: model) => {
-    Cursor.(
-      switch (focus) {
-      | Pattern(a) =>
-        let+ ci =
-          CodeEditable.Selection.get_cursor_info(~selection=a, model.pattern);
-        PatternUpdate(ci);
-      | Stepper(a) =>
-        let+ ci = Stepper.get_cursor_info(~focus=a, model.step);
-        StepUpdate(ci);
-      }
-    );
-  };
-
-  let handle_key_event = (~focus: focus, ~event: Key.t, model: model) => {
-    switch (focus, model) {
-    | (Pattern(a), _) =>
-      CodeEditable.Selection.handle_key_event(
-        ~selection=a,
-        model.pattern,
-        event,
+  let get_cursor_info =
+      (
+        ~globals: Globals.t,
+        ~inject: action => Ui_effect.t(unit),
+        ~focus: focus,
+        model: model,
       )
-      |> Option.map(x => PatternUpdate(x))
+      : Haz3lcore.Cursor.t =>
+    switch (focus) {
+    | Pattern(ed_focus) =>
+      EditorManager.Focus.get_cursor_info(
+        ~common=Globals.to_common_global(globals),
+        ~dynamics=Language.Dynamics.Map.empty,
+        ~inject=x => inject(PatternUpdate(x)),
+        ~read_only=false,
+        model.pattern,
+        ed_focus,
+      )
+    | Stepper(a) =>
+      Stepper.get_cursor_info(
+        ~globals,
+        ~inject=x => inject(StepUpdate(x)),
+        ~focus=a,
+        model.step,
+      )
+    };
+
+  let handle_key_event =
+      (~focus: focus, ~event: Key.t, model: model): option(action) =>
+    switch (focus, model) {
+    | (Pattern(_), _) =>
+      // Use standard keyboard handler for editor actions
+      Keyboard.handle_key_event(event) |> Option.map(x => PatternUpdate(x))
     | (Stepper(a), _) =>
       Stepper.handle_key_event(~focus=a, ~event, model.step)
       |> Option.map(x => StepUpdate(x))
     };
-  };
 
   let view =
       (
@@ -230,20 +251,33 @@ module F = (Stepper: STEPPER) => {
         ~tooltip="Remove case",
         ~clss=["subtle-button"],
       );
-    let pattern_editor =
-      CodeEditable.View.view(
-        ~globals,
-        ~signal=
-          fun
-          | MakeActive => take_focus(Pattern()),
-        ~inject=x => inject(PatternUpdate(x)),
-        ~selected=
-          switch (focus) {
-          | Some(Pattern ()) => true
-          | _ => false
-          },
-        model.pattern,
+    let pattern_editor = {
+      let statics = EditorManager.Model.get_statics(model.pattern);
+      let common: Common.t = {
+        settings: globals.settings.core,
+        font_metrics: globals.font_metrics,
+        secondary_icons: globals.settings.secondary_icons,
+        color_highlights: globals.color_highlights,
+        statics,
+        dynamics: Dynamics.Map.empty,
+      };
+      Editor.View.view(
+        ~common,
+        ~mode=
+          Editable({
+            inject: x => inject(PatternUpdate(x)),
+            take_focus: _ => take_focus(Pattern(Editor.Focus.here())),
+            escape: _ => Ui_effect.Ignore,
+            focus:
+              switch (focus) {
+              | Some(Pattern(f)) => Some(f)
+              | _ => None
+              },
+          }),
+        ~sort=Sort.Pat,
+        model.pattern.editor,
       );
+    };
     let pattern_editor =
       WebUtil.div_c("inline-editor-wrapper", [pattern_editor]);
     let stepper_view =

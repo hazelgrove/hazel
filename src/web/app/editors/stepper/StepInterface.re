@@ -15,12 +15,13 @@ module type STEP = {
 
   let unpersist: persistent => model;
 
-  let update: (~settings: Settings.t, action, model) => Updated.t(model);
+  let update: (~globals: Globals.t, action, model) => Updated.t(model);
 
   let can_undo: action => bool;
 
   let calculate:
     (
+      ~globals: Globals.t,
       ~settings: Calc.t(CoreSettings.t),
       ~hidden: Calc.saved(bool),
       ~exp: Calc.t(Exp.t),
@@ -37,7 +38,14 @@ module type STEP = {
       ),
     );
 
-  let get_cursor_info: (~focus: focus, model) => Cursor.cursor(action);
+  let get_cursor_info:
+    (
+      ~globals: Globals.t,
+      ~inject: action => Ui_effect.t(unit),
+      ~focus: focus,
+      model
+    ) =>
+    Haz3lcore.Cursor.t;
 
   let handle_key_event:
     (~focus: focus, ~event: Key.t, model) => option(action);
@@ -85,12 +93,13 @@ module type STEPPER = {
 
   let unpersist: persistent => model;
 
-  let update: (~settings: Settings.t, action, model) => Updated.t(model);
+  let update: (~globals: Globals.t, action, model) => Updated.t(model);
 
   let can_undo: action => bool;
 
   let calculate:
     (
+      ~globals: Globals.t,
       ~settings: Calc.t(CoreSettings.t),
       ~ctx: Calc.t(Ctx.t),
       ~exp: Calc.t(Exp.t),
@@ -99,7 +108,14 @@ module type STEPPER = {
     ) =>
     (model, Calc.t(Exp.t));
 
-  let get_cursor_info: (~focus: focus, model) => Cursor.cursor(action);
+  let get_cursor_info:
+    (
+      ~globals: Globals.t,
+      ~inject: action => Ui_effect.t(unit),
+      ~focus: focus,
+      model
+    ) =>
+    Haz3lcore.Cursor.t;
 
   let handle_key_event:
     (~focus: focus, ~event: Key.t, model) => option(action);

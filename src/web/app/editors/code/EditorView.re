@@ -214,12 +214,21 @@ module Focus = {
         "Unproject",
         inject(Project(RemoveIndicated)),
       );
+    let livelit_action =
+      ContextualAction.mk(
+        ~hotkey="alt+l",
+        ~mdIcon="camera",
+        ~section="Projection",
+        "Livelit",
+        inject(Project(SetIndicated(ChooseLivelit))),
+      );
     let projector_actions =
       List.map(
         mk_projection_action,
         applicable_projectors(m, indicated_kind, mk_projector, read_only),
       )
-      @ (indicated_kind != None ? [unproject] : []);
+      @ (indicated_kind != None ? [unproject] : [])
+      @ (read_only ? [] : [livelit_action]);
 
     let read_only_actions = [
       ContextualAction.mk(
@@ -256,6 +265,26 @@ module Focus = {
         ~section="Selection",
         "Select All",
         inject(Select(All)),
+      ),
+      ContextualAction.mk(
+        ~mdIcon="flip_horizontal",
+        ~section="Selection",
+        "Toggle Selection Focus",
+        inject(Select(ToggleFocus)),
+      ),
+      ContextualAction.mk(
+        ~mdIcon="border_left",
+        ~section="Selection",
+        ~hotkey=Keyboard.meta(sys) ++ "+alt+shift+left",
+        "Set Selection Focus Left",
+        inject(Select(SetFocus(Left))),
+      ),
+      ContextualAction.mk(
+        ~mdIcon="border_right",
+        ~section="Selection",
+        ~hotkey=Keyboard.meta(sys) ++ "+alt+shift+right",
+        "Set Selection Focus Right",
+        inject(Select(SetFocus(Right))),
       ),
     ];
 

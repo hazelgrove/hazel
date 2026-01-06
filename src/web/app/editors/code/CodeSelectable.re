@@ -38,13 +38,7 @@ module Update = {
       | Copy => Copy
       };
     EditorManager.Update.update(
-      ~common=
-        Common.{
-          settings: globals.settings.core,
-          font_metrics: globals.font_metrics,
-          secondary_icons: globals.settings.secondary_icons,
-          color_highlights: globals.color_highlights,
-        },
+      ~common=Globals.to_common_global(globals),
       ~dynamics,
       action',
       model,
@@ -61,14 +55,15 @@ module Update = {
     | Copy => Some(Copy)
 
     // These actions are not allowed in a CodeSelectable
-    | Perform(
-        Destruct(_) | Insert(_) | Put_down | Paste(_) | Reparse | Cut |
-        Buffer(_) |
-        Project(_) |
-        Introduce,
-      )
-    | DebugConsole(_)
-    | TAB => None;
+    | Destruct(_)
+    | Insert(_)
+    | Put_down
+    | Paste(_)
+    | Reparse
+    | Cut
+    | Buffer(_)
+    | Project(_)
+    | Introduce => None;
 
   let calculate = EditorManager.Update.calculate;
 };

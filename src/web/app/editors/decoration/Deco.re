@@ -220,13 +220,13 @@ module Deco = (M: {
   let term_data = syntax.term_data;
   let measured = syntax.measured;
   let projectors = syntax.projectors;
-  let error_ids = M.statics.error_ids;
+  let error_ids = M.globals.statics.error_ids;
   let color_highlights = M.globals.color_highlights;
 
   let tile_term_deco =
     IndicationDec.term(
       ~term_data,
-      ~terms=M.editor.syntax.terms,
+      ~terms=syntax.terms,
       ~measured,
       ~font_metrics,
     );

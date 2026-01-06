@@ -1,5 +1,6 @@
 open Util;
 open Language;
+open Haz3lcore;
 open StepInterface;
 open Calc.Syntax;
 open OptUtil.Syntax;
@@ -136,23 +137,23 @@ module rec StepKind: {
     };
   };
 
-  let update = (~settings, action: action, model: model) => {
+  let update = (~globals: Globals.t, action: action, model: model) => {
     Updated.(
       switch (action, model) {
       | (SingleStep(a), SingleStep(m)) =>
-        let* s = SingleStep.update(~settings, a, m);
+        let* s = SingleStep.update(~globals, a, m);
         (SingleStep(s): model);
       | (InductionStep(a), InductionStep(m)) =>
-        let* s = InductionStep.update(~settings, a, m);
+        let* s = InductionStep.update(~globals, a, m);
         (InductionStep(s): model);
       | (ForallStep(a), ForallStep(m)) =>
-        let* s = ForallStep.update(~settings, a, m);
+        let* s = ForallStep.update(~globals, a, m);
         (ForallStep(s): model);
       | (MissingStep(a), MissingStep(m)) =>
-        let* s = MissingStep.Update.update(~settings, a, m);
+        let* s = MissingStep.Update.update(~globals, a, m);
         (MissingStep(s): model);
       | (AxiomStep(a), AxiomStep(m)) =>
-        let* s = AxiomStep.update(~settings, a, m);
+        let* s = AxiomStep.update(~globals, a, m);
         (AxiomStep(s): model);
       | (
           SingleStep(_) | InductionStep(_) | ForallStep(_) | MissingStep(_) |
@@ -176,6 +177,7 @@ module rec StepKind: {
 
   let rec calculate =
           (
+            ~globals: Globals.t,
             ~settings: Calc.t(CoreSettings.t),
             ~hidden: Calc.saved(bool),
             ~exp: Calc.t(Exp.t),
@@ -188,6 +190,7 @@ module rec StepKind: {
     | SingleStep(m) =>
       let+ (m, h, e) =
         SingleStep.calculate(
+          ~globals,
           ~settings,
           ~hidden,
           ~exp,
@@ -200,6 +203,7 @@ module rec StepKind: {
     | InductionStep(m) =>
       let+ (m, h, e) =
         InductionStep.calculate(
+          ~globals,
           ~settings,
           ~hidden,
           ~exp,
@@ -212,6 +216,7 @@ module rec StepKind: {
     | ForallStep(m) =>
       let+ (m, h, e) =
         ForallStep.calculate(
+          ~globals,
           ~settings,
           ~hidden,
           ~exp,
@@ -243,6 +248,7 @@ module rec StepKind: {
       switch (next_step_to_take) {
       | Some(evalobj) =>
         calculate(
+          ~globals,
           ~settings,
           ~exp=exp |> Calc.make_new,
           ~ctx=ctx |> Calc.make_new,
@@ -260,7 +266,7 @@ module rec StepKind: {
         Some((
           MissingStep(
             MissingStep.Update.calculate(
-              ~settings=settings |> Calc.get_value,
+              ~globals,
               exp,
               ctx,
               state,
@@ -276,6 +282,7 @@ module rec StepKind: {
     | AxiomStep(m) =>
       let+ (m, h, e) =
         AxiomStep.calculate(
+          ~globals,
           ~settings,
           ~hidden,
           ~exp,
@@ -287,32 +294,56 @@ module rec StepKind: {
       (AxiomStep(m): model, h, e);
     };
 
-  let get_cursor_info = (~focus: focus, model: model) =>
-    Cursor.(
-      switch (focus, model) {
-      | (SingleStep(focus), SingleStep(model)) =>
-        let+ focus_info = SingleStep.get_cursor_info(~focus, model);
-        (SingleStep(focus_info): action);
-      | (InductionStep(focus), InductionStep(model)) =>
-        let+ focus_info = InductionStep.get_cursor_info(~focus, model);
-        (InductionStep(focus_info): action);
-      | (ForallStep(focus), ForallStep(model)) =>
-        let+ focus_info = ForallStep.get_cursor_info(~focus, model);
-        (ForallStep(focus_info): action);
-      | (MissingStep(selection), MissingStep(model)) =>
-        let+ focus_info =
-          MissingStep.Selection.get_cursor_info(~selection, model);
-        (MissingStep(focus_info): action);
-      | (AxiomStep(focus), AxiomStep(model)) =>
-        let+ focus_info = AxiomStep.get_cursor_info(~focus, model);
-        (AxiomStep(focus_info): action);
-      | (
-          SingleStep(_) | InductionStep(_) | ForallStep(_) | MissingStep(_) |
-          AxiomStep(_),
-          _,
-        ) => Cursor.empty
-      }
-    );
+  let get_cursor_info =
+      (
+        ~globals: Globals.t,
+        ~inject: action => Ui_effect.t(unit),
+        ~focus: focus,
+        model: model,
+      )
+      : Haz3lcore.Cursor.t =>
+    switch (focus, model) {
+    | (SingleStep(focus), SingleStep(model)) =>
+      SingleStep.get_cursor_info(
+        ~globals,
+        ~inject=x => inject(SingleStep(x)),
+        ~focus,
+        model,
+      )
+    | (InductionStep(focus), InductionStep(model)) =>
+      InductionStep.get_cursor_info(
+        ~globals,
+        ~inject=x => inject(InductionStep(x)),
+        ~focus,
+        model,
+      )
+    | (ForallStep(focus), ForallStep(model)) =>
+      ForallStep.get_cursor_info(
+        ~globals,
+        ~inject=x => inject(ForallStep(x)),
+        ~focus,
+        model,
+      )
+    | (MissingStep(focus), MissingStep(model)) =>
+      MissingStep.Selection.get_cursor_info(
+        ~globals,
+        ~inject=x => inject(MissingStep(x)),
+        focus,
+        model,
+      )
+    | (AxiomStep(focus), AxiomStep(model)) =>
+      AxiomStep.get_cursor_info(
+        ~globals,
+        ~inject=x => inject(AxiomStep(x)),
+        ~focus,
+        model,
+      )
+    | (
+        SingleStep(_) | InductionStep(_) | ForallStep(_) | MissingStep(_) |
+        AxiomStep(_),
+        _,
+      ) => Haz3lcore.Cursor.empty
+    };
 
   let handle_key_event =
       (~focus: focus, ~event: Key.t, model: model): option(action) =>
@@ -326,9 +357,9 @@ module rec StepKind: {
     | (ForallStep(focus), ForallStep(model)) =>
       ForallStep.handle_key_event(~focus, ~event, model)
       |> Option.map((x): action => ForallStep(x))
-    | (MissingStep(selection), MissingStep(model)) =>
-      MissingStep.Selection.handle_key_event(~selection, ~event, ~model)
-      |> Option.map((x): action => MissingStep(x))
+    | (MissingStep(_), MissingStep(_)) =>
+      // TODO: MissingStep doesn't have keyboard handling in Selection module?
+      None
     | (AxiomStep(focus), AxiomStep(model)) =>
       AxiomStep.handle_key_event(~focus, ~event, model)
       |> Option.map((x): action => AxiomStep(x))
@@ -544,7 +575,7 @@ and Stepper: {
     };
 
   let rec update =
-          (~settings, action: step_action, model: step_model)
+          (~globals: Globals.t, action: step_action, model: step_model)
           : Updated.t(step_model) => {
     Updated.(
       switch (action, model.step_kind, model.next_step) {
@@ -553,14 +584,19 @@ and Stepper: {
         | Calc.Pending => model |> return_quiet
         | Calc.Calculated(editor) =>
           let* new_editor =
-            CodeSelectable.Update.update(~settings, ea, editor);
+            CodeSelectable.Update.update(
+              ~globals,
+              ~dynamics=Language.Dynamics.Map.empty,
+              ea,
+              editor,
+            );
           {
             ...model,
             editor: Calc.Calculated(new_editor),
           };
         }
       | (NextStep(a), _, Some(ns)) =>
-        let* new_next_step = update(~settings, a, ns);
+        let* new_next_step = update(~globals, a, ns);
         {
           ...model,
           next_step: Some(new_next_step),
@@ -627,7 +663,7 @@ and Stepper: {
       | (AddAxiomStep(_, _, _, _), _, _) => model |> return_quiet
       | (StepKindAction(sk_action), _, _) =>
         let* new_step_kind =
-          StepKind.update(~settings, sk_action, model.step_kind);
+          StepKind.update(~globals, sk_action, model.step_kind);
         {
           ...model,
           step_kind: new_step_kind,
@@ -651,6 +687,7 @@ and Stepper: {
 
   let rec calculate =
           (
+            ~globals: Globals.t,
             ~settings: Calc.t(CoreSettings.t),
             ~ctx: Calc.t(Ctx.t),
             ~exp as expr: Calc.t(Exp.t),
@@ -664,8 +701,9 @@ and Stepper: {
         let.calc _ = settings
         and.calc expr = expr
         and.calc ctx = ctx;
+        let common: Common.global = Globals.to_common_global(globals);
         EditorManager.Update.init(
-          ~common=Globals.to_common_global(globals),
+          ~common,
           ~stitch=_ => expr,
           ~is_dynamic_term=true,
           ~inline=false,
@@ -675,6 +713,7 @@ and Stepper: {
       };
     let (step_kind, hidden, next_expr_state) =
       StepKind.calculate(
+        ~globals,
         ~settings,
         ~ctx,
         ~exp=expr,
@@ -686,6 +725,7 @@ and Stepper: {
       |> OptUtil.get(() =>
            MissingStep(MissingStep.Model.init)
            |> StepKind.calculate(
+                ~globals,
                 ~settings,
                 ~ctx,
                 ~exp=expr,
@@ -701,6 +741,7 @@ and Stepper: {
         let next_step = Option.value(~default=init, next_step);
         let (next_step, last_expr) =
           calculate(
+            ~globals,
             ~settings,
             ~ctx,
             ~exp=next_expr,
@@ -724,25 +765,38 @@ and Stepper: {
   };
 
   let rec get_cursor_info =
-          (~focus: step_focus, model: step_model): Cursor.cursor(step_action) => {
-    Cursor.(
-      switch (focus, model.step_kind, model.next_step) {
-      | (StepKindFocus(sk), skm, _) =>
-        let+ ci = StepKind.get_cursor_info(~focus=sk, skm);
-        StepKindAction(ci);
-      | (Here(a), _, _) =>
-        let+ ci =
-          StepperEditor.Selection.get_cursor_info(
-            ~selection=a,
-            model.editor |> Calc.get_saved_exc(~print="Step editor selection"),
-          );
-        EditorAction(ci);
-      | (Next(a), _, Some(next_step)) =>
-        let+ ci = get_cursor_info(~focus=a, next_step);
-        NextStep(ci);
-      | (Next(_), _, None) => Cursor.empty
-      }
-    );
+          (
+            ~globals: Globals.t,
+            ~inject: step_action => Ui_effect.t(unit),
+            ~focus: step_focus,
+            model: step_model,
+          )
+          : Haz3lcore.Cursor.t => {
+    switch (focus, model.step_kind, model.next_step) {
+    | (StepKindFocus(sk), skm, _) =>
+      StepKind.get_cursor_info(
+        ~globals,
+        ~inject=x => inject(StepKindAction(x)),
+        ~focus=sk,
+        skm,
+      )
+    | (Here(ed_focus), _, _) =>
+      StepperEditor.Selection.get_cursor_info(
+        ~inject=x => inject(EditorAction(x)),
+        ~common=Globals.to_common_global(globals),
+        ~dynamics=Language.Dynamics.Map.empty,
+        model.editor |> Calc.get_saved_exc(~print="Step editor selection"),
+        ed_focus,
+      )
+    | (Next(a), _, Some(next_step)) =>
+      get_cursor_info(
+        ~globals,
+        ~inject=x => inject(NextStep(x)),
+        ~focus=a,
+        next_step,
+      )
+    | (Next(_), _, None) => Haz3lcore.Cursor.empty
+    };
   };
 
   let rec handle_key_event =
@@ -752,12 +806,10 @@ and Stepper: {
     | (StepKindFocus(sk), skm, _) =>
       StepKind.handle_key_event(~focus=sk, ~event, skm)
       |> Option.map((x): step_action => StepKindAction(x))
-    | (Here(a), _, _) =>
-      StepperEditor.Selection.handle_key_event(
-        ~selection=a,
-        model.editor |> Calc.get_saved_exc(~print="Step editor selection"),
-        event,
-      )
+    | (Here(_), _, _) =>
+      // Use standard keyboard handler and convert to CodeSelectable action
+      Keyboard.handle_key_event(event)
+      |> OptUtil.and_then(CodeSelectable.Update.convert_action)
       |> Option.map((x): step_action => EditorAction(x))
     | (Next(a), _, Some(next_step)) =>
       next_step
@@ -827,7 +879,7 @@ and Stepper: {
             ~globals,
             ~signal=
               fun
-              | MakeActive => take_focus(Here())
+              | MakeActive(f) => take_focus(Here(f))
               | TakeStep(int) => inject(StepForward(int))
               | Refl(int) => {
                   let refl_exps =
@@ -852,8 +904,8 @@ and Stepper: {
             ~inject=x => inject(EditorAction(x)),
             ~selected=
               switch (focus) {
-              | Some(Here(_)) => true
-              | _ => false
+              | Some(Here(f)) => Some(f)
+              | _ => None
               },
             ~overlays=
               switch (model.step_kind) {

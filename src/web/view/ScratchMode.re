@@ -247,7 +247,7 @@ module Update = {
       let source =
         switch (is_documentation) {
         | false =>
-          CellEditor.Model.mk(Editor.Model.mk(Zipper.init()))
+          CellEditor.Model.mk(Editor.of_zipper(Zipper.init()))
           |> CellEditor.Model.persist
         | true =>
           Init.startup.documentation
@@ -257,7 +257,7 @@ module Update = {
         };
       let* data =
         source
-        |> CellEditor.Model.unpersist(~settings=settings.core)
+        |> CellEditor.Model.unpersist(~settings=globals.settings.core)
         |> Updated.return;
       {
         ...model,
@@ -365,19 +365,16 @@ module Selection = {
     | TextBox => Cursor.empty
     };
 
-  let handle_key_event = (~inject, ~selection, ~event: Key.t, _model: Model.t) =>
+  let handle_key_event =
+      (~inject as _, ~selection, ~event: Key.t, _model: Model.t) =>
     switch (selection) {
     | Cell(_selection) =>
-      switch (event) {
-      | _ =>
-        CellEditor.Selection.handle_key_event(
-          ~selection,
-          ~event,
-          List.nth(model.scratchpads, model.current) |> snd,
-        )
-        |> Option.map(x => Update.CellAction(x))
-      }
-    | TextBox => Ui_effect.Ignore
+      // Use standard keyboard handler
+      Keyboard.handle_key_event(event)
+      |> Option.map((x: Action.t) =>
+           Update.CellAction(CellEditor.Update.MainEditor(x))
+         )
+    | TextBox => None
     };
 
   let jump_to_tile = (tile, model: Model.t): option((Update.t, t)) =>

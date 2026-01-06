@@ -55,9 +55,7 @@ let apply =
       model |> Updated.return_quiet;
     };
   // ---------- CALCULATE PHASE ----------
-  let model' =
-    updated.model
-    |> History.Update.calculate(~schedule_action, ~is_edited=updated.is_edit);
+  let model' = updated.model |> History.Update.calculate(~schedule_action);
 
   if (updated.is_edit) {
     schedule_autosave(
@@ -97,7 +95,7 @@ let start = {
         },
       ~default_model=
         History.Model.init()
-        |> History.Update.calculate(~schedule_action=_ => (), ~is_edited=true),
+        |> History.Update.calculate(~schedule_action=_ => ()),
       save_scheduler,
     );
 

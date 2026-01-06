@@ -1,6 +1,6 @@
-open Web;
 open Alcotest;
 open Haz3lcore;
+open Web;
 open EditingPrelude;
 
 let doc_slides: list((string, CellEditor.Model.persistent)) =

@@ -1,6 +1,7 @@
 open Util;
 open Calc.Syntax;
 open Language;
+open Haz3lcore;
 
 /* The result box at the bottom of a cell. This is either the TestResutls
    kind where only a summary of test results is shown, or the EvalResults kind
@@ -111,7 +112,7 @@ module Update = {
       }
       |> Updated.return
     | (StepperAction(a), {display: Stepper(stepper), _}) =>
-      let* stepper = StepperView.Update.update(~settings, a, stepper);
+      let* stepper = StepperView.Update.update(~globals, a, stepper);
       {
         ...model,
         display: Stepper(stepper),
@@ -208,35 +209,36 @@ module Update = {
       | Evaluation(ev_display) =>
         ev_display
         |> {
-          let.calc settings = settings
-          and.calc result = result;
+          let.calc result = result;
           switch (result) {
           | ResultOk({result: exp, _}) =>
-            Some((exp, exp |> CodeSelectable.Model.mk_from_exp(~settings)))
+            Some((exp, CodeSelectable.Model.mk_uncalculated(Exp(exp))))
           | ResultFail(_)
           | ResultPending => ev_display |> Calc.get_saved_opt |> Option.join
           };
         }
         |> Calc.make_new  // TODO[Matt]: Could eventually replace this by keeping track of whether the editor selection has changed
         |> Calc.map_if_new(
-             Option.map(((exp, editor)) =>
+             Option.map(((exp, editor)) => {
+               let common: Common.global = Globals.to_common_global(globals);
                (
                  exp,
                  CodeSelectable.Update.calculate(
-                   ~settings=settings |> Calc.get_value,
+                   ~common,
                    ~is_dynamic_term=true,
                    ~stitch=_ => exp,
                    ~dynamics=Dynamics.Map.empty,
-                   ~is_edited,
                    editor,
                  ),
-               )
-             ),
+               );
+             }),
            )
         |> Calc.save
         |> (x => Model.Evaluation(x))
       | Stepper(stepper) =>
-        Model.Stepper(StepperView.Update.calculate(~settings, elab, stepper))
+        Model.Stepper(
+          StepperView.Update.calculate(~globals, ~settings, elab, stepper),
+        )
       };
 
     (
@@ -257,26 +259,46 @@ module Selection = {
     | Evaluation(CodeSelectable.Selection.t)
     | Stepper(StepperView.Focus.t);
 
-  let get_cursor_info = (~selection: t, mr: Model.t): cursor(Update.t) =>
+  let get_cursor_info =
+      (
+        ~globals: Globals.t,
+        ~inject: Update.t => Ui_effect.t(unit),
+        ~selection: t,
+        mr: Model.t,
+      )
+      : Cursor.t =>
     switch (selection, mr.display) {
-    | (Evaluation(selection), Evaluation(Calculated(Some((_, editor))))) =>
-      let+ ci = CodeSelectable.Selection.get_cursor_info(~selection, editor);
-      Update.EvalEditorAction(ci);
     | (Stepper(focus), Stepper(s)) =>
-      let+ ci = StepperView.Focus.get_cursor_info(~focus, s);
-      Update.StepperAction(ci);
-    | (_, Evaluation(_)) => empty
-    | (_, Stepper(_)) => empty
+      StepperView.Focus.get_cursor_info(
+        ~globals,
+        ~inject=x => inject(StepperAction(x)),
+        ~focus,
+        s,
+      )
+    | (Evaluation(ed_focus), Evaluation(Calculated(Some((_, editor))))) =>
+      CodeSelectable.Selection.get_cursor_info(
+        ~inject=x => inject(EvalEditorAction(x)),
+        ~common=Globals.to_common_global(globals),
+        ~dynamics=Model.dynamics(mr),
+        editor,
+        ed_focus,
+      )
+    | (Evaluation(_), Evaluation(_))
+    | (_, Evaluation(_))
+    | (_, Stepper(_)) => Cursor.empty
     };
 
   let handle_key_event =
       (~selection: t, ~event, mr: Model.t): option(Update.t) =>
     switch (selection, mr.display) {
-    | (Evaluation(selection), Evaluation(Calculated(Some((_, editor))))) =>
-      CodeSelectable.Selection.handle_key_event(~selection, editor, event)
+    | (Evaluation(_), Evaluation(Calculated(Some(_)))) =>
+      // Use standard keyboard handler and convert to CodeSelectable action
+      // TODO: is this right?
+      Keyboard.handle_key_event(event)
+      |> OptUtil.and_then(CodeSelectable.Update.convert_action)
       |> Option.map(x => Update.EvalEditorAction(x))
     | (Stepper(focus), Stepper(s)) =>
-      StepperView.Focus.handle_key_event(~focus, s, ~event)
+      StepperView.Focus.handle_key_event(~focus, ~event, s)
       |> Option.map(x => Update.StepperAction(x))
     | (_, Evaluation(_)) => None
     | (_, Stepper(_)) => None
@@ -317,15 +339,26 @@ module View = {
     let editor = Option.map(snd, editor);
     let code_view =
       Option.map(
-        CodeSelectable.View.view(
-          ~signal=
-            fun
-            | MakeActive => signal(MakeActive(Evaluation())),
-          ~inject=a => inject(EvalEditorAction(a)),
-          ~globals,
-          ~selected,
-          ~sort=Sort.root,
-        ),
+        (editor: CodeSelectable.Model.t) => {
+          let statics = EditorManager.Model.get_statics(editor);
+          let common: Common.t = {
+            settings: globals.settings.core,
+            font_metrics: globals.font_metrics,
+            secondary_icons: globals.settings.secondary_icons,
+            color_highlights: globals.color_highlights,
+            statics,
+            dynamics: Dynamics.Map.empty,
+          };
+          CodeSelectable.View.view(
+            ~inject=a => inject(EvalEditorAction(a)),
+            ~escape=_ => Ui_effect.Ignore,
+            ~take_focus=f => signal(MakeActive(Evaluation(f))),
+            ~focus=selected,
+            ~common,
+            ~sort=Sort.root,
+            editor.editor,
+          );
+        },
         editor,
       );
     let exn_view =
@@ -462,12 +495,12 @@ module View = {
     | `EvalResults when globals.settings.core.dynamics =>
       let result =
         footer(~globals, ~signal, ~inject, ~selected, ~locked, model);
-      let test_overlay = (editor: Haz3lcore.Editor.t) =>
+      let test_overlay = (editor: Editor.Model.t) =>
         switch (Model.test_results(model)) {
         | Some(result) => [
             test_result_layer(
               ~font_metrics=globals.font_metrics,
-              ~measured=editor |> Haz3lcore.Editor.get_measured,
+              ~measured=editor |> Editor.get_measured,
               result,
             ),
           ]

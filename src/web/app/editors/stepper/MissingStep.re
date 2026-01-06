@@ -99,13 +99,7 @@ module Update = {
       open Updated;
       let* new_editor =
         EditorManager.Update.update(
-          ~common=
-            Common.{
-              settings: globals.settings.core,
-              font_metrics: globals.font_metrics,
-              secondary_icons: globals.settings.secondary_icons,
-              color_highlights: globals.color_highlights,
-            },
+          ~common=Globals.to_common_global(globals),
           ~dynamics=Language.Dynamics.Map.empty,
           action,
           editor,
@@ -224,13 +218,7 @@ module Update = {
         // Calculate syntax, holes, types, etc for the editor
         let editor =
           EditorManager.Update.calculate(
-            ~common=
-              Common.{
-                settings: globals.settings.core,
-                font_metrics: globals.font_metrics,
-                secondary_icons: globals.settings.secondary_icons,
-                color_highlights: globals.color_highlights,
-              },
+            ~common=Globals.to_common_global(globals),
             ~is_dynamic_term=true,
             ~dynamics=Dynamics.Map.empty,
             ~stitch=x => x,
@@ -281,12 +269,7 @@ module Selection = {
     switch (focus, model.open_box) {
     | (RewriteEditor(focus), RewritesOpen({editor, _})) =>
       EditorManager.Focus.get_cursor_info(
-        ~common={
-          settings: globals.settings.core,
-          font_metrics: globals.font_metrics,
-          secondary_icons: globals.settings.secondary_icons,
-          color_highlights: globals.color_highlights,
-        },
+        ~common=Globals.to_common_global(globals),
         ~inject=x => inject(Update.RewriteEditorAction(x)),
         ~read_only=false,
         ~dynamics=Language.Dynamics.Map.empty,

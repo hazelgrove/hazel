@@ -23,25 +23,25 @@ module Model = {
   };
   [@deriving (show({with_path: false}), sexp, yojson)]
   type persistent = {
-    editor: CodeEditable.Model.persistent,
+    editor: EditorManager.Model.persistent,
     result: EvalResult.Model.persistent,
   };
 
   let persist = (model: t): persistent => {
-    editor: model.editor |> CodeEditable.Model.persist,
+    editor: model.editor.editor |> Editor.get_z |> PersistentZipper.persist,
     result: model.result |> EvalResult.Model.persist,
   };
-
+  let to_string = (model: t) => model.editor.editor |> Editor.to_string;
   let unpersist = (~settings as _, {editor, result}: persistent): t => {
-    editor: {
-      editor: editor |> PersistentZipper.unpersist |> Editor.Model.mk,
-      statics: CachedStatics.empty,
-      dynamics: Language.Dynamics.Map.empty,
-    },
-    result: EvalResult.Model.unpersist(result),
+    {
+      editor:
+        editor
+        |> PersistentZipper.unpersist
+        |> Editor.of_zipper
+        |> EditorManager.Model.of_editor,
+      result: EvalResult.Model.unpersist(result),
+    };
   };
-
-  let to_string = (model: t) => model.editor |> CodeEditable.Model.to_string;
 };
 
 module Update = {

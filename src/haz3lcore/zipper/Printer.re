@@ -1,11 +1,6 @@
 open Util;
 
 let default_projector_to_segment = _ => [Piece.mk_grout(Convex)];
-//TODO(andrew): rm if unused
-let remove_projector: Piece.t => Segment.t =
-  fun
-  | Projector(pr) => Triggers.projector_to_invoke(pr)
-  | x => [x];
 
 let measured_no_projectors = (~projector_to_segment, segment: Segment.t) =>
   segment

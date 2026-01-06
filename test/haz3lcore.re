@@ -24,10 +24,10 @@ module Printer = {
 };
 
 module Parser = {
-  open Parser;
-  let to_term = Parser.to_term(~projector_init=Parser.default_projector_init);
-  let to_segment =
-    Parser.to_segment(~projector_init=Parser.default_projector_init);
+  let default_projector_init = Parser.default_projector_init;
+  let to_term = Parser.to_term(~projector_init=default_projector_init);
+  let to_segment = Parser.to_segment(~projector_init=default_projector_init);
+  let to_zipper = Parser.to_zipper(~projector_init=default_projector_init);
 };
 
 module Editor = {

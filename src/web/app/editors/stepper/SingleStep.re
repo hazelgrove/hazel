@@ -65,7 +65,7 @@ module F =
     };
   };
 
-  let update = (~settings as _: Settings.t, action: action, _model: model) =>
+  let update = (~globals as _: Globals.t, action: action, _model: model) =>
     switch (action) {
     | _ => .
     };
@@ -74,6 +74,7 @@ module F =
 
   let calculate =
       (
+        ~globals as _: Globals.t,
         ~settings: Calc.t(CoreSettings.t),
         ~hidden: Calc.saved(bool),
         ~exp: Calc.t(Exp.t),
@@ -127,7 +128,13 @@ module F =
     );
   };
 
-  let get_cursor_info = (~focus: focus, _model: model) =>
+  let get_cursor_info =
+      (
+        ~globals as _: Globals.t,
+        ~inject as _: action => Ui_effect.t(unit),
+        ~focus: focus,
+        _model: model,
+      ) =>
     switch (focus) {
     | _ => .
     };

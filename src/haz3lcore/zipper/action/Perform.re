@@ -59,11 +59,7 @@ let projector_to_invoke =
     )
     : Segment.t => [
   Piece.mk_tile(
-    Form.mk(
-      Form.ss,
-      [Form.mk_projector_invoke(get_kind(pr.model))],
-      Mold.(mk_op(Exp, [])),
-    ),
+    Form.mk_atom_op(Exp, Token.mk_projector_invoke(get_kind(pr.model))),
     [],
   ),
   Piece.mk_tile(Form.get(ApExp), [seg_of_projector(pr.model)]),

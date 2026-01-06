@@ -59,6 +59,7 @@ module CachedSyntax = {
       segment,
       term_data,
       measured: Measured.of_segment(segment, projector_shapes),
+      selection_ids: Selection.selection_ids(z.selection),
       terms,
       projectors,
       shape_map: projector_shapes,
@@ -212,12 +213,16 @@ module Model = {
       col: Measured.height(segment, measured),
     };
   };
-
-  let split = (ed: t, ids: list(Id.t)): Id.Map.t(t) => {
-    let segment = Zipper.unselect_and_zip(ed |> get_z);
-    let seg_map = TermRanges.split(ids, segment);
-    Id.Map.map(seg => seg |> Zipper.unzip |> mk_uncalculated, seg_map);
-  };
+  /* COMMENTED OUT: depends on TermRanges which was removed in dev merge.
+   * This function appears to be unused. If needed, TermRanges.split
+   * functionality needs to be reimplemented using TermData.
+   *
+   * let split = (ed: t, ids: list(Id.t)): Id.Map.t(t) => {
+   *   let segment = Zipper.unselect_and_zip(ed |> get_z);
+   *   let seg_map = TermRanges.split(ids, segment);
+   *   Id.Map.map(seg => seg |> Zipper.unzip |> mk_uncalculated, seg_map);
+   * };
+   */
 };
 
 module Update = {
@@ -319,7 +324,7 @@ module Update = {
         | Some(col) => Some(col)
         | None =>
           Some(
-            Zipper.Caret.caret_point(
+            Zipper.Caret.point(
               Calc.get_saved_exc(
                 ~print="update called before calculate",
                 syntax,

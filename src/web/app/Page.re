@@ -167,10 +167,7 @@ module Update = {
           let content =
             [%derive.show: (string, Haz3lcore.PersistentZipper.t)]((
               current |> fst,
-              current
-              |> snd
-              |> ((e: CellEditor.Model.t) => e.editor)
-              |> CodeWithStatics.Model.persist,
+              (current |> snd |> CellEditor.Model.persist).editor,
             ));
           (filename, content);
         | Exercises(model) =>
