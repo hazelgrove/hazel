@@ -49,7 +49,7 @@ let manual_probe =
         | Non => "Add probe"
         },
         inject,
-        Refractor(ToggleProbeManual),
+        Probe(ToggleProbeManual),
       ),
     ]
   | _ => []
@@ -71,7 +71,7 @@ let auto_probe =
         | Non => "Add auto probe"
         },
         inject,
-        Refractor(ToggleProbeREPL),
+        Probe(ToggleProbeREPL),
       ),
     ]
   | _ => []
@@ -100,7 +100,7 @@ let step_into =
   switch (ci) {
   | Some(InfoExp({ty, _})) when Language.StaticsBase.is_arrow_like(ty) =>
     switch (Refractors.is_jump_target(info_map, z)) {
-    | Some(_) => [menu_item("Step into", inject, Refractor(ProbeJump))]
+    | Some(_) => [menu_item("Step into", inject, Probe(ProbeJump))]
     | None => []
     }
   | _ => []

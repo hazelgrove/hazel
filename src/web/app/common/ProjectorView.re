@@ -167,12 +167,12 @@ let view_wrapper =
   );
 
 /* Dispatches projector external actions to editor-level actions */
-let handle = (id, action: external_action): Action.project =>
+let handle = (id: Id.t, action: external_action): Action.t =>
   switch (action) {
-  | Remove => RemoveIndicated
-  | Escape(d) => Escape(id, d)
-  | SetSyntax(f) => SetSyntax(id, f)
-  | DynCursor(a) => DynCursor(a)
+  | Remove => Project(RemoveIndicated)
+  | Escape(d) => Project(Escape(id, d))
+  | SetSyntax(f) => Project(SetSyntax(id, f))
+  | Probe(a) => Probe(a)
   };
 
 let offside_wrapper =
@@ -282,7 +282,7 @@ let mk_view =
     info,
     local: a =>
       inject(Project(SetModel(p.id, P.update(p.model, info, a)))),
-    parent: a => inject(Project(handle(p.id, a))),
+    parent: a => inject(handle(p.id, a)),
     view_seg: (~background=?, ~text_only=?, sort, segment) =>
       flex_code(~font_metrics, ~background?, ~text_only?, sort, segment),
     status,

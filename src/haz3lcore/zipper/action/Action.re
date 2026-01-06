@@ -41,11 +41,17 @@ type select =
   | ToggleFocus
   | SetFocus(Direction.t);
 
+/* Unified probe actions: combines dynamic cursor control with probe management */
 [@deriving (show({with_path: false}), sexp, yojson, eq)]
-type dyn_cursor =
+type probe =
+  /* Dynamic cursor actions */
   | Capture(Language.Sample.t, option(Id.t))
   | TogglePinCall(Language.Probe.call_stack)
-  | Reset;
+  | Reset
+  /* Probe management actions */
+  | ToggleProbeManual
+  | ToggleProbeREPL
+  | ProbeJump;
 
 [@deriving (show({with_path: false}), sexp, yojson, eq)]
 type chooser =
@@ -53,12 +59,11 @@ type chooser =
   | ChooseLivelit;
 
 /* This type defines the top-level actions used to manage
- * projectors,as distinguished from external_action,
+ * projectors, as distinguished from external_action,
  * which defines the actions available internally to all projectors,
  * and from each projector's own internal action type */
 [@deriving (show({with_path: false}), sexp, yojson, eq)]
 type project =
-  | DynCursor(dyn_cursor)
   | SetIndicated(chooser) /* Project syntax at caret */
   | RemoveIndicated /* Remove projector at caret */
   | SetSyntax(Id.t, Base.segment) /* Set underlying syntax */
@@ -84,12 +89,6 @@ type paste =
   | Segment(Segment.t);
 
 [@deriving (show({with_path: false}), sexp, yojson, eq)]
-type refractor =
-  | ToggleProbeManual
-  | ToggleProbeREPL
-  | ProbeJump;
-
-[@deriving (show({with_path: false}), sexp, yojson, eq)]
 type t =
   | Reparse
   | Buffer(buffer)
@@ -104,8 +103,7 @@ type t =
   | Insert(string)
   | Put_down
   | Introduce
-  | Refractor(refractor)
-  | DynCursor(dyn_cursor)
+  | Probe(probe)
   | Dump;
 
 module Failure = {
@@ -155,11 +153,17 @@ let is_edit: t => bool =
     | RemoveIndicated => true
     | Focus(_)
     | FocusIndicated
-    | DynCursor(_)
     | Escape(_) => false
     }
-  | DynCursor(_) => false
-  | Refractor(_) => true;
+  | Probe(p) =>
+    switch (p) {
+    | Capture(_)
+    | TogglePinCall(_)
+    | Reset => false
+    | ToggleProbeManual
+    | ToggleProbeREPL
+    | ProbeJump => true
+    };
 
 /* Determines whether undo/redo skips action */
 let is_historic: t => bool =
@@ -185,11 +189,17 @@ let is_historic: t => bool =
     | RemoveIndicated => true
     | Focus(_)
     | FocusIndicated
-    | DynCursor(_)
     | Escape(_) => false
     }
-  | DynCursor(_) => false
-  | Refractor(_) => true;
+  | Probe(p) =>
+    switch (p) {
+    | Capture(_)
+    | TogglePinCall(_)
+    | Reset => false
+    | ToggleProbeManual
+    | ToggleProbeREPL
+    | ProbeJump => true
+    };
 
 let prevent_in_read_only_editor = (a: t) =>
   switch (a) {
@@ -214,11 +224,9 @@ let prevent_in_read_only_editor = (a: t) =>
     | RemoveIndicated
     | Focus(_)
     | FocusIndicated
-    | DynCursor(_)
     | Escape(_) => false
     }
-  | DynCursor(_) => false
-  | Refractor(_) => false
+  | Probe(_) => false
   };
 
 /* Currently animations are disabled during drag selection
@@ -249,6 +257,5 @@ let should_animate: t => bool =
   | Copy
   | Move(_)
   | Project(_)
-  | Refractor(_)
-  | DynCursor(_)
+  | Probe(_)
   | Dump => true;

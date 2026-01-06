@@ -184,8 +184,9 @@ let toggle_auto =
   | Non => add_auto(id, ~syntax, ~info_map, z)
   };
 
-let is_jump_target = (info_map: Statics.Map.t, z: Zipper.t): option(Id.t) => {
-  let* ci = Indicated.ci_of(z, info_map);
+/* Find the binding site for the function being called.
+ * Can use either the indicated term or a specific ap_id. */
+let binding_id_from_ci = (info_map: Statics.Map.t, ci: Info.t): option(Id.t) => {
   let* ci =
     switch (ci) {
     | InfoExp({
@@ -198,10 +199,46 @@ let is_jump_target = (info_map: Statics.Map.t, z: Zipper.t): option(Id.t) => {
   Info.get_binding_site(ci);
 };
 
+let is_jump_target = (info_map: Statics.Map.t, z: Zipper.t): option(Id.t) => {
+  let* ci = Indicated.ci_of(z, info_map);
+  binding_id_from_ci(info_map, ci);
+};
+
+/* Find binding site from a specific ap_id (used when indicated_call is set) */
+let is_jump_target_for_ap =
+    (info_map: Statics.Map.t, ap_id: Id.t): option(Id.t) => {
+  let* ci = Statics.Map.lookup(ap_id, info_map);
+  binding_id_from_ci(info_map, ci);
+};
+
 let step_into =
     (~syntax: CachedSyntax.t, info_map: Statics.Map.t, z: Zipper.t)
     : option(Zipper.t) => {
-  let* binding_id = is_jump_target(info_map, z);
+  /* First try to use indicated_call if set (from probe interaction),
+   * otherwise fall back to the currently indicated term */
+  let* (binding_id, ap_id) =
+    switch (z.refractors.dyn_cursor.indicated_call) {
+    | Some(ap_id) =>
+      let* binding_id = is_jump_target_for_ap(info_map, ap_id);
+      Some((binding_id, ap_id));
+    | None =>
+      let* binding_id = is_jump_target(info_map, z);
+      /* Find the ap_id from the indicated term */
+      let* ap_id =
+        switch (Indicated.ci_of(z, info_map)) {
+        | Some(InfoExp({term: {term: Ap(_, _, _), _} as ap, _})) =>
+          Some(IdTagged.rep_id(ap))
+        | _ =>
+          let* indicated_id = Indicated.index(z);
+          switch (Statics.Map.parent_term_of(info_map, indicated_id)) {
+          | Some(Exp({term: Ap(_, _, _), _} as ap)) =>
+            Some(IdTagged.rep_id(ap))
+          | _ => None
+          };
+        };
+      Some((binding_id, ap_id));
+    };
+
   let* body_id =
     Statics.Map.enclosing_let_of_binding(~statics=info_map, ~binding_id);
   let* ci_body = Statics.Map.lookup(body_id, info_map);
@@ -211,24 +248,9 @@ let step_into =
     | REPL => z
     | Manual(_) => z
     | Non => add_auto(body_id, ~syntax, ~info_map, z)
-    //toggle_manual(~syntax, body_id, ~info_map, z)
     };
-
-  //TODO(andrew): need to first set dyn_cursor to current thing if not already set...
 
   // set pin and dyn cursor
-  let* ap_id =
-    switch (Indicated.ci_of(z, info_map)) {
-    | Some(InfoExp({term: {term: Ap(_, _, _), _} as ap, _})) =>
-      Some(IdTagged.rep_id(ap))
-    | _ =>
-      let* indicated_id = Indicated.index(z);
-      switch (Statics.Map.parent_term_of(info_map, indicated_id)) {
-      | Some(Exp({term: Ap(_, _, _), _} as ap)) =>
-        Some(IdTagged.rep_id(ap))
-      | _ => None
-      };
-    };
   let z =
     DynCursorPerform.update_dyn_cursor(
       z,
@@ -267,34 +289,34 @@ let rm_probes_in_selection =
      );
 };
 
-let update =
+/* Action handlers callable from ProbePerform */
+
+let toggle_manual_action =
     (
       ~statics as {info_map, _}: CachedStatics.t,
       ~syntax: CachedSyntax.t,
-      a: Action.refractor,
       z: Zipper.t,
     )
     : Zipper.t =>
-  switch (a) {
-  | ToggleProbeManual =>
-    switch (z.selection.content) {
-    | [] =>
-      switch (Indicated.index(z)) {
-      | None => z
-      | Some(id) => toggle_manual(~syntax, id, ~info_map, z)
-      }
-    | _ => rm_probes_in_selection(~syntax, ~info_map, z)
-    }
-  | ToggleProbeREPL =>
+  switch (z.selection.content) {
+  | [] =>
     switch (Indicated.index(z)) {
-    | Some(id) => toggle_auto(~syntax, id, info_map, z)
     | None => z
+    | Some(id) => toggle_manual(~syntax, id, ~info_map, z)
     }
-  | ProbeJump =>
-    switch (step_into(~syntax, info_map, z)) {
-    | Some(z) => z
-    | None => z
-    }
+  | _ => rm_probes_in_selection(~syntax, ~info_map, z)
+  };
+
+let toggle_auto_action =
+    (
+      ~statics as {info_map, _}: CachedStatics.t,
+      ~syntax: CachedSyntax.t,
+      z: Zipper.t,
+    )
+    : Zipper.t =>
+  switch (Indicated.index(z)) {
+  | Some(id) => toggle_auto(~syntax, id, info_map, z)
+  | None => z
   };
 
 /* Check if id has either manual or ephermeral probe on it */

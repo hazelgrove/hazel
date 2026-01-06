@@ -48,9 +48,8 @@ module Update = {
         Destruct(_) | Insert(_) | Put_down | Paste(_) | Reparse | Cut |
         Buffer(_) |
         Project(_) |
-        Refractor(_) |
+        Probe(_) |
         Dump |
-        DynCursor(_) | //TODO(andrew): ?
         Introduce,
       )
     | DebugConsole(_)

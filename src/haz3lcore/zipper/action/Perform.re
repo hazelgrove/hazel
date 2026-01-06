@@ -55,7 +55,7 @@ let go =
   | Buffer(a) => Buffer.go(~ci=Indicated.ci_of(z, statics.info_map), a, z)
   | Project(SetIndicated(Specific(Probe))) =>
     //TODO(andrew): cleanup
-    Ok(Refractors.update(~statics, ~syntax, ToggleProbeManual, z))
+    Ok(ProbePerform.perform(~statics, ~syntax, z, ToggleProbeManual))
   | Project(a) => ProjectorPerform.go(syntax.term_data, a, z)
   | Move(d) =>
     Move.go(
@@ -125,7 +125,6 @@ let go =
     |> Insert.go(char, ~ci=Indicated.ci_of(z, statics.info_map))
     |> return(Cant_insert)
   | Put_down => Zipper.put_down(z) |> return(Cant_put_down)
-  | Refractor(a) => Ok(Refractors.update(~statics, ~syntax, a, z))
-  | DynCursor(a) => Ok(DynCursorPerform.perform(z, a))
+  | Probe(a) => Ok(ProbePerform.perform(~statics, ~syntax, z, a))
   | Dump => Ok(Dump.to_zipper(z))
   };

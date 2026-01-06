@@ -18,7 +18,7 @@ type syntax = Base.piece;
 
 /* Global actions available to handlers in all projectors */
 type external_action =
-  | DynCursor(Action.dyn_cursor)
+  | Probe(Action.probe) /* Probe-related actions (dynamic cursor, probe management) */
   | Remove /* Remove projector entirely */
   | Escape(Util.Direction.t) /* Pass focus to parent editor */
   | SetSyntax(Base.segment); /* Set underlying syntax */

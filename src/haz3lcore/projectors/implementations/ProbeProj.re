@@ -384,7 +384,7 @@ let pin_call = (~parent, ~ap_id: option(Id.t), ~di: Dynamics.Info.t) =>
   switch (ap_id, Dynamics.Info.is_in(di)) {
   | (Some(ap_id), Some(dyn_cursor)) =>
     print_endline("actually pinning call");
-    parent(DynCursor(TogglePinCall([ap_id, ...dyn_cursor.call_stack])));
+    parent(Probe(TogglePinCall([ap_id, ...dyn_cursor.call_stack])));
   | _ =>
     print_endline("ignoring");
     Effect.Ignore;
@@ -414,7 +414,7 @@ let value_view =
           col: e##.clientX,
         });
     };
-    parent(DynCursor(Capture(sample, ap_id)));
+    parent(Probe(Capture(sample, ap_id)));
   };
 
   let val_pointerup = (e: Js.t(Dom_html.pointerEvent)) => {
@@ -511,11 +511,41 @@ let pin_view = (~ap_id: option(Id.t), di: Dynamics.Info.t, sample: Sample.t) =>
   show_pin(~ap_id, di, sample)
     ? [div(~attrs=[Attr.classes(["pin"])], [])] : [];
 
+/* Check if step-into is available: ap_id is Some and type is arrow-like */
+let can_step_into = (~ap_id: option(Id.t), ~statics: option(Info.t)): bool =>
+  switch (ap_id, statics) {
+  | (Some(_), Some(InfoExp({ty, _}))) => StaticsBase.is_arrow_like(ty)
+  | _ => false
+  };
+
+let step_into_view =
+    (
+      ~ap_id: option(Id.t),
+      ~statics: option(Info.t),
+      parent: external_action => Ui_effect.t(unit),
+    )
+    : list(Node.t) =>
+  can_step_into(~ap_id, ~statics)
+    ? [
+      div(
+        ~attrs=[
+          Attr.classes(["live-env-header", "step-into"]),
+          Attr.on_pointerdown(_ => parent(Probe(ProbeJump))),
+        ],
+        [
+          div(~attrs=[Attr.classes(["step-into-icon"])], []),
+          text("Step into"),
+        ],
+      ),
+    ]
+    : [];
+
 let env_view =
     (
       ~settings: settings,
       ~parent,
       ~ap_id,
+      ~statics: option(Info.t),
       ~di,
       sample: Sample.t,
       view_seg,
@@ -545,6 +575,7 @@ let env_view =
         }
         : []
     )
+    @ step_into_view(~ap_id, ~statics, parent)
     @ {
       let elems = sample.env |> ListUtil.dedup |> Sample.Env.remove_opaques;
       elems == []
@@ -563,6 +594,7 @@ let sample_view =
       ~ap_id: option(Id.t),
       ~hide_env: bool,
       ~settings: settings,
+      ~statics: option(Info.t),
       di: Dynamics.Info.t,
       utility: utility,
       view_seg,
@@ -594,6 +626,7 @@ let sample_view =
             ~settings,
             ~parent,
             ~ap_id,
+            ~statics,
             ~di,
             sample,
             view_seg,
@@ -608,6 +641,7 @@ let sample_group_view =
       ~ap_id: option(Id.t),
       ~hide_env: bool,
       ~settings: settings,
+      ~statics: option(Info.t),
       di: Dynamics.Info.t,
       utility,
       view_seg,
@@ -625,6 +659,7 @@ let sample_group_view =
               ~ap_id,
               ~hide_env,
               ~settings,
+              ~statics,
               di,
               utility,
               view_seg,
@@ -665,7 +700,7 @@ let mv_least_distant_sample =
         samples,
       )
     ) {
-    | Some(selected) => parent(DynCursor(Capture(selected, ap_id)))
+    | Some(selected) => parent(Probe(Capture(selected, ap_id)))
     | None => Effect.Ignore
     };
   | None => Effect.Ignore
@@ -714,7 +749,7 @@ let empty_status_view =
       ~attrs=[
         Attr.classes(["empty-status", "hidden-by-pin"]),
         Attr.title("Samples hidden by pin — click to unpin"),
-        Attr.on_pointerdown(_ => parent(DynCursor(Reset))),
+        Attr.on_pointerdown(_ => parent(Probe(Reset))),
       ],
       [text("⍟")] //📌◌🔒
     )
@@ -758,7 +793,7 @@ let move_cursor =
   | Some(idx) =>
     let next_idx_maybe = idx - offset;
     if (next_idx_maybe >= 0 && next_idx_maybe < List.length(samples)) {
-      parent(DynCursor(Capture(List.nth(samples, next_idx_maybe), ap_id)));
+      parent(Probe(Capture(List.nth(samples, next_idx_maybe), ap_id)));
     } else {
       Effect.Ignore;
     };
@@ -887,7 +922,7 @@ let key_handler =
     JsUtil.get_elem_by_id(Id.cls(id))##blur;
     Settings.reset_mode();
     SampleLength.reset();
-    parent(DynCursor(Reset));
+    parent(Probe(Reset));
   | D("Escape") =>
     JsUtil.get_elem_by_id(Id.cls(id))##blur;
     Ignore;
@@ -993,6 +1028,7 @@ let offside_view =
             ~ap_id,
             ~hide_env,
             ~settings,
+            ~statics=info.statics,
             di,
             utility,
             (~text_only: bool) => view_seg(~text_only, ~background=false),

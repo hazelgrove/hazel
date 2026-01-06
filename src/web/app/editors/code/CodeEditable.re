@@ -67,12 +67,11 @@ module Update = {
              | Cut
              | Reparse
              | Introduce
-             | Refractor(ProbeJump)
+             | Probe(ProbeJump)
              | Dump => true
              | Project(_)
              | Unselect(_)
-             | Refractor(_)
-             | DynCursor(_) => false
+             | Probe(_) => false
              };
            },
          );
