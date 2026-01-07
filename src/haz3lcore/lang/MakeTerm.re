@@ -50,6 +50,7 @@ type t = {
   terms: TermMap.t,
   term_data: TermData.t,
   projectors: Id.Map.t(Piece.projector),
+  probe_ids: Id.Map.t(unit) /* REFACTOR: IDs of expressions/patterns to probe (map-as-set) */
 };
 
 let is_nary =
@@ -135,6 +136,16 @@ let projectors: ref(Id.Map.t(Piece.projector)) = ref(Id.Map.empty);
 
 let rf_map: ref(Id.Map.t(_)) = ref(Id.Map.empty);
 
+/* REFACTOR: Collect probe IDs instead of inserting Probe nodes in AST.
+ * Using Id.Map.t(unit) as a set representation for O(log n) membership.
+ *
+ * NOTE: This probe ID collection is technically unnecessary for the new system.
+ * We could extract probe IDs directly from z.refractors.manuals in CachedStatics,
+ * removing the need for MakeTerm to know about probes. However, MakeTerm already
+ * iterates through the AST and has rf_map, so collecting here is convenient.
+ * This can be removed entirely when the old AST-based probe system is retired. */
+let probe_ids: ref(Id.Map.t(unit)) = ref(Id.Map.empty);
+
 /* Strip a projector from a segment and log it in the map */
 let log_projector = (pr: Base.projector): unit => {
   projectors := Id.Map.add(pr.id, pr, projectors^);
@@ -208,23 +219,18 @@ let rec go_s = (s: Sort.t, skel: Skel.t, seg: Segment.t): Any.t =>
 and exp = unsorted => {
   let (term, inner_ids) = exp_term(unsorted);
   let ids = ids(unsorted) @ inner_ids;
-  //TODO(andrew): cleanup, document
-  let (term, ids) =
-    switch (Id.Map.find_opt(List.hd(ids), rf_map^)) {
-    | Some(_guy) => (
-        Probe(
-          {
-            annotation: {
-              ids: ids,
-            },
-            term,
-          },
-          Probe.empty,
-        ): TermBase.exp_term,
-        [Id.transform_variant(List.hd(ids))],
-      )
-    | None => (term, ids)
-    };
+
+  /* REFACTOR: Instead of wrapping in Probe node, collect ID for probe_map.
+   * TODO: This probe ID collection can be removed when old AST-based probes are retired.
+   * The new system could extract probe IDs directly from refractors in CachedStatics. */
+  let expr_id = List.hd(ids);
+  switch (Id.Map.find_opt(expr_id, rf_map^)) {
+  | Some(_guy) =>
+    /* This expression should be probed - add to probe_ids map-as-set */
+    probe_ids := Id.Map.add(expr_id, (), probe_ids^)
+  | None => ()
+  };
+
   let e: TermBase.exp_t =
     return(
       e => Exp(e),
@@ -537,23 +543,18 @@ and exp_term: unsorted => (Exp.term, list(Id.t)) = {
 and pat = unsorted => {
   let (term, inner_ids) = pat_term(unsorted);
   let ids = ids(unsorted) @ inner_ids;
-  //TODO(andrew): cleanup, document
-  let (term, ids) =
-    switch (Id.Map.find_opt(List.hd(ids), rf_map^)) {
-    | Some(_guy) => (
-        Probe(
-          {
-            annotation: {
-              ids: ids,
-            },
-            term,
-          },
-          Probe.empty,
-        ): TermBase.pat_term,
-        [Id.transform_variant(List.hd(ids))],
-      )
-    | None => (term, ids)
-    };
+
+  /* REFACTOR: Instead of wrapping in Probe node, collect ID for probe_map.
+   * TODO: This probe ID collection can be removed when old AST-based probes are retired.
+   * The new system could extract probe IDs directly from refractors in CachedStatics. */
+  let pat_id = List.hd(ids);
+  switch (Id.Map.find_opt(pat_id, rf_map^)) {
+  | Some(_guy) =>
+    /* This pattern should be probed - add to probe_ids map-as-set */
+    probe_ids := Id.Map.add(pat_id, (), probe_ids^)
+  | None => ()
+  };
+
   let p =
     return(
       p => Pat(p),
@@ -939,6 +940,7 @@ let go =
       map := TermMap.empty;
       term_data := Id.Map.empty;
       projectors := Id.Map.empty;
+      probe_ids := Id.Map.empty; /* REFACTOR: Reset probe_ids (map-as-set) */
       rf_map := refractor_mapping;
       let term = exp(unsorted(Exp, Segment.skel(seg), seg));
       {
@@ -946,6 +948,7 @@ let go =
         term_data: term_data^,
         terms: map^,
         projectors: projectors^,
+        probe_ids: probe_ids^ /* REFACTOR: Include collected probe IDs */
       };
     },
   );

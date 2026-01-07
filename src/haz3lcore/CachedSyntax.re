@@ -37,7 +37,8 @@ let t_of_yojson = _ => failwith("Editor.Meta.t_of_yojson");
 let mk = (~info_map, ~dyn_map, z): t => {
   let segment = Zipper.unselect_and_zip(z);
   let refractor_mapping = Id.Map.empty;
-  let MakeTerm.{term: _, terms, projectors, term_data} =
+  let MakeTerm.{term: _, terms, projectors, term_data, probe_ids: _} =
+    /* REFACTOR: Ignore probe_ids here */
     MakeTerm.go(refractor_mapping, segment);
   let projector_shapes =
     ProjectorInfo.ShapeMapSemantics.mk(

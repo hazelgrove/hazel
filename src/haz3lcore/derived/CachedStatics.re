@@ -7,6 +7,7 @@ type t = {
   elaborated: Exp.t,
   info_map: Statics.Map.t,
   error_ids: list(Id.t),
+  probe_map: Id.Map.t(Probe.t) /* Maps expr/pat IDs to probe metadata (refs to capture) */
 };
 
 let empty: t = {
@@ -24,6 +25,7 @@ let empty: t = {
   },
   info_map: Id.Map.empty,
   error_ids: [],
+  probe_map: Id.Map.empty,
 };
 
 let elaborate =
@@ -31,7 +33,16 @@ let elaborate =
 
 let dh_err = (error: string): DHExp.t => Var(error) |> DHExp.fresh;
 
-let init_from_term = (~settings, ~is_dynamic_term, ~ctx=?, ~ana=?, term): t => {
+let init_from_term =
+    (
+      ~settings,
+      ~is_dynamic_term,
+      ~ctx=?,
+      ~ana=?,
+      ~probe_ids=Id.Map.empty,
+      term,
+    )
+    : t => {
   let ctx_init =
     Option.value(
       ~default=Builtins.ctx_init(is_dynamic_term ? None : Some(Int)),
@@ -50,11 +61,31 @@ let init_from_term = (~settings, ~is_dynamic_term, ~ctx=?, ~ana=?, term): t => {
       | Elaborates(d, _) => d
       }
     };
+
+  /* Compute probe_map from probe_ids. For each ID, determine whether it's
+   * an expression or pattern probe, then look up the appropriate refs to capture. */
+  let probe_map =
+    Id.Map.fold(
+      (id, (), acc) => {
+        let refs =
+          switch (Statics.Map.lookup(id, info_map)) {
+          | Some(InfoExp(_)) => Statics.Map.refs_in(info_map, id) /* Expression probe */
+          | Some(InfoPat(_)) => Statics.Map.bound_in(info_map, id) /* Pattern probe */
+          | _ => [] /* Unknown - no refs */
+          };
+        let probe = {Probe.refs: refs};
+        Id.Map.add(id, probe, acc);
+      },
+      probe_ids,
+      Id.Map.empty,
+    );
+
   {
     term,
     elaborated,
     info_map,
     error_ids,
+    probe_map,
   };
 };
 
@@ -68,8 +99,11 @@ let init =
       z: Zipper.t,
     )
     : t => {
-  let term = MakeTerm.from_zip_for_sem(z).term |> stitch;
-  init_from_term(~settings, ~ctx?, ~is_dynamic_term, ~ana?, term);
+  let make_term_result = MakeTerm.from_zip_for_sem(z); /* REFACTOR: Get full result */
+  let term = make_term_result.term |> stitch;
+  let probe_ids = make_term_result.probe_ids; /* REFACTOR: Extract probe_ids */
+
+  init_from_term(~settings, ~ctx?, ~is_dynamic_term, ~ana?, ~probe_ids, term); /* REFACTOR: Pass probe_ids */
 };
 
 let init =

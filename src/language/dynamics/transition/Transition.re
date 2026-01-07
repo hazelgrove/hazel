@@ -945,8 +945,8 @@ module Transition = (EV: EV_MODE) => {
       let. _ = otherwise(env, d);
       Indet;
     | Probe(d'', pr) =>
-      /* When evaluated, a probe adds a dynamics info entry
-       * reflecting the evaluation of the contained expression */
+      /* REFACTOR(A5): Keep Probe AST handling for backward compat with tests.
+       * In UI, MakeTerm doesn't create Probe nodes (uses probe_map instead). */
       let. _ = otherwise(env, d => Probe(d, pr) |> rewrap)
       and. d' = req_final(req(env), d => Probe(d, pr) |> wrap_ctx, d'');
       Step({

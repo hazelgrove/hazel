@@ -135,13 +135,12 @@ let rec evaluate =
         : EvaluatorEVMode.result => {
   open Trampoline.Syntax;
 
-  /* If we're starting to evaluate a Probe, record the current step count.
-   * This captures "where we were" before the inner expression starts evaluating. */
-  switch (DHExp.term_of(init)) {
-  | Probe(_, _) =>
-    let probe_id = DHExp.rep_id(init);
-    state := EvaluatorState.record_probe_start(state^, probe_id);
-  | _ => ()
+  /* REFACTOR: Check if this expression is in the probe_map.
+   * If so, record the current step count before evaluation begins. */
+  let expr_id = DHExp.rep_id(init);
+  switch (Id.Map.find_opt(expr_id, state^.probe_map)) {
+  | Some(_) => state := EvaluatorState.record_probe_start(state^, expr_id)
+  | None => ()
   };
 
   let.trampoline (is_finished, effects, next) =
@@ -153,6 +152,15 @@ let rec evaluate =
       env,
       init,
     );
+
+  /* REFACTOR: If this expression is in the probe_map and evaluation is complete,
+   * emit RecordExpProbe effect */
+  let effects =
+    switch (is_finished, Id.Map.find_opt(expr_id, state^.probe_map)) {
+    | (Final, Some(pr)) => [EvaluatorState.RecordExpProbe(pr), ...effects]
+    | _ => effects
+    };
+
   let (call_stack, new_state) =
     EvaluatorState.update(state^, call_stack, env, init, next, effects);
   state := new_state;
@@ -163,9 +171,14 @@ let rec evaluate =
 };
 
 let evaluate_and_limit =
-    (~step_limit: option(int)=?, ~env, d: DHExp.t)
+    (
+      ~step_limit: option(int)=?,
+      ~probe_map: Id.Map.t(Probe.t)=Id.Map.empty,
+      ~env,
+      d: DHExp.t,
+    )
     : step_constrained((Exp.t, EvaluatorState.t)) => {
-  let state = ref(EvaluatorState.init);
+  let state = ref(EvaluatorState.mk(~probe_map));
   let result = evaluate(~call_stack=[], state, env, d);
   let result = Trampoline.run(~step_limit?, result);
   switch (result) {
@@ -175,8 +188,10 @@ let evaluate_and_limit =
   };
 };
 
-let evaluate = (~env, d: DHExp.t): (Exp.t, EvaluatorState.t) => {
-  switch (evaluate_and_limit(~env, d)) {
+let evaluate =
+    (~probe_map: Id.Map.t(Probe.t)=Id.Map.empty, ~env, d: DHExp.t)
+    : (Exp.t, EvaluatorState.t) => {
+  switch (evaluate_and_limit(~probe_map, ~env, d)) {
   | Completed((x, state)) => (x, state)
   | StepLimitExceeded =>
     raise(Failure("Impossible: Step limit exceeded when not set"))

@@ -12,6 +12,8 @@ let mk = (kind, id): Base.projector => {
 };
 
 let add_single = (id: Id.t, z: Zipper.t): Zipper.t => {
-  let p = mk(Probe, Id.transform_variant(id));
+  /* REFACTOR: Use original ID instead of transformed variant.
+   * Probes are no longer AST nodes, so we don't need separate IDs. */
+  let p = mk(Probe, id);
   Zipper.update_manuals(Id.Map.add(id, p), z);
 };

@@ -155,6 +155,8 @@ let rec elaborate_pattern =
       let (p', _) = elaborate_pattern(m, p);
       Asc(p', Typ.normalize(ctx, t)) |> rewrap;
     | Probe(p, probe) =>
+      /* REFACTOR(A5): Keep Probe nodes for backward compat with tests.
+       * Eventually tests should be updated to use probe_map instead. */
       let (e', _) = elaborate_pattern(m, p);
       let probe = Dynamics.instrument_pat(m, Pat.rep_id(upat), probe);
       Probe(e', probe) |> rewrap;
@@ -211,6 +213,8 @@ let rec elaborate = (m: Statics.Map.t, uexp: Exp.t): (DHExp.t, Typ.t) => {
       let (e', _) = elaborate(m, e);
       e';
     | Probe(e, probe) =>
+      /* REFACTOR(A5): Keep Probe nodes for backward compat with tests.
+       * Eventually tests should be updated to use probe_map instead. */
       let (e', _) = elaborate(m, e);
       let probe = Dynamics.instrument_exp(m, Exp.rep_id(uexp), probe);
       Probe(e', probe) |> rewrap;

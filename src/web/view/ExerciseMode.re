@@ -365,9 +365,10 @@ module Update = {
       (~settings, ~is_edited, ~schedule_action, model: Model.t): Model.t => {
     let stitched_elabs = Exercise.stitch_term(model.editors);
     let worker_request = ref([]);
-    let queue_worker = (pos, expr) => {
+    let queue_worker = (pos, req_value: WorkerServer.Request.value) => {
+      /* REFACTOR: Accept Request.value */
       worker_request :=
-        worker_request^ @ [(pos |> Exercise.key_for_statics, expr)];
+        worker_request^ @ [(pos |> Exercise.key_for_statics, req_value)];
     };
     let cells =
       Exercise.map2_stitched(

@@ -1,0 +1,13 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(git worktree:*)",
+      "Bash(make:*)",
+      "Bash(dune build:*)",
+      "Bash(dune runtest:*)",
+      "Bash(cat:*)",
+      "Bash(node:*)",
+      "Bash(git add:*)"
+    ]
+  }
+}
