@@ -23,7 +23,7 @@ module Model = {
       elaborate: false,
       assist: true,
       dynamics: true,
-      dynamic_feedback: false,
+      live_typing: false,
       flip_animations: true,
       evaluation: {
         show_case_clauses: true,
@@ -109,7 +109,7 @@ module Update = {
     | Dynamics
     | Assist
     | Elaborate
-    | DynamicFeedback
+    | LiveTyping
     | Benchmark
     | ContextInspector
     | InstructorMode
@@ -169,11 +169,11 @@ module Update = {
             flip_animations: !settings.core.flip_animations,
           },
         }
-      | DynamicFeedback => {
+      | LiveTyping => {
           ...settings,
           core: {
             ...settings.core,
-            dynamic_feedback: !settings.core.dynamic_feedback,
+            live_typing: !settings.core.live_typing,
           },
         }
       | Evaluation(u) =>

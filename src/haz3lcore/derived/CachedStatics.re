@@ -53,7 +53,7 @@ let init_from_term = (~settings, ~is_dynamic_term, ~ctx=?, ~ana=?, term): t => {
     | _ when !settings.dynamics && !settings.elaborate =>
       dh_err("Dynamics & Elaboration disabled")
     | _ =>
-      switch (elaborate(settings.dynamic_feedback, info_map, term)) {
+      switch (elaborate(settings.live_typing, info_map, term)) {
       | DoesNotElaborate => dh_err("Elaboration returns None")
       | Elaborates(d, _) => d
       }

@@ -170,8 +170,8 @@ let shortcuts = (sys: Util.Key.sys): list(t) =>
     mk_shortcut(
       ~section="Settings",
       ~mdIcon="tune",
-      "Toggle Dynamic Feedback",
-      Globals(Set(DynamicFeedback)),
+      "Toggle Live Typing",
+      Globals(Set(LiveTyping)),
     ),
     mk_shortcut(
       ~section="Settings",

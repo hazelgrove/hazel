@@ -54,9 +54,9 @@ let semantics_group = (~globals) => {
       ),
       (
         "🔄",
-        "Dynamic Feedback",
-        globals.settings.core.dynamic_feedback,
-        DynamicFeedback,
+        "Live Typing",
+        globals.settings.core.live_typing,
+        LiveTyping,
         Some("May slow down editor performance"),
       ),
       // (
