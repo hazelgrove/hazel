@@ -148,6 +148,7 @@ let rec evaluate =
       (~in_closure=?, env, init) =>
         evaluate(~in_closure?, ~call_stack, state, env, init),
       ~mode=`Environment,
+      ~probe_map=state^.probe_map,
       ~in_closure?,
       env,
       init,

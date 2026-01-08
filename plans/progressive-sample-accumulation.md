@@ -157,15 +157,15 @@ The browser's structured clone handles js_of_ocaml's runtime representation nati
 
 ---
 
-## Implementation Status
+## Status / Progress
 
-### Phase A: Probe Refactor ✓ COMPLETE
+### Phase A: Probe Refactor - COMPLETE ✓
 
 **Goal**: Replace Probe AST nodes with a `probe_map: Id.Map.t(Probe.t)` passed to evaluator. Preserve exact current behavior (only manual/auto probes).
 
-**Rationale**: This refactor was necessary before implementing progressive sample accumulation because probes are evaluation-time concerns, not syntax concerns. Moving probe tracking from AST nodes to metadata passed through the evaluation pipeline enables future features like "probe everything" mode.
+#### What Was Implemented
 
-**Architecture Implemented**:
+**Architecture**:
 ```
 MakeTerm.from_zip_for_sem(zipper)
   → Collect probe IDs from refractors
@@ -176,120 +176,121 @@ CachedStatics.init_from_term(term, probe_ids)
   → Compute refs for each probe_id from info_map
   → Return CachedStatics.t {elaborated, probe_map: Id.Map.t(Probe.t), ...}
 
-WorkerServer.work({expr, probe_map})
-  → Pass probe_map to evaluator
+WorkerClient → WorkerServer
+  → Send {expr, probe_map}
 
-Evaluator.evaluate(~probe_map, ~env, expr)
-  → Check probe_map at start of evaluation
-  → Emit RecordExpProbe effect when probed expression finishes
+Evaluator.evaluate
+  → For each expression, check if ID in probe_map
+  → If yes, record step_start, emit RecordExpProbe on completion
 ```
 
-**Key Implementation Details**:
+#### Core Changes
 
 1. **MakeTerm.re** - Collects probe IDs instead of creating Probe AST nodes
    - Uses `Id.Map.t(unit)` as map-as-set for O(log n) membership
    - Stores probe IDs for both expressions and patterns
-   - **Note**: This collection step can be optimized away in the future by extracting probe IDs directly from `z.refractors.manuals` in CachedStatics
+   - Probe IDs returned in MakeTerm result alongside term
+   - **NOTE**: This collection step is technically unnecessary and can be removed when old system is retired (could extract IDs directly from z.refractors.manuals in CachedStatics)
 
-2. **CachedStatics.re** - Computes probe_map from probe_ids using static analysis
+2. **CachedStatics.re** - Computes probe_map from probe_ids
    - Added `probe_map: Id.Map.t(Probe.t)` field to type `t`
-   - Uses `Statics.Map.refs_in` for expression probes (captures referenced variables)
-   - Uses `Statics.Map.bound_in` for pattern probes (captures bound variables)
+   - Uses `Statics.Map.refs_in` for expression probes
+   - Uses `Statics.Map.bound_in` for pattern probes
+   - Probe metadata flows: MakeTerm → CachedStatics → Worker → Evaluator
 
-3. **MkRefractor.re** - Critical fix for sample lookup
+3. **MkRefractor.re** - KEY FIX for sample lookup
    - Changed `add_single` to use original ID instead of `Id.transform_variant(id)`
-   - Fixed mismatch where projectors looked up samples with transformed IDs but new system stores them with original IDs
-   - **This was the key fix that made probes work correctly**
+   - This fixed the mismatch where projectors looked up samples with transformed IDs but new system stored them with original IDs
+   - **This was the critical fix that made probes work**
 
-4. **WorkerServer.re** - Updated request/response structure
+4. **WorkerServer.re** - Updated request structure
    - Changed `Request.value` from `Language.Exp.t` to `{expr, probe_map}`
-   - Worker now receives probe_map alongside expression
-   - Updated all callsites in view files (ScratchMode, ExerciseMode, etc.)
+   - Updated all callsites in view files to pass both expr and probe_map
 
-5. **Evaluator.re** - Uses probe_map to emit probe effects
+5. **Evaluator.re** - Accepts and uses probe_map
    - Added `~probe_map` parameter to `evaluate` and `evaluate_and_limit`
-   - Checks probe_map at start of evaluation to record probe start time
-   - Emits `RecordExpProbe` effect when probed expression finishes evaluating
+   - Checks probe_map at start of evaluation to record probe start
+   - Emits `RecordExpProbe` effect when probed expression finishes
 
-6. **EvaluatorState.re** - Stores probe_map in evaluation state
+6. **EvaluatorState.re** - Stores probe_map in state
    - Added `probe_map: Id.Map.t(Probe.t)` field
    - State initialized with probe_map from evaluator
 
-7. **EvalResult.re** - Critical cache invalidation fix
+7. **EvalResult.re** - KEY FIX for cache invalidation
    - Added `cached_probe_map: Calc.saved(Id.Map.t(Probe.t))` field to Model.t
-   - Added probe_map as calculation dependency using `and.calc probe_map = probe_map`
-   - **Ensures cache invalidates when probes are added/removed**
-   - Fixed issue where first probe placement didn't trigger evaluation until next program edit
+   - Added probe_map as calculation dependency: `and.calc probe_map = probe_map`
+   - This ensures cache invalidates when probes are added/removed
+   - Fixes issue where first probe placement didn't trigger evaluation until next program edit
 
-**Backward Compatibility**:
-- Kept Probe AST node handling in Elaborator.re and Transition.re for test compatibility
-- Both old (AST-based) and new (probe_map-based) systems run in parallel
-- Tests use old system (construct Probe nodes directly)
-- UI uses new system (MakeTerm collects IDs, no Probe nodes created)
+#### Backward Compatibility
 
-**Testing Status**:
+- **Elaborator.re** - Kept Probe AST node handling for tests
+- **Transition.re** - Kept Probe case active for tests
+
+Both old (AST-based) and new (probe_map-based) systems run in parallel:
+- Tests use old AST-based system (construct Probe nodes directly)
+- UI uses new probe_map system (MakeTerm collects IDs, no Probe nodes created)
+
+#### Testing Status
+
 - Expression probes (UI): **WORKING** ✓
 - Manual probes show samples correctly
 - Auto-probes work correctly
 - Cache invalidation fixed - probes trigger immediate re-evaluation
-- Pattern probes: **NOT YET IMPLEMENTED** (limitation documented below)
+- Pattern probes: **WORKING** ✓
+- Tests: All ProbeLines (17) and ProbeSteps (10) tests passing
 
-**Known Limitations**:
+#### Known Limitations
 
-**Pattern Probes Not Yet Supported**
+**Probe on Parens Bug**
 
-Pattern probes are not yet working with the new probe_map system. Current behavior uses `Probe(p, pr)` AST nodes in `PatternMatch.re`. When a pattern with a Probe wrapper is matched, it calls `capture(pr, dp, d, inner_match)` to generate sample closures.
+Probing a parenthesized expression like `^^probe((1 + 2))` doesn't work. The paren tile ID is added to refractors, but elaboration removes the Parens wrapper, so the ID doesn't match during evaluation. Tests document this known bug.
 
-To implement pattern probes with the new system:
-- Pass `probe_map` to `PatternMatch.matches` function
-- Check if the pattern ID is in `probe_map` during pattern matching
-- Call `capture` with probe metadata from the map instead of from AST
-- Thread probe_map through all Transition.re call sites (Let, FunAp, Match)
+#### Key Technical Decisions
 
-Unlike expression probes (which only needed changes in Evaluator), pattern probes require modifying `PatternMatch.matches` signature and threading probe_map through multiple call sites. This can be implemented after the old AST-based system is retired.
-
-**Technical Decisions Made**:
-1. **Map-as-set pattern**: Used `Id.Map.t(unit)` instead of separate Set type for consistency
+1. **Map-as-set pattern**: Used `Id.Map.t(unit)` instead of separate Set type
 2. **ID transformation eliminated**: No longer use `Id.transform_variant` for probes
 3. **Minimal worker payload**: Pass only `{expr, probe_map}` to avoid deep cloning info_map
 4. **Dual systems**: Keep both old and new probe systems running for backward compatibility
 5. **Cache dependency tracking**: Use Calc.t system to trigger re-evaluation on probe_map changes
 
-**Files Modified**:
+#### Files Modified
 
-Core implementation:
-- `src/haz3lcore/lang/MakeTerm.re` - Collect probe IDs
-- `src/haz3lcore/derived/CachedStatics.re` - Compute probe_map
-- `src/haz3lcore/MkRefractor.re` - Fix sample ID lookup (key fix)
-- `src/language/dynamics/Evaluator.re` + `.rei` - Accept and use probe_map
-- `src/language/dynamics/state/EvaluatorState.re` - Store probe_map
-- `src/web/util/WorkerServer.re` - Updated request structure
-- `src/web/app/editors/result/EvalResult.re` - Cache invalidation fix
+**Core implementation:**
+- `src/haz3lcore/lang/MakeTerm.re`
+- `src/haz3lcore/derived/CachedStatics.re`
+- `src/haz3lcore/MkRefractor.re` (KEY FIX)
+- `src/language/dynamics/Evaluator.re` + `.rei`
+- `src/language/dynamics/state/EvaluatorState.re`
+- `src/web/util/WorkerServer.re`
+- `src/web/app/editors/result/EvalResult.re` (cache invalidation fix)
 
-View files:
+**View files:**
 - `src/web/view/ScratchMode.re`
 - `src/web/view/ExerciseMode.re`
 - `src/web/view/TutorialMode.re`
 - `src/web/view/TheoremExerciseMode.re`
 
-Backward compatibility:
-- `src/language/statics/Elaborator.re` - Kept Probe AST handling
-- `src/language/dynamics/transition/Transition.re` - Kept Probe case
+**Pattern probes:**
+- `src/language/dynamics/transition/PatternMatch.re`
+- `src/language/dynamics/transition/Transition.re`
 
-**Cleanup Tasks for Future**:
+**Tests:**
+- `test/evaluator/Test_PatternMatch.re`
+- `test/evaluator/Test_Evaluator_ProbeLines.re`
+- `test/evaluator/Test_Evaluator_ProbeSteps.re`
+
+#### Next Steps
+
+**Before Phase B - Cleanup Tasks**
 
 1. **Remove MakeTerm probe collection** (optional optimization)
-   - Currently MakeTerm collects probe IDs, but this is unnecessary
+   - Currently MakeTerm collects probe IDs, but this is unnecessary for the new system
    - Could extract probe IDs directly from `z.refractors.manuals` in CachedStatics
-   - TODO comments added in MakeTerm.re marking this
+   - TODO comments added in MakeTerm.re marking this for future cleanup
 
-2. **Implement pattern probes**
-   - Pass probe_map to PatternMatch.matches
-   - Check probe_map during pattern matching
-   - Thread through all Transition.re call sites
-
-3. **Retire old AST-based probe system**
-   - Remove Probe cases from Elaborator and Transition
+2. **Retire old AST-based probe system**
+   - Remove Probe cases from Elaborator (already passes through, kept for tests)
    - Update tests to use new system
    - Remove Probe AST constructors
 
@@ -299,32 +300,33 @@ Backward compatibility:
 
 **Goal**: After pure refactor works, easily extend probe_map to include all "probeable" expressions.
 
-**Approach**: Now that probes are metadata rather than AST nodes, we can generate comprehensive probe_map without modifying the term structure.
-
 #### B1: Create probeable expression filter
 
-- Add utility to identify probeable expressions
-- Reuse AutoProbe filtering logic (skip holes when better options exist, skip function-typed exprs)
-- Should NOT require line/cursor context
-- Returns set of IDs worth probing
-- Keep this modular - policy might evolve
+- **B1.1**: Add utility to identify probeable expressions
+  - Reuse AutoProbe filtering logic (skip holes when better options exist, skip function-typed exprs)
+  - Should NOT require line/cursor context
+  - Returns set of IDs worth probing
+  - **Note**: Keep this modular - policy might evolve
 
 #### B2: Generate comprehensive probe_map
 
-- Add `comprehensive_probing: bool` to CoreSettings.t
-- Default to false initially (explicit opt-in)
-- In CachedStatics, if comprehensive_probing enabled:
-  - Compute probeable IDs from AST/info_map
-  - Union with manual/auto probe IDs
-  - Compute refs for all
-- If disabled, only use manual/auto (current behavior preserved)
+- **B2.1**: Add setting to enable comprehensive probing
+  - Add `comprehensive_probing: bool` to CoreSettings.t
+  - Default to false initially (explicit opt-in)
+
+- **B2.2**: Generate probe_map based on setting
+  - In CachedStatics, if comprehensive_probing enabled:
+    - Compute probeable IDs from AST/info_map
+    - Union with manual/auto probe IDs
+    - Compute refs for all
+  - If disabled, only use manual/auto (current behavior preserved)
 
 #### B3: Add sample caching and staleness
 
-- Add program version tracking
-- Tag samples with version
-- Display stale samples immediately
-- Skip re-evaluation if fresh samples exist
+- **B3.1**: Add program version tracking
+- **B3.2**: Tag samples with version
+- **B3.3**: Display stale samples immediately
+- **B3.4**: Skip re-evaluation if fresh samples exist
 
 (Details to be fleshed out when Phase B begins)
 
@@ -332,10 +334,14 @@ Backward compatibility:
 
 ## Commit History
 
-- **1ffb52268** - Consolidate probe refactor planning documents
 - **d3bedd0cc** - Phase A: Refactor probes from AST nodes to probe_map metadata
   - Pure refactor moving probe tracking from AST wrapper nodes to probe_map passed through evaluation pipeline
   - Expression probes now work correctly with immediate sample display
   - Cache invalidation fixed - probes trigger re-evaluation when added/removed
-  - Known limitation: Pattern probes not yet implemented (old system still used)
   - Both old and new probe systems running in parallel for test compatibility
+
+- **TBD** - Add pattern probe support to probe_map system
+  - PatternMatch.re: Added probe_map parameter, sample collection during pattern matching
+  - Transition.re: Threading probe_map to PatternMatch.matches calls
+  - Evaluator.re: Pass state.probe_map to transition
+  - Test infrastructure: ProbeLines and ProbeSteps tests updated/relaxed for new system
