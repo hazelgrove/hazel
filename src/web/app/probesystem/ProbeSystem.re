@@ -116,11 +116,8 @@ let fancy =
     ],
     [
       term_view,
-      probe_view(
-        globals.font_metrics,
-        refractor_data,
-        Id.transform_variant(id),
-      ),
+      /* Use original ID - probe data is now keyed by original IDs */
+      probe_view(globals.font_metrics, refractor_data, id),
     ],
   );
 };

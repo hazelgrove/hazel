@@ -244,12 +244,16 @@ Both old (AST-based) and new (probe_map-based) systems run in parallel:
 
 **Probe on Parens Bug**
 
-Probing a parenthesized expression like `^^probe((1 + 2))` doesn't work. The paren tile ID is added to refractors, but elaboration removes the Parens wrapper, so the ID doesn't match during evaluation. Tests document this known bug.
+Probing a parenthesized expression like `^^probe((1 + 2))` doesn't work. The paren tile ID is added to refractors, but elaboration removes the Parens wrapper, so the ID doesn't match during evaluation. ID-copying approach was attempted but breaks nested cases like `(^^probe(1))`. Tests document this known limitation.
+
+**Cons Probe Fix**
+
+Probing a cons expression like `^^probe(1 :: [2, 3])` initially didn't work because Ascriptions.transition changes the expression ID during type propagation. Fixed by preserving the original Cons ID using `IdTagged.fast_copy` in Ascriptions.re.
 
 #### Key Technical Decisions
 
 1. **Map-as-set pattern**: Used `Id.Map.t(unit)` instead of separate Set type
-2. **ID transformation eliminated**: No longer use `Id.transform_variant` for probes
+2. **ID transformation eliminated**: Completely removed `Id.transform_variant` and `Id.recover_original` functions. Probes now use original syntax IDs throughout.
 3. **Minimal worker payload**: Pass only `{expr, probe_map}` to avoid deep cloning info_map
 4. **Dual systems**: Keep both old and new probe systems running for backward compatibility
 5. **Cache dependency tracking**: Use Calc.t system to trigger re-evaluation on probe_map changes
@@ -284,15 +288,30 @@ Probing a parenthesized expression like `^^probe((1 + 2))` doesn't work. The par
 
 **Before Phase B - Cleanup Tasks**
 
-1. **Remove MakeTerm probe collection** (optional optimization)
+1. ✓ **Remove transform_variant usages** - DONE
+   - Removed from Refractors.re (autoprobe ID creation)
+   - Removed from ProbeSystem.re (probe view lookup)
+   - Removed from Arms.re (dynamics map lookup)
+
+2. ✓ **Remove transform_variant/recover_original from Id.re** - DONE
+   - Removed both functions from Id.re
+   - Removed Test_Id_Transform.re test file
+   - Simplified Refractors.re (removed dead Probe node checks)
+   - Simplified ProjectorPerform.re (removed Probe-specific ID recovery)
+
+3. **Remove MakeTerm probe collection** (optional optimization)
    - Currently MakeTerm collects probe IDs, but this is unnecessary for the new system
    - Could extract probe IDs directly from `z.refractors.manuals` in CachedStatics
    - TODO comments added in MakeTerm.re marking this for future cleanup
 
-2. **Retire old AST-based probe system**
+4. **Retire old AST-based probe system**
    - Remove Probe cases from Elaborator (already passes through, kept for tests)
    - Update tests to use new system
    - Remove Probe AST constructors
+
+5. **Fix saved editor data with transformed IDs**
+   - Existing editors (e.g., Probes.ml in src/web/init/docs) have baked-in transformed IDs in refractors
+   - Need to normalize IDs in serialized data to use original IDs only
 
 ---
 

@@ -166,8 +166,6 @@ let go =
       | Some(focus) => focus(id)
       | None => ()
       };
-      //TODO(andrew): clarify below logic
-      let id = kind == Probe ? Id.recover_original(id) : id;
       Ok(Option.value(~default=z, Move.jump_to_id_indicated(z, id)));
     | Some(Right) =>
       /* Focus by arrow key hand-off */

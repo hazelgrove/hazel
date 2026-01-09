@@ -471,7 +471,8 @@ module Refractors = {
         let sort = Piece.sort(t.root_piece) |> fst;
         paths(
           hx,
-          ~dashed=Id.Map.mem(Id.transform_variant(id), dynamics),
+          /* Use original ID - dynamics map is now keyed by original IDs */
+          ~dashed=Id.Map.mem(id, dynamics),
           ~cls,
           sort,
           font_metrics,

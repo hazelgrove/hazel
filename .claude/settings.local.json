@@ -18,7 +18,8 @@
       "Bash(dune exec:*)",
       "Bash(grep:*)",
       "Bash(ls:*)",
-      "Bash(git stash:*)"
+      "Bash(git stash:*)",
+      "Bash(NODE_OPTIONS='--stack-trace-limit=50' node:*)"
     ]
   }
 }
