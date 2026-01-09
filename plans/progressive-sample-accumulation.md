@@ -379,6 +379,93 @@ Probing a cons expression like `^^probe(1 :: [2, 3])` initially didn't work beca
 
 ---
 
+### Phase B Implementation Progress
+
+#### B1-B2: Probe Everything - IMPLEMENTED ✓
+
+**What was added:**
+
+1. **CoreSettings.re** - Added `probe_all: bool` setting (default false)
+2. **Settings.re** - Added `ProbeAll` action to toggle the setting
+3. **NutMenu.re** - Added "∀ Probe All" toggle in Semantics group
+4. **CachedStatics.re** - Added probe_all logic:
+   - `should_probe(info)`: Predicate returning true for InfoExp and InfoPat (probes everything)
+   - `all_probeable_ids(info_map)`: Collects all IDs passing should_probe
+   - When `probe_all` enabled, uses all_probeable_ids instead of manual probe IDs
+5. **CodeEditable.re** - Suppresses re-evaluation for Refractor actions when probe_all is on
+   - When comprehensive probing is enabled, toggling manual probes doesn't trigger re-eval
+   - The probe_map already includes all expressions, so manual probe toggles are purely visual
+
+**Profiling infrastructure:**
+
+- **ScratchMode.re** - Round-trip timing logged to console (always on)
+- **WorkerServer.re** - Eval-only timing logged via Printf
+
+#### Initial Benchmarks (Emoji Paint)
+
+Tested with the "Emoji paint" example (~100 lines, representative debugging task):
+
+| Mode | Eval Time | Round-Trip | Notes |
+|------|-----------|------------|-------|
+| probe_all OFF, 1 manual probe | ~40ms | ~60ms | Baseline, minimal overhead |
+| probe_all ON | ~100ms | ~1000ms | 2.5x eval slowdown, 16x round-trip |
+
+**Analysis:**
+
+The evaluation overhead of probing everything is only ~2.5x (40ms → 100ms), which is reasonable. However, the round-trip time explodes from 60ms to 1000ms.
+
+**Where the time goes:**
+
+- Eval: 100ms (acceptable)
+- Deep clone + transfer back: ~900ms (problematic)
+
+The structured clone of the probe samples back to the main thread is the dominant cost. With probe_all, we're cloning samples for potentially hundreds of expressions, including full environments for each.
+
+**Implications for future work:**
+
+1. **Selective return**: Don't send all samples back immediately. Prioritize on-screen expressions.
+2. **On-demand fetching**: UI could request specific samples from worker as needed.
+3. **Viewport awareness**: Only clone samples for visible expressions initially.
+4. **Background streaming**: Return high-priority samples first, rest progressively.
+
+The good news: evaluation itself scales reasonably. The challenge is data transfer, which is addressable with smarter return strategies.
+
+#### Known Issue: Post-Edit UI Unresponsiveness
+
+**Symptom**: After an edit with probe_all enabled, the edit itself feels instant, but the UI becomes unresponsive for ~1 second afterward.
+
+**Root cause**: The worker communication uses sexp serialization. When the worker returns:
+
+1. Worker: `Response.serialize` converts OCaml values to sexp string
+2. postMessage: sends string to main thread
+3. **Main thread: `Response.deserialize` parses sexp string synchronously** ← BLOCKS UI
+
+With probe_all generating samples for hundreds of expressions (each with captured environments), the sexp parsing on the main thread takes ~500-900ms, freezing the UI.
+
+**Note**: The Tier 0 benchmarks mention "structured clone" as a solution, but that was for a different performance issue (Core.Map comparator functions). The current architecture still uses sexp for worker communication.
+
+**Potential solutions**:
+1. **Incremental deserialization**: Parse sexp in chunks using requestIdleCallback
+2. **Streaming protocol**: Worker sends samples in batches, main thread deserializes progressively
+3. **Lazy sample loading**: Only deserialize samples for visible expressions immediately
+4. **Web worker for parsing**: Dedicated worker to deserialize, passing parsed data via structured clone
+
+#### Bug Fix: Mouse Click Re-evaluation - FIXED ✓
+
+**Problem**: Mouse clicks were triggering unnecessary re-evaluation when probe_all was on. The action log showed:
+
+```
+Action: (MakeActive (Scratch (Cell MainEditor)))
+Action: (Editors (Scratch (CellAction (MainEditor (Perform (Move (Point { row = 62; col = 5 })))))))
+Action: Save
+```
+
+**Root cause**: In Page.re, `MakeActive` was using `Updated.return(~scroll_active=false)` without specifying `~is_edit=false`. Since `Updated.return` defaults to `~is_edit=true`, every mouse click was inadvertently marking the action as an edit, triggering the autosave alarm.
+
+**Fix**: Added explicit `~is_edit=false` to `MakeActive` handler in Page.re.
+
+---
+
 ## Commit History
 
 - **d3bedd0cc** - Phase A: Refactor probes from AST nodes to probe_map metadata

@@ -35,21 +35,30 @@ module Response = {
 
 let work = (req_value: Request.value): Response.value => {
   let Request.{expr, probe_map} = req_value;
-  switch (
-    Language.Evaluator.evaluate(
-      ~probe_map,
-      ~env=Language.Builtins.env_init,
-      expr,
-    )
-  ) {
-  | exception (Language.EvaluatorError.Exception(reason)) =>
-    print_endline("EvaluatorError:" ++ Language.EvaluatorError.show(reason));
-    Error(Language.ProgramResult.EvaulatorError(reason));
-  | exception exn =>
-    print_endline("EXN:" ++ Printexc.to_string(exn));
-    Error(Language.ProgramResult.UnknownException(Printexc.to_string(exn)));
-  | (result, state) => Ok((result, state))
-  };
+  let eval_start = JsUtil.precise_timestamp();
+  let result =
+    switch (
+      Language.Evaluator.evaluate(
+        ~probe_map,
+        ~env=Language.Builtins.env_init,
+        expr,
+      )
+    ) {
+    | exception (Language.EvaluatorError.Exception(reason)) =>
+      print_endline(
+        "EvaluatorError:" ++ Language.EvaluatorError.show(reason),
+      );
+      Error(Language.ProgramResult.EvaulatorError(reason));
+    | exception exn =>
+      print_endline("EXN:" ++ Printexc.to_string(exn));
+      Error(
+        Language.ProgramResult.UnknownException(Printexc.to_string(exn)),
+      );
+    | (result, state) => Ok((result, state))
+    };
+  let eval_end = JsUtil.precise_timestamp();
+  Printf.printf("  Eval only (ms): %.2f\n", eval_end -. eval_start);
+  result;
 };
 
 let on_request = (req: string): unit =>

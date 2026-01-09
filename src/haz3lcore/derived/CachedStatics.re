@@ -33,6 +33,24 @@ let elaborate =
 
 let dh_err = (error: string): DHExp.t => Var(error) |> DHExp.fresh;
 
+/* Predicate for whether an expression/pattern should be probed.
+ * Currently const true - probes everything (InfoExp and InfoPat).
+ * Future: could filter out holes, function-typed exprs, etc. */
+let should_probe = (info: Info.t): bool =>
+  switch (info) {
+  | InfoExp(_)
+  | InfoPat(_) => true
+  | _ => false /* Skip InfoTyp, InfoTPat, Secondary */
+  };
+
+/* Collect all expression and pattern IDs from info_map that pass the should_probe predicate. */
+let all_probeable_ids = (info_map: Statics.Map.t): Id.Map.t(unit) =>
+  Id.Map.fold(
+    (id, info, acc) => should_probe(info) ? Id.Map.add(id, (), acc) : acc,
+    info_map,
+    Id.Map.empty,
+  );
+
 let init_from_term =
     (
       ~settings,
@@ -65,10 +83,15 @@ let init_from_term =
   /* Compute probe_map from probe_ids. For each ID, determine whether it's
    * an expression or pattern probe, then look up the appropriate refs to capture.
    *
+   * When probe_all is enabled, we probe everything in info_map that passes
+   * should_probe, ignoring the passed probe_ids (which are a subset anyway).
+   *
    * KNOWN ISSUE: Probes on parenthesized expressions don't work. The paren tile ID
    * is added to refractors, but elaboration strips Parens wrappers, so the ID
    * doesn't exist in the elaborated term and the probe won't capture anything.
    * See plans/progressive-sample-accumulation.md "Probe on Parens Bug". */
+  let effective_probe_ids =
+    settings.probe_all ? all_probeable_ids(info_map) : probe_ids;
   let probe_map =
     Id.Map.fold(
       (id, (), acc) => {
@@ -81,7 +104,7 @@ let init_from_term =
         let probe = {Probe.refs: refs};
         Id.Map.add(id, probe, acc);
       },
-      probe_ids,
+      effective_probe_ids,
       Id.Map.empty,
     );
 

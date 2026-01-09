@@ -50,7 +50,19 @@ module Update = {
         | Error(err) => raise(Action.Failure.Exception(err))
       )
       |> Updated.return(
-           ~is_edit=Action.is_edit(action),
+           ~is_edit=
+             Action.is_edit(action)
+             /* When probe_all is on, Refractor actions don't require
+              * re-evaluation since all probes are already computed */
+             && !(
+                  settings.core.probe_all
+                  && (
+                    switch (action) {
+                    | Refractor(_) => true
+                    | _ => false
+                    }
+                  )
+                ),
            ~recalculate=true,
            ~scroll_active={
              switch (action) {
