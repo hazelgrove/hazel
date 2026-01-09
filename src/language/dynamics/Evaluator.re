@@ -162,6 +162,13 @@ let rec evaluate =
     | _ => effects
     };
 
+  /* Save original call_stack before update. For probed compound expressions
+   * (Uneval case), we need this because:
+   * - The updated call_stack (after RecordStackFrame) should be passed to
+   *   recursive evaluation so inner expressions see the app_id
+   * - But the probe sample for THIS expression should use the original
+   *   call_stack (what it was before entering the function) */
+  let original_call_stack = call_stack;
   let (call_stack, new_state) =
     EvaluatorState.update(state^, call_stack, env, init, next, effects);
   state := new_state;
@@ -188,12 +195,18 @@ let rec evaluate =
      * The key insight is that Trampoline.Bind creates a continuation that runs
      * AFTER all recursive evaluation completes, at which point state^ reflects
      * all step count mutations, but we still have expr_id in scope.
+     *
+     * Important: We use original_call_stack for the probe sample (the call_stack
+     * before RecordStackFrame), but call_stack (the updated one) for recursive
+     * evaluation. This ensures:
+     * - ^^probe(f(x)) records a sample with the call_stack BEFORE entering f
+     * - Expressions inside f see the app_id of f(x) in their call_stacks
      */
     switch (Id.Map.find_opt(expr_id, state^.probe_map)) {
     | Some(probe) =>
       let.trampoline (_, _, final_value) =
         Trampoline.Next(() => evaluate(~call_stack, state, env, next));
-      /* Record sample with final evaluated value */
+      /* Record sample with final evaluated value, using original_call_stack */
       let step_start =
         EvaluatorState.get_probe_start(state^, expr_id)
         |> Option.value(~default=0);
@@ -205,7 +218,7 @@ let rec evaluate =
           expr_id,
           final_value,
           env,
-          call_stack,
+          original_call_stack,
           probe,
         );
       state := EvaluatorState.clear_probe_start(state^, expr_id);
