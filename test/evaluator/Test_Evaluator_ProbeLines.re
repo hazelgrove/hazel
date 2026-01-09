@@ -231,7 +231,7 @@ in let add5 = make_adder(5)
 in ^^probe(add5(10))|},
       [(2, ["15"])],
     ),
-    /* ===== Probes ON compound expressions (currently broken) ===== */
+    /* ===== Probes ON compound expressions ===== */
     /* These test probing the whole compound expression, not just a branch */
     probe_line_test(
       "Probe on if-then-else",
@@ -264,7 +264,7 @@ in ^^probe(add5(10))|},
       [(0, ["20"])],
     ),
     probe_line_test("Probe on sequence", {|^^probe(1; 2)|}, [(0, ["2"])]),
-    /* ===== Nested compound expressions (currently broken) ===== */
+    /* ===== Nested compound expressions ===== */
     probe_line_test(
       "Probe on nested ifs",
       {|^^probe(if true then (if false then 1 else 2) else 3)|},

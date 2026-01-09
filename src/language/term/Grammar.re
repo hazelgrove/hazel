@@ -88,6 +88,10 @@ and exp_term('a) =
   | Filter(stepper_filter_kind_t('a), exp_t('a))
   | Closure([@show.opaque] Environment.t(exp_t('a)), exp_t('a))
   | Parens(exp_t('a)) // (
+  /* DEPRECATED: Probe AST nodes are no longer created by the UI.
+   * Probes are now tracked via probe_map passed to the evaluator.
+   * This constructor is retained only for test compatibility.
+   * See plans/progressive-sample-accumulation.md Phase A. */
   | Probe(exp_t('a), Probe.t)
   | Cons(exp_t('a), exp_t('a))
   | ListConcat(exp_t('a), exp_t('a))
@@ -113,6 +117,7 @@ and pat_term('a) =
   | Label(string)
   | TupLabel(pat_t('a), pat_t('a))
   | Parens(pat_t('a))
+  /* DEPRECATED: See comment on exp_term Probe constructor above. */
   | Probe(pat_t('a), Probe.t)
   | Ap(pat_t('a), pat_t('a))
   | Asc(pat_t('a), typ_t('a))

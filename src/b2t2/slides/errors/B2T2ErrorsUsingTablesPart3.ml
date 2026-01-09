@@ -4273,25 +4273,25 @@ let out : string * Haz3lcore.PersistentSegment.t =
          in ?";
       refractors =
         "((733cf5d1-dfc7-4e3c-bb8b-8dadf49309e7((id \
-         733cf5d1-dfc7-4e3c-bb8b-8dadf49309e8)(kind Probe)(syntax(Tile((id \
+         733cf5d1-dfc7-4e3c-bb8b-8dadf49309e7)(kind Probe)(syntax(Tile((id \
          6489d8f3-8013-4b16-9c74-dd4b2c9ef6b2)(label(\"(\"\")\"))(mold((out \
          Any)(in_(Any))(nibs(((shape Convex)(sort Any))((shape Convex)(sort \
          Any))))))(shards(0 1))(children(((Grout((id \
          00000000-0000-0000-0000-000000000000)(shape \
          Convex)))))))))(model\"()\")))(a175888e-2b24-4666-b092-6c93501952a0((id \
-         a175888e-2b24-4666-b092-6c93501952a1)(kind Probe)(syntax(Tile((id \
+         a175888e-2b24-4666-b092-6c93501952a0)(kind Probe)(syntax(Tile((id \
          9e3b2c23-b6c5-401d-b576-d3fb45521051)(label(\"(\"\")\"))(mold((out \
          Any)(in_(Any))(nibs(((shape Convex)(sort Any))((shape Convex)(sort \
          Any))))))(shards(0 1))(children(((Grout((id \
          00000000-0000-0000-0000-000000000000)(shape \
          Convex)))))))))(model\"()\")))(bbd0faab-b4bd-438a-a6a0-8d073a4b9ba7((id \
-         bbd0faab-b4bd-438a-a6a0-8d073a4b9ba8)(kind Probe)(syntax(Tile((id \
+         bbd0faab-b4bd-438a-a6a0-8d073a4b9ba7)(kind Probe)(syntax(Tile((id \
          f39fa446-2e94-4e07-b2df-3dcb15b6f18f)(label(\"(\"\")\"))(mold((out \
          Any)(in_(Any))(nibs(((shape Convex)(sort Any))((shape Convex)(sort \
          Any))))))(shards(0 1))(children(((Grout((id \
          00000000-0000-0000-0000-000000000000)(shape \
          Convex)))))))))(model\"()\")))(d6faa56f-2678-4587-8ab8-558abe3ccb0c((id \
-         d6faa56f-2678-4587-8ab8-558abe3ccb0d)(kind Probe)(syntax(Tile((id \
+         d6faa56f-2678-4587-8ab8-558abe3ccb0c)(kind Probe)(syntax(Tile((id \
          ff236183-d5f9-409e-98f1-70cf202f3faa)(label(\"(\"\")\"))(mold((out \
          Any)(in_(Any))(nibs(((shape Convex)(sort Any))((shape Convex)(sort \
          Any))))))(shards(0 1))(children(((Grout((id \

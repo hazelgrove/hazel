@@ -9,12 +9,14 @@ The core insight is: **if the program is static, we should be able to pre-comput
 ### Target Use Cases
 
 **Primary: Debugging tasks on static programs**
+
 - Programs of a few hundred lines (a few screens)
 - Typically <100 samples per expression, occasionally more but usually significantly less
 - User study involving debugging tasks where users explore existing code
 - Example: "Emoji paint" - representative of debugging task complexity
 
 **Secondary: Writing small programs with auto-probe**
+
 - Live development with auto-probe following cursor
 - As lines are written, intermediate values appear
 - Currently not experiencing significant performance issues here, but the system should support this well
@@ -54,6 +56,7 @@ The core insight is: **if the program is static, we should be able to pre-comput
 ### Auto-Probe Heuristics
 
 Located in `AutoProbe.re`. Selects expressions to probe on each line:
+
 - Rightmost-ending term per line, preferring larger terms
 - Avoids holes, function-typed expressions, redundant variable references
 - Special handling for let bindings, if expressions, multiline containers
@@ -81,6 +84,7 @@ Located in `AutoProbe.re`. Selects expressions to probe on each line:
 Before optimizing, measure where time actually goes.
 
 **What to measure:**
+
 1. Instrumentation time: `Dynamics.instrument_exp` duration
 2. Evaluation time: Pure computation in worker
 3. Serialization time: `Response.serialize` duration
@@ -89,17 +93,20 @@ Before optimizing, measure where time actually goes.
 6. Total round-trip: Request initiated to UI updated
 
 **Approach:**
+
 - Add `Performance.now()` calls at key points
 - Console logging gated by a debug flag
 - Test with representative programs (e.g., Emoji paint)
 
 **Findings**: Initial profiling revealed serialization was the dominant cost:
+
 - Serialize (worker): ~200ms
 - Evaluate: ~150ms
 - Deserialize (client): ~560ms
 - Total: ~910ms (serialization was 5x more expensive than evaluation!)
 
 **Solution**: Replaced S-expression string serialization with browser's structured clone algorithm. This required:
+
 1. Changing `Environment.t` to use `Maps.StringMap.t` instead of `Core.Map.t` (Core.Map embeds a comparator function that can't be cloned)
 2. Removing serialize/deserialize calls from WorkerClient and WorkerServer
 3. Passing OCaml values directly through postMessage
@@ -109,6 +116,7 @@ The browser's structured clone handles js_of_ocaml's runtime representation nati
 ### Tier 1: Sample Cache + Staleness
 
 **Changes:**
+
 - Add `SampleCache.t` to model
 - On evaluation result: merge into cache
 - On program change: bump version (marks samples stale)
@@ -118,6 +126,7 @@ The browser's structured clone handles js_of_ocaml's runtime representation nati
 ### Tier 2: Viewport Tracking
 
 **Changes:**
+
 - Track scroll position in model (throttled action on scroll)
 - Implement `visible_expr_ids` using Measured system
 - Expose for instrumentation priority decisions
@@ -125,6 +134,7 @@ The browser's structured clone handles js_of_ocaml's runtime representation nati
 ### Tier 3: Priority-Based Immediate Evaluation
 
 **Changes:**
+
 - Modify instrumentation to accept set of expression IDs to probe
 - Compute immediate_ids = (manual ∪ auto) ∩ visible
 - First evaluation pass only instruments immediate_ids
@@ -132,6 +142,7 @@ The browser's structured clone handles js_of_ocaml's runtime representation nati
 ### Tier 4: Background Progressive Evaluation
 
 **Changes:**
+
 - After immediate completes, schedule background pass
 - Background instruments broader set (potentially everything)
 - Merge results into cache
@@ -166,6 +177,7 @@ The browser's structured clone handles js_of_ocaml's runtime representation nati
 #### What Was Implemented
 
 **Architecture**:
+
 ```
 MakeTerm.from_zip_for_sem(zipper)
   → Collect probe IDs from refractors
@@ -187,32 +199,38 @@ Evaluator.evaluate
 #### Core Changes
 
 1. **MakeTerm.re** - Collects probe IDs instead of creating Probe AST nodes
+
    - Uses `Id.Map.t(unit)` as map-as-set for O(log n) membership
    - Stores probe IDs for both expressions and patterns
    - Probe IDs returned in MakeTerm result alongside term
    - **NOTE**: This collection step is technically unnecessary and can be removed when old system is retired (could extract IDs directly from z.refractors.manuals in CachedStatics)
 
 2. **CachedStatics.re** - Computes probe_map from probe_ids
+
    - Added `probe_map: Id.Map.t(Probe.t)` field to type `t`
    - Uses `Statics.Map.refs_in` for expression probes
    - Uses `Statics.Map.bound_in` for pattern probes
    - Probe metadata flows: MakeTerm → CachedStatics → Worker → Evaluator
 
 3. **MkRefractor.re** - KEY FIX for sample lookup
+
    - Changed `add_single` to use original ID instead of `Id.transform_variant(id)`
    - This fixed the mismatch where projectors looked up samples with transformed IDs but new system stored them with original IDs
    - **This was the critical fix that made probes work**
 
 4. **WorkerServer.re** - Updated request structure
+
    - Changed `Request.value` from `Language.Exp.t` to `{expr, probe_map}`
    - Updated all callsites in view files to pass both expr and probe_map
 
 5. **Evaluator.re** - Accepts and uses probe_map
+
    - Added `~probe_map` parameter to `evaluate` and `evaluate_and_limit`
    - Checks probe_map at start of evaluation to record probe start
    - Emits `RecordExpProbe` effect when probed expression finishes
 
 6. **EvaluatorState.re** - Stores probe_map in state
+
    - Added `probe_map: Id.Map.t(Probe.t)` field
    - State initialized with probe_map from evaluator
 
@@ -228,6 +246,7 @@ Evaluator.evaluate
 - **Transition.re** - Kept Probe case active for tests
 
 Both old (AST-based) and new (probe_map-based) systems run in parallel:
+
 - Tests use old AST-based system (construct Probe nodes directly)
 - UI uses new probe_map system (MakeTerm collects IDs, no Probe nodes created)
 
@@ -261,6 +280,7 @@ Probing a cons expression like `^^probe(1 :: [2, 3])` initially didn't work beca
 #### Files Modified
 
 **Core implementation:**
+
 - `src/haz3lcore/lang/MakeTerm.re`
 - `src/haz3lcore/derived/CachedStatics.re`
 - `src/haz3lcore/MkRefractor.re` (KEY FIX)
@@ -270,16 +290,19 @@ Probing a cons expression like `^^probe(1 :: [2, 3])` initially didn't work beca
 - `src/web/app/editors/result/EvalResult.re` (cache invalidation fix)
 
 **View files:**
+
 - `src/web/view/ScratchMode.re`
 - `src/web/view/ExerciseMode.re`
 - `src/web/view/TutorialMode.re`
 - `src/web/view/TheoremExerciseMode.re`
 
 **Pattern probes:**
+
 - `src/language/dynamics/transition/PatternMatch.re`
 - `src/language/dynamics/transition/Transition.re`
 
 **Tests:**
+
 - `test/evaluator/Test_PatternMatch.re`
 - `test/evaluator/Test_Evaluator_ProbeLines.re`
 - `test/evaluator/Test_Evaluator_ProbeSteps.re`
@@ -289,27 +312,31 @@ Probing a cons expression like `^^probe(1 :: [2, 3])` initially didn't work beca
 **Before Phase B - Cleanup Tasks**
 
 1. ✓ **Remove transform_variant usages** - DONE
+
    - Removed from Refractors.re (autoprobe ID creation)
    - Removed from ProbeSystem.re (probe view lookup)
    - Removed from Arms.re (dynamics map lookup)
 
 2. ✓ **Remove transform_variant/recover_original from Id.re** - DONE
+
    - Removed both functions from Id.re
    - Removed Test_Id_Transform.re test file
    - Simplified Refractors.re (removed dead Probe node checks)
    - Simplified ProjectorPerform.re (removed Probe-specific ID recovery)
 
-3. **Remove MakeTerm probe collection** (optional optimization)
+3. ✓ **Remove MakeTerm probe collection** (optional optimization) - DONE
+
    - Currently MakeTerm collects probe IDs, but this is unnecessary for the new system
    - Could extract probe IDs directly from `z.refractors.manuals` in CachedStatics
    - TODO comments added in MakeTerm.re marking this for future cleanup
 
-4. **Retire old AST-based probe system**
-   - Remove Probe cases from Elaborator (already passes through, kept for tests)
-   - Update tests to use new system
-   - Remove Probe AST constructors
+4. ✓ **Retire old AST-based probe system**
 
-5. **Fix saved editor data with transformed IDs**
+   - Remove Probe cases from Elaborator (already passes through, kept for tests) - DONE
+   - Update tests to use new system - DONE
+   - Remove Probe AST constructors - Going to leave these for now actually
+
+5. ✓ **Fix saved editor data with transformed IDs** - DONE
    - Existing editors (e.g., Probes.ml in src/web/init/docs) have baked-in transformed IDs in refractors
    - Need to normalize IDs in serialized data to use original IDs only
 
@@ -330,6 +357,7 @@ Probing a cons expression like `^^probe(1 :: [2, 3])` initially didn't work beca
 #### B2: Generate comprehensive probe_map
 
 - **B2.1**: Add setting to enable comprehensive probing
+
   - Add `comprehensive_probing: bool` to CoreSettings.t
   - Default to false initially (explicit opt-in)
 
@@ -354,6 +382,7 @@ Probing a cons expression like `^^probe(1 :: [2, 3])` initially didn't work beca
 ## Commit History
 
 - **d3bedd0cc** - Phase A: Refactor probes from AST nodes to probe_map metadata
+
   - Pure refactor moving probe tracking from AST wrapper nodes to probe_map passed through evaluation pipeline
   - Expression probes now work correctly with immediate sample display
   - Cache invalidation fixed - probes trigger re-evaluation when added/removed

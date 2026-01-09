@@ -63,7 +63,12 @@ let init_from_term =
     };
 
   /* Compute probe_map from probe_ids. For each ID, determine whether it's
-   * an expression or pattern probe, then look up the appropriate refs to capture. */
+   * an expression or pattern probe, then look up the appropriate refs to capture.
+   *
+   * KNOWN ISSUE: Probes on parenthesized expressions don't work. The paren tile ID
+   * is added to refractors, but elaboration strips Parens wrappers, so the ID
+   * doesn't exist in the elaborated term and the probe won't capture anything.
+   * See plans/progressive-sample-accumulation.md "Probe on Parens Bug". */
   let probe_map =
     Id.Map.fold(
       (id, (), acc) => {
