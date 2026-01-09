@@ -104,7 +104,7 @@ let test_probe_placement = (~name: string, ~code: string): test_case(_) => {
         Segment.root_id(Segment.skel(root_segment), root_segment);
 
       /* Compute statics */
-      let MakeTerm.{term, _} = MakeTerm.go(Id.Map.empty, root_segment);
+      let MakeTerm.{term, _} = MakeTerm.go(root_segment);
       let info_map =
         Statics.mk(CoreSettings.on, Builtins.ctx_init(Some(Int)), term);
 

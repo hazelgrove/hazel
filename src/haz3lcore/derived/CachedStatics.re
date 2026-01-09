@@ -99,11 +99,18 @@ let init =
       z: Zipper.t,
     )
     : t => {
-  let make_term_result = MakeTerm.from_zip_for_sem(z); /* REFACTOR: Get full result */
+  let make_term_result = MakeTerm.from_zip_for_sem(z);
   let term = make_term_result.term |> stitch;
-  let probe_ids = make_term_result.probe_ids; /* REFACTOR: Extract probe_ids */
+  /* Extract probe IDs directly from zipper's refractors (manuals + ephemerals).
+   * Map values to unit since we only need the IDs as keys. */
+  let probe_ids =
+    Id.Map.union(
+      (_, _, _) => Some(),
+      Id.Map.map(_ => (), z.refractors.manuals),
+      Id.Map.map(_ => (), z.refractors.ephemerals),
+    );
 
-  init_from_term(~settings, ~ctx?, ~is_dynamic_term, ~ana?, ~probe_ids, term); /* REFACTOR: Pass probe_ids */
+  init_from_term(~settings, ~ctx?, ~is_dynamic_term, ~ana?, ~probe_ids, term);
 };
 
 let init =

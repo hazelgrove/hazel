@@ -11,7 +11,14 @@
       "Bash(git commit -m \"$\\(cat <<''EOF''\nPhase A: Refactor probes from AST nodes to probe_map metadata\n\nThis is a pure refactor that moves probe tracking from AST wrapper nodes\nto a probe_map passed through the evaluation pipeline. Expression probes\nnow work correctly with immediate sample display.\n\nKey changes:\n- MakeTerm: Collect probe IDs instead of creating Probe AST nodes\n- CachedStatics: Compute probe_map from probe_ids using static analysis\n- MkRefractor: Use original IDs \\(removed Id.transform_variant\\)\n- Evaluator: Accept probe_map and emit RecordExpProbe effects\n- EvalResult: Added cached_probe_map for cache invalidation\n- WorkerServer: Request now includes {expr, probe_map}\n\nFixes:\n- Probes now trigger re-evaluation immediately when added/removed\n- Sample lookup works correctly \\(no ID transformation mismatch\\)\n\nKnown limitations:\n- Pattern probes not yet implemented \\(old system still used\\)\n- Both old and new probe systems running in parallel for test compatibility\n\n🤖 Generated with [Claude Code]\\(https://claude.com/claude-code\\)\n\nCo-Authored-By: Claude Sonnet 4.5 <noreply@anthropic.com>\nEOF\n\\)\")",
       "Bash(git pull:*)",
       "Bash(git fetch:*)",
-      "Bash(git commit:*)"
+      "Bash(git commit:*)",
+      "Bash(git checkout:*)",
+      "Bash(git merge:*)",
+      "Bash(tee:*)",
+      "Bash(dune exec:*)",
+      "Bash(grep:*)",
+      "Bash(ls:*)",
+      "Bash(git stash:*)"
     ]
   }
 }

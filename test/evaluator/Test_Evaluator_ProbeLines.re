@@ -39,9 +39,15 @@ let get_samples_by_line = (code: string): IntMap.t(list(string)) => {
   switch (Parser.to_zipper(code)) {
   | None => IntMap.empty
   | Some(z) =>
-    /* Use from_zip_for_sem to get term with refractor-based probe_ids */
-    let MakeTerm.{term, term_data, probe_ids, _} =
-      MakeTerm.from_zip_for_sem(z);
+    let MakeTerm.{term, term_data, _} = MakeTerm.from_zip_for_sem(z);
+    /* Extract probe IDs directly from zipper's refractors.
+     * Map values to unit since we only need the IDs as keys. */
+    let probe_ids =
+      Id.Map.union(
+        (_, _, _) => Some(),
+        Id.Map.map(_ => (), z.refractors.manuals),
+        Id.Map.map(_ => (), z.refractors.ephemerals),
+      );
     let info_map =
       Statics.mk(CoreSettings.on, Builtins.ctx_init(Some(Int)), term);
     let probe_map =
@@ -243,6 +249,7 @@ in [double(1), double(2), double(3)]|},
       {|^^probe(case 1 | 1 => 10 | _ => 20 end)|},
       0,
     ),
+    probe_broken_test("Probe on let", {|^^probe(let x = 1 in x)|}, 0),
     /* Pattern probes */
     probe_line_test(
       "Pattern probe on let binding",

@@ -13,11 +13,6 @@
 open Util;
 open Language;
 
-/* Hack: Temporary construct internal to maketerm
- * to handle probe parsing; see `tokens` below */
-let probe_wrap = ["PROBE_WRAP", "PROBE_WRAP"];
-let is_probe_wrap = (==)(probe_wrap);
-
 // TODO make less hacky
 let tokens =
   Piece.get(
@@ -26,10 +21,8 @@ let tokens =
     (t: Tile.t) => t.shards |> List.map(List.nth(t.label)),
     _ =>
       /* Hack: These act as temporary wrappers for projectors,
-       * which are retained through maketerm so as to be used in
-       * dynamics. These are inserted and removed entirely internal
-       * to maketerm. */
-      probe_wrap,
+       * given that they in-effect act as a convex wrapping form */
+      ["PROJ_WRAP", "PROJ_WRAP"],
   );
 
 [@deriving (show({with_path: false}), sexp, yojson)]
@@ -50,7 +43,6 @@ type t = {
   terms: TermMap.t,
   term_data: TermData.t,
   projectors: Id.Map.t(Piece.projector),
-  probe_ids: Id.Map.t(unit) /* REFACTOR: IDs of expressions/patterns to probe (map-as-set) */
 };
 
 let is_nary =
@@ -134,33 +126,10 @@ let record_term_data = (sort: Sort.t, seg: Segment.t, skel: Skel.t): unit =>
 /* Map to collect projector ids */
 let projectors: ref(Id.Map.t(Piece.projector)) = ref(Id.Map.empty);
 
-let rf_map: ref(Id.Map.t(_)) = ref(Id.Map.empty);
-
-/* REFACTOR: Collect probe IDs instead of inserting Probe nodes in AST.
- * Using Id.Map.t(unit) as a set representation for O(log n) membership.
- *
- * NOTE: This probe ID collection is technically unnecessary for the new system.
- * We could extract probe IDs directly from z.refractors.manuals in CachedStatics,
- * removing the need for MakeTerm to know about probes. However, MakeTerm already
- * iterates through the AST and has rf_map, so collecting here is convenient.
- * This can be removed entirely when the old AST-based probe system is retired. */
-let probe_ids: ref(Id.Map.t(unit)) = ref(Id.Map.empty);
-
 /* Strip a projector from a segment and log it in the map */
 let log_projector = (pr: Base.projector): unit => {
   projectors := Id.Map.add(pr.id, pr, projectors^);
 };
-
-/* Check if a term should be instrumented with a probe.
- * Precondition: The relevant projector must have been
- * logged before this is called */
-let should_instrument = (id: Id.t): bool =>
-  switch (Id.Map.find_opt(id, projectors^)) {
-  | Some(pr) =>
-    let (module P) = ProjectorInit.to_module(pr.kind);
-    P.dynamics;
-  | None => failwith("MakeTerm.exp: projector not found")
-  };
 
 let parse_sum_term: Typ.t => ConstructorMap.variant(Typ.t) =
   fun
@@ -220,17 +189,6 @@ and exp = unsorted => {
   let (term, inner_ids) = exp_term(unsorted);
   let ids = ids(unsorted) @ inner_ids;
 
-  /* REFACTOR: Instead of wrapping in Probe node, collect ID for probe_map.
-   * TODO: This probe ID collection can be removed when old AST-based probes are retired.
-   * The new system could extract probe IDs directly from refractors in CachedStatics. */
-  let expr_id = List.hd(ids);
-  switch (Id.Map.find_opt(expr_id, rf_map^)) {
-  | Some(_guy) =>
-    /* This expression should be probed - add to probe_ids map-as-set */
-    probe_ids := Id.Map.add(expr_id, (), probe_ids^)
-  | None => ()
-  };
-
   let e: TermBase.exp_t =
     return(
       e => Exp(e),
@@ -257,7 +215,7 @@ and exp_term: unsorted => (Exp.term, list(Id.t)) = {
   | Op(tiles) as tm =>
     switch (tiles) {
     // single-tile case
-    | ([(id, t)], []) =>
+    | ([(_id, t)], []) =>
       switch (t) {
       | ([t], []) when Token.is_empty_tuple(t) => ret(Tuple([]))
       | ([t], []) when Token.is_wild(t) => ret(Deferral(OutsideAp))
@@ -279,9 +237,7 @@ and exp_term: unsorted => (Exp.term, list(Id.t)) = {
       | ([t], []) when Token.is_ctr(t) => ret(Constructor(t, None))
       | (["{", "}"], [Exp(body)])
       | (["(", ")"], [Exp(body)]) => ret(Parens(body))
-      | (label, [Exp(body)]) when is_probe_wrap(label) =>
-        // Temporary wrapping form to persist projector probes
-        ret(should_instrument(id) ? Probe(body, Probe.empty) : body.term)
+      | (["PROJ_WRAP", "PROJ_WRAP"], [Exp(body)]) => ret(body.term)
       | (["[", "]"], [Exp(body)]) =>
         switch (body) {
         | {annotation: {ids}, term: Tuple(es)} =>
@@ -544,17 +500,6 @@ and pat = unsorted => {
   let (term, inner_ids) = pat_term(unsorted);
   let ids = ids(unsorted) @ inner_ids;
 
-  /* REFACTOR: Instead of wrapping in Probe node, collect ID for probe_map.
-   * TODO: This probe ID collection can be removed when old AST-based probes are retired.
-   * The new system could extract probe IDs directly from refractors in CachedStatics. */
-  let pat_id = List.hd(ids);
-  switch (Id.Map.find_opt(pat_id, rf_map^)) {
-  | Some(_guy) =>
-    /* This pattern should be probed - add to probe_ids map-as-set */
-    probe_ids := Id.Map.add(pat_id, (), probe_ids^)
-  | None => ()
-  };
-
   let p =
     return(
       p => Pat(p),
@@ -577,7 +522,7 @@ and pat_term: unsorted => (Pat.term, list(Id.t)) = {
   fun
   | Op(tiles) as tm =>
     switch (tiles) {
-    | ([(id, tile)], []) =>
+    | ([(_id, tile)], []) =>
       ret(
         switch (tile) {
         | ([t], []) when Token.is_empty_tuple(t) => Tuple([])
@@ -596,8 +541,7 @@ and pat_term: unsorted => (Pat.term, list(Id.t)) = {
         | ([t], []) when Token.is_wild(t) => Wild
         | ([t], []) when Token.is_ctr(t) => Constructor(t, None)
         | (["(", ")"], [Pat(body)]) => Parens(body)
-        | (label, [Pat(body)]) when is_probe_wrap(label) =>
-          should_instrument(id) ? Probe(body, Probe.empty) : body.term
+        | (["PROJ_WRAP", "PROJ_WRAP"], [Pat(body)]) => body.term
         | (["[", "]"], [Pat(body)]) =>
           switch (body) {
           | {term: Tuple(ps), _} => ListLit(ps)
@@ -723,7 +667,7 @@ and typ_term: unsorted => (Typ.term, list(Id.t)) = {
         | ([t], []) when Token.is_quoted_label(t) =>
           Label(Token.sub(t, 1, Token.length(t) - 2))
         | (["(", ")"], [Typ(body)]) => Parens(body)
-        | (label, [Typ(body)]) when is_probe_wrap(label) => body.term
+        | (["PROJ_WRAP", "PROJ_WRAP"], [Typ(body)]) => body.term
         | (["[", "]"], [Typ(body)]) => List(body)
         | ([t], []) when is_hole_label(t) => hole(tm)
         | ([t], []) => Unknown(Hole(Invalid(t)))
@@ -839,7 +783,7 @@ and tpat_term: unsorted => TPat.term = {
         | ([t], []) when Token.is_typ_var(t) => Var(t)
         | ([t], []) when is_hole_label(t) => hole(tm)
         | ([t], []) => Invalid(t)
-        | (label, [TPat(body)]) when is_probe_wrap(label) => body.term
+        | (["PROJ_WRAP", "PROJ_WRAP"], [TPat(body)]) => body.term
         | _ => hole(tm)
         },
       )
@@ -936,19 +880,16 @@ and unsorted = (sort: Sort.t, skel: Skel.t, seg: Segment.t): unsorted => {
 let go =
   Core.Memo.general(
     ~cache_size_bound=1000,
-    (refractor_mapping, seg) => {
+    seg => {
       map := TermMap.empty;
       term_data := Id.Map.empty;
       projectors := Id.Map.empty;
-      probe_ids := Id.Map.empty; /* REFACTOR: Reset probe_ids (map-as-set) */
-      rf_map := refractor_mapping;
       let term = exp(unsorted(Exp, Segment.skel(seg), seg));
       {
         term,
         term_data: term_data^,
         terms: map^,
         projectors: projectors^,
-        probe_ids: probe_ids^ /* REFACTOR: Include collected probe IDs */
       };
     },
   );
@@ -1000,15 +941,7 @@ let for_projection =
     }
   );
 
-let from_zip_for_sem = (z: Zipper.t) => {
-  let refractor_mapping =
-    Id.Map.union(
-      (_, _, b) => Some(b),
-      z.refractors.manuals,
-      z.refractors.ephemerals,
-    );
-  go(refractor_mapping, Dump.to_segment(z));
-};
+let from_zip_for_sem = (z: Zipper.t) => go(Dump.to_segment(z));
 
 let from_zip_for_sem =
   Core.Memo.general(~cache_size_bound=1000, from_zip_for_sem);

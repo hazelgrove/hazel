@@ -61,7 +61,14 @@ let parse_with_probes =
   | Some(z) =>
     let make_term_result = Haz3lcore.MakeTerm.from_zip_for_sem(z);
     let term = make_term_result.term;
-    let probe_ids = make_term_result.probe_ids;
+    /* Extract probe IDs directly from zipper's refractors.
+     * Map values to unit since we only need the IDs as keys. */
+    let probe_ids =
+      Id.Map.union(
+        (_, _, _) => Some(),
+        Id.Map.map(_ => (), z.refractors.manuals),
+        Id.Map.map(_ => (), z.refractors.ephemerals),
+      );
 
     /* Build statics map for refs lookup */
     let info_map =
