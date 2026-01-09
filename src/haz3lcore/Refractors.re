@@ -6,12 +6,14 @@ let rec target_subterm_ids = (id: Id.t, info_map: Statics.Map.t) =>
   switch (Statics.Map.lookup(id, info_map)) {
   /* If we're trying to probe a function literal,
      put probes on parameters and body instead */
-  | Some(InfoExp({term: {term: Fun(pat, body, _, _), _}, _})) =>
-    [IdTagged.rep_id(body), IdTagged.rep_id(pat)]
+  | Some(InfoExp({term: {term: Fun(pat, body, _, _), _}, _})) => [
+      IdTagged.rep_id(body),
+      IdTagged.rep_id(pat),
+    ]
   | Some(InfoExp({term: {term: Let(_pat, def, _), _}, _})) =>
     /* If trying to probe a let, probe the definition instead.
        Recurse so that if def is a fun literal, the above case will get it */
-    target_subterm_ids(IdTagged.rep_id(def), info_map);
+    target_subterm_ids(IdTagged.rep_id(def), info_map)
 
   | Some(InfoExp({term: {term: Var(_), _} as v, _})) =>
     /* If we're trying to probe variable in function position for an
