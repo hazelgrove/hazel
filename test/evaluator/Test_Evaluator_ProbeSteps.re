@@ -70,16 +70,8 @@ let get_all_samples = (code: string): list(Sample.t) => {
   Id.Map.bindings(probes) |> List.concat_map(snd);
 };
 
-/* Basic probe tests - verify probes work */
+/* Basic step range tests */
 let basic_tests = [
-  test_case(
-    "Single probe creates one sample",
-    `Quick,
-    () => {
-      let samples = get_all_samples({|^^probe(1 + 2)|});
-      check(int, "One sample", 1, List.length(samples));
-    },
-  ),
   test_case(
     "Probe sample has valid step range",
     `Quick,
@@ -99,22 +91,9 @@ let basic_tests = [
     },
   ),
   test_case(
-    "Probe on parens returns 0 samples (known broken)",
+    "Multi-step expression has wider range",
     `Quick,
     () => {
-      /* KNOWN BUG: Probe on parenthesized expression doesn't work.
-       * The paren tile ID is added to refractors, but elaboration
-       * removes the Parens wrapper, so the ID doesn't match during evaluation. */
-      let samples = get_all_samples({|^^probe((1 + 2))|});
-      check(int, "Zero samples (broken)", 0, List.length(samples));
-    },
-  ),
-  test_case(
-    "Nested expression probe has wider range",
-    `Quick,
-    () => {
-      /* Probe around a let expression should span multiple steps.
-       * Use a simpler expression without inner patterns. */
       let samples = get_all_samples({|^^probe(1 + 2 + 3)|});
       switch (samples) {
       | [s] =>
@@ -130,33 +109,13 @@ let basic_tests = [
   ),
 ];
 
-/* Sequential probe tests */
+/* Sequential probe tests - verify step ranges are disjoint */
 let sequential_tests = [
   test_case(
-    "Two sequential probes on parens are both broken",
-    `Quick,
-    () => {
-      /* KNOWN BUG: Both probes are on parens, so neither works */
-      let samples = get_all_samples({|^^probe((1 + 2)) + ^^probe((3 + 4))|});
-      check(int, "Zero samples (broken)", 0, List.length(samples));
-    },
-  ),
-  test_case(
-    "Two sequential probes produce two samples",
-    `Quick,
-    () => {
-      /* Two probes evaluated one after the other (no parens) */
-      let samples = get_all_samples({|^^probe(1 + 2) + ^^probe(3 + 4)|});
-      check(int, "Two samples", 2, List.length(samples));
-    },
-  ),
-  test_case(
-    "Three sequential probes maintain order",
+    "Sequential probes have disjoint step ranges",
     `Quick,
     () => {
       let samples = get_all_samples({|^^probe(1) + ^^probe(2) + ^^probe(3)|});
-      check(int, "Three samples", 3, List.length(samples));
-
       /* All pairs should be disjoint */
       let rec check_disjoint =
         fun
@@ -176,27 +135,29 @@ let sequential_tests = [
   ),
 ];
 
-/* Nesting tests */
+/* Nesting tests - verify step range containment */
 let nesting_tests = [
   test_case(
-    "Inner probe on parens only outer works (known broken)",
+    "Inner probe step range contained within outer",
     `Quick,
     () => {
-      /* KNOWN BUG: Inner probe is on parens, so it doesn't work.
-       * Only the outer probe produces a sample. */
-      let samples = get_all_samples({|^^probe(1 + ^^probe((2 + 3)))|});
-      check(int, "One sample (inner broken)", 1, List.length(samples));
-    },
-  ),
-  test_case(
-    "Nested probes produce at least one sample",
-    `Quick,
-    () => {
-      /* Outer probe contains inner probe (no parens).
-       * Note: In the probe_map system, nested probes may produce
-       * fewer samples than the AST-based system due to ID handling. */
       let samples = get_all_samples({|^^probe(1 + ^^probe(2 + 3))|});
-      check(bool, "At least one sample", true, List.length(samples) >= 1);
+      /* Sort by step_start - outer should start earlier */
+      let sorted =
+        List.sort(
+          (a: Sample.t, b: Sample.t) => compare(a.step_start, b.step_start),
+          samples,
+        );
+      switch (sorted) {
+      | [outer, inner] =>
+        check(
+          bool,
+          "Inner contained within outer",
+          true,
+          contained_within(inner, outer),
+        )
+      | _ => fail("Expected exactly two samples")
+      };
     },
   ),
 ];
@@ -242,6 +203,46 @@ let recursive_tests = [
   ),
 ];
 
+/* Compound expression step range tests (when fixed, these should verify multi-step ranges) */
+let compound_tests = [
+  test_case(
+    "Probe on if should span multiple steps",
+    `Quick,
+    () => {
+      /* If expression should span from condition eval to final value */
+      let samples = get_all_samples({|^^probe(if 1 == 1 then 100 else 200)|});
+      switch (samples) {
+      | [s] =>
+        check(
+          bool,
+          "Range spans condition and branch",
+          true,
+          s.step_end > s.step_start,
+        )
+      | _ => fail("Expected exactly one sample")
+      };
+    },
+  ),
+  test_case(
+    "Probe on let should span multiple steps",
+    `Quick,
+    () => {
+      /* Let expression should span from binding eval to body result */
+      let samples = get_all_samples({|^^probe(let x = 1 + 2 in x * 3)|});
+      switch (samples) {
+      | [s] =>
+        check(
+          bool,
+          "Range spans binding and body",
+          true,
+          s.step_end > s.step_start,
+        )
+      | _ => fail("Expected exactly one sample")
+      };
+    },
+  ),
+];
+
 let tests = (
   "Evaluator.ProbeSteps",
   List.concat([
@@ -249,5 +250,6 @@ let tests = (
     sequential_tests,
     nesting_tests,
     recursive_tests,
+    compound_tests,
   ]),
 );

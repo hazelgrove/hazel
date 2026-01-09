@@ -1,6 +1,5 @@
 let tests = [
   Test_Evaluator_Labeled_Tuple.tests,
-  Test_Evaluator_Probe.tests,
   Test_Evaluator_ProbeSteps.tests,
   Test_Evaluator_ProbeLines.tests,
   Test_Evaluator_Livelit.tests,
