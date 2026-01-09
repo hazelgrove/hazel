@@ -19,7 +19,9 @@
       "Bash(grep:*)",
       "Bash(ls:*)",
       "Bash(git stash:*)",
-      "Bash(NODE_OPTIONS='--stack-trace-limit=50' node:*)"
+      "Bash(NODE_OPTIONS='--stack-trace-limit=50' node:*)",
+      "Bash(find:*)",
+      "Bash(comm -23:*)"
     ]
   }
 }

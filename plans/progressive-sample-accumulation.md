@@ -140,7 +140,7 @@ Evaluator.evaluate
 - Auto-probes work correctly
 - Cache invalidation fixed - probes trigger immediate re-evaluation
 - Pattern probes: **WORKING** ✓
-- Tests: All ProbeLines (51) and ProbeSteps (10) tests passing
+- Tests: All Probes (51) and ProbeSteps (10) tests passing
 
 #### Notes
 
@@ -233,7 +233,7 @@ These are documented limitations of the current probe system:
 
 Probing a parenthesized expression like `^^probe((1 + 2))` doesn't work. The paren tile ID is added to refractors, but elaboration removes the Parens wrapper, so the ID doesn't match during evaluation. Preserving Parens in elaboration was attempted but broke evaluator/stepper consistency tests.
 
-**Test**: `Test_Evaluator_ProbeLines.re` - "Probe on parens (known issue: ID lost during elaboration)"
+**Test**: `Test_Evaluator_Probes.re` - "Probe on parens (known issue: ID lost during elaboration)"
 
 ### Untestable Value Types
 
@@ -247,11 +247,11 @@ The ID preservation is consistent with other value types so we keep it without e
 
 ---
 
-## Future Work: ProbeLines Test Coverage
+## Future Work: Probes Test Coverage
 
 ### TODO: Improve test coverage for probe edge cases
 
-The current ProbeLines tests cover many cases but should be expanded for regression protection.
+The current Probes tests cover many cases but should be expanded for regression protection.
 
 #### Approach for Adding Tests
 
@@ -269,7 +269,7 @@ The current ProbeLines tests cover many cases but should be expanded for regress
 
 - **Fun with ascription**: Function values get Fold projectors automatically applied in output. The ID preservation is in place but untested.
 
-- **Parens inside probe**: `^^probe((expr))` loses the ID due to parens stripping. (Parens *outside* probe are fine.)
+- **Parens inside probe**: `^^probe((expr))` loses the ID due to parens stripping. (Parens _outside_ probe are fine.)
 
 - **Floats**: Printed representation varies (`4.` vs `4.0`) - not worth the hassle for probe testing.
 
@@ -278,19 +278,23 @@ The current ProbeLines tests cover many cases but should be expanded for regress
 #### Test Coverage Plan - COMPLETE ✓
 
 **1. More Operators** (skip floats)
-- [x] Int arithmetic: +, -, *, /, **
+
+- [x] Int arithmetic: +, -, \*, /, \*\*
 - [x] Int comparisons: <, >, <=, >=, ==, !=
 - [x] String operations: ++, $==
 - [x] Boolean operations: &&, ||, !
 - [x] Unary minus: -5
 
 **2. More Literals**
+
 - [x] Empty list: `[]`, `[] : [Int]`
 
 **3. Dot Projection**
+
 - [x] Labeled tuple access: `let t = (a=1, b=2) in ^^probe(t.a)`
 
 **4. More Pattern Probes**
+
 - [x] Cons pattern: `case [1,2,3] | ^^probe(x) :: xs => x | [] => 0 end`
 - [x] List literal pattern: `case [1,2,3] | [^^probe(a), b, c] => a | _ => 0 end`
 - [x] Constructor pattern: `case Some(42) | Some(^^probe(x)) => x | None => 0 end`
@@ -298,20 +302,24 @@ The current ProbeLines tests cover many cases but should be expanded for regress
 - [x] Multiple pattern probes in same case
 
 **5. Nested Probes (probes within probes)**
+
 - [x] Nested probes via multi-line list literals
 - [x] Nested probes via let bindings on separate lines
 - [x] Deeply nested probes
 
 **6. ADT Tests with Recursive Functions**
+
 - [x] User-defined list ADT with recursive function (length)
 - [x] Tree ADT (Leaf/Node) with recursive traversal (sum)
 - [x] Multiple probes inside recursive ADT function (depth)
 
 **7. More Recursive Patterns**
+
 - [x] List operations returning lists: reverse, map
 - [x] Multiple probes at different recursion depths (fib)
 
 **8. More Compound Nesting**
+
 - [x] Case inside let inside if
 - [x] Multiple nested lets with probes
 
@@ -332,4 +340,4 @@ The current ProbeLines tests cover many cases but should be expanded for regress
   - PatternMatch.re: Added probe_map parameter, sample collection during pattern matching
   - Transition.re: Threading probe_map to PatternMatch.matches calls
   - Evaluator.re: Pass state.probe_map to transition
-  - Test infrastructure: ProbeLines and ProbeSteps tests updated/relaxed for new system
+  - Test infrastructure: Probes and ProbeSteps tests updated/relaxed for new system

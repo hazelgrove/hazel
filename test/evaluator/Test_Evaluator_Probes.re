@@ -26,13 +26,9 @@ open Language;
  * - Fun with ascription: Function values get Fold projectors automatically
  *   applied in output. The ID preservation is in place but untested.
  *
- * - TupLabel with ascription: ^^probe(l=1) : (l=Int) parses as l=(1:(l=Int)),
- *   not (l=1):(l=Int). Would need ^^probe((l=1)) : (l=Int) but parens stripping
- *   loses probe ID.
+ * - Floats: Printed representation varies (4. vs 4.0) - didn't bother
  *
- * - Floats: Printed representation varies (4. vs 4.0) - not worth testing.
- *
- * - Test expressions: Always return unit, no value to probe.
+ * - Test expressions: Always return unit - didn't bother
  *
  * - Multiple probed terms ending on same line: Not supported. Use multi-line
  *   constructs (lists, lets) to ensure probed terms end on different lines.
@@ -685,12 +681,12 @@ let known_issue_tests = [
 ];
 
 let tests = [
-  ("Evaluator.ProbeLines.Basic", basic_tests),
-  ("Evaluator.ProbeLines.Operators", operator_tests),
-  ("Evaluator.ProbeLines.Compound", compound_expression_tests),
-  ("Evaluator.ProbeLines.Patterns", pattern_probe_tests),
-  ("Evaluator.ProbeLines.Nested", nested_probe_tests),
-  ("Evaluator.ProbeLines.Recursion", recursion_tests),
-  ("Evaluator.ProbeLines.Ascription", ascription_tests),
-  ("Evaluator.ProbeLines.KnownIssues", known_issue_tests),
+  ("Evaluator.Probes.Basic", basic_tests),
+  ("Evaluator.Probes.Operators", operator_tests),
+  ("Evaluator.Probes.Compound", compound_expression_tests),
+  ("Evaluator.Probes.Patterns", pattern_probe_tests),
+  ("Evaluator.Probes.Nested", nested_probe_tests),
+  ("Evaluator.Probes.Recursion", recursion_tests),
+  ("Evaluator.Probes.Ascription", ascription_tests),
+  ("Evaluator.Probes.KnownIssues", known_issue_tests),
 ];
