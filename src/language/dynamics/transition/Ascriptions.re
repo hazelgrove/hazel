@@ -77,12 +77,18 @@ let rec transition = (~recursive=false, d: DHExp.t): option(DHExp.t) => {
         |> DHExp.fresh,
       )
     | (Cons(d1, d2), List(ty)) =>
+      /* Preserve the original Cons expression's ID so probes on cons
+       * expressions work correctly. The probe_map has the original Cons ID,
+       * so the result needs that ID for the probe check to match.  */
       Some(
-        Cons(
-          recur(Asc(d1, ty) |> DHExp.fresh),
-          recur(Asc(d2, t) |> DHExp.fresh),
-        )
-        |> DHExp.fresh,
+        IdTagged.fast_copy(
+          DHExp.rep_id(e),
+          Cons(
+            recur(Asc(d1, ty) |> DHExp.fresh),
+            recur(Asc(d2, t) |> DHExp.fresh),
+          )
+          |> DHExp.fresh,
+        ),
       )
     | (TypFun(tp, e, v), Poly(tp', t')) =>
       let new_ty: Typ.t =

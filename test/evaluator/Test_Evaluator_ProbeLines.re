@@ -303,18 +303,20 @@ in ^^probe(add5(10))|},
       {|^^probe(let x = 5 in ^^probe(x * 2))|},
       [(0, ["10", "10"])],
     ),
-    /* ===== Parens (known issue: paren stripping in elaborator) ===== */
-    /* These fail due to ID mismatch from paren stripping, separate from
-       the compound expression issue. Documenting current (broken) behavior. */
+    /* ===== Parens (known issue) =====
+     * Probes on parenthesized expressions don't capture values because
+     * elaboration strips Parens nodes, losing the probe_map ID.
+     * ID-copying approach doesn't work because it breaks nested cases
+     * like `(^^probe(1))`. Needs a different solution. */
     probe_line_test(
-      "Probe on parens (known issue: paren stripping)",
+      "Probe on parens (known issue: ID lost during elaboration)",
       {|^^probe((1 + 2))|},
-      [(0, [])] /* Should be ["3"] when fixed */
+      [(0, [])] /* Should be ["3"] */,
     ),
     probe_line_test(
-      "Probe on tuple (known issue: paren stripping)",
+      "Probe on tuple (same parens issue)",
       {|^^probe((1, "a"))|},
-      [(0, [])] /* Should be ["(1, \"a\")"] when fixed */
+      [(0, [])] /* Should be ["(1, \"a\")"] */,
     ),
     /* ===== Pattern probes ===== */
     probe_line_test(
@@ -356,7 +358,7 @@ in f(5)|},
     probe_line_test(
       "Probe with outer ascription (known issue: was passing pre-refactor)",
       {|^^probe("a") : (l=String)|},
-      [(0, [])],  /* Should capture value, needs investigation */
+      [(0, [])] /* Should capture value, needs investigation */
     ),
     probe_line_test(
       "Pattern probe with labeled tuple type (value coercion)",
@@ -364,29 +366,24 @@ in f(5)|},
       [(0, ["(l=\"a\")"])],
     ),
     /* ===== Builtins and list operations ===== */
-    /* Builtin call captures unevaluated expression - may need investigation */
     probe_line_test(
       "Probe on builtin function call (captures unevaluated)",
-      {|^^probe(String.length("hello"))|},
-      [(0, ["String .length(\"hello\")"])],  /* Should be ["5"] */
+      {|^^probe(string_length("hello"))|},
+      [(0, ["5"])],
     ),
     probe_line_test(
       "Probe on list concat",
       {|^^probe([1, 2] @ [3, 4])|},
       [(0, ["[1, 2, 3, 4]"])],
     ),
-    /* List cons has same compound expr issue - steps with is_value: false */
+    /* List cons - fixed by preserving ID in Ascriptions.transition */
     probe_line_test(
-      "Probe on list cons (same compound expr issue)",
+      "Probe on list cons",
       {|^^probe(1 :: [2, 3])|},
-      [(0, [])],  /* Should be ["[1, 2, 3]"] */
+      [(0, ["[1, 2, 3]"])],
     ),
     /* ===== Edge cases ===== */
-    probe_line_test(
-      "Probe on empty hole",
-      {|^^probe(?)|},
-      [(0, ["?"])],
-    ),
+    probe_line_test("Probe on empty hole", {|^^probe(?)|}, [(0, ["?"])]),
     probe_line_test(
       "Probe on constructor",
       {|type T = A + B in ^^probe(A)|},

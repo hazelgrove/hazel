@@ -145,7 +145,8 @@ let nesting_tests = [
        * operations (like ^^probe(1 + ^^probe(2))) only create 1 refractor
        * due to a parsing limitation. The if-then-else pattern correctly
        * creates 2 refractors for nested probes. */
-      let samples = get_all_samples({|^^probe(if true then ^^probe(1 + 2) else 0)|});
+      let samples =
+        get_all_samples({|^^probe(if true then ^^probe(1 + 2) else 0)|});
       /* Sort by step_start - outer should start earlier */
       let sorted =
         List.sort(
