@@ -61,11 +61,12 @@ let work = (req_value: Request.value): Response.value => {
   result;
 };
 
-let on_request = (req: string): unit =>
+/* With structured clone, we receive/send OCaml values directly - no sexp
+ * serialization needed. The browser handles cloning js_of_ocaml's runtime
+ * representation automatically. */
+let on_request = (req: Request.t): unit =>
   req
-  |> Request.deserialize
   |> List.map(((k, v)) => (k, work(v)))
-  |> Response.serialize
   |> Js_of_ocaml.Worker.post_message;
 
 let start = () => Js_of_ocaml.Worker.set_onmessage(on_request);

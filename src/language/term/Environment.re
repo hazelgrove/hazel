@@ -3,14 +3,16 @@ open Util;
 [@deriving (show({with_path: false}), sexp, yojson, eq)]
 type binding('a) = (Var.t, 'a);
 
+/* Note: cached_search_tree uses Maps.StringMap (OCaml's stdlib Map) instead of
+ * Core.Map because Core.Map embeds a comparator function that cannot be
+ * structured-cloned for web worker communication. */
 type t('a) =
   | Empty
   | E({
       id: Id.t,
       binding: binding('a),
       prev_env: t('a),
-      cached_search_tree:
-        Core.Map.t(Var.t, 'a, Core.String.comparator_witness),
+      cached_search_tree: Maps.StringMap.t('a),
     });
 
 [@deriving (show({with_path: false}), sexp, yojson, eq)]
@@ -28,14 +30,13 @@ let extend = (type a, ~id=Id.mk(), env: t(a), (v: Var.t, x: a)): t(a) => {
     binding: (v, x),
     prev_env: env,
     cached_search_tree:
-      Core.Map.update(
+      Maps.StringMap.add(
+        v,
+        x,
         switch (env) {
-        | Empty => Core.Map.empty((module Core.String))
+        | Empty => Maps.StringMap.empty
         | E(e) => e.cached_search_tree
         },
-        v,
-        ~f=_ =>
-        x
       ),
   });
 };
@@ -136,7 +137,8 @@ let rec fold = (f: ((Var.t, 'a), 'b) => 'b, init: 'b, env: t('a)): 'b =>
 let lookup = (env: t('a), v: Var.t): option('a) => {
   switch (env) {
   | Empty => None
-  | E({cached_search_tree, _}) => Core.Map.find(cached_search_tree, v)
+  | E({cached_search_tree, _}) =>
+    Maps.StringMap.find_opt(v, cached_search_tree)
   };
 };
 

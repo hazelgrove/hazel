@@ -41,15 +41,15 @@ The core insight is: **if the program is static, we should be able to pre-comput
 
 ### How Probes Work
 
-1. Probes wrap expressions in the ASG as `Probe(expr, {refs})` where `refs` is statically determined
-2. During evaluation, when a probe is hit, it captures: value, filtered environment (only the `refs`), call stack, step counts, timestamp
+1. A `probe_map: Id.Map.t(Probe.t)` maps expression/pattern IDs to probe metadata (refs to capture)
+2. During evaluation, when an expression ID is in probe_map, it captures: value, filtered environment (only the `refs`), call stack, step counts, timestamp
 3. Samples are collected into `EvaluatorState.probes: Sample.Map.t`
-4. Everything is serialized as S-expressions with structure sharing and sent back from the worker
+4. Results are sent back via structured clone (browser handles js_of_ocaml representation natively)
 
 ### Worker Architecture
 
 - Single web worker (`Worker.re`, `WorkerServer.re`, `WorkerClient.re`)
-- On each evaluation request: serialize expression list → postMessage → worker evaluates → serialize response → postMessage back
+- Request/response via postMessage with structured clone (no sexp serialization)
 - If a new request comes while one is in progress, the worker is terminated and restarted
 - 20-second timeout
 
@@ -77,94 +77,19 @@ Located in `AutoProbe.re`. Selects expressions to probe on each line:
 
 ---
 
-## Implementation Tiers
+## Implementation Status
 
-### Tier 0: Benchmarking ✓ COMPLETE
+### Completed
 
-Before optimizing, measure where time actually goes.
+- **Tier 0: Benchmarking** - Profiling revealed sexp serialization was the dominant cost; fixed by switching to structured clone
+- **Phase A: Probe Refactor** - Moved probes from AST nodes to probe_map metadata
+- **Phase B: Probe Everything** - Added `probe_all` setting to probe all expressions
 
-**What to measure:**
+### Future Work (not blocking user study)
 
-1. Instrumentation time: `Dynamics.instrument_exp` duration
-2. Evaluation time: Pure computation in worker
-3. Serialization time: `Response.serialize` duration
-4. Transfer time: postMessage to onmessage delta
-5. Deserialization time: `Response.deserialize` duration
-6. Total round-trip: Request initiated to UI updated
-
-**Approach:**
-
-- Add `Performance.now()` calls at key points
-- Console logging gated by a debug flag
-- Test with representative programs (e.g., Emoji paint)
-
-**Findings**: Initial profiling revealed serialization was the dominant cost:
-
-- Serialize (worker): ~200ms
-- Evaluate: ~150ms
-- Deserialize (client): ~560ms
-- Total: ~910ms (serialization was 5x more expensive than evaluation!)
-
-**Solution**: Replaced S-expression string serialization with browser's structured clone algorithm. This required:
-
-1. Changing `Environment.t` to use `Maps.StringMap.t` instead of `Core.Map.t` (Core.Map embeds a comparator function that can't be cloned)
-2. Removing serialize/deserialize calls from WorkerClient and WorkerServer
-3. Passing OCaml values directly through postMessage
-
-The browser's structured clone handles js_of_ocaml's runtime representation natively, preserving object identity/sharing without manual structure-sharing code.
-
-### Tier 1: Sample Cache + Staleness
-
-**Changes:**
-
-- Add `SampleCache.t` to model
-- On evaluation result: merge into cache
-- On program change: bump version (marks samples stale)
-- When rendering probes: read from cache, attach staleness info
-- Add `.sample-stale` CSS styling (reduced opacity or similar)
-
-### Tier 2: Viewport Tracking
-
-**Changes:**
-
-- Track scroll position in model (throttled action on scroll)
-- Implement `visible_expr_ids` using Measured system
-- Expose for instrumentation priority decisions
-
-### Tier 3: Priority-Based Immediate Evaluation
-
-**Changes:**
-
-- Modify instrumentation to accept set of expression IDs to probe
-- Compute immediate_ids = (manual ∪ auto) ∩ visible
-- First evaluation pass only instruments immediate_ids
-
-### Tier 4: Background Progressive Evaluation
-
-**Changes:**
-
-- After immediate completes, schedule background pass
-- Background instruments broader set (potentially everything)
-- Merge results into cache
-- Handle cancellation on program change
-
----
-
-## Alternative Approaches Considered
-
-**"Just probe everything always"**: Skip priority system, always instrument all expressions. If total time for ~100-line programs is acceptable (<100ms?), this is simpler. Benchmarking will tell us if viable.
-
-**"Lazy evaluation on hover"**: Don't evaluate until user focuses an expression. Simpler caching but worse UX. Not preferred.
-
-**"Streaming within evaluation"**: Worker sends samples incrementally as produced. More invasive changes. Future consideration.
-
----
-
-## Open Questions
-
-1. **Multiple programs/cells**: Cache keying for exercise mode with multiple cells
-2. **Background evaluation granularity**: Probe everything in one pass, or chunk it?
-3. **Worker pool**: Single worker with queuing vs. multiple workers. Start simple.
+- **Sample Cache + Staleness**: Show stale data immediately on program edit, refresh when ready
+- **Viewport Tracking**: Prioritize visible expressions
+- **Background Progressive Evaluation**: Evaluate broader set after immediate pass completes
 
 ---
 
@@ -198,57 +123,15 @@ Evaluator.evaluate
 
 #### Core Changes
 
-1. **MakeTerm.re** - Collects probe IDs instead of creating Probe AST nodes
+- **MakeTerm.re** - Collects probe IDs instead of creating Probe AST nodes
+- **CachedStatics.re** - Computes `probe_map: Id.Map.t(Probe.t)` from probe_ids
+- **MkRefractor.re** - Uses original ID (removed `Id.transform_variant`)
+- **WorkerServer.re** - Request now includes `{expr, probe_map}`
+- **Evaluator.re** - Added `~probe_map` parameter, emits `RecordExpProbe` effects
+- **EvaluatorState.re** - Added `probe_map` field
+- **EvalResult.re** - Added `cached_probe_map` for cache invalidation (ensures probes trigger re-eval immediately)
 
-   - Uses `Id.Map.t(unit)` as map-as-set for O(log n) membership
-   - Stores probe IDs for both expressions and patterns
-   - Probe IDs returned in MakeTerm result alongside term
-   - **NOTE**: This collection step is technically unnecessary and can be removed when old system is retired (could extract IDs directly from z.refractors.manuals in CachedStatics)
-
-2. **CachedStatics.re** - Computes probe_map from probe_ids
-
-   - Added `probe_map: Id.Map.t(Probe.t)` field to type `t`
-   - Uses `Statics.Map.refs_in` for expression probes
-   - Uses `Statics.Map.bound_in` for pattern probes
-   - Probe metadata flows: MakeTerm → CachedStatics → Worker → Evaluator
-
-3. **MkRefractor.re** - KEY FIX for sample lookup
-
-   - Changed `add_single` to use original ID instead of `Id.transform_variant(id)`
-   - This fixed the mismatch where projectors looked up samples with transformed IDs but new system stored them with original IDs
-   - **This was the critical fix that made probes work**
-
-4. **WorkerServer.re** - Updated request structure
-
-   - Changed `Request.value` from `Language.Exp.t` to `{expr, probe_map}`
-   - Updated all callsites in view files to pass both expr and probe_map
-
-5. **Evaluator.re** - Accepts and uses probe_map
-
-   - Added `~probe_map` parameter to `evaluate` and `evaluate_and_limit`
-   - Checks probe_map at start of evaluation to record probe start
-   - Emits `RecordExpProbe` effect when probed expression finishes
-
-6. **EvaluatorState.re** - Stores probe_map in state
-
-   - Added `probe_map: Id.Map.t(Probe.t)` field
-   - State initialized with probe_map from evaluator
-
-7. **EvalResult.re** - KEY FIX for cache invalidation
-   - Added `cached_probe_map: Calc.saved(Id.Map.t(Probe.t))` field to Model.t
-   - Added probe_map as calculation dependency: `and.calc probe_map = probe_map`
-   - This ensures cache invalidates when probes are added/removed
-   - Fixes issue where first probe placement didn't trigger evaluation until next program edit
-
-#### Backward Compatibility
-
-- **Elaborator.re** - Kept Probe AST node handling for tests
-- **Transition.re** - Kept Probe case active for tests
-
-Both old (AST-based) and new (probe_map-based) systems run in parallel:
-
-- Tests use old AST-based system (construct Probe nodes directly)
-- UI uses new probe_map system (MakeTerm collects IDs, no Probe nodes created)
+**Backward Compatibility**: Old AST-based Probe system still runs in parallel for test compatibility. Tests construct Probe nodes directly; UI uses new probe_map system.
 
 #### Testing Status
 
@@ -259,196 +142,68 @@ Both old (AST-based) and new (probe_map-based) systems run in parallel:
 - Pattern probes: **WORKING** ✓
 - Tests: All ProbeLines (17) and ProbeSteps (10) tests passing
 
-#### Known Limitations
+#### Notes
 
-**Probe on Parens Bug**
-
-Probing a parenthesized expression like `^^probe((1 + 2))` doesn't work. The paren tile ID is added to refractors, but elaboration removes the Parens wrapper, so the ID doesn't match during evaluation. ID-copying approach was attempted but breaks nested cases like `(^^probe(1))`. Tests document this known limitation.
-
-**Cons Probe Fix**
-
-Probing a cons expression like `^^probe(1 :: [2, 3])` initially didn't work because Ascriptions.transition changes the expression ID during type propagation. Fixed by preserving the original Cons ID using `IdTagged.fast_copy` in Ascriptions.re.
+**Cons Probe Fix**: Probing cons expressions like `^^probe(1 :: [2, 3])` required preserving the original Cons ID using `IdTagged.fast_copy` in Ascriptions.re (Ascriptions.transition was changing the expression ID during type propagation).
 
 #### Key Technical Decisions
 
-1. **Map-as-set pattern**: Used `Id.Map.t(unit)` instead of separate Set type
-2. **ID transformation eliminated**: Completely removed `Id.transform_variant` and `Id.recover_original` functions. Probes now use original syntax IDs throughout.
-3. **Minimal worker payload**: Pass only `{expr, probe_map}` to avoid deep cloning info_map
-4. **Dual systems**: Keep both old and new probe systems running for backward compatibility
-5. **Cache dependency tracking**: Use Calc.t system to trigger re-evaluation on probe_map changes
+- **Map-as-set pattern**: `Id.Map.t(unit)` instead of separate Set type
+- **ID transformation eliminated**: Removed `Id.transform_variant` and `Id.recover_original` - probes use original syntax IDs
+- **Minimal worker payload**: Pass only `{expr, probe_map}` to avoid deep cloning info_map
+- **Cache dependency tracking**: Use Calc.t system to trigger re-evaluation on probe_map changes
 
-#### Files Modified
+#### Cleanup Tasks Completed
 
-**Core implementation:**
-
-- `src/haz3lcore/lang/MakeTerm.re`
-- `src/haz3lcore/derived/CachedStatics.re`
-- `src/haz3lcore/MkRefractor.re` (KEY FIX)
-- `src/language/dynamics/Evaluator.re` + `.rei`
-- `src/language/dynamics/state/EvaluatorState.re`
-- `src/web/util/WorkerServer.re`
-- `src/web/app/editors/result/EvalResult.re` (cache invalidation fix)
-
-**View files:**
-
-- `src/web/view/ScratchMode.re`
-- `src/web/view/ExerciseMode.re`
-- `src/web/view/TutorialMode.re`
-- `src/web/view/TheoremExerciseMode.re`
-
-**Pattern probes:**
-
-- `src/language/dynamics/transition/PatternMatch.re`
-- `src/language/dynamics/transition/Transition.re`
-
-**Tests:**
-
-- `test/evaluator/Test_PatternMatch.re`
-- `test/evaluator/Test_Evaluator_ProbeLines.re`
-- `test/evaluator/Test_Evaluator_ProbeSteps.re`
-
-#### Next Steps
-
-**Before Phase B - Cleanup Tasks**
-
-1. ✓ **Remove transform_variant usages** - DONE
-
-   - Removed from Refractors.re (autoprobe ID creation)
-   - Removed from ProbeSystem.re (probe view lookup)
-   - Removed from Arms.re (dynamics map lookup)
-
-2. ✓ **Remove transform_variant/recover_original from Id.re** - DONE
-
-   - Removed both functions from Id.re
-   - Removed Test_Id_Transform.re test file
-   - Simplified Refractors.re (removed dead Probe node checks)
-   - Simplified ProjectorPerform.re (removed Probe-specific ID recovery)
-
-3. ✓ **Remove MakeTerm probe collection** (optional optimization) - DONE
-
-   - Currently MakeTerm collects probe IDs, but this is unnecessary for the new system
-   - Could extract probe IDs directly from `z.refractors.manuals` in CachedStatics
-   - TODO comments added in MakeTerm.re marking this for future cleanup
-
-4. ✓ **Retire old AST-based probe system**
-
-   - Remove Probe cases from Elaborator (already passes through, kept for tests) - DONE
-   - Update tests to use new system - DONE
-   - Remove Probe AST constructors - Going to leave these for now actually
-
-5. ✓ **Fix saved editor data with transformed IDs** - DONE
-   - Existing editors (e.g., Probes.ml in src/web/init/docs) have baked-in transformed IDs in refractors
-   - Need to normalize IDs in serialized data to use original IDs only
+- Removed `transform_variant`/`recover_original` from Id.re
+- Removed Test_Id_Transform.re test file
+- Simplified Refractors.re and ProjectorPerform.re
+- Fixed saved editor data with transformed IDs (normalized to original IDs)
 
 ---
 
-### Phase B: Extend to "Probe Everything"
+### Phase B: Probe Everything - COMPLETE ✓
 
-**Goal**: After pure refactor works, easily extend probe_map to include all "probeable" expressions.
+**Goal**: Extend probe_map to include all "probeable" expressions with a UI toggle.
 
-#### B1: Create probeable expression filter
-
-- **B1.1**: Add utility to identify probeable expressions
-  - Reuse AutoProbe filtering logic (skip holes when better options exist, skip function-typed exprs)
-  - Should NOT require line/cursor context
-  - Returns set of IDs worth probing
-  - **Note**: Keep this modular - policy might evolve
-
-#### B2: Generate comprehensive probe_map
-
-- **B2.1**: Add setting to enable comprehensive probing
-
-  - Add `comprehensive_probing: bool` to CoreSettings.t
-  - Default to false initially (explicit opt-in)
-
-- **B2.2**: Generate probe_map based on setting
-  - In CachedStatics, if comprehensive_probing enabled:
-    - Compute probeable IDs from AST/info_map
-    - Union with manual/auto probe IDs
-    - Compute refs for all
-  - If disabled, only use manual/auto (current behavior preserved)
-
-#### B3: Add sample caching and staleness
-
-- **B3.1**: Add program version tracking
-- **B3.2**: Tag samples with version
-- **B3.3**: Display stale samples immediately
-- **B3.4**: Skip re-evaluation if fresh samples exist
-
-(Details to be fleshed out when Phase B begins)
-
----
-
-### Phase B Implementation Progress
-
-#### B1-B2: Probe Everything - IMPLEMENTED ✓
-
-**What was added:**
+#### What was implemented
 
 1. **CoreSettings.re** - Added `probe_all: bool` setting (default false)
 2. **Settings.re** - Added `ProbeAll` action to toggle the setting
 3. **NutMenu.re** - Added "∀ Probe All" toggle in Semantics group
 4. **CachedStatics.re** - Added probe_all logic:
-   - `should_probe(info)`: Predicate returning true for InfoExp and InfoPat (probes everything)
+   - `should_probe(info)`: Returns true for InfoExp and InfoPat
    - `all_probeable_ids(info_map)`: Collects all IDs passing should_probe
    - When `probe_all` enabled, uses all_probeable_ids instead of manual probe IDs
 5. **CodeEditable.re** - Suppresses re-evaluation for Refractor actions when probe_all is on
-   - When comprehensive probing is enabled, toggling manual probes doesn't trigger re-eval
-   - The probe_map already includes all expressions, so manual probe toggles are purely visual
 
 **Profiling infrastructure:**
 
-- **ScratchMode.re** - Round-trip timing logged to console (always on)
+- **ScratchMode.re** - Round-trip timing logged to console
 - **WorkerServer.re** - Eval-only timing logged via Printf
 
-#### Initial Benchmarks (Emoji Paint)
+#### Benchmarks (Emoji Paint)
 
 Tested with the "Emoji paint" example (~100 lines, representative debugging task):
 
 | Mode | Eval Time | Round-Trip | Notes |
 |------|-----------|------------|-------|
-| probe_all OFF, 1 manual probe | ~40ms | ~60ms | Baseline, minimal overhead |
-| probe_all ON | ~100ms | ~1000ms | 2.5x eval slowdown, 16x round-trip |
+| probe_all OFF, 1 manual probe | ~35ms | ~38ms | Baseline |
+| probe_all ON | ~99ms | ~130ms | ~3x eval, ~3.5x round-trip |
 
-**Analysis:**
+After structured clone fix, performance is acceptable for user study on fast machines. Future optimization opportunities remain (selective return, viewport awareness) but are not blocking.
 
-The evaluation overhead of probing everything is only ~2.5x (40ms → 100ms), which is reasonable. However, the round-trip time explodes from 60ms to 1000ms.
+#### Bug Fix: Post-Edit UI Unresponsiveness - FIXED ✓
 
-**Where the time goes:**
+**Previous symptom**: After an edit with probe_all enabled, the edit itself felt instant, but the UI became unresponsive for ~1 second afterward due to sexp deserialization on the main thread.
 
-- Eval: 100ms (acceptable)
-- Deep clone + transfer back: ~900ms (problematic)
+**Solution**: Replaced sexp serialization with browser's structured clone algorithm:
 
-The structured clone of the probe samples back to the main thread is the dominant cost. With probe_all, we're cloning samples for potentially hundreds of expressions, including full environments for each.
+1. **WorkerClient.re** - Changed worker type from `Worker.worker(string, string)` to `Worker.worker(Request.t, Response.t)`, removed serialize/deserialize calls
+2. **WorkerServer.re** - Removed sexp serialization, receives/sends OCaml values directly
+3. **Environment.re** - Changed `cached_search_tree` from `Core.Map.t` to `Maps.StringMap.t` (Core.Map embeds a comparator function that can't be structured-cloned)
 
-**Implications for future work:**
-
-1. **Selective return**: Don't send all samples back immediately. Prioritize on-screen expressions.
-2. **On-demand fetching**: UI could request specific samples from worker as needed.
-3. **Viewport awareness**: Only clone samples for visible expressions initially.
-4. **Background streaming**: Return high-priority samples first, rest progressively.
-
-The good news: evaluation itself scales reasonably. The challenge is data transfer, which is addressable with smarter return strategies.
-
-#### Known Issue: Post-Edit UI Unresponsiveness
-
-**Symptom**: After an edit with probe_all enabled, the edit itself feels instant, but the UI becomes unresponsive for ~1 second afterward.
-
-**Root cause**: The worker communication uses sexp serialization. When the worker returns:
-
-1. Worker: `Response.serialize` converts OCaml values to sexp string
-2. postMessage: sends string to main thread
-3. **Main thread: `Response.deserialize` parses sexp string synchronously** ← BLOCKS UI
-
-With probe_all generating samples for hundreds of expressions (each with captured environments), the sexp parsing on the main thread takes ~500-900ms, freezing the UI.
-
-**Note**: The Tier 0 benchmarks mention "structured clone" as a solution, but that was for a different performance issue (Core.Map comparator functions). The current architecture still uses sexp for worker communication.
-
-**Potential solutions**:
-1. **Incremental deserialization**: Parse sexp in chunks using requestIdleCallback
-2. **Streaming protocol**: Worker sends samples in batches, main thread deserializes progressively
-3. **Lazy sample loading**: Only deserialize samples for visible expressions immediately
-4. **Web worker for parsing**: Dedicated worker to deserialize, passing parsed data via structured clone
+The browser's structured clone handles js_of_ocaml's runtime representation natively, eliminating the ~900ms sexp parsing overhead
 
 #### Bug Fix: Mouse Click Re-evaluation - FIXED ✓
 
@@ -463,6 +218,30 @@ Action: Save
 **Root cause**: In Page.re, `MakeActive` was using `Updated.return(~scroll_active=false)` without specifying `~is_edit=false`. Since `Updated.return` defaults to `~is_edit=true`, every mouse click was inadvertently marking the action as an edit, triggering the autosave alarm.
 
 **Fix**: Added explicit `~is_edit=false` to `MakeActive` handler in Page.re.
+
+---
+
+## Known Limitations
+
+These are documented limitations of the current probe system:
+
+### Probe on Parens Bug
+
+Probing a parenthesized expression like `^^probe((1 + 2))` doesn't work. The paren tile ID is added to refractors, but elaboration removes the Parens wrapper, so the ID doesn't match during evaluation. ID-copying approach was attempted but breaks nested cases like `(^^probe(1))`.
+
+**Test**: `Test_Evaluator_ProbeLines.re` - "Probe on parens (known issue: ID lost during elaboration)"
+
+### Nested Probes in Binary Operations
+
+Nested probes in binary operations (like `^^probe(1 + ^^probe(2))`) only create 1 refractor due to a parsing limitation. Use if-then-else patterns for nested probes instead.
+
+**Test**: `Test_Evaluator_ProbeSteps.re` - comment at line 144
+
+### Probe with Outer Ascription
+
+Probing an expression with an outer labeled type ascription like `^^probe("a") : (l=String)` doesn't capture the value. This was working before the Phase A refactor and needs investigation.
+
+**Test**: `Test_Evaluator_ProbeLines.re` - "Probe with outer ascription (known issue: was passing pre-refactor)"
 
 ---
 
