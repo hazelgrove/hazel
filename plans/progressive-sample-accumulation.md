@@ -140,11 +140,15 @@ Evaluator.evaluate
 - Auto-probes work correctly
 - Cache invalidation fixed - probes trigger immediate re-evaluation
 - Pattern probes: **WORKING** ✓
-- Tests: All ProbeLines (17) and ProbeSteps (10) tests passing
+- Tests: All ProbeLines (51) and ProbeSteps (10) tests passing
 
 #### Notes
 
-**Cons Probe Fix**: Probing cons expressions like `^^probe(1 :: [2, 3])` required preserving the original Cons ID using `IdTagged.fast_copy` in Ascriptions.re (Ascriptions.transition was changing the expression ID during type propagation).
+**Ascription ID Preservation**: Value expressions inside type ascriptions need their IDs preserved when the ascription transition fires. Without this, probes on expressions like `^^probe([1,2]) : [Int]` fail because the ascription transition creates fresh IDs.
+
+See detailed comment at top of `Ascriptions.re`. Cases using `IdTagged.fast_copy`: Tuple, Cons, ListLit, Fun, TypFun.
+
+Non-value expressions (If, Let, Seq, etc.) don't need this because the probe fires during sub-expression evaluation before the ascription transition.
 
 #### Key Technical Decisions
 
@@ -186,10 +190,10 @@ Evaluator.evaluate
 
 Tested with the "Emoji paint" example (~100 lines, representative debugging task):
 
-| Mode | Eval Time | Round-Trip | Notes |
-|------|-----------|------------|-------|
-| probe_all OFF, 1 manual probe | ~35ms | ~38ms | Baseline |
-| probe_all ON | ~99ms | ~130ms | ~3x eval, ~3.5x round-trip |
+| Mode                          | Eval Time | Round-Trip | Notes                      |
+| ----------------------------- | --------- | ---------- | -------------------------- |
+| probe_all OFF, 1 manual probe | ~35ms     | ~38ms      | Baseline                   |
+| probe_all ON                  | ~99ms     | ~130ms     | ~3x eval, ~3.5x round-trip |
 
 After structured clone fix, performance is acceptable for user study on fast machines. Future optimization opportunities remain (selective return, viewport awareness) but are not blocking.
 
@@ -227,21 +231,52 @@ These are documented limitations of the current probe system:
 
 ### Probe on Parens Bug
 
-Probing a parenthesized expression like `^^probe((1 + 2))` doesn't work. The paren tile ID is added to refractors, but elaboration removes the Parens wrapper, so the ID doesn't match during evaluation. ID-copying approach was attempted but breaks nested cases like `(^^probe(1))`.
+Probing a parenthesized expression like `^^probe((1 + 2))` doesn't work. The paren tile ID is added to refractors, but elaboration removes the Parens wrapper, so the ID doesn't match during evaluation. Preserving Parens in elaboration was attempted but broke evaluator/stepper consistency tests.
 
 **Test**: `Test_Evaluator_ProbeLines.re` - "Probe on parens (known issue: ID lost during elaboration)"
 
-### Nested Probes in Binary Operations
+### Untestable Value Types
 
-Nested probes in binary operations (like `^^probe(1 + ^^probe(2))`) only create 1 refractor due to a parsing limitation. Use if-then-else patterns for nested probes instead.
+Some value expressions have ID preservation in Ascriptions.re but are hard to test:
 
-**Test**: `Test_Evaluator_ProbeSteps.re` - comment at line 144
+- **TupLabel**: Precedence issue - `^^probe(l=1) : (l=Int)` parses as `l=(1:(l=Int))`, not `(l=1):(l=Int)`. Would need parens which hit the parens bug.
+- **Fun**: Function values get Fold projectors in output, complicating test expectations.
+- **TypFun**: Hits unrelated bug: `[failure] patterns should be handled separately in substitution`
 
-### Probe with Outer Ascription
+The ID preservation is consistent with other value types so we keep it without explicit tests.
 
-Probing an expression with an outer labeled type ascription like `^^probe("a") : (l=String)` doesn't capture the value. This was working before the Phase A refactor and needs investigation.
+---
 
-**Test**: `Test_Evaluator_ProbeLines.re` - "Probe with outer ascription (known issue: was passing pre-refactor)"
+## Future Work: ProbeLines Test Coverage
+
+### TODO: Improve test coverage for probe edge cases
+
+The current ProbeLines tests (51 tests) cover many cases but could be expanded. Notes for future work:
+
+#### Approach for Adding Tests
+
+1. **Use Ascriptions.re as a guide**: Each case that handles `Asc(inner, type)` is a potential test case. Value expressions need ID preservation via `fast_copy`; non-value expressions don't.
+
+2. **Only use `^^probe` syntax**: Don't use other `^^` forms (like `^^fold`) in tests - they add projectors that complicate output expectations.
+
+3. **Watch for precedence**: The probe syntax doesn't create AST nodes, so `^^probe(x) : T` parses based on the precedence of `x : T`. For labeled tuples, `^^probe(l=1) : (l=Int)` parses as `l=(1:(l=Int))`.
+
+4. **Check the grammar**: Look at `Exp.re` term variants to identify expression types that might need probe coverage.
+
+#### Cases NOT to pursue
+
+- **TypFun with ascription**: Tried `^^probe(typfun T -> fun x : T -> x) : (forall T -> T -> T)` - hits unrelated bug `[failure] patterns should be handled separately in substitution`. This is a polymorphism evaluation bug, not a probe issue.
+
+- **Fun with ascription**: Function values get Fold projectors automatically applied in output (e.g., `^^fold(fun x:(?) -> ...)`). This complicates test expectations. The ID preservation is in place but untested.
+
+- **Anything requiring parens around the probe target**: The parens bug means `^^probe((expr))` loses the ID.
+
+#### Potential areas to explore
+
+- **More compound expressions**: Match expressions with ascription, nested if/let combinations
+- **Constructor applications**: `^^probe(Some(1)) : Option(Int)`
+- **Polymorphic expressions**: Type application, though may hit the same substitution bug as TypFun
+- **Pattern probes**: Currently less tested than expression probes
 
 ---
 

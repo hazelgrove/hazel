@@ -6,6 +6,28 @@
 
  Ascriptions should be propagated inside of expressions when consistent.
  e.g. [1, 2] : [Int] -> [1 : Int, 2 : Int]
+
+ ID PRESERVATION FOR PROBES:
+ When an ascription transition transforms a value expression (Tuple, ListLit,
+ Cons, etc.), we must preserve the original expression's ID using IdTagged.fast_copy.
+ This is critical for the probe system, which tracks expressions by ID in probe_map.
+
+ Without ID preservation:
+   1. User probes a value: ^^probe([1, 2]) : [Int]
+   2. The ListLit [1, 2] has id_list in probe_map
+   3. Asc transition creates [1:Int, 2:Int] with DHExp.fresh -> NEW ID
+   4. The probe on id_list never fires!
+
+ With ID preservation (using fast_copy):
+   1. Same as above
+   2. Same as above
+   3. Asc transition creates [1:Int, 2:Int] but preserves id_list
+   4. The probe fires correctly when evaluating the result
+
+ Non-value expressions (If, Let, Seq, ListConcat, etc.) don't need this because
+ the probe fires during sub-expression evaluation BEFORE the Asc transition.
+
+ Cases using fast_copy: Tuple, Cons, ListLit, Fun, TypFun
  */
 let rec transition = (~recursive=false, d: DHExp.t): option(DHExp.t) => {
   let recur = (d: DHExp.t): DHExp.t =>
@@ -38,9 +60,13 @@ let rec transition = (~recursive=false, d: DHExp.t): option(DHExp.t) => {
       transition(~recursive, Asc(d, t |> Typ.fresh) |> DHExp.fresh)
       |> Option.map(d => Closure(ce, d) |> DHExp.fresh)
     | (Fun(p, e, t, v), Arrow(t1, t2)) =>
+      /* Preserve ID for probes - see comment at top of file */
       Some(
-        IdTagged.FreshGrammar.(
-          Exp.(fn(Pat.(asc(p, t1)), asc(e, t2), t, v))
+        IdTagged.fast_copy(
+          DHExp.rep_id(e),
+          IdTagged.FreshGrammar.(
+            Exp.(fn(Pat.(asc(p, t1)), asc(e, t2), t, v))
+          ),
         ),
       )
     | (TupLabel({term: ExplicitNonlabel, _}, e), _) =>
@@ -49,11 +75,19 @@ let rec transition = (~recursive=false, d: DHExp.t): option(DHExp.t) => {
       // TODO Figure out what to do if the labels don't match
       Some(TupLabel(l, recur(Asc(e, t) |> DHExp.fresh)) |> DHExp.fresh)
     | (Tuple(es), Prod(tys)) when List.length(es) == List.length(tys) =>
+      /* Preserve ID for probes - see comment at top of file */
       Some(
-        Tuple(
-          List.map2((e, ty) => recur(Asc(e, ty) |> DHExp.fresh), es, tys),
-        )
-        |> DHExp.fresh,
+        IdTagged.fast_copy(
+          DHExp.rep_id(e),
+          Tuple(
+            List.map2(
+              (e, ty) => recur(Asc(e, ty) |> DHExp.fresh),
+              es,
+              tys,
+            ),
+          )
+          |> DHExp.fresh,
+        ),
       )
     | (_, Unknown(_)) => Some(e)
     | (Atom(value) as d, Atom(typ)) =>
@@ -72,14 +106,16 @@ let rec transition = (~recursive=false, d: DHExp.t): option(DHExp.t) => {
       | (Bool(_), _) => None
       }
     | (ListLit(ds), List(ty)) =>
+      /* Preserve ID for probes - see comment at top of file */
       Some(
-        ListLit(List.map(d => recur(Asc(d, ty) |> DHExp.fresh), ds))
-        |> DHExp.fresh,
+        IdTagged.fast_copy(
+          DHExp.rep_id(e),
+          ListLit(List.map(d => recur(Asc(d, ty) |> DHExp.fresh), ds))
+          |> DHExp.fresh,
+        ),
       )
     | (Cons(d1, d2), List(ty)) =>
-      /* Preserve the original Cons expression's ID so probes on cons
-       * expressions work correctly. The probe_map has the original Cons ID,
-       * so the result needs that ID for the probe check to match.  */
+      /* Preserve ID for probes - see comment at top of file */
       Some(
         IdTagged.fast_copy(
           DHExp.rep_id(e),
@@ -96,13 +132,17 @@ let rec transition = (~recursive=false, d: DHExp.t): option(DHExp.t) => {
         | Some(tyvar) => Var(tyvar) |> Typ.temp
         | None => Unknown(Internal) |> Typ.temp
         };
+      /* Preserve ID for probes - see comment at top of file */
       Some(
-        TypFun(
-          tp,
-          recur(Asc(e, Typ.subst(new_ty, tp', t')) |> DHExp.fresh),
-          v,
-        )
-        |> DHExp.fresh,
+        IdTagged.fast_copy(
+          DHExp.rep_id(e),
+          TypFun(
+            tp,
+            recur(Asc(e, Typ.subst(new_ty, tp', t')) |> DHExp.fresh),
+            v,
+          )
+          |> DHExp.fresh,
+        ),
       );
     | (If(e, e1, e2), t) =>
       Some(

@@ -351,14 +351,13 @@ in f(5)|},
       {|let x : (l=String) = ^^probe("a") in x|},
       [(0, ["(l=\"a\")"])],
     ),
-    /* Note: Adapted from old Evaluator.Probes test "Evaluate probe around
-       inferred labeled tuple" which passed before the probe_map refactor.
-       Now broken - may be related to paren/ID issues or ascription evaluation.
-       Should investigate what changed. */
+    /* Fixed by preserving Tuple ID in Ascriptions.transition. The singleton
+       labeled tuple coercion puts the original expression ID on the coerced
+       Tuple, and the Tuple ascription transition now preserves that ID. */
     probe_line_test(
-      "Probe with outer ascription (known issue: was passing pre-refactor)",
+      "Probe with outer ascription (singleton tuple coercion)",
       {|^^probe("a") : (l=String)|},
-      [(0, [])] /* Should capture value, needs investigation */
+      [(0, ["(l=\"a\")"])],
     ),
     probe_line_test(
       "Pattern probe with labeled tuple type (value coercion)",
@@ -394,5 +393,43 @@ in f(5)|},
       {|type T = A(Int) + B in ^^probe(A(42))|},
       [(0, ["A(42)"])],
     ),
+    /* ===== Ascription transition ID preservation tests =====
+     * These tests verify that probes work correctly when the probed expression
+     * is inside a type ascription. The ascription transition pushes types into
+     * sub-expressions, and must preserve the original expression's ID.
+     * See Ascriptions.re for the transition rules. */
+    probe_line_test(
+      "Probe on list literal with ascription (ID preservation)",
+      {|^^probe([1, 2]) : [Int]|},
+      [(0, ["[1, 2]"])],
+    ),
+    probe_line_test(
+      "Probe on list concat with ascription",
+      {|^^probe([1] @ [2]) : [Int]|},
+      [(0, ["[1, 2]"])],
+    ),
+    probe_line_test(
+      "Probe on if expression with ascription",
+      {|^^probe(if true then 1 else 2) : Int|},
+      [(0, ["1"])],
+    ),
+    probe_line_test(
+      "Probe on let expression with ascription",
+      {|^^probe(let x = 1 in x + 1) : Int|},
+      [(0, ["2"])],
+    ),
+    probe_line_test(
+      "Probe on sequence with ascription",
+      {|^^probe(1; 2) : Int|},
+      [(0, ["2"])],
+    ),
+    /* Note: Can't easily test TupLabel with ascription due to precedence.
+       ^^probe(l=1) : (l=Int) parses as l=(1:(l=Int)), not (l=1):(l=Int).
+       Would need ^^probe((l=1)) : (l=Int) but parens stripping loses probe ID.
+
+       Fun and TypFun with ascription also have fast_copy in Ascriptions.re but
+       are hard to test: Fun values get Fold projectors in output, and TypFun
+       hits a substitution error. The ID preservation is consistent with other
+       value types so we keep it without explicit tests. */
   ],
 );
