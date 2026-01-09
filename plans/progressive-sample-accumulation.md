@@ -251,7 +251,7 @@ The ID preservation is consistent with other value types so we keep it without e
 
 ### TODO: Improve test coverage for probe edge cases
 
-The current ProbeLines tests (51 tests) cover many cases but could be expanded. Notes for future work:
+The current ProbeLines tests cover many cases but should be expanded for regression protection.
 
 #### Approach for Adding Tests
 
@@ -259,24 +259,63 @@ The current ProbeLines tests (51 tests) cover many cases but could be expanded. 
 
 2. **Only use `^^probe` syntax**: Don't use other `^^` forms (like `^^fold`) in tests - they add projectors that complicate output expectations.
 
-3. **Watch for precedence**: The probe syntax doesn't create AST nodes, so `^^probe(x) : T` parses based on the precedence of `x : T`. For labeled tuples, `^^probe(l=1) : (l=Int)` parses as `l=(1:(l=Int))`.
+3. **Watch for precedence**: The probe syntax doesn't create AST nodes, so `^^probe(x) : T` parses based on the precedence of `x : T`. To avoid precedence issues, wrap the entire probe annotation in parens: `(^^probe(l=1)) : (l=Int)` instead of `^^probe(l=1) : (l=Int)`.
 
 4. **Check the grammar**: Look at `Exp.re` term variants to identify expression types that might need probe coverage.
 
 #### Cases NOT to pursue
 
-- **TypFun with ascription**: Tried `^^probe(typfun T -> fun x : T -> x) : (forall T -> T -> T)` - hits unrelated bug `[failure] patterns should be handled separately in substitution`. This is a polymorphism evaluation bug, not a probe issue.
+- **TypFun**: Hits `[failure] patterns should be handled separately in substitution` - a polymorphism evaluation bug, not a probe issue.
 
-- **Fun with ascription**: Function values get Fold projectors automatically applied in output (e.g., `^^fold(fun x:(?) -> ...)`). This complicates test expectations. The ID preservation is in place but untested.
+- **Fun with ascription**: Function values get Fold projectors automatically applied in output. The ID preservation is in place but untested.
 
-- **Anything requiring parens around the probe target**: The parens bug means `^^probe((expr))` loses the ID.
+- **Parens inside probe**: `^^probe((expr))` loses the ID due to parens stripping. (Parens *outside* probe are fine.)
 
-#### Potential areas to explore
+- **Floats**: Printed representation varies (`4.` vs `4.0`) - not worth the hassle for probe testing.
 
-- **More compound expressions**: Match expressions with ascription, nested if/let combinations
-- **Constructor applications**: `^^probe(Some(1)) : Option(Int)`
-- **Polymorphic expressions**: Type application, though may hit the same substitution bug as TypFun
-- **Pattern probes**: Currently less tested than expression probes
+- **Test expressions**: Always return unit, no value to probe.
+
+#### Test Coverage Plan - COMPLETE ✓
+
+**1. More Operators** (skip floats)
+- [x] Int arithmetic: +, -, *, /, **
+- [x] Int comparisons: <, >, <=, >=, ==, !=
+- [x] String operations: ++, $==
+- [x] Boolean operations: &&, ||, !
+- [x] Unary minus: -5
+
+**2. More Literals**
+- [x] Empty list: `[]`, `[] : [Int]`
+
+**3. Dot Projection**
+- [x] Labeled tuple access: `let t = (a=1, b=2) in ^^probe(t.a)`
+
+**4. More Pattern Probes**
+- [x] Cons pattern: `case [1,2,3] | ^^probe(x) :: xs => x | [] => 0 end`
+- [x] List literal pattern: `case [1,2,3] | [^^probe(a), b, c] => a | _ => 0 end`
+- [x] Constructor pattern: `case Some(42) | Some(^^probe(x)) => x | None => 0 end`
+- [x] Nested tuple pattern: `case ((1,2),3) | ((^^probe(a),b),c) => a end`
+- [x] Multiple pattern probes in same case
+
+**5. Nested Probes (probes within probes)**
+- [x] Nested probes via multi-line list literals
+- [x] Nested probes via let bindings on separate lines
+- [x] Deeply nested probes
+
+**6. ADT Tests with Recursive Functions**
+- [x] User-defined list ADT with recursive function (length)
+- [x] Tree ADT (Leaf/Node) with recursive traversal (sum)
+- [x] Multiple probes inside recursive ADT function (depth)
+
+**7. More Recursive Patterns**
+- [x] List operations returning lists: reverse, map
+- [x] Multiple probes at different recursion depths (fib)
+
+**8. More Compound Nesting**
+- [x] Case inside let inside if
+- [x] Multiple nested lets with probes
+
+**Note on nested probes**: Only one probed term can end on a given line. Tests use multi-line list literals and let expressions to ensure each probed term ends on a different line.
 
 ---
 

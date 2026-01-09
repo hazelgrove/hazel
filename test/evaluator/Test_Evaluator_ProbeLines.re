@@ -5,7 +5,7 @@ open Language;
 
 /* Line-based probe testing infrastructure.
  *
- * Tests probes by line number. Assumes at most one probe per line.
+ * Tests probes by line number. Assumes at most one probed term ending per line.
  *
  * Usage:
  *   probe_line_test(
@@ -14,6 +14,28 @@ open Language;
  *       in x|},
  *     [(0, ["3"])],  // Line 0 has probe with value "3"
  *   )
+ *
+ * Known limitations / cases not pursued:
+ *
+ * - Parens inside probe: ^^probe((expr)) loses the ID due to parens stripping
+ *   during elaboration. Parens *outside* probe are fine.
+ *
+ * - TypFun: Hits `[failure] patterns should be handled separately in substitution`
+ *   - a polymorphism evaluation bug, not a probe issue.
+ *
+ * - Fun with ascription: Function values get Fold projectors automatically
+ *   applied in output. The ID preservation is in place but untested.
+ *
+ * - TupLabel with ascription: ^^probe(l=1) : (l=Int) parses as l=(1:(l=Int)),
+ *   not (l=1):(l=Int). Would need ^^probe((l=1)) : (l=Int) but parens stripping
+ *   loses probe ID.
+ *
+ * - Floats: Printed representation varies (4. vs 4.0) - not worth testing.
+ *
+ * - Test expressions: Always return unit, no value to probe.
+ *
+ * - Multiple probed terms ending on same line: Not supported. Use multi-line
+ *   constructs (lists, lets) to ensure probed terms end on different lines.
  */
 
 /* Convert a sample value to a string for comparison */
@@ -131,305 +153,544 @@ let probe_line_test =
   );
 };
 
-let tests = (
-  "Evaluator.ProbeLines",
-  [
-    /* ===== Basic probe tests ===== */
-    probe_line_test(
-      "Simple arithmetic probe",
-      {|let x = ^^probe(1 + 2) in x|},
-      [(0, ["3"])],
-    ),
-    probe_line_test(
-      "Probe on variable",
-      {|let x = 5 in ^^probe(x)|},
-      [(0, ["5"])],
-    ),
-    probe_line_test(
-      "Probe on string",
-      {|^^probe("hello")|},
-      [(0, ["\"hello\""])],
-    ),
-    probe_line_test(
-      "Probe on boolean",
-      {|^^probe(true)|},
-      [(0, ["true"])],
-    ),
-    probe_line_test(
-      "Probe on list",
-      {|^^probe([1, 2, 3])|},
-      [(0, ["[1, 2, 3]"])],
-    ),
-    probe_line_test(
-      "Probe on function application",
-      {|let f = fun x -> x + 1 in ^^probe(f(5))|},
-      [(0, ["6"])],
-    ),
-    /* ===== Probes inside conditionals (probe on branch, not whole expr) ===== */
-    probe_line_test(
-      "Probe in if-then branch (taken)",
-      {|if true then ^^probe(1) else 2|},
-      [(0, ["1"])],
-    ),
-    probe_line_test(
-      "Probe in if-else branch (taken)",
-      {|if false then 1 else ^^probe(2)|},
-      [(0, ["2"])],
-    ),
-    probe_line_test(
-      "Probe in if-then branch (not taken)",
-      {|if false then ^^probe(1) else 2|},
-      [(0, [])],
-    ),
-    probe_line_test(
-      "Probe in case branch",
-      {|case 1 | 1 => ^^probe(10) | _ => 20 end|},
-      [(0, ["10"])],
-    ),
-    /* ===== Multiple probes ===== */
-    probe_line_test(
-      "Multiple probes on different lines",
-      {|let x = ^^probe(1)
+/* ===== Test Groups ===== */
+
+let basic_tests = [
+  probe_line_test(
+    "Simple arithmetic probe",
+    {|let x = ^^probe(1 + 2) in x|},
+    [(0, ["3"])],
+  ),
+  probe_line_test(
+    "Probe on variable",
+    {|let x = 5 in ^^probe(x)|},
+    [(0, ["5"])],
+  ),
+  probe_line_test(
+    "Probe on string",
+    {|^^probe("hello")|},
+    [(0, ["\"hello\""])],
+  ),
+  probe_line_test("Probe on boolean", {|^^probe(true)|}, [(0, ["true"])]),
+  probe_line_test(
+    "Probe on list",
+    {|^^probe([1, 2, 3])|},
+    [(0, ["[1, 2, 3]"])],
+  ),
+  probe_line_test("Probe on empty list", {|^^probe([])|}, [(0, ["[]"])]),
+  probe_line_test(
+    "Probe on empty list with ascription",
+    {|^^probe([]) : [Int]|},
+    [(0, ["[]"])],
+  ),
+  probe_line_test("Probe on empty hole", {|^^probe(?)|}, [(0, ["?"])]),
+  probe_line_test(
+    "Probe on constructor",
+    {|type T = A + B in ^^probe(A)|},
+    [(0, ["A"])],
+  ),
+  probe_line_test(
+    "Probe on constructor with arg",
+    {|type T = A(Int) + B in ^^probe(A(42))|},
+    [(0, ["A(42)"])],
+  ),
+];
+
+let operator_tests = [
+  probe_line_test(
+    "Probe on less than",
+    {|^^probe(3 < 5)|},
+    [(0, ["true"])],
+  ),
+  probe_line_test(
+    "Probe on greater than",
+    {|^^probe(5 > 3)|},
+    [(0, ["true"])],
+  ),
+  probe_line_test(
+    "Probe on greater than or equal",
+    {|^^probe(5 >= 5)|},
+    [(0, ["true"])],
+  ),
+  probe_line_test(
+    "Probe on not equal",
+    {|^^probe(3 != 5)|},
+    [(0, ["true"])],
+  ),
+  probe_line_test(
+    "Probe on integer division",
+    {|^^probe(10 / 3)|},
+    [(0, ["3"])],
+  ),
+  probe_line_test(
+    "Probe on integer power",
+    {|^^probe(2 ** 3)|},
+    [(0, ["8"])],
+  ),
+  probe_line_test(
+    "Probe on string concat",
+    {|^^probe("hello" ++ " world")|},
+    [(0, ["\"hello world\""])],
+  ),
+  probe_line_test(
+    "Probe on string equality",
+    {|^^probe("abc" $== "abc")|},
+    [(0, ["true"])],
+  ),
+  probe_line_test(
+    "Probe on string inequality",
+    {|^^probe("abc" $== "def")|},
+    [(0, ["false"])],
+  ),
+  probe_line_test(
+    "Probe on boolean and",
+    {|^^probe(true && false)|},
+    [(0, ["false"])],
+  ),
+  probe_line_test(
+    "Probe on boolean or",
+    {|^^probe(true || false)|},
+    [(0, ["true"])],
+  ),
+  probe_line_test(
+    "Probe on boolean not",
+    {|^^probe(!true)|},
+    [(0, ["false"])],
+  ),
+  probe_line_test("Probe on unary minus", {|^^probe(-5)|}, [(0, ["-5"])]),
+  probe_line_test(
+    "Probe on list concat",
+    {|^^probe([1, 2] @ [3, 4])|},
+    [(0, ["[1, 2, 3, 4]"])],
+  ),
+  probe_line_test(
+    "Probe on list cons",
+    {|^^probe(1 :: [2, 3])|},
+    [(0, ["[1, 2, 3]"])],
+  ),
+  probe_line_test(
+    "Probe on builtin function call",
+    {|^^probe(string_length("hello"))|},
+    [(0, ["5"])],
+  ),
+  probe_line_test(
+    "Probe on dot projection",
+    {|let t = (a=1, b=2) in ^^probe(t.a)|},
+    [(0, ["1"])],
+  ),
+  probe_line_test(
+    "Probe on dot projection computation",
+    {|let t = (x=10, y=20) in ^^probe(t.x + t.y)|},
+    [(0, ["30"])],
+  ),
+];
+
+let compound_expression_tests = [
+  probe_line_test(
+    "Probe in if-then branch (taken)",
+    {|if true then ^^probe(1) else 2|},
+    [(0, ["1"])],
+  ),
+  probe_line_test(
+    "Probe in if-else branch (taken)",
+    {|if false then 1 else ^^probe(2)|},
+    [(0, ["2"])],
+  ),
+  probe_line_test(
+    "Probe in if-then branch (not taken)",
+    {|if false then ^^probe(1) else 2|},
+    [(0, [])],
+  ),
+  probe_line_test(
+    "Probe in case branch",
+    {|case 1 | 1 => ^^probe(10) | _ => 20 end|},
+    [(0, ["10"])],
+  ),
+  probe_line_test(
+    "Probe on if-then-else",
+    {|^^probe(if true then 1 else 2)|},
+    [(0, ["1"])],
+  ),
+  probe_line_test(
+    "Probe on if-then-else (else branch)",
+    {|^^probe(if false then 1 else 2)|},
+    [(0, ["2"])],
+  ),
+  probe_line_test(
+    "Probe on let expression",
+    {|^^probe(let x = 1 in x)|},
+    [(0, ["1"])],
+  ),
+  probe_line_test(
+    "Probe on let with computation",
+    {|^^probe(let x = 1 + 2 in x * 3)|},
+    [(0, ["9"])],
+  ),
+  probe_line_test(
+    "Probe on case expression",
+    {|^^probe(case 1 | 1 => 10 | _ => 20 end)|},
+    [(0, ["10"])],
+  ),
+  probe_line_test(
+    "Probe on case (second branch)",
+    {|^^probe(case 2 | 1 => 10 | _ => 20 end)|},
+    [(0, ["20"])],
+  ),
+  probe_line_test("Probe on sequence", {|^^probe(1; 2)|}, [(0, ["2"])]),
+  probe_line_test(
+    "Probe on nested ifs",
+    {|^^probe(if true then (if false then 1 else 2) else 3)|},
+    [(0, ["2"])],
+  ),
+  probe_line_test(
+    "Probe on nested lets",
+    {|^^probe(let x = 1 in let y = 2 in x + y)|},
+    [(0, ["3"])],
+  ),
+  probe_line_test(
+    "Probe on if containing let",
+    {|^^probe(if true then let x = 5 in x else 0)|},
+    [(0, ["5"])],
+  ),
+  probe_line_test(
+    "Probe on let containing if",
+    {|^^probe(let x = if true then 1 else 2 in x + 10)|},
+    [(0, ["11"])],
+  ),
+  probe_line_test(
+    "Probe on deeply nested compound",
+    {|^^probe(let a = 1 in
+  let b = if a == 1 then 10 else 20 in
+  case b | 10 => 100 | _ => 200 end)|},
+    [(0, ["100"])],
+  ),
+  probe_line_test(
+    "Case inside let inside if",
+    {|let x = 1
+in if x == 1
+then let y = case x | 1 => ^^probe(10) | _ => 0 end
+  in y * 2
+else 0|},
+    [(2, ["10"])],
+  ),
+  probe_line_test(
+    "Multiple nested lets with probes",
+    {|let a = ^^probe(1 + 1)
+in let b = ^^probe(a + 1)
+in let c = ^^probe(b + 1)
+in ^^probe(c + 1)|},
+    [(0, ["2"]), (1, ["3"]), (2, ["4"]), (3, ["5"])],
+  ),
+  probe_line_test(
+    "Multiple probes on different lines",
+    {|let x = ^^probe(1)
 in let y = ^^probe(2)
 in x + y|},
-      [(0, ["1"]), (1, ["2"])],
-    ),
-    probe_line_test(
-      "Probes in both if branches",
-      {|let x = true
+    [(0, ["1"]), (1, ["2"])],
+  ),
+  probe_line_test(
+    "Probes in both if branches",
+    {|let x = true
 in if x then ^^probe(1) else ^^probe(2)|},
-      [(1, ["1"])],
-    ),
-    /* ===== Recursion ===== */
-    probe_line_test(
-      "Factorial recursive probe",
-      {|let fact = fun n ->
+    [(1, ["1"])],
+  ),
+  probe_line_test(
+    "Outer probe on if with inner probe",
+    {|^^probe(if true then ^^probe(1 + 2) else 0)|},
+    [(0, ["3", "3"])],
+  ),
+  probe_line_test(
+    "Outer probe on let with inner probe on body",
+    {|^^probe(let x = 5 in ^^probe(x * 2))|},
+    [(0, ["10", "10"])],
+  ),
+  probe_line_test(
+    "Probe on function application",
+    {|let f = fun x -> x + 1 in ^^probe(f(5))|},
+    [(0, ["6"])],
+  ),
+  probe_line_test(
+    "Probe in map function",
+    {|let double = fun x -> ^^probe(x * 2)
+in [double(1), double(2), double(3)]|},
+    [(0, ["2", "4", "6"])],
+  ),
+  probe_line_test(
+    "Probe on closure result",
+    {|let make_adder = fun n -> fun x -> x + n
+in let add5 = make_adder(5)
+in ^^probe(add5(10))|},
+    [(2, ["15"])],
+  ),
+];
+
+let pattern_probe_tests = [
+  probe_line_test(
+    "Pattern probe on let binding",
+    {|let ^^probe(x) = 42 in x|},
+    [(0, ["42"])],
+  ),
+  probe_line_test(
+    "Pattern probe on tuple destructuring",
+    {|let (^^probe(a), b) = (1, 2) in a + b|},
+    [(0, ["1"])],
+  ),
+  probe_line_test(
+    "Pattern probe in function parameter",
+    {|let f = fun ^^probe(x) -> x * 2
+in f(5)|},
+    [(0, ["5"])],
+  ),
+  probe_line_test(
+    "Pattern probe in case",
+    {|case (1, 2) | (^^probe(x), y) => x + y end|},
+    [(0, ["1"])],
+  ),
+  probe_line_test(
+    "Pattern probe on cons pattern",
+    {|case [1, 2, 3] | ^^probe(x) :: xs => x | [] => 0 end|},
+    [(0, ["1"])],
+  ),
+  probe_line_test(
+    "Pattern probe on cons pattern tail",
+    {|case [1, 2, 3] | x :: ^^probe(xs) => xs | [] => [] end|},
+    [(0, ["[2, 3]"])],
+  ),
+  probe_line_test(
+    "Pattern probe on list literal pattern",
+    {|case [1, 2, 3] | [^^probe(a), b, c] => a | _ => 0 end|},
+    [(0, ["1"])],
+  ),
+  probe_line_test(
+    "Pattern probe on constructor pattern",
+    {|type T = Some(Int) + None
+in case Some(42) | Some(^^probe(x)) => x | None => 0 end|},
+    [(1, ["42"])],
+  ),
+  probe_line_test(
+    "Pattern probe on nested tuple pattern",
+    {|case ((1, 2), 3) | ((^^probe(a), b), c) => a + b + c end|},
+    [(0, ["1"])],
+  ),
+  probe_line_test(
+    "Multiple pattern probes in same case",
+    {|case (1, 2) | (^^probe(a), ^^probe(b)) => a + b end|},
+    [(0, ["2", "1"])],
+  ),
+  probe_line_test(
+    "Pattern probe on wildcard with value",
+    {|case 42 | ^^probe(_) => 1 end|},
+    [(0, ["42"])],
+  ),
+  probe_line_test(
+    "Pattern probe with labeled tuple type (value coercion)",
+    {|let ^^probe(x) : (l=String) = "a" in x|},
+    [(0, ["(l=\"a\")"])],
+  ),
+];
+
+let nested_probe_tests = [
+  probe_line_test(
+    "Nested probes in list",
+    {|^^probe([
+  ^^probe(1 + 2),
+  ^^probe(3 + 4)
+])|},
+    [(0, ["[3, 7]"]), (1, ["3"]), (2, ["7"])],
+  ),
+  probe_line_test(
+    "Nested probe with let on separate lines",
+    {|let a = ^^probe(1 + 2)
+in let b = ^^probe(a * 2)
+in ^^probe(b + 1)|},
+    [(0, ["3"]), (1, ["6"]), (2, ["7"])],
+  ),
+  probe_line_test(
+    "Deeply nested probes via list",
+    {|^^probe([
+  ^^probe([
+    ^^probe(1),
+    2
+  ]),
+  3
+])|},
+    [(2, ["1"]), (1, ["[1, 2]"]), (0, ["[[1, 2], 3]"])],
+  ),
+];
+
+let recursion_tests = [
+  probe_line_test(
+    "Factorial recursive probe",
+    {|let fact = fun n ->
   if n <= 1 then 1
   else ^^probe(n) * fact(n - 1)
 in fact(5)|},
-      [(2, ["5", "4", "3", "2"])],
-    ),
-    probe_line_test(
-      "Recursive sum with multiple probes",
-      {|let sum = fun n ->
+    [(2, ["5", "4", "3", "2"])],
+  ),
+  probe_line_test(
+    "Recursive sum with multiple probes",
+    {|let sum = fun n ->
   if n <= 0 then ^^probe(0)
   else ^^probe(n) + sum(n - 1)
 in sum(3)|},
-      [(1, ["0"]), (2, ["3", "2", "1"])],
-    ),
-    /* ===== Higher-order functions ===== */
-    probe_line_test(
-      "Probe in map function",
-      {|let double = fun x -> ^^probe(x * 2)
-in [double(1), double(2), double(3)]|},
-      [(0, ["2", "4", "6"])],
-    ),
-    probe_line_test(
-      "Probe on closure result",
-      {|let make_adder = fun n -> fun x -> x + n
-in let add5 = make_adder(5)
-in ^^probe(add5(10))|},
-      [(2, ["15"])],
-    ),
-    /* ===== Probes ON compound expressions ===== */
-    /* These test probing the whole compound expression, not just a branch */
-    probe_line_test(
-      "Probe on if-then-else",
-      {|^^probe(if true then 1 else 2)|},
-      [(0, ["1"])],
-    ),
-    probe_line_test(
-      "Probe on if-then-else (else branch)",
-      {|^^probe(if false then 1 else 2)|},
-      [(0, ["2"])],
-    ),
-    probe_line_test(
-      "Probe on let expression",
-      {|^^probe(let x = 1 in x)|},
-      [(0, ["1"])],
-    ),
-    probe_line_test(
-      "Probe on let with computation",
-      {|^^probe(let x = 1 + 2 in x * 3)|},
-      [(0, ["9"])],
-    ),
-    probe_line_test(
-      "Probe on case expression",
-      {|^^probe(case 1 | 1 => 10 | _ => 20 end)|},
-      [(0, ["10"])],
-    ),
-    probe_line_test(
-      "Probe on case (second branch)",
-      {|^^probe(case 2 | 1 => 10 | _ => 20 end)|},
-      [(0, ["20"])],
-    ),
-    probe_line_test("Probe on sequence", {|^^probe(1; 2)|}, [(0, ["2"])]),
-    /* ===== Nested compound expressions ===== */
-    probe_line_test(
-      "Probe on nested ifs",
-      {|^^probe(if true then (if false then 1 else 2) else 3)|},
-      [(0, ["2"])],
-    ),
-    probe_line_test(
-      "Probe on nested lets",
-      {|^^probe(let x = 1 in let y = 2 in x + y)|},
-      [(0, ["3"])],
-    ),
-    probe_line_test(
-      "Probe on if containing let",
-      {|^^probe(if true then let x = 5 in x else 0)|},
-      [(0, ["5"])],
-    ),
-    probe_line_test(
-      "Probe on let containing if",
-      {|^^probe(let x = if true then 1 else 2 in x + 10)|},
-      [(0, ["11"])],
-    ),
-    probe_line_test(
-      "Probe on deeply nested compound",
-      {|^^probe(let a = 1 in
-  let b = if a == 1 then 10 else 20 in
-  case b | 10 => 100 | _ => 200 end)|},
-      [(0, ["100"])],
-    ),
-    /* ===== Mixed: probe on compound + probes inside ===== */
-    probe_line_test(
-      "Outer probe on if with inner probe",
-      {|^^probe(if true then ^^probe(1 + 2) else 0)|},
-      [(0, ["3", "3"])] /* Both probes capture same value */
-    ),
-    probe_line_test(
-      "Outer probe on let with inner probe on body",
-      {|^^probe(let x = 5 in ^^probe(x * 2))|},
-      [(0, ["10", "10"])],
-    ),
-    /* ===== Parens (known issue) =====
-     * Probes on parenthesized expressions don't capture values because
-     * elaboration strips Parens nodes, losing the probe_map ID.
-     * ID-copying approach doesn't work because it breaks nested cases
-     * like `(^^probe(1))`. Needs a different solution. */
-    probe_line_test(
-      "Probe on parens (known issue: ID lost during elaboration)",
-      {|^^probe((1 + 2))|},
-      [(0, [])] /* Should be ["3"] */,
-    ),
-    probe_line_test(
-      "Probe on tuple (same parens issue)",
-      {|^^probe((1, "a"))|},
-      [(0, [])] /* Should be ["(1, \"a\")"] */,
-    ),
-    /* ===== Pattern probes ===== */
-    probe_line_test(
-      "Pattern probe on let binding",
-      {|let ^^probe(x) = 42 in x|},
-      [(0, ["42"])],
-    ),
-    probe_line_test(
-      "Pattern probe on tuple destructuring",
-      {|let (^^probe(a), b) = (1, 2) in a + b|},
-      [(0, ["1"])],
-    ),
-    probe_line_test(
-      "Pattern probe in function parameter",
-      {|let f = fun ^^probe(x) -> x * 2
-in f(5)|},
-      [(0, ["5"])],
-    ),
-    probe_line_test(
-      "Pattern probe in case",
-      {|case (1, 2) | (^^probe(x), y) => x + y end|},
-      [(0, ["1"])],
-    ),
-    /* ===== Type ascription interactions ===== */
-    probe_line_test(
-      "Probe with unknown type ascription",
-      {|^^probe(1 + 2) : ?|},
-      [(0, ["3"])],
-    ),
-    probe_line_test(
-      "Probe in let with labeled tuple type (value coercion)",
-      {|let x : (l=String) = ^^probe("a") in x|},
-      [(0, ["(l=\"a\")"])],
-    ),
-    /* Fixed by preserving Tuple ID in Ascriptions.transition. The singleton
-       labeled tuple coercion puts the original expression ID on the coerced
-       Tuple, and the Tuple ascription transition now preserves that ID. */
-    probe_line_test(
-      "Probe with outer ascription (singleton tuple coercion)",
-      {|^^probe("a") : (l=String)|},
-      [(0, ["(l=\"a\")"])],
-    ),
-    probe_line_test(
-      "Pattern probe with labeled tuple type (value coercion)",
-      {|let ^^probe(x) : (l=String) = "a" in x|},
-      [(0, ["(l=\"a\")"])],
-    ),
-    /* ===== Builtins and list operations ===== */
-    probe_line_test(
-      "Probe on builtin function call (captures unevaluated)",
-      {|^^probe(string_length("hello"))|},
-      [(0, ["5"])],
-    ),
-    probe_line_test(
-      "Probe on list concat",
-      {|^^probe([1, 2] @ [3, 4])|},
-      [(0, ["[1, 2, 3, 4]"])],
-    ),
-    /* List cons - fixed by preserving ID in Ascriptions.transition */
-    probe_line_test(
-      "Probe on list cons",
-      {|^^probe(1 :: [2, 3])|},
-      [(0, ["[1, 2, 3]"])],
-    ),
-    /* ===== Edge cases ===== */
-    probe_line_test("Probe on empty hole", {|^^probe(?)|}, [(0, ["?"])]),
-    probe_line_test(
-      "Probe on constructor",
-      {|type T = A + B in ^^probe(A)|},
-      [(0, ["A"])],
-    ),
-    probe_line_test(
-      "Probe on constructor with arg",
-      {|type T = A(Int) + B in ^^probe(A(42))|},
-      [(0, ["A(42)"])],
-    ),
-    /* ===== Ascription transition ID preservation tests =====
-     * These tests verify that probes work correctly when the probed expression
-     * is inside a type ascription. The ascription transition pushes types into
-     * sub-expressions, and must preserve the original expression's ID.
-     * See Ascriptions.re for the transition rules. */
-    probe_line_test(
-      "Probe on list literal with ascription (ID preservation)",
-      {|^^probe([1, 2]) : [Int]|},
-      [(0, ["[1, 2]"])],
-    ),
-    probe_line_test(
-      "Probe on list concat with ascription",
-      {|^^probe([1] @ [2]) : [Int]|},
-      [(0, ["[1, 2]"])],
-    ),
-    probe_line_test(
-      "Probe on if expression with ascription",
-      {|^^probe(if true then 1 else 2) : Int|},
-      [(0, ["1"])],
-    ),
-    probe_line_test(
-      "Probe on let expression with ascription",
-      {|^^probe(let x = 1 in x + 1) : Int|},
-      [(0, ["2"])],
-    ),
-    probe_line_test(
-      "Probe on sequence with ascription",
-      {|^^probe(1; 2) : Int|},
-      [(0, ["2"])],
-    ),
-    /* Note: Can't easily test TupLabel with ascription due to precedence.
-       ^^probe(l=1) : (l=Int) parses as l=(1:(l=Int)), not (l=1):(l=Int).
-       Would need ^^probe((l=1)) : (l=Int) but parens stripping loses probe ID.
+    [(1, ["0"]), (2, ["3", "2", "1"])],
+  ),
+  probe_line_test(
+    "User-defined list ADT with length",
+    {|type List = Nil + Cons(Int, List)
+in let len = fun lst ->
+  case lst
+  | Nil => 0
+  | Cons(_, tail) => 1 + ^^probe(len(tail))
+  end
+in len(Cons(1, Cons(2, Cons(3, Nil))))|},
+    [(4, ["0", "1", "2"])],
+  ),
+  probe_line_test(
+    "Tree ADT with sum",
+    {|type Tree = Leaf(Int) + Node(Tree, Tree)
+in let sum = fun t ->
+  case t
+  | Leaf(n) => ^^probe(n)
+  | Node(l, r) => sum(l) + sum(r)
+  end
+in sum(Node(Leaf(1), Node(Leaf(2), Leaf(3))))|},
+    [(3, ["1", "2", "3"])],
+  ),
+  probe_line_test(
+    "Tree ADT with multiple probes",
+    {|type Tree = Leaf(Int) + Node(Tree, Tree)
+in let depth = fun t ->
+  case t
+  | Leaf(^^probe(n)) => 1
+  | Node(l, r) =>
+    let dl = ^^probe(depth(l))
+    in let dr = depth(r)
+    in 1 + (if dl > dr then dl else dr)
+  end
+in depth(Node(Node(Leaf(1), Leaf(2)), Leaf(3)))|},
+    [(3, ["1", "2", "3"]), (5, ["1", "2"])],
+  ),
+  probe_line_test(
+    "List reverse returning list",
+    {|let rev = fun lst ->
+  case lst
+  | [] => []
+  | x :: xs => ^^probe(rev(xs)) @ [x]
+  end
+in rev([1, 2, 3])|},
+    [(3, ["[]", "[3]", "[3, 2]"])],
+  ),
+  probe_line_test(
+    "List map with probe on each element",
+    {|let map = fun f -> fun lst ->
+  case lst
+  | [] => []
+  | x :: xs => ^^probe(f(x)) :: map(f)(xs)
+  end
+in map(fun x -> x * 2)([1, 2, 3])|},
+    [(3, ["2", "4", "6"])],
+  ),
+  probe_line_test(
+    "Nested recursion with probes (fib)",
+    {|let fib = fun n ->
+  if n <= 1 then n
+  else ^^probe(fib(n - 1)) + fib(n - 2)
+in fib(5)|},
+    [(2, ["1", "1", "2", "1", "3", "1", "1"])],
+  ),
+  /* Tests with non-atomic outputs (using ADTs since tuple probes have parsing issues) */
+  probe_line_test(
+    "Probe on ADT constructor",
+    {|type T = A(Int) + B in ^^probe(A(42))|},
+    [(0, ["A(42)"])],
+  ),
+  probe_line_test(
+    "Recursive ADT construction",
+    {|type List = Nil + Cons(Int, List)
+in let build = fun n ->
+  if n <= 0 then ^^probe(Nil)
+  else ^^probe(Cons(n, build(n - 1)))
+in build(3)|},
+    [
+      (2, ["Nil"]),
+      (
+        3,
+        [
+          "Cons(1, Nil)",
+          "Cons(2, Cons(1, Nil))",
+          "Cons(3, Cons(2, Cons(1, Nil)))",
+        ],
+      ),
+    ],
+  ),
+];
 
-       Fun and TypFun with ascription also have fast_copy in Ascriptions.re but
-       are hard to test: Fun values get Fold projectors in output, and TypFun
-       hits a substitution error. The ID preservation is consistent with other
-       value types so we keep it without explicit tests. */
-  ],
-);
+let ascription_tests = [
+  probe_line_test(
+    "Probe with unknown type ascription",
+    {|^^probe(1 + 2) : ?|},
+    [(0, ["3"])],
+  ),
+  probe_line_test(
+    "Probe in let with labeled tuple type (value coercion)",
+    {|let x : (l=String) = ^^probe("a") in x|},
+    [(0, ["(l=\"a\")"])],
+  ),
+  probe_line_test(
+    "Probe with outer ascription (singleton tuple coercion)",
+    {|^^probe("a") : (l=String)|},
+    [(0, ["(l=\"a\")"])],
+  ),
+  probe_line_test(
+    "Probe on list literal with ascription (ID preservation)",
+    {|^^probe([1, 2]) : [Int]|},
+    [(0, ["[1, 2]"])],
+  ),
+  probe_line_test(
+    "Probe on list concat with ascription",
+    {|^^probe([1] @ [2]) : [Int]|},
+    [(0, ["[1, 2]"])],
+  ),
+  probe_line_test(
+    "Probe on if expression with ascription",
+    {|^^probe(if true then 1 else 2) : Int|},
+    [(0, ["1"])],
+  ),
+  probe_line_test(
+    "Probe on let expression with ascription",
+    {|^^probe(let x = 1 in x + 1) : Int|},
+    [(0, ["2"])],
+  ),
+  probe_line_test(
+    "Probe on sequence with ascription",
+    {|^^probe(1; 2) : Int|},
+    [(0, ["2"])],
+  ),
+];
+
+let known_issue_tests = [
+  /* Parens bug: probes on parenthesized expressions don't capture values
+   * because elaboration strips Parens nodes, losing the probe_map ID. */
+  probe_line_test(
+    "Probe on parens (known issue: ID lost during elaboration)",
+    {|^^probe((1 + 2))|},
+    [(0, [])] /* Should be ["3"] */
+  ),
+  probe_line_test(
+    "Probe on tuple (same parens issue)",
+    {|^^probe((1, "a"))|},
+    [(0, [])] /* Should be ["(1, \"a\")"] */
+  ),
+];
+
+let tests = [
+  ("Evaluator.ProbeLines.Basic", basic_tests),
+  ("Evaluator.ProbeLines.Operators", operator_tests),
+  ("Evaluator.ProbeLines.Compound", compound_expression_tests),
+  ("Evaluator.ProbeLines.Patterns", pattern_probe_tests),
+  ("Evaluator.ProbeLines.Nested", nested_probe_tests),
+  ("Evaluator.ProbeLines.Recursion", recursion_tests),
+  ("Evaluator.ProbeLines.Ascription", ascription_tests),
+  ("Evaluator.ProbeLines.KnownIssues", known_issue_tests),
+];
