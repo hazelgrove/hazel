@@ -167,7 +167,52 @@ let rec evaluate =
   state := new_state;
   switch (is_finished) {
   | Final => Trampoline.return((EvaluatorEVMode.Final, [], next))
-  | Uneval => Trampoline.Next(() => evaluate(~call_stack, state, env, next))
+  | Uneval =>
+    /* Compound Expression Probe Capture via Trampoline.Bind
+     *
+     * Problem: Compound expressions (if, let, case, function application) step
+     * with is_finished=Uneval, meaning their result is a new expression with a
+     * different ID. Without special handling, we'd call evaluate(next) and lose
+     * the probe context since next.id != expr_id.
+     *
+     * Example: ^^probe(if true then 1 else 2)
+     *   1. expr_id = ID of the If expression, which is in probe_map
+     *   2. transition returns (Uneval, effects, next=1) - If stepped to branch
+     *   3. Without Bind: evaluate(1) runs, returns Final, but expr_id is lost
+     *   4. With Bind: we capture the final value when evaluate(1) completes,
+     *      then record the sample with the original expr_id
+     *
+     * Nested probes like ^^probe(if true then ^^probe(1) else 2) work correctly:
+     * each probe creates its own Bind continuation, and they're unwound in order.
+     *
+     * The key insight is that Trampoline.Bind creates a continuation that runs
+     * AFTER all recursive evaluation completes, at which point state^ reflects
+     * all step count mutations, but we still have expr_id in scope.
+     */
+    switch (Id.Map.find_opt(expr_id, state^.probe_map)) {
+    | Some(probe) =>
+      let.trampoline (_, _, final_value) =
+        Trampoline.Next(() => evaluate(~call_stack, state, env, next));
+      /* Record sample with final evaluated value */
+      let step_start =
+        EvaluatorState.get_probe_start(state^, expr_id)
+        |> Option.value(~default=0);
+      let step_end = state^.step_count - 1;
+      let sample =
+        Sample.mk(
+          ~step_start,
+          ~step_end,
+          expr_id,
+          final_value,
+          env,
+          call_stack,
+          probe,
+        );
+      state := EvaluatorState.clear_probe_start(state^, expr_id);
+      state := {...state^, probes: Sample.Map.extend(expr_id, sample, state^.probes)};
+      Trampoline.return((EvaluatorEVMode.Final, [], final_value));
+    | None => Trampoline.Next(() => evaluate(~call_stack, state, env, next))
+    }
   };
 };
 
