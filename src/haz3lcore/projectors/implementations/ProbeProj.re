@@ -140,21 +140,27 @@ module SampleLength = {
 };
 
 /* Select samples to display, using stateful window offset.
- * This wraps Sample.Selection with WindowState for offset persistence. */
+ * This wraps Sample.Selection with WindowState for offset persistence.
+ * Optionally takes pre-filtered samples to avoid redundant filtering. */
 let select_samples =
     (
       ~settings: settings,
       ~id: Id.t,
       ~ap_id: option(Id.t),
+      ~filtered: option(list(Sample.t))=?,
       di: Dynamics.Info.t,
     )
     : list(Sample.t) => {
   let samples =
-    Sample.Selection.filter_by_pin(
-      ~ap_id,
-      ~pinned=di.dyn_cursor.pinned_stack,
-      di.samples,
-    );
+    switch (filtered) {
+    | Some(s) => s
+    | None =>
+      Sample.Selection.filter_by_pin(
+        ~ap_id,
+        ~pinned=di.dyn_cursor.pinned_stack,
+        di.samples,
+      )
+    };
   let first_idx =
     Sample.Selection.first_related_index(
       ~trimmed=false,
@@ -394,6 +400,7 @@ let value_view =
     (
       ~ap_id: option(Id.t),
       ~settings: settings,
+      ~num_total: int,
       di: Dynamics.Info.t,
       utility: utility,
       view_seg,
@@ -440,14 +447,8 @@ let value_view =
   /* Crude way of giving more space when there's only one sample shown.
    * Really should figure out total length of all samples and divide accordingly */
   let length = SampleLength.get(settings.window, sample);
-  let num_samples =
-    Sample.Selection.filter_by_pin(
-      ~ap_id,
-      ~pinned=di.dyn_cursor.pinned_stack,
-      di.samples,
-    )
-    |> List.length;
-  let length = length == 12 && num_samples == 1 ? 150 : length;
+  /* Use pre-computed num_total instead of filtering again */
+  let length = length == 12 && num_total == 1 ? 150 : length;
   let (seg, length) = abbreviated_seg_of(utility, length, sample.value);
 
   div(
@@ -563,6 +564,7 @@ let sample_view =
       ~ap_id: option(Id.t),
       ~hide_env: bool,
       ~settings: settings,
+      ~num_total: int,
       di: Dynamics.Info.t,
       utility: utility,
       view_seg,
@@ -576,6 +578,7 @@ let sample_view =
       value_view(
         ~ap_id,
         ~settings,
+        ~num_total,
         di,
         utility,
         view_seg,
@@ -608,6 +611,7 @@ let sample_group_view =
       ~ap_id: option(Id.t),
       ~hide_env: bool,
       ~settings: settings,
+      ~num_total: int,
       di: Dynamics.Info.t,
       utility,
       view_seg,
@@ -625,6 +629,7 @@ let sample_group_view =
               ~ap_id,
               ~hide_env,
               ~settings,
+              ~num_total,
               di,
               utility,
               view_seg,
@@ -950,14 +955,16 @@ let offside_view =
     let id = info.id;
     let ap_id = DynCursor.cur_ap(info.statics);
     let hide_env = hide_env(info);
-    let num_total =
+    /* Filter samples once and reuse for both num_total and selection */
+    let filtered_samples =
       Sample.Selection.filter_by_pin(
         ~ap_id,
         ~pinned=di.dyn_cursor.pinned_stack,
         di.samples,
-      )
-      |> List.length;
-    let samples = select_samples(~settings, ~id, ~ap_id, di);
+      );
+    let num_total = List.length(filtered_samples);
+    let samples =
+      select_samples(~settings, ~id, ~ap_id, ~filtered=filtered_samples, di);
     let (num_shown, groups) = Sample.Selection.collate(samples);
 
     /* Determine what to show when no samples are displayed */
@@ -993,6 +1000,7 @@ let offside_view =
             ~ap_id,
             ~hide_env,
             ~settings,
+            ~num_total,
             di,
             utility,
             (~text_only: bool) => view_seg(~text_only, ~background=false),

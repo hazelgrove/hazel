@@ -257,6 +257,7 @@ module View = {
               : []
           )
         : [];
+    let t0 = JsUtil.precise_timestamp();
     let refractor_data =
       ProjectorView.Model.mk(
         Id.Map.union(
@@ -273,6 +274,7 @@ module View = {
         model.editor.state.zipper.refractors.dyn_cursor,
         selected,
       );
+    let t1 = JsUtil.precise_timestamp();
     let refractors_model =
       ProjectorView.all_refractors(
         x => inject(Perform(x)),
@@ -280,6 +282,7 @@ module View = {
         globals.font_metrics,
         refractor_data,
       );
+    let t2 = JsUtil.precise_timestamp();
     let projectors =
       ProjectorView.all(
         x => inject(Perform(x)),
@@ -297,6 +300,24 @@ module View = {
           selected,
         ),
       );
+    let t3 = JsUtil.precise_timestamp();
+    let num_refractors =
+      Id.Map.cardinal(
+        Id.Map.union(
+          (_, _, b) => Some(b),
+          model.editor.state.zipper.refractors.manuals,
+          model.editor.state.zipper.refractors.ephemerals,
+        ),
+      );
+    if (num_refractors > 0) {
+      Printf.printf(
+        "[Probe Perf] refractor_data: %.2fms, all_refractors: %.2fms, projectors: %.2fms (n=%d)\n",
+        t1 -. t0,
+        t2 -. t1,
+        t3 -. t2,
+        num_refractors,
+      );
+    };
     let overlays =
       [Node.div(~attrs=[Attr.classes(["code-deco"])], edit_decos)]
       @ [Node.div(~attrs=[Attr.classes(["overlays"])], overlays)]

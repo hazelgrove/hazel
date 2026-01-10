@@ -180,6 +180,7 @@ let legend_sample_view =
       ...ProbeProj.Settings.s^,
       window: mode,
     },
+    ~num_total=1,
     di,
     ProjectorInfo.utility,
     (~text_only) =>
