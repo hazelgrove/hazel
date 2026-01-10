@@ -418,6 +418,67 @@ in let add5 = make_adder(5)
 in ^^probe(add5(10))|},
     [(2, ["15"])],
   ),
+  /* Tests for case/if inside function body - issue with no samples */
+  probe_line_test(
+    "Probe on case inside called function",
+    {|let f = fun x -> ^^probe(case x | 1 => 10 | _ => 20 end)
+in f(1)|},
+    [(0, ["10"])],
+  ),
+  probe_line_test(
+    "Probe on if inside called function",
+    {|let f = fun x -> ^^probe(if x == 1 then 10 else 20)
+in f(1)|},
+    [(0, ["10"])],
+  ),
+  probe_line_test(
+    "Probe on case with constructor pattern inside function",
+    {|type T = + A(Int) in
+let f = fun t -> ^^probe(case t | A(x) => x end)
+in f(A(42))|},
+    [(1, ["42"])],
+  ),
+  /* Integration tests - complex real-world scenarios (originally from user bug report) */
+  probe_line_test(
+    "Probe on case containing if inside multiarg function with type annotation",
+    {|type Exp = + Var(String) in
+let subst: (Exp, String, Exp) -> Exp =
+fun (v, name, e) ->
+^^probe(case e
+| Var(x) =>
+if x == name then v else e
+end)
+in subst(Var("foo"), "foo", Var("bar"))|},
+    /* x="bar", name="foo", so x==name is false, result is e=Var("bar") */
+    [(3, ["Var(\"bar\")"])],
+  ),
+  probe_line_test(
+    "Probe on if inside case inside function with type annotation",
+    {|type Exp = + Var(String) in
+let subst: (Exp, String, Exp) -> Exp =
+fun (v, name, e) ->
+case e
+| Var(x) =>
+^^probe(if x == name then v else e)
+end
+in subst(Var("foo"), "foo", Var("bar"))|},
+    /* x="bar", name="foo", so x==name is false, result is e=Var("bar") */
+    [(5, ["Var(\"bar\")"])],
+  ),
+  /* Case inside function (without type annotation for contrast) */
+  probe_line_test(
+    "Probe inside case inside simple function (no annotation)",
+    {|let f = fun x -> case x | 1 => ^^probe(10) | _ => 0 end
+in f(1)|},
+    [(0, ["10"])],
+  ),
+  probe_line_test(
+    "Probe inside case with constructor pattern (no annotation)",
+    {|type T = + A(Int) in
+let f = fun t -> case t | A(x) => ^^probe(x + 1) end
+in f(A(5))|},
+    [(1, ["6"])],
+  ),
 ];
 
 let pattern_probe_tests = [
@@ -624,11 +685,73 @@ in build(3)|},
 ];
 
 let ascription_tests = [
+  /* Basic ascriptions with unknown type (?) */
   probe_line_test(
     "Probe with unknown type ascription",
     {|^^probe(1 + 2) : ?|},
     [(0, ["3"])],
   ),
+  probe_line_test(
+    "Probe on literal with unknown type",
+    {|^^probe(42) : ?|},
+    [(0, ["42"])],
+  ),
+  probe_line_test(
+    "Probe on list with unknown element type",
+    {|^^probe([1, 2, 3]) : [?]|},
+    [(0, ["[1, 2, 3]"])],
+  ),
+  probe_line_test(
+    "Probe on function result with unknown type",
+    {|let f: Int -> ? = fun x -> x + 1 in ^^probe(f(5))|},
+    [(0, ["6"])],
+  ),
+  /* Function type annotations - critical for ID preservation */
+  probe_line_test(
+    "Probe in function body with type annotation",
+    {|let f: Int -> Int = fun x -> ^^probe(x + 1)
+in f(5)|},
+    [(0, ["6"])],
+  ),
+  probe_line_test(
+    "Probe inside case with function type annotation",
+    {|let f: Int -> Int = fun x -> case x | 1 => ^^probe(10) | _ => 0 end
+in f(1)|},
+    [(0, ["10"])],
+  ),
+  probe_line_test(
+    "Probe inside if with function type annotation",
+    {|let f: Int -> Int = fun x -> if x == 1 then ^^probe(100) else 0
+in f(1)|},
+    [(0, ["100"])],
+  ),
+  probe_line_test(
+    "Probe with tuple param and type annotation",
+    {|let f: (Int, Int) -> Int = fun (a, b) -> ^^probe(a + b)
+in f(3, 4)|},
+    [(0, ["7"])],
+  ),
+  probe_line_test(
+    "Probe inside case with custom type annotation",
+    {|type T = + A(Int) in
+let f: T -> Int = fun t -> case t | A(x) => ^^probe(x * 2) end
+in f(A(5))|},
+    [(1, ["10"])],
+  ),
+  /* Function with unknown return type */
+  probe_line_test(
+    "Probe in function with unknown return type",
+    {|let f: Int -> ? = fun x -> ^^probe(x + 1)
+in f(5)|},
+    [(0, ["6"])],
+  ),
+  probe_line_test(
+    "Probe inside case with unknown return type",
+    {|let f: Int -> ? = fun x -> case x | 1 => ^^probe(10) | _ => 0 end
+in f(1)|},
+    [(0, ["10"])],
+  ),
+  /* Value coercions via ascription */
   probe_line_test(
     "Probe in let with labeled tuple type (value coercion)",
     {|let x : (l=String) = ^^probe("a") in x|},
@@ -639,8 +762,9 @@ let ascription_tests = [
     {|^^probe("a") : (l=String)|},
     [(0, ["(l=\"a\")"])],
   ),
+  /* Compound expressions with ascriptions */
   probe_line_test(
-    "Probe on list literal with ascription (ID preservation)",
+    "Probe on list literal with ascription",
     {|^^probe([1, 2]) : [Int]|},
     [(0, ["[1, 2]"])],
   ),
@@ -653,6 +777,11 @@ let ascription_tests = [
     "Probe on if expression with ascription",
     {|^^probe(if true then 1 else 2) : Int|},
     [(0, ["1"])],
+  ),
+  probe_line_test(
+    "Probe on case expression with ascription",
+    {|^^probe(case 1 | 1 => 10 | _ => 20 end) : Int|},
+    [(0, ["10"])],
   ),
   probe_line_test(
     "Probe on let expression with ascription",

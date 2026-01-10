@@ -8,26 +8,14 @@
  e.g. [1, 2] : [Int] -> [1 : Int, 2 : Int]
 
  ID PRESERVATION FOR PROBES:
- When an ascription transition transforms a value expression (Tuple, ListLit,
- Cons, etc.), we must preserve the original expression's ID using IdTagged.fast_copy.
- This is critical for the probe system, which tracks expressions by ID in probe_map.
+ When an ascription transition transforms an expression, we preserve the original
+ expression's ID. This is critical for the probe system, which tracks expressions
+ by ID in probe_map.
 
- Without ID preservation:
-   1. User probes a value: ^^probe([1, 2]) : [Int]
-   2. The ListLit [1, 2] has id_list in probe_map
-   3. Asc transition creates [1:Int, 2:Int] with DHExp.fresh -> NEW ID
-   4. The probe on id_list never fires!
-
- With ID preservation (using fast_copy):
-   1. Same as above
-   2. Same as above
-   3. Asc transition creates [1:Int, 2:Int] but preserves id_list
-   4. The probe fires correctly when evaluating the result
-
- Non-value expressions (If, Let, Seq, ListConcat, etc.) don't need this because
- the probe fires during sub-expression evaluation BEFORE the Asc transition.
-
- Cases using fast_copy: Tuple, Cons, ListLit, Fun, TypFun
+ The general principle: any case that returns Some(...) should preserve the ID of
+ the expression being ascribed (`e` from the outer `Asc(e, t)` pattern). We do this
+ either by returning `Some(e)` directly, or by using `IdTagged.fast_copy(DHExp.rep_id(e), ...)`
+ when constructing a new expression structure.
  */
 let rec transition = (~recursive=false, d: DHExp.t): option(DHExp.t) => {
   let recur = (d: DHExp.t): DHExp.t =>
@@ -59,23 +47,27 @@ let rec transition = (~recursive=false, d: DHExp.t): option(DHExp.t) => {
     | (Closure(ce, d), t) =>
       transition(~recursive, Asc(d, t |> Typ.fresh) |> DHExp.fresh)
       |> Option.map(d => Closure(ce, d) |> DHExp.fresh)
-    | (Fun(p, e, t, v), Arrow(t1, t2)) =>
-      /* Preserve ID for probes - see comment at top of file */
+    | (Fun(p, body, closure_ty, name), Arrow(t1, t2)) =>
       Some(
         IdTagged.fast_copy(
           DHExp.rep_id(e),
           IdTagged.FreshGrammar.(
-            Exp.(fn(Pat.(asc(p, t1)), asc(e, t2), t, v))
+            Exp.(fn(Pat.(asc(p, t1)), asc(body, t2), closure_ty, name))
           ),
         ),
       )
-    | (TupLabel({term: ExplicitNonlabel, _}, e), _) =>
-      Some(recur(Asc(e, t) |> DHExp.fresh))
-    | (TupLabel(l, e), TupLabel(_l2, t)) =>
+    | (TupLabel({term: ExplicitNonlabel, _}, inner), _) =>
+      Some(recur(Asc(inner, t) |> DHExp.fresh))
+    | (TupLabel(l, inner), TupLabel(_l2, inner_ty)) =>
       // TODO Figure out what to do if the labels don't match
-      Some(TupLabel(l, recur(Asc(e, t) |> DHExp.fresh)) |> DHExp.fresh)
+      Some(
+        IdTagged.fast_copy(
+          DHExp.rep_id(e),
+          TupLabel(l, recur(Asc(inner, inner_ty) |> DHExp.fresh))
+          |> DHExp.fresh,
+        ),
+      )
     | (Tuple(es), Prod(tys)) when List.length(es) == List.length(tys) =>
-      /* Preserve ID for probes - see comment at top of file */
       Some(
         IdTagged.fast_copy(
           DHExp.rep_id(e),
@@ -90,14 +82,14 @@ let rec transition = (~recursive=false, d: DHExp.t): option(DHExp.t) => {
         ),
       )
     | (_, Unknown(_)) => Some(e)
-    | (Atom(value) as d, Atom(typ)) =>
+    | (Atom(value), Atom(typ)) =>
       switch (value, typ) {
       | (Int(_), Int)
       | (String(_), String)
       | (Nat(_), Nat)
       | (Float(_), Float)
       | (SInt(_), SInt)
-      | (Bool(_), Bool) => Some(d |> Exp.fresh)
+      | (Bool(_), Bool) => Some(e)
       | (Int(_), _)
       | (String(_), _)
       | (Nat(_), _)
@@ -106,7 +98,6 @@ let rec transition = (~recursive=false, d: DHExp.t): option(DHExp.t) => {
       | (Bool(_), _) => None
       }
     | (ListLit(ds), List(ty)) =>
-      /* Preserve ID for probes - see comment at top of file */
       Some(
         IdTagged.fast_copy(
           DHExp.rep_id(e),
@@ -115,7 +106,6 @@ let rec transition = (~recursive=false, d: DHExp.t): option(DHExp.t) => {
         ),
       )
     | (Cons(d1, d2), List(ty)) =>
-      /* Preserve ID for probes - see comment at top of file */
       Some(
         IdTagged.fast_copy(
           DHExp.rep_id(e),
@@ -126,43 +116,48 @@ let rec transition = (~recursive=false, d: DHExp.t): option(DHExp.t) => {
           |> DHExp.fresh,
         ),
       )
-    | (TypFun(tp, e, v), Poly(tp', t')) =>
+    | (TypFun(tp, body, name), Poly(tp', t')) =>
       let new_ty: Typ.t =
         switch (TPat.tyvar_of_utpat(tp)) {
         | Some(tyvar) => Var(tyvar) |> Typ.temp
         | None => Unknown(Internal) |> Typ.temp
         };
-      /* Preserve ID for probes - see comment at top of file */
       Some(
         IdTagged.fast_copy(
           DHExp.rep_id(e),
           TypFun(
             tp,
-            recur(Asc(e, Typ.subst(new_ty, tp', t')) |> DHExp.fresh),
-            v,
+            recur(Asc(body, Typ.subst(new_ty, tp', t')) |> DHExp.fresh),
+            name,
           )
           |> DHExp.fresh,
         ),
       );
-    | (If(e, e1, e2), t) =>
+    | (If(cond, e1, e2), t) =>
       Some(
-        If(
-          recur(e),
-          recur(Asc(e1, t |> Typ.temp) |> DHExp.fresh),
-          recur(Asc(e2, t |> Typ.temp) |> DHExp.fresh),
-        )
-        |> DHExp.fresh,
+        IdTagged.fast_copy(
+          DHExp.rep_id(e),
+          If(
+            recur(cond),
+            recur(Asc(e1, t |> Typ.temp) |> DHExp.fresh),
+            recur(Asc(e2, t |> Typ.temp) |> DHExp.fresh),
+          )
+          |> DHExp.fresh,
+        ),
       )
-    | (Match(e, rules), t) =>
+    | (Match(scrut, rules), t) =>
       Some(
-        Match(
-          e,
-          List.map(
-            ((p, e)) => (p, Asc(e, t |> Typ.temp) |> DHExp.fresh),
-            rules,
-          ),
-        )
-        |> DHExp.fresh,
+        IdTagged.fast_copy(
+          DHExp.rep_id(e),
+          Match(
+            scrut,
+            List.map(
+              ((p, body)) => (p, Asc(body, t |> Typ.temp) |> DHExp.fresh),
+              rules,
+            ),
+          )
+          |> DHExp.fresh,
+        ),
       )
     | (
         Ap(
