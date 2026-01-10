@@ -29,7 +29,8 @@ let get_all_samples = (code: string): list(Sample.t) => {
 let show_call_stack = (cs: Probe.call_stack): string =>
   "[" ++ String.concat(", ", List.map(Id.str3, cs)) ++ "]";
 
-let call_stack_testable = testable(Fmt.using(show_call_stack, Fmt.string), (==));
+let call_stack_testable =
+  testable(Fmt.using(show_call_stack, Fmt.string), (==));
 
 /* Test that multiple top-level probed applications have the same (empty) call_stack.
  * This is the bug: if they have different call_stacks (containing their own app_ids),
@@ -54,7 +55,8 @@ in ^^probe(f(1)); ^^probe(f(2))|},
         )
       | _ =>
         fail(
-          "Expected exactly 2 samples, got " ++ string_of_int(List.length(samples)),
+          "Expected exactly 2 samples, got "
+          ++ string_of_int(List.length(samples)),
         )
       };
     },
@@ -74,7 +76,8 @@ in ^^probe(f(1)); ^^probe(f(2))|},
         )
       | _ =>
         fail(
-          "Expected exactly 1 sample, got " ++ string_of_int(List.length(samples)),
+          "Expected exactly 1 sample, got "
+          ++ string_of_int(List.length(samples)),
         )
       };
     },
@@ -106,7 +109,8 @@ in ^^probe(celsius(72.)); ^^probe(celsius(100.))|},
         );
       | _ =>
         fail(
-          "Expected exactly 2 samples, got " ++ string_of_int(List.length(samples)),
+          "Expected exactly 2 samples, got "
+          ++ string_of_int(List.length(samples)),
         )
       };
     },
@@ -120,10 +124,8 @@ let inside_function_tests = [
     `Quick,
     () => {
       let samples =
-        get_all_samples(
-          {|let f = fun x -> ^^probe(x + 1)
-in f(5)|},
-        );
+        get_all_samples({|let f = fun x -> ^^probe(x + 1)
+in f(5)|});
       switch (samples) {
       | [s] =>
         check(
@@ -134,7 +136,8 @@ in f(5)|},
         )
       | _ =>
         fail(
-          "Expected exactly 1 sample, got " ++ string_of_int(List.length(samples)),
+          "Expected exactly 1 sample, got "
+          ++ string_of_int(List.length(samples)),
         )
       };
     },
@@ -144,10 +147,8 @@ in f(5)|},
     `Quick,
     () => {
       let samples =
-        get_all_samples(
-          {|let f = fun x -> ^^probe(x)
-in f(1); f(2)|},
-        );
+        get_all_samples({|let f = fun x -> ^^probe(x)
+in f(1); f(2)|});
       switch (samples) {
       | [s1, s2] =>
         check(
@@ -165,7 +166,8 @@ in f(1); f(2)|},
         );
       | _ =>
         fail(
-          "Expected exactly 2 samples, got " ++ string_of_int(List.length(samples)),
+          "Expected exactly 2 samples, got "
+          ++ string_of_int(List.length(samples)),
         )
       };
     },
@@ -182,10 +184,8 @@ let app_vs_body_tests = [
        * The probe inside the function should have the app_id in call_stack.
        * The inner probe's call_stack should be the app's call_stack + app_id. */
       let samples =
-        get_all_samples(
-          {|let f = fun x -> ^^probe(x)
-in ^^probe(f(5))|},
-        );
+        get_all_samples({|let f = fun x -> ^^probe(x)
+in ^^probe(f(5))|});
       switch (samples) {
       | [s1, s2] =>
         /* One sample should be from the app probe (empty call_stack),
@@ -210,7 +210,8 @@ in ^^probe(f(5))|},
         );
       | _ =>
         fail(
-          "Expected exactly 2 samples, got " ++ string_of_int(List.length(samples)),
+          "Expected exactly 2 samples, got "
+          ++ string_of_int(List.length(samples)),
         )
       };
     },
@@ -219,5 +220,9 @@ in ^^probe(f(5))|},
 
 let tests = (
   "Evaluator.ProbeCallStack",
-  List.concat([top_level_apps_tests, inside_function_tests, app_vs_body_tests]),
+  List.concat([
+    top_level_apps_tests,
+    inside_function_tests,
+    app_vs_body_tests,
+  ]),
 );
