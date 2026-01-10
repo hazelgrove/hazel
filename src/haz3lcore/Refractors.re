@@ -51,6 +51,11 @@ let rec target_subterm_ids = (id: Id.t, info_map: Statics.Map.t) =>
   | Some(InfoExp({term: {term: TyAlias(_), _}, _})) => []
   /* Disallow probing types pending alexander's stuff */
   | Some(InfoTyp(_) | InfoTPat(_)) => []
+  /* Default: use rep_id for expressions and patterns to handle multi-tile forms
+     (tuples, list literals, case expressions) where non-representative tile IDs
+     would otherwise cause probe_map/evaluator ID mismatch */
+  | Some(InfoExp({term, _})) => [IdTagged.rep_id(term)]
+  | Some(InfoPat({term, _})) => [Pat.rep_id(term)]
   | _ => [id]
   };
 
