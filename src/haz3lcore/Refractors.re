@@ -101,7 +101,8 @@ let rm_auto =
   Zipper.update_refractors(z, refractors =>
     {
       ...refractors,
-      autos: List.filter(id => !List.mem(id, target_ids), z.refractors.autos),
+      autos:
+        List.filter(id => !List.mem(id, target_ids), z.refractors.autos),
       ephemerals:
         Id.Map.filter(
           (id', _) => !List.mem(id', target_ids),
@@ -124,18 +125,53 @@ let rm_manual = (ids: list(Id.t), z: Zipper.t): Zipper.t =>
   /* If the probe has a pin we'll need to remove that too */
   |> maybe_rm_pin(ids);
 
-let add_manual = (id: Id.t, info_map: Statics.Map.t, z: Zipper.t): Zipper.t => {
-  let ids = target_subterm_ids(id, info_map);
-  List.fold_left((z, id) => MkRefractor.add_single(id, z), z, ids);
+let add_manual =
+    (~syntax: CachedSyntax.t, id: Id.t, info_map: Statics.Map.t, z: Zipper.t)
+    : Zipper.t => {
+  let target_ids = target_subterm_ids(id, info_map);
+
+  /* Get ending rows for all new probe targets */
+  let target_end_rows =
+    target_ids
+    |> List.filter_map(id =>
+         TermData.extreme_measures(id, syntax.term_data, syntax.measured)
+         |> Option.map(((_, end_pt: Point.t)) => end_pt.row)
+       );
+
+  /* Find existing manual probes ending on those rows */
+  let conflicting_ids =
+    Id.Map.fold(
+      (probe_id, _, acc) =>
+        switch (
+          TermData.extreme_measures(
+            probe_id,
+            syntax.term_data,
+            syntax.measured,
+          )
+        ) {
+        | Some((_, end_pt)) when List.mem(end_pt.row, target_end_rows) => [
+            probe_id,
+            ...acc,
+          ]
+        | _ => acc
+        },
+      z.refractors.manuals,
+      [],
+    );
+
+  /* Remove conflicts, then add new probes */
+  let z = rm_manual(conflicting_ids, z);
+  List.fold_left((z, id) => MkRefractor.add_single(id, z), z, target_ids);
 };
 
 let toggle_manual =
     (~syntax: CachedSyntax.t, id: Id.t, ~info_map: Statics.Map.t, z: Zipper.t)
     : Zipper.t =>
   switch (probe_status(id, info_map, z.refractors)) {
-  | REPL => rm_auto(~syntax, ~info_map, id, z) |> add_manual(id, info_map)
+  | REPL =>
+    rm_auto(~syntax, ~info_map, id, z) |> add_manual(~syntax, id, info_map)
   | Manual(ids) => rm_manual(ids, z)
-  | Non => add_manual(id, info_map, z)
+  | Non => add_manual(~syntax, id, info_map, z)
   };
 
 let add_ids_from_auto_term =
