@@ -3,9 +3,6 @@ open Util;
 [@deriving (show({with_path: false}), sexp, yojson, eq)]
 type binding('a) = (Var.t, 'a);
 
-/* Note: cached_search_tree uses Maps.StringMap (OCaml's stdlib Map) instead of
- * Core.Map because Core.Map embeds a comparator function that cannot be
- * structured-cloned for web worker communication. */
 type t('a) =
   | Empty
   | E({

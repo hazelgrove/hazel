@@ -233,9 +233,8 @@ module Update = {
 
     // Worker Setup
     let worker_request: ref(list((string, WorkerServer.Request.value))) =
-      ref([]); /* REFACTOR: Store Request.value */
+      ref([]);
     let queue_worker = (pos, req_value: WorkerServer.Request.value) => {
-      /* REFACTOR: Accept Request.value */
       worker_request := worker_request^ @ [(pos, req_value)];
     };
 

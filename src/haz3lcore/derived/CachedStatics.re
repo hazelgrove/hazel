@@ -33,14 +33,13 @@ let elaborate =
 
 let dh_err = (error: string): DHExp.t => Var(error) |> DHExp.fresh;
 
-/* Predicate for whether an expression/pattern should be probed.
- * Currently const true - probes everything (InfoExp and InfoPat).
- * Future: could filter out holes, function-typed exprs, etc. */
+/* Predicate for whether a term should be probed when ProbeAll is on.
+ * Currently const true - probes all expressions / patterns */
 let should_probe = (info: Info.t): bool =>
   switch (info) {
   | InfoExp(_)
   | InfoPat(_) => true
-  | _ => false /* Skip InfoTyp, InfoTPat, Secondary */
+  | _ => false
   };
 
 /* Collect all expression and pattern IDs from info_map that pass the should_probe predicate. */
@@ -50,6 +49,34 @@ let all_probeable_ids = (info_map: Statics.Map.t): Id.Map.t(unit) =>
     info_map,
     Id.Map.empty,
   );
+
+/* Compute probe_map from probe_ids. For each ID, determine whether it's
+ * an expression or pattern probe, then look up the appropriate refs to capture.
+ * When probe_all is enabled, we probe everything in info_map that passes
+ * should_probe, ignoring the passed probe_ids (which are a subset anyway). */
+let probe_map =
+    (
+      ~settings: CoreSettings.t,
+      ~info_map: Statics.Map.t,
+      ~probe_ids: Id.Map.t(unit),
+    ) => {
+  let effective_probe_ids =
+    settings.probe_all ? all_probeable_ids(info_map) : probe_ids;
+  Id.Map.fold(
+    (id, (), acc) => {
+      let refs =
+        switch (Statics.Map.lookup(id, info_map)) {
+        | Some(InfoExp(_)) => Statics.Map.refs_in(info_map, id) /* Expression probe */
+        | Some(InfoPat(_)) => Statics.Map.bound_in(info_map, id) /* Pattern probe */
+        | _ => [] /* Unknown - no refs */
+        };
+      let probe = {Probe.refs: refs};
+      Id.Map.add(id, probe, acc);
+    },
+    effective_probe_ids,
+    Id.Map.empty,
+  );
+};
 
 let init_from_term =
     (
@@ -79,35 +106,7 @@ let init_from_term =
       | Elaborates(d, _) => d
       }
     };
-
-  /* Compute probe_map from probe_ids. For each ID, determine whether it's
-   * an expression or pattern probe, then look up the appropriate refs to capture.
-   *
-   * When probe_all is enabled, we probe everything in info_map that passes
-   * should_probe, ignoring the passed probe_ids (which are a subset anyway).
-   *
-   * KNOWN ISSUE: Probes on parenthesized expressions don't work. The paren tile ID
-   * is added to refractors, but elaboration strips Parens wrappers, so the ID
-   * doesn't exist in the elaborated term and the probe won't capture anything.
-   * See plans/progressive-sample-accumulation.md "Probe on Parens Bug". */
-  let effective_probe_ids =
-    settings.probe_all ? all_probeable_ids(info_map) : probe_ids;
-  let probe_map =
-    Id.Map.fold(
-      (id, (), acc) => {
-        let refs =
-          switch (Statics.Map.lookup(id, info_map)) {
-          | Some(InfoExp(_)) => Statics.Map.refs_in(info_map, id) /* Expression probe */
-          | Some(InfoPat(_)) => Statics.Map.bound_in(info_map, id) /* Pattern probe */
-          | _ => [] /* Unknown - no refs */
-          };
-        let probe = {Probe.refs: refs};
-        Id.Map.add(id, probe, acc);
-      },
-      effective_probe_ids,
-      Id.Map.empty,
-    );
-
+  let probe_map = probe_map(~settings, ~info_map, ~probe_ids);
   {
     term,
     elaborated,

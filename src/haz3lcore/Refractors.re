@@ -134,14 +134,7 @@ let add_ids_from_auto_term =
   Zipper.update_ephemerals(
     _ =>
       List.fold_left(
-        (map, id) =>
-          Id.Map.add(
-            id,
-            /* Use original ID - no longer need transform_variant since
-             * probes are no longer AST nodes with separate IDs */
-            MkRefractor.mk(Probe, id),
-            map,
-          ),
+        (map, id) => Id.Map.add(id, MkRefractor.mk(Probe, id), map),
         Id.Map.empty,
         ids,
       ),

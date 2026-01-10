@@ -470,8 +470,9 @@ in case Some(42) | Some(^^probe(x)) => x | None => 0 end|},
   ),
   probe_line_test(
     "Multiple pattern probes in same case",
-    {|case (1, 2) | (^^probe(a), ^^probe(b)) => a + b end|},
-    [(0, ["2", "1"])],
+    {|case (1, 2) | (^^probe(a),
+    ^^probe(b)) => a + b end|},
+    [(0, ["1"]), (1, ["2"])],
   ),
   probe_line_test(
     "Pattern probe on wildcard with value",

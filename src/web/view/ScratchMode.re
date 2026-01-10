@@ -368,7 +368,7 @@ module Update = {
         (req_value: WorkerServer.Request.value) => {
           worker_request := worker_request^ @ [("", req_value)]
         },
-      ); /* REFACTOR: Accept Request.value */
+      );
     let new_ed =
       CellEditor.Update.calculate(
         ~settings,
@@ -380,7 +380,7 @@ module Update = {
     switch (worker_request^) {
     | [] => ()
     | _ =>
-      /* Always log timing for evaluation round-trip */
+      /* TODO(andrew): remove profiling before final merge */
       let start_time = JsUtil.precise_timestamp();
       WorkerClient.request(
         worker_request^,

@@ -135,7 +135,7 @@ let rec evaluate =
         : EvaluatorEVMode.result => {
   open Trampoline.Syntax;
 
-  /* REFACTOR: Check if this expression is in the probe_map.
+  /* Check if this expression is in the probe_map.
    * If so, record the current step count before evaluation begins. */
   let expr_id = DHExp.rep_id(init);
   switch (Id.Map.find_opt(expr_id, state^.probe_map)) {
@@ -154,7 +154,7 @@ let rec evaluate =
       init,
     );
 
-  /* REFACTOR: If this expression is in the probe_map and evaluation is complete,
+  /* If this expression is in the probe_map and evaluation is complete,
    * emit RecordExpProbe effect */
   let effects =
     switch (is_finished, Id.Map.find_opt(expr_id, state^.probe_map)) {
@@ -183,7 +183,7 @@ let rec evaluate =
      * the probe context since next.id != expr_id.
      *
      * Example: ^^probe(if true then 1 else 2)
-     *   1. expr_id = ID of the If expression, which is in probe_map
+     *   1. expr_id = ID of the if expression, which is in probe_map
      *   2. transition returns (Uneval, effects, next=1) - If stepped to branch
      *   3. Without Bind: evaluate(1) runs, returns Final, but expr_id is lost
      *   4. With Bind: we capture the final value when evaluate(1) completes,
@@ -191,10 +191,9 @@ let rec evaluate =
      *
      * Nested probes like ^^probe(if true then ^^probe(1) else 2) work correctly:
      * each probe creates its own Bind continuation, and they're unwound in order.
-     *
-     * The key insight is that Trampoline.Bind creates a continuation that runs
-     * AFTER all recursive evaluation completes, at which point state^ reflects
-     * all step count mutations, but we still have expr_id in scope.
+     * Trampoline.Bind creates a continuation that runs AFTER all recursive
+     * evaluation completes, at which point state^ reflects all step count
+     * mutations, but we still have expr_id in scope.
      *
      * Important: We use original_call_stack for the probe sample (the call_stack
      * before RecordStackFrame), but call_stack (the updated one) for recursive

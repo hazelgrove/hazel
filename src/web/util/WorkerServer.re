@@ -11,9 +11,6 @@ module Request = {
   };
   [@deriving (show, sexp, yojson)]
   type t = list((string, value));
-
-  let serialize = program => program |> sexp_of_t |> Sexplib.Sexp.to_string;
-  let deserialize = sexp => sexp |> Sexplib.Sexp.of_string |> t_of_sexp;
 };
 
 module Response = {
@@ -28,9 +25,6 @@ module Response = {
 
   let (sexp_of_t, t_of_sexp) =
     Util.StructureShareSexp.structure_share_in(sexp_of_t, t_of_sexp);
-
-  let serialize = r => r |> sexp_of_t |> Sexplib.Sexp.to_string;
-  let deserialize = sexp => sexp |> Sexplib.Sexp.of_string |> t_of_sexp;
 };
 
 let work = (req_value: Request.value): Response.value => {
@@ -57,13 +51,11 @@ let work = (req_value: Request.value): Response.value => {
     | (result, state) => Ok((result, state))
     };
   let eval_end = JsUtil.precise_timestamp();
+  //TODO(andrew): rm before final merge
   Printf.printf("  Eval only (ms): %.2f\n", eval_end -. eval_start);
   result;
 };
 
-/* With structured clone, we receive/send OCaml values directly - no sexp
- * serialization needed. The browser handles cloning js_of_ocaml's runtime
- * representation automatically. */
 let on_request = (req: Request.t): unit =>
   req
   |> List.map(((k, v)) => (k, work(v)))

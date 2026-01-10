@@ -4,9 +4,6 @@ open WorkerServer;
 let name = "worker.js"; // Worker file name
 let timeoutDuration = 20000; // Worker timeout in ms
 
-/* Worker.create returns a polymorphic ('a, 'b) worker - we parameterize
- * with our actual types so structured clone handles the transfer directly,
- * bypassing sexp serialization entirely */
 let initWorker: unit => Js.t(Worker.worker(Request.t, Response.t)) =
   () => Worker.create(name);
 
