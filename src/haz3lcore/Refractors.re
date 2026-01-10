@@ -62,10 +62,13 @@ type probe_status =
 let probe_status =
     (id: Id.t, info_map: Statics.Map.t, refractors: Zipper.Refractor.t)
     : probe_status => {
-  let ids = target_subterm_ids(id, info_map);
-  List.for_all(id => Id.Map.mem(id, refractors.manuals), ids)
-    ? Manual(target_subterm_ids(id, info_map))
-    : List.mem(id, refractors.autos) ? REPL : Non;
+  let target_ids = target_subterm_ids(id, info_map);
+  /* For manual: check if ALL target IDs have manual probes */
+  List.for_all(id => Id.Map.mem(id, refractors.manuals), target_ids)
+    ? Manual(target_ids)
+    /* For REPL: check if ANY target ID is an auto probe anchor */
+    : List.exists(id => List.mem(id, refractors.autos), target_ids)
+        ? REPL : Non;
 };
 
 let ids_from_term =
@@ -92,18 +95,26 @@ let maybe_rm_pin = (ids: list(Id.t)): (Zipper.t => Zipper.t) =>
 
 let rm_auto =
     (~syntax: CachedSyntax.t, ~info_map: Statics.Map.t, id: Id.t, z: Zipper.t)
-    : Zipper.t =>
+    : Zipper.t => {
+  /* Remove all target IDs from autos, like rm_manual does for manuals */
+  let target_ids = target_subterm_ids(id, info_map);
   Zipper.update_refractors(z, refractors =>
     {
       ...refractors,
-      autos: List.filter((!=)(id), z.refractors.autos),
+      autos: List.filter(id => !List.mem(id, target_ids), z.refractors.autos),
       ephemerals:
-        Id.Map.filter((id', _) => id' != id, z.refractors.ephemerals),
+        Id.Map.filter(
+          (id', _) => !List.mem(id', target_ids),
+          z.refractors.ephemerals,
+        ),
     }
   )
   /* We need to check if any of the probed ids are pinned; if so
      we'll need to remove that pin when we remove the auto */
-  |> maybe_rm_pin(ids_from_term(~syntax, ~info_map, id));
+  |> maybe_rm_pin(
+       List.concat_map(ids_from_term(~syntax, ~info_map), target_ids),
+     );
+};
 
 let rm_manual = (ids: list(Id.t), z: Zipper.t): Zipper.t =>
   Zipper.update_manuals(
@@ -144,14 +155,17 @@ let add_ids_from_auto_term =
 
 let add_auto =
     (id: Id.t, ~syntax: CachedSyntax.t, ~info_map: Statics.Map.t, z: Zipper.t)
-    : Zipper.t =>
+    : Zipper.t => {
+  /* Add all target IDs to autos, like add_manual does for manuals */
+  let target_ids = target_subterm_ids(id, info_map);
   Zipper.update_refractors(z, refractors =>
     {
       ...refractors,
-      autos: [id, ...z.refractors.autos],
+      autos: target_ids @ z.refractors.autos,
     }
   )
   |> add_ids_from_auto_term(~syntax, ~info_map);
+};
 
 let toggle_auto =
     (~syntax: CachedSyntax.t, id: Id.t, info_map: Statics.Map.t, z: Zipper.t)
@@ -159,7 +173,13 @@ let toggle_auto =
   switch (probe_status(id, info_map, z.refractors)) {
   | REPL => rm_auto(~syntax, ~info_map, id, z)
   | Manual(ids) => rm_manual(ids, z) |> add_auto(id, ~syntax, ~info_map)
-  | Non => add_auto(id, ~syntax, ~info_map, z)
+  | Non =>
+    /* Use same gating as manual probes: if target_subterm_ids returns [],
+       the term is not probeable. */
+    switch (target_subterm_ids(id, info_map)) {
+    | [] => z /* Can't probe this (type, type pattern, label, etc.) */
+    | _ => add_auto(id, ~syntax, ~info_map, z)
+    }
   };
 
 let is_jump_target = (info_map: Statics.Map.t, z: Zipper.t): option(Id.t) => {
@@ -275,3 +295,8 @@ let has_probe = (id: Id.t, z: Zipper.t): bool => {
   Id.Map.mem(id, z.refractors.manuals)
   || Id.Map.mem(id, z.refractors.ephemerals);
 };
+
+/* Check if probing is allowed for the given id.
+   Used by ContextMenu to determine whether to show probe options. */
+let can_probe = (id: Id.t, info_map: Statics.Map.t): bool =>
+  target_subterm_ids(id, info_map) != [];

@@ -485,6 +485,20 @@ let candidate_allowed_by_variables =
   | _ => true
   };
 
+/* Filter out terms that should never have probes:
+   - Types and type patterns (no runtime values)
+   - Labels and deferrals (not useful, can break parsing)
+   - Type alias definitions (no meaningful value to display)
+   This mirrors the restrictions in Refractors.target_subterm_ids */
+let candidate_allowed_by_term_sort =
+    (candidate_id: Id.t, env: selection_env): bool =>
+  switch (Language.Statics.Map.lookup(candidate_id, env.info_map)) {
+  | Some(InfoTyp(_) | InfoTPat(_)) => false
+  | Some(InfoExp({term: {term: Deferral(_) | Label(_) | TyAlias(_), _}, _})) =>
+    false
+  | _ => true
+  };
+
 let candidate_is_allowed =
     (
       candidate_id: Id.t,
@@ -493,7 +507,8 @@ let candidate_is_allowed =
       _state: selection_state,
     )
     : bool =>
-  candidate_allowed_by_holes(candidate_id, row, env)
+  candidate_allowed_by_term_sort(candidate_id, env)
+  && candidate_allowed_by_holes(candidate_id, row, env)
   && candidate_allowed_by_function_types(candidate_id, env)
   && candidate_allowed_by_container(candidate_id, env)
   && candidate_allowed_by_let_hole(candidate_id, row, env);
