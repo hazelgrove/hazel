@@ -100,7 +100,7 @@ let get_samples_by_line = (code: string): IntMap.t(list(string)) => {
       );
 
     /* Build map from line number to samples using TermData */
-    Id.Map.fold(
+    Sample.Map.fold(
       (probe_id, samples, acc) => {
         switch (TermData.extreme_measures(probe_id, term_data, measured)) {
         | Some((start, _)) =>
