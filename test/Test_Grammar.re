@@ -129,12 +129,38 @@ let sample_pattern = (cls_pat: Pat.cls): Grammar.UnitGrammar.pat => {
   );
 };
 
+let sample_prov = (cls_prov: Prov.cls): Grammar.UnitGrammar.typ_prov => {
+  Grammar.UnitGrammar.(
+    TypeProvenance.(
+      Typ.(
+        switch (cls_prov) {
+        | Invalid => hole(Invalid("invalid"))
+        | EmptyHole => hole(EmptyHole)
+        | CycleHole => hole(CycleHole)
+        | SynSwitch => syn_switch()
+        | Internal => internal()
+        | LArrow => larrow(Hole(EmptyHole))
+        | RArrow => rarrow(Hole(EmptyHole))
+        | NProduct => nproduct(0, Hole(EmptyHole))
+        | MList => mlist(Hole(EmptyHole))
+        | RForall => rforall(Hole(EmptyHole))
+        | TupLabelProv => tup_label_label(Hole(EmptyHole))
+        | TupLabelArg => tup_label_arg(Hole(EmptyHole))
+        | Meet => meet(hole(EmptyHole), hole(EmptyHole))
+        | TypeSubstitution => type_substitution(unknown(hole(EmptyHole)))
+        | MultiHole => hole(MultiHole([]))
+        }
+      )
+    )
+  );
+};
+
 let sample_type = (cls_typ: Typ.cls): Grammar.UnitGrammar.typ => {
   Grammar.UnitGrammar.(
     TypeProvenance.(
       Typ.(
         switch (cls_typ) {
-        | Invalid => unknown(hole(Invalid("invalid")))
+        | Unknown(p) => unknown(sample_prov(p))
         | Atom(Bool) => bool()
         | Atom(Int) => int()
         | Atom(SInt) => sint()
@@ -151,21 +177,8 @@ let sample_type = (cls_typ: Typ.cls): Grammar.UnitGrammar.typ => {
         | Parens => parens(unknown(hole(EmptyHole)))
         | Rec => rec_(TPat.var("x"), unknown(hole(EmptyHole)))
         | Poly => poly(TPat.var("x"), unknown(hole(EmptyHole)))
-        | EmptyHole => unknown(hole(EmptyHole))
-        | CycleHole => unknown(hole(CycleHole))
-        | SynSwitch => unknown(syn_switch())
-        | Internal => unknown(internal())
-        | LArrow => unknown(larrow(Hole(EmptyHole)))
-        | RArrow => unknown(rarrow(Hole(EmptyHole)))
-        | NProduct => unknown(nproduct(0, Hole(EmptyHole)))
-        | MList => unknown(mlist(Hole(EmptyHole)))
-        | RForall => unknown(rforall(Hole(EmptyHole)))
-        | TupLabelProv => unknown(tup_label_label(Hole(EmptyHole)))
-        | TupLabelArg => unknown(tup_label_arg(Hole(EmptyHole)))
-        | Meet => unknown(join(hole(EmptyHole), hole(EmptyHole)))
         | Label => label("label")
         | ExplicitNonlabel => explicit_non_label()
-        | MultiHole => unknown(hole(MultiHole([])))
         | ProofOf => proof_of(Exp.var("x"))
         | Sum => sum([])
         | ProdProjection =>
@@ -188,12 +201,16 @@ let sample_type = (cls_typ: Typ.cls): Grammar.UnitGrammar.typ => {
 let sample_tpat = (cls_tpat: TPat.cls): Grammar.UnitGrammar.tpat => {
   Grammar.UnitGrammar.(
     TPat.(
-      switch (cls_tpat) {
-      | Invalid => invalid("invalid")
-      | EmptyHole => empty_hole()
-      | Var => var("x")
-      | MultiHole => multi_hole([TPat(empty_hole()), TPat(empty_hole())])
-      }
+      TypeProvenance.(
+        switch (cls_tpat) {
+        | Unknown(MultiHole) =>
+          unknown(
+            hole(MultiHole([TPat(empty_hole()), TPat(empty_hole())])),
+          )
+        | Unknown(p) => unknown(sample_prov(p))
+        | Var => var("x")
+        }
+      )
     )
   );
 };

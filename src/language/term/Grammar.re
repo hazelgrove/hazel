@@ -136,9 +136,7 @@ and typ_term('a) =
   | ProdExtension(typ_t('a), typ_t('a))
 and typ_t('a) = Annotated.t(typ_term('a), 'a)
 and tpat_term('a) =
-  | Invalid(string)
-  | EmptyHole
-  | MultiHole(list(any_t('a)))
+  | Unknown(type_provenance_t('a))
   | Var(string)
 and tpat_t('a) = Annotated.t(tpat_term('a), 'a)
 and rul_term('a) =
@@ -166,6 +164,7 @@ and type_provenance('a) =
   | TupLabel(type_provenance('a))
   | TupLabelArg(type_provenance('a))
   | Meet(type_provenance_t('a), type_provenance_t('a))
+  | TypeSubstitution(typ_t('a))
 and type_provenance_t('a) = Annotated.t(type_provenance('a), 'a)
 and filter('a) = {
   pat: exp_t('a),
@@ -392,10 +391,7 @@ and map_tpat_annotation: 'a 'b. ('a => 'b, tpat_t('a)) => tpat_t('b) =
     {
       term:
         switch (term) {
-        | Invalid(s) => Invalid(s)
-        | EmptyHole => EmptyHole
-        | MultiHole(l) =>
-          MultiHole(List.map(x => map_any_annotation(f, x), l))
+        | Unknown(p) => Unknown(map_type_provenance_t_annotation(f, p))
         | Var(s) => Var(s)
         },
       annotation: new_annotation,
@@ -455,6 +451,7 @@ and map_type_provenance_annotation:
     | RForall(p) => RForall(map_type_provenance_annotation(f, p))
     | TupLabel(p) => TupLabel(map_type_provenance_annotation(f, p))
     | TupLabelArg(p) => TupLabelArg(map_type_provenance_annotation(f, p))
+    | TypeSubstitution(t) => TypeSubstitution(map_typ_annotation(f, t))
     | Meet(p1, p2) =>
       Meet(
         map_type_provenance_t_annotation(f, p1),
@@ -496,6 +493,7 @@ module Factory = (DefaultAnnotation: DefaultAnnotation) => {
   type exp = exp_t(DefaultAnnotation.t);
   type pat = pat_t(DefaultAnnotation.t);
   type typ = typ_t(DefaultAnnotation.t);
+  type typ_prov = type_provenance_t(DefaultAnnotation.t);
   type tpat = tpat_t(DefaultAnnotation.t);
   type typ_provenance = type_provenance_t(DefaultAnnotation.t);
 
@@ -905,16 +903,16 @@ module Factory = (DefaultAnnotation: DefaultAnnotation) => {
   };
 
   module TPat = {
-    let invalid = (~ann=?, s): tpat_t(DefaultAnnotation.t) => {
-      term: Invalid(s),
+    let unknown = (~ann=?, p): tpat_t(DefaultAnnotation.t) => {
+      term: Unknown(p),
       annotation: default_annotation(ann),
     };
-    let empty_hole = (~ann=?, ()): tpat_t(DefaultAnnotation.t) => {
-      term: EmptyHole,
-      annotation: default_annotation(ann),
-    };
-    let multi_hole = (~ann=?, l): tpat_t(DefaultAnnotation.t) => {
-      term: MultiHole(l),
+    let empty_hole = (~ann=?, ~prov_ann=?, ()): tpat_t(DefaultAnnotation.t) => {
+      term:
+        Unknown({
+          term: Hole(EmptyHole),
+          annotation: default_annotation(prov_ann),
+        }),
       annotation: default_annotation(ann),
     };
     let var = (~ann=?, s): tpat_t(DefaultAnnotation.t) => {
@@ -1023,9 +1021,16 @@ module Factory = (DefaultAnnotation: DefaultAnnotation) => {
         annotation: default_annotation(ann),
       };
     };
-    let join = (~ann=?, p1, p2): type_provenance_t(DefaultAnnotation.t) => {
+    let meet = (~ann=?, p1, p2): type_provenance_t(DefaultAnnotation.t) => {
       {
         term: Meet(p1, p2),
+        annotation: default_annotation(ann),
+      };
+    };
+    let type_substitution =
+        (~ann=?, substitute): type_provenance_t(DefaultAnnotation.t) => {
+      {
+        term: TypeSubstitution(substitute),
         annotation: default_annotation(ann),
       };
     };

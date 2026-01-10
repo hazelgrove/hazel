@@ -1177,7 +1177,11 @@ and uexp_to_info_map =
       }
     | TypAp(fn, utyp) =>
       let typfn_ana =
-        Poly(EmptyHole |> TPat.fresh, mk_temp_syn()) |> Typ.temp;
+        Poly(
+          Unknown(Hole(EmptyHole) |> Prov.fresh) |> TPat.fresh,
+          mk_temp_syn(),
+        )
+        |> Typ.temp;
       let (fn, m) = go(~ana=typfn_ana, fn, m);
       let (_, m) = utyp_to_info_map(~ctx, ~ancestors, utyp, m);
       let (option_name, ty_body, forall_constraints) =
@@ -1721,9 +1725,7 @@ and uexp_to_info_map =
           m,
         );
       | Var(_)
-      | Invalid(_)
-      | EmptyHole
-      | MultiHole(_) =>
+      | Unknown(_) =>
         let ({co_ctx, ty: ty_body, constraints, _}: Info.exp, m) =
           go'(~ctx, ~ana, body, m);
         let m = utyp_to_info_map(~ctx, ~ancestors, utyp, m) |> snd;
@@ -2589,11 +2591,23 @@ and utpat_to_info_map =
   };
   let ancestors = [TPat.rep_id(utpat)] @ ancestors;
   switch (term) {
-  | MultiHole(tms) =>
+  | Unknown({term: Hole(MultiHole(tms)), _}) =>
     let (_, _, m) = multi(~ctx, ~ancestors, m, tms);
     add(m);
-  | Invalid(_)
-  | EmptyHole
+  | Unknown({term: Hole(Invalid(_)), _})
+  | Unknown({term: Hole(EmptyHole), _})
+  | Unknown({term: Hole(CycleHole), _})
+  | Unknown({term: LArrow(_), _})
+  | Unknown({term: RArrow(_), _})
+  | Unknown({term: NProduct(_), _})
+  | Unknown({term: SynSwitch, _})
+  | Unknown({term: Internal, _})
+  | Unknown({term: MList(_), _})
+  | Unknown({term: RForall(_), _})
+  | Unknown({term: TupLabel(_), _})
+  | Unknown({term: TupLabelArg(_), _})
+  | Unknown({term: Meet(_), _})
+  | Unknown({term: TypeSubstitution(_), _})
   | Var(_) => add(m)
   };
 }

@@ -147,14 +147,15 @@ let external_precedence_typ = (tp: Typ.t) =>
   | Unknown({term: SynSwitch, _})
   | Unknown({term: Hole(EmptyHole), _})
   | Unknown({term: Hole(CycleHole), _})
-  | Unknown({term: LArrow(_), _}) // TODO (THI): this probably needs to be recursive?
-  | Unknown({term: RArrow(_), _}) // TODO (THI): this probably needs to be recursive?
-  | Unknown({term: NProduct(_), _}) // TODO (THI): this probably needs to be recursive?
-  | Unknown({term: MList(_), _}) // TODO (THI): this probably needs to be recursive?
-  | Unknown({term: RForall(_), _}) // TODO (THI): this probably needs to be recursive?
-  | Unknown({term: TupLabel(_), _}) // TODO (THI): this probably needs to be recursive?
-  | Unknown({term: TupLabelArg(_), _}) // TODO (THI): this probably needs to be recursive?
-  | Unknown({term: Meet(_), _}) // TODO (THI): this probably needs to be recursive?
+  | Unknown({term: LArrow(_), _})
+  | Unknown({term: RArrow(_), _})
+  | Unknown({term: NProduct(_), _})
+  | Unknown({term: MList(_), _})
+  | Unknown({term: RForall(_), _})
+  | Unknown({term: TupLabel(_), _})
+  | Unknown({term: TupLabelArg(_), _})
+  | Unknown({term: Meet(_), _})
+  | Unknown({term: TypeSubstitution(_), _})
   | Var(_)
   | Atom(_)
   | Label(_)
@@ -549,6 +550,7 @@ and parenthesize_typ =
   | Unknown({term: TupLabel(_), _})
   | Unknown({term: TupLabelArg(_), _})
   | Unknown({term: Meet(_), _})
+  | Unknown({term: TypeSubstitution(_), _})
   | Atom(_) => typ
 
   // Other forms
@@ -651,13 +653,37 @@ and parenthesize_tpat = (~show_filters: bool, tpat: TPat.t): TPat.t => {
   let (term, rewrap: TPat.term => TPat.t) = IdTagged.unwrap(tpat);
   switch (term) {
   // Indivisible forms dont' change
-  | Var(_)
-  | Invalid(_)
-  | EmptyHole => tpat
+  | Var(_) => tpat
 
+  | Unknown(prov) =>
+    let (prov_term, rewrap_prov: Prov.term => Prov.t) =
+      IdTagged.unwrap(prov);
+    switch (prov_term) {
+    // Indivisible forms dont' change
+    | RArrow(_)
+    | LArrow(_)
+    | MList(_)
+    | NProduct(_)
+    | SynSwitch
+    | Internal
+    | RForall(_)
+    | TupLabel(_)
+    | TupLabelArg(_)
+    | Meet(_)
+    | TypeSubstitution(_) /* TODO (THI): does the type need to be parenthesized? */
+    | Hole(CycleHole)
+    | Hole(EmptyHole)
+    | Hole(Invalid(_)) => tpat
+
+    // other forms
+    | Hole(MultiHole(xs)) =>
+      Unknown(
+        Hole(MultiHole(List.map(parenthesize_any(~show_filters), xs)))
+        |> rewrap_prov,
+      )
+      |> rewrap
+    };
   // Other forms
-  | MultiHole(xs) =>
-    MultiHole(List.map(parenthesize_any(~show_filters), xs)) |> rewrap
   };
 }
 
@@ -1461,6 +1487,7 @@ and typ_to_pretty = (~settings: Settings.t, typ: Typ.t): pretty => {
   | Unknown({term: TupLabel(_), _})
   | Unknown({term: TupLabelArg(_), _})
   | Unknown({term: Meet(_), _})
+  | Unknown({term: TypeSubstitution(_), _})
   | Unknown({term: Hole(EmptyHole), _}) // TOOD: (THI) need special cycle hole graphic
   | Unknown({term: Hole(CycleHole), _}) =>
     if (settings.show_unknown_as_hole) {
@@ -1602,25 +1629,40 @@ and typ_to_pretty = (~settings: Settings.t, typ: Typ.t): pretty => {
 }
 and tpat_to_pretty = (~settings: Settings.t, tpat: TPat.t): pretty => {
   switch (tpat |> IdTagged.term_of) {
-  | Invalid(t) => text_to_pretty(tpat |> TPat.rep_id, Sort.TPat, t)
-  | EmptyHole =>
-    let id = tpat |> TPat.rep_id;
-    p_just([
-      Grout({
-        id,
-        shape: Convex,
-      }),
-    ]);
-  | MultiHole(xs) =>
-    let id = tpat |> TPat.rep_id;
-    let+ xs = xs |> List.map(any_to_pretty(~settings: Settings.t)) |> all;
-    ListUtil.flat_intersperse(
-      Grout({
-        id,
-        shape: Concave,
-      }),
-      xs,
-    );
+  | Unknown(prov) =>
+    switch (prov.term) {
+    | Hole(Invalid(t)) => text_to_pretty(tpat |> TPat.rep_id, Sort.TPat, t)
+    | RArrow(_)
+    | LArrow(_)
+    | NProduct(_)
+    | MList(_)
+    | SynSwitch
+    | Internal
+    | RForall(_)
+    | TupLabel(_)
+    | TupLabelArg(_)
+    | Meet(_)
+    | TypeSubstitution(_)
+    | Hole(CycleHole)
+    | Hole(EmptyHole) =>
+      let id = tpat |> TPat.rep_id;
+      p_just([
+        Grout({
+          id,
+          shape: Convex,
+        }),
+      ]);
+    | Hole(MultiHole(xs)) =>
+      let id = tpat |> TPat.rep_id;
+      let+ xs = xs |> List.map(any_to_pretty(~settings: Settings.t)) |> all;
+      ListUtil.flat_intersperse(
+        Grout({
+          id,
+          shape: Concave,
+        }),
+        xs,
+      );
+    }
   | Var(v) => text_to_pretty(tpat |> TPat.rep_id, Sort.TPat, v)
   };
 }

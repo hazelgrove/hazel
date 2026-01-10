@@ -1,8 +1,6 @@
 [@deriving (show({with_path: false}), sexp, yojson, enumerate, eq)]
 type cls =
-  | Invalid
-  | EmptyHole
-  | MultiHole
+  | Unknown(Prov.cls)
   | Var;
 
 include TermBase.TPat;
@@ -16,22 +14,18 @@ let fresh: term => t = IdTagged.fresh;
 
 let hole = (tms: list(TermBase.Any.t)): TermBase.TPat.term =>
   switch (tms) {
-  | [] => EmptyHole
-  | [_, ..._] => MultiHole(tms)
+  | [] => Unknown(Hole(EmptyHole) |> Prov.fresh)
+  | [_, ..._] => Unknown(Hole(MultiHole(tms)) |> Prov.fresh)
   };
 
 let cls_of_term: Grammar.tpat_term('a) => cls =
   fun
-  | Invalid(_) => Invalid
-  | EmptyHole => EmptyHole
-  | MultiHole(_) => MultiHole
+  | Unknown({term: p, _}) => Unknown(Prov.cls_of_term(p))
   | Var(_) => Var;
 
 let show_cls: cls => string =
   fun
-  | Invalid => "Invalid type alias"
-  | MultiHole => "Broken type alias"
-  | EmptyHole => "Type alias hole"
+  | Unknown(p) => Prov.show_cls(p)
   | Var => "Type alias";
 
 let temp: term => t =

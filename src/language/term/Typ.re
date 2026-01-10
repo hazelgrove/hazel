@@ -3,21 +3,8 @@ open OptUtil.Syntax;
 
 [@deriving (show({with_path: false}), sexp, yojson, enumerate, eq)]
 type cls =
+  | Unknown(Prov.cls)
   | Atom(Atom.cls)
-  | Invalid
-  | EmptyHole
-  | CycleHole
-  | MultiHole
-  | SynSwitch
-  | Internal
-  | LArrow
-  | RArrow
-  | NProduct
-  | MList
-  | RForall
-  | TupLabelProv
-  | TupLabelArg
-  | Meet
   | Arrow
   | Prod
   | TupLabel
@@ -83,20 +70,7 @@ let hole = (tms: list(TermBase.Any.t)): TermBase.Typ.term =>
 
 let cls_of_term: Grammar.typ_term('a) => cls =
   fun
-  | Unknown({term: Hole(Invalid(_)), _}) => Invalid
-  | Unknown({term: Hole(EmptyHole), _}) => EmptyHole
-  | Unknown({term: Hole(CycleHole), _}) => CycleHole
-  | Unknown({term: Hole(MultiHole(_)), _}) => MultiHole
-  | Unknown({term: SynSwitch, _}) => SynSwitch
-  | Unknown({term: Internal, _}) => Internal
-  | Unknown({term: LArrow(_), _}) => LArrow
-  | Unknown({term: RArrow(_), _}) => RArrow
-  | Unknown({term: NProduct(_), _}) => NProduct
-  | Unknown({term: MList(_), _}) => MList
-  | Unknown({term: RForall(_), _}) => RForall
-  | Unknown({term: TupLabel(_), _}) => TupLabelProv
-  | Unknown({term: TupLabelArg(_), _}) => TupLabelArg
-  | Unknown({term: Meet(_), _}) => Meet
+  | Unknown({term: p, _}) => Unknown(Prov.cls_of_term(p))
   | Atom(c) => Atom(c)
   | List(_) => List
   | Arrow(_) => Arrow
@@ -115,20 +89,7 @@ let cls_of_term: Grammar.typ_term('a) => cls =
 
 let show_cls: cls => string =
   fun
-  | Invalid => "Invalid type"
-  | MultiHole => "Broken type"
-  | EmptyHole => "Type hole"
-  | CycleHole => "Cycle type hole"
-  | SynSwitch => "Synthetic type"
-  | Internal => "Internal type"
-  | LArrow => "Left arrow prov type"
-  | RArrow => "Right arrow prov type"
-  | NProduct => "Tuple prov type"
-  | MList => "List prov type"
-  | RForall => "Right Forall prov type"
-  | TupLabelProv => "Tuple label prov"
-  | TupLabelArg => "Tuple arg prov"
-  | Meet => "Join prov"
+  | Unknown(p) => Prov.show_cls(p)
   | Atom(_) => "Base type"
   | Var => "Type variable"
   | Constructor => "Sum constructor"
@@ -923,7 +884,13 @@ let matched_poly_of_prov = ({term, annotation}: Prov.t, ty) => {
   (
     None,
     r_forall,
-    [Con(ty, Poly(EmptyHole |> TPat.fresh, r_forall) |> temp)],
+    [
+      Con(
+        ty,
+        Poly(Unknown(Hole(EmptyHole) |> Prov.fresh) |> TPat.fresh, r_forall)
+        |> temp,
+      ),
+    ],
   );
 };
 
@@ -1173,6 +1140,7 @@ and is_prov_syn = (prov: Prov.term): bool => {
   | SynSwitch => true
   | Internal => false
   | Hole(_) => false
+  | TypeSubstitution(_) => false
   };
 };
 
@@ -1240,9 +1208,7 @@ let rec needs_parens = (ty: t): bool =>
 let pretty_print_tvar = (tv: TPat.t): string =>
   switch (IdTagged.term_of(tv)) {
   | Var(x) => x
-  | Invalid(_)
-  | EmptyHole
-  | MultiHole(_) => "?"
+  | Unknown(_) => "?"
   };
 
 /* Essentially recreates web/view/Type.re's view_ty but with string output */

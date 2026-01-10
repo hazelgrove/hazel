@@ -47,7 +47,7 @@ let indet_term: Exp.term = Invalid("?");
 let indet_term_typ: Typ.term = Unknown(Internal |> Prov.fresh);
 let indet_term_pat: Pat.term = Invalid("?");
 let indet_term_rul: Rul.term = Invalid("?");
-let indet_term_tpat: TPat.term = Invalid("?");
+let indet_term_tpat: TPat.term = Unknown(Hole(Invalid("?")) |> Prov.fresh);
 
 let rec abbreviate_exp = (exp: Exp.t): Exp.t => {
   let rewrap = (term: Exp.term): Exp.t => {
@@ -1072,16 +1072,37 @@ and abbreviate_tpat = (tpat: TPat.t): TPat.t => {
   };
   let term =
     switch (tpat.term) {
-    | EmptyHole => tpat.term
-    | Invalid(str) => Invalid(abbreviate_str(available^, str))
+    | Unknown(prov) =>
+      let (unwrapped_prov, rewrap) = prov |> IdTagged.unwrap;
+      let prov': TPat.term =
+        switch (unwrapped_prov) {
+        | Hole(CycleHole)
+        | Hole(EmptyHole) => Unknown(unwrapped_prov |> rewrap)
+        | Hole(Invalid(str)) =>
+          Unknown(Hole(Invalid(abbreviate_str(available^, str))) |> rewrap)
+        | Hole(MultiHole(things)) =>
+          if (available^ <= 1) {
+            indet_term_tpat;
+          } else {
+            available := available^ - 1; // space
+            Unknown(
+              Hole(MultiHole(List.map(abbreviate_any, things))) |> rewrap,
+            );
+          }
+        | TypeSubstitution(_)
+        | Meet(_)
+        | TupLabelArg(_)
+        | TupLabel(_)
+        | RForall(_)
+        | MList(_)
+        | NProduct(_)
+        | Internal
+        | SynSwitch
+        | RArrow(_)
+        | LArrow(_) => Unknown(prov)
+        };
+      prov';
     | Var(v) => Var(abbreviate_str(available^, v))
-    | MultiHole(things) =>
-      if (available^ <= 1) {
-        indet_term_tpat;
-      } else {
-        available := available^ - 1; // space
-        MultiHole(List.map(abbreviate_any, things));
-      }
     };
   rewrap(term);
 }

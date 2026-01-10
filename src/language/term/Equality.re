@@ -122,6 +122,7 @@ let equality =
     let pat' = pat(alphas_exp, alphas_typ);
     let typ' = typ(alphas_exp, alphas_typ);
     let filter' = filter(alphas_exp, alphas_typ);
+    let tpat' = tpat(alphas_exp, alphas_typ);
     let any' = any(alphas_exp, alphas_typ);
     switch (e1 |> Grammar.Annotated.term_of, e2 |> Grammar.Annotated.term_of) {
     // Wrappers when ignored: unwrap. These cases must come first.
@@ -270,14 +271,14 @@ let equality =
 
     // Forms with type binders
     | (TypFun(tp1, e1, _), TypFun(tp2, e2, _)) =>
-      switch (tpat(tp1, tp2)) {
+      switch (tpat'(tp1, tp2)) {
       | Some(alphas_typ') =>
         exp(alphas_exp, Alphas.combine(alphas_typ', alphas_typ), e1, e2)
       | None => false
       }
     | (TypFun(_, _, _), _) => false
     | (TyAlias(tp1, t1, e1), TyAlias(tp2, t2, e2)) =>
-      switch (tpat(tp1, tp2)) {
+      switch (tpat'(tp1, tp2)) {
       | Some(alphas_typ') =>
         typ'(t1, t2)
         && exp(alphas_exp, Alphas.combine(alphas_typ', alphas_typ), e1, e2)
@@ -512,7 +513,7 @@ let equality =
     let exp' = exp(alphas_exp, alphas_typ);
     let typ' = typ(alphas_exp, alphas_typ);
     let typ_prov' = typ_prov(alphas_exp, alphas_typ);
-    let tpat' = tpat;
+    let tpat' = tpat(alphas_exp, alphas_typ);
     switch (t1 |> Grammar.Annotated.term_of, t2 |> Grammar.Annotated.term_of) {
     // Wrappers when ignored: unwrap.
     | (Parens(x), _) when ignore_parens => typ'(x, t2)
@@ -597,6 +598,7 @@ let equality =
         p2: Prov.term,
       )
       : bool => {
+    let typ' = typ(alphas_exp, alphas_typ);
     let typ_prov' = typ_prov(alphas_exp, alphas_typ);
     let any' = any(alphas_exp, alphas_typ);
     switch (p1, p2) {
@@ -611,6 +613,7 @@ let equality =
     | (Hole(MultiHole(xs1)), Hole(MultiHole(xs2)))
         when List.length(xs1) == List.length(xs2) =>
       List.equal(any', xs1, xs2)
+    | (TypeSubstitution(t1), TypeSubstitution(t2)) => typ'(t1, t2)
     | (Hole(MultiHole(_)), _) => false
     | (Internal, Internal) => true
     | (Internal, _) => false
@@ -634,10 +637,14 @@ let equality =
     | (MList(_), _)
     | (NProduct(_), _)
     | (LArrow(_), _)
-    | (RArrow(_), _) => false
+    | (RArrow(_), _)
+    | (TypeSubstitution(_), _) => false
     };
   }
-  and tpat = (tp1: TPat.t, tp2: TPat.t): option(Alphas.t) => {
+  and tpat =
+      (alphas_exp: Alphas.t, alphas_typ: Alphas.t, tp1: TPat.t, tp2: TPat.t)
+      : option(Alphas.t) => {
+    let typ_prov' = typ_prov(alphas_exp, alphas_typ);
     switch (
       tp1 |> Grammar.Annotated.term_of,
       tp2 |> Grammar.Annotated.term_of,
@@ -648,22 +655,12 @@ let equality =
     | (Var(_), _) => None
 
     // Holes: equal if provenance is ignored
-    | (
-        EmptyHole | MultiHole(_) | Invalid(_),
-        EmptyHole | MultiHole(_) | Invalid(_),
-      )
-        when ignore_unknown_provenance =>
+    | (Unknown(_), Unknown(_)) when ignore_unknown_provenance =>
       Some(Alphas.empty)
-    | (EmptyHole, EmptyHole) => Some(Alphas.empty)
-    | (EmptyHole, _) => None
-    | (Invalid(s1), Invalid(s2)) when s1 == s2 => Some(Alphas.empty)
-    | (Invalid(_), _) => None
-    | (MultiHole(xs1), MultiHole(xs2))
-        when
-          List.length(xs1) == List.length(xs2)
-          && List.equal((_, _) => true, xs1, xs2) =>
+    | (Unknown({term: p1, _}), Unknown({term: p2, _}))
+        when typ_prov'(p1, p2) =>
       Some(Alphas.empty)
-    | (MultiHole(_), _) => None
+    | (Unknown(_), _) => None
     };
   }
   and rul =
@@ -734,7 +731,8 @@ let equality =
     | (Typ(_), _) => false
     | (Rul(r1), Rul(r2)) => rul(alphas_exp, alphas_typ, r1, r2)
     | (Rul(_), _) => false
-    | (TPat(tp1), TPat(tp2)) => tpat(tp1, tp2) |> Option.is_some
+    | (TPat(tp1), TPat(tp2)) =>
+      tpat(alphas_exp, alphas_typ, tp1, tp2) |> Option.is_some
     | (TPat(_), _) => false
     | (Any (), Any ()) => true
     | (Any (), _) => false
@@ -746,7 +744,8 @@ let equality =
     pat: (p1, p2) =>
       pat(Alphas.empty, Alphas.empty, p1, p2) |> Option.is_some,
     typ: typ(Alphas.empty, Alphas.empty),
-    tpat: (tp1, tp2) => tpat(tp1, tp2) |> Option.is_some,
+    tpat: (tp1, tp2) =>
+      tpat(Alphas.empty, Alphas.empty, tp1, tp2) |> Option.is_some,
     rul: rul(Alphas.empty, Alphas.empty),
     any: any(Alphas.empty, Alphas.empty),
   };

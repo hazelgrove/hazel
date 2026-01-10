@@ -803,7 +803,7 @@ and tpat_term: unsorted => TPat.term = {
         switch (tile) {
         | ([t], []) when Token.is_typ_var(t) => Var(t)
         | ([t], []) when is_hole_label(t) => hole(tm)
-        | ([t], []) => Invalid(t)
+        | ([t], []) => Unknown(Hole(Invalid(t)) |> Prov.fresh)
         | (label, [TPat(body)]) when is_probe_wrap(label) => body.term
         | _ => hole(tm)
         },

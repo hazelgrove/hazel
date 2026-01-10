@@ -531,20 +531,38 @@ and TPat: {
   let of_core: IndicatedG.tpat => AST.tpat;
 } = {
   open IndicatedG.TPat;
+  open IndicatedG.TypeProvenance;
+  open IndicatedG.TypeHole;
   let of_menhir_ast = (tpat: AST.tpat): IndicatedG.tpat => {
     switch (tpat) {
-    | InvalidTPat(s) => invalid(s)
-    | EmptyHoleTPat => empty_hole()
+    | InvalidTPat(s) => unknown(hole(invalid(s)))
+    | EmptyHoleTPat => unknown(hole(empty_hole()))
     | VarTPat(s) => var(s)
     };
   };
 
+  /* TODO (THI): more types */
   let of_core = (tpat: IndicatedG.tpat): AST.tpat => {
     switch (tpat.term) {
-    | EmptyHole => EmptyHoleTPat
+    | Unknown(prov) =>
+      switch (prov.term) {
+      | LArrow(_)
+      | RArrow(_)
+      | NProduct(_)
+      | MList(_)
+      | SynSwitch
+      | Internal
+      | RForall(_)
+      | TupLabel(_)
+      | TupLabelArg(_)
+      | Meet(_)
+      | TypeSubstitution(_)
+      | Hole(CycleHole)
+      | Hole(EmptyHole) => EmptyHoleTPat
+      | Hole(Invalid(i)) => InvalidTPat(i)
+      | Hole(MultiHole(_)) => raise(Failure("MultiHole not supported"))
+      }
     | Var(x) => VarTPat(x)
-    | Invalid(i) => InvalidTPat(i)
-    | MultiHole(_) => raise(Failure("MultiHole not supported"))
     };
   };
 }

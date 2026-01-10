@@ -818,7 +818,24 @@ let rec status_typ = (ctx: Ctx.t, expects: typ_expects, ty: Typ.t): status_typ =
 
 let status_tpat = (ctx: Ctx.t, utpat: TPat.t): status_tpat =>
   switch (utpat.term) {
-  | EmptyHole => NotInHole(Empty)
+  | Unknown(prov) =>
+    switch (prov.term) {
+    | LArrow(_)
+    | RArrow(_)
+    | SynSwitch
+    | Internal
+    | NProduct(_)
+    | MList(_)
+    | RForall(_)
+    | TupLabel(_)
+    | TupLabelArg(_)
+    | Meet(_)
+    | TypeSubstitution(_)
+    | Hole(CycleHole) => NotInHole(Empty)
+    | Hole(EmptyHole) => NotInHole(Empty)
+    | Hole(Invalid(_)) => InHole(NotAVar(NotCapitalized))
+    | Hole(MultiHole(_)) => InHole(NotAVar(Other))
+    }
   | Var(name) when Ctx.shadows_typ(ctx, name) =>
     let f = src => InHole(ShadowsType(name, src));
     if (Ctx.is_base_typ(name)) {
@@ -829,8 +846,6 @@ let status_tpat = (ctx: Ctx.t, utpat: TPat.t): status_tpat =>
       f(TyVar);
     };
   | Var(name) => NotInHole(Var(name))
-  | Invalid(_) => InHole(NotAVar(NotCapitalized))
-  | MultiHole(_) => InHole(NotAVar(Other))
   };
 
 /* Determines whether any term is in an error hole. */

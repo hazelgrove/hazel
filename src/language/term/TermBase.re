@@ -533,16 +533,14 @@ and TPat: {
         ~f_any=continue,
         x,
       ) => {
-    let any_map_term =
-      Any.map_term(~f_exp, ~f_pat, ~f_typ, ~f_tpat, ~f_rul, ~f_prov, ~f_any);
+    let prov_map_term =
+      Prov.map_term(~f_exp, ~f_pat, ~f_typ, ~f_tpat, ~f_rul, ~f_prov, ~f_any);
     let rec_call = ({term, _} as exp: t) => {
       ...exp,
       term:
         switch (term) {
-        | EmptyHole
-        | Invalid(_)
+        | Unknown(p) => (Unknown(prov_map_term(p)): term)
         | Var(_) => term
-        | MultiHole(things) => MultiHole(List.map(any_map_term, things))
         },
     };
     x |> f_tpat(rec_call);
@@ -711,6 +709,7 @@ and Prov: {
     | RForall(p) => "->RA(" ++ to_string(p) ++ ")"
     | TupLabel(p) => "(" ++ to_string(p) ++ ")="
     | TupLabelArg(p) => "=(" ++ to_string(p) ++ ")"
+    | TypeSubstitution(t) => "::=" ++ (t |> IdTagged.term_of |> Typ.show_term)
     | Meet(p1, p2) =>
       "M("
       ++ Prov.to_string(IdTagged.term_of(p1))
@@ -733,6 +732,8 @@ and Prov: {
       Any.map_term(~f_exp, ~f_pat, ~f_typ, ~f_tpat, ~f_rul, ~f_prov, ~f_any);
     let prov_map_term =
       Prov.map_term(~f_exp, ~f_pat, ~f_typ, ~f_tpat, ~f_rul, ~f_prov, ~f_any);
+    let typ_map_term =
+      Typ.map_term(~f_exp, ~f_pat, ~f_typ, ~f_tpat, ~f_rul, ~f_prov, ~f_any);
 
     let rec_call = ({term, _} as exp: t) => {
       let prov_map_temp_term = prov =>
@@ -760,6 +761,7 @@ and Prov: {
           | RForall(p) => RForall(prov_map_temp_term(p))
           | TupLabel(p) => TupLabel(prov_map_temp_term(p))
           | TupLabelArg(p) => TupLabelArg(prov_map_temp_term(p))
+          | TypeSubstitution(t) => TypeSubstitution(typ_map_term(t))
           | Meet(p1, p2) => Meet(prov_map_term(p1), prov_map_term(p2))
           },
       };

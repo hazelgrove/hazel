@@ -2454,15 +2454,16 @@ let get_doc =
     switch (bypass_parens_typ(term).term) {
     | Unknown({term: SynSwitch, _})
     | Unknown({term: Internal, _})
-    | Unknown({term: LArrow(_), _}) // TODO: (THI) might need to be recursive
-    | Unknown({term: RArrow(_), _}) // TODO: (THI) might need to be recursive
-    | Unknown({term: MList(_), _}) // TODO: (THI) might need to be recursive
-    | Unknown({term: NProduct(_), _}) // TODO: (THI) might need to be recursive
-    | Unknown({term: RForall(_), _}) // TODO: (THI) might need to be recursive
-    | Unknown({term: TupLabel(_), _}) // TODO: (THI) might need to be recursive
-    | Unknown({term: TupLabelArg(_), _}) // TODO: (THI) might need to be recursive
-    | Unknown({term: Meet(_), _}) // TODO: (THI) might need to be recursive
-    | Unknown({term: Hole(CycleHole), _}) // TODO: (THI) needs a custom message
+    | Unknown({term: LArrow(_), _})
+    | Unknown({term: RArrow(_), _})
+    | Unknown({term: MList(_), _})
+    | Unknown({term: NProduct(_), _})
+    | Unknown({term: RForall(_), _})
+    | Unknown({term: TupLabel(_), _})
+    | Unknown({term: TupLabelArg(_), _})
+    | Unknown({term: Meet(_), _})
+    | Unknown({term: TypeSubstitution(_), _})
+    | Unknown({term: Hole(CycleHole), _})
     | Unknown({term: Hole(EmptyHole), _}) => get_message(HoleTyp.empty_hole)
     | Unknown({term: Hole(MultiHole(_)), _}) =>
       get_message(HoleTyp.multi_hole)
@@ -2697,9 +2698,25 @@ let get_doc =
     }
   | Some(InfoTPat(info)) =>
     switch (info.term.term) {
-    | Invalid(_) => simple("Type names must begin with a capital letter")
-    | EmptyHole => get_message(HoleTPat.empty_hole_tpats)
-    | MultiHole(_) => get_message(HoleTPat.multi_hole_tpats)
+    | Unknown(prov) =>
+      switch (prov.term) {
+      | Hole(Invalid(_)) =>
+        simple("Type names must begin with a capital letter")
+      | RArrow(_)
+      | LArrow(_)
+      | NProduct(_)
+      | MList(_)
+      | Internal
+      | SynSwitch
+      | RForall(_)
+      | TupLabel(_)
+      | TupLabelArg(_)
+      | Meet(_)
+      | TypeSubstitution(_)
+      | Hole(CycleHole) /* TODO (THI): do some of these need special messages */
+      | Hole(EmptyHole) => get_message(HoleTPat.empty_hole_tpats)
+      | Hole(MultiHole(_)) => get_message(HoleTPat.multi_hole_tpats)
+      }
     | Var(v) =>
       get_message(
         ~format=
