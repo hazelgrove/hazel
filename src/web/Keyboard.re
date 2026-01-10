@@ -66,6 +66,7 @@ let handle_key_event = (k: Key.t): option(Action.t) => {
     | "ArrowDown" => now(Select(Resize(Vertical(Down))))
     | "Home" => now(Select(Resize(Start)))
     | "End" => now(Select(Resize(End)))
+    | "e" => now(Refractor(ToggleProbeREPL))
     | _ => None
     }
   | {key: D(key), sys: Mac, shift: Up, meta: Down, ctrl: Up, alt: Up} =>
