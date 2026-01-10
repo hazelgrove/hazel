@@ -4,9 +4,10 @@ open WorkerServer;
 let name = "worker.js"; // Worker file name
 let timeoutDuration = 20000; // Worker timeout in ms
 
-let initWorker = () => Worker.create(name);
+let initWorker: unit => Js.t(Worker.worker(Request.t, Response.t)) =
+  () => Worker.create(name);
 
-let workerRef: ref(Js.t(Worker.worker(string, string))) =
+let workerRef: ref(Js.t(Worker.worker(Request.t, Response.t))) =
   ref(initWorker());
 
 let timeoutId = ref(None);
@@ -31,7 +32,7 @@ let request =
         | None => ()
         };
         timeoutId.contents = None; /* Clear timeout after response */
-        evt##.data |> Response.deserialize |> handler;
+        evt##.data |> handler;
         Js._true;
       });
   };
@@ -46,7 +47,7 @@ let request =
 
   setupWorkerMessageHandler(workerRef.contents);
 
-  workerRef.contents##postMessage(Request.serialize(req));
+  workerRef.contents##postMessage(req);
 
   let onTimeout = (): unit => {
     restart_worker();

@@ -130,14 +130,27 @@ module Map = {
   type t = Id.Map.t(list(sample));
 
   let empty = Id.Map.empty;
-  let lookup = Id.Map.find_opt;
 
+  /* Samples are stored in reverse order (prepend for O(1) insert),
+   * so we reverse on lookup to return them in evaluation order */
+  let lookup = (id, map) =>
+    Id.Map.find_opt(id, map) |> Option.map(List.rev);
+
+  /* Fold over the map, reversing each sample list to evaluation order */
+  let fold = (f, map: t, init) =>
+    Id.Map.fold(
+      (id, samples, acc) => f(id, List.rev(samples), acc),
+      map,
+      init,
+    );
+
+  /* Prepend for O(1) insertion - list is reversed on lookup */
   let extend = (id, report, map: t) =>
     Id.Map.update(
       id,
       opt =>
         switch (opt) {
-        | Some(a) => Some(a @ [report])
+        | Some(a) => Some([report, ...a])
         | None => Some([report])
         },
       map,

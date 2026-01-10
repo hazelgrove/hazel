@@ -5,32 +5,15 @@ open Language;
 let rec target_subterm_ids = (id: Id.t, info_map: Statics.Map.t) =>
   switch (Statics.Map.lookup(id, info_map)) {
   /* If we're trying to probe a function literal,
-     put probes on paramters and body instead */
-  | Some(InfoExp({term: {term: Fun(pat, body, _, _), _}, _})) =>
-    /* Unfortunate edge behavior here; since we're inspecting the term,
-       it has probes on it from the refractors; we must account for the fact
-       that if a probe is already on, the id will the the probe id, not the
-       underlying term id which is the id in the refractors map */
-    let body_id =
-      switch (body.term) {
-      | Probe(_) => Id.recover_original(IdTagged.rep_id(body))
-      | _ => IdTagged.rep_id(body)
-      };
-    let pat_id =
-      switch (pat.term) {
-      | Probe(_) => Id.recover_original(IdTagged.rep_id(pat))
-      | _ => IdTagged.rep_id(pat)
-      };
-    [body_id, pat_id];
+     put probes on parameters and body instead */
+  | Some(InfoExp({term: {term: Fun(pat, body, _, _), _}, _})) => [
+      IdTagged.rep_id(body),
+      IdTagged.rep_id(pat),
+    ]
   | Some(InfoExp({term: {term: Let(_pat, def, _), _}, _})) =>
-    /* If trying to probe a let, probe the definition instead */
-    let def_id =
-      switch (def.term) {
-      | Probe(_) => Id.recover_original(IdTagged.rep_id(def))
-      | _ => IdTagged.rep_id(def)
-      };
-    /* Recurse so that if def is a fun literal, the above case will get it */
-    target_subterm_ids(def_id, info_map);
+    /* If trying to probe a let, probe the definition instead.
+       Recurse so that if def is a fun literal, the above case will get it */
+    target_subterm_ids(IdTagged.rep_id(def), info_map)
 
   | Some(InfoExp({term: {term: Var(_), _} as v, _})) =>
     /* If we're trying to probe variable in function position for an
@@ -151,12 +134,7 @@ let add_ids_from_auto_term =
   Zipper.update_ephemerals(
     _ =>
       List.fold_left(
-        (map, id) =>
-          Id.Map.add(
-            id,
-            MkRefractor.mk(Probe, Id.transform_variant(id)),
-            map,
-          ),
+        (map, id) => Id.Map.add(id, MkRefractor.mk(Probe, id), map),
         Id.Map.empty,
         ids,
       ),
@@ -245,12 +223,7 @@ let step_into =
     );
   switch (ci_body) {
   | InfoExp({term: {term: Fun(pat, _body, _, _), _}, _}) =>
-    let jump_target_id =
-      switch (pat.term) {
-      | Probe(_) => Id.recover_original(IdTagged.rep_id(pat))
-      | _ => IdTagged.rep_id(pat)
-      };
-    Move.jump_to_id_indicated(z, jump_target_id);
+    Move.jump_to_id_indicated(z, IdTagged.rep_id(pat))
   | _ => Move.jump_to_id_indicated(z, body_id)
   };
 };

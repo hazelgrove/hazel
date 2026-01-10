@@ -154,10 +154,12 @@ let rec elaborate_pattern =
     | Asc(p, t) =>
       let (p', _) = elaborate_pattern(m, p);
       Asc(p', Typ.normalize(ctx, t)) |> rewrap;
-    | Probe(p, probe) =>
-      let (e', _) = elaborate_pattern(m, p);
-      let probe = Dynamics.instrument_pat(m, Pat.rep_id(upat), probe);
-      Probe(e', probe) |> rewrap;
+    | Probe(p, _) =>
+      /* Probe nodes are no longer used for probe functionality.
+       * The new system uses probe_map passed to the evaluator.
+       * Just elaborate the inner pattern like Parens. */
+      let (p', _) = elaborate_pattern(m, p);
+      p';
     | Constructor(c, _) =>
       let ana_ty =
         switch (Id.Map.find_opt(Pat.rep_id(upat), m)) {
@@ -210,10 +212,12 @@ let rec elaborate = (m: Statics.Map.t, uexp: Exp.t): (DHExp.t, Typ.t) => {
     | Parens(e) =>
       let (e', _) = elaborate(m, e);
       e';
-    | Probe(e, probe) =>
+    | Probe(e, _) =>
+      /* Probe nodes are no longer used for probe functionality.
+       * The new system uses probe_map passed to the evaluator.
+       * Just elaborate the inner expression like Parens. */
       let (e', _) = elaborate(m, e);
-      let probe = Dynamics.instrument_exp(m, Exp.rep_id(uexp), probe);
-      Probe(e', probe) |> rewrap;
+      e';
     | Deferral(_) => uexp
     | Atom(c) =>
       let c =

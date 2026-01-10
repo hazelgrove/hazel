@@ -114,14 +114,7 @@ let fancy =
       Attr.class_("probe-entry"),
       Attr.on_pointerdown(jump_to(~globals, id)),
     ],
-    [
-      term_view,
-      probe_view(
-        globals.font_metrics,
-        refractor_data,
-        Id.transform_variant(id),
-      ),
-    ],
+    [term_view, probe_view(globals.font_metrics, refractor_data, id)],
   );
 };
 

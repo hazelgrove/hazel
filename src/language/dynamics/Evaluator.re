@@ -135,13 +135,12 @@ let rec evaluate =
         : EvaluatorEVMode.result => {
   open Trampoline.Syntax;
 
-  /* If we're starting to evaluate a Probe, record the current step count.
-   * This captures "where we were" before the inner expression starts evaluating. */
-  switch (DHExp.term_of(init)) {
-  | Probe(_, _) =>
-    let probe_id = DHExp.rep_id(init);
-    state := EvaluatorState.record_probe_start(state^, probe_id);
-  | _ => ()
+  /* Check if this expression is in the probe_map.
+   * If so, record the current step count before evaluation begins. */
+  let expr_id = DHExp.rep_id(init);
+  switch (Id.Map.find_opt(expr_id, state^.probe_map)) {
+  | Some(_) => state := EvaluatorState.record_probe_start(state^, expr_id)
+  | None => ()
   };
 
   let.trampoline (is_finished, effects, next) =
@@ -149,23 +148,99 @@ let rec evaluate =
       (~in_closure=?, env, init) =>
         evaluate(~in_closure?, ~call_stack, state, env, init),
       ~mode=`Environment,
+      ~probe_map=state^.probe_map,
       ~in_closure?,
       env,
       init,
     );
+
+  /* If this expression is in the probe_map and evaluation is complete,
+   * emit RecordExpProbe effect */
+  let effects =
+    switch (is_finished, Id.Map.find_opt(expr_id, state^.probe_map)) {
+    | (Final, Some(pr)) => [EvaluatorState.RecordExpProbe(pr), ...effects]
+    | _ => effects
+    };
+
+  /* Save original call_stack before update. For probed compound expressions
+   * (Uneval case), we need this because:
+   * - The updated call_stack (after RecordStackFrame) should be passed to
+   *   recursive evaluation so inner expressions see the app_id
+   * - But the probe sample for THIS expression should use the original
+   *   call_stack (what it was before entering the function) */
+  let original_call_stack = call_stack;
   let (call_stack, new_state) =
     EvaluatorState.update(state^, call_stack, env, init, next, effects);
   state := new_state;
   switch (is_finished) {
   | Final => Trampoline.return((EvaluatorEVMode.Final, [], next))
-  | Uneval => Trampoline.Next(() => evaluate(~call_stack, state, env, next))
+  | Uneval =>
+    /* Compound Expression Probe Capture via Trampoline.Bind
+     *
+     * Problem: Compound expressions (if, let, case, function application) step
+     * with is_finished=Uneval, meaning their result is a new expression with a
+     * different ID. Without special handling, we'd call evaluate(next) and lose
+     * the probe context since next.id != expr_id.
+     *
+     * Example: ^^probe(if true then 1 else 2)
+     *   1. expr_id = ID of the if expression, which is in probe_map
+     *   2. transition returns (Uneval, effects, next=1) - If stepped to branch
+     *   3. Without Bind: evaluate(1) runs, returns Final, but expr_id is lost
+     *   4. With Bind: we capture the final value when evaluate(1) completes,
+     *      then record the sample with the original expr_id
+     *
+     * Nested probes like ^^probe(if true then ^^probe(1) else 2) work correctly:
+     * each probe creates its own Bind continuation, and they're unwound in order.
+     * Trampoline.Bind creates a continuation that runs AFTER all recursive
+     * evaluation completes, at which point state^ reflects all step count
+     * mutations, but we still have expr_id in scope.
+     *
+     * Important: We use original_call_stack for the probe sample (the call_stack
+     * before RecordStackFrame), but call_stack (the updated one) for recursive
+     * evaluation. This ensures:
+     * - ^^probe(f(x)) records a sample with the call_stack BEFORE entering f
+     * - Expressions inside f see the app_id of f(x) in their call_stacks
+     */
+    switch (Id.Map.find_opt(expr_id, state^.probe_map)) {
+    | Some(probe) =>
+      let.trampoline (_, _, final_value) =
+        Trampoline.Next(() => evaluate(~call_stack, state, env, next));
+      /* Record sample with final evaluated value, using original_call_stack */
+      let step_start =
+        EvaluatorState.get_probe_start(state^, expr_id)
+        |> Option.value(~default=0);
+      let step_end = state^.step_count - 1;
+      let sample =
+        Sample.mk(
+          ~step_start,
+          ~step_end,
+          expr_id,
+          final_value,
+          env,
+          original_call_stack,
+          probe,
+        );
+      state := EvaluatorState.clear_probe_start(state^, expr_id);
+      state :=
+        {
+          ...state^,
+          probes: Sample.Map.extend(expr_id, sample, state^.probes),
+        };
+      Trampoline.return((EvaluatorEVMode.Final, [], final_value));
+    | None => Trampoline.Next(() => evaluate(~call_stack, state, env, next))
+    }
   };
 };
 
 let evaluate_and_limit =
-    (~step_limit: option(int)=?, ~env, d: DHExp.t)
+    (
+      ~step_limit: option(int)=?,
+      ~probe_map: Id.Map.t(Probe.t)=Id.Map.empty,
+      ~env,
+      d: DHExp.t,
+    )
     : step_constrained((Exp.t, EvaluatorState.t)) => {
-  let state = ref(EvaluatorState.init);
+  let state = ref(EvaluatorState.mk(~probe_map));
   let result = evaluate(~call_stack=[], state, env, d);
   let result = Trampoline.run(~step_limit?, result);
   switch (result) {
@@ -175,8 +250,10 @@ let evaluate_and_limit =
   };
 };
 
-let evaluate = (~env, d: DHExp.t): (Exp.t, EvaluatorState.t) => {
-  switch (evaluate_and_limit(~env, d)) {
+let evaluate =
+    (~probe_map: Id.Map.t(Probe.t)=Id.Map.empty, ~env, d: DHExp.t)
+    : (Exp.t, EvaluatorState.t) => {
+  switch (evaluate_and_limit(~probe_map, ~env, d)) {
   | Completed((x, state)) => (x, state)
   | StepLimitExceeded =>
     raise(Failure("Impossible: Step limit exceeded when not set"))

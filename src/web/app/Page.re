@@ -296,7 +296,7 @@ module Update = {
         ...model,
         selection,
       }
-      |> Updated.return(~scroll_active=false)
+      |> Updated.return(~is_edit=false, ~scroll_active=false)
     | Benchmark(Start) =>
       List.iter(a => schedule_action(Editors(a)), Benchmark.actions_1);
       schedule_action(Benchmark(Finish));

@@ -6,7 +6,8 @@ type t = {
   tests: TestMap.t,
   probes: Sample.Map.t,
   step_count: int,
-  pending_probe_starts: Id.Map.t(int) /* Transient state only needed during evaluation */
+  pending_probe_starts: Id.Map.t(int), /* Transient state only needed during evaluation */
+  probe_map: Id.Map.t(Probe.t) /* IDs of expressions/patterns to probe */
 };
 
 type effect =
@@ -17,13 +18,16 @@ type effect =
   | RecordTheorem(Id.t, string, Environment.t(Exp.t), Exp.t)
   | RecordPrint(DHExp.t); /* Println for probes study */
 
-let init: t = {
+let mk = (~probe_map: Id.Map.t(Probe.t)): t => {
   tests: TestMap.empty,
   probes: Sample.Map.empty,
   step_count: 0,
   pending_probe_starts: Id.Map.empty,
+  probe_map,
   theorems: [],
 };
+
+let init: t = mk(~probe_map=Id.Map.empty);
 
 let get_step_count = ({step_count, _}: t): int => step_count;
 

@@ -718,7 +718,7 @@ let out : string * Haz3lcore.PersistentSegment.t =
          )";
       refractors =
         "((5aae145c-f3cf-4d39-b1af-dbb066b3e267((id \
-         5aae145c-f3cf-4d39-b1af-dbb066b3e268)(kind Probe)(syntax(Tile((id \
+         5aae145c-f3cf-4d39-b1af-dbb066b3e267)(kind Probe)(syntax(Tile((id \
          030ceb80-92ba-4cfe-97fc-2c062af26e97)(label(\"(\"\")\"))(mold((out \
          Any)(in_(Any))(nibs(((shape Convex)(sort Any))((shape Convex)(sort \
          Any))))))(shards(0 1))(children(((Grout((id \
