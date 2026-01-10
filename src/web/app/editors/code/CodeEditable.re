@@ -275,11 +275,14 @@ module View = {
         selected,
       );
     let t1 = JsUtil.precise_timestamp();
+    /* Use visible row range from model (updated by scroll handler) */
+    let visible = globals.visible_rows;
     let refractors_model =
       ProjectorView.all_refractors(
         x => inject(Perform(x)),
         signal(MakeActive),
         globals.font_metrics,
+        ~visible?,
         refractor_data,
       );
     let t2 = JsUtil.precise_timestamp();
@@ -288,6 +291,7 @@ module View = {
         x => inject(Perform(x)),
         signal(MakeActive),
         globals.font_metrics,
+        ~visible?,
         ProjectorView.Model.mk(
           model.editor.syntax.projectors,
           model.editor.syntax.measured,
@@ -310,12 +314,19 @@ module View = {
         ),
       );
     if (num_refractors > 0) {
+      let visible_str =
+        switch (visible) {
+        | Some({first, last}) =>
+          Printf.sprintf(" visible_rows=%d-%d", first, last)
+        | None => ""
+        };
       Printf.printf(
-        "[Probe Perf] refractor_data: %.2fms, all_refractors: %.2fms, projectors: %.2fms (n=%d)\n",
+        "[Probe Perf] refractor_data: %.2fms, all_refractors: %.2fms, projectors: %.2fms (n=%d)%s\n",
         t1 -. t0,
         t2 -. t1,
         t3 -. t2,
         num_refractors,
+        visible_str,
       );
     };
     let overlays =

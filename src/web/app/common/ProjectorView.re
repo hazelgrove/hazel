@@ -6,6 +6,25 @@ open Util;
 open Util.OptUtil.Syntax;
 open Util.WebUtil;
 
+/* Re-export visible_rows type from Globals for convenience */
+type visible_rows = Globals.VisibleRows.t;
+
+/* Filter projector data to only include items in visible row range */
+let filter_by_visibility =
+    (visible: option(visible_rows), data: list('a), get_row: 'a => int)
+    : list('a) =>
+  switch (visible) {
+  | None => data
+  | Some({first, last}) =>
+    List.filter(
+      item => {
+        let row = get_row(item);
+        row >= first && row <= last;
+      },
+      data,
+    )
+  };
+
 module Model = {
   type status = ProjectorBase.View.status;
 
@@ -343,6 +362,7 @@ let all =
       inject: Action.t => Ui_effect.t(unit),
       make_active,
       font_metrics: FontMetrics.t,
+      ~visible: option(visible_rows)=?,
       projector_data: list(Model.projector_data),
     ) => {
   /* Sorting the projectors by position tends to be a good
@@ -351,8 +371,10 @@ let all =
    * impinge on hover-dropdowns, but the hovered projector
    * has z-index handled separately. But ideally dropdowns
    * should be on the overlay layer so this doesn't come up */
+  let get_row = (d: Model.projector_data) => d.measurement.origin.row;
   let (base_views, overlay_views) =
     projector_data
+    |> filter_by_visibility(visible, _, get_row)
     |> List.sort(by_measurement)
     |> List.map(
          split_views(~skip_inline=false, inject, make_active, font_metrics),
@@ -372,10 +394,13 @@ let all_refractors =
       inject: Action.t => Ui_effect.t(unit),
       make_active,
       font_metrics: FontMetrics.t,
+      ~visible: option(visible_rows)=?,
       refactor_data: list(Model.projector_data),
     ) => {
+  let get_row = (d: Model.projector_data) => d.measurement.origin.row;
   let (base_views, overlay_views) =
     refactor_data
+    |> filter_by_visibility(visible, _, get_row)
     |> List.sort(by_measurement)
     |> List.map(
          split_views(~skip_inline=true, inject, make_active, font_metrics),
