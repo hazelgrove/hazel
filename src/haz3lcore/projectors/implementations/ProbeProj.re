@@ -163,7 +163,7 @@ let select_samples =
     };
   let first_idx =
     Sample.Selection.first_related_index(
-      ~trimmed=false,
+      ~trimmed=true,
       ~ap_id,
       di.dyn_cursor,
       samples,

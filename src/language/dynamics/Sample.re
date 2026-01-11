@@ -191,7 +191,59 @@ module Window = {
 /* The dynamic cursor points to a stage in evaluation, associated
  * with probe sample collection. This is primarily reified as a call stack,
  * represented as a list of ids of function application forms which have
- * been called but have not yet returned. */
+ * been called but have not yet returned.
+ *
+ * CONSISTENCY AND INTENT PRESERVATION
+ *
+ * Two goals govern how probe sample displays update during navigation:
+ *
+ * 1. CONSISTENCY (mandatory): Samples shown at different call depths must
+ *    be consistent with each other in the call stack sense. If you navigate
+ *    to a sample at one depth, samples emphasized at other depths must be
+ *    above or below it in the same execution context.
+ *
+ * 2. INTENT PRESERVATION (when consistency allows): When multiple samples
+ *    would be consistent with a navigation action, prefer keeping the
+ *    user's previous selection rather than resetting to a default.
+ *
+ * Example in single-sample display mode:
+ *
+ *   let grid = [[1, 2], [3, 4]] in
+ *   map(grid, fun ^^probe(row) ->
+ *     map(row, fun ^^probe(x) -> x))
+ *
+ * Outer probe samples: [1,2], [3,4]
+ * Inner probe samples: 1, 2, 3, 4
+ * Samples 1,2 are below [1,2]; samples 3,4 are below [3,4].
+ *
+ * CONSISTENCY examples (navigation forces change):
+ *
+ *   # Frame A: Arrow outer from [1,2] to [3,4] #
+ *   fun ^^probe(row) ->           # [1,2] -> [3,4]
+ *     map(row, fun ^^probe(x) ..) # 2 -> 3 (must change: 2 not below [3,4])
+ *
+ *   # Frame B: Arrow inner from 2 to 3 #
+ *   fun ^^probe(row) ->           # [1,2] -> [3,4] (must change: 3 not below [1,2])
+ *     map(row, fun ^^probe(x) ..) # 2 -> 3
+ *
+ * INTENT PRESERVATION example (consistency underdetermines):
+ *
+ *   # Frame C1: User arrows inner from 1 to 2 #
+ *   fun ^^probe(row) ->           # [1,2]
+ *     map(row, fun ^^probe(x) ..) # 1 -> 2
+ *
+ *   # Frame C2: User clicks on outer [1,2] (already above inner 2) #
+ *   fun ^^probe(row) ->           # [1,2] (cursor moves to outer depth)
+ *     map(row, fun ^^probe(x) ..) # 2 (unchanged - both 1 and 2 are consistent)
+ *
+ *   Without intent preservation, inner would reset to 1 (first/default).
+ *   With intent preservation, inner stays at 2.
+ *
+ * MECHANISM: The cursor maintains both a full `stack` and an `index`.
+ * The `index` is the effective cursor depth; `stack` may retain deeper
+ * call information. When clicking "up" to a shallower sample that already
+ * contains the current selection, we keep the deeper stack but lower the
+ * index. Use `trimmed_stack(cursor)` to get the effective stack. */
 module Cursor = {
   open OptUtil.Syntax;
 
