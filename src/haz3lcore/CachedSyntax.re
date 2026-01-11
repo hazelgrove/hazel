@@ -62,7 +62,7 @@ let init = (z: Zipper.t) =>
   mk(
     z,
     ~info_map=Id.Map.empty,
-    ~inference_map=Language.Inference.SolutionMap.empty,
+    ~inference_map=Language.SolutionMap.empty,
     ~dyn_map=Id.Map.empty,
   );
 

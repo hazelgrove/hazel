@@ -6,7 +6,7 @@ type t = {
   term: Exp.t,
   elaborated: Exp.t,
   info_map: Statics.Map.t,
-  inference_map: Inference.SolutionMap.t,
+  inference_map: SolutionMap.t,
   error_ids: list(Id.t),
 };
 
@@ -24,7 +24,7 @@ let empty: t = {
     term: Tuple([]),
   },
   info_map: Id.Map.empty,
-  inference_map: Inference.SolutionMap.empty,
+  inference_map: SolutionMap.empty,
   error_ids: [],
 };
 

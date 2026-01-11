@@ -2667,7 +2667,7 @@ let mk =
 
       // Map.show(map) |> print_endline;
 
-      let inference_sols = Inference.solve(info.constraints);
+      let inference_sols = Inference.go(info.constraints);
       // Inference.ProvMap.iter(
       //   (key, sol) => {
       //     print_endline(
@@ -2683,5 +2683,4 @@ let mk =
   );
 
 let mk = (~ana=mk_temp_syn(), core: CoreSettings.t, ctx, exp) =>
-  core.statics
-    ? mk(ana, ctx, exp) : (Id.Map.empty, Inference.SolutionMap.empty);
+  core.statics ? mk(ana, ctx, exp) : (Id.Map.empty, SolutionMap.empty);

@@ -61,3 +61,5 @@ let fresh: term => t = IdTagged.fresh;
 let anonymous: term => t = IdTagged.temp;
 
 let term_of: t => term = IdTagged.term_of;
+
+let is_identified = (p: t) => IdTagged.rep_id(p) != Id.invalid;

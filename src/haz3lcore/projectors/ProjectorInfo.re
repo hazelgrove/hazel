@@ -34,7 +34,7 @@ let mk_info =
     (
       p: Piece.projector,
       ~statics: Statics.Map.t,
-      ~inference: Inference.SolutionMap.t,
+      ~inference: SolutionMap.t,
       ~dynamics: Dynamics.Map.t,
     )
     : ProjectorBase.info => {
@@ -43,8 +43,7 @@ let mk_info =
     switch (statics) {
     | Some(InfoTyp(info)) =>
       switch (info.term) {
-      | {term: Unknown(p), _} =>
-        Inference.SolutionMap.lookup_prov(p, inference)
+      | {term: Unknown(p), _} => SolutionMap.lookup_prov(p, inference)
       | _ => None
       }
     | _ => None
@@ -57,16 +56,14 @@ let mk_info =
     inference:
       OptUtil.and_then(
         s =>
-          if (Inference.Solution.has_multiple_types(s)) {
+          if (Solution.has_multiple_types(s)) {
             Some(
-              ProjectorBase.Many(
-                lazy(Inference.Solution.all_types_from_solution(s)),
-              ),
+              ProjectorBase.Many(lazy(Solution.all_types_from_solution(s))),
             );
           } else {
             Some(
               ProjectorBase.Single(
-                Inference.Solution.all_types_from_solution(s) |> List.hd,
+                Solution.all_types_from_solution(s) |> List.hd,
               ),
             );
           },
@@ -81,7 +78,7 @@ module ShapeMapSemantics = {
   let from_semantics =
       (
         statics: Statics.Map.t,
-        inference: Inference.SolutionMap.t,
+        inference: SolutionMap.t,
         dynamics: Dynamics.Map.t,
         p: Base.projector,
       )
@@ -94,7 +91,7 @@ module ShapeMapSemantics = {
       (
         proj_map: Id.Map.t(Base.projector),
         statics: Statics.Map.t,
-        inference: Inference.SolutionMap.t,
+        inference: SolutionMap.t,
         dynamics: Dynamics.Map.t,
       )
       : Id.Map.t(ProjectorCore.Shape.t) =>
