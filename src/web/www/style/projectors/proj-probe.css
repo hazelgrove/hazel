@@ -723,8 +723,11 @@
   border-top: 0.6px solid var(--BR3);
 }
 
-.live-offside .sample-dropdown:hover {
+/* Require .indicated on probe AND .cursor on value for dropdown to appear */
+.projector.probe.indicated .live-offside .sample:has(.value.cursor) .sample-dropdown:hover,
+.projector.probe.indicated .live-offside .sample:has(.value.cursor) .sample-dropdown.dropdown-active {
   display: flex;
+  flex-direction: column;
 }
 
 .live-offside .live-env .live-env-entry {
@@ -737,10 +740,12 @@
   font-size: var(--base-font-size);
 }
 
-.projector.probe.indicated .sample:hover .sample-dropdown {
+.projector.probe.indicated .sample:has(.value.cursor):hover .sample-dropdown,
+.projector.probe.indicated .sample:has(.value.cursor) .sample-dropdown.dropdown-active {
   display: block;
 }
-.projector.probe.indicated .sample:hover .sample-dropdown:empty {
+.projector.probe.indicated .sample:has(.value.cursor):hover .sample-dropdown:empty,
+.projector.probe.indicated .sample:has(.value.cursor) .sample-dropdown.dropdown-active:empty {
   display: none;
 }
 

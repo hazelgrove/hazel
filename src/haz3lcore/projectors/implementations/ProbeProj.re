@@ -512,6 +512,10 @@ let pin_view = (~ap_id: option(Id.t), di: Dynamics.Info.t, sample: Sample.t) =>
   show_pin(~ap_id, di, sample)
     ? [div(~attrs=[Attr.classes(["pin"])], [])] : [];
 
+/* Generate unique dropdown ID for a sample */
+let dropdown_id = (sample_id: int): string =>
+  "sample-dropdown-" ++ string_of_int(sample_id);
+
 let env_view =
     (
       ~settings: settings,
@@ -524,7 +528,9 @@ let env_view =
     )
     : Node.t =>
   div(
-    ~attrs=[Attr.classes(["sample-dropdown"])],
+    ~attrs=
+      [Attr.classes(["sample-dropdown"])]
+      @ SafeTriangle.CSSDropdown.menu_attrs(dropdown_id(sample.id)),
     (
       ap_id != Option.None
         ? {
@@ -571,9 +577,16 @@ let sample_view =
       local,
       parent,
       (index: int, sample: Sample.t),
-    ) =>
+    ) => {
+  let has_dropdown = !(hide_env && ap_id == None);
   div(
-    ~attrs=[Attr.classes(["sample"])],
+    ~attrs=
+      [Attr.classes(["sample"])]
+      @ (
+        has_dropdown
+          ? SafeTriangle.CSSDropdown.trigger_attrs(dropdown_id(sample.id))
+          : []
+      ),
     [
       value_view(
         ~ap_id,
@@ -590,9 +603,8 @@ let sample_view =
     ]
     @ pin_view(~ap_id, di, sample)
     @ (
-      hide_env && ap_id == None
-        ? []
-        : [
+      has_dropdown
+        ? [
           env_view(
             ~settings,
             ~parent,
@@ -603,8 +615,10 @@ let sample_view =
             utility,
           ),
         ]
+        : []
     ),
   );
+};
 
 let sample_group_view =
     (

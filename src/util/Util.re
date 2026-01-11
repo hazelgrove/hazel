@@ -31,6 +31,7 @@ module VarMap = VarMap;
 module ProjectorShape = ProjectorShape;
 module API = API;
 module OpenRouter = OpenRouter;
+module SafeTriangle = SafeTriangle;
 
 // Used by [@deriving sexp, yojson)]
 include Sexplib.Std;
