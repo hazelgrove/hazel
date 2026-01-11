@@ -4,7 +4,8 @@ open Util;
    that might be of interest to view functions. Most view functions then
    take ~globals as an argument.*/
 
-/* Viewport culling for projectors/refractors */
+/* Viewport culling for projectors/refractors.
+ * None = no culling (all visible), Some(range) = only show in range */
 module VisibleRows = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t = {
