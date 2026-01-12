@@ -79,7 +79,7 @@ module Update = {
              | Cut
              | Reparse
              | Introduce
-             | Refractor(ProbeJump)
+             | Refractor(ProbeJump | StepIntoSample(_))
              | Dump => true
              | Project(_)
              | Unselect(_)

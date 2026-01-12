@@ -93,6 +93,7 @@ let format_probe_values =
     | Some(NoSamplesExist) => Some(no_samples_indicator)
     | Some(HiddenByPin) => Some(hidden_by_pin_indicator)
     | Some(NotAligned) => Some(not_aligned_indicator)
+    | Some(Evaluating) => Some("...")
     | None =>
       let max_samples =
         switch (window) {

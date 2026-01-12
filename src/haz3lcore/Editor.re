@@ -194,6 +194,10 @@ module Update = {
            ~info_map=new_statics.info_map,
          );
 
+    /* 4. Resolve pending focus from step-into */
+    let zipper =
+      Refractors.resolve_pending_focus(~dynamics=new_dynamics, zipper);
+
     Model.{
       state: {
         ...state,

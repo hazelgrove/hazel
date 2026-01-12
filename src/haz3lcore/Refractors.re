@@ -289,6 +289,80 @@ let step_into =
   };
 };
 
+/* Step into from a specific sample, using the sample's call_stack
+   instead of the current dyn_cursor's trimmed_stack. This ensures
+   we maintain the exact execution context of the selected sample. */
+let step_into_sample =
+    (
+      ~syntax: CachedSyntax.t,
+      ~sample: Sample.t,
+      ~ap_id: Id.t,
+      info_map: Statics.Map.t,
+      z: Zipper.t,
+    )
+    : option(Zipper.t) => {
+  /* Look up the function being called from the application */
+  let* ci_ap = Statics.Map.lookup(ap_id, info_map);
+  let* binding_id =
+    switch (ci_ap) {
+    | InfoExp({
+        term: {term: Ap(_, {term: Var(_), _} as fun_expr, _), _},
+        _,
+      }) =>
+      let* ci_var = Statics.Map.lookup(IdTagged.rep_id(fun_expr), info_map);
+      Info.get_binding_site(ci_var);
+    | _ => None
+    };
+  let* body_id =
+    Statics.Map.enclosing_let_of_binding(~statics=info_map, ~binding_id);
+  let* ci_body = Statics.Map.lookup(body_id, info_map);
+
+  /* Add auto probe on function body if not already probed */
+  let z =
+    switch (probe_status(body_id, info_map, z.refractors)) {
+    | REPL => z
+    | Manual(_) => z
+    | Non => add_auto(body_id, ~syntax, ~info_map, z)
+    };
+
+  /* Set pin and dyn cursor using the sample's call_stack */
+  let new_stack = [ap_id, ...sample.call_stack];
+
+  /* Determine where to jump and where to look for samples.
+   * For function literals:
+   * - jump_target = pattern (cursor goes to parameters for UX)
+   * - sample_probe_id = inner body (where samples are stored in dynamics)
+   * target_subterm_ids transforms Fun to [inner_body, pattern]. */
+  let (jump_target, sample_probe_id) =
+    switch (ci_body) {
+    | InfoExp({term: {term: Fun(pat, inner_body, _, _), _}, _}) =>
+      let pat_id = IdTagged.rep_id(pat);
+      let inner_body_id = IdTagged.rep_id(inner_body);
+      (pat_id, inner_body_id);
+    | _ => (body_id, body_id)
+    };
+
+  /* Set pending_focus using sample_probe_id (inner body), since that's where
+   * the samples are stored in the dynamics map. */
+  let pending_focus: DynCursor.pending_focus = {
+    probe_id: sample_probe_id,
+    target_stack: new_stack,
+  };
+
+  let z =
+    DynCursorPerform.update_dyn_cursor(z, _ => {
+      {
+        ...z.refractors.dyn_cursor,
+        stack: new_stack,
+        index: List.length(sample.call_stack),
+        pinned_stack: Some(new_stack),
+        pending_focus: Some(pending_focus),
+      }
+    });
+
+  Move.jump_to_id_indicated(z, jump_target);
+};
+
 let rm_probes_in_selection =
     (~syntax: CachedSyntax.t, ~info_map: Statics.Map.t, z: Zipper.t): Zipper.t => {
   let selection_ids = Selection.selection_ids(z.selection);
@@ -329,6 +403,11 @@ let update =
     | Some(z) => z
     | None => z
     }
+  | StepIntoSample(sample, ap_id) =>
+    switch (step_into_sample(~syntax, ~sample, ~ap_id, info_map, z)) {
+    | Some(z) => z
+    | None => z
+    }
   };
 
 /* Check if id has either manual or ephermeral probe on it */
@@ -341,3 +420,17 @@ let has_probe = (id: Id.t, z: Zipper.t): bool => {
    Used by ContextMenu to determine whether to show probe options. */
 let can_probe = (id: Id.t, info_map: Statics.Map.t): bool =>
   target_subterm_ids(id, info_map) != [];
+
+/* Resolve pending focus from step-into by looking up samples in dynamics
+   and focusing the one that matches target_stack. Called from Editor.calculate
+   after dynamics are updated. */
+let resolve_pending_focus = (~dynamics: Dynamics.Map.t, z: Zipper.t): Zipper.t =>
+  switch (z.refractors.dyn_cursor.pending_focus) {
+  | None => z
+  | Some({probe_id, target_stack}) =>
+    switch (Dynamics.Map.lookup(probe_id, dynamics)) {
+    | None => z /* Probe not in dynamics yet - keep pending */
+    | Some(samples) =>
+      DynCursorPerform.resolve_pending_focus(z, samples, target_stack)
+    }
+  };

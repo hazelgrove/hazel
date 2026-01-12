@@ -516,7 +516,84 @@ let pin_view = (~ap_id: option(Id.t), di: Dynamics.Info.t, sample: Sample.t) =>
 let dropdown_id = (sample_id: int): string =>
   "sample-dropdown-" ++ string_of_int(sample_id);
 
-let env_view =
+/* Step into handler for sample context menu */
+let step_into_sample =
+    (~parent, ~sample: Sample.t, ~ap_id: Id.t): Ui_effect.t(unit) =>
+  parent(Refractor(StepIntoSample(sample, ap_id)));
+
+/* Context actions for a sample (Pin/Unpin, Step Into, etc.) */
+let sample_context_actions =
+    (~parent, ~ap_id: option(Id.t), ~di: Dynamics.Info.t, sample: Sample.t)
+    : list(Node.t) =>
+  switch (ap_id) {
+  | Some(ap_id) =>
+    let is_pinned = show_pin(~ap_id=Some(ap_id), di, sample);
+    [
+      div(
+        ~attrs=[Attr.classes(["context-actions"])],
+        [
+          /* Pin/Unpin action */
+          div(
+            ~attrs=[
+              Attr.classes(
+                ["action-item", "pin-action"] @ (is_pinned ? ["pinned"] : []),
+              ),
+              Attr.on_pointerdown(_ =>
+                pin_call(~parent, ~ap_id=Some(ap_id), ~di)
+              ),
+            ],
+            [
+              div(~attrs=[Attr.classes(["pin-icon"])], []),
+              text(is_pinned ? "Unpin" : "Pin"),
+            ],
+          ),
+          /* Step Into action */
+          div(
+            ~attrs=[
+              Attr.classes(["action-item", "step-into-action"]),
+              Attr.on_pointerdown(_
+                /* Stop propagation to prevent parent wrapper's Focus action
+                   from moving cursor back to the probe after we jump */
+                =>
+                  Effect.Many([
+                    Effect.Stop_propagation,
+                    step_into_sample(~parent, ~sample, ~ap_id),
+                  ])
+                ),
+            ],
+            [
+              div(~attrs=[Attr.classes(["step-into-icon"])], []),
+              text("Step into"),
+            ],
+          ),
+        ],
+      ),
+    ];
+  | None => []
+  };
+
+/* Environment section showing variable bindings */
+let sample_environment =
+    (~settings: settings, sample: Sample.t, view_seg, utility: utility)
+    : list(Node.t) => {
+  let elems = sample.env |> ListUtil.dedup |> Sample.Env.remove_opaques;
+  elems == []
+    ? []
+    : [
+      div(
+        ~attrs=[Attr.classes(["environment-section"])],
+        [
+          div(
+            ~attrs=[Attr.classes(["live-env"])],
+            List.map(env_val(~settings, sample, view_seg, utility), elems),
+          ),
+        ],
+      ),
+    ];
+};
+
+/* Sample context menu (dropdown) combining actions and environment */
+let sample_context_menu =
     (
       ~settings: settings,
       ~parent,
@@ -529,40 +606,10 @@ let env_view =
     : Node.t =>
   div(
     ~attrs=
-      [Attr.classes(["sample-dropdown"])]
+      [Attr.classes(["sample-context-menu"])]
       @ SafeTriangle.CSSDropdown.menu_attrs(dropdown_id(sample.id)),
-    (
-      ap_id != Option.None
-        ? {
-          let show_pin = show_pin(~ap_id, di, sample);
-          [
-            div(
-              ~attrs=[
-                Attr.classes(
-                  ["live-env-header"] @ (show_pin ? ["pinned"] : []),
-                ),
-                Attr.on_pointerdown(_ => pin_call(~parent, ~ap_id, ~di)),
-              ],
-              [
-                div(~attrs=[Attr.classes(["pin-icon"])], []),
-                text(show_pin ? "Unpin" : "Pin"),
-              ],
-            ),
-          ];
-        }
-        : []
-    )
-    @ {
-      let elems = sample.env |> ListUtil.dedup |> Sample.Env.remove_opaques;
-      elems == []
-        ? []
-        : [
-          div(
-            ~attrs=[Attr.classes(["live-env"])],
-            List.map(env_val(~settings, sample, view_seg, utility), elems),
-          ),
-        ];
-    },
+    sample_context_actions(~parent, ~ap_id, ~di, sample)
+    @ sample_environment(~settings, sample, view_seg, utility),
   );
 
 let sample_view =
@@ -605,7 +652,7 @@ let sample_view =
     @ (
       has_dropdown
         ? [
-          env_view(
+          sample_context_menu(
             ~settings,
             ~parent,
             ~ap_id,
@@ -749,6 +796,15 @@ let empty_status_view =
         Attr.on_double_click(_ => local(ToggleShowAllVals(0))),
       ],
       [text("⊖")],
+    )
+  | Evaluating =>
+    /* Animated spinner while waiting for evaluation after step-into */
+    div(
+      ~attrs=[
+        Attr.classes(["empty-status", "evaluating"]),
+        Attr.title("Evaluating..."),
+      ],
+      [text("⟳")],
     )
   };
 
@@ -981,9 +1037,21 @@ let offside_view =
       select_samples(~settings, ~id, ~ap_id, ~filtered=filtered_samples, di);
     let (num_shown, groups) = Sample.Selection.collate(samples);
 
+    /* Check if this probe is the target of a pending step-into focus */
+    let is_evaluating =
+      switch (di.dyn_cursor.pending_focus) {
+      | Some({probe_id, _}) => probe_id == id
+      | None => false
+      };
+
     /* Determine what to show when no samples are displayed */
     let empty_status =
-      Sample.Selection.get_empty_status(~num_total, ~num_shown);
+      Sample.Selection.get_empty_status(
+        ~num_total,
+        ~num_shown,
+        ~is_evaluating,
+        (),
+      );
 
     /* Overflow indicator: shown when samples ARE displayed but more exist */
     let has_overflow = num_shown > 0 && num_shown < num_total;

@@ -278,41 +278,6 @@
 .projector.probe .pin {
   background-color: oklch(0.8 0.18 201.83);
 }
-.live-env-header .pin-icon {
-  height: 1.3em;
-  width: 1.3em;
-  border-radius: 1em;
-  filter: invert(1) saturate(0) brightness(1.5);
-  background: url(../../img/noun-pinned-1560993.svg) #00ffff;
-  background-size: 70%;
-  background-position: center;
-  background-repeat: no-repeat;
-  scale: 0.75;
-}
-.live-env-header:hover .pin-icon {
-  filter: invert(1) brightness(3) saturate(0.4);
-}
-.live-env-header.pinned .pin-icon {
-  filter: invert(1) brightness(1.5);
-}
-
-.live-env-header {
-  margin: 0.2em 0.5em;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  /* background-color: #c3af7a; */
-  outline: 0.6px solid var(--BR4);
-  border-radius: 1em;
-  width: fit-content;
-  padding: 0 0.3em;
-  gap: 0.1em;
-  color: black;
-}
-
-.live-env-header:hover {
-  background-color: var(--T3);
-}
 
 /* OFFSIDE VIEW */
 
@@ -701,9 +666,9 @@
   color: white;
 }
 
-/* LIVE ENV */
+/* SAMPLE CONTEXT MENU (dropdown) */
 
-.live-offside .sample-dropdown {
+.live-offside .sample-context-menu {
   border-radius: 0 0.2em 0.2em 0.2em;
   background-color: var(--BR1);
   display: none;
@@ -715,17 +680,84 @@
   border-bottom: 1px solid var(--BR2);
 }
 
+/* Context actions section */
+.sample-context-menu .context-actions {
+  display: flex;
+  flex-direction: row;
+  gap: 0.3em;
+  padding: 0.2em 0.5em;
+}
+
+.sample-context-menu .action-item {
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  outline: 0.6px solid var(--BR4);
+  border-radius: 1em;
+  width: fit-content;
+  padding: 0 0.3em;
+  gap: 0.1em;
+  color: black;
+}
+
+.sample-context-menu .action-item:hover {
+  background-color: var(--T3);
+}
+
+.sample-context-menu .action-item.pinned .pin-icon {
+  filter: invert(1) brightness(1.5);
+}
+
+.sample-context-menu .action-item .pin-icon {
+  height: 1.3em;
+  width: 1.3em;
+  border-radius: 1em;
+  filter: invert(1) saturate(0) brightness(1.5);
+  background: url(../../img/noun-pinned-1560993.svg) #00ffff;
+  background-size: 70%;
+  background-position: center;
+  background-repeat: no-repeat;
+  scale: 0.75;
+}
+
+.sample-context-menu .action-item:hover .pin-icon {
+  filter: invert(1) brightness(3) saturate(0.4);
+}
+
+/* Step into icon */
+.sample-context-menu .action-item .step-into-icon {
+  height: 1.1em;
+  width: 1.1em;
+  filter: saturate(0) brightness(0.5);
+  background: url(../../img/noun-arrow-3130579.svg);
+  background-size: contain;
+  background-position: center;
+  background-repeat: no-repeat;
+  transform: rotate(-90deg);
+  scale: 0.9;
+}
+
+.sample-context-menu .action-item:hover .step-into-icon {
+  filter: saturate(0) brightness(0.3);
+}
+
+/* Environment section */
+.sample-context-menu .environment-section {
+  /* Container for environment bindings */
+}
+
 .live-offside .live-env {
   padding: 0.2em 0.55em;
   background-color: var(--live-env-bkg);
 }
-.live-offside * + .live-env {
+
+.sample-context-menu .context-actions + .environment-section .live-env {
   border-top: 0.6px solid var(--BR3);
 }
 
-/* Require .indicated on probe AND .cursor on value for dropdown to appear */
-.projector.probe.indicated .live-offside .sample:has(.value.cursor) .sample-dropdown:hover,
-.projector.probe.indicated .live-offside .sample:has(.value.cursor) .sample-dropdown.dropdown-active {
+/* Require .indicated on probe AND .cursor on value for menu to appear */
+.projector.probe.indicated .live-offside .sample:has(.value.cursor) .sample-context-menu:hover,
+.projector.probe.indicated .live-offside .sample:has(.value.cursor) .sample-context-menu.dropdown-active {
   display: flex;
   flex-direction: column;
 }
@@ -740,12 +772,12 @@
   font-size: var(--base-font-size);
 }
 
-.projector.probe.indicated .sample:has(.value.cursor):hover .sample-dropdown,
-.projector.probe.indicated .sample:has(.value.cursor) .sample-dropdown.dropdown-active {
+.projector.probe.indicated .sample:has(.value.cursor):hover .sample-context-menu,
+.projector.probe.indicated .sample:has(.value.cursor) .sample-context-menu.dropdown-active {
   display: block;
 }
-.projector.probe.indicated .sample:has(.value.cursor):hover .sample-dropdown:empty,
-.projector.probe.indicated .sample:has(.value.cursor) .sample-dropdown.dropdown-active:empty {
+.projector.probe.indicated .sample:has(.value.cursor):hover .sample-context-menu:empty,
+.projector.probe.indicated .sample:has(.value.cursor) .sample-context-menu.dropdown-active:empty {
   display: none;
 }
 
@@ -800,4 +832,19 @@
 }
 .empty-status.no-samples {
   cursor: default;
+}
+
+/* Animated spinner while waiting for evaluation */
+.empty-status.evaluating {
+  cursor: wait;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
 }

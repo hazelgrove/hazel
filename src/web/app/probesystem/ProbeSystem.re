@@ -171,6 +171,7 @@ let legend_sample_view =
       time: None,
       iter: 0,
       step_range: focus_step_range,
+      pending_focus: None,
     },
   };
   ProbeProj.sample_view(

@@ -247,6 +247,15 @@ module Window = {
 module Cursor = {
   open OptUtil.Syntax;
 
+  /* Pending focus state for step-into functionality.
+   * When set, the system will focus the matching sample
+   * after evaluation completes. */
+  [@deriving (show({with_path: false}), sexp, yojson, eq)]
+  type pending_focus = {
+    probe_id: Id.t, /* The probe we're stepping into */
+    target_stack: Probe.call_stack /* The call stack to match */
+  };
+
   [@deriving (show({with_path: false}), sexp, yojson, eq)]
   type t = {
     stack: Probe.call_stack,
@@ -256,6 +265,7 @@ module Cursor = {
     time: option(float),
     iter: int,
     step_range: option((int, int)),
+    pending_focus: option(pending_focus) /* Focus target after step-into */
   };
 
   let init: t = {
@@ -266,6 +276,7 @@ module Cursor = {
     time: None,
     iter: 0,
     step_range: None,
+    pending_focus: None,
   };
 
   let trimmed_stack = (cursor: t): Probe.call_stack =>
@@ -402,14 +413,19 @@ module Selection = {
   type empty_status =
     | NoSamplesExist /* Probe was never evaluated */
     | HiddenByPin /* Samples exist but filtered by current pin */
-    | NotAligned; /* Single mode: samples exist but none align with cursor */
+    | NotAligned /* Single mode: samples exist but none align with cursor */
+    | Evaluating; /* Waiting for evaluation after step-into */
 
   /* Determine why no samples are shown.
-   * Returns None if samples ARE shown, Some(status) if empty. */
+   * Returns None if samples ARE shown, Some(status) if empty.
+   * ~is_evaluating: true if we're waiting for this probe's samples after step-into */
   let get_empty_status =
-      (~num_total: int, ~num_shown: int): option(empty_status) =>
+      (~num_total: int, ~num_shown: int, ~is_evaluating: bool=false, ())
+      : option(empty_status) =>
     if (num_shown > 0) {
       None;
+    } else if (is_evaluating) {
+      Some(Evaluating);
     } else if (num_total == 0) {
       Some(HiddenByPin);
     } else {
