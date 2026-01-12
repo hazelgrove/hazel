@@ -282,6 +282,12 @@ let operator_tests = [
 ];
 
 let compound_expression_tests = [
+  probe_line_test("Probe on parens", {|^^probe((1 + 2))|}, [(0, ["3"])]),
+  probe_line_test(
+    "Probe on parenthesized tuple",
+    {|^^probe((1, "a"))|},
+    [(0, ["(1, \"a\")"])],
+  ),
   probe_line_test(
     "Probe in if-then branch (taken)",
     {|if true then ^^probe(1) else 2|},
@@ -795,21 +801,6 @@ in f(1)|},
   ),
 ];
 
-let known_issue_tests = [
-  /* Parens bug: probes on parenthesized expressions don't capture values
-   * because elaboration strips Parens nodes, losing the probe_map ID. */
-  probe_line_test(
-    "Probe on parens (known issue: ID lost during elaboration)",
-    {|^^probe((1 + 2))|},
-    [(0, [])] /* Should be ["3"] */
-  ),
-  probe_line_test(
-    "Probe on tuple (same parens issue)",
-    {|^^probe((1, "a"))|},
-    [(0, [])] /* Should be ["(1, \"a\")"] */
-  ),
-];
-
 let tests = [
   ("Evaluator.Probes.Basic", basic_tests),
   ("Evaluator.Probes.Operators", operator_tests),
@@ -818,5 +809,4 @@ let tests = [
   ("Evaluator.Probes.Nested", nested_probe_tests),
   ("Evaluator.Probes.Recursion", recursion_tests),
   ("Evaluator.Probes.Ascription", ascription_tests),
-  ("Evaluator.Probes.KnownIssues", known_issue_tests),
 ];
