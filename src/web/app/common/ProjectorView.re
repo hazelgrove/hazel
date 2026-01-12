@@ -6,6 +6,25 @@ open Util;
 open Util.OptUtil.Syntax;
 open Util.WebUtil;
 
+/* Re-export visible_rows type from Globals for convenience */
+type visible_rows = Globals.VisibleRows.t;
+
+/* Filter projector data to only include items in visible row range */
+let filter_by_visibility =
+    (visible: option(visible_rows), data: list('a), get_row: 'a => int)
+    : list('a) =>
+  switch (visible) {
+  | None => data
+  | Some({first, last}) =>
+    List.filter(
+      item => {
+        let row = get_row(item);
+        row >= first && row <= last;
+      },
+      data,
+    )
+  };
+
 module Model = {
   type status = ProjectorBase.View.status;
 
@@ -176,12 +195,13 @@ let view_wrapper =
   );
 
 /* Dispatches projector external actions to editor-level actions */
-let handle = (id, action: external_action): Action.project =>
+let handle = (id, action: external_action): Action.t =>
   switch (action) {
-  | Remove => RemoveIndicated
-  | Escape(d) => Escape(id, d)
-  | SetSyntax(f) => SetSyntax(id, f)
-  | DynCursor(a) => DynCursor(a)
+  | Remove => Project(RemoveIndicated)
+  | Escape(d) => Project(Escape(id, d))
+  | SetSyntax(f) => Project(SetSyntax(id, f))
+  | DynCursor(dc) => Project(DynCursor(dc))
+  | Refractor(rf) => Refractor(rf)
   };
 
 let offside_wrapper =
@@ -200,7 +220,7 @@ let offside_wrapper =
   );
 
 let simple_code =
-    (~background=false, ~is_single_line=?, font_metrics, _sort, segment)
+    (~background=false, ~is_single_line=false, font_metrics, _sort, segment)
     : Node.t => {
   let shape_map = ProjectorCore.Shape.Map.empty; /* Assume this doesn't contain projectors */
   let measured =
@@ -266,17 +286,16 @@ let text_code = (segment): Node.t =>
   );
 
 let flex_code =
-    (
-      ~font_metrics,
-      ~background=?,
-      ~is_single_line=?,
-      ~text_only=?,
-      sort,
-      segment,
-    ) =>
-  text_only == Some(Some())
+    (~font_metrics, ~background=?, ~text_only=false, sort, segment) =>
+  text_only
     ? text_code(segment)
-    : simple_code(~background?, ~is_single_line?, font_metrics, sort, segment);
+    : simple_code(
+        ~background?,
+        ~is_single_line=true,
+        font_metrics,
+        sort,
+        segment,
+      );
 
 /* Route top-level metadata to the projector view function. */
 let mk_view =
@@ -292,17 +311,9 @@ let mk_view =
     info,
     local: a =>
       inject(Project(SetModel(p.id, P.update(p.model, info, a)))),
-    parent: a => inject(Project(handle(p.id, a))),
-    view_seg:
-      (~background=?, ~is_single_line=?, ~text_only=?, sort, segment) =>
-      flex_code(
-        ~font_metrics,
-        ~background?,
-        ~is_single_line?,
-        ~text_only?,
-        sort,
-        segment,
-      ),
+    parent: a => inject(handle(p.id, a)),
+    view_seg: (~background=?, ~text_only=?, sort, segment) =>
+      flex_code(~font_metrics, ~background?, ~text_only?, sort, segment),
     status,
   });
 };
@@ -361,6 +372,7 @@ let all =
       inject: Action.t => Ui_effect.t(unit),
       make_active,
       font_metrics: FontMetrics.t,
+      ~visible: option(visible_rows)=?,
       projector_data: list(Model.projector_data),
     ) => {
   /* Sorting the projectors by position tends to be a good
@@ -369,8 +381,10 @@ let all =
    * impinge on hover-dropdowns, but the hovered projector
    * has z-index handled separately. But ideally dropdowns
    * should be on the overlay layer so this doesn't come up */
+  let get_row = (d: Model.projector_data) => d.measurement.origin.row;
   let (base_views, overlay_views) =
     projector_data
+    |> filter_by_visibility(visible, _, get_row)
     |> List.sort(by_measurement)
     |> List.map(
          split_views(~skip_inline=false, inject, make_active, font_metrics),
@@ -390,10 +404,13 @@ let all_refractors =
       inject: Action.t => Ui_effect.t(unit),
       make_active,
       font_metrics: FontMetrics.t,
+      ~visible: option(visible_rows)=?,
       refactor_data: list(Model.projector_data),
     ) => {
+  let get_row = (d: Model.projector_data) => d.measurement.origin.row;
   let (base_views, overlay_views) =
     refactor_data
+    |> filter_by_visibility(visible, _, get_row)
     |> List.sort(by_measurement)
     |> List.map(
          split_views(~skip_inline=true, inject, make_active, font_metrics),

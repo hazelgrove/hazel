@@ -11,7 +11,5 @@ let mk = (kind, id): Base.projector => {
   ProjectorCore.mk(~id, kind, piece, model);
 };
 
-let add_single = (id: Id.t, z: Zipper.t): Zipper.t => {
-  let p = mk(Probe, Id.transform_variant(id));
-  Zipper.update_manuals(Id.Map.add(id, p), z);
-};
+let add_single = (id: Id.t, z: Zipper.t): Zipper.t =>
+  Zipper.update_manuals(Id.Map.add(id, mk(Probe, id)), z);

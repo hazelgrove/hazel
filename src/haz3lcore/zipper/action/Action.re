@@ -87,7 +87,7 @@ type paste =
 type refractor =
   | ToggleProbeManual
   | ToggleProbeREPL
-  | ProbeJump;
+  | StepIntoSample(Language.Sample.t, Id.t);
 
 [@deriving (show({with_path: false}), sexp, yojson, eq)]
 type t =

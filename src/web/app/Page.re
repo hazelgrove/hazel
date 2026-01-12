@@ -92,7 +92,7 @@ module Update = {
     | Scratch(m) => (List.nth(m.scratchpads, m.current) |> snd).editor
     | Documentation(m) => (List.nth(m.scratchpads, m.current) |> snd).editor
     | Tutorial(m) => List.nth(m.exercises, m.current).cells.user_impl.editor
-    | Exercises(m) => List.nth(m.exercises, m.current).cells.user_impl.editor
+    | Exercises(m) => ExercisesMode.Model.get_editor(m)
     };
 
   let update_global =
@@ -164,6 +164,15 @@ module Update = {
             },
           }
           |> return_quiet
+    | UpdateVisibleRows(visible_rows) =>
+      {
+        ...model,
+        globals: {
+          ...model.globals,
+          visible_rows: Some(visible_rows),
+        },
+      }
+      |> return_quiet
     | FinishImportAll(None) => model |> return_quiet
     | FinishImportAll(Some(data)) =>
       Export.import_all(
@@ -200,7 +209,8 @@ module Update = {
           (filename, content);
         | Exercises(model) =>
           let current = List.nth(model.exercises, model.current);
-          let filename = current.editors.module_name ++ ".ml";
+          let filename =
+            ExercisesMode.Model.get_exercise_name(current) ++ ".ml";
           let content = "not supported";
           (filename, content);
         };
@@ -265,9 +275,20 @@ module Update = {
           action,
           model.editors,
         );
+      /* Reset visible_rows when switching to modes without viewport culling,
+       * otherwise stale culling bounds hide projectors incorrectly */
+      let globals =
+        switch (action) {
+        | SwitchMode(Tutorial | Exercises) => {
+            ...model.globals,
+            visible_rows: None,
+          }
+        | _ => model.globals
+        };
       {
         ...model,
         editors,
+        globals,
       };
     | ExplainThis(action) =>
       let* explain_this =
@@ -295,7 +316,7 @@ module Update = {
         ...model,
         selection,
       }
-      |> Updated.return(~scroll_active=false)
+      |> Updated.return(~is_edit=false, ~scroll_active=false)
     | Benchmark(Start) =>
       List.iter(a => schedule_action(Editors(a)), Benchmark.actions_1);
       schedule_action(Benchmark(Finish));
@@ -682,12 +703,48 @@ module View = {
         ~selection=Some(selection),
         model.editors,
       );
+
+    /* Scroll handler for viewport culling. Only enabled for Scratch and
+     * Documentation modes where there's a single editor filling the
+     * scrollable area. Tutorial and Exercises have multiple editors. */
+    let on_scroll = (evt: Js.t(Dom_html.event)) => {
+      let culling_enabled =
+        switch (editors) {
+        | Scratch(_)
+        | Documentation(_) => true
+        | Tutorial(_)
+        | Exercises(_) => false
+        };
+      if (!culling_enabled) {
+        Effect.Ignore;
+      } else {
+        let container =
+          Js.Opt.to_option(evt##.currentTarget)
+          |> Option.map(Js.Unsafe.coerce);
+        switch (container) {
+        | None => Effect.Ignore
+        | Some(c) =>
+          let new_visible =
+            Globals.VisibleRows.compute(
+              ~scroll_top=float_of_int(c##.scrollTop),
+              ~client_height=float_of_int(c##.clientHeight),
+              ~row_height=globals.font_metrics.row_height,
+              (),
+            );
+          Globals.VisibleRows.changed(globals.visible_rows, new_visible)
+            ? inject(Globals(UpdateVisibleRows(new_visible)))
+            : Effect.Ignore;
+        };
+      };
+    };
+
     [
       top_bar(~globals, ~inject, ~editors),
       div(
         ~attrs=[
           Attr.id("main"),
           Attr.class_(Editors.Model.mode_string(editors)),
+          Attr.on_scroll(on_scroll),
         ],
         editors_view,
       ),

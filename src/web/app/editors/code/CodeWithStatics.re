@@ -93,7 +93,8 @@ module Update = {
         ~stitch,
         ~dynamics: Language.Dynamics.Map.t,
         ~is_dynamic_term,
-        {editor, statics, context_menu, _}: Model.t,
+        ~ana=?,
+        {editor, statics, context_menu, dynamics: _}: Model.t,
       )
       : Model.t => {
     //TODO(andrew): resolve this cycle
@@ -112,6 +113,7 @@ module Update = {
             ~settings,
             ~stitch,
             ~ctx?,
+            ~ana?,
             ~is_dynamic_term,
             editor.state.zipper,
           )

@@ -386,3 +386,9 @@ svg:has(.child-line) {
   background-color: var(--SAND);
   border-radius: 0.2em;
 }
+.context-menu .named-menu-item .menu-shortcut {
+  margin-left: auto;
+  padding-left: 1em;
+  font-size: 0.85em;
+  opacity: 0.6;
+}

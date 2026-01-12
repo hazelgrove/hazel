@@ -25,6 +25,9 @@ module Refractor = {
     ephemerals: Id.Map.empty,
     dyn_cursor: Language.DynCursor.init,
   };
+
+  let persist = (refractors: t): string =>
+    refractors.manuals |> Map.sexp_of_t |> Sexplib.Sexp.to_string;
 };
 
 // assuming single backpack, shards may appear in selection, backpack, or siblings

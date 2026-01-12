@@ -19,6 +19,7 @@ type syntax = Base.piece;
 /* Global actions available to handlers in all projectors */
 type external_action =
   | DynCursor(Action.dyn_cursor)
+  | Refractor(Action.refractor) /* Refractor actions like StepIntoSample */
   | Remove /* Remove projector entirely */
   | Escape(Util.Direction.t) /* Pass focus to parent editor */
   | SetSyntax(Base.segment); /* Set underlying syntax */
@@ -118,14 +119,7 @@ module View = {
 
   [@deriving (show({with_path: false}), sexp, yojson)]
   type seg =
-    (
-      ~background: bool=?,
-      ~is_single_line: option(unit)=?,
-      ~text_only: option(unit)=?,
-      Sort.t,
-      list(syntax)
-    ) =>
-    Node.t;
+    (~background: bool=?, ~text_only: bool=?, Sort.t, list(syntax)) => Node.t;
 
   [@deriving (show({with_path: false}), sexp, yojson)]
   type args('model, 'action) = {

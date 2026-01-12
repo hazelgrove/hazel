@@ -28,12 +28,13 @@ module Kind = {
     | Card
     | Livelit
     | TextArea
+    | Csv
     | Exo(Exo.kind)
     | Graph
     | ObservablePlot;
 
   let livelit_projectors: list(t) =
-    [Checkbox, Slider, SliderF, TextArea, Card, Livelit]
+    [Checkbox, Slider, SliderF, TextArea, Card, Livelit, Csv]
     @ List.map(x => Exo(x), Exo.all_of_kind);
 
   let projectors: list(t) =
@@ -54,6 +55,7 @@ module Kind = {
     | Card => "card"
     | Livelit => "livelit"
     | TextArea => "text"
+    | Csv => "csv"
     | Exo(exo_kind) => Exo.name(exo_kind)
     | Graph => "graph"
     | ObservablePlot => "ObservablePlot"
@@ -73,6 +75,7 @@ module Kind = {
     | "text" => TextArea
     | "livelit" => Livelit
     | "card" => Card
+    | "csv" => Csv
     | "graph" => Graph
     | "ObservablePlot" => ObservablePlot
     | _ => Exo(Exo.of_name(p))

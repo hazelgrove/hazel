@@ -364,7 +364,11 @@ module Update = {
     let (key, ed) = List.nth(model.scratchpads, model.current);
     let worker_request = ref([]);
     let queue_worker =
-      Some(expr => {worker_request := worker_request^ @ [("", expr)]});
+      Some(
+        (req_value: WorkerServer.Request.value) => {
+          worker_request := worker_request^ @ [("", req_value)]
+        },
+      );
     let new_ed =
       CellEditor.Update.calculate(
         ~settings,
@@ -376,10 +380,17 @@ module Update = {
     switch (worker_request^) {
     | [] => ()
     | _ =>
+      /* TODO(andrew): remove profiling before final merge */
+      let start_time = JsUtil.precise_timestamp();
       WorkerClient.request(
         worker_request^,
         ~handler=
-          r =>
+          r => {
+            let elapsed = JsUtil.precise_timestamp() -. start_time;
+            Js_of_ocaml.Firebug.console##log_2(
+              Js_of_ocaml.Js.string("Eval round-trip (ms):"),
+              elapsed,
+            );
             schedule_action(
               CellAction(
                 ResultAction(
@@ -395,13 +406,14 @@ module Update = {
                   ),
                 ),
               ),
-            ),
+            );
+          },
         ~timeout=
           _ =>
             schedule_action(
               CellAction(ResultAction(UpdateResult(ResultFail(Timeout)))),
             ),
-      )
+      );
     };
     let new_sp =
       ListUtil.put_nth(model.current, (key, new_ed), model.scratchpads);

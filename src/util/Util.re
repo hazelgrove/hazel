@@ -10,6 +10,7 @@ module MapUtil = MapUtil;
 module Monads = Monads;
 module OptUtil = OptUtil;
 module PairUtil = PairUtil;
+module CsvUtil = CsvUtil;
 module Result = Result;
 module StateMonad = StateMonad;
 module StringUtil = StringUtil;
@@ -30,6 +31,7 @@ module VarMap = VarMap;
 module ProjectorShape = ProjectorShape;
 module API = API;
 module OpenRouter = OpenRouter;
+module SafeTriangle = SafeTriangle;
 
 // Used by [@deriving sexp, yojson)]
 include Sexplib.Std;

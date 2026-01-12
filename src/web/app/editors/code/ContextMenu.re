@@ -17,8 +17,17 @@ let pos_attr = (point: Point.t, font_metrics: FontMetrics.t) =>
     pos_str(~left=point.col, ~top=point.row + 1, font_metrics),
   );
 
+/* Keyboard shortcut display - abstracts the format for easy updates */
+let shortcut_view = (shortcut: string) =>
+  span(~attrs=[clss(["menu-shortcut"])], [text(shortcut)]);
+
 let menu_item =
-    (name: string, inject: Action.t => Ui_effect.t(unit), action: Action.t) =>
+    (
+      ~shortcut: option(string)=?,
+      name: string,
+      inject: Action.t => Ui_effect.t(unit),
+      action: Action.t,
+    ) =>
   div(
     ~attrs=[
       Attr.on_pointerdown(_ =>
@@ -30,19 +39,35 @@ let menu_item =
       ),
       clss(["named-menu-item"]),
     ],
-    [text(name)],
+    [text(name)]
+    @ (
+      switch (shortcut) {
+      | Some(s) => [shortcut_view(s)]
+      | None => []
+      }
+    ),
   );
+
+/* Keyboard shortcuts for probe actions - platform-dependent */
+module Shortcuts = {
+  let manual_probe = () => Os.is_mac^ ? "⌘E" : "Ctrl+E";
+  let auto_probe = () => Os.is_mac^ ? "⇧⌘E" : "Ctrl+Shift+E";
+  let goto_definition = "F12";
+};
 
 let manual_probe =
     (
       ~inject: Action.t => Ui_effect.t(unit),
+      ~can_probe: bool,
       probe_status: Refractors.probe_status,
       ci: option(Language.Info.t),
     ) =>
   switch (ci) {
-  /* These can be applied to expressions and patterns */
-  | Some(InfoExp(_) | InfoPat(_)) => [
+  /* These can be applied to expressions and patterns, but only if
+     the term is actually probeable (not types, labels, etc.) */
+  | Some(InfoExp(_) | InfoPat(_)) when can_probe => [
       menu_item(
+        ~shortcut=Shortcuts.manual_probe(),
         switch (probe_status) {
         | Manual(_) => "Remove probe"
         | REPL => "Switch to manual"
@@ -58,13 +83,16 @@ let manual_probe =
 let auto_probe =
     (
       ~inject: Action.t => Ui_effect.t(unit),
+      ~can_probe: bool,
       probe_status: Refractors.probe_status,
       ci: option(Language.Info.t),
     ) =>
   switch (ci) {
-  /* Not much reason to put these on patterns... */
-  | Some(InfoExp(_)) => [
+  /* Auto probes only make sense on expressions, and only if
+     the term is actually probeable (not types, labels, etc.) */
+  | Some(InfoExp(_)) when can_probe => [
       menu_item(
+        ~shortcut=Shortcuts.auto_probe(),
         switch (probe_status) {
         | Manual(_) => "Switch to auto"
         | REPL => "Remove auto probe"
@@ -82,27 +110,12 @@ let jump_to_binding =
   switch (OptUtil.and_then(Language.Info.get_binding_site, ci)) {
   | Some(_) => [
       menu_item(
+        ~shortcut=Shortcuts.goto_definition,
         "Goto definition",
         inject,
         Move(Goal(BindingSiteOfIndicatedVar)),
       ),
     ]
-  | _ => []
-  };
-
-let step_into =
-    (
-      ~inject: Action.t => Ui_effect.t(unit),
-      info_map: Language.Statics.Map.t,
-      ci: option(Language.Info.t),
-      z: Zipper.t,
-    ) =>
-  switch (ci) {
-  | Some(InfoExp({ty, _})) when Language.StaticsBase.is_arrow_like(ty) =>
-    switch (Refractors.is_jump_target(info_map, z)) {
-    | Some(_) => [menu_item("Step into", inject, Refractor(ProbeJump))]
-    | None => []
-    }
   | _ => []
   };
 
@@ -167,10 +180,10 @@ let probes_actions =
   let id = Indicated.index(z) |> Option.value(~default=Id.invalid);
   let ci = Indicated.ci_of(z, info_map);
   let probe_status = Refractors.probe_status(id, info_map, z.refractors);
+  let can_probe = Refractors.can_probe(id, info_map);
   jump_to_binding(~inject, ci)
-  @ manual_probe(~inject, probe_status, ci)
-  @ auto_probe(~inject, probe_status, ci)
-  @ step_into(~inject, info_map, ci, z)
+  @ manual_probe(~inject, ~can_probe, probe_status, ci)
+  @ auto_probe(~inject, ~can_probe, probe_status, ci)
   @ livelit_actions(~inject, ci);
 };
 

@@ -159,7 +159,7 @@ let rec get_fun_var = (pat: t) => {
   | Probe(pat, _)
   | TupLabel(_, pat) => get_fun_var(pat)
   | Asc(pat, t1) =>
-    if (Typ.is_arrow(t1) || Typ.is_forall(t1)) {
+    if (Typ.is_arrow(t1) || Typ.is_poly(t1)) {
       get_var(pat) |> Option.map(var => var);
     } else {
       None;
@@ -238,7 +238,9 @@ let rec get_num_of_vars = (pat: t) =>
 
 let ctr_name = (p: t): option(Constructor.t) =>
   switch (p.term) {
-  | Constructor(name, _) => Some(name)
+  | Constructor(name, _)
+  | Parens({term: Constructor(name, _), _})
+  | Probe({term: Constructor(name, _), _}, _) => Some(name)
   | _ => None
   };
 

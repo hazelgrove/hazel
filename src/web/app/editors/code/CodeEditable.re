@@ -50,16 +50,26 @@ module Update = {
         | Error(err) => raise(Action.Failure.Exception(err))
       )
       |> Updated.return(
-           ~is_edit=Action.is_edit(action),
+           ~is_edit=
+             Action.is_edit(action)
+             /* When probe_all is on, Refractor actions don't require
+              * re-evaluation since all probes are already computed */
+             && !(
+                  settings.core.probe_all
+                  && (
+                    switch (action) {
+                    | Refractor(_) => true
+                    | _ => false
+                    }
+                  )
+                ),
            ~recalculate=true,
            ~scroll_active={
              switch (action) {
              | Move(Point(_)) => false
-             | Select(Resize(_)) => false //TODO(andrew): hack, fix properly
+             | Select(All) => false
              | Move(_)
-             | Select(
-                 Term(_) | Smart(_) | Tile(_) | ToggleFocus | SetFocus(_),
-               )
+             | Select(_)
              | Destruct(_)
              | Insert(_)
              | Put_down
@@ -69,13 +79,12 @@ module Update = {
              | Cut
              | Reparse
              | Introduce
-             | Refractor(ProbeJump)
+             | Refractor(StepIntoSample(_))
              | Dump => true
              | Project(_)
              | Unselect(_)
              | Refractor(_)
-             | DynCursor(_)
-             | Select(All) => false
+             | DynCursor(_) => false
              };
            },
          );
@@ -248,6 +257,7 @@ module View = {
               : []
           )
         : [];
+    let t0 = JsUtil.precise_timestamp();
     let refractor_data =
       ProjectorView.Model.mk(
         Id.Map.union(
@@ -265,18 +275,24 @@ module View = {
         model.editor.state.zipper.refractors.dyn_cursor,
         selected,
       );
+    let t1 = JsUtil.precise_timestamp();
+    /* Use visible row range from model (updated by scroll handler) */
+    let visible = globals.visible_rows;
     let refractors_model =
       ProjectorView.all_refractors(
         x => inject(Perform(x)),
         signal(MakeActive),
         globals.font_metrics,
+        ~visible?,
         refractor_data,
       );
+    let t2 = JsUtil.precise_timestamp();
     let projectors =
       ProjectorView.all(
         x => inject(Perform(x)),
         signal(MakeActive),
         globals.font_metrics,
+        ~visible?,
         ProjectorView.Model.mk(
           model.editor.syntax.projectors,
           model.editor.syntax.shape_map,
@@ -290,6 +306,31 @@ module View = {
           selected,
         ),
       );
+    let t3 = JsUtil.precise_timestamp();
+    let num_refractors =
+      Id.Map.cardinal(
+        Id.Map.union(
+          (_, _, b) => Some(b),
+          model.editor.state.zipper.refractors.manuals,
+          model.editor.state.zipper.refractors.ephemerals,
+        ),
+      );
+    if (num_refractors > 0) {
+      let visible_str =
+        switch (visible) {
+        | Some({first, last}) =>
+          Printf.sprintf(" visible_rows=%d-%d", first, last)
+        | None => ""
+        };
+      Printf.printf(
+        "[Probe Perf] refractor_data: %.2fms, all_refractors: %.2fms, projectors: %.2fms (n=%d)%s\n",
+        t1 -. t0,
+        t2 -. t1,
+        t3 -. t2,
+        num_refractors,
+        visible_str,
+      );
+    };
     let overlays =
       [Node.div(~attrs=[Attr.classes(["code-deco"])], edit_decos)]
       @ [Node.div(~attrs=[Attr.classes(["overlays"])], overlays)]
@@ -354,12 +395,17 @@ module View = {
       Effect.Ignore;
     };
 
-    let drag_select = (pointer: Pointer.Event.t) =>
+    let drag_select = (pointer: Pointer.Event.t) => {
+      let current_loc = loc(pointer);
       switch (pointer) {
-      | {button: Left, _} when MouseState.is_button_down() =>
-        inject(Perform(Select(Resize(Point(loc(pointer))))))
+      | {button: Left, _}
+          when
+            MouseState.is_button_down()
+            && !Point.equals(current_loc, MouseState.get_down_loc()) =>
+        inject(Perform(Select(Resize(Point(current_loc)))))
       | _ => Effect.Ignore
       };
+    };
 
     Node.div(
       ~attrs=[

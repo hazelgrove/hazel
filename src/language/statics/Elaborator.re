@@ -150,14 +150,16 @@ let rec elaborate_pattern =
     // Type annotations should already appeard
     | Parens(p) =>
       let (p', _) = elaborate_pattern(m, p);
-      p';
+      Parens(p') |> rewrap;
     | Asc(p, t) =>
       let (p', _) = elaborate_pattern(m, p);
       Asc(p', Typ.normalize(ctx, t)) |> rewrap;
-    | Probe(p, probe) =>
-      let (e', _) = elaborate_pattern(m, p);
-      let probe = Dynamics.instrument_pat(m, Pat.rep_id(upat), probe);
-      Probe(e', probe) |> rewrap;
+    | Probe(p, _) =>
+      /* Probe nodes are no longer used for probe functionality.
+       * The new system uses probe_map passed to the evaluator.
+       * Just elaborate the inner pattern like Parens. */
+      let (p', _) = elaborate_pattern(m, p);
+      p';
     | Constructor(c, _) =>
       let ana_ty =
         switch (Id.Map.find_opt(Pat.rep_id(upat), m)) {
@@ -209,11 +211,13 @@ let rec elaborate = (m: Statics.Map.t, uexp: Exp.t): (DHExp.t, Typ.t) => {
       Asc(elaborate(m, e) |> fst, Typ.normalize(ctx, t)) |> rewrap
     | Parens(e) =>
       let (e', _) = elaborate(m, e);
-      e';
-    | Probe(e, probe) =>
+      Parens(e') |> rewrap;
+    | Probe(e, _) =>
+      /* Probe nodes are no longer used for probe functionality.
+       * The new system uses probe_map passed to the evaluator.
+       * Just elaborate the inner expression like Parens. */
       let (e', _) = elaborate(m, e);
-      let probe = Dynamics.instrument_exp(m, Exp.rep_id(uexp), probe);
-      Probe(e', probe) |> rewrap;
+      e';
     | Deferral(_) => uexp
     | Atom(c) =>
       let c =
@@ -224,11 +228,11 @@ let rec elaborate = (m: Statics.Map.t, uexp: Exp.t): (DHExp.t, Typ.t) => {
       };
     | ListLit(es) =>
       let (ds, tys) = List.map(elaborate(m), es) |> List.split;
-      let joined_ty =
-        Typ.join_all(~empty=Unknown(Internal) |> Typ.temp, ctx, tys);
+      let meet_ty =
+        Typ.meet_all(~empty=Unknown(Internal) |> Typ.temp, ctx, tys);
 
       let ds' =
-        List.map2((d, t) => fresh_ascription(d, t, joined_ty), ds, tys);
+        List.map2((d, t) => fresh_ascription(d, t, meet_ty), ds, tys);
       ListLit(ds') |> rewrap;
     | LivelitName(_) => uexp
     | Constructor(c, _) =>
@@ -247,6 +251,10 @@ let rec elaborate = (m: Statics.Map.t, uexp: Exp.t): (DHExp.t, Typ.t) => {
       let (p', typ) = elaborate_pattern(m, p, false);
       let (e', _) = elaborate(m, e);
       Fun(p', e', Some(typ), n) |> rewrap;
+    | Forall(p, e) =>
+      let (p', _) = elaborate_pattern(m, p, false);
+      let (e', _) = elaborate(m, e);
+      Forall(p', e') |> rewrap;
     | TypFun(tpat, e, name) =>
       let (e', _) = elaborate(m, e);
       TypFun(tpat, e', name) |> rewrap;
@@ -327,6 +335,14 @@ let rec elaborate = (m: Statics.Map.t, uexp: Exp.t): (DHExp.t, Typ.t) => {
           |> IdTagged.fresh_deterministic(DHExp.rep_id(uexp));
         Let(p, fixf, body) |> rewrap;
       };
+    | Theorem(p, e1, e2) =>
+      let (p', _) = elaborate_pattern(m, p, false);
+      let (e1', _) = elaborate(m, e1);
+      let (e2', _) = elaborate(m, e2);
+      Theorem(p', e1', e2') |> rewrap;
+    | ProofObject(e) =>
+      let (e', _) = elaborate(m, e);
+      ProofObject(e') |> rewrap;
     | FixF(p, e, env) =>
       let (p', pty) = elaborate_pattern(m, p, false);
       let (e', _) = elaborate(m, e);

@@ -334,31 +334,100 @@ let rec build_row_contexts =
     build_row_contexts(rest, terms, index + 1, [context, ...acc]);
   };
 
+/* Check if a candidate corresponds to an incomplete tile.
+ * Incomplete tiles become MultiHoles in the term structure,
+ * but we don't want to filter them out like regular holes. */
+let is_incomplete_tile = (candidate_id: Id.t, data: TermData.t): bool =>
+  switch (TermData.root_tile(candidate_id, data)) {
+  | Some(t) => !Tile.is_complete(t)
+  | None => false
+  };
+
+/* Keywords that introduce a "body" determining the form's value.
+ * When an incomplete tile is missing a shard with one of these,
+ * the form's value is hole-like (body not yet typed). */
+let body_introducing_keywords = ["in", "else", "end"];
+
+/* Check if an incomplete tile is missing a body-determining shard.
+ * E.g., `let a = expr` (missing "in") - the body determines the value.
+ * Such forms should be deprioritized in favor of their subexpressions. */
+let is_incomplete_binding_form = (candidate_id: Id.t, data: TermData.t): bool =>
+  switch (TermData.root_tile(candidate_id, data)) {
+  | Some(t) when !Tile.is_complete(t) =>
+    /* Check if any missing shard is a body-introducing keyword */
+    let missing_shards = Tile.missing_shards(t);
+    List.exists(
+      (shard: Tile.t) =>
+        switch (shard.shards) {
+        | [i] =>
+          switch (List.nth_opt(shard.label, i)) {
+          | Some(token) => List.mem(token, body_introducing_keywords)
+          | None => false
+          }
+        | _ => false
+        },
+      missing_shards,
+    );
+  | _ => false
+  };
+
+/* Check if an id represents a "meaningful" alternative (not a hole,
+ * or an incomplete tile that isn't a binding form). */
+let is_meaningful_alternative =
+    (id: Id.t, terms: TermMap.t, data: TermData.t): bool =>
+  /* Incomplete non-binding tiles are meaningful alternatives */
+  if (is_incomplete_tile(id, data) && !is_incomplete_binding_form(id, data)) {
+    true;
+  } else {
+    switch (get_term(id, terms)) {
+    | Some(term) => !term_is_hole(term)
+    | None => false
+    };
+  };
+
 let rec row_has_non_hole_alternative =
-        (candidate_id: Id.t, ids: list(Id.t), terms: TermMap.t): bool =>
+        (
+          candidate_id: Id.t,
+          ids: list(Id.t),
+          terms: TermMap.t,
+          data: TermData.t,
+        )
+        : bool =>
   switch (ids) {
   | [] => false
   | [id, ...rest] =>
     if (id == candidate_id) {
-      row_has_non_hole_alternative(candidate_id, rest, terms);
+      row_has_non_hole_alternative(candidate_id, rest, terms, data);
+    } else if (is_meaningful_alternative(id, terms, data)) {
+      true;
     } else {
-      switch (get_term(id, terms)) {
-      | Some(term) =>
-        if (!term_is_hole(term)) {
-          true;
-        } else {
-          row_has_non_hole_alternative(candidate_id, rest, terms);
-        }
-      | None => row_has_non_hole_alternative(candidate_id, rest, terms)
-      };
+      row_has_non_hole_alternative(candidate_id, rest, terms, data);
     }
   };
 
 let candidate_allowed_by_holes =
     (candidate_id: Id.t, row: row_context, env: selection_env): bool =>
-  switch (get_term(candidate_id, env.terms)) {
-  | Some(term) when term_is_hole(term) => row.hole_only
-  | _ => true
+  /* Allow incomplete tiles even though they appear as MultiHoles,
+   * but deprioritize incomplete binding forms (like `let` missing `in`)
+   * similar to how we handle lets with hole bodies. */
+  if (is_incomplete_tile(candidate_id, env.data)) {
+    if (is_incomplete_binding_form(candidate_id, env.data)) {
+      !
+        row_has_non_hole_alternative(
+          candidate_id,
+          row.ids,
+          env.terms,
+          env.data,
+        );
+        /* For incomplete binding forms, only allow if no better alternatives */
+    } else {
+      true;
+    };
+  } else {
+    switch (get_term(candidate_id, env.terms)) {
+    | Some(term) when term_is_hole(term) => row.hole_only
+    | _ => true
+    };
   };
 
 let candidate_allowed_by_function_types =
@@ -383,7 +452,7 @@ let candidate_allowed_by_let_hole =
     (candidate_id: Id.t, row: row_context, env: selection_env): bool =>
   switch (get_term(candidate_id, env.terms)) {
   | Some(term) when term_is_let(term) && let_body_is_hole(term) =>
-    !row_has_non_hole_alternative(candidate_id, row.ids, env.terms)
+    !row_has_non_hole_alternative(candidate_id, row.ids, env.terms, env.data)
   | _ => true
   };
 
@@ -416,6 +485,20 @@ let candidate_allowed_by_variables =
   | _ => true
   };
 
+/* Filter out terms that should never have probes:
+   - Types and type patterns (no runtime values)
+   - Labels and deferrals (not useful, can break parsing)
+   - Type alias definitions (no meaningful value to display)
+   This mirrors the restrictions in Refractors.target_subterm_ids */
+let candidate_allowed_by_term_sort =
+    (candidate_id: Id.t, env: selection_env): bool =>
+  switch (Language.Statics.Map.lookup(candidate_id, env.info_map)) {
+  | Some(InfoTyp(_) | InfoTPat(_)) => false
+  | Some(InfoExp({term: {term: Deferral(_) | Label(_) | TyAlias(_), _}, _})) =>
+    false
+  | _ => true
+  };
+
 let candidate_is_allowed =
     (
       candidate_id: Id.t,
@@ -424,7 +507,8 @@ let candidate_is_allowed =
       _state: selection_state,
     )
     : bool =>
-  candidate_allowed_by_holes(candidate_id, row, env)
+  candidate_allowed_by_term_sort(candidate_id, env)
+  && candidate_allowed_by_holes(candidate_id, row, env)
   && candidate_allowed_by_function_types(candidate_id, env)
   && candidate_allowed_by_container(candidate_id, env)
   && candidate_allowed_by_let_hole(candidate_id, row, env);

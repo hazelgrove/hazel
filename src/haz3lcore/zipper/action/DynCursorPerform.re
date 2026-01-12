@@ -31,6 +31,7 @@ let capture = (z: Zipper.t, sample: Sample.t, id): Zipper.t =>
         !ListUtil.is_suffix_of(sample.call_stack, dyn_cursor.stack)
           ? sample.call_stack : dyn_cursor.stack,
       index: List.length(sample.call_stack) - 1,
+      step_range: Some((sample.step_start, sample.step_end)),
     }
   );
 
@@ -41,6 +42,32 @@ let toggle_pin_call = (z: Zipper.t, call_stack): Zipper.t =>
 
 let reset = (z: Zipper.t): Zipper.t =>
   update_dyn_cursor(z, _ => Language.DynCursor.init);
+
+/* Resolve pending focus after step-into by finding and focusing
+   the sample that matches the target stack. Called from Refractors
+   after it looks up the samples from dynamics. */
+let resolve_pending_focus =
+    (z: Zipper.t, samples: list(Sample.t), target_stack: Probe.call_stack)
+    : Zipper.t => {
+  let matching_sample =
+    List.find_opt((s: Sample.t) => s.call_stack == target_stack, samples);
+  switch (matching_sample) {
+  | Some(sample) =>
+    update_dyn_cursor(z, dyn_cursor =>
+      {
+        ...dyn_cursor,
+        time: Some(sample.time),
+        iter: sample.iter,
+        indicated_call: None,
+        stack: sample.call_stack,
+        index: List.length(sample.call_stack) - 1,
+        step_range: Some((sample.step_start, sample.step_end)),
+        pending_focus: None,
+      }
+    )
+  | None => z
+  };
+};
 
 let perform = (z: Zipper.t, a: Action.dyn_cursor): Zipper.t =>
   switch (a) {

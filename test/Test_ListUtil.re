@@ -767,5 +767,33 @@ let tests = (
         );
       },
     ),
+    test_case(
+      "group_consecutive groups adjacent equal elements",
+      `Quick,
+      () => {
+        let xs = [1, 1, 2, 2, 2, 3, 1, 1];
+        check(
+          list(list(int)),
+          "Groups consecutive runs",
+          [[1, 1], [2, 2, 2], [3], [1, 1]] |> List.rev,
+          ListUtil.group_consecutive((==), xs),
+        );
+      },
+    ),
+    test_case(
+      "group_consecutive with custom predicate",
+      `Quick,
+      () => {
+        /* Group consecutive numbers that are both even or both odd */
+        let same_parity = (a: int, b: int): bool => a mod 2 == b mod 2;
+        let xs = [2, 4, 3, 5, 7, 8, 10];
+        check(
+          list(list(int)),
+          "Groups by parity runs",
+          [[2, 4], [3, 5, 7], [8, 10]] |> List.rev,
+          ListUtil.group_consecutive(same_parity, xs),
+        );
+      },
+    ),
   ],
 );

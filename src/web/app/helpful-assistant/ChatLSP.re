@@ -173,7 +173,7 @@ module Composition = {
     Statics.uexp_to_info_map(
       ~ctx=init_ctx,
       ~ancestors=[],
-      MakeTerm.go(Id.Map.empty, sketch).term,
+      MakeTerm.go(sketch).term,
       Id.Map.empty,
       ~duplicates=[],
       ~expected_labels=None,
