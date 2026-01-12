@@ -102,7 +102,7 @@ in
 let c : Int = ⋱ in
 ?
 ```
-Then calling update_definition(path="b", code=""my new string"") will again result in the sketch:
+Then calling update_definition(path="b", code="\"my new string\"") will again result in the sketch:
 ```
 let a = ⋱ in
 let b = "my new string" in

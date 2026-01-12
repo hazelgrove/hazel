@@ -13,12 +13,17 @@ module Local = {
   let tools = [
     // NavTools.go_to_parent, // No current node should have a parent anymore... we nav the top-level nodes
     // NavTools.go_to_child,
+    // VIEW TOOLS
     ViewTools.expand,
     ViewTools.collapse,
+    // EDIT TOOLS
+    // Global-Level
     EditTools.initialize, // For initializing empty or nodeless programs
+    // Expression-Level
     EditTools.update_definition,
     EditTools.update_body,
     EditTools.update_pattern,
+    // Binding-Level
     EditTools.update_binding_clause,
     EditTools.delete_binding_clause,
     EditTools.delete_body,
@@ -26,6 +31,7 @@ module Local = {
     EditTools.insert_before,
     // ViewTools.view_entire_definition, // No longer needed is this top-level refactor... this is done by default
     // ViewTools.view_context,
+    // WORKBENCH TOOLS
     WorkbenchTools.create_new_task,
     WorkbenchTools.set_active_task,
     WorkbenchTools.unset_active_task,

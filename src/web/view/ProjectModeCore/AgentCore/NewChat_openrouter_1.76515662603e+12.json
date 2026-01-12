@@ -1,0 +1,67 @@
+        {
+            "id": "gen-1765837074-Ymu5dg2SdDqhLkBxAeC9",
+            "provider": "Google",
+            "model": "google/gemini-2.5-flash",
+            "object": "chat.completion",
+            "created": 1765837074,
+            "choices": [
+                {
+                    "logprobs": null,
+                    "finish_reason": "tool_calls",
+                    "native_finish_reason": "STOP",
+                    "index": 0,
+                    "message": {
+                        "role": "assistant",
+                        "content": "To explain what the `is_odd` function is doing, the definition needs to be expanded. Expanding the definition of `is_odd` will reveal its implementation.",
+                        "refusal": null,
+                        "reasoning": "**Expanding Function's Definition**\n\nI've zeroed in on the `is_odd` function now. It's currently in a collapsed state, which is hindering analysis. I'm prioritizing expanding the definition. Once I can see the code, I can begin to assess its functionality and provide a description.\n\n\n",
+                        "tool_calls": [
+                            {
+                                "index": 0,
+                                "id": "tool_expand_ZQ2vPWnCC3H9vBpWQfa8",
+                                "type": "function",
+                                "function": {
+                                    "name": "expand",
+                                    "arguments": "{\"paths\":[\"is_odd\"]}"
+                                }
+                            }
+                        ],
+                        "reasoning_details": [
+                            {
+                                "format": "google-gemini-v1",
+                                "index": 0,
+                                "type": "reasoning.text",
+                                "text": "**Expanding Function's Definition**\n\nI've zeroed in on the `is_odd` function now. It's currently in a collapsed state, which is hindering analysis. I'm prioritizing expanding the definition. Once I can see the code, I can begin to assess its functionality and provide a description.\n\n\n"
+                            },
+                            {
+                                "format": "google-gemini-v1",
+                                "index": 0,
+                                "type": "reasoning.encrypted",
+                                "data": "CiwBjz1rXyJJK7sAG9s58zcgzKQ8RZzhvNGpZUV8FcwP1RNGwA7JON9dmn/uUQpoAY89a1+zk80qnKPC4Pm8FsW+ydwSGOM2V9qYQEt4peYeIDgGPwFGZS2Dm38VdSmFwMTPTQMcjIma5xOWaAST/LSxWD+eOD9kyFSzZlON4WzfakNBGqB4PHGc2i+v4sPKRjyqk5eRH0oKXgGPPWtfUzRQ747zGwjkhttFntdlExMmDyEtNFqyz9J5nGJZHMxNB7UxYZGIrFpa6gJqFbLtLOz7ufzKHbdLxpwDwc1Fkpy9k0ZxjB0UuMqpXell1hB7uQRkcRxssygKoAEBjz1rXwG9ToDtAYWduO5UzAUx8i9GP4bIlE5Sd6u38OqoPJzJb5PoybJIINWDjL05KkUGAoefqPLjdFr+J4VVYpWfaK7Y1S3vBPgHnz11StHUZQbYgw1g6p+Nhn0O0/1ucEUSrZVDWrOlYaDUmyd50iz5xPgkS9RxqDTxR7NnP5UBNpi+LtjZFFWBldwpLBNZaZ78iurkIwUia5t7cj4L"
+                            }
+                        ]
+                    }
+                }
+            ],
+            "usage": {
+                "prompt_tokens": 13094,
+                "completion_tokens": 106,
+                "total_tokens": 13200,
+                "cost": 0.0041932,
+                "is_byok": false,
+                "prompt_tokens_details": {
+                    "cached_tokens": 0,
+                    "audio_tokens": 0,
+                    "video_tokens": 0
+                },
+                "cost_details": {
+                    "upstream_inference_cost": null,
+                    "upstream_inference_prompt_cost": 0.0039282,
+                    "upstream_inference_completions_cost": 0.000265
+                },
+                "completion_tokens_details": {
+                    "reasoning_tokens": 67,
+                    "image_tokens": 0
+                }
+            }
+        }

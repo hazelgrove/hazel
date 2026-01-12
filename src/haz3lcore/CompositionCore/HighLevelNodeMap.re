@@ -405,9 +405,6 @@ let add_child = (node_map: t, parent: Id.t, child: Id.t): t => {
 };
 
 let init_node = (info: Info.t, path: list(Id.t), node_map: t): t => {
-  print_endline(
-    "Constructing node for the id: " ++ Id.to_string(Info.id_of(info)),
-  );
   // 1. Add this node to the children of its parent (head of rev(path)), if one exists
   let node_map =
     switch (parent_id_from_path(path)) {
@@ -423,17 +420,9 @@ let init_node = (info: Info.t, path: list(Id.t), node_map: t): t => {
     sibling_idx: (-1),
     name: Namer.mk_name(info),
   };
-  print_endline("just processed: " ++ node.name);
   // 3. Add the node to the node map
   let node_map = Id.Map.add(Info.id_of(info), node, node_map);
   // 4. Build the children of the node
-  print_endline(
-    "Added node: "
-    ++ node.name
-    ++ " (id: "
-    ++ Id.to_string(Info.id_of(info))
-    ++ ")",
-  );
   node_map;
 };
 let rec build_children =
@@ -444,10 +433,6 @@ let rec build_children =
           info_map: Id.Map.t(Info.t),
         )
         : t => {
-  print_endline(
-    "Building children for the id: " ++ Id.to_string(Info.id_of(candidate)),
-  );
-
   let exp_to_info = (term: Exp.t): Info.t =>
     Utils.exp_to_info(term, info_map);
 
@@ -458,9 +443,6 @@ let rec build_children =
   | InfoExp({term, _}) =>
     switch (Exp.term_of(term)) {
     | Let(_, def, body) =>
-      print_endline(
-        "Found Let expression, creating node and processing body",
-      );
       // Add this node to the node map
       let new_path = path @ [Info.id_of(candidate)];
       let node_map = init_node(candidate, new_path, node_map);
@@ -472,9 +454,6 @@ let rec build_children =
       build_children(exp_to_info(body), path, node_map, info_map);
     // It is also useful to add type defintions to the def-structured AST
     | TyAlias(_, typ, body) =>
-      print_endline(
-        "Found TyAlias expression, creating node and processing body",
-      );
       // Add this node to the node map
       let new_path = path @ [Info.id_of(candidate)];
       let node_map = init_node(candidate, new_path, node_map);
@@ -486,11 +465,6 @@ let rec build_children =
       build_children(exp_to_info(body), path, node_map, info_map);
     | _ =>
       let es = Utils.child_expressions_of_exp(term);
-      print_endline(
-        "Found other expression type with "
-        ++ string_of_int(List.length(es))
-        ++ " child expressions",
-      );
       let es_mapped = List.map(exp_to_info, es);
       List.fold_left(
         (acc_map: t, e: Info.t) => {
@@ -725,7 +699,6 @@ let build = (zipper: Zipper.t, info_map: Id.Map.t(Info.t)): option(t) => {
   | Some(top_level_term) =>
     let oldest_ancestor = Utils.get_oldest_ancestor(top_level_term, info_map);
     let dummy_root = Id.mk();
-    print_endline("Dummy root is: " ++ Id.to_string(dummy_root));
     let node_map: t =
       Id.Map.add(
         dummy_root,
