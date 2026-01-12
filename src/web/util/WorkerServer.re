@@ -41,11 +41,9 @@ let work = (res: Request.value): Response.value =>
   | (result, state) => Ok((result, state))
   };
 
-let on_request = (req: string): unit =>
+let on_request = (req: Request.t): unit =>
   req
-  |> Request.deserialize
   |> List.map(((k, v)) => (k, work(v)))
-  |> Response.serialize
   |> Js_of_ocaml.Worker.post_message;
 
 let start = () => Js_of_ocaml.Worker.set_onmessage(on_request);
