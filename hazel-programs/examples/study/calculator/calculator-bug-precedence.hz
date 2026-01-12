@@ -1,0 +1,175 @@
+# ARCANE CALCULATOR #
+# Expression parser and evaluator with operator precedence #
+
+type Token =
+  + TNum(Int)
+  + TPlus
+  + TMinus
+  + TStar
+  + TSlash
+  + TLParen
+  + TRParen
+  + TEnd
+in
+
+type Expr =
+  + Num(Int)
+  + Add(Expr, Expr)
+  + Sub(Expr, Expr)
+  + Mul(Expr, Expr)
+  + Div(Expr, Expr)
+  + Neg(Expr)
+in
+
+let isDigit : String -> Bool =
+  fun c ->
+    c $== "0" || c $== "1" || c $== "2" || c $== "3" || c $== "4" ||
+    c $== "5" || c $== "6" || c $== "7" || c $== "8" || c $== "9"
+in
+
+let isSpace : String -> Bool =
+  fun c -> c $== " "
+in
+
+let charToDigit : String -> Int =
+  fun c ->
+    if c $== "0" then 0
+    else if c $== "1" then 1
+    else if c $== "2" then 2
+    else if c $== "3" then 3
+    else if c $== "4" then 4
+    else if c $== "5" then 5
+    else if c $== "6" then 6
+    else if c $== "7" then 7
+    else if c $== "8" then 8
+    else 9
+in
+
+let charAt : (String, Int) -> String =
+  fun (s, i) ->
+    if i < 0 || i >= string_length(s) then ""
+    else string_sub(s, i, 1)
+in
+
+let parseNumber : (String, Int) -> (Int, Int) =
+  fun (s, pos) ->
+    let helper : (Int, Int) -> (Int, Int) = fun (acc, i) ->
+      let c = charAt(s, i) in
+      if isDigit(c)
+      then helper(acc * 10 + charToDigit(c), i + 1)
+      else (acc, i)
+    in
+    helper(0, pos)
+in
+
+let skipSpaces : (String, Int) -> Int =
+  fun (s, pos) ->
+    let helper : Int -> Int = fun i ->
+      if isSpace(charAt(s, i))
+      then helper(i + 1)
+      else i
+    in
+    helper(pos)
+in
+
+let tokenize : String -> [Token] =
+  fun input ->
+    let helper : Int -> [Token] = fun pos ->
+      let i = skipSpaces(input, pos) in
+      let c = charAt(input, i) in
+      if c $== "" then [TEnd]
+      else if isDigit(c) then
+        let (num, nextPos) = parseNumber(input, i) in
+        TNum(num) :: helper(nextPos)
+      else if c $== "+" then TPlus :: helper(i + 1)
+      else if c $== "-" then TMinus :: helper(i + 1)
+      else if c $== "*" then TStar :: helper(i + 1)
+      else if c $== "/" then TSlash :: helper(i + 1)
+      else if c $== "(" then TLParen :: helper(i + 1)
+      else if c $== ")" then TRParen :: helper(i + 1)
+      else helper(i + 1)
+    in
+    helper(0)
+in
+
+type ParseResult = (Expr, [Token]) in
+
+# BUG: parseExpr handles ALL operators at same precedence level #
+# This means 2 + 3 * 4 = (2 + 3) * 4 = 20 instead of 14 #
+let (parseExpr : [Token] -> ParseResult,
+     parseFactor : [Token] -> ParseResult,
+     parseAtom : [Token] -> ParseResult) = (
+
+  fun tokens ->
+    let (left, rest) = parseFactor(tokens) in
+    let loop : (Expr, [Token]) -> ParseResult = fun (acc, toks) ->
+      case toks
+      | TPlus :: tail =>
+          let (right, rest2) = parseFactor(tail) in
+          loop(Add(acc, right), rest2)
+      | TMinus :: tail =>
+          let (right, rest2) = parseFactor(tail) in
+          loop(Sub(acc, right), rest2)
+      | TStar :: tail =>
+          let (right, rest2) = parseFactor(tail) in
+          loop(Mul(acc, right), rest2)
+      | TSlash :: tail =>
+          let (right, rest2) = parseFactor(tail) in
+          loop(Div(acc, right), rest2)
+      | _ => (acc, toks)
+      end
+    in
+    loop(left, rest),
+
+  fun tokens ->
+    case tokens
+    | TMinus :: tail =>
+        let (inner, rest) = parseFactor(tail) in
+        (Neg(inner), rest)
+    | _ => parseAtom(tokens)
+    end,
+
+  fun tokens ->
+    case tokens
+    | TNum(n) :: tail => (Num(n), tail)
+    | TLParen :: tail =>
+        let (inner, rest) = parseExpr(tail) in
+        case rest
+        | TRParen :: tail2 => (inner, tail2)
+        | _ => (inner, rest)
+        end
+    | _ => (Num(0), tokens)
+    end
+)
+in
+
+let parse : String -> Expr =
+  fun input ->
+    let tokens = tokenize(input) in
+    let (ast, _) = parseExpr(tokens) in
+    ast
+in
+
+let evaluate : Expr -> Int =
+  fun e ->
+    case e
+    | Num(n) => n
+    | Add(a, b) => evaluate(a) + evaluate(b)
+    | Sub(a, b) => evaluate(a) - evaluate(b)
+    | Mul(a, b) => evaluate(a) * evaluate(b)
+    | Div(a, b) =>
+        let divisor = evaluate(b) in
+        if divisor == 0 then 0 else evaluate(a) / divisor
+    | Neg(a) => 0 - evaluate(a)
+    end
+in
+
+let calculate : String -> Int =
+  fun input -> evaluate(parse(input))
+in
+
+# Test: multiplication should happen before addition #
+let _ = hint "multiplication before addition"
+        test calculate("2 + 3 * 4") == 14 end in
+
+calculate("2 + 3 * 4")

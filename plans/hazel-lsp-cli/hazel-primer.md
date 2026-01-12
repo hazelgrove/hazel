@@ -510,10 +510,27 @@ in result
 
 ## Comments
 
+**Important**: Comments in Hazel use `# ... #` syntax (like block comments). They:
+- Must start AND end with `#`
+- Cannot contain line breaks (each line needs its own `# ... #`)
+
 ```hazel
-# This is a comment
-let x = 5 in  # Inline comment
+# This is a single-line comment #
+let x = 5 in  # Inline comment #
 x + 1
+
+# First line of explanation #
+# Second line of explanation #
+let y = 10 in y
+```
+
+**Common mistake**: Using `# comment` without closing `#` or trying multi-line:
+```hazel
+# This will NOT work - missing closing #
+let x = 5 in x
+
+# This also won't work
+  because it spans lines #
 ```
 
 ## Program Structure
@@ -703,4 +720,4 @@ sin(x), cos(x), tan(x)  # Trigonometry (Float)
 | Named test | `hint "name" test expr end` |
 | Probe | `^^probe(expr)` |
 | Hole | `?` |
-| Comment | `# comment` |
+| Comment | `# comment #` (single line only, no line breaks) |
