@@ -698,6 +698,7 @@
   padding: 0 0.3em;
   gap: 0.1em;
   color: black;
+  white-space: nowrap;
 }
 
 .sample-context-menu .action-item:hover {
