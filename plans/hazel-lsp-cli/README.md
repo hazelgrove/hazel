@@ -28,6 +28,7 @@ Establish workflows for AI-assisted Hazel development that can be documented and
 | `format` | **Working** | Reconstructs code from AST with explicit holes (`?`) |
 | `analyze` | **Working** | Reports static errors with line numbers and erroneous terms |
 | `probe` | **Working** | Shows probe values inline; use `--many` for multiple samples |
+| `test` | **Working** | Runs tests and reports pass/fail with line numbers and hints |
 
 ### Example Usage (Current)
 
@@ -46,16 +47,17 @@ echo 'let  = 5 in  + 3' | ./hazel format -
 echo 'let x = true in x + 3' | ./hazel analyze -
 # Output: Static errors (raw format showing Inconsistent Expectation)
 
-# Test form evaluates but results not exposed
-echo 'test true end' | ./hazel run -
-# Output: ()
+# Run tests and see results
+./hazel test hazel-programs/examples/test-demo.hz
+# Output:
+# Test Results: Out of 6 tests, one is failing
+#
+# FAIL [line 30, "intentional failure"]: hint "intentional failure"...
 ```
 
 ### Remaining Issues
 
-1. **No test results reporting**: Tests execute (we can see `()` result) but pass/fail status isn't surfaced via CLI.
-
-2. **No syntax error feedback**: Parser failures just say "Failed to parse" without details about what went wrong.
+1. **No syntax error feedback**: Parser failures just say "Failed to parse" without details about what went wrong.
 
 ## Implementation Plan
 
@@ -73,15 +75,15 @@ echo 'test true end' | ./hazel run -
 
 ### Phase 2: Add Missing Features
 
-#### 2.1 Test Results Command
-**Priority: Medium**
+#### 2.1 Test Results Command ✅ COMPLETED
+Added `./hazel test` command that:
+- Runs the program and reports test pass/fail with counts
+- Shows line numbers for each test
+- Displays hint strings for named tests (`hint "name" test ... end`)
+- Supports `--verbose` flag to show all tests (not just failures)
+- Exit code 0 = all pass, 124 = failures
 
-Add a `test` command that:
-- Runs the program
-- Reports test pass/fail status with counts
-- Optionally shows which tests failed and their locations
-
-The infrastructure exists in `TestResults.re` and `EvaluatorState.re`.
+See [test-command-plan.md](./test-command-plan.md) for design details.
 
 #### 2.2 Better Syntax Error Reporting
 **Priority: Medium**
@@ -202,8 +204,8 @@ test 2 + 2 == 4 end
 ## Current TODOs
 
 ### Medium Priority
-- [ ] Add test results CLI command
 - [ ] Better syntax error reporting
+- [ ] Auto-probe failing test expressions (show actual values vs expected)
 
 ### Low Priority
 - [ ] Combined analysis mode (all feedback in one command)
@@ -212,6 +214,7 @@ test 2 + 2 == 4 end
 - [ ] Add column numbers to error locations
 
 ### Completed
+- [x] Add test results CLI command (./hazel test) with hints and line numbers
 - [x] Add line numbers to static errors (uses Measured.find_by_id)
 - [x] Fix probe command - now passes probe_map to evaluator correctly
 - [x] Improve static error formatting - uses ErrorPrint.re (shows erroneous term)

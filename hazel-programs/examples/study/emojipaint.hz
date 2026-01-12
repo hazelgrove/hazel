@@ -34,7 +34,7 @@ let setCell: (Canvas, Row, Col, Emoji) -> Canvas =
     mapi(canvas, fun (i, r) ->
       if i == row
       then mapi(r, fun (j, c) ->
-        if i == col
+        if j == col
         then emoji
         else c)
       else r)
@@ -79,10 +79,74 @@ let do: (Model, [Action]) -> Model =
     fold_left(actions, update, init)
 in
 
-hint "paint single cell"
+# Tests #
+
 test
   let m = update(init, PaintCell(0, 0)) in
   m.canvas == [["😄", "", ""], ["", "", ""], ["", "", ""]]
+end;
+
+test
+  let m = update(init, PaintRow(1)) in
+  m.canvas == [["", "", ""], ["😄", "😄", "😄"], ["", "", ""]]
+end;
+
+test
+  let m = do(init, [SetBrush(1), PaintCell(2, 2)]) in
+  m.canvas == [["", "", ""], ["", "", ""], ["", "", "😅"]]
+  && m.brush == "😅"
+end;
+
+test
+  let m = do(init, [PaintRow(0), ClearCell(0, 1)]) in
+  m.canvas == [["😄", "", "😄"], ["", "", ""], ["", "", ""]]
+end;
+
+test
+  let model = update(init, PaintCell(1, 1)) in
+  let (grid, _, _) = update(model, ClearGrid) in
+  grid == [["", "", ""], ["", "", ""], ["", "", ""]]
+end;
+
+test
+  let m = do(init, [SetBrush(4), PaintCell(1, 2)]) in
+  m.canvas == [["", "", ""], ["", "", "😊"], ["", "", ""]]
+end;
+
+test
+  let m = do(init, [PaintRow(2), ClearCell(2, 0)]) in
+  m.canvas == [["", "", ""], ["", "", ""], ["", "😄", "😄"]]
+end;
+
+test
+  let m = do(init, [
+    PaintCell(0, 0),
+    PaintCell(1, 1),
+    PaintCell(2, 2),
+    ClearGrid
+  ]) in
+  m.canvas == [["", "", ""], ["", "", ""], ["", "", ""]]
+end;
+
+test
+  let m = do(init, [
+    PaintRow(0),
+    SetBrush(2),
+    PaintCell(1, 1)
+  ]) in
+  m.canvas == [["😄", "😄", "😄"], ["", "😆", ""], ["", "", ""]]
+end;
+
+test
+  let m = do(init, [
+    PaintCell(0, 0),
+    PaintRow(2),
+    SetBrush(3),
+    PaintCell(1, 1),
+    ClearCell(2, 2)
+  ]) in
+  m.canvas == [["😄", "", ""], ["", "😉", ""], ["😄", "😄", ""]]
+  && m.brush == "😉"
 end;
 
 do(init, [SetBrush(1), PaintCell(2, 2)])

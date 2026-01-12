@@ -194,6 +194,147 @@ let analyze_hazel =
   };
 };
 
+/* Extract source text for a given ID from the source file */
+let extract_source_text =
+    (~source: string, ~measured: Haz3lcore.Measured.t, id: Util.Id.t)
+    : option(string) => {
+  switch (Haz3lcore.Measured.find_by_id(id, measured)) {
+  | Some({origin, last}) =>
+    let lines = lines_of_string(source);
+    if (origin.row >= 0 && origin.row < Array.length(lines)) {
+      if (origin.row == last.row) {
+        /* Single line - extract substring */
+        let line = lines[origin.row];
+        let start_col = max(0, origin.col);
+        let end_col = min(String.length(line), last.col);
+        Some(String.sub(line, start_col, end_col - start_col));
+      } else {
+        /* Multi-line - extract from origin to end of first line */
+        let first_line = lines[origin.row];
+        let start_col = max(0, origin.col);
+        Some(
+          String.sub(first_line, start_col, String.length(first_line) - start_col)
+          ++ "...",
+        );
+      };
+    } else {
+      None;
+    };
+  | None => None
+  };
+};
+
+/* Format a single test result for display */
+let format_test_result =
+    (
+      ~source: string,
+      ~measured: Haz3lcore.Measured.t,
+      ~verbose: bool,
+      id: Util.Id.t,
+      reports: list(Language.TestMap.instance_report),
+    )
+    : option(string) => {
+  open Language;
+  let status = TestMap.joint_status(reports);
+  let hint =
+    switch (reports) {
+    | [{hint, _}, ..._] when hint != "No hint available." => Some(hint)
+    | _ => None
+    };
+
+  /* Skip passing tests unless verbose */
+  if (!verbose && status == TestStatus.Pass) {
+    None;
+  } else {
+    let status_str =
+      switch (status) {
+      | Pass => "PASS"
+      | Fail => "FAIL"
+      | Indet => "INDET"
+      };
+
+    /* Get line number */
+    let location =
+      switch (Haz3lcore.Measured.find_by_id(id, measured)) {
+      | Some({origin, _}) => "line " ++ string_of_int(origin.row + 1)
+      | None => "unknown location"
+      };
+
+    /* Format hint if present */
+    let hint_str =
+      switch (hint) {
+      | Some(h) => ", \"" ++ h ++ "\""
+      | None => ""
+      };
+
+    /* Get source text */
+    let source_text =
+      switch (extract_source_text(~source, ~measured, id)) {
+      | Some(text) => text
+      | None => "<source unavailable>"
+      };
+
+    Some(
+      status_str ++ " [" ++ location ++ hint_str ++ "]: " ++ source_text,
+    );
+  };
+};
+
+/* Run tests in a Hazel program and report results */
+let test_hazel =
+    (verbose: bool, path: string)
+    : [>
+        | `Error(bool, string)
+        | `Ok(unit)
+      ] => {
+  let program = read_input(path);
+  switch (parse_to_zipper(program)) {
+  | None =>
+    prerr_endline("Failed to parse program");
+    `Error((false, "Parse error"));
+  | Some(zipper) =>
+    open Language;
+    open Util;
+    /* Get segment and term */
+    let segment =
+      Haz3lcore.Zipper.unselect_and_zip(~erase_buffer=true, zipper);
+    let term = Haz3lcore.MakeTerm.from_zip_for_sem(zipper).term;
+
+    /* Compute measured positions for source text extraction */
+    let measured =
+      Haz3lcore.Measured.of_segment(
+        segment,
+        Haz3lcore.ProjectorCore.Shape.Map.empty,
+        Id.Map.empty,
+      );
+
+    /* Evaluate and get test results */
+    let (_, test_results) = Run.evaluate_with_tests(term);
+
+    /* Print summary */
+    print_endline("Test Results: " ++ TestResults.test_summary_str(test_results));
+    print_endline("");
+
+    /* Format individual test results */
+    let formatted_tests =
+      List.filter_map(
+        ((id, reports)) =>
+          format_test_result(~source=program, ~measured, ~verbose, id, reports),
+        test_results.test_map,
+      );
+
+    /* Print test results */
+    List.iter(line => print_endline(line), formatted_tests);
+
+    /* Return appropriate exit code */
+    if (test_results.failing > 0) {
+      `Error((false, "Tests failed"));
+    } else {
+      `Ok();
+    };
+  };
+};
+
 /* Run program with probes and display results inline */
 let probe_hazel = (many: bool, path: string): unit => {
   let program = read_input(path);
@@ -289,11 +430,21 @@ let probe_cmd = {
   Cmd.v(info, Term.(const(probe_hazel) $ many_arg $ input_arg));
 };
 
+let test_cmd = {
+  let doc = "Run tests in a Hazel program and report results.";
+  let verbose_arg = {
+    let doc = "Show all tests, not just failures.";
+    Arg.(value & flag & info(["verbose", "v"], ~doc));
+  };
+  let info = Cmd.info("test", ~doc);
+  Cmd.v(info, Term.ret(Term.(const(test_hazel) $ verbose_arg $ input_arg)));
+};
+
 /* Default to help if no subcommand is given */
 let default_cmd = {
   let doc = "CLI tool for running and analyzing Hazel programs.";
   let info = Cmd.info("hazel", ~doc);
-  Cmd.group(info, [run_cmd, format_cmd, analyze_cmd, probe_cmd]);
+  Cmd.group(info, [run_cmd, format_cmd, analyze_cmd, probe_cmd, test_cmd]);
 };
 
 let () = exit(Cmd.eval(default_cmd));

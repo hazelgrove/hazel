@@ -136,6 +136,74 @@ echo 'let f : Int -> Int = fun x -> ^^probe(x * 2) in f(1); f(2); f(3)' | ./haze
 
 ---
 
+### `test` - Run Tests and Report Results
+
+Runs a Hazel program and reports the results of all `test ... end` forms.
+
+```bash
+./hazel test <file.hz>
+./hazel test --verbose <file.hz>  # Show all tests, not just failures
+./hazel test -                    # Read from stdin
+```
+
+**Test syntax:**
+```hazel
+# Basic test - expression must evaluate to a boolean
+test 2 + 2 == 4 end
+
+# Named test (hinted) - provides a description for test output
+hint "addition works"
+test 2 + 2 == 4 end
+```
+
+**Examples:**
+```bash
+# File with passing and failing tests
+cat > demo.hz << 'EOF'
+let _ = test true end in
+let _ = test 1 + 1 == 2 end in
+let _ = hint "addition works" test 2 + 2 == 4 end in
+let _ = test 2 + 2 == 5 end in
+let _ = hint "this will fail" test 10 < 5 end in
+()
+EOF
+
+./hazel test demo.hz
+# Output:
+# Test Results: Out of 5 tests, 2 are failing
+#
+# FAIL [line 4]: test 2 + 2 == 5 end
+# FAIL [line 5, "this will fail"]: hint "this will fail" test 10 < 5 end
+
+./hazel test --verbose demo.hz
+# Output:
+# Test Results: Out of 5 tests, 2 are failing
+#
+# PASS [line 1]: test true end
+# PASS [line 2]: test 1 + 1 == 2 end
+# PASS [line 3, "addition works"]: hint "addition works" test 2 + 2 == 4 end
+# FAIL [line 4]: test 2 + 2 == 5 end
+# FAIL [line 5, "this will fail"]: hint "this will fail" test 10 < 5 end
+```
+
+**Exit codes:**
+- 0: All tests pass (or no tests)
+- 124: One or more tests fail
+- Non-zero: Parse or evaluation error
+
+**Output format:**
+- `PASS` / `FAIL` / `INDET` - Test status
+- `[line N]` - Source line number
+- `[line N, "hint"]` - Line number and hint for named tests
+- Source text of the test expression
+
+**Notes:**
+- Tests must be let-bound to ensure they're evaluated: `let _ = test ... end in ...`
+- Use named tests (`hint "name" test ... end`) for better error messages
+- When a test fails, use probes to debug the actual values
+
+---
+
 ## Hazel Syntax Quick Reference
 
 ### Basic Expressions
@@ -272,12 +340,14 @@ let = 5 in  + 1        # Implicit holes (shown in format output)
 # Basic test - records pass/fail during evaluation
 test 2 + 2 == 4 end
 
-# Tests can appear anywhere
-let result =
-  let x = 5 in
-  test x > 0 end;
-  x * 2
-in result
+# Named test with hint - better error messages
+hint "addition works"
+test 2 + 2 == 4 end
+
+# Tests must be let-bound to run during evaluation
+let _ = test 2 + 2 == 4 end in
+let _ = hint "subtraction" test 5 - 3 == 2 end in
+result
 ```
 
 ### Probes (Debugging)
@@ -296,15 +366,26 @@ f(1); f(2); f(3)
 1. **Write program** to a `.hz` file
 2. **Check for errors**: `./hazel analyze program.hz`
 3. **Run program**: `./hazel run program.hz`
-4. **Debug with probes**: Add `^^probe(...)` wrappers, run `./hazel probe program.hz`
-5. **Test**: Include `test ... end` forms, check output
+4. **Run tests**: `./hazel test program.hz` to check all test assertions
+5. **Debug failures**: When a test fails, add `^^probe(...)` wrappers around expressions in or near the failing test, then run `./hazel probe program.hz` to see actual values
+
+**Debugging workflow for failing tests:**
+```hazel
+# Original failing test
+let _ = test my_function(5) == 10 end in ...
+
+# Add probes to see what's happening
+let _ = test ^^probe(my_function(5)) == 10 end in ...
+```
+
+Then run: `./hazel probe program.hz` to see the actual value of `my_function(5)`.
 
 ## Known Limitations
 
-- Test results not explicitly surfaced (tests run but pass/fail not reported)
 - No JSON output mode for programmatic consumption
 - No incremental/watch mode
 - No code completion or suggestions
+- No auto-probing of failing test expressions (must manually add probes)
 
 See [vision.md](./vision.md) for planned improvements.
 

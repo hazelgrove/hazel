@@ -389,26 +389,66 @@ in length([1, 2, 3])
 
 ## Tests
 
-Test forms check boolean conditions during evaluation:
+Test forms check boolean conditions during evaluation. Use `./hazel test program.hz` to run tests and see results.
+
+### Basic Tests
 
 ```hazel
-# Basic test
+# Basic test - expression must evaluate to a boolean
 test 2 + 2 == 4 end
 
-# Multiple tests
-test 1 + 1 == 2 end;
-test 2 * 3 == 6 end;
-test 10 / 2 == 5 end;
+# Tests must be let-bound (or sequenced) to be evaluated
+let _ = test 2 + 2 == 4 end in
+let _ = test 1 < 2 end in
+result
+```
 
-# Tests in programs
+### Named Tests (Hinted)
+
+Use `hint "name" test ... end` for better error messages:
+
+```hazel
+let _ = hint "addition works"
+        test 2 + 2 == 4 end in
+
+let _ = hint "factorial base case"
+        test factorial(0) == 1 end in
+
+let _ = hint "factorial of 5"
+        test factorial(5) == 120 end in
+
+factorial(10)
+```
+
+When a named test fails, the hint appears in the output:
+```
+FAIL [line 5, "factorial of 5"]: hint "factorial of 5" test factorial(5) == 120 end
+```
+
+### Running Tests
+
+```bash
+# Run tests and show failures
+./hazel test program.hz
+
+# Show all tests (including passing)
+./hazel test --verbose program.hz
+```
+
+### Complete Example
+
+```hazel
 let factorial : Int -> Int =
 fun n ->
   if n == 0 then 1
   else n * factorial(n - 1)
 in
 
-test factorial(0) == 1 end;
-test factorial(5) == 120 end;
+let _ = hint "factorial base case"
+        test factorial(0) == 1 end in
+
+let _ = hint "factorial of 5"
+        test factorial(5) == 120 end in
 
 factorial(10)
 ```
@@ -425,6 +465,32 @@ let x = 5 in ^^probe(x + 1)
 let f : Int -> Int = fun x -> ^^probe(x * 2) in
 f(1); f(2); f(3)
 ```
+
+Run with `./hazel probe program.hz` to see probe values:
+```bash
+./hazel probe program.hz         # Show last value per probe
+./hazel probe --many program.hz  # Show all values per probe
+```
+
+### Debugging Failing Tests
+
+When a test fails, add probes to see actual values:
+
+```hazel
+# Original failing test
+let _ = test my_function(5) == 10 end in ...
+
+# Add probes to both sides of the equality
+let _ = test ^^probe(my_function(5)) == ^^probe(10) end in ...
+```
+
+Then run `./hazel probe program.hz` to see what `my_function(5)` actually returns.
+
+**Workflow for debugging:**
+1. Run `./hazel test program.hz` to see which tests fail
+2. Add `^^probe(...)` around expressions in or near the failing test
+3. Run `./hazel probe program.hz` to see actual runtime values
+4. Fix the bug and remove the probes
 
 **Note**: The `^^probe(...)` syntax is currently the only projector useful for text-based development.
 
@@ -634,6 +700,7 @@ sin(x), cos(x), tan(x)  # Trigonometry (Float)
 | Tuple | `(a, b, c)` |
 | Type def | `type T = A + B(Int) in` |
 | Test | `test expr end` |
+| Named test | `hint "name" test expr end` |
 | Probe | `^^probe(expr)` |
 | Hole | `?` |
 | Comment | `# comment` |

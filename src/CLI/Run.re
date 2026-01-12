@@ -28,3 +28,11 @@ let evaluate_with_probe_map =
     Evaluator.evaluate(~probe_map, ~env=Builtins.env_init, elaborated);
   (result, state.probes);
 };
+
+/* Evaluate and return both the result and test results */
+let evaluate_with_tests = (exp: Exp.t): (Exp.t, TestResults.t) => {
+  let (result, state) =
+    Evaluator.evaluate(~env=Builtins.env_init, elaborate(exp));
+  let test_results = TestResults.mk_results(EvaluatorState.get_tests(state));
+  (result, test_results);
+};
