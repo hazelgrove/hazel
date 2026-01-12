@@ -457,7 +457,7 @@ let rec status_common =
   | (BadToken(name), _) => InHole(NoType(BadToken(name)))
   | (BadLabel(label), _) => InHole(NoType(BadLabel(label)))
   | (TupleProjectionOutOfBounds(typ, index), _) =>
-    InHole(NoType(BadLabel(typ, index)))
+    InHole(NoType(TupleProjectionOutOfBounds(typ, index)))
   | (ExplicitNonlabel, _) => NotInHole(Syn(Unknown(Internal) |> Typ.temp))
   | (UnexpectedLabelSort(label), _) =>
     InHole(NoType(UnexpectedLabelSort(label)))
@@ -810,6 +810,7 @@ let fixed_typ_err_common: (error_common, Typ.t) => Typ.t =
       )
     | NoType(BadToken(_))
     | NoType(BadLabel(_))
+    | NoType(TupleProjectionOutOfBounds(_, _))
     | NoType(InvalidLabel(_))
     | NoType(UnexpectedLabelSort(_)) => Unknown(Internal) |> Typ.temp
     | TupleLabelError({typ, _})

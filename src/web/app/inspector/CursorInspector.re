@@ -117,6 +117,10 @@ let common_err_view =
         text("Malformed Label: "),
         view_any(label),
       ]
+    | NoType(TupleProjectionOutOfBounds(_, index)) => [
+        text("Tuple projection out of bounds: "),
+        text(string_of_int(index)),
+      ]
     | NoType(FreeConstructor(name)) => [code(name), text("not found")]
 
     | NoType(InvalidLabel(name, expected_labels)) =>

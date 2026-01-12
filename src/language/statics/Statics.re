@@ -768,7 +768,8 @@ and uexp_to_info_map =
               add(~self=Just(typ), ~co_ctx=info_e2_atom.co_ctx, m_atom)
             | None =>
               add(
-                ~self=TupleProjectionOutOfBounds(Exp(e1), index),
+                ~self=
+                  TupleProjectionOutOfBounds(Exp(e1), Option.get(index)),
                 ~co_ctx=info_e2.co_ctx,
                 m,
               )

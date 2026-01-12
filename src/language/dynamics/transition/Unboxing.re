@@ -170,6 +170,14 @@ let rec unbox: type a. (unbox_request(a), DHExp.t) => unboxed(a) =
     /* Tuples  */
     | (Tuple(n), Tuple(t)) when List.length(t) == n => Matches(t)
     | (Tuple(_), Tuple(_)) => IndetMatch
+
+    | (Tuple(n), _) =>
+      Matches(
+        List.init(n, i =>
+          Dot(expr, Atom(Int(Bigint.of_int(i))) |> DHExp.fresh)
+          |> DHExp.fresh
+        ),
+      )
     /* Sum constructors can be either sum constructors or sum constructors
        applied to some value  */
     | (SumNoArg(name1), Constructor(name2, _)) when name1 == name2 =>

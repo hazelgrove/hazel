@@ -44,6 +44,7 @@ let prn = Printf.sprintf;
 let common_error: Info.error_common => string =
   fun
   | NoType(BadLabel(_)) => "Invalid label"
+  | NoType(TupleProjectionOutOfBounds(_, _)) => "Tuple projection out of bounds"
   | NoType(InvalidLabel(_)) => "Invalid label"
   | DuplicateLabel(_, _) => "Duplicate label"
   | TupleLabelError(_) => "Invalid tuple label"
