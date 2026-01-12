@@ -213,7 +213,11 @@ let extract_source_text =
         let first_line = lines[origin.row];
         let start_col = max(0, origin.col);
         Some(
-          String.sub(first_line, start_col, String.length(first_line) - start_col)
+          String.sub(
+            first_line,
+            start_col,
+            String.length(first_line) - start_col,
+          )
           ++ "...",
         );
       };
@@ -274,9 +278,7 @@ let format_test_result =
       | None => "<source unavailable>"
       };
 
-    Some(
-      status_str ++ " [" ++ location ++ hint_str ++ "]: " ++ source_text,
-    );
+    Some(status_str ++ " [" ++ location ++ hint_str ++ "]: " ++ source_text);
   };
 };
 
@@ -312,14 +314,22 @@ let test_hazel =
     let (_, test_results) = Run.evaluate_with_tests(term);
 
     /* Print summary */
-    print_endline("Test Results: " ++ TestResults.test_summary_str(test_results));
+    print_endline(
+      "Test Results: " ++ TestResults.test_summary_str(test_results),
+    );
     print_endline("");
 
     /* Format individual test results */
     let formatted_tests =
       List.filter_map(
         ((id, reports)) =>
-          format_test_result(~source=program, ~measured, ~verbose, id, reports),
+          format_test_result(
+            ~source=program,
+            ~measured,
+            ~verbose,
+            id,
+            reports,
+          ),
         test_results.test_map,
       );
 
