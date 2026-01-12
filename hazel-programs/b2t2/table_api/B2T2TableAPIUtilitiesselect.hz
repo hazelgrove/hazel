@@ -1,0 +1,29 @@
+type Student = (name=String, age=Int, favorite_color=String) in
+let students : [Student] = ^^fold([
+("Bob", 12, "blue"),
+("Alice", 17, "green"),
+("Eve", 13, "red")
+]) in
+
+let requires=[] in
+let ensures=[
+(enforced=^^check(true), "schema(r1) == schema(t1)"),
+(enforced=^^check(false), "n is in range(nrows(t1))"),
+(enforced=^^check(true), "schema(t2) == schema(r2)"),
+(enforced=^^check(false), "nrows(t2) == nrows(t1)")
+] in
+
+let select =
+typfun r1 -> typfun r2 ->
+fun (t1:[r1], f:((r1,Int) -> r2)) ->
+mapi(t1, fun (i,r) -> f(r,i)) : [r2]
+in
+
+test
+select@<Student>@<^^fold((id=Int, color=String, age=Int))>(students, fun (r,i) -> (id=i, color=r.favorite_color, age=r.age))
+== [
+(id=0, color="blue", age=12),
+(id=1, color="green", age=17),
+(id=2, color="red", age=13)
+]
+end

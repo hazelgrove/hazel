@@ -1,0 +1,16 @@
+let requires= [(enforced=^^check(true), "for all r in rs, schema(r) is equal to schema(t1)")] in
+let ensures = [
+(enforced=^^check(true), "schema(t2) is equal to schema(t1)"),
+(enforced=^^check(false), "nrows(t2) is equal to nrows(t1) + length(rs)")
+] in
+#Hazel tables are lists; so add_rows is just list concatenation#
+let add_rows = typfun row -> fun (rs : [row], rs' : [row]) -> rs @ rs'  in
+
+# Examples #
+type GradebookEntry= (name=String, age=Int, quiz1=Int, quiz2=Int, midterm=Int, quiz3=Int, quiz4=Int, final=Int) in
+let gradebook: [GradebookEntry] = ^^fold([
+("Bob",   12, 8, 9, 77, 7, 9, 87),
+("Alice", 17, 6, 8, 88, 8, 7, 85),
+("Eve",   13, 7, 9, 84, 8, 8, 77)
+]) in 
+test  add_rows@<GradebookEntry>(gradebook, [])  == gradebook end

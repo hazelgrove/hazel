@@ -1,0 +1,31 @@
+type GradebookEntry = (name=String, age=Int, quiz1=Int, quiz2=Int, midterm=Int, quiz3=Int, quiz4=Int, final=Int) in
+let gradebook : [GradebookEntry] = ^^fold([
+("Bob",   12, 8, 9, 77, 7, 9, 87),
+("Alice", 17, 6, 8, 88, 8, 7, 85),
+("Eve",   13, 7, 9, 84, 8, 8, 77)
+]) in
+let requires=[] in
+let ensures=[
+(enforced=^^check(true), "schema(r1) == schema(t1)"),
+(enforced=^^check(false), "n is in range(nrows(t1))"),
+(enforced=^^check(true), "schema(r2) == schema(t1)"),
+(enforced=^^check(true), "schema(r3) == schema(t2)"),
+(enforced=^^check(true), "schema(t2) == schema(r4)")
+] in
+let select_many : poly r1 -> poly r2 -> poly r3 -> ([r1], (r1,Int) -> [r2], (r1,r2) -> r3) -> [r3] =
+typfun r1 -> typfun r2 -> typfun r3 ->
+fun (t1:[r1], project:((r1,Int) -> [r2]), result:((r1,r2) -> r3)) ->
+enumerate(t1)
+|> flat_map(_, fun (i,r):(Int,r1) ->
+map(project(r,i), fun r2:r2 -> result(r,r2)))
+in
+test
+select_many@<GradebookEntry>@<GradebookEntry>@<(midterm=Int)>(
+gradebook,
+fun (r,i) ->
+if i == 0 then [r]
+else if i == 1 then [r, r]
+else [r, r, r],
+fun (r1,r2) -> (midterm=r2.midterm)
+) == [77, 88, 88, 84, 84, 84] : [(midterm=Int)]
+\ end

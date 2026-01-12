@@ -1,0 +1,44 @@
+# No type correlates to missing schema. There is no error as it's valid data without labels#
+let missingSchema = [
+("Bob", 12, "blue"),
+("Alice", 17, "green"),
+("Eve", 13, "red")
+] in
+
+type Schema = [(name=String, age=Int, `favorite color`=String)] in
+
+# The missing row is represented as a hole. #
+let missingRow : Schema= 
+[
+("Bob", 12, "blue"),
+("Alice", 17, "green"),
+?
+] in
+
+# The missing cell is represented as a hole#
+let missingCell : Schema = [
+("Bob", 12, ?),
+("Alice", 17, "green"),
+("Eve", 13, "red")
+] in
+
+# The age/name columns are swapped. The error is added to every relevant cell and says which column it's for as well as the type error #
+let swappedColumns : Schema = [
+(12, "Bob", "blue"),
+(17, "Alice","green"),
+(13, "Eve", "red")
+] in
+
+# Error marks are added onto the tuples.  The last row uses explicit labels which makes the inconsistency easier to identify  by marking the unknown label.#
+let schemaTooShort : [(name=String, age=Int)] = [
+("Bob", 12, "blue"),
+("Alice", 17, "green"),
+(name="Eve", age=13, `favorite color`="red")
+] in
+
+# Error marks are added onto the tuples showing the inconsistency. The last row uses explicit labels which makes the inconsistency easier to identity #
+let schemaTooLong : [(name=String, age=Int, `favorite number`=Int, `favorite color`=String)] = [
+("Bob", 12, "blue"),
+("Alice", 17, "green"),
+(name="Eve", age=13, `favorite color`="red")
+] in ?

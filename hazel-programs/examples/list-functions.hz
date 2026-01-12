@@ -1,0 +1,29 @@
+let double = fun x -> x * 2 in
+let is_even = fun x -> x / 2 * 2 == x in
+
+let nums = [1, 2, 3, 4, 5] in
+
+let first_doubled =
+  case nums
+  | [] => 0
+  | hd::_ => double(hd)
+  end
+in
+
+let second =
+  case nums
+  | [] => 0
+  | _::rest =>
+    case rest
+    | [] => 0
+    | hd::_ => hd
+    end
+  end
+in
+
+test first_doubled == 2 end;
+test second == 2 end;
+test double(5) == 10 end;
+test is_even(4) == true end;
+
+(first_doubled, second, is_even(second))

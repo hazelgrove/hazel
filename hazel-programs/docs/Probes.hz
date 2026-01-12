@@ -1,0 +1,215 @@
+#  _____           _                #
+# |  __ \         | |               #
+# | |__) | __ ___ | |__   ___  ___  #
+# |  ___/ '__/ _ \| '_ \ / _ \/ __| #
+# | |   | | | (_) | |_) |  __/\__ \ #
+# |_|   |_|  \___/|_.__/ \___||___/ #
+# INLINE EVAL WITH PROBE PROJECTORS #
+
+# INTRODUCTION #
+
+# Probe projectors are a kind of inline evaluation, #
+# similar to value hints in Emacs or IntelliJ. #
+
+# You can put these on any expression or variable binding to #
+# see a list of sampled values taken on by that expression/pattern. #
+# By default samples are sorted by left-to-right by most-recent. #
+
+# More generally, each cell represents a stack state, #
+# including the top stack frame / closure and hence the #
+# expression's value, the values of environment variables, #
+# as well as the surrounding call stack context. #
+
+# When a cell is selected, you can hover over it to see #
+# relevant environment variables, and all /other/ cells #
+# are decorated according to their relative position in #
+# to the selected cell. in the context #
+
+# Probe are intended mostly as a println replacement #
+# for exposing intermediate values, with the above decorations #
+# as a supporting feature to help maintain context when #
+# navigating between multiple probed expressions, which #
+# may take on many values across nested or recursive functions. #
+
+
+# TUTORIAL #
+
+# The expression 10 * 10 below has a probe.  #
+# Its value, 20, is shown in a cell to the right. #
+let chips = ^^probe(10 + 10) in
+
+# To probe the below expression, put your caret to #
+# left of the `(` and press ctrl/cmd-E or alt/option-V, #
+# or context-click and select `Ad probe` from the menu. #
+let mult = (1 + 2 * 3) in
+# The expression should be underlined in green, #
+# and a cell reading `7` should appear to the right. #
+# The same shortcut or context menu toggle removes it. #
+
+# Click the below cell (with value 21) to select it. #
+let score = ^^probe(chips * mult) in
+# Notice when you hover over a selected cell, it #
+# shows the values of any contained variables. #
+
+# Probes only have cells if the are evaluated. #
+# Below, only the first case branch is evaluated. #
+let check = case ^^check(true)
+| false => ^^probe("checks out")
+| true => ^^probe("you cheated")  
+end in
+# Note the 2nd branch probe has a zero to the right. #
+# This is the cell's collected closure count, i.e. #
+# the number of times the expression was evaluated #
+
+# Probes can be placed on expressions: #
+let pow = ^^probe(50 ** 2) in
+# And also on patterns (e.g. variables), shown in blue: #
+let ^^probe(pow) = ^^slider(54) ** 2 in
+
+# FUNCTIONS #
+let _ =
+# Because functions can run multiple times, they can #
+# have multiple cells. Note the closure counts below #
+# are all 2, indicating each probe was evaluated twice. #
+let celsius = fun ^^probe(farenheit) ->
+# Click to select the cell above reading 72.5 #
+let diff = ^^probe(farenheit -. 32.) in
+# This highlights cells below corresponding to the same #
+# function call: the cells reading 40.5 and 22.5) #
+^^probe(5./.9. *. diff) in
+let (t1, t2) = 72.5, 103.1 in (
+# It also highlights in purple the cell #
+# of the function's call site#
+^^probe(celsius(t1)),
+# Now select the cell above reading 22.5 #
+^^probe(celsius(t2))
+# Note the 72.5, 40.5, and 22.5 are no longer green-highlit #
+# as they are not part of the same call as /the expression/ #
+# `celsius(t1)`. However, they now have purple hats, indicating #
+# they are below that function call in the call stack #
+) in
+
+# BRANCHING IN FUNCTIONS #
+let cases =
+# Select `6` then `5` then '4' below: #
+fun ^^probe(x) -> case x 
+# Note how each activate exactly one branch below: #
+| 4 => ^^probe(true)
+# Select the `5` above and then the `false` below: #
+| 5 => ^^probe(false)
+# Note the same things are highlit as both cells are #
+# from the same call to cases#
+| _ => ^^probe(true) end    
+in let _ = (
+# Select `true` below and then the `4` cell #
+# for the argument x to `cases` above. #
+^^probe(cases(4)),
+# Note how the same cells stay indicated, but the kind #
+# of indication changes. The `true` below the `4` above #
+# goes from purple outline (created by the cases(4) call) #
+# to green highlighting (part of the same call as `4`). #
+# The formerly selected lower `true` is now highlit in #
+# purple since it indicates the call where `4` lives . #
+^^probe(cases(5)),
+^^probe(cases(6))
+) in
+
+# FUNCTIONS CALLING FUNCTIONS #
+let _ =
+\  # Select `9` below. Note four cells below become purple #
+let fourth = fun f -> 4 * ^^probe(f) - 4 in
+\  # This is because they represent function calls #
+\  # above the `9` cell in the function call stack. #
+\  # For example 32 below represents the call producing `9`.  #
+let third = fun t -> ^^probe(fourth(t - 3)) / 3 in
+\  # Now, select `32` above. Note the 9 now has a purple hat. #
+\  # This represents that it is below the `32` call in the stack. #
+\  # Now select `10` below, which is a call to `third`: #
+let second = fun s -> ^^probe(third(2 * s)) + 2 in
+\  # Note that `9` and `32` both have hats. `9` has a taller hat #
+\  # to show it's lower in the call stack. `32` has purple text #
+\  # to further emphasize that is is directly below `10`. #
+\  # Now select 12 below, representing a call to `second` #
+let first = fun f -> ^^probe(second(f + 1)) * 2 in
+\  # Note how the hats have changed. Finally, select `24` below, #
+\  # and then again select 12, 10, 32, and 9 in turn. Notice how #
+\  # the solid purple call indicators have internal shadows #
+\  # representing their depth relative to the selected cell #
+^^probe(first(5)) in
+
+# RECURSION #
+# Note how cells are lowered/raised to indicate their #
+# relative call stack depth to the selected cell #
+let fact = fun ^^probe(x) ->
+case ^^probe(x)
+| 1 => ^^probe(1)
+| _ =>
+let r = ^^probe(fact(x-1)) 
+in x*^^probe(r)  
+end in
+test ^^probe(fact(5)) == 120 end;
+
+# TAIL RECURSION #
+let fact1 = let go =
+fun (^^probe(x),
+\ ^^probe(acc)) ->
+case ^^probe(x)
+| 1 => ^^probe(acc)
+| _ =>
+let r = ^^probe(x*acc) 
+in ^^probe(go(x-1, r)) 
+end in
+fun x -> ^^probe(go(x,1)) in
+test ^^probe(fact1(5)) == 120 end;
+
+# FUNCTIONS IN FUNCTIONS #
+# The frunk factory prethunks your frunk for later clunking #
+let frunk_factory = fun ^^probe(y) ->
+# This is a play area to explore nested function definitions #
+# and functions returning functions #
+let factor =
+4 + ^^probe(10 * y) in
+let refactor = fun ^^probe(x) ->
+^^probe(x + factor) in
+let factor =
+^^probe(refactor(factor))
+- ^^probe(refactor(y)) in 
+let perturb = fun ^^probe(s) ->
+factor + ^^probe(refactor(s)) in
+fun ^^probe(z) ->
+^^probe(perturb(3*z))
++ ^^probe(perturb(5*z))  
+in let new_frunk = ^^probe(frunk_factory(7)) in
+test ^^probe(new_frunk(4)) == 314 end;
+test ^^probe(new_frunk(6)) == 330 end;
+
+
+let _ = let fib: Int -> Int =
+# Recursive calls can complicate probe display due #
+# due to overlapping information channels.#
+fun x -> ^^probe(case ^^probe(x)
+| 0 => ^^probe(1)
+| 1 => ^^probe(1)
+| n =>   
+# Select the first `1` below: #
+^^probe(fib(x-1))
+# Note the purple `2` below corresponding the call #
+# fib(4-2) which contains the above `1`. The `1` below #
+# OTOH is highlit because when the above call was made, #
+# the call below had that value. The two `1s` outline in #
+# purple above come /from/ the indicated call, whereas the #
+# highlit `2`s are from the /same/ call the indicated call #
+# was evaluated in. #
++ ^^probe(fib(x-2)) 
+end)
+in
+test ^^probe(fib(1)) == 1 end;
+test ^^probe(fib(2)) == 2 end;
+test ^^probe(fib(3)) == 3 end;
+test ^^probe(fib(4)) == 5 end;
+test ^^probe(fib(5)) == 8 end;
+test ^^probe(fib(6)) == 13 end
+in 
+
+# ADVANCED FEATURES #
+# - You can resize a cell by holding shift and dragging horizontally #

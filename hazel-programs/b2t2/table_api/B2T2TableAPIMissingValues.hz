@@ -1,0 +1,77 @@
+type OptInt = +None +Some(Int) in
+type OptString = +None +Some(String) in
+type StudentMissing = (name=String, age=OptInt, favorite_color=OptString) in
+let studentsMissing : [StudentMissing] = ^^fold([
+("Bob", None, Some("blue")),
+("Alice", Some(17), Some("green")),
+("Eve", Some(13), None)
+]) in
+let complete_cases = 
+# Instead of taking a colName we're taking a project function to make it type-safe. #
+# This only works for option columns #
+let requires=[(enforced=^^check(true), "c is in header(t)")] in
+let ensures=[(enforced=^^check(false), "length(bs) is equal to nrows(t)")] in
+let complete_cases = typfun R -> typfun C -> fun (t:[R], project:(R -> +None +Some(C))) ->
+map(t, fun (r : R) -> case project(r)
+| Some(_) => true
+| None => false
+end):[Bool] in
+
+test complete_cases@<StudentMissing>@<Int>(studentsMissing, fun r -> r.age) == [false, true, true] : [Bool] end
+in
+let dropna =
+# This only works if every column in the dataset was optional otherwise it will get stuck in indet #
+let requires=[] in
+let ensures=[(enforced=^^check(true), "schema(t2) is equal to schema(t1)")] in
+let dropna = typfun R -> fun (t1 : [R]) -> filter(t1, fun row -> !any(to_lvs(row), fun e -> e.value == (None : Option))) : [R] in
+type StudentFullyOptional = (name=OptString, age=OptInt, favorite_color=OptString) in
+let students_fully_optional : [StudentFullyOptional] = ^^fold([
+(Some("Bob"), None, Some("blue")),
+(Some("Alice"), Some(17), Some("green")),
+(Some("Eve"), Some(13), None)
+]) in
+test dropna@<(name=OptString, age=OptInt, favorite_color=OptString)>(students_fully_optional) == [
+(Some("Alice"), Some(17), Some("green"))
+] : [(name=OptString, age=OptInt, favorite_color=OptString)] end
+in 
+let fillna =
+let requires=[
+(enforced=^^check(false), "c is in header(t1)"),
+(enforced=^^check(false), "v is of sort schema(t1)[c]")
+] in
+let ensures=[
+(enforced=^^check(false), "schema(t2) is equal to schema(t1)"),
+(enforced=^^check(false), "nrows(t2) is equal to nrows(t1)")
+] in
+
+let fillna = fun (t1 : [?], c : String, v) ->
+let rows = map(t1, to_lvs) in
+let mapped = map(rows, fun entries ->
+from_lvs(filter(entries, fun e -> !string_eq(e.label, c))
+@[
+case option_bind(find_opt(entries, fun e -> string_eq(e.label, c)), fun x -> x.value)
+| None => (label=c, value=v)
+| Some(v) => (label=c, value=v)
+end
+])
+) : [?] in mapped in
+
+test fillna(studentsMissing, "favorite_color", "white") == [
+("Bob", None, "blue"),
+("Alice", Some(17), "green"),
+("Eve", Some(13), "white")
+] : [(name=String, age=OptInt, favorite_color=String)]
+end;
+# The idiomatic way to do this would be to just map the column. This gives you the schema safety. #
+test 
+map(studentsMissing,
+fun (r: StudentMissing) -> r ... (favorite_color=case r.favorite_color
+| None => "white"
+| Some(v) => v
+end)) == [
+("Bob", None, "blue"),
+("Alice", Some(17), "green"),
+("Eve", Some(13), "white")
+] : [(name=String, age=OptInt, favorite_color=String)]
+end
+in 

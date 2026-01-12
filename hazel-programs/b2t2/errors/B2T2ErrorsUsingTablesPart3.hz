@@ -1,0 +1,115 @@
+let brown_jellybeans =
+type JellyAnon = (get_acne=Bool, red=Bool, black=Bool, white=Bool, green=Bool, yellow=Bool, brown=Bool, orange=Bool, pink=Bool, purple=Bool) in
+let jellyAnon : [JellyAnon] = ^^fold([
+(^^check(true), ^^check(false), ^^check(false), ^^check(false), ^^check(true), ^^check(false), ^^check(false), ^^check(true), ^^check(false), ^^check(false)),
+(^^check(true), ^^check(false), ^^check(true), ^^check(false), ^^check(true), ^^check(true), ^^check(false), ^^check(false), ^^check(false), ^^check(false)),
+(^^check(false), ^^check(false), ^^check(false), ^^check(false), ^^check(true), ^^check(false), ^^check(false), ^^check(false), ^^check(true), ^^check(false)),
+(^^check(false), ^^check(false), ^^check(false), ^^check(false), ^^check(false), ^^check(true), ^^check(false), ^^check(false), ^^check(false), ^^check(false)),
+(^^check(false), ^^check(false), ^^check(false), ^^check(false), ^^check(false), ^^check(true), ^^check(false), ^^check(false), ^^check(true), ^^check(false)),
+(^^check(true), ^^check(false), ^^check(true), ^^check(false), ^^check(false), ^^check(false), ^^check(false), ^^check(true), ^^check(true), ^^check(false)),
+(^^check(false), ^^check(false), ^^check(true), ^^check(false), ^^check(false), ^^check(false), ^^check(false), ^^check(false), ^^check(true), ^^check(false)),
+(^^check(true), ^^check(false), ^^check(false), ^^check(false), ^^check(false), ^^check(false), ^^check(true), ^^check(true), ^^check(false), ^^check(false)),
+(^^check(true), ^^check(false), ^^check(false), ^^check(false), ^^check(false), ^^check(false), ^^check(false), ^^check(true), ^^check(false), ^^check(false)),
+(^^check(false), ^^check(true), ^^check(false), ^^check(false), ^^check(false), ^^check(true), ^^check(true), ^^check(false), ^^check(true), ^^check(false))
+]) in
+
+# Version that uses string params for the column names gives no static errors #
+let v1 =
+let get_value = fun (r,c :String) ->(to_lvs(r) |>find_opt(_,fun label=l, value=v ->l == c)) |> option_map(_, fun e ->e.value) in
+let nrows = length in let tfilter = filter in 
+let option_get=fun o -> case o
+| Some(v) => v
+end
+in
+let ^^probe(incorrect) =
+let keep = fun r -> get_value(r, "color") |> option_get in
+let count_participants = fun (t, color) -> nrows(tfilter(t, keep))in
+count_participants(jellyAnon, "brown")
+in
+let ^^probe(correct) = 
+let count_participants = fun (t, color) -> let keep= fun r-> get_value(r, color) |> option_get in nrows(tfilter(t, keep))in
+count_participants(jellyAnon, "brown")
+in 
+in
+
+# Version that uses higher order functions to get static errors #
+let v2 =
+let nrows = length in let tfilter = filter in 
+
+let ^^probe(incorrect) =
+let keep = fun (r : JellyAnon) -> r.color in 
+let count_participants = typfun row -> fun (t:[row], color: row -> Bool) -> 
+length(filter(t, keep))
+in count_participants@<JellyAnon>(jellyAnon, fun r -> r.brown)
+in
+let ^^probe(correct) = 
+let count_participants = typfun row -> fun (t:[row], color: row -> Bool) -> 
+let keep = fun (r : row) -> color(r) in 
+length(filter(t, keep))
+in count_participants@<JellyAnon>(jellyAnon, fun r -> r.brown)
+in  
+in 
+in
+
+let employee_to_department =
+type OptInt = +None +Some(Int) in
+type Employee = (last_name=String, department_id=OptInt) in
+let employees : [Employee] = ^^fold([
+("Rafferty", Some(31)),
+("Jones", Some(33)),
+("Heisenberg", Some(33)),
+("Robinson", Some(34)),
+("Smith", Some(34)),
+("Williams", None)
+]) in
+
+type Department = (department_id=Int, department_name=String) in
+let departments : [Department] = ^^fold([
+(31, "Sales"),
+(33, "Engineering"),
+(34, "Clerical"),
+(35, "Marketing")
+]) in
+
+let tfilter = typfun row -> fun (t: [row], pred: (row -> Bool)) -> filter(t,pred) :[row] in
+let get_row = typfun row -> fun (t:[row], n : Int) -> nth(t,n) : row in
+let build_column =typfun row -> typfun row' -> fun (t:[row], fn: (row -> row')) -> map(t, fn) : [row']in
+let incorrect =
+let last_name_to_dept_id = fun (dept_tab : [Department], name: String) ->
+let match_name = fun (r : Department)  -> r.last_name == name in
+let matched_tab = tfilter@<Department>(dept_tab, match_name) in
+let matched_row = get_row@<Department>(matched_tab, 0) in
+matched_row.`department_id`
+in
+
+let employee_to_department =
+fun (name :String, empl_tab:[Employee], dept_tab: [Department]) ->
+build_column@<Employee>@<(last_name=String, department_id=OptInt, department_name=String)>(empl_tab,
+fun r -> r ... (department_name=last_name_to_dept_id(dept_tab, r.`last_name`)))
+in 
+in
+
+let correct =
+let dept_id_to_dept_name = fun (dept_tab : [Department], dept_id: Int) ->
+let match_name = fun (r : Department)  -> r.department_id == dept_id in
+let matched_tab = tfilter@<Department>(dept_tab, match_name) in
+let matched_row = get_row@<Department>(matched_tab, 0) in
+matched_row.department_name
+in
+
+let employee_to_department =
+fun (name :String, empl_tab:[Employee], dept_tab: [Department]) ->
+let match_name = fun r -> r.last_name == name in
+let matched_tab =tfilter@<Employee>(empl_tab, match_name) in
+let matched_row = get_row@<Employee>(matched_tab, 0) in
+let dept_id = matched_row.department_id in
+dept_id_to_dept_name(dept_tab,
+case dept_id
+| Some(dept_id) => dept_id
+| _ => ?  
+end)
+in
+
+test  employee_to_department("Jones", employees, departments) == "Engineering" end
+in ? 
+in ?

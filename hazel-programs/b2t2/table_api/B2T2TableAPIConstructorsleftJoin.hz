@@ -1,0 +1,107 @@
+type Student = (name=String, age=Int, favorite_color=String) in
+let students : [Student] = ^^fold([
+("Bob", 12, "blue"),
+("Alice", 17, "green"),
+("Eve", 13, "red")
+]) in
+type GradebookEntry = (name=String, age=Int, quiz1=Int, quiz2=Int, midterm=Int, quiz3=Int, quiz4=Int, final=Int) in
+let gradebook : [GradebookEntry] = ^^fold([
+("Bob",   12, 8, 9, 77, 7, 9, 87),
+("Alice", 17, 6, 8, 88, 8, 7, 85),
+("Eve",   13, 7, 9, 84, 8, 8, 77)
+]) in
+
+# V1: This version is idiomatic but is a higher order function requiring the caller to construct the resulting schema by passing in a function. #
+# In addition the right side of the table is wrapped in a single option type marking the whole row as present or absent. A future operation could turn a optional tuple into a tuple of optional values #
+let v1 =     
+let requires=[
+(enforced=^^check(true), "cs has no duplicates"), # Ensured by projection function #
+(enforced=^^check(true), "for all c in cs, c is in header(t1)"),  # Ensured by projection function #
+(enforced=^^check(true), "for all c in cs, c is in header(t2)"),  # Ensured by projection function #
+(enforced=^^check(true), "for all c in cs, schema(t1)[c] is equal to schema(t2)[c]"),  # Ensured by projection function #
+(enforced=^^check(false), "concat(header(t1), removeAll(header(t2), cs)) has no duplicates")
+] in 
+let ensures=[
+(enforced=^^check(false), "header(t3) is equal to concat(header(t1), removeAll(header(t2), cs))"),
+(enforced=^^check(true), "for all c in header(t1), schema(t3)[c] is equal to schema(t1)[c]"),  # If combine function is just adding new column#
+(enforced=^^check(false), "for all c in removeAll(header(t2), cs), schema(t3)[c] is equal to schema(t2)[c]"),
+(enforced=^^check(false), "nrows(t3) is equal to nrows(t1) if distinct(selectColumns(t2, cs)) is equal to selectColumns(t2, cs), otherwise each row of t1 may have several matches")
+] in
+
+# We just require the caller to combine the resulting rows. The closest to leftJoin would be to just wrap the right row in a new column. #
+# The caller could also decide to flatten the option type into individual optional columns #
+let left_join =
+typfun r1 -> typfun r2 -> typfun r3 -> typfun k -> fun (t1 : [r1], t2: [r2], proj1 : r1 -> k, proj2 : r2 -> k, combine: (r1, (+None +Some(r2))) -> r3) ->
+flat_map(t1, fun (r1 : r1) ->
+let t2' = filter(t2, fun (r2 : r2) -> 
+proj1(r1) == proj2(r2)) in
+case t2'
+| [] => [combine(r1, None)]
+| _ => map(t2', fun (r2 : r2) -> combine(r1, Some(r2)))
+end
+) :[r3]
+
+in 
+
+# Examples #
+test
+left_join
+@<Student>
+@<GradebookEntry>
+@<(name=String, age=Int, favorite_color=String, gradebook=(+None +Some(GradebookEntry)))>
+@<String>
+(students, gradebook, fun (s : Student) -> s.name, fun (g : GradebookEntry) -> g.name, fun (s, g) -> s ... (gradebook=g)) ==
+([
+("Bob", 12, "blue", Some("Bob", 12, 8, 9, 77, 7, 9, 87)),
+("Alice", 17, "green", Some("Alice", 17, 6, 8, 88, 8, 7, 85)),
+("Eve", 13, "red", Some("Eve",13, 7, 9, 84, 8, 8, 77))
+] : ^^fold([(name=String, age=Int, favorite_color=String, gradebook=(+None +Some(GradebookEntry)))]))
+end
+in 
+
+# V2: This version works by dynamically building the schema from the first row of each table. It closely matches the Table API but does not gurantee many constraints. #
+let v2 =
+let requires=[
+(enforced=^^check(false), "cs has no duplicates"),
+(enforced=^^check(false), "for all c in cs, c is in header(t1)"),
+(enforced=^^check(false), "for all c in cs, c is in header(t2)"),
+(enforced=^^check(false), "for all c in cs, schema(t1)[c] is equal to schema(t2)[c]"),
+(enforced=^^check(false), "concat(header(t1), removeAll(header(t2), cs)) has no duplicates")
+] in 
+let ensures=[
+(enforced=^^check(false), "header(t3) is equal to concat(header(t1), removeAll(header(t2), cs))"),
+(enforced=^^check(false), "for all c in header(t1), schema(t3)[c] is equal to schema(t1)[c]"),
+(enforced=^^check(false), "for all c in removeAll(header(t2), cs), schema(t3)[c] is equal to schema(t2)[c]"),
+(enforced=^^check(false), "nrows(t3) is equal to nrows(t1) if distinct(selectColumns(t2, cs)) is equal to selectColumns(t2, cs), otherwise each row of t1 may have several matches")
+] in
+# Since we don't have the schema as a runtime value there's no way to dynamically build up the right table columns unless there's at least one row. So we extract the columns from the first row. #
+# If there is no row we just return the lefthand table's columns #
+# All the columns of the right table are wrapped in an option type since they may be absent#
+let left_join =
+let project_labels_str = fun (v,cs) -> to_lvs(v) |> filter(_, fun e ->mem(cs,e.label)) |> from_lvs in
+let omit_labels_str = fun (v,cs) -> to_lvs(v) |> filter(_, fun e -> !mem(cs,e.label)) |> from_lvs in
+let make_optional = fun (v) -> to_lvs(v) |> map(_, fun e -> e ... (value=Some(e.value))) |> from_lvs in               
+fun (t1:[?], t2:[?], cs:[String]) ->
+let right_columns =case hd_opt(t2) 
+|None =>[]
+|Some(v) =>to_lvs(v) |>map(_,fun e ->e.label) 
+end in  
+flat_map(t1,fun r1 ->
+let matched = filter(t2,fun r2 ->project_labels_str(r2,cs) == project_labels_str(r1,cs)) in
+case matched
+| [] =>[r1 ... (from_lvs(map(filter(right_columns, fun e -> !mem(cs, e)), fun lc ->(label=lc,value=None))))]
+| _ =>map(matched,fun r2 ->r1 ... (make_optional(omit_labels_str(r2,cs)))) 
+end
+)
+in 
+
+# Examples #
+test left_join(students, gradebook, ["name", "age"])
+==
+([
+("Bob", 12, "blue", Some(8), Some(9), Some(77), Some(7), Some(9), Some(87)),
+("Alice", 17, "green", Some(6), Some(8), Some(88), Some(8), Some(7), Some(85)),
+("Eve", 13, "red", Some(7), Some(9), Some(84), Some(8), Some(8), Some(77))] : ^^fold([(name=String, age=Int, favorite_color=String, quiz1=Option, quiz2=Option, midterm=Option, quiz3=Option, quiz4=Option, final=Option)]))
+end 
+in 
+?

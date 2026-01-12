@@ -1,0 +1,30 @@
+type Student = (name=String, age=Int, favorite_color=String) in
+let students : [Student] = ^^fold([
+("Bob", 12, "blue"),
+("Alice", 17, "green"),
+("Eve", 13, "red")
+]) in
+
+let requires = [
+(enforced=^^check(false), "for all c in header(r), c is in header(t)"),
+(enforced=^^check(false), "for all c in header(r), schema(r)[c] == schema(t)[c]")
+] in
+let ensures = [
+(enforced=^^check(false), "result is None or Some(n) where n in range(nrows(t))"),
+(enforced=^^check(false), "if Some(n), then getRow(t, n) matches r on all fields in header(r)")
+] in
+let find = fun (t:[?], r:?) ->
+let is_match = fun (row:?) ->
+let row_entries = to_lvs(row) in
+let r_entries = to_lvs(r) in
+all(r_entries, fun e ->
+case find_opt(row_entries, fun e' -> e'.label == e.label)
+| Some(e') => e'.value == e.value
+| None => false 
+end) : Bool in
+find_index(t, is_match) : (+None +Some(Int))
+in
+
+test find(students, (age=13)) == Some(2) end;
+# Idiomatic way to do this is type safe but requires the user to project the labels manually #
+test find_index(students, fun r -> r == (r ... (age=13))) == Some(2) end

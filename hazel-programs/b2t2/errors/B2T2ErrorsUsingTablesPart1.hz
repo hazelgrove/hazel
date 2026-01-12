@@ -1,0 +1,91 @@
+type Image = ? in
+# Representing column names as projection functions for better error localization since we don't do first-class labels #
+let scatter_plot : poly row -> ([row], row -> Int, row -> Int) -> Image = ? in
+# Using ? for the categorical variables #
+let pie_chart : poly row -> ([row], row -> ?, row -> Int) -> Image = ? in
+
+let mid_final =
+type GradebookEntry = (name=String, age=Int, quiz1=Int, quiz2=Int, midterm=Int, quiz3=Int, quiz4=Int, final=Int) in
+let gradebook : [GradebookEntry] = ^^fold([
+("Bob",   12, 8, 9, 77, 7, 9, 87),
+("Alice", 17, 6, 8, 88, 8, 7, 85),
+("Eve",   13, 7, 9, 84, 8, 8, 77)
+]) in
+# Currently requires explicit type application. Error message is localized to error and shows what possible labels are. #
+let incorrect = scatter_plot@<GradebookEntry>(gradebook, fun r ->r.mid, fun r -> r.final) in
+let correct = scatter_plot@<GradebookEntry>(gradebook, fun r ->r.midterm, fun r -> r.final) in ?
+in
+
+let black_and_white =  
+type JellyAnon = (get_acne=Bool, red=Bool, black=Bool, white=Bool, green=Bool, yellow=Bool, brown=Bool, orange=Bool, pink=Bool, purple=Bool) in
+let jellyAnon : [JellyAnon] = ^^fold([
+(^^check(true), ^^check(false), ^^check(false), ^^check(false), ^^check(true), ^^check(false), ^^check(false), ^^check(true), ^^check(false), ^^check(false)),
+(^^check(true), ^^check(false), ^^check(true), ^^check(false), ^^check(true), ^^check(true), ^^check(false), ^^check(false), ^^check(false), ^^check(false)),
+(^^check(false), ^^check(false), ^^check(false), ^^check(false), ^^check(true), ^^check(false), ^^check(false), ^^check(false), ^^check(true), ^^check(false)),
+(^^check(false), ^^check(false), ^^check(false), ^^check(false), ^^check(false), ^^check(true), ^^check(false), ^^check(false), ^^check(false), ^^check(false)),
+(^^check(false), ^^check(false), ^^check(false), ^^check(false), ^^check(false), ^^check(true), ^^check(false), ^^check(false), ^^check(true), ^^check(false)),
+(^^check(true), ^^check(false), ^^check(true), ^^check(false), ^^check(false), ^^check(false), ^^check(false), ^^check(true), ^^check(true), ^^check(false)),
+(^^check(false), ^^check(false), ^^check(true), ^^check(false), ^^check(false), ^^check(false), ^^check(false), ^^check(false), ^^check(true), ^^check(false)),
+(^^check(true), ^^check(false), ^^check(false), ^^check(false), ^^check(false), ^^check(false), ^^check(true), ^^check(true), ^^check(false), ^^check(false)),
+(^^check(true), ^^check(false), ^^check(false), ^^check(false), ^^check(false), ^^check(false), ^^check(false), ^^check(true), ^^check(false), ^^check(false)),
+(^^check(false), ^^check(true), ^^check(false), ^^check(false), ^^check(false), ^^check(true), ^^check(true), ^^check(false), ^^check(true), ^^check(false))
+]) in
+
+# Using alternative buildColumn that takes projection to new tuple #
+# The version taking a string can be used but it would give no static errors #
+let build_column: poly r1 -> poly r2 -> poly r3 -> ([r1], r1 -> r2, (r1,r2) -> r3) -> [r3]=
+typfun r1 -> typfun r2 -> typfun r3 -> 
+fun (table, project, build_result) -> map(table, fun r: r1 -> build_result(r, project(r)))
+in
+let incorrect = 
+let eat_black_and_white = fun r : JellyAnon -> r.`black and white` == true in
+build_column
+@<JellyAnon>
+@<(`eat black and white`=Bool)>
+@<(get_acne=Bool, red=Bool, black=Bool, white=Bool, green=Bool, yellow=Bool, brown=Bool, orange=Bool, pink=Bool, purple=Bool, `eat black and white`=Bool)>
+(jellyAnon,
+\ fun r ->(`eat black and white`=eat_black_and_white(r)),
+\ fun (a, b) -> a...(`eat black and white`=b)) # b is being autolabeled here#
+in
+let correct = 
+let eat_black_and_white = fun r : JellyAnon -> r.black == true && r.white == true in
+build_column
+@<JellyAnon>
+@<(`eat black and white`=Bool)>
+@<(get_acne=Bool, red=Bool, black=Bool, white=Bool, green=Bool, yellow=Bool, brown=Bool, orange=Bool, pink=Bool, purple=Bool, `eat black and white`=Bool)>
+(jellyAnon,
+fun r ->(`eat black and white`=eat_black_and_white(r)),
+fun (a, b) -> a...(`eat black and white`=b)) # b is being autolabeled here# 
+in ? 
+in
+
+let pie_count =
+type JellyAnon = (get_acne=Bool, red=Bool, black=Bool, white=Bool, green=Bool, yellow=Bool, brown=Bool, orange=Bool, pink=Bool, purple=Bool) in
+let jellyAnon : [JellyAnon] = ^^fold([
+(^^check(true), ^^check(false), ^^check(false), ^^check(false), ^^check(true), ^^check(false), ^^check(false), ^^check(true), ^^check(false), ^^check(false)),
+(^^check(true), ^^check(false), ^^check(true), ^^check(false), ^^check(true), ^^check(true), ^^check(false), ^^check(false), ^^check(false), ^^check(false)),
+(^^check(false), ^^check(false), ^^check(false), ^^check(false), ^^check(true), ^^check(false), ^^check(false), ^^check(false), ^^check(true), ^^check(false)),
+(^^check(false), ^^check(false), ^^check(false), ^^check(false), ^^check(false), ^^check(true), ^^check(false), ^^check(false), ^^check(false), ^^check(false)),
+(^^check(false), ^^check(false), ^^check(false), ^^check(false), ^^check(false), ^^check(true), ^^check(false), ^^check(false), ^^check(true), ^^check(false)),
+(^^check(true), ^^check(false), ^^check(true), ^^check(false), ^^check(false), ^^check(false), ^^check(false), ^^check(true), ^^check(true), ^^check(false)),
+(^^check(false), ^^check(false), ^^check(true), ^^check(false), ^^check(false), ^^check(false), ^^check(false), ^^check(false), ^^check(true), ^^check(false)),
+(^^check(true), ^^check(false), ^^check(false), ^^check(false), ^^check(false), ^^check(false), ^^check(true), ^^check(true), ^^check(false), ^^check(false)),
+(^^check(true), ^^check(false), ^^check(false), ^^check(false), ^^check(false), ^^check(false), ^^check(false), ^^check(true), ^^check(false), ^^check(false)),
+(^^check(false), ^^check(true), ^^check(false), ^^check(false), ^^check(false), ^^check(true), ^^check(true), ^^check(false), ^^check(true), ^^check(false))
+]) in
+let count = typfun row  -> typfun v-> fun (t1: [row], proj : row -> v) ->
+let go = fun (groups: [(value=v, count=Int)], row:row) ->
+case find_opt(groups, fun g -> g.value == proj(row))
+| None => (value=proj(row), count=1) :: groups
+| Some(value=v,count=c) => (value=proj(row), count=c+1) :: filter(groups, fun g -> g.value != proj(row))
+end in
+
+fold_left(t1, go, []): [(value=v, count=Int)]
+in
+let incorrect = 
+pie_chart@<(value=Bool, count=Int)>(count@<JellyAnon>@<Bool>(jellyAnon, fun r -> r.get_acne), fun r -> r.`true`, fun r -> r.get_acne)
+in
+let correct = 
+pie_chart@<(value=Bool, count=Int)>(count@<JellyAnon>@<Bool>(jellyAnon, fun r -> r.get_acne), fun r -> r.value, fun r -> r.count)
+in ?
+in ?

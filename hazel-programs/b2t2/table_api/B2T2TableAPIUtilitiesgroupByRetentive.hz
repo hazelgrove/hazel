@@ -1,0 +1,81 @@
+type Student = (name=String, age=Int, favorite_color=String) in
+let students : [Student] = ^^fold([
+("Bob", 12, "blue"),
+("Alice", 17, "green"),
+("Eve", 13, "red")
+]) in
+let expected = ^^fold([(key="blue", groups=[(name="Bob", age=12, favorite_color="blue")]), (key="green", groups=[(name="Alice", age=17, favorite_color="green")]), (key="red", groups=[(name="Eve", age=13, favorite_color="red")])]) in
+
+# This way closely follows the TableAPI by taking a string column name but provides no static guarantees #
+let v1 =
+let requires = [
+(enforced=^^check(false), "c is in header(t1)"),
+(enforced=^^check(false), "schema(t1)[c] is a categorical sort")
+] in
+let ensures = [
+(enforced=^^check(false), "header(t2) == [key, groups]"),
+(enforced=^^check(false), "schema(t2)[key] == schema(t1)[c]"),
+(enforced=^^check(false), "schema(t2)[groups] == Table"),
+(enforced=^^check(false), "getColumn(t2, key) has no duplicates"),
+(enforced=^^check(false), "for all t in getColumn(t2, groups), schema(t) == schema(t1)"),
+(enforced=^^check(false), "nrows(t2) == length(removeDuplicates(getColumn(t1, c)))")
+] in
+
+let group_by_retentive = fun (t1:[?], c:String) ->
+let get_value = fun (r:?, label:String) ->
+find_opt(to_lvs(r), fun e -> e.label == label) |> option_map(_, fun e -> e.value) 
+in
+let remove_duplicates = fun (xs:[?]) ->
+fold_left(xs,
+fun (seen, x) ->  
+if mem(seen, x) then seen else seen @ [x],
+[]) : [?] in
+let get_key = fun (r:?) -> get_value(r, c) in
+let keys =
+map(t1, get_key)
+|> filter_map(_, fun opt -> opt)
+|> remove_duplicates in
+
+map(keys, fun k ->
+let rows =
+filter(t1, fun r ->
+case get_key(r)
+| Some(k') => k' == k
+| None => false
+end) in
+(key=k) ... (groups=rows)) : [?] 
+in
+
+test group_by_retentive(students, "favorite_color") == expected end
+in
+# This is the more idiomatic way and takes a function to project out the group #
+let v2 =
+let requires = [
+(enforced=^^check(true), "c is in header(t1)"),
+(enforced=^^check(true), "schema(t1)[c] is a categorical sort") # Verifies it's a string column #
+] in
+let ensures = [
+(enforced=^^check(true), "header(t2) == [key, groups]"),
+(enforced=^^check(true), "schema(t2)[key] == schema(t1)[c]"),
+(enforced=^^check(true), "schema(t2)[groups] == Table"),
+(enforced=^^check(false), "getColumn(t2, key) has no duplicates"),
+(enforced=^^check(true), "for all t in getColumn(t2, groups), schema(t) == schema(t1)"),
+(enforced=^^check(false), "nrows(t2) == length(removeDuplicates(getColumn(t1, c)))")
+] in
+
+let group_by_retentive : poly row -> poly key -> ([row], (row -> key)) -> [(key=key, groups=[row])] =
+typfun row ->  typfun key -> fun (t1, c) ->
+case t1
+| [] => []
+| x::xs => 
+let key = c(x) in
+let grouped = group_by_retentive@<row>@<key>(xs, c) in
+case find_opt(grouped, fun g -> g.key == key) 
+| Some(g) => ((key=g.key) ... (groups=g.groups @ [x])) :: filter(grouped, fun g -> g.key != key)
+| None => ((key=key) ... (groups=[x])) :: grouped
+end
+end
+in
+
+test group_by_retentive@<Student>@<String>(students, fun r -> r.favorite_color) == expected end
+in

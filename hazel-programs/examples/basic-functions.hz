@@ -1,0 +1,9 @@
+let mult = fun x -> fun y -> x * y in
+let add = fun x -> fun y -> x + y in
+
+test mult(3)(4) == 12 end;
+test mult(0)(5) == 0 end;
+test add(10)(20) == 30 end;
+
+let pair = (mult(6)(7), add(100)(200)) in
+pair

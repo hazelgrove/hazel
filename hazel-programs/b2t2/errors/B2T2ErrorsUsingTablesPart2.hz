@@ -1,0 +1,90 @@
+type Image = in
+# Representing column names as projection functions for better error localization since we don't do first-class labels #
+let scatter_plot : poly row -> ([row], row -> Int, row -> Int) -> Image =   in
+# Using ? for the categorical variables #
+let pie_chart : poly row -> ([row], row -> ?, row -> Int) -> Image =   in
+
+let brown_get_acne =  
+type JellyNamed = (name=String, get_acne=Bool, red=Bool, black=Bool, white=Bool, green=Bool, yellow=Bool, brown=Bool, orange=Bool, pink=Bool, purple=Bool) in
+let jellyNamed : [JellyNamed] = ^^fold([
+("Emily",    ^^check(true), ^^check(false), ^^check(false), ^^check(false), ^^check(true), ^^check(false), ^^check(false), ^^check(true), ^^check(false), ^^check(false)),
+("Jacob",    ^^check(true), ^^check(false), ^^check(true), ^^check(false), ^^check(true), ^^check(true), ^^check(false), ^^check(false), ^^check(false), ^^check(false)),
+("Emma",     ^^check(false), ^^check(false), ^^check(false), ^^check(false), ^^check(true), ^^check(false), ^^check(false), ^^check(false), ^^check(true), ^^check(false)),
+("Aidan",    ^^check(false), ^^check(false), ^^check(false), ^^check(false), ^^check(false), ^^check(true), ^^check(false), ^^check(false), ^^check(false), ^^check(false)),
+("Madison",  ^^check(false), ^^check(false), ^^check(false), ^^check(false), ^^check(false), ^^check(true), ^^check(false), ^^check(false), ^^check(true), ^^check(false)),
+("Ethan",    ^^check(true), ^^check(false), ^^check(true), ^^check(false), ^^check(false), ^^check(false), ^^check(false), ^^check(true), ^^check(true), ^^check(false)),
+("Hannah",   ^^check(false), ^^check(false), ^^check(true), ^^check(false), ^^check(false), ^^check(false), ^^check(false), ^^check(false), ^^check(true), ^^check(false)),
+("Matthew",  ^^check(true), ^^check(false), ^^check(false), ^^check(false), ^^check(false), ^^check(false), ^^check(true), ^^check(true), ^^check(false), ^^check(false)),
+("Hailey",   ^^check(true), ^^check(false), ^^check(false), ^^check(false), ^^check(false), ^^check(false), ^^check(false), ^^check(true), ^^check(false), ^^check(false)),
+("Nicholas", ^^check(false), ^^check(true), ^^check(false), ^^check(false), ^^check(false), ^^check(true), ^^check(true), ^^check(false), ^^check(true), ^^check(false))
+]) in
+let brown_and_get_acne = fun r : JellyNamed -> r.brown && r.get_acne in
+let count = ^^fold(typfun row  -> typfun v-> fun (t1: [row], proj : row -> v) ->
+let go = fun (groups: [(value=v, count=Int)], row:row) ->
+case find_opt(groups, fun g -> g.value == proj(row))
+| None => (value=proj(row), count=1) :: groups
+| Some(value=v,count=c) => (value=proj(row), count=c+1) :: filter(groups, fun g -> g.value != proj(row))
+end in
+
+fold_left(t1, go, []): [(value=v, count=Int)]) in
+let build_column: poly r1 -> poly r2 -> poly r3 -> ([r1], r1 -> r2, (r1,r2) -> r3) -> [r3]= ^^fold(typfun r1 -> typfun r2 -> typfun r3 -> 
+fun (table, project, build_result) -> map(table, fun r: r1 -> build_result(r, project(r)))) in
+let incorrect =
+let brown_and_get_acne_table =
+build_column
+@<JellyNamed>
+@<Bool>
+@<(name=String, get_acne=Bool, red=Bool, black=Bool, white=Bool, green=Bool, yellow=Bool, brown=Bool, orange=Bool, pink=Bool, purple=Bool, part2=Bool)>
+(jellyNamed,brown_and_get_acne,fun (t, v) -> t...(part2=v)) in
+count
+@<(name=String, get_acne=Bool, red=Bool, black=Bool, white=Bool, green=Bool, yellow=Bool, brown=Bool, orange=Bool, pink=Bool, purple=Bool, part2=Bool)>
+@<Bool>(brown_and_get_acne_table, fun r -> r.`brown and get acne`)
+in
+let ^^probe(correct) =
+let brown_and_get_acne_table =
+build_column
+@<JellyNamed>
+@<Bool>
+@<(name=String, get_acne=Bool, red=Bool, black=Bool, white=Bool, green=Bool, yellow=Bool, brown=Bool, orange=Bool, pink=Bool, purple=Bool, `brown and get acne`=Bool)>
+(jellyNamed,brown_and_get_acne,fun (t, v) -> t...(`brown and get acne`=v)) in
+count
+@<(name=String, get_acne=Bool, red=Bool, black=Bool, white=Bool, green=Bool, yellow=Bool, brown=Bool, orange=Bool, pink=Bool, purple=Bool, `brown and get acne`=Bool)>
+@<Bool>(brown_and_get_acne_table, fun r -> r.`brown and get acne`)
+in
+
+test correct == [(value=false, count=9), (value=true, count=1)] end
+in
+
+let get_only_row =
+let tfilter = ^^fold(typfun row -> fun (t1: [row], pred : row -> Bool)-> filter(t1, pred)) in
+type Student = (name=String, age=Int, favorite_color=String) in
+let students : [Student] = ^^fold([
+("Bob", 12, "blue"),
+^^probe(("Alice", 17, "green")),
+("Eve", 13, "red")
+]) in
+let ^^probe(incorrect) = 
+# No static error. Dynamic error `undefined.favorite_color`#
+nth(tfilter@<Student>(students, fun r -> r.name == "Alice"), 1).favorite_color in
+let ^^probe(correct) = 
+nth(tfilter@<Student>(students, fun r -> r.name == "Alice"), 0).favorite_color 
+in 
+test correct == "green" end
+in
+
+let favorite_color =
+let tfilter = ^^fold(typfun row -> fun (t1: [row], pred : row -> Bool)-> filter(t1, pred)) in
+type Student = (name=String, age=Int, favorite_color=String) in
+let students : [Student] = ^^fold([
+("Bob", 12, "blue"),
+^^probe(("Alice", 17, "green")),
+("Eve", 13, "red")
+]) in
+let ^^probe(incorrect) = 
+tfilter@<Student>(students, fun r -> r.favorite_color) in
+let ^^probe(correct) = 
+tfilter@<Student>(students, fun r -> r.favorite_color == "green")
+in 
+
+test correct == [("Alice", 17, "green") : Student] end
+in

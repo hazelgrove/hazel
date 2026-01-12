@@ -1,0 +1,37 @@
+let get_value =
+fun (r:?,label:String) ->
+find(to_lvs(r),fun e ->e.label ==label).value
+in
+let add_rows = typfun row ->  fun (r :row, rs : [row]) -> rs @ [r]  in
+let add_col = fun (t : [?], c : String, vs: [?]) ->
+zip(t, vs)
+|> map(_, fun (r, v) -> from_lvs(to_lvs(r) @ [(c, v)])) in
+let remove_duplicates =
+fun (xs:[?]) ->
+fold_left(xs,
+fun (seen,x) ->
+if mem(seen,x) then seen else seen @ [x],
+[]) 
+in
+let build_col = fun (t :[?], c :String, f : ? -> ?) ->
+map(t,fun (r) ->from_lvs(to_lvs(r) @[(c,f(r))])) in
+let empty_table : [()]= [] in
+let table_of_column = fun c,vs ->
+let t1 = add_rows@<?>(empty_table, map(vs, fun _ -> ())) in
+add_col(t1,c,vs) in
+let get_col =   fun (t, c: String) -> map(t, fun r -> to_lvs(r) |> find(_,fun label=l, value=v -> string_eq(l,c))).value in
+let group_by_retentive = fun t,c ->
+let keys = get_col(t,c) |> remove_duplicates |> table_of_column("key",_) in
+let make_group = fun kr -> let k = kr.key in filter(t, fun r -> get_value(r,c) == k) in
+build_col(keys, "groups", make_group)
+\ in  
+
+
+type GradebookEntry = (name=String, age=Int, quiz1=Int, quiz2=Int, midterm=Int, quiz3=Int, quiz4=Int, final=Int) in
+let gradebook : [GradebookEntry] = [
+("Bob",   12, 8, 9, 77, 7, 9, 87),
+("Alice", 17, 6, 8, 88, 8, 7, 85),
+("Eve",   13, 7, 9, 84, 8, 8, 77)
+] in
+
+group_by_retentive(gradebook, "name")

@@ -30,6 +30,97 @@ let format_hazel = path => {
   print_endline(Print.print(parsed));
 };
 
+/* Parse program and return zipper (preserving projectors like probes) */
+let parse_to_zipper = (s: string): option(Haz3lcore.Zipper.t) =>
+  Haz3lcore.Parser.to_zipper(s);
+
+/* Split string into lines */
+let lines_of_string = (s: string): array(string) => {
+  /* Handle both \n and \r\n line endings */
+  let s = Core.String.substr_replace_all(s, ~pattern="\r\n", ~with_="\n");
+  Array.of_list(String.split_on_char('\n', s));
+};
+
+/* Create a caret line pointing to error position */
+let make_caret_line = (col: int, len: int): string => {
+  let spaces = String.make(col, ' ');
+  let carets = String.make(max(1, len), '^');
+  spaces ++ carets;
+};
+
+/* Format error in Rust-style with source context */
+let format_error_with_location =
+    (
+      ~source: string,
+      ~path: string,
+      measured: Haz3lcore.Measured.t,
+      info: Language.Info.t,
+    )
+    : option(string) => {
+  Language.(
+    switch (Info.error_of(info)) {
+    | None => None
+    | Some(error) =>
+      let id = Info.id_of(info);
+      let error_str = Haz3lcore.ErrorPrint.string_of(error);
+
+      switch (Haz3lcore.Measured.find_by_id(id, measured)) {
+      | Some({origin, last}) =>
+        let lines = lines_of_string(source);
+        let row = origin.row;
+        let col = origin.col;
+        /* Calculate length for single-line errors */
+        let len =
+          if (origin.row == last.row) {
+            last.col - origin.col;
+          } else {
+            1;
+          };
+
+        /* Line numbers are 1-indexed for display */
+        let line_num = row + 1;
+        let line_num_str = string_of_int(line_num);
+        let line_num_width = String.length(line_num_str);
+        let padding = String.make(line_num_width, ' ');
+
+        /* Get source line if available */
+        let source_line =
+          if (row >= 0 && row < Array.length(lines)) {
+            lines[row];
+          } else {
+            "<source unavailable>";
+          };
+
+        /* Build Rust-style error output */
+        let header = "error: " ++ error_str;
+        let location =
+          padding
+          ++ " --> "
+          ++ path
+          ++ ":"
+          ++ line_num_str
+          ++ ":"
+          ++ string_of_int(col + 1);
+        let separator = padding ++ " |";
+        let code_line = line_num_str ++ " | " ++ source_line;
+        let caret_line = padding ++ " | " ++ make_caret_line(col, len);
+
+        Some(
+          String.concat(
+            "\n",
+            [header, location, separator, code_line, caret_line],
+          ),
+        );
+
+      | None =>
+        /* Fallback if no position found */
+        let term_str = Haz3lcore.ErrorPrint.term_string_of(info);
+        Some("error: " ++ error_str ++ "\n  in term: " ++ term_str);
+      };
+    }
+  );
+};
+
 let analyze_hazel =
     (path: string)
     : [>
@@ -37,26 +128,71 @@ let analyze_hazel =
         | `Ok(unit)
       ] => {
   let program = read_input(path);
-  let parsed = parse_program(program);
-  open Language;
-  let static_map =
-    Statics.mk(CoreSettings.on, Builtins.ctx_init(Some(Int)), parsed);
-  let errors = List.map(snd, Statics.Map.errors(static_map));
-  switch (errors) {
-  | [] =>
-    print_endline("No static errors found.");
-    `Ok();
-  | _ =>
-    prerr_endline("Static errors:");
-    List.iter(error => print_endline(Info.show_error(error)), errors);
-    prerr_endline("");
-    `Error((false, "Static errors found"));
+  /* Parse to zipper to preserve structure for measurement */
+  switch (parse_to_zipper(program)) {
+  | None =>
+    prerr_endline("Failed to parse program");
+    `Error((false, "Parse error"));
+  | Some(zipper) =>
+    open Language;
+    open Util;
+    /* Get segment and term */
+    let segment =
+      Haz3lcore.Zipper.unselect_and_zip(~erase_buffer=true, zipper);
+    let term = Haz3lcore.MakeTerm.from_zip_for_sem(zipper).term;
+
+    /* Compute measured positions */
+    let measured =
+      Haz3lcore.Measured.of_segment(
+        segment,
+        Haz3lcore.ProjectorCore.Shape.Map.empty,
+        Id.Map.empty,
+      );
+
+    /* Run static analysis */
+    let static_map =
+      Statics.mk(CoreSettings.on, Builtins.ctx_init(Some(Int)), term);
+
+    /* Get errors with their infos for line numbers */
+    let formatted_errors =
+      Id.Map.fold(
+        (_id, info, acc) =>
+          switch (
+            format_error_with_location(~source=program, ~path, measured, info)
+          ) {
+          | None => acc
+          | Some(err) => [err, ...acc]
+          },
+        static_map,
+        [],
+      )
+      |> List.sort_uniq(compare);
+
+    switch (formatted_errors) {
+    | [] =>
+      print_endline("No static errors found.");
+      `Ok();
+    | _ =>
+      let count = List.length(formatted_errors);
+      prerr_endline(
+        "Found "
+        ++ string_of_int(count)
+        ++ " static error"
+        ++ (count > 1 ? "s" : "")
+        ++ ":",
+      );
+      prerr_endline("");
+      List.iter(
+        error => {
+          prerr_endline(error);
+          prerr_endline("");
+        },
+        formatted_errors,
+      );
+      `Error((false, "Static errors found"));
+    };
   };
 };
-
-/* Parse program and return zipper (preserving projectors like probes) */
-let parse_to_zipper = (s: string): option(Haz3lcore.Zipper.t) =>
-  Haz3lcore.Parser.to_zipper(s);
 
 /* Run program with probes and display results inline */
 let probe_hazel = (many: bool, path: string): unit => {
@@ -73,17 +209,37 @@ let probe_hazel = (many: bool, path: string): unit => {
 
     /* Get term for evaluation */
     let term = Haz3lcore.MakeTerm.from_zip_for_sem(zipper).term;
+    /* Build probe_ids from zipper's refractors (both manual and ephemeral probes) */
+    open Util;
+    let probe_ids =
+      Id.Map.union(
+        (_, _, _) => Some(),
+        Id.Map.map(_ => (), zipper.refractors.manuals),
+        Id.Map.map(_ => (), zipper.refractors.ephemerals),
+      );
+    /* Run statics to get info_map for building probe_map */
+    open Language;
+    let info_map =
+      Statics.mk(CoreSettings.on, Builtins.ctx_init(Some(Int)), term);
 
-    /* Evaluate and collect probe samples */
-    let (_, probe_map) = Run.evaluate_with_probes(term);
+    /* Build probe_map - tells evaluator which expressions to record */
+    let probe_map =
+      Haz3lcore.CachedStatics.probe_map(
+        ~settings=CoreSettings.on,
+        ~info_map,
+        ~probe_ids,
+      );
+
+    /* Evaluate with probe_map to collect probe samples */
+    let (_, sample_map) = Run.evaluate_with_probe_map(~probe_map, term);
 
     /* Format output with probe values */
-    let window: Language.Sample.Window.mode =
-      many ? Language.Sample.Window.Many : Language.Sample.Window.Single;
+    let window: Sample.Window.mode =
+      many ? Sample.Window.Many : Sample.Window.Single;
     let output =
       Haz3lcore.ProbeText.of_segment(
         ~window,
-        ~probe_map,
+        ~probe_map=sample_map,
         ~refractors,
         segment,
       );

@@ -1,0 +1,50 @@
+type GradebookEntrySeq = (name=String, age=Int, quizzes=[Int], midterm=Int, final=Int)in
+let gradebookSeq : [GradebookEntrySeq] = ^^fold([
+("Bob",   12, [8, 9, 7, 9], 77, 87),
+("Alice", 17, [6, 8, 8, 7], 88, 85),
+("Eve",   13, [7, 9, 8, 8], 84, 77)
+]) in 
+let requires=[
+(enforced=^^check(false), "cs has no duplicates"),
+(enforced=^^check(false), "for all c in cs, c is in header(t1)"),
+(enforced=^^check(false), "for all c in cs, schema(t1)[c] is Seq<X> for some sort X"),
+(enforced=^^check(false), "for all i in range(nrows(t1)), for all c1 and c2 in cs, length(getValue(getRow(t1, i), c1)) is equal to length(getValue(getRow(t1, i), c2))")
+] in
+let ensures=[
+(enforced=^^check(false), "header(t2) is equal to header(t1)"),
+(enforced=^^check(false), "for all c in header(t2) :"
+++ "if c is in cs then schema(t2)[c] is equal to the element sort of schema(t1)[c]"
+++ "otherwise, schema(t2)[c] is equal to schema(t1)[c]")
+] in
+let flatten = fun (t1:[?], cs:[String]) ->
+let select_cols = fun (r:?, cs:[String]) ->
+to_lvs(r) |> (fun entries -> filter_map(cs, fun c -> find_opt(entries, fun e -> e.label == c))) |> from_lvs in                          
+flat_map(t1, fun r ->
+let (non_seq_entries, seq_entries) =
+partition(to_lvs(r), fun (label=l, value=v) -> !mem(cs, l)) in
+
+case map(seq_entries, fun (label=l, value=vs) -> map(vs, fun v -> [(label=l, value=v)]))
+| [] => []
+| (col1 :: cols) =>
+fold_left(cols,
+fun (acc, a) -> zip(acc, a) |> map(_, fun (a, b) -> a @ b),
+col1) |> map(_, from_lvs) 
+end |> map(_, fun rest -> r ... rest)
+) : [?] in
+let expected = ^^fold([
+(name="Bob", age=12, quizzes=8, midterm=77, final=87),
+(name="Bob", age=12, quizzes=9, midterm=77, final=87),
+(name="Bob", age=12, quizzes=7, midterm=77, final=87),
+(name="Bob", age=12, quizzes=9, midterm=77, final=87),
+(name="Alice", age=17, quizzes=6, midterm=88, final=85),
+(name="Alice", age=17, quizzes=8, midterm=88, final=85),
+(name="Alice", age=17, quizzes=8, midterm=88, final=85), 
+(name="Alice", age=17, quizzes=7, midterm=88, final=85), 
+(name="Eve", age=13, quizzes=7, midterm=84, final=77), 
+(name="Eve", age=13, quizzes=9, midterm=84, final=77), 
+(name="Eve", age=13, quizzes=8, midterm=84, final=77), 
+(name="Eve", age=13, quizzes=8, midterm=84, final=77)
+]) in
+test flatten(gradebookSeq, ["quizzes"]) == expected end;
+# Idiomatic way to do this #
+test flat_map(gradebookSeq, fun r -> map(r.quizzes, fun r' -> r ... (quizzes=r'))) == expected end

@@ -1,0 +1,41 @@
+type GradebookEntry = (name=String, age=Int, quiz1=Int, quiz2=Int, midterm=Int, quiz3=Int, quiz4=Int, final=Int) in
+let gradebook : [GradebookEntry] = ^^fold([
+("Bob",   12, 8, 9, 77, 7, 9, 87),
+("Alice", 17, 6, 8, 88, 8, 7, 85),
+("Eve",   13, 7, 9, 84, 8, 8, 77)
+]) in
+type Student = (name=String, age=Int, favorite_color=String) in
+let students : [Student] = ^^fold([
+("Bob", 12, "blue"),
+("Alice", 17, "green"),
+("Eve", 13, "red")
+]) in
+
+let requires=[] in
+let ensures=[
+(enforced=^^check(true), "schema(r1) == schema(t1)"),
+(enforced=^^check(true), "schema(r2) == schema(t2)"),
+(enforced=^^check(true), "schema(r3) == schema(t1)"),
+(enforced=^^check(true), "schema(r4) == schema(t2)"),
+(enforced=^^check(true), "schema(t3) == schema(r5)")
+] in
+let join : poly r1 -> poly r2 -> poly r3 -> poly k -> ([r1],[r2], r1 -> k, r2 -> k, (r1,r2) -> r3) -> [r3] =
+typfun r1 -> typfun r2 -> typfun r3 -> typfun k ->
+fun (t1:[r1], t2:[r2], get_key1:(r1 -> k), get_key2:(r2 -> k), combine:((r1,r2) -> r3)) ->
+flat_map(t1, fun (r:r1) ->
+let t2' : [r2] = filter(t2, fun r':r2 -> get_key1(r) == get_key2(r')) in
+map(t2', fun r':r2 -> combine(r, r'))) : [r3]
+in
+
+test
+join@<Student>@<GradebookEntry>@<(name=String, age=Int, favorite_color=String, grade=Int)>@<String>(
+students, gradebook,
+fun r -> r.name,
+fun r -> r.name,
+fun (r1,r2) -> r1 ... (grade=r2.final)
+) == [
+(name="Bob", age=12, favorite_color="blue", grade=87),
+(name="Alice", age=17, favorite_color="green", grade=85),
+(name="Eve", age=13, favorite_color="red", grade=77)
+]
+end

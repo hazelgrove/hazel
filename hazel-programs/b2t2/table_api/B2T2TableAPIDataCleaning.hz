@@ -1,0 +1,112 @@
+let pivot_longer = 
+let requires=[
+(enforced=^^check(false), "length(cs) is positive"),
+(enforced=^^check(false), "cs has no duplicates"),
+(enforced=^^check(false), "for all c in cs, c is in header(t1)"),
+(enforced=^^check(false), "for all c in cs, schema(t1)[c] is equal to schema(t1)[cs[0]]"),
+(enforced=^^check(false), "concat(removeAll(header(t1), cs), [c1, c2]) has no duplicates")
+] in
+let ensures=[
+(enforced=^^check(false), "header(t2) is equal to concat(removeAll(header(t1), cs), [c1, c2])"),
+(enforced=^^check(false), "for all c in removeAll(header(t1), cs), schema(t2)[c] is equal to schema(t1)[c]"),
+(enforced=^^check(false), "schema(t2)[c1] is equal to ColName"),
+(enforced=^^check(false), "schema(t2)[c2] is equal to schema(t1)[cs[0]]")
+] in
+let pivot_longer = fun (t1, cs, c1, c2) ->
+flat_map(t1, fun row ->
+let entries = to_lvs(row) in
+let pivot_entries, other_entries =
+partition(entries, fun (label=l, value=v) -> contains(cs, string_eq(l, _))) in
+
+let rest = from_lvs(other_entries) in
+map(pivot_entries, fun (label=l, value=v) -> rest ...(from_lvs([(label=c1, value=l), (label=c2, value=v)]))) 
+) : [?] in
+
+type GradebookEntry = (name=String, age=Int, quiz1=Int, quiz2=Int, midterm=Int, quiz3=Int, quiz4=Int, final=Int) in
+let gradebook : [GradebookEntry] = ^^fold([
+("Bob",   12, 8, 9, 77, 7, 9, 87),
+("Alice", 17, 6, 8, 88, 8, 7, 85),
+("Eve",   13, 7, 9, 84, 8, 8, 77)
+]) in
+let expected = ^^fold([
+(name="Bob", age=12, quiz1=8, quiz2=9, quiz3=7, quiz4=9, exam="midterm", score=77),
+(name="Bob", age=12, quiz1=8, quiz2=9, quiz3=7, quiz4=9, exam="final", score=87),
+(name="Alice", age=17, quiz1=6, quiz2=8, quiz3=8, quiz4=7, exam="midterm", score=88),
+(name="Alice", age=17, quiz1=6, quiz2=8, quiz3=8, quiz4=7, exam="final", score=85),
+(name="Eve", age=13, quiz1=7, quiz2=9, quiz3=8, quiz4=8, exam="midterm", score=84),
+(name="Eve", age=13, quiz1=7, quiz2=9, quiz3=8, quiz4=8, exam="final", score=77)
+]) in
+test 
+pivot_longer(gradebook, ["midterm", "final"], "exam", "score") == expected
+end;
+
+# The idiomatic way to do this with concrete data. Giving good type feedback#
+test
+flat_map(gradebook, fun (entry : GradebookEntry) -> 
+map(to_lvs(select_labels(entry, `midterm`, `final`)),
+fun (e : (label=String, value=Int)) -> omit_labels(entry, `midterm`, `final`) ... (exam=e.label,score=e.value))) == expected 
+end
+in
+let pivot_wider = 
+let requires=[
+(enforced=^^check(false), "c1 is in header(t1)"),
+(enforced=^^check(false), "c2 is in header(t1)"),
+(enforced=^^check(false), "schema(t1)[c1] is ColName"),
+(enforced=^^check(false), "concat(removeAll(header(t1), [c1, c2]), removeDuplicates(getColumn(t1, c1))) has no duplicates")
+] in
+let ensures=[
+(enforced=^^check(false), "header(t2) is equal to concat(removeAll(header(t1), [c1, c2]), removeDuplicates(getColumn(t1, c1)))"),
+(enforced=^^check(false), "for all c in removeAll(header(t1), [c1, c2]), schema(t2)[c] is equal to schema(t1)[c]"),
+(enforced=^^check(false), "for all c in removeDuplicates(getColumn(t1, c1)), schema(t2)[c] is equal to schema(t1)[c2]")
+] in
+let distinct = fun xs ->
+case xs 
+| [] => []
+| (x :: xs) => let seen = distinct(xs) in if mem(xs, x) then xs else x :: xs 
+end
+in
+
+let pivot_wider = fun (t1, c1, c2) ->
+let kept_columns = map(t1, fun row ->
+let entries = to_lvs(row) in
+filter(entries, fun (label=l, value=v) -> !mem([c1, c2], l)) |> from_lvs)
+|> distinct in
+
+let new_columns = flat_map(t1, fun row ->
+let entries = to_lvs(row) in
+find_map(entries, fun (label=l, value=v) -> if l == c1 then Some(v) else None) |> option_to_list)
+|> distinct in  
+map(kept_columns,
+fun kept ->
+kept ... 
+(map(new_columns,
+fun c -> 
+(label=c, value=find_map(t1, 
+fun r -> 
+let entries = to_lvs(r) in
+if 
+(filter(entries, fun (label=l,value=v) -> !mem([c1,c2], l)) |> from_lvs)
+== 
+kept && find_map(entries, fun (label=l,value=v) -> if l == c1 then Some(v) else None) == Some(c)
+then find_map(entries, fun (label=l,value=v) -> if l == c2 then Some(v) else None)
+else None
+))
+) |> from_lvs)
+) : [?] in
+
+type Student = (name=String, age=Int, favorite_color=String) in
+let students : [Student] = ^^fold([
+("Bob", 12, "blue"),
+("Alice", 17, "green"),
+("Eve", 13, "red")
+]) in
+# We are not flattening the rows in this to coallesce the sparseness #
+test pivot_wider(students, "name", "age")
+== [
+(favorite_color="blue", `Bob`=Some(12), `Alice`=None, `Eve`=None),
+(favorite_color="green", `Bob`=None, `Alice`=Some(17), `Eve`=None),
+(favorite_color="red", `Bob`=None, `Alice`=None, `Eve`=Some(13))
+]
+\ end
+in
+?

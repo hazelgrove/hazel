@@ -1,0 +1,57 @@
+# Polymorphism #
+
+# We can take types as parameters to type functions, #
+# and use them in annoatations in the body: #
+let id = typfun A -> fun x : A -> x in
+
+# Such functions are applied like so: #
+let ex1 = id@<Int>(1) in # 1 #
+
+# We can annotate the type of a type function with a poly. #
+let const : poly A -> poly B -> A -> B -> A = 
+typfun A -> typfun B -> fun x -> fun y -> x in
+let ex2 = const@<Int>@<String>(2)("Hello World") in # 2 #
+
+# We can go beyond rank 1 polymorphism: #
+let apply_both : poly A -> poly B -> (poly D -> D -> D) -> (A , B) -> (A , B) =
+typfun A -> typfun B -> fun f -> fun (x, y) -> (f@<A>(x), f@<B>(y)) in  
+let ex3 = apply_both@<Int>@<String>(id)(3, "Hello World") in # (3, "Hello World") # 
+
+# Finally, here is a more in-depth, yet applicable example: polymorphic map #
+let emptylist : poly A -> [A] = typfun A -> [] in # polymorphic constant #
+let map : poly A -> poly B -> (A -> B) -> ([A] -> [B]) = 
+typfun A -> typfun B -> fun f : (A -> B) -> fun l : [A] -> 
+case l
+| h :: t => f(h) :: map@<A>@<B>(f)(t)
+| _ => emptylist@<B>   
+end in
+let ex4 = map@<Int>@<String>(string_of_int)([1,2,3]) in # ["1", "2", "3"] #
+
+
+# Recursive types #
+
+# We can express recursive types using type aliases #
+type MyList = Nil + Cons(Int, MyList) in
+
+# Hazel does not (yet) support higher-kinded or existential types, #
+# So we cannot implement our own polymorphic lists. #
+
+# Now anything that returns an element of the least fixed point matches MyList. #
+let x : MyList = Cons(1, Cons(2, Cons(3, Nil))) in
+
+# Note that if the sum is the top level operator, #
+# type aliases are implicitly least fixed points on their own name: #
+type MyList2 = Nil + Cons(Int, MyList2) in
+type Broken = Int -> (HasInt(Int) + HasMore(Int, Broken)) in 
+
+
+let list_of_mylist : (MyList -> [Int]) = fun myl : MyList -> 
+case myl 
+| Nil => []
+| Cons(h, t) => h :: list_of_mylist(t)    
+end in
+let ex5 = list_of_mylist(x) in # [1, 2, 3] #
+
+
+# All output from examples: #
+(ex1, ex2, ex3, ex4, ex5)

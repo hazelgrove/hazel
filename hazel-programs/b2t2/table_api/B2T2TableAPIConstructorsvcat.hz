@@ -1,0 +1,28 @@
+let requires = [(enforced=^^check(true), "schema(t1) is equal to schema(t2)")] in
+let ensures = [
+(enforced=^^check(true), "schema(t3) is equal to schema(t1)"),
+(enforced=^^check(false), "nrows(t3) is equal to nrows(t1) + nrows(t2)")
+] in
+#Hazel tables are lists; so vcat is just list concatenation. This is also the same as add_rows#
+let vcat = typfun r -> fun (t1:[r], t2:[r]) -> t1 @ t2 in
+
+
+test 
+let update  =^^fold(typfun row -> fun (t1:[row], f:(row -> ?)) ->       map(t1, fun (r : row) -> (r : ?) ... f(r)) : [?]) in
+type Student = (name=String, age=Int, favorite_color=String) in
+let students : [Student] = [
+("Bob", 12, "blue"),
+("Alice", 17, "green"),
+("Eve", 13, "red")
+] in
+vcat@<Student>(students, 
+update@<Student>(students, fun r -> (age=r.age + 1))) ==
+\ ([
+("Bob", 12, "blue"),
+("Alice", 17, "green"),
+("Eve", 13, "red"),
+("Bob", 13, "blue"),
+("Alice", 18, "green"),
+("Eve", 14, "red")
+] : [Student])
+end

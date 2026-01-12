@@ -1,0 +1,62 @@
+let fisherTest = ^^fold(fun (xs:[Bool], ys: [Bool]) ->
+
+let zipped = zip(xs, ys) in
+
+let contigencyTable =
+fold_left(zipped,
+fun (((a,b),(c,d)), e : (Bool,Bool)) ->
+case e
+| (false, false) => ((a+1,b),(c,d))
+| (false, true) => ((a,b+1),(c,d))
+| (true, false) => ((a,b),(c+1,d))
+| (true, true) => ((a,b),(c,d+1))
+end , 
+((0,0),(0,0)))
+in
+
+let factorial = fun (n: Int) ->
+if n == 0 then 1 else n * factorial(n - 1)
+in
+let ((a,b),(c,d)) = contigencyTable in     
+
+let numerator =
+factorial(a + b) *
+factorial(c + d) *
+factorial(a + c) *
+factorial(b + d) in
+
+let denominator =
+factorial(a) *
+factorial(b) *
+factorial(c) *
+factorial(d) *
+factorial(a + b + c + d) in
+
+float_of_int(numerator) /. float_of_int(denominator)) in
+type JellyAnon = (get_acne=Bool, red=Bool, black=Bool, white=Bool, green=Bool, yellow=Bool, brown=Bool, orange=Bool, pink=Bool, purple=Bool) in
+let jellyAnon : [JellyAnon] = ^^fold([
+(^^check(true), ^^check(false), ^^check(false), ^^check(false), ^^check(true), ^^check(false), ^^check(false), ^^check(true), ^^check(false), ^^check(false)),
+(^^check(true), ^^check(false), ^^check(true), ^^check(false), ^^check(true), ^^check(true), ^^check(false), ^^check(false), ^^check(false), ^^check(false)),
+(^^check(false), ^^check(false), ^^check(false), ^^check(false), ^^check(true), ^^check(false), ^^check(false), ^^check(false), ^^check(true), ^^check(false)),
+(^^check(false), ^^check(false), ^^check(false), ^^check(false), ^^check(false), ^^check(true), ^^check(false), ^^check(false), ^^check(false), ^^check(false)),
+(^^check(false), ^^check(false), ^^check(false), ^^check(false), ^^check(false), ^^check(true), ^^check(false), ^^check(false), ^^check(true), ^^check(false)),
+(^^check(true), ^^check(false), ^^check(true), ^^check(false), ^^check(false), ^^check(false), ^^check(false), ^^check(true), ^^check(true), ^^check(false)),
+(^^check(false), ^^check(false), ^^check(true), ^^check(false), ^^check(false), ^^check(false), ^^check(false), ^^check(false), ^^check(true), ^^check(false)),
+(^^check(true), ^^check(false), ^^check(false), ^^check(false), ^^check(false), ^^check(false), ^^check(true), ^^check(true), ^^check(false), ^^check(false)),
+(^^check(true), ^^check(false), ^^check(false), ^^check(false), ^^check(false), ^^check(false), ^^check(false), ^^check(true), ^^check(false), ^^check(false)),
+(^^check(false), ^^check(true), ^^check(false), ^^check(false), ^^check(false), ^^check(true), ^^check(true), ^^check(false), ^^check(true), ^^check(false))
+]) in
+
+let pHacking = fun t ->
+let jelly_anon = map(t, fun r -> omit_labels(r, `get_acne`)) in
+let get_acne = t.get_acne in
+let header = to_lvs(hd(jelly_anon)) |> map(_, fun e -> e.label) in
+map(header, fun c -> (c, fisherTest(get_acne, map(t, fun r -> (to_lvs(r) |> find(_, fun e -> e.label == c)).value))))
+|> filter(_, fun (c, p) -> p <. 0.05)
+|> map(_, fun (c,p) -> "We found a link between " ++
+c ++ " jelly beans and acne (p < 0.05).")
+\ in
+
+
+
+pHacking(jellyAnon)

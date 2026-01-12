@@ -1,0 +1,64 @@
+type Student = (name=String, age=Int, favorite_color=String) in
+let students : [Student] = ^^fold([
+("Bob", 12, "blue"),
+("Alice", 17, "green"),
+("Eve", 13, "red")
+]) in
+type GradebookEntry = (name=String, age=Int, quiz1=Int, quiz2=Int, midterm=Int, quiz3=Int, quiz4=Int, final=Int) in
+let gradebook : [GradebookEntry] = ^^fold([
+("Bob",   12, 8, 9, 77, 7, 9, 87),
+("Alice", 17, 6, 8, 88, 8, 7, 85),
+("Eve",   13, 7, 9, 84, 8, 8, 77)
+]) in
+# V1: This version is more idiomatic but requires the caller to pass a function combining the rows explicitly thereby getting more type safety. #
+let v1 = 
+let requires=[
+(enforced=^^check(false), "concat(header(t1), header(t2)) has no duplicates"),
+(enforced=^^check(false), "nrows(t1) is equal to nrows(t2)")
+] in
+let ensures=[
+(enforced=^^check(true), "schema(t3) is equal to concat(schema(t1), schema(t2))"), # Assuming the higher order function provided is tuple extension #
+(enforced=^^check(false), "nrows(t3) is equal to nrows(t1)")
+] in
+# V1 is the more idiomatic version #
+let hcat = typfun r1 -> typfun r2 -> typfun r3 -> fun (t1:[r1], t2:[r2], combine: (r1, r2) -> r3) ->
+(zip(t1, t2)
+|> map(_, combine)) : [r3] in
+
+# Examples #
+test hcat@<Student>
+@<GradebookEntry>
+@<^^fold((name=String, age=Int, favorite_color=String, quiz1=Int, quiz2=Int, midterm=Int, quiz3=Int, quiz4=Int, final=Int))>
+(students, gradebook, fun (s, g) -> s ... g) == 
+([
+("Bob", 12, "blue", 8, 9, 77, 7, 9, 87),
+("Alice", 17, "green", 6, 8, 88, 8, 7, 85),
+("Eve", 13, "red", 7, 9, 84, 8, 8, 77)
+] : ^^fold([(name=String, age=Int, favorite_color=String, quiz1=Int, quiz2=Int, midterm=Int, quiz3=Int, quiz4=Int, final=Int)]))
+end
+in
+
+# V2: This version more closely matches the TableAPI and takes a string column. Given the lack of row polymorphism no constraints are ensured #  
+let v2 =  
+let requires = [
+(enforced=^^check(false), "concat(header(t1), header(t2)) has no duplicates"),
+(enforced=^^check(false), "nrows(t1) is equal to nrows(t2)")
+] in
+let ensures = [
+(enforced=^^check(false), "schema(t3) is equal to concat(schema(t1), schema(t2))"),
+(enforced=^^check(false), "nrows(t3) is equal to nrows(t1)")
+] in
+# V1 is the more idiomatic version #
+let hcat = fun (t1:[?], t2:[?]) ->
+zip(t1, t2)
+|> map(_, fun (r1, r2) -> r1 ... r2) in
+
+# Examples #
+test 
+hcat(students, gradebook) == ([
+("Bob", 12, "blue", 8, 9, 77, 7, 9, 87),
+("Alice", 17, "green", 6, 8, 88, 8, 7, 85),
+("Eve", 13, "red", 7, 9, 84, 8, 8, 77)
+] : ^^fold([(name=String, age=Int, favorite_color=String, quiz1=Int, quiz2=Int, midterm=Int, quiz3=Int, quiz4=Int, final=Int)]))
+\ end
+in 

@@ -1,0 +1,207 @@
+type Student = (name=String, age=Int, favorite_color=String) in
+let students : [Student] = ^^fold([
+("Bob", 12, "blue"),
+("Alice", 17, "green"),
+("Eve", 13, "red")
+]) in
+type GradebookEntry = (name=String, age=Int, quiz1=Int, quiz2=Int, midterm=Int, quiz3=Int, quiz4=Int, final=Int) in
+let gradebook : [GradebookEntry] = ^^fold([
+("Bob",   12, 8, 9, 77, 7, 9, 87),
+("Alice", 17, 6, 8, 88, 8, 7, 85),
+("Eve",   13, 7, 9, 84, 8, 8, 77)
+]) in
+let count =
+# V1: This version is more idiomatic and uses a higher order function to project out the value. #
+let v1 =
+let requires=[
+(enforced=^^check(true), "c is in header(t1)"),
+(enforced=^^check(false), "schema(t1)[c] is a categorical sort")
+] in
+let ensures=[
+(enforced=^^check(true), "header(t2) is equal to ['value', 'count']"),
+(enforced=^^check(true), "schema(t2)['value'] is equal to schema(t1)[c]"),
+(enforced=^^check(true), "schema(t2)['count'] is equal to Number"),
+(enforced=^^check(false), "nrows(t2) is equal to length(removeDuplicates(getColumn(t1, c))) \226\128\148 Note: if there are missing values in the input, this constraint requires one row for missing values in the output.")
+] in
+# This utilizes the primitive_pivot operation to group the categorical variables. To work on numbers another method would need to be used. #
+let count = typfun row -> typfun key -> fun (t1:[row], c: (row -> key)) -> 
+case t1
+| [] => []
+| (r :: tl) =>
+let k = c(r) in
+let counts = count@<row>@<key>(tl, c) in
+
+case find_opt(counts, fun entry -> k == entry.value)
+|None => (value=k, count=1) :: counts
+|Some((value=key,count=c)) =>(value=key, count=c+1) :: filter(counts, fun entry -> k != entry.value) 
+end
+end
+: [(value=key, count=Int)] 
+in
+test
+count@<Student>@<String>(students, fun r -> r.favorite_color) == 
+[("blue", 1),
+("green", 1),
+("red", 1)] : [(value=String, count=Int)]
+end
+in 
+# V2: This version more closely matches the TableAPI and takes a string column. Given the lack of row polymorphism and first class labels no constraints are ensured #  
+let v2 =
+let requires=[
+(enforced=^^check(true), "c is in header(t1)"),
+(enforced=^^check(false), "schema(t1)[c] is a categorical sort")
+] in
+let ensures=[
+(enforced=^^check(true), "header(t2) is equal to ['value', 'count']"),
+(enforced=^^check(false), "schema(t2)['value'] is equal to schema(t1)[c]"),
+(enforced=^^check(true), "schema(t2)['count'] is equal to Number"),
+(enforced=^^check(false), "nrows(t2) is equal to length(removeDuplicates(getColumn(t1, c))) \226\128\148 Note: if there are missing values in the input, this constraint requires one row for missing values in the output.")
+] in
+# This utilizes the primitive_pivot operation to group the categorical variables. To work on numbers another method would need to be used. #
+let count = fun (t1:[?], c:String) ->
+(flat_map(t1, to_lvs)
+|> filter(_, fun e -> string_eq(e.label, c))
+|> group_by_label(_, `value`)
+|> to_lvs
+|> map(_, fun e -> (value=e.label) ... (count=length(e.value)))) : [(value=String, count=Int)] in
+
+test count(students, "favorite_color") == [
+("blue", 1),
+("green", 1),
+("red", 1)
+] : [(value=String, count=Int)] end
+in ?
+in 
+let bin =
+# This version takes a string column name and can't guarantee the column is a number #
+let v1 = 
+let requires=[
+(enforced=^^check(false), "c is in header(t1)"),
+(enforced=^^check(false), "schema(t1)[c] is Number")
+] in
+let ensures=[
+(enforced=^^check(true), "header(t2) is equal to ['group', 'count']"),
+(enforced=^^check(true), "schema(t2)['group'] is String"),
+(enforced=^^check(true), "schema(t2)['count'] is Number")
+] in
+let bin_int = fun (is:[Int], bin_size:Int) ->
+let floored = map(is, fun i -> i / bin_size * bin_size) in
+let grouped = fold_left(floored, fun (acc, i) ->
+case find_opt(acc, fun (i', count) -> i == i')
+| None => (i, 1) :: acc
+| Some((i, cnt)) => (i, cnt + 1) :: filter(acc, fun (i', count) -> i != i')
+end, []) in
+map(grouped, fun (i, cnt) -> (group=(i, i + bin_size), count=cnt)) in
+
+let bin = fun (t1:[?], c:String, n:Int) ->
+let entries = flat_map(t1, to_lvs) |> filter(_, fun e -> string_eq(e.label, c)) in
+let vals = entries.value in
+let bins = bin_int(vals, n) in
+map(bins, fun e -> e ...(group=let (group=(min, max), _) = e in string_of_int(min) ++ " <= " ++ c ++ " < " ++ string_of_int(max))) : [(group=String, count=Int)] in
+
+test bin(gradebook, "final", 2) == [
+(group="76 <= final < 78", count=1),
+(group="84 <= final < 86", count=1),
+(group="86 <= final < 88", count=1)
+] : [(group=String, count=Int)] end
+in
+# This version takes an explicit projection to gurantee the requires constraints#
+let v2 =
+let requires=[
+(enforced=^^check(true), "c is in header(t1)"),
+(enforced=^^check(true), "schema(t1)[c] is Number")
+] in
+let ensures=[
+(enforced=^^check(true), "header(t2) is equal to ['group', 'count']"),
+(enforced=^^check(true), "schema(t2)['group'] is String"),
+(enforced=^^check(true), "schema(t2)['count'] is Number")
+] in
+let bin_int = fun (is:[Int], bin_size:Int) ->
+let floored = map(is, fun i -> i / bin_size * bin_size) in
+let grouped = fold_left(floored, fun (acc, i) ->
+case find_opt(acc, fun (i', count) -> i == i')
+| None => (i, 1) :: acc
+| Some((i, cnt)) => (i, cnt + 1) :: filter(acc, fun (i', count) -> i != i')
+end, []) in
+map(grouped, fun (i, cnt) -> (group=(i, i + bin_size), count=cnt)) in
+
+let bin = typfun row ->fun (t1:[row], c:String, c_project:(row -> Int), n:Int) ->
+let vals = map(t1, c_project) in
+let bins = bin_int(vals, n) in
+map(bins, fun e -> e ...(group=let (group=(min, max), _) = e in string_of_int(min) ++ " <= " ++ c ++ " < " ++ string_of_int(max))) : [(group=String, count=Int)] in
+
+test bin@<GradebookEntry>(gradebook, "final", fun r ->r.final, 2) == [
+(group="76 <= final < 78", count=1),
+(group="84 <= final < 86", count=1),
+(group="86 <= final < 88", count=1)
+] : [(group=String, count=Int)] end
+in ?
+in
+let pivot_table =
+let requires=[
+(enforced=^^check(false), "for all c in cs, c is in header(t1)"),
+(enforced=^^check(false), "for all c in cs, schema(t1)[c] is a categorical sort"),
+(enforced=^^check(false), "ci2 is in header(t1)"),
+(enforced=^^check(false), "concat(cs, [c11, ... , cn1]) has no duplicates")
+] in
+let ensures=[
+(enforced=^^check(false), "fi consumes Seq<schema(t1)[ci2]>"),
+(enforced=^^check(false), "header(t2) is equal to concat(cs, [c11, ... , cn1])"),
+(enforced=^^check(false), "for all c in cs, schema(t2)[c] is equal to schema(t1)[c]"),
+(enforced=^^check(false), "schema(t2)[ci1] is equal to the sort of outputs of fi for all i")
+] in
+let pivot_table = fun (t1:[?], cs:[String], aggs:[(String, String, ? -> ?)]) ->
+let groups = fold_left(t1, fun (groups, row) ->
+let k = filter(to_lvs(row), fun e -> mem(cs, e.label)) |> from_lvs in
+let group_tup = from_lvs(k) in
+case find_opt(groups, fun (gk, _) -> k == gk)
+| None => (k, [row]) :: groups
+| Some((key, rows)) => (k, row :: rows) :: filter(groups, fun (gk, _) -> k != gk)
+end, []) in
+map(groups, fun (k, g) ->
+k ...(map(aggs, fun (dest_col, source_col, reduction) ->
+let vals = filter_map(g, fun r -> find_opt(to_lvs(r), fun e -> e.label == source_col) |> option_map(_, fun e -> e.value)) in
+let reduced = reduction(vals) in
+(label=dest_col, value=reduced)
+) |> from_lvs)) in
+let average = fun ns -> fold_left(ns, int_plus, 0) / length(ns) in
+test pivot_table(students,  ["favorite_color"], [("age-average", "age", average)])
+== [
+("red", 13),
+("green", 17),
+("blue", 12)
+] : [(favorite_color=String, `age-average`=Int)] end
+in
+let group_by =
+let requires=[] in
+let ensures=[
+(enforced=^^check(true), "schema(r1) is equal to schema(t1)"),
+(enforced=^^check(true), "schema(r2) is equal to schema(t1)"),
+(enforced=^^check(true), "schema(t2) is equal to schema(r3)"),
+(enforced=^^check(false), "nrows(t2) is equal to length(removeDuplicates(ks)), where ks is the results of applying key to each row of t1. ks can be defined with select and getColumn.")
+] in
+let group_by = typfun r1 -> typfun r3 -> typfun K -> typfun V ->
+fun (t1:[r1], key:(r1 -> K), project:(r1 -> V), aggregate:((K, [V]) -> r3)) ->
+let grouped = fold_left(t1, fun (groups:[(K, [r1])], row:r1) ->
+let k = key(row) in
+case find_opt(groups, fun (gk, _) -> k == gk)
+| None => (k, [row]) :: groups
+| Some((key, rows)) => (k, row :: rows) :: filter(groups, fun (gk, _) -> k != gk)
+end, []) in
+map(grouped, fun (k, g) -> aggregate(k, map(g, project))) : [r3] in
+
+test
+let average = fun ns -> fold_left(ns, int_plus, 0) / length(ns) in
+let abstract_age = fun (r : GradebookEntry) ->
+if r.age <= 12 then "kid" else if r.age <= 18 then "teenager" else "adult" in
+group_by@<GradebookEntry>@<?>@<String>@<Int>(
+gradebook,
+abstract_age,
+fun r -> r.final,
+fun(k, vs) -> (key=k, average=average(vs))
+) == [
+(key="teenager", average=81),
+(key="kid", average=87)
+] 
+end
+in

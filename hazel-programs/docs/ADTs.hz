@@ -1,0 +1,54 @@
+# Lambda Calculus via evaluation by substitution #
+
+# An Expression is a variable, function, or application #
+type Exp =
++ Var(String)
++ Lam(String, Exp)
++ Ap(Exp, Exp) in
+
+# Substitute Exp v for variable name in Exp e #
+let subst: (Exp, String, Exp) -> Exp =
+fun (v, name, e) ->
+case e
+| Var(x) =>
+if x == name then v else e
+| Lam(x, body) =>
+Lam(x, subst(v, name, body))
+| Ap(f, arg) =>
+Ap(subst(v, name, f), subst(v, name, arg)) end in
+
+# Evaluation can result in either an Exp or an Error #
+type Result =
++ Error(String)
++ Ok(Exp)
+in
+
+# Evaluation by substitution #
+let go: Exp -> Result =
+fun e ->
+case e
+| Var(n) => Error("Free Variable")
+| Lam(x, body) => Ok(Lam(x, body))
+| Ap(e1,e2) =>
+case go(e1)
+| Ok(Lam(x, body))=>
+case go(e2)
+| Error(err) => Error(err)
+| Ok(arg) => go(subst(arg, x, body)) end
+| _ => Error("Not a Function") end end in
+
+test
+go(Var("yo"))
+== Error("Free Variable") end;
+
+test
+go(Ap(Var("no"), Lam("bro", Var("bro"))))
+== Error("Not a Function") end;
+
+test
+go(Lam("yo", Var("yo")))
+== Ok(Lam("yo", Var("yo"))) end;
+
+test
+go(Ap(Lam("yo", Var("yo")), Lam("bro", Var("bro"))))
+== Ok(Lam("bro", Var("bro"))) end

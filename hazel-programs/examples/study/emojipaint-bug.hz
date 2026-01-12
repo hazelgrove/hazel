@@ -1,0 +1,167 @@
+# EMOJIPAINT MVU #
+
+type Emoji = String in 
+type Canvas = [[Emoji]] in  
+type Row = Int in 
+type Col = Int in 
+
+type Model = (
+canvas = Canvas,    # The 2D grid of emojis #
+brush = Emoji,      # The currently selected emoji #
+palette = [Emoji]   # The list of available emojis #
+) in
+
+type Action =
++ SetBrush(Int)         # Set the brush using a palette index #
++ PaintCell(Row, Col)   # Stamp the current emoji at the specified position #
++ ClearCell(Row, Col)   # Clear the emoji at the specified position #
++ ClearGrid             # Clear the entire grid #
++ PaintRow(Row)         # Fill the specified row with the current emoji #
+in
+
+let init: Model = (
+# The canvas starts empty #
+canvas = [ 
+["","",""],
+["","",""],
+["","",""]
+],
+# Initial emoji brush #
+brush = "😄",
+# Emoji palette #                       
+palette = ["😄", "😅", "😆", "😉", "😊"]
+) in
+
+let setCell: (Canvas, Row, Col, Emoji) -> Canvas =
+fun canvas, row, col, emoji -> mapi(
+canvas, 
+fun (i, r) ->
+if i == row 
+then mapi(
+r,
+fun (j, c) ->
+if i == col 
+then emoji 
+else c) 
+else r) 
+in
+
+let setRow: (Canvas, Row, Emoji) -> Canvas =
+fun canvas, targetRow, emoji ->
+mapi(
+canvas,
+fun (i, row) ->
+if i == targetRow 
+then map(row, fun _ -> emoji) 
+else row) 
+in
+
+let setAll: (Canvas, Emoji) -> Canvas =
+fun (canvas, emoji) ->
+map(canvas, fun row -> map(row, fun _ -> emoji)) 
+in
+
+let updateGrid: (Model, Canvas -> Canvas) -> Model =
+fun (m, f) -> (f(m.canvas), m.brush, m.palette) 
+in
+
+# Update the EmojiPaint app model based on an action #
+let update: (Model, Action) -> Model =
+fun m, action ->
+case action 
+| SetBrush(emoji) =>
+(m.canvas, nth(m.palette, emoji), m.palette)
+| PaintCell(row, col) =>
+updateGrid(m, fun c -> 
+setCell(c, row, col, m.brush)
+)
+| ClearCell(row, col) =>
+updateGrid(m, fun c -> setCell(c, row, col, ""))
+| ClearGrid =>
+updateGrid(m, fun c -> setAll(c, ""))
+| PaintRow(row) =>
+updateGrid(m, fun c -> 
+setRow(c, row, m.brush)
+) 
+end 
+in
+
+let do: (Model, [Action])-> Model = fun (init: Model, actions: [Action]) ->
+fold_left(actions, update, init) 
+in          
+
+test 
+let m = update(init, PaintCell(0, 0)) in
+m.canvas == [["😄","",""],["","",""],["","",""]]    
+end;
+
+test
+let m = update(init, PaintRow(1)) in
+m.canvas == [["","",""],["😄","😄","😄"],["","",""]]    
+end;
+
+test
+let m = do(init, [SetBrush(1), PaintCell(2, 2)]) in
+m.canvas == [["","",""],["","",""],["","","😅"]] 
+&& m.brush == "😅"    
+end;
+
+test
+let m = do(init, [PaintRow(0), ClearCell(0, 1)]) in        
+m.canvas == [["😄","","😄"],["","",""],["","",""]]    
+end;
+
+test
+let model = update(init, PaintCell(1, 1)) in
+let (grid, _, _) = update(model, ClearGrid) in
+grid == [["","",""],["","",""],["","",""]]    
+end;
+
+test
+let m = do(init, [
+SetBrush(4),
+PaintCell(1, 2)]) in
+m.canvas == [["","",""],["","","😊"],["","",""]]
+end;
+
+test
+let m = do(init, [
+PaintRow(2),
+ClearCell(2, 0)]) in
+m.canvas == [["","",""],["","",""],["","😄","😄"]]
+end;
+
+test
+let m = do(init, [
+PaintCell(0, 0),
+PaintCell(1, 1),
+PaintCell(2, 2),
+ClearGrid]) in
+m.canvas == [["","",""],["","",""],["","",""]]
+end;
+
+test
+let m = do(init, [
+PaintRow(0),
+SetBrush(2),
+PaintCell(1,1)
+]) in
+m.canvas == [["😄","😄","😄"],["","😆",""],["","",""]]
+end;
+
+test
+let m = do(init, [
+PaintCell(0, 0),
+PaintRow(2),
+SetBrush(3),
+PaintCell(1, 1),
+ClearCell(2, 2)
+]) in
+m.canvas == [["😄","",""],["","😉",""],["😄","😄",""]]
+&& m.brush == "😉"
+end;
+
+do(init, [
+SetBrush(1),
+PaintCell(2, 2)
+])
