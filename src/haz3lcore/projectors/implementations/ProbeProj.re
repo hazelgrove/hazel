@@ -545,6 +545,7 @@ let sample_context_actions =
             [
               div(~attrs=[Attr.classes(["pin-icon"])], []),
               text(is_pinned ? "Unpin" : "Pin"),
+              span(~attrs=[Attr.classes(["shortcut"])], [text("P")]),
             ],
           ),
           /* Step Into action */
@@ -564,6 +565,7 @@ let sample_context_actions =
             [
               div(~attrs=[Attr.classes(["step-into-icon"])], []),
               text("Step into"),
+              span(~attrs=[Attr.classes(["shortcut"])], [text("Enter")]),
             ],
           ),
         ],
@@ -994,6 +996,32 @@ let key_handler =
   | D(" ") =>
     Settings.go(ToggleWindow);
     Many([local(NoOp), Stop_propagation, Prevent_default]); // trigger redraw
+  | D("p") =>
+    /* Pin/Unpin the indicated sample */
+    switch (indicated_sample(~ap_id, di), ap_id) {
+    | (Some(_), Some(ap_id)) =>
+      Many([
+        pin_call(~parent, ~ap_id=Some(ap_id), ~di),
+        Stop_propagation,
+        Prevent_default,
+      ])
+    | _ =>
+      print_endline("pin: no sample or ap_id");
+      Many([Stop_propagation, Prevent_default]);
+    }
+  | D("Enter") =>
+    /* Step into the indicated sample */
+    switch (indicated_sample(~ap_id, di), ap_id) {
+    | (Some(sample), Some(ap_id)) =>
+      Many([
+        Stop_propagation,
+        Prevent_default,
+        step_into_sample(~parent, ~sample, ~ap_id),
+      ])
+    | _ =>
+      print_endline("step into: no sample or ap_id");
+      Many([Stop_propagation, Prevent_default]);
+    }
   | _ => Many([Stop_propagation])
   };
 };
