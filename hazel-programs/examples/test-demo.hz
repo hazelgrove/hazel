@@ -4,14 +4,14 @@ fun n ->
   else n * factorial(n - 1)
 in
 
-let _ = hint "factorial base case"
-        test factorial(0) == 1 end in
+hint "factorial base case"
+  test factorial(0) == 1 end;
 
-let _ = hint "factorial of 1"
-        test factorial(1) == 1 end in
+hint "factorial of 1"
+  test factorial(1) == 1 end;
 
-let _ = hint "factorial of 5"
-        test factorial(5) == 120 end in
+hint "factorial of 5"
+  test factorial(5) == 120 end;
 
 let length : [?] -> Int =
 fun xs ->
@@ -21,13 +21,13 @@ case xs
 end
 in
 
-let _ = hint "empty list length"
-        test length([]) == 0 end in
+hint "empty list length"
+  test length([]) == 0 end;
 
-let _ = hint "list length"
-        test length([1, 2, 3]) == 3 end in
+hint "list length"
+  test length([1, 2, 3]) == 3 end;
 
-let _ = hint "intentional failure"
-        test 2 + 2 == 5 end in
+hint "intentional failure"
+  test 2 + 2 == 5 end;
 
 ()

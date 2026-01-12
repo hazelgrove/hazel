@@ -173,7 +173,7 @@ let calculate : String -> Int =
 in
 
 # Test: subtraction should be left-associative #
-let _ = hint "subtraction is left associative"
-        test calculate("10 - 5 - 2") == 3 end in
+hint "subtraction is left associative"
+  test calculate("10 - 5 - 2") == 3 end;
 
 calculate("10 - 5 - 2")

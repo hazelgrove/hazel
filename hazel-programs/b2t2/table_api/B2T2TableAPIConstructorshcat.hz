@@ -60,5 +60,5 @@ hcat(students, gradebook) == ([
 ("Alice", 17, "green", 6, 8, 88, 8, 7, 85),
 ("Eve", 13, "red", 7, 9, 84, 8, 8, 77)
 ] : ^^fold([(name=String, age=Int, favorite_color=String, quiz1=Int, quiz2=Int, midterm=Int, quiz3=Int, quiz4=Int, final=Int)]))
-\ end
+ end
 in 

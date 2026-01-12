@@ -28,4 +28,4 @@ else if i == 1 then [r, r]
 else [r, r, r],
 fun (r1,r2) -> (midterm=r2.midterm)
 ) == [77, 88, 88, 84, 84, 84] : [(midterm=Int)]
-\ end
+ end

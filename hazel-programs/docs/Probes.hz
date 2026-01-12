@@ -116,25 +116,25 @@ in let _ = (
 
 # FUNCTIONS CALLING FUNCTIONS #
 let _ =
-\  # Select `9` below. Note four cells below become purple #
+  # Select `9` below. Note four cells below become purple #
 let fourth = fun f -> 4 * ^^probe(f) - 4 in
-\  # This is because they represent function calls #
-\  # above the `9` cell in the function call stack. #
-\  # For example 32 below represents the call producing `9`.  #
+  # This is because they represent function calls #
+  # above the `9` cell in the function call stack. #
+  # For example 32 below represents the call producing `9`.  #
 let third = fun t -> ^^probe(fourth(t - 3)) / 3 in
-\  # Now, select `32` above. Note the 9 now has a purple hat. #
-\  # This represents that it is below the `32` call in the stack. #
-\  # Now select `10` below, which is a call to `third`: #
+  # Now, select `32` above. Note the 9 now has a purple hat. #
+  # This represents that it is below the `32` call in the stack. #
+  # Now select `10` below, which is a call to `third`: #
 let second = fun s -> ^^probe(third(2 * s)) + 2 in
-\  # Note that `9` and `32` both have hats. `9` has a taller hat #
-\  # to show it's lower in the call stack. `32` has purple text #
-\  # to further emphasize that is is directly below `10`. #
-\  # Now select 12 below, representing a call to `second` #
+  # Note that `9` and `32` both have hats. `9` has a taller hat #
+  # to show it's lower in the call stack. `32` has purple text #
+  # to further emphasize that is is directly below `10`. #
+  # Now select 12 below, representing a call to `second` #
 let first = fun f -> ^^probe(second(f + 1)) * 2 in
-\  # Note how the hats have changed. Finally, select `24` below, #
-\  # and then again select 12, 10, 32, and 9 in turn. Notice how #
-\  # the solid purple call indicators have internal shadows #
-\  # representing their depth relative to the selected cell #
+  # Note how the hats have changed. Finally, select `24` below, #
+  # and then again select 12, 10, 32, and 9 in turn. Notice how #
+  # the solid purple call indicators have internal shadows #
+  # representing their depth relative to the selected cell #
 ^^probe(first(5)) in
 
 # RECURSION #
@@ -152,7 +152,7 @@ test ^^probe(fact(5)) == 120 end;
 # TAIL RECURSION #
 let fact1 = let go =
 fun (^^probe(x),
-\ ^^probe(acc)) ->
+ ^^probe(acc)) ->
 case ^^probe(x)
 | 1 => ^^probe(acc)
 | _ =>

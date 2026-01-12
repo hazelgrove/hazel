@@ -18,8 +18,8 @@ let update = typfun row -> fun (t1:[row], f:(row -> ?)) ->
 map(t1, fun (r : row) -> (r : ?) ... f(r)) : [?] in
 
 test
-\ update@<GradebookEntry>(gradebook, fun r -> (midterm=85<=r.midterm, final=85<=r.final)) ==
-\ [(name="Bob", age=12, quiz1=8, quiz2=9, midterm=false, quiz3=7, quiz4=9, final=true),
+ update@<GradebookEntry>(gradebook, fun r -> (midterm=85<=r.midterm, final=85<=r.final)) ==
+ [(name="Bob", age=12, quiz1=8, quiz2=9, midterm=false, quiz3=7, quiz4=9, final=true),
 (name="Alice", age=17, quiz1=6, quiz2=8, midterm=true, quiz3=8, quiz4=7, final=true),
 (name="Eve", age=13, quiz1=7, quiz2=9, midterm=false, quiz3=8, quiz4=8, final=false)]
 end;

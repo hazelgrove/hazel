@@ -107,6 +107,6 @@ test pivot_wider(students, "name", "age")
 (favorite_color="green", `Bob`=None, `Alice`=Some(17), `Eve`=None),
 (favorite_color="red", `Bob`=None, `Alice`=None, `Eve`=Some(13))
 ]
-\ end
+ end
 in
 ?

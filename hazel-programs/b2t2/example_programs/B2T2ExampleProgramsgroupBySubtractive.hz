@@ -28,9 +28,9 @@ let make_group = fun kr ->
 let k = kr.key in 
 let g= filter(t, fun r -> get_value(r,c) == k) in 
 drop_columns(g, [c])
-\ in
+ in
 build_col(keys, "groups", make_group)
-\ in  
+ in  
 
 
 type GradebookEntry = (name=String, age=Int, quiz1=Int, quiz2=Int, midterm=Int, quiz3=Int, quiz4=Int, final=Int) in

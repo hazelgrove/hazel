@@ -169,7 +169,7 @@ let calculate : String -> Int =
 in
 
 # Test: multiplication should happen before addition #
-let _ = hint "multiplication before addition"
-        test calculate("2 + 3 * 4") == 14 end in
+hint "multiplication before addition"
+  test calculate("2 + 3 * 4") == 14 end;
 
 calculate("2 + 3 * 4")

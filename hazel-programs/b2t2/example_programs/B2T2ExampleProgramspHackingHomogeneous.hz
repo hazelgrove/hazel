@@ -55,7 +55,7 @@ map(header, fun c -> (c, fisherTest(get_acne, map(t, fun r -> (to_lvs(r) |> find
 |> filter(_, fun (c, p) -> p <. 0.05)
 |> map(_, fun (c,p) -> "We found a link between " ++
 c ++ " jelly beans and acne (p < 0.05).")
-\ in
+ in
 
 
 

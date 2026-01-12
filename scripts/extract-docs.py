@@ -64,6 +64,12 @@ def extract_backup_text(ml_content: str) -> str | None:
                 i += 2
                 while i < len(ml_content) and ml_content[i] in ' \t':
                     i += 1
+            elif next_c == ' ':
+                # \ followed by space -> just insert a space
+                # This is used in OCaml after line continuations to preserve
+                # a leading space in the continued content
+                result.append(' ')
+                i += 2
             else:
                 # Other escapes - keep as-is
                 result.append(c)

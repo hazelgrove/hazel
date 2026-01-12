@@ -17,7 +17,7 @@ let students : [Student] = [
 ] in
 vcat@<Student>(students, 
 update@<Student>(students, fun r -> (age=r.age + 1))) ==
-\ ([
+ ([
 ("Bob", 12, "blue"),
 ("Alice", 17, "green"),
 ("Eve", 13, "red"),

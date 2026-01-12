@@ -177,89 +177,89 @@ let calculate : String -> Int =
   fun input -> evaluate(parse(input))
 in
 
-let _ = hint "single digit"
-        test calculate("5") == 5 end in
+hint "single digit"
+  test calculate("5") == 5 end;
 
-let _ = hint "multi-digit number"
-        test calculate("123") == 123 end in
+hint "multi-digit number"
+  test calculate("123") == 123 end;
 
-let _ = hint "number with spaces"
-        test calculate("  42  ") == 42 end in
+hint "number with spaces"
+  test calculate("  42  ") == 42 end;
 
-let _ = hint "simple addition"
-        test calculate("2 + 3") == 5 end in
+hint "simple addition"
+  test calculate("2 + 3") == 5 end;
 
-let _ = hint "simple subtraction"
-        test calculate("10 - 4") == 6 end in
+hint "simple subtraction"
+  test calculate("10 - 4") == 6 end;
 
-let _ = hint "simple multiplication"
-        test calculate("3 * 4") == 12 end in
+hint "simple multiplication"
+  test calculate("3 * 4") == 12 end;
 
-let _ = hint "simple division"
-        test calculate("20 / 5") == 4 end in
+hint "simple division"
+  test calculate("20 / 5") == 4 end;
 
-let _ = hint "multiplication before addition"
-        test calculate("2 + 3 * 4") == 14 end in
+hint "multiplication before addition"
+  test calculate("2 + 3 * 4") == 14 end;
 
-let _ = hint "multiplication before subtraction"
-        test calculate("10 - 2 * 3") == 4 end in
+hint "multiplication before subtraction"
+  test calculate("10 - 2 * 3") == 4 end;
 
-let _ = hint "division before addition"
-        test calculate("1 + 8 / 2") == 5 end in
+hint "division before addition"
+  test calculate("1 + 8 / 2") == 5 end;
 
-let _ = hint "mixed precedence"
-        test calculate("2 * 3 + 4 * 5") == 26 end in
+hint "mixed precedence"
+  test calculate("2 * 3 + 4 * 5") == 26 end;
 
-let _ = hint "subtraction is left associative"
-        test calculate("10 - 5 - 2") == 3 end in
+hint "subtraction is left associative"
+  test calculate("10 - 5 - 2") == 3 end;
 
-let _ = hint "division is left associative"
-        test calculate("24 / 4 / 2") == 3 end in
+hint "division is left associative"
+  test calculate("24 / 4 / 2") == 3 end;
 
-let _ = hint "addition is left associative"
-        test calculate("1 + 2 + 3") == 6 end in
+hint "addition is left associative"
+  test calculate("1 + 2 + 3") == 6 end;
 
-let _ = hint "parentheses override precedence"
-        test calculate("(2 + 3) * 4") == 20 end in
+hint "parentheses override precedence"
+  test calculate("(2 + 3) * 4") == 20 end;
 
-let _ = hint "nested parentheses"
-        test calculate("((2 + 3))") == 5 end in
+hint "nested parentheses"
+  test calculate("((2 + 3))") == 5 end;
 
-let _ = hint "complex parentheses"
-        test calculate("(1 + 2) * (3 + 4)") == 21 end in
+hint "complex parentheses"
+  test calculate("(1 + 2) * (3 + 4)") == 21 end;
 
-let _ = hint "parentheses in middle"
-        test calculate("2 * (3 + 4) * 5") == 70 end in
+hint "parentheses in middle"
+  test calculate("2 * (3 + 4) * 5") == 70 end;
 
-let _ = hint "unary minus"
-        test calculate("-5") == -5 end in
+hint "unary minus"
+  test calculate("-5") == -5 end;
 
-let _ = hint "unary minus in expression"
-        test calculate("3 + -2") == 1 end in
+hint "unary minus in expression"
+  test calculate("3 + -2") == 1 end;
 
-let _ = hint "unary minus with parentheses"
-        test calculate("-(3 + 2)") == -5 end in
+hint "unary minus with parentheses"
+  test calculate("-(3 + 2)") == -5 end;
 
-let _ = hint "double negative"
-        test calculate("--5") == 5 end in
+hint "double negative"
+  test calculate("--5") == 5 end;
 
-let _ = hint "complex expression 1"
-        test calculate("1 + 2 * 3 - 4 / 2") == 5 end in
+hint "complex expression 1"
+  test calculate("1 + 2 * 3 - 4 / 2") == 5 end;
 
-let _ = hint "complex expression 2"
-        test calculate("(1 + 2) * (3 - 4) / (5 + 6)") == 0 end in
+hint "complex expression 2"
+  test calculate("(1 + 2) * (3 - 4) / (5 + 6)") == 0 end;
 
-let _ = hint "complex expression 3"
-        test calculate("10 - 3 * 2 + 8 / 4") == 6 end in
+hint "complex expression 3"
+  test calculate("10 - 3 * 2 + 8 / 4") == 6 end;
 
-let _ = hint "zero"
-        test calculate("0") == 0 end in
+hint "zero"
+  test calculate("0") == 0 end;
 
-let _ = hint "division by zero returns 0"
-        test calculate("5 / 0") == 0 end in
+hint "division by zero returns 0"
+  test calculate("5 / 0") == 0 end;
 
-let _ = hint "multiply by zero"
-        test calculate("100 * 0") == 0 end in
+hint "multiply by zero"
+  test calculate("100 * 0") == 0 end;
 
 (
   calculate("2 + 3 * 4"),

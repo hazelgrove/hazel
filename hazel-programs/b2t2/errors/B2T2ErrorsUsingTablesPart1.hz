@@ -44,8 +44,8 @@ build_column
 @<(`eat black and white`=Bool)>
 @<(get_acne=Bool, red=Bool, black=Bool, white=Bool, green=Bool, yellow=Bool, brown=Bool, orange=Bool, pink=Bool, purple=Bool, `eat black and white`=Bool)>
 (jellyAnon,
-\ fun r ->(`eat black and white`=eat_black_and_white(r)),
-\ fun (a, b) -> a...(`eat black and white`=b)) # b is being autolabeled here#
+ fun r ->(`eat black and white`=eat_black_and_white(r)),
+ fun (a, b) -> a...(`eat black and white`=b)) # b is being autolabeled here#
 in
 let correct = 
 let eat_black_and_white = fun r : JellyAnon -> r.black == true && r.white == true in
