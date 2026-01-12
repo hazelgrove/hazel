@@ -49,7 +49,7 @@ let playerCell : Player -> Cell =
     end
 in
 
-let threeInRow : (Cell, Cell, Cell) -> Option(Cell) =
+let threeInRow : (Cell, Cell, Cell) -> Option =
   fun (a, b, c) ->
     case (a, b, c)
     | (X, X, X) => Some(X)
@@ -64,7 +64,7 @@ let getCells3 : (Board, Int, Int, Int) -> (Cell, Cell, Cell) =
 in
 
 # BUG: Anti-diagonal uses wrong index (5 instead of 4) #
-let checkWinner : Board -> Option(Cell) =
+let checkWinner : Board -> Option =
   fun board ->
     let row0 = threeInRow(getCells3(board, 0, 1, 2)) in
     let row1 = threeInRow(getCells3(board, 3, 4, 5)) in

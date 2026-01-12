@@ -3,10 +3,11 @@
 This file lists all built-in functions available in Hazel. These serve as Hazel's standard library.
 
 **Important notes:**
+
 - No namespaces: Unlike OCaml (`List.map`), Hazel uses flat names (`map`)
 - Reversed argument order for many list functions: `map(list, fn)` not `map(fn, list)`
 - String functions use `string_` prefix: `string_length`, `string_concat`, etc.
-- Type holes `?` indicate polymorphic parameters
+- Type holes `?` indicate polymorphic parameters (type constraints not currently available)
 
 See [hazel-primer.md](./hazel-primer.md) for usage examples.
 

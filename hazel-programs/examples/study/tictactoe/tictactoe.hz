@@ -54,7 +54,7 @@ let playerCell : Player -> Cell =
 in
 
 # Check if three cells are the same and not empty #
-let threeInRow : (Cell, Cell, Cell) -> Option(Cell) =
+let threeInRow : (Cell, Cell, Cell) -> Option =
   fun (a, b, c) ->
     case (a, b, c)
     | (X, X, X) => Some(X)
@@ -70,7 +70,7 @@ let getCells3 : (Board, Int, Int, Int) -> (Cell, Cell, Cell) =
 in
 
 # Check all winning lines #
-let checkWinner : Board -> Option(Cell) =
+let checkWinner : Board -> Option =
   fun board ->
     # Rows #
     let row0 = threeInRow(getCells3(board, 0, 1, 2)) in

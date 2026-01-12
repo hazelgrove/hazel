@@ -35,6 +35,7 @@ Model = (board, turn, status)
 ```
 
 Diagonals:
+
 - Main: 0, 4, 8
 - Anti: 2, 4, 6
 
@@ -49,6 +50,7 @@ Diagonals:
 **Difficulty:** Easy
 
 **What's wrong:**
+
 ```hazel
 # Buggy:
 let diag2 = threeInRow(getCells3(board, 2, 5, 6)) in
@@ -60,6 +62,7 @@ let diag2 = threeInRow(getCells3(board, 2, 4, 6)) in
 **Failing test:** "X wins with anti-diagonal" - X plays positions 2, 4, 6 but win isn't detected
 
 **Probe strategy:**
+
 - Probe `getCells3(board, 2, 4, 6)` vs `getCells3(board, 2, 5, 6)` to see which cells are actually being checked
 - Probe `diag2` to see it returns `None` when it should return `Some(X)`
 
@@ -74,6 +77,7 @@ let diag2 = threeInRow(getCells3(board, 2, 4, 6)) in
 **Difficulty:** Easy
 
 **What's wrong:**
+
 ```hazel
 # Buggy:
 let nextPlayer = fun p ->
@@ -93,6 +97,7 @@ let nextPlayer = fun p ->
 **Failing test:** "O places O marker" - After X plays, O's move still places X
 
 **Probe strategy:**
+
 - Probe `m.turn` after each move to see it never changes
 - Probe `playerCell(m.turn)` to see it's always X
 
@@ -104,23 +109,10 @@ let nextPlayer = fun p ->
 
 ### Indeterminate Test Issue
 
-During development, some tests returned "indeterminate" instead of pass/fail when using direct ADT equality:
-
-```hazel
-# This was indeterminate:
-m.status == Draw
-
-# This worked:
-case m.status | Draw => true | _ => false end
-```
-
-Also, comparing full models (`m == init`) was indeterminate. Changed to comparing specific fields.
-
-**Takeaway for study:** If participants write tests with ADT equality and get indeterminate results, this could be confusing. The bug variants use simpler comparisons.
-
 ### Test Coverage
 
 The working version tests:
+
 - Basic operations (move, turn switching)
 - All win conditions (3 rows, 3 columns, 2 diagonals)
 - Draw detection

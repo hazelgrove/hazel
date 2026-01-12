@@ -47,6 +47,7 @@ The grid is stored as a flat list with width/height metadata. Coordinates are (x
 **Difficulty:** Easy
 
 **What's wrong:**
+
 ```hazel
 # Buggy - missing diagonal neighbors:
 let neighbors = [
@@ -67,6 +68,7 @@ let neighbors = [
 **Failing test:** "cell with 8 neighbors" - Should count 8, but only counts 4
 
 **Probe strategy:**
+
 - Probe `neighbors` list to see only 4 elements
 - Probe `countNeighbors(g, 1, 1)` for a surrounded cell
 
@@ -81,6 +83,7 @@ let neighbors = [
 **Difficulty:** Medium
 
 **What's wrong:**
+
 ```hazel
 # Buggy:
 if neighbors >= 2 && neighbors <= 4 then Alive else Dead
@@ -92,6 +95,7 @@ if neighbors == 2 || neighbors == 3 then Alive else Dead
 **Failing test:** "alive cell with 4 neighbors dies (overpopulation)" - Cell survives when it should die
 
 **Probe strategy:**
+
 - Probe `nextCellState(Alive, 4)` to see it returns `Alive`
 - Probe the condition evaluation
 
@@ -106,6 +110,7 @@ if neighbors == 2 || neighbors == 3 then Alive else Dead
 **Difficulty:** Hard
 
 **What's wrong:**
+
 ```hazel
 # Buggy - sequential update (each cell sees previous updates):
 let step = fun g ->
@@ -126,17 +131,20 @@ let step = fun g ->
 **Failing test:** "updates are simultaneous not sequential" - Blinker pattern evolves incorrectly
 
 **Probe strategy:**
+
 - This is harder to debug because the bug is architectural
 - Probe the grid state at different points during `step`
 - Compare intermediate states vs expected simultaneous behavior
 - Need to understand that cells should all "see" the same original grid
 
 **Why this bug is realistic:**
+
 - The sequential version seems natural if you think of "going through each cell and updating it"
 - The correct simultaneous version requires understanding that the new state depends only on the old state
 - This is a conceptual bug, not a typo
 
 **Multi-location aspect:** To truly understand this bug, you need to:
+
 1. Understand the `step` function structure
 2. Recognize that `currentGrid` vs `g` makes a difference
 3. Know that Game of Life requires simultaneous updates
@@ -145,13 +153,10 @@ let step = fun g ->
 
 ## Development Notes
 
-### Smoothest Development
-
-This was the easiest of the three programs to develop. The logic is well-defined, the tests are straightforward, and there were no surprises during implementation.
-
 ### Test Coverage
 
 The working version tests:
+
 - Grid operations (create, get, set, bounds checking)
 - Neighbor counting (isolated cell, partial neighbors, full 8 neighbors, corners)
 - All four rules (underpopulation, survival with 2, survival with 3, overpopulation, birth)
@@ -164,6 +169,7 @@ The working version tests:
 Using (x, y) where x is column and y is row. Index formula: `y * width + x`
 
 The reverse (getting x, y from index) uses:
+
 ```hazel
 let x = idx - (idx / g.width) * g.width in  # idx % width
 let y = idx / g.width in
