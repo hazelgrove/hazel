@@ -956,10 +956,10 @@ module Transition = (EV: EV_MODE) => {
         kind: RemoveParens,
         is_value: false,
       });
-    | Parens(d) =>
+    | Parens(d') =>
       let. _ = otherwise(env, d);
       Step({
-        expr: d,
+        expr: d',
         side_effects: [],
         kind: RemoveParens,
         is_value: false,
