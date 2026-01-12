@@ -45,8 +45,7 @@ type select =
 type dyn_cursor =
   | Capture(Language.Sample.t, option(Id.t))
   | TogglePinCall(Language.Probe.call_stack)
-  | Reset
-  | ResolvePendingFocus(list(Language.Sample.t));
+  | Reset;
 
 [@deriving (show({with_path: false}), sexp, yojson, eq)]
 type chooser =
@@ -88,7 +87,6 @@ type paste =
 type refractor =
   | ToggleProbeManual
   | ToggleProbeREPL
-  | ProbeJump
   | StepIntoSample(Language.Sample.t, Id.t);
 
 [@deriving (show({with_path: false}), sexp, yojson, eq)]

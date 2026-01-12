@@ -184,6 +184,8 @@ let start = {
         } else {
           ();
         };
+        /* Handle scheduled probe focus from step-into (see Refractors.FocusEffect) */
+        let _ = Haz3lcore.Refractors.FocusEffect.execute();
         model.current.globals.settings.core.statics ? Animation.go() : ();
       },
       (),

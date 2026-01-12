@@ -53,7 +53,6 @@ module Shortcuts = {
   let manual_probe = () => Os.is_mac^ ? "⌘E" : "Ctrl+E";
   let auto_probe = () => Os.is_mac^ ? "⇧⌘E" : "Ctrl+Shift+E";
   let goto_definition = "F12";
-  let step_into = "F8";
 };
 
 let manual_probe =
@@ -120,29 +119,6 @@ let jump_to_binding =
   | _ => []
   };
 
-let step_into =
-    (
-      ~inject: Action.t => Ui_effect.t(unit),
-      info_map: Language.Statics.Map.t,
-      ci: option(Language.Info.t),
-      z: Zipper.t,
-    ) =>
-  switch (ci) {
-  | Some(InfoExp({ty, _})) when Language.StaticsBase.is_arrow_like(ty) =>
-    switch (Refractors.is_jump_target(info_map, z)) {
-    | Some(_) => [
-        menu_item(
-          ~shortcut=Shortcuts.step_into,
-          "Step into",
-          inject,
-          Refractor(ProbeJump),
-        ),
-      ]
-    | None => []
-    }
-  | _ => []
-  };
-
 let probes_actions =
     (
       ~inject: Action.t => Ui_effect.t(unit),
@@ -155,8 +131,7 @@ let probes_actions =
   let can_probe = Refractors.can_probe(id, info_map);
   jump_to_binding(~inject, ci)
   @ manual_probe(~inject, ~can_probe, probe_status, ci)
-  @ auto_probe(~inject, ~can_probe, probe_status, ci)
-  @ step_into(~inject, info_map, ci, z);
+  @ auto_probe(~inject, ~can_probe, probe_status, ci);
 };
 
 let probes_menu = probes_items =>
