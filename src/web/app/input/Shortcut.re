@@ -121,7 +121,7 @@ let shortcuts = (sys: Util.Key.sys): list(t) =>
       ~mdIcon="camera",
       ~section="Projection",
       "Probe",
-      Globals(ActiveEditor(Project(SetIndicated(Specific(Probe))))),
+      Globals(ActiveEditor(Probe(ToggleManual))),
     ),
     mk_shortcut(
       ~hotkey="alt+t",

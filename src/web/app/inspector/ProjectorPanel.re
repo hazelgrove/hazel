@@ -121,7 +121,6 @@ let toggle_view =
 let keyboard_shortcut_of = (kind: ProjectorCore.Kind.t): string =>
   switch (kind) {
   | Fold => "Option-f"
-  | Probe => "Option-v"
   | Info => "Option-t"
   | _ => "Option-l"
   };

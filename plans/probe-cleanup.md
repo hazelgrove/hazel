@@ -153,7 +153,7 @@ Note: `Arms.Refractors` in `Arms.re` is a DIFFERENT module (drawing code for pro
 - `ProbeSidebar.re`
 - `ProbePanel.re`
 
-**Status**: Deferred - can be done later, cosmetic change
+**Status**: Confirmed keeping as `ProbeSidebar.re` - name is clear enough
 
 ### 2C: Update External References ✅ COMPLETED
 
@@ -211,18 +211,113 @@ If we want TypeProj to become a refractor:
 
 ---
 
-## Deferred Items
+## Phase 5: TODO Cleanup
 
-### Logging/Profiling TODOs (Keep for now - may do more perf work)
+### Investigation Process
 
-- `WorkerServer.re:54` - debug logging
-- `ScratchMode.re:383` - profiling code
+For each TODO, gather context by:
 
-### Other TODOs to Review Later
+1. Read the local code context around the TODO
+2. Consider the broader module/file purpose
+3. Check git history (`git log -p` on the file) to see when the TODO was added and what else changed at the same time
+4. Use this context to determine: fix it, delete it (if resolved/stale), or document why it stays
 
-- `ProjectorView.re:90,96,224` - Documentation/cleanup
-- `ProjectorPerform.re:152` - Hardcoded Probe reference
-- Various `//TODO(andrew): ?` scattered around
+### TODO Inventory
+
+#### Deferred
+
+| Location | TODO | Notes |
+| -------- | ---- | ----- |
+| `style.css:93` | "fix backpack visibility" | Deeper issue - not probe-related, keep for now |
+
+#### Needs Investigation
+
+| Location | TODO | Summary |
+| -------- | ---- | ------- |
+| `Test_AutoProbe.re:297` | "probably this should probe body instead" | Design question: should auto-probe on `let x = e in body` probe `body` or whole let? |
+| `ProjectorPerform.re:152` | hardcoded Probe | `FocusIndicated` always uses Probe module - should this be generic? |
+| `ProjectorView.re:90,96` | "cleanup, document hax" | Refractor measurement fallback path - document or refactor |
+| `ProjectorView.re:224` | empty refractor_shape_map | Nested views don't support probes - is this intentional? Document or fix |
+| `StepperBase.re:1052` | empty Dynamics.Map | Stepper doesn't have dynamics for probes - document why |
+| `Arms.re:436` | "unhardcode magic 4 offset" | Hardcoded +4 in dashed line calculation - should derive from measurement |
+| `ChatLSP.re:384` | empty refractors | Chat/LSP doesn't support probes - document or consider supporting |
+
+---
+
+## Phase 5B: Remove Probe from ProjectorPanel ✅ COMPLETED
+
+Probes don't fit well in the ProjectorPanel because:
+- Other projectors are mutually exclusive on syntax (one projector per term)
+- Probes are additive (can put probes on anything, multiple probes)
+- The "select a projector" UX doesn't match probe workflow
+
+### Changes Made
+
+1. **Remove Probe from `ProjectorCore.Kind.projectors` list** - Probe no longer appears in dropdown
+2. **Update dispatch sites** to use `Probe(ToggleManual)` directly:
+   - `Keyboard.re` (Option-V shortcut)
+   - `Shortcut.re` (menu shortcut)
+3. **Remove special-case intercept from `Perform.re`** - No longer needed (resolved `Perform.re:57` TODO)
+4. **Remove Probe case from `ProjectorPanel.keyboard_shortcut_of`** - Won't be shown
+5. **Extract CSS z-index to variable** - `--context-menu-z` in variables.css (resolved `editor.css:362` TODO)
+
+### Notes
+
+- `ProjectorCore.Kind.t` still has `Probe` variant (for rendering, etc.)
+- Context menu probe options unchanged
+- This is partial work toward full probe/projector separation
+
+---
+
+## Phase 5C: Replace ProjectorPanel with Context Menu (Future)
+
+**Status**: 📋 PROPOSED - Not yet decided
+
+Consider removing the ProjectorPanel entirely and moving projector options to the syntax context menu.
+
+**Rationale**:
+- Context menu is already used for probe actions
+- Projector options are contextual to the indicated term anyway
+- Simplifies the inspector UI
+
+**Implementation**:
+1. Add projector options to ContextMenu.re (similar to probe options)
+2. Remove or repurpose ProjectorPanel.re
+3. Update inspector layout
+
+**Decision**: TBD - may do as part of merge or defer to future work.
+
+---
+
+## Phase 6: Prior to Merge Decisions
+
+Items to address before merging `probemoar` into `dev`.
+
+### 6A: Remove Debug/Profiling Code ✅ (Mark when done)
+
+- [ ] `WorkerServer.re:54` - Remove debug logging
+- [ ] `ScratchMode.re:382` - Remove profiling code
+
+### 6B: Feature Decisions (UI Toggle Visibility)
+
+Consider hiding incomplete/experimental features from the merge PR while retaining code on a separate branch for future work.
+
+**probe_all Setting Toggle**
+
+- Location: Settings UI (probe settings panel)
+- Decision: Comment out the toggle in UI? Keep setting in model but hide toggle?
+- Rationale: May want to hide experimental "probe all" feature from initial merge
+
+**Sidebar / ProbeSidebar**
+
+- Location: `ProbeSidebar.re`, sidebar integration
+- Decision options:
+  - Keep sidebar as-is
+  - Comment out sidebar panel from merge
+  - Comment out specific sidebar sections (e.g., print statements list)
+- Rationale: Sidebar may be incomplete or experimental for initial merge
+
+**Implementation approach**: Create a feature branch from `probemoar` before making these changes, so experimental features are preserved for future development.
 
 ---
 
@@ -262,9 +357,14 @@ If we want TypeProj to become a refractor:
 3. **Phase 1C** ✅ COMPLETED: Vestigial Action.t.DynCursor removed
 4. **Phase 1D** ✅ COMPLETED: Action type renaming (sample_cursor, probe)
 5. **Phase 2A** ✅ COMPLETED: Module renaming (SampleCursorPerform, ProbePerform)
-6. **Phase 2B** 📋 DEFERRED: ProbeSidebar.re renaming (cosmetic, can do later)
+6. **Phase 2B** ✅ RESOLVED: Keeping as `ProbeSidebar.re` - name is clear
 7. **Phase 2C** ✅ COMPLETED: Updated all external references
 8. **Phase 3** 📋 DEFERRED: Requires data migration, do last and holistically
+9. **Phase 4** 📋 DEFERRED: TypeProj conversion (optional, low priority)
+10. **Phase 5** 📋 IN PROGRESS: TODO cleanup (see inventory above)
+11. **Phase 5B** ✅ COMPLETED: Remove Probe from ProjectorPanel
+12. **Phase 5C** 📋 PROPOSED: Replace ProjectorPanel with context menu (future)
+13. **Phase 6** 📋 PENDING: Prior-to-merge decisions (profiling removal, feature toggles)
 
 Each completed phase is part of one cohesive commit.
 

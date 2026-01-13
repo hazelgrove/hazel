@@ -39,7 +39,8 @@ module Kind = {
     Csv,
   ];
 
-  let projectors: list(t) = livelit_projectors @ [Fold, Info, Probe];
+  /* Note: Probe intentionally excluded - probes use separate action path */
+  let projectors: list(t) = livelit_projectors @ [Fold, Info];
 
   /* A friendly name for each projector. This is used
    * both for identifying a projector in the CSS and for
