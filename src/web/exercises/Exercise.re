@@ -705,7 +705,6 @@ let rec append_exp = (e1: Language.Exp.t, e2: Language.Exp.t): Language.Exp.t =>
   | Test(_)
   | HintedTest(_)
   | Parens(_)
-  | Probe(_)
   | Cons(_)
   | ListConcat(_)
   | LivelitName(_)

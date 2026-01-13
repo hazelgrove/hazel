@@ -398,7 +398,6 @@ let example_view =
 let rec bypass_parens_and_annot_pat = (pat: Pat.t) => {
   switch (pat.term) {
   | Parens(p)
-  | Probe(p, _)
   | Asc(p, _) => bypass_parens_and_annot_pat(p)
   | _ => pat
   };
@@ -406,16 +405,14 @@ let rec bypass_parens_and_annot_pat = (pat: Pat.t) => {
 
 let rec bypass_parens_pat = (pat: Pat.t) => {
   switch (pat.term) {
-  | Parens(p)
-  | Probe(p, _) => bypass_parens_pat(p)
+  | Parens(p) => bypass_parens_pat(p)
   | _ => pat
   };
 };
 
 let rec bypass_parens_exp = (exp: Exp.t) => {
   switch (exp.term) {
-  | Parens(e)
-  | Probe(e, _) => bypass_parens_exp(e)
+  | Parens(e) => bypass_parens_exp(e)
   | _ => exp
   };
 };
@@ -1143,7 +1140,6 @@ let get_doc =
         | TupLabel(_)
         | Invalid(_)
         | Parens(_)
-        | Probe(_)
         | Label(_)
         | ExplicitNonlabel
         | Asc(_) => default // Shouldn't get hit?
@@ -1731,7 +1727,6 @@ let get_doc =
         | Label(_)
         | Invalid(_) => default // Shouldn't get hit
         | Parens(_)
-        | Probe(_) => default // Shouldn't get hit?
         | Asc(_) => default // Shouldn't get hit?
         };
       | Theorem(pat, thm, body) =>
@@ -1981,8 +1976,7 @@ let get_doc =
             ),
           TestExp.tests,
         );
-      | Parens(term)
-      | Probe(term, _) => get_message_exp(term.term) // No Special message?
+      | Parens(term) => get_message_exp(term.term) // No Special message?
       | HintedTest(body, hint) =>
         let hint_id = List.nth(IdTagged.ids(hint), 0);
         let body_id = List.nth(IdTagged.ids(body), 0);
@@ -2446,8 +2440,7 @@ let get_doc =
         TypAnnPat.typann,
       );
     | Invalid(_) => simple("Not a valid pattern")
-    | Parens(_)
-    | Probe(_) =>
+    | Parens(_) =>
       // Shouldn't be hit?
       default
     }

@@ -945,17 +945,6 @@ module Transition = (EV: EV_MODE) => {
     | Undefined =>
       let. _ = otherwise(env, d);
       Indet;
-    | Probe(d, _) =>
-      /* Probe nodes are no longer used for probe functionality.
-       * The new system uses probe_map passed to the evaluator.
-       * Just unwrap like Parens. */
-      let. _ = otherwise(env, d);
-      Step({
-        expr: d,
-        side_effects: [],
-        kind: RemoveParens,
-        is_value: false,
-      });
     | Parens(d') =>
       let. _ = otherwise(env, d);
       Step({

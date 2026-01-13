@@ -1029,10 +1029,7 @@ let key_handler =
 /* Don't redundantly show an env for variable references, patterns */
 let hide_env = (info: info): bool =>
   switch (info.statics) {
-  | Some(
-      InfoExp({term: {term: Var(_) | Probe({term: Var(_), _}, _), _}, _}),
-    ) =>
-    true
+  | Some(InfoExp({term: {term: Var(_), _}, _})) => true
   | Some(InfoPat(_)) => true
   | _ => false
   };

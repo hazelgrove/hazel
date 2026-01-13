@@ -355,22 +355,8 @@ module Cursor = {
     switch (info) {
     | Some(
         InfoExp({term: {term: Ap(_, {term: Constructor(_), _}, _), _}, _}),
-      )
-    | Some(
-        InfoExp({
-          term:
-            {
-              term:
-                Probe({term: Ap(_, {term: Constructor(_), _}, _), _}, _),
-              _,
-            },
-          _,
-        }),
       ) => Option.None
-    | Some(InfoExp({term: {term: Ap(_), _} as ap, _}))
-    | Some(
-        InfoExp({term: {term: Probe({term: Ap(_), _} as ap, _), _}, _}),
-      ) =>
+    | Some(InfoExp({term: {term: Ap(_), _} as ap, _})) =>
       Some(Exp.rep_id(ap))
     | _ => None
     };

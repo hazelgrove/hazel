@@ -166,9 +166,6 @@ let rec matches =
       | Parens(ctx) =>
         let+ ctx = matches(env, flt, ctx, exp, act, idx);
         Parens(ctx) |> rewrap;
-      | Probe(ctx, pr) =>
-        let+ ctx = matches(env, flt, ctx, exp, act, idx);
-        Probe(ctx, pr) |> rewrap;
       | ListLit(ctx, ds) =>
         let+ ctx = matches(env, flt, ctx, exp, act, idx);
         ListLit(ctx, ds) |> rewrap;

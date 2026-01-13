@@ -254,7 +254,6 @@ let rec transition = (~recursive=false, d: DHExp.t): option(DHExp.t) => {
     | (DeferredAp(_), _)
     | (Deferral(_), _)
     | (LivelitName(_), _)
-    | (Probe(_, _), _)
     | (TupleExtension(_, _), _)
     // These are handled above and must have the wrong type
     | (Atom(_), _)
