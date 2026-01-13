@@ -226,27 +226,26 @@ For each TODO, gather context by:
 
 #### Deferred
 
-| Location | TODO | Notes |
-| -------- | ---- | ----- |
+| Location       | TODO                      | Notes                                          |
+| -------------- | ------------------------- | ---------------------------------------------- |
 | `style.css:93` | "fix backpack visibility" | Deeper issue - not probe-related, keep for now |
 
 #### Needs Investigation
 
-| Location | TODO | Summary |
-| -------- | ---- | ------- |
-| `Test_AutoProbe.re:297` | "probably this should probe body instead" | Design question: should auto-probe on `let x = e in body` probe `body` or whole let? |
-| `ProjectorPerform.re:152` | hardcoded Probe | `FocusIndicated` always uses Probe module - should this be generic? |
-| `ProjectorView.re:90,96` | "cleanup, document hax" | Refractor measurement fallback path - document or refactor |
-| `ProjectorView.re:224` | empty refractor_shape_map | Nested views don't support probes - is this intentional? Document or fix |
-| `StepperBase.re:1052` | empty Dynamics.Map | Stepper doesn't have dynamics for probes - document why |
-| `Arms.re:436` | "unhardcode magic 4 offset" | Hardcoded +4 in dashed line calculation - should derive from measurement |
-| `ChatLSP.re:384` | empty refractors | Chat/LSP doesn't support probes - document or consider supporting |
+| Location                 | TODO                                      | Summary                                                                              |
+| ------------------------ | ----------------------------------------- | ------------------------------------------------------------------------------------ |
+| `Test_AutoProbe.re:297`  | "probably this should probe body instead" | Design question: should auto-probe on `let x = e in body` probe `body` or whole let? |
+| `ProjectorView.re:90,96` | "cleanup, document hax"                   | Refractor measurement fallback path - document or refactor                           |
+| `ProjectorView.re:224`   | empty refractor_shape_map                 | Nested views don't support probes - is this intentional? Document or fix             |
+| `Arms.re:436`            | "unhardcode magic 4 offset"               | Hardcoded +4 in dashed line calculation - should derive from measurement             |
+| `ChatLSP.re:384`         | empty refractors                          | Chat/LSP doesn't support probes - document or consider supporting                    |
 
 ---
 
 ## Phase 5B: Remove Probe from ProjectorPanel ✅ COMPLETED
 
 Probes don't fit well in the ProjectorPanel because:
+
 - Other projectors are mutually exclusive on syntax (one projector per term)
 - Probes are additive (can put probes on anything, multiple probes)
 - The "select a projector" UX doesn't match probe workflow
@@ -276,11 +275,13 @@ Probes don't fit well in the ProjectorPanel because:
 Consider removing the ProjectorPanel entirely and moving projector options to the syntax context menu.
 
 **Rationale**:
+
 - Context menu is already used for probe actions
 - Projector options are contextual to the indicated term anyway
 - Simplifies the inspector UI
 
 **Implementation**:
+
 1. Add projector options to ContextMenu.re (similar to probe options)
 2. Remove or repurpose ProjectorPanel.re
 3. Update inspector layout

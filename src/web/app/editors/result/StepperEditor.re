@@ -143,6 +143,8 @@ module View = {
       });
   };
 
+  /* Steppers don't support probe dynamics - expressions shown are
+     intermediate evaluation steps, not the main program being probed. */
   let view =
       (
         ~globals: Globals.t,
@@ -151,9 +153,11 @@ module View = {
         ~overlays=[],
         ~selected,
         ~selected_id,
+        ~_dynamics: Language.Dynamics.Map.t=Language.Dynamics.Map.empty,
         model: Model.t,
       ) =>
     CodeSelectable.View.view(
+      ~dynamics=Language.Dynamics.Map.empty,
       ~signal=
         fun
         | MakeActive => signal(MakeActive),
