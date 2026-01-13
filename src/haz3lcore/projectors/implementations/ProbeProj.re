@@ -362,7 +362,7 @@ let cursor_clss =
 };
 
 module Debug = {
-  let stack = (stack: Probe.call_stack): string =>
+  let stack = (stack: Sample.call_stack): string =>
     stack |> List.map(Id.str3) |> String.concat("\n");
 
   let str = (~ap_id: option(Id.t), sample: Sample.t): string =>

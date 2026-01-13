@@ -1,5 +1,38 @@
 open Util;
 
+/* Specifies which environment bindings to capture for a sample.
+ * This could be extended to specify other aspects of capture. */
+[@deriving (show({with_path: false}), sexp, yojson, eq)]
+type capture_spec = {refs: Binding.s};
+
+let empty_capture_spec: capture_spec = {refs: []};
+
+/* Call context represented as a list of function application IDs.
+ * The head is the most recent (innermost) call. */
+[@deriving (show({with_path: false}), sexp, yojson, eq)]
+type call_stack = list(Id.t);
+
+/* Maps expression/pattern IDs to their capture specifications.
+ * Presence in this map means "collect a sample when evaluated". */
+type targets = Id.Map.t(capture_spec);
+
+let no_targets: targets = Id.Map.empty;
+
+/* Deriving functions for targets type alias */
+let pp_targets = (fmt, targets: targets) =>
+  Id.Map.pp(pp_capture_spec, fmt, targets);
+let show_targets = (targets: targets) =>
+  Format.asprintf("%a", pp_targets, targets);
+let sexp_of_targets = (targets: targets) =>
+  Id.Map.sexp_of_t(sexp_of_capture_spec, targets);
+let targets_of_sexp = sexp => Id.Map.t_of_sexp(capture_spec_of_sexp, sexp);
+let yojson_of_targets = (targets: targets) =>
+  Id.Map.yojson_of_t(yojson_of_capture_spec, targets);
+let targets_of_yojson = json =>
+  Id.Map.t_of_yojson(capture_spec_of_yojson, json);
+let equal_targets = (t1: targets, t2: targets) =>
+  Id.Map.equal(equal_capture_spec, t1, t2);
+
 /* A probe sample records a value and an environment,
  * along with a `stack` which records partial information
  * about the execution trace prior to the sample being taken */
@@ -79,7 +112,7 @@ type t = {
   syntax_id: Id.t, /* Syntax ID of probed expression */
   value: DHExp.t, /* Value of expression */
   env: Env.t, /* (Filtered) Environment Values  */
-  call_stack: Probe.call_stack, /* Call stacks as ap ids */
+  call_stack, /* Call stacks as ap ids */
   time: float, /* Time of evaluatation */
   iter: int, /* A count index of each sample taken */
   origin, /* Is this sample from a probe or a print statement */
@@ -97,19 +130,19 @@ let mk =
       syntax_id: Id.t,
       value: DHExp.t,
       env: Environment.t(Exp.t),
-      call_stack: Probe.call_stack,
-      pr: Probe.t,
+      stack: call_stack,
+      spec: capture_spec,
     )
     : t => {
   /* Below hash provides a coarse-grained identification of
    * samples currently used to keep display-length data between
    * similar runs. May want to alter this or simply used a fresh
    * UUID depending on future desiderata */
-  id: Hashtbl.hash((call_stack, syntax_id)),
+  id: Hashtbl.hash((stack, syntax_id)),
   syntax_id,
   value,
-  env: Env.filter(env, pr.refs),
-  call_stack,
+  env: Env.filter(env, spec.refs),
+  call_stack: stack,
   time: JsUtil.precise_timestamp(),
   iter: {
     iter := iter^ + 1;
@@ -253,14 +286,14 @@ module Cursor = {
   [@deriving (show({with_path: false}), sexp, yojson, eq)]
   type pending_focus = {
     probe_id: Id.t, /* The probe we're stepping into */
-    target_stack: Probe.call_stack /* The call stack to match */
+    target_stack: call_stack /* The call stack to match */
   };
 
   [@deriving (show({with_path: false}), sexp, yojson, eq)]
   type t = {
-    stack: Probe.call_stack,
+    stack: call_stack,
     index: int,
-    pinned_stack: option(Probe.call_stack),
+    pinned_stack: option(call_stack),
     indicated_call: option(Id.t),
     time: option(float),
     iter: int,
@@ -279,13 +312,13 @@ module Cursor = {
     pending_focus: None,
   };
 
-  let trimmed_stack = (cursor: t): Probe.call_stack =>
+  let trimmed_stack = (cursor: t): call_stack =>
     ListUtil.slice(0, cursor.index + 1, cursor.stack |> List.rev) |> List.rev;
 
   /* If the cursor is on a call, and the provided call stack is
    * downstream of that call, return how many aps downstream it is */
   let depth_in_indicated_calls_stack =
-      (cursor: t, call_stack: Probe.call_stack): option(int) => {
+      (cursor: t, call_stack: call_stack): option(int) => {
     let* cur_ap = cursor.indicated_call;
     ListUtil.suffix_at_depth([cur_ap] @ trimmed_stack(cursor), call_stack);
   };
@@ -336,8 +369,7 @@ module Cursor = {
 
   let is_below = ListUtil.suffix_at_depth;
 
-  let relative_level =
-      (cs1: Probe.call_stack, cs2: Probe.call_stack): relative_level =>
+  let relative_level = (cs1: call_stack, cs2: call_stack): relative_level =>
     switch (is_below(cs1, cs2), is_below(cs2, cs1)) {
     | (Some(0), Some(0)) => Same
     | (Some(n), None) => Below(n)
@@ -345,8 +377,7 @@ module Cursor = {
     | (_, _) => Unrelated
     };
 
-  let cur_call =
-      (ap_id: option(Id.t), sample: sample): option(Probe.call_stack) => {
+  let cur_call = (ap_id: option(Id.t), sample: sample): option(call_stack) => {
     let* ap_id = ap_id;
     Some([ap_id, ...sample.call_stack]);
   };
@@ -420,11 +451,7 @@ module Selection = {
 
   /* Filter samples by pinned call stack */
   let filter_by_pin =
-      (
-        ~ap_id: option(Id.t),
-        ~pinned: option(Probe.call_stack),
-        samples: list(t),
-      )
+      (~ap_id: option(Id.t), ~pinned: option(call_stack), samples: list(t))
       : list(t) =>
     switch (pinned) {
     | Some(pinned_stack) =>
@@ -467,7 +494,7 @@ module Selection = {
 
   /* Find sample with best call stack suffix match to cursor */
   let best_suffix_match =
-      (~cursor_stack: Probe.call_stack, samples: list(t)): option(t) =>
+      (~cursor_stack: call_stack, samples: list(t)): option(t) =>
     List.fold_left(
       (best: option((t, int)), sample: t) => {
         let score =
@@ -539,7 +566,7 @@ module Selection = {
         ~mode: Window.mode,
         ~offset: int,
         ~ap_id: option(Id.t),
-        ~pinned: option(Probe.call_stack),
+        ~pinned: option(call_stack),
         ~cursor: Cursor.t,
         samples: list(t),
       )

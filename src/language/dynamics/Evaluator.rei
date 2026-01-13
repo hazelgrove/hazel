@@ -6,13 +6,13 @@ type step_constrained('a) =
   | Completed('a);
 
 let evaluate:
-  (~probe_map: Id.Map.t(Probe.t)=?, ~env: Environment.t(Exp.t), Exp.t) =>
+  (~targets: Sample.targets=?, ~env: Environment.t(Exp.t), Exp.t) =>
   (Exp.t, EvaluatorState.t);
 
 let evaluate_and_limit:
   (
     ~step_limit: int=?,
-    ~probe_map: Id.Map.t(Probe.t)=?,
+    ~targets: Sample.targets=?,
     ~env: Environment.t(Exp.t),
     Exp.t
   ) =>

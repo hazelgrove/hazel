@@ -7,7 +7,7 @@ module Request = {
   [@deriving (show, sexp, yojson)]
   type value = {
     expr: Language.Exp.t,
-    probe_map: Id.Map.t(Language.Probe.t),
+    targets: Language.Sample.targets,
   };
   [@deriving (show, sexp, yojson)]
   type t = list((string, value));
@@ -28,12 +28,12 @@ module Response = {
 };
 
 let work = (req_value: Request.value): Response.value => {
-  let Request.{expr, probe_map} = req_value;
+  let Request.{expr, targets} = req_value;
   let eval_start = JsUtil.precise_timestamp();
   let result =
     switch (
       Language.Evaluator.evaluate(
-        ~probe_map,
+        ~targets,
         ~env=Language.Builtins.env_init,
         expr,
       )

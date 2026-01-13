@@ -212,7 +212,7 @@ module Transition = (EV: EV_MODE) => {
            | `Substitution
            | `Environment
          ],
-        ~probe_map: Id.Map.t(Probe.t)=Id.Map.empty,
+        ~targets: Sample.targets=Sample.no_targets,
         ~in_closure=?,
         env: Environment.t(Exp.t), // Environment is empty in substitution mode
         d,
@@ -281,7 +281,7 @@ module Transition = (EV: EV_MODE) => {
       and. d1' =
         req_final(req(env), d1 => Let1(dp, d1, d2) |> wrap_ctx, d1);
       let.wrap_closure _ = (env, Let(dp, d1', d2) |> rewrap);
-      let {matches, samples} = matches(probe_map, dp, d1');
+      let {matches, samples} = matches(targets, dp, d1');
       let matches_str = {
         switch (matches) {
         | IndetMatch
@@ -471,7 +471,7 @@ module Transition = (EV: EV_MODE) => {
         switch (unboxed_fun) {
         | Constructor(_) => Constructor
         | FunEnv(dp, d3, replacement_env) =>
-          let matches = matches(probe_map, dp, d2');
+          let matches = matches(targets, dp, d2');
           switch (matches.matches) {
           | IndetMatch
           | DoesNotMatch => Indet
@@ -488,7 +488,7 @@ module Transition = (EV: EV_MODE) => {
             });
           };
         | FunNoEnv(dp, d3) when mode == `Substitution =>
-          let matches = matches(probe_map, dp, d2');
+          let matches = matches(targets, dp, d2');
           switch (matches.matches) {
           | IndetMatch
           | DoesNotMatch => Indet
@@ -860,7 +860,7 @@ module Transition = (EV: EV_MODE) => {
         fun
         | [] => None
         | [(dp, d2), ...rules] => {
-            let matches = matches(probe_map, dp, d1);
+            let matches = matches(targets, dp, d1);
             switch (matches.matches) {
             | Matches(env') => Some((env', d2, matches.samples))
             | DoesNotMatch => next_rule(rules)

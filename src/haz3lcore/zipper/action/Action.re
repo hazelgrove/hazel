@@ -44,7 +44,7 @@ type select =
 [@deriving (show({with_path: false}), sexp, yojson, eq)]
 type dyn_cursor =
   | Capture(Language.Sample.t, option(Id.t))
-  | TogglePinCall(Language.Probe.call_stack)
+  | TogglePinCall(Language.Sample.call_stack)
   | Reset;
 
 [@deriving (show({with_path: false}), sexp, yojson, eq)]

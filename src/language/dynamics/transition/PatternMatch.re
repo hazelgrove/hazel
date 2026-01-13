@@ -16,8 +16,8 @@ let combine_result = (r1: match_result, r2: match_result): match_result =>
   };
 
 /* Sample closures take call_stack, step_start, and step_end.
- * Collected during pattern matching when patterns are in probe_map. */
-type sample_closures = list((Probe.call_stack, int, int) => Sample.t);
+ * Collected during pattern matching when patterns are targeted. */
+type sample_closures = list((Sample.call_stack, int, int) => Sample.t);
 
 /* Core pattern matching logic - just a switch on pattern structure */
 let match_pattern =
@@ -71,21 +71,21 @@ let match_pattern =
     recur(p, Ascriptions.transition_multiple(Asc(d, t1) |> DHExp.fresh))
   };
 
-/* Record a sample closure if this pattern is probed and matched */
-let record_probe_sample =
+/* Record a sample closure if this pattern is targeted and matched */
+let record_sample =
     (
       sample_closures: ref(sample_closures),
       pat_id: Id.t,
-      maybe_probe: option(Probe.t),
+      maybe_spec: option(Sample.capture_spec),
       d: DHExp.t,
       result: match_result,
     )
     : unit =>
-  switch (maybe_probe, result) {
-  | (Some(pr), Matches(env)) =>
+  switch (maybe_spec, result) {
+  | (Some(spec), Matches(env)) =>
     sample_closures :=
       List.cons(
-        (call_stack: Probe.call_stack, step_start: int, step_end: int) =>
+        (call_stack: Sample.call_stack, step_start: int, step_end: int) =>
           Sample.mk(
             ~step_start,
             ~step_end,
@@ -93,17 +93,17 @@ let record_probe_sample =
             d,
             Environment.of_bindings(env),
             call_stack,
-            pr,
+            spec,
           ),
         sample_closures^,
       )
   | _ => ()
   };
 
-/* Main matching function - coordinates pattern matching and probe recording */
+/* Main matching function - coordinates pattern matching and sample recording */
 let rec matches_inner =
         (
-          probe_map: Id.Map.t(Probe.t),
+          targets: Sample.targets,
           sample_closures: ref(sample_closures),
           dp: Pat.t,
           d: DHExp.t,
@@ -111,11 +111,11 @@ let rec matches_inner =
         : match_result => {
   let d = Ascriptions.transition_multiple(d);
   let pat_id = Pat.rep_id(dp);
-  let maybe_probe = Id.Map.find_opt(pat_id, probe_map);
-  let recur = matches_inner(probe_map, sample_closures);
+  let maybe_spec = Id.Map.find_opt(pat_id, targets);
+  let recur = matches_inner(targets, sample_closures);
 
   let result = match_pattern(recur, dp, d);
-  record_probe_sample(sample_closures, pat_id, maybe_probe, d, result);
+  record_sample(sample_closures, pat_id, maybe_spec, d, result);
   result;
 };
 
@@ -125,10 +125,9 @@ type matches_and_samples = {
 };
 
 let matches =
-    (probe_map: Id.Map.t(Probe.t), dp: Pat.t, d: DHExp.t)
-    : matches_and_samples => {
+    (targets: Sample.targets, dp: Pat.t, d: DHExp.t): matches_and_samples => {
   let sample_closures = ref([]);
-  let result = matches_inner(probe_map, sample_closures, dp, d);
+  let result = matches_inner(targets, sample_closures, dp, d);
   {
     matches: result,
     samples: sample_closures^,

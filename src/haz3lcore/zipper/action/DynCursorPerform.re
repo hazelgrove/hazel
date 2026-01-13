@@ -12,7 +12,7 @@ let update_dyn_cursor = (z: Zipper.t, f: DynCursor.t => DynCursor.t) =>
   );
 
 let update_pinned_call =
-    (z: Zipper.t, f: option(Probe.call_stack) => option(Probe.call_stack)) =>
+    (z: Zipper.t, f: option(Sample.call_stack) => option(Sample.call_stack)) =>
   update_dyn_cursor(z, dyn_cursor =>
     {
       ...dyn_cursor,
@@ -47,7 +47,7 @@ let reset = (z: Zipper.t): Zipper.t =>
    the sample that matches the target stack. Called from Refractors
    after it looks up the samples from dynamics. */
 let resolve_pending_focus =
-    (z: Zipper.t, samples: list(Sample.t), target_stack: Probe.call_stack)
+    (z: Zipper.t, samples: list(Sample.t), target_stack: Sample.call_stack)
     : Zipper.t => {
   let matching_sample =
     List.find_opt((s: Sample.t) => s.call_stack == target_stack, samples);
