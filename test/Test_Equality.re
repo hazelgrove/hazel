@@ -26,8 +26,8 @@ let tests = (
       () => {
         let forall_string =
           Exp.forall(
-          Pat.asc(Pat.var("x"), Typ.string()),
-          Exp.bin_op(
+            Pat.asc(Pat.var("x"), Typ.string()),
+            Exp.bin_op(
               Operators.Poly(Operators.Equals),
               Exp.var("x"),
               Exp.var("x"),
