@@ -97,8 +97,6 @@ module Update = {
         {editor, statics, context_menu, dynamics: _}: Model.t,
       )
       : Model.t => {
-    //TODO(andrew): resolve this cycle
-    // might be problematic not to calc editor again below...
     let editor =
       Editor.Update.calculate(
         ~settings,
@@ -119,15 +117,6 @@ module Update = {
           )
         : statics;
     {
-      // let editor =
-      //   Editor.Update.calculate(
-      //     ~settings,
-      //     ~is_edited,
-      //     statics,
-      //     dynamics,
-      //     editor,
-      //   );
-
       editor,
       statics,
       dynamics,

@@ -22,11 +22,6 @@
   z-index: var(--projector-z);
 }
 
-.refractors .projector {
-  /* TODO(andrew) */
-  /* z-index: 1; */
-}
-
 .refractors .projector.probe.indicated {
   z-index: 11;
 }

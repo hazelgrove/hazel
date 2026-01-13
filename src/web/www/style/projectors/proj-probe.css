@@ -117,7 +117,7 @@
 }
 
 .refractors svg:has(.child-line) {
-  z-index: 2; /* TODO(andrew) */
+  z-index: 2;
 }
 
 .refractors .child-line {

@@ -407,7 +407,7 @@ module Indicated = {
   let term =
       (~font_metrics: FontMetrics.t, ~syntax: CachedSyntax.t, z: Zipper.t) => {
     let is_probed =
-      Refractors.has_probe(
+      ProbePerform.has_probe(
         Indicated.index(z) |> Option.value(~default=Id.invalid),
         z,
       );

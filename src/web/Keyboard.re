@@ -54,7 +54,7 @@ let handle_key_event = (k: Key.t): option(Action.t) => {
     | "ArrowRight" => now(Select(Resize(Line(Right))))
     | "ArrowUp" => now(Select(Resize(Start)))
     | "ArrowDown" => now(Select(Resize(End)))
-    | "e" => now(Refractor(ToggleProbeREPL))
+    | "e" => now(Probe(ToggleAuto))
     | _ => None
     }
   | {key: D(key), sys: PC, shift: Down, meta: Up, ctrl: Down, alt: Up} =>
@@ -65,14 +65,14 @@ let handle_key_event = (k: Key.t): option(Action.t) => {
     | "ArrowDown" => now(Select(Resize(Vertical(Down))))
     | "Home" => now(Select(Resize(Start)))
     | "End" => now(Select(Resize(End)))
-    | "e" => now(Refractor(ToggleProbeREPL))
+    | "e" => now(Probe(ToggleAuto))
     | _ => None
     }
   | {key: D(key), sys: Mac, shift: Up, meta: Down, ctrl: Up, alt: Up} =>
     switch (key) {
     | "d" => now(Select(Term(Current)))
     | "a" => now(Select(All))
-    | "e" => now(Refractor(ToggleProbeManual))
+    | "e" => now(Probe(ToggleManual))
     | "/" => Some(Buffer(Set(TyDi)))
     | "ArrowLeft" => now(Move(Line(Left)))
     | "ArrowRight" => now(Move(Line(Right)))
@@ -85,7 +85,7 @@ let handle_key_event = (k: Key.t): option(Action.t) => {
     switch (key) {
     | "d" => now(Select(Term(Current)))
     | "a" => now(Select(All))
-    | "e" => now(Refractor(ToggleProbeManual))
+    | "e" => now(Probe(ToggleManual))
     | "/" => Some(Buffer(Set(TyDi)))
     | "ArrowLeft" => now(Move(Local(Left, ByToken)))
     | "ArrowRight" => now(Move(Local(Right, ByToken)))

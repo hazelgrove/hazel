@@ -82,7 +82,7 @@ module Model = {
         indicated: option(Indicated.piece),
         statics: Language.Statics.Map.t,
         dynamics: Language.Dynamics.Map.t,
-        dyn_cursor: Language.DynCursor.t,
+        dyn_cursor: Language.Sample.Cursor.t,
         editor_active: bool,
       ) => {
     List.filter_map(
@@ -191,8 +191,8 @@ let handle = (id, action: external_action): Action.t =>
   | Remove => Project(RemoveIndicated)
   | Escape(d) => Project(Escape(id, d))
   | SetSyntax(f) => Project(SetSyntax(id, f))
-  | DynCursor(dc) => Project(DynCursor(dc))
-  | Refractor(rf) => Refractor(rf)
+  | SampleCursor(sc) => Project(SampleCursor(sc))
+  | Probe(p) => Probe(p)
   };
 
 let offside_wrapper =

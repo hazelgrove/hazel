@@ -189,14 +189,14 @@ module Update = {
     /* 3. Update autoprobes */
     let zipper =
       zipper
-      |> Refractors.add_ids_from_auto_term(
+      |> ProbePerform.add_ids_from_auto_term(
            ~syntax,
            ~info_map=new_statics.info_map,
          );
 
     /* 4. Resolve pending focus from step-into */
     let zipper =
-      Refractors.resolve_pending_focus(~dynamics=new_dynamics, zipper);
+      ProbePerform.resolve_pending_focus(~dynamics=new_dynamics, zipper);
 
     Model.{
       state: {

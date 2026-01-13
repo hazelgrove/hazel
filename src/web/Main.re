@@ -184,8 +184,8 @@ let start = {
         } else {
           ();
         };
-        /* Handle scheduled probe focus from step-into (see Refractors.FocusEffect) */
-        let _ = Haz3lcore.Refractors.FocusEffect.execute();
+        /* Handle scheduled probe focus from step-into (see ProbePerform.FocusEffect) */
+        let _ = Haz3lcore.ProbePerform.FocusEffect.execute();
         model.current.globals.settings.core.statics ? Animation.go() : ();
       },
       (),

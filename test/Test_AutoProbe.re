@@ -221,7 +221,7 @@ let incomplete = ? in  # incomplete #
 /* CONTAINER SPECIAL CASES - multi-line containers prefer elements */
 let container_tests = [
   test_probe_placement(
-    //TODO(andrew): consider probing parens instead of tuple
+    //TODO: consider probing parens instead of tuple
     ~name="Single-line tuple - normal behavior",
     ~code={|let pair = (a, b) in # a, b #
 pair # pair #|},
@@ -330,23 +330,6 @@ let if_expression_tests = [
   ),
 ];
 
-// Decided not to do this for now
-/* VARIABLE REFERENCE REDUNDANCY - track seen variables */
-// let variable_redundancy_tests = [
-//   test_probe_placement(
-//     ~name="Don't probe reference already probed",
-//     ~code={|let a = # a #
-//   1 in              # 1 #
-// a|},
-//   ),
-//   test_probe_placement(
-//     ~name="Don't probe references already probed in compound pattern",
-//     ~code={|let (a, b) = # a, b #
-//     pair in              # pair #
-//   a|},
-//   ),
-// ];
-
 /* FUNCTION TYPE FILTERING - avoid probing function values */
 let function_type_tests = [
   test_probe_placement(
@@ -366,6 +349,5 @@ let tests = [
   ("AutoProbe.Containers", container_tests),
   ("AutoProbe.LetExpressions", let_expression_tests),
   ("AutoProbe.IfExpressions", if_expression_tests),
-  //("AutoProbe.VariableRedundancy", variable_redundancy_tests),
   ("AutoProbe.FunctionTypes", function_type_tests),
 ];

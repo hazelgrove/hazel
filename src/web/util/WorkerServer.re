@@ -51,7 +51,7 @@ let work = (req_value: Request.value): Response.value => {
     | (result, state) => Ok((result, state))
     };
   let eval_end = JsUtil.precise_timestamp();
-  //TODO(andrew): rm before final merge
+  //TODO(andrew): rm profiling before final merge
   Printf.printf("  Eval only (ms): %.2f\n", eval_end -. eval_start);
   result;
 };

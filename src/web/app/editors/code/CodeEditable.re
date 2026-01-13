@@ -58,7 +58,7 @@ module Update = {
                   settings.core.probe_all
                   && (
                     switch (action) {
-                    | Refractor(_) => true
+                    | Probe(_) => true
                     | _ => false
                     }
                   )
@@ -79,12 +79,11 @@ module Update = {
              | Cut
              | Reparse
              | Introduce
-             | Refractor(StepIntoSample(_))
+             | Probe(StepInto(_))
              | Dump => true
              | Project(_)
              | Unselect(_)
-             | Refractor(_)
-             | DynCursor(_) => false
+             | Probe(_) => false
              };
            },
          );

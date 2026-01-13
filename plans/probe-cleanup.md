@@ -1,0 +1,326 @@
+# Probe System Cleanup Plan
+
+This document tracks the cleanup and reorganization of probe-related code before merging `probemoar` into `dev`.
+
+## Branch Status
+
+- **Branch**: `probemoar`
+- **Commits ahead of dev**: ~392
+- **Files changed**: ~287 (+22k/-7k lines)
+
+## Current Architecture Overview
+
+### Key Files and Their Roles
+
+| File                     | Current Role                                      | Status/Issues                                                           |
+| ------------------------ | ------------------------------------------------- | ----------------------------------------------------------------------- |
+| `Sample.re`              | Core sample types, Cursor module, Selection logic | Cursor contains probe-specific fields (`pinned_stack`, `pending_focus`) |
+| `DynCursor.re`           | Just `include Sample.Cursor`                      | ✅ **DELETED** - all refs now use `Sample.Cursor`                       |
+| `SampleCursorPerform.re` | Zipper wrappers for cursor updates                | ✅ **RENAMED** from `DynCursorPerform.re` (func `perform` → `go`)       |
+| `ProbePerform.re`        | Probe operations (add/remove/toggle/step-into)    | ✅ **RENAMED** from `Refractors.re` (func `update` → `go`)              |
+| `ProbeProj.re`           | Probe UI/view, stateful settings                  | Contains `Settings` module with global refs                             |
+| `ProbeSidebar.re`        | Sidebar panel showing probes/prints               | Name is vague - should be `ProbeSidebar.re` or similar                  |
+| `ZipperBase.re`          | `Refractor.t` record in zipper                    | Mixes probe config with cursor state                                    |
+
+### Action Type Structure (Updated)
+
+```reason
+// In Action.re (CURRENT STATE after Phase 1D + 2A cleanup)
+type sample_cursor =  // was dyn_cursor
+  | Capture(Sample.t, option(Id.t))
+  | TogglePinCall(call_stack)  // was TogglePin
+  | Reset;
+
+type probe =  // was refractor
+  | ToggleManual       // was ToggleProbeManual
+  | ToggleAuto         // was ToggleProbeREPL
+  | StepInto(Sample.t, Id.t);  // was StepIntoSample
+
+type project =
+  | SampleCursor(sample_cursor)  // was DynCursor(dyn_cursor)
+  | ...
+
+type t =
+  | ...
+  | Probe(probe)   // was Refractor(refractor)
+  // DynCursor removed - was vestigial
+```
+
+**Resolved**: Vestigial top-level `Action.t.DynCursor` has been removed.
+
+- All cursor action dispatches now flow through `Project(DynCursor(...))` only
+- This matches the actual dispatch path from ProbeProj → ProjectorView.handle
+
+### ProbePerform Module Usage (was Refractors)
+
+Currently exported and used:
+
+- `FocusEffect.execute()` - Main.re
+- `go()` - Perform.re (was `update`)
+- `add_ids_from_auto_term()` - Editor.re
+- `resolve_pending_focus()` - Editor.re
+- `ids_from_term()` - ProbeSidebar.re
+- `probe_status()` - ContextMenu.re
+- `can_probe()` - ContextMenu.re
+- `has_probe()` - Arms.re
+
+Note: `Arms.Refractors` in `Arms.re` is a DIFFERENT module (drawing code for probe arms).
+
+---
+
+## Phase 1: DynCursor Consolidation
+
+### 1A: Delete DynCursor.re ✅ COMPLETED
+
+- [x] Replace all `DynCursor.*` with `Sample.Cursor.*`
+- [x] Delete `src/language/dynamics/DynCursor.re`
+
+**Files updated**:
+
+- Dynamics.re
+- ZipperBase.re
+- DynCursorPerform.re
+- Refractors.re
+- ProbeProj.re
+- ProjectorInfo.re
+- ProjectorView.re
+- ProbeSidebar.re
+
+### 1B: Merge DynCursorPerform.re into Refractors.re ⚠️ BLOCKED → N/A
+
+**Issue**: Dependency cycle prevents this merge.
+
+- Refractors.re depends on CachedSyntax, CachedStatics
+- These indirectly depend on ProjectorPerform, Printer, etc.
+- ProjectorPerform would need to call Refractors.Cursor.perform
+- This creates: Refractors → CachedSyntax → ... → ProjectorPerform → Refractors
+
+**Resolution**: Keep as separate files. The cursor update operations are conceptually related to probes but must stay isolated due to the dependency graph. Both modules were renamed in Phase 2A (see below).
+
+### 1C: Consolidate Action.DynCursor Duplication ✅ COMPLETED
+
+Removed vestigial top-level `Action.t.DynCursor`:
+
+- [x] Removed from `Action.t` type definition
+- [x] Removed from `is_edit`, `is_historic`, `prevent_in_read_only_editor`, `should_animate`
+- [x] Removed from `Perform.go`
+- [x] Removed from `CodeEditable.re` and `CodeSelectable.re`
+
+All DynCursor dispatches now correctly flow through `Project(DynCursor(...))` only.
+
+### 1D: Rename Action Types ✅ COMPLETED
+
+Completed renames:
+
+- `Action.dyn_cursor` → `Action.sample_cursor`
+- `Action.refractor` → `Action.probe`
+- `Action.project.DynCursor` → `Action.project.SampleCursor`
+- `Action.t.Refractor` → `Action.t.Probe`
+
+**Files updated** (~15 files):
+
+- Action.re (type definitions and pattern matches)
+- ProjectorBase.re, ProjectorPerform.re, ProjectorView.re
+- Perform.re, DynCursorPerform.re (now SampleCursorPerform.re)
+- ProbeProj.re, Keyboard.re, CodeEditable.re, CodeSelectable.re
+- ContextMenu.re, Arms.re, and others
+
+---
+
+## Phase 2: Module Renaming (Does NOT touch ZipperBase types)
+
+### 2A: Rename Module Files ✅ COMPLETED
+
+**Completed renames**:
+
+1. **`DynCursorPerform.re` → `SampleCursorPerform.re`**
+
+   - Function: `perform` → `go`
+   - Old file deleted
+   - Follows "Perform" suffix pattern
+
+2. **`Refractors.re` → `ProbePerform.re`**
+   - Function: `update` → `go`
+   - Git tracked rename
+   - Chose `ProbePerform` over `Probes` to avoid conflict with docs `Probes.ml`
+
+Note: `Arms.Refractors` in `Arms.re` is a DIFFERENT module (drawing code for probe arms) - unchanged.
+
+### 2B: Rename ProbeSidebar.re 📋 DEFERRED
+
+`ProbeSidebar.re` is actually a sidebar panel view. Options:
+
+- `ProbeSidebar.re`
+- `ProbePanel.re`
+
+**Status**: Deferred - can be done later, cosmetic change
+
+### 2C: Update External References ✅ COMPLETED
+
+Updated all import sites after module renames (~27 files):
+
+- Perform.re, Editor.re, Main.re
+- ContextMenu.re, ProbeSidebar.re, Arms.re
+- And others
+
+---
+
+## Phase 3: Structural Changes (REQUIRES data migration)
+
+**Warning**: Changes to `ZipperBase.Refractor.t` require migrating serialized zipper data. Should be done holistically after deciding on final structure, with a migration script.
+
+### 3A: Consider Splitting Cursor State
+
+`Sample.Cursor.t` contains probe-specific fields:
+
+```reason
+type t = {
+  stack: call_stack,           // Generic cursor position
+  index: int,                  // Generic depth
+  pinned_stack: option(...),   // PROBE-SPECIFIC: pin feature
+  pending_focus: option(...),  // PROBE-SPECIFIC: step-into state
+  indicated_call: option(Id.t),// Context
+  time, iter, step_range,      // Context
+};
+```
+
+Could potentially split into core cursor + probe-specific extensions.
+
+### 3B: Rename ZipperBase.Refractor.t
+
+Options:
+
+- `ZipperBase.Probes.t`
+- Split into `probe_config` and `sample_cursor`
+
+### 3C: Write Migration Script
+
+For any ZipperBase changes, need script to update serialized data files.
+
+---
+
+## Phase 4: TypeProj Conversion (Optional, Low Priority)
+
+If we want TypeProj to become a refractor:
+
+1. Extract `RefractorBase.re` with trimmed API
+2. Convert TypeProj to use RefractorBase
+3. Update ProjectorView to handle multiple refractor types
+
+**Current assessment**: Probably not worth it unless there's a concrete benefit.
+
+---
+
+## Deferred Items
+
+### Logging/Profiling TODOs (Keep for now - may do more perf work)
+
+- `WorkerServer.re:54` - debug logging
+- `ScratchMode.re:383` - profiling code
+
+### Other TODOs to Review Later
+
+- `ProjectorView.re:90,96,224` - Documentation/cleanup
+- `ProjectorPerform.re:152` - Hardcoded Probe reference
+- Various `//TODO(andrew): ?` scattered around
+
+---
+
+## Open Questions
+
+1. **Should `Action.refractor` and `Action.dyn_cursor` merge?**
+
+   They're both probe-related but conceptually different:
+
+   - `refractor`: Config changes (add/remove probes, step-into)
+   - `dyn_cursor`: Navigation state (capture position, pin, reset)
+
+   Recommendation: Keep separate but rename to `Action.probe` and `Action.sample_cursor`
+
+2. **Where should cursor operations live long-term?**
+
+   Options:
+
+   - In `Sample.re` (current - cursor is about sample navigation)
+   - In renamed `Probes.re` (cursor is probe-specific feature)
+   - Separate `SampleCursor.re` module
+
+   Recommendation: Keep in `Sample.re` - it's pure logic about sample relationships
+
+3. **Is "refractor" worth keeping as a concept?**
+
+   Currently only probes are refractors. TypeProj could theoretically become one.
+
+   Recommendation: Rename to probes for now, can always generalize later if needed.
+
+---
+
+## Execution Order
+
+1. **Phase 1A** ✅ COMPLETED: DynCursor.re deleted, refs updated to Sample.Cursor
+2. **Phase 1B** ⚠️ N/A: DynCursorPerform merge blocked by dependency cycle (kept separate)
+3. **Phase 1C** ✅ COMPLETED: Vestigial Action.t.DynCursor removed
+4. **Phase 1D** ✅ COMPLETED: Action type renaming (sample_cursor, probe)
+5. **Phase 2A** ✅ COMPLETED: Module renaming (SampleCursorPerform, ProbePerform)
+6. **Phase 2B** 📋 DEFERRED: ProbeSidebar.re renaming (cosmetic, can do later)
+7. **Phase 2C** ✅ COMPLETED: Updated all external references
+8. **Phase 3** 📋 DEFERRED: Requires data migration, do last and holistically
+
+Each completed phase is part of one cohesive commit.
+
+---
+
+## Summary of Completed Work
+
+### Session 1: Phase 1A-C (Earlier)
+
+**Changes made**:
+
+1. Deleted `src/language/dynamics/DynCursor.re`
+2. Updated 8 files to use `Sample.Cursor` instead of `DynCursor`
+3. Removed vestigial `Action.t.DynCursor` variant and all pattern matches
+4. Documented why DynCursorPerform merge is blocked (dependency cycle)
+
+### Session 2: Phase 1D + 2A+2C (2026-01-13)
+
+**Changes made**:
+
+1. **Action Type Renames** (Phase 1D):
+
+   - `Action.dyn_cursor` → `Action.sample_cursor`
+   - `Action.refractor` → `Action.probe`
+   - `Action.project.DynCursor` → `Action.project.SampleCursor`
+   - `Action.t.Refractor` → `Action.t.Probe`
+   - Updated pattern matches in ~15 files
+
+2. **Module File Renames** (Phase 2A):
+
+   - `DynCursorPerform.re` → `SampleCursorPerform.re` (function `perform` → `go`)
+   - `Refractors.re` → `ProbePerform.re` (function `update` → `go`)
+   - Updated ~27 files referencing these modules
+
+3. **Action Variant Simplifications** (manual cleanup):
+   - `ToggleProbeManual` → `ToggleManual` (shortened since already in `Action.probe` type)
+   - `ToggleProbeREPL` → `ToggleAuto` (clearer name, avoids "REPL" confusion)
+   - `StepIntoSample` → `StepInto` (shortened, context is clear)
+
+**Files modified** (~30 files total):
+
+- Action.re, Perform.re, Editor.re, Main.re
+- ProjectorBase.re, ProjectorPerform.re, ProjectorView.re
+- ProbeProj.re, Keyboard.re, CodeEditable.re, CodeSelectable.re
+- ContextMenu.re, Arms.re, ProbeSidebar.re
+- And others
+
+**Files renamed**:
+
+- `src/haz3lcore/Refractors.re` → `src/haz3lcore/ProbePerform.re`
+
+**Files deleted**:
+
+- `src/language/dynamics/DynCursor.re` (Session 1)
+- `src/haz3lcore/zipper/action/DynCursorPerform.re` (replaced by SampleCursorPerform.re)
+
+**Files created**:
+
+- `src/haz3lcore/zipper/action/SampleCursorPerform.re`

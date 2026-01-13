@@ -34,7 +34,7 @@ let utility: ProjectorBase.utility = {
 let mk_info =
     (
       p: Piece.projector,
-      ~dyn_cursor: DynCursor.t,
+      ~dyn_cursor: Sample.Cursor.t,
       ~statics: Statics.Map.t,
       ~dynamics: Dynamics.Map.t,
     )
@@ -57,7 +57,7 @@ let mk_info =
 module ShapeMapSemantics = {
   let from_semantics =
       (
-        dyn_cursor: Language.DynCursor.t,
+        dyn_cursor: Language.Sample.Cursor.t,
         statics: Statics.Map.t,
         dynamics: Dynamics.Map.t,
         p: Base.projector,

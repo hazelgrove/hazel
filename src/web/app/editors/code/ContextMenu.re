@@ -59,7 +59,7 @@ let manual_probe =
     (
       ~inject: Action.t => Ui_effect.t(unit),
       ~can_probe: bool,
-      probe_status: Refractors.probe_status,
+      probe_status: ProbePerform.probe_status,
       ci: option(Language.Info.t),
     ) =>
   switch (ci) {
@@ -74,7 +74,7 @@ let manual_probe =
         | Non => "Add probe"
         },
         inject,
-        Refractor(ToggleProbeManual),
+        Probe(ToggleManual),
       ),
     ]
   | _ => []
@@ -84,7 +84,7 @@ let auto_probe =
     (
       ~inject: Action.t => Ui_effect.t(unit),
       ~can_probe: bool,
-      probe_status: Refractors.probe_status,
+      probe_status: ProbePerform.probe_status,
       ci: option(Language.Info.t),
     ) =>
   switch (ci) {
@@ -99,7 +99,7 @@ let auto_probe =
         | Non => "Add auto probe"
         },
         inject,
-        Refractor(ToggleProbeREPL),
+        Probe(ToggleAuto),
       ),
     ]
   | _ => []
@@ -127,8 +127,8 @@ let probes_actions =
     ) => {
   let id = Indicated.index(z) |> Option.value(~default=Id.invalid);
   let ci = Indicated.ci_of(z, info_map);
-  let probe_status = Refractors.probe_status(id, info_map, z.refractors);
-  let can_probe = Refractors.can_probe(id, info_map);
+  let probe_status = ProbePerform.probe_status(id, info_map, z.refractors);
+  let can_probe = ProbePerform.can_probe(id, info_map);
   jump_to_binding(~inject, ci)
   @ manual_probe(~inject, ~can_probe, probe_status, ci)
   @ auto_probe(~inject, ~can_probe, probe_status, ci);

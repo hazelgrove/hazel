@@ -369,20 +369,11 @@ let sketch_view = (~explain_this_inject): Node.t =>
     ],
   );
 
-let call_cursor_view = (~dyn_cursor: Language.DynCursor.t, ~fancyd) =>
+let call_cursor_view = (~dyn_cursor: Language.Sample.Cursor.t, ~fancyd) =>
   div(
     ~attrs=[clss(["panel", "call-cursor"])],
     [
       div(~attrs=[clss(["title"])], [text("Dynamic Cursor")]),
-      // NOTE: choosing not to show indicated ap when not in cursor
-      // switch (dyn_cursor.indicated_call) {
-      // | Some(id) when !List.mem(id, dyn_cursor.stack) =>
-      //   div(
-      //     ~attrs=[Attr.classes(["indicated-call", "not-in-stack"])],
-      //     [fancyd(id)],
-      //   )
-      // | _ => div([])
-      // },
       div(
         ~attrs=[clss(["stack"])],
         List.mapi(
@@ -418,7 +409,7 @@ let prep_refractors =
   let autos =
     refractors.autos
     |> List.map(id => {
-         let ids = Refractors.ids_from_term(~syntax, ~info_map, id);
+         let ids = ProbePerform.ids_from_term(~syntax, ~info_map, id);
          let pairs =
            List.filter_map(
              id =>

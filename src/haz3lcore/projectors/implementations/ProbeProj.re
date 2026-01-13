@@ -260,7 +260,7 @@ let cursor_clss =
   switch (settings.sample_base) {
   | Calls =>
     let relation =
-      DynCursor.relation(~trimmed=true, ~ap_id, di.dyn_cursor, sample);
+      Sample.Cursor.relation(~trimmed=true, ~ap_id, di.dyn_cursor, sample);
     let cursor_class =
       switch (
         relation.is_call_cursor,
@@ -302,7 +302,7 @@ let cursor_clss =
 
   | Steps =>
     let relation =
-      DynCursor.relation(~trimmed=true, ~ap_id, di.dyn_cursor, sample);
+      Sample.Cursor.relation(~trimmed=true, ~ap_id, di.dyn_cursor, sample);
     let cursor_class =
       switch (
         relation.is_call_cursor,
@@ -346,7 +346,7 @@ let cursor_clss =
        - After (StepDisjointAfter): cursor-unrelated + below
        - Off Cursor (StepNoFocus): cursor-unrelated only */
     switch (
-      DynCursor.step_containment(
+      Sample.Cursor.step_containment(
         ~focus_range=di.dyn_cursor.step_range,
         sample,
       )
@@ -371,7 +371,7 @@ module Debug = {
     ++ "\n"
     ++ "ap:"
     ++ (
-      switch (DynCursor.cur_call(ap_id, sample)) {
+      switch (Sample.Cursor.cur_call(ap_id, sample)) {
       | Some([ap_id, ..._]) => Id.str3(ap_id)
       | _ => "None"
       }
@@ -390,7 +390,7 @@ let pin_call = (~parent, ~ap_id: option(Id.t), ~di: Dynamics.Info.t) =>
   switch (ap_id, Dynamics.Info.is_in(di)) {
   | (Some(ap_id), Some(dyn_cursor)) =>
     print_endline("actually pinning call");
-    parent(DynCursor(TogglePinCall([ap_id, ...dyn_cursor.call_stack])));
+    parent(SampleCursor(TogglePin([ap_id, ...dyn_cursor.call_stack])));
   | _ =>
     print_endline("ignoring");
     Effect.Ignore;
@@ -421,7 +421,7 @@ let value_view =
           col: e##.clientX,
         });
     };
-    parent(DynCursor(Capture(sample, ap_id)));
+    parent(SampleCursor(Capture(sample, ap_id)));
   };
 
   let val_pointerup = (e: Js.t(Dom_html.pointerEvent)) => {
@@ -519,7 +519,7 @@ let dropdown_id = (sample_id: int): string =>
 /* Step into handler for sample context menu */
 let step_into_sample =
     (~parent, ~sample: Sample.t, ~ap_id: Id.t): Ui_effect.t(unit) =>
-  parent(Refractor(StepIntoSample(sample, ap_id)));
+  parent(Probe(StepInto(sample, ap_id)));
 
 /* Context actions for a sample (Pin/Unpin, Step Into, etc.) */
 let sample_context_actions =
@@ -733,7 +733,7 @@ let mv_least_distant_sample =
         samples,
       )
     ) {
-    | Some(selected) => parent(DynCursor(Capture(selected, ap_id)))
+    | Some(selected) => parent(SampleCursor(Capture(selected, ap_id)))
     | None => Effect.Ignore
     };
   | None => Effect.Ignore
@@ -782,7 +782,7 @@ let empty_status_view =
       ~attrs=[
         Attr.classes(["empty-status", "hidden-by-pin"]),
         Attr.title("Samples hidden by pin — click to unpin"),
-        Attr.on_pointerdown(_ => parent(DynCursor(Reset))),
+        Attr.on_pointerdown(_ => parent(SampleCursor(Reset))),
       ],
       [text("⍟")] //📌◌🔒
     )
@@ -835,7 +835,9 @@ let move_cursor =
   | Some(idx) =>
     let next_idx_maybe = idx - offset;
     if (next_idx_maybe >= 0 && next_idx_maybe < List.length(samples)) {
-      parent(DynCursor(Capture(List.nth(samples, next_idx_maybe), ap_id)));
+      parent(
+        SampleCursor(Capture(List.nth(samples, next_idx_maybe), ap_id)),
+      );
     } else {
       Effect.Ignore;
     };
@@ -964,7 +966,7 @@ let key_handler =
     JsUtil.get_elem_by_id(Id.cls(id))##blur;
     Settings.reset_mode();
     SampleLength.reset();
-    parent(DynCursor(Reset));
+    parent(SampleCursor(Reset));
   | D("Escape") =>
     JsUtil.get_elem_by_id(Id.cls(id))##blur;
     Ignore;
@@ -1048,7 +1050,7 @@ let offside_view =
   switch (info.dynamics) {
   | Some(di) =>
     let id = info.id;
-    let ap_id = DynCursor.cur_ap(info.statics);
+    let ap_id = Sample.Cursor.cur_ap(info.statics);
     let hide_env = hide_env(info);
     /* Filter samples once and reuse for both num_total and selection */
     let filtered_samples =
@@ -1120,7 +1122,7 @@ let offside_view =
     );
   | None =>
     /* No dynamics info means probe was never evaluated */
-    let ap_id = DynCursor.cur_ap(info.statics);
+    let ap_id = Sample.Cursor.cur_ap(info.statics);
     Node.div(
       ~attrs=[
         Attr.id(Id.cls(info.id)),
@@ -1146,7 +1148,7 @@ let update = (() as m, _info: info, a: action) => {
 let overlay_view = (info: info): Node.t =>
   switch (info.dynamics) {
   | Some(di) =>
-    let ap_id = DynCursor.cur_ap(info.statics);
+    let ap_id = Sample.Cursor.cur_ap(info.statics);
     div(
       ~attrs=[
         Attr.classes(["overlay"] @ (Option.is_some(ap_id) ? ["ap"] : [])),

@@ -335,7 +335,7 @@ let of_segment_inner =
             ~col=new_indent - origin.col,
           );
         // add seg to map and reset seg
-        //TODO(andrew): decide if should actually add linebreak here
+        //TODO: decide if should actually add linebreak here
         let map = add_piece_row(origin.row, seg, map);
         let map =
           size.row == 0 ? map : add_n_empty_piece_rows(size.row - 1, map);
