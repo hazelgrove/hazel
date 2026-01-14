@@ -269,12 +269,19 @@ let text_code = (segment): Node.t =>
   );
 
 let flex_code =
-    (~font_metrics, ~background=?, ~text_only=false, sort, segment) =>
+    (
+      ~font_metrics,
+      ~single_line=false, /* Perf optimization if you promise it's single-line */
+      ~background=?,
+      ~text_only=false,
+      sort,
+      segment,
+    ) =>
   text_only
     ? text_code(segment)
     : simple_code(
         ~background?,
-        ~is_single_line=true,
+        ~is_single_line=single_line,
         font_metrics,
         sort,
         segment,
@@ -295,8 +302,15 @@ let mk_view =
     local: a =>
       inject(Project(SetModel(p.id, P.update(p.model, info, a)))),
     parent: a => inject(handle(p.id, a)),
-    view_seg: (~background=?, ~text_only=?, sort, segment) =>
-      flex_code(~font_metrics, ~background?, ~text_only?, sort, segment),
+    view_seg: (~single_line=?, ~background=?, ~text_only=?, sort, segment) =>
+      flex_code(
+        ~font_metrics,
+        ~single_line?,
+        ~background?,
+        ~text_only?,
+        sort,
+        segment,
+      ),
     status,
   });
 };

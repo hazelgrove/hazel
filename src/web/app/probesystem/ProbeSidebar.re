@@ -168,7 +168,12 @@ let legend_sample_view =
     di,
     ProjectorInfo.utility,
     (~text_only) =>
-      ProjectorView.flex_code(~font_metrics, ~background=false, ~text_only),
+      ProjectorView.flex_code(
+        ~font_metrics,
+        ~single_line=true,
+        ~background=false,
+        ~text_only,
+      ),
     _ => Effect.Ignore,
     _ => Effect.Ignore,
     (0, sample),
@@ -496,9 +501,8 @@ let probearium =
     div(
       ~attrs=[clss(["panel", "window-toggle"])],
       [
-        text("Samples"),
         toggle(
-          ~tooltip="One or Many Samples",
+          ~tooltip="Show One or Many Probe Samples",
           ~explain_this_inject,
           ~label1="1",
           ~label2="\xE2\x88\x9E",
