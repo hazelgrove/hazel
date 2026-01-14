@@ -27,7 +27,7 @@ let expand_projector = (z: t): option(t) => {
     /* Left siblings are stored as [oldest, ..., newest]. After List.rev we have
      * [newest(parens), ^^probe, ...rest] where rest is [third_newest, ..., oldest].
      * We want syntax in the newest position: [oldest, ..., third_newest, syntax...] */
-    //TODO(andrew): nonhardcode probe
+    //TODO: Non-hardcode probe if new refractors are introduced
     Zipper.update_siblings(((_, r)) => (List.rev(rest) @ syntax, r), z)
     |> Zipper.add_manual(
          Segment.root_id(Segment.skel(syntax), syntax),
