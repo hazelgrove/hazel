@@ -37,15 +37,11 @@ let work = (req_value: Request.value): Response.value => {
     )
   ) {
   | exception (Language.EvaluatorError.Exception(reason)) =>
-    print_endline(
-      "EvaluatorError:" ++ Language.EvaluatorError.show(reason),
-    );
+    print_endline("EvaluatorError:" ++ Language.EvaluatorError.show(reason));
     Error(Language.ProgramResult.EvaulatorError(reason));
   | exception exn =>
     print_endline("EXN:" ++ Printexc.to_string(exn));
-    Error(
-      Language.ProgramResult.UnknownException(Printexc.to_string(exn)),
-    );
+    Error(Language.ProgramResult.UnknownException(Printexc.to_string(exn)));
   | (result, state) => Ok((result, state))
   };
 };

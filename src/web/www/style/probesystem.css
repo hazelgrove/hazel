@@ -214,3 +214,10 @@
 #probesys .panel.prints .body {
   white-space: pre;
 }
+
+#probesys .panel.window-toggle {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 0.5em;
+}

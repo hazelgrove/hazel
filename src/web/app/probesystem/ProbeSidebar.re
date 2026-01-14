@@ -496,6 +496,7 @@ let probearium =
     div(
       ~attrs=[clss(["panel", "window-toggle"])],
       [
+        text("Samples"),
         toggle(
           ~tooltip="One or Many Samples",
           ~explain_this_inject,
@@ -507,12 +508,7 @@ let probearium =
       ],
     ),
     call_cursor_view(~sample_cursor=refractors.sample_cursor, ~fancyd=id =>
-      fancy(
-        ~info_map=editor.statics.info_map,
-        ~default=None,
-        ~globals,
-        id,
-      )
+      fancy(~info_map=editor.statics.info_map, ~default=None, ~globals, id)
       |> Option.value(~default=div([]))
     ),
     probes_panel_view(
@@ -521,12 +517,7 @@ let probearium =
       ~info_map=editor.statics.info_map,
       ~syntax=editor.editor.syntax,
       ~fancyd=id =>
-      fancy(
-        ~info_map=editor.statics.info_map,
-        ~default=None,
-        ~globals,
-        id,
-      )
+      fancy(~info_map=editor.statics.info_map, ~default=None, ~globals, id)
     ),
   ];
 };
