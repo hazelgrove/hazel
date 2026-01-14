@@ -4,37 +4,19 @@ Cleanup and reorganization of probe-related code before merging `probemoar` into
 
 ---
 
-## Remaining Work
-
-### Pre-Merge (Phase 6)
-
-**6A: Remove Debug/Profiling Code**
-
-- [ ] `WorkerServer.re:54` - Remove debug logging
-- [ ] `ScratchMode.re:382` - Remove profiling code
-
-**6B: Feature Decisions**
-
-Decide whether to hide experimental features:
-
-- `probe_all` setting toggle - hide from UI?
-- ProbeSidebar - keep, hide, or remove sections?
-
-### Other Deferred / Future
-
-**Phase 5C: Move projector options to context menu** - Would simplify inspector UI
-
-**Phase 5E: Streamline View APIs** - Collapse `mk_data` + `all` into single `view` functions
-
-### Minor TODOs
-
-| Location       | Issue                                         | Status |
-| -------------- | --------------------------------------------- | ------ |
-| `style.css:93` | "fix backpack visibility" - not probe-related | Fixed via FloatingElement |
-
----
-
 ## Completed Work
+
+### Phase 6: Pre-Merge Cleanup ✅
+
+- Removed debug/profiling code from `WorkerServer.re`, `ScratchMode.re`, `CodeEditable.re`
+- Commented out `probe_all` toggle in `NutMenu.re` (underlying code retained)
+- Simplified `ProbeSidebar.re`:
+  - Removed Probearium/Printarium mode toggle
+  - Removed `sketch_view` settings panel
+  - Kept only "One or Many" toggle, moved inline
+  - Truncated Dynamic Cursor to show only trimmed stack (∅ if empty)
+  - Removed sample displays from probe list (syntax only)
+  - Removed `indicated-call` red outline
 
 ### Phase 1-2: Naming & Consolidation ✅
 
