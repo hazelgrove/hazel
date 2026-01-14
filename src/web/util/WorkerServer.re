@@ -29,25 +29,31 @@ module Response = {
 
 let work = (req_value: Request.value): Response.value => {
   let Request.{expr, targets} = req_value;
-  switch (
-    Language.Evaluator.evaluate(
-      ~targets,
-      ~env=Language.Builtins.env_init,
-      expr,
-    )
-  ) {
-  | exception (Language.EvaluatorError.Exception(reason)) =>
-    print_endline(
-      "EvaluatorError:" ++ Language.EvaluatorError.show(reason),
-    );
-    Error(Language.ProgramResult.EvaulatorError(reason));
-  | exception exn =>
-    print_endline("EXN:" ++ Printexc.to_string(exn));
-    Error(
-      Language.ProgramResult.UnknownException(Printexc.to_string(exn)),
-    );
-  | (result, state) => Ok((result, state))
-  };
+  let eval_start = JsUtil.precise_timestamp();
+  let result =
+    switch (
+      Language.Evaluator.evaluate(
+        ~targets,
+        ~env=Language.Builtins.env_init,
+        expr,
+      )
+    ) {
+    | exception (Language.EvaluatorError.Exception(reason)) =>
+      print_endline(
+        "EvaluatorError:" ++ Language.EvaluatorError.show(reason),
+      );
+      Error(Language.ProgramResult.EvaulatorError(reason));
+    | exception exn =>
+      print_endline("EXN:" ++ Printexc.to_string(exn));
+      Error(
+        Language.ProgramResult.UnknownException(Printexc.to_string(exn)),
+      );
+    | (result, state) => Ok((result, state))
+    };
+  let eval_end = JsUtil.precise_timestamp();
+  //TODO(andrew): rm profiling before final merge
+  Printf.printf("  Eval only (ms): %.2f\n", eval_end -. eval_start);
+  result;
 };
 
 let on_request = (req: Request.t): unit =>

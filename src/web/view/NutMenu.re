@@ -45,7 +45,7 @@ let semantics_group = (~globals) => {
       ("τ", "Types", globals.settings.core.statics, Statics),
       ("⇲", "Completion", globals.settings.core.assist, Assist),
       ("𝛿", "Evaluation", globals.settings.core.dynamics, Dynamics),
-      // ("∀", "Probe All", globals.settings.core.probe_all, ProbeAll),
+      ("∀", "Probe All", globals.settings.core.probe_all, ProbeAll),
       ("?", "Docs", globals.settings.sidebar.show, Sidebar(ToggleShow)),
       // (
       //   "👍",
