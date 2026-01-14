@@ -200,7 +200,7 @@ let add_manual =
 
   /* Remove conflicts, then add new probes */
   let z = rm_manual(conflicting_ids, z);
-  List.fold_left((z, id) => MkRefractor.add_single(id, z), z, target_ids);
+  List.fold_left((z, id) => Zipper.add_manual(id, Probe, z), z, target_ids);
 };
 
 let toggle_manual =
@@ -220,7 +220,7 @@ let add_ids_from_auto_term =
   Zipper.update_ephemerals(
     _ =>
       List.fold_left(
-        (map, id) => Id.Map.add(id, MkRefractor.mk_entry(Probe), map),
+        (map, id) => Id.Map.add(id, Refractors.mk_entry(Probe), map),
         Id.Map.empty,
         ids,
       ),

@@ -42,7 +42,7 @@ let mk_data =
   List.filter_map(
     ((id, entry)) => {
       /* Construct full Base.projector on demand for rendering */
-      let p = MkRefractor.to_projector(id, entry);
+      let p = Refractors.to_projector(id, entry);
       let+ measurement = measurement_of_term(id, term_data, measured);
       let info =
         ProjectorInfo.mk_info(p, ~sample_cursor, ~statics, ~dynamics);
