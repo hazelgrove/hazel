@@ -356,6 +356,18 @@ For each TODO, gather context by:
 | -------------- | ------------------------- | ---------------------------------------------- |
 | `style.css:93` | "fix backpack visibility" | Deeper issue - not probe-related, keep for now |
 
+#### Probe-Specific Code in Generic Locations
+
+These are places where code that appears generic is actually probe-specific. This is a prerequisite for TypeProj conversion (Phase 4) - either these need to be generalized or documented as intentionally probe-only.
+
+| Location | Issue | Notes |
+|----------|-------|-------|
+| `MkRefractor.add_single:59-60` | Hardcodes `Probe` kind | Function `add_single(id, z)` always creates a Probe entry. If TypeProj becomes a refractor, this needs a `kind` parameter. |
+| `Triggers.re:26-32` | `^^probe` special case | `expand_projector` has `when name == "^^probe"` that bypasses normal projector path, using `MkRefractor.add_single` instead of `invoked_projector`. Probes don't fit the "replace syntax" model. |
+| `ProbePerform.add_ids_from_auto_term:218` | Hardcodes `Probe` kind | Creates ephemeral entries with `MkRefractor.mk_entry(Probe)`. |
+
+**Search for more**: Grep for `Probe` in files that aren't obviously probe-specific (e.g., not `Probe*.re`, not `Sample*.re`).
+
 #### Needs Investigation
 
 | Location | Issue | Notes |
@@ -502,6 +514,80 @@ The `ProjectorView.Model.mk` function had a confusing fallback path: it tried `M
 
 ---
 
+## Phase 5F: Extract Refractor Module from ZipperBase 📋 PLANNED
+
+The `Refractor` module and its types are currently nested inside `ZipperBase.re`. This should be extracted to its own file for better organization.
+
+### Proposed Structure
+
+**Option A: `Refractors.re`** (plural, module contains state)
+```reason
+/* src/haz3lcore/zipper/Refractors.re */
+
+/* PROBE SYSTEM STATE LOCATIONS comment moved here */
+
+type entry = { kind: ProjectorCore.Kind.t, model: string };
+
+module Map = { type t = Id.Map.t(entry); ... };
+
+type auto_state = { ids: Id.Map.t(unit), ephemerals: Map.t };
+
+type t = {
+  manuals: Map.t,
+  autos: auto_state,
+  sample_cursor: Language.Sample.Cursor.t,
+};
+
+let init: t = ...;
+let persist: t => string = ...;
+```
+
+**Option B: `Refractor.re`** (singular, with `type s` for state)
+```reason
+/* src/haz3lcore/zipper/Refractor.re */
+
+type entry = ...;
+module Map = ...;
+type auto_state = ...;
+
+/* The "state" type used in zipper */
+type s = {
+  manuals: Map.t,
+  autos: auto_state,
+  sample_cursor: Language.Sample.Cursor.t,
+};
+
+let init: s = ...;
+```
+
+Then `ZipperBase.t` would have `refractors: Refractor.s`.
+
+**Recommendation**: Option A (`Refractors.re` with `type t`) is more conventional. The `type s` pattern is cute but uncommon.
+
+### MkRefractor Integration
+
+After extracting, consider whether `MkRefractor.re` contents can be moved into `Refractors.re`:
+
+**Can move**:
+- `mk_entry` - creates entry records
+- `to_projector` - constructs Base.projector from entry
+
+**Cannot move (dependency cycle)**:
+- `add_single` - depends on `Zipper.update_manuals` which depends on the new module
+
+**Future simplification**: Once dummy syntax changes from grout+parens to Secondary (whitespace), the Segment/Piece dependencies may be reducible, potentially allowing `add_single` to move too.
+
+### Files to Update
+
+1. Create `src/haz3lcore/zipper/Refractors.re`
+2. Update `ZipperBase.re`:
+   - Remove Refractor module definition
+   - Keep `refractors: Refractors.t` field
+   - Keep `update_refractors`, `update_manuals`, `update_ephemerals` helpers
+3. Update all import sites (`Zipper.Refractor.*` → `Refractors.*`)
+
+---
+
 ## Phase 6: Prior to Merge Decisions
 
 Items to address before merging `probemoar` into `dev`.
@@ -572,21 +658,21 @@ Consider hiding incomplete/experimental features from the merge PR while retaini
 5. **Phase 2A** ✅ COMPLETED: Module renaming (SampleCursorPerform, ProbePerform)
 6. **Phase 2B** ✅ RESOLVED: Keeping as `ProbeSidebar.re` - name is clear
 7. **Phase 2C** ✅ COMPLETED: Updated all external references
-8. **Phase 3** 📋 READY: Structural changes (do holistically with migration script)
-   - **3A**: Simplify entry type (remove id/syntax redundancy) ← SERIALIZATION CHANGE
-   - **3F**: Migration script for .ml files ← RUN IMMEDIATELY AFTER 3A
-   - **⏸️ CHECKPOINT**: Pause here to test editor works with new serialization
-   - **3B**: Restructure Refractor.t (group autos/ephemerals, rename dyn_cursor)
-   - **3C**: Document Sample.Cursor.t (comments explaining coordinates vs sample)
-   - **3D**: Naming improvements (call_stack, seq, sample_cursor)
-   - **3E**: Document state locations
+8. **Phase 3** ✅ COMPLETED: Structural changes
+   - **3A** ✅ COMPLETED: Simplify entry type (remove id/syntax redundancy)
+   - **3F** ✅ COMPLETED: Migration script for .ml files (8 files migrated)
+   - **3B** ✅ COMPLETED: Restructure Refractor.t (group autos/ephemerals, rename dyn_cursor → sample_cursor)
+   - **3C** ✅ COMPLETED: Document Sample.Cursor.t (comments explaining coordinates vs sample)
+   - **3D** ✅ COMPLETED: Naming improvements (call_stack, seq, sample_cursor)
+   - **3E** ✅ COMPLETED: Document state locations (tables in ZipperBase.re and ProbeProj.re)
 9. **Phase 4** 📋 DEFERRED: TypeProj conversion (optional, low priority)
 10. **Phase 5** 📋 IN PROGRESS: TODO cleanup (see inventory above)
 11. **Phase 5B** ✅ COMPLETED: Remove Probe from ProjectorPanel
 12. **Phase 5C** 📋 PROPOSED: Replace ProjectorPanel with context menu (future)
 13. **Phase 5D** ✅ COMPLETED: Extract RefractorView module from ProjectorView
 14. **Phase 5E** 📋 PROSPECTIVE: Streamline ProjectorView/RefractorView APIs (see below)
-15. **Phase 6** 📋 PENDING: Prior-to-merge decisions (profiling removal, feature toggles)
+15. **Phase 5F** 📋 PLANNED: Extract Refractor module from ZipperBase to own file
+16. **Phase 6** 📋 PENDING: Prior-to-merge decisions (profiling removal, feature toggles)
 
 Each completed phase is part of one cohesive commit.
 
@@ -836,3 +922,113 @@ After completing 3A + 3F:
    - Adding/removing probes works
    - Probe samples display correctly
 3. Check that serialized format in localStorage matches new format
+
+---
+
+## Session 4: Phase 3A + 3F (2026-01-13)
+
+**Phase 3A: Simplify Entry Type** ✅ COMPLETED
+
+Changed `Refractor.Map.t` from `Id.Map.t(Base.projector)` to `Id.Map.t(entry)` where:
+```reason
+type entry = {
+  kind: ProjectorCore.Kind.t,
+  model: string,
+};
+```
+
+**Files modified:**
+- `ZipperBase.re` - Added new `entry` type, changed `Map.t`
+- `MkRefractor.re` - Split into `mk_entry` (for storage) and `to_projector` (for rendering)
+- `Triggers.re` - Updated `refractor_seg_to_seg` to use new type
+- `RefractorView.re` - Constructs `Base.projector` on demand via `MkRefractor.to_projector`
+- `ProbeText.re` - Updated `get_probes_by_line` to use entry type
+- `ProbeSidebar.re` - Simplified `probe_type` (was ignoring projector values anyway)
+- `ProbePerform.re` - Updated to use `mk_entry`
+
+**Phase 3F: Migration Script** ✅ COMPLETED
+
+Created `scripts/migrate-refractors.py` to transform old serialization format to new:
+- Old: `((uuid((id uuid)(kind Probe)(syntax(...))(model\"()\")))...)`
+- New: `((uuid((kind Probe)(model\"()\")))...)`
+
+**Files migrated (8 total):**
+- `src/web/init/docs/`: Probes.ml, Tables.ml, Tuples.ml
+- `src/b2t2/slides/`: B2T2ExampleTables.ml, B2T2ErrorsUsingTablesPart2.ml, B2T2ErrorsUsingTablesPart3.ml, B2T2ExampleProgramsDotProduct.ml, B2T2ExampleProgramsquizScoreSelect.ml
+
+**Current status:** ✅ PHASE 3 COMPLETE
+
+---
+
+### Session 5: Phase 3B-E Completion (2026-01-13)
+
+**Phase 3B: Restructure Refractor.t** ✅ COMPLETED
+
+Reorganized `ZipperBase.Refractor.t`:
+- Added `auto_state` type grouping `ids: Id.Map.t(unit)` and `ephemerals: Map.t`
+- Changed `autos: list(Id.t)` to `autos: auto_state`
+- Renamed `dyn_cursor` → `sample_cursor`
+- Renamed `dyn_cursor` → `sample_cursor` in `Dynamics.Info.t` as well
+
+**Files modified (~20 files):**
+- ZipperBase.re, ProbePerform.re, SampleCursorPerform.re, ProjectorInfo.re
+- Dynamics.re, RefractorView.re, ProjectorView.re, ProbeProj.re
+- ProbeSidebar.re, CodeEditable.re, CellEditor.re, Arms.re, CachedStatics.re
+- Test files (Test_Evaluator_Probes.re, Test_Evaluator_Prelude.re)
+
+**Phase 3D: Naming Improvements** ✅ COMPLETED
+
+- `Sample.t.iter` → `Sample.t.seq`
+- `Sample.Cursor.t.iter` → `Sample.Cursor.t.seq`
+- `Sample.iter` (ref) → `Sample.seq_counter`
+- `Sample.Cursor.t.stack` → `Sample.Cursor.t.call_stack`
+- Fixed typo "evaluatation" → "evaluation"
+
+**Files modified:**
+- Sample.re (type definitions, comments)
+- SampleCursorPerform.re, ProbeSidebar.re, ProbePerform.re (field accesses)
+
+**Phase 3C: Document Sample.Cursor.t** ✅ COMPLETED
+
+Added comprehensive documentation in Sample.re:
+- Updated existing MECHANISM comment to reference `call_stack` instead of `stack`
+- Added "WHY CURSOR STORES COORDINATES, NOT A SAMPLE REFERENCE" section explaining:
+  1. Multiple probes share one cursor
+  2. Samples are ephemeral (recomputed on edit)
+  3. Intent preservation via (call_stack, index)
+- Added "RELATIONSHIP TO Sample.t" section
+- Added field-level documentation for Cursor.t type
+
+**Phase 3E: Document State Locations** ✅ COMPLETED
+
+Added state location tables:
+- ZipperBase.re: Full table of all probe state locations (per-editor vs global, persisted vs transient)
+- ProbeProj.re: Brief note pointing to ZipperBase for main documentation
+
+---
+
+### Session 6: Cleanup and Planning (2026-01-13)
+
+**Remaining dyn_cursor renames** ✅ COMPLETED
+
+Fixed remaining `dyn_cursor` variable names in code:
+- `SampleCursorPerform.re:14-17`: `dyn_cursor` → `sample_cursor` in `update_pinned_call`
+- `ProbeProj.re:397-399`: `dyn_cursor` → `sample` in `pin_call` (was actually a Sample.t, not cursor)
+- `ProbePerform.re:327,342`: Updated comments to reference `sample_cursor`
+
+**Probe-specific code patterns** ✅ DOCUMENTED
+
+Added new section "Probe-Specific Code in Generic Locations" to TODO inventory:
+- `MkRefractor.add_single:59-60` - hardcodes `Probe` kind
+- `Triggers.re:26-32` - `^^probe` special case bypasses normal projector path
+- `ProbePerform.add_ids_from_auto_term:218` - hardcodes `Probe` kind
+
+These are prerequisites for TypeProj conversion (Phase 4).
+
+**Phase 5F: Refractor Module Extraction** 📋 PLANNED
+
+Added detailed plan for extracting Refractor module from ZipperBase.re:
+- Option A: `Refractors.re` with `type t` (recommended)
+- Option B: `Refractor.re` with `type s` (less conventional)
+- MkRefractor integration considerations
+- Files to update

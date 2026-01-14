@@ -101,7 +101,7 @@ let probe_status =
   List.for_all(id => Id.Map.mem(id, refractors.manuals), target_ids)
     ? Manual(target_ids)
     /* For REPL: check if ANY target ID is an auto probe anchor */
-    : List.exists(id => List.mem(id, refractors.autos), target_ids)
+    : List.exists(id => Id.Map.mem(id, refractors.autos.ids), target_ids)
         ? REPL : Non;
 };
 
@@ -135,13 +135,18 @@ let rm_auto =
   Zipper.update_refractors(z, refractors =>
     {
       ...refractors,
-      autos:
-        List.filter(id => !List.mem(id, target_ids), z.refractors.autos),
-      ephemerals:
-        Id.Map.filter(
-          (id', _) => !List.mem(id', target_ids),
-          z.refractors.ephemerals,
-        ),
+      autos: {
+        ids:
+          Id.Map.filter(
+            (id, _) => !List.mem(id, target_ids),
+            z.refractors.autos.ids,
+          ),
+        ephemerals:
+          Id.Map.filter(
+            (id', _) => !List.mem(id', target_ids),
+            z.refractors.autos.ephemerals,
+          ),
+      },
     }
   )
   /* We need to check if any of the probed ids are pinned; if so
@@ -210,12 +215,12 @@ let toggle_manual =
 
 let add_ids_from_auto_term =
     (~syntax: CachedSyntax.t, ~info_map: Statics.Map.t, z: Zipper.t): Zipper.t => {
-  let ids =
-    List.concat_map(ids_from_term(~syntax, ~info_map), z.refractors.autos);
+  let auto_ids = Id.Map.bindings(z.refractors.autos.ids) |> List.map(fst);
+  let ids = List.concat_map(ids_from_term(~syntax, ~info_map), auto_ids);
   Zipper.update_ephemerals(
     _ =>
       List.fold_left(
-        (map, id) => Id.Map.add(id, MkRefractor.mk(Probe, id), map),
+        (map, id) => Id.Map.add(id, MkRefractor.mk_entry(Probe), map),
         Id.Map.empty,
         ids,
       ),
@@ -231,7 +236,15 @@ let add_auto =
   Zipper.update_refractors(z, refractors =>
     {
       ...refractors,
-      autos: target_ids @ z.refractors.autos,
+      autos: {
+        ...refractors.autos,
+        ids:
+          List.fold_left(
+            (map, id) => Id.Map.add(id, (), map),
+            z.refractors.autos.ids,
+            target_ids,
+          ),
+      },
     }
   )
   |> add_ids_from_auto_term(~syntax, ~info_map);
@@ -311,7 +324,7 @@ let is_jump_target = (info_map: Statics.Map.t, z: Zipper.t): option(Id.t) => {
  *    b. EvalResult.calculate processes worker results, updating dynamics
  *    c. Second pass (if pending_focus still set): resolve_pending_focus with fresh dynamics
  * 6. When resolve_pending_focus finds a matching sample:
- *    a. SampleCursorPerform.resolve_pending_focus updates dyn_cursor, clears pending_focus
+ *    a. SampleCursorPerform.resolve_pending_focus updates sample_cursor, clears pending_focus
  *    b. FocusEffect.schedule(probe_id) schedules DOM focus
  * 7. Main.re's after_display hook calls FocusEffect.execute()
  * 8. execute() calls elem##focus, triggering CSS :focus styles on the probe
@@ -326,7 +339,7 @@ let is_jump_target = (info_map: Statics.Map.t, z: Zipper.t): option(Id.t) => {
  */
 
 /* Step into from a specific sample, using the sample's call_stack
-   instead of the current dyn_cursor's trimmed_stack. This ensures
+   instead of the current sample_cursor's trimmed_stack. This ensures
    we maintain the exact execution context of the selected sample. */
 let step_into_sample =
     (
@@ -388,8 +401,8 @@ let step_into_sample =
   let z =
     SampleCursorPerform.update(z, _ => {
       {
-        ...z.refractors.dyn_cursor,
-        stack: new_stack,
+        ...z.refractors.sample_cursor,
+        call_stack: new_stack,
         index: List.length(sample.call_stack),
         pinned_stack: Some(new_stack),
         pending_focus: Some(pending_focus),
@@ -444,7 +457,7 @@ let go =
 /* Check if id has either manual or ephermeral probe on it */
 let has_probe = (id: Id.t, z: Zipper.t): bool => {
   Id.Map.mem(id, z.refractors.manuals)
-  || Id.Map.mem(id, z.refractors.ephemerals);
+  || Id.Map.mem(id, z.refractors.autos.ephemerals);
 };
 
 /* Check if probing is allowed for the given id.
@@ -456,7 +469,7 @@ let can_probe = (id: Id.t, info_map: Statics.Map.t): bool =>
    and focusing the one that matches target_stack. Called from Editor.calculate
    after dynamics are updated. See FocusEffect module comment for full flow. */
 let resolve_pending_focus = (~dynamics: Dynamics.Map.t, z: Zipper.t): Zipper.t =>
-  switch (z.refractors.dyn_cursor.pending_focus) {
+  switch (z.refractors.sample_cursor.pending_focus) {
   | None => z
   | Some({probe_id, target_stack}) =>
     switch (Dynamics.Map.lookup(probe_id, dynamics)) {
@@ -465,7 +478,7 @@ let resolve_pending_focus = (~dynamics: Dynamics.Map.t, z: Zipper.t): Zipper.t =
       let z' =
         SampleCursorPerform.resolve_pending_focus(z, samples, target_stack);
       /* If pending_focus was cleared, schedule DOM focus on the probe */
-      if (z'.refractors.dyn_cursor.pending_focus == None) {
+      if (z'.refractors.sample_cursor.pending_focus == None) {
         FocusEffect.schedule(probe_id);
       };
       z';

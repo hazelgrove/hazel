@@ -66,7 +66,7 @@ let parse_with_probes = (s: string): (Exp.t, Statics.Map.t, Sample.targets) => {
       Id.Map.union(
         (_, _, _) => Some(),
         Id.Map.map(_ => (), z.refractors.manuals),
-        Id.Map.map(_ => (), z.refractors.ephemerals),
+        Id.Map.map(_ => (), z.refractors.autos.ephemerals),
       );
 
     /* Build statics map for refs lookup */

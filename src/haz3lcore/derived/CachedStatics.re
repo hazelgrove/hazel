@@ -135,7 +135,7 @@ let init =
     Id.Map.union(
       (_, _, _) => Some(),
       Id.Map.map(_ => (), z.refractors.manuals),
-      Id.Map.map(_ => (), z.refractors.ephemerals),
+      Id.Map.map(_ => (), z.refractors.autos.ephemerals),
     );
 
   init_from_term(~settings, ~ctx?, ~is_dynamic_term, ~ana?, ~probe_ids, term);

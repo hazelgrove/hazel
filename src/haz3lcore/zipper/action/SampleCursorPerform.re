@@ -5,29 +5,29 @@ let update = (z: Zipper.t, f: Sample.Cursor.t => Sample.Cursor.t) =>
   Zipper.update_refractors(z, refractors =>
     {
       ...refractors,
-      dyn_cursor: f(refractors.dyn_cursor),
+      sample_cursor: f(refractors.sample_cursor),
     }
   );
 
 let update_pinned_call =
     (z: Zipper.t, f: option(Sample.call_stack) => option(Sample.call_stack)) =>
-  update(z, dyn_cursor =>
+  update(z, sample_cursor =>
     {
-      ...dyn_cursor,
-      pinned_stack: f(dyn_cursor.pinned_stack),
+      ...sample_cursor,
+      pinned_stack: f(sample_cursor.pinned_stack),
     }
   );
 
 let capture = (z: Zipper.t, sample: Sample.t, id): Zipper.t =>
-  update(z, dyn_cursor =>
+  update(z, sample_cursor =>
     {
-      ...dyn_cursor,
+      ...sample_cursor,
       time: Some(sample.time),
-      iter: sample.iter,
-      indicated_call: id /*!= None ? id : z.refractors.dyn_cursor.indicated_call*/,
-      stack:
-        !ListUtil.is_suffix_of(sample.call_stack, dyn_cursor.stack)
-          ? sample.call_stack : dyn_cursor.stack,
+      seq: sample.seq,
+      indicated_call: id /*!= None ? id : z.refractors.sample_cursor.indicated_call*/,
+      call_stack:
+        !ListUtil.is_suffix_of(sample.call_stack, sample_cursor.call_stack)
+          ? sample.call_stack : sample_cursor.call_stack,
       index: List.length(sample.call_stack) - 1,
       step_range: Some((sample.step_start, sample.step_end)),
     }
@@ -51,13 +51,13 @@ let resolve_pending_focus =
     List.find_opt((s: Sample.t) => s.call_stack == target_stack, samples);
   switch (matching_sample) {
   | Some(sample) =>
-    update(z, dyn_cursor =>
+    update(z, sample_cursor =>
       {
-        ...dyn_cursor,
+        ...sample_cursor,
         time: Some(sample.time),
-        iter: sample.iter,
+        seq: sample.seq,
         indicated_call: None,
-        stack: sample.call_stack,
+        call_stack: sample.call_stack,
         index: List.length(sample.call_stack) - 1,
         step_range: Some((sample.step_start, sample.step_end)),
         pending_focus: None,

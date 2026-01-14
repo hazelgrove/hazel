@@ -156,20 +156,20 @@ let legend_sample_view =
     env: Language.Sample.Env.empty,
     call_stack: sample_stack,
     time: 0.0,
-    iter: 0,
+    seq: 0,
     origin: Language.Sample.Probe,
     step_start,
     step_end,
   };
   let di: Language.Dynamics.Info.t = {
     samples: [sample],
-    dyn_cursor: {
-      stack: cursor_stack,
+    sample_cursor: {
+      call_stack: cursor_stack,
       index: List.length(cursor_stack) - 1,
       pinned_stack: None,
       indicated_call,
       time: None,
-      iter: 0,
+      seq: 0,
       step_range: focus_step_range,
       pending_focus: None,
     },
@@ -369,7 +369,7 @@ let sketch_view = (~explain_this_inject): Node.t =>
     ],
   );
 
-let call_cursor_view = (~dyn_cursor: Language.Sample.Cursor.t, ~fancyd) =>
+let call_cursor_view = (~sample_cursor: Language.Sample.Cursor.t, ~fancyd) =>
   div(
     ~attrs=[clss(["panel", "call-cursor"])],
     [
@@ -381,45 +381,44 @@ let call_cursor_view = (~dyn_cursor: Language.Sample.Cursor.t, ~fancyd) =>
             div(
               ~attrs=[
                 Attr.classes([
-                  i == dyn_cursor.index ? "is-index" : "not",
-                  i > dyn_cursor.index ? "after-index" : "not",
-                  List.mem(id, dyn_cursor.stack)
-                  && Some(id) == dyn_cursor.indicated_call
+                  i == sample_cursor.index ? "is-index" : "not",
+                  i > sample_cursor.index ? "after-index" : "not",
+                  List.mem(id, sample_cursor.call_stack)
+                  && Some(id) == sample_cursor.indicated_call
                     ? "indicated-call" : "not",
                 ]),
               ],
               [fancyd(id)],
             ),
-          dyn_cursor.stack |> List.rev,
+          sample_cursor.call_stack |> List.rev,
         ),
       ),
     ],
   );
 
+/* probe_type tracks whether a probe is manual or auto.
+ * Auto probes include the list of ephemeral IDs they expand to. */
 type probe_type =
-  | Manual(Base.projector)
-  | Auto(list((Id.t, Base.projector)));
+  | Manual
+  | Auto(list(Id.t));
 
 let prep_refractors =
     (~refractors: Zipper.Refractor.t, ~info_map, ~syntax: CachedSyntax.t) => {
   let manuals =
     refractors.manuals
     |> Id.Map.to_list
-    |> List.map(((id, p)) => (id, Manual(p)));
+    |> List.map(((id, _)) => (id, Manual));
   let autos =
-    refractors.autos
-    |> List.map(id => {
+    refractors.autos.ids
+    |> Id.Map.bindings
+    |> List.map(((id, ())) => {
          let ids = ProbePerform.ids_from_term(~syntax, ~info_map, id);
-         let pairs =
-           List.filter_map(
-             id =>
-               switch (Id.Map.find_opt(id, refractors.ephemerals)) {
-               | Some(p) => Some((id, p))
-               | None => None
-               },
+         let ephemeral_ids =
+           List.filter(
+             id => Id.Map.mem(id, refractors.autos.ephemerals),
              ids,
            );
-         (id, Auto(pairs));
+         (id, Auto(ephemeral_ids));
        });
   List.concat([manuals, autos])
   |> sort_ids_by_measurement(~measured=syntax.measured);
@@ -497,13 +496,9 @@ let render_entry =
     (~fancyd: Id.t => option(Node.t), entry: (Id.t, probe_type))
     : option(Node.t) =>
   switch (entry) {
-  | (id, Manual(_projector)) => fancyd(id)
-  | (_id, Auto(pairs)) =>
-    let ephemerals =
-      List.filter_map(
-        ((pair_id: Id.t, _projector: Base.projector)) => fancyd(pair_id),
-        pairs,
-      );
+  | (id, Manual) => fancyd(id)
+  | (_id, Auto(ephemeral_ids)) =>
+    let ephemerals = List.filter_map(fancyd, ephemeral_ids);
     ephemerals == []
       ? None : Some(div(~attrs=[clss(["auto"])], ephemerals));
   };
@@ -611,7 +606,7 @@ let print_string = (probes: Language.Sample.Map.t) => {
   let collect_print_outputs = (probes: Language.Sample.Map.t): list(string) =>
     collect_print_samples(probes)
     |> List.sort((a, b) =>
-         Int.compare(a.Language.Sample.iter, b.Language.Sample.iter)
+         Int.compare(a.Language.Sample.seq, b.Language.Sample.seq)
        )
     |> List.map(sample =>
          sample.Language.Sample.value
@@ -687,13 +682,13 @@ let probearium =
         Id.Map.union(
           (_, _, b) => Some(b),
           zipper.refractors.manuals,
-          zipper.refractors.ephemerals,
+          zipper.refractors.autos.ephemerals,
         ),
       ~syntax=editor.editor.syntax,
       ~indicated=Indicated.piece(zipper),
       ~statics=editor.statics.info_map,
       ~dynamics=editor.dynamics,
-      ~dyn_cursor=zipper.refractors.dyn_cursor,
+      ~sample_cursor=zipper.refractors.sample_cursor,
       ~editor_active=true,
     );
   let refractors = editor.editor.state.zipper.refractors;
@@ -709,7 +704,7 @@ let probearium =
     ),
     legend_view(~font_metrics=globals.font_metrics),
     sketch_view(~explain_this_inject),
-    call_cursor_view(~dyn_cursor=refractors.dyn_cursor, ~fancyd=id =>
+    call_cursor_view(~sample_cursor=refractors.sample_cursor, ~fancyd=id =>
       fancy(
         ~refractor_data,
         ~info_map=editor.statics.info_map,

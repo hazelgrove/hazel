@@ -1,18 +1,39 @@
 open Util;
 
-/* Create a refractor (probe) projector for a given syntax ID.
- * This constructs a Base.projector with dummy syntax using Id.invalid
- * to avoid generating random IDs in serialization.
+/* Create refractor entries and projectors.
+ *
+ * Refractors store a simplified `entry` type in Zipper.Refractor.Map
+ * (just kind + model), avoiding redundant id/syntax in serialization.
+ * When the full Base.projector is needed for rendering, use `to_projector`.
  *
  * NOTE: This module exists separately from ProbePerform due to a
  * dependency cycle: Triggers -> ProbePerform would create a cycle
  * through Printer -> ProjectorInfo -> CachedSyntax -> ProbePerform. */
-let mk = (kind, id): Base.projector => {
+
+/* Create a simplified entry for storage in refractor maps */
+let mk_entry = (kind: ProjectorCore.Kind.t): Zipper.Refractor.entry => {
   let (module P) = ProjectorInit.to_module(kind);
+  /* Create dummy syntax just to get the initial model string */
+  let grout = Piece.mk_grout(~id=Id.invalid, Convex);
+  let seg = [grout];
+  let any =
+    MakeTerm.for_projection(seg)
+    |> OptUtil.get_or_fail("MkRefractor.mk_entry: maketerm");
+  let model =
+    P.init(any) |> OptUtil.get_or_fail("MkRefractor.mk_entry: init");
+  {
+    kind,
+    model,
+  };
+};
+
+/* Construct full Base.projector from entry and id, for rendering.
+ * Creates dummy syntax with Id.invalid since refractors use skip_inline=true
+ * and don't actually display the syntax. */
+let to_projector = (id: Id.t, entry: Zipper.Refractor.entry): Base.projector => {
   /* Create minimal dummy syntax with consistent invalid IDs.
-   * The parenthesization is currently kept for compatibility with
-   * the projector API, but since refractors use skip_inline=true,
-   * this syntax is never actually displayed. */
+   * The parenthesization is kept for compatibility with the projector API,
+   * but since refractors use skip_inline=true, this is never displayed. */
   let grout = Piece.mk_grout(~id=Id.invalid, Convex);
   let seg = [grout];
   /* Inline parenthesization logic using Id.invalid.
@@ -28,11 +49,7 @@ let mk = (kind, id): Base.projector => {
       shards: List.mapi((i, _) => i, form.label),
       children: [seg],
     });
-  let any =
-    MakeTerm.for_projection(seg)
-    |> OptUtil.get_or_fail("MkRefractor.mk: maketerm");
-  let model = P.init(any) |> OptUtil.get_or_fail("MkRefractor.mk: init");
-  ProjectorCore.mk(~id, kind, piece, model);
+  ProjectorCore.mk(~id, entry.kind, piece, entry.model);
 };
 
 /* TODO: Consider simplifying dummy syntax further - since skip_inline=true
@@ -40,4 +57,4 @@ let mk = (kind, id): Base.projector => {
  * piece would be Secondary (empty whitespace) rather than grout+parens. */
 
 let add_single = (id: Id.t, z: Zipper.t): Zipper.t =>
-  Zipper.update_manuals(Id.Map.add(id, mk(Probe, id)), z);
+  Zipper.update_manuals(Id.Map.add(id, mk_entry(Probe)), z);

@@ -507,7 +507,7 @@ module Refractors = {
          )
     )
     @ (
-      z.refractors.ephemerals
+      z.refractors.autos.ephemerals
       |> Id.Map.to_list
       |> List.concat_map(((id, _p)) =>
            refractor_arms(

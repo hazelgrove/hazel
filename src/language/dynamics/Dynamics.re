@@ -10,18 +10,18 @@ module Info = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t = {
     samples: list(Sample.t),
-    dyn_cursor: Sample.Cursor.t,
+    sample_cursor: Sample.Cursor.t,
   };
 
   let init = {
     samples: [],
-    dyn_cursor: Sample.Cursor.init,
+    sample_cursor: Sample.Cursor.init,
   };
 
   let is_in = (di: t): option(Sample.t) =>
     List.find_opt(
       (sample: Sample.t) =>
-        Sample.Cursor.trimmed_stack(di.dyn_cursor) == sample.call_stack,
+        Sample.Cursor.trimmed_stack(di.sample_cursor) == sample.call_stack,
       di.samples,
     );
 
@@ -29,7 +29,12 @@ module Info = {
     let find_cursor =
       List.find_opt(
         sample =>
-          Sample.Cursor.relation(~trimmed=true, ~ap_id, di.dyn_cursor, sample).
+          Sample.Cursor.relation(
+            ~trimmed=true,
+            ~ap_id,
+            di.sample_cursor,
+            sample,
+          ).
             is_call_cursor,
         di.samples,
       );

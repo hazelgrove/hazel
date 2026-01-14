@@ -34,7 +34,7 @@ let equal_targets = (t1: targets, t2: targets) =>
   Id.Map.equal(equal_capture_spec, t1, t2);
 
 /* A probe sample records a value and an environment,
- * along with a `stack` which records partial information
+ * along with a `call_stack` which records partial information
  * about the execution trace prior to the sample being taken */
 
 module Env = {
@@ -113,14 +113,14 @@ type t = {
   value: DHExp.t, /* Value of expression */
   env: Env.t, /* (Filtered) Environment Values  */
   call_stack, /* Call stacks as ap ids */
-  time: float, /* Time of evaluatation */
-  iter: int, /* A count index of each sample taken */
+  time: float, /* Time of evaluation */
+  seq: int, /* Sequence number: a count index of each sample taken */
   origin, /* Is this sample from a probe or a print statement */
   step_start: int, /* Step count when expression began evaluation */
   step_end: int /* Step count when expression finished evaluation */
 };
 
-let iter = ref(0);
+let seq_counter = ref(0);
 
 let mk =
     (
@@ -144,9 +144,9 @@ let mk =
   env: Env.filter(env, spec.refs),
   call_stack: stack,
   time: JsUtil.precise_timestamp(),
-  iter: {
-    iter := iter^ + 1;
-    iter^;
+  seq: {
+    seq_counter := seq_counter^ + 1;
+    seq_counter^;
   },
   origin,
   step_start,
@@ -272,11 +272,33 @@ module Window = {
  *   Without intent preservation, inner would reset to 1 (first/default).
  *   With intent preservation, inner stays at 2.
  *
- * MECHANISM: The cursor maintains both a full `stack` and an `index`.
- * The `index` is the effective cursor depth; `stack` may retain deeper
+ * MECHANISM: The cursor maintains both a full `call_stack` and an `index`.
+ * The `index` is the effective cursor depth; `call_stack` may retain deeper
  * call information. When clicking "up" to a shallower sample that already
  * contains the current selection, we keep the deeper stack but lower the
- * index. Use `trimmed_stack(cursor)` to get the effective stack. */
+ * index. Use `trimmed_stack(cursor)` to get the effective stack.
+ *
+ * WHY CURSOR STORES COORDINATES, NOT A SAMPLE REFERENCE
+ *
+ * The cursor points to a position in the evaluation trace, not to a specific
+ * sample. This is because:
+ *
+ * 1. MULTIPLE PROBES, ONE CURSOR: Many probes share the same cursor. Each
+ *    probe shows the sample at its location that matches the cursor's
+ *    call stack depth. A direct Sample reference would only work for one probe.
+ *
+ * 2. SAMPLES ARE EPHEMERAL: Samples are recomputed on every edit. The cursor
+ *    must survive across evaluations. Call stacks provide stable coordinates
+ *    because they're based on syntax IDs, which persist across edits.
+ *
+ * 3. INTENT PRESERVATION: Storing (call_stack, index) lets us preserve user
+ *    intent when navigating. A shallower click can keep the deeper stack info
+ *    so we remember the user's prior selection if they navigate back down.
+ *
+ * RELATIONSHIP TO Sample.t: Sample.t records a single evaluation moment
+ * (value, environment, call_stack, timing). Cursor.t identifies which
+ * evaluation moment the user is focused on across all probes. They share
+ * the call_stack type as the common coordinate system. */
 module Cursor = {
   open OptUtil.Syntax;
 
@@ -289,31 +311,41 @@ module Cursor = {
     target_stack: call_stack /* The call stack to match */
   };
 
+  /* Cursor.t fields:
+   * - call_stack: Full call context; may be deeper than effective cursor
+   * - index: Effective depth in call_stack (-1 = top-level, 0+ = inside calls)
+   * - pinned_stack: If set, filters samples to those under this call context
+   * - indicated_call: Syntax ID of function call under syntax cursor (for step-into)
+   * - time: Timestamp of focused sample (for time-based correlation)
+   * - seq: Sequence number of focused sample (for ordering-based correlation)
+   * - step_range: (start, end) step counts of focused sample
+   * - pending_focus: After step-into, where to focus when evaluation completes */
   [@deriving (show({with_path: false}), sexp, yojson, eq)]
   type t = {
-    stack: call_stack,
+    call_stack,
     index: int,
     pinned_stack: option(call_stack),
     indicated_call: option(Id.t),
     time: option(float),
-    iter: int,
+    seq: int,
     step_range: option((int, int)),
-    pending_focus: option(pending_focus) /* Focus target after step-into */
+    pending_focus: option(pending_focus),
   };
 
   let init: t = {
-    stack: [],
+    call_stack: [],
     index: (-1),
     pinned_stack: None,
     indicated_call: None,
     time: None,
-    iter: 0,
+    seq: 0,
     step_range: None,
     pending_focus: None,
   };
 
   let trimmed_stack = (cursor: t): call_stack =>
-    ListUtil.slice(0, cursor.index + 1, cursor.stack |> List.rev) |> List.rev;
+    ListUtil.slice(0, cursor.index + 1, cursor.call_stack |> List.rev)
+    |> List.rev;
 
   /* If the cursor is on a call, and the provided call stack is
    * downstream of that call, return how many aps downstream it is */
@@ -396,11 +428,11 @@ module Cursor = {
       (~trimmed: bool, ~ap_id: option(Id.t), cursor: t, sample: sample)
       : relation => {
     let this = sample.call_stack;
-    let cursor_stack = trimmed ? trimmed_stack(cursor) : cursor.stack;
+    let cursor_stack = trimmed ? trimmed_stack(cursor) : cursor.call_stack;
     {
       is_call_cursor: cursor_stack == this,
       is_more_precise_than_cursor:
-        List.length(cursor.stack) > List.length(sample.call_stack),
+        List.length(cursor.call_stack) > List.length(sample.call_stack),
       relative_level_to_cursor: relative_level(cursor_stack, this),
       is_call_above_call_cursor: {
         let* cur_call = cur_call(ap_id, sample);
@@ -410,7 +442,7 @@ module Cursor = {
         let* cur_ap = cursor.indicated_call;
         is_below([cur_ap] @ cursor_stack, this);
       },
-      is_before_cursor: sample.iter - cursor.iter,
+      is_before_cursor: sample.seq - cursor.seq,
     };
   };
 

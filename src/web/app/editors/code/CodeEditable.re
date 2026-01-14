@@ -264,13 +264,13 @@ module View = {
           Id.Map.union(
             (_, _, b) => Some(b),
             zipper.refractors.manuals,
-            zipper.refractors.ephemerals,
+            zipper.refractors.autos.ephemerals,
           ),
         ~syntax=model.editor.syntax,
         ~indicated=Indicated.piece(zipper),
         ~statics=model.statics.info_map,
         ~dynamics,
-        ~dyn_cursor=zipper.refractors.dyn_cursor,
+        ~sample_cursor=zipper.refractors.sample_cursor,
         ~editor_active=selected,
       );
     /* TODO(andrew): remove profilling before merge */
@@ -297,7 +297,7 @@ module View = {
           ~indicated=Indicated.piece(zipper),
           ~statics=model.statics.info_map,
           ~dynamics,
-          ~dyn_cursor=zipper.refractors.dyn_cursor,
+          ~sample_cursor=zipper.refractors.sample_cursor,
           ~editor_active=selected,
         ),
       );
@@ -307,7 +307,7 @@ module View = {
         Id.Map.union(
           (_, _, b) => Some(b),
           model.editor.state.zipper.refractors.manuals,
-          model.editor.state.zipper.refractors.ephemerals,
+          model.editor.state.zipper.refractors.autos.ephemerals,
         ),
       );
     if (num_refractors > 0) {

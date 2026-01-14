@@ -81,7 +81,7 @@ module Model = {
         ~indicated: option(Indicated.piece),
         ~statics: Language.Statics.Map.t,
         ~dynamics: Language.Dynamics.Map.t,
-        ~dyn_cursor: Language.Sample.Cursor.t,
+        ~sample_cursor: Language.Sample.Cursor.t,
         ~editor_active: bool,
       ) => {
     let {projectors, measured, term_data, selection_ids, _}: CachedSyntax.t = syntax;
@@ -89,7 +89,8 @@ module Model = {
       ((id, _)) => {
         let* p = Id.Map.find_opt(id, projectors);
         let+ measurement = Measured.find_pr_opt(p, measured);
-        let info = ProjectorInfo.mk_info(p, ~dyn_cursor, ~statics, ~dynamics);
+        let info =
+          ProjectorInfo.mk_info(p, ~sample_cursor, ~statics, ~dynamics);
         {
           p,
           info,

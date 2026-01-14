@@ -5,6 +5,12 @@ open Virtual_dom.Vdom;
 open Js_of_ocaml;
 open Language;
 
+/* Global probe display state. See ZipperBase.re for full probe state documentation.
+ * - Settings.s: Global display settings (window mode, cutoffs)
+ * - Settings.offset: Per-probe window scroll offsets
+ * - SampleLength.lengths: Per-sample display lengths
+ * These use mutable refs for simplicity since they're UI-only state. */
+
 [@deriving (show({with_path: false}), sexp, yojson)]
 type action =
   | ChangeLength(int, int)
@@ -157,7 +163,7 @@ let select_samples =
     | None =>
       Sample.Selection.filter_by_pin(
         ~ap_id,
-        ~pinned=di.dyn_cursor.pinned_stack,
+        ~pinned=di.sample_cursor.pinned_stack,
         di.samples,
       )
     };
@@ -165,7 +171,7 @@ let select_samples =
     Sample.Selection.first_related_index(
       ~trimmed=true,
       ~ap_id,
-      di.dyn_cursor,
+      di.sample_cursor,
       samples,
     );
   if (first_idx == None && settings.window == Single) {
@@ -260,7 +266,7 @@ let cursor_clss =
   switch (settings.sample_base) {
   | Calls =>
     let relation =
-      Sample.Cursor.relation(~trimmed=true, ~ap_id, di.dyn_cursor, sample);
+      Sample.Cursor.relation(~trimmed=true, ~ap_id, di.sample_cursor, sample);
     let cursor_class =
       switch (
         relation.is_call_cursor,
@@ -302,14 +308,14 @@ let cursor_clss =
 
   | Steps =>
     let relation =
-      Sample.Cursor.relation(~trimmed=true, ~ap_id, di.dyn_cursor, sample);
+      Sample.Cursor.relation(~trimmed=true, ~ap_id, di.sample_cursor, sample);
     let cursor_class =
       switch (
         relation.is_call_cursor,
         relation.is_call_above_call_cursor,
         relation.is_below_indicated_call,
       ) {
-      | (true, _, _) when sample.iter == di.dyn_cursor.iter => ["cursor"]
+      | (true, _, _) when sample.seq == di.sample_cursor.seq => ["cursor"]
       | (_, Some(0), _) => ["cursor-caller", "direct"]
       | (_, Some(_), _) when settings.caller_cutoff == None => [
           "cursor-caller",
@@ -347,7 +353,7 @@ let cursor_clss =
        - Off Cursor (StepNoFocus): cursor-unrelated only */
     switch (
       Sample.Cursor.step_containment(
-        ~focus_range=di.dyn_cursor.step_range,
+        ~focus_range=di.sample_cursor.step_range,
         sample,
       )
     ) {
@@ -388,9 +394,9 @@ module Debug = {
 
 let pin_call = (~parent, ~ap_id: option(Id.t), ~di: Dynamics.Info.t) =>
   switch (ap_id, Dynamics.Info.is_in(di)) {
-  | (Some(ap_id), Some(dyn_cursor)) =>
+  | (Some(ap_id), Some(sample)) =>
     print_endline("actually pinning call");
-    parent(SampleCursor(TogglePin([ap_id, ...dyn_cursor.call_stack])));
+    parent(SampleCursor(TogglePin([ap_id, ...sample.call_stack])));
   | _ =>
     print_endline("ignoring");
     Effect.Ignore;
@@ -501,7 +507,7 @@ let env_val =
 };
 
 let show_pin = (~ap_id: option(Id.t), di: Dynamics.Info.t, sample: Sample.t) => {
-  switch (ap_id, di.dyn_cursor.pinned_stack) {
+  switch (ap_id, di.sample_cursor.pinned_stack) {
   | (Some(ap_id), Some(pinned_stack)) =>
     pinned_stack == [ap_id, ...sample.call_stack]
   | _ => false
@@ -723,13 +729,13 @@ let mv_least_distant_sample =
     let samples =
       Sample.Selection.filter_by_pin(
         ~ap_id,
-        ~pinned=di.dyn_cursor.pinned_stack,
+        ~pinned=di.sample_cursor.pinned_stack,
         di.samples,
       );
     switch (
       Sample.Selection.closest_to_cursor(
         ~ap_id,
-        ~cursor=di.dyn_cursor,
+        ~cursor=di.sample_cursor,
         samples,
       )
     ) {
@@ -820,14 +826,14 @@ let move_cursor =
   let samples =
     Sample.Selection.filter_by_pin(
       ~ap_id,
-      ~pinned=di.dyn_cursor.pinned_stack,
+      ~pinned=di.sample_cursor.pinned_stack,
       di.samples,
     );
   let cursor_idx =
     Sample.Selection.first_related_index(
       ~trimmed=true,
       ~ap_id,
-      di.dyn_cursor,
+      di.sample_cursor,
       samples,
     );
   switch (cursor_idx) {
@@ -876,7 +882,7 @@ let num_samples_view = (~ap_id: option(Id.t), di: Dynamics.Info.t) => {
   let num_samples =
     Sample.Selection.filter_by_pin(
       ~ap_id,
-      ~pinned=di.dyn_cursor.pinned_stack,
+      ~pinned=di.sample_cursor.pinned_stack,
       di.samples,
     )
     |> List.length;
@@ -1056,7 +1062,7 @@ let offside_view =
     let filtered_samples =
       Sample.Selection.filter_by_pin(
         ~ap_id,
-        ~pinned=di.dyn_cursor.pinned_stack,
+        ~pinned=di.sample_cursor.pinned_stack,
         di.samples,
       );
     let num_total = List.length(filtered_samples);
@@ -1066,7 +1072,7 @@ let offside_view =
 
     /* Check if this probe is the target of a pending step-into focus */
     let is_evaluating =
-      switch (di.dyn_cursor.pending_focus) {
+      switch (di.sample_cursor.pending_focus) {
       | Some({probe_id, _}) => probe_id == id
       | None => false
       };

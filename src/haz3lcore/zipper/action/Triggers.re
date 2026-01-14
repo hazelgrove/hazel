@@ -117,8 +117,8 @@ let destruct = (z: t): option(t) =>
   };
 
 let refractor_seg_to_seg =
-    (refractors: Id.Map.t(Base.projector), seg: Segment.t)
-    : (Id.Map.t(Base.projector), Segment.t) => {
+    (refractors: Zipper.Refractor.Map.t, seg: Segment.t)
+    : (Zipper.Refractor.Map.t, Segment.t) => {
   /* This function transforms a segment by wrapping terms that have refractors
    * with their invocation syntax (e.g., ^^probe(...)).
    *
@@ -133,8 +133,8 @@ let refractor_seg_to_seg =
   /* Process an Aba root, returning segment from first_a to last_a (inclusive).
    * Recursively processes all child skeletons in the Aba. */
   let rec go_aba =
-          (map: Id.Map.t(Base.projector), root: Skel.root)
-          : (Id.Map.t(Base.projector), Segment.t) => {
+          (map: Zipper.Refractor.Map.t, root: Skel.root)
+          : (Zipper.Refractor.Map.t, Segment.t) => {
     let indices = Aba.get_as(root);
     let children = Aba.get_bs(root);
     switch (indices, children) {
@@ -148,12 +148,12 @@ let refractor_seg_to_seg =
        *   slice(i1, c1_start) @ go(c1) @ slice(c1_end+1, i2) @ slice(i2, i2+1) */
       let rec go_interleave =
               (
-                map: Id.Map.t(Base.projector),
+                map: Zipper.Refractor.Map.t,
                 prev_idx: int,
                 indices: list(int),
                 children: list(Skel.t),
               )
-              : (Id.Map.t(Base.projector), Segment.t) =>
+              : (Zipper.Refractor.Map.t, Segment.t) =>
         switch (indices, children) {
         | ([], []) =>
           /* After last index: include slice for the final token */
@@ -174,8 +174,8 @@ let refractor_seg_to_seg =
     };
   }
   and go =
-      (map: Id.Map.t(Base.projector), skel: Skel.t)
-      : (Id.Map.t(Base.projector), Segment.t) => {
+      (map: Zipper.Refractor.Map.t, skel: Skel.t)
+      : (Zipper.Refractor.Map.t, Segment.t) => {
     let (map, result) =
       switch (skel) {
       | Op(root) =>
@@ -229,9 +229,9 @@ let refractor_seg_to_seg =
     /* Check if this term needs to be wrapped with a refractor invocation */
     let root_id = Segment.root_id(skel, seg);
     switch (Id.Map.find_opt(root_id, map)) {
-    | Some(pr) => (
+    | Some(entry) => (
         Id.Map.remove(root_id, map),
-        refractor_to_invoke(pr.kind, result),
+        refractor_to_invoke(entry.kind, result),
       )
     | None => (map, result)
     };
