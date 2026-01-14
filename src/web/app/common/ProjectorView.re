@@ -9,6 +9,8 @@ open Util.WebUtil;
 /* Re-export visible_rows type from Globals for convenience */
 type visible_rows = Globals.VisibleRows.t;
 
+let offside_offset = 4; /* Num characters offset to the right of the end of the line */
+
 /* Filter projector data to only include items in visible row range */
 let filter_by_visibility =
     (visible: option(visible_rows), data: list('a), get_row: 'a => int)
@@ -75,43 +77,25 @@ module Model = {
 
   let mk =
       (
-        projectors: Id.Map.t(Base.projector),
-        measured: Measured.t,
-        term_data: TermData.t,
-        selection_ids: list(Id.t),
-        indicated: option(Indicated.piece),
-        statics: Language.Statics.Map.t,
-        dynamics: Language.Dynamics.Map.t,
-        dyn_cursor: Language.Sample.Cursor.t,
-        editor_active: bool,
+        ~syntax: CachedSyntax.t,
+        ~indicated: option(Indicated.piece),
+        ~statics: Language.Statics.Map.t,
+        ~dynamics: Language.Dynamics.Map.t,
+        ~dyn_cursor: Language.Sample.Cursor.t,
+        ~editor_active: bool,
       ) => {
+    let {projectors, measured, term_data, selection_ids, _}: CachedSyntax.t = syntax;
     List.filter_map(
       ((id, _)) => {
-        //TODO(andrew): cleanup, document hax
         let* p = Id.Map.find_opt(id, projectors);
-        let+ measurement =
-          switch (Measured.find_pr_opt(p, measured)) {
-          | None =>
-            /* Refractors case */
-            //TODO(andrew): document
-            switch (TermData.extreme_measures(id, term_data, measured)) {
-            | None => None
-            | Some((_l, r)) =>
-              Some(
-                Measured.{
-                  origin: r,
-                  last: r,
-                },
-              )
-            }
-          | Some(m) => Some(m)
-          };
+        let+ measurement = Measured.find_pr_opt(p, measured);
         let info = ProjectorInfo.mk_info(p, ~dyn_cursor, ~statics, ~dynamics);
         {
           p,
           info,
           measurement,
-          offside_base: offside_base(~offset=4, measurement, measured),
+          offside_base:
+            offside_base(~offset=offside_offset, measurement, measured),
           status:
             mk_status(
               p,
@@ -214,6 +198,7 @@ let simple_code =
     (~background=false, ~is_single_line=false, font_metrics, _sort, segment)
     : Node.t => {
   let shape_map = ProjectorCore.Shape.Map.empty; /* Assume this doesn't contain projectors */
+  let refractor_shape_map = Id.Map.empty; /* Assume this doesn't contain refractors (probes) */
   let measured =
     Measured.of_segment(~is_single_line, segment, shape_map, Id.Map.empty);
   let code =
@@ -221,7 +206,7 @@ let simple_code =
       ~measured,
       ~settings=Settings.Model.init,
       ~shape_map,
-      ~refractor_shape_map=Id.Map.empty, //TODO(andrew)
+      ~refractor_shape_map,
       ~font_metrics,
       ~term_data=Id.Map.empty,
       ~buffer_ids=[],
@@ -385,32 +370,6 @@ let all =
   [
     div_c(
       "projectors",
-      [div_c("base", base_views), div_c("overlays", overlay_views)],
-    ),
-  ];
-};
-
-let all_refractors =
-    (
-      inject: Action.t => Ui_effect.t(unit),
-      make_active,
-      font_metrics: FontMetrics.t,
-      ~visible: option(visible_rows)=?,
-      refactor_data: list(Model.projector_data),
-    ) => {
-  let get_row = (d: Model.projector_data) => d.measurement.origin.row;
-  let (base_views, overlay_views) =
-    refactor_data
-    |> filter_by_visibility(visible, _, get_row)
-    |> List.sort(by_measurement)
-    |> List.map(
-         split_views(~skip_inline=true, inject, make_active, font_metrics),
-       )
-    |> List.split;
-  let overlay_views = List.filter_map(Fun.id, overlay_views);
-  [
-    div_c(
-      "refractors",
       [div_c("base", base_views), div_c("overlays", overlay_views)],
     ),
   ];

@@ -433,8 +433,10 @@ module Refractors = {
     let min_col = min_col(~first, ~last, ~rows);
     let (orig, path) =
       l_path(~flip=true, ~hx, ~min_col, ~first, ~last) |> Option.get;
-    //TODO(andrew): unhardcode magic 4 offset
-    let dashed_length = IntMap.find(last.row, rows).max_col - last.col + 4;
+    let dashed_length =
+      IntMap.find(last.row, rows).max_col
+      - last.col
+      + ProjectorView.offside_offset;
     [
       svg(
         ~font_metrics,

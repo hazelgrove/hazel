@@ -232,13 +232,10 @@ For each TODO, gather context by:
 
 #### Needs Investigation
 
-| Location                 | TODO                                      | Summary                                                                              |
-| ------------------------ | ----------------------------------------- | ------------------------------------------------------------------------------------ |
-| `Test_AutoProbe.re:297`  | "probably this should probe body instead" | Design question: should auto-probe on `let x = e in body` probe `body` or whole let? |
-| `ProjectorView.re:90,96` | "cleanup, document hax"                   | Refractor measurement fallback path - document or refactor                           |
-| `ProjectorView.re:224`   | empty refractor_shape_map                 | Nested views don't support probes - is this intentional? Document or fix             |
-| `Arms.re:436`            | "unhardcode magic 4 offset"               | Hardcoded +4 in dashed line calculation - should derive from measurement             |
-| `ChatLSP.re:384`         | empty refractors                          | Chat/LSP doesn't support probes - document or consider supporting                    |
+| Location                | TODO                                      | Summary                                                                              |
+| ----------------------- | ----------------------------------------- | ------------------------------------------------------------------------------------ |
+| `Test_AutoProbe.re:297` | "probably this should probe body instead" | Design question: should auto-probe on `let x = e in body` probe `body` or whole let? |
+| `ChatLSP.re:384`        | empty refractors                          | Chat/LSP doesn't support probes - document or consider supporting                    |
 
 ---
 
@@ -287,6 +284,89 @@ Consider removing the ProjectorPanel entirely and moving projector options to th
 3. Update inspector layout
 
 **Decision**: TBD - may do as part of merge or defer to future work.
+
+---
+
+## Phase 5D: Extract RefractorView Module ✅ COMPLETED
+
+The `ProjectorView.Model.mk` function had a confusing fallback path: it tried `Measured.find_pr_opt` first (which works for projectors) and fell back to `TermData.extreme_measures` (for refractors). This was a roundabout way of distinguishing the two since:
+
+- **Projectors** have measurements stored in `measured.projectors`
+- **Refractors** derive position from the underlying term's rightmost point
+
+### Changes Made
+
+1. **Created `RefractorView.re`** with:
+
+   - `measurement_of_term`: Computes refractor position from term extremes
+   - `mk_data`: Builds refractor data (analogous to `ProjectorView.Model.mk`)
+   - `all`: Renders refractors (moved from `ProjectorView.all_refractors`)
+
+2. **Simplified `ProjectorView.Model.mk`**:
+
+   - Removed the fallback path to `TermData.extreme_measures`
+   - Now only handles projectors via `Measured.find_pr_opt`
+   - Added comment directing to `RefractorView` for refractors
+
+3. **Cleaned up function signatures**:
+
+   - Both `mk` functions now take `~syntax: CachedSyntax.t` instead of 4 separate fields
+   - Reduces argument count from 9 to 6
+   - Call sites are cleaner: `~syntax=model.editor.syntax`
+
+4. **Updated call sites** in `CodeEditable.re` and `ProbeSidebar.re`
+
+### Files Changed
+
+- **Created**: `src/web/app/common/RefractorView.re`
+- **Modified**: `src/web/app/common/ProjectorView.re` (removed `all_refractors`, simplified `Model.mk`)
+- **Modified**: `src/web/app/editors/code/CodeEditable.re`
+- **Modified**: `src/web/app/probesystem/ProbeSidebar.re`
+
+---
+
+## Phase 5E: Streamline ProjectorView/RefractorView APIs 📋 PROSPECTIVE
+
+**Status**: Not planned for initial merge, but worth doing eventually.
+
+### Current Issues
+
+1. **Two-step API is unnecessarily complex**: Both ProjectorView and RefractorView have `Model.mk` / `mk_data` (compute data) and `all` (render) as separate steps. Most call sites immediately chain them.
+
+2. **ProbeSidebar's pattern is wasteful**: It calls `mk_data` to compute ALL probe data, then looks up individual probes by id via `fancy`. Should compute single-probe data on-demand instead.
+
+3. **Intermediate `projector_data` type is heavyweight**: Pre-computes info, measurement, status, offside_base for every projector/refractor upfront, even though viewport culling might skip most of them.
+
+### Proposed Changes
+
+1. **Collapse `mk_data` + `all` into single `view` function** for both RefractorView and ProjectorView:
+
+   ```reason
+   // Instead of:
+   let data = RefractorView.mk_data(...);
+   let views = RefractorView.all(..., data);
+
+   // Just:
+   let views = RefractorView.view(...);
+   ```
+
+2. **Add `view_single` for on-demand rendering** (if ProbeSidebar needs it):
+
+   ```reason
+   // Compute and render a single probe by id
+   let view = RefractorView.view_single(~id, ...);
+   ```
+
+3. **Consider lazy computation**: Instead of pre-computing all fields in `projector_data`, compute on-demand during rendering. Viewport culling already filters early, so this may not matter much for performance.
+
+4. **Clean up ProbeSidebar**: The module is acknowledged as hacky. Its `fancy` function pattern (batch compute → lookup) should be replaced with direct single-probe rendering.
+
+### Why Defer
+
+- Current API works fine, just not elegant
+- Performance is acceptable (measurement computation is cheap)
+- Would touch many files for modest benefit
+- Better to stabilize probe system first, then streamline
 
 ---
 
@@ -365,7 +445,9 @@ Consider hiding incomplete/experimental features from the merge PR while retaini
 10. **Phase 5** 📋 IN PROGRESS: TODO cleanup (see inventory above)
 11. **Phase 5B** ✅ COMPLETED: Remove Probe from ProjectorPanel
 12. **Phase 5C** 📋 PROPOSED: Replace ProjectorPanel with context menu (future)
-13. **Phase 6** 📋 PENDING: Prior-to-merge decisions (profiling removal, feature toggles)
+13. **Phase 5D** ✅ COMPLETED: Extract RefractorView module from ProjectorView
+14. **Phase 5E** 📋 PROSPECTIVE: Streamline ProjectorView/RefractorView APIs (see below)
+15. **Phase 6** 📋 PENDING: Prior-to-merge decisions (profiling removal, feature toggles)
 
 Each completed phase is part of one cohesive commit.
 

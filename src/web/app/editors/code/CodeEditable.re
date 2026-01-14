@@ -257,27 +257,27 @@ module View = {
           )
         : [];
     let t0 = JsUtil.precise_timestamp();
+    let zipper = model.editor.state.zipper;
     let refractor_data =
-      ProjectorView.Model.mk(
-        Id.Map.union(
-          (_, _, b) => Some(b),
-          model.editor.state.zipper.refractors.manuals,
-          model.editor.state.zipper.refractors.ephemerals,
-        ),
-        model.editor.syntax.measured,
-        model.editor.syntax.term_data,
-        model.editor.syntax.selection_ids,
-        Indicated.piece(model.editor.state.zipper),
-        model.statics.info_map,
-        dynamics,
-        model.editor.state.zipper.refractors.dyn_cursor,
-        selected,
+      RefractorView.mk_data(
+        ~refractors=
+          Id.Map.union(
+            (_, _, b) => Some(b),
+            zipper.refractors.manuals,
+            zipper.refractors.ephemerals,
+          ),
+        ~syntax=model.editor.syntax,
+        ~indicated=Indicated.piece(zipper),
+        ~statics=model.statics.info_map,
+        ~dynamics,
+        ~dyn_cursor=zipper.refractors.dyn_cursor,
+        ~editor_active=selected,
       );
     let t1 = JsUtil.precise_timestamp();
     /* Use visible row range from model (updated by scroll handler) */
     let visible = globals.visible_rows;
     let refractors_model =
-      ProjectorView.all_refractors(
+      RefractorView.all(
         x => inject(Perform(x)),
         signal(MakeActive),
         globals.font_metrics,
@@ -292,15 +292,12 @@ module View = {
         globals.font_metrics,
         ~visible?,
         ProjectorView.Model.mk(
-          model.editor.syntax.projectors,
-          model.editor.syntax.measured,
-          model.editor.syntax.term_data,
-          model.editor.syntax.selection_ids,
-          Indicated.piece(model.editor.state.zipper),
-          model.statics.info_map,
-          dynamics,
-          model.editor.state.zipper.refractors.dyn_cursor,
-          selected,
+          ~syntax=model.editor.syntax,
+          ~indicated=Indicated.piece(zipper),
+          ~statics=model.statics.info_map,
+          ~dynamics,
+          ~dyn_cursor=zipper.refractors.dyn_cursor,
+          ~editor_active=selected,
         ),
       );
     let t3 = JsUtil.precise_timestamp();

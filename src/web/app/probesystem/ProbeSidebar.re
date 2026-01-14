@@ -680,21 +680,21 @@ let printarium = (~explain_this_inject, ~editor: CodeEditable.Model.t) => [
 
 let probearium =
     (~globals: Globals.t, ~explain_this_inject, ~editor: CodeEditable.Model.t) => {
+  let zipper = editor.editor.state.zipper;
   let refractor_data =
-    ProjectorView.Model.mk(
-      Id.Map.union(
-        (_, _, b) => Some(b),
-        editor.editor.state.zipper.refractors.manuals,
-        editor.editor.state.zipper.refractors.ephemerals,
-      ),
-      editor.editor.syntax.measured,
-      editor.editor.syntax.term_data,
-      editor.editor.syntax.selection_ids,
-      Indicated.piece(editor.editor.state.zipper),
-      editor.statics.info_map,
-      editor.dynamics,
-      editor.editor.state.zipper.refractors.dyn_cursor,
-      true,
+    RefractorView.mk_data(
+      ~refractors=
+        Id.Map.union(
+          (_, _, b) => Some(b),
+          zipper.refractors.manuals,
+          zipper.refractors.ephemerals,
+        ),
+      ~syntax=editor.editor.syntax,
+      ~indicated=Indicated.piece(zipper),
+      ~statics=editor.statics.info_map,
+      ~dynamics=editor.dynamics,
+      ~dyn_cursor=zipper.refractors.dyn_cursor,
+      ~editor_active=true,
     );
   let refractors = editor.editor.state.zipper.refractors;
   [
