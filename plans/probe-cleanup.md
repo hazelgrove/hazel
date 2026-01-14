@@ -169,33 +169,159 @@ Updated all import sites after module renames (~27 files):
 
 **Warning**: Changes to `ZipperBase.Refractor.t` require migrating serialized zipper data. Should be done holistically after deciding on final structure, with a migration script.
 
-### 3A: Consider Splitting Cursor State
+### 3A: Simplify Refractor Entry Type 📋 PLANNED
 
-`Sample.Cursor.t` contains probe-specific fields:
+**Current state**: `Refractor.Map.t = Id.Map.t(Base.projector)` where `Base.projector = ProjectorCore.t(piece)`:
 
 ```reason
-type t = {
-  stack: call_stack,           // Generic cursor position
-  index: int,                  // Generic depth
-  pinned_stack: option(...),   // PROBE-SPECIFIC: pin feature
-  pending_focus: option(...),  // PROBE-SPECIFIC: step-into state
-  indicated_call: option(Id.t),// Context
-  time, iter, step_range,      // Context
+// ProjectorCore.t
+type t('syntax) = {
+  id: Id.t,       // Redundant - it's the map key
+  kind: Kind.t,   // Currently always Probe
+  syntax: 'syntax,// Dummy parens with randomly-generated inner ID
+  model: string,  // Currently always "()" for probes
 };
 ```
 
-Could potentially split into core cursor + probe-specific extensions.
+**Target state**: Simplified entry type without redundancy:
 
-### 3B: Rename ZipperBase.Refractor.t
+```reason
+// New entry type for manuals/ephemerals maps
+type entry = {
+  kind: Kind.t,
+  model: string,  // Keep for potential future non-unit models
+};
 
-Options:
+module Map = {
+  type t = Id.Map.t(entry);
+};
+```
 
-- `ZipperBase.Probes.t`
-- Split into `probe_config` and `sample_cursor`
+**Changes needed**:
 
-### 3C: Write Migration Script
+1. Define `entry` type with just `kind` and `model`
+2. Update `manuals` and `ephemerals` to use `Id.Map.t(entry)`
+3. When ProjectorCore.t is needed (for projector API), construct on demand:
+   - Use `Id.invalid` for any dummy IDs in syntax
+   - Create consistent dummy parenthesis (not randomly generated)
+4. Update `persist` and `restore_refractors` in PersistentSegment.re
 
-For any ZipperBase changes, need script to update serialized data files.
+**Result**: Serialized format becomes much cleaner - essentially a list of `(id, kind, model)` tuples where model is typically `()`.
+
+### 3B: Restructure Refractor.t Record 📋 PLANNED
+
+**Current state**:
+
+```reason
+type t = {
+  manuals: Map.t,                    // Manually added probes
+  autos: list(Id.t),                 // Auto-generated probes
+  ephemerals: Map.t,                 // Implementation detail of autos
+  dyn_cursor: Sample.Cursor.t,       // Sample navigation state
+};
+```
+
+**Issues**:
+
+- `autos` as list is semantically weird (order doesn't matter, should be set-like)
+- `ephemerals` is tightly coupled to `autos` (implementation detail)
+- `dyn_cursor` is probe-specific, mixing config with navigation state
+
+**Target structure**:
+
+```reason
+type t = {
+  manuals: Map.t,    // User-placed refractors
+  autos: auto_state, // Auto-generated refractors (grouped)
+  sample_cursor: Sample.Cursor.t,  // Renamed from dyn_cursor
+};
+
+// Group auto-related state together
+type auto_state = {
+  ids: Id.Map.t(unit),  // Set-like semantics (no Id.Set available)
+  ephemerals: Map.t,    // Implementation detail - projector instances for autos
+};
+```
+
+**Decision**: Use `Id.Map.t(unit)` instead of `list(Id.t)` for set-like semantics (order doesn't matter, membership queries).
+
+**Naming considerations**:
+
+- `dyn_cursor` → `sample_cursor` (consistent with type rename)
+- Keep `Refractor` module name (vs `Probes`) since TypeProj may become a refractor
+
+### 3C: Document and Clean Up Sample.Cursor.t 📋 PLANNED
+
+**Decision**: Keep `Sample.t` and `Sample.Cursor.t` as separate types. They look superficially similar but have different semantics:
+
+- **Sample.t**: A captured sample during evaluation — properties of the sample
+- **Cursor.t**: "Coordinates to find a sample" + navigation state — search criteria
+
+**Why NOT combine them**:
+
+1. **Different semantics for `call_stack`**: Cursor's `stack` is for intent preservation — it can be *longer* than the selected sample's `call_stack`. The `index` field controls effective depth. This is navigation, not sample data.
+
+2. **Optionality reflects "no selection"**: Cursor's `time: option(float)` means "do we have a selection?" not "missing data". Sample's `time: float` is always present.
+
+3. **Coordinates vs object**: Cursor stores coordinates to *re-identify* the same sample after re-evaluation. Storing the actual `Sample.t` would give stale data.
+
+4. **Different purposes**: In Sample, `time`/`iter`/`step_range` are properties. In Cursor, they're search criteria.
+
+**Changes to make**:
+
+1. **Rename `stack` → `call_stack`** for consistency (even though semantics differ)
+2. **Rename `iter` → `seq`** (sequence number, not iteration count)
+3. **Add documentation** explaining:
+   - Why Cursor stores coordinates, not a Sample reference
+   - The relationship between the two types
+   - The intent preservation mechanism (`stack`/`index`)
+4. **Fix typo**: "evaluatation" → "evaluation" in Sample.re:116
+
+### 3D: Naming Improvements 📋 PLANNED
+
+| Current | Proposed | Rationale |
+|---------|----------|-----------|
+| `Cursor.stack` | `Cursor.call_stack` | Consistency with Sample.t (type is same, semantics differ) |
+| `Sample.iter`, `Cursor.iter` | `seq` | "iter" misleadingly suggests loop iteration; `seq` = sequence number |
+| `dyn_cursor` (field names) | `sample_cursor` | Consistent with type rename |
+| `Sample.iter` (module-level ref) | `Sample.seq_counter` | Clarify it's the counter for generating seq values |
+
+### 3E: Document State Locations 📋 PLANNED
+
+Add documentation noting where probe-related state lives:
+
+| State | Location | Scope | Persisted? |
+|-------|----------|-------|------------|
+| Manual probes | ZipperBase.Refractor.manuals | Per-editor | Yes |
+| Auto probe IDs | ZipperBase.Refractor.autos | Per-editor | No |
+| Sample cursor | ZipperBase.Refractor.sample_cursor | Per-editor | No |
+| Display settings | ProbeProj.Settings.s | Global | No |
+| Window offsets | ProbeProj.Settings.offset | Per-probe | No |
+| Sample lengths | ProbeProj.SampleLength.lengths | Per-sample | No |
+
+### 3F: Migration Script 📋 PLANNED
+
+Script to update serialized `.ml` files:
+
+**Input format** (current):
+```
+((id1((id id1)(kind Probe)(syntax(Tile...))(model"()")))
+ (id2((id id2)(kind Probe)(syntax(Tile...))(model"()")))...)
+```
+
+**Output format** (new):
+```
+((id1((kind Probe)(model"()")))
+ (id2((kind Probe)(model"()")))...)
+```
+
+**Files affected** (~9 docs files):
+- src/web/init/docs/*.ml (any with `refractors = "..."` containing data)
+
+**Script approach**:
+1. Parse old s-expression format
+2. Extract id (map key) and kind/model
+3. Emit new format without redundant id/syntax fields
 
 ---
 
@@ -232,7 +358,9 @@ For each TODO, gather context by:
 
 #### Needs Investigation
 
-(None remaining)
+| Location | Issue | Notes |
+|----------|-------|-------|
+| `Triggers.re:26` | `^^probe` hardcoded special case | The `expand_projector` function has a special case `when name == "^^probe"` that bypasses the normal projector invocation path. This exists because probes use `MkRefractor.add_single` instead of `invoked_projector`. Should either: (a) make probe creation go through the normal path, or (b) document why the special case is necessary (likely because probes don't fit the "replace syntax" projector model). |
 
 #### Resolved
 
@@ -444,7 +572,14 @@ Consider hiding incomplete/experimental features from the merge PR while retaini
 5. **Phase 2A** ✅ COMPLETED: Module renaming (SampleCursorPerform, ProbePerform)
 6. **Phase 2B** ✅ RESOLVED: Keeping as `ProbeSidebar.re` - name is clear
 7. **Phase 2C** ✅ COMPLETED: Updated all external references
-8. **Phase 3** 📋 DEFERRED: Requires data migration, do last and holistically
+8. **Phase 3** 📋 READY: Structural changes (do holistically with migration script)
+   - **3A**: Simplify entry type (remove id/syntax redundancy) ← SERIALIZATION CHANGE
+   - **3F**: Migration script for .ml files ← RUN IMMEDIATELY AFTER 3A
+   - **⏸️ CHECKPOINT**: Pause here to test editor works with new serialization
+   - **3B**: Restructure Refractor.t (group autos/ephemerals, rename dyn_cursor)
+   - **3C**: Document Sample.Cursor.t (comments explaining coordinates vs sample)
+   - **3D**: Naming improvements (call_stack, seq, sample_cursor)
+   - **3E**: Document state locations
 9. **Phase 4** 📋 DEFERRED: TypeProj conversion (optional, low priority)
 10. **Phase 5** 📋 IN PROGRESS: TODO cleanup (see inventory above)
 11. **Phase 5B** ✅ COMPLETED: Remove Probe from ProjectorPanel
@@ -511,3 +646,193 @@ Each completed phase is part of one cohesive commit.
 **Files created**:
 
 - `src/haz3lcore/zipper/action/SampleCursorPerform.re`
+
+### Session 3: MkRefractor.re Cleanup (2026-01-13)
+
+**Changes made**:
+
+1. Updated `MkRefractor.re` to use `Id.invalid` consistently for dummy syntax:
+   - Grout piece uses `Id.invalid`
+   - Tile record constructed directly with `Id.invalid` (can't pass id to `Piece.mk_tile`)
+   - Added documentation explaining the dependency cycle preventing merge into ProbePerform
+
+2. Investigated moving MkRefractor to ProbePerform - blocked by dependency cycle:
+   - `Triggers → ProbePerform` would create cycle through `Printer → ProjectorInfo → CachedSyntax`
+   - MkRefractor remains separate with clear documentation
+
+3. Added TODO for `^^probe` special case in Triggers.re to investigate
+
+**Files modified**:
+- `src/haz3lcore/MkRefractor.re` (Id.invalid usage, documentation)
+- `plans/probe-cleanup.md` (this file)
+
+---
+
+## Phase 3 Implementation Reference
+
+This section provides detailed implementation guidance for a fresh context window.
+
+### Key Files to Modify
+
+| File | Changes |
+|------|---------|
+| `src/haz3lcore/zipper/ZipperBase.re` | Define new `entry` type, update `Refractor.Map.t`, restructure `Refractor.t` |
+| `src/haz3lcore/zipper/PersistentSegment.re` | Update `persist` and `restore_refractors` for new format |
+| `src/language/dynamics/Sample.re` | Rename `iter` → `seq`, fix typo, add documentation |
+| `src/haz3lcore/zipper/action/SampleCursorPerform.re` | Update field names (`iter` → `seq`, etc.) |
+| `src/haz3lcore/projectors/implementations/ProbeProj.re` | Update any `iter` references |
+| `src/web/init/docs/*.ml` | Migration script updates serialized `refractors` |
+
+### MkRefractor.re - Dummy Syntax Creation ✅ COMPLETED
+
+**Location**: `src/haz3lcore/MkRefractor.re`
+
+**Purpose**: Creates `Base.projector` records for refractors with dummy syntax. Now uses `Id.invalid` consistently for all generated IDs.
+
+**Why it exists separately**: Cannot be moved to `ProbePerform.re` due to dependency cycle:
+```
+Triggers → ProbePerform → CachedSyntax → ... → Printer → ProjectorInfo → CachedSyntax
+```
+`Triggers.re` needs to call refractor creation (in `expand_projector`), but ProbePerform's other functions depend on CachedSyntax which transitively depends on Triggers through the printer/projector chain.
+
+**Changes made**:
+- Uses `Id.invalid` for grout piece
+- Constructs Tile record directly with `Id.invalid` (since `Piece.mk_tile` doesn't accept an id parameter)
+- Added documentation explaining the dependency cycle
+
+**Future simplification**: Since refractors use `skip_inline=true`, the dummy syntax structure doesn't matter for display. Could simplify from grout+parens to just Secondary (empty whitespace).
+
+**Future rename**: Consider renaming `MkRefractor.re` → `Refractor.re`. The "Mk" prefix is unnecessarily verbose. Could also become a home for other refractor-related utilities if needed.
+
+### 3A: Entry Type Change - Detailed
+
+**Current** (`ZipperBase.re:8-13`):
+```reason
+module Map = {
+  type t = Id.Map.t(Base.projector);  // Base.projector = ProjectorCore.t(piece)
+  let empty = Id.Map.empty;
+};
+```
+
+**Target**:
+```reason
+type entry = {
+  kind: ProjectorCore.Kind.t,
+  model: string,
+};
+
+module Map = {
+  type t = Id.Map.t(entry);
+  let empty = Id.Map.empty;
+};
+```
+
+**Where ProjectorCore.t is still needed**: When interfacing with projector API (e.g., in `RefractorView.re`), construct on demand using `MkRefractor.mk` which already handles dummy syntax with `Id.invalid`.
+
+**Note**: `MkRefractor.re` already creates consistent dummy syntax with `Id.invalid`. After the entry type change, it will construct from `entry` instead of storing the full `Base.projector` in maps.
+
+### 3A: Serialization Change - Detailed
+
+**Current serialized format** (in .ml files):
+```
+((uuid1((id uuid1)(kind Probe)(syntax(Tile((id random-id)...)))(model"()")))
+ (uuid2((id uuid2)(kind Probe)(syntax(Tile((id random-id)...)))(model"()"))))
+```
+
+**Target serialized format**:
+```
+((uuid1((kind Probe)(model"()")))
+ (uuid2((kind Probe)(model"()"))))
+```
+
+**PersistentSegment.re changes**:
+- `persist`: Serialize just `{kind, model}` per entry
+- `restore_refractors`: Parse new format, construct `entry` records
+
+### 3F: Migration Script
+
+**Input**: Old s-expression with `(id ...)(kind ...)(syntax ...)(model ...)`
+**Output**: New s-expression with just `(kind ...)(model ...)`
+
+**Algorithm**:
+1. Parse the outer list of `(uuid entry)` pairs
+2. For each entry, extract just `kind` and `model` fields
+3. Re-emit in new format
+
+**Files to process**: Any `.ml` file in `src/web/init/docs/` where `refractors = "..."` contains actual probe data (not just empty `"()"`).
+
+### 3B: Refractor.t Restructure - Detailed
+
+**Current** (`ZipperBase.re:15-27`):
+```reason
+type t = {
+  manuals: Map.t,
+  autos: list(Id.t),
+  ephemerals: Map.t,
+  dyn_cursor: Language.Sample.Cursor.t,
+};
+```
+
+**Target**:
+```reason
+type auto_state = {
+  ids: Id.Map.t(unit),
+  ephemerals: Map.t,
+};
+
+type t = {
+  manuals: Map.t,
+  autos: auto_state,
+  sample_cursor: Language.Sample.Cursor.t,
+};
+
+let init = {
+  manuals: Id.Map.empty,
+  autos: {ids: Id.Map.empty, ephemerals: Id.Map.empty},
+  sample_cursor: Language.Sample.Cursor.init,
+};
+```
+
+**Update sites**: Grep for `refractors.autos` and `refractors.dyn_cursor` to find all access points.
+
+### 3C/3D: Sample.re Changes - Detailed
+
+**Renames**:
+- `Sample.t.iter` → `Sample.t.seq`
+- `Sample.Cursor.t.iter` → `Sample.Cursor.t.seq`
+- `Sample.Cursor.t.stack` → `Sample.Cursor.t.call_stack`
+- `Sample.iter` (ref) → `Sample.seq_counter`
+- All field accesses site-wide
+
+**Typo fix** (line 116):
+```reason
+time: float, /* Time of evaluatation */
+```
+→
+```reason
+time: float, /* Time of evaluation */
+```
+
+**Documentation to add** (in `Sample.Cursor` module):
+```reason
+/* The sample cursor stores "coordinates" to identify a selected sample,
+ * NOT a reference to the sample itself. This is because:
+ *
+ * 1. Samples are recomputed each evaluation - storing Sample.t would be stale
+ * 2. The cursor's call_stack may be LONGER than the selected sample's
+ *    (for intent preservation - see doc comment above)
+ * 3. Optional fields (time, step_range) represent "no selection" state
+ *
+ * Fields like `seq`, `time`, `step_range` are search criteria used to
+ * re-identify the "same" sample in fresh evaluation results. */
+```
+
+### Testing Checkpoint
+
+After completing 3A + 3F:
+1. Build the project (`dune build`)
+2. Run the editor and verify:
+   - Documentation slides with probes load correctly
+   - Adding/removing probes works
+   - Probe samples display correctly
+3. Check that serialized format in localStorage matches new format
