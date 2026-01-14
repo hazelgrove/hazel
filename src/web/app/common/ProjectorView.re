@@ -156,15 +156,21 @@ let view_wrapper =
   div(
     ~attrs=[
       Attr.classes(projector_clss(status)),
-      /* Stopping propagation here is stops the base editor's
-       * drag-select interaction from being triggered */
-      Attr.on_pointerdown(_ => {
-        Effect.Many([
-          Effect.Stop_propagation,
-          make_active,
-          inject(Project(Focus(id, kind, None))),
-        ])
-      }),
+      /* Stopping propagation here stops the base editor's
+       * drag-select interaction from being triggered.
+       * However, we let right-clicks bubble through so the
+       * context menu can be shown. */
+      Attr.on_pointerdown(evt =>
+        switch (Pointer.Event.mk(evt)) {
+        | {button: Right, _} => Effect.Ignore /* Let right-clicks bubble for context menu */
+        | _ =>
+          Effect.Many([
+            Effect.Stop_propagation,
+            make_active,
+            inject(Project(Focus(id, kind, None))),
+          ])
+        }
+      ),
       DecUtil.abs_style(measurement, ~font_metrics),
     ],
     views,

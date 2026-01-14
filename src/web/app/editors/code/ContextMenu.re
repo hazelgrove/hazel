@@ -1,6 +1,7 @@
 open Haz3lcore;
 open Virtual_dom.Vdom;
 open Util;
+open Util.OptUtil.Syntax;
 open WebUtil;
 open Node;
 
@@ -20,6 +21,9 @@ let pos_attr = (point: Point.t, font_metrics: FontMetrics.t) =>
 /* Keyboard shortcut display - abstracts the format for easy updates */
 let shortcut_view = (shortcut: string) =>
   span(~attrs=[clss(["menu-shortcut"])], [text(shortcut)]);
+
+/* Styled colon separator */
+let colon_sep = span(~attrs=[clss(["menu-colon"])], [text(" : ")]);
 
 let menu_item =
     (
@@ -48,11 +52,14 @@ let menu_item =
     ),
   );
 
-/* Keyboard shortcuts for probe actions - platform-dependent */
+/* Keyboard shortcuts - platform-dependent */
 module Shortcuts = {
   let manual_probe = () => Os.is_mac^ ? "⌘E" : "Ctrl+E";
   let auto_probe = () => Os.is_mac^ ? "⇧⌘E" : "Ctrl+Shift+E";
   let goto_definition = "F12";
+  let fold = () => Os.is_mac^ ? "⌥F" : "Alt+F";
+  let type_info = () => Os.is_mac^ ? "⌥T" : "Alt+T";
+  let livelit = () => Os.is_mac^ ? "⌥L" : "Alt+L";
 };
 
 let manual_probe =
@@ -119,6 +126,123 @@ let jump_to_binding =
   | _ => []
   };
 
+/* Divider element for separating menu sections */
+let divider = div(~attrs=[clss(["menu-divider"])], []);
+
+/* Module for determining applicable projectors */
+module Projectors = {
+  /* Get the term to target for projection from the zipper */
+  let target_term = (z: Zipper.t, info_map: Language.Statics.Map.t) =>
+    switch (z.selection.content) {
+    | [] =>
+      switch (Indicated.for_index(z)) {
+      | Some((Projector({syntax, _}), _, _)) =>
+        MakeTerm.for_projection(Piece.unparenthesize(syntax))
+      | _ =>
+        let* info = Indicated.ci_of(z, info_map);
+        Language.Info.any_of(info);
+      }
+    | [Projector({syntax, _})] =>
+      MakeTerm.for_projection(Piece.unparenthesize(syntax))
+    | seg => MakeTerm.for_projection(seg)
+    };
+
+  /* Check if a projector kind is applicable to the current term */
+  let is_applicable =
+      (
+        z: Zipper.t,
+        info_map: Language.Statics.Map.t,
+        kind: ProjectorCore.Kind.t,
+      )
+      : option(ProjectorCore.Kind.t) => {
+    let (module P) = ProjectorInit.to_module(kind);
+    let* term = target_term(z, info_map);
+    let+ _ = P.init(term);
+    kind;
+  };
+
+  /* Get the kind of projector on the indicated piece, if any */
+  let indicated_kind = (z: Zipper.t): option(ProjectorCore.Kind.t) => {
+    let* (piece, _, _) = Indicated.for_index(z);
+    switch (piece) {
+    | Projector({kind, _}) => Some(kind)
+    | _ => None
+    };
+  };
+
+  /* Get keyboard shortcut for a projector kind */
+  let shortcut_of = (kind: ProjectorCore.Kind.t): string =>
+    switch (kind) {
+    | Fold => Shortcuts.fold()
+    | Info => Shortcuts.type_info()
+    | _ => Shortcuts.livelit()
+    };
+
+  /* Get display name for a projector kind */
+  let display_name = (kind: ProjectorCore.Kind.t): string =>
+    switch (kind) {
+    | Fold => "Fold"
+    | Info => "Type"
+    | Checkbox => "Checkbox"
+    | Slider => "Slider"
+    | SliderF => "SliderF"
+    | Card => "Card"
+    | TextArea => "Text"
+    | Csv => "CSV"
+    | Livelit => "Livelit"
+    | Probe => "Probe" /* shouldn't appear in menu */
+    };
+
+  /* Generate menu items for projectors */
+  let actions =
+      (
+        ~inject: Action.t => Ui_effect.t(unit),
+        z: Zipper.t,
+        info_map: Language.Statics.Map.t,
+      )
+      : list(Node.t) => {
+    let current_kind = indicated_kind(z);
+
+    /* Get applicable projectors: Fold, Info, and first applicable livelit */
+    let fold_applicable = is_applicable(z, info_map, Fold);
+    let info_applicable = is_applicable(z, info_map, Info);
+    let livelit_applicable =
+      List.find_map(
+        is_applicable(z, info_map),
+        ProjectorCore.Kind.livelit_projectors,
+      );
+
+    let applicable =
+      List.filter_map(
+        Fun.id,
+        [fold_applicable, info_applicable, livelit_applicable],
+      );
+
+    /* Generate menu item for a projector kind with styled "Project : Name" format */
+    let make_item = (kind: ProjectorCore.Kind.t): Node.t => {
+      let name = display_name(kind);
+      let shortcut = shortcut_of(kind);
+      let is_current = current_kind == Some(kind);
+      let prefix = is_current ? "Remove" : "Project";
+      div(
+        ~attrs=[
+          Attr.on_pointerdown(_ =>
+            Effect.Many([
+              Effect.Stop_propagation,
+              Effect.Prevent_default,
+              inject(Project(SetIndicated(Specific(kind)))),
+            ])
+          ),
+          clss(["named-menu-item"]),
+        ],
+        [text(prefix), colon_sep, text(name), shortcut_view(shortcut)],
+      );
+    };
+
+    List.map(make_item, applicable);
+  };
+};
+
 let probes_actions =
     (
       ~inject: Action.t => Ui_effect.t(unit),
@@ -134,19 +258,11 @@ let probes_actions =
   @ auto_probe(~inject, ~can_probe, probe_status, ci);
 };
 
-let probes_menu = probes_items =>
+let context_menu = menu_items =>
   NutMenu.submenu(
     ~tooltip="",
     ~icon=div([]),
-    [
-      div_c(
-        "group",
-        [
-          // div_c("name", [text("Probes")]),
-          div_c("contents", probes_items),
-        ],
-      ),
-    ],
+    [div_c("group", [div_c("contents", menu_items)])],
   );
 
 let view =
@@ -159,14 +275,47 @@ let view =
     )
     : Node.t => {
   let caret_point = Zipper.Caret.point(syntax.measured, z);
-  let probes_items = probes_actions(~inject, info_map, z);
-  probes_items == []
+
+  /* Get all action categories */
+  let navigation_items = {
+    let ci = Indicated.ci_of(z, info_map);
+    jump_to_binding(~inject, ci);
+  };
+
+  let probe_items = {
+    let id = Indicated.index(z) |> Option.value(~default=Id.invalid);
+    let ci = Indicated.ci_of(z, info_map);
+    let probe_status = ProbePerform.probe_status(id, info_map, z.refractors);
+    let can_probe = ProbePerform.can_probe(id, info_map);
+    manual_probe(~inject, ~can_probe, probe_status, ci)
+    @ auto_probe(~inject, ~can_probe, probe_status, ci);
+  };
+
+  let projector_items = Projectors.actions(~inject, z, info_map);
+
+  /* Combine with dividers between non-empty sections */
+  let sections = [navigation_items, probe_items, projector_items];
+  let non_empty_sections = List.filter(s => s != [], sections);
+  let menu_items =
+    List.concat(
+      List.mapi(
+        (i, section) =>
+          if (i > 0) {
+            [divider, ...section];
+          } else {
+            section;
+          },
+        non_empty_sections,
+      ),
+    );
+
+  menu_items == []
     ? div([])
     : div(
         ~attrs=[
           Attr.classes(["context-menu", "nut-menu"]),
           pos_attr(caret_point, font_metrics),
         ],
-        [probes_menu(probes_items)],
+        [context_menu(menu_items)],
       );
 };

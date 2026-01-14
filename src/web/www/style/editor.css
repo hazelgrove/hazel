@@ -392,3 +392,11 @@ svg:has(.child-line) {
   font-size: 0.85em;
   opacity: 0.6;
 }
+.context-menu .named-menu-item .menu-colon {
+  opacity: 0.6;
+}
+.context-menu .menu-divider {
+  height: 0.6px;
+  background: var(--menu-outline);
+  margin: 6px 0.5em;
+}

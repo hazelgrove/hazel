@@ -280,3 +280,20 @@
 .context-inspector .context-entry .seperator {
   color: var(--context-inspector-colon);
 }
+
+/* Corner decoration - small decorative element */
+.corner-decoration {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.5em;
+  color: var(--BR2);
+  cursor: default;
+  user-select: none;
+  transition: opacity 0.2s ease;
+  width: 2rem;
+}
+
+/* .corner-decoration:hover {
+  color: var(--BR4);
+} */

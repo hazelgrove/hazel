@@ -763,12 +763,14 @@ let inspector_view = (~globals, ci): Node.t =>
     view_of_info(~globals, ci),
   );
 
-let view =
-    (
-      ~globals: Globals.t,
-      ~inject: Editors.Update.t => 'a,
-      cursor: Cursor.cursor(Editors.Update.t),
-    ) => {
+/* A small decorative element for the corner */
+let corner_decoration =
+  div(
+    ~attrs=[clss(["corner-decoration"]), Attr.title("made with \xce\xbb")],
+    [text("⌾")],
+  );
+
+let view = (~globals: Globals.t, cursor: Cursor.cursor(Editors.Update.t)) => {
   let bar_view = div(~attrs=[Attr.id("bottom-bar")]);
   let err_view = err =>
     bar_view([
@@ -776,21 +778,11 @@ let view =
         ~attrs=[Attr.id("cursor-inspector"), clss(["no-info"])],
         [div(~attrs=[clss(["icon"])], [Icons.magnify]), text(err)],
       ),
+      corner_decoration,
     ]);
   switch (cursor.info) {
   | _ when !globals.settings.core.statics => div_empty
   | None => err_view("Whitespace or Comment")
-  | Some(ci) =>
-    bar_view([
-      inspector_view(~globals, ci),
-      ProjectorPanel.view(
-        ~inject=
-          a =>
-            cursor.editor_action(Project(a))
-            |> Option.map(inject)
-            |> Option.value(~default=Ui_effect.Ignore),
-        cursor,
-      ),
-    ])
+  | Some(ci) => bar_view([inspector_view(~globals, ci), corner_decoration])
   };
 };
