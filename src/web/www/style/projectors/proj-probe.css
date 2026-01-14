@@ -654,9 +654,9 @@
   color: var(--PAT);
 }
 
-.live-offside.Many .sample:has(.value.cursor-unrelated) .code-text .token {
+/* .live-offside.Many .sample:has(.value.cursor-unrelated) .code-text .token {
   color: white;
-}
+} */
 
 /* SAMPLE CONTEXT MENU (dropdown) */
 
