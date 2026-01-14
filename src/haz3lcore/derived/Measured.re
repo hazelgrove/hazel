@@ -329,7 +329,7 @@ let of_segment =
         let map =
           add_piece_row(
             origin.row,
-            seg @ [Piece.Secondary(Secondary.mk_newline(Id.mk()))],
+            seg @ [Piece.Secondary(Secondary.mk_newline(Id.mk()))], /* NOTE: These linebreaks don't actually occur in the surface syntax */
             map,
           );
         let map =
@@ -351,7 +351,7 @@ let of_segment =
           add_n_rows(origin, indent, g, map)
           |> add_piece_row(
                origin.row,
-               seg @ [Piece.Secondary(Secondary.mk_empty(Id.mk()))],
+               seg @ [Piece.Secondary(Secondary.mk_newline(Id.mk()))], /* NOTE: These linebreaks don't actually occur in the surface syntax */
                _,
              )
           |> add_n_empty_piece_rows(g - 1);
