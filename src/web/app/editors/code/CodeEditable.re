@@ -273,6 +273,7 @@ module View = {
         ~dyn_cursor=zipper.refractors.dyn_cursor,
         ~editor_active=selected,
       );
+    /* TODO(andrew): remove profilling before merge */
     let t1 = JsUtil.precise_timestamp();
     /* Use visible row range from model (updated by scroll handler) */
     let visible = globals.visible_rows;
