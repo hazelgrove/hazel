@@ -21,11 +21,6 @@ let cls_of = (s: t): cls =>
   | Comment(_) => Comment
   };
 
-let mk_empty = id => {
-  content: Whitespace(Token.empty),
-  id,
-};
-
 let mk_space = id => {
   content: Whitespace(Token.space),
   id,

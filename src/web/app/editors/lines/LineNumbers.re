@@ -11,18 +11,14 @@ module Model = CodeWithStatics.Model;
 module View = {
   let view = (model: Model.t, show_relative_numbers: bool, selected: bool) => {
     let {editor: {syntax: {measured, _}, state: {zipper, _}, _}, _}: Model.t = model;
-    let num_rows = List.length(measured.piece_rows);
-    let empty_row = row => {
-      let result = List.nth_opt(List.rev(measured.piece_rows), row);
-      switch (result) {
-      | Some(value) =>
-        switch (value) {
-        | [] => true
-        | _ => false
-        }
-      | None => true // The row doesn't actually exist, hence it's empty
+    let num_rows = Measured.Rows.cardinal(measured.rows);
+    /* Check if a row should be skipped for line numbering.
+       Non-content rows (from multiline projectors) are skipped. */
+    let skip_row = row =>
+      switch (Measured.Rows.find_opt(row, measured.rows)) {
+      | Some({is_content_row, _}) => !is_content_row
+      | None => true /* Row doesn't exist */
       };
-    };
     let Point.{row, _} = Zipper.Caret.point(measured, zipper);
     let cursor_row_index = row;
     /*
@@ -41,7 +37,7 @@ module View = {
       if (row_index == num_rows) {
         ([], 0);
       } else {
-        let is_row_empty = empty_row(row_index);
+        let is_row_empty = skip_row(row_index);
         let (returned_processed_list, returned_cursor_line_number) =
           is_row_empty
             ? processed_line_numbers(row_index + 1, line_count)

@@ -19,6 +19,7 @@ module Rows = {
   type shape = {
     indent: col,
     max_col: col,
+    is_content_row: bool /* false for rows added by multiline projectors */
   };
   type t = IntMap.t(shape);
 
@@ -102,17 +103,19 @@ let add_row = (row: int, shape: Rows.shape, map) => {
   rows: Rows.add(row, shape, map.rows),
 };
 
-let rec add_n_rows = (origin: Point.t, row_indent, n, map: t): t =>
+let rec add_n_rows =
+        (~is_content_row=true, origin: Point.t, row_indent, n, map: t): t =>
   switch (n) {
   | 0 => map
   | _ =>
     map
-    |> add_n_rows(origin, row_indent, n - 1)
+    |> add_n_rows(~is_content_row, origin, row_indent, n - 1)
     |> add_row(
          origin.row + n - 1,
          {
            indent: row_indent,
            max_col: origin.col,
+           is_content_row,
          },
        )
   };
@@ -269,7 +272,25 @@ let of_segment =
 
   let calc = (indent: int, origin: Point.t, map: t, size: Point.t) => {
     let last = Point.add(origin, size);
-    let map = add_n_rows(origin, indent, size.row, map);
+    /* First row is content (has line number), additional rows from
+       multiline projectors are not (skipped in line numbering) */
+    let map =
+      switch (size.row) {
+      | 0 => map
+      | 1 => add_n_rows(~is_content_row=true, origin, indent, 1, map)
+      | n =>
+        let map = add_n_rows(~is_content_row=true, origin, indent, 1, map);
+        add_n_rows(
+          ~is_content_row=false,
+          {
+            ...origin,
+            row: origin.row + 1,
+          },
+          indent,
+          n - 1,
+          map,
+        );
+      };
     (mk_measurement(origin, last), map);
   };
 
@@ -325,13 +346,7 @@ let of_segment =
             ~col=new_indent - origin.col,
           );
         // add seg to map and reset seg
-        //TODO(andrew): decide if should actually add linebreak here
-        let map =
-          add_piece_row(
-            origin.row,
-            seg @ [Piece.Secondary(Secondary.mk_newline(Id.mk()))],
-            map,
-          );
+        let map = add_piece_row(origin.row, seg, map);
         let map =
           size.row == 0 ? map : add_n_empty_piece_rows(size.row - 1, map);
         ([], new_indent, size, map);
@@ -348,12 +363,27 @@ let of_segment =
       top_level
         ? {
           let g = DeferredLinebreaks.of_secondary();
-          add_n_rows(origin, indent, g, map)
-          |> add_piece_row(
-               origin.row,
-               seg @ [Piece.Secondary(Secondary.mk_empty(Id.mk()))],
-               _,
-             )
+          /* First row is content, additional rows from Tab projectors are not */
+          let map =
+            switch (g) {
+            | 0 => map
+            | 1 => add_n_rows(~is_content_row=true, origin, indent, 1, map)
+            | n =>
+              let map =
+                add_n_rows(~is_content_row=true, origin, indent, 1, map);
+              add_n_rows(
+                ~is_content_row=false,
+                {
+                  ...origin,
+                  row: origin.row + 1,
+                },
+                indent,
+                n - 1,
+                map,
+              );
+            };
+          map
+          |> add_piece_row(origin.row, seg, _)
           |> add_n_empty_piece_rows(g - 1);
         }
         : map;
