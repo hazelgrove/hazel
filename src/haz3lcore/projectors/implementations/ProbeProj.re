@@ -968,6 +968,8 @@ let key_handler =
   open Effect;
   let key = Key.mk(KeyDown, evt);
   switch (key.key) {
+  | D("E" | "e") when key.meta == Down || key.ctrl == Down => parent(Remove)
+  | D("V" | "v" | "√") when key.alt == Down => parent(Remove)
   | D("Escape") when key.shift == Down =>
     JsUtil.get_elem_by_id(Id.cls(id))##blur;
     Settings.reset_mode();
