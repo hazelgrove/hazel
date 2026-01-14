@@ -32,6 +32,7 @@ module ProjectorShape = ProjectorShape;
 module API = API;
 module OpenRouter = OpenRouter;
 module SafeTriangle = SafeTriangle;
+module FloatingElement = FloatingElement;
 
 // Used by [@deriving sexp, yojson)]
 include Sexplib.Std;

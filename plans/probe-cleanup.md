@@ -28,9 +28,9 @@ Decide whether to hide experimental features:
 
 ### Minor TODOs
 
-| Location       | Issue                                         |
-| -------------- | --------------------------------------------- |
-| `style.css:93` | "fix backpack visibility" - not probe-related |
+| Location       | Issue                                         | Status |
+| -------------- | --------------------------------------------- | ------ |
+| `style.css:93` | "fix backpack visibility" - not probe-related | Fixed via FloatingElement |
 
 ---
 
