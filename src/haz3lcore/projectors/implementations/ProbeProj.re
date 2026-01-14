@@ -1199,6 +1199,9 @@ module M: Projector = {
 
   let view = ({info, local, parent, view_seg, _}: View.args(model, action)) => {
     let settings = Settings.s^;
+    /* Wrap view_seg to fix single_line=true for all probe displays */
+    let view_seg_single_line = (~background=?, ~text_only=?, sort, segment) =>
+      view_seg(~single_line=true, ~background?, ~text_only?, sort, segment);
     View.{
       inline: Node.div([]),
       overlay: Some(overlay_view(info)),
@@ -1209,7 +1212,7 @@ module M: Projector = {
             info,
             local,
             parent,
-            view_seg,
+            view_seg_single_line,
             info.utility,
           ),
         ),

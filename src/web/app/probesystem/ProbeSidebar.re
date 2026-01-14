@@ -185,7 +185,12 @@ let legend_sample_view =
     di,
     ProjectorInfo.utility,
     (~text_only) =>
-      ProjectorView.flex_code(~font_metrics, ~background=false, ~text_only),
+      ProjectorView.flex_code(
+        ~font_metrics,
+        ~single_line=true,
+        ~background=false,
+        ~text_only,
+      ),
     _ => Effect.Ignore,
     _ => Effect.Ignore,
     (0, sample),

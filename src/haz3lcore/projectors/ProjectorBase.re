@@ -117,7 +117,14 @@ module View = {
 
   [@deriving (show({with_path: false}), sexp, yojson)]
   type seg =
-    (~background: bool=?, ~text_only: bool=?, Sort.t, list(syntax)) => Node.t;
+    (
+      ~single_line: bool=?,
+      ~background: bool=?,
+      ~text_only: bool=?,
+      Sort.t,
+      list(syntax)
+    ) =>
+    Node.t;
 
   [@deriving (show({with_path: false}), sexp, yojson)]
   type args('model, 'action) = {
