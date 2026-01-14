@@ -355,15 +355,12 @@ module View = {
           inject(Perform(Move(Goal(BindingSiteOfIndicatedVar)))),
         ])
       | {button: Right, ctrl, _} when ctrl != Down =>
-        print_endline(
-          "right click detected. stopping prop, preventing default",
-        );
         Effect.Many([
           //Effect.Stop_propagation,
           Effect.Prevent_default,
           inject(Perform(Move(Point(loc(mouse))))),
           inject(ToggleContextMenu),
-        ]);
+        ])
       | {button: Left, _} =>
         MouseState.pointerdown(loc(mouse));
         let click_count = MouseState.count();
@@ -410,10 +407,7 @@ module View = {
         Attr.on_contextmenu(evt =>
           switch (Pointer.Event.mk(evt)) {
           | {button: Right, ctrl: Up, _} =>
-            print_endline(
-              "right click with no ctrl hold detected. stopping prop, preventing default",
-            );
-            Effect.Many([Effect.Stop_propagation, Effect.Prevent_default]);
+            Effect.Many([Effect.Stop_propagation, Effect.Prevent_default])
           | _ => Effect.Ignore
           }
         ),
