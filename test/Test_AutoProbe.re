@@ -294,7 +294,8 @@ let let_expression_tests = [
     ~code={|let x = ? in ? # x #|},
   ),
   test_probe_placement(
-    //TODO(andrew): probably this should probe body instead ie never probe
+    /* Probing whole let vs body is semantically equivalent (same value).
+     * Current implementation keeps it simpler by using default behavior. */
     ~name="Normal single line let (no hole body)",
     ~code={|let x = 2 + 1 in x # let x = 2 + 1 in x #|},
   ),

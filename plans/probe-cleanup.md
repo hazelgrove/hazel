@@ -232,15 +232,14 @@ For each TODO, gather context by:
 
 #### Needs Investigation
 
-| Location                | TODO                                      | Summary                                                                              |
-| ----------------------- | ----------------------------------------- | ------------------------------------------------------------------------------------ |
-| `Test_AutoProbe.re:297` | "probably this should probe body instead" | Design question: should auto-probe on `let x = e in body` probe `body` or whole let? |
+(None remaining)
 
 #### Resolved
 
-| Location                | TODO                                      | Resolution                                                                              |
-| ----------------------- | ----------------------------------------- | --------------------------------------------------------------------------------------- |
-| `ChatLSP.re:384`        | empty refractors                          | Extracted `orphan_to_string` helper with comment explaining why empty/identity is safe  |
+| Location                | TODO                                      | Resolution                                                                                     |
+| ----------------------- | ----------------------------------------- | ---------------------------------------------------------------------------------------------- |
+| `ChatLSP.re:384`        | empty refractors                          | Extracted `orphan_to_string` helper with comment explaining why empty/identity is safe         |
+| `Test_AutoProbe.re:297` | "probably this should probe body instead" | Kept current behavior - semantically equivalent, simpler to use default. Updated test comment. |
 
 ---
 
