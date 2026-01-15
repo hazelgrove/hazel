@@ -79,11 +79,13 @@ let all =
       ~visible: option(Globals.VisibleRows.t)=?,
       refractor_data: list(ProjectorView.Model.projector_data),
     ) => {
-  let get_row = (d: ProjectorView.Model.projector_data) =>
-    d.measurement.origin.row;
+  let get_row_range = (d: ProjectorView.Model.projector_data) => (
+    d.measurement.origin.row,
+    d.measurement.last.row,
+  );
   let (base_views, overlay_views) =
     refractor_data
-    |> ProjectorView.filter_by_visibility(visible, _, get_row)
+    |> ProjectorView.filter_by_visibility(visible, _, get_row_range)
     |> List.sort(ProjectorView.by_measurement)
     |> List.map(data =>
          ProjectorView.split_views(
