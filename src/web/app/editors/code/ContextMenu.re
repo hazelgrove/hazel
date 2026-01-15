@@ -42,7 +42,7 @@ module Model = {
     | Down =>
       switch (state) {
       | None => None
-      | Some(n) => Some(n + 1) /* Will be clamped in view */
+      | Some(n) => Some(n + 1) /* Clamped by WithContext.update */
       }
     | Activate =>
       /* Activation is handled by the caller which executes the action */
@@ -530,6 +530,55 @@ let get_action_at_index =
     : option(Action.t) => {
   let items = get_all_items(~info_map, z);
   List.nth_opt(items, index) |> Option.map(item => item.action);
+};
+
+/* Operations that need editor context (info_map, zipper).
+   This module consolidates context-menu logic that would otherwise
+   leak into CodeEditable, keeping the coupling explicit. */
+module WithContext = {
+  /* Result of handling a key event */
+  type key_result =
+    | MenuUpdate(Model.action) /* Update menu state */
+    | EditorAction(Action.t) /* Dispatch editor action */
+    | Unhandled; /* Key not handled, fall through */
+
+  /* Update menu state with clamping to valid item range */
+  let update =
+      (~info_map: Language.Statics.Map.t, ~zipper: Zipper.t, action, state)
+      : Model.t => {
+    let new_state = Model.update(action, state);
+    switch (new_state) {
+    | Some(n) =>
+      let item_count = List.length(get_all_items(~info_map, zipper));
+      Some(max(0, min(n, item_count - 1)));
+    | None => None
+    };
+  };
+
+  /* Handle keyboard input when menu is open */
+  let handle_key =
+      (
+        ~info_map: Language.Statics.Map.t,
+        ~zipper: Zipper.t,
+        key: Key.key,
+        state: Model.t,
+      )
+      : key_result =>
+    switch (state) {
+    | None => Unhandled
+    | Some(selected_index) =>
+      switch (key) {
+      | Key.D("Escape") => MenuUpdate(Close)
+      | Key.D("ArrowUp") => MenuUpdate(Up)
+      | Key.D("ArrowDown") => MenuUpdate(Down)
+      | Key.D("Enter") =>
+        switch (get_action_at_index(~info_map, zipper, selected_index)) {
+        | Some(action) => EditorAction(action)
+        | None => MenuUpdate(Close)
+        }
+      | _ => Unhandled
+      }
+    };
 };
 
 let context_menu = menu_items =>
