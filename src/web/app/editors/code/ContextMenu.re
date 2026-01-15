@@ -1,3 +1,4 @@
+open Js_of_ocaml;
 open Haz3lcore;
 open Virtual_dom.Vdom;
 open Util;
@@ -5,18 +6,120 @@ open Util.OptUtil.Syntax;
 open WebUtil;
 open Node;
 
-let pos_str = (~left, ~top, font_metrics: FontMetrics.t) =>
-  Printf.sprintf(
-    "position: absolute; left: %fpx; top: %fpx;",
-    Float.of_int(left) *. font_metrics.col_width,
-    Float.of_int(top) *. font_metrics.row_height,
-  );
+/* Menu dimensions for viewport calculations */
+let menu_height_estimate = 200.0; /* px */
+let menu_width_estimate = 180.0; /* px - based on min-width: 160px + padding */
 
-let pos_attr = (point: Point.t, font_metrics: FontMetrics.t) =>
-  Attr.create(
-    "style",
-    pos_str(~left=point.col, ~top=point.row + 1, font_metrics),
-  );
+/* Opening direction types */
+type vertical_dir = [
+  | `Up
+  | `Down
+];
+type horizontal_dir = [
+  | `Left
+  | `Right
+];
+type open_direction = {
+  vertical: vertical_dir,
+  horizontal: horizontal_dir,
+};
+
+/* Available space in each direction from a point */
+type available_space = {
+  above: float,
+  below: float,
+  left: float,
+  right: float,
+};
+
+/* Get available space from a caret point relative to the #main viewport */
+let get_available_space =
+    (
+      point: Point.t,
+      font_metrics: FontMetrics.t,
+      code_container: Js.t(Dom_html.element),
+    )
+    : available_space => {
+  /* Get the #main viewport rect */
+  let main_rect =
+    switch (JsUtil.get_elem_by_id_opt("main")) {
+    | Some(main) => main##getBoundingClientRect
+    | None =>
+      /* Fallback to window dimensions */
+      Js.Unsafe.obj([|
+        ("top", Js.Unsafe.inject(0.0)),
+        ("bottom", Js.Unsafe.inject(Js.Unsafe.global##.innerHeight)),
+        ("left", Js.Unsafe.inject(0.0)),
+        ("right", Js.Unsafe.inject(Js.Unsafe.global##.innerWidth)),
+      |])
+    };
+
+  /* Get code-container rect for coordinate conversion */
+  let container_rect = code_container##getBoundingClientRect;
+
+  /* Calculate pixel position of caret point in viewport coordinates */
+  let caret_left =
+    container_rect##.left +. Float.of_int(point.col) *. font_metrics.col_width;
+  let caret_top =
+    container_rect##.top
+    +. Float.of_int(point.row + 1)
+    *. font_metrics.row_height;
+
+  {
+    above: caret_top -. main_rect##.top,
+    below: main_rect##.bottom -. caret_top,
+    left: caret_left -. main_rect##.left,
+    right: main_rect##.right -. caret_left,
+  };
+};
+
+/* Determine which direction the menu should open based on available space */
+let determine_direction = (space: available_space): open_direction => {
+  vertical: space.below >= menu_height_estimate ? `Down : `Up,
+  horizontal: space.right >= menu_width_estimate ? `Right : `Left,
+};
+
+/* Get CSS class for direction */
+let direction_class = (dir: open_direction): string =>
+  switch (dir) {
+  | {vertical: `Down, horizontal: `Right} => "open-down-right"
+  | {vertical: `Down, horizontal: `Left} => "open-down-left"
+  | {vertical: `Up, horizontal: `Right} => "open-up-right"
+  | {vertical: `Up, horizontal: `Left} => "open-up-left"
+  };
+
+/* Gap between caret bottom and menu top (in pixels) */
+let caret_menu_gap = 0.0;
+
+/* Calculate the caret's bottom edge offset from row origin.
+   The caret occupies one row height plus a small shadow.
+   Note: shaped carets (chevrons) don't extend beyond the row -
+   the chevron shape stays within the row boundary. */
+let caret_bottom_offset = (font_metrics: FontMetrics.t): float => {
+  let row_height = font_metrics.row_height;
+  /* Shadow extends slightly below the caret */
+  let shadow = ShardDec.shadow_dy *. row_height;
+  row_height +. shadow;
+};
+
+/* Calculate position style based on direction */
+let pos_style =
+    (point: Point.t, font_metrics: FontMetrics.t, direction: open_direction)
+    : string => {
+  let left = Float.of_int(point.col) *. font_metrics.col_width;
+
+  /* Calculate precise top position based on caret bottom edge */
+  let caret_top = Float.of_int(point.row) *. font_metrics.row_height;
+  let caret_bottom = caret_top +. caret_bottom_offset(font_metrics);
+
+  let top =
+    switch (direction.vertical) {
+    | `Down => caret_bottom +. caret_menu_gap
+    | `Up => caret_top -. caret_menu_gap /* CSS transform will flip */
+    };
+
+  Printf.sprintf("position: absolute; left: %fpx; top: %fpx;", left, top);
+};
 
 /* Keyboard shortcut display - abstracts the format for easy updates */
 let shortcut_view = (shortcut: string) =>
@@ -308,6 +411,28 @@ let context_menu = menu_items =>
     [div_c("group", [div_c("contents", menu_items)])],
   );
 
+/* Get direction by querying the DOM for container position */
+let get_direction =
+    (point: Point.t, font_metrics: FontMetrics.t): open_direction => {
+  /* Try to find a code-container to calculate viewport position */
+  let container_opt =
+    try(Some(JsUtil.get_elem_by_selector(".code-container"))) {
+    | _ => None
+    };
+
+  switch (container_opt) {
+  | Some(container) =>
+    let space = get_available_space(point, font_metrics, container);
+    determine_direction(space);
+  | None =>
+    /* Fallback to default direction */
+    {
+      vertical: `Down,
+      horizontal: `Right,
+    }
+  };
+};
+
 let view =
     (
       ~inject: Action.t => Ui_effect.t(unit),
@@ -345,13 +470,20 @@ let view =
       ),
     );
 
-  menu_items == []
-    ? div([])
-    : div(
-        ~attrs=[
-          Attr.classes(["context-menu", "nut-menu"]),
-          pos_attr(caret_point, font_metrics),
-        ],
-        [context_menu(menu_items)],
-      );
+  if (menu_items == []) {
+    div([]);
+  } else {
+    /* Calculate opening direction based on viewport space */
+    let direction = get_direction(caret_point, font_metrics);
+    let dir_class = direction_class(direction);
+    let style = pos_style(caret_point, font_metrics, direction);
+
+    div(
+      ~attrs=[
+        Attr.classes(["context-menu", "nut-menu", dir_class]),
+        Attr.create("style", style),
+      ],
+      [context_menu(menu_items)],
+    );
+  };
 };

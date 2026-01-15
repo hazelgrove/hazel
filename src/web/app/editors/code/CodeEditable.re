@@ -147,12 +147,23 @@ module Selection = {
     | k =>
       Keyboard.handle_key_event(k) |> Option.map(x => Update.Perform(x));
 
-  let handle_key_event = (~selection, model: Model.t, key) => {
-    switch (ProjectorView.key_handoff(model.editor, key)) {
-    | Some(action) => Some(Update.Perform(Project(action)))
-    | None => handle_key_event(~selection, model, key)
+  let handle_key_event = (~selection, model: Model.t, key: Key.t) =>
+    /* Close context menu on Escape */
+    if (model.context_menu) {
+      switch (key.key) {
+      | D("Escape") => Some(Update.ToggleContextMenu)
+      | _ =>
+        switch (ProjectorView.key_handoff(model.editor, key)) {
+        | Some(action) => Some(Update.Perform(Project(action)))
+        | None => handle_key_event(~selection, model, key)
+        }
+      };
+    } else {
+      switch (ProjectorView.key_handoff(model.editor, key)) {
+      | Some(action) => Some(Update.Perform(Project(action)))
+      | None => handle_key_event(~selection, model, key)
+      };
     };
-  };
 
   let jump_to_tile = (id: Id.t, model: Model.t): option(Update.t) => {
     switch (TermData.root_tile(id, model.editor.syntax.term_data)) {
@@ -245,6 +256,21 @@ module View = {
           @ (
             model.context_menu
               ? [
+                /* Invisible backdrop to close menu on click-outside or scroll */
+                Node.div(
+                  ~attrs=[
+                    Attr.classes(["context-menu-backdrop"]),
+                    Attr.on_pointerdown(_ =>
+                      Effect.Many([
+                        Effect.Stop_propagation,
+                        inject(ToggleContextMenu),
+                      ])
+                    ),
+                    /* Close on scroll attempt (wheel event) */
+                    Attr.on_wheel(_ => inject(ToggleContextMenu)),
+                  ],
+                  [],
+                ),
                 ContextMenu.view(
                   ~inject=a => inject(Perform(a)),
                   ~syntax=model.editor.syntax,
