@@ -449,7 +449,8 @@ let refractor_actions_data =
 /* Get menu sections - each section is separated by a divider.
    This is the single source of truth for menu structure. */
 let get_sections =
-    (~info_map: Language.Statics.Map.t, z: Zipper.t): list(list(menu_item_data)) => {
+    (~info_map: Language.Statics.Map.t, z: Zipper.t)
+    : list(list(menu_item_data)) => {
   let ci = Indicated.ci_of(z, info_map);
 
   [
@@ -519,7 +520,8 @@ let view =
   let sections = get_sections(~info_map, z);
 
   /* Clamp selected_index to valid range */
-  let item_count = List.fold_left((acc, s) => acc + List.length(s), 0, sections);
+  let item_count =
+    List.fold_left((acc, s) => acc + List.length(s), 0, sections);
   let selected_index = max(0, min(selected_index, item_count - 1));
 
   /* Render all sections with automatic index tracking and dividers */
@@ -530,7 +532,11 @@ let view =
         let section_nodes =
           List.mapi(
             (i, item) =>
-              menu_item_view(~inject, ~is_selected=idx + i == selected_index, item),
+              menu_item_view(
+                ~inject,
+                ~is_selected=idx + i == selected_index,
+                item,
+              ),
             section,
           );
         /* Add divider before non-first sections */
