@@ -19,8 +19,8 @@ module Kind = {
   [@deriving (show({with_path: false}), sexp, yojson, eq, enumerate)]
   type t =
     | Fold
-    | Info
     | Probe
+    | Statics
     | Checkbox
     | Slider
     | SliderF
@@ -40,7 +40,11 @@ module Kind = {
   ];
 
   /* Note: Probe intentionally excluded - probes use separate action path */
-  let projectors: list(t) = livelit_projectors @ [Fold, Info];
+  let projectors: list(t) = livelit_projectors @ [Fold];
+
+  /* Refractors are like probes - additive decorations, not syntax-replacing */
+  let refractors: list(t) = [Probe, Statics];
+  let is_refractor = (kind: t) => List.mem(kind, refractors);
 
   /* A friendly name for each projector. This is used
    * both for identifying a projector in the CSS and for
@@ -48,8 +52,8 @@ module Kind = {
   let name = (p: t): string =>
     switch (p) {
     | Fold => "fold"
-    | Info => "type"
     | Probe => "probe"
+    | Statics => "statics"
     | Checkbox => "check"
     | Slider => "slider"
     | SliderF => "sliderf"
@@ -65,8 +69,8 @@ module Kind = {
   let of_name = (p: string): t =>
     switch (p) {
     | "fold" => Fold
-    | "type" => Info
     | "probe" => Probe
+    | "statics" => Statics
     | "check" => Checkbox
     | "slider" => Slider
     | "sliderf" => SliderF

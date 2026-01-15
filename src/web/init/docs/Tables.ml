@@ -624,15 +624,10 @@ let out : string * Haz3lcore.PersistentSegment.t =
          Exp)(in_(Pat Exp))(nibs(((shape Convex)(sort Exp))((shape(Concave \
          40))(sort Exp))))))(shards(0 1 2))(children(((Secondary((id \
          838c4a91-b009-4b25-a98d-2d36b2165be4)(content(Whitespace\" \
-         \"))))(Projector((id 64e670ea-4b90-402c-847f-d62cd959e8f3)(kind \
-         Info)(syntax(Tile((id \
-         7ae26049-b3b3-43e1-bf5f-043bdbbcbd60)(label(\"(\"\")\"))(mold((out \
-         Pat)(in_(Pat))(nibs(((shape Convex)(sort Pat))((shape Convex)(sort \
-         Pat))))))(shards(0 1))(children(((Tile((id \
+         \"))))(Tile((id \
          52ff5a03-a0e5-4ed0-9e9b-57cd11d984fd)(label(with_average))(mold((out \
          Pat)(in_())(nibs(((shape Convex)(sort Pat))((shape Convex)(sort \
-         Pat))))))(shards(0))(children())))))))))(model \
-         Expected)))(Secondary((id \
+         Pat))))))(shards(0))(children())))(Secondary((id \
          b506dead-d22d-4ab8-8399-b61a85775eee)(content(Whitespace\" \
          \")))))((Secondary((id \
          1c62e682-98f9-4b9a-90a3-603694c56fe6)(content(Whitespace\" \
@@ -3047,7 +3042,7 @@ let out : string * Haz3lcore.PersistentSegment.t =
          let gradebook_with_average = \n\
          map(gradebook,\n\
          fun e: GradebookEntry ->\n\
-         let ^^type(with_average) = \n\
+         let ^^statics(with_average) = \n\
          e ... (quiz_average=\n\
          to_lvs(omit_labels(e, `name`))\n\
          |> filter(_, fun (label, score):^^fold((label=String, value=Int)) -> \
@@ -3124,7 +3119,8 @@ let out : string * Haz3lcore.PersistentSegment.t =
       refractors =
         "((1977d0b9-81e3-40c0-bea7-ae466451f758((kind \
          Probe)(model\"()\")))(387d3f19-18d3-4f81-99a7-0a0d184d8373((kind \
-         Probe)(model\"()\")))(613832c1-26a1-4c86-8068-21796d819515((kind \
+         Probe)(model\"()\")))(52ff5a03-a0e5-4ed0-9e9b-57cd11d984fd((kind \
+         Statics)(model Expected)))(613832c1-26a1-4c86-8068-21796d819515((kind \
          Probe)(model\"()\")))(7e473f77-91c8-44f2-bb82-8bec41c8e126((kind \
          Probe)(model\"()\")))(835fa6f7-4213-431a-95a2-f277ea410c94((kind \
          Probe)(model\"()\")))(b25666ac-eb44-4310-be3f-7932a3e32e14((kind \

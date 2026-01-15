@@ -105,10 +105,10 @@ let handle_key_event = (k: Key.t): option(Action.t) => {
     /* Curly ƒ is what holding option turns f into on Mac */
     Some(Project(SetIndicated(Specific(Fold))))
   | {key: D("t"), sys: PC, shift: Up, meta: Up, ctrl: Up, alt: Down} =>
-    Some(Project(SetIndicated(Specific(Info))))
+    Some(Probe(ToggleStatics))
   | {key: D("†"), sys: Mac, shift: Up, meta: Up, ctrl: Up, alt: Down} =>
     /* † is what holding option turns t into on Mac */
-    Some(Project(SetIndicated(Specific(Info))))
+    Some(Probe(ToggleStatics))
   | {key: D("l"), sys: PC, shift: Up, meta: Up, ctrl: Up, alt: Down} =>
     Some(Project(SetIndicated(ChooseLivelit)))
   | {key: D("¬"), sys: Mac, shift: Up, meta: Up, ctrl: Up, alt: Down} =>

@@ -299,8 +299,10 @@ let mk_view =
   P.view({
     model: p.model,
     info,
-    local: a =>
-      inject(Project(SetModel(p.id, P.update(p.model, info, a)))),
+    local: a => {
+      let new_model = P.update(p.model, info, a);
+      inject(Project(SetModel(p.id, p.kind, new_model)));
+    },
     parent: a => inject(handle(p.id, a)),
     view_seg: (~single_line=?, ~background=?, ~text_only=?, sort, segment) =>
       flex_code(

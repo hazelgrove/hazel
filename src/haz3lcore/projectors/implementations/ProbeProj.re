@@ -1184,10 +1184,7 @@ module M: Projector = {
       keyboard: None,
     };
 
-  let placeholder = (_, info: info) =>
-    ProjectorCore.Shape.inline(
-      String.length(syntax_str(info.utility, info.syntax)),
-    );
+  let placeholder = (_, _) => ProjectorCore.Shape.default;
 
   let update = update;
 

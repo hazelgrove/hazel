@@ -75,6 +75,13 @@
 .code-deco .refractors svg path.child-line {
   stroke: var(--G0) !important;
 }
+/* Kind-based colors for refractor arms: probe = green, type = purple */
+.code-deco .refractors svg path.child-line.probe {
+  stroke: var(--G0) !important;
+}
+.code-deco .refractors svg path.child-line.statics {
+  stroke: #bd92cf !important;
+}
 .code-deco .refractors svg path.child-line.repl {
   stroke: var(--BR3) !important;
   /* stroke-dasharray: 0.5 2.5; */
@@ -89,7 +96,7 @@
   fill: var(--exp-base) !important;
 }
 
-.code-deco .refractors svg.shard.probe-indicated path {
+.code-deco .refractors svg.shard.refractor-indicated path {
   opacity: 0.4;
 }
 
@@ -129,8 +136,12 @@
   stroke-dasharray: 0.5 2.5;
   opacity: 0.4;
 }
-.refractors svg:has(.repl-indicated) + svg path.child-line.dashed {
+.refractors svg:has(.refractor-indicated) + svg path.child-line.dashed {
   stroke: var(--G0) !important;
+  opacity: 1;
+}
+.refractors svg:has(.refractor-indicated) + svg path.child-line.statics.dashed {
+  stroke: #bd92cf !important;
   opacity: 1;
 }
 
@@ -138,8 +149,12 @@
   background-color: var(--exp-indicated) !important;
 }
 
-.indication-probed svg.shard.indicated > path {
+.indication-refractored svg.shard.indicated > path {
   fill: var(--exp-base);
+}
+
+.indication-refractored.statics svg.shard.indicated > path {
+  fill: hsl(281, 80%, 95%);
 }
 
 /* INLINE VIEW */

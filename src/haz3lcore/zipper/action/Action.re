@@ -62,7 +62,7 @@ type project =
   | SetIndicated(chooser) /* Project syntax at caret */
   | RemoveIndicated /* Remove projector at caret */
   | SetSyntax(Id.t, Base.segment) /* Set underlying syntax */
-  | SetModel(Id.t, string) /* Set serialized projector model */
+  | SetModel(Id.t, ProjectorCore.Kind.t, string) /* Set serialized model (projector or refractor) */
   | Focus(Id.t, ProjectorCore.Kind.t, option(Util.Direction.t)) /* Pass control to projector */
   | Escape(Id.t, Direction.t); /* Pass control to parent editor */
 
@@ -86,6 +86,7 @@ type paste =
 type probe =
   | ToggleManual
   | ToggleAuto
+  | ToggleStatics
   | StepInto(Language.Sample.t, Id.t);
 
 [@deriving (show({with_path: false}), sexp, yojson, eq)]

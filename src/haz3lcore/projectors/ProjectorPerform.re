@@ -134,17 +134,37 @@ let go =
         z,
       ),
     )
-  | SetModel(id, model) =>
+  | SetModel(id, kind, new_model) =>
     Ok(
-      update(
-        pr =>
-          {
-            ...pr,
-            model,
-          },
-        id,
-        z,
-      ),
+      if (ProjectorCore.Kind.is_refractor(kind)) {
+        Zipper.update_manuals(
+          map =>
+            Id.Map.update(
+              id,
+              fun
+              | Some(entry: Refractors.entry) =>
+                Some(
+                  Refractors.{
+                    kind: entry.kind,
+                    model: new_model,
+                  },
+                )
+              | None => None,
+              map,
+            ),
+          z,
+        );
+      } else {
+        update(
+          pr =>
+            {
+              ...pr,
+              model: new_model,
+            },
+          id,
+          z,
+        );
+      },
     )
   | Focus(id, kind, d) =>
     switch (d) {

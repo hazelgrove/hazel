@@ -273,7 +273,24 @@ let toggle_manual =
   switch (probe_status(id, info_map, z.refractors)) {
   | REPL =>
     rm_auto(~syntax, ~info_map, id, z) |> add_manual(~syntax, id, info_map)
-  | Manual(ids) => rm_manual(ids, z)
+  | Manual(ids) =>
+    /* Check if the manual refractor is statics or probe */
+    let is_statics =
+      List.exists(
+        id =>
+          switch (Id.Map.find_opt(id, z.refractors.manuals)) {
+          | Some(entry: Refractors.entry) => entry.kind == Statics
+          | None => false
+          },
+        ids,
+      );
+    if (is_statics) {
+      /* Switch from statics to manual probe */
+      rm_manual(ids, z) |> add_manual(~syntax, id, info_map);
+    } else {
+      /* Remove manual probe */
+      rm_manual(ids, z);
+    };
   | Non => add_manual(~syntax, id, info_map, z)
   };
 
@@ -492,6 +509,75 @@ let rm_probes_in_selection =
      );
 };
 
+/* Check if type annotation is allowed for the given id.
+   Type annotations can be placed on expressions and patterns,
+   but not on types, type patterns, deferrals, labels, or type aliases. */
+let can_statics = (id: Id.t, info_map: Statics.Map.t): bool =>
+  switch (Statics.Map.lookup(id, info_map)) {
+  | Some(InfoExp({term: {term: Deferral(_) | Label(_) | TyAlias(_), _}, _})) =>
+    false
+  | Some(InfoTyp(_) | InfoTPat(_)) => false
+  | Some(InfoExp(_) | InfoPat(_)) => true
+  | _ => false
+  };
+
+/* Toggle type annotation on the indicated term.
+   Unlike probes, type annotations don't support auto mode or pins. */
+let toggle_statics =
+    (~syntax: CachedSyntax.t, id: Id.t, info_map: Statics.Map.t, z: Zipper.t)
+    : Zipper.t =>
+  if (!can_statics(id, info_map)) {
+    z;
+  } else {
+    let target_ids = target_subterm_ids(id, info_map);
+    switch (probe_status(id, info_map, z.refractors)) {
+    | Manual(ids) =>
+      /* Check if the manual refractor is statics or probe */
+      let is_statics =
+        List.exists(
+          id =>
+            switch (Id.Map.find_opt(id, z.refractors.manuals)) {
+            | Some(entry: Refractors.entry) => entry.kind == Statics
+            | None => false
+            },
+          ids,
+        );
+      if (is_statics) {
+        /* Remove statics */
+        rm_manual(ids, z);
+      } else {
+        /* Switch from manual probe to statics */
+        rm_manual(ids, z)
+        |> (
+          z =>
+            List.fold_left(
+              (z, id) => Zipper.add_manual(id, Statics, z),
+              z,
+              target_ids,
+            )
+        );
+      };
+    | REPL =>
+      /* Switch from auto probe to statics */
+      rm_auto(~syntax, ~info_map, id, z)
+      |> (
+        z =>
+          List.fold_left(
+            (z, id) => Zipper.add_manual(id, Statics, z),
+            z,
+            target_ids,
+          )
+      )
+    | Non =>
+      /* Add statics */
+      List.fold_left(
+        (z, id) => Zipper.add_manual(id, Statics, z),
+        z,
+        target_ids,
+      )
+    };
+  };
+
 let go =
     (
       ~statics as {info_map, _}: CachedStatics.t,
@@ -515,6 +601,11 @@ let go =
     | Some(id) => toggle_auto(~syntax, id, info_map, z)
     | None => z
     }
+  | ToggleStatics =>
+    switch (Indicated.index(z)) {
+    | Some(id) => toggle_statics(~syntax, id, info_map, z)
+    | None => z
+    }
   | StepInto(sample, ap_id) =>
     switch (step_into_sample(~syntax, ~sample, ~ap_id, info_map, z)) {
     | Some(z) => z
@@ -526,6 +617,18 @@ let go =
 let has_probe = (id: Id.t, z: Zipper.t): bool => {
   Id.Map.mem(id, z.refractors.manuals)
   || Id.Map.mem(id, z.refractors.autos.ephemerals);
+};
+
+/* Get the kind of refractor at the given id, if any */
+let refractor_kind = (id: Id.t, z: Zipper.t): option(ProjectorCore.Kind.t) => {
+  switch (Id.Map.find_opt(id, z.refractors.manuals)) {
+  | Some(entry: Refractors.entry) => Some(entry.kind)
+  | None =>
+    switch (Id.Map.find_opt(id, z.refractors.autos.ephemerals)) {
+    | Some(entry: Refractors.entry) => Some(entry.kind)
+    | None => None
+    }
+  };
 };
 
 /* Check if probing is allowed for the given id.

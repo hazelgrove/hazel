@@ -58,7 +58,7 @@ module Shortcuts = {
   let auto_probe = () => Os.is_mac^ ? "⇧⌘E" : "Ctrl+Shift+E";
   let goto_definition = "F12";
   let fold = () => Os.is_mac^ ? "⌥F" : "Alt+F";
-  let type_info = () => Os.is_mac^ ? "⌥T" : "Alt+T";
+  let type_annotation = () => Os.is_mac^ ? "⌥T" : "Alt+T";
   let livelit = () => Os.is_mac^ ? "⌥L" : "Alt+L";
 };
 
@@ -66,6 +66,7 @@ let manual_probe =
     (
       ~inject: Action.t => Ui_effect.t(unit),
       ~can_probe: bool,
+      ~has_statics: bool,
       probe_status: ProbePerform.probe_status,
       ci: option(Language.Info.t),
     ) =>
@@ -75,10 +76,12 @@ let manual_probe =
   | Some(InfoExp(_) | InfoPat(_)) when can_probe => [
       menu_item(
         ~shortcut=Shortcuts.manual_probe(),
-        switch (probe_status) {
-        | Manual(_) => "Remove probe"
-        | REPL => "Switch to manual"
-        | Non => "Add probe"
+        switch (probe_status, has_statics) {
+        | (Manual(_), false) => "Remove probe"
+        | (Manual(_), true)
+        | (REPL, _)
+        | (Non, true) => "Switch to manual"
+        | (Non, false) => "Add probe"
         },
         inject,
         Probe(ToggleManual),
@@ -91,6 +94,7 @@ let auto_probe =
     (
       ~inject: Action.t => Ui_effect.t(unit),
       ~can_probe: bool,
+      ~has_statics: bool,
       probe_status: ProbePerform.probe_status,
       ci: option(Language.Info.t),
     ) =>
@@ -100,13 +104,41 @@ let auto_probe =
   | Some(InfoExp(_)) when can_probe => [
       menu_item(
         ~shortcut=Shortcuts.auto_probe(),
-        switch (probe_status) {
-        | Manual(_) => "Switch to auto"
-        | REPL => "Remove auto probe"
-        | Non => "Add auto probe"
+        switch (probe_status, has_statics) {
+        | (Manual(_), _)
+        | (REPL, true)
+        | (Non, true) => "Switch to auto"
+        | (REPL, false) => "Remove auto probe"
+        | (Non, false) => "Add auto probe"
         },
         inject,
         Probe(ToggleAuto),
+      ),
+    ]
+  | _ => []
+  };
+
+let type_annotation =
+    (
+      ~inject: Action.t => Ui_effect.t(unit),
+      ~can_type: bool,
+      ~has_statics: bool,
+      probe_status: ProbePerform.probe_status,
+      ci: option(Language.Info.t),
+    ) =>
+  switch (ci) {
+  /* Type annotations can be placed on expressions and patterns */
+  | Some(InfoExp(_) | InfoPat(_)) when can_type => [
+      menu_item(
+        ~shortcut=Shortcuts.type_annotation(),
+        switch (has_statics, probe_status) {
+        | (true, _) => "Remove statics"
+        | (false, Manual(_))
+        | (false, REPL) => "Switch to statics"
+        | (false, Non) => "Add statics"
+        },
+        inject,
+        Probe(ToggleStatics),
       ),
     ]
   | _ => []
@@ -174,7 +206,7 @@ module Projectors = {
   let shortcut_of = (kind: ProjectorCore.Kind.t): string =>
     switch (kind) {
     | Fold => Shortcuts.fold()
-    | Info => Shortcuts.type_info()
+    | Statics => Shortcuts.type_annotation()
     | _ => Shortcuts.livelit()
     };
 
@@ -182,7 +214,7 @@ module Projectors = {
   let display_name = (kind: ProjectorCore.Kind.t): string =>
     switch (kind) {
     | Fold => "Fold"
-    | Info => "Type"
+    | Statics => "Statics"
     | Checkbox => "Checkbox"
     | Slider => "Slider"
     | SliderF => "SliderF"
@@ -203,9 +235,8 @@ module Projectors = {
       : list(Node.t) => {
     let current_kind = indicated_kind(z);
 
-    /* Get applicable projectors: Fold, Info, and first applicable livelit */
+    /* Get applicable projectors: Fold and first applicable livelit */
     let fold_applicable = is_applicable(z, info_map, Fold);
-    let info_applicable = is_applicable(z, info_map, Info);
     let livelit_applicable =
       List.find_map(
         is_applicable(z, info_map),
@@ -213,10 +244,7 @@ module Projectors = {
       );
 
     let applicable =
-      List.filter_map(
-        Fun.id,
-        [fold_applicable, info_applicable, livelit_applicable],
-      );
+      List.filter_map(Fun.id, [fold_applicable, livelit_applicable]);
 
     /* Generate menu item for a projector kind with styled "Project : Name" format */
     let make_item = (kind: ProjectorCore.Kind.t): Node.t => {
@@ -247,7 +275,7 @@ module Projectors = {
   };
 };
 
-let probes_actions =
+let refractor_actions =
     (
       ~inject: Action.t => Ui_effect.t(unit),
       info_map: Language.Statics.Map.t,
@@ -257,9 +285,20 @@ let probes_actions =
   let ci = Indicated.ci_of(z, info_map);
   let probe_status = ProbePerform.probe_status(id, info_map, z.refractors);
   let can_probe = ProbePerform.can_probe(id, info_map);
-  jump_to_binding(~inject, ci)
-  @ manual_probe(~inject, ~can_probe, probe_status, ci)
-  @ auto_probe(~inject, ~can_probe, probe_status, ci);
+  let can_statics = ProbePerform.can_statics(id, info_map);
+  let has_statics =
+    Id.Map.find_opt(id, z.refractors.manuals)
+    |> Option.map((e: Refractors.entry) => e.kind == Statics)
+    |> Option.value(~default=false);
+  manual_probe(~inject, ~can_probe, ~has_statics, probe_status, ci)
+  @ auto_probe(~inject, ~can_probe, ~has_statics, probe_status, ci)
+  @ type_annotation(
+      ~inject,
+      ~can_type=can_statics,
+      ~has_statics,
+      probe_status,
+      ci,
+    );
 };
 
 let context_menu = menu_items =>
@@ -286,19 +325,12 @@ let view =
     jump_to_binding(~inject, ci);
   };
 
-  let probe_items = {
-    let id = Indicated.index(z) |> Option.value(~default=Id.invalid);
-    let ci = Indicated.ci_of(z, info_map);
-    let probe_status = ProbePerform.probe_status(id, info_map, z.refractors);
-    let can_probe = ProbePerform.can_probe(id, info_map);
-    manual_probe(~inject, ~can_probe, probe_status, ci)
-    @ auto_probe(~inject, ~can_probe, probe_status, ci);
-  };
+  let refractor_items = refractor_actions(~inject, info_map, z);
 
   let projector_items = Projectors.actions(~inject, z, info_map);
 
   /* Combine with dividers between non-empty sections */
-  let sections = [navigation_items, probe_items, projector_items];
+  let sections = [navigation_items, refractor_items, projector_items];
   let non_empty_sections = List.filter(s => s != [], sections);
   let menu_items =
     List.concat(
