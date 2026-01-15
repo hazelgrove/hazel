@@ -748,20 +748,10 @@ let mv_least_distant_sample =
   | None => Effect.Ignore
   };
 
-let ellipsis_view =
-    (
-      ~ap_id: option(Id.t),
-      local,
-      parent: external_action => Ui_effect.t(unit),
-      info: info,
-    )
-    : Node.t =>
+let ellipsis_view = (local): Node.t =>
   div(
     ~attrs=[
       Attr.classes(["ellipsis"]),
-      Attr.on_pointerdown(
-        mv_least_distant_sample(~ap_id, parent, info.dynamics),
-      ),
       Attr.on_double_click(_ => local(ToggleShowAllVals(0))),
     ],
     [text("⋯")],
@@ -1094,7 +1084,7 @@ let offside_view =
     let has_overflow = num_shown > 0 && num_shown < num_total;
     let overflow_extras = [
       nav_bar_view(~settings, ap_id, di, num_total, parent),
-      ellipsis_view(~ap_id, local, parent, info),
+      ellipsis_view(local),
     ];
 
     Node.div(

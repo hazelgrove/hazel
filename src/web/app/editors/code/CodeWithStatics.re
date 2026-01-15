@@ -68,6 +68,7 @@ module Model = {
     editor_action: x => Some(x),
     undo_action: None,
     redo_action: None,
+    error_ids: model.statics.error_ids,
   };
 
   [@deriving (show({with_path: false}), sexp, yojson)]

@@ -231,9 +231,9 @@
   --original-bg: var(--pat-indicated);
   color: var(--SAND);
 }
-.overlays .projector.probe.error:not(.selected) .num-samples {
+/* .overlays .projector.probe.error:not(.selected) .num-samples {
   --original-bg: var(--R1);
-}
+} */
 .overlays .projector.probe.selected .num-samples {
   --original-bg: var(--num-samples);
   color: black;
@@ -738,11 +738,6 @@
   filter: invert(1) brightness(3) saturate(0.4);
 }
 
-/* Environment section */
-.sample-context-menu .environment-section {
-  /* Container for environment bindings */
-}
-
 .live-offside .live-env {
   padding: 0.2em 0.55em;
   background-color: var(--live-env-bkg);
@@ -799,9 +794,9 @@
 .projector.probe .nav-arrow {
   filter: invert(1) brightness(0.7) sepia(1) hue-rotate(61deg) saturate(0.6);
 }
-.projector.probe.Pat .nav-arrow {
+/* .projector.probe.Pat .nav-arrow {
   filter: invert(1) brightness(0.7) sepia(1) hue-rotate(141deg) saturate(0.6);
-}
+} */
 
 .projector.probe:not(.indicated) .nav-arrow {
   pointer-events: none;
