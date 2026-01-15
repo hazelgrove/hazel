@@ -238,6 +238,11 @@ module View = {
         ~dynamics: Language.Dynamics.Map.t,
         model: Model.t,
       ) => {
+    /* Sync document-level click listener for closing context menu */
+    JsUtil.ContextMenuListener.sync(
+      selected && model.context_menu,
+      inject(ToggleContextMenu),
+    );
     let edit_decos =
       selected
         ? deco(

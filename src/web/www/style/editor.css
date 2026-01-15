@@ -376,25 +376,47 @@ svg:has(.child-line) {
   padding: 0.2em;
 }
 
-/* Border radius and transforms based on opening direction */
+/* Border radius, transforms, and animations based on opening direction */
 .context-menu.open-down-right {
   border-radius: 0 0.5em 0.5em 0.5em; /* top-left sharp */
   transform-origin: top left;
+  animation: context-menu-open-down-right 0.12s ease-out;
 }
 .context-menu.open-down-left {
   border-radius: 0.5em 0 0.5em 0.5em; /* top-right sharp */
   transform: translateX(-100%);
   transform-origin: top right;
+  animation: context-menu-open-down-left 0.12s ease-out;
 }
 .context-menu.open-up-right {
   border-radius: 0.5em 0.5em 0.5em 0; /* bottom-left sharp */
   transform: translateY(-100%);
   transform-origin: bottom left;
+  animation: context-menu-open-up-right 0.12s ease-out;
 }
 .context-menu.open-up-left {
   border-radius: 0.5em 0.5em 0 0.5em; /* bottom-right sharp */
   transform: translate(-100%, -100%);
   transform-origin: bottom right;
+  animation: context-menu-open-up-left 0.12s ease-out;
+}
+
+/* Open animations for each direction - scale from origin while maintaining translate */
+@keyframes context-menu-open-down-right {
+  from { opacity: 0; transform: scale(0.95); }
+  to { opacity: 1; transform: scale(1); }
+}
+@keyframes context-menu-open-down-left {
+  from { opacity: 0; transform: translateX(-100%) scale(0.95); }
+  to { opacity: 1; transform: translateX(-100%) scale(1); }
+}
+@keyframes context-menu-open-up-right {
+  from { opacity: 0; transform: translateY(-100%) scale(0.95); }
+  to { opacity: 1; transform: translateY(-100%) scale(1); }
+}
+@keyframes context-menu-open-up-left {
+  from { opacity: 0; transform: translate(-100%, -100%) scale(0.95); }
+  to { opacity: 1; transform: translate(-100%, -100%) scale(1); }
 }
 
 .context-menu .group .contents {
