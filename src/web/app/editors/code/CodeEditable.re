@@ -239,7 +239,7 @@ module View = {
         model: Model.t,
       ) => {
     /* Sync document-level click listener for closing context menu */
-    JsUtil.ContextMenuListener.sync(
+    ContextMenuListener.sync(
       selected && model.context_menu,
       inject(ToggleContextMenu),
     );
@@ -261,17 +261,11 @@ module View = {
           @ (
             model.context_menu
               ? [
-                /* Invisible backdrop to close menu on click-outside or scroll */
+                /* Backdrop for scroll-close. Click handling is done via
+                   ContextMenuListener's document-level event listener. */
                 Node.div(
                   ~attrs=[
                     Attr.classes(["context-menu-backdrop"]),
-                    Attr.on_pointerdown(_ =>
-                      Effect.Many([
-                        Effect.Stop_propagation,
-                        inject(ToggleContextMenu),
-                      ])
-                    ),
-                    /* Close on scroll attempt (wheel event) */
                     Attr.on_wheel(_ => inject(ToggleContextMenu)),
                   ],
                   [],
