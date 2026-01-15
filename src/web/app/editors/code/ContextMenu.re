@@ -325,45 +325,6 @@ let jump_to_binding_data =
   | _ => []
   };
 
-/* Legacy versions that return rendered nodes */
-let manual_probe =
-    (
-      ~inject: Action.t => Ui_effect.t(unit),
-      ~can_probe: bool,
-      ~has_statics: bool,
-      probe_status: ProbePerform.probe_status,
-      ci: option(Language.Info.t),
-    ) =>
-  manual_probe_data(~can_probe, ~has_statics, probe_status, ci)
-  |> List.map(menu_item_view(~inject, ~is_selected=false));
-
-let auto_probe =
-    (
-      ~inject: Action.t => Ui_effect.t(unit),
-      ~can_probe: bool,
-      ~has_statics: bool,
-      probe_status: ProbePerform.probe_status,
-      ci: option(Language.Info.t),
-    ) =>
-  auto_probe_data(~can_probe, ~has_statics, probe_status, ci)
-  |> List.map(menu_item_view(~inject, ~is_selected=false));
-
-let type_annotation =
-    (
-      ~inject: Action.t => Ui_effect.t(unit),
-      ~can_type: bool,
-      ~has_statics: bool,
-      probe_status: ProbePerform.probe_status,
-      ci: option(Language.Info.t),
-    ) =>
-  type_annotation_data(~can_type, ~has_statics, probe_status, ci)
-  |> List.map(menu_item_view(~inject, ~is_selected=false));
-
-let jump_to_binding =
-    (~inject: Action.t => Ui_effect.t(unit), ci: option(Language.Info.t)) =>
-  jump_to_binding_data(ci)
-  |> List.map(menu_item_view(~inject, ~is_selected=false));
-
 /* Divider element for separating menu sections */
 let divider = div(~attrs=[clss(["menu-divider"])], []);
 
@@ -464,17 +425,6 @@ module Projectors = {
 
     List.map(make_item_data, applicable);
   };
-
-  /* Generate menu items for projectors */
-  let actions =
-      (
-        ~inject: Action.t => Ui_effect.t(unit),
-        z: Zipper.t,
-        info_map: Language.Statics.Map.t,
-      )
-      : list(Node.t) =>
-    actions_data(z, info_map)
-    |> List.map(menu_item_view(~inject, ~is_selected=false));
 };
 
 /* Data-returning version of refractor_actions */
@@ -499,24 +449,38 @@ let refractor_actions_data =
     );
 };
 
-let refractor_actions =
-    (
-      ~inject: Action.t => Ui_effect.t(unit),
-      info_map: Language.Statics.Map.t,
-      z: Zipper.t,
-    ) =>
-  refractor_actions_data(info_map, z)
-  |> List.map(menu_item_view(~inject, ~is_selected=false));
+/*
+ * ============================================================================
+ * MENU STRUCTURE
+ * ============================================================================
+ * To add a new menu item:
+ * 1. Create a `*_data` function that returns list(menu_item_data)
+ * 2. Add it to the appropriate section in get_sections below
+ * That's it!
+ * ============================================================================
+ */
 
-/* Get all menu items as data (for keyboard navigation) */
-let get_all_items =
-    (~info_map: Language.Statics.Map.t, z: Zipper.t): list(menu_item_data) => {
+/* Get menu sections - each section is separated by a divider.
+   This is the single source of truth for menu structure. */
+let get_sections =
+    (~info_map: Language.Statics.Map.t, z: Zipper.t): list(list(menu_item_data)) => {
   let ci = Indicated.ci_of(z, info_map);
-  let navigation_items = jump_to_binding_data(ci);
-  let refractor_items = refractor_actions_data(info_map, z);
-  let projector_items = Projectors.actions_data(z, info_map);
-  navigation_items @ refractor_items @ projector_items;
+
+  [
+    /* Section 1: Navigation */
+    jump_to_binding_data(ci),
+    /* Section 2: Probes/Statics (refractors) */
+    refractor_actions_data(info_map, z),
+    /* Section 3: Projectors (fold, livelits) */
+    Projectors.actions_data(z, info_map),
+  ]
+  |> List.filter(section => section != []);
 };
+
+/* Get all menu items as a flat list */
+let get_all_items =
+    (~info_map: Language.Statics.Map.t, z: Zipper.t): list(menu_item_data) =>
+  List.concat(get_sections(~info_map, z));
 
 /* Get action at index (for Enter key activation) */
 let get_action_at_index =
@@ -566,66 +530,34 @@ let view =
     )
     : Node.t => {
   let caret_point = Zipper.Caret.point(syntax.measured, z);
+  let sections = get_sections(~info_map, z);
 
-  /* Get menu item data for keyboard-navigable items */
-  let all_items = get_all_items(~info_map, z);
-  let item_count = List.length(all_items);
   /* Clamp selected_index to valid range */
+  let item_count = List.fold_left((acc, s) => acc + List.length(s), 0, sections);
   let selected_index = max(0, min(selected_index, item_count - 1));
 
-  /* Render navigation items with selection highlighting */
-  let ci = Indicated.ci_of(z, info_map);
-  let nav_data = jump_to_binding_data(ci);
-  let nav_count = List.length(nav_data);
-  let navigation_items =
-    List.mapi(
-      (i, item) =>
-        menu_item_view(~inject, ~is_selected=i == selected_index, item),
-      nav_data,
-    );
-
-  /* Render refractor items with selection highlighting (offset by nav count) */
-  let refractor_data = refractor_actions_data(info_map, z);
-  let refractor_count = List.length(refractor_data);
-  let refractor_items =
-    List.mapi(
-      (i, item) =>
-        menu_item_view(
-          ~inject,
-          ~is_selected=i + nav_count == selected_index,
-          item,
-        ),
-      refractor_data,
-    );
-
-  /* Render projector items with selection highlighting (offset by nav + refractor count) */
-  let projector_data = Projectors.actions_data(z, info_map);
-  let projector_offset = nav_count + refractor_count;
-  let projector_items =
-    List.mapi(
-      (i, item) =>
-        menu_item_view(
-          ~inject,
-          ~is_selected=i + projector_offset == selected_index,
-          item,
-        ),
-      projector_data,
-    );
-
-  /* Combine with dividers between non-empty sections */
-  let sections = [navigation_items, refractor_items, projector_items];
-  let non_empty_sections = List.filter(s => s != [], sections);
-  let menu_items =
-    List.concat(
-      List.mapi(
-        (i, section) =>
-          if (i > 0) {
-            [divider, ...section];
+  /* Render all sections with automatic index tracking and dividers */
+  let (menu_items, _) =
+    List.fold_left(
+      ((nodes, idx), section) => {
+        /* Render items in this section with selection highlighting */
+        let section_nodes =
+          List.mapi(
+            (i, item) =>
+              menu_item_view(~inject, ~is_selected=idx + i == selected_index, item),
+            section,
+          );
+        /* Add divider before non-first sections */
+        let with_divider =
+          if (nodes != [] && section_nodes != []) {
+            nodes @ [divider] @ section_nodes;
           } else {
-            section;
-          },
-        non_empty_sections,
-      ),
+            nodes @ section_nodes;
+          };
+        (with_divider, idx + List.length(section));
+      },
+      ([], 0),
+      sections,
     );
 
   if (menu_items == []) {
