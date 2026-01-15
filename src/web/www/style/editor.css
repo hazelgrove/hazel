@@ -433,7 +433,8 @@ svg:has(.child-line) {
 .context-menu .group .contents .named-menu-item {
   padding: 0.05em 0.5em 0.05em 0.7em;
 }
-.context-menu .group .contents .named-menu-item:hover {
+.context-menu .group .contents .named-menu-item:hover,
+.context-menu .group .contents .named-menu-item.selected {
   background-color: var(--SAND);
   border-radius: 0.2em;
 }

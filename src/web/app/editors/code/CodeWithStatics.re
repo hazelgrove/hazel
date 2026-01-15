@@ -9,14 +9,20 @@ open Haz3lcore;
 /* This file follows conventions in [docs/ui-architecture.md] */
 
 module Model = {
+  /* Context menu state: None = closed, Some(n) = open with item n selected */
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type context_menu_state = option(int);
+
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t = {
     // Updated:
     editor: Editor.t,
-    context_menu: bool,
+    context_menu: context_menu_state,
     statics: CachedStatics.t,
     dynamics: Language.Dynamics.Map.t,
   };
+
+  let context_menu_is_open = (model: t): bool => model.context_menu != None;
 
   let mk =
       (
@@ -27,7 +33,7 @@ module Model = {
     editor,
     statics,
     dynamics,
-    context_menu: false,
+    context_menu: None,
   };
 
   let mk_from_exp =

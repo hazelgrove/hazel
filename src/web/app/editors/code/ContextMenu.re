@@ -121,6 +121,13 @@ let pos_style =
   Printf.sprintf("position: absolute; left: %fpx; top: %fpx;", left, top);
 };
 
+/* Menu item data - separates action info from rendering */
+type menu_item_data = {
+  name: string,
+  shortcut: option(string),
+  action: Action.t,
+};
+
 /* Keyboard shortcut display - abstracts the format for easy updates */
 let shortcut_view = (shortcut: string) =>
   span(~attrs=[clss(["menu-shortcut"])], [text(shortcut)]);
@@ -128,12 +135,12 @@ let shortcut_view = (shortcut: string) =>
 /* Styled colon separator */
 let colon_sep = span(~attrs=[clss(["menu-colon"])], [text(" : ")]);
 
-let menu_item =
+/* Render a menu item with optional selection highlight */
+let menu_item_view =
     (
-      ~shortcut: option(string)=?,
-      name: string,
-      inject: Action.t => Ui_effect.t(unit),
-      action: Action.t,
+      ~inject: Action.t => Ui_effect.t(unit),
+      ~is_selected: bool,
+      item: menu_item_data,
     ) =>
   div(
     ~attrs=[
@@ -141,18 +148,36 @@ let menu_item =
         Effect.Many([
           Effect.Stop_propagation,
           Effect.Prevent_default,
-          inject(action),
+          inject(item.action),
         ])
       ),
-      clss(["named-menu-item"]),
+      clss(["named-menu-item"] @ (is_selected ? ["selected"] : [])),
     ],
-    [text(name)]
+    [text(item.name)]
     @ (
-      switch (shortcut) {
+      switch (item.shortcut) {
       | Some(s) => [shortcut_view(s)]
       | None => []
       }
     ),
+  );
+
+/* Legacy menu_item for compatibility with projector items */
+let menu_item =
+    (
+      ~shortcut: option(string)=?,
+      name: string,
+      inject: Action.t => Ui_effect.t(unit),
+      action: Action.t,
+    ) =>
+  menu_item_view(
+    ~inject,
+    ~is_selected=false,
+    {
+      name,
+      shortcut,
+      action,
+    },
   );
 
 /* Keyboard shortcuts - platform-dependent */
@@ -165,6 +190,98 @@ module Shortcuts = {
   let livelit = () => Os.is_mac^ ? "⌥L" : "Alt+L";
 };
 
+/* Data-returning versions for keyboard navigation */
+let manual_probe_data =
+    (
+      ~can_probe: bool,
+      ~has_statics: bool,
+      probe_status: ProbePerform.probe_status,
+      ci: option(Language.Info.t),
+    )
+    : list(menu_item_data) =>
+  switch (ci) {
+  | Some(InfoExp(_) | InfoPat(_)) when can_probe => [
+      {
+        name:
+          switch (probe_status, has_statics) {
+          | (Manual(_), false) => "Remove probe"
+          | (Manual(_), true)
+          | (REPL, _)
+          | (Non, true) => "Switch to manual"
+          | (Non, false) => "Add probe"
+          },
+        shortcut: Some(Shortcuts.manual_probe()),
+        action: Probe(ToggleManual),
+      },
+    ]
+  | _ => []
+  };
+
+let auto_probe_data =
+    (
+      ~can_probe: bool,
+      ~has_statics: bool,
+      probe_status: ProbePerform.probe_status,
+      ci: option(Language.Info.t),
+    )
+    : list(menu_item_data) =>
+  switch (ci) {
+  | Some(InfoExp(_)) when can_probe => [
+      {
+        name:
+          switch (probe_status, has_statics) {
+          | (Manual(_), _)
+          | (REPL, true)
+          | (Non, true) => "Switch to auto"
+          | (REPL, false) => "Remove auto probe"
+          | (Non, false) => "Add auto probe"
+          },
+        shortcut: Some(Shortcuts.auto_probe()),
+        action: Probe(ToggleAuto),
+      },
+    ]
+  | _ => []
+  };
+
+let type_annotation_data =
+    (
+      ~can_type: bool,
+      ~has_statics: bool,
+      probe_status: ProbePerform.probe_status,
+      ci: option(Language.Info.t),
+    )
+    : list(menu_item_data) =>
+  switch (ci) {
+  | Some(InfoExp(_) | InfoPat(_)) when can_type => [
+      {
+        name:
+          switch (has_statics, probe_status) {
+          | (true, _) => "Remove statics"
+          | (false, Manual(_))
+          | (false, REPL) => "Switch to statics"
+          | (false, Non) => "Add statics"
+          },
+        shortcut: Some(Shortcuts.type_annotation()),
+        action: Probe(ToggleStatics),
+      },
+    ]
+  | _ => []
+  };
+
+let jump_to_binding_data =
+    (ci: option(Language.Info.t)): list(menu_item_data) =>
+  switch (OptUtil.and_then(Language.Info.get_binding_site, ci)) {
+  | Some(_) => [
+      {
+        name: "Goto definition",
+        shortcut: Some(Shortcuts.goto_definition),
+        action: Move(Goal(BindingSiteOfIndicatedVar)),
+      },
+    ]
+  | _ => []
+  };
+
+/* Legacy versions that return rendered nodes */
 let manual_probe =
     (
       ~inject: Action.t => Ui_effect.t(unit),
@@ -173,25 +290,8 @@ let manual_probe =
       probe_status: ProbePerform.probe_status,
       ci: option(Language.Info.t),
     ) =>
-  switch (ci) {
-  /* These can be applied to expressions and patterns, but only if
-     the term is actually probeable (not types, labels, etc.) */
-  | Some(InfoExp(_) | InfoPat(_)) when can_probe => [
-      menu_item(
-        ~shortcut=Shortcuts.manual_probe(),
-        switch (probe_status, has_statics) {
-        | (Manual(_), false) => "Remove probe"
-        | (Manual(_), true)
-        | (REPL, _)
-        | (Non, true) => "Switch to manual"
-        | (Non, false) => "Add probe"
-        },
-        inject,
-        Probe(ToggleManual),
-      ),
-    ]
-  | _ => []
-  };
+  manual_probe_data(~can_probe, ~has_statics, probe_status, ci)
+  |> List.map(menu_item_view(~inject, ~is_selected=false));
 
 let auto_probe =
     (
@@ -201,25 +301,8 @@ let auto_probe =
       probe_status: ProbePerform.probe_status,
       ci: option(Language.Info.t),
     ) =>
-  switch (ci) {
-  /* Auto probes only make sense on expressions, and only if
-     the term is actually probeable (not types, labels, etc.) */
-  | Some(InfoExp(_)) when can_probe => [
-      menu_item(
-        ~shortcut=Shortcuts.auto_probe(),
-        switch (probe_status, has_statics) {
-        | (Manual(_), _)
-        | (REPL, true)
-        | (Non, true) => "Switch to auto"
-        | (REPL, false) => "Remove auto probe"
-        | (Non, false) => "Add auto probe"
-        },
-        inject,
-        Probe(ToggleAuto),
-      ),
-    ]
-  | _ => []
-  };
+  auto_probe_data(~can_probe, ~has_statics, probe_status, ci)
+  |> List.map(menu_item_view(~inject, ~is_selected=false));
 
 let type_annotation =
     (
@@ -229,37 +312,13 @@ let type_annotation =
       probe_status: ProbePerform.probe_status,
       ci: option(Language.Info.t),
     ) =>
-  switch (ci) {
-  /* Type annotations can be placed on expressions and patterns */
-  | Some(InfoExp(_) | InfoPat(_)) when can_type => [
-      menu_item(
-        ~shortcut=Shortcuts.type_annotation(),
-        switch (has_statics, probe_status) {
-        | (true, _) => "Remove statics"
-        | (false, Manual(_))
-        | (false, REPL) => "Switch to statics"
-        | (false, Non) => "Add statics"
-        },
-        inject,
-        Probe(ToggleStatics),
-      ),
-    ]
-  | _ => []
-  };
+  type_annotation_data(~can_type, ~has_statics, probe_status, ci)
+  |> List.map(menu_item_view(~inject, ~is_selected=false));
 
 let jump_to_binding =
     (~inject: Action.t => Ui_effect.t(unit), ci: option(Language.Info.t)) =>
-  switch (OptUtil.and_then(Language.Info.get_binding_site, ci)) {
-  | Some(_) => [
-      menu_item(
-        ~shortcut=Shortcuts.goto_definition,
-        "Goto definition",
-        inject,
-        Move(Goal(BindingSiteOfIndicatedVar)),
-      ),
-    ]
-  | _ => []
-  };
+  jump_to_binding_data(ci)
+  |> List.map(menu_item_view(~inject, ~is_selected=false));
 
 /* Divider element for separating menu sections */
 let divider = div(~attrs=[clss(["menu-divider"])], []);
@@ -328,6 +387,40 @@ module Projectors = {
     | Probe => "Probe" /* shouldn't appear in menu */
     };
 
+  /* Get applicable projector kinds */
+  let applicable_kinds =
+      (z: Zipper.t, info_map: Language.Statics.Map.t)
+      : list(ProjectorCore.Kind.t) => {
+    let fold_applicable = is_applicable(z, info_map, Fold);
+    let livelit_applicable =
+      List.find_map(
+        is_applicable(z, info_map),
+        ProjectorCore.Kind.livelit_projectors,
+      );
+    List.filter_map(Fun.id, [fold_applicable, livelit_applicable]);
+  };
+
+  /* Data-returning version for keyboard navigation */
+  let actions_data =
+      (z: Zipper.t, info_map: Language.Statics.Map.t): list(menu_item_data) => {
+    let current_kind = indicated_kind(z);
+    let applicable = applicable_kinds(z, info_map);
+
+    let make_item_data = (kind: ProjectorCore.Kind.t): menu_item_data => {
+      let name = display_name(kind);
+      let shortcut = shortcut_of(kind);
+      let is_current = current_kind == Some(kind);
+      let prefix = is_current ? "Remove" : "Add";
+      {
+        name: prefix ++ " " ++ name,
+        shortcut: Some(shortcut),
+        action: Project(SetIndicated(Specific(kind))),
+      };
+    };
+
+    List.map(make_item_data, applicable);
+  };
+
   /* Generate menu items for projectors */
   let actions =
       (
@@ -335,55 +428,14 @@ module Projectors = {
         z: Zipper.t,
         info_map: Language.Statics.Map.t,
       )
-      : list(Node.t) => {
-    let current_kind = indicated_kind(z);
-
-    /* Get applicable projectors: Fold and first applicable livelit */
-    let fold_applicable = is_applicable(z, info_map, Fold);
-    let livelit_applicable =
-      List.find_map(
-        is_applicable(z, info_map),
-        ProjectorCore.Kind.livelit_projectors,
-      );
-
-    let applicable =
-      List.filter_map(Fun.id, [fold_applicable, livelit_applicable]);
-
-    /* Generate menu item for a projector kind with styled "Project : Name" format */
-    let make_item = (kind: ProjectorCore.Kind.t): Node.t => {
-      let name = display_name(kind);
-      let shortcut = shortcut_of(kind);
-      let is_current = current_kind == Some(kind);
-      let prefix = is_current ? "Remove" : "Add";
-      div(
-        ~attrs=[
-          Attr.on_pointerdown(_ =>
-            Effect.Many([
-              Effect.Stop_propagation,
-              Effect.Prevent_default,
-              inject(Project(SetIndicated(Specific(kind)))),
-            ])
-          ),
-          clss(["named-menu-item"]),
-        ],
-        [
-          text(prefix ++ " "),
-          /*colon_sep,*/ text(name),
-          shortcut_view(shortcut),
-        ],
-      );
-    };
-
-    List.map(make_item, applicable);
-  };
+      : list(Node.t) =>
+    actions_data(z, info_map)
+    |> List.map(menu_item_view(~inject, ~is_selected=false));
 };
 
-let refractor_actions =
-    (
-      ~inject: Action.t => Ui_effect.t(unit),
-      info_map: Language.Statics.Map.t,
-      z: Zipper.t,
-    ) => {
+/* Data-returning version of refractor_actions */
+let refractor_actions_data =
+    (info_map: Language.Statics.Map.t, z: Zipper.t): list(menu_item_data) => {
   let id = Indicated.index(z) |> Option.value(~default=Id.invalid);
   let ci = Indicated.ci_of(z, info_map);
   let probe_status = ProbePerform.probe_status(id, info_map, z.refractors);
@@ -393,15 +445,41 @@ let refractor_actions =
     Id.Map.find_opt(id, z.refractors.manuals)
     |> Option.map((e: Refractors.entry) => e.kind == Statics)
     |> Option.value(~default=false);
-  manual_probe(~inject, ~can_probe, ~has_statics, probe_status, ci)
-  @ auto_probe(~inject, ~can_probe, ~has_statics, probe_status, ci)
-  @ type_annotation(
-      ~inject,
+  manual_probe_data(~can_probe, ~has_statics, probe_status, ci)
+  @ auto_probe_data(~can_probe, ~has_statics, probe_status, ci)
+  @ type_annotation_data(
       ~can_type=can_statics,
       ~has_statics,
       probe_status,
       ci,
     );
+};
+
+let refractor_actions =
+    (
+      ~inject: Action.t => Ui_effect.t(unit),
+      info_map: Language.Statics.Map.t,
+      z: Zipper.t,
+    ) =>
+  refractor_actions_data(info_map, z)
+  |> List.map(menu_item_view(~inject, ~is_selected=false));
+
+/* Get all menu items as data (for keyboard navigation) */
+let get_all_items =
+    (~info_map: Language.Statics.Map.t, z: Zipper.t): list(menu_item_data) => {
+  let ci = Indicated.ci_of(z, info_map);
+  let navigation_items = jump_to_binding_data(ci);
+  let refractor_items = refractor_actions_data(info_map, z);
+  let projector_items = Projectors.actions_data(z, info_map);
+  navigation_items @ refractor_items @ projector_items;
+};
+
+/* Get action at index (for Enter key activation) */
+let get_action_at_index =
+    (~info_map: Language.Statics.Map.t, z: Zipper.t, index: int)
+    : option(Action.t) => {
+  let items = get_all_items(~info_map, z);
+  List.nth_opt(items, index) |> Option.map(item => item.action);
 };
 
 let context_menu = menu_items =>
@@ -439,20 +517,56 @@ let view =
       ~syntax: Haz3lcore.CachedSyntax.t,
       ~info_map: Language.Statics.Map.t,
       ~font_metrics: FontMetrics.t,
+      ~selected_index: int,
       z: Haz3lcore.Zipper.t,
     )
     : Node.t => {
   let caret_point = Zipper.Caret.point(syntax.measured, z);
 
-  /* Get all action categories */
-  let navigation_items = {
-    let ci = Indicated.ci_of(z, info_map);
-    jump_to_binding(~inject, ci);
-  };
+  /* Get menu item data for keyboard-navigable items */
+  let all_items = get_all_items(~info_map, z);
+  let item_count = List.length(all_items);
+  /* Clamp selected_index to valid range */
+  let selected_index = max(0, min(selected_index, item_count - 1));
 
-  let refractor_items = refractor_actions(~inject, info_map, z);
+  /* Render navigation items with selection highlighting */
+  let ci = Indicated.ci_of(z, info_map);
+  let nav_data = jump_to_binding_data(ci);
+  let nav_count = List.length(nav_data);
+  let navigation_items =
+    List.mapi(
+      (i, item) =>
+        menu_item_view(~inject, ~is_selected=i == selected_index, item),
+      nav_data,
+    );
 
-  let projector_items = Projectors.actions(~inject, z, info_map);
+  /* Render refractor items with selection highlighting (offset by nav count) */
+  let refractor_data = refractor_actions_data(info_map, z);
+  let refractor_count = List.length(refractor_data);
+  let refractor_items =
+    List.mapi(
+      (i, item) =>
+        menu_item_view(
+          ~inject,
+          ~is_selected=i + nav_count == selected_index,
+          item,
+        ),
+      refractor_data,
+    );
+
+  /* Render projector items with selection highlighting (offset by nav + refractor count) */
+  let projector_data = Projectors.actions_data(z, info_map);
+  let projector_offset = nav_count + refractor_count;
+  let projector_items =
+    List.mapi(
+      (i, item) =>
+        menu_item_view(
+          ~inject,
+          ~is_selected=i + projector_offset == selected_index,
+          item,
+        ),
+      projector_data,
+    );
 
   /* Combine with dividers between non-empty sections */
   let sections = [navigation_items, refractor_items, projector_items];

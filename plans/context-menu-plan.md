@@ -7,11 +7,13 @@
 - **Phase 2.1: Click-Outside Close** - Document-level capture-phase listener for single-click UX (closes menu AND activates clicked element)
 - **Phase 2.2: Scroll Close** - Menu closes on wheel events (via backdrop)
 - **Phase 2.3: Window Blur Close** - Menu closes when switching to another application/window
+- **Phase 2.4: Autosave/Scroll Fix** - ToggleContextMenu now uses `return_quiet` to avoid triggering saves or scroll events
 - **Phase 3: Precise Caret Alignment** - Menu positions based on caret bottom edge with shadow offset
+- **Phase 4.1: Keyboard Navigation** - Arrow keys (↑/↓) to navigate, Enter to activate, Escape to close
 - **Phase 4.3: Animation** - Subtle 0.12s fade+scale animation on open, direction-aware
 
 ### ⏳ Not Started
-- **Phase 4.1: Keyboard Navigation** - Arrow keys, Enter, type-ahead
+- **Phase 4.1b: Type-ahead** - Jump to items starting with typed letter (deferred)
 - **Phase 4.2: Accessibility** - ARIA roles and focus management
 
 ---
@@ -497,22 +499,24 @@ For initial implementation, estimation is simpler and sufficient.
 
 ### Document-Level Click-Outside Listener
 
-Implemented in `JsUtil.ContextMenuListener` module:
+Implemented in dedicated `ContextMenuListener` module (extracted from JsUtil for clarity):
 
 **Key design decisions:**
 1. Uses **capture phase** (`{ capture: true }`) so the listener runs before target element handlers
 2. This enables **single-click UX**: clicking outside closes the menu AND activates the clicked element
 3. Uses `Bonsai.Effect.Expert.handle` to dispatch virtual-dom effects from outside the event loop
 4. Includes ancestor check to avoid closing when clicking inside the menu itself
+5. **50ms debounce window** after menu opens to prevent race condition with right-click handler
 
 **Files:**
-- [JsUtil.re:295-395](src/util/JsUtil.re#L295-L395) - `ContextMenuListener` module
-- [CodeEditable.re:241-245](src/web/app/editors/code/CodeEditable.re#L241-L245) - `sync` call in view
+- [ContextMenuListener.re](src/util/ContextMenuListener.re) - Standalone module for click-outside handling
+- [Util.re](src/util/Util.re) - Re-exports the module
+- [CodeEditable.re](src/web/app/editors/code/CodeEditable.re) - `sync` call in view
 
 **Usage pattern:**
 ```reason
 /* Called on every render with current menu state */
-JsUtil.ContextMenuListener.sync(
+ContextMenuListener.sync(
   selected && model.context_menu,
   inject(ToggleContextMenu),
 );
@@ -531,3 +535,30 @@ Each opening direction has its own keyframe animation to maintain the correct tr
 ```
 
 The `transform-origin` is set per-direction so the scale animation appears to grow from the anchor point (caret position).
+
+### Keyboard Navigation
+
+**Context menu state** changed from `bool` to `option(int)`:
+- `None` = menu closed
+- `Some(n)` = menu open with item `n` selected
+
+**Key bindings** (when context menu is open):
+- `Escape` - Close menu
+- `ArrowUp` - Move selection up (stops at top)
+- `ArrowDown` - Move selection down (clamped to item count)
+- `Enter` - Activate selected item
+
+**Implementation files:**
+- [CodeWithStatics.re](src/web/app/editors/code/CodeWithStatics.re) - Changed `context_menu: bool` to `context_menu: option(int)`
+- [CodeEditable.re](src/web/app/editors/code/CodeEditable.re) - Added `ContextMenu(Toggle|Open|Close|Up|Down|Activate)` actions
+- [ContextMenu.re](src/web/app/editors/code/ContextMenu.re) - Added `get_action_at_index`, `get_all_items`, `menu_item_data` type
+- [editor.css](src/web/www/style/editor.css) - Added `.selected` class for keyboard highlight
+
+**Data-driven menu items:**
+The menu items are now generated in two forms:
+1. `menu_item_data` - Pure data (name, shortcut, action) for keyboard navigation
+2. `menu_item_view` - Rendered node with selection highlighting
+
+This separation allows `get_action_at_index` to look up actions without rendering.
+
+**Note:** Projector items are not yet keyboard-navigable (excluded from `get_all_items`).

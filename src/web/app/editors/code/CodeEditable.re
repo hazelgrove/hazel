@@ -11,10 +11,19 @@ module Model = CodeWithStatics.Model;
 
 module Update = {
   [@deriving (show({with_path: false}), sexp, yojson)]
+  type context_menu_action =
+    | Toggle
+    | Open
+    | Close
+    | Up
+    | Down
+    | Activate;
+
+  [@deriving (show({with_path: false}), sexp, yojson)]
   type t =
     | Perform(Action.t)
     | TAB
-    | ToggleContextMenu
+    | ContextMenu(context_menu_action)
     | DebugConsole(string);
 
   exception CantReset;
@@ -23,7 +32,7 @@ module Update = {
     switch (action) {
     | Perform(action) => Action.is_historic(action)
     | TAB => true
-    | ToggleContextMenu => false
+    | ContextMenu(_) => false
     | DebugConsole(_) => false
     };
   };
@@ -45,7 +54,7 @@ module Update = {
             editor,
             statics: model.statics,
             dynamics: model.dynamics,
-            context_menu: false,
+            context_menu: None,
           }
         | Error(err) => raise(Action.Failure.Exception(err))
       )
@@ -95,12 +104,35 @@ module Update = {
     | DebugConsole(key) =>
       DebugConsole.print(~settings, model, key);
       model |> Updated.return_quiet;
-    | ToggleContextMenu =>
+    | ContextMenu(action) =>
+      let context_menu =
+        switch (action) {
+        | Toggle =>
+          switch (model.context_menu) {
+          | None => Some(0) /* Open with first item selected */
+          | Some(_) => None /* Close */
+          }
+        | Open => Some(0)
+        | Close => None
+        | Up =>
+          switch (model.context_menu) {
+          | None => None
+          | Some(n) => Some(max(0, n - 1))
+          }
+        | Down =>
+          switch (model.context_menu) {
+          | None => None
+          | Some(n) => Some(n + 1) /* Will be clamped in view */
+          }
+        | Activate =>
+          /* Activation is handled in the key handler which calls the action */
+          model.context_menu
+        };
       {
         ...model,
-        context_menu: !model.context_menu,
+        context_menu,
       }
-      |> Updated.return_quiet
+      |> Updated.return_quiet;
     | TAB =>
       /* Attempt to act intelligently when TAB is pressed.
        * TODO: Consider more advanced TAB logic. Instead
@@ -141,6 +173,9 @@ module Selection = {
     fun
     | {key: D("Tab"), sys: _, shift: Up, meta: Up, ctrl: Up, alt: Up} =>
       Some(Update.TAB)
+    /* Shift+F10 opens context menu (VS Code convention) */
+    | {key: D("F10"), sys: _, shift: Down, meta: Up, ctrl: Up, alt: Up} =>
+      Some(Update.ContextMenu(Open))
     | {key: D(key), sys: Mac | PC, shift: Down, meta: Up, ctrl: Up, alt: Up}
         when Keyboard.is_f_key(key) =>
       Some(Update.DebugConsole(key))
@@ -148,21 +183,36 @@ module Selection = {
       Keyboard.handle_key_event(k) |> Option.map(x => Update.Perform(x));
 
   let handle_key_event = (~selection, model: Model.t, key: Key.t) =>
-    /* Close context menu on Escape */
-    if (model.context_menu) {
+    /* Handle context menu keyboard navigation */
+    switch (model.context_menu) {
+    | Some(selected_index) =>
       switch (key.key) {
-      | D("Escape") => Some(Update.ToggleContextMenu)
+      | D("Escape") => Some(Update.ContextMenu(Close))
+      | D("ArrowUp") => Some(Update.ContextMenu(Up))
+      | D("ArrowDown") => Some(Update.ContextMenu(Down))
+      | D("Enter") =>
+        /* Get the action at the selected index and execute it */
+        let action =
+          ContextMenu.get_action_at_index(
+            ~info_map=model.statics.info_map,
+            model.editor.state.zipper,
+            selected_index,
+          );
+        switch (action) {
+        | Some(action) => Some(Update.Perform(action)) /* Action will close menu */
+        | None => Some(Update.ContextMenu(Close))
+        };
       | _ =>
         switch (ProjectorView.key_handoff(model.editor, key)) {
         | Some(action) => Some(Update.Perform(Project(action)))
         | None => handle_key_event(~selection, model, key)
         }
-      };
-    } else {
+      }
+    | None =>
       switch (ProjectorView.key_handoff(model.editor, key)) {
       | Some(action) => Some(Update.Perform(Project(action)))
       | None => handle_key_event(~selection, model, key)
-      };
+      }
     };
 
   let jump_to_tile = (id: Id.t, model: Model.t): option(Update.t) => {
@@ -240,8 +290,8 @@ module View = {
       ) => {
     /* Sync document-level click listener for closing context menu */
     ContextMenuListener.sync(
-      selected && model.context_menu,
-      inject(ToggleContextMenu),
+      selected && Model.context_menu_is_open(model),
+      inject(ContextMenu(Close)),
     );
     let edit_decos =
       selected
@@ -259,14 +309,14 @@ module View = {
             ),
           ]
           @ (
-            model.context_menu
-              ? [
+            switch (model.context_menu) {
+            | Some(selected_index) => [
                 /* Backdrop for scroll-close. Click handling is done via
                    ContextMenuListener's document-level event listener. */
                 Node.div(
                   ~attrs=[
                     Attr.classes(["context-menu-backdrop"]),
-                    Attr.on_wheel(_ => inject(ToggleContextMenu)),
+                    Attr.on_wheel(_ => inject(ContextMenu(Close))),
                   ],
                   [],
                 ),
@@ -275,10 +325,12 @@ module View = {
                   ~syntax=model.editor.syntax,
                   ~info_map=model.statics.info_map,
                   ~font_metrics=globals.font_metrics,
+                  ~selected_index,
                   model.editor.state.zipper,
                 ),
               ]
-              : []
+            | None => []
+            }
           )
         : [];
     let zipper = model.editor.state.zipper;
@@ -354,7 +406,7 @@ module View = {
           //Effect.Stop_propagation,
           Effect.Prevent_default,
           inject(Perform(Move(Point(loc(mouse))))),
-          inject(ToggleContextMenu),
+          inject(ContextMenu(Toggle)),
         ])
       | {button: Left, _} =>
         MouseState.pointerdown(loc(mouse));
