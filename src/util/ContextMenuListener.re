@@ -86,7 +86,11 @@ let setup = (): unit =>
     let options =
       Js.Unsafe.obj([|("capture", Js.Unsafe.inject(Js._true))|]);
     let _ =
-      doc##addEventListener(Js.string("pointerdown"), click_handler, options);
+      doc##addEventListener(
+        Js.string("pointerdown"),
+        click_handler,
+        options,
+      );
 
     /* Window blur listener - close menu when user switches away */
     let blur_handler =
