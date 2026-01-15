@@ -177,6 +177,57 @@ let rm_manual = (ids: list(Id.t), z: Zipper.t): Zipper.t =>
   /* If the probe has a pin we'll need to remove that too */
   |> maybe_rm_pin(ids);
 
+/* Remove colliding manual probes when two end up on the same line.
+ * This is called after code edits to clean up probes that were pushed
+ * onto the same line due to text reflow. Keeps the rightmost probe. */
+let remove_colliding_probes = (~syntax: CachedSyntax.t, z: Zipper.t): Zipper.t => {
+  /* 1. Build a map: end_row -> list of (probe_id, col) */
+  let row_to_probes =
+    Id.Map.fold(
+      (probe_id, _, acc) =>
+        switch (
+          TermData.extreme_measures(
+            probe_id,
+            syntax.term_data,
+            syntax.measured,
+          )
+        ) {
+        | Some((_, end_pt)) =>
+          let existing =
+            IntMap.find_opt(end_pt.row, acc) |> Option.value(~default=[]);
+          IntMap.add(
+            end_pt.row,
+            [(probe_id, end_pt.col), ...existing],
+            acc,
+          );
+        | None => acc
+        },
+      z.refractors.manuals,
+      IntMap.empty,
+    );
+
+  /* 2. For rows with multiple probes, keep rightmost, remove others */
+  let ids_to_remove =
+    IntMap.fold(
+      (_, probes, acc) =>
+        switch (probes) {
+        | []
+        | [_] => acc /* No collision */
+        | _ =>
+          /* Keep rightmost probe (highest col), remove others */
+          let sorted =
+            List.sort(((_, a), (_, b)) => compare(b, a), probes);
+          let to_remove = List.tl(sorted) |> List.map(fst);
+          to_remove @ acc;
+        },
+      row_to_probes,
+      [],
+    );
+
+  /* 3. Remove colliding probes */
+  rm_manual(ids_to_remove, z);
+};
+
 let add_manual =
     (~syntax: CachedSyntax.t, id: Id.t, info_map: Statics.Map.t, z: Zipper.t)
     : Zipper.t => {

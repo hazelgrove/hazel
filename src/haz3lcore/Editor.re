@@ -186,7 +186,10 @@ module Update = {
         syntax,
       );
 
-    /* 3. Update autoprobes */
+    /* 3. Remove colliding probes (must be after syntax recalculation) */
+    let zipper = ProbePerform.remove_colliding_probes(~syntax, zipper);
+
+    /* 4. Update autoprobes */
     let zipper =
       zipper
       |> ProbePerform.add_ids_from_auto_term(
