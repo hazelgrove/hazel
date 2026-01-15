@@ -449,8 +449,12 @@ module Projectors = {
     let make_item_data = (kind: ProjectorCore.Kind.t): menu_item_data => {
       let name = display_name(kind);
       let shortcut = shortcut_of(kind);
-      let is_current = current_kind == Some(kind);
-      let prefix = is_current ? "Remove" : "Add";
+      let prefix =
+        switch (current_kind) {
+        | Some(k) when k == kind => "Remove"
+        | Some(_) => "Switch to"
+        | None => "Add"
+        };
       {
         name: prefix ++ " " ++ name,
         shortcut: Some(shortcut),
