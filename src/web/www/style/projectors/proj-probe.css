@@ -560,20 +560,12 @@
   background-color: #d6eed6;
 }
 
-.projector.probe.indicated .live-offside.Single .sample:has(.value.cursor) {
-  border-bottom: 1px solid var(--G0);
+.projector.probe.indicated .live-offside:focus .sample:has(.value.cursor) {
+  outline: 1.5px solid var(--R1);
   background-color: oklch(from var(--bkg) calc(l * 0.96) calc(c + 0.04) h);
 }
-.projector.probe.indicated
-  .live-offside.Single:focus
-  .sample:has(.value.cursor) {
-  border-bottom: 1px solid var(--R1);
-}
-.projector.probe.indicated .live-offside.Many .sample:has(.value.cursor) {
+.projector.probe.indicated .live-offside .sample:has(.value.cursor) {
   outline: 1.5px solid var(--G0);
-}
-.projector.probe.indicated .live-offside.Many:focus .sample:has(.value.cursor) {
-  outline: 1.5px solid var(--R1);
 }
 
 .live-offside .sample:hover {
@@ -662,9 +654,9 @@
   color: var(--PAT);
 }
 
-.live-offside.Many .sample:has(.value.cursor-unrelated) .code-text .token {
+/* .live-offside.Many .sample:has(.value.cursor-unrelated) .code-text .token {
   color: white;
-}
+} */
 
 /* SAMPLE CONTEXT MENU (dropdown) */
 
