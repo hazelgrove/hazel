@@ -754,31 +754,11 @@
 
 /* Require .indicated on probe AND .cursor on value for menu to appear */
 .projector.probe.indicated
-  .live-offside
-  .sample:has(.value.cursor)
-  .sample-context-menu:hover,
-.projector.probe.indicated
-  .live-offside
-  .sample:has(.value.cursor)
-  .sample-context-menu.dropdown-active {
-  display: flex;
-  flex-direction: column;
-}
-
-.live-offside .live-env .live-env-entry {
-  display: flex;
-  flex-direction: row;
-  white-space: pre;
-  align-items: baseline;
-  color: var(--GB0);
-  font-family: var(--code-font);
-  font-size: var(--base-font-size);
-}
-
-.projector.probe.indicated
+  .live-offside:focus
   .sample:has(.value.cursor):hover
   .sample-context-menu,
 .projector.probe.indicated
+  .live-offside:focus
   .sample:has(.value.cursor)
   .sample-context-menu.dropdown-active {
   display: block;
@@ -790,6 +770,16 @@
   .sample:has(.value.cursor)
   .sample-context-menu.dropdown-active:empty {
   display: none;
+}
+
+.live-offside .live-env .live-env-entry {
+  display: flex;
+  flex-direction: row;
+  white-space: pre;
+  align-items: baseline;
+  color: var(--GB0);
+  font-family: var(--code-font);
+  font-size: var(--base-font-size);
 }
 
 .projector.probe .nav-arrow {

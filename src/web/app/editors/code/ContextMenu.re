@@ -223,7 +223,7 @@ module Projectors = {
       let name = display_name(kind);
       let shortcut = shortcut_of(kind);
       let is_current = current_kind == Some(kind);
-      let prefix = is_current ? "Remove" : "Project";
+      let prefix = is_current ? "Remove" : "Add";
       div(
         ~attrs=[
           Attr.on_pointerdown(_ =>
@@ -235,7 +235,11 @@ module Projectors = {
           ),
           clss(["named-menu-item"]),
         ],
-        [text(prefix), colon_sep, text(name), shortcut_view(shortcut)],
+        [
+          text(prefix ++ " "),
+          /*colon_sep,*/ text(name),
+          shortcut_view(shortcut),
+        ],
       );
     };
 

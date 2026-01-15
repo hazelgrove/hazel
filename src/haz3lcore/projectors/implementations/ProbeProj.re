@@ -466,7 +466,10 @@ let value_view =
         @ (Option.is_some(ap_id) ? ["ap"] : [])
         @ (!ValueChecker.is_value(sample.value) ? ["indet"] : []),
       ),
-      //Attr.on_double_click(_ => local(ToggleShowAllVals(index))),
+      Attr.on_double_click(_ => {
+        Settings.go(ToggleWindow);
+        local(NoOp);
+      }),
       Attr.on_pointerdown(evt =>
         Key.meta_held(evt)
           ? pin_call(~parent, ~ap_id, ~di) : val_pointerdown(evt)
@@ -969,7 +972,6 @@ let key_handler =
   let key = Key.mk(KeyDown, evt);
   switch (key.key) {
   | D("E" | "e") when key.meta == Down || key.ctrl == Down => parent(Remove)
-  | D("V" | "v" | "√") when key.alt == Down => parent(Remove)
   | D("Escape") when key.shift == Down =>
     JsUtil.get_elem_by_id(Id.cls(id))##blur;
     Settings.reset_mode();
@@ -1058,7 +1060,7 @@ let offside_view =
   switch (info.dynamics) {
   | Some(di) =>
     let id = info.id;
-    let ap_id = Sample.Cursor.cur_ap(info.statics);
+    let ap_id = Sample.Cursor.cur_var_ap(info.statics);
     let hide_env = hide_env(info);
     /* Filter samples once and reuse for both num_total and selection */
     let filtered_samples =
@@ -1130,7 +1132,7 @@ let offside_view =
     );
   | None =>
     /* No dynamics info means probe was never evaluated */
-    let ap_id = Sample.Cursor.cur_ap(info.statics);
+    let ap_id = Sample.Cursor.cur_var_ap(info.statics);
     Node.div(
       ~attrs=[
         Attr.id(Id.cls(info.id)),
@@ -1156,7 +1158,7 @@ let update = (() as m, _info: info, a: action) => {
 let overlay_view = (info: info): Node.t =>
   switch (info.dynamics) {
   | Some(di) =>
-    let ap_id = Sample.Cursor.cur_ap(info.statics);
+    let ap_id = Sample.Cursor.cur_var_ap(info.statics);
     div(
       ~attrs=[
         Attr.classes(["overlay"] @ (Option.is_some(ap_id) ? ["ap"] : [])),

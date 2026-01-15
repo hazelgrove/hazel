@@ -111,7 +111,7 @@ let shortcuts = (sys: Util.Key.sys): list(t) =>
       Globals(ActiveEditor(Project(SetIndicated(Specific(Fold))))),
     ),
     mk_shortcut(
-      ~hotkey="alt+v",
+      ~hotkey="Keyboard.meta(sys)+e",
       ~mdIcon="camera",
       ~section="Projection",
       "Probe",
