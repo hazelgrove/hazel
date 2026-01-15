@@ -6,6 +6,50 @@ open Util.OptUtil.Syntax;
 open WebUtil;
 open Node;
 
+/* Context menu state management - moved here for better encapsulation */
+module State = {
+  /* Menu state: None = closed, Some(n) = open with item n selected */
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type t = option(int);
+
+  let is_open = (state: t): bool => state != None;
+
+  /* Actions that can be performed on the context menu */
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type action =
+    | Toggle
+    | Open
+    | Close
+    | Up
+    | Down
+    | Activate;
+
+  /* Pure update function for context menu state */
+  let update = (action: action, state: t): t =>
+    switch (action) {
+    | Toggle =>
+      switch (state) {
+      | None => Some(0) /* Open with first item selected */
+      | Some(_) => None /* Close */
+      }
+    | Open => Some(0)
+    | Close => None
+    | Up =>
+      switch (state) {
+      | None => None
+      | Some(n) => Some(max(0, n - 1))
+      }
+    | Down =>
+      switch (state) {
+      | None => None
+      | Some(n) => Some(n + 1) /* Will be clamped in view */
+      }
+    | Activate =>
+      /* Activation is handled by the caller which executes the action */
+      state
+    };
+};
+
 /* Menu dimensions for viewport calculations */
 let menu_height_estimate = 200.0; /* px */
 let menu_width_estimate = 180.0; /* px - based on min-width: 160px + padding */

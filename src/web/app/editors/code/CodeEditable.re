@@ -11,19 +11,10 @@ module Model = CodeWithStatics.Model;
 
 module Update = {
   [@deriving (show({with_path: false}), sexp, yojson)]
-  type context_menu_action =
-    | Toggle
-    | Open
-    | Close
-    | Up
-    | Down
-    | Activate;
-
-  [@deriving (show({with_path: false}), sexp, yojson)]
   type t =
     | Perform(Action.t)
     | TAB
-    | ContextMenu(context_menu_action)
+    | ContextMenu(ContextMenu.State.action)
     | DebugConsole(string);
 
   exception CantReset;
@@ -105,32 +96,9 @@ module Update = {
       DebugConsole.print(~settings, model, key);
       model |> Updated.return_quiet;
     | ContextMenu(action) =>
-      let context_menu =
-        switch (action) {
-        | Toggle =>
-          switch (model.context_menu) {
-          | None => Some(0) /* Open with first item selected */
-          | Some(_) => None /* Close */
-          }
-        | Open => Some(0)
-        | Close => None
-        | Up =>
-          switch (model.context_menu) {
-          | None => None
-          | Some(n) => Some(max(0, n - 1))
-          }
-        | Down =>
-          switch (model.context_menu) {
-          | None => None
-          | Some(n) => Some(n + 1) /* Will be clamped in view */
-          }
-        | Activate =>
-          /* Activation is handled in the key handler which calls the action */
-          model.context_menu
-        };
       {
         ...model,
-        context_menu,
+        context_menu: ContextMenu.State.update(action, model.context_menu),
       }
       |> Updated.return_quiet;
     | TAB =>
@@ -175,7 +143,7 @@ module Selection = {
       Some(Update.TAB)
     /* Shift+F10 opens context menu (VS Code convention) */
     | {key: D("F10"), sys: _, shift: Down, meta: Up, ctrl: Up, alt: Up} =>
-      Some(Update.ContextMenu(Open))
+      Some(Update.ContextMenu(ContextMenu.State.Open))
     | {key: D(key), sys: Mac | PC, shift: Down, meta: Up, ctrl: Up, alt: Up}
         when Keyboard.is_f_key(key) =>
       Some(Update.DebugConsole(key))
@@ -187,9 +155,9 @@ module Selection = {
     switch (model.context_menu) {
     | Some(selected_index) =>
       switch (key.key) {
-      | D("Escape") => Some(Update.ContextMenu(Close))
-      | D("ArrowUp") => Some(Update.ContextMenu(Up))
-      | D("ArrowDown") => Some(Update.ContextMenu(Down))
+      | D("Escape") => Some(Update.ContextMenu(ContextMenu.State.Close))
+      | D("ArrowUp") => Some(Update.ContextMenu(ContextMenu.State.Up))
+      | D("ArrowDown") => Some(Update.ContextMenu(ContextMenu.State.Down))
       | D("Enter") =>
         /* Get the action at the selected index and execute it */
         let action =
@@ -200,7 +168,7 @@ module Selection = {
           );
         switch (action) {
         | Some(action) => Some(Update.Perform(action)) /* Action will close menu */
-        | None => Some(Update.ContextMenu(Close))
+        | None => Some(Update.ContextMenu(ContextMenu.State.Close))
         };
       | _ =>
         switch (ProjectorView.key_handoff(model.editor, key)) {
@@ -291,7 +259,7 @@ module View = {
     /* Sync document-level click listener for closing context menu */
     ContextMenuListener.sync(
       selected && Model.context_menu_is_open(model),
-      inject(ContextMenu(Close)),
+      inject(ContextMenu(ContextMenu.State.Close)),
     );
     let edit_decos =
       selected
@@ -316,7 +284,7 @@ module View = {
                 Node.div(
                   ~attrs=[
                     Attr.classes(["context-menu-backdrop"]),
-                    Attr.on_wheel(_ => inject(ContextMenu(Close))),
+                    Attr.on_wheel(_ => inject(ContextMenu(ContextMenu.State.Close))),
                   ],
                   [],
                 ),
@@ -406,7 +374,7 @@ module View = {
           //Effect.Stop_propagation,
           Effect.Prevent_default,
           inject(Perform(Move(Point(loc(mouse))))),
-          inject(ContextMenu(Toggle)),
+          inject(ContextMenu(ContextMenu.State.Toggle)),
         ])
       | {button: Left, _} =>
         MouseState.pointerdown(loc(mouse));
