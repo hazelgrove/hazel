@@ -214,6 +214,8 @@ module Shortcuts = {
   let fold = () => Os.is_mac^ ? "⌥F" : "Alt+F";
   let type_annotation = () => Os.is_mac^ ? "⌥T" : "Alt+T";
   let livelit = () => Os.is_mac^ ? "⌥L" : "Alt+L";
+  let introduce = () => Os.is_mac^ ? "⌘I" : "Ctrl+I";
+  let select_current_term = () => Os.is_mac^ ? "⌘D" : "Ctrl+D";
 };
 
 /* Data-returning versions for keyboard navigation */
@@ -306,6 +308,57 @@ let jump_to_binding_data =
     ]
   | _ => []
   };
+
+/* Check if Introduce is applicable (empty hole with introducable type) */
+let introduce_data = (ci: option(Language.Info.t)): list(menu_item_data) =>
+  switch (ci) {
+  | Some(
+      Language.Info.InfoExp({
+        cls: Exp(EmptyHole),
+        status: NotInHole(Common(Ana(Consistent({ana, _})))),
+        ctx,
+        _,
+      }),
+    )
+      when
+        Introduce.can_introduce_exp_type(
+          Language.Typ.weak_head_normalize(ctx, ana),
+        ) => [
+      {
+        name: "Introduce",
+        shortcut: Some(Shortcuts.introduce()),
+        action: Introduce,
+      },
+    ]
+  | Some(
+      Language.Info.InfoPat({
+        cls: Pat(EmptyHole),
+        status: NotInHole(Ana(Consistent({ana, _}))),
+        ctx,
+        _,
+      }),
+    )
+      when
+        Introduce.can_introduce_pat_type(
+          Language.Typ.weak_head_normalize(ctx, ana),
+        ) => [
+      {
+        name: "Introduce",
+        shortcut: Some(Shortcuts.introduce()),
+        action: Introduce,
+      },
+    ]
+  | _ => []
+  };
+
+/* Select current term - always available */
+let select_current_term_data = (): list(menu_item_data) => [
+  {
+    name: "Select term",
+    shortcut: Some(Shortcuts.select_current_term()),
+    action: Select(Term(Current)),
+  },
+];
 
 /* Divider element for separating menu sections */
 let divider = div(~attrs=[clss(["menu-divider"])], []);
@@ -454,11 +507,13 @@ let get_sections =
   let ci = Indicated.ci_of(z, info_map);
 
   [
-    /* Section 1: Navigation */
-    jump_to_binding_data(ci),
-    /* Section 2: Probes/Statics (refractors) */
+    /* Section 1: Navigation & Selection */
+    jump_to_binding_data(ci) @ select_current_term_data(),
+    /* Section 2: Refactoring */
+    introduce_data(ci),
+    /* Section 3: Probes/Statics (refractors) */
     refractor_actions_data(~ci, info_map, z),
-    /* Section 3: Projectors (fold, livelits) */
+    /* Section 4: Projectors (fold, livelits) */
     Projectors.actions_data(z, info_map),
   ]
   |> List.filter(section => section != []);

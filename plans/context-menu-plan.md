@@ -11,6 +11,8 @@
 - **Phase 3: Precise Caret Alignment** - Menu positions based on caret bottom edge with shadow offset
 - **Phase 4.1: Keyboard Navigation** - Arrow keys (↑/↓) to navigate, Enter to activate, Escape to close
 - **Phase 4.3: Animation** - Subtle 0.12s fade+scale animation on open, direction-aware
+- **Phase 5: Bug Fixes** - Fixed hotkey literal string bug and "Toggle Toggle Dynamics" typo in Shortcut.re; added Introduce and Select term to context menu
+- **Phase 7: Introduce Predicate Fix** - Introduce only shows in context menu when the expected type is actually introducible
 
 ### ⏳ Not Started
 - **Phase 4.1b: Type-ahead** - Jump to items starting with typed letter (deferred)
@@ -562,3 +564,307 @@ The menu items are now generated in two forms:
 This separation allows `get_action_at_index` to look up actions without rendering.
 
 **Note:** Projector items are not yet keyboard-navigable (excluded from `get_all_items`).
+
+---
+
+## Phase 5: Command Palette vs Context Menu Analysis
+
+### Overview
+
+This section analyzes the division of actions between the **Command Palette** (Ninja Keys) and the **Context Menu**, with recommendations for what should go where.
+
+**Organizing Principle:** *Locality*
+- **Command Palette**: Global actions, settings toggles, mode switches, export/import - actions that don't depend on cursor position
+- **Context Menu**: Position-aware actions, refractors, projectors - actions that operate on the code at/near the cursor
+
+### Current State Inventory
+
+#### Ninja Keys Command Palette ([Shortcut.re](src/web/app/input/Shortcut.re))
+
+| Category | Action | Hotkey | Notes |
+|----------|--------|--------|-------|
+| **History** | Undo | ⌘Z | Global |
+| | Redo | ⌘⇧Z | Global |
+| **Navigation** | Go to Definition | F12 | Position-dependent |
+| | Go to Previous Hole | ⇧Tab | Position-dependent |
+| | Go to Next Hole | (Tab overloaded) | Position-dependent |
+| **Selection** | Select current term | ⌘D | Position-dependent |
+| | Select All | ⌘A | Editor-scoped |
+| | Toggle Selection Focus | | Position-dependent |
+| | Set Selection Focus Left | ⌘⌥⇧← | Position-dependent |
+| | Set Selection Focus Right | ⌘⌥⇧→ | Position-dependent |
+| **Projection** | Fold | ⌥F | Position-dependent |
+| | Probe | ⌘E (BUG: shows literal) | Position-dependent |
+| | Statics | ⌥T | Position-dependent |
+| | Livelit | ⌥L | Position-dependent |
+| **Settings** | Toggle Statics | | Global |
+| | Toggle Completion | | Global |
+| | Toggle Show Whitespace | | Global |
+| | Toggle Print Benchmarks | | Global |
+| | Toggle Toggle Dynamics (typo!) | | Global |
+| | Toggle Show Elaboration | | Global |
+| | Toggle Show Function Bodies | | Global |
+| | Toggle Show Case Clauses | | Global |
+| | Toggle Show fixpoints | | Global |
+| | Toggle Show Ascription Steps | | Global |
+| | Toggle Show Lookup Steps | | Global |
+| | Toggle Show Stepper Filters | | Global |
+| | Toggle Show Hidden Steps | | Global |
+| | Toggle Show Sidebar | | Global |
+| | Toggle Show Docs Feedback | | Global |
+| **Agents** | TyDi Assistant | ⌘/ | Position-dependent |
+| **Export** | Export Scratch Slide | | Global |
+| | Encode Scratch Slide in URL | | Global |
+| | Export For Init | | Global |
+| | Export Submission | | Global |
+| **Diagnostics** | Reparse Current Editor | | Editor-scoped |
+| | Run Benchmark | F7 | Global |
+| **Refactoring** | Introduce | ⌘I | Position-dependent |
+| **Buffers** | Add New Buffer | | Global |
+| | Rename Current Buffer | | Global |
+| | Delete Current Buffer | | Global |
+
+#### Context Menu ([ContextMenu.re](src/web/app/editors/code/ContextMenu.re))
+
+| Section | Action | Hotkey | Condition |
+|---------|--------|--------|-----------|
+| **Navigation** | Goto definition | F12 | On variable with binding site |
+| **Probes** | Add/Remove/Switch probe | ⌘E | On expression/pattern |
+| | Add/Remove auto probe | ⌘⇧E | On expression |
+| | Add/Remove statics | ⌥T | On expression/pattern |
+| **Projectors** | Add/Remove Fold | ⌥F | When applicable |
+| | Add livelit | ⌥L | When applicable |
+
+### Issues Found
+
+1. **Bug in Shortcut.re line 114**: Hotkey shows literal string `"Keyboard.meta(sys)+e"` instead of evaluated value
+2. **Typo in Shortcut.re line 161**: "Toggle Toggle Dynamics" has redundant "Toggle"
+3. **Duplicate exposure**: Several position-dependent actions appear in both UIs (Go to Definition, Fold, Probe, Statics, Livelit)
+
+### Recommendations
+
+#### Actions that should STAY in Command Palette only
+
+These are truly global actions that don't depend on cursor position:
+
+- **History**: Undo, Redo
+- **All Settings toggles** (12+ items)
+- **Export/Import**: All export actions
+- **Buffers**: Add/Rename/Delete buffer
+- **Diagnostics**: Run Benchmark, Reparse (editor-scoped but not position-specific)
+
+#### Actions that should STAY in Context Menu only
+
+These are highly position-dependent and contextual:
+
+- **Probes/Statics**: All refractor actions (already context menu only except hotkeys)
+- **Projectors**: Fold, Livelits (already context menu only except hotkeys)
+
+#### Actions that should be in BOTH
+
+Some actions make sense in both places - Command Palette for discoverability/muscle memory, Context Menu for convenience:
+
+- **Go to Definition** (F12) - Currently in both ✓
+- **Introduce** (⌘I) - Could be added to context menu (position-dependent refactoring)
+
+#### Actions that should MOVE from Command Palette to Context Menu
+
+These are position-dependent but currently only in Command Palette:
+
+| Action | Current UI | Recommended UI |
+|--------|------------|----------------|
+| Select current term | Palette only | Both |
+| Toggle Selection Focus | Palette only | Context menu only |
+| Set Selection Focus L/R | Palette only | Context menu only |
+| Go to Previous/Next Hole | Palette only | Both (when near hole) |
+| TyDi Assistant | Palette only | Both |
+
+#### Actions NOT exposed in either UI
+
+Looking at [Action.re](src/haz3lcore/zipper/action/Action.re):
+
+| Action | Type | Notes |
+|--------|------|-------|
+| Copy | `Action.t` | Standard ⌘C, no menu exposure |
+| Cut | `Action.t` | Standard ⌘X, no menu exposure |
+| Paste | `Action.t` | Standard ⌘V, no menu exposure |
+| Put_down | `Action.t` | Backpack operation, Tab performs this contextually |
+| Dump | `Action.t` | Debug only |
+
+**Recommendation**: Copy/Cut/Paste could be added to context menu for discoverability (standard in most editors), but low priority.
+
+### Future Considerations
+
+#### Search/Filter (Notion-style)
+
+A search/filter capability in the context menu could be valuable when:
+1. Menu items become numerous
+2. User wants to discover what's possible at a given position
+3. Similar to VS Code's Quick Fix menu which shows all applicable actions
+
+Implementation approach:
+- Add text input at top of context menu
+- Filter items as user types
+- Type-ahead selection (jump to first matching item)
+
+#### Strict Separation vs Continuum
+
+**Current recommendation**: Maintain the locality principle but allow some overlap for commonly-used position-dependent actions with global hotkeys. The duplication serves different use cases:
+- Command Palette: "I know what I want, let me type/select it"
+- Context Menu: "What can I do here?"
+
+### Implementation Priority for Phase 5
+
+1. **Bug fixes** (immediate):
+   - Fix `"Keyboard.meta(sys)+e"` literal string bug in Shortcut.re
+   - Fix "Toggle Toggle Dynamics" typo
+
+2. **Context menu additions** (medium priority):
+   - Add "Select current term" (with ⌘D shortcut display)
+   - Add "TyDi Assistant" (with ⌘/ shortcut display)
+   - Consider adding "Introduce" (⌘I)
+
+3. **Deferred**:
+   - Search/filter capability
+   - Selection focus actions in context menu
+   - Copy/Cut/Paste in context menu
+   - Introduce preview (see Phase 6)
+
+---
+
+## Phase 6: Introduce Preview (Deferred)
+
+### Concept
+
+Show a preview of what "Introduce" will actually produce, based on the expected type:
+
+**Current:**
+```
+Introduce                    ⌘I
+```
+
+**With preview:**
+```
+Introduce fun ? -> ?         ⌘I
+Introduce (?, ?)             ⌘I
+Introduce []                 ⌘I
+Introduce Some(?)            ⌘I
+```
+
+### What Introduce Can Produce
+
+From [Introduce.re](src/haz3lcore/zipper/action/Introduce.re):
+
+**Expressions:**
+| Expected Type | Introduced | Preview |
+|---------------|------------|---------|
+| `A -> B` | lambda | `fun ? -> ?` |
+| `()` | unit | `()` |
+| `(A, B, ...)` | tuple | `(?, ?, ...)` |
+| `+C` (nullary single variant) | constructor | `C` |
+| `+C(A)` (unary single variant) | applied constructor | `C(?)` |
+| `forall a. T` | type function | `typefun ? -> ?` |
+| `[A]` | empty list | `[]` |
+| `String` | empty string | `""` |
+
+**Patterns:** Similar subset (no lambda, typefun, list, string)
+
+Note: Only handles **single-variant** sum types.
+
+### Implementation Approach
+
+Option A (recommended if implemented): Duplicate type-matching for preview string in ContextMenu.re:
+
+```reason
+let introduce_preview = (ty: Typ.t): option(string) =>
+  switch (ty.term) {
+  | Arrow(_, _) => Some("fun ? -> ?")
+  | Prod([]) => Some("()")
+  | Prod(ts) => Some("(" ++ String.concat(", ", List.map(_ => "?", ts)) ++ ")")
+  | List(_) => Some("[]")
+  | Atom(String) => Some({|""|})
+  | Sum([Variant(c, _, None)]) => Some(c)
+  | Sum([Variant(c, _, Some(_))]) => Some(c ++ "(?)")
+  | Poly(_, _) => Some("typefun ? -> ?")
+  | _ => None
+  };
+```
+
+### Trade-offs
+
+**Arguments for:**
+- Shows users exactly what they'll get before pressing the key
+- Makes the feature more discoverable and understandable
+- Polished UI feel
+
+**Arguments against:**
+- **Maintenance burden**: Preview logic could drift from actual Introduce logic if someone adds a new case to Introduce.re but forgets to update the preview
+- **Limited benefit**: Users who use Introduce either already know what it does (power users) or will learn after one use
+- **Potential confusion**: `fun ? -> ?` might be MORE confusing to newcomers than just "Introduce" - they might not recognize the syntax
+- **Scope creep**: If we do this for Introduce, should we do it for other actions? Where does it stop?
+- **Action is reversible**: If you press ⌘I and it's not what you wanted, just undo. Low cost to experiment.
+
+### Decision
+
+Deferred. The current "Introduce" label is clean and sufficient. Users can learn through use, and the action is easily undoable. If users frequently ask "what does Introduce do?", we can revisit this.
+
+---
+
+## Phase 7: Introduce Predicate Fix (Completed)
+
+### Problem
+
+The "Introduce" action was appearing in the context menu even for holes where it couldn't produce anything useful. For example, on `1 + ?` where the expected type is `Int`, clicking "Introduce" did nothing (logged "can't introduce" to console).
+
+### Root Cause
+
+The context menu was only checking:
+1. Is this an empty hole?
+2. Is it being analyzed in a consistent manner?
+
+But it wasn't checking whether the expected type was actually *introducible* - i.e., whether the Introduce action can produce a form for that type.
+
+### Solution
+
+Added type-checking predicates to [Introduce.re](src/haz3lcore/zipper/action/Introduce.re) that mirror the cases actually handled by the `introduce` function:
+
+```reason
+/* Predicates for checking if a type can be introduced.
+   Used by ContextMenu to show/hide the Introduce action. */
+let can_introduce_exp_type = (ty: Typ.t): bool =>
+  switch (ty.term) {
+  | Arrow(_, _)
+  | Prod(_)
+  | List(_)
+  | Poly(_, _)
+  | Atom(String) => true
+  | Sum([_]) => true /* Single-variant sum only */
+  | _ => false
+  };
+
+let can_introduce_pat_type = (ty: Typ.t): bool =>
+  switch (ty.term) {
+  | Prod(_) => true
+  | Sum([_]) => true /* Single-variant sum only */
+  | _ => false
+  };
+```
+
+The context menu's `introduce_data` function now uses these predicates with `when` guards:
+
+```reason
+| Some(Language.Info.InfoExp({...}))
+    when Introduce.can_introduce_exp_type(Language.Typ.weak_head_normalize(ctx, ana)) => [...]
+```
+
+### Design Decision: Centralized Predicates
+
+The predicates are placed in Introduce.re (not ContextMenu.re) to:
+1. **Avoid logic duplication** - The predicates mirror the cases in `IntroduceExp.introduce` and `IntroducePat.introduce`
+2. **Maintain single source of truth** - If new cases are added to Introduce, the predicates should be updated in the same file
+3. **Enable reuse** - Other UI components (e.g., Command Palette, keyboard shortcut handlers) can use the same predicates
+
+### Files Modified
+
+- [Introduce.re:5-21](src/haz3lcore/zipper/action/Introduce.re#L5-L21) - Added `can_introduce_exp_type` and `can_introduce_pat_type`
+- [ContextMenu.re:312-346](src/web/app/editors/code/ContextMenu.re#L312-L346) - Updated `introduce_data` to use predicates with `when` guards
