@@ -7,7 +7,7 @@ open WebUtil;
 open Node;
 
 /* Context menu state management - moved here for better encapsulation */
-module State = {
+module Model = {
   /* Menu state: None = closed, Some(n) = open with item n selected */
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t = option(int);
@@ -204,24 +204,6 @@ let menu_item_view =
       | None => []
       }
     ),
-  );
-
-/* Legacy menu_item for compatibility with projector items */
-let menu_item =
-    (
-      ~shortcut: option(string)=?,
-      name: string,
-      inject: Action.t => Ui_effect.t(unit),
-      action: Action.t,
-    ) =>
-  menu_item_view(
-    ~inject,
-    ~is_selected=false,
-    {
-      name,
-      shortcut,
-      action,
-    },
   );
 
 /* Keyboard shortcuts - platform-dependent */
@@ -429,9 +411,13 @@ module Projectors = {
 
 /* Data-returning version of refractor_actions */
 let refractor_actions_data =
-    (info_map: Language.Statics.Map.t, z: Zipper.t): list(menu_item_data) => {
+    (
+      ~ci: option(Language.Info.t),
+      info_map: Language.Statics.Map.t,
+      z: Zipper.t,
+    )
+    : list(menu_item_data) => {
   let id = Indicated.index(z) |> Option.value(~default=Id.invalid);
-  let ci = Indicated.ci_of(z, info_map);
   let probe_status = ProbePerform.probe_status(id, info_map, z.refractors);
   let can_probe = ProbePerform.can_probe(id, info_map);
   let can_statics = ProbePerform.can_statics(id, info_map);
@@ -470,7 +456,7 @@ let get_sections =
     /* Section 1: Navigation */
     jump_to_binding_data(ci),
     /* Section 2: Probes/Statics (refractors) */
-    refractor_actions_data(info_map, z),
+    refractor_actions_data(~ci, info_map, z),
     /* Section 3: Projectors (fold, livelits) */
     Projectors.actions_data(z, info_map),
   ]
