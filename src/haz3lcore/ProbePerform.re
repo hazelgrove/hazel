@@ -3,22 +3,35 @@ open OptUtil.Syntax;
 open Language;
 
 module FocusEffect = {
-  /* Scheduled focus for probe elements after step-into.
+  /* Scheduled focus for probe or editor elements after step-into.
    * This ref is set when step-into resolves and cleared when focus is executed.
    * We use a ref (not model state) because DOM focus must happen AFTER render,
    * and we can't dispatch actions from after_display without causing loops. */
-  let scheduled: ref(option(Id.t)) = ref(None);
+  type target =
+    | Editor
+    | Probe(Id.t);
+
+  let scheduled: ref(option(target)) = ref(None);
 
   /* Schedule DOM focus on a probe element (called from resolve_pending_focus) */
   let schedule = (probe_id: Id.t): unit => {
-    scheduled := Some(probe_id);
+    scheduled := Some(Probe(probe_id));
+  };
+
+  /* Schedule DOM focus on the main editor (called from step_into_sample) */
+  let schedule_editor = (): unit => {
+    scheduled := Some(Editor);
   };
 
   /* Execute any scheduled focus (called from Main.re after_display).
    * Returns whether focus was executed. */
   let execute = (): bool =>
     switch (scheduled^) {
-    | Some(probe_id) =>
+    | Some(Editor) =>
+      scheduled := None;
+      JsUtil.focus_clipboard_shim();
+      true;
+    | Some(Probe(probe_id)) =>
       scheduled := None;
       let elem_id = Id.cls(probe_id);
       switch (JsUtil.get_elem_by_id_opt(elem_id)) {
@@ -382,7 +395,7 @@ let step_into_sample =
    * - jump_target = pattern (cursor goes to parameters for UX)
    * - sample_probe_id = inner body (where samples are stored in dynamics)
    * target_subterm_ids transforms Fun to [inner_body, pattern]. */
-  let (jump_target, sample_probe_id) =
+  let (jump_target, _sample_probe_id) =
     switch (ci_body) {
     | InfoExp({term: {term: Fun(pat, inner_body, _, _), _}, _}) =>
       let pat_id = IdTagged.rep_id(pat);
@@ -391,12 +404,13 @@ let step_into_sample =
     | _ => (body_id, body_id)
     };
 
+  // NOTE(andrew): disabling this for now as it doesn't work right
   /* Set pending_focus using sample_probe_id (inner body), since that's where
    * the samples are stored in the dynamics map. */
-  let pending_focus: Sample.Cursor.pending_focus = {
-    probe_id: sample_probe_id,
-    target_stack: new_stack,
-  };
+  // let pending_focus: Sample.Cursor.pending_focus = {
+  //   probe_id: sample_probe_id,
+  //   target_stack: new_stack,
+  // };
 
   let z =
     SampleCursorPerform.update(z, _ => {
@@ -405,9 +419,12 @@ let step_into_sample =
         call_stack: new_stack,
         index: List.length(sample.call_stack),
         pinned_stack: Some(new_stack),
-        pending_focus: Some(pending_focus),
+        pending_focus: None //Some(pending_focus),
       }
     });
+
+  /* Schedule focus back to the main editor after render */
+  FocusEffect.schedule_editor();
 
   Move.jump_to_id_indicated(z, jump_target);
 };
