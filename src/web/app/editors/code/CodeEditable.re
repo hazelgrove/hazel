@@ -100,7 +100,7 @@ module Update = {
         ...model,
         context_menu: !model.context_menu,
       }
-      |> Updated.return
+      |> Updated.return_quiet
     | TAB =>
       /* Attempt to act intelligently when TAB is pressed.
        * TODO: Consider more advanced TAB logic. Instead
