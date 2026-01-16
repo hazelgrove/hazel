@@ -924,7 +924,12 @@ and unsorted = (sort: Sort.t, skel: Skel.t, seg: Segment.t): unsorted => {
 
 /* Consolidate term_data for adopted IDs (see adopted_ids comment above).
  * Updates each adopted ID's term_data entry to match the rep_id's entry,
- * giving adopted IDs the correct skeleton/segment of the outer term. */
+ * giving adopted IDs the correct skeleton/segment of the outer term.
+ *
+ * IMPORTANT: We preserve the original root_piece for each adopted ID.
+ * The root_piece identifies the actual tile that the ID refers to, which
+ * is needed by Arms.tiles_data to find the correct shards for decoration.
+ * Only skel, sort, and base_seg should be updated to match the outer term. */
 let consolidate_adopted = (): unit => {
   adopted_ids^
   |> List.iter(id => {
@@ -932,9 +937,25 @@ let consolidate_adopted = (): unit => {
        | None => ()
        | Some(term) =>
          let rep = Language.Any.rep_id(term);
-         switch (Id.Map.find_opt(rep, term_data^)) {
-         | None => ()
-         | Some(data) => term_data := Id.Map.add(id, data, term_data^)
+         switch (
+           Id.Map.find_opt(rep, term_data^),
+           Id.Map.find_opt(id, term_data^),
+         ) {
+         | (Some(rep_data), Some(old_data)) =>
+           /* Preserve the original root_piece while updating skel/sort/base_seg */
+           term_data :=
+             Id.Map.add(
+               id,
+               {
+                 ...rep_data,
+                 root_piece: old_data.root_piece,
+               },
+               term_data^,
+             )
+         | (Some(rep_data), None) =>
+           /* Fallback: if no old entry, use rep_data as-is (shouldn't happen normally) */
+           term_data := Id.Map.add(id, rep_data, term_data^)
+         | (None, _) => ()
          };
        }
      });
