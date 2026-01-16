@@ -3,19 +3,37 @@ import {NinjaKeys} from "ninja-keys"
 import hotkeys from "hotkeys-js"
 import Algebrite from "algebrite"
 import * as Plot from "@observablehq/plot"
-import bootstrapPatchwork from "./setup-service-worker.js"
-import {registerPatchworkViewElement} from "@patchwork/elements"
-import {ModuleWatcher} from "@patchwork/filesystem"
-import {registerPlugins} from "@patchwork/plugins"
 
-const {repo} = await bootstrapPatchwork()
+import {registerPatchworkViewElement} from "@inkandswitch/patchwork-elements"
+import {
+	ModuleWatcher,
+	createFilesystemHandoffHandler,
+} from "@inkandswitch/patchwork-filesystem"
+import setup from "@inkandswitch/patchwork-bootloader"
+import {registerPlugins, getRegistry} from "@inkandswitch/patchwork-plugins"
+
+import {
+	IndexedDBStorageAdapter,
+	Repo,
+	WebSocketClientAdapter,
+} from "@automerge/vanillajs/slim"
+
+const repo = new Repo({
+	network: [new WebSocketClientAdapter("wss://sync3.automerge.org")],
+	storage: new IndexedDBStorageAdapter(),
+})
+
 window.repo = repo
 
+const handoff = createFilesystemHandoffHandler(repo)
+setup(async (href, request) => handoff(href, request))
+
 const moduleWatcher = new ModuleWatcher(
-	"automerge:4GHeCq7k1BEhPdpPDWyF2EQFXKrG",
-	["automerge:BDesnARCFFupAzaSQ9nhnTYHE3B"],
 	repo,
+	// rabbitcounter
+	["automerge:4GHeCq7k1BEhPdpPDWyF2EQFXKrG"],
 	(name, mod) => {
+		console.log("Prebundled module loaded:", name, mod)
 		if (Array.isArray(mod.plugins)) {
 			// TODO: maybe get rid of this check?
 			registerPlugins(mod.plugins, name)
@@ -23,10 +41,11 @@ const moduleWatcher = new ModuleWatcher(
 	}
 )
 
-registerPatchworkViewElement({
-	repo,
-	moduleWatcher: /** @type {ModuleWatcher} */ (/** @type {unknown} */ (null)),
-})
+// "automerge:2kbRgPyThsqsAtFsaEV83AuQtHsr"
+
+//moduleWatcher.loadModules(["automerge:4GHeCq7k1BEhPdpPDWyF2EQFXKrG"])
+
+registerPatchworkViewElement({repo})
 
 window.Algebrite = Algebrite
 window.Plot = Plot

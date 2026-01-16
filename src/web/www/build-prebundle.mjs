@@ -4,6 +4,7 @@ import {build} from "esbuild"
 import {wasmLoader} from "esbuild-plugin-wasm"
 import {fileURLToPath} from "node:url"
 import path from "node:path"
+import externals from "@inkandswitch/patchwork-bootloader/externals"
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
@@ -22,7 +23,7 @@ async function run() {
 		target: "esnext",
 		logLevel: "info",
 		plugins: [wasmLoader()],
-		external: ["@automerge/*", "@patchwork/*"],
+		external: externals,
 	})
 }
 

@@ -42,7 +42,7 @@ watch: setup-instructor
 watch-release: setup-instructor
 	dune build @src/fmt --auto-promote src --profile release --watch
 
-release: setup-instructor
+release: setup-instructors
 	dune build @src/fmt --auto-promote src --profile release
 
 release-student: setup-student
@@ -52,7 +52,7 @@ echo-html-dir:
 	@echo $(HTML_DIR)
 
 serve:
-	cd $(HTML_DIR); python3 -m http.server 8012 --bind 0.0.0.0
+	cd $(HTML_DIR); python3 -m http.server 8014 --bind 0.0.0.0
 
 hot:
 	npx vite
