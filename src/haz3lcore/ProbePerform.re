@@ -152,6 +152,17 @@ let maybe_rm_pin = (ids: list(Id.t)): (Zipper.t => Zipper.t) =>
     }
   );
 
+/* Check if there are no probes (manual or auto) remaining */
+let has_no_probes = (z: Zipper.t): bool =>
+  Id.Map.is_empty(z.refractors.manuals)
+  && Id.Map.is_empty(z.refractors.autos.ids);
+
+/* Reset the sample cursor if no probes remain.
+ * This prevents stale dynamic cursor state from showing in the sidebar
+ * when all probes have been removed. */
+let maybe_reset_cursor = (z: Zipper.t): Zipper.t =>
+  has_no_probes(z) ? SampleCursorPerform.reset(z) : z;
+
 let rm_auto =
     (~syntax: CachedSyntax.t, ~info_map: Statics.Map.t, id: Id.t, z: Zipper.t)
     : Zipper.t => {
@@ -178,7 +189,9 @@ let rm_auto =
      we'll need to remove that pin when we remove the auto */
   |> maybe_rm_pin(
        List.concat_map(ids_from_term(~syntax, ~info_map), target_ids),
-     );
+     )
+  /* Reset sample cursor if no probes remain */
+  |> maybe_reset_cursor;
 };
 
 let rm_manual = (ids: list(Id.t), z: Zipper.t): Zipper.t =>
@@ -187,7 +200,9 @@ let rm_manual = (ids: list(Id.t), z: Zipper.t): Zipper.t =>
     z,
   )
   /* If the probe has a pin we'll need to remove that too */
-  |> maybe_rm_pin(ids);
+  |> maybe_rm_pin(ids)
+  /* Reset sample cursor if no probes remain */
+  |> maybe_reset_cursor;
 
 /* Remove colliding manual probes when two end up on the same line.
  * This is called after code edits to clean up probes that were pushed
@@ -623,3 +638,20 @@ let resolve_pending_focus = (~dynamics: Dynamics.Map.t, z: Zipper.t): Zipper.t =
       z';
     }
   };
+
+/* Post-calculation probe effects: cleanup, auto-probe regeneration,
+ * step-into focus resolution, and cursor reset. Called from Editor.calculate
+ * after syntax and statics are updated. */
+let editor_effects =
+    (
+      ~syntax: CachedSyntax.t,
+      ~info_map: Statics.Map.t,
+      ~dynamics: Dynamics.Map.t,
+      z: Zipper.t,
+    )
+    : Zipper.t =>
+  z
+  |> remove_colliding_probes(~syntax)
+  |> add_ids_from_auto_term(~syntax, ~info_map)
+  |> resolve_pending_focus(~dynamics)
+  |> maybe_reset_cursor;

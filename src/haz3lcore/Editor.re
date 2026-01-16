@@ -186,20 +186,15 @@ module Update = {
         syntax,
       );
 
-    /* 3. Remove colliding probes (must be after syntax recalculation) */
-    let zipper = ProbePerform.remove_colliding_probes(~syntax, zipper);
-
-    /* 4. Update autoprobes */
+    /* 3. Probe effects: collision cleanup, auto-probe regeneration,
+     *    step-into focus resolution, and cursor reset */
     let zipper =
-      zipper
-      |> ProbePerform.add_ids_from_auto_term(
-           ~syntax,
-           ~info_map=new_statics.info_map,
-         );
-
-    /* 4. Resolve pending focus from step-into */
-    let zipper =
-      ProbePerform.resolve_pending_focus(~dynamics=new_dynamics, zipper);
+      ProbePerform.editor_effects(
+        ~syntax,
+        ~info_map=new_statics.info_map,
+        ~dynamics=new_dynamics,
+        zipper,
+      );
 
     Model.{
       state: {
