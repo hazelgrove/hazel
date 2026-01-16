@@ -7,7 +7,7 @@ type t = {
   elaborated: Exp.t,
   info_map: Statics.Map.t,
   error_ids: list(Id.t),
-  probe_map: Id.Map.t(Probe.t) /* Maps expr/pat IDs to probe metadata (refs to capture) */
+  targets: Sample.targets /* Maps expr/pat IDs to capture specs for sampling */
 };
 
 let empty: t = {
@@ -25,7 +25,7 @@ let empty: t = {
   },
   info_map: Id.Map.empty,
   error_ids: [],
-  probe_map: Id.Map.empty,
+  targets: Sample.no_targets,
 };
 
 let elaborate =
@@ -50,28 +50,29 @@ let all_probeable_ids = (info_map: Statics.Map.t): Id.Map.t(unit) =>
     Id.Map.empty,
   );
 
-/* Compute probe_map from probe_ids. For each ID, determine whether it's
- * an expression or pattern probe, then look up the appropriate refs to capture.
- * When probe_all is enabled, we probe everything in info_map that passes
+/* Compute targets from probe_ids. For each ID, determine whether it's
+ * an expression or pattern target, then look up the appropriate refs to capture.
+ * When probe_all is enabled, we target everything in info_map that passes
  * should_probe, ignoring the passed probe_ids (which are a subset anyway). */
-let probe_map =
+let compute_targets =
     (
       ~settings: CoreSettings.t,
       ~info_map: Statics.Map.t,
       ~probe_ids: Id.Map.t(unit),
-    ) => {
+    )
+    : Sample.targets => {
   let effective_probe_ids =
     settings.probe_all ? all_probeable_ids(info_map) : probe_ids;
   Id.Map.fold(
     (id, (), acc) => {
       let refs =
         switch (Statics.Map.lookup(id, info_map)) {
-        | Some(InfoExp(_)) => Statics.Map.refs_in(info_map, id) /* Expression probe */
-        | Some(InfoPat(_)) => Statics.Map.bound_in(info_map, id) /* Pattern probe */
+        | Some(InfoExp(_)) => Statics.Map.refs_in(info_map, id) /* Expression target */
+        | Some(InfoPat(_)) => Statics.Map.bound_in(info_map, id) /* Pattern target */
         | _ => [] /* Unknown - no refs */
         };
-      let probe = {Probe.refs: refs};
-      Id.Map.add(id, probe, acc);
+      let spec: Sample.capture_spec = {refs: refs};
+      Id.Map.add(id, spec, acc);
     },
     effective_probe_ids,
     Id.Map.empty,
@@ -106,13 +107,13 @@ let init_from_term =
       | Elaborates(d, _) => d
       }
     };
-  let probe_map = probe_map(~settings, ~info_map, ~probe_ids);
+  let targets = compute_targets(~settings, ~info_map, ~probe_ids);
   {
     term,
     elaborated,
     info_map,
     error_ids,
-    probe_map,
+    targets,
   };
 };
 
@@ -134,7 +135,7 @@ let init =
     Id.Map.union(
       (_, _, _) => Some(),
       Id.Map.map(_ => (), z.refractors.manuals),
-      Id.Map.map(_ => (), z.refractors.ephemerals),
+      Id.Map.map(_ => (), z.refractors.autos.ephemerals),
     );
 
   init_from_term(~settings, ~ctx?, ~is_dynamic_term, ~ana?, ~probe_ids, term);

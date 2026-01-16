@@ -22,11 +22,6 @@
   z-index: var(--projector-z);
 }
 
-.refractors .projector {
-  /* TODO(andrew) */
-  /* z-index: 1; */
-}
-
 .refractors .projector.probe.indicated {
   z-index: 11;
 }
@@ -52,6 +47,10 @@
 
 .projector > *:not(svg) {
   z-index: var(--projector-z);
+}
+
+.code-editor:not(.selected) .refractors .overlays {
+  display: none;
 }
 
 .projectors .overlays .projector,

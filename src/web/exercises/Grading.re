@@ -255,7 +255,7 @@ module TestValidationReport = {
 };
 
 module MutationTestingReport = {
-  type t = {results: list((TestStatus.t, string))};
+  type t = {results: list((TestStatus.t, hint))};
 
   let hidden_bug_status =
       (
@@ -501,7 +501,7 @@ module MutationTestingReport = {
   let individual_report =
       (
         ~i: int,
-        ~hint: string,
+        ~hint: hint,
         ~status,
         ~editing_mut_test_rep,
         ~globals: Globals.t,
@@ -722,7 +722,7 @@ module SyntaxReport = {
   let individual_report =
       (
         i: int,
-        hint: string,
+        hint: hint,
         status: bool,
         ~editing_syntax_rep,
         ~globals: Globals.t,
@@ -775,7 +775,7 @@ module SyntaxReport = {
 
   let individual_reports =
       (
-        hinted_results: list((bool, string)),
+        hinted_results: list((bool, hint)),
         ~editing_syntax_rep,
         ~globals,
         ~select_textbox,
@@ -901,12 +901,12 @@ module SyntaxReport = {
 
 module ImplGradingReport = {
   type t = {
-    hints: list(string),
+    hints: list(hint),
     test_results: option(TestResults.t),
-    hinted_results: list((TestStatus.t, string)),
+    hinted_results: list((TestStatus.t, hint)),
   };
 
-  let mk = (~hints: list(string), ~test_results: option(TestResults.t)): t => {
+  let mk = (~hints: list(hint), ~test_results: option(TestResults.t)): t => {
     let hinted_results =
       switch (test_results) {
       | Some(test_results) =>
@@ -998,7 +998,7 @@ module ImplGradingReport = {
       (
         i,
         ~signal_jump,
-        ~hint: string,
+        ~hint: hint,
         ~status,
         (id, _),
         ~editing_impl_grd_rep,
@@ -1091,7 +1091,7 @@ module ImplGradingReport = {
        * for example due to a stack overflow, which may occur in normal operation  */
       div(
         report.hinted_results
-        |> List.mapi((i, (status, hint)) =>
+        |> List.mapi((i, (status, hint: hint)) =>
              individual_report(
                i,
                ~signal_jump,

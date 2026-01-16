@@ -20,15 +20,13 @@ let strip_wrap =
     ~f_exp=
       (cont: TermBase.exp_t => TermBase.exp_t, e: TermBase.exp_t) =>
         switch (e.term) {
-        | Parens(e)
-        | Probe(e, _) => cont(e)
+        | Parens(e) => cont(e)
         | _ => cont(e)
         },
     ~f_pat=
       (cont, e) =>
         switch (e.term) {
-        | Parens(e)
-        | Probe(e, _) => cont(e)
+        | Parens(e) => cont(e)
         | _ => cont(e)
         },
     ~f_typ=

@@ -1148,17 +1148,7 @@ let out : string * Haz3lcore.PersistentSegment.t =
          fun e ->e.quiz2)\n\
          in ^^probe(result)";
       refractors =
-        "((88773fa9-8d95-4b3b-a38a-0ce37638c239((id \
-         88773fa9-8d95-4b3b-a38a-0ce37638c239)(kind Probe)(syntax(Tile((id \
-         07b0c3e5-09a3-4e85-91c8-dcfe5b992bd0)(label(\"(\"\")\"))(mold((out \
-         Any)(in_(Any))(nibs(((shape Convex)(sort Any))((shape Convex)(sort \
-         Any))))))(shards(0 1))(children(((Grout((id \
-         00000000-0000-0000-0000-000000000000)(shape \
-         Convex)))))))))(model\"()\")))(f3eb529a-1bd2-4268-b958-b5e0fba67c26((id \
-         f3eb529a-1bd2-4268-b958-b5e0fba67c26)(kind Probe)(syntax(Tile((id \
-         3bfbef24-cfd4-4d25-88bd-cf39f530ac01)(label(\"(\"\")\"))(mold((out \
-         Any)(in_(Any))(nibs(((shape Convex)(sort Any))((shape Convex)(sort \
-         Any))))))(shards(0 1))(children(((Grout((id \
-         00000000-0000-0000-0000-000000000000)(shape \
-         Convex)))))))))(model\"()\"))))";
+        "((88773fa9-8d95-4b3b-a38a-0ce37638c239((kind \
+         Probe)(model\"()\")))(f3eb529a-1bd2-4268-b958-b5e0fba67c26((kind \
+         Probe)(model\"()\"))))";
     } )

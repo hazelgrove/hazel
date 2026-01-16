@@ -5,30 +5,8 @@ type caret =
   | Outer
   | Inner(int);
 
-module Refractor = {
-  module Map = {
-    [@deriving (show({with_path: false}), sexp, yojson, eq)]
-    type t = Id.Map.t(Base.projector);
-    let empty = Id.Map.empty;
-  };
-
-  [@deriving (show({with_path: false}), sexp, yojson, eq)]
-  type t = {
-    manuals: Map.t,
-    autos: list(Id.t),
-    ephemerals: Map.t,
-    dyn_cursor: Language.DynCursor.t,
-  };
-  let init = {
-    manuals: Id.Map.empty,
-    autos: [],
-    ephemerals: Id.Map.empty,
-    dyn_cursor: Language.DynCursor.init,
-  };
-
-  let persist = (refractors: t): string =>
-    refractors.manuals |> Map.sexp_of_t |> Sexplib.Sexp.to_string;
-};
+/* Refractor state extracted to Refractors.re - see state location docs there */
+module Refractor = Refractors;
 
 // assuming single backpack, shards may appear in selection, backpack, or siblings
 [@deriving (show({with_path: false}), sexp, yojson, eq)]
@@ -53,11 +31,17 @@ let update_manuals = (f, z: t): t => {
   },
 };
 
+let add_manual = (id: Id.t, kind: ProjectorCore.Kind.t, z: t): t =>
+  update_manuals(Id.Map.add(id, Refractors.mk_entry(kind)), z);
+
 let update_ephemerals = (f, z: t): t => {
   ...z,
   refractors: {
     ...z.refractors,
-    ephemerals: f(z.refractors.ephemerals),
+    autos: {
+      ...z.refractors.autos,
+      ephemerals: f(z.refractors.autos.ephemerals),
+    },
   },
 };
 
