@@ -222,7 +222,6 @@ module Shortcuts = {
 let manual_probe_data =
     (
       ~can_probe: bool,
-      ~has_statics: bool,
       probe_status: ProbePerform.probe_status,
       ci: option(Language.Info.t),
     )
@@ -231,12 +230,11 @@ let manual_probe_data =
   | Some(InfoExp(_) | InfoPat(_)) when can_probe => [
       {
         name:
-          switch (probe_status, has_statics) {
-          | (Manual(_), false) => "Remove probe"
-          | (Manual(_), true)
-          | (REPL, _)
-          | (Non, true) => "Switch to manual"
-          | (Non, false) => "Add probe"
+          switch (probe_status) {
+          | Manual(_) => "Remove probe"
+          | Statics(_)
+          | Auto => "Switch to manual"
+          | Non => "Add probe"
           },
         shortcut: Some(Shortcuts.manual_probe()),
         action: Probe(ToggleManual),
@@ -248,7 +246,6 @@ let manual_probe_data =
 let auto_probe_data =
     (
       ~can_probe: bool,
-      ~has_statics: bool,
       probe_status: ProbePerform.probe_status,
       ci: option(Language.Info.t),
     )
@@ -257,12 +254,11 @@ let auto_probe_data =
   | Some(InfoExp(_)) when can_probe => [
       {
         name:
-          switch (probe_status, has_statics) {
-          | (Manual(_), _)
-          | (REPL, true)
-          | (Non, true) => "Switch to auto"
-          | (REPL, false) => "Remove auto probe"
-          | (Non, false) => "Add auto probe"
+          switch (probe_status) {
+          | Manual(_)
+          | Statics(_) => "Switch to auto"
+          | Auto => "Remove auto probe"
+          | Non => "Add auto probe"
           },
         shortcut: Some(Shortcuts.auto_probe()),
         action: Probe(ToggleAuto),
@@ -274,7 +270,6 @@ let auto_probe_data =
 let type_annotation_data =
     (
       ~can_type: bool,
-      ~has_statics: bool,
       probe_status: ProbePerform.probe_status,
       ci: option(Language.Info.t),
     )
@@ -283,11 +278,11 @@ let type_annotation_data =
   | Some(InfoExp(_) | InfoPat(_)) when can_type => [
       {
         name:
-          switch (has_statics, probe_status) {
-          | (true, _) => "Remove statics"
-          | (false, Manual(_))
-          | (false, REPL) => "Switch to statics"
-          | (false, Non) => "Add statics"
+          switch (probe_status) {
+          | Statics(_) => "Remove statics"
+          | Manual(_)
+          | Auto => "Switch to statics"
+          | Non => "Add statics"
           },
         shortcut: Some(Shortcuts.type_annotation()),
         action: Probe(ToggleStatics),
@@ -478,15 +473,9 @@ let refractor_actions_data =
   let probe_status = ProbePerform.probe_status(id, info_map, z.refractors);
   let can_probe = ProbePerform.can_probe(id, info_map);
   let can_statics = ProbePerform.can_statics(id, info_map);
-  let has_statics = ProbePerform.has_statics(id, info_map, z.refractors);
-  manual_probe_data(~can_probe, ~has_statics, probe_status, ci)
-  @ auto_probe_data(~can_probe, ~has_statics, probe_status, ci)
-  @ type_annotation_data(
-      ~can_type=can_statics,
-      ~has_statics,
-      probe_status,
-      ci,
-    );
+  manual_probe_data(~can_probe, probe_status, ci)
+  @ auto_probe_data(~can_probe, probe_status, ci)
+  @ type_annotation_data(~can_type=can_statics, probe_status, ci);
 };
 
 /*

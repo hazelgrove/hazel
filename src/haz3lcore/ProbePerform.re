@@ -87,12 +87,8 @@ let rec target_subterm_ids = (id: Id.t, info_map: Statics.Map.t) =>
       ]
     | _ => [id]
     }
-  /* Disallow probing deferrals and labels for now as it's not useful
-     and it also breaks parsing */
-  | Some(InfoExp({term: {term: Deferral(_) | Label(_), _}, _})) => []
-  | Some(InfoExp({term: {term: TyAlias(_), _}, _})) => []
-  /* Disallow probing types pending alexander's stuff */
-  | Some(InfoTyp(_) | InfoTPat(_)) => []
+  /* Filter out terms that can't meaningfully be probed */
+  | info when !Info.is_typable_term(info) => []
   /* Default: use rep_id for expressions and patterns to handle multi-tile forms
      (tuples, list literals, case expressions) where non-representative tile IDs
      would otherwise cause probe_map/evaluator ID mismatch */
@@ -102,38 +98,36 @@ let rec target_subterm_ids = (id: Id.t, info_map: Statics.Map.t) =>
   };
 
 type probe_status =
-  | Manual(list(Id.t)) /* If a function literal, ids are pat and body ids */
-  | REPL
+  | Manual(list(Id.t)) /* manual probe; ids are target IDs (for fun literals: pat and body) */
+  | Statics(list(Id.t)) /* statics annotation; ids are target IDs */
+  | Auto
   | Non;
 
 let probe_status =
     (id: Id.t, info_map: Statics.Map.t, refractors: Zipper.Refractor.t)
     : probe_status => {
   let target_ids = target_subterm_ids(id, info_map);
-  /* For manual: check if ALL target IDs have manual probes */
-  List.for_all(id => Id.Map.mem(id, refractors.manuals), target_ids)
-    ? Manual(target_ids)
-    /* For REPL: check if ANY target ID is an auto probe anchor */
-    : List.exists(id => Id.Map.mem(id, refractors.autos.ids), target_ids)
-        ? REPL : Non;
-};
-
-/* Check if the indicated term has statics refractors.
-   Uses target_subterm_ids to handle function literals where refractors
-   are stored on sub-terms (pattern and body) rather than the literal itself. */
-let has_statics =
-    (id: Id.t, info_map: Statics.Map.t, refractors: Zipper.Refractor.t)
-    : bool => {
-  let target_ids = target_subterm_ids(id, info_map);
-  target_ids != []
-  && List.for_all(
-       target_id =>
-         switch (Id.Map.find_opt(target_id, refractors.manuals)) {
-         | Some(entry: Refractors.entry) => entry.kind == Statics
-         | None => false
-         },
-       target_ids,
-     );
+  /* For manual/statics: check if ALL target IDs have manual entries */
+  if (List.for_all(id => Id.Map.mem(id, refractors.manuals), target_ids)
+      && target_ids != []) {
+    /* Distinguish between probe and statics by checking kind */
+    let all_statics =
+      List.for_all(
+        id =>
+          switch (Id.Map.find_opt(id, refractors.manuals)) {
+          | Some(entry: Refractors.entry) => entry.kind == Statics
+          | None => false
+          },
+        target_ids,
+      );
+    all_statics ? Statics(target_ids) : Manual(target_ids);
+  } else if
+    /* For Auto: check if ANY target ID is an auto probe anchor */
+    (List.exists(id => Id.Map.mem(id, refractors.autos.ids), target_ids)) {
+    Auto;
+  } else {
+    Non;
+  };
 };
 
 let ids_from_term =
@@ -289,26 +283,14 @@ let toggle_manual =
     (~syntax: CachedSyntax.t, id: Id.t, ~info_map: Statics.Map.t, z: Zipper.t)
     : Zipper.t =>
   switch (probe_status(id, info_map, z.refractors)) {
-  | REPL =>
+  | Auto =>
     rm_auto(~syntax, ~info_map, id, z) |> add_manual(~syntax, id, info_map)
+  | Statics(ids) =>
+    /* Switch from statics to manual probe */
+    rm_manual(ids, z) |> add_manual(~syntax, id, info_map)
   | Manual(ids) =>
-    /* Check if the manual refractor is statics or probe */
-    let is_statics =
-      List.exists(
-        id =>
-          switch (Id.Map.find_opt(id, z.refractors.manuals)) {
-          | Some(entry: Refractors.entry) => entry.kind == Statics
-          | None => false
-          },
-        ids,
-      );
-    if (is_statics) {
-      /* Switch from statics to manual probe */
-      rm_manual(ids, z) |> add_manual(~syntax, id, info_map);
-    } else {
-      /* Remove manual probe */
-      rm_manual(ids, z);
-    };
+    /* Remove manual probe */
+    rm_manual(ids, z)
   | Non => add_manual(~syntax, id, info_map, z)
   };
 
@@ -353,8 +335,9 @@ let toggle_auto =
     (~syntax: CachedSyntax.t, id: Id.t, info_map: Statics.Map.t, z: Zipper.t)
     : Zipper.t =>
   switch (probe_status(id, info_map, z.refractors)) {
-  | REPL => rm_auto(~syntax, ~info_map, id, z)
-  | Manual(ids) => rm_manual(ids, z) |> add_auto(id, ~syntax, ~info_map)
+  | Auto => rm_auto(~syntax, ~info_map, id, z)
+  | Manual(ids)
+  | Statics(ids) => rm_manual(ids, z) |> add_auto(id, ~syntax, ~info_map)
   | Non =>
     /* Use same gating as manual probes: if target_subterm_ids returns [],
        the term is not probeable. */
@@ -468,8 +451,9 @@ let step_into_sample =
   /* Add auto probe on function body if not already probed */
   let z =
     switch (probe_status(body_id, info_map, z.refractors)) {
-    | REPL => z
-    | Manual(_) => z
+    | Auto
+    | Manual(_)
+    | Statics(_) => z
     | Non => add_auto(body_id, ~syntax, ~info_map, z)
     };
 
@@ -527,17 +511,9 @@ let rm_probes_in_selection =
      );
 };
 
-/* Check if type annotation is allowed for the given id.
-   Type annotations can be placed on expressions and patterns,
-   but not on types, type patterns, deferrals, labels, or type aliases. */
+/* Check if type annotation is allowed for the given id. */
 let can_statics = (id: Id.t, info_map: Statics.Map.t): bool =>
-  switch (Statics.Map.lookup(id, info_map)) {
-  | Some(InfoExp({term: {term: Deferral(_) | Label(_) | TyAlias(_), _}, _})) =>
-    false
-  | Some(InfoTyp(_) | InfoTPat(_)) => false
-  | Some(InfoExp(_) | InfoPat(_)) => true
-  | _ => false
-  };
+  Info.is_typable_term(Statics.Map.lookup(id, info_map));
 
 /* Toggle type annotation on the indicated term.
    Unlike probes, type annotations don't support auto mode or pins. */
@@ -548,51 +524,25 @@ let toggle_statics =
     z;
   } else {
     let target_ids = target_subterm_ids(id, info_map);
-    switch (probe_status(id, info_map, z.refractors)) {
-    | Manual(ids) =>
-      /* Check if the manual refractor is statics or probe */
-      let is_statics =
-        List.exists(
-          id =>
-            switch (Id.Map.find_opt(id, z.refractors.manuals)) {
-            | Some(entry: Refractors.entry) => entry.kind == Statics
-            | None => false
-            },
-          ids,
-        );
-      if (is_statics) {
-        /* Remove statics */
-        rm_manual(ids, z);
-      } else {
-        /* Switch from manual probe to statics */
-        rm_manual(ids, z)
-        |> (
-          z =>
-            List.fold_left(
-              (z, id) => Zipper.add_manual(id, Statics, z),
-              z,
-              target_ids,
-            )
-        );
-      };
-    | REPL =>
-      /* Switch from auto probe to statics */
-      rm_auto(~syntax, ~info_map, id, z)
-      |> (
-        z =>
-          List.fold_left(
-            (z, id) => Zipper.add_manual(id, Statics, z),
-            z,
-            target_ids,
-          )
-      )
-    | Non =>
-      /* Add statics */
+    let add_statics = z =>
       List.fold_left(
         (z, id) => Zipper.add_manual(id, Statics, z),
         z,
         target_ids,
-      )
+      );
+    switch (probe_status(id, info_map, z.refractors)) {
+    | Statics(ids) =>
+      /* Remove statics */
+      rm_manual(ids, z)
+    | Manual(ids) =>
+      /* Switch from manual probe to statics */
+      rm_manual(ids, z) |> add_statics
+    | Auto =>
+      /* Switch from auto probe to statics */
+      rm_auto(~syntax, ~info_map, id, z) |> add_statics
+    | Non =>
+      /* Add statics */
+      add_statics(z)
     };
   };
 
