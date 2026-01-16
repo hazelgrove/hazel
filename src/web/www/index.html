@@ -1,95 +1,65 @@
 <!doctype html>
 <html lang="en" translate="no">
-	<head>
-		<meta charset="utf-8" />
-		<meta http-equiv="X-UA-Compatible" content="IE=edge" />
-		<meta
-			name="viewport"
-			content="width=device-width, initial-scale=1, shrink-to-fit=no"
-		/>
-		<!-- The above 3 meta tags *must* come first in the head; any other head content must come *after* these tags -->
-		<script type="importmap">
+
+<head>
+	<meta charset="utf-8" />
+	<meta http-equiv="X-UA-Compatible" content="IE=edge" />
+	<meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no" />
+	<!-- The above 3 meta tags *must* come first in the head; any other head content must come *after* these tags -->
+	<script type="importmap">
 			{
 				"imports": {
 					"DEV": "data:text/javascript,export%20const%20DEV%20=%20true;",
-					"@automerge/automerge": "https://gaios.sgai.uk/packages/@automerge/automerge/index.js",
+					"@automerge/automerge": "https://gaios.sgai.uk/packages/@automerge/automerge.js",
 					"@automerge/automerge/slim": "https://gaios.sgai.uk/packages/@automerge/automerge/slim.js",
-					"@automerge/automerge-repo": "https://gaios.sgai.uk/packages/@automerge/automerge-repo/index.js",
+					"@automerge/automerge-repo": "https://gaios.sgai.uk/packages/@automerge/automerge-repo.js",
 					"@automerge/automerge-repo/slim": "https://gaios.sgai.uk/packages/@automerge/automerge-repo/slim.js",
-					"@automerge/vanillajs": "https://gaios.sgai.uk/packages/@automerge/vanillajs/index.js",
-					"@automerge/vanillajs/slim": "https://gaios.sgai.uk/packages/@automerge/vanillajs/slim.js",
-					"@keyhive/keyhive": "https://gaios.sgai.uk/packages/@keyhive/keyhive/index.js",
+					"@automerge/automerge-repo-keyhive": "https://gaios.sgai.uk/packages/@automerge/automerge-repo-keyhive.js",
+					"@automerge/vanillajs": "https://esm.sh/@automerge/vanillajs",
+					"@keyhive/keyhive": "https://gaios.sgai.uk/packages/@keyhive/keyhive.js",
 					"@keyhive/keyhive/slim": "https://gaios.sgai.uk/packages/@keyhive/keyhive/slim.js",
-					"@keyhive/keyhive/keyhive_wasm.base64.js": "https://gaios.sgai.uk/packages/@keyhive/keyhive/keyhive_wasm.base64.js",
-					"@codemirror/language": "https://gaios.sgai.uk/packages/@codemirror/language/index.js",
-					"@codemirror/view": "https://gaios.sgai.uk/packages/@codemirror/view/index.js",
-					"@codemirror/state": "https://gaios.sgai.uk/packages/@codemirror/state/index.js",
-					"@patchwork/plugins": "https://gaios.sgai.uk/packages/@patchwork/plugins/index.js",
-					"@patchwork/context": "https://gaios.sgai.uk/packages/@patchwork/context/index.js",
-					"@patchwork/context-selection": "https://gaios.sgai.uk/packages/@patchwork/context-selection/index.js",
-					"@patchwork/context-react": "https://gaios.sgai.uk/packages/@patchwork/context-react/index.js",
-					"@patchwork/context-diff": "https://gaios.sgai.uk/packages/context-diff/index.js",
-					"@patchwork/context-comments": "https://gaios.sgai.uk/packages/context-comments/index.js",
-					"@patchwork/context-solid": "https://gaios.sgai.uk/packages/context-solid/index.js",
-					"@patchwork/filesystem": "https://gaios.sgai.uk/packages/@patchwork/filesystem/index.js",
-					"@patchwork/elements": "https://gaios.sgai.uk/packages/@patchwork/elements/index.js",
-					"@automerge/automerge-repo-react-hooks": "https://gaios.sgai.uk/packages/@automerge/automerge-repo-react-hooks/index.js",
-					"react": "https://gaios.sgai.uk/packages/react/index.js",
-					"react/jsx-runtime": "https://gaios.sgai.uk/packages/react/jsx-runtime.js",
-					"react-dom": "https://gaios.sgai.uk/packages/react-dom/index.js",
-					"react-dom/client": "https://gaios.sgai.uk/packages/react-dom/client.js",
-					"react-dom/server": "https://gaios.sgai.uk/packages/react-dom/server.js",
-					"signia": "https://gaios.sgai.uk/packages/signia/index.js",
-					"scheduler": "https://gaios.sgai.uk/packages/scheduler/index.js",
-					"solid-js": "https://gaios.sgai.uk/packages/solid-js/index.js",
-					"solid-js/store": "https://gaios.sgai.uk/packages/solid-js/store.js",
-					"solid-js/html": "https://gaios.sgai.uk/packages/solid-js/html.js",
-					"solid-js/h": "https://gaios.sgai.uk/packages/solid-js/h.js",
-					"solid-js/web": "https://gaios.sgai.uk/packages/solid-js/web.js"
+					"@inkandswitch/patchwork-bootloader": "https://gaios.sgai.uk/packages/@inkandswitch/patchwork-bootloader.js",
+					"@inkandswitch/patchwork-elements": "https://gaios.sgai.uk/packages/@inkandswitch/patchwork-elements.js",
+					"@inkandswitch/patchwork-filesystem": "https://gaios.sgai.uk/packages/@inkandswitch/patchwork-filesystem.js",
+					"@inkandswitch/patchwork-plugins": "https://gaios.sgai.uk/packages/@inkandswitch/patchwork-plugins.js",
+					"@codemirror/state": "https://gaios.sgai.uk/packages/@codemirror/state.js",
+					"@codemirror/view": "https://gaios.sgai.uk/packages/@codemirror/view.js",
+					"@codemirror/language": "https://gaios.sgai.uk/packages/@codemirror/language.js",
+					"solid-js": "/packages/solid-js.js"
 				},
 				"scopes": {}
 			}
 		</script>
-		<title>hazel</title>
-		<link rel="stylesheet" href="style.css" />
-		<link rel="icon" type="image/svg" href="img/hazelnut.svg" />
-		<link rel="preconnect" href="https://fonts.gstatic.com/" crossorigin />
-		<link
-			href="https://fonts.googleapis.com/css?family=Material+Icons&display=swap"
-			rel="stylesheet"
-		/>
-		<style>
-			patchwork-view {
-				display: flow-root;
-				height: 100vh;
-				width: 100vw;
-			}
-		</style>
-		<script type="module" src="bundled.js"></script>
-	</head>
+	<title>hazel</title>
+	<link rel="stylesheet" href="style.css" />
+	<link rel="icon" type="image/svg" href="img/hazelnut.svg" />
+	<link rel="preconnect" href="https://fonts.gstatic.com/" crossorigin />
+	<link href="https://fonts.googleapis.com/css?family=Material+Icons&display=swap" rel="stylesheet" />
+	<style>
+		patchwork-view {
+			display: flow-root;
+			height: 100vh;
+			width: 100vw;
+		}
+	</style>
+	<script type="module" src="bundled.js"></script>
+</head>
 
-	<body spellcheck="false">
-		<div id="container">
-			<div class="loading">
-				<div class="spinner">
-					<div class="loader"></div>
-					<div class="nut-container">
-						<img class="spinner-nut" src="img/hazelnut.svg" />
-					</div>
+<body spellcheck="false">
+	<div id="container">
+		<div class="loading">
+			<div class="spinner">
+				<div class="loader"></div>
+				<div class="nut-container">
+					<img class="spinner-nut" src="img/hazelnut.svg" />
 				</div>
-				loading
 			</div>
+			loading
 		</div>
-		<patchwork-view
-			doc-url="automerge:37k38yonqJMNrLiRw7w38HBKwx9b"
-			tool-id="hazeldoc"
-		></patchwork-view>
-	</body>
-	<ninja-keys
-		id="ninja-keys"
-		placeholder="Find Action"
-		hideBreadcrumbs
-	></ninja-keys>
+	</div>
+</body>
+<ninja-keys id="ninja-keys" placeholder="Find Action" hideBreadcrumbs></ninja-keys>
 
-	<script src="hazel.js"></script>
+<script src="hazel.js"></script>
+
 </html>
