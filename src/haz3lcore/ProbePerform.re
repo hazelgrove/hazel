@@ -118,6 +118,24 @@ let probe_status =
         ? REPL : Non;
 };
 
+/* Check if the indicated term has statics refractors.
+   Uses target_subterm_ids to handle function literals where refractors
+   are stored on sub-terms (pattern and body) rather than the literal itself. */
+let has_statics =
+    (id: Id.t, info_map: Statics.Map.t, refractors: Zipper.Refractor.t)
+    : bool => {
+  let target_ids = target_subterm_ids(id, info_map);
+  target_ids != []
+  && List.for_all(
+       target_id =>
+         switch (Id.Map.find_opt(target_id, refractors.manuals)) {
+         | Some(entry: Refractors.entry) => entry.kind == Statics
+         | None => false
+         },
+       target_ids,
+     );
+};
+
 let ids_from_term =
     (~syntax: CachedSyntax.t, ~info_map, id: Id.t): list(Id.t) =>
   AutoProbe.ids_to_autoprobe(

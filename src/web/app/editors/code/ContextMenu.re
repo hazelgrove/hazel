@@ -478,10 +478,7 @@ let refractor_actions_data =
   let probe_status = ProbePerform.probe_status(id, info_map, z.refractors);
   let can_probe = ProbePerform.can_probe(id, info_map);
   let can_statics = ProbePerform.can_statics(id, info_map);
-  let has_statics =
-    Id.Map.find_opt(id, z.refractors.manuals)
-    |> Option.map((e: Refractors.entry) => e.kind == Statics)
-    |> Option.value(~default=false);
+  let has_statics = ProbePerform.has_statics(id, info_map, z.refractors);
   manual_probe_data(~can_probe, ~has_statics, probe_status, ci)
   @ auto_probe_data(~can_probe, ~has_statics, probe_status, ci)
   @ type_annotation_data(
