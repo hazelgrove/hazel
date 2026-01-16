@@ -59,4 +59,8 @@ hazel.opam.locked.old
 
 # Code coverage
 _coverage/
-node_modules/** 
+node_modules/**
+node_modules
+
+# Claude Code
+.claude/

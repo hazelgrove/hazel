@@ -696,6 +696,9 @@ let last_string =
 let sort_of = (skel: Skel.t, seg: t): Sort.t =>
   Skel.root(skel) |> Aba.first_a |> List.nth(seg) |> Piece.sort |> fst;
 
+let root_id = (skel: Skel.t, seg: t): Id.t =>
+  skel |> Skel.root |> Util.Aba.first_a |> List.nth(seg) |> Piece.id;
+
 let rec deep_tile_complete = (seg: t): bool =>
   List.for_all(
     t => Tile.is_complete(t) && List.for_all(deep_tile_complete, t.children),

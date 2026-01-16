@@ -116,7 +116,7 @@ let is_comma = (p: Piece.t): bool =>
 
 let is_case_rule = (p: Piece.t): bool =>
   switch (p) {
-  | Tile({label: ["|"], _}) => true /* hack to reduce case-rule entry jank */
+  //| Tile({label: ["|"], _}) => true /* hack to reduce case-rule entry jank */
   | Tile({label: ["|", "=>"], _}) => true
   | _ => false
   };

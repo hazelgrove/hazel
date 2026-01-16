@@ -694,11 +694,7 @@ let out : string * Haz3lcore.PersistentSegment.t =
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children()))))))))(Secondary((id \
          6e90a16c-b16f-440f-b328-998e42aefea1)(content(Whitespace\"\\n\")))))))))(Secondary((id \
-         6a92a536-1d0e-4c6b-a59e-1b674fc6c5ac)(content(Whitespace\"\\n\"))))(Projector((id \
-         923ee14c-5e5e-4686-8a72-098b78c65058)(kind Probe)(syntax(Tile((id \
-         97f8c329-e3ae-4b80-b974-14ed49cbd3f0)(label(\"(\"\")\"))(mold((out \
-         Exp)(in_(Exp))(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
-         Exp))))))(shards(0 1))(children(((Tile((id \
+         6a92a536-1d0e-4c6b-a59e-1b674fc6c5ac)(content(Whitespace\"\\n\"))))(Tile((id \
          882a41eb-9434-48ac-bde2-0fe624343f5d)(label(dot_product))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Tile((id \
@@ -723,7 +719,7 @@ let out : string * Haz3lcore.PersistentSegment.t =
          \"))))(Tile((id \
          63888a87-deb9-4bee-a178-74362b5be7c4)(label(\"\\\"quiz2\\\"\"))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
-         Exp))))))(shards(0))(children()))))))))))))))(model\"()\")))(Tile((id \
+         Exp))))))(shards(0))(children()))))))))(Tile((id \
          f3cde656-8203-4dab-beef-82824279f630)(label(\";\"))(mold((out \
          Exp)(in_())(nibs(((shape(Concave 38))(sort Exp))((shape(Concave \
          38))(sort Exp))))))(shards(0))(children())))(Secondary((id \
@@ -1117,14 +1113,10 @@ let out : string * Haz3lcore.PersistentSegment.t =
          Exp))))))(shards(0))(children()))))))))(Secondary((id \
          2d54a7b1-24ba-4dbb-85d4-4f0ba605e8b8)(content(Whitespace\"\\n\")))))))))(Secondary((id \
          6db778d1-6a16-4552-ab0c-fd864852381a)(content(Whitespace\" \
-         \"))))(Projector((id b3097532-9fc4-42ee-a3c1-060de3c72103)(kind \
-         Probe)(syntax(Tile((id \
-         b36b6762-56e9-4d47-be8f-b420b8017fc8)(label(\"(\"\")\"))(mold((out \
-         Exp)(in_(Exp))(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
-         Exp))))))(shards(0 1))(children(((Tile((id \
+         \"))))(Tile((id \
          f3eb529a-1bd2-4268-b958-b5e0fba67c26)(label(result))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
-         Exp))))))(shards(0))(children())))))))))(model\"()\"))))";
+         Exp))))))(shards(0))(children()))))";
       backup_text =
         "type GradebookEntry = (name=String, age=Int, quiz1=Int, quiz2=Int, \
          midterm=Int, quiz3=Int, quiz4=Int, final=Int) in\n\
@@ -1155,4 +1147,8 @@ let out : string * Haz3lcore.PersistentSegment.t =
          fun e ->e.quiz1,\n\
          fun e ->e.quiz2)\n\
          in ^^probe(result)";
+      refractors =
+        "((88773fa9-8d95-4b3b-a38a-0ce37638c239((kind \
+         Probe)(model\"()\")))(f3eb529a-1bd2-4268-b958-b5e0fba67c26((kind \
+         Probe)(model\"()\"))))";
     } )

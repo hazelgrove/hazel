@@ -30,7 +30,12 @@ let format_hazel = path => {
   print_endline(Print.print(parsed));
 };
 
-let analyze_hazel = path => {
+let analyze_hazel =
+    (path: string)
+    : [>
+        | `Error(bool, string)
+        | `Ok(unit)
+      ] => {
   let program = read_input(path);
   let parsed = parse_program(program);
   open Language;
@@ -46,6 +51,43 @@ let analyze_hazel = path => {
     List.iter(error => print_endline(Info.show_error(error)), errors);
     prerr_endline("");
     `Error((false, "Static errors found"));
+  };
+};
+
+/* Parse program and return zipper (preserving projectors like probes) */
+let parse_to_zipper = (s: string): option(Haz3lcore.Zipper.t) =>
+  Haz3lcore.Parser.to_zipper(s);
+
+/* Run program with probes and display results inline */
+let probe_hazel = (many: bool, path: string): unit => {
+  let program = read_input(path);
+  switch (parse_to_zipper(program)) {
+  | None => prerr_endline("Failed to parse program")
+  | Some(zipper) =>
+    /* Get the segment */
+    let segment =
+      Haz3lcore.Zipper.unselect_and_zip(~erase_buffer=true, zipper);
+
+    /* Get refractors (where probes are stored) */
+    let refractors = zipper.refractors.manuals;
+
+    /* Get term for evaluation */
+    let term = Haz3lcore.MakeTerm.from_zip_for_sem(zipper).term;
+
+    /* Evaluate and collect probe samples */
+    let (_, probe_map) = Run.evaluate_with_probes(term);
+
+    /* Format output with probe values */
+    let window: Language.Sample.Window.mode =
+      many ? Language.Sample.Window.Many : Language.Sample.Window.Single;
+    let output =
+      Haz3lcore.ProbeText.of_segment(
+        ~window,
+        ~probe_map,
+        ~refractors,
+        segment,
+      );
+    print_endline(output);
   };
 };
 
@@ -81,11 +123,21 @@ let analyze_cmd = {
   Cmd.v(info, Term.ret(Term.(const(analyze_hazel) $ input_arg)));
 };
 
+let probe_cmd = {
+  let doc = "Run a Hazel program and display probe values inline.";
+  let many_arg = {
+    let doc = "Show multiple sample values per probe (many mode).";
+    Arg.(value & flag & info(["many", "m"], ~doc));
+  };
+  let info = Cmd.info("probe", ~doc);
+  Cmd.v(info, Term.(const(probe_hazel) $ many_arg $ input_arg));
+};
+
 /* Default to help if no subcommand is given */
 let default_cmd = {
   let doc = "CLI tool for running and analyzing Hazel programs.";
   let info = Cmd.info("hazel", ~doc);
-  Cmd.group(info, [run_cmd, format_cmd, analyze_cmd]);
+  Cmd.group(info, [run_cmd, format_cmd, analyze_cmd, probe_cmd]);
 };
 
 let () = exit(Cmd.eval(default_cmd));
