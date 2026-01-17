@@ -9,16 +9,24 @@ module Settings = {
   type t = {
     inline: bool,
     fold_case_clauses: bool,
-    fold_fn_bodies: bool,
+    fold_fn_bodies: [
+      | `Fold
+      | `Text
+      | `NoFold
+    ],
     hide_fixpoints: bool,
     show_filters: bool,
     show_unknown_as_hole: bool,
   };
 
-  let of_core = (~inline, settings: CoreSettings.t) => {
+  let of_core = (~inline, ~fold_fn_bodies=?, settings: CoreSettings.t) => {
     inline,
     fold_case_clauses: !settings.evaluation.show_case_clauses,
-    fold_fn_bodies: !settings.evaluation.show_fn_bodies,
+    fold_fn_bodies:
+      fold_fn_bodies
+      |> Option.value(
+           ~default=settings.evaluation.show_fn_bodies ? `NoFold : `Fold,
+         ),
     hide_fixpoints: !settings.evaluation.show_fixpoints,
     show_filters: settings.evaluation.show_stepper_filters,
     show_unknown_as_hole: true,
@@ -28,7 +36,7 @@ module Settings = {
     {
       inline,
       fold_case_clauses: false,
-      fold_fn_bodies: false,
+      fold_fn_bodies: `NoFold,
       hide_fixpoints: false,
       show_filters: true,
       show_unknown_as_hole: true,
@@ -66,6 +74,7 @@ let rec external_precedence = (exp: Exp.t): Precedence.t => {
   | ListLit(_)
   | Test(_)
   | HintedTest(_)
+  | ProofObject(_)
   | Match(_) => Precedence.max
 
   // Other forms
@@ -83,7 +92,8 @@ let rec external_precedence = (exp: Exp.t): Precedence.t => {
   | If(_) => Precedence.if_
   | TypFun(_)
   | Fun(_)
-  | FixF(_) => Precedence.fun_
+  | FixF(_)
+  | Forall(_) => Precedence.fun_
   | Tuple(_) => Precedence.prod
   | Seq(_) => Precedence.semi
   | TupleExtension(_, _) => Precedence.plus
@@ -93,7 +103,8 @@ let rec external_precedence = (exp: Exp.t): Precedence.t => {
   | Filter(_)
   | TyAlias(_)
   | Use(_)
-  | Let(_) => Precedence.let_
+  | Let(_)
+  | Theorem(_) => Precedence.let_
 
   // Matt: I think multiholes are min because we don't know the precedence of the `⟩?⟨`s
   | MultiHole(_) => Precedence.min
@@ -144,6 +155,7 @@ let external_precedence_typ = (tp: Typ.t) =>
   | ProdExtension(_) => Precedence.ap
   // Same goes for forms which are already surrounded
   | Parens(_)
+  | ProofOf(_)
   | List(_) => Precedence.max
 
   // Other forms
@@ -151,7 +163,7 @@ let external_precedence_typ = (tp: Typ.t) =>
   | Arrow(_, _) => Precedence.type_arrow
   | Sum(_) => Precedence.type_plus
   | Rec(_, _) => Precedence.let_
-  | Forall(_, _) => Precedence.let_
+  | Poly(_, _) => Precedence.let_
 
   // Matt: I think multiholes are min because we don't know the precedence of the `⟩?⟨`s
   | Unknown(Hole(MultiHole(_))) => Precedence.min
@@ -229,6 +241,12 @@ let rec parenthesize =
       n,
     )
     |> rewrap
+  | Forall(p, e) =>
+    Forall(
+      parenthesize_pat(p) |> paren_pat_at(Precedence.min),
+      parenthesize(e) |> paren_assoc_at(Precedence.fun_),
+    )
+    |> rewrap
   | TypFun(tp, e, n) =>
     TypFun(tp, parenthesize(e) |> paren_assoc_at(Precedence.fun_), n)
     |> rewrap
@@ -289,6 +307,15 @@ let rec parenthesize =
       parenthesize(e2) |> paren_assoc_at(Precedence.let_),
     )
     |> rewrap
+  | Theorem(p, thm, e) =>
+    Theorem(
+      parenthesize_pat(p) |> paren_pat_at(Precedence.min),
+      parenthesize(thm) |> paren_at(Precedence.min),
+      parenthesize(e) |> paren_assoc_at(Precedence.let_),
+    )
+    |> rewrap
+  | ProofObject(t) =>
+    ProofObject(parenthesize(t) |> paren_at(Precedence.min)) |> rewrap
   | FixF(p, e, c) =>
     FixF(
       parenthesize_pat(p) |> paren_pat_at(Precedence.min),
@@ -567,11 +594,14 @@ and parenthesize_typ =
       parenthesize_typ(t) |> paren_typ_assoc_at(Precedence.type_binder),
     )
     |> rewrap
-  | Forall(tp, t) =>
-    Forall(
+  | Poly(tp, t) =>
+    Poly(
       tp,
       parenthesize_typ(t) |> paren_typ_assoc_at(Precedence.type_binder),
     )
+    |> rewrap
+  | ProofOf(e) =>
+    ProofOf(parenthesize(~show_filters, e) |> paren_at(Precedence.min))
     |> rewrap
   | Arrow(t1, t2) =>
     Arrow(
@@ -657,6 +687,9 @@ let should_add_space = (s1, s2) =>
   | _ when String.starts_with(s2, ~prefix=",") => false
   | _ when String.starts_with(s2, ~prefix=";") => false
   | _ when String.starts_with(s2, ~prefix=":") => false
+  | _ when String.ends_with(s1, ~suffix=":") =>
+    String.starts_with(s2, ~prefix="$")
+    || String.starts_with(s2, ~prefix="!")
   | _ when String.ends_with(s1, ~suffix=" ") => false
   | _ when String.starts_with(s2, ~prefix=" ") => false
   | _ when String.ends_with(s1, ~suffix="\n") => false
@@ -767,18 +800,34 @@ let fold_if = (condition, pieces) =>
     pieces;
   };
 
-let fold_fun_if = (condition, f_name: string, pieces) =>
-  if (condition) {
+let fold_fun_if = (condition, f_name: string, pieces, exp) =>
+  switch (condition) {
+  | `Fold =>
     let syntax = mk_form(ParensExp, Id.mk(), [pieces]);
-    let str = FoldProj.sexp_of_t({text: f_name}) |> Sexplib.Sexp.to_string;
-    switch (MakeTerm.for_projection([syntax])) {
-    | None => failwith("ExpToSegment.fold_fun_if")
-    | Some(any) => [
-        ProjectorInit.init_or_noop_from_str(Fold, syntax, any, str),
-      ]
-    };
-  } else {
-    pieces;
+    let str =
+      FoldProj.sexp_of_t({
+        text: f_name,
+        expanded: false,
+        always_render: true,
+      })
+      |> Sexplib.Sexp.to_string;
+    [ProjectorInit.init_or_noop_from_str(Fold, syntax, Exp(exp), str)];
+  | `Text =>
+    let name =
+      if (String.length(f_name) >= 2) {
+        let len = String.length(f_name);
+        let end_idx =
+          if (len >= 3 && f_name.[len - 2] == '+') {
+            len - 3;
+          } else {
+            len - 2;
+          };
+        String.sub(f_name, 1, max(0, end_idx));
+      } else {
+        "";
+      };
+    text_to_pretty(Id.mk(), Sort.Exp, name);
+  | `NoFold => pieces
   };
 
 /* We assume that parentheses have already been added as necessary, and
@@ -813,7 +862,9 @@ let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
       }
       : e;
   // Forms which should be removed by substitute_closures
-  | Closure(_) => failwith("closure not removed before printing")
+  | Closure(_, e) =>
+    let+ e = go(e);
+    text_to_pretty(exp |> Exp.rep_id, Sort.Exp, "<closure>") @ e;
   // Other cases
   | Invalid(x) => text_to_pretty(exp |> Exp.rep_id, Sort.Exp, x)
   | EmptyHole =>
@@ -922,7 +973,7 @@ let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
     let name = "<" ++ name ++ ">";
     let fun_form = [mk_form(Fun, id, [p])] @ e;
     [mk_form(ParensExp, exp |> Exp.rep_id, [fun_form])]
-    |> fold_fun_if(settings.fold_fn_bodies, name);
+    |> fold_fun_if(settings.fold_fn_bodies, name, _, inner_exp);
   | LivelitName(s) => text_to_pretty(exp |> Exp.rep_id, Sort.Exp, "^" ++ s)
   | Fun(p, e, t, _) =>
     // TODO: Add optional newlines
@@ -931,7 +982,7 @@ let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
       switch (t) {
       | None => p
       | Some(t) =>
-        let t = t |> Typ.replace_temp;
+        let t = t |> Exp.replace_all_ids_typ;
         Pat.fresh(Asc(p, t))
         |> parenthesize_pat(~show_filters=settings.show_filters);
       };
@@ -947,7 +998,12 @@ let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
     let name = "<" ++ name ++ ">";
     [mk_form(Fun, id, [p])]
     @ e
-    |> fold_fun_if(settings.fold_fn_bodies, name);
+    |> fold_fun_if(settings.fold_fn_bodies, name, _, exp);
+  | Forall(p, e) =>
+    let id = exp |> Exp.rep_id;
+    let+ p = pat_to_pretty(~settings: Settings.t, p)
+    and+ e = go(e);
+    [mk_form(Forall, id, [p])] @ e;
   | TypFun(tp, e, _) =>
     // TODO: Add optional newlines
     let id = exp |> Exp.rep_id;
@@ -959,7 +1015,7 @@ let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
       ++ ">";
     [mk_form(TypFun, id, [tp])]
     @ e
-    |> fold_fun_if(settings.fold_fn_bodies, name);
+    |> fold_fun_if(settings.fold_fn_bodies, name, _, exp);
   | Tuple([]) => text_to_pretty(exp |> Exp.rep_id, Sort.Exp, "()")
   | Tuple([{term: TupLabel(_), _} as le]) => go(le)
   | Tuple([x, ...xs]) =>
@@ -1033,6 +1089,17 @@ let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
     and+ e2 = go(e2);
     let e2 = settings.inline ? e2 : [Secondary(mk_newline(Id.mk()))] @ e2;
     [mk_form(Let, id, [p, e1])] @ e2;
+  | Theorem(p, thm, e) =>
+    // TODO: Add optional newlines
+    let id = exp |> Exp.rep_id;
+    let+ p = pat_to_pretty(~settings: Settings.t, p)
+    and+ thm = go(thm)
+    and+ e = go(e);
+    [mk_form(Theorem, id, [p, thm])] @ e;
+  | ProofObject(t) =>
+    let id = exp |> Exp.rep_id;
+    let+ t = exp_to_pretty(~settings: Settings.t, t);
+    [mk_form(ProofObject, id, [t])];
   | FixF(p, e, _) =>
     // TODO: Add optional newlines
     let id = exp |> Exp.rep_id;
@@ -1042,7 +1109,7 @@ let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
       "<" ++ (Exp.get_fn_name(exp) |> Option.value(~default="fun")) ++ ">";
     [mk_form(Fix, id, [p])]
     @ e
-    |> fold_fun_if(settings.fold_fn_bodies, name);
+    |> fold_fun_if(settings.fold_fn_bodies, name, _, exp);
   | TyAlias(tp, t, e) =>
     // TODO: Add optional newlines
     let id = exp |> Exp.rep_id;
@@ -1473,11 +1540,15 @@ and typ_to_pretty = (~settings: Settings.t, typ: Typ.t): pretty => {
     let+ tp = tpat_to_pretty(~settings: Settings.t, tp)
     and+ t = go(t);
     [mk_form(Rec, id, [tp])] @ t;
-  | Forall(tp, t) =>
+  | Poly(tp, t) =>
     let id = typ |> Typ.rep_id;
     let+ tp = tpat_to_pretty(~settings: Settings.t, tp)
     and+ t = go(t);
-    [mk_form(Forall, id, [tp])] @ t;
+    [mk_form(Poly, id, [tp])] @ t;
+  | ProofOf(e) =>
+    let id = typ |> Typ.rep_id;
+    let+ e = exp_to_pretty(~settings, e);
+    [mk_form(ProofOf, id, [e])];
   | Arrow(t1, t2) =>
     let id = typ |> Typ.rep_id;
     let+ t1 = go(t1)

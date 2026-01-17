@@ -90,7 +90,12 @@ let step_limited = (t: Alcotest.testable('a)) =>
     Evaluator.equal_step_constrained(equal(t)),
   );
 let single_step = (exp: Exp.t) => {
-  let step = EvaluatorStep.get_status(~settings=CoreSettings.on, exp);
+  let step =
+    EvaluatorStep.get_status(
+      ~settings=CoreSettings.on,
+      exp,
+      Environment.empty,
+    );
   switch (step) {
   | AutoStep(step) => EvaluatorStep.take_step(step)
   | AvailableSteps([step, ..._]) => EvaluatorStep.take_step(step)

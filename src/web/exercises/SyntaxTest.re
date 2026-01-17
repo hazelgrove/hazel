@@ -87,12 +87,15 @@ let rec find_fn = (name: string, uexp: Exp.t, l: list(Exp.t)): list(Exp.t) => {
   switch (uexp.term) {
   | Let(up, def, body) =>
     l |> find_in_let(name, up, def) |> find_fn(name, body)
+  | Theorem(up, def, body) =>
+    l |> find_in_let(name, up, def) |> find_fn(name, body)
   | ListLit(ul)
   | Tuple(ul) =>
     List.fold_left((acc, u1) => {find_fn(name, u1, acc)}, l, ul)
   | TypFun(_, body, _)
   | FixF(_, body, _)
   | Fun(_, body, _, _) => l |> find_fn(name, body)
+  | Forall(_, body) => l |> find_fn(name, body)
   | TupLabel(_, u1)
   | TypAp(u1, _)
   | Parens(u1)
@@ -102,6 +105,7 @@ let rec find_fn = (name: string, uexp: Exp.t, l: list(Exp.t)): list(Exp.t) => {
   | TyAlias(_, _, u1)
   | Use(_, u1)
   | Test(u1)
+  | ProofObject(u1)
   | HintedTest(u1, _)
   | Closure(_, u1)
   | Filter(_, u1) => l |> find_fn(name, u1)
@@ -194,8 +198,12 @@ let rec var_mention = (name: string, uexp: Exp.t): bool => {
   | Tuple(l) =>
     List.fold_left((acc, ue) => {acc || var_mention(name, ue)}, false, l)
   | Let(p, def, body) =>
-    var_mention_upat(name, p)
-      ? false : var_mention(name, def) || var_mention(name, body)
+    (var_mention_upat(name, p) ? false : var_mention(name, body))
+    || var_mention(name, def)
+  | Theorem(p, thm, body) =>
+    (var_mention_upat(name, p) ? false : var_mention(name, body))
+    || var_mention(name, thm)
+  | ProofObject(e) => var_mention(name, e)
   | TypFun(_, u, _)
   | TypAp(u, _)
   | Test(u)
@@ -209,6 +217,8 @@ let rec var_mention = (name: string, uexp: Exp.t): bool => {
   | Filter(_, u) => var_mention(name, u)
   | DynamicErrorHole(u, _) => var_mention(name, u)
   | FixF(args, body, _) =>
+    var_mention_upat(name, args) ? false : var_mention(name, body)
+  | Forall(args, body) =>
     var_mention_upat(name, args) ? false : var_mention(name, body)
   | Closure(_, u) => var_mention(name, u)
   | BuiltinFun(_) => false
@@ -257,12 +267,18 @@ let rec var_applied = (name: string, uexp: Exp.t): bool => {
   | Fun(args, body, _, _)
   | FixF(args, body, _) =>
     var_mention_upat(name, args) ? false : var_applied(name, body)
+  | Forall(args, body) =>
+    var_mention_upat(name, args) ? false : var_applied(name, body)
   | ListLit(l)
   | Tuple(l) =>
     List.fold_left((acc, ue) => {acc || var_applied(name, ue)}, false, l)
   | Let(p, def, body) =>
-    var_mention_upat(name, p)
-      ? false : var_applied(name, def) || var_applied(name, body)
+    (var_mention_upat(name, p) ? false : var_applied(name, body))
+    || var_applied(name, def)
+  | Theorem(p, thm, body) =>
+    (var_mention_upat(name, p) ? false : var_applied(name, body))
+    || var_applied(name, thm)
+  | ProofObject(e) => var_applied(name, e)
   | TypFun(_, u, _)
   | Test(u)
   | HintedTest(u, _)
@@ -353,9 +369,15 @@ let rec tail_check = (name: string, uexp: Exp.t): bool => {
   | FixF(args, body, _)
   | Fun(args, body, _, _) =>
     var_mention_upat(name, args) ? false : tail_check(name, body)
+  | Forall(args, body) =>
+    var_mention_upat(name, args) ? false : tail_check(name, body)
   | Let(p, def, body) =>
     var_mention_upat(name, p) || var_mention(name, def)
       ? false : tail_check(name, body)
+  | Theorem(p, thm, body) =>
+    var_mention_upat(name, p) || var_mention(name, thm)
+      ? false : tail_check(name, body)
+  | ProofObject(_) => false
   | ListLit(l)
   | Tuple(l) =>
     //If l has no recursive calls then true

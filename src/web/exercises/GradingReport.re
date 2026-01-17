@@ -1,10 +1,13 @@
-open WebUtil;
 open Haz3lcore;
 open Util;
 open Core;
-open Exercise;
-open Grading;
-open Specs;
+open Language;
+open Web.Exercise;
+open Web.Grading;
+open Web.Specs;
+open Web.Export;
+open Web.ExercisesMode;
+
 [@deriving (sexp, yojson)]
 type item = {
   max: int,
@@ -40,10 +43,8 @@ type chapter = list(section);
 module Main = {
   let settings = CoreSettings.on; /* Statics and Dynamics on */
   let name_to_exercise_export = path => {
-    let all = path |> Yojson.Safe.from_file |> Export.all_of_yojson;
-    all.exercise
-    |> Sexp.of_string
-    |> ExercisesMode.Store.exercise_export_of_sexp;
+    let all = path |> Yojson.Safe.from_file |> all_of_yojson;
+    all.exercise |> Sexp.of_string |> Store.exercise_export_of_sexp;
   };
   let gen_grading_report = (exercise): report => {
     let zipper_pp = Printer.of_zipper;
@@ -52,22 +53,27 @@ module Main = {
       |> map_stitched((_, {term, _}: TermItem.t) => term);
     let stitched_tests =
       map_stitched(
-        (_, term) =>
-          term
-          |> CachedStatics.init_from_term(~settings)
-          |> ((x: CachedStatics.t) => x.elaborated)
-          |> Evaluator.evaluate(~settings, ~env=Builtins.env_init)
-          |> ProgramResult.map(x =>
-               x
-               |> ProgramResult.get_state
-               |> EvaluatorState.get_tests
-               |> TestResults.mk_results
-             )
-          |> (
-            fun
-            | ResultOk(x) => Some(x)
-            | _ => None
-          ),
+        (_, term) => {
+          let evaluated =
+            term
+            |> CachedStatics.init_from_term(
+                 ~settings,
+                 ~is_dynamic_term=false,
+               )
+            |> ((x: CachedStatics.t) => x.elaborated)
+            |> Evaluator.evaluate_and_limit(
+                 ~step_limit=1000000,
+                 ~env=Builtins.env_init,
+               );
+          switch (evaluated) {
+          | StepLimitExceeded => None
+          | Completed((_, evaluated)) =>
+            evaluated
+            |> EvaluatorState.get_tests
+            |> TestResults.mk_results
+            |> Option.some
+          };
+        },
         terms,
       );
     let grading_report = exercise.eds |> GradingReport.mk(~stitched_tests);
@@ -106,31 +112,54 @@ module Main = {
       overall,
     };
   };
+
+  let impl_specs =
+    List.filter_map(specs, ~f=spec =>
+      switch (spec) {
+      | Implementation(spec) => Some(spec)
+      | Theorem(_) => None
+      }
+    );
+
   let run = () => {
     let hw_path = Sys.get_argv()[1];
+    let output_path = Sys.get_argv()[2];
     let hw = name_to_exercise_export(hw_path);
     let export_chapter =
       hw.exercise_data
-      |> List.map(~f=(((name, _) as key, persistent_state)) => {
-           switch (find_key_opt(key, specs)) {
-           | Some((_n, spec)) =>
-             let spec =
-               unpersist(persistent_state, spec, ~instructor_mode=true);
-             let report =
-               {eds: spec |> eds_of_spec(~settings=CoreSettings.on)}
-               |> gen_grading_report;
-             {
-               name,
-               report,
-             };
-           | None => failwith("Invalid spec")
-           //  | None => (key |> yojson_of_key |> Yojson.Safe.to_string, "?")
+      |> List.filter_map(
+           ~f=(
+                (key: Uuidm.t, persistent_exercise: Model.persistent_exercise),
+              ) => {
+           switch (persistent_exercise) {
+           | Model.PTheorem(_) => None
+           | Model.PImplementation(persistent_state) =>
+             switch (find_id_opt(key, impl_specs)) {
+             | Some((_n, spec)) =>
+               let spec =
+                 unpersist(persistent_state, ~spec, ~instructor_mode=true);
+               let spec': p(ZipperBase.t) =
+                 Web.Exercise.map(
+                   spec.eds,
+                   e => e.state.zipper,
+                   e => e.state.zipper,
+                 );
+               let report =
+                 {eds: spec' |> eds_of_spec(~settings=CoreSettings.on)}
+                 |> gen_grading_report;
+               Some({
+                 name: spec'.title,
+                 report,
+               });
+             | None => failwith("Invalid spec")
+             //  | None => (key |> yojson_of_key |> Yojson.Safe.to_string, "?")
+             }
            }
          });
     export_chapter
     |> yojson_of_chapter
     |> Yojson.Safe.pretty_to_string
-    |> print_endline;
+    |> Out_channel.output_string(Out_channel.create(output_path));
   };
 };
 Main.run();
