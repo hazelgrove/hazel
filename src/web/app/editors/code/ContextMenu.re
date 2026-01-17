@@ -213,6 +213,7 @@ module Shortcuts = {
   let goto_definition = "F12";
   let fold = () => Os.is_mac^ ? "⌥F" : "Alt+F";
   let type_annotation = () => Os.is_mac^ ? "⌥T" : "Alt+T";
+  let player = () => Os.is_mac^ ? "⌥P" : "Alt+P";
   let livelit = () => Os.is_mac^ ? "⌥L" : "Alt+L";
   let introduce = () => Os.is_mac^ ? "⌘I" : "Ctrl+I";
   let select_current_term = () => Os.is_mac^ ? "⌘D" : "Ctrl+D";
@@ -432,6 +433,7 @@ module Projectors = {
     switch (kind) {
     | Fold => Shortcuts.fold()
     | Statics => Shortcuts.type_annotation()
+    | Player => Shortcuts.player()
     | _ => Shortcuts.livelit()
     };
 
@@ -453,6 +455,8 @@ module Projectors = {
     | NotePicker => "Notes"
     | RhythmGrid => "Rhythm"
     | XYPad => "XY Pad"
+    | SamplePicker => "Samples"
+    | ScalePicker => "Scales"
     };
 
   /* Get applicable projector kinds */

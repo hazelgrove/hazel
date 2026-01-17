@@ -5,7 +5,7 @@
   align-items: stretch;
   background: var(--T2);
   border-radius: 0.3em;
-  overflow: hidden;
+  /* overflow: hidden; */
   font-size: 0.85em;
   border: 1px solid var(--BR2);
 }
@@ -35,7 +35,7 @@
 
 .player-btn.playing {
   background: var(--R2);
-  animation: player-pulse 1s ease-in-out infinite;
+  /* animation: player-pulse 1s ease-in-out infinite; */
 }
 
 .player-btn.playing:hover {
@@ -63,6 +63,7 @@
 }
 
 .player-speaker.playing {
+  pointer-events: none;
   color: var(--R2);
   animation: player-pulse 1s ease-in-out infinite;
 }
@@ -80,6 +81,6 @@
   }
   50% {
     opacity: 0.7;
-    transform: scale(1.05);
+    transform: scale(2.6);
   }
 }

@@ -863,8 +863,8 @@ Cpm((140.0, Stack([
 
 ### Phase C: Exploration & Polish (Later)
 
-1. ⬜ Simple Sample Picker projector (dropdown)
-2. ⬜ Scale picker projector
+1. ✅ Simple Sample Picker projector (dropdown)
+2. ✅ Scale picker projector
 3. ⬜ Curried stdlib functions for pipeline style (see 6.4)
 4. ⬜ Projector visualization Phase A (onTrigger, no source tracking)
 5. ⬜ Player waveform visualization (Web Audio API oscilloscope/level meter)

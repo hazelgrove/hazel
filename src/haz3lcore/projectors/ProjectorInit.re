@@ -21,6 +21,8 @@ let to_module = (kind: ProjectorCore.Kind.t): (module Cooked) =>
   | NotePicker => (module Cook(NotePickerProj.M))
   | RhythmGrid => (module Cook(RhythmGridProj.M))
   | XYPad => (module Cook(XYPadProj.M))
+  | SamplePicker => (module Cook(SamplePickerProj.M))
+  | ScalePicker => (module Cook(ScalePickerProj.M))
   };
 
 let init =

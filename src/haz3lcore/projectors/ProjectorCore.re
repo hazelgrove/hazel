@@ -32,7 +32,9 @@ module Kind = {
     | Csv
     | NotePicker
     | RhythmGrid
-    | XYPad;
+    | XYPad
+    | SamplePicker
+    | ScalePicker;
 
   let livelit_projectors: list(t) = [
     Checkbox,
@@ -46,6 +48,8 @@ module Kind = {
     NotePicker,
     RhythmGrid,
     XYPad,
+    SamplePicker,
+    ScalePicker,
   ];
 
   /* Note: Probe intentionally excluded - probes use separate action path */
@@ -75,6 +79,8 @@ module Kind = {
     | NotePicker => "notes"
     | RhythmGrid => "rhythm"
     | XYPad => "xypad"
+    | SamplePicker => "samplepicker"
+    | ScalePicker => "scalepicker"
     };
 
   /* This must be updated and kept 1-to-1 with the above
@@ -97,6 +103,8 @@ module Kind = {
     | "notes" => NotePicker
     | "rhythm" => RhythmGrid
     | "xypad" => XYPad
+    | "samplepicker" => SamplePicker
+    | "scalepicker" => ScalePicker
     | _ => failwith("Unknown projector kind")
     };
 
