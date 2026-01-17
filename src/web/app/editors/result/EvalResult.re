@@ -516,7 +516,8 @@ module View = {
         switch (get_list(arg)) {
         | Some(elems) =>
           let patterns = List.filter_map(interpret_sound, elems);
-          List.length(patterns) > 0 ? Some(Util.Strudel.seq(patterns)) : None;
+          List.length(patterns) > 0
+            ? Some(Util.Strudel.seq(patterns)) : None;
         | None => None
         }
       | None => None
@@ -621,27 +622,32 @@ module View = {
       div(
         ~attrs=[Attr.classes(["strudel-controls"])],
         [
+          div(
+            ~attrs=[Attr.classes(["button-panel"])],
+            [
+              button(
+                ~attrs=[
+                  Attr.classes(["play"]),
+                  Attr.on_click(_ => {
+                    play_action();
+                    Effect.Ignore;
+                  }),
+                ],
+                [text({js|▶|js})],
+              ),
+              button(
+                ~attrs=[
+                  Attr.classes(["stop"]),
+                  Attr.on_click(_ => {
+                    Util.Strudel.stopMusic();
+                    Effect.Ignore;
+                  }),
+                ],
+                [text({js|■|js})],
+              ),
+            ],
+          ),
           span(~attrs=[Attr.classes(["pattern"])], [text(desc)]),
-          button(
-            ~attrs=[
-              Attr.classes(["play"]),
-              Attr.on_click(_ => {
-                play_action();
-                Effect.Ignore;
-              }),
-            ],
-            [text("play")],
-          ),
-          button(
-            ~attrs=[
-              Attr.classes(["stop"]),
-              Attr.on_click(_ => {
-                Util.Strudel.stopMusic();
-                Effect.Ignore;
-              }),
-            ],
-            [text("stop")],
-          ),
         ],
       )
     );

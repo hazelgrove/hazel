@@ -21,9 +21,14 @@ module M: Projector = {
     ("a#", 5),
   ];
 
+  /* Extract string from Note constructor application */
   let string_of = (any: Language.Any.t): option(string) =>
     switch (any) {
-    | Exp({term: Atom(String(s)), _}) => Some(s)
+    | Exp({term: Ap(_, {term: Constructor("Note", _), _}, arg), _}) =>
+      switch (arg.term) {
+      | Atom(String(s)) => Some(s)
+      | _ => None
+      }
     | _ => None
     };
 
@@ -45,12 +50,20 @@ module M: Projector = {
     switch (
       info.utility.lift_syntax(
         fun
-        | Exp(t) =>
+        | Exp({term: Ap(dir, ctor, arg), _} as t) =>
           Exp({
             ...t,
-            term: Atom(String(v)),
+            term:
+              Ap(
+                dir,
+                ctor,
+                {
+                  ...arg,
+                  term: Atom(String(v)),
+                },
+              ),
           })
-        | _ => failwith("NotePicker: Put: not string literal"),
+        | _ => failwith("NotePicker: Put: not Note constructor"),
         info.syntax,
       )
     ) {
@@ -60,7 +73,11 @@ module M: Projector = {
 
   let focusable = Focusable.non;
   let dynamics = false;
-  let placeholder = (_, _) => ProjectorCore.Shape.inline(16);
+  /* Piano needs ~4 rows of height for keys + pattern display */
+  let placeholder = (_, _) => {
+    ProjectorShape.horizontal: 20,
+    vertical: Block(4),
+  };
   let update = (model, _, _) => model;
 
   /* Toggle a note in the pattern string */
@@ -74,7 +91,7 @@ module M: Projector = {
       notes |> List.filter(n => n != note) |> String.concat(" ");
     } else {
       /* Add the note at the end */
-      (notes @ [note]) |> String.concat(" ");
+      notes @ [note] |> String.concat(" ");
     };
   };
 
@@ -112,7 +129,10 @@ module M: Projector = {
       ~attrs=[
         Attr.classes(["note-key", "black", active ? "active" : "inactive"]),
         Attr.style(
-          Css_gen.create(~field="left", ~value=Printf.sprintf("%.1f%%", left_offset)),
+          Css_gen.create(
+            ~field="left",
+            ~value=Printf.sprintf("%.1f%%", left_offset),
+          ),
         ),
         Attr.on_click(_ => {
           let new_pattern = toggle_note(pattern, note4);
@@ -126,7 +146,10 @@ module M: Projector = {
   let view = ({info, parent, _}: View.args(model, action)) => {
     let pattern = get(info);
     let white_keys =
-      List.map(note => white_key(~pattern, ~parent, ~info, note), white_notes);
+      List.map(
+        note => white_key(~pattern, ~parent, ~info, note),
+        white_notes,
+      );
     let black_keys =
       List.map(
         ((note, pos)) => black_key(~pattern, ~parent, ~info, note, pos),
@@ -136,7 +159,10 @@ module M: Projector = {
       Node.div(
         ~attrs=[Attr.classes(["note-picker"])],
         [
-          Node.div(~attrs=[Attr.classes(["piano-keys"])], white_keys @ black_keys),
+          Node.div(
+            ~attrs=[Attr.classes(["piano-keys"])],
+            white_keys @ black_keys,
+          ),
           Node.span(
             ~attrs=[Attr.classes(["pattern-text"])],
             [Node.text(pattern)],

@@ -3,7 +3,7 @@
 .note-picker {
   display: inline-flex;
   flex-direction: column;
-  gap: 0.3em;
+  gap: 0.5em;
   padding: 0.3em;
   background: var(--T2);
   border-radius: 0.3em;
@@ -13,8 +13,11 @@
 .note-picker .piano-keys {
   display: flex;
   position: relative;
-  height: 3em;
-  width: 10em;
+  height: 4.2em;
+  width: 11em;
+  /* Contain the absolutely positioned black keys */
+  overflow: hidden;
+  border-radius: 0 0 0.3em 0.3em;
 }
 
 .note-picker .note-key {
@@ -23,24 +26,25 @@
   display: flex;
   align-items: flex-end;
   justify-content: center;
-  padding-bottom: 0.2em;
-  font-size: 0.6em;
+  padding-bottom: 0.3em;
+  font-size: 0.7em;
   font-family: var(--ui-font);
+  font-weight: 500;
   user-select: none;
 }
 
 .note-picker .note-key.white {
-  width: 14.29%;
+  flex: 1;
   height: 100%;
   background: white;
   border: 1px solid var(--BR3);
-  border-radius: 0 0 0.2em 0.2em;
+  border-radius: 0 0 0.25em 0.25em;
   color: var(--BR4);
   z-index: 1;
 }
 
 .note-picker .note-key.white:hover {
-  background: var(--T3);
+  background: #f0f0f0;
 }
 
 .note-picker .note-key.white.active {
@@ -50,16 +54,17 @@
 
 .note-picker .note-key.black {
   position: absolute;
-  width: 10%;
-  height: 60%;
-  background: var(--STONE);
-  border: 1px solid var(--BR4);
-  border-radius: 0 0 0.15em 0.15em;
+  width: 9%;
+  height: 58%;
+  background: #333;
+  border: 1px solid #222;
+  border-radius: 0 0 0.2em 0.2em;
   z-index: 2;
+  color: transparent; /* hide text on black keys */
 }
 
 .note-picker .note-key.black:hover {
-  background: var(--BR4);
+  background: #444;
 }
 
 .note-picker .note-key.black.active {
@@ -70,9 +75,10 @@
   font-family: var(--code-font);
   font-size: 0.75em;
   color: var(--STONE);
-  padding: 0.2em 0.3em;
+  padding: 0.35em 0.5em;
   background: var(--T1);
   border-radius: 0.2em;
   text-align: center;
-  min-height: 1.2em;
+  min-height: 1.5em;
+  word-break: break-word;
 }

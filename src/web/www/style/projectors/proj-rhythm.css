@@ -3,8 +3,8 @@
 .rhythm-grid {
   display: inline-flex;
   flex-direction: column;
-  gap: 0.3em;
-  padding: 0.4em;
+  gap: 0.4em;
+  padding: 0.5em;
   background: var(--T2);
   border-radius: 0.3em;
   border: 1px solid var(--BR2);
@@ -14,20 +14,20 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 0.3em;
-  padding-bottom: 0.2em;
+  gap: 0.4em;
+  padding-bottom: 0.3em;
   border-bottom: 1px solid var(--BR2);
 }
 
 .rhythm-grid .step-btn {
-  width: 1.4em;
-  height: 1.4em;
+  width: 1.6em;
+  height: 1.6em;
   border: none;
   border-radius: 0.2em;
   background: var(--T3);
   color: var(--STONE);
   cursor: pointer;
-  font-size: 0.8em;
+  font-size: 0.9em;
   font-weight: bold;
   display: flex;
   align-items: center;
@@ -40,42 +40,42 @@
 
 .rhythm-grid .step-count {
   font-family: var(--code-font);
-  font-size: 0.75em;
+  font-size: 0.85em;
   color: var(--STONE);
-  min-width: 1.5em;
+  min-width: 1.8em;
   text-align: center;
 }
 
 .rhythm-grid .grid-rows {
   display: flex;
   flex-direction: column;
-  gap: 0.15em;
+  gap: 0.25em;
 }
 
 .rhythm-grid .grid-row {
   display: flex;
   align-items: center;
-  gap: 0.3em;
+  gap: 0.4em;
 }
 
 .rhythm-grid .drum-label {
   font-family: var(--ui-font);
-  font-size: 0.65em;
+  font-size: 0.75em;
   font-weight: bold;
   color: var(--BR4);
-  width: 1.8em;
+  width: 2em;
   text-align: right;
 }
 
 .rhythm-grid .grid-cells {
   display: flex;
-  gap: 0.1em;
+  gap: 0.15em;
 }
 
 .rhythm-grid .grid-cell {
-  width: 1em;
-  height: 1em;
-  border-radius: 0.15em;
+  width: 1.2em;
+  height: 1.2em;
+  border-radius: 0.2em;
   cursor: pointer;
   transition: background-color 0.1s, transform 0.05s;
 }

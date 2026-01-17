@@ -46,18 +46,25 @@ let note: string => option(pattern) =
     };
 
 /* Reverse a pattern */
-let rev: pattern => pattern =
-  p => Js.Unsafe.meth_call(p, "rev", [||]);
+let rev: pattern => pattern = p => Js.Unsafe.meth_call(p, "rev", [||]);
 
 /* Speed up a pattern */
 let fast: (float, pattern) => pattern =
   (f, p) =>
-    Js.Unsafe.meth_call(p, "fast", [|Js.Unsafe.inject(Js.number_of_float(f))|]);
+    Js.Unsafe.meth_call(
+      p,
+      "fast",
+      [|Js.Unsafe.inject(Js.number_of_float(f))|],
+    );
 
 /* Slow down a pattern */
 let slow: (float, pattern) => pattern =
   (f, p) =>
-    Js.Unsafe.meth_call(p, "slow", [|Js.Unsafe.inject(Js.number_of_float(f))|]);
+    Js.Unsafe.meth_call(
+      p,
+      "slow",
+      [|Js.Unsafe.inject(Js.number_of_float(f))|],
+    );
 
 /* Stack patterns (play simultaneously) */
 let stack: list(pattern) => pattern =
@@ -83,7 +90,8 @@ let juxRev: pattern => pattern =
   };
 
 /* Play a pattern */
-let play: pattern => unit = p => Js.Unsafe.meth_call(p, "play", [||]) |> ignore;
+let play: pattern => unit =
+  p => Js.Unsafe.meth_call(p, "play", [||]) |> ignore;
 
 /* Play a note pattern - fully defensive (legacy interface) */
 let playNote: string => unit =

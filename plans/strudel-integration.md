@@ -12,17 +12,27 @@
 ## Current State
 
 ### What's Implemented
-- `Sound` type with `Note(String)` constructor in `BuiltinsADT.re`
+- `Sound` type with constructors: `Note(String)`, `Rev(Sound)`, `Fast(Float, Sound)`, `Slow(Float, Sound)`, `Seq(List(Sound))`, `Stack(List(Sound))`
 - Strudel JS library loaded via unpkg in `index.html`
 - `Strudel.initOnLoad()` called on startup in `Main.re`
-- `audio_view` wired into `live_eval` - shows play/stop controls for Sound values
+- `audio_view` wired into `live_eval` - shows play/stop controls (▶/■) for Sound values
 - Defensive JS bindings in `src/util/Strudel.re` with proper initialization
 - CSS styling in `style/strudel.css` matching UI aesthetic
+- **Note Picker projector** - piano keyboard for selecting notes (constructor-level: `^^notes(Note(...))`)
+- **Rhythm Grid projector** - step sequencer for drum patterns (constructor-level: `^^rhythm(Note(...))`)
+- Context menu shows all applicable projectors (not just first)
+- Block placeholders for projectors (piano: 4 rows, rhythm: 6 rows)
 
-### What's Missing
-- Limited Strudel API (only `playNote`, `stopMusic`)
-- No projectors for pattern editing
-- No way to compose patterns (Seq, Stack, etc.)
+### What's In Progress
+- Execution visualization (highlighting notes as they play) - deferred due to `onTrigger` callback issues
+- More projector types (knobs, chord pickers, etc.)
+
+### What's Missing (Future)
+- Scale picker projector
+- Parameter sliders (gain, pan, filter)
+- Euclidean rhythm projector
+- Full piano roll timeline editor
+- Wiring between projectors
 
 ---
 
@@ -229,6 +239,76 @@ Visual editor for euclidean rhythms `(beats, steps, offset)`.
 
 ---
 
+## Phase 5: Modular Synth Vision
+
+### 5.1 Design Philosophy
+Goal: Create a **modular synthesizer aesthetic** where multiple projectors can be arranged visually like rack-mounted modules, with eventual support for wiring between them.
+
+**Key concepts:**
+- Tab-style projectors allow multiple block-shaped UIs to stack horizontally on a row
+- Various sizes for different controls (inline knobs vs block-sized keyboards)
+- Visual cohesion across the "rack" of controls
+
+### 5.2 Expanded Projector Types
+
+**Small inline (1-2 rows):**
+- **Knobs/Dials**: Circular sliders for gain, pan, filter cutoff
+- **XY Pad**: 2D control surface (e.g., filter cutoff + resonance)
+- **Waveform selector**: Icons for sine/saw/square/triangle
+- **Toggle switches**: Effect on/off
+
+**Medium block (3-6 rows):**
+- **Step sequencer**: Timeline grid (notes × time) - allows repetition unlike piano toggle
+- **Chord picker**: Circle of fifths, chord buttons (Cmaj, Dm7, etc.)
+- **Scale selector**: Wheel or dropdown (major, minor, dorian, etc.)
+- **Envelope (ADSR)**: Draggable attack/decay/sustain/release curve
+- **Sample browser**: Grid of drum/synth samples
+
+**Large tab (takes full row):**
+- **Piano roll**: Full timeline editor with draggable notes
+- **Mixer**: Multi-track with faders, pan, effects per track
+- **Spectrogram**: Real-time frequency visualization
+- **Waveform display**: Oscilloscope showing audio output
+
+### 5.3 Wiring Between Projectors (Exploratory)
+
+**Concept:** Visually connect projector outputs to inputs via "wires" that represent variable bindings in the underlying syntax.
+
+**How it maps to Hazel:**
+- Projector on a **pattern** (let binding): `let x = ^^knob(0.5) in ...` - the wire "source"
+- Projector on an **expression** (variable reference): `gain(x, ...)` - the wire "destination"
+- The wire is a visual representation of the variable `x`
+
+**Interaction model:**
+- Unplugging a wire → replaces the variable reference with a hole
+- Plugging in a wire → replaces hole with the variable
+- Switching wires → syntax transformation to use different variable
+
+**Why this is principled:**
+- Wires aren't arbitrary connections; they're visual syntax for variable bindings
+- No new semantics - just a different view of existing let/var structure
+- Similar to Max/MSP or Pure Data, but with functional semantics instead of signal processing
+
+### 5.4 Audio Patching vs Dataflow
+
+**Dataflow (what Hazel/Strudel does):**
+- Values flow through expressions: `Fast((2.0, Note("c4")))` → evaluate inner, transform result
+- Pure functional: same input always gives same output
+- Explicit composition via syntax: `Stack([a, b])` means "play a and b together"
+- Time is implicit in pattern structure
+- Variables are **bindings**: immutable references
+
+**Audio patching (traditional modular synths):**
+- Signals flow through modules: oscillator → filter → amplifier → speaker
+- Stateful: modules have internal state (envelopes, LFOs, sequencer position)
+- Implicit routing via cables: physically connect output jack to input jack
+- Time is explicit: audio rate (44.1kHz) vs control rate (variable)
+- Cables are **signal streams**: continuous voltages, not discrete values
+
+**Key insight:** Dataflow describes **what to play**, patching describes **how sound is generated**. Strudel/Hazel operates at the pattern/composition level (dataflow), while traditional modular is at signal/synthesis level.
+
+---
+
 ## Implementation Priority
 
 ### MVP (Do First) - COMPLETE
@@ -244,8 +324,10 @@ Visual editor for euclidean rhythms `(beats, steps, offset)`.
 
 ### Medium Term (CURRENT)
 8. ✅ Rhythm grid projector
-9. ⬜ Scale picker projector
-10. ⬜ Parameter sliders (gain, pan, filter)
+9. ✅ UI polish: Block placeholders, contained black keys, symbol buttons
+10. ✅ Context menu shows all applicable projectors (not just first)
+11. ⬜ Scale picker projector
+12. ⬜ Parameter sliders (gain, pan, filter)
 
 ### Long Term
 11. ⬜ Euclidean rhythm projector

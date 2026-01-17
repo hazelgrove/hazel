@@ -14,17 +14,22 @@ module M: Projector = {
 
   /* Drum sound abbreviations and display names */
   let drums = [
-    ("bd", "BD"),   /* Bass drum */
-    ("sd", "SD"),   /* Snare */
-    ("hh", "HH"),   /* Hi-hat */
-    ("oh", "OH"),   /* Open hi-hat */
+    ("bd", "BD"), /* Bass drum */
+    ("sd", "SD"), /* Snare */
+    ("hh", "HH"), /* Hi-hat */
+    ("oh", "OH") /* Open hi-hat */
   ];
 
   let default_steps = 8;
 
+  /* Extract string from Note constructor application */
   let string_of = (any: Language.Any.t): option(string) =>
     switch (any) {
-    | Exp({term: Atom(String(s)), _}) => Some(s)
+    | Exp({term: Ap(_, {term: Constructor("Note", _), _}, arg), _}) =>
+      switch (arg.term) {
+      | Atom(String(s)) => Some(s)
+      | _ => None
+      }
     | _ => None
     };
 
@@ -46,12 +51,20 @@ module M: Projector = {
     switch (
       info.utility.lift_syntax(
         fun
-        | Exp(t) =>
+        | Exp({term: Ap(dir, ctor, arg), _} as t) =>
           Exp({
             ...t,
-            term: Atom(String(v)),
+            term:
+              Ap(
+                dir,
+                ctor,
+                {
+                  ...arg,
+                  term: Atom(String(v)),
+                },
+              ),
           })
-        | _ => failwith("RhythmGrid: Put: not string literal"),
+        | _ => failwith("RhythmGrid: Put: not Note constructor"),
         info.syntax,
       )
     ) {
@@ -61,15 +74,19 @@ module M: Projector = {
 
   let focusable = Focusable.non;
   let dynamics = false;
-  let placeholder = ({steps, _}, _) =>
-    ProjectorCore.Shape.inline(steps * 2 + 4);
+  /* Rhythm grid needs ~6 rows: controls + 4 drum rows + padding */
+  let placeholder = ({steps, _}, _) => {
+    ProjectorShape.horizontal: steps * 2 + 7,
+    vertical: Block(6),
+  };
   let update = (_model, _, action) =>
     switch (action) {
     | SetSteps(n) => {steps: max(4, min(16, n))}
     };
 
   /* Parse pattern into a map of (drum -> list of step indices) */
-  let parse_pattern = (pattern: string, steps: int): list((string, list(int))) => {
+  let parse_pattern =
+      (pattern: string, steps: int): list((string, list(int))) => {
     /* Parse mini-notation: "bd ~ sd ~" means bd on step 0, sd on step 2 */
     let tokens =
       pattern
@@ -96,7 +113,8 @@ module M: Projector = {
   };
 
   /* Generate pattern string from grid state */
-  let generate_pattern = (grid: list((string, list(int))), steps: int): string => {
+  let generate_pattern =
+      (grid: list((string, list(int))), steps: int): string => {
     let pattern = Array.make(steps, "~");
     List.iter(
       ((drum, active_steps)) =>
@@ -134,7 +152,8 @@ module M: Projector = {
   };
 
   /* Check if a step is active for a drum */
-  let is_active = (grid: list((string, list(int))), drum: string, step: int): bool =>
+  let is_active =
+      (grid: list((string, list(int))), drum: string, step: int): bool =>
     switch (List.find_opt(((d, _)) => d == drum, grid)) {
     | Some((_, active)) => List.mem(step, active)
     | None => false
@@ -164,7 +183,10 @@ module M: Projector = {
     Node.div(
       ~attrs=[Attr.classes(["grid-row"])],
       [
-        Node.span(~attrs=[Attr.classes(["drum-label"])], [Node.text(label)]),
+        Node.span(
+          ~attrs=[Attr.classes(["drum-label"])],
+          [Node.text(label)],
+        ),
         Node.div(
           ~attrs=[Attr.classes(["grid-cells"])],
           List.init(steps, step =>
@@ -174,7 +196,8 @@ module M: Projector = {
       ],
     );
 
-  let view = ({model: {steps}, info, parent, local, _}: View.args(model, action)) => {
+  let view =
+      ({model: {steps}, info, parent, local, _}: View.args(model, action)) => {
     let pattern = get(info);
     let grid = parse_pattern(pattern, steps);
     let rows =

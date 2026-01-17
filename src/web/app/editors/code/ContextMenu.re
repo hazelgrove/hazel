@@ -428,13 +428,17 @@ module Projectors = {
   let applicable_kinds =
       (z: Zipper.t, info_map: Language.Statics.Map.t)
       : list(ProjectorCore.Kind.t) => {
-    let fold_applicable = is_applicable(z, info_map, Fold);
+    let fold_applicable =
+      switch (is_applicable(z, info_map, Fold)) {
+      | Some(k) => [k]
+      | None => []
+      };
     let livelit_applicable =
-      List.find_map(
+      List.filter_map(
         is_applicable(z, info_map),
         ProjectorCore.Kind.livelit_projectors,
       );
-    List.filter_map(Fun.id, [fold_applicable, livelit_applicable]);
+    fold_applicable @ livelit_applicable;
   };
 
   /* Data-returning version for keyboard navigation */
