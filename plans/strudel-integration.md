@@ -474,58 +474,46 @@ Goal: Create a **modular synthesizer aesthetic** where multiple projectors can b
 
 ## Phase 6: Strudel Parity Improvements
 
-### 6.1 Live Coding Behavior (Priority: HIGH)
+### 6.1 Live Coding Behavior (Priority: HIGH) ✅ COMPLETE
 
-**Current behavior (stop/start):**
-1. Click play on `Note("c4 e4 g4")`
-2. Pattern plays in loop
-3. Edit to `Note("c4 e4 g4 b4")`
-4. Click play again
-5. `hush()` called → **silence gap**
-6. New pattern starts from beginning
+**Problem:** Calling `hush()` before every `play()` caused audio gaps when editing patterns.
 
-**Desired behavior (continuous):**
-1. Click play on `Note("c4 e4 g4")`
-2. Pattern plays, scheduler running
-3. Edit to `Note("c4 e4 g4 b4")`
-4. Live eval updates pattern reference
-5. **No click needed**—next scheduler tick uses new pattern
-6. Music continues seamlessly
+**Solution:** Leverage Strudel's built-in `scheduler.setPattern()` which is called internally by `pattern.play()`. The key insight from [Strudel's REPL documentation](https://strudel.cc/technical-manual/repl/) is that `play()` updates the running scheduler without restarting the clock.
 
-**Implementation approach:**
-
-Instead of `pattern.play()` which starts its own scheduler, maintain a single global scheduler:
+**Implementation (in `PlayerProj.re`):**
 
 ```reason
-// In Strudel.re - conceptual approach:
-let current_pattern: ref(option(pattern)) = ref(None);
-let scheduler_running: ref(bool) = ref(false);
+module PlayState = {
+  let current: ref(option(Id.t)) = ref(Option.None);
+  let last_desc: ref(string) = ref("");  // Track pattern changes
 
-let set_pattern: pattern => unit = p => {
-  current_pattern := Some(p);
-  if (!scheduler_running^) {
-    start_scheduler();  // Only start once
-    scheduler_running := true;
+  let play_or_update = (id: Id.t, pattern: Strudel.pattern, desc: string) => {
+    let is_new_pattern = last_desc^ != desc;
+    let is_new_player = current^ != Option.Some(id);
+
+    if (is_new_pattern || is_new_player) {
+      // Only stop when switching players, not when updating same player
+      if (is_new_player && current^ != Option.None) {
+        Strudel.stopMusic();
+      };
+      // Don't call hush() - let scheduler.setPattern handle the update
+      Strudel.playPattern(pattern);
+      current := Option.Some(id);
+      last_desc := desc;
+    };
   };
-};
-
-let stop: unit => unit = () => {
-  hush();
-  scheduler_running := false;
-  current_pattern := None;
+  // ...
 };
 ```
 
-**Testing procedure:**
-1. Play a slow pattern: `Slow((4.0, Note("c4 e4 g4 c5")))`
-2. While playing (before loop restarts), edit to add a note
-3. **Before fix:** Need to click play again, hear silence gap
-4. **After fix:** Next cycle plays new pattern, no gap, no re-click
+**Auto-update in view:** When a pattern is playing and its Sound expression changes, the view function automatically calls `play_or_update` to seamlessly update the pattern.
 
-**Files to modify:**
-- `src/util/Strudel.re` - scheduler management
-- `src/haz3lcore/projectors/implementations/PlayerProj.re` - use new API
-- Possibly `src/web/app/editors/result/EvalResult.re` - if audio_view also plays
+**Testing tips:**
+- Use `Stack` to layer patterns (adding layers doesn't change timing structure)
+- Change the `Slow` factor to hear tempo change mid-loop
+- The "TOO LATE" console messages are normal Strudel scheduler behavior (events that couldn't be scheduled in time)
+
+**Commit:** `c65b205b8`
 
 ### 6.2 Sample Loading & Graceful Degradation (Priority: HIGH)
 
@@ -786,7 +774,7 @@ This requires infrastructure for source location threading and overlay rendering
 13. ✅ XY Pad projector (2D control surface)
 
 ### Current Sprint - Strudel Parity (HIGH PRIORITY)
-14. ⬜ **Live coding behavior** - continuous scheduler, no restart on edit (see 6.1)
+14. ✅ **Live coding behavior** - seamless pattern updates via scheduler.setPattern (see 6.1)
 15. ⬜ **Graceful sample degradation** - fallback when samples fail to load (see 6.2)
 16. ⬜ **Additional constructors** - Gain, Pan, Bank, JuxRev (see 6.3)
 17. ⬜ **Curried stdlib functions** - pipeline-style wrappers (see 6.4)
