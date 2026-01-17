@@ -1,9 +1,13 @@
 open Util;
 open Virtual_dom.Vdom;
 open ProjectorBase;
+open Js_of_ocaml;
 
 /* An XY Pad projector for controlling two Float values simultaneously.
  * 2D touch/drag surface with modular synth aesthetic. */
+
+/* Module-level state for pointer capture during drag */
+let capture_target: ref(option(Js.t(Dom_html.element))) = ref(None);
 
 module M: Projector = {
   [@deriving (show({with_path: false}), sexp, yojson)]
@@ -147,31 +151,52 @@ module M: Projector = {
   };
 
   let view = ({model, info, parent, local, _}: View.args(model, action)) => {
-    let {x_min, x_max, y_min, y_max, _} = model;
+    let {x_min, x_max, y_min, y_max, dragging} = model;
     let (x_val, y_val) = get(info);
     let x_pos = value_to_pos(x_val, x_min, x_max) *. 100.0;
     let y_pos = (1.0 -. value_to_pos(y_val, y_min, y_max)) *. 100.0;
 
+    /* Handler for updating position based on mouse */
+    let handle_mouse = evt => {
+      let target =
+        evt##.currentTarget |> Js.Opt.get(_, _ => failwith("no target"));
+      let rect = target##getBoundingClientRect;
+      let width = rect##.right -. rect##.left;
+      let height = rect##.bottom -. rect##.top;
+      let rel_x = (Float.of_int(evt##.clientX) -. rect##.left) /. width;
+      let rel_y = (Float.of_int(evt##.clientY) -. rect##.top) /. height;
+      let new_x = pos_to_value(rel_x, x_min, x_max);
+      let new_y = pos_to_value(1.0 -. rel_y, y_min, y_max);
+      parent(SetSyntax(put(info, new_x, new_y)));
+    };
+
     View.mk(
       Node.div(
         ~attrs=[
-          Attr.classes(["xypad-projector", model.dragging ? "dragging" : ""]),
-          Attr.on_mousedown(_ => local(StartDrag)),
-          Attr.on_mouseup(_ => local(StopDrag)),
-          Attr.on_mouseleave(_ => local(StopDrag)),
+          Attr.classes(
+            ["xypad-projector"] @ (dragging ? ["dragging"] : []),
+          ),
+          Attr.on_pointerdown(evt => {
+            let target =
+              evt##.currentTarget |> Js.Opt.get(_, _ => failwith("no target"));
+            JsUtil.setPointerCapture(target, evt##.pointerId);
+            capture_target := Some(target);
+            Effect.Many([handle_mouse(evt), local(StartDrag)]);
+          }),
+          Attr.on_pointerup(evt => {
+            switch (capture_target^) {
+            | Some(target) =>
+              if (JsUtil.hasPointerCapture(target, evt##.pointerId)) {
+                JsUtil.releasePointerCapture(target, evt##.pointerId);
+              };
+              capture_target := None;
+            | None => ()
+            };
+            local(StopDrag);
+          }),
           Attr.on_mousemove(evt =>
-            if (model.dragging) {
-              /* Use offsetX/offsetY for position relative to element */
-              let offset_x = Float.of_int(evt##.offsetX);
-              let offset_y = Float.of_int(evt##.offsetY);
-              /* Estimate element size (placeholder is 10 cols x 5 rows * ~15px) */
-              let width = 100.0;
-              let height = 75.0;
-              let rel_x = offset_x /. width;
-              let rel_y = offset_y /. height;
-              let new_x = pos_to_value(rel_x, x_min, x_max);
-              let new_y = pos_to_value(1.0 -. rel_y, y_min, y_max);
-              parent(SetSyntax(put(info, new_x, new_y)));
+            if (dragging) {
+              handle_mouse(evt);
             } else {
               Virtual_dom.Vdom.Effect.Ignore;
             }

@@ -104,19 +104,6 @@ module M: Projector = {
     min_val +. normalized *. (max_val -. min_val);
   };
 
-  /* Calculate angle from mouse position to knob center */
-  let mouse_to_angle = (offset_x: float, offset_y: float, size: float): float => {
-    /* Map pixel coords to SVG coords (0-100) */
-    let svg_x = offset_x /. size *. 100.0;
-    let svg_y = offset_y /. size *. 100.0;
-    /* Center is at (50, 50) in SVG coords */
-    let dx = svg_x -. 50.0;
-    let dy = svg_y -. 50.0;
-    /* atan2(dx, -dy) gives angle from 12 o'clock position */
-    let angle_rad = atan2(dx, -. dy);
-    angle_rad *. 180.0 /. Float.pi;
-  };
-
   let view = ({model, info, parent, local, _}: View.args(model, action)) => {
     let {min_val, max_val, dragging} = model;
     let value = get(info);
@@ -127,14 +114,28 @@ module M: Projector = {
     let indicator_x = 50.0 +. 30.0 *. sin(angle_rad);
     let indicator_y = 50.0 -. 30.0 *. cos(angle_rad);
 
-    /* Estimate element size (placeholder is 3 rows, assume square) */
-    let size = 45.0;
+    /* Check if at min/max for tick highlighting */
+    let at_min = value <= min_val +. 0.001;
+    let at_max = value >= max_val -. 0.001;
 
     /* Handler for updating value based on mouse position */
     let handle_mouse = evt => {
-      let offset_x = Float.of_int(evt##.offsetX);
-      let offset_y = Float.of_int(evt##.offsetY);
-      let angle_deg = mouse_to_angle(offset_x, offset_y, size);
+      let target =
+        evt##.currentTarget |> Js.Opt.get(_, _ => failwith("no target"));
+      let rect = target##getBoundingClientRect;
+      let width = rect##.right -. rect##.left;
+      let height = rect##.bottom -. rect##.top;
+      /* Map to SVG coordinates (0-100) */
+      let svg_x =
+        (Float.of_int(evt##.clientX) -. rect##.left) /. width *. 100.0;
+      let svg_y =
+        (Float.of_int(evt##.clientY) -. rect##.top) /. height *. 100.0;
+      /* Center is at (50, 50) */
+      let dx = svg_x -. 50.0;
+      let dy = svg_y -. 50.0;
+      /* atan2(dx, -dy) gives angle from 12 o'clock position */
+      let angle_rad = atan2(dx, -. dy);
+      let angle_deg = angle_rad *. 180.0 /. Float.pi;
       let new_value = angle_to_value(angle_deg, min_val, max_val);
       parent(SetSyntax(put(info, new_value)));
     };
@@ -208,7 +209,7 @@ module M: Projector = {
                   Attr.create("y1", "75.5"),
                   Attr.create("x2", "18.9"),
                   Attr.create("y2", "81.1"),
-                  Attr.classes(["knob-tick"]),
+                  Attr.classes(["knob-tick"] @ (at_min ? ["active"] : [])),
                 ],
                 [],
               ),
@@ -220,7 +221,7 @@ module M: Projector = {
                   Attr.create("y1", "75.5"),
                   Attr.create("x2", "81.1"),
                   Attr.create("y2", "81.1"),
-                  Attr.classes(["knob-tick"]),
+                  Attr.classes(["knob-tick"] @ (at_max ? ["active"] : [])),
                 ],
                 [],
               ),

@@ -95,3 +95,8 @@
   stroke-width: 2;
   stroke-linecap: round;
 }
+
+.knob-tick.active {
+  stroke: var(--G0);
+  filter: drop-shadow(0 0 3px oklch(from var(--G0) l c h / 0.6));
+}
