@@ -85,7 +85,9 @@ let get_list = (exp: Exp.t): option(list(Exp.t)) => {
 /* Check if expression is a Sound value */
 let is_sound = (exp: Exp.t): bool =>
   switch (get_constructor(exp)) {
-  | Some("Note" | "Sample" | "Rev" | "Fast" | "Slow" | "Seq" | "Stack") =>
+  | Some(
+      "Note" | "Sample" | "Rev" | "Fast" | "Slow" | "Seq" | "Stack" | "JuxRev",
+    ) =>
     true
   | _ => false
   };
@@ -165,6 +167,15 @@ let rec interpret_sound = (exp: Exp.t): option(Util.Strudel.pattern) =>
         let patterns = List.filter_map(interpret_sound, elems);
         List.length(patterns) > 0
           ? Some(Util.Strudel.stack(patterns)) : None;
+      | None => None
+      }
+    | None => None
+    }
+  | Some("JuxRev") =>
+    switch (get_constructor_arg(exp)) {
+    | Some(inner) =>
+      switch (interpret_sound(inner)) {
+      | Some(p) => Some(Util.Strudel.juxRev(p))
       | None => None
       }
     | None => None
@@ -257,6 +268,11 @@ let rec sound_description = (exp: Exp.t): string =>
       | None => "Stack(?)"
       }
     | None => "Stack(?)"
+    }
+  | Some("JuxRev") =>
+    switch (get_constructor_arg(exp)) {
+    | Some(inner) => "juxRev(" ++ sound_description(inner) ++ ")"
+    | None => "JuxRev(?)"
     }
   | _ => "?"
   };

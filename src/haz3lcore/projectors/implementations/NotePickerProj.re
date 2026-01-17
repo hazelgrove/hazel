@@ -34,7 +34,7 @@ module M: Projector = {
     ("a#", 5),
   ];
 
-  /* All valid note names (for validation) */
+  /* All valid note names (for validation) - sharps only */
   let all_notes = [
     "c",
     "c#",
@@ -48,14 +48,21 @@ module M: Projector = {
     "a",
     "a#",
     "b",
-    "db",
-    "eb",
-    "gb",
-    "ab",
-    "bb",
   ];
 
-  /* Parse a single note token, returning (note_name, octave) if valid */
+  /* Normalize flats to sharps for consistent representation */
+  let normalize_note = (note: string): string =>
+    switch (note) {
+    | "db" => "c#"
+    | "eb" => "d#"
+    | "gb" => "f#"
+    | "ab" => "g#"
+    | "bb" => "a#"
+    | n => n
+    };
+
+  /* Parse a single note token, returning (note_name, octave) if valid.
+   * Flats are normalized to sharps for consistent internal representation. */
   let parse_note = (token: string): option((string, int)) => {
     let len = String.length(token);
     if (len < 2 || len > 3) {
@@ -68,7 +75,8 @@ module M: Projector = {
       } else {
         let octave = Char.code(octave_char) - Char.code('0');
         let note_name =
-          String.lowercase_ascii(String.sub(token, 0, len - 1));
+          String.lowercase_ascii(String.sub(token, 0, len - 1))
+          |> normalize_note;
         if (List.mem(note_name, all_notes)) {
           Some((note_name, octave));
         } else {
@@ -178,27 +186,49 @@ module M: Projector = {
   };
   let update = (model, _, _) => model;
 
-  /* Toggle a note in the pattern string */
+  /* Normalize a full note token (e.g., "db4" -> "c#4") */
+  let normalize_full_note = (token: string): string => {
+    let len = String.length(token);
+    if (len < 2 || len > 3) {
+      token;
+    } else {
+      let octave_char = token.[len - 1];
+      if (octave_char < '0' || octave_char > '9') {
+        token;
+      } else {
+        let note_name =
+          String.lowercase_ascii(String.sub(token, 0, len - 1));
+        normalize_note(note_name) ++ String.make(1, octave_char);
+      };
+    };
+  };
+
+  /* Toggle a note in the pattern string.
+   * Normalizes flats to sharps when checking/removing. */
   let toggle_note = (pattern: string, note: string): string => {
     let notes =
       pattern
       |> String.split_on_char(' ')
       |> List.filter(s => String.length(s) > 0);
-    if (List.mem(note, notes)) {
-      /* Remove the note */
-      notes |> List.filter(n => n != note) |> String.concat(" ");
+    let normalized_notes = List.map(normalize_full_note, notes);
+    if (List.mem(note, normalized_notes)) {
+      /* Remove the note - filter by normalized comparison */
+      notes
+      |> List.filter(n => normalize_full_note(n) != note)
+      |> String.concat(" ");
     } else {
       /* Add the note at the end */
       notes @ [note] |> String.concat(" ");
     };
   };
 
-  /* Check if a note is in the pattern */
+  /* Check if a note is in the pattern (normalizes flats to sharps) */
   let has_note = (pattern: string, note: string): bool => {
     let notes =
       pattern
       |> String.split_on_char(' ')
-      |> List.filter(s => String.length(s) > 0);
+      |> List.filter(s => String.length(s) > 0)
+      |> List.map(normalize_full_note);
     List.mem(note, notes);
   };
 

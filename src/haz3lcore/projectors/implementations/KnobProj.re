@@ -162,6 +162,11 @@ module M: Projector = {
             };
             local(StopDrag);
           }),
+          /* NOTE: Using mousemove instead of pointermove for VDOM compatibility.
+           * Pointer capture is set on pointerdown, but mousemove only fires when
+           * mouse is over this element. If drag tracking issues occur outside the
+           * element bounds, consider switching to pointermove or adding a global
+           * mousemove listener during drag. */
           Attr.on_mousemove(evt =>
             if (dragging) {
               handle_mouse(evt);

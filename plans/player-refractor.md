@@ -59,7 +59,7 @@ module PlayState = {
 - [x] Play button starts audio
 - [x] Pause button stops audio
 - [x] Starting one Player stops another
-- [ ] Removing Player while playing stops audio (not implemented - sound continues)
-- [x] Works with Sound constructors (Note, Sample, Rev, Fast, Slow, Seq, Stack)
+- [x] Removing Player while playing stops audio
+- [x] Works with Sound constructors (Note, Sample, Rev, Fast, Slow, Seq, Stack, JuxRev)
 - [x] Shows empty indicator when no samples available
 - [x] Keyboard shortcut Alt+P works

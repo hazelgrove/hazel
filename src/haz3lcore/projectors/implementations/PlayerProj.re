@@ -4,42 +4,8 @@ open Node;
 open ProjectorBase;
 open Language;
 
-/* Global play state for mutual exclusion - only one Player can be active at a time.
- * For live coding: we don't call hush() before playing - this allows the
- * Strudel scheduler to keep running while we update the pattern via setPattern.
- * See: https://strudel.cc/technical-manual/repl/ */
-module PlayState = {
-  let current: ref(option(Id.t)) = ref(Option.None);
-  /* Track last played description to detect actual changes */
-  let last_desc: ref(string) = ref("");
-
-  /* Start playing or update the pattern if already playing.
-   * Key insight: pattern.play() internally calls scheduler.setPattern(),
-   * which updates the running scheduler without restarting the clock. */
-  let play_or_update = (id: Id.t, pattern: Strudel.pattern, desc: string) => {
-    let is_new_pattern = last_desc^ != desc;
-    let is_new_player = current^ != Option.Some(id);
-
-    if (is_new_pattern || is_new_player) {
-      /* If switching to a different player, stop the previous one first */
-      if (is_new_player && current^ != Option.None) {
-        Strudel.stopMusic();
-      };
-      /* Don't call hush() here - let scheduler.setPattern handle the update */
-      Strudel.playPattern(pattern);
-      current := Option.Some(id);
-      last_desc := desc;
-    };
-  };
-
-  let stop = () => {
-    Strudel.stopMusic();
-    current := Option.None;
-    last_desc := "";
-  };
-
-  let is_playing = (id: Id.t) => current^ == Option.Some(id);
-};
+/* Use the shared PlayState from Strudel module */
+module PlayState = Util.Strudel.PlayState;
 
 /* Get Sound value from dynamics samples */
 let get_sound_value = (dynamics: option(Dynamics.Info.t)): option(Exp.t) =>

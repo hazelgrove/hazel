@@ -15,15 +15,23 @@ let is_function = (name: string): bool => {
 let isReady: unit => bool = () => is_function("note");
 
 /* Safe init - only call if initStrudel exists */
-/* Pass prebake callback to load Dirt-Samples from GitHub */
+/* Pass prebake callback to load Dirt-Samples from GitHub with error handling */
 let initStrudel: unit => unit =
   () =>
     if (is_function("initStrudel")) {
       let fn = Js.Unsafe.js_expr("window.initStrudel");
-      /* Create options object with prebake callback that loads samples */
+      /* Create options object with prebake callback that loads samples.
+       * Wrapped in try/catch for graceful degradation on network failure. */
       let options =
         Js.Unsafe.js_expr(
-          "{ prebake: function() { return samples('github:tidalcycles/dirt-samples'); } }",
+          "{ prebake: function() { \
+             try { \
+               return samples('github:tidalcycles/dirt-samples'); \
+             } catch (e) { \
+               console.warn('Strudel: Failed to load dirt-samples:', e); \
+               return Promise.resolve(); \
+             } \
+           } }",
         );
       Js.Unsafe.fun_call(fn, [|Js.Unsafe.inject(options)|]) |> ignore;
     };
@@ -115,48 +123,62 @@ let play: pattern => unit =
 let playNote: string => unit =
   pattern =>
     switch (note(pattern)) {
-    | Some(p) => play(juxRev(p))
+    | Some(p) => play(p)
     | None => ()
     };
 
-/* Play an arbitrary pattern with jux rev stereo effect */
-let playPattern: pattern => unit = p => play(juxRev(p));
+/* Play an arbitrary pattern */
+let playPattern: pattern => unit = p => play(p);
 
 /* Function to stop the music */
 let stopMusic: unit => unit = () => hush();
 
-/* Load Dirt-Samples from GitHub for drum sounds */
-let loadSamples: unit => unit =
-  () =>
-    if (is_function("samples")) {
-      /* Load common drum samples from Dirt-Samples repository */
-      let _ =
-        Js.Unsafe.fun_call(
-          Js.Unsafe.js_expr("window.samples"),
-          [|
-            Js.Unsafe.inject(
-              Js.Unsafe.js_expr(
-                "{ \
-                  bd: ['bd/BT0A0D0.wav', 'bd/BT0A0D3.wav', 'bd/BT0AAD0.wav'], \
-                  sd: ['sd/rytm-01-classic.wav', 'sd/rytm-00-hard.wav'], \
-                  hh: ['hh/000_hh3closedhh.wav', 'hh27/000_hh27closedhh.wav'], \
-                  oh: ['oh/000_oh3openhh.wav'], \
-                  cp: ['cp/HANDCLP0.wav'], \
-                  cb: ['cb/000_cb.wav'] \
-                }",
-              ),
-            ),
-            Js.Unsafe.inject(
-              Js.string(
-                "https://raw.githubusercontent.com/tidalcycles/Dirt-Samples/master/",
-              ),
-            ),
-          |],
-        );
-      Printf.printf("Strudel samples loaded\n");
-    } else {
-      Printf.printf("Strudel samples function not found\n");
+/* Global play state for mutual exclusion - only one Player can be active at a time.
+ * For live coding: we don't call hush() before playing - this allows the
+ * Strudel scheduler to keep running while we update the pattern via setPattern.
+ * See: https://strudel.cc/technical-manual/repl/ */
+module PlayState = {
+  /* Use Uuidm.t directly since util doesn't depend on Language.Id */
+  type player_id = Uuidm.t;
+
+  let current: ref(option(player_id)) = ref(Option.None);
+  /* Track last played description to detect actual changes */
+  let last_desc: ref(string) = ref("");
+
+  /* Start playing or update the pattern if already playing.
+   * Key insight: pattern.play() internally calls scheduler.setPattern(),
+   * which updates the running scheduler without restarting the clock. */
+  let play_or_update = (id: player_id, p: pattern, desc: string) => {
+    let is_new_pattern = last_desc^ != desc;
+    let is_new_player = current^ != Option.Some(id);
+
+    if (is_new_pattern || is_new_player) {
+      /* If switching to a different player, stop the previous one first */
+      if (is_new_player && current^ != Option.None) {
+        stopMusic();
+      };
+      /* Don't call hush() here - let scheduler.setPattern handle the update */
+      playPattern(p);
+      current := Option.Some(id);
+      last_desc := desc;
     };
+  };
+
+  let stop = () => {
+    stopMusic();
+    current := Option.None;
+    last_desc := "";
+  };
+
+  let is_playing = (id: player_id) => current^ == Option.Some(id);
+
+  /* Stop playback if any of the given IDs is the currently playing player */
+  let stop_if_playing_any = (ids: list(player_id)) =>
+    switch (current^) {
+    | Some(playing_id) when List.mem(playing_id, ids) => stop()
+    | _ => ()
+    };
+};
 
 /* Function to initialize Strudel - handles both already-loaded and loading cases */
 let initOnLoad: unit => unit =

@@ -25,6 +25,7 @@ let sound_type: Typ.t =
     ("Slow", Some(prod([float(), sound_inner]))),
     ("Seq", Some(list(sound_inner))),
     ("Stack", Some(list(sound_inner))),
+    ("JuxRev", Some(sound_inner)),
   ]);
 
 module Ord = {

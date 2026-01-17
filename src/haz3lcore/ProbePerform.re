@@ -621,8 +621,9 @@ let toggle_player =
       );
     switch (probe_status(id, info_map, z.refractors)) {
     | Player(ids) =>
-      /* Remove player */
-      rm_manual(ids, z)
+      /* Remove player - stop playback if this player was playing */
+      Strudel.PlayState.stop_if_playing_any(ids);
+      rm_manual(ids, z);
     | Manual(ids)
     | Statics(ids) =>
       /* Switch from manual probe/statics to player */
