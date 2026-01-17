@@ -459,14 +459,17 @@ let value_view =
 
   div(
     ~attrs=[
-      Attr.title(Debug.str(~ap_id, sample)),
+      // Attr.title(Debug.str(~ap_id, sample)),
       Attr.classes(
         ["value", length_cls(length)]
         @ cursor_clss(~settings, ~ap_id, di, sample)
         @ (Option.is_some(ap_id) ? ["ap"] : [])
         @ (!ValueChecker.is_value(sample.value) ? ["indet"] : []),
       ),
-      //Attr.on_double_click(_ => local(ToggleShowAllVals(index))),
+      Attr.on_double_click(_ => {
+        Settings.go(ToggleWindow);
+        local(NoOp);
+      }),
       Attr.on_pointerdown(evt =>
         Key.meta_held(evt)
           ? pin_call(~parent, ~ap_id, ~di) : val_pointerdown(evt)
@@ -745,20 +748,10 @@ let mv_least_distant_sample =
   | None => Effect.Ignore
   };
 
-let ellipsis_view =
-    (
-      ~ap_id: option(Id.t),
-      local,
-      parent: external_action => Ui_effect.t(unit),
-      info: info,
-    )
-    : Node.t =>
+let ellipsis_view = (local): Node.t =>
   div(
     ~attrs=[
       Attr.classes(["ellipsis"]),
-      Attr.on_pointerdown(
-        mv_least_distant_sample(~ap_id, parent, info.dynamics),
-      ),
       Attr.on_double_click(_ => local(ToggleShowAllVals(0))),
     ],
     [text("⋯")],
@@ -969,7 +962,6 @@ let key_handler =
   let key = Key.mk(KeyDown, evt);
   switch (key.key) {
   | D("E" | "e") when key.meta == Down || key.ctrl == Down => parent(Remove)
-  | D("V" | "v" | "√") when key.alt == Down => parent(Remove)
   | D("Escape") when key.shift == Down =>
     JsUtil.get_elem_by_id(Id.cls(id))##blur;
     Settings.reset_mode();
@@ -1058,7 +1050,7 @@ let offside_view =
   switch (info.dynamics) {
   | Some(di) =>
     let id = info.id;
-    let ap_id = Sample.Cursor.cur_ap(info.statics);
+    let ap_id = Sample.Cursor.cur_var_ap(info.statics);
     let hide_env = hide_env(info);
     /* Filter samples once and reuse for both num_total and selection */
     let filtered_samples =
@@ -1092,7 +1084,7 @@ let offside_view =
     let has_overflow = num_shown > 0 && num_shown < num_total;
     let overflow_extras = [
       nav_bar_view(~settings, ap_id, di, num_total, parent),
-      ellipsis_view(~ap_id, local, parent, info),
+      ellipsis_view(local),
     ];
 
     Node.div(
@@ -1130,7 +1122,7 @@ let offside_view =
     );
   | None =>
     /* No dynamics info means probe was never evaluated */
-    let ap_id = Sample.Cursor.cur_ap(info.statics);
+    let ap_id = Sample.Cursor.cur_var_ap(info.statics);
     Node.div(
       ~attrs=[
         Attr.id(Id.cls(info.id)),
@@ -1156,7 +1148,7 @@ let update = (() as m, _info: info, a: action) => {
 let overlay_view = (info: info): Node.t =>
   switch (info.dynamics) {
   | Some(di) =>
-    let ap_id = Sample.Cursor.cur_ap(info.statics);
+    let ap_id = Sample.Cursor.cur_var_ap(info.statics);
     div(
       ~attrs=[
         Attr.classes(["overlay"] @ (Option.is_some(ap_id) ? ["ap"] : [])),
@@ -1192,10 +1184,7 @@ module M: Projector = {
       keyboard: None,
     };
 
-  let placeholder = (_, info: info) =>
-    ProjectorCore.Shape.inline(
-      String.length(syntax_str(info.utility, info.syntax)),
-    );
+  let placeholder = (_, _) => ProjectorCore.Shape.default;
 
   let update = update;
 

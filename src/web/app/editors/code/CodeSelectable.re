@@ -53,7 +53,7 @@ module Update = {
         Introduce,
       )
     | DebugConsole(_)
-    | ToggleContextMenu
+    | ContextMenu(_)
     | TAB => None;
 
   let calculate = CodeEditable.Update.calculate;

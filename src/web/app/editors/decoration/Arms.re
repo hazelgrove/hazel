@@ -406,15 +406,17 @@ module Indicated = {
 
   let term =
       (~font_metrics: FontMetrics.t, ~syntax: CachedSyntax.t, z: Zipper.t) => {
-    let is_probed =
-      ProbePerform.has_probe(
-        Indicated.index(z) |> Option.value(~default=Id.invalid),
-        z,
-      );
-    div_c(
-      is_probed ? "indication-probed" : "indication",
-      indicated_piece(~font_metrics, ~syntax, z),
-    );
+    let id = Indicated.index(z) |> Option.value(~default=Id.invalid);
+    let refractor_kind = ProbePerform.refractor_kind(id, z);
+    let base_cls =
+      Option.is_some(refractor_kind)
+        ? "indication-refractored" : "indication";
+    let kind_cls =
+      refractor_kind
+      |> Option.map(ProjectorCore.Kind.name)
+      |> Option.value(~default="");
+    let cls = kind_cls == "" ? base_cls : base_cls ++ " " ++ kind_cls;
+    div_c(cls, indicated_piece(~font_metrics, ~syntax, z));
   };
 };
 
@@ -449,7 +451,7 @@ module Refractors = {
         ? [
           svg(
             ~font_metrics,
-            ~path_cls=["child-line", Sort.to_string(sort), "dashed"],
+            ~path_cls=["child-line", cls, Sort.to_string(sort), "dashed"],
             (last, [m(~x=0, ~y=1), h(~x=dashed_length)]),
           ),
         ]
@@ -460,6 +462,7 @@ module Refractors = {
   let refractor_arms =
       (
         ~id: Id.t,
+        ~kind: ProjectorCore.Kind.t,
         ~syntax: CachedSyntax.t,
         ~font_metrics: FontMetrics.t,
         ~cls: string,
@@ -471,10 +474,11 @@ module Refractors = {
       | Some(range) =>
         let hx = abs_float(ShardDec.offset_of(Some(Left))); // Always left-convex
         let sort = Piece.sort(t.root_piece) |> fst;
+        let kind_cls = ProjectorCore.Kind.name(kind);
         paths(
           hx,
           ~dashed=Id.Map.mem(id, dynamics),
-          ~cls,
+          ~cls=cls ++ " " ++ kind_cls,
           sort,
           font_metrics,
           syntax.measured.rows,
@@ -496,9 +500,10 @@ module Refractors = {
     (
       z.refractors.manuals
       |> Id.Map.to_list
-      |> List.concat_map(((id, _p)) =>
+      |> List.concat_map(((id, entry: Refractors.entry)) =>
            refractor_arms(
              ~id,
+             ~kind=entry.kind,
              ~syntax,
              ~font_metrics,
              ~cls="manual",
@@ -509,9 +514,10 @@ module Refractors = {
     @ (
       z.refractors.autos.ephemerals
       |> Id.Map.to_list
-      |> List.concat_map(((id, _p)) =>
+      |> List.concat_map(((id, entry: Refractors.entry)) =>
            refractor_arms(
              ~id,
+             ~kind=entry.kind,
              ~syntax,
              ~font_metrics,
              ~cls=
@@ -522,10 +528,11 @@ module Refractors = {
            @ (
              Haz3lcore.Indicated.index(z) == Some(id)
                ? [
-                 Highlight.indicated_probe(
+                 Highlight.indicated_refractor(
                    ~measured=syntax.measured,
                    ~shape_map=syntax.shape_map,
                    ~font_metrics,
+                   ~kind=entry.kind,
                    TermData.segment(id, syntax.term_data)
                    |> Option.value(~default=[Piece.mk_grout(Convex)]),
                  ),

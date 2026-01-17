@@ -343,6 +343,30 @@ adder|},
   ),
 ];
 
+/* CASE EXPRESSION SPECIAL CASES - multi-tile forms (case + rules) */
+let case_expression_tests = [
+  test_probe_placement(
+    ~name="Single-line case - probe scrutinee and case expression",
+    ~code={|case 0      # 0 #
+| _ => 1 end # case 0 | _ => 1 end #|},
+  ),
+  test_probe_placement(
+    ~name="Multi-line case - end on own line",
+    ~code=
+      {|case 0      # 0 #
+| _ => 1    # 1 #
+end         # case 0 | _ => 1 end #|},
+  ),
+  test_probe_placement(
+    ~name="Case with multiple branches",
+    ~code=
+      {|case x        # x #
+| 0 => a      # a #
+| _ => b      # b #
+end           # case x | 0 => a | _ => b end #|},
+  ),
+];
+
 let tests = [
   ("AutoProbe.Basic", basic_tests),
   ("AutoProbe.DefaultSelection", nested_multiline_tests),
@@ -351,4 +375,5 @@ let tests = [
   ("AutoProbe.LetExpressions", let_expression_tests),
   ("AutoProbe.IfExpressions", if_expression_tests),
   ("AutoProbe.FunctionTypes", function_type_tests),
+  ("AutoProbe.CaseExpressions", case_expression_tests),
 ];

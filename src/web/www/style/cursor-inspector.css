@@ -281,19 +281,48 @@
   color: var(--context-inspector-colon);
 }
 
-/* Corner decoration - small decorative element */
-.corner-decoration {
+/* Status indicator - wrapper provides centering in corner area */
+.status-indicator {
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 0.5em;
-  color: var(--BR2);
+  width: 2rem;
   cursor: default;
   user-select: none;
-  transition: opacity 0.2s ease;
-  width: 2rem;
 }
 
-/* .corner-decoration:hover {
-  color: var(--BR4);
-} */
+/* The circular badge itself */
+.status-indicator span {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  font-weight: 600;
+  color: white;
+  transition: background-color 0.2s ease;
+  scale: 0.8;
+}
+
+.status-indicator.no-errors span {
+  background-color: oklch(70% 0.15 150);
+  font-size: 11px;
+}
+
+.status-indicator.has-errors span {
+  background-color: oklch(40% 0.3 30);
+}
+
+/* Font size adjustments based on digit count */
+.status-indicator.digits-1 span {
+  font-size: 10px;
+}
+
+.status-indicator.digits-2 span {
+  font-size: 8px;
+}
+
+.status-indicator.digits-3 span {
+  font-size: 6px;
+}

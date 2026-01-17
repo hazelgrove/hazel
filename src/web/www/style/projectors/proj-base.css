@@ -49,6 +49,10 @@
   z-index: var(--projector-z);
 }
 
+.code-editor:not(.selected) .refractors .overlays {
+  display: none;
+}
+
 .projectors .overlays .projector,
 .refractors .overlays .projector {
   pointer-events: none;

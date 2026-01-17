@@ -215,24 +215,27 @@ let selection =
     ),
   );
 
-let indicated_probe =
+let indicated_refractor =
     (
       ~measured: Measured.t,
       ~shape_map: ProjectorCore.Shape.Map.t,
       ~font_metrics: FontMetrics.t,
+      ~kind: ProjectorCore.Kind.t,
       seg: Segment.t,
-    ) =>
+    ) => {
+  let kind_cls = ProjectorCore.Kind.name(kind);
   div_c(
-    "probe-backing",
+    "refractor-backing",
     of_segment(
       ~measured,
       ~shape_map,
       ~font_metrics,
       ~shape_init=Some(Convex),
-      ~clss=["probe-indicated"],
+      ~clss=["refractor-indicated", kind_cls],
       seg,
     ),
   );
+};
 
 let color =
     (

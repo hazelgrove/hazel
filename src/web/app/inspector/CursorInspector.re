@@ -763,26 +763,41 @@ let inspector_view = (~globals, ci): Node.t =>
     view_of_info(~globals, ci),
   );
 
-/* A small decorative element for the corner */
-let corner_decoration =
+/* Status indicator showing global statics status */
+let status_indicator = (error_ids: list(Id.t)) => {
+  let has_errors = error_ids != [];
+  let error_count = List.length(error_ids);
+  let digit_class =
+    error_count >= 100
+      ? "digits-3" : error_count >= 10 ? "digits-2" : "digits-1";
+  let (status_class, icon, title) =
+    has_errors
+      ? (
+        "has-errors " ++ digit_class,
+        string_of_int(error_count),
+        string_of_int(error_count) ++ " error" ++ (error_count > 1 ? "s" : ""),
+      )
+      : ("no-errors", "✓", "No errors");
   div(
-    ~attrs=[clss(["corner-decoration"]), Attr.title("made with \xce\xbb")],
-    [text("⌾")],
+    ~attrs=[clss(["status-indicator", status_class]), Attr.title(title)],
+    [span(~attrs=[], [text(icon)])],
   );
+};
 
 let view = (~globals: Globals.t, cursor: Cursor.cursor(Editors.Update.t)) => {
   let bar_view = div(~attrs=[Attr.id("bottom-bar")]);
+  let status = status_indicator(cursor.error_ids);
   let err_view = err =>
     bar_view([
       div(
         ~attrs=[Attr.id("cursor-inspector"), clss(["no-info"])],
         [div(~attrs=[clss(["icon"])], [Icons.magnify]), text(err)],
       ),
-      corner_decoration,
+      status,
     ]);
   switch (cursor.info) {
   | _ when !globals.settings.core.statics => div_empty
   | None => err_view("Whitespace or Comment")
-  | Some(ci) => bar_view([inspector_view(~globals, ci), corner_decoration])
+  | Some(ci) => bar_view([inspector_view(~globals, ci), status])
   };
 };

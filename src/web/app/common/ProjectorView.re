@@ -11,17 +11,26 @@ type visible_rows = Globals.VisibleRows.t;
 
 let offside_offset = 4; /* Num characters offset to the right of the end of the line */
 
-/* Filter projector data to only include items in visible row range */
+/* Filter projector data to only include items in visible row range.
+ * For multi-line projectors (like large text areas), we check if ANY part
+ * of the projector overlaps with the visible range, not just the origin. */
 let filter_by_visibility =
-    (visible: option(visible_rows), data: list('a), get_row: 'a => int)
+    (
+      visible: option(visible_rows),
+      data: list('a),
+      get_row_range: 'a => (int, int),
+    )
     : list('a) =>
   switch (visible) {
   | None => data
   | Some({first, last}) =>
     List.filter(
       item => {
-        let row = get_row(item);
-        row >= first && row <= last;
+        let (origin_row, last_row) = get_row_range(item);
+        /* Projector is visible if it overlaps with visible range:
+         * - Starts before visible area ends: origin_row <= last
+         * - Ends after visible area starts: last_row >= first */
+        origin_row <= last && last_row >= first;
       },
       data,
     )
@@ -299,8 +308,10 @@ let mk_view =
   P.view({
     model: p.model,
     info,
-    local: a =>
-      inject(Project(SetModel(p.id, P.update(p.model, info, a)))),
+    local: a => {
+      let new_model = P.update(p.model, info, a);
+      inject(Project(SetModel(p.id, p.kind, new_model)));
+    },
     parent: a => inject(handle(p.id, a)),
     view_seg: (~single_line=?, ~background=?, ~text_only=?, sort, segment) =>
       flex_code(
@@ -378,10 +389,13 @@ let all =
    * impinge on hover-dropdowns, but the hovered projector
    * has z-index handled separately. But ideally dropdowns
    * should be on the overlay layer so this doesn't come up */
-  let get_row = (d: Model.projector_data) => d.measurement.origin.row;
+  let get_row_range = (d: Model.projector_data) => (
+    d.measurement.origin.row,
+    d.measurement.last.row,
+  );
   let (base_views, overlay_views) =
     projector_data
-    |> filter_by_visibility(visible, _, get_row)
+    |> filter_by_visibility(visible, _, get_row_range)
     |> List.sort(by_measurement)
     |> List.map(
          split_views(~skip_inline=false, inject, make_active, font_metrics),

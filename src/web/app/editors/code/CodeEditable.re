@@ -14,7 +14,7 @@ module Update = {
   type t =
     | Perform(Action.t)
     | TAB
-    | ToggleContextMenu
+    | ContextMenu(ContextMenu.Model.action)
     | DebugConsole(string);
 
   exception CantReset;
@@ -23,7 +23,7 @@ module Update = {
     switch (action) {
     | Perform(action) => Action.is_historic(action)
     | TAB => true
-    | ToggleContextMenu => false
+    | ContextMenu(_) => false
     | DebugConsole(_) => false
     };
   };
@@ -45,7 +45,7 @@ module Update = {
             editor,
             statics: model.statics,
             dynamics: model.dynamics,
-            context_menu: false,
+            context_menu: None,
           }
         | Error(err) => raise(Action.Failure.Exception(err))
       )
@@ -95,12 +95,19 @@ module Update = {
     | DebugConsole(key) =>
       DebugConsole.print(~settings, model, key);
       model |> Updated.return_quiet;
-    | ToggleContextMenu =>
+    | ContextMenu(action) =>
+      let new_state =
+        ContextMenu.WithContext.update(
+          ~info_map=model.statics.info_map,
+          ~zipper=model.editor.state.zipper,
+          action,
+          model.context_menu,
+        );
       {
         ...model,
-        context_menu: !model.context_menu,
+        context_menu: new_state,
       }
-      |> Updated.return
+      |> Updated.return_quiet;
     | TAB =>
       /* Attempt to act intelligently when TAB is pressed.
        * TODO: Consider more advanced TAB logic. Instead
@@ -141,16 +148,39 @@ module Selection = {
     fun
     | {key: D("Tab"), sys: _, shift: Up, meta: Up, ctrl: Up, alt: Up} =>
       Some(Update.TAB)
+    /* Cmd+. (Mac) / Ctrl+. (PC) opens context menu - VS Code Quick Fix convention */
+    | {key: D("."), sys: Mac, shift: Up, meta: Down, ctrl: Up, alt: Up}
+    | {key: D("."), sys: PC, shift: Up, meta: Up, ctrl: Down, alt: Up} =>
+      Some(Update.ContextMenu(ContextMenu.Model.Open))
+    /* Shift+F10 opens context menu (VS Code convention) */
+    | {key: D("F10"), sys: _, shift: Down, meta: Up, ctrl: Up, alt: Up} =>
+      Some(Update.ContextMenu(ContextMenu.Model.Open))
     | {key: D(key), sys: Mac | PC, shift: Down, meta: Up, ctrl: Up, alt: Up}
         when Keyboard.is_f_key(key) =>
       Some(Update.DebugConsole(key))
     | k =>
       Keyboard.handle_key_event(k) |> Option.map(x => Update.Perform(x));
 
-  let handle_key_event = (~selection, model: Model.t, key) => {
-    switch (ProjectorView.key_handoff(model.editor, key)) {
-    | Some(action) => Some(Update.Perform(Project(action)))
-    | None => handle_key_event(~selection, model, key)
+  let handle_key_event = (~selection, model: Model.t, key: Key.t) => {
+    /* Delegate to context menu key handler when menu is open */
+    let context_menu_result =
+      ContextMenu.WithContext.handle_key(
+        ~info_map=model.statics.info_map,
+        ~zipper=model.editor.state.zipper,
+        key.key,
+        model.context_menu,
+      );
+    switch (context_menu_result) {
+    | ContextMenu.WithContext.MenuUpdate(action) =>
+      Some(Update.ContextMenu(action))
+    | ContextMenu.WithContext.EditorAction(action) =>
+      Some(Update.Perform(action))
+    | ContextMenu.WithContext.Unhandled =>
+      /* Fall through to projector key handoff, then base handler */
+      switch (ProjectorView.key_handoff(model.editor, key)) {
+      | Some(action) => Some(Update.Perform(Project(action)))
+      | None => handle_key_event(~selection, model, key)
+      }
     };
   };
 
@@ -227,6 +257,11 @@ module View = {
         ~dynamics: Language.Dynamics.Map.t,
         model: Model.t,
       ) => {
+    /* Sync document-level click listener for closing context menu */
+    ContextMenuListener.sync(
+      selected && Model.context_menu_is_open(model),
+      inject(ContextMenu(ContextMenu.Model.Close)),
+    );
     let edit_decos =
       selected
         ? deco(
@@ -243,17 +278,30 @@ module View = {
             ),
           ]
           @ (
-            model.context_menu
-              ? [
+            switch (model.context_menu) {
+            | Some(selected_index) => [
+                /* Backdrop for scroll-close. Click handling is done via
+                   ContextMenuListener's document-level event listener. */
+                Node.div(
+                  ~attrs=[
+                    Attr.classes(["context-menu-backdrop"]),
+                    Attr.on_wheel(_ =>
+                      inject(ContextMenu(ContextMenu.Model.Close))
+                    ),
+                  ],
+                  [],
+                ),
                 ContextMenu.view(
                   ~inject=a => inject(Perform(a)),
                   ~syntax=model.editor.syntax,
                   ~info_map=model.statics.info_map,
                   ~font_metrics=globals.font_metrics,
+                  ~selected_index,
                   model.editor.state.zipper,
                 ),
               ]
-              : []
+            | None => []
+            }
           )
         : [];
     let t0 = JsUtil.precise_timestamp();
@@ -359,7 +407,7 @@ module View = {
           //Effect.Stop_propagation,
           Effect.Prevent_default,
           inject(Perform(Move(Point(loc(mouse))))),
-          inject(ToggleContextMenu),
+          inject(ContextMenu(ContextMenu.Model.Toggle)),
         ])
       | {button: Left, _} =>
         MouseState.pointerdown(loc(mouse));
