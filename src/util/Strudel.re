@@ -15,21 +15,23 @@ let is_function = (name: string): bool => {
 let isReady: unit => bool = () => is_function("note");
 
 /* Safe init - only call if initStrudel exists */
-/* Pass prebake callback to load Dirt-Samples from GitHub with error handling */
+/* Pass prebake callback to load samples from GitHub with error handling.
+ * Loads both dirt-samples (basic sounds) and tidal-drum-machines (Roland banks). */
 let initStrudel: unit => unit =
   () =>
     if (is_function("initStrudel")) {
       let fn = Js.Unsafe.js_expr("window.initStrudel");
       /* Create options object with prebake callback that loads samples.
-       * Wrapped in try/catch for graceful degradation on network failure. */
+       * Wrapped in try/catch for graceful degradation on network failure.
+       * Loads: dirt-samples (bd, sd, hh, etc.) and drum-machines (RolandTR808, etc.) */
       let options =
         Js.Unsafe.js_expr(
-          "{ prebake: function() { \
+          "{ prebake: async function() { \
              try { \
-               return samples('github:tidalcycles/dirt-samples'); \
+               await samples('github:tidalcycles/dirt-samples'); \
+               await samples('github:ritchse/tidal-drum-machines/main/machines'); \
              } catch (e) { \
-               console.warn('Strudel: Failed to load dirt-samples:', e); \
-               return Promise.resolve(); \
+               console.warn('Strudel: Failed to load samples:', e); \
              } \
            } }",
         );

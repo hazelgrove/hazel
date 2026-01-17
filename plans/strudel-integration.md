@@ -520,16 +520,18 @@ module PlayState = {
 
 ### 6.2 Sample Loading & Graceful Degradation ✅ COMPLETE
 
-**Current loading:** Samples load from `github:tidalcycles/dirt-samples` via Strudel's `samples()` function in the `prebake` callback.
+**Current loading:** Samples load from two GitHub sources via Strudel's `samples()` function in the `prebake` callback:
+1. `github:tidalcycles/dirt-samples` - basic samples (bd, sd, hh, piano, etc.)
+2. `github:ritchse/tidal-drum-machines/main/machines` - Roland drum machine banks (RolandTR808, RolandTR909, etc.)
 
-**Implementation:** The `prebake` callback in `initStrudel()` is wrapped in try/catch:
+**Implementation:** The `prebake` callback in `initStrudel()` is async with try/catch:
 ```javascript
-prebake: function() {
+prebake: async function() {
   try {
-    return samples('github:tidalcycles/dirt-samples');
+    await samples('github:tidalcycles/dirt-samples');
+    await samples('github:ritchse/tidal-drum-machines/main/machines');
   } catch (e) {
-    console.warn('Strudel: Failed to load dirt-samples:', e);
-    return Promise.resolve();
+    console.warn('Strudel: Failed to load samples:', e);
   }
 }
 ```
