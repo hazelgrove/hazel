@@ -1,5 +1,5 @@
 let out : string * Haz3lcore.PersistentSegment.t =
-  ( "Studel",
+  ( "Sound",
     {
       segment =
         "((Secondary((id \
