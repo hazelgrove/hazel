@@ -75,6 +75,13 @@
 .code-deco .refractors svg path.child-line {
   stroke: var(--G0) !important;
 }
+/* Kind-based colors for refractor arms: probe = green, type = purple */
+.code-deco .refractors svg path.child-line.probe {
+  stroke: var(--G0) !important;
+}
+.code-deco .refractors svg path.child-line.statics {
+  stroke: #bd92cf !important;
+}
 .code-deco .refractors svg path.child-line.repl {
   stroke: var(--BR3) !important;
   /* stroke-dasharray: 0.5 2.5; */
@@ -89,7 +96,7 @@
   fill: var(--exp-base) !important;
 }
 
-.code-deco .refractors svg.shard.probe-indicated path {
+.code-deco .refractors svg.shard.refractor-indicated path {
   opacity: 0.4;
 }
 
@@ -117,7 +124,7 @@
 }
 
 .refractors svg:has(.child-line) {
-  z-index: 2; /* TODO(andrew) */
+  z-index: 2;
 }
 
 .refractors .child-line {
@@ -129,8 +136,12 @@
   stroke-dasharray: 0.5 2.5;
   opacity: 0.4;
 }
-.refractors svg:has(.repl-indicated) + svg path.child-line.dashed {
+.refractors svg:has(.refractor-indicated) + svg path.child-line.dashed {
   stroke: var(--G0) !important;
+  opacity: 1;
+}
+.refractors svg:has(.refractor-indicated) + svg path.child-line.statics.dashed {
+  stroke: #bd92cf !important;
   opacity: 1;
 }
 
@@ -138,8 +149,12 @@
   background-color: var(--exp-indicated) !important;
 }
 
-.indication-probed svg.shard.indicated > path {
+.indication-refractored svg.shard.indicated > path {
   fill: var(--exp-base);
+}
+
+.indication-refractored.statics svg.shard.indicated > path {
+  fill: hsl(281, 80%, 95%);
 }
 
 /* INLINE VIEW */
@@ -231,9 +246,9 @@
   --original-bg: var(--pat-indicated);
   color: var(--SAND);
 }
-.overlays .projector.probe.error:not(.selected) .num-samples {
+/* .overlays .projector.probe.error:not(.selected) .num-samples {
   --original-bg: var(--R1);
-}
+} */
 .overlays .projector.probe.selected .num-samples {
   --original-bg: var(--num-samples);
   color: black;
@@ -560,20 +575,12 @@
   background-color: #d6eed6;
 }
 
-.projector.probe.indicated .live-offside.Single .sample:has(.value.cursor) {
-  border-bottom: 1px solid var(--G0);
+.projector.probe.indicated .live-offside:focus .sample:has(.value.cursor) {
+  outline: 1.5px solid var(--R1);
   background-color: oklch(from var(--bkg) calc(l * 0.96) calc(c + 0.04) h);
 }
-.projector.probe.indicated
-  .live-offside.Single:focus
-  .sample:has(.value.cursor) {
-  border-bottom: 1px solid var(--R1);
-}
-.projector.probe.indicated .live-offside.Many .sample:has(.value.cursor) {
+.projector.probe.indicated .live-offside .sample:has(.value.cursor) {
   outline: 1.5px solid var(--G0);
-}
-.projector.probe.indicated .live-offside.Many:focus .sample:has(.value.cursor) {
-  outline: 1.5px solid var(--R1);
 }
 
 .live-offside .sample:hover {
@@ -662,9 +669,9 @@
   color: var(--PAT);
 }
 
-.live-offside.Many .sample:has(.value.cursor-unrelated) .code-text .token {
+/* .live-offside.Many .sample:has(.value.cursor-unrelated) .code-text .token {
   color: white;
-}
+} */
 
 /* SAMPLE CONTEXT MENU (dropdown) */
 
@@ -698,6 +705,7 @@
   padding: 0 0.3em;
   gap: 0.1em;
   color: black;
+  white-space: nowrap;
 }
 
 .sample-context-menu .action-item:hover {
@@ -745,11 +753,6 @@
   filter: invert(1) brightness(3) saturate(0.4);
 }
 
-/* Environment section */
-.sample-context-menu .environment-section {
-  /* Container for environment bindings */
-}
-
 .live-offside .live-env {
   padding: 0.2em 0.55em;
   background-color: var(--live-env-bkg);
@@ -761,31 +764,11 @@
 
 /* Require .indicated on probe AND .cursor on value for menu to appear */
 .projector.probe.indicated
-  .live-offside
-  .sample:has(.value.cursor)
-  .sample-context-menu:hover,
-.projector.probe.indicated
-  .live-offside
-  .sample:has(.value.cursor)
-  .sample-context-menu.dropdown-active {
-  display: flex;
-  flex-direction: column;
-}
-
-.live-offside .live-env .live-env-entry {
-  display: flex;
-  flex-direction: row;
-  white-space: pre;
-  align-items: baseline;
-  color: var(--GB0);
-  font-family: var(--code-font);
-  font-size: var(--base-font-size);
-}
-
-.projector.probe.indicated
+  .live-offside:focus
   .sample:has(.value.cursor):hover
   .sample-context-menu,
 .projector.probe.indicated
+  .live-offside:focus
   .sample:has(.value.cursor)
   .sample-context-menu.dropdown-active {
   display: block;
@@ -797,6 +780,16 @@
   .sample:has(.value.cursor)
   .sample-context-menu.dropdown-active:empty {
   display: none;
+}
+
+.live-offside .live-env .live-env-entry {
+  display: flex;
+  flex-direction: row;
+  white-space: pre;
+  align-items: baseline;
+  color: var(--GB0);
+  font-family: var(--code-font);
+  font-size: var(--base-font-size);
 }
 
 .projector.probe .nav-arrow {
@@ -816,9 +809,9 @@
 .projector.probe .nav-arrow {
   filter: invert(1) brightness(0.7) sepia(1) hue-rotate(61deg) saturate(0.6);
 }
-.projector.probe.Pat .nav-arrow {
+/* .projector.probe.Pat .nav-arrow {
   filter: invert(1) brightness(0.7) sepia(1) hue-rotate(141deg) saturate(0.6);
-}
+} */
 
 .projector.probe:not(.indicated) .nav-arrow {
   pointer-events: none;

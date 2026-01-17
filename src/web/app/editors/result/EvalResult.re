@@ -19,7 +19,7 @@ module Model = {
   type t = {
     cached_settings: Calc.saved(CoreSettings.t),
     elab: Calc.saved(Exp.t),
-    cached_probe_map: Calc.saved(Id.Map.t(Probe.t)), /* Input probe_map for cache invalidation */
+    cached_targets: Calc.saved(Sample.targets), /* Input targets for cache invalidation */
     result: Calc.t(ProgramResult.t(ProgramResult.inner)),
     dynamics: Calc.saved(option(Dynamics.t)),
     display,
@@ -35,7 +35,7 @@ module Model = {
   let init = {
     cached_settings: Calc.Pending,
     elab: Calc.Pending,
-    cached_probe_map: Calc.Pending,
+    cached_targets: Calc.Pending,
     result: Calc.NewValue(ProgramResult.ResultPending),
     dynamics: Calc.Pending,
     display: Evaluation(Calc.Pending),
@@ -57,7 +57,7 @@ module Model = {
     | Some(stepper) => {
         cached_settings: Calc.Pending,
         elab: Calc.Pending,
-        cached_probe_map: Calc.Pending,
+        cached_targets: Calc.Pending,
         result: Calc.NewValue(ProgramResult.ResultPending),
         dynamics: Calc.Pending,
         display: Stepper(StepperView.Model.unpersist(stepper)),
@@ -167,23 +167,23 @@ module Update = {
         {
           cached_settings,
           elab,
-          cached_probe_map,
+          cached_targets,
           result,
           dynamics,
           display,
           theorems,
         }: Model.t,
       ) => {
-    // Check whether settings / elab / probe_map have changed
+    // Check whether settings / elab / targets have changed
     let settings =
       cached_settings
       |> Calc.set(settings, ~eq=CoreSettings.eq_ignoring_stepper_modals);
     let elab = Calc.set(~eq=Exp.fast_equal, statics.elaborated, elab);
-    let probe_map =
+    let targets =
       Calc.set(
-        ~eq=Id.Map.equal(Probe.equal),
-        statics.probe_map,
-        cached_probe_map,
+        ~eq=Id.Map.equal(Sample.equal_capture_spec),
+        statics.targets,
+        cached_targets,
       );
 
     // Calculate the result
@@ -193,7 +193,7 @@ module Update = {
         let.calc_t elab = elab
         // TODO[Matt]: We could make this more fine-grained, we only care about one setting
         and.calc settings = settings
-        and.calc probe_map = probe_map;
+        and.calc targets = targets;
         switch (queue_worker) {
         // Dynamics is off:
         | _ when !settings.dynamics => ProgramResult.ResultPending
@@ -201,7 +201,7 @@ module Update = {
         | Some(queue_worker) =>
           queue_worker({
             expr: elab,
-            probe_map,
+            targets,
           });
           ProgramResult.ResultPending;
         // Using the main thread:
@@ -209,7 +209,7 @@ module Update = {
           switch (
             WorkerServer.work({
               expr: elab,
-              probe_map,
+              targets,
             })
           ) {
           | Ok((exp, state)) =>
@@ -311,7 +311,7 @@ module Update = {
       {
         cached_settings: settings |> Calc.save,
         elab: elab |> Calc.save,
-        cached_probe_map: probe_map |> Calc.save,
+        cached_targets: targets |> Calc.save,
         result: result |> Calc.make_old,
         dynamics: dynamics |> Calc.save,
         display,

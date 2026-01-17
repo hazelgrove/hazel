@@ -53,9 +53,8 @@ let parse_exp = (s: string) => {
   };
 };
 
-/* Parse code with probes (^^probe syntax) and build probe_map */
-let parse_with_probes =
-    (s: string): (Exp.t, Statics.Map.t, Id.Map.t(Probe.t)) => {
+/* Parse code with probes (^^probe syntax) and build targets */
+let parse_with_probes = (s: string): (Exp.t, Statics.Map.t, Sample.targets) => {
   switch (Haz3lcore.Parser.to_zipper(s)) {
   | None => Alcotest.fail("Failed to parse expression: " ++ s)
   | Some(z) =>
@@ -67,15 +66,15 @@ let parse_with_probes =
       Id.Map.union(
         (_, _, _) => Some(),
         Id.Map.map(_ => (), z.refractors.manuals),
-        Id.Map.map(_ => (), z.refractors.ephemerals),
+        Id.Map.map(_ => (), z.refractors.autos.ephemerals),
       );
 
     /* Build statics map for refs lookup */
     let info_map =
       Statics.mk(CoreSettings.on, Builtins.ctx_init(Some(Int)), term);
 
-    /* Build probe_map from probe_ids, computing refs for each */
-    let probe_map =
+    /* Build targets from probe_ids, computing refs for each */
+    let targets: Sample.targets =
       Id.Map.fold(
         (id, (), acc) => {
           let refs =
@@ -84,14 +83,14 @@ let parse_with_probes =
             | Some(InfoPat(_)) => Statics.Map.bound_in(info_map, id)
             | _ => []
             };
-          let probe = {Probe.refs: refs};
-          Id.Map.add(id, probe, acc);
+          let spec: Sample.capture_spec = {refs: refs};
+          Id.Map.add(id, spec, acc);
         },
         probe_ids,
         Id.Map.empty,
       );
 
-    (term, info_map, probe_map);
+    (term, info_map, targets);
   };
 };
 

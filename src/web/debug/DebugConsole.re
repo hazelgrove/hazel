@@ -56,7 +56,7 @@ let print =
         (state: Language.EvaluatorState.t): list(string) =>
       collect_print_samples(state)
       |> List.sort((a, b) =>
-           Int.compare(a.Language.Sample.iter, b.Language.Sample.iter)
+           Int.compare(a.Language.Sample.seq, b.Language.Sample.seq)
          )
       |> List.map(sample =>
            sample.Language.Sample.value

@@ -485,19 +485,12 @@ let candidate_allowed_by_variables =
   | _ => true
   };
 
-/* Filter out terms that should never have probes:
-   - Types and type patterns (no runtime values)
-   - Labels and deferrals (not useful, can break parsing)
-   - Type alias definitions (no meaningful value to display)
-   This mirrors the restrictions in Refractors.target_subterm_ids */
+/* Filter out terms that should never have probes. */
 let candidate_allowed_by_term_sort =
     (candidate_id: Id.t, env: selection_env): bool =>
-  switch (Language.Statics.Map.lookup(candidate_id, env.info_map)) {
-  | Some(InfoTyp(_) | InfoTPat(_)) => false
-  | Some(InfoExp({term: {term: Deferral(_) | Label(_) | TyAlias(_), _}, _})) =>
-    false
-  | _ => true
-  };
+  Language.Info.is_typable_term(
+    Language.Statics.Map.lookup(candidate_id, env.info_map),
+  );
 
 let candidate_is_allowed =
     (
@@ -627,6 +620,16 @@ let rec select_rows =
     ([selected, ...tail], final_state);
   };
 
+/* Normalize an ID to its term's rep_id.
+ * Multi-tile forms (like case expressions) have multiple IDs in their annotation,
+ * but the evaluator stores samples keyed by the rep_id. If we probe a non-rep ID,
+ * the sample lookup will fail. This ensures we always use the rep_id. */
+let normalize_to_rep_id = (id: Id.t, terms: TermMap.t): Id.t =>
+  switch (Id.Map.find_opt(id, terms)) {
+  | Some(term) => Language.Any.rep_id(term)
+  | None => id
+  };
+
 let ids_to_autoprobe =
     (
       id: Id.t,
@@ -645,5 +648,11 @@ let ids_to_autoprobe =
     info_map,
   };
   let (selections, _) = select_rows(row_contexts, env, empty_state);
-  selections;
+  /* Normalize each selected ID to its rep_id to ensure sample lookup works */
+  List.map(
+    fun
+    | Some(selected_id) => Some(normalize_to_rep_id(selected_id, terms))
+    | None => None,
+    selections,
+  );
 };

@@ -135,10 +135,10 @@ let rec evaluate =
         : EvaluatorEVMode.result => {
   open Trampoline.Syntax;
 
-  /* Check if this expression is in the probe_map.
+  /* Check if this expression is in the targets.
    * If so, record the current step count before evaluation begins. */
   let expr_id = DHExp.rep_id(init);
-  switch (Id.Map.find_opt(expr_id, state^.probe_map)) {
+  switch (Id.Map.find_opt(expr_id, state^.targets)) {
   | Some(_) => state := EvaluatorState.record_probe_start(state^, expr_id)
   | None => ()
   };
@@ -148,16 +148,16 @@ let rec evaluate =
       (~in_closure=?, env, init) =>
         evaluate(~in_closure?, ~call_stack, state, env, init),
       ~mode=`Environment,
-      ~probe_map=state^.probe_map,
+      ~targets=state^.targets,
       ~in_closure?,
       env,
       init,
     );
 
-  /* If this expression is in the probe_map and evaluation is complete,
+  /* If this expression is in the targets and evaluation is complete,
    * emit RecordExpProbe effect */
   let effects =
-    switch (is_finished, Id.Map.find_opt(expr_id, state^.probe_map)) {
+    switch (is_finished, Id.Map.find_opt(expr_id, state^.targets)) {
     | (Final, Some(pr)) => [EvaluatorState.RecordExpProbe(pr), ...effects]
     | _ => effects
     };
@@ -183,7 +183,7 @@ let rec evaluate =
      * the probe context since next.id != expr_id.
      *
      * Example: ^^probe(if true then 1 else 2)
-     *   1. expr_id = ID of the if expression, which is in probe_map
+     *   1. expr_id = ID of the if expression, which is in targets
      *   2. transition returns (Uneval, effects, next=1) - If stepped to branch
      *   3. Without Bind: evaluate(1) runs, returns Final, but expr_id is lost
      *   4. With Bind: we capture the final value when evaluate(1) completes,
@@ -201,7 +201,7 @@ let rec evaluate =
      * - ^^probe(f(x)) records a sample with the call_stack BEFORE entering f
      * - Expressions inside f see the app_id of f(x) in their call_stacks
      */
-    switch (Id.Map.find_opt(expr_id, state^.probe_map)) {
+    switch (Id.Map.find_opt(expr_id, state^.targets)) {
     | Some(probe) =>
       let.trampoline (_, _, final_value) =
         Trampoline.Next(() => evaluate(~call_stack, state, env, next));
@@ -235,12 +235,12 @@ let rec evaluate =
 let evaluate_and_limit =
     (
       ~step_limit: option(int)=?,
-      ~probe_map: Id.Map.t(Probe.t)=Id.Map.empty,
+      ~targets: Sample.targets=Sample.no_targets,
       ~env,
       d: DHExp.t,
     )
     : step_constrained((Exp.t, EvaluatorState.t)) => {
-  let state = ref(EvaluatorState.mk(~probe_map));
+  let state = ref(EvaluatorState.mk(~targets));
   let result = evaluate(~call_stack=[], state, env, d);
   let result = Trampoline.run(~step_limit?, result);
   switch (result) {
@@ -251,9 +251,9 @@ let evaluate_and_limit =
 };
 
 let evaluate =
-    (~probe_map: Id.Map.t(Probe.t)=Id.Map.empty, ~env, d: DHExp.t)
+    (~targets: Sample.targets=Sample.no_targets, ~env, d: DHExp.t)
     : (Exp.t, EvaluatorState.t) => {
-  switch (evaluate_and_limit(~probe_map, ~env, d)) {
+  switch (evaluate_and_limit(~targets, ~env, d)) {
   | Completed((x, state)) => (x, state)
   | StepLimitExceeded =>
     raise(Failure("Impossible: Step limit exceeded when not set"))

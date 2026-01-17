@@ -393,8 +393,7 @@ let rec abbreviate_exp = (exp: Exp.t): Exp.t => {
           flat_ellipses_term();
         };
       Ap(Forward, konst, arg);
-    | Parens(e)
-    | Probe(e, _) =>
+    | Parens(e) =>
       available := available^ - 2;
       Parens(abbreviate_exp(e));
 
@@ -1076,8 +1075,7 @@ and abbreviate_pat = (pat: Pat.t): Pat.t => {
         available := available^ - 1; // space
         Constructor(name, typ);
       }
-    | Parens(p)
-    | Probe(p, _) =>
+    | Parens(p) =>
       if (available^ <= 3) {
         indet_term_pat;
       } else {

@@ -7,7 +7,7 @@ module Request = {
   [@deriving (show, sexp, yojson)]
   type value = {
     expr: Language.Exp.t,
-    probe_map: Id.Map.t(Language.Probe.t),
+    targets: Language.Sample.targets,
   };
   [@deriving (show, sexp, yojson)]
   type t = list((string, value));
@@ -28,32 +28,22 @@ module Response = {
 };
 
 let work = (req_value: Request.value): Response.value => {
-  let Request.{expr, probe_map} = req_value;
-  let eval_start = JsUtil.precise_timestamp();
-  let result =
-    switch (
-      Language.Evaluator.evaluate(
-        ~probe_map,
-        ~env=Language.Builtins.env_init,
-        expr,
-      )
-    ) {
-    | exception (Language.EvaluatorError.Exception(reason)) =>
-      print_endline(
-        "EvaluatorError:" ++ Language.EvaluatorError.show(reason),
-      );
-      Error(Language.ProgramResult.EvaulatorError(reason));
-    | exception exn =>
-      print_endline("EXN:" ++ Printexc.to_string(exn));
-      Error(
-        Language.ProgramResult.UnknownException(Printexc.to_string(exn)),
-      );
-    | (result, state) => Ok((result, state))
-    };
-  let eval_end = JsUtil.precise_timestamp();
-  //TODO(andrew): rm before final merge
-  Printf.printf("  Eval only (ms): %.2f\n", eval_end -. eval_start);
-  result;
+  let Request.{expr, targets} = req_value;
+  switch (
+    Language.Evaluator.evaluate(
+      ~targets,
+      ~env=Language.Builtins.env_init,
+      expr,
+    )
+  ) {
+  | exception (Language.EvaluatorError.Exception(reason)) =>
+    print_endline("EvaluatorError:" ++ Language.EvaluatorError.show(reason));
+    Error(Language.ProgramResult.EvaulatorError(reason));
+  | exception exn =>
+    print_endline("EXN:" ++ Printexc.to_string(exn));
+    Error(Language.ProgramResult.UnknownException(Printexc.to_string(exn)));
+  | (result, state) => Ok((result, state))
+  };
 };
 
 let on_request = (req: Request.t): unit =>

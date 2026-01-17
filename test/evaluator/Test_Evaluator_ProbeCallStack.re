@@ -17,16 +17,16 @@ open Test_Evaluator_Prelude;
 
 /* Helper to get all samples from evaluated code with probes */
 let get_all_samples = (code: string): list(Sample.t) => {
-  let (term, info_map, probe_map) = parse_with_probes(code);
+  let (term, info_map, targets) = parse_with_probes(code);
   let elaborated = elaborate_with_info(info_map, term);
   let (_, state) =
-    Evaluator.evaluate(~probe_map, ~env=Builtins.env_init, elaborated);
+    Evaluator.evaluate(~targets, ~env=Builtins.env_init, elaborated);
   let probes = EvaluatorState.get_probes(state);
   Id.Map.bindings(probes) |> List.concat_map(snd);
 };
 
 /* Show call stack for debugging */
-let show_call_stack = (cs: Probe.call_stack): string =>
+let show_call_stack = (cs: Sample.call_stack): string =>
   "[" ++ String.concat(", ", List.map(Id.str3, cs)) ++ "]";
 
 let call_stack_testable =

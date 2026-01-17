@@ -17,7 +17,7 @@ module Model = {
       editor,
       statics: CachedStatics.empty,
       dynamics: Language.Dynamics.Map.empty,
-      context_menu: false,
+      context_menu: None,
     },
     result: EvalResult.Model.init,
   };
@@ -37,7 +37,7 @@ module Model = {
       editor: editor |> PersistentZipper.unpersist |> Editor.Model.mk,
       statics: CachedStatics.empty,
       dynamics: Language.Dynamics.Map.empty,
-      context_menu: false,
+      context_menu: None,
     },
     result: EvalResult.Model.unpersist(result),
   };
@@ -123,7 +123,9 @@ module Update = {
     /* Second pass: if there's a pending focus waiting for dynamics,
        recalculate editor with the (possibly new) dynamics */
     let editor =
-      switch (editor.editor.state.zipper.refractors.dyn_cursor.pending_focus) {
+      switch (
+        editor.editor.state.zipper.refractors.sample_cursor.pending_focus
+      ) {
       | None => editor
       | Some(_) =>
         CodeEditable.Update.calculate(
