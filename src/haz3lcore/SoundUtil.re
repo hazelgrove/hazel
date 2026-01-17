@@ -86,7 +86,11 @@ let get_list = (exp: Exp.t): option(list(Exp.t)) => {
 let is_sound = (exp: Exp.t): bool =>
   switch (get_constructor(exp)) {
   | Some(
-      "Note" | "Sample" | "Rev" | "Fast" | "Slow" | "Seq" | "Stack" | "JuxRev",
+      "Note" | "Sample" | "Rev" | "Fast" | "Slow" | "Seq" | "Stack" | "JuxRev" |
+      "Gain" |
+      "Pan" |
+      "Bank" |
+      "Cpm",
     ) =>
     true
   | _ => false
@@ -177,6 +181,58 @@ let rec interpret_sound = (exp: Exp.t): option(Util.Strudel.pattern) =>
       switch (interpret_sound(inner)) {
       | Some(p) => Some(Util.Strudel.juxRev(p))
       | None => None
+      }
+    | None => None
+    }
+  | Some("Gain") =>
+    switch (get_constructor_arg(exp)) {
+    | Some(arg) =>
+      switch (get_tuple(arg)) {
+      | Some([gain_val, inner]) =>
+        switch (get_float(gain_val), interpret_sound(inner)) {
+        | (Some(g), Some(p)) => Some(Util.Strudel.gain(g, p))
+        | _ => None
+        }
+      | _ => None
+      }
+    | None => None
+    }
+  | Some("Pan") =>
+    switch (get_constructor_arg(exp)) {
+    | Some(arg) =>
+      switch (get_tuple(arg)) {
+      | Some([pan_val, inner]) =>
+        switch (get_float(pan_val), interpret_sound(inner)) {
+        | (Some(n), Some(p)) => Some(Util.Strudel.pan(n, p))
+        | _ => None
+        }
+      | _ => None
+      }
+    | None => None
+    }
+  | Some("Bank") =>
+    switch (get_constructor_arg(exp)) {
+    | Some(arg) =>
+      switch (get_tuple(arg)) {
+      | Some([bank_val, inner]) =>
+        switch (get_string(bank_val), interpret_sound(inner)) {
+        | (Some(name), Some(p)) => Some(Util.Strudel.bank(name, p))
+        | _ => None
+        }
+      | _ => None
+      }
+    | None => None
+    }
+  | Some("Cpm") =>
+    switch (get_constructor_arg(exp)) {
+    | Some(arg) =>
+      switch (get_tuple(arg)) {
+      | Some([cpm_val, inner]) =>
+        switch (get_float(cpm_val), interpret_sound(inner)) {
+        | (Some(n), Some(p)) => Some(Util.Strudel.cpm(n, p))
+        | _ => None
+        }
+      | _ => None
       }
     | None => None
     }
@@ -273,6 +329,74 @@ let rec sound_description = (exp: Exp.t): string =>
     switch (get_constructor_arg(exp)) {
     | Some(inner) => "juxRev(" ++ sound_description(inner) ++ ")"
     | None => "JuxRev(?)"
+    }
+  | Some("Gain") =>
+    switch (get_constructor_arg(exp)) {
+    | Some(arg) =>
+      switch (get_tuple(arg)) {
+      | Some([gain_val, inner]) =>
+        switch (get_float(gain_val)) {
+        | Some(g) =>
+          "gain("
+          ++ Printf.sprintf("%.2f", g)
+          ++ ", "
+          ++ sound_description(inner)
+          ++ ")"
+        | None => "Gain(?)"
+        }
+      | _ => "Gain(?)"
+      }
+    | None => "Gain(?)"
+    }
+  | Some("Pan") =>
+    switch (get_constructor_arg(exp)) {
+    | Some(arg) =>
+      switch (get_tuple(arg)) {
+      | Some([pan_val, inner]) =>
+        switch (get_float(pan_val)) {
+        | Some(n) =>
+          "pan("
+          ++ Printf.sprintf("%.2f", n)
+          ++ ", "
+          ++ sound_description(inner)
+          ++ ")"
+        | None => "Pan(?)"
+        }
+      | _ => "Pan(?)"
+      }
+    | None => "Pan(?)"
+    }
+  | Some("Bank") =>
+    switch (get_constructor_arg(exp)) {
+    | Some(arg) =>
+      switch (get_tuple(arg)) {
+      | Some([bank_val, inner]) =>
+        switch (get_string(bank_val)) {
+        | Some(name) =>
+          "bank(" ++ name ++ ", " ++ sound_description(inner) ++ ")"
+        | None => "Bank(?)"
+        }
+      | _ => "Bank(?)"
+      }
+    | None => "Bank(?)"
+    }
+  | Some("Cpm") =>
+    switch (get_constructor_arg(exp)) {
+    | Some(arg) =>
+      switch (get_tuple(arg)) {
+      | Some([cpm_val, inner]) =>
+        switch (get_float(cpm_val)) {
+        | Some(n) =>
+          "cpm("
+          ++ Printf.sprintf("%.0f", n)
+          ++ ", "
+          ++ sound_description(inner)
+          ++ ")"
+        | None => "Cpm(?)"
+        }
+      | _ => "Cpm(?)"
+      }
+    | None => "Cpm(?)"
     }
   | _ => "?"
   };

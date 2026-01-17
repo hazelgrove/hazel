@@ -778,55 +778,52 @@ This requires infrastructure for source location threading and overlay rendering
 
 ## Critical Gaps for Usability
 
-### For Composing Music (Phase A - PRIORITY)
+### For Composing Music (Phase A - PRIORITY) ✅ COMPLETE
 
 These features are essential to compose even simple pieces:
 
-| Feature | Constructor | Strudel | Why Critical |
-|---------|-------------|---------|--------------|
-| **Volume control** | `Gain(Float, Sound)` | `.gain(n)` | Can't mix levels between layers |
-| **Stereo panning** | `Pan(Float, Sound)` | `.pan(n)` | Can't create stereo placement |
-| **Sample banks** | `Bank(String, Sound)` | `.bank(name)` | Stuck with default samples, can't use TR-808/909 |
+| Feature | Constructor | Strudel | Status |
+|---------|-------------|---------|--------|
+| **Volume control** | `Gain(Float, Sound)` | `.gain(n)` | ✅ Done |
+| **Stereo panning** | `Pan(Float, Sound)` | `.pan(n)` | ✅ Done |
+| **Sample banks** | `Bank(String, Sound)` | `.bank(name)` | ✅ Done |
+| **Tempo control** | `Cpm(Float, Sound)` | `.cpm(n)` | ✅ Done |
 
-**Implementation:** Add to `BuiltinsADT.re`, `SoundUtil.re`, and `Strudel.re` (see 6.3 for details).
+**Implementation:** Added to `BuiltinsADT.re`, `SoundUtil.re`, and `Strudel.re`.
 
 ### For Live Coding Performance (Phase B - PRIORITY)
 
 These features enable live performance workflows:
 
-| Feature | Description | Why Critical |
-|---------|-------------|--------------|
-| **BPM/tempo control** | Set cycles per second | Hardcoded to ~120 BPM, can't match other musicians |
-| **Global transport** | Play/pause/stop all audio | Each Player is independent, no way to stop everything |
-| **Cycle indicator** | Show position in current cycle | Can't see where in the loop you are |
+| Feature | Description | Status |
+|---------|-------------|--------|
+| **BPM/tempo control** | Set cycles per minute | ✅ Done via `Cpm(Float, Sound)` constructor |
+| **Global transport** | Play/pause/stop all audio | ⬜ Deferred - need to decide on shortcut key |
+| **Cycle indicator** | Show position in current cycle | ⬜ Future |
 
-**BPM Implementation:**
-```reason
-// In Strudel.re - set cycles per second (default 0.5 = 120 BPM)
-let setCps: float => unit = cps =>
-  Js.Unsafe.fun_call(
-    Js.Unsafe.js_expr("window.setCps"),
-    [|Js.Unsafe.inject(Js.number_of_float(cps))|]
-  ) |> ignore;
-```
+**Tempo Control:** Now handled via `Cpm(Float, Sound)` constructor. Users can:
+- Use `Cpm((120.0, pattern))` for 120 CPM (≈ BPM)
+- Apply Knob projector to the Float for visual control
+- No global tempo UI needed - it's per-pattern
 
-**Global Transport Implementation:**
-- Add `Strudel.hushAll()` binding
-- Add keyboard shortcut (e.g., Escape or Ctrl+.) to stop all audio
-- Consider a global transport UI in the toolbar
+**Global Transport (DEFERRED):**
+- Need to identify a keyboard shortcut that doesn't conflict with browser/OS
+- Current Player toggle is `alt+p`
+- Consider: Ctrl+., Cmd+Shift+Escape, or other combinations
 
 ---
 
 ## Implementation Phases
 
-### Phase A: Music Composition Essentials (Do First)
+### Phase A: Music Composition Essentials (Do First) ✅ COMPLETE
 
 **Goal:** Enable composing simple multi-layer pieces with proper mixing.
 
-1. ⬜ Add `Gain(Float, Sound)` constructor
-2. ⬜ Add `Pan(Float, Sound)` constructor
-3. ⬜ Add `Bank(String, Sound)` constructor
-4. ⬜ Add sample documentation in example programs
+1. ✅ Add `Gain(Float, Sound)` constructor
+2. ✅ Add `Pan(Float, Sound)` constructor
+3. ✅ Add `Bank(String, Sound)` constructor
+4. ✅ Add `Cpm(Float, Sound)` constructor for tempo control (cycles per minute ≈ BPM)
+5. ⬜ Add sample documentation in example programs (deferred)
 
 **Test case when complete:**
 ```
@@ -835,21 +832,29 @@ Stack([
   Gain((0.6, Pan((0.3, Note("c4 ~ e4 ~"))))),
   Gain((0.4, Pan((-0.3, JuxRev(Note("g4 ~ ~ g4"))))))
 ])
+
+# With tempo control:
+Cpm((140.0, Stack([
+  Gain((0.8, Bank(("RolandTR909", Sample("bd ~ sd ~"))))),
+  Gain((0.6, Note("c4 e4 g4 c5")))
+])))
 ```
 
 ### Phase B: Live Coding Essentials (Do Second)
 
 **Goal:** Enable live performance with tempo control and global transport.
 
-1. ⬜ Add `setCps` binding for tempo control
-2. ⬜ Add global hush keyboard shortcut (Escape or Ctrl+.)
-3. ⬜ Consider: BPM input UI (could be a Knob projector on a global setting)
+1. ✅ Tempo control via `Cpm(Float, Sound)` constructor - use Knob projector for visual editing
+2. ⬜ **DEFERRED:** Global hush keyboard shortcut - need to decide on key that doesn't conflict with browser/OS shortcuts
+3. ⬜ Consider: Global `setCps` binding for setting tempo across all patterns (different from per-pattern Cpm)
 4. ⬜ Consider: Cycle position indicator (simpler than onTrigger visualization)
 
+**Note on global shortcut:** The Player refractor currently uses `alt+p` to toggle. A global "stop all audio" shortcut needs careful consideration - Escape may conflict with dialog closing, and other keys may conflict with browser shortcuts. This is deferred until a suitable key combination is identified.
+
 **Test case when complete:**
-- Change BPM while pattern plays - tempo changes smoothly
-- Press Escape - all audio stops immediately
-- Multiple Players can be started, global stop affects all
+- ✅ Change tempo while pattern plays - use Cpm constructor with Knob projector
+- ⬜ Press [TBD key] - all audio stops immediately
+- ⬜ Multiple Players can be started, global stop affects all
 
 ### Phase C: Exploration & Polish (Later)
 

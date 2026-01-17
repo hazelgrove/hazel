@@ -26,6 +26,10 @@ let sound_type: Typ.t =
     ("Seq", Some(list(sound_inner))),
     ("Stack", Some(list(sound_inner))),
     ("JuxRev", Some(sound_inner)),
+    ("Gain", Some(prod([float(), sound_inner]))),
+    ("Pan", Some(prod([float(), sound_inner]))),
+    ("Bank", Some(prod([string(), sound_inner]))),
+    ("Cpm", Some(prod([float(), sound_inner]))),
   ]);
 
 module Ord = {

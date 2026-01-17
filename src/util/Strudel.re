@@ -115,6 +115,38 @@ let juxRev: pattern => pattern =
     Js.Unsafe.meth_call(p, "jux", [|Js.Unsafe.inject(revFn)|]);
   };
 
+/* Set gain/volume (0.0 - 1.0) */
+let gain: (float, pattern) => pattern =
+  (g, p) =>
+    Js.Unsafe.meth_call(
+      p,
+      "gain",
+      [|Js.Unsafe.inject(Js.number_of_float(g))|],
+    );
+
+/* Set stereo pan (-1.0 left to 1.0 right) */
+let pan: (float, pattern) => pattern =
+  (n, p) =>
+    Js.Unsafe.meth_call(
+      p,
+      "pan",
+      [|Js.Unsafe.inject(Js.number_of_float(n))|],
+    );
+
+/* Set sample bank (e.g., "RolandTR909") */
+let bank: (string, pattern) => pattern =
+  (name, p) =>
+    Js.Unsafe.meth_call(p, "bank", [|Js.Unsafe.inject(Js.string(name))|]);
+
+/* Set tempo in cycles per minute (similar to BPM) */
+let cpm: (float, pattern) => pattern =
+  (n, p) =>
+    Js.Unsafe.meth_call(
+      p,
+      "cpm",
+      [|Js.Unsafe.inject(Js.number_of_float(n))|],
+    );
+
 /* Play a pattern */
 let play: pattern => unit =
   p => Js.Unsafe.meth_call(p, "play", [||]) |> ignore;
