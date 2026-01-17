@@ -21,6 +21,7 @@ module Kind = {
     | Fold
     | Probe
     | Statics
+    | Player
     | Checkbox
     | Slider
     | SliderF
@@ -51,7 +52,7 @@ module Kind = {
   let projectors: list(t) = livelit_projectors @ [Fold];
 
   /* Refractors are like probes - additive decorations, not syntax-replacing */
-  let refractors: list(t) = [Probe, Statics];
+  let refractors: list(t) = [Probe, Statics, Player];
   let is_refractor = (kind: t) => List.mem(kind, refractors);
 
   /* A friendly name for each projector. This is used
@@ -62,6 +63,7 @@ module Kind = {
     | Fold => "fold"
     | Probe => "probe"
     | Statics => "statics"
+    | Player => "player"
     | Checkbox => "check"
     | Slider => "slider"
     | SliderF => "sliderf"
@@ -83,6 +85,7 @@ module Kind = {
     | "fold" => Fold
     | "probe" => Probe
     | "statics" => Statics
+    | "player" => Player
     | "check" => Checkbox
     | "slider" => Slider
     | "sliderf" => SliderF

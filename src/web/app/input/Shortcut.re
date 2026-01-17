@@ -125,6 +125,13 @@ let shortcuts = (sys: Util.Key.sys): list(t) =>
       Globals(ActiveEditor(Probe(ToggleStatics))),
     ),
     mk_shortcut(
+      ~hotkey="alt+p",
+      ~mdIcon="play_circle",
+      ~section="Projection",
+      "Player",
+      Globals(ActiveEditor(Probe(TogglePlayer))),
+    ),
+    mk_shortcut(
       ~hotkey="alt+l",
       ~mdIcon="camera",
       ~section="Projection",

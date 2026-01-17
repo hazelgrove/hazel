@@ -49,11 +49,12 @@
   background: var(--G0);
   color: white;
   border-radius: 0.3em 0 0 0.3em;
-  border-right: 1px solid rgba(255,255,255,0.2);
+  /* border-right: 1px solid rgba(255,255,255,0.2); */
 }
 
 .strudel-controls button.stop {
-  background: var(--BR3);
+  background: var(--BR1);
   color: white;
   border-radius: 0 0.3em 0.3em 0;
+  outline: 1px solid var(--BR2);
 }

@@ -48,6 +48,10 @@
   z-index: 1;
 }
 
+.note-picker .note-key.white:not(:first-child) {
+  border-left: none;
+}
+
 .note-picker .note-key.white:hover {
   background: var(--T1);
   border-color: var(--BR2);

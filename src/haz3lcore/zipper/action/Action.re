@@ -87,6 +87,7 @@ type probe =
   | ToggleManual
   | ToggleAuto
   | ToggleStatics
+  | TogglePlayer
   | StepInto(Language.Sample.t, Id.t);
 
 [@deriving (show({with_path: false}), sexp, yojson, eq)]

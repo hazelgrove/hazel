@@ -100,6 +100,7 @@ let rec target_subterm_ids = (id: Id.t, info_map: Statics.Map.t) =>
 type probe_status =
   | Manual(list(Id.t)) /* manual probe; ids are target IDs (for fun literals: pat and body) */
   | Statics(list(Id.t)) /* statics annotation; ids are target IDs */
+  | Player(list(Id.t)) /* player refractor; ids are target IDs */
   | Auto
   | Non;
 
@@ -107,10 +108,10 @@ let probe_status =
     (id: Id.t, info_map: Statics.Map.t, refractors: Zipper.Refractor.t)
     : probe_status => {
   let target_ids = target_subterm_ids(id, info_map);
-  /* For manual/statics: check if ALL target IDs have manual entries */
+  /* For manual/statics/player: check if ALL target IDs have manual entries */
   if (List.for_all(id => Id.Map.mem(id, refractors.manuals), target_ids)
       && target_ids != []) {
-    /* Distinguish between probe and statics by checking kind */
+    /* Distinguish between probe, statics, and player by checking kind */
     let all_statics =
       List.for_all(
         id =>
@@ -120,7 +121,22 @@ let probe_status =
           },
         target_ids,
       );
-    all_statics ? Statics(target_ids) : Manual(target_ids);
+    let all_player =
+      List.for_all(
+        id =>
+          switch (Id.Map.find_opt(id, refractors.manuals)) {
+          | Some(entry: Refractors.entry) => entry.kind == Player
+          | None => false
+          },
+        target_ids,
+      );
+    if (all_statics) {
+      Statics(target_ids);
+    } else if (all_player) {
+      Player(target_ids);
+    } else {
+      Manual(target_ids);
+    };
   } else if
     /* For Auto: check if ANY target ID is an auto probe anchor */
     (List.exists(id => Id.Map.mem(id, refractors.autos.ids), target_ids)) {
@@ -300,8 +316,9 @@ let toggle_manual =
   switch (probe_status(id, info_map, z.refractors)) {
   | Auto =>
     rm_auto(~syntax, ~info_map, id, z) |> add_manual(~syntax, id, info_map)
-  | Statics(ids) =>
-    /* Switch from statics to manual probe */
+  | Statics(ids)
+  | Player(ids) =>
+    /* Switch from statics/player to manual probe */
     rm_manual(ids, z) |> add_manual(~syntax, id, info_map)
   | Manual(ids) =>
     /* Remove manual probe */
@@ -352,7 +369,8 @@ let toggle_auto =
   switch (probe_status(id, info_map, z.refractors)) {
   | Auto => rm_auto(~syntax, ~info_map, id, z)
   | Manual(ids)
-  | Statics(ids) => rm_manual(ids, z) |> add_auto(id, ~syntax, ~info_map)
+  | Statics(ids)
+  | Player(ids) => rm_manual(ids, z) |> add_auto(id, ~syntax, ~info_map)
   | Non =>
     /* Use same gating as manual probes: if target_subterm_ids returns [],
        the term is not probeable. */
@@ -468,7 +486,8 @@ let step_into_sample =
     switch (probe_status(body_id, info_map, z.refractors)) {
     | Auto
     | Manual(_)
-    | Statics(_) => z
+    | Statics(_)
+    | Player(_) => z
     | Non => add_auto(body_id, ~syntax, ~info_map, z)
     };
 
@@ -549,8 +568,9 @@ let toggle_statics =
     | Statics(ids) =>
       /* Remove statics */
       rm_manual(ids, z)
-    | Manual(ids) =>
-      /* Switch from manual probe to statics */
+    | Manual(ids)
+    | Player(ids) =>
+      /* Switch from manual probe/player to statics */
       rm_manual(ids, z) |> add_statics
     | Auto =>
       /* Switch from auto probe to statics */
@@ -558,6 +578,61 @@ let toggle_statics =
     | Non =>
       /* Add statics */
       add_statics(z)
+    };
+  };
+
+/* Check if type is Sound (handles parens and type aliases).
+   Sound type is represented as Var("Sound"). */
+let rec is_sound_type = (ty: Typ.t): bool =>
+  switch (ty.term) {
+  | Var("Sound") => true
+  | Parens(inner) => is_sound_type(inner)
+  | _ => false
+  };
+
+/* Check if player refractor is allowed for the given id.
+   Player can only be applied to expressions with type Sound. */
+let can_player = (id: Id.t, info_map: Statics.Map.t): bool => {
+  let target_ids = target_subterm_ids(id, info_map);
+  if (target_ids == []) {
+    false;
+  } else {
+    /* Check if the expression has type Sound */
+    switch (Statics.Map.lookup(id, info_map)) {
+    | Some(InfoExp({ty, _})) => is_sound_type(ty)
+    | _ => false
+    };
+  };
+};
+
+/* Toggle player refractor on the indicated term. */
+let toggle_player =
+    (~syntax: CachedSyntax.t, id: Id.t, info_map: Statics.Map.t, z: Zipper.t)
+    : Zipper.t =>
+  if (!can_player(id, info_map)) {
+    z;
+  } else {
+    let target_ids = target_subterm_ids(id, info_map);
+    let add_player = z =>
+      List.fold_left(
+        (z, id) => Zipper.add_manual(id, Player, z),
+        z,
+        target_ids,
+      );
+    switch (probe_status(id, info_map, z.refractors)) {
+    | Player(ids) =>
+      /* Remove player */
+      rm_manual(ids, z)
+    | Manual(ids)
+    | Statics(ids) =>
+      /* Switch from manual probe/statics to player */
+      rm_manual(ids, z) |> add_player
+    | Auto =>
+      /* Switch from auto probe to player */
+      rm_auto(~syntax, ~info_map, id, z) |> add_player
+    | Non =>
+      /* Add player */
+      add_player(z)
     };
   };
 
@@ -587,6 +662,11 @@ let go =
   | ToggleStatics =>
     switch (Indicated.index(z)) {
     | Some(id) => toggle_statics(~syntax, id, info_map, z)
+    | None => z
+    }
+  | TogglePlayer =>
+    switch (Indicated.index(z)) {
+    | Some(id) => toggle_player(~syntax, id, info_map, z)
     | None => z
     }
   | StepInto(sample, ap_id) =>

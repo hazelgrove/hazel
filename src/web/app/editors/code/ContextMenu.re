@@ -233,6 +233,7 @@ let manual_probe_data =
           switch (probe_status) {
           | Manual(_) => "Remove probe"
           | Statics(_)
+          | Player(_)
           | Auto => "Switch to manual"
           | Non => "Add probe"
           },
@@ -256,7 +257,8 @@ let auto_probe_data =
         name:
           switch (probe_status) {
           | Manual(_)
-          | Statics(_) => "Switch to auto"
+          | Statics(_)
+          | Player(_) => "Switch to auto"
           | Auto => "Remove auto probe"
           | Non => "Add auto probe"
           },
@@ -281,11 +283,37 @@ let type_annotation_data =
           switch (probe_status) {
           | Statics(_) => "Remove statics"
           | Manual(_)
+          | Player(_)
           | Auto => "Switch to statics"
           | Non => "Add statics"
           },
         shortcut: Some(Shortcuts.type_annotation()),
         action: Probe(ToggleStatics),
+      },
+    ]
+  | _ => []
+  };
+
+let player_data =
+    (
+      ~can_player: bool,
+      probe_status: ProbePerform.probe_status,
+      ci: option(Language.Info.t),
+    )
+    : list(menu_item_data) =>
+  switch (ci) {
+  | Some(InfoExp(_)) when can_player => [
+      {
+        name:
+          switch (probe_status) {
+          | Player(_) => "Remove player"
+          | Manual(_)
+          | Statics(_)
+          | Auto => "Switch to player"
+          | Non => "Add player"
+          },
+        shortcut: None, /* No shortcut for now */
+        action: Probe(TogglePlayer),
       },
     ]
   | _ => []
@@ -412,6 +440,7 @@ module Projectors = {
     switch (kind) {
     | Fold => "Fold"
     | Statics => "Statics"
+    | Player => "Player"
     | Checkbox => "Checkbox"
     | Slider => "Slider"
     | SliderF => "SliderF"
@@ -481,9 +510,11 @@ let refractor_actions_data =
   let probe_status = ProbePerform.probe_status(id, info_map, z.refractors);
   let can_probe = ProbePerform.can_probe(id, info_map);
   let can_statics = ProbePerform.can_statics(id, info_map);
+  let can_player = ProbePerform.can_player(id, info_map);
   manual_probe_data(~can_probe, probe_status, ci)
   @ auto_probe_data(~can_probe, probe_status, ci)
-  @ type_annotation_data(~can_type=can_statics, probe_status, ci);
+  @ type_annotation_data(~can_type=can_statics, probe_status, ci)
+  @ player_data(~can_player, probe_status, ci);
 };
 
 /*
