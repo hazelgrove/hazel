@@ -43,6 +43,7 @@ module M: Projector = {
   let view = ({info, local, _}: View.args(model, action)) => {
     let sound_value = get_sound_value(info.dynamics);
     let is_playing = PlayState.is_playing(info.id);
+    let samples_ready = Util.Strudel.samplesReady();
 
     /* Check if we have a valid sound value */
     let has_sound =
@@ -67,6 +68,9 @@ module M: Projector = {
         };
       };
 
+    /* Can only play if samples are loaded and we have a valid sound */
+    let can_play = samples_ready && has_sound;
+
     View.{
       inline: div([]),
       overlay: None,
@@ -84,10 +88,17 @@ module M: Projector = {
                   Attr.classes(
                     ["player-btn"]
                     @ (is_playing ? ["playing"] : [])
-                    @ (has_sound ? [] : ["disabled"]),
+                    @ (can_play ? [] : ["disabled"]),
+                  ),
+                  Attr.title(
+                    !samples_ready
+                      ? "Loading samples..."
+                      : !has_sound ? "No sound to play" : "Play/Pause",
                   ),
                   Attr.on_click(_ =>
-                    if (is_playing) {
+                    if (!can_play) {
+                      Effect.Ignore;
+                    } else if (is_playing) {
                       PlayState.stop();
                       local(Stop);
                     } else {
@@ -105,7 +116,12 @@ module M: Projector = {
                     }
                   ),
                 ],
-                [text(is_playing ? {js|⏸|js} : {js|▶|js})],
+                [
+                  text(
+                    !samples_ready
+                      ? {js|⏳|js} : is_playing ? {js|⏸|js} : {js|▶|js},
+                  ),
+                ],
               ),
               /* Speaker icon - pulses when playing */
               span(
@@ -113,7 +129,7 @@ module M: Projector = {
                   Attr.classes(
                     ["player-speaker"]
                     @ (is_playing ? ["playing"] : [])
-                    @ (has_sound ? [] : ["no-sound"]),
+                    @ (can_play ? [] : ["no-sound"]),
                   ),
                 ],
                 [text({js|🔊|js})],

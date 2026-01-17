@@ -7,7 +7,7 @@ open ProjectorBase;
  *
  * Supported subset:
  * - Space-separated tokens
- * - Each token is either a drum name (bd, sd, hh, oh) or rest (~)
+ * - Each token is either a drum name (bd, sd, hh, cp) or rest (~)
  * - Examples: "bd ~ sd ~", "bd bd sd sd", ""
  *
  * Not supported (projector won't be applicable):
@@ -31,11 +31,11 @@ module M: Projector = {
     ("bd", "BD"), /* Bass drum */
     ("sd", "SD"), /* Snare */
     ("hh", "HH"), /* Hi-hat */
-    ("oh", "OH") /* Open hi-hat */
+    ("cp", "CP") /* Clap */
   ];
 
   /* All valid tokens (drum names + rest) */
-  let valid_tokens = ["bd", "sd", "hh", "oh", "~"];
+  let valid_tokens = ["bd", "sd", "hh", "cp", "~"];
 
   let default_steps = 8;
 

@@ -179,7 +179,7 @@ module M: Projector = {
 
   let focusable = Focusable.non;
   let dynamics = false;
-  /* Piano needs ~4 rows of height for keys + pattern display */
+  /* Piano keys + pattern display */
   let placeholder = (_, _) => {
     ProjectorShape.horizontal: 20,
     vertical: Tab(4),
@@ -291,10 +291,6 @@ module M: Projector = {
           Node.div(
             ~attrs=[Attr.classes(["piano-keys"])],
             white_keys @ black_keys,
-          ),
-          Node.div(
-            ~attrs=[Attr.classes(["octave-label"])],
-            [Node.text("Oct " ++ string_of_int(octave))],
           ),
           Node.span(
             ~attrs=[Attr.classes(["pattern-text"])],

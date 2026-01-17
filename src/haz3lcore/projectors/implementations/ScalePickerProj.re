@@ -37,14 +37,12 @@ module M: Projector = {
     let trimmed = String.trim(s);
     /* Allow empty or space-separated tokens without complex syntax */
     String.length(trimmed) == 0
-    || (
-      !String.contains(trimmed, '*')
-      && !String.contains(trimmed, '/')
-      && !String.contains(trimmed, '[')
-      && !String.contains(trimmed, ']')
-      && !String.contains(trimmed, '<')
-      && !String.contains(trimmed, '>')
-    );
+    || !String.contains(trimmed, '*')
+    && !String.contains(trimmed, '/')
+    && !String.contains(trimmed, '[')
+    && !String.contains(trimmed, ']')
+    && !String.contains(trimmed, '<')
+    && !String.contains(trimmed, '>');
   };
 
   /* Extract string from Note constructor application */
@@ -101,8 +99,8 @@ module M: Projector = {
   let dynamics = false;
   /* 3 rows for scale grid */
   let placeholder = (_, _) => {
-    ProjectorShape.horizontal: 16,
-    vertical: Tab(3),
+    ProjectorShape.horizontal: 21,
+    vertical: Tab(4),
   };
   let update = (model, _, _) => model;
 
@@ -111,12 +109,8 @@ module M: Projector = {
     let is_selected = current == pattern;
     Node.button(
       ~attrs=[
-        Attr.classes(
-          ["scale-option"] @ (is_selected ? ["selected"] : []),
-        ),
-        Attr.on_click(_ => {
-          parent(SetSyntax(put(info, pattern)));
-        }),
+        Attr.classes(["scale-option"] @ (is_selected ? ["selected"] : [])),
+        Attr.on_click(_ => {parent(SetSyntax(put(info, pattern)))}),
         Attr.title(pattern),
       ],
       [Node.text(name)],

@@ -2,63 +2,35 @@
 
 .sample-picker {
   display: inline-flex;
-  flex-direction: column;
-  gap: 0.3em;
-  padding: 0.4em;
+  padding: 0.3em;
   background: var(--T2);
   border-radius: 0.3em;
   border: 1px solid var(--BR2);
   transition: border-color 0.15s;
-  min-width: 10em;
 }
 
 .sample-picker:hover {
   border-color: var(--BR3);
 }
 
-.sample-picker .current-sample {
-  font-family: var(--code-font);
-  font-size: 0.85em;
-  color: var(--STONE);
-  padding: 0.25em 0.5em;
-  background: var(--T1);
-  border-radius: 0.2em;
-  border: 1px solid var(--BR2);
-  text-align: center;
-  font-weight: 600;
-}
-
-.sample-picker .sample-category {
-  display: flex;
-  flex-direction: column;
+.sample-picker .sample-grid {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
   gap: 0.2em;
-}
-
-.sample-picker .category-label {
-  font-family: var(--ui-font);
-  font-size: 0.6em;
-  color: var(--BR4);
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  padding-left: 0.2em;
-}
-
-.sample-picker .sample-options {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.2em;
+  width: 100%;
 }
 
 .sample-picker .sample-option {
   font-family: var(--code-font);
   font-size: 0.7em;
-  padding: 0.2em 0.4em;
+  padding: 0.25em 0.3em;
   background: var(--T1);
   border: 1px solid var(--BR2);
   border-radius: 0.2em;
   color: var(--STONE);
   cursor: pointer;
   transition: background-color 0.1s, border-color 0.1s, color 0.1s;
+  text-align: center;
 }
 
 .sample-picker .sample-option:hover {

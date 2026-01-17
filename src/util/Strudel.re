@@ -14,26 +14,41 @@ let is_function = (name: string): bool => {
 /* Check if Strudel is ready (note function exists) */
 let isReady: unit => bool = () => is_function("note");
 
+/* Track whether samples have been loaded */
+let samples_loaded: ref(bool) = ref(false);
+
+/* Check if samples are loaded and ready to use */
+let samplesReady: unit => bool = () => samples_loaded^;
+
 /* Safe init - only call if initStrudel exists */
 /* Pass prebake callback to load samples from GitHub with error handling.
- * Loads both dirt-samples (basic sounds) and tidal-drum-machines (Roland banks). */
-let initStrudel: unit => unit =
-  () =>
+ * Loads dirt-samples (drums, bass, etc).
+ * The callback sets window._hazelSamplesLoaded when complete. */
+let initStrudel: (unit => unit) => unit =
+  onLoaded =>
     if (is_function("initStrudel")) {
       let fn = Js.Unsafe.js_expr("window.initStrudel");
+      /* Store the OCaml callback for JS to call when samples are loaded */
+      let wrappedCallback = Js.wrap_callback(_ => onLoaded());
+      Js.Unsafe.set(
+        Js.Unsafe.js_expr("window"),
+        "_hazelOnSamplesLoaded",
+        wrappedCallback,
+      );
       /* Create options object with prebake callback that loads samples.
        * Wrapped in try/catch for graceful degradation on network failure.
-       * Uses dough-samples JSON manifests which include both dirt-samples and drum-machines. */
+       * Uses GitHub shorthand syntax for reliable sample loading.
+       * Calls the OCaml callback when done loading. */
       let options =
         Js.Unsafe.js_expr(
           "{ prebake: async function() { \
-             var ds = 'https://raw.githubusercontent.com/felixroos/dough-samples/main/'; \
              try { \
-               await samples(ds + 'Dirt-Samples.json'); \
-               await samples(ds + 'tidal-drum-machines.json'); \
+               await samples('github:tidalcycles/Dirt-Samples/master'); \
+               console.log('Strudel: Dirt-Samples loaded successfully'); \
              } catch (e) { \
-               console.warn('Strudel: Failed to load samples:', e); \
+               console.warn('Strudel: Failed to load Dirt-Samples:', e); \
              } \
+             if (window._hazelOnSamplesLoaded) window._hazelOnSamplesLoaded(); \
            } }",
         );
       Js.Unsafe.fun_call(fn, [|Js.Unsafe.inject(options)|]) |> ignore;
@@ -218,14 +233,16 @@ module PlayState = {
 /* Function to initialize Strudel - handles both already-loaded and loading cases */
 let initOnLoad: unit => unit =
   () => {
+    /* Callback when samples finish loading */
+    let onSamplesLoaded = () => {
+      samples_loaded := true;
+      Printf.printf("Strudel samples loaded, note ready: %b\n", isReady());
+    };
     /* Check if initStrudel exists and call it */
     let doInit = () =>
       if (is_function("initStrudel")) {
-        initStrudel();
-        Printf.printf(
-          "Strudel initialized with Dirt-Samples, note ready: %b\n",
-          isReady(),
-        );
+        Printf.printf("Strudel initializing...\n");
+        initStrudel(onSamplesLoaded);
       } else {
         Printf.printf("Strudel initStrudel function not found\n");
       };
