@@ -1,0 +1,324 @@
+/* CELL: This is an ill-defined category at the moment;
+ * ~ everything below the main panel, but above the code
+ * display in the hierarchy */
+
+#clipboard-shim {
+  /* probably overkill for hiding it... */
+  position: fixed;
+  opacity: 0.01;
+  width: 1em;
+  height: 1em;
+  top: -1em;
+  left: -1em;
+}
+
+#main .code-editor {
+  /* Only code in primary editor is selectable atm */
+  cursor: text;
+}
+
+#main.Scratch,
+#main.Documentation {
+  background-color: var(--ui-bkg);
+}
+
+:is(#main.Scratch,
+#main.Documentation) > * > .code-editor {
+  background-color: var(--cell-active);
+}
+
+#main.Scratch .cell,
+#main.Documentation .cell {
+  flex-grow: 1;
+}
+
+#main.Tutorial,
+#main.Exercises {
+  padding: 1.5em;
+  padding-top: 3.5em;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-start;
+  gap: 1.2em;
+  background-color: var(--ui-bkg);
+  scrollbar-color: var(--main-scroll-thumb) var(--NONE);
+}
+
+#main.Tutorial .cell,
+#main.Exercises .cell {
+  width: auto;
+  border-radius: 0.4em;
+}
+
+.cell {
+  border: none;
+  width: fit-content;
+  min-width: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+.cell > * {
+  padding-left: 1em;
+  padding: 1em;
+  padding-left: 1.2em;
+}
+
+.cell-item {
+  display: flex;
+  flex-direction: column;
+  gap: 1em;
+}
+
+.result .cell-item {
+  padding: 0em;
+}
+
+.title-cell {
+  padding: 0;
+}
+
+.title-cell .title-text {
+  font-size: 1.5rem;
+  font-weight: bold;
+  color: var(--BR4);
+}
+
+.title-cell .title-placeholder {
+  font-style: italic;
+  color: var(--BR4);
+  opacity: 0.5;
+}
+
+.edit-icon {
+  margin-left: 0.5em;
+  cursor: pointer;
+  fill: #7a6219;
+}
+
+.title-cell .title-edit {
+  font-size: 1.5rem;
+  font-weight: bold;
+  color: var(--light-text-color);
+  flex-grow: 1;
+  display: flex;
+  align-items: center;
+}
+
+.title-edit .edit-icon:hover {
+  animation: wobble 0.6s ease 0s 1 normal forwards;
+}
+
+.wrong-impl-cell-caption {
+  flex-grow: 1;
+  display: flex;
+  align-items: center;
+}
+
+.instructor-edit-icon {
+  margin-top: 0.175em;
+  margin-left: 1em;
+  cursor: pointer;
+  fill: #7a6219;
+}
+
+#add-icon {
+  margin-left: 0em;
+}
+
+.instructor-edit-icon:hover {
+  animation: wobble 0.6s ease 0s 1 normal forwards;
+}
+
+/* DOCUMENTATION SLIDES */
+
+.slide-img {
+  border-radius: 0.4em;
+  margin-bottom: 1em;
+}
+
+#slide {
+  background-color: var(--cell-active);
+  padding: 1em;
+}
+
+.slide {
+  padding: 1em;
+  padding-left: 1.2em;
+}
+
+.slide h1 {
+  margin-top: 0;
+  color: var(--BR4);
+}
+
+.em {
+  font-style: italic;
+}
+
+/* ??? */
+
+.file-select-button {
+  display: none;
+}
+
+/* EDITING */
+
+.cell-module-name {
+  padding-left: 1em;
+  display: flex;
+  align-items: center;
+  gap: 0.5em;
+}
+
+.module-name-text {
+  display: flex;
+  align-items: center;
+  gap: 0.5em;
+}
+
+.module-name-edit {
+  display: flex;
+  align-items: center;
+  gap: 0.5em;
+}
+
+.module-name-edit label {
+  white-space: nowrap;
+}
+
+.module-name-edit input {
+  margin: 0 0.5em;
+}
+
+.module-name-edit .edit-icon {
+  display: inline-flex;
+  align-items: center;
+  margin-left: 0.5em;
+}
+
+.module-placeholder {
+  display: inline;
+  font-style: italic;
+  color: var(--BR4);
+  opacity: 0.5;
+}
+
+.prompt-edit .prompt-text {
+  width: 500px;
+  height: 300px;
+  padding: 10px;
+  font-size: 16px;
+
+  white-space: pre-wrap;
+  word-wrap: break-word;
+}
+
+.cell-prompt .prompt-edit {
+  font-size: 1rem;
+  width: 80%;
+  color: var(--light-text-color);
+  flex-grow: 1;
+  display: flex;
+  align-items: center;
+}
+
+.cell-prompt .prompt-edit .edit-pencil {
+  align-self: top;
+}
+
+.cell-prompt .prompt-edit .edit-icon {
+  align-self: flex-start;
+}
+
+.cell-prompt .prompt-placeholder {
+  font-style: italic;
+  color: var(--BR4);
+  opacity: 0.5;
+}
+
+.prompt-content {
+  font-size: 1rem;
+}
+
+#main.Tutorial .cell:has(.code-editor.selected),
+#main.Exercises .cell:has(.code-editor.selected) {
+  background-color: var(--cell-active);
+}
+
+#main.Tutorial .cell.unlocked:has(.code-editor.selected),
+#main.Exercises .cell.unlocked:has(.code-editor.selected) {
+  border-left: 1px solid var(--cell-selected-accent);
+  background-color: var(--cell-active);
+}
+
+.cell-caption {
+  color: var(--ui-header-text);
+  font-size: 0.8em;
+}
+
+.cell-caption strong {
+  text-transform: uppercase;
+}
+
+.cell.unlocked {
+  border-left: 1px solid var(--cell-exercises-border);
+}
+
+.cell-report {
+  padding: 1.2em;
+  background-color: var(--test-panel-bkg);
+  border-left: 1px solid #0000;
+}
+
+.cell .cell-item:first-child {
+  border-top-left-radius: 0.4em;
+  border-top-right-radius: 0.4em;
+}
+
+.cell .cell-item:last-child {
+  border-bottom-left-radius: 0.4em;
+  border-bottom-right-radius: 0.4em;
+}
+
+.syntax-tests-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.syntax-test-item {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.test-checkbox {
+  display: flex;
+  align-items: center;
+}
+
+.test-checkbox input[type="checkbox"] {
+  width: 1.2rem;
+  height: 1.2rem;
+  cursor: pointer;
+}
+
+.edit-icon,
+.edit-pencil {
+  margin-left: 0.5em;
+  cursor: pointer;
+  fill: #7a6219;
+  display: inline;
+  vertical-align: top;
+}
+
+.edit-icon:hover,
+.edit-pencil:hover {
+  animation: wobble 0.6s ease 0s 1 normal forwards;
+}
+
+.point-num-input {
+  width: 50px;
+  font-size: 12px;
+}

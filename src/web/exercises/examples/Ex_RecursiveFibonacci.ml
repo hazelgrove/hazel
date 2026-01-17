@@ -1,0 +1,3121 @@
+open Haz3lcore
+
+let exercise : Exercise.spec =
+  {
+    id = Option.get (Id.of_string "12f5e34d-d211-4332-91e2-815e9e183885");
+    title = "Recursive Fibonacci";
+    module_name = "Ex_RecursiveFibonacci";
+    prompt =
+      "Write test cases for, and then implement, a function that recursively \
+       determines the nth Fibonacci number. \n\
+       `fib(n)` is equivalent to the `n`th Fibonacci number, assuming `n >= 0`.";
+    point_distribution =
+      { test_validation = 1; mutation_testing = 1; impl_grading = 2 };
+    prelude =
+      {
+        selection = { focus = Left; content = []; mode = Normal };
+        relatives =
+          {
+            siblings = ([ Grout { id = Id.mk (); shape = Convex } ], []);
+            ancestors = [];
+          };
+        caret = Outer;
+        refractors = Haz3lcore.ZipperBase.Refractor.init;
+      };
+    correct_impl =
+      {
+        selection = { focus = Left; content = []; mode = Normal };
+        relatives =
+          {
+            siblings =
+              ( [
+                  Secondary { id = Id.mk (); content = Whitespace " " };
+                  Secondary { id = Id.mk (); content = Whitespace "\n" };
+                  Tile
+                    {
+                      id = Id.mk ();
+                      label = [ "fun"; "->" ];
+                      mold =
+                        {
+                          out = Exp;
+                          in_ = [ Pat ];
+                          nibs =
+                            ( { shape = Convex; sort = Exp },
+                              { shape = Concave 14; sort = Exp } );
+                        };
+                      shards = [ 0; 1 ];
+                      children =
+                        [
+                          [
+                            Secondary
+                              { id = Id.mk (); content = Whitespace " " };
+                            Tile
+                              {
+                                id = Id.mk ();
+                                label = [ "x" ];
+                                mold =
+                                  {
+                                    out = Pat;
+                                    in_ = [];
+                                    nibs =
+                                      ( { shape = Convex; sort = Pat },
+                                        { shape = Convex; sort = Pat } );
+                                  };
+                                shards = [ 0 ];
+                                children = [];
+                              };
+                            Secondary
+                              { id = Id.mk (); content = Whitespace " " };
+                          ];
+                        ];
+                    };
+                  Secondary { id = Id.mk (); content = Whitespace " " };
+                  Secondary { id = Id.mk (); content = Whitespace "\n" };
+                  Tile
+                    {
+                      id = Id.mk ();
+                      label = [ "if"; "then"; "else" ];
+                      mold =
+                        {
+                          out = Exp;
+                          in_ = [ Exp; Exp ];
+                          nibs =
+                            ( { shape = Convex; sort = Exp },
+                              { shape = Concave 12; sort = Exp } );
+                        };
+                      shards = [ 0; 1; 2 ];
+                      children =
+                        [
+                          [
+                            Secondary
+                              { id = Id.mk (); content = Whitespace " " };
+                            Tile
+                              {
+                                id = Id.mk ();
+                                label = [ "x" ];
+                                mold =
+                                  {
+                                    out = Exp;
+                                    in_ = [];
+                                    nibs =
+                                      ( { shape = Convex; sort = Exp },
+                                        { shape = Convex; sort = Exp } );
+                                  };
+                                shards = [ 0 ];
+                                children = [];
+                              };
+                            Secondary
+                              { id = Id.mk (); content = Whitespace " " };
+                            Tile
+                              {
+                                id = Id.mk ();
+                                label = [ "<" ];
+                                mold =
+                                  {
+                                    out = Exp;
+                                    in_ = [];
+                                    nibs =
+                                      ( { shape = Concave 5; sort = Exp },
+                                        { shape = Concave 5; sort = Exp } );
+                                  };
+                                shards = [ 0 ];
+                                children = [];
+                              };
+                            Secondary
+                              { id = Id.mk (); content = Whitespace " " };
+                            Tile
+                              {
+                                id = Id.mk ();
+                                label = [ "2" ];
+                                mold =
+                                  {
+                                    out = Exp;
+                                    in_ = [];
+                                    nibs =
+                                      ( { shape = Convex; sort = Exp },
+                                        { shape = Convex; sort = Exp } );
+                                  };
+                                shards = [ 0 ];
+                                children = [];
+                              };
+                            Secondary
+                              { id = Id.mk (); content = Whitespace " " };
+                          ];
+                          [
+                            Secondary
+                              { id = Id.mk (); content = Whitespace " " };
+                            Tile
+                              {
+                                id = Id.mk ();
+                                label = [ "1" ];
+                                mold =
+                                  {
+                                    out = Exp;
+                                    in_ = [];
+                                    nibs =
+                                      ( { shape = Convex; sort = Exp },
+                                        { shape = Convex; sort = Exp } );
+                                  };
+                                shards = [ 0 ];
+                                children = [];
+                              };
+                            Secondary
+                              { id = Id.mk (); content = Whitespace " " };
+                            Secondary
+                              { id = Id.mk (); content = Whitespace "\n" };
+                          ];
+                        ];
+                    };
+                  Secondary { id = Id.mk (); content = Whitespace " " };
+                  Tile
+                    {
+                      id = Id.mk ();
+                      label = [ "fib" ];
+                      mold =
+                        {
+                          out = Exp;
+                          in_ = [];
+                          nibs =
+                            ( { shape = Convex; sort = Exp },
+                              { shape = Convex; sort = Exp } );
+                        };
+                      shards = [ 0 ];
+                      children = [];
+                    };
+                  Tile
+                    {
+                      id = Id.mk ();
+                      label = [ "("; ")" ];
+                      mold =
+                        {
+                          out = Exp;
+                          in_ = [ Exp ];
+                          nibs =
+                            ( { shape = Concave 1; sort = Exp },
+                              { shape = Convex; sort = Exp } );
+                        };
+                      shards = [ 0; 1 ];
+                      children =
+                        [
+                          [
+                            Tile
+                              {
+                                id = Id.mk ();
+                                label = [ "x" ];
+                                mold =
+                                  {
+                                    out = Exp;
+                                    in_ = [];
+                                    nibs =
+                                      ( { shape = Convex; sort = Exp },
+                                        { shape = Convex; sort = Exp } );
+                                  };
+                                shards = [ 0 ];
+                                children = [];
+                              };
+                            Secondary
+                              { id = Id.mk (); content = Whitespace " " };
+                            Tile
+                              {
+                                id = Id.mk ();
+                                label = [ "-" ];
+                                mold =
+                                  {
+                                    out = Exp;
+                                    in_ = [];
+                                    nibs =
+                                      ( { shape = Concave 4; sort = Exp },
+                                        { shape = Concave 4; sort = Exp } );
+                                  };
+                                shards = [ 0 ];
+                                children = [];
+                              };
+                            Secondary
+                              { id = Id.mk (); content = Whitespace " " };
+                            Tile
+                              {
+                                id = Id.mk ();
+                                label = [ "1" ];
+                                mold =
+                                  {
+                                    out = Exp;
+                                    in_ = [];
+                                    nibs =
+                                      ( { shape = Convex; sort = Exp },
+                                        { shape = Convex; sort = Exp } );
+                                  };
+                                shards = [ 0 ];
+                                children = [];
+                              };
+                          ];
+                        ];
+                    };
+                  Secondary { id = Id.mk (); content = Whitespace " " };
+                  Tile
+                    {
+                      id = Id.mk ();
+                      label = [ "+" ];
+                      mold =
+                        {
+                          out = Exp;
+                          in_ = [];
+                          nibs =
+                            ( { shape = Concave 4; sort = Exp },
+                              { shape = Concave 4; sort = Exp } );
+                        };
+                      shards = [ 0 ];
+                      children = [];
+                    };
+                  Secondary { id = Id.mk (); content = Whitespace " " };
+                  Tile
+                    {
+                      id = Id.mk ();
+                      label = [ "fib" ];
+                      mold =
+                        {
+                          out = Exp;
+                          in_ = [];
+                          nibs =
+                            ( { shape = Convex; sort = Exp },
+                              { shape = Convex; sort = Exp } );
+                        };
+                      shards = [ 0 ];
+                      children = [];
+                    };
+                  Tile
+                    {
+                      id = Id.mk ();
+                      label = [ "("; ")" ];
+                      mold =
+                        {
+                          out = Exp;
+                          in_ = [ Exp ];
+                          nibs =
+                            ( { shape = Concave 1; sort = Exp },
+                              { shape = Convex; sort = Exp } );
+                        };
+                      shards = [ 0; 1 ];
+                      children =
+                        [
+                          [
+                            Tile
+                              {
+                                id = Id.mk ();
+                                label = [ "x" ];
+                                mold =
+                                  {
+                                    out = Exp;
+                                    in_ = [];
+                                    nibs =
+                                      ( { shape = Convex; sort = Exp },
+                                        { shape = Convex; sort = Exp } );
+                                  };
+                                shards = [ 0 ];
+                                children = [];
+                              };
+                            Secondary
+                              { id = Id.mk (); content = Whitespace " " };
+                            Tile
+                              {
+                                id = Id.mk ();
+                                label = [ "-" ];
+                                mold =
+                                  {
+                                    out = Exp;
+                                    in_ = [];
+                                    nibs =
+                                      ( { shape = Concave 4; sort = Exp },
+                                        { shape = Concave 4; sort = Exp } );
+                                  };
+                                shards = [ 0 ];
+                                children = [];
+                              };
+                            Secondary
+                              { id = Id.mk (); content = Whitespace " " };
+                            Tile
+                              {
+                                id = Id.mk ();
+                                label = [ "2" ];
+                                mold =
+                                  {
+                                    out = Exp;
+                                    in_ = [];
+                                    nibs =
+                                      ( { shape = Convex; sort = Exp },
+                                        { shape = Convex; sort = Exp } );
+                                  };
+                                shards = [ 0 ];
+                                children = [];
+                              };
+                          ];
+                        ];
+                    };
+                  Secondary { id = Id.mk (); content = Whitespace " " };
+                ],
+                [ Secondary { id = Id.mk (); content = Whitespace "\n" } ] );
+            ancestors =
+              [
+                ( {
+                    id = Id.mk ();
+                    label = [ "let"; "="; "in" ];
+                    mold =
+                      {
+                        out = Exp;
+                        in_ = [ Pat; Exp ];
+                        nibs =
+                          ( { shape = Convex; sort = Exp },
+                            { shape = Concave 14; sort = Exp } );
+                      };
+                    shards = ([ 0; 1 ], [ 2 ]);
+                    children =
+                      ( [
+                          [
+                            Secondary { id = Id.mk (); content = Whitespace " " };
+                            Tile
+                              {
+                                id = Id.mk ();
+                                label = [ "fib" ];
+                                mold =
+                                  {
+                                    out = Pat;
+                                    in_ = [];
+                                    nibs =
+                                      ( { shape = Convex; sort = Pat },
+                                        { shape = Convex; sort = Pat } );
+                                  };
+                                shards = [ 0 ];
+                                children = [];
+                              };
+                            Tile
+                              {
+                                id = Id.mk ();
+                                label = [ ":" ];
+                                mold =
+                                  {
+                                    out = Pat;
+                                    in_ = [];
+                                    nibs =
+                                      ( { shape = Concave 10; sort = Pat },
+                                        { shape = Concave 10; sort = Typ } );
+                                  };
+                                shards = [ 0 ];
+                                children = [];
+                              };
+                            Secondary
+                              { id = Id.mk (); content = Whitespace " " };
+                            Tile
+                              {
+                                id = Id.mk ();
+                                label = [ "Int" ];
+                                mold =
+                                  {
+                                    out = Typ;
+                                    in_ = [];
+                                    nibs =
+                                      ( { shape = Convex; sort = Typ },
+                                        { shape = Convex; sort = Typ } );
+                                  };
+                                shards = [ 0 ];
+                                children = [];
+                              };
+                            Secondary
+                              { id = Id.mk (); content = Whitespace " " };
+                            Tile
+                              {
+                                id = Id.mk ();
+                                label = [ "->" ];
+                                mold =
+                                  {
+                                    out = Typ;
+                                    in_ = [];
+                                    nibs =
+                                      ( { shape = Concave 6; sort = Typ },
+                                        { shape = Concave 6; sort = Typ } );
+                                  };
+                                shards = [ 0 ];
+                                children = [];
+                              };
+                            Secondary
+                              { id = Id.mk (); content = Whitespace " " };
+                            Tile
+                              {
+                                id = Id.mk ();
+                                label = [ "Int" ];
+                                mold =
+                                  {
+                                    out = Typ;
+                                    in_ = [];
+                                    nibs =
+                                      ( { shape = Convex; sort = Typ },
+                                        { shape = Convex; sort = Typ } );
+                                  };
+                                shards = [ 0 ];
+                                children = [];
+                              };
+                            Secondary
+                              { id = Id.mk (); content = Whitespace " " };
+                          ];
+                        ],
+                        [] );
+                  },
+                  ( [],
+                    [
+                      Secondary { id = Id.mk (); content = Whitespace " " };
+                      Grout { id = Id.mk (); shape = Convex };
+                    ] ) );
+              ];
+          };
+        caret = Outer;
+        refractors = Haz3lcore.ZipperBase.Refractor.init;
+      };
+    your_tests =
+      {
+        tests =
+          {
+            selection = { focus = Left; content = []; mode = Normal };
+            relatives =
+              {
+                siblings = ([], [ Grout { id = Id.mk (); shape = Convex } ]);
+                ancestors = [];
+              };
+            caret = Outer;
+            refractors = Haz3lcore.ZipperBase.Refractor.init;
+          };
+        required = 5;
+        provided = 0;
+      };
+    your_impl =
+      {
+        selection = { focus = Left; content = []; mode = Normal };
+        relatives =
+          {
+            siblings =
+              ( [
+                  Tile
+                    {
+                      id = Id.mk ();
+                      label = [ "let"; "="; "in" ];
+                      mold =
+                        {
+                          out = Exp;
+                          in_ = [ Pat; Exp ];
+                          nibs =
+                            ( { shape = Convex; sort = Exp },
+                              { shape = Concave 14; sort = Exp } );
+                        };
+                      shards = [ 0; 1; 2 ];
+                      children =
+                        [
+                          [
+                            Secondary
+                              { id = Id.mk (); content = Whitespace " " };
+                            Tile
+                              {
+                                id = Id.mk ();
+                                label = [ "fib" ];
+                                mold =
+                                  {
+                                    out = Pat;
+                                    in_ = [];
+                                    nibs =
+                                      ( { shape = Convex; sort = Pat },
+                                        { shape = Convex; sort = Pat } );
+                                  };
+                                shards = [ 0 ];
+                                children = [];
+                              };
+                            Secondary
+                              { id = Id.mk (); content = Whitespace " " };
+                            Tile
+                              {
+                                id = Id.mk ();
+                                label = [ ":" ];
+                                mold =
+                                  {
+                                    out = Pat;
+                                    in_ = [];
+                                    nibs =
+                                      ( { shape = Concave 10; sort = Pat },
+                                        { shape = Concave 10; sort = Typ } );
+                                  };
+                                shards = [ 0 ];
+                                children = [];
+                              };
+                            Secondary
+                              { id = Id.mk (); content = Whitespace " " };
+                            Tile
+                              {
+                                id = Id.mk ();
+                                label = [ "Int" ];
+                                mold =
+                                  {
+                                    out = Typ;
+                                    in_ = [];
+                                    nibs =
+                                      ( { shape = Convex; sort = Typ },
+                                        { shape = Convex; sort = Typ } );
+                                  };
+                                shards = [ 0 ];
+                                children = [];
+                              };
+                            Secondary
+                              { id = Id.mk (); content = Whitespace " " };
+                            Tile
+                              {
+                                id = Id.mk ();
+                                label = [ "->" ];
+                                mold =
+                                  {
+                                    out = Typ;
+                                    in_ = [];
+                                    nibs =
+                                      ( { shape = Concave 6; sort = Typ },
+                                        { shape = Concave 6; sort = Typ } );
+                                  };
+                                shards = [ 0 ];
+                                children = [];
+                              };
+                            Secondary
+                              { id = Id.mk (); content = Whitespace " " };
+                            Tile
+                              {
+                                id = Id.mk ();
+                                label = [ "Int" ];
+                                mold =
+                                  {
+                                    out = Typ;
+                                    in_ = [];
+                                    nibs =
+                                      ( { shape = Convex; sort = Typ },
+                                        { shape = Convex; sort = Typ } );
+                                  };
+                                shards = [ 0 ];
+                                children = [];
+                              };
+                            Secondary
+                              { id = Id.mk (); content = Whitespace " " };
+                          ];
+                          [
+                            Secondary
+                              { id = Id.mk (); content = Whitespace " " };
+                            Secondary
+                              { id = Id.mk (); content = Whitespace "\n" };
+                            Tile
+                              {
+                                id = Id.mk ();
+                                label = [ "fun"; "->" ];
+                                mold =
+                                  {
+                                    out = Exp;
+                                    in_ = [ Pat ];
+                                    nibs =
+                                      ( { shape = Convex; sort = Exp },
+                                        { shape = Concave 14; sort = Exp } );
+                                  };
+                                shards = [ 0; 1 ];
+                                children =
+                                  [
+                                    [
+                                      Secondary
+                                        {
+                                          id = Id.mk ();
+                                          content = Whitespace " ";
+                                        };
+                                      Tile
+                                        {
+                                          id = Id.mk ();
+                                          label = [ "n" ];
+                                          mold =
+                                            {
+                                              out = Pat;
+                                              in_ = [];
+                                              nibs =
+                                                ( { shape = Convex; sort = Pat },
+                                                  { shape = Convex; sort = Pat }
+                                                );
+                                            };
+                                          shards = [ 0 ];
+                                          children = [];
+                                        };
+                                      Secondary
+                                        {
+                                          id = Id.mk ();
+                                          content = Whitespace " ";
+                                        };
+                                    ];
+                                  ];
+                              };
+                            Secondary
+                              { id = Id.mk (); content = Whitespace " " };
+                            Grout { id = Id.mk (); shape = Convex };
+                            Secondary
+                              { id = Id.mk (); content = Whitespace "\n" };
+                          ];
+                        ];
+                    };
+                  Secondary { id = Id.mk (); content = Whitespace " " };
+                  Grout { id = Id.mk (); shape = Convex };
+                ],
+                [] );
+            ancestors = [];
+          };
+        caret = Outer;
+        refractors = Haz3lcore.ZipperBase.Refractor.init;
+      };
+    hidden_bugs =
+      [
+        {
+          impl =
+            {
+              selection = { focus = Left; content = []; mode = Normal };
+              relatives =
+                {
+                  siblings =
+                    ( [
+                        Tile
+                          {
+                            id = Id.mk ();
+                            label = [ "let"; "="; "in" ];
+                            mold =
+                              {
+                                out = Exp;
+                                in_ = [ Pat; Exp ];
+                                nibs =
+                                  ( { shape = Convex; sort = Exp },
+                                    { shape = Concave 14; sort = Exp } );
+                              };
+                            shards = [ 0; 1; 2 ];
+                            children =
+                              [
+                                [
+                                  Secondary
+                                    { id = Id.mk (); content = Whitespace " " };
+                                  Tile
+                                    {
+                                      id = Id.mk ();
+                                      label = [ "fib" ];
+                                      mold =
+                                        {
+                                          out = Pat;
+                                          in_ = [];
+                                          nibs =
+                                            ( { shape = Convex; sort = Pat },
+                                              { shape = Convex; sort = Pat } );
+                                        };
+                                      shards = [ 0 ];
+                                      children = [];
+                                    };
+                                  Tile
+                                    {
+                                      id = Id.mk ();
+                                      label = [ ":" ];
+                                      mold =
+                                        {
+                                          out = Pat;
+                                          in_ = [];
+                                          nibs =
+                                            ( { shape = Concave 10; sort = Pat },
+                                              { shape = Concave 10; sort = Typ }
+                                            );
+                                        };
+                                      shards = [ 0 ];
+                                      children = [];
+                                    };
+                                  Secondary
+                                    { id = Id.mk (); content = Whitespace " " };
+                                  Tile
+                                    {
+                                      id = Id.mk ();
+                                      label = [ "Int" ];
+                                      mold =
+                                        {
+                                          out = Typ;
+                                          in_ = [];
+                                          nibs =
+                                            ( { shape = Convex; sort = Typ },
+                                              { shape = Convex; sort = Typ } );
+                                        };
+                                      shards = [ 0 ];
+                                      children = [];
+                                    };
+                                  Secondary
+                                    { id = Id.mk (); content = Whitespace " " };
+                                  Tile
+                                    {
+                                      id = Id.mk ();
+                                      label = [ "->" ];
+                                      mold =
+                                        {
+                                          out = Typ;
+                                          in_ = [];
+                                          nibs =
+                                            ( { shape = Concave 6; sort = Typ },
+                                              { shape = Concave 6; sort = Typ }
+                                            );
+                                        };
+                                      shards = [ 0 ];
+                                      children = [];
+                                    };
+                                  Secondary
+                                    { id = Id.mk (); content = Whitespace " " };
+                                  Tile
+                                    {
+                                      id = Id.mk ();
+                                      label = [ "Int" ];
+                                      mold =
+                                        {
+                                          out = Typ;
+                                          in_ = [];
+                                          nibs =
+                                            ( { shape = Convex; sort = Typ },
+                                              { shape = Convex; sort = Typ } );
+                                        };
+                                      shards = [ 0 ];
+                                      children = [];
+                                    };
+                                  Secondary
+                                    { id = Id.mk (); content = Whitespace " " };
+                                ];
+                                [
+                                  Secondary
+                                    { id = Id.mk (); content = Whitespace " " };
+                                  Secondary
+                                    { id = Id.mk (); content = Whitespace "\n" };
+                                  Tile
+                                    {
+                                      id = Id.mk ();
+                                      label = [ "fun"; "->" ];
+                                      mold =
+                                        {
+                                          out = Exp;
+                                          in_ = [ Pat ];
+                                          nibs =
+                                            ( { shape = Convex; sort = Exp },
+                                              { shape = Concave 14; sort = Exp }
+                                            );
+                                        };
+                                      shards = [ 0; 1 ];
+                                      children =
+                                        [
+                                          [
+                                            Secondary
+                                              {
+                                                id = Id.mk ();
+                                                content = Whitespace " ";
+                                              };
+                                            Tile
+                                              {
+                                                id = Id.mk ();
+                                                label = [ "x" ];
+                                                mold =
+                                                  {
+                                                    out = Pat;
+                                                    in_ = [];
+                                                    nibs =
+                                                      ( {
+                                                          shape = Convex;
+                                                          sort = Pat;
+                                                        },
+                                                        {
+                                                          shape = Convex;
+                                                          sort = Pat;
+                                                        } );
+                                                  };
+                                                shards = [ 0 ];
+                                                children = [];
+                                              };
+                                            Secondary
+                                              {
+                                                id = Id.mk ();
+                                                content = Whitespace " ";
+                                              };
+                                          ];
+                                        ];
+                                    };
+                                  Secondary
+                                    { id = Id.mk (); content = Whitespace " " };
+                                  Secondary
+                                    { id = Id.mk (); content = Whitespace "\n" };
+                                  Tile
+                                    {
+                                      id = Id.mk ();
+                                      label = [ "if"; "then"; "else" ];
+                                      mold =
+                                        {
+                                          out = Exp;
+                                          in_ = [ Exp; Exp ];
+                                          nibs =
+                                            ( { shape = Convex; sort = Exp },
+                                              { shape = Concave 12; sort = Exp }
+                                            );
+                                        };
+                                      shards = [ 0; 1; 2 ];
+                                      children =
+                                        [
+                                          [
+                                            Secondary
+                                              {
+                                                id = Id.mk ();
+                                                content = Whitespace " ";
+                                              };
+                                            Tile
+                                              {
+                                                id = Id.mk ();
+                                                label = [ "x" ];
+                                                mold =
+                                                  {
+                                                    out = Exp;
+                                                    in_ = [];
+                                                    nibs =
+                                                      ( {
+                                                          shape = Convex;
+                                                          sort = Exp;
+                                                        },
+                                                        {
+                                                          shape = Convex;
+                                                          sort = Exp;
+                                                        } );
+                                                  };
+                                                shards = [ 0 ];
+                                                children = [];
+                                              };
+                                            Secondary
+                                              {
+                                                id = Id.mk ();
+                                                content = Whitespace " ";
+                                              };
+                                            Tile
+                                              {
+                                                id = Id.mk ();
+                                                label = [ "<" ];
+                                                mold =
+                                                  {
+                                                    out = Exp;
+                                                    in_ = [];
+                                                    nibs =
+                                                      ( {
+                                                          shape = Concave 5;
+                                                          sort = Exp;
+                                                        },
+                                                        {
+                                                          shape = Concave 5;
+                                                          sort = Exp;
+                                                        } );
+                                                  };
+                                                shards = [ 0 ];
+                                                children = [];
+                                              };
+                                            Secondary
+                                              {
+                                                id = Id.mk ();
+                                                content = Whitespace " ";
+                                              };
+                                            Tile
+                                              {
+                                                id = Id.mk ();
+                                                label = [ "1" ];
+                                                mold =
+                                                  {
+                                                    out = Exp;
+                                                    in_ = [];
+                                                    nibs =
+                                                      ( {
+                                                          shape = Convex;
+                                                          sort = Exp;
+                                                        },
+                                                        {
+                                                          shape = Convex;
+                                                          sort = Exp;
+                                                        } );
+                                                  };
+                                                shards = [ 0 ];
+                                                children = [];
+                                              };
+                                            Secondary
+                                              {
+                                                id = Id.mk ();
+                                                content = Whitespace " ";
+                                              };
+                                          ];
+                                          [
+                                            Secondary
+                                              {
+                                                id = Id.mk ();
+                                                content = Whitespace " ";
+                                              };
+                                            Tile
+                                              {
+                                                id = Id.mk ();
+                                                label = [ "0" ];
+                                                mold =
+                                                  {
+                                                    out = Exp;
+                                                    in_ = [];
+                                                    nibs =
+                                                      ( {
+                                                          shape = Convex;
+                                                          sort = Exp;
+                                                        },
+                                                        {
+                                                          shape = Convex;
+                                                          sort = Exp;
+                                                        } );
+                                                  };
+                                                shards = [ 0 ];
+                                                children = [];
+                                              };
+                                            Secondary
+                                              {
+                                                id = Id.mk ();
+                                                content = Whitespace " ";
+                                              };
+                                            Secondary
+                                              {
+                                                id = Id.mk ();
+                                                content = Whitespace "\n";
+                                              };
+                                          ];
+                                        ];
+                                    };
+                                  Secondary
+                                    { id = Id.mk (); content = Whitespace " " };
+                                  Tile
+                                    {
+                                      id = Id.mk ();
+                                      label = [ "if"; "then"; "else" ];
+                                      mold =
+                                        {
+                                          out = Exp;
+                                          in_ = [ Exp; Exp ];
+                                          nibs =
+                                            ( { shape = Convex; sort = Exp },
+                                              { shape = Concave 12; sort = Exp }
+                                            );
+                                        };
+                                      shards = [ 0; 1; 2 ];
+                                      children =
+                                        [
+                                          [
+                                            Secondary
+                                              {
+                                                id = Id.mk ();
+                                                content = Whitespace " ";
+                                              };
+                                            Tile
+                                              {
+                                                id = Id.mk ();
+                                                label = [ "x" ];
+                                                mold =
+                                                  {
+                                                    out = Exp;
+                                                    in_ = [];
+                                                    nibs =
+                                                      ( {
+                                                          shape = Convex;
+                                                          sort = Exp;
+                                                        },
+                                                        {
+                                                          shape = Convex;
+                                                          sort = Exp;
+                                                        } );
+                                                  };
+                                                shards = [ 0 ];
+                                                children = [];
+                                              };
+                                            Secondary
+                                              {
+                                                id = Id.mk ();
+                                                content = Whitespace " ";
+                                              };
+                                            Tile
+                                              {
+                                                id = Id.mk ();
+                                                label = [ "<" ];
+                                                mold =
+                                                  {
+                                                    out = Exp;
+                                                    in_ = [];
+                                                    nibs =
+                                                      ( {
+                                                          shape = Concave 5;
+                                                          sort = Exp;
+                                                        },
+                                                        {
+                                                          shape = Concave 5;
+                                                          sort = Exp;
+                                                        } );
+                                                  };
+                                                shards = [ 0 ];
+                                                children = [];
+                                              };
+                                            Secondary
+                                              {
+                                                id = Id.mk ();
+                                                content = Whitespace " ";
+                                              };
+                                            Tile
+                                              {
+                                                id = Id.mk ();
+                                                label = [ "2" ];
+                                                mold =
+                                                  {
+                                                    out = Exp;
+                                                    in_ = [];
+                                                    nibs =
+                                                      ( {
+                                                          shape = Convex;
+                                                          sort = Exp;
+                                                        },
+                                                        {
+                                                          shape = Convex;
+                                                          sort = Exp;
+                                                        } );
+                                                  };
+                                                shards = [ 0 ];
+                                                children = [];
+                                              };
+                                            Secondary
+                                              {
+                                                id = Id.mk ();
+                                                content = Whitespace " ";
+                                              };
+                                          ];
+                                          [
+                                            Secondary
+                                              {
+                                                id = Id.mk ();
+                                                content = Whitespace " ";
+                                              };
+                                            Tile
+                                              {
+                                                id = Id.mk ();
+                                                label = [ "1" ];
+                                                mold =
+                                                  {
+                                                    out = Exp;
+                                                    in_ = [];
+                                                    nibs =
+                                                      ( {
+                                                          shape = Convex;
+                                                          sort = Exp;
+                                                        },
+                                                        {
+                                                          shape = Convex;
+                                                          sort = Exp;
+                                                        } );
+                                                  };
+                                                shards = [ 0 ];
+                                                children = [];
+                                              };
+                                            Secondary
+                                              {
+                                                id = Id.mk ();
+                                                content = Whitespace " ";
+                                              };
+                                            Secondary
+                                              {
+                                                id = Id.mk ();
+                                                content = Whitespace "\n";
+                                              };
+                                          ];
+                                        ];
+                                    };
+                                  Secondary
+                                    { id = Id.mk (); content = Whitespace " " };
+                                  Tile
+                                    {
+                                      id = Id.mk ();
+                                      label = [ "fib" ];
+                                      mold =
+                                        {
+                                          out = Exp;
+                                          in_ = [];
+                                          nibs =
+                                            ( { shape = Convex; sort = Exp },
+                                              { shape = Convex; sort = Exp } );
+                                        };
+                                      shards = [ 0 ];
+                                      children = [];
+                                    };
+                                  Tile
+                                    {
+                                      id = Id.mk ();
+                                      label = [ "("; ")" ];
+                                      mold =
+                                        {
+                                          out = Exp;
+                                          in_ = [ Exp ];
+                                          nibs =
+                                            ( { shape = Concave 1; sort = Exp },
+                                              { shape = Convex; sort = Exp } );
+                                        };
+                                      shards = [ 0; 1 ];
+                                      children =
+                                        [
+                                          [
+                                            Tile
+                                              {
+                                                id = Id.mk ();
+                                                label = [ "x" ];
+                                                mold =
+                                                  {
+                                                    out = Exp;
+                                                    in_ = [];
+                                                    nibs =
+                                                      ( {
+                                                          shape = Convex;
+                                                          sort = Exp;
+                                                        },
+                                                        {
+                                                          shape = Convex;
+                                                          sort = Exp;
+                                                        } );
+                                                  };
+                                                shards = [ 0 ];
+                                                children = [];
+                                              };
+                                            Secondary
+                                              {
+                                                id = Id.mk ();
+                                                content = Whitespace " ";
+                                              };
+                                            Tile
+                                              {
+                                                id = Id.mk ();
+                                                label = [ "-" ];
+                                                mold =
+                                                  {
+                                                    out = Exp;
+                                                    in_ = [];
+                                                    nibs =
+                                                      ( {
+                                                          shape = Concave 4;
+                                                          sort = Exp;
+                                                        },
+                                                        {
+                                                          shape = Concave 4;
+                                                          sort = Exp;
+                                                        } );
+                                                  };
+                                                shards = [ 0 ];
+                                                children = [];
+                                              };
+                                            Secondary
+                                              {
+                                                id = Id.mk ();
+                                                content = Whitespace " ";
+                                              };
+                                            Tile
+                                              {
+                                                id = Id.mk ();
+                                                label = [ "1" ];
+                                                mold =
+                                                  {
+                                                    out = Exp;
+                                                    in_ = [];
+                                                    nibs =
+                                                      ( {
+                                                          shape = Convex;
+                                                          sort = Exp;
+                                                        },
+                                                        {
+                                                          shape = Convex;
+                                                          sort = Exp;
+                                                        } );
+                                                  };
+                                                shards = [ 0 ];
+                                                children = [];
+                                              };
+                                          ];
+                                        ];
+                                    };
+                                  Secondary
+                                    { id = Id.mk (); content = Whitespace " " };
+                                  Tile
+                                    {
+                                      id = Id.mk ();
+                                      label = [ "+" ];
+                                      mold =
+                                        {
+                                          out = Exp;
+                                          in_ = [];
+                                          nibs =
+                                            ( { shape = Concave 4; sort = Exp },
+                                              { shape = Concave 4; sort = Exp }
+                                            );
+                                        };
+                                      shards = [ 0 ];
+                                      children = [];
+                                    };
+                                  Secondary
+                                    { id = Id.mk (); content = Whitespace " " };
+                                  Tile
+                                    {
+                                      id = Id.mk ();
+                                      label = [ "fib" ];
+                                      mold =
+                                        {
+                                          out = Exp;
+                                          in_ = [];
+                                          nibs =
+                                            ( { shape = Convex; sort = Exp },
+                                              { shape = Convex; sort = Exp } );
+                                        };
+                                      shards = [ 0 ];
+                                      children = [];
+                                    };
+                                  Tile
+                                    {
+                                      id = Id.mk ();
+                                      label = [ "("; ")" ];
+                                      mold =
+                                        {
+                                          out = Exp;
+                                          in_ = [ Exp ];
+                                          nibs =
+                                            ( { shape = Concave 1; sort = Exp },
+                                              { shape = Convex; sort = Exp } );
+                                        };
+                                      shards = [ 0; 1 ];
+                                      children =
+                                        [
+                                          [
+                                            Tile
+                                              {
+                                                id = Id.mk ();
+                                                label = [ "x" ];
+                                                mold =
+                                                  {
+                                                    out = Exp;
+                                                    in_ = [];
+                                                    nibs =
+                                                      ( {
+                                                          shape = Convex;
+                                                          sort = Exp;
+                                                        },
+                                                        {
+                                                          shape = Convex;
+                                                          sort = Exp;
+                                                        } );
+                                                  };
+                                                shards = [ 0 ];
+                                                children = [];
+                                              };
+                                            Secondary
+                                              {
+                                                id = Id.mk ();
+                                                content = Whitespace " ";
+                                              };
+                                            Tile
+                                              {
+                                                id = Id.mk ();
+                                                label = [ "-" ];
+                                                mold =
+                                                  {
+                                                    out = Exp;
+                                                    in_ = [];
+                                                    nibs =
+                                                      ( {
+                                                          shape = Concave 4;
+                                                          sort = Exp;
+                                                        },
+                                                        {
+                                                          shape = Concave 4;
+                                                          sort = Exp;
+                                                        } );
+                                                  };
+                                                shards = [ 0 ];
+                                                children = [];
+                                              };
+                                            Secondary
+                                              {
+                                                id = Id.mk ();
+                                                content = Whitespace " ";
+                                              };
+                                            Tile
+                                              {
+                                                id = Id.mk ();
+                                                label = [ "2" ];
+                                                mold =
+                                                  {
+                                                    out = Exp;
+                                                    in_ = [];
+                                                    nibs =
+                                                      ( {
+                                                          shape = Convex;
+                                                          sort = Exp;
+                                                        },
+                                                        {
+                                                          shape = Convex;
+                                                          sort = Exp;
+                                                        } );
+                                                  };
+                                                shards = [ 0 ];
+                                                children = [];
+                                              };
+                                          ];
+                                        ];
+                                    };
+                                  Secondary
+                                    { id = Id.mk (); content = Whitespace " " };
+                                  Secondary
+                                    { id = Id.mk (); content = Whitespace " " };
+                                  Secondary
+                                    { id = Id.mk (); content = Whitespace "\n" };
+                                ];
+                              ];
+                          };
+                        Secondary { id = Id.mk (); content = Whitespace " " };
+                      ],
+                      [ Grout { id = Id.mk (); shape = Convex } ] );
+                  ancestors = [];
+                };
+              caret = Outer;
+              refractors = Haz3lcore.ZipperBase.Refractor.init;
+            };
+          hint = "incorrect base cases";
+        };
+        {
+          impl =
+            {
+              selection = { focus = Left; content = []; mode = Normal };
+              relatives =
+                {
+                  siblings =
+                    ( [
+                        Tile
+                          {
+                            id = Id.mk ();
+                            label = [ "let"; "="; "in" ];
+                            mold =
+                              {
+                                out = Exp;
+                                in_ = [ Pat; Exp ];
+                                nibs =
+                                  ( { shape = Convex; sort = Exp },
+                                    { shape = Concave 14; sort = Exp } );
+                              };
+                            shards = [ 0; 1; 2 ];
+                            children =
+                              [
+                                [
+                                  Secondary
+                                    { id = Id.mk (); content = Whitespace " " };
+                                  Tile
+                                    {
+                                      id = Id.mk ();
+                                      label = [ "fib" ];
+                                      mold =
+                                        {
+                                          out = Pat;
+                                          in_ = [];
+                                          nibs =
+                                            ( { shape = Convex; sort = Pat },
+                                              { shape = Convex; sort = Pat } );
+                                        };
+                                      shards = [ 0 ];
+                                      children = [];
+                                    };
+                                  Tile
+                                    {
+                                      id = Id.mk ();
+                                      label = [ ":" ];
+                                      mold =
+                                        {
+                                          out = Pat;
+                                          in_ = [];
+                                          nibs =
+                                            ( { shape = Concave 10; sort = Pat },
+                                              { shape = Concave 10; sort = Typ }
+                                            );
+                                        };
+                                      shards = [ 0 ];
+                                      children = [];
+                                    };
+                                  Secondary
+                                    { id = Id.mk (); content = Whitespace " " };
+                                  Tile
+                                    {
+                                      id = Id.mk ();
+                                      label = [ "Int" ];
+                                      mold =
+                                        {
+                                          out = Typ;
+                                          in_ = [];
+                                          nibs =
+                                            ( { shape = Convex; sort = Typ },
+                                              { shape = Convex; sort = Typ } );
+                                        };
+                                      shards = [ 0 ];
+                                      children = [];
+                                    };
+                                  Secondary
+                                    { id = Id.mk (); content = Whitespace " " };
+                                  Tile
+                                    {
+                                      id = Id.mk ();
+                                      label = [ "->" ];
+                                      mold =
+                                        {
+                                          out = Typ;
+                                          in_ = [];
+                                          nibs =
+                                            ( { shape = Concave 6; sort = Typ },
+                                              { shape = Concave 6; sort = Typ }
+                                            );
+                                        };
+                                      shards = [ 0 ];
+                                      children = [];
+                                    };
+                                  Secondary
+                                    { id = Id.mk (); content = Whitespace " " };
+                                  Tile
+                                    {
+                                      id = Id.mk ();
+                                      label = [ "Int" ];
+                                      mold =
+                                        {
+                                          out = Typ;
+                                          in_ = [];
+                                          nibs =
+                                            ( { shape = Convex; sort = Typ },
+                                              { shape = Convex; sort = Typ } );
+                                        };
+                                      shards = [ 0 ];
+                                      children = [];
+                                    };
+                                  Secondary
+                                    { id = Id.mk (); content = Whitespace " " };
+                                ];
+                                [
+                                  Secondary
+                                    { id = Id.mk (); content = Whitespace " " };
+                                  Secondary
+                                    { id = Id.mk (); content = Whitespace "\n" };
+                                  Tile
+                                    {
+                                      id = Id.mk ();
+                                      label = [ "fun"; "->" ];
+                                      mold =
+                                        {
+                                          out = Exp;
+                                          in_ = [ Pat ];
+                                          nibs =
+                                            ( { shape = Convex; sort = Exp },
+                                              { shape = Concave 14; sort = Exp }
+                                            );
+                                        };
+                                      shards = [ 0; 1 ];
+                                      children =
+                                        [
+                                          [
+                                            Secondary
+                                              {
+                                                id = Id.mk ();
+                                                content = Whitespace " ";
+                                              };
+                                            Tile
+                                              {
+                                                id = Id.mk ();
+                                                label = [ "x" ];
+                                                mold =
+                                                  {
+                                                    out = Pat;
+                                                    in_ = [];
+                                                    nibs =
+                                                      ( {
+                                                          shape = Convex;
+                                                          sort = Pat;
+                                                        },
+                                                        {
+                                                          shape = Convex;
+                                                          sort = Pat;
+                                                        } );
+                                                  };
+                                                shards = [ 0 ];
+                                                children = [];
+                                              };
+                                            Secondary
+                                              {
+                                                id = Id.mk ();
+                                                content = Whitespace " ";
+                                              };
+                                          ];
+                                        ];
+                                    };
+                                  Secondary
+                                    { id = Id.mk (); content = Whitespace " " };
+                                  Secondary
+                                    { id = Id.mk (); content = Whitespace "\n" };
+                                  Tile
+                                    {
+                                      id = Id.mk ();
+                                      label = [ "if"; "then"; "else" ];
+                                      mold =
+                                        {
+                                          out = Exp;
+                                          in_ = [ Exp; Exp ];
+                                          nibs =
+                                            ( { shape = Convex; sort = Exp },
+                                              { shape = Concave 12; sort = Exp }
+                                            );
+                                        };
+                                      shards = [ 0; 1; 2 ];
+                                      children =
+                                        [
+                                          [
+                                            Secondary
+                                              {
+                                                id = Id.mk ();
+                                                content = Whitespace " ";
+                                              };
+                                            Tile
+                                              {
+                                                id = Id.mk ();
+                                                label = [ "x" ];
+                                                mold =
+                                                  {
+                                                    out = Exp;
+                                                    in_ = [];
+                                                    nibs =
+                                                      ( {
+                                                          shape = Convex;
+                                                          sort = Exp;
+                                                        },
+                                                        {
+                                                          shape = Convex;
+                                                          sort = Exp;
+                                                        } );
+                                                  };
+                                                shards = [ 0 ];
+                                                children = [];
+                                              };
+                                            Secondary
+                                              {
+                                                id = Id.mk ();
+                                                content = Whitespace " ";
+                                              };
+                                            Tile
+                                              {
+                                                id = Id.mk ();
+                                                label = [ "<" ];
+                                                mold =
+                                                  {
+                                                    out = Exp;
+                                                    in_ = [];
+                                                    nibs =
+                                                      ( {
+                                                          shape = Concave 5;
+                                                          sort = Exp;
+                                                        },
+                                                        {
+                                                          shape = Concave 5;
+                                                          sort = Exp;
+                                                        } );
+                                                  };
+                                                shards = [ 0 ];
+                                                children = [];
+                                              };
+                                            Secondary
+                                              {
+                                                id = Id.mk ();
+                                                content = Whitespace " ";
+                                              };
+                                            Tile
+                                              {
+                                                id = Id.mk ();
+                                                label = [ "2" ];
+                                                mold =
+                                                  {
+                                                    out = Exp;
+                                                    in_ = [];
+                                                    nibs =
+                                                      ( {
+                                                          shape = Convex;
+                                                          sort = Exp;
+                                                        },
+                                                        {
+                                                          shape = Convex;
+                                                          sort = Exp;
+                                                        } );
+                                                  };
+                                                shards = [ 0 ];
+                                                children = [];
+                                              };
+                                            Secondary
+                                              {
+                                                id = Id.mk ();
+                                                content = Whitespace " ";
+                                              };
+                                          ];
+                                          [
+                                            Secondary
+                                              {
+                                                id = Id.mk ();
+                                                content = Whitespace " ";
+                                              };
+                                            Tile
+                                              {
+                                                id = Id.mk ();
+                                                label = [ "1" ];
+                                                mold =
+                                                  {
+                                                    out = Exp;
+                                                    in_ = [];
+                                                    nibs =
+                                                      ( {
+                                                          shape = Convex;
+                                                          sort = Exp;
+                                                        },
+                                                        {
+                                                          shape = Convex;
+                                                          sort = Exp;
+                                                        } );
+                                                  };
+                                                shards = [ 0 ];
+                                                children = [];
+                                              };
+                                            Secondary
+                                              {
+                                                id = Id.mk ();
+                                                content = Whitespace " ";
+                                              };
+                                            Secondary
+                                              {
+                                                id = Id.mk ();
+                                                content = Whitespace " ";
+                                              };
+                                            Secondary
+                                              {
+                                                id = Id.mk ();
+                                                content = Whitespace "\n";
+                                              };
+                                          ];
+                                        ];
+                                    };
+                                  Secondary
+                                    { id = Id.mk (); content = Whitespace " " };
+                                  Tile
+                                    {
+                                      id = Id.mk ();
+                                      label = [ "fib" ];
+                                      mold =
+                                        {
+                                          out = Exp;
+                                          in_ = [];
+                                          nibs =
+                                            ( { shape = Convex; sort = Exp },
+                                              { shape = Convex; sort = Exp } );
+                                        };
+                                      shards = [ 0 ];
+                                      children = [];
+                                    };
+                                  Tile
+                                    {
+                                      id = Id.mk ();
+                                      label = [ "("; ")" ];
+                                      mold =
+                                        {
+                                          out = Exp;
+                                          in_ = [ Exp ];
+                                          nibs =
+                                            ( { shape = Concave 1; sort = Exp },
+                                              { shape = Convex; sort = Exp } );
+                                        };
+                                      shards = [ 0; 1 ];
+                                      children =
+                                        [
+                                          [
+                                            Tile
+                                              {
+                                                id = Id.mk ();
+                                                label = [ "x" ];
+                                                mold =
+                                                  {
+                                                    out = Exp;
+                                                    in_ = [];
+                                                    nibs =
+                                                      ( {
+                                                          shape = Convex;
+                                                          sort = Exp;
+                                                        },
+                                                        {
+                                                          shape = Convex;
+                                                          sort = Exp;
+                                                        } );
+                                                  };
+                                                shards = [ 0 ];
+                                                children = [];
+                                              };
+                                            Secondary
+                                              {
+                                                id = Id.mk ();
+                                                content = Whitespace " ";
+                                              };
+                                            Tile
+                                              {
+                                                id = Id.mk ();
+                                                label = [ "-" ];
+                                                mold =
+                                                  {
+                                                    out = Exp;
+                                                    in_ = [];
+                                                    nibs =
+                                                      ( {
+                                                          shape = Concave 4;
+                                                          sort = Exp;
+                                                        },
+                                                        {
+                                                          shape = Concave 4;
+                                                          sort = Exp;
+                                                        } );
+                                                  };
+                                                shards = [ 0 ];
+                                                children = [];
+                                              };
+                                            Secondary
+                                              {
+                                                id = Id.mk ();
+                                                content = Whitespace " ";
+                                              };
+                                            Tile
+                                              {
+                                                id = Id.mk ();
+                                                label = [ "2" ];
+                                                mold =
+                                                  {
+                                                    out = Exp;
+                                                    in_ = [];
+                                                    nibs =
+                                                      ( {
+                                                          shape = Convex;
+                                                          sort = Exp;
+                                                        },
+                                                        {
+                                                          shape = Convex;
+                                                          sort = Exp;
+                                                        } );
+                                                  };
+                                                shards = [ 0 ];
+                                                children = [];
+                                              };
+                                          ];
+                                        ];
+                                    };
+                                  Secondary
+                                    { id = Id.mk (); content = Whitespace " " };
+                                  Tile
+                                    {
+                                      id = Id.mk ();
+                                      label = [ "+" ];
+                                      mold =
+                                        {
+                                          out = Exp;
+                                          in_ = [];
+                                          nibs =
+                                            ( { shape = Concave 4; sort = Exp },
+                                              { shape = Concave 4; sort = Exp }
+                                            );
+                                        };
+                                      shards = [ 0 ];
+                                      children = [];
+                                    };
+                                  Secondary
+                                    { id = Id.mk (); content = Whitespace " " };
+                                  Tile
+                                    {
+                                      id = Id.mk ();
+                                      label = [ "fib" ];
+                                      mold =
+                                        {
+                                          out = Exp;
+                                          in_ = [];
+                                          nibs =
+                                            ( { shape = Convex; sort = Exp },
+                                              { shape = Convex; sort = Exp } );
+                                        };
+                                      shards = [ 0 ];
+                                      children = [];
+                                    };
+                                  Tile
+                                    {
+                                      id = Id.mk ();
+                                      label = [ "("; ")" ];
+                                      mold =
+                                        {
+                                          out = Exp;
+                                          in_ = [ Exp ];
+                                          nibs =
+                                            ( { shape = Concave 1; sort = Exp },
+                                              { shape = Convex; sort = Exp } );
+                                        };
+                                      shards = [ 0; 1 ];
+                                      children =
+                                        [
+                                          [
+                                            Tile
+                                              {
+                                                id = Id.mk ();
+                                                label = [ "x" ];
+                                                mold =
+                                                  {
+                                                    out = Exp;
+                                                    in_ = [];
+                                                    nibs =
+                                                      ( {
+                                                          shape = Convex;
+                                                          sort = Exp;
+                                                        },
+                                                        {
+                                                          shape = Convex;
+                                                          sort = Exp;
+                                                        } );
+                                                  };
+                                                shards = [ 0 ];
+                                                children = [];
+                                              };
+                                            Secondary
+                                              {
+                                                id = Id.mk ();
+                                                content = Whitespace " ";
+                                              };
+                                            Tile
+                                              {
+                                                id = Id.mk ();
+                                                label = [ "-" ];
+                                                mold =
+                                                  {
+                                                    out = Exp;
+                                                    in_ = [];
+                                                    nibs =
+                                                      ( {
+                                                          shape = Concave 4;
+                                                          sort = Exp;
+                                                        },
+                                                        {
+                                                          shape = Concave 4;
+                                                          sort = Exp;
+                                                        } );
+                                                  };
+                                                shards = [ 0 ];
+                                                children = [];
+                                              };
+                                            Secondary
+                                              {
+                                                id = Id.mk ();
+                                                content = Whitespace " ";
+                                              };
+                                            Tile
+                                              {
+                                                id = Id.mk ();
+                                                label = [ "2" ];
+                                                mold =
+                                                  {
+                                                    out = Exp;
+                                                    in_ = [];
+                                                    nibs =
+                                                      ( {
+                                                          shape = Convex;
+                                                          sort = Exp;
+                                                        },
+                                                        {
+                                                          shape = Convex;
+                                                          sort = Exp;
+                                                        } );
+                                                  };
+                                                shards = [ 0 ];
+                                                children = [];
+                                              };
+                                          ];
+                                        ];
+                                    };
+                                  Secondary
+                                    { id = Id.mk (); content = Whitespace " " };
+                                  Secondary
+                                    { id = Id.mk (); content = Whitespace "\n" };
+                                ];
+                              ];
+                          };
+                        Secondary { id = Id.mk (); content = Whitespace " " };
+                      ],
+                      [ Grout { id = Id.mk (); shape = Convex } ] );
+                  ancestors = [];
+                };
+              caret = Outer;
+              refractors = Haz3lcore.ZipperBase.Refractor.init;
+            };
+          hint = "incorrect recursion";
+        };
+      ];
+    hidden_tests =
+      {
+        tests =
+          {
+            selection = { focus = Left; content = []; mode = Normal };
+            relatives =
+              {
+                siblings =
+                  ( [
+                      Tile
+                        {
+                          id = Id.mk ();
+                          label = [ "test"; "end" ];
+                          mold =
+                            {
+                              out = Exp;
+                              in_ = [ Exp ];
+                              nibs =
+                                ( { shape = Convex; sort = Exp },
+                                  { shape = Convex; sort = Exp } );
+                            };
+                          shards = [ 0; 1 ];
+                          children =
+                            [
+                              [
+                                Secondary
+                                  { id = Id.mk (); content = Whitespace " " };
+                                Tile
+                                  {
+                                    id = Id.mk ();
+                                    label = [ "fib" ];
+                                    mold =
+                                      {
+                                        out = Exp;
+                                        in_ = [];
+                                        nibs =
+                                          ( { shape = Convex; sort = Exp },
+                                            { shape = Convex; sort = Exp } );
+                                      };
+                                    shards = [ 0 ];
+                                    children = [];
+                                  };
+                                Tile
+                                  {
+                                    id = Id.mk ();
+                                    label = [ "("; ")" ];
+                                    mold =
+                                      {
+                                        out = Exp;
+                                        in_ = [ Exp ];
+                                        nibs =
+                                          ( { shape = Concave 1; sort = Exp },
+                                            { shape = Convex; sort = Exp } );
+                                      };
+                                    shards = [ 0; 1 ];
+                                    children =
+                                      [
+                                        [
+                                          Tile
+                                            {
+                                              id = Id.mk ();
+                                              label = [ "0" ];
+                                              mold =
+                                                {
+                                                  out = Exp;
+                                                  in_ = [];
+                                                  nibs =
+                                                    ( {
+                                                        shape = Convex;
+                                                        sort = Exp;
+                                                      },
+                                                      {
+                                                        shape = Convex;
+                                                        sort = Exp;
+                                                      } );
+                                                };
+                                              shards = [ 0 ];
+                                              children = [];
+                                            };
+                                        ];
+                                      ];
+                                  };
+                                Secondary
+                                  { id = Id.mk (); content = Whitespace " " };
+                                Tile
+                                  {
+                                    id = Id.mk ();
+                                    label = [ "==" ];
+                                    mold =
+                                      {
+                                        out = Exp;
+                                        in_ = [];
+                                        nibs =
+                                          ( { shape = Concave 7; sort = Exp },
+                                            { shape = Concave 7; sort = Exp } );
+                                      };
+                                    shards = [ 0 ];
+                                    children = [];
+                                  };
+                                Secondary
+                                  { id = Id.mk (); content = Whitespace " " };
+                                Tile
+                                  {
+                                    id = Id.mk ();
+                                    label = [ "1" ];
+                                    mold =
+                                      {
+                                        out = Exp;
+                                        in_ = [];
+                                        nibs =
+                                          ( { shape = Convex; sort = Exp },
+                                            { shape = Convex; sort = Exp } );
+                                      };
+                                    shards = [ 0 ];
+                                    children = [];
+                                  };
+                                Secondary
+                                  { id = Id.mk (); content = Whitespace " " };
+                              ];
+                            ];
+                        };
+                      Tile
+                        {
+                          id = Id.mk ();
+                          label = [ ";" ];
+                          mold =
+                            {
+                              out = Exp;
+                              in_ = [];
+                              nibs =
+                                ( { shape = Concave 10; sort = Exp },
+                                  { shape = Concave 10; sort = Exp } );
+                            };
+                          shards = [ 0 ];
+                          children = [];
+                        };
+                      Secondary { id = Id.mk (); content = Whitespace "\n" };
+                      Tile
+                        {
+                          id = Id.mk ();
+                          label = [ "test"; "end" ];
+                          mold =
+                            {
+                              out = Exp;
+                              in_ = [ Exp ];
+                              nibs =
+                                ( { shape = Convex; sort = Exp },
+                                  { shape = Convex; sort = Exp } );
+                            };
+                          shards = [ 0; 1 ];
+                          children =
+                            [
+                              [
+                                Secondary
+                                  { id = Id.mk (); content = Whitespace " " };
+                                Tile
+                                  {
+                                    id = Id.mk ();
+                                    label = [ "fib" ];
+                                    mold =
+                                      {
+                                        out = Exp;
+                                        in_ = [];
+                                        nibs =
+                                          ( { shape = Convex; sort = Exp },
+                                            { shape = Convex; sort = Exp } );
+                                      };
+                                    shards = [ 0 ];
+                                    children = [];
+                                  };
+                                Tile
+                                  {
+                                    id = Id.mk ();
+                                    label = [ "("; ")" ];
+                                    mold =
+                                      {
+                                        out = Exp;
+                                        in_ = [ Exp ];
+                                        nibs =
+                                          ( { shape = Concave 1; sort = Exp },
+                                            { shape = Convex; sort = Exp } );
+                                      };
+                                    shards = [ 0; 1 ];
+                                    children =
+                                      [
+                                        [
+                                          Tile
+                                            {
+                                              id = Id.mk ();
+                                              label = [ "1" ];
+                                              mold =
+                                                {
+                                                  out = Exp;
+                                                  in_ = [];
+                                                  nibs =
+                                                    ( {
+                                                        shape = Convex;
+                                                        sort = Exp;
+                                                      },
+                                                      {
+                                                        shape = Convex;
+                                                        sort = Exp;
+                                                      } );
+                                                };
+                                              shards = [ 0 ];
+                                              children = [];
+                                            };
+                                        ];
+                                      ];
+                                  };
+                                Secondary
+                                  { id = Id.mk (); content = Whitespace " " };
+                                Tile
+                                  {
+                                    id = Id.mk ();
+                                    label = [ "==" ];
+                                    mold =
+                                      {
+                                        out = Exp;
+                                        in_ = [];
+                                        nibs =
+                                          ( { shape = Concave 7; sort = Exp },
+                                            { shape = Concave 7; sort = Exp } );
+                                      };
+                                    shards = [ 0 ];
+                                    children = [];
+                                  };
+                                Secondary
+                                  { id = Id.mk (); content = Whitespace " " };
+                                Tile
+                                  {
+                                    id = Id.mk ();
+                                    label = [ "1" ];
+                                    mold =
+                                      {
+                                        out = Exp;
+                                        in_ = [];
+                                        nibs =
+                                          ( { shape = Convex; sort = Exp },
+                                            { shape = Convex; sort = Exp } );
+                                      };
+                                    shards = [ 0 ];
+                                    children = [];
+                                  };
+                                Secondary
+                                  { id = Id.mk (); content = Whitespace " " };
+                              ];
+                            ];
+                        };
+                      Tile
+                        {
+                          id = Id.mk ();
+                          label = [ ";" ];
+                          mold =
+                            {
+                              out = Exp;
+                              in_ = [];
+                              nibs =
+                                ( { shape = Concave 10; sort = Exp },
+                                  { shape = Concave 10; sort = Exp } );
+                            };
+                          shards = [ 0 ];
+                          children = [];
+                        };
+                      Secondary { id = Id.mk (); content = Whitespace "\n" };
+                      Tile
+                        {
+                          id = Id.mk ();
+                          label = [ "test"; "end" ];
+                          mold =
+                            {
+                              out = Exp;
+                              in_ = [ Exp ];
+                              nibs =
+                                ( { shape = Convex; sort = Exp },
+                                  { shape = Convex; sort = Exp } );
+                            };
+                          shards = [ 0; 1 ];
+                          children =
+                            [
+                              [
+                                Secondary
+                                  { id = Id.mk (); content = Whitespace " " };
+                                Tile
+                                  {
+                                    id = Id.mk ();
+                                    label = [ "fib" ];
+                                    mold =
+                                      {
+                                        out = Exp;
+                                        in_ = [];
+                                        nibs =
+                                          ( { shape = Convex; sort = Exp },
+                                            { shape = Convex; sort = Exp } );
+                                      };
+                                    shards = [ 0 ];
+                                    children = [];
+                                  };
+                                Tile
+                                  {
+                                    id = Id.mk ();
+                                    label = [ "("; ")" ];
+                                    mold =
+                                      {
+                                        out = Exp;
+                                        in_ = [ Exp ];
+                                        nibs =
+                                          ( { shape = Concave 1; sort = Exp },
+                                            { shape = Convex; sort = Exp } );
+                                      };
+                                    shards = [ 0; 1 ];
+                                    children =
+                                      [
+                                        [
+                                          Tile
+                                            {
+                                              id = Id.mk ();
+                                              label = [ "2" ];
+                                              mold =
+                                                {
+                                                  out = Exp;
+                                                  in_ = [];
+                                                  nibs =
+                                                    ( {
+                                                        shape = Convex;
+                                                        sort = Exp;
+                                                      },
+                                                      {
+                                                        shape = Convex;
+                                                        sort = Exp;
+                                                      } );
+                                                };
+                                              shards = [ 0 ];
+                                              children = [];
+                                            };
+                                        ];
+                                      ];
+                                  };
+                                Secondary
+                                  { id = Id.mk (); content = Whitespace " " };
+                                Tile
+                                  {
+                                    id = Id.mk ();
+                                    label = [ "==" ];
+                                    mold =
+                                      {
+                                        out = Exp;
+                                        in_ = [];
+                                        nibs =
+                                          ( { shape = Concave 7; sort = Exp },
+                                            { shape = Concave 7; sort = Exp } );
+                                      };
+                                    shards = [ 0 ];
+                                    children = [];
+                                  };
+                                Secondary
+                                  { id = Id.mk (); content = Whitespace " " };
+                                Tile
+                                  {
+                                    id = Id.mk ();
+                                    label = [ "2" ];
+                                    mold =
+                                      {
+                                        out = Exp;
+                                        in_ = [];
+                                        nibs =
+                                          ( { shape = Convex; sort = Exp },
+                                            { shape = Convex; sort = Exp } );
+                                      };
+                                    shards = [ 0 ];
+                                    children = [];
+                                  };
+                                Secondary
+                                  { id = Id.mk (); content = Whitespace " " };
+                              ];
+                            ];
+                        };
+                      Tile
+                        {
+                          id = Id.mk ();
+                          label = [ ";" ];
+                          mold =
+                            {
+                              out = Exp;
+                              in_ = [];
+                              nibs =
+                                ( { shape = Concave 10; sort = Exp },
+                                  { shape = Concave 10; sort = Exp } );
+                            };
+                          shards = [ 0 ];
+                          children = [];
+                        };
+                      Secondary { id = Id.mk (); content = Whitespace "\n" };
+                      Tile
+                        {
+                          id = Id.mk ();
+                          label = [ "test"; "end" ];
+                          mold =
+                            {
+                              out = Exp;
+                              in_ = [ Exp ];
+                              nibs =
+                                ( { shape = Convex; sort = Exp },
+                                  { shape = Convex; sort = Exp } );
+                            };
+                          shards = [ 0; 1 ];
+                          children =
+                            [
+                              [
+                                Secondary
+                                  { id = Id.mk (); content = Whitespace " " };
+                                Tile
+                                  {
+                                    id = Id.mk ();
+                                    label = [ "fib" ];
+                                    mold =
+                                      {
+                                        out = Exp;
+                                        in_ = [];
+                                        nibs =
+                                          ( { shape = Convex; sort = Exp },
+                                            { shape = Convex; sort = Exp } );
+                                      };
+                                    shards = [ 0 ];
+                                    children = [];
+                                  };
+                                Tile
+                                  {
+                                    id = Id.mk ();
+                                    label = [ "("; ")" ];
+                                    mold =
+                                      {
+                                        out = Exp;
+                                        in_ = [ Exp ];
+                                        nibs =
+                                          ( { shape = Concave 1; sort = Exp },
+                                            { shape = Convex; sort = Exp } );
+                                      };
+                                    shards = [ 0; 1 ];
+                                    children =
+                                      [
+                                        [
+                                          Tile
+                                            {
+                                              id = Id.mk ();
+                                              label = [ "3" ];
+                                              mold =
+                                                {
+                                                  out = Exp;
+                                                  in_ = [];
+                                                  nibs =
+                                                    ( {
+                                                        shape = Convex;
+                                                        sort = Exp;
+                                                      },
+                                                      {
+                                                        shape = Convex;
+                                                        sort = Exp;
+                                                      } );
+                                                };
+                                              shards = [ 0 ];
+                                              children = [];
+                                            };
+                                        ];
+                                      ];
+                                  };
+                                Secondary
+                                  { id = Id.mk (); content = Whitespace " " };
+                                Tile
+                                  {
+                                    id = Id.mk ();
+                                    label = [ "==" ];
+                                    mold =
+                                      {
+                                        out = Exp;
+                                        in_ = [];
+                                        nibs =
+                                          ( { shape = Concave 7; sort = Exp },
+                                            { shape = Concave 7; sort = Exp } );
+                                      };
+                                    shards = [ 0 ];
+                                    children = [];
+                                  };
+                                Secondary
+                                  { id = Id.mk (); content = Whitespace " " };
+                                Tile
+                                  {
+                                    id = Id.mk ();
+                                    label = [ "3" ];
+                                    mold =
+                                      {
+                                        out = Exp;
+                                        in_ = [];
+                                        nibs =
+                                          ( { shape = Convex; sort = Exp },
+                                            { shape = Convex; sort = Exp } );
+                                      };
+                                    shards = [ 0 ];
+                                    children = [];
+                                  };
+                                Secondary
+                                  { id = Id.mk (); content = Whitespace " " };
+                              ];
+                            ];
+                        };
+                      Tile
+                        {
+                          id = Id.mk ();
+                          label = [ ";" ];
+                          mold =
+                            {
+                              out = Exp;
+                              in_ = [];
+                              nibs =
+                                ( { shape = Concave 10; sort = Exp },
+                                  { shape = Concave 10; sort = Exp } );
+                            };
+                          shards = [ 0 ];
+                          children = [];
+                        };
+                      Secondary { id = Id.mk (); content = Whitespace "\n" };
+                      Tile
+                        {
+                          id = Id.mk ();
+                          label = [ "test"; "end" ];
+                          mold =
+                            {
+                              out = Exp;
+                              in_ = [ Exp ];
+                              nibs =
+                                ( { shape = Convex; sort = Exp },
+                                  { shape = Convex; sort = Exp } );
+                            };
+                          shards = [ 0; 1 ];
+                          children =
+                            [
+                              [
+                                Secondary
+                                  { id = Id.mk (); content = Whitespace " " };
+                                Tile
+                                  {
+                                    id = Id.mk ();
+                                    label = [ "fib" ];
+                                    mold =
+                                      {
+                                        out = Exp;
+                                        in_ = [];
+                                        nibs =
+                                          ( { shape = Convex; sort = Exp },
+                                            { shape = Convex; sort = Exp } );
+                                      };
+                                    shards = [ 0 ];
+                                    children = [];
+                                  };
+                                Tile
+                                  {
+                                    id = Id.mk ();
+                                    label = [ "("; ")" ];
+                                    mold =
+                                      {
+                                        out = Exp;
+                                        in_ = [ Exp ];
+                                        nibs =
+                                          ( { shape = Concave 1; sort = Exp },
+                                            { shape = Convex; sort = Exp } );
+                                      };
+                                    shards = [ 0; 1 ];
+                                    children =
+                                      [
+                                        [
+                                          Tile
+                                            {
+                                              id = Id.mk ();
+                                              label = [ "4" ];
+                                              mold =
+                                                {
+                                                  out = Exp;
+                                                  in_ = [];
+                                                  nibs =
+                                                    ( {
+                                                        shape = Convex;
+                                                        sort = Exp;
+                                                      },
+                                                      {
+                                                        shape = Convex;
+                                                        sort = Exp;
+                                                      } );
+                                                };
+                                              shards = [ 0 ];
+                                              children = [];
+                                            };
+                                        ];
+                                      ];
+                                  };
+                                Secondary
+                                  { id = Id.mk (); content = Whitespace " " };
+                                Tile
+                                  {
+                                    id = Id.mk ();
+                                    label = [ "==" ];
+                                    mold =
+                                      {
+                                        out = Exp;
+                                        in_ = [];
+                                        nibs =
+                                          ( { shape = Concave 7; sort = Exp },
+                                            { shape = Concave 7; sort = Exp } );
+                                      };
+                                    shards = [ 0 ];
+                                    children = [];
+                                  };
+                                Secondary
+                                  { id = Id.mk (); content = Whitespace " " };
+                                Tile
+                                  {
+                                    id = Id.mk ();
+                                    label = [ "5" ];
+                                    mold =
+                                      {
+                                        out = Exp;
+                                        in_ = [];
+                                        nibs =
+                                          ( { shape = Convex; sort = Exp },
+                                            { shape = Convex; sort = Exp } );
+                                      };
+                                    shards = [ 0 ];
+                                    children = [];
+                                  };
+                                Secondary
+                                  { id = Id.mk (); content = Whitespace " " };
+                              ];
+                            ];
+                        };
+                      Tile
+                        {
+                          id = Id.mk ();
+                          label = [ ";" ];
+                          mold =
+                            {
+                              out = Exp;
+                              in_ = [];
+                              nibs =
+                                ( { shape = Concave 10; sort = Exp },
+                                  { shape = Concave 10; sort = Exp } );
+                            };
+                          shards = [ 0 ];
+                          children = [];
+                        };
+                      Secondary { id = Id.mk (); content = Whitespace "\n" };
+                      Tile
+                        {
+                          id = Id.mk ();
+                          label = [ "test"; "end" ];
+                          mold =
+                            {
+                              out = Exp;
+                              in_ = [ Exp ];
+                              nibs =
+                                ( { shape = Convex; sort = Exp },
+                                  { shape = Convex; sort = Exp } );
+                            };
+                          shards = [ 0; 1 ];
+                          children =
+                            [
+                              [
+                                Secondary
+                                  { id = Id.mk (); content = Whitespace " " };
+                                Tile
+                                  {
+                                    id = Id.mk ();
+                                    label = [ "fib" ];
+                                    mold =
+                                      {
+                                        out = Exp;
+                                        in_ = [];
+                                        nibs =
+                                          ( { shape = Convex; sort = Exp },
+                                            { shape = Convex; sort = Exp } );
+                                      };
+                                    shards = [ 0 ];
+                                    children = [];
+                                  };
+                                Tile
+                                  {
+                                    id = Id.mk ();
+                                    label = [ "("; ")" ];
+                                    mold =
+                                      {
+                                        out = Exp;
+                                        in_ = [ Exp ];
+                                        nibs =
+                                          ( { shape = Concave 1; sort = Exp },
+                                            { shape = Convex; sort = Exp } );
+                                      };
+                                    shards = [ 0; 1 ];
+                                    children =
+                                      [
+                                        [
+                                          Tile
+                                            {
+                                              id = Id.mk ();
+                                              label = [ "5" ];
+                                              mold =
+                                                {
+                                                  out = Exp;
+                                                  in_ = [];
+                                                  nibs =
+                                                    ( {
+                                                        shape = Convex;
+                                                        sort = Exp;
+                                                      },
+                                                      {
+                                                        shape = Convex;
+                                                        sort = Exp;
+                                                      } );
+                                                };
+                                              shards = [ 0 ];
+                                              children = [];
+                                            };
+                                        ];
+                                      ];
+                                  };
+                                Secondary
+                                  { id = Id.mk (); content = Whitespace " " };
+                                Tile
+                                  {
+                                    id = Id.mk ();
+                                    label = [ "==" ];
+                                    mold =
+                                      {
+                                        out = Exp;
+                                        in_ = [];
+                                        nibs =
+                                          ( { shape = Concave 7; sort = Exp },
+                                            { shape = Concave 7; sort = Exp } );
+                                      };
+                                    shards = [ 0 ];
+                                    children = [];
+                                  };
+                                Secondary
+                                  { id = Id.mk (); content = Whitespace " " };
+                                Tile
+                                  {
+                                    id = Id.mk ();
+                                    label = [ "8" ];
+                                    mold =
+                                      {
+                                        out = Exp;
+                                        in_ = [];
+                                        nibs =
+                                          ( { shape = Convex; sort = Exp },
+                                            { shape = Convex; sort = Exp } );
+                                      };
+                                    shards = [ 0 ];
+                                    children = [];
+                                  };
+                                Secondary
+                                  { id = Id.mk (); content = Whitespace " " };
+                              ];
+                            ];
+                        };
+                      Tile
+                        {
+                          id = Id.mk ();
+                          label = [ ";" ];
+                          mold =
+                            {
+                              out = Exp;
+                              in_ = [];
+                              nibs =
+                                ( { shape = Concave 10; sort = Exp },
+                                  { shape = Concave 10; sort = Exp } );
+                            };
+                          shards = [ 0 ];
+                          children = [];
+                        };
+                      Secondary { id = Id.mk (); content = Whitespace "\n" };
+                      Tile
+                        {
+                          id = Id.mk ();
+                          label = [ "test"; "end" ];
+                          mold =
+                            {
+                              out = Exp;
+                              in_ = [ Exp ];
+                              nibs =
+                                ( { shape = Convex; sort = Exp },
+                                  { shape = Convex; sort = Exp } );
+                            };
+                          shards = [ 0; 1 ];
+                          children =
+                            [
+                              [
+                                Secondary
+                                  { id = Id.mk (); content = Whitespace " " };
+                                Tile
+                                  {
+                                    id = Id.mk ();
+                                    label = [ "fib" ];
+                                    mold =
+                                      {
+                                        out = Exp;
+                                        in_ = [];
+                                        nibs =
+                                          ( { shape = Convex; sort = Exp },
+                                            { shape = Convex; sort = Exp } );
+                                      };
+                                    shards = [ 0 ];
+                                    children = [];
+                                  };
+                                Tile
+                                  {
+                                    id = Id.mk ();
+                                    label = [ "("; ")" ];
+                                    mold =
+                                      {
+                                        out = Exp;
+                                        in_ = [ Exp ];
+                                        nibs =
+                                          ( { shape = Concave 1; sort = Exp },
+                                            { shape = Convex; sort = Exp } );
+                                      };
+                                    shards = [ 0; 1 ];
+                                    children =
+                                      [
+                                        [
+                                          Tile
+                                            {
+                                              id = Id.mk ();
+                                              label = [ "6" ];
+                                              mold =
+                                                {
+                                                  out = Exp;
+                                                  in_ = [];
+                                                  nibs =
+                                                    ( {
+                                                        shape = Convex;
+                                                        sort = Exp;
+                                                      },
+                                                      {
+                                                        shape = Convex;
+                                                        sort = Exp;
+                                                      } );
+                                                };
+                                              shards = [ 0 ];
+                                              children = [];
+                                            };
+                                        ];
+                                      ];
+                                  };
+                                Secondary
+                                  { id = Id.mk (); content = Whitespace " " };
+                                Tile
+                                  {
+                                    id = Id.mk ();
+                                    label = [ "==" ];
+                                    mold =
+                                      {
+                                        out = Exp;
+                                        in_ = [];
+                                        nibs =
+                                          ( { shape = Concave 7; sort = Exp },
+                                            { shape = Concave 7; sort = Exp } );
+                                      };
+                                    shards = [ 0 ];
+                                    children = [];
+                                  };
+                                Secondary
+                                  { id = Id.mk (); content = Whitespace " " };
+                                Tile
+                                  {
+                                    id = Id.mk ();
+                                    label = [ "13" ];
+                                    mold =
+                                      {
+                                        out = Exp;
+                                        in_ = [];
+                                        nibs =
+                                          ( { shape = Convex; sort = Exp },
+                                            { shape = Convex; sort = Exp } );
+                                      };
+                                    shards = [ 0 ];
+                                    children = [];
+                                  };
+                                Secondary
+                                  { id = Id.mk (); content = Whitespace " " };
+                              ];
+                            ];
+                        };
+                      Tile
+                        {
+                          id = Id.mk ();
+                          label = [ ";" ];
+                          mold =
+                            {
+                              out = Exp;
+                              in_ = [];
+                              nibs =
+                                ( { shape = Concave 10; sort = Exp },
+                                  { shape = Concave 10; sort = Exp } );
+                            };
+                          shards = [ 0 ];
+                          children = [];
+                        };
+                      Secondary { id = Id.mk (); content = Whitespace "\n" };
+                      Tile
+                        {
+                          id = Id.mk ();
+                          label = [ "test"; "end" ];
+                          mold =
+                            {
+                              out = Exp;
+                              in_ = [ Exp ];
+                              nibs =
+                                ( { shape = Convex; sort = Exp },
+                                  { shape = Convex; sort = Exp } );
+                            };
+                          shards = [ 0; 1 ];
+                          children =
+                            [
+                              [
+                                Secondary
+                                  { id = Id.mk (); content = Whitespace " " };
+                                Tile
+                                  {
+                                    id = Id.mk ();
+                                    label = [ "fib" ];
+                                    mold =
+                                      {
+                                        out = Exp;
+                                        in_ = [];
+                                        nibs =
+                                          ( { shape = Convex; sort = Exp },
+                                            { shape = Convex; sort = Exp } );
+                                      };
+                                    shards = [ 0 ];
+                                    children = [];
+                                  };
+                                Tile
+                                  {
+                                    id = Id.mk ();
+                                    label = [ "("; ")" ];
+                                    mold =
+                                      {
+                                        out = Exp;
+                                        in_ = [ Exp ];
+                                        nibs =
+                                          ( { shape = Concave 1; sort = Exp },
+                                            { shape = Convex; sort = Exp } );
+                                      };
+                                    shards = [ 0; 1 ];
+                                    children =
+                                      [
+                                        [
+                                          Tile
+                                            {
+                                              id = Id.mk ();
+                                              label = [ "7" ];
+                                              mold =
+                                                {
+                                                  out = Exp;
+                                                  in_ = [];
+                                                  nibs =
+                                                    ( {
+                                                        shape = Convex;
+                                                        sort = Exp;
+                                                      },
+                                                      {
+                                                        shape = Convex;
+                                                        sort = Exp;
+                                                      } );
+                                                };
+                                              shards = [ 0 ];
+                                              children = [];
+                                            };
+                                        ];
+                                      ];
+                                  };
+                                Secondary
+                                  { id = Id.mk (); content = Whitespace " " };
+                                Tile
+                                  {
+                                    id = Id.mk ();
+                                    label = [ "==" ];
+                                    mold =
+                                      {
+                                        out = Exp;
+                                        in_ = [];
+                                        nibs =
+                                          ( { shape = Concave 7; sort = Exp },
+                                            { shape = Concave 7; sort = Exp } );
+                                      };
+                                    shards = [ 0 ];
+                                    children = [];
+                                  };
+                                Secondary
+                                  { id = Id.mk (); content = Whitespace " " };
+                                Tile
+                                  {
+                                    id = Id.mk ();
+                                    label = [ "21" ];
+                                    mold =
+                                      {
+                                        out = Exp;
+                                        in_ = [];
+                                        nibs =
+                                          ( { shape = Convex; sort = Exp },
+                                            { shape = Convex; sort = Exp } );
+                                      };
+                                    shards = [ 0 ];
+                                    children = [];
+                                  };
+                                Secondary
+                                  { id = Id.mk (); content = Whitespace " " };
+                              ];
+                            ];
+                        };
+                      Tile
+                        {
+                          id = Id.mk ();
+                          label = [ ";" ];
+                          mold =
+                            {
+                              out = Exp;
+                              in_ = [];
+                              nibs =
+                                ( { shape = Concave 10; sort = Exp },
+                                  { shape = Concave 10; sort = Exp } );
+                            };
+                          shards = [ 0 ];
+                          children = [];
+                        };
+                      Secondary { id = Id.mk (); content = Whitespace "\n" };
+                      Tile
+                        {
+                          id = Id.mk ();
+                          label = [ "test"; "end" ];
+                          mold =
+                            {
+                              out = Exp;
+                              in_ = [ Exp ];
+                              nibs =
+                                ( { shape = Convex; sort = Exp },
+                                  { shape = Convex; sort = Exp } );
+                            };
+                          shards = [ 0; 1 ];
+                          children =
+                            [
+                              [
+                                Secondary
+                                  { id = Id.mk (); content = Whitespace " " };
+                                Tile
+                                  {
+                                    id = Id.mk ();
+                                    label = [ "fib" ];
+                                    mold =
+                                      {
+                                        out = Exp;
+                                        in_ = [];
+                                        nibs =
+                                          ( { shape = Convex; sort = Exp },
+                                            { shape = Convex; sort = Exp } );
+                                      };
+                                    shards = [ 0 ];
+                                    children = [];
+                                  };
+                                Tile
+                                  {
+                                    id = Id.mk ();
+                                    label = [ "("; ")" ];
+                                    mold =
+                                      {
+                                        out = Exp;
+                                        in_ = [ Exp ];
+                                        nibs =
+                                          ( { shape = Concave 1; sort = Exp },
+                                            { shape = Convex; sort = Exp } );
+                                      };
+                                    shards = [ 0; 1 ];
+                                    children =
+                                      [
+                                        [
+                                          Tile
+                                            {
+                                              id = Id.mk ();
+                                              label = [ "8" ];
+                                              mold =
+                                                {
+                                                  out = Exp;
+                                                  in_ = [];
+                                                  nibs =
+                                                    ( {
+                                                        shape = Convex;
+                                                        sort = Exp;
+                                                      },
+                                                      {
+                                                        shape = Convex;
+                                                        sort = Exp;
+                                                      } );
+                                                };
+                                              shards = [ 0 ];
+                                              children = [];
+                                            };
+                                        ];
+                                      ];
+                                  };
+                                Secondary
+                                  { id = Id.mk (); content = Whitespace " " };
+                                Tile
+                                  {
+                                    id = Id.mk ();
+                                    label = [ "==" ];
+                                    mold =
+                                      {
+                                        out = Exp;
+                                        in_ = [];
+                                        nibs =
+                                          ( { shape = Concave 7; sort = Exp },
+                                            { shape = Concave 7; sort = Exp } );
+                                      };
+                                    shards = [ 0 ];
+                                    children = [];
+                                  };
+                                Secondary
+                                  { id = Id.mk (); content = Whitespace " " };
+                                Tile
+                                  {
+                                    id = Id.mk ();
+                                    label = [ "34" ];
+                                    mold =
+                                      {
+                                        out = Exp;
+                                        in_ = [];
+                                        nibs =
+                                          ( { shape = Convex; sort = Exp },
+                                            { shape = Convex; sort = Exp } );
+                                      };
+                                    shards = [ 0 ];
+                                    children = [];
+                                  };
+                                Secondary
+                                  { id = Id.mk (); content = Whitespace " " };
+                              ];
+                            ];
+                        };
+                      Tile
+                        {
+                          id = Id.mk ();
+                          label = [ ";" ];
+                          mold =
+                            {
+                              out = Exp;
+                              in_ = [];
+                              nibs =
+                                ( { shape = Concave 10; sort = Exp },
+                                  { shape = Concave 10; sort = Exp } );
+                            };
+                          shards = [ 0 ];
+                          children = [];
+                        };
+                      Secondary { id = Id.mk (); content = Whitespace "\n" };
+                    ],
+                    [ Grout { id = Id.mk (); shape = Convex } ] );
+                ancestors = [];
+              };
+            caret = Outer;
+            refractors = Haz3lcore.ZipperBase.Refractor.init;
+          };
+        hints = [];
+      };
+    syntax_tests = [ ("fib is recursive", SyntaxTest.IsRecursive "fib") ];
+  }

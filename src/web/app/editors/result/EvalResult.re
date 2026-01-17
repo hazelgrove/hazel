@@ -1,0 +1,745 @@
+open Util;
+open Calc.Syntax;
+open Language;
+
+/* The result box at the bottom of a cell. This is either the TestResutls
+   kind where only a summary of test results is shown, or the EvalResults kind
+   where users can choose whether they want to use a single-stepper or see the
+   result of full evaluation. */
+
+/* This file follows conventions in [docs/ui-architecture.md] */
+
+module Model = {
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type display =
+    | Evaluation(Calc.saved(option((Exp.t, CodeSelectable.Model.t))))
+    | Stepper(StepperView.Model.t);
+
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type t = {
+    cached_settings: Calc.saved(CoreSettings.t),
+    elab: Calc.saved(Exp.t),
+    cached_targets: Calc.saved(Sample.targets), /* Input targets for cache invalidation */
+    result: Calc.t(ProgramResult.t(ProgramResult.inner)),
+    dynamics: Calc.saved(option(Dynamics.t)),
+    display,
+    theorems: Theorems.Model.t,
+  };
+
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type persistent = {
+    stepper: option(StepperView.Model.persistent),
+    theorems: Theorems.Model.persistent,
+  };
+
+  let init = {
+    cached_settings: Calc.Pending,
+    elab: Calc.Pending,
+    cached_targets: Calc.Pending,
+    result: Calc.NewValue(ProgramResult.ResultPending),
+    dynamics: Calc.Pending,
+    display: Evaluation(Calc.Pending),
+    theorems: Theorems.Model.init,
+  };
+
+  let persist = (model: t): persistent => {
+    stepper:
+      switch (model.display) {
+      | Stepper(stepper) => Some(StepperView.Model.persist(stepper))
+      | _ => None
+      },
+    theorems: Theorems.Model.persist(model.theorems),
+  };
+
+  let unpersist = (p: persistent): t => {
+    let theorems = Theorems.Model.unpersist(p.theorems);
+    switch (p.stepper) {
+    | Some(stepper) => {
+        cached_settings: Calc.Pending,
+        elab: Calc.Pending,
+        cached_targets: Calc.Pending,
+        result: Calc.NewValue(ProgramResult.ResultPending),
+        dynamics: Calc.Pending,
+        display: Stepper(StepperView.Model.unpersist(stepper)),
+        theorems,
+      }
+    | None => {
+        ...init,
+        theorems,
+      }
+    };
+  };
+
+  let probe_results = (model: t): option(Sample.Map.t) =>
+    model.dynamics
+    |> Calc.get_saved(None)
+    |> Option.map((d: Dynamics.t) => d.probe_map);
+
+  let test_results = (model: t): option(TestResults.t) =>
+    model.dynamics
+    |> Calc.get_saved(None)
+    |> Option.map((d: Dynamics.t) => d.test_results);
+
+  let dynamics = (model: t): Dynamics.Map.t =>
+    switch (probe_results(model)) {
+    | Some(dynamics_map) => Dynamics.Map.mk(dynamics_map)
+    | None => Dynamics.Map.mk(Sample.Map.empty)
+    };
+
+  let get_elaboration = (model: t): option(Exp.t) =>
+    model.elab |> Calc.get_saved_opt;
+};
+
+module Update = {
+  open Updated;
+
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type t =
+    | ToggleStepper
+    | StepperAction(StepperView.Update.t)
+    | EvalEditorAction(CodeSelectable.Update.t)
+    | UpdateResult(ProgramResult.t(ProgramResult.inner))
+    | TheoremsAction(Theorems.Update.t);
+
+  let can_undo = (action: t) => {
+    switch (action) {
+    | ToggleStepper => true
+    | StepperAction(action) => StepperView.Update.can_undo(action)
+    | EvalEditorAction(action) => CodeSelectable.Update.can_undo(action)
+    | UpdateResult(_) => false
+    | TheoremsAction(action) => Theorems.Update.can_undo(action)
+    };
+  };
+
+  // Update is meant to make minimal changes to the model, and calculate will do the rest.
+  let update = (~settings, action, model: Model.t): Updated.t(Model.t) =>
+    switch (action, model) {
+    | (ToggleStepper, {display: Stepper(_), _}) =>
+      {
+        ...model,
+        display: Evaluation(Calc.Pending),
+      }
+      |> Updated.return
+    | (ToggleStepper, {display: Evaluation(_), _}) =>
+      {
+        ...model,
+        display: Stepper(StepperView.Model.init),
+      }
+      |> Updated.return
+    | (StepperAction(a), {display: Stepper(stepper), _}) =>
+      let* stepper = StepperView.Update.update(~settings, a, stepper);
+      {
+        ...model,
+        display: Stepper(stepper),
+      };
+    | (StepperAction(_), _) => model |> Updated.return_quiet
+    | (
+        EvalEditorAction(a),
+        {display: Evaluation(Calculated(Some((exp, editor)))), _},
+      ) =>
+      let* editor = CodeSelectable.Update.update(~settings, a, editor);
+      {
+        ...model,
+        display: Evaluation(Calculated(Some((exp, editor)))),
+      };
+    | (EvalEditorAction(_), _) => model |> Updated.return_quiet
+    | (TheoremsAction(action), _) =>
+      let* theorems =
+        Theorems.Update.update(~settings, action, model.theorems);
+      {
+        ...model,
+        theorems,
+      };
+    | (UpdateResult(result), _) =>
+      {
+        ...model,
+        result: Calc.NewValue(result),
+      }
+      |> Updated.return_quiet
+    };
+
+  let calculate =
+      (
+        ~settings: CoreSettings.t,
+        ~queue_worker: option(WorkerServer.Request.value => unit),
+        ~is_edited: bool,
+        statics: Haz3lcore.CachedStatics.t,
+        {
+          cached_settings,
+          elab,
+          cached_targets,
+          result,
+          dynamics,
+          display,
+          theorems,
+        }: Model.t,
+      ) => {
+    // Check whether settings / elab / targets have changed
+    let settings =
+      cached_settings
+      |> Calc.set(settings, ~eq=CoreSettings.eq_ignoring_stepper_modals);
+    let elab = Calc.set(~eq=Exp.fast_equal, statics.elaborated, elab);
+    let targets =
+      Calc.set(
+        ~eq=Id.Map.equal(Sample.equal_capture_spec),
+        statics.targets,
+        cached_targets,
+      );
+
+    // Calculate the result
+    let result =
+      result
+      |> {
+        let.calc_t elab = elab
+        // TODO[Matt]: We could make this more fine-grained, we only care about one setting
+        and.calc settings = settings
+        and.calc targets = targets;
+        switch (queue_worker) {
+        // Dynamics is off:
+        | _ when !settings.dynamics => ProgramResult.ResultPending
+        // Using the webworker:
+        | Some(queue_worker) =>
+          queue_worker({
+            expr: elab,
+            targets,
+          });
+          ProgramResult.ResultPending;
+        // Using the main thread:
+        | None =>
+          switch (
+            WorkerServer.work({
+              expr: elab,
+              targets,
+            })
+          ) {
+          | Ok((exp, state)) =>
+            ProgramResult.ResultOk(
+              ProgramResult.{
+                result: exp,
+                state,
+              },
+            )
+          | Error(e) => ProgramResult.ResultFail(e)
+          }
+        };
+      };
+
+    // Turn state into dynamics map
+    let dynamics =
+      dynamics
+      |> {
+        let.calc result = result;
+        switch (result) {
+        | ProgramResult.ResultPending => dynamics |> Calc.get_saved(None)
+        | ProgramResult.ResultFail(_) => dynamics |> Calc.get_saved(None)
+        | ProgramResult.ResultOk({state, _}) =>
+          Some(
+            Dynamics.{
+              probe_map: state |> EvaluatorState.get_probes,
+              test_results:
+                state |> EvaluatorState.get_tests |> TestResults.mk_results,
+              theorems: state |> EvaluatorState.get_theorems,
+            },
+          )
+        };
+      };
+
+    // Calculate the display
+    let display =
+      switch (display) {
+      | Evaluation(ev_display) =>
+        ev_display
+        |> {
+          let.calc settings = settings
+          and.calc result = result;
+          switch (result) {
+          | ResultOk({result: exp, _}) =>
+            Some((exp, exp |> CodeSelectable.Model.mk_from_exp(~settings)))
+          | ResultFail(_)
+          | ResultPending => ev_display |> Calc.get_saved_opt |> Option.join
+          };
+        }
+        |> Calc.make_new  // TODO[Matt]: Could eventually replace this by keeping track of whether the editor selection has changed
+        |> Calc.map_if_new(
+             Option.map(((exp, editor)) =>
+               (
+                 exp,
+                 CodeSelectable.Update.calculate(
+                   ~settings=settings |> Calc.get_value,
+                   ~is_dynamic_term=true,
+                   ~stitch=_ => exp,
+                   ~dynamics=Dynamics.Map.empty,
+                   ~is_edited,
+                   editor,
+                 ),
+               )
+             ),
+           )
+        |> Calc.save
+        |> (x => Model.Evaluation(x))
+      | Stepper(stepper) =>
+        Model.Stepper(
+          StepperView.Update.calculate(
+            ~settings,
+            ~ctx=
+              OldValue(
+                SemanticCtx.of_ctx_and_env(
+                  Builtins.ctx_init(None),
+                  Builtins.closure_env,
+                ),
+              ),
+            elab,
+            stepper,
+          ),
+        )
+      };
+
+    // HACK[Matt]: say that statics is updated iff dynamics is updated
+    let statics: Calc.t('a) =
+      switch (dynamics) {
+      | NewValue(_) => NewValue(statics)
+      | OldValue(_) => OldValue(statics)
+      };
+
+    let theorems =
+      Calc.get_value(settings).dynamics
+        ? theorems
+          |> Theorems.Update.calculate(~settings, ~statics, ~dynamics)
+        : theorems;
+
+    (
+      {
+        cached_settings: settings |> Calc.save,
+        elab: elab |> Calc.save,
+        cached_targets: targets |> Calc.save,
+        result: result |> Calc.make_old,
+        dynamics: dynamics |> Calc.save,
+        display,
+        theorems,
+      }: Model.t
+    );
+  };
+};
+
+module Selection = {
+  open Cursor;
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type t =
+    | Evaluation(CodeSelectable.Selection.t)
+    | Stepper(StepperView.Focus.t)
+    | Theorems(Theorems.Focus.t);
+
+  let get_cursor_info = (~selection: t, mr: Model.t): cursor(Update.t) =>
+    switch (selection, mr.display) {
+    | (Evaluation(selection), Evaluation(Calculated(Some((_, editor))))) =>
+      let+ ci = CodeSelectable.Selection.get_cursor_info(~selection, editor);
+      Update.EvalEditorAction(ci);
+    | (Stepper(focus), Stepper(s)) =>
+      let+ ci = StepperView.Focus.get_cursor_info(~focus, s);
+      Update.StepperAction(ci);
+    | (Evaluation(_), _) => Cursor.empty
+    | (Stepper(_), _) => Cursor.empty
+    | (Theorems(focus), _) =>
+      let+ ci = Theorems.Focus.get_cursor_info(~focus, mr.theorems);
+      Update.TheoremsAction(ci);
+    };
+
+  let handle_key_event =
+      (~selection: t, ~event, mr: Model.t): option(Update.t) =>
+    switch (selection, mr.display) {
+    | (Evaluation(selection), Evaluation(Calculated(Some((_, editor))))) =>
+      CodeSelectable.Selection.handle_key_event(~selection, editor, event)
+      |> Option.map(x => Update.EvalEditorAction(x))
+    | (Stepper(focus), Stepper(s)) =>
+      StepperView.Focus.handle_key_event(~focus, s, ~event)
+      |> Option.map(x => Update.StepperAction(x))
+    | (Evaluation(_), _) => None
+    | (Stepper(_), _) => None
+    | (Theorems(focus), _) =>
+      Theorems.Focus.handle_key_event(~focus, ~event, mr.theorems)
+      |> Option.map(x => Update.TheoremsAction(x))
+    };
+};
+
+module View = {
+  open Virtual_dom.Vdom;
+  open WebUtil.Node;
+
+  type event =
+    | MakeActive(Selection.t)
+    | JumpTo(Id.t);
+
+  let error_msg = (err: ProgramResult.error) =>
+    switch (err) {
+    | EvaulatorError(err) => EvaluatorError.show(err)
+    | UnknownException(str) => str
+    | Timeout => "Evaluation timed out"
+    };
+
+  let status_of: ProgramResult.t('a) => string =
+    fun
+    | ResultPending => "pending"
+    | ResultOk(_) => "ok"
+    | ResultFail(_) => "fail";
+
+  /* Strudel audio integration */
+  let lastnote: ref(string) = ref("");
+
+  let strudel_view = s =>
+    Node.(
+      div(
+        ~attrs=[Attr.classes(["strudel-controls"])],
+        [
+          span(~attrs=[Attr.classes(["pattern"])], [text(s)]),
+          button(
+            ~attrs=[
+              Attr.classes(["play"]),
+              Attr.on_click(_ => {
+                Util.Strudel.playNote(s);
+                Effect.Ignore;
+              }),
+            ],
+            [text("play")],
+          ),
+          button(
+            ~attrs=[
+              Attr.classes(["stop"]),
+              Attr.on_click(_ => {
+                Util.Strudel.stopMusic();
+                Effect.Ignore;
+              }),
+            ],
+            [text("stop")],
+          ),
+        ],
+      )
+    );
+
+  /* Unwrap closures and ascriptions to get the inner value */
+  let rec unwrap_value = (exp: Exp.t): Exp.t =>
+    switch (exp.term) {
+    | Closure(_, inner) => unwrap_value(inner)
+    | Asc(inner, _) => unwrap_value(inner)
+    | Parens(inner) => unwrap_value(inner)
+    | _ => exp
+    };
+
+  let audio_view = (~play, exp: Exp.t): option(Node.t) => {
+    let unwrapped = unwrap_value(exp);
+    switch (unwrapped.term) {
+    | Ap(_, fn, arg) =>
+      let fn_unwrapped = unwrap_value(fn);
+      switch (fn_unwrapped.term) {
+      | Constructor("Note", _) =>
+        let arg_unwrapped = unwrap_value(arg);
+        switch (arg_unwrapped.term) {
+        | Atom(String(s)) =>
+          /* Only auto-play if not locked and note changed */
+          if (!play && lastnote^ != s) {
+            let _ =
+              try(Util.Strudel.playNote(s)) {
+              | _ => ()
+              };
+            ();
+          };
+          lastnote := s;
+          Some(strudel_view(s));
+        | _ =>
+          if (!play) {
+            Util.Strudel.stopMusic();
+          };
+          lastnote := "";
+          None;
+        };
+      | _ =>
+        if (!play) {
+          Util.Strudel.stopMusic();
+        };
+        lastnote := "";
+        None;
+      };
+    | _ =>
+      if (!play) {
+        Util.Strudel.stopMusic();
+      };
+      lastnote := "";
+      None;
+    };
+  };
+
+  let live_eval =
+      (
+        ~globals: Globals.t,
+        ~signal: event => Ui_effect.t(unit),
+        ~inject: Update.t => Ui_effect.t(unit),
+        ~selected,
+        ~locked,
+        result: ProgramResult.t(ProgramResult.inner),
+        editor: option(('a, CodeSelectable.Model.t)),
+      ) => {
+    let editor = Option.map(snd, editor);
+    let code_view =
+      Option.map(
+        (editor: CodeSelectable.Model.t) =>
+          CodeSelectable.View.view(
+            ~signal=
+              fun
+              | MakeActive => signal(MakeActive(Evaluation())),
+            ~inject=a => inject(EvalEditorAction(a)),
+            ~globals,
+            ~selected,
+            ~dynamics=editor.dynamics,
+            editor,
+          ),
+        editor,
+      );
+    /* Check if result is a Sound value and show audio controls */
+    let audio_controls =
+      switch (result) {
+      | ResultOk({result: exp, _}) => audio_view(~play=locked, exp)
+      | _ => None
+      };
+    let result_view =
+      switch (audio_controls) {
+      | Some(audio) =>
+        /* Show audio controls alongside the code view */
+        [audio, ...Option.to_list(code_view)]
+      | None => Option.to_list(code_view)
+      };
+    let exn_view =
+      switch (result) {
+      | ResultFail(err) => [
+          div(
+            ~attrs=[Attr.classes(["error-msg"])],
+            [text(error_msg(err))],
+          ),
+        ]
+      | _ => []
+      };
+    Node.(
+      div(
+        ~attrs=[Attr.classes(["cell-item", "cell-result"])],
+        exn_view
+        @ [
+          div(
+            ~attrs=[Attr.classes(["status", status_of(result)])],
+            [
+              div(~attrs=[Attr.classes(["spinner"])], []),
+              div(~attrs=[Attr.classes(["eq"])], [text("≡")]),
+            ],
+          ),
+          div(
+            ~attrs=[Attr.classes(["result", status_of(result)])],
+            result_view,
+          ),
+        ]
+        @ (
+          locked
+            ? []
+            : [
+              Widgets.toggle(~tooltip="Show Stepper", "s", false, _ =>
+                inject(ToggleStepper)
+              ),
+            ]
+        ),
+      )
+    );
+  };
+
+  let footer =
+      (
+        ~globals: Globals.t,
+        ~signal,
+        ~inject,
+        ~selected: option(Selection.t),
+        ~locked,
+        model: Model.t,
+      ) =>
+    switch (model.display) {
+    | _ when !globals.settings.core.dynamics => []
+    | Evaluation(editor) => [
+        live_eval(
+          ~globals,
+          ~signal,
+          ~inject,
+          ~selected=selected == Some(Evaluation()),
+          ~locked,
+          model.result |> Calc.get_value,
+          editor |> Calc.get_saved_exc(~print="result editor missing"),
+        ),
+      ]
+    | Stepper(s) =>
+      StepperView.View.view(
+        ~globals,
+        ~selected=
+          switch (selected) {
+          | Some(Stepper(s)) => Some(s)
+          | _ => None
+          },
+        ~signal=
+          fun
+          | HideStepper => inject(ToggleStepper)
+          | MakeActive(s) => signal(MakeActive(Stepper(s))),
+        ~inject=x => inject(StepperAction(x)),
+        s,
+      )
+    };
+
+  let test_status_icon_view =
+      (~font_metrics, insts, ms: Haz3lcore.Measured.Shards.t): option(Node.t) =>
+    switch (ms) {
+    | [(_, {origin: _, last}), ..._] =>
+      let status = insts |> TestMap.joint_status |> TestStatus.to_string;
+      let pos = DecUtil.abs_position(~font_metrics, last);
+      Some(
+        Node.div(~attrs=[Attr.classes(["test-result", status]), pos], []),
+      );
+    | _ => None
+    };
+
+  let test_result_layer =
+      (
+        ~font_metrics,
+        ~measured: Haz3lcore.Measured.t,
+        test_results: TestResults.t,
+      )
+      : WebUtil.Node.t =>
+    WebUtil.div_c(
+      "test-decos",
+      List.filter_map(
+        ((id, insts)) =>
+          switch (Id.Map.find_opt(id, measured.tiles)) {
+          | Some(ms) => test_status_icon_view(~font_metrics, insts, ms)
+          | None => None
+          },
+        test_results.test_map,
+      ),
+    );
+
+  let view =
+      (
+        ~globals: Globals.t,
+        ~signal: event => Ui_effect.t(unit),
+        ~inject: Update.t => Ui_effect.t(unit),
+        ~selected: option(Selection.t),
+        ~result_kind: [
+           | `NoResults
+           | `TestResults
+           | `EvalResults
+           | `NoTheorems
+           | `JustTheorems
+           | `Custom(Node.t)
+         ]=`EvalResults,
+        ~locked: bool,
+        model: Model.t,
+      ) =>
+    switch (result_kind) {
+    // Normal case:
+    | `EvalResults
+    | `NoTheorems
+    | `JustTheorems when globals.settings.core.dynamics =>
+      let result =
+        result_kind == `JustTheorems
+          ? [] : footer(~globals, ~signal, ~inject, ~selected, ~locked, model);
+      let test_overlay = (editor: Haz3lcore.Editor.t) =>
+        switch (Model.test_results(model)) {
+        | Some(result) => [
+            test_result_layer(
+              ~font_metrics=globals.font_metrics,
+              ~measured=editor.syntax.measured,
+              result,
+            ),
+          ]
+        | None => []
+        };
+      let theorems =
+        result_kind == `NoTheorems
+          ? []
+          : Theorems.View.view(
+              ~globals,
+              ~take_focus=f => signal(MakeActive(Theorems(f))),
+              ~inject=a => inject(TheoremsAction(a)),
+              ~selected=
+                switch (selected) {
+                | Some(Theorems(f)) => Some(f)
+                | _ => None
+                },
+              model.theorems,
+            );
+      let theorems =
+        List.length(theorems) == 0
+          ? [] : [WebUtil.div_c("theorems", theorems)];
+      (result @ theorems, test_overlay);
+
+    // Just showing elaboration because evaluation is off:
+    | `EvalResults
+    | `NoTheorems when globals.settings.core.elaborate =>
+      let result = [
+        text("Evaluation disabled, showing elaboration:"),
+        switch (Model.get_elaboration(model)) {
+        | Some(elab) =>
+          elab
+          |> Haz3lcore.ExpToSegment.(
+               exp_to_segment(
+                 ~settings=
+                   Settings.of_core(~inline=false, globals.settings.core),
+               )
+             )
+          |> CodeViewable.view_segment(~globals)
+        | None => text("No elaboration found")
+        },
+      ];
+      (result, (_ => []));
+
+    // Not showing any results:
+    | `EvalResults
+    | `NoTheorems
+    | `JustTheorems
+    | `NoResults => ([], (_ => []))
+
+    | `Custom(node) => (
+        [node],
+        (
+          (editor: Haz3lcore.Editor.t) =>
+            switch (Model.test_results(model)) {
+            | Some(result) => [
+                test_result_layer(
+                  ~font_metrics=globals.font_metrics,
+                  ~measured=editor.syntax.measured,
+                  result,
+                ),
+              ]
+            | None => []
+            }
+        ),
+      )
+
+    // Just showing test results (school mode)
+    | `TestResults =>
+      let test_results = Model.test_results(model);
+      let test_overlay = (editor: Haz3lcore.Editor.t) =>
+        switch (Model.test_results(model)) {
+        | Some(result) => [
+            test_result_layer(
+              ~font_metrics=globals.font_metrics,
+              ~measured=editor.syntax.measured,
+              result,
+            ),
+          ]
+        | None => []
+        };
+      (
+        [
+          CellCommon.report_footer_view([
+            TestView.test_summary(
+              ~inject_jump=tile => signal(JumpTo(tile)),
+              ~test_results,
+            ),
+          ]),
+        ],
+        test_overlay,
+      );
+    };
+};
+
+let view = View.view;

@@ -8,7 +8,7 @@ exception Empty_tile;
 [@deriving (show({with_path: false}), sexp, yojson)]
 type t = tile;
 
-let id = t => t.id;
+let id = (t: t) => t.id;
 
 let is_complete = (t: t) => List.length(t.label) == List.length(t.shards);
 
@@ -49,13 +49,53 @@ let contained_children = (t: t): list((t, Base.segment, t)) =>
   Aba.mk(t.shards, t.children)
   |> Aba.aba_triples
   |> List.map(((l, child, r)) => {
-       let l = {...t, shards: [l], children: []};
-       let r = {...t, shards: [r], children: []};
+       let l = {
+         ...t,
+         shards: [l],
+         children: [],
+       };
+       let r = {
+         ...t,
+         shards: [r],
+         children: [],
+       };
        (l, child, r);
      });
 
+let shard_of = (t: t, i: int): t => {
+  ...t,
+  shards: [i],
+  children: [],
+};
+
 let split_shards = (id, label, mold, shards) =>
-  shards |> List.map(i => {id, label, mold, shards: [i], children: []});
+  shards
+  |> List.map(i =>
+       {
+         id,
+         label,
+         mold,
+         shards: [i],
+         children: [],
+       }
+     );
+
+let left_missing_shards = (t: t): list(t) =>
+  List.init(l_shard(t), Fun.id) |> split_shards(t.id, t.label, t.mold);
+
+let right_missing_shards = (t: t): list(t) =>
+  List.init(List.length(t.label) - r_shard(t) - 1, i => r_shard(t) + i + 1)
+  |> split_shards(t.id, t.label, t.mold);
+
+let missing_shards = (t: t): list(t) =>
+  List.filter(
+    i => !List.mem(i, t.shards),
+    List.init(List.length(t.label), Fun.id),
+  )
+  |> split_shards(t.id, t.label, t.mold);
+
+let effective_label = (t: t): list(string) =>
+  List.map(List.nth(t.label), t.shards);
 
 // postcond: output segment is nonempty
 let disassemble = ({id, label, mold, shards, children}: t): segment => {

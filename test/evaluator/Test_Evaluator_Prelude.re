@@ -1,0 +1,202 @@
+open Alcotest;
+open Language;
+
+module UG = Grammar.UnitGrammar;
+
+let testable_exp =
+    (~ignore_constructor_types=false, ~ignore_dynamic_errors=false, ()) =>
+  testable(
+    Fmt.using(Exp.show, Fmt.string),
+    Equality.(
+      equality({
+        ...syntactic_settings,
+        ignore_parens: true,
+        ignore_function_names: true,
+        ignore_function_types: true,
+        ignore_unknown_provenance: true,
+        ignore_explicit_unlabelling: true,
+        ignore_dynamic_errors,
+        ignore_constructor_types,
+      })
+    ).
+      exp,
+  );
+let evaluate = unevaluated =>
+  unevaluated |> Evaluator.evaluate(~env=Builtins.env_init) |> fst;
+let dhexp_typ = testable_exp();
+
+let evaluation_test =
+    (
+      ~ignore_constructor_types=?,
+      ~ignore_dynamic_errors=?,
+      msg,
+      expected,
+      unevaluated,
+    ) =>
+  check(
+    testable_exp(~ignore_constructor_types?, ~ignore_dynamic_errors?, ()),
+    msg,
+    expected,
+    evaluate(unevaluated),
+  );
+
+let evaluate_probes = unevaluated =>
+  unevaluated
+  |> Evaluator.evaluate(~env=Builtins.env_init)
+  |> snd
+  |> EvaluatorState.get_probes;
+
+let parse_exp = (s: string) => {
+  switch (Haz3lcore.Parser.to_term(s)) {
+  | Some(e) => e
+  | None => Alcotest.fail("Failed to parse expression: " ++ s)
+  };
+};
+
+/* Parse code with probes (^^probe syntax) and build targets */
+let parse_with_probes = (s: string): (Exp.t, Statics.Map.t, Sample.targets) => {
+  switch (Haz3lcore.Parser.to_zipper(s)) {
+  | None => Alcotest.fail("Failed to parse expression: " ++ s)
+  | Some(z) =>
+    let make_term_result = Haz3lcore.MakeTerm.from_zip_for_sem(z);
+    let term = make_term_result.term;
+    /* Extract probe IDs directly from zipper's refractors.
+     * Map values to unit since we only need the IDs as keys. */
+    let probe_ids =
+      Id.Map.union(
+        (_, _, _) => Some(),
+        Id.Map.map(_ => (), z.refractors.manuals),
+        Id.Map.map(_ => (), z.refractors.autos.ephemerals),
+      );
+
+    /* Build statics map for refs lookup */
+    let info_map =
+      Statics.mk(CoreSettings.on, Builtins.ctx_init(Some(Int)), term);
+
+    /* Build targets from probe_ids, computing refs for each */
+    let targets: Sample.targets =
+      Id.Map.fold(
+        (id, (), acc) => {
+          let refs =
+            switch (Statics.Map.lookup(id, info_map)) {
+            | Some(InfoExp(_)) => Statics.Map.refs_in(info_map, id)
+            | Some(InfoPat(_)) => Statics.Map.bound_in(info_map, id)
+            | _ => []
+            };
+          let spec: Sample.capture_spec = {refs: refs};
+          Id.Map.add(id, spec, acc);
+        },
+        probe_ids,
+        Id.Map.empty,
+      );
+
+    (term, info_map, targets);
+  };
+};
+
+let elaborate = u =>
+  Elaborator.elaborate(
+    Statics.mk(CoreSettings.on, Builtins.ctx_init(Some(Int)), u),
+    u,
+  )
+  |> fst;
+
+/* Elaborate an expression with existing statics map */
+let elaborate_with_info = (info_map, u) =>
+  Elaborator.elaborate(info_map, u) |> fst;
+
+(exp, probes) => (
+  {
+    term: exp,
+    annotation: probes,
+  }:
+    Grammar.pat_t(list(Grammar.exp_t(unit)))
+);
+let parse_and_evaluate = (s: string) => evaluate(elaborate(parse_exp(s)));
+
+let parse_and_evaluate_test =
+    (
+      ~msg: option(string)=?,
+      ~ignore_constructor_types=?,
+      ~ignore_dynamic_errors=?,
+      expected: string,
+      actual: string,
+    ) =>
+  evaluation_test(
+    ~ignore_constructor_types?,
+    ~ignore_dynamic_errors?,
+    Option.value(~default=expected ++ " == " ++ actual, msg),
+    parse_exp(expected),
+    elaborate(parse_exp(actual)),
+  );
+
+let step_limited = (t: Alcotest.testable('a)) =>
+  testable(
+    Fmt.using(Evaluator.show_step_constrained(pp(t)), Fmt.string),
+    Evaluator.equal_step_constrained(equal(t)),
+  );
+let single_step = (exp: Exp.t) => {
+  let step =
+    EvaluatorStep.get_status(
+      ~settings=CoreSettings.on,
+      exp,
+      Environment.empty,
+    );
+  switch (step) {
+  | AutoStep(step) => EvaluatorStep.take_step(step)
+  | AvailableSteps([step, ..._]) => EvaluatorStep.take_step(step)
+  | AvailableSteps([]) => None
+  };
+};
+
+let full_small_step_reduction =
+    (~step_limit=1000, exp: TermBase.exp_t)
+    : Evaluator.step_constrained(Exp.t) => {
+  let rec go = (~steps_counter=0, exp: TermBase.exp_t): option(Exp.t) =>
+    if (steps_counter > step_limit) {
+      None;
+    } else {
+      switch (single_step(exp)) {
+      | Some(new_exp) => go(~steps_counter=steps_counter + 1, new_exp)
+      | None => Some(exp)
+      };
+    };
+
+  switch (go(~steps_counter=0, exp)) {
+  | None => StepLimitExceeded
+  | Some(new_exp) => Completed(new_exp)
+  };
+};
+
+let full_preservation_test = (uexp: TermBase.exp_t): unit => {
+  let statics =
+    Statics.mk(CoreSettings.on, Builtins.ctx_init(Some(Int)), uexp);
+  let (elaborated, ty) = Elaborator.elaborate(statics, uexp);
+
+  let evaluated =
+    Evaluator.evaluate(~env=Builtins.env_init, elaborated) |> fst;
+  let new_statics =
+    Statics.mk(CoreSettings.on, Builtins.ctx_init(Some(Int)), evaluated);
+
+  let new_ty =
+    switch (
+      Statics.Map.lookup(evaluated.annotation.ids |> List.hd, new_statics)
+    ) {
+    | Some(InfoExp({ty, _})) => ty
+    | _ =>
+      Alcotest.fail(
+        "Preservation check failed: No type information found for evaluated expression",
+      )
+    };
+
+  if (Typ.is_consistent(Ctx.empty, new_ty, ty)) {
+    ();
+  } else {
+    Alcotest.fail(
+      "Preservation check failed: "
+      ++ Typ.show(ty)
+      ++ " !~ "
+      ++ Typ.show(new_ty),
+    );
+  };
+};

@@ -1,0 +1,49 @@
+/* Strudel Audio Controls */
+
+.strudel-controls {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4em;
+  padding: 0.2em 0.5em;
+  background: var(--T2);
+  border-left: 2px solid var(--G0);
+  border-radius: 0.2em;
+  font-size: 0.85em;
+  margin-bottom: 0.3em;
+}
+
+.strudel-controls .pattern {
+  font-family: var(--code-font);
+  color: var(--STONE);
+  padding: 0 0.3em;
+}
+
+.strudel-controls button {
+  font-family: var(--ui-font);
+  font-size: 0.75em;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  padding: 0.15em 0.4em;
+  border: none;
+  border-radius: 0.2em;
+  cursor: pointer;
+  transition: filter 0.1s;
+}
+
+.strudel-controls button:hover {
+  filter: brightness(1.1);
+}
+
+.strudel-controls button:active {
+  filter: brightness(0.95);
+}
+
+.strudel-controls button.play {
+  background: var(--G0);
+  color: white;
+}
+
+.strudel-controls button.stop {
+  background: var(--BR3);
+  color: white;
+}

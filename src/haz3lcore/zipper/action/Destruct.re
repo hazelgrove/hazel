@@ -2,114 +2,90 @@ open Zipper;
 open Util;
 open OptUtil.Syntax;
 
-let destruct =
-    (
-      d: Direction.t,
-      {caret, relatives: {siblings: (l_sibs, r_sibs), _}, _} as z: t,
-    )
-    : option(t) => {
-  /* Could add checks on valid tokens (all of these hold assuming substring) */
-  let last_inner_pos = t => Token.length(t) - 2;
-  let delete_right = z =>
-    z |> Zipper.set_caret(Outer) |> Zipper.delete(Right);
-  let delete_left = Zipper.delete(Left);
-  let construct_right = (l, s) =>
-    Option.map(Zipper.construct(~caret=Right, ~backpack=Right, l), s);
-  let construct_left = (l, s) =>
-    Option.map(Zipper.construct(~caret=Left, ~backpack=Left, l), s);
-  switch (d, caret, neighbor_monotiles((l_sibs, r_sibs))) {
-  /* When there's a selection, defer to Outer */
-  | _ when z.selection.content != [] => z |> Zipper.destruct |> Option.some
-  /* Special cases for mono forms which can split into duo forms,
-     e.g. list literals. When deletion would alter the mono form,
-     we replace it to the corresponding duo form.  */
-  | (Left, Outer, (Some(t), _)) when Form.duosplits(t) != [] =>
-    z |> delete_left |> construct_left(Form.duosplits(t))
-  | (Right, Outer, (_, Some(t))) when Form.duosplits(t) != [] =>
-    z |> delete_right |> construct_right(Form.duosplits(t))
-  | (Left, Inner(_, 0), (_, Some(t))) when Form.duosplits(t) != [] =>
-    z |> delete_right |> construct_right(Form.duosplits(t))
-  | (Right, Inner(_, n), (_, Some(t)))
-      when Form.duosplits(t) != [] && n == last_inner_pos(t) =>
-    z |> delete_right |> construct_left(Form.duosplits(t))
-  /* Special cases for string literals. When deletion would
-     remove an outer quote, we instead remove the whole string */
-  | (Left, Outer, (Some(t), _))
-      when Form.is_string(t) || Form.is_comment(t) =>
-    delete_left(z)
-  | (Right, Outer, (_, Some(t)))
-      when Form.is_string(t) || Form.is_comment(t) =>
-    delete_right(z)
-  | (Left, Inner(_, 0), (_, Some(t))) when Form.is_string(t) =>
-    delete_right(z)
-  | (Left, Inner(_, 0), (_, Some(t)))
-      when Form.is_string(t) || Form.is_comment(t) =>
-    delete_right(z)
-  | (Right, Inner(_, n), (_, Some(t)))
-      when
-        (Form.is_string(t) || Form.is_comment(t)) && n == last_inner_pos(t) =>
-    delete_right(z) /* Remove inner character */
-  | (Left, Inner(_, c_idx), (_, Some(t))) =>
-    let z = Zipper.update_caret(Zipper.Caret.decrement, z);
-    Zipper.replace_mono(Right, Token.rm_nth(c_idx, t), z);
-  | (Right, Inner(_, c_idx), (_, Some(t))) when c_idx == last_inner_pos(t) =>
-    Zipper.replace_mono(Right, Token.rm_nth(c_idx + 1, t), z)
-    |> OptUtil.and_then(z =>
-         z |> Zipper.set_caret(Outer) |> Zipper.move(Right)
-       ) /* If not on last inner position */
-  | (Right, Inner(_, c_idx), (_, Some(t))) =>
-    Zipper.replace_mono(Right, Token.rm_nth(c_idx + 1, t), z)
-  /* Can't subdestruct in delimiter, so just destruct on whole delimiter */
-  | (Left, Inner(_), (_, None))
-  | (Right, Inner(_), (_, None)) =>
-    /* Note: Counterintuitve, but yes, these cases are identically handled */
-    z |> Zipper.set_caret(Outer) |> Zipper.delete(Right)
+/* Captures the UUID of a single grout or tile about to be deleted
+ * so as to transfer that id to its replacement if possible. See
+ * also Insert.preserve_grout_id */
+let capture = (z): t => {
+  let junk_id =
+    switch (z.selection.content) {
+    | [Tile(t)] when List.length(t.label) == 1 => Some(t.id)
+    | [Tile(t)]
+        when
+          List.length(Tile.effective_label(t)) == 1
+          && !
+               List.exists(
+                 (tt: Tile.t) => tt.id == t.id,
+                 Relatives.local_missing_shards(z.relatives),
+               ) =>
+      /* Don't want to capture the UUID if there are other shards
+       * that will persist with that id. This is a subtle condition,
+       * reliant on the selection being length 1 */
+      Some(t.id)
+    | [Grout(g)] => Some(g.id)
+    | _ => None
+    };
+  Grout.cache_id(junk_id);
+  z;
+};
 
-  //| (_, Inner(_), (_, None)) => None
-  | (Left, Outer, (Some(t), _)) when Token.length(t) > 1 =>
-    Zipper.replace_mono(Left, Token.rm_last(t), z)
-  | (Right, Outer, (_, Some(t))) when Token.length(t) > 1 =>
-    Zipper.replace_mono(Right, Token.rm_first(t), z)
-  | (_, Outer, (Some(_), _)) /* t.length == 1 */
-  | (_, Outer, (None, _)) => z |> Zipper.delete(d)
+let delete = (d: Direction.t, z: t): option(t) => {
+  let+ z = select(d, z);
+  let z = capture(z);
+  destroy_selection(z);
+};
+
+let outer = (d: Direction.t, z: t): option(t) =>
+  switch (Zipper.neighbor_token(d, z)) {
+  | Some(t) when Token.length(t) > 1 && !Token.is_string_or_comment(t) =>
+    Insert.replace_shard(d, Token.rm_edge(d, t), z)
+  | _ => delete(d, z)
   };
-};
 
-let merge = ((l, r): (Token.t, Token.t), z: t): option(t) =>
-  z
-  |> Zipper.set_caret(Inner(0, Token.length(l) - 1))  // note monotile assumption
-  |> Zipper.delete(Left)
-  |> OptUtil.and_then(Zipper.delete(Right))
-  |> Option.map(Zipper.construct_mono(Right, l ++ r));
+let rm_nth_right = (idx, t, z) =>
+  Insert.replace_shard(Right, Token.rm_nth(t, idx), z);
 
-/* Check if containing duo form has a mono equivalent e.g. list literals */
-let parent_duomerges = (z: Zipper.t) => {
-  let* parent = Relatives.parent(z.relatives);
-  let* lbl = Piece.label(parent);
-  Form.duomerges(lbl);
-};
-
-let go = (d: Direction.t, z: t): option(t) => {
-  let* z = destruct(d, z);
-  switch (
-    parent_duomerges(z),
-    z.caret,
-    neighbor_monotiles(z.relatives.siblings),
-  ) {
-  | (Some(lbl), Outer, (None, None))
-      when Siblings.no_siblings(z.relatives.siblings) =>
-    /* Note: we must do the no_siblings check, it does not suffice
-       to check no monotile neighbors as there could be other neighbors
-       for example edge case: "((|))" */
-    z
-    |> Zipper.delete_parent
-    |> Zipper.set_caret(Inner(0, 0))
-    |> Zipper.construct(~caret=Right, ~backpack=Left, lbl)
-    /* Below regrouting important for parens/ap positioning */
-    |> Zipper.regrout(Right)
-    |> Option.some
-  | (_, Outer, (Some(l), Some(r))) when Molds.allow_merge(l, r) =>
-    merge((l, r), z)
-  | _ => Some(z)
+let inner_left = (idx: int, z: t): option(t) =>
+  switch (Zipper.neighbor_token(Right, z)) {
+  | Some(t) when Token.is_string_or_comment(t) && idx == 0 =>
+    z |> Caret.set(Outer) |> delete(Right)
+  | Some(t) =>
+    let z = Caret.set(idx == 0 ? Outer : Inner(idx - 1), z);
+    let+ z_init = rm_nth_right(idx, t, z);
+    let z_final = Zipper.remold_regrout(Left, z_init);
+    Insert.adjust_caret_pos(~z_final, ~z_init);
+  | None => z |> Caret.set(Outer) |> delete(Right)
   };
-};
+
+let is_last_inner_pos = (t, idx) => Token.length(t) - 2 == idx;
+
+let inner_right = (idx: int, z: t): option(t) =>
+  switch (Zipper.neighbor_token(Right, z)) {
+  | Some(t) when Token.is_string_or_comment(t) && is_last_inner_pos(t, idx) =>
+    z |> Caret.set(Outer) |> delete(Right)
+  | Some(t) =>
+    let* z = rm_nth_right(idx + 1, t, z);
+    is_last_inner_pos(t, idx)
+      ? z |> Caret.set(Outer) |> Zipper.move(Right) : Some(z);
+  | None => z |> Caret.set(Outer) |> delete(Left)
+  };
+
+let destruct = (d: Direction.t, z: t): option(t) =>
+  switch (z.caret) {
+  | _ when z.selection.content != [] =>
+    Some(z |> capture |> destroy_selection)
+  | Outer => outer(d, z)
+  | Inner(idx) =>
+    switch (d) {
+    | Left => inner_left(idx, z)
+    | Right => inner_right(idx, z)
+    }
+  };
+
+let go = (d: Direction.t, z: t): option(t) =>
+  switch (Triggers.destruct(z)) {
+  | Some(z) => Some(z)
+  | None =>
+    let+ z = destruct(d, z);
+    /* If grout disappears we may have a second merge opportunity */
+    z |> Insert.merge_or_noop |> remold_regrout(d) |> Insert.merge_or_noop;
+  };

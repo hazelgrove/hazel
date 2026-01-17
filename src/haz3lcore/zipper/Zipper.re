@@ -5,41 +5,23 @@ include ZipperBase;
 let init: unit => t =
   () => {
     selection: Selection.mk([]),
-    backpack: [],
     relatives: {
-      siblings: ([], [Grout({id: Id.mk(), shape: Convex})]),
+      siblings: (
+        [],
+        [
+          Grout({
+            id: Id.mk(),
+            shape: Convex,
+          }),
+        ],
+      ),
       ancestors: [],
     },
     caret: Outer,
+    refractors: Refractor.init,
   };
 
 let next_blank = _ => Id.mk();
-
-[@deriving (show({with_path: false}), sexp, yojson)]
-type chunkiness =
-  | ByChar
-  | MonoByChar
-  | ByToken;
-
-[@deriving (show({with_path: false}), sexp, yojson)]
-type planar =
-  | Up
-  | Down
-  | Left(chunkiness)
-  | Right(chunkiness);
-
-let from_plane: planar => Direction.t =
-  fun
-  | Left(_) => Left
-  | Right(_) => Right
-  | Up => Left
-  | Down => Right;
-
-let update_caret = (f: Caret.t => Caret.t, z: t): t => {
-  ...z,
-  caret: f(z.caret),
-};
-let set_caret = (caret: Caret.t): (t => t) => update_caret(_ => caret);
 
 let delete_parent = (z: t): t => {
   ...z,
@@ -49,44 +31,45 @@ let delete_parent = (z: t): t => {
 let zip = (z: t): Segment.t =>
   Relatives.zip(~sel=z.selection.content, z.relatives);
 
-let unzip = (seg: Segment.t): t => {
+let unzip = (~direction: Direction.t=Right, seg: Segment.t): t => {
   selection: Selection.mk([]),
-  backpack: [],
   relatives: {
-    siblings: (seg, []),
+    siblings:
+      switch (direction) {
+      | Right => (seg, [])
+      | Left => ([], seg)
+      },
     ancestors: [],
   },
   caret: Outer,
+  refractors: Refractor.init,
 };
-
-let pop_backpack = (z: t) =>
-  Backpack.pop(Relatives.local_incomplete_tiles(z.relatives), z.backpack);
-
-let left_neighbor_monotile: Siblings.t => option(Token.t) =
-  s => s |> Siblings.left_neighbor |> OptUtil.and_then(Piece.monotile);
-
-let right_neighbor_monotile: Siblings.t => option(Token.t) =
-  s => s |> Siblings.right_neighbor |> OptUtil.and_then(Piece.monotile);
-
-let neighbor_monotiles: Siblings.t => (option(Token.t), option(Token.t)) =
-  s => (left_neighbor_monotile(s), right_neighbor_monotile(s));
 
 let regrout = (d: Direction.t, z: t): t => {
   assert(Selection.is_empty(z.selection));
   let relatives = Relatives.regrout(d, z.relatives);
-  {...z, relatives};
+  {
+    ...z,
+    relatives,
+  };
 };
 
 let remold = (z: t): t => {
   assert(Selection.is_empty(z.selection));
-  {...z, relatives: Relatives.remold(z.relatives)};
+  {
+    ...z,
+    relatives: Relatives.remold(z.relatives),
+  };
 };
 
 let remold_regrout = (d: Direction.t, z: t): t => z |> remold |> regrout(d);
 
 let clear_unparsed_buffer = (z: t) =>
   switch (z.selection.mode) {
-  | Buffer(Unparsed) => {...z, selection: Selection.empty}
+  | Buffer(Unparsed) => {
+      ...z,
+      selection: Selection.empty,
+    }
   | _ => z
   };
 
@@ -101,27 +84,36 @@ let unselect = (~erase_buffer=false, z: t): t => {
     |> Relatives.prepend(z.selection.focus, z.selection.content)
     |> Relatives.reassemble;
   let selection = Selection.empty;
-  {...z, selection, relatives};
+  {
+    ...z,
+    selection,
+    relatives,
+  };
 };
+
+let destroy_selection: t => t =
+  z =>
+    unselect({
+      ...z,
+      selection: Selection.empty,
+    });
+
 let unselect_and_zip = (~erase_buffer=false, z: t): Segment.t =>
   z |> unselect(~erase_buffer) |> zip;
 
-let update_selection = (selection: Selection.t, z: t): (Selection.t, t) => {
-  let old = z.selection;
-  // used to be necessary to unselect when selection update
-  // included remold/regrout, now no longer necessary if needs
-  // to be changed but keeping for now to minimize change
-  let z = unselect({...z, selection});
-  (old, z);
+let replace_selection = (focus, segment, z: t): t => {
+  ...z,
+  selection: Selection.mk(~focus, segment),
 };
-
-let put_selection = (sel: Selection.t, z: t): t =>
-  snd(update_selection(sel, z));
 
 let grow_selection = (z: t): option(t) => {
   let+ (p, relatives) = Relatives.pop(z.selection.focus, z.relatives);
   let selection = Selection.push(p, z.selection);
-  {...z, selection, relatives};
+  {
+    ...z,
+    selection,
+    relatives,
+  };
 };
 
 // toggles focus and grows if selection is empty
@@ -129,13 +121,20 @@ let shrink_selection = (z: t): option(t) => {
   switch (Selection.pop(z.selection)) {
   | None =>
     let selection = Selection.toggle_focus(z.selection);
-    grow_selection({...z, selection});
+    grow_selection({
+      ...z,
+      selection,
+    });
   | Some((p, selection)) =>
     let relatives =
       z.relatives
       |> Relatives.push(selection.focus, p)
       |> Relatives.reassemble;
-    Some({...z, selection, relatives});
+    Some({
+      ...z,
+      selection,
+      relatives,
+    });
   };
 };
 
@@ -144,10 +143,30 @@ let toggle_focus = (z: t): t => {
   selection: Selection.toggle_focus(z.selection),
 };
 
-let directional_unselect = (d: Direction.t, z: t): t => {
-  let selection = {...z.selection, focus: Direction.toggle(d)};
-  unselect({...z, selection});
+let set_focus = (z: t, d: Direction.t): t => {
+  let selection = {
+    ...z.selection,
+    focus: d,
+  };
+  {
+    ...z,
+    selection,
+  };
 };
+
+let directional_unselect = (d: Direction.t, z: t): t => {
+  let selection = {
+    ...z.selection,
+    focus: Direction.toggle(d),
+  };
+  unselect({
+    ...z,
+    selection,
+  });
+};
+
+let unselect = (z: t): t =>
+  z.selection.content == [] ? z : directional_unselect(z.selection.focus, z);
 
 let move = (d: Direction.t, z: t): option(t) =>
   if (Selection.is_empty(z.selection)) {
@@ -156,7 +175,10 @@ let move = (d: Direction.t, z: t): option(t) =>
       relatives
       |> Relatives.push(Direction.toggle(d), p)
       |> Relatives.reassemble;
-    {...z, relatives};
+    {
+      ...z,
+      relatives,
+    };
   } else {
     Some(directional_unselect(d, z));
   };
@@ -164,101 +186,169 @@ let move = (d: Direction.t, z: t): option(t) =>
 let select = (d: Direction.t, z: t): option(t) =>
   d == z.selection.focus ? grow_selection(z) : shrink_selection(z);
 
-let pick_up = (z: t): t => {
-  let (selected, z) = update_selection(Selection.empty, z);
-  let selection =
-    selected.content
-    |> Segment.trim_grout_around_secondary(Left)
-    |> Segment.trim_grout_around_secondary(Right)
-    |> Selection.mk;
-  let backpack = Backpack.push(selection, z.backpack);
-  {...z, backpack};
+/* As opposed to the Siblings.neighbor functions, which simply returns
+ * the adjacent piece (if any) in the focal segment, this function is a
+ * more general notion of 'the token to the left/right' of the cursor'.
+ * It agrees with Sibling.neighbor whenever you are in the middle of
+ * the focal segment; it returns None only if you are at the start/end
+ * of the entire program, and if you are at an extreme of the focal
+ * segment it returns the ADJACENT SHARD of the containing parent.
+ * Note that this last case necessarily returns an incomplete tile and
+ * thus does not retain knowledge of the tile's in-situ completeness */
+let generalized_neighbor = (d: Direction.t, z: t): option(Piece.t) => {
+  let* z = select(d, unselect(z));
+  switch (z.selection.content) {
+  | [p] => Some(p)
+  | _ => None
+  };
 };
 
-let destruct = (~destroy_kids=true, z: t): t => {
-  let backpack =
-    Backpack.remove_uni_tiles_with_deep_matches(z.backpack, z.selection);
-  let (selected, z) = update_selection(Selection.empty, z);
-  let (to_pick_up, to_remove) =
-    Segment.incomplete_tiles(selected.content)
-    |> List.partition(t =>
-         Siblings.contains_matching(t, z.relatives.siblings)
-         || Ancestors.parent_matches(t, z.relatives.ancestors)
-       );
-  /* If flag is set, break up tiles and remove children */
-  let to_pick_up =
-    destroy_kids
-      ? List.map(Tile.disintegrate, to_pick_up) |> List.flatten : to_pick_up;
-  let backpack =
-    backpack
-    |> Backpack.remove_matching(to_remove)
-    |> Backpack.push_s(
-         to_pick_up |> List.map(Segment.of_tile) |> List.map(Selection.mk),
-       );
-  {...z, backpack};
+type neighbors = (option(Piece.t), option(Piece.t));
+
+let generalized_neighbors = (z: t): neighbors => (
+  generalized_neighbor(Left, z),
+  generalized_neighbor(Right, z),
+);
+
+let neighbor_token = (d: Direction.t, z: t): option(Token.t) => {
+  let* p = generalized_neighbor(d, z);
+  Piece.token_of(p);
 };
+
+let neighbor_tokens = (z: t): (option(Token.t), option(Token.t)) => (
+  neighbor_token(Left, z),
+  neighbor_token(Right, z),
+);
+
+let rec do_until_piece =
+        (action: t => option(t), p_n: neighbors => bool, z: t): option(t) => {
+  let* z = action(z);
+  if (p_n(Siblings.neighbors(z.relatives.siblings))) {
+    Some(z);
+  } else {
+    do_until_piece(action, p_n, z);
+  };
+};
+
+/* Do `action` until the predicate on the generalized neigbors of the
+   caret becomes true. A generalized neighbor is the neighboring piece, unless
+   the neighbor is a polytile, in which case it's the relevant shard, or
+   we are at the edge of a segment, in which case it's the relevant shard
+   of the parent. The None case strictly means the beginning/end of the program.
+   If no such piece is found, don't move. Does not check predicate before
+   moving; caller should handle that case if necessary */
+let rec do_until =
+        (action: t => option(t), p_n: neighbors => bool, z: t): option(t) => {
+  let* z = action(z);
+  if (p_n(generalized_neighbors(z))) {
+    Some(z);
+  } else {
+    do_until(action, p_n, z);
+  };
+};
+
+let do_to_extreme = (action: t => option(t), z: t): t =>
+  do_until(
+    action,
+    (neighbors: neighbors) =>
+      switch (neighbors) {
+      | (None, _) => true
+      | (_, None) => true
+      | _ => false
+      },
+    z,
+  )
+  |> Option.value(~default=z);
+
+let linebreak_on = (d: Direction.t, neighbors: neighbors): bool =>
+  switch (neighbors) {
+  | (_, Some(Secondary(s))) when d == Right && Secondary.is_linebreak(s) =>
+    true
+  | (_, None) when d == Right => true
+  | (Some(Secondary(s)), _) when d == Left && Secondary.is_linebreak(s) =>
+    true
+  | (None, _) when d == Left => true
+  | _ => false
+  };
+
+let do_until_linebreak =
+    (f: t => option(t), d: Direction.t, z: t): option(t) =>
+  linebreak_on(d, generalized_neighbors(z))
+    ? Some(z) : do_until(f, linebreak_on(d), z);
+
+let local_backpack = (z: t): list(Tile.t) =>
+  Relatives.local_missing_shards(z.relatives);
+
+let backpack_hd = (z: t): option(Tile.t) =>
+  z |> local_backpack |> ListUtil.hd_opt;
+
+let backpack_find = (tok: Token.t, z: t): option(Tile.t) =>
+  if (Form.is_ambiguous_polymorph(tok)) {
+    /* Special case for ambiguous polymorphs. These tokens
+       occur both on their own as infix ops and as delimiters of
+       multi-delimiter forms. To give the singleton form a chance, we
+       only match these to incomplete tiles to form their multi forms
+       when they're on the top of the stack */
+    backpack_hd(z) |> Option.map(Tile.effective_label) == Some([tok])
+      ? backpack_hd(z) : None;
+  } else {
+    List.find_map(
+      t => Tile.effective_label(t) == [tok] ? Some(t) : None,
+      local_backpack(z),
+    );
+  };
+
+let insert_segment = (z: t, seg: Segment.t): t =>
+  z |> replace_selection(Right, seg) |> unselect |> remold_regrout(Right);
+
+let adj_pos = (d: Direction.t, z: t): t =>
+  switch (d) {
+  | Left => z
+  | Right =>
+    switch (move(Left, z)) {
+    | None => z
+    | Some(z) => z
+    }
+  };
+
+let put_down_core = (seg: Segment.t, z: t): t =>
+  z |> replace_selection(Right, seg) |> unselect;
+
+let put_down_seg = (d: Direction.t, seg: Segment.t, z: t): t =>
+  z |> put_down_core(seg) |> adj_pos(d);
+
+let can_put_down = z =>
+  switch (local_backpack(z)) {
+  | [] => false
+  | _ => z.caret == Outer
+  };
+
+let put_down_target = (d: Direction.t, target: Tile.t, z: t): t =>
+  z |> put_down_core([Tile(target)]) |> remold_regrout(Left) |> adj_pos(d);
+
+let put_down = (z: t): option(t) =>
+  z.caret == Outer
+    ? {
+      let+ target = backpack_hd(z);
+      put_down_target(Left, target, z);
+    }
+    : None;
 
 let delete = (d: Direction.t, z: t): option(t) =>
-  z |> select(d) |> Option.map(destruct);
+  z |> select(d) |> Option.map(destroy_selection);
 
-let put_down = (d: Direction.t, z: t): option(t) => {
-  let z = destruct(z);
-  let* (_, popped, backpack) = pop_backpack(z);
-  let z = {...z, backpack} |> put_selection(popped) |> unselect;
-  switch (d) {
-  | Left => Some(z)
-  | Right => move(Left, z)
+let adjacent_monotile_id = (d: Direction.t, z: t): option(Id.t) =>
+  switch (Siblings.neighbors(z.relatives.siblings)) {
+  | (Some(Tile({id, label: [_], _})), _) when d == Left => Some(id)
+  | (_, Some(Tile({id, label: [_], _}))) when d == Right => Some(id)
+  | _ => None
   };
-};
 
-let rec construct =
-        (~caret: Direction.t, ~backpack: Direction.t, label: Label.t, z: t): t => {
-  switch (label) {
-  | [t] when Form.is_string_delim(t) =>
-    /* Special case for constructing string literals.
-       See Insert.move_into_if_stringlit for more special-casing. */
-    construct(~caret, ~backpack, [Form.string_delim ++ Form.string_delim], z)
-  | [content] when Form.is_comment(content) =>
-    /* Special case for comments, can't rely on the last branch to construct */
-    let content = Secondary.construct_comment(content);
-    let id = Id.mk();
-    let z = destruct(z);
-    let selections = [Selection.mk(Base.mk_secondary(id, content))];
-    let backpack = Backpack.push_s(selections, z.backpack);
-    Option.get(put_down(caret, {...z, backpack}));
-
-  | [content] when Form.is_secondary(content) =>
-    let content = Secondary.Whitespace(content);
-    let id = Id.mk();
-    z |> update_siblings(((l, r)) => (l @ [Secondary({id, content})], r));
-  | _ =>
-    let z = destruct(z);
-    let molds = Molds.get(label);
-    assert(molds != []);
-    // initial mold to typecheck, will be remolded
-    let mold = List.hd(molds);
-    let id = Id.mk();
-    let selections =
-      Tile.split_shards(id, label, mold, List.mapi((i, _) => i, label))
-      |> List.map(Segment.of_tile)
-      |> List.map(Selection.mk)
-      |> ListUtil.rev_if(backpack == Right);
-    let backpack = Backpack.push_s(selections, z.backpack);
-    Option.get(put_down(caret, {...z, backpack}));
+let adjacent_monotile_or_new_id = (d, z) =>
+  switch (adjacent_monotile_id(d, z)) {
+  | Some(id) => id
+  | None => Id.mk()
   };
-};
-
-let construct_mono = (d: Direction.t, t: Token.t, z: t): t =>
-  construct(~caret=d, ~backpack=Left, [t], z);
-
-let replace =
-    (~caret: Direction.t, ~backpack: Direction.t, l: Label.t, z: t)
-    : option(t) =>
-  /* i.e. select and construct, overwriting the selection */
-  z |> delete(caret) |> Option.map(construct(~caret, ~backpack, l));
-
-let replace_mono = (d: Direction.t, t: Token.t, z: t): option(t) =>
-  replace(~caret=d, ~backpack=Left, [t], z);
 
 let representative_piece = (z: t): option((Piece.t, Direction.t)) => {
   /* The piece to the left of the caret, or if none exists, the piece to the right */
@@ -268,22 +358,6 @@ let representative_piece = (z: t): option((Piece.t, Direction.t)) => {
   | _ => None
   };
 };
-
-let caret_direction = (z: t): option(Direction.t) =>
-  /* Direction the caret is facing in */
-  switch (z.caret) {
-  | Inner(_) => None
-  | Outer =>
-    switch (Siblings.neighbors(sibs_with_sel(z))) {
-    | (Some(l), Some(r))
-        when
-          Piece.is_secondary(l)
-          && Piece.is_secondary(r)
-          && Selection.is_empty(z.selection) =>
-      None
-    | _ => Siblings.direction_between(sibs_with_sel(z))
-    }
-  };
 
 let base_point = (measured: Measured.t, z: t): Point.t => {
   switch (representative_piece(z)) {
@@ -299,27 +373,220 @@ let base_point = (measured: Measured.t, z: t): Point.t => {
       let m = Measured.find_p(~msg="base_point", p, measured);
       m.origin;
     };
-  | None => {row: 0, col: 0}
+  | None => {
+      row: 0,
+      col: 0,
+    }
   };
 };
-let caret_point = (measured, z: t): Point.t => {
-  let Point.{row, col} = base_point(measured, z);
-  {row, col: col + Caret.offset(z.caret)};
+
+module Caret = {
+  /* String shards can span multiple columns because emoji render wider than
+     ASCII.  Translate an inner caret index into measured columns by consulting
+     the token width table. */
+  let string_offset = (token: Token.t, idx: int): int =>
+    1 + Token.string_prefix_columns(token, idx);
+
+  /* Determine how many columns to advance for an Inner caret.  Prefer the
+     token on the left; if none exists fall back to the token on the right.
+     Non-strings retain the classic one-column-per-character behaviour. */
+  let inner_offset = (idx: int, z: t): int =>
+    switch (neighbor_token(Left, z)) {
+    | Some(token) when Token.is_string(token) => string_offset(token, idx)
+    | _ =>
+      switch (neighbor_token(Right, z)) {
+      | Some(token) when Token.is_string(token) => string_offset(token, idx)
+      | _ => idx + 1
+      }
+    };
+
+  let offset = (z: t): int =>
+    switch (z.caret) {
+    | Outer => 0
+    | Inner(idx) => inner_offset(idx, z)
+    };
+
+  let set = (caret: caret, z: t): t => {
+    ...z,
+    caret,
+  };
+
+  /* Max internal index of the shard the caret is adjacent to */
+  let nhbr_max_idx = (d: Direction.t, z: t): option(int) => {
+    let* t =
+      switch (d, neighbor_tokens(z)) {
+      | (Left, (Some(t), _)) => Some(t)
+      | (Right, (_, Some(t))) => Some(t)
+      | _ => None
+      };
+    let max_idx = Token.length(t) - 2;
+    max_idx < 0 ? None : Some(max_idx);
+  };
+
+  /* Returns the delimiter index that the caret is adjacent to.
+   * For non-tiles and monotiles this is always zero */
+  let delim_idx = (z: t) =>
+    switch (snd(z.relatives.siblings), z.relatives.ancestors) {
+    | ([], [({shards: (l, _), _}, _), ..._]) => List.length(l)
+    | _ => 0
+    };
+
+  /* Direction the caret is facing in */
+  let direction = (z: t): option(Direction.t) =>
+    switch (z.caret) {
+    | Inner(_) => None
+    | Outer =>
+      switch (Siblings.neighbors(sibs_with_sel(z))) {
+      | (Some(l), Some(r))
+          when
+            Piece.is_secondary(l)
+            && Piece.is_secondary(r)
+            && Selection.is_empty(z.selection) =>
+        None
+      | _ => Siblings.direction_between(sibs_with_sel(z))
+      }
+    };
+
+  /* Grid position of the caret */
+  /* Convert a caret to a concrete grid point for rendering and hit testing. */
+  let point = (measured: Measured.t, z: t): Point.t => {
+    let Point.{row, col} = base_point(measured, z);
+    {
+      row,
+      col: col + offset(z),
+    };
+  };
+
+  type t = ZipperBase.caret;
+};
+
+let do_towards_point =
+    (
+      ~anchor: option(Measured.Point.t)=?,
+      ~measured: Measured.t,
+      ~force_progress: bool=false,
+      f: (Direction.t, t) => option(t),
+      goal: Measured.Point.t,
+      z: t,
+    )
+    : option(t) => {
+  let caret_point = Caret.point(measured);
+
+  let is_at_side_of_row = (d: Direction.t, z: t) => {
+    let Point.{row, col} = caret_point(z);
+    switch (move(d, z)) {
+    | None => true
+    | Some(z) =>
+      let Point.{row: rowp, col: colp} = caret_point(z);
+      row != rowp || col == colp;
+    };
+  };
+
+  let direction_to_from = (p1: Point.t, p2: Point.t): Direction.t => {
+    let before_row = p1.row < p2.row;
+    let at_row = p1.row == p2.row;
+    let before_col = p1.col < p2.col;
+    before_row || at_row && before_col ? Left : Right;
+  };
+
+  let closer_to_prev = (curr, prev, goal: Point.t) =>
+    /* Default to true if equal */
+    abs(caret_point(prev).col - goal.col)
+    < abs(caret_point(curr).col - goal.col);
+
+  let init = caret_point(z);
+  let d_to_goal = direction_to_from(goal, init);
+  let rec go = (prev: t, curr: t) => {
+    let curr_p = caret_point(curr);
+    let x_progress = Point.dcomp(d_to_goal, curr_p.col, goal.col);
+    let y_progress = Point.dcomp(d_to_goal, curr_p.row, goal.row);
+    switch (y_progress, x_progress) {
+    /* If we're not there yet, keep going */
+    | (Under, Over | Exact | Under)
+    | (Exact, Under) =>
+      switch (f(d_to_goal, curr)) {
+      | Some(next) => go(curr, next)
+      | None => curr /* Should only occur at start/end of program */
+      }
+    /* If we're there, stop */
+    | (Exact, Exact) => curr
+    /* If we've overshot, meaning the exact goal is inaccessible,
+     * we choose between current and previous (undershot) positions */
+    | (Over, Over | Exact | Under) =>
+      switch (force_progress) {
+      /* Ideally we would use the same logic as from the below
+       * anchor case here; however that results in strange
+       * behavior when accidentally starting a drag at the end
+       * of a line, which triggers the (invisible) selection of
+       * a linebreak, making it appear that the caret has jumped
+       * to the next line. The downside of leaving this as-is is
+       * that multiline tokens (projectors) do not become part of
+       * the selection when dragging until you're all the way
+       * over them, which is slightly visually jarring */
+      | false => prev
+      /* Up/down kb movement works by setting a goal one row
+       * below the current. When adjacent to a multiline token,
+       * the nearest next caret position may be multiple lines down.
+       * We must allow this overshoot in order to make progress. */
+      | true => caret_point(prev) == init ? curr : prev
+      }
+    | (Exact, Over) =>
+      switch (anchor) {
+      | None =>
+        /* If you're trying to (eg) move down at the end of a row
+         * but the first position of the next row is further right
+         * than the currentrow's end, we want to make progress
+         * regardless of whether the new position would be closer
+         * or further from the goal.  Otherwise, we try to just
+         * get as close as we can  */
+        is_at_side_of_row(Direction.toggle(d_to_goal), curr)
+          ? curr : closer_to_prev(curr, prev, goal) ? prev : curr
+      | Some(anchor) =>
+        /* If we're dragging to make a selection, decide whether or
+         * not to force progress based on the relative position of the
+         * anchor (the position where the drag was started) */
+        direction_to_from(goal, anchor) == d_to_goal ? curr : prev
+      }
+    };
+  };
+  let res = go(z, z);
+  Measured.Point.equals(caret_point(res), caret_point(z))
+    ? None : Some(res);
+};
+
+let selection_anchor_point = (measured, z: t): option(Point.t) => {
+  switch (z.selection) {
+  | {content: [], _} => None
+  | {content, focus: Right, _} =>
+    Some(
+      Measured.find_p(
+        ~msg="selection_anchor_point",
+        List.hd(content),
+        measured,
+      ).
+        origin,
+    )
+  | {content, focus: Left, _} =>
+    Some(
+      Measured.find_p(
+        ~msg="selection_anchor_point",
+        ListUtil.last(content),
+        measured,
+      ).
+        last,
+    )
+  };
 };
 
 let serialize = (z: t): string => {
   sexp_of_t(z) |> Sexplib.Sexp.to_string;
 };
 
+let to_sexp = (z: t): Sexplib.Sexp.t => sexp_of_t(z);
+
 let deserialize = (data: string): t => {
   Sexplib.Sexp.of_string(data) |> t_of_sexp;
 };
-
-let can_put_down = z =>
-  switch (pop_backpack(z)) {
-  | Some(_) => z.caret == Outer
-  | None => false
-  };
 
 let set_buffer = (z: t, ~mode: Selection.buffer, ~content: Segment.t): t => {
   ...z,
@@ -333,71 +600,3 @@ let is_linebreak_to_right_of_caret =
   | _ => false
   };
 };
-
-/* Try to complete the syntax to give better semantic feeback.
- * This is a best-effort approach focussed on adding new definitions
- * as opposed to restructuring; it does not complete the syntax in
- * all cases.
- *
- * NOTE: Setting the caret to outer was necessary to 'get it past'
- * string literals, i.e. offer live feeback when typing inside a
- * string; not sure if this is a hack or not, it may be compensating
- * for the put_down logic not working right with string lits. To test,
- * try to look at live evaluation while typing inside a string lit with
- * stuff left to drop in backpack with below set: Outer disabled. */
-let try_to_dump_backpack = (zipper: t) => {
-  switch (zipper.backpack) {
-  | [] => zipper
-  | _ =>
-    let zipper = {...zipper, caret: Outer};
-    let rec move_until_cant_put_down = (z_last, z: t) =>
-      if (can_put_down(z) && !is_linebreak_to_right_of_caret(z)) {
-        switch (move(Right, z)) {
-        | None => z
-        | Some(z_new) => move_until_cant_put_down(z, z_new)
-        };
-      } else {
-        z_last;
-      };
-    let rec move_until_can_put_down = (z: t) =>
-      if (!can_put_down(z)) {
-        switch (move(Right, z)) {
-        | None => z
-        | Some(z_new) => move_until_can_put_down(z_new)
-        };
-      } else {
-        z;
-      };
-    let rec go = (z: t): t =>
-      if (can_put_down(z)) {
-        let z_can = move_until_cant_put_down(z, z);
-        switch (put_down(Right, z_can)) {
-        | None => z_can
-        | Some(z) =>
-          let z = regrout(Right, z);
-          go(z);
-        };
-      } else {
-        let z_can = move_until_can_put_down(z);
-        let z_can = move_until_cant_put_down(z_can, z_can);
-        switch (put_down(Right, z_can)) {
-        | None => z_can
-        | Some(z) =>
-          let z = regrout(Right, z);
-          go(z);
-        };
-      };
-    go(zipper);
-  };
-};
-
-let smart_seg = (~dump_backpack: bool, ~erase_buffer: bool, z: t) => {
-  let z = erase_buffer ? clear_unparsed_buffer(z) : z;
-  let z = dump_backpack ? try_to_dump_backpack(z) : z;
-  unselect_and_zip(~erase_buffer, z);
-};
-
-let seg_for_view = smart_seg(~erase_buffer=false, ~dump_backpack=false);
-let seg_for_sem = smart_seg(~erase_buffer=true, ~dump_backpack=true);
-
-let seg_without_buffer = smart_seg(~erase_buffer=true, ~dump_backpack=false);

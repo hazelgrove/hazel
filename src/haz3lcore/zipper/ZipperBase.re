@@ -1,30 +1,48 @@
 open Util;
 
-module Caret = {
-  [@deriving (show({with_path: false}), sexp, yojson)]
-  type t =
-    | Outer
-    | Inner(int, int);
+[@deriving (show({with_path: false}), sexp, yojson, eq)]
+type caret =
+  | Outer
+  | Inner(int);
 
-  let decrement: t => t =
-    fun
-    | Outer
-    | Inner(_, 0) => Outer
-    | Inner(d, c) => Inner(d, c - 1);
-
-  let offset: t => int =
-    fun
-    | Outer => 0
-    | Inner(_, c) => c + 1;
-};
+/* Refractor state extracted to Refractors.re - see state location docs there */
+module Refractor = Refractors;
 
 // assuming single backpack, shards may appear in selection, backpack, or siblings
-[@deriving (show({with_path: false}), sexp, yojson)]
+[@deriving (show({with_path: false}), sexp, yojson, eq)]
 type t = {
   selection: Selection.t,
-  backpack: Backpack.t,
   relatives: Relatives.t,
-  caret: Caret.t,
+  caret,
+  /* Like projectors but not replacing syntax */
+  refractors: Refractor.t,
+};
+
+let update_refractors = (z: t, f: Refractor.t => Refractor.t): t => {
+  ...z,
+  refractors: f(z.refractors),
+};
+
+let update_manuals = (f, z: t): t => {
+  ...z,
+  refractors: {
+    ...z.refractors,
+    manuals: f(z.refractors.manuals),
+  },
+};
+
+let add_manual = (id: Id.t, kind: ProjectorCore.Kind.t, z: t): t =>
+  update_manuals(Id.Map.add(id, Refractors.mk_entry(kind)), z);
+
+let update_ephemerals = (f, z: t): t => {
+  ...z,
+  refractors: {
+    ...z.refractors,
+    autos: {
+      ...z.refractors.autos,
+      ephemerals: f(z.refractors.autos.ephemerals),
+    },
+  },
 };
 
 let update_relatives = (f: Relatives.t => Relatives.t, z: t): t => {
@@ -33,7 +51,13 @@ let update_relatives = (f: Relatives.t => Relatives.t, z: t): t => {
 };
 
 let update_siblings: (Siblings.t => Siblings.t, t) => t =
-  f => update_relatives(rs => {...rs, siblings: f(rs.siblings)});
+  f =>
+    update_relatives(rs =>
+      {
+        ...rs,
+        siblings: f(rs.siblings),
+      }
+    );
 
 let put_siblings = (siblings, z: t): t => update_siblings(_ => siblings, z);
 
@@ -63,10 +87,10 @@ let sibs_with_sel =
   };
 
 module MapPiece = {
-  type updater = Piece.t => Piece.t;
+  type updater = Piece.t => Segment.t;
 
   let rec of_segment = (f: updater, seg: Segment.t): Segment.t => {
-    seg |> List.map(p => f(p)) |> List.map(of_piece(f));
+    seg |> List.concat_map(p => f(p)) |> List.map(of_piece(f));
   }
   and of_piece = (f: updater, piece: Piece.t): Piece.t => {
     switch (piece) {
@@ -77,7 +101,10 @@ module MapPiece = {
     };
   }
   and of_tile = (f: updater, t: Tile.t): Tile.t => {
-    {...t, children: List.map(of_segment(f), t.children)};
+    {
+      ...t,
+      children: List.map(of_segment(f), t.children),
+    };
   };
 
   let of_siblings = (f: updater, sibs: Siblings.t): Siblings.t => (
@@ -105,7 +132,10 @@ module MapPiece = {
     List.map(of_generation(f), ancestors);
 
   let of_selection = (f: updater, selection: Selection.t): Selection.t => {
-    {...selection, content: of_segment(f, selection.content)};
+    {
+      ...selection,
+      content: of_segment(f, selection.content),
+    };
   };
 
   /* Maps the updater over all pieces in the zipper
@@ -126,26 +156,26 @@ module MapPiece = {
     };
   };
 
-  let left_sib_has_id = sib_has_id(Siblings.left_neighbor);
+  let left_sib_has_id = sib_has_id(Siblings.neighbor(Left));
 
-  let right_sib_has_id = sib_has_id(Siblings.right_neighbor);
+  let right_sib_has_id = sib_has_id(Siblings.neighbor(Right));
 
-  let update_left_sib = (f: Piece.t => Piece.t, z: t) => {
+  let update_left_sib = (f: Piece.t => Segment.t, z: t) => {
     let (l, r) = z.relatives.siblings;
-    let sibs = (List.map(f, l), List.map(f, r));
+    let sibs = (List.concat_map(f, l), List.concat_map(f, r));
     put_siblings(sibs, z);
   };
 
-  let update_right_sib = (f: Piece.t => Piece.t, z: t) => {
+  let update_right_sib = (f: Piece.t => Segment.t, z: t) => {
     let sibs =
       switch (z.relatives.siblings) {
-      | (l, [hd, ...tl]) => (l, [f(hd), ...tl])
+      | (l, [hd, ...tl]) => (l, f(hd) @ tl)
       | sibs => sibs
       };
     put_siblings(sibs, z);
   };
 
-  let fast_local = (f: Piece.t => Piece.t, id: Id.t, z: t): t =>
+  let fast_local_seg = (f: Piece.t => Segment.t, id: Id.t, z: t): t =>
     /* This applies the function to the piece in the zipper having id id, and
      * then replaces the id of the resulting piece with the idea of the old
      * piece, ensuring that the root id remains stable. This function assumes
@@ -159,4 +189,7 @@ module MapPiece = {
     } else {
       go(f, z);
     };
+
+  let fast_local = (f: Piece.t => Piece.t, id: Id.t, z: t): t =>
+    fast_local_seg(p => [f(p)], id, z);
 };

@@ -2,9 +2,8 @@
 
 (library
  (name pretty)
- (libraries util sexplib)
- (preprocess
-  (pps ppx_let ppx_sexp_conv)))
+ (instrumentation
+  (backend bisect_ppx)))
 
 (env
  (dev

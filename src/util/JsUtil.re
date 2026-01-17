@@ -1,25 +1,42 @@
 open Js_of_ocaml;
 open Virtual_dom.Vdom;
+open Js_of_ocaml.Url;
 
 let get_elem_by_id = id => {
   let doc = Dom_html.document;
-  Js.Opt.get(
-    doc##getElementById(Js.string(id)),
-    () => {
-      print_endline(id);
-      assert(false);
-    },
-  );
+  Js.Opt.get(doc##getElementById(Js.string(id)), () => {assert(false)});
 };
+
+let get_elem_by_id_opt = id =>
+  switch (get_elem_by_id(id)) {
+  | exception _ => None
+  | e => Some(e)
+  };
 
 let get_elem_by_selector = selector => {
   let doc = Dom_html.document;
   Js.Opt.get(
     doc##querySelector(Js.string(selector)),
     () => {
-      print_endline(selector);
+      print_endline("Selector could not be found: " ++ selector);
       assert(false);
     },
+  );
+};
+
+let get_child_with_class = (element: Js.t(Dom_html.element), className) => {
+  let rec loop = (sibling: Js.t(Dom_html.element)) =>
+    if (Js.to_bool(sibling##.classList##contains(Js.string(className)))) {
+      Some(sibling);
+    } else {
+      loop(
+        Js.Opt.get(sibling##.nextSibling, () => failwith("no sibling"))
+        |> Js.Unsafe.coerce,
+      );
+    };
+  loop(
+    Js.Opt.get(element##.firstChild, () => failwith("no child"))
+    |> Js.Unsafe.coerce,
   );
 };
 
@@ -29,22 +46,7 @@ let date_now = () => {
 
 let timestamp = () => date_now()##valueOf;
 
-let get_key = evt =>
-  Js.to_string(Js.Optdef.get(evt##.key, () => failwith("JsUtil.get_key")));
-
-let ctrl_held = evt => Js.to_bool(evt##.ctrlKey);
-let shift_held = evt => Js.to_bool(evt##.shiftKey);
-let alt_held = evt => Js.to_bool(evt##.altKey);
-let meta_held = evt => Js.to_bool(evt##.metaKey);
-
-let num_clicks = (evt: Js.t(Js_of_ocaml.Dom_html.mouseEvent)): int =>
-  Js.Unsafe.coerce(evt)##.detail;
-
-let is_double_click = (evt: Js.t(Js_of_ocaml.Dom_html.mouseEvent)): bool =>
-  num_clicks(evt) == 2;
-
-let mouse_button = (evt: Js.t(Js_of_ocaml.Dom_html.mouseEvent)): int =>
-  Js.Unsafe.coerce(evt)##.button;
+let precise_timestamp = () => Js.Unsafe.global##.performance##now()##valueOf;
 
 let download_string_file =
     (~filename: string, ~content_type: string, ~contents: string) => {
@@ -137,17 +139,87 @@ let copy = (str: string) => {
   );
 };
 
+let element_to_node = (element: Js.t(Dom_html.element)): Js.t(Dom.node) =>
+  Js.Unsafe.coerce(element);
+
+let rec find_scroll_container_node =
+        (node: Js.t(Dom.node)): option(Js.t(Dom_html.element)) =>
+  switch (Js.Opt.to_option(node##.parentNode)) {
+  | None => None
+  | Some(parent_node) =>
+    switch (Dom_html.CoerceTo.element(parent_node) |> Js.Opt.to_option) {
+    | Some(parent_element) =>
+      let scroll_height = parent_element##.scrollHeight;
+      let client_height = parent_element##.clientHeight;
+      if (scroll_height - client_height > 1) {
+        Some(parent_element);
+      } else {
+        find_scroll_container_node(parent_node);
+      };
+    | None => find_scroll_container_node(parent_node)
+    }
+  };
+
+let find_scroll_container =
+    (element: Js.t(Dom_html.element)): option(Js.t(Dom_html.element)) =>
+  find_scroll_container_node(element_to_node(element));
+
+/* Find the nearest ancestor element with the given class */
+let find_ancestor_with_class =
+    (el: Js.t(Dom_html.element), class_name: string)
+    : option(Js.t(Dom_html.element)) => {
+  let class_js = Js.string(class_name);
+  let rec loop = (node: Js.t(Dom.node)): option(Js.t(Dom_html.element)) =>
+    switch (Js.Opt.to_option(node##.parentNode)) {
+    | None => None
+    | Some(parent_node) =>
+      switch (Dom_html.CoerceTo.element(parent_node) |> Js.Opt.to_option) {
+      | None => loop(parent_node)
+      | Some(parent_el) =>
+        if (Js.to_bool(parent_el##.classList##contains(class_js))) {
+          Some(parent_el);
+        } else {
+          loop(parent_node);
+        }
+      }
+    };
+  loop(element_to_node(el));
+};
+
+let adjust_scroll = (container: Js.t(Dom_html.element), delta: float) =>
+  if (delta != 0.) {
+    let current = float_of_int(container##.scrollTop);
+    let target = current +. delta;
+    container##.scrollTop := int_of_float(target);
+  };
+
 let scroll_cursor_into_view_if_needed = () =>
   try({
     let caret_elem = get_elem_by_id("caret");
-    let main = get_elem_by_id("main");
-    let main_rect = main##getBoundingClientRect;
-    let caret_rect = caret_elem##getBoundingClientRect;
-
-    if (caret_rect##.top < main_rect##.top) {
-      caret_elem##scrollIntoView(Js._true);
-    } else if (caret_rect##.bottom > main_rect##.bottom) {
-      caret_elem##scrollIntoView(Js._false);
+    switch (find_scroll_container(caret_elem)) {
+    | Some(container) =>
+      let caret_rect = caret_elem##getBoundingClientRect;
+      let container_rect = container##getBoundingClientRect;
+      let margin_ratio = 0.10;
+      let margin_px =
+        Js.Optdef.get(container_rect##.height, _ => 0.) *. margin_ratio;
+      let top_gap = caret_rect##.top -. (container_rect##.top +. margin_px);
+      if (top_gap < 0.) {
+        adjust_scroll(container, top_gap);
+      } else {
+        let bottom_gap =
+          caret_rect##.bottom -. (container_rect##.bottom -. margin_px);
+        if (bottom_gap > 0.) {
+          adjust_scroll(container, bottom_gap);
+        };
+      };
+    | None =>
+      caret_elem##scrollIntoView(
+        Js.Unsafe.obj([|
+          ("block", Js.Unsafe.inject(Js.string("nearest"))),
+          ("inline", Js.Unsafe.inject(Js.string("nearest"))),
+        |]),
+      )
     };
   }) {
   | Assert_failure(_) => ()
@@ -173,4 +245,124 @@ module Fragment = {
       };
     Url.Current.get() |> Option.map(fragment_of_url);
   };
+};
+
+let setPointerCapture = (e: Js.t(Dom_html.element), pointerId: int): unit =>
+  Js.Unsafe.meth_call(
+    e,
+    "setPointerCapture",
+    [|Js.Unsafe.inject(pointerId)|],
+  );
+
+let releasePointerCapture = (e: Js.t(Dom_html.element), pointerId: int) =>
+  Js.Unsafe.meth_call(
+    e,
+    "releasePointerCapture",
+    [|Js.Unsafe.inject(pointerId)|],
+  );
+
+let hasPointerCapture = (e: Js.t(Dom_html.element), pointerId: int) =>
+  Js.Unsafe.meth_call(
+    e,
+    "hasPointerCapture",
+    [|Js.Unsafe.inject(pointerId)|],
+  );
+
+let delay = (delay: float, callback: unit => unit) => {
+  let _ =
+    Js_of_ocaml.Dom_html.window##setTimeout(
+      Js.wrap_callback(callback),
+      delay,
+    );
+  ();
+};
+
+let set_select_value = (select_id, value) => {
+  Js_of_ocaml.Js.Unsafe.set(
+    get_elem_by_id(select_id),
+    "value",
+    Js_of_ocaml.Js.string(value),
+  );
+};
+
+let prompt = (message: string, default: string): option(string) => {
+  Js.Opt.to_option(
+    Dom_html.window##prompt(Js.string(message), Js.string(default)),
+  )
+  |> Option.map(Js.to_string);
+};
+
+module QueryParams = {
+  let get_arguments = (url: Url.url): list((string, string)) =>
+    switch (url) {
+    | Http({hu_arguments, _}) => hu_arguments
+    | Https({hu_arguments, _}) => hu_arguments
+    | File({fu_arguments, _}) => fu_arguments
+    };
+
+  let set_arguments = (url: Url.url, args: list((string, string))): Url.url =>
+    switch (url) {
+    | Http(u) =>
+      Http({
+        ...u,
+        hu_arguments: args,
+      })
+    | Https(u) =>
+      Https({
+        ...u,
+        hu_arguments: args,
+      })
+    | File(u) =>
+      File({
+        ...u,
+        fu_arguments: args,
+      })
+    };
+
+  let get_param = (name: string): option(string) => {
+    let q_opt =
+      Url.Current.get()
+      |> Option.map(url =>
+           url |> get_arguments |> List.find_opt(((k, _)) => k == name)
+         );
+    switch (q_opt) {
+    | Some(Some((_, v))) => Some(v)
+    | _ => None
+    };
+  };
+
+  let set_param = (name: string, value: string) => {
+    Url.Current.get()
+    |> Option.iter(url => {
+         let args =
+           get_arguments(url)
+           |> List.filter(((k, _)) => k != name)
+           |> List.cons((name, value));
+
+         let new_url = set_arguments(url, args);
+         let href = Url.string_of_url(new_url);
+
+         Dom_html.window##.history##pushState(
+           Js.null,
+           Js.string(""),
+           Js.some(Js.string(href)),
+         );
+       });
+  };
+
+  let remove_param = (name: string) =>
+    Url.Current.get()
+    |> Option.iter(url => {
+         let args =
+           get_arguments(url) |> List.filter(((k, _)) => k != name);
+
+         let new_url = set_arguments(url, args);
+         let href = Url.string_of_url(new_url);
+
+         Dom_html.window##.history##pushState(
+           Js.null,
+           Js.string(""),
+           Js.some(Js.string(href)),
+         );
+       });
 };

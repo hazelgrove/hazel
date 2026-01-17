@@ -1,0 +1,454 @@
+/* Code text and decoration style */
+
+.code-container {
+  position: relative;
+}
+
+/* Use this style for all text that should
+ * be formatted like code, even if it's not
+ * going to be inside an editor. For example,
+ * this is used for CI type displays */
+.code {
+  line-height: var(--line-height);
+  white-space: pre;
+  font-family: var(--code-font);
+  font-weight: normal;
+  font-size: var(--base-font-size);
+}
+
+.code-text {
+  position: relative;
+  z-index: var(--code-text-z);
+  white-space: pre;
+}
+
+/* This is a hack to compensating for default linebreak handling
+* preventing a trailing linebreak in code editors from leaving a
+* trailing blank line, as per https://stackoverflow.com/questions/43492826/.
+* The mysterious chracter below is a zero-width space, used here
+* to avoid inserting an extraneous whitespace context for inline
+* syntax views, e.g. type views in the cursor inspector */
+.code-text:after {
+  content: "​";
+}
+
+/* TOKEN COLORS */
+
+.code .token.Any {
+  color: var(--token-any);
+}
+.code .token.Exp {
+  color: var(--token-exp);
+}
+.code .token.Pat {
+  color: var(--token-pat);
+}
+.code .token.Typ {
+  color: var(--token-typ);
+}
+.code .token.Rul {
+  color: var(--token-rul);
+}
+.code .token.TPat {
+  color: var(--token-tpat);
+}
+
+.code .token.poly {
+  font-weight: bold;
+}
+
+.code .token.mono.string-lit {
+  color: var(--token-string-lit);
+}
+
+/* code completion tokens */
+.code .in-unparsed-buffer {
+  color: var(--token-buffer);
+}
+
+.code .in-parsed-buffer {
+  opacity: 0.5;
+}
+
+.code .token.sort-inconsistent {
+  color: var(--token-inconsistent);
+}
+
+.code .token.incomplete {
+  color: var(--token-incomplete);
+}
+
+.code .token.explicit-hole {
+  color: var(--token-explicit-hole);
+  text-shadow: 1px 1px 0px var(--token-explicit-hole-shadow);
+  font-weight: bold;
+}
+
+.code .comment {
+  color: var(--token-comment);
+}
+
+.code .code-text {
+  color: var(--token-secondary);
+}
+
+.code .token.llm-waiting {
+  animation: rainbow 4s linear infinite;
+  font-weight: bold;
+}
+
+/* For emoji rendering in code */
+.code .grapheme-cell {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  vertical-align: baseline;
+  white-space: pre;
+}
+
+.code-container.meta-down .token.ref {
+  cursor: pointer;
+}
+
+.code-container.meta-down .token.ref:hover {
+  text-decoration: underline;
+  text-decoration-style: solid;
+  text-underline-offset: 0.08em;
+  filter: brightness(1.5);
+}
+
+@keyframes rainbow {
+  0% {
+    color: #4477ff;
+  } /* Start with muted blue */
+  17% {
+    color: #9944ff;
+  } /* Muted purple */
+  33% {
+    color: #ff4488;
+  } /* Muted pink */
+  50% {
+    color: #ff7744;
+  } /* Muted orange */
+  67% {
+    color: #88aa44;
+  } /* Muted green */
+  83% {
+    color: #44aaff;
+  } /* Muted cyan */
+  100% {
+    color: #4477ff;
+  } /* Back to muted blue */
+}
+
+/* TOKEN BACKING DECOS */
+
+svg.shard > path {
+  vector-effect: non-scaling-stroke;
+}
+
+svg.shard {
+  --off-x: 0.85px;
+  --off-y: 1px;
+  --blur: 0;
+}
+
+svg.shard.indicated.Any {
+  filter: drop-shadow(var(--off-x) var(--off-y) var(--blur) var(--shadow-any));
+}
+svg.shard.indicated.Exp {
+  filter: drop-shadow(
+    var(--off-x) var(--off-y) var(--blur) var(--shard-lines-exp)
+  );
+}
+svg.shard.indicated.Pat {
+  filter: drop-shadow(var(--off-x) var(--off-y) var(--blur) var(--token-pat));
+}
+svg.shard.indicated.Typ {
+  filter: drop-shadow(var(--off-x) var(--off-y) var(--blur) var(--token-typ));
+}
+svg.shard.indicated.Rul {
+  filter: drop-shadow(
+    var(--off-x) var(--off-y) var(--blur) var(--shard-lines-rul)
+  );
+}
+svg.shard.indicated.TPat {
+  filter: drop-shadow(var(--off-x) var(--off-y) var(--blur) var(--token-tpat));
+}
+
+svg.shard.indicated.Any > path {
+  fill: var(--shard-any);
+}
+svg.shard.indicated.Exp > path {
+  fill: var(--shard-exp);
+}
+svg.shard.indicated.Pat > path {
+  fill: var(--shard-pat);
+}
+svg.shard.indicated.Typ > path {
+  fill: var(--shard-typ);
+}
+svg.shard.indicated.Rul > path {
+  fill: var(--shard-rul);
+}
+svg.shard.indicated.TPat > path {
+  fill: var(--shard-tpat);
+}
+
+svg.shard.indicated.caret.Exp > path {
+  fill: var(--shard-caret-exp);
+}
+svg.shard.indicated.caret.Pat > path {
+  fill: var(--shard-caret-pat);
+}
+svg.shard.indicated.caret.Typ > path {
+  fill: var(--shard-caret-typ);
+}
+.svg.shard.indicated.caret.TPat > path {
+  fill: var(--shard-caret-tpat);
+}
+
+svg.shard.selected {
+  z-index: var(--select-z);
+  filter: drop-shadow(1px 1px 0 var(--shadow-selected));
+}
+svg.shard.indicated {
+  z-index: var(--tile-z);
+}
+svg.shard.selected > path {
+  fill: var(--shard-selected);
+  stroke-width: 0.5px;
+  stroke: var(--shard-selected);
+}
+
+.errors .errors-piece svg.shard {
+  z-index: var(--err-hole-z);
+  filter: none;
+}
+.errors .errors-piece svg.shard > path,
+.errors .errors-piece svg .child-line {
+  stroke: var(--error-hole-stroke);
+  stroke-width: 0.75px;
+  stroke-dasharray: 1, 1;
+  stroke-linecap: butt;
+}
+.errors .errors-piece svg.shard > path {
+  fill: var(--error-hole-fill);
+}
+
+/* Code completion decoration */
+
+svg.shard.selected.buffer-unparsed {
+  filter: none;
+}
+svg.shard.selected.buffer-unparsed > path {
+  fill: #0000;
+  stroke-width: 0;
+}
+svg.shard.selected.buffer-parsed {
+  filter: drop-shadow(
+    var(--off-x) var(--off-y) var(--blur) var(--shard-lines-exp)
+  );
+}
+svg.shard.selected.buffer-parsed > path {
+  fill: var(--T1);
+  stroke: var(--T1);
+}
+
+/* EMPTY HOLE DECO */
+
+.empty-hole > path {
+  fill: var(--empty-hole-fill);
+  stroke: var(--empty-hole-stroke);
+  stroke-width: 0.75px;
+  vector-effect: non-scaling-stroke;
+}
+
+/* CARET DECO */
+
+#caret {
+  z-index: var(--caret-z);
+  pointer-events: none;
+}
+
+#caret.blink {
+  animation: 1s blink step-end infinite;
+}
+
+.caret-path {
+  fill: var(--caret-color);
+  stroke: none;
+}
+
+/* TERM INDICATION DECO */
+
+.child-line {
+  stroke-width: 1;
+  stroke-linecap: round;
+  fill: none;
+  vector-effect: non-scaling-stroke;
+}
+
+.indication .child-line {
+  /* To make it align to shard shadows */
+  translate: 0 0.02px;
+}
+
+svg:has(.child-line) {
+  z-index: var(--err-hole-arms-z);
+}
+
+.child-line.Any {
+  stroke: var(--shadow-any);
+}
+.child-line.Exp {
+  stroke: var(--shard-lines-exp);
+}
+.child-line.Pat {
+  stroke: var(--token-pat);
+}
+.child-line.Typ {
+  stroke: var(--token-typ);
+}
+.child-line.Rul {
+  stroke: var(--shard-lines-rul);
+}
+.child-line.TPat {
+  stroke: var(--token-tpat);
+}
+
+/* BACKPACK DECO */
+
+.backpack {
+  z-index: var(--backpack-z);
+}
+
+.backpack.cant-put-down > * {
+  opacity: 40%;
+}
+
+.backpack-joiner {
+  z-index: var(--backpack-z);
+  width: 2px;
+  background-color: var(--backpack-joiner);
+}
+
+.backpack-selection {
+  white-space: nowrap;
+  border-radius: 0.2em 0.2em 0.2em 0em;
+  padding: 0 0.2em 0 0.2em;
+  line-height: var(--line-height);
+  width: fit-content;
+  background-color: var(--backpack-selection);
+  outline: 1px solid var(--backpack-selection-outline);
+  font-weight: bold;
+  color: var(--token-incomplete) !important;
+}
+
+.backpack-genie {
+  stroke-width: 0;
+  fill: var(--backpack-genie);
+  vector-effect: non-scaling-stroke;
+}
+
+.restructuring-genie {
+  z-index: var(--backpack-z);
+}
+
+/* Invisible backdrop to capture clicks outside context menu */
+.context-menu-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: calc(var(--context-menu-z) - 1);
+}
+
+.context-menu {
+  position: absolute;
+  min-width: 160px;
+  z-index: var(--context-menu-z);
+  flex-direction: column;
+  justify-content: center;
+  background-color: var(--menu-bkg);
+  border-radius: 0 0.5em 0.5em 0.5em;
+  outline: 0.6px solid var(--menu-outline);
+  box-shadow: 0px 10px 20px var(--menu-shadow);
+  padding: 0.2em;
+}
+
+/* Border radius, transforms, and animations based on opening direction */
+.context-menu.open-down-right {
+  border-radius: 0 0.5em 0.5em 0.5em; /* top-left sharp */
+  transform-origin: top left;
+  animation: context-menu-open-down-right 0.12s ease-out;
+}
+.context-menu.open-down-left {
+  border-radius: 0.5em 0 0.5em 0.5em; /* top-right sharp */
+  transform: translateX(-100%);
+  transform-origin: top right;
+  animation: context-menu-open-down-left 0.12s ease-out;
+}
+.context-menu.open-up-right {
+  border-radius: 0.5em 0.5em 0.5em 0; /* bottom-left sharp */
+  transform: translateY(-100%);
+  transform-origin: bottom left;
+  animation: context-menu-open-up-right 0.12s ease-out;
+}
+.context-menu.open-up-left {
+  border-radius: 0.5em 0.5em 0 0.5em; /* bottom-right sharp */
+  transform: translate(-100%, -100%);
+  transform-origin: bottom right;
+  animation: context-menu-open-up-left 0.12s ease-out;
+}
+
+/* Open animations for each direction - scale from origin while maintaining translate */
+@keyframes context-menu-open-down-right {
+  from { opacity: 0; transform: scale(0.95); }
+  to { opacity: 1; transform: scale(1); }
+}
+@keyframes context-menu-open-down-left {
+  from { opacity: 0; transform: translateX(-100%) scale(0.95); }
+  to { opacity: 1; transform: translateX(-100%) scale(1); }
+}
+@keyframes context-menu-open-up-right {
+  from { opacity: 0; transform: translateY(-100%) scale(0.95); }
+  to { opacity: 1; transform: translateY(-100%) scale(1); }
+}
+@keyframes context-menu-open-up-left {
+  from { opacity: 0; transform: translate(-100%, -100%) scale(0.95); }
+  to { opacity: 1; transform: translate(-100%, -100%) scale(1); }
+}
+
+.context-menu .group .contents {
+  display: flex;
+  flex-direction: column;
+}
+.context-menu .named-menu-item {
+  display: flex;
+  align-items: center;
+  color: var(--menu-item-text);
+  cursor: pointer;
+  gap: 0.5em;
+}
+.context-menu .group .contents .named-menu-item {
+  padding: 0.05em 0.5em 0.05em 0.7em;
+}
+.context-menu .group .contents .named-menu-item:hover,
+.context-menu .group .contents .named-menu-item.selected {
+  background-color: var(--SAND);
+  border-radius: 0.2em;
+}
+.context-menu .named-menu-item .menu-shortcut {
+  margin-left: auto;
+  padding-left: 1em;
+  font-size: 0.85em;
+  opacity: 0.6;
+}
+.context-menu .named-menu-item .menu-colon {
+  opacity: 0.6;
+}
+.context-menu .menu-divider {
+  height: 0.6px;
+  background: var(--menu-outline);
+  margin: 6px 0.5em;
+}

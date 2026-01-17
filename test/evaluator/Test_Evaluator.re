@@ -1,0 +1,27 @@
+let tests =
+  [
+    Test_Evaluator_Labeled_Tuple.tests,
+    Test_Evaluator_ProbeSteps.tests,
+    Test_Evaluator_ProbeCallStack.tests,
+  ]
+  @ Test_Evaluator_Probes.tests
+  @ [
+    Test_Evaluator_Livelit.tests,
+    Test_Evaluator_Builtins.tests,
+    Test_Evaluator_Builtins_Lists.tests,
+    Test_Evaluator_Builtins_OptionType.tests,
+    Test_Evaluator_Match.tests,
+    Test_Evaluator_Function.tests,
+    Test_Evaluator_Fixpoint.tests,
+    Test_Evaluator_List.tests,
+    Test_Evaluator_Atom.tests,
+    Test_Evaluator_Let.tests,
+    Test_Evaluator_Operators.tests,
+    Test_Evaluator_Poly_Equal.tests,
+    Test_Evaluator_Sum_Types.tests,
+    Test_Evaluator_BuiltinsTupleOperations.tests,
+    Test_Evaluator_TypAp.tests,
+    Test_Stepper.tests,
+    Test_Evaluator_Properties.tests,
+    Test_Evaluator_Performance.tests,
+  ];

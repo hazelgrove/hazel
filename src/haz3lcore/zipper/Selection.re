@@ -1,16 +1,16 @@
 open Util;
 
-[@deriving (show({with_path: false}), sexp, yojson)]
+[@deriving (show({with_path: false}), sexp, yojson, eq)]
 type buffer =
-  //| Parsed
+  | Parsed
   | Unparsed;
 
-[@deriving (show({with_path: false}), sexp, yojson)]
+[@deriving (show({with_path: false}), sexp, yojson, eq)]
 type mode =
   | Normal
   | Buffer(buffer);
 
-[@deriving (show({with_path: false}), sexp, yojson)]
+[@deriving (show({with_path: false}), sexp, yojson, eq)]
 type t = {
   focus: Direction.t,
   content: Segment.t,
@@ -31,11 +31,25 @@ let is_buffer: t => bool =
   | {mode: Buffer(_), _} => true
   | _ => false;
 
+let non_empty_parsed_buffer: t => bool =
+  fun
+  | {mode: Buffer(Parsed), content: [_, ..._], _} => true
+  | _ => false;
+
+let buffer_cls: t => string =
+  fun
+  | {mode: Buffer(Unparsed), _} => "buffer-unparsed"
+  | {mode: Buffer(Parsed), _} => "buffer-parsed"
+  | _ => "not-buffer";
+
 let selection_ids = (sel: t): list(Id.t) => Segment.ids(sel.content);
 
 let empty = mk(Segment.empty);
 
-let map = (f, sel) => {...sel, content: f(sel.content)};
+let map = (f, sel) => {
+  ...sel,
+  content: f(sel.content),
+};
 
 let toggle_focus = selection => {
   ...selection,
@@ -52,7 +66,11 @@ let push = (p: Piece.t, {focus, content, mode}: t): t => {
       | Right => Segment.snoc(content, p)
       },
     );
-  {focus, content, mode};
+  {
+    focus,
+    content,
+    mode,
+  };
 };
 
 let pop = (sel: t): option((Piece.t, t)) =>
@@ -61,8 +79,20 @@ let pop = (sel: t): option((Piece.t, t)) =>
   | (_, _, None) => None
   | (Left, [p, ...content], _) =>
     let (p, rest) = Piece.pop_l(p);
-    Some((p, {...sel, content: rest @ content}));
+    Some((
+      p,
+      {
+        ...sel,
+        content: rest @ content,
+      },
+    ));
   | (Right, _, Some((content, p))) =>
     let (rest, p) = Piece.pop_r(p);
-    Some((p, {...sel, content: content @ rest}));
+    Some((
+      p,
+      {
+        ...sel,
+        content: content @ rest,
+      },
+    ));
   };

@@ -26,11 +26,43 @@ let unzip = (o: option(('a, 'b))): (option('a), option('b)) =>
   | None => (None, None)
   | Some((a, b)) => (Some(a), Some(b))
   };
+let traverse = (f: 'a => option('b), l: list('a)): option(list('b)) =>
+  List.fold_right(
+    (x, acc) => map2((y, ys) => [y, ...ys], f(x), acc),
+    l,
+    Some([]),
+  );
 
 let sequence = (l: list(option('a))): option(list('a)) =>
-  List.fold_right(map2((x, xs) => [x, ...xs]), l, Some([]));
+  traverse(Fun.id, l);
 
 let and_then = (f, o) => Option.bind(o, f);
+
+let replace = (f: 'a => option('a), o: 'a): 'a =>
+  switch (f(o)) {
+  | Some(a) => a
+  | None => o
+  };
+let fold_left_opt:
+  type a acc. ((acc, a) => option(acc), list(a), acc) => option(acc) =
+  (f, list, init) => {
+    let rec aux = (acc, rest) =>
+      switch (rest) {
+      | [] => Some(acc)
+      | [x, ...xs] =>
+        switch (f(acc, x)) {
+        | None => None
+        | Some(nextAcc) => aux(nextAcc, xs)
+        }
+      };
+    aux(init, list);
+  };
+
+let filter = (f: 'a => bool, o: option('a)): option('a) =>
+  switch (o) {
+  | None => None
+  | Some(a) => f(a) ? Some(a) : None
+  };
 
 module Syntax = {
   let ( let* ) = Option.bind;
