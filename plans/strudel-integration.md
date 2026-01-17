@@ -89,18 +89,21 @@ This enables live performance where edits don't cause audio gaps
 ## Current State
 
 ### What's Implemented
-- `Sound` type with constructors: `Note(String)`, `Sample(String)`, `Rev(Sound)`, `Fast(Float, Sound)`, `Slow(Float, Sound)`, `Seq(List(Sound))`, `Stack(List(Sound))`
+- `Sound` type with constructors: `Note(String)`, `Sample(String)`, `Rev(Sound)`, `Fast(Float, Sound)`, `Slow(Float, Sound)`, `Seq(List(Sound))`, `Stack(List(Sound))`, `JuxRev(Sound)`
 - `Sample(String)` uses Strudel's `sound()` function for drums/samples (bd, sd, piano, etc.)
+- `JuxRev(Sound)` applies stereo widening effect (jux with rev)
 - Strudel JS library loaded via unpkg in `index.html`
 - `Strudel.initOnLoad()` called on startup in `Main.re`
-- **Dirt-Samples auto-loaded** via `prebake` callback in `initStrudel()` - loads from `github:tidalcycles/dirt-samples`
-- `audio_view` wired into `live_eval` - shows play/stop controls (▶/■) for Sound values
+- **Dirt-Samples auto-loaded** via `prebake` callback in `initStrudel()` - loads from `github:tidalcycles/dirt-samples` with graceful degradation on network failure
+- **Player refractor** - play/stop controls in offside for any Sound-typed expression
+- **Live coding behavior** - pattern updates via `scheduler.setPattern` without audio gaps
+- **Playback cleanup** - removing Player stops audio; PlayState managed in Strudel.re
 - Defensive JS bindings in `src/util/Strudel.re` with proper initialization
 - CSS styling in `style/strudel.css` matching UI aesthetic
-- **Note Picker projector** - piano keyboard for selecting notes (constructor-level: `^^notes(Note(...))`)
-- **Rhythm Grid projector** - step sequencer for drum patterns (constructor-level: `^^rhythm(Note(...))`)
-- **Knob projector** - rotary dial for Float values with modular synth aesthetic (`^^knob`)
-- **XY Pad projector** - 2D control surface for (Float, Float) tuples (`^^xypad`)
+- **Note Picker projector** - piano keyboard for selecting notes, normalizes flats to sharps
+- **Rhythm Grid projector** - step sequencer for drum patterns
+- **Knob projector** - rotary dial for Float values with modular synth aesthetic
+- **XY Pad projector** - 2D control surface for (Float, Float) tuples
 - Context menu shows all applicable projectors (not just first)
 - Block placeholders for projectors (piano: 4 rows, rhythm: 6 rows, knob: 3 rows, xypad: 5 rows)
 
@@ -515,37 +518,29 @@ module PlayState = {
 
 **Commit:** `c65b205b8`
 
-### 6.2 Sample Loading & Graceful Degradation (Priority: HIGH)
+### 6.2 Sample Loading & Graceful Degradation ✅ COMPLETE
 
 **Current loading:** Samples load from `github:tidalcycles/dirt-samples` via Strudel's `samples()` function in the `prebake` callback.
 
-**This is standard practice**—it's what the Strudel REPL does. The samples are cached after first load.
-
-**Graceful degradation requirements:**
-- If a sample fails to load (network error, missing sample name), don't crash
-- Log error to console: `console.warn("Sample 'xyz' not found, using fallback")`
-- Options for fallback:
-  - Silent rest (the pattern continues, that beat is silent)
-  - Substitute a default click/beep sound
-  - Use a built-in bundled sample
-
-**Implementation in Strudel.re:**
-```reason
-let sound_with_fallback: string => option(pattern) =
-  s => {
-    let result = sound(s);
-    switch (result) {
-    | Some(p) => Some(p)
-    | None =>
-      // Log warning and return silent pattern or fallback
-      Js.Unsafe.js_expr("console.warn('Sample not found: ' + s)");
-      // Return a silent pattern that maintains timing
-      Some(Js.Unsafe.js_expr("silence"));
-    };
-  };
+**Implementation:** The `prebake` callback in `initStrudel()` is wrapped in try/catch:
+```javascript
+prebake: function() {
+  try {
+    return samples('github:tidalcycles/dirt-samples');
+  } catch (e) {
+    console.warn('Strudel: Failed to load dirt-samples:', e);
+    return Promise.resolve();
+  }
+}
 ```
 
-**Consider bundling essentials:** A small starter kit (bd, sd, hh, cp, piano) bundled in repo for offline reliability.
+If network fails, samples won't load but:
+- Strudel still initializes
+- `Note()` patterns (synths) still work
+- `Sample()` patterns play silence instead of crashing
+- Console shows warning for debugging
+
+**Future consideration:** Bundle a small starter kit (bd, sd, hh, cp, piano) for offline reliability.
 
 ### 6.3 Additional Sound Constructors (Priority: HIGH)
 
@@ -605,17 +600,17 @@ let bank: (string, pattern) => pattern =
 
 **Priority list:**
 
-| Constructor | Type | Strudel | Priority |
-|-------------|------|---------|----------|
-| `Gain` | `(Float, Sound)` | `.gain(n)` | HIGH |
-| `Pan` | `(Float, Sound)` | `.pan(n)` | HIGH |
-| `Bank` | `(String, Sound)` | `.bank(name)` | HIGH |
-| `JuxRev` | `Sound` | `.jux(rev)` | HIGH |
-| `Lpf` | `(Float, Sound)` | `.lpf(freq)` | MEDIUM |
-| `Hpf` | `(Float, Sound)` | `.hpf(freq)` | MEDIUM |
-| `Delay` | `(Float, Sound)` | `.delay(time)` | LOW |
-| `Room` | `(Float, Sound)` | `.room(size)` | LOW |
-| `Speed` | `(Float, Sound)` | `.speed(n)` | LOW |
+| Constructor | Type | Strudel | Status |
+|-------------|------|---------|--------|
+| `JuxRev` | `Sound` | `.jux(rev)` | ✅ DONE |
+| `Gain` | `(Float, Sound)` | `.gain(n)` | ⬜ Phase A |
+| `Pan` | `(Float, Sound)` | `.pan(n)` | ⬜ Phase A |
+| `Bank` | `(String, Sound)` | `.bank(name)` | ⬜ Phase A |
+| `Lpf` | `(Float, Sound)` | `.lpf(freq)` | ⬜ Later |
+| `Hpf` | `(Float, Sound)` | `.hpf(freq)` | ⬜ Later |
+| `Delay` | `(Float, Sound)` | `.delay(time)` | ⬜ Later |
+| `Room` | `(Float, Sound)` | `.room(size)` | ⬜ Later |
+| `Speed` | `(Float, Sound)` | `.speed(n)` | ⬜ Later |
 
 ### 6.4 Curried Standard Library (Priority: MEDIUM)
 
@@ -773,25 +768,103 @@ This requires infrastructure for source location threading and overlay rendering
 12. ✅ Knob dial projector (modular synth style)
 13. ✅ XY Pad projector (2D control surface)
 
-### Current Sprint - Strudel Parity (HIGH PRIORITY)
+### Completed - Strudel Parity
 14. ✅ **Live coding behavior** - seamless pattern updates via scheduler.setPattern (see 6.1)
-15. ⬜ **Graceful sample degradation** - fallback when samples fail to load (see 6.2)
-16. ⬜ **Additional constructors** - Gain, Pan, Bank, JuxRev (see 6.3)
-17. ⬜ **Curried stdlib functions** - pipeline-style wrappers (see 6.4)
+15. ✅ **Graceful sample degradation** - try/catch on dirt-samples loading (see 6.2)
+16. ✅ **JuxRev constructor** - opt-in stereo widening (see 6.3)
+17. ✅ **Playback cleanup** - removing Player stops audio
 
-### Next Sprint - Exploration & Visualization (MEDIUM PRIORITY)
-18. ⬜ Sample documentation in examples
-19. ⬜ Simple Sample Picker projector (dropdown)
-20. ⬜ Projector visualization Phase A (onTrigger, no source tracking)
-21. ⬜ Scale picker projector
+---
+
+## Critical Gaps for Usability
+
+### For Composing Music (Phase A - PRIORITY)
+
+These features are essential to compose even simple pieces:
+
+| Feature | Constructor | Strudel | Why Critical |
+|---------|-------------|---------|--------------|
+| **Volume control** | `Gain(Float, Sound)` | `.gain(n)` | Can't mix levels between layers |
+| **Stereo panning** | `Pan(Float, Sound)` | `.pan(n)` | Can't create stereo placement |
+| **Sample banks** | `Bank(String, Sound)` | `.bank(name)` | Stuck with default samples, can't use TR-808/909 |
+
+**Implementation:** Add to `BuiltinsADT.re`, `SoundUtil.re`, and `Strudel.re` (see 6.3 for details).
+
+### For Live Coding Performance (Phase B - PRIORITY)
+
+These features enable live performance workflows:
+
+| Feature | Description | Why Critical |
+|---------|-------------|--------------|
+| **BPM/tempo control** | Set cycles per second | Hardcoded to ~120 BPM, can't match other musicians |
+| **Global transport** | Play/pause/stop all audio | Each Player is independent, no way to stop everything |
+| **Cycle indicator** | Show position in current cycle | Can't see where in the loop you are |
+
+**BPM Implementation:**
+```reason
+// In Strudel.re - set cycles per second (default 0.5 = 120 BPM)
+let setCps: float => unit = cps =>
+  Js.Unsafe.fun_call(
+    Js.Unsafe.js_expr("window.setCps"),
+    [|Js.Unsafe.inject(Js.number_of_float(cps))|]
+  ) |> ignore;
+```
+
+**Global Transport Implementation:**
+- Add `Strudel.hushAll()` binding
+- Add keyboard shortcut (e.g., Escape or Ctrl+.) to stop all audio
+- Consider a global transport UI in the toolbar
+
+---
+
+## Implementation Phases
+
+### Phase A: Music Composition Essentials (Do First)
+
+**Goal:** Enable composing simple multi-layer pieces with proper mixing.
+
+1. ⬜ Add `Gain(Float, Sound)` constructor
+2. ⬜ Add `Pan(Float, Sound)` constructor
+3. ⬜ Add `Bank(String, Sound)` constructor
+4. ⬜ Add sample documentation in example programs
+
+**Test case when complete:**
+```
+Stack([
+  Gain((0.8, Bank(("RolandTR909", Sample("bd ~ ~ ~ bd ~ ~ ~"))))),
+  Gain((0.6, Pan((0.3, Note("c4 ~ e4 ~"))))),
+  Gain((0.4, Pan((-0.3, JuxRev(Note("g4 ~ ~ g4"))))))
+])
+```
+
+### Phase B: Live Coding Essentials (Do Second)
+
+**Goal:** Enable live performance with tempo control and global transport.
+
+1. ⬜ Add `setCps` binding for tempo control
+2. ⬜ Add global hush keyboard shortcut (Escape or Ctrl+.)
+3. ⬜ Consider: BPM input UI (could be a Knob projector on a global setting)
+4. ⬜ Consider: Cycle position indicator (simpler than onTrigger visualization)
+
+**Test case when complete:**
+- Change BPM while pattern plays - tempo changes smoothly
+- Press Escape - all audio stops immediately
+- Multiple Players can be started, global stop affects all
+
+### Phase C: Exploration & Polish (Later)
+
+5. ⬜ Simple Sample Picker projector (dropdown)
+6. ⬜ Scale picker projector
+7. ⬜ Curried stdlib functions for pipeline style (see 6.4)
+8. ⬜ Projector visualization Phase A (onTrigger, no source tracking)
 
 ### Long Term
-22. ⬜ Full Sample Browser projector
-23. ⬜ Projector visualization Phase B (source tracking)
-24. ⬜ Euclidean rhythm projector
-25. ⬜ Full piano keyboard projector
-26. ⬜ Transport controls
-27. ⬜ Additional effects: Lpf, Hpf, Delay, Room, Speed
+
+9. ⬜ Full Sample Browser projector
+10. ⬜ Projector visualization Phase B (source tracking)
+11. ⬜ Euclidean rhythm projector
+12. ⬜ Full piano keyboard projector (multi-octave)
+13. ⬜ Additional effects: Lpf, Hpf, Delay, Room, Speed
 
 ---
 
