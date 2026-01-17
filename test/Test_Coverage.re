@@ -1074,6 +1074,89 @@ in ?|},
     ],
   );
 
+let labeled_tuple_additional_error = {
+  test_case("Labeled Tuple Additional Error Test", `Quick, () => {
+    Test_Statics_Prelude.(
+      annotated_tree_test(
+        {|case () | _ => ""| {{{([], a=?)}}} => "" end|},
+        FTemp.Typ.(string()),
+        FIError.(
+          Exp.(
+            match(
+              tuple([]),
+              [
+                (Pat.wild(), string("")),
+                (
+                  Pat.(
+                    tuple(
+                      ~ann=
+                        Some(
+                          Pat(
+                            Redundant(
+                              Some(
+                                Common(
+                                  TupleLabelError({
+                                    malformed_labels: [],
+                                    duplicate_labels: [],
+                                    invalid_labels: ["a"],
+                                    typ:
+                                      FTemp.Typ.(
+                                        prod([
+                                          list(unknown(Internal)),
+                                          unknown(Internal),
+                                        ])
+                                      ),
+                                  }),
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                      [
+                        list_lit([]),
+                        tup_label(
+                          ~ann=
+                            Some(
+                              Pat(
+                                Common(
+                                  TupleLabelError({
+                                    malformed_labels: [],
+                                    duplicate_labels: [],
+                                    invalid_labels: ["a"],
+                                    typ:
+                                      FTemp.Typ.(
+                                        tup_label(
+                                          label("a"),
+                                          unknown(Internal),
+                                        )
+                                      ),
+                                  }),
+                                ),
+                              ),
+                            ),
+                          label(
+                            ~ann=
+                              Some(
+                                Pat(Common(NoType(InvalidLabel("a", [])))),
+                              ),
+                            "a",
+                          ),
+                          empty_hole(),
+                        ),
+                      ],
+                    )
+                  ),
+                  string(""),
+                ),
+              ],
+            )
+          )
+        ),
+      )
+    )
+  });
+};
+
 let function_scrutinee =
   has_errors(
     "Function Scrutinee",
@@ -1088,7 +1171,7 @@ end|},
 let type_function_scrutinee =
   has_errors(
     "Function Scrutinee",
-    {|let f: forall a -> a -> a = typfun a -> fun x -> x in
+    {|let f: poly a -> a -> a = typfun a -> fun x -> x in
 case f
 | g => g
 | {{{h}}} => h
@@ -1207,6 +1290,7 @@ let tests = (
     labeled_tuple_exhaustiveness,
     labeled_tuple_inexhaustiveness,
     labeled_tuple_redundancy,
+    labeled_tuple_additional_error,
     function_scrutinee,
     fun_labeled_tuple,
     exhaustive_ints_with_wilds,

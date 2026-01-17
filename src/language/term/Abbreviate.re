@@ -393,8 +393,7 @@ let rec abbreviate_exp = (exp: Exp.t): Exp.t => {
           flat_ellipses_term();
         };
       Ap(Forward, konst, arg);
-    | Parens(e)
-    | Probe(e, _) =>
+    | Parens(e) =>
       available := available^ - 2;
       Parens(abbreviate_exp(e));
 
@@ -617,6 +616,69 @@ let rec abbreviate_exp = (exp: Exp.t): Exp.t => {
         };
       }
 
+    | Theorem(p, e1, e2) =>
+      if (available^ < 3) {
+        indet_term;
+      } else if (available^ <= 7) {
+        Invalid("thm");
+      } else if (available^ <= 9) {
+        Invalid("theorem…");
+      } else if (available^ <= 10) {
+        Invalid("theorem…in");
+      } else if (available^ <= 14) {
+        Invalid("theorem…in…");
+      } else {
+        available := available^ - 12;
+        let p' = abbreviate_pat(p);
+        if (available^ > 3) {
+          // " = "
+          available := available^ - 3;
+          let e1' = abbreviate_exp(e1);
+          if (available^ > 4) {
+            // " in "
+            available := available^ - 4;
+            let e2' = abbreviate_exp(e2);
+            Let(p', e1', e2');
+          } else {
+            Let(
+              p',
+              e1',
+              {
+                ...e2,
+                term: indet_term,
+              },
+            );
+          };
+        } else {
+          Theorem(
+            p',
+            {
+              ...e1,
+              term: indet_term,
+            },
+            {
+              ...e2,
+              term: indet_term,
+            },
+          );
+        };
+      }
+
+    | ProofObject(t) =>
+      if (available^ < 8) {
+        indet_term;
+      } else if (available^ <= 12) {
+        Invalid("proof_object");
+      } else if (available^ <= 13) {
+        Invalid("proof_object…");
+      } else if (available^ <= 18) {
+        Invalid("proof_object…end");
+      } else {
+        available := available^ - 16;
+        let t' = abbreviate_exp(t);
+        ProofObject(t');
+      }
+
     | Use(t1, e1) =>
       if (available^ < 3) {
         indet_term;
@@ -818,6 +880,36 @@ let rec abbreviate_exp = (exp: Exp.t): Exp.t => {
         };
       }
 
+    | Forall(p, e) =>
+      if (available^ < 6) {
+        indet_term;
+      } else if (available^ <= 6) {
+        Invalid("forall");
+      } else if (available^ <= 7) {
+        Invalid("forall…");
+      } else if (available^ <= 8) {
+        Invalid("forall…→");
+      } else if (available^ <= 9) {
+        Invalid("forall…→…");
+      } else {
+        available := available^ - 7;
+        let p' = abbreviate_pat(p);
+        if (available^ > 4) {
+          // " -> "
+          available := available^ - 4;
+          let e' = abbreviate_exp(e);
+          Forall(p', e');
+        } else {
+          Forall(
+            p',
+            {
+              ...e,
+              term: indet_term,
+            },
+          );
+        };
+      }
+
     | Closure(env, exp) =>
       handle_unary(
         ~cost=1, // space between terms
@@ -983,8 +1075,7 @@ and abbreviate_pat = (pat: Pat.t): Pat.t => {
         available := available^ - 1; // space
         Constructor(name, typ);
       }
-    | Parens(p)
-    | Probe(p, _) =>
+    | Parens(p) =>
       if (available^ <= 3) {
         indet_term_pat;
       } else {
@@ -1001,6 +1092,15 @@ and abbreviate_typ = (typ: Typ.t): Typ.t => {
       term,
     };
   };
+
+  let handle_unary =
+      (~cost: int, ~make_term: Exp.t => Typ.term, t: Exp.t): Typ.term =>
+    if (available^ <= cost) {
+      indet_term_typ;
+    } else {
+      available := available^ - cost;
+      make_term(abbreviate_exp(t));
+    };
 
   let term: Typ.term =
     switch (typ |> Typ.term_of) {
@@ -1149,18 +1249,18 @@ and abbreviate_typ = (typ: Typ.t): Typ.t => {
           );
         };
       }
-    | Forall(tp, t) =>
+    | Poly(tp, t) =>
       if (available^ <= 6) {
         indet_term_typ;
       } else {
-        available := available^ - 6; // "forall"
+        available := available^ - 3; // "poly"
         let tp' = abbreviate_tpat(tp);
         if (available^ > 2) {
           available := available^ - 2; // "->"
           let t' = abbreviate_typ(t);
-          Forall(tp', t');
+          Poly(tp', t');
         } else {
-          Forall(
+          Poly(
             tp',
             {
               ...t,
@@ -1169,6 +1269,12 @@ and abbreviate_typ = (typ: Typ.t): Typ.t => {
           );
         };
       }
+    | ProofOf(e) =>
+      handle_unary(
+        ~cost=13, // "proof_of " + " end"
+        ~make_term=e' => ProofOf(e'),
+        e,
+      )
     };
   rewrap(term);
 }

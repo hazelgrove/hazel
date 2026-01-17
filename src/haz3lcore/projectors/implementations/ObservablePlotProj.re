@@ -326,10 +326,10 @@ let select_sample = (info: info): option(Sample.t) =>
   switch (info.dynamics) {
   | Some(x) =>
     switch (
-      ProbeProj.Samples.first_related_index(
+      Language.Sample.Selection.first_related_index(
         ~trimmed=false,
         ~ap_id=None,
-        x.dyn_cursor,
+        x.sample_cursor,
         x.samples,
       )
     ) {

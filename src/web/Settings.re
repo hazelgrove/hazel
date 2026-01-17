@@ -23,6 +23,7 @@ module Model = {
       elaborate: false,
       assist: true,
       dynamics: true,
+      probe_all: false,
       flip_animations: true,
       evaluation: {
         show_case_clauses: true,
@@ -104,6 +105,7 @@ module Update = {
     | SecondaryIcons
     | Statics
     | Dynamics
+    | ProbeAll
     | Assist
     | Elaborate
     | Benchmark
@@ -148,6 +150,16 @@ module Update = {
             ...settings.core,
             statics: !settings.core.dynamics || settings.core.statics,
             dynamics: !settings.core.dynamics,
+          },
+        }
+      | ProbeAll => {
+          ...settings,
+          core: {
+            ...settings.core,
+            /* Turning on probe_all requires dynamics to be on */
+            dynamics: !settings.core.probe_all || settings.core.dynamics,
+            statics: !settings.core.probe_all || settings.core.statics,
+            probe_all: !settings.core.probe_all,
           },
         }
       | Assist => {

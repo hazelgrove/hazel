@@ -209,6 +209,10 @@ and Exp: {
         | Dot(e1, e2) => Dot(exp_map_term(e1), exp_map_term(e2))
         | Let(p, e1, e2) =>
           Let(pat_map_term(p), exp_map_term(e1), exp_map_term(e2))
+        | Theorem(p, e1, e2) =>
+          Theorem(pat_map_term(p), exp_map_term(e1), exp_map_term(e2))
+        | ProofObject(t) => ProofObject(exp_map_term(t))
+        | Forall(p, e) => Forall(pat_map_term(p), exp_map_term(e))
         | FixF(p, e, env) => FixF(pat_map_term(p), exp_map_term(e), env)
         | TyAlias(tp, t, e) =>
           TyAlias(tpat_map_term(tp), typ_map_term(t), exp_map_term(e))
@@ -225,7 +229,6 @@ and Exp: {
         | Filter(f, e) => Filter(flt_map_term(f), exp_map_term(e))
         | Closure(env, e) => Closure(env, exp_map_term(e))
         | Parens(e) => Parens(exp_map_term(e))
-        | Probe(e, tag) => Probe(exp_map_term(e), tag)
         | Cons(e1, e2) => Cons(exp_map_term(e1), exp_map_term(e2))
         | ListConcat(e1, e2) =>
           ListConcat(exp_map_term(e1), exp_map_term(e2))
@@ -306,7 +309,6 @@ and Pat: {
         | TupLabel(label, e) =>
           TupLabel(pat_map_term(label), pat_map_term(e))
         | Parens(e) => Parens(pat_map_term(e))
-        | Probe(e, tag) => Probe(pat_map_term(e), tag)
         | Asc(e, t) => Asc(pat_map_term(e), typ_map_term(t))
         },
     };
@@ -356,6 +358,8 @@ and Typ: {
       Any.map_term(~f_exp, ~f_pat, ~f_typ, ~f_tpat, ~f_rul, ~f_any);
     let tpat_map_term =
       TPat.map_term(~f_exp, ~f_pat, ~f_typ, ~f_tpat, ~f_rul, ~f_any);
+    let exp_map_term =
+      Exp.map_term(~f_exp, ~f_pat, ~f_typ, ~f_tpat, ~f_rul, ~f_any);
     let rec_call = ({term, _} as exp: t) => {
       ...exp,
       term:
@@ -380,8 +384,27 @@ and Typ: {
           Sum(
             List.map(
               fun
-              | ConstructorMap.Variant(c, ids, t) =>
-                ConstructorMap.Variant(c, ids, Option.map(typ_map_term, t))
+              | ConstructorMap.Variant(c, ids, t) => {
+                  /* We turn a variant back into its original term (see MakeTerm.parse_sum_term)
+                   * in order to map over it. The main reason this was implemeted is to that
+                   * id renaming passes work. */
+                  switch (
+                    typ_map_term({
+                      term: Var(c),
+                      annotation: {
+                        ids: ids,
+                      },
+                    })
+                  ) {
+                  | {term: Var(c), annotation: {ids, _}} =>
+                    ConstructorMap.Variant(
+                      c,
+                      ids,
+                      Option.map(typ_map_term, t),
+                    )
+                  | t => BadEntry(typ_map_term(t))
+                  };
+                }
               | ConstructorMap.BadEntry(t) =>
                 ConstructorMap.BadEntry(typ_map_term(t)),
               variants,
@@ -392,7 +415,8 @@ and Typ: {
         | ProdExtension(t1, t2) =>
           ProdExtension(typ_map_term(t1), typ_map_term(t2))
         | Rec(tp, t) => Rec(tpat_map_term(tp), typ_map_term(t))
-        | Forall(tp, t) => Forall(tpat_map_term(tp), typ_map_term(t))
+        | Poly(tp, t) => Poly(tpat_map_term(tp), typ_map_term(t))
+        | ProofOf(e) => ProofOf(exp_map_term(e))
         },
     };
     x |> f_typ(rec_call);

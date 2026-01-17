@@ -13,11 +13,6 @@
 open Util;
 open Language;
 
-/* Hack: Temporary construct internal to maketerm
- * to handle probe parsing; see `tokens` below */
-let probe_wrap = ["PROBE_WRAP", "PROBE_WRAP"];
-let is_probe_wrap = (==)(probe_wrap);
-
 // TODO make less hacky
 let tokens =
   Piece.get(
@@ -26,10 +21,8 @@ let tokens =
     (t: Tile.t) => t.shards |> List.map(List.nth(t.label)),
     _ =>
       /* Hack: These act as temporary wrappers for projectors,
-       * which are retained through maketerm so as to be used in
-       * dynamics. These are inserted and removed entirely internal
-       * to maketerm. */
-      probe_wrap,
+       * given that they in-effect act as a convex wrapping form */
+      ["PROJ_WRAP", "PROJ_WRAP"],
   );
 
 [@deriving (show({with_path: false}), sexp, yojson)]
@@ -133,23 +126,47 @@ let record_term_data = (sort: Sort.t, seg: Segment.t, skel: Skel.t): unit =>
 /* Map to collect projector ids */
 let projectors: ref(Id.Map.t(Piece.projector)) = ref(Id.Map.empty);
 
-let rf_map: ref(Id.Map.t(_)) = ref(Id.Map.empty);
+/* Track IDs that are "adopted" from inner terms into outer multi-tile forms.
+ *
+ * PROBLEM: List literals and case expressions are multi-tile forms where the
+ * delimiters (`[`/`]`, `case`/`end`) combine with inner delimiters (commas,
+ * `|`/`=>` rules) to form a single term. During bottom-up parsing, the inner
+ * content is first parsed as a separate term (Tuple or Rules), creating
+ * term_data entries. When the outer delimiters are matched, the inner term
+ * is absorbed and its IDs become part of the outer term. However, the
+ * term_data entries for these adopted IDs retain stale skeleton/segment info
+ * from the inner term, breaking the invariant that term_data[id] reflects
+ * the actual term that id belongs to.
+ *
+ * SOLUTION: Track adopted IDs at absorption points (ListLit, Match, ListLit
+ * patterns), then consolidate their term_data entries to match the outer
+ * term's data after parsing completes. This is O(k) where k is the number
+ * of adopted IDs, rather than O(n) over all term_data entries.
+ *
+ * EXAMPLE: This inconsistency can cause issues for any code that relies on
+ * term_data for spatial reasoning. For instance, with `[1, 2]` formatted as:
+ *   [
+ *     1, 2
+ *   ]
+ * The comma is first parsed as part of a Tuple on row 1, creating term_data
+ * with a skeleton spanning only row 1. When `[`/`]` absorbs this into a
+ * ListLit, the comma's term_data still has the Tuple's skeleton. AutoProbe
+ * uses term_data to find terms ending on each row, so it sees a "phantom
+ * tuple" on row 1 and selects it for probing, but Arms can't find the
+ * correct term to draw decorations for. Consolidation fixes this by giving
+ * the comma the ListLit's skeleton, so lookups return the correct spatial
+ * extent.
+ *
+ * NOTE: This is somewhat ad-hoc - these absorption forms don't have first-class
+ * syntactic support, so we handle them imperatively at each absorption site.
+ * A cleaner solution would require richer syntax representation for multi-tile
+ * forms, but this targeted fix avoids that complexity. */
+let adopted_ids: ref(list(Id.t)) = ref([]);
 
 /* Strip a projector from a segment and log it in the map */
 let log_projector = (pr: Base.projector): unit => {
   projectors := Id.Map.add(pr.id, pr, projectors^);
 };
-
-/* Check if a term should be instrumented with a probe.
- * Precondition: The relevant projector must have been
- * logged before this is called */
-let should_instrument = (id: Id.t): bool =>
-  switch (Id.Map.find_opt(id, projectors^)) {
-  | Some(pr) =>
-    let (module P) = ProjectorInit.to_module(pr.kind);
-    P.dynamics;
-  | None => failwith("MakeTerm.exp: projector not found")
-  };
 
 let parse_sum_term: Typ.t => ConstructorMap.variant(Typ.t) =
   fun
@@ -208,23 +225,7 @@ let rec go_s = (s: Sort.t, skel: Skel.t, seg: Segment.t): Any.t =>
 and exp = unsorted => {
   let (term, inner_ids) = exp_term(unsorted);
   let ids = ids(unsorted) @ inner_ids;
-  //TODO(andrew): cleanup, document
-  let (term, ids) =
-    switch (Id.Map.find_opt(List.hd(ids), rf_map^)) {
-    | Some(_guy) => (
-        Probe(
-          {
-            annotation: {
-              ids: ids,
-            },
-            term,
-          },
-          Probe.empty,
-        ): TermBase.exp_term,
-        [Id.transform_variant(List.hd(ids))],
-      )
-    | None => (term, ids)
-    };
+
   let e: TermBase.exp_t =
     return(
       e => Exp(e),
@@ -251,7 +252,7 @@ and exp_term: unsorted => (Exp.term, list(Id.t)) = {
   | Op(tiles) as tm =>
     switch (tiles) {
     // single-tile case
-    | ([(id, t)], []) =>
+    | ([(_id, t)], []) =>
       switch (t) {
       | ([t], []) when Token.is_empty_tuple(t) => ret(Tuple([]))
       | ([t], []) when Token.is_wild(t) => ret(Deferral(OutsideAp))
@@ -273,12 +274,12 @@ and exp_term: unsorted => (Exp.term, list(Id.t)) = {
       | ([t], []) when Token.is_ctr(t) => ret(Constructor(t, None))
       | (["{", "}"], [Exp(body)])
       | (["(", ")"], [Exp(body)]) => ret(Parens(body))
-      | (label, [Exp(body)]) when is_probe_wrap(label) =>
-        // Temporary wrapping form to persist projector probes
-        ret(should_instrument(id) ? Probe(body, Probe.empty) : body.term)
+      | (["PROJ_WRAP", "PROJ_WRAP"], [Exp(body)]) => ret(body.term)
       | (["[", "]"], [Exp(body)]) =>
+        // ListLit absorption: inner Tuple's comma IDs become part of ListLit
         switch (body) {
         | {annotation: {ids}, term: Tuple(es)} =>
+          adopted_ids := ids @ adopted_ids^;
           // Addresses tup_labels in lists like: [l=32, 1]
           (
             ListLit(
@@ -295,15 +296,20 @@ and exp_term: unsorted => (Exp.term, list(Id.t)) = {
               ),
             ),
             ids,
-          )
+          );
         | term => ret(ListLit([term]))
         }
       | (["test", "end"], [Exp(test)]) => ret(Test(test))
+      | (["proof_object", "end"], [Exp(proof)]) =>
+        ret(ProofObject(proof))
       | (["hint", "test", "end"], [Exp(hint), Exp(test)]) =>
         ret(HintedTest(test, hint))
       | (["case", "end"], [Rul({term, annotation: {ids, _}})]) =>
+        // Match absorption: inner Rules' `|`/`=>` IDs become part of Match
         switch (term) {
-        | Rules(scrut, rules) => (Match(scrut, rules), ids)
+        | Rules(scrut, rules) =>
+          adopted_ids := ids @ adopted_ids^;
+          (Match(scrut, rules), ids);
         // If the rule parser is correct, below should be impossible
         | MultiHole(anys) => (MultiHole(anys), ids)
         | Invalid(string) => (Invalid(string), ids)
@@ -324,9 +330,12 @@ and exp_term: unsorted => (Exp.term, list(Id.t)) = {
         | (["-"], []) => UnOp(Int(Minus), r)
         | (["!"], []) => UnOp(Bool(Not), r)
         | (["fun", "->"], [Pat(pat)]) => Fun(pat, r, None, None)
+        | (["forall", "->"], [Pat(pat)]) => Forall(pat, r)
         | (["fix", "->"], [Pat(pat)]) => FixF(pat, r, None)
         | (["typfun", "->"], [TPat(tpat)]) => TypFun(tpat, r, None)
         | (["let", "=", "in"], [Pat(pat), Exp(def)]) => Let(pat, def, r)
+        | (["theorem", "=", "in"], [Pat(pat), Exp(thm)]) =>
+          Theorem(pat, thm, r)
         | (["hide", "in"], [Exp(filter)]) =>
           Filter(
             Filter({
@@ -532,23 +541,7 @@ and exp_term: unsorted => (Exp.term, list(Id.t)) = {
 and pat = unsorted => {
   let (term, inner_ids) = pat_term(unsorted);
   let ids = ids(unsorted) @ inner_ids;
-  //TODO(andrew): cleanup, document
-  let (term, ids) =
-    switch (Id.Map.find_opt(List.hd(ids), rf_map^)) {
-    | Some(_guy) => (
-        Probe(
-          {
-            annotation: {
-              ids: ids,
-            },
-            term,
-          },
-          Probe.empty,
-        ): TermBase.pat_term,
-        [Id.transform_variant(List.hd(ids))],
-      )
-    | None => (term, ids)
-    };
+
   let p =
     return(
       p => Pat(p),
@@ -571,7 +564,7 @@ and pat_term: unsorted => (Pat.term, list(Id.t)) = {
   fun
   | Op(tiles) as tm =>
     switch (tiles) {
-    | ([(id, tile)], []) =>
+    | ([(_id, tile)], []) =>
       ret(
         switch (tile) {
         | ([t], []) when Token.is_empty_tuple(t) => Tuple([])
@@ -590,11 +583,13 @@ and pat_term: unsorted => (Pat.term, list(Id.t)) = {
         | ([t], []) when Token.is_wild(t) => Wild
         | ([t], []) when Token.is_ctr(t) => Constructor(t, None)
         | (["(", ")"], [Pat(body)]) => Parens(body)
-        | (label, [Pat(body)]) when is_probe_wrap(label) =>
-          should_instrument(id) ? Probe(body, Probe.empty) : body.term
+        | (["PROJ_WRAP", "PROJ_WRAP"], [Pat(body)]) => body.term
         | (["[", "]"], [Pat(body)]) =>
+          // ListLit pattern absorption: inner Tuple's comma IDs become part of ListLit
           switch (body) {
-          | {term: Tuple(ps), _} => ListLit(ps)
+          | {term: Tuple(ps), annotation: {ids, _}} =>
+            adopted_ids := ids @ adopted_ids^;
+            ListLit(ps);
           | term => ListLit([term])
           }
         | ([t], []) when is_hole_label(t) => hole(tm)
@@ -712,11 +707,12 @@ and typ_term: unsorted => (Typ.term, list(Id.t)) = {
         | (["String"], []) => Atom(String)
         | (["Nat"], []) => Atom(Nat)
         | (["_"], []) => ExplicitNonlabel
+        | (["proof_of", "end"], [Exp(exp)]) => ProofOf(exp)
         | ([t], []) when Token.is_typ_var(t) => Var(t)
         | ([t], []) when Token.is_quoted_label(t) =>
           Label(Token.sub(t, 1, Token.length(t) - 2))
         | (["(", ")"], [Typ(body)]) => Parens(body)
-        | (label, [Typ(body)]) when is_probe_wrap(label) => body.term
+        | (["PROJ_WRAP", "PROJ_WRAP"], [Typ(body)]) => body.term
         | (["[", "]"], [Typ(body)]) => List(body)
         | ([t], []) when is_hole_label(t) => hole(tm)
         | ([t], []) => Unknown(Hole(Invalid(t)))
@@ -730,11 +726,11 @@ and typ_term: unsorted => (Typ.term, list(Id.t)) = {
     /* Type aps which would otherwise be parsed here are recognized in sum type parsing above */
     | _ => ret(hole(tm))
     }
-  /* forall and rec have to be before sum so that they bind tighter.
+  /* poly and rec have to be before sum so that they bind tighter.
    * Thus `rec A -> Left(A) + Right(B)` get parsed as `rec A -> (Left(A) + Right(B))`
    * If this is below the case for sum, then it gets parsed as an invalid form. */
-  | Pre(([(_id, (["forall", "->"], [TPat(tpat)]))], []), Typ(t)) =>
-    ret(Forall(tpat, t))
+  | Pre(([(_id, (["poly", "->"], [TPat(tpat)]))], []), Typ(t)) =>
+    ret(Poly(tpat, t))
   | Pre(([(_id, (["rec", "->"], [TPat(tpat)]))], []), Typ(t)) =>
     ret(Rec(tpat, t))
   | Pre(tiles, Typ({term: Sum(t0), annotation: {ids, _}})) as tm =>
@@ -745,19 +741,13 @@ and typ_term: unsorted => (Typ.term, list(Id.t)) = {
     }
   | Pre(tiles, Typ(t)) as tm =>
     switch (tiles) {
-    | ([(_, (["+"], []))], []) =>
-      ret(Sum([parse_sum_term(t)] |> ConstructorMap.mk(~mk_bad)))
+    | ([(_, (["+"], []))], []) => ret(Sum([parse_sum_term(t)]))
     | _ => ret(hole(tm))
     }
   | Bin(Typ(t1), tiles, Typ(t2)) as tm when is_typ_bsum(tiles) != None =>
     switch (is_typ_bsum(tiles)) {
     | Some(between_kids) =>
-      ret(
-        Sum(
-          List.map(parse_sum_term, [t1] @ between_kids @ [t2])
-          |> ConstructorMap.mk(~mk_bad),
-        ),
-      )
+      ret(Sum(List.map(parse_sum_term, [t1] @ between_kids @ [t2])))
     | None => ret(hole(tm))
     }
   | Bin(Typ(l), tiles, Typ(r)) as tm =>
@@ -838,7 +828,7 @@ and tpat_term: unsorted => TPat.term = {
         | ([t], []) when Token.is_typ_var(t) => Var(t)
         | ([t], []) when is_hole_label(t) => hole(tm)
         | ([t], []) => Invalid(t)
-        | (label, [TPat(body)]) when is_probe_wrap(label) => body.term
+        | (["PROJ_WRAP", "PROJ_WRAP"], [TPat(body)]) => body.term
         | _ => hole(tm)
         },
       )
@@ -932,15 +922,55 @@ and unsorted = (sort: Sort.t, skel: Skel.t, seg: Segment.t): unsorted => {
   };
 };
 
+/* Consolidate term_data for adopted IDs (see adopted_ids comment above).
+ * Updates each adopted ID's term_data entry to match the rep_id's entry,
+ * giving adopted IDs the correct skeleton/segment of the outer term.
+ *
+ * IMPORTANT: We preserve the original root_piece for each adopted ID.
+ * The root_piece identifies the actual tile that the ID refers to, which
+ * is needed by Arms.tiles_data to find the correct shards for decoration.
+ * Only skel, sort, and base_seg should be updated to match the outer term. */
+let consolidate_adopted = (): unit => {
+  adopted_ids^
+  |> List.iter(id => {
+       switch (Id.Map.find_opt(id, map^)) {
+       | None => ()
+       | Some(term) =>
+         let rep = Language.Any.rep_id(term);
+         switch (
+           Id.Map.find_opt(rep, term_data^),
+           Id.Map.find_opt(id, term_data^),
+         ) {
+         | (Some(rep_data), Some(old_data)) =>
+           /* Preserve the original root_piece while updating skel/sort/base_seg */
+           term_data :=
+             Id.Map.add(
+               id,
+               {
+                 ...rep_data,
+                 root_piece: old_data.root_piece,
+               },
+               term_data^,
+             )
+         | (Some(rep_data), None) =>
+           /* Fallback: if no old entry, use rep_data as-is (shouldn't happen normally) */
+           term_data := Id.Map.add(id, rep_data, term_data^)
+         | (None, _) => ()
+         };
+       }
+     });
+};
+
 let go =
   Core.Memo.general(
     ~cache_size_bound=1000,
-    (refractor_mapping, seg) => {
+    seg => {
       map := TermMap.empty;
       term_data := Id.Map.empty;
       projectors := Id.Map.empty;
-      rf_map := refractor_mapping;
+      adopted_ids := [];
       let term = exp(unsorted(Exp, Segment.skel(seg), seg));
+      consolidate_adopted();
       {
         term,
         term_data: term_data^,
@@ -997,15 +1027,7 @@ let for_projection =
     }
   );
 
-let from_zip_for_sem = (z: Zipper.t) => {
-  let refractor_mapping =
-    Id.Map.union(
-      (_, _, b) => Some(b),
-      z.refractors.manuals,
-      z.refractors.ephemerals,
-    );
-  go(refractor_mapping, Dump.to_segment(z));
-};
+let from_zip_for_sem = (z: Zipper.t) => go(Dump.to_segment(z));
 
 let from_zip_for_sem =
   Core.Memo.general(~cache_size_bound=1000, from_zip_for_sem);

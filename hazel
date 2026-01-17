@@ -8,10 +8,10 @@ set -e
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 # Path to the JS target relative to the script
-JS_TARGET="$SCRIPT_DIR/_build/default/src/hazelcli/cli.bc.js"
+JS_TARGET="$SCRIPT_DIR/_build/default/src/CLI/cli.bc.js"
 
 # Run Dune in the script's directory
-(cd "$SCRIPT_DIR" && dune build ./src/hazelcli/cli.bc.js)
+(cd "$SCRIPT_DIR" && dune build ./src/CLI/cli.bc.js)
 
 # Execute the compiled JavaScript with node
 node "$JS_TARGET" "$@"

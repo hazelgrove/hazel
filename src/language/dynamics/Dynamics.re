@@ -5,33 +5,23 @@ open Util;
  * static information gathering, but right now it specifically handles
  * sample gathering for probe projectors */
 
-/* Intercepts a probe form and adds in static semantic information
- * to guide dynamic information gathering  */
-let instrument_exp = (m: Statics.Map.t, id: Id.t, _: Probe.t): Probe.t => {
-  refs: Statics.Map.refs_in(m, id),
-};
-
-let instrument_pat = (m: Statics.Map.t, id: Id.t, _: Probe.t): Probe.t => {
-  refs: Statics.Map.bound_in(m, id),
-};
-
 module Info = {
   /* Collected samples for a given id */
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t = {
     samples: list(Sample.t),
-    dyn_cursor: DynCursor.t,
+    sample_cursor: Sample.Cursor.t,
   };
 
   let init = {
     samples: [],
-    dyn_cursor: DynCursor.init,
+    sample_cursor: Sample.Cursor.init,
   };
 
   let is_in = (di: t): option(Sample.t) =>
     List.find_opt(
       (sample: Sample.t) =>
-        DynCursor.trimmed_stack(di.dyn_cursor) == sample.call_stack,
+        Sample.Cursor.trimmed_stack(di.sample_cursor) == sample.call_stack,
       di.samples,
     );
 
@@ -39,7 +29,12 @@ module Info = {
     let find_cursor =
       List.find_opt(
         sample =>
-          DynCursor.relation(~trimmed=true, ~ap_id, di.dyn_cursor, sample).
+          Sample.Cursor.relation(
+            ~trimmed=true,
+            ~ap_id,
+            di.sample_cursor,
+            sample,
+          ).
             is_call_cursor,
         di.samples,
       );
@@ -63,4 +58,5 @@ module Map = {
 type t = {
   probe_map: Sample.Map.t,
   test_results: TestResults.t,
+  theorems: list((Id.t, string, Environment.t(Exp.t), Exp.t)),
 };

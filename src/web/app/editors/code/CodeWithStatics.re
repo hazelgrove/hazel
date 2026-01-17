@@ -9,14 +9,20 @@ open Haz3lcore;
 /* This file follows conventions in [docs/ui-architecture.md] */
 
 module Model = {
+  /* Context menu state: None = closed, Some(n) = open with item n selected */
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type context_menu_state = option(int);
+
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t = {
     // Updated:
     editor: Editor.t,
-    context_menu: bool,
+    context_menu: context_menu_state,
     statics: CachedStatics.t,
     dynamics: Language.Dynamics.Map.t,
   };
+
+  let context_menu_is_open = (model: t): bool => model.context_menu != None;
 
   let mk =
       (
@@ -27,7 +33,7 @@ module Model = {
     editor,
     statics,
     dynamics,
-    context_menu: false,
+    context_menu: None,
   };
 
   let mk_from_exp =
@@ -68,6 +74,7 @@ module Model = {
     editor_action: x => Some(x),
     undo_action: None,
     redo_action: None,
+    error_ids: model.statics.error_ids,
   };
 
   [@deriving (show({with_path: false}), sexp, yojson)]
@@ -93,11 +100,10 @@ module Update = {
         ~stitch,
         ~dynamics: Language.Dynamics.Map.t,
         ~is_dynamic_term,
-        {editor, statics, context_menu, _}: Model.t,
+        ~ana=?,
+        {editor, statics, context_menu, dynamics: _}: Model.t,
       )
       : Model.t => {
-    //TODO(andrew): resolve this cycle
-    // might be problematic not to calc editor again below...
     let editor =
       Editor.Update.calculate(
         ~settings,
@@ -112,20 +118,12 @@ module Update = {
             ~settings,
             ~stitch,
             ~ctx?,
+            ~ana?,
             ~is_dynamic_term,
             editor.state.zipper,
           )
         : statics;
     {
-      // let editor =
-      //   Editor.Update.calculate(
-      //     ~settings,
-      //     ~is_edited,
-      //     statics,
-      //     dynamics,
-      //     editor,
-      //   );
-
       editor,
       statics,
       dynamics,

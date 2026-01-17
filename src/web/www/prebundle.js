@@ -1,8 +1,9 @@
 // This file is bundled into bundle.js as part of the build process.
-import {NinjaKeys} from "ninja-keys"
-import hotkeys from "hotkeys-js"
-import Algebrite from "algebrite"
-import * as Plot from "@observablehq/plot"
+import { NinjaKeys } from "ninja-keys";
+import Worker from 'web-worker';
+import hotkeys from "hotkeys-js";
+import Algebrite from "algebrite";
+import * as Plot from "@observablehq/plot";
 
 import {registerPatchworkViewElement} from "@inkandswitch/patchwork-elements"
 import {

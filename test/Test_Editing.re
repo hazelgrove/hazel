@@ -981,10 +981,10 @@ let selection_tests = [
       @ [Action.Select(All)]
       @ [Action.Move(Line(Left))],
     ~goal={|(12345,
-    23456789,
-    345678,
-    45678,
-    ¦56789)|},
+  23456789,
+  345678,
+  45678,
+  ¦56789)|},
   ),
   test(
     ~name="Extend selection left by token",

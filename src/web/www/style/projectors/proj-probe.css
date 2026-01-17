@@ -75,6 +75,13 @@
 .code-deco .refractors svg path.child-line {
   stroke: var(--G0) !important;
 }
+/* Kind-based colors for refractor arms: probe = green, type = purple */
+.code-deco .refractors svg path.child-line.probe {
+  stroke: var(--G0) !important;
+}
+.code-deco .refractors svg path.child-line.statics {
+  stroke: #bd92cf !important;
+}
 .code-deco .refractors svg path.child-line.repl {
   stroke: var(--BR3) !important;
   /* stroke-dasharray: 0.5 2.5; */
@@ -89,7 +96,7 @@
   fill: var(--exp-base) !important;
 }
 
-.code-deco .refractors svg.shard.probe-indicated path {
+.code-deco .refractors svg.shard.refractor-indicated path {
   opacity: 0.4;
 }
 
@@ -117,7 +124,7 @@
 }
 
 .refractors svg:has(.child-line) {
-  z-index: 2; /* TODO(andrew) */
+  z-index: 2;
 }
 
 .refractors .child-line {
@@ -129,8 +136,12 @@
   stroke-dasharray: 0.5 2.5;
   opacity: 0.4;
 }
-.refractors svg:has(.repl-indicated) + svg path.child-line.dashed {
+.refractors svg:has(.refractor-indicated) + svg path.child-line.dashed {
   stroke: var(--G0) !important;
+  opacity: 1;
+}
+.refractors svg:has(.refractor-indicated) + svg path.child-line.statics.dashed {
+  stroke: #bd92cf !important;
   opacity: 1;
 }
 
@@ -138,8 +149,12 @@
   background-color: var(--exp-indicated) !important;
 }
 
-.indication-probed svg.shard.indicated > path {
+.indication-refractored svg.shard.indicated > path {
   fill: var(--exp-base);
+}
+
+.indication-refractored.statics svg.shard.indicated > path {
+  fill: hsl(281, 80%, 95%);
 }
 
 /* INLINE VIEW */
@@ -231,9 +246,9 @@
   --original-bg: var(--pat-indicated);
   color: var(--SAND);
 }
-.overlays .projector.probe.error:not(.selected) .num-samples {
+/* .overlays .projector.probe.error:not(.selected) .num-samples {
   --original-bg: var(--R1);
-}
+} */
 .overlays .projector.probe.selected .num-samples {
   --original-bg: var(--num-samples);
   color: black;
@@ -277,41 +292,6 @@
 }
 .projector.probe .pin {
   background-color: oklch(0.8 0.18 201.83);
-}
-.live-env-header .pin-icon {
-  height: 1.3em;
-  width: 1.3em;
-  border-radius: 1em;
-  filter: invert(1) saturate(0) brightness(1.5);
-  background: url(../../img/noun-pinned-1560993.svg) #00ffff;
-  background-size: 70%;
-  background-position: center;
-  background-repeat: no-repeat;
-  scale: 0.75;
-}
-.live-env-header:hover .pin-icon {
-  filter: invert(1) brightness(3) saturate(0.4);
-}
-.live-env-header.pinned .pin-icon {
-  filter: invert(1) brightness(1.5);
-}
-
-.live-env-header {
-  margin: 0.2em 0.5em;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  /* background-color: #c3af7a; */
-  outline: 0.6px solid var(--BR4);
-  border-radius: 1em;
-  width: fit-content;
-  padding: 0 0.3em;
-  gap: 0.1em;
-  color: black;
-}
-
-.live-env-header:hover {
-  background-color: var(--T3);
 }
 
 /* OFFSIDE VIEW */
@@ -595,20 +575,12 @@
   background-color: #d6eed6;
 }
 
-.projector.probe.indicated .live-offside.Single .sample:has(.value.cursor) {
-  border-bottom: 1px solid var(--G0);
+.projector.probe.indicated .live-offside:focus .sample:has(.value.cursor) {
+  outline: 1.5px solid var(--R1);
   background-color: oklch(from var(--bkg) calc(l * 0.96) calc(c + 0.04) h);
 }
-.projector.probe.indicated
-  .live-offside.Single:focus
-  .sample:has(.value.cursor) {
-  border-bottom: 1px solid var(--R1);
-}
-.projector.probe.indicated .live-offside.Many .sample:has(.value.cursor) {
+.projector.probe.indicated .live-offside .sample:has(.value.cursor) {
   outline: 1.5px solid var(--G0);
-}
-.projector.probe.indicated .live-offside.Many:focus .sample:has(.value.cursor) {
-  outline: 1.5px solid var(--R1);
 }
 
 .live-offside .sample:hover {
@@ -697,13 +669,13 @@
   color: var(--PAT);
 }
 
-.live-offside.Many .sample:has(.value.cursor-unrelated) .code-text .token {
+/* .live-offside.Many .sample:has(.value.cursor-unrelated) .code-text .token {
   color: white;
-}
+} */
 
-/* LIVE ENV */
+/* SAMPLE CONTEXT MENU (dropdown) */
 
-.live-offside .sample-dropdown {
+.live-offside .sample-context-menu {
   border-radius: 0 0.2em 0.2em 0.2em;
   background-color: var(--BR1);
   display: none;
@@ -715,16 +687,99 @@
   border-bottom: 1px solid var(--BR2);
 }
 
+/* Context actions section */
+.sample-context-menu .context-actions {
+  display: flex;
+  flex-direction: row;
+  gap: 0.6em;
+  padding: 0.2em 0.5em;
+}
+
+.sample-context-menu .action-item {
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  /* outline: 0.6px solid var(--BR4); */
+  border-radius: 1em;
+  width: fit-content;
+  padding: 0 0.3em;
+  gap: 0.1em;
+  color: black;
+  white-space: nowrap;
+}
+
+.sample-context-menu .action-item:hover {
+  background-color: var(--T3);
+}
+
+.sample-context-menu .action-item .shortcut {
+  margin-left: 0.3em;
+  padding: 0 0.3em;
+  font-size: 0.8em;
+  opacity: 0.5;
+  background-color: var(--T2);
+  border-radius: 0.2em;
+}
+
+.sample-context-menu .action-item.pinned .pin-icon {
+  filter: invert(1) brightness(1.5);
+}
+
+.sample-context-menu .action-item .pin-icon {
+  height: 1.3em;
+  width: 1.3em;
+  border-radius: 1em;
+  filter: invert(1) saturate(0) brightness(1.5);
+  background: url(../../img/noun-pinned-1560993.svg) #00ffff;
+  background-size: 70%;
+  background-position: center;
+  background-repeat: no-repeat;
+  scale: 0.75;
+}
+
+.sample-context-menu .action-item .step-into-icon {
+  height: 1.3em;
+  width: 1.3em;
+  border-radius: 1em;
+  filter: invert(1) saturate(0) brightness(1.5);
+  background: url(../../img/noun-microscope-7023456.svg) #00ffff;
+  background-size: 70%;
+  background-position: center;
+  background-repeat: no-repeat;
+  scale: 0.75;
+}
+
+.sample-context-menu .action-item:hover .pin-icon {
+  filter: invert(1) brightness(3) saturate(0.4);
+}
+
 .live-offside .live-env {
   padding: 0.2em 0.55em;
   background-color: var(--live-env-bkg);
 }
-.live-offside * + .live-env {
+
+.sample-context-menu .context-actions + .environment-section .live-env {
   border-top: 0.6px solid var(--BR3);
 }
 
-.live-offside .sample-dropdown:hover {
-  display: flex;
+/* Require .indicated on probe AND .cursor on value for menu to appear */
+.projector.probe.indicated
+  .live-offside:focus
+  .sample:has(.value.cursor):hover
+  .sample-context-menu,
+.projector.probe.indicated
+  .live-offside:focus
+  .sample:has(.value.cursor)
+  .sample-context-menu.dropdown-active {
+  display: block;
+}
+.projector.probe.indicated
+  .sample:has(.value.cursor):hover
+  .sample-context-menu:empty,
+.projector.probe.indicated
+  .sample:has(.value.cursor)
+  .sample-context-menu.dropdown-active:empty {
+  display: none;
 }
 
 .live-offside .live-env .live-env-entry {
@@ -735,13 +790,6 @@
   color: var(--GB0);
   font-family: var(--code-font);
   font-size: var(--base-font-size);
-}
-
-.projector.probe.indicated .sample:hover .sample-dropdown {
-  display: block;
-}
-.projector.probe.indicated .sample:hover .sample-dropdown:empty {
-  display: none;
 }
 
 .projector.probe .nav-arrow {
@@ -761,9 +809,9 @@
 .projector.probe .nav-arrow {
   filter: invert(1) brightness(0.7) sepia(1) hue-rotate(61deg) saturate(0.6);
 }
-.projector.probe.Pat .nav-arrow {
+/* .projector.probe.Pat .nav-arrow {
   filter: invert(1) brightness(0.7) sepia(1) hue-rotate(141deg) saturate(0.6);
-}
+} */
 
 .projector.probe:not(.indicated) .nav-arrow {
   pointer-events: none;
@@ -785,4 +833,29 @@
 }
 .projector.probe .live-offside .sample:has(.value.after) {
   background-color: oklch(0.94 0.03 254.38);
+}
+
+/* Indicator explaining why no samples are shown */
+.empty-status {
+  cursor: pointer;
+  filter: sepia(1);
+  /* scale: 0.8; */
+}
+.empty-status.no-samples {
+  cursor: default;
+}
+
+/* Animated spinner while waiting for evaluation */
+.empty-status.evaluating {
+  cursor: wait;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
 }

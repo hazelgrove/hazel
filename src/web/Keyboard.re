@@ -28,20 +28,19 @@ let handle_key_event = (k: Key.t): option(Action.t) => {
     | (Up, "ArrowRight") => now(Move(Local(Right, ByChar)))
     | (Up, "ArrowUp") => now(Move(Vertical(Up)))
     | (Up, "ArrowDown") => now(Move(Vertical(Down)))
-    | (Up, "Home") => now(Move(Start))
-    | (Up, "End") => now(Move(End))
+    | (Up, "Home") => now(Move(Line(Left)))
+    | (Up, "End") => now(Move(Line(Right)))
     | (Up, "Backspace") => now(Destruct(Left))
     | (Up, "Delete") => now(Destruct(Right))
     | (Up, "Escape") => now(Unselect(None))
-    | (Up, "F8") => now(Refractor(ProbeJump))
     | (Up, "F12") => now(Move(Goal(BindingSiteOfIndicatedVar)))
     | (Down, "Tab") => now(Move(Goal(Hole(Left))))
     | (Down, "ArrowLeft") => now(Select(Resize(Local(Left, ByToken))))
     | (Down, "ArrowRight") => now(Select(Resize(Local(Right, ByToken))))
     | (Down, "ArrowUp") => now(Select(Resize(Vertical(Up))))
     | (Down, "ArrowDown") => now(Select(Resize(Vertical(Down))))
-    | (Down, "Home") => now(Select(Resize(Start)))
-    | (Down, "End") => now(Select(Resize(End)))
+    | (Down, "Home") => now(Select(Resize(Line(Left))))
+    | (Down, "End") => now(Select(Resize(Line(Right))))
     | (_, "Enter") => now(Insert(Token.linebreak))
     | _ when String.length(key) == 1 =>
       /* Note: length==1 prevent specials like
@@ -55,7 +54,7 @@ let handle_key_event = (k: Key.t): option(Action.t) => {
     | "ArrowRight" => now(Select(Resize(Line(Right))))
     | "ArrowUp" => now(Select(Resize(Start)))
     | "ArrowDown" => now(Select(Resize(End)))
-    | "e" => now(Refractor(ToggleProbeREPL))
+    | "e" => now(Probe(ToggleAuto))
     | _ => None
     }
   | {key: D(key), sys: PC, shift: Down, meta: Up, ctrl: Down, alt: Up} =>
@@ -66,13 +65,14 @@ let handle_key_event = (k: Key.t): option(Action.t) => {
     | "ArrowDown" => now(Select(Resize(Vertical(Down))))
     | "Home" => now(Select(Resize(Start)))
     | "End" => now(Select(Resize(End)))
+    | "e" => now(Probe(ToggleAuto))
     | _ => None
     }
   | {key: D(key), sys: Mac, shift: Up, meta: Down, ctrl: Up, alt: Up} =>
     switch (key) {
     | "d" => now(Select(Term(Current)))
     | "a" => now(Select(All))
-    | "e" => now(Refractor(ToggleProbeManual))
+    | "e" => now(Probe(ToggleManual))
     | "/" => Some(Buffer(Set(TyDi)))
     | "ArrowLeft" => now(Move(Line(Left)))
     | "ArrowRight" => now(Move(Line(Right)))
@@ -85,7 +85,7 @@ let handle_key_event = (k: Key.t): option(Action.t) => {
     switch (key) {
     | "d" => now(Select(Term(Current)))
     | "a" => now(Select(All))
-    | "e" => now(Refractor(ToggleProbeManual))
+    | "e" => now(Probe(ToggleManual))
     | "/" => Some(Buffer(Set(TyDi)))
     | "ArrowLeft" => now(Move(Local(Left, ByToken)))
     | "ArrowRight" => now(Move(Local(Right, ByToken)))
@@ -104,16 +104,11 @@ let handle_key_event = (k: Key.t): option(Action.t) => {
   | {key: D("ƒ"), sys: Mac, shift: Up, meta: Up, ctrl: Up, alt: Down} =>
     /* Curly ƒ is what holding option turns f into on Mac */
     Some(Project(SetIndicated(Specific(Fold))))
-  | {key: D("v"), sys: PC, shift: Up, meta: Up, ctrl: Up, alt: Down} =>
-    Some(Project(SetIndicated(Specific(Probe))))
-  | {key: D("√"), sys: Mac, shift: Up, meta: Up, ctrl: Up, alt: Down} =>
-    /* √ is what holding option turns f into on Mac */
-    Some(Project(SetIndicated(Specific(Probe))))
   | {key: D("t"), sys: PC, shift: Up, meta: Up, ctrl: Up, alt: Down} =>
-    Some(Project(SetIndicated(Specific(Info))))
+    Some(Probe(ToggleStatics))
   | {key: D("†"), sys: Mac, shift: Up, meta: Up, ctrl: Up, alt: Down} =>
     /* † is what holding option turns t into on Mac */
-    Some(Project(SetIndicated(Specific(Info))))
+    Some(Probe(ToggleStatics))
   | {key: D("l"), sys: PC, shift: Up, meta: Up, ctrl: Up, alt: Down} =>
     Some(Project(SetIndicated(ChooseLivelit)))
   | {key: D("¬"), sys: Mac, shift: Up, meta: Up, ctrl: Up, alt: Down} =>
@@ -125,7 +120,6 @@ let handle_key_event = (k: Key.t): option(Action.t) => {
     switch (key) {
     | "ArrowLeft" => now(Move(Local(Left, ByToken)))
     | "ArrowRight" => now(Move(Local(Right, ByToken)))
-    | "ArrowUp" => now(Refractor(ProbeJump))
     | _ => None
     }
   | _ => None

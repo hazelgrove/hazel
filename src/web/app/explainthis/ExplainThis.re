@@ -398,7 +398,6 @@ let example_view =
 let rec bypass_parens_and_annot_pat = (pat: Pat.t) => {
   switch (pat.term) {
   | Parens(p)
-  | Probe(p, _)
   | Asc(p, _) => bypass_parens_and_annot_pat(p)
   | _ => pat
   };
@@ -406,16 +405,14 @@ let rec bypass_parens_and_annot_pat = (pat: Pat.t) => {
 
 let rec bypass_parens_pat = (pat: Pat.t) => {
   switch (pat.term) {
-  | Parens(p)
-  | Probe(p, _) => bypass_parens_pat(p)
+  | Parens(p) => bypass_parens_pat(p)
   | _ => pat
   };
 };
 
 let rec bypass_parens_exp = (exp: Exp.t) => {
   switch (exp.term) {
-  | Parens(e)
-  | Probe(e, _) => bypass_parens_exp(e)
+  | Parens(e) => bypass_parens_exp(e)
   | _ => exp
   };
 };
@@ -509,7 +506,7 @@ let get_doc =
             editor,
             statics: CachedStatics.empty,
             dynamics: Dynamics.Map.empty,
-            context_menu: false,
+            context_menu: None,
           },
         );
       let example_view =
@@ -1143,7 +1140,6 @@ let get_doc =
         | TupLabel(_)
         | Invalid(_)
         | Parens(_)
-        | Probe(_)
         | Label(_)
         | ExplicitNonlabel
         | Asc(_) => default // Shouldn't get hit?
@@ -1731,9 +1727,56 @@ let get_doc =
         | Label(_)
         | Invalid(_) => default // Shouldn't get hit
         | Parens(_)
-        | Probe(_) => default // Shouldn't get hit?
         | Asc(_) => default // Shouldn't get hit?
         };
+      | Theorem(pat, thm, body) =>
+        let pat_id = List.nth(IdTagged.ids(pat), 0);
+        let thm_id = List.nth(IdTagged.ids(thm), 0);
+        let body_id = List.nth(IdTagged.ids(body), 0);
+        get_message(
+          ~colorings=
+            TheoremExp.test_exp_coloring_ids(~body_id, ~pat_id, ~thm_id),
+          ~format=
+            Some(
+              msg =>
+                Printf.sprintf(
+                  Scanf.format_from_string(msg, "%s%s"),
+                  Id.to_string(pat_id),
+                  Id.to_string(thm_id),
+                ),
+            ),
+          TheoremExp.tests,
+        );
+      | ProofObject(exp) =>
+        let typ_id = List.nth(IdTagged.ids(exp), 0);
+        get_message(
+          ~colorings=ProofObjectExp.proof_of_exp_coloring_ids(~typ_id),
+          ~format=
+            Some(
+              msg =>
+                Printf.sprintf(
+                  Scanf.format_from_string(msg, "%s"),
+                  Id.to_string(typ_id),
+                ),
+            ),
+          ProofObjectExp.proof_of_exps,
+        );
+      | Forall(pat, typ) =>
+        let pat_id = List.nth(IdTagged.ids(pat), 0);
+        let body_id = List.nth(IdTagged.ids(typ), 0);
+        get_message(
+          ~colorings=ForallExp.forall_exp_coloring_ids(~pat_id, ~body_id),
+          ~format=
+            Some(
+              msg =>
+                Printf.sprintf(
+                  Scanf.format_from_string(msg, "%s%s"),
+                  Id.to_string(pat_id),
+                  Id.to_string(body_id),
+                ),
+            ),
+          ForallExp.forall,
+        );
       | FixF(pat, body, _) =>
         message_single(
           FixFExp.single(
@@ -1933,8 +1976,7 @@ let get_doc =
             ),
           TestExp.tests,
         );
-      | Parens(term)
-      | Probe(term, _) => get_message_exp(term.term) // No Special message?
+      | Parens(term) => get_message_exp(term.term) // No Special message?
       | HintedTest(body, hint) =>
         let hint_id = List.nth(IdTagged.ids(hint), 0);
         let body_id = List.nth(IdTagged.ids(body), 0);
@@ -2398,8 +2440,7 @@ let get_doc =
         TypAnnPat.typann,
       );
     | Invalid(_) => simple("Not a valid pattern")
-    | Parens(_)
-    | Probe(_) =>
+    | Parens(_) =>
       // Shouldn't be hit?
       default
     }
@@ -2429,11 +2470,11 @@ let get_doc =
           ),
         ListTyp.list,
       );
-    | Forall(tpat, typ) =>
+    | Poly(tpat, typ) =>
       let tpat_id = List.nth(IdTagged.ids(tpat), 0);
       let tbody_id = List.nth(IdTagged.ids(typ), 0);
       get_message(
-        ~colorings=ForallTyp.forall_typ_coloring_ids(~tpat_id, ~tbody_id),
+        ~colorings=PolyTyp.poly_typ_coloring_ids(~tpat_id, ~tbody_id),
         ~format=
           Some(
             msg =>
@@ -2443,7 +2484,7 @@ let get_doc =
                 Id.to_string(tbody_id),
               ),
           ),
-        ForallTyp.forall,
+        PolyTyp.poly,
       );
     | Rec(tpat, typ) =>
       let tpat_id = List.nth(IdTagged.ids(tpat), 0);
@@ -2460,6 +2501,20 @@ let get_doc =
               ),
           ),
         RecTyp.rec_,
+      );
+    | ProofOf(exp) =>
+      let body_id = List.nth(IdTagged.ids(exp), 0);
+      get_message(
+        ~colorings=ProofOfTyp.proof_of_typ_coloring_ids(~body_id),
+        ~format=
+          Some(
+            msg =>
+              Printf.sprintf(
+                Scanf.format_from_string(msg, "%s"),
+                Id.to_string(body_id),
+              ),
+          ),
+        ProofOfTyp.proof_of,
       );
     | Arrow(arg, result) =>
       let arg_id = List.nth(IdTagged.ids(arg), 0);

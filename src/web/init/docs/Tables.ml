@@ -624,15 +624,10 @@ let out : string * Haz3lcore.PersistentSegment.t =
          Exp)(in_(Pat Exp))(nibs(((shape Convex)(sort Exp))((shape(Concave \
          40))(sort Exp))))))(shards(0 1 2))(children(((Secondary((id \
          838c4a91-b009-4b25-a98d-2d36b2165be4)(content(Whitespace\" \
-         \"))))(Projector((id 64e670ea-4b90-402c-847f-d62cd959e8f3)(kind \
-         Info)(syntax(Tile((id \
-         7ae26049-b3b3-43e1-bf5f-043bdbbcbd60)(label(\"(\"\")\"))(mold((out \
-         Pat)(in_(Pat))(nibs(((shape Convex)(sort Pat))((shape Convex)(sort \
-         Pat))))))(shards(0 1))(children(((Tile((id \
+         \"))))(Tile((id \
          52ff5a03-a0e5-4ed0-9e9b-57cd11d984fd)(label(with_average))(mold((out \
          Pat)(in_())(nibs(((shape Convex)(sort Pat))((shape Convex)(sort \
-         Pat))))))(shards(0))(children())))))))))(model \
-         Expected)))(Secondary((id \
+         Pat))))))(shards(0))(children())))(Secondary((id \
          b506dead-d22d-4ab8-8399-b61a85775eee)(content(Whitespace\" \
          \")))))((Secondary((id \
          1c62e682-98f9-4b9a-90a3-603694c56fe6)(content(Whitespace\" \
@@ -3018,55 +3013,118 @@ let out : string * Haz3lcore.PersistentSegment.t =
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children()))))";
       backup_text =
-        "typeGradebookEntry=(name=String,final=Int)inletgradebook:[GradebookEntry]=[(\"Alice\",87),(\"Bob\",93)]in^^probe(gradebook.final);letaverage=^^fold(fun(ns:[Int])->float_of_int(fold_left(ns,0))/.float_of_int(length(ns)))inletgradebook_with_average=map(gradebook,fune:GradebookEntry->let^^type(with_average)=e...(quiz_average=to_lvs(omit_labels(e,`name`))|>filter(_,fun(label,score):^^fold((label=String,value=Int))->string_match(\"quiz.*\",label))|>map(_,fune->e.value)|>average)in^^probe(with_average))in^^probe(gradebook_with_average.quiz_average);letleaderboard=[(level=\"forest\",score=1200),(level=\"desert\",score=1300)]inlet^^probe(by_level)=group_by_label(leaderboard,`level`)in^^probe(by_level.forest);^^probe(by_level.cave);^^probe(by_level.desert).score;typeDailySighting=(day=Int,moose=Bool)inletsightings:[DailySighting]=[(1,^^check(false)),(9,^^check(false))]inletlvs:[(label=String,value=Bool)]=flat_map(sightings,funsighting:^^fold((day=Int,moose=Bool))->to_lvs(omit_labels(sighting,`day`)))inletcounts:[String]->[(String,Int)]=^^fold(funelems->caseelems|[]=>letrest=counts(tl)incaserest|[]=>ifstring_eq(prev,hd)then(prev,count+1)::tlelse(hd,1)::restendend)inletsighting_counts=filter(lvs,fun(label=l,value=v)->v).label|>sort(fun(a,b)->string_compare(a,b),_)|>countsin^^probe(sighting_counts)";
+        "# Sample: Quiz scores from multiple students #\n\
+         type GradebookEntry = (\n\
+         name=String, \n\
+         age=Int, \n\
+         quiz1=Int, \n\
+         quiz2=Int, \n\
+         quiz3=Int, \n\
+         quiz4=Int, \n\
+         final=Int\n\
+         ) in\n\n\
+         let gradebook : [GradebookEntry] = [\n\
+         (\"Alice\", 12, 8, 9, 7, 8, 87),\n\
+         (\"Bob\", 17,  6, 8, 8, 7, 85),\n\
+         (\"Alice\", 13, 9, 10, 8, 8, 90),\n\
+         (\"Charlie\", 14, 7, 9, 9, 6, 77),\n\
+         (\"Bob\", 18, 10, 6, 6, 6, 93)\n\
+         ] in\n\n\
+         # Projection over Lists of Labeled Tuples #\n\
+         # Pull out all final exam scores using projection over the table #\n\
+         ^^probe(gradebook.final);\n\n\
+         # The to_lvs operation on labeled tuples converts them to a list of \
+         (label, value) entries. #\n\
+         # We can map this over a table to do things like extracting all quiz \
+         scores and compute an average. #\n\
+         let average = ^^fold(fun (ns: [Int]) -> float_of_int(fold_left(ns, \
+         int_plus, 0))  /. float_of_int(length(ns))) in\n\
+         let gradebook_with_average = \n\
+         map(gradebook,\n\
+         fun e: GradebookEntry ->\n\
+         let ^^statics(with_average) = \n\
+         e ... (quiz_average=\n\
+         to_lvs(omit_labels(e, `name`))\n\
+         |> filter(_, fun (label, score):^^fold((label=String, value=Int)) -> \
+         string_match(\"quiz.*\", label))\n\
+         |> map(_, fun e -> e.value)\n\
+         |> average)\n\
+         in ^^probe(with_average))\n\
+         in\n\
+         ^^probe(gradebook_with_average.quiz_average);\n\n\
+         # `group_by_label`: Group records by a label's value and pivot into a \
+         tuple of lists #\n\
+         # Example: Game leaderboard entries grouped by level #\n\
+         let leaderboard = [\n\
+         (level=\"forest\", player=\"Aria\", score=1200),\n\
+         (level=\"desert\", player=\"Ben\", score=900),\n\
+         (level=\"forest\", player=\"Cleo\", score=1500),\n\
+         (level=\"cave\", player=\"Dana\", score=700),\n\
+         (level=\"desert\", player=\"Eli\", score=1300)\n\
+         ] in\n\n\
+         let ^^probe(by_level) = group_by_label(leaderboard, `level`) in\n\
+         ^^probe(by_level.forest);\n\
+         ^^probe(by_level.cave);\n\
+         ^^probe(by_level.desert).score;\n\n\
+         # Example: Wildlife Tracking Grid of Species Sightings #\n\
+         # Each row represents presence/absence of species seen by a camera on \
+         a given day #\n\
+         type DailySighting = (day=Int, fox=Bool, deer=Bool, rabbit=Bool, \
+         bear=Bool, owl=Bool, raccoon=Bool, wolf=Bool, moose=Bool) in\n\
+         let sightings : [DailySighting] = [\n\
+         (1, ^^check(true), ^^check(false), ^^check(true), ^^check(false), \
+         ^^check(false), ^^check(true), ^^check(false), ^^check(false)),\n\
+         (2, ^^check(false), ^^check(true), ^^check(true), ^^check(false), \
+         ^^check(true), ^^check(false), ^^check(false), ^^check(false)),\n\
+         (3, ^^check(true), ^^check(false), ^^check(false), ^^check(false), \
+         ^^check(true), ^^check(false), ^^check(false), ^^check(false)),\n\
+         (4, ^^check(false), ^^check(false), ^^check(true), ^^check(false), \
+         ^^check(false), ^^check(false), ^^check(false), ^^check(false)),\n\
+         (5, ^^check(true), ^^check(false), ^^check(false), ^^check(false), \
+         ^^check(false), ^^check(true), ^^check(false), ^^check(false)),\n\
+         (6, ^^check(false), ^^check(true), ^^check(false), ^^check(true), \
+         ^^check(false), ^^check(false), ^^check(false), ^^check(true)),\n\
+         (7, ^^check(false), ^^check(false), ^^check(true), ^^check(false), \
+         ^^check(false), ^^check(false), ^^check(true), ^^check(false)),\n\
+         (8, ^^check(true), ^^check(false), ^^check(true), ^^check(false), \
+         ^^check(false), ^^check(false), ^^check(false), ^^check(false)),\n\
+         (9, ^^check(false), ^^check(true), ^^check(false), ^^check(false), \
+         ^^check(true), ^^check(false), ^^check(false), ^^check(false))\n\
+         ] in\n\
+         # to_lvs the grid into a long format table for analysis #\n\
+         let lvs : [(label=String, value=Bool)] = flat_map(sightings, fun \
+         sighting:^^fold((day=Int, fox=Bool, deer=Bool, rabbit=Bool, \
+         bear=Bool, owl=Bool, raccoon=Bool, wolf=Bool, moose=Bool)) -> \
+         to_lvs(omit_labels(sighting, `day`))) in\n\
+         let counts : [String] -> [(String, Int)] = ^^fold(fun elems -> case \
+         elems\n\
+         | [] => []\n\
+         | (hd :: tl) => \n\
+         let rest = counts(tl) in\n\
+         case rest\n\
+         | [] => [(hd, 1)]\n\
+         | ((prev, count)::tl) => \n\
+         if string_eq(\n\
+         prev,\n\
+         hd) \n\
+         then (prev,count+1) :: tl else (hd, 1) :: rest \n\
+         end \n\
+         end) in                  \n\
+         # Show counts for each species#\n\
+         let sighting_counts =   \n\
+         filter(lvs, fun (label=l, value=v) -> v).label\n\
+         |> sort(fun (a,b) -> string_compare(a,b), _)\n\
+         |> counts \n\
+         in ^^probe(sighting_counts)";
       refractors =
-        "((1977d0b9-81e3-40c0-bea7-ae466451f758((id \
-         1977d0b9-81e3-40c0-bea7-ae466451f759)(kind Probe)(syntax(Tile((id \
-         d1f6ca84-f4ee-4c4d-94b4-6c7b331c012f)(label(\"(\"\")\"))(mold((out \
-         Any)(in_(Any))(nibs(((shape Convex)(sort Any))((shape Convex)(sort \
-         Any))))))(shards(0 1))(children(((Grout((id \
-         00000000-0000-0000-0000-000000000000)(shape \
-         Convex)))))))))(model\"()\")))(387d3f19-18d3-4f81-99a7-0a0d184d8373((id \
-         387d3f19-18d3-4f81-99a7-0a0d184d8374)(kind Probe)(syntax(Tile((id \
-         ea06d21c-be48-451d-a22a-b40a16d15715)(label(\"(\"\")\"))(mold((out \
-         Any)(in_(Any))(nibs(((shape Convex)(sort Any))((shape Convex)(sort \
-         Any))))))(shards(0 1))(children(((Grout((id \
-         00000000-0000-0000-0000-000000000000)(shape \
-         Convex)))))))))(model\"()\")))(613832c1-26a1-4c86-8068-21796d819515((id \
-         613832c1-26a1-4c86-8068-21796d819516)(kind Probe)(syntax(Tile((id \
-         e7b90c4d-4c05-492d-81a0-ffd9c2a31ec1)(label(\"(\"\")\"))(mold((out \
-         Any)(in_(Any))(nibs(((shape Convex)(sort Any))((shape Convex)(sort \
-         Any))))))(shards(0 1))(children(((Grout((id \
-         00000000-0000-0000-0000-000000000000)(shape \
-         Convex)))))))))(model\"()\")))(7e473f77-91c8-44f2-bb82-8bec41c8e126((id \
-         7e473f77-91c8-44f2-bb82-8bec41c8e127)(kind Probe)(syntax(Tile((id \
-         df2bce4e-00a5-4e3c-ae01-48200f406a99)(label(\"(\"\")\"))(mold((out \
-         Any)(in_(Any))(nibs(((shape Convex)(sort Any))((shape Convex)(sort \
-         Any))))))(shards(0 1))(children(((Grout((id \
-         00000000-0000-0000-0000-000000000000)(shape \
-         Convex)))))))))(model\"()\")))(835fa6f7-4213-431a-95a2-f277ea410c94((id \
-         835fa6f7-4213-431a-95a2-f277ea410c95)(kind Probe)(syntax(Tile((id \
-         79807e95-0fa2-4834-a8d2-34f4e4ffe67f)(label(\"(\"\")\"))(mold((out \
-         Any)(in_(Any))(nibs(((shape Convex)(sort Any))((shape Convex)(sort \
-         Any))))))(shards(0 1))(children(((Grout((id \
-         00000000-0000-0000-0000-000000000000)(shape \
-         Convex)))))))))(model\"()\")))(b25666ac-eb44-4310-be3f-7932a3e32e14((id \
-         b25666ac-eb44-4310-be3f-7932a3e32e15)(kind Probe)(syntax(Tile((id \
-         7e869c5e-7de2-4ce5-8265-0ac5914da353)(label(\"(\"\")\"))(mold((out \
-         Any)(in_(Any))(nibs(((shape Convex)(sort Any))((shape Convex)(sort \
-         Any))))))(shards(0 1))(children(((Grout((id \
-         00000000-0000-0000-0000-000000000000)(shape \
-         Convex)))))))))(model\"()\")))(d2d2a2ef-dd56-4e1c-b2cf-bf3c0a58e9c2((id \
-         d2d2a2ef-dd56-4e1c-b2cf-bf3c0a58e9c3)(kind Probe)(syntax(Tile((id \
-         28368bb6-976d-43e7-a507-bd53d9c33cdc)(label(\"(\"\")\"))(mold((out \
-         Any)(in_(Any))(nibs(((shape Convex)(sort Any))((shape Convex)(sort \
-         Any))))))(shards(0 1))(children(((Grout((id \
-         00000000-0000-0000-0000-000000000000)(shape \
-         Convex)))))))))(model\"()\")))(d5146269-9376-48e7-b7dc-f6cc61f8e2fe((id \
-         d5146269-9376-48e7-b7dc-f6cc61f8e2ff)(kind Probe)(syntax(Tile((id \
-         6af01d88-14e2-412a-9569-b45e704a6b76)(label(\"(\"\")\"))(mold((out \
-         Any)(in_(Any))(nibs(((shape Convex)(sort Any))((shape Convex)(sort \
-         Any))))))(shards(0 1))(children(((Grout((id \
-         00000000-0000-0000-0000-000000000000)(shape \
-         Convex)))))))))(model\"()\"))))";
+        "((1977d0b9-81e3-40c0-bea7-ae466451f758((kind \
+         Probe)(model\"()\")))(387d3f19-18d3-4f81-99a7-0a0d184d8373((kind \
+         Probe)(model\"()\")))(52ff5a03-a0e5-4ed0-9e9b-57cd11d984fd((kind \
+         Statics)(model Expected)))(613832c1-26a1-4c86-8068-21796d819515((kind \
+         Probe)(model\"()\")))(7e473f77-91c8-44f2-bb82-8bec41c8e126((kind \
+         Probe)(model\"()\")))(835fa6f7-4213-431a-95a2-f277ea410c94((kind \
+         Probe)(model\"()\")))(b25666ac-eb44-4310-be3f-7932a3e32e14((kind \
+         Probe)(model\"()\")))(d2d2a2ef-dd56-4e1c-b2cf-bf3c0a58e9c2((kind \
+         Probe)(model\"()\")))(d5146269-9376-48e7-b7dc-f6cc61f8e2fe((kind \
+         Probe)(model\"()\"))))";
     } )

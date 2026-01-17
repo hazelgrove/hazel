@@ -10,6 +10,7 @@
 @import "proj-slider.css";
 @import "proj-livelit.css";
 @import "proj-graph.css";
+@import "proj-csv.css";
 
 /* Default projector styles */
 
@@ -56,6 +57,10 @@
 
 .projector > *:not(svg) {
   z-index: var(--projector-z);
+}
+
+.code-editor:not(.selected) .refractors .overlays {
+  display: none;
 }
 
 .projectors .overlays .projector,

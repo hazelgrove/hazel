@@ -13,7 +13,7 @@ let view = (~globals, kind: Language.Ctx.kind): Node.t =>
           ~settings={
             inline: Single,
             fold_case_clauses: false,
-            fold_fn_bodies: false,
+            fold_fn_bodies: `NoFold,
             hide_fixpoints: false,
             show_filters: false,
             show_unknown_as_hole: true,
