@@ -35,7 +35,7 @@ let type_arrow = 13 |> right_associative;
 // String , _____ , String
 let type_prod = 14;
 let type_binder = 15;
-// forall t -> _____
+// poly t -> _____
 // rec t -> _____
 
 // ======== PATTERNS =========
@@ -76,6 +76,7 @@ let and_ = 32 |> right_associative;
 // _____ || false
 let or_ = 33 |> right_associative;
 // false || _____
+let concave_grout = 34;
 let if_ = 35;
 let fun_ = 36;
 // fun x -> _____

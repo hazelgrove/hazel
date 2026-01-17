@@ -19,14 +19,15 @@ module Kind = {
   [@deriving (show({with_path: false}), sexp, yojson, eq, enumerate)]
   type t =
     | Fold
-    | Info
     | Probe
+    | Statics
     | Checkbox
     | Slider
     | SliderF
     | Card
     | Livelit
-    | TextArea;
+    | TextArea
+    | Csv;
 
   let livelit_projectors: list(t) = [
     Checkbox,
@@ -35,9 +36,15 @@ module Kind = {
     TextArea,
     Card,
     Livelit,
+    Csv,
   ];
 
-  let projectors: list(t) = livelit_projectors @ [Fold, Info, Probe];
+  /* Note: Probe intentionally excluded - probes use separate action path */
+  let projectors: list(t) = livelit_projectors @ [Fold];
+
+  /* Refractors are like probes - additive decorations, not syntax-replacing */
+  let refractors: list(t) = [Probe, Statics];
+  let is_refractor = (kind: t) => List.mem(kind, refractors);
 
   /* A friendly name for each projector. This is used
    * both for identifying a projector in the CSS and for
@@ -45,14 +52,15 @@ module Kind = {
   let name = (p: t): string =>
     switch (p) {
     | Fold => "fold"
-    | Info => "type"
     | Probe => "probe"
+    | Statics => "statics"
     | Checkbox => "check"
     | Slider => "slider"
     | SliderF => "sliderf"
     | Card => "card"
     | Livelit => "livelit"
     | TextArea => "text"
+    | Csv => "csv"
     };
 
   /* This must be updated and kept 1-to-1 with the above
@@ -61,14 +69,15 @@ module Kind = {
   let of_name = (p: string): t =>
     switch (p) {
     | "fold" => Fold
-    | "type" => Info
     | "probe" => Probe
+    | "statics" => Statics
     | "check" => Checkbox
     | "slider" => Slider
     | "sliderf" => SliderF
     | "text" => TextArea
     | "livelit" => Livelit
     | "card" => Card
+    | "csv" => Csv
     | _ => failwith("Unknown projector kind")
     };
 
@@ -84,8 +93,8 @@ type t('syntax) = {
   model: string,
 };
 
-let mk = (kind, syntax, model) => {
-  id: Id.mk(),
+let mk = (~id=Id.mk(), kind, syntax, model) => {
+  id,
   kind,
   syntax,
   model,

@@ -49,10 +49,12 @@ module Update = {
         Buffer(_) |
         SyncReplace(_) |
         Project(_) |
-        Introduce |
-        Dump,
+        Probe(_) |
+        Dump |
+        Introduce,
       )
     | DebugConsole(_)
+    | ContextMenu(_)
     | TAB => None;
 
   let calculate = CodeEditable.Update.calculate;

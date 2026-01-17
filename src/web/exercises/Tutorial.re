@@ -314,7 +314,6 @@ let rec append_exp = (e1: Language.Exp.t, e2: Language.Exp.t): Language.Exp.t =>
   | Test(_)
   | HintedTest(_)
   | Parens(_)
-  | Probe(_)
   | Cons(_)
   | ListConcat(_)
   | LivelitName(_)
@@ -322,6 +321,8 @@ let rec append_exp = (e1: Language.Exp.t, e2: Language.Exp.t): Language.Exp.t =>
   | BinOp(_)
   | BuiltinFun(_)
   | Asc(_)
+  | ProofObject(_)
+  | Forall(_)
   | Match(_) => {
       term: Seq(e1, e2),
       annotation: {
@@ -348,6 +349,14 @@ let rec append_exp = (e1: Language.Exp.t, e2: Language.Exp.t): Language.Exp.t =>
     let ebody' = append_exp(ebody, e2);
     {
       term: Let(p, edef, ebody'),
+      annotation: {
+        ids: Language.IdTagged.ids(e1),
+      },
+    };
+  | Theorem(p, edef, ebody) =>
+    let ebody' = append_exp(ebody, e2);
+    {
+      term: Theorem(p, edef, ebody'),
       annotation: {
         ids: Language.IdTagged.ids(e1),
       },
@@ -455,14 +464,6 @@ let export_transitionary_module = (module_name, {eds, _}: state) => {
     ++ "let exercise: Exercise.spec = Exercise.transition(";
   let record = show_p(transitionary_editor_pp, eds);
   let data = prefix ++ record ++ ")\n";
-  data;
-};
-
-let export_grading_module = (module_name, {eds, _}: state) => {
-  let header = output_header_grading(module_name);
-  let prefix = "let exercise: Exercise.spec = ";
-  let record = show_p(editor_pp, eds);
-  let data = header ++ prefix ++ record ++ "\n";
   data;
 };
 

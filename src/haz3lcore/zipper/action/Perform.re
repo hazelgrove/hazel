@@ -31,7 +31,11 @@ let go =
     |> return(CantIntroduce)
   | Paste(String(clipboard)) =>
     Parser.to_zipper(~zipper_init=z, clipboard) |> return(CantPaste)
-  | Paste(Segment(segment)) => Ok(Zipper.insert_segment(z, segment))
+  | Paste(Segment(segment)) =>
+    z.caret == Outer
+      ? Ok(Zipper.insert_segment(z, segment))
+      : Parser.to_zipper(~zipper_init=z, Printer.of_segment(segment))
+        |> return(CantPaste)
   | Cut =>
     /* System clipboard handling is done in Page.view handlers */
     Destruct.go(Left, z) |> return(Cant_destruct)
@@ -52,7 +56,7 @@ let go =
   | Project(a) => ProjectorPerform.go(syntax.term_data, a, z)
   | Move(d) =>
     Move.go(
-      ~ci=Indicated.ci_of(z, statics.info_map),
+      ~statics=statics.info_map,
       ~col_target=Option.value(col_target, ~default=0),
       ~measured=syntax.measured,
       d,
@@ -121,5 +125,6 @@ let go =
     SyncReplace.sync_replace(z, segment)
     |> Result.of_option(~error=Action.Failure.Cant_insert)
   | Put_down => Zipper.put_down(z) |> return(Cant_put_down)
+  | Probe(a) => Ok(ProbePerform.go(~statics, ~syntax, a, z))
   | Dump => Ok(Dump.to_zipper(z))
   };

@@ -313,3 +313,11 @@ let concat = (ctx1: t, ctx2: t): t => {
   ...ctx1,
   entries: ctx1.entries @ ctx2.entries,
 };
+
+let get_var_entries = (ctx: t): list(var_entry) =>
+  List.filter_map(
+    fun
+    | VarEntry(v) => Some(v)
+    | _ => None,
+    ctx.entries,
+  );

@@ -18,6 +18,7 @@ let init: unit => t =
       ancestors: [],
     },
     caret: Outer,
+    refractors: Refractor.init,
   };
 
 let next_blank = _ => Id.mk();
@@ -41,6 +42,7 @@ let unzip = (~direction: Direction.t=Right, seg: Segment.t): t => {
     ancestors: [],
   },
   caret: Outer,
+  refractors: Refractor.init,
 };
 
 let regrout = (d: Direction.t, z: t): t => {
@@ -297,10 +299,7 @@ let backpack_find = (tok: Token.t, z: t): option(Tile.t) =>
   };
 
 let insert_segment = (z: t, seg: Segment.t): t =>
-  z
-  |> replace_selection(z.selection.focus, seg)
-  |> unselect
-  |> remold_regrout(Right);
+  z |> replace_selection(Right, seg) |> unselect |> remold_regrout(Right);
 
 let adj_pos = (d: Direction.t, z: t): t =>
   switch (d) {
@@ -382,10 +381,30 @@ let base_point = (measured: Measured.t, z: t): Point.t => {
 };
 
 module Caret = {
-  let offset: caret => int =
-    fun
+  /* String shards can span multiple columns because emoji render wider than
+     ASCII.  Translate an inner caret index into measured columns by consulting
+     the token width table. */
+  let string_offset = (token: Token.t, idx: int): int =>
+    1 + Token.string_prefix_columns(token, idx);
+
+  /* Determine how many columns to advance for an Inner caret.  Prefer the
+     token on the left; if none exists fall back to the token on the right.
+     Non-strings retain the classic one-column-per-character behaviour. */
+  let inner_offset = (idx: int, z: t): int =>
+    switch (neighbor_token(Left, z)) {
+    | Some(token) when Token.is_string(token) => string_offset(token, idx)
+    | _ =>
+      switch (neighbor_token(Right, z)) {
+      | Some(token) when Token.is_string(token) => string_offset(token, idx)
+      | _ => idx + 1
+      }
+    };
+
+  let offset = (z: t): int =>
+    switch (z.caret) {
     | Outer => 0
-    | Inner(idx) => idx + 1;
+    | Inner(idx) => inner_offset(idx, z)
+    };
 
   let set = (caret: caret, z: t): t => {
     ...z,
@@ -429,11 +448,12 @@ module Caret = {
     };
 
   /* Grid position of the caret */
+  /* Convert a caret to a concrete grid point for rendering and hit testing. */
   let point = (measured: Measured.t, z: t): Point.t => {
     let Point.{row, col} = base_point(measured, z);
     {
       row,
-      col: col + offset(z.caret),
+      col: col + offset(z),
     };
   };
 

@@ -23,7 +23,12 @@ module Print = {
     let segment = remove_projectors(segment);
     Printer.of_segment(
       ~holes,
-      ~measured=Measured.of_segment(segment, Id.Map.empty),
+      ~measured=
+        Measured.of_segment(
+          segment,
+          ProjectorCore.Shape.Map.empty,
+          Id.Map.empty,
+        ),
       ~caret=None,
       ~indent=" ",
       segment,
@@ -49,8 +54,6 @@ let common_error: Info.error_common => string =
   | TupleLabelError(_) => "Invalid tuple label"
   | NoType(UnexpectedLabelSort(_)) => "Unexpected label sort"
   | NoType(BadToken(token)) => prn("\"%s\" isn't a valid token", token)
-  | Inconsistent(WithArrow(ty)) =>
-    prn("type %s is not consistent with arrow type", Print.typ(ty))
   | Inconsistent(CompareFun(ty)) =>
     prn("values of type %s cannot be compared", Print.typ(ty))
   | NoType(FreeConstructor(_name)) => prn("Constructor is not defined")
@@ -106,6 +109,8 @@ let exp_error: Info.error_exp => string =
   | InexhaustiveMatch(_) => "Match is not exhaustive" //TODO: elaborate
   | UnusedDeferral => "Unused deferral" //TODO: better message
   | BadPartialAp(_) => "Bad partial application" //TODO: elaborate
+  | BadTheorem(typ) =>
+    prn("Theorem pattern is not of the form p : t, got %s", Print.typ(typ))
   | Common(error) => common_error(error);
 
 let pat_error: Info.error_pat => string =
