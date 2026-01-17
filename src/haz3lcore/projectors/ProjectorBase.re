@@ -112,7 +112,8 @@ module View = {
     sort: Sort.t, /* What sort does the parent editor attribute to the projector? */
     indication: option(Direction.t), /* Is the parent editor caret adjacent? */
     selected: bool, /* Is the projector contained within a selection? */
-    error: bool /* Is there an error mark on the projector? */
+    error: bool, /* Is there an error mark on the projector? */
+    shape: ProjectorCore.Shape.t,
   };
 
   [@deriving (show({with_path: false}), sexp, yojson)]

@@ -73,6 +73,7 @@ module Model = {
         ~info: ProjectorBase.info,
         ~id: Id.t,
         ~sort: Sort.t,
+        ~shape_map: ProjectorCore.Shape.Map.t,
       )
       : status => {
     sort,
@@ -82,6 +83,7 @@ module Model = {
     kind: p.kind,
     indication: editor_active ? indication(indicated, id) : None,
     selected: editor_active ? List.mem(id, selection_ids) : false,
+    shape: ProjectorCore.Shape.Map.lookup(id, shape_map),
   };
 
   let mk =
@@ -93,7 +95,7 @@ module Model = {
         ~sample_cursor: Language.Sample.Cursor.t,
         ~editor_active: bool,
       ) => {
-    let {projectors, measured, term_data, selection_ids, _}: CachedSyntax.t = syntax;
+    let {projectors, measured, term_data, selection_ids, shape_map, _}: CachedSyntax.t = syntax;
     List.filter_map(
       ((id, _)) => {
         let* p = Id.Map.find_opt(id, projectors);
@@ -115,6 +117,7 @@ module Model = {
               ~selection_ids,
               ~info,
               ~id,
+              ~shape_map,
             ),
         };
       },
@@ -137,8 +140,13 @@ let backing_deco =
 /* Adds attributes to a projector UI to support
  * custom styling when selected or indicated */
 let projector_clss =
-    ({kind, sort, indication, selected, error}: Model.status) =>
-  ["projector", ProjectorCore.Kind.name(kind), Sort.show(sort)]
+    ({kind, sort, shape, indication, selected, error}: Model.status) =>
+  [
+    "projector",
+    ProjectorCore.Kind.name(kind),
+    Sort.show(sort),
+    ProjectorShape.s(shape),
+  ]
   @ (selected ? ["selected"] : [])
   @ (error ? ["error"] : [])
   @ (

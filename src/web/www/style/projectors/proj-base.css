@@ -26,6 +26,10 @@
   z-index: var(--projector-z);
 }
 
+.projector.Tab {
+  align-items: flex-start;
+}
+
 .refractors .projector.probe.indicated {
   z-index: 11;
 }
