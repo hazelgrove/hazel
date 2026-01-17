@@ -660,33 +660,6 @@ module ResizeState = {
   };
 };
 
-let resize_pointerdown =
-    (
-      ~dispatch: (int, int) => Effect.t(unit),
-      model: size_model,
-      event: Js.t(Dom_html.pointerEvent),
-    ) =>
-  if (!Js.to_bool(event##.metaKey)) {
-    ResizeState.reset();
-    Effect.Ignore;
-  } else {
-    let target = Js.Opt.get(event##.currentTarget, () => failwith("resize"));
-    let element: Js.t(Dom_html.element) = Js.Unsafe.coerce(target);
-    JsUtil.setPointerCapture(element, event##.pointerId);
-    ResizeState.dispatch := Some(dispatch);
-    ResizeState.active :=
-      Some({
-        pointer_id: event##.pointerId,
-        capture_target: element,
-        start_client_x: float_of_int(event##.clientX),
-        start_client_y: float_of_int(event##.clientY),
-        start_width_blocks: model.width_blocks,
-        start_height_blocks: model.height_blocks,
-      });
-    ResizeState.last_sent := None;
-    Effect.Many([Effect.Stop_propagation, Effect.Prevent_default]);
-  };
-
 let resize_pointermove = (event: Js.t(Dom_html.pointerEvent)) => {
   switch (ResizeState.active^, ResizeState.dispatch^) {
   | (Some(state), Some(dispatch)) when state.pointer_id == event##.pointerId =>
@@ -737,33 +710,68 @@ let finish_resize = (event: Js.t(Dom_html.pointerEvent)): Effect.t(unit) => {
   };
 };
 
-let dom_event_target: Js.t(Dom_html.eventTarget) =
-  Js.Unsafe.coerce(Dom_html.document);
+/* Lazy listener setup - only attach when resize is first initiated.
+   This avoids accessing DOM at module load time, which breaks Node.js tests. */
+let resize_listeners_attached = ref(false);
 
-let _pointermove_listener =
-  Dom_html.addEventListener(
-    dom_event_target,
-    Dom_html.Event.make("pointermove"),
-    Dom.full_handler((_, event) => {
-      Virtual_dom.Vdom.Effect.Expert.handle(
-        event,
-        resize_pointermove(event),
+let setup_resize_listeners = (): unit =>
+  if (! resize_listeners_attached^) {
+    resize_listeners_attached := true;
+    let dom_event_target: Js.t(Dom_html.eventTarget) =
+      Js.Unsafe.coerce(Dom_html.document);
+    let _ =
+      Dom_html.addEventListener(
+        dom_event_target,
+        Dom_html.Event.make("pointermove"),
+        Dom.full_handler((_, event) => {
+          Virtual_dom.Vdom.Effect.Expert.handle(
+            event,
+            resize_pointermove(event),
+          );
+          Js._false;
+        }),
+        Js._false,
       );
-      Js._false;
-    }),
-    Js._false,
-  );
+    let _ =
+      Dom_html.addEventListener(
+        dom_event_target,
+        Dom_html.Event.make("pointerup"),
+        Dom.full_handler((_, event) => {
+          Virtual_dom.Vdom.Effect.Expert.handle(event, finish_resize(event));
+          Js._false;
+        }),
+        Js._false,
+      );
+    ();
+  };
 
-let _pointerup_listener =
-  Dom_html.addEventListener(
-    dom_event_target,
-    Dom_html.Event.make("pointerup"),
-    Dom.full_handler((_, event) => {
-      Virtual_dom.Vdom.Effect.Expert.handle(event, finish_resize(event));
-      Js._false;
-    }),
-    Js._false,
-  );
+let resize_pointerdown =
+    (
+      ~dispatch: (int, int) => Effect.t(unit),
+      model: size_model,
+      event: Js.t(Dom_html.pointerEvent),
+    ) =>
+  if (!Js.to_bool(event##.metaKey)) {
+    ResizeState.reset();
+    Effect.Ignore;
+  } else {
+    setup_resize_listeners();
+    let target = Js.Opt.get(event##.currentTarget, () => failwith("resize"));
+    let element: Js.t(Dom_html.element) = Js.Unsafe.coerce(target);
+    JsUtil.setPointerCapture(element, event##.pointerId);
+    ResizeState.dispatch := Some(dispatch);
+    ResizeState.active :=
+      Some({
+        pointer_id: event##.pointerId,
+        capture_target: element,
+        start_client_x: float_of_int(event##.clientX),
+        start_client_y: float_of_int(event##.clientY),
+        start_width_blocks: model.width_blocks,
+        start_height_blocks: model.height_blocks,
+      });
+    ResizeState.last_sent := None;
+    Effect.Many([Effect.Stop_propagation, Effect.Prevent_default]);
+  };
 
 let runtime_missing_message: string = "Observable Plot runtime unavailable; ensure @observablehq/plot is bundled.";
 
