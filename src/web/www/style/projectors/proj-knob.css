@@ -10,7 +10,7 @@
   background: var(--T2);
   border-radius: 0.3em;
   border: 1px solid var(--BR2);
-  cursor: ns-resize;
+  cursor: crosshair;
   user-select: none;
   padding: 4px;
   box-sizing: border-box;
@@ -79,4 +79,19 @@
 .knob-projector.dragging .knob-value {
   color: var(--G0);
   font-weight: 600;
+}
+
+/* Debug line from center to indicator (shown when dragging) */
+.knob-debug-line {
+  stroke: var(--G0);
+  stroke-width: 1.5;
+  stroke-dasharray: 3, 3;
+  opacity: 0.5;
+}
+
+/* Tick marks at min/max positions */
+.knob-tick {
+  stroke: var(--BR3);
+  stroke-width: 2;
+  stroke-linecap: round;
 }
