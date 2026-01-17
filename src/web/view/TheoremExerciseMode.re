@@ -232,9 +232,10 @@ module Update = {
       |> Exercise.append_exp(_, just_theorem_term);
 
     // Worker Setup
-    let worker_request: ref(list((string, Language.Exp.t))) = ref([]);
-    let queue_worker = (pos, expr) => {
-      worker_request := worker_request^ @ [(pos, expr)];
+    let worker_request: ref(list((string, WorkerServer.Request.value))) =
+      ref([]);
+    let queue_worker = (pos, req_value: WorkerServer.Request.value) => {
+      worker_request := worker_request^ @ [(pos, req_value)];
     };
 
     // Calculate each cell

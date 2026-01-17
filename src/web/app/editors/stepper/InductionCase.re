@@ -332,6 +332,7 @@ module F = (Stepper: STEPPER) => {
           | Some(Pattern ()) => true
           | _ => false
           },
+        ~dynamics=Dynamics.Map.empty,
         model.pattern,
       );
     let pattern_editor =

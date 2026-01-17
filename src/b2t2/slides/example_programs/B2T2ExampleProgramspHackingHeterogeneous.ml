@@ -1,6 +1,7 @@
 let out : string * Haz3lcore.PersistentSegment.t =
   ( "B2T2 / Example Programs / pHackingHeterogeneous",
     {
+      refractors = Haz3lcore.PersistentSegment.refractors_init_str;
       segment =
         "((Tile((id 1479cea1-9070-4218-886c-d68f36cbcc07)(label(let = \
          in))(mold((out Exp)(in_(Pat Exp))(nibs(((shape Convex)(sort \

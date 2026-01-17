@@ -1,6 +1,7 @@
 let out : string * Haz3lcore.PersistentSegment.t =
   ( "B2T2 / Errors / Malformed Tables",
     {
+      refractors = Haz3lcore.PersistentSegment.refractors_init_str;
       segment =
         "((Secondary((id \
          851208d9-35aa-44a2-a43c-38bba6973e37)(content(Comment\"# No type \

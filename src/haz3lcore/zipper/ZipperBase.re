@@ -5,12 +5,44 @@ type caret =
   | Outer
   | Inner(int);
 
+/* Refractor state extracted to Refractors.re - see state location docs there */
+module Refractor = Refractors;
+
 // assuming single backpack, shards may appear in selection, backpack, or siblings
 [@deriving (show({with_path: false}), sexp, yojson, eq)]
 type t = {
   selection: Selection.t,
   relatives: Relatives.t,
   caret,
+  /* Like projectors but not replacing syntax */
+  refractors: Refractor.t,
+};
+
+let update_refractors = (z: t, f: Refractor.t => Refractor.t): t => {
+  ...z,
+  refractors: f(z.refractors),
+};
+
+let update_manuals = (f, z: t): t => {
+  ...z,
+  refractors: {
+    ...z.refractors,
+    manuals: f(z.refractors.manuals),
+  },
+};
+
+let add_manual = (id: Id.t, kind: ProjectorCore.Kind.t, z: t): t =>
+  update_manuals(Id.Map.add(id, Refractors.mk_entry(kind)), z);
+
+let update_ephemerals = (f, z: t): t => {
+  ...z,
+  refractors: {
+    ...z.refractors,
+    autos: {
+      ...z.refractors.autos,
+      ephemerals: f(z.refractors.autos.ephemerals),
+    },
+  },
 };
 
 let update_relatives = (f: Relatives.t => Relatives.t, z: t): t => {

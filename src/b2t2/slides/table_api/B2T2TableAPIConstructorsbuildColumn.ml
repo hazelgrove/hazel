@@ -1,6 +1,7 @@
 let out : string * Haz3lcore.PersistentSegment.t =
   ( "B2T2 / Table API / Constructors / buildColumn",
     {
+      refractors = Haz3lcore.PersistentSegment.refractors_init_str;
       segment =
         "((Tile((id 5b5b86eb-5e4e-4d75-be12-84e2a9f32b8c)(label(type = \
          in))(mold((out Exp)(in_(TPat Typ))(nibs(((shape Convex)(sort \

@@ -365,14 +365,10 @@ let out : string * Haz3lcore.PersistentSegment.t =
          Exp)(in_(Pat Exp))(nibs(((shape Convex)(sort Exp))((shape(Concave \
          40))(sort Exp))))))(shards(0 1 2))(children(((Secondary((id \
          463a3d4f-78d9-497d-b368-a6e0e48173c8)(content(Whitespace\" \
-         \"))))(Projector((id 167bb273-25fc-407e-a96f-d8b0aa901165)(kind \
-         Probe)(syntax(Tile((id \
-         ee1e4b70-d014-48b4-bda7-a9134b072ed8)(label(\"(\"\")\"))(mold((out \
-         Pat)(in_(Pat))(nibs(((shape Convex)(sort Pat))((shape Convex)(sort \
-         Pat))))))(shards(0 1))(children(((Tile((id \
+         \"))))(Tile((id \
          5aae145c-f3cf-4d39-b1af-dbb066b3e267)(label(quiz_col_names))(mold((out \
          Pat)(in_())(nibs(((shape Convex)(sort Pat))((shape Convex)(sort \
-         Pat))))))(shards(0))(children())))))))))(model\"()\")))(Secondary((id \
+         Pat))))))(shards(0))(children())))(Secondary((id \
          85e86e16-207c-4f33-aa63-3db2d0447c6d)(content(Whitespace\" \
          \")))))((Secondary((id \
          1caefa5d-42a0-46b2-b04e-44125903d853)(content(Whitespace\" \
@@ -720,4 +716,6 @@ let out : string * Haz3lcore.PersistentSegment.t =
          gb ... (average_score=float_of_int(sum(scores)) /. \
          float_of_int(length(scores)))\n\
          )";
+      refractors =
+        "((5aae145c-f3cf-4d39-b1af-dbb066b3e267((kind Probe)(model\"()\"))))";
     } )

@@ -20,14 +20,7 @@ module M: Projector = {
   let placeholder = (_, _) => ProjectorCore.Shape.inline(10);
   let update = (m, _, _) => m;
 
-  let view =
-      (
-        model: model,
-        info,
-        ~local as _,
-        ~parent: external_action => Ui_effect.t(unit),
-        ~view_seg: View.seg,
-      ) => {
+  let view = ({model, info, parent, view_seg, _}: View.args(model, action)) => {
     let seed: HazelDOM.t = {
       model:
         switch (info.syntax |> info.utility.seg_to_term) {

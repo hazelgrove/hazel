@@ -17,6 +17,7 @@ module Model = {
       editor,
       statics: CachedStatics.empty,
       dynamics: Language.Dynamics.Map.empty,
+      context_menu: None,
     },
     result: EvalResult.Model.init,
   };
@@ -36,6 +37,7 @@ module Model = {
       editor: editor |> PersistentZipper.unpersist |> Editor.Model.mk,
       statics: CachedStatics.empty,
       dynamics: Language.Dynamics.Map.empty,
+      context_menu: None,
     },
     result: EvalResult.Model.unpersist(result),
   };
@@ -96,6 +98,7 @@ module Update = {
         {editor, result}: Model.t,
       )
       : Model.t => {
+    /* First pass: calculate editor with current dynamics (may be stale) */
     let editor =
       CodeEditable.Update.calculate(
         ~settings,
@@ -105,6 +108,7 @@ module Update = {
         ~is_dynamic_term=false,
         editor,
       );
+    /* Calculate result (may produce new dynamics from worker) */
     let result =
       EvalResult.Update.calculate(
         ~settings={
@@ -116,6 +120,23 @@ module Update = {
         editor |> CodeEditable.Model.get_statics,
         result,
       );
+    /* Second pass: if there's a pending focus waiting for dynamics,
+       recalculate editor with the (possibly new) dynamics */
+    let editor =
+      switch (
+        editor.editor.state.zipper.refractors.sample_cursor.pending_focus
+      ) {
+      | None => editor
+      | Some(_) =>
+        CodeEditable.Update.calculate(
+          ~settings,
+          ~is_edited=false, /* Not an edit, just resolving pending focus */
+          ~stitch,
+          ~dynamics=EvalResult.Model.dynamics(result),
+          ~is_dynamic_term=false,
+          editor,
+        )
+      };
     {
       editor,
       result,
@@ -228,6 +249,7 @@ module View = {
               : (action => inject(MainEditor(action))),
           ~selected=selected == Some(MainEditor),
           ~overlays=overlays(model.editor.editor),
+          ~dynamics=EvalResult.Model.dynamics(model.result),
           model.editor,
         ),
       ]

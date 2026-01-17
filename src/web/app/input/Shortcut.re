@@ -111,18 +111,18 @@ let shortcuts = (sys: Util.Key.sys): list(t) =>
       Globals(ActiveEditor(Project(SetIndicated(Specific(Fold))))),
     ),
     mk_shortcut(
-      ~hotkey="alt+v",
+      ~hotkey=Keyboard.meta(sys) ++ "+e",
       ~mdIcon="camera",
       ~section="Projection",
       "Probe",
-      Globals(ActiveEditor(Project(SetIndicated(Specific(Probe))))),
+      Globals(ActiveEditor(Probe(ToggleManual))),
     ),
     mk_shortcut(
       ~hotkey="alt+t",
       ~mdIcon="camera",
       ~section="Projection",
-      "Type",
-      Globals(ActiveEditor(Project(SetIndicated(Specific(Info))))),
+      "Statics",
+      Globals(ActiveEditor(Probe(ToggleStatics))),
     ),
     mk_shortcut(
       ~hotkey="alt+l",
@@ -158,7 +158,7 @@ let shortcuts = (sys: Util.Key.sys): list(t) =>
     mk_shortcut(
       ~section="Settings",
       ~mdIcon="tune",
-      "Toggle Toggle Dynamics",
+      "Toggle Dynamics",
       Globals(Set(Dynamics)),
     ),
     mk_shortcut(
