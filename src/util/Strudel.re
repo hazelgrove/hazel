@@ -30,25 +30,71 @@ let hush: unit => unit =
       Js.Unsafe.fun_call(fn, [||]) |> ignore;
     };
 
-/* Play a note pattern - fully defensive */
+/* Abstract type for Strudel patterns */
+type pattern;
+
+/* Create a note pattern from mini-notation string */
+let note: string => option(pattern) =
+  s =>
+    if (isReady()) {
+      let noteFn = Js.Unsafe.js_expr("window.note");
+      Some(
+        Js.Unsafe.fun_call(noteFn, [|Js.Unsafe.inject(Js.string(s))|]),
+      );
+    } else {
+      None;
+    };
+
+/* Reverse a pattern */
+let rev: pattern => pattern =
+  p => Js.Unsafe.meth_call(p, "rev", [||]);
+
+/* Speed up a pattern */
+let fast: (float, pattern) => pattern =
+  (f, p) =>
+    Js.Unsafe.meth_call(p, "fast", [|Js.Unsafe.inject(Js.number_of_float(f))|]);
+
+/* Slow down a pattern */
+let slow: (float, pattern) => pattern =
+  (f, p) =>
+    Js.Unsafe.meth_call(p, "slow", [|Js.Unsafe.inject(Js.number_of_float(f))|]);
+
+/* Stack patterns (play simultaneously) */
+let stack: list(pattern) => pattern =
+  patterns => {
+    let stackFn = Js.Unsafe.js_expr("window.stack");
+    let arr = Js.array(Array.of_list(patterns));
+    Js.Unsafe.fun_call(stackFn, [|Js.Unsafe.inject(arr)|]);
+  };
+
+/* Sequence patterns (play one after another) */
+let seq: list(pattern) => pattern =
+  patterns => {
+    let seqFn = Js.Unsafe.js_expr("window.seq");
+    let arr = Js.array(Array.of_list(patterns));
+    Js.Unsafe.fun_call(seqFn, [|Js.Unsafe.inject(arr)|]);
+  };
+
+/* Apply jux with rev for stereo effect */
+let juxRev: pattern => pattern =
+  p => {
+    let revFn = Js.Unsafe.js_expr("window.rev");
+    Js.Unsafe.meth_call(p, "jux", [|Js.Unsafe.inject(revFn)|]);
+  };
+
+/* Play a pattern */
+let play: pattern => unit = p => Js.Unsafe.meth_call(p, "play", [||]) |> ignore;
+
+/* Play a note pattern - fully defensive (legacy interface) */
 let playNote: string => unit =
   pattern =>
-    if (isReady()) {
-      /* Get the note function and create a pattern */
-      let noteFn = Js.Unsafe.js_expr("window.note");
-      let n =
-        Js.Unsafe.fun_call(
-          noteFn,
-          [|Js.Unsafe.inject(Js.string(pattern))|],
-        );
-      /* Apply jux with rev for stereo effect */
-      let revFn = Js.Unsafe.js_expr("window.rev");
-      let j = Js.Unsafe.meth_call(n, "jux", [|Js.Unsafe.inject(revFn)|]);
-      /* Play the pattern */
-      Js.Unsafe.meth_call(j, "play", [||]) |> ignore;
-    } else {
-      Printf.printf("Strudel not ready - window.note not available\n");
+    switch (note(pattern)) {
+    | Some(p) => play(juxRev(p))
+    | None => ()
     };
+
+/* Play an arbitrary pattern with jux rev stereo effect */
+let playPattern: pattern => unit = p => play(juxRev(p));
 
 /* Function to stop the music */
 let stopMusic: unit => unit = () => hush();

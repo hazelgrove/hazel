@@ -237,9 +237,9 @@ Visual editor for euclidean rhythms `(beats, steps, offset)`.
 3. ✅ Wire `audio_view` into `live_eval`
 4. ✅ Test `Note("c4 e4 g4")` plays sound
 
-### Short Term (CURRENT)
-5. ⬜ Add `rev`, `fast`, `slow` functions
-6. ⬜ Add `Seq` and `Stack` to Sound type
+### Short Term - COMPLETE
+5. ✅ Add `rev`, `fast`, `slow` functions (as Sound ADT constructors)
+6. ✅ Add `Seq` and `Stack` to Sound type
 7. ⬜ Basic note picker projector (single octave)
 
 ### Medium Term

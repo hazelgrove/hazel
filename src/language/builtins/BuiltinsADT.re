@@ -12,7 +12,18 @@ let sum_type = (variants: list((string, option(Typ.t)))): Typ.t =>
 let meta_type: Typ.t = sum_type([("$e", None), ("$v", None)]);
 
 // Sound type for Strudel audio integration
-let sound_type: Typ.t = sum_type([("Note", Some(string()))]);
+// Recursive type: Sound = Note(String) | Rev(Sound) | Fast(Float, Sound) | ...
+// We use Unknown(Internal) as a placeholder for the recursive reference
+let sound_inner = Unknown(Internal) |> Typ.fresh;
+let sound_type: Typ.t =
+  sum_type([
+    ("Note", Some(string())),
+    ("Rev", Some(sound_inner)),
+    ("Fast", Some(prod([float(), sound_inner]))),
+    ("Slow", Some(prod([float(), sound_inner]))),
+    ("Seq", Some(list(sound_inner))),
+    ("Stack", Some(list(sound_inner))),
+  ]);
 
 module Ord = {
   let t: Typ.t = sum_type([("Lt", None), ("Eq", None), ("Gt", None)]);
