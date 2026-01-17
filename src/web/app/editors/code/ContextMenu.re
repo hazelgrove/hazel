@@ -421,6 +421,7 @@ module Projectors = {
     | Livelit => "Livelit"
     | Probe => "Probe" /* shouldn't appear in menu */
     | NotePicker => "Notes"
+    | RhythmGrid => "Rhythm"
     };
 
   /* Get applicable projector kinds */

@@ -1,0 +1,103 @@
+/* Rhythm Grid Projector Styles */
+
+.rhythm-grid {
+  display: inline-flex;
+  flex-direction: column;
+  gap: 0.3em;
+  padding: 0.4em;
+  background: var(--T2);
+  border-radius: 0.3em;
+  border: 1px solid var(--BR2);
+}
+
+.rhythm-grid .grid-controls {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.3em;
+  padding-bottom: 0.2em;
+  border-bottom: 1px solid var(--BR2);
+}
+
+.rhythm-grid .step-btn {
+  width: 1.4em;
+  height: 1.4em;
+  border: none;
+  border-radius: 0.2em;
+  background: var(--T3);
+  color: var(--STONE);
+  cursor: pointer;
+  font-size: 0.8em;
+  font-weight: bold;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.rhythm-grid .step-btn:hover {
+  background: var(--BR2);
+}
+
+.rhythm-grid .step-count {
+  font-family: var(--code-font);
+  font-size: 0.75em;
+  color: var(--STONE);
+  min-width: 1.5em;
+  text-align: center;
+}
+
+.rhythm-grid .grid-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15em;
+}
+
+.rhythm-grid .grid-row {
+  display: flex;
+  align-items: center;
+  gap: 0.3em;
+}
+
+.rhythm-grid .drum-label {
+  font-family: var(--ui-font);
+  font-size: 0.65em;
+  font-weight: bold;
+  color: var(--BR4);
+  width: 1.8em;
+  text-align: right;
+}
+
+.rhythm-grid .grid-cells {
+  display: flex;
+  gap: 0.1em;
+}
+
+.rhythm-grid .grid-cell {
+  width: 1em;
+  height: 1em;
+  border-radius: 0.15em;
+  cursor: pointer;
+  transition: background-color 0.1s, transform 0.05s;
+}
+
+.rhythm-grid .grid-cell.inactive {
+  background: var(--T1);
+  border: 1px solid var(--BR2);
+}
+
+.rhythm-grid .grid-cell.inactive:hover {
+  background: var(--T3);
+}
+
+.rhythm-grid .grid-cell.active {
+  background: var(--G0);
+  border: 1px solid var(--G0);
+}
+
+.rhythm-grid .grid-cell.active:hover {
+  background: var(--G1);
+}
+
+.rhythm-grid .grid-cell.beat-start {
+  border-left: 2px solid var(--BR3);
+}

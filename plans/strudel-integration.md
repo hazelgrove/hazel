@@ -243,7 +243,7 @@ Visual editor for euclidean rhythms `(beats, steps, offset)`.
 7. ✅ Basic note picker projector (single octave)
 
 ### Medium Term (CURRENT)
-8. ⬜ Rhythm grid projector
+8. ✅ Rhythm grid projector
 9. ⬜ Scale picker projector
 10. ⬜ Parameter sliders (gain, pan, filter)
 
