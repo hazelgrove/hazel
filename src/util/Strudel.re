@@ -23,13 +23,14 @@ let initStrudel: unit => unit =
       let fn = Js.Unsafe.js_expr("window.initStrudel");
       /* Create options object with prebake callback that loads samples.
        * Wrapped in try/catch for graceful degradation on network failure.
-       * Loads: dirt-samples (bd, sd, hh, etc.) and drum-machines (RolandTR808, etc.) */
+       * Uses dough-samples JSON manifests which include both dirt-samples and drum-machines. */
       let options =
         Js.Unsafe.js_expr(
           "{ prebake: async function() { \
+             var ds = 'https://raw.githubusercontent.com/felixroos/dough-samples/main/'; \
              try { \
-               await samples('github:tidalcycles/dirt-samples'); \
-               await samples('github:ritchse/tidal-drum-machines/main/machines'); \
+               await samples(ds + 'Dirt-Samples.json'); \
+               await samples(ds + 'tidal-drum-machines.json'); \
              } catch (e) { \
                console.warn('Strudel: Failed to load samples:', e); \
              } \
