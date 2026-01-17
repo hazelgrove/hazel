@@ -85,6 +85,14 @@
   box-shadow: 0 0 4px oklch(from var(--G0) l c h / 0.5);
 }
 
+.note-picker .octave-label {
+  font-family: var(--code-font);
+  font-size: 0.65em;
+  color: var(--BR4);
+  text-align: center;
+  padding: 0.2em 0;
+}
+
 .note-picker .pattern-text {
   font-family: var(--code-font);
   font-size: 0.75em;

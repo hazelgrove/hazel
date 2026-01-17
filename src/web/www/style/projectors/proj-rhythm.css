@@ -18,7 +18,7 @@
 .rhythm-grid .grid-controls {
   display: flex;
   align-items: center;
-  justify-content: center;
+  justify-content: flex-start;
   gap: 0.4em;
   padding-bottom: 0.3em;
   border-bottom: 1px solid var(--BR2);

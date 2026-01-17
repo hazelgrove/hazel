@@ -3,7 +3,21 @@ open Virtual_dom.Vdom;
 open ProjectorBase;
 
 /* A rhythm grid (step sequencer) projector for Strudel drum patterns.
- * Shows a grid where rows are drum sounds and columns are steps. */
+ * Shows a grid where rows are drum sounds and columns are steps.
+ *
+ * Supported subset:
+ * - Space-separated tokens
+ * - Each token is either a drum name (bd, sd, hh, oh) or rest (~)
+ * - Examples: "bd ~ sd ~", "bd bd sd sd", ""
+ *
+ * Not supported (projector won't be applicable):
+ * - Repetition: "bd*4"
+ * - Grouping: "[bd sd]"
+ * - Alternation: "<bd sd>"
+ * - Sample variations: "hh:0 hh:1"
+ * - Parallel: "[bd, hh]"
+ * - Speed modifiers: "bd/2"
+ * - Any other mini-notation syntax */
 
 module M: Projector = {
   [@deriving (show({with_path: false}), sexp, yojson)]
@@ -20,7 +34,29 @@ module M: Projector = {
     ("oh", "OH") /* Open hi-hat */
   ];
 
+  /* All valid tokens (drum names + rest) */
+  let valid_tokens = ["bd", "sd", "hh", "oh", "~"];
+
   let default_steps = 8;
+
+  /* Check if a pattern contains only valid tokens (no special syntax) */
+  let validate_pattern = (pattern: string): bool => {
+    let tokens =
+      pattern
+      |> String.split_on_char(' ')
+      |> List.filter(s => String.length(s) > 0);
+
+    /* Empty pattern is valid */
+    if (List.length(tokens) == 0) {
+      true;
+    } else {
+      /* Check each token is valid */
+      List.for_all(
+        token => List.mem(token, valid_tokens),
+        tokens,
+      );
+    };
+  };
 
   /* Extract string from Note or Sample constructor application */
   let string_of = (any: Language.Any.t): option(string) =>
@@ -38,8 +74,8 @@ module M: Projector = {
 
   let init = (any: Language.Any.t) =>
     switch (string_of(any)) {
-    | Some(_) => Some({steps: default_steps})
-    | None => None
+    | Some(s) when validate_pattern(s) => Some({steps: default_steps})
+    | _ => None
     };
 
   let get = (info: info): string =>

@@ -3,11 +3,24 @@ open Virtual_dom.Vdom;
 open ProjectorBase;
 
 /* A simple note picker projector for Strudel patterns.
- * Shows a single-octave piano keyboard for selecting notes. */
+ * Shows a single-octave piano keyboard for selecting notes.
+ *
+ * Supported subset:
+ * - Space-separated note tokens
+ * - Each token: note letter (a-g), optional sharp (#) or flat (b), octave digit
+ * - All notes must be at the same octave
+ * - Examples: "c4 e4 g4", "c#3 d3 f#3", "" (empty)
+ *
+ * Not supported (projector won't be applicable):
+ * - Mixed octaves: "c3 e4 g5"
+ * - Repetition: "c4*2"
+ * - Grouping: "[c4 e4]"
+ * - Rests: "c4 ~ e4"
+ * - Any other mini-notation syntax */
 
 module M: Projector = {
   [@deriving (show({with_path: false}), sexp, yojson)]
-  type model = unit;
+  type model = {octave: int};
   [@deriving (show({with_path: false}), sexp, yojson)]
   type action = unit;
 
@@ -20,6 +33,84 @@ module M: Projector = {
     ("g#", 4),
     ("a#", 5),
   ];
+
+  /* All valid note names (for validation) */
+  let all_notes = [
+    "c",
+    "c#",
+    "d",
+    "d#",
+    "e",
+    "f",
+    "f#",
+    "g",
+    "g#",
+    "a",
+    "a#",
+    "b",
+    "db",
+    "eb",
+    "gb",
+    "ab",
+    "bb",
+  ];
+
+  /* Parse a single note token, returning (note_name, octave) if valid */
+  let parse_note = (token: string): option((string, int)) => {
+    let len = String.length(token);
+    if (len < 2 || len > 3) {
+      None;
+    } else {
+      /* Last character should be octave digit */
+      let octave_char = token.[len - 1];
+      if (octave_char < '0' || octave_char > '9') {
+        None;
+      } else {
+        let octave = Char.code(octave_char) - Char.code('0');
+        let note_name =
+          String.lowercase_ascii(String.sub(token, 0, len - 1));
+        if (List.mem(note_name, all_notes)) {
+          Some((note_name, octave));
+        } else {
+          None;
+        };
+      };
+    };
+  };
+
+  /* Validate pattern and extract octave if all notes are at same octave.
+   * Returns Some(octave) if valid, None if invalid or mixed octaves. */
+  let validate_pattern = (pattern: string): option(int) => {
+    let tokens =
+      pattern
+      |> String.split_on_char(' ')
+      |> List.filter(s => String.length(s) > 0);
+
+    if (List.length(tokens) == 0) {
+      /* Empty pattern is valid, default to octave 4 */
+      Some(4);
+    } else {
+      /* Parse all tokens */
+      let parsed = List.map(parse_note, tokens);
+      if (List.exists(opt => opt == None, parsed)) {
+        None;
+            /* Some token didn't parse as a valid note */
+      } else {
+        /* All parsed - check they're all same octave */
+        let notes = List.filter_map(x => x, parsed);
+        let octaves = List.map(snd, notes);
+        switch (octaves) {
+        | [] => Some(4)
+        | [first, ...rest] =>
+          if (List.for_all(o => o == first, rest)) {
+            Some(first);
+          } else {
+            None; /* Mixed octaves */
+          }
+        };
+      };
+    };
+  };
 
   /* Extract string from Note or Sample constructor application */
   let string_of = (any: Language.Any.t): option(string) =>
@@ -37,7 +128,11 @@ module M: Projector = {
 
   let init = (any: Language.Any.t) =>
     switch (string_of(any)) {
-    | Some(_) => Some()
+    | Some(s) =>
+      switch (validate_pattern(s)) {
+      | Some(octave) => Some({octave: octave})
+      | None => None
+      }
     | None => None
     };
 
@@ -108,14 +203,14 @@ module M: Projector = {
   };
 
   /* Create a white key */
-  let white_key = (~pattern, ~parent, ~info, note) => {
-    let note4 = note ++ "4";
-    let active = has_note(pattern, note4);
+  let white_key = (~pattern, ~parent, ~info, ~octave, note) => {
+    let full_note = note ++ string_of_int(octave);
+    let active = has_note(pattern, full_note);
     Node.div(
       ~attrs=[
         Attr.classes(["note-key", "white", active ? "active" : "inactive"]),
         Attr.on_click(_ => {
-          let new_pattern = toggle_note(pattern, note4);
+          let new_pattern = toggle_note(pattern, full_note);
           parent(SetSyntax(put(info, new_pattern)));
         }),
       ],
@@ -124,9 +219,9 @@ module M: Projector = {
   };
 
   /* Create a black key */
-  let black_key = (~pattern, ~parent, ~info, note, position) => {
-    let note4 = note ++ "4";
-    let active = has_note(pattern, note4);
+  let black_key = (~pattern, ~parent, ~info, ~octave, note, position) => {
+    let full_note = note ++ string_of_int(octave);
+    let active = has_note(pattern, full_note);
     let left_offset = (Float.of_int(position) *. 2.0 +. 1.5) *. 14.29;
     Node.div(
       ~attrs=[
@@ -138,7 +233,7 @@ module M: Projector = {
           ),
         ),
         Attr.on_click(_ => {
-          let new_pattern = toggle_note(pattern, note4);
+          let new_pattern = toggle_note(pattern, full_note);
           parent(SetSyntax(put(info, new_pattern)));
         }),
       ],
@@ -146,16 +241,17 @@ module M: Projector = {
     );
   };
 
-  let view = ({info, parent, _}: View.args(model, action)) => {
+  let view = ({model: {octave}, info, parent, _}: View.args(model, action)) => {
     let pattern = get(info);
     let white_keys =
       List.map(
-        note => white_key(~pattern, ~parent, ~info, note),
+        note => white_key(~pattern, ~parent, ~info, ~octave, note),
         white_notes,
       );
     let black_keys =
       List.map(
-        ((note, pos)) => black_key(~pattern, ~parent, ~info, note, pos),
+        ((note, pos)) =>
+          black_key(~pattern, ~parent, ~info, ~octave, note, pos),
         black_notes,
       );
     View.mk(
@@ -165,6 +261,10 @@ module M: Projector = {
           Node.div(
             ~attrs=[Attr.classes(["piano-keys"])],
             white_keys @ black_keys,
+          ),
+          Node.div(
+            ~attrs=[Attr.classes(["octave-label"])],
+            [Node.text("Oct " ++ string_of_int(octave))],
           ),
           Node.span(
             ~attrs=[Attr.classes(["pattern-text"])],

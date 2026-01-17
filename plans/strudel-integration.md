@@ -808,6 +808,105 @@ This requires infrastructure for source location threading and overlay rendering
 
 ---
 
+## Phase 7: Special-Purpose Projector Design Principles
+
+### 7.1 Core Principle: Strict at the Gate, Expressive Within
+
+Special-purpose projectors (like NotePicker, RhythmGrid) provide visual affordances for editing a **subset** of what a general data type (like String) can represent. This creates a fundamental tension:
+
+- **Too permissive:** Projector accepts patterns it can't faithfully edit → data loss, confusion
+- **Too restrictive:** Projector rejects patterns it could partially handle → reduced utility
+
+**The principle:** A projector should only be applicable when it can **faithfully represent and edit** the underlying data. Within that supported subset, the projector should be as expressive as possible.
+
+### 7.2 Applicability Validation
+
+Each special-purpose projector's `init` function should validate that the syntax matches its supported subset:
+
+```reason
+let init = (any: Language.Any.t) =>
+  switch (string_of(any)) {
+  | Some(s) when is_supported_pattern(s) => Some(initial_model)
+  | _ => None  (* Not applicable - don't show in context menu *)
+  };
+```
+
+**Validation should check:**
+1. **Syntactic structure** - Is it the right constructor/type?
+2. **Content constraints** - Does the string content match the supported subset?
+
+**Example: NotePicker validation**
+- ✅ `"c4 e4 g4"` - simple space-separated notes at same octave
+- ✅ `"c#4 d4"` - sharps/flats supported
+- ❌ `"c3 e4 g5"` - mixed octaves (can't represent on single-octave keyboard)
+- ❌ `"c4*2 e4"` - repetition syntax not supported
+- ❌ `"[c4 e4] g4"` - grouping syntax not supported
+
+**Example: RhythmGrid validation**
+- ✅ `"bd ~ sd ~"` - simple tokens and rests
+- ❌ `"bd*4"` - repetition syntax not supported
+- ❌ `"[bd sd]"` - grouping syntax not supported
+- ❌ `"hh:0 hh:1"` - sample variations not supported
+
+### 7.3 Current State: NotePicker
+
+**Supported subset (after validation):**
+- Space-separated note names with octave numbers
+- All notes must be at the same octave
+- Note format: `[a-g](#|b)?[0-9]` (e.g., `c4`, `d#4`, `eb4`)
+
+**Current limitations:**
+- Single octave display (detected from pattern, no manual selection)
+- No rest (`~`) support
+- No repetition, grouping, or alternation
+
+**Roadmap for expressivity:**
+- [x] Parse octaves from pattern, detect common octave
+- [x] Display notes at detected octave on keyboard
+- [x] Show full pattern text so all notes visible
+- [ ] Add octave selector UI (+/- buttons or dropdown) for manual override
+- [ ] Consider multi-octave keyboard display
+
+### 7.4 Current State: RhythmGrid
+
+**Supported subset (after validation):**
+- Space-separated tokens
+- Each token is either a drum name (`bd`, `sd`, `hh`, `oh`) or rest (`~`)
+- No special syntax characters
+
+**Current limitations:**
+- Fixed set of drums (bd, sd, hh, oh)
+- No repetition (`*n`) support
+- No sample variations (`:n`)
+
+**Roadmap for expressivity:**
+- [ ] Support `*n` repetition by expanding to individual steps
+- [ ] Support additional drum sounds (cp, rim, tom, cb)
+- [ ] Consider sample variation display
+- [ ] Variable step count persistence across pattern changes
+
+### 7.5 Future: Disabled Projector Feedback
+
+Currently, inapplicable projectors simply don't appear in the context menu. A more informative approach would be:
+
+- Show inapplicable projectors grayed out in the menu
+- Tooltip explains why it's not applicable (e.g., "NotePicker: pattern contains mixed octaves")
+- Requires systematic changes to context menu infrastructure
+
+This is deferred for now but noted as a potential UX improvement.
+
+### 7.6 Guidelines for New Special-Purpose Projectors
+
+When implementing a new projector that operates on a subset of a general type:
+
+1. **Define the supported subset explicitly** - Document exactly what patterns are supported
+2. **Validate in `init`** - Return `None` if pattern doesn't match supported subset
+3. **Parse robustly** - Handle edge cases in the parsing logic
+4. **Roundtrip faithfully** - `put(get(x)) == x` for all supported patterns
+5. **Plan for expansion** - Note what features could be added in the roadmap
+
+---
+
 ## References
 
 - [Strudel Documentation](https://strudel.cc/)
