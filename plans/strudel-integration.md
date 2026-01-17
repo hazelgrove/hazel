@@ -1019,3 +1019,13 @@ When implementing a new projector that operates on a subset of a general type:
 - [Strudel Source (Codeberg)](https://codeberg.org/uzu/strudel)
 - [TidalCycles](https://tidalcycles.org/)
 - [onTrigger PR #136](https://codeberg.org/uzu/strudel/pulls/136)
+
+## Licensing
+
+Strudel is licensed under the **GNU Affero General Public License v3.0 (AGPL-3.0)**. This is a copyleft license that requires derivative works to also be open source under AGPL terms. Key implications:
+
+- Strudel is loaded from unpkg CDN at runtime (`@strudel/web`)
+- No Strudel source code is bundled or modified in Hazel
+- Users interacting with Hazel's Strudel integration over a network may have rights to the Strudel source under AGPL
+
+See the [Strudel repository](https://codeberg.org/uzu/strudel) for full license details.
