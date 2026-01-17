@@ -1,3 +1,4 @@
+open Util;
 open Util.WebUtil;
 open Haz3lcore;
 
@@ -8,18 +9,31 @@ open Haz3lcore;
 /* This file follows conventions in [docs/ui-architecture.md] */
 
 module Model = {
+  /* Context menu state: None = closed, Some(n) = open with item n selected */
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type context_menu_state = option(int);
+
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t = {
     // Updated:
     editor: Editor.t,
+    context_menu: context_menu_state,
     statics: CachedStatics.t,
     dynamics: Language.Dynamics.Map.t,
   };
 
-  let mk = editor => {
+  let context_menu_is_open = (model: t): bool => model.context_menu != None;
+
+  let mk =
+      (
+        ~dynamics=Language.Dynamics.Map.empty,
+        ~statics=CachedStatics.empty,
+        editor,
+      ) => {
     editor,
-    statics: CachedStatics.empty,
-    dynamics: Language.Dynamics.Map.empty,
+    statics,
+    dynamics,
+    context_menu: None,
   };
 
   let mk_from_exp =
@@ -48,7 +62,11 @@ module Model = {
       |> Option.map(((p, _, _)) => p),
     selected_text:
       Some(
-        () => Printer.of_segment(model.editor.state.zipper.selection.content),
+        () =>
+          Printer.of_segment(
+            ~refractors=model.editor.state.zipper.refractors.manuals,
+            model.editor.state.zipper.selection.content,
+          ),
       ),
     selection: Some(model.editor.state.zipper.selection.content),
     editor: Some(model.editor),
@@ -56,6 +74,7 @@ module Model = {
     editor_action: x => Some(x),
     undo_action: None,
     redo_action: None,
+    error_ids: model.statics.error_ids,
   };
 
   [@deriving (show({with_path: false}), sexp, yojson)]
@@ -81,19 +100,10 @@ module Update = {
         ~stitch,
         ~dynamics: Language.Dynamics.Map.t,
         ~is_dynamic_term,
-        {editor, statics, dynamics: _}: Model.t,
+        ~ana=?,
+        {editor, statics, context_menu, dynamics: _}: Model.t,
       )
       : Model.t => {
-    let statics =
-      is_edited
-        ? CachedStatics.init(
-            ~settings,
-            ~stitch,
-            ~ctx?,
-            ~is_dynamic_term,
-            editor.state.zipper,
-          )
-        : statics;
     let editor =
       Editor.Update.calculate(
         ~settings,
@@ -102,10 +112,22 @@ module Update = {
         dynamics,
         editor,
       );
+    let statics =
+      is_edited
+        ? CachedStatics.init(
+            ~settings,
+            ~stitch,
+            ~ctx?,
+            ~ana?,
+            ~is_dynamic_term,
+            editor.state.zipper,
+          )
+        : statics;
     {
       editor,
       statics,
       dynamics,
+      context_menu,
     };
   };
 };
@@ -114,12 +136,11 @@ module View = {
   // There are no events for a read-only editor
   type event;
 
-  let view =
-      (~globals, ~overlays: list(Node.t)=[], ~sort=Sort.root, model: Model.t) => {
+  let view = (~globals, ~overlays: list(Node.t)=[], model: Model.t) => {
     let {
       editor:
         {
-          syntax: {measured, selection_ids, segment, shape_map, _},
+          syntax: {measured, selection_ids, segment, shape_map, term_data, _},
           state: {zipper: z, _},
           _,
         },
@@ -128,21 +149,24 @@ module View = {
     let code_text_view =
       CodeViewable.view(
         ~globals,
-        ~sort,
         ~measured,
+        ~term_data,
         ~buffer_ids=Selection.is_buffer(z.selection) ? selection_ids : [],
         ~segment,
         ~shape_map,
+        ~refractor_shape_map=Id.Map.empty //Id.Map.map(_ => 2, z.refractors.map),
       );
-    let statics_decos = {
-      module Deco =
-        Deco.Deco({
-          let globals = globals;
-          let editor = model.editor;
-          let statics = model.statics;
-        });
-      Deco.statics();
-    };
-    div_c("code-container", [code_text_view] @ statics_decos @ overlays);
+    let statics_decos =
+      Arms.Errors.of_ids(
+        ~font_metrics=globals.font_metrics,
+        ~syntax=model.editor.syntax,
+        model.statics.error_ids,
+      );
+    let container_classes =
+      ["code-container"] @ (globals.meta_down ? ["meta-down"] : []);
+    Node.div(
+      ~attrs=[Attr.classes(container_classes)],
+      [code_text_view, statics_decos] @ overlays,
+    );
   };
 };

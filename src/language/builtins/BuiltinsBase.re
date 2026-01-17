@@ -45,6 +45,18 @@ let numeric_constants =
     },
   ];
 
+let misc_fns: list(BuiltinsUtil.fn) = [
+  {
+    /* Println for probes study */
+
+    name: "print",
+    arg: Unknown(Internal),
+    ret: Prod([]),
+    imp: _ => Some(Fresh.Exp.tuple([])),
+    custom_statics: None,
+  },
+];
+
 let numeric_fns: list(BuiltinsUtil.fn) = [
   {
     name: "is_finite",
@@ -54,6 +66,7 @@ let numeric_fns: list(BuiltinsUtil.fn) = [
       let-unbox f = (Atom(Float), d);
       Some(Exp.bool(Float.is_finite(f)));
     },
+    custom_statics: None,
   },
   {
     name: "is_infinite",
@@ -63,6 +76,7 @@ let numeric_fns: list(BuiltinsUtil.fn) = [
       let-unbox f = (Atom(Float), d);
       Some(Exp.bool(Float.is_infinite(f)));
     },
+    custom_statics: None,
   },
   {
     name: "is_nan",
@@ -72,6 +86,7 @@ let numeric_fns: list(BuiltinsUtil.fn) = [
       let-unbox f = (Atom(Float), d);
       Some(Exp.bool(Float.is_nan(f)));
     },
+    custom_statics: None,
   },
   {
     name: "abs",
@@ -81,84 +96,98 @@ let numeric_fns: list(BuiltinsUtil.fn) = [
       let-unbox n = (Atom(Int), d);
       Some(Exp.big_int(Bigint.abs(n)));
     },
+    custom_statics: None,
   },
   {
     name: "abs_float",
     arg: Atom(Float),
     ret: Atom(Float),
     imp: float_op(abs_float),
+    custom_statics: None,
   },
   {
     name: "ceil",
     arg: Atom(Float),
     ret: Atom(Float),
     imp: float_op(ceil),
+    custom_statics: None,
   },
   {
     name: "floor",
     arg: Atom(Float),
     ret: Atom(Float),
     imp: float_op(floor),
+    custom_statics: None,
   },
   {
     name: "exp",
     arg: Atom(Float),
     ret: Atom(Float),
     imp: float_op(exp),
+    custom_statics: None,
   },
   {
     name: "log",
     arg: Atom(Float),
     ret: Atom(Float),
     imp: float_op(log),
+    custom_statics: None,
   },
   {
     name: "log10",
     arg: Atom(Float),
     ret: Atom(Float),
     imp: float_op(log10),
+    custom_statics: None,
   },
   {
     name: "sqrt",
     arg: Atom(Float),
     ret: Atom(Float),
     imp: float_op(sqrt),
+    custom_statics: None,
   },
   {
     name: "sin",
     arg: Atom(Float),
     ret: Atom(Float),
     imp: float_op(sin),
+    custom_statics: None,
   },
   {
     name: "cos",
     arg: Atom(Float),
     ret: Atom(Float),
     imp: float_op(cos),
+    custom_statics: None,
   },
   {
     name: "tan",
     arg: Atom(Float),
     ret: Atom(Float),
     imp: float_op(tan),
+    custom_statics: None,
   },
   {
     name: "asin",
     arg: Atom(Float),
     ret: Atom(Float),
     imp: float_op(asin),
+    custom_statics: None,
   },
   {
     name: "acos",
     arg: Atom(Float),
     ret: Atom(Float),
     imp: float_op(acos),
+    custom_statics: None,
   },
   {
     name: "atan",
     arg: Atom(Float),
     ret: Atom(Float),
     imp: float_op(atan),
+    custom_statics: None,
   },
   {
     name: "monus",
@@ -174,6 +203,7 @@ let numeric_fns: list(BuiltinsUtil.fn) = [
           Some(Exp.nat(Bigint.(m - n)));
         };
       }),
+    custom_statics: None,
   },
   {
     name: "int_mod",
@@ -195,6 +225,7 @@ let numeric_fns: list(BuiltinsUtil.fn) = [
           Some(big_int(Bigint.(%)(m, n)));
         };
       }),
+    custom_statics: None,
   },
   {
     name: "sint_mod",
@@ -216,6 +247,7 @@ let numeric_fns: list(BuiltinsUtil.fn) = [
           Some(sint(m mod n));
         };
       }),
+    custom_statics: None,
   },
   {
     name: "nat_mod",
@@ -237,6 +269,7 @@ let numeric_fns: list(BuiltinsUtil.fn) = [
           Some(nat(Bigint.(%)(m, n)));
         };
       }),
+    custom_statics: None,
   },
   {
     name: "float_mod",
@@ -258,6 +291,7 @@ let numeric_fns: list(BuiltinsUtil.fn) = [
           Some(float((Float.modf(m /. n) |> fst) *. n));
         };
       }),
+    custom_statics: None,
   },
 ];
 
@@ -270,6 +304,7 @@ let string_fns: list(BuiltinsUtil.fn) = [
       let-unbox s = (Atom(String), d);
       Some(Exp.int(String.length(s)));
     },
+    custom_statics: None,
   },
   BuiltinsADT.{
     name: "string_compare",
@@ -285,6 +320,7 @@ let string_fns: list(BuiltinsUtil.fn) = [
         | _ => Some(Ord.gt)
         };
       }),
+    custom_statics: None,
   },
   {
     name: "string_trim",
@@ -294,6 +330,7 @@ let string_fns: list(BuiltinsUtil.fn) = [
       let-unbox s = (Atom(String), d);
       Some(Exp.string(String.trim(s)));
     },
+    custom_statics: None,
   },
   {
     name: "string_escaped",
@@ -303,6 +340,7 @@ let string_fns: list(BuiltinsUtil.fn) = [
       let-unbox s = (Atom(String), d);
       Some(Exp.string(String.escaped(s)));
     },
+    custom_statics: None,
   },
   {
     name: "string_unescaped",
@@ -312,6 +350,7 @@ let string_fns: list(BuiltinsUtil.fn) = [
       let-unbox s = (Atom(String), d);
       Some(Exp.string(Scanf.unescaped(s)));
     },
+    custom_statics: None,
   },
   {
     name: "string_uppercase",
@@ -321,6 +360,7 @@ let string_fns: list(BuiltinsUtil.fn) = [
       let-unbox s = (Atom(String), d);
       Some(Exp.string(String.uppercase_ascii(s)));
     },
+    custom_statics: None,
   },
   {
     name: "string_lowercase",
@@ -330,6 +370,7 @@ let string_fns: list(BuiltinsUtil.fn) = [
       let-unbox s = (Atom(String), d);
       Some(Exp.string(String.lowercase_ascii(s)));
     },
+    custom_statics: None,
   },
   {
     name: "string_capitalize",
@@ -339,6 +380,7 @@ let string_fns: list(BuiltinsUtil.fn) = [
       let-unbox s = (Atom(String), d);
       Some(Exp.string(String.capitalize_ascii(s)));
     },
+    custom_statics: None,
   },
   {
     name: "string_uncapitalize",
@@ -348,6 +390,7 @@ let string_fns: list(BuiltinsUtil.fn) = [
       let-unbox s = (Atom(String), d);
       Some(Exp.string(String.uncapitalize_ascii(s)));
     },
+    custom_statics: None,
   },
   {
     name: "string_join",
@@ -365,6 +408,7 @@ let string_fns: list(BuiltinsUtil.fn) = [
         let* xs' = List.map(string_of, xs) |> Util.OptUtil.sequence;
         Some(Exp.string(String.concat(s1, xs')));
       }),
+    custom_statics: None,
   },
   {
     name: "string_sub",
@@ -394,6 +438,7 @@ let string_fns: list(BuiltinsUtil.fn) = [
           Some(d');
         };
       }),
+    custom_statics: None,
   },
   {
     name: "string_split",
@@ -408,6 +453,7 @@ let string_fns: list(BuiltinsUtil.fn) = [
         let split_str' = List.map(s => string(s), split_str);
         Some(list_lit(split_str'));
       }),
+    custom_statics: None,
   },
   {
     name: "string_match",
@@ -419,6 +465,7 @@ let string_fns: list(BuiltinsUtil.fn) = [
         let-unbox str = (Atom(String), d2);
         Some(Exp.bool(StringUtil.plain_match(regexp, str)));
       }),
+    custom_statics: None,
   },
   {
     name: "string_replace",
@@ -431,6 +478,7 @@ let string_fns: list(BuiltinsUtil.fn) = [
         let-unbox repl = (Atom(String), d3);
         Some(Exp.string(StringUtil.plain_replace(regexp, str, repl)));
       }),
+    custom_statics: None,
   },
   {
     name: "string_search",
@@ -451,6 +499,7 @@ let string_fns: list(BuiltinsUtil.fn) = [
           ),
         );
       }),
+    custom_statics: None,
   },
 ];
 
@@ -466,6 +515,7 @@ let pair_fns: list(BuiltinsUtil.fn) = [
       | _ => None
       };
     },
+    custom_statics: None,
   },
   {
     name: "snd",
@@ -478,5 +528,6 @@ let pair_fns: list(BuiltinsUtil.fn) = [
       | _ => None
       };
     },
+    custom_statics: None,
   },
 ];

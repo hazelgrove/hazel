@@ -48,7 +48,7 @@ let sorted_children = (a: t) => {
 };
 
 let remold = (a: t): list(t) =>
-  Molds.get(a.label)
+  Form.Molds.get(a.label)
   |> List.map(mold =>
        {
          ...a,
@@ -76,6 +76,27 @@ let disassemble =
   let flatten = (shards, kids) =>
     Aba.mk(shards, kids) |> Aba.join(p => [p], Fun.id) |> List.flatten;
   (flatten(shards_l, kids_l), flatten(shards_r, kids_r));
+};
+
+let missing_middle_shards = (a: t): list(Tile.t) => {
+  let (shards_l, shards_r) = a.shards;
+  let last_l =
+    ListUtil.last_opt(shards_l) |> OptUtil.get_or_raise(Empty_shard_affix);
+  let first_r =
+    ListUtil.hd_opt(shards_r) |> OptUtil.get_or_raise(Empty_shard_affix);
+  let ls = List.init(first_r - last_l - 1, i => last_l + i + 1);
+  Tile.split_shards(a.id, a.label, a.mold, ls);
+};
+
+let missing_shards = (a: t): list(Tile.t) => {
+  let (shards_l, shards_r) = a.shards;
+  let shards = shards_l @ shards_r;
+  let missing =
+    List.filter(
+      i => !List.mem(i, shards),
+      List.init(List.length(a.label), Fun.id),
+    );
+  Tile.split_shards(a.id, a.label, a.mold, missing);
 };
 
 let container_shards = (a: t): (Piece.t, Piece.t) => {

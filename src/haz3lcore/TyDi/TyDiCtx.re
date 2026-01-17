@@ -9,11 +9,11 @@ let free_variables =
     ((name, entries)) =>
       switch (Ctx.lookup_var(ctx, name)) {
       | None =>
-        let joint_use_typ = CoCtx.join(ctx, entries);
-        if (Typ.is_consistent(ctx, expected_ty, joint_use_typ)) {
+        let meet_use_typ = CoCtx.meet(ctx, entries);
+        if (Typ.is_consistent(ctx, expected_ty, meet_use_typ)) {
           Some({
             content: name,
-            strategy: Pat(FromCoCtx(joint_use_typ)),
+            strategy: Pat(FromCoCtx(meet_use_typ)),
           });
         } else {
           None;
@@ -119,6 +119,7 @@ let typ_context_entries = (ctx: Ctx.t): list(TyDiSuggestion.t) =>
 
 let suggest_variable = (ci: Info.t): list(TyDiSuggestion.t) => {
   let ctx = Info.ctx_of(ci);
+  let ctx = Ctx.filter_shadowed(ctx); /* Remove shadowing */
   switch (ci) {
   | InfoExp({ana, _}) =>
     bound_variables(ana, ctx)
@@ -163,6 +164,7 @@ let suggest_lookahead_variable = (ci: Info.t): list(TyDiSuggestion.t) => {
     strategy,
   };
   let ctx = Info.ctx_of(ci);
+  let ctx = Ctx.filter_shadowed(ctx); /* Remove shadowing */
   switch (ci) {
   | InfoExp({ana, _}) =>
     let exp_refs = ty =>

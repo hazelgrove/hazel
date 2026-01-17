@@ -116,7 +116,7 @@ let is_comma = (p: Piece.t): bool =>
 
 let is_case_rule = (p: Piece.t): bool =>
   switch (p) {
-  | Tile({label: ["|"], _}) => true /* hack to reduce case-rule entry jank */
+  //| Tile({label: ["|"], _}) => true /* hack to reduce case-rule entry jank */
   | Tile({label: ["|", "=>"], _}) => true
   | _ => false
   };
@@ -156,6 +156,9 @@ let rec go' = ((not_top, base: int, seg: Segment.t)) => {
             | (None, _) when not_top => level + 2
             | (_, Some(next)) when is_case_rule(next) => base
             | (_, None) => base
+            | (_, Some(p)) when Piece.is_infix_delimiter_op_prefix(p) =>
+              /* Special case fof kw prefixes */
+              base
             | (_, Some(_)) => level
             };
           (level, Id.Map.add(w.id, level, map));

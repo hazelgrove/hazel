@@ -56,13 +56,12 @@ let apply =
     };
   // ---------- CALCULATE PHASE ----------
   let model' =
-    updated.recalculate
-      ? updated.model
-        |> History.Update.calculate(
-             ~schedule_action,
-             ~is_edited=updated.is_edit,
-           )
-      : updated.model;
+    updated.model
+    |> History.Update.calculate(
+         ~schedule_action,
+         ~is_edited=updated.is_edit,
+         ~dynamics=true,
+       );
 
   if (updated.is_edit) {
     schedule_autosave(
@@ -100,7 +99,13 @@ let start = {
             };
           apply(~schedule_action, ~schedule_autosave);
         },
-      ~default_model=History.Model.init(),
+      ~default_model=
+        History.Model.init()
+        |> History.Update.calculate(
+             ~schedule_action=_ => (),
+             ~is_edited=true,
+             ~dynamics=false,
+           ),
       save_scheduler,
     );
 
@@ -148,6 +153,8 @@ let start = {
       >= 0;
     NinjaKeys.initialize(Shortcut.options(schedule_action));
     JsUtil.focus_clipboard_shim();
+    /* Setup scroll listener for floating elements (backpack) */
+    FloatingElement.setup_scroll_listener();
     schedule_action(
       Assistant(AssistantUpdate.ChatAction(FilterLoadingMessages)),
     );
@@ -179,6 +186,10 @@ let start = {
         } else {
           ();
         };
+        /* Handle scheduled probe focus from step-into (see ProbePerform.FocusEffect) */
+        let _ = Haz3lcore.ProbePerform.FocusEffect.execute();
+        /* Update floating elements (backpack) to viewport coordinates */
+        FloatingElement.update_all();
         model.current.globals.settings.core.statics ? Animation.go() : ();
       },
       (),

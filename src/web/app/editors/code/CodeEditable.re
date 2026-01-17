@@ -14,6 +14,7 @@ module Update = {
   type t =
     | Perform(Action.t)
     | TAB
+    | ContextMenu(ContextMenu.Model.action)
     | DebugConsole(string);
 
   exception CantReset;
@@ -22,6 +23,7 @@ module Update = {
     switch (action) {
     | Perform(action) => Action.is_historic(action)
     | TAB => true
+    | ContextMenu(_) => false
     | DebugConsole(_) => false
     };
   };
@@ -33,6 +35,7 @@ module Update = {
         ~settings=settings.core,
         action,
         model.statics,
+        model.dynamics,
         model.editor,
       )
       |> (
@@ -42,32 +45,45 @@ module Update = {
             editor,
             statics: model.statics,
             dynamics: model.dynamics,
+            context_menu: None,
           }
         | Error(err) => raise(Action.Failure.Exception(err))
       )
       |> Updated.return(
-           ~is_edit=Action.is_edit(action),
+           ~is_edit=
+             Action.is_edit(action)
+             /* When probe_all is on, Refractor actions don't require
+              * re-evaluation since all probes are already computed */
+             && !(
+                  settings.core.probe_all
+                  && (
+                    switch (action) {
+                    | Probe(_) => true
+                    | _ => false
+                    }
+                  )
+                ),
            ~recalculate=true,
            ~scroll_active={
              switch (action) {
+             | Move(Point(_)) => false
+             | Select(All) => false
              | Move(_)
-             | Jump(_)
-             | Select(Resize(_) | Term(_) | Smart(_) | Tile(_))
+             | Select(_)
              | Destruct(_)
              | Insert(_)
-             | Pick_up
              | Put_down
-             | RotateBackpack
-             | MoveToBackpackTarget(_)
              | Buffer(Set(_) | Accept | Clear)
              | Paste(_)
              | Copy
              | Cut
              | Reparse
-             | Introduce => true
+             | Introduce
+             | Probe(StepInto(_))
+             | Dump => true
              | Project(_)
              | Unselect(_)
-             | Select(All) => false
+             | Probe(_) => false
              };
            },
          );
@@ -79,6 +95,19 @@ module Update = {
     | DebugConsole(key) =>
       DebugConsole.print(~settings, model, key);
       model |> Updated.return_quiet;
+    | ContextMenu(action) =>
+      let new_state =
+        ContextMenu.WithContext.update(
+          ~info_map=model.statics.info_map,
+          ~zipper=model.editor.state.zipper,
+          action,
+          model.context_menu,
+        );
+      {
+        ...model,
+        context_menu: new_state,
+      }
+      |> Updated.return_quiet;
     | TAB =>
       /* Attempt to act intelligently when TAB is pressed.
        * TODO: Consider more advanced TAB logic. Instead
@@ -90,8 +119,7 @@ module Update = {
       let action: Action.t =
         Selection.is_buffer(z.selection)
           ? Buffer(Accept)
-          : Zipper.can_put_down(z)
-              ? Put_down : Move(Goal(Piece(Grout, Right)));
+          : Zipper.can_put_down(z) ? Put_down : Move(Goal(Hole(Right)));
       perform(action, model);
     };
   };
@@ -120,22 +148,45 @@ module Selection = {
     fun
     | {key: D("Tab"), sys: _, shift: Up, meta: Up, ctrl: Up, alt: Up} =>
       Some(Update.TAB)
+    /* Cmd+. (Mac) / Ctrl+. (PC) opens context menu - VS Code Quick Fix convention */
+    | {key: D("."), sys: Mac, shift: Up, meta: Down, ctrl: Up, alt: Up}
+    | {key: D("."), sys: PC, shift: Up, meta: Up, ctrl: Down, alt: Up} =>
+      Some(Update.ContextMenu(ContextMenu.Model.Open))
+    /* Shift+F10 opens context menu (VS Code convention) */
+    | {key: D("F10"), sys: _, shift: Down, meta: Up, ctrl: Up, alt: Up} =>
+      Some(Update.ContextMenu(ContextMenu.Model.Open))
     | {key: D(key), sys: Mac | PC, shift: Down, meta: Up, ctrl: Up, alt: Up}
         when Keyboard.is_f_key(key) =>
       Some(Update.DebugConsole(key))
     | k =>
       Keyboard.handle_key_event(k) |> Option.map(x => Update.Perform(x));
 
-  let handle_key_event = (~selection, model: Model.t, key) => {
-    switch (ProjectorView.key_handoff(model.editor, key)) {
-    | Some(action) => Some(Update.Perform(Project(action)))
-    | None => handle_key_event(~selection, model, key)
+  let handle_key_event = (~selection, model: Model.t, key: Key.t) => {
+    /* Delegate to context menu key handler when menu is open */
+    let context_menu_result =
+      ContextMenu.WithContext.handle_key(
+        ~info_map=model.statics.info_map,
+        ~zipper=model.editor.state.zipper,
+        key.key,
+        model.context_menu,
+      );
+    switch (context_menu_result) {
+    | ContextMenu.WithContext.MenuUpdate(action) =>
+      Some(Update.ContextMenu(action))
+    | ContextMenu.WithContext.EditorAction(action) =>
+      Some(Update.Perform(action))
+    | ContextMenu.WithContext.Unhandled =>
+      /* Fall through to projector key handoff, then base handler */
+      switch (ProjectorView.key_handoff(model.editor, key)) {
+      | Some(action) => Some(Update.Perform(Project(action)))
+      | None => handle_key_event(~selection, model, key)
+      }
     };
   };
 
-  let jump_to_tile = (tile, model: Model.t) => {
-    switch (TileMap.find_opt(tile, model.editor.syntax.tiles)) {
-    | Some(_) => Some(Update.Perform(Jump(TileId(tile))))
+  let jump_to_tile = (id: Id.t, model: Model.t): option(Update.t) => {
+    switch (TermData.root_tile(id, model.editor.syntax.term_data)) {
+    | Some(_) => Some(Perform(Move(Goal(TileId(id)))))
     | None => None
     };
   };
@@ -170,6 +221,32 @@ module View = {
 
   module MouseState = Pointer.MkState();
 
+  let deco = (~syntax: CachedSyntax.t, ~z: Zipper.t, ~globals: Globals.t) => [
+    CaretDec.view(
+      ~measured=syntax.measured,
+      ~font_metrics=globals.font_metrics,
+      z,
+    ),
+    Arms.Indicated.term(~font_metrics=globals.font_metrics, ~syntax, z),
+    Highlight.selection(
+      ~measured=syntax.measured,
+      ~shape_map=syntax.shape_map,
+      ~font_metrics=globals.font_metrics,
+      z,
+    ),
+    Backpack.view(
+      ~font_metrics=globals.font_metrics,
+      ~measured=syntax.measured,
+      ~cached_backpack=syntax.cached_backpack,
+      z,
+    ),
+    Highlight.colors(
+      ~font_metrics=globals.font_metrics,
+      ~syntax,
+      globals.color_highlights,
+    ),
+  ];
+
   let view =
       (
         ~globals: Globals.t,
@@ -177,39 +254,102 @@ module View = {
         ~inject: Update.t => Ui_effect.t(unit),
         ~selected: bool,
         ~overlays: list(Node.t)=[],
-        ~sort=?,
+        ~dynamics: Language.Dynamics.Map.t,
         model: Model.t,
       ) => {
-    let edit_decos = {
-      module Deco =
-        Deco.Deco({
-          let editor = model.editor;
-          let globals = globals;
-          let statics = model.statics;
-        });
-      Deco.editor(model.editor.state.zipper, selected);
-    };
+    /* Sync document-level click listener for closing context menu */
+    ContextMenuListener.sync(
+      selected && Model.context_menu_is_open(model),
+      inject(ContextMenu(ContextMenu.Model.Close)),
+    );
+    let edit_decos =
+      selected
+        ? deco(
+            ~z=model.editor.state.zipper,
+            ~syntax=model.editor.syntax,
+            ~globals,
+          )
+          @ [
+            Arms.Refractors.all(
+              ~font_metrics=globals.font_metrics,
+              ~syntax=model.editor.syntax,
+              ~dynamics,
+              model.editor.state.zipper,
+            ),
+          ]
+          @ (
+            switch (model.context_menu) {
+            | Some(selected_index) => [
+                /* Backdrop for scroll-close. Click handling is done via
+                   ContextMenuListener's document-level event listener. */
+                Node.div(
+                  ~attrs=[
+                    Attr.classes(["context-menu-backdrop"]),
+                    Attr.on_wheel(_ =>
+                      inject(ContextMenu(ContextMenu.Model.Close))
+                    ),
+                  ],
+                  [],
+                ),
+                ContextMenu.view(
+                  ~inject=a => inject(Perform(a)),
+                  ~syntax=model.editor.syntax,
+                  ~info_map=model.statics.info_map,
+                  ~font_metrics=globals.font_metrics,
+                  ~selected_index,
+                  model.editor.state.zipper,
+                ),
+              ]
+            | None => []
+            }
+          )
+        : [];
+    let zipper = model.editor.state.zipper;
+    let refractor_data =
+      RefractorView.mk_data(
+        ~refractors=
+          Id.Map.union(
+            (_, _, b) => Some(b),
+            zipper.refractors.manuals,
+            zipper.refractors.autos.ephemerals,
+          ),
+        ~syntax=model.editor.syntax,
+        ~indicated=Indicated.piece(zipper),
+        ~statics=model.statics.info_map,
+        ~dynamics,
+        ~sample_cursor=zipper.refractors.sample_cursor,
+        ~editor_active=selected,
+      );
+    let visible = globals.visible_rows;
+    let refractors_model =
+      RefractorView.all(
+        x => inject(Perform(x)),
+        signal(MakeActive),
+        globals.font_metrics,
+        ~visible?,
+        refractor_data,
+      );
     let projectors =
       ProjectorView.all(
         x => inject(Perform(x)),
         signal(MakeActive),
         globals.font_metrics,
+        ~visible?,
         ProjectorView.Model.mk(
-          model.editor.syntax.projectors,
-          model.editor.syntax.measured,
-          model.editor.syntax.selection_ids,
-          Indicated.piece(model.editor.state.zipper),
-          model.statics.info_map,
-          model.dynamics,
-          selected,
+          ~syntax=model.editor.syntax,
+          ~indicated=Indicated.piece(zipper),
+          ~statics=model.statics.info_map,
+          ~dynamics,
+          ~sample_cursor=zipper.refractors.sample_cursor,
+          ~editor_active=selected,
         ),
       );
     let overlays =
       [Node.div(~attrs=[Attr.classes(["code-deco"])], edit_decos)]
       @ [Node.div(~attrs=[Attr.classes(["overlays"])], overlays)]
-      @ projectors;
-    let code_view =
-      CodeWithStatics.View.view(~globals, ~overlays, ~sort?, model);
+      @ projectors
+      @ refractors_model;
+    let code_view = CodeWithStatics.View.view(~globals, ~overlays, model);
 
     let loc = (e: Pointer.Event.t) =>
       FontMetrics.get_goal(
@@ -220,17 +360,24 @@ module View = {
 
     let move_or_select = (mouse: Pointer.Event.t, pointer_id: int) =>
       switch (mouse) {
-      | {shift: Down, _} =>
+      | {button: Left, shift: Down, _} =>
         Effect.Many([
           signal(MakeActive),
-          inject(Perform(Select(Resize(Goal(Point(loc(mouse))))))),
+          inject(Perform(Select(Resize(Point(loc(mouse)))))),
         ])
-      | {sys: PC, ctrl: Down, _}
-      | {sys: Mac, meta: Down, _} =>
+      | {button: Left, sys: PC, ctrl: Down, _}
+      | {button: Left, sys: Mac, meta: Down, _} =>
         Effect.Many([
           signal(MakeActive),
-          inject(Perform(Move(Goal(Point(loc(mouse)))))),
-          inject(Perform(Jump(BindingSiteOfIndicatedVar))),
+          inject(Perform(Move(Point(loc(mouse))))),
+          inject(Perform(Move(Goal(BindingSiteOfIndicatedVar)))),
+        ])
+      | {button: Right, ctrl, _} when ctrl != Down =>
+        Effect.Many([
+          //Effect.Stop_propagation,
+          Effect.Prevent_default,
+          inject(Perform(Move(Point(loc(mouse))))),
+          inject(ContextMenu(ContextMenu.Model.Toggle)),
         ])
       | {button: Left, _} =>
         MouseState.pointerdown(loc(mouse));
@@ -243,7 +390,7 @@ module View = {
           PointerCapture.set(mouse.current_target, pointer_id);
           Effect.Many([
             signal(MakeActive),
-            inject(Perform(Move(Goal(Point(loc(mouse)))))),
+            inject(Perform(Move(Point(loc(mouse))))),
           ]);
         | 2 => inject(Perform(Select(Smart(2))))
         | 3 => inject(Perform(Select(Smart(3))))
@@ -258,17 +405,29 @@ module View = {
       Effect.Ignore;
     };
 
-    let drag_select = (pointer: Pointer.Event.t) =>
+    let drag_select = (pointer: Pointer.Event.t) => {
+      let current_loc = loc(pointer);
       switch (pointer) {
-      | {button: Left, _} when MouseState.is_button_down() =>
-        inject(Perform(Select(Resize(Goal(Point(loc(pointer)))))))
+      | {button: Left, _}
+          when
+            MouseState.is_button_down()
+            && !Point.equals(current_loc, MouseState.get_down_loc()) =>
+        inject(Perform(Select(Resize(Point(current_loc)))))
       | _ => Effect.Ignore
       };
+    };
 
     Node.div(
       ~attrs=[
         Attr.classes(
           ["cell-item", "code-editor"] @ (selected ? ["selected"] : []),
+        ),
+        Attr.on_contextmenu(evt =>
+          switch (Pointer.Event.mk(evt)) {
+          | {button: Right, ctrl: Up, _} =>
+            Effect.Many([Effect.Stop_propagation, Effect.Prevent_default])
+          | _ => Effect.Ignore
+          }
         ),
         Attr.on_pointerdown(evt =>
           move_or_select(Pointer.Event.mk(evt), Pointer.Event.id_of(evt))

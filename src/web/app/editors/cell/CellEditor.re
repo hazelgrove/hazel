@@ -17,16 +17,32 @@ module Model = {
       editor,
       statics: CachedStatics.empty,
       dynamics: Language.Dynamics.Map.empty,
+      context_menu: None,
     },
     result: EvalResult.Model.init,
   };
   [@deriving (show({with_path: false}), sexp, yojson)]
-  type persistent = CodeEditable.Model.persistent;
+  type persistent = {
+    editor: CodeEditable.Model.persistent,
+    result: EvalResult.Model.persistent,
+  };
 
-  let persist = model => model.editor |> CodeEditable.Model.persist;
-  let to_string = model => model.editor |> CodeEditable.Model.to_string;
-  let unpersist = (~settings as _, pz) =>
-    pz |> PersistentZipper.unpersist |> Editor.Model.mk |> mk;
+  let persist = (model: t): persistent => {
+    editor: model.editor |> CodeEditable.Model.persist,
+    result: model.result |> EvalResult.Model.persist,
+  };
+
+  let unpersist = (~settings as _, {editor, result}: persistent): t => {
+    editor: {
+      editor: editor |> PersistentZipper.unpersist |> Editor.Model.mk,
+      statics: CachedStatics.empty,
+      dynamics: Language.Dynamics.Map.empty,
+      context_menu: None,
+    },
+    result: EvalResult.Model.unpersist(result),
+  };
+
+  let to_string = (model: t) => model.editor |> CodeEditable.Model.to_string;
 };
 
 module Update = {
@@ -82,6 +98,7 @@ module Update = {
         {editor, result}: Model.t,
       )
       : Model.t => {
+    /* First pass: calculate editor with current dynamics (may be stale) */
     let editor =
       CodeEditable.Update.calculate(
         ~settings,
@@ -91,6 +108,7 @@ module Update = {
         ~is_dynamic_term=false,
         editor,
       );
+    /* Calculate result (may produce new dynamics from worker) */
     let result =
       EvalResult.Update.calculate(
         ~settings={
@@ -102,6 +120,23 @@ module Update = {
         editor |> CodeEditable.Model.get_statics,
         result,
       );
+    /* Second pass: if there's a pending focus waiting for dynamics,
+       recalculate editor with the (possibly new) dynamics */
+    let editor =
+      switch (
+        editor.editor.state.zipper.refractors.sample_cursor.pending_focus
+      ) {
+      | None => editor
+      | Some(_) =>
+        CodeEditable.Update.calculate(
+          ~settings,
+          ~is_edited=false, /* Not an edit, just resolving pending focus */
+          ~stitch,
+          ~dynamics=EvalResult.Model.dynamics(result),
+          ~is_dynamic_term=false,
+          editor,
+        )
+      };
     {
       editor,
       result,
@@ -162,7 +197,6 @@ module View = {
         ~inject: Update.t => Ui_effect.t(unit),
         ~selected: option(Selection.t),
         ~caption: option(Node.t)=?,
-        ~sort=?,
         ~result_kind=?,
         ~locked=false,
         model: Model.t,
@@ -185,7 +219,7 @@ module View = {
           | JumpTo(id) =>
             Effect.Many([
               signal(MakeActive(MainEditor)),
-              inject(MainEditor(Perform(Jump(TileId(id))))),
+              inject(MainEditor(Perform(Move(Goal(TileId(id)))))),
             ]),
         ~inject=a => inject(ResultAction(a)),
         ~selected={
@@ -215,7 +249,7 @@ module View = {
               : (action => inject(MainEditor(action))),
           ~selected=selected == Some(MainEditor),
           ~overlays=overlays(model.editor.editor),
-          ~sort?,
+          ~dynamics=EvalResult.Model.dynamics(model.result),
           model.editor,
         ),
       ]

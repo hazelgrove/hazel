@@ -14,6 +14,12 @@ let code_box_container = x =>
 let code = (code: string): Node.t =>
   div(~attrs=[clss(["code"])], [text(code)]);
 
+let label_view = (label: string): Node.t =>
+  div(
+    ~attrs=[clss(["code"])],
+    [text(Haz3lcore.Token.quote_label_when_necessary(label))],
+  );
+
 let cls_view = (ci: Info.t): Node.t => {
   let cls = ci |> Info.cls_of;
 
@@ -24,8 +30,7 @@ let cls_view = (ci: Info.t): Node.t => {
         switch (cls) {
         | Typ(EmptyHole)
         | Exp(EmptyHole)
-        | Pat(EmptyHole) =>
-          Info.is_label(ci) ? "Empty Label" : Cls.show(cls)
+        | Pat(EmptyHole) => Info.is_label(ci) ? "Label Hole" : Cls.show(cls)
         | cls => cls |> Cls.show
         },
       ),
@@ -66,26 +71,23 @@ let elements_noun: Cls.t => string =
   | Exp(Match | If) => "Branches"
   | Exp(ListLit)
   | Pat(ListLit) => "Elements"
-  | Exp(ListConcat) => "Operands"
+  | Exp(ListConcat)
+  | Exp(BinOp(Poly(_))) => "Operands"
   | cls =>
     failwith("elements_noun: " ++ Cls.show(cls) ++ " cls has no elements");
 
 let code_view_settings: Haz3lcore.ExpToSegment.Settings.t = {
   inline: true,
   fold_case_clauses: false,
-  fold_fn_bodies: false,
+  fold_fn_bodies: `NoFold,
   hide_fixpoints: false,
   show_filters: false,
   show_unknown_as_hole: true,
 };
 
-let view_any = (~globals, any: Term.Any.t) =>
+let view_any = (~globals, any: Any.t) =>
   any
-  |> CodeViewable.view_any(
-       ~globals,
-       ~settings=code_view_settings,
-       ~shape_map=Haz3lcore.ProjectorCore.Shape.Map.empty // assume no projectors
-     )
+  |> CodeViewable.view_any(~globals, ~settings=code_view_settings)
   |> code_box_container;
 
 let view_type = (~globals, typ: Typ.t) =>
@@ -107,7 +109,7 @@ let common_err_view =
   (
     switch (err) {
     | NoType(BadToken(token)) =>
-      switch (Haz3lcore.Form.bad_token_cls(token)) {
+      switch (Haz3lcore.Token.bad_token_cls(token)) {
       | BadInt => [text("Integer is too large or too small")]
       | Other => [text(Printf.sprintf("\"%s\" isn't a valid token", token))]
       }
@@ -117,7 +119,26 @@ let common_err_view =
       ]
     | NoType(FreeConstructor(name)) => [code(name), text("not found")]
 
-    | NoType(InvalidLabel(name)) => [text("Invalid label:"), code(name)]
+    | NoType(InvalidLabel(name, expected_labels)) =>
+      switch (expected_labels) {
+      | [] => [
+          text("Invalid label: "),
+          label_view(name),
+          text(". No labels were expected."),
+        ]
+      | _ => [
+          text("Invalid label: "),
+          label_view(name),
+          text(" is not part of the expected labels: "),
+          ...List.map(code, expected_labels),
+        ]
+      }
+    | NoType(UnexpectedLabelSort(name)) => [
+        text("Label "),
+        label_view(name),
+        text(" is here, but another sort is expected."),
+      ]
+
     | TupleLabelError({malformed_labels, duplicate_labels, invalid_labels, _}) =>
       (
         List.is_empty(malformed_labels)
@@ -140,11 +161,13 @@ let common_err_view =
           ? []
           : [text("Invalid labels: "), ...List.map(code, invalid_labels)]
       )
-    | DuplicateLabel(name, _) => [text("Duplicate Label:"), code(name)]
-    | Inconsistent(WithArrow(typ)) => [
-        text(":"),
-        view_type(typ) |> code_box_container,
-        text("inconsistent with arrow type"),
+    | DuplicateLabel(name, _) => [
+        text("Duplicate Label:"),
+        label_view(name),
+      ]
+    | Inconsistent(CompareFun(ty)) => [
+        text("values cannot be compared:"),
+        view_type(ty),
       ]
     | Inconsistent(Expectation({ana, syn})) =>
       switch (syn.term, ana.term) {
@@ -189,7 +212,7 @@ let common_err_view =
   @ (
     switch (inferred_label) {
     | None => []
-    | Some(l) => [text(" for label "), code(l)]
+    | Some(l) => [text(" for label "), label_view(l)]
     }
   );
 };
@@ -210,6 +233,12 @@ let common_ok_view =
     switch (cls, ok) {
     | (Pat(EmptyHole), _) when label_sort => []
     | (Exp(EmptyHole), _) when label_sort => []
+    | (Pat(ExplicitNonlabel), _) when label_sort => [
+        text("Explicitly unlabeled entry"),
+      ]
+    | (Exp(ExplicitNonlabel), _) when label_sort => [
+        text("Explicitly unlabeled entry"),
+      ]
     | (Exp(MultiHole) | Pat(MultiHole), _) => [
         text("Expecting operator or delimiter"),
       ]
@@ -225,7 +254,7 @@ let common_ok_view =
       ]
     | (_, Syn(syn)) =>
       switch (syn.term) {
-      | Label(l) => [code(l)]
+      | Label(l) => [label_view(l)]
       | _ => [text(":"), view_type(syn)]
       }
     | (Pat(Var) | Pat(Wild), Ana(Consistent({ana, _}))) => [
@@ -233,9 +262,9 @@ let common_ok_view =
         view_type(ana),
       ]
     | (_, Ana(Consistent({ana, syn, _})))
-        when Typ.fast_equal(~alpha_equivalence=false, ana, syn) =>
+        when Equality.semantic.typ(ana, syn) =>
       switch (syn.term) {
-      | Label(l) => [code(l), text(" is a valid label")]
+      | Label(l) => [label_view(l), text(" is a valid label")]
       | _ =>
         [text(":"), view_type(syn)]
         @ [text("equals expected type")]
@@ -248,12 +277,12 @@ let common_ok_view =
         @ (
           switch (introduced_labels) {
           | [] => []
-          | [a] => [text("by automatically adding label "), code(a)]
+          | [a] => [text("by automatically adding label "), label_view(a)]
           | _ => [
               text("by automatically adding labels "),
               ...ListUtil.join(
                    text(","),
-                   List.map(code, introduced_labels),
+                   List.map(label_view, introduced_labels),
                  ),
             ]
           }
@@ -286,10 +315,13 @@ let common_ok_view =
       @ (
         switch (introduced_labels) {
         | [] => []
-        | [a] => [text("by automatically adding label "), code(a)]
+        | [a] => [text("by automatically adding label "), label_view(a)]
         | _ => [
             text("by automatically adding labels "),
-            ...ListUtil.join(text(","), List.map(code, introduced_labels)),
+            ...ListUtil.join(
+                 text(","),
+                 List.map(label_view, introduced_labels),
+               ),
           ]
         }
       )
@@ -299,7 +331,7 @@ let common_ok_view =
         | true => [text(" after reordering by labels ")]
         }
       )
-    | (_, Ana(InternallyInconsistent({ana, nojoin: tys}))) =>
+    | (_, Ana(InternallyInconsistent({ana, nomeet: tys}))) =>
       [
         text(elements_noun(cls) ++ " have inconsistent types:"),
         ...ListUtil.join(text(","), List.map(view_type, tys)),
@@ -310,9 +342,54 @@ let common_ok_view =
   @ (
     switch (inferred_label) {
     | None => []
-    | Some(l) => [text(" for label "), code(l)]
+    | Some(l) => [text(" for label "), label_view(l)]
     }
   );
+};
+
+let underdetermined_typ_view =
+    (~globals, underdetermined: Info.underdetermined_typ) => {
+  let view_type = view_type(~globals);
+  switch (underdetermined) {
+  | ProdExtensionUnderdetermined(tys) => [
+      text("Cannot determine type of product extension with argument types:"),
+      ...ListUtil.join(text(","), List.map(view_type, tys)),
+    ]
+  | ProdProjectionMissingLabel(label, labels) => [
+      text("Cannot project label "),
+      label_view(label),
+      text(". Valid labels are: "),
+      ...List.map(code, labels),
+    ]
+  | ProdProjectionBadArgs({product, label}) =>
+    let product_error =
+      switch (product) {
+      | Some(ty) => [
+          text("type"),
+          view_type(ty),
+          text("is not a tuple type"),
+        ]
+      | None => []
+      };
+    let label_error =
+      switch (label) {
+      | Some(ty) => [
+          text("label"),
+          view_type(ty),
+          text("is not a valid label: "),
+        ]
+      | None => []
+      };
+
+    [text("Cannot determine projected type because ")]
+    @ (
+      ListUtil.join(
+        [text(" and ")],
+        [product_error, label_error] |> List.filter(x => x != []),
+      )
+      |> List.concat
+    );
+  };
 };
 
 let typ_ok_view = (~globals, cls: Cls.t, ok: Info.ok_typ) => {
@@ -331,18 +408,21 @@ let typ_ok_view = (~globals, cls: Cls.t, ok: Info.ok_typ) => {
 
   | TypeAlias(name, ty_lookup) => [
       view_type(Var(name) |> Typ.fresh),
-      text("is an alias for"),
+      text("is equal to"),
       view_type(ty_lookup),
+    ]
+  | WHNormalizedTo({unnormalized, whnormalized}) => [
+      view_type(unnormalized),
+      text("is equal to"),
+      view_type(whnormalized),
     ]
   | Variant(name, sum_ty) => [
       view_type(Var(name) |> Typ.fresh),
       text("is a sum type constuctor of type"),
       view_type(sum_ty),
     ]
-  | VariantIncomplete(sum_ty) => [
-      text("An incomplete sum type constuctor of type"),
-      view_type(sum_ty),
-    ]
+  | TypeUnderdetermined(underdetermined) =>
+    underdetermined_typ_view(~globals, underdetermined)
   };
 };
 
@@ -357,16 +437,34 @@ let typ_err_view = (~globals, ok: Info.error_typ) => {
   | WantConstructorFoundAp
   | WantConstructorFoundType(_) => [text("Expected a constructor")]
   | WantTypeFoundAp => [text("Must be part of a sum type")]
-  | WantTuple => [text("Expect a valid tuple")]
   | WantLabel => [text("Expect a valid label")]
+  | InvalidLabel(name, expected_labels) =>
+    switch (expected_labels) {
+    | [] => [
+        text("Invalid label: "),
+        label_view(name),
+        text(". No labels were expected."),
+      ]
+    | _ => [
+        text("Invalid label: "),
+        label_view(name),
+        text(" is not part of the expected labels: "),
+        ...List.map(code, expected_labels),
+      ]
+    }
   | DuplicateLabels(labels, _) => [
       text("Duplicate labels within tuple: "),
-      ...List.map(code, labels),
+      ...List.map(label_view, labels),
     ]
-  | Duplicate(name, _) => [text("Duplicate Label: "), code(name)]
+  | Duplicate(name, _) => [text("Duplicate Label: "), label_view(name)]
   | DuplicateConstructor(name) => [
       view_type(Var(name) |> Typ.fresh),
       text("already used in this sum"),
+    ]
+  | ParseFailure => [text("Parse failure")]
+  | WantProduct(ty) => [
+      text("Expected a tuple type, found type"),
+      view_type(ty),
     ]
   };
 };
@@ -410,18 +508,30 @@ let rec exp_view =
     };
   let inferred_label = info.inferred_label;
   let view_type = view_type(~globals);
+  let view_any = view_any(~globals);
   switch (status) {
   | InHole(FreeVariable(name)) => div_err([code(name), text("not found")])
-  | InHole(InexhaustiveMatch(additional_err)) =>
+  | InHole(InexhaustiveMatch(additional_err, example)) =>
     let cls_str = Cls.show(cls);
     switch (additional_err) {
-    | None => div_err([text(cls_str ++ " is inexhaustive")])
+    | None =>
+      div_err([
+        text(
+          cls_str ++ " is inexhaustive. An example of a missing pattern is ",
+        ),
+        view_any(example),
+      ])
     | Some(err) =>
       let cls_str = String.uncapitalize_ascii(cls_str);
       div_err([
         exp_view(~globals, cls, InHole(Common(err)), info)
         |> code_box_container,
-        text("; " ++ cls_str ++ " is inexhaustive"),
+        text(
+          "; "
+          ++ cls_str
+          ++ " is inexhaustive. An example of a missing pattern is ",
+        ),
+        view_any(example),
       ]);
     };
   | InHole(UnusedDeferral) =>
@@ -440,6 +550,37 @@ let rec exp_view =
         ++ " arguments",
       ),
     ])
+  | InHole(BuiltinError(e)) =>
+    switch (e) {
+    | MissingLabels(labels) =>
+      div_err([
+        text("Labels not present in tuple: "),
+        ...List.map(label_view, labels),
+      ])
+    | ToLvsMissingLabelsOnTuple(_) =>
+      div_err([
+        text(
+          "All entries in the argument must have labels, but some were not provided",
+        ),
+      ])
+    | ProjectLabelsMissingLabels(labels) =>
+      div_err([
+        text("Projected tuple does not have the following labels: "),
+        ...List.map(label_view, labels),
+      ])
+    | ArgumentMustBeTuple => div_err([text("Argument must be a tuple")])
+    | AtLeast2Arguments =>
+      div_err([text("Must have 2 or more direct arguments")])
+    | Exactly2Arguments =>
+      div_err([text("Must have exactly 2 direct arguments")])
+    | ArgumentMustBeListOfTuples =>
+      div_err([text("First argument must be a list of labeled tuples")])
+    | PivotLabelIsNotString(ty) =>
+      div_err([
+        text("Pivot column must be a string, but got: "),
+        view_type(ty),
+      ])
+    }
   | InHole(InvalidUseMode({bad_typ, _})) =>
     div_err([
       text("Cannot use type "),
@@ -453,7 +594,9 @@ let rec exp_view =
       text("inconsistent with"),
       view_type(Prod([]) |> Typ.fresh),
     ])
-  | InHole(WantTuple) =>
+  | InHole(TupleExtensionRequiresTuples) =>
+    div_err([text("Tuple extension requires tuple")])
+  | InHole(DotOperatorRequiresTuple) =>
     div_err([text("Requires tuple for first argument")])
   | InHole(Common(error)) =>
     div_err(
@@ -477,12 +620,17 @@ let rec exp_view =
   | InHole(LabelNotFound(name, labels)) =>
     div_err([
       text("Label "),
-      code(name),
+      label_view(name),
       text(" not found in tuple's labels: "),
-      ...List.map(code, labels),
+      ...List.map(label_view, labels),
     ])
   | InHole(BadLivelitModel(_)) =>
     div_err([text("Bad internal livelit model")])
+  | InHole(BadTheorem(typ)) =>
+    div_err([
+      text("Theorem pattern is not of the form p : t, got "),
+      view_type(typ),
+    ])
   | NotInHole(AnaDeferralConsistent(ana)) =>
     div_ok([text("Expecting type"), view_type(ana)])
   | NotInHole(Common(ok)) =>
@@ -615,34 +763,41 @@ let inspector_view = (~globals, ci): Node.t =>
     view_of_info(~globals, ci),
   );
 
-let view =
-    (
-      ~globals: Globals.t,
-      ~inject: Editors.Update.t => 'a,
-      cursor: Cursor.cursor(Editors.Update.t),
-    ) => {
+/* Status indicator showing global statics status */
+let status_indicator = (error_ids: list(Id.t)) => {
+  let has_errors = error_ids != [];
+  let error_count = List.length(error_ids);
+  let digit_class =
+    error_count >= 100
+      ? "digits-3" : error_count >= 10 ? "digits-2" : "digits-1";
+  let (status_class, icon, title) =
+    has_errors
+      ? (
+        "has-errors " ++ digit_class,
+        string_of_int(error_count),
+        string_of_int(error_count) ++ " error" ++ (error_count > 1 ? "s" : ""),
+      )
+      : ("no-errors", "✓", "No errors");
+  div(
+    ~attrs=[clss(["status-indicator", status_class]), Attr.title(title)],
+    [span(~attrs=[], [text(icon)])],
+  );
+};
+
+let view = (~globals: Globals.t, cursor: Cursor.cursor(Editors.Update.t)) => {
   let bar_view = div(~attrs=[Attr.id("bottom-bar")]);
+  let status = status_indicator(cursor.error_ids);
   let err_view = err =>
     bar_view([
       div(
         ~attrs=[Attr.id("cursor-inspector"), clss(["no-info"])],
         [div(~attrs=[clss(["icon"])], [Icons.magnify]), text(err)],
       ),
+      status,
     ]);
   switch (cursor.info) {
   | _ when !globals.settings.core.statics => div_empty
   | None => err_view("Whitespace or Comment")
-  | Some(ci) =>
-    bar_view([
-      inspector_view(~globals, ci),
-      ProjectorPanel.view(
-        ~inject=
-          a =>
-            cursor.editor_action(Project(a))
-            |> Option.map(inject)
-            |> Option.value(~default=Ui_effect.Ignore),
-        cursor,
-      ),
-    ])
+  | Some(ci) => bar_view([inspector_view(~globals, ci), status])
   };
 };

@@ -71,6 +71,16 @@ let to_list: t_('a) => list((Var.t, 'a));
 let of_list: list((Var.t, 'a)) => t_('a);
 
 /**
+ * Checks if two `t_('a)` maps are equal based on a provided equality function.
+ *
+ * @param eqFn - A function that takes two elements of type `'a` and returns `true` if they are equal, `false` otherwise.
+ * @param map1 - The first map of type `t_('a)` to compare.
+ * @param map2 - The second map of type `t_('a)` to compare.
+ * @return `true` if the two maps are equal according to the provided equality function, `false` otherwise.
+ */
+let equal: (('a, 'a) => bool, t_('a), t_('a)) => bool;
+
+/**
 
  */
 module Ordered: {

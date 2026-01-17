@@ -68,13 +68,32 @@ let singleton = (name, id, expected_ty): t => [
   ),
 ];
 
-let join: (Ctx.t, list(entry)) => Typ.t =
+let meet: (Ctx.t, list(entry)) => Typ.t =
   (ctx, entries) => {
     let expected_tys = List.map(entry => entry.expected_ty, entries);
     switch (
-      Typ.join_all(~empty=Unknown(Internal) |> Typ.fresh, ctx, expected_tys)
+      Typ.meet_all(~empty=Unknown(Internal) |> Typ.fresh, ctx, expected_tys)
     ) {
     | None => Unknown(Internal) |> Typ.fresh
     | Some(ty) => ty
     };
   };
+
+let has_any = (co_ctx: t, vs: list(Var.t)): bool => {
+  List.exists(v => VarMap.contains(co_ctx, v), vs);
+};
+
+let of_bindings = (bindings: Binding.s): t =>
+  List.map(
+    (b: Binding.t) =>
+      (
+        b.name,
+        [
+          {
+            id: b.id,
+            expected_ty: Typ.fresh(Unknown(Internal)),
+          },
+        ],
+      ),
+    bindings,
+  );

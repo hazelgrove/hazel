@@ -33,22 +33,24 @@ let introduction_test = (before: string, expected: string) => {
   let serialized = {
     open Haz3lcore;
     let* zip = Parser.to_zipper(before);
-    let exp = MakeTerm.from_zip_for_sem(zip).term;
+    let MakeTerm.{term: exp, term_data, _} = MakeTerm.from_zip_for_sem(zip);
     let* hole_id = find_hole_id(exp);
-    module S = (val Editor.Model.to_move_s(Editor.Model.mk(zip)));
-    module Move = Move.Make(S);
-    module Select = Select.Make(S);
     let* zip = Move.jump_to_side_of_id(Left, zip, hole_id);
-    let* zip = Move.go(Local(Right(ByChar)), zip); // To get on the hole itself
+    let* zip = Move.local(ByToken, Right, zip); // To get on the hole itself
     let* zip =
-      Select.current_term(~defs_exclude_bodies=false, ~case_rules=false, zip);
+      Select.current_term(
+        term_data,
+        ~defs_exclude_bodies=false,
+        ~case_rules=false,
+        zip,
+      );
     let statics =
       Statics.mk(
         CoreSettings.on,
         Builtins.ctx_init(Some(Operators.default_mode)),
         exp,
       );
-    let+ zip = Introduce.introduce(statics, zip);
+    let+ zip = Introduce.introduce(Indicated.ci_of(zip, statics), zip);
     Printer.of_zipper(~holes="?", zip);
   };
 
@@ -56,7 +58,12 @@ let introduction_test = (before: string, expected: string) => {
 };
 
 let introduce_expression = (x: Typ.t): option(Exp.t) =>
-  Haz3lcore.Introduce.IntroduceExp.introduce(x)
+  Haz3lcore.Introduce.IntroduceExp.introduce(
+    Typ.weak_head_normalize(
+      Builtins.ctx_init(Some(Operators.default_mode)),
+      x,
+    ),
+  )
   |> Option.map(((a, _b, _c)) => a);
 
 let tests =
@@ -176,7 +183,7 @@ let tests =
             option(exp),
             "Function",
             Some(Exp.(typ_fun(TPat.empty_hole(), empty_hole(), None))),
-            introduce_expression(Typ.(forall(TPat.var("a"), var("a")))),
+            introduce_expression(Typ.(poly(TPat.var("a"), var("a")))),
           )
         }),
         test_case("String", `Quick, () => {
@@ -195,6 +202,25 @@ let tests =
             introduce_expression(Typ.(list(int()))),
           )
         }),
+        test_case(
+          "Duplicate labels in product",
+          `Quick,
+          () => {
+            let duplicate_prod =
+              Typ.(
+                prod([
+                  tup_label(label("a"), int()),
+                  tup_label(label("a"), string()),
+                ])
+              );
+            check(
+              option(exp),
+              "Duplicate labels should introduce single label",
+              Some(Exp.(tuple([tup_label(label("a"), empty_hole())]))),
+              introduce_expression(duplicate_prod),
+            );
+          },
+        ),
       ],
     ),
     (

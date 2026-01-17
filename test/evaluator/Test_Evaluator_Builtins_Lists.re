@@ -33,7 +33,7 @@ let tests = (
     ),
     test_case("flat_map duplicate elements", `Quick, () =>
       parse_and_evaluate_test(
-        {|[2, 2, 1, 1]|},
+        {|[1, 1, 2, 2]|},
         {|flat_map([1, 2], fun x -> [x, x])|},
       )
     ),
@@ -73,11 +73,11 @@ let tests = (
     test_case("cons element to list", `Quick, () =>
       parse_and_evaluate_test({|[1, 2, 3]|}, {|cons(1, [2, 3])|})
     ),
-    test_case("hd of non-empty list", `Quick, () =>
-      parse_and_evaluate_test({|1|}, {|hd([1, 2, 3])|})
+    test_case("head of non-empty list", `Quick, () =>
+      parse_and_evaluate_test({|1|}, {|head([1, 2, 3])|})
     ),
     test_case("tl of non-empty list", `Quick, () =>
-      parse_and_evaluate_test({|[2, 3]|}, {|tl([1, 2, 3])|})
+      parse_and_evaluate_test({|[2, 3]|}, {|tail([1, 2, 3])|})
     ),
     test_case("is_empty of empty list", `Quick, () =>
       parse_and_evaluate_test({|true|}, {|is_empty([])|})

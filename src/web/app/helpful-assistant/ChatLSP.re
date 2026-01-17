@@ -4,12 +4,7 @@ open Language;
 
 let get_sketch_and_error_ctx =
     (editor: CodeWithStatics.Model.t): list(string) => {
-  let sketch_seg =
-    Zipper.smart_seg(
-      ~dump_backpack=true,
-      ~erase_buffer=true,
-      editor.editor.state.zipper,
-    );
+  let sketch_seg = Dump.to_segment(editor.editor.state.zipper);
   let errors = ErrorPrint.all(editor.statics.info_map);
   let static_error_arr =
     switch (errors) {
@@ -284,12 +279,12 @@ module Composition = {
     let actions =
       switch (matching_id) {
       | Some(id) => [
-          Action.Jump(TileId(id)),
+          Action.Move(Goal(TileId(id))),
           // Moving left by token is essentially a hacky method to get
           // off of a variable name (term), and triple/quad click on let binding
           // itself (this properly highlights full variable name and
           // definition when type annotation exists)
-          Action.Move(Local(Left(ByToken))),
+          Action.Move(Local(Left, ByToken)),
           switch (loc) {
           // TODO: Implement structure-based navigation actions
           | Definition =>
@@ -368,20 +363,29 @@ module ErrorRound = {
   open OptUtil.Syntax;
   module StringSet = Set.Make(String);
 
+  /* Orphan backpack tiles are unmatched delimiters (like `=>`, `(`).
+   * They're just delimiter tiles with no probed children, so we can
+   * safely use empty refractors and identity for refractor_seg_to_seg. */
+  let orphan_to_string: Base.tile => string =
+    Base.tile_to_string(
+      ~holes="",
+      ~concave_holes=" ",
+      ~projector_to_segment=Triggers.projector_to_invoke,
+      ~refractors=Id.Map.empty,
+      ~refractor_seg_to_seg=(a, b) =>
+      (a, b)
+    );
+
   let get_parse_errs =
       (sketch_z: Zipper.t, completion: string): Result.t(Zipper.t, string) =>
     //NOTE: This function is pretty basic; reporting approach could be improved
     /* For now we required that the completion be complete in-itself: */
-    switch (Perform.paste(Zipper.init(), completion)) {
+    switch (Parser.to_zipper(~zipper_init=Zipper.init(), completion)) {
     | None => Error("Undocumented parse error, no feedback available")
     | Some(completion_z) =>
-      switch (completion_z.backpack) {
+      switch (Zipper.local_backpack(completion_z)) {
       | [_, ..._] as orphans =>
-        let orphans =
-          List.map(
-            (s: Selection.t) => Printer.of_segment(~holes="", s.content),
-            orphans,
-          );
+        let orphans = List.map(orphan_to_string, orphans);
         Error(
           "The parser has detected unmatched delimiters. (The presence of a '=>' in the list likely indicates that a '->' was mistakingly used in a case expression). Unmatched delimiters: "
           ++ String.concat(", ", orphans),
@@ -392,7 +396,7 @@ module ErrorRound = {
           {
             let* sketch_z = Destruct.go(Left, sketch_z);
             let+ sketch_z = Destruct.go(Left, sketch_z);
-            Perform.paste_segment(sketch_z, segment);
+            Zipper.insert_segment(sketch_z, segment);
           }
         ) {
         | None => Error("Undocumented parse error, no feedback available")

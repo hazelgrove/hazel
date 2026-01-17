@@ -88,20 +88,34 @@
   color: var(--token-comment);
 }
 
-.code .whitespace {
+.code .code-text {
   color: var(--token-secondary);
-}
-
-.code .linebreak {
-  color: var(--token-secondary);
-  font-family: system-ui;
-  vertical-align: middle;
-  font-size: 0.59em;
 }
 
 .code .token.llm-waiting {
   animation: rainbow 4s linear infinite;
   font-weight: bold;
+}
+
+/* For emoji rendering in code */
+.code .grapheme-cell {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  vertical-align: baseline;
+  white-space: pre;
+}
+
+.code-container.meta-down .token.ref {
+  cursor: pointer;
+}
+
+.code-container.meta-down .token.ref:hover {
+  text-decoration: underline;
+  text-decoration-style: solid;
+  text-underline-offset: 0.08em;
+  filter: brightness(1.5);
 }
 
 @keyframes rainbow {
@@ -202,23 +216,24 @@ svg.shard.selected {
 svg.shard.indicated {
   z-index: var(--tile-z);
 }
-svg.shard.error {
-  z-index: var(--err-hole-z);
-}
-
 svg.shard.selected > path {
   fill: var(--shard-selected);
   stroke-width: 0.5px;
   stroke: var(--shard-selected);
 }
-svg.shard.error > path,
+
+.errors .errors-piece svg.shard {
+  z-index: var(--err-hole-z);
+  filter: none;
+}
+.errors .errors-piece svg.shard > path,
 .errors .errors-piece svg .child-line {
   stroke: var(--error-hole-stroke);
   stroke-width: 0.75px;
   stroke-dasharray: 1, 1;
   stroke-linecap: butt;
 }
-svg.shard.error > path {
+.errors .errors-piece svg.shard > path {
   fill: var(--error-hole-fill);
 }
 
@@ -242,9 +257,6 @@ svg.shard.selected.buffer-parsed > path {
 }
 
 /* EMPTY HOLE DECO */
-
-.empty-hole {
-}
 
 .empty-hole > path {
   fill: var(--empty-hole-fill);
@@ -278,6 +290,11 @@ svg.shard.selected.buffer-parsed > path {
   vector-effect: non-scaling-stroke;
 }
 
+.indication .child-line {
+  /* To make it align to shard shadows */
+  translate: 0 0.02px;
+}
+
 svg:has(.child-line) {
   z-index: var(--err-hole-arms-z);
 }
@@ -303,16 +320,18 @@ svg:has(.child-line) {
 
 /* BACKPACK DECO */
 
-.backpack .code-text {
-  position: relative;
+.backpack {
+  z-index: var(--backpack-z);
 }
 
-.backpack.cant-put-down {
+.backpack.cant-put-down > * {
   opacity: 40%;
 }
 
 .backpack-joiner {
-  opacity: 40%;
+  z-index: var(--backpack-z);
+  width: 2px;
+  background-color: var(--backpack-joiner);
 }
 
 .backpack-selection {
@@ -323,12 +342,8 @@ svg:has(.child-line) {
   width: fit-content;
   background-color: var(--backpack-selection);
   outline: 1px solid var(--backpack-selection-outline);
-}
-
-.backpack-joiner {
-  border-radius: 2px;
-  width: 2px;
-  background-color: var(--backpack-joiner);
+  font-weight: bold;
+  color: var(--token-incomplete) !important;
 }
 
 .backpack-genie {
@@ -337,12 +352,103 @@ svg:has(.child-line) {
   vector-effect: non-scaling-stroke;
 }
 
-/* BACKPACK TARGETS DECO */
-
-.backpack-target {
-  z-index: var(--backpack-targets-z);
+.restructuring-genie {
+  z-index: var(--backpack-z);
 }
 
-.caret-position-path {
-  fill: var(--backback-targets);
+/* Invisible backdrop to capture clicks outside context menu */
+.context-menu-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: calc(var(--context-menu-z) - 1);
+}
+
+.context-menu {
+  position: absolute;
+  min-width: 160px;
+  z-index: var(--context-menu-z);
+  flex-direction: column;
+  justify-content: center;
+  background-color: var(--menu-bkg);
+  border-radius: 0 0.5em 0.5em 0.5em;
+  outline: 0.6px solid var(--menu-outline);
+  box-shadow: 0px 10px 20px var(--menu-shadow);
+  padding: 0.2em;
+}
+
+/* Border radius, transforms, and animations based on opening direction */
+.context-menu.open-down-right {
+  border-radius: 0 0.5em 0.5em 0.5em; /* top-left sharp */
+  transform-origin: top left;
+  animation: context-menu-open-down-right 0.12s ease-out;
+}
+.context-menu.open-down-left {
+  border-radius: 0.5em 0 0.5em 0.5em; /* top-right sharp */
+  transform: translateX(-100%);
+  transform-origin: top right;
+  animation: context-menu-open-down-left 0.12s ease-out;
+}
+.context-menu.open-up-right {
+  border-radius: 0.5em 0.5em 0.5em 0; /* bottom-left sharp */
+  transform: translateY(-100%);
+  transform-origin: bottom left;
+  animation: context-menu-open-up-right 0.12s ease-out;
+}
+.context-menu.open-up-left {
+  border-radius: 0.5em 0.5em 0 0.5em; /* bottom-right sharp */
+  transform: translate(-100%, -100%);
+  transform-origin: bottom right;
+  animation: context-menu-open-up-left 0.12s ease-out;
+}
+
+/* Open animations for each direction - scale from origin while maintaining translate */
+@keyframes context-menu-open-down-right {
+  from { opacity: 0; transform: scale(0.95); }
+  to { opacity: 1; transform: scale(1); }
+}
+@keyframes context-menu-open-down-left {
+  from { opacity: 0; transform: translateX(-100%) scale(0.95); }
+  to { opacity: 1; transform: translateX(-100%) scale(1); }
+}
+@keyframes context-menu-open-up-right {
+  from { opacity: 0; transform: translateY(-100%) scale(0.95); }
+  to { opacity: 1; transform: translateY(-100%) scale(1); }
+}
+@keyframes context-menu-open-up-left {
+  from { opacity: 0; transform: translate(-100%, -100%) scale(0.95); }
+  to { opacity: 1; transform: translate(-100%, -100%) scale(1); }
+}
+
+.context-menu .group .contents {
+  display: flex;
+  flex-direction: column;
+}
+.context-menu .named-menu-item {
+  display: flex;
+  align-items: center;
+  color: var(--menu-item-text);
+  cursor: pointer;
+  gap: 0.5em;
+}
+.context-menu .group .contents .named-menu-item {
+  padding: 0.05em 0.5em 0.05em 0.7em;
+}
+.context-menu .group .contents .named-menu-item:hover,
+.context-menu .group .contents .named-menu-item.selected {
+  background-color: var(--SAND);
+  border-radius: 0.2em;
+}
+.context-menu .named-menu-item .menu-shortcut {
+  margin-left: auto;
+  padding-left: 1em;
+  font-size: 0.85em;
+  opacity: 0.6;
+}
+.context-menu .named-menu-item .menu-colon {
+  opacity: 0.6;
+}
+.context-menu .menu-divider {
+  height: 0.6px;
+  background: var(--menu-outline);
+  margin: 6px 0.5em;
 }

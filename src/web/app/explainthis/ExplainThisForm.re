@@ -77,9 +77,7 @@ type numeric_bin_op_examples =
   | GreaterThanFalse
   | GreaterThanEqualGreater
   | GreaterThanEqualEqual
-  | GreaterThanEqualFalse
-  | EqualFalse
-  | EqualTrue;
+  | GreaterThanEqualFalse;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type example_id =
@@ -90,7 +88,9 @@ type example_id =
   | Fun(fun_examples)
   | Label1
   | Label2
+  | Label3
   | Dot1
+  | Dot2
   | DotTyp
   | Fix1
   | Fix2
@@ -99,7 +99,14 @@ type example_id =
   | TupleLabeled1
   | TupleLabeled2
   | TupleLabeled3
+  | TupleExtension1
+  | TupleExtension2
+  | TupleExtension3
   | Let(let_examples)
+  | Theorem
+  | ProofOf
+  | Forall
+  | Yes
   | UseExp1
   | TypFunAp
   | FunAp
@@ -117,6 +124,12 @@ type example_id =
   | IntUnaryMinus
   | Int(numeric_bin_op_examples)
   | Float(numeric_bin_op_examples)
+  | FloatEqualFalse
+  | FloatEqualTrue
+  | PolyEqualFalse
+  | PolyEqualTrue
+  | PolyNotEqualTrue
+  | PolyNotEqualFalse
   | AndFalse
   | AndTrue
   | OrFalse
@@ -196,6 +209,8 @@ type form_id =
   | Tuple3Exp
   | LetExp(pat_sub_form_id)
   | FixExp(pat_sub_form_id)
+  | TheoremExp
+  | ProofObjectExp
   | TypFunApExp
   | FunApExp
   | ConApExp
@@ -241,7 +256,7 @@ type form_id =
   | StrTyp
   | VarTyp
   | ListTyp
-  | ForallTyp
+  | PolyTyp
   | RecTyp
   | ArrowTyp
   | Arrow3Typ
@@ -252,6 +267,8 @@ type form_id =
   | Tuple3Typ
   | DotTyp
   | Label
+  | ForallExp
+  | ProofOfTyp
   | LabelledSumTyp
   | SumTypUnaryConstructorDef
   | SumTypNullaryConstructorDef
@@ -264,7 +281,8 @@ type form_id =
   | FilterDebug
   | FilterHide
   | FilterSelector
-  | AscExp;
+  | AscExp
+  | TupleExtensionExp;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type form = {
@@ -304,6 +322,8 @@ type group_id =
   | Tuple2Exp
   | Tuple3Exp
   | LetExp(pat_sub_form_id)
+  | TheoremExp
+  | ProofObjectExp
   | TypFunApExp
   | FixExp(pat_sub_form_id)
   | FunApExp
@@ -320,6 +340,7 @@ type group_id =
   | CaseExp
   | TyAliasExp
   | PipelineExp
+  | TupleExtensionExp
   | UseExp
   | EmptyHolePat
   | MultiHolePat
@@ -351,8 +372,10 @@ type group_id =
   | StrTyp
   | VarTyp
   | ListTyp
-  | ForallTyp
+  | PolyTyp
   | RecTyp
+  | ForallExp
+  | ProofOfTyp
   | ArrowTyp
   | Arrow3Typ
   | LabeledTyp

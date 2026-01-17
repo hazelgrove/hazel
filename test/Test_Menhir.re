@@ -3,7 +3,16 @@ open Alcotest;
 open Language;
 module Fresh = IdTagged.FreshGrammar;
 let alco_check =
-  (testable(Fmt.using(Exp.show, Fmt.string)))(DHExp.fast_equal)
+  (testable(Fmt.using(Exp.show, Fmt.string)))(
+    // This is syntactic with ignore_wrappers=true
+    Equality.(
+      equality({
+        ...syntactic_settings,
+        ignore_parens: true,
+      })
+    ).
+      exp,
+  )
   |> Alcotest.check;
 
 let strip_wrap =
@@ -11,15 +20,13 @@ let strip_wrap =
     ~f_exp=
       (cont: TermBase.exp_t => TermBase.exp_t, e: TermBase.exp_t) =>
         switch (e.term) {
-        | Parens(e)
-        | Probe(e, _) => cont(e)
+        | Parens(e) => cont(e)
         | _ => cont(e)
         },
     ~f_pat=
       (cont, e) =>
         switch (e.term) {
-        | Parens(e)
-        | Probe(e, _) => cont(e)
+        | Parens(e) => cont(e)
         | _ => cont(e)
         },
     ~f_typ=
@@ -40,7 +47,7 @@ let make_term_parse = (s: string) =>
       term,
   );
 
-let menhir_matches = (exp: Term.Exp.t, actual: string) =>
+let menhir_matches = (exp: Exp.t, actual: string) =>
   alco_check(
     "menhir matches expected parse",
     exp,
@@ -50,14 +57,14 @@ let menhir_matches = (exp: Term.Exp.t, actual: string) =>
     ),
   );
 
-let menhir_only_test = (name: string, exp: Term.Exp.t, actual: string) =>
+let menhir_only_test = (name: string, exp: Exp.t, actual: string) =>
   test_case(name, `Quick, () => {menhir_matches(exp, actual)});
 
 let skip_menhir_maketerm_equivalent_test =
     (~speed_level=`Quick, name: string, _actual: string) =>
   test_case(name, speed_level, () => {Alcotest.skip()});
 
-let full_parser_test = (name: string, exp: Term.Exp.t, actual: string) =>
+let full_parser_test = (name: string, exp: Exp.t, actual: string) =>
   test_case(
     name,
     `Quick,
@@ -96,13 +103,8 @@ let qcheck_menhir_maketerm_equivalent_test =
     QCheck_Util.arb_exp(~minimal_idents=false, 7),
     core_exp => {
       let segment =
-        Haz3lcore.ExpToSegment.exp_to_segment(
-          ~settings=
-            Haz3lcore.ExpToSegment.Settings.of_core(
-              ~inline=true,
-              Language.CoreSettings.off,
-            ),
-          core_exp,
+        Haz3lcore.ExpToSegment.(
+          exp_to_segment(~settings=Settings.editable(~inline=true), core_exp)
         );
 
       let serialized = Haz3lcore.Printer.of_segment(~holes="?", segment);
@@ -112,7 +114,13 @@ let qcheck_menhir_maketerm_equivalent_test =
         Conversion.Exp.of_menhir_ast(menhir_parsed);
 
       switch (
-        DHExp.fast_equal(
+        Equality.(
+          equality({
+            ...syntactic_settings,
+            ignore_parens: true,
+          })
+        ).
+          exp(
           make_term_parsed,
           Grammar.map_exp_annotation(
             _ => IdTagged.IdTag.fresh(),
@@ -156,7 +164,7 @@ let qcheck_menhir_serialized_equivalent_test =
           ~settings={
             inline: true,
             fold_case_clauses: false,
-            fold_fn_bodies: false,
+            fold_fn_bodies: `NoFold,
             hide_fixpoints: false,
             show_filters: true,
             show_unknown_as_hole: true,
@@ -256,7 +264,7 @@ let tests =
       ),
       full_parser_test(
         "Test",
-        test(bin_op(Int(Equals), int(3), int(3))),
+        test(bin_op(Poly(Equals), int(3), int(3))),
         "test 3 == 3 end",
       ),
       full_parser_test(
@@ -353,6 +361,15 @@ let tests =
           var("x"),
         ),
         "let x : +A +B +C(Int) = C(7) in x",
+      ),
+      menhir_maketerm_equivalent_test("Fold Projector Exp", "^^fold(1)"),
+      menhir_maketerm_equivalent_test(
+        "Fold Projector Typ",
+        "type foo = ^^fold(Int) in 3",
+      ),
+      menhir_maketerm_equivalent_test(
+        "Fold Projector Pat",
+        "let ^^fold(x) = 3 in x",
       ),
       menhir_maketerm_equivalent_test("Empty Type Hole", "let g: ? = 7 in g"),
       menhir_maketerm_equivalent_test(
@@ -493,16 +510,16 @@ let exp_equal: (Exp, Exp) -> Bool =
     end
 in
 
-let poly_id: (forall a -> (a -> a)) =
+let poly_id: (poly a -> (a -> a)) =
   (typfun a -> (fun (x : a) -> x))
 in
 let apply_both:
-forall a -> forall b -> (forall c -> c -> c) -> ((a, b) -> (a, b)) =
+poly a -> poly b -> (poly c -> c -> c) -> ((a, b) -> (a, b)) =
   typfun a -> typfun b ->
-    fun (f : forall c -> (c -> c)) ->
+    fun (f : poly c -> (c -> c)) ->
       fun ((x, y) : (a, b)) -> (f@<a>(x), f@<b>(y))
 in
-let list_length: forall a -> ([a] -> Int) =
+let list_length: poly a -> ([a] -> Int) =
   typfun a -> fun (l : [a]) ->
     case l
       | [] => 0
@@ -661,14 +678,14 @@ Ok(Lam("bro", Var("bro")))) end
         "Altered Documentation Buffer: Polymorphism",
         {|let id = typfun A -> (fun (x : A) -> x) in
 let ex1 = id@<Int>(1) in
-let const : forall A -> (forall B -> (A -> B -> A)) =
+let const : poly A -> (poly B -> (A -> B -> A)) =
 typfun A -> (typfun B -> (fun x -> fun y -> x)) in
 let ex2 = const@<Int>@<String>(2)("Hello World") in
-let apply_both : forall A -> forall B -> (forall D -> D -> D) -> (A , B) -> (A , B) =
+let apply_both : poly A -> poly B -> (poly D -> D -> D) -> (A , B) -> (A , B) =
 typfun A -> typfun B -> fun f -> fun (x, y) -> (f@<A>(x), f@<B>(y)) in
 let ex3 = apply_both@<Int>@<String>(id)(3, "Hello World") in
-let emptylist : forall A -> [A] = typfun A -> [] in
-let map : forall A -> forall B -> (A -> B) -> ([A] -> [B]) =
+let emptylist : poly A -> [A] = typfun A -> [] in
+let map : poly A -> poly B -> (A -> B) -> ([A] -> [B]) =
   typfun A -> typfun B -> fun (f : (A -> B)) -> fun (l : [A]) ->
     case l
       | (h :: a) => f(h) :: map@<A>@<B>(f)(a)

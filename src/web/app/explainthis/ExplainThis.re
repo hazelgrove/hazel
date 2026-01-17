@@ -231,104 +231,103 @@ let expander_deco =
       ~options: list((ExplainThisForm.form_id, Segment.t)),
       ~group: ExplainThisForm.group,
       ~doc: ExplainThisForm.form,
-      editor,
+      editor: Editor.Model.t,
     ) => {
-  module Deco =
-    Deco.Deco({
-      let editor = editor;
-      let globals = globals;
-      let statics = CachedStatics.empty;
-    });
   switch (doc.expandable_id, List.length(options)) {
   | (None, _)
   | (_, 0 | 1) => div([])
-  | (Some((expandable, _)), _) =>
-    Deco.term_decoration(
-      ~id=expandable,
-      ((origin, _, path)) => {
-        let specificity_pos =
-          Printf.sprintf(
-            "position: absolute; top: %fpx;",
-            font_metrics.row_height,
-          );
+  | (Some((id, _)), _) =>
+    let origin =
+      switch (
+        TermData.extreme_measures(
+          id,
+          editor.syntax.term_data,
+          editor.syntax.measured,
+        )
+      ) {
+      | Some((origin, _)) => origin
+      | None => {
+          row: 0,
+          col: 0,
+        }
+      };
+    let specificity_pos =
+      Printf.sprintf(
+        "position: absolute; top: %fpx;",
+        font_metrics.row_height,
+      );
 
-        let specificity_style =
-          Attr.create(
-            "style",
-            specificity_pos
-            ++ (docs.specificity_open ? "transform: scaleY(1);" : ""),
-          );
+    let specificity_style =
+      Attr.create(
+        "style",
+        specificity_pos
+        ++ (docs.specificity_open ? "transform: scaleY(1);" : ""),
+      );
 
-        let get_clss = segment =>
-          switch (List.nth(segment, 0)) {
-          | Base.Tile({mold, _}) => [
-              "ci-header-" ++ Sort.to_string(mold.out) // TODO the brown on brown isn't the greatest... but okay
-            ]
-          | _ => []
-          };
+    let get_clss = segment =>
+      switch (List.nth(segment, 0)) {
+      | Base.Tile({mold, _}) => [
+          "ci-header-" ++ Sort.to_string(mold.out) // TODO the brown on brown isn't the greatest... but okay
+        ]
+      | _ => []
+      };
 
-        let specificity_menu =
-          Node.div(
-            ~attrs=[
-              clss(["specificity-options-menu", "expandable"]),
-              specificity_style,
-            ],
-            List.map(
-              ((id: ExplainThisForm.form_id, segment: Segment.t)): Node.t => {
-                let code_view =
-                  CodeViewable.view_segment(
-                    ~globals,
-                    ~sort=Exp,
-                    ~shape_map=ProjectorCore.Shape.Map.empty, // Assume no projectors
-                    segment,
-                  );
-                let classes =
-                  id == doc.id
-                    ? ["selected"] @ get_clss(segment) : get_clss(segment);
-                let update_group_selection = _ =>
-                  inject(
-                    ExplainThisUpdate.UpdateGroupSelection(group.id, id),
-                  );
-                Node.div(
-                  ~attrs=[
-                    clss(classes),
-                    Attr.on_click(update_group_selection),
-                  ],
-                  [code_view],
-                );
-              },
-              options,
-            ),
-          );
+    let specificity_menu =
+      Node.div(
+        ~attrs=[
+          clss(["specificity-options-menu", "expandable"]),
+          specificity_style,
+        ],
+        List.map(
+          ((id: ExplainThisForm.form_id, segment: Segment.t)): Node.t => {
+            let code_view = CodeViewable.view_segment(~globals, segment);
+            let classes =
+              id == doc.id
+                ? ["selected"] @ get_clss(segment) : get_clss(segment);
+            let update_group_selection = _ =>
+              inject(ExplainThisUpdate.UpdateGroupSelection(group.id, id));
+            Node.div(
+              ~attrs=[clss(classes), Attr.on_click(update_group_selection)],
+              [code_view],
+            );
+          },
+          options,
+        ),
+      );
 
-        let expand_arrow_style = Attr.create("style", specificity_pos);
-        let expand_arrow =
-          Node.div(~attrs=[clss(["arrow"]), expand_arrow_style], []);
+    let expand_arrow_style = Attr.create("style", specificity_pos);
+    let expand_arrow =
+      Node.div(~attrs=[clss(["arrow"]), expand_arrow_style], []);
 
-        let expandable_deco =
-          DecUtil.code_svg(
-            ~font_metrics,
-            ~origin,
-            ~base_cls=["expandable"],
-            ~abs_pos=false,
-            path,
-          );
+    let expandable_deco =
+      div_c(
+        "color-highlights",
+        Highlight.color(
+          ~syntax=editor.syntax,
+          ~font_metrics,
+          ["expandable"],
+          id,
+        ),
+      );
 
-        Node.div(
-          ~attrs=[
-            clss(["expandable-target"]),
-            DecUtil.abs_position(~font_metrics, origin),
-            Attr.on_click(_ => {
-              inject(
-                ExplainThisUpdate.SpecificityOpen(!docs.specificity_open),
-              )
-            }),
-          ],
-          [expandable_deco, specificity_menu]
-          @ (docs.specificity_open ? [] : [expand_arrow]),
-        );
-      },
-    )
+    let expander =
+      div(
+        ~attrs=[
+          clss(["expandable-target"]),
+          DecUtil.abs_position(~font_metrics, origin),
+        ],
+        [specificity_menu] @ (docs.specificity_open ? [] : [expand_arrow]),
+      );
+
+    Node.div(
+      ~attrs=[
+        clss(["expandable-target"]),
+        Attr.on_click(_ =>
+          inject(ExplainThisUpdate.SpecificityOpen(!docs.specificity_open))
+        ),
+      ],
+      [expandable_deco, expander],
+    );
   };
 };
 
@@ -399,7 +398,6 @@ let example_view =
 let rec bypass_parens_and_annot_pat = (pat: Pat.t) => {
   switch (pat.term) {
   | Parens(p)
-  | Probe(p, _)
   | Asc(p, _) => bypass_parens_and_annot_pat(p)
   | _ => pat
   };
@@ -407,16 +405,14 @@ let rec bypass_parens_and_annot_pat = (pat: Pat.t) => {
 
 let rec bypass_parens_pat = (pat: Pat.t) => {
   switch (pat.term) {
-  | Parens(p)
-  | Probe(p, _) => bypass_parens_pat(p)
+  | Parens(p) => bypass_parens_pat(p)
   | _ => pat
   };
 };
 
 let rec bypass_parens_exp = (exp: Exp.t) => {
   switch (exp.term) {
-  | Parens(e)
-  | Probe(e, _) => bypass_parens_exp(e)
+  | Parens(e) => bypass_parens_exp(e)
   | _ => exp
   };
 };
@@ -475,11 +471,6 @@ let get_doc =
           explanation_msg,
           docs,
         );
-      let sort =
-        switch (info) {
-        | None => Sort.Any
-        | Some(ci) => Info.sort_of(ci)
-        };
       let highlights =
         colorings
         |> List.map(((syntactic_form_id: Id.t, code_id: Id.t)) => {
@@ -500,29 +491,22 @@ let get_doc =
           ~doc,
           editor,
         );
-      let statics = CachedStatics.empty;
-      let dynamics = Dynamics.Map.empty;
-      let highlight_deco = {
-        module Deco =
-          Deco.Deco({
-            let editor = editor;
-            let globals = {
-              ...globals,
-              color_highlights: highlights,
-            };
-            let statics = statics;
-          });
-        [Deco.color_highlights()];
-      };
+      let highlight_deco = [
+        Highlight.colors(
+          ~font_metrics=globals.font_metrics,
+          ~syntax=editor.syntax,
+          highlights,
+        ),
+      ];
       let syntactic_form_view =
         CodeWithStatics.View.view(
           ~globals,
           ~overlays=highlight_deco @ [expander_deco],
-          ~sort,
           {
             editor,
-            statics,
-            dynamics,
+            statics: CachedStatics.empty,
+            dynamics: Dynamics.Map.empty,
+            context_menu: None,
           },
         );
       let example_view =
@@ -600,6 +584,7 @@ let get_doc =
         );
       | Undefined => get_message(UndefinedExp.undefined_exps)
       | Deferral(_) => get_message(TerminalExp.deferral_exps)
+      | ExplicitNonlabel => simple("Explicitly unlabeled entry")
       | Atom(Bool(b)) => get_message(TerminalExp.bool_exps(b))
       | Atom(Int(i)) => get_message(TerminalExp.int_exps(i))
       | Atom(SInt(i)) => get_message(TerminalExp.sint_exps(i))
@@ -1155,8 +1140,8 @@ let get_doc =
         | TupLabel(_)
         | Invalid(_)
         | Parens(_)
-        | Probe(_)
         | Label(_)
+        | ExplicitNonlabel
         | Asc(_) => default // Shouldn't get hit?
         };
       | Label(name) =>
@@ -1738,12 +1723,60 @@ let get_doc =
             basic(LetExp.lets_ctr);
           }
         | TupLabel(_)
+        | ExplicitNonlabel
         | Label(_)
         | Invalid(_) => default // Shouldn't get hit
         | Parens(_)
-        | Probe(_) => default // Shouldn't get hit?
         | Asc(_) => default // Shouldn't get hit?
         };
+      | Theorem(pat, thm, body) =>
+        let pat_id = List.nth(IdTagged.ids(pat), 0);
+        let thm_id = List.nth(IdTagged.ids(thm), 0);
+        let body_id = List.nth(IdTagged.ids(body), 0);
+        get_message(
+          ~colorings=
+            TheoremExp.test_exp_coloring_ids(~body_id, ~pat_id, ~thm_id),
+          ~format=
+            Some(
+              msg =>
+                Printf.sprintf(
+                  Scanf.format_from_string(msg, "%s%s"),
+                  Id.to_string(pat_id),
+                  Id.to_string(thm_id),
+                ),
+            ),
+          TheoremExp.tests,
+        );
+      | ProofObject(exp) =>
+        let typ_id = List.nth(IdTagged.ids(exp), 0);
+        get_message(
+          ~colorings=ProofObjectExp.proof_of_exp_coloring_ids(~typ_id),
+          ~format=
+            Some(
+              msg =>
+                Printf.sprintf(
+                  Scanf.format_from_string(msg, "%s"),
+                  Id.to_string(typ_id),
+                ),
+            ),
+          ProofObjectExp.proof_of_exps,
+        );
+      | Forall(pat, typ) =>
+        let pat_id = List.nth(IdTagged.ids(pat), 0);
+        let body_id = List.nth(IdTagged.ids(typ), 0);
+        get_message(
+          ~colorings=ForallExp.forall_exp_coloring_ids(~pat_id, ~body_id),
+          ~format=
+            Some(
+              msg =>
+                Printf.sprintf(
+                  Scanf.format_from_string(msg, "%s%s"),
+                  Id.to_string(pat_id),
+                  Id.to_string(body_id),
+                ),
+            ),
+          ForallExp.forall,
+        );
       | FixF(pat, body, _) =>
         message_single(
           FixFExp.single(
@@ -1943,8 +1976,7 @@ let get_doc =
             ),
           TestExp.tests,
         );
-      | Parens(term)
-      | Probe(term, _) => get_message_exp(term.term) // No Special message?
+      | Parens(term) => get_message_exp(term.term) // No Special message?
       | HintedTest(body, hint) =>
         let hint_id = List.nth(IdTagged.ids(hint), 0);
         let body_id = List.nth(IdTagged.ids(body), 0);
@@ -1977,6 +2009,22 @@ let get_doc =
                 ),
             ),
           ListExp.listcons,
+        );
+      | TupleExtension(x, y) =>
+        let x_id = List.nth(IdTagged.ids(x), 0);
+        let y_id = List.nth(IdTagged.ids(y), 0);
+        get_message(
+          ~colorings=TupleExp.tuple_extension_exp_coloring_ids(~x_id, ~y_id),
+          ~format=
+            Some(
+              msg =>
+                Printf.sprintf(
+                  Scanf.format_from_string(msg, "%s%s"),
+                  Id.to_string(x_id),
+                  Id.to_string(y_id),
+                ),
+            ),
+          TupleExp.tuple_extensions,
         );
       | ListConcat(xs, ys) =>
         let xs_id = List.nth(IdTagged.ids(xs), 0);
@@ -2067,12 +2115,6 @@ let get_doc =
               int_greater_than_equal,
               int_gte_exp_coloring_ids,
             )
-          | Nat(Equals)
-          | SInt(Equals)
-          | Int(Equals) => (int_equal, int_eq_exp_coloring_ids)
-          | Nat(NotEquals)
-          | SInt(NotEquals)
-          | Int(NotEquals) => (int_not_equal, int_neq_exp_coloring_ids)
           | Float(Plus) => (float_plus, float_plus_exp_coloring_ids)
           | Float(Minus) => (float_minus, float_minus_exp_coloring_ids)
           | Float(Times) => (float_times, float_times_exp_coloring_ids)
@@ -2097,6 +2139,8 @@ let get_doc =
           | Bool(Or) => (bool_or, bool_or_exp_coloring_ids)
           | String(Equals) => (string_equal, str_eq_exp_coloring_ids)
           | String(Concat) => (string_concat, str_concat_exp_coloring_ids)
+          | Poly(Equals) => (poly_equal, poly_eq_exp_coloring_ids)
+          | Poly(NotEquals) => (poly_not_equal, poly_neq_exp_coloring_ids)
           };
         let left_id = List.nth(IdTagged.ids(left), 0);
         let right_id = List.nth(IdTagged.ids(right), 0);
@@ -2262,6 +2306,7 @@ let get_doc =
           ),
         TerminalPat.var(v),
       )
+    | ExplicitNonlabel => simple("Explicitly unlabeled entry")
     | Label(name) =>
       get_message(
         ~format=
@@ -2395,8 +2440,7 @@ let get_doc =
         TypAnnPat.typann,
       );
     | Invalid(_) => simple("Not a valid pattern")
-    | Parens(_)
-    | Probe(_) =>
+    | Parens(_) =>
       // Shouldn't be hit?
       default
     }
@@ -2426,11 +2470,11 @@ let get_doc =
           ),
         ListTyp.list,
       );
-    | Forall(tpat, typ) =>
+    | Poly(tpat, typ) =>
       let tpat_id = List.nth(IdTagged.ids(tpat), 0);
       let tbody_id = List.nth(IdTagged.ids(typ), 0);
       get_message(
-        ~colorings=ForallTyp.forall_typ_coloring_ids(~tpat_id, ~tbody_id),
+        ~colorings=PolyTyp.poly_typ_coloring_ids(~tpat_id, ~tbody_id),
         ~format=
           Some(
             msg =>
@@ -2440,7 +2484,7 @@ let get_doc =
                 Id.to_string(tbody_id),
               ),
           ),
-        ForallTyp.forall,
+        PolyTyp.poly,
       );
     | Rec(tpat, typ) =>
       let tpat_id = List.nth(IdTagged.ids(tpat), 0);
@@ -2457,6 +2501,20 @@ let get_doc =
               ),
           ),
         RecTyp.rec_,
+      );
+    | ProofOf(exp) =>
+      let body_id = List.nth(IdTagged.ids(exp), 0);
+      get_message(
+        ~colorings=ProofOfTyp.proof_of_typ_coloring_ids(~body_id),
+        ~format=
+          Some(
+            msg =>
+              Printf.sprintf(
+                Scanf.format_from_string(msg, "%s"),
+                Id.to_string(body_id),
+              ),
+          ),
+        ProofOfTyp.proof_of,
       );
     | Arrow(arg, result) =>
       let arg_id = List.nth(IdTagged.ids(arg), 0);
@@ -2614,10 +2672,10 @@ let get_doc =
         TerminalTyp.var(v),
       )
     | Sum(_) => get_message(SumTyp.labelled_sum_typs)
-    | Ap({term: Var(c), _}, _) =>
-      get_message(SumTyp.sum_typ_unary_constructor_defs(c))
     | Unknown(Hole(Invalid(_))) => simple("Not a type or type operator")
-    | Ap(_)
+    | ExplicitNonlabel
+    | ProdProjection(_)
+    | ProdExtension(_)
     | Parens(_) => default // Shouldn't be hit?
     }
   | Some(InfoTPat(info)) =>

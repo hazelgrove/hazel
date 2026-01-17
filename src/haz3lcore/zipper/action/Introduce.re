@@ -1,5 +1,25 @@
 open Language;
 
+/* Predicates for checking if a type can be introduced.
+   Used by ContextMenu to show/hide the Introduce action. */
+let can_introduce_exp_type = (ty: Typ.t): bool =>
+  switch (ty.term) {
+  | Arrow(_, _)
+  | Prod(_)
+  | List(_)
+  | Poly(_, _)
+  | Atom(String) => true
+  | Sum([_]) => true /* Single-variant sum only */
+  | _ => false
+  };
+
+let can_introduce_pat_type = (ty: Typ.t): bool =>
+  switch (ty.term) {
+  | Prod(_) => true
+  | Sum([_]) => true /* Single-variant sum only */
+  | _ => false
+  };
+
 module type Introducable = {
   type t;
   let parse: Segment.t => t;
@@ -23,7 +43,7 @@ module type Introducable = {
 module IntroducePat: Introducable with type t = Pat.t = {
   type t = Pat.t;
   let parse = selection =>
-    MakeTerm.(pat(unsorted(Segment.skel(selection), selection)));
+    MakeTerm.(pat(unsorted(Pat, Segment.skel(selection), selection)));
   let is_hole = (pat: Pat.t) => {
     switch (pat.term) {
     | EmptyHole => true
@@ -80,7 +100,7 @@ module IntroducePat: Introducable with type t = Pat.t = {
 module IntroduceExp: Introducable with type t = Exp.t = {
   type t = Exp.t;
   let parse = selection =>
-    MakeTerm.(exp(unsorted(Segment.skel(selection), selection)));
+    MakeTerm.(exp(unsorted(Exp, Segment.skel(selection), selection)));
   let is_hole = (exp: Exp.t) => {
     switch (exp.term) {
     | EmptyHole => true
@@ -141,7 +161,7 @@ module IntroduceExp: Introducable with type t = Exp.t = {
               )
             ),
           )
-        | Forall(_, _) =>
+        | Poly(_, _) =>
           Some(
             TPat.empty_hole()
             |> (
@@ -203,9 +223,7 @@ module Make =
     |> Zipper.replace_selection(Left, seg, _)
     |> Zipper.directional_unselect(Left, _)
     |> move_right_until_id(id, _)
-    |> (
-      move_left ? Util.OptUtil.replace(Move.primary(ByChar, Left)) : Fun.id
-    );
+    |> (move_left ? Util.OptUtil.replace(Move.local(ByChar, Left)) : Fun.id);
   };
 
   let introduce = (z: Zipper.t, ty: Typ.t, ctx: Ctx.t) => {
@@ -224,7 +242,7 @@ module Make =
         ~settings={
           inline: true,
           fold_case_clauses: false,
-          fold_fn_bodies: false,
+          fold_fn_bodies: `NoFold,
           hide_fixpoints: false,
           show_filters: true,
           show_unknown_as_hole: true,
@@ -237,8 +255,8 @@ module Make =
   };
 };
 
-let introduce = (statics: Statics.Map.t, z: Zipper.t) => {
-  switch (Indicated.ci_of(z, statics)) {
+let introduce = (ci: option(Info.t), z: Zipper.t) => {
+  switch (ci) {
   | None => None
   | Some(
       InfoExp({
@@ -248,8 +266,8 @@ let introduce = (statics: Statics.Map.t, z: Zipper.t) => {
         _,
       }),
     ) =>
-    module IP = Make(IntroduceExp);
-    IP.introduce(z, Typ.weak_head_normalize(ctx, ana), ctx);
+    module IE = Make(IntroduceExp);
+    IE.introduce(z, Typ.weak_head_normalize(ctx, ana), ctx);
 
   | Some(
       InfoPat({

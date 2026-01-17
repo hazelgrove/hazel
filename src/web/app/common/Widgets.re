@@ -43,7 +43,7 @@ let toggle = (~tooltip="", label, active, action) =>
   div(
     ~attrs=[
       clss(["toggle-switch"] @ (active ? ["active"] : [])),
-      Attr.on_click(action),
+      Attr.on_pointerdown(action),
       Attr.title(tooltip),
     ],
     [div(~attrs=[clss(["toggle-knob"])], [text(label)])],
@@ -53,7 +53,7 @@ let toggle_named = (~tooltip="", icon, active, action) =>
   div(
     ~attrs=[
       clss(["named-menu-item"] @ (active ? ["active"] : [])),
-      Attr.on_click(action),
+      Attr.on_pointerdown(action),
     ],
     [toggle(icon, active, _ => Effect.Ignore), div([text(tooltip)])],
   );
@@ -75,7 +75,22 @@ let file_select_button = (~tooltip="", id, icon, on_input) => {
 };
 
 let file_select_button_named = (~tooltip="", id, icon, on_input) =>
-  div(
-    ~attrs=[clss(["named-menu-item"])],
-    [file_select_button(id, icon, on_input), div([text(tooltip)])],
+  /* https://stackoverflow.com/questions/572768/styling-an-input-type-file-button */
+  label(
+    ~attrs=[Attr.for_(id)],
+    [
+      Vdom_input_widgets.File_select.single(
+        ~extra_attrs=[Attr.class_("file-select-button"), Attr.id(id)],
+        ~accept=[`Extension("json")],
+        ~on_input,
+        (),
+      ),
+      div(
+        ~attrs=[clss(["named-menu-item"])],
+        [
+          div(~attrs=[clss(["icon"]), Attr.title(tooltip)], [icon]),
+          text(tooltip),
+        ],
+      ),
+    ],
   );

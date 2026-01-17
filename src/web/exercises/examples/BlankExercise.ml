@@ -10,7 +10,6 @@ let exercise : Exercise.spec =
     prelude =
       {
         selection = { focus = Left; content = []; mode = Normal };
-        backpack = [];
         relatives =
           {
             siblings =
@@ -28,11 +27,11 @@ let exercise : Exercise.spec =
             ancestors = [];
           };
         caret = Outer;
+        refractors = Haz3lcore.ZipperBase.Refractor.init;
       };
     correct_impl =
       {
         selection = { focus = Left; content = []; mode = Normal };
-        backpack = [];
         relatives =
           {
             siblings =
@@ -50,13 +49,13 @@ let exercise : Exercise.spec =
             ancestors = [];
           };
         caret = Outer;
+        refractors = Haz3lcore.ZipperBase.Refractor.init;
       };
     your_tests =
       {
         tests =
           {
             selection = { focus = Left; content = []; mode = Normal };
-            backpack = [];
             relatives =
               {
                 siblings =
@@ -74,6 +73,7 @@ let exercise : Exercise.spec =
                 ancestors = [];
               };
             caret = Outer;
+            refractors = Haz3lcore.ZipperBase.Refractor.init;
           };
         required = 0;
         provided = 0;
@@ -81,7 +81,6 @@ let exercise : Exercise.spec =
     your_impl =
       {
         selection = { focus = Left; content = []; mode = Normal };
-        backpack = [];
         relatives =
           {
             siblings =
@@ -99,6 +98,7 @@ let exercise : Exercise.spec =
             ancestors = [];
           };
         caret = Outer;
+        refractors = Haz3lcore.ZipperBase.Refractor.init;
       };
     hidden_bugs = [];
     hidden_tests =
@@ -106,7 +106,6 @@ let exercise : Exercise.spec =
         tests =
           {
             selection = { focus = Left; content = []; mode = Normal };
-            backpack = [];
             relatives =
               {
                 siblings =
@@ -124,6 +123,7 @@ let exercise : Exercise.spec =
                 ancestors = [];
               };
             caret = Outer;
+            refractors = Haz3lcore.ZipperBase.Refractor.init;
           };
         hints = [];
       };

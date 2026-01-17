@@ -1,7 +1,6 @@
 /*
-     A helper module for making things that look incremental (but aren't
-     because we haven't integrated incrementality yet). Eventually this module
-     will hopefully be made redundant by the Bonsai tree.
+     A helper module for making things calculate incrementally. Eventually
+     this module will hopefully be made redundant by the Bonsai tree.
  */
 
 // ================================================================================
@@ -18,6 +17,18 @@ let combine = (x: t('a), y: t('b)): t(('a, 'b)) =>
   | (OldValue(x) | NewValue(x), OldValue(y) | NewValue(y)) =>
     NewValue((x, y))
   };
+
+let combine_list = (xs: list(t('a))): t(list('a)) =>
+  List.fold_left(
+    (acc, x) =>
+      switch (acc, x) {
+      | (OldValue(acc), OldValue(x)) => OldValue([x, ...acc])
+      | (OldValue(acc) | NewValue(acc), OldValue(x) | NewValue(x)) =>
+        NewValue([x, ...acc])
+      },
+    OldValue([]),
+    xs |> List.rev,
+  );
 
 let make_old = (x: t('a)): t('a) =>
   switch (x) {
@@ -49,6 +60,12 @@ let is_new = (x: t('a)): bool =>
   | NewValue(_) => true
   };
 
+let old_if_same = (~eq: ('a, 'a) => bool=(==), x: 'a, y: t('a)): t('a) =>
+  switch (y) {
+  | NewValue(y) when eq(x, y) => OldValue(x)
+  | _ => NewValue(x)
+  };
+
 // ================================================================================
 // saved('a) is used to store a value that has been calculated in the model
 [@deriving (show({with_path: false}), sexp, yojson)]
@@ -60,6 +77,12 @@ let get_saved = (default, x: saved('a)): 'a =>
   switch (x) {
   | Pending => default
   | Calculated(x) => x
+  };
+
+let get_saved_opt = (x: saved('a)): option('a) =>
+  switch (x) {
+  | Pending => None
+  | Calculated(x) => Some(x)
   };
 
 exception PendingValue;
@@ -85,6 +108,15 @@ let saved_pair = ((x: saved('a), y: saved('b))): saved(('a, 'b)) =>
   | (Calculated(x), Calculated(y)) => Calculated((x, y))
   };
 
+let saved_3 =
+    ((x: saved('a), y: saved('b), z: saved('c))): saved(('a, 'b, 'c)) =>
+  switch (x, y, z) {
+  | (Pending, _, _)
+  | (_, Pending, _)
+  | (_, _, Pending) => Pending
+  | (Calculated(x), Calculated(y), Calculated(z)) => Calculated((x, y, z))
+  };
+
 /* Using update, we can make a value of saved('a) that recalculates whenever
    the value of t('a) changes. */
 let update = (x: t('a), f: 'a => 'b, y: saved('b)): t('b) =>
@@ -92,6 +124,12 @@ let update = (x: t('a), f: 'a => 'b, y: saved('b)): t('b) =>
   | (Pending, OldValue(x)) => NewValue(f(x))
   | (Pending | Calculated(_), NewValue(x)) => NewValue(f(x))
   | (Calculated(y), OldValue(_)) => OldValue(y)
+  };
+
+let update' = (x: t('a), f: 'a => 'b, y: t('b)): t('b) =>
+  switch (x) {
+  | OldValue(_) => y
+  | NewValue(x) => NewValue(f(x))
   };
 
 /* Using set, we can compare some value to the previously saved value, and create
@@ -118,14 +156,18 @@ let save = (x: t('a)): saved('a) =>
   | NewValue(x) => Calculated(x)
   };
 
-let saved_to_option = (x: saved('a)): option('a) =>
-  switch (x) {
-  | Pending => None
-  | Calculated(x) => Some(x)
-  };
+let saved_to_option = get_saved_opt;
 
 // ================================================================================
 // Helper functions:
+
+let old_if_same' =
+    (~eq: ('a, 'a) => bool=(==), x: saved('a), y: t('a)): t('a) =>
+  switch (y, x) {
+  | (NewValue(y), Calculated(x)) when eq(y, x) => OldValue(y)
+  | (NewValue(y), _) => NewValue(y)
+  | (OldValue(y), _) => OldValue(y)
+  };
 
 let to_option = (x: t(option('a))): option(t('a)) => {
   switch (x) {
@@ -143,14 +185,15 @@ let to_pair = (x: t(('a, 'b))): (t('a), t('b)) => {
   };
 };
 
-let pair_saved = (x: saved('a), y: saved('b)): saved(('a, 'b)) =>
-  switch (x, y) {
-  | (Pending, _)
-  | (_, Pending) => Pending
-  | (Calculated(x), Calculated(y)) => Calculated((x, y))
+let to_3 = (x: t(('a, 'b, 'c))): (t('a), t('b), t('c)) => {
+  switch (x) {
+  | OldValue((x, y, z)) => (OldValue(x), OldValue(y), OldValue(z))
+  | NewValue((x, y, z)) => (NewValue(x), NewValue(y), NewValue(z))
   };
+};
 
 module Syntax = {
   let (let.calc) = update;
+  let (let.calc_t) = update';
   let (and.calc) = combine;
 };

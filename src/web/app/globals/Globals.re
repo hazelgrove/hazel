@@ -4,11 +4,48 @@ open Util;
    that might be of interest to view functions. Most view functions then
    take ~globals as an argument.*/
 
+/* Viewport culling for projectors/refractors.
+ * None = no culling (all visible), Some(range) = only show in range */
+module VisibleRows = {
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type t = {
+    first: int,
+    last: int,
+  };
+
+  /* Compute visible row range from scroll container properties.
+   * buffer: extra rows above/below to prevent popping */
+  let compute =
+      (
+        ~scroll_top: float,
+        ~client_height: float,
+        ~row_height: float,
+        ~buffer=5,
+        (),
+      )
+      : t => {
+    let first = max(0, int_of_float(scroll_top /. row_height) - buffer);
+    let visible_count = int_of_float(client_height /. row_height);
+    let last = first + visible_count + 2 * buffer;
+    {
+      first,
+      last,
+    };
+  };
+
+  /* Check if visible_rows changed significantly (threshold of 2 rows) */
+  let changed = (old: option(t), new_rows: t): bool =>
+    switch (old) {
+    | None => true
+    | Some(old) =>
+      abs(old.first - new_rows.first) > 2
+      || abs(old.last - new_rows.last) > 2
+    };
+};
+
 module Action = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t =
-    | SetMousedown(bool)
-    | SetShowBackpackTargets(bool)
     | SetFontMetrics(FontMetrics.t)
     | Set(Settings.Update.t)
     | JumpToTile(Haz3lcore.Id.t) // Perform(Select(Term(Id(id, Left))))
@@ -17,7 +54,9 @@ module Action = {
     | ExportForInit
     | ActiveEditor(Haz3lcore.Action.t)
     | Undo // These two currently happen at the editor level, and are just
-    | Redo; // global actions so they can be accessed by the command palette
+    | Redo // global actions so they can be accessed by the command palette
+    | SetMetaDown(bool)
+    | UpdateVisibleRows(VisibleRows.t);
 };
 
 module Model = {
@@ -27,8 +66,8 @@ module Model = {
     settings: Settings.t,
     // State:
     font_metrics: FontMetrics.t,
-    show_backpack_targets: bool,
-    mousedown: bool,
+    meta_down: bool,
+    visible_rows: option(VisibleRows.t),
     // Calculated:
     color_highlights: option(ColorSteps.colorMap),
     // Other:
@@ -51,9 +90,9 @@ module Model = {
     let settings = Settings.Store.load();
     {
       font_metrics: FontMetrics.init,
-      show_backpack_targets: false,
-      mousedown: false,
       settings,
+      meta_down: false,
+      visible_rows: None,
       color_highlights: None,
       inject_global: _ =>
         failwith(
@@ -91,8 +130,6 @@ module Update = {
 
   let can_undo = (action: t) => {
     switch (action) {
-    | SetMousedown(_) => false
-    | SetShowBackpackTargets(_) => false
     | SetFontMetrics(_) => false
     | Set(action) => Settings.Update.can_undo(action)
     | JumpToTile(_) => false
@@ -102,6 +139,8 @@ module Update = {
     | ActiveEditor(_) => false
     | Undo => false
     | Redo => false
+    | SetMetaDown(_) => false
+    | UpdateVisibleRows(_) => false
     };
   };
 };

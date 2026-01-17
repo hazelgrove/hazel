@@ -48,13 +48,18 @@ let sample_expression = (cls_exp: Exp.cls): Grammar.UnitGrammar.exp => {
       | Fun => fn(Pat.var("x"), var("x"), None, None)
       | TypFun => typ_fun(TPat.var("x"), empty_hole(), None)
       | Label => label("label")
+      | ExplicitNonlabel => explicit_non_label()
       | TupLabel => tup_label(label("label"), empty_hole())
       | Tuple => tuple([])
+      | TupleExtension => tuple_extension(empty_hole(), empty_hole())
       | Dot => dot(empty_hole(), empty_hole())
       | LivelitName => livelit_name("^slider")
       | LivelitAp => livelit_ap(Forward, livelit_name("^slider"), int(1))
       | Var => var("x")
       | Let => let_(Pat.empty_hole(), empty_hole(), empty_hole())
+      | Theorem => theorem(Pat.empty_hole(), empty_hole(), empty_hole())
+      | ProofObject => proof_object(Exp.empty_hole())
+      | Forall => forall(Pat.empty_hole(), empty_hole())
       | FixF => fix_f(Pat.empty_hole(), empty_hole(), None)
       | TyAlias =>
         ty_alias(
@@ -76,13 +81,8 @@ let sample_expression = (cls_exp: Exp.cls): Grammar.UnitGrammar.exp => {
         module M = {
           include VarBstMap.Ordered;
         };
-
-        closure(
-          closure_environment(~callstack=[], Id.mk(), M.empty),
-          empty_hole(),
-        );
+        closure(Environment.empty, empty_hole());
       | Parens => parens(empty_hole())
-      | Probe => probe(empty_hole(), Probe.empty)
       | Cons => cons(empty_hole(), empty_hole())
       | UnOp(op) => un_op(op, empty_hole())
       | BinOp(op) => bin_op(op, empty_hole(), empty_hole())
@@ -116,10 +116,10 @@ let sample_pattern = (cls_pat: Pat.cls): Grammar.UnitGrammar.pat => {
       | Label => label("label")
       | TupLabel => tup_label(label("label"), empty_hole())
       | Parens => parens(empty_hole())
-      | Probe => probe(empty_hole(), Probe.empty)
       | Ap => ap(empty_hole(), empty_hole())
       | Asc => asc(empty_hole(), Typ.string())
       | Wild => wild()
+      | ExplicitNonlabel => explicit_non_label()
       }
     )
   );
@@ -143,15 +143,23 @@ let sample_type = (cls_typ: Typ.cls): Grammar.UnitGrammar.typ => {
       | TupLabel =>
         tup_label(unknown(Hole(EmptyHole)), unknown(Hole(EmptyHole)))
       | Parens => parens(unknown(Hole(EmptyHole)))
-      | Ap => ap(unknown(Hole(EmptyHole)), unknown(Hole(EmptyHole)))
       | Rec => rec_(TPat.var("x"), unknown(Hole(EmptyHole)))
-      | Forall => forall(TPat.var("x"), unknown(Hole(EmptyHole)))
+      | Poly => poly(TPat.var("x"), unknown(Hole(EmptyHole)))
+      | ProofOf => proof_of(Exp.var("x"))
       | EmptyHole => unknown(Hole(EmptyHole))
       | SynSwitch => unknown(SynSwitch)
       | Internal => unknown(Internal)
       | Label => label("label")
+      | ExplicitNonlabel => explicit_non_label()
       | MultiHole => unknown(Hole(MultiHole([])))
       | Sum => sum([])
+      | ProdProjection =>
+        prod_projection(
+          unknown(Hole(EmptyHole)),
+          unknown(Hole(EmptyHole)),
+        )
+      | ProdExtension =>
+        prod_extension(unknown(Hole(EmptyHole)), unknown(Hole(EmptyHole)))
       | Constructor => assert(false) // Excluded because there is no Typ constructor
       }
     )

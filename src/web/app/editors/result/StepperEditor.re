@@ -11,6 +11,7 @@ module Model = {
     // Read-only
     taken_steps: list(Id.t),
     next_steps: list(Id.t),
+    refls: list(Id.t),
   };
 };
 
@@ -27,6 +28,7 @@ module Update = {
       editor,
       taken_steps: model.taken_steps,
       next_steps: model.next_steps,
+      refls: model.refls,
     };
   };
 
@@ -38,7 +40,8 @@ module Update = {
         ~is_edited,
         ~stitch,
         ~dynamics: Language.Dynamics.Map.t,
-        {editor, taken_steps, next_steps}: Model.t,
+        ~ana,
+        {editor, taken_steps, next_steps, refls}: Model.t,
       )
       : Model.t => {
     let editor =
@@ -48,12 +51,14 @@ module Update = {
         ~stitch,
         ~dynamics,
         ~is_dynamic_term=true,
+        ~ana,
         editor,
       );
     {
       editor,
       taken_steps,
       next_steps,
+      refls,
     };
   };
 };
@@ -70,35 +75,105 @@ module Selection = {
 module View = {
   type event =
     | MakeActive
-    | TakeStep(int);
+    | TakeStep(int)
+    | Refl(int);
 
+  let deco =
+      (
+        ~syntax: CachedSyntax.t,
+        ~font_metrics: FontMetrics.t,
+        ~inject: Update.t => Ui_effect.t(unit),
+        ~selected_id: option(Id.t),
+        signal: event => Ui_effect.t(unit),
+        model: Model.t,
+      ) => {
+    open WebUtil;
+
+    let next_steps =
+        (next_steps: list(Id.t), ~inject: int => Ui_effect.t(unit)) =>
+      next_steps
+      |> List.filter_map(TermData.root_tile(_, syntax.term_data))
+      |> List.mapi((i, t: Tile.t) =>
+           div_c(
+             "step-next",
+             Arms.term(
+               ~attr=[Attr.on_mousedown(_ => inject(i))],
+               ~font_metrics,
+               ~syntax,
+               t,
+             ),
+           )
+         );
+
+    let taken_steps = (taken_steps: list(Id.t)) =>
+      taken_steps
+      |> List.filter_map(TermData.root_tile(_, syntax.term_data))
+      |> List.map(t =>
+           div_c("step-taken", Arms.term(~font_metrics, ~syntax, t))
+         );
+
+    let refl_steps =
+        (refl_steps: list(Id.t), ~inject: int => Ui_effect.t(unit)) =>
+      refl_steps
+      |> List.filter_map(TermData.root_tile(_, syntax.term_data))
+      |> List.mapi((i, t: Tile.t) =>
+           div_c(
+             "step-refl",
+             Arms.term(
+               ~attr=[Attr.on_mousedown(_ => inject(i))],
+               ~font_metrics,
+               ~syntax,
+               t,
+             ),
+           )
+         );
+
+    taken_steps(model.taken_steps)
+    @ next_steps(model.next_steps, ~inject=x =>
+        Some(List.nth(model.next_steps, x)) == selected_id
+          ? signal(TakeStep(x))
+          : inject(Select(Term(Id(List.nth(model.next_steps, x), Right))))
+      )
+    @ refl_steps(model.refls, ~inject=x => {
+        Some(List.nth(model.refls, x)) == selected_id
+          ? signal(Refl(x))
+          : {
+            inject(Select(Term(Id(List.nth(model.refls, x), Right))));
+          }
+      });
+  };
+
+  /* Steppers don't support probe dynamics - expressions shown are
+     intermediate evaluation steps, not the main program being probed. */
   let view =
       (
         ~globals: Globals.t,
+        ~inject,
         ~signal: event => 'a,
         ~overlays=[],
         ~selected,
+        ~selected_id,
+        ~_dynamics: Language.Dynamics.Map.t=Language.Dynamics.Map.empty,
         model: Model.t,
-      ) => {
-    let overlays = {
-      module Deco =
-        Deco.Deco({
-          let editor = model.editor.editor;
-          let globals = globals;
-          let statics = model.editor.statics;
-        });
-      overlays
-      @ Deco.taken_steps(model.taken_steps)
-      @ Deco.next_steps(model.next_steps, ~inject=x => signal(TakeStep(x)));
-    };
+      ) =>
     CodeSelectable.View.view(
+      ~dynamics=Language.Dynamics.Map.empty,
       ~signal=
         fun
         | MakeActive => signal(MakeActive),
       ~selected,
       ~globals,
-      ~overlays,
+      ~inject,
+      ~overlays=
+        overlays
+        @ deco(
+            ~syntax=model.editor.editor.syntax,
+            ~font_metrics=globals.font_metrics,
+            ~inject,
+            ~selected_id,
+            signal,
+            model,
+          ),
       model.editor,
     );
-  };
 };

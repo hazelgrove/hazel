@@ -215,10 +215,13 @@
   --projector-overlay-z: 29;
 
   /* TOP LEVEL UI */
+  --context-menu-z: 30; /* must be over num-samples badge */
   --context-inspector-z: 30; /* keep below bottom bar */
   --bottom-bar-z: 31;
   --top-bar-z: 31;
   --explainthis-expander-z: 31;
+  --backpack-z: 32;
+  --top-bar-hover-z: 33;
 
   /* HACKS */
   --modal-back-z: 100;

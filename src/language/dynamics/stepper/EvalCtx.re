@@ -2,14 +2,15 @@ open Util;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type term =
-  | Closure([@show.opaque] ClosureEnvironment.t, t)
+  | Closure([@show.opaque] Environment.t(Exp.t), t)
   | Filter(TermBase.StepperFilterKind.t, t)
   | Seq1(t, DHExp.t)
   | Seq2(DHExp.t, t)
   | Let1(Pat.t, t, DHExp.t)
   | Let2(Pat.t, DHExp.t, t)
+  | Theorem(Pat.t, DHExp.t, t)
   | Fun(Pat.t, t, option(Typ.t), option(Var.t))
-  | FixF(Pat.t, t, option(ClosureEnvironment.t))
+  | FixF(Pat.t, t, option(Environment.t(Exp.t)))
   | TypAp(t, Typ.t)
   | Ap1(Operators.ap_direction, t, DHExp.t)
   | Ap2(Operators.ap_direction, DHExp.t, t)
@@ -21,6 +22,8 @@ type term =
   | UnOp(Operators.op_un, t)
   | BinOp1(Operators.op_bin, t, DHExp.t)
   | BinOp2(Operators.op_bin, DHExp.t, t)
+  | TupleExtension1(t, DHExp.t)
+  | TupleExtension2(DHExp.t, t)
   | TupLabel(DHExp.t, t)
   | Tuple(t, (list(DHExp.t), list(DHExp.t)))
   | Dot1(t, DHExp.t)
@@ -28,7 +31,6 @@ type term =
   | Test(t)
   | HintedTest(t, DHExp.t)
   | Parens(t)
-  | Probe(t, Probe.t)
   | ListLit(t, (list(DHExp.t), list(DHExp.t)))
   | MultiHole(t, (list(Any.t), list(Any.t)))
   | Cons1(t, DHExp.t)
@@ -99,9 +101,6 @@ let rec compose = (ctx: t, d: DHExp.t): DHExp.t => {
     | Parens(ctx) =>
       let d1 = compose(ctx, d);
       Parens(d1) |> wrap;
-    | Probe(ctx, p) =>
-      let d1 = compose(ctx, d);
-      Probe(d1, p) |> wrap;
     | UnOp(op, ctx) =>
       let d1 = compose(ctx, d);
       UnOp(op, d1) |> wrap;
@@ -111,6 +110,12 @@ let rec compose = (ctx: t, d: DHExp.t): DHExp.t => {
     | BinOp2(op, d1, ctx) =>
       let d2 = compose(ctx, d);
       BinOp(op, d1, d2) |> wrap;
+    | TupleExtension1(ctx, d2) =>
+      let d1 = compose(ctx, d);
+      TupleExtension(d1, d2) |> wrap;
+    | TupleExtension2(d1, ctx) =>
+      let d2 = compose(ctx, d);
+      TupleExtension(d1, d2) |> wrap;
     | Cons1(ctx, d2) =>
       let d1 = compose(ctx, d);
       Cons(d1, d2) |> wrap;
@@ -147,6 +152,9 @@ let rec compose = (ctx: t, d: DHExp.t): DHExp.t => {
     | Let2(dp, d1, ctx) =>
       let d = compose(ctx, d);
       Let(dp, d1, d) |> wrap;
+    | Theorem(dp, d1, ctx) =>
+      let d = compose(ctx, d);
+      Theorem(dp, d1, d) |> wrap;
     | Fun(dp, ctx, typ, v) =>
       let d = compose(ctx, d);
       Fun(dp, d, typ, v) |> wrap;

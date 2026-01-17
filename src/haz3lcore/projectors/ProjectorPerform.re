@@ -31,6 +31,23 @@ let init = (kind: ProjectorCore.Kind.t, seg: Base.segment): option(syntax) =>
   | Some(any) => ProjectorInit.init(kind, Segment.parenthesize(seg), any)
   };
 
+/* Get the root term ID from a segment, if it's a well-formed term */
+let seg_root_id = (seg: Base.segment): option(Id.t) =>
+  try(Some(Segment.root_id(Segment.skel(seg), seg))) {
+  | _ => None
+  };
+
+/* Migrate a refractor from one ID to another (if present) */
+let migrate_refractor = (from_id: Id.t, to_id: Id.t, z: Zipper.t): Zipper.t =>
+  switch (Id.Map.find_opt(from_id, z.refractors.manuals)) {
+  | None => z
+  | Some(entry) =>
+    ZipperBase.update_manuals(
+      map => map |> Id.Map.remove(from_id) |> Id.Map.add(to_id, entry),
+      z,
+    )
+  };
+
 let replace_selection_and_unselect =
     (piece: Base.piece, focus: Direction.t, z: Zipper.t): Zipper.t =>
   z
@@ -60,14 +77,15 @@ let update =
   ZipperBase.MapPiece.fast_local_seg(update_piece(f, id), id, z);
 
 let go =
-    (
-      jump_to_id_indicated,
-      jump_to_side_of_id,
-      select_term: Zipper.t => option(Zipper.t),
-      a: Action.project,
-      z: Zipper.t,
-    )
+    (term_data: TermData.t, a: Action.project, z: Zipper.t)
     : result(ZipperBase.t, Action.Failure.t) => {
+  let select_term =
+    Select.current_term(
+      term_data,
+      ~defs_exclude_bodies=false,
+      ~case_rules=false,
+    );
+
   let setup_selection = (z: Zipper.t): option((Direction.t, Zipper.t)) =>
     Selection.is_empty(z.selection)
       ? switch (select_term(z), Indicated.direction(z)) {
@@ -78,16 +96,37 @@ let go =
 
   let set_indicated =
       (z: Zipper.t, kind: ProjectorCore.Kind.t): option(Zipper.t) => {
-    /* If not projected, project. If already same kind, remove. If other kind, change */
+    /* If not projected, project. If already same kind, remove. If other kind, change.
+     * Also migrate any refractor on the term to/from the projector. */
     let* (focus, z) = setup_selection(z);
     switch (z.selection.content) {
     | [Projector(pr)] when pr.kind == kind =>
-      Some(remove(pr.syntax, focus, z))
+      /* Remove projector: migrate refractor back to underlying term */
+      let underlying_seg = Piece.unparenthesize(pr.syntax);
+      let z =
+        switch (seg_root_id(underlying_seg)) {
+        | Some(term_id) => migrate_refractor(pr.id, term_id, z)
+        | None => z
+        };
+      Some(remove(pr.syntax, focus, z));
     | [Projector(pr)] =>
+      /* Switch projector kind: migrate refractor to new projector */
       let+ piece = init(kind, Piece.unparenthesize(pr.syntax));
+      let z =
+        switch (piece) {
+        | Projector(new_pr) => migrate_refractor(pr.id, new_pr.id, z)
+        | _ => z
+        };
       replace_selection_and_unselect(piece, focus, z);
     | seg =>
+      /* Add projector: migrate refractor from term to projector */
       let+ piece = init(kind, seg);
+      let z =
+        switch (seg_root_id(seg), piece) {
+        | (Some(term_id), Projector(new_pr)) =>
+          migrate_refractor(term_id, new_pr.id, z)
+        | _ => z
+        };
       replace_selection_and_unselect(piece, focus, z);
     };
   };
@@ -95,7 +134,15 @@ let go =
   let remove_indicated = (z: Zipper.t): option(Zipper.t) => {
     let* (focus, z) = setup_selection(z);
     switch (z.selection.content) {
-    | [Projector(pr)] => Some(remove(pr.syntax, focus, z))
+    | [Projector(pr)] =>
+      /* Migrate refractor back to underlying term */
+      let underlying_seg = Piece.unparenthesize(pr.syntax);
+      let z =
+        switch (seg_root_id(underlying_seg)) {
+        | Some(term_id) => migrate_refractor(pr.id, term_id, z)
+        | None => z
+        };
+      Some(remove(pr.syntax, focus, z));
     | _ => None
     };
   };
@@ -133,17 +180,37 @@ let go =
         z,
       ),
     )
-  | SetModel(id, model) =>
+  | SetModel(id, kind, new_model) =>
     Ok(
-      update(
-        pr =>
-          {
-            ...pr,
-            model,
-          },
-        id,
-        z,
-      ),
+      if (ProjectorCore.Kind.is_refractor(kind)) {
+        Zipper.update_manuals(
+          map =>
+            Id.Map.update(
+              id,
+              fun
+              | Some(entry: Refractors.entry) =>
+                Some(
+                  Refractors.{
+                    kind: entry.kind,
+                    model: new_model,
+                  },
+                )
+              | None => None,
+              map,
+            ),
+          z,
+        );
+      } else {
+        update(
+          pr =>
+            {
+              ...pr,
+              model: new_model,
+            },
+          id,
+          z,
+        );
+      },
     )
   | Focus(id, kind, d) =>
     switch (d) {
@@ -154,7 +221,7 @@ let go =
       | Some(focus) => focus(id)
       | None => ()
       };
-      Ok(Option.value(~default=z, jump_to_id_indicated(z, id)));
+      Ok(Option.value(~default=z, Move.jump_to_id_indicated(z, id)));
     | Some(Right) =>
       /* Focus by arrow key hand-off */
       let (module P) = ProjectorInit.to_module(kind);
@@ -173,9 +240,10 @@ let go =
       Ok(z);
     }
   | Escape(id, d) =>
-    switch (jump_to_side_of_id(d, z, id)) {
+    switch (Move.jump_to_side_of_id(d, z, id)) {
     | Some(z) => Ok(z)
     | None => Error(Cant_project)
     }
+  | SampleCursor(a) => Ok(SampleCursorPerform.go(z, a))
   };
 };

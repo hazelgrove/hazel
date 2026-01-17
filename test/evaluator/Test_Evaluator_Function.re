@@ -48,6 +48,24 @@ let tests = (
         {|(string_sub : ?)(_, 2, 3)("hello")|},
       )
     ),
+    test_case(
+      "Ascription around deferral",
+      `Quick,
+      () => {
+        parse_and_evaluate_test(
+          {|[]|},
+          {|let f : ? -> ? = map(_, fun _ -> 1) in f([])|},
+        );
+        parse_and_evaluate_test(
+          {|[1.0 : Int, 2.0 : Int]|},
+          {|let f : [Int] -> ? = map(_, fun i -> i) in f([1.0, 2.0] : ?)|},
+        );
+        parse_and_evaluate_test(
+          {|[1.0 : Int, 2.0 : Int]|},
+          {|let f : ? ->  [Int]  = map(_, fun i -> i) in f([1.0, 2.0] : ?)|},
+        );
+      },
+    ),
     test_case("Variable capture", `Quick, () =>
       evaluation_test(
         {|let u = 5 in let f = fun () -> u in let u = 3 in f()|},
@@ -102,7 +120,7 @@ let tests = (
         parse_and_evaluate_test(
           {|(1,1)|},
           {|let dub = typfun T -> fun x : T -> (x, x) : (T, T) in
-          let ascribed = dub : forall a -> a -> (a, a) in
+          let ascribed = dub : poly a -> a -> (a, a) in
           ascribed@<Int>(1)|},
         );
       },
@@ -140,6 +158,21 @@ let result_equal: (Result, Result) -> Bool =
 result_equal(
   Ok(Lam("yo", Var("yo"))),
 Ok(Lam("yo", Var("yo"))))|},
+      )
+    ),
+    test_case(
+      "Single deferral produces single value not singleton tuple", `Quick, () =>
+      evaluation_test(
+        "let f = fun x -> x in f(_)(42)",
+        int(42),
+        ap(
+          Forward,
+          deferred_ap(
+            fn(Pat.(var("f")), var("f"), None, None),
+            [deferral(InAp)],
+          ),
+          int(42),
+        ),
       )
     ),
   ],
