@@ -671,12 +671,7 @@ module View = {
       get_log_and,
       export_all: Export.export_all,
     };
-    let bottom_bar =
-      CursorInspector.view(
-        ~globals,
-        ~inject=a => inject(Editors(a)),
-        cursor,
-      );
+    let bottom_bar = CursorInspector.view(~globals, cursor);
     let sidebar =
       Sidebar.view(
         ~globals,

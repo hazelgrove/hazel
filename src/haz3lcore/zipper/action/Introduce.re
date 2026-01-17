@@ -1,5 +1,25 @@
 open Language;
 
+/* Predicates for checking if a type can be introduced.
+   Used by ContextMenu to show/hide the Introduce action. */
+let can_introduce_exp_type = (ty: Typ.t): bool =>
+  switch (ty.term) {
+  | Arrow(_, _)
+  | Prod(_)
+  | List(_)
+  | Poly(_, _)
+  | Atom(String) => true
+  | Sum([_]) => true /* Single-variant sum only */
+  | _ => false
+  };
+
+let can_introduce_pat_type = (ty: Typ.t): bool =>
+  switch (ty.term) {
+  | Prod(_) => true
+  | Sum([_]) => true /* Single-variant sum only */
+  | _ => false
+  };
+
 module type Introducable = {
   type t;
   let parse: Segment.t => t;

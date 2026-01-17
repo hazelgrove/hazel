@@ -154,6 +154,8 @@ let start = {
     NinjaKeys.initialize(Shortcut.options(schedule_action));
     Haz3lcore.ExternalProjectorBridge.init(Bonsai.Effect.Expert.handle);
     JsUtil.focus_clipboard_shim();
+    /* Setup scroll listener for floating elements (backpack) */
+    FloatingElement.setup_scroll_listener();
     schedule_action(
       Assistant(AssistantUpdate.ChatAction(FilterLoadingMessages)),
     );
@@ -185,8 +187,10 @@ let start = {
         } else {
           ();
         };
-        /* Handle scheduled probe focus from step-into (see Refractors.FocusEffect) */
-        let _ = Haz3lcore.Refractors.FocusEffect.execute();
+        /* Handle scheduled probe focus from step-into (see ProbePerform.FocusEffect) */
+        let _ = Haz3lcore.ProbePerform.FocusEffect.execute();
+        /* Update floating elements (backpack) to viewport coordinates */
+        FloatingElement.update_all();
         model.current.globals.settings.core.statics ? Animation.go() : ();
       },
       (),

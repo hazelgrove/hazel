@@ -164,6 +164,28 @@ let find_scroll_container =
     (element: Js.t(Dom_html.element)): option(Js.t(Dom_html.element)) =>
   find_scroll_container_node(element_to_node(element));
 
+/* Find the nearest ancestor element with the given class */
+let find_ancestor_with_class =
+    (el: Js.t(Dom_html.element), class_name: string)
+    : option(Js.t(Dom_html.element)) => {
+  let class_js = Js.string(class_name);
+  let rec loop = (node: Js.t(Dom.node)): option(Js.t(Dom_html.element)) =>
+    switch (Js.Opt.to_option(node##.parentNode)) {
+    | None => None
+    | Some(parent_node) =>
+      switch (Dom_html.CoerceTo.element(parent_node) |> Js.Opt.to_option) {
+      | None => loop(parent_node)
+      | Some(parent_el) =>
+        if (Js.to_bool(parent_el##.classList##contains(class_js))) {
+          Some(parent_el);
+        } else {
+          loop(parent_node);
+        }
+      }
+    };
+  loop(element_to_node(el));
+};
+
 let adjust_scroll = (container: Js.t(Dom_html.element), delta: float) =>
   if (delta != 0.) {
     let current = float_of_int(container##.scrollTop);

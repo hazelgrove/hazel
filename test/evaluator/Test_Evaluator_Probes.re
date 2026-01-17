@@ -64,11 +64,11 @@ let get_samples_by_line = (code: string): IntMap.t(list(string)) => {
       Id.Map.union(
         (_, _, _) => Some(),
         Id.Map.map(_ => (), z.refractors.manuals),
-        Id.Map.map(_ => (), z.refractors.ephemerals),
+        Id.Map.map(_ => (), z.refractors.autos.ephemerals),
       );
     let info_map =
       Statics.mk(CoreSettings.on, Builtins.ctx_init(Some(Int)), term);
-    let probe_map =
+    let targets: Sample.targets =
       Id.Map.fold(
         (id, (), acc) => {
           let refs =
@@ -77,8 +77,8 @@ let get_samples_by_line = (code: string): IntMap.t(list(string)) => {
             | Some(InfoPat(_)) => Statics.Map.bound_in(info_map, id)
             | _ => []
             };
-          let probe = {Probe.refs: refs};
-          Id.Map.add(id, probe, acc);
+          let spec: Sample.capture_spec = {refs: refs};
+          Id.Map.add(id, spec, acc);
         },
         probe_ids,
         Id.Map.empty,
@@ -87,7 +87,7 @@ let get_samples_by_line = (code: string): IntMap.t(list(string)) => {
     /* Elaborate and evaluate */
     let elaborated = Elaborator.elaborate(info_map, term) |> fst;
     let (_, state) =
-      Evaluator.evaluate(~probe_map, ~env=Builtins.env_init, elaborated);
+      Evaluator.evaluate(~targets, ~env=Builtins.env_init, elaborated);
     let probes = EvaluatorState.get_probes(state);
 
     /* Get segment and measured for position lookup */

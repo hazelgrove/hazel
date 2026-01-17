@@ -329,7 +329,7 @@ let select_sample = (info: info): option(Sample.t) =>
       Language.Sample.Selection.first_related_index(
         ~trimmed=false,
         ~ap_id=None,
-        x.dyn_cursor,
+        x.sample_cursor,
         x.samples,
       )
     ) {

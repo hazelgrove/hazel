@@ -196,6 +196,11 @@
   position: relative;
 }
 
+#probesys .panel.panel.window-toggle .named-menu-item {
+  display: flex;
+  gap: 0.5em;
+}
+
 #probesys .code:hover {
   filter: brightness(1.04);
 }
@@ -213,4 +218,11 @@
 
 #probesys .panel.prints .body {
   white-space: pre;
+}
+
+#probesys .panel.window-toggle {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 0.5em;
 }

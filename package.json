@@ -14,7 +14,8 @@
     "@observablehq/plot": "^0.6.17",
     "algebrite": "^1.4.0",
     "hotkeys-js": "^3.8.7",
-    "ninja-keys": "^1.2.2"
+    "ninja-keys": "^1.2.2",
+    "web-worker": "^1.5.0"
   },
   "devDependencies": {
     "@types/node": "^22.14.0",

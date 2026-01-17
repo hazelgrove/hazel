@@ -219,7 +219,7 @@ let view =
                 ~editor,
               )
             | Probes =>
-              ProbeSystem.view(
+              ProbeSidebar.view(
                 ~globals,
                 ~explain_this_inject,
                 ~cursor,
