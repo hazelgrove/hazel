@@ -661,7 +661,7 @@ module View = {
                     Effect.Ignore;
                   }),
                 ],
-                [text({js|■|js})],
+                [text({js|⏸|js})],
               ),
             ],
           ),

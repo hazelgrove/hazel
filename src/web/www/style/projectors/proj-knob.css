@@ -7,9 +7,9 @@
   justify-content: center;
   width: 100%;
   height: 100%;
-  background: linear-gradient(145deg, #1a1a2e, #0f0f1a);
-  border-radius: 4px;
-  border: 1px solid #2a2a4a;
+  background: var(--T2);
+  border-radius: 0.3em;
+  border: 1px solid var(--BR2);
   cursor: ns-resize;
   user-select: none;
   padding: 4px;
@@ -17,10 +17,14 @@
   height: 120px; /* TODO(andrew): hack, integrate size into projector measure on view */
 }
 
+.knob-projector:hover {
+  border-color: var(--BR3);
+}
+
 .knob-projector.dragging {
   cursor: grabbing;
-  border-color: #4a9eff;
-  box-shadow: 0 0 8px rgba(74, 158, 255, 0.3);
+  border-color: var(--G0);
+  box-shadow: 0 0 6px oklch(from var(--G0) l c h / 0.3);
 }
 
 .knob-svg {
@@ -32,39 +36,47 @@
 
 .knob-ring {
   fill: none;
-  stroke: #2a2a4a;
+  stroke: var(--BR2);
   stroke-width: 2;
 }
 
 .knob-body {
-  fill: linear-gradient(145deg, #252540, #1a1a30);
-  fill: #1e1e35;
-  stroke: #3a3a5a;
-  stroke-width: 1;
+  fill: var(--T1);
+  stroke: var(--BR3);
+  stroke-width: 1.5;
+}
+
+.knob-projector:hover .knob-body {
+  fill: white;
 }
 
 .knob-indicator {
-  fill: #4a9eff;
-  filter: drop-shadow(0 0 3px rgba(74, 158, 255, 0.8));
+  fill: var(--G0);
+  filter: drop-shadow(0 0 2px oklch(from var(--G0) l c h / 0.6));
+}
+
+.knob-projector:hover .knob-indicator {
+  filter: drop-shadow(0 0 4px oklch(from var(--G0) l c h / 0.8));
 }
 
 .knob-projector.dragging .knob-indicator {
-  fill: #7ab8ff;
-  filter: drop-shadow(0 0 6px rgba(74, 158, 255, 1));
+  fill: var(--G1);
+  filter: drop-shadow(0 0 5px oklch(from var(--G0) l c h / 1));
 }
 
 .knob-center {
-  fill: #0a0a15;
+  fill: var(--BR4);
 }
 
 .knob-value {
-  font-family: 'SF Mono', 'Consolas', monospace;
+  font-family: var(--code-font);
   font-size: 9px;
-  color: #6a6a8a;
+  color: var(--STONE);
   margin-top: 2px;
   text-align: center;
 }
 
 .knob-projector.dragging .knob-value {
-  color: #4a9eff;
+  color: var(--G0);
+  font-weight: 600;
 }
