@@ -107,24 +107,17 @@ module M: Projector = {
                 ],
                 [text(is_playing ? {js|⏸|js} : {js|▶|js})],
               ),
-              /* Sound description */
-              switch (sound_value) {
-              | Some(exp) when SoundUtil.is_sound(exp) =>
-                span(
-                  ~attrs=[Attr.classes(["player-desc"])],
-                  [text(SoundUtil.sound_description(exp))],
-                )
-              | Some(_) =>
-                span(
-                  ~attrs=[Attr.classes(["player-desc", "not-sound"])],
-                  [text("not Sound")],
-                )
-              | None =>
-                span(
-                  ~attrs=[Attr.classes(["player-desc", "no-sound"])],
-                  [{js|∅|js} |> text],
-                )
-              },
+              /* Speaker icon - pulses when playing */
+              span(
+                ~attrs=[
+                  Attr.classes(
+                    ["player-speaker"]
+                    @ (is_playing ? ["playing"] : [])
+                    @ (has_sound ? [] : ["no-sound"]),
+                  ),
+                ],
+                [text({js|🔊|js})],
+              ),
             ],
           ),
         ),

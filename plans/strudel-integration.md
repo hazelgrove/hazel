@@ -865,6 +865,7 @@ Cpm((140.0, Stack([
 6. ⬜ Scale picker projector
 7. ⬜ Curried stdlib functions for pipeline style (see 6.4)
 8. ⬜ Projector visualization Phase A (onTrigger, no source tracking)
+9. ⬜ Player waveform visualization (Web Audio API oscilloscope/level meter)
 
 ### Long Term
 

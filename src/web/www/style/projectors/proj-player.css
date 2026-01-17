@@ -22,7 +22,7 @@
   font-size: 1em;
   background: var(--G0);
   color: white;
-  border-radius: 0.25em 0 0 0.25em;
+  border-radius: 0.25em;
 }
 
 .player-btn:hover {
@@ -35,6 +35,7 @@
 
 .player-btn.playing {
   background: var(--R2);
+  animation: player-pulse 1s ease-in-out infinite;
 }
 
 .player-btn.playing:hover {
@@ -51,25 +52,34 @@
   filter: none;
 }
 
-.player-desc {
-  font-family: var(--code-font);
-  font-size: 0.85em;
-  color: var(--STONE);
-  padding: 0.2em 0.5em;
+/* Speaker icon indicator */
+.player-speaker {
   display: flex;
   align-items: center;
-  max-width: 15em;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  justify-content: center;
+  padding: 0 0.4em;
+  color: var(--STONE);
+  font-size: 0.9em;
 }
 
-.player-desc.no-sound {
+.player-speaker.playing {
+  color: var(--R2);
+  animation: player-pulse 1s ease-in-out infinite;
+}
+
+.player-speaker.no-sound {
   color: var(--BR3);
-  font-style: italic;
+  opacity: 0.5;
 }
 
-.player-desc.not-sound {
-  color: var(--R1);
-  font-style: italic;
+/* Pulsing animation for playing state */
+@keyframes player-pulse {
+  0%, 100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.7;
+    transform: scale(1.05);
+  }
 }
