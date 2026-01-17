@@ -421,6 +421,7 @@ module Projectors = {
     | Livelit => "Livelit"
     | Probe => "Probe" /* shouldn't appear in menu */
     | Graph => "Graph"
+    | Patchwork => "Patchwork"
     | ObservablePlot => "Plot"
     | Exo(exo_kind) => Exo.name(exo_kind)
     };
