@@ -89,7 +89,7 @@ This enables live performance where edits don't cause audio gaps
 ## Current State
 
 ### What's Implemented
-- `Sound` type with constructors: `Note(String)`, `Sample(String)`, `Rev(Sound)`, `Fast(Float, Sound)`, `Slow(Float, Sound)`, `Seq(List(Sound))`, `Stack(List(Sound))`, `JuxRev(Sound)`
+- `Sound` type with constructors: `Note(String)`, `Sample(String)`, `Rev(Sound)`, `Fast(Float, Sound)`, `Slow(Float, Sound)`, `Seq(List(Sound))`, `Stack(List(Sound))`, `JuxRev(Sound)`, `Gain(Float, Sound)`, `Pan(Float, Sound)`, `Bank(String, Sound)`, `Cpm(Float, Sound)`
 - `Sample(String)` uses Strudel's `sound()` function for drums/samples (bd, sd, piano, etc.)
 - `JuxRev(Sound)` applies stereo widening effect (jux with rev)
 - Strudel JS library loaded via unpkg in `index.html`
@@ -196,9 +196,11 @@ This is **strictly additive**—constructors still work for those who prefer tha
 | `Slow((Float, Sound))` | `.slow(n)` | Slow down |
 | `Seq(List(Sound))` | `seq(...)` / `cat(...)` | Sequential |
 | `Stack(List(Sound))` | `stack(...)` | Parallel |
-| *missing* | `.bank(str)` | Sample bank |
-| *missing* | `.gain(n)` | Volume |
-| *missing* | `.pan(n)` | Stereo position |
+| `JuxRev(Sound)` | `.jux(rev)` | Stereo split with reverse |
+| `Gain((Float, Sound))` | `.gain(n)` | Volume |
+| `Pan((Float, Sound))` | `.pan(n)` | Stereo position |
+| `Bank((String, Sound))` | `.bank(str)` | Sample bank |
+| `Cpm((Float, Sound))` | `.cpm(n)` | Tempo (cycles per minute) |
 
 ---
 
@@ -861,19 +863,19 @@ Cpm((140.0, Stack([
 
 ### Phase C: Exploration & Polish (Later)
 
-5. ⬜ Simple Sample Picker projector (dropdown)
-6. ⬜ Scale picker projector
-7. ⬜ Curried stdlib functions for pipeline style (see 6.4)
-8. ⬜ Projector visualization Phase A (onTrigger, no source tracking)
-9. ⬜ Player waveform visualization (Web Audio API oscilloscope/level meter)
+1. ⬜ Simple Sample Picker projector (dropdown)
+2. ⬜ Scale picker projector
+3. ⬜ Curried stdlib functions for pipeline style (see 6.4)
+4. ⬜ Projector visualization Phase A (onTrigger, no source tracking)
+5. ⬜ Player waveform visualization (Web Audio API oscilloscope/level meter)
 
 ### Long Term
 
-9. ⬜ Full Sample Browser projector
-10. ⬜ Projector visualization Phase B (source tracking)
-11. ⬜ Euclidean rhythm projector
-12. ⬜ Full piano keyboard projector (multi-octave)
-13. ⬜ Additional effects: Lpf, Hpf, Delay, Room, Speed
+1. ⬜ Full Sample Browser projector
+2. ⬜ Projector visualization Phase B (source tracking)
+3. ⬜ Euclidean rhythm projector
+4. ⬜ Full piano keyboard projector (multi-octave)
+5. ⬜ Additional effects: Lpf, Hpf, Delay, Room, Speed
 
 ---
 
@@ -986,16 +988,6 @@ When implementing a new projector that operates on a subset of a general type:
 3. **Parse robustly** - Handle edge cases in the parsing logic
 4. **Roundtrip faithfully** - `put(get(x)) == x` for all supported patterns
 5. **Plan for expansion** - Note what features could be added in the roadmap
-
----
-
-## References
-
-- [Strudel Documentation](https://strudel.cc/)
-- [Mini Notation Guide](https://strudel.cc/learn/mini-notation/)
-- [Tonal Functions](https://strudel.cc/learn/tonal/)
-- [Strudel Source (Codeberg)](https://codeberg.org/uzu/strudel)
-- [TidalCycles](https://tidalcycles.org/)
 
 ---
 
