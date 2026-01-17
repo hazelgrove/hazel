@@ -12,12 +12,14 @@ let sum_type = (variants: list((string, option(Typ.t)))): Typ.t =>
 let meta_type: Typ.t = sum_type([("$e", None), ("$v", None)]);
 
 // Sound type for Strudel audio integration
-// Recursive type: Sound = Note(String) | Rev(Sound) | Fast(Float, Sound) | ...
+// Recursive type: Sound = Note(String) | Sample(String) | Rev(Sound) | ...
+// Note: synth tones (c4, e4), Sample: drum/synth samples (bd, sd, piano)
 // We use Unknown(Internal) as a placeholder for the recursive reference
 let sound_inner = Unknown(Internal) |> Typ.fresh;
 let sound_type: Typ.t =
   sum_type([
     ("Note", Some(string())),
+    ("Sample", Some(string())),
     ("Rev", Some(sound_inner)),
     ("Fast", Some(prod([float(), sound_inner]))),
     ("Slow", Some(prod([float(), sound_inner]))),

@@ -22,10 +22,13 @@ module M: Projector = {
 
   let default_steps = 8;
 
-  /* Extract string from Note constructor application */
+  /* Extract string from Note or Sample constructor application */
   let string_of = (any: Language.Any.t): option(string) =>
     switch (any) {
-    | Exp({term: Ap(_, {term: Constructor("Note", _), _}, arg), _}) =>
+    | Exp({
+        term: Ap(_, {term: Constructor("Note" | "Sample", _), _}, arg),
+        _,
+      }) =>
       switch (arg.term) {
       | Atom(String(s)) => Some(s)
       | _ => None
@@ -64,7 +67,7 @@ module M: Projector = {
                 },
               ),
           })
-        | _ => failwith("RhythmGrid: Put: not Note constructor"),
+        | _ => failwith("RhythmGrid: Put: not Note/Sample constructor"),
         info.syntax,
       )
     ) {
@@ -76,8 +79,8 @@ module M: Projector = {
   let dynamics = false;
   /* Rhythm grid needs ~6 rows: controls + 4 drum rows + padding */
   let placeholder = ({steps, _}, _) => {
-    ProjectorShape.horizontal: steps * 2 + 7,
-    vertical: Block(6),
+    ProjectorShape.horizontal: steps * 2 + 8,
+    vertical: Tab(6),
   };
   let update = (_model, _, action) =>
     switch (action) {

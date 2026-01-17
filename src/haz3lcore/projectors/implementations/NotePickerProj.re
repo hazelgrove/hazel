@@ -21,10 +21,13 @@ module M: Projector = {
     ("a#", 5),
   ];
 
-  /* Extract string from Note constructor application */
+  /* Extract string from Note or Sample constructor application */
   let string_of = (any: Language.Any.t): option(string) =>
     switch (any) {
-    | Exp({term: Ap(_, {term: Constructor("Note", _), _}, arg), _}) =>
+    | Exp({
+        term: Ap(_, {term: Constructor("Note" | "Sample", _), _}, arg),
+        _,
+      }) =>
       switch (arg.term) {
       | Atom(String(s)) => Some(s)
       | _ => None
@@ -63,7 +66,7 @@ module M: Projector = {
                 },
               ),
           })
-        | _ => failwith("NotePicker: Put: not Note constructor"),
+        | _ => failwith("NotePicker: Put: not Note/Sample constructor"),
         info.syntax,
       )
     ) {
@@ -76,7 +79,7 @@ module M: Projector = {
   /* Piano needs ~4 rows of height for keys + pattern display */
   let placeholder = (_, _) => {
     ProjectorShape.horizontal: 20,
-    vertical: Block(4),
+    vertical: Tab(4),
   };
   let update = (model, _, _) => model;
 

@@ -11,6 +11,7 @@ let to_module = (kind: ProjectorCore.Kind.t): (module Cooked) =>
   | Probe => (module Cook(ProbeProj.M))
   | Slider => (module Cook(SliderProj.M))
   | SliderF => (module Cook(SliderFProj.M))
+  | Knob => (module Cook(KnobProj.M))
   | Checkbox => (module Cook(CheckboxProj.M))
   | TextArea => (module Cook(TextAreaProj.M))
   | Livelit => (module Cook(LivelitProj.M))
@@ -18,6 +19,7 @@ let to_module = (kind: ProjectorCore.Kind.t): (module Cooked) =>
   | Csv => (module Cook(CSVProjector.M))
   | NotePicker => (module Cook(NotePickerProj.M))
   | RhythmGrid => (module Cook(RhythmGridProj.M))
+  | XYPad => (module Cook(XYPadProj.M))
   };
 
 let init =

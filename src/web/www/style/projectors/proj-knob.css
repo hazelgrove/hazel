@@ -1,0 +1,69 @@
+/* Knob projector - modular synth rotary dial */
+
+.knob-projector {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(145deg, #1a1a2e, #0f0f1a);
+  border-radius: 4px;
+  border: 1px solid #2a2a4a;
+  cursor: ns-resize;
+  user-select: none;
+  padding: 4px;
+  box-sizing: border-box;
+}
+
+.knob-projector.dragging {
+  cursor: grabbing;
+  border-color: #4a9eff;
+  box-shadow: 0 0 8px rgba(74, 158, 255, 0.3);
+}
+
+.knob-svg {
+  width: 100%;
+  height: calc(100% - 16px);
+  max-width: 60px;
+  max-height: 60px;
+}
+
+.knob-ring {
+  fill: none;
+  stroke: #2a2a4a;
+  stroke-width: 2;
+}
+
+.knob-body {
+  fill: linear-gradient(145deg, #252540, #1a1a30);
+  fill: #1e1e35;
+  stroke: #3a3a5a;
+  stroke-width: 1;
+}
+
+.knob-indicator {
+  fill: #4a9eff;
+  filter: drop-shadow(0 0 3px rgba(74, 158, 255, 0.8));
+}
+
+.knob-projector.dragging .knob-indicator {
+  fill: #7ab8ff;
+  filter: drop-shadow(0 0 6px rgba(74, 158, 255, 1));
+}
+
+.knob-center {
+  fill: #0a0a15;
+}
+
+.knob-value {
+  font-family: 'SF Mono', 'Consolas', monospace;
+  font-size: 9px;
+  color: #6a6a8a;
+  margin-top: 2px;
+  text-align: center;
+}
+
+.knob-projector.dragging .knob-value {
+  color: #4a9eff;
+}

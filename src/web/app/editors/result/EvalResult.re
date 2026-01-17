@@ -475,6 +475,15 @@ module View = {
         }
       | None => None
       }
+    | Some("Sample") =>
+      switch (get_constructor_arg(exp)) {
+      | Some(arg) =>
+        switch (get_string(arg)) {
+        | Some(s) => Util.Strudel.sound(s)
+        | None => None
+        }
+      | None => None
+      }
     | Some("Rev") =>
       switch (get_constructor_arg(exp)) {
       | Some(inner) =>
@@ -548,6 +557,15 @@ module View = {
         | None => "Note(?)"
         }
       | None => "Note(?)"
+      }
+    | Some("Sample") =>
+      switch (get_constructor_arg(exp)) {
+      | Some(arg) =>
+        switch (get_string(arg)) {
+        | Some(s) => "♪ " ++ s
+        | None => "Sample(?)"
+        }
+      | None => "Sample(?)"
       }
     | Some("Rev") =>
       switch (get_constructor_arg(exp)) {
@@ -655,7 +673,8 @@ module View = {
   /* Check if expression is a Sound value */
   let is_sound = (exp: Exp.t): bool =>
     switch (get_constructor(exp)) {
-    | Some("Note" | "Rev" | "Fast" | "Slow" | "Seq" | "Stack") => true
+    | Some("Note" | "Sample" | "Rev" | "Fast" | "Slow" | "Seq" | "Stack") =>
+      true
     | _ => false
     };
 

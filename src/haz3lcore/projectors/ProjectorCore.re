@@ -24,23 +24,27 @@ module Kind = {
     | Checkbox
     | Slider
     | SliderF
+    | Knob
     | Card
     | Livelit
     | TextArea
     | Csv
     | NotePicker
-    | RhythmGrid;
+    | RhythmGrid
+    | XYPad;
 
   let livelit_projectors: list(t) = [
     Checkbox,
     Slider,
     SliderF,
+    Knob,
     TextArea,
     Card,
     Livelit,
     Csv,
     NotePicker,
     RhythmGrid,
+    XYPad,
   ];
 
   /* Note: Probe intentionally excluded - probes use separate action path */
@@ -61,12 +65,14 @@ module Kind = {
     | Checkbox => "check"
     | Slider => "slider"
     | SliderF => "sliderf"
+    | Knob => "knob"
     | Card => "card"
     | Livelit => "livelit"
     | TextArea => "text"
     | Csv => "csv"
     | NotePicker => "notes"
     | RhythmGrid => "rhythm"
+    | XYPad => "xypad"
     };
 
   /* This must be updated and kept 1-to-1 with the above
@@ -80,12 +86,14 @@ module Kind = {
     | "check" => Checkbox
     | "slider" => Slider
     | "sliderf" => SliderF
+    | "knob" => Knob
     | "text" => TextArea
     | "livelit" => Livelit
     | "card" => Card
     | "csv" => Csv
     | "notes" => NotePicker
     | "rhythm" => RhythmGrid
+    | "xypad" => XYPad
     | _ => failwith("Unknown projector kind")
     };
 

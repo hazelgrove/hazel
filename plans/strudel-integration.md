@@ -12,24 +12,26 @@
 ## Current State
 
 ### What's Implemented
-- `Sound` type with constructors: `Note(String)`, `Rev(Sound)`, `Fast(Float, Sound)`, `Slow(Float, Sound)`, `Seq(List(Sound))`, `Stack(List(Sound))`
+- `Sound` type with constructors: `Note(String)`, `Sample(String)`, `Rev(Sound)`, `Fast(Float, Sound)`, `Slow(Float, Sound)`, `Seq(List(Sound))`, `Stack(List(Sound))`
+- `Sample(String)` uses Strudel's `sound()` function for drums/samples (bd, sd, piano, etc.)
 - Strudel JS library loaded via unpkg in `index.html`
 - `Strudel.initOnLoad()` called on startup in `Main.re`
+- **Dirt-Samples auto-loaded** via `prebake` callback in `initStrudel()` - loads from `github:tidalcycles/dirt-samples`
 - `audio_view` wired into `live_eval` - shows play/stop controls (▶/■) for Sound values
 - Defensive JS bindings in `src/util/Strudel.re` with proper initialization
 - CSS styling in `style/strudel.css` matching UI aesthetic
 - **Note Picker projector** - piano keyboard for selecting notes (constructor-level: `^^notes(Note(...))`)
 - **Rhythm Grid projector** - step sequencer for drum patterns (constructor-level: `^^rhythm(Note(...))`)
+- **Knob projector** - rotary dial for Float values with modular synth aesthetic (`^^knob`)
+- **XY Pad projector** - 2D control surface for (Float, Float) tuples (`^^xypad`)
 - Context menu shows all applicable projectors (not just first)
-- Block placeholders for projectors (piano: 4 rows, rhythm: 6 rows)
+- Block placeholders for projectors (piano: 4 rows, rhythm: 6 rows, knob: 3 rows, xypad: 5 rows)
 
 ### What's In Progress
 - Execution visualization (highlighting notes as they play) - deferred due to `onTrigger` callback issues
-- More projector types (knobs, chord pickers, etc.)
 
 ### What's Missing (Future)
 - Scale picker projector
-- Parameter sliders (gain, pan, filter)
 - Euclidean rhythm projector
 - Full piano roll timeline editor
 - Wiring between projectors
@@ -326,14 +328,16 @@ Goal: Create a **modular synthesizer aesthetic** where multiple projectors can b
 8. ✅ Rhythm grid projector
 9. ✅ UI polish: Block placeholders, contained black keys, symbol buttons
 10. ✅ Context menu shows all applicable projectors (not just first)
-11. ⬜ Scale picker projector
-12. ⬜ Parameter sliders (gain, pan, filter)
+11. ✅ Sample(String) constructor for drums/samples
+12. ✅ Knob dial projector (modular synth style)
+13. ✅ XY Pad projector (2D control surface)
+14. ⬜ Scale picker projector
 
 ### Long Term
-11. ⬜ Euclidean rhythm projector
-12. ⬜ Full piano keyboard projector
-13. ⬜ Pattern visualization
-14. ⬜ Transport controls
+15. ⬜ Euclidean rhythm projector
+16. ⬜ Full piano keyboard projector
+17. ⬜ Pattern visualization
+18. ⬜ Transport controls
 
 ---
 

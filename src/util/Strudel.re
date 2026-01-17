@@ -15,11 +15,17 @@ let is_function = (name: string): bool => {
 let isReady: unit => bool = () => is_function("note");
 
 /* Safe init - only call if initStrudel exists */
+/* Pass prebake callback to load Dirt-Samples from GitHub */
 let initStrudel: unit => unit =
   () =>
     if (is_function("initStrudel")) {
       let fn = Js.Unsafe.js_expr("window.initStrudel");
-      Js.Unsafe.fun_call(fn, [||]) |> ignore;
+      /* Create options object with prebake callback that loads samples */
+      let options =
+        Js.Unsafe.js_expr(
+          "{ prebake: function() { return samples('github:tidalcycles/dirt-samples'); } }",
+        );
+      Js.Unsafe.fun_call(fn, [|Js.Unsafe.inject(options)|]) |> ignore;
     };
 
 /* Safe hush - only call if hush exists */
@@ -33,13 +39,25 @@ let hush: unit => unit =
 /* Abstract type for Strudel patterns */
 type pattern;
 
-/* Create a note pattern from mini-notation string */
+/* Create a note pattern from mini-notation string (synth tones) */
 let note: string => option(pattern) =
   s =>
     if (isReady()) {
       let noteFn = Js.Unsafe.js_expr("window.note");
       Some(
         Js.Unsafe.fun_call(noteFn, [|Js.Unsafe.inject(Js.string(s))|]),
+      );
+    } else {
+      None;
+    };
+
+/* Create a sample pattern from mini-notation string (drums, synths, etc) */
+let sound: string => option(pattern) =
+  s =>
+    if (is_function("s")) {
+      let soundFn = Js.Unsafe.js_expr("window.s");
+      Some(
+        Js.Unsafe.fun_call(soundFn, [|Js.Unsafe.inject(Js.string(s))|]),
       );
     } else {
       None;
@@ -107,6 +125,39 @@ let playPattern: pattern => unit = p => play(juxRev(p));
 /* Function to stop the music */
 let stopMusic: unit => unit = () => hush();
 
+/* Load Dirt-Samples from GitHub for drum sounds */
+let loadSamples: unit => unit =
+  () =>
+    if (is_function("samples")) {
+      /* Load common drum samples from Dirt-Samples repository */
+      let _ =
+        Js.Unsafe.fun_call(
+          Js.Unsafe.js_expr("window.samples"),
+          [|
+            Js.Unsafe.inject(
+              Js.Unsafe.js_expr(
+                "{ \
+                  bd: ['bd/BT0A0D0.wav', 'bd/BT0A0D3.wav', 'bd/BT0AAD0.wav'], \
+                  sd: ['sd/rytm-01-classic.wav', 'sd/rytm-00-hard.wav'], \
+                  hh: ['hh/000_hh3closedhh.wav', 'hh27/000_hh27closedhh.wav'], \
+                  oh: ['oh/000_oh3openhh.wav'], \
+                  cp: ['cp/HANDCLP0.wav'], \
+                  cb: ['cb/000_cb.wav'] \
+                }",
+              ),
+            ),
+            Js.Unsafe.inject(
+              Js.string(
+                "https://raw.githubusercontent.com/tidalcycles/Dirt-Samples/master/",
+              ),
+            ),
+          |],
+        );
+      Printf.printf("Strudel samples loaded\n");
+    } else {
+      Printf.printf("Strudel samples function not found\n");
+    };
+
 /* Function to initialize Strudel - handles both already-loaded and loading cases */
 let initOnLoad: unit => unit =
   () => {
@@ -114,7 +165,10 @@ let initOnLoad: unit => unit =
     let doInit = () =>
       if (is_function("initStrudel")) {
         initStrudel();
-        Printf.printf("Strudel initialized, note ready: %b\n", isReady());
+        Printf.printf(
+          "Strudel initialized with Dirt-Samples, note ready: %b\n",
+          isReady(),
+        );
       } else {
         Printf.printf("Strudel initStrudel function not found\n");
       };

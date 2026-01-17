@@ -415,6 +415,7 @@ module Projectors = {
     | Checkbox => "Checkbox"
     | Slider => "Slider"
     | SliderF => "SliderF"
+    | Knob => "Knob"
     | Card => "Card"
     | TextArea => "Text"
     | Csv => "CSV"
@@ -422,6 +423,7 @@ module Projectors = {
     | Probe => "Probe" /* shouldn't appear in menu */
     | NotePicker => "Notes"
     | RhythmGrid => "Rhythm"
+    | XYPad => "XY Pad"
     };
 
   /* Get applicable projector kinds */
