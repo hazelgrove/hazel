@@ -8,6 +8,11 @@
   background: var(--T2);
   border-radius: 0.3em;
   border: 1px solid var(--BR2);
+  transition: border-color 0.15s;
+}
+
+.rhythm-grid:hover {
+  border-color: var(--BR3);
 }
 
 .rhythm-grid .grid-controls {
@@ -22,9 +27,9 @@
 .rhythm-grid .step-btn {
   width: 1.6em;
   height: 1.6em;
-  border: none;
+  border: 1px solid var(--BR2);
   border-radius: 0.2em;
-  background: var(--T3);
+  background: var(--T1);
   color: var(--STONE);
   cursor: pointer;
   font-size: 0.9em;
@@ -32,9 +37,15 @@
   display: flex;
   align-items: center;
   justify-content: center;
+  transition: background-color 0.1s, border-color 0.1s;
 }
 
 .rhythm-grid .step-btn:hover {
+  background: var(--T3);
+  border-color: var(--BR3);
+}
+
+.rhythm-grid .step-btn:active {
   background: var(--BR2);
 }
 
@@ -59,12 +70,13 @@
 }
 
 .rhythm-grid .drum-label {
-  font-family: var(--ui-font);
-  font-size: 0.75em;
-  font-weight: bold;
+  font-family: var(--code-font);
+  font-size: 0.7em;
+  font-weight: 600;
   color: var(--BR4);
   width: 2em;
   text-align: right;
+  text-transform: uppercase;
 }
 
 .rhythm-grid .grid-cells {
@@ -77,7 +89,7 @@
   height: 1.2em;
   border-radius: 0.2em;
   cursor: pointer;
-  transition: background-color 0.1s, transform 0.05s;
+  transition: background-color 0.1s, transform 0.05s, box-shadow 0.1s;
 }
 
 .rhythm-grid .grid-cell.inactive {
@@ -86,16 +98,19 @@
 }
 
 .rhythm-grid .grid-cell.inactive:hover {
-  background: var(--T3);
+  background: white;
+  border-color: var(--BR3);
 }
 
 .rhythm-grid .grid-cell.active {
   background: var(--G0);
   border: 1px solid var(--G0);
+  box-shadow: 0 0 3px oklch(from var(--G0) l c h / 0.3);
 }
 
 .rhythm-grid .grid-cell.active:hover {
   background: var(--G1);
+  box-shadow: 0 0 5px oklch(from var(--G0) l c h / 0.5);
 }
 
 .rhythm-grid .grid-cell.beat-start {
