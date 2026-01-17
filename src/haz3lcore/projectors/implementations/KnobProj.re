@@ -64,7 +64,7 @@ module M: Projector = {
   /* Knob needs square space - 3 rows height for the dial */
   let placeholder = (_, _) => {
     ProjectorShape.horizontal: 6,
-    vertical: Block(3),
+    vertical: Tab(3),
   };
 
   let update = (model, _, _) => model;

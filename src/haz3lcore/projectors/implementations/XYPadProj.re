@@ -119,7 +119,7 @@ module M: Projector = {
   /* XY Pad needs square space - 5 rows for a good touch target */
   let placeholder = (_, _) => {
     ProjectorShape.horizontal: 10,
-    vertical: Block(5),
+    vertical: Tab(5),
   };
 
   let update = (model, _, action) =>
