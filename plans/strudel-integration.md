@@ -240,9 +240,9 @@ Visual editor for euclidean rhythms `(beats, steps, offset)`.
 ### Short Term - COMPLETE
 5. ✅ Add `rev`, `fast`, `slow` functions (as Sound ADT constructors)
 6. ✅ Add `Seq` and `Stack` to Sound type
-7. ⬜ Basic note picker projector (single octave)
+7. ✅ Basic note picker projector (single octave)
 
-### Medium Term
+### Medium Term (CURRENT)
 8. ⬜ Rhythm grid projector
 9. ⬜ Scale picker projector
 10. ⬜ Parameter sliders (gain, pan, filter)

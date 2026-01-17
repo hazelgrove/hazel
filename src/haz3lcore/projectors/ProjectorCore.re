@@ -27,7 +27,8 @@ module Kind = {
     | Card
     | Livelit
     | TextArea
-    | Csv;
+    | Csv
+    | NotePicker;
 
   let livelit_projectors: list(t) = [
     Checkbox,
@@ -37,6 +38,7 @@ module Kind = {
     Card,
     Livelit,
     Csv,
+    NotePicker,
   ];
 
   /* Note: Probe intentionally excluded - probes use separate action path */
@@ -61,6 +63,7 @@ module Kind = {
     | Livelit => "livelit"
     | TextArea => "text"
     | Csv => "csv"
+    | NotePicker => "notes"
     };
 
   /* This must be updated and kept 1-to-1 with the above
@@ -78,6 +81,7 @@ module Kind = {
     | "livelit" => Livelit
     | "card" => Card
     | "csv" => Csv
+    | "notes" => NotePicker
     | _ => failwith("Unknown projector kind")
     };
 

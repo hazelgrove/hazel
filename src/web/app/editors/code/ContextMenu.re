@@ -420,6 +420,7 @@ module Projectors = {
     | Csv => "CSV"
     | Livelit => "Livelit"
     | Probe => "Probe" /* shouldn't appear in menu */
+    | NotePicker => "Notes"
     };
 
   /* Get applicable projector kinds */

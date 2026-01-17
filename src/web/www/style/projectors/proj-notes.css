@@ -1,0 +1,78 @@
+/* Note Picker Projector Styles */
+
+.note-picker {
+  display: inline-flex;
+  flex-direction: column;
+  gap: 0.3em;
+  padding: 0.3em;
+  background: var(--T2);
+  border-radius: 0.3em;
+  border: 1px solid var(--BR2);
+}
+
+.note-picker .piano-keys {
+  display: flex;
+  position: relative;
+  height: 3em;
+  width: 10em;
+}
+
+.note-picker .note-key {
+  cursor: pointer;
+  transition: background-color 0.1s, transform 0.05s;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  padding-bottom: 0.2em;
+  font-size: 0.6em;
+  font-family: var(--ui-font);
+  user-select: none;
+}
+
+.note-picker .note-key.white {
+  width: 14.29%;
+  height: 100%;
+  background: white;
+  border: 1px solid var(--BR3);
+  border-radius: 0 0 0.2em 0.2em;
+  color: var(--BR4);
+  z-index: 1;
+}
+
+.note-picker .note-key.white:hover {
+  background: var(--T3);
+}
+
+.note-picker .note-key.white.active {
+  background: var(--G1);
+  color: white;
+}
+
+.note-picker .note-key.black {
+  position: absolute;
+  width: 10%;
+  height: 60%;
+  background: var(--STONE);
+  border: 1px solid var(--BR4);
+  border-radius: 0 0 0.15em 0.15em;
+  z-index: 2;
+}
+
+.note-picker .note-key.black:hover {
+  background: var(--BR4);
+}
+
+.note-picker .note-key.black.active {
+  background: var(--G0);
+}
+
+.note-picker .pattern-text {
+  font-family: var(--code-font);
+  font-size: 0.75em;
+  color: var(--STONE);
+  padding: 0.2em 0.3em;
+  background: var(--T1);
+  border-radius: 0.2em;
+  text-align: center;
+  min-height: 1.2em;
+}
