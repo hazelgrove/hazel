@@ -127,8 +127,10 @@ let should_send_state = (a: Action.t): bool =>
   | Unselect(_)
   | Move(_) => false
   | Project(
-      SetIndicated(_) | RemoveIndicated | SetModel(_) | Focus(_) | Escape(_),
+      SetIndicated(_) | RemoveIndicated | SetModel(_) | Focus(_) | Escape(_) |
+      SampleCursor(_),
     )
+  | Probe(_)
   | Project(SetSyntax(_))
   | Reparse
   | Destruct(_)

@@ -83,7 +83,6 @@ module Update = {
              | Dump => true
              | Project(_)
              | Unselect(_)
-             | Select(All)
              | SyncReplace(_) => false
              | Probe(_) => false
              };
