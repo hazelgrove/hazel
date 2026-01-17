@@ -366,7 +366,7 @@ let probe_hazel = (many: bool, path: string): unit => {
       Id.Map.union(
         (_, _, _) => Some(),
         Id.Map.map(_ => (), zipper.refractors.manuals),
-        Id.Map.map(_ => (), zipper.refractors.ephemerals),
+        Id.Map.map(_ => (), zipper.refractors.autos.ephemerals),
       );
     /* Run statics to get info_map for building probe_map */
     open Language;
@@ -374,15 +374,15 @@ let probe_hazel = (many: bool, path: string): unit => {
       Statics.mk(CoreSettings.on, Builtins.ctx_init(Some(Int)), term);
 
     /* Build probe_map - tells evaluator which expressions to record */
-    let probe_map =
-      Haz3lcore.CachedStatics.probe_map(
+    let sample_map =
+      Haz3lcore.CachedStatics.compute_targets(
         ~settings=CoreSettings.on,
         ~info_map,
         ~probe_ids,
       );
 
     /* Evaluate with probe_map to collect probe samples */
-    let (_, sample_map) = Run.evaluate_with_probe_map(~probe_map, term);
+    let (_, sample_map) = Run.evaluate_with_probe_map(~sample_map, term);
 
     /* Format output with probe values */
     let window: Sample.Window.mode =

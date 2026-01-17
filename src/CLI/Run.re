@@ -22,10 +22,15 @@ let evaluate_with_probes = (exp: Exp.t): (Exp.t, Sample.Map.t) => {
 /* Evaluate with a probe_map to collect probe samples.
  * The probe_map tells the evaluator which expressions to record. */
 let evaluate_with_probe_map =
-    (~probe_map: Id.Map.t(Probe.t), exp: Exp.t): (Exp.t, Sample.Map.t) => {
+    (~sample_map: Id.Map.t(Sample.capture_spec), exp: Exp.t)
+    : (Exp.t, Sample.Map.t) => {
   let elaborated = elaborate(exp);
   let (result, state) =
-    Evaluator.evaluate(~probe_map, ~env=Builtins.env_init, elaborated);
+    Evaluator.evaluate(
+      ~targets=sample_map,
+      ~env=Builtins.env_init,
+      elaborated,
+    );
   (result, state.probes);
 };
 
