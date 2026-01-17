@@ -4,19 +4,38 @@ open Node;
 open ProjectorBase;
 open Language;
 
-/* Global play state for mutual exclusion - only one Player can be active at a time */
+/* Global play state for mutual exclusion - only one Player can be active at a time.
+ * For live coding: we don't call hush() before playing - this allows the
+ * Strudel scheduler to keep running while we update the pattern via setPattern.
+ * See: https://strudel.cc/technical-manual/repl/ */
 module PlayState = {
   let current: ref(option(Id.t)) = ref(Option.None);
+  /* Track last played description to detect actual changes */
+  let last_desc: ref(string) = ref("");
 
-  let play = (id: Id.t, pattern: Strudel.pattern) => {
-    Strudel.stopMusic();
-    Strudel.playPattern(pattern);
-    current := Option.Some(id);
+  /* Start playing or update the pattern if already playing.
+   * Key insight: pattern.play() internally calls scheduler.setPattern(),
+   * which updates the running scheduler without restarting the clock. */
+  let play_or_update = (id: Id.t, pattern: Strudel.pattern, desc: string) => {
+    let is_new_pattern = last_desc^ != desc;
+    let is_new_player = current^ != Option.Some(id);
+
+    if (is_new_pattern || is_new_player) {
+      /* If switching to a different player, stop the previous one first */
+      if (is_new_player && current^ != Option.None) {
+        Strudel.stopMusic();
+      };
+      /* Don't call hush() here - let scheduler.setPattern handle the update */
+      Strudel.playPattern(pattern);
+      current := Option.Some(id);
+      last_desc := desc;
+    };
   };
 
   let stop = () => {
     Strudel.stopMusic();
     current := Option.None;
+    last_desc := "";
   };
 
   let is_playing = (id: Id.t) => current^ == Option.Some(id);
@@ -66,6 +85,22 @@ module M: Projector = {
       | None => false
       };
 
+    /* Live coding: if we're playing and the sound value exists,
+     * auto-update the pattern. This enables seamless editing while playing.
+     * The play_or_update function checks if the pattern actually changed. */
+    let () =
+      if (is_playing && has_sound) {
+        switch (sound_value) {
+        | Some(exp) =>
+          let desc = SoundUtil.sound_description(exp);
+          switch (SoundUtil.interpret_sound(exp)) {
+          | Some(pattern) => PlayState.play_or_update(info.id, pattern, desc)
+          | None => ()
+          };
+        | None => ()
+        };
+      };
+
     View.{
       inline: div([]),
       overlay: None,
@@ -92,12 +127,13 @@ module M: Projector = {
                     } else {
                       switch (sound_value) {
                       | Some(exp) =>
+                        let desc = SoundUtil.sound_description(exp);
                         switch (SoundUtil.interpret_sound(exp)) {
                         | Some(pattern) =>
-                          PlayState.play(info.id, pattern);
+                          PlayState.play_or_update(info.id, pattern, desc);
                           local(Play);
                         | None => Effect.Ignore
-                        }
+                        };
                       | None => Effect.Ignore
                       };
                     }
