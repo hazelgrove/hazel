@@ -405,14 +405,14 @@ module Update = {
                   ),
                 ),
               ),
-            )
+            );
           },
         ~timeout=
           _ =>
             schedule_action(
               CellAction(ResultAction(UpdateResult(ResultFail(Timeout)))),
             ),
-      )
+      );
     };
     let new_sp =
       ListUtil.put_nth(model.current, (key, new_ed), model.scratchpads);
