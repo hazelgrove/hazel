@@ -12,6 +12,32 @@ let terms_of_equiv = (equiv: Typ.equivalence) => {
   (leftType |> Typ.term_of, rightType |> Typ.term_of);
 };
 
+let unfold_tpat_constramnot = (l_tpat: TPat.t, r_tpat: TPat.t) => {
+  let (unwrapped_l_tpat, rewrap_ltpat) = IdTagged.unwrap(l_tpat);
+  let (unwrapped_r_tpat, rewrap_rtpat) = IdTagged.unwrap(r_tpat);
+  switch (unwrapped_l_tpat, unwrapped_r_tpat) {
+  | (Unknown(p), Unknown(q)) =>
+    if (Prov.is_identified(p) && Prov.is_identified(q)) {
+      [TPat(EquivCon(p, q))];
+    } else {
+      [];
+    }
+  | (Unknown(p), t) =>
+    if (Prov.is_identified(p)) {
+      [TPat(DominateCon(p, t |> rewrap_rtpat))];
+    } else {
+      [];
+    }
+  | (t, Unknown(p)) =>
+    if (Prov.is_identified(p)) {
+      [TPat(DominateCon(p, t |> rewrap_ltpat))];
+    } else {
+      [];
+    }
+  | (Var(_), Var(_)) => []
+  };
+};
+
 // precondition: recieves a consistent constramnot
 // postondition: returns an equivalent list of canonical (left side is hole) constriants
 let rec unfold_constramnot = (equiv: Typ.equivalence): list(t) => {
@@ -53,7 +79,9 @@ let rec unfold_constramnot = (equiv: Typ.equivalence): list(t) => {
   | (List(l), List(r)) => unfold_constramnot(Con(l, r))
   | (Var(_), Var(_)) => []
   | (Rec(_, l_ty), Rec(_, r_ty)) => unfold_constramnot(Con(l_ty, r_ty))
-  | (Poly(_, l_ty), Poly(_, r_ty)) => unfold_constramnot(Con(l_ty, r_ty))
+  | (Poly(l_tpat, l_ty), Poly(r_tpat, r_ty)) =>
+    unfold_tpat_constramnot(l_tpat, r_tpat)
+    @ unfold_constramnot(Con(l_ty, r_ty))
   | (ProdProjection(l1, l2), ProdProjection(r1, r2))
   | (ProdExtension(l1, l2), ProdExtension(r1, r2)) =>
     unfold_constramnot(Con(l1, r1)) @ unfold_constramnot(Con(l2, r2))
