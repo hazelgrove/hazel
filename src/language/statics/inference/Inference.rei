@@ -1,1 +1,3 @@
-let go: list(Typ.equivalence) => SolutionMap.t(Solution.TypSolution.t);
+module TypSolutionMap: (module type of SolutionMap.Make(Solution.TypSolution));
+
+let go: list(Typ.equivalence) => TypSolutionMap.t;

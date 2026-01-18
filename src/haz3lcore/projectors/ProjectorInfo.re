@@ -34,7 +34,7 @@ let mk_info =
     (
       p: Piece.projector,
       ~statics: Statics.Map.t,
-      ~inference: SolutionMap.t(Solution.TypSolution.t),
+      ~inference: Inference.TypSolutionMap.t,
       ~dynamics: Dynamics.Map.t,
     )
     : ProjectorBase.info => {
@@ -43,7 +43,8 @@ let mk_info =
     switch (statics) {
     | Some(InfoTyp(info)) =>
       switch (info.term) {
-      | {term: Unknown(p), _} => SolutionMap.lookup_prov(p, inference)
+      | {term: Unknown(p), _} =>
+        Inference.TypSolutionMap.lookup_prov(p, inference)
       | _ => None
       }
     | _ => None
@@ -80,7 +81,7 @@ module ShapeMapSemantics = {
   let from_semantics =
       (
         statics: Statics.Map.t,
-        inference: SolutionMap.t(Solution.TypSolution.t),
+        inference: Inference.TypSolutionMap.t,
         dynamics: Dynamics.Map.t,
         p: Base.projector,
       )
@@ -93,7 +94,7 @@ module ShapeMapSemantics = {
       (
         proj_map: Id.Map.t(Base.projector),
         statics: Statics.Map.t,
-        inference: SolutionMap.t(Solution.TypSolution.t),
+        inference: Inference.TypSolutionMap.t,
         dynamics: Dynamics.Map.t,
       )
       : Id.Map.t(ProjectorCore.Shape.t) =>

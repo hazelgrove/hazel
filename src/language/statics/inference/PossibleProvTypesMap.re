@@ -75,6 +75,7 @@ module Make =
   module PossibleSolutions:
     PossibleSolutionSet.Type with type elt_t := Solution.SolType.t =
     PossibleSolutionSet.Make(Solution.SolType);
+  module SolutionMap = SolutionMap.Make(Solution);
 
   include ProvMap;
   type data = (Prov.t, list(Prov.t), PossibleSolutions.t);
@@ -110,8 +111,7 @@ module Make =
       m;
     };
 
-  let unsolved_provs_in_term =
-      (t: Solution.SolType.t, sm: SolutionMap.t(Solution.t)) => {
+  let unsolved_provs_in_term = (t: Solution.SolType.t, sm: SolutionMap.t) => {
     let filter = (p: Prov.t) => !SolutionMap.mem(StringProv.of_prov(p), sm);
     SolutionTermInfo.provs_in_term(filter, t);
   };
@@ -120,7 +120,7 @@ module Make =
       (
         c: CanonicalConstramnot.equiv(Solution.SolType.t),
         prov_map: t,
-        sol_map: SolutionMap.t(Solution.t),
+        sol_map: SolutionMap.t,
       )
       : t => {
     switch (c) {
@@ -187,7 +187,7 @@ module Make =
   let of_constramnots =
       (
         cs: list(CanonicalConstramnot.equiv(Solution.SolType.t)),
-        sm: SolutionMap.t(Solution.t),
+        sm: SolutionMap.t,
       )
       : t => {
     List.fold_left(

@@ -30,6 +30,7 @@ module type SolutionBase = {
   let refine_solution: (t, SolType.t) => t;
 
   let anon_unknown: t;
+  let temp_cyclic: t;
 };
 
 module TPatSolution: {
@@ -140,6 +141,7 @@ module TPatSolution: {
   };
 
   let anon_unknown = Unknown(Hole(EmptyHole) |> Prov.anonymous) |> temp;
+  let temp_cyclic: t = Unknown(Hole(CycleHole) |> Prov.anonymous) |> temp /*   | Cyclic => "{Cyclic}"*/;
 };
 
 module TypSolution: {

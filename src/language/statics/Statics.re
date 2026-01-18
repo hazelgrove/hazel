@@ -1207,17 +1207,7 @@ and uexp_to_info_map =
           ~constraints=
             fn.constraints
             @ poly_constraints
-            @ subsumption_constraints_t(self)
-            @ [
-              Con(
-                typfn_ana,
-                Poly(
-                  Unknown(TypeSubstitution(utyp) |> Prov.fresh) |> TPat.temp,
-                  ty_body,
-                )
-                |> Typ.temp,
-              ),
-            ],
+            @ subsumption_constraints_t(self),
           m,
         ); /* invalid name matches with no free type variables. */
       };
@@ -2694,4 +2684,5 @@ let mk =
   );
 
 let mk = (~ana=mk_temp_syn(), core: CoreSettings.t, ctx, exp) =>
-  core.statics ? mk(ana, ctx, exp) : (Id.Map.empty, SolutionMap.empty);
+  core.statics
+    ? mk(ana, ctx, exp) : (Id.Map.empty, Inference.TypSolutionMap.empty);
