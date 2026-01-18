@@ -1,0 +1,203 @@
+/* Adventure Mode: Interactive Tutorial Dialog Styles
+ *
+ * Floating speech bubble dialog with hazelnut avatar for
+ * guided interactive tutorials.
+ */
+
+/* Main dialog container - fixed position in viewport corner */
+.adventure-dialog {
+  z-index: 1000;
+  width: 320px;
+  max-width: 90vw;
+  background-color: var(--SAND);
+  border: 2px solid var(--BR3);
+  border-radius: 12px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+  font-family: var(--ui-font);
+  font-size: 14px;
+  overflow: hidden;
+}
+
+/* Title bar */
+.adventure-title {
+  background-color: var(--BR3);
+  color: white;
+  padding: 8px 12px;
+  padding-right: 32px; /* Space for close button */
+  font-weight: 600;
+  font-size: 13px;
+}
+
+/* Close button */
+.adventure-close {
+  position: absolute;
+  top: 4px;
+  right: 8px;
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  color: white;
+  font-size: 18px;
+  opacity: 0.7;
+  transition: opacity 0.15s ease;
+}
+
+.adventure-close:hover {
+  opacity: 1;
+}
+
+/* Content area with avatar and bubble */
+.adventure-content {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 12px;
+}
+
+/* Avatar (hazelnut emoji for now) */
+.adventure-avatar {
+  flex-shrink: 0;
+  width: 40px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 28px;
+  background-color: var(--T2);
+  border-radius: 50%;
+  border: 2px solid var(--BR2);
+}
+
+/* Speech bubble */
+.adventure-bubble {
+  flex: 1;
+  position: relative;
+  background-color: var(--T1);
+  border: 1px solid var(--BR2);
+  border-radius: 8px;
+  padding: 10px 12px;
+  min-height: 60px;
+}
+
+/* Speech bubble pointer (triangle) */
+.adventure-bubble::before {
+  content: "";
+  position: absolute;
+  left: -8px;
+  top: 14px;
+  width: 0;
+  height: 0;
+  border-top: 6px solid transparent;
+  border-bottom: 6px solid transparent;
+  border-right: 8px solid var(--BR2);
+}
+
+.adventure-bubble::after {
+  content: "";
+  position: absolute;
+  left: -6px;
+  top: 15px;
+  width: 0;
+  height: 0;
+  border-top: 5px solid transparent;
+  border-bottom: 5px solid transparent;
+  border-right: 7px solid var(--T1);
+}
+
+/* Message text */
+.adventure-message {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.adventure-text {
+  color: var(--STONE);
+  line-height: 1.4;
+}
+
+/* Hint text shown during user gates */
+.adventure-hint {
+  font-style: italic;
+  color: var(--BR3);
+  font-size: 12px;
+}
+
+/* Action buttons container */
+.adventure-actions {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+  margin-top: 4px;
+}
+
+/* Button base styles */
+.adventure-button {
+  padding: 6px 14px;
+  border-radius: 6px;
+  border: 1px solid var(--BR2);
+  background-color: var(--T2);
+  color: var(--STONE);
+  font-size: 13px;
+  font-family: var(--ui-font);
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.adventure-button:hover:not(.disabled) {
+  background-color: var(--BR1);
+  border-color: var(--BR3);
+}
+
+.adventure-button.primary {
+  background-color: var(--BR3);
+  color: white;
+  border-color: var(--BR4);
+}
+
+.adventure-button.primary:hover:not(.disabled) {
+  background-color: var(--BR4);
+}
+
+.adventure-button.disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* Reset container at bottom of dialog */
+.adventure-reset-container {
+  padding: 8px 12px;
+  border-top: 1px solid var(--T3);
+  display: flex;
+  justify-content: center;
+}
+
+/* Reset suggestion overlay */
+.adventure-reset-suggestion {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  text-align: center;
+}
+
+.adventure-reset-text {
+  color: var(--Y3);
+  font-weight: 500;
+}
+
+/* Agent acting state */
+.adventure-message.agent-acting .adventure-text {
+  font-style: italic;
+  color: var(--BR3);
+}
+
+/* User gate state */
+.adventure-message.user-gate {
+  background-color: var(--Y0);
+  border-radius: 4px;
+  padding: 8px;
+  margin: -4px;
+}

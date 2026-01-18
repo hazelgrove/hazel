@@ -17,6 +17,7 @@ module Model = {
     editors: Editors.Model.t,
     explain_this: ExplainThisModel.t,
     assistant: AssistantModel.t,
+    adventure: AdventureModel.t,
     selection,
   };
 
@@ -38,6 +39,7 @@ module Store = {
       globals,
       explain_this,
       assistant,
+      adventure: AdventureModel.inactive,
       selection: Editors.Selection.default_selection(editors),
     };
   };
@@ -67,6 +69,7 @@ module Update = {
     | Editors(Editors.Update.t)
     | ExplainThis(ExplainThisUpdate.update)
     | Assistant(AssistantUpdate.t)
+    | Adventure(AdventureUpdate.t)
     | MakeActive(selection)
     | Benchmark(benchmark_action)
     | Start
@@ -311,6 +314,70 @@ module Update = {
         ...model,
         assistant,
       };
+    | Adventure(action) =>
+      let result = AdventureUpdate.update(action, model.adventure);
+      /* Handle side effects from adventure update */
+      let model =
+        if (result.set_checkpoint) {
+          /* Capture current editor state as checkpoint */
+          let zipper =
+            switch (model.editors) {
+            | Scratch(m) =>
+              (List.nth(m.scratchpads, m.current) |> snd).editor.editor.state.
+                zipper
+            | Documentation(m) =>
+              (List.nth(m.scratchpads, m.current) |> snd).editor.editor.state.
+                zipper
+            | Tutorial(m) =>
+              List.nth(m.exercises, m.current).cells.user_impl.editor.editor.
+                state.
+                zipper
+            | Exercises(m) =>
+              ExercisesMode.Model.get_editor(m).editor.state.zipper
+            };
+          {
+            ...model,
+            adventure: {
+              ...result.model,
+              checkpoint: Some(zipper),
+            },
+          };
+        } else if (result.reset_to_checkpoint) {
+          /* Reset editor to checkpoint - dispatch paste action */
+          switch (result.model.checkpoint) {
+          | Some(checkpoint_zipper) =>
+            let segment =
+              Haz3lcore.Siblings.zip(checkpoint_zipper.relatives.siblings);
+            /* Clear editor and paste checkpoint */
+            List.iter(
+              a => schedule_action(Globals(ActiveEditor(a))),
+              [
+                Haz3lcore.Action.Select(All),
+                Haz3lcore.Action.Destruct(Left),
+                Haz3lcore.Action.Paste(Segment(segment)),
+              ],
+            );
+            {
+              ...model,
+              adventure: result.model,
+            };
+          | None => {
+              ...model,
+              adventure: result.model,
+            }
+          };
+        } else {
+          {
+            ...model,
+            adventure: result.model,
+          };
+        };
+      /* Apply any editor actions from the adventure */
+      List.iter(
+        a => schedule_action(Globals(ActiveEditor(a))),
+        result.editor_actions,
+      );
+      model |> Updated.return_quiet;
     | MakeActive(selection) =>
       {
         ...model,
@@ -339,6 +406,7 @@ module Update = {
     | Editors(action) => Editors.Update.can_undo(action)
     | ExplainThis(action) => ExplainThisUpdate.can_undo(action)
     | Assistant(action) => AssistantUpdate.can_undo(action)
+    | Adventure(_) => false
     | MakeActive(_)
     | Benchmark(_) => false
     | Start => false
@@ -391,6 +459,28 @@ module Selection = {
     switch (event) {
     | {key: D("F7"), sys: Mac | PC, shift: Down, meta: Up, ctrl: Up, alt: Up} =>
       Some(Update.Benchmark(Start))
+    /* Adventure mode toggle: Cmd/Ctrl + Shift + A */
+    | {
+        key: D("A" | "a"),
+        sys: Mac,
+        shift: Down,
+        meta: Down,
+        ctrl: Up,
+        alt: Up,
+      }
+    | {
+        key: D("A" | "a"),
+        sys: PC,
+        shift: Down,
+        meta: Up,
+        ctrl: Down,
+        alt: Up,
+      } =>
+      if (model.adventure.active) {
+        Some(Update.Adventure(Stop));
+      } else {
+        Some(Update.Adventure(Start(AdventureScripts.probes_intro)));
+      }
     | {
         key: D("Z" | "z"),
         sys: Mac,
@@ -662,6 +752,7 @@ module View = {
           editors,
           explain_this: explainThisModel,
           assistant: assistantModel,
+          adventure: adventureModel,
           selection,
         } as model: Model.t,
       ) => {
@@ -746,6 +837,7 @@ module View = {
       sidebar,
       bottom_bar,
       ContextInspector.view(~globals, cursor.info),
+      AdventureView.view(~inject=a => inject(Adventure(a)), adventureModel),
     ];
   };
 
