@@ -349,9 +349,9 @@ At each `Checkpoint` and before `UserGate`, capture editor state. `Back` pops hi
 ## Action Items
 
 ### Immediate (Priority 1) - Do Now
-- [ ] **Fix gate checking bug** - Add `check_gate` call in `Page.Update.calculate()` after statics computation
-- [ ] **Fix keyboard shortcut hint** - Change "Ctrl+P" to "Ctrl+E" (or "Cmd+E" on Mac) in AdventureScripts.re
-- [ ] **Create fresh scratch slide** - Modify tutorial start to create new slide instead of clearing
+- [x] **Fix gate checking bug** - Add `check_gate` call in `Page.Update.calculate()` after statics computation
+- [x] **Fix keyboard shortcut hint** - Change "Ctrl+P" to "Ctrl+E" (or "Cmd+E" on Mac) in AdventureScripts.re
+- [x] **Create fresh scratch slide** - Modify tutorial start to create new slide instead of clearing
 
 ### Soon (Priority 2) - After Initial Fixes
 - [ ] **Lock editor during non-gate steps** - Block keyboard/mouse events when not at UserGate, add escape hatch

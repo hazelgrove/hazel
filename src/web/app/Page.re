@@ -315,6 +315,54 @@ module Update = {
         assistant,
       };
     | Adventure(action) =>
+      /* Handle Start specially to create fresh slide in Scratch mode */
+      let (model, action) =
+        switch (action) {
+        | Start(script) =>
+          switch (model.editors) {
+          | Scratch(m) =>
+            /* Create fresh slide for tutorial */
+            let original_index = m.current;
+            let new_editor =
+              Haz3lcore.Zipper.init() |> Haz3lcore.Editor.Model.mk;
+            let new_slide = CellEditor.Model.mk(new_editor);
+            let new_index = List.length(m.scratchpads);
+            let new_scratchpads =
+              m.scratchpads @ [("Adventure Tutorial", new_slide)];
+            let new_editors =
+              Editors.Model.Scratch({
+                current: new_index,
+                scratchpads: new_scratchpads,
+              });
+            (
+              {...model, editors: new_editors},
+              AdventureUpdate.StartWithSlide(script, original_index),
+            );
+          | _ =>
+            /* Non-scratch modes: just start normally */
+            (model, action)
+          }
+        | Stop =>
+          /* Restore original slide if we created one */
+          switch (model.adventure.original_slide_index, model.editors) {
+          | (Some(original_index), Scratch(m)) =>
+            /* Switch back to original slide and remove tutorial slide */
+            let filtered =
+              List.filteri(
+                (i, _) => i != List.length(m.scratchpads) - 1,
+                m.scratchpads,
+              );
+            let new_editors =
+              Editors.Model.Scratch({
+                current: original_index,
+                scratchpads: filtered,
+              });
+            ({...model, editors: new_editors}, action);
+          | _ => (model, action)
+          }
+        | _ => (model, action)
+        };
+
       let result = AdventureUpdate.update(action, model.adventure);
       /* Handle side effects from adventure update */
       let model =
@@ -429,6 +477,34 @@ module Update = {
         ~is_edited,
         model.editors,
       );
+
+    /* Check adventure gate if active and at a UserGate step.
+     * This must happen after editors calculation so statics are available. */
+    let adventure =
+      if (model.adventure.active
+          && AdventureModel.is_at_gate(model.adventure)
+          && is_edited) {
+        /* Get zipper and info_map from current editor */
+        let editor = get_editor({...model, editors});
+        let zipper = editor.editor.state.zipper;
+        let info_map = editor.statics.info_map;
+        let result =
+          AdventureUpdate.check_gate(~zipper, ~info_map, model.adventure);
+        /* Schedule any editor actions from auto-advancing steps */
+        List.iter(
+          a => schedule_action(Globals(ActiveEditor(a))),
+          result.editor_actions,
+        );
+        /* Handle checkpoint capture if needed */
+        if (result.set_checkpoint) {
+          {...result.model, checkpoint: Some(zipper)};
+        } else {
+          result.model;
+        };
+      } else {
+        model.adventure;
+      };
+
     let cursor_info =
       Editors.Selection.get_cursor_info(
         ~selection=model.selection,
@@ -445,6 +521,7 @@ module Update = {
       ...model,
       globals,
       editors,
+      adventure,
     };
   };
 };

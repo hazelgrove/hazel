@@ -54,11 +54,11 @@ let probes_intro: Adventure.script = {
     /* Instruct user */
     Adventure.message(
       ~can_advance=false,
-      "Your turn! Move to the end of the expression and type ' * 4', then add a probe using Ctrl+P (or Cmd+P on Mac).",
+      "Your turn! Move to the end of the expression and type ' * 4', then add a probe using Ctrl+E (or Cmd+E on Mac).",
     ),
     /* Wait for user to add a probe */
     Adventure.user_gate(
-      ~hint="Type ' * 4' at the end, then press Ctrl+P to add a probe",
+      ~hint="Type ' * 4' at the end, then press Ctrl+E to add a probe",
       ~action_threshold=25,
       Adventure.HasAnyProbe,
     ),
