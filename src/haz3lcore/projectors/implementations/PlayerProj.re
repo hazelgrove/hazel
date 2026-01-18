@@ -41,6 +41,10 @@ module M: Projector = {
   let update = (model, _info, _action: action) => model; /* State is global, not in model */
 
   let view = ({info, local, _}: View.args(model, action)) => {
+    /* Trigger Strudel loading when Player is first rendered */
+    let () = Util.Strudel.ensureLoading();
+
+    let load_state = Util.Strudel.getLoadState();
     let sound_value = get_sound_value(info.dynamics);
     let is_playing = PlayState.is_playing(info.id);
     let samples_ready = Util.Strudel.samplesReady();
@@ -68,8 +72,27 @@ module M: Projector = {
         };
       };
 
-    /* Can only play if samples are loaded and we have a valid sound */
-    let can_play = samples_ready && has_sound;
+    /* Determine UI state based on Strudel load state */
+    let (button_icon, button_title, can_interact) =
+      switch (load_state) {
+      | Util.Strudel.NotLoaded
+      | Util.Strudel.Loading => ({js|⏳|js}, "Loading Strudel...", false)
+      | Util.Strudel.Failed(msg) => (
+          {js|⚠️|js},
+          "Audio unavailable: " ++ msg,
+          false,
+        )
+      | Util.Strudel.Ready =>
+        if (!samples_ready) {
+          ({js|⏳|js}, "Loading samples...", false);
+        } else if (!has_sound) {
+          ({js|▶|js}, "No sound to play", false);
+        } else if (is_playing) {
+          ({js|⏸|js}, "Pause", true);
+        } else {
+          ({js|▶|js}, "Play", true);
+        }
+      };
 
     View.{
       inline: div([]),
@@ -88,15 +111,11 @@ module M: Projector = {
                   Attr.classes(
                     ["player-btn"]
                     @ (is_playing ? ["playing"] : [])
-                    @ (can_play ? [] : ["disabled"]),
+                    @ (can_interact ? [] : ["disabled"]),
                   ),
-                  Attr.title(
-                    !samples_ready
-                      ? "Loading samples..."
-                      : !has_sound ? "No sound to play" : "Play/Pause",
-                  ),
+                  Attr.title(button_title),
                   Attr.on_click(_ =>
-                    if (!can_play) {
+                    if (!can_interact) {
                       Effect.Ignore;
                     } else if (is_playing) {
                       PlayState.stop();
@@ -116,12 +135,7 @@ module M: Projector = {
                     }
                   ),
                 ],
-                [
-                  text(
-                    !samples_ready
-                      ? {js|⏳|js} : is_playing ? {js|⏸|js} : {js|▶|js},
-                  ),
-                ],
+                [text(button_icon)],
               ),
               /* Speaker icon - pulses when playing */
               span(
@@ -129,7 +143,7 @@ module M: Projector = {
                   Attr.classes(
                     ["player-speaker"]
                     @ (is_playing ? ["playing"] : [])
-                    @ (can_play ? [] : ["no-sound"]),
+                    @ (can_interact ? [] : ["no-sound"]),
                   ),
                 ],
                 [text({js|🔊|js})],

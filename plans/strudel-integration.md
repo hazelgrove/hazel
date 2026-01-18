@@ -92,8 +92,7 @@ This enables live performance where edits don't cause audio gaps
 - `Sound` type with constructors: `Note(String)`, `Sample(String)`, `Rev(Sound)`, `Fast(Float, Sound)`, `Slow(Float, Sound)`, `Seq(List(Sound))`, `Stack(List(Sound))`, `JuxRev(Sound)`, `Gain(Float, Sound)`, `Pan(Float, Sound)`, `Bank(String, Sound)`, `Cpm(Float, Sound)`
 - `Sample(String)` uses Strudel's `sound()` function for drums/samples (bd, sd, piano, etc.)
 - `JuxRev(Sound)` applies stereo widening effect (jux with rev)
-- Strudel JS library loaded via unpkg in `index.html`
-- `Strudel.initOnLoad()` called on startup in `Main.re`
+- **Lazy-loaded Strudel** - JS library loaded dynamically from unpkg only when first Player projector is rendered (not on page load)
 - **Dirt-Samples auto-loaded** via `prebake` callback in `initStrudel()` - loads from `github:tidalcycles/dirt-samples` with graceful degradation on network failure
 - **Player refractor** - play/stop controls in offside for any Sound-typed expression
 - **Live coding behavior** - pattern updates via `scheduler.setPattern` without audio gaps
@@ -1004,6 +1003,8 @@ When implementing a new projector that operates on a subset of a general type:
 5. **Jux with functions:** Should `Jux` take a function argument (`Jux(Sound -> Sound, Sound)`) or just provide `JuxRev` as a special case? Function version requires higher-order Sound handling in interpreter.
 
 6. **Sample bundling:** Should we bundle a small starter kit of samples for offline reliability, or rely entirely on GitHub loading with graceful degradation?
+
+7. ✅ **Lazy loading:** Strudel is now loaded lazily when the first Player projector is rendered, not on page load. This minimizes exposure to network issues for users not using audio features. The load state machine in `Strudel.re` handles: `NotLoaded -> Loading -> Ready` (or `Failed`). UI shows appropriate feedback during loading.
 
 ---
 

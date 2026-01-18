@@ -1,5 +1,21 @@
 open Js_of_ocaml;
 
+/* Strudel lazy loading state machine */
+type load_state =
+  | NotLoaded
+  | Loading
+  | Ready
+  | Failed(string);
+
+let state: ref(load_state) = ref(NotLoaded);
+let pending_callbacks: ref(list(unit => unit)) = ref([]);
+
+/* Track whether samples have been loaded */
+let samples_loaded: ref(bool) = ref(false);
+
+/* Check if samples are loaded and ready to use */
+let samplesReady: unit => bool = () => samples_loaded^;
+
 /* Check if a window property is a function */
 let is_function = (name: string): bool => {
   Js.Unsafe.fun_call(
@@ -12,19 +28,13 @@ let is_function = (name: string): bool => {
 };
 
 /* Check if Strudel is ready (note function exists) */
-let isReady: unit => bool = () => is_function("note");
+let isReady: unit => bool = () => state^ == Ready && is_function("note");
 
-/* Track whether samples have been loaded */
-let samples_loaded: ref(bool) = ref(false);
+/* Get current load state */
+let getLoadState: unit => load_state = () => state^;
 
-/* Check if samples are loaded and ready to use */
-let samplesReady: unit => bool = () => samples_loaded^;
-
-/* Safe init - only call if initStrudel exists */
-/* Pass prebake callback to load samples from GitHub with error handling.
- * Loads dirt-samples (drums, bass, etc).
- * The callback sets window._hazelSamplesLoaded when complete. */
-let initStrudel: (unit => unit) => unit =
+/* Initialize Strudel after script is loaded */
+let doInitStrudel: (unit => unit) => unit =
   onLoaded =>
     if (is_function("initStrudel")) {
       let fn = Js.Unsafe.js_expr("window.initStrudel");
@@ -42,16 +52,92 @@ let initStrudel: (unit => unit) => unit =
       let options =
         Js.Unsafe.js_expr(
           "{ prebake: async function() { \
-             try { \
-               await samples('github:tidalcycles/Dirt-Samples/master'); \
-               console.log('Strudel: Dirt-Samples loaded successfully'); \
-             } catch (e) { \
-               console.warn('Strudel: Failed to load Dirt-Samples:', e); \
-             } \
-             if (window._hazelOnSamplesLoaded) window._hazelOnSamplesLoaded(); \
-           } }",
+           try { \
+             await samples('github:tidalcycles/Dirt-Samples/master'); \
+             console.log('Strudel: Dirt-Samples loaded successfully'); \
+           } catch (e) { \
+             console.warn('Strudel: Failed to load Dirt-Samples:', e); \
+           } \
+           if (window._hazelOnSamplesLoaded) window._hazelOnSamplesLoaded(); \
+         } }",
         );
       Js.Unsafe.fun_call(fn, [|Js.Unsafe.inject(options)|]) |> ignore;
+    };
+
+/* URL for Strudel library */
+let strudel_url = "https://unpkg.com/@strudel/web@1.0.3";
+
+/* Load Strudel dynamically. Calls onComplete when ready (or immediately if already ready).
+ * If loading fails, the callback is not called and state becomes Failed. */
+let loadStrudel: (unit => unit) => unit =
+  onComplete => {
+    switch (state^) {
+    | Ready => onComplete()
+    | Loading =>
+      /* Already loading - queue the callback */
+      pending_callbacks := [onComplete, ...pending_callbacks^]
+    | Failed(_) =>
+      /* Already failed - don't retry automatically */
+      ()
+    | NotLoaded =>
+      state := Loading;
+      pending_callbacks := [onComplete];
+      Printf.printf("Strudel: Loading from %s\n", strudel_url);
+
+      /* Create script element */
+      let script =
+        Js.Unsafe.fun_call(
+          Js.Unsafe.js_expr("document.createElement"),
+          [|Js.Unsafe.inject(Js.string("script"))|],
+        );
+      Js.Unsafe.set(script, "src", Js.string(strudel_url));
+
+      /* On successful load */
+      let onLoad =
+        Js.wrap_callback(_ => {
+          Printf.printf("Strudel: Script loaded, initializing...\n");
+          /* Initialize Strudel with sample loading */
+          let onSamplesLoaded = () => {
+            samples_loaded := true;
+            Printf.printf(
+              "Strudel: Samples loaded, ready: %b\n",
+              is_function("note"),
+            );
+          };
+          doInitStrudel(onSamplesLoaded);
+          /* Mark as ready and notify all pending callbacks */
+          state := Ready;
+          let callbacks = pending_callbacks^;
+          pending_callbacks := [];
+          List.iter(cb => cb(), callbacks);
+        });
+      Js.Unsafe.set(script, "onload", onLoad);
+
+      /* On error */
+      let onError =
+        Js.wrap_callback(_ => {
+          let msg = "Failed to load Strudel from " ++ strudel_url;
+          Printf.printf("Strudel: %s\n", msg);
+          state := Failed(msg);
+          pending_callbacks := [];
+        });
+      Js.Unsafe.set(script, "onerror", onError);
+
+      /* Append to head to start loading */
+      Js.Unsafe.fun_call(
+        Js.Unsafe.js_expr("document.head.appendChild"),
+        [|Js.Unsafe.inject(script)|],
+      )
+      |> ignore;
+    };
+  };
+
+/* Trigger loading if not already loaded/loading. Non-blocking. */
+let ensureLoading: unit => unit =
+  () =>
+    switch (state^) {
+    | NotLoaded => loadStrudel(() => ())
+    | _ => ()
     };
 
 /* Safe hush - only call if hush exists */
@@ -230,39 +316,6 @@ module PlayState = {
     };
 };
 
-/* Function to initialize Strudel - handles both already-loaded and loading cases */
-let initOnLoad: unit => unit =
-  () => {
-    /* Callback when samples finish loading */
-    let onSamplesLoaded = () => {
-      samples_loaded := true;
-      Printf.printf("Strudel samples loaded, note ready: %b\n", isReady());
-    };
-    /* Check if initStrudel exists and call it */
-    let doInit = () =>
-      if (is_function("initStrudel")) {
-        Printf.printf("Strudel initializing...\n");
-        initStrudel(onSamplesLoaded);
-      } else {
-        Printf.printf("Strudel initStrudel function not found\n");
-      };
-    /* Check if DOM is already loaded */
-    let readyState =
-      Js.Unsafe.get(Js.Unsafe.js_expr("document"), "readyState")
-      |> Js.to_string;
-    if (readyState == "complete" || readyState == "interactive") {
-      /* DOM already loaded, init immediately */
-      doInit();
-    } else {
-      /* Wait for DOMContentLoaded */
-      let cb = Js.wrap_callback(_ => doInit());
-      Js.Unsafe.fun_call(
-        Js.Unsafe.js_expr("window.addEventListener"),
-        [|
-          Js.Unsafe.inject(Js.string("DOMContentLoaded")),
-          Js.Unsafe.inject(cb),
-        |],
-      )
-      |> ignore;
-    };
-  };
+/* Legacy function - kept for compatibility but now a no-op.
+ * Strudel is loaded lazily when first Player projector is used. */
+let initOnLoad: unit => unit = () => ();

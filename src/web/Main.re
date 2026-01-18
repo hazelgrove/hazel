@@ -153,8 +153,7 @@ let start = {
       >= 0;
     NinjaKeys.initialize(Shortcut.options(schedule_action));
     JsUtil.focus_clipboard_shim();
-    /* Initialize Strudel audio */
-    Strudel.initOnLoad();
+    /* Strudel is now loaded lazily when first Player projector is used */
     /* Setup scroll listener for floating elements (backpack) */
     FloatingElement.setup_scroll_listener();
     schedule_action(
