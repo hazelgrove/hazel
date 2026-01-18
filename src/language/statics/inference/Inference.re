@@ -2,12 +2,23 @@
 //   "{" ++ String.concat("\n", List.map(Typ.show_equivalence, cs)) ++ "}";
 // };
 
+module TypProvMap =
+  PossibleProvTypesMap.Make(
+    Solution.TypSolution,
+    PossibleProvTypesMap.TypInfo,
+  );
+module TPatProvMap =
+  PossibleProvTypesMap.Make(
+    Solution.TPatSolution,
+    PossibleProvTypesMap.TPatInfo,
+  );
+
 let rec solution_typ_replace_typ =
         (
           prov: StringProv.t,
           typ: Typ.t,
           sol_typ: Typ.t,
-          prov_map: PossibleProvTypesMap.t,
+          prov_map: TypProvMap.t,
         )
         : Typ.t => {
   let (unwrapped_typ, rewrap_typ) = Typ.unwrap(typ);
@@ -70,7 +81,7 @@ let solution_typ_replace_con =
       prov_to_replace: StringProv.t,
       Con(cons_t1, cons_t2): Typ.equivalence,
       sol_typ: Typ.t,
-      prov_map: PossibleProvTypesMap.t,
+      prov_map: TypProvMap.t,
     )
     : Typ.equivalence => {
   Con(
@@ -84,7 +95,7 @@ let solution_typ_replace_cons =
       prov_to_replace: StringProv.t,
       constraints: list(Typ.equivalence),
       sol_typ: Typ.t,
-      prov_map: PossibleProvTypesMap.t,
+      prov_map: TypProvMap.t,
     )
     : list(Typ.equivalence) =>
   List.map(
@@ -95,10 +106,16 @@ let solution_typ_replace_cons =
 let extend_sol_map =
     (
       constraints: list(Typ.equivalence),
-      sol_map: SolutionMap.t,
+      sol_map: SolutionMap.t(Solution.TypSolution.t),
       cyclic_provs: list(StringProv.t),
     )
-    : option((list(Typ.equivalence), SolutionMap.t, list(StringProv.t))) => {
+    : option(
+        (
+          list(Typ.equivalence),
+          SolutionMap.t(Solution.TypSolution.t),
+          list(StringProv.t),
+        ),
+      ) => {
   // print_endline("Constraints:");
   // print_endline(string_of_constramnots(constraints));
   let canonical_cs = CanonicalConstramnot.unfold_constramnots(constraints); // make constraints canonical
@@ -107,10 +124,22 @@ let extend_sol_map =
   //   List.map(s => show_canonical_constramnot(s), canonical_cs),
   // )
   // |> print_endline;
-  let prov_map = PossibleProvTypesMap.of_constramnots(canonical_cs, sol_map); // compute provenance map
+  let prov_map =
+    TypProvMap.of_constramnots(
+      List.filter_map(
+        v => {
+          switch (v) {
+          | CanonicalConstramnot.TPat(_) => None
+          | CanonicalConstramnot.Typ(equiv) => Some(equiv)
+          }
+        },
+        canonical_cs,
+      ),
+      sol_map,
+    ); // compute provenance map
   // print_endline("Provenance Map:");
   // print_endline(string_of_prov_map(m));
-  switch (PossibleProvTypesMap.find_dominant_provs(prov_map)) {
+  switch (TypProvMap.find_dominant_provs(prov_map)) {
   // if you find a dominant provenance...
   | ([], _) => None
   | ([prov_to_solve, ..._], is_solution_cyclic) =>
@@ -119,7 +148,7 @@ let extend_sol_map =
         // print_endline(
         //   "Solving: " ++ (StringProv.of_prov(p) |> StringProv.show),
         // );
-        let sol = PossibleProvTypesMap.solve_prov(prov_to_solve, prov_map); // solve it
+        let sol = TypProvMap.solve_prov(prov_to_solve, prov_map); // solve it
         // print_endline("Solution: " ++ show_solution(s));
 
         // identify all provenances that are merged with the provenance
@@ -129,8 +158,8 @@ let extend_sol_map =
             ((other_prov, _)) => {
               let are_provs_equivalent =
                 UnionFind.eq(
-                  PossibleProvTypesMap.lookup_prov(prov_to_solve, prov_map),
-                  PossibleProvTypesMap.find(other_prov, prov_map),
+                  TypProvMap.lookup_prov(prov_to_solve, prov_map),
+                  TypProvMap.find(other_prov, prov_map),
                 );
               if (are_provs_equivalent) {
                 Some(other_prov);
@@ -138,7 +167,7 @@ let extend_sol_map =
                 None;
               };
             },
-            PossibleProvTypesMap.bindings(prov_map),
+            TypProvMap.bindings(prov_map),
           );
         // print_endline(
         //   "Equivalent provs: "
@@ -152,7 +181,7 @@ let extend_sol_map =
             cyclic_provs;
           };
 
-        let solution_type = Solution.solution_typ(sol); // turn it into a type
+        let solution_type = Solution.TypSolution.solution_term(sol); // turn it into a type
 
         // replace the unsolved provenances in the constraints
         // with the solution type we just derived
@@ -179,7 +208,10 @@ let extend_sol_map =
         // later check if the solution contains a provenance that
         // we just solved
         let all_provs_in_sol =
-          List.map(StringProv.of_prov, Solution.all_provs_in_sol(sol));
+          List.map(
+            StringProv.of_prov,
+            Solution.TypSolution.all_provs_of(sol),
+          );
 
         // replace the solutions of all existing provenances with
         // we just generated
@@ -192,7 +224,11 @@ let extend_sol_map =
               SolutionMap.map(
                 sol_to_update => {
                   let (updated_sol, replaced_any) =
-                    Solution.replace_solution(curr_prov, sol_to_update, sol);
+                    Solution.TypSolution.replace_solution(
+                      curr_prov,
+                      sol_to_update,
+                      sol,
+                    );
 
                   if (replaced_any && is_prov_cyclic) {
                     // if the solution is cyclic, then the original solution should
@@ -221,25 +257,28 @@ let extend_sol_map =
 let rec solve_rec =
         (
           constraints: list(Typ.equivalence),
-          sol_map: SolutionMap.t,
+          sol_map: SolutionMap.t(Solution.TypSolution.t),
           cyclic_provs: list(StringProv.t),
         )
-        : SolutionMap.t => {
+        : SolutionMap.t(Solution.TypSolution.t) => {
   switch (extend_sol_map(constraints, sol_map, cyclic_provs)) {
   | None =>
     // print_endline("No dominant provenances");
     // print_endline(string_of_constramnots(cs));
-    SolutionMap.replace_cycles(sol_map, cyclic_provs)
+    // TODO: add cycle replacement
+    // SolutionMap.replace_cycles(sol_map, cyclic_provs)
+    sol_map
   | Some((cs', sm', cyclic_provs')) => solve_rec(cs', sm', cyclic_provs')
   };
 };
 
-let solve = (cs: list(Typ.equivalence)): SolutionMap.t => {
+let solve =
+    (cs: list(Typ.equivalence)): SolutionMap.t(Solution.TypSolution.t) => {
   // print_endline("SOLVING");
   solve_rec(cs, SolutionMap.empty, []);
 };
 
-let go = (cs: list(Typ.equivalence)): SolutionMap.t => {
+let go = (cs: list(Typ.equivalence)): SolutionMap.t(Solution.TypSolution.t) => {
   solve(
     cs,
     // let cs = unfold_constramnots(cs);

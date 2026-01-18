@@ -1,6 +1,11 @@
 [@deriving (show({with_path: false}), sexp, yojson)]
+type equiv('a) =
+  | EquivCon(Prov.t, Prov.t)
+  | DominateCon(Prov.t, 'a);
+[@deriving (show({with_path: false}), sexp, yojson)]
 type t =
-  | Con(Prov.t, Typ.t);
+  | Typ(equiv(Typ.t))
+  | TPat(equiv(TPat.t));
 
 let terms_of_equiv = (equiv: Typ.equivalence) => {
   let Con(leftType, rightType) = equiv;
@@ -19,19 +24,19 @@ let rec unfold_constramnot = (equiv: Typ.equivalence): list(t) => {
   // | (_, Unknown({term: Hole(EmptyHole), _})) => []
   | (Unknown(p), Unknown(q)) =>
     if (Prov.is_identified(p) && Prov.is_identified(q)) {
-      [Con(p, Unknown(q) |> Typ.temp)];
+      [Typ(EquivCon(p, q))];
     } else {
       [];
     }
   | (Unknown(p), t) =>
     if (Prov.is_identified(p)) {
-      [Con(p, t |> Typ.temp)];
+      [Typ(DominateCon(p, t |> Typ.temp))];
     } else {
       [];
     }
   | (t, Unknown(p)) =>
     if (Prov.is_identified(p)) {
-      [Con(p, t |> Typ.temp)];
+      [Typ(DominateCon(p, t |> Typ.temp))];
     } else {
       [];
     }

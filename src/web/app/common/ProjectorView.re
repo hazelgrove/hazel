@@ -62,7 +62,7 @@ module Model = {
         selection_ids: list(Id.t),
         indicated: option(Indicated.piece),
         statics: Language.Statics.Map.t,
-        inference: Language.SolutionMap.t,
+        inference: Language.SolutionMap.t(Language.Solution.TypSolution.t),
         dynamics: Language.Dynamics.Map.t,
         editor_active: bool,
       ) => {

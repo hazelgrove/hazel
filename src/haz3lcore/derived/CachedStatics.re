@@ -6,7 +6,7 @@ type t = {
   term: Exp.t,
   elaborated: Exp.t,
   info_map: Statics.Map.t,
-  inference_map: SolutionMap.t,
+  inference_map: SolutionMap.t(Solution.TypSolution.t),
   error_ids: list(Id.t),
 };
 

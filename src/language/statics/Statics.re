@@ -1184,7 +1184,8 @@ and uexp_to_info_map =
         |> Typ.temp;
       let (fn, m) = go(~ana=typfn_ana, fn, m);
       let (_, m) = utyp_to_info_map(~ctx, ~ancestors, utyp, m);
-      let (option_name, ty_body, forall_constraints) =
+
+      let (option_name, ty_body, poly_constraints) =
         Typ.matched_poly(ctx, fn.ty);
       switch (option_name) {
       | Some(name) =>
@@ -1194,7 +1195,7 @@ and uexp_to_info_map =
           ~co_ctx=fn.co_ctx,
           ~constraints=
             fn.constraints
-            @ forall_constraints
+            @ poly_constraints
             @ subsumption_constraints_t(self),
           m,
         );
@@ -1205,8 +1206,18 @@ and uexp_to_info_map =
           ~co_ctx=fn.co_ctx,
           ~constraints=
             fn.constraints
-            @ forall_constraints
-            @ subsumption_constraints_t(self),
+            @ poly_constraints
+            @ subsumption_constraints_t(self)
+            @ [
+              Con(
+                typfn_ana,
+                Poly(
+                  Unknown(TypeSubstitution(utyp) |> Prov.fresh) |> TPat.temp,
+                  ty_body,
+                )
+                |> Typ.temp,
+              ),
+            ],
           m,
         ); /* invalid name matches with no free type variables. */
       };

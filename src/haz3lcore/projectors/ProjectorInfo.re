@@ -34,7 +34,7 @@ let mk_info =
     (
       p: Piece.projector,
       ~statics: Statics.Map.t,
-      ~inference: SolutionMap.t,
+      ~inference: SolutionMap.t(Solution.TypSolution.t),
       ~dynamics: Dynamics.Map.t,
     )
     : ProjectorBase.info => {
@@ -56,14 +56,16 @@ let mk_info =
     inference:
       OptUtil.and_then(
         s =>
-          if (Solution.has_multiple_types(s)) {
+          if (Solution.TypSolution.has_multiple_solutions(s)) {
             Some(
-              ProjectorBase.Many(lazy(Solution.all_types_from_solution(s))),
+              ProjectorBase.Many(
+                lazy(Solution.TypSolution.expand_solution(s)),
+              ),
             );
           } else {
             Some(
               ProjectorBase.Single(
-                Solution.all_types_from_solution(s) |> List.hd,
+                Solution.TypSolution.expand_solution(s) |> List.hd,
               ),
             );
           },
@@ -78,7 +80,7 @@ module ShapeMapSemantics = {
   let from_semantics =
       (
         statics: Statics.Map.t,
-        inference: SolutionMap.t,
+        inference: SolutionMap.t(Solution.TypSolution.t),
         dynamics: Dynamics.Map.t,
         p: Base.projector,
       )
@@ -91,7 +93,7 @@ module ShapeMapSemantics = {
       (
         proj_map: Id.Map.t(Base.projector),
         statics: Statics.Map.t,
-        inference: SolutionMap.t,
+        inference: SolutionMap.t(Solution.TypSolution.t),
         dynamics: Dynamics.Map.t,
       )
       : Id.Map.t(ProjectorCore.Shape.t) =>
