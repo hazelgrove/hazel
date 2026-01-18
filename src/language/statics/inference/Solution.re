@@ -17,6 +17,15 @@ module type SolutionBase = {
   let temp: term => t;
 
   let all_provs_of: t => list(Prov.t);
+  /*
+   Is the term the solution represents, but preserves ids and types for holes. Multis
+   are replaced with empty holes.
+   */
+  let to_term: t => SolType.t;
+  /*
+   Is the term the solution represents. If the term is any unknown/multi, it will be substituted for an
+   anonymous, empty hole
+   */
   let solution_term: t => SolType.t;
   let of_sol_term: SolType.t => t;
 
@@ -56,7 +65,7 @@ module TPatSolution: {
   let term_of = IdTagged.term_of;
   let temp = IdTagged.temp;
 
-  let to_tpat = (sol: t): SolType.t => {
+  let to_term = (sol: t): SolType.t => {
     let (unwrapped_sol, rewrap): (term, TPat.term => TPat.t) =
       IdTagged.unwrap(sol);
     (
@@ -84,7 +93,7 @@ module TPatSolution: {
     switch (unwrapped_sol) {
     | Unknown(_) => Unknown(Hole(EmptyHole) |> Prov.anonymous) |> rewrap
     | Multi(_)
-    | Var(_) => to_tpat(sol)
+    | Var(_) => to_term(sol)
     };
   };
 
@@ -108,7 +117,8 @@ module TPatSolution: {
   };
 
   let expand_solution = (sol: t): list(SolType.t) => {
-    let typ = to_tpat(sol);
+    // TODO: this needs to expand
+    let typ = to_term(sol);
     [typ];
   };
 
@@ -207,28 +217,29 @@ module TypSolution: {
   let term_of = IdTagged.term_of;
   let temp = IdTagged.temp;
 
-  let rec to_typ = (sol: t): Typ.t => {
+  let rec to_term = (sol: t): Typ.t => {
     let (unwrapped_sol, rewrap): (term, Typ.term => Typ.t) =
       IdTagged.unwrap(sol);
     (
       switch (unwrapped_sol) {
       | Unknown(p) => Unknown(p)
       | Atom(a) => Atom(a)
-      | Arrow(s1, s2) => Arrow(to_typ(s1), to_typ(s2))
+      | Arrow(s1, s2) => Arrow(to_term(s1), to_term(s2))
       | Multi(_) => Unknown(Hole(EmptyHole) |> Prov.anonymous)
-      | List(elt) => List(to_typ(elt))
+      | List(elt) => List(to_term(elt))
       | Sum(sm) => Sum(sm)
-      | Prod(elts) => Prod(List.map(e => to_typ(e), elts))
+      | Prod(elts) => Prod(List.map(e => to_term(e), elts))
       | Label(l) => Label(l)
-      | TupLabel(label, ty) => TupLabel(to_typ(label), to_typ(ty))
-      | Rec(pat, ty) => Rec(TPatSolution.solution_term(pat), to_typ(ty))
-      | Poly(pat, ty) => Poly(TPatSolution.solution_term(pat), to_typ(ty))
+      | TupLabel(label, ty) => TupLabel(to_term(label), to_term(ty))
+      | Rec(pat, ty) => Rec(TPatSolution.to_term(pat), to_term(ty))
+      | Poly(pat, ty) => Poly(TPatSolution.to_term(pat), to_term(ty))
       | Var(v) => Var(v)
       | ProofOf(exp) => ProofOf(exp)
       | ExplicitNonlabel => ExplicitNonlabel
-      | ProdExtension(ty1, ty2) => ProdExtension(to_typ(ty1), to_typ(ty2))
+      | ProdExtension(ty1, ty2) =>
+        ProdExtension(to_term(ty1), to_term(ty2))
       | ProdProjection(ty1, ty2) =>
-        ProdProjection(to_typ(ty1), to_typ(ty2))
+        ProdProjection(to_term(ty1), to_term(ty2))
       }
     )
     |> rewrap;
@@ -276,7 +287,7 @@ module TypSolution: {
     | ExplicitNonlabel
     | ProdExtension(_)
     | ProdProjection(_)
-    | Arrow(_) => to_typ(sol)
+    | Arrow(_) => to_term(sol)
     };
   };
 
