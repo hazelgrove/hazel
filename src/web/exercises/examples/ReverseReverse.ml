@@ -6,6 +6,7 @@ let exercise : TheoremExerciseSpec.t =
     prompt = "Show that this implementation of list reverse is its own inverse.";
     prelude =
       {
+        refractors = Haz3lcore.ZipperBase.Refractor.init;
         selection = { focus = Left; content = []; mode = Normal };
         relatives =
           {
@@ -1426,6 +1427,7 @@ let exercise : TheoremExerciseSpec.t =
       };
     lemmas =
       {
+        refractors = Haz3lcore.ZipperBase.Refractor.init;
         selection = { focus = Left; content = []; mode = Normal };
         relatives =
           {
@@ -1447,6 +1449,7 @@ let exercise : TheoremExerciseSpec.t =
       };
     theorem =
       {
+        refractors = Haz3lcore.ZipperBase.Refractor.init;
         selection = { focus = Left; content = []; mode = Normal };
         relatives =
           {

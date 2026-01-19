@@ -39,12 +39,20 @@ let mk = (~info_map, ~dyn_map, z): t => {
   let MakeTerm.{term: _, terms, projectors, term_data} =
     MakeTerm.go(segment);
   let projector_shapes =
-    ProjectorInfo.ShapeMapSemantics.mk(projectors, info_map, dyn_map);
+    ProjectorInfo.ShapeMapSemantics.mk(
+      projectors,
+      z.refractors,
+      info_map,
+      dyn_map,
+    );
+  let refractor_shape_map = Id.Map.empty; // z.refractors.map |> Id.Map.map(_p => 2);
+  let measured =
+    Measured.of_segment(segment, projector_shapes, refractor_shape_map);
   {
     old: false,
     segment,
     term_data,
-    measured: Measured.of_segment(segment, projector_shapes),
+    measured,
     selection_ids: Selection.selection_ids(z.selection),
     terms,
     projectors,

@@ -264,27 +264,12 @@ and uexp_to_info_map =
         m,
       );
 
-    /* Special case for probes, which would otherwise lose their id association here */
     let elaborated_exp =
-      switch (term) {
-      | Probe(_, p) =>
-        rewrap(
-          Probe(
-            Tuple([
-              TupLabel(Label(l) |> Exp.fresh, original_expression)
-              |> Exp.fresh,
-            ])
-            |> Exp.fresh,
-            p,
-          ),
-        )
-      | _ =>
-        rewrap(
-          Tuple([
-            TupLabel(Label(l) |> Exp.fresh, original_expression) |> Exp.fresh,
-          ]),
-        )
-      };
+      rewrap(
+        Tuple([
+          TupLabel(Label(l) |> Exp.fresh, original_expression) |> Exp.fresh,
+        ]),
+      );
 
     // We need to reanalyze the elaborated expression to get the statics in the map for the label and tuple
     let (info, m) =
@@ -388,8 +373,7 @@ and uexp_to_info_map =
         m,
       )
     | DynamicErrorHole(e, _)
-    | Parens(e)
-    | Probe(e, _) =>
+    | Parens(e) =>
       let (e, m) = go(~ana, e, m);
       add'(~self=e.self, ~co_ctx=e.co_ctx, m);
     | UnOp(Meta(Unquote), e) when is_in_filter =>
@@ -1562,27 +1546,12 @@ and upat_to_info_map =
         original_expression,
         m,
       );
-    /* Special case for probes, which would otherwise lose their id association here */
     let elaborated_pat =
-      switch (term) {
-      | Probe(_, p) =>
-        rewrap(
-          Probe(
-            Tuple([
-              TupLabel(Label(l) |> Pat.fresh, original_expression)
-              |> Pat.fresh,
-            ])
-            |> Pat.fresh,
-            p,
-          ),
-        )
-      | _ =>
-        rewrap(
-          Tuple([
-            TupLabel(Label(l) |> Pat.fresh, original_expression) |> Pat.fresh,
-          ]),
-        )
-      };
+      rewrap(
+        Tuple([
+          TupLabel(Label(l) |> Pat.fresh, original_expression) |> Pat.fresh,
+        ]),
+      );
     let (info, m) =
       upat_to_info_map(
         ~ctx,
@@ -1920,8 +1889,7 @@ and upat_to_info_map =
       List.exists(l => name == l, duplicates)
         ? atomic(Duplicate(name, self), Coverage.Constraint.Truth)
         : atomic(self, Coverage.Constraint.Truth);
-    | Parens(p)
-    | Probe(p, _) =>
+    | Parens(p) =>
       let (p, m) = go(~ctx, ~ana, p, m);
       add'(~self=p.self, ~ctx=p.ctx, ~constraint_=p.constraint_, m);
     | Constructor(ctr, ty) =>

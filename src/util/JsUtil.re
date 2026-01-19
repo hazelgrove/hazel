@@ -46,6 +46,8 @@ let date_now = () => {
 
 let timestamp = () => date_now()##valueOf;
 
+let precise_timestamp = () => Js.Unsafe.global##.performance##now()##valueOf;
+
 let download_string_file =
     (~filename: string, ~content_type: string, ~contents: string) => {
   let blob = File.blob_from_string(~contentType=content_type, contents);
@@ -137,15 +139,88 @@ let copy = (str: string) => {
   );
 };
 
+let element_to_node = (element: Js.t(Dom_html.element)): Js.t(Dom.node) =>
+  Js.Unsafe.coerce(element);
+
+let rec find_scroll_container_node =
+        (node: Js.t(Dom.node)): option(Js.t(Dom_html.element)) =>
+  switch (Js.Opt.to_option(node##.parentNode)) {
+  | None => None
+  | Some(parent_node) =>
+    switch (Dom_html.CoerceTo.element(parent_node) |> Js.Opt.to_option) {
+    | Some(parent_element) =>
+      let scroll_height = parent_element##.scrollHeight;
+      let client_height = parent_element##.clientHeight;
+      if (scroll_height - client_height > 1) {
+        Some(parent_element);
+      } else {
+        find_scroll_container_node(parent_node);
+      };
+    | None => find_scroll_container_node(parent_node)
+    }
+  };
+
+let find_scroll_container =
+    (element: Js.t(Dom_html.element)): option(Js.t(Dom_html.element)) =>
+  find_scroll_container_node(element_to_node(element));
+
+/* Find the nearest ancestor element with the given class */
+let find_ancestor_with_class =
+    (el: Js.t(Dom_html.element), class_name: string)
+    : option(Js.t(Dom_html.element)) => {
+  let class_js = Js.string(class_name);
+  let rec loop = (node: Js.t(Dom.node)): option(Js.t(Dom_html.element)) =>
+    switch (Js.Opt.to_option(node##.parentNode)) {
+    | None => None
+    | Some(parent_node) =>
+      switch (Dom_html.CoerceTo.element(parent_node) |> Js.Opt.to_option) {
+      | None => loop(parent_node)
+      | Some(parent_el) =>
+        if (Js.to_bool(parent_el##.classList##contains(class_js))) {
+          Some(parent_el);
+        } else {
+          loop(parent_node);
+        }
+      }
+    };
+  loop(element_to_node(el));
+};
+
+let adjust_scroll = (container: Js.t(Dom_html.element), delta: float) =>
+  if (delta != 0.) {
+    let current = float_of_int(container##.scrollTop);
+    let target = current +. delta;
+    container##.scrollTop := int_of_float(target);
+  };
+
 let scroll_cursor_into_view_if_needed = () =>
   try({
     let caret_elem = get_elem_by_id("caret");
-    caret_elem##scrollIntoView(
-      Js.Unsafe.obj([|
-        ("block", Js.Unsafe.inject(Js.string("nearest"))),
-        ("inline", Js.Unsafe.inject(Js.string("nearest"))),
-      |]),
-    );
+    switch (find_scroll_container(caret_elem)) {
+    | Some(container) =>
+      let caret_rect = caret_elem##getBoundingClientRect;
+      let container_rect = container##getBoundingClientRect;
+      let margin_ratio = 0.10;
+      let margin_px =
+        Js.Optdef.get(container_rect##.height, _ => 0.) *. margin_ratio;
+      let top_gap = caret_rect##.top -. (container_rect##.top +. margin_px);
+      if (top_gap < 0.) {
+        adjust_scroll(container, top_gap);
+      } else {
+        let bottom_gap =
+          caret_rect##.bottom -. (container_rect##.bottom -. margin_px);
+        if (bottom_gap > 0.) {
+          adjust_scroll(container, bottom_gap);
+        };
+      };
+    | None =>
+      caret_elem##scrollIntoView(
+        Js.Unsafe.obj([|
+          ("block", Js.Unsafe.inject(Js.string("nearest"))),
+          ("inline", Js.Unsafe.inject(Js.string("nearest"))),
+        |]),
+      )
+    };
   }) {
   | Assert_failure(_) => ()
   };

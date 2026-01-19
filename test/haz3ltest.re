@@ -19,6 +19,7 @@ let (suite, _) =
       Test_CsvUtil.tests,
       Test_Grammar.tests,
       Test_ExpToSegment.tests,
+      Test_Abbreviate.tests,
       Test_LabeledTuple.tests,
       Test_MakeTerm.tests,
       Test_Menhir.tests,
@@ -33,11 +34,13 @@ let (suite, _) =
     @ Test_Elaboration.tests
     @ Test_Evaluator.tests
     @ Test_Editing.tests
+    @ Test_AutoProbe.tests
     @ Test_Indentation.tests
     @ [Test_Coverage.tests, Test_Unboxing.tests]
     @ Test_Introduce.tests
     @ Test_ReparseDocSlides.tests
-    @ Test_MatchExp.tests,
+    @ Test_MatchExp.tests
+    @ Test_RefractorSerialization.tests,
   );
 Junit.to_file(Junit.make([suite]), "junit_tests.xml");
 Bisect.Runtime.write_coverage_data();
