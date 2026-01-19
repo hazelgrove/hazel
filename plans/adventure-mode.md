@@ -362,7 +362,7 @@ At each `Checkpoint` and before `UserGate`, capture editor state. `Back` pops hi
 - [x] **Disable mode/slide dropdowns during adventure** - Solved via overlay: during locked steps (non-UserGate), an overlay covers entire UI preventing all mouse interaction. During UserGate steps, navigation is still blocked at data level (dropdowns clickable but do nothing).
 - [x] **Lock editor during non-gate steps** - `AdventureModel.is_editor_locked` returns true when active but not at UserGate. Blocks keyboard input, undo/redo, paste, and mouse (via overlay). Cmd/Ctrl+Shift+A still works as escape hatch. Clicking overlay exits tutorial.
 - [x] **Space to advance** - Space key advances when editor is locked (tutor's turn). Hint shown below Next button.
-- [ ] **Wire up action counting** - `UserActed` action exists but is never dispatched. Need to call it after user edits during UserGate so `actions_since_gate` increments and reset suggestion can trigger. Currently reset suggestion never appears.
+- [x] **Wire up action counting** - Integrated into `check_gate`: when gate isn't satisfied, increments `actions_since_gate` and shows reset suggestion after threshold.
 - [ ] **Implement atomic groupings** - Add `AtomicGroup(list(step))` step type or grouping metadata
 - [ ] **Back/forward navigation** - Store editor state at group boundaries, implement navigation
 
@@ -467,9 +467,7 @@ When adventure is active but NOT at a `UserGate` step, the editor is locked to p
 
 ## Known Issues / Technical Debt
 
-### UserActed Never Dispatched
-The `UserActed` action in `AdventureUpdate.t` is designed to increment `actions_since_gate` so that after N actions without satisfying the gate, a reset suggestion appears. However, this action is never dispatched from Page.re. The `check_gate` function is called in `calculate()` but only checks if the predicate is satisfied - it doesn't increment the action counter.
+### UserActed Action (Resolved)
+~~The `UserActed` action was never dispatched, so reset suggestions never appeared.~~
 
-**Impact**: Users never see the "Stuck? You can reset" prompt even after many failed attempts.
-
-**Fix**: After editor actions during a UserGate step, dispatch `Adventure(UserActed)`. This could be done in `calculate()` alongside `check_gate`, or in the update handler for editor actions.
+**Resolution**: Integrated action counting directly into `check_gate`. When the gate predicate is not satisfied, the function now increments `actions_since_gate` and triggers `show_reset_suggestion` when the threshold is reached. The separate `UserActed` action is now redundant but kept for potential future use (e.g., if we want to count actions differently).

@@ -193,12 +193,13 @@ let update = (action: t, model: AdventureModel.t): update_result => {
 };
 
 /* Check if a gate predicate is satisfied.
- * Called after user actions to determine if we should auto-advance. */
+ * Called after user actions to determine if we should auto-advance.
+ * Also increments action counter and may trigger reset suggestion. */
 let check_gate =
     (~zipper: Zipper.t, ~info_map: Statics.Map.t, model: AdventureModel.t)
     : update_result => {
   switch (AdventureModel.current_step(model)) {
-  | Some(UserGate({predicate, _})) =>
+  | Some(UserGate({predicate, action_threshold, _})) =>
     let satisfied = AdventureGate.check(~zipper, ~info_map, predicate);
     if (satisfied) {
       /* Gate passed! Advance to next step */
@@ -210,7 +211,15 @@ let check_gate =
       };
       advance_steps(advanced);
     } else {
-      no_side_effects(model);
+      /* Gate not passed - increment action counter */
+      let new_count = model.actions_since_gate + 1;
+      let show_suggestion =
+        new_count >= action_threshold && Option.is_some(model.checkpoint);
+      no_side_effects({
+        ...model,
+        actions_since_gate: new_count,
+        show_reset_suggestion: show_suggestion,
+      });
     };
   | _ => no_side_effects(model)
   };
