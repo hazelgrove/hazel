@@ -364,7 +364,8 @@ At each `Checkpoint` and before `UserGate`, capture editor state. `Back` pops hi
 - [x] **Space to advance** - Space key advances when editor is locked (tutor's turn). Hint shown below Next button.
 - [x] **Wire up action counting** - Integrated into `check_gate`: when gate isn't satisfied, increments `actions_since_gate` and shows reset suggestion after threshold.
 - [ ] **Implement atomic groupings** - Add `AtomicGroup(list(step))` step type or grouping metadata
-- [ ] **Back/forward navigation** - Store editor state at group boundaries, implement navigation
+- [ ] **Back navigation** - Store editor state at stop points, restore on Back (see detailed plan below)
+- [ ] **Forward navigation** - Track max_step_reached, re-advance to previously visited steps
 
 ### Later (Priority 3) - Polish
 - [x] **Turn indicator UI** - Two avatars (Tutor 🌰 and User 👤) with green ring on active one. Shows whose turn it is visually.
@@ -471,3 +472,177 @@ When adventure is active but NOT at a `UserGate` step, the editor is locked to p
 ~~The `UserActed` action was never dispatched, so reset suggestions never appeared.~~
 
 **Resolution**: Integrated action counting directly into `check_gate`. When the gate predicate is not satisfied, the function now increments `actions_since_gate` and triggers `show_reset_suggestion` when the threshold is reached. The separate `UserActed` action is now redundant but kept for potential future use (e.g., if we want to count actions differently).
+
+---
+
+## Back Navigation & Hierarchical Tutorials
+
+### Design Goals
+
+1. **Back navigation** that operates on "logical chunks" not individual actions
+2. **Hierarchical tutorial structure** for multi-part lessons
+3. **Outline/progress view** for navigation and orientation
+4. **Canonical solutions** the agent can demonstrate ("show me how")
+
+### Lessons Learned (Failed Approach)
+
+**What we tried**: Storing raw `Zipper.t` in history entries and directly swapping it into the model via a `set_editor_zipper` helper.
+
+**Why it failed**: The editor has layered state beyond just the zipper:
+- Measured positions (for rendering)
+- Decoration IDs (`base_pointid`, etc.)
+- Probe samples (from dynamics)
+- Statics/info_map
+
+Directly swapping the zipper bypasses normal editor state management, leaving these derived states stale. This causes:
+- `find_p: base_pointid` exceptions
+- Probes showing without samples
+- View not updating until user interacts with editor
+
+**Key insight**: Editor state restoration must go through the action system, not bypass it.
+
+### Phase 1: Simple Back Navigation (MVP)
+
+**Approach**: Implicit grouping based on "stop points"
+
+Current stop points (steps that wait for user):
+- `Message` with `can_advance: true`
+- `UserGate`
+
+Auto-advancing steps (AgentAction, Checkpoint, LoadEditor) naturally group with their preceding stop point.
+
+#### UX Design: Single Back Button
+
+One "Back" button with contextual behavior based on state:
+
+| State | Behavior | Tooltip |
+|-------|----------|---------|
+| At UserGate, editor differs from checkpoint | Reset to checkpoint (same message) | "Reset to start of this task" |
+| At UserGate, editor same as checkpoint | Go to previous stop point | "Return to previous message" |
+| Tutor's turn (any Message/AgentAction) | Go to previous stop point | "Return to previous message" |
+| No history | No button shown | — |
+
+**Decision logic**: Compare current zipper to checkpoint using structural equality (`zipper != checkpoint_zipper`). This is more robust than counting actions.
+
+#### Implementation
+
+**History entry type**:
+```reason
+type history_entry = {
+  step_index: int,
+  zipper: Zipper.t,
+};
+
+// In AdventureModel.t:
+step_history: list(history_entry),
+checkpoint: option(Zipper.t),
+```
+
+**State capture**: When *leaving* a stop point (clicking Next or gate passing), push `{step_index, zipper}` onto history.
+
+**Editor restoration**: Use a first-class editor action instead of direct model mutation:
+
+```reason
+// New action type in Action.t
+| RestoreState(Zipper.t)
+
+// In apply_adventure_result, schedule it like other editor actions:
+switch (result.restore_editor) {
+| Some(z) => schedule_action(Globals(ActiveEditor(RestoreState(z))))
+| None => ()
+};
+```
+
+The `RestoreState` action handler properly replaces the zipper and returns with `recalculate=true`, ensuring all derived state is recomputed.
+
+**Tasks**:
+- [x] Add `step_history` to `AdventureModel.t`
+- [x] Add `Back` and `Reset` actions to `AdventureUpdate.t`
+- [x] Capture state when leaving stop points
+- [ ] Add `RestoreState(Zipper.t)` action to Action.t
+- [ ] Implement `RestoreState` handler in editor update
+- [ ] Wire up adventure to schedule `RestoreState` instead of direct mutation
+- [x] Add contextual back button to `AdventureView`
+- [x] Implement zipper comparison for reset vs back decision
+
+### Phase 2: Forward Navigation & Progress
+
+**Forward**: Track `max_step_reached: int`. When going back, if current_step < max_step_reached, show forward button.
+
+**Progress indicator**: Simple "Step X of Y" or a progress bar. Could show section titles if we have them.
+
+**Tasks**:
+- [ ] Add `max_step_reached` to model
+- [ ] Add `Forward` action
+- [ ] Progress indicator in UI
+
+### Phase 3: Explicit Grouping (Optional)
+
+If implicit grouping isn't sufficient, add explicit grouping:
+
+```reason
+type step =
+  | ...existing...
+  | AtomicGroup(string, list(step))  // name, grouped steps
+```
+
+Steps within an `AtomicGroup`:
+- Execute sequentially like normal
+- Treated as one unit for back navigation
+- The group name could appear in outline/progress view
+
+### Phase 4: Hierarchical Sections
+
+**Script structure**:
+```reason
+type section = {
+  id: string,
+  title: string,
+  description: option(string),
+  steps: list(step),
+  // For "show me how" functionality:
+  canonical_solution: option(list(Action.t)),
+};
+
+type script = {
+  id: string,
+  title: string,
+  sections: list(section),
+};
+```
+
+**Outline view**:
+- Shows all sections (collapsed by default)
+- Current section highlighted
+- Click section to jump to start
+- Within current section, show past steps (completed) and current step
+
+**Canonical solutions**:
+- If user is stuck at a UserGate for too long, offer "Show me how"
+- Agent performs `canonical_solution` actions step-by-step
+- After demonstration, reset to checkpoint and let user try
+
+**Additive sections**:
+- Some sections build on the previous section's end state
+- Others start fresh (independent)
+- Section metadata: `starts_from: Fresh | Previous`
+
+**Tasks** (future):
+- [ ] Refactor script type to use sections
+- [ ] Migrate existing scripts to new format
+- [ ] Implement outline view UI
+- [ ] Jump-to-section functionality
+- [ ] Canonical solution playback
+- [ ] Section dependency handling
+
+### Caret Position & Movement
+
+**Challenge**: If user enters arbitrary text during a UserGate, we don't know exact caret position for subsequent agent actions.
+
+**Solutions**:
+1. **Capture zipper at checkpoint**: We do this already. Agent actions after user gate start from known state (if they Reset or we load fresh).
+2. **Use jump-based movement**: Instead of arrow keys, agent uses `Jump(id)` to move to a specific term by its unique ID. Requires knowing the ID ahead of time (hard for user-created terms).
+3. **Relative positioning**: Agent actions use relative movements (Move to start, Move to end, etc.)
+4. **For MVP**: Keep agent actions simple - paste at current position, toggle probe at current position. More complex movements can come later.
+
+**Recommendation**: For now, design scripts so agent actions work regardless of exact caret position. Use structural operations (ToggleProbe affects selected term) rather than positional ones.
