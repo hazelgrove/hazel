@@ -5,9 +5,12 @@
  * and combinations thereof.
  */
 
-open Util;
 open Haz3lcore;
 open Language;
+
+/* Get the text representation of the editor content */
+let get_editor_text = (zipper: Zipper.t): string =>
+  Printer.of_zipper(~holes="", ~indent="", zipper);
 
 /* Check if the zipper has any manual probes */
 let has_any_probe = (zipper: Zipper.t): bool =>
@@ -40,6 +43,20 @@ let rec check =
   | HasAnyProbe => has_any_probe(zipper)
 
   | HasProbeOnIndicated => has_probe_on_indicated(~zipper, ~info_map)
+
+  | TextContains(substring) =>
+    let text = get_editor_text(zipper);
+    /* Check if text contains substring */
+    try({
+      let _ = Str.search_forward(Str.regexp_string(substring), text, 0);
+      true;
+    }) {
+    | Not_found => false
+    };
+
+  | TextEquals(expected) =>
+    let text = get_editor_text(zipper);
+    text == expected;
 
   | TermSatisfies(_description) =>
     /* For now, TermSatisfies is a placeholder that always passes.

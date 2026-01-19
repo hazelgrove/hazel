@@ -29,6 +29,8 @@ type agent_action_config = {
 type gate_predicate =
   | HasAnyProbe /* User has added any probe */
   | HasProbeOnIndicated /* Probe on currently indicated term */
+  | TextContains(string) /* Editor text contains this substring */
+  | TextEquals(string) /* Editor text exactly equals this */
   | TermSatisfies(string) /* Description for debugging; actual check is via custom fn */
   | And(list(gate_predicate))
   | Or(list(gate_predicate));

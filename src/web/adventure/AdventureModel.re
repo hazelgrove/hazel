@@ -15,8 +15,7 @@ type t = {
   current_step: int,
   checkpoint: option(Zipper.t), /* Last checkpoint for reset */
   actions_since_gate: int, /* Actions since entering current gate */
-  show_reset_suggestion: bool, /* Prompt user to reset */
-  original_slide_index: option(int) /* Slide to restore on exit */
+  show_reset_suggestion: bool /* Prompt user to reset */
 };
 
 /* Initial inactive state */
@@ -31,19 +30,16 @@ let inactive: t = {
   checkpoint: None,
   actions_since_gate: 0,
   show_reset_suggestion: false,
-  original_slide_index: None,
 };
 
-/* Start an adventure with a given script.
- * original_slide_index should be set by the caller when creating a fresh slide. */
-let start = (~original_slide_index=None, script: Adventure.script): t => {
+/* Start an adventure with a given script. */
+let start = (script: Adventure.script): t => {
   active: true,
   script,
   current_step: 0,
   checkpoint: None,
   actions_since_gate: 0,
   show_reset_suggestion: false,
-  original_slide_index,
 };
 
 /* Get current step, if any */

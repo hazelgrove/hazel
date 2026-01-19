@@ -4,14 +4,12 @@
  * resetting to checkpoints, and responding to user actions.
  */
 
-open Util;
 open Haz3lcore;
 open Language;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type t =
   | Start(Adventure.script) /* Begin an adventure */
-  | StartWithSlide(Adventure.script, int) /* Begin with original slide index */
   | Stop /* End adventure mode */
   | Advance /* Move to next step (user clicked Next) */
   | Reset /* Reset to last checkpoint */
@@ -124,11 +122,6 @@ let update = (action: t, model: AdventureModel.t): update_result => {
   switch (action) {
   | Start(script) =>
     let started = AdventureModel.start(script);
-    advance_steps(started);
-
-  | StartWithSlide(script, original_index) =>
-    let started =
-      AdventureModel.start(~original_slide_index=Some(original_index), script);
     advance_steps(started);
 
   | Stop => no_side_effects(AdventureModel.inactive)

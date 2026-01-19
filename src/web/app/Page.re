@@ -252,6 +252,90 @@ module Update = {
     };
   };
 
+  /* Create a new scratch slide for an adventure and switch to it */
+  let create_adventure_slide = (editors: Editors.Model.t): Editors.Model.t => {
+    let existing_scratchpads =
+      switch (editors) {
+      | Scratch(m) => m.scratchpads
+      | Documentation(_)
+      | Tutorial(_)
+      | Exercises(_) => []
+      };
+
+    /* Generate unique name */
+    let base_name = "Adventure";
+    let existing_names =
+      List.map(((name, _)) => name, existing_scratchpads);
+    let rec find_unique_name = (suffix: int) => {
+      let candidate =
+        suffix == 0
+          ? base_name : base_name ++ " (" ++ string_of_int(suffix) ++ ")";
+      if (List.mem(candidate, existing_names)) {
+        find_unique_name(suffix + 1);
+      } else {
+        candidate;
+      };
+    };
+    let slide_name = find_unique_name(0);
+
+    /* Create new blank slide and append */
+    let new_editor = Haz3lcore.Zipper.init() |> Haz3lcore.Editor.Model.mk;
+    let new_slide = CellEditor.Model.mk(new_editor);
+    let new_scratchpads = existing_scratchpads @ [(slide_name, new_slide)];
+    let adventure_slide_index = List.length(new_scratchpads) - 1;
+
+    /* Switch to Scratch mode with new slide as current */
+    Editors.Model.Scratch({
+      current: adventure_slide_index,
+      scratchpads: new_scratchpads,
+    });
+  };
+
+  /* Apply adventure result side effects:
+   * - Schedules editor_actions from the result
+   * - Captures checkpoint if set_checkpoint is true
+   * - Schedules reset actions if reset_to_checkpoint is true
+   * Returns the updated adventure model. */
+  let apply_adventure_result =
+      (
+        ~schedule_action: t => unit,
+        ~zipper: Haz3lcore.Zipper.t,
+        result: AdventureUpdate.update_result,
+      )
+      : AdventureModel.t => {
+    /* Schedule any editor actions from the adventure */
+    List.iter(
+      a => schedule_action(Globals(ActiveEditor(a))),
+      result.editor_actions,
+    );
+
+    /* Handle checkpoint capture or reset */
+    if (result.set_checkpoint) {
+      {
+        ...result.model,
+        checkpoint: Some(zipper),
+      };
+    } else if (result.reset_to_checkpoint) {
+      switch (result.model.checkpoint) {
+      | Some(checkpoint_zipper) =>
+        let segment =
+          Haz3lcore.Siblings.zip(checkpoint_zipper.relatives.siblings);
+        List.iter(
+          a => schedule_action(Globals(ActiveEditor(a))),
+          [
+            Haz3lcore.Action.Select(All),
+            Haz3lcore.Action.Destruct(Left),
+            Haz3lcore.Action.Paste(Segment(segment)),
+          ],
+        );
+        result.model;
+      | None => result.model
+      };
+    } else {
+      result.model;
+    };
+  };
+
   let update =
       (
         ~import_log,
@@ -269,29 +353,43 @@ module Update = {
     | Globals(action) =>
       update_global(~globals, ~import_log, ~schedule_action, action, model)
     | Editors(action) =>
-      let* editors =
-        Editors.Update.update(
-          ~globals,
-          ~schedule_action=a => schedule_action(Editors(a)),
-          ~send_assistant_insertion_info=
-            assistant_callback(~schedule_action, model),
-          action,
-          model.editors,
-        );
-      /* Reset visible_rows when switching to modes without viewport culling,
-       * otherwise stale culling bounds hide projectors incorrectly */
-      let globals =
+      /* Block navigation actions during active adventure */
+      let is_navigation_action =
         switch (action) {
-        | SwitchMode(Tutorial | Exercises) => {
-            ...model.globals,
-            visible_rows: None,
-          }
-        | _ => model.globals
+        | Editors.Update.SwitchMode(_) => true
+        | Scratch(SwitchSlide(_)) => true
+        | Tutorial(SwitchExercise(_)) => true
+        | Exercises(SwitchExercise(_)) => true
+        | _ => false
         };
-      {
-        ...model,
-        editors,
-        globals,
+      if (model.adventure.active && is_navigation_action) {
+        /* Block navigation during tutorial - user must close tutorial first */
+        model |> return_quiet;
+      } else {
+        let* editors =
+          Editors.Update.update(
+            ~globals,
+            ~schedule_action=a => schedule_action(Editors(a)),
+            ~send_assistant_insertion_info=
+              assistant_callback(~schedule_action, model),
+            action,
+            model.editors,
+          );
+        /* Reset visible_rows when switching to modes without viewport culling,
+         * otherwise stale culling bounds hide projectors incorrectly */
+        let globals =
+          switch (action) {
+          | SwitchMode(Tutorial | Exercises) => {
+              ...model.globals,
+              visible_rows: None,
+            }
+          | _ => model.globals
+          };
+        {
+          ...model,
+          editors,
+          globals,
+        };
       };
     | ExplainThis(action) =>
       let* explain_this =
@@ -315,117 +413,27 @@ module Update = {
         assistant,
       };
     | Adventure(action) =>
-      /* Handle Start specially to create fresh slide in Scratch mode */
-      let (model, action) =
+      /* Handle Start specially to create adventure slide */
+      let model =
         switch (action) {
-        | Start(script) =>
-          switch (model.editors) {
-          | Scratch(m) =>
-            /* Create fresh slide for tutorial */
-            let original_index = m.current;
-            let new_editor =
-              Haz3lcore.Zipper.init() |> Haz3lcore.Editor.Model.mk;
-            let new_slide = CellEditor.Model.mk(new_editor);
-            let new_index = List.length(m.scratchpads);
-            let new_scratchpads =
-              m.scratchpads @ [("Adventure Tutorial", new_slide)];
-            let new_editors =
-              Editors.Model.Scratch({
-                current: new_index,
-                scratchpads: new_scratchpads,
-              });
-            (
-              {...model, editors: new_editors},
-              AdventureUpdate.StartWithSlide(script, original_index),
-            );
-          | _ =>
-            /* Non-scratch modes: just start normally */
-            (model, action)
-          }
-        | Stop =>
-          /* Restore original slide if we created one */
-          switch (model.adventure.original_slide_index, model.editors) {
-          | (Some(original_index), Scratch(m)) =>
-            /* Switch back to original slide and remove tutorial slide */
-            let filtered =
-              List.filteri(
-                (i, _) => i != List.length(m.scratchpads) - 1,
-                m.scratchpads,
-              );
-            let new_editors =
-              Editors.Model.Scratch({
-                current: original_index,
-                scratchpads: filtered,
-              });
-            ({...model, editors: new_editors}, action);
-          | _ => (model, action)
-          }
-        | _ => (model, action)
+        | Start(_) =>
+          let editors = create_adventure_slide(model.editors);
+          {
+            ...model,
+            editors,
+          };
+        | _ => model
         };
 
       let result = AdventureUpdate.update(action, model.adventure);
-      /* Handle side effects from adventure update */
-      let model =
-        if (result.set_checkpoint) {
-          /* Capture current editor state as checkpoint */
-          let zipper =
-            switch (model.editors) {
-            | Scratch(m) =>
-              (List.nth(m.scratchpads, m.current) |> snd).editor.editor.state.
-                zipper
-            | Documentation(m) =>
-              (List.nth(m.scratchpads, m.current) |> snd).editor.editor.state.
-                zipper
-            | Tutorial(m) =>
-              List.nth(m.exercises, m.current).cells.user_impl.editor.editor.
-                state.
-                zipper
-            | Exercises(m) =>
-              ExercisesMode.Model.get_editor(m).editor.state.zipper
-            };
-          {
-            ...model,
-            adventure: {
-              ...result.model,
-              checkpoint: Some(zipper),
-            },
-          };
-        } else if (result.reset_to_checkpoint) {
-          /* Reset editor to checkpoint - dispatch paste action */
-          switch (result.model.checkpoint) {
-          | Some(checkpoint_zipper) =>
-            let segment =
-              Haz3lcore.Siblings.zip(checkpoint_zipper.relatives.siblings);
-            /* Clear editor and paste checkpoint */
-            List.iter(
-              a => schedule_action(Globals(ActiveEditor(a))),
-              [
-                Haz3lcore.Action.Select(All),
-                Haz3lcore.Action.Destruct(Left),
-                Haz3lcore.Action.Paste(Segment(segment)),
-              ],
-            );
-            {
-              ...model,
-              adventure: result.model,
-            };
-          | None => {
-              ...model,
-              adventure: result.model,
-            }
-          };
-        } else {
-          {
-            ...model,
-            adventure: result.model,
-          };
-        };
-      /* Apply any editor actions from the adventure */
-      List.iter(
-        a => schedule_action(Globals(ActiveEditor(a))),
-        result.editor_actions,
-      );
-      model |> Updated.return_quiet;
+      let zipper = get_editor(model).editor.state.zipper;
+      let adventure =
+        apply_adventure_result(~schedule_action, ~zipper, result);
+      {
+        ...model,
+        adventure,
+      }
+      |> Updated.return_quiet;
     | MakeActive(selection) =>
       {
         ...model,
@@ -479,28 +487,20 @@ module Update = {
       );
 
     /* Check adventure gate if active and at a UserGate step.
-     * This must happen after editors calculation so statics are available. */
+     * This must happen after editors calculation so statics are available.
+     * We always check (not just when is_edited) since the check is cheap. */
     let adventure =
-      if (model.adventure.active
-          && AdventureModel.is_at_gate(model.adventure)
-          && is_edited) {
-        /* Get zipper and info_map from current editor */
-        let editor = get_editor({...model, editors});
+      if (model.adventure.active && AdventureModel.is_at_gate(model.adventure)) {
+        let editor =
+          get_editor({
+            ...model,
+            editors,
+          });
         let zipper = editor.editor.state.zipper;
         let info_map = editor.statics.info_map;
         let result =
           AdventureUpdate.check_gate(~zipper, ~info_map, model.adventure);
-        /* Schedule any editor actions from auto-advancing steps */
-        List.iter(
-          a => schedule_action(Globals(ActiveEditor(a))),
-          result.editor_actions,
-        );
-        /* Handle checkpoint capture if needed */
-        if (result.set_checkpoint) {
-          {...result.model, checkpoint: Some(zipper)};
-        } else {
-          result.model;
-        };
+        apply_adventure_result(~schedule_action, ~zipper, result);
       } else {
         model.adventure;
       };

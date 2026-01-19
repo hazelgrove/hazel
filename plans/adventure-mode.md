@@ -18,11 +18,10 @@ The system presents an **agent/avatar** (a hazelnut character) in a floating spe
 src/web/adventure/
 ├── Adventure.re           # Core types and script definitions
 ├── AdventureModel.re      # State management
-├── AdventureUpdate.re     # Actions (Advance, Reset, AgentAct, etc.)
+├── AdventureUpdate.re     # Actions (Start, Stop, Advance, Reset, etc.)
 ├── AdventureView.re       # Floating UI component
 ├── AdventureGate.re       # Predicate evaluation for user gates
-└── scripts/
-    └── ProbesTutorial.re  # Probes introduction tutorial
+└── AdventureScripts.re    # Tutorial scripts (probes_intro, etc.)
 ```
 
 ### Core Types
@@ -54,22 +53,22 @@ type gate_config = {
 }
 
 type gate_predicate =
-  | TermMatches(term_pattern)
-  | HasProbeOnIndicated
-  | HasAnyProbe
-  | ProbeShowsValue(string)
+  | HasAnyProbe                 // User has added any probe
+  | HasProbeOnIndicated         // Probe on currently indicated term
+  | TextContains(string)        // Editor text contains substring
+  | TextEquals(string)          // Editor text exactly equals
+  | TermSatisfies(string)       // Placeholder for AST checks
   | And(list(gate_predicate))
   | Or(list(gate_predicate))
-  | Custom(Zipper.t => bool)
 
-// Runtime state
-type state = {
+// Runtime state (AdventureModel.t)
+type t = {
   active: bool,
-  script: list(step),
+  script: Adventure.script,
   current_step: int,
-  checkpoint: option(Zipper.t),
-  actions_since_checkpoint: int,
-  show_reset_prompt: bool,
+  checkpoint: option(Zipper.t),   // For reset functionality
+  actions_since_gate: int,        // Count for reset suggestion
+  show_reset_suggestion: bool,
 }
 ```
 
@@ -200,16 +199,20 @@ let probes_intro: list(step) = [
     can_advance: false,
   }),
   UserGate({
-    predicate: And([
-      Custom(z => {
-        // Check term has multiplication
-        let term = MakeTerm.from_zip_for_sem(z).term;
-        // ... pattern matching logic
-      }),
-      HasAnyProbe,
-    ]),
-    hint: "Type ' * 4' at the end, then press Ctrl+P to add a probe",
-    action_limit: Some(20),
+    predicate: TextContains("* 4"),
+    hint: "Move to the end and type ' * 4' (so it becomes '1 + 2 * 4')",
+    action_threshold: 25,
+  }),
+
+  Message({
+    text: "Great! You modified the expression.",
+    can_advance: true,
+  }),
+
+  UserGate({
+    predicate: HasAnyProbe,
+    hint: "Now add a probe using Ctrl+E (or Cmd+E on Mac)",
+    action_threshold: 25,
   }),
 
   // Success!
@@ -354,6 +357,8 @@ At each `Checkpoint` and before `UserGate`, capture editor state. `Back` pops hi
 - [x] **Create fresh scratch slide** - Modify tutorial start to create new slide instead of clearing
 
 ### Soon (Priority 2) - After Initial Fixes
+- [x] **Block mode/slide navigation during adventure** - Navigation actions (SwitchMode, SwitchSlide, SwitchExercise) are blocked at the data level in Page.Update when adventure is active
+- [ ] **Disable mode/slide dropdowns during adventure** - Navigation is blocked at data level but dropdown UI still shows selection, creating confusing visual state. Need to pass `adventure_active` to `Editors.View.top_bar` and disable the select elements.
 - [ ] **Lock editor during non-gate steps** - Block keyboard/mouse events when not at UserGate, add escape hatch
 - [ ] **Implement atomic groupings** - Add `AtomicGroup(list(step))` step type or grouping metadata
 - [ ] **Back/forward navigation** - Store editor state at group boundaries, implement navigation
@@ -367,23 +372,47 @@ At each `Checkpoint` and before `UserGate`, capture editor state. `Back` pops hi
 
 ## Implementation Notes
 
-### Gate Checking Fix
-In `Page.Update.calculate()`, after computing statics:
+### Page.re Helper Functions
+
+The adventure integration in Page.re uses two helper functions to keep the code clean:
+
+**`create_adventure_slide`**: Creates a new blank scratch slide for the adventure
+- Generates unique name ("Adventure", "Adventure (1)", etc.)
+- Appends to existing scratchpads
+- Switches to Scratch mode with new slide as current
+
+**`apply_adventure_result`**: Handles side effects from `AdventureUpdate.update_result`
+- Schedules `editor_actions` via `ActiveEditor`
+- Captures checkpoint when `set_checkpoint` is true
+- Schedules reset actions (Select All, Destruct, Paste) when `reset_to_checkpoint` is true
+
+Both the `Adventure(action)` case in `update` and the gate checking in `calculate` use `apply_adventure_result` to avoid duplication.
+
+### Gate Checking
+Gate checking happens in `Page.Update.calculate()` after editors calculation (so statics are available):
 ```reason
-let model =
+let adventure =
   if (model.adventure.active && AdventureModel.is_at_gate(model.adventure)) {
-    let zipper = get_current_zipper(model.editors);
-    let info_map = get_current_statics(model.editors);
+    let editor = get_editor({...model, editors});
+    let zipper = editor.editor.state.zipper;
+    let info_map = editor.statics.info_map;
     let result = AdventureUpdate.check_gate(~zipper, ~info_map, model.adventure);
-    {...model, adventure: result.model}
+    apply_adventure_result(~schedule_action, ~zipper, result);
   } else {
-    model
+    model.adventure;
   };
 ```
 
-### Fresh Scratch Slide
-Look at how Editors module creates new slides. May need to:
-1. Create blank Zipper
-2. Add as new scratch slide
-3. Switch to that slide
-4. Store original slide index to restore on tutorial exit
+### Navigation Blocking
+In `Page.Update.update`, navigation actions are blocked when adventure is active:
+```reason
+| Editors(action) =>
+  let is_navigation_action = switch (action) {
+    | SwitchMode(_) | Scratch(SwitchSlide(_))
+    | Tutorial(SwitchExercise(_)) | Exercises(SwitchExercise(_)) => true
+    | _ => false
+  };
+  if (model.adventure.active && is_navigation_action) {
+    model |> return_quiet;  // Block navigation
+  } else { ... }
+```

@@ -9,8 +9,8 @@
   z-index: 1000;
   width: 320px;
   max-width: 90vw;
-  background-color: var(--SAND);
-  border: 2px solid var(--BR3);
+  background-color: var(--T1);
+  outline: 1px solid var(--BR1);
   border-radius: 12px;
   box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
   font-family: var(--ui-font);
@@ -20,13 +20,15 @@
 
 /* Title bar */
 .adventure-title {
-  background-color: var(--BR3);
-  color: white;
+  background-color: var(--T1);
+  color: var(--BR4);
   padding: 8px 12px;
-  padding-right: 32px; /* Space for close button */
+  padding-right: 32px;/* Space for close button */
   font-weight: 600;
   font-size: 13px;
+  border-bottom: 1px solid var(--BR1);
 }
+
 
 /* Close button */
 .adventure-close {
@@ -39,7 +41,7 @@
   align-items: center;
   justify-content: center;
   cursor: pointer;
-  color: white;
+  color: var(--BR2);
   font-size: 18px;
   opacity: 0.7;
   transition: opacity 0.15s ease;
@@ -66,16 +68,16 @@
   align-items: center;
   justify-content: center;
   font-size: 28px;
-  background-color: var(--T2);
+  /* background-color: var(--T2); */
   border-radius: 50%;
-  border: 2px solid var(--BR2);
+  /* border: 2px solid var(--BR2); */
 }
 
 /* Speech bubble */
 .adventure-bubble {
   flex: 1;
   position: relative;
-  background-color: var(--T1);
+  background-color: var(--SAND);
   border: 1px solid var(--BR2);
   border-radius: 8px;
   padding: 10px 12px;
@@ -153,13 +155,13 @@
 }
 
 .adventure-button.primary {
-  background-color: var(--BR3);
-  color: white;
-  border-color: var(--BR4);
+  background-color: var(--T1);
+  color: var(--BR4);
+  border-color: var(--BR3);
 }
 
 .adventure-button.primary:hover:not(.disabled) {
-  background-color: var(--BR4);
+  background-color: var(--Y1);
 }
 
 .adventure-button.disabled {
@@ -200,4 +202,28 @@
   border-radius: 4px;
   padding: 8px;
   margin: -4px;
+}
+
+/* Action preview - shows what agent will do next */
+.adventure-action-preview {
+  background-color: var(--T2);
+  border: 1px dashed var(--BR2);
+  border-radius: 4px;
+  padding: 8px 10px;
+  margin-top: 4px;
+}
+
+.adventure-preview-label {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--BR3);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom: 4px;
+}
+
+.adventure-preview-item {
+  font-size: 12px;
+  color: var(--STONE);
+  padding-left: 4px;
 }

@@ -5,7 +5,6 @@
  * the user through an interactive lesson.
  */
 
-open Util;
 open Haz3lcore;
 
 /* Simple probes introduction tutorial */
@@ -51,14 +50,19 @@ let probes_intro: Adventure.script = {
     ),
     /* User's turn - set checkpoint first */
     Adventure.Checkpoint,
-    /* Instruct user */
-    Adventure.message(
-      ~can_advance=false,
-      "Your turn! Move to the end of the expression and type ' * 4', then add a probe using Ctrl+E (or Cmd+E on Mac).",
-    ),
-    /* Wait for user to add a probe */
+    /* UserGate directly - no blocking Message needed.
+     * The hint text tells the user what to do. */
     Adventure.user_gate(
-      ~hint="Type ' * 4' at the end, then press Ctrl+E to add a probe",
+      ~hint=
+        "Your turn! Move to the end and type ' * 4' (so it becomes '1 + 2 * 4')",
+      ~action_threshold=25,
+      Adventure.TextContains("* 4"),
+    ),
+    /* Confirmation after first gate */
+    Adventure.message("Great! You modified the expression."),
+    /* Second gate for probe */
+    Adventure.user_gate(
+      ~hint="Now add a probe using Ctrl+E (or Cmd+E on Mac)",
       ~action_threshold=25,
       Adventure.HasAnyProbe,
     ),

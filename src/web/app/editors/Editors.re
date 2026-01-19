@@ -443,12 +443,20 @@ module View = {
 
   let top_bar =
       (~globals: Globals.t, ~inject: Update.t => 'a, ~editors: Model.t) => {
+    let current_mode =
+      switch (editors) {
+      | Scratch(_) => "Scratch"
+      | Documentation(_) => "Documentation"
+      | Tutorial(_) => "Tutorial"
+      | Exercises(_) => "Exercises"
+      };
     let mode_menu = {
       div(
         ~attrs=[Attr.class_("mode-name"), Attr.title("Toggle Mode")],
         [
           select(
             ~attrs=[
+              Attr.value(current_mode),
               Attr.on_change(_ =>
                 fun
                 | "Scratch" => inject(Update.SwitchMode(Scratch))
@@ -459,19 +467,7 @@ module View = {
               ),
             ],
             List.map(
-              s =>
-                EditorModeView.option_view(
-                  (
-                    switch (editors) {
-                    | Scratch(_) => "Scratch"
-                    | Documentation(_) => "Documentation"
-                    | Tutorial(_) => "Tutorial"
-                    | Exercises(_) => "Exercises"
-                    }
-                  )
-                  == s,
-                  s,
-                ),
+              s => EditorModeView.option_view(current_mode == s, s),
               ["Scratch", "Documentation", "Tutorial", "Exercises"],
             ),
           ),

@@ -30,6 +30,69 @@ let button = (~primary=false, ~disabled=false, label, on_click) =>
     [text(label)],
   );
 
+/* Get upcoming agent actions after the current step.
+ * Looks ahead through auto-advancing steps (Checkpoint, AgentAction)
+ * until hitting a Message or UserGate. */
+let get_upcoming_actions = (model: AdventureModel.t): list(Adventure.step) => {
+  let steps = model.script.steps;
+  let current = model.current_step;
+  let rec collect = (idx, acc) =>
+    if (idx >= List.length(steps)) {
+      List.rev(acc);
+    } else {
+      switch (List.nth(steps, idx)) {
+      | Adventure.AgentAction(_) as step => collect(idx + 1, [step, ...acc])
+      | Adventure.Checkpoint => collect(idx + 1, acc)
+      | Adventure.LoadEditor(_) => collect(idx + 1, acc)
+      | Adventure.Message(_)
+      | Adventure.UserGate(_) => List.rev(acc)
+      };
+    };
+  /* Start looking from the step AFTER current */
+  collect(current + 1, []);
+};
+
+/* Render action preview */
+let action_preview = (upcoming: list(Adventure.step)): Node.t =>
+  if (List.length(upcoming) == 0) {
+    Node.none;
+  } else {
+    let action_texts =
+      List.filter_map(
+        fun
+        | Adventure.AgentAction({narration: Some(n), _}) => Some(n)
+        | Adventure.AgentAction({actions, _}) =>
+          Some(
+            "Agent will perform "
+            ++ string_of_int(List.length(actions))
+            ++ " action(s)",
+          )
+        | _ => None,
+        upcoming,
+      );
+    if (List.length(action_texts) == 0) {
+      Node.none;
+    } else {
+      div(
+        ~attrs=[clss(["adventure-action-preview"])],
+        [
+          div(
+            ~attrs=[clss(["adventure-preview-label"])],
+            [text("Next, agent will:")],
+          ),
+          ...List.map(
+               action_text =>
+                 div(
+                   ~attrs=[clss(["adventure-preview-item"])],
+                   [text("• " ++ action_text)],
+                 ),
+               action_texts,
+             ),
+        ],
+      );
+    };
+  };
+
 /* Render the message content based on current step */
 let message_content =
     (
@@ -54,17 +117,19 @@ let message_content =
     )
 
   | Some(Message({text: msg_text, can_advance})) =>
+    let upcoming = get_upcoming_actions(model);
     div(
       ~attrs=[clss(["adventure-message"])],
       [
         div(~attrs=[clss(["adventure-text"])], [text(msg_text)]),
+        action_preview(upcoming),
         div(
           ~attrs=[clss(["adventure-actions"])],
           can_advance
             ? [button(~primary=true, "Next", inject(Advance))] : [],
         ),
       ],
-    )
+    );
 
   | Some(AgentAction({narration, _})) =>
     let display_text = Option.value(narration, ~default="Working...");
@@ -157,8 +222,8 @@ let view =
         Attr.style(
           Css_gen.concat([
             Css_gen.position(`Fixed),
-            Css_gen.bottom(`Px(20)),
-            Css_gen.right(`Px(20)),
+            Css_gen.top(`Px(40)),
+            Css_gen.right(`Px(40)),
           ]),
         ),
       ],
