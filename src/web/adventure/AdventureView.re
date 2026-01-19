@@ -72,7 +72,12 @@ let button = (~primary=false, ~disabled=false, ~hint=?, label, on_click) =>
     [
       text(label),
       ...switch (hint) {
-         | Some(key) => [span(~attrs=[clss(["adventure-key-hint"])], [text("(" ++ key ++ ")")])]
+         | Some(key) => [
+             span(
+               ~attrs=[clss(["adventure-key-hint"])],
+               [text("(" ++ key ++ ")")],
+             ),
+           ]
          | None => []
          },
     ],
@@ -174,7 +179,9 @@ let message_content =
         div(
           ~attrs=[clss(["adventure-actions"])],
           can_advance
-            ? [button(~primary=true, ~hint="Space", "Next", inject(Advance))]
+            ? [
+              button(~primary=true, ~hint="Space", "Next", inject(Advance)),
+            ]
             : [],
         ),
       ],

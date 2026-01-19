@@ -5,7 +5,8 @@
  */
 
 /* Blocking overlay - covers entire viewport when editor is locked.
- * Prevents mouse interaction with anything except the adventure dialog. */
+ * Prevents mouse interaction with anything except the adventure dialog.
+ * Transparent so the editor remains fully visible. */
 .adventure-overlay {
   position: fixed;
   top: 0;
@@ -13,7 +14,6 @@
   right: 0;
   bottom: 0;
   z-index: 999; /* Below adventure-dialog (1000) */
-  background-color: rgba(0, 0, 0, 0.05);
   cursor: not-allowed;
 }
 
