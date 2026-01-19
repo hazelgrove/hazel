@@ -9,15 +9,57 @@ open Virtual_dom.Vdom;
 open Node;
 open Util.WebUtil;
 
-/* Render the hazelnut avatar */
-let avatar = () =>
-  div(
-    ~attrs=[clss(["adventure-avatar"])],
-    [text("\xF0\x9F\x8C\xB0")] /* Chestnut emoji as placeholder for hazelnut */
+/* Caret icon SVG - capsule shape matching the editor caret */
+let caret_icon = (~color_class: string) =>
+  Node.create_svg(
+    "svg",
+    ~attrs=[
+      clss(["caret-icon", color_class]),
+      Attr.create("viewBox", "0 0 4 16"),
+      Attr.create("width", "4"),
+      Attr.create("height", "16"),
+    ],
+    [
+      /* Capsule path: semicircle top, straight sides, semicircle bottom */
+      Node.create_svg(
+        "path",
+        ~attrs=[
+          clss(["caret-path"]),
+          Attr.create("d", "M 0 2 A 2 2 0 0 1 4 2 L 4 14 A 2 2 0 0 1 0 14 Z"),
+        ],
+        [],
+      ),
+    ],
   );
 
-/* Render a button */
-let button = (~primary=false, ~disabled=false, label, on_click) =>
+/* Turn indicator row: caret icon + avatar */
+let turn_row = (~active: bool, ~is_tutor: bool) => {
+  let color_class = is_tutor ? "tutor-color" : "user-color";
+  let emoji =
+    is_tutor
+      ? "\xF0\x9F\x8C\xB0"  /* Chestnut emoji */
+      : "\xF0\x9F\x91\xA4"; /* Bust silhouette */
+  div(
+    ~attrs=[clss(["adventure-turn-row"] @ (active ? ["active"] : []))],
+    [
+      caret_icon(~color_class),
+      div(~attrs=[clss(["adventure-avatar"])], [text(emoji)]),
+    ],
+  );
+};
+
+/* Turn indicator showing both rows with active state */
+let turn_indicator = (~is_user_turn: bool) =>
+  div(
+    ~attrs=[clss(["adventure-turn-indicator"])],
+    [
+      turn_row(~active=!is_user_turn, ~is_tutor=true),
+      turn_row(~active=is_user_turn, ~is_tutor=false),
+    ],
+  );
+
+/* Render a button with optional keyboard hint below label */
+let button = (~primary=false, ~disabled=false, ~hint=?, label, on_click) =>
   Node.button(
     ~attrs=[
       clss(
@@ -27,7 +69,13 @@ let button = (~primary=false, ~disabled=false, label, on_click) =>
       ),
       Attr.on_click(_ => disabled ? Effect.Ignore : on_click),
     ],
-    [text(label)],
+    [
+      text(label),
+      ...switch (hint) {
+         | Some(key) => [span(~attrs=[clss(["adventure-key-hint"])], [text("(" ++ key ++ ")")])]
+         | None => []
+         },
+    ],
   );
 
 /* Get upcoming agent actions after the current step.
@@ -126,7 +174,8 @@ let message_content =
         div(
           ~attrs=[clss(["adventure-actions"])],
           can_advance
-            ? [button(~primary=true, "Next", inject(Advance))] : [],
+            ? [button(~primary=true, ~hint="Space", "Next", inject(Advance))]
+            : [],
         ),
       ],
     );
@@ -139,7 +188,7 @@ let message_content =
         div(~attrs=[clss(["adventure-text"])], [text(display_text)]),
         div(
           ~attrs=[clss(["adventure-actions"])],
-          [button(~primary=true, "Next", inject(Advance))],
+          [button(~primary=true, ~hint="Space", "Next", inject(Advance))],
         ),
       ],
     );
@@ -158,6 +207,30 @@ let message_content =
     /* These auto-advance, shouldn't be visible */
     div(~attrs=[clss(["adventure-message"])], [text("...")])
   };
+};
+
+/* Render exit/turn reminder - contextual based on whose turn it is */
+let exit_confirmation =
+    (~inject: AdventureUpdate.t => Ui_effect.t(unit), ~is_tutor_turn: bool) => {
+  let (message, primary_label) =
+    if (is_tutor_turn) {
+      ("It's the Tutor's turn. Click Next to continue.", "Got it");
+    } else {
+      ("Exit the tutorial?", "Continue");
+    };
+  div(
+    ~attrs=[clss(["adventure-message", "exit-confirmation"])],
+    [
+      div(~attrs=[clss(["adventure-text"])], [text(message)]),
+      div(
+        ~attrs=[clss(["adventure-actions"])],
+        [
+          button(primary_label, inject(CancelExit)),
+          button("Exit Tutorial", inject(Stop)),
+        ],
+      ),
+    ],
+  );
 };
 
 /* Render reset suggestion overlay */
@@ -204,8 +277,11 @@ let view =
   if (!model.active) {
     Node.none;
   } else {
+    let is_tutor_turn = !AdventureModel.is_at_gate(model);
     let content =
-      if (model.show_reset_suggestion) {
+      if (model.confirming_exit) {
+        exit_confirmation(~inject, ~is_tutor_turn);
+      } else if (model.show_reset_suggestion) {
         reset_suggestion(~inject);
       } else {
         message_content(~inject, model);
@@ -232,8 +308,8 @@ let view =
         div(
           ~attrs=[
             clss(["adventure-close"]),
-            Attr.on_click(_ => inject(Stop)),
-            Attr.title("Close tutorial"),
+            Attr.on_click(_ => inject(RequestExit)),
+            Attr.title("Exit tutorial"),
           ],
           [text("\xC3\x97")] /* Unicode multiplication sign (looks like X) */
         ),
@@ -242,10 +318,13 @@ let view =
           ~attrs=[clss(["adventure-title"])],
           [text(model.script.title)],
         ),
-        /* Avatar and speech bubble */
+        /* Turn indicator and speech bubble */
         div(
           ~attrs=[clss(["adventure-content"])],
-          [avatar(), div(~attrs=[clss(["adventure-bubble"])], [content])],
+          [
+            turn_indicator(~is_user_turn=AdventureModel.is_at_gate(model)),
+            div(~attrs=[clss(["adventure-bubble"])], [content]),
+          ],
         ),
         /* Reset button when at a gate */
         AdventureModel.is_at_gate(model)

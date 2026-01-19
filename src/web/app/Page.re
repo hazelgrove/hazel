@@ -574,13 +574,31 @@ module Selection = {
         ctrl: Down,
         alt: Up,
       } =>
-      Some(Update.Globals(Redo))
+      if (AdventureModel.is_editor_locked(model.adventure)) {
+        None; /* Block redo during adventure non-gate steps */
+      } else {
+        Some(Update.Globals(Redo));
+      }
     | {key: D("Z" | "z"), sys: Mac, shift: Up, meta: Down, ctrl: Up, alt: Up}
     | {key: D("Z" | "z"), sys: PC, shift: Up, meta: Up, ctrl: Down, alt: Up} =>
-      Some(Update.Globals(Undo))
+      if (AdventureModel.is_editor_locked(model.adventure)) {
+        None; /* Block undo during adventure non-gate steps */
+      } else {
+        Some(Update.Globals(Undo));
+      }
+    /* Space advances adventure when editor is locked (tutor's turn) */
+    | {key: D(" "), sys: _, shift: Up, meta: Up, ctrl: Up, alt: Up}
+        when
+          AdventureModel.is_editor_locked(model.adventure)
+          && AdventureModel.can_advance(model.adventure) =>
+      Some(Update.Adventure(Advance))
     | _ =>
-      Editors.Selection.handle_key_event(~selection, ~event, model.editors)
-      |> Option.map(x => Update.Editors(x))
+      if (AdventureModel.is_editor_locked(model.adventure)) {
+        None; /* Block editor input during adventure non-gate steps */
+      } else {
+        Editors.Selection.handle_key_event(~selection, ~event, model.editors)
+        |> Option.map(x => Update.Editors(x));
+      }
     };
   };
 
@@ -726,26 +744,34 @@ module View = {
       }),
     ]
     @ [
-      Attr.on_paste(evt => {
-        let target = Js.Opt.to_option(evt##.target);
-        switch (target) {
-        | Some(el) =>
-          let elId = Js.Opt.to_option(Js.Unsafe.coerce(el)##.id);
-          if (is_input_field(elId)) {
+      Attr.on_paste(evt
+        /* Block paste during adventure non-gate steps */
+        =>
+          if (AdventureModel.is_editor_locked(model.adventure)) {
             Effect.Ignore;
           } else {
-            let action =
-              Js.to_string(evt##.clipboardData##getData(Js.string("text")))
-              |> ClipboardCache.get;
-            Dom.preventDefault(evt);
-            switch (cursor.editor_action(action)) {
+            let target = Js.Opt.to_option(evt##.target);
+            switch (target) {
+            | Some(el) =>
+              let elId = Js.Opt.to_option(Js.Unsafe.coerce(el)##.id);
+              if (is_input_field(elId)) {
+                Effect.Ignore;
+              } else {
+                let action =
+                  Js.to_string(
+                    evt##.clipboardData##getData(Js.string("text")),
+                  )
+                  |> ClipboardCache.get;
+                Dom.preventDefault(evt);
+                switch (cursor.editor_action(action)) {
+                | None => Effect.Ignore
+                | Some(action) => inject(Editors(action))
+                };
+              };
             | None => Effect.Ignore
-            | Some(action) => inject(Editors(action))
             };
-          };
-        | None => Effect.Ignore
-        };
-      }),
+          }
+        ),
     ];
   };
 
@@ -901,6 +927,22 @@ module View = {
       };
     };
 
+    /* Blocking overlay when adventure is in locked state (not at UserGate).
+     * Covers everything except the adventure dialog to prevent interaction. */
+    let adventure_overlay =
+      if (AdventureModel.is_editor_locked(adventureModel)) {
+        div(
+          ~attrs=[
+            Attr.id("adventure-overlay"),
+            Attr.class_("adventure-overlay"),
+            Attr.on_click(_ => inject(Adventure(RequestExit))),
+          ],
+          [],
+        );
+      } else {
+        Node.none;
+      };
+
     [
       top_bar(~globals, ~inject, ~editors),
       div(
@@ -914,6 +956,7 @@ module View = {
       sidebar,
       bottom_bar,
       ContextInspector.view(~globals, cursor.info),
+      adventure_overlay,
       AdventureView.view(~inject=a => inject(Adventure(a)), adventureModel),
     ];
   };
@@ -921,8 +964,17 @@ module View = {
   let view =
       (~get_log_and, ~inject: Update.t => Ui_effect.t(unit), model: Model.t) => {
     let cursor = Selection.get_cursor_info(~selection=model.selection, model);
+    /* Add tutor-turn class when adventure is in tutor's turn (locked state) */
+    let adventure_class =
+      if (AdventureModel.is_editor_locked(model.adventure)) {
+        [Attr.class_("tutor-turn")];
+      } else {
+        [];
+      };
     div(
-      ~attrs=[Attr.id("page"), ...handlers(~cursor, ~inject, model)],
+      ~attrs=
+        [Attr.id("page"), ...adventure_class]
+        @ handlers(~cursor, ~inject, model),
       [FontSpecimen.view, JsUtil.clipboard_shim]
       @ main_view(~get_log_and, ~cursor, ~inject, model),
     );

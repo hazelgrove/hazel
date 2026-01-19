@@ -358,12 +358,16 @@ At each `Checkpoint` and before `UserGate`, capture editor state. `Back` pops hi
 
 ### Soon (Priority 2) - After Initial Fixes
 - [x] **Block mode/slide navigation during adventure** - Navigation actions (SwitchMode, SwitchSlide, SwitchExercise) are blocked at the data level in Page.Update when adventure is active
-- [ ] **Disable mode/slide dropdowns during adventure** - Navigation is blocked at data level but dropdown UI still shows selection, creating confusing visual state. Need to pass `adventure_active` to `Editors.View.top_bar` and disable the select elements.
-- [ ] **Lock editor during non-gate steps** - Block keyboard/mouse events when not at UserGate, add escape hatch
+- [x] **Disable mode/slide dropdowns during adventure** - Solved via overlay: during locked steps (non-UserGate), an overlay covers entire UI preventing all mouse interaction. During UserGate steps, navigation is still blocked at data level (dropdowns clickable but do nothing).
+- [x] **Lock editor during non-gate steps** - `AdventureModel.is_editor_locked` returns true when active but not at UserGate. Blocks keyboard input, undo/redo, paste, and mouse (via overlay). Cmd/Ctrl+Shift+A still works as escape hatch. Clicking overlay exits tutorial.
 - [ ] **Implement atomic groupings** - Add `AtomicGroup(list(step))` step type or grouping metadata
 - [ ] **Back/forward navigation** - Store editor state at group boundaries, implement navigation
 
 ### Later (Priority 3) - Polish
+- [x] **Turn indicator UI** - Two avatars (Tutor 🌰 and User 👤) with green ring on active one. Shows whose turn it is visually.
+- [x] **Contextual exit message** - Clicking overlay during Tutor's turn shows "It's the Tutor's turn. Click Next to continue." instead of immediately asking to exit.
+- [ ] **Floating toast feedback** - Brief tooltip-like message near cursor when clicking overlay (e.g., "Tutor's turn"), fades after 2-3 seconds. Requires cursor position tracking.
+- [ ] **Avatar pulse animation** - Pulse the active avatar's ring when user clicks during wrong turn
 - [ ] **Forward button** - Re-advance after going back
 - [ ] **Progress indicator** - Show current position in tutorial
 - [ ] **Animated typing** - Character-by-character agent actions
@@ -416,3 +420,38 @@ In `Page.Update.update`, navigation actions are blocked when adventure is active
     model |> return_quiet;  // Block navigation
   } else { ... }
 ```
+
+### Editor Locking
+When adventure is active but NOT at a `UserGate` step, the editor is locked to prevent users from modifying state during agent demonstrations:
+
+**`AdventureModel.is_editor_locked`**: Returns `true` when `active && !is_at_gate(model)`
+
+**Keyboard blocking** in `Page.Selection.handle_key_event`:
+- Undo/Redo are blocked when locked (return `None`)
+- All other keys fall through to editors, but are blocked when locked
+- Adventure toggle (Cmd/Ctrl+Shift+A) always works as escape hatch
+
+**Paste blocking** in `Page.View.handlers`:
+- Paste events are blocked when locked (check before processing clipboard)
+
+**Mouse blocking** via overlay in `Page.View.main_view`:
+- When locked, renders `.adventure-overlay` div covering entire viewport
+- z-index 999 (below adventure dialog at 1000)
+- Slight tint (5% black) for subtle visual feedback
+- `cursor: not-allowed` indicates non-interactivity
+- Clicking the overlay triggers `Adventure(RequestExit)` which shows contextual message
+- Overlay disappears during `UserGate` steps when user should be editing
+
+**Turn indicator** in `AdventureView`:
+- Two rows stacked vertically: Tutor (🌰) and User (👤)
+- Each row has a caret icon (capsule-shaped SVG matching editor caret) + avatar emoji
+- Caret icon uses `.caret-path` class for consistent styling with actual editor caret
+- Active row is full opacity, inactive is dimmed (40% opacity)
+- Tutor caret is green (--G0), User caret is red (--R1)
+- `is_user_turn` determined by `AdventureModel.is_at_gate(model)`
+- Editor caret turns green during tutor's turn (via `.tutor-turn` class on `#page`)
+- Caret keeps blinking during tutor's turn to maintain visual continuity
+
+**Exit confirmation** is contextual:
+- During Tutor's turn: "It's the Tutor's turn. Click Next to continue." with [Got it] [Exit Tutorial]
+- During User's turn: "Exit the tutorial?" with [Continue] [Exit Tutorial]

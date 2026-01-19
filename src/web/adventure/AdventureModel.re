@@ -15,7 +15,8 @@ type t = {
   current_step: int,
   checkpoint: option(Zipper.t), /* Last checkpoint for reset */
   actions_since_gate: int, /* Actions since entering current gate */
-  show_reset_suggestion: bool /* Prompt user to reset */
+  show_reset_suggestion: bool, /* Prompt user to reset */
+  confirming_exit: bool /* Showing exit confirmation prompt */
 };
 
 /* Initial inactive state */
@@ -30,6 +31,7 @@ let inactive: t = {
   checkpoint: None,
   actions_since_gate: 0,
   show_reset_suggestion: false,
+  confirming_exit: false,
 };
 
 /* Start an adventure with a given script. */
@@ -40,6 +42,7 @@ let start = (script: Adventure.script): t => {
   checkpoint: None,
   actions_since_gate: 0,
   show_reset_suggestion: false,
+  confirming_exit: false,
 };
 
 /* Get current step, if any */
@@ -73,3 +76,9 @@ let can_advance = (model: t): bool =>
 /* Check if reset is available (has checkpoint and user has acted) */
 let can_reset = (model: t): bool =>
   Option.is_some(model.checkpoint) && model.actions_since_gate > 0;
+
+/* Check if editor should be locked (adventure active but not at user's turn).
+ * When locked, editor input should be blocked to prevent users from
+ * modifying state during agent demonstrations. */
+let is_editor_locked = (model: t): bool =>
+  model.active && !is_at_gate(model);

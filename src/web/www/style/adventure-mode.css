@@ -4,6 +4,25 @@
  * guided interactive tutorials.
  */
 
+/* Blocking overlay - covers entire viewport when editor is locked.
+ * Prevents mouse interaction with anything except the adventure dialog. */
+.adventure-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 999; /* Below adventure-dialog (1000) */
+  background-color: rgba(0, 0, 0, 0.05);
+  cursor: not-allowed;
+}
+
+/* Change editor caret color to green during tutor's turn.
+ * Use #caret to scope this to only the editor caret, not turn indicator icons. */
+#page.tutor-turn #caret .caret-path {
+  fill: var(--G0);
+}
+
 /* Main dialog container - fixed position in viewport corner */
 .adventure-dialog {
   z-index: 1000;
@@ -51,7 +70,7 @@
   opacity: 1;
 }
 
-/* Content area with avatar and bubble */
+/* Content area with turn indicator and bubble */
 .adventure-content {
   display: flex;
   align-items: flex-start;
@@ -59,18 +78,62 @@
   padding: 12px;
 }
 
-/* Avatar (hazelnut emoji for now) */
-.adventure-avatar {
+/* Turn indicator - vertical stack of turn rows */
+.adventure-turn-indicator {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
   flex-shrink: 0;
+}
+
+/* Turn row: caret icon + avatar */
+.adventure-turn-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  opacity: 0.4;
+  transition: opacity 0.2s ease;
+}
+
+.adventure-turn-row.active {
+  opacity: 1;
+}
+
+/* Caret icon styling */
+.caret-icon {
+  flex-shrink: 0;
+}
+
+.caret-icon.tutor-color .caret-path {
+  fill: var(--G0);
+}
+
+.caret-icon.user-color .caret-path {
+  fill: var(--R1);
+}
+
+/* Avatar base styles */
+.adventure-avatar {
   width: 40px;
   height: 40px;
   display: flex;
   align-items: center;
   justify-content: center;
   font-size: 28px;
-  /* background-color: var(--T2); */
   border-radius: 50%;
-  /* border: 2px solid var(--BR2); */
+}
+
+/* Pulse animation for caret when turn changes */
+@keyframes caret-pulse {
+  0% { transform: scaleY(1); }
+  25% { transform: scaleY(1.3); }
+  50% { transform: scaleY(1); }
+  75% { transform: scaleY(1.2); }
+  100% { transform: scaleY(1); }
+}
+
+.adventure-turn-row.active .caret-icon {
+  animation: caret-pulse 0.3s ease;
 }
 
 /* Speech bubble */
@@ -138,6 +201,9 @@
 
 /* Button base styles */
 .adventure-button {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
   padding: 6px 14px;
   border-radius: 6px;
   border: 1px solid var(--BR2);
@@ -167,6 +233,14 @@
 .adventure-button.disabled {
   opacity: 0.5;
   cursor: not-allowed;
+}
+
+/* Keyboard hint below button label */
+.adventure-key-hint {
+  font-size: 10px;
+  color: var(--BR2);
+  font-family: var(--ui-font);
+  margin-top: 1px;
 }
 
 /* Reset container at bottom of dialog */

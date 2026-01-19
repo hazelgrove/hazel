@@ -11,6 +11,8 @@ open Language;
 type t =
   | Start(Adventure.script) /* Begin an adventure */
   | Stop /* End adventure mode */
+  | RequestExit /* User clicked overlay - show confirmation */
+  | CancelExit /* User declined to exit */
   | Advance /* Move to next step (user clicked Next) */
   | Reset /* Reset to last checkpoint */
   | DismissResetSuggestion /* User dismissed the reset prompt */
@@ -125,6 +127,18 @@ let update = (action: t, model: AdventureModel.t): update_result => {
     advance_steps(started);
 
   | Stop => no_side_effects(AdventureModel.inactive)
+
+  | RequestExit =>
+    no_side_effects({
+      ...model,
+      confirming_exit: true,
+    })
+
+  | CancelExit =>
+    no_side_effects({
+      ...model,
+      confirming_exit: false,
+    })
 
   | Advance =>
     if (AdventureModel.can_advance(model)) {
