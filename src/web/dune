@@ -7,13 +7,14 @@
 
 (library
  (name workerServer)
- (modules WorkerServer)
+ (modules WorkerServer BigIntShim)
+ (wrapped false)
  (instrumentation
   (backend bisect_ppx))
  (libraries language)
  (js_of_ocaml)
  (preprocess
-  (pps ppx_yojson_conv ppx_sexp_conv ppx_deriving.show)))
+  (pps js_of_ocaml-ppx ppx_yojson_conv ppx_sexp_conv ppx_deriving.show)))
 
 (library
  (name web)
@@ -23,7 +24,8 @@
   (:standard \ Main GradingReport)
   \
   Worker
-  WorkerServer)
+  WorkerServer
+  BigIntShim)
  (libraries
   ezjs_min
   ezjs_idb
