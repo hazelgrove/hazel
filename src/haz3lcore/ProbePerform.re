@@ -762,17 +762,23 @@ let resolve_pending_probe_cursor =
         let z = SampleCursorPerform.capture(z, sample, None);
         /* Clear pending_probe_cursor */
         Zipper.update_refractors(z, r =>
-          {...r, pending_probe_cursor: None}
+          {
+            ...r,
+            pending_probe_cursor: None,
+          }
         );
       | None =>
         /* Clear pending anyway since we had samples */
         Zipper.update_refractors(z, r =>
-          {...r, pending_probe_cursor: None}
-        );
+          {
+            ...r,
+            pending_probe_cursor: None,
+          }
+        )
       };
     | None =>
       /* No samples yet - keep pending for next eval cycle */
-      z;
+      z
     };
   };
 
