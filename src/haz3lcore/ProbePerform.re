@@ -52,10 +52,21 @@ let rec target_subterm_ids = (id: Id.t, info_map: Statics.Map.t) =>
       IdTagged.rep_id(body),
       IdTagged.rep_id(pat),
     ]
-  | Some(InfoExp({term: {term: Let(_pat, def, _), _}, _})) =>
+  | Some(InfoExp({term: {term: Let(_pat, def, _), _} as let_term, _})) =>
     /* If trying to probe a let, probe the definition instead.
+       Exception: if the let is the body of a test, probe the let itself
+       (so we see the test result, not just the definition value).
        Recurse so that if def is a fun literal, the above case will get it */
-    target_subterm_ids(IdTagged.rep_id(def), info_map)
+    let is_test_body =
+      switch (
+        Statics.Map.parent_term_of(info_map, IdTagged.rep_id(let_term))
+      ) {
+      | Some(Exp({term: Test(_) | HintedTest(_, _), _})) => true
+      | _ => false
+      };
+    is_test_body
+      ? [IdTagged.rep_id(let_term)]
+      : target_subterm_ids(IdTagged.rep_id(def), info_map);
 
   | Some(InfoExp({term: {term: Var(_), _} as v, _})) =>
     /* If we're trying to probe variable in function position for an

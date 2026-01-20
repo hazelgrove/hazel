@@ -120,9 +120,28 @@ let let_definition_path = (~statics: Map.t, ~id: Id.t): list(Pat.t) => {
   };
 };
 
-/* Returns the definition body ID of the top-level (outermost) let
- * expression containing the given id, if any. This is used for
- * auto-probe mode to determine which definition the cursor is in. */
+/* Returns the ID of the expression to auto-probe based on cursor position.
+ * Used by auto-probe mode to determine what to probe when cursor moves.
+ *
+ * Examples (| = cursor):
+ *   test let a = 1 in a pass
+ *     |test ...        → probe test body (let a = 1 in a)
+ *     test |let ...    → probe let def (1)
+ *     test let |a ...  → probe let def (1)
+ *     test let a = |1  → probe let def (1)
+ *     ... in |a pass   → probe test body (test overrides let when in let body)
+ *
+ *   let x = 5 in x + 1
+ *     |let ...         → probe def (5)
+ *     let |x ...       → probe def (5)
+ *     let x = |5 ...   → probe def (5)
+ *     ... in |x + 1    → None (in body, no probe)
+ *
+ * Priority:
+ * 1. Test forms: If cursor is ON or INSIDE a Test/HintedTest, probe the test body.
+ *    The innermost test wins and overrides any let expressions.
+ * 2. Let expressions: If cursor is ON the let (delimiter) or NOT in the body
+ *    (i.e., in pattern or definition), probe the definition. */
 let toplevel_def_body_id = (~statics: Map.t, ~id: Id.t): option(Id.t) => {
   let rec contains_id = (target: Id.t, ids: list(Id.t)): bool =>
     switch (ids) {
@@ -130,7 +149,41 @@ let toplevel_def_body_id = (~statics: Map.t, ~id: Id.t): option(Id.t) => {
     | [head, ...tail] => Id.equal(head, target) || contains_id(target, tail)
     };
 
-  /* Gather all (def_id, ancestors_remaining) pairs for enclosing lets */
+  /* Check if an Info is a Test/HintedTest and return its body ID */
+  let test_body_of = (info: Info.t): option(Id.t) =>
+    switch (info) {
+    | InfoExp({term: {term: Test(body), _}, _}) =>
+      Some(IdTagged.rep_id(body))
+    | InfoExp({term: {term: HintedTest(body, _), _}, _}) =>
+      Some(IdTagged.rep_id(body))
+    | _ => None
+    };
+
+  /* Check if an Info is a Let and return its def ID */
+  let let_def_of = (info: Info.t): option(Id.t) =>
+    switch (info) {
+    | InfoExp({term: {term: Let(_, def, _), _}, _}) =>
+      Some(IdTagged.rep_id(def))
+    | _ => None
+    };
+
+  /* Find innermost Test/HintedTest in a list of IDs */
+  let rec find_test = (ids: list(Id.t)): option(Id.t) =>
+    switch (ids) {
+    | [] => None
+    | [current_id, ...rest] =>
+      switch (Map.lookup(current_id, statics)) {
+      | Some(info) =>
+        switch (test_body_of(info)) {
+        | Some(body_id) => Some(body_id)
+        | None => find_test(rest)
+        }
+      | None => find_test(rest)
+      }
+    };
+
+  /* Gather def IDs for enclosing lets where cursor is NOT in body.
+   * This covers: cursor in pattern or in definition (not body). */
   let rec gather =
           (remaining: list(Id.t), seen: list(Id.t), acc: list(Id.t))
           : list(Id.t) =>
@@ -139,9 +192,10 @@ let toplevel_def_body_id = (~statics: Map.t, ~id: Id.t): option(Id.t) => {
     | [current_id, ...rest] =>
       let acc' =
         switch (Map.lookup(current_id, statics)) {
-        | Some(InfoExp({term: {term: Let(_, def, _), _}, _})) =>
-          contains_id(IdTagged.rep_id(def), seen)
-            ? [IdTagged.rep_id(def), ...acc] : acc
+        | Some(InfoExp({term: {term: Let(_, def, body), _}, _})) =>
+          /* Probe def if cursor is NOT in body */
+          let in_body = contains_id(IdTagged.rep_id(body), seen);
+          in_body ? acc : [IdTagged.rep_id(def), ...acc];
         | _ => acc
         };
       gather(rest, [current_id, ...seen], acc');
@@ -150,9 +204,26 @@ let toplevel_def_body_id = (~statics: Map.t, ~id: Id.t): option(Id.t) => {
   switch (Map.lookup(id, statics)) {
   | Some(info) =>
     let ancestors: list(Id.t) = Info.ancestors_of(info);
-    let def_ids = gather(ancestors, [id], []);
-    /* def_ids is ordered innermost-first, so last is the top-level def */
-    Util.ListUtil.last_opt(def_ids);
+
+    /* 1. Check if cursor is directly ON a Test → probe its body */
+    switch (test_body_of(info)) {
+    | Some(body_id) => Some(body_id)
+    | None =>
+      /* 2. Check if cursor is INSIDE a Test (ancestor) → probe its body */
+      switch (find_test(ancestors)) {
+      | Some(body_id) => Some(body_id)
+      | None =>
+        /* 3. Check if cursor is directly ON a Let → probe its def */
+        switch (let_def_of(info)) {
+        | Some(def_id) => Some(def_id)
+        | None =>
+          /* 4. Check ancestor Lets where cursor is not in body */
+          let def_ids = gather(ancestors, [id], []);
+          /* def_ids is ordered innermost-first, so last is the top-level def */
+          Util.ListUtil.last_opt(def_ids);
+        }
+      }
+    };
   | _ => None
   };
 };
