@@ -75,6 +75,11 @@
   overflow: clip;
 }
 
+#probesys .panel.legend {
+  overflow: visible;
+  position: relative;
+}
+
 #probesys .sketch {
   display: flex;
   align-items: center;
@@ -132,6 +137,28 @@
   pointer-events: none;
   justify-content: center;
   text-align: center;
+}
+
+#probesys .legend .legend-tooltip {
+  display: none;
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  margin-top: 0.25em;
+  padding: 0.5em 0.75em;
+  background-color: var(--T2);
+  color: var(--BR2);
+  border-radius: 0.4em;
+  font-size: 0.85em;
+  line-height: 1.4;
+  white-space: normal;
+  z-index: 10;
+  text-align: left;
+}
+
+#probesys .legend .legend-item:hover .legend-tooltip {
+  display: block;
 }
 
 /* #probesys .code {
