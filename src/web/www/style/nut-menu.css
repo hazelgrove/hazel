@@ -321,3 +321,13 @@
 #top-bar #editor-mode select:hover {
   background-color: var(--SAND);
 }
+
+/* Spacer to push auto-probe indicator to the right */
+#top-bar .top-bar-spacer {
+  flex: 1;
+}
+
+/* Auto-probe indicator on the right side */
+#top-bar .auto-probe-indicator {
+  padding-right: 0.75em;
+}

@@ -645,18 +645,15 @@ module View = {
     );
   };
 
-  let auto_probe_indicator = (~globals: Globals.t, ~inject) =>
-    globals.settings.auto_probe_mode
-      ? [
-        Widgets.toggle(
-          ~tooltip="Auto-probe mode active (Cmd/Ctrl+Shift+P to toggle)",
-          "🔬",
-          true,
-          _ =>
-          inject(Update.Globals(Set(AutoProbeMode)))
-        ),
-      ]
-      : [];
+  let auto_probe_indicator = (~globals: Globals.t, ~inject) => [
+    Widgets.toggle(
+      ~tooltip="Auto-probe mode active (Cmd/Ctrl+Shift+P to toggle)",
+      "🔬",
+      globals.settings.auto_probe_mode,
+      _ =>
+      inject(Update.Globals(Set(AutoProbeMode)))
+    ),
+  ];
 
   let top_bar = (~globals, ~inject: Update.t => Ui_effect.t(unit), ~editors) =>
     div(
@@ -681,8 +678,10 @@ module View = {
             ),
           ],
         ),
+        /* Spacer to push auto-probe indicator to the right */
+        div(~attrs=[Attr.class_("top-bar-spacer")], []),
         div(
-          ~attrs=[Attr.class_("wrap")],
+          ~attrs=[Attr.class_("wrap auto-probe-indicator")],
           auto_probe_indicator(~globals, ~inject),
         ),
       ],

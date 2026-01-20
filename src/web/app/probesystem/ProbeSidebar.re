@@ -316,10 +316,17 @@ let toggle =
     },
   );
 
-let settings = (~explain_this_inject) => {
+let settings = (~globals: Globals.t, ~explain_this_inject) => {
   div(
     ~attrs=[clss(["settings"])],
     [
+      Widgets.toggle_named(
+        ~tooltip="Auto-probe mode (Cmd/Ctrl+Shift+P)",
+        globals.settings.auto_probe_mode ? "Auto" : "Manual",
+        globals.settings.auto_probe_mode,
+        _ =>
+        globals.inject_global(Set(AutoProbeMode))
+      ),
       toggle(
         ~tooltip="One or Many Samples",
         ~explain_this_inject,
@@ -391,11 +398,11 @@ let settings = (~explain_this_inject) => {
   );
 };
 
-let sketch_view = (~explain_this_inject): Node.t =>
+let sketch_view = (~globals: Globals.t, ~explain_this_inject): Node.t =>
   details(
     ~attrs=[clss(["sketch"])],
     [
-      settings(~explain_this_inject),
+      settings(~globals, ~explain_this_inject),
       summary(
         ~attrs=[clss(["sketch-toggle"])],
         [div(~attrs=[clss(["sketch-toggle-image"])], [])],
@@ -408,7 +415,7 @@ let call_cursor_view = (~sample_cursor: Sample.Cursor.t, ~fancyd) =>
   div(
     ~attrs=[clss(["panel", "call-cursor"])],
     [
-      div(~attrs=[clss(["title"])], [text("Dynamic Cursor")]),
+      div(~attrs=[clss(["title"])], [text("Call Stack")]),
       div(
         ~attrs=[clss(["stack"])],
         List.mapi(
@@ -661,6 +668,14 @@ type panel_mode =
 
 let mode = ref(Probes);
 
+/* Eval mode for Printarium: Auto refreshes on every change, Manual requires clicking Run */
+type eval_mode =
+  | Auto
+  | Manual;
+
+let eval_mode_ref = ref(Auto);
+let cached_print_output = ref(None: option(string));
+
 let mode_toggle = (~explain_this_inject) =>
   Widgets.toggle(
     ~tooltip="Toggle between Probes and Prints",
@@ -672,32 +687,89 @@ let mode_toggle = (~explain_this_inject) =>
     },
   );
 
-let printarium = (~explain_this_inject, ~editor: CodeEditable.Model.t) => [
+let eval_mode_button = (~explain_this_inject, ~label, ~is_active, ~action) =>
   div(
-    ~attrs=[clss(["header"])],
-    [
-      div(
-        ~attrs=[clss(["main-title"])],
-        [text("Printarium"), mode_toggle(~explain_this_inject)],
-      ),
+    ~attrs=[
+      clss(["eval-mode-button", is_active ? "active" : "inactive"]),
+      Attr.on_click(_ => {
+        action();
+        explain_this_inject(ExplainThisUpdate.SpecificityOpen(true));
+      }),
     ],
-  ),
+    [text(label)],
+  );
+
+let run_button = (~explain_this_inject, ~editor: CodeEditable.Model.t) =>
   div(
-    ~attrs=[clss(["panel", "prints"])],
-    [
-      //div(~attrs=[clss(["title"])], [text("Prints")]),
-      div(
-        ~attrs=[clss(["body", "code"])],
-        [
-          switch (print_string(editor.dynamics)) {
-          | Some(summary) => text(summary)
-          | None => text("No print outputs")
-          },
-        ],
-      ),
+    ~attrs=[
+      clss(["run-button"]),
+      Attr.title("Run and refresh print output"),
+      Attr.on_click(_ => {
+        cached_print_output := print_string(editor.dynamics);
+        explain_this_inject(ExplainThisUpdate.SpecificityOpen(true));
+      }),
     ],
-  ),
-];
+    [text("Run")],
+  );
+
+let printarium = (~explain_this_inject, ~editor: CodeEditable.Model.t) => {
+  /* Determine what output to display */
+  let output =
+    switch (eval_mode_ref^) {
+    | Auto => print_string(editor.dynamics)
+    | Manual => cached_print_output^
+    };
+  [
+    div(
+      ~attrs=[clss(["header"])],
+      [
+        div(
+          ~attrs=[clss(["main-title"])],
+          [text("Console Log"), mode_toggle(~explain_this_inject)],
+        ),
+      ],
+    ),
+    div(
+      ~attrs=[clss(["eval-controls"])],
+      [
+        eval_mode_button(
+          ~explain_this_inject,
+          ~label="Auto",
+          ~is_active=eval_mode_ref^ == Auto,
+          ~action=() =>
+          eval_mode_ref := Auto
+        ),
+        eval_mode_button(
+          ~explain_this_inject,
+          ~label="Manual",
+          ~is_active=eval_mode_ref^ == Manual,
+          ~action=() =>
+          eval_mode_ref := Manual
+        ),
+        ...eval_mode_ref^ == Manual
+             ? [run_button(~explain_this_inject, ~editor)] : [],
+      ],
+    ),
+    div(
+      ~attrs=[clss(["panel", "prints"])],
+      [
+        div(
+          ~attrs=[clss(["body", "code"])],
+          [
+            switch (output) {
+            | Some(summary) => text(summary)
+            | None =>
+              text(
+                eval_mode_ref^ == Manual
+                  ? "Click Run to see print outputs" : "No print outputs",
+              )
+            },
+          ],
+        ),
+      ],
+    ),
+  ];
+};
 
 let probearium =
     (~globals: Globals.t, ~explain_this_inject, ~editor: CodeEditable.Model.t) => {
@@ -729,7 +801,7 @@ let probearium =
       ],
     ),
     legend_view(~font_metrics=globals.font_metrics),
-    sketch_view(~explain_this_inject),
+    sketch_view(~globals, ~explain_this_inject),
     call_cursor_view(~sample_cursor=refractors.sample_cursor, ~fancyd=id =>
       fancy(
         ~refractor_data,

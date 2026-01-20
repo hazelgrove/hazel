@@ -99,6 +99,7 @@ module Update = {
       let new_state =
         ContextMenu.WithContext.update(
           ~info_map=model.statics.info_map,
+          ~auto_probe_mode=settings.auto_probe_mode,
           ~zipper=model.editor.state.zipper,
           action,
           model.context_menu,
@@ -296,6 +297,7 @@ module View = {
                   ~syntax=model.editor.syntax,
                   ~info_map=model.statics.info_map,
                   ~font_metrics=globals.font_metrics,
+                  ~auto_probe_mode=globals.settings.auto_probe_mode,
                   ~selected_index,
                   model.editor.state.zipper,
                 ),
