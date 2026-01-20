@@ -92,6 +92,7 @@ module Update = {
   let calculate =
       (
         ~settings,
+        ~auto_probe_mode=false,
         ~is_edited,
         ~queue_worker,
         ~stitch,
@@ -102,6 +103,7 @@ module Update = {
     let editor =
       CodeEditable.Update.calculate(
         ~settings,
+        ~auto_probe_mode,
         ~is_edited,
         ~stitch,
         ~dynamics=EvalResult.Model.dynamics(result),

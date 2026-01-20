@@ -359,7 +359,14 @@ module Update = {
   };
 
   let calculate =
-      (~settings, ~schedule_action, ~is_edited, model: Model.t): Model.t => {
+      (
+        ~settings,
+        ~auto_probe_mode,
+        ~schedule_action,
+        ~is_edited,
+        model: Model.t,
+      )
+      : Model.t => {
     let (key, ed) = List.nth(model.scratchpads, model.current);
     let worker_request = ref([]);
     let queue_worker =
@@ -371,6 +378,7 @@ module Update = {
     let new_ed =
       CellEditor.Update.calculate(
         ~settings,
+        ~auto_probe_mode,
         ~is_edited,
         ~queue_worker,
         ~stitch=x => x,

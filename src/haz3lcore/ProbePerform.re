@@ -52,10 +52,21 @@ let rec target_subterm_ids = (id: Id.t, info_map: Statics.Map.t) =>
       IdTagged.rep_id(body),
       IdTagged.rep_id(pat),
     ]
-  | Some(InfoExp({term: {term: Let(_pat, def, _), _}, _})) =>
+  | Some(InfoExp({term: {term: Let(_pat, def, _), _} as let_term, _})) =>
     /* If trying to probe a let, probe the definition instead.
+       Exception: if the let is the body of a test, probe the let itself
+       (so we see the test result, not just the definition value).
        Recurse so that if def is a fun literal, the above case will get it */
-    target_subterm_ids(IdTagged.rep_id(def), info_map)
+    let is_test_body =
+      switch (
+        Statics.Map.parent_term_of(info_map, IdTagged.rep_id(let_term))
+      ) {
+      | Some(Exp({term: Test(_) | HintedTest(_, _), _})) => true
+      | _ => false
+      };
+    is_test_body
+      ? [IdTagged.rep_id(let_term)]
+      : target_subterm_ids(IdTagged.rep_id(def), info_map);
 
   | Some(InfoExp({term: {term: Var(_), _} as v, _})) =>
     /* If we're trying to probe variable in function position for an
@@ -164,10 +175,17 @@ let maybe_reset_cursor = (z: Zipper.t): Zipper.t =>
   has_no_probes(z) ? SampleCursorPerform.reset(z) : z;
 
 let rm_auto =
-    (~syntax: CachedSyntax.t, ~info_map: Statics.Map.t, id: Id.t, z: Zipper.t)
+    (
+      ~drill: bool=true,
+      ~syntax: CachedSyntax.t,
+      ~info_map: Statics.Map.t,
+      id: Id.t,
+      z: Zipper.t,
+    )
     : Zipper.t => {
-  /* Remove all target IDs from autos, like rm_manual does for manuals */
-  let target_ids = target_subterm_ids(id, info_map);
+  /* Remove all target IDs from autos, like rm_manual does for manuals.
+     When drill=false, remove just the ID directly (must match how it was added). */
+  let target_ids = drill ? target_subterm_ids(id, info_map) : [id];
   Zipper.update_refractors(z, refractors =>
     {
       ...refractors,
@@ -325,10 +343,18 @@ let add_ids_from_auto_term =
 };
 
 let add_auto =
-    (id: Id.t, ~syntax: CachedSyntax.t, ~info_map: Statics.Map.t, z: Zipper.t)
+    (
+      id: Id.t,
+      ~drill: bool=true,
+      ~syntax: CachedSyntax.t,
+      ~info_map: Statics.Map.t,
+      z: Zipper.t,
+    )
     : Zipper.t => {
-  /* Add all target IDs to autos, like add_manual does for manuals */
-  let target_ids = target_subterm_ids(id, info_map);
+  /* Add all target IDs to autos, like add_manual does for manuals.
+     When drill=false, probe the ID directly without drilling into subterms
+     (used for auto-def mode to stay on top-level definition). */
+  let target_ids = drill ? target_subterm_ids(id, info_map) : [id];
   Zipper.update_refractors(z, refractors =>
     {
       ...refractors,
@@ -655,3 +681,174 @@ let editor_effects =
   |> add_ids_from_auto_term(~syntax, ~info_map)
   |> resolve_pending_focus(~dynamics)
   |> maybe_reset_cursor;
+
+/* AUTO-DEF MODE: automatically place an auto-probe on the top-level
+ * definition body that the cursor is currently inside. When the cursor
+ * moves to a different definition, the probe follows. */
+
+/* Determines what expression to auto-probe based on cursor position.
+ *
+ * Walk ancestors from outermost to innermost. For each:
+ * - Test: return test body (done)
+ * - Let: check if child-toward-cursor is the body
+ *   - If child == body: skip (cursor is in body, this let doesn't apply)
+ *   - Otherwise: return this let's def (cursor is in def/pattern/on-delimiter)
+ *
+ * The key insight: the ONLY way to not probe a let's def is if the cursor
+ * is in its body. Being on the let delimiter, pattern, or def all qualify.
+ */
+let toplevel_def_body_id = (~statics: Statics.Map.t, ~id: Id.t): option(Id.t) => {
+  open Language;
+
+  /* Walk from outermost to innermost ancestor.
+   * At each step, `child_id` is the next item toward the cursor.
+   * ancestors is innermost-first, so we walk from the end. */
+  let find_target = (starting_id: Id.t, ancestors: list(Id.t)): option(Id.t) => {
+    let len = List.length(ancestors);
+
+    let rec walk = (idx: int): option(Id.t) =>
+      if (idx < 0) {
+        None;
+      } else {
+        let anc_id = List.nth(ancestors, idx);
+        /* Child is the next ancestor toward cursor, or starting_id if innermost */
+        let child_id =
+          if (idx == 0) {
+            starting_id;
+          } else {
+            List.nth(ancestors, idx - 1);
+          };
+
+        switch (Statics.Map.lookup(anc_id, statics)) {
+        | Some(
+            InfoExp({
+              term: {term: Test(body) | HintedTest(body, _), _},
+              _,
+            }),
+          ) =>
+          /* Test: return its body */
+          Some(IdTagged.rep_id(body))
+
+        | Some(InfoExp({term: {term: Let(_, def, body), _}, _})) =>
+          let body_id = IdTagged.rep_id(body);
+          if (Id.equal(child_id, body_id)) {
+            /* Child is body → cursor is in body → skip, continue inward */
+            walk(
+              idx - 1,
+            );
+          } else {
+            /* Child is def/pattern/or this is the cursor → return def */
+            Some(
+              IdTagged.rep_id(def),
+            );
+          };
+
+        | _ =>
+          /* Not a let or test, continue inward */
+          walk(idx - 1)
+        };
+      };
+
+    walk(len - 1);
+  };
+
+  switch (Statics.Map.lookup(id, statics)) {
+  | Some(InfoExp({term: {term: Test(body) | HintedTest(body, _), _}, _})) =>
+    /* Starting point IS a test → return its body */
+    Some(IdTagged.rep_id(body))
+
+  | Some(info) =>
+    let ancestors = Info.ancestors_of(info);
+    switch (find_target(id, ancestors)) {
+    | Some(def_id) => Some(def_id)
+    | None =>
+      /* No outer let found where we're in def.
+         Check if starting_id itself is a top-level let → return its def */
+      switch (info) {
+      | InfoExp({term: {term: Let(_, def, _), _}, _}) =>
+        Some(IdTagged.rep_id(def))
+      | _ => None
+      }
+    };
+
+  | None => None
+  };
+};
+
+/* Remove the auto_def probe if present */
+let clear_auto_def =
+    (~syntax: CachedSyntax.t, ~info_map: Statics.Map.t, z: Zipper.t): Zipper.t =>
+  switch (z.refractors.auto_def) {
+  | None => z
+  | Some(old_id) =>
+    rm_auto(~drill=false, ~syntax, ~info_map, old_id, z)
+    |> Zipper.update_refractors(_, r =>
+         {
+           ...r,
+           auto_def: None,
+         }
+       )
+  };
+
+/* Get the top-level definition body ID that the cursor is currently inside.
+ * When the cursor is on whitespace/comments (secondaries), we fall back to
+ * using the nearest ancestor tile's ID, since secondaries don't have statics. */
+let current_toplevel_def =
+    (info_map: Statics.Map.t, z: Zipper.t): option(Id.t) => {
+  let try_id = id => toplevel_def_body_id(~statics=info_map, ~id);
+
+  /* First try the indicated piece */
+  let from_indicated =
+    switch (Indicated.index(z)) {
+    | None => None
+    | Some(cursor_id) => try_id(cursor_id)
+    };
+
+  /* If that failed (e.g., cursor on whitespace), try the zipper ancestor */
+  switch (from_indicated) {
+  | Some(_) => from_indicated
+  | None =>
+    switch (z.relatives.ancestors) {
+    | [] => None
+    | [(ancestor, _), ..._] => try_id(ancestor.id)
+    }
+  };
+};
+
+/* Update the auto_def probe based on current cursor position.
+ * Only reconstitutes the probe when the cursor moves to a different
+ * top-level definition. */
+let update_auto_def_probe =
+    (~syntax: CachedSyntax.t, ~info_map: Statics.Map.t, z: Zipper.t): Zipper.t => {
+  let current_def = current_toplevel_def(info_map, z);
+  let prev_def = z.refractors.auto_def;
+
+  /* If same definition, no change needed */
+  if (Option.equal(Id.equal, current_def, prev_def)) {
+    z;
+  } else {
+    /* Remove old auto-probe if exists.
+       Use ~drill=false to match how it was added. */
+    let z =
+      switch (prev_def) {
+      | Some(old_id) => rm_auto(~drill=false, ~syntax, ~info_map, old_id, z)
+      | None => z
+      };
+
+    /* Add new auto-probe if inside a definition.
+       Use ~drill=false to stay on top-level def, not drill into nested lets. */
+    let z =
+      switch (current_def) {
+      | Some(new_id) => add_auto(new_id, ~drill=false, ~syntax, ~info_map, z)
+      | None => z
+      };
+
+    /* Update auto_def tracking */
+    Zipper.update_refractors(z, r =>
+      {
+        ...r,
+        auto_def: current_def,
+      }
+    );
+  };
+};
