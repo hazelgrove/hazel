@@ -675,14 +675,30 @@ let clear_auto_def =
        )
   };
 
-/* Get the top-level definition body ID that the cursor is currently inside */
+/* Get the top-level definition body ID that the cursor is currently inside.
+ * When the cursor is on whitespace/comments (secondaries), we fall back to
+ * using the nearest ancestor tile's ID, since secondaries don't have statics. */
 let current_toplevel_def =
-    (info_map: Statics.Map.t, z: Zipper.t): option(Id.t) =>
-  switch (Indicated.index(z)) {
-  | None => None
-  | Some(cursor_id) =>
-    Statics.toplevel_def_body_id(~statics=info_map, ~id=cursor_id)
+    (info_map: Statics.Map.t, z: Zipper.t): option(Id.t) => {
+  let try_id = id => Statics.toplevel_def_body_id(~statics=info_map, ~id);
+
+  /* First try the indicated piece */
+  let from_indicated =
+    switch (Indicated.index(z)) {
+    | None => None
+    | Some(cursor_id) => try_id(cursor_id)
+    };
+
+  /* If that failed (e.g., cursor on whitespace), try the parent tile */
+  switch (from_indicated) {
+  | Some(_) => from_indicated
+  | None =>
+    switch (z.relatives.ancestors) {
+    | [] => None
+    | [(ancestor, _), ..._] => try_id(ancestor.id)
+    }
   };
+};
 
 /* Update the auto_def probe based on current cursor position.
  * Only reconstitutes the probe when the cursor moves to a different
