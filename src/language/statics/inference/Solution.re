@@ -116,10 +116,13 @@ module TPatSolution: {
     };
   };
 
-  let expand_solution = (sol: t): list(SolType.t) => {
+  let rec expand_solution = (sol: t): list(SolType.t) => {
     // TODO: this needs to expand
-    let typ = to_term(sol);
-    [typ];
+    switch (sol |> IdTagged.term_of) {
+    | Multi(ss) => List.concat_map(expand_solution, ss)
+    | Var(_) => [to_term(sol)]
+    | Unknown(_) => [to_term(sol)]
+    };
   };
 
   let replace_solution = (prov: StringProv.t, sol: t, new_sol: t): (t, bool) => {
@@ -570,7 +573,9 @@ module TypSolution: {
     | (Unknown({term: Hole(CycleHole), _}) as s, t) =>
       Multi([s |> rewrap_sol, of_sol_term(t |> rewrap_typ)]) |> temp
     | (Unknown(p), t) when !Prov.is_identified(p) =>
-      of_sol_term(t |> rewrap_typ)
+      print_endline("beans");
+      print_endline(typ |> Typ.rep_id |> Uuidm.to_string);
+      of_sol_term(t |> rewrap_typ);
     | (s, Unknown(p)) when !Prov.is_identified(p) => s |> rewrap_sol
     | (Unknown(_) as s, _) => s |> rewrap_sol
     | (_, Unknown(_) as t) => of_sol_term(t |> rewrap_typ)

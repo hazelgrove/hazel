@@ -1196,7 +1196,17 @@ and uexp_to_info_map =
           ~constraints=
             fn.constraints
             @ poly_constraints
-            @ subsumption_constraints_t(self),
+            @ subsumption_constraints_t(self)
+            @ [
+              Con(
+                typfn_ana,
+                Poly(
+                  Unknown(TypeSubstitution(utyp) |> Prov.fresh) |> TPat.temp,
+                  ty_body,
+                )
+                |> Typ.temp,
+              ),
+            ],
           m,
         );
       | None =>
@@ -2668,7 +2678,7 @@ let mk =
 
       // Map.show(map) |> print_endline;
 
-      let inference_sols = Inference.go(info.constraints);
+      let inference_sols = Inference.go(info.constraints, map);
       // Inference.ProvMap.iter(
       //   (key, sol) => {
       //     print_endline(
