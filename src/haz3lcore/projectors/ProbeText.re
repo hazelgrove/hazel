@@ -22,11 +22,11 @@ let value_spacing = "    ";
 /* Compute which line each refractor (probe) is on using Measured.
  * Returns a map from line number to list of probe IDs on that line. */
 let get_probes_by_line =
-    (refractors: Id.Map.t(Base.projector), measured: Measured.t)
+    (refractors: Zipper.Refractor.Map.t, measured: Measured.t)
     : IntMap.t(list(Id.t)) =>
   Id.Map.fold(
-    (tile_id, projector: Base.projector, acc) =>
-      if (projector.kind != Probe) {
+    (tile_id, entry: Zipper.Refractor.entry, acc) =>
+      if (entry.kind != Probe) {
         acc;
       } else {
         switch (Measured.find_by_id(tile_id, measured)) {
@@ -34,7 +34,7 @@ let get_probes_by_line =
           let row = m.origin.row;
           let existing =
             IntMap.find_opt(row, acc) |> Option.value(~default=[]);
-          IntMap.add(row, existing @ [projector.id], acc);
+          IntMap.add(row, existing @ [tile_id], acc);
         | None => acc
         };
       },
@@ -87,12 +87,13 @@ let format_probe_values =
     : string => {
   let format_one = (probe_id: Id.t): option(string) => {
     let samples =
-      Id.Map.find_opt(probe_id, probe_map) |> Option.value(~default=[]);
+      Sample.Map.lookup(probe_id, probe_map) |> Option.value(~default=[]);
 
     switch (get_empty_status(~window, samples)) {
     | Some(NoSamplesExist) => Some(no_samples_indicator)
     | Some(HiddenByPin) => Some(hidden_by_pin_indicator)
     | Some(NotAligned) => Some(not_aligned_indicator)
+    | Some(Evaluating) => Some("...")
     | None =>
       let max_samples =
         switch (window) {
@@ -126,7 +127,7 @@ let of_segment =
     (
       ~window: Sample.Window.mode=Single,
       ~probe_map: Sample.Map.t,
-      ~refractors: Id.Map.t(Base.projector)=Id.Map.empty,
+      ~refractors: Zipper.Refractor.Map.t=Id.Map.empty,
       segment: Segment.t,
     )
     : string => {

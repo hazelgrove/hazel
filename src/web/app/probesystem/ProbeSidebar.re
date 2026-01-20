@@ -69,25 +69,8 @@ let term_view =
   );
 };
 
-let probe_view = (font_metrics, refractor_data, id: Id.t) => {
-  let inject = _ => Ui_effect.Ignore;
-  let projector_data =
-    List.find_opt(
-      (p: ProjectorView.Model.projector_data) => p.p.id == id,
-      refractor_data,
-    );
-  switch (projector_data) {
-  | Some(projector_data) =>
-    let views = ProjectorView.mk_view(inject, font_metrics, projector_data);
-    let offside_view = views.offside |> Option.to_list;
-    div(~attrs=[Attr.class_("probe-view")], offside_view);
-  | None => div([] /*text("Not Probed")*/)
-  };
-};
-
 let fancy =
     (
-      ~refractor_data,
       ~info_map: Language.Statics.Map.t,
       ~globals: Globals.t,
       ~default,
@@ -114,14 +97,7 @@ let fancy =
       Attr.class_("probe-entry"),
       Attr.on_pointerdown(jump_to(~globals, id)),
     ],
-    [
-      term_view,
-      probe_view(
-        globals.font_metrics,
-        refractor_data,
-        Id.transform_variant(id),
-      ),
-    ],
+    [term_view],
   );
 };
 
@@ -163,21 +139,22 @@ let legend_sample_view =
     env: Language.Sample.Env.empty,
     call_stack: sample_stack,
     time: 0.0,
-    iter: 0,
+    seq: 0,
     origin: Language.Sample.Probe,
     step_start,
     step_end,
   };
   let di: Language.Dynamics.Info.t = {
     samples: [sample],
-    dyn_cursor: {
-      stack: cursor_stack,
+    sample_cursor: {
+      call_stack: cursor_stack,
       index: List.length(cursor_stack) - 1,
       pinned_stack: None,
       indicated_call,
       time: None,
-      iter: 0,
+      seq: 0,
       step_range: focus_step_range,
+      pending_focus: None,
     },
   };
   ProbeProj.sample_view(
@@ -187,10 +164,16 @@ let legend_sample_view =
       ...ProbeProj.Settings.s^,
       window: mode,
     },
+    ~num_total=1,
     di,
     ProjectorInfo.utility,
     (~text_only) =>
-      ProjectorView.flex_code(~font_metrics, ~background=false, ~text_only),
+      ProjectorView.flex_code(
+        ~font_metrics,
+        ~single_line=true,
+        ~background=false,
+        ~text_only,
+      ),
     _ => Effect.Ignore,
     _ => Effect.Ignore,
     (0, sample),
@@ -286,154 +269,58 @@ let toggle =
     },
   );
 
-let settings = (~explain_this_inject) => {
+let call_cursor_view = (~sample_cursor: Language.Sample.Cursor.t, ~fancyd) => {
+  let reversed_stack = sample_cursor.call_stack |> List.rev;
+  let trimmed_stack =
+    Util.ListUtil.take(sample_cursor.index + 1, reversed_stack);
   div(
-    ~attrs=[clss(["settings"])],
+    ~attrs=[clss(["panel", "call-cursor"])],
     [
-      toggle(
-        ~tooltip="One or Many Samples",
-        ~explain_this_inject,
-        ~label1="1",
-        ~label2="∞",
-        ~active=ProbeProj.Settings.s^.window == Single,
-        ~action=ToggleWindow,
-      ),
-      {
-        /* 3-way cycle toggle for sample coloring mode */
-        let (icon, tooltip) =
-          switch (ProbeProj.Settings.s^.sample_base) {
-          | Calls => (
-              "\xF0\x9F\x93\x9E",
-              "Color by Calls (click to switch to Steps)",
-            )
-          | Steps => (
-              "\xF0\x9F\x91\xA3",
-              "Color by Steps (click to switch to StepRange)",
-            )
-          | StepRange => (
-              "\xE2\x8F\xB1",
-              "Color by StepRange (click to switch to Calls)",
-            )
-          };
-        Widgets.toggle(
-          ~tooltip,
-          icon,
-          false,
-          _ => {
-            ProbeProj.Settings.go(ToggleSampleBase);
-            explain_this_inject(ExplainThisUpdate.SpecificityOpen(true));
-          },
-        );
-      },
-      toggle(
-        ~tooltip="Samples Before/Above Cursor",
-        ~explain_this_inject,
-        ~label1="∞",
-        ~label2="1",
-        ~active=ProbeProj.Settings.s^.before_cutoff == None,
-        ~action=ToggleBeforeCutoff,
-      ),
-      toggle(
-        ~tooltip="Samples After/Below Cursor",
-        ~explain_this_inject,
-        ~label1="∞",
-        ~label2="1",
-        ~active=ProbeProj.Settings.s^.after_cutoff == None,
-        ~action=ToggleAfterCutoff,
-      ),
-      toggle(
-        ~tooltip="Callsites containing Cursor",
-        ~explain_this_inject,
-        ~label1="∞",
-        ~label2="1",
-        ~active=ProbeProj.Settings.s^.caller_cutoff == None,
-        ~action=ToggleCallerCutoff,
-      ),
-      toggle(
-        ~tooltip="Samples Inside Call at Cursor",
-        ~explain_this_inject,
-        ~label1="∞",
-        ~label2="1",
-        ~active=ProbeProj.Settings.s^.callee_cutoff == None,
-        ~action=ToggleCalleeCutoff,
+      div(~attrs=[clss(["title"])], [text("Dynamic Cursor")]),
+      div(
+        ~attrs=[clss(["stack"])],
+        trimmed_stack == []
+          ? [div(~attrs=[clss(["empty"])], [text("\xE2\x88\x85")])]
+          : List.mapi(
+              (i, id) =>
+                div(
+                  ~attrs=[
+                    Attr.classes([
+                      i == sample_cursor.index ? "is-index" : "not",
+                    ]),
+                  ],
+                  [fancyd(id)],
+                ),
+              trimmed_stack,
+            ),
       ),
     ],
   );
 };
 
-let sketch_view = (~explain_this_inject): Node.t =>
-  details(
-    ~attrs=[clss(["sketch"])],
-    [
-      settings(~explain_this_inject),
-      summary(
-        ~attrs=[clss(["sketch-toggle"])],
-        [div(~attrs=[clss(["sketch-toggle-image"])], [])],
-      ),
-      div(~attrs=[clss(["sketch-body"])], []),
-    ],
-  );
-
-let call_cursor_view = (~dyn_cursor: Language.DynCursor.t, ~fancyd) =>
-  div(
-    ~attrs=[clss(["panel", "call-cursor"])],
-    [
-      div(~attrs=[clss(["title"])], [text("Dynamic Cursor")]),
-      // NOTE: choosing not to show indicated ap when not in cursor
-      // switch (dyn_cursor.indicated_call) {
-      // | Some(id) when !List.mem(id, dyn_cursor.stack) =>
-      //   div(
-      //     ~attrs=[Attr.classes(["indicated-call", "not-in-stack"])],
-      //     [fancyd(id)],
-      //   )
-      // | _ => div([])
-      // },
-      div(
-        ~attrs=[clss(["stack"])],
-        List.mapi(
-          (i, id) =>
-            div(
-              ~attrs=[
-                Attr.classes([
-                  i == dyn_cursor.index ? "is-index" : "not",
-                  i > dyn_cursor.index ? "after-index" : "not",
-                  List.mem(id, dyn_cursor.stack)
-                  && Some(id) == dyn_cursor.indicated_call
-                    ? "indicated-call" : "not",
-                ]),
-              ],
-              [fancyd(id)],
-            ),
-          dyn_cursor.stack |> List.rev,
-        ),
-      ),
-    ],
-  );
-
+/* probe_type tracks whether a probe is manual or auto.
+ * Auto probes include the list of ephemeral IDs they expand to. */
 type probe_type =
-  | Manual(Base.projector)
-  | Auto(list((Id.t, Base.projector)));
+  | Manual
+  | Auto(list(Id.t));
 
 let prep_refractors =
     (~refractors: Zipper.Refractor.t, ~info_map, ~syntax: CachedSyntax.t) => {
   let manuals =
     refractors.manuals
     |> Id.Map.to_list
-    |> List.map(((id, p)) => (id, Manual(p)));
+    |> List.map(((id, _)) => (id, Manual));
   let autos =
-    refractors.autos
-    |> List.map(id => {
-         let ids = Refractors.ids_from_term(~syntax, ~info_map, id);
-         let pairs =
-           List.filter_map(
-             id =>
-               switch (Id.Map.find_opt(id, refractors.ephemerals)) {
-               | Some(p) => Some((id, p))
-               | None => None
-               },
+    refractors.autos.ids
+    |> Id.Map.bindings
+    |> List.map(((id, ())) => {
+         let ids = ProbePerform.ids_from_term(~syntax, ~info_map, id);
+         let ephemeral_ids =
+           List.filter(
+             id => Id.Map.mem(id, refractors.autos.ephemerals),
              ids,
            );
-         (id, Auto(pairs));
+         (id, Auto(ephemeral_ids));
        });
   List.concat([manuals, autos])
   |> sort_ids_by_measurement(~measured=syntax.measured);
@@ -511,13 +398,9 @@ let render_entry =
     (~fancyd: Id.t => option(Node.t), entry: (Id.t, probe_type))
     : option(Node.t) =>
   switch (entry) {
-  | (id, Manual(_projector)) => fancyd(id)
-  | (_id, Auto(pairs)) =>
-    let ephemerals =
-      List.filter_map(
-        ((pair_id: Id.t, _projector: Base.projector)) => fancyd(pair_id),
-        pairs,
-      );
+  | (id, Manual) => fancyd(id)
+  | (_id, Auto(ephemeral_ids)) =>
+    let ephemerals = List.filter_map(fancyd, ephemeral_ids);
     ephemerals == []
       ? None : Some(div(~attrs=[clss(["auto"])], ephemerals));
   };
@@ -606,131 +489,30 @@ let probes_panel_view =
       );
 };
 
-let print_string = (probes: Language.Sample.Map.t) => {
-  let collect_print_samples =
-      (probes: Language.Sample.Map.t): list(Language.Sample.t) =>
-    Id.Map.fold(
-      (_, samples, acc) =>
-        List.fold_left(
-          (acc, sample) =>
-            sample.Language.Sample.origin == Language.Sample.Print
-              ? [sample, ...acc] : acc,
-          acc,
-          samples,
-        ),
-      probes,
-      [],
-    );
-
-  let collect_print_outputs = (probes: Language.Sample.Map.t): list(string) =>
-    collect_print_samples(probes)
-    |> List.sort((a, b) =>
-         Int.compare(a.Language.Sample.iter, b.Language.Sample.iter)
-       )
-    |> List.map(sample =>
-         sample.Language.Sample.value
-         |> ExpToSegment.exp_to_segment(
-              ~settings=
-                ExpToSegment.Settings.of_core(
-                  ~inline=true,
-                  Language.CoreSettings.off,
-                ),
-            )
-         |> Printer.of_segment(~holes="")
-       );
-
-  let print_summary = (probes: Language.Sample.Map.t): option(string) =>
-    switch (collect_print_outputs(probes)) {
-    | [] => None
-    | outputs => Some(String.concat("\n", outputs))
-    };
-
-  probes |> print_summary;
-};
-
-type panel_mode =
-  | Probes
-  | Prints;
-
-let mode = ref(Probes);
-
-let mode_toggle = (~explain_this_inject) =>
-  Widgets.toggle(
-    ~tooltip="Toggle between Probes and Prints",
-    mode^ == Probes ? "🔍" : "🖨",
-    mode^ == Probes,
-    _ => {
-      mode := mode^ == Probes ? Prints : Probes;
-      explain_this_inject(ExplainThisUpdate.SpecificityOpen(true));
-    },
-  );
-
-let printarium = (~explain_this_inject, ~editor: CodeEditable.Model.t) => [
-  div(
-    ~attrs=[clss(["header"])],
-    [
-      div(
-        ~attrs=[clss(["main-title"])],
-        [text("Printarium"), mode_toggle(~explain_this_inject)],
-      ),
-    ],
-  ),
-  div(
-    ~attrs=[clss(["panel", "prints"])],
-    [
-      //div(~attrs=[clss(["title"])], [text("Prints")]),
-      div(
-        ~attrs=[clss(["body", "code"])],
-        [
-          switch (print_string(editor.dynamics)) {
-          | Some(summary) => text(summary)
-          | None => text("No print outputs")
-          },
-        ],
-      ),
-    ],
-  ),
-];
-
 let probearium =
     (~globals: Globals.t, ~explain_this_inject, ~editor: CodeEditable.Model.t) => {
-  let refractor_data =
-    ProjectorView.Model.mk(
-      Id.Map.union(
-        (_, _, b) => Some(b),
-        editor.editor.state.zipper.refractors.manuals,
-        editor.editor.state.zipper.refractors.ephemerals,
-      ),
-      editor.editor.syntax.measured,
-      editor.editor.syntax.term_data,
-      editor.editor.syntax.selection_ids,
-      Indicated.piece(editor.editor.state.zipper),
-      editor.statics.info_map,
-      editor.dynamics,
-      editor.editor.state.zipper.refractors.dyn_cursor,
-      true,
-    );
   let refractors = editor.editor.state.zipper.refractors;
   [
     div(
       ~attrs=[clss(["header"])],
+      [div(~attrs=[clss(["main-title"])], [text("Probearium")])],
+    ),
+    legend_view(~font_metrics=globals.font_metrics),
+    div(
+      ~attrs=[clss(["panel", "window-toggle"])],
       [
-        div(
-          ~attrs=[clss(["main-title"])],
-          [text("Probearium"), mode_toggle(~explain_this_inject)],
+        toggle(
+          ~tooltip="Show One or Many Probe Samples",
+          ~explain_this_inject,
+          ~label1="1",
+          ~label2="\xE2\x88\x9E",
+          ~active=ProbeProj.Settings.s^.window == Single,
+          ~action=ToggleWindow,
         ),
       ],
     ),
-    legend_view(~font_metrics=globals.font_metrics),
-    sketch_view(~explain_this_inject),
-    call_cursor_view(~dyn_cursor=refractors.dyn_cursor, ~fancyd=id =>
-      fancy(
-        ~refractor_data,
-        ~info_map=editor.statics.info_map,
-        ~default=None, /*Some([Example.exp("<In Builtin>")]),*/
-        ~globals,
-        id,
-      )
+    call_cursor_view(~sample_cursor=refractors.sample_cursor, ~fancyd=id =>
+      fancy(~info_map=editor.statics.info_map, ~default=None, ~globals, id)
       |> Option.value(~default=div([]))
     ),
     probes_panel_view(
@@ -739,13 +521,7 @@ let probearium =
       ~info_map=editor.statics.info_map,
       ~syntax=editor.editor.syntax,
       ~fancyd=id =>
-      fancy(
-        ~refractor_data,
-        ~info_map=editor.statics.info_map,
-        ~default=None,
-        ~globals,
-        id,
-      )
+      fancy(~info_map=editor.statics.info_map, ~default=None, ~globals, id)
     ),
   ];
 };
@@ -759,8 +535,6 @@ let view =
     ) => {
   div(
     ~attrs=[Attr.id("probesys")],
-    mode^ == Probes
-      ? probearium(~globals, ~explain_this_inject, ~editor)
-      : printarium(~explain_this_inject, ~editor),
+    probearium(~globals, ~explain_this_inject, ~editor),
   );
 };

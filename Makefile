@@ -2,7 +2,7 @@ TEST_DIR="$(shell pwd)/_build/default/test"
 HTML_DIR="$(shell pwd)/_build/default/src/web/www"
 SERVER="http://0.0.0.0:8000/"
 
-.PHONY: all deps change-deps setup-instructor setup-student dev dev-helper dev-student fmt watch watch-release release release-student echo-html-dir serve serve2 repl test clean
+.PHONY: all deps change-deps setup-instructor setup-student dev dev-helper dev-student fmt watch watch-release release release-student grade echo-html-dir serve serve2 repl test clean
 
 all: dev
 
@@ -47,6 +47,12 @@ release: setup-instructor
 
 release-student: setup-student
 	dune build @src/fmt --auto-promote src --profile dev # Uses dev profile for performance reasons. It may be worth it to retest since the ocaml upgrade
+
+grade: 
+ifndef SUBMISSION
+	$(error Usage: make grade SUBMISSION=<path to submission json>)
+endif
+	python3 src/grading/grade/grade_individual.py $(SUBMISSION) .
 
 echo-html-dir:
 	@echo $(HTML_DIR)

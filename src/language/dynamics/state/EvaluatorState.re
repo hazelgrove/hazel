@@ -6,24 +6,28 @@ type t = {
   tests: TestMap.t,
   probes: Sample.Map.t,
   step_count: int,
-  pending_probe_starts: Id.Map.t(int) /* Transient state only needed during evaluation */
+  pending_probe_starts: Id.Map.t(int), /* Transient state only needed during evaluation */
+  targets: Sample.targets /* IDs of expressions/patterns to sample */
 };
 
 type effect =
   | RecordTest(TestMap.instance_report)
-  | RecordExpProbe(Probe.t)
+  | RecordExpProbe(Sample.capture_spec)
   | RecordStackFrame
   | RecordPatProbes(PatternMatch.sample_closures)
   | RecordTheorem(Id.t, string, Environment.t(Exp.t), Exp.t)
   | RecordPrint(DHExp.t); /* Println for probes study */
 
-let init: t = {
+let mk = (~targets: Sample.targets): t => {
   tests: TestMap.empty,
   probes: Sample.Map.empty,
   step_count: 0,
   pending_probe_starts: Id.Map.empty,
+  targets,
   theorems: [],
 };
+
+let init: t = mk(~targets=Sample.no_targets);
 
 let get_step_count = ({step_count, _}: t): int => step_count;
 
@@ -76,7 +80,7 @@ let update =
       next: DHExp.t,
       side_effects: list(effect),
     )
-    : (Probe.call_stack, t) => {
+    : (Sample.call_stack, t) => {
   /* Increment step count for this evaluation step */
   let state = {
     ...state,
@@ -84,7 +88,7 @@ let update =
   };
 
   List.fold_left(
-    ((call_stack: Probe.call_stack, state: t), effect: effect) =>
+    ((call_stack: Sample.call_stack, state: t), effect: effect) =>
       switch (effect) {
       | RecordStackFrame => ([DHExp.rep_id(init), ...call_stack], state)
       | RecordTest(instance_report) => (
@@ -120,7 +124,7 @@ let update =
           List.fold_left(
             (
               state: t,
-              sample_closure: (Probe.call_stack, int, int) => Sample.t,
+              sample_closure: (Sample.call_stack, int, int) => Sample.t,
             ) =>
               add_sample(state, sample_closure(call_stack, step, step)),
             state,
@@ -144,7 +148,7 @@ let update =
             value,
             env,
             call_stack,
-            Probe.empty,
+            Sample.empty_capture_spec,
           );
         (call_stack, add_sample(state, sample));
       | RecordTheorem(id, name, env, goal) => (

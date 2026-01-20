@@ -187,25 +187,27 @@ module Update = {
         syntax,
       );
 
-    /* 3. Update autoprobes from manual autos list */
+    /* 3. Probe effects: collision cleanup, auto-probe regeneration,
+     *    step-into focus resolution, and cursor reset */
     let zipper =
-      zipper
-      |> Refractors.add_ids_from_auto_term(
-           ~syntax,
-           ~info_map=new_statics.info_map,
-         );
+      ProbePerform.editor_effects(
+        ~syntax,
+        ~info_map=new_statics.info_map,
+        ~dynamics=new_dynamics,
+        zipper,
+      );
 
-    /* 4. Handle auto-probe mode */
+    /* 4. Handle auto-probe mode: auto-probe follows cursor to current def */
     let zipper =
       if (auto_probe_mode) {
-        Refractors.update_auto_def_probe(
+        ProbePerform.update_auto_def_probe(
           ~syntax,
           ~info_map=new_statics.info_map,
           zipper,
         );
       } else {
         /* If mode is off, clear any existing auto_def probe */
-        Refractors.clear_auto_def(
+        ProbePerform.clear_auto_def(
           ~syntax,
           ~info_map=new_statics.info_map,
           zipper,

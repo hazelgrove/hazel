@@ -116,65 +116,8 @@ let out : string * Haz3lcore.PersistentSegment.t =
          2ec26056-7e80-44cf-9779-76764964b4d8)(content(Whitespace\" \
          \")))))))))(Secondary((id \
          641dbd73-4f0c-46d3-b2e8-1bf88a94d83a)(content(Whitespace\"\\n\"))))(Secondary((id \
-         b8efd1b8-fd47-46a5-bf2c-12ff34a2ebd7)(content(Whitespace\"\\n\"))))(Secondary((id \
-         7afda42a-9780-41fc-8b1b-25fd82add8fa)(content(Comment\"# B. A type \
-         probe shows a term's type to the side.   #\"))))(Secondary((id \
-         2498d886-880f-486d-92f0-5aaf1bdb8a7b)(content(Whitespace\"\\n\"))))(Secondary((id \
-         4798c81b-c648-4bb9-bd91-ce5e5df6ae7e)(content(Comment\"#    Type \
-         probes can be applied using alt/option-t.  #\"))))(Secondary((id \
-         e078cc2d-d147-4932-bb09-8994d26e65de)(content(Whitespace\"\\n\"))))(Secondary((id \
-         6a5b9bca-3067-4aa1-bc08-b847279401cf)(content(Comment\"#    \
-         Doubleclick toggles inferred/synthesized types. #\"))))(Secondary((id \
-         eab5b725-4c78-4b82-8570-d9a6398f69a7)(content(Whitespace\"\\n\"))))(Secondary((id \
-         e9210e5b-ca73-4073-a5b1-9044d37a2a3f)(content(Whitespace\"\\n\"))))(Tile((id \
-         b88bbc8a-aaa3-4d33-b495-687707605172)(label(let = in))(mold((out \
-         Exp)(in_(Pat Exp))(nibs(((shape Convex)(sort Exp))((shape(Concave \
-         40))(sort Exp))))))(shards(0 1 2))(children(((Secondary((id \
-         04f5fa96-ad2d-40a6-8af8-c5bb862ae60d)(content(Whitespace\" \
-         \"))))(Tile((id \
-         77808632-16ff-42f4-bbab-2e1a181acbb4)(label(typ))(mold((out \
-         Pat)(in_())(nibs(((shape Convex)(sort Pat))((shape Convex)(sort \
-         Pat))))))(shards(0))(children())))(Tile((id \
-         956924d1-1759-4be7-b373-39367ecf4584)(label(:))(mold((out \
-         Pat)(in_())(nibs(((shape(Concave 24))(sort Pat))((shape(Concave \
-         24))(sort Typ))))))(shards(0))(children())))(Secondary((id \
-         b23a49c9-0d62-425b-bd53-f6a39dc29888)(content(Whitespace\" \
-         \"))))(Tile((id \
-         34c07b31-4beb-4e27-84af-85ec27f35917)(label(\"(\"\")\"))(mold((out \
-         Typ)(in_(Typ))(nibs(((shape Convex)(sort Typ))((shape Convex)(sort \
-         Typ))))))(shards(0 1))(children(((Tile((id \
-         02ec78c3-f321-4ea4-8b9f-5a4fe4aa72cc)(label(Int))(mold((out \
-         Typ)(in_())(nibs(((shape Convex)(sort Typ))((shape Convex)(sort \
-         Typ))))))(shards(0))(children())))(Secondary((id \
-         a56d8bfa-df5d-42a3-884a-048cc5b4e58d)(content(Whitespace\" \
-         \"))))(Tile((id \
-         56266ff2-2b76-438a-ad84-ee470a529046)(label(->))(mold((out \
-         Typ)(in_())(nibs(((shape(Concave 13))(sort Typ))((shape(Concave \
-         13))(sort Typ))))))(shards(0))(children())))(Secondary((id \
-         a95926d0-d09b-42ef-953e-fa3b81fd0eed)(content(Whitespace\" \
-         \"))))(Tile((id \
-         02a26957-d011-45ef-974c-bf33f7484d98)(label(Bool))(mold((out \
-         Typ)(in_())(nibs(((shape Convex)(sort Typ))((shape Convex)(sort \
-         Typ))))))(shards(0))(children()))))))))(Secondary((id \
-         0d5efda0-b170-4600-87a2-1eab631ed920)(content(Whitespace\" \
-         \")))))((Secondary((id \
-         792e9994-07b1-46a7-8bb7-4b88b86e260c)(content(Whitespace\" \
-         \"))))(Projector((id 49cbbee2-6cca-4cef-96c9-8128317ca646)(kind \
-         Info)(syntax(Tile((id \
-         dba9bf05-e62f-48a1-bfe1-8d2ea676b2f8)(label(\"(\"\")\"))(mold((out \
-         Any)(in_(Any))(nibs(((shape Convex)(sort Any))((shape Convex)(sort \
-         Any))))))(shards(0 1))(children(((Grout((id \
-         b23d9888-88f0-49b3-a182-283c2fe82b23)(shape Convex)))))))))(model \
-         Expected)))(Secondary((id \
-         e765f2d3-97d0-477d-bc8b-4e632c009839)(content(Whitespace\" \
-         \"))))(Secondary((id \
-         b8dc0244-b78f-4546-9aa0-ce3ebfed8272)(content(Whitespace\" \
-         \"))))(Secondary((id \
-         910a9383-b804-4c30-91dc-6f280ff45eb3)(content(Whitespace\" \
-         \")))))))))(Secondary((id \
-         495710ca-9f93-4e78-9d8e-aac51496b457)(content(Whitespace\"\\n\"))))(Secondary((id \
          c1af9186-1fd3-4cdf-bc63-71ced3a3eabe)(content(Whitespace\"\\n\"))))(Secondary((id \
-         57add6d7-3022-414b-b69f-cd6b0db03ff0)(content(Comment\"# C. \
+         95e1209b-3061-4a29-b5fc-24699953e1f3)(content(Comment\"# B. \
          Projectors applying to specific data literals.  #\"))))(Secondary((id \
          49e4f4fb-cf30-41c6-b048-5911fa350050)(content(Whitespace\"\\n\"))))(Secondary((id \
          6e6932b1-73fc-4a0e-b241-5df18666a24d)(content(Comment\"#    These can \
@@ -617,11 +560,7 @@ let out : string * Haz3lcore.PersistentSegment.t =
          )\n\
          )\n\
          )) in\n\n\
-         # B. A type probe shows a term's type to the side.   #\n\
-         #    Type probes can be applied using alt/option-t.  #\n\
-         #    Doubleclick toggles inferred/synthesized types. #\n\n\
-         let typ: (Int -> Bool) = ^^type()   in\n\n\
-         # C. Projectors applying to specific data literals.  #\n\
+         # B. Projectors applying to specific data literals.  #\n\
          #    These can be applied using alt/option-l.        #\n\
          #    Three base types literals use inline views:     #\n\n\
          let guard: Bool = ^^check(true) in\n\

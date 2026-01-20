@@ -5,6 +5,12 @@ open Virtual_dom.Vdom;
 open Js_of_ocaml;
 open Language;
 
+/* Global probe display state. See ZipperBase.re for full probe state documentation.
+ * - Settings.s: Global display settings (window mode, cutoffs)
+ * - Settings.offset: Per-probe window scroll offsets
+ * - SampleLength.lengths: Per-sample display lengths
+ * These use mutable refs for simplicity since they're UI-only state. */
+
 [@deriving (show({with_path: false}), sexp, yojson)]
 type action =
   | ChangeLength(int, int)
@@ -140,26 +146,32 @@ module SampleLength = {
 };
 
 /* Select samples to display, using stateful window offset.
- * This wraps Sample.Selection with WindowState for offset persistence. */
+ * This wraps Sample.Selection with WindowState for offset persistence.
+ * Optionally takes pre-filtered samples to avoid redundant filtering. */
 let select_samples =
     (
       ~settings: settings,
       ~id: Id.t,
       ~ap_id: option(Id.t),
+      ~filtered: option(list(Sample.t))=?,
       di: Dynamics.Info.t,
     )
     : list(Sample.t) => {
   let samples =
-    Sample.Selection.filter_by_pin(
-      ~ap_id,
-      ~pinned=di.dyn_cursor.pinned_stack,
-      di.samples,
-    );
+    switch (filtered) {
+    | Some(s) => s
+    | None =>
+      Sample.Selection.filter_by_pin(
+        ~ap_id,
+        ~pinned=di.sample_cursor.pinned_stack,
+        di.samples,
+      )
+    };
   let first_idx =
     Sample.Selection.first_related_index(
-      ~trimmed=false,
+      ~trimmed=true,
       ~ap_id,
-      di.dyn_cursor,
+      di.sample_cursor,
       samples,
     );
   if (first_idx == None && settings.window == Single) {
@@ -254,7 +266,7 @@ let cursor_clss =
   switch (settings.sample_base) {
   | Calls =>
     let relation =
-      DynCursor.relation(~trimmed=true, ~ap_id, di.dyn_cursor, sample);
+      Sample.Cursor.relation(~trimmed=true, ~ap_id, di.sample_cursor, sample);
     let cursor_class =
       switch (
         relation.is_call_cursor,
@@ -296,14 +308,14 @@ let cursor_clss =
 
   | Steps =>
     let relation =
-      DynCursor.relation(~trimmed=true, ~ap_id, di.dyn_cursor, sample);
+      Sample.Cursor.relation(~trimmed=true, ~ap_id, di.sample_cursor, sample);
     let cursor_class =
       switch (
         relation.is_call_cursor,
         relation.is_call_above_call_cursor,
         relation.is_below_indicated_call,
       ) {
-      | (true, _, _) when sample.iter == di.dyn_cursor.iter => ["cursor"]
+      | (true, _, _) when sample.seq == di.sample_cursor.seq => ["cursor"]
       | (_, Some(0), _) => ["cursor-caller", "direct"]
       | (_, Some(_), _) when settings.caller_cutoff == None => [
           "cursor-caller",
@@ -340,8 +352,8 @@ let cursor_clss =
        - After (StepDisjointAfter): cursor-unrelated + below
        - Off Cursor (StepNoFocus): cursor-unrelated only */
     switch (
-      DynCursor.step_containment(
-        ~focus_range=di.dyn_cursor.step_range,
+      Sample.Cursor.step_containment(
+        ~focus_range=di.sample_cursor.step_range,
         sample,
       )
     ) {
@@ -356,7 +368,7 @@ let cursor_clss =
 };
 
 module Debug = {
-  let stack = (stack: Probe.call_stack): string =>
+  let stack = (stack: Sample.call_stack): string =>
     stack |> List.map(Id.str3) |> String.concat("\n");
 
   let str = (~ap_id: option(Id.t), sample: Sample.t): string =>
@@ -365,7 +377,7 @@ module Debug = {
     ++ "\n"
     ++ "ap:"
     ++ (
-      switch (DynCursor.cur_call(ap_id, sample)) {
+      switch (Sample.Cursor.cur_call(ap_id, sample)) {
       | Some([ap_id, ..._]) => Id.str3(ap_id)
       | _ => "None"
       }
@@ -382,9 +394,9 @@ module Debug = {
 
 let pin_call = (~parent, ~ap_id: option(Id.t), ~di: Dynamics.Info.t) =>
   switch (ap_id, Dynamics.Info.is_in(di)) {
-  | (Some(ap_id), Some(dyn_cursor)) =>
+  | (Some(ap_id), Some(sample)) =>
     print_endline("actually pinning call");
-    parent(DynCursor(TogglePinCall([ap_id, ...dyn_cursor.call_stack])));
+    parent(SampleCursor(TogglePin([ap_id, ...sample.call_stack])));
   | _ =>
     print_endline("ignoring");
     Effect.Ignore;
@@ -394,6 +406,7 @@ let value_view =
     (
       ~ap_id: option(Id.t),
       ~settings: settings,
+      ~num_total: int,
       di: Dynamics.Info.t,
       utility: utility,
       view_seg,
@@ -414,7 +427,7 @@ let value_view =
           col: e##.clientX,
         });
     };
-    parent(DynCursor(Capture(sample, ap_id)));
+    parent(SampleCursor(Capture(sample, ap_id)));
   };
 
   let val_pointerup = (e: Js.t(Dom_html.pointerEvent)) => {
@@ -440,26 +453,23 @@ let value_view =
   /* Crude way of giving more space when there's only one sample shown.
    * Really should figure out total length of all samples and divide accordingly */
   let length = SampleLength.get(settings.window, sample);
-  let num_samples =
-    Sample.Selection.filter_by_pin(
-      ~ap_id,
-      ~pinned=di.dyn_cursor.pinned_stack,
-      di.samples,
-    )
-    |> List.length;
-  let length = length == 12 && num_samples == 1 ? 150 : length;
+  /* Use pre-computed num_total instead of filtering again */
+  let length = length == 12 && num_total == 1 ? 150 : length;
   let (seg, length) = abbreviated_seg_of(utility, length, sample.value);
 
   div(
     ~attrs=[
-      Attr.title(Debug.str(~ap_id, sample)),
+      // Attr.title(Debug.str(~ap_id, sample)),
       Attr.classes(
         ["value", length_cls(length)]
         @ cursor_clss(~settings, ~ap_id, di, sample)
         @ (Option.is_some(ap_id) ? ["ap"] : [])
         @ (!ValueChecker.is_value(sample.value) ? ["indet"] : []),
       ),
-      //Attr.on_double_click(_ => local(ToggleShowAllVals(index))),
+      Attr.on_double_click(_ => {
+        Settings.go(ToggleWindow);
+        local(NoOp);
+      }),
       Attr.on_pointerdown(evt =>
         Key.meta_held(evt)
           ? pin_call(~parent, ~ap_id, ~di) : val_pointerdown(evt)
@@ -500,7 +510,7 @@ let env_val =
 };
 
 let show_pin = (~ap_id: option(Id.t), di: Dynamics.Info.t, sample: Sample.t) => {
-  switch (ap_id, di.dyn_cursor.pinned_stack) {
+  switch (ap_id, di.sample_cursor.pinned_stack) {
   | (Some(ap_id), Some(pinned_stack)) =>
     pinned_stack == [ap_id, ...sample.call_stack]
   | _ => false
@@ -511,7 +521,90 @@ let pin_view = (~ap_id: option(Id.t), di: Dynamics.Info.t, sample: Sample.t) =>
   show_pin(~ap_id, di, sample)
     ? [div(~attrs=[Attr.classes(["pin"])], [])] : [];
 
-let env_view =
+/* Generate unique dropdown ID for a sample */
+let dropdown_id = (sample_id: int): string =>
+  "sample-dropdown-" ++ string_of_int(sample_id);
+
+/* Step into handler for sample context menu */
+let step_into_sample =
+    (~parent, ~sample: Sample.t, ~ap_id: Id.t): Ui_effect.t(unit) =>
+  parent(Probe(StepInto(sample, ap_id)));
+
+/* Context actions for a sample (Pin/Unpin, Step Into, etc.) */
+let sample_context_actions =
+    (~parent, ~ap_id: option(Id.t), ~di: Dynamics.Info.t, sample: Sample.t)
+    : list(Node.t) =>
+  switch (ap_id) {
+  | Some(ap_id) =>
+    let is_pinned = show_pin(~ap_id=Some(ap_id), di, sample);
+    [
+      div(
+        ~attrs=[Attr.classes(["context-actions"])],
+        [
+          /* Pin/Unpin action */
+          div(
+            ~attrs=[
+              Attr.classes(
+                ["action-item", "pin-action"] @ (is_pinned ? ["pinned"] : []),
+              ),
+              Attr.on_pointerdown(_ =>
+                pin_call(~parent, ~ap_id=Some(ap_id), ~di)
+              ),
+            ],
+            [
+              div(~attrs=[Attr.classes(["pin-icon"])], []),
+              text(is_pinned ? "Unpin" : "Pin"),
+              span(~attrs=[Attr.classes(["shortcut"])], [text("P")]),
+            ],
+          ),
+          /* Step Into action */
+          div(
+            ~attrs=[
+              Attr.classes(["action-item", "step-into-action"]),
+              Attr.on_pointerdown(_
+                /* Stop propagation to prevent parent wrapper's Focus action
+                   from moving cursor back to the probe after we jump */
+                =>
+                  Effect.Many([
+                    Effect.Stop_propagation,
+                    step_into_sample(~parent, ~sample, ~ap_id),
+                  ])
+                ),
+            ],
+            [
+              div(~attrs=[Attr.classes(["step-into-icon"])], []),
+              text("Step into"),
+              span(~attrs=[Attr.classes(["shortcut"])], [text("Enter")]),
+            ],
+          ),
+        ],
+      ),
+    ];
+  | None => []
+  };
+
+/* Environment section showing variable bindings */
+let sample_environment =
+    (~settings: settings, sample: Sample.t, view_seg, utility: utility)
+    : list(Node.t) => {
+  let elems = sample.env |> ListUtil.dedup |> Sample.Env.remove_opaques;
+  elems == []
+    ? []
+    : [
+      div(
+        ~attrs=[Attr.classes(["environment-section"])],
+        [
+          div(
+            ~attrs=[Attr.classes(["live-env"])],
+            List.map(env_val(~settings, sample, view_seg, utility), elems),
+          ),
+        ],
+      ),
+    ];
+};
+
+/* Sample context menu (dropdown) combining actions and environment */
+let sample_context_menu =
     (
       ~settings: settings,
       ~parent,
@@ -523,39 +616,11 @@ let env_view =
     )
     : Node.t =>
   div(
-    ~attrs=[Attr.classes(["sample-dropdown"])],
-    (
-      ap_id != Option.None
-        ? {
-          let show_pin = show_pin(~ap_id, di, sample);
-          [
-            div(
-              ~attrs=[
-                Attr.classes(
-                  ["live-env-header"] @ (show_pin ? ["pinned"] : []),
-                ),
-                Attr.on_pointerdown(_ => pin_call(~parent, ~ap_id, ~di)),
-              ],
-              [
-                div(~attrs=[Attr.classes(["pin-icon"])], []),
-                text(show_pin ? "Unpin" : "Pin"),
-              ],
-            ),
-          ];
-        }
-        : []
-    )
-    @ {
-      let elems = sample.env |> ListUtil.dedup |> Sample.Env.remove_opaques;
-      elems == []
-        ? []
-        : [
-          div(
-            ~attrs=[Attr.classes(["live-env"])],
-            List.map(env_val(~settings, sample, view_seg, utility), elems),
-          ),
-        ];
-    },
+    ~attrs=
+      [Attr.classes(["sample-context-menu"])]
+      @ SafeTriangle.CSSDropdown.menu_attrs(dropdown_id(sample.id)),
+    sample_context_actions(~parent, ~ap_id, ~di, sample)
+    @ sample_environment(~settings, sample, view_seg, utility),
   );
 
 let sample_view =
@@ -563,19 +628,28 @@ let sample_view =
       ~ap_id: option(Id.t),
       ~hide_env: bool,
       ~settings: settings,
+      ~num_total: int,
       di: Dynamics.Info.t,
       utility: utility,
       view_seg,
       local,
       parent,
       (index: int, sample: Sample.t),
-    ) =>
+    ) => {
+  let has_dropdown = !(hide_env && ap_id == None);
   div(
-    ~attrs=[Attr.classes(["sample"])],
+    ~attrs=
+      [Attr.classes(["sample"])]
+      @ (
+        has_dropdown
+          ? SafeTriangle.CSSDropdown.trigger_attrs(dropdown_id(sample.id))
+          : []
+      ),
     [
       value_view(
         ~ap_id,
         ~settings,
+        ~num_total,
         di,
         utility,
         view_seg,
@@ -587,10 +661,9 @@ let sample_view =
     ]
     @ pin_view(~ap_id, di, sample)
     @ (
-      hide_env && ap_id == None
-        ? []
-        : [
-          env_view(
+      has_dropdown
+        ? [
+          sample_context_menu(
             ~settings,
             ~parent,
             ~ap_id,
@@ -600,14 +673,17 @@ let sample_view =
             utility,
           ),
         ]
+        : []
     ),
   );
+};
 
 let sample_group_view =
     (
       ~ap_id: option(Id.t),
       ~hide_env: bool,
       ~settings: settings,
+      ~num_total: int,
       di: Dynamics.Info.t,
       utility,
       view_seg,
@@ -625,6 +701,7 @@ let sample_group_view =
               ~ap_id,
               ~hide_env,
               ~settings,
+              ~num_total,
               di,
               utility,
               view_seg,
@@ -655,36 +732,26 @@ let mv_least_distant_sample =
     let samples =
       Sample.Selection.filter_by_pin(
         ~ap_id,
-        ~pinned=di.dyn_cursor.pinned_stack,
+        ~pinned=di.sample_cursor.pinned_stack,
         di.samples,
       );
     switch (
       Sample.Selection.closest_to_cursor(
         ~ap_id,
-        ~cursor=di.dyn_cursor,
+        ~cursor=di.sample_cursor,
         samples,
       )
     ) {
-    | Some(selected) => parent(DynCursor(Capture(selected, ap_id)))
+    | Some(selected) => parent(SampleCursor(Capture(selected, ap_id)))
     | None => Effect.Ignore
     };
   | None => Effect.Ignore
   };
 
-let ellipsis_view =
-    (
-      ~ap_id: option(Id.t),
-      local,
-      parent: external_action => Ui_effect.t(unit),
-      info: info,
-    )
-    : Node.t =>
+let ellipsis_view = (local): Node.t =>
   div(
     ~attrs=[
       Attr.classes(["ellipsis"]),
-      Attr.on_pointerdown(
-        mv_least_distant_sample(~ap_id, parent, info.dynamics),
-      ),
       Attr.on_double_click(_ => local(ToggleShowAllVals(0))),
     ],
     [text("⋯")],
@@ -714,7 +781,7 @@ let empty_status_view =
       ~attrs=[
         Attr.classes(["empty-status", "hidden-by-pin"]),
         Attr.title("Samples hidden by pin — click to unpin"),
-        Attr.on_pointerdown(_ => parent(DynCursor(Reset))),
+        Attr.on_pointerdown(_ => parent(SampleCursor(Reset))),
       ],
       [text("⍟")] //📌◌🔒
     )
@@ -731,6 +798,15 @@ let empty_status_view =
       ],
       [text("⊖")],
     )
+  | Evaluating =>
+    /* Animated spinner while waiting for evaluation after step-into */
+    div(
+      ~attrs=[
+        Attr.classes(["empty-status", "evaluating"]),
+        Attr.title("Evaluating..."),
+      ],
+      [text("⟳")],
+    )
   };
 
 let move_cursor =
@@ -743,14 +819,14 @@ let move_cursor =
   let samples =
     Sample.Selection.filter_by_pin(
       ~ap_id,
-      ~pinned=di.dyn_cursor.pinned_stack,
+      ~pinned=di.sample_cursor.pinned_stack,
       di.samples,
     );
   let cursor_idx =
     Sample.Selection.first_related_index(
       ~trimmed=true,
       ~ap_id,
-      di.dyn_cursor,
+      di.sample_cursor,
       samples,
     );
   switch (cursor_idx) {
@@ -758,7 +834,9 @@ let move_cursor =
   | Some(idx) =>
     let next_idx_maybe = idx - offset;
     if (next_idx_maybe >= 0 && next_idx_maybe < List.length(samples)) {
-      parent(DynCursor(Capture(List.nth(samples, next_idx_maybe), ap_id)));
+      parent(
+        SampleCursor(Capture(List.nth(samples, next_idx_maybe), ap_id)),
+      );
     } else {
       Effect.Ignore;
     };
@@ -797,7 +875,7 @@ let num_samples_view = (~ap_id: option(Id.t), di: Dynamics.Info.t) => {
   let num_samples =
     Sample.Selection.filter_by_pin(
       ~ap_id,
-      ~pinned=di.dyn_cursor.pinned_stack,
+      ~pinned=di.sample_cursor.pinned_stack,
       di.samples,
     )
     |> List.length;
@@ -883,11 +961,12 @@ let key_handler =
   open Effect;
   let key = Key.mk(KeyDown, evt);
   switch (key.key) {
+  | D("E" | "e") when key.meta == Down || key.ctrl == Down => parent(Remove)
   | D("Escape") when key.shift == Down =>
     JsUtil.get_elem_by_id(Id.cls(id))##blur;
     Settings.reset_mode();
     SampleLength.reset();
-    parent(DynCursor(Reset));
+    parent(SampleCursor(Reset));
   | D("Escape") =>
     JsUtil.get_elem_by_id(Id.cls(id))##blur;
     Ignore;
@@ -919,6 +998,32 @@ let key_handler =
   | D(" ") =>
     Settings.go(ToggleWindow);
     Many([local(NoOp), Stop_propagation, Prevent_default]); // trigger redraw
+  | D("p") =>
+    /* Pin/Unpin the indicated sample */
+    switch (indicated_sample(~ap_id, di), ap_id) {
+    | (Some(_), Some(ap_id)) =>
+      Many([
+        pin_call(~parent, ~ap_id=Some(ap_id), ~di),
+        Stop_propagation,
+        Prevent_default,
+      ])
+    | _ =>
+      print_endline("pin: no sample or ap_id");
+      Many([Stop_propagation, Prevent_default]);
+    }
+  | D("Enter") =>
+    /* Step into the indicated sample */
+    switch (indicated_sample(~ap_id, di), ap_id) {
+    | (Some(sample), Some(ap_id)) =>
+      Many([
+        Stop_propagation,
+        Prevent_default,
+        step_into_sample(~parent, ~sample, ~ap_id),
+      ])
+    | _ =>
+      print_endline("step into: no sample or ap_id");
+      Many([Stop_propagation, Prevent_default]);
+    }
   | _ => Many([Stop_propagation])
   };
 };
@@ -926,10 +1031,7 @@ let key_handler =
 /* Don't redundantly show an env for variable references, patterns */
 let hide_env = (info: info): bool =>
   switch (info.statics) {
-  | Some(
-      InfoExp({term: {term: Var(_) | Probe({term: Var(_), _}, _), _}, _}),
-    ) =>
-    true
+  | Some(InfoExp({term: {term: Var(_), _}, _})) => true
   | Some(InfoPat(_)) => true
   | _ => false
   };
@@ -948,27 +1050,41 @@ let offside_view =
   switch (info.dynamics) {
   | Some(di) =>
     let id = info.id;
-    let ap_id = DynCursor.cur_ap(info.statics);
+    let ap_id = Sample.Cursor.cur_var_ap(info.statics);
     let hide_env = hide_env(info);
-    let num_total =
+    /* Filter samples once and reuse for both num_total and selection */
+    let filtered_samples =
       Sample.Selection.filter_by_pin(
         ~ap_id,
-        ~pinned=di.dyn_cursor.pinned_stack,
+        ~pinned=di.sample_cursor.pinned_stack,
         di.samples,
-      )
-      |> List.length;
-    let samples = select_samples(~settings, ~id, ~ap_id, di);
+      );
+    let num_total = List.length(filtered_samples);
+    let samples =
+      select_samples(~settings, ~id, ~ap_id, ~filtered=filtered_samples, di);
     let (num_shown, groups) = Sample.Selection.collate(samples);
+
+    /* Check if this probe is the target of a pending step-into focus */
+    let is_evaluating =
+      switch (di.sample_cursor.pending_focus) {
+      | Some({probe_id, _}) => probe_id == id
+      | None => false
+      };
 
     /* Determine what to show when no samples are displayed */
     let empty_status =
-      Sample.Selection.get_empty_status(~num_total, ~num_shown);
+      Sample.Selection.get_empty_status(
+        ~num_total,
+        ~num_shown,
+        ~is_evaluating,
+        (),
+      );
 
     /* Overflow indicator: shown when samples ARE displayed but more exist */
     let has_overflow = num_shown > 0 && num_shown < num_total;
     let overflow_extras = [
       nav_bar_view(~settings, ap_id, di, num_total, parent),
-      ellipsis_view(~ap_id, local, parent, info),
+      ellipsis_view(local),
     ];
 
     Node.div(
@@ -993,6 +1109,7 @@ let offside_view =
             ~ap_id,
             ~hide_env,
             ~settings,
+            ~num_total,
             di,
             utility,
             (~text_only: bool) => view_seg(~text_only, ~background=false),
@@ -1005,7 +1122,7 @@ let offside_view =
     );
   | None =>
     /* No dynamics info means probe was never evaluated */
-    let ap_id = DynCursor.cur_ap(info.statics);
+    let ap_id = Sample.Cursor.cur_var_ap(info.statics);
     Node.div(
       ~attrs=[
         Attr.id(Id.cls(info.id)),
@@ -1031,7 +1148,7 @@ let update = (() as m, _info: info, a: action) => {
 let overlay_view = (info: info): Node.t =>
   switch (info.dynamics) {
   | Some(di) =>
-    let ap_id = DynCursor.cur_ap(info.statics);
+    let ap_id = Sample.Cursor.cur_var_ap(info.statics);
     div(
       ~attrs=[
         Attr.classes(["overlay"] @ (Option.is_some(ap_id) ? ["ap"] : [])),
@@ -1067,15 +1184,15 @@ module M: Projector = {
       keyboard: None,
     };
 
-  let placeholder = (_, info: info) =>
-    ProjectorCore.Shape.inline(
-      String.length(syntax_str(info.utility, info.syntax)),
-    );
+  let placeholder = (_, _) => ProjectorCore.Shape.default;
 
   let update = update;
 
   let view = ({info, local, parent, view_seg, _}: View.args(model, action)) => {
     let settings = Settings.s^;
+    /* Wrap view_seg to fix single_line=true for all probe displays */
+    let view_seg_single_line = (~background=?, ~text_only=?, sort, segment) =>
+      view_seg(~single_line=true, ~background?, ~text_only?, sort, segment);
     View.{
       inline: Node.div([]),
       overlay: Some(overlay_view(info)),
@@ -1086,7 +1203,7 @@ module M: Projector = {
             info,
             local,
             parent,
-            view_seg,
+            view_seg_single_line,
             info.utility,
           ),
         ),

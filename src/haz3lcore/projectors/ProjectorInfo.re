@@ -34,7 +34,7 @@ let utility: ProjectorBase.utility = {
 let mk_info =
     (
       p: Piece.projector,
-      ~dyn_cursor: DynCursor.t,
+      ~sample_cursor: Sample.Cursor.t,
       ~statics: Statics.Map.t,
       ~dynamics: Dynamics.Map.t,
     )
@@ -47,7 +47,7 @@ let mk_info =
     | Some(samples) =>
       Some({
         samples,
-        dyn_cursor,
+        sample_cursor,
       })
     | None => None
     },
@@ -57,14 +57,14 @@ let mk_info =
 module ShapeMapSemantics = {
   let from_semantics =
       (
-        dyn_cursor: Language.DynCursor.t,
+        sample_cursor: Language.Sample.Cursor.t,
         statics: Statics.Map.t,
         dynamics: Dynamics.Map.t,
         p: Base.projector,
       )
       : ProjectorCore.Shape.t => {
     let (module P) = ProjectorInit.to_module(p.kind);
-    P.placeholder(p.model, mk_info(p, ~dyn_cursor, ~statics, ~dynamics));
+    P.placeholder(p.model, mk_info(p, ~sample_cursor, ~statics, ~dynamics));
   };
 
   let mk =
@@ -76,7 +76,7 @@ module ShapeMapSemantics = {
       )
       : Id.Map.t(ProjectorCore.Shape.t) =>
     Id.Map.map(
-      from_semantics(refractors.dyn_cursor, statics, dynamics),
+      from_semantics(refractors.sample_cursor, statics, dynamics),
       proj_map,
     );
 };

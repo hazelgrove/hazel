@@ -5416,17 +5416,7 @@ let out : string * Haz3lcore.PersistentSegment.t =
          (\"Eve\",   13, [(1, 7), (2, 9), (3, 8), (4, 8)], 84, 77)\n\
          ] in ";
       refractors =
-        "((8577a5c1-efab-4a3a-86e2-74e2b159c919((id \
-         8577a5c1-efab-4a3a-86e2-74e2b159c910)(kind Probe)(syntax(Tile((id \
-         24a6d824-2c94-4d12-af82-afafa8c5ac6a)(label(\"(\"\")\"))(mold((out \
-         Any)(in_(Any))(nibs(((shape Convex)(sort Any))((shape Convex)(sort \
-         Any))))))(shards(0 1))(children(((Grout((id \
-         00000000-0000-0000-0000-000000000000)(shape \
-         Convex)))))))))(model\"()\")))(ea9a0dcb-355c-400b-925d-7ade67326348((id \
-         ea9a0dcb-355c-400b-925d-7ade67326349)(kind Probe)(syntax(Tile((id \
-         a5db443f-1160-45d4-9912-7dfae0f743b7)(label(\"(\"\")\"))(mold((out \
-         Any)(in_(Any))(nibs(((shape Convex)(sort Any))((shape Convex)(sort \
-         Any))))))(shards(0 1))(children(((Grout((id \
-         00000000-0000-0000-0000-000000000000)(shape \
-         Convex)))))))))(model\"()\"))))";
+        "((8577a5c1-efab-4a3a-86e2-74e2b159c919((kind \
+         Probe)(model\"()\")))(ea9a0dcb-355c-400b-925d-7ade67326348((kind \
+         Probe)(model\"()\"))))";
     } )
