@@ -673,10 +673,6 @@ module View = {
         ),
         div(
           ~attrs=[Attr.class_("wrap")],
-          auto_probe_indicator(~globals, ~inject),
-        ),
-        div(
-          ~attrs=[Attr.class_("wrap")],
           [
             Editors.View.top_bar(
               ~globals,
@@ -684,6 +680,10 @@ module View = {
               ~editors,
             ),
           ],
+        ),
+        div(
+          ~attrs=[Attr.class_("wrap")],
+          auto_probe_indicator(~globals, ~inject),
         ),
       ],
     );
