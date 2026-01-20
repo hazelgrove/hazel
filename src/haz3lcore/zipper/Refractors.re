@@ -62,6 +62,10 @@ type t = {
      currently being auto-probed (if any). When the cursor moves to
      a different top-level def, an auto-probe is placed on its body. */
   auto_def: option(Id.t),
+  /* When a probe is added, this stores the target IDs (in lexical order)
+     so that when evaluation results return, we can set the sample cursor
+     to the first sample of the first probe that has samples. */
+  pending_probe_cursor: option(list(Id.t)),
 };
 
 let init = {
@@ -69,6 +73,7 @@ let init = {
   autos: empty_auto_state,
   sample_cursor: Language.Sample.Cursor.init,
   auto_def: None,
+  pending_probe_cursor: None,
 };
 
 let persist = (refractors: t): string =>

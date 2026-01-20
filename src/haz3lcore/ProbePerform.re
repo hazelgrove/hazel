@@ -154,6 +154,33 @@ let ids_from_term =
   |> List.flatten
   |> List.filter_map(Fun.id);
 
+/* Sort IDs by lexical position (earliest first).
+ * Uses the start position of each term to determine order. */
+let sort_ids_lexically =
+    (~syntax: CachedSyntax.t, ids: list(Id.t)): list(Id.t) => {
+  let with_positions =
+    List.filter_map(
+      id =>
+        switch (
+          TermData.extreme_measures(id, syntax.term_data, syntax.measured)
+        ) {
+        | Some((start_pt, _)) => Some((id, start_pt.row, start_pt.col))
+        | None => None
+        },
+      ids,
+    );
+  let sorted =
+    List.sort(
+      ((_, r1, c1), (_, r2, c2)) =>
+        switch (Int.compare(r1, r2)) {
+        | 0 => Int.compare(c1, c2)
+        | n => n
+        },
+      with_positions,
+    );
+  List.map(((id, _, _)) => id, sorted);
+};
+
 let maybe_rm_pin = (ids: list(Id.t)): (Zipper.t => Zipper.t) =>
   SampleCursorPerform.update_pinned_call(_, p =>
     switch (p) {
@@ -309,7 +336,21 @@ let add_manual =
 
   /* Remove conflicts, then add new probes */
   let z = rm_manual(conflicting_ids, z);
-  List.fold_left((z, id) => Zipper.add_manual(id, Probe, z), z, target_ids);
+  let z =
+    List.fold_left(
+      (z, id) => Zipper.add_manual(id, Probe, z),
+      z,
+      target_ids,
+    );
+
+  /* Set pending_probe_cursor so sample cursor updates when eval returns */
+  let sorted_ids = sort_ids_lexically(~syntax, target_ids);
+  Zipper.update_refractors(z, r =>
+    {
+      ...r,
+      pending_probe_cursor: Some(sorted_ids),
+    }
+  );
 };
 
 let toggle_manual =
@@ -342,10 +383,15 @@ let add_ids_from_auto_term =
   );
 };
 
+/* Whether to update sample cursor when auto-def mode moves probes.
+ * Set to false to disable cursor following for auto-def mode. */
+let auto_def_updates_cursor = true;
+
 let add_auto =
     (
       id: Id.t,
       ~drill: bool=true,
+      ~set_pending_cursor: bool=true,
       ~syntax: CachedSyntax.t,
       ~info_map: Statics.Map.t,
       z: Zipper.t,
@@ -355,21 +401,37 @@ let add_auto =
      When drill=false, probe the ID directly without drilling into subterms
      (used for auto-def mode to stay on top-level definition). */
   let target_ids = drill ? target_subterm_ids(id, info_map) : [id];
-  Zipper.update_refractors(z, refractors =>
-    {
-      ...refractors,
-      autos: {
-        ...refractors.autos,
-        ids:
-          List.fold_left(
-            (map, id) => Id.Map.add(id, (), map),
-            z.refractors.autos.ids,
-            target_ids,
-          ),
-      },
-    }
-  )
-  |> add_ids_from_auto_term(~syntax, ~info_map);
+  let z =
+    Zipper.update_refractors(z, refractors =>
+      {
+        ...refractors,
+        autos: {
+          ...refractors.autos,
+          ids:
+            List.fold_left(
+              (map, id) => Id.Map.add(id, (), map),
+              z.refractors.autos.ids,
+              target_ids,
+            ),
+        },
+      }
+    )
+    |> add_ids_from_auto_term(~syntax, ~info_map);
+
+  /* Set pending_probe_cursor so sample cursor updates when eval returns */
+  if (set_pending_cursor) {
+    let ephemeral_ids =
+      List.concat_map(ids_from_term(~syntax, ~info_map), target_ids);
+    let sorted_ids = sort_ids_lexically(~syntax, ephemeral_ids);
+    Zipper.update_refractors(z, r =>
+      {
+        ...r,
+        pending_probe_cursor: Some(sorted_ids),
+      }
+    );
+  } else {
+    z;
+  };
 };
 
 let toggle_auto =
@@ -665,9 +727,58 @@ let resolve_pending_focus = (~dynamics: Dynamics.Map.t, z: Zipper.t): Zipper.t =
     }
   };
 
+/* Resolve pending_probe_cursor by finding the first probe ID with samples
+ * and setting the sample cursor to the closest matching sample. */
+let resolve_pending_probe_cursor =
+    (~dynamics: Dynamics.Map.t, z: Zipper.t): Zipper.t =>
+  switch (z.refractors.pending_probe_cursor) {
+  | None => z
+  | Some(target_ids) =>
+    /* Find first ID that has samples */
+    let first_with_samples =
+      List.find_map(
+        id =>
+          switch (Dynamics.Map.lookup(id, dynamics)) {
+          | Some([_, ..._] as s) => Some((id, s))
+          | Some([]) => None
+          | None => None
+          },
+        target_ids,
+      );
+    switch (first_with_samples) {
+    | Some((_id, samples)) =>
+      /* Use closest_to_cursor to pick the best sample based on current cursor,
+       * rather than just the first sample. This preserves user's selection
+       * when adding new probes. */
+      let selected =
+        Sample.Selection.closest_to_cursor(
+          ~ap_id=None,
+          ~cursor=z.refractors.sample_cursor,
+          samples,
+        );
+      switch (selected) {
+      | Some(sample) =>
+        /* Use capture to set sample cursor (preserves deeper stack if applicable) */
+        let z = SampleCursorPerform.capture(z, sample, None);
+        /* Clear pending_probe_cursor */
+        Zipper.update_refractors(z, r =>
+          {...r, pending_probe_cursor: None}
+        );
+      | None =>
+        /* Clear pending anyway since we had samples */
+        Zipper.update_refractors(z, r =>
+          {...r, pending_probe_cursor: None}
+        );
+      };
+    | None =>
+      /* No samples yet - keep pending for next eval cycle */
+      z;
+    };
+  };
+
 /* Post-calculation probe effects: cleanup, auto-probe regeneration,
- * step-into focus resolution, and cursor reset. Called from Editor.calculate
- * after syntax and statics are updated. */
+ * step-into focus resolution, pending probe cursor resolution, and cursor reset.
+ * Called from Editor.calculate after syntax and statics are updated. */
 let editor_effects =
     (
       ~syntax: CachedSyntax.t,
@@ -680,6 +791,7 @@ let editor_effects =
   |> remove_colliding_probes(~syntax)
   |> add_ids_from_auto_term(~syntax, ~info_map)
   |> resolve_pending_focus(~dynamics)
+  |> resolve_pending_probe_cursor(~dynamics)
   |> maybe_reset_cursor;
 
 /* AUTO-DEF MODE: automatically place an auto-probe on the top-level
@@ -836,10 +948,19 @@ let update_auto_def_probe =
       };
 
     /* Add new auto-probe if inside a definition.
-       Use ~drill=false to stay on top-level def, not drill into nested lets. */
+       Use ~drill=false to stay on top-level def, not drill into nested lets.
+       Use auto_def_updates_cursor to control whether cursor follows. */
     let z =
       switch (current_def) {
-      | Some(new_id) => add_auto(new_id, ~drill=false, ~syntax, ~info_map, z)
+      | Some(new_id) =>
+        add_auto(
+          new_id,
+          ~drill=false,
+          ~set_pending_cursor=auto_def_updates_cursor,
+          ~syntax,
+          ~info_map,
+          z,
+        )
       | None => z
       };
 

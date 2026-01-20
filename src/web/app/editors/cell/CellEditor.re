@@ -122,22 +122,23 @@ module Update = {
         editor |> CodeEditable.Model.get_statics,
         result,
       );
-    /* Second pass: if there's a pending focus waiting for dynamics,
-       recalculate editor with the (possibly new) dynamics */
+    /* Second pass: if there's a pending focus or pending_probe_cursor waiting
+       for dynamics, recalculate editor with the (possibly new) dynamics */
+    let needs_second_pass =
+      editor.editor.state.zipper.refractors.sample_cursor.pending_focus != None
+      || editor.editor.state.zipper.refractors.pending_probe_cursor != None;
     let editor =
-      switch (
-        editor.editor.state.zipper.refractors.sample_cursor.pending_focus
-      ) {
-      | None => editor
-      | Some(_) =>
+      if (needs_second_pass) {
         CodeEditable.Update.calculate(
           ~settings,
-          ~is_edited=false, /* Not an edit, just resolving pending focus */
+          ~is_edited=false, /* Not an edit, just resolving pending focus/cursor */
           ~stitch,
           ~dynamics=EvalResult.Model.dynamics(result),
           ~is_dynamic_term=false,
           editor,
-        )
+        );
+      } else {
+        editor;
       };
     {
       editor,
