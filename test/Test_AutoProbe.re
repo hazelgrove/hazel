@@ -331,15 +331,16 @@ let if_expression_tests = [
   ),
 ];
 
-/* FUNCTION TYPE FILTERING - avoid probing function values */
+/* FUNCTION TYPE FILTERING - soft reject function values (probe if nothing better) */
 let function_type_tests = [
   test_probe_placement(
     ~name=
-      "Function literal - probe function body, but not var of function type",
-    ~code={|
-let adder =
+      "Function literal - probe body, fallback to function-typed var if no alternative",
+    ~code=
+      {|
+let adder =              # adder #
   fun x -> x + 1 in      # x + 1 #
-adder|},
+adder                    # adder #|},
   ),
 ];
 
