@@ -57,9 +57,7 @@ let insert_shard = (~id: Id.t, ~d: Direction.t, t: Token.t, z: t): t => {
   } else {
     let sort = Relatives.sort(z.relatives);
     let (label, delim_d) = expansion(sort, t, z);
-    let molds = Form.Molds.get(sort, label);
-    assert(molds != []);
-    let mold = List.hd(molds);
+    let mold = Form.Molds.get(sort, label);
     let shard =
       Tile.split_shards(id, label, mold, List.mapi((i, _) => i, label))
       |> (delim_d == Right ? ListUtil.last : List.hd);
