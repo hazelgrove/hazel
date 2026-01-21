@@ -509,14 +509,16 @@ let insertion_tests = [
     ~goal={|((1))¦|},
   ),
   test(
-    ~name="Forall regrouting edge case (debatable behavior) (#1913)",
-    ~acts=mk({|?:foral¦(?)|}) @ [Insert("l")],
-    ~goal={|?:forall¦(?)|},
+    ~name=
+      "Poly (formerly Forall) regrouting edge case (debatable behavior) (#1913)",
+    ~acts=mk({|?:pol¦(?)|}) @ [Insert("y")],
+    ~goal={|?:poly¦(?)|},
   ),
   test(
-    ~name="Forall regrouting edge case (non-debatable) (#1913)",
-    ~acts=mk({|?:foral¦(?)|}) @ [Insert("l"), Insert("-"), Insert(">")],
-    ~goal={|?:forall?->¦(?)|},
+    ~name=
+      "Poly (formerly Forall) regrouting edge case (non-debatable) (#1913)",
+    ~acts=mk({|?:pol¦(?)|}) @ [Insert("y"), Insert("-"), Insert(">")],
+    ~goal={|?:poly?->¦(?)|},
   ),
   /* In below test, we first cause the two `=`s to merge, then split them.
      The first `=` should not get matched to the `let` because of the parens.

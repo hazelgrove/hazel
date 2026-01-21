@@ -100,7 +100,7 @@ module Delims = {
   let leading = (sort: Sort.t): list(Token.t) =>
     Form.delims
     |> List.map(token => {
-         let (lbl, _) = Form.Expansion.get(token);
+         let (lbl, _) = Form.Expansion.get(sort, token);
          switch (Form.Molds.try_get(sort, lbl)) {
          | None => []
          | Some(molds) =>
