@@ -31,6 +31,10 @@ type expansion =
 [@deriving (show({with_path: false}), sexp, yojson)]
 type expansions = list((Token.t, (Label.t, Direction.t)));
 
+/* Sort-aware expansions include the form's sort for filtering */
+[@deriving (show({with_path: false}), sexp, yojson)]
+type sorted_expansions = list((Token.t, Sort.t, Label.t, Direction.t));
+
 /* A label, a mold, and expansion behavior together determine a form. */
 [@deriving (show({with_path: false}), sexp, yojson)]
 type t = {
@@ -196,6 +200,10 @@ type compound_form =
   | Use
   // TRIPLE DELIMITERS
   | Let
+  | TEST_Let //TODO(andrew): rm
+  | TEST_TypeAlias //TODO(andrew): rm
+  | TEST_Seq
+  | TEST_Curly
   | Theorem
   | TypeAlias
   | If;
@@ -292,6 +300,10 @@ let get: compound_form => t =
   | ProofOf => mk_op_c(L, ["proof_of", "end"], Typ, [Exp])
   // TRIPLE DELIMITERS
   | Let => mk_pre_c(L, ["let", "=", "in"], P.let_, Exp, [Pat, Exp])
+  | TEST_Let => mk_pre_c(L, ["let", "="], P.let_, Pat, [Pat])
+  | TEST_TypeAlias => mk_pre_c(L, ["type", "="], P.let_, Pat, [TPat])
+  | TEST_Seq => mk_infix(";", Pat, P.semi)
+  | TEST_Curly => mk_op_c(LT, ["{", "}"], Pat, [Pat])
   | TypeAlias => mk_pre_c(L, ["type", "=", "in"], P.let_, Exp, [TPat, Typ])
   | If => mk_pre_c(L, ["if", "then", "else"], P.if_, Exp, [Exp, Exp])
   | HintedTest => mk_op_c(L, ["hint", "test", "end"], Exp, [Exp, Exp]);
@@ -478,6 +490,7 @@ module Molds = {
 };
 
 module Expansion = {
+  /* Sort-agnostic expansion info (for backward compatibility) */
   let expanding_of = ({expansion, label, _}: t): option(expansions) =>
     switch (expansion, label) {
     | (L, [hd, ..._]) => Some([(hd, (label, Direction.Left))])
@@ -486,19 +499,75 @@ module Expansion = {
     | _ => None
     };
 
+  /* Sort-aware expansion info - uses nib sorts for context matching.
+     Leading delimiters use left nib sort (the context you're in when typing).
+     Trailing delimiters use right nib sort.
+
+     Note: This uses nib sort rather than mold.out because the nib sort
+     reflects what context you're typing in, not what the form produces.
+     For example, Rule ["|", "=>"] has out=Rul but left nib=Exp, since
+     you type | after an expression (the previous rule body).
+
+     Limitation: Ascriptions (expr : Type) have Typ right nib even though
+     they produce Exp. This causes issues for forms like | that can follow
+     ascribed expressions. See Insert.re for the special case handling. */
+  let sorted_expanding_of =
+      ({expansion, label, mold}: t): option(sorted_expansions) => {
+    let (l_nib, r_nib) = mold.nibs;
+    switch (expansion, label) {
+    | (L, [hd, ..._]) => Some([(hd, l_nib.sort, label, Direction.Left)])
+    | (LT, [hd, ..._]) =>
+      Some([
+        (hd, l_nib.sort, label, Left),
+        (ListUtil.last(label), r_nib.sort, label, Right),
+      ])
+    | _ => None
+    };
+  };
+
+  /* Sort-agnostic expansions (kept for is_leading) */
   let expansions: expansions =
     List.filter_map(((_, form: t)) => expanding_of(form), forms)
     |> List.flatten
     |> List.sort_uniq(compare);
 
-  let get = (t: Token.t): (Label.t, Direction.t) =>
-    switch (List.assoc_opt(t, expansions)) {
-    | Some(expansion) => expansion
-    | None => ([t], Right)
+  /* Sort-aware expansions */
+  let sorted_expansions: sorted_expansions =
+    List.filter_map(((_, form: t)) => sorted_expanding_of(form), forms)
+    |> List.flatten;
+
+  /* Get expansion for a token in a specific sort context.
+     Returns monotile if no expansion exists for this sort.
+     Exception: Rul context is permissive - falls back to any expansion.
+     This is because Rul (case rules) contains Exp/Pat operands but has no
+     direct forms for things like parens. Other sorts remain strict. */
+  let get = (sort: Sort.t, t: Token.t): (Label.t, Direction.t) => {
+    let matching =
+      sorted_expansions
+      |> List.find_opt(((tok, s, _, _)) => tok == t && s == sort);
+    switch (matching) {
+    | Some((_, _, lbl, dir)) => (lbl, dir)
+    | None =>
+      switch (sort) {
+      | Rul =>
+        /* Rul context: fall back to any expansion since rules contain
+           Exp/Pat operands but have no direct operand forms. */
+        let any_match =
+          sorted_expansions |> List.find_opt(((tok, _, _, _)) => tok == t);
+        switch (any_match) {
+        | Some((_, _, lbl, dir)) => (lbl, dir)
+        | None => ([t], Right)
+        };
+      | _ => ([t], Right)
+      }
     };
+  };
 
-  let will = kw => List.length(get(kw) |> fst) > 1;
+  /* Check if token would expand in ANY sort (sort-agnostic) */
+  let will = (t: Token.t): bool =>
+    List.exists(((tok, _, _, _)) => tok == t, sorted_expansions);
 
+  /* Check if token is a leading delimiter in ANY sort (sort-agnostic) */
   let is_leading = (t: Token.t): bool =>
     switch (List.assoc_opt(t, expansions)) {
     | Some((_, Left)) => true
