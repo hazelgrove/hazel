@@ -306,7 +306,7 @@ module View = {
             }
           )
         : [];
-    let t0 = JsUtil.precise_timestamp();
+    // let t0 = JsUtil.precise_timestamp();
     let zipper = model.editor.state.zipper;
     let refractor_data =
       RefractorView.mk_data(
@@ -324,7 +324,7 @@ module View = {
         ~editor_active=selected,
       );
     /* TODO(andrew): remove profilling before merge */
-    let t1 = JsUtil.precise_timestamp();
+    // let t1 = JsUtil.precise_timestamp();
     /* Use visible row range from model (updated by scroll handler) */
     let visible = globals.visible_rows;
     let refractors_model =
@@ -335,7 +335,7 @@ module View = {
         ~visible?,
         refractor_data,
       );
-    let t2 = JsUtil.precise_timestamp();
+    // let t2 = JsUtil.precise_timestamp();
     let projectors =
       ProjectorView.all(
         x => inject(Perform(x)),
@@ -351,31 +351,31 @@ module View = {
           ~editor_active=selected,
         ),
       );
-    let t3 = JsUtil.precise_timestamp();
-    let num_refractors =
-      Id.Map.cardinal(
-        Id.Map.union(
-          (_, _, b) => Some(b),
-          model.editor.state.zipper.refractors.manuals,
-          model.editor.state.zipper.refractors.autos.ephemerals,
-        ),
-      );
-    if (num_refractors > 0) {
-      let visible_str =
-        switch (visible) {
-        | Some({first, last}) =>
-          Printf.sprintf(" visible_rows=%d-%d", first, last)
-        | None => ""
-        };
-      Printf.printf(
-        "[Probe Perf] refractor_data: %.2fms, all_refractors: %.2fms, projectors: %.2fms (n=%d)%s\n",
-        t1 -. t0,
-        t2 -. t1,
-        t3 -. t2,
-        num_refractors,
-        visible_str,
-      );
-    };
+    // let t3 = JsUtil.precise_timestamp();
+    // let num_refractors =
+    //   Id.Map.cardinal(
+    //     Id.Map.union(
+    //       (_, _, b) => Some(b),
+    //       model.editor.state.zipper.refractors.manuals,
+    //       model.editor.state.zipper.refractors.autos.ephemerals,
+    //     ),
+    //   );
+    // if (num_refractors > 0) {
+    //   let visible_str =
+    //     switch (visible) {
+    //     | Some({first, last}) =>
+    //       Printf.sprintf(" visible_rows=%d-%d", first, last)
+    //     | None => ""
+    //     };
+    //   Printf.printf(
+    //     "[Probe Perf] refractor_data: %.2fms, all_refractors: %.2fms, projectors: %.2fms (n=%d)%s\n",
+    //     t1 -. t0,
+    //     t2 -. t1,
+    //     t3 -. t2,
+    //     num_refractors,
+    //     visible_str,
+    //   );
+    // };
     let overlays =
       [Node.div(~attrs=[Attr.classes(["code-deco"])], edit_decos)]
       @ [Node.div(~attrs=[Attr.classes(["overlays"])], overlays)]

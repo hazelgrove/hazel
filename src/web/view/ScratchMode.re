@@ -388,16 +388,16 @@ module Update = {
     | [] => ()
     | _ =>
       /* TODO(andrew): remove profiling before final merge */
-      let start_time = JsUtil.precise_timestamp();
+      // let start_time = JsUtil.precise_timestamp();
       WorkerClient.request(
         worker_request^,
         ~handler=
           r => {
-            let elapsed = JsUtil.precise_timestamp() -. start_time;
-            Js_of_ocaml.Firebug.console##log_2(
-              Js_of_ocaml.Js.string("Eval round-trip (ms):"),
-              elapsed,
-            );
+            // let elapsed = JsUtil.precise_timestamp() -. start_time;
+            // Js_of_ocaml.Firebug.console##log_2(
+            //   Js_of_ocaml.Js.string("Eval round-trip (ms):"),
+            //   elapsed,
+            // );
             schedule_action(
               CellAction(
                 ResultAction(
@@ -413,14 +413,14 @@ module Update = {
                   ),
                 ),
               ),
-            );
+            )
           },
         ~timeout=
           _ =>
             schedule_action(
               CellAction(ResultAction(UpdateResult(ResultFail(Timeout)))),
             ),
-      );
+      )
     };
     let new_sp =
       ListUtil.put_nth(model.current, (key, new_ed), model.scratchpads);

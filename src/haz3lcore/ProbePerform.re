@@ -420,6 +420,8 @@ let add_auto =
 
   /* Set pending_probe_cursor so sample cursor updates when eval returns */
   if (set_pending_cursor) {
+    /* Use the same target_ids that go into autos.ids, so the ephemeral IDs
+       match what add_ids_from_auto_term computes for sample lookup. */
     let ephemeral_ids =
       List.concat_map(ids_from_term(~syntax, ~info_map), target_ids);
     let sorted_ids = sort_ids_lexically(~syntax, ephemeral_ids);
