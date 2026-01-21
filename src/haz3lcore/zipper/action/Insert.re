@@ -43,8 +43,8 @@ let insert_shard = (~id: Id.t, ~d: Direction.t, t: Token.t, z: t): t => {
     Zipper.put_down_target(d, target, z);
   } else {
     let (label, delim_d) = expansion(t, z);
-    let molds = Form.Molds.get(label);
-    assert(molds != []);
+    let local_sort = Relatives.sort(z.relatives);
+    let molds = Form.Molds.get(local_sort, label);
     let mold = List.hd(molds);
     let shard =
       Tile.split_shards(id, label, mold, List.mapi((i, _) => i, label))

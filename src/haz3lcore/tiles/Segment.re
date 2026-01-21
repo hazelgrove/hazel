@@ -107,21 +107,24 @@ let rec remold = (~shape=Nib.Shape.concave(), seg: t, s: Sort.t) =>
 and remold_tile = (s: Sort.t, shape, t: Tile.t): option(Tile.t) => {
   open OptUtil.Syntax;
   let+ remolded =
-    Form.Molds.get(t.label)
-    |> List.filter((m: Mold.t) => m.out == s)
-    |> List.map(mold =>
-         {
-           ...t,
-           mold,
-         }
-       )
-    |> (
-      fun
-      | [_] as ts => ts
-      | ts =>
-        ts |> List.filter(t => Nib.Shape.fits(shape, fst(Tile.shapes(t))))
-    )
-    |> ListUtil.hd_opt;
+    switch (Form.Molds.try_get(s, t.label)) {
+    | None => None
+    | Some(molds) =>
+      molds
+      |> List.map(mold =>
+           {
+             ...t,
+             mold,
+           }
+         )
+      |> (
+        fun
+        | [_] as ts => ts
+        | ts =>
+          ts |> List.filter(t => Nib.Shape.fits(shape, fst(Tile.shapes(t))))
+      )
+      |> ListUtil.hd_opt
+    };
   let children =
     List.fold_right(
       ((l, child, r), children) => {
