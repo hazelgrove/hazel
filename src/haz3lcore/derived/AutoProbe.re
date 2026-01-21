@@ -430,9 +430,14 @@ let candidate_allowed_by_holes =
     };
   };
 
+/* Soft reject: allow function-typed terms only if no better alternative */
 let candidate_allowed_by_function_types =
-    (candidate_id: Id.t, env: selection_env): bool =>
-  !has_function_type(candidate_id, env.info_map);
+    (candidate_id: Id.t, row: row_context, env: selection_env): bool =>
+  if (has_function_type(candidate_id, env.info_map)) {
+    !row_has_non_hole_alternative(candidate_id, row.ids, env.terms, env.data);
+  } else {
+    true;
+  };
 
 let candidate_allowed_by_container =
     (candidate_id: Id.t, env: selection_env): bool =>
@@ -502,7 +507,7 @@ let candidate_is_allowed =
     : bool =>
   candidate_allowed_by_term_sort(candidate_id, env)
   && candidate_allowed_by_holes(candidate_id, row, env)
-  && candidate_allowed_by_function_types(candidate_id, env)
+  && candidate_allowed_by_function_types(candidate_id, row, env)
   && candidate_allowed_by_container(candidate_id, env)
   && candidate_allowed_by_let_hole(candidate_id, row, env);
 //&& candidate_allowed_by_variables(candidate_id, env, state);
