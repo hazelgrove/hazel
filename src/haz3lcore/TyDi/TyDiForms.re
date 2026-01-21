@@ -101,12 +101,15 @@ module Delims = {
     Form.delims
     |> List.map(token => {
          let (lbl, _) = Form.Expansion.get(token);
-         List.filter_map(
-           (m: Mold.t) =>
-             List.length(lbl) > 1 && token == List.hd(lbl) && m.out == sort
-               ? Some(token ++ leading_expander) : None,
-           Form.Molds.get(lbl),
-         );
+         switch (Form.Molds.try_get(sort, lbl)) {
+         | None => []
+         | Some(molds) =>
+           molds
+           |> List.filter_map((_: Mold.t) =>
+                List.length(lbl) > 1 && token == List.hd(lbl)
+                  ? Some(token ++ leading_expander) : None
+              )
+         };
        })
     |> List.flatten
     |> List.sort_uniq(compare);
@@ -151,12 +154,14 @@ module Delims = {
   let const_mono = (sort: Sort.t): list(Token.t) =>
     Token.const_mono_delims
     |> List.map(token => {
-         List.filter_map(
-           (m: Mold.t) =>
-             m.out == sort && List.mem(token, Token.const_mono_delims)
-               ? Some(token) : None,
-           Form.Molds.get([token]),
-         )
+         switch (Form.Molds.try_get(sort, [token])) {
+         | None => []
+         | Some(molds) =>
+           molds
+           |> List.filter_map((_: Mold.t) =>
+                List.mem(token, Token.const_mono_delims) ? Some(token) : None
+              )
+         }
        })
     |> List.flatten
     |> List.sort_uniq(compare);

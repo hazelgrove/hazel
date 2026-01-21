@@ -423,22 +423,57 @@ module Molds = {
   let compound = (label: Label.t): option(list(Mold.t)) =>
     List.assoc_opt(label, compounds);
 
-  let get = (label: Label.t): list(Mold.t) =>
+  /* Base: get molds from form definitions without sort filtering */
+  let get_base = (label: Label.t): option(list(Mold.t)) =>
     switch (label, compound(label)) {
-    | ([t], Some(molds)) when atomic(t) != [] => atomic(t) @ molds
-    | ([t], None) when atomic(t) != [] => atomic(t)
-    | (_, Some(molds)) => molds
-    /* For tokens which are not assigned molds by the language definition,
-       we assign a default 'Any' mold, which is either convex or concave.
-       This is half-ass at the moment as we don't have a rigorous lexing
-       policy, but is somewhat load-bearing in that remolding as one is
-       typing in a multi-character operator can cause jank, which is
-       alleviated if we correctly guess that it will become an operator. */
-    | ([t], None)
-        when Token.is_potential_operator(t) && !Token.is_potential_operand(t) => [
-        Mold.mk_bin(Precedence.max, Any, []),
-      ]
-    | (_, None) => [Mold.mk_op(Any, [])]
+    | ([t], Some(molds)) when atomic(t) != [] => Some(atomic(t) @ molds)
+    | ([t], None) when atomic(t) != [] => Some(atomic(t))
+    | (_, Some(molds)) => Some(molds)
+    | _ => None
+    };
+
+  /* Strict: filter by sort, returns None if no match.
+     Used by remolding where we need accurate sort filtering. */
+  let try_get = (sort: Sort.t, label: Label.t): option(list(Mold.t)) =>
+    switch (get_base(label)) {
+    | None => None
+    | Some(molds) =>
+      let filtered = molds |> List.filter((m: Mold.t) => m.out == sort);
+      filtered == [] ? None : Some(filtered);
+    };
+
+  /* Permissive: filter monotiles by sort, but allow wrong-sort for
+     multi-delimiter forms so expansion machinery still works.
+     Used by insertion where we want sort-awareness but need expansion. */
+  let try_get_permissive =
+      (sort: Sort.t, label: Label.t): option(list(Mold.t)) =>
+    switch (get_base(label)) {
+    | None => None
+    | Some(molds) =>
+      if (List.length(label) == 1) {
+        let filtered = molds |> List.filter((m: Mold.t) => m.out == sort);
+        filtered == [] ? None : Some(filtered);
+      } else {
+        Some(molds);
+      }
+    };
+
+  /* Get molds for insertion: permissive sort filtering with fallback
+     to Any-sorted default molds for undefined tokens. */
+  let get = (sort: Sort.t, label: Label.t): list(Mold.t) =>
+    switch (try_get_permissive(sort, label)) {
+    | Some(molds) => molds
+    | None =>
+      /* Fallback: create Any-sorted default mold. This handles tokens
+         not assigned molds by the language definition. */
+      switch (label) {
+      | [t]
+          when
+            Token.is_potential_operator(t) && !Token.is_potential_operand(t) => [
+          Mold.mk_bin(Precedence.max, Any, []),
+        ]
+      | _ => [Mold.mk_op(Any, [])]
+      }
     };
 };
 

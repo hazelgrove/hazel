@@ -80,6 +80,29 @@ let delete_parent = ({siblings, ancestors}: t): t => {
   };
 };
 
+/* The sort at the current insertion point, accounting for
+ * infix operators with heterogeneous child sorts (e.g. type
+ * annotation ':' in patterns). This looks at the right nib
+ * of the last tile to the left, which determines what sort
+ * should come next - the same logic used by Segment.remold. */
+let sort = ({siblings: (pre, _), ancestors}: t): Sort.t => {
+  let outer_sort = Ancestors.sort(ancestors);
+  let rec find_last_tile =
+    fun
+    | [] => None
+    | [p, ...rest] =>
+      switch (Piece.is_tile(p)) {
+      | Some(t) => Some(t)
+      | None => find_last_tile(rest)
+      };
+  switch (find_last_tile(List.rev(pre))) {
+  | None => outer_sort
+  | Some(t) =>
+    let (_, r) = Tile.nibs(t);
+    r.sort;
+  };
+};
+
 let remold = ({siblings, ancestors}: t): t => {
   let s = Ancestors.sort(ancestors);
   let siblings = Siblings.remold(siblings, s);
