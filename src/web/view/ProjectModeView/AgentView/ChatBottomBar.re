@@ -10,7 +10,7 @@ open JsUtil;
 // Shared bottom bar component for Chat and Workbench views
 let view =
     (
-      ~globals as _: Globals.t,
+      ~globals: Globals.t,
       ~agent_model: Agent.Agent.Model.t,
       ~agent_inject: Agent.Agent.Update.Action.t => Effect.t(unit),
       ~signal: Editors.View.signal => Effect.t(unit),
@@ -129,10 +129,10 @@ let view =
   // Export OpenRouter messages function
   let export_chat = _ => {
     let messages = Agent.Chat.Utils.get(current_chat);
-    let api_messages = Agent.Chat.Utils.api_messages_of_messages(messages);
     let messages_json =
-      `List(
-        List.map(OpenRouter.Message.Utils.json_of_message, api_messages),
+      Agent.Chat.Utils.json_of_messages(
+        messages,
+        AgentGlobals.get_active_llm_id(globals.settings.agent_globals),
       );
     let filename =
       StringUtil.sanitize_filename(current_chat.title)
@@ -157,7 +157,7 @@ let view =
     let format_message = (msg: Agent.Message.Model.t): string => {
       switch (msg.role) {
       | Agent.Message.Model.User => "User: " ++ msg.content ++ "\n\n"
-      | Agent.Message.Model.Agent => "LLM: " ++ msg.content ++ "\n\n"
+      | Agent.Message.Model.Agent(_) => "LLM: " ++ msg.content ++ "\n\n"
       | Agent.Message.Model.ToolResult(tool_result) =>
         "Tool Call: "
         ++ tool_result.tool_call.name

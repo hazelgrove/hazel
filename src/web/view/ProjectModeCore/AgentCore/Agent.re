@@ -1,6 +1,8 @@
 open Util;
+open Util.API;
 open Haz3lcore;
 open OptUtil.Syntax;
+open Ppx_yojson_conv_lib.Yojson_conv;
 
 /* Thinkpad
    We will want 3 types of display messages
@@ -59,7 +61,7 @@ module Message = {
     // User messages appear on right
     // System messages auxillary
     type role =
-      | Agent
+      | Agent(option(OpenRouter.Reply.Model.usage))
       | ToolResult(OpenRouter.Reply.Model.tool_result)
       | User
       | System(system_kind);
@@ -119,13 +121,15 @@ module Message = {
         current_child: None,
       };
     };
-    let mk_agent_message = (content: string): Model.t => {
+    let mk_agent_message =
+        (content: string, usage: option(OpenRouter.Reply.Model.usage))
+        : Model.t => {
       let sanitized_content = String.trim(content);
       {
         id: Id.mk(),
         content: sanitized_content,
         timestamp: JsUtil.timestamp(),
-        role: Agent,
+        role: Agent(usage),
         api_message:
           Some(OpenRouter.Message.Utils.mk_assistant_msg(sanitized_content)),
         children: [],
@@ -274,6 +278,78 @@ module Message = {
       };
     };
 
+    let json_of_message = (message: Model.t): Json.t =>
+      `Assoc([
+        (
+          "role",
+          switch (message.role) {
+          | Agent(_) => `String("assistant")
+          | User => `String("user")
+          | ToolResult(_) => `String("tool")
+          | System(_) => `String("system")
+          },
+        ),
+        ("content", `String(message.content)),
+        (
+          "details",
+          switch (message.role) {
+          | System(system_kind) =>
+            switch (system_kind) {
+            | ApiFailure => `String("api_failure")
+            | DeveloperNotes => `String("developer_notes")
+            | Prompt => `String("prompt")
+            | Context => `String("context")
+            }
+          | ToolResult(tool_result) =>
+            `Assoc([
+              ("tool_call_id", `String(tool_result.tool_call.id)),
+              ("name", `String(tool_result.tool_call.name)),
+              (
+                "arguments",
+                `String(Yojson.Safe.to_string(tool_result.tool_call.args)),
+              ),
+              ("success", `Bool(tool_result.success)),
+              (
+                "diff",
+                switch (tool_result.diff) {
+                | Some(diff) =>
+                  switch (diff.new_segment) {
+                  | Some(new_segment) =>
+                    `Assoc([
+                      (
+                        "old",
+                        `String(
+                          Printer.of_segment(~holes="?", diff.old_segment),
+                        ),
+                      ),
+                      (
+                        "new",
+                        `String(Printer.of_segment(~holes="?", new_segment)),
+                      ),
+                    ])
+                  | None => `Null
+                  }
+                | None => `Null
+                },
+              ),
+            ])
+          | _ => `Null
+          },
+        ),
+        (
+          "usage",
+          switch (message.role) {
+          | Agent(usage) =>
+            switch (usage) {
+            | Some(usage) => OpenRouter.Reply.Model.yojson_of_usage(usage)
+            | None => `Null
+            }
+          | _ => `Null
+          },
+        ),
+        ("timestamp", `Float(message.timestamp)),
+      ]);
+
     let append_to_message = (message: Model.t, content: string): Model.t => {
       let updated_content = message.content ++ content;
       let sanitized_content = StringUtil.trim_leading(updated_content);
@@ -379,6 +455,23 @@ module Chat = {
     let api_messages_of_messages =
         (messages: list(Message.Model.t)): list(OpenRouter.Message.Model.t) => {
       List.filter_map(Message.Utils.api_message_of_message, messages);
+    };
+
+    let json_of_messages =
+        (messages: list(Message.Model.t), model_id: option(string)): Json.t => {
+      `Assoc([
+        (
+          "model_id",
+          switch (model_id) {
+          | Some(id) => `String(id)
+          | None => `Null
+          },
+        ),
+        (
+          "messages",
+          `List(List.map(Message.Utils.json_of_message, messages)),
+        ),
+      ]);
     };
 
     let current_tail = (chat: Model.t): Message.Model.t => {
@@ -686,7 +779,7 @@ module ChunkedUIChat = {
               log: acc_model.log @ [chunk],
             };
             convert_helper(rest, updated_model);
-          | Agent =>
+          | Agent(_) =>
             switch (curr_last_chunk(acc_model)) {
             | AgentResponseChunk(agent_response_chunk) =>
               let agent_response_chunk = {
@@ -1457,7 +1550,8 @@ module Agent = {
         "Handling LLM response: " ++ OpenRouter.Reply.Model.show(reply),
       );
       let tool_call = ListUtil.hd_opt(reply.tool_calls);
-      let new_message = Message.Utils.mk_agent_message(reply.content);
+      let new_message =
+        Message.Utils.mk_agent_message(reply.content, reply.usage);
       let chat_system =
         ChatSystem.Update.update(
           ChatSystem.Update.Action.ChatAction(

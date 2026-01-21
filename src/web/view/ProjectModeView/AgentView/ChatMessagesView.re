@@ -512,7 +512,7 @@ let view =
         agent_chunk.content
         |> List.filter_map((msg: Agent.Message.Model.t) => {
              switch (msg.role) {
-             | Agent =>
+             | Agent(_) =>
                // Only show agent message if it has content
                if (msg.content != "" && String.trim(msg.content) != "") {
                  Some(
