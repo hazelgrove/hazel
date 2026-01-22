@@ -82,8 +82,22 @@ let tests =
               TPat.var("A2"),
               Typ.(
                 sum([
-                  Variant("A", Language.ConstructorMap.mk_variant_ann(~ids=[Util.Id.mk()], ()), None),
-                  Variant("A", Language.ConstructorMap.mk_variant_ann(~ids=[Util.Id.mk()], ()), None),
+                  Variant(
+                    "A",
+                    Language.ConstructorMap.mk_variant_ann(
+                      ~ids=[Util.Id.mk()],
+                      (),
+                    ),
+                    None,
+                  ),
+                  Variant(
+                    "A",
+                    Language.ConstructorMap.mk_variant_ann(
+                      ~ids=[Util.Id.mk()],
+                      (),
+                    ),
+                    None,
+                  ),
                 ])
               ),
               empty_hole(),

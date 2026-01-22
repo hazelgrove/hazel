@@ -699,10 +699,7 @@ let roundtrip_defensive_paren_tests = (
     /* Note: `forall` is expression-level only (exp forall pat -> exp).
        The type-level construct is `poly` (type poly tpat -> typ). */
     /* Nested rec/poly types */
-    roundtrip_test(
-      {|Nested rec types|},
-      {|1 : rec t -> rec u -> (t, u)|},
-    ),
+    roundtrip_test({|Nested rec types|}, {|1 : rec t -> rec u -> (t, u)|}),
   ],
 );
 
@@ -735,7 +732,6 @@ let fact = fun n ->
   else n * fact(n - 1)
 in fact(5)|},
     ),
-
     /* Fibonacci with double line breaks */
     roundtrip_test(
       {|Fibonacci: single line|},
@@ -761,7 +757,6 @@ in
 #compute 10th fibonacci number#
 fib(10)|},
     ),
-
     /* List map with case expression */
     roundtrip_test(
       {|Map: single line|},
@@ -788,7 +783,6 @@ in
 #increment each element#
 map(fun x -> x + 1)([1, 2, 3])|},
     ),
-
     /* Fold with multiple function arguments */
     roundtrip_test(
       {|Fold: single line|},
@@ -820,7 +814,6 @@ in
 #sum a list of numbers#
 fold(fun (a, b) -> a + b)(0)([1, 2, 3, 4, 5])|},
     ),
-
     /* Filter with nested if */
     roundtrip_test(
       {|Filter: single line|},
@@ -838,7 +831,6 @@ fold(fun (a, b) -> a + b)(0)([1, 2, 3, 4, 5])|},
   end
 in filter(fun x -> x > 2)([1, 2, 3, 4])|},
     ),
-
     /* Multiple let bindings with various spacing */
     roundtrip_test(
       {|Multiple lets: compact|},
@@ -872,7 +864,6 @@ let c = 3 in
 #result#
 a + b + c|},
     ),
-
     /* Nested functions and applications */
     roundtrip_test(
       {|Nested: compose|},
@@ -892,7 +883,6 @@ let add5and10 = add5(10)
 in
 add5and10(15)|},
     ),
-
     /* Type annotations with formatting */
     roundtrip_test(
       {|Typed: multiline function|},
@@ -900,7 +890,6 @@ add5and10(15)|},
   fun x -> x
 in id @<Int>(42)|},
     ),
-
     /* Complex nested structure */
     roundtrip_test(
       {|Complex: deeply nested|},

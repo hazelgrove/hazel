@@ -357,7 +357,11 @@ let tests =
             Typ.sum([
               Variant("A", ConstructorMap.empty_variant_ann, None),
               Variant("B", ConstructorMap.empty_variant_ann, None),
-              Variant("C", ConstructorMap.empty_variant_ann, Some(Typ.int())),
+              Variant(
+                "C",
+                ConstructorMap.empty_variant_ann,
+                Some(Typ.int()),
+              ),
             ]),
           ),
           ap(Forward, constructor("C", None), int(7)),

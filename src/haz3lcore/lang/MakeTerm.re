@@ -185,12 +185,20 @@ let log_projector = (pr: Base.projector): unit => {
 
 /* Convert IdTagged secondary to ConstructorMap secondary.
    Both use the same Secondary.t type, so this is just a type cast. */
-let to_variant_secondary = (sec: IdTagged.IdTag.secondary_runs): ConstructorMap.secondary_runs => sec;
+let to_variant_secondary =
+    (sec: IdTagged.IdTag.secondary_runs): ConstructorMap.secondary_runs => sec;
 
 let parse_sum_term: Typ.t => ConstructorMap.variant(Typ.t) =
   fun
   | {term: Var(ctr), annotation: {ids, secondary}} =>
-    Variant(ctr, {ids, secondary: to_variant_secondary(secondary)}, None)
+    Variant(
+      ctr,
+      {
+        ids,
+        secondary: to_variant_secondary(secondary),
+      },
+      None,
+    )
   /* Constructor applications in sum type definitions are implemented as having type sort;
      until they are reimplemented as their own sort, we must prevent these from being parsed
      into types, where they can go on to mess with statics. Thus we let them fall through to
@@ -200,7 +208,10 @@ let parse_sum_term: Typ.t => ConstructorMap.variant(Typ.t) =
         Unknown(
           Hole(
             MultiHole([
-              Typ({term: Var(ctr), annotation: {ids: ids_ctr, secondary: (inner_before, _)}}),
+              Typ({
+                term: Var(ctr),
+                annotation: {ids: ids_ctr, secondary: (inner_before, _)},
+              }),
               Typ(u),
             ]),
           ),
@@ -209,7 +220,14 @@ let parse_sum_term: Typ.t => ConstructorMap.variant(Typ.t) =
     } =>
     /* For constructor applications, use the inner before (constructor's leading space)
        and outer after (trailing space on the whole application) for round-tripping */
-    Variant(ctr, {ids: ids_ctr @ ids_ap, secondary: (inner_before, outer_after)}, Some(u))
+    Variant(
+      ctr,
+      {
+        ids: ids_ctr @ ids_ap,
+        secondary: (inner_before, outer_after),
+      },
+      Some(u),
+    )
   | t => BadEntry(t);
 
 let mk_bad = (ctr, ids, value) => {

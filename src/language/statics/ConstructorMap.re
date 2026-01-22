@@ -15,8 +15,14 @@ type variant_ann = {
   secondary: secondary_runs,
 };
 
-let empty_variant_ann: variant_ann = {ids: [], secondary: empty_secondary};
-let mk_variant_ann = (~ids, ~secondary=empty_secondary, ()): variant_ann => {ids, secondary};
+let empty_variant_ann: variant_ann = {
+  ids: [],
+  secondary: empty_secondary,
+};
+let mk_variant_ann = (~ids, ~secondary=empty_secondary, ()): variant_ann => {
+  ids,
+  secondary,
+};
 
 /* Variant now stores full annotation to preserve secondary for round-tripping.
    Previously stored only list(Id.t), losing whitespace information. */

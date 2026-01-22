@@ -397,7 +397,10 @@ and Typ: {
                   | {term: Var(c), annotation: {ids, _}} =>
                     ConstructorMap.Variant(
                       c,
-                      {ids, secondary: ann.secondary},
+                      {
+                        ids,
+                        secondary: ann.secondary,
+                      },
                       Option.map(typ_map_term, t),
                     )
                   | t => BadEntry(typ_map_term(t))

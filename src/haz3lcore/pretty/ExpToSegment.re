@@ -31,8 +31,8 @@ module Settings = {
 
   type t = {
     secondary: secondary_handling,
-    parenthesization: parenthesization,
-    label_format: label_format,
+    parenthesization,
+    label_format,
     inline: bool, /* Only applies when secondary = AutoFormat */
     fold_case_clauses: bool,
     fold_fn_bodies: [
@@ -612,7 +612,8 @@ and parenthesize_pat =
         |> List.map(paren_pat_at(Precedence.prod)),
       )
       |> rewrap;
-    already_paren || !should_auto_wrap_tuple ? inner : Parens(inner) |> Pat.fresh;
+    already_paren || !should_auto_wrap_tuple
+      ? inner : Parens(inner) |> Pat.fresh;
   | Label(_) => pat
   | TupLabel(l, p) =>
     TupLabel(l, parenthesize_pat(p) |> paren_pat_at(Precedence.min))
@@ -704,7 +705,8 @@ and parenthesize_typ =
         |> List.map(paren_typ_at(Precedence.comma)),
       )
       |> rewrap;
-    already_paren || !should_auto_wrap_tuple ? inner : Parens(inner) |> Typ.fresh;
+    already_paren || !should_auto_wrap_tuple
+      ? inner : Parens(inner) |> Typ.fresh;
   | ExplicitNonlabel => typ
   | Label(_) => typ
   | TupLabel(l, t) =>
@@ -770,7 +772,11 @@ and parenthesize_typ =
 }
 
 and parenthesize_tpat =
-    (~parenthesization: Settings.parenthesization, ~show_filters: bool, tpat: TPat.t)
+    (
+      ~parenthesization: Settings.parenthesization,
+      ~show_filters: bool,
+      tpat: TPat.t,
+    )
     : TPat.t => {
   let (term, rewrap: TPat.term => TPat.t) = IdTagged.unwrap(tpat);
   switch (term) {
@@ -789,7 +795,11 @@ and parenthesize_tpat =
 }
 
 and parenthesize_rul =
-    (~parenthesization: Settings.parenthesization, ~show_filters: bool, rul: Rul.t)
+    (
+      ~parenthesization: Settings.parenthesization,
+      ~show_filters: bool,
+      rul: Rul.t,
+    )
     : Rul.t => {
   let (term, rewrap: Rul.term => Rul.t) = IdTagged.unwrap(rul);
   switch (term) {
@@ -827,9 +837,16 @@ and parenthesize_any =
     )
     : Any.t =>
   switch (any) {
-  | Exp(e) => Exp(parenthesize(~parenthesization, ~already_paren, ~show_filters, e))
-  | Pat(p) => Pat(parenthesize_pat(~parenthesization, ~already_paren, ~show_filters, p))
-  | Typ(t) => Typ(parenthesize_typ(~parenthesization, ~already_paren, ~show_filters, t))
+  | Exp(e) =>
+    Exp(parenthesize(~parenthesization, ~already_paren, ~show_filters, e))
+  | Pat(p) =>
+    Pat(
+      parenthesize_pat(~parenthesization, ~already_paren, ~show_filters, p),
+    )
+  | Typ(t) =>
+    Typ(
+      parenthesize_typ(~parenthesization, ~already_paren, ~show_filters, t),
+    )
   | TPat(tp) => TPat(parenthesize_tpat(~parenthesization, ~show_filters, tp))
   | Rul(r) => Rul(parenthesize_rul(~parenthesization, ~show_filters, r))
   | Any(_) => any
@@ -1697,7 +1714,7 @@ and typ_to_pretty = (~settings: Settings.t, typ: Typ.t): pretty => {
     switch (settings.secondary) {
     | PreserveExact =>
       let (before, after) = ann.secondary;
-      secondary_to_segment(before) @ seg @ secondary_to_segment(after)
+      secondary_to_segment(before) @ seg @ secondary_to_segment(after);
     | AutoFormat => seg
     };
   let go_constructor: ConstructorMap.variant(Typ.t) => pretty =
