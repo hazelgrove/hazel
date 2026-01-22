@@ -7,6 +7,9 @@
 $ npm install
 ```
 ```
+npm install -g ts-node
+```
+```
 
 $ cd src/llm-tests
 
@@ -17,7 +20,7 @@ $ ts-node run-task.ts \
 --apiKey <Your OpenRouter API Key> \
 --model nvidia/nemotron-nano-9b-v2:free \
 --url https://hazel.org/build/project-mode \
---headless true \
+--headless false \
 --outputDir test-results \
 --attemptTimeoutMs 120000 \
 --retries 2
