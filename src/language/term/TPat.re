@@ -37,8 +37,5 @@ let show_cls: cls => string =
 let temp: term => t =
   term => {
     term,
-    annotation: {
-      ids: [Id.invalid],
-      secondary: IdTagged.IdTag.empty_secondary,
-    },
+    annotation: IdTagged.IdTag.temp(),
   };

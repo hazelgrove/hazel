@@ -845,7 +845,8 @@ let (@) = (seg1: Segment.t, seg2: Segment.t): Segment.t =>
 
 let fold_if = (condition, pieces) =>
   if (condition) {
-    let syntax = mk_form(~secondary=AutoFormat, ParensExp, Id.mk(), [pieces]);
+    let syntax =
+      mk_form(~secondary=AutoFormat, ParensExp, Id.mk(), [pieces]);
     switch (MakeTerm.for_projection([syntax])) {
     | None => failwith("ExpToSegment.fold_if")
     | Some(any) => [ProjectorInit.init_or_noop(Fold, syntax, any)]
@@ -857,7 +858,8 @@ let fold_if = (condition, pieces) =>
 let fold_fun_if = (condition, f_name: string, pieces, exp) =>
   switch (condition) {
   | `Fold =>
-    let syntax = mk_form(~secondary=AutoFormat, ParensExp, Id.mk(), [pieces]);
+    let syntax =
+      mk_form(~secondary=AutoFormat, ParensExp, Id.mk(), [pieces]);
     let str =
       FoldProj.sexp_of_t({
         text: f_name,

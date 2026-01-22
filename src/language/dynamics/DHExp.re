@@ -13,15 +13,7 @@ include Exp;
 let term_of: t => term = IdTagged.term_of;
 let fast_copy: (Id.t, t) => t = IdTagged.fast_copy;
 
-let mk = (ids, term): t => {
-  {
-    term,
-    annotation: {
-      ids,
-      secondary: IdTagged.IdTag.empty_secondary,
-    },
-  };
-};
+let mk = (ids, term): t => IdTagged.mk(ids, term);
 
 // Also strips static error holes - kinda like unelaboration
 let rec strip_ascriptions =

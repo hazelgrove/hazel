@@ -52,11 +52,7 @@ let menhir_matches = (exp: Exp.t, actual: string) =>
     "menhir matches expected parse",
     exp,
     Grammar.map_exp_annotation(
-      _: IdTagged.IdTag.t =>
-        {
-          ids: [Id.invalid],
-          secondary: IdTagged.IdTag.empty_secondary,
-        },
+      _: IdTagged.IdTag.t => IdTagged.IdTag.temp(),
       Conversion.Exp.of_menhir_ast(Interface.parse_program(actual)),
     ),
   );
@@ -89,11 +85,7 @@ let menhir_maketerm_equivalent_test =
       "Menhir parse matches MakeTerm parse",
       make_term_parse(actual),
       Grammar.map_exp_annotation(
-        _: IdTagged.IdTag.t =>
-          {
-            ids: [Id.invalid],
-            secondary: IdTagged.IdTag.empty_secondary,
-          },
+        _: IdTagged.IdTag.t => IdTagged.IdTag.temp(),
         Conversion.Exp.of_menhir_ast(Interface.parse_program(actual)),
       ),
     )

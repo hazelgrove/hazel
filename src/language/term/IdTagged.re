@@ -16,13 +16,30 @@ module IdTag = {
     secondary: secondary_runs,
   };
 
+  /* Constructors for IdTag.t */
+
+  /* Create annotation with fresh id and empty secondary */
   let fresh = (): t => {
     ids: [Id.mk()],
     secondary: empty_secondary,
   };
+
+  /* Create annotation with invalid id and empty secondary (for temporary terms) */
   let temp = (): t => {
     ids: [Id.invalid],
     secondary: empty_secondary,
+  };
+
+  /* Create annotation with specific ids and empty secondary */
+  let mk = (ids: list(Id.t)): t => {
+    ids,
+    secondary: empty_secondary,
+  };
+
+  /* Create annotation with specific ids and secondary */
+  let mk_secondary = (ids: list(Id.t), secondary: secondary_runs): t => {
+    ids,
+    secondary,
   };
 };
 
@@ -34,20 +51,37 @@ type t('a) = Grammar.Annotated.t('a, IdTag.t);
 //   (fmt_a, formatter, ta) => {
 //     fmt_a(formatter, ta.term);
 //   };
-let fresh = (term: 'a): Grammar.Annotated.t('a, IdTag.t) => {
-  {
-    term,
-    annotation: IdTag.fresh(),
-  };
+/* Constructors for t('a) - wrapped terms */
+
+/* Create term with fresh id and empty secondary */
+let fresh = (term: 'a): t('a) => {
+  term,
+  annotation: IdTag.fresh(),
 };
+
+/* Create term with deterministic next id and empty secondary */
 let fresh_deterministic = (prev_id, term): t('a) => {
-  {
-    term,
-    annotation: {
-      ids: [Id.next(prev_id)],
-      secondary: IdTag.empty_secondary,
-    },
-  };
+  term,
+  annotation: IdTag.mk([Id.next(prev_id)]),
+};
+
+/* Create term with specific ids and empty secondary */
+let mk = (ids: list(Id.t), term: 'a): t('a) => {
+  term,
+  annotation: IdTag.mk(ids),
+};
+
+/* Create term with specific ids and secondary */
+let mk_secondary =
+    (ids: list(Id.t), secondary: IdTag.secondary_runs, term: 'a): t('a) => {
+  term,
+  annotation: IdTag.mk_secondary(ids, secondary),
+};
+
+/* Create term copying ids from another term, with empty secondary */
+let copy_ids = ({annotation: {ids, _}, _}: t('b), term: 'a): t('a) => {
+  term,
+  annotation: IdTag.mk(ids),
 };
 
 let term_of = (x: Grammar.Annotated.t('a, 'b)) => x.term;

@@ -375,10 +375,7 @@ and uexp_to_info_map =
       add'(~self=e.self, ~co_ctx=e.co_ctx, m);
     | UnOp(Meta(Unquote), e) when is_in_filter =>
       let e: Exp.t = {
-        annotation: {
-          ids: IdTagged.ids(e),
-          secondary: IdTagged.IdTag.empty_secondary,
-        },
+        annotation: IdTagged.IdTag.mk(IdTagged.ids(e)),
         term:
           switch (e.term) {
           | Var("e") =>
@@ -2163,10 +2160,7 @@ and variant_to_info_map =
         ),
         {
           term: Var(ctr),
-          annotation: {
-            ids,
-            secondary: IdTagged.IdTag.empty_secondary,
-          },
+          annotation: IdTagged.IdTag.mk(ids),
         },
         m,
       )

@@ -207,10 +207,7 @@ let parse_sum_term: Typ.t => ConstructorMap.variant(Typ.t) =
 
 let mk_bad = (ctr, ids, value) => {
   let t: Typ.t = {
-    annotation: {
-      ids,
-      secondary: get_secondary(ids),
-    },
+    annotation: IdTagged.IdTag.mk_secondary(ids, get_secondary(ids)),
     term: Var(ctr),
   };
   switch (value) {
@@ -246,13 +243,7 @@ and exp = unsorted => {
     return(
       e => Exp(e),
       ids,
-      {
-        annotation: {
-          ids,
-          secondary: get_secondary(ids),
-        },
-        term,
-      },
+      IdTagged.mk_secondary(ids, get_secondary(ids), term),
     );
   switch (term) {
   | TupLabel(_) =>
@@ -405,10 +396,11 @@ and exp_term: unsorted => (Exp.term, list(Id.t)) = {
             Forward,
             l,
             {
-              annotation: {
-                ids: [Id.nullary_ap_flag],
-                secondary: get_secondary([Id.nullary_ap_flag]),
-              },
+              annotation:
+                IdTagged.IdTag.mk_secondary(
+                  [Id.nullary_ap_flag],
+                  get_secondary([Id.nullary_ap_flag]),
+                ),
               term: Tuple([]),
             },
           ),
@@ -417,10 +409,11 @@ and exp_term: unsorted => (Exp.term, list(Id.t)) = {
         let use_deferral = (arg: Exp.t): Exp.t => {
           let deferral_ids = IdTagged.ids(arg);
           {
-            annotation: {
-              ids: deferral_ids,
-              secondary: get_secondary(deferral_ids),
-            },
+            annotation:
+              IdTagged.IdTag.mk_secondary(
+                deferral_ids,
+                get_secondary(deferral_ids),
+              ),
             term: Deferral(InAp),
           };
         };
@@ -568,13 +561,7 @@ and pat = unsorted => {
     return(
       p => Pat(p),
       ids,
-      {
-        annotation: {
-          ids,
-          secondary: get_secondary(ids),
-        },
-        term,
-      },
+      IdTagged.mk_secondary(ids, get_secondary(ids), term),
     );
   switch (term) {
   | TupLabel(_) => Tuple([p]) |> Pat.fresh
@@ -701,13 +688,7 @@ and typ = unsorted => {
     return(
       ty => Typ(ty),
       ids,
-      {
-        term,
-        annotation: {
-          ids,
-          secondary: get_secondary(ids),
-        },
-      },
+      IdTagged.mk_secondary(ids, get_secondary(ids), term),
     );
   switch (term) {
   | TupLabel(_) => Prod([t]) |> Typ.fresh
@@ -832,13 +813,7 @@ and tpat = unsorted => {
   return(
     ty => TPat(ty),
     ids,
-    {
-      term,
-      annotation: {
-        ids,
-        secondary: get_secondary(ids),
-      },
-    },
+    IdTagged.mk_secondary(ids, get_secondary(ids), term),
   );
 }
 and tpat_term: unsorted => TPat.term = {
@@ -867,10 +842,7 @@ and rul = (unsorted): Rul.t => {
   let e = exp(unsorted);
   let mk_rules = (scrut: Exp.t, rules, ids): Rul.t => {
     term: Rules(scrut, rules),
-    annotation: {
-      ids,
-      secondary: get_secondary(ids),
-    },
+    annotation: IdTagged.IdTag.mk_secondary(ids, get_secondary(ids)),
   };
   switch (e) {
   | {term: MultiHole(_), _} =>

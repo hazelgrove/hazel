@@ -471,7 +471,10 @@ let roundtrip_tests = (
     roundtrip_test({|Let: compact|}, {|let x=1 in x|}),
     roundtrip_test({|Let: newline in body|}, {|let x = 1 in
 x|}),
-    roundtrip_test({|Let: nested standard|}, {|let x = 1 in let y = 2 in x + y|}),
+    roundtrip_test(
+      {|Let: nested standard|},
+      {|let x = 1 in let y = 2 in x + y|},
+    ),
     roundtrip_test({|Let: nested compact|}, {|let x=1 in let y=2 in x+y|}),
     /* Multiline let expressions */
     roundtrip_test({|Let: multiline def|}, {|let x =
@@ -499,7 +502,10 @@ x|}),
 x|}),
     /* Case expressions */
     roundtrip_test({|Case: single line|}, {|case x | A => 1 end|}),
-    roundtrip_test({|Case: multiple clauses|}, {|case x | A => 1| B => 2 end|}),
+    roundtrip_test(
+      {|Case: multiple clauses|},
+      {|case x | A => 1| B => 2 end|},
+    ),
     roundtrip_test({|Case: multiline|}, {|case x
 | A => 1
 | B => 2
@@ -520,23 +526,41 @@ then 1
 else 2|}),
     /* Nested expressions */
     roundtrip_test({|Nested: parens|}, {|((1 + 2))|}),
-    roundtrip_test({|Nested: complex standard|}, {|let f = fun x -> x + 1 in f(42)|}),
-    roundtrip_test({|Nested: complex compact|}, {|let f=fun x->x+1 in f(42)|}),
+    roundtrip_test(
+      {|Nested: complex standard|},
+      {|let f = fun x -> x + 1 in f(42)|},
+    ),
+    roundtrip_test(
+      {|Nested: complex compact|},
+      {|let f=fun x->x+1 in f(42)|},
+    ),
     roundtrip_test({|Nested: deeply nested ops|}, {|((1 + 2) * (3 - 4))|}),
     /* Application */
     roundtrip_test({|Application: standard|}, {|f(x)|}),
     roundtrip_test({|Application: multiple args|}, {|f(x, y, z)|}),
     roundtrip_test({|Application: with spaces|}, {|f( x , y )|}),
     /* Complex mixed expressions */
-    roundtrip_test({|Complex: let with binop body|}, {|let x = 1 + 2 in x * 3|}),
+    roundtrip_test(
+      {|Complex: let with binop body|},
+      {|let x = 1 + 2 in x * 3|},
+    ),
     roundtrip_test({|Complex: function returning binop|}, {|fun x -> x + 1|}),
-    roundtrip_test({|Complex: if with binop|}, {|if x > 0 then x + 1 else x - 1|}),
+    roundtrip_test(
+      {|Complex: if with binop|},
+      {|if x > 0 then x + 1 else x - 1|},
+    ),
     /* Multiline complex */
-    roundtrip_test({|Complex: multiline let chain|}, {|let x = 1 in
+    roundtrip_test(
+      {|Complex: multiline let chain|},
+      {|let x = 1 in
 let y = 2 in
-x + y|}),
-    roundtrip_test({|Complex: multiline function|}, {|let f = fun x ->
+x + y|},
+    ),
+    roundtrip_test(
+      {|Complex: multiline function|},
+      {|let f = fun x ->
   x + 1
-in f(42)|}),
+in f(42)|},
+    ),
   ],
 );

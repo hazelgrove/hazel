@@ -265,18 +265,12 @@ let wrap_filter =
               "$e",
               Some(Some(Unknown(Internal) |> Language.Typ.fresh)),
             ),
-          annotation: {
-            ids: [Id.mk()],
-            secondary: Language.IdTagged.IdTag.empty_secondary,
-          },
+          annotation: Language.IdTagged.IdTag.fresh(),
         },
       }),
       term,
     ),
-  annotation: {
-    ids: [Id.mk()],
-    secondary: Language.IdTagged.IdTag.empty_secondary,
-  },
+  annotation: Language.IdTagged.IdTag.fresh(),
 };
 
 let wrap = (term, editor: Editor.t): TermItem.t => {
@@ -327,64 +321,43 @@ let rec append_exp = (e1: Language.Exp.t, e2: Language.Exp.t): Language.Exp.t =>
   | Forall(_)
   | Match(_) => {
       term: Seq(e1, e2),
-      annotation: {
-        ids: [Id.mk()],
-        secondary: Language.IdTagged.IdTag.empty_secondary,
-      },
+      annotation: Language.IdTagged.IdTag.fresh(),
     }
   | Seq(e11, e12) =>
     let e12' = append_exp(e12, e2);
     {
       term: Seq(e11, e12'),
-      annotation: {
-        ids: Language.IdTagged.ids(e1),
-        secondary: Language.IdTagged.IdTag.empty_secondary,
-      },
+      annotation: Language.IdTagged.IdTag.mk(Language.IdTagged.ids(e1)),
     };
   | Filter(kind, ebody) =>
     let ebody' = append_exp(ebody, e2);
     {
       term: Filter(kind, ebody'),
-      annotation: {
-        ids: Language.IdTagged.ids(e1),
-        secondary: Language.IdTagged.IdTag.empty_secondary,
-      },
+      annotation: Language.IdTagged.IdTag.mk(Language.IdTagged.ids(e1)),
     };
   | Let(p, edef, ebody) =>
     let ebody' = append_exp(ebody, e2);
     {
       term: Let(p, edef, ebody'),
-      annotation: {
-        ids: Language.IdTagged.ids(e1),
-        secondary: Language.IdTagged.IdTag.empty_secondary,
-      },
+      annotation: Language.IdTagged.IdTag.mk(Language.IdTagged.ids(e1)),
     };
   | Theorem(p, edef, ebody) =>
     let ebody' = append_exp(ebody, e2);
     {
       term: Theorem(p, edef, ebody'),
-      annotation: {
-        ids: Language.IdTagged.ids(e1),
-        secondary: Language.IdTagged.IdTag.empty_secondary,
-      },
+      annotation: Language.IdTagged.IdTag.mk(Language.IdTagged.ids(e1)),
     };
   | TyAlias(tp, tdef, ebody) =>
     let ebody' = append_exp(ebody, e2);
     {
       term: TyAlias(tp, tdef, ebody'),
-      annotation: {
-        ids: Language.IdTagged.ids(e1),
-        secondary: Language.IdTagged.IdTag.empty_secondary,
-      },
+      annotation: Language.IdTagged.IdTag.mk(Language.IdTagged.ids(e1)),
     };
   | Use(t, ebody) =>
     let ebody' = append_exp(ebody, e2);
     {
       term: Use(t, ebody'),
-      annotation: {
-        ids: Language.IdTagged.ids(e1),
-        secondary: Language.IdTagged.IdTag.empty_secondary,
-      },
+      annotation: Language.IdTagged.IdTag.mk(Language.IdTagged.ids(e1)),
     };
   };
 };
