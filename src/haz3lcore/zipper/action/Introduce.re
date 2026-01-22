@@ -240,6 +240,7 @@ module Make =
     let seg =
       I.to_segment(
         ~settings={
+          secondary: AutoFormat,
           inline: true,
           fold_case_clauses: false,
           fold_fn_bodies: `NoFold,

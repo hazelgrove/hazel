@@ -14,12 +14,14 @@ let empty: t = {
   term: {
     annotation: {
       ids: [Id.invalid],
+      secondary: IdTagged.IdTag.empty_secondary,
     },
     term: Tuple([]),
   },
   elaborated: {
     annotation: {
       ids: [Id.invalid],
+      secondary: IdTagged.IdTag.empty_secondary,
     },
     term: Tuple([]),
   },

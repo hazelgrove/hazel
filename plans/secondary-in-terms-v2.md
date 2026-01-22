@@ -237,7 +237,7 @@ let test_roundtrip = (seg: Segment.t) => {
 };
 ```
 
-Start simple (atoms, binary ops), progress to complex (nested expressions, n-ary forms). Include tests with leading/trailing whitespace.
+Start simple (atoms, binary ops), progress to complex (nested expressions, n-ary forms). Include tests with leading/trailing whitespace. Eventually we want property-based tests; check out some of the other tests in the codebase for inspiration here.
 
 ## File Changes
 
@@ -284,3 +284,174 @@ Round-tripping should preserve IDs exactly since they're stored in the annotatio
 ### Normalization
 
 Preserve secondary exactly during collection. Normalization (e.g., collapsing multiple spaces) can be a separate optional pass.
+
+---
+
+## Addendum: Learnings from Initial Implementation
+
+### Completed Work (Phases 1-3)
+
+Phases 1-3 were implemented successfully:
+- `IdTag.t` extended with `secondary: (list(Secondary.t), list(Secondary.t))`
+- `Segment.SecondaryCollection` module created to collect outer secondary
+- `MakeTerm` integrated to populate term annotations during parsing
+
+### Phase 4 Correction: ExpToSegment Design
+
+The original Phase 4 description said:
+> When secondary is empty `([], [])`, fall back to current heuristic spacing.
+
+This was a flawed design. The problem: empty secondary `([], [])` is meaningful—it means "the user wrote no whitespace here." Falling back to heuristics for empty secondary means `1+2` becomes `1 + 2`, which breaks round-tripping.
+
+**Correct approach:** ExpToSegment needs two clearly separated modes:
+
+1. **PreserveExact**: Use exactly what's stored in term annotations
+   - Empty secondary `([], [])` means emit nothing
+   - Don't use the heuristic `@` operator—use plain list concatenation
+   - Ignore `inline` and other auto-formatting settings
+
+2. **AutoFormat**: Generate secondary heuristically (current/original behavior)
+   - Use the heuristic `@` operator that adds spaces between pieces
+   - `inline` setting controls newline insertion
+   - This is what ExpToSegment did before this work
+
+### Revised ExpToSegment.Settings
+
+```reason
+module Settings = {
+  type secondary_handling =
+    | PreserveExact   // Round-trip: use exactly what's stored
+    | AutoFormat;     // Display: generate heuristically
+
+  type t = {
+    secondary: secondary_handling,
+    inline: bool,  // Only applies when secondary = AutoFormat
+    fold_case_clauses: bool,
+    fold_fn_bodies: [`Fold | `Text | `NoFold],
+    hide_fixpoints: bool,
+    show_filters: bool,
+    show_unknown_as_hole: bool,
+  };
+};
+```
+
+**Key insight:** The `inline` setting (and potentially other auto-formatting options) only makes sense with `AutoFormat`. With `PreserveExact`, we use exactly what's in the term—no heuristic decisions.
+
+**Note on folding options:** `fold_case_clauses`, `fold_fn_bodies`, `hide_fixpoints` are about projector display, not secondary/whitespace. They remain orthogonal to `secondary_handling`. For round-trip tests, we'll set these to their non-folding defaults.
+
+### Implementation Strategy for PreserveExact
+
+When `secondary = PreserveExact`:
+
+1. **Don't use heuristic `@`**: The custom `@` operator in PrettySegment adds spaces between pieces. With `PreserveExact`, use `List.append` (or `Stdlib.(@)`) instead.
+
+2. **Emit stored secondary unconditionally**:
+   ```reason
+   let emit_with_secondary = (term, content) => {
+     let (before, after) = term.annotation.secondary;
+     secondary_to_segment(before) @ content @ secondary_to_segment(after)
+   };
+   ```
+   Even when `before` and `after` are empty lists, this is correct—it emits nothing.
+
+3. **Thread the mode through**: The `secondary_handling` setting needs to affect how segments are joined throughout the pretty-printing process, not just at the `wrap` stage.
+
+### Phase 5 Revision: Testing Strategy
+
+**Unit tests for each syntactic form:**
+- Test with standard spacing (spaces around operators, after commas)
+- Test with no spacing (compact: `1+2`, `(1,2,3)`)
+- Test with extra spacing (`1  +  2`)
+- Test with newlines where applicable
+- Use `{| |}` string syntax for multi-line tests
+
+**Test organization:**
+- Passing tests: forms that round-trip correctly
+- Skipped tests: known limitations (document why)
+- Build up incrementally: atoms → binary ops → let/fun → tuples/lists → case → nested
+
+**Known limitations to document:**
+- Projectors won't round-trip (future work)
+- Any edge cases discovered during testing
+
+**Eventual goal:** Property-based tests that verify arbitrary segments round-trip, but start with comprehensive unit tests first.
+
+### Files Still Requiring Changes
+
+| File | Change |
+|------|--------|
+| `ExpToSegment.re` | Add `secondary_handling` type; implement `PreserveExact` mode with plain concatenation |
+| `Test_ExpToSegment.re` | Refactor tests to use new settings; add comprehensive per-form tests |
+
+### Phase 4 Completed: Selective Collection for Compound Expressions
+
+During testing, we discovered that chained binary operations like `1 + 2 + 3` caused duplication—the same whitespace was being stored on multiple terms. For example, the space between `2` and the second `+` was being claimed by both `2`'s after-secondary AND the inner BinOp's after-secondary.
+
+**Root Cause Analysis:**
+
+For skeleton nodes, `Skel.range` returns the full span of the expression including operands. This means:
+- For `Bin(left, op, right)`: range = (left.start, right.end)
+- The parent's `before` position = left child's `before` position
+- The parent's `after` position = right child's `after` position
+
+Both parent and child were collecting from the same position, causing duplication.
+
+**Solution: Selective Collection by Node Type**
+
+Each skeleton node type has different boundary ownership:
+
+| Node Type | Store before? | Store after? | Reason |
+|-----------|---------------|--------------|--------|
+| **Op** (leaf) | Yes | Yes | No children to conflict |
+| **Bin** | No | No | Both boundaries overlap with children |
+| **Pre** | Yes | No | Before is operator, after overlaps with operand |
+| **Post** | No | Yes | Before overlaps with operand, after is operator |
+
+This ensures each piece of secondary is collected exactly once:
+- Spaces adjacent to operands → stored on the operand (leaves)
+- Spaces adjacent to operators (not operands) → stored on the compound expression (Pre/Post)
+
+**Verification Examples:**
+
+`1 + 2 + 3` with standard spacing:
+- "1": after=[" "] (index 1)
+- "2": before=[" "] (index 3), after=[" "] (index 5)
+- "3": before=[" "] (index 7)
+- Inner Bin: nothing (per rule)
+- Outer Bin: nothing (per rule)
+- ✓ All 4 spaces assigned exactly once
+
+`a + ! b` (prefix in binary context):
+- "a": after=[" "] (index 1)
+- Pre `!b`: before=[" "] (index 3) — the space before the operator
+- "b": before=[" "] (index 5) — the space between `!` and `b`
+- Outer Bin: nothing
+- ✓ All 3 spaces assigned exactly once
+
+**Implementation:** Modified `SecondaryCollection.collect_from_skel` to conditionally collect before/after based on the skeleton node type.
+
+### Implementation Complete
+
+All phases are now complete:
+
+1. ✅ Phase 1: Extended `IdTag.t` with `secondary` field
+2. ✅ Phase 2: Created `SecondaryCollection` module with selective collection
+3. ✅ Phase 3: Integrated collection into `MakeTerm`
+4. ✅ Phase 4: Implemented `PreserveExact` mode in `ExpToSegment`
+5. ✅ Phase 5: Comprehensive round-trip tests (54 tests covering all major forms)
+
+**Test Coverage:**
+- Simple atoms (integers, floats, booleans, strings, variables)
+- Binary operations (standard, compact, chained, 4-term chains)
+- Prefix operators (negation, not, with/without spaces)
+- Mixed prefix/binary combinations
+- Let expressions (standard, compact, nested)
+- Tuples and lists (standard, compact, extra spaces, empty)
+- Functions (standard, compact, with body spaces)
+- Case expressions (single and multiple clauses)
+- Type annotations and type aliases
+- If expressions
+- Nested/complex expressions
+- Application (single and multiple args)
+
+All 1288 tests pass, including 54 dedicated round-trip tests.

@@ -62,6 +62,7 @@ let temp: term => t =
     term,
     annotation: {
       ids: [Id.invalid],
+      secondary: IdTagged.IdTag.empty_secondary,
     },
   };
 let fresh: term => t = IdTagged.fresh;
@@ -401,6 +402,7 @@ let (replace_all_ids, replace_all_ids_typ) = {
         ...exp,
         annotation: {
           ids: [Id.mk()],
+          secondary: IdTagged.IdTag.empty_secondary,
         },
       }
       |> continue;

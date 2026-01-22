@@ -126,6 +126,21 @@ let record_term_data = (sort: Sort.t, seg: Segment.t, skel: Skel.t): unit =>
 /* Map to collect projector ids */
 let projectors: ref(Id.Map.t(Piece.projector)) = ref(Id.Map.empty);
 
+/* Map from tile IDs to their outer secondary (before, after) */
+let secondary_map: ref(Segment.SecondaryCollection.secondary_map) =
+  ref(Id.Map.empty);
+
+/* Look up outer secondary for a term by its representative ID */
+let get_secondary = (ids: list(Id.t)): IdTagged.IdTag.secondary_runs =>
+  switch (ids) {
+  | [id, ..._] =>
+    switch (Id.Map.find_opt(id, secondary_map^)) {
+    | Some(sec) => sec
+    | None => IdTagged.IdTag.empty_secondary
+    }
+  | [] => IdTagged.IdTag.empty_secondary
+  };
+
 /* Track IDs that are "adopted" from inner terms into outer multi-tile forms.
  *
  * PROBLEM: List literals and case expressions are multi-tile forms where the
@@ -193,7 +208,8 @@ let parse_sum_term: Typ.t => ConstructorMap.variant(Typ.t) =
 let mk_bad = (ctr, ids, value) => {
   let t: Typ.t = {
     annotation: {
-      ids: ids,
+      ids,
+      secondary: get_secondary(ids),
     },
     term: Var(ctr),
   };
@@ -232,7 +248,8 @@ and exp = unsorted => {
       ids,
       {
         annotation: {
-          ids: ids,
+          ids,
+          secondary: get_secondary(ids),
         },
         term,
       },
@@ -278,7 +295,7 @@ and exp_term: unsorted => (Exp.term, list(Id.t)) = {
       | (["[", "]"], [Exp(body)]) =>
         // ListLit absorption: inner Tuple's comma IDs become part of ListLit
         switch (body) {
-        | {annotation: {ids}, term: Tuple(es)} =>
+        | {annotation: {ids, _}, term: Tuple(es)} =>
           adopted_ids := ids @ adopted_ids^;
           // Addresses tup_labels in lists like: [l=32, 1]
           (
@@ -390,6 +407,7 @@ and exp_term: unsorted => (Exp.term, list(Id.t)) = {
             {
               annotation: {
                 ids: [Id.nullary_ap_flag],
+                secondary: get_secondary([Id.nullary_ap_flag]),
               },
               term: Tuple([]),
             },
@@ -397,10 +415,14 @@ and exp_term: unsorted => (Exp.term, list(Id.t)) = {
         )
       | (["(", ")"], [Exp(arg)]) =>
         let use_deferral = (arg: Exp.t): Exp.t => {
-          annotation: {
-            ids: IdTagged.ids(arg),
-          },
-          term: Deferral(InAp),
+          let deferral_ids = IdTagged.ids(arg);
+          {
+            annotation: {
+              ids: deferral_ids,
+              secondary: get_secondary(deferral_ids),
+            },
+            term: Deferral(InAp),
+          };
         };
         switch (arg.term) {
         | Var(l) when Token.is_livelit(l) =>
@@ -548,7 +570,8 @@ and pat = unsorted => {
       ids,
       {
         annotation: {
-          ids: ids,
+          ids,
+          secondary: get_secondary(ids),
         },
         term,
       },
@@ -681,7 +704,8 @@ and typ = unsorted => {
       {
         term,
         annotation: {
-          ids: ids,
+          ids,
+          secondary: get_secondary(ids),
         },
       },
     );
@@ -811,7 +835,8 @@ and tpat = unsorted => {
     {
       term,
       annotation: {
-        ids: ids,
+        ids,
+        secondary: get_secondary(ids),
       },
     },
   );
@@ -843,7 +868,8 @@ and rul = (unsorted): Rul.t => {
   let mk_rules = (scrut: Exp.t, rules, ids): Rul.t => {
     term: Rules(scrut, rules),
     annotation: {
-      ids: ids,
+      ids,
+      secondary: get_secondary(ids),
     },
   };
   switch (e) {
@@ -969,6 +995,7 @@ let go =
       term_data := Id.Map.empty;
       projectors := Id.Map.empty;
       adopted_ids := [];
+      secondary_map := Segment.SecondaryCollection.collect(seg);
       let term = exp(unsorted(Exp, Segment.skel(seg), seg));
       consolidate_adopted();
       {

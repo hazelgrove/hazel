@@ -413,7 +413,10 @@ module rec Exp: {
           if (indicated) {
             Dynarray.add_last(indicated_ids, id);
           };
-          {ids: [id]};
+          {
+            ids: [id],
+            secondary: IdTagged.IdTag.empty_secondary,
+          };
         },
         indicated_exp,
       );

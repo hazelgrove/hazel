@@ -52,7 +52,11 @@ let menhir_matches = (exp: Exp.t, actual: string) =>
     "menhir matches expected parse",
     exp,
     Grammar.map_exp_annotation(
-      _: IdTagged.IdTag.t => {ids: [Id.invalid]},
+      _: IdTagged.IdTag.t =>
+        {
+          ids: [Id.invalid],
+          secondary: IdTagged.IdTag.empty_secondary,
+        },
       Conversion.Exp.of_menhir_ast(Interface.parse_program(actual)),
     ),
   );
@@ -85,7 +89,11 @@ let menhir_maketerm_equivalent_test =
       "Menhir parse matches MakeTerm parse",
       make_term_parse(actual),
       Grammar.map_exp_annotation(
-        _: IdTagged.IdTag.t => {ids: [Id.invalid]},
+        _: IdTagged.IdTag.t =>
+          {
+            ids: [Id.invalid],
+            secondary: IdTagged.IdTag.empty_secondary,
+          },
         Conversion.Exp.of_menhir_ast(Interface.parse_program(actual)),
       ),
     )
@@ -162,6 +170,7 @@ let qcheck_menhir_serialized_equivalent_test =
       let segment =
         Haz3lcore.ExpToSegment.exp_to_segment(
           ~settings={
+            secondary: AutoFormat,
             inline: true,
             fold_case_clauses: false,
             fold_fn_bodies: `NoFold,

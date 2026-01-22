@@ -267,6 +267,7 @@ let wrap_filter =
             ),
           annotation: {
             ids: [Id.mk()],
+            secondary: Language.IdTagged.IdTag.empty_secondary,
           },
         },
       }),
@@ -274,6 +275,7 @@ let wrap_filter =
     ),
   annotation: {
     ids: [Id.mk()],
+    secondary: Language.IdTagged.IdTag.empty_secondary,
   },
 };
 
@@ -327,6 +329,7 @@ let rec append_exp = (e1: Language.Exp.t, e2: Language.Exp.t): Language.Exp.t =>
       term: Seq(e1, e2),
       annotation: {
         ids: [Id.mk()],
+        secondary: Language.IdTagged.IdTag.empty_secondary,
       },
     }
   | Seq(e11, e12) =>
@@ -335,6 +338,7 @@ let rec append_exp = (e1: Language.Exp.t, e2: Language.Exp.t): Language.Exp.t =>
       term: Seq(e11, e12'),
       annotation: {
         ids: Language.IdTagged.ids(e1),
+        secondary: Language.IdTagged.IdTag.empty_secondary,
       },
     };
   | Filter(kind, ebody) =>
@@ -343,6 +347,7 @@ let rec append_exp = (e1: Language.Exp.t, e2: Language.Exp.t): Language.Exp.t =>
       term: Filter(kind, ebody'),
       annotation: {
         ids: Language.IdTagged.ids(e1),
+        secondary: Language.IdTagged.IdTag.empty_secondary,
       },
     };
   | Let(p, edef, ebody) =>
@@ -351,6 +356,7 @@ let rec append_exp = (e1: Language.Exp.t, e2: Language.Exp.t): Language.Exp.t =>
       term: Let(p, edef, ebody'),
       annotation: {
         ids: Language.IdTagged.ids(e1),
+        secondary: Language.IdTagged.IdTag.empty_secondary,
       },
     };
   | Theorem(p, edef, ebody) =>
@@ -359,6 +365,7 @@ let rec append_exp = (e1: Language.Exp.t, e2: Language.Exp.t): Language.Exp.t =>
       term: Theorem(p, edef, ebody'),
       annotation: {
         ids: Language.IdTagged.ids(e1),
+        secondary: Language.IdTagged.IdTag.empty_secondary,
       },
     };
   | TyAlias(tp, tdef, ebody) =>
@@ -367,6 +374,7 @@ let rec append_exp = (e1: Language.Exp.t, e2: Language.Exp.t): Language.Exp.t =>
       term: TyAlias(tp, tdef, ebody'),
       annotation: {
         ids: Language.IdTagged.ids(e1),
+        secondary: Language.IdTagged.IdTag.empty_secondary,
       },
     };
   | Use(t, ebody) =>
@@ -375,6 +383,7 @@ let rec append_exp = (e1: Language.Exp.t, e2: Language.Exp.t): Language.Exp.t =>
       term: Use(t, ebody'),
       annotation: {
         ids: Language.IdTagged.ids(e1),
+        secondary: Language.IdTagged.IdTag.empty_secondary,
       },
     };
   };

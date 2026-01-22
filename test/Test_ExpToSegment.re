@@ -5,6 +5,7 @@ open Base;
 open EditingPrelude;
 
 let exp_to_segment_settings: ExpToSegment.Settings.t = {
+  secondary: AutoFormat,
   inline: true,
   fold_case_clauses: false,
   fold_fn_bodies: `NoFold,
@@ -44,7 +45,11 @@ let type_equivalent_to_make_term = (type_serialized: string) => {
 module TempGrammar =
   Grammar.Factory({
     type t = IdTagged.IdTag.t;
-    let default_value: unit => IdTagged.IdTag.t = () => {ids: [Id.invalid]};
+    let default_value: unit => IdTagged.IdTag.t =
+      () => {
+        ids: [Id.invalid],
+        secondary: IdTagged.IdTag.empty_secondary,
+      };
   });
 let tests = (
   "ExpToSegment",
@@ -398,5 +403,140 @@ let tests = (
         ),
       )
     ),
+  ],
+);
+
+/* Round-trip tests: Segment → Term → Segment
+   These tests verify that secondary (whitespace/comments) is preserved
+   when converting between segments and terms using PreserveExact mode.
+   See plans/secondary-in-terms-v2.md for design details. */
+
+let exp_to_segment_roundtrip_settings: ExpToSegment.Settings.t = {
+  secondary: PreserveExact,
+  inline: true, /* ignored when secondary = PreserveExact */
+  fold_case_clauses: false,
+  fold_fn_bodies: `NoFold,
+  hide_fixpoints: false,
+  show_filters: true,
+  show_unknown_as_hole: true,
+};
+
+let exp_to_segment_roundtrip =
+  ExpToSegment.exp_to_segment(~settings=exp_to_segment_roundtrip_settings);
+
+/* Test that a string round-trips through segment → term → segment */
+let roundtrip_test = (name: string, input: string) =>
+  test_case(name, `Quick, () => {
+    switch (Parser.to_term(input), Parser.to_segment(input)) {
+    | (Some(term), Some(seg)) =>
+      let seg' = exp_to_segment_roundtrip(term);
+      let input' = print_seg(seg');
+      check(string, {|Round-trip text|}, input, input');
+      check(segment, {|Round-trip segments|}, seg, seg');
+    | _ => Alcotest.fail({|Failed to parse|})
+    }
+  });
+
+let roundtrip_tests = (
+  "Secondary Round-Trip",
+  [
+    /* Simple atoms */
+    roundtrip_test({|Integer literal|}, {|42|}),
+    roundtrip_test({|Negative int|}, {|-42|}),
+    roundtrip_test({|Variable|}, {|x|}),
+    roundtrip_test({|String literal|}, {|"hello"|}),
+    roundtrip_test({|Float literal|}, {|3.140000|}),
+    roundtrip_test({|Boolean literal|}, {|true|}),
+    /* Binary operations */
+    roundtrip_test({|Binary op: standard spacing|}, {|1 + 2|}),
+    roundtrip_test({|Binary op: no spaces|}, {|1+2|}),
+    roundtrip_test({|Binary op: extra spaces|}, {|1  +  2|}),
+    /* Chained binary operations - tests selective collection */
+    roundtrip_test({|Binary op: chained standard|}, {|1 + 2 + 3|}),
+    roundtrip_test({|Binary op: chained compact|}, {|1+2+3|}),
+    roundtrip_test({|Binary op: chained mixed|}, {|1 +2+ 3|}),
+    roundtrip_test({|Binary op: chained 4 terms|}, {|1 + 2 + 3 + 4|}),
+    /* Prefix operators */
+    roundtrip_test({|Prefix: negation|}, {|-x|}),
+    roundtrip_test({|Prefix: negation with space|}, {|- x|}),
+    roundtrip_test({|Prefix: not|}, {|!x|}),
+    roundtrip_test({|Prefix: not with space|}, {|! x|}),
+    /* Mixed prefix and binary */
+    roundtrip_test({|Mixed: prefix then binary|}, {|-x + y|}),
+    roundtrip_test({|Mixed: binary then prefix|}, {|x + -y|}),
+    roundtrip_test({|Mixed: not and binary|}, {|!x && y|}),
+    roundtrip_test({|Mixed: complex prefix/binary|}, {|a + !b * -c|}),
+    /* Let expressions */
+    roundtrip_test({|Let: standard|}, {|let x = 1 in x|}),
+    roundtrip_test({|Let: compact|}, {|let x=1 in x|}),
+    roundtrip_test({|Let: newline in body|}, {|let x = 1 in
+x|}),
+    roundtrip_test({|Let: nested standard|}, {|let x = 1 in let y = 2 in x + y|}),
+    roundtrip_test({|Let: nested compact|}, {|let x=1 in let y=2 in x+y|}),
+    /* Multiline let expressions */
+    roundtrip_test({|Let: multiline def|}, {|let x =
+1 in x|}),
+    roundtrip_test({|Let: multiline full|}, {|let x =
+1
+in
+x|}),
+    /* Tuples */
+    roundtrip_test({|Tuple: standard|}, {|(1, 2, 3)|}),
+    roundtrip_test({|Tuple: compact|}, {|(1,2,3)|}),
+    roundtrip_test({|Tuple: extra spaces|}, {|(1 , 2 , 3)|}),
+    roundtrip_test({|Tuple: unit|}, {|()|}),
+    roundtrip_test({|Tuple: spaces before commas|}, {|(1 , 2)|}),
+    /* List literals */
+    roundtrip_test({|List: standard|}, {|[1, 2, 3]|}),
+    roundtrip_test({|List: compact|}, {|[1,2,3]|}),
+    roundtrip_test({|List: empty|}, {|[]|}),
+    roundtrip_test({|List: spaces before commas|}, {|[1 , 2 , 3]|}),
+    /* Functions */
+    roundtrip_test({|Function: standard|}, {|fun x -> x|}),
+    roundtrip_test({|Function: compact|}, {|fun x->x|}),
+    roundtrip_test({|Function: with body spaces|}, {|fun x ->  x|}),
+    roundtrip_test({|Function: multiline body|}, {|fun x ->
+x|}),
+    /* Case expressions */
+    roundtrip_test({|Case: single line|}, {|case x | A => 1 end|}),
+    roundtrip_test({|Case: multiple clauses|}, {|case x | A => 1| B => 2 end|}),
+    roundtrip_test({|Case: multiline|}, {|case x
+| A => 1
+| B => 2
+end|}),
+    /* Type annotations */
+    roundtrip_test({|Ascription: standard|}, {|1:Int|}),
+    roundtrip_test({|Ascription: with spaces|}, {|1 : Int|}),
+    /* Type aliases */
+    roundtrip_test({|Type alias: standard|}, {|type t = Int in 1|}),
+    roundtrip_test({|Type alias: compact|}, {|type t=Int in 1|}),
+    roundtrip_test({|Type alias: multiline|}, {|type t = Int in
+1|}),
+    /* If expressions */
+    roundtrip_test({|If: standard|}, {|if true then 1 else 2|}),
+    roundtrip_test({|If: compact|}, {|if true then 1 else 2|}),
+    roundtrip_test({|If: multiline|}, {|if true
+then 1
+else 2|}),
+    /* Nested expressions */
+    roundtrip_test({|Nested: parens|}, {|((1 + 2))|}),
+    roundtrip_test({|Nested: complex standard|}, {|let f = fun x -> x + 1 in f(42)|}),
+    roundtrip_test({|Nested: complex compact|}, {|let f=fun x->x+1 in f(42)|}),
+    roundtrip_test({|Nested: deeply nested ops|}, {|((1 + 2) * (3 - 4))|}),
+    /* Application */
+    roundtrip_test({|Application: standard|}, {|f(x)|}),
+    roundtrip_test({|Application: multiple args|}, {|f(x, y, z)|}),
+    roundtrip_test({|Application: with spaces|}, {|f( x , y )|}),
+    /* Complex mixed expressions */
+    roundtrip_test({|Complex: let with binop body|}, {|let x = 1 + 2 in x * 3|}),
+    roundtrip_test({|Complex: function returning binop|}, {|fun x -> x + 1|}),
+    roundtrip_test({|Complex: if with binop|}, {|if x > 0 then x + 1 else x - 1|}),
+    /* Multiline complex */
+    roundtrip_test({|Complex: multiline let chain|}, {|let x = 1 in
+let y = 2 in
+x + y|}),
+    roundtrip_test({|Complex: multiline function|}, {|let f = fun x ->
+  x + 1
+in f(42)|}),
   ],
 );

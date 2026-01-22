@@ -40,6 +40,7 @@ let temp: term => t =
     term,
     annotation: {
       ids: [Id.invalid],
+      secondary: IdTagged.IdTag.empty_secondary,
     },
   };
 
@@ -53,6 +54,7 @@ let all_ids_temp = {
         term: exp.term,
         annotation: {
           ids: [Id.invalid],
+          secondary: IdTagged.IdTag.empty_secondary,
         },
       }
       |> continue;

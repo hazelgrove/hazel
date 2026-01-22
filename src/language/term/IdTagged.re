@@ -1,14 +1,29 @@
 open Util;
 
 module IdTag = {
+  /* Secondary runs stored as (before, after) pairs.
+     - before: secondary immediately before this term (after preceding delimiter or sibling)
+     - after: secondary immediately after this term (before following delimiter or sibling) */
+  [@deriving (show({with_path: false}), sexp, yojson, eq)]
+  type secondary_runs = (list(Secondary.t), list(Secondary.t));
+
+  let empty_secondary: secondary_runs = ([], []);
+
   [@deriving (show({with_path: false}), sexp, yojson, eq)]
   type t = {
     [@show.opaque]
     ids: list(Id.t),
+    secondary: secondary_runs,
   };
 
-  let fresh = (): t => {ids: [Id.mk()]};
-  let temp = (): t => {ids: [Id.invalid]};
+  let fresh = (): t => {
+    ids: [Id.mk()],
+    secondary: empty_secondary,
+  };
+  let temp = (): t => {
+    ids: [Id.invalid],
+    secondary: empty_secondary,
+  };
 };
 
 [@deriving (show({with_path: false}), sexp, yojson)]
@@ -30,6 +45,7 @@ let fresh_deterministic = (prev_id, term): t('a) => {
     term,
     annotation: {
       ids: [Id.next(prev_id)],
+      secondary: IdTag.empty_secondary,
     },
   };
 };
@@ -49,21 +65,24 @@ let fast_copy = (id, {term, _}: t('a)): t('a) => {
   term,
   annotation: {
     ids: [id],
+    secondary: IdTag.empty_secondary,
   },
 };
-let new_ids = ({term, annotation: {ids: _}}: t('a)): t('a) => {
+let new_ids = ({term, annotation: {ids: _, secondary}}: t('a)): t('a) => {
   term,
   annotation: {
     ids: [Id.mk()],
+    secondary,
   },
 };
 
 let ids = ({annotation: {ids, _}, _}: t('a)) => ids;
 
-let replace_temp = ({term, annotation: {ids}}: t('a)): t('a) => {
+let replace_temp = ({term, annotation: {ids, secondary}}: t('a)): t('a) => {
   term,
   annotation: {
     ids: ids == [Id.invalid] ? [Id.mk()] : ids,
+    secondary,
   },
 };
 

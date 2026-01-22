@@ -17,7 +17,8 @@ let mk = (ids, term): t => {
   {
     term,
     annotation: {
-      ids: ids,
+      ids,
+      secondary: IdTagged.IdTag.empty_secondary,
     },
   };
 };

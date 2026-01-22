@@ -392,7 +392,8 @@ and Typ: {
                     typ_map_term({
                       term: Var(c),
                       annotation: {
-                        ids: ids,
+                        ids,
+                        secondary: IdTagged.IdTag.empty_secondary,
                       },
                     })
                   ) {

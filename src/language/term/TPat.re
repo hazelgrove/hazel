@@ -39,5 +39,6 @@ let temp: term => t =
     term,
     annotation: {
       ids: [Id.invalid],
+      secondary: IdTagged.IdTag.empty_secondary,
     },
   };

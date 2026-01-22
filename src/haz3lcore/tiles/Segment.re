@@ -790,3 +790,146 @@ module IDs = {
 };
 
 let to_string = Base.segment_to_string;
+
+/* Secondary collection for outer secondary model.
+   Collects (before, after) secondary runs for each term based on skeleton structure. */
+module SecondaryCollection = {
+  type secondary_runs = Language.IdTagged.IdTag.secondary_runs;
+  type secondary_map = Id.Map.t(secondary_runs);
+
+  /* Collect secondary pieces immediately before index `idx` in segment */
+  let collect_before = (seg: t, idx: int): list(Secondary.t) => {
+    /* Walk backwards from idx-1, collecting consecutive secondary pieces */
+    let rec go = (i, acc) =>
+      if (i < 0) {
+        acc;
+      } else {
+        switch (List.nth(seg, i)) {
+        | Piece.Secondary(s) => go(i - 1, [s, ...acc])
+        | _ => acc
+        };
+      };
+    go(idx - 1, []);
+  };
+
+  /* Collect secondary pieces immediately after index `idx` in segment */
+  let collect_after = (seg: t, idx: int): list(Secondary.t) => {
+    let len = List.length(seg);
+    let rec go = (i, acc) =>
+      if (i >= len) {
+        List.rev(acc);
+      } else {
+        switch (List.nth(seg, i)) {
+        | Piece.Secondary(s) => go(i + 1, [s, ...acc])
+        | _ => List.rev(acc)
+        };
+      };
+    go(idx + 1, []);
+  };
+
+  /* Get the representative ID for a piece (used as the key in the map) */
+  let piece_id = (seg: t, idx: int): option(Id.t) =>
+    switch (List.nth_opt(seg, idx)) {
+    | Some(Piece.Tile(t)) => Some(t.id)
+    | Some(Piece.Projector(p)) => Some(p.id)
+    | Some(Piece.Grout(g)) => Some(g.id)
+    | _ => None
+    };
+
+  /* Recursively collect secondary from a segment (for compound tile children) */
+  let rec collect_from_seg = (child_seg: t, acc: secondary_map): secondary_map =>
+    try(collect_from_skel(child_seg, skel(child_seg), acc)) {
+    | Skel.Nonconvex_segment
+    | Skel.Input_contains_secondary => acc
+    }
+  /* Recursively collect secondary for all terms in the skeleton.
+
+     IMPORTANT: To avoid duplication, we use selective collection based on
+     skeleton node type. The issue is that compound nodes (Bin, Pre, Post)
+     have range boundaries that coincide with their children's boundaries.
+     If both parent and child collect at the same position, we get duplicates.
+
+     Solution - collect based on which boundaries are "owned" by this node:
+     - Op (leaf): both before and after (no children to conflict with)
+     - Bin: neither (before = left child's before, after = right child's after)
+     - Pre: before only (after = operand's after)
+     - Post: after only (before = operand's before)
+
+     This ensures each piece of secondary is collected exactly once. */
+  and collect_from_skel =
+      (seg: t, skel: Skel.t, acc: secondary_map): secondary_map => {
+    let (start_idx, end_idx) = Skel.range(skel);
+
+    /* Determine which boundaries this node "owns" based on skeleton type */
+    let (collect_before_boundary, collect_after_boundary) =
+      switch (skel) {
+      | Skel.Op(_) => (true, true) /* Leaves own both boundaries */
+      | Skel.Pre(_, _) => (true, false) /* Pre owns before (operator), not after (operand) */
+      | Skel.Post(_, _) => (false, true) /* Post owns after (operator), not before (operand) */
+      | Skel.Bin(_, _, _) => (false, false) /* Bin owns neither (both are operands) */
+      };
+
+    let before =
+      collect_before_boundary ? collect_before(seg, start_idx) : [];
+    let after = collect_after_boundary ? collect_after(seg, end_idx) : [];
+
+    /* Add secondary for the root pieces of this skeleton node */
+    let root = Skel.root(skel);
+    let root_indices = Aba.get_as(root);
+    let acc =
+      switch (List.nth_opt(root_indices, 0)) {
+      | Some(first_idx) =>
+        switch (piece_id(seg, first_idx)) {
+        | Some(id) => Id.Map.add(id, (before, after), acc)
+        | None => acc
+        }
+      | None => acc
+      };
+
+    /* Process children segments of compound tiles.
+       For tiles like Let, Fun, etc., the children are in separate segments
+       inside the tile's `children` field. We need to collect secondary from
+       those segments too. */
+    let acc =
+      List.fold_left(
+        (acc, idx) =>
+          switch (List.nth_opt(seg, idx)) {
+          | Some(Piece.Tile({children, _})) =>
+            List.fold_left(
+              (acc, child_seg) => collect_from_seg(child_seg, acc),
+              acc,
+              children,
+            )
+          | _ => acc
+          },
+        acc,
+        root_indices,
+      );
+
+    /* Process children of this skeleton node (operands between operators) */
+    let children = Aba.get_bs(root);
+    let acc =
+      List.fold_left(
+        (acc, child) => collect_from_skel(seg, child, acc),
+        acc,
+        children,
+      );
+
+    /* Process left/right sub-skeletons for Pre/Post/Bin */
+    switch (skel) {
+    | Skel.Op(_) => acc
+    | Skel.Pre(_, right) => collect_from_skel(seg, right, acc)
+    | Skel.Post(left, _) => collect_from_skel(seg, left, acc)
+    | Skel.Bin(left, _, right) =>
+      let acc = collect_from_skel(seg, left, acc);
+      collect_from_skel(seg, right, acc);
+    };
+  };
+
+  /* Main entry point: collect outer secondary for all terms in segment */
+  let collect = (seg: t): secondary_map =>
+    try(collect_from_skel(seg, skel(seg), Id.Map.empty)) {
+    | Skel.Nonconvex_segment
+    | Skel.Input_contains_secondary => Id.Map.empty
+    };
+};

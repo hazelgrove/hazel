@@ -1,18 +1,28 @@
 open Util;
+open Language.Secondary;
 
 [@deriving (show({with_path: false}), sexp, yojson, enumerate)]
 type cls = Language.Secondary.cls;
 
-[@deriving (show({with_path: false}), sexp, yojson, eq)]
-type secondary_content =
-  | Whitespace(string)
-  | Comment(string);
+/* Use the types from Language.Secondary directly for type compatibility with IdTagged */
+type secondary_content = Language.Secondary.secondary_content;
+type t = Language.Secondary.t;
 
-[@deriving (show({with_path: false}), sexp, yojson)]
-type t = {
-  id: Id.t,
-  content: secondary_content,
-};
+/* Re-export derived functions from Language.Secondary */
+let pp_secondary_content = Language.Secondary.pp_secondary_content;
+let show_secondary_content = Language.Secondary.show_secondary_content;
+let secondary_content_of_sexp = Language.Secondary.secondary_content_of_sexp;
+let sexp_of_secondary_content = Language.Secondary.sexp_of_secondary_content;
+let secondary_content_of_yojson = Language.Secondary.secondary_content_of_yojson;
+let yojson_of_secondary_content = Language.Secondary.yojson_of_secondary_content;
+let equal_secondary_content = Language.Secondary.equal_secondary_content;
+let pp = Language.Secondary.pp;
+let show = Language.Secondary.show;
+let t_of_sexp = Language.Secondary.t_of_sexp;
+let sexp_of_t = Language.Secondary.sexp_of_t;
+let t_of_yojson = Language.Secondary.t_of_yojson;
+let yojson_of_t = Language.Secondary.yojson_of_t;
+let equal_t = Language.Secondary.equal;
 
 let equal = (a: t, b: t) => a.content == b.content;
 let cls_of = (s: t): cls =>
