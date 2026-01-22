@@ -159,6 +159,7 @@ module Update = {
   let calculate =
       (
         ~settings: Language.CoreSettings.t,
+        ~auto_probe_mode: bool,
         ~is_edited,
         new_statics: CachedStatics.t,
         new_dynamics: Dynamics.Map.t,
@@ -195,6 +196,27 @@ module Update = {
         ~dynamics=new_dynamics,
         zipper,
       );
+
+    /* 4. Handle auto-probe mode: auto-probe follows cursor to current def */
+    let zipper =
+      if (auto_probe_mode) {
+        let z =
+          ProbePerform.update_auto_def_probe(
+            ~syntax,
+            ~info_map=new_statics.info_map,
+            zipper,
+          );
+        /* Resolve pending_probe_cursor again since update_auto_def_probe
+           may have set it after editor_effects already ran */
+        ProbePerform.resolve_pending_probe_cursor(~dynamics=new_dynamics, z);
+      } else {
+        /* If mode is off, clear any existing auto_def probe */
+        ProbePerform.clear_auto_def(
+          ~syntax,
+          ~info_map=new_statics.info_map,
+          zipper,
+        );
+      };
 
     Model.{
       state: {

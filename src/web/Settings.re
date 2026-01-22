@@ -13,6 +13,9 @@ module Model = {
     explainThis: ExplainThisModel.Settings.t,
     assistant: AssistantSettings.t,
     sidebar: SidebarModel.Settings.t,
+    /* Auto-probe mode: automatically place an auto-probe on the body
+       of whichever top-level definition the cursor is currently inside */
+    auto_probe_mode: bool,
   };
 
   let init = {
@@ -57,6 +60,7 @@ module Model = {
       panel: LanguageDocumentation,
       show: true,
     },
+    auto_probe_mode: false,
   };
 
   let fix_instructor_mode = settings =>
@@ -115,7 +119,8 @@ module Update = {
     | Sidebar(SidebarModel.Settings.action)
     | ExplainThis(ExplainThisModel.Settings.action)
     | Assistant(AssistantSettings.action)
-    | FlipAnimations;
+    | FlipAnimations
+    | AutoProbeMode;
 
   let can_undo = (action: t) => {
     switch (action) {
@@ -325,6 +330,10 @@ module Update = {
       | InstructorMode => {
           ...settings, //TODO[Matt]: Make sure instructor mode actually makes prelude read-only
           instructor_mode: !settings.instructor_mode,
+        }
+      | AutoProbeMode => {
+          ...settings,
+          auto_probe_mode: !settings.auto_probe_mode,
         }
       }
     )

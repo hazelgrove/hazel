@@ -432,7 +432,14 @@ module Update = {
        statics to take */
     let editors: Exercise.p('a) = {
       let calculate = (statics, dynamics, ed) =>
-        Editor.Update.calculate(~settings, statics, dynamics, ~is_edited, ed);
+        Editor.Update.calculate(
+          ~settings,
+          ~auto_probe_mode=false,
+          statics,
+          dynamics,
+          ~is_edited,
+          ed,
+        );
 
       {
         id: model.editors.id,

@@ -359,7 +359,14 @@ module Update = {
   };
 
   let calculate =
-      (~settings, ~schedule_action, ~is_edited, model: Model.t): Model.t => {
+      (
+        ~settings,
+        ~auto_probe_mode,
+        ~schedule_action,
+        ~is_edited,
+        model: Model.t,
+      )
+      : Model.t => {
     let (key, ed) = List.nth(model.scratchpads, model.current);
     let worker_request = ref([]);
     let queue_worker =
@@ -371,6 +378,7 @@ module Update = {
     let new_ed =
       CellEditor.Update.calculate(
         ~settings,
+        ~auto_probe_mode,
         ~is_edited,
         ~queue_worker,
         ~stitch=x => x,
@@ -380,16 +388,16 @@ module Update = {
     | [] => ()
     | _ =>
       /* TODO(andrew): remove profiling before final merge */
-      let start_time = JsUtil.precise_timestamp();
+      // let start_time = JsUtil.precise_timestamp();
       WorkerClient.request(
         worker_request^,
         ~handler=
           r => {
-            let elapsed = JsUtil.precise_timestamp() -. start_time;
-            Js_of_ocaml.Firebug.console##log_2(
-              Js_of_ocaml.Js.string("Eval round-trip (ms):"),
-              elapsed,
-            );
+            // let elapsed = JsUtil.precise_timestamp() -. start_time;
+            // Js_of_ocaml.Firebug.console##log_2(
+            //   Js_of_ocaml.Js.string("Eval round-trip (ms):"),
+            //   elapsed,
+            // );
             schedule_action(
               CellAction(
                 ResultAction(
@@ -405,14 +413,14 @@ module Update = {
                   ),
                 ),
               ),
-            );
+            )
           },
         ~timeout=
           _ =>
             schedule_action(
               CellAction(ResultAction(UpdateResult(ResultFail(Timeout)))),
             ),
-      );
+      )
     };
     let new_sp =
       ListUtil.put_nth(model.current, (key, new_ed), model.scratchpads);

@@ -2,8 +2,9 @@ open Virtual_dom.Vdom;
 open Node;
 open Util.WebUtil;
 open Haz3lcore;
+open Language;
 
-module StaticsBase = Language.StaticsBase;
+module StaticsBase = StaticsBase;
 
 let jump_to = (~globals: Globals.t, id: Id.t, _) =>
   globals.inject_global(ActiveEditor(Move(Goal(TileId(id)))));
@@ -17,31 +18,24 @@ let basic = (~globals: Globals.t, id: Id.t) =>
     [text(Id.str3(id))],
   );
 
-let exp_view = (~available, term: Language.Exp.t) =>
-  Language.Abbreviate.abbreviate_exp(~available, term)
+let exp_view = (~available, term: Exp.t) =>
+  Abbreviate.abbreviate_exp(~available, term)
   |> fst
   |> ExpToSegment.exp_to_segment(
        ~settings=
-         ExpToSegment.Settings.of_core(
-           ~inline=true,
-           Language.CoreSettings.off,
-         ),
+         ExpToSegment.Settings.of_core(~inline=true, CoreSettings.off),
      );
 
-let pat_view = (~available, term: Language.Pat.t) =>
-  Language.Abbreviate.abbreviate_pat(~available, term)
+let pat_view = (~available, term: Pat.t) =>
+  Abbreviate.abbreviate_pat(~available, term)
   |> fst
-  |> (x => Language.Grammar.Pat(x))
+  |> (x => Grammar.Pat(x))
   |> ExpToSegment.any_to_segment(
        ~settings=
-         ExpToSegment.Settings.of_core(
-           ~inline=true,
-           Language.CoreSettings.off,
-         ),
+         ExpToSegment.Settings.of_core(~inline=true, CoreSettings.off),
      );
 
-let segment_of =
-    (~default, ~available=8, term: Language.Any.t): option(Segment.t) =>
+let segment_of = (~default, ~available=8, term: Any.t): option(Segment.t) =>
   switch (term) {
   | Exp(x) => Some(exp_view(~available, x))
   | Pat(x) => Some(pat_view(~available, x))
@@ -55,7 +49,7 @@ let term_view =
       ~background,
       ~text_only,
       ~available=8,
-      term: Language.Any.t,
+      term: Any.t,
     )
     : option(Node.t) => {
   open Util.OptUtil.Syntax;
@@ -64,7 +58,7 @@ let term_view =
     ~background,
     ~text_only,
     ~font_metrics=globals.font_metrics,
-    Language.Sort.Exp,
+    Sort.Exp,
     segment,
   );
 };
@@ -88,17 +82,17 @@ let probe_view = (font_metrics, refractor_data, id: Id.t) => {
 let fancy =
     (
       ~refractor_data,
-      ~info_map: Language.Statics.Map.t,
+      ~info_map: Statics.Map.t,
       ~globals: Globals.t,
       ~default,
       id: Id.t,
     ) => {
   open Util.OptUtil.Syntax;
   let any =
-    switch (Language.Statics.Map.lookup(id, info_map)) {
-    | Some(InfoExp({term, _})) => Language.Grammar.Exp(term)
-    | Some(InfoPat({term, _})) => Language.Grammar.Pat(term)
-    | _ => Language.Grammar.Any()
+    switch (Statics.Map.lookup(id, info_map)) {
+    | Some(InfoExp({term, _})) => Grammar.Exp(term)
+    | Some(InfoPat({term, _})) => Grammar.Pat(term)
+    | _ => Grammar.Any()
     };
   let+ term_view =
     term_view(
@@ -138,7 +132,7 @@ let div_cs = (cls, node) => div(~attrs=[Attr.classes(cls)], [node]);
 let legend_sample_view =
     (
       ~indicated: bool,
-      ~mode: Language.Sample.Window.mode,
+      ~mode: Sample.Window.mode,
       ~font_metrics: FontMetrics.t,
       ~ap_id: option(Id.t),
       ~indicated_call: option(Id.t),
@@ -149,19 +143,19 @@ let legend_sample_view =
       ~caption: string,
     ) => {
   let (step_start, step_end) = step_range;
-  let sample: Language.Sample.t = {
+  let sample: Sample.t = {
     id: 0,
     syntax_id: Id.invalid,
-    value: Language.IdTagged.FreshGrammar.Exp.constructor(caption, None),
-    env: Language.Sample.Env.empty,
+    value: IdTagged.FreshGrammar.Exp.constructor(caption, None),
+    env: Sample.Env.empty,
     call_stack: sample_stack,
     time: 0.0,
     seq: 0,
-    origin: Language.Sample.Probe,
+    origin: Sample.Probe,
     step_start,
     step_end,
   };
-  let di: Language.Dynamics.Info.t = {
+  let di: Dynamics.Info.t = {
     samples: [sample],
     sample_cursor: {
       call_stack: cursor_stack,
@@ -197,9 +191,18 @@ let legend_sample_view =
   )
   |> div_cs(["sample-group"])
   |> div_cs(["sample-groups"])
-  |> div_cs(["live-offside", Language.Sample.Window.show_mode(mode)])
+  |> div_cs(["live-offside", Sample.Window.show_mode(mode)])
   |> div_cs(["projector", "probe", indicated ? "indicated" : "not-indicated"]);
 };
+
+let legend_item = (~tooltip: string, sample_view: Node.t) =>
+  div(
+    ~attrs=[clss(["legend-item"])],
+    [
+      sample_view,
+      div(~attrs=[clss(["legend-tooltip"])], [text(tooltip)]),
+    ],
+  );
 
 let legend_view = (~font_metrics: FontMetrics.t) => {
   let mode = ProbeProj.Settings.s^.window;
@@ -209,66 +212,93 @@ let legend_view = (~font_metrics: FontMetrics.t) => {
   div(
     ~attrs=[clss(["legend", "panel"])],
     [
-      div(~attrs=[clss(["title"])], [text("Sample Legend")]),
-      legend_sample_view(
-        ~indicated=false,
-        ~ap_id=None,
-        ~indicated_call=None,
-        ~cursor_stack=[Id.invalid, Id.invalid],
-        ~sample_stack=[Id.invalid],
-        ~step_range=(0, 5),
-        ~focus_step_range=focus,
-        ~caption="Before",
+      div(
+        ~attrs=[clss(["title"])],
+        [text("Dynamic Cursor Sample Legend")],
       ),
-      legend_sample_view(
-        ~indicated=true,
-        ~ap_id=None,
-        ~indicated_call=None,
-        ~cursor_stack=[Id.invalid],
-        ~sample_stack=[Id.invalid],
-        ~step_range=(10, 20),
-        ~focus_step_range=None,
-        ~caption="At Cursor",
+      legend_item(
+        ~tooltip=
+          "This sample was collected before the cursor position in the call stack.",
+        legend_sample_view(
+          ~indicated=false,
+          ~ap_id=None,
+          ~indicated_call=None,
+          ~cursor_stack=[Id.invalid, Id.invalid],
+          ~sample_stack=[Id.invalid],
+          ~step_range=(0, 5),
+          ~focus_step_range=focus,
+          ~caption="Before",
+        ),
       ),
-      legend_sample_view(
-        ~indicated=false,
-        ~ap_id=None,
-        ~indicated_call=None,
-        ~cursor_stack=[Id.invalid],
-        ~sample_stack=[Id.invalid, Id.invalid],
-        ~step_range=(25, 30),
-        ~focus_step_range=focus,
-        ~caption="After",
+      legend_item(
+        ~tooltip=
+          "This sample is at the current cursor position in the call stack.",
+        legend_sample_view(
+          ~indicated=true,
+          ~ap_id=None,
+          ~indicated_call=None,
+          ~cursor_stack=[Id.invalid],
+          ~sample_stack=[Id.invalid],
+          ~step_range=(10, 20),
+          ~focus_step_range=None,
+          ~caption="At Cursor",
+        ),
       ),
-      legend_sample_view(
-        ~indicated=false,
-        ~indicated_call=None,
-        ~ap_id=Some(Id.invalid),
-        ~cursor_stack=[Id.invalid, Id.invalid],
-        ~sample_stack=[Id.invalid],
-        ~step_range=(5, 25),
-        ~focus_step_range=focus,
-        ~caption="Contains",
+      legend_item(
+        ~tooltip=
+          "This sample was collected after the cursor position in the call stack.",
+        legend_sample_view(
+          ~indicated=false,
+          ~ap_id=None,
+          ~indicated_call=None,
+          ~cursor_stack=[Id.invalid],
+          ~sample_stack=[Id.invalid, Id.invalid],
+          ~step_range=(25, 30),
+          ~focus_step_range=focus,
+          ~caption="After",
+        ),
       ),
-      legend_sample_view(
-        ~indicated=false,
-        ~ap_id=None,
-        ~indicated_call=None,
-        ~cursor_stack=[Id.mk()],
-        ~sample_stack=[Id.invalid],
-        ~step_range=(0, 0),
-        ~focus_step_range=None,
-        ~caption="Off Cursor",
+      legend_item(
+        ~tooltip=
+          "This sample is from a call site that contains the cursor position.",
+        legend_sample_view(
+          ~indicated=false,
+          ~indicated_call=None,
+          ~ap_id=Some(Id.invalid),
+          ~cursor_stack=[Id.invalid, Id.invalid],
+          ~sample_stack=[Id.invalid],
+          ~step_range=(5, 25),
+          ~focus_step_range=focus,
+          ~caption="Contains",
+        ),
       ),
-      legend_sample_view(
-        ~indicated=false,
-        ~indicated_call=Some(Id.invalid),
-        ~ap_id=None,
-        ~cursor_stack=[Id.invalid],
-        ~sample_stack=[Id.invalid, Id.invalid],
-        ~step_range=(12, 18),
-        ~focus_step_range=focus,
-        ~caption="Inside",
+      legend_item(
+        ~tooltip=
+          "This sample is from a different branch of the call stack than the cursor.",
+        legend_sample_view(
+          ~indicated=false,
+          ~ap_id=None,
+          ~indicated_call=None,
+          ~cursor_stack=[Id.mk()],
+          ~sample_stack=[Id.invalid],
+          ~step_range=(0, 0),
+          ~focus_step_range=None,
+          ~caption="Off Cursor",
+        ),
+      ),
+      legend_item(
+        ~tooltip=
+          "This sample is from inside a function call at the cursor position.",
+        legend_sample_view(
+          ~indicated=false,
+          ~indicated_call=Some(Id.invalid),
+          ~ap_id=None,
+          ~cursor_stack=[Id.invalid],
+          ~sample_stack=[Id.invalid, Id.invalid],
+          ~step_range=(12, 18),
+          ~focus_step_range=focus,
+          ~caption="Inside",
+        ),
       ),
     ],
   );
@@ -286,10 +316,17 @@ let toggle =
     },
   );
 
-let settings = (~explain_this_inject) => {
+let settings = (~globals: Globals.t, ~explain_this_inject) => {
   div(
     ~attrs=[clss(["settings"])],
     [
+      Widgets.toggle_named(
+        ~tooltip="Auto-probe mode (Cmd/Ctrl+Shift+P)",
+        globals.settings.auto_probe_mode ? "A" : "M",
+        globals.settings.auto_probe_mode,
+        _ =>
+        globals.inject_global(Set(AutoProbeMode))
+      ),
       toggle(
         ~tooltip="One or Many Samples",
         ~explain_this_inject,
@@ -361,11 +398,11 @@ let settings = (~explain_this_inject) => {
   );
 };
 
-let sketch_view = (~explain_this_inject): Node.t =>
+let sketch_view = (~globals: Globals.t, ~explain_this_inject): Node.t =>
   details(
     ~attrs=[clss(["sketch"])],
     [
-      settings(~explain_this_inject),
+      settings(~globals, ~explain_this_inject),
       summary(
         ~attrs=[clss(["sketch-toggle"])],
         [div(~attrs=[clss(["sketch-toggle-image"])], [])],
@@ -374,11 +411,11 @@ let sketch_view = (~explain_this_inject): Node.t =>
     ],
   );
 
-let call_cursor_view = (~sample_cursor: Language.Sample.Cursor.t, ~fancyd) =>
+let call_cursor_view = (~sample_cursor: Sample.Cursor.t, ~fancyd) =>
   div(
     ~attrs=[clss(["panel", "call-cursor"])],
     [
-      div(~attrs=[clss(["title"])], [text("Dynamic Cursor")]),
+      div(~attrs=[clss(["title"])], [text("Call Stack")]),
       div(
         ~attrs=[clss(["stack"])],
         List.mapi(
@@ -430,28 +467,26 @@ let prep_refractors =
 };
 
 type refractor_group = {
-  top_pat: option(Language.Pat.t),
+  top_pat: option(Pat.t),
   entries: list((Id.t, probe_type)),
 };
 
-let top_level_pattern =
-    (~info_map: Language.Statics.Map.t, ~id: Id.t): option(Language.Pat.t) =>
+let top_level_pattern = (~info_map: Statics.Map.t, ~id: Id.t): option(Pat.t) =>
   switch (StaticsBase.let_definition_path(~statics=info_map, ~id)) {
   | [pat, ..._] => Some(pat)
   | _ => None
   };
 
-let same_top_level =
-    (left: option(Language.Pat.t), right: option(Language.Pat.t)): bool =>
+let same_top_level = (left: option(Pat.t), right: option(Pat.t)): bool =>
   switch (left, right) {
-  | (Some(lpat), Some(rpat)) => Language.Pat.equal(lpat, rpat)
+  | (Some(lpat), Some(rpat)) => Pat.equal(lpat, rpat)
   | (None, None) => true
   | _ => false
   };
 
 let push_group =
     (
-      ~label: option(Language.Pat.t),
+      ~label: option(Pat.t),
       ~entries: list((Id.t, probe_type)),
       groups: list(refractor_group),
     )
@@ -468,12 +503,12 @@ let push_group =
   };
 
 let group_refractors =
-    (~info_map: Language.Statics.Map.t, entries: list((Id.t, probe_type)))
+    (~info_map: Statics.Map.t, entries: list((Id.t, probe_type)))
     : list(refractor_group) => {
   let rec loop =
           (
             remaining: list((Id.t, probe_type)),
-            current_label: option(Language.Pat.t),
+            current_label: option(Pat.t),
             current_entries: list((Id.t, probe_type)),
             groups: list(refractor_group),
           )
@@ -485,7 +520,7 @@ let group_refractors =
       List.rev(final_groups);
     | [entry, ...rest] =>
       let (id: Id.t, _probe: probe_type) = entry;
-      let label: option(Language.Pat.t) = top_level_pattern(~info_map, ~id);
+      let label: option(Pat.t) = top_level_pattern(~info_map, ~id);
       if (same_top_level(label, current_label)) {
         loop(rest, current_label, [entry, ...current_entries], groups);
       } else {
@@ -529,7 +564,7 @@ let render_group =
         ~background=false,
         ~available=17,
         ~text_only=false,
-        Language.Grammar.Pat(pat),
+        Grammar.Pat(pat),
       );
     let title_node: Node.t =
       Option.value(
@@ -573,7 +608,7 @@ let probes_panel_view =
     (
       ~globals: Globals.t,
       ~refractors: Zipper.Refractor.t,
-      ~info_map: Language.Statics.Map.t,
+      ~info_map: Statics.Map.t,
       ~syntax: CachedSyntax.t,
       ~fancyd: Id.t => option(Node.t),
     ) => {
@@ -592,15 +627,13 @@ let probes_panel_view =
       );
 };
 
-let print_string = (probes: Language.Sample.Map.t) => {
-  let collect_print_samples =
-      (probes: Language.Sample.Map.t): list(Language.Sample.t) =>
+let print_string = (probes: Sample.Map.t) => {
+  let collect_print_samples = (probes: Sample.Map.t): list(Sample.t) =>
     Id.Map.fold(
       (_, samples, acc) =>
         List.fold_left(
           (acc, sample) =>
-            sample.Language.Sample.origin == Language.Sample.Print
-              ? [sample, ...acc] : acc,
+            sample.Sample.origin == Sample.Print ? [sample, ...acc] : acc,
           acc,
           samples,
         ),
@@ -608,24 +641,19 @@ let print_string = (probes: Language.Sample.Map.t) => {
       [],
     );
 
-  let collect_print_outputs = (probes: Language.Sample.Map.t): list(string) =>
+  let collect_print_outputs = (probes: Sample.Map.t): list(string) =>
     collect_print_samples(probes)
-    |> List.sort((a, b) =>
-         Int.compare(a.Language.Sample.seq, b.Language.Sample.seq)
-       )
+    |> List.sort((a, b) => Int.compare(a.Sample.seq, b.Sample.seq))
     |> List.map(sample =>
-         sample.Language.Sample.value
+         sample.Sample.value
          |> ExpToSegment.exp_to_segment(
               ~settings=
-                ExpToSegment.Settings.of_core(
-                  ~inline=true,
-                  Language.CoreSettings.off,
-                ),
+                ExpToSegment.Settings.of_core(~inline=true, CoreSettings.off),
             )
          |> Printer.of_segment(~holes="")
        );
 
-  let print_summary = (probes: Language.Sample.Map.t): option(string) =>
+  let print_summary = (probes: Sample.Map.t): option(string) =>
     switch (collect_print_outputs(probes)) {
     | [] => None
     | outputs => Some(String.concat("\n", outputs))
@@ -640,6 +668,14 @@ type panel_mode =
 
 let mode = ref(Probes);
 
+/* Eval mode for Printarium: Auto refreshes on every change, Manual requires clicking Run */
+type eval_mode =
+  | Auto
+  | Manual;
+
+let eval_mode_ref = ref(Auto);
+let cached_print_output = ref(None: option(string));
+
 let mode_toggle = (~explain_this_inject) =>
   Widgets.toggle(
     ~tooltip="Toggle between Probes and Prints",
@@ -651,32 +687,89 @@ let mode_toggle = (~explain_this_inject) =>
     },
   );
 
-let printarium = (~explain_this_inject, ~editor: CodeEditable.Model.t) => [
+let eval_mode_button = (~explain_this_inject, ~label, ~is_active, ~action) =>
   div(
-    ~attrs=[clss(["header"])],
-    [
-      div(
-        ~attrs=[clss(["main-title"])],
-        [text("Printarium"), mode_toggle(~explain_this_inject)],
-      ),
+    ~attrs=[
+      clss(["eval-mode-button", is_active ? "active" : "inactive"]),
+      Attr.on_click(_ => {
+        action();
+        explain_this_inject(ExplainThisUpdate.SpecificityOpen(true));
+      }),
     ],
-  ),
+    [text(label)],
+  );
+
+let run_button = (~explain_this_inject, ~editor: CodeEditable.Model.t) =>
   div(
-    ~attrs=[clss(["panel", "prints"])],
-    [
-      //div(~attrs=[clss(["title"])], [text("Prints")]),
-      div(
-        ~attrs=[clss(["body", "code"])],
-        [
-          switch (print_string(editor.dynamics)) {
-          | Some(summary) => text(summary)
-          | None => text("No print outputs")
-          },
-        ],
-      ),
+    ~attrs=[
+      clss(["run-button"]),
+      Attr.title("Run and refresh print output"),
+      Attr.on_click(_ => {
+        cached_print_output := print_string(editor.dynamics);
+        explain_this_inject(ExplainThisUpdate.SpecificityOpen(true));
+      }),
     ],
-  ),
-];
+    [text("Run")],
+  );
+
+let printarium = (~explain_this_inject, ~editor: CodeEditable.Model.t) => {
+  /* Determine what output to display */
+  let output =
+    switch (eval_mode_ref^) {
+    | Auto => print_string(editor.dynamics)
+    | Manual => cached_print_output^
+    };
+  [
+    div(
+      ~attrs=[clss(["header"])],
+      [
+        div(
+          ~attrs=[clss(["main-title"])],
+          [text("Console Log"), mode_toggle(~explain_this_inject)],
+        ),
+      ],
+    ),
+    div(
+      ~attrs=[clss(["eval-controls"])],
+      [
+        eval_mode_button(
+          ~explain_this_inject,
+          ~label="",
+          ~is_active=eval_mode_ref^ == Auto,
+          ~action=() =>
+          eval_mode_ref := Auto
+        ),
+        eval_mode_button(
+          ~explain_this_inject,
+          ~label="",
+          ~is_active=eval_mode_ref^ == Manual,
+          ~action=() =>
+          eval_mode_ref := Manual
+        ),
+        ...eval_mode_ref^ == Manual
+             ? [run_button(~explain_this_inject, ~editor)] : [],
+      ],
+    ),
+    div(
+      ~attrs=[clss(["panel", "prints"])],
+      [
+        div(
+          ~attrs=[clss(["body", "code"])],
+          [
+            switch (output) {
+            | Some(summary) => text(summary)
+            | None =>
+              text(
+                eval_mode_ref^ == Manual
+                  ? "Click Run to see print outputs" : "No print outputs",
+              )
+            },
+          ],
+        ),
+      ],
+    ),
+  ];
+};
 
 let probearium =
     (~globals: Globals.t, ~explain_this_inject, ~editor: CodeEditable.Model.t) => {
@@ -708,7 +801,7 @@ let probearium =
       ],
     ),
     legend_view(~font_metrics=globals.font_metrics),
-    sketch_view(~explain_this_inject),
+    sketch_view(~globals, ~explain_this_inject),
     call_cursor_view(~sample_cursor=refractors.sample_cursor, ~fancyd=id =>
       fancy(
         ~refractor_data,
