@@ -1739,8 +1739,6 @@ and typ_to_pretty = (~settings: Settings.t, typ: Typ.t): pretty => {
 and tpat_to_pretty = (~settings: Settings.t, tpat: TPat.t): pretty => {
   let wrap = wrap_with_secondary(~secondary=settings.secondary);
   /* Use settings-aware concatenation and form building */
-  let (@) = concat_segment(~secondary=settings.secondary);
-  let mk_form = mk_form(~secondary=settings.secondary);
   switch (tpat |> IdTagged.term_of) {
   | Invalid(t) =>
     wrap(tpat, text_to_pretty(tpat |> TPat.rep_id, Sort.TPat, t))

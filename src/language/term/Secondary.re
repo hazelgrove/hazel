@@ -17,3 +17,9 @@ type t = {
   id: Id.t,
   content: secondary_content,
 };
+
+let cls_of = (s: t): cls =>
+  switch (s.content) {
+  | Whitespace(_) => Whitespace
+  | Comment(_) => Comment
+  };
