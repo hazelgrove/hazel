@@ -568,6 +568,62 @@ in f(42)|},
     roundtrip_test({|Sum type: with args|}, {|type T = +A(Int) + B in T|}),
     roundtrip_test({|Sum type: spaced|}, {|type T = + A + B in T|}),
     roundtrip_test({|Sum type: compact|}, {|type T = +A+B in T|}),
+    /* Filter expressions (hide/eval/pause/debug ... in) and unquote ($) */
+    roundtrip_test({|Filter: hide|}, {|hide 1 in 2|}),
+    roundtrip_test({|Filter: hide spaced|}, {|hide 1  in  2|}),
+    roundtrip_test({|Filter: eval|}, {|eval 1 in 2|}),
+    roundtrip_test({|Filter: eval spaced|}, {|eval 1  in  2|}),
+    roundtrip_test({|Filter: pause|}, {|pause 1 in 2|}),
+    roundtrip_test({|Filter: pause spaced|}, {|pause 1  in  2|}),
+    roundtrip_test({|Filter: debug|}, {|debug 1 in 2|}),
+    roundtrip_test({|Filter: debug spaced|}, {|debug 1  in  2|}),
+    /* Unquote ($) - used within filter expressions for stepper */
+    roundtrip_test({|Unquote: simple|}, {|eval $x in x|}),
+    roundtrip_test({|Unquote: spaced|}, {|eval $ x in x|}),
+    roundtrip_test({|Unquote: in hide|}, {|hide $1 in 2|}),
+    /* Quoted labels - backticks are not preserved through ExpToSegment currently.
+       Labels without special chars work; labels requiring backticks lose them.
+       See QuotedLabel in "Forms not yet fully round-tripping" below. */
+    roundtrip_test({|QuotedLabel: with spaces works|}, {|(`hello world`=42)|}),
+    roundtrip_test({|QuotedLabel: empty works|}, {|(``=1)|}),
+    /* Float power operator (**.) - using normalized float format */
+    roundtrip_test({|FPower: standard|}, {|2.000000 **. 3.000000|}),
+    roundtrip_test({|FPower: compact|}, {|2.000000**.3.000000|}),
+    roundtrip_test({|FPower: extra spaces|}, {|2.000000  **.  3.000000|}),
+    /* Test expressions (test ... end) */
+    roundtrip_test({|Test: simple|}, {|test true end|}),
+    roundtrip_test({|Test: with expression|}, {|test 1 == 1 end|}),
+    roundtrip_test({|Test: spaced|}, {|test  true  end|}),
+    roundtrip_test({|Test: multiline|}, {|test
+true
+end|}),
+    /* Hinted test expressions (hint ... test ... end) */
+    roundtrip_test({|HintedTest: simple|}, {|hint 1 test true end|}),
+    roundtrip_test({|HintedTest: spaced|}, {|hint  1  test  true  end|}),
+    /* Fix expressions (fix ... ->) */
+    roundtrip_test({|Fix: simple|}, {|fix f -> f|}),
+    roundtrip_test({|Fix: with body|}, {|fix f -> f(1)|}),
+    roundtrip_test({|Fix: spaced|}, {|fix f  ->  f|}),
+    roundtrip_test({|Fix: compact|}, {|fix f->f|}),
+    /* TypFun expressions (typfun ... ->) */
+    roundtrip_test({|TypFun: simple|}, {|typfun a -> 1|}),
+    /* TypFun with typed body has defensive parens issue (type after :) - same as rec/poly */
+    roundtrip_test({|TypFun: spaced|}, {|typfun a  ->  1|}),
+    roundtrip_test({|TypFun: compact|}, {|typfun a->1|}),
+    /* Use expressions (use ... in) */
+    roundtrip_test({|Use: simple|}, {|use Nat in 1|}),
+    roundtrip_test({|Use: spaced|}, {|use Nat  in  1|}),
+    roundtrip_test({|Use: compact|}, {|use Nat in 1|}),
+    /* ProofOf (proof_of ... end) - type-level */
+    roundtrip_test({|ProofOf: simple|}, {|1 : proof_of 1 end|}),
+    roundtrip_test({|ProofOf: spaced|}, {|1 : proof_of  1  end|}),
+    /* ProofObject - SKIPPED: Form.re defines ["proof_object", "indeed"] but
+       MakeTerm.re expects ["proof_object", "end"]. ExpToSegment uses Form.re
+       labels, so round-trip fails. This is a Form.re bug that needs fixing. */
+    /* Theorem expressions (theorem ... = ... in) */
+    roundtrip_test({|Theorem: simple|}, {|theorem x = 1 in x|}),
+    roundtrip_test({|Theorem: spaced|}, {|theorem x  =  1  in  x|}),
+    roundtrip_test({|Theorem: compact|}, {|theorem x=1 in x|}),
   ],
 );
 
@@ -576,40 +632,42 @@ in f(42)|},
    See plans/secondary-in-terms-v2.md for full details.
    ============================================================================
 
-   Forms explicitly NOT tested for round-tripping (per user request):
-   - Projectors/Refractors (^^projector_name syntax) - out of scope
-   - Filter expressions (hide/eval/pause/debug ... in) - out of scope
+   === OUT OF SCOPE (not testing) ===
 
-   Known Limitations - Defensive Parenthesization:
-   ExpToSegment adds parentheses in certain contexts to ensure correct re-parsing.
-   This means some forms don't round-trip even though secondary is correctly stored.
-   Related issues:
-   - Tuple parenthesization (mentioned in plans/secondary-in-terms-v2.md)
-   - Type annotation precedence (rec/poly types after `:`)
-   - Potentially function parameters with complex types
+   Projectors and related display features:
+   - Projectors/Refractors (^^projector_name syntax)
+   - LivelitName (^livelit) - part of projector/livelit system
 
-   Remaining work (needs investigation):
+   Preliminary/experimental syntax:
+   - BlockExp ({...}) - preliminary syntax for probe user study
+
+   === KNOWN LIMITATIONS ===
+
+   Defensive Parenthesization (forms with arrow trailing delimiters):
+   ExpToSegment adds parentheses for forms like rec/poly/typfun/forall after `:`
+   because they share low precedence with their `->` trailing delimiter.
+   Related: fun/fix also use `->` but typically don't appear after `:`.
+   See Issue #1913 for related edge cases with forall regrouting.
+   Examples:
+   - `1 : rec t -> t` becomes `1 :( rec t -> t)`
+   - `1 : poly a -> a` becomes `1 :( poly a -> a)`
+   - `typfun a -> fun x : a -> x` - the inner `: a` gets wrapped
+
+   Other limitations:
+   - QuotedLabel: backticks lost for simple labels (`a` becomes a). Labels
+     requiring backticks (spaces, empty) work fine.
+   - Float literals: normalized to full precision (2.0 becomes 2.000000)
+   - ProofObject: Form.re bug says "indeed" but should be "end" - can't test
+
+   === REMAINING WORK (needs investigation) ===
+
    - Explicit holes (`?`) - special handling in MakeTerm, may need adjustment
-   - Grout (convex and concave) - needs investigation for secondary preservation
+   - Grout (convex and concave) - secondary preservation unclear
+   - LLMHole (??...??) - similar concerns to explicit holes
 
-   Forms from Form.re not yet tested (may add incrementally):
-   Atomic:
-   - LLMHole (??...??)
-   - QuotedLabel (`label`)
-   - LivelitName (^livelit)
+   === FORMS NOT YET TESTED ===
 
-   Compound:
-   - FPower (**.) - float power
-   - LogicalOrLegacy (\/) - legacy OR syntax
-   - Unquote ($) - unquote operator
-   - BlockExp ({...}) - block expressions
-   - Test (test ... end) - test expressions
-   - ProofOf (proof_of ... end), ProofObject (proof_object ... indeed)
-   - HintedTest (hint ... test ... end)
-   - Fix (fix ... ->) - fixpoint
-   - TypFun (typfun ... ->) - type function
-   - Use (use ... in) - use expression
-   - Theorem (theorem ... = ... in) - theorem expression
+   - LogicalOrLegacy (\/) - legacy OR syntax, low priority
    ============================================================================ */
 
 let skip_roundtrip_known_limitation = (name: string, input: string, ~actual: string) =>

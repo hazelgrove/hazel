@@ -550,13 +550,42 @@ ExpToSegment uses a `precedence` function to determine when to add parentheses. 
 
 The following forms are explicitly **not tested** for round-tripping:
 
-1. **Projectors/Refractors** (`^^projector_name` syntax)
+1. **Projectors and related display features**
+   - Projectors/Refractors (`^^projector_name` syntax)
+   - LivelitName (`^livelit`) - part of projector/livelit system
    - These are display/interaction features, not core syntax
-   - Round-tripping projector syntax is out of scope for this work
 
-2. **Filter Expressions** (`hide`, `eval`, `pause`, `debug` keywords)
-   - Example: `pause 1 in 2`, `eval x in y`
-   - These are stepper-related features, not tested for round-tripping
+2. **Preliminary/experimental syntax**
+   - BlockExp (`{...}`) - preliminary syntax for probe user study
+
+### Known Limitations
+
+#### Defensive Parenthesization (forms with arrow trailing delimiters)
+
+ExpToSegment adds parentheses for forms like `rec`/`poly`/`typfun`/`forall` after `:` because they share low precedence with their `->` trailing delimiter. Related: `fun`/`fix` also use `->` but typically don't appear after `:`.
+
+See Issue #1913 for related edge cases with forall regrouting.
+
+**Examples:**
+- `1 : rec t -> t` becomes `1 :( rec t -> t)`
+- `1 : poly a -> a` becomes `1 :( poly a -> a)`
+- `typfun a -> fun x : a -> x` - the inner `: a` gets wrapped
+
+#### Other limitations
+
+1. **QuotedLabel backticks**
+   - Simple quoted labels like `` `a` `` lose their backticks and become `a`
+   - Labels with spaces (`` `hello world` ``) or empty labels (``` `` ```) work because backticks are required to parse them
+   - This is an ExpToSegment issue, not secondary storage
+
+2. **Float literal normalization**
+   - Float literals are normalized to full precision: `2.0` becomes `2.000000`
+   - This is a parser normalization, not a secondary storage issue
+
+3. **ProofObject Form.re bug**
+   - `Form.re` defines ProofObject as `["proof_object", "indeed"]`
+   - `MakeTerm.re` and `Abbreviate.re` use `["proof_object", "end"]`
+   - Form.re appears to be incorrect; tests use "end" syntax which works
 
 ### Remaining Work (Needs Investigation)
 
@@ -570,25 +599,13 @@ The following forms are explicitly **not tested** for round-tripping:
    - Secondary preservation for grout needs investigation
    - May require changes to how grout is handled in collection/emission
 
+3. **LLMHole (`??...??`)**
+   - LLM-assisted holes
+   - Similar concerns to explicit holes
+
 ### Forms Not Yet Tested (May Add Incrementally)
 
 These forms from `Form.re` don't have round-trip tests yet. They may work correctly, but haven't been verified:
 
-**Atomic forms:**
-- `LLMHole` (??...??) - LLM-assisted holes
-- `QuotedLabel` (\`label\`) - quoted labels
-- `LivelitName` (^livelit) - livelit invocation names
-
-**Compound forms:**
-- `FPower` (**.) - float power operator
-- `LogicalOrLegacy` (\\/) - legacy logical OR syntax
-- `Unquote` ($) - unquote operator for metaprogramming
-- `BlockExp` ({...}) - block expressions
-- `Test` (test ... end) - test expressions
-- `ProofOf` (proof_of ... end) - proof type
-- `ProofObject` (proof_object ... indeed) - proof construction
-- `HintedTest` (hint ... test ... end) - hinted test expressions
-- `Fix` (fix ... ->) - explicit fixpoint
-- `TypFun` (typfun ... ->) - type-level functions
-- `Use` (use ... in) - module use expressions
-- `Theorem` (theorem ... = ... in) - theorem declarations
+- `LogicalOrLegacy` (`\/`) - legacy logical OR syntax, low priority
+- `ProofObject` - blocked by Form.re bug (defines "indeed", should be "end")
