@@ -162,7 +162,14 @@ let view =
                 ],
                 (),
               ),
-              button_named(~tooltip="Enter", None, submit_api_key),
+              div(
+                ~attrs=[
+                  clss(["named-menu-item"]),
+                  Attr.on_click(submit_api_key),
+                  Attr.create("data-testid", "update-api-key-btn"),
+                ],
+                [button(None, _ => Effect.Ignore), div([text("Enter")])],
+              ),
             ],
           ),
         ],
@@ -220,6 +227,10 @@ let view =
                           let completion =
                             format_price_per_million(llm.pricing.completion);
                           [
+                            div(
+                              ~attrs=[clss(["llm-id"]), Attr.hidden],
+                              [text(llm.id)],
+                            ),
                             div(
                               ~attrs=[clss(["llm-name"])],
                               [text(llm.name)],

@@ -126,7 +126,7 @@ let view =
     ]);
   };
 
-  // Export OpenRouter messages function
+  // Export messages function
   let export_chat = _ => {
     let messages = Agent.Chat.Utils.get(current_chat);
     let messages_json =
@@ -267,7 +267,7 @@ let view =
                 ~attrs=[
                   clss(["chat-action-button", "icon"]),
                   Attr.on_click(export_chat),
-                  Attr.title("Export OpenRouter Messages (JSON)"),
+                  Attr.title("Export Messages (JSON)"),
                 ],
                 [Icons.export],
               ),
