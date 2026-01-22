@@ -553,10 +553,11 @@ The following forms are explicitly **not tested** for round-tripping:
 1. **Projectors and related display features**
    - Projectors/Refractors (`^^projector_name` syntax)
    - LivelitName (`^livelit`) - part of projector/livelit system
-   - These are display/interaction features, not core syntax
+   - These might involve new term nodes instead of new annotations
 
-2. **Preliminary/experimental syntax**
+2. **Legacy/experimental syntax**
    - BlockExp (`{...}`) - preliminary syntax for probe user study
+   - LogicalOrLegacy (`\/`) - legacy logical OR syntax, low priority
 
 ### Known Limitations
 
@@ -582,30 +583,18 @@ See Issue #1913 for related edge cases with forall regrouting.
    - Float literals are normalized to full precision: `2.0` becomes `2.000000`
    - This is a parser normalization, not a secondary storage issue
 
-3. **ProofObject Form.re bug**
-   - `Form.re` defines ProofObject as `["proof_object", "indeed"]`
-   - `MakeTerm.re` and `Abbreviate.re` use `["proof_object", "end"]`
-   - Form.re appears to be incorrect; tests use "end" syntax which works
-
 ### Remaining Work (Needs Investigation)
 
-1. **Explicit Holes (`?`)**
-   - `MakeTerm.re:220` has special handling via `is_hole_label`
-   - May need adjustment to secondary collection logic
-   - Currently untested for exact round-tripping
-
-2. **Grout (convex and concave)**
+1. **Grout (convex and concave)**
    - Grout pieces appear during editing as placeholders
    - Secondary preservation for grout needs investigation
    - May require changes to how grout is handled in collection/emission
 
+2. **Explicit Holes (`?`)**
+   - `MakeTerm.re:220` has special handling via `is_hole_label`
+   - May need adjustment to secondary collection logic
+   - Currently untested for exact round-tripping
+
 3. **LLMHole (`??...??`)**
-   - LLM-assisted holes
+   - LLM-assist holes
    - Similar concerns to explicit holes
-
-### Forms Not Yet Tested (May Add Incrementally)
-
-These forms from `Form.re` don't have round-trip tests yet. They may work correctly, but haven't been verified:
-
-- `LogicalOrLegacy` (`\/`) - legacy logical OR syntax, low priority
-- `ProofObject` - blocked by Form.re bug (defines "indeed", should be "end")

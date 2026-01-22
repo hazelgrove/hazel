@@ -107,7 +107,14 @@ let tests = (
           exp_to_segment(
             let_(
               Pat.(
-                asc(list_lit([]), Typ.(sum([Variant("Jg", ConstructorMap.empty_variant_ann, None)])))
+                asc(
+                  list_lit([]),
+                  Typ.(
+                    sum([
+                      Variant("Jg", ConstructorMap.empty_variant_ann, None),
+                    ])
+                  ),
+                )
               ),
               empty_hole(),
               empty_hole(),
@@ -584,7 +591,10 @@ in f(42)|},
     /* Quoted labels - backticks are not preserved through ExpToSegment currently.
        Labels without special chars work; labels requiring backticks lose them.
        See QuotedLabel in "Forms not yet fully round-tripping" below. */
-    roundtrip_test({|QuotedLabel: with spaces works|}, {|(`hello world`=42)|}),
+    roundtrip_test(
+      {|QuotedLabel: with spaces works|},
+      {|(`hello world`=42)|},
+    ),
     roundtrip_test({|QuotedLabel: empty works|}, {|(``=1)|}),
     /* Float power operator (**.) - using normalized float format */
     roundtrip_test({|FPower: standard|}, {|2.000000 **. 3.000000|}),
@@ -617,9 +627,10 @@ end|}),
     /* ProofOf (proof_of ... end) - type-level */
     roundtrip_test({|ProofOf: simple|}, {|1 : proof_of 1 end|}),
     roundtrip_test({|ProofOf: spaced|}, {|1 : proof_of  1  end|}),
-    /* ProofObject - SKIPPED: Form.re defines ["proof_object", "indeed"] but
-       MakeTerm.re expects ["proof_object", "end"]. ExpToSegment uses Form.re
-       labels, so round-trip fails. This is a Form.re bug that needs fixing. */
+    /* ProofObject (proof_object ... end) - expression-level */
+    roundtrip_test({|ProofObject: simple|}, {|proof_object 1 end|}),
+    roundtrip_test({|ProofObject: spaced|}, {|proof_object  1  end|}),
+    roundtrip_test({|ProofObject: with expr|}, {|proof_object 1 + 2 end|}),
     /* Theorem expressions (theorem ... = ... in) */
     roundtrip_test({|Theorem: simple|}, {|theorem x = 1 in x|}),
     roundtrip_test({|Theorem: spaced|}, {|theorem x  =  1  in  x|}),
@@ -638,8 +649,15 @@ end|}),
    - Projectors/Refractors (^^projector_name syntax)
    - LivelitName (^livelit) - part of projector/livelit system
 
-   Preliminary/experimental syntax:
+   Legacy/experimental syntax:
    - BlockExp ({...}) - preliminary syntax for probe user study
+   - LogicalOrLegacy (\/) - legacy OR syntax
+
+   === REMAINING WORK (needs investigation) ===
+
+   - Grout (convex and concave) - secondary preservation unclear
+   - Explicit holes (`?`) - special handling in MakeTerm, may need adjustment
+   - LLMHole (??...??) - similar concerns to explicit holes
 
    === KNOWN LIMITATIONS ===
 
@@ -657,27 +675,23 @@ end|}),
    - QuotedLabel: backticks lost for simple labels (`a` becomes a). Labels
      requiring backticks (spaces, empty) work fine.
    - Float literals: normalized to full precision (2.0 becomes 2.000000)
-   - ProofObject: Form.re bug says "indeed" but should be "end" - can't test
 
-   === REMAINING WORK (needs investigation) ===
-
-   - Explicit holes (`?`) - special handling in MakeTerm, may need adjustment
-   - Grout (convex and concave) - secondary preservation unclear
-   - LLMHole (??...??) - similar concerns to explicit holes
-
-   === FORMS NOT YET TESTED ===
-
-   - LogicalOrLegacy (\/) - legacy OR syntax, low priority
    ============================================================================ */
 
-let skip_roundtrip_known_limitation = (name: string, input: string, ~actual: string) =>
+let skip_roundtrip_known_limitation =
+    (name: string, input: string, ~actual: string) =>
   test_case(name, `Quick, () => {
     switch (Parser.to_term(input), Parser.to_segment(input)) {
     | (Some(term), Some(_seg)) =>
       let seg' = exp_to_segment_roundtrip(term);
       let input' = print_seg(seg');
       /* Document the actual output for clarity */
-      check(string, {|Actual output (with defensive parens)|}, actual, input');
+      check(
+        string,
+        {|Actual output (with defensive parens)|},
+        actual,
+        input',
+      );
       Alcotest.skip();
     | _ => Alcotest.fail({|Failed to parse|})
     }
