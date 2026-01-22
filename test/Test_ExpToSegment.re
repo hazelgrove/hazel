@@ -705,3 +705,227 @@ let roundtrip_defensive_paren_tests = (
     ),
   ],
 );
+
+/* Larger program round-trip tests with comments, formatting, and multi-line structure.
+   These verify that secondary-in-terms handles complex nested expressions correctly. */
+let roundtrip_larger_programs = (
+  "Round-Trip: Larger Programs",
+  [
+    /* Factorial with comments and formatting */
+    roundtrip_test(
+      {|Factorial: single line|},
+      {|let fact = fun n -> if n <= 0 then 1 else n * fact(n - 1) in fact(5)|},
+    ),
+    roundtrip_test(
+      {|Factorial: multiline|},
+      {|let fact = fun n ->
+  if n <= 0
+  then 1
+  else n * fact(n - 1)
+in fact(5)|},
+    ),
+    roundtrip_test(
+      {|Factorial: with comments|},
+      {|#recursive factorial#
+let fact = fun n ->
+  #base case#
+  if n <= 0
+  then 1
+  #recursive case#
+  else n * fact(n - 1)
+in fact(5)|},
+    ),
+
+    /* Fibonacci with double line breaks */
+    roundtrip_test(
+      {|Fibonacci: single line|},
+      {|let fib = fun n -> if n <= 1 then n else fib(n - 1) + fib(n - 2) in fib(10)|},
+    ),
+    roundtrip_test(
+      {|Fibonacci: multiline with double breaks|},
+      {|let fib = fun n ->
+  if n <= 1
+  then n
+  else fib(n - 1) + fib(n - 2)
+
+
+in fib(10)|},
+    ),
+    roundtrip_test(
+      {|Fibonacci: commented|},
+      {|#fibonacci sequence#
+let fib = fun n ->
+  if n <= 1 then n
+  else fib(n - 1) + fib(n - 2)
+in
+#compute 10th fibonacci number#
+fib(10)|},
+    ),
+
+    /* List map with case expression */
+    roundtrip_test(
+      {|Map: single line|},
+      {|let map = fun f -> fun xs -> case xs | [] => [] | hd::tl => f(hd)::map(f)(tl) end in map(fun x -> x + 1)([1, 2, 3])|},
+    ),
+    roundtrip_test(
+      {|Map: multiline case|},
+      {|let map = fun f -> fun xs ->
+  case xs
+  | [] => []
+  | hd::tl => f(hd)::map(f)(tl)
+  end
+in map(fun x -> x + 1)([1, 2, 3])|},
+    ),
+    roundtrip_test(
+      {|Map: with comments|},
+      {|#map a function over a list#
+let map = fun f -> fun xs ->
+  case xs
+  | [] => []  #empty list base case#
+  | hd::tl => f(hd)::map(f)(tl)  #recursive case#
+  end
+in
+#increment each element#
+map(fun x -> x + 1)([1, 2, 3])|},
+    ),
+
+    /* Fold with multiple function arguments */
+    roundtrip_test(
+      {|Fold: single line|},
+      {|let fold = fun f -> fun acc -> fun xs -> case xs | [] => acc | hd::tl => fold(f)(f(acc, hd))(tl) end in fold(fun (a, b) -> a + b)(0)([1, 2, 3, 4, 5])|},
+    ),
+    roundtrip_test(
+      {|Fold: multiline|},
+      {|let fold = fun f -> fun acc -> fun xs ->
+  case xs
+  | [] => acc
+  | hd::tl => fold(f)(f(acc, hd))(tl)
+  end
+
+in fold(fun (a, b) -> a + b)(0)([1, 2, 3, 4, 5])|},
+    ),
+    roundtrip_test(
+      {|Fold: heavily commented|},
+      {|#left fold over a list#
+
+let fold = fun f ->  #combining function#
+  fun acc ->  #initial accumulator#
+  fun xs ->  #list to fold#
+    case xs
+    | [] => acc
+    | hd::tl => fold(f)(f(acc, hd))(tl)
+    end
+
+in
+#sum a list of numbers#
+fold(fun (a, b) -> a + b)(0)([1, 2, 3, 4, 5])|},
+    ),
+
+    /* Filter with nested if */
+    roundtrip_test(
+      {|Filter: single line|},
+      {|let filter = fun p -> fun xs -> case xs | [] => [] | hd::tl => if p(hd) then hd::filter(p)(tl) else filter(p)(tl) end in filter(fun x -> x > 2)([1, 2, 3, 4])|},
+    ),
+    roundtrip_test(
+      {|Filter: multiline|},
+      {|let filter = fun p -> fun xs ->
+  case xs
+  | [] => []
+  | hd::tl =>
+    if p(hd)
+    then hd::filter(p)(tl)
+    else filter(p)(tl)
+  end
+in filter(fun x -> x > 2)([1, 2, 3, 4])|},
+    ),
+
+    /* Multiple let bindings with various spacing */
+    roundtrip_test(
+      {|Multiple lets: compact|},
+      {|let a=1 in let b=2 in let c=3 in a+b+c|},
+    ),
+    roundtrip_test(
+      {|Multiple lets: spaced|},
+      {|let a = 1 in
+let b = 2 in
+let c = 3 in
+a + b + c|},
+    ),
+    roundtrip_test(
+      {|Multiple lets: double breaks|},
+      {|let a = 1 in
+
+let b = 2 in
+
+let c = 3 in
+
+a + b + c|},
+    ),
+    roundtrip_test(
+      {|Multiple lets: with comments|},
+      {|#first binding#
+let a = 1 in
+#second binding#
+let b = 2 in
+#third binding#
+let c = 3 in
+#result#
+a + b + c|},
+    ),
+
+    /* Nested functions and applications */
+    roundtrip_test(
+      {|Nested: compose|},
+      {|let compose = fun f -> fun g -> fun x -> f(g(x))
+in
+let double = fun x -> x * 2 in
+let inc = fun x -> x + 1 in
+compose(double)(inc)(5)|},
+    ),
+    roundtrip_test(
+      {|Nested: curried application|},
+      {|let add = fun a -> fun b -> fun c -> a + b + c
+in
+let add5 = add(5)
+in
+let add5and10 = add5(10)
+in
+add5and10(15)|},
+    ),
+
+    /* Type annotations with formatting */
+    roundtrip_test(
+      {|Typed: multiline function|},
+      {|let id : poly a -> a -> a = typfun a ->
+  fun x -> x
+in id @<Int>(42)|},
+    ),
+
+    /* Complex nested structure */
+    roundtrip_test(
+      {|Complex: deeply nested|},
+      {|let result =
+  let x = 1 + 2 in
+  let y =
+    let z = x * 3 in
+    z + 4
+  in
+  y * 5
+in result|},
+    ),
+    roundtrip_test(
+      {|Complex: mixed constructs|},
+      {|#a complex example with multiple constructs#
+
+let process = fun data ->
+  #extract and transform#
+  let filtered = filter(fun x -> x > 0)(data) in
+  let doubled = map(fun x -> x * 2)(filtered) in
+
+  #aggregate#
+  fold(fun (acc, x) -> acc + x)(0)(doubled)
+
+in process([1, -2, 3, -4, 5])|},
+    ),
+  ],
+);

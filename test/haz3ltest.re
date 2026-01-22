@@ -21,6 +21,7 @@ let (suite, _) =
       Test_ExpToSegment.tests,
       Test_ExpToSegment.roundtrip_tests,
       Test_ExpToSegment.roundtrip_defensive_paren_tests,
+      Test_ExpToSegment.roundtrip_larger_programs,
       Test_Abbreviate.tests,
       Test_LabeledTuple.tests,
       Test_MakeTerm.tests,
