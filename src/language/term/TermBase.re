@@ -391,7 +391,7 @@ and Typ: {
                   switch (
                     typ_map_term({
                       term: Var(c),
-                      annotation: IdTagged.IdTag.mk(ids),
+                      annotation: IdTagged.IdTag.mk_internal(ids),
                     })
                   ) {
                   | {term: Var(c), annotation: {ids, _}} =>

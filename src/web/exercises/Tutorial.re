@@ -327,37 +327,43 @@ let rec append_exp = (e1: Language.Exp.t, e2: Language.Exp.t): Language.Exp.t =>
     let e12' = append_exp(e12, e2);
     {
       term: Seq(e11, e12'),
-      annotation: Language.IdTagged.IdTag.mk(Language.IdTagged.ids(e1)),
+      annotation:
+        Language.IdTagged.IdTag.mk_internal(Language.IdTagged.ids(e1)),
     };
   | Filter(kind, ebody) =>
     let ebody' = append_exp(ebody, e2);
     {
       term: Filter(kind, ebody'),
-      annotation: Language.IdTagged.IdTag.mk(Language.IdTagged.ids(e1)),
+      annotation:
+        Language.IdTagged.IdTag.mk_internal(Language.IdTagged.ids(e1)),
     };
   | Let(p, edef, ebody) =>
     let ebody' = append_exp(ebody, e2);
     {
       term: Let(p, edef, ebody'),
-      annotation: Language.IdTagged.IdTag.mk(Language.IdTagged.ids(e1)),
+      annotation:
+        Language.IdTagged.IdTag.mk_internal(Language.IdTagged.ids(e1)),
     };
   | Theorem(p, edef, ebody) =>
     let ebody' = append_exp(ebody, e2);
     {
       term: Theorem(p, edef, ebody'),
-      annotation: Language.IdTagged.IdTag.mk(Language.IdTagged.ids(e1)),
+      annotation:
+        Language.IdTagged.IdTag.mk_internal(Language.IdTagged.ids(e1)),
     };
   | TyAlias(tp, tdef, ebody) =>
     let ebody' = append_exp(ebody, e2);
     {
       term: TyAlias(tp, tdef, ebody'),
-      annotation: Language.IdTagged.IdTag.mk(Language.IdTagged.ids(e1)),
+      annotation:
+        Language.IdTagged.IdTag.mk_internal(Language.IdTagged.ids(e1)),
     };
   | Use(t, ebody) =>
     let ebody' = append_exp(ebody, e2);
     {
       term: Use(t, ebody'),
-      annotation: Language.IdTagged.IdTag.mk(Language.IdTagged.ids(e1)),
+      annotation:
+        Language.IdTagged.IdTag.mk_internal(Language.IdTagged.ids(e1)),
     };
   };
 };

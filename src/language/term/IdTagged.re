@@ -26,18 +26,21 @@ module IdTag = {
 
   /* Create annotation with invalid id and empty secondary (for temporary terms) */
   let temp = (): t => {
+    //TODO(andrew): understand why this is thunked
     ids: [Id.invalid],
     secondary: empty_secondary,
   };
 
-  /* Create annotation with specific ids and empty secondary */
-  let mk = (ids: list(Id.t)): t => {
+  /* Create annotation with specific ids and empty secondary.
+     Use for internally-generated terms that don't touch surface syntax. */
+  let mk_internal = (ids: list(Id.t)): t => {
     ids,
     secondary: empty_secondary,
   };
 
-  /* Create annotation with specific ids and secondary */
-  let mk_secondary = (ids: list(Id.t), secondary: secondary_runs): t => {
+  /* Create annotation with specific ids and secondary.
+     Use for terms from surface syntax where formatting should be preserved. */
+  let mk = (ids: list(Id.t), secondary: secondary_runs): t => {
     ids,
     secondary,
   };
@@ -62,26 +65,21 @@ let fresh = (term: 'a): t('a) => {
 /* Create term with deterministic next id and empty secondary */
 let fresh_deterministic = (prev_id, term): t('a) => {
   term,
-  annotation: IdTag.mk([Id.next(prev_id)]),
+  annotation: IdTag.mk_internal([Id.next(prev_id)]),
 };
 
-/* Create term with specific ids and empty secondary */
-let mk = (ids: list(Id.t), term: 'a): t('a) => {
+/* Create term with specific ids and empty secondary.
+   Use for internally-generated terms that don't touch surface syntax. */
+let mk_internal = (ids: list(Id.t), term: 'a): t('a) => {
   term,
-  annotation: IdTag.mk(ids),
+  annotation: IdTag.mk_internal(ids),
 };
 
-/* Create term with specific ids and secondary */
-let mk_secondary =
-    (ids: list(Id.t), secondary: IdTag.secondary_runs, term: 'a): t('a) => {
+/* Create term with specific ids and secondary.
+   Use for terms from surface syntax where formatting should be preserved. */
+let mk = (ids: list(Id.t), secondary: IdTag.secondary_runs, term: 'a): t('a) => {
   term,
-  annotation: IdTag.mk_secondary(ids, secondary),
-};
-
-/* Create term copying ids from another term, with empty secondary */
-let copy_ids = ({annotation: {ids, _}, _}: t('b), term: 'a): t('a) => {
-  term,
-  annotation: IdTag.mk(ids),
+  annotation: IdTag.mk(ids, secondary),
 };
 
 let term_of = (x: Grammar.Annotated.t('a, 'b)) => x.term;
@@ -95,6 +93,11 @@ let unwrap = (x: t('a)) => (
 let rep_id = ({annotation: {ids, _}, _}: Grammar.Annotated.t('a, IdTag.t)) =>
   List.hd(ids);
 
+/* Copy term with a new id, discarding secondary.
+   Note: This discards secondary (formatting) information. If preserving
+   formatting through evaluation becomes important, this would need to
+   accept a source term and copy its secondary, or we'd need a variant
+   like fast_copy_with_secondary(id, source, term). */
 let fast_copy = (id, {term, _}: t('a)): t('a) => {
   term,
   annotation: {
@@ -102,6 +105,8 @@ let fast_copy = (id, {term, _}: t('a)): t('a) => {
     secondary: IdTag.empty_secondary,
   },
 };
+
+/* Generate new ids for term, preserving secondary */
 let new_ids = ({term, annotation: {ids: _, secondary}}: t('a)): t('a) => {
   term,
   annotation: {
@@ -112,6 +117,7 @@ let new_ids = ({term, annotation: {ids: _, secondary}}: t('a)): t('a) => {
 
 let ids = ({annotation: {ids, _}, _}: t('a)) => ids;
 
+/* Replace invalid temp ids with fresh ids, preserving secondary */
 let replace_temp = ({term, annotation: {ids, secondary}}: t('a)): t('a) => {
   term,
   annotation: {

@@ -397,7 +397,7 @@ let (replace_all_ids, replace_all_ids_typ) = {
     (continue, exp) =>
       {
         ...exp,
-        annotation: IdTagged.IdTag.mk([Id.mk()]),
+        annotation: IdTagged.IdTag.mk_internal([Id.mk()]),
       }
       |> continue;
   (
