@@ -323,8 +323,21 @@ module Settings = {
     | PreserveExact   // Round-trip: use exactly what's stored
     | AutoFormat;     // Display: generate heuristically
 
+  /* How to handle parenthesization during output.
+     See "Defensive Parenthesization" section below. */
+  type parenthesization =
+    | Defensive   // Add parens based on precedence (original behavior)
+    | Structural; // Only emit parens that exist in term structure
+
+  /* How to format labels (backtick quoting). */
+  type label_format =
+    | QuoteWhenNecessary // Only add backticks for non-identifiers
+    | AlwaysQuote;       // Always add backticks to labels
+
   type t = {
     secondary: secondary_handling,
+    parenthesization: parenthesization,
+    label_format: label_format,
     inline: bool,  // Only applies when secondary = AutoFormat
     fold_case_clauses: bool,
     fold_fn_bodies: [`Fold | `Text | `NoFold],
@@ -338,6 +351,11 @@ module Settings = {
 **Key insight:** The `inline` setting (and potentially other auto-formatting options) only makes sense with `AutoFormat`. With `PreserveExact`, we use exactly what's in the term—no heuristic decisions.
 
 **Note on folding options:** `fold_case_clauses`, `fold_fn_bodies`, `hide_fixpoints` are about projector display, not secondary/whitespace. They remain orthogonal to `secondary_handling`. For round-trip tests, we'll set these to their non-folding defaults.
+
+**Parenthesization and label_format:** These settings were added to allow proper round-tripping:
+- `Defensive` adds parens to ensure correct re-parsing (e.g., `1 : rec t -> t` becomes `1 :( rec t -> t)`)
+- `Structural` only emits parens that exist in the term structure
+- `AlwaysQuote` ensures labels always have backticks (for round-tripping quoted labels)
 
 ### Implementation Strategy for PreserveExact
 
@@ -510,41 +528,45 @@ type variant('a) =
 - `type T = + A + B in T` (extra spacing)
 - `type T = +A+B in T` (compact)
 
-### Known Limitation: Defensive Parenthesization
+### Defensive Parenthesization (Now Configurable)
 
-Some forms don't fully round-trip due to **defensive parenthesization** in ExpToSegment. This is a structural issue, not a secondary storage issue—the secondary is correctly stored and emitted, but ExpToSegment adds parentheses to ensure correct re-parsing.
+ExpToSegment can add **defensive parentheses** to ensure correct re-parsing. This is now controlled by the `Settings.parenthesization` setting:
 
-**Example: Rec/Poly types after type annotation**
+- **`Defensive` (default)**: Adds parens based on precedence to ensure correct re-parsing
+- **`Structural`**: Only emits parens that exist in the term structure (for round-tripping)
+
+**Example with `Defensive` mode:**
 
 ```
 Input:  1 : rec t -> t
 Output: 1 :( rec t -> t)
 ```
 
-The space before `rec` is preserved (note the space after `:`), but ExpToSegment wraps the type in parentheses. This happens because `rec` and `poly` types have low precedence, and without parens, the output might be ambiguous or parse differently.
+ExpToSegment wraps the type in parentheses because `rec` and `poly` types have low precedence (`Precedence.fun_ = 40`) and are checked against `Precedence.asc = 24`. Since 40 >= 24, parens are always added in defensive mode.
 
-Similarly for poly types:
+**With `Structural` mode**, the same input round-trips correctly:
 ```
-Input:  1 : poly a -> a
-Output: 1 :( poly a -> a)
+Input:  1 : rec t -> t
+Output: 1 : rec t -> t
 ```
 
-**Related cases:**
-- **Tuple parenthesization** (mentioned in "Notes" section): Tuples may get wrapped in parens
-- **Function parameters**: Complex types in function parameter positions may get wrapped
-- **Nested arrows**: `(Int -> Bool) -> x` shows how arrows on the left of an arrow need parens
+**Implementation details:**
 
-**Why this happens:**
+The `paren_*_at` functions now take a `~parenthesization` parameter:
+```reason
+let paren_typ_at =
+    (~parenthesization: Settings.parenthesization, internal_precedence, typ) =>
+  switch (parenthesization) {
+  | Structural => typ  /* Don't add defensive parens */
+  | Defensive =>
+    external_precedence_typ(typ) >= internal_precedence
+      ? Typ.fresh(Parens(typ)) : typ
+  };
+```
 
-ExpToSegment uses a `precedence` function to determine when to add parentheses. When converting a type after `:`, if the type's precedence is below a threshold, it wraps in parens to avoid parsing ambiguity. For example, without parens:
-- `1 : rec t -> t` could potentially parse as `(1 : rec t) -> t` depending on grammar
+Similarly, tuple auto-wrapping is disabled in `Structural` mode.
 
-**Potential fixes (future work):**
-1. Adjust precedence values so rec/poly types don't trigger parenthesization in that context
-2. Add context-awareness to know when parens are truly needed vs. defensive
-3. Store explicit "was parenthesized" in the term structure (but this adds complexity)
-
-**Test coverage:** See `roundtrip_known_limitations` in `test/Test_ExpToSegment.re` for documented examples.
+**Test coverage:** See `roundtrip_defensive_paren_tests` in `test/Test_ExpToSegment.re` for verified round-trip tests using `Structural` mode.
 
 ### Out of Scope for Round-Trip Testing
 
@@ -559,29 +581,30 @@ The following forms are explicitly **not tested** for round-tripping:
    - BlockExp (`{...}`) - preliminary syntax for probe user study
    - LogicalOrLegacy (`\/`) - legacy logical OR syntax, low priority
 
-### Known Limitations
+### Configurable Behaviors (Addressed via Settings)
 
-#### Defensive Parenthesization (forms with arrow trailing delimiters)
+#### Defensive Parenthesization
 
-ExpToSegment adds parentheses for forms like `rec`/`poly`/`typfun`/`forall` after `:` because they share low precedence with their `->` trailing delimiter. Related: `fun`/`fix` also use `->` but typically don't appear after `:`.
+Now controlled by `Settings.parenthesization`:
+- `Defensive`: Adds parens for forms like `rec`/`poly` after `:` (original behavior)
+- `Structural`: Only emits parens in term structure (for round-tripping)
 
-See Issue #1913 for related edge cases with forall regrouting.
+See "Defensive Parenthesization (Now Configurable)" section above for details.
 
-**Examples:**
-- `1 : rec t -> t` becomes `1 :( rec t -> t)`
-- `1 : poly a -> a` becomes `1 :( poly a -> a)`
-- `typfun a -> fun x : a -> x` - the inner `: a` gets wrapped
+Note: `forall` is an expression-level construct only. The type-level equivalent is `poly`.
 
-#### Other limitations
+#### Label Quoting
 
-1. **QuotedLabel backticks**
-   - Simple quoted labels like `` `a` `` lose their backticks and become `a`
-   - Labels with spaces (`` `hello world` ``) or empty labels (``` `` ```) work because backticks are required to parse them
-   - This is an ExpToSegment issue, not secondary storage
+Now controlled by `Settings.label_format`:
+- `QuoteWhenNecessary`: Only add backticks for non-identifiers (original behavior)
+- `AlwaysQuote`: Always add backticks to labels (for round-tripping)
 
-2. **Float literal normalization**
+### Remaining Known Limitations
+
+1. **Float literal normalization**
    - Float literals are normalized to full precision: `2.0` becomes `2.000000`
-   - This is a parser normalization, not a secondary storage issue
+   - This is a parser/lexer normalization, not a secondary storage issue
+   - Cannot be addressed in ExpToSegment alone
 
 ### Remaining Work (Needs Investigation)
 

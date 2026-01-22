@@ -78,6 +78,8 @@ let elements_noun: Cls.t => string =
 
 let code_view_settings: Haz3lcore.ExpToSegment.Settings.t = {
   secondary: AutoFormat,
+  parenthesization: Defensive,
+  label_format: QuoteWhenNecessary,
   inline: true,
   fold_case_clauses: false,
   fold_fn_bodies: `NoFold,

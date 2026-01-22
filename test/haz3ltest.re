@@ -20,7 +20,7 @@ let (suite, _) =
       Test_Grammar.tests,
       Test_ExpToSegment.tests,
       Test_ExpToSegment.roundtrip_tests,
-      Test_ExpToSegment.roundtrip_known_limitations,
+      Test_ExpToSegment.roundtrip_defensive_paren_tests,
       Test_Abbreviate.tests,
       Test_LabeledTuple.tests,
       Test_MakeTerm.tests,

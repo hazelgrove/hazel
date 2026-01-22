@@ -15,8 +15,24 @@ module Settings = {
     | PreserveExact /* Use exactly what's stored in term annotations (for round-tripping) */
     | AutoFormat; /* Generate heuristically (original behavior) */
 
+  /* How to handle parenthesization during output.
+     See plans/secondary-in-terms-v2.md for detailed analysis. */
+  type parenthesization =
+    | Defensive /* Add parens based on precedence to ensure correct re-parsing (original behavior) */
+    | Structural; /* Only emit parens that exist in term structure (for round-tripping) */
+
+  /* How to format labels (backtick quoting).
+     Note: Neither option gives perfect round-tripping because the original
+     quoting information is lost during parsing. Labels like `a` (quoted but
+     unnecessary) become just "a" in the term, so we can't know to re-quote them. */
+  type label_format =
+    | QuoteWhenNecessary /* Only add backticks for non-identifiers (original behavior) */
+    | AlwaysQuote; /* Always add backticks to labels */
+
   type t = {
     secondary: secondary_handling,
+    parenthesization: parenthesization,
+    label_format: label_format,
     inline: bool, /* Only applies when secondary = AutoFormat */
     fold_case_clauses: bool,
     fold_fn_bodies: [
@@ -31,6 +47,8 @@ module Settings = {
 
   let of_core = (~inline, ~fold_fn_bodies=?, settings: CoreSettings.t) => {
     secondary: AutoFormat,
+    parenthesization: Defensive,
+    label_format: QuoteWhenNecessary,
     inline,
     fold_case_clauses: !settings.evaluation.show_case_clauses,
     fold_fn_bodies:
@@ -46,6 +64,8 @@ module Settings = {
   let editable = (~inline) => {
     {
       secondary: AutoFormat,
+      parenthesization: Defensive,
+      label_format: QuoteWhenNecessary,
       inline,
       fold_case_clauses: false,
       fold_fn_bodies: `NoFold,
@@ -197,37 +217,110 @@ let external_precedence_typ = (tp: Typ.t) =>
   | Unknown(Hole(MultiHole(_))) => Precedence.min
   };
 
-let paren_at = (internal_precedence: Precedence.t, exp: Exp.t): Exp.t =>
-  external_precedence(exp) >= internal_precedence
-    ? Exp.fresh(Parens(exp)) : exp;
+/* Conditional parenthesization helpers.
+   With Defensive: add parens based on precedence comparison (original behavior).
+   With Structural: never add parens here; only explicit Parens nodes in the term are emitted. */
+let paren_at =
+    (
+      ~parenthesization: Settings.parenthesization,
+      internal_precedence: Precedence.t,
+      exp: Exp.t,
+    )
+    : Exp.t =>
+  switch (parenthesization) {
+  | Structural => exp
+  | Defensive =>
+    external_precedence(exp) >= internal_precedence
+      ? Exp.fresh(Parens(exp)) : exp
+  };
 
-let paren_assoc_at = (internal_precedence: Precedence.t, exp: Exp.t): Exp.t =>
-  external_precedence(exp) > internal_precedence
-    ? Exp.fresh(Parens(exp)) : exp;
+let paren_assoc_at =
+    (
+      ~parenthesization: Settings.parenthesization,
+      internal_precedence: Precedence.t,
+      exp: Exp.t,
+    )
+    : Exp.t =>
+  switch (parenthesization) {
+  | Structural => exp
+  | Defensive =>
+    external_precedence(exp) > internal_precedence
+      ? Exp.fresh(Parens(exp)) : exp
+  };
 
-let paren_pat_at = (internal_precedence: Precedence.t, pat: Pat.t): Pat.t =>
-  external_precedence_pat(pat) >= internal_precedence
-    ? Pat.fresh(Parens(pat)) : pat;
+let paren_pat_at =
+    (
+      ~parenthesization: Settings.parenthesization,
+      internal_precedence: Precedence.t,
+      pat: Pat.t,
+    )
+    : Pat.t =>
+  switch (parenthesization) {
+  | Structural => pat
+  | Defensive =>
+    external_precedence_pat(pat) >= internal_precedence
+      ? Pat.fresh(Parens(pat)) : pat
+  };
 
 let paren_pat_assoc_at =
-    (internal_precedence: Precedence.t, pat: Pat.t): Pat.t =>
-  external_precedence_pat(pat) > internal_precedence
-    ? Pat.fresh(Parens(pat)) : pat;
+    (
+      ~parenthesization: Settings.parenthesization,
+      internal_precedence: Precedence.t,
+      pat: Pat.t,
+    )
+    : Pat.t =>
+  switch (parenthesization) {
+  | Structural => pat
+  | Defensive =>
+    external_precedence_pat(pat) > internal_precedence
+      ? Pat.fresh(Parens(pat)) : pat
+  };
 
-let paren_typ_at = (internal_precedence: Precedence.t, typ: Typ.t): Typ.t =>
-  external_precedence_typ(typ) >= internal_precedence
-    ? Typ.fresh(Parens(typ)) : typ;
+let paren_typ_at =
+    (
+      ~parenthesization: Settings.parenthesization,
+      internal_precedence: Precedence.t,
+      typ: Typ.t,
+    )
+    : Typ.t =>
+  switch (parenthesization) {
+  | Structural => typ
+  | Defensive =>
+    external_precedence_typ(typ) >= internal_precedence
+      ? Typ.fresh(Parens(typ)) : typ
+  };
 
 let paren_typ_assoc_at =
-    (internal_precedence: Precedence.t, typ: Typ.t): Typ.t =>
-  external_precedence_typ(typ) > internal_precedence
-    ? Typ.fresh(Parens(typ)) : typ;
+    (
+      ~parenthesization: Settings.parenthesization,
+      internal_precedence: Precedence.t,
+      typ: Typ.t,
+    )
+    : Typ.t =>
+  switch (parenthesization) {
+  | Structural => typ
+  | Defensive =>
+    external_precedence_typ(typ) > internal_precedence
+      ? Typ.fresh(Parens(typ)) : typ
+  };
 
 let rec parenthesize =
-        (~show_filters: bool, ~already_paren=false, exp: Exp.t): Exp.t => {
-  let parenthesize = parenthesize(~show_filters);
-  let parenthesize_pat = parenthesize_pat(~show_filters);
-  let parenthesize_typ = parenthesize_typ(~show_filters);
+        (
+          ~parenthesization: Settings.parenthesization,
+          ~show_filters: bool,
+          ~already_paren=false,
+          exp: Exp.t,
+        )
+        : Exp.t => {
+  let parenthesize = parenthesize(~parenthesization, ~show_filters);
+  let parenthesize_pat = parenthesize_pat(~parenthesization, ~show_filters);
+  let parenthesize_typ = parenthesize_typ(~parenthesization, ~show_filters);
+  let paren_at = paren_at(~parenthesization);
+  let paren_assoc_at = paren_assoc_at(~parenthesization);
+  let paren_pat_at = paren_pat_at(~parenthesization);
+  let paren_typ_at = paren_typ_at(~parenthesization);
+  /* For tuples: with Structural, don't auto-wrap in parens */
+  let should_auto_wrap_tuple = parenthesization == Defensive;
   let (term, rewrap) = Exp.unwrap(exp);
   switch (term) {
   // Indivisible forms dont' change
@@ -292,7 +385,7 @@ let rec parenthesize =
       )
       |> rewrap;
 
-    if (already_paren) {
+    if (already_paren || !should_auto_wrap_tuple) {
       inner;
     } else {
       Parens(inner) |> Exp.fresh;
@@ -304,7 +397,7 @@ let rec parenthesize =
       )
       |> rewrap;
 
-    if (already_paren) {
+    if (already_paren || !should_auto_wrap_tuple) {
       inner;
     } else {
       Parens(inner) |> Exp.fresh;
@@ -466,13 +559,26 @@ let rec parenthesize =
     )
     |> rewrap
   | MultiHole(xs) =>
-    MultiHole(List.map(parenthesize_any(~show_filters), xs)) |> rewrap
+    MultiHole(
+      List.map(parenthesize_any(~parenthesization, ~show_filters), xs),
+    )
+    |> rewrap
   };
 }
 and parenthesize_pat =
-    (~show_filters: bool, ~already_paren=false, pat: Pat.t): Pat.t => {
-  let parenthesize_pat = parenthesize_pat(~show_filters);
-  let parenthesize_typ = parenthesize_typ(~show_filters);
+    (
+      ~parenthesization: Settings.parenthesization,
+      ~show_filters: bool,
+      ~already_paren=false,
+      pat: Pat.t,
+    )
+    : Pat.t => {
+  let parenthesize_pat = parenthesize_pat(~parenthesization, ~show_filters);
+  let parenthesize_typ = parenthesize_typ(~parenthesization, ~show_filters);
+  let paren_pat_at = paren_pat_at(~parenthesization);
+  let paren_pat_assoc_at = paren_pat_assoc_at(~parenthesization);
+  let paren_typ_at = paren_typ_at(~parenthesization);
+  let should_auto_wrap_tuple = parenthesization == Defensive;
   let (term, rewrap) = Pat.unwrap(pat);
   switch (term) {
   // Indivisible forms dont' change
@@ -506,7 +612,7 @@ and parenthesize_pat =
         |> List.map(paren_pat_at(Precedence.prod)),
       )
       |> rewrap;
-    already_paren ? inner : Parens(inner) |> Pat.fresh;
+    already_paren || !should_auto_wrap_tuple ? inner : Parens(inner) |> Pat.fresh;
   | Label(_) => pat
   | TupLabel(l, p) =>
     TupLabel(l, parenthesize_pat(p) |> paren_pat_at(Precedence.min))
@@ -525,7 +631,10 @@ and parenthesize_pat =
     )
     |> rewrap
   | MultiHole(xs) =>
-    MultiHole(List.map(parenthesize_any(~show_filters), xs)) |> rewrap
+    MultiHole(
+      List.map(parenthesize_any(~parenthesization, ~show_filters), xs),
+    )
+    |> rewrap
   | Asc(p, t) =>
     Asc(
       parenthesize_pat(p) |> paren_pat_assoc_at(Precedence.asc),
@@ -536,8 +645,18 @@ and parenthesize_pat =
 }
 
 and parenthesize_typ =
-    (~show_filters: bool, ~already_paren=false, typ: Typ.t): Typ.t => {
-  let parenthesize_typ = parenthesize_typ(~show_filters);
+    (
+      ~parenthesization: Settings.parenthesization,
+      ~show_filters: bool,
+      ~already_paren=false,
+      typ: Typ.t,
+    )
+    : Typ.t => {
+  let parenthesize_typ = parenthesize_typ(~parenthesization, ~show_filters);
+  let paren_typ_at = paren_typ_at(~parenthesization);
+  let paren_typ_assoc_at = paren_typ_assoc_at(~parenthesization);
+  let paren_at = paren_at(~parenthesization);
+  let should_auto_wrap_tuple = parenthesization == Defensive;
   let (term, rewrap) = Typ.unwrap(typ);
   switch (term) {
   // Indivisible forms dont' change
@@ -572,7 +691,7 @@ and parenthesize_typ =
       )
       |> rewrap;
 
-    if (already_paren) {
+    if (already_paren || !should_auto_wrap_tuple) {
       inner;
     } else {
       Parens(inner) |> Typ.fresh;
@@ -585,7 +704,7 @@ and parenthesize_typ =
         |> List.map(paren_typ_at(Precedence.comma)),
       )
       |> rewrap;
-    already_paren ? inner : Parens(inner) |> Typ.fresh;
+    already_paren || !should_auto_wrap_tuple ? inner : Parens(inner) |> Typ.fresh;
   | ExplicitNonlabel => typ
   | Label(_) => typ
   | TupLabel(l, t) =>
@@ -616,7 +735,10 @@ and parenthesize_typ =
     )
     |> rewrap
   | ProofOf(e) =>
-    ProofOf(parenthesize(~show_filters, e) |> paren_at(Precedence.min))
+    ProofOf(
+      parenthesize(~parenthesization, ~show_filters, e)
+      |> paren_at(Precedence.min),
+    )
     |> rewrap
   | Arrow(t1, t2) =>
     Arrow(
@@ -637,13 +759,19 @@ and parenthesize_typ =
     |> rewrap
   | Unknown(Hole(MultiHole(xs))) =>
     Unknown(
-      Hole(MultiHole(List.map(parenthesize_any(~show_filters), xs))),
+      Hole(
+        MultiHole(
+          List.map(parenthesize_any(~parenthesization, ~show_filters), xs),
+        ),
+      ),
     )
     |> rewrap
   };
 }
 
-and parenthesize_tpat = (~show_filters: bool, tpat: TPat.t): TPat.t => {
+and parenthesize_tpat =
+    (~parenthesization: Settings.parenthesization, ~show_filters: bool, tpat: TPat.t)
+    : TPat.t => {
   let (term, rewrap: TPat.term => TPat.t) = IdTagged.unwrap(tpat);
   switch (term) {
   // Indivisible forms dont' change
@@ -653,11 +781,16 @@ and parenthesize_tpat = (~show_filters: bool, tpat: TPat.t): TPat.t => {
 
   // Other forms
   | MultiHole(xs) =>
-    MultiHole(List.map(parenthesize_any(~show_filters), xs)) |> rewrap
+    MultiHole(
+      List.map(parenthesize_any(~parenthesization, ~show_filters), xs),
+    )
+    |> rewrap
   };
 }
 
-and parenthesize_rul = (~show_filters: bool, rul: Rul.t): Rul.t => {
+and parenthesize_rul =
+    (~parenthesization: Settings.parenthesization, ~show_filters: bool, rul: Rul.t)
+    : Rul.t => {
   let (term, rewrap: Rul.term => Rul.t) = IdTagged.unwrap(rul);
   switch (term) {
   // Indivisible forms dont' change
@@ -666,30 +799,39 @@ and parenthesize_rul = (~show_filters: bool, rul: Rul.t): Rul.t => {
   // Other forms
   | Rules(e, ps) =>
     Rules(
-      parenthesize(~show_filters, e),
+      parenthesize(~parenthesization, ~show_filters, e),
       List.map(
         ((p, e)) =>
           (
-            parenthesize_pat(~show_filters, p),
-            parenthesize(~show_filters, e),
+            parenthesize_pat(~parenthesization, ~show_filters, p),
+            parenthesize(~parenthesization, ~show_filters, e),
           ),
         ps,
       ),
     )
     |> rewrap
   | MultiHole(xs) =>
-    MultiHole(List.map(parenthesize_any(~show_filters), xs)) |> rewrap
+    MultiHole(
+      List.map(parenthesize_any(~parenthesization, ~show_filters), xs),
+    )
+    |> rewrap
   };
 }
 
 and parenthesize_any =
-    (~already_paren=false, ~show_filters: bool, any: Any.t): Any.t =>
+    (
+      ~parenthesization: Settings.parenthesization,
+      ~already_paren=false,
+      ~show_filters: bool,
+      any: Any.t,
+    )
+    : Any.t =>
   switch (any) {
-  | Exp(e) => Exp(parenthesize(~already_paren, ~show_filters, e))
-  | Pat(p) => Pat(parenthesize_pat(~already_paren, ~show_filters, p))
-  | Typ(t) => Typ(parenthesize_typ(~already_paren, ~show_filters, t))
-  | TPat(tp) => TPat(parenthesize_tpat(~show_filters, tp))
-  | Rul(r) => Rul(parenthesize_rul(~show_filters, r))
+  | Exp(e) => Exp(parenthesize(~parenthesization, ~already_paren, ~show_filters, e))
+  | Pat(p) => Pat(parenthesize_pat(~parenthesization, ~already_paren, ~show_filters, p))
+  | Typ(t) => Typ(parenthesize_typ(~parenthesization, ~already_paren, ~show_filters, t))
+  | TPat(tp) => TPat(parenthesize_tpat(~parenthesization, ~show_filters, tp))
+  | Rul(r) => Rul(parenthesize_rul(~parenthesization, ~show_filters, r))
   | Any(_) => any
   };
 
@@ -1069,7 +1211,10 @@ let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
       | Some(t) =>
         let t = t |> Exp.replace_all_ids_typ;
         Pat.fresh(Asc(p, t))
-        |> parenthesize_pat(~show_filters=settings.show_filters);
+        |> parenthesize_pat(
+             ~parenthesization=settings.parenthesization,
+             ~show_filters=settings.show_filters,
+           );
       };
     let+ p = pat_to_pretty(~settings: Settings.t, p)
     and+ e = go(e);
@@ -1125,6 +1270,7 @@ let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
     wrap(
       exp,
       label_to_pretty(
+        ~label_format=settings.label_format,
         ~label_only_position=false,
         Sort.Exp,
         Token.label_quote(l),
@@ -1136,6 +1282,7 @@ let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
       switch (l.term) {
       | Label(l') =>
         label_to_pretty(
+          ~label_format=settings.label_format,
           ~label_only_position=true,
           Sort.Exp,
           l',
@@ -1171,6 +1318,7 @@ let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
       switch (l.term) {
       | Label(l') =>
         label_to_pretty(
+          ~label_format=settings.label_format,
           ~label_only_position=true,
           Sort.Exp,
           l',
@@ -1474,6 +1622,7 @@ and pat_to_pretty = (~settings: Settings.t, pat: Pat.t): pretty => {
       switch (l.term) {
       | Label(l') =>
         label_to_pretty(
+          ~label_format=settings.label_format,
           ~label_only_position=true,
           Sort.Pat,
           l',
@@ -1659,6 +1808,7 @@ and typ_to_pretty = (~settings: Settings.t, typ: Typ.t): pretty => {
       switch (l.term) {
       | Label(l') =>
         label_to_pretty(
+          ~label_format=settings.label_format,
           ~label_only_position=true,
           Sort.Typ,
           l',
@@ -1694,6 +1844,7 @@ and typ_to_pretty = (~settings: Settings.t, typ: Typ.t): pretty => {
       switch (t2.term) {
       | Label(l') =>
         label_to_pretty(
+          ~label_format=settings.label_format,
           ~label_only_position=true,
           Sort.Typ,
           l',
@@ -1802,12 +1953,22 @@ and any_to_pretty = (~settings: Settings.t, any: Any.t): pretty => {
   };
 }
 and label_to_pretty =
-    (~label_only_position, sort: Sort.t, label: string, id: Uuidm.t): pretty => {
+    (
+      ~label_format: Settings.label_format,
+      ~label_only_position,
+      sort: Sort.t,
+      label: string,
+      id: Uuidm.t,
+    )
+    : pretty => {
   text_to_pretty(
     id,
     sort,
     if (label_only_position) {
-      Token.quote_label_when_necessary(label);
+      switch (label_format) {
+      | QuoteWhenNecessary => Token.quote_label_when_necessary(label)
+      | AlwaysQuote => Token.label_quote(label)
+      };
     } else {
       label;
     },
@@ -1817,14 +1978,24 @@ and label_to_pretty =
 let exp_to_segment =
     (~already_paren=false, ~settings: Settings.t, exp: Exp.t): Segment.t => {
   let exp =
-    exp |> parenthesize(~already_paren, ~show_filters=settings.show_filters);
+    exp
+    |> parenthesize(
+         ~parenthesization=settings.parenthesization,
+         ~already_paren,
+         ~show_filters=settings.show_filters,
+       );
   let p = exp_to_pretty(~settings, exp);
   p |> PrettySegment.select;
 };
 
-let typ_to_segment = (~settings, typ: Typ.t): Segment.t => {
-  let typ = parenthesize_typ(typ);
-  let p = typ_to_pretty(~settings, typ(~show_filters=settings.show_filters));
+let typ_to_segment = (~settings: Settings.t, typ: Typ.t): Segment.t => {
+  let typ =
+    typ
+    |> parenthesize_typ(
+         ~parenthesization=settings.parenthesization,
+         ~show_filters=settings.show_filters,
+       );
+  let p = typ_to_pretty(~settings, typ);
   p |> PrettySegment.select;
 };
 
@@ -1832,7 +2003,11 @@ let any_to_segment =
     (~already_paren=false, ~settings: Settings.t, any: Any.t): Segment.t => {
   let any =
     any
-    |> parenthesize_any(~already_paren, ~show_filters=settings.show_filters);
+    |> parenthesize_any(
+         ~parenthesization=settings.parenthesization,
+         ~already_paren,
+         ~show_filters=settings.show_filters,
+       );
   let p = any_to_pretty(~settings, any);
   p |> PrettySegment.select;
 };

@@ -241,6 +241,8 @@ module Make =
       I.to_segment(
         ~settings={
           secondary: AutoFormat,
+          parenthesization: Defensive,
+          label_format: QuoteWhenNecessary,
           inline: true,
           fold_case_clauses: false,
           fold_fn_bodies: `NoFold,

@@ -6,6 +6,8 @@ open EditingPrelude;
 
 let exp_to_segment_settings: ExpToSegment.Settings.t = {
   secondary: AutoFormat,
+  parenthesization: Defensive,
+  label_format: QuoteWhenNecessary,
   inline: true,
   fold_case_clauses: false,
   fold_fn_bodies: `NoFold,
@@ -420,6 +422,8 @@ let tests = (
 
 let exp_to_segment_roundtrip_settings: ExpToSegment.Settings.t = {
   secondary: PreserveExact,
+  parenthesization: Structural, /* Don't add defensive parens for round-tripping */
+  label_format: AlwaysQuote, /* Preserve backticks for round-tripping */
   inline: true, /* ignored when secondary = PreserveExact */
   fold_case_clauses: false,
   fold_fn_bodies: `NoFold,
@@ -659,65 +663,45 @@ end|}),
    - Explicit holes (`?`) - special handling in MakeTerm, may need adjustment
    - LLMHole (??...??) - similar concerns to explicit holes
 
+   === CONFIGURABLE BEHAVIOR (addressed via settings) ===
+
+   Defensive Parenthesization (Settings.parenthesization):
+   - Defensive: Adds parens for forms like rec/poly after `:` because they
+     share low precedence with their `->` trailing delimiter.
+     Examples: `1 : rec t -> t` becomes `1 :( rec t -> t)`
+   - Structural: Only emits parens that exist in the term structure.
+     Used for round-tripping where defensive parens would break exact preservation.
+   Note: `forall` is expression-level only; `poly` is the type-level equivalent.
+
+   Label Quoting (Settings.label_format):
+   - QuoteWhenNecessary: Only adds backticks for non-identifiers (original behavior)
+   - AlwaysQuote: Always adds backticks to labels (for round-tripping)
+
    === KNOWN LIMITATIONS ===
 
-   Defensive Parenthesization (forms with arrow trailing delimiters):
-   ExpToSegment adds parentheses for forms like rec/poly/typfun/forall after `:`
-   because they share low precedence with their `->` trailing delimiter.
-   Related: fun/fix also use `->` but typically don't appear after `:`.
-   See Issue #1913 for related edge cases with forall regrouting.
-   Examples:
-   - `1 : rec t -> t` becomes `1 :( rec t -> t)`
-   - `1 : poly a -> a` becomes `1 :( poly a -> a)`
-   - `typfun a -> fun x : a -> x` - the inner `: a` gets wrapped
-
-   Other limitations:
-   - QuotedLabel: backticks lost for simple labels (`a` becomes a). Labels
-     requiring backticks (spaces, empty) work fine.
    - Float literals: normalized to full precision (2.0 becomes 2.000000)
+     This is done upstream in the parser/lexer.
 
    ============================================================================ */
 
-let skip_roundtrip_known_limitation =
-    (name: string, input: string, ~actual: string) =>
-  test_case(name, `Quick, () => {
-    switch (Parser.to_term(input), Parser.to_segment(input)) {
-    | (Some(term), Some(_seg)) =>
-      let seg' = exp_to_segment_roundtrip(term);
-      let input' = print_seg(seg');
-      /* Document the actual output for clarity */
-      check(
-        string,
-        {|Actual output (with defensive parens)|},
-        actual,
-        input',
-      );
-      Alcotest.skip();
-    | _ => Alcotest.fail({|Failed to parse|})
-    }
-  });
-
-let roundtrip_known_limitations = (
-  "Round-Trip Known Limitations (Defensive Parenthesization)",
+/* Tests for forms that previously had defensive parenthesization issues.
+   With parenthesization: Structural, these now round-trip correctly. */
+let roundtrip_defensive_paren_tests = (
+  "Round-Trip: Defensive Parenthesization Forms",
   [
-    /* Rec types after type annotation get wrapped in parens.
-       Input:  `1 : rec t -> t`
-       Output: `1 :( rec t -> t)`
-       The space before `rec` is preserved, but parens are added. */
-    skip_roundtrip_known_limitation(
-      {|Rec type after ascription|},
-      {|1 : rec t -> t|},
-      ~actual={|1 :( rec t -> t)|},
+    /* Rec types after type annotation - previously got wrapped in parens
+       with Defensive mode. With Structural mode, round-trips correctly. */
+    roundtrip_test({|Rec type after ascription|}, {|1 : rec t -> t|}),
+    roundtrip_test({|Rec type spaced|}, {|1  :  rec t -> t|}),
+    /* Poly types after type annotation - same issue as rec. */
+    roundtrip_test({|Poly type after ascription|}, {|1 : poly a -> a|}),
+    roundtrip_test({|Poly type spaced|}, {|1  :  poly a -> a|}),
+    /* Note: `forall` is expression-level only (exp forall pat -> exp).
+       The type-level construct is `poly` (type poly tpat -> typ). */
+    /* Nested rec/poly types */
+    roundtrip_test(
+      {|Nested rec types|},
+      {|1 : rec t -> rec u -> (t, u)|},
     ),
-    /* Poly types after type annotation also get wrapped.
-       Input:  `1 : poly a -> a`
-       Output: `1 :( poly a -> a)` */
-    skip_roundtrip_known_limitation(
-      {|Poly type after ascription|},
-      {|1 : poly a -> a|},
-      ~actual={|1 :( poly a -> a)|},
-    ),
-    /* This issue may also affect function parameters with complex types.
-       TODO: Add examples if discovered. */
   ],
 );
