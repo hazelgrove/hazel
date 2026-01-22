@@ -353,9 +353,9 @@ let tests =
           Pat.asc(
             Pat.var("x"),
             Typ.sum([
-              Variant("A", [], None),
-              Variant("B", [], None),
-              Variant("C", [], Some(Typ.int())),
+              Variant("A", ConstructorMap.empty_variant_ann, None),
+              Variant("B", ConstructorMap.empty_variant_ann, None),
+              Variant("C", ConstructorMap.empty_variant_ann, Some(Typ.int())),
             ]),
           ),
           ap(Forward, constructor("C", None), int(7)),

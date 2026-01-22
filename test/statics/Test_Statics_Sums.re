@@ -348,8 +348,8 @@ end
                 TPat.var("A2"),
                 Typ.(
                   sum([
-                    Variant("A", [id1], None),
-                    Variant("A", [id2], None),
+                    Variant("A", ConstructorMap.mk_variant_ann(~ids=[id1], ()), None),
+                    Variant("A", ConstructorMap.mk_variant_ann(~ids=[id2], ()), None),
                   ])
                 ),
                 Exp.empty_hole(),

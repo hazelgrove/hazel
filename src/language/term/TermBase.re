@@ -384,20 +384,20 @@ and Typ: {
           Sum(
             List.map(
               fun
-              | ConstructorMap.Variant(c, ids, t) => {
+              | ConstructorMap.Variant(c, ann, t) => {
                   /* We turn a variant back into its original term (see MakeTerm.parse_sum_term)
-                   * in order to map over it. The main reason this was implemeted is to that
+                   * in order to map over it. The main reason this was implemented is so that
                    * id renaming passes work. */
                   switch (
                     typ_map_term({
                       term: Var(c),
-                      annotation: IdTagged.IdTag.mk_internal(ids),
+                      annotation: IdTagged.IdTag.mk_internal(ann.ids),
                     })
                   ) {
                   | {term: Var(c), annotation: {ids, _}} =>
                     ConstructorMap.Variant(
                       c,
-                      ids,
+                      {ids, secondary: ann.secondary},
                       Option.map(typ_map_term, t),
                     )
                   | t => BadEntry(typ_map_term(t))

@@ -454,4 +454,141 @@ All phases are now complete:
 - Nested/complex expressions
 - Application (single and multiple args)
 
-All 1288 tests pass, including 54 dedicated round-trip tests.
+All 1303 tests pass, including 73 dedicated round-trip tests.
+
+### Sum Types: Special Case for Variant Storage
+
+Sum types presented a unique challenge because their constructors are stored in `ConstructorMap.variant`, not as regular terms:
+
+```reason
+type variant('a) =
+  | Variant(Constructor.t, list(Id.t), option('a))  // Before
+  | BadEntry('a);
+```
+
+The `list(Id.t)` parameter had no secondary storage, so whitespace in sum type definitions was lost during round-tripping. For example, `type T = +A(Int) + B in T` would lose the space between `+A(Int)` and `+ B`.
+
+**Solution:** Add a `variant_ann` type to `ConstructorMap` that stores both ids and secondary:
+
+```reason
+type secondary_runs = (list(Secondary.t), list(Secondary.t));
+type variant_ann = {
+  ids: list(Id.t),
+  secondary: secondary_runs,
+};
+
+type variant('a) =
+  | Variant(Constructor.t, variant_ann, option('a))  // After
+  | BadEntry('a);
+```
+
+**Key Changes:**
+
+1. **ConstructorMap.re**: Added `variant_ann` type with `secondary_runs` (duplicated from `IdTagged` to avoid dependency cycles)
+
+2. **MakeTerm.re (`parse_sum_term`)**: Capture secondary from term annotations when parsing sum type constructors:
+   - For bare constructors `A`: use the constructor's secondary directly
+   - For constructor applications `A(T)`: combine inner before (constructor) with outer after (application) for correct round-tripping
+
+3. **ExpToSegment.re (`go_constructor`)**: Emit secondary from `variant_ann` when in `PreserveExact` mode:
+   ```reason
+   let wrap_variant_secondary = (ann: variant_ann, seg: Segment.t) =>
+     switch (settings.secondary) {
+     | PreserveExact =>
+       let (before, after) = ann.secondary;
+       secondary_to_segment(before) @ seg @ secondary_to_segment(after)
+     | AutoFormat => seg
+     };
+   ```
+
+4. **All variant usages updated**: Many files needed updating from `Variant(c, ids, t)` to `Variant(c, ann, t)` with helper functions `empty_variant_ann` and `mk_variant_ann(~ids, ())` for convenience.
+
+**Test Coverage:**
+- `type T = +A in T` (single constructor)
+- `type T = +A + B in T` (two constructors)
+- `type T = +A(Int) + B in T` (with args)
+- `type T = + A + B in T` (extra spacing)
+- `type T = +A+B in T` (compact)
+
+### Known Limitation: Defensive Parenthesization
+
+Some forms don't fully round-trip due to **defensive parenthesization** in ExpToSegment. This is a structural issue, not a secondary storage issue—the secondary is correctly stored and emitted, but ExpToSegment adds parentheses to ensure correct re-parsing.
+
+**Example: Rec/Poly types after type annotation**
+
+```
+Input:  1 : rec t -> t
+Output: 1 :( rec t -> t)
+```
+
+The space before `rec` is preserved (note the space after `:`), but ExpToSegment wraps the type in parentheses. This happens because `rec` and `poly` types have low precedence, and without parens, the output might be ambiguous or parse differently.
+
+Similarly for poly types:
+```
+Input:  1 : poly a -> a
+Output: 1 :( poly a -> a)
+```
+
+**Related cases:**
+- **Tuple parenthesization** (mentioned in "Notes" section): Tuples may get wrapped in parens
+- **Function parameters**: Complex types in function parameter positions may get wrapped
+- **Nested arrows**: `(Int -> Bool) -> x` shows how arrows on the left of an arrow need parens
+
+**Why this happens:**
+
+ExpToSegment uses a `precedence` function to determine when to add parentheses. When converting a type after `:`, if the type's precedence is below a threshold, it wraps in parens to avoid parsing ambiguity. For example, without parens:
+- `1 : rec t -> t` could potentially parse as `(1 : rec t) -> t` depending on grammar
+
+**Potential fixes (future work):**
+1. Adjust precedence values so rec/poly types don't trigger parenthesization in that context
+2. Add context-awareness to know when parens are truly needed vs. defensive
+3. Store explicit "was parenthesized" in the term structure (but this adds complexity)
+
+**Test coverage:** See `roundtrip_known_limitations` in `test/Test_ExpToSegment.re` for documented examples.
+
+### Out of Scope for Round-Trip Testing
+
+The following forms are explicitly **not tested** for round-tripping:
+
+1. **Projectors/Refractors** (`^^projector_name` syntax)
+   - These are display/interaction features, not core syntax
+   - Round-tripping projector syntax is out of scope for this work
+
+2. **Filter Expressions** (`hide`, `eval`, `pause`, `debug` keywords)
+   - Example: `pause 1 in 2`, `eval x in y`
+   - These are stepper-related features, not tested for round-tripping
+
+### Remaining Work (Needs Investigation)
+
+1. **Explicit Holes (`?`)**
+   - `MakeTerm.re:220` has special handling via `is_hole_label`
+   - May need adjustment to secondary collection logic
+   - Currently untested for exact round-tripping
+
+2. **Grout (convex and concave)**
+   - Grout pieces appear during editing as placeholders
+   - Secondary preservation for grout needs investigation
+   - May require changes to how grout is handled in collection/emission
+
+### Forms Not Yet Tested (May Add Incrementally)
+
+These forms from `Form.re` don't have round-trip tests yet. They may work correctly, but haven't been verified:
+
+**Atomic forms:**
+- `LLMHole` (??...??) - LLM-assisted holes
+- `QuotedLabel` (\`label\`) - quoted labels
+- `LivelitName` (^livelit) - livelit invocation names
+
+**Compound forms:**
+- `FPower` (**.) - float power operator
+- `LogicalOrLegacy` (\\/) - legacy logical OR syntax
+- `Unquote` ($) - unquote operator for metaprogramming
+- `BlockExp` ({...}) - block expressions
+- `Test` (test ... end) - test expressions
+- `ProofOf` (proof_of ... end) - proof type
+- `ProofObject` (proof_object ... indeed) - proof construction
+- `HintedTest` (hint ... test ... end) - hinted test expressions
+- `Fix` (fix ... ->) - explicit fixpoint
+- `TypFun` (typfun ... ->) - type-level functions
+- `Use` (use ... in) - module use expressions
+- `Theorem` (theorem ... = ... in) - theorem declarations

@@ -1542,30 +1542,44 @@ and typ_to_pretty = (~settings: Settings.t, typ: Typ.t): pretty => {
   /* Use settings-aware concatenation and form building */
   let (@) = concat_segment(~secondary=settings.secondary);
   let mk_form = mk_form(~secondary=settings.secondary);
+  /* Wrap a segment with secondary from a variant annotation */
+  let wrap_variant_secondary =
+      (ann: ConstructorMap.variant_ann, seg: Segment.t): Segment.t =>
+    switch (settings.secondary) {
+    | PreserveExact =>
+      let (before, after) = ann.secondary;
+      secondary_to_segment(before) @ seg @ secondary_to_segment(after)
+    | AutoFormat => seg
+    };
   let go_constructor: ConstructorMap.variant(Typ.t) => pretty =
     fun
-    | Variant(c, ids, None) => {
-        text_to_pretty(
-          Option.value(~default=Id.invalid, ListUtil.hd_opt(ids)),
-          Sort.Typ,
-          c,
-        );
-      }
-    | Variant(c, ids, Some(x)) => {
-        let+ constructor =
+    | Variant(c, ann, None) => {
+        let+ seg =
           text_to_pretty(
-            Option.value(~default=Id.invalid, List.nth_opt(ids, 1)),
+            Option.value(~default=Id.invalid, ListUtil.hd_opt(ann.ids)),
             Sort.Typ,
             c,
           );
-        constructor
-        @ [
-          mk_form(
-            ApTyp,
-            Option.value(~default=Id.invalid, ListUtil.hd_opt(ids)),
-            [go(x)],
-          ),
-        ];
+        wrap_variant_secondary(ann, seg);
+      }
+    | Variant(c, ann, Some(x)) => {
+        let+ constructor =
+          text_to_pretty(
+            Option.value(~default=Id.invalid, List.nth_opt(ann.ids, 1)),
+            Sort.Typ,
+            c,
+          );
+        wrap_variant_secondary(
+          ann,
+          constructor
+          @ [
+            mk_form(
+              ApTyp,
+              Option.value(~default=Id.invalid, ListUtil.hd_opt(ann.ids)),
+              [go(x)],
+            ),
+          ],
+        );
       }
     | BadEntry(x) => go(x);
   switch (typ |> Typ.term_of) {

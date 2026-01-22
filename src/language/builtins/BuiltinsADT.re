@@ -5,7 +5,7 @@ open Fresh.Typ;
 let sum_type = (variants: list((string, option(Typ.t)))): Typ.t =>
   variants
   |> List.map(((name, typ_opt)) =>
-       ConstructorMap.Variant(name, [Id.mk()], typ_opt)
+       ConstructorMap.Variant(name, ConstructorMap.mk_variant_ann(~ids=[Id.mk()], ()), typ_opt)
      )
   |> sum;
 

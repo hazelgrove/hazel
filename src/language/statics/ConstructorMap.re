@@ -1,10 +1,35 @@
 open Util.OptUtil.Syntax;
 open Util;
 
+/* Secondary runs type - duplicated here from IdTagged to avoid dependency cycle.
+   Stores (before, after) pairs for round-tripping whitespace/comments. */
+[@deriving (show({with_path: false}), sexp, yojson)]
+type secondary_runs = (list(Secondary.t), list(Secondary.t));
+
+let empty_secondary: secondary_runs = ([], []);
+
+/* Annotation for variants - stores ids and secondary for round-tripping. */
+[@deriving (show({with_path: false}), sexp, yojson)]
+type variant_ann = {
+  ids: list(Id.t),
+  secondary: secondary_runs,
+};
+
+let empty_variant_ann: variant_ann = {ids: [], secondary: empty_secondary};
+let mk_variant_ann = (~ids, ~secondary=empty_secondary, ()): variant_ann => {ids, secondary};
+
+/* Variant now stores full annotation to preserve secondary for round-tripping.
+   Previously stored only list(Id.t), losing whitespace information. */
 [@deriving (show({with_path: false}), sexp, yojson)]
 type variant('a) =
-  | Variant(Constructor.t, list(Id.t), option('a))
+  | Variant(Constructor.t, variant_ann, option('a))
   | BadEntry('a);
+
+/* Helper to extract ids from annotation for backwards compatibility */
+let variant_ids =
+  fun
+  | Variant(_, ann, _) => ann.ids
+  | BadEntry(_) => [];
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type t('a) = list(variant('a));

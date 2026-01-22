@@ -107,7 +107,7 @@ let tests = (
           exp_to_segment(
             let_(
               Pat.(
-                asc(list_lit([]), Typ.(sum([Variant("Jg", [], None)])))
+                asc(list_lit([]), Typ.(sum([Variant("Jg", ConstructorMap.empty_variant_ann, None)])))
               ),
               empty_hole(),
               empty_hole(),
@@ -562,5 +562,90 @@ x + y|},
   x + 1
 in f(42)|},
     ),
+    /* Sum types - now supported with ConstructorMap.variant_ann storing secondary */
+    roundtrip_test({|Sum type: single constructor|}, {|type T = +A in T|}),
+    roundtrip_test({|Sum type: two constructors|}, {|type T = +A + B in T|}),
+    roundtrip_test({|Sum type: with args|}, {|type T = +A(Int) + B in T|}),
+    roundtrip_test({|Sum type: spaced|}, {|type T = + A + B in T|}),
+    roundtrip_test({|Sum type: compact|}, {|type T = +A+B in T|}),
+  ],
+);
+
+/* ============================================================================
+   ROUND-TRIP TESTING: SCOPE AND LIMITATIONS
+   See plans/secondary-in-terms-v2.md for full details.
+   ============================================================================
+
+   Forms explicitly NOT tested for round-tripping (per user request):
+   - Projectors/Refractors (^^projector_name syntax) - out of scope
+   - Filter expressions (hide/eval/pause/debug ... in) - out of scope
+
+   Known Limitations - Defensive Parenthesization:
+   ExpToSegment adds parentheses in certain contexts to ensure correct re-parsing.
+   This means some forms don't round-trip even though secondary is correctly stored.
+   Related issues:
+   - Tuple parenthesization (mentioned in plans/secondary-in-terms-v2.md)
+   - Type annotation precedence (rec/poly types after `:`)
+   - Potentially function parameters with complex types
+
+   Remaining work (needs investigation):
+   - Explicit holes (`?`) - special handling in MakeTerm, may need adjustment
+   - Grout (convex and concave) - needs investigation for secondary preservation
+
+   Forms from Form.re not yet tested (may add incrementally):
+   Atomic:
+   - LLMHole (??...??)
+   - QuotedLabel (`label`)
+   - LivelitName (^livelit)
+
+   Compound:
+   - FPower (**.) - float power
+   - LogicalOrLegacy (\/) - legacy OR syntax
+   - Unquote ($) - unquote operator
+   - BlockExp ({...}) - block expressions
+   - Test (test ... end) - test expressions
+   - ProofOf (proof_of ... end), ProofObject (proof_object ... indeed)
+   - HintedTest (hint ... test ... end)
+   - Fix (fix ... ->) - fixpoint
+   - TypFun (typfun ... ->) - type function
+   - Use (use ... in) - use expression
+   - Theorem (theorem ... = ... in) - theorem expression
+   ============================================================================ */
+
+let skip_roundtrip_known_limitation = (name: string, input: string, ~actual: string) =>
+  test_case(name, `Quick, () => {
+    switch (Parser.to_term(input), Parser.to_segment(input)) {
+    | (Some(term), Some(_seg)) =>
+      let seg' = exp_to_segment_roundtrip(term);
+      let input' = print_seg(seg');
+      /* Document the actual output for clarity */
+      check(string, {|Actual output (with defensive parens)|}, actual, input');
+      Alcotest.skip();
+    | _ => Alcotest.fail({|Failed to parse|})
+    }
+  });
+
+let roundtrip_known_limitations = (
+  "Round-Trip Known Limitations (Defensive Parenthesization)",
+  [
+    /* Rec types after type annotation get wrapped in parens.
+       Input:  `1 : rec t -> t`
+       Output: `1 :( rec t -> t)`
+       The space before `rec` is preserved, but parens are added. */
+    skip_roundtrip_known_limitation(
+      {|Rec type after ascription|},
+      {|1 : rec t -> t|},
+      ~actual={|1 :( rec t -> t)|},
+    ),
+    /* Poly types after type annotation also get wrapped.
+       Input:  `1 : poly a -> a`
+       Output: `1 :( poly a -> a)` */
+    skip_roundtrip_known_limitation(
+      {|Poly type after ascription|},
+      {|1 : poly a -> a|},
+      ~actual={|1 :( poly a -> a)|},
+    ),
+    /* This issue may also affect function parameters with complex types.
+       TODO: Add examples if discovered. */
   ],
 );

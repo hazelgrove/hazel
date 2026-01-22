@@ -44,7 +44,7 @@ module Slider: BuiltinLivelit = {
     };
 
   let hazel_action_t: TermBase.Typ.t =
-    Sum([Variant("SetModel", [], Some(Atom(Int) |> Typ.fresh))])
+    Sum([Variant("SetModel", ConstructorMap.mk_variant_ann(~ids=[], ()), Some(Atom(Int) |> Typ.fresh))])
     |> Typ.fresh;
   let action_to_hazel: action_t => action_exp =
     (action: action_t) =>
@@ -150,7 +150,7 @@ module Emotion: BuiltinLivelit = {
 
   /* Define the action type for Hazel */
   let hazel_action_t: TermBase.Typ.t =
-    Sum([Variant("SetModel", [], Some(Atom(Int) |> Typ.fresh))])
+    Sum([Variant("SetModel", ConstructorMap.mk_variant_ann(~ids=[], ()), Some(Atom(Int) |> Typ.fresh))])
     |> Typ.fresh;
 
   let action_to_hazel: action_t => action_exp =
@@ -325,7 +325,7 @@ module Js: BuiltinLivelit = {
     Sum([
       Variant(
         "SetModel",
-        [],
+        ConstructorMap.mk_variant_ann(~ids=[], ()),
         Some(
           Prod([Typ.temp(Atom(String)), Typ.temp(Atom(String))])
           |> Typ.fresh,

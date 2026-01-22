@@ -463,7 +463,7 @@ and Typ: {
           (sumterm: AST.sumterm): ConstructorMap.variant(IndicatedG.typ) =>
             switch (sumterm) {
             | Variant(name, typ) =>
-              Variant(name, [Id.mk()], Option.map(of_menhir_ast, typ))
+              Variant(name, ConstructorMap.mk_variant_ann(~ids=[Id.mk()], ()), Option.map(of_menhir_ast, typ))
             | BadEntry(typ) => BadEntry(of_menhir_ast(typ))
             },
           sumterms,
