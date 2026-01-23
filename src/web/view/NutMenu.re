@@ -95,6 +95,12 @@ let stepper_group = (~globals: Globals.t) => {
         Evaluation(ShowAscriptionSteps),
       ),
       (
+        "⇨",
+        "Show Case Steps",
+        s.show_case_steps,
+        Evaluation(ShowCaseSteps),
+      ),
+      (
         "π",
         "Proof Steps (experimental)",
         s.enable_proof,

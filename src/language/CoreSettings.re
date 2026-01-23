@@ -7,6 +7,7 @@ module Evaluation = {
     show_fn_bodies: bool,
     show_fixpoints: bool,
     show_ascription_steps: bool,
+    show_case_steps: bool,
     show_lookup_steps: bool,
     show_stepper_filters: bool,
     // TODO[Matt]: Move this to somewhere where it is a per-scratch setting
@@ -21,6 +22,7 @@ module Evaluation = {
     show_fn_bodies: false,
     show_fixpoints: false,
     show_ascription_steps: false,
+    show_case_steps: false,
     show_lookup_steps: false,
     show_stepper_filters: false,
     stepper_history: false,
