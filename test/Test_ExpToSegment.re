@@ -592,9 +592,10 @@ in f(42)|},
     roundtrip_test({|Unquote: simple|}, {|eval $x in x|}),
     roundtrip_test({|Unquote: spaced|}, {|eval $ x in x|}),
     roundtrip_test({|Unquote: in hide|}, {|hide $1 in 2|}),
-    /* Quoted labels - backticks are not preserved through ExpToSegment currently.
-       Labels without special chars work; labels requiring backticks lose them.
-       See QuotedLabel in "Forms not yet fully round-tripping" below. */
+    roundtrip_test(
+      {|QuotedLabel: single-world quoted label (not normalized)|},
+      {|(`yo`=42)|},
+    ),
     roundtrip_test(
       {|QuotedLabel: with spaces works|},
       {|(`hello world`=42)|},
@@ -987,6 +988,11 @@ let roundtrip_grout_string_tests = (
     /* Incomplete syntax that should produce actual grout (not Tile with "?" label) */
     /* These test whether the parser inserts grout for incomplete expressions */
     roundtrip_grout_text_test({|Incomplete: no term|}, {||}),
+    roundtrip_grout_text_test({|Incomplete: convex grout|}, {|1+|}),
+    roundtrip_grout_text_test(
+      {|Incomplete: convex grout with secondary|},
+      {|1+ |},
+    ),
     roundtrip_grout_text_test({|Incomplete: two adjacent terms|}, {|1 2|}),
     roundtrip_grout_text_test(
       {|Incomplete: three adjacent terms|},
