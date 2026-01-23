@@ -606,6 +606,22 @@ Now controlled by `Settings.label_format`:
    - This is a parser/lexer normalization, not a secondary storage issue
    - Cannot be addressed in ExpToSegment alone
 
+2. **Sum type leading `+` prefix**
+   - Both `type T = A + B` and `type T = +A + B` parse to the same `Sum([A, B])` term
+   - The information about whether the original had a leading `+` is lost during parsing
+   - ExpToSegment always emits the prefixed form (`+A + B`)
+   - This is a normalization issue, not true round-tripping
+
+   **Options to address:**
+   - **Option A: Add setting** - A `sum_prefix_style: AlwaysPrefix | NoPrefix` setting to choose canonical form
+   - **Option B: Tie to parenthesization** - `Structural` → no prefix, `Defensive` → prefix (semantically similar to defensive parens)
+   - **Option C: Store in term** - Add a `has_leading_plus: bool` field to `Sum` in Grammar.re
+     - Requires updating ~35+ pattern matches across the codebase
+     - Most are mechanical changes (adding `_` for the new field)
+     - Key changes in MakeTerm (set flag) and ExpToSegment (use flag)
+
+   Option C is the only true fix; A and B are normalization choices.
+
 ### Remaining Work (Needs Investigation)
 
 1. **Grout (convex and concave)**

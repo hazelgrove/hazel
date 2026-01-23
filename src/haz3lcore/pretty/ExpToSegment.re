@@ -1180,7 +1180,7 @@ let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
         Tile({
           id,
           label: ["..."],
-          mold: Mold.mk_bin(Precedence.dot, Sort.Exp, []),
+          mold: Mold.mk_bin(Precedence.plus, Sort.Exp, []),
           shards: [0],
           children: [],
         }),
@@ -1315,12 +1315,15 @@ let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
     let* l =
       switch (l.term) {
       | Label(l') =>
-        label_to_pretty(
-          ~label_format=settings.label_format,
-          ~label_only_position=true,
-          Sort.Exp,
-          l',
-          l |> Exp.rep_id,
+        wrap(
+          l,
+          label_to_pretty(
+            ~label_format=settings.label_format,
+            ~label_only_position=true,
+            Sort.Exp,
+            l',
+            l |> Exp.rep_id,
+          ),
         )
       | _ => go(l)
       }
@@ -1351,12 +1354,15 @@ let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
     and* l =
       switch (l.term) {
       | Label(l') =>
-        label_to_pretty(
-          ~label_format=settings.label_format,
-          ~label_only_position=true,
-          Sort.Exp,
-          l',
-          l |> Exp.rep_id,
+        wrap(
+          l,
+          label_to_pretty(
+            ~label_format=settings.label_format,
+            ~label_only_position=true,
+            Sort.Exp,
+            l',
+            l |> Exp.rep_id,
+          ),
         )
       | _ => go(l)
       };
@@ -1661,12 +1667,15 @@ and pat_to_pretty = (~settings: Settings.t, pat: Pat.t): pretty => {
     let* l =
       switch (l.term) {
       | Label(l') =>
-        label_to_pretty(
-          ~label_format=settings.label_format,
-          ~label_only_position=true,
-          Sort.Pat,
-          l',
-          l |> Pat.rep_id,
+        wrap(
+          l,
+          label_to_pretty(
+            ~label_format=settings.label_format,
+            ~label_only_position=true,
+            Sort.Pat,
+            l',
+            l |> Pat.rep_id,
+          ),
         )
       | _ => go(l)
       }
@@ -1873,12 +1882,15 @@ and typ_to_pretty = (~settings: Settings.t, typ: Typ.t): pretty => {
     let+ l =
       switch (l.term) {
       | Label(l') =>
-        label_to_pretty(
-          ~label_format=settings.label_format,
-          ~label_only_position=true,
-          Sort.Typ,
-          l',
-          l |> Typ.rep_id,
+        wrap(
+          l,
+          label_to_pretty(
+            ~label_format=settings.label_format,
+            ~label_only_position=true,
+            Sort.Typ,
+            l',
+            l |> Typ.rep_id,
+          ),
         )
       | _ => go(l)
       }
@@ -1909,12 +1921,15 @@ and typ_to_pretty = (~settings: Settings.t, typ: Typ.t): pretty => {
     and* t2 =
       switch (t2.term) {
       | Label(l') =>
-        label_to_pretty(
-          ~label_format=settings.label_format,
-          ~label_only_position=true,
-          Sort.Typ,
-          l',
-          t2 |> Typ.rep_id,
+        wrap(
+          t2,
+          label_to_pretty(
+            ~label_format=settings.label_format,
+            ~label_only_position=true,
+            Sort.Typ,
+            l',
+            t2 |> Typ.rep_id,
+          ),
         )
       | _ => go(t2)
       };
