@@ -77,21 +77,23 @@ let and_ = 32 |> right_associative;
 let or_ = 33 |> right_associative;
 // false || _____
 let concave_grout = 34;
-let if_ = 35;
-let fun_ = 36;
-// fun x -> _____
+
+// ===== SEMICOLON (tightest structural form) =====
+// Sequences naturally extend into bodies of let/fun/if/case
 // _____ ; ()
-let semi = 38 |> right_associative;
+let semi = 35 |> right_associative;
 // () ; _____
+
+// ===== STRUCTURAL FORMS =====
+let if_ = 36;
+let fun_ = 37;
+// fun x -> _____
 
 let lab = 39;
 
 let case_ = 42;
 
 let comma = 44;
-/* prod is used for tuple parenthesization in ExpToSegment.
-   It's unclear whether prod should equal comma or not. */
-let prod = 37;
 
 /* Let looser than commas so can do `let x = 1 in x, x */
 let let_ = 45;

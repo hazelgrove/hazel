@@ -576,7 +576,7 @@ let out : string * Haz3lcore.PersistentSegment.t =
          5c93e9d4-f723-4c00-87d5-ce68301eafb3)(content(Whitespace\" \
          \"))))(Tile((id f47c8f26-1a87-4cbd-8e91-055b572dd1a2)(label(fun \
          ->))(mold((out Exp)(in_(Pat))(nibs(((shape Convex)(sort \
-         Exp))((shape(Concave 36))(sort Exp))))))(shards(0 \
+         Exp))((shape(Concave 37))(sort Exp))))))(shards(0 \
          1))(children(((Secondary((id \
          87d24b42-1d4a-45f4-9eaf-c41ec61f9bdc)(content(Whitespace\" \
          \"))))(Tile((id \

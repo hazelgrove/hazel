@@ -151,8 +151,8 @@ let out : string * Haz3lcore.PersistentSegment.t =
          7dd3ff64-f591-44c1-8f81-6342992abf12)(content(Whitespace\" \
          \")))))))))(Tile((id \
          da82abf0-50e9-4ffb-a56b-1f8e63ff50a5)(label(\";\"))(mold((out \
-         Exp)(in_())(nibs(((shape(Concave 38))(sort Exp))((shape(Concave \
-         38))(sort Exp))))))(shards(0))(children())))(Secondary((id \
+         Exp)(in_())(nibs(((shape(Concave 35))(sort Exp))((shape(Concave \
+         35))(sort Exp))))))(shards(0))(children())))(Secondary((id \
          8fd7935e-2997-4589-96c5-492db996aa72)(content(Whitespace\"\\n\"))))(Tile((id \
          f3a97f64-e1d2-4223-a98f-f89dde6a1a4b)(label(test end))(mold((out \
          Exp)(in_(Exp))(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
