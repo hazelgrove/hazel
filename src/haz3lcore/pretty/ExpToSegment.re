@@ -1122,7 +1122,9 @@ let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
   | ExplicitNonlabel =>
     wrap(exp, text_to_pretty(exp |> Exp.rep_id, Sort.Exp, "_"))
   | ListLit([x, ...xs]) =>
-    // TODO: Add optional newlines
+    /* ID order: [bracket_id] @ comma_ids (outer first, then adopted).
+       IMPORTANT: Must align with MakeTerm.exp_term ListLit case,
+       which produces IDs in this order during absorption. */
     let* x = go(x)
     and* xs = xs |> List.map(go) |> all;
     let (id, ids) = (
@@ -1145,6 +1147,7 @@ let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
         ],
       );
     wrap(exp, p_just([form(x, xs)]));
+    // TODO: Add optional newlines
   | Var(v) => wrap(exp, text_to_pretty(exp |> Exp.rep_id, Sort.Exp, v))
   | BinOp(op, l, r) =>
     // TODO: Add optional newlines
@@ -1533,7 +1536,9 @@ let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
     and+ t = typ_to_pretty(~settings: Settings.t, t);
     wrap(exp, e @ [mk_form(TypeAsc, id, [])] @ t);
   | Match(e, rs) =>
-    // TODO: Add newlines
+    /* ID order: [case_end_id] @ rule_ids (outer first, then adopted).
+       IMPORTANT: Must align with MakeTerm.exp_term Match case,
+       which produces IDs in this order during absorption. */
     let+ e = go(e)
     and+ rs: list((Segment.t, Segment.t)) = {
       rs
@@ -1571,6 +1576,7 @@ let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
         ),
       ],
     );
+    // TODO: Add newlines
   };
 }
 and pat_to_pretty = (~settings: Settings.t, pat: Pat.t): pretty => {
@@ -1606,6 +1612,9 @@ and pat_to_pretty = (~settings: Settings.t, pat: Pat.t): pretty => {
   | ListLit([]) =>
     wrap(pat, text_to_pretty(pat |> Pat.rep_id, Sort.Pat, "[]"))
   | ListLit([x, ...xs]) =>
+    /* ID order: [bracket_id] @ comma_ids (outer first, then adopted).
+       IMPORTANT: Must align with MakeTerm.pat_term ListLit case,
+       which produces IDs in this order during absorption. */
     let* x = go(x)
     and* xs = xs |> List.map(go) |> all;
     let (id, ids) = (

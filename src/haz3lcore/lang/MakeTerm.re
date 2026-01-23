@@ -305,7 +305,10 @@ and exp_term: unsorted => (Exp.term, list(Id.t)) = {
       | (["(", ")"], [Exp(body)]) => ret(Parens(body))
       | (["PROJ_WRAP", "PROJ_WRAP"], [Exp(body)]) => ret(body.term)
       | (["[", "]"], [Exp(body)]) =>
-        // ListLit absorption: inner Tuple's comma IDs become part of ListLit
+        /* ListLit absorption: inner Tuple's comma IDs become part of ListLit.
+           ID order: [bracket_id] @ comma_ids (outer first, then adopted).
+           IMPORTANT: Must align with ExpToSegment.exp_to_pretty ListLit case,
+           which expects List.hd = bracket, List.tl = commas. */
         switch (body) {
         | {annotation: {ids, _}, term: Tuple(es)} =>
           adopted_ids := ids @ adopted_ids^;
@@ -334,7 +337,10 @@ and exp_term: unsorted => (Exp.term, list(Id.t)) = {
       | (["hint", "test", "end"], [Exp(hint), Exp(test)]) =>
         ret(HintedTest(test, hint))
       | (["case", "end"], [Rul({term, annotation: {ids, _}})]) =>
-        // Match absorption: inner Rules' `|`/`=>` IDs become part of Match
+        /* Match absorption: inner Rules' |/=> IDs become part of Match.
+           ID order: [case_end_id] @ rule_ids (outer first, then adopted).
+           IMPORTANT: Must align with ExpToSegment.exp_to_pretty Match case,
+           which expects List.hd = case/end, List.tl = rules. */
         switch (term) {
         | Rules(scrut, rules) =>
           adopted_ids := ids @ adopted_ids^;
@@ -589,38 +595,39 @@ and pat_term: unsorted => (Pat.term, list(Id.t)) = {
   | Op(tiles) as tm =>
     switch (tiles) {
     | ([(_id, tile)], []) =>
-      ret(
-        switch (tile) {
-        | ([t], []) when Token.is_empty_tuple(t) => Tuple([])
-        | ([t], []) when Token.is_empty_list(t) => ListLit([])
-        | ([t], []) when Token.is_bool(t) =>
-          Atom(Bool(bool_of_string(t)))
-        | ([t], []) when Token.is_float(t) =>
-          Atom(Float(float_of_string(t)))
-        | ([t], []) when Token.is_int(t) =>
-          Atom(Int(Bigint.of_string(t)))
-        | ([t], []) when Token.is_string(t) =>
-          Atom(String(Token.strip_quotes(t)))
-        | ([t], []) when Token.is_quoted_label(t) =>
-          Label(Token.strip_quotes(~quote=Token.label_delim, t))
-        | ([t], []) when Token.is_var(t) => Var(t)
-        | ([t], []) when Token.is_wild(t) => Wild
-        | ([t], []) when Token.is_ctr(t) => Constructor(t, None)
-        | (["(", ")"], [Pat(body)]) => Parens(body)
-        | (["PROJ_WRAP", "PROJ_WRAP"], [Pat(body)]) => body.term
-        | (["[", "]"], [Pat(body)]) =>
-          // ListLit pattern absorption: inner Tuple's comma IDs become part of ListLit
-          switch (body) {
-          | {term: Tuple(ps), annotation: {ids, _}} =>
-            adopted_ids := ids @ adopted_ids^;
-            ListLit(ps);
-          | term => ListLit([term])
-          }
-        | ([t], []) when is_hole_label(t) => hole(tm)
-        | ([t], []) => Invalid(t)
-        | _ => hole(tm)
-        },
-      )
+      switch (tile) {
+      | ([t], []) when Token.is_empty_tuple(t) => ret(Tuple([]))
+      | ([t], []) when Token.is_empty_list(t) => ret(ListLit([]))
+      | ([t], []) when Token.is_bool(t) =>
+        ret(Atom(Bool(bool_of_string(t))))
+      | ([t], []) when Token.is_float(t) =>
+        ret(Atom(Float(float_of_string(t))))
+      | ([t], []) when Token.is_int(t) =>
+        ret(Atom(Int(Bigint.of_string(t))))
+      | ([t], []) when Token.is_string(t) =>
+        ret(Atom(String(Token.strip_quotes(t))))
+      | ([t], []) when Token.is_quoted_label(t) =>
+        ret(Label(Token.strip_quotes(~quote=Token.label_delim, t)))
+      | ([t], []) when Token.is_var(t) => ret(Var(t))
+      | ([t], []) when Token.is_wild(t) => ret(Wild)
+      | ([t], []) when Token.is_ctr(t) => ret(Constructor(t, None))
+      | (["(", ")"], [Pat(body)]) => ret(Parens(body))
+      | (["PROJ_WRAP", "PROJ_WRAP"], [Pat(body)]) => ret(body.term)
+      | (["[", "]"], [Pat(body)]) =>
+        /* ListLit pattern absorption: inner Tuple's comma IDs become part of ListLit.
+           ID order: [bracket_id] @ comma_ids (outer first, then adopted).
+           IMPORTANT: Must align with ExpToSegment.pat_to_pretty ListLit case,
+           which expects List.hd = bracket, List.tl = commas. */
+        switch (body) {
+        | {term: Tuple(ps), annotation: {ids, _}} =>
+          adopted_ids := ids @ adopted_ids^;
+          (ListLit(ps), ids);
+        | term => ret(ListLit([term]))
+        }
+      | ([t], []) when is_hole_label(t) => ret(hole(tm))
+      | ([t], []) => ret(Invalid(t))
+      | _ => ret(hole(tm))
+      }
     | _ => ret(hole(tm))
     }
   | Post(Pat(l), tiles) as tm =>
