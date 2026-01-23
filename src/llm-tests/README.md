@@ -10,6 +10,9 @@ $ npm install
 npm install -g ts-node
 ```
 ```
+npx playwright install
+```
+```
 
 $ cd src/llm-tests
 
