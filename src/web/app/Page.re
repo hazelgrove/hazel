@@ -706,7 +706,7 @@ module View = {
       let culling_enabled =
         switch (editors) {
         | Scratch(_)
-        | Documentation(_) => true
+        | Documentation(_) => false /* Disabled for now due to layout issues */
         | Tutorial(_)
         | Exercises(_) => false
         };
