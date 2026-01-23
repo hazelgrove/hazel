@@ -1186,18 +1186,32 @@ let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
     );
   | MultiHole(es) =>
     // TODO: Add optional newlines
-    let id = exp |> Exp.rep_id;
     let+ es = es |> List.map(any_to_pretty(~settings)) |> all;
-    wrap(
-      exp,
-      ListUtil.flat_intersperse(
-        Grout({
-          id,
-          shape: Concave,
-        }),
-        es,
-      ),
-    );
+    /* Use IDs from the term for grout pieces, like Tuple uses for commas.
+       For N elements, we need N-1 grout pieces (one between each pair). */
+    let num_grouts = max(0, List.length(es) - 1);
+    let ids = IdTagged.ids(exp) |> pad_ids(num_grouts);
+    let seg =
+      switch (es) {
+      | [] => []
+      | [first, ...rest] =>
+        first
+        @ List.flatten(
+            List.map2(
+              (id, e) =>
+                [
+                  Grout({
+                    id,
+                    shape: Concave,
+                  }),
+                  ...e,
+                ],
+              ids,
+              rest,
+            ),
+          )
+      };
+    wrap(exp, seg);
   | Parens({term: Fun(p, e, _, _), _} as inner_exp) =>
     // TODO: Add optional newlines
     let id = inner_exp |> Exp.rep_id;
@@ -1678,18 +1692,31 @@ and pat_to_pretty = (~settings: Settings.t, pat: Pat.t): pretty => {
     let+ p = go(p);
     wrap(pat, [mk_form(ParensPat, id, [p])]);
   | MultiHole(es) =>
-    let id = pat |> Pat.rep_id;
     let+ es = es |> List.map(any_to_pretty(~settings: Settings.t)) |> all;
-    wrap(
-      pat,
-      ListUtil.flat_intersperse(
-        Grout({
-          id,
-          shape: Concave,
-        }),
-        es,
-      ),
-    );
+    /* Use IDs from the term for grout pieces, like Tuple uses for commas. */
+    let num_grouts = max(0, List.length(es) - 1);
+    let ids = IdTagged.ids(pat) |> pad_ids(num_grouts);
+    let seg =
+      switch (es) {
+      | [] => []
+      | [first, ...rest] =>
+        first
+        @ List.flatten(
+            List.map2(
+              (id, e) =>
+                [
+                  Grout({
+                    id,
+                    shape: Concave,
+                  }),
+                  ...e,
+                ],
+              ids,
+              rest,
+            ),
+          )
+      };
+    wrap(pat, seg);
   | Ap(p1, p2) =>
     let id = pat |> Pat.rep_id;
     let+ p1 = go(p1)
@@ -1769,18 +1796,31 @@ and typ_to_pretty = (~settings: Settings.t, typ: Typ.t): pretty => {
       },
     )
   | Unknown(Hole(MultiHole(es))) =>
-    let id = typ |> Typ.rep_id;
     let+ es = es |> List.map(any_to_pretty(~settings: Settings.t)) |> all;
-    wrap(
-      typ,
-      ListUtil.flat_intersperse(
-        Grout({
-          id,
-          shape: Concave,
-        }),
-        es,
-      ),
-    );
+    /* Use IDs from the term for grout pieces, like Tuple uses for commas. */
+    let num_grouts = max(0, List.length(es) - 1);
+    let ids = IdTagged.ids(typ) |> pad_ids(num_grouts);
+    let seg =
+      switch (es) {
+      | [] => []
+      | [first, ...rest] =>
+        first
+        @ List.flatten(
+            List.map2(
+              (id, e) =>
+                [
+                  Grout({
+                    id,
+                    shape: Concave,
+                  }),
+                  ...e,
+                ],
+              ids,
+              rest,
+            ),
+          )
+      };
+    wrap(typ, seg);
   | Var(v) => wrap(typ, text_to_pretty(typ |> Typ.rep_id, Sort.Typ, v))
   | Atom(Int) =>
     wrap(typ, text_to_pretty(typ |> Typ.rep_id, Sort.Typ, "Int"))
@@ -1936,18 +1976,32 @@ and tpat_to_pretty = (~settings: Settings.t, tpat: TPat.t): pretty => {
       ]),
     );
   | MultiHole(xs) =>
-    let id = tpat |> TPat.rep_id;
     let+ xs = xs |> List.map(any_to_pretty(~settings: Settings.t)) |> all;
-    wrap(
-      tpat,
-      ListUtil.flat_intersperse(
-        Grout({
-          id,
-          shape: Concave,
-        }),
-        xs,
-      ),
-    );
+    /* Use IDs from the term for grout pieces, like Tuple uses for commas.
+       For N elements, we need N-1 grout pieces (one between each pair). */
+    let num_grouts = max(0, List.length(xs) - 1);
+    let ids = IdTagged.ids(tpat) |> pad_ids(num_grouts);
+    let seg =
+      switch (xs) {
+      | [] => []
+      | [first, ...rest] =>
+        first
+        @ List.flatten(
+            List.map2(
+              (id, x) =>
+                [
+                  Grout({
+                    id,
+                    shape: Concave,
+                  }),
+                  ...x,
+                ],
+              ids,
+              rest,
+            ),
+          )
+      };
+    wrap(tpat, seg);
   | Var(v) => wrap(tpat, text_to_pretty(tpat |> TPat.rep_id, Sort.TPat, v))
   };
 }

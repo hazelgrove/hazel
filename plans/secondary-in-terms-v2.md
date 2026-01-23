@@ -621,3 +621,173 @@ Now controlled by `Settings.label_format`:
 3. **LLMHole (`??...??`)**
    - LLM-assist holes
    - Similar concerns to explicit holes
+
+4. **ID List Length Mismatch Between FreshGrammar and MakeTerm**
+
+   When testing term→segment→term round-trips with strict `(==)` equality, we discovered a structural mismatch:
+
+   - **FreshGrammar**: Creates terms with exactly 1 ID regardless of form structure
+   - **MakeTerm**: Collects IDs from ALL pieces in the skeleton (e.g., N-1 IDs for N-element MultiHole)
+
+   Example: `multi_hole([1, 2, 3])` (3 elements)
+   - FreshGrammar creates: `ids = [uuid]` (length 1)
+   - After round-trip: `ids = [uuid, uuid]` (length 2, same ID duplicated)
+
+   **Related: `pad_ids` hack in ExpToSegment (line 958)**
+   ```reason
+   /* HACK[Matt]: Sometimes terms that should have multiple ids won't because
+      evaluation only ever gives them one */
+   let pad_ids = (n: int, ids: list(Id.t)): list(Id.t) => {
+     let len = List.length(ids);
+     if (len < n) {
+       ids @ List.init(n - len, _ => Id.mk());  // Creates fresh IDs to pad!
+     } else {
+       ListUtil.split_n(n, ids) |> fst;
+     };
+   };
+   ```
+
+   This hack compensates when terms don't have enough IDs by creating fresh ones.
+
+   **Related: `rep_id` usage in ExpToSegment MultiHole case (line 1189)**
+
+   Most multi-element forms (Tuple, ListLit, Match) properly use `IdTagged.ids(exp)` to get all IDs:
+   ```reason
+   // Tuple (line 1278) - uses all IDs, pads if needed
+   let ids = IdTagged.ids(exp) |> pad_ids(List.length(xs));
+
+   // ListLit (line 1130) - uses IDs from term
+   IdTagged.ids(exp) |> List.tl |> pad_ids(List.length(xs))
+   ```
+
+   But **MultiHole** only uses `rep_id`, duplicating it for ALL grout pieces:
+   ```reason
+   // MultiHole (line 1189) - SUSPECT: only uses first ID
+   let id = exp |> Exp.rep_id;
+   ListUtil.flat_intersperse(Grout({id, shape: Concave}), es)
+   ```
+
+   This means MultiHole collapses all IDs to the first one, then MakeTerm reconstructs with duplicates.
+
+   **Fix needed:**
+   - FreshGrammar should create the appropriate number of IDs based on form structure
+   - ExpToSegment MultiHole should use `IdTagged.ids(exp)` like other multi-element forms
+   - Eliminate or reduce reliance on `pad_ids` hack
+
+   **Impact:** Term→segment→term tests using strict `(==)` equality fail for MultiHole with 3+ elements. Tests using `Exp.equal` (which ignores ID list differences) pass.
+
+   **Update:** Fixed MultiHole in ExpToSegment (Exp, Pat, Typ, TPat) to use `IdTagged.ids(term) |> pad_ids(num_grouts)` instead of duplicating `rep_id`.
+
+---
+
+## Appendix: ID Assignment in MakeTerm
+
+This section documents how IDs are assigned to terms during parsing, for reference when working with term structure.
+
+### Where IDs Come From
+
+In MakeTerm, IDs are collected from **delimiter pieces** in the skeleton via `ids_of_tiles`:
+
+```reason
+let ids_of_tiles = (tiles: tiles) => List.map(fst, Aba.get_as(tiles));
+let ids =
+  fun
+  | Op(tiles)
+  | Pre(tiles, _)
+  | Post(_, tiles)
+  | Bin(_, tiles, _) => ids_of_tiles(tiles);
+```
+
+The `tiles` structure is an `Aba.t(tile, Any.t)` where each `tile = (Id.t, Aba.t(Token.t, Any.t))`. For N-ary forms with N children, there are N-1 delimiter tiles, so `ids_of_tiles` returns N-1 IDs.
+
+### Forms with Plural IDs (Directly from Skeleton)
+
+These forms have multiple IDs because they have multiple delimiter pieces:
+
+1. **Tuple with N > 2 elements**: `(a, b, c)` → 2 IDs (one per comma)
+   - General: N elements → N-1 comma IDs
+
+2. **Sum types with N > 2 variants**: `type T = +A + B + C in T` → 2 IDs (one per `+`)
+   - General: N variants → N-1 `+` IDs
+
+3. **MultiHole with N > 2 elements**: `1 2 3` → 2 IDs (one per grout piece)
+   - General: N elements → N-1 grout IDs
+
+### Forms with Adopted Plural IDs
+
+Some forms "absorb" inner constructs and adopt their IDs:
+
+#### Exp ListLit (lines 307-328)
+
+```reason
+| (["[", "]"], [Exp(body)]) =>
+  switch (body) {
+  | {annotation: {ids, _}, term: Tuple(es)} =>
+    adopted_ids := ids @ adopted_ids^;
+    (ListLit(...), ids);  // Returns comma IDs as inner_ids
+  ...
+```
+
+- Returns `(ListLit(...), ids)` where `ids` = inner Tuple's comma IDs
+- Final IDs: `ids(unsorted) @ inner_ids` = `[bracket_id] @ comma_ids`
+- **Ordering: outer bracket ID FIRST, adopted comma IDs AFTER**
+
+#### Pat ListLit (lines 611-618)
+
+```reason
+| (["[", "]"], [Pat(body)]) =>
+  switch (body) {
+  | {term: Tuple(ps), annotation: {ids, _}} =>
+    adopted_ids := ids @ adopted_ids^;
+    ListLit(ps);  // Returns via ret(), which is (term, [])
+  ...
+```
+
+- Returns `(ListLit(ps), [])` — **does NOT include comma IDs**
+- Final IDs: `ids(unsorted) @ []` = `[bracket_id]` only
+- **⚠️ INCONSISTENCY: Pat ListLit doesn't include adopted IDs in term's ID list!**
+
+#### Match (lines 336-345)
+
+```reason
+| (["case", "end"], [Rul({term, annotation: {ids, _}})]) =>
+  switch (term) {
+  | Rules(scrut, rules) =>
+    adopted_ids := ids @ adopted_ids^;
+    (Match(scrut, rules), ids);  // Returns rules IDs as inner_ids
+  ...
+```
+
+- Returns `(Match(...), ids)` where `ids` = inner Rules' `|`/`=>` IDs
+- Final IDs: `ids(unsorted) @ inner_ids` = `[case_end_id] @ rules_ids`
+- **Ordering: outer case/end ID FIRST, adopted rules IDs AFTER**
+
+### Consistency Analysis
+
+| Form | Adopted IDs in term? | Ordering |
+|------|---------------------|----------|
+| Exp ListLit | ✅ Yes | `[outer] @ adopted` |
+| Pat ListLit | ❌ No (only in `adopted_ids` ref) | N/A |
+| Match | ✅ Yes | `[outer] @ adopted` |
+
+**Note:** Pat ListLit is inconsistent with Exp ListLit and Match. The comma IDs are added to the global `adopted_ids` ref (for term_data consolidation) but are NOT included in the term's own ID list. This may or may not be intentional—needs investigation if it causes issues.
+
+### Forms with Single IDs
+
+Most forms have exactly one ID (from their single delimiter/operator):
+
+- Binary operators: `a + b` → 1 ID (the `+`)
+- Unary operators: `-x` → 1 ID
+- Application: `f(x)` → 1 ID
+- Let bindings: `let x = e in body` → 1 ID
+- Functions: `fun x -> e` → 1 ID
+- Type annotations: `e : T` → 1 ID
+- etc.
+
+### Key Insight for ExpToSegment
+
+The number of IDs stored on a term equals the number of **delimiter pieces** that MakeTerm collected from the skeleton. When emitting segments:
+
+- For N-ary forms with N children, emit N-1 delimiters (commas, grout, `+`, etc.)
+- Each delimiter should use one ID from `IdTagged.ids(term)`
+- The `pad_ids` hack compensates when FreshGrammar creates terms with fewer IDs than needed
