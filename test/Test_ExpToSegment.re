@@ -416,19 +416,19 @@ let tests = (
 );
 
 /* Round-trip tests: Segment → Term → Segment
-   These tests verify that secondary (whitespace/comments) is preserved
-   when converting between segments and terms using PreserveExact mode.
-   See plans/secondary-in-terms-v2.md for design details.
+      These tests verify that secondary (whitespace/comments) is preserved
+      when converting between segments and terms using PreserveExact mode.
+      See plans/secondary-in-terms-v2.md for design details.
 
-   TODO: Coverage gaps to address:
-   - TupleExtension (...): Text roundtrip works but segment comparison fails
-     due to mold precedence differences (see commented test below)
-   - MultiHole: Partially tested via grout tests, but could use explicit tests
-   - Invalid: Error syntax handling
-   - Deferral: Partial application placeholders (_)
-   - DynamicErrorHole: Runtime error markers (not parseable from text)
-   - Closure: Runtime closures (not parseable from text)
-*/
+      TODO: Coverage gaps to address:
+      - TupleExtension (...): Text roundtrip works but segment comparison fails
+        due to mold precedence differences (see commented test below)
+      - MultiHole: Partially tested via grout tests, but could use explicit tests
+      - Invalid: Error syntax handling
+      - Deferral: Partial application placeholders (_)
+      - DynamicErrorHole: Runtime error markers (not parseable from text)
+      - Closure: Runtime closures (not parseable from text)
+   */
 
 let exp_to_segment_roundtrip_settings: ExpToSegment.Settings.t = {
   secondary: PreserveExact,
@@ -628,17 +628,21 @@ in f(42)|},
        Both `A + B` and `+A + B` parse to the same Sum term.
        ExpToSegment always emits the prefixed form.
        See plans/secondary-in-terms-v2.md "Sum type leading + prefix" for options. */
-    test_case("Sum type: no leading prefix (SKIP)", `Quick, () => {
-      let _ = Alcotest.skip();
-      let input = {|type T = A + B in T|};
-      switch (Parser.to_term(input)) {
-      | Some(term) =>
-        let seg' = exp_to_segment_roundtrip(term);
-        let output = print_seg(seg');
-        check(string, {|Round-trip text|}, input, output);
-      | None => Alcotest.fail({|Failed to parse|})
-      };
-    }),
+    test_case(
+      "Sum type: no leading prefix (SKIP)",
+      `Quick,
+      () => {
+        let _ = Alcotest.skip();
+        let input = {|type T = A + B in T|};
+        switch (Parser.to_term(input)) {
+        | Some(term) =>
+          let seg' = exp_to_segment_roundtrip(term);
+          let output = print_seg(seg');
+          check(string, {|Round-trip text|}, input, output);
+        | None => Alcotest.fail({|Failed to parse|})
+        };
+      },
+    ),
     /* Filter expressions (hide/eval/pause/debug ... in) and unquote ($) */
     roundtrip_test({|Filter: hide|}, {|hide 1 in 2|}),
     roundtrip_test({|Filter: hide spaced|}, {|hide 1  in  2|}),
