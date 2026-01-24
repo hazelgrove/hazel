@@ -1147,7 +1147,7 @@ let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
         ],
       );
     wrap(exp, p_just([form(x, xs)]));
-    // TODO: Add optional newlines
+  // TODO: Add optional newlines
   | Var(v) => wrap(exp, text_to_pretty(exp |> Exp.rep_id, Sort.Exp, v))
   | BinOp(op, l, r) =>
     // TODO: Add optional newlines
@@ -1582,7 +1582,7 @@ let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
         ),
       ],
     );
-    // TODO: Add newlines
+  // TODO: Add newlines
   };
 }
 and pat_to_pretty = (~settings: Settings.t, pat: Pat.t): pretty => {
