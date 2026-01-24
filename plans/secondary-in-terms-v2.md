@@ -599,28 +599,23 @@ Now controlled by `Settings.label_format`:
 - `QuoteWhenNecessary`: Only add backticks for non-identifiers (original behavior)
 - `AlwaysQuote`: Always add backticks to labels (for round-tripping)
 
-### Remaining Known Limitations
+### Remaining Known Limitations (Normalization Issues)
+
+These are cases where information is normalized away during parsing, similar to how unnecessary parentheses are discarded. True round-tripping would require storing this information in the term structure, but like storing decimal precision for floats, it's probably not worth the complexity.
 
 1. **Float literal normalization**
    - Float literals are normalized to full precision: `2.0` becomes `2.000000`
    - This is a parser/lexer normalization, not a secondary storage issue
-   - Cannot be addressed in ExpToSegment alone
+   - Could theoretically store original precision, but likely not worth it
 
 2. **Sum type leading `+` prefix**
    - Both `type T = A + B` and `type T = +A + B` parse to the same `Sum([A, B])` term
-   - The information about whether the original had a leading `+` is lost during parsing
-   - ExpToSegment always emits the prefixed form (`+A + B`)
-   - This is a normalization issue, not true round-tripping
+   - The distinction is normalized away during parsing—not retained in term structure
+   - ExpToSegment can be configured to emit either form (setting could be added)
+   - True round-tripping would require a `has_leading_plus: bool` field in `Sum`
+   - Like float precision, probably not worth storing
 
-   **Options to address:**
-   - **Option A: Add setting** - A `sum_prefix_style: AlwaysPrefix | NoPrefix` setting to choose canonical form
-   - **Option B: Tie to parenthesization** - `Structural` → no prefix, `Defensive` → prefix (semantically similar to defensive parens)
-   - **Option C: Store in term** - Add a `has_leading_plus: bool` field to `Sum` in Grammar.re
-     - Requires updating ~35+ pattern matches across the codebase
-     - Most are mechanical changes (adding `_` for the new field)
-     - Key changes in MakeTerm (set flag) and ExpToSegment (use flag)
-
-   Option C is the only true fix; A and B are normalization choices.
+**Note:** Despite these limitations, non-trivial programs round-trip successfully. The ADTs doc slide (with sum types, constructors, pattern matching) passes when using the prefixed form consistently.
 
 ### Remaining Work (Needs Investigation)
 
@@ -807,3 +802,34 @@ The number of IDs stored on a term equals the number of **delimiter pieces** tha
 - For N-ary forms with N children, emit N-1 delimiters (commas, grout, `+`, etc.)
 - Each delimiter should use one ID from `IdTagged.ids(term)`
 - The `pad_ids` hack compensates when FreshGrammar creates terms with fewer IDs than needed
+
+---
+
+## Summary: Current State and Outstanding Work
+
+### What Works
+
+The secondary-in-terms implementation successfully enables exact round-tripping for most Hazel syntax:
+- All binary/unary operators with arbitrary spacing
+- Let expressions, functions, case expressions
+- Tuples, lists, applications
+- Type annotations, type aliases, sum types (with consistent prefix style)
+- Comments and whitespace preservation
+- 137 dedicated round-trip tests passing
+
+### Remaining Work
+
+1. **Projectors/Refractors**: Round-trip testing requires zipper-based infrastructure since projector IDs are stored at the zipper level, not in terms. No fundamental issue with secondary storage—just need appropriate test harness. **Important:** If IDs are regenerated anywhere in the pipeline, projector associations would be lost.
+
+2. **Grout handling**: Needs investigation for editing scenarios where grout pieces appear as placeholders.
+
+3. **Explicit holes (`?`) and LLM holes (`??...??`)**: May need special handling in secondary collection.
+
+4. **ID consistency**: The `pad_ids` hack and FreshGrammar/MakeTerm ID count mismatch should eventually be cleaned up for strict term equality.
+
+### Design Decisions (Accepted Normalizations)
+
+These are intentionally not preserved, similar to how parsers typically discard redundant parentheses:
+- Float literal precision (`2.0` → `2.000000`)
+- Sum type leading `+` prefix (`A + B` vs `+A + B`)
+- Unnecessary backtick quoting on labels (`a` vs `` `a` ``)
