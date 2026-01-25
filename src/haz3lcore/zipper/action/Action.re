@@ -100,7 +100,7 @@ type t =
   | Move(move)
   | Select(select)
   | Unselect(option(Direction.t))
-  | Destruct(Direction.t)
+  | Destruct(Direction.t, chunkiness)
   | Insert(string)
   | Put_down
   | Introduce

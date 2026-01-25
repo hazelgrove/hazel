@@ -38,7 +38,7 @@ let go =
         |> return(CantPaste)
   | Cut =>
     /* System clipboard handling is done in Page.view handlers */
-    Destruct.go(Left, z) |> return(Cant_destruct)
+    Destruct.go(Left, ByChar, z) |> return(Cant_destruct)
   | Copy =>
     /* System clipboard handling itself is done in Page.view handlers.
      * This doesn't change state but is included here for logging purposes */
@@ -116,7 +116,7 @@ let go =
     }
   | Select(ToggleFocus) => Ok(Zipper.toggle_focus(z))
   | Select(SetFocus(d)) => Ok(Zipper.set_focus(z, d))
-  | Destruct(d) => Destruct.go(d, z) |> return(Cant_destruct)
+  | Destruct(d, chunk) => Destruct.go(d, chunk, z) |> return(Cant_destruct)
   | Insert(char) =>
     z
     |> Insert.go(char, ~ci=Indicated.ci_of(z, statics.info_map))

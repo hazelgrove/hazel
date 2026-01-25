@@ -222,40 +222,64 @@ Currently blank-line = two consecutive linebreaks. Should generalize to: linebre
 **Operator continuation doesn't auto-indent (TODO):**
 When typing `let x = 1` then Enter then `+ 2`, the `+ 2` should ideally get auto-indented (it's a continuation of the expression). Currently, the indentation logic doesn't handle this case - the user must manually indent. This is acceptable for now but should be fixed in `Indentation.re`'s `is_incrementor` or related logic.
 
-### Future Editor Improvements
+### Editor Improvements
 
-**Trailing whitespace cleanup (TODO):**
+**Trailing whitespace cleanup:**
 Lines may accumulate trailing whitespace (spaces before linebreaks). This can happen when:
 - User deletes content but leaves spaces
 - Auto-indent inserts spaces, then user immediately presses Enter again
 - Cursor moves away leaving trailing spaces
 
-Consider automatically stripping trailing whitespace from lines. This could happen:
-- On format (Cmd+S)
-- When pressing Enter (clean the previous line)
-- Lazily during other operations
+Implementation:
+- **On Format (Cmd+S)**: Strip spaces immediately before each linebreak
+- Implemented in `Indentation.fix_indentation_in_segment` or as a pre-pass
+- Future consideration: also clean on Enter (previous line only)
 
-**Smart backspace for indentation (TODO):**
-When the cursor is at the start of a line (after only whitespace), Backspace should delete an entire indent level's worth of spaces, not just one character. This is standard behavior in most editors:
+**Indent-level backspace:**
+When the cursor is in leading whitespace (only spaces between linebreak and cursor), Backspace deletes 2 spaces at a time (one indent level) instead of 1. This is standard behavior in most editors:
 
-- **VSCode**: `editor.useTabStops` setting - when enabled, Backspace at the start of indentation deletes a whole tab width of spaces at once
-- **Sublime Text**: `use_tab_stops` setting - Tab and Backspace operate on tab stops even when using spaces for indentation
-- **JetBrains IDEs**: If cursor is on an otherwise empty line (just indentation), Backspace deletes the entire line's indentation
+- **VSCode**: `editor.useTabStops` setting
+- **Sublime Text**: `use_tab_stops` setting
+- **JetBrains IDEs**: Similar behavior for indentation-only lines
 
-Implementation considerations:
-- Only applies when cursor is in leading whitespace (before any content)
-- Should respect the configured indent width (currently 2 spaces in Hazel)
-- May need to distinguish "at logical indent boundary" vs "mid-indent"
-- Could be controlled by a setting if users want character-by-character behavior
+Implementation:
+- Detect "leading whitespace context" in `Destruct.go`: cursor is Outer, left neighbors are only space pieces back to a linebreak
+- If in leading whitespace: delete min(2, num_spaces) spaces
+- Otherwise: fall through to normal single-character Destruct
+- Edge cases: 1 space → delete 1; 3 spaces → delete 2 leaving 1
 
-**Hungry delete (alternative/complementary):**
-A modifier+backspace shortcut (e.g., Ctrl+Backspace on Windows/Linux, Alt+Backspace on Mac) that deletes ALL whitespace back to the previous non-whitespace content. This is more aggressive than smart backspace (which deletes one indent level at a time).
+**Token-delete with hungry delete for whitespace:**
+A modifier+backspace shortcut that operates at token granularity, with special "hungry delete" behavior for whitespace runs. Uses the existing `Destruct` action with a `chunkiness` parameter (like `Move`).
 
-This would provide a way to quickly collapse back to the previous line's content, regardless of how much whitespace exists. Useful when you want to undo auto-indentation entirely and join with the previous line.
+Keyboard shortcuts (matching platform standards):
+- **Mac**: Option+Backspace → `Destruct(Left, ByToken)`
+- **PC**: Ctrl+Backspace → `Destruct(Left, ByToken)`
+
+Behavior depends on context:
+1. **After contentful token**: Delete the entire token
+   ```
+   let foo| = 1  →  let | = 1   (deleted "foo")
+   ```
+2. **In whitespace run** (spaces/linebreaks, NOT comments): Hungry delete
+   - Delete leading spaces on current line
+   - Delete the preceding linebreak
+   - Delete trailing spaces on previous line
+   - Stop at previous line's content
+   ```
+   let x = 1
+       |body  →  let x = 1|body   (joined lines)
+   ```
+   - Multiple blank lines require multiple presses (one linebreak per press)
+
+Implementation:
+- Add `chunkiness` parameter to `Destruct`: `Destruct(Direction.t, chunkiness)`
+- Default `ByChar` preserves existing behavior
+- `ByToken` mode: check if in whitespace run, if so do hungry delete, else delete token
+- Only delete Secondary pieces where `is_space` or `is_linebreak` is true (preserve comments)
 
 References:
+- [Emacs CC Mode Hungry Delete](https://www.gnu.org/software/emacs/manual/html_node/ccmode/Hungry-WS-Deletion.html)
 - [VSCode Hungry Delete extension](https://marketplace.visualstudio.com/items?itemName=jasonlhy.hungry-delete)
-- [Sublime Text Hungry Backspace package](https://packagecontrol.io/packages/Hungry%20Backspace)
 
 ### Ideas for Indentation Refinement
 
