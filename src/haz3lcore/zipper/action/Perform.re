@@ -123,5 +123,21 @@ let go =
     |> return(Cant_insert)
   | Put_down => Zipper.put_down(z) |> return(Cant_put_down)
   | Probe(a) => Ok(ProbePerform.go(~statics, ~syntax, a, z))
-  | Dump => Ok(Dump.to_zipper(z))
+  | Dump =>
+    /* Experimental: Use CanonicalCompletion instead of Dump */
+    let seg =
+      z
+      |> Zipper.clear_unparsed_buffer
+      |> Zipper.unselect_and_zip(~erase_buffer=true);
+    let result =
+      CanonicalCompletion.complete_segment_deep(~sort=Sort.Exp, seg);
+    Ok({
+      selection: Selection.mk([]),
+      relatives: {
+        siblings: ([], result.completed_seg),
+        ancestors: [],
+      },
+      caret: Outer,
+      refractors: z.refractors,
+    });
   };

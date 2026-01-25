@@ -357,6 +357,8 @@ Evaluate whether the same completion logic can replace `Indentation.re`'s comple
 
 5. **Performance**: Is segment-level completion fast enough, or do we need caching like Indentation?
 
+6. **Unit testing building blocks**: It might be valuable to write focused unit tests for `Segment.reassemble` and `Segment.regrout` (and possibly other functions they use). Current tests are more exploratory/diagnostic. Clean unit tests would help document expected behavior and catch regressions.
+
 ---
 
 ## Files to Modify/Create

@@ -52,42 +52,6 @@ let rec shallow_complete_segment = (seg: Segment.t): Segment.t =>
   | [p, ...rest] => [p, ...shallow_complete_segment(rest)]
   };
 
-/* Find the shortest prefix of the segment containing all incomplete tiles
- * followed by two consecutive linebreaks (aka a blank line)  */
-let incomplete_subseg_before_blank_line =
-    (seg: Segment.t): option((Segment.t, Segment.t)) => {
-  let rec find_split_point =
-          (seg: Segment.t, acc: Segment.t, incomplete_before: bool)
-          : option((Segment.t, Segment.t)) => {
-    switch (seg) {
-    | [] => None
-    | [Secondary(w1) as p, Secondary(w2), ...rest]
-        when Secondary.is_linebreak(w1) && Secondary.is_linebreak(w2) =>
-      let incomplete_before = incomplete_before || !Piece.is_complete(p);
-      if (incomplete_before) {
-        /* Note: Leaves one linebreak in and one out (empty line) */
-        Some((
-          List.rev([Piece.Secondary(w1), ...acc]),
-          [Secondary(w2), ...rest],
-        ));
-      } else {
-        find_split_point(
-          rest,
-          [Secondary(w2), Secondary(w1), ...acc],
-          incomplete_before,
-        );
-      };
-    | [p, ...rest] =>
-      find_split_point(
-        rest,
-        [p, ...acc],
-        incomplete_before || !Piece.is_complete(p),
-      )
-    };
-  };
-  find_split_point(seg, [], false);
-};
-
 /* When a segment is incomplete, we try to complete it before calculating
  * indentation. This is necessarily a heuristic process. One obvious way
  * would be to consider dropping the backpack at the cursor, but making
@@ -102,7 +66,7 @@ let incomplete_subseg_before_blank_line =
  * assuming that the below bidelimited context doesn't contain incomplete
  * tiles at the top level. */
 let complete_segment = (seg: Segment.t): Segment.t => {
-  switch (incomplete_subseg_before_blank_line(seg)) {
+  switch (CanonicalCompletion.incomplete_subseg_before_blank_line(seg)) {
   | None => shallow_complete_segment(seg)
   | Some((before, after)) => shallow_complete_segment(before) @ after
   };

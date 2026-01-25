@@ -1,24 +1,11 @@
 /* CanonicalCompletion: Complete incomplete syntax to enable term creation
  *
- * This module provides functions to complete segments containing incomplete
- * tiles (tiles with missing shards/delimiters) into syntactically complete
- * segments that can be converted to terms.
- *
- * The key insight is that during editing, users create incomplete forms like:
- *   - `let x = 1` (missing `in`)
- *   - `fun x` (missing `->`)
- *   - `(1 + 2` (missing `)`)
- *
- * For semantic analysis and round-tripping, we need to canonically complete
- * these forms while recording which shards were originally present.
- *
- * Design Goals:
- * 1. Cursor-independent: Unlike Dump.re, works on segments directly
- * 2. Deterministic: Same input always produces same output
- * 3. Reversible: Record enough info to reconstruct incomplete state
- * 4. Integrated: Can be called during MakeTerm traversal
- *
- * See plans/canonical-completion.md for full design rationale.
+ * Algorithm:
+ * 1. Use blank-line heuristic to find insertion point (same as Indentation.re)
+ * 2. Collect trailing shards from all incomplete tiles (inner first, outer last)
+ * 3. Insert shards at the insertion point
+ * 4. Regrout the whole segment
+ * 5. Reassemble to combine same-ID shards into complete tiles
  */
 
 open Util;
@@ -37,199 +24,148 @@ type completion_result = {
   shard_records: list(shard_record),
 };
 
-/* === Heuristic Configuration === */
+/* Get trailing missing shard indices for a tile */
+let trailing_shards = (t: Tile.t): list(int) =>
+  Tile.right_missing_shards(t) |> List.map(s => Tile.r_shard(s));
 
-/* Whether to stop completion at linebreaks (matching Dump.re behavior) */
-let stop_at_linebreak = true;
+/* Collect trailing shards from incomplete tiles in a segment.
+ * Returns shards in order: innermost first, outermost last. */
+let collect_trailing_shards = (seg: Segment.t): list(Piece.t) => {
+  let incomplete = Segment.incomplete_tiles(seg);
+  /* incomplete_tiles returns left-to-right order, which is outer-to-inner.
+   * We want inner-first, so reverse. */
+  let inner_first = List.rev(incomplete);
+  inner_first
+  |> List.map((t: Tile.t) =>
+       trailing_shards(t)
+       |> List.map(idx => Piece.Tile(Tile.shard_of(t, idx)))
+     )
+  |> List.concat;
+};
 
-/* Whether to stop at blank lines (two consecutive linebreaks, like Indentation.re) */
-let stop_at_blank_line = true;
-
-/* Create a single space Secondary piece */
-let space = (): Piece.t => Secondary(Secondary.mk_space(Id.mk()));
-
-/* === Helper Functions === */
-
-/* Check if a piece is a linebreak */
-let is_linebreak = (p: Piece.t): bool =>
-  switch (p) {
-  | Secondary(s) => Secondary.is_linebreak(s)
-  | _ => false
-  };
-
-/* Check if segment starts with a linebreak */
-let starts_with_linebreak = (seg: Segment.t): bool =>
-  switch (seg) {
-  | [p, ..._] => is_linebreak(p)
-  | [] => false
-  };
-
-/* Check if segment starts with two consecutive linebreaks (blank line) */
-let starts_with_blank_line = (seg: Segment.t): bool =>
-  switch (seg) {
-  | [p1, p2, ..._] => is_linebreak(p1) && is_linebreak(p2)
-  | _ => false
-  };
-
-/* Find the position to drop trailing shards.
- *
- * Heuristic (matching Dump.re):
- * - Go as far right as possible
- * - Stop at linebreak if stop_at_linebreak is true
- * - Stop at blank line if stop_at_blank_line is true
- *
- * Returns: (segment_before_drop, segment_after_drop)
- */
-let find_drop_position = (seg: Segment.t): (Segment.t, Segment.t) => {
-  let rec go = (before: Segment.t, after: Segment.t) =>
-    switch (after) {
-    | [] => (before, [])
-    | [p, ...rest] =>
-      /* Check stopping conditions */
-      if (stop_at_blank_line && starts_with_blank_line(after)) {
-        (before, after);
-      } else if (stop_at_linebreak && is_linebreak(p)) {
-        /* Include the linebreak in 'before', stop after it */
-        (before @ [p], rest);
+/* Find the shortest prefix of the segment containing all incomplete tiles
+ * followed by two consecutive linebreaks (aka a blank line)  */
+let incomplete_subseg_before_blank_line =
+    (seg: Segment.t): option((Segment.t, Segment.t)) => {
+  let rec find_split_point =
+          (seg: Segment.t, acc: Segment.t, incomplete_before: bool)
+          : option((Segment.t, Segment.t)) => {
+    switch (seg) {
+    | [] => None
+    | [Secondary(w1) as p, Secondary(w2), ...rest]
+        when Secondary.is_linebreak(w1) && Secondary.is_linebreak(w2) =>
+      let incomplete_before = incomplete_before || !Piece.is_complete(p);
+      if (incomplete_before) {
+        /* Note: Leaves one linebreak in and one out (empty line) */
+        Some((
+          List.rev([Piece.Secondary(w1), ...acc]),
+          [Secondary(w2), ...rest],
+        ));
       } else {
-        go(before @ [p], rest);
-      }
+        find_split_point(
+          rest,
+          [Secondary(w2), Secondary(w1), ...acc],
+          incomplete_before,
+        );
+      };
+    | [p, ...rest] =>
+      find_split_point(
+        rest,
+        [p, ...acc],
+        incomplete_before || !Piece.is_complete(p),
+      )
     };
-  go([], seg);
+  };
+  find_split_point(seg, [], false);
 };
 
-/* Create a completed version of a tile by filling in all shards.
- *
- * For a tile with label ["let", "=", "in"] and shards [0, 1],
- * this produces a tile with shards [0, 1, 2] and appropriate children.
- */
-let complete_tile = (t: Tile.t, trailing_content: Segment.t): Tile.t => {
-  let all_shard_indices = List.init(List.length(t.label), i => i);
-  let missing_count = List.length(t.label) - List.length(t.shards);
-
-  /* The existing children plus new empty children for missing shards */
-  let new_children =
-    if (missing_count > 0) {
-      /* For trailing shards, the last child is the trailing content,
-         and any intermediate missing shards get empty segments */
-      let intermediate_empties = List.init(missing_count - 1, _ => []);
-      t.children @ intermediate_empties @ [trailing_content];
-    } else {
-      t.children;
-    };
-
-  {
-    ...t,
-    shards: all_shard_indices,
-    children: new_children,
+/* Recursively insert shards at blank-line split points.
+ * This only handles shard insertion - regrout/reassemble happen once after. */
+let rec insert_shards_at_splits = (seg: Segment.t): Segment.t => {
+  switch (incomplete_subseg_before_blank_line(seg)) {
+  | None =>
+    /* No blank line split point - insert shards at end */
+    let shards = collect_trailing_shards(seg);
+    seg @ shards;
+  | Some((before, after)) =>
+    /* Insert shards for 'before', then recursively handle 'after' */
+    let shards = collect_trailing_shards(before);
+    let after_with_shards = insert_shards_at_splits(after);
+    before @ shards @ after_with_shards;
   };
 };
 
-/* === Main Completion Functions === */
+let complete_segment = (sort: Sort.t, seg: Segment.t): completion_result => {
+  /* Collect shard records before modification */
+  let incomplete = Segment.incomplete_tiles(seg);
+  let shard_records =
+    List.map(
+      (t: Tile.t) =>
+        {
+          tile_id: t.id,
+          original_shards: t.shards,
+        },
+      incomplete,
+    );
 
-/* Complete a single segment (non-recursive, doesn't descend into tile children).
- *
- * This is the core workhorse function. It:
- * 1. Scans for incomplete tiles
- * 2. For each incomplete tile, determines where to drop its trailing shards
- * 3. Completes the tile and regrouts if necessary
- * 4. Records which shards were originally present
- *
- * Parameters:
- * - insert_separators: If true, add spaces where tokens would jam together
- */
-let complete_segment =
-    (~insert_separators: bool=false, seg: Segment.t): completion_result => {
-  let rec go =
-          (acc: Segment.t, shard_records: list(shard_record), remaining: Segment.t)
-          : completion_result =>
-    switch (remaining) {
-    | [] => {completed_seg: acc, shard_records}
-    | [Piece.Tile(t), ...rest] when !Tile.is_complete(t) =>
-      /* Found an incomplete tile - need to complete it */
-      let record = {tile_id: t.id, original_shards: t.shards};
-
-      /* Find where to drop the trailing shards */
-      let (content_before_drop, content_after_drop) = find_drop_position(rest);
-
-      /* Complete the tile with the content before the drop point as its last child */
-      let completed_tile = complete_tile(t, content_before_drop);
-
-      /* TODO: May need to regrout here if shapes don't fit.
-         For now, assume shapes work out. */
-
-      /* Optionally add separator space before the completed tile's trailing content */
-      let piece_to_add =
-        if (insert_separators) {
-          /* TODO: Be smarter about when separators are needed.
-             For now, we're not actually inserting them in the tile itself. */
-          Piece.Tile(completed_tile);
-        } else {
-          Piece.Tile(completed_tile);
-        };
-
-      /* Continue processing the rest */
-      go(
-        acc @ [piece_to_add],
-        shard_records @ [record],
-        content_after_drop,
-      );
-    | [p, ...rest] =>
-      /* Not an incomplete tile, just pass through */
-      go(acc @ [p], shard_records, rest)
+  if (List.length(incomplete) == 0) {
+    {
+      /* No changes needed */
+      completed_seg: seg,
+      shard_records,
     };
+  } else {
+    /* Phase 1: Insert all shards at appropriate split points */
+    let seg_with_shards = insert_shards_at_splits(seg);
 
-  go([], [], seg);
+    /* Phase 2: Regrout once to fix shape inconsistencies */
+    let regrouted =
+      seg_with_shards
+      |> Segment.regrout((Nib.Shape.concave(), Nib.Shape.concave()), _);
+
+    /* Phase 3: Reassemble to combine same-ID shards; remold in case sort changed */
+    let completed_seg =
+      Segment.reassemble(regrouted) |> Segment.remold(_, sort);
+
+    {
+      completed_seg,
+      shard_records,
+    };
+  };
 };
 
-/* Complete a segment recursively (descends into tile children).
- *
- * This applies complete_segment at each level of the segment tree.
- *
- * Parameters:
- * - insert_separators: If true, add spaces where tokens would jam together
- */
-let rec complete_segment_deep =
-        (~insert_separators: bool=false, seg: Segment.t): completion_result => {
-  /* First, complete children of all tiles */
+/* Complete a segment recursively (descends into tile children) */
+let rec complete_segment_deep = (~sort, seg: Segment.t): completion_result => {
+  /* First, complete children of all tiles using their expected sorts */
   let seg_with_completed_children =
-    seg
-    |> List.map(p =>
-         switch (p) {
-         | Piece.Tile(t) =>
-           let completed_children =
-             t.children
-             |> List.map(child => {
-                  let result = complete_segment_deep(~insert_separators, child);
-                  result.completed_seg;
-                });
-           Piece.Tile({...t, children: completed_children});
-         | _ => p
-         }
-       );
-
-  /* Then complete this level */
-  /* Note: We're discarding child shard_records here for simplicity.
-     A full implementation would aggregate them. */
-  complete_segment(~insert_separators, seg_with_completed_children);
+    List.map(
+      fun
+      | Piece.Tile(t) => {
+          /* Get each child paired with its expected sort from the mold */
+          let completed_children =
+            Tile.sorted_children(t)
+            |> List.map(((child_sort, child)) => {
+                 let result = complete_segment_deep(~sort=child_sort, child);
+                 result.completed_seg;
+               });
+          Piece.Tile({
+            ...t,
+            children: completed_children,
+          });
+        }
+      | p => p,
+      seg,
+    );
+  complete_segment(sort, seg_with_completed_children);
 };
 
 /* === Integration Points === */
 
-/* For use during MakeTerm: complete a segment before parsing.
- *
- * Returns the completed segment and shard records to store in term annotations.
- * Uses insert_separators=false since MakeTerm doesn't need readable output.
- */
 let for_make_term = (seg: Segment.t): (Segment.t, list(shard_record)) => {
-  let result = complete_segment_deep(~insert_separators=false, seg);
+  let result = complete_segment_deep(~sort=Sort.Exp, seg);
   (result.completed_seg, result.shard_records);
 };
 
-/* For use in editor affordances (e.g., click-to-complete).
- *
- * Returns completed segment with separator spaces for readability.
- */
 let for_editor = (seg: Segment.t): completion_result => {
-  complete_segment_deep(~insert_separators=true, seg);
+  complete_segment_deep(~sort=Sort.Exp, seg);
 };

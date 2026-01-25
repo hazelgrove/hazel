@@ -1065,7 +1065,15 @@ let for_projection =
     }
   );
 
-let from_zip_for_sem = (z: Zipper.t) => go(Dump.to_segment(z));
+let from_zip_for_sem = (z: Zipper.t) => {
+  /* Experimental: Use CanonicalCompletion instead of Dump */
+  let seg =
+    z
+    |> Zipper.clear_unparsed_buffer
+    |> Zipper.unselect_and_zip(~erase_buffer=true);
+  let result = CanonicalCompletion.complete_segment_deep(~sort=Sort.Exp, seg);
+  go(result.completed_seg);
+};
 
 let from_zip_for_sem =
   Core.Memo.general(~cache_size_bound=1000, from_zip_for_sem);

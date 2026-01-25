@@ -1,18 +1,34 @@
-# Claude Code Development Notes
+# Hazel Project Guide
 
-## Running Tests
+Hazel is a live functional programming environment with typed holes and live evaluation.
 
-Build first:
+## Build & Test
+
+### Building
 ```bash
-dune build
+make
 ```
 
-Run specific test groups (much faster than running all tests):
+### Running Tests
+
+**Full test suite (very slow, ~4 minutes):**
 ```bash
+make test
+```
+**Important test suite (slow, ~2 minutes):**
+```bash
+make test-quick
+```
+
+**Running specific tests (fast, ~0.1s):**
+
+```bash
+# Build first
+dune build
+
 # Run by test group name (regex)
 node _build/default/test/haz3ltest.bc.js test 'ProbeSteps'
 node _build/default/test/haz3ltest.bc.js test 'Evaluator'
-node _build/default/test/haz3ltest.bc.js test 'CanonicalCompletion'
 
 # Run specific test number(s) within a group
 node _build/default/test/haz3ltest.bc.js test 'ProbeSteps' '3'
@@ -26,10 +42,22 @@ node _build/default/test/haz3ltest.bc.js test 'ProbeSteps' --show-errors
 node _build/default/test/haz3ltest.bc.js list
 ```
 
-Run all tests (slow):
-```bash
-dune runtest
-```
+**Test output locations:**
+- Logs: `_build/_tests/HazelTests/<TestGroup>.<number>.output`
+- Check failures: `grep -l "FAIL" _build/_tests/HazelTests/*.output`
+
+### Test Framework
+Uses [Alcotest](https://github.com/mirage/alcotest) with js_of_ocaml. Tests in `test/` use `` `Quick `` or `` `Slow `` annotations.
+
+### Expected failures:
+
+Tests in Pattern Coverage Checker may fail regilarly locally; this is a known node issue. There is an intermittant failure in the Mehnir property test; re-run.
+
+
+## Code Style
+
+- **Language:** ReasonML (`.re` files) compiled with js_of_ocaml
+- **Comments:** `/* ... */` style
 
 ## Key Files
 
@@ -42,9 +70,9 @@ dune runtest
 
 ## Test File Conventions
 
-- Tests use textual Hazel syntax directly: `"let x = 1 in x"`
-- Cursor position: `"¦"` character
-- Convex holes (explicit): `"?"`
-- Concave grout: `"~"`
+- When possibly (it's not always possible) tests should use textual concrete Hazel syntax directly: `"let x = 1 in x"`
+- Cursor position can be printed with appropriate Printer options, commonly: `"¦"` character
+- Convex holes (explicit) can be printed with appropriate Printer options, commonly: `"?"`
+- Concave grout can be printed with appropriate Printer options, commonly: `"~"`
 - Parse with: `Parser.to_term(s)`, `Parser.to_segment(s)`, `Parser.to_zipper(s)`
 - Print segments: `Printer.of_segment(~holes="?", ~refractors=Id.Map.empty, seg)`
