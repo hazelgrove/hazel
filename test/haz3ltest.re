@@ -33,6 +33,7 @@ let (suite, _) =
     @ Test_Indentation.tests
     @ [Test_Coverage.tests, Test_Unboxing.tests]
     @ Test_Introduce.tests
+    @ Test_AgentTools.tests
     @ Test_ReparseDocSlides.tests
     @ Test_MatchExp.tests,
   );
