@@ -128,17 +128,23 @@ From `Segment.re`:
 
 **DONE:**
 - Phase 1: Trailing delimiter completion (single segment)
-- Phase 2: Unit tests (35 tests passing)
+- Phase 2: Unit tests (35+ tests passing)
 - Phase 3: Recursive wrapper (descends into children with correct sorts)
 - Phase 7: Indentation.re now uses CanonicalCompletion
 - User-managed indentation: spaces auto-inserted on Enter, Format action (Cmd+S)
+- Zero-indent partitioning heuristic (partition at column-0 content after incomplete tiles)
+- Parser fix: `~auto_indent=false` prevents Parser from adding indentation spaces
 
 **NOT DONE:**
-- Zero-indent partitioning heuristic (see section below)
 - Phase 4: MakeTerm integration (partial - calls completion but doesn't use shard_records)
 - Phase 5: Leading and middle delimiter completion
 - Phase 6: ExpToSegment integration (round-tripping)
 - Cached backpack optimization (skip completion if no incomplete tiles in syntax cache)
+
+**KNOWN FAILING TESTS (pre-existing, related to comma indentation):**
+- `Editing.Indentation.020` - Comma continuation indentation edge case
+- `Editing.Selection.014` - Related cursor positioning in comma-separated tuples
+These failures are about how comma-continuation lines get indented (expecting 2-space indent, getting 4-space). Not directly related to canonical completion.
 
 **Performance optimizations implemented:**
 - Single-pass partition_at_blank_lines collects incomplete tiles during scan
@@ -210,8 +216,18 @@ let is_space_piece = (p: Piece.t): bool =>
 **Blank-line refinement (TODO):**
 Currently blank-line = two consecutive linebreaks. Should generalize to: linebreak, followed by any combination of whitespace/grout (no tiles), followed by linebreak. This handles cases where grout insertion leaves a "blank" line with concave grout on it.
 
+**Grout/space edge cases (TODO - revisit if issues arise):**
+- What if grout appears at column 0 after a linebreak? Currently would trigger partition (grout is not a space). This seems OK but may need adjustment.
+- What about "spaces then grout then content"? E.g., `let x = 1\n  ~y` - spaces come first, so no partition. Seems correct.
+- These may not be special cases at all - the simple "is next piece a space?" check may just work.
+
 **Decreasing indent (more sophisticated, if needed):**
 Instead of just zero-indent, partition at any *decrease* in indentation. Would handle nested cases more precisely but adds complexity.
+
+### Known Indentation Bugs
+
+**Operator continuation doesn't auto-indent (TODO):**
+When typing `let x = 1` then Enter then `+ 2`, the `+ 2` should ideally get auto-indented (it's a continuation of the expression). Currently, the indentation logic doesn't handle this case - the user must manually indent. This is acceptable for now but should be fixed in `Indentation.re`'s `is_incrementor` or related logic.
 
 ---
 

@@ -70,8 +70,9 @@ let is_incrementor = (p: Piece.t): bool =>
   };
 
 let rec go' = ((not_top, base: int, seg: Segment.t)) => {
+  /* Use for_indentation to avoid circular dependency with zero-indent heuristic */
   let complete_trimmed_seg =
-    CanonicalCompletion.complete_segment(Sort.Exp, trim_non_content(seg)).
+    CanonicalCompletion.for_indentation(Sort.Exp, trim_non_content(seg)).
       completed_seg;
   let (_, map) =
     List.fold_left2(

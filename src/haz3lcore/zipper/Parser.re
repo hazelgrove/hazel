@@ -3,7 +3,8 @@ open Util.OptUtil.Syntax;
 let to_zipper = (~zipper_init=Zipper.init(), str: string): option(Zipper.t) => {
   let insert = (z: option(Zipper.t), c: string): option(Zipper.t) => {
     let* z = z;
-    try(c == "\r" ? Some(z) : Insert.go(c, z)) {
+    /* Disable auto_indent so Parser faithfully reproduces input without adding spaces */
+    try(c == "\r" ? Some(z) : Insert.go(~auto_indent=false, c, z)) {
     | exn =>
       print_endline("WARN: Parser.to_zipper: " ++ Printexc.to_string(exn));
       None;

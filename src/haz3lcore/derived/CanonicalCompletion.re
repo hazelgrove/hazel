@@ -39,12 +39,28 @@ let trailing_shards = (t: Tile.t): list(Piece.t) =>
 let shards_from_incomplete = (incomplete: list(Tile.t)): list(Piece.t) =>
   List.rev(incomplete) |> List.concat_map(trailing_shards);
 
-/* Single-pass partitioning at blank lines (double linebreaks) after incomplete tiles.
+/* Check if a piece is a space (not linebreak, just horizontal whitespace) */
+let is_space_piece = (p: Piece.t): bool =>
+  switch (p) {
+  | Secondary(s) => Secondary.is_space(s)
+  | _ => false
+  };
+
+/* Single-pass partitioning based on indentation heuristics.
  * Returns list of (subsegment, incomplete_tiles_in_subsegment).
- * Split only occurs at blank lines that follow at least one incomplete tile.
- * Incomplete tiles are collected during the scan - no separate pass needed. */
-let partition_at_blank_lines =
-    (seg: Segment.t): list((Segment.t, list(Tile.t))) => {
+ *
+ * Partition heuristics (when incomplete_before is true):
+ * 1. BLANK LINE: Two consecutive linebreaks (always enabled)
+ * 2. ZERO INDENT: Single linebreak followed by non-space piece
+ *    (only when ~use_zero_indent=true)
+ *
+ * The zero-indent heuristic interprets column-0 content after incomplete
+ * syntax as user intent to start something new, not continue the form.
+ * This should be disabled for indentation calculation to avoid circular
+ * dependency (indentation uses completion, completion uses indentation). */
+let partition_segment =
+    (~use_zero_indent=true, seg: Segment.t)
+    : list((Segment.t, list(Tile.t))) => {
   let rec go =
           (
             seg: Segment.t,
@@ -57,6 +73,8 @@ let partition_at_blank_lines =
     | [] =>
       /* End of segment - return accumulated subsegment with its incomplete tiles */
       [(List.rev(acc), List.rev(incomplete_acc))]
+
+    /* Heuristic 1: Blank line (two consecutive linebreaks) */
     | [Secondary(w1), Secondary(w2), ...rest]
         when Secondary.is_linebreak(w1) && Secondary.is_linebreak(w2) =>
       if (incomplete_before) {
@@ -74,6 +92,38 @@ let partition_at_blank_lines =
           false,
         );
       }
+
+    /* Heuristic 2: Zero indent (linebreak followed by non-space) */
+    | [Secondary(w), next, ...rest]
+        when
+          use_zero_indent
+          && Secondary.is_linebreak(w)
+          && !is_space_piece(next) =>
+      if (incomplete_before) {
+        /* Split here: current subseg ends BEFORE linebreak,
+         * linebreak starts new partition with the column-0 content */
+        let current = List.rev(acc);
+        let current_incomplete = List.rev(incomplete_acc);
+        let remaining = go(rest, [next, Secondary(w)], [], false);
+        [(current, current_incomplete), ...remaining];
+      } else {
+        /* No split - continue accumulating. But check if next is incomplete! */
+        let (next_incomplete_acc, next_incomplete_before) =
+          switch (next) {
+          | Piece.Tile(t) when !Tile.is_complete(t) => (
+              [t, ...incomplete_acc],
+              true,
+            )
+          | _ => (incomplete_acc, false)
+          };
+        go(
+          rest,
+          [next, Secondary(w), ...acc],
+          next_incomplete_acc,
+          next_incomplete_before,
+        );
+      }
+
     | [Piece.Tile(t) as p, ...rest] when !Tile.is_complete(t) =>
       /* Incomplete tile - add to both accumulators */
       go(rest, [p, ...acc], [t, ...incomplete_acc], true)
@@ -84,9 +134,10 @@ let partition_at_blank_lines =
   go(seg, [], [], false);
 };
 
-let complete_segment = (sort: Sort.t, seg: Segment.t): completion_result => {
-  /* Single pass: partition at blank lines AND collect incomplete tiles */
-  let partitioned = partition_at_blank_lines(seg);
+let complete_segment =
+    (~use_zero_indent=true, sort: Sort.t, seg: Segment.t): completion_result => {
+  /* Single pass: partition AND collect incomplete tiles */
+  let partitioned = partition_segment(~use_zero_indent, seg);
 
   /* Extract all incomplete tiles for shard_records */
   let all_incomplete = List.concat_map(snd, partitioned);
@@ -107,14 +158,14 @@ let complete_segment = (sort: Sort.t, seg: Segment.t): completion_result => {
       shard_records,
     };
   } else {
-    /* Phase 1: Insert shards at end of each subsegment using pre-collected tiles */
+    /* Phase 1: Insert shards at end of each subsegment */
     let seg_with_shards =
       partitioned
       |> List.concat_map(((subseg, incomplete)) =>
            subseg @ shards_from_incomplete(incomplete)
          );
 
-    /* Phase 2: Regrout once to fix shape inconsistencies */
+    /* Phase 2: Regrout to fix shape inconsistencies */
     let regrouted =
       seg_with_shards
       |> Segment.regrout((Nib.Shape.concave(), Nib.Shape.concave()), _);
@@ -131,7 +182,8 @@ let complete_segment = (sort: Sort.t, seg: Segment.t): completion_result => {
 };
 
 /* Complete a segment recursively (descends into tile children) */
-let rec complete_segment_deep = (~sort, seg: Segment.t): completion_result => {
+let rec complete_segment_deep =
+        (~use_zero_indent=true, ~sort, seg: Segment.t): completion_result => {
   /* First, complete children of all tiles using their expected sorts */
   let seg_with_completed_children =
     List.map(
@@ -141,7 +193,12 @@ let rec complete_segment_deep = (~sort, seg: Segment.t): completion_result => {
           let completed_children =
             Tile.sorted_children(t)
             |> List.map(((child_sort, child)) => {
-                 let result = complete_segment_deep(~sort=child_sort, child);
+                 let result =
+                   complete_segment_deep(
+                     ~use_zero_indent,
+                     ~sort=child_sort,
+                     child,
+                   );
                  result.completed_seg;
                });
           Piece.Tile({
@@ -152,7 +209,7 @@ let rec complete_segment_deep = (~sort, seg: Segment.t): completion_result => {
       | p => p,
       seg,
     );
-  complete_segment(sort, seg_with_completed_children);
+  complete_segment(~use_zero_indent, sort, seg_with_completed_children);
 };
 
 /* === Integration Points === */
@@ -164,4 +221,10 @@ let for_make_term = (seg: Segment.t): (Segment.t, list(shard_record)) => {
 
 let for_editor = (seg: Segment.t): completion_result => {
   complete_segment_deep(~sort=Sort.Exp, seg);
+};
+
+/* For indentation calculation - disables zero-indent heuristic to avoid
+ * circular dependency (indentation uses completion, completion uses indentation) */
+let for_indentation = (sort: Sort.t, seg: Segment.t): completion_result => {
+  complete_segment(~use_zero_indent=false, sort, seg);
 };

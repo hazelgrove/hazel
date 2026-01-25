@@ -182,6 +182,99 @@ let regrout_debug_tests = [
       check(Alcotest.bool, "debug", true, true);
     },
   ),
+  test_case(
+    "debug: nested let case",
+    `Quick,
+    () => {
+      /* Parse the nested let case */
+      let seg = must_parse("let a = 1 in\nlet b = 1\na + b");
+      print_endline("=== Debug: nested let case ===");
+      print_endline("Full segment: " ++ print_seg(seg));
+      print_endline(
+        "Top-level piece count: " ++ string_of_int(List.length(seg)),
+      );
+
+      /* Look at the structure */
+      List.iteri(
+        (i, p) => {
+          switch (p) {
+          | Piece.Tile(t) =>
+            print_endline(
+              "  ["
+              ++ string_of_int(i)
+              ++ "]: Tile("
+              ++ String.concat(",", t.label)
+              ++ ") shards=["
+              ++ String.concat(",", List.map(string_of_int, t.shards))
+              ++ "] children="
+              ++ string_of_int(List.length(t.children))
+              ++ " is_complete="
+              ++ string_of_bool(Tile.is_complete(t)),
+            );
+            /* Print each child */
+            List.iteri(
+              (ci, child) => {
+                print_endline(
+                  "    child["
+                  ++ string_of_int(ci)
+                  ++ "]: "
+                  ++ print_seg(child),
+                )
+              },
+              t.children,
+            );
+          | Piece.Secondary(s) =>
+            print_endline(
+              "  ["
+              ++ string_of_int(i)
+              ++ "]: Secondary("
+              ++ (Secondary.is_linebreak(s) ? "linebreak" : "space/other")
+              ++ ")",
+            )
+          | _ => print_endline("  [" ++ string_of_int(i) ++ "]: other")
+          }
+        },
+        seg,
+      );
+
+      /* Test partition_segment on the TOP-LEVEL segment */
+      print_endline("\n=== Testing partition_segment on top-level ===");
+      let partitions = CanonicalCompletion.partition_segment(seg);
+      print_endline(
+        "Partition count: " ++ string_of_int(List.length(partitions)),
+      );
+      List.iteri(
+        (i, (subseg, incomplete)) => {
+          print_endline("  Partition " ++ string_of_int(i) ++ ":");
+          print_endline("    content: " ++ print_seg(subseg));
+          print_endline(
+            "    incomplete: " ++ string_of_int(List.length(incomplete)),
+          );
+          List.iter(
+            (t: Tile.t) => {
+              print_endline(
+                "      - "
+                ++ String.concat(",", t.label)
+                ++ " shards=["
+                ++ String.concat(",", List.map(string_of_int, t.shards))
+                ++ "]",
+              )
+            },
+            incomplete,
+          );
+        },
+        partitions,
+      );
+
+      /* Run full completion */
+      let result =
+        CanonicalCompletion.complete_segment_deep(~sort=Sort.Exp, seg);
+      print_endline("\n=== Final result ===");
+      print_endline("Completed: " ++ print_seg(result.completed_seg));
+
+      check(Alcotest.bool, "debug", true, true);
+    },
+  ),
 ];
 
 /* Test Segment.regrout: explore its behavior */
@@ -386,13 +479,15 @@ let multi_incomplete_tests = [
     ~expected="let f = fun x -> ? in ?",
     ~expected_no_sep="let f = fun x->?in?",
   ),
-  /* Nested: incomplete fun and let, single linebreak = no split, shards at end */
+  /* Nested: incomplete fun and let, column-0 content triggers partition.
+   * The fun is completed in the let's child (gets hole), then let is completed
+   * at top level (gets hole). f(1) is separate after the partition. */
   test(
     ~name="let with incomplete fun followed by application on next line",
     ~input={|let f = fun x
 f(1)|},
-    ~expected={|let f = fun x
-f(1)->?in?|},
+    ~expected={|let f = fun x->?in?
+f(1)|},
   ),
   /* Sibling: inner let inside outer let's definition */
   test_sep(
@@ -426,34 +521,74 @@ f(1)->?in?|},
   test(~name="two open parens", ~input="((1", ~expected="((1))"),
 ];
 
-/* === PHASE 4 TESTS: Linebreak/Blank-line Sensitivity ===
+/* === PHASE 4 TESTS: Linebreak Sensitivity ===
  *
- * We use the blank-line heuristic (from Indentation.re):
- * - Only split at TWO consecutive linebreaks (blank line)
- * - Single linebreaks don't cause a split
- * - Shards are inserted at the split point, or at end if no split
+ * Partition heuristics:
+ * 1. BLANK LINE: Two consecutive linebreaks always partition (if incomplete before)
+ * 2. ZERO INDENT: Single linebreak followed by non-space piece partitions (if incomplete before)
+ *
+ * The zero-indent heuristic treats column-0 content as user intent to start
+ * something new, not continue the incomplete form.
  */
 
 let linebreak_tests = [
-  /* Single linebreak: no split, shards go at end.
-   * The `a` stays before `in`, doesn't become the body. */
+  /* === Zero-indent: column-0 content triggers partition === */
+  /* Single linebreak followed by var at column 0 - partition.
+   * The body is empty (no hole printed) because content is separate. */
   test(
-    ~name="let then linebreak then var - no split, shards at end",
+    ~name="let then linebreak then var at column 0 - partition",
     ~input={|let a = 1
 a|},
-    ~expected={|let a = 1
-~ain?|},
+    ~expected={|let a = 1in
+a|},
   ),
-  /* Same as above with different variable names */
+  /* Same with different names */
   test(
-    ~name="let then linebreak then var",
+    ~name="let then linebreak then var at column 0",
     ~input={|let x = 1
 y|},
-    ~expected={|let x = 1
-~yin?|},
+    ~expected={|let x = 1in
+y|},
   ),
-  /* Blank line (two consecutive linebreaks) - this IS a split point.
-   * Shards inserted before blank line, `y` becomes the body (no hole). */
+  /* fun followed by column-0 content */
+  test(
+    ~name="fun then linebreak then var at column 0",
+    ~input={|fun x
+y|},
+    ~expected={|fun x->
+y|},
+  ),
+  /* === Zero-indent: indented content does NOT partition === */
+  /* Linebreak followed by spaces then content - no partition.
+   * Grout is inserted because shapes need it. */
+  test(
+    ~name="let then linebreak then indented var - no partition",
+    ~input={|let x = 1
+  y|},
+    ~expected={|let x = 1
+  ~yin?|},
+  ),
+  /* fun with indented body - grout inserted for shape */
+  test(
+    ~name="fun then linebreak then indented var - no partition",
+    ~input={|fun x
+  y|},
+    ~expected={|fun x
+  ~y->?|},
+  ),
+  /* Mixed: some indented, some at column 0.
+   * body is indented (no partition there), next is at col 0 (partition) */
+  test(
+    ~name="fun with indented body then column-0 content",
+    ~input={|let f = fun x
+  body
+next|},
+    ~expected={|let f = fun x
+  ~body->?in
+next|},
+  ),
+  /* === Blank line tests (existing behavior preserved) === */
+  /* Blank line (two consecutive linebreaks) - always partitions */
   test(
     ~name="let then blank line then var",
     ~input={|let x = 1
@@ -463,18 +598,16 @@ y|},
 in
 y|},
   ),
-  /* Two lets with single linebreak: no split, all shards at end.
-   * Both lets get completed at the very end. */
+  /* Two lets with single linebreak: second let at column 0 triggers partition.
+   * Each let is completed independently with empty body (no hole printed). */
   test(
     ~name="two lets on separate lines",
     ~input={|let x = 1
 let y = 2|},
-    ~expected={|let x = 1
-~let y = 2in?in?|},
+    ~expected={|let x = 1in
+let y = 2in?|},
   ),
-  /* Two lets separated by blank line: both get completed.
-   * The second let becomes the body of the first (shapes fit, no hole).
-   * Result: let x = 1 in (let y = 2 in ?) */
+  /* Two lets separated by blank line: both get completed */
   test(
     ~name="two lets separated by blank line",
     ~input={|let x = 1
@@ -519,6 +652,18 @@ let c = 3 in c|},
 ~let b = 2
 in
 let c = 3 in c|},
+  ),
+  /* Complete let followed by incomplete let, then column-0 content.
+   * The incomplete let is INSIDE the body of the complete let.
+   * Should partition at `a + b` and complete `let b = 1` with `in`. */
+  test(
+    ~name="complete let with nested incomplete let then column-0",
+    ~input={|let a = 1 in
+let b = 1
+a + b|},
+    ~expected={|let a = 1 in
+let b = 1in
+a + b|},
   ),
 ];
 
