@@ -36,42 +36,6 @@ let union_all =
     Id.Map.empty,
   );
 
-/* This does not strictly 'complete' a segment but rather does a
- * rough version of it that suffices for indentation calculation */
-let rec shallow_complete_segment = (seg: Segment.t): Segment.t =>
-  switch (seg) {
-  | [] => []
-  | [Tile(t), ...rest] when !Tile.is_complete(t) => [
-      Tile({
-        ...t,
-        shards: List.init(List.length(t.label), i => i),
-        children: t.children @ [shallow_complete_segment(rest)],
-        /* Note: Potentially wrong number of children */
-      }),
-    ]
-  | [p, ...rest] => [p, ...shallow_complete_segment(rest)]
-  };
-
-/* When a segment is incomplete, we try to complete it before calculating
- * indentation. This is necessarily a heuristic process. One obvious way
- * would be to consider dropping the backpack at the cursor, but making
- * this calcuation cursor-sensitive (and hence active on movement) is
- * potentially expensive and janky. Thus we use a different indication
- * of user intent: leaving a blank line. In effect, this attempts to
- * completes the segment in the specific case where all incomplete tiles
- * in the segment are found before a blank line (two consecutive linebreaks).
- * There are many cases where this won't apply, but it is sufficient to
- * ensure non-janky left-to-right entry of a new definition seperated
- * from the rest of the existing below bidelimited context by an empty line,
- * assuming that the below bidelimited context doesn't contain incomplete
- * tiles at the top level. */
-let complete_segment = (seg: Segment.t): Segment.t => {
-  switch (CanonicalCompletion.incomplete_subseg_before_blank_line(seg)) {
-  | None => shallow_complete_segment(seg)
-  | Some((before, after)) => shallow_complete_segment(before) @ after
-  };
-};
-
 let is_comma = (p: Piece.t): bool =>
   switch (p) {
   | Tile(t) => t.label == [","]
@@ -106,7 +70,9 @@ let is_incrementor = (p: Piece.t): bool =>
   };
 
 let rec go' = ((not_top, base: int, seg: Segment.t)) => {
-  let complete_trimmed_seg = complete_segment(trim_non_content(seg));
+  let complete_trimmed_seg =
+    CanonicalCompletion.complete_segment(Sort.Exp, trim_non_content(seg)).
+      completed_seg;
   let (_, map) =
     List.fold_left2(
       ((level: int, map: Id.Map.t(int)), p: Piece.t, prev_next) => {

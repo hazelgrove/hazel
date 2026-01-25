@@ -30,80 +30,66 @@ type completion_result = {
 };
 
 /* Get trailing missing shard indices for a tile */
-let trailing_shards = (t: Tile.t): list(int) =>
-  Tile.right_missing_shards(t) |> List.map(s => Tile.r_shard(s));
+let trailing_shards = (t: Tile.t): list(Piece.t) =>
+  Tile.right_missing_shards(t)
+  |> List.map(s => Piece.Tile(Tile.shard_of(t, Tile.r_shard(s))));
 
-/* Collect trailing shards from incomplete tiles in a segment.
- * Returns shards in order: innermost first, outermost last. */
-let collect_trailing_shards = (seg: Segment.t): list(Piece.t) => {
-  let incomplete = Segment.incomplete_tiles(seg);
-  /* incomplete_tiles returns left-to-right order, which is outer-to-inner.
-   * We want inner-first, so reverse. */
-  let inner_first = List.rev(incomplete);
-  inner_first
-  |> List.map((t: Tile.t) =>
-       trailing_shards(t)
-       |> List.map(idx => Piece.Tile(Tile.shard_of(t, idx)))
-     )
-  |> List.concat;
-};
+/* Create shard pieces from incomplete tiles.
+ * Takes tiles in left-to-right order, returns shards inner-first (reversed). */
+let shards_from_incomplete = (incomplete: list(Tile.t)): list(Piece.t) =>
+  List.rev(incomplete) |> List.concat_map(trailing_shards);
 
 /* Single-pass partitioning at blank lines (double linebreaks) after incomplete tiles.
- * Returns list of subsegments. Split only occurs at blank lines that follow
- * at least one incomplete tile. O(n) instead of O(n²) recursive scanning. */
-let partition_at_blank_lines = (seg: Segment.t): list(Segment.t) => {
+ * Returns list of (subsegment, incomplete_tiles_in_subsegment).
+ * Split only occurs at blank lines that follow at least one incomplete tile.
+ * Incomplete tiles are collected during the scan - no separate pass needed. */
+let partition_at_blank_lines =
+    (seg: Segment.t): list((Segment.t, list(Tile.t))) => {
   let rec go =
-          (seg: Segment.t, acc: Segment.t, incomplete_before: bool)
-          : list(Segment.t) => {
+          (
+            seg: Segment.t,
+            acc: Segment.t,
+            incomplete_acc: list(Tile.t),
+            incomplete_before: bool,
+          )
+          : list((Segment.t, list(Tile.t))) => {
     switch (seg) {
     | [] =>
-      /* End of segment - return accumulated subsegment */
-      [List.rev(acc)]
-    | [Secondary(w1) as p, Secondary(w2), ...rest]
+      /* End of segment - return accumulated subsegment with its incomplete tiles */
+      [(List.rev(acc), List.rev(incomplete_acc))]
+    | [Secondary(w1), Secondary(w2), ...rest]
         when Secondary.is_linebreak(w1) && Secondary.is_linebreak(w2) =>
-      let incomplete_before = incomplete_before || !Piece.is_complete(p);
       if (incomplete_before) {
         /* Split here: finish current subsegment, start new one */
         let current = List.rev([Piece.Secondary(w1), ...acc]);
-        let remaining = go(rest, [Secondary(w2)], false);
-        [current, ...remaining];
+        let current_incomplete = List.rev(incomplete_acc);
+        let remaining = go(rest, [Secondary(w2)], [], false);
+        [(current, current_incomplete), ...remaining];
       } else {
         /* No split - continue accumulating */
         go(
           rest,
           [Secondary(w2), Secondary(w1), ...acc],
-          incomplete_before,
+          incomplete_acc,
+          false,
         );
-      };
+      }
+    | [Piece.Tile(t) as p, ...rest] when !Tile.is_complete(t) =>
+      /* Incomplete tile - add to both accumulators */
+      go(rest, [p, ...acc], [t, ...incomplete_acc], true)
     | [p, ...rest] =>
-      go(rest, [p, ...acc], incomplete_before || !Piece.is_complete(p))
+      go(rest, [p, ...acc], incomplete_acc, incomplete_before)
     };
   };
-  go(seg, [], false);
-};
-
-/* Get first split point only (for Indentation.re compatibility).
- * Returns None if no split, Some((before, after)) otherwise. */
-let incomplete_subseg_before_blank_line =
-    (seg: Segment.t): option((Segment.t, Segment.t)) => {
-  switch (partition_at_blank_lines(seg)) {
-  | [] => None
-  | [_single] => None /* No split occurred */
-  | [first, ...rest] => Some((first, List.concat(rest)))
-  };
-};
-
-/* Insert shards at the end of each subsegment, then concatenate.
- * Single O(n) pass for partitioning, then O(n) for shard collection. */
-let insert_shards_at_splits = (seg: Segment.t): Segment.t => {
-  partition_at_blank_lines(seg)
-  |> List.map(subseg => subseg @ collect_trailing_shards(subseg))
-  |> List.concat;
+  go(seg, [], [], false);
 };
 
 let complete_segment = (sort: Sort.t, seg: Segment.t): completion_result => {
-  /* Collect shard records before modification */
-  let incomplete = Segment.incomplete_tiles(seg);
+  /* Single pass: partition at blank lines AND collect incomplete tiles */
+  let partitioned = partition_at_blank_lines(seg);
+
+  /* Extract all incomplete tiles for shard_records */
+  let all_incomplete = List.concat_map(snd, partitioned);
   let shard_records =
     List.map(
       (t: Tile.t) =>
@@ -111,18 +97,22 @@ let complete_segment = (sort: Sort.t, seg: Segment.t): completion_result => {
           tile_id: t.id,
           original_shards: t.shards,
         },
-      incomplete,
+      all_incomplete,
     );
 
-  if (List.length(incomplete) == 0) {
+  if (List.length(all_incomplete) == 0) {
     {
       /* No changes needed */
       completed_seg: seg,
       shard_records,
     };
   } else {
-    /* Phase 1: Insert all shards at appropriate split points */
-    let seg_with_shards = insert_shards_at_splits(seg);
+    /* Phase 1: Insert shards at end of each subsegment using pre-collected tiles */
+    let seg_with_shards =
+      partitioned
+      |> List.concat_map(((subseg, incomplete)) =>
+           subseg @ shards_from_incomplete(incomplete)
+         );
 
     /* Phase 2: Regrout once to fix shape inconsistencies */
     let regrouted =
