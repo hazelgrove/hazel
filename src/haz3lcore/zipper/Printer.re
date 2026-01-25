@@ -44,42 +44,22 @@ let add_caret =
   };
 };
 
-let add_indent = (measured: Measured.t, indent: string, i: int, r: string) =>
-  try(
-    StringUtil.repeat(Measured.Rows.find(i, measured.rows).indent, indent)
-    ++ r
-  ) {
-  | Not_found =>
-    print_endline("Printer.add_indent: Not_found");
-    r;
-  };
-
-let add_indents = (segment, measured, indent: string, rows: list(string)) =>
-  if (indent == "") {
-    /* If no indentation is needed, we don't need to bother calculating measured */
-    rows;
-  } else {
-    let measured =
-      switch (measured) {
-      | Some(m) => m
-      | None => measured_no_projectors(segment)
-      };
-    List.mapi(add_indent(measured, indent), rows);
-  };
-
 /* Use this to pretty-print segments. Note that printing holes with
  * a space may result in extraneous whitespace, but printing without
  * a space may result in tokens getting glued together. You can't win */
+/* NOTE: ~indent and ~measured parameters are kept for backward compatibility
+ * but are no longer used. With user-managed indentation, segments contain
+ * actual space characters, so we don't need to add indentation when printing. */
 let of_segment =
     (
       ~holes=" ",
       ~concave_holes=" ",
-      ~indent="",
+      ~indent as _="",
       ~refractors=Id.Map.empty,
       ~caret: option((string, Point.t))=None,
       ~selection_anchor: option((string, Point.t))=None,
-      ~measured=?,
-      ~is_single_line=false,
+      ~measured as _: option(Measured.t)=?,
+      ~is_single_line as _=false,
       segment: Segment.t,
     )
     : string =>
@@ -92,7 +72,6 @@ let of_segment =
        ~projector_to_segment=Triggers.projector_to_invoke,
      )
   |> String.split_on_char('\n')
-  |> (is_single_line ? Fun.id : add_indents(segment, measured, indent))
   |> add_caret(~caret, ~selection_anchor)
   |> String.concat("\n");
 

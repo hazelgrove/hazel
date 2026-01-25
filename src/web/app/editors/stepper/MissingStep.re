@@ -353,7 +353,7 @@ module View = {
         get_left(
           Int.min(
             current_left,
-            Measured.Rows.find(row, measured.rows).indent,
+            Measured.Rows.find(row, measured.rows).content_start,
           ),
           row + 1,
           final_row,
