@@ -479,14 +479,14 @@ let multi_incomplete_tests = [
     ~expected="let f = fun x -> ? in ?",
     ~expected_no_sep="let f = fun x->?in?",
   ),
-  /* Nested: incomplete fun and let, column-0 content triggers partition.
-   * The fun is completed in the let's child (gets hole), then let is completed
-   * at top level (gets hole). f(1) is separate after the partition. */
+  /* Nested: incomplete fun and let, column-0 content on next line.
+   * The fun is completed in the let's child (gets hole for fun body).
+   * f(1) becomes the let body since shapes fit (no hole needed). */
   test(
     ~name="let with incomplete fun followed by application on next line",
     ~input={|let f = fun x
 f(1)|},
-    ~expected={|let f = fun x->?in?
+    ~expected={|let f = fun x->?in
 f(1)|},
   ),
   /* Sibling: inner let inside outer let's definition */

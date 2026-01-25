@@ -232,14 +232,21 @@ let complete_segment =
            subseg @ shards_from_incomplete(incomplete)
          );
 
-    /* Phase 2: Regrout to fix shape inconsistencies */
+    /* Phase 2: Regrout to make segment well-formed for reassemble */
     let regrouted =
       seg_with_shards
       |> Segment.regrout((Nib.Shape.concave(), Nib.Shape.concave()), _);
 
-    /* Phase 3: Reassemble to combine same-ID shards; remold in case sort changed */
-    let completed_seg =
+    /* Phase 3: Reassemble to combine same-ID shards; remold to get correct molds */
+    let reassembled =
       Segment.reassemble(regrouted) |> Segment.remold(_, sort);
+
+    /* Phase 4: Regrout again based on NEW molds (remold may have changed shapes) */
+    let completed_seg =
+      Segment.regrout(
+        (Nib.Shape.concave(), Nib.Shape.concave()),
+        reassembled,
+      );
 
     {
       completed_seg,
