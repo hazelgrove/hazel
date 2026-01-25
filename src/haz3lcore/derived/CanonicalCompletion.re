@@ -1,11 +1,16 @@
 /* CanonicalCompletion: Complete incomplete syntax to enable term creation
  *
  * Algorithm:
- * 1. Use blank-line heuristic to find insertion point (same as Indentation.re)
+ * 1. Use blank-line heuristic to find insertion points
  * 2. Collect trailing shards from all incomplete tiles (inner first, outer last)
- * 3. Insert shards at the insertion point
+ * 3. Insert shards at the insertion points
  * 4. Regrout the whole segment
  * 5. Reassemble to combine same-ID shards into complete tiles
+ *
+ * Performance note: The syntax cache tracks global_missing_shards (cached_backpack).
+ * If cached_backpack is empty, we can skip completion entirely since there are
+ * no incomplete tiles. This check should be done at the call site (e.g., MakeTerm)
+ * before invoking completion.
  */
 
 open Util;
@@ -43,56 +48,57 @@ let collect_trailing_shards = (seg: Segment.t): list(Piece.t) => {
   |> List.concat;
 };
 
-/* Find the shortest prefix of the segment containing all incomplete tiles
- * followed by two consecutive linebreaks (aka a blank line)  */
-let incomplete_subseg_before_blank_line =
-    (seg: Segment.t): option((Segment.t, Segment.t)) => {
-  let rec find_split_point =
+/* Single-pass partitioning at blank lines (double linebreaks) after incomplete tiles.
+ * Returns list of subsegments. Split only occurs at blank lines that follow
+ * at least one incomplete tile. O(n) instead of O(n²) recursive scanning. */
+let partition_at_blank_lines = (seg: Segment.t): list(Segment.t) => {
+  let rec go =
           (seg: Segment.t, acc: Segment.t, incomplete_before: bool)
-          : option((Segment.t, Segment.t)) => {
+          : list(Segment.t) => {
     switch (seg) {
-    | [] => None
+    | [] =>
+      /* End of segment - return accumulated subsegment */
+      [List.rev(acc)]
     | [Secondary(w1) as p, Secondary(w2), ...rest]
         when Secondary.is_linebreak(w1) && Secondary.is_linebreak(w2) =>
       let incomplete_before = incomplete_before || !Piece.is_complete(p);
       if (incomplete_before) {
-        /* Note: Leaves one linebreak in and one out (empty line) */
-        Some((
-          List.rev([Piece.Secondary(w1), ...acc]),
-          [Secondary(w2), ...rest],
-        ));
+        /* Split here: finish current subsegment, start new one */
+        let current = List.rev([Piece.Secondary(w1), ...acc]);
+        let remaining = go(rest, [Secondary(w2)], false);
+        [current, ...remaining];
       } else {
-        find_split_point(
+        /* No split - continue accumulating */
+        go(
           rest,
           [Secondary(w2), Secondary(w1), ...acc],
           incomplete_before,
         );
       };
     | [p, ...rest] =>
-      find_split_point(
-        rest,
-        [p, ...acc],
-        incomplete_before || !Piece.is_complete(p),
-      )
+      go(rest, [p, ...acc], incomplete_before || !Piece.is_complete(p))
     };
   };
-  find_split_point(seg, [], false);
+  go(seg, [], false);
 };
 
-/* Recursively insert shards at blank-line split points.
- * This only handles shard insertion - regrout/reassemble happen once after. */
-let rec insert_shards_at_splits = (seg: Segment.t): Segment.t => {
-  switch (incomplete_subseg_before_blank_line(seg)) {
-  | None =>
-    /* No blank line split point - insert shards at end */
-    let shards = collect_trailing_shards(seg);
-    seg @ shards;
-  | Some((before, after)) =>
-    /* Insert shards for 'before', then recursively handle 'after' */
-    let shards = collect_trailing_shards(before);
-    let after_with_shards = insert_shards_at_splits(after);
-    before @ shards @ after_with_shards;
+/* Get first split point only (for Indentation.re compatibility).
+ * Returns None if no split, Some((before, after)) otherwise. */
+let incomplete_subseg_before_blank_line =
+    (seg: Segment.t): option((Segment.t, Segment.t)) => {
+  switch (partition_at_blank_lines(seg)) {
+  | [] => None
+  | [_single] => None /* No split occurred */
+  | [first, ...rest] => Some((first, List.concat(rest)))
   };
+};
+
+/* Insert shards at the end of each subsegment, then concatenate.
+ * Single O(n) pass for partitioning, then O(n) for shard collection. */
+let insert_shards_at_splits = (seg: Segment.t): Segment.t => {
+  partition_at_blank_lines(seg)
+  |> List.map(subseg => subseg @ collect_trailing_shards(subseg))
+  |> List.concat;
 };
 
 let complete_segment = (sort: Sort.t, seg: Segment.t): completion_result => {
