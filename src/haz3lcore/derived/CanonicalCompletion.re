@@ -1,10 +1,14 @@
 /* CanonicalCompletion: Complete incomplete syntax to enable term creation
  *
+ * Partition heuristics (to determine where to insert missing delimiters):
+ * 1. BLANK LINE: Two consecutive linebreaks always partition
+ * 2. RELATIVE INDENT: Content at same-or-lesser indent than incomplete tile partitions
+ *
  * Algorithm:
- * 1. Use blank-line heuristic to find insertion points
+ * 1. Partition segment based on heuristics above
  * 2. Collect trailing shards from all incomplete tiles (inner first, outer last)
- * 3. Insert shards at the insertion points
- * 4. Regrout the whole segment
+ * 3. Insert shards at end of each partition
+ * 4. Regrout the whole segment to fix shape inconsistencies
  * 5. Reassemble to combine same-ID shards into complete tiles
  *
  * Performance note: The syntax cache tracks global_missing_shards (cached_backpack).
@@ -46,20 +50,35 @@ let is_space_piece = (p: Piece.t): bool =>
   | _ => false
   };
 
+/* Count leading space pieces in a segment */
+let count_leading_spaces = (seg: Segment.t): int => {
+  let rec count = (seg, n) =>
+    switch (seg) {
+    | [Piece.Secondary(s), ...rest] when Secondary.is_space(s) =>
+      count(rest, n + 1)
+    | _ => n
+    };
+  count(seg, 0);
+};
+
 /* Single-pass partitioning based on indentation heuristics.
  * Returns list of (subsegment, incomplete_tiles_in_subsegment).
  *
  * Partition heuristics (when incomplete_before is true):
  * 1. BLANK LINE: Two consecutive linebreaks (always enabled)
- * 2. ZERO INDENT: Single linebreak followed by non-space piece
- *    (only when ~use_zero_indent=true)
+ * 2. RELATIVE INDENT: After a linebreak, if the content's indentation is
+ *    less than or equal to the incomplete tile's indentation, partition.
+ *    (only when ~use_indent_heuristic=true)
  *
- * The zero-indent heuristic interprets column-0 content after incomplete
- * syntax as user intent to start something new, not continue the form.
+ * The relative indent heuristic interprets same-or-lesser indented content
+ * after incomplete syntax as user intent to start something new.
+ * This subsumes the old "zero indent" heuristic (incomplete at col 0,
+ * content at col 0 means 0 <= 0 -> partition).
+ *
  * This should be disabled for indentation calculation to avoid circular
  * dependency (indentation uses completion, completion uses indentation). */
 let partition_segment =
-    (~use_zero_indent=true, seg: Segment.t)
+    (~use_indent_heuristic=true, seg: Segment.t)
     : list((Segment.t, list(Tile.t))) => {
   let rec go =
           (
@@ -67,7 +86,10 @@ let partition_segment =
             acc: Segment.t,
             incomplete_acc: list(Tile.t),
             incomplete_before: bool,
-          )
+            line_indent: int, /* spaces since last linebreak */
+            past_indent: bool, /* have we seen non-space on this line? */
+            incomplete_indent: option(int),
+          ) /* indent of first incomplete tile */
           : list((Segment.t, list(Tile.t))) => {
     switch (seg) {
     | [] =>
@@ -81,7 +103,8 @@ let partition_segment =
         /* Split here: finish current subsegment, start new one */
         let current = List.rev([Piece.Secondary(w1), ...acc]);
         let current_incomplete = List.rev(incomplete_acc);
-        let remaining = go(rest, [Secondary(w2)], [], false);
+        let remaining =
+          go(rest, [Secondary(w2)], [], false, 0, false, None);
         [(current, current_incomplete), ...remaining];
       } else {
         /* No split - continue accumulating */
@@ -90,54 +113,98 @@ let partition_segment =
           [Secondary(w2), Secondary(w1), ...acc],
           incomplete_acc,
           false,
+          0,
+          false,
+          incomplete_indent,
         );
       }
 
-    /* Heuristic 2: Zero indent (linebreak followed by non-space) */
-    | [Secondary(w), next, ...rest]
-        when
-          use_zero_indent
-          && Secondary.is_linebreak(w)
-          && !is_space_piece(next) =>
-      if (incomplete_before) {
-        /* Split here: current subseg ends BEFORE linebreak,
-         * linebreak starts new partition with the column-0 content */
+    /* Heuristic 2: Relative indent comparison */
+    | [Secondary(w), ...rest]
+        when use_indent_heuristic && Secondary.is_linebreak(w) =>
+      let spaces_after = count_leading_spaces(rest);
+      switch (incomplete_indent) {
+      | Some(inc_ind) when incomplete_before && spaces_after <= inc_ind =>
+        /* Partition: content at same/lesser indent than incomplete tile */
         let current = List.rev(acc);
         let current_incomplete = List.rev(incomplete_acc);
-        let remaining = go(rest, [next, Secondary(w)], [], false);
+        let remaining = go(rest, [Secondary(w)], [], false, 0, false, None);
         [(current, current_incomplete), ...remaining];
-      } else {
-        /* No split - continue accumulating. But check if next is incomplete! */
-        let (next_incomplete_acc, next_incomplete_before) =
-          switch (next) {
-          | Piece.Tile(t) when !Tile.is_complete(t) => (
-              [t, ...incomplete_acc],
-              true,
-            )
-          | _ => (incomplete_acc, false)
-          };
+      | _ =>
+        /* No partition - continue accumulating */
         go(
           rest,
-          [next, Secondary(w), ...acc],
-          next_incomplete_acc,
-          next_incomplete_before,
-        );
-      }
+          [Secondary(w), ...acc],
+          incomplete_acc,
+          incomplete_before,
+          0,
+          false,
+          incomplete_indent,
+        )
+      };
 
+    /* Space at start of line - increment indent */
+    | [Secondary(s) as p, ...rest] when Secondary.is_space(s) && !past_indent =>
+      go(
+        rest,
+        [p, ...acc],
+        incomplete_acc,
+        incomplete_before,
+        line_indent + 1,
+        false,
+        incomplete_indent,
+      )
+
+    /* Space after content - doesn't affect indent tracking */
+    | [Secondary(_) as p, ...rest] =>
+      go(
+        rest,
+        [p, ...acc],
+        incomplete_acc,
+        incomplete_before,
+        line_indent,
+        past_indent,
+        incomplete_indent,
+      )
+
+    /* Incomplete tile - record its indent level */
     | [Piece.Tile(t) as p, ...rest] when !Tile.is_complete(t) =>
-      /* Incomplete tile - add to both accumulators */
-      go(rest, [p, ...acc], [t, ...incomplete_acc], true)
+      let new_incomplete_indent =
+        switch (incomplete_indent) {
+        | None => Some(line_indent)
+        | some => some
+        };
+      go(
+        rest,
+        [p, ...acc],
+        [t, ...incomplete_acc],
+        true,
+        line_indent,
+        true,
+        new_incomplete_indent,
+      );
+
+    /* Other pieces (complete tiles, grout, projectors) */
     | [p, ...rest] =>
-      go(rest, [p, ...acc], incomplete_acc, incomplete_before)
+      go(
+        rest,
+        [p, ...acc],
+        incomplete_acc,
+        incomplete_before,
+        line_indent,
+        true,
+        incomplete_indent,
+      )
     };
   };
-  go(seg, [], [], false);
+  go(seg, [], [], false, 0, false, None);
 };
 
 let complete_segment =
-    (~use_zero_indent=true, sort: Sort.t, seg: Segment.t): completion_result => {
+    (~use_indent_heuristic=true, sort: Sort.t, seg: Segment.t)
+    : completion_result => {
   /* Single pass: partition AND collect incomplete tiles */
-  let partitioned = partition_segment(~use_zero_indent, seg);
+  let partitioned = partition_segment(~use_indent_heuristic, seg);
 
   /* Extract all incomplete tiles for shard_records */
   let all_incomplete = List.concat_map(snd, partitioned);
@@ -183,7 +250,7 @@ let complete_segment =
 
 /* Complete a segment recursively (descends into tile children) */
 let rec complete_segment_deep =
-        (~use_zero_indent=true, ~sort, seg: Segment.t): completion_result => {
+        (~use_indent_heuristic=true, ~sort, seg: Segment.t): completion_result => {
   /* First, complete children of all tiles using their expected sorts */
   let seg_with_completed_children =
     List.map(
@@ -195,7 +262,7 @@ let rec complete_segment_deep =
             |> List.map(((child_sort, child)) => {
                  let result =
                    complete_segment_deep(
-                     ~use_zero_indent,
+                     ~use_indent_heuristic,
                      ~sort=child_sort,
                      child,
                    );
@@ -209,7 +276,7 @@ let rec complete_segment_deep =
       | p => p,
       seg,
     );
-  complete_segment(~use_zero_indent, sort, seg_with_completed_children);
+  complete_segment(~use_indent_heuristic, sort, seg_with_completed_children);
 };
 
 /* === Integration Points === */

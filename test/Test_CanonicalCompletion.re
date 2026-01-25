@@ -525,10 +525,13 @@ f(1)|},
  *
  * Partition heuristics:
  * 1. BLANK LINE: Two consecutive linebreaks always partition (if incomplete before)
- * 2. ZERO INDENT: Single linebreak followed by non-space piece partitions (if incomplete before)
+ * 2. RELATIVE INDENT: After a linebreak, if content's indent is ≤ the incomplete
+ *    tile's indent, partition there (if incomplete before)
  *
- * The zero-indent heuristic treats column-0 content as user intent to start
- * something new, not continue the incomplete form.
+ * The relative indent heuristic interprets same-or-lesser indented content
+ * after incomplete syntax as user intent to start something new.
+ * This subsumes the old "zero indent" case: incomplete at col 0, content at
+ * col 0 means 0 ≤ 0 → partition.
  */
 
 let linebreak_tests = [
@@ -664,6 +667,71 @@ a + b|},
     ~expected={|let a = 1 in
 let b = 1in
 a + b|},
+  ),
+  /* === RELATIVE INDENT: Same indent triggers partition ===
+   * When an incomplete tile is at some positive column, content at the
+   * same indentation level should partition (not be absorbed). */
+  /* Incomplete let at col 4, followed by let at col 4 → partition.
+   * This is the key case for typing a new let inside a function body.
+   * The pattern hole ? is needed because `let` has no pattern. */
+  test(
+    ~name="indented incomplete let then same-indent let - partition",
+    ~input={|fun x ->
+    let
+    let a = 1 in a|},
+    ~expected={|fun x ->
+    let?=?in
+    let a = 1 in a|},
+  ),
+  /* Incomplete let at col 4, followed by var at col 4 → partition */
+  test(
+    ~name="indented incomplete let then same-indent var - partition",
+    ~input={|fun x ->
+    let
+    y|},
+    ~expected={|fun x ->
+    let?=?in
+    y|},
+  ),
+  /* Incomplete let at col 4, followed by MORE indented content → NO partition.
+   * The more-indented content becomes the pattern of the let. */
+  test(
+    ~name="indented incomplete let then more-indented var - no partition",
+    ~input={|fun x ->
+    let
+      y|},
+    ~expected={|fun x ->
+    let
+      y=?in?|},
+  ),
+  /* Inside complete fun, incomplete fun, then same-indent content.
+   * Uses fun (not let) to avoid the inner form stealing the outer "in".
+   * Tests that partitioning works inside children of complete tiles.
+   * The partitioned content becomes a sibling, not absorbed into the fun body. */
+  test(
+    ~name="complete fun body with incomplete fun then same-indent",
+    ~input={|let f = fun x ->
+  fun y
+  body
+in f(1)|},
+    ~expected={|let f = fun x ->
+  fun y->
+  body
+in f(1)|},
+  ),
+  /* Incomplete fun at col 4, content also at col 4 → partition.
+   * The inner fun can't steal "->" from outer let.
+   * Content at same indent is partitioned as sibling. */
+  test(
+    ~name="indented incomplete fun then same-indent content - partition",
+    ~input={|let x =
+    fun y
+    z
+in x|},
+    ~expected={|let x =
+    fun y->
+    z
+in x|},
   ),
 ];
 

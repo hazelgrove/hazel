@@ -132,7 +132,7 @@ From `Segment.re`:
 - Phase 3: Recursive wrapper (descends into children with correct sorts)
 - Phase 7: Indentation.re now uses CanonicalCompletion
 - User-managed indentation: spaces auto-inserted on Enter, Format action (Cmd+S)
-- Zero-indent partitioning heuristic (partition at column-0 content after incomplete tiles)
+- Relative indent partitioning heuristic (partition when content is same-or-lesser indented than incomplete tile)
 - Parser fix: `~auto_indent=false` prevents Parser from adding indentation spaces
 
 **NOT DONE:**
@@ -166,71 +166,94 @@ With user-managed indentation (spaces auto-inserted on Enter, but deletable), th
 
 The deletion signals that `f(1)` is meant to be separate, not the function body.
 
-### Current Behavior (blank-line only)
+### Current Implementation: Relative Indent Heuristic
 
-```
-let f = fun x
-f(1)
-```
-→ Completed as one chunk: `let f = fun x\nf(1)->?in?` (f(1) sucked into function)
+**Partition heuristics (when incomplete_before is true):**
+1. **BLANK LINE**: Two consecutive linebreaks always partition
+2. **RELATIVE INDENT**: After a linebreak, if content's indent ≤ incomplete tile's indent, partition
 
-### Desired Behavior (zero-indent heuristic)
+The relative indent heuristic interprets same-or-lesser indented content after incomplete syntax as user intent to start something new. This subsumes the simpler "zero indent" case: incomplete at col 0, content at col 0 means 0 ≤ 0 → partition.
 
-```
-let f = fun x
-f(1)
-```
-→ Partitioned: `let f = fun x->?in?\nf(1)` (f(1) is separate)
+**Key insight:** We track the column position (indent level) of the first incomplete tile encountered. When we see a linebreak followed by content, we compare:
+- Content MORE indented than incomplete → absorb (part of incomplete form)
+- Content SAME or LESS indented than incomplete → partition (separate)
 
 ### Examples
 
 | Input | Expected | Reasoning |
 |-------|----------|-----------|
-| `let f = fun x`<br>`body` | `let f = fun x->?in?`<br>`body` | `body` at column 0 → separate |
-| `let f = fun x`<br>`  body` | `let f = fun x`<br>`  body->?in?` | `body` indented → part of function |
-| `let f = fun x`<br>`  a`<br>`b` | `let f = fun x`<br>`  a->?in?`<br>`b` | `a` indented (in fun), `b` at column 0 (separate) |
-| `let x = 1`<br><br>`y` | `let x = 1`<br>`in`<br>`y` | Blank line → partition (existing heuristic) |
+| `let f = fun x`<br>`body` | `let f = fun x->`<br>`body` | `body` at column 0, fun at ~col 9 → 0 ≤ 9 → partition |
+| `let f = fun x`<br>`  body` | `let f = fun x`<br>`  body->?` | `body` at 2, fun at ~col 9 → 2 ≤ 9 → partition |
+| `fun x ->`<br>`    let`<br>`    y` | `fun x ->`<br>`    let?=?in`<br>`    y` | `let` at col 4, `y` at col 4 → 4 ≤ 4 → partition |
+| `fun x ->`<br>`    let`<br>`      y` | `fun x ->`<br>`    let`<br>`      y=?in?` | `let` at col 4, `y` at col 6 → 6 > 4 → absorb |
+| `let x = 1`<br><br>`y` | `let x = 1`<br>`in`<br>`y` | Blank line → partition (heuristic 1) |
 
-### Implementation Plan
+### Implementation Details
 
-**Zero-indent heuristic (Option 1 - simple):**
-- In `partition_at_blank_lines`, add condition: if we see a linebreak followed by zero spaces (next piece is NOT a space Secondary), and there are incomplete tiles before, partition there
-- This is IN ADDITION to the existing blank-line heuristic
-- Handles the common case of "new top-level definition"
+**Tracking state in partition_segment:**
+- `line_indent`: spaces since last linebreak (reset on linebreak, increment on space before content)
+- `past_indent`: whether we've seen non-space content on this line
+- `incomplete_indent`: option(int), the column of the first incomplete tile encountered
 
-**Algorithm sketch:**
+**Helper functions:**
+- `count_leading_spaces(seg)`: count space pieces at start of segment
+- `is_space_piece(p)`: check if piece is horizontal whitespace
+
+### Known Limitations
+
+**Delimiter stealing:** When an incomplete form (like `let`) is followed by content containing its missing delimiter, the parser may match the delimiter to the incomplete form. For example:
 ```
-| [Secondary(linebreak), next_piece, ...rest]
-    when !is_space(next_piece) && incomplete_before =>
-  // Partition here - zero indent after incomplete tile
+let f = fun x ->
+  let
+  body
+in f(1)
 ```
-
-**Helper needed:**
-```reason
-let is_space_piece = (p: Piece.t): bool =>
-  switch (p) {
-  | Secondary(s) => Secondary.is_space(s)
-  | _ => false
-  };
-```
+Here the `in` at column 0 gets matched to the INNER incomplete `let`, not the outer one. To test the relative indent heuristic in nested contexts, use forms that can't steal delimiters (like `fun` which uses `->`).
 
 ### Future Refinements
 
 **Blank-line refinement (TODO):**
 Currently blank-line = two consecutive linebreaks. Should generalize to: linebreak, followed by any combination of whitespace/grout (no tiles), followed by linebreak. This handles cases where grout insertion leaves a "blank" line with concave grout on it.
 
-**Grout/space edge cases (TODO - revisit if issues arise):**
-- What if grout appears at column 0 after a linebreak? Currently would trigger partition (grout is not a space). This seems OK but may need adjustment.
-- What about "spaces then grout then content"? E.g., `let x = 1\n  ~y` - spaces come first, so no partition. Seems correct.
-- These may not be special cases at all - the simple "is next piece a space?" check may just work.
-
-**Decreasing indent (more sophisticated, if needed):**
-Instead of just zero-indent, partition at any *decrease* in indentation. Would handle nested cases more precisely but adds complexity.
-
 ### Known Indentation Bugs
 
 **Operator continuation doesn't auto-indent (TODO):**
 When typing `let x = 1` then Enter then `+ 2`, the `+ 2` should ideally get auto-indented (it's a continuation of the expression). Currently, the indentation logic doesn't handle this case - the user must manually indent. This is acceptable for now but should be fixed in `Indentation.re`'s `is_incrementor` or related logic.
+
+### Future Editor Improvements
+
+**Trailing whitespace cleanup (TODO):**
+Lines may accumulate trailing whitespace (spaces before linebreaks). This can happen when:
+- User deletes content but leaves spaces
+- Auto-indent inserts spaces, then user immediately presses Enter again
+- Cursor moves away leaving trailing spaces
+
+Consider automatically stripping trailing whitespace from lines. This could happen:
+- On format (Cmd+S)
+- When pressing Enter (clean the previous line)
+- Lazily during other operations
+
+**Smart backspace for indentation (TODO):**
+When the cursor is at the start of a line (after only whitespace), Backspace should delete an entire indent level's worth of spaces, not just one character. This is standard behavior in most editors:
+
+- **VSCode**: `editor.useTabStops` setting - when enabled, Backspace at the start of indentation deletes a whole tab width of spaces at once
+- **Sublime Text**: `use_tab_stops` setting - Tab and Backspace operate on tab stops even when using spaces for indentation
+- **JetBrains IDEs**: If cursor is on an otherwise empty line (just indentation), Backspace deletes the entire line's indentation
+
+Implementation considerations:
+- Only applies when cursor is in leading whitespace (before any content)
+- Should respect the configured indent width (currently 2 spaces in Hazel)
+- May need to distinguish "at logical indent boundary" vs "mid-indent"
+- Could be controlled by a setting if users want character-by-character behavior
+
+**Hungry delete (alternative/complementary):**
+A modifier+backspace shortcut (e.g., Ctrl+Backspace on Windows/Linux, Alt+Backspace on Mac) that deletes ALL whitespace back to the previous non-whitespace content. This is more aggressive than smart backspace (which deletes one indent level at a time).
+
+This would provide a way to quickly collapse back to the previous line's content, regardless of how much whitespace exists. Useful when you want to undo auto-indentation entirely and join with the previous line.
+
+References:
+- [VSCode Hungry Delete extension](https://marketplace.visualstudio.com/items?itemName=jasonlhy.hungry-delete)
+- [Sublime Text Hungry Backspace package](https://packagecontrol.io/packages/Hungry%20Backspace)
 
 ### Ideas for Indentation Refinement
 
