@@ -125,3 +125,43 @@ and go = (~not_top, base: int, seg: Segment.t) => {
 
 let level_map = (seg: Segment.t): Id.Map.t(int) =>
   go(~not_top=false, 0, seg);
+
+/* Drop leading space pieces from a segment */
+let rec drop_leading_spaces = (seg: Segment.t): Segment.t =>
+  switch (seg) {
+  | [Piece.Secondary(s), ...rest] when Secondary.is_space(s) =>
+    drop_leading_spaces(rest)
+  | _ => seg
+  };
+
+/* Fix indentation in a segment using the provided indent map.
+   For each linebreak, removes following spaces and inserts the
+   correct number based on the indent map. */
+let rec fix_indentation_in_segment =
+        (indent_map: Id.Map.t(int), seg: Segment.t): Segment.t =>
+  switch (seg) {
+  | [] => []
+  | [Piece.Secondary(w), ...rest] when Secondary.is_linebreak(w) =>
+    let indent =
+      Id.Map.find_opt(w.id, indent_map) |> Option.value(~default=0);
+    let rest_without_leading_spaces = drop_leading_spaces(rest);
+    let spaces =
+      List.init(indent, _ => Piece.Secondary(Secondary.mk_space(Id.mk())));
+    [Piece.Secondary(w), ...spaces]
+    @ fix_indentation_in_segment(indent_map, rest_without_leading_spaces);
+  | [Piece.Tile(t), ...rest] =>
+    let children =
+      List.map(fix_indentation_in_segment(indent_map), t.children);
+    [
+      Piece.Tile({
+        ...t,
+        children,
+      }),
+      ...fix_indentation_in_segment(indent_map, rest),
+    ];
+  | [p, ...rest] => [p, ...fix_indentation_in_segment(indent_map, rest)]
+  };
+
+/* Create space pieces for a given indent level */
+let make_indent_spaces = (indent_level: int): Segment.t =>
+  List.init(indent_level, _ => Piece.Secondary(Secondary.mk_space(Id.mk())));

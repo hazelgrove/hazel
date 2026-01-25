@@ -49,6 +49,7 @@ module Update = {
         Buffer(_) |
         Project(_) |
         Probe(_) |
+        Format |
         Dump |
         Introduce,
       )

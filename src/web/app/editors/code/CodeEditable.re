@@ -80,6 +80,7 @@ module Update = {
              | Reparse
              | Introduce
              | Probe(StepInto(_))
+             | Format
              | Dump => true
              | Project(_)
              | Unselect(_)

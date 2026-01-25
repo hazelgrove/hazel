@@ -253,8 +253,8 @@ module MkDeferredLinebreaks = () => {
 
 let of_segment_inner =
     (
-      indent_level: Id.Map.t(int),
-      is_single_line: bool,
+      _indent_level: Id.Map.t(int), //TODO(andrew): rm or reinstate
+      _is_single_line: bool, //TODO(andrew): rm or reinstate
       seg: Segment.t,
       shape_map: Id.Map.t(ProjectorCore.Shape.t),
       refractor_shape_map: Id.Map.t(int),
@@ -262,12 +262,12 @@ let of_segment_inner =
     : t => {
   module DeferredLinebreaks = MkDeferredLinebreaks();
 
-  let indent_level =
-    Id.Map.is_empty(indent_level) && !is_single_line
-      ? Indentation.level_map(seg) : indent_level;
-
+  /* User-managed indentation: don't compute system indentation.
+     Indentation is now handled by inserting spaces on linebreak.
+     For linebreaks, we use indent=0 (go to column 0), and the space
+     characters that follow provide the visual indentation. */
   let indent_of_linebreak = (w: Secondary.t): option(int) =>
-    Secondary.is_linebreak(w) ? Id.Map.find_opt(w.id, indent_level) : None;
+    Secondary.is_linebreak(w) ? Some(0) : None;
 
   let calc = (indent: int, origin: Point.t, map: t, size: Point.t) => {
     let last = Point.add(origin, size);

@@ -400,6 +400,21 @@ Evaluate whether the same completion logic can replace `Indentation.re`'s comple
 
 ---
 
+## Indentation Performance Optimization Options
+
+When auto-inserting indentation on linebreak, we currently compute the full `Indentation.level_map` for the entire program, then look up just the one linebreak we care about. If this becomes a performance issue, here are options:
+
+| Option | Performance | Implementation Difficulty | Maintenance Burden |
+|--------|-------------|---------------------------|-------------------|
+| **Current approach** | O(program size) | Already done | Low |
+| **Early termination via exception** | O(position in program), short-circuits | Low - add exception to `go'`, throw when target ID found | Low - minimal change to existing structure |
+| **Local computation from zipper** | O(nesting depth) | Medium - new function, need to handle "effective prev/next" correctly | Medium - separate code path to maintain |
+| **Incremental/differential** | O(changed region) | High - track changes, propagate updates | High - complex invariants |
+
+**Recommendation:** If optimization needed, try early termination first (option 2). It's a small diff and provides meaningful speedup for linebreaks early in the program. Only pursue zipper-based computation (option 3) if profiling shows option 2 is insufficient.
+
+---
+
 ## Success Criteria
 
 1. All existing tests pass

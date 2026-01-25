@@ -105,6 +105,7 @@ type t =
   | Put_down
   | Introduce
   | Probe(probe)
+  | Format
   | Dump;
 
 module Failure = {
@@ -141,6 +142,7 @@ let is_edit: t => bool =
   | Put_down
   | Introduce
   | Buffer(Accept | Clear | Set(_))
+  | Format
   | Dump => true
   | Copy
   | Move(_)
@@ -173,6 +175,7 @@ let is_historic: t => bool =
   | Destruct(_)
   | Put_down
   | Introduce
+  | Format
   | Dump => true
   | Project(p) =>
     switch (p) {
@@ -200,6 +203,7 @@ let prevent_in_read_only_editor = (a: t) =>
   | Insert(_)
   | Put_down
   | Introduce
+  | Format
   | Dump => true
   | Project(p) =>
     switch (p) {
@@ -243,4 +247,5 @@ let should_animate: t => bool =
   | Move(_)
   | Project(_)
   | Probe(_)
+  | Format
   | Dump => true;

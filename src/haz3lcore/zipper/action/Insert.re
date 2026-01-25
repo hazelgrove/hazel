@@ -33,11 +33,32 @@ let expansion = (t: Token.t, z: t): (Label.t, Direction.t) => {
   };
 };
 
+/* Calculate indentation for a newly inserted linebreak and insert spaces */
+let insert_indentation_spaces = (~linebreak_id: Id.t, z: t): t => {
+  /* Get the full segment to calculate indentation */
+  let seg = Zipper.unselect_and_zip(z);
+  let indent_map = Indentation.level_map(seg);
+  let indent_level =
+    Id.Map.find_opt(linebreak_id, indent_map) |> Option.value(~default=0);
+  let spaces = Indentation.make_indent_spaces(indent_level);
+  if (spaces == []) {
+    z;
+  } else {
+    Zipper.put_down_seg(Left, spaces, z);
+  };
+};
+
 /* Insert a new shard based on token `t` on the `d`-side of the caret */
 let insert_shard = (~id: Id.t, ~d: Direction.t, t: Token.t, z: t): t => {
   let z = destroy_selection(z);
   if (Token.is_secondary(t)) {
-    Zipper.put_down_seg(d, [Piece.mk_secondary(id, t)], z);
+    let z = Zipper.put_down_seg(d, [Piece.mk_secondary(id, t)], z);
+    /* Auto-insert indentation after linebreaks */
+    if (t == Token.linebreak) {
+      insert_indentation_spaces(~linebreak_id=id, z);
+    } else {
+      z;
+    };
   } else if (Zipper.backpack_find(t, z) != None) {
     let target = Zipper.backpack_find(t, z) |> Option.get;
     Zipper.put_down_target(d, target, z);
