@@ -123,8 +123,32 @@ let to_start: t => t = do_to_extreme(local(ByToken, Left));
 
 let to_end: t => t = do_to_extreme(local(ByToken, Right));
 
-let to_linebreak = (d: Direction.t, z: t): option(t) =>
-  do_until_linebreak(local(ByToken, d), d, z);
+/* Check if neighbor in direction d is a space (horizontal whitespace, not linebreak) */
+let space_on = (d: Direction.t, z: t): bool =>
+  switch (d, Zipper.generalized_neighbors(z)) {
+  | (Right, (_, Some(Secondary(s)))) => Secondary.is_space(s)
+  | (Left, (Some(Secondary(s)), _)) => Secondary.is_space(s)
+  | _ => false
+  };
+
+/* Skip past spaces in direction d (move while neighbor is space) */
+let rec skip_spaces = (d: Direction.t, z: t): t =>
+  if (space_on(d, z)) {
+    switch (local(ByToken, d, z)) {
+    | Some(z') => skip_spaces(d, z')
+    | None => z
+    };
+  } else {
+    z;
+  };
+
+/* Move to line boundary, then skip past leading/trailing whitespace.
+ * Line(Left): move to linebreak, then skip right past spaces to first content
+ * Line(Right): move to linebreak, then skip left past spaces to last content */
+let to_linebreak = (d: Direction.t, z: t): option(t) => {
+  let+ z = do_until_linebreak(local(ByToken, d), d, z);
+  skip_spaces(Direction.toggle(d), z);
+};
 
 let move_dispatch =
     (

@@ -141,10 +141,12 @@ From `Segment.re`:
 - Phase 6: ExpToSegment integration (round-tripping)
 - Cached backpack optimization (skip completion if no incomplete tiles in syntax cache)
 
-**KNOWN FAILING TESTS (pre-existing, related to comma indentation):**
+**KNOWN FAILING TESTS (pre-existing):**
 - `Editing.Indentation.020` - Comma continuation indentation edge case
-- `Editing.Selection.014` - Related cursor positioning in comma-separated tuples
-These failures are about how comma-continuation lines get indented. Not directly related to canonical completion.
+
+This test involves how comma-continuation lines get indented in tuples. The indentation logic doesn't correctly handle the case where you're continuing a tuple element on a new line. Not directly related to canonical completion - it's an indentation calculation issue.
+
+**Note for future context:** This is a known failure that predates the canonical completion work. Don't be alarmed when you see it fail - it's tracked here and will be addressed separately.
 
 **FUTURE CONSIDERATION:**
 The `indentation-improvements-II` branch has a state-based single-pass indentation algorithm that may be worth bringing in later if we can get it working properly. It has some nice properties (explicit state tracking, continuation detection) but had issues when initially integrated. The current fold_left2-based algorithm is simpler and self-contained.

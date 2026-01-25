@@ -974,10 +974,10 @@ let selection_tests = [
     ~name="Move extreme left with multiline selection",
     ~acts=
       mk({|(12345,
-  23456789,
-  ¦345678,
-  45678,
-  56789)|})
+23456789,
+¦345678,
+45678,
+56789)|})
       @ [Action.Select(All)]
       @ [Action.Move(Line(Left))],
     ~goal={|(12345,
