@@ -131,8 +131,10 @@ From `Segment.re`:
 - Phase 2: Unit tests (35 tests passing)
 - Phase 3: Recursive wrapper (descends into children with correct sorts)
 - Phase 7: Indentation.re now uses CanonicalCompletion
+- User-managed indentation: spaces auto-inserted on Enter, Format action (Cmd+S)
 
 **NOT DONE:**
+- Zero-indent partitioning heuristic (see section below)
 - Phase 4: MakeTerm integration (partial - calls completion but doesn't use shard_records)
 - Phase 5: Leading and middle delimiter completion
 - Phase 6: ExpToSegment integration (round-tripping)
@@ -142,10 +144,74 @@ From `Segment.re`:
 - Single-pass partition_at_blank_lines collects incomplete tiles during scan
 - Regrout/reassemble happen once at end, not per-subsegment
 
-**Future heuristic idea (not implemented):**
-- Use actual indentation level, not just blank lines
-- If subsequent code is at same indent as incomplete form, treat as separate
-- Would help with ambiguous cases like `let f = fun x\nf(1)`
+---
+
+## Indentation-Based Partitioning Heuristic
+
+### Motivation
+
+With user-managed indentation (spaces auto-inserted on Enter, but deletable), the presence/absence of spaces after a linebreak encodes user intent. When a user:
+1. Types `let f = fun x`
+2. Presses Enter → auto-inserts 2 spaces (function body indent)
+3. Deletes those spaces and types `f(1)` at column 0
+
+The deletion signals that `f(1)` is meant to be separate, not the function body.
+
+### Current Behavior (blank-line only)
+
+```
+let f = fun x
+f(1)
+```
+→ Completed as one chunk: `let f = fun x\nf(1)->?in?` (f(1) sucked into function)
+
+### Desired Behavior (zero-indent heuristic)
+
+```
+let f = fun x
+f(1)
+```
+→ Partitioned: `let f = fun x->?in?\nf(1)` (f(1) is separate)
+
+### Examples
+
+| Input | Expected | Reasoning |
+|-------|----------|-----------|
+| `let f = fun x`<br>`body` | `let f = fun x->?in?`<br>`body` | `body` at column 0 → separate |
+| `let f = fun x`<br>`  body` | `let f = fun x`<br>`  body->?in?` | `body` indented → part of function |
+| `let f = fun x`<br>`  a`<br>`b` | `let f = fun x`<br>`  a->?in?`<br>`b` | `a` indented (in fun), `b` at column 0 (separate) |
+| `let x = 1`<br><br>`y` | `let x = 1`<br>`in`<br>`y` | Blank line → partition (existing heuristic) |
+
+### Implementation Plan
+
+**Zero-indent heuristic (Option 1 - simple):**
+- In `partition_at_blank_lines`, add condition: if we see a linebreak followed by zero spaces (next piece is NOT a space Secondary), and there are incomplete tiles before, partition there
+- This is IN ADDITION to the existing blank-line heuristic
+- Handles the common case of "new top-level definition"
+
+**Algorithm sketch:**
+```
+| [Secondary(linebreak), next_piece, ...rest]
+    when !is_space(next_piece) && incomplete_before =>
+  // Partition here - zero indent after incomplete tile
+```
+
+**Helper needed:**
+```reason
+let is_space_piece = (p: Piece.t): bool =>
+  switch (p) {
+  | Secondary(s) => Secondary.is_space(s)
+  | _ => false
+  };
+```
+
+### Future Refinements
+
+**Blank-line refinement (TODO):**
+Currently blank-line = two consecutive linebreaks. Should generalize to: linebreak, followed by any combination of whitespace/grout (no tiles), followed by linebreak. This handles cases where grout insertion leaves a "blank" line with concave grout on it.
+
+**Decreasing indent (more sophisticated, if needed):**
+Instead of just zero-indent, partition at any *decrease* in indentation. Would handle nested cases more precisely but adds complexity.
 
 ---
 
