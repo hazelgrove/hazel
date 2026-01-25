@@ -222,9 +222,3 @@ let for_make_term = (seg: Segment.t): (Segment.t, list(shard_record)) => {
 let for_editor = (seg: Segment.t): completion_result => {
   complete_segment_deep(~sort=Sort.Exp, seg);
 };
-
-/* For indentation calculation - disables zero-indent heuristic to avoid
- * circular dependency (indentation uses completion, completion uses indentation) */
-let for_indentation = (sort: Sort.t, seg: Segment.t): completion_result => {
-  complete_segment(~use_zero_indent=false, sort, seg);
-};

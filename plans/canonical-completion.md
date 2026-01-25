@@ -144,7 +144,10 @@ From `Segment.re`:
 **KNOWN FAILING TESTS (pre-existing, related to comma indentation):**
 - `Editing.Indentation.020` - Comma continuation indentation edge case
 - `Editing.Selection.014` - Related cursor positioning in comma-separated tuples
-These failures are about how comma-continuation lines get indented (expecting 2-space indent, getting 4-space). Not directly related to canonical completion.
+These failures are about how comma-continuation lines get indented. Not directly related to canonical completion.
+
+**FUTURE CONSIDERATION:**
+The `indentation-improvements-II` branch has a state-based single-pass indentation algorithm that may be worth bringing in later if we can get it working properly. It has some nice properties (explicit state tracking, continuation detection) but had issues when initially integrated. The current fold_left2-based algorithm is simpler and self-contained.
 
 **Performance optimizations implemented:**
 - Single-pass partition_at_blank_lines collects incomplete tiles during scan
@@ -228,6 +231,25 @@ Instead of just zero-indent, partition at any *decrease* in indentation. Would h
 
 **Operator continuation doesn't auto-indent (TODO):**
 When typing `let x = 1` then Enter then `+ 2`, the `+ 2` should ideally get auto-indented (it's a continuation of the expression). Currently, the indentation logic doesn't handle this case - the user must manually indent. This is acceptable for now but should be fixed in `Indentation.re`'s `is_incrementor` or related logic.
+
+### Ideas for Indentation Refinement
+
+**Prev-only logic (potential simplification):**
+With user-managed indentation, we might not need to look at "next content" at all. The algorithm could work purely from what's before the linebreak:
+- Inside incomplete container → `base + 2`
+- After incrementor → `level + 2`
+- After complete expression → maintain `level`
+
+Edge cases (commas, case rules, `in`/`then`/`else`) would rely on auto-format to fix after the user types. This would eliminate the need for completion heuristics entirely.
+
+**Two systems at play:**
+1. **On-Enter cursor placement** - where caret goes when pressing Enter (uses current indent algorithm)
+2. **Auto-format** - recomputes with full context (Cmd+S / Format action)
+
+The on-Enter placement can be "good enough" with auto-format as fallback. Users already expect to sometimes adjust indentation.
+
+**Tuple context issue:**
+After `fun x -> x` inside a tuple, pressing Enter puts cursor at paren level (2 spaces) instead of tuple content level (4 spaces). Auto-format fixes it once comma is typed. This is because `(_, None) => base` fires when there's no next content yet.
 
 ---
 
