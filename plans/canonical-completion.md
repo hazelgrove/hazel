@@ -124,6 +124,31 @@ From `Segment.re`:
 
 ## Implementation Plan
 
+### Current Status (January 2025)
+
+**DONE:**
+- Phase 1: Trailing delimiter completion (single segment)
+- Phase 2: Unit tests (35 tests passing)
+- Phase 3: Recursive wrapper (descends into children with correct sorts)
+- Phase 7: Indentation.re now uses CanonicalCompletion
+
+**NOT DONE:**
+- Phase 4: MakeTerm integration (partial - calls completion but doesn't use shard_records)
+- Phase 5: Leading and middle delimiter completion
+- Phase 6: ExpToSegment integration (round-tripping)
+- Cached backpack optimization (skip completion if no incomplete tiles in syntax cache)
+
+**Performance optimizations implemented:**
+- Single-pass partition_at_blank_lines collects incomplete tiles during scan
+- Regrout/reassemble happen once at end, not per-subsegment
+
+**Future heuristic idea (not implemented):**
+- Use actual indentation level, not just blank lines
+- If subsequent code is at same indent as incomplete form, treat as separate
+- Would help with ambiguous cases like `let f = fun x\nf(1)`
+
+---
+
 ### Phase 1: Non-Recursive Segment Completion Function
 
 Create a standalone function that completes a single segment (no recursion into children):
