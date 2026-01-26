@@ -222,6 +222,19 @@ Currently blank-line = two consecutive linebreaks. Should generalize to: linebre
 **Operator continuation doesn't auto-indent (TODO):**
 When typing `let x = 1` then Enter then `+ 2`, the `+ 2` should ideally get auto-indented (it's a continuation of the expression). Currently, the indentation logic doesn't handle this case - the user must manually indent. This is acceptable for now but should be fixed in `Indentation.re`'s `is_incrementor` or related logic.
 
+**Case expression auto-indent gives unwanted indentation (TODO):**
+When pressing Enter in a complete case expression (with `end`), the cursor gets 2-space indentation when it should stay at column 0:
+- After scrutinee: `case 1¦` → Enter → cursor indented (should be column 0)
+- After complete rule: `| _ => 1¦` → Enter → cursor indented (should be column 0)
+
+Tests for this behavior are in `Test_Editing.re` under `case_indent_tests`. The issue is in the indentation calculation, not the completion logic.
+
+### Pending Decision: Case Rule Completion
+
+We modified `Indentation.re`'s `shallow_complete_segment` to skip completing case rules (tiles with label `["|", "=>"]`). The rationale: case rules are sibling-oriented (they don't nest into each other), so swallowing subsequent content as children is wrong.
+
+This change only affects edge cases (incomplete `|` followed by linebreak). It didn't fix the main case indentation issue above, which involves complete case expressions. We're keeping the change for now since it's conceptually sound, but should revisit if it causes problems elsewhere.
+
 ### Editor Improvements
 
 **Trailing whitespace cleanup:**

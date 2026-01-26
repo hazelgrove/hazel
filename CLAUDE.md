@@ -21,6 +21,7 @@ make test-quick
 ```
 
 **Running specific tests (fast, ~0.1s):**
+**Note that you should still grep on the results, as they include lengthy records of all the other skipped tests!**
 
 ```bash
 # Build first

@@ -807,6 +807,50 @@ let format_tests = [
   ),
 ];
 
+let comma_indent_tests = [
+  /* Test auto-indent behavior when pressing Enter in tuples.
+   * Unlike case rules, tuple elements are CHILDREN of the parens,
+   * so they should be at base+2 (not base). This is correct! */
+  test(
+    ~name="Tuple indent: Enter after element before comma",
+    ~acts=mk({|(1¦, 2)|}) @ [Action.Insert("\n")],
+    ~goal={|(1
+  ¦, 2)|} /* 2-space indent is correct - tuple element level */
+  ),
+  test(
+    ~name="Tuple indent: Enter after comma",
+    ~acts=mk({|(1,¦ 2)|}) @ [Action.Insert("\n")],
+    ~goal={|(1,
+  ¦ 2)|} /* 2-space indent is correct */
+  ),
+];
+
+let case_indent_tests = [
+  /* Test auto-indent behavior when pressing Enter in complete case expressions.
+   * The cursor should NOT be indented when adding new rules - rules are siblings,
+   * not nested children. */
+  test(
+    ~name="Case indent: Enter after scrutinee in complete case",
+    ~acts=mk({|case 1¦
+| _ => 1
+end|}) @ [Action.Insert("\n")],
+    ~goal={|case 1
+¦
+| _ => 1
+end|} /* Expecting no indent - cursor at column 0 */
+  ),
+  test(
+    ~name="Case indent: Enter after rule in complete case",
+    ~acts=mk({|case 1
+| _ => 1¦
+end|}) @ [Action.Insert("\n")],
+    ~goal={|case 1
+| _ => 1
+¦
+end|} /* Expecting no indent - cursor at column 0 */
+  ),
+];
+
 let move_tests = [
   // ByToken Right Complete Syntax
   test(
@@ -1093,6 +1137,8 @@ let tests = [
   ("Editing.Insertion", insertion_tests),
   ("Editing.Destruction", destruct_tests),
   ("Editing.Format", format_tests),
+  ("Editing.CaseIndent", case_indent_tests),
+  ("Editing.CommaIndent", comma_indent_tests),
   ("Editing.Move", move_tests),
   ("Editing.Selection", selection_tests),
 ];
