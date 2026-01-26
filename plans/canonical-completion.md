@@ -141,13 +141,6 @@ From `Segment.re`:
 - Phase 6: ExpToSegment integration (round-tripping)
 - Cached backpack optimization (skip completion if no incomplete tiles in syntax cache)
 
-**KNOWN FAILING TESTS (pre-existing):**
-- `Editing.Indentation.020` - Comma continuation indentation edge case
-
-This test involves how comma-continuation lines get indented in tuples. The indentation logic doesn't correctly handle the case where you're continuing a tuple element on a new line. Not directly related to canonical completion - it's an indentation calculation issue.
-
-**Note for future context:** This is a known failure that predates the canonical completion work. Don't be alarmed when you see it fail - it's tracked here and will be addressed separately.
-
 **FUTURE CONSIDERATION:**
 The `indentation-improvements-II` branch has a state-based single-pass indentation algorithm that may be worth bringing in later if we can get it working properly. It has some nice properties (explicit state tracking, continuation detection) but had issues when initially integrated. The current fold_left2-based algorithm is simpler and self-contained.
 
@@ -222,18 +215,19 @@ Currently blank-line = two consecutive linebreaks. Should generalize to: linebre
 **Operator continuation doesn't auto-indent (TODO):**
 When typing `let x = 1` then Enter then `+ 2`, the `+ 2` should ideally get auto-indented (it's a continuation of the expression). Currently, the indentation logic doesn't handle this case - the user must manually indent. This is acceptable for now but should be fixed in `Indentation.re`'s `is_incrementor` or related logic.
 
-**Case expression auto-indent gives unwanted indentation (TODO):**
-When pressing Enter in a complete case expression (with `end`), the cursor gets 2-space indentation when it should stay at column 0:
-- After scrutinee: `case 1¦` → Enter → cursor indented (should be column 0)
-- After complete rule: `| _ => 1¦` → Enter → cursor indented (should be column 0)
+**Case expression auto-indent (FIXED):**
+Previously, pressing Enter in a complete case expression gave unwanted 2-space indentation. This was fixed by:
+- Adding `effective_prev_pieces` and `effective_next_pieces` to skip over grout/linebreaks
+- Adding `is_complete_case_rule_with_body` to detect complete rules with content
+- Adding indentation rules that reset to base after complete case rules
 
-Tests for this behavior are in `Test_Editing.re` under `case_indent_tests`. The issue is in the indentation calculation, not the completion logic.
+Tests in `Test_Editing.re` under `case_indent_tests` and `nested_case_tests` verify this behavior.
 
-### Pending Decision: Case Rule Completion
+### Case Rule Completion Skip (Load-Bearing)
 
-We modified `Indentation.re`'s `shallow_complete_segment` to skip completing case rules (tiles with label `["|", "=>"]`). The rationale: case rules are sibling-oriented (they don't nest into each other), so swallowing subsequent content as children is wrong.
+`Indentation.re`'s `shallow_complete_segment` skips completing case rules (tiles with label `["|", "=>"]`). This is **load-bearing** - removing it causes 3 tests to fail (incomplete `|` swallows siblings as body).
 
-This change only affects edge cases (incomplete `|` followed by linebreak). It didn't fix the main case indentation issue above, which involves complete case expressions. We're keeping the change for now since it's conceptually sound, but should revisit if it causes problems elsewhere.
+Rationale: case rules are sibling-oriented (they don't nest into each other), so swallowing subsequent content as children is wrong.
 
 ### Editor Improvements
 
@@ -581,6 +575,114 @@ When auto-inserting indentation on linebreak, we currently compute the full `Ind
 
 ---
 
+---
+
+## Technical Debt & Cleanup Tasks
+
+### Vestigial Parameters (Low Priority)
+
+**Measured.re:**
+- `_indent_level: Id.Map.t(int)` - accepted but ignored (prefixed with `_`)
+- `_is_single_line: bool` - accepted but ignored
+- These are kept for memoization key compatibility. Only remove if redesigning Measured memoization.
+
+**Printer.re:**
+- `~indent` parameter is accepted but ignored (comment at line 50-52 documents this)
+- 5 call sites pass it: BuiltinsPrinter.re, PersistentSegment.re, ProjectorInfo.re, ProbeText.re (x2)
+- **Cleanup:** Remove the parameter and update the 5 call sites.
+
+### auto_indent Parameter
+
+**What it does:** Controls whether `Insert.re` auto-inserts indentation spaces after linebreaks.
+
+**Where it's set to false:** Only in `Parser.to_zipper` (Parser.re:7)
+
+**Why it's necessary:** The Parser needs to faithfully reproduce input strings. If `auto_indent=true` during parsing:
+1. Parser inserts characters including `\n`
+2. On `\n`, auto_indent adds 2 spaces
+3. Parser continues inserting the spaces that were already in the input
+4. Result: double indentation
+
+For strings WITHOUT indentation (like old doc slides), parsing with `auto_indent=true` would ADD indentation. This could potentially be used for migration (see below).
+
+### Test Harness: parse_with_caret
+
+Added `parse_with_caret()` in Test_Editing.re which uses `Parser.to_zipper` (auto_indent=false) to create zippers from strings. This is necessary because `mk()` uses auto_indent=true, causing double-indentation in tests with multiline indented code.
+
+Use `test_from_parse()` for tests that need exact initial state without added indentation.
+
+---
+
+## Doc Slides Migration (Important)
+
+### The Problem
+
+The `src/b2t2/slides/` directory contains **39 ML files** with serialized segments in the old format:
+- Segments have `Whitespace\"\\n\"` (linebreaks) followed directly by tiles
+- No indentation spaces after linebreaks
+- `backup_text` also has no indentation
+
+These slides will render without indentation in the editor.
+
+### Example (from B2T2ExampleTables.ml backup_text):
+```
+let students : [Student] = [
+("Bob", 12, "blue"),     <- no leading spaces
+("Alice", 17, "green"),
+```
+
+### Migration Options
+
+**Option 1: Regex-based (fragile)**
+- Find `Whitespace\"\\n\"` followed by non-space and insert spaces
+- Problem: Doesn't know the correct indent level - would need to parse structure
+
+**Option 2: ReasonML script (recommended)**
+- Write a script that:
+  1. Loads each ML file
+  2. Extracts `backup_text`
+  3. Parses with `Parser.to_zipper` (gets structure without indentation)
+  4. Applies `Format` action (adds correct indentation)
+  5. Re-serializes to new ML file
+- Uses actual Hazel logic, guarantees correct indentation
+
+**Option 3: On-load migration**
+- Detect old format (no spaces after linebreaks) when loading
+- Auto-apply Format before displaying
+- Problem: Modifies in-memory only, doesn't update the files
+
+**Option 4: Parser with auto_indent=true**
+- Parse backup_text with a modified Parser that has auto_indent=true
+- Would add indentation during parsing
+- Problem: Only works for files where backup_text has no indentation; doubles indentation if any exists
+
+### Recommended Approach
+
+Create a migration script in ReasonML that:
+```reason
+(* pseudocode *)
+let migrate_slide(path: string) = {
+  let content = read_file(path);
+  let (title, persisted) = parse_ml_structure(content);
+
+  /* Parse backup_text to get zipper */
+  switch (Parser.to_zipper(persisted.backup_text)) {
+  | None => error("Failed to parse")
+  | Some(z) =>
+    /* Apply Format to add indentation */
+    let z' = Perform.go(Format, z);
+
+    /* Re-persist */
+    let persisted' = PersistentSegment.persist(z');
+    write_ml_file(path, title, persisted');
+  };
+};
+```
+
+This could be a standalone executable or integrated into the build/test process.
+
+---
+
 ## Success Criteria
 
 1. All existing tests pass
@@ -588,3 +690,4 @@ When auto-inserting indentation on linebreak, we currently compute the full `Ind
 3. `Dump.re` no longer needed (or greatly simplified)
 4. Round-trip tests: segment → term → segment preserves structure
 5. Incomplete syntax deep in a tree doesn't break refactoring operations
+6. Doc slides migrated to new indentation format
