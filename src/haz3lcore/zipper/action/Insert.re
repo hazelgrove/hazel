@@ -37,9 +37,7 @@ let expansion = (t: Token.t, z: t): (Label.t, Direction.t) => {
 let insert_indentation_spaces = (~linebreak_id: Id.t, z: t): t => {
   /* Get the full segment to calculate indentation */
   let seg = Zipper.unselect_and_zip(z);
-  let indent_map = Indentation.level_map(seg);
-  let indent_level =
-    Id.Map.find_opt(linebreak_id, indent_map) |> Option.value(~default=0);
+  let indent_level = Indentation.level_of(~target_id=linebreak_id, seg);
   let spaces = Indentation.make_indent_spaces(indent_level);
   if (spaces == []) {
     z;

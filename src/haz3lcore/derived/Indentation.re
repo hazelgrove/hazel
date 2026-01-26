@@ -230,7 +230,12 @@ let is_incrementor = (p: Piece.t): bool =>
   | _ => false
   };
 
-let rec go = (~not_top, base: int, seg: Segment.t): Id.Map.t(int) => {
+/* Exception for short-circuit lookup of single linebreak's indentation */
+exception Found_indent(int);
+
+let rec go =
+        (~not_top, ~target_id: option(Id.t)=?, base: int, seg: Segment.t)
+        : Id.Map.t(int) => {
   let complete_trimmed_seg = complete_segment(trim_non_content(seg));
   let context = compute_context(complete_trimmed_seg);
   let (_, map) =
@@ -239,7 +244,7 @@ let rec go = (~not_top, base: int, seg: Segment.t): Id.Map.t(int) => {
         let (prev, next, effective_next) = ctx;
         switch (p) {
         | Secondary(w) when Secondary.is_linebreak(w) =>
-          let level =
+          let indent =
             switch (prev, next) {
             | (_, Some(next)) when is_comma(next) => base + 2
             | (Some(prev), _) when is_comma(prev) => base + 2
@@ -268,19 +273,37 @@ let rec go = (~not_top, base: int, seg: Segment.t): Id.Map.t(int) => {
             | (_, Some(_)) when not_top => base + 2
             | (_, Some(_)) => level
             };
-          (level, Id.Map.add(w.id, level, map));
+          switch (target_id) {
+          | Some(id) when Id.equal(w.id, id) => raise(Found_indent(indent))
+          | Some(_) => (indent, map) /* target mode: skip map add */
+          | None => (indent, Id.Map.add(w.id, indent, map))
+          };
         | Secondary(_)
         | Grout(_)
         | Projector(_) => (level, map)
         | Tile(t) =>
-          let map =
-            List.fold_left(
-              (acc, child) =>
-                Id.Map.union((_, a, _) => Some(a), go(~not_top=true, level, child), acc),
-              map,
+          switch (target_id) {
+          | Some(_) =>
+            /* target mode: just recurse, don't accumulate */
+            List.iter(
+              child => ignore(go(~not_top=true, ~target_id?, level, child)),
               t.children,
             );
-          (level, map);
+            (level, map);
+          | None =>
+            let map =
+              List.fold_left(
+                (acc, child) =>
+                  Id.Map.union(
+                    (_, a, _) => Some(a),
+                    go(~not_top=true, level, child),
+                    acc,
+                  ),
+                map,
+                t.children,
+              );
+            (level, map);
+          };
         };
       },
       (base, Id.Map.empty),
@@ -292,6 +315,18 @@ let rec go = (~not_top, base: int, seg: Segment.t): Id.Map.t(int) => {
 
 let level_map = (seg: Segment.t): Id.Map.t(int) =>
   go(~not_top=false, 0, seg);
+
+/* Look up indentation for a single linebreak by ID.
+ * Uses exception-based short-circuit for efficiency. */
+let level_of = (~target_id: Id.t, seg: Segment.t): int =>
+  try(
+    {
+      ignore(go(~not_top=false, ~target_id, 0, seg));
+      0; /* Not found, default to 0 */
+    }
+  ) {
+  | Found_indent(level) => level
+  };
 
 /* === Helper functions for user-managed indentation === */
 
