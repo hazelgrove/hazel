@@ -109,6 +109,39 @@ let test = (~name, ~acts, ~goal): test_case(_) =>
     )
   );
 
+/* Parse a string with caret position using Parser.to_zipper (no auto-indent).
+ * This is useful for tests that need to start from a specific state
+ * without the double-indentation issue from mk(). */
+let parse_with_caret = (init: string): Zipper.t => {
+  /* Split on caret to get before and after */
+  let parts = StringUtil.plain_split(init, caret_char);
+  switch (parts) {
+  | [before, after] =>
+    let full_str = before ++ after;
+    switch (Parser.to_zipper(full_str)) {
+    | None => Alcotest.fail("Failed to parse: " ++ full_str)
+    | Some(z) =>
+      /* Move cursor to the caret position (count chars in 'after') */
+      let chars_after = List.length(Token.to_list(after));
+      /* Use mv_l to generate move actions, then perform them */
+      mv_l(chars_after) |> perform(z);
+    };
+  | _ => Alcotest.fail("Expected exactly one caret in: " ++ init)
+  };
+};
+
+/* Test variant that parses initial state (no auto-indent) then applies actions */
+let test_from_parse = (~name, ~init, ~acts, ~goal): test_case(_) =>
+  test_case(name, `Quick, () => {
+    let z = parse_with_caret(init);
+    check(
+      testable(Fmt.string, String.equal),
+      goal,
+      goal,
+      acts |> perform(z) |> printer,
+    );
+  });
+
 let basic_tests = [
   test(
     ~name="Initialize caret position from string",
@@ -851,6 +884,87 @@ end|} /* Expecting no indent - cursor at column 0 */
   ),
 ];
 
+/* Tests for nested case expressions - exploring indentation behavior.
+ * These use test_from_parse to avoid double-indentation from mk(). */
+let nested_case_tests = [
+  /* Basic nested case - just format, no editing */
+  test_from_parse(
+    ~name="Nested case: format only",
+    ~init={|case 1
+| A =>
+  case 2
+  | X => 1
+  end
+end¦|},
+    ~acts=[Action.Format],
+    ~goal={|case 1
+| A =>
+  case 2
+  | X => 1
+  end
+end¦|}
+  ),
+  /* Parse and print round-trip (no edit) */
+  test_from_parse(
+    ~name="Nested case: parse and print (no edit)",
+    ~init={|case 1
+| A =>
+  case 2
+  | X => 1
+  end
+end¦|},
+    ~acts=[],
+    ~goal={|case 1
+| A =>
+  case 2
+  | X => 1
+  end
+end¦|}
+  ),
+  /* Single line nested case */
+  test_from_parse(
+    ~name="Nested case: single line parse",
+    ~init={|case 1 | A => case 2 | X => 1 end end¦|},
+    ~acts=[],
+    ~goal={|case 1 | A => case 2 | X => 1 end end¦|}
+  ),
+  /* Move in nested case (no insert) */
+  test_from_parse(
+    ~name="Nested case: move right (no insert)",
+    ~init={|case 1
+| A =>
+  case 2
+  | X => 1¦
+  end
+end|},
+    ~acts=[Action.Move(Local(Right, ByChar))],
+    ~goal={|case 1
+| A =>
+  case 2
+  | X => 1
+¦  end
+end|} /* Cursor lands at start of line, before spaces */
+  ),
+  /* Nested case: Enter after inner rule */
+  test_from_parse(
+    ~name="Nested case: Enter after inner rule body",
+    ~init={|case 1
+| A =>
+  case 2
+  | X => 1¦
+  end
+end|},
+    ~acts=[Action.Insert("\n")],
+    ~goal={|case 1
+| A =>
+  case 2
+  | X => 1
+  ¦
+  end
+end|} /* New line should be at inner case level (2 spaces) */
+  ),
+];
+
 /* Tests for inserting newlines in the middle of existing code.
  * These test "going back and editing" rather than left-to-right typing.
  *
@@ -931,9 +1045,11 @@ end|} /* Should be at case level, not indented */
   /* Scenario: Two consecutive Enters after case rule */
   test(
     ~name="Two Enters after case rule",
-    ~acts=mk({|case 1
+    ~acts=
+      mk({|case 1
 | A => 1¦
-end|}) @ [Action.Insert("\n"), Action.Insert("\n")],
+end|})
+      @ [Action.Insert("\n"), Action.Insert("\n")],
     ~goal={|case 1
 | A => 1
 
@@ -1236,6 +1352,7 @@ let tests = [
   ("Editing.Destruction", destruct_tests),
   ("Editing.Format", format_tests),
   ("Editing.CaseIndent", case_indent_tests),
+  ("Editing.NestedCase", nested_case_tests),
   ("Editing.CommaIndent", comma_indent_tests),
   ("Editing.InsertInMiddle", insert_in_middle_tests),
   ("Editing.Move", move_tests),
