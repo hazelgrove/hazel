@@ -52,8 +52,7 @@ let format_value = (~max_length: int=50, value: Exp.t): string => {
       },
       value |> DHExp.strip_ascriptions,
     );
-  let str =
-    Printer.of_segment(~holes="?", ~indent="", ~is_single_line=true, seg);
+  let str = Printer.of_segment(~holes="?", seg);
   /* Remove any remaining newlines */
   let str = StringUtil.replace(StringUtil.regexp("\n"), str, " ");
   /* Truncate if too long */
@@ -133,8 +132,7 @@ let of_segment =
     : string => {
   /* Convert segment to string using Printer, which uses Triggers to wrap
    * probed expressions with ^^probe(...) notation */
-  let base_text =
-    Printer.of_segment(~holes=" ", ~indent="  ", ~refractors, segment);
+  let base_text = Printer.of_segment(~holes=" ", ~refractors, segment);
 
   /* If no refractors, just return the base text */
   if (Id.Map.is_empty(refractors)) {

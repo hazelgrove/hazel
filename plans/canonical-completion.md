@@ -579,18 +579,6 @@ When auto-inserting indentation on linebreak, we currently compute the full `Ind
 
 ## Technical Debt & Cleanup Tasks
 
-### Vestigial Parameters (Low Priority)
-
-**Measured.re:**
-- `_indent_level: Id.Map.t(int)` - accepted but ignored (prefixed with `_`)
-- `_is_single_line: bool` - accepted but ignored
-- These are kept for memoization key compatibility. Only remove if redesigning Measured memoization.
-
-**Printer.re:**
-- `~indent` parameter is accepted but ignored (comment at line 50-52 documents this)
-- 5 call sites pass it: BuiltinsPrinter.re, PersistentSegment.re, ProjectorInfo.re, ProbeText.re (x2)
-- **Cleanup:** Remove the parameter and update the 5 call sites.
-
 ### auto_indent Parameter
 
 **What it does:** Controls whether `Insert.re` auto-inserts indentation spaces after linebreaks.

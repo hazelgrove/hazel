@@ -49,7 +49,7 @@ let go =
        nuclear option for weird backpack states */
     Parser.to_zipper(
       ~zipper_init=Zipper.init(),
-      Printer.of_zipper(~holes="", ~indent="", z),
+      Printer.of_zipper(~holes="", z),
     )
     |> return(CantReparse)
   | Buffer(a) => Buffer.go(~ci=Indicated.ci_of(z, statics.info_map), a, z)

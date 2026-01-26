@@ -23,7 +23,6 @@ let test_indent = (~name, ~init, ~goal): test_case(_) => {
            ~holes=convex_char,
            ~concave_holes=concave_char,
            /* No caret for now */
-           ~indent=" ",
          ),
     )
   );
@@ -46,11 +45,7 @@ let test_indent_after_format = (~name, ~init, ~goal): test_case(_) => {
       string_to_ltr_actions(init)
       @ [Action.Format]
       |> perform(Zipper.init())
-      |> Printer.of_zipper(
-           ~holes=convex_char,
-           ~concave_holes=concave_char,
-           ~indent=" ",
-         ),
+      |> Printer.of_zipper(~holes=convex_char, ~concave_holes=concave_char),
     )
   );
 };

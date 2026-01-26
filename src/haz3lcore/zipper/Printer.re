@@ -47,19 +47,13 @@ let add_caret =
 /* Use this to pretty-print segments. Note that printing holes with
  * a space may result in extraneous whitespace, but printing without
  * a space may result in tokens getting glued together. You can't win */
-/* NOTE: ~indent and ~measured parameters are kept for backward compatibility
- * but are no longer used. With user-managed indentation, segments contain
- * actual space characters, so we don't need to add indentation when printing. */
 let of_segment =
     (
       ~holes=" ",
       ~concave_holes=" ",
-      ~indent as _="",
       ~refractors=Id.Map.empty,
       ~caret: option((string, Point.t))=None,
       ~selection_anchor: option((string, Point.t))=None,
-      ~measured as _: option(Measured.t)=?,
-      ~is_single_line as _=false,
       segment: Segment.t,
     )
     : string =>
@@ -77,14 +71,7 @@ let of_segment =
 
 /* Use this to pretty-print zippers. See above comments on holes */
 let of_zipper =
-    (
-      ~holes=?,
-      ~concave_holes=?,
-      ~indent=?,
-      ~caret=?,
-      ~selection_anchor=?,
-      z: Zipper.t,
-    )
+    (~holes=?, ~concave_holes=?, ~caret=?, ~selection_anchor=?, z: Zipper.t)
     : string => {
   let segment = Zipper.unselect_and_zip(~erase_buffer=true, z);
   /* Note that we can't just pass in the measured from editor as
@@ -101,11 +88,9 @@ let of_zipper =
   of_segment(
     ~holes?,
     ~concave_holes?,
-    ~indent?,
     ~refractors=z.refractors.manuals,
     ~caret,
     ~selection_anchor,
-    ~measured,
     segment,
   );
 };

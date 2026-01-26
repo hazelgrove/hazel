@@ -44,8 +44,7 @@ let format_sample_value = (value: Exp.t): string => {
       },
       value |> DHExp.strip_ascriptions,
     );
-  let str =
-    Printer.of_segment(~holes="?", ~indent="", ~is_single_line=true, seg);
+  let str = Printer.of_segment(~holes="?", seg);
   StringUtil.replace(StringUtil.regexp("\n"), str, " ");
 };
 

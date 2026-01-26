@@ -7,7 +7,7 @@ type t = {
   refractors: string,
 };
 
-let to_string = Printer.of_segment(~holes="", ~indent="");
+let to_string = Printer.of_segment(~holes="");
 
 let refractors_init_str =
   ZipperBase.Refractor.persist(ZipperBase.Refractor.init);
