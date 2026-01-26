@@ -39,9 +39,9 @@ let rec segment_to_string =
         (
           ~holes=" ",
           ~concave_holes=" ",
-          ~refractors: Id.Map.t(_)=Id.Map.empty,
+          ~refractors: list((Id.t, _))=[],
           ~refractor_seg_to_seg:
-             (Id.Map.t(_), segment) => (Id.Map.t(_), segment),
+             (list((Id.t, _)), segment) => (list((Id.t, _)), segment),
           ~projector_to_segment,
           seg: segment,
         )
@@ -63,7 +63,7 @@ and piece_to_string =
     (
       ~holes: string,
       ~concave_holes: string,
-      ~refractors: Id.Map.t(_),
+      ~refractors: list((Id.t, _)),
       ~refractor_seg_to_seg,
       ~projector_to_segment,
       p: piece,
@@ -96,7 +96,7 @@ and tile_to_string =
     (
       ~holes: string,
       ~concave_holes: string,
-      ~refractors: Id.Map.t(_),
+      ~refractors: list((Id.t, _)),
       ~refractor_seg_to_seg,
       ~projector_to_segment,
       t: tile,

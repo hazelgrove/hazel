@@ -43,6 +43,7 @@ type t = {
   terms: TermMap.t,
   term_data: TermData.t,
   projectors: Id.Map.t(Piece.projector),
+  projector_list: list(Id.t),
 };
 
 let is_nary =
@@ -125,6 +126,7 @@ let record_term_data = (sort: Sort.t, seg: Segment.t, skel: Skel.t): unit =>
 
 /* Map to collect projector ids */
 let projectors: ref(Id.Map.t(Piece.projector)) = ref(Id.Map.empty);
+let projector_list: ref(list(Id.t)) = ref([]);
 
 /* Track IDs that are "adopted" from inner terms into outer multi-tile forms.
  *
@@ -166,6 +168,7 @@ let adopted_ids: ref(list(Id.t)) = ref([]);
 /* Strip a projector from a segment and log it in the map */
 let log_projector = (pr: Base.projector): unit => {
   projectors := Id.Map.add(pr.id, pr, projectors^);
+  projector_list := [pr.id, ...projector_list^];
 };
 
 let parse_sum_term: Typ.t => ConstructorMap.variant(Typ.t) =
@@ -968,6 +971,7 @@ let go =
       map := TermMap.empty;
       term_data := Id.Map.empty;
       projectors := Id.Map.empty;
+      projector_list := [];
       adopted_ids := [];
       let term = exp(unsorted(Exp, Segment.skel(seg), seg));
       consolidate_adopted();
@@ -976,6 +980,7 @@ let go =
         term_data: term_data^,
         terms: map^,
         projectors: projectors^,
+        projector_list: projector_list^,
       };
     },
   );

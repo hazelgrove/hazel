@@ -158,7 +158,7 @@ let view_wrapper =
       ~font_metrics: FontMetrics.t,
       ~measurement: Measured.measurement,
       ~status: Model.status,
-      ~id: Id.t,
+      ~idx: int,
       ~kind: ProjectorCore.Kind.t,
       views: list(Node.t),
     ) =>
@@ -176,7 +176,7 @@ let view_wrapper =
           Effect.Many([
             Effect.Stop_propagation,
             make_active,
-            inject(Project(Focus(id, kind, None))),
+            inject(Project(Focus(idx, kind, None))),
           ])
         }
       ),
@@ -186,11 +186,11 @@ let view_wrapper =
   );
 
 /* Dispatches projector external actions to editor-level actions */
-let handle = (id, action: external_action): Action.t =>
+let handle = (idx, action: external_action): Action.t =>
   switch (action) {
   | Remove => Project(RemoveIndicated)
-  | Escape(d) => Project(Escape(id, d))
-  | SetSyntax(f) => Project(SetSyntax(id, f))
+  | Escape(d) => Project(Escape(idx, d))
+  | SetSyntax(f) => Project(SetSyntax(idx, f))
   | SampleCursor(sc) => Project(SampleCursor(sc))
   | Probe(p) => Probe(p)
   };
@@ -302,17 +302,19 @@ let mk_view =
       inject: Action.t => Ui_effect.t(unit),
       font_metrics: FontMetrics.t,
       {p, info, status, _}: Model.projector_data,
+      projector_list: list(Id.t),
     )
     : View.t => {
   let (module P) = ProjectorInit.to_module(p.kind);
+  let idx = List.find_index(x => x == p.id, projector_list) |> Option.get;
   P.view({
     model: p.model,
     info,
     local: a => {
       let new_model = P.update(p.model, info, a);
-      inject(Project(SetModel(p.id, p.kind, new_model)));
+      inject(Project(SetModel(idx, p.kind, new_model)));
     },
-    parent: a => inject(handle(p.id, a)),
+    parent: a => inject(handle(idx, a)),
     view_seg: (~single_line=?, ~background=?, ~text_only=?, sort, segment) =>
       flex_code(
         ~font_metrics,
@@ -335,8 +337,10 @@ let split_views =
       font_metrics: FontMetrics.t,
       ~skip_inline: bool,
       {p, offside_base, measurement, status, _} as projector_data: Model.projector_data,
+      projector_list: list(Id.t),
     )
     : (Node.t, option(Node.t)) => {
+  let idx = List.find_index(x => x == p.id, projector_list) |> Option.get;
   let wrapper =
     view_wrapper(
       ~inject,
@@ -344,10 +348,10 @@ let split_views =
       ~font_metrics,
       ~measurement,
       ~status,
-      ~id=p.id,
+      ~idx,
       ~kind=p.kind,
     );
-  let views = mk_view(inject, font_metrics, projector_data);
+  let views = mk_view(inject, font_metrics, projector_data, projector_list);
   let line_view = {
     let offside_view =
       views.offside
@@ -382,6 +386,7 @@ let all =
       font_metrics: FontMetrics.t,
       ~visible: option(visible_rows)=?,
       projector_data: list(Model.projector_data),
+      projector_list: list(Id.t),
     ) => {
   /* Sorting the projectors by position tends to be a good
    * z-index default; projectors further to the right or
@@ -398,7 +403,14 @@ let all =
     |> filter_by_visibility(visible, _, get_row_range)
     |> List.sort(by_measurement)
     |> List.map(
-         split_views(~skip_inline=false, inject, make_active, font_metrics),
+         split_views(
+           ~skip_inline=false,
+           inject,
+           make_active,
+           font_metrics,
+           _,
+           projector_list,
+         ),
        )
     |> List.split;
   let overlay_views = List.filter_map(Fun.id, overlay_views);
@@ -427,7 +439,9 @@ let move_dir = (key: Key.t): option(Direction.t) =>
  * to consider how they interact with all the editor keyboard commands.
  * For example, without the modifiers check, this would break selection
  * around a projector. */
-let key_handoff = (editor: Editor.t, key: Key.t): option(Action.project) => {
+let key_handoff =
+    (editor: Editor.t, key: Key.t, projector_list: list(Id.t))
+    : option(Action.project) => {
   let z = editor.state.zipper;
   switch (
     move_dir(key),
@@ -436,11 +450,14 @@ let key_handoff = (editor: Editor.t, key: Key.t): option(Action.project) => {
   | _ when z.caret != Outer => None
   | (Some(Left), (Some(Projector({id, kind, _})), _)) =>
     let (module P) = ProjectorInit.to_module(kind);
+    let idx = List.find_index(x => x == id, projector_list) |> Option.get;
     P.focusable.keyboard != None
-      ? Some(Focus(id, kind, Some(Right))) : None;
+      ? Some(Focus(idx, kind, Some(Right))) : None;
   | (Some(Right), (_, Some(Projector({id, kind, _})))) =>
     let (module P) = ProjectorInit.to_module(kind);
-    P.focusable.keyboard != None ? Some(Focus(id, kind, Some(Left))) : None;
+    let idx = List.find_index(x => x == id, projector_list) |> Option.get;
+    P.focusable.keyboard != None
+      ? Some(Focus(idx, kind, Some(Left))) : None;
   | _ => None
   };
 };
