@@ -242,7 +242,7 @@ module Composition = {
   let goto =
       (
         ~ed: CodeWithStatics.Model.t,
-        ~loc: loc_of_goto,
+        ~loc as _: loc_of_goto,
         ~goto_var_of_kind: goto_var,
         ~name: string,
         ~schedule_action: Editors.Update.t => unit,
@@ -278,23 +278,25 @@ module Composition = {
     // Return appropriate action based on whether we found a match
     let actions =
       switch (matching_id) {
-      | Some(id) => [
-          Action.Move(Goal(TileId(id))),
-          // Moving left by token is essentially a hacky method to get
-          // off of a variable name (term), and triple/quad click on let binding
-          // itself (this properly highlights full variable name and
-          // definition when type annotation exists)
-          Action.Move(Local(Left, ByToken)),
-          switch (loc) {
-          // TODO: Implement structure-based navigation actions
-          | Definition =>
-            Action.Select(Term(Id(Id.invalid, Direction.Left)))
-          | Body => Action.Select(Term(Id(Id.invalid, Direction.Left)))
-          | All => Action.Select(Term(Id(Id.invalid, Direction.Left)))
-          },
-          Action.Copy,
-        ]
-      | None => [Action.Select(Term(Id(Id.invalid, Direction.Left)))]
+      // | Some(id) => [
+      //     Action.Move(Goal(TileId(id))),
+      //     // Moving left by token is essentially a hacky method to get
+      //     // off of a variable name (term), and triple/quad click on let binding
+      //     // itself (this properly highlights full variable name and
+      //     // definition when type annotation exists)
+      //     Action.Move(Local(Left, ByToken)),
+      //     switch (loc) {
+      //     // TODO: Implement structure-based navigation actions
+      //     | Definition =>
+      //       Action.Select(Term(Id(Id.invalid, Direction.Left)))
+      //     | Body => Action.Select(Term(Id(Id.invalid, Direction.Left)))
+      //     | All => Action.Select(Term(Id(Id.invalid, Direction.Left)))
+      //     },
+      //     Action.Copy,
+      //   ]
+      | Some(_)
+      // | None => [Action.Select(Term(Id(Id.invalid, Direction.Left)))]
+      | None => []
       };
 
     List.iter(

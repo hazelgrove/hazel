@@ -452,13 +452,12 @@ module Selection = {
       }
     | TextBox => None
     };
-
-  let jump_to_tile = (tile, model: Model.t): option((Update.t, t)) =>
-    CellEditor.Selection.jump_to_tile(
-      tile,
-      List.nth(model.scratchpads, model.current) |> snd,
-    )
-    |> Option.map(((x, y)) => (Update.CellAction(x), Cell(y)));
+  // let jump_to_tile = (tile, model: Model.t): option((Update.t, t)) =>
+  //   CellEditor.Selection.jump_to_tile(
+  //     tile,
+  //     List.nth(model.scratchpads, model.current) |> snd,
+  //   )
+  //   |> Option.map(((x, y)) => (Update.CellAction(x), Cell(y)));
 };
 
 module View = {

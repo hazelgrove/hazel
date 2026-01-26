@@ -526,9 +526,9 @@ let dropdown_id = (sample_id: int): string =>
   "sample-dropdown-" ++ string_of_int(sample_id);
 
 /* Step into handler for sample context menu */
-let step_into_sample =
-    (~parent, ~sample: Sample.t, ~ap_id: Id.t): Ui_effect.t(unit) =>
-  parent(Probe(StepInto(sample, ap_id)));
+// let step_into_sample =
+//     (~parent, ~sample: Sample.t, ~ap_id: Id.t): Ui_effect.t(unit) =>
+//   parent(Probe(StepInto(sample, ap_id)));
 
 /* Context actions for a sample (Pin/Unpin, Step Into, etc.) */
 let sample_context_actions =
@@ -557,26 +557,26 @@ let sample_context_actions =
               span(~attrs=[Attr.classes(["shortcut"])], [text("P")]),
             ],
           ),
-          /* Step Into action */
-          div(
-            ~attrs=[
-              Attr.classes(["action-item", "step-into-action"]),
-              Attr.on_pointerdown(_
-                /* Stop propagation to prevent parent wrapper's Focus action
-                   from moving cursor back to the probe after we jump */
-                =>
-                  Effect.Many([
-                    Effect.Stop_propagation,
-                    step_into_sample(~parent, ~sample, ~ap_id),
-                  ])
-                ),
-            ],
-            [
-              div(~attrs=[Attr.classes(["step-into-icon"])], []),
-              text("Step into"),
-              span(~attrs=[Attr.classes(["shortcut"])], [text("Enter")]),
-            ],
-          ),
+          // /* Step Into action */
+          // div(
+          //   ~attrs=[
+          //     Attr.classes(["action-item", "step-into-action"]),
+          //     Attr.on_pointerdown(_
+          //       /* Stop propagation to prevent parent wrapper's Focus action
+          //          from moving cursor back to the probe after we jump */
+          //       =>
+          //         Effect.Many([
+          //           Effect.Stop_propagation,
+          //           step_into_sample(~parent, ~sample, ~ap_id),
+          //         ])
+          //       ),
+          //   ],
+          //   [
+          //     div(~attrs=[Attr.classes(["step-into-icon"])], []),
+          //     text("Step into"),
+          //     span(~attrs=[Attr.classes(["shortcut"])], [text("Enter")]),
+          //   ],
+          // ),
         ],
       ),
     ];
@@ -1014,19 +1014,19 @@ let key_handler =
       print_endline("pin: no sample or ap_id");
       Many([Stop_propagation, Prevent_default]);
     }
-  | D("Enter") =>
-    /* Step into the indicated sample */
-    switch (indicated_sample(~ap_id, di), ap_id) {
-    | (Some(sample), Some(ap_id)) =>
-      Many([
-        Stop_propagation,
-        Prevent_default,
-        step_into_sample(~parent, ~sample, ~ap_id),
-      ])
-    | _ =>
-      print_endline("step into: no sample or ap_id");
-      Many([Stop_propagation, Prevent_default]);
-    }
+  // | D("Enter") =>
+  //   /* Step into the indicated sample */
+  //   switch (indicated_sample(~ap_id, di), ap_id) {
+  //   | (Some(sample), Some(ap_id)) =>
+  //     Many([
+  //       Stop_propagation,
+  //       Prevent_default,
+  //       step_into_sample(~parent, ~sample, ~ap_id),
+  //     ])
+  //   | _ =>
+  //     print_endline("step into: no sample or ap_id");
+  //     Many([Stop_propagation, Prevent_default]);
+  //   }
   | _ => Many([Stop_propagation])
   };
 };

@@ -5,7 +5,7 @@ open Util.WebUtil;
 let alias_view = (s: string): Node.t =>
   div(~attrs=[clss(["typ-alias-view"])], [text(s)]);
 
-let jump_to = entry => Globals.Update.JumpToTile(Language.Ctx.get_id(entry));
+// let jump_to = entry => Globals.Update.JumpToTile(Language.Ctx.get_id(entry));
 
 let context_entry_view = (~globals, entry: Language.Ctx.entry): Node.t => {
   let view_type =
@@ -30,7 +30,7 @@ let context_entry_view = (~globals, entry: Language.Ctx.entry): Node.t => {
   | ConstructorEntry({name, typ, _}) =>
     div(
       ~attrs=[
-        Attr.on_click(_ => globals.inject_global(jump_to(entry))),
+        // Attr.on_click(_ => globals.inject_global(jump_to(entry))),
         clss(["context-entry", "code"]),
       ],
       [
@@ -42,7 +42,7 @@ let context_entry_view = (~globals, entry: Language.Ctx.entry): Node.t => {
   | TVarEntry({name, kind, _}) =>
     div(
       ~attrs=[
-        Attr.on_click(_ => globals.inject_global(jump_to(entry))),
+        // Attr.on_click(_ => globals.inject_global(jump_to(entry))),
         clss(["context-entry", "code"]),
       ],
       [
@@ -54,7 +54,7 @@ let context_entry_view = (~globals, entry: Language.Ctx.entry): Node.t => {
   | LivelitEntry({name, expansion_t, _}) =>
     div(
       ~attrs=[
-        Attr.on_click(_ => globals.inject_global(jump_to(entry))),
+        // Attr.on_click(_ => globals.inject_global(jump_to(entry))),
         clss(["context-entry", "code", "livelit-entry"]),
       ],
       [

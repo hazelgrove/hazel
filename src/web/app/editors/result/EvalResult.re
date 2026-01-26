@@ -366,8 +366,8 @@ module View = {
   open WebUtil.Node;
 
   type event =
-    | MakeActive(Selection.t)
-    | JumpTo(Id.t);
+    | MakeActive(Selection.t);
+  // | JumpTo(Id.t);
 
   let error_msg = (err: ProgramResult.error) =>
     switch (err) {
@@ -634,7 +634,7 @@ module View = {
         [
           CellCommon.report_footer_view([
             TestView.test_summary(
-              ~inject_jump=tile => signal(JumpTo(tile)),
+              // ~inject_jump=tile => signal(JumpTo(tile)),
               ~test_results,
             ),
           ]),

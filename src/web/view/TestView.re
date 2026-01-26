@@ -6,18 +6,20 @@ module TestStatus = Language.TestStatus;
 module TestMap = Language.TestMap;
 module TestResults = Language.TestResults;
 
-let test_bar_segment = (~inject_jump, (id, reports)) => {
+let test_bar_segment = (/*~inject_jump,*/ (_id, reports)) => {
   let status = reports |> TestMap.joint_status |> TestStatus.to_string;
   div(
-    ~attrs=[clss(["segment", status]), Attr.on_click(_ => inject_jump(id))],
+    ~attrs=[
+      clss(["segment", status]) /*Attr.on_click(_ => inject_jump(id))*/,
+    ],
     [],
   );
 };
 
-let test_bar = (~inject_jump, ~test_results: TestResults.t) =>
+let test_bar = /*~inject_jump,*/ (~test_results: TestResults.t) =>
   div(
     ~attrs=[Attr.class_("test-bar")],
-    List.map(test_bar_segment(~inject_jump), test_results.test_map),
+    List.map(test_bar_segment /*(~inject_jump)*/, test_results.test_map),
   );
 
 // result_summary_str and test_summary_str have been moved to haz3lcore/TestResults.re
@@ -44,7 +46,7 @@ let test_text = (test_results: TestResults.t): Node.t =>
     ],
   );
 
-let test_summary = (~inject_jump, ~test_results: option(TestResults.t)) => {
+let test_summary = /*~inject_jump,*/ (~test_results: option(TestResults.t)) => {
   div(
     ~attrs=[clss(["test-summary"])],
     {
@@ -52,7 +54,10 @@ let test_summary = (~inject_jump, ~test_results: option(TestResults.t)) => {
       | None => [Node.text("No test results available.")]
       | Some(test_results) => [
           test_text(test_results),
-          test_bar(~inject_jump, ~test_results),
+          test_bar(
+            /*~inject_jump,*/
+            ~test_results,
+          ),
         ]
       };
     },

@@ -315,14 +315,14 @@ module Selection = {
       List.nth(model.exercises, model.current),
     )
     |> Option.map(a => Update.Tutorial(a));
-  let jump_to_tile =
-      (~settings, tile, model: Model.t): option((Update.t, t)) =>
-    TutorialMode.Selection.jump_to_tile(
-      ~settings,
-      tile,
-      List.nth(model.exercises, model.current),
-    )
-    |> Option.map(((x, y)) => (Update.Tutorial(x), y));
+  // let jump_to_tile =
+  //     (~settings, tile, model: Model.t): option((Update.t, t)) =>
+  //   TutorialMode.Selection.jump_to_tile(
+  //     ~settings,
+  //     tile,
+  //     List.nth(model.exercises, model.current),
+  //   )
+  //   |> Option.map(((x, y)) => (Update.Tutorial(x), y));
 };
 
 module View = {

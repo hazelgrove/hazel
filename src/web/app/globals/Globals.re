@@ -57,7 +57,7 @@ module Action = {
   type t =
     | SetFontMetrics(FontMetrics.t)
     | Set(Settings.Update.t)
-    | JumpToTile(Haz3lcore.Id.t) // Perform(Select(Term(Id(id, Left))))
+    // | JumpToTile(Haz3lcore.Id.t) // Perform(Select(Term(Id(id, Left))))
     | InitImportAll([@opaque] Js_of_ocaml.Js.t(Js_of_ocaml.File.file))
     | FinishImportAll(option(string))
     | ExportForInit
@@ -150,7 +150,7 @@ module Update = {
     switch (action) {
     | SetFontMetrics(_) => false
     | Set(action) => Settings.Update.can_undo(action)
-    | JumpToTile(_) => false
+    // | JumpToTile(_) => false
     | InitImportAll(_) => true
     | FinishImportAll(_) => true
     | ExportForInit => false

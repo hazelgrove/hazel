@@ -79,7 +79,7 @@ module Update = {
              | Cut
              | Reparse
              | Introduce
-             | Probe(StepInto(_))
+             //  | Probe(StepInto(_))
              | Dump => true
              | Project(_)
              | Unselect(_)
@@ -189,13 +189,12 @@ module Selection = {
       }
     };
   };
-
-  let jump_to_tile = (id: Id.t, model: Model.t): option(Update.t) => {
-    switch (TermData.root_tile(id, model.editor.syntax.term_data)) {
-    | Some(_) => Some(Perform(Move(Goal(TileId(id)))))
-    | None => None
-    };
-  };
+  // let jump_to_tile = (id: Id.t, model: Model.t): option(Update.t) => {
+  //   switch (TermData.root_tile(id, model.editor.syntax.term_data)) {
+  //   | Some(_) => Some(Perform(Move(Goal(TileId(id)))))
+  //   | None => None
+  //   };
+  // };
 };
 
 module View = {

@@ -541,25 +541,24 @@ module Selection = {
     | TextBox => None
     };
   };
-
-  let jump_to_tile =
-      (~settings: Settings.t, id: Id.t, model: Model.t)
-      : option((Update.t, t)) => {
-    Exercise.positioned_editors(model.editors)
-    |> List.find_opt(((p, e: Editor.t)) =>
-         TermData.root_tile(id, e.syntax.term_data) != None
-         && Exercise.visible_in(p, ~instructor_mode=settings.instructor_mode)
-       )
-    |> Option.map(((pos, _)) =>
-         (
-           Update.Editor(
-             pos,
-             MainEditor(Perform(Move(Goal(TileId(id))))),
-           ),
-           Cell(pos, CellEditor.Selection.MainEditor),
-         )
-       );
-  };
+  // let jump_to_tile =
+  //     (~settings: Settings.t, id: Id.t, model: Model.t)
+  //     : option((Update.t, t)) => {
+  //   Exercise.positioned_editors(model.editors)
+  //   |> List.find_opt(((p, e: Editor.t)) =>
+  //        TermData.root_tile(id, e.syntax.term_data) != None
+  //        && Exercise.visible_in(p, ~instructor_mode=settings.instructor_mode)
+  //      )
+  //   |> Option.map(((pos, _)) =>
+  //        (
+  //          Update.Editor(
+  //            pos,
+  //            MainEditor(Perform(Move(Goal(TileId(id))))),
+  //          ),
+  //          Cell(pos, CellEditor.Selection.MainEditor),
+  //        )
+  //      );
+  // };
 };
 
 module View = {
@@ -984,14 +983,14 @@ module View = {
             `Custom(
               Grading.TestValidationReport.view(
                 ~globals,
-                ~signal_jump=
-                  id =>
-                    inject(
-                      Editor(
-                        YourTestsValidation,
-                        MainEditor(Perform(Move(Goal(TileId(id))))),
-                      ),
-                    ),
+                // ~signal_jump=
+                //   id =>
+                //     inject(
+                //       Editor(
+                //         YourTestsValidation,
+                //         MainEditor(Perform(Move(Goal(TileId(id))))),
+                //       ),
+                //     ),
                 ~signal_editing_test_val_rep=
                   inject(Instructor(EditingTestValRep)),
                 ~signal_update_test_val=
@@ -1116,14 +1115,14 @@ module View = {
       Always(
         Grading.ImplGradingReport.view(
           ~globals,
-          ~signal_jump=
-            id =>
-              inject(
-                Editor(
-                  YourTestsTesting,
-                  MainEditor(Perform(Move(Goal(TileId(id))))),
-                ),
-              ),
+          // ~signal_jump=
+          //   id =>
+          //     inject(
+          //       Editor(
+          //         YourTestsTesting,
+          //         MainEditor(Perform(Move(Goal(TileId(id))))),
+          //       ),
+          //     ),
           ~inject_set_editing_impl_grd_rep=
             inject(Instructor(EditingImplGrdRep)),
           ~inject_update_impl_grd_rep=

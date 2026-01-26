@@ -8,7 +8,7 @@ type chunkiness =
 [@deriving (show({with_path: false}), sexp, yojson, eq)]
 type goal =
   | Hole(Direction.t)
-  | TileId([@equal (_, _) => true] Id.t)
+  // | TileId([@equal (_, _) => true] Id.t)
   | BindingSiteOfIndicatedVar;
 
 [@deriving (show({with_path: false}), sexp, yojson, eq)]
@@ -87,8 +87,8 @@ type paste =
 type probe =
   | ToggleManual
   | ToggleAuto
-  | ToggleStatics
-  | StepInto(Language.Sample.t, Id.t);
+  | ToggleStatics;
+// | StepInto(Language.Sample.t, Id.t);
 
 [@deriving (show({with_path: false}), sexp, yojson, eq)]
 type t =

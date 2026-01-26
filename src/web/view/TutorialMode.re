@@ -364,23 +364,23 @@ module Selection = {
     | TextBox => None
     };
   };
-  let jump_to_tile =
-      (~settings: Settings.t, tile, model: Model.t): option((Update.t, t)) => {
-    Tutorial.positioned_editors(model.editors)
-    |> List.find_opt(((p, e: Editor.t)) =>
-         TermData.root_tile(tile, e.syntax.term_data) != None
-         && Tutorial.visible_in(p, ~instructor_mode=settings.instructor_mode)
-       )
-    |> Option.map(((pos, _)) =>
-         (
-           Update.Editor(
-             pos,
-             MainEditor(Perform(Move(Goal(TileId(tile))))),
-           ),
-           Cell(pos, CellEditor.Selection.MainEditor),
-         )
-       );
-  };
+  // let jump_to_tile =
+  //     (~settings: Settings.t, tile, model: Model.t): option((Update.t, t)) => {
+  //   Tutorial.positioned_editors(model.editors)
+  //   |> List.find_opt(((p, e: Editor.t)) =>
+  //        TermData.root_tile(tile, e.syntax.term_data) != None
+  //        && Tutorial.visible_in(p, ~instructor_mode=settings.instructor_mode)
+  //      )
+  //   |> Option.map(((pos, _)) =>
+  //        (
+  //          Update.Editor(
+  //            pos,
+  //            MainEditor(Perform(Move(Goal(TileId(tile))))),
+  //          ),
+  //          Cell(pos, CellEditor.Selection.MainEditor),
+  //        )
+  //      );
+  // };
 };
 
 module View = {
@@ -588,14 +588,14 @@ module View = {
         div([checkmark_view]);
       } else if (test_count > 1) {
         TutorialGrading.ImplGradingReport.view(
-          ~signal_jump=
-            id =>
-              inject(
-                Editor(
-                  HiddenTests,
-                  MainEditor(Perform(Move(Goal(TileId(id))))),
-                ),
-              ),
+          // ~signal_jump=
+          //   id =>
+          //     inject(
+          //       Editor(
+          //         HiddenTests,
+          //         MainEditor(Perform(Move(Goal(TileId(id))))),
+          //       ),
+          //     ),
           ~report=grading_report.impl_grading_report,
           ~max_points=1,
         );
@@ -627,14 +627,14 @@ module View = {
                 ),
                 eds.show_report
                   ? TutorialGrading.ImplGradingReport.view(
-                      ~signal_jump=
-                        id =>
-                          inject(
-                            Editor(
-                              HiddenTests,
-                              MainEditor(Perform(Move(Goal(TileId(id))))),
-                            ),
-                          ),
+                      // ~signal_jump=
+                      //   id =>
+                      //     inject(
+                      //       Editor(
+                      //         HiddenTests,
+                      //         MainEditor(Perform(Move(Goal(TileId(id))))),
+                      //       ),
+                      //     ),
                       ~report=grading_report.impl_grading_report,
                       ~max_points=1,
                     )

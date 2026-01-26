@@ -5,14 +5,14 @@ open Haz3lcore;
 
 module StaticsBase = Language.StaticsBase;
 
-let jump_to = (~globals: Globals.t, id: Id.t, _) =>
-  globals.inject_global(ActiveEditor(Move(Goal(TileId(id)))));
+// let jump_to = (~globals: Globals.t, id: Id.t, _) =>
+//   globals.inject_global(ActiveEditor(Move(Goal(TileId(id)))));
 
-let basic = (~globals: Globals.t, id: Id.t) =>
+let basic = (~globals as _: Globals.t, id: Id.t) =>
   div(
     ~attrs=[
       Attr.create("style", "cursor: pointer;"),
-      Attr.on_pointerdown(jump_to(~globals, id)),
+      // Attr.on_pointerdown(jump_to(~globals, id)),
     ],
     [text(Id.str3(id))],
   );
@@ -95,7 +95,7 @@ let fancy =
   div(
     ~attrs=[
       Attr.class_("probe-entry"),
-      Attr.on_pointerdown(jump_to(~globals, id)),
+      // Attr.on_pointerdown(jump_to(~globals, id)),
     ],
     [term_view],
   );

@@ -592,11 +592,11 @@ let go =
     | Some(id) => toggle_statics(~syntax, id, info_map, z)
     | None => z
     }
-  | StepInto(sample, ap_id) =>
-    switch (step_into_sample(~syntax, ~sample, ~ap_id, info_map, z)) {
-    | Some(z) => z
-    | None => z
-    }
+  // | StepInto(sample, ap_id) =>
+  //   switch (step_into_sample(~syntax, ~sample, ~ap_id, info_map, z)) {
+  //   | Some(z) => z
+  //   | None => z
+  //   }
   };
 
 /* Check if id has either manual or ephermeral probe on it */

@@ -429,49 +429,46 @@ module Selection = {
       |> Option.map(x => Update.Theorem(x))
     };
   };
-
-  let jump_to_tile = (tile, model: Model.t): option((Update.t, t)) => {
-    open OptUtil.Syntax;
-    let (let.or) = (v: option('b), f: unit => option('b)) => {
-      switch (v) {
-      | Some(x) => Some(x)
-      | None => f()
-      };
-    };
-
-    let.or () = {
-      let* _ =
-        TermData.root_tile(
-          tile,
-          model.cells.prelude.editor.editor.syntax.term_data,
-        );
-      Some((
-        Update.Prelude(MainEditor(Perform(Move(Goal(TileId(tile)))))),
-        Prelude(CellEditor.Selection.MainEditor),
-      ));
-    };
-    let.or () = {
-      let* _ =
-        TermData.root_tile(
-          tile,
-          model.cells.lemmas.editor.editor.syntax.term_data,
-        );
-      Some((
-        Update.Lemmas(MainEditor(Perform(Move(Goal(TileId(tile)))))),
-        Lemmas(CellEditor.Selection.MainEditor),
-      ));
-    };
-
-    let* _ =
-      TermData.root_tile(
-        tile,
-        model.cells.theorem.editor.editor.syntax.term_data,
-      );
-    Some((
-      Update.Theorem(MainEditor(Perform(Move(Goal(TileId(tile)))))),
-      Theorem(CellEditor.Selection.MainEditor),
-    ));
-  };
+  // let jump_to_tile = (tile, model: Model.t): option((Update.t, t)) => {
+  //   open OptUtil.Syntax;
+  //   let (let.or) = (v: option('b), f: unit => option('b)) => {
+  //     switch (v) {
+  //     | Some(x) => Some(x)
+  //     | None => f()
+  //     };
+  //   };
+  //   let.or () = {
+  //     let* _ =
+  //       TermData.root_tile(
+  //         tile,
+  //         model.cells.prelude.editor.editor.syntax.term_data,
+  //       );
+  //     Some((
+  //       Update.Prelude(MainEditor(Perform(Move(Goal(TileId(tile)))))),
+  //       Prelude(CellEditor.Selection.MainEditor),
+  //     ));
+  //   };
+  //   let.or () = {
+  //     let* _ =
+  //       TermData.root_tile(
+  //         tile,
+  //         model.cells.lemmas.editor.editor.syntax.term_data,
+  //       );
+  //     Some((
+  //       Update.Lemmas(MainEditor(Perform(Move(Goal(TileId(tile)))))),
+  //       Lemmas(CellEditor.Selection.MainEditor),
+  //     ));
+  //   };
+  //   let* _ =
+  //     TermData.root_tile(
+  //       tile,
+  //       model.cells.theorem.editor.editor.syntax.term_data,
+  //     );
+  //   Some((
+  //     Update.Theorem(MainEditor(Perform(Move(Goal(TileId(tile)))))),
+  //     Theorem(CellEditor.Selection.MainEditor),
+  //   ));
+  // };
 };
 
 module View = {

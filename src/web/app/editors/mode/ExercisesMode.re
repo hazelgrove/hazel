@@ -466,21 +466,20 @@ module Selection = {
     | (Theorem(_), _) => None
     };
   };
-
-  let jump_to_tile =
-      (~settings, tile, model: Model.t): option((Update.t, t)) => {
-    let current = List.nth(model.exercises, model.current);
-    switch (current) {
-    | Implementation(e) =>
-      ExerciseMode.Selection.jump_to_tile(~settings, tile, e)
-      |> Option.map(((x, y)) => (Update.Exercise(x), Implementation(y)))
-    | Theorem(e) =>
-      TheoremExerciseMode.Selection.jump_to_tile(tile, e)
-      |> Option.map(((x, y)) =>
-           (Update.TheoremExercise(x), TheoremExercise(y))
-         )
-    };
-  };
+  // let jump_to_tile =
+  //     (~settings, tile, model: Model.t): option((Update.t, t)) => {
+  //   let current = List.nth(model.exercises, model.current);
+  //   switch (current) {
+  //   | Implementation(e) =>
+  //     ExerciseMode.Selection.jump_to_tile(~settings, tile, e)
+  //     |> Option.map(((x, y)) => (Update.Exercise(x), Implementation(y)))
+  //   | Theorem(e) =>
+  //     TheoremExerciseMode.Selection.jump_to_tile(tile, e)
+  //     |> Option.map(((x, y)) =>
+  //          (Update.TheoremExercise(x), TheoremExercise(y))
+  //        )
+  //   };
+  // };
 };
 
 module View = {

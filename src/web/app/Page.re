@@ -113,7 +113,7 @@ module Update = {
       (
         ~import_log,
         ~schedule_action,
-        ~globals: Globals.Model.t,
+        ~globals as _: Globals.Model.t,
         action: Globals.Update.t,
         model: Model.t,
       ) => {
@@ -137,31 +137,31 @@ module Update = {
           settings,
         },
       };
-    | JumpToTile(id) =>
-      let jump =
-        Editors.Selection.jump_to_tile(
-          ~settings=model.globals.settings,
-          id,
-          model.editors,
-        );
-      switch (jump) {
-      | None => model |> Updated.raise_invalid_action
-      | Some((action, selection)) =>
-        let* editors =
-          Editors.Update.update(
-            ~globals,
-            ~schedule_action=a => schedule_action(Editors(a)),
-            ~send_assistant_insertion_info=
-              assistant_callback(~schedule_action, model),
-            action,
-            model.editors,
-          );
-        {
-          ...model,
-          editors,
-          selection,
-        };
-      };
+    // | JumpToTile(id) =>
+    //   let jump =
+    //     Editors.Selection.jump_to_tile(
+    //       ~settings=model.globals.settings,
+    //       id,
+    //       model.editors,
+    //     );
+    //   switch (jump) {
+    //   | None => model |> Updated.raise_invalid_action
+    //   | Some((action, selection)) =>
+    //     let* editors =
+    //       Editors.Update.update(
+    //         ~globals,
+    //         ~schedule_action=a => schedule_action(Editors(a)),
+    //         ~send_assistant_insertion_info=
+    //           assistant_callback(~schedule_action, model),
+    //         action,
+    //         model.editors,
+    //       );
+    //     {
+    //       ...model,
+    //       editors,
+    //       selection,
+    //     };
+    //   };
     | InitImportAll(file) =>
       JsUtil.read_file(file, data =>
         schedule_action(Globals(FinishImportAll(data)))

@@ -119,7 +119,7 @@ module TestValidationReport = {
   let view =
       (
         ~globals: Globals.t,
-        ~signal_jump,
+        // ~signal_jump,
         ~signal_editing_test_val_rep,
         ~signal_update_test_val,
         ~signal_textbox_active,
@@ -246,7 +246,10 @@ module TestValidationReport = {
         @ Option.to_list(
             report.test_results
             |> Option.map(test_results =>
-                 TestView.test_bar(~inject_jump=signal_jump, ~test_results)
+                 TestView.test_bar(
+                   /*~inject_jump=signal_jump,*/
+                   ~test_results,
+                 )
                ),
           ),
       ),
@@ -997,10 +1000,10 @@ module ImplGradingReport = {
   let individual_report =
       (
         i,
-        ~signal_jump,
+        // ~signal_jump,
         ~hint: hint,
         ~status,
-        (id, _),
+        (_id, _),
         ~editing_impl_grd_rep,
         ~globals: Globals.t,
         ~select_textbox,
@@ -1010,7 +1013,7 @@ module ImplGradingReport = {
       div(
         ~attrs=[
           Attr.classes(["test-report"]),
-          Attr.on_click(_ => signal_jump(id)),
+          // Attr.on_click(_ => signal_jump(id)),
         ],
         [
           div(
@@ -1044,7 +1047,7 @@ module ImplGradingReport = {
       div(
         ~attrs=[
           Attr.classes(["test-report"]),
-          Attr.on_click(_ => signal_jump(id)),
+          // Attr.on_click(_ => signal_jump(id)),
         ],
         [
           div(
@@ -1075,13 +1078,8 @@ module ImplGradingReport = {
     };
 
   let individual_reports =
-      (
-        ~signal_jump,
-        ~report,
-        ~editing_impl_grd_rep,
-        ~globals,
-        ~select_textbox,
-      ) => {
+      // ~signal_jump,
+      (~report, ~editing_impl_grd_rep, ~globals, ~select_textbox) => {
     switch (report.test_results) {
     | Some(test_results)
         when
@@ -1094,7 +1092,7 @@ module ImplGradingReport = {
         |> List.mapi((i, (status, hint: hint)) =>
              individual_report(
                i,
-               ~signal_jump,
+               //  ~signal_jump,
                ~hint,
                ~status,
                List.nth(test_results.test_map, i),
@@ -1113,7 +1111,7 @@ module ImplGradingReport = {
       (
         ~globals: Globals.t,
         ~editing_impl_grd_rep,
-        ~signal_jump,
+        // ~signal_jump,
         ~inject_set_editing_impl_grd_rep,
         ~inject_update_impl_grd_rep,
         ~select_textbox,
@@ -1130,7 +1128,7 @@ module ImplGradingReport = {
       [
         CellCommon.caption("Implementation Grading", ~rest=subcaption),
         individual_reports(
-          ~signal_jump,
+          // ~signal_jump,
           ~report,
           ~editing_impl_grd_rep,
           ~globals,
@@ -1256,7 +1254,7 @@ module ImplGradingReport = {
                   report.test_results
                   |> Option.map(test_results =>
                        TestView.test_bar(
-                         ~inject_jump=signal_jump,
+                         /*~inject_jump=signal_jump,*/
                          ~test_results,
                        )
                      ),

@@ -324,22 +324,22 @@ module Selection = {
     };
   };
 
-  let jump_to_tile =
-      (~settings, tile, model: Model.t): option((Update.t, t)) =>
-    switch (model) {
-    | Scratch(m) =>
-      ScratchMode.Selection.jump_to_tile(tile, m)
-      |> Option.map(((x, y)) => (Update.Scratch(x), Scratch(y)))
-    | Documentation(m) =>
-      ScratchMode.Selection.jump_to_tile(tile, m)
-      |> Option.map(((x, y)) => (Update.Scratch(x), Scratch(y)))
-    | Tutorial(m) =>
-      TutorialsMode.Selection.jump_to_tile(~settings, tile, m)
-      |> Option.map(((x, y)) => (Update.Tutorial(x), Tutorial(y)))
-    | Exercises(m) =>
-      ExercisesMode.Selection.jump_to_tile(~settings, tile, m)
-      |> Option.map(((x, y)) => (Update.Exercises(x), Exercises(y)))
-    };
+  // let jump_to_tile =
+  //     (~settings, tile, model: Model.t): option((Update.t, t)) =>
+  //   switch (model) {
+  //   | Scratch(m) =>
+  //     ScratchMode.Selection.jump_to_tile(tile, m)
+  //     |> Option.map(((x, y)) => (Update.Scratch(x), Scratch(y)))
+  //   | Documentation(m) =>
+  //     ScratchMode.Selection.jump_to_tile(tile, m)
+  //     |> Option.map(((x, y)) => (Update.Scratch(x), Scratch(y)))
+  //   | Tutorial(m) =>
+  //     TutorialsMode.Selection.jump_to_tile(~settings, tile, m)
+  //     |> Option.map(((x, y)) => (Update.Tutorial(x), Tutorial(y)))
+  //   | Exercises(m) =>
+  //     ExercisesMode.Selection.jump_to_tile(~settings, tile, m)
+  //     |> Option.map(((x, y)) => (Update.Exercises(x), Exercises(y)))
+  //   };
 
   let default_selection =
     fun

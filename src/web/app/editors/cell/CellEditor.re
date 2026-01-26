@@ -179,11 +179,10 @@ module Selection = {
       |> Option.map(x => Update.ResultAction(x))
     };
   };
-
-  let jump_to_tile = (tile, model: Model.t): option((Update.t, t)) => {
-    CodeEditable.Selection.jump_to_tile(tile, model.editor)
-    |> Option.map(x => (Update.MainEditor(x), MainEditor));
-  };
+  // let jump_to_tile = (tile, model: Model.t): option((Update.t, t)) => {
+  //   CodeEditable.Selection.jump_to_tile(tile, model.editor)
+  //   |> Option.map(x => (Update.MainEditor(x), MainEditor));
+  // };
 };
 
 module View = {
@@ -215,12 +214,12 @@ module View = {
         },
         ~signal=
           fun
-          | MakeActive(a) => signal(MakeActive(Result(a)))
-          | JumpTo(id) =>
-            Effect.Many([
-              signal(MakeActive(MainEditor)),
-              inject(MainEditor(Perform(Move(Goal(TileId(id)))))),
-            ]),
+          | MakeActive(a) => signal(MakeActive(Result(a))),
+        // | JumpTo(id) =>
+        //   Effect.Many([
+        //     signal(MakeActive(MainEditor)),
+        //     inject(MainEditor(Perform(Move(Goal(TileId(id)))))),
+        //   ]),
         ~inject=a => inject(ResultAction(a)),
         ~selected={
           switch (selected) {

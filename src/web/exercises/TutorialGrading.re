@@ -107,7 +107,7 @@ module TestValidationReport = {
     };
   };
 
-  let view = (~signal_jump, report: t, max_points: int) => {
+  let view = (/*~signal_jump,*/ report: t, max_points: int) => {
     CellCommon.report_footer_view([
       div(
         ~attrs=[Attr.classes(["test-summary"])],
@@ -121,7 +121,10 @@ module TestValidationReport = {
         @ Option.to_list(
             report.test_results
             |> Option.map(test_results =>
-                 TestView.test_bar(~inject_jump=signal_jump, ~test_results)
+                 TestView.test_bar(
+                   /*~inject_jump=signal_jump,*/
+                   ~test_results,
+                 )
                ),
           ),
       ),
@@ -490,11 +493,12 @@ module ImplGradingReport = {
     };
   };
 
-  let individual_report = (i, ~signal_jump, ~hint: string, ~status, (id, _)) =>
+  let individual_report =
+      (i /*~signal_jump,*/, ~hint: string, ~status, (_id, _)) =>
     div(
       ~attrs=[
         Attr.classes(["test-report"]),
-        Attr.on_click(_ => signal_jump(id)),
+        // Attr.on_click(_ => signal_jump(id)),
       ],
       [
         div(
@@ -522,7 +526,7 @@ module ImplGradingReport = {
       ],
     );
 
-  let individual_reports = (~signal_jump, ~report) => {
+  let individual_reports = /*~signal_jump,*/ (~report) => {
     switch (report.test_results) {
     | Some(test_results)
         when
@@ -535,7 +539,7 @@ module ImplGradingReport = {
         |> List.mapi((i, (status, hint)) =>
              individual_report(
                i,
-               ~signal_jump,
+               /*~signal_jump,*/
                ~hint,
                ~status,
                List.nth(test_results.test_map, i),
@@ -547,7 +551,7 @@ module ImplGradingReport = {
   };
 
   // HiddenTests
-  let view = (~signal_jump, ~report: t, ~max_points: int) => {
+  let view = /*~signal_jump,*/ (~report: t, ~max_points: int) => {
     CellCommon.panel(
       ~classes=["cell-item", "panel", "test-panel"],
       [
@@ -555,7 +559,10 @@ module ImplGradingReport = {
           "Implementation Grading",
           ~rest=": Hidden Tests vs. Your Implementation",
         ),
-        individual_reports(~signal_jump, ~report),
+        individual_reports(
+          /*~signal_jump,*/
+          ~report,
+        ),
       ],
       ~footer=
         Some(
@@ -577,7 +584,7 @@ module ImplGradingReport = {
                   report.test_results
                   |> Option.map(test_results =>
                        TestView.test_bar(
-                         ~inject_jump=signal_jump,
+                         /*~inject_jump=signal_jump,*/
                          ~test_results,
                        )
                      ),

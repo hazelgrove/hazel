@@ -105,7 +105,7 @@ let highlight =
     Attr.on_mouseleave(_ =>
       globals.inject_global(Set(ExplainThis(SetHighlight(UnsetHover))))
     ),
-    Attr.on_click(_ => globals.inject_global(JumpToTile(id))),
+    // Attr.on_click(_ => globals.inject_global(JumpToTile(id))),
   ];
   (Node.span(~attrs, msg), mapping);
 };
