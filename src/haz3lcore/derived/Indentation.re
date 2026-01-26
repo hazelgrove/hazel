@@ -35,72 +35,48 @@ let trim_non_content: Segment.t => Segment.t =
     | p => Some(p),
   );
 
-let prev_pieces = (seg: Segment.t): list(option(Piece.t)) => {
-  let rec go =
-          (xs: list(Piece.t), prev: option(Piece.t))
-          : list(option(Piece.t)) =>
+/* Compute context (effective_prev, next, effective_next) for each piece in one pass.
+ * - effective_prev: skips convex grout and linebreaks to find last contentful piece
+ * - next: immediate next piece (raw)
+ * - effective_next: skips linebreaks to find next contentful piece */
+let compute_context =
+    (seg: Segment.t)
+    : list((option(Piece.t), option(Piece.t), option(Piece.t))) => {
+  /* Find next non-linebreak piece by scanning ahead */
+  let rec find_effective_next = (xs: list(Piece.t)): option(Piece.t) =>
     switch (xs) {
-    | [] => []
-    | [x, ...xs] => [prev, ...go(xs, Some(x))]
+    | [] => None
+    | [Secondary(s), ...rest] when Secondary.is_linebreak(s) =>
+      find_effective_next(rest)
+    | [x, ..._] => Some(x)
     };
-  go(seg, None);
-};
 
-/* Like prev_pieces but skips over convex grout and linebreaks to find the
- * "effective" previous piece. This is needed because:
- * - Incomplete tiles are followed by grout for their holes
- * - Consecutive linebreaks should look back to the last contentful piece */
-let effective_prev_pieces = (seg: Segment.t): list(option(Piece.t)) => {
   let rec go =
           (xs: list(Piece.t), last_contentful: option(Piece.t))
-          : list(option(Piece.t)) =>
+          : list((option(Piece.t), option(Piece.t), option(Piece.t))) =>
     switch (xs) {
     | [] => []
-    | [x, ...xs] =>
+    | [x, ...rest] =>
       let effective_prev = last_contentful;
+      let next =
+        switch (rest) {
+        | [] => None
+        | [n, ..._] => Some(n)
+        };
+      let effective_next = find_effective_next(rest);
       let new_last_contentful =
         switch (x) {
         | Grout({shape: Convex, _}) => last_contentful /* Skip grout */
         | Secondary(s) when Secondary.is_linebreak(s) => last_contentful /* Skip linebreaks */
         | _ => Some(x) /* Update for contentful pieces */
         };
-      [effective_prev, ...go(xs, new_last_contentful)];
+      [
+        (effective_prev, next, effective_next),
+        ...go(rest, new_last_contentful),
+      ];
     };
   go(seg, None);
 };
-
-let next_pieces = (seg: Segment.t): list(option(Piece.t)) => {
-  let rec go = (xs: list(Piece.t)): list(option(Piece.t)) =>
-    switch (xs) {
-    | [] => []
-    | [_] => [None]
-    | [_, next, ...rest] => [Some(next), ...go([next, ...rest])]
-    };
-  go(seg);
-};
-
-/* Like next_pieces but skips over linebreaks to find the next contentful piece.
- * This is useful for detecting "next rule" position in case expressions,
- * where consecutive linebreaks shouldn't hide the upcoming case rule. */
-let effective_next_pieces = (seg: Segment.t): list(option(Piece.t)) => {
-  /* Find the next non-linebreak piece in a list */
-  let rec find_next_contentful = (xs: list(Piece.t)): option(Piece.t) =>
-    switch (xs) {
-    | [] => None
-    | [Secondary(s), ...rest] when Secondary.is_linebreak(s) =>
-      find_next_contentful(rest)
-    | [x, ..._] => Some(x)
-    };
-  let rec go = (xs: list(Piece.t)): list(option(Piece.t)) =>
-    switch (xs) {
-    | [] => []
-    | [_, ...rest] => [find_next_contentful(rest), ...go(rest)]
-    };
-  go(seg);
-};
-
-/* Memoize for perf */
-let indent_hash = Hashtbl.create(10000);
 
 let union_all =
   List.fold_left(
@@ -260,16 +236,17 @@ let is_incrementor = (p: Piece.t): bool =>
   | _ => false
   };
 
-let rec go' = ((not_top, base: int, seg: Segment.t)) => {
+let rec go = (~not_top, base: int, seg: Segment.t): Id.Map.t(int) => {
   let complete_trimmed_seg = complete_segment(trim_non_content(seg));
+  let context = compute_context(complete_trimmed_seg);
   let (_, map) =
     List.fold_left2(
-      ((level: int, map: Id.Map.t(int)), p: Piece.t, prev_next_eff) => {
-        let (prev_next, effective_next) = prev_next_eff;
+      ((level: int, map: Id.Map.t(int)), p: Piece.t, ctx) => {
+        let (prev, next, effective_next) = ctx;
         switch (p) {
         | Secondary(w) when Secondary.is_linebreak(w) =>
           let level =
-            switch (prev_next) {
+            switch (prev, next) {
             | (_, Some(next)) when is_comma(next) => base + 2
             | (Some(prev), _) when is_comma(prev) => base + 2
             /* Incomplete case rules (just `|`) shouldn't increment.
@@ -312,24 +289,9 @@ let rec go' = ((not_top, base: int, seg: Segment.t)) => {
       },
       (base, Id.Map.empty),
       complete_trimmed_seg,
-      List.combine(
-        List.combine(
-          effective_prev_pieces(complete_trimmed_seg),
-          next_pieces(complete_trimmed_seg),
-        ),
-        effective_next_pieces(complete_trimmed_seg),
-      ),
+      context,
     );
   map;
-}
-and go = (~not_top, base: int, seg: Segment.t) => {
-  let arg = (not_top, base, seg);
-  try(Hashtbl.find(indent_hash, arg)) {
-  | _ =>
-    let res = go'(arg);
-    Hashtbl.add(indent_hash, arg, res);
-    res;
-  };
 };
 
 let level_map = (seg: Segment.t): Id.Map.t(int) =>

@@ -132,15 +132,19 @@ let parse_with_caret = (init: string): Zipper.t => {
 
 /* Test variant that parses initial state (no auto-indent) then applies actions */
 let test_from_parse = (~name, ~init, ~acts, ~goal): test_case(_) =>
-  test_case(name, `Quick, () => {
-    let z = parse_with_caret(init);
-    check(
-      testable(Fmt.string, String.equal),
-      goal,
-      goal,
-      acts |> perform(z) |> printer,
-    );
-  });
+  test_case(
+    name,
+    `Quick,
+    () => {
+      let z = parse_with_caret(init);
+      check(
+        testable(Fmt.string, String.equal),
+        goal,
+        goal,
+        acts |> perform(z) |> printer,
+      );
+    },
+  );
 
 let basic_tests = [
   test(
@@ -902,7 +906,7 @@ end¦|},
   case 2
   | X => 1
   end
-end¦|}
+end¦|},
   ),
   /* Parse and print round-trip (no edit) */
   test_from_parse(
@@ -919,14 +923,14 @@ end¦|},
   case 2
   | X => 1
   end
-end¦|}
+end¦|},
   ),
   /* Single line nested case */
   test_from_parse(
     ~name="Nested case: single line parse",
     ~init={|case 1 | A => case 2 | X => 1 end end¦|},
     ~acts=[],
-    ~goal={|case 1 | A => case 2 | X => 1 end end¦|}
+    ~goal={|case 1 | A => case 2 | X => 1 end end¦|},
   ),
   /* Move in nested case (no insert) */
   test_from_parse(
