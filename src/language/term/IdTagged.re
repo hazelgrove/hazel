@@ -81,6 +81,12 @@ let mk = (ids: list(Id.t), secondary: IdTag.secondary_runs, term: 'a): t('a) => 
   term,
   annotation: IdTag.mk(ids, secondary),
 };
+let temp = (term: 'a): Grammar.Annotated.t('a, IdTag.t) => {
+  {
+    term,
+    annotation: IdTag.temp(),
+  };
+};
 
 let term_of = (x: Grammar.Annotated.t('a, 'b)) => x.term;
 let unwrap = (x: t('a)) => (

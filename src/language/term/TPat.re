@@ -39,3 +39,10 @@ let temp: term => t =
     term,
     annotation: IdTagged.IdTag.temp(),
   };
+
+// returns a Some(Var(x)) if it's a variable or None otherwise
+let to_typ_opt = (tp): option(TermBase.Typ.t) =>
+  switch (tyvar_of_utpat(tp)) {
+  | Some(name) => Some((Var(name): TermBase.Typ.term) |> IdTagged.temp)
+  | None => None
+  };

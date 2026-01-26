@@ -147,11 +147,8 @@ let is_abstract = (ctx: t, name: string): bool =>
 let lookup_alias = (ctx: t, name: string): option(TermBase.Typ.t) =>
   switch (lookup_tvar(ctx, name)) {
   | Some(Singleton(ty)) => Some(ty)
-  | Some(Abstract) => None
-  | None =>
-    Some(
-      (Unknown(Hole(Invalid(name))): TermBase.Typ.term) |> IdTagged.fresh,
-    )
+  | Some(Abstract)
+  | None => None
   };
 
 let add_ctrs = (ctx: t, name: string, id: Id.t, ctrs: TermBase.Typ.sum_map): t => {
@@ -321,3 +318,21 @@ let get_var_entries = (ctx: t): list(var_entry) =>
     | _ => None,
     ctx.entries,
   );
+
+let free_var_name = (ctx: t, base: Var.t): Var.t => {
+  let rec aux = (name: Var.t): Var.t =>
+    switch (lookup_var(ctx, name)) {
+    | Some(_) => aux(Var.next_name(name))
+    | None => name
+    };
+  aux(base);
+};
+
+let free_tvar_name = (ctx: t, base: string): string => {
+  let rec aux = (name: string): string =>
+    switch (lookup_tvar(ctx, name)) {
+    | Some(_) => aux(Var.next_name(name))
+    | None => name
+    };
+  aux(base);
+};

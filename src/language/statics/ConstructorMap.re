@@ -242,6 +242,14 @@ let has_constructor_no_args = ctr =>
     | BadEntry(_) => false,
   );
 
+let has_constructor_args = ctr =>
+  List.find_map(
+    fun
+    | Variant(ctr', _, Some(a)) when Constructor.equal(ctr, ctr') => Some(a)
+    | Variant(_) => None
+    | BadEntry(_) => None,
+  );
+
 let get_constructors =
   List.filter_map(
     fun

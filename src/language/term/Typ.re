@@ -35,11 +35,7 @@ let fresh: term => t = IdTagged.fresh;
 /* fresh assigns a random id, whereas temp assigns Id.invalid, which
    is a lot faster, and since we so often make types and throw them away
    shortly after, it makes sense to use it. */
-let temp: term => t =
-  term => {
-    term,
-    annotation: IdTagged.IdTag.temp(),
-  };
+let temp: term => t = IdTagged.temp;
 
 let all_ids_temp = {
   let f:
@@ -811,33 +807,6 @@ let is_more_precise = (ctx: Ctx.t, ty1: t, ty2: t): bool => {
   };
 };
 
-let rec matched_arrow_strict = (ctx, ty) =>
-  switch (term_of(weak_head_normalize(ctx, ty))) {
-  | Parens(ty) => matched_arrow_strict(ctx, ty)
-  | Arrow(ty_in, ty_out) => Some((ty_in, ty_out))
-  | Unknown(SynSwitch) =>
-    Some((Unknown(SynSwitch) |> temp, Unknown(SynSwitch) |> temp))
-  | _ => None
-  };
-
-let matched_arrow = (ctx, ty) =>
-  matched_arrow_strict(ctx, ty)
-  |> Option.value(
-       ~default=(Unknown(Internal) |> temp, Unknown(Internal) |> temp),
-     );
-
-let rec matched_poly_strict = (ctx, ty) =>
-  switch (term_of(weak_head_normalize(ctx, ty))) {
-  | Parens(ty) => matched_poly_strict(ctx, ty)
-  | Poly(t, ty) => Some((Some(t), ty))
-  | Unknown(SynSwitch) => Some((None, Unknown(SynSwitch) |> temp))
-  | _ => None
-  };
-
-let matched_poly = (ctx, ty) =>
-  matched_poly_strict(ctx, ty)
-  |> Option.value(~default=(None, Unknown(Internal) |> temp));
-
 let rec get_labels = (ctx, ty): list(option(string)) => {
   let ty = weak_head_normalize(ctx, ty);
   switch (term_of(ty)) {
@@ -846,80 +815,6 @@ let rec get_labels = (ctx, ty): list(option(string)) => {
   | _ => []
   };
 };
-
-let rec matched_prod_strict:
-  type a.
-    (Ctx.t, list(a), a => option((string, a)), t, (string, a) => a) =>
-    (list(a), option(list(t))) =
-  (ctx: Ctx.t, es, get_label_es, ty: t, constructor) => {
-    switch (term_of(weak_head_normalize(ctx, ty))) {
-    | Parens(ty) =>
-      matched_prod_strict(ctx, es, get_label_es, ty, constructor)
-    | Prod(tys: list(t)) =>
-      if (List.length(es) != List.length(tys)) {
-        (es, None);
-      } else {
-        (
-          LabeledTuple.rearrange(
-            match_tup_label,
-            get_label_es,
-            tys,
-            es,
-            constructor,
-          ),
-          Some(tys),
-        );
-      }
-    | Unknown(SynSwitch) => (
-        es,
-        Some(List.init(List.length(es), _ => Unknown(SynSwitch) |> temp)),
-      )
-    | _ => (es, None)
-    };
-  };
-
-let matched_prod = (ctx, es, get_label_es, ty, constructor) => {
-  let (es, tys_opt) =
-    matched_prod_strict(ctx, es, get_label_es, ty, constructor);
-  (
-    es,
-    tys_opt
-    |> Option.value(
-         ~default=List.init(List.length(es), _ => Unknown(Internal) |> temp),
-       ),
-  );
-};
-
-let rec matched_list_strict = (ctx, ty) =>
-  switch (term_of(weak_head_normalize(ctx, ty))) {
-  | Parens(ty) => matched_list_strict(ctx, ty)
-  | List(ty) => Some(ty)
-  | Unknown(SynSwitch) => Some(Unknown(SynSwitch) |> temp)
-  | _ => None
-  };
-
-let matched_list = (ctx, ty) =>
-  matched_list_strict(ctx, ty)
-  |> Option.value(~default=Unknown(Internal) |> temp);
-
-let rec matched_args_strict = (ctx, ty, arity): Either.t('a, int) => {
-  switch (term_of(weak_head_normalize(ctx, ty))) {
-  | Parens(ty) => matched_args_strict(ctx, ty, arity)
-  | Prod(tys) when List.length(tys) == arity => L(tys)
-  | Prod(tys) => R(List.length(tys))
-  | _ when arity == 1 => L([ty])
-  | Unknown(_) => L(List.init(arity, _ => Unknown(Internal) |> temp))
-  | _ => R(1)
-  };
-};
-
-let matched_label = (ctx, ty): option((t, t)) =>
-  switch (term_of(weak_head_normalize(ctx, ty))) {
-  | TupLabel({term: Label(ml), _}, ty) => Some((Label(ml) |> temp, ty))
-  | Unknown(SynSwitch) =>
-    Some((Unknown(SynSwitch) |> temp, Unknown(SynSwitch) |> temp))
-  | _ => None
-  };
 
 let rec get_sum_constructors = (ctx: Ctx.t, ty: t): option(sum_map) => {
   let ty = weak_head_normalize(ctx, ty);

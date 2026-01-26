@@ -328,7 +328,7 @@ and uexp_to_info_map =
       )
     | ListLit(es) =>
       let ids = List.map(Exp.rep_id, es);
-      let inner_ana_ty = Typ.matched_list(ctx, ana);
+      let inner_ana_ty = MatchedTyp.list_tolerant(ctx, ana);
       let anas = List.init(List.length(es), _ => inner_ana_ty);
       let (es, m) = map_m_go(m, anas, es);
       let tys = List.map(Info.exp_ty, es);
@@ -339,7 +339,7 @@ and uexp_to_info_map =
         m,
       );
     | Cons(hd, tl) =>
-      let inner_ana_ty = Typ.matched_list(ctx, ana);
+      let inner_ana_ty = MatchedTyp.list_tolerant(ctx, ana);
       let (hd, m) = go(~ana=inner_ana_ty, hd, m);
       let (tl, m) =
         go(
@@ -354,7 +354,8 @@ and uexp_to_info_map =
         m,
       );
     | ListConcat(e1, e2) =>
-      let inner_ana_ty = List(Typ.matched_list(ctx, ana)) |> Typ.temp;
+      let inner_ana_ty =
+        List(MatchedTyp.list_tolerant(ctx, ana)) |> Typ.temp;
       let ids = List.map(Exp.rep_id, [e1, e2]);
       let (e1, m) = go(~ana=inner_ana_ty, e1, m);
       let (e2, m) = go(~ana=inner_ana_ty, e2, m);
@@ -523,7 +524,7 @@ and uexp_to_info_map =
         List.map(e => Exp.match_tup_label(e) |> Option.map(fst), es);
 
       let (inferred_es, ana_tys) =
-        Typ.matched_prod(
+        MatchedTyp.prod_tolerant(
           ctx,
           List.map(e => (None: option(string), e), es),
           ((inferred, e)) => {
@@ -624,7 +625,7 @@ and uexp_to_info_map =
       add(~self=Just(e.ty), ~co_ctx=e.co_ctx, m);
     | TupLabel(label, e) =>
       let (lab, e, m) =
-        switch (Typ.matched_label(ctx, ana)) {
+        switch (MatchedTyp.label(ctx, ana)) {
         | Some((labmode, val_mode)) =>
           let (_, lab, m) =
             label_to_info_map(expected_labels, labmode, label, m);
@@ -863,7 +864,7 @@ and uexp_to_info_map =
           | Some(name) =>
             switch (Self.ctr_ana_typ(ctx, ana, name)) {
             | Some(ty_ana) =>
-              switch (Typ.matched_arrow_strict(ctx, ty_ana)) {
+              switch (MatchedTyp.arrow(ctx, ty_ana)) {
               | Some((ty1, ty2)) => Arrow(ty1, ty2) |> Typ.temp
               | None => Arrow(syn, syn) |> Typ.temp
               }
@@ -891,7 +892,7 @@ and uexp_to_info_map =
             arg,
           )
         | None =>
-          let (ty_in, ty_out) = Typ.matched_arrow(ctx, fn.ty);
+          let (ty_in, ty_out) = MatchedTyp.arrow_tolerant(ctx, fn.ty);
           let (arg, m) = go(~ana=ty_in, arg, m);
           let self: Self.exp =
             Id.is_nullary_ap_flag(IdTagged.ids(arg.term))
@@ -904,16 +905,8 @@ and uexp_to_info_map =
       let typfn_ana = Poly(EmptyHole |> TPat.fresh, syn) |> Typ.temp;
       let (fn, m) = go(~ana=typfn_ana, fn, m);
       let (_, m) = utyp_to_info_map(~ctx, ~ancestors, utyp, m);
-      let (option_name, ty_body) = Typ.matched_poly(ctx, fn.ty);
-      switch (option_name) {
-      | Some(name) =>
-        add(
-          ~self=Just(Typ.subst(utyp, name, ty_body)),
-          ~co_ctx=fn.co_ctx,
-          m,
-        )
-      | None => add(~self=Just(ty_body), ~co_ctx=fn.co_ctx, m) /* invalid name matches with no free type variables. */
-      };
+      let ty_body = MatchedTyp.poly_tolerant(ctx, Some(utyp), fn.ty);
+      add(~self=Just(ty_body), ~co_ctx=fn.co_ctx, m);
     | DeferredAp(fn, args) =>
       /* If this is a builtin with custom statics */
       let custom_statics =
@@ -931,7 +924,7 @@ and uexp_to_info_map =
         | Some(name) =>
           switch (Self.ctr_ana_typ(ctx, ana, name)) {
           | Some(ty_ana) =>
-            switch (Typ.matched_arrow_strict(ctx, ty_ana)) {
+            switch (MatchedTyp.arrow(ctx, ty_ana)) {
             | Some((ty1, ty2)) => Arrow(ty1, ty2) |> Typ.temp
             | None => Arrow(syn, syn) |> Typ.temp
             }
@@ -960,9 +953,9 @@ and uexp_to_info_map =
           args,
         )
       | None =>
-        let (ty_in, ty_out) = Typ.matched_arrow(ctx, fn.ty);
+        let (ty_in, ty_out) = MatchedTyp.arrow_tolerant(ctx, fn.ty);
         let num_args = List.length(args);
-        switch (Typ.matched_args_strict(ctx, ty_in, num_args)) {
+        switch (MatchedTyp.args(ctx, ty_in, num_args)) {
         | L(ty_ins) =>
           let (args_infos, m) = map_m_go(m, ty_ins, args);
           let arg_co_ctx =
@@ -1000,7 +993,7 @@ and uexp_to_info_map =
         };
       };
     | Fun(p, e, typ, _) =>
-      let (mode_pat, mode_body) = Typ.matched_arrow(ctx, ana);
+      let (mode_pat, mode_body) = MatchedTyp.arrow_tolerant(ctx, ana);
       let mode_pat = Option.value(~default=mode_pat, typ);
       let (p', _) =
         go_pat(~is_synswitch=false, ~co_ctx=CoCtx.empty, ~ana=mode_pat, p, m);
@@ -1029,17 +1022,11 @@ and uexp_to_info_map =
         m,
       );
     | TypFun(utpat, body, _) =>
-      let (name_expected_opt, item) = Typ.matched_poly(ctx, ana);
+      let ana_body =
+        MatchedTyp.poly_tolerant(ctx, TPat.to_typ_opt(utpat), ana);
       let (mode_body, ctx_body) =
         switch (TPat.tyvar_of_utpat(utpat)) {
         | Some(name) when !Ctx.shadows_typ(ctx, name) =>
-          let mode_body = {
-            switch (name_expected_opt) {
-            | Some(name_expected) =>
-              Typ.subst(Var(name) |> Typ.temp, name_expected, item)
-            | _ => item
-            };
-          };
           let ctx_body =
             Ctx.extend_tvar(
               ctx,
@@ -1049,9 +1036,9 @@ and uexp_to_info_map =
                 kind: Abstract,
               },
             );
-          (mode_body, ctx_body);
+          (ana_body, ctx_body);
         | Some(_)
-        | None => (item, ctx)
+        | None => (ana_body, ctx)
         };
       let m = utpat_to_info_map(~ctx, ~ancestors, utpat, m) |> snd;
       let (body, m) = go'(~ctx=ctx_body, ~ana=mode_body, body, m);
@@ -1601,7 +1588,7 @@ and upat_to_info_map =
       };
     | ListLit(ps) =>
       let ids = List.map(Pat.rep_id, ps);
-      let mode = Typ.matched_list(ctx, ana);
+      let mode = MatchedTyp.list_tolerant(ctx, ana);
       let modes = List.init(List.length(ps), _ => mode);
       let (ctx, tys, cons, m, _) = ctx_fold(ctx, m, ps, modes);
       let rec cons_fold_list = cs =>
@@ -1616,7 +1603,7 @@ and upat_to_info_map =
         m,
       );
     | Cons(hd, tl) =>
-      let inner_ty = Typ.matched_list(ctx, ana);
+      let inner_ty = MatchedTyp.list_tolerant(ctx, ana);
       let (hd, m) = go(~ctx, ~ana=inner_ty, hd, m);
       let (tl, m) =
         go(~ctx=hd.ctx, ~ana=List(inner_ty) |> Typ.fresh, tl, m);
@@ -1657,7 +1644,7 @@ and upat_to_info_map =
     | ExplicitNonlabel => atomic(ExplicitNonlabel, Coverage.Constraint.Truth)
     | TupLabel(label, p) =>
       let (lab, p, m) =
-        switch (Typ.matched_label(ctx, ana)) {
+        switch (MatchedTyp.label(ctx, ana)) {
         | Some((labmode, val_mode)) =>
           let label_self: option(Self.t) =
             switch (label.term) {
@@ -1762,7 +1749,7 @@ and upat_to_info_map =
         List.map(p => Pat.match_tup_label(p) |> Option.map(fst), ps);
 
       let (inferred_ps, modes) =
-        Typ.matched_prod(
+        MatchedTyp.prod_tolerant(
           ctx,
           List.map(p => (None: option(string), p), ps),
           ((inferred, p)) => {
@@ -1895,7 +1882,7 @@ and upat_to_info_map =
           add_info(IdTagged.ids(fn), InfoPat(info), m);
         };
       };
-      let (ty_in, ty_out) = Typ.matched_arrow(ctx, fn'.ty);
+      let (ty_in, ty_out) = MatchedTyp.arrow_tolerant(ctx, fn'.ty);
       let (arg, m) = go(~ctx, ~ana=ty_in, arg, m);
       let constraint_ =
         switch (ctr) {
