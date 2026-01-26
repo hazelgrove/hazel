@@ -851,6 +851,104 @@ end|} /* Expecting no indent - cursor at column 0 */
   ),
 ];
 
+/* Tests for inserting newlines in the middle of existing code.
+ * These test "going back and editing" rather than left-to-right typing.
+ *
+ * Key insight: Existing spaces after cursor are PRESERVED.
+ * If you have `in¦ x` and press Enter, the space stays: `in\n<indent>¦ x`
+ */
+let insert_in_middle_tests = [
+  /* Scenario: Split a let body by inserting newline after `in`
+   * The body after `in` is at base level (0 for top-level) */
+  test(
+    ~name="Split let body: Enter after in",
+    ~acts=mk({|let x = 1 in¦ x + 2|}) @ [Action.Insert("\n")],
+    ~goal={|let x = 1 in
+¦ x + 2|} /* Body at base level (0), space preserved */
+  ),
+  /* Scenario: Insert newline between case rules */
+  test(
+    ~name="Insert between case rules",
+    ~acts=mk({|case 1
+| A => 1¦
+| B => 2
+end|}) @ [Action.Insert("\n")],
+    ~goal={|case 1
+| A => 1
+¦
+| B => 2
+end|} /* Should be at case level, not indented */
+  ),
+  /* Scenario: Split function body - body is indented inside fun */
+  test(
+    ~name="Split fun body: Enter after arrow",
+    ~acts=mk({|fun x ->¦ x + 1|}) @ [Action.Insert("\n")],
+    ~goal={|fun x ->
+  ¦ x + 1|} /* Body indented (2 spaces), space preserved */
+  ),
+  /* Scenario: Insert newline after = in let binding - RHS is indented */
+  test(
+    ~name="Split let definition: Enter after =",
+    ~acts=mk({|let x =¦ 1 in x|}) @ [Action.Insert("\n")],
+    ~goal={|let x =
+  ¦ 1 in x|} /* Definition indented (2 spaces), space preserved */
+  ),
+  /* Scenario: Split if expression before else - else at same level as if */
+  test(
+    ~name="Split if expression: Enter before else",
+    ~acts=mk({|if true then 1¦ else 2|}) @ [Action.Insert("\n")],
+    ~goal={|if true then 1
+¦ else 2|} /* else at base level (0), space preserved */
+  ),
+  /* Scenario: Insert in list between elements */
+  test(
+    ~name="Insert in list: Enter after comma",
+    ~acts=mk({|[1,¦ 2, 3]|}) @ [Action.Insert("\n")],
+    ~goal={|[1,
+  ¦ 2, 3]|} /* Element indented inside list, space preserved */
+  ),
+  /* Scenario: Enter immediately after opening paren */
+  test(
+    ~name="Enter after opening paren",
+    ~acts=mk({|(¦1, 2)|}) @ [Action.Insert("\n")],
+    ~goal={|(
+  ¦1, 2)|} /* Content indented inside parens */
+  ),
+  /* Scenario: Enter immediately after opening bracket */
+  test(
+    ~name="Enter after opening bracket",
+    ~acts=mk({|[¦1, 2]|}) @ [Action.Insert("\n")],
+    ~goal={|[
+  ¦1, 2]|} /* Content indented inside list */
+  ),
+  /* Scenario: Enter in empty parens - creates a hole */
+  test(
+    ~name="Enter in empty parens",
+    ~acts=mk({|(¦)|}) @ [Action.Insert("\n")],
+    ~goal={|(?
+  ¦)|} /* Hole appears, content indented inside parens */
+  ),
+  /* Scenario: Two consecutive Enters after case rule */
+  test(
+    ~name="Two Enters after case rule",
+    ~acts=mk({|case 1
+| A => 1¦
+end|}) @ [Action.Insert("\n"), Action.Insert("\n")],
+    ~goal={|case 1
+| A => 1
+
+¦
+end|} /* Both new lines at case level */
+  ),
+  /* Document current behavior: operator continuation doesn't auto-indent (TODO) */
+  test(
+    ~name="Operator continuation: Enter after +",
+    ~acts=mk({|1 +¦ 2|}) @ [Action.Insert("\n")],
+    ~goal={|1 +
+¦ 2|} /* Currently no indent - ideally would be indented as continuation */
+  ),
+];
+
 let move_tests = [
   // ByToken Right Complete Syntax
   test(
@@ -1139,6 +1237,7 @@ let tests = [
   ("Editing.Format", format_tests),
   ("Editing.CaseIndent", case_indent_tests),
   ("Editing.CommaIndent", comma_indent_tests),
+  ("Editing.InsertInMiddle", insert_in_middle_tests),
   ("Editing.Move", move_tests),
   ("Editing.Selection", selection_tests),
 ];
