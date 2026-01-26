@@ -78,12 +78,6 @@ let compute_context =
   go(seg, None);
 };
 
-let union_all =
-  List.fold_left(
-    (map, new_map) => Id.Map.union((_, a, _) => Some(a), new_map, map),
-    Id.Map.empty,
-  );
-
 /* Check if a tile is a case rule (label is ["|", "=>"]) */
 let is_case_rule_tile = (t: Tile.t): bool => t.label == ["|", "=>"];
 
@@ -280,10 +274,12 @@ let rec go = (~not_top, base: int, seg: Segment.t): Id.Map.t(int) => {
         | Projector(_) => (level, map)
         | Tile(t) =>
           let map =
-            union_all([
+            List.fold_left(
+              (acc, child) =>
+                Id.Map.union((_, a, _) => Some(a), go(~not_top=true, level, child), acc),
               map,
-              ...List.map(go(~not_top=true, level), t.children),
-            ]);
+              t.children,
+            );
           (level, map);
         };
       },
