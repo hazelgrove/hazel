@@ -610,7 +610,7 @@ Use `test_from_parse()` for tests that need exact initial state without added in
 
 ### The Problem
 
-The `src/b2t2/slides/` directory contains **39 ML files** with serialized segments in the old format:
+The `src/web/init/docs` and `src/b2t2/slides/` directorys contains **50 ish ML files** with serialized segments in the old format:
 - Segments have `Whitespace\"\\n\"` (linebreaks) followed directly by tiles
 - No indentation spaces after linebreaks
 - `backup_text` also has no indentation
