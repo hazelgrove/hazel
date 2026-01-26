@@ -123,15 +123,7 @@ let go =
     |> return(Cant_insert)
   | Put_down => Zipper.put_down(z) |> return(Cant_put_down)
   | Probe(a) => Ok(ProbePerform.go(~statics, ~syntax, a, z))
-  | Format =>
-    let full_seg = Zipper.unselect_and_zip(z);
-    let indent_map = Indentation.level_map(full_seg);
-    Ok(
-      ZipperBase.MapSegment.go(
-        Indentation.fix_indentation_in_segment(indent_map),
-        z,
-      ),
-    );
+  | Format => Ok(AutoFormat.zipper(z))
   | Dump =>
     /* Experimental: Use CanonicalCompletion instead of Dump */
     let seg =
