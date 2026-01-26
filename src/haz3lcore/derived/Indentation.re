@@ -303,7 +303,7 @@ let rec go =
                 t.children,
               );
             (level, map);
-          };
+          }
         };
       },
       (base, Id.Map.empty),
@@ -322,9 +322,11 @@ let level_of = (~target_id: Id.t, seg: Segment.t): int =>
   try(
     {
       ignore(go(~not_top=false, ~target_id, 0, seg));
-      0; /* Not found, default to 0 */
+      0;
     }
   ) {
+  /* Not found, default to 0 */
+
   | Found_indent(level) => level
   };
 

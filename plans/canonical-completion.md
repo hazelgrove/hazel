@@ -560,18 +560,23 @@ Evaluate whether the same completion logic can replace `Indentation.re`'s comple
 
 ---
 
-## Indentation Performance Optimization Options
+## Indentation Performance Optimization (DONE)
 
-When auto-inserting indentation on linebreak, we currently compute the full `Indentation.level_map` for the entire program, then look up just the one linebreak we care about. If this becomes a performance issue, here are options:
+**Implemented optimizations:**
 
-| Option | Performance | Implementation Difficulty | Maintenance Burden |
-|--------|-------------|---------------------------|-------------------|
-| **Current approach** | O(program size) | Already done | Low |
-| **Early termination via exception** | O(position in program), short-circuits | Low - add exception to `go'`, throw when target ID found | Low - minimal change to existing structure |
-| **Local computation from zipper** | O(nesting depth) | Medium - new function, need to handle "effective prev/next" correctly | Medium - separate code path to maintain |
-| **Incremental/differential** | O(changed region) | High - track changes, propagate updates | High - complex invariants |
+1. **Single-pass context computation**: Combined 4 separate functions (`prev_pieces`, `effective_prev_pieces`, `next_pieces`, `effective_next_pieces`) into single `compute_context` function.
 
-**Recommendation:** If optimization needed, try early termination first (option 2). It's a small diff and provides meaningful speedup for linebreaks early in the program. Only pursue zipper-based computation (option 3) if profiling shows option 2 is insufficient.
+2. **Removed memoization**: The hash key was the entire segment structure (expensive deep comparison). Removed in favor of simpler direct computation.
+
+3. **Direct fold for child maps**: Replaced `union_all` with direct `List.fold_left`, eliminating intermediate list allocations.
+
+4. **Early termination via exception (level_of)**: Added `~target_id` parameter to `go()`. In target mode:
+   - Throws `Found_indent(level)` when target linebreak found
+   - Skips `Id.Map.add` calls (no map building)
+   - Uses `List.iter` for children instead of fold+union (no map merging)
+   - `Insert.re` now uses `Indentation.level_of(~target_id, seg)` instead of `level_map`
+
+**Result:** Insert.re hot path (every keystroke) now short-circuits as soon as the target linebreak is found, with no map allocation.
 
 ---
 
