@@ -190,17 +190,26 @@ let rec elaborate = (m: Statics.Map.t, uexp: Exp.t): (DHExp.t, Typ.t) => {
     | Invalid(_)
     | Undefined
     | EmptyHole => uexp
-    | MultiHole([Exp(e1), Exp(e2)]) =>
-      /* Treat two-expression multiholes as seqs */
-      Seq(fst(elaborate(m, e1)), fst(elaborate(m, e2))) |> rewrap
     | MultiHole(stuff) =>
-      Any.map_term(
-        ~f_exp=(_, exp) => {elaborate(m, exp) |> fst},
-        ~f_pat=(_, pat) => {elaborate_pattern(m, pat, false) |> fst},
-        _,
-      )
-      |> List.map(_, stuff)
-      |> (stuff => MultiHole(stuff) |> rewrap)
+      /* Extract all expressions, discard non-expressions, build right-associative Seq */
+      let all_exps: list(Exp.t) =
+        List.filter_map(
+          (item: Any.t): option(Exp.t) =>
+            switch (item) {
+            | Exp(e) => Some(e)
+            | _ => None
+            },
+          stuff,
+        );
+      let elaborated_exps: list(DHExp.t) =
+        List.map((e: Exp.t) => fst(elaborate(m, e)), all_exps);
+      let rec nest_seqs = (exps: list(DHExp.t)): DHExp.t =>
+        switch (exps) {
+        | [] => EmptyHole |> rewrap
+        | [e] => e
+        | [e, ...rest] => Seq(e, nest_seqs(rest)) |> rewrap
+        };
+      nest_seqs(elaborated_exps);
     | DynamicErrorHole(e, err) =>
       let (e', _) = elaborate(m, e);
       DynamicErrorHole(e', err) |> rewrap;
