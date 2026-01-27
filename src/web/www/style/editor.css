@@ -356,6 +356,32 @@ svg:has(.child-line) {
   z-index: var(--backpack-z);
 }
 
+/* QUIVER DECO (completion visualization) */
+
+.quiver-decorations {
+  pointer-events: none;
+}
+
+.quiver-arrow {
+  z-index: var(--select-z);
+}
+
+.quiver-arrow-path {
+  fill: var(--quiver-arrow);
+  stroke: none;
+}
+
+.quiver-offside {
+  font-family: var(--code-font);
+  font-size: var(--base-font-size);
+  color: var(--quiver-offside-text);
+  background-color: var(--quiver-offside-bg);
+  padding: 0 4px;
+  border-radius: 2px;
+  white-space: nowrap;
+  line-height: var(--line-height);
+}
+
 /* Invisible backdrop to capture clicks outside context menu */
 .context-menu-backdrop {
   position: fixed;

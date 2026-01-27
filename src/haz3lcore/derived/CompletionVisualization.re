@@ -32,27 +32,22 @@ let resolve_position =
       | Right => (m.last.row, m.last.col)
       | Left => (m.origin.row, m.origin.col)
       };
-    Some({row, col, delimiters: ins.delimiters});
+    Some({
+      row,
+      col,
+      delimiters: ins.delimiters,
+    });
   };
 
-/* Compute display text for delimiters with their holes.
- * skip_last_hole: if true, the last delimiter's hole is filled by following content. */
+/* Compute display text for delimiters with their holes */
 let format_delimiters =
-    (~skip_last_hole=false, delimiters: list(CanonicalCompletion.delimiter_info))
-    : string => {
-  let n = List.length(delimiters);
+    (delimiters: list(CanonicalCompletion.delimiter_info)): string =>
   delimiters
-  |> List.mapi((i, d: CanonicalCompletion.delimiter_info) => {
-       let is_last = i == n - 1;
-       let show_hole = d.needs_hole && !(is_last && skip_last_hole);
-       if (show_hole) {
-         d.text ++ " ?";
-       } else {
-         d.text;
-       };
+  |> List.map((d: CanonicalCompletion.delimiter_info) => {
+       let suffix = d.needs_hole ? " ?" : "";
+       d.text ++ suffix;
      })
   |> String.concat(" ");
-};
 
 /* Group positioned insertions by row */
 let group_by_row =
@@ -99,55 +94,6 @@ let mockup = (seg: Segment.t): string => {
     /* Resolve positions for all insertions */
     let positioned = List.filter_map(resolve_position(measured), insertions);
 
-    /* Compute has_following_content for each insertion position.
-     * An insertion has following content if there's more content in the
-     * segment after its position. We use partition info for this. */
-    let partitioned = CanonicalCompletion.partition_segment(seg);
-    let n_partitions = List.length(partitioned);
-
-    /* Check if a segment has non-trivial content (not just whitespace) */
-    let has_content = (seg: Segment.t): bool =>
-      List.exists(
-        fun
-        | Piece.Secondary(_) => false
-        | _ => true,
-        seg,
-      );
-
-    /* Build a map from (row, col) to has_following_content */
-    let following_content_map: IntMap.t(IntMap.t(bool)) =
-      partitioned
-      |> List.mapi((i, x) => (i, x))
-      |> List.fold_left(
-           (acc, (idx, (subseg, incomplete))) =>
-             if (List.length(incomplete) == 0) {
-               acc;
-             } else {
-               let following_partitions =
-                 ListUtil.sublist((idx + 1, n_partitions), partitioned);
-               let has_following =
-                 List.exists(((seg, _)) => has_content(seg), following_partitions);
-
-               switch (CanonicalCompletion.last_piece_for_insertion(subseg)) {
-               | None => acc
-               | Some(last_p) =>
-                 switch (Measured.find_by_id(Piece.id(last_p), measured)) {
-                 | None => acc
-                 | Some(m) =>
-                   IntMap.update(
-                     m.last.row,
-                     fun
-                     | None => Some(IntMap.singleton(m.last.col, has_following))
-                     | Some(col_map) =>
-                       Some(IntMap.add(m.last.col, has_following, col_map)),
-                     acc,
-                   )
-                 }
-               };
-             },
-           IntMap.empty,
-         );
-
     let by_row = group_by_row(positioned);
 
     /* Process each line */
@@ -178,18 +124,10 @@ let mockup = (seg: Segment.t): string => {
               );
 
             /* Get display texts for each insertion */
-            let col_map =
-              IntMap.find_opt(row_idx, following_content_map)
-              |> Option.value(~default=IntMap.empty);
             let all_texts =
               sorted
-              |> List.rev /* restore left-to-right order */
-              |> List.map(ins => {
-                   let has_following =
-                     IntMap.find_opt(ins.col, col_map)
-                     |> Option.value(~default=false);
-                   format_delimiters(~skip_last_hole=has_following, ins.delimiters);
-                 })
+              |> List.rev  /* restore left-to-right order */
+              |> List.map(ins => format_delimiters(ins.delimiters))
               |> String.concat(" ");
 
             /* Add offside comment: 4 spaces after content */

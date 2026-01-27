@@ -37,7 +37,11 @@ type viz_test = {
   expected: string,
 };
 
-let test = (~name, ~input, ~expected): viz_test => {name, input, expected};
+let test = (~name, ~input, ~expected): viz_test => {
+  name,
+  input,
+  expected,
+};
 
 /* Phase 1: Simple single-line cases */
 let simple_tests = [
@@ -57,18 +61,11 @@ let simple_tests = [
   test(
     ~name="fun missing arrow",
     ~input="fun x",
+    /* x fills the pattern, so no preceding hole before -> */
     ~expected={|fun x·    // -> ?|},
   ),
-  test(
-    ~name="open paren",
-    ~input="(1 + 2",
-    ~expected={|(1 + 2·    // )|},
-  ),
-  test(
-    ~name="open bracket",
-    ~input="[1, 2",
-    ~expected={|[1, 2·    // ]|},
-  ),
+  test(~name="open paren", ~input="(1 + 2", ~expected={|(1 + 2·    // )|}),
+  test(~name="open bracket", ~input="[1, 2", ~expected={|[1, 2·    // ]|}),
   test(
     ~name="if missing else",
     ~input="if true then 1",
@@ -103,11 +100,7 @@ let nested_tests = [
     ~expected={|(let x = 1·    // in ? )|},
   ),
   /* Multiple open parens */
-  test(
-    ~name="two open parens",
-    ~input="((1",
-    ~expected={|((1·    // ) )|},
-  ),
+  test(~name="two open parens", ~input="((1", ~expected={|((1·    // ) )|}),
 ];
 
 /* Phase 2b: Complex cases - multiple insertion points, same line.
@@ -156,7 +149,7 @@ let multiline_tests = [
     ~name="let then column-0 content",
     ~input={|let a = 1
 a|},
-    ~expected={|let a = 1·    // in
+    ~expected={|let a = 1·    // in ?
 a|},
   ),
   /* Two lets on separate lines */
@@ -164,7 +157,7 @@ a|},
     ~name="two lets on separate lines",
     ~input={|let x = 1
 let y = 2|},
-    ~expected={|let x = 1·    // in
+    ~expected={|let x = 1·    // in ?
 let y = 2·    // in ?|},
   ),
   /* Blank line partition - dot goes on the blank line */
@@ -174,7 +167,7 @@ let y = 2·    // in ?|},
 
 y|},
     ~expected={|let x = 1
-·    // in
+·    // in ?
 y|},
   ),
   /* Multiple blank line partitions */
@@ -185,10 +178,11 @@ y|},
 let b = 2
 
 let c = 3|},
-    ~expected={|let a = 1
-·    // in
+    ~expected=
+      {|let a = 1
+·    // in ?
 let b = 2
-·    // in
+·    // in ?
 let c = 3·    // in ?|},
   ),
   /* Mixed: complete let followed by incomplete */
@@ -214,17 +208,14 @@ let indent_tests = [
     ~expected={|let x = 1
   y·    // in ?|},
   ),
-  /* Same-indent triggers partition.
-   * Note: The leading "?" for the pattern hole comes from regrouting,
-   * which is not currently captured in visualization. Shows "= ? in"
-   * instead of "? = ? in". This is a known limitation. */
+  /* Same-indent triggers partition. */
   test(
     ~name="indented let then same-indent content",
     ~input={|fun x ->
     let
     y|},
     ~expected={|fun x ->
-    let·    // = ? in
+    let·    // = ? in ?
     y|},
   ),
   /* Inside complete fun body.

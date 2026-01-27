@@ -133,6 +133,12 @@
   --backpack-selection-outline: var(--light-page-color);
   --backback-targets: var(--Y3);
 
+  /* QUIVER DECO (completion visualization) */
+
+  --quiver-arrow: #e74c3c;
+  --quiver-offside-text: #7f8c8d;
+  --quiver-offside-bg: rgba(127, 140, 141, 0.15);
+
   /* PROJECTORS */
   --textarea-indicated: var(--SAND);
   --textarea-text: var(--BR3);

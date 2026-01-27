@@ -222,31 +222,49 @@ module View = {
 
   module MouseState = Pointer.MkState();
 
-  let deco = (~syntax: CachedSyntax.t, ~z: Zipper.t, ~globals: Globals.t) => [
-    CaretDec.view(
-      ~measured=syntax.measured,
-      ~font_metrics=globals.font_metrics,
-      z,
-    ),
-    Arms.Indicated.term(~font_metrics=globals.font_metrics, ~syntax, z),
-    Highlight.selection(
-      ~measured=syntax.measured,
-      ~shape_map=syntax.shape_map,
-      ~font_metrics=globals.font_metrics,
-      z,
-    ),
-    Backpack.view(
-      ~font_metrics=globals.font_metrics,
-      ~measured=syntax.measured,
-      ~cached_backpack=syntax.cached_backpack,
-      z,
-    ),
-    Highlight.colors(
-      ~font_metrics=globals.font_metrics,
-      ~syntax,
-      globals.color_highlights,
-    ),
-  ];
+  let deco = (~syntax: CachedSyntax.t, ~z: Zipper.t, ~globals: Globals.t) =>
+    [
+      CaretDec.view(
+        ~measured=syntax.measured,
+        ~font_metrics=globals.font_metrics,
+        z,
+      ),
+      Arms.Indicated.term(~font_metrics=globals.font_metrics, ~syntax, z),
+      Highlight.selection(
+        ~measured=syntax.measured,
+        ~shape_map=syntax.shape_map,
+        ~font_metrics=globals.font_metrics,
+        z,
+      ),
+      Highlight.colors(
+        ~font_metrics=globals.font_metrics,
+        ~syntax,
+        globals.color_highlights,
+      ),
+    ]
+    @ (
+      globals.settings.backpack
+        ? [
+          Backpack.view(
+            ~font_metrics=globals.font_metrics,
+            ~measured=syntax.measured,
+            ~cached_backpack=syntax.cached_backpack,
+            z,
+          ),
+        ]
+        : []
+    )
+    @ (
+      globals.settings.quiver
+        ? [
+          QuiverDec.view(
+            ~measured=syntax.measured,
+            ~font_metrics=globals.font_metrics,
+            syntax.segment,
+          ),
+        ]
+        : []
+    );
 
   let view =
       (

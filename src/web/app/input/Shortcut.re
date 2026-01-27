@@ -222,6 +222,18 @@ let shortcuts = (sys: Util.Key.sys): list(t) =>
       Globals(Set(ExplainThis(ToggleShowFeedback))),
     ),
     mk_shortcut(
+      ~section="Settings",
+      ~mdIcon="quiver",
+      "Toggle Quiver (Completion Preview)",
+      Globals(Set(Quiver)),
+    ),
+    mk_shortcut(
+      ~section="Settings",
+      ~mdIcon="backpack",
+      "Toggle Backpack Display",
+      Globals(Set(Backpack)),
+    ),
+    mk_shortcut(
       ~hotkey=Keyboard.meta(sys) ++ "+/",
       ~mdIcon="assistant",
       "TyDi Assistant",
