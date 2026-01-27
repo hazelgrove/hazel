@@ -26,11 +26,28 @@ type shard_record = {
   original_shards: list(int),
 };
 
+/* A single delimiter to be inserted, with hole info */
+[@deriving (show({with_path: false}), sexp, yojson)]
+type delimiter_info = {
+  text: string, /* The delimiter token (e.g., "in", "->", ")") */
+  needs_hole: bool, /* Whether a "?" follows this delimiter */
+};
+
+/* Information about a single insertion point for visualization.
+ * Positions are looked up later using the adjacent piece ID. */
+[@deriving (show({with_path: false}), sexp, yojson)]
+type insertion = {
+  adjacent_id: Id.t, /* ID of piece adjacent to insertion point */
+  side: Direction.t, /* Which side of the adjacent piece (Left or Right) */
+  delimiters: list(delimiter_info), /* The delimiter tokens with hole info */
+};
+
 /* Result of completing a segment */
 [@deriving (show({with_path: false}), sexp, yojson)]
 type completion_result = {
   completed_seg: Segment.t,
   shard_records: list(shard_record),
+  insertions: list(insertion), /* For visualization: where and what to insert */
 };
 
 /* Get trailing missing shard indices for a tile */
@@ -43,12 +60,55 @@ let trailing_shards = (t: Tile.t): list(Piece.t) =>
 let shards_from_incomplete = (incomplete: list(Tile.t)): list(Piece.t) =>
   List.rev(incomplete) |> List.concat_map(trailing_shards);
 
-/* Check if a piece is a space (not linebreak, just horizontal whitespace) */
-let is_space_piece = (p: Piece.t): bool =>
-  switch (p) {
-  | Secondary(s) => Secondary.is_space(s)
-  | _ => false
+/* Check if a shard needs a hole after it (has concave right side).
+ *
+ * Delimiters with concave right expect something after them:
+ *   - `in`   : concave right (expects body expression)
+ *   - `->`   : concave right (expects function body)
+ *   - `then` : concave right (expects consequent)
+ *   - `else` : concave right (expects alternative)
+ *
+ * Delimiters with convex right are self-terminating:
+ *   - `)`    : convex right
+ *   - `]`    : convex right
+ *   - `end`  : convex right
+ *
+ * Note: When multiple delimiters are inserted at the same position,
+ * later delimiters cannot fill holes from earlier ones. This is because
+ * all trailing/closing delimiters have CONCAVE LEFT (they receive what
+ * came before them in the tile structure):
+ *   - `in`   : concave left (accepts the definition)
+ *   - `->`   : concave left (accepts the pattern)
+ *   - `)`    : concave left (accepts inner expression)
+ *   - `else` : concave left (accepts the "then" branch)
+ *   - `end`  : concave left (accepts case arms)
+ *
+ * So for `let f = fun x` → `-> ? in ?`, the `in` cannot fill the hole
+ * after `->` because `in` has concave left, not convex left. */
+let shard_needs_hole = (t: Tile.t, shard_idx: int): bool => {
+  let (_, right_nib) = Mold.nibs(~index=shard_idx, t.mold);
+  switch (right_nib.shape) {
+  | Concave(_) => true
+  | Convex => false
   };
+};
+
+/* Get delimiter info for missing shards of incomplete tiles.
+ * For visualization: shows what text will be inserted and whether holes needed.
+ * Takes tiles inner-first (reversed from left-to-right order). */
+let delimiters_from_incomplete = (incomplete: list(Tile.t)): list(delimiter_info) =>
+  List.rev(incomplete)
+  |> List.concat_map((t: Tile.t) => {
+       let label = t.label;
+       Tile.right_missing_shards(t)
+       |> List.map((s: Tile.t) => {
+            let shard_idx = List.hd(s.shards);
+            {
+              text: List.nth(label, shard_idx),
+              needs_hole: shard_needs_hole(t, shard_idx),
+            };
+          });
+     });
 
 /* Count leading space pieces in a segment */
 let count_leading_spaces = (seg: Segment.t): int => {
@@ -200,6 +260,12 @@ let partition_segment =
   go(seg, [], [], false, 0, false, None);
 };
 
+/* Find the last piece in a segment for insertion position.
+ * For blank-line partitions, this will be the trailing linebreak.
+ * For column-0 partitions, this will be the last content piece. */
+let last_piece_for_insertion = (seg: Segment.t): option(Piece.t) =>
+  ListUtil.last_opt(seg);
+
 let complete_segment =
     (~use_indent_heuristic=true, sort: Sort.t, seg: Segment.t)
     : completion_result => {
@@ -223,8 +289,34 @@ let complete_segment =
       /* No changes needed */
       completed_seg: seg,
       shard_records,
+      insertions: [],
     };
   } else {
+    /* Compute insertions: for each partition with incomplete tiles,
+     * record the adjacent piece ID for later position lookup */
+    let insertions =
+      partitioned
+      |> List.filter_map(((subseg, incomplete)) =>
+           if (List.length(incomplete) == 0) {
+             None;
+           } else {
+             /* Find the last piece in the subsegment.
+              * Insertion happens on the RIGHT side of this piece.
+              * For blank-line partitions, this is the trailing linebreak.
+              * For column-0 partitions, this is the last content piece. */
+             switch (last_piece_for_insertion(subseg)) {
+             | None => None
+             | Some(last_p) =>
+               let delimiters = delimiters_from_incomplete(incomplete);
+               Some({
+                 adjacent_id: Piece.id(last_p),
+                 side: Right,
+                 delimiters,
+               });
+             };
+           }
+         );
+
     /* Phase 1: Insert shards at end of each subsegment */
     let seg_with_shards =
       partitioned
@@ -251,39 +343,56 @@ let complete_segment =
     {
       completed_seg,
       shard_records,
+      insertions,
     };
   };
 };
 
-/* Complete a segment recursively (descends into tile children) */
+/* Complete a segment recursively (descends into tile children).
+ * Collects insertions from all levels for visualization. */
 let rec complete_segment_deep =
         (~use_indent_heuristic=true, ~sort, seg: Segment.t): completion_result => {
-  /* First, complete children of all tiles using their expected sorts */
-  let seg_with_completed_children =
-    List.map(
-      fun
-      | Piece.Tile(t) => {
-          /* Get each child paired with its expected sort from the mold */
-          let completed_children =
-            Tile.sorted_children(t)
-            |> List.map(((child_sort, child)) => {
-                 let result =
-                   complete_segment_deep(
-                     ~use_indent_heuristic,
-                     ~sort=child_sort,
-                     child,
-                   );
-                 result.completed_seg;
-               });
-          Piece.Tile({
-            ...t,
-            children: completed_children,
-          });
-        }
-      | p => p,
+  /* Helper: complete all children of a tile, collecting insertions */
+  let complete_tile_children = (t: Tile.t): (list(Segment.t), list(insertion)) => {
+    Tile.sorted_children(t)
+    |> List.fold_left(
+         ((segs_acc, ins_acc), (child_sort, child)) => {
+           let result =
+             complete_segment_deep(
+               ~use_indent_heuristic,
+               ~sort=child_sort,
+               child,
+             );
+           (segs_acc @ [result.completed_seg], ins_acc @ result.insertions);
+         },
+         ([], []),
+       );
+  };
+
+  /* Complete children of all tiles, collecting insertions */
+  let (seg_with_completed_children, child_insertions) =
+    List.fold_left(
+      ((seg_acc, ins_acc), piece) =>
+        switch (piece) {
+        | Piece.Tile(t) =>
+          let (completed_children, tile_insertions) = complete_tile_children(t);
+          let new_tile = Piece.Tile({...t, children: completed_children});
+          (seg_acc @ [new_tile], ins_acc @ tile_insertions);
+        | p => (seg_acc @ [p], ins_acc)
+        },
+      ([], []),
       seg,
     );
-  complete_segment(~use_indent_heuristic, sort, seg_with_completed_children);
+
+  /* Complete the segment at this level */
+  let top_result =
+    complete_segment(~use_indent_heuristic, sort, seg_with_completed_children);
+
+  /* Merge child insertions with top-level insertions */
+  {
+    ...top_result,
+    insertions: child_insertions @ top_result.insertions,
+  };
 };
 
 /* === Integration Points === */
