@@ -81,8 +81,22 @@ let refractor_to_invoke =
   Piece.mk_tile(Form.get(ApExp), [seg]),
 ];
 
+/* Text-only version using Unicode brackets for CLI output.
+ * Only wraps probes, not other projector kinds. */
+let refractor_to_invoke_text =
+    (kind: ProjectorCore.Kind.t, seg: Segment.t): Segment.t =>
+  switch (kind) {
+  | Probe =>
+    [Piece.mk_tile(Form.mk_atom_op(Exp, Token.probe_start), []), ...seg]
+    @ [Piece.mk_tile(Form.mk_atom_op(Exp, Token.probe_end), [])]
+  | _ => refractor_to_invoke(kind, seg)
+  };
+
 let projector_to_invoke = (pr: Base.projector): Segment.t =>
   refractor_to_invoke(pr.kind, Piece.unparenthesize(pr.syntax));
+
+let projector_to_invoke_text = (pr: Base.projector): Segment.t =>
+  refractor_to_invoke_text(pr.kind, Piece.unparenthesize(pr.syntax));
 
 let expand_livelit = (~ctx, z: t): option(t) =>
   switch (z.relatives.siblings |> fst |> List.rev) {
@@ -133,8 +147,13 @@ let destruct = (z: t): option(t) =>
   | _ => None
   };
 
-let refractor_seg_to_seg =
-    (refractors: Zipper.Refractor.Map.t, seg: Segment.t)
+/* Parameterized version: takes a wrapper function for customizing output */
+let refractor_seg_to_seg_with =
+    (
+      ~wrapper: (ProjectorCore.Kind.t, Segment.t) => Segment.t,
+      refractors: Zipper.Refractor.Map.t,
+      seg: Segment.t,
+    )
     : (Zipper.Refractor.Map.t, Segment.t) => {
   /* This function transforms a segment by wrapping terms that have refractors
    * with their invocation syntax (e.g., ^^probe(...)).
@@ -248,7 +267,7 @@ let refractor_seg_to_seg =
     switch (Id.Map.find_opt(root_id, map)) {
     | Some(entry) => (
         Id.Map.remove(root_id, map),
-        refractor_to_invoke(entry.kind, result),
+        wrapper(entry.kind, result),
       )
     | None => (map, result)
     };
@@ -276,3 +295,19 @@ let refractor_seg_to_seg =
     };
   };
 };
+
+/* Standard version using ^^probe(...) syntax */
+let refractor_seg_to_seg =
+    (refractors: Zipper.Refractor.Map.t, seg: Segment.t)
+    : (Zipper.Refractor.Map.t, Segment.t) =>
+  refractor_seg_to_seg_with(~wrapper=refractor_to_invoke, refractors, seg);
+
+/* Text-only version using Unicode brackets for CLI output */
+let refractor_seg_to_seg_text =
+    (refractors: Zipper.Refractor.Map.t, seg: Segment.t)
+    : (Zipper.Refractor.Map.t, Segment.t) =>
+  refractor_seg_to_seg_with(
+    ~wrapper=refractor_to_invoke_text,
+    refractors,
+    seg,
+  );

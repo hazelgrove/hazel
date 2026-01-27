@@ -267,3 +267,8 @@ let is_projector_invoke = (str: t): bool =>
 
 let mk_projector_invoke = (kind: ProjectorCore.Kind.t): string =>
   append(projector_invoke_prefix, ProjectorCore.Kind.name(kind));
+
+/* Unicode probe brackets for CLI text output */
+let probe_start = "⟦";
+let probe_end = "⟧";
+let probe_lbl = [probe_start, probe_end];

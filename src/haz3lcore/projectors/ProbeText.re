@@ -2,8 +2,8 @@ open Util;
 open Language;
 
 /* Text-only probe display for LLM/agent consumption.
- * Outputs program text with probed expressions wrapped in ^^probe(...)
- * and sample values appended at line ends. */
+ * Outputs program text with probed expressions wrapped in Unicode
+ * brackets and sample values appended at line ends. */
 
 /* Divider between expression and values */
 let value_divider = " ≡ ";
@@ -31,7 +31,10 @@ let get_probes_by_line =
       } else {
         switch (Measured.find_by_id(tile_id, measured)) {
         | Some(m) =>
-          let row = m.origin.row;
+          /* Use last.row to place probe value at END of expression,
+           * not origin.row which is the START. This matters for
+           * multi-line expressions like test...end blocks. */
+          let row = m.last.row;
           let existing =
             IntMap.find_opt(row, acc) |> Option.value(~default=[]);
           IntMap.add(row, existing @ [tile_id], acc);
@@ -131,10 +134,17 @@ let of_segment =
       segment: Segment.t,
     )
     : string => {
-  /* Convert segment to string using Printer, which uses Triggers to wrap
-   * probed expressions with ^^probe(...) notation */
+  /* Convert segment to string using Printer with text-specific refractor
+   * rendering that uses Unicode brackets instead of ^^probe(...) */
   let base_text =
-    Printer.of_segment(~holes=" ", ~indent="  ", ~refractors, segment);
+    Printer.of_segment(
+      ~holes=" ",
+      ~indent="  ",
+      ~refractors,
+      ~refractor_seg_to_seg=Triggers.refractor_seg_to_seg_text,
+      ~projector_to_segment=Triggers.projector_to_invoke_text,
+      segment,
+    );
 
   /* If no refractors, just return the base text */
   if (Id.Map.is_empty(refractors)) {

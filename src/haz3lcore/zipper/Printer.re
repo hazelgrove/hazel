@@ -76,6 +76,8 @@ let of_segment =
       ~concave_holes=" ",
       ~indent="",
       ~refractors=Id.Map.empty,
+      ~refractor_seg_to_seg=Triggers.refractor_seg_to_seg,
+      ~projector_to_segment=Triggers.projector_to_invoke,
       ~caret: option((string, Point.t))=None,
       ~selection_anchor: option((string, Point.t))=None,
       ~measured=?,
@@ -88,8 +90,8 @@ let of_segment =
        ~holes,
        ~concave_holes,
        ~refractors,
-       ~refractor_seg_to_seg=Triggers.refractor_seg_to_seg,
-       ~projector_to_segment=Triggers.projector_to_invoke,
+       ~refractor_seg_to_seg,
+       ~projector_to_segment,
      )
   |> String.split_on_char('\n')
   |> (is_single_line ? Fun.id : add_indents(segment, measured, indent))
