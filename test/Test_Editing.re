@@ -801,6 +801,20 @@ let destruct_tests = [
     ~goal={|let x = 1 in
   ¦?|} /* Hole appears because body is now empty */
   ),
+  /* Regression: indent-level backspace should NOT trigger inside parens on same line */
+  test(
+    ~name="No indent-level backspace inside parens (deletes 1 space not 2)",
+    ~acts=mk({|(  ¦1)|}) @ [Destruct(Local(Left, ByChar))],
+    ~goal={|( ¦1)|},
+  ),
+  /* Regression: backspace with selection should delete the selection */
+  test(
+    ~name="Backspace with selection deletes selection",
+    ~acts=
+      mk({|let x = 10 in ¦x|})
+      @ [Select(Resize(Local(Right, ByChar))), Destruct(Local(Left, ByChar))],
+    ~goal={|let x = 10 in ¦?|},
+  ),
   /* TOKEN/HUNGRY DELETE */
   test(
     ~name="Token delete removes entire token",

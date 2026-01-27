@@ -47,18 +47,20 @@ let is_whitespace_piece = (p: Piece.t): bool =>
   is_space_piece(p) || is_linebreak_piece(p);
 
 /* Check if cursor is in "leading whitespace" position:
+   - No selection
    - Cursor is Outer
    - All pieces to the left (back to linebreak) are spaces
+   - There is an actual linebreak (not just segment start)
    Returns the count of spaces if true, None otherwise */
 let leading_whitespace_context = (z: t): option(int) =>
-  if (z.caret != Outer) {
+  if (z.selection.content != [] || z.caret != Outer) {
     None;
   } else {
     let (left_sibs, _) = z.relatives.siblings;
     /* Count spaces from right end of left_sibs until we hit linebreak or non-space */
     let rec count_spaces = (sibs, n) =>
       switch (sibs) {
-      | [] => Some(n) /* Start of segment = start of line */
+      | [] => None /* Start of segment is not a line start */
       | [p, ...rest] when is_space_piece(p) => count_spaces(rest, n + 1)
       | [p, ..._] when is_linebreak_piece(p) => Some(n) /* Found linebreak */
       | _ => None /* Found non-whitespace content */
