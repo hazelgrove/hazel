@@ -175,7 +175,29 @@ let destruct_with_cleanup = (d: Direction.t, z: t): option(t) => {
   z |> Insert.merge_or_noop |> remold_regrout(d) |> Insert.merge_or_noop;
 };
 
-let go = (d: Direction.t, chunk: Action.chunkiness, z: t): option(t) =>
+/* Delete from cursor to start of line (Cmd+Backspace on Mac).
+   This is the "Delete All Left" behavior in VS Code. */
+let delete_to_line_start = (z: t): option(t) => {
+  /* First, clear any selection by unselecting */
+  let z = Zipper.unselect(z);
+  /* Select from current position back to line start */
+  let* z = Zipper.do_until_linebreak(Select.local(Left), Left, z);
+  /* If we selected nothing, nothing to delete */
+  if (Selection.is_empty(z.selection)) {
+    Some(z);
+  } else {
+    let z = capture(z);
+    let z = destroy_selection(z);
+    Some(
+      z
+      |> Insert.merge_or_noop
+      |> remold_regrout(Left)
+      |> Insert.merge_or_noop,
+    );
+  };
+};
+
+let go_local = (d: Direction.t, chunk: Action.chunkiness, z: t): option(t) =>
   switch (Triggers.destruct(z)) {
   | Some(z) => Some(z)
   | None =>
@@ -201,4 +223,11 @@ let go = (d: Direction.t, chunk: Action.chunkiness, z: t): option(t) =>
         z |> Insert.merge_or_noop |> remold_regrout(d) |> Insert.merge_or_noop;
       }
     }
+  };
+
+let go = (destruct: Action.destruct, z: t): option(t) =>
+  switch (destruct) {
+  | Local(d, chunk) => go_local(d, chunk, z)
+  | Line(Left) => delete_to_line_start(z)
+  | Line(Right) => None /* Not yet implemented */
   };

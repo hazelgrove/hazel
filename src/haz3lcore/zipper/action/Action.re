@@ -90,6 +90,11 @@ type probe =
   | StepInto(Language.Sample.t, Id.t);
 
 [@deriving (show({with_path: false}), sexp, yojson, eq)]
+type destruct =
+  | Local(Direction.t, chunkiness)
+  | Line(Direction.t);
+
+[@deriving (show({with_path: false}), sexp, yojson, eq)]
 type t =
   | Reparse
   | Buffer(buffer)
@@ -100,7 +105,7 @@ type t =
   | Move(move)
   | Select(select)
   | Unselect(option(Direction.t))
-  | Destruct(Direction.t, chunkiness)
+  | Destruct(destruct)
   | Insert(string)
   | Put_down
   | Introduce

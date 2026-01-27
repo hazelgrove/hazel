@@ -338,7 +338,7 @@ module Composition = {
             // Replace current definition
             Action.Paste(String(code)),
             // Destruct left
-            Action.Destruct(Left, ByChar),
+            Action.Destruct(Local(Left, ByChar)),
           ]
           : [
             // Replace current definition
@@ -394,8 +394,8 @@ module ErrorRound = {
         let segment = Zipper.zip(completion_z);
         switch (
           {
-            let* sketch_z = Destruct.go(Left, ByChar, sketch_z);
-            let+ sketch_z = Destruct.go(Left, ByChar, sketch_z);
+            let* sketch_z = Destruct.go(Local(Left, ByChar), sketch_z);
+            let+ sketch_z = Destruct.go(Local(Left, ByChar), sketch_z);
             Zipper.insert_segment(sketch_z, segment);
           }
         ) {

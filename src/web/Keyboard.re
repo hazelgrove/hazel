@@ -30,8 +30,8 @@ let handle_key_event = (k: Key.t): option(Action.t) => {
     | (Up, "ArrowDown") => now(Move(Vertical(Down)))
     | (Up, "Home") => now(Move(Line(Left)))
     | (Up, "End") => now(Move(Line(Right)))
-    | (Up, "Backspace") => now(Destruct(Left, ByChar))
-    | (Up, "Delete") => now(Destruct(Right, ByChar))
+    | (Up, "Backspace") => now(Destruct(Local(Left, ByChar)))
+    | (Up, "Delete") => now(Destruct(Local(Right, ByChar)))
     | (Up, "Escape") => now(Unselect(None))
     | (Up, "F12") => now(Move(Goal(BindingSiteOfIndicatedVar)))
     | (Down, "Tab") => now(Move(Goal(Hole(Left))))
@@ -66,6 +66,7 @@ let handle_key_event = (k: Key.t): option(Action.t) => {
     | "Home" => now(Select(Resize(Start)))
     | "End" => now(Select(Resize(End)))
     | "e" => now(Probe(ToggleAuto))
+    | "Backspace" => now(Destruct(Line(Left)))
     | _ => None
     }
   | {key: D(key), sys: Mac, shift: Up, meta: Down, ctrl: Up, alt: Up} =>
@@ -75,6 +76,7 @@ let handle_key_event = (k: Key.t): option(Action.t) => {
     | "e" => now(Probe(ToggleManual))
     | "s" => now(Format)
     | "/" => Some(Buffer(Set(TyDi)))
+    | "Backspace" => now(Destruct(Line(Left)))
     | "ArrowLeft" => now(Move(Line(Left)))
     | "ArrowRight" => now(Move(Line(Right)))
     | "ArrowUp" => now(Move(Start))
@@ -89,8 +91,8 @@ let handle_key_event = (k: Key.t): option(Action.t) => {
     | "e" => now(Probe(ToggleManual))
     | "s" => now(Format)
     | "/" => Some(Buffer(Set(TyDi)))
-    | "Backspace" => now(Destruct(Left, ByToken))
-    | "Delete" => now(Destruct(Right, ByToken))
+    | "Backspace" => now(Destruct(Local(Left, ByToken)))
+    | "Delete" => now(Destruct(Local(Right, ByToken)))
     | "ArrowLeft" => now(Move(Local(Left, ByToken)))
     | "ArrowRight" => now(Move(Local(Right, ByToken)))
     | "Home" => now(Move(Start))
@@ -122,8 +124,8 @@ let handle_key_event = (k: Key.t): option(Action.t) => {
     Some(Dump)
   | {key: D(key), sys: _, shift: Up, meta: Up, ctrl: Up, alt: Down} =>
     switch (key) {
-    | "Backspace" => now(Destruct(Left, ByToken))
-    | "Delete" => now(Destruct(Right, ByToken))
+    | "Backspace" => now(Destruct(Local(Left, ByToken)))
+    | "Delete" => now(Destruct(Local(Right, ByToken)))
     | "ArrowLeft" => now(Move(Local(Left, ByToken)))
     | "ArrowRight" => now(Move(Local(Right, ByToken)))
     | _ => None

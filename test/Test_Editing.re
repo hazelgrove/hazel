@@ -180,7 +180,7 @@ let basic_tests = [
   ),
   test(
     ~name="Delete leading constructor in sum type with prefix plus",
-    ~acts=mk("1:(+A¦ +A)") @ [Destruct(Left, ByChar)],
+    ~acts=mk("1:(+A¦ +A)") @ [Destruct(Local(Left, ByChar))],
     // suceeds but crashes later with split_kids
     ~goal={|1:(+¦ +A)|},
   ),
@@ -197,13 +197,13 @@ let basic_tests = [
   //wrong caret placement (and its in weird escapee mode...)
   test(
     ~name="Merge 2 prefix ops ! into infix op !!",
-    ~acts=mk("! ! X¦") @ mv_l(3) @ [Destruct(Left, ByChar)],
+    ~acts=mk("! ! X¦") @ mv_l(3) @ [Destruct(Local(Left, ByChar))],
     ~goal={|?!¦! X|},
   ),
   // wrong caret placement (and its in weird escapee mode...)
   test(
     ~name="Merge + + ops in type sort context",
-    ~acts=mk({|1:(+ ¦+A)|}) @ [Destruct(Left, ByChar)],
+    ~acts=mk({|1:(+ ¦+A)|}) @ [Destruct(Local(Left, ByChar))],
     ~goal={|1:(?+¦+A)|},
   ),
 ];
@@ -443,7 +443,7 @@ let insertion_tests = [
     ~name="Insert between non-leading delims when leading in backpack",
     ~acts=
       mk({|if¦ 1 then 2 else 3|})
-      @ [Destruct(Left, ByChar), Destruct(Left, ByChar)]
+      @ [Destruct(Local(Left, ByChar)), Destruct(Local(Left, ByChar))]
       @ mv_r(8)
       @ [Insert(" ")],
     ~goal={| 1 then  ¦2 else 3|},
@@ -527,13 +527,14 @@ let insertion_tests = [
   /* MERGING */
   test(
     ~name="Prelude for: Merge across concave grout on insert",
-    ~acts=mk({|if 1 then 2 e¦lse 3|}) @ [Destruct(Left, ByChar)],
+    ~acts=mk({|if 1 then 2 e¦lse 3|}) @ [Destruct(Local(Left, ByChar))],
     ~goal={|if 1 then 2 ¦~lse~ 3|},
   ),
   test(
     ~name="Merge across concave grout on insert",
     ~acts=
-      mk({|if 1 then 2 e¦lse 3|}) @ [Destruct(Left, ByChar), Insert("e")],
+      mk({|if 1 then 2 e¦lse 3|})
+      @ [Destruct(Local(Left, ByChar)), Insert("e")],
     ~goal={|if 1 then 2 e¦lse 3|},
   ),
   test(
@@ -568,8 +569,8 @@ let insertion_tests = [
     ~acts=
       mk({|let(a=1)¦= 1 in 1|})
       @ [
-        Destruct(Left, ByChar),
-        Destruct(Left, ByChar),
+        Destruct(Local(Left, ByChar)),
+        Destruct(Local(Left, ByChar)),
         Insert("1"),
         Put_down,
       ],
@@ -581,112 +582,112 @@ let destruct_tests = [
   /* DESTRUCTION: BASIC */
   test(
     ~name="Delete comment",
-    ~acts=mk({|##¦|}) @ [Destruct(Left, ByChar)],
+    ~acts=mk({|##¦|}) @ [Destruct(Local(Left, ByChar))],
     ~goal={|¦?|},
   ),
   test(
     ~name="Delete string",
-    ~acts=mk({|""¦|}) @ [Destruct(Left, ByChar)],
+    ~acts=mk({|""¦|}) @ [Destruct(Local(Left, ByChar))],
     ~goal={|¦?|},
   ),
   test(
     ~name="Deleting comment delimiter deletes comment",
-    ~acts=mk({|#¦#|}) @ [Destruct(Left, ByChar)],
+    ~acts=mk({|#¦#|}) @ [Destruct(Local(Left, ByChar))],
     ~goal={|¦?|},
   ),
   test(
     ~name="Deleting string delimiter deletes string",
-    ~acts=mk({|"¦"|}) @ [Destruct(Left, ByChar)],
+    ~acts=mk({|"¦"|}) @ [Destruct(Local(Left, ByChar))],
     ~goal={|¦?|},
   ),
   test(
     ~name="Delete char from token by backspacing",
-    ~acts=mk({|f¦oo|}) @ [Destruct(Left, ByChar)],
+    ~acts=mk({|f¦oo|}) @ [Destruct(Local(Left, ByChar))],
     ~goal={|¦oo|},
   ),
   test(
     ~name="Merge to empty list by backspacing",
-    ~acts=mk({|[1¦]|}) @ [Destruct(Left, ByChar)],
+    ~acts=mk({|[1¦]|}) @ [Destruct(Local(Left, ByChar))],
     ~goal={|[¦]|},
   ),
   test(
     ~name="Merge to empty tuple by deleting",
-    ~acts=mk({|(¦1)|}) @ [Destruct(Right, ByChar)],
+    ~acts=mk({|(¦1)|}) @ [Destruct(Local(Right, ByChar))],
     ~goal={|(¦)|},
   ),
   test(
     ~name="Merge number literals across bin op by backspacing",
-    ~acts=mk({|1+¦1|}) @ [Destruct(Left, ByChar)],
+    ~acts=mk({|1+¦1|}) @ [Destruct(Local(Left, ByChar))],
     ~goal={|1¦1|},
   ),
   /* DESTRUCTION: MATCHING */
   test(
     ~name="Destruct leading delim in convex 2-form",
-    ~acts=mk({|(¦1)|}) @ [Destruct(Left, ByChar)],
+    ~acts=mk({|(¦1)|}) @ [Destruct(Local(Left, ByChar))],
     ~goal={|¦1)|},
   ),
   test(
     ~name="Destruct leading delim in prefix 3-form",
     ~acts=
       mk({|if¦ 1 then 2 else 3|})
-      @ [Destruct(Left, ByChar), Destruct(Left, ByChar)],
+      @ [Destruct(Local(Left, ByChar)), Destruct(Local(Left, ByChar))],
     ~goal={|¦ 1 then 2 else 3|},
   ),
   /* DESTRUCTION: AMPHIBIOUS PREFIX/INFIX OP */
   test(
     ~name="Amphibious Plus Destruct 1",
-    ~acts=mk({|type T = A +¦|}) @ [Destruct(Left, ByChar)],
+    ~acts=mk({|type T = A +¦|}) @ [Destruct(Local(Left, ByChar))],
     ~goal={|type T = A ¦|},
   ),
   test(
     ~name="Amphibious Plus Destruct 2",
-    ~acts=mk({|type T = A + B +¦|}) @ [Destruct(Left, ByChar)],
+    ~acts=mk({|type T = A + B +¦|}) @ [Destruct(Local(Left, ByChar))],
     ~goal={|type T = A + B ¦|},
   ),
   test(
     ~name="Amphibious Plus Destruct 3",
-    ~acts=mk({|type T = A + B + C¦|}) @ [Destruct(Left, ByChar)],
+    ~acts=mk({|type T = A + B + C¦|}) @ [Destruct(Local(Left, ByChar))],
     ~goal={|type T = A + B + ¦?|},
   ),
   test(
     ~name="Amphibious Plus Destruct 4",
-    ~acts=mk({|type T = + A¦|}) @ [Destruct(Left, ByChar)],
+    ~acts=mk({|type T = + A¦|}) @ [Destruct(Local(Left, ByChar))],
     ~goal={|type T = + ¦?|},
   ),
   test(
     ~name="Amphibious Plus Destruct 5",
-    ~acts=mk({|type T = + A +¦|}) @ [Destruct(Left, ByChar)],
+    ~acts=mk({|type T = + A +¦|}) @ [Destruct(Local(Left, ByChar))],
     ~goal={|type T = + A ¦|},
   ),
   test(
     ~name="Amphibious Plus Destruct 6",
-    ~acts=mk({|type T = + A + B¦|}) @ [Destruct(Left, ByChar)],
+    ~acts=mk({|type T = + A + B¦|}) @ [Destruct(Local(Left, ByChar))],
     ~goal={|type T = + A + ¦?|},
   ),
   test(
     ~name="Amphibious Plus Destruct 7",
-    ~acts=mk({|type T = + A + B +¦|}) @ [Destruct(Left, ByChar)],
+    ~acts=mk({|type T = + A + B +¦|}) @ [Destruct(Local(Left, ByChar))],
     ~goal={|type T = + A + B ¦|},
   ),
   test(
     ~name="Amphibious Plus Destruct 8",
-    ~acts=mk({|type T = +¦ A + B + C|}) @ [Destruct(Left, ByChar)],
+    ~acts=mk({|type T = +¦ A + B + C|}) @ [Destruct(Local(Left, ByChar))],
     ~goal={|type T = ¦ A + B + C|},
   ),
   test(
     ~name="Amphibious Plus Destruct 8",
-    ~acts=mk({|type T = + A¦ + B + C|}) @ [Destruct(Left, ByChar)],
+    ~acts=mk({|type T = + A¦ + B + C|}) @ [Destruct(Local(Left, ByChar))],
     /* Ideally this would have a hole but okay-ish */
     ~goal={|type T = + ¦ + B + C|},
   ),
   test(
     ~name="Amphibious Plus Destruct 9",
-    ~acts=mk({|type T = + A + B +¦ C|}) @ [Destruct(Left, ByChar)],
+    ~acts=mk({|type T = + A + B +¦ C|}) @ [Destruct(Local(Left, ByChar))],
     ~goal={|type T = + A + B ¦~ C|},
   ),
   test(
     ~name="Amphibious Plus Destruct 10",
-    ~acts=mk({|type T = + A + B¦ + C|}) @ [Destruct(Left, ByChar)],
+    ~acts=mk({|type T = + A + B¦ + C|}) @ [Destruct(Local(Left, ByChar))],
     /* Ideally this would have a hole but okay-ish */
     ~goal={|type T = + A + ¦ + C|},
   ),
@@ -698,7 +699,7 @@ let destruct_tests = [
   ),
   test(
     ~name="Regrouting edge case 2",
-    ~acts=mk({|if thena¦ else|}) @ [Destruct(Left, ByChar)],
+    ~acts=mk({|if thena¦ else|}) @ [Destruct(Local(Left, ByChar))],
     ~goal={|if? then¦? else?|},
   ),
   /* If the below fails, it's likely zipper.caret isn't being
@@ -707,7 +708,11 @@ let destruct_tests = [
     ~name="Inner Caret position maintenance",
     ~acts=
       mk({|if 1 the¦n|})
-      @ [Insert(" "), Destruct(Left, ByChar), Destruct(Left, ByChar)],
+      @ [
+        Insert(" "),
+        Destruct(Local(Left, ByChar)),
+        Destruct(Local(Left, ByChar)),
+      ],
     ~goal={|if 1 ~th¦n|},
   ),
   /* DELETING WITHIN/ADJACENT TO POLYTILE DELIMITERS */
@@ -715,54 +720,54 @@ let destruct_tests = [
    * it's okay if they change */
   test(
     ~name="Within leading delimiter: if",
-    ~acts=mk({|i¦f 1 then 2 else 3|}) @ [Destruct(Left, ByChar)],
+    ~acts=mk({|i¦f 1 then 2 else 3|}) @ [Destruct(Local(Left, ByChar))],
     ~goal={|¦f~ 1 then 2 else 3|},
   ),
   test(
     ~name="Within middle delimiter: if",
-    ~acts=mk({|if 1 th¦en 2 else 3|}) @ [Destruct(Left, ByChar)],
+    ~acts=mk({|if 1 th¦en 2 else 3|}) @ [Destruct(Local(Left, ByChar))],
     ~goal={|if 1 ~t¦en~ 2 else 3|},
   ),
   test(
     ~name="Within trailing delimiter: if",
-    ~acts=mk({|if 1 then 2 e¦lse 3|}) @ [Destruct(Left, ByChar)],
+    ~acts=mk({|if 1 then 2 e¦lse 3|}) @ [Destruct(Local(Left, ByChar))],
     ~goal={|if 1 then 2 ¦~lse~ 3|},
   ),
   test(
     ~name="At end of leading delimiter: if",
-    ~acts=mk({|if¦ 1 then 2 else 3|}) @ [Destruct(Left, ByChar)],
+    ~acts=mk({|if¦ 1 then 2 else 3|}) @ [Destruct(Local(Left, ByChar))],
     ~goal={|i¦~ 1 then 2 else 3|},
   ),
   test(
     ~name="At end of middle delimiter: if",
-    ~acts=mk({|if 1 then¦ 2 else 3|}) @ [Destruct(Left, ByChar)],
+    ~acts=mk({|if 1 then¦ 2 else 3|}) @ [Destruct(Local(Left, ByChar))],
     ~goal={|if 1 the¦ 2 else 3|} /* No grout bc delim prefix special case */
   ),
   test(
     ~name="At end of trailing delimiter: if",
-    ~acts=mk({|if 1 then 2 else¦ 3|}) @ [Destruct(Left, ByChar)],
+    ~acts=mk({|if 1 then 2 else¦ 3|}) @ [Destruct(Local(Left, ByChar))],
     ~goal={|if 1 then 2 els¦ 3|},
   ),
   test(
     ~name="Delete emoji inside string",
-    ~acts=mk({|"😄¦😊"|}) @ [Destruct(Left, ByChar)],
+    ~acts=mk({|"😄¦😊"|}) @ [Destruct(Local(Left, ByChar))],
     ~goal={|"¦😊"|},
   ),
   test(
     ~name="Delete emoji at start of string",
-    ~acts=mk({|"😄¦a"|}) @ [Destruct(Left, ByChar)],
+    ~acts=mk({|"😄¦a"|}) @ [Destruct(Local(Left, ByChar))],
     ~goal={|"¦a"|},
   ),
   test(
     ~name="Delete emoji at end of string",
-    ~acts=mk({|"a😄¦"|}) @ [Destruct(Left, ByChar)],
+    ~acts=mk({|"a😄¦"|}) @ [Destruct(Local(Left, ByChar))],
     ~goal={|"a¦"|},
   ),
   /* INDENT-LEVEL BACKSPACE */
   test(
     ~name="Indent-level backspace deletes 2 spaces",
     ~acts=mk({|let x = 1 in
-    ¦x|}) @ [Destruct(Left, ByChar)],
+    ¦x|}) @ [Destruct(Local(Left, ByChar))],
     ~goal={|let x = 1 in
   ¦x|},
   ),
@@ -771,54 +776,54 @@ let destruct_tests = [
     ~acts=
       mk({|let x = 1 in
     ¦x|})
-      @ [Destruct(Left, ByChar), Destruct(Left, ByChar)],
+      @ [Destruct(Local(Left, ByChar)), Destruct(Local(Left, ByChar))],
     ~goal={|let x = 1 in
 ¦x|},
   ),
   test(
     ~name="Indent-level backspace deletes 1 space when only 1 exists",
     ~acts=mk({|let x = 1 in
- ¦x|}) @ [Destruct(Left, ByChar)],
+ ¦x|}) @ [Destruct(Local(Left, ByChar))],
     ~goal={|let x = 1 in
 ¦x|},
   ),
   test(
     ~name="Indent-level backspace deletes 2 of 3 spaces",
     ~acts=mk({|let x = 1 in
-   ¦x|}) @ [Destruct(Left, ByChar)],
+   ¦x|}) @ [Destruct(Local(Left, ByChar))],
     ~goal={|let x = 1 in
  ¦x|},
   ),
   test(
     ~name="Normal backspace when content before cursor",
     ~acts=mk({|let x = 1 in
-  x¦|}) @ [Destruct(Left, ByChar)],
+  x¦|}) @ [Destruct(Local(Left, ByChar))],
     ~goal={|let x = 1 in
   ¦?|} /* Hole appears because body is now empty */
   ),
   /* TOKEN/HUNGRY DELETE */
   test(
     ~name="Token delete removes entire token",
-    ~acts=mk({|let foo¦ = 1 in foo|}) @ [Destruct(Left, ByToken)],
+    ~acts=mk({|let foo¦ = 1 in foo|}) @ [Destruct(Local(Left, ByToken))],
     ~goal={|let ¦? = 1 in foo|} /* Hole appears for binding site */
   ),
   test(
     ~name="Hungry delete removes spaces and linebreak",
     ~acts=mk({|let x = 1 in
-  ¦x|}) @ [Destruct(Left, ByToken)],
+  ¦x|}) @ [Destruct(Local(Left, ByToken))],
     ~goal={|let x = 1~ in¦x|} /* Grout appears for shape consistency */
   ),
   test(
     ~name="Hungry delete stops after one linebreak",
     ~acts=mk({|let x = 1 in
 
-  ¦x|}) @ [Destruct(Left, ByToken)],
+  ¦x|}) @ [Destruct(Local(Left, ByToken))],
     ~goal={|let x = 1 in
 ¦x|},
   ),
   test(
     ~name="Token delete on single space",
-    ~acts=mk({|let ¦x = 1 in x|}) @ [Destruct(Left, ByToken)],
+    ~acts=mk({|let ¦x = 1 in x|}) @ [Destruct(Local(Left, ByToken))],
     ~goal={|let¦x = 1 in x|},
   ),
 ];
@@ -1228,14 +1233,18 @@ let move_tests = [
     ~name="Caret movement takes into account which shards are down - Right",
     ~acts=
       mk({|if¦ 1 then 2 else 3|})
-      @ [Destruct(Left, ByChar), Destruct(Left, ByChar), ...mv_r(4)],
+      @ [
+        Destruct(Local(Left, ByChar)),
+        Destruct(Local(Left, ByChar)),
+        ...mv_r(4),
+      ],
     ~goal={| 1 t¦hen 2 else 3|},
   ),
   test(
     ~name="Caret movement takes into account which shards are down - Left",
     ~acts=
       mk({|if¦ 1 then 2 else 3|})
-      @ [Destruct(Left, ByChar), Destruct(Left, ByChar)]
+      @ [Destruct(Local(Left, ByChar)), Destruct(Local(Left, ByChar))]
       @ mv_r(7)
       @ mv_l(1),
     ~goal={| 1 the¦n 2 else 3|},
