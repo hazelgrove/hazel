@@ -139,7 +139,7 @@ let of_segment =
   let base_text =
     Printer.of_segment(
       ~holes=" ",
-      ~indent="  ",
+      ~indent="",
       ~refractors,
       ~refractor_seg_to_seg=Triggers.refractor_seg_to_seg_text,
       ~projector_to_segment=Triggers.projector_to_invoke_text,
