@@ -1,0 +1,32 @@
+# CLAMP - SOLUTION #
+
+let clamp = fun (x, lo, hi) ->
+  if x < lo then lo
+  else if x > hi then hi
+  else x
+in
+
+test
+  clamp(5, 0, 10)
+  == 5
+end;
+
+test
+  clamp(-3, 0, 10)
+  == 0
+end;
+
+test
+  clamp(15, 0, 10)
+  == 10
+end;
+
+test
+  clamp(0, 0, 10)
+  == 0
+end;
+
+test
+  clamp(10, 0, 10)
+  == 10
+end

@@ -1,0 +1,44 @@
+# BASE ROUTE TASK                              #
+#                                              #
+# Implement base_route: extract the first      #
+# path segment from a URL path.                #
+#                                              #
+# Examples:                                    #
+#   base_route("/api/v1") == "api"             #
+#   base_route("/api/actions/rm") == "api"     #
+#   base_route("/") == ""                      #
+#                                              #
+# Available functions:                         #
+#   string_split(sep, str) -> [String]         #
+#   string_concat(s1, s2) -> String            #
+#   string_length(s) -> Int                    #
+#   string_sub(str, pos, len) -> String        #
+#   nth(list, index) -> element                #
+#   length(list) -> Int                        #
+#   map(list, fn) -> list                      #
+#   filter(list, pred) -> list                 #
+#                                              #
+# Function syntax: fun param -> body           #
+# Let binding: let name = value in ...         #
+#                                              #
+# Tip: Turn on auto-probe (microscope toggle)  #
+# to see intermediate values as you type.      #
+
+let base_route = fun path ->
+  ?
+in
+
+test
+  base_route("/api/v1")
+  == "api"
+end;
+
+test
+  base_route("/api/actions/rm")
+  == "api"
+end;
+
+test
+  base_route("/")
+  == ""
+end

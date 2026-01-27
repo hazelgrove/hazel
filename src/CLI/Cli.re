@@ -346,7 +346,7 @@ let test_hazel =
 };
 
 /* Run program with probes and display results inline */
-let probe_hazel = (many: bool, path: string): unit => {
+let probe_hazel = (auto: bool, many: bool, path: string): unit => {
   let program = read_input(path);
   switch (parse_to_zipper(program)) {
   | None => prerr_endline("Failed to parse program")
@@ -355,23 +355,56 @@ let probe_hazel = (many: bool, path: string): unit => {
     let segment =
       Haz3lcore.Zipper.unselect_and_zip(~erase_buffer=true, zipper);
 
-    /* Get refractors (where probes are stored) */
-    let refractors = zipper.refractors.manuals;
-
     /* Get term for evaluation */
     let term = Haz3lcore.MakeTerm.from_zip_for_sem(zipper).term;
-    /* Build probe_ids from zipper's refractors (both manual and ephemeral probes) */
-    open Util;
-    let probe_ids =
-      Id.Map.union(
-        (_, _, _) => Some(),
-        Id.Map.map(_ => (), zipper.refractors.manuals),
-        Id.Map.map(_ => (), zipper.refractors.autos.ephemerals),
-      );
-    /* Run statics to get info_map for building probe_map */
     open Language;
+
+    /* Run statics to get info_map */
     let info_map =
       Statics.mk(CoreSettings.on, Builtins.ctx_init(Some(Int)), term);
+
+    /* Get manual probe IDs */
+    let manual_ids = Id.Map.map(_ => (), zipper.refractors.manuals);
+
+    /* If --auto, compute auto-probe IDs */
+    let auto_ids =
+      if (auto) {
+        /* Build syntax cache for AutoProbe */
+        let syntax =
+          Haz3lcore.CachedSyntax.mk(zipper, ~info_map, ~dyn_map=Id.Map.empty);
+        let root_id =
+          Haz3lcore.Segment.root_id(
+            Haz3lcore.Segment.skel(segment),
+            segment,
+          );
+
+        switch (
+          Haz3lcore.AutoProbe.ids_to_autoprobe(
+            root_id,
+            syntax.term_data,
+            syntax.terms,
+            syntax.measured,
+            info_map,
+          )
+        ) {
+        | Some(ids) =>
+          List.fold_left(
+            (acc, id_opt) =>
+              switch (id_opt) {
+              | Some(id) => Id.Map.add(id, (), acc)
+              | None => acc
+              },
+            Id.Map.empty,
+            ids,
+          )
+        | None => Id.Map.empty
+        };
+      } else {
+        Id.Map.empty;
+      };
+
+    /* Combine manual and auto probes */
+    let probe_ids = Id.Map.union((_, _, _) => Some(), manual_ids, auto_ids);
 
     /* Build probe_map - tells evaluator which expressions to record */
     let sample_map =
@@ -387,6 +420,21 @@ let probe_hazel = (many: bool, path: string): unit => {
     /* Format output with probe values */
     let window: Sample.Window.mode =
       many ? Sample.Window.Many : Sample.Window.Single;
+
+    /* For auto-probe, we need to pass the auto IDs as refractors for rendering */
+    let refractors =
+      if (auto) {
+        /* Build a refractor map that includes auto IDs */
+        Id.Map.fold(
+          (id, (), acc) =>
+            Id.Map.add(id, Haz3lcore.Refractors.mk_entry(Probe), acc),
+          auto_ids,
+          zipper.refractors.manuals,
+        );
+      } else {
+        zipper.refractors.manuals;
+      };
+
     let output =
       Haz3lcore.ProbeText.of_segment(
         ~window,
@@ -432,12 +480,16 @@ let analyze_cmd = {
 
 let probe_cmd = {
   let doc = "Run a Hazel program and display probe values inline.";
+  let auto_arg = {
+    let doc = "Auto-probe all expressions (one per line).";
+    Arg.(value & flag & info(["auto", "a"], ~doc));
+  };
   let many_arg = {
     let doc = "Show multiple sample values per probe (many mode).";
     Arg.(value & flag & info(["many", "m"], ~doc));
   };
   let info = Cmd.info("probe", ~doc);
-  Cmd.v(info, Term.(const(probe_hazel) $ many_arg $ input_arg));
+  Cmd.v(info, Term.(const(probe_hazel) $ auto_arg $ many_arg $ input_arg));
 };
 
 let test_cmd = {

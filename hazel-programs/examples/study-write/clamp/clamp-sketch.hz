@@ -1,0 +1,49 @@
+# CLAMP TASK                                   #
+#                                              #
+# Implement clamp: constrain a number to be    #
+# within a given range [lo, hi].               #
+#                                              #
+# If x < lo, return lo                         #
+# If x > hi, return hi                         #
+# Otherwise, return x                          #
+#                                              #
+# Examples:                                    #
+#   clamp(5, 0, 10) == 5    (in range)         #
+#   clamp(-3, 0, 10) == 0   (below min)        #
+#   clamp(15, 0, 10) == 10  (above max)        #
+#                                              #
+# Syntax reminder:                             #
+#   if cond then expr1 else expr2              #
+#   Comparisons: <, >, <=, >=, ==              #
+#                                              #
+# Tip: Turn on auto-probe (microscope toggle)  #
+# to see which branch is taken for each test.  #
+
+let clamp = fun (x, lo, hi) ->
+  ?
+in
+
+test
+  clamp(5, 0, 10)
+  == 5
+end;
+
+test
+  clamp(-3, 0, 10)
+  == 0
+end;
+
+test
+  clamp(15, 0, 10)
+  == 10
+end;
+
+test
+  clamp(0, 0, 10)
+  == 0
+end;
+
+test
+  clamp(10, 0, 10)
+  == 10
+end
