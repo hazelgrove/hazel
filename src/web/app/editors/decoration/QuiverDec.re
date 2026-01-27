@@ -152,7 +152,7 @@ let view =
           /* Compute offside position */
           let base_left =
             switch (IntMap.find_opt(ins.row, row_offsets)) {
-            | Some(offset) => offset + 1 /* 1 char gap between boxes */
+            | Some(offset) => offset + 0 /* 0 char gap between boxes */
             | None => row_max_col(ins.row, measured) + offside_offset
             };
 

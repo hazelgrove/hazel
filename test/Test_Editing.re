@@ -812,7 +812,10 @@ let destruct_tests = [
     ~name="Backspace with selection deletes selection",
     ~acts=
       mk({|let x = 10 in ¦x|})
-      @ [Select(Resize(Local(Right, ByChar))), Destruct(Local(Left, ByChar))],
+      @ [
+        Select(Resize(Local(Right, ByChar))),
+        Destruct(Local(Left, ByChar)),
+      ],
     ~goal={|let x = 10 in ¦?|},
   ),
   /* TOKEN/HUNGRY DELETE */
