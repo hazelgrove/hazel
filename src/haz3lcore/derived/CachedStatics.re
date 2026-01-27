@@ -134,7 +134,7 @@ let init =
   let probe_ids =
     Id.Map.union(
       (_, _, _) => Some(),
-      Id.Map.map(_ => (), z.refractors.manuals),
+      Id.Map.map(_ => (), Id.Map.of_list(z.refractors.manuals)),
       Id.Map.map(_ => (), z.refractors.autos.ephemerals),
     );
 
