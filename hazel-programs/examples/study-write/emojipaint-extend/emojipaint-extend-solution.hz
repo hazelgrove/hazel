@@ -1,0 +1,115 @@
+# EMOJIPAINT EXTENSION - SOLUTION #
+
+type Emoji = String in
+type Canvas = [[Emoji]] in
+type Row = Int in
+type Col = Int in
+
+type Model = (
+  canvas = Canvas,
+  brush = Emoji,
+  palette = [Emoji]
+) in
+
+type Action =
+  + SetBrush(Int)
+  + PaintCell(Row, Col)
+  + ClearCell(Row, Col)
+  + ClearGrid
+  + PaintRow(Row)
+  + PaintCol(Col)  # NEW #
+in
+
+let init: Model = (
+  canvas = [
+    ["", "", ""],
+    ["", "", ""],
+    ["", "", ""]
+  ],
+  brush = "🎨",
+  palette = ["🎨", "🌟", "💜", "🔥", "🌊"]
+) in
+
+let setCell: (Canvas, Row, Col, Emoji) -> Canvas =
+  fun canvas, row, col, emoji ->
+    mapi(canvas, fun (i, r) ->
+      if i == row
+      then mapi(r, fun (j, c) -> if j == col then emoji else c)
+      else r)
+in
+
+let setRow: (Canvas, Row, Emoji) -> Canvas =
+  fun canvas, targetRow, emoji ->
+    mapi(canvas, fun (i, row) ->
+      if i == targetRow
+      then map(row, fun _ -> emoji)
+      else row)
+in
+
+# NEW: Set an entire column to an emoji #
+let setCol: (Canvas, Col, Emoji) -> Canvas =
+  fun canvas, targetCol, emoji ->
+    map(canvas, fun row ->
+      mapi(row, fun (j, cell) ->
+        if j == targetCol then emoji else cell))
+in
+
+let setAll: (Canvas, Emoji) -> Canvas =
+  fun (canvas, emoji) ->
+    map(canvas, fun row -> map(row, fun _ -> emoji))
+in
+
+let updateGrid: (Model, Canvas -> Canvas) -> Model =
+  fun (m, f) -> (f(m.canvas), m.brush, m.palette)
+in
+
+let update: (Model, Action) -> Model =
+  fun m, action ->
+    case action
+    | SetBrush(idx) =>
+        (m.canvas, nth(m.palette, idx), m.palette)
+    | PaintCell(row, col) =>
+        updateGrid(m, fun c -> setCell(c, row, col, m.brush))
+    | ClearCell(row, col) =>
+        updateGrid(m, fun c -> setCell(c, row, col, ""))
+    | ClearGrid =>
+        updateGrid(m, fun c -> setAll(c, ""))
+    | PaintRow(row) =>
+        updateGrid(m, fun c -> setRow(c, row, m.brush))
+    | PaintCol(col) =>  # NEW #
+        updateGrid(m, fun c -> setCol(c, col, m.brush))
+    end
+in
+
+let do: (Model, [Action]) -> Model =
+  fun (init: Model, actions: [Action]) ->
+    fold_left(actions, update, init)
+in
+
+# Existing tests #
+test
+  let m = update(init, PaintRow(1)) in
+  m.canvas == [["", "", ""], ["🎨", "🎨", "🎨"], ["", "", ""]]
+end;
+
+# New tests for PaintCol #
+test
+  let m = update(init, PaintCol(0)) in
+  m.canvas == [["🎨", "", ""], ["🎨", "", ""], ["🎨", "", ""]]
+end;
+
+test
+  let m = update(init, PaintCol(2)) in
+  m.canvas == [["", "", "🎨"], ["", "", "🎨"], ["", "", "🎨"]]
+end;
+
+test
+  let m = do(init, [PaintRow(0), PaintCol(1)]) in
+  m.canvas == [["🎨", "🎨", "🎨"], ["", "🎨", ""], ["", "🎨", ""]]
+end;
+
+test
+  let m = do(init, [SetBrush(2), PaintCol(1)]) in
+  m.canvas == [["", "💜", ""], ["", "💜", ""], ["", "💜", ""]]
+  && m.brush == "💜"
+end

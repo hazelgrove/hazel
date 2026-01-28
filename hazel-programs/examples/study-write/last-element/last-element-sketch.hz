@@ -1,0 +1,49 @@
+# LAST ELEMENT TASK                            #
+#                                              #
+# Implement last: get the last element of a    #
+# list, or return a default if empty.          #
+#                                              #
+# Examples:                                    #
+#   last([1, 2, 3], 0) == 3                    #
+#   last([42], 0) == 42                        #
+#   last([], 99) == 99                         #
+#                                              #
+# Available functions:                         #
+#   fold_left(list, fn, init) -> result        #
+#     fn takes (accumulator, element)          #
+#   fold_right(list, fn, init) -> result       #
+#     fn takes (element, accumulator)          #
+#   rev(list) -> list                          #
+#   length(list) -> Int                        #
+#                                              #
+# Tip: Think about what the fold should        #
+# "remember" as it processes each element.     #
+
+let last = fun (xs, default) ->
+  ?
+in
+
+test
+  last([1, 2, 3], 0)
+  == 3
+end;
+
+test
+  last([42], 0)
+  == 42
+end;
+
+test
+  last([1], 0)
+  == 1
+end;
+
+test
+  last([], 99)
+  == 99
+end;
+
+test
+  last([], 0)
+  == 0
+end

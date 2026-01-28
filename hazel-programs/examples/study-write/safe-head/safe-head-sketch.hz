@@ -1,0 +1,43 @@
+# SAFE HEAD TASK                               #
+#                                              #
+# Implement safe_head: get the first element   #
+# of a list, or return a default if empty.     #
+#                                              #
+# Examples:                                    #
+#   safe_head([1, 2, 3], 0) == 1               #
+#   safe_head([], 99) == 99                    #
+#                                              #
+# Available syntax:                            #
+#   case expr                                  #
+#   | pattern1 => result1                      #
+#   | pattern2 => result2                      #
+#   end                                        #
+#                                              #
+#   List patterns: [], x::xs, [a, b, c]        #
+#                                              #
+# Tip: Turn on auto-probe to see which branch  #
+# is taken for each test case.                 #
+
+let safe_head = fun (xs, default) ->
+  ?
+in
+
+test
+  safe_head([1, 2, 3], 0)
+  == 1
+end;
+
+test
+  safe_head([42], 0)
+  == 42
+end;
+
+test
+  safe_head([], 99)
+  == 99
+end;
+
+test
+  safe_head([], 0)
+  == 0
+end

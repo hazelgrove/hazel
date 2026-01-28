@@ -1,0 +1,39 @@
+# MENTION EXTRACTOR - SOLUTION #
+
+# Check if a word starts with @ #
+let starts_with_at = fun word ->
+  string_sub(word, 0, 1) == "@"
+in
+
+# Remove the @ prefix (take everything after index 0) #
+let strip_at = fun word ->
+  string_sub(word, 1, string_length(word) - 1)
+in
+
+# Extract usernames: split -> filter -> map #
+let extract_mentions = fun message ->
+  let words = string_split(" ", message) in
+  let mentions = filter(words, starts_with_at) in
+  let usernames = map(mentions, strip_at) in
+  usernames
+in
+
+test
+  extract_mentions("Hey @alice")
+  == ["alice"]
+end;
+
+test
+  extract_mentions("@bob @carol hello")
+  == ["bob", "carol"]
+end;
+
+test
+  extract_mentions("no mentions here")
+  == []
+end;
+
+test
+  extract_mentions("@dan")
+  == ["dan"]
+end
