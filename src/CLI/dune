@@ -2,10 +2,10 @@
 
 (executable
  (name cli)
- (libraries ppx_yojson_conv.expander haz3lcore cmdliner)
+ (libraries ppx_yojson_conv.expander haz3lcore cmdliner unix)
  (modes js)
  (preprocess
-  (pps js_of_ocaml-ppx)))
+  (pps js_of_ocaml-ppx ppx_deriving.show)))
 
 (env
  (dev
