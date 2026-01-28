@@ -162,16 +162,19 @@ module Update = {
       // hacky way to get a currently-selected id
       {
         let editor: CodeSelectable.Model.t = editor |> Calc.get_value;
-        try({
-          let zipper = editor.editor.state.zipper;
-          let selection = zipper.selection.content;
-          let skel = Segment.skel(selection);
-          let root = Skel.root(skel);
-          let idx = Aba.first_a(root);
-          let piece = List.nth(selection, idx);
-          let id = Piece.id(piece);
-          Some(id);
-        }) {
+        try(
+          {
+            open OptUtil.Syntax;
+            let zipper = editor.editor.state.zipper;
+            let* id =
+              TermData.get_root_id_using_ranges(
+                zipper.selection.content,
+                editor.editor.syntax.term_data,
+                editor.editor.syntax.measured,
+              );
+            Some(id);
+          }
+        ) {
         | _ => None
         };
       }
