@@ -27,11 +27,11 @@ Starting in v0.17.0, `zarith_stubs_js` switched to using **native JavaScript
 fully survives structured clone.
 
 However, we cannot simply upgrade to zarith_stubs_js v0.17.0 because it requires
-upgrading the entire Jane Street package ecosystem (bonsai, incr_dom, etc.) to
-v0.17.0, which in turn requires `js_of_ocaml < 5.7.0`. Versions of
-`js_of_ocaml-compiler` before 5.7.0 require `ocaml < 5.2`, making the upgrade
-incompatible with our OCaml 5.2.0 toolchain. This dependency chain made a
-straightforward upgrade impossible at the time of this fix (January 2026).
+upgrading the Jane Street packages. At the time of this fix (January 2026),
+bonsai v0.17.0 on opam constrains `js_of_ocaml < 5.7.0`, and versions of
+`js_of_ocaml-compiler` before 5.7.0 require `ocaml < 5.2`. Note that bonsai's
+master branch on GitHub has updated to require `js_of_ocaml >= 6.0.0`, so a
+future bonsai release should resolve this constraint issue.
 
 ### Our Approach
 
@@ -61,9 +61,9 @@ and in CI.
 
 ### Future Considerations
 
-- **When Jane Street releases packages compatible with OCaml 5.2+ and
-  js_of_ocaml 5.7+**, we should be able to remove this vendored file and do a
-  proper upgrade. At that point:
+- **When a new bonsai release is published to opam** (with the js_of_ocaml >= 6.0.0
+  constraint from master), we should be able to remove this vendored file and do
+  a proper upgrade. At that point:
   1. Upgrade zarith_stubs_js to v0.17.0+ via opam
   2. Remove `vendor/zarith_native_bigint_runtime.js`
   3. Remove the `setup-zarith` target from the Makefile
