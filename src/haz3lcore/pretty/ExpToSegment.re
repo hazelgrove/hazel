@@ -93,7 +93,7 @@ let rec external_precedence = (exp: Exp.t): Precedence.t => {
   | Fun(_)
   | FixF(_)
   | Forall(_) => Precedence.fun_
-  | Tuple(_) => Precedence.prod
+  | Tuple(_) => Precedence.comma
   | Seq(_) => Precedence.semi
   | TupleExtension(_, _) => Precedence.plus
   | Dot(_) => Precedence.dot
@@ -131,7 +131,7 @@ let external_precedence_pat = (dp: Pat.t) =>
   | Cons(_) => Precedence.cons
   | Ap(_) => Precedence.ap
   | Asc(_) => Precedence.asc
-  | Tuple(_) => Precedence.prod
+  | Tuple(_) => Precedence.comma
 
   // Matt: I think multiholes are min because we don't know the precedence of the `⟩?⟨`s
   | MultiHole(_) => Precedence.min
@@ -258,7 +258,7 @@ let rec parenthesize =
     let inner =
       TupLabel(
         ExplicitNonlabel |> Exp.temp,
-        parenthesize(e) |> paren_at(Precedence.prod),
+        parenthesize(e) |> paren_at(Precedence.comma),
       )
       |> rewrap;
 
@@ -270,7 +270,7 @@ let rec parenthesize =
   | Tuple(es) =>
     let inner =
       Tuple(
-        es |> List.map(parenthesize) |> List.map(paren_at(Precedence.prod)),
+        es |> List.map(parenthesize) |> List.map(paren_at(Precedence.comma)),
       )
       |> rewrap;
 
@@ -295,7 +295,7 @@ let rec parenthesize =
     |> rewrap
   | ListLit(es) =>
     ListLit(
-      es |> List.map(parenthesize) |> List.map(paren_at(Precedence.prod)),
+      es |> List.map(parenthesize) |> List.map(paren_at(Precedence.comma)),
     )
     |> rewrap
   | Let(p, e1, e2) =>
@@ -357,7 +357,7 @@ let rec parenthesize =
   | DeferredAp(e, es) =>
     DeferredAp(
       parenthesize(e) |> paren_assoc_at(Precedence.ap),
-      es |> List.map(parenthesize) |> List.map(paren_at(Precedence.prod)),
+      es |> List.map(parenthesize) |> List.map(paren_at(Precedence.comma)),
     )
     |> rewrap
   | If(e1, e2, e3) =>
@@ -473,7 +473,7 @@ and parenthesize_pat =
       Tuple(
         ps
         |> List.map(parenthesize_pat)
-        |> List.map(paren_pat_at(Precedence.prod)),
+        |> List.map(paren_pat_at(Precedence.comma)),
       )
       |> rewrap;
     already_paren ? inner : Parens(inner) |> Pat.fresh;
@@ -485,7 +485,7 @@ and parenthesize_pat =
     ListLit(
       ps
       |> List.map(parenthesize_pat)
-      |> List.map(paren_pat_at(Precedence.prod)),
+      |> List.map(paren_pat_at(Precedence.comma)),
     )
     |> rewrap
   | Ap(p1, p2) =>
@@ -538,7 +538,7 @@ and parenthesize_typ =
     let inner =
       TupLabel(
         ExplicitNonlabel |> Typ.temp,
-        parenthesize_typ(t) |> paren_typ_at(Precedence.prod),
+        parenthesize_typ(t) |> paren_typ_at(Precedence.comma),
       )
       |> rewrap;
 
