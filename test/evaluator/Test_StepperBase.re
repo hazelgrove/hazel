@@ -301,7 +301,19 @@ let tests = (
       "single step: beta reduction",
       `Quick,
       () => {
-        let exp = parse_exp("(fun x -> x + 1)(5)");
+        let exp = Exp.fresh(Ap(
+          Forward,
+          Exp.fresh(Fun(
+            Pat.fresh(Var("x")),
+            Exp.fresh(BinOp(Int(Plus),
+              Exp.fresh(Var("x")),
+              Exp.fresh(Atom(Int(Bigint.of_int(1)))),
+            )),
+            None,
+            None
+          )),
+          Exp.fresh(Atom(Int(Bigint.of_int(5)))),
+        ))
         let elab = elaborate(exp);
         let result =
           run_single_step(
