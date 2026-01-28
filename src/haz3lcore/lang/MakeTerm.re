@@ -128,6 +128,21 @@ let record_term_data = (sort: Sort.t, seg: Segment.t, skel: Skel.t): unit =>
 let projectors: ref(Id.Map.t(Piece.projector)) = ref(Id.Map.empty);
 let projector_list: ref(list(Id.t)) = ref([]);
 
+/* Map from tile IDs to their outer secondary (before, after) */
+let secondary_map: ref(Segment.SecondaryCollection.secondary_map) =
+  ref(Id.Map.empty);
+
+/* Look up outer secondary for a term by its representative ID */
+let get_secondary = (ids: list(Id.t)): IdTagged.IdTag.secondary_runs =>
+  switch (ids) {
+  | [id, ..._] =>
+    switch (Id.Map.find_opt(id, secondary_map^)) {
+    | Some(sec) => sec
+    | None => IdTagged.IdTag.empty_secondary
+    }
+  | [] => IdTagged.IdTag.empty_secondary
+  };
+
 /* Track IDs that are "adopted" from inner terms into outer multi-tile forms.
  *
  * PROBLEM: List literals and case expressions are multi-tile forms where the
@@ -171,9 +186,22 @@ let log_projector = (pr: Base.projector): unit => {
   projector_list := [pr.id, ...projector_list^];
 };
 
+/* Convert IdTagged secondary to ConstructorMap secondary.
+   Both use the same Secondary.t type, so this is just a type cast. */
+let to_variant_secondary =
+    (sec: IdTagged.IdTag.secondary_runs): ConstructorMap.secondary_runs => sec;
+
 let parse_sum_term: Typ.t => ConstructorMap.variant(Typ.t) =
   fun
-  | {term: Var(ctr), annotation: {ids, _}} => Variant(ctr, ids, None)
+  | {term: Var(ctr), annotation: {ids, secondary}} =>
+    Variant(
+      ctr,
+      {
+        ids,
+        secondary: to_variant_secondary(secondary),
+      },
+      None,
+    )
   /* Constructor applications in sum type definitions are implemented as having type sort;
      until they are reimplemented as their own sort, we must prevent these from being parsed
      into types, where they can go on to mess with statics. Thus we let them fall through to
@@ -183,21 +211,31 @@ let parse_sum_term: Typ.t => ConstructorMap.variant(Typ.t) =
         Unknown(
           Hole(
             MultiHole([
-              Typ({term: Var(ctr), annotation: {ids: ids_ctr, _}}),
+              Typ({
+                term: Var(ctr),
+                annotation: {ids: ids_ctr, secondary: (inner_before, _)},
+              }),
               Typ(u),
             ]),
           ),
         ),
-      annotation: {ids: ids_ap, _},
+      annotation: {ids: ids_ap, secondary: (_, outer_after)},
     } =>
-    Variant(ctr, ids_ctr @ ids_ap, Some(u))
+    /* For constructor applications, use the inner before (constructor's leading space)
+       and outer after (trailing space on the whole application) for round-tripping */
+    Variant(
+      ctr,
+      {
+        ids: ids_ctr @ ids_ap,
+        secondary: (inner_before, outer_after),
+      },
+      Some(u),
+    )
   | t => BadEntry(t);
 
 let mk_bad = (ctr, ids, value) => {
   let t: Typ.t = {
-    annotation: {
-      ids: ids,
-    },
+    annotation: IdTagged.IdTag.mk(ids, get_secondary(ids)),
     term: Var(ctr),
   };
   switch (value) {
@@ -230,16 +268,7 @@ and exp = unsorted => {
   let ids = ids(unsorted) @ inner_ids;
 
   let e: TermBase.exp_t =
-    return(
-      e => Exp(e),
-      ids,
-      {
-        annotation: {
-          ids: ids,
-        },
-        term,
-      },
-    );
+    return(e => Exp(e), ids, IdTagged.mk(ids, get_secondary(ids), term));
   switch (term) {
   | TupLabel(_) =>
     // The tile id is the id of the tuple not the tuplabel
@@ -279,9 +308,12 @@ and exp_term: unsorted => (Exp.term, list(Id.t)) = {
       | (["(", ")"], [Exp(body)]) => ret(Parens(body))
       | (["PROJ_WRAP", "PROJ_WRAP"], [Exp(body)]) => ret(body.term)
       | (["[", "]"], [Exp(body)]) =>
-        // ListLit absorption: inner Tuple's comma IDs become part of ListLit
+        /* ListLit absorption: inner Tuple's comma IDs become part of ListLit.
+           ID order: [bracket_id] @ comma_ids (outer first, then adopted).
+           IMPORTANT: Must align with ExpToSegment.exp_to_pretty ListLit case,
+           which expects List.hd = bracket, List.tl = commas. */
         switch (body) {
-        | {annotation: {ids}, term: Tuple(es)} =>
+        | {annotation: {ids, _}, term: Tuple(es)} =>
           adopted_ids := ids @ adopted_ids^;
           // Addresses tup_labels in lists like: [l=32, 1]
           (
@@ -308,7 +340,10 @@ and exp_term: unsorted => (Exp.term, list(Id.t)) = {
       | (["hint", "test", "end"], [Exp(hint), Exp(test)]) =>
         ret(HintedTest(test, hint))
       | (["case", "end"], [Rul({term, annotation: {ids, _}})]) =>
-        // Match absorption: inner Rules' `|`/`=>` IDs become part of Match
+        /* Match absorption: inner Rules' |/=> IDs become part of Match.
+           ID order: [case_end_id] @ rule_ids (outer first, then adopted).
+           IMPORTANT: Must align with ExpToSegment.exp_to_pretty Match case,
+           which expects List.hd = case/end, List.tl = rules. */
         switch (term) {
         | Rules(scrut, rules) =>
           adopted_ids := ids @ adopted_ids^;
@@ -391,19 +426,23 @@ and exp_term: unsorted => (Exp.term, list(Id.t)) = {
             Forward,
             l,
             {
-              annotation: {
-                ids: [Id.nullary_ap_flag],
-              },
+              annotation:
+                IdTagged.IdTag.mk(
+                  [Id.nullary_ap_flag],
+                  get_secondary([Id.nullary_ap_flag]),
+                ),
               term: Tuple([]),
             },
           ),
         )
       | (["(", ")"], [Exp(arg)]) =>
         let use_deferral = (arg: Exp.t): Exp.t => {
-          annotation: {
-            ids: IdTagged.ids(arg),
-          },
-          term: Deferral(InAp),
+          let deferral_ids = IdTagged.ids(arg);
+          {
+            annotation:
+              IdTagged.IdTag.mk(deferral_ids, get_secondary(deferral_ids)),
+            term: Deferral(InAp),
+          };
         };
         switch (arg.term) {
         | Var(l) when Token.is_livelit(l) =>
@@ -546,16 +585,7 @@ and pat = unsorted => {
   let ids = ids(unsorted) @ inner_ids;
 
   let p =
-    return(
-      p => Pat(p),
-      ids,
-      {
-        annotation: {
-          ids: ids,
-        },
-        term,
-      },
-    );
+    return(p => Pat(p), ids, IdTagged.mk(ids, get_secondary(ids), term));
   switch (term) {
   | TupLabel(_) => Tuple([p]) |> Pat.fresh
   | _ => p
@@ -568,38 +598,39 @@ and pat_term: unsorted => (Pat.term, list(Id.t)) = {
   | Op(tiles) as tm =>
     switch (tiles) {
     | ([(_id, tile)], []) =>
-      ret(
-        switch (tile) {
-        | ([t], []) when Token.is_empty_tuple(t) => Tuple([])
-        | ([t], []) when Token.is_empty_list(t) => ListLit([])
-        | ([t], []) when Token.is_bool(t) =>
-          Atom(Bool(bool_of_string(t)))
-        | ([t], []) when Token.is_float(t) =>
-          Atom(Float(float_of_string(t)))
-        | ([t], []) when Token.is_int(t) =>
-          Atom(Int(Bigint.of_string(t)))
-        | ([t], []) when Token.is_string(t) =>
-          Atom(String(Token.strip_quotes(t)))
-        | ([t], []) when Token.is_quoted_label(t) =>
-          Label(Token.strip_quotes(~quote=Token.label_delim, t))
-        | ([t], []) when Token.is_var(t) => Var(t)
-        | ([t], []) when Token.is_wild(t) => Wild
-        | ([t], []) when Token.is_ctr(t) => Constructor(t, None)
-        | (["(", ")"], [Pat(body)]) => Parens(body)
-        | (["PROJ_WRAP", "PROJ_WRAP"], [Pat(body)]) => body.term
-        | (["[", "]"], [Pat(body)]) =>
-          // ListLit pattern absorption: inner Tuple's comma IDs become part of ListLit
-          switch (body) {
-          | {term: Tuple(ps), annotation: {ids, _}} =>
-            adopted_ids := ids @ adopted_ids^;
-            ListLit(ps);
-          | term => ListLit([term])
-          }
-        | ([t], []) when is_hole_label(t) => hole(tm)
-        | ([t], []) => Invalid(t)
-        | _ => hole(tm)
-        },
-      )
+      switch (tile) {
+      | ([t], []) when Token.is_empty_tuple(t) => ret(Tuple([]))
+      | ([t], []) when Token.is_empty_list(t) => ret(ListLit([]))
+      | ([t], []) when Token.is_bool(t) =>
+        ret(Atom(Bool(bool_of_string(t))))
+      | ([t], []) when Token.is_float(t) =>
+        ret(Atom(Float(float_of_string(t))))
+      | ([t], []) when Token.is_int(t) =>
+        ret(Atom(Int(Bigint.of_string(t))))
+      | ([t], []) when Token.is_string(t) =>
+        ret(Atom(String(Token.strip_quotes(t))))
+      | ([t], []) when Token.is_quoted_label(t) =>
+        ret(Label(Token.strip_quotes(~quote=Token.label_delim, t)))
+      | ([t], []) when Token.is_var(t) => ret(Var(t))
+      | ([t], []) when Token.is_wild(t) => ret(Wild)
+      | ([t], []) when Token.is_ctr(t) => ret(Constructor(t, None))
+      | (["(", ")"], [Pat(body)]) => ret(Parens(body))
+      | (["PROJ_WRAP", "PROJ_WRAP"], [Pat(body)]) => ret(body.term)
+      | (["[", "]"], [Pat(body)]) =>
+        /* ListLit pattern absorption: inner Tuple's comma IDs become part of ListLit.
+           ID order: [bracket_id] @ comma_ids (outer first, then adopted).
+           IMPORTANT: Must align with ExpToSegment.pat_to_pretty ListLit case,
+           which expects List.hd = bracket, List.tl = commas. */
+        switch (body) {
+        | {term: Tuple(ps), annotation: {ids, _}} =>
+          adopted_ids := ids @ adopted_ids^;
+          (ListLit(ps), ids);
+        | term => ret(ListLit([term]))
+        }
+      | ([t], []) when is_hole_label(t) => ret(hole(tm))
+      | ([t], []) => ret(Invalid(t))
+      | _ => ret(hole(tm))
+      }
     | _ => ret(hole(tm))
     }
   | Post(Pat(l), tiles) as tm =>
@@ -678,16 +709,7 @@ and typ = unsorted => {
   let (term, inner_ids) = typ_term(unsorted);
   let ids = ids(unsorted) @ inner_ids;
   let t =
-    return(
-      ty => Typ(ty),
-      ids,
-      {
-        term,
-        annotation: {
-          ids: ids,
-        },
-      },
-    );
+    return(ty => Typ(ty), ids, IdTagged.mk(ids, get_secondary(ids), term));
   switch (term) {
   | TupLabel(_) => Prod([t]) |> Typ.fresh
   | _ => t
@@ -808,16 +830,7 @@ and typ_term: unsorted => (Typ.term, list(Id.t)) = {
 and tpat = unsorted => {
   let term = tpat_term(unsorted);
   let ids = ids(unsorted);
-  return(
-    ty => TPat(ty),
-    ids,
-    {
-      term,
-      annotation: {
-        ids: ids,
-      },
-    },
-  );
+  return(ty => TPat(ty), ids, IdTagged.mk(ids, get_secondary(ids), term));
 }
 and tpat_term: unsorted => TPat.term = {
   let ret = (term: TPat.term) => term;
@@ -845,9 +858,7 @@ and rul = (unsorted): Rul.t => {
   let e = exp(unsorted);
   let mk_rules = (scrut: Exp.t, rules, ids): Rul.t => {
     term: Rules(scrut, rules),
-    annotation: {
-      ids: ids,
-    },
+    annotation: IdTagged.IdTag.mk(ids, get_secondary(ids)),
   };
   switch (e) {
   | {term: MultiHole(_), _} =>
@@ -973,6 +984,7 @@ let go =
       projectors := Id.Map.empty;
       projector_list := [];
       adopted_ids := [];
+      secondary_map := Segment.SecondaryCollection.collect(seg);
       let term = exp(unsorted(Exp, Segment.skel(seg), seg));
       consolidate_adopted();
       {

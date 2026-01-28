@@ -119,12 +119,12 @@ let ci_of =
       /* If on side of comment, say we're on comment */
       | (Some(Secondary(sl)), Some(Secondary(_)))
           when Secondary.is_comment(sl) =>
-        Some(Secondary.cls_of(sl))
+        Some(Language.Secondary.cls_of(sl))
       | (Some(Secondary(_)), Some(Secondary(sr)))
           when Secondary.is_comment(sr) =>
-        Some(Secondary.cls_of(sr))
+        Some(Language.Secondary.cls_of(sr))
       | (_, Some(Secondary(s)))
-      | (Some(Secondary(s)), _) => Some(Secondary.cls_of(s))
+      | (Some(Secondary(s)), _) => Some(Language.Secondary.cls_of(s))
       | _ => None
       };
     let* proxy_id =

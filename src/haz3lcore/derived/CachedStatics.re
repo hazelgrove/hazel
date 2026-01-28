@@ -12,16 +12,12 @@ type t = {
 
 let empty: t = {
   term: {
-    annotation: {
-      ids: [Id.invalid],
-    },
     term: Tuple([]),
+    annotation: IdTagged.IdTag.temp(),
   },
   elaborated: {
-    annotation: {
-      ids: [Id.invalid],
-    },
     term: Tuple([]),
+    annotation: IdTagged.IdTag.temp(),
   },
   info_map: Id.Map.empty,
   error_ids: [],
