@@ -28,9 +28,10 @@ fully survives structured clone.
 
 However, we cannot simply upgrade to zarith_stubs_js v0.17.0 because it requires
 upgrading the entire Jane Street package ecosystem (bonsai, incr_dom, etc.) to
-v0.17.0, which in turn requires `js_of_ocaml < 5.7.0`, which is incompatible
-with OCaml 5.2.0. This dependency chain made a straightforward upgrade impossible
-at the time of this fix (January 2026).
+v0.17.0, which in turn requires `js_of_ocaml < 5.7.0`. Versions of
+`js_of_ocaml-compiler` before 5.7.0 require `ocaml < 5.2`, making the upgrade
+incompatible with our OCaml 5.2.0 toolchain. This dependency chain made a
+straightforward upgrade impossible at the time of this fix (January 2026).
 
 ### Our Approach
 
