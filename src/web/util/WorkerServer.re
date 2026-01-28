@@ -47,10 +47,8 @@ let work = (req_value: Request.value): Response.value => {
 };
 
 let on_request = (req: Request.t): unit => {
-  /* Deserialize BigInts from client, process, then serialize for response. */
-  let req: Request.t = BigIntShim.deserialize(req);
   let resp: Response.t = req |> List.map(((k, v)) => (k, work(v)));
-  Js_of_ocaml.Worker.post_message(BigIntShim.serialize(resp));
+  Js_of_ocaml.Worker.post_message(resp);
 };
 
 let start = () => Js_of_ocaml.Worker.set_onmessage(on_request);

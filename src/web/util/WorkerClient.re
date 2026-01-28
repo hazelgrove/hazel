@@ -32,8 +32,7 @@ let request =
         | None => ()
         };
         timeoutId.contents = None; /* Clear timeout after response */
-        /* Deserialize BigInts that were serialized for structured clone */
-        evt##.data |> BigIntShim.deserialize |> handler;
+        evt##.data |> handler;
         Js._true;
       });
   };
@@ -48,8 +47,7 @@ let request =
 
   setupWorkerMessageHandler(workerRef.contents);
 
-  /* Serialize BigInts before posting (they don't survive structured clone) */
-  workerRef.contents##postMessage(BigIntShim.serialize(req));
+  workerRef.contents##postMessage(req);
 
   let onTimeout = (): unit => {
     restart_worker();
