@@ -443,73 +443,438 @@ Tests drive evaluation, which means they generate samples for any probes inside 
 
 ---
 
-## Coming Up: The Greenhouse Planner
+## Part 6: The Greenhouse Planner
 
-<!-- META: This sets up Part 2. The larger program will have:
-     - A Plant type with name, base_water, emoji
-     - Multiple plants in a list
-     - A Bed type with plants and a light_level
-     - A schedule function that calculates weekly needs
-     - A failing test that we'll debug using auto-probe, pin, and step-into
--->
+Now let's see how probes work in a larger program. Here's a Greenhouse Planner that uses our `watering_amount` logic to manage multiple plants:
 
-Our `watering_amount` function is ready. In the next part, we'll integrate it into a larger **Greenhouse Planner** that manages multiple plants across different beds. We'll encounter a bug in the planner and use probes' advanced features — auto-probing, pinning, and step-into — to track it down.
-
-You'll see values like these:
+<!-- META: This is the "larger program" that our earlier work integrates into.
+     I'm presenting it as something the user is exploring, not writing from scratch. -->
 
 ```hazel
+# ═══════════════════════════════════════════════════════ #
+#                  GREENHOUSE PLANNER                     #
+# ═══════════════════════════════════════════════════════ #
+
+type MoonPhase = + New + Waxing + Full + Waning in
+
 type Plant = (
   name = String,
   icon = String,
-  base_water = Int,
-  sun_hours = Int
+  base_water = Int
 ) in
+
+type Bed = (
+  name = String,
+  plants = [Plant],
+  shade_level = Int    # 0 = full sun, 3 = deep shade #
+) in
+
+# ─── Plants ─────────────────────────────────────────── #
 
 let moonleaf: Plant = (
   name = "Moonleaf Fern",
   icon = "🌿",
-  base_water = 250,
-  sun_hours = 4
+  base_water = 250
 ) in
 
 let starbloom: Plant = (
   name = "Starbloom Orchid",
   icon = "🌸",
-  base_water = 180,
-  sun_hours = 6
+  base_water = 180
 ) in
-...
+
+let thornveil: Plant = (
+  name = "Thornveil Cactus",
+  icon = "🌵",
+  base_water = 50
+) in
+
+let dewcup: Plant = (
+  name = "Dewcup Lily",
+  icon = "🪷",
+  base_water = 200
+) in
+
+# ─── Beds ───────────────────────────────────────────── #
+
+let shade_garden: Bed = (
+  name = "Shade Garden",
+  plants = [moonleaf, dewcup],
+  shade_level = 2
+) in
+
+let sun_terrace: Bed = (
+  name = "Sun Terrace",
+  plants = [starbloom, thornveil],
+  shade_level = 0
+) in
+
+# ─── Watering Calculations ──────────────────────────── #
+
+let phase_multiplier: MoonPhase -> Float =
+  fun phase -> case phase
+    | New => 1.2
+    | Waxing => 1.1
+    | Full => 0.88
+    | Waning => 0.95
+  end
+in
+
+let shade_multiplier: Int -> Float =
+  fun shade -> case shade
+    | 0 => 1.0
+    | 1 => 0.9
+    | 2 => 0.75
+    | _ => 0.6
+  end
+in
+
+let daily_water: (Plant, Bed, MoonPhase) -> Int =
+  fun plant, bed, phase ->
+    let base = int_to_float(plant.base_water) in
+    let phase_adj = base *. phase_multiplier(phase) in
+    let shade_adj = phase_adj *. shade_multiplier(bed.shade_level) in
+    float_to_int(shade_adj)
+in
+
+let weekly_water: (Plant, Bed, MoonPhase) -> Int =
+  fun plant, bed, phase ->
+    daily_water(plant, bed, phase) * 7
+in
+
+# ─── Schedule Generation ────────────────────────────── #
+
+let plant_schedule: (Plant, Bed, MoonPhase) -> String =
+  fun plant, bed, phase ->
+    let daily = daily_water(plant, bed, phase) in
+    let weekly = weekly_water(plant, bed, phase) in
+    plant.icon ++ " " ++ plant.name ++ ": "
+      ++ int_to_string(daily) ++ "ml/day, "
+      ++ int_to_string(weekly) ++ "ml/week"
+in
+
+let bed_schedule: (Bed, MoonPhase) -> [String] =
+  fun bed, phase ->
+    map(bed.plants, fun plant -> plant_schedule(plant, bed, phase))
+in
+
+# ─── Tests ──────────────────────────────────────────── #
+
+test daily_water(moonleaf, shade_garden, Full) == 165 end;
+test daily_water(thornveil, sun_terrace, New) == 60 end;
+test weekly_water(moonleaf, shade_garden, Full) == 1155 end;
+test weekly_water(starbloom, sun_terrace, Waning) == 1197 end
 ```
 
-When probes show these richer values, you can see the whole structure — not just numbers, but the records and types that make up your program's world.
-
-See you in Part 2!
+This is a lot of code! When you're working with a program this size, manually placing probes everywhere would be tedious. That's where **auto-probe** comes in.
 
 ---
 
-<!-- META: END OF PART 1
+## Part 7: Auto-Probe Mode
 
-Things I'm uncertain about:
-1. Is Space the right key for toggling single/many mode? The probes-guide.md says Space.
-2. The exact highlighting colors (green for same closure, pink for caller, cyan for callee)
-   — I kept it simple and just said "highlighted" without specifying colors yet.
-3. Whether we want to show the Pin/Step buttons in the sample dropdown this early,
-   even if just to acknowledge they exist. Currently I'm hiding them.
-4. The float_to_int / int_to_float functions — need to verify these exist in Hazel stdlib.
+### Seeing Everything at Once
 
-For Part 2 (the larger program), I'm envisioning:
-- A Greenhouse with multiple Beds
-- Each Bed has a list of Plants and a light condition
-- A schedule function that calculates weekly water for each plant, adjusted by moon phase
-- A display function that formats the schedule
-- A BUG: somewhere the daily vs weekly calculation is wrong, or the moon phase
-  is being looked up incorrectly, causing one test to fail
-- We'll use auto-probe to see the whole flow, pin to focus on the failing case,
-  and step-into to trace back to the source of the wrong value
+Instead of adding probes one by one, you can turn on **auto-probe mode**. This automatically places probes on each line of the current definition, giving you a live view of the whole function.
 
-Celestial tinge achieved through:
-- MoonPhase type affecting watering calculations
-- Plant names like "Moonleaf Fern", "Starbloom Orchid"
-- Could add a CelestialCalendar or DayInfo type in Part 2
+**Try this:**
+1. Put your cursor inside the `daily_water` function
+2. Toggle auto-probe mode using the button in the toolbar (or press the auto-probe shortcut)
+
+<!-- META: Need to specify the exact UI location / shortcut for auto-probe toggle -->
+
+Now every line in `daily_water` has a probe:
+
+```hazel
+let daily_water: (Plant, Bed, MoonPhase) -> Int =
+  fun plant, bed, phase ->
+    let base = ⟦int_to_float(plant.base_water)⟧     ≡ 250.  180.  50.  200.
+    in
+    let phase_adj = ⟦base *. phase_multiplier(phase)⟧     ≡ 220.  158.4  60.  190.
+    in
+    let shade_adj = ⟦phase_adj *. shade_multiplier(bed.shade_level)⟧     ≡ 165.  158.4  60.  142.5
+    in
+    ⟦float_to_int(shade_adj)⟧     ≡ 165  158  60  142
+in
+```
+
+<!-- META: The actual samples depend on which tests/calls drive evaluation.
+     With the 4 tests, we'd see 4 samples per probe. I'm showing approximate values. -->
+
+**Key insight:** Auto-probe gives you a bird's-eye view of data flowing through a function. You can see every intermediate step without manually instrumenting anything.
+
+---
+
+### Auto-Probe Follows Your Cursor
+
+Auto-probe is *local* to the current definition. As you move your cursor to different functions, the probes follow:
+
+- Move to `phase_multiplier` → see probes there
+- Move to `weekly_water` → see probes there
+- Move back to `daily_water` → probes return
+
+This keeps the display focused and avoids overwhelming you with data from the entire program.
+
+**Try this:** Click into different functions and watch the probes shift.
+
+---
+
+### Writing with Auto-Probe
+
+Auto-probe isn't just for reading existing code — it's powerful when *writing* new code too.
+
+Imagine you're adding a new function to calculate total weekly water for a bed:
+
+```hazel
+let bed_total: (Bed, MoonPhase) -> Int =
+  fun bed, phase ->
+    let amounts = map(bed.plants, fun p -> weekly_water(p, bed, phase)) in
+    fold_left(amounts, fun (acc, x) -> acc + x, 0)
+in
+```
+
+With auto-probe on, as soon as you write each line:
+
+```hazel
+let bed_total: (Bed, MoonPhase) -> Int =
+  fun bed, phase ->
+    let amounts = ⟦map(bed.plants, fun p -> weekly_water(p, bed, phase))⟧     ≡ [1155, 980]  [420, 1197]
+    in
+    ⟦fold_left(amounts, fun (acc, x) -> acc + x, 0)⟧     ≡ 2135  1617
+in
+```
+
+You see results *immediately* — no need to wait until your function is complete to test it. The tests at the bottom of the program drive the evaluation, and you see live feedback as you type.
+
+<!-- META: This is a key selling point for auto-probe during writing.
+     The values depend on having tests that exercise this function. -->
+
+---
+
+## Part 8: Debugging with Probes
+
+### A Bug Appears
+
+Let's say someone reports that the watering schedule is wrong. You add a test for a specific case you know should work:
+
+```hazel
+test weekly_water(dewcup, shade_garden, Waxing) == 1155 end
+```
+
+But the test **fails**. The expected value is `1155`, but the actual result is something else.
+
+<!-- META: The actual bug and values need to be worked out carefully.
+     Let me set up a plausible scenario. With:
+     - dewcup.base_water = 200
+     - shade_garden.shade_level = 2 (multiplier 0.75)
+     - Waxing phase (multiplier 1.1)
+     - daily = 200 * 1.1 * 0.75 = 165
+     - weekly = 165 * 7 = 1155
+
+     So if someone made the bug be using daily instead of weekly somewhere,
+     or forgot the * 7, the test would fail. Let me introduce a subtle bug. -->
+
+How do you find the problem? With probes, you can trace the calculation step by step.
+
+---
+
+### Narrowing Down with Pin
+
+The program has many function calls — four tests means four executions of `daily_water` and `weekly_water`. With auto-probe showing all of them, you see a wall of samples:
+
+```hazel
+let daily_water: (Plant, Bed, MoonPhase) -> Int =
+  fun plant, bed, phase ->
+    let base = ⟦int_to_float(plant.base_water)⟧     ≡ 250.  180.  50.  200.  200.
+    ...
+```
+
+Five samples now (four original tests plus your new one). Which one is the failing case?
+
+**Pin** lets you focus on a specific call. Here's how:
+
+1. Find the call site you care about — in this case, the test that fails
+2. Add a probe to the function call: `⟦weekly_water(dewcup, shade_garden, Waxing)⟧`
+3. Click on that sample to select it
+4. In the dropdown that appears, click **Pin**
+
+```
+┌──────────────────────────────────────────┐
+│  [Pin]   [Step Into]                     │
+├──────────────────────────────────────────┤
+│  plant   ≡  (name="Dewcup Lily", ...)    │
+│  bed     ≡  (name="Shade Garden", ...)   │
+│  phase   ≡  Waxing                       │
+└──────────────────────────────────────────┘
+```
+
+Now **only** samples from this specific call are shown. The other four executions are filtered out:
+
+```hazel
+let daily_water: (Plant, Bed, MoonPhase) -> Int =
+  fun plant, bed, phase ->
+    let base = ⟦int_to_float(plant.base_water)⟧     ≡ 200.
+    in
+    let phase_adj = ⟦base *. phase_multiplier(phase)⟧     ≡ 220.
+    in
+    let shade_adj = ⟦phase_adj *. shade_multiplier(bed.shade_level)⟧     ≡ 165.
+    in
+    ⟦float_to_int(shade_adj)⟧     ≡ 165
+```
+
+Now you can see exactly what happened for the dewcup in the shade garden during a waxing moon.
+
+**Key insight:** Pin filters samples to a specific call. Use it when there are many executions and you need to focus on one.
+
+---
+
+### The Pin Icon
+
+When you have a pin active, some probes might show no samples (because they weren't reached in the pinned call). These show a special icon: `⍟`
+
+```hazel
+| New => ⟦1.2⟧     ⍟  ← not this branch (pinned call used Waxing)
+| Waxing => ⟦1.1⟧     ≡ 1.1
+```
+
+If you see `⍟` and are confused why there's no sample, **click on it** — this clears the pin and shows all samples again.
+
+---
+
+### Step Into: Following the Call Stack
+
+You've pinned the failing call and you can see the values in `daily_water`. But what if the bug is deeper — inside `phase_multiplier` or `shade_multiplier`?
+
+**Step Into** lets you jump from a function call into that function's body, keeping your pinned context.
+
+1. Find a function call inside `daily_water`, like `phase_multiplier(phase)`
+2. Add a probe to it: `⟦phase_multiplier(phase)⟧`
+3. Click on the sample
+4. In the dropdown, click **Step Into**
+
+```
+┌─────────────────────┐
+│  [Pin]  [Step Into] │  ← Click "Step Into"
+├─────────────────────┤
+│  phase  ≡  Waxing   │
+└─────────────────────┘
+```
+
+Your cursor jumps to `phase_multiplier`, and auto-probe shows that function's internals — still pinned to the context of your failing test.
+
+```hazel
+let phase_multiplier: MoonPhase -> Float =
+  fun phase -> case ⟦phase⟧     ≡ Waxing
+    | New => ⟦1.2⟧     ⍟
+    | Waxing => ⟦1.1⟧     ≡ 1.1
+    | Full => ⟦0.88⟧     ⍟
+    | Waning => ⟦0.95⟧     ⍟
+  end
+```
+
+You can see: the phase is `Waxing`, and the multiplier is `1.1`. That looks correct.
+
+Step into the next suspect — `shade_multiplier` — and continue tracing until you find the discrepancy.
+
+**Key insight:** Step Into + Pin together let you trace backwards from a failing result to find where things went wrong, without losing context.
+
+---
+
+### Clearing the Pin
+
+When you're done debugging and want to see all samples again:
+
+- Click on the `⍟` icon on any probe that shows it, or
+- Press `Shift+Escape` to reset all probe state
+
+---
+
+## Part 9: Seeing Richer Values
+
+### Records and Algebraic Types
+
+Throughout this tutorial, probes have shown simple values: numbers, floats, strings. But Hazel's probes handle complex values too.
+
+When you probe an expression that returns a Plant:
+
+```hazel
+⟦moonleaf⟧     ≡ (name="Moonleaf Fern", icon="🌿", base_water=250)
+```
+
+Or a list of strings from `bed_schedule`:
+
+```hazel
+⟦bed_schedule(shade_garden, Full)⟧     ≡ ["🌿 Moonleaf Fern: 165ml/day...", "🪷 Dewcup Lily: ..."]
+```
+
+The sample shows the structure of the data — field names, list brackets, constructor tags for sum types.
+
+---
+
+### Resizing Samples
+
+Sometimes values are long and get truncated. You can **resize** a sample to see more:
+
+**Hold Shift and drag** horizontally on a sample to expand or contract it.
+
+```
+Before:  ≡ (name="Moonleaf F...
+After:   ≡ (name="Moonleaf Fern", icon="🌿", base_water=250)
+```
+
+The abbreviation algorithm keeps the structure visible even when shortened — it collapses branches rather than just cutting off text.
+
+---
+
+## Recap: Advanced Features
+
+| Feature | What It Does |
+|---------|--------------|
+| **Auto-probe** | Automatically probes each line of the current definition |
+| **Pin** | Filters samples to a specific call; click Pin in sample dropdown |
+| **`⍟` icon** | "No sample due to pin" — click to clear pin |
+| **Step Into** | Jump into a function call while keeping pin context |
+| **Shift+Escape** | Reset all probe state, clear pins |
+| **Shift+drag** | Resize sample display |
+
+---
+
+## What We've Built
+
+You now have tools to:
+
+1. **See values** inline as your code runs (basic probes)
+2. **Navigate** between multiple samples from function calls (closure cursor)
+3. **Get an overview** of an entire function (auto-probe)
+4. **Focus** on a specific execution (pin)
+5. **Trace** through the call stack (step into)
+
+Whether you're writing new code and want live feedback, or debugging a failing test and need to trace values, probes give you visibility into your program's runtime behavior without leaving the editor.
+
+Happy gardening! 🌱
+
+---
+
+<!-- META: END OF PART 2
+
+Things to verify/improve:
+1. The exact UI for toggling auto-probe (toolbar button? shortcut?)
+2. The bug scenario — I left it somewhat vague. We could make it concrete with
+   an actual bug (e.g., using daily instead of weekly somewhere, typo in multiplier)
+3. The sample values throughout need to be consistent with the actual calculations
+4. Whether Shift+Escape is actually the reset shortcut
+5. Could add an appendix on:
+   - Sample coloring (caller/callee colors)
+   - The ⊖ icon (not aligned in single mode)
+   - More details on when to use single vs many mode
+
+The tutorial is now complete through the main features:
+- Basic probes, environment, patterns
+- Branches, ∅ icon
+- Functions, multiple samples
+- Closure cursor, arrow keys, single/many mode
+- Auto-probe
+- Pin, ⍟ icon
+- Step into
+- Resizing samples
 
 -->
