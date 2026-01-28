@@ -59,13 +59,6 @@ and in CI.
    tagged strings (`{__hazel_bigint__: "123"}`) and back. This worked but added
    overhead proportional to message size (4 traversals per worker round-trip).
 
-3. **Different BigInt library** - Would require replacing zarith throughout the
-   codebase (~23 files, ~112 usages). Zarith is deeply integrated and provides
-   the `Z.t` type used in OCaml.
-
-4. **Comlink or other RPC libraries** - These still use structured clone under
-   the hood, so they don't solve the fundamental problem.
-
 ### Future Considerations
 
 - **When Jane Street releases packages compatible with OCaml 5.2+ and
