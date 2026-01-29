@@ -95,10 +95,10 @@ Communication uses PostMessage with these message types (defined in `MessageType
 ## URL Configuration
 
 The Hazel iframe can load from:
-- **Local**: `http://localhost:8001/?name=Patchwork&share=` (local Hazel dev server)
-- **Remote**: `https://hazel.org/build/patchwork/?name=Patchwork&share=` (hosted build)
+- **Local**: `http://localhost:8001/` (local Hazel dev server)
+- **Remote**: `https://hazel.org/build/patchwork/` (hosted build)
 
-The tool.tsx UI includes "Local" and "Remote" buttons to quickly switch between these, plus a text field for custom URLs. The `?name=Patchwork&share=` query params configure the Hazel UI for the embedded context.
+The tool.tsx UI includes "Local" and "Remote" buttons to quickly switch between these, plus a text field for custom URLs.
 
 ## Type Conversion
 
