@@ -761,4 +761,137 @@ end|},
   ),
 ];
 
-let tests = [("Editing.Indentation", indentation_tests)];
+/* ================================================================
+   SELECTIVE RE-INDENTATION TESTS
+   ================================================================
+
+   These tests verify that re-indentation is triggered selectively
+   when a shard is added to a tile, but ONLY when all tiles in the
+   affected segment are complete.
+
+   Trigger: Shard attachment (tile gains a shard via reassembly)
+   Condition: All tiles in the affected segment must be complete
+   Affected segments:
+     1. New child segments created by the shard attachment
+     2. Remaining sibling segment at that level
+
+   IMPLEMENTATION NOTE: Need to decide whether re-indentation should
+   be recursive (also re-indent children of tiles in the segment) or
+   non-recursive (only linebreaks at the top level of the segment).
+   ================================================================ */
+
+let selective_reindent_tests = [
+  /* ================================================================
+     CORE TESTS: These test the main selective re-indentation behavior
+     ================================================================ */
+  /* Example 1: Simple function wrap - re-indentation HAPPENS
+     Completing `fun x ->` should re-indent the body on next line */
+  //   test_from_parse(
+  //     ~name="Selective: fun wrap triggers re-indent",
+  //     ~init={|¦
+  // 1 + 1|},
+  //     ~acts=string_to_ltr_actions("fun x ->"),
+  //     ~goal={|fun x ->¦
+  //   1 + 1|},
+  //   ),
+  /* Example 2: Incomplete outer let blocks re-indent
+     Even though `fun` is complete, the segment contains incomplete `let` */
+  //   test_from_parse(
+  //     ~name="Selective: incomplete outer let blocks re-indent",
+  //     ~init={|let y = ¦
+  // 1 + 1|},
+  //     ~acts=string_to_ltr_actions("fun x ->"),
+  //     ~goal={|let y = fun x ->¦
+  // 1 + 1|},
+  //   ),
+  /* Parens completion triggers re-indent
+     Typing ) to complete parens should indent the contents */
+  //   test_from_parse(
+  //     ~name="Selective: paren completion triggers re-indent",
+  //     ~init={|(
+  // 1 + 1¦|},
+  //     ~acts=string_to_ltr_actions(")"),
+  //     ~goal={|(
+  //   1 + 1)¦|},
+  //   ),
+  /* Completing let with `in` triggers re-indent of definition
+     The body between = and in should be indented */
+  //   test_from_parse(
+  //     ~name="Selective: let completion triggers re-indent",
+  //     ~init={|let x =
+  // 1 + 1¦|},
+  //     ~acts=string_to_ltr_actions(" in y"),
+  //     ~goal={|let x =
+  //   1 + 1
+  // in¦ y|},
+  //   ),
+  /* ================================================================
+     SKIP TEST: Documents desired future behavior
+     ================================================================ */
+  /* Example 7: SKIP - Incomplete if in body
+     User WANTS this indented, but current heuristic says NO.
+     Marking as Skip for future heuristic improvement. */
+  test_case(
+    "Selective: SKIP - incomplete if in body (future improvement)", `Quick, () => {
+    /* Skip this test for now - documents desired future behavior */
+    [@warning "-21"]
+    {
+      Alcotest.skip();
+      let z = parse_with_caret({|¦
+if true then 1|});
+      let result =
+        string_to_ltr_actions("fun x ->") |> perform(z) |> printer;
+      /* Desired behavior: SHOULD re-indent */
+      let desired = {|fun x ->¦
+  if true then 1|};
+      check(testable(Fmt.string, String.equal), desired, desired, result);
+    }
+  }),
+  /* ================================================================
+     NESTED STRUCTURE TESTS
+     ================================================================ */
+  /* Nested lets - completing inner let re-indents inner definition only
+     Outer let is still incomplete, so outer level not touched */
+  //   test_from_parse(
+  //     ~name="Selective: nested lets - inner completion",
+  //     ~init={|let x =
+  // let y =
+  // 1¦|},
+  //     ~acts=string_to_ltr_actions(" in y"),
+  //     ~goal={|let x =
+  // let y =
+  //   1
+  // in¦ y|},
+  //   ),
+  /* Nested lets - completing outer let re-indents everything
+     Starting from state where inner let is already complete */
+  //   test_from_parse(
+  //     ~name="Selective: nested lets - outer completion",
+  //     ~init={|let x =
+  // let y = 1 in y¦|},
+  //     ~acts=string_to_ltr_actions(" in z"),
+  //     ~goal={|let x =
+  //   let y = 1 in y
+  // in¦ z|},
+  //   ),
+  /* ================================================================
+     NEGATIVE TESTS: Re-indentation should NOT happen
+     ================================================================ */
+  /* Typing in incomplete context doesn't trigger re-indent
+     Adding to a let that's still missing `in` */
+  //   test_from_parse(
+  //     ~name="Selective: incomplete let body not re-indented",
+  //     ~init={|let x =
+  // ¦
+  // 1 + 1|},
+  //     ~acts=string_to_ltr_actions("2 +"),
+  //     ~goal={|let x =
+  // 2 +¦
+  // 1 + 1|},
+  //   ),
+];
+
+let tests = [
+  ("Editing.Indentation", indentation_tests),
+  ("Editing.SelectiveReindent", selective_reindent_tests),
+];
