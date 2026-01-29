@@ -8,7 +8,7 @@ module RedundantCoverterIGuess = {
     | Concave => `L_s2_Concave;
 
   let of_secondary_content:
-    Secondary.secondary_content => Delta.SecondaryContent.t =
+    Language.Secondary.secondary_content => Delta.SecondaryContent.t =
     fun
     | Whitespace(s) =>
       Delta.SecondaryContent.create(~t=`L_s12_Whitespace, ~content=s, ())
@@ -145,7 +145,7 @@ module RedundantCoverterIGuess = {
       content: to_secondary_content(Delta.Secondary.get_content(secondary)),
     }
   and to_secondary_content:
-    Delta.SecondaryContent.t => Secondary.secondary_content =
+    Delta.SecondaryContent.t => Language.Secondary.secondary_content =
     x => {
       switch (Delta.SecondaryContent.get_t(x)) {
       | `L_s12_Whitespace =>
