@@ -407,6 +407,7 @@ let equality =
       (alphas_exp: Alphas.t, alphas_typ: Alphas.t, p1: Pat.t, p2: Pat.t)
       : option(Alphas.t) => {
     let pat' = pat(alphas_exp, alphas_typ);
+    let typ' = typ(alphas_exp, alphas_typ);
     let any' = any(alphas_exp, alphas_typ);
     switch (p1 |> Grammar.Annotated.term_of, p2 |> Grammar.Annotated.term_of) {
     // Wrappers when ignored: unwrap.
@@ -422,7 +423,12 @@ let equality =
     | (Parens(_), _) => None
     | (Projector(d1, x), Projector(d2, y)) when d1 == d2 => pat'(x, y)
     | (Projector(_), _) => None
-    | (Asc(x, _), Asc(y, _)) => pat'(x, y)
+    | (Asc(x, t1), Asc(y, t2)) =>
+      if (typ'(t1, t2)) {
+        pat'(x, y);
+      } else {
+        None;
+      }
     | (Asc(_), _) => None
 
     // Variables: special case depending on alpha equivalence.
