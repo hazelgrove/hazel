@@ -60,12 +60,17 @@ Goal: Minimize the embed wrapper UI in `patchwork-extra/hazel/src/tool.tsx`.
 
 - [x] **Make DocGraph toggleable instead of removing it**
   - DocGraph is hidden by default
-  - "Graph" button in top bar toggles a collapsible panel
+  - "Graph" button in top bar toggles a 30% width collapsible panel
   - Keeps the debug visualization available when needed
 
 ### Files Modified in Phase 2
 
 - `patchwork-extra/hazel/src/tool.tsx` - replaced sidebar layout with thin top bar
+
+### Build Notes
+
+Important: The patchwork-extra/hazel package requires pnpm 9.x (lockfile is v9.0).
+When building/installing, use: `npx pnpm@9 install --frozen-lockfile` and `npx pnpm@9 build`
 
 ### Not Done (kept for potential future cleanup)
 

@@ -95,10 +95,10 @@ Communication uses PostMessage with these message types (defined in `MessageType
 ## URL Configuration
 
 The Hazel iframe can load from:
-- **Development**: `http://localhost:8000` (local Hazel dev server)
-- **Production**: `https://hazel.org/build/patchwork/` (hosted build)
+- **Local**: `http://localhost:8001/?name=Patchwork&share=` (local Hazel dev server)
+- **Remote**: `https://hazel.org/build/patchwork/?name=Patchwork&share=` (hosted build)
 
-The URL can be changed at runtime via the UI to switch between instances.
+The tool.tsx UI includes "Local" and "Remote" buttons to quickly switch between these, plus a text field for custom URLs. The `?name=Patchwork&share=` query params configure the Hazel UI for the embedded context.
 
 ## Type Conversion
 
@@ -128,14 +128,70 @@ make dev  # or make release for production build
 ```
 
 ### patchwork-extra/hazel
+
+The patchwork-extra/hazel package has some specific requirements due to its dependencies.
+
+#### Prerequisites
+
+- **pnpm 9.x required**: The lockfile is v9.0 format. If you have pnpm 8.x installed, use `npx pnpm@9` instead.
+- **patchwork CLI**: Must be installed and linked for the `patchwork push` command.
+
+#### Standard Workflow (UI changes only)
+
+For changes that only modify source files (like `tool.tsx`) without touching dependencies:
+
 ```bash
-cd ../patchwork-extra/hazel
-pnpm install
-pnpm build
-pnpm push  # deploys to Automerge
+cd /path/to/patchwork-extra/hazel
+
+# Build (use pnpm 9)
+npx pnpm@9 build
+
+# Push to Patchwork
+patchwork push
 ```
 
-The embed package is pulled via:
+#### After Clean Clone or Dependency Changes
+
+If `node_modules` is missing or you need to reinstall:
+
+```bash
+cd /path/to/patchwork-extra/hazel
+
+# Install with frozen lockfile to preserve working versions
+npx pnpm@9 install --frozen-lockfile
+
+# Build and push
+npx pnpm@9 build
+patchwork push
+```
+
+#### Critical: Do NOT Modify Dependencies
+
+The `package.json` uses a GitHub subdirectory dependency:
 ```json
 "@hazelgrove/hazel-embed": "github:hazelgrove/hazel#patchwork&path:/embed/"
 ```
+
+**Important notes:**
+- This syntax (`#branch&path:/subdir/`) requires pnpm 9.x to resolve correctly
+- Do NOT change this to a `file:` path - it will break the build
+- The lockfile pins specific versions of vite (5.x) that work correctly
+- Using `rolldown-vite` (7.x) or other vite alternatives breaks the build due to CommonJS handling differences
+
+#### Troubleshooting
+
+**"Lockfile not compatible with current pnpm"**
+→ Use `npx pnpm@9` instead of `pnpm`
+
+**"Could not resolve patchwork&path:/embed/ to a commit"**
+→ You're using pnpm 8.x. Use `npx pnpm@9 install --frozen-lockfile`
+
+**"Calling 'require' for react in an environment that doesn't expose require"**
+→ The wrong vite version was used. Reinstall with `npx pnpm@9 install --frozen-lockfile` to restore vite 5.x
+
+**Build succeeds but tool fails to load in Patchwork**
+→ Check the browser console. Usually means a bundler incompatibility. Revert any package.json changes and reinstall with frozen lockfile.
+
+#### Why These Constraints Exist
+
+The embed package uses `react-d3-tree` for the DocGraph visualization, which uses CommonJS internally. Vite 5.x handles this correctly, but rolldown-vite 7.x bundles CommonJS with a `require` shim that doesn't work in Patchwork's ES module environment. The frozen lockfile ensures the working vite version is preserved.
