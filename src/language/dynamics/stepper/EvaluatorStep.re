@@ -427,7 +427,11 @@ let take_step = (step: EvalObj.t) => {
   let+ next_expr = take_step(step.env, step.d_loc);
   let next_expr = {
     ...next_expr,
-    annotation: IdTagged.IdTag.{ids: step.d_loc |> IdTagged.ids},
+    annotation:
+      IdTagged.IdTag.{
+        ids: step.d_loc |> IdTagged.ids,
+        secondary: empty_secondary,
+      },
   };
   let next_expr =
     EvalCtx.compose(step.ctx, next_expr)
