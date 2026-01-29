@@ -112,7 +112,7 @@ and uexp_to_info_map =
       ~override_self: option(Self.exp)=?,
       ~inferred_label: option(LabeledTuple.label)=?,
       ~label_sort,
-      {annotation: {ids}, term} as uexp: Exp.t,
+      {annotation: {ids, _}, term} as uexp: Exp.t,
       m: Map.t,
     )
     : (Info.exp, Map.t) => {
@@ -375,9 +375,7 @@ and uexp_to_info_map =
       add'(~self=e.self, ~co_ctx=e.co_ctx, m);
     | UnOp(Meta(Unquote), e) when is_in_filter =>
       let e: Exp.t = {
-        annotation: {
-          ids: IdTagged.ids(e),
-        },
+        annotation: IdTagged.IdTag.mk_internal(IdTagged.ids(e)),
         term:
           switch (e.term) {
           | Var("e") =>
@@ -2153,7 +2151,7 @@ and variant_to_info_map =
   | BadEntry(uty) =>
     let m = go(VariantExpected(Unique, ty_sum), uty, m) |> snd;
     (m, ctrs);
-  | Variant(ctr, ids, param) =>
+  | Variant(ctr, ann, param) =>
     let m =
       go(
         ConstructorExpected(
@@ -2162,9 +2160,7 @@ and variant_to_info_map =
         ),
         {
           term: Var(ctr),
-          annotation: {
-            ids: ids,
-          },
+          annotation: IdTagged.IdTag.mk_internal(ann.ids),
         },
         m,
       )

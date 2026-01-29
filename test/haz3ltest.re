@@ -18,7 +18,6 @@ let (suite, _) =
       Test_OptUtil.tests,
       Test_CsvUtil.tests,
       Test_Grammar.tests,
-      Test_ExpToSegment.tests,
       Test_Abbreviate.tests,
       Test_LabeledTuple.tests,
       Test_MakeTerm.tests,
@@ -28,6 +27,7 @@ let (suite, _) =
       Test_Equality.tests,
       Test_Substitution.tests,
     ]
+    @ Test_ExpToSegment.all
     @ Test_Typ.tests
     @ Test_Info.tests
     @ Test_Statics.tests

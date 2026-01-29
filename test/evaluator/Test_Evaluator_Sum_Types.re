@@ -16,9 +16,9 @@ let tests = (
             Some(
               Typ.(
                 sum([
-                  Variant("A", [], None),
-                  Variant("B", [], None),
-                  Variant("C", [], None),
+                  Variant("A", ConstructorMap.empty_variant_ann, None),
+                  Variant("B", ConstructorMap.empty_variant_ann, None),
+                  Variant("C", ConstructorMap.empty_variant_ann, None),
                 ])
               ),
             ),
@@ -35,7 +35,12 @@ let tests = (
           "A",
           Some(
             Some(
-              Typ.(sum([Variant("A", [], None), Variant("B", [], None)])),
+              Typ.(
+                sum([
+                  Variant("A", ConstructorMap.empty_variant_ann, None),
+                  Variant("B", ConstructorMap.empty_variant_ann, None),
+                ])
+              ),
             ),
           ),
         ),
@@ -51,11 +56,21 @@ let tests = (
             "A",
             Some(
               Some(
-                Typ.(sum([Variant("A", [], None), Variant("B", [], None)])),
+                Typ.(
+                  sum([
+                    Variant("A", ConstructorMap.empty_variant_ann, None),
+                    Variant("B", ConstructorMap.empty_variant_ann, None),
+                  ])
+                ),
               ),
             ),
           ),
-          Typ.(sum([Variant("A", [], None), Variant("C", [], None)])),
+          Typ.(
+            sum([
+              Variant("A", ConstructorMap.empty_variant_ann, None),
+              Variant("C", ConstructorMap.empty_variant_ann, None),
+            ])
+          ),
         ),
         elaborate(parse_exp({|A : (+A +B) : (+A +C)|})),
       )
@@ -70,7 +85,7 @@ let tests = (
               Some(
                 Some(
                   Typ.sum([
-                    Variant("T", [], None),
+                    Variant("T", ConstructorMap.empty_variant_ann, None),
                     BadEntry(Typ.unknown(Internal)),
                   ]),
                 ),
@@ -104,7 +119,7 @@ let tests = (
                           sum([
                             Variant(
                               "B",
-                              [],
+                              ConstructorMap.empty_variant_ann,
                               Some(unknown(Hole(EmptyHole))),
                             ),
                           ]),
@@ -114,7 +129,13 @@ let tests = (
                   ),
                 ),
                 Typ.(
-                  sum([Variant("B", [], Some(unknown(Hole(EmptyHole))))])
+                  sum([
+                    Variant(
+                      "B",
+                      ConstructorMap.empty_variant_ann,
+                      Some(unknown(Hole(EmptyHole))),
+                    ),
+                  ])
                 ),
               )
             ),
@@ -187,7 +208,13 @@ let tests = (
                     Typ.(
                       arrow(
                         float(),
-                        sum([Variant("A", [], Some(float()))]),
+                        sum([
+                          Variant(
+                            "A",
+                            ConstructorMap.empty_variant_ann,
+                            Some(float()),
+                          ),
+                        ]),
                       )
                     ),
                   ),
