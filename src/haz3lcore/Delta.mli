@@ -144,51 +144,6 @@ module Mold : sig
   val cast_from : 'tags this -> t [@@js.custom let cast_from = Obj.magic]
 end
 
-module Tile : sig
-  type t = [ `Tile ] intf [@@js.custom { of_js = Obj.magic; to_js = Obj.magic }]
-  type t_0 = t
-
-  [@@@js.stop]
-
-  type tags = [ `Tile ]
-  type tags_0 = tags
-
-  [@@@js.start]
-
-  [@@@js.implem
-  type tags = [ `Tile ]
-  type tags_0 = tags]
-
-  type 'tags this = 'tags intf constraint 'tags = [> `Tile ]
-
-  val t_to_js : t -> Ojs.t
-  val t_of_js : Ojs.t -> t
-  val t_0_to_js : t_0 -> Ojs.t
-  val t_0_of_js : Ojs.t -> t_0
-
-  val get_t : 'tags this -> ([ `L_s10_Tile [@js "Tile"] ][@js.enum])
-  [@@js.get "t"]
-
-  val get_id : 'tags this -> UUID.t [@@js.get "id"]
-  val get_label : 'tags this -> string list [@@js.get "label"]
-  val get_mold : 'tags this -> Mold.t [@@js.get "mold"]
-  val get_shards : 'tags this -> int list [@@js.get "shards"]
-  val get_children : 'tags this -> t list [@@js.get "children"]
-
-  val create :
-    t:([ `L_s10_Tile [@js "Tile"] ][@js.enum]) ->
-    id:UUID.t ->
-    label:string list ->
-    mold:Mold.t ->
-    shards:int list ->
-    children:t list ->
-    unit ->
-    t
-  [@@js.builder]
-
-  val cast_from : 'tags this -> t [@@js.custom let cast_from = Obj.magic]
-end
-
 module SecondaryContent : sig
   type t = [ `SecondaryContent ] intf
   [@@js.custom { of_js = Obj.magic; to_js = Obj.magic }]

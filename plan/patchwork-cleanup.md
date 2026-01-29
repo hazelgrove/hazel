@@ -2,37 +2,43 @@
 
 This plan covers cleanup of the Hazel-Patchwork integration on the `patchwork` branch.
 
-## Phase 1: Type Conversion and Dead Code Cleanup
+## Phase 1: Type Conversion and Dead Code Cleanup ✓ COMPLETE
 
 Goal: Remove unused types and dead code specific to this branch.
 
 ### Tasks
 
-- [ ] **Remove nested `Tile` module from `Delta.mli`** (lines 147-190)
+- [x] **Remove nested `Tile` module from `Delta.mli`** (was lines 147-190)
   - Only `FlatTile` is used; the nested `Tile` with `children: t list` is never referenced in `Iframe.re`
   - The flattening happens via `AutoSeg`, not via nested Tiles
 
-- [ ] **Remove nested `Tile` interface from `embed/src/types/delta.d.ts`** (lines 33-40)
+- [x] **Remove nested `Tile` interface from `embed/src/types/delta.d.ts`** (was lines 33-40)
   - Same as above - only `FlatTile` is used in `FlatPiece` and `HazelDoc`
 
-- [ ] **Remove commented-out EditOp types from `embed/src/types/delta.d.ts`** (lines 58-77)
+- [x] **Remove commented-out EditOp types from `embed/src/types/delta.d.ts`** (was lines 58-77)
   - `DeleteOp`, `InsertOp`, `ReplaceOp`, `EditScript` were an earlier diff-based sync approach
   - We now use full-state sync, so these are dead
 
-- [ ] **Remove `embed/src/App.tsx`**
-  - This is a test harness; the real consumer is `patchwork-extra/hazel/src/tool.tsx`
-  - May need to update `embed/src/index.ts` if it exports App
+- [x] **Remove `embed/src/App.tsx` and related test harness files**
+  - Removed: `App.tsx`, `main.tsx`, `index.html`, `index.css`
+  - Removed: `MessageDisplay.tsx`, `DocStateManager.tsx`, `DocComponents.css`
+  - These were for local development testing; real consumer is `patchwork-extra/hazel/src/tool.tsx`
 
-- [ ] **Verify build still works after removals**
+- [x] **Add documentation to type files**
+  - Added comprehensive comments to `delta.d.ts` explaining flat vs nested representation
+  - Added protocol documentation to `messages.d.ts`
 
-### Verification
+- [x] **Verify build still works after removals**
+  - `make dev` builds Hazel OCaml code successfully
+  - `pnpm build` in embed/ builds the package successfully
 
-After Phase 1, run:
-```bash
-make deps
-make dev
-```
-And verify Hazel builds and the patchwork embed package builds.
+### Files Modified in Phase 1
+
+- `src/haz3lcore/Delta.mli` - removed Tile module
+- `embed/src/types/delta.d.ts` - removed Tile interface, commented code, added docs
+- `embed/src/types/messages.d.ts` - added protocol documentation
+- Deleted: `embed/src/App.tsx`, `embed/src/main.tsx`, `embed/index.html`, `embed/src/index.css`
+- Deleted: `embed/src/components/MessageDisplay.tsx`, `DocStateManager.tsx`, `DocComponents.css`
 
 ---
 
@@ -78,16 +84,37 @@ After Phase 2:
 
 ---
 
-## Files Modified
+## Type Conversion Reference
 
-### Phase 1
-- `src/haz3lcore/Delta.mli` - remove Tile module
-- `embed/src/types/delta.d.ts` - remove Tile interface and commented code
-- `embed/src/App.tsx` - delete
-- `embed/src/index.ts` - possibly update exports
+### TypeScript → OCaml Generation
 
-### Phase 2
-- `embed/src/components/DocGraph.tsx` - delete
-- `embed/src/index.ts` - remove DocGraph export
-- `patchwork-extra/hazel/src/tool.tsx` - replace sidebar with thin bar
-- `patchwork-extra/hazel/package.json` - remove react-d3-tree
+The TypeScript types in `embed/src/types/` are the source of truth. To regenerate OCaml bindings:
+
+```bash
+cd embed
+pnpm type:delta     # Generates Delta.mli from delta.d.ts
+pnpm type:messages  # Generates MessageTypes.mli from messages.d.ts
+pnpm type           # Both at once
+```
+
+### Runtime Conversion (Iframe.re)
+
+The `RedundantCoverterIGuess` module in `Iframe.re` handles bidirectional conversion:
+
+| Direction | Function | Purpose |
+|-----------|----------|---------|
+| OCaml → JS | `of_*` functions | Convert OCaml types to JS for PostMessage |
+| JS → OCaml | `to_*` functions | Convert received JS messages to OCaml |
+
+Key entry points:
+- `js_of_autoseg`: AutoSeg.Doc.t → Ojs.t (for sending state)
+- `autoseg_of_hazeldoc`: HazelDoc.t_0 → AutoSeg.Doc.t (for receiving state)
+
+### Tree ↔ Flat Conversion (AutoSeg.re)
+
+| Function | Purpose |
+|----------|---------|
+| `seg_to_doc` | Segment (nested tree) → Doc (flat map) |
+| `doc_to_seg` | Doc (flat map) → Segment (nested tree) |
+
+The flat representation uses UUID references instead of nested children, which is more compatible with Automerge's CRDT data structures.
