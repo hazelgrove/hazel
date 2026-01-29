@@ -5,14 +5,14 @@
  * Communication is bidirectional via window.postMessage().
  *
  * Type Conversion Flow:
- *   TypeScript (this file) --[ts2ocaml]--> OCaml (MessageTypes.mli)
+ *   TypeScript (this file) --[ts2ocaml]--> OCaml (PatchworkMessages.mli)
  *
  * To regenerate OCaml types after modifying this file:
- *   cd embed && pnpm type:messages
+ *   cd embed && pnpm type:patchworkmessages
  *
  * Message handling:
  *   - Parent side: HazelEmbed.tsx listens for HazelToParent messages
- *   - Iframe side: Iframe.re listen() handles ParentToHazel messages
+ *   - Iframe side: PatchworkComm.re listen() handles ParentToHazel messages
  *
  * Typical message flow:
  *   1. Iframe loads, sends Init to parent
@@ -23,7 +23,7 @@
  *   6. Iframe applies change via SyncReplace action
  */
 
-import type { HazelDoc } from "./delta";
+import type { HazelDoc } from "./flatdoc";
 
 /** Sent when iframe loads or parent connects - handshake message */
 export interface Init {

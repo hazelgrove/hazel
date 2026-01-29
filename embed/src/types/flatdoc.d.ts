@@ -10,16 +10,16 @@
  * containing them directly.
  *
  * Type Conversion Flow:
- *   TypeScript (this file) --[ts2ocaml]--> OCaml (Delta.mli)
+ *   TypeScript (this file) --[ts2ocaml]--> OCaml (FlatDoc.mli)
  *
  * To regenerate OCaml types after modifying this file:
- *   cd embed && pnpm type:delta
+ *   cd embed && pnpm type:flatdoc
  *
- * The OCaml conversions in Iframe.re (RedundantCoverterIGuess module) handle:
- *   - of_* functions: OCaml types -> JS/Delta types (for sending to parent)
- *   - to_* functions: JS/Delta types -> OCaml types (for receiving from parent)
+ * The OCaml conversions in PatchworkComm.re (JsConvert module) handle:
+ *   - of_* functions: OCaml types -> JS/FlatDoc types (for sending to parent)
+ *   - to_* functions: JS/FlatDoc types -> OCaml types (for receiving from parent)
  *
- * Runtime conversion between nested Segment and flat Doc happens in AutoSeg.re:
+ * Runtime conversion between nested Segment and flat Doc happens in FlatConvert.re:
  *   - seg_to_doc: Segment -> flat Doc (for sending)
  *   - doc_to_seg: flat Doc -> Segment (for receiving)
  */

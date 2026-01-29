@@ -145,6 +145,6 @@ let should_send_state = (a: Action.t): bool =>
 
 let send_state = (a: Action.t, z: Zipper.t): unit =>
   if (should_send_state(a)) {
-    let auto_seg = AutoSeg.seg_to_doc(z |> Zipper.zip);
-    Iframe.send_state(auto_seg);
+    let flat_doc = FlatConvert.seg_to_doc(z |> Zipper.zip);
+    PatchworkComm.send_state(flat_doc);
   };

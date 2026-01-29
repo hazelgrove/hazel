@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import Tree from "react-d3-tree";
-import type { HazelDoc } from "../types/delta";
+import type { HazelDoc } from "../types/flatdoc";
 
 interface DocGraphProps {
   docState: HazelDoc | null;

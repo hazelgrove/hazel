@@ -1,30 +1,30 @@
 open Js_of_ocaml;
-open MessageTypes;
+open PatchworkMessages;
 
-module RedundantCoverterIGuess = {
-  let of_shape: Grout.shape => Delta.Shape.t =
+module JsConvert = {
+  let of_shape: Grout.shape => FlatDoc.Shape.t =
     fun
     | Convex => `L_s3_Convex
     | Concave => `L_s2_Concave;
 
   let of_secondary_content:
-    Language.Secondary.secondary_content => Delta.SecondaryContent.t =
+    Language.Secondary.secondary_content => FlatDoc.SecondaryContent.t =
     fun
     | Whitespace(s) =>
-      Delta.SecondaryContent.create(~t=`L_s12_Whitespace, ~content=s, ())
+      FlatDoc.SecondaryContent.create(~t=`L_s12_Whitespace, ~content=s, ())
     | Comment(s) =>
-      Delta.SecondaryContent.create(~t=`L_s1_Comment, ~content=s, ());
+      FlatDoc.SecondaryContent.create(~t=`L_s1_Comment, ~content=s, ());
 
-  let of_grout = (grout: Grout.t): Delta.Grout.t =>
-    Delta.Grout.create(
+  let of_grout = (grout: Grout.t): FlatDoc.Grout.t =>
+    FlatDoc.Grout.create(
       ~t=`L_s5_Grout,
       ~id=Id.to_string(grout.id),
       ~shape=of_shape(grout.shape),
       (),
     );
 
-  let of_secondary = (secondary: Secondary.t): Delta.Secondary.t => {
-    Delta.Secondary.create(
+  let of_secondary = (secondary: Secondary.t): FlatDoc.Secondary.t => {
+    FlatDoc.Secondary.create(
       ~t=`L_s8_Secondary,
       ~id=Id.to_string(secondary.id),
       ~content=of_secondary_content(secondary.content),
@@ -32,7 +32,7 @@ module RedundantCoverterIGuess = {
     );
   };
 
-  let of_sort: Sort.t => Delta.Sort.t =
+  let of_sort: Sort.t => FlatDoc.Sort.t =
     fun
     | Exp => `L_s4_Exp
     | Pat => `L_s6_Pat
@@ -41,40 +41,44 @@ module RedundantCoverterIGuess = {
     | Rul => `L_s7_Rul
     | Any => `L_s0_Any;
 
-  let of_nib_shape: Nib.Shape.t => Delta.NibShape.t =
+  let of_nib_shape: Nib.Shape.t => FlatDoc.NibShape.t =
     fun
     | Convex =>
       `U_s3_Convex(
-        Delta.NibShape.AnonymousInterface1.create(~t=`L_s3_Convex, ()),
+        FlatDoc.NibShape.AnonymousInterface1.create(~t=`L_s3_Convex, ()),
       )
     | Concave(n) =>
       `U_s2_Concave(
-        Delta.NibShape.AnonymousInterface0.create(
+        FlatDoc.NibShape.AnonymousInterface0.create(
           ~t=`L_s2_Concave,
           ~n, //wtf
           (),
         ),
       );
 
-  let of_nib: Nib.t => Delta.Nib.t =
+  let of_nib: Nib.t => FlatDoc.Nib.t =
     fun
     | {shape, sort} =>
-      Delta.Nib.create(~shape=of_nib_shape(shape), ~sort=of_sort(sort), ());
+      FlatDoc.Nib.create(
+        ~shape=of_nib_shape(shape),
+        ~sort=of_sort(sort),
+        (),
+      );
 
-  let of_nibs: ((Nib.t, Nib.t)) => (Delta.Nib.t, Delta.Nib.t) =
+  let of_nibs: ((Nib.t, Nib.t)) => (FlatDoc.Nib.t, FlatDoc.Nib.t) =
     fun
     | (nib1, nib2) => (of_nib(nib1), of_nib(nib2));
 
-  let of_mold = (mold: Mold.t): Delta.Mold.t =>
-    Delta.Mold.create(
+  let of_mold = (mold: Mold.t): FlatDoc.Mold.t =>
+    FlatDoc.Mold.create(
       ~out=of_sort(mold.out),
       ~in_=mold.in_ |> List.map(of_sort),
       ~nibs=mold.nibs |> of_nibs,
       (),
     );
 
-  let of_tile = (tile: AutoSeg.Flat.tile): Delta.FlatTile.t =>
-    Delta.FlatTile.create(
+  let of_tile = (tile: FlatConvert.Flat.tile): FlatDoc.FlatTile.t =>
+    FlatDoc.FlatTile.create(
       ~t=`L_s10_Tile,
       ~id=Id.to_string(tile.id),
       ~label=tile.label,
@@ -84,7 +88,7 @@ module RedundantCoverterIGuess = {
       (),
     );
 
-  let of_flat_piece = (x: AutoSeg.Flat.piece): Delta.FlatPiece.t => {
+  let of_flat_piece = (x: FlatConvert.Flat.piece): FlatDoc.FlatPiece.t => {
     switch (x) {
     | Grout(grout) => `U_s5_Grout(of_grout(grout))
     | Secondary(secondary) => `U_s8_Secondary(of_secondary(secondary))
@@ -92,15 +96,15 @@ module RedundantCoverterIGuess = {
     };
   };
 
-  let rec to_string: Delta.Shape.t => string =
+  let rec to_string: FlatDoc.Shape.t => string =
     fun
     | `L_s3_Convex => "Convex"
     | `L_s2_Concave => "Concave"
-  and to_shape: Delta.Shape.t => Grout.shape =
+  and to_shape: FlatDoc.Shape.t => Grout.shape =
     fun
     | `L_s3_Convex => Convex
     | `L_s2_Concave => Concave
-  and to_sort: Delta.Sort.t => Sort.t =
+  and to_sort: FlatDoc.Sort.t => Sort.t =
     fun
     | `L_s4_Exp => Exp
     | `L_s6_Pat => Pat
@@ -108,64 +112,65 @@ module RedundantCoverterIGuess = {
     | `L_s9_TPat => TPat
     | `L_s7_Rul => Rul
     | `L_s0_Any => Any
-  and to_nib_shape: Delta.NibShape.t => Nib.Shape.t =
+  and to_nib_shape: FlatDoc.NibShape.t => Nib.Shape.t =
     fun
     | `U_s3_Convex(_) => Convex
     | `U_s2_Concave(concave) => {
-        let n = Delta.NibShape.AnonymousInterface0.get_n(concave);
+        let n = FlatDoc.NibShape.AnonymousInterface0.get_n(concave);
         Concave(n);
       }
-  and to_nib: Delta.Nib.t => Nib.t =
+  and to_nib: FlatDoc.Nib.t => Nib.t =
     nib => {
-      shape: to_nib_shape(Delta.Nib.get_shape(nib)),
-      sort: to_sort(Delta.Nib.get_sort(nib)),
+      shape: to_nib_shape(FlatDoc.Nib.get_shape(nib)),
+      sort: to_sort(FlatDoc.Nib.get_sort(nib)),
     }
-  and to_nibs: ((Delta.Nib.t, Delta.Nib.t)) => (Nib.t, Nib.t) =
+  and to_nibs: ((FlatDoc.Nib.t, FlatDoc.Nib.t)) => (Nib.t, Nib.t) =
     fun
     | (nib1, nib2) => (to_nib(nib1), to_nib(nib2))
-  and to_mold: Delta.Mold.t => Mold.t =
+  and to_mold: FlatDoc.Mold.t => Mold.t =
     mold => {
-      out: to_sort(Delta.Mold.get_out(mold)),
-      in_: Delta.Mold.get_in(mold) |> List.map(to_sort),
-      nibs: to_nibs(Delta.Mold.get_nibs(mold)),
+      out: to_sort(FlatDoc.Mold.get_out(mold)),
+      in_: FlatDoc.Mold.get_in(mold) |> List.map(to_sort),
+      nibs: to_nibs(FlatDoc.Mold.get_nibs(mold)),
     }
-  and to_tile: Delta.FlatTile.t => AutoSeg.Flat.tile =
+  and to_tile: FlatDoc.FlatTile.t => FlatConvert.Flat.tile =
     tile => {
-      id: Id.of_string(Delta.FlatTile.get_id(tile)) |> Option.get,
-      label: Delta.FlatTile.get_label(tile),
-      mold: to_mold(Delta.FlatTile.get_mold(tile)),
-      shards: Delta.FlatTile.get_shards(tile),
+      id: Id.of_string(FlatDoc.FlatTile.get_id(tile)) |> Option.get,
+      label: FlatDoc.FlatTile.get_label(tile),
+      mold: to_mold(FlatDoc.FlatTile.get_mold(tile)),
+      shards: FlatDoc.FlatTile.get_shards(tile),
       children:
-        Delta.FlatTile.get_children(tile)
+        FlatDoc.FlatTile.get_children(tile)
         |> List.map(List.map(id => Id.of_string(id) |> Option.get)),
     }
-  and to_secondary: Delta.Secondary.t => Secondary.t =
+  and to_secondary: FlatDoc.Secondary.t => Secondary.t =
     secondary => {
-      id: Id.of_string(Delta.Secondary.get_id(secondary)) |> Option.get,
-      content: to_secondary_content(Delta.Secondary.get_content(secondary)),
+      id: Id.of_string(FlatDoc.Secondary.get_id(secondary)) |> Option.get,
+      content:
+        to_secondary_content(FlatDoc.Secondary.get_content(secondary)),
     }
   and to_secondary_content:
-    Delta.SecondaryContent.t => Language.Secondary.secondary_content =
+    FlatDoc.SecondaryContent.t => Language.Secondary.secondary_content =
     x => {
-      switch (Delta.SecondaryContent.get_t(x)) {
+      switch (FlatDoc.SecondaryContent.get_t(x)) {
       | `L_s12_Whitespace =>
-        Whitespace(Delta.SecondaryContent.get_content(x))
-      | `L_s1_Comment => Comment(Delta.SecondaryContent.get_content(x))
+        Whitespace(FlatDoc.SecondaryContent.get_content(x))
+      | `L_s1_Comment => Comment(FlatDoc.SecondaryContent.get_content(x))
       };
     }
-  and to_grout = (grout: Delta.Grout.t): Grout.t => {
+  and to_grout = (grout: FlatDoc.Grout.t): Grout.t => {
     {
-      id: Id.of_string(Delta.Grout.get_id(grout)) |> Option.get,
-      shape: to_shape(Delta.Grout.get_shape(grout)),
+      id: Id.of_string(FlatDoc.Grout.get_id(grout)) |> Option.get,
+      shape: to_shape(FlatDoc.Grout.get_shape(grout)),
     };
   }
-  and to_flat_piece: Delta.FlatPiece.t => AutoSeg.Flat.piece =
+  and to_flat_piece: FlatDoc.FlatPiece.t => FlatConvert.Flat.piece =
     fun
     | `U_s5_Grout(grout) => Grout(to_grout(grout))
     | `U_s8_Secondary(secondary) => Secondary(to_secondary(secondary))
     | `U_s10_Tile(tile) => Tile(to_tile(tile));
 
-  let id_from_piece = (piece: AutoSeg.Flat.piece): Id.t => {
+  let id_from_piece = (piece: FlatConvert.Flat.piece): Id.t => {
     switch (piece) {
     | Tile(tile) => tile.id
     | Grout(grout) => grout.id
@@ -173,17 +178,17 @@ module RedundantCoverterIGuess = {
     };
   };
 
-  let js_of_autoseg = (map: AutoSeg.Doc.t): Ojs.t => {
+  let js_of_flatdoc = (map: FlatConvert.Doc.t): Ojs.t => {
     let tiles =
       map |> Id.Map.to_list |> List.map(((_x, y)) => of_flat_piece(y));
     let state =
-      Delta.HazelDoc.AnonymousInterface2.create(~title="", ~tiles, ());
+      FlatDoc.HazelDoc.AnonymousInterface2.create(~title="", ~tiles, ());
     EditorState.t_to_js(EditorState.create(~t=`L_s3_state, ~state, ()));
   };
 
-  let autoseg_of_hazeldoc = (doc: HazelDoc.t_0): AutoSeg.Doc.t =>
+  let flatdoc_of_hazeldoc = (doc: HazelDoc.t_0): FlatConvert.Doc.t =>
     doc
-    |> Delta.HazelDoc.AnonymousInterface2.get_tiles
+    |> FlatDoc.HazelDoc.AnonymousInterface2.get_tiles
     |> List.map(to_flat_piece)
     |> List.map(piece => (id_from_piece(piece), piece))
     |> Id.Map.of_list;
@@ -227,8 +232,8 @@ let listen = (schedule_action: Action.t => unit): unit => {
         Firebug.console##log(Js.string("iframe got pong: " ++ text));
       | `U_s3_state(state) =>
         let js_state = EditorState.get_state(state);
-        let state = RedundantCoverterIGuess.autoseg_of_hazeldoc(js_state);
-        let seg = AutoSeg.doc_to_seg(state);
+        let state = JsConvert.flatdoc_of_hazeldoc(js_state);
+        let seg = FlatConvert.doc_to_seg(state);
         schedule_action(SyncReplace(seg));
         Firebug.console##log(
           "my name is iframe and I'm here to say you gave me this state",
@@ -250,8 +255,8 @@ let listen = (schedule_action: Action.t => unit): unit => {
   );
 };
 
-let send_state = (map: AutoSeg.Doc.t): unit =>
-  map |> RedundantCoverterIGuess.js_of_autoseg |> send_to_parent;
+let send_state = (map: FlatConvert.Doc.t): unit =>
+  map |> JsConvert.js_of_flatdoc |> send_to_parent;
 
 let init_iframe = schedule_action => {
   print_endline("Initializing iframe");

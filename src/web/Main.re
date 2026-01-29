@@ -152,7 +152,7 @@ let start = {
       )
       >= 0;
     NinjaKeys.initialize(Shortcut.options(schedule_action));
-    Haz3lcore.Iframe.init_iframe(a =>
+    Haz3lcore.PatchworkComm.init_iframe(a =>
       schedule_action(
         Editors(Scratch(CellAction(MainEditor(Perform(a))))),
       )

@@ -32,10 +32,10 @@
     "build": "vite build",
     "preview": "vite preview",
     "prepublishOnly": "npm run build",
-    "type:messages:fix": "sed 's/Index/Delta/g' src/types/messages.mli > src/types/messages.tmp && mv src/types/messages.tmp src/types/messages.mli",
-    "type:messages": "tsx node_modules/@ocsigen/ts2ocaml/dist/ts2ocaml.js jsoo --number-as-int --readable-names --preset full --output-dir src/types src/types/messages.d.ts && pnpm type:messages:fix && cp src/types/messages.mli ../src/haz3lcore/MessageTypes.mli",
-    "type:delta": "tsx node_modules/@ocsigen/ts2ocaml/dist/ts2ocaml.js jsoo --number-as-int --readable-names --preset full --output-dir src/types src/types/delta.d.ts && cp src/types/delta.mli ../src/haz3lcore/Delta.mli",
-    "type": "npm run type:messages && npm run type:delta",
+    "type:patchworkmessages:fix": "sed 's/Index/FlatDoc/g' src/types/patchworkmessages.mli > src/types/patchworkmessages.tmp && mv src/types/patchworkmessages.tmp src/types/patchworkmessages.mli",
+    "type:patchworkmessages": "tsx node_modules/@ocsigen/ts2ocaml/dist/ts2ocaml.js jsoo --number-as-int --readable-names --preset full --output-dir src/types src/types/patchworkmessages.d.ts && pnpm type:patchworkmessages:fix && cp src/types/patchworkmessages.mli ../src/haz3lcore/patchwork/PatchworkMessages.mli",
+    "type:flatdoc": "tsx node_modules/@ocsigen/ts2ocaml/dist/ts2ocaml.js jsoo --number-as-int --readable-names --preset full --output-dir src/types src/types/flatdoc.d.ts && cp src/types/flatdoc.mli ../src/haz3lcore/patchwork/FlatDoc.mli",
+    "type": "npm run type:patchworkmessages && npm run type:flatdoc",
     "style": "prettier --write ."
   },
   "dependencies": {

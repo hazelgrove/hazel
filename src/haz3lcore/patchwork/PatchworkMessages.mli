@@ -4,13 +4,13 @@
 open Ts2ocaml
 open Ts2ocaml.Dom
 
-(* import type { HazelDoc } from "./delta"; *)
+(* import type { HazelDoc } from "./flatdoc"; *)
 [@@@js.stop]
 
-module HazelDoc = Delta.Export.HazelDoc
+module HazelDoc = FlatDoc.Export.HazelDoc
 
 [@@@js.start]
-[@@@js.implem module HazelDoc = Delta.Export.HazelDoc]
+[@@@js.implem module HazelDoc = FlatDoc.Export.HazelDoc]
 
 module Pong : sig
   type t = [ `Pong ] intf [@@js.custom { of_js = Obj.magic; to_js = Obj.magic }]

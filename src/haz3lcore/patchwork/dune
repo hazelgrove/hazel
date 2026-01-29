@@ -1,0 +1,11 @@
+(rule
+ (targets FlatDoc.ml)
+ (deps FlatDoc.mli)
+ (action
+  (run %{bin:gen_js_api} %{deps})))
+
+(rule
+ (targets PatchworkMessages.ml)
+ (deps PatchworkMessages.mli)
+ (action
+  (run %{bin:gen_js_api} %{deps})))
