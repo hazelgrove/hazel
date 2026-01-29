@@ -12,16 +12,12 @@ type t = {
 
 let empty: t = {
   term: {
-    annotation: {
-      ids: [Id.invalid],
-    },
     term: Tuple([]),
+    annotation: IdTagged.IdTag.temp(),
   },
   elaborated: {
-    annotation: {
-      ids: [Id.invalid],
-    },
     term: Tuple([]),
+    annotation: IdTagged.IdTag.temp(),
   },
   info_map: Id.Map.empty,
   error_ids: [],
@@ -134,7 +130,7 @@ let init =
   let probe_ids =
     Id.Map.union(
       (_, _, _) => Some(),
-      Id.Map.map(_ => (), z.refractors.manuals),
+      Id.Map.map(_ => (), Id.Map.of_list(z.refractors.manuals)),
       Id.Map.map(_ => (), z.refractors.autos.ephemerals),
     );
 

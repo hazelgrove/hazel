@@ -151,10 +151,10 @@ let destruct = (z: t): option(t) =>
 let refractor_seg_to_seg_with =
     (
       ~wrapper: (ProjectorCore.Kind.t, Segment.t) => Segment.t,
-      refractors: Zipper.Refractor.Map.t,
+      refractors: Zipper.Refractor.RefractorList.t,
       seg: Segment.t,
     )
-    : (Zipper.Refractor.Map.t, Segment.t) => {
+    : (Zipper.Refractor.RefractorList.t, Segment.t) => {
   /* This function transforms a segment by wrapping terms that have refractors
    * with their invocation syntax (e.g., ^^probe(...)).
    *
@@ -169,8 +169,8 @@ let refractor_seg_to_seg_with =
   /* Process an Aba root, returning segment from first_a to last_a (inclusive).
    * Recursively processes all child skeletons in the Aba. */
   let rec go_aba =
-          (map: Zipper.Refractor.Map.t, root: Skel.root)
-          : (Zipper.Refractor.Map.t, Segment.t) => {
+          (map: Zipper.Refractor.RefractorList.t, root: Skel.root)
+          : (Zipper.Refractor.RefractorList.t, Segment.t) => {
     let indices = Aba.get_as(root);
     let children = Aba.get_bs(root);
     switch (indices, children) {
@@ -184,12 +184,12 @@ let refractor_seg_to_seg_with =
        *   slice(i1, c1_start) @ go(c1) @ slice(c1_end+1, i2) @ slice(i2, i2+1) */
       let rec go_interleave =
               (
-                map: Zipper.Refractor.Map.t,
+                map: Zipper.Refractor.RefractorList.t,
                 prev_idx: int,
                 indices: list(int),
                 children: list(Skel.t),
               )
-              : (Zipper.Refractor.Map.t, Segment.t) =>
+              : (Zipper.Refractor.RefractorList.t, Segment.t) =>
         switch (indices, children) {
         | ([], []) =>
           /* After last index: include slice for the final token */
@@ -210,8 +210,8 @@ let refractor_seg_to_seg_with =
     };
   }
   and go =
-      (map: Zipper.Refractor.Map.t, skel: Skel.t)
-      : (Zipper.Refractor.Map.t, Segment.t) => {
+      (map: Zipper.Refractor.RefractorList.t, skel: Skel.t)
+      : (Zipper.Refractor.RefractorList.t, Segment.t) => {
     let (map, result) =
       switch (skel) {
       | Op(root) =>
@@ -264,16 +264,16 @@ let refractor_seg_to_seg_with =
 
     /* Check if this term needs to be wrapped with a refractor invocation */
     let root_id = Segment.root_id(skel, seg);
-    switch (Id.Map.find_opt(root_id, map)) {
+    switch (List.assoc_opt(root_id, map)) {
     | Some(entry) => (
-        Id.Map.remove(root_id, map),
+        ListUtil.remove_assoc(root_id, map),
         wrapper(entry.kind, result),
       )
     | None => (map, result)
     };
   };
 
-  if (Id.Map.is_empty(refractors)) {
+  if (List.is_empty(refractors)) {
     (refractors, seg);
   } else {
     /* Segment.skel throws exceptions for incomplete/malformed segments
@@ -298,14 +298,14 @@ let refractor_seg_to_seg_with =
 
 /* Standard version using ^^probe(...) syntax */
 let refractor_seg_to_seg =
-    (refractors: Zipper.Refractor.Map.t, seg: Segment.t)
-    : (Zipper.Refractor.Map.t, Segment.t) =>
+    (refractors: Refractor.RefractorList.t, seg: Segment.t)
+    : (Refractor.RefractorList.t, Segment.t) =>
   refractor_seg_to_seg_with(~wrapper=refractor_to_invoke, refractors, seg);
 
 /* Text-only version using Unicode brackets for CLI output */
 let refractor_seg_to_seg_text =
-    (refractors: Zipper.Refractor.Map.t, seg: Segment.t)
-    : (Zipper.Refractor.Map.t, Segment.t) =>
+    (refractors: Refractor.RefractorList.t, seg: Segment.t)
+    : (Refractor.RefractorList.t, Segment.t) =>
   refractor_seg_to_seg_with(
     ~wrapper=refractor_to_invoke_text,
     refractors,

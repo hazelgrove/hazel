@@ -72,7 +72,18 @@ let probe_view = (font_metrics, refractor_data, id: Id.t) => {
     );
   switch (projector_data) {
   | Some(projector_data) =>
-    let views = ProjectorView.mk_view(inject, font_metrics, projector_data);
+    let projector_list =
+      List.map(
+        (p: ProjectorView.Model.projector_data) => p.p.id,
+        refractor_data,
+      );
+    let views =
+      ProjectorView.mk_view(
+        inject,
+        font_metrics,
+        projector_data,
+        projector_list,
+      );
     let offside_view = views.offside |> Option.to_list;
     div(~attrs=[Attr.class_("probe-view")], offside_view);
   | None => div([] /*text("Not Probed")*/)
@@ -446,10 +457,7 @@ type probe_type =
 
 let prep_refractors =
     (~refractors: Zipper.Refractor.t, ~info_map, ~syntax: CachedSyntax.t) => {
-  let manuals =
-    refractors.manuals
-    |> Id.Map.to_list
-    |> List.map(((id, _)) => (id, Manual));
+  let manuals = refractors.manuals |> List.map(((id, _)) => (id, Manual));
   let autos =
     refractors.autos.ids
     |> Id.Map.bindings
@@ -779,7 +787,7 @@ let probearium =
       ~refractors=
         Id.Map.union(
           (_, _, b) => Some(b),
-          zipper.refractors.manuals,
+          Id.Map.of_list(zipper.refractors.manuals),
           zipper.refractors.autos.ephemerals,
         ),
       ~syntax=editor.editor.syntax,

@@ -464,11 +464,15 @@ module View = {
         selection: Haz3lcore.Segment.t,
       )
       : bool =>
-    if (Id.Map.is_empty(refractors.manuals)) {
+    if (List.is_empty(refractors.manuals)) {
       false;
     } else {
       let ids = Haz3lcore.Segment.ids(selection);
-      List.exists(Id.Map.mem(_, refractors.manuals), ids);
+      List.exists(
+        id =>
+          List.exists(((id2, _)) => Id.equal(id, id2), refractors.manuals),
+        ids,
+      );
     };
 
   let copy = (cursor: Cursor.cursor(Editors.Update.t)): unit => {
@@ -741,7 +745,7 @@ module View = {
       let culling_enabled =
         switch (editors) {
         | Scratch(_)
-        | Documentation(_) => true
+        | Documentation(_) => false /* Disabled for now due to layout issues */
         | Tutorial(_)
         | Exercises(_) => false
         };

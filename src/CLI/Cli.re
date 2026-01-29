@@ -364,7 +364,12 @@ let probe_hazel = (auto: bool, many: bool, path: string): unit => {
       Statics.mk(CoreSettings.on, Builtins.ctx_init(Some(Int)), term);
 
     /* Get manual probe IDs */
-    let manual_ids = Id.Map.map(_ => (), zipper.refractors.manuals);
+    let manual_ids =
+      List.fold_left(
+        (map, (id, _)) => Id.Map.add(id, (), map),
+        Id.Map.empty,
+        zipper.refractors.manuals,
+      );
 
     /* If --auto, compute auto-probe IDs */
     let auto_ids =
@@ -424,13 +429,15 @@ let probe_hazel = (auto: bool, many: bool, path: string): unit => {
     /* For auto-probe, we need to pass the auto IDs as refractors for rendering */
     let refractors =
       if (auto) {
-        /* Build a refractor map that includes auto IDs */
-        Id.Map.fold(
-          (id, (), acc) =>
-            Id.Map.add(id, Haz3lcore.Refractors.mk_entry(Probe), acc),
-          auto_ids,
-          zipper.refractors.manuals,
-        );
+        /* Build a refractor list that includes auto IDs */
+        let auto_entries =
+          Id.Map.fold(
+            (id, (), acc) =>
+              [(id, Haz3lcore.Refractors.mk_entry(Probe)), ...acc],
+            auto_ids,
+            [],
+          );
+        zipper.refractors.manuals @ auto_entries;
       } else {
         zipper.refractors.manuals;
       };

@@ -60,9 +60,7 @@ let equal = fast_equal;
 let temp: term => t =
   term => {
     term,
-    annotation: {
-      ids: [Id.invalid],
-    },
+    annotation: IdTagged.IdTag.temp(),
   };
 let fresh: term => t = IdTagged.fresh;
 
@@ -399,9 +397,7 @@ let (replace_all_ids, replace_all_ids_typ) = {
     (continue, exp) =>
       {
         ...exp,
-        annotation: {
-          ids: [Id.mk()],
-        },
+        annotation: IdTagged.IdTag.mk_internal([Id.mk()]),
       }
       |> continue;
   (
