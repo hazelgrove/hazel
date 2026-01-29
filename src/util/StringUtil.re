@@ -74,9 +74,9 @@ let unescape_linebreaks: string => string =
 
 let trim_leading = (s: string): string => {
   s
-  |> replace(regexp("\r\n"), _, "\n")  // Normalize Windows line breaks
-  |> replace(regexp("\r"), _, "\n")    // Normalize old Mac line breaks
-  |> replace(regexp("^[ ]*"), _, "")  // Remove leading spaces at start
+  |> replace(regexp("\r\n"), _, "\n") // Normalize Windows line breaks
+  |> replace(regexp("\r"), _, "\n") // Normalize old Mac line breaks
+  |> replace(regexp("^[ ]*"), _, "") // Remove leading spaces at start
   |> replace(regexp("\n[ ]*"), _, "\n"); // Remove leading spaces after newlines
 };
 
