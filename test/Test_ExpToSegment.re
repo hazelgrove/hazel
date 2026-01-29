@@ -1041,11 +1041,7 @@ let roundtrip_grout_text_test = (name: string, input: string) =>
          This achieves true string round-tripping since grout is internally
          inserted, not explicitly typed by users. */
       let print_seg_grout =
-        Printer.of_segment(
-          ~holes="",
-          ~concave_holes="",
-          ~refractors=Id.Map.empty,
-        );
+        Printer.of_segment(~holes="", ~concave_holes="", ~refractors=[]);
       let seg' = exp_to_segment_roundtrip(term);
       let output = print_seg_grout(seg');
       check(string, {|Round-trip text|}, input, output);

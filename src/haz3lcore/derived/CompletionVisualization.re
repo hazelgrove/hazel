@@ -72,12 +72,7 @@ let mockup = (seg: Segment.t): string => {
   /* Get the original text representation.
    * Hide concave grout for cleaner visualization. */
   let original_text =
-    Printer.of_segment(
-      ~holes="?",
-      ~concave_holes="",
-      ~refractors=Id.Map.empty,
-      seg,
-    );
+    Printer.of_segment(~holes="?", ~concave_holes="", ~refractors=[], seg);
 
   /* Run completion to get insertion info */
   let result = CanonicalCompletion.for_editor(seg);

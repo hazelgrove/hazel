@@ -301,10 +301,7 @@ type probe_type =
 
 let prep_refractors =
     (~refractors: Zipper.Refractor.t, ~info_map, ~syntax: CachedSyntax.t) => {
-  let manuals =
-    refractors.manuals
-    |> Id.Map.to_list
-    |> List.map(((id, _)) => (id, Manual));
+  let manuals = refractors.manuals |> List.map(((id, _)) => (id, Manual));
   let autos =
     refractors.autos.ids
     |> Id.Map.bindings

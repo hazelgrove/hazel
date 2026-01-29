@@ -51,7 +51,7 @@ let of_segment =
     (
       ~holes=" ",
       ~concave_holes=" ",
-      ~refractors=Id.Map.empty,
+      ~refractors=[],
       ~caret: option((string, Point.t))=None,
       ~selection_anchor: option((string, Point.t))=None,
       segment: Segment.t,

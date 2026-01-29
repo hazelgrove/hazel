@@ -26,12 +26,7 @@ let must_parse = (s: string): Segment.t => {
 
 /* Print segment to string with holes shown as ? */
 let print_seg = (seg: Segment.t): string =>
-  Printer.of_segment(
-    ~holes="?",
-    ~concave_holes="~",
-    ~refractors=Id.Map.empty,
-    seg,
-  );
+  Printer.of_segment(~holes="?", ~concave_holes="~", seg);
 
 /* Count incomplete tiles recursively */
 let count_incomplete_deep = (seg: Segment.t): int =>

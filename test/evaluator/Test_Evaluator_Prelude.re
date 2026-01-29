@@ -65,7 +65,7 @@ let parse_with_probes = (s: string): (Exp.t, Statics.Map.t, Sample.targets) => {
     let probe_ids =
       Id.Map.union(
         (_, _, _) => Some(),
-        Id.Map.map(_ => (), z.refractors.manuals),
+        Id.Map.map(_ => (), Id.Map.of_list(z.refractors.manuals)),
         Id.Map.map(_ => (), z.refractors.autos.ephemerals),
       );
 
