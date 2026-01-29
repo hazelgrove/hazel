@@ -39,7 +39,7 @@ module Model = {
   let mk_from_exp =
       (
         ~settings: Language.CoreSettings.t,
-        ~inline=Inline.Compound,
+        ~inline=Inline.Block,
         term: Language.Exp.t,
       ) => {
     ExpToSegment.exp_to_segment(

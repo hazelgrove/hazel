@@ -78,7 +78,7 @@ module Update = {
         ...model,
         open_box,
       }
-      |> Updated.return_quiet;
+      |> Updated.return_quiet(~logged=true);
     | (ProposeRewrite, _) =>
       let open_box =
         switch (model.open_box) {
@@ -95,7 +95,7 @@ module Update = {
         ...model,
         open_box,
       }
-      |> Updated.return_quiet(~recalculate=true);
+      |> Updated.return_quiet(~recalculate=true, ~logged=true);
     | (RewriteEditorAction(action), RewritesOpen({editor, _} as r)) =>
       let* new_editor = CodeEditable.Update.update(~settings, action, editor);
       Model.{
@@ -124,7 +124,7 @@ module Update = {
         ...model,
         open_box: Model.AxiomsOpen(updated),
       };
-    | (AxiomBoxAction(_), _) => model |> Updated.return_quiet
+    | (AxiomBoxAction(_), _) => model |> Updated.return_quiet(~logged=true)
     };
   };
 
@@ -599,7 +599,7 @@ module View = {
                           ~globals,
                           ~settings=
                             ExpToSegment.Settings.of_core(
-                              ~inline=Compound,
+                              ~inline=Block,
                               ~fold_fn_bodies=`Text,
                               globals.settings.core,
                             ),

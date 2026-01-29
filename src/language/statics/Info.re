@@ -815,7 +815,11 @@ let fixed_typ_err_common: (error_common, Typ.t) => Typ.t =
     | NoType(FreeConstructor(c)) =>
       typ_or_ana(
         Sum([
-          ConstructorMap.Variant(c, [Id.invalid], None),
+          ConstructorMap.Variant(
+            c,
+            ConstructorMap.mk_variant_ann(~ids=[Id.invalid], ()),
+            None,
+          ),
           ConstructorMap.BadEntry(Unknown(Internal) |> Typ.temp),
         ])
         |> Typ.temp,

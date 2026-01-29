@@ -37,7 +37,7 @@ module F = (Stepper: StepInterface.STEPPER) => {
         ~globals,
         ~settings=
           Haz3lcore.ExpToSegment.Settings.of_core(
-            ~inline=Single,
+            ~inline=Inline,
             globals.settings.core,
           ),
         Exp(target),

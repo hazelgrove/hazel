@@ -71,7 +71,7 @@ let mk_entry =
       json_to_segment: (str: string) =>
         info.utility.lift_syntax(
           string_to_term(str),
-          Inline.Zzt,
+          Inline.ExpandElements,
           info.syntax,
         ),
       url:

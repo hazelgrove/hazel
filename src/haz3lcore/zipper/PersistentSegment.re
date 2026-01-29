@@ -26,9 +26,11 @@ let restore_refractors =
   ...refractors,
   manuals:
     try(
-      persisted |> Sexplib.Sexp.of_string |> ZipperBase.Refractor.Map.t_of_sexp
+      persisted
+      |> Sexplib.Sexp.of_string
+      |> ZipperBase.Refractor.RefractorList.t_of_sexp
     ) {
-    | _ => Id.Map.empty
+    | _ => []
     },
 };
 

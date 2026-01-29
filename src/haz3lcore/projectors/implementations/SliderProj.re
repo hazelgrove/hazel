@@ -38,7 +38,7 @@ module M: Projector = {
             term: Atom(Int(Bigint.of_string(v))),
           })
         | _ => failwith("Slider: Put: not integer literal"),
-        Inline.Compound,
+        Inline.Block,
         info.syntax,
       )
     ) {

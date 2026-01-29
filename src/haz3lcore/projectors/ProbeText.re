@@ -22,10 +22,10 @@ let value_spacing = "    ";
 /* Compute which line each refractor (probe) is on using Measured.
  * Returns a map from line number to list of probe IDs on that line. */
 let get_probes_by_line =
-    (refractors: Zipper.Refractor.Map.t, measured: Measured.t)
+    (refractors: Zipper.Refractor.RefractorList.t, measured: Measured.t)
     : IntMap.t(list(Id.t)) =>
-  Id.Map.fold(
-    (tile_id, entry: Zipper.Refractor.entry, acc) =>
+  List.fold_right(
+    ((tile_id, entry: Zipper.Refractor.entry), acc) =>
       if (entry.kind != Probe) {
         acc;
       } else {
@@ -47,7 +47,7 @@ let format_value = (~max_length: int=50, value: Exp.t): string => {
   let seg =
     ExpToSegment.exp_to_segment(
       ~settings={
-        ...ExpToSegment.Settings.of_core(~inline=Compound, CoreSettings.off),
+        ...ExpToSegment.Settings.of_core(~inline=Block, CoreSettings.off),
         show_unknown_as_hole: false,
       },
       value |> DHExp.strip_ascriptions,
@@ -127,7 +127,7 @@ let of_segment =
     (
       ~window: Sample.Window.mode=Single,
       ~probe_map: Sample.Map.t,
-      ~refractors: Zipper.Refractor.Map.t=Id.Map.empty,
+      ~refractors: Zipper.Refractor.RefractorList.t,
       segment: Segment.t,
     )
     : string => {
@@ -137,7 +137,7 @@ let of_segment =
     Printer.of_segment(~holes=" ", ~indent="  ", ~refractors, segment);
 
   /* If no refractors, just return the base text */
-  if (Id.Map.is_empty(refractors)) {
+  if (List.is_empty(refractors)) {
     base_text;
   } else {
     /* Compute measured to get probe line positions */
