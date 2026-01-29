@@ -108,14 +108,17 @@ let probe_status =
     (id: Id.t, info_map: Statics.Map.t, refractors: Zipper.Refractor.t)
     : probe_status => {
   let target_ids = target_subterm_ids(id, info_map);
-  /* For manual/statics/player: check if ALL target IDs have manual entries */
-  if (List.for_all(id => Id.Map.mem(id, refractors.manuals), target_ids)
+  /* For manual/statics: check if ALL target IDs have manual entries */
+  if (List.for_all(
+        id => List.assoc_opt(id, refractors.manuals) != None,
+        target_ids,
+      )
       && target_ids != []) {
     /* Distinguish between probe, statics, and player by checking kind */
     let all_statics =
       List.for_all(
         id =>
-          switch (Id.Map.find_opt(id, refractors.manuals)) {
+          switch (List.assoc_opt(id, refractors.manuals)) {
           | Some(entry: Refractors.entry) => entry.kind == Statics
           | None => false
           },
@@ -124,7 +127,7 @@ let probe_status =
     let all_player =
       List.for_all(
         id =>
-          switch (Id.Map.find_opt(id, refractors.manuals)) {
+          switch (List.assoc_opt(id, refractors.manuals)) {
           | Some(entry: Refractors.entry) => entry.kind == Player
           | None => false
           },
@@ -170,7 +173,7 @@ let maybe_rm_pin = (ids: list(Id.t)): (Zipper.t => Zipper.t) =>
 
 /* Check if there are no probes (manual or auto) remaining */
 let has_no_probes = (z: Zipper.t): bool =>
-  Id.Map.is_empty(z.refractors.manuals)
+  List.is_empty(z.refractors.manuals)
   && Id.Map.is_empty(z.refractors.autos.ids);
 
 /* Reset the sample cursor if no probes remain.
@@ -212,7 +215,7 @@ let rm_auto =
 
 let rm_manual = (ids: list(Id.t), z: Zipper.t): Zipper.t =>
   Zipper.update_manuals(
-    map => Id.Map.filter((id, _) => !List.mem(id, ids), map),
+    map => List.filter(((id, _)) => !List.mem(id, ids), map),
     z,
   )
   /* If the probe has a pin we'll need to remove that too */
@@ -226,8 +229,8 @@ let rm_manual = (ids: list(Id.t), z: Zipper.t): Zipper.t =>
 let remove_colliding_probes = (~syntax: CachedSyntax.t, z: Zipper.t): Zipper.t => {
   /* 1. Build a map: end_row -> list of (probe_id, col) */
   let row_to_probes =
-    Id.Map.fold(
-      (probe_id, _, acc) =>
+    List.fold_right(
+      ((probe_id, _), acc) =>
         switch (
           TermData.extreme_measures(
             probe_id,
@@ -286,8 +289,8 @@ let add_manual =
 
   /* Find existing manual probes ending on those rows */
   let conflicting_ids =
-    Id.Map.fold(
-      (probe_id, _, acc) =>
+    List.fold_right(
+      ((probe_id, _), acc) =>
         switch (
           TermData.extreme_measures(
             probe_id,
@@ -679,13 +682,13 @@ let go =
 
 /* Check if id has either manual or ephermeral probe on it */
 let has_probe = (id: Id.t, z: Zipper.t): bool => {
-  Id.Map.mem(id, z.refractors.manuals)
+  List.assoc_opt(id, z.refractors.manuals) != None
   || Id.Map.mem(id, z.refractors.autos.ephemerals);
 };
 
 /* Get the kind of refractor at the given id, if any */
 let refractor_kind = (id: Id.t, z: Zipper.t): option(ProjectorCore.Kind.t) => {
-  switch (Id.Map.find_opt(id, z.refractors.manuals)) {
+  switch (List.assoc_opt(id, z.refractors.manuals)) {
   | Some(entry: Refractors.entry) => Some(entry.kind)
   | None =>
     switch (Id.Map.find_opt(id, z.refractors.autos.ephemerals)) {
