@@ -12,7 +12,10 @@ let context_entry_view = (~globals, entry: Language.Ctx.entry): Node.t => {
     CodeViewable.view_typ(
       ~globals,
       ~settings={
-        inline: Single,
+        secondary: AutoFormat,
+        parenthesization: Defensive,
+        label_format: QuoteWhenNecessary,
+        inline: Inline,
         fold_case_clauses: false,
         fold_fn_bodies: `NoFold,
         hide_fixpoints: false,

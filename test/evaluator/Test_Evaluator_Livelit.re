@@ -8,7 +8,7 @@ open Exp;
 let exp_to_segment =
   ExpToSegment.(
     exp_to_segment(
-      ~settings=Settings.of_core(~inline=Single, CoreSettings.on),
+      ~settings=Settings.of_core(~inline=Inline, CoreSettings.on),
     )
   );
 let tests = (

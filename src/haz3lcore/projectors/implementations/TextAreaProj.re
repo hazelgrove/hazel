@@ -29,7 +29,7 @@ let put = (info, s: string): Base.segment =>
           term: Atom(String(StringUtil.escape_linebreaks(s))),
         })
       | _any => failwith("TextArea: put: not string literal"),
-      Inline.Compound,
+      Inline.Block,
       info.syntax,
     )
   ) {

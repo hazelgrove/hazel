@@ -65,7 +65,7 @@ module View = {
           ~globals,
           ~settings=
             Haz3lcore.ExpToSegment.Settings.of_core(
-              ~inline=Compound,
+              ~inline=Block,
               ~fold_fn_bodies=`Text,
               globals.settings.core,
             ),

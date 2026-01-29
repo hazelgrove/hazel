@@ -1,7 +1,10 @@
 open Haz3lcore;
 
 let exp_to_segment_settings: ExpToSegment.Settings.t = {
-  inline: Compound,
+  secondary: AutoFormat,
+  parenthesization: Defensive,
+  label_format: QuoteWhenNecessary,
+  inline: Block,
   fold_case_clauses: false,
   fold_fn_bodies: `NoFold,
   hide_fixpoints: false,
