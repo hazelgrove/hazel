@@ -61,10 +61,10 @@ type project =
   | SampleCursor(sample_cursor)
   | SetIndicated(chooser) /* Project syntax at caret */
   | RemoveIndicated /* Remove projector at caret */
-  | SetSyntax(Id.t, Base.segment) /* Set underlying syntax */
-  | SetModel(Id.t, ProjectorCore.Kind.t, string) /* Set serialized model (projector or refractor) */
-  | Focus(Id.t, ProjectorCore.Kind.t, option(Util.Direction.t)) /* Pass control to projector */
-  | Escape(Id.t, Direction.t); /* Pass control to parent editor */
+  | SetSyntax(int, Base.segment) /* Set underlying syntax */
+  | SetModel(int, ProjectorCore.Kind.t, string) /* Set serialized model (projector or refractor) */
+  | Focus(int, ProjectorCore.Kind.t, option(Util.Direction.t)) /* Pass control to projector */
+  | Escape(int, Direction.t); /* Pass control to parent editor */
 
 [@deriving (show({with_path: false}), sexp, yojson, eq)]
 type agent =
