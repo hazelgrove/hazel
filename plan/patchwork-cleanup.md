@@ -42,37 +42,35 @@ Goal: Remove unused types and dead code specific to this branch.
 
 ---
 
-## Phase 2: Embed UI Cleanup
+## Phase 2: Embed UI Cleanup ✓ COMPLETE
 
 Goal: Minimize the embed wrapper UI in `patchwork-extra/hazel/src/tool.tsx`.
 
 ### Tasks
 
-- [ ] **Remove `DocGraph` component and import**
-  - Remove from `patchwork-extra/hazel/src/tool.tsx`
-  - It's debug visualization, not needed for production
+- [x] **Replace sidebar with thin top bar**
+  - Was: 60/40 split with HazelEmbed on left, large sidebar on right
+  - Now: Full-width HazelEmbed with thin bar above containing:
+    - URL text field (monospace, compact)
+    - "Local" button → sets URL to `http://localhost:8001`
+    - "Remote" button → sets URL to `https://hazel.org/build/patchwork/`
+    - Tile count display
+    - "Graph" toggle button
+  - Removed: Ping button, large title display, 60/40 layout
 
-- [ ] **Remove `DocGraph.tsx` from `embed/src/components/`**
-  - And remove its export from `embed/src/index.ts`
-  - This also removes the `react-d3-tree` dependency
+- [x] **Make DocGraph toggleable instead of removing it**
+  - DocGraph is hidden by default
+  - "Graph" button in top bar toggles a collapsible panel
+  - Keeps the debug visualization available when needed
 
-- [ ] **Replace sidebar with thin top bar**
-  - Current: 60/40 split with HazelEmbed on left, sidebar on right
-  - New: Full-width HazelEmbed with thin bar above containing:
-    - URL input (for switching between localhost and build server)
-    - Tile count (optional, for debugging)
-  - Remove: Ping button, title display, DocGraph
+### Files Modified in Phase 2
 
-- [ ] **Update `patchwork-extra/hazel/package.json`**
-  - Remove `react-d3-tree` dependency if no longer needed
+- `patchwork-extra/hazel/src/tool.tsx` - replaced sidebar layout with thin top bar
 
-### Verification
+### Not Done (kept for potential future cleanup)
 
-After Phase 2:
-1. Build the embed package
-2. Build the patchwork-extra/hazel tool
-3. Test in Patchwork that Hazel loads and syncs correctly
-4. Verify URL switching between localhost and build server works
+- DocGraph.tsx still exists in embed package (used via toggle)
+- react-d3-tree dependency still present (needed for DocGraph)
 
 ---
 
