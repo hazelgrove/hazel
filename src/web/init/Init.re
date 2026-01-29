@@ -21,7 +21,7 @@ let startup: PersistentData.t = {
       Cards.out,
       Probes.out,
       Livelits.out,
-      StrudelSlide.out,
+      Sound.out,
     ]
     @ B2t2.Slides.all_slides
     |> List.map(((name, content: PersistentSegment.t)) =>
