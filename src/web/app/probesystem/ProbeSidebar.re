@@ -322,7 +322,7 @@ let settings = (~globals: Globals.t, ~explain_this_inject) => {
     [
       Widgets.toggle_named(
         ~tooltip="Auto-probe mode (Cmd/Ctrl+Shift+P)",
-        globals.settings.auto_probe_mode ? "Auto" : "Manual",
+        globals.settings.auto_probe_mode ? "A" : "M",
         globals.settings.auto_probe_mode,
         _ =>
         globals.inject_global(Set(AutoProbeMode))
@@ -446,10 +446,7 @@ type probe_type =
 
 let prep_refractors =
     (~refractors: Zipper.Refractor.t, ~info_map, ~syntax: CachedSyntax.t) => {
-  let manuals =
-    refractors.manuals
-    |> Id.Map.to_list
-    |> List.map(((id, _)) => (id, Manual));
+  let manuals = refractors.manuals |> List.map(((id, _)) => (id, Manual));
   let autos =
     refractors.autos.ids
     |> Id.Map.bindings
@@ -734,14 +731,14 @@ let printarium = (~explain_this_inject, ~editor: CodeEditable.Model.t) => {
       [
         eval_mode_button(
           ~explain_this_inject,
-          ~label="Auto",
+          ~label="",
           ~is_active=eval_mode_ref^ == Auto,
           ~action=() =>
           eval_mode_ref := Auto
         ),
         eval_mode_button(
           ~explain_this_inject,
-          ~label="Manual",
+          ~label="",
           ~is_active=eval_mode_ref^ == Manual,
           ~action=() =>
           eval_mode_ref := Manual

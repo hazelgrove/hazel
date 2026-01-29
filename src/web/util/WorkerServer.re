@@ -29,7 +29,7 @@ module Response = {
 
 let work = (req_value: Request.value): Response.value => {
   let Request.{expr, targets} = req_value;
-  let eval_start = JsUtil.precise_timestamp();
+  // let eval_start = JsUtil.precise_timestamp();
   let result =
     switch (
       Language.Evaluator.evaluate(
@@ -50,9 +50,10 @@ let work = (req_value: Request.value): Response.value => {
       );
     | (result, state) => Ok((result, state))
     };
-  let eval_end = JsUtil.precise_timestamp();
   //TODO(andrew): rm profiling before final merge
-  Printf.printf("  Eval only (ms): %.2f\n", eval_end -. eval_start);
+  // let eval_end = JsUtil.precise_timestamp();
+
+  // Printf.printf("  Eval only (ms): %.2f\n", eval_end -. eval_start);
   result;
 };
 

@@ -33,6 +33,7 @@ module Model = {
         show_fn_bodies: false,
         show_fixpoints: false,
         show_ascription_steps: false,
+        show_case_steps: false,
         show_lookup_steps: false,
         show_stepper_filters: false,
         stepper_history: false,
@@ -97,6 +98,7 @@ module Update = {
     | ShowCaseClauses
     | ShowFnBodies
     | ShowAscriptionSteps
+    | ShowCaseSteps
     | ShowFixpoints
     | ShowLookups
     | ShowFilters
@@ -209,6 +211,10 @@ module Update = {
           | ShowAscriptionSteps => {
               ...evaluation,
               show_ascription_steps: !evaluation.show_ascription_steps,
+            }
+          | ShowCaseSteps => {
+              ...evaluation,
+              show_case_steps: !evaluation.show_case_steps,
             }
           | ShowFixpoints => {
               ...evaluation,

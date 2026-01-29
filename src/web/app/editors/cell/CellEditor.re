@@ -70,7 +70,7 @@ module Update = {
         editor,
       };
     | ResultAction(action) =>
-      let* result =
+      let updated =
         EvalResult.Update.update(
           ~settings={
             ...settings,
@@ -82,9 +82,18 @@ module Update = {
           action,
           model.result,
         );
+      /* If the editor has pending_probe_cursor, force recalculation so
+         resolve_pending_probe_cursor can run with the new dynamics */
+      let needs_recalc =
+        model.editor.editor.state.zipper.refractors.pending_probe_cursor
+        != None;
       {
-        ...model,
-        result,
+        ...updated,
+        recalculate: updated.recalculate || needs_recalc,
+        model: {
+          ...model,
+          result: updated.model,
+        },
       };
     };
   };
@@ -129,8 +138,10 @@ module Update = {
       || editor.editor.state.zipper.refractors.pending_probe_cursor != None;
     let editor =
       if (needs_second_pass) {
+        /* Pass auto_probe_mode to second pass to avoid clear_auto_def removing the probe */
         CodeEditable.Update.calculate(
           ~settings,
+          ~auto_probe_mode,
           ~is_edited=false, /* Not an edit, just resolving pending focus/cursor */
           ~stitch,
           ~dynamics=EvalResult.Model.dynamics(result),

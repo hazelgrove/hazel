@@ -178,7 +178,13 @@ module Selection = {
       Some(Update.Perform(action))
     | ContextMenu.WithContext.Unhandled =>
       /* Fall through to projector key handoff, then base handler */
-      switch (ProjectorView.key_handoff(model.editor, key)) {
+      switch (
+        ProjectorView.key_handoff(
+          model.editor,
+          key,
+          model.editor.syntax.projector_list,
+        )
+      ) {
       | Some(action) => Some(Update.Perform(Project(action)))
       | None => handle_key_event(~selection, model, key)
       }
@@ -306,14 +312,14 @@ module View = {
             }
           )
         : [];
-    let t0 = JsUtil.precise_timestamp();
+    // let t0 = JsUtil.precise_timestamp();
     let zipper = model.editor.state.zipper;
     let refractor_data =
       RefractorView.mk_data(
         ~refractors=
           Id.Map.union(
             (_, _, b) => Some(b),
-            zipper.refractors.manuals,
+            zipper.refractors.manuals |> Id.Map.of_list,
             zipper.refractors.autos.ephemerals,
           ),
         ~syntax=model.editor.syntax,
@@ -324,7 +330,7 @@ module View = {
         ~editor_active=selected,
       );
     /* TODO(andrew): remove profilling before merge */
-    let t1 = JsUtil.precise_timestamp();
+    // let t1 = JsUtil.precise_timestamp();
     /* Use visible row range from model (updated by scroll handler) */
     let visible = globals.visible_rows;
     let refractors_model =
@@ -334,8 +340,10 @@ module View = {
         globals.font_metrics,
         ~visible?,
         refractor_data,
+        List.map(fst, zipper.refractors.manuals)
+        @ List.map(fst, Id.Map.to_list(zipper.refractors.autos.ephemerals)),
       );
-    let t2 = JsUtil.precise_timestamp();
+    // let t2 = JsUtil.precise_timestamp();
     let projectors =
       ProjectorView.all(
         x => inject(Perform(x)),
@@ -350,32 +358,33 @@ module View = {
           ~sample_cursor=zipper.refractors.sample_cursor,
           ~editor_active=selected,
         ),
+        model.editor.syntax.projector_list,
       );
-    let t3 = JsUtil.precise_timestamp();
-    let num_refractors =
-      Id.Map.cardinal(
-        Id.Map.union(
-          (_, _, b) => Some(b),
-          model.editor.state.zipper.refractors.manuals,
-          model.editor.state.zipper.refractors.autos.ephemerals,
-        ),
-      );
-    if (num_refractors > 0) {
-      let visible_str =
-        switch (visible) {
-        | Some({first, last}) =>
-          Printf.sprintf(" visible_rows=%d-%d", first, last)
-        | None => ""
-        };
-      Printf.printf(
-        "[Probe Perf] refractor_data: %.2fms, all_refractors: %.2fms, projectors: %.2fms (n=%d)%s\n",
-        t1 -. t0,
-        t2 -. t1,
-        t3 -. t2,
-        num_refractors,
-        visible_str,
-      );
-    };
+    // let t3 = JsUtil.precise_timestamp();
+    // let num_refractors =
+    //   Id.Map.cardinal(
+    //     Id.Map.union(
+    //       (_, _, b) => Some(b),
+    //       model.editor.state.zipper.refractors.manuals,
+    //       model.editor.state.zipper.refractors.autos.ephemerals,
+    //     ),
+    //   );
+    // if (num_refractors > 0) {
+    //   let visible_str =
+    //     switch (visible) {
+    //     | Some({first, last}) =>
+    //       Printf.sprintf(" visible_rows=%d-%d", first, last)
+    //     | None => ""
+    //     };
+    //   Printf.printf(
+    //     "[Probe Perf] refractor_data: %.2fms, all_refractors: %.2fms, projectors: %.2fms (n=%d)%s\n",
+    //     t1 -. t0,
+    //     t2 -. t1,
+    //     t3 -. t2,
+    //     num_refractors,
+    //     visible_str,
+    //   );
+    // };
     let overlays =
       [Node.div(~attrs=[Attr.classes(["code-deco"])], edit_decos)]
       @ [Node.div(~attrs=[Attr.classes(["overlays"])], overlays)]

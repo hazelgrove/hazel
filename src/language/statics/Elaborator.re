@@ -142,9 +142,13 @@ let rec elaborate_pattern =
       let (p1', _) = elaborate_pattern(m, p1);
       let (p2', _) = elaborate_pattern(m, p2);
       Ap(p1', p2') |> rewrap;
+    | MultiHole([Pat(p1), ..._]) =>
+      /* Elaborate up to the multi-hole */
+      let (p1', _) = elaborate_pattern(m, p1);
+      p1';
+    | MultiHole(_)
     | Invalid(_)
     | EmptyHole
-    | MultiHole(_)
     | Wild => upat
     | Var(_) => upat
     // Type annotations should already appeard

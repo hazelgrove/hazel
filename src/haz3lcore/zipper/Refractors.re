@@ -39,6 +39,12 @@ module Map = {
   let empty = Id.Map.empty;
 };
 
+module RefractorList = {
+  [@deriving (show({with_path: false}), sexp, yojson, eq)]
+  type t = list((Id.t, entry));
+  let empty = [];
+};
+
 /* Groups auto-probe related state together.
  * - ids: Set-like map (Id.Map.t(unit)) of auto-generated probe IDs
  * - ephemerals: Projector instances for rendering auto probes */
@@ -55,7 +61,7 @@ let empty_auto_state = {
 
 [@deriving (show({with_path: false}), sexp, yojson, eq)]
 type t = {
-  manuals: Map.t,
+  manuals: RefractorList.t,
   autos: auto_state,
   sample_cursor: Language.Sample.Cursor.t,
   /* For auto-probe mode: the body ID of the top-level definition
@@ -69,7 +75,7 @@ type t = {
 };
 
 let init = {
-  manuals: Id.Map.empty,
+  manuals: [],
   autos: empty_auto_state,
   sample_cursor: Language.Sample.Cursor.init,
   auto_def: None,
@@ -77,7 +83,7 @@ let init = {
 };
 
 let persist = (refractors: t): string =>
-  refractors.manuals |> Map.sexp_of_t |> Sexplib.Sexp.to_string;
+  refractors.manuals |> RefractorList.sexp_of_t |> Sexplib.Sexp.to_string;
 
 /* Refractors store a simplified `entry` type in Zipper.Refractor.Map
  * (just kind + model), avoiding redundant id/syntax in serialization.
