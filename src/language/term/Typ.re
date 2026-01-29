@@ -38,9 +38,7 @@ let fresh: term => t = IdTagged.fresh;
 let temp: term => t =
   term => {
     term,
-    annotation: {
-      ids: [Id.invalid],
-    },
+    annotation: IdTagged.IdTag.temp(),
   };
 
 let all_ids_temp = {
@@ -51,9 +49,7 @@ let all_ids_temp = {
     (continue, exp) =>
       {
         term: exp.term,
-        annotation: {
-          ids: [Id.invalid],
-        },
+        annotation: IdTagged.IdTag.temp(),
       }
       |> continue;
   map_term(~f_exp=f, ~f_pat=f, ~f_typ=f, ~f_tpat=f, ~f_rul=f);
