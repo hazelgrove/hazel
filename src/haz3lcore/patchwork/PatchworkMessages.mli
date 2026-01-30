@@ -100,6 +100,8 @@ module RemoteCaret : sig
 
   val get_userId : 'tags this -> string [@@js.get "userId"]
   val set_userId : 'tags this -> string -> unit [@@js.set "userId"]
+  val get_userName : 'tags this -> string option [@@js.get "userName"]
+  val set_userName : 'tags this -> string -> unit [@@js.set "userName"]
   val get_color : 'tags this -> string [@@js.get "color"]
   val set_color : 'tags this -> string -> unit [@@js.set "color"]
   val get_pieceId : 'tags this -> string [@@js.get "pieceId"]
@@ -140,6 +142,7 @@ module RemoteCaret : sig
   val create :
     t:([ `L_s5_remote_caret [@js "remote-caret"] ][@js.enum]) ->
     userId:string ->
+    ?userName:string ->
     color:string ->
     pieceId:string ->
     ?shardIdx:int ->

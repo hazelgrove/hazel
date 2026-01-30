@@ -5,6 +5,7 @@ open Util;
 /* Remote caret state for collaborative cursor display */
 type remote_caret = {
   user_id: string,
+  user_name: option(string), /* Display name for label (None if not available) */
   color: string,
   piece_id: Id.t,
   shard_index: option(int), /* For tiles: which shard (needed for multi-shard tiles like let/in) */
@@ -267,6 +268,7 @@ let listen = (schedule_action: Action.t => unit): unit => {
       | `U_s4_pong(_pong) => ()
       | `U_s5_remote_caret(rc) =>
         let user_id = RemoteCaret.get_userId(rc);
+        let user_name = RemoteCaret.get_userName(rc);
         let color = RemoteCaret.get_color(rc);
         let piece_id_str = RemoteCaret.get_pieceId(rc);
         let shard_index = RemoteCaret.get_shardIdx(rc);
@@ -304,6 +306,7 @@ let listen = (schedule_action: Action.t => unit): unit => {
         | Some(piece_id) =>
           let caret = {
             user_id,
+            user_name,
             color,
             piece_id,
             shard_index,

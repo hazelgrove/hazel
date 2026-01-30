@@ -288,9 +288,33 @@ svg.shard.selected.buffer-parsed > path {
   z-index: var(--caret-z);
 }
 
+.remote-caret-svg {
+  width: 100%;
+  height: 100%;
+}
+
 .remote-caret-path {
   /* fill is set inline via style attribute */
   stroke: none;
+}
+
+.remote-caret-label {
+  /* Positioned above the caret, left-aligned */
+  position: absolute;
+  bottom: 100%;
+  left: 0;
+  /* Small rounded rectangle */
+  padding: 1px 4px;
+  border-radius: 3px;
+  /* Small, unobtrusive font */
+  font-size: 10px;
+  font-weight: 500;
+  line-height: 1.2;
+  white-space: nowrap;
+  /* Text color - white for contrast against colored background */
+  color: white;
+  /* Slight shadow for readability */
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.15);
 }
 
 /* TERM INDICATION DECO */

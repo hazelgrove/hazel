@@ -3,7 +3,8 @@ open WebUtil;
 open Haz3lcore;
 
 /* Remote caret rendering for collaborative cursor display.
-   Similar to CaretDec but with custom color and no blinking. */
+   Similar to CaretDec but with custom color and no blinking.
+   Includes optional name label above the caret. */
 
 let caret_width = 0.2; /* Same width as main caret */
 
@@ -15,9 +16,24 @@ let caret_base_path = (side, shape): list(SvgUtil.Path.cmd) =>
     float_of_int(0),
   );
 
+/* Truncate name for display:
+   - If there's a space, use first word only
+   - If longer than 8 chars, truncate with ellipsis */
+let truncate_name = (name: string): string => {
+  /* If there's a space, take first word */
+  let name =
+    switch (String.index_opt(name, ' ')) {
+    | Some(i) => String.sub(name, 0, i)
+    | None => name
+    };
+  /* If longer than 8 chars, truncate with ellipsis */
+  String.length(name) > 8 ? String.sub(name, 0, 7) ++ "…" : name;
+};
+
 let main =
     (
       ~user_id: string,
+      ~user_name: option(string),
       ~font_metrics: FontMetrics.t,
       ~color: string,
       ~origin: Point.t,
@@ -29,24 +45,50 @@ let main =
   let height_fudge = ShardDec.shadow_dy *. font_metrics.row_height;
   let paths = caret_base_path(side, shape);
 
-  Node.create_svg(
-    "svg",
+  let caret_svg =
+    Node.create_svg(
+      "svg",
+      ~attrs=[
+        Attr.classes(["remote-caret-svg"]),
+        Attr.create("viewBox", Printf.sprintf("0 0 %f %f", scale, scale)),
+        Attr.create("preserveAspectRatio", "none"),
+      ],
+      [
+        SvgUtil.Path.view(
+          ~attrs=[
+            Attr.classes(["remote-caret-path"]),
+            Attr.create("style", "fill: " ++ color ++ ";"),
+          ],
+          paths,
+        ),
+      ],
+    );
+
+  /* Optional name label above the caret */
+  let label =
+    switch (user_name) {
+    | None => []
+    | Some(name) =>
+      let display_name = truncate_name(name);
+      [
+        Node.div(
+          ~attrs=[
+            Attr.classes(["remote-caret-label"]),
+            Attr.create("style", "background-color: " ++ color ++ ";"),
+          ],
+          [Node.text(display_name)],
+        ),
+      ];
+    };
+
+  /* Container div holds both label and caret, gets the ID for animation */
+  Node.div(
     ~attrs=[
       Attr.id("remote-caret-" ++ user_id),
       Attr.classes(["remote-caret"]),
       DecUtil.abs_position(~font_metrics, ~height_fudge, ~scale, origin),
-      Attr.create("viewBox", Printf.sprintf("0 0 %f %f", scale, scale)),
-      Attr.create("preserveAspectRatio", "none"),
     ],
-    [
-      SvgUtil.Path.view(
-        ~attrs=[
-          Attr.classes(["remote-caret-path"]),
-          Attr.create("style", "fill: " ++ color ++ ";"),
-        ],
-        paths,
-      ),
-    ],
+    label @ [caret_svg],
   );
 };
 
@@ -79,6 +121,7 @@ let find_shard_measurement =
 let view =
     (
       ~user_id: string,
+      ~user_name: option(string),
       ~measured: Measured.t,
       ~font_metrics: FontMetrics.t,
       ~color: string,
@@ -119,6 +162,7 @@ let view =
     Some(
       main(
         ~user_id,
+        ~user_name,
         ~font_metrics,
         ~color,
         ~origin=position,
@@ -136,6 +180,7 @@ let view_all =
   |> List.filter_map(((user_id, rc: PatchworkComm.remote_caret)) =>
        view(
          ~user_id,
+         ~user_name=rc.user_name,
          ~measured,
          ~font_metrics,
          ~color=rc.color,

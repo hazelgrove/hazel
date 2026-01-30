@@ -84,6 +84,7 @@ export interface CaretUpdate {
 export interface RemoteCaret {
   t: "remote-caret";
   userId: string;
+  userName?: string; // Display name for label (undefined if not available)
   color: string;
   pieceId: string;
   shardIdx: number | null;
