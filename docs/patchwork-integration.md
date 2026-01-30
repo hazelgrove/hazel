@@ -41,7 +41,7 @@ The integration uses an **iframe-based architecture** with three parts:
 
 ## Key Concept: Tree vs Flat Representation
 
-Hazel's internal AST is a **nested tree** (`Segment`), but Automerge works best with **flat structures**. The `FlatConvert.re` module converts between:
+Hazel's internal AST is a **nested tree** (`Segment`), but Automerge works best with **flatter structures**. The `FlatConvert.re` module converts between:
 
 - **Segment** - Hazel's internal nested tree with tiles containing child tiles
 - **HazelDoc** - Flat array of pieces with UUID-based children references
@@ -50,12 +50,12 @@ Hazel's internal AST is a **nested tree** (`Segment`), but Automerge works best 
 
 Communication uses PostMessage with these message types:
 
-| Message | Direction | Purpose |
-|---------|-----------|---------|
-| `init` | Both | Handshake on iframe load |
-| `ping` | Both | Connection testing |
-| `pong` | Both | Ping response |
-| `state` | Both | Full document state sync |
+| Message | Direction | Purpose                  |
+| ------- | --------- | ------------------------ |
+| `init`  | Both      | Handshake on iframe load |
+| `ping`  | Both      | Connection testing       |
+| `pong`  | Both      | Ping response            |
+| `state` | Both      | Full document state sync |
 
 ## Caret Position Sync
 
@@ -97,6 +97,7 @@ Remote users' caret positions are synced in real-time using Automerge's ephemera
 ### Ephemeral Broadcast Protocol
 
 The Automerge `DocHandle` provides ephemeral messaging:
+
 - `handle.broadcast(message)` - sends to all peers, not persisted
 - `handle.on("ephemeral-message", callback)` - receives from peers
 
@@ -106,21 +107,21 @@ Each peer is identified by `senderId` (unique per browser session, e.g., `fronte
 
 ### Message Types
 
-| Message | Direction | Purpose |
-|---------|-----------|---------|
-| `caret` | Hazel → Parent | Local caret position changed |
-| `remote-caret` | Parent → Hazel | Another user's caret position |
-| `remote-caret-remove` | Parent → Hazel | User disconnected |
+| Message               | Direction      | Purpose                       |
+| --------------------- | -------------- | ----------------------------- |
+| `caret`               | Hazel → Parent | Local caret position changed  |
+| `remote-caret`        | Parent → Hazel | Another user's caret position |
+| `remote-caret-remove` | Parent → Hazel | User disconnected             |
 
 ### Key Files
 
-| File | Purpose |
-|------|---------|
-| `patchwork-extra/hazel/src/tool.tsx` | Broadcasts local caret, receives remote carets via ephemeral messages |
-| `src/haz3lcore/patchwork/PatchworkComm.re` | Sends caret to parent, stores received remote carets |
-| `src/haz3lcore/patchwork/SyncReplace.re` | Extracts caret position from zipper, decides when to send |
-| `src/web/app/editors/decoration/RemoteCaretDec.re` | Renders remote carets with custom colors |
-| `src/web/app/editors/code/CodeEditable.re` | Includes remote carets in editor decorations |
+| File                                               | Purpose                                                               |
+| -------------------------------------------------- | --------------------------------------------------------------------- |
+| `patchwork-extra/hazel/src/tool.tsx`               | Broadcasts local caret, receives remote carets via ephemeral messages |
+| `src/haz3lcore/patchwork/PatchworkComm.re`         | Sends caret to parent, stores received remote carets                  |
+| `src/haz3lcore/patchwork/SyncReplace.re`           | Extracts caret position from zipper, decides when to send             |
+| `src/web/app/editors/decoration/RemoteCaretDec.re` | Renders remote carets with custom colors                              |
+| `src/web/app/editors/code/CodeEditable.re`         | Includes remote carets in editor decorations                          |
 
 ### Caret Position Model
 
@@ -133,18 +134,20 @@ The caret position sent over the wire uses this model:
 3. **Shape**: At `Outer` positions, the caret shape (convex/concave) is derived from `Zipper.Caret.direction`. For `Inner` positions, shape is always `null`.
 
 **Example** (whitespace shown as `·`):
+
 ```
 foo · 333 · bar
 ```
+
 Segment: `[foo, ·, 333, ·, bar]`
 
-| Visual | Piece you're on | caretOffset |
-|--------|-----------------|-------------|
-| `foo│· 333` | `·` (whitespace) | 0 |
-| `foo ·│333` | `333` | 0 |
-| `foo ·3│33` | `333` | 1 |
-| `foo ·33│3` | `333` | 2 |
-| `foo ·333│·` | `·` (whitespace) | 0 |
+| Visual       | Piece you're on  | caretOffset |
+| ------------ | ---------------- | ----------- |
+| `foo│· 333`  | `·` (whitespace) | 0           |
+| `foo ·│333`  | `333`            | 0           |
+| `foo ·3│33`  | `333`            | 1           |
+| `foo ·33│3`  | `333`            | 2           |
+| `foo ·333│·` | `·` (whitespace) | 0           |
 
 ## Data Flow
 
@@ -218,9 +221,29 @@ pnpm type                   # Both at once
 
 After regenerating, update `PatchworkComm.re` if you added/removed/renamed fields (the `JsConvert` module has manual conversion code).
 
+### Variant Tag Maintenance
+
+**Known issue:** ts2ocaml generates variant names alphabetically (e.g., `U_s5_Grout`, `U_s7_Projector`). Adding a new type can shift all the tags, requiring updates throughout `PatchworkComm.re`.
+
+**Alternative approach:** Instead of pattern matching on generated variants, match on the JS discriminator string directly:
+
+```reason
+let to_flat_piece = (js_obj: Ojs.t): FlatConvert.Flat.piece => {
+  let t = Ojs.get_prop_ascii(js_obj, "t") |> Ojs.string_of_js;
+  switch (t) {
+  | "Tile" => Tile(to_tile(FlatDoc.FlatTile.t_of_js(js_obj)))
+  | "Grout" => Grout(to_grout(FlatDoc.Grout.t_of_js(js_obj)))
+  // ... etc
+  };
+};
+```
+
+**Tradeoff:** String matching is stable (no cascading renames) but loses compile-time exhaustiveness checking - missing cases become runtime errors instead of compile errors.
+
 ## URL Configuration
 
 The Hazel iframe can load from:
+
 - **Local**: `http://localhost:8001/` (local dev server)
 - **Remote**: `https://hazel.org/build/patchwork/` (hosted build)
 
@@ -262,15 +285,35 @@ patchwork push
 
 ## Current Limitations
 
-- Projectors/livelits not supported (placements won't sync)
 - Full-state sync (not diff-based)
 - Caret position can be disrupted when:
   - Caret becomes end of focal segment due to other player's actions
   - Subterm containing caret is deleted
 
+## Projector Sync
+
+Projectors are synced between collaborators, including their wrapped syntax and model state.
+
+### What's Synced
+
+- Projector placement (id, kind, wrapped syntax)
+- Projector model state (as opaque string)
+- All projector kinds are synced (Fold, Checkbox, Slider, etc.)
+- Refractors (Probe, Statics) are NOT synced - they're per-user debugging tools
+
+### Model Sync Note
+
+The projector `model` field is synced as an opaque string. To disable model sync (keep models local-only while still syncing projector placements):
+
+1. In `FlatConvert.re`, `seg_to_doc`: change `model` to `model: ""`
+2. In `FlatConvert.re`, `doc_to_seg`: preserve local model instead of using remote
+
+This would prevent remote state from overwriting local projector state, but the projector placement itself would still sync.
+
 ## Future Work
 
 See `plan/patchwork-future.md` for planned improvements:
+
 - Debounce caret messages, selection sync, user labels
-- Projector support in sync format
 - Performance optimizations (diff-based sync)
+- Refractor sync (for collaborative debugging)

@@ -86,8 +86,29 @@ export interface FlatTile {
   readonly children: UUID[][]; // Child piece IDs, grouped by child slot
 }
 
-/** A piece in the flat document - either a tile, grout, or secondary */
-export type FlatPiece = FlatTile | Grout | Secondary;
+/**
+ * FlatProjector is the flattened representation of a projector.
+ * A projector wraps a piece of syntax with additional UI/behavior.
+ *
+ * The `syntax` field is the UUID of the wrapped piece (which is stored
+ * separately in the flat doc). The wrapped piece and its children are
+ * recursively included in the flat tiles array.
+ *
+ * Note on model sync: The `model` field is synced as an opaque string.
+ * To disable model sync (keep models local-only), modify FlatConvert.re
+ * to use an empty string when converting to flat format, and preserve
+ * the local model when converting back.
+ */
+export interface FlatProjector {
+  readonly t: "Projector";
+  readonly id: UUID;
+  readonly kind: string;    // Projector kind name: "fold", "check", "slider", etc.
+  readonly syntax: UUID;    // ID of the wrapped piece
+  readonly model: string;   // Projector model state (opaque, typically JSON)
+}
+
+/** A piece in the flat document - either a tile, grout, secondary, or projector */
+export type FlatPiece = FlatTile | Grout | Secondary | FlatProjector;
 
 /**
  * HazelDoc is the top-level document structure sent via PostMessage.

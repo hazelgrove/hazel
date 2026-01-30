@@ -9,21 +9,15 @@ For architecture and current implementation documentation, see `docs/patchwork-i
 ## Caret Sync Improvements
 
 - [ ] Debounce outgoing caret messages (50ms threshold)
-- [ ] Selection range sync (highlight what others have selected)
+- [ ] Sync selection ranges (highlight what others have selected)
 - [ ] User name labels next to remote carets
 
 ---
 
-## Projector Support
+## Projector Improvements
 
-Sync projector/livelit state between collaborators.
-
-- [ ] Extend `FlatTile` or add separate structure for projector placements
-- [ ] Include projector state in `HazelDoc`
-- [ ] Update `FlatConvert.re` to handle projector serialization
-- [ ] Test with various projector types
-
-Currently projectors don't sync - their placements are lost in the flat representation.
+- [ ] Consider refractor sync (Probe, Statics) for collaborative debugging sessions
+- [ ] Model sync granularity: explore finer-grained CRDT sync for projector models if conflicts become an issue
 
 ---
 
@@ -31,7 +25,6 @@ Currently projectors don't sync - their placements are lost in the flat represen
 
 - [ ] Consider diff-based sync instead of full-state sync
 - [ ] Profile and optimize `FlatConvert` for large documents
-- [ ] Investigate incremental updates to reduce message size
 
 ---
 

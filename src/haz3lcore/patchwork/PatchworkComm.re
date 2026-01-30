@@ -27,7 +27,7 @@ module JsConvert = {
     Language.Secondary.secondary_content => FlatDoc.SecondaryContent.t =
     fun
     | Whitespace(s) =>
-      FlatDoc.SecondaryContent.create(~t=`L_s12_Whitespace, ~content=s, ())
+      FlatDoc.SecondaryContent.create(~t=`L_s13_Whitespace, ~content=s, ())
     | Comment(s) =>
       FlatDoc.SecondaryContent.create(~t=`L_s1_Comment, ~content=s, ());
 
@@ -41,7 +41,7 @@ module JsConvert = {
 
   let of_secondary = (secondary: Secondary.t): FlatDoc.Secondary.t => {
     FlatDoc.Secondary.create(
-      ~t=`L_s8_Secondary,
+      ~t=`L_s9_Secondary,
       ~id=Id.to_string(secondary.id),
       ~content=of_secondary_content(secondary.content),
       (),
@@ -52,9 +52,9 @@ module JsConvert = {
     fun
     | Exp => `L_s4_Exp
     | Pat => `L_s6_Pat
-    | Typ => `L_s11_Typ
-    | TPat => `L_s9_TPat
-    | Rul => `L_s7_Rul
+    | Typ => `L_s12_Typ
+    | TPat => `L_s10_TPat
+    | Rul => `L_s8_Rul
     | Any => `L_s0_Any;
 
   let of_nib_shape: Nib.Shape.t => FlatDoc.NibShape.t =
@@ -95,7 +95,7 @@ module JsConvert = {
 
   let of_tile = (tile: FlatConvert.Flat.tile): FlatDoc.FlatTile.t =>
     FlatDoc.FlatTile.create(
-      ~t=`L_s10_Tile,
+      ~t=`L_s11_Tile,
       ~id=Id.to_string(tile.id),
       ~label=tile.label,
       ~mold=tile.mold |> of_mold,
@@ -104,11 +104,23 @@ module JsConvert = {
       (),
     );
 
+  let of_projector =
+      (proj: FlatConvert.Flat.projector): FlatDoc.FlatProjector.t =>
+    FlatDoc.FlatProjector.create(
+      ~t=`L_s7_Projector,
+      ~id=Id.to_string(proj.id),
+      ~kind=proj.kind,
+      ~syntax=Id.to_string(proj.syntax),
+      ~model=proj.model,
+      (),
+    );
+
   let of_flat_piece = (x: FlatConvert.Flat.piece): FlatDoc.FlatPiece.t => {
     switch (x) {
     | Grout(grout) => `U_s5_Grout(of_grout(grout))
-    | Secondary(secondary) => `U_s8_Secondary(of_secondary(secondary))
-    | Tile(tile) => `U_s10_Tile(of_tile(tile))
+    | Secondary(secondary) => `U_s9_Secondary(of_secondary(secondary))
+    | Tile(tile) => `U_s11_Tile(of_tile(tile))
+    | Projector(proj) => `U_s7_Projector(of_projector(proj))
     };
   };
 
@@ -124,9 +136,9 @@ module JsConvert = {
     fun
     | `L_s4_Exp => Exp
     | `L_s6_Pat => Pat
-    | `L_s11_Typ => Typ
-    | `L_s9_TPat => TPat
-    | `L_s7_Rul => Rul
+    | `L_s12_Typ => Typ
+    | `L_s10_TPat => TPat
+    | `L_s8_Rul => Rul
     | `L_s0_Any => Any
   and to_nib_shape: FlatDoc.NibShape.t => Nib.Shape.t =
     fun
@@ -169,7 +181,7 @@ module JsConvert = {
     FlatDoc.SecondaryContent.t => Language.Secondary.secondary_content =
     x => {
       switch (FlatDoc.SecondaryContent.get_t(x)) {
-      | `L_s12_Whitespace =>
+      | `L_s13_Whitespace =>
         Whitespace(FlatDoc.SecondaryContent.get_content(x))
       | `L_s1_Comment => Comment(FlatDoc.SecondaryContent.get_content(x))
       };
@@ -180,17 +192,29 @@ module JsConvert = {
       shape: to_shape(FlatDoc.Grout.get_shape(grout)),
     };
   }
+  and to_projector =
+      (proj: FlatDoc.FlatProjector.t): FlatConvert.Flat.projector => {
+    {
+      id: Id.of_string(FlatDoc.FlatProjector.get_id(proj)) |> Option.get,
+      kind: FlatDoc.FlatProjector.get_kind(proj),
+      syntax:
+        Id.of_string(FlatDoc.FlatProjector.get_syntax(proj)) |> Option.get,
+      model: FlatDoc.FlatProjector.get_model(proj),
+    };
+  }
   and to_flat_piece: FlatDoc.FlatPiece.t => FlatConvert.Flat.piece =
     fun
     | `U_s5_Grout(grout) => Grout(to_grout(grout))
-    | `U_s8_Secondary(secondary) => Secondary(to_secondary(secondary))
-    | `U_s10_Tile(tile) => Tile(to_tile(tile));
+    | `U_s9_Secondary(secondary) => Secondary(to_secondary(secondary))
+    | `U_s11_Tile(tile) => Tile(to_tile(tile))
+    | `U_s7_Projector(proj) => Projector(to_projector(proj));
 
   let id_from_piece = (piece: FlatConvert.Flat.piece): Id.t => {
     switch (piece) {
     | Tile(tile) => tile.id
     | Grout(grout) => grout.id
     | Secondary(secondary) => secondary.id
+    | Projector(proj) => proj.id
     };
   };
 

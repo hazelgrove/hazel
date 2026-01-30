@@ -9,10 +9,17 @@ module Flat = {
     shards: list(int),
     children: list(list(Id.t)),
   };
+  type projector = {
+    id: Id.t,
+    kind: string,
+    syntax: Id.t,
+    model: string,
+  };
   type piece =
     | Tile(tile)
     | Grout(Grout.t)
-    | Secondary(Secondary.t);
+    | Secondary(Secondary.t)
+    | Projector(projector);
 };
 
 module Doc = {
@@ -30,7 +37,19 @@ let seg_to_doc = (seg: Segment.t): Doc.t => {
   }
   and go_piece = (piece: Piece.t): Doc.t => {
     switch (piece) {
-    | Projector(_) => Doc.empty
+    | Projector({id, kind, syntax, model}) =>
+      /* Flatten the wrapped syntax piece and add it to the doc,
+         then add the projector entry referencing that piece by ID */
+      go_piece(syntax)
+      |> Doc.add(
+           id,
+           Flat.Projector({
+             id,
+             kind: ProjectorCore.Kind.name(kind),
+             syntax: Piece.id(syntax),
+             model,
+           }),
+         )
     | Secondary(secondary) =>
       Doc.singleton(secondary.id, Flat.Secondary(secondary))
     | Grout(grout) => Doc.singleton(grout.id, Flat.Grout(grout))
@@ -84,6 +103,13 @@ let doc_to_seg = (doc: Doc.t): Segment.t => {
       })
     | Some(Grout(grout)) => Grout(grout)
     | Some(Secondary(secondary)) => Secondary(secondary)
+    | Some(Projector({id, kind, syntax, model})) =>
+      Projector({
+        id,
+        kind: ProjectorCore.Kind.of_name(kind),
+        syntax: go_piece(syntax),
+        model,
+      })
     | None => failwith("Piece not found: " ++ Id.show(piece_id))
     };
   };
