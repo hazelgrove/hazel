@@ -281,6 +281,17 @@ svg.shard.selected.buffer-parsed > path {
   stroke: none;
 }
 
+/* Remote caret styling for collaborative cursor display */
+.remote-caret {
+  pointer-events: none;
+  opacity: 0.8;
+}
+
+.remote-caret-path {
+  /* fill is set inline via style attribute */
+  stroke: none;
+}
+
 /* TERM INDICATION DECO */
 
 .child-line {

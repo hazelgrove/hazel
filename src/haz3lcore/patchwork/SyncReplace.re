@@ -121,6 +121,7 @@ let should_send_state = (a: Action.t): bool =>
   //TODO(andrew): review actions esp project
   switch (a) {
   | SyncReplace(_)
+  | UpdateRemoteCarets
   | Buffer(Clear | Accept)
   | Copy
   | Select(_)
@@ -147,4 +148,41 @@ let send_state = (a: Action.t, z: Zipper.t): unit =>
   if (should_send_state(a)) {
     let flat_doc = FlatConvert.seg_to_doc(z |> Zipper.zip);
     PatchworkComm.send_state(flat_doc);
+  };
+
+/* Determines whether to send caret position update.
+   Send for most actions except those that come from remote sources
+   or that don't change caret position. */
+let should_send_caret = (a: Action.t): bool =>
+  switch (a) {
+  | SyncReplace(_)
+  | UpdateRemoteCarets => false /* Don't echo back remote updates */
+  | _ => true /* Send for all other actions that might move caret */
+  };
+
+/* Get caret position from zipper for sending to parent.
+   Returns (piece_id, caret_offset) where:
+   - piece_id: ID of the piece the caret is at
+   - caret_offset: 0 for Outer, n+1 for Inner(n) */
+let get_caret_position = (z: Zipper.t): option((Id.t, int)) => {
+  switch (Indicated.piece(z)) {
+  | Some((piece, _, _)) =>
+    let piece_id = Piece.id(piece);
+    let caret_offset =
+      switch (z.caret) {
+      | Outer => 0
+      | Inner(n) => n + 1
+      };
+    Some((piece_id, caret_offset));
+  | None => None
+  };
+};
+
+let send_caret = (a: Action.t, z: Zipper.t): unit =>
+  if (should_send_caret(a)) {
+    switch (get_caret_position(z)) {
+    | Some((piece_id, caret_offset)) =>
+      PatchworkComm.send_caret(piece_id, caret_offset)
+    | None => ()
+    };
   };

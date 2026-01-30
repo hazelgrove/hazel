@@ -52,8 +52,39 @@ export interface EditorState {
   state: HazelDoc;
 }
 
+/**
+ * Caret position update - sent from Hazel iframe when local caret moves.
+ * Used for collaborative cursor display via ephemeral broadcast.
+ */
+export interface CaretUpdate {
+  t: "caret";
+  pieceId: string;
+  caretOffset: number;  // 0 = Outer, n = Inner(n-1)
+}
+
+/**
+ * Remote user's caret position - sent from parent to iframe.
+ * Contains user identification and styling info for rendering.
+ */
+export interface RemoteCaret {
+  t: "remote-caret";
+  userId: string;
+  color: string;
+  pieceId: string;
+  caretOffset: number;
+}
+
+/**
+ * Notification that a remote user disconnected - sent from parent to iframe.
+ * Iframe should remove the corresponding remote caret from display.
+ */
+export interface RemoteCaretRemove {
+  t: "remote-caret-remove";
+  userId: string;
+}
+
 /** Messages sent from Hazel iframe to parent (Patchwork) */
-export type HazelToParent = Init | Ping | Pong | EditorState;
+export type HazelToParent = Init | Ping | Pong | EditorState | CaretUpdate;
 
 /** Messages sent from parent (Patchwork) to Hazel iframe */
-export type ParentToHazel = Init | Ping | Pong | EditorState;
+export type ParentToHazel = Init | Ping | Pong | EditorState | RemoteCaret | RemoteCaretRemove;

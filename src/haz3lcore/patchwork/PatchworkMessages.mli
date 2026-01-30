@@ -12,6 +12,115 @@ module HazelDoc = FlatDoc.Export.HazelDoc
 [@@@js.start]
 [@@@js.implem module HazelDoc = FlatDoc.Export.HazelDoc]
 
+(** Notification that a remote user disconnected - sent from parent to iframe.
+    Iframe should remove the corresponding remote caret from display. *)
+module RemoteCaretRemove : sig
+  type t = [ `RemoteCaretRemove ] intf
+  [@@js.custom { of_js = Obj.magic; to_js = Obj.magic }]
+
+  type t_0 = t
+
+  [@@@js.stop]
+
+  type tags = [ `RemoteCaretRemove ]
+  type tags_0 = tags
+
+  [@@@js.start]
+
+  [@@@js.implem
+  type tags = [ `RemoteCaretRemove ]
+  type tags_0 = tags]
+
+  type 'tags this = 'tags intf constraint 'tags = [> `RemoteCaretRemove ]
+
+  val t_to_js : t -> Ojs.t
+  val t_of_js : Ojs.t -> t
+  val t_0_to_js : t_0 -> Ojs.t
+  val t_0_of_js : Ojs.t -> t_0
+
+  val get_t :
+    'tags this ->
+    ([ `L_s5_remote_caret_remove [@js "remote-caret-remove"] ][@js.enum])
+  [@@js.get "t"]
+
+  val set_t :
+    'tags this ->
+    ([ `L_s5_remote_caret_remove [@js "remote-caret-remove"] ][@js.enum]) ->
+    unit
+  [@@js.set "t"]
+
+  val get_userId : 'tags this -> string [@@js.get "userId"]
+  val set_userId : 'tags this -> string -> unit [@@js.set "userId"]
+
+  val create :
+    t:([ `L_s5_remote_caret_remove [@js "remote-caret-remove"] ][@js.enum]) ->
+    userId:string ->
+    unit ->
+    t
+  [@@js.builder]
+
+  val cast_from : 'tags this -> t [@@js.custom let cast_from = Obj.magic]
+end
+
+(** Remote user's caret position - sent from parent to iframe. Contains user
+    identification and styling info for rendering. *)
+module RemoteCaret : sig
+  type t = [ `RemoteCaret ] intf
+  [@@js.custom { of_js = Obj.magic; to_js = Obj.magic }]
+
+  type t_0 = t
+
+  [@@@js.stop]
+
+  type tags = [ `RemoteCaret ]
+  type tags_0 = tags
+
+  [@@@js.start]
+
+  [@@@js.implem
+  type tags = [ `RemoteCaret ]
+  type tags_0 = tags]
+
+  type 'tags this = 'tags intf constraint 'tags = [> `RemoteCaret ]
+
+  val t_to_js : t -> Ojs.t
+  val t_of_js : Ojs.t -> t
+  val t_0_to_js : t_0 -> Ojs.t
+  val t_0_of_js : Ojs.t -> t_0
+
+  val get_t :
+    'tags this -> ([ `L_s4_remote_caret [@js "remote-caret"] ][@js.enum])
+  [@@js.get "t"]
+
+  val set_t :
+    'tags this ->
+    ([ `L_s4_remote_caret [@js "remote-caret"] ][@js.enum]) ->
+    unit
+  [@@js.set "t"]
+
+  val get_userId : 'tags this -> string [@@js.get "userId"]
+  val set_userId : 'tags this -> string -> unit [@@js.set "userId"]
+  val get_color : 'tags this -> string [@@js.get "color"]
+  val set_color : 'tags this -> string -> unit [@@js.set "color"]
+  val get_pieceId : 'tags this -> string [@@js.get "pieceId"]
+  val set_pieceId : 'tags this -> string -> unit [@@js.set "pieceId"]
+  val get_caretOffset : 'tags this -> int [@@js.get "caretOffset"]
+  val set_caretOffset : 'tags this -> int -> unit [@@js.set "caretOffset"]
+
+  val create :
+    t:([ `L_s4_remote_caret [@js "remote-caret"] ][@js.enum]) ->
+    userId:string ->
+    color:string ->
+    pieceId:string ->
+    caretOffset:int ->
+    unit ->
+    t
+  [@@js.builder]
+
+  val cast_from : 'tags this -> t [@@js.custom let cast_from = Obj.magic]
+end
+
+(** Response to ping *)
 module Pong : sig
   type t = [ `Pong ] intf [@@js.custom { of_js = Obj.magic; to_js = Obj.magic }]
   type t_0 = t
@@ -34,22 +143,23 @@ module Pong : sig
   val t_0_to_js : t_0 -> Ojs.t
   val t_0_of_js : Ojs.t -> t_0
 
-  val get_t : 'tags this -> ([ `L_s2_pong [@js "pong"] ][@js.enum])
+  val get_t : 'tags this -> ([ `L_s3_pong [@js "pong"] ][@js.enum])
   [@@js.get "t"]
 
-  val set_t : 'tags this -> ([ `L_s2_pong [@js "pong"] ][@js.enum]) -> unit
+  val set_t : 'tags this -> ([ `L_s3_pong [@js "pong"] ][@js.enum]) -> unit
   [@@js.set "t"]
 
   val get_message : 'tags this -> string [@@js.get "message"]
   val set_message : 'tags this -> string -> unit [@@js.set "message"]
 
   val create :
-    t:([ `L_s2_pong [@js "pong"] ][@js.enum]) -> message:string -> unit -> t
+    t:([ `L_s3_pong [@js "pong"] ][@js.enum]) -> message:string -> unit -> t
   [@@js.builder]
 
   val cast_from : 'tags this -> t [@@js.custom let cast_from = Obj.magic]
 end
 
+(** Connection test message *)
 module Ping : sig
   type t = [ `Ping ] intf [@@js.custom { of_js = Obj.magic; to_js = Obj.magic }]
   type t_0 = t
@@ -72,22 +182,23 @@ module Ping : sig
   val t_0_to_js : t_0 -> Ojs.t
   val t_0_of_js : Ojs.t -> t_0
 
-  val get_t : 'tags this -> ([ `L_s1_ping [@js "ping"] ][@js.enum])
+  val get_t : 'tags this -> ([ `L_s2_ping [@js "ping"] ][@js.enum])
   [@@js.get "t"]
 
-  val set_t : 'tags this -> ([ `L_s1_ping [@js "ping"] ][@js.enum]) -> unit
+  val set_t : 'tags this -> ([ `L_s2_ping [@js "ping"] ][@js.enum]) -> unit
   [@@js.set "t"]
 
   val get_message : 'tags this -> string [@@js.get "message"]
   val set_message : 'tags this -> string -> unit [@@js.set "message"]
 
   val create :
-    t:([ `L_s1_ping [@js "ping"] ][@js.enum]) -> message:string -> unit -> t
+    t:([ `L_s2_ping [@js "ping"] ][@js.enum]) -> message:string -> unit -> t
   [@@js.builder]
 
   val cast_from : 'tags this -> t [@@js.custom let cast_from = Obj.magic]
 end
 
+(** Sent when iframe loads or parent connects - handshake message *)
 module Init : sig
   type t = [ `Init ] intf [@@js.custom { of_js = Obj.magic; to_js = Obj.magic }]
   type t_0 = t
@@ -110,22 +221,24 @@ module Init : sig
   val t_0_to_js : t_0 -> Ojs.t
   val t_0_of_js : Ojs.t -> t_0
 
-  val get_t : 'tags this -> ([ `L_s0_init [@js "init"] ][@js.enum])
+  val get_t : 'tags this -> ([ `L_s1_init [@js "init"] ][@js.enum])
   [@@js.get "t"]
 
-  val set_t : 'tags this -> ([ `L_s0_init [@js "init"] ][@js.enum]) -> unit
+  val set_t : 'tags this -> ([ `L_s1_init [@js "init"] ][@js.enum]) -> unit
   [@@js.set "t"]
 
   val get_message : 'tags this -> string [@@js.get "message"]
   val set_message : 'tags this -> string -> unit [@@js.set "message"]
 
   val create :
-    t:([ `L_s0_init [@js "init"] ][@js.enum]) -> message:string -> unit -> t
+    t:([ `L_s1_init [@js "init"] ][@js.enum]) -> message:string -> unit -> t
   [@@js.builder]
 
   val cast_from : 'tags this -> t [@@js.custom let cast_from = Obj.magic]
 end
 
+(** The main sync message - contains full document state. Currently uses
+    full-state sync (not diff-based). *)
 module EditorState : sig
   type t = [ `EditorState ] intf
   [@@js.custom { of_js = Obj.magic; to_js = Obj.magic }]
@@ -150,17 +263,17 @@ module EditorState : sig
   val t_0_to_js : t_0 -> Ojs.t
   val t_0_of_js : Ojs.t -> t_0
 
-  val get_t : 'tags this -> ([ `L_s3_state [@js "state"] ][@js.enum])
+  val get_t : 'tags this -> ([ `L_s6_state [@js "state"] ][@js.enum])
   [@@js.get "t"]
 
-  val set_t : 'tags this -> ([ `L_s3_state [@js "state"] ][@js.enum]) -> unit
+  val set_t : 'tags this -> ([ `L_s6_state [@js "state"] ][@js.enum]) -> unit
   [@@js.set "t"]
 
   val get_state : 'tags this -> HazelDoc.t_0 [@@js.get "state"]
   val set_state : 'tags this -> HazelDoc.t_0 -> unit [@@js.set "state"]
 
   val create :
-    t:([ `L_s3_state [@js "state"] ][@js.enum]) ->
+    t:([ `L_s6_state [@js "state"] ][@js.enum]) ->
     state:HazelDoc.t_0 ->
     unit ->
     t
@@ -169,12 +282,16 @@ module EditorState : sig
   val cast_from : 'tags this -> t [@@js.custom let cast_from = Obj.magic]
 end
 
+(** Messages sent from parent (Patchwork) to Hazel iframe *)
 module ParentToHazel : sig
   type t =
-    ([ `U_s0_init of Init.t [@js "init"]
-     | `U_s1_ping of Ping.t [@js "ping"]
-     | `U_s2_pong of Pong.t [@js "pong"]
-     | `U_s3_state of EditorState.t [@js "state"] ]
+    ([ `U_s1_init of Init.t [@js "init"]
+     | `U_s2_ping of Ping.t [@js "ping"]
+     | `U_s3_pong of Pong.t [@js "pong"]
+     | `U_s4_remote_caret of RemoteCaret.t [@js "remote-caret"]
+     | `U_s5_remote_caret_remove of RemoteCaretRemove.t
+       [@js "remote-caret-remove"]
+     | `U_s6_state of EditorState.t [@js "state"] ]
     [@js.union on_field "t"])
 
   type t_0 = t
@@ -185,12 +302,62 @@ module ParentToHazel : sig
   val t_0_of_js : Ojs.t -> t_0
 end
 
+(** Caret position update - sent from Hazel iframe when local caret moves. Used
+    for collaborative cursor display via ephemeral broadcast. *)
+module CaretUpdate : sig
+  type t = [ `CaretUpdate ] intf
+  [@@js.custom { of_js = Obj.magic; to_js = Obj.magic }]
+
+  type t_0 = t
+
+  [@@@js.stop]
+
+  type tags = [ `CaretUpdate ]
+  type tags_0 = tags
+
+  [@@@js.start]
+
+  [@@@js.implem
+  type tags = [ `CaretUpdate ]
+  type tags_0 = tags]
+
+  type 'tags this = 'tags intf constraint 'tags = [> `CaretUpdate ]
+
+  val t_to_js : t -> Ojs.t
+  val t_of_js : Ojs.t -> t
+  val t_0_to_js : t_0 -> Ojs.t
+  val t_0_of_js : Ojs.t -> t_0
+
+  val get_t : 'tags this -> ([ `L_s0_caret [@js "caret"] ][@js.enum])
+  [@@js.get "t"]
+
+  val set_t : 'tags this -> ([ `L_s0_caret [@js "caret"] ][@js.enum]) -> unit
+  [@@js.set "t"]
+
+  val get_pieceId : 'tags this -> string [@@js.get "pieceId"]
+  val set_pieceId : 'tags this -> string -> unit [@@js.set "pieceId"]
+  val get_caretOffset : 'tags this -> int [@@js.get "caretOffset"]
+  val set_caretOffset : 'tags this -> int -> unit [@@js.set "caretOffset"]
+
+  val create :
+    t:([ `L_s0_caret [@js "caret"] ][@js.enum]) ->
+    pieceId:string ->
+    caretOffset:int ->
+    unit ->
+    t
+  [@@js.builder]
+
+  val cast_from : 'tags this -> t [@@js.custom let cast_from = Obj.magic]
+end
+
+(** Messages sent from Hazel iframe to parent (Patchwork) *)
 module HazelToParent : sig
   type t =
-    ([ `U_s0_init of Init.t [@js "init"]
-     | `U_s1_ping of Ping.t [@js "ping"]
-     | `U_s2_pong of Pong.t [@js "pong"]
-     | `U_s3_state of EditorState.t [@js "state"] ]
+    ([ `U_s0_caret of CaretUpdate.t [@js "caret"]
+     | `U_s1_init of Init.t [@js "init"]
+     | `U_s2_ping of Ping.t [@js "ping"]
+     | `U_s3_pong of Pong.t [@js "pong"]
+     | `U_s6_state of EditorState.t [@js "state"] ]
     [@js.union on_field "t"])
 
   type t_0 = t
@@ -233,6 +400,30 @@ module Export : sig
 
   [@@@js.start]
   [@@@js.implem module EditorState = EditorState]
+
+  (* export interface CaretUpdate *)
+  [@@@js.stop]
+
+  module CaretUpdate = CaretUpdate
+
+  [@@@js.start]
+  [@@@js.implem module CaretUpdate = CaretUpdate]
+
+  (* export interface RemoteCaret *)
+  [@@@js.stop]
+
+  module RemoteCaret = RemoteCaret
+
+  [@@@js.start]
+  [@@@js.implem module RemoteCaret = RemoteCaret]
+
+  (* export interface RemoteCaretRemove *)
+  [@@@js.stop]
+
+  module RemoteCaretRemove = RemoteCaretRemove
+
+  [@@@js.start]
+  [@@@js.implem module RemoteCaretRemove = RemoteCaretRemove]
 
   (* export type HazelToParent *)
   [@@@js.stop]

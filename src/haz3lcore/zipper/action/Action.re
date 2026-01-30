@@ -92,6 +92,7 @@ type probe =
 [@deriving (show({with_path: false}), sexp, yojson, eq)]
 type t =
   | SyncReplace(Segment.t)
+  | UpdateRemoteCarets /* Trigger re-render for remote cursor display */
   | Reparse
   | Buffer(buffer)
   | Paste(paste)
@@ -147,6 +148,7 @@ let is_edit: t => bool =
   | Copy
   | Move(_)
   | Select(_)
+  | UpdateRemoteCarets
   | Unselect(_) => false
   | Project(p) =>
     switch (p) {
@@ -167,6 +169,7 @@ let is_historic: t => bool =
   | Move(_)
   | Select(_)
   | SyncReplace(_)
+  | UpdateRemoteCarets
   | Unselect(_) => false
   | Cut
   | Buffer(Accept | Clear | Set(_))
@@ -194,6 +197,7 @@ let prevent_in_read_only_editor = (a: t) =>
   | Copy
   | Move(_)
   | Unselect(_)
+  | UpdateRemoteCarets
   | Select(_) => false
   | SyncReplace(_)
   | Buffer(Set(_) | Accept | Clear)
@@ -235,6 +239,7 @@ let should_animate: t => bool =
     | SetFocus(_) => true
     }
   | SyncReplace(_)
+  | UpdateRemoteCarets
   | Unselect(_)
   | Paste(_)
   | Cut

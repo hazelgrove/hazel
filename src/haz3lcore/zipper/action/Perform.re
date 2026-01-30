@@ -125,6 +125,9 @@ let go =
   | SyncReplace(segment) =>
     SyncReplace.sync_replace(z, segment)
     |> Result.of_option(~error=Action.Failure.Cant_insert)
+  | UpdateRemoteCarets =>
+    /* No-op on zipper state, just triggers re-render for remote cursors */
+    Ok(z)
   | Put_down => Zipper.put_down(z) |> return(Cant_put_down)
   | Probe(a) => Ok(ProbePerform.go(~statics, ~syntax, a, z))
   | Dump => Ok(Dump.to_zipper(z))

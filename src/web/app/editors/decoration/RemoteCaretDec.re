@@ -1,0 +1,96 @@
+open Util;
+open WebUtil;
+open Haz3lcore;
+
+/* Remote caret rendering for collaborative cursor display.
+   Similar to CaretDec but with custom color and no blinking. */
+
+let caret_width = 0.2; /* Same width as main caret */
+
+let caret_base_path = (side, shape): list(SvgUtil.Path.cmd) =>
+  ShardDec.chonky_path_base(
+    (shape, shape),
+    ShardDec.shape_adjust(side, shape) +. 0.5 *. caret_width,
+    caret_width,
+    float_of_int(0),
+  );
+
+let main =
+    (
+      ~font_metrics: FontMetrics.t,
+      ~color: string,
+      ~origin: Point.t,
+      ~side: Direction.t,
+      ~shape: option(Direction.t),
+    ) => {
+  /* Create an SVG caret with custom color, no blink animation */
+  let scale = 1.0;
+  let height_fudge = ShardDec.shadow_dy *. font_metrics.row_height;
+  let paths = caret_base_path(side, shape);
+
+  Node.create_svg(
+    "svg",
+    ~attrs=[
+      Attr.classes(["remote-caret"]),
+      DecUtil.abs_position(~font_metrics, ~height_fudge, ~scale, origin),
+      Attr.create("viewBox", Printf.sprintf("0 0 %f %f", scale, scale)),
+      Attr.create("preserveAspectRatio", "none"),
+    ],
+    [
+      SvgUtil.Path.view(
+        ~attrs=[
+          Attr.classes(["remote-caret-path"]),
+          Attr.create("style", "fill: " ++ color ++ ";"),
+        ],
+        paths,
+      ),
+    ],
+  );
+};
+
+/* Render a remote caret at the position of a piece.
+   caret_offset: 0 = Outer (start of piece), n > 0 = right side of piece.
+   For now, we only support positioning at the start or end of a piece. */
+let view =
+    (
+      ~measured: Measured.t,
+      ~font_metrics: FontMetrics.t,
+      ~color: string,
+      ~piece_id: Id.t,
+      ~caret_offset: int,
+    )
+    : option(Node.t) => {
+  /* Find the piece position in the measured layout */
+  switch (Measured.find_by_id(piece_id, measured)) {
+  | None => None /* Piece not found in current layout */
+  | Some(measurement) =>
+    /* For caret_offset 0, render at origin (left side).
+       For caret_offset > 0, render at last (right side). */
+    let origin = caret_offset == 0 ? measurement.origin : measurement.last;
+    let side = caret_offset == 0 ? Direction.Left : Direction.Right;
+    Some(
+      main(
+        ~font_metrics,
+        ~color,
+        ~origin,
+        ~side,
+        ~shape=None /* Default convex shape */
+      ),
+    );
+  };
+};
+
+/* Render all remote carets */
+let view_all =
+    (~measured: Measured.t, ~font_metrics: FontMetrics.t): list(Node.t) => {
+  PatchworkComm.get_remote_carets()
+  |> List.filter_map(((_, rc: PatchworkComm.remote_caret)) =>
+       view(
+         ~measured,
+         ~font_metrics,
+         ~color=rc.color,
+         ~piece_id=rc.piece_id,
+         ~caret_offset=rc.caret_offset,
+       )
+     );
+};
