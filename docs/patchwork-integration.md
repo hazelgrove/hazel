@@ -57,6 +57,80 @@ Communication uses PostMessage with these message types:
 | `pong` | Both | Ping response |
 | `state` | Both | Full document state sync |
 
+## Caret Position Sync
+
+Remote users' caret positions are synced in real-time using Automerge's ephemeral broadcast mechanism. This is **view-layer state only** - caret positions are NOT persisted to the document.
+
+### Architecture
+
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│  Hazel iframe (User A)                                              │
+│  - User moves caret                                                 │
+│  - SyncReplace.send_caret() extracts (pieceId, caret) from zipper   │
+│  - PatchworkComm.send_caret() posts message to parent               │
+└─────────────────────────────────────────────────────────────────────┘
+                    ↓ PostMessage {t: "caret", pieceId, caret, shape}
+┌─────────────────────────────────────────────────────────────────────┐
+│  tool.tsx (Patchwork)                                               │
+│  - Receives caret message from iframe                               │
+│  - Broadcasts via handle.broadcast([userId, caretState])            │
+│  - Listens for "ephemeral-message" events from other peers          │
+│  - Forwards remote carets to iframe                                 │
+└─────────────────────────────────────────────────────────────────────┘
+                    ↓ handle.broadcast() / ephemeral-message
+┌─────────────────────────────────────────────────────────────────────┐
+│  tool.tsx (Other peer - User B)                                     │
+│  - Receives ephemeral message with User A's caret                   │
+│  - Assigns color based on senderId hash                             │
+│  - Posts {t: "remote-caret", ...} to iframe                         │
+└─────────────────────────────────────────────────────────────────────┘
+                    ↓ PostMessage
+┌─────────────────────────────────────────────────────────────────────┐
+│  Hazel iframe (User B)                                              │
+│  - PatchworkComm.re stores remote caret in StringMap                │
+│  - Triggers UpdateRemoteCarets action                               │
+│  - RemoteCaretDec.re renders colored caret at piece position        │
+└─────────────────────────────────────────────────────────────────────┘
+```
+
+### Ephemeral Broadcast Protocol
+
+The Automerge `DocHandle` provides ephemeral messaging:
+- `handle.broadcast(message)` - sends to all peers, not persisted
+- `handle.on("ephemeral-message", callback)` - receives from peers
+
+Messages use awareness protocol format: `[userId, state]`
+
+Each peer is identified by `senderId` (unique per browser session, e.g., `frontend-817`), which is used to distinguish different users even if they share the same Patchwork account.
+
+### Message Types
+
+| Message | Direction | Purpose |
+|---------|-----------|---------|
+| `caret` | Hazel → Parent | Local caret position changed |
+| `remote-caret` | Parent → Hazel | Another user's caret position |
+| `remote-caret-remove` | Parent → Hazel | User disconnected |
+
+### Key Files
+
+| File | Purpose |
+|------|---------|
+| `patchwork-extra/hazel/src/tool.tsx` | Broadcasts local caret, receives remote carets via ephemeral messages |
+| `src/haz3lcore/patchwork/PatchworkComm.re` | Sends caret to parent, stores received remote carets |
+| `src/haz3lcore/patchwork/SyncReplace.re` | Extracts caret position from zipper, decides when to send |
+| `src/web/app/editors/decoration/RemoteCaretDec.re` | Renders remote carets with custom colors |
+| `src/web/app/editors/code/CodeEditable.re` | Includes remote carets in editor decorations |
+
+### Current Status
+
+⚠️ **Caret positioning is currently buggy.** Known issues:
+- Remote carets only appear at piece boundaries, not inner positions within tokens
+- Moving through whitespace doesn't update the remote caret
+- Caret shape is always straight (should change at piece boundaries)
+
+See `plan/patchwork-future.md` for the detailed fix plan.
+
 ## Data Flow
 
 ### Local edit → sync to others:
@@ -178,9 +252,10 @@ patchwork push
 - Caret position can be disrupted when:
   - Caret becomes end of focal segment due to other player's actions
   - Subterm containing caret is deleted
+- **Caret sync is partially working** but has positioning bugs (see Caret Position Sync section above)
 
 ## Future Work
 
-See `plan/patchwork-future.md` for planned features:
-- Caret sync (show other users' cursor positions)
+See `plan/patchwork-future.md` for planned improvements:
+- Fix caret position sync accuracy (inner positions, whitespace, shape)
 - Projector support in sync format
