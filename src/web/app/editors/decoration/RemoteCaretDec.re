@@ -68,18 +68,21 @@ let view =
   | None => None /* Piece not found in current layout */
   | Some(measurement) =>
     let origin = measurement.origin;
-    /* Calculate column position based on side:
-       - Left side (normal): origin.col + caret_offset
-       - Right side (end of segment): last.col (exclusive end, already the position after the piece) */
-    let col =
-      switch (side) {
-      | Some(Direction.Right) => measurement.last.col /* Right edge of piece */
-      | _ => origin.col + caret_offset /* Left edge or inside piece */
-      };
+    /* Calculate position based on side:
+       - Left side (normal): origin position + caret_offset
+       - Right side (end of segment): last position (end of piece) */
     let position =
-      Point.{
-        row: origin.row,
-        col,
+      switch (side) {
+      | Some(Direction.Right) =>
+        Point.{
+          row: measurement.last.row,
+          col: measurement.last.col,
+        }
+      | _ =>
+        Point.{
+          row: origin.row,
+          col: origin.col + caret_offset,
+        }
       };
     /* Visual side for caret shape rendering */
     let visual_side =
