@@ -122,14 +122,29 @@ Each peer is identified by `senderId` (unique per browser session, e.g., `fronte
 | `src/web/app/editors/decoration/RemoteCaretDec.re` | Renders remote carets with custom colors |
 | `src/web/app/editors/code/CodeEditable.re` | Includes remote carets in editor decorations |
 
-### Current Status
+### Caret Position Model
 
-⚠️ **Caret positioning is currently buggy.** Known issues:
-- Remote carets only appear at piece boundaries, not inner positions within tokens
-- Moving through whitespace doesn't update the remote caret
-- Caret shape is always straight (should change at piece boundaries)
+The caret position sent over the wire uses this model:
 
-See `plan/patchwork-future.md` for the detailed fix plan.
+1. **Piece selection**: The caret is always "on" the **first piece of right siblings** in the zipper. At the end of a segment, it's on the last piece of left siblings.
+
+2. **Offset encoding**: `caretOffset` is 0 for `Outer` (at piece's left edge), or `n+1` for `Inner(n)` (position n inside the piece).
+
+3. **Shape**: At `Outer` positions, the caret shape (convex/concave) is derived from `Zipper.Caret.direction`. For `Inner` positions, shape is always `null`.
+
+**Example** (whitespace shown as `·`):
+```
+foo · 333 · bar
+```
+Segment: `[foo, ·, 333, ·, bar]`
+
+| Visual | Piece you're on | caretOffset |
+|--------|-----------------|-------------|
+| `foo│· 333` | `·` (whitespace) | 0 |
+| `foo ·│333` | `333` | 0 |
+| `foo ·3│33` | `333` | 1 |
+| `foo ·33│3` | `333` | 2 |
+| `foo ·333│·` | `·` (whitespace) | 0 |
 
 ## Data Flow
 
@@ -252,10 +267,10 @@ patchwork push
 - Caret position can be disrupted when:
   - Caret becomes end of focal segment due to other player's actions
   - Subterm containing caret is deleted
-- **Caret sync is partially working** but has positioning bugs (see Caret Position Sync section above)
 
 ## Future Work
 
 See `plan/patchwork-future.md` for planned improvements:
-- Fix caret position sync accuracy (inner positions, whitespace, shape)
+- Debounce caret messages, selection sync, user labels
 - Projector support in sync format
+- Performance optimizations (diff-based sync)

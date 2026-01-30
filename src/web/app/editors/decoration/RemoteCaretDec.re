@@ -49,8 +49,8 @@ let main =
 };
 
 /* Render a remote caret at the position of a piece.
-   caret_offset: 0 = Outer (start of piece), n > 0 = right side of piece.
-   For now, we only support positioning at the start or end of a piece. */
+   caret_offset: 0 = Outer (at piece's left edge), n = Inner(n-1) (n columns into the piece)
+   shape: caret shape at piece boundaries (None when inside a piece) */
 let view =
     (
       ~measured: Measured.t,
@@ -58,25 +58,23 @@ let view =
       ~color: string,
       ~piece_id: Id.t,
       ~caret_offset: int,
+      ~shape: option(Direction.t),
     )
     : option(Node.t) => {
   /* Find the piece position in the measured layout */
   switch (Measured.find_by_id(piece_id, measured)) {
   | None => None /* Piece not found in current layout */
   | Some(measurement) =>
-    /* For caret_offset 0, render at origin (left side).
-       For caret_offset > 0, render at last (right side). */
-    let origin = caret_offset == 0 ? measurement.origin : measurement.last;
+    /* Position is piece origin plus the caret offset in columns */
+    let origin = measurement.origin;
+    let position =
+      Point.{
+        row: origin.row,
+        col: origin.col + caret_offset,
+      };
+    /* Side is Left when at piece boundary (Outer), Right otherwise */
     let side = caret_offset == 0 ? Direction.Left : Direction.Right;
-    Some(
-      main(
-        ~font_metrics,
-        ~color,
-        ~origin,
-        ~side,
-        ~shape=None /* Default convex shape */
-      ),
-    );
+    Some(main(~font_metrics, ~color, ~origin=position, ~side, ~shape));
   };
 };
 
@@ -91,6 +89,7 @@ let view_all =
          ~color=rc.color,
          ~piece_id=rc.piece_id,
          ~caret_offset=rc.caret_offset,
+         ~shape=rc.shape,
        )
      );
 };

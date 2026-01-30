@@ -1,5 +1,6 @@
 open Js_of_ocaml;
 open PatchworkMessages;
+open Util;
 
 /* Remote caret state for collaborative cursor display */
 type remote_caret = {
@@ -7,13 +8,14 @@ type remote_caret = {
   color: string,
   piece_id: Id.t,
   caret_offset: int,
+  shape: option(Direction.t),
 };
 
-let remote_carets: ref(Util.Maps.StringMap.t(remote_caret)) =
-  ref(Util.Maps.StringMap.empty);
+let remote_carets: ref(Maps.StringMap.t(remote_caret)) =
+  ref(Maps.StringMap.empty);
 
 let get_remote_carets = (): list((string, remote_caret)) =>
-  Util.Maps.StringMap.bindings(remote_carets^);
+  Maps.StringMap.bindings(remote_carets^);
 
 module JsConvert = {
   let of_shape: Grout.shape => FlatDoc.Shape.t =
@@ -197,7 +199,7 @@ module JsConvert = {
       map |> Id.Map.to_list |> List.map(((_x, y)) => of_flat_piece(y));
     let state =
       FlatDoc.HazelDoc.AnonymousInterface2.create(~title="", ~tiles, ());
-    EditorState.t_to_js(EditorState.create(~t=`L_s6_state, ~state, ()));
+    EditorState.t_to_js(EditorState.create(~t=`L_s8_state, ~state, ()));
   };
 
   let flatdoc_of_hazeldoc = (doc: HazelDoc.t_0): FlatConvert.Doc.t =>
@@ -230,18 +232,24 @@ let listen = (schedule_action: Action.t => unit): unit => {
     | Some(msg) =>
       switch (msg) {
       | `U_s1_init(_init) => ()
-      | `U_s2_ping(_ping) =>
+      | `U_s3_ping(_ping) =>
         let pongJs: Ojs.t =
           Pong.t_to_js(
-            Pong.create(~t=`L_s3_pong, ~message="pong from iframe", ()),
+            Pong.create(~t=`L_s4_pong, ~message="pong from iframe", ()),
           );
         send_to_parent(pongJs);
-      | `U_s3_pong(_pong) => ()
-      | `U_s4_remote_caret(rc) =>
+      | `U_s4_pong(_pong) => ()
+      | `U_s5_remote_caret(rc) =>
         let user_id = RemoteCaret.get_userId(rc);
         let color = RemoteCaret.get_color(rc);
         let piece_id_str = RemoteCaret.get_pieceId(rc);
         let caret_offset = RemoteCaret.get_caretOffset(rc);
+        let shape =
+          switch (RemoteCaret.get_shape(rc)) {
+          | Some(`L_s2_left) => Some(Direction.Left)
+          | Some(`L_s7_right) => Some(Direction.Right)
+          | None => None
+          };
         Firebug.console##log(
           Js.string(
             "[CARET] iframe received remote-caret: user="
@@ -259,9 +267,9 @@ let listen = (schedule_action: Action.t => unit): unit => {
             color,
             piece_id,
             caret_offset,
+            shape,
           };
-          remote_carets :=
-            Util.Maps.StringMap.add(user_id, caret, remote_carets^);
+          remote_carets := Maps.StringMap.add(user_id, caret, remote_carets^);
           schedule_action(UpdateRemoteCarets);
         | None =>
           Firebug.console##log(
@@ -270,16 +278,16 @@ let listen = (schedule_action: Action.t => unit): unit => {
             ),
           )
         };
-      | `U_s5_remote_caret_remove(rcr) =>
+      | `U_s6_remote_caret_remove(rcr) =>
         let user_id = RemoteCaretRemove.get_userId(rcr);
         Firebug.console##log(
           Js.string(
             "[CARET] iframe received remote-caret-remove: user=" ++ user_id,
           ),
         );
-        remote_carets := Util.Maps.StringMap.remove(user_id, remote_carets^);
+        remote_carets := Maps.StringMap.remove(user_id, remote_carets^);
         schedule_action(UpdateRemoteCarets);
-      | `U_s6_state(state) =>
+      | `U_s8_state(state) =>
         let js_state = EditorState.get_state(state);
         let state = JsConvert.flatdoc_of_hazeldoc(js_state);
         let seg = FlatConvert.doc_to_seg(state);
@@ -318,8 +326,10 @@ let init_iframe = schedule_action => {
 };
 
 /* Send caret position to parent for collaborative cursor display.
-   caret_offset: 0 = Outer, n = Inner(n-1) */
-let send_caret = (piece_id: Id.t, caret_offset: int): unit => {
+   caret_offset: 0 = Outer, n = Inner(n-1)
+   shape: caret shape at piece boundaries (None when inside a piece) */
+let send_caret =
+    (piece_id: Id.t, caret_offset: int, shape: option(Direction.t)): unit => {
   Firebug.console##log(
     Js.string(
       "[CARET] iframe sending caret: piece="
@@ -328,12 +338,19 @@ let send_caret = (piece_id: Id.t, caret_offset: int): unit => {
       ++ string_of_int(caret_offset),
     ),
   );
+  let shape_js =
+    switch (shape) {
+    | Some(Left) => Some(`L_s2_left)
+    | Some(Right) => Some(`L_s7_right)
+    | None => None
+    };
   let caret_message =
     CaretUpdate.t_to_js(
       CaretUpdate.create(
         ~t=`L_s0_caret,
         ~pieceId=Id.to_string(piece_id),
         ~caretOffset=caret_offset,
+        ~shape=?shape_js,
         (),
       ),
     );

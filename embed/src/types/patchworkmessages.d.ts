@@ -55,11 +55,17 @@ export interface EditorState {
 /**
  * Caret position update - sent from Hazel iframe when local caret moves.
  * Used for collaborative cursor display via ephemeral broadcast.
+ *
+ * Position model:
+ * - pieceId: ID of the piece the caret is "on" (first of right siblings, or last of left if at end)
+ * - caretOffset: 0 = Outer (at piece's left edge), n = Inner(n-1) (n columns into the piece)
+ * - shape: Caret shape for rendering at piece boundaries (null when inside a piece)
  */
 export interface CaretUpdate {
   t: "caret";
   pieceId: string;
-  caretOffset: number;  // 0 = Outer, n = Inner(n-1)
+  caretOffset: number;
+  shape: "left" | "right" | null;
 }
 
 /**
@@ -72,6 +78,7 @@ export interface RemoteCaret {
   color: string;
   pieceId: string;
   caretOffset: number;
+  shape: "left" | "right" | null;
 }
 
 /**
