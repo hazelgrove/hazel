@@ -85,3 +85,35 @@ let check_rewrite = (from_: Exp.t, to_: Exp.t): bool => {
     checkEquality(left_str, right_str);
   };
 };
+
+let check_written_step = (~settings, ~env, from_: Exp.t, to_: Exp.t): bool => {
+  // checking using evaluation steps
+  let rec get_next_exps = (exp: Exp.t): list(Exp.t) => {
+    switch (EvaluatorStep.get_status(~settings, exp, env)) {
+    | EvaluatorStep.AutoStep(step) =>
+      switch (EvaluatorStep.take_step(step)) {
+      | Some(next_exp) => get_next_exps(next_exp) @ [next_exp]
+      | None => []
+      }
+    | AvailableSteps(steps) =>
+      List.filter_map(EvaluatorStep.take_step, steps)
+    };
+  };
+  let next_exps = get_next_exps(from_);
+  List.exists(
+    e =>
+      Equality.equality(
+        Equality.{
+          ...Equality.semantic_settings,
+          env1: Some(env),
+          env2: Some(env),
+          ignore_ascriptions: true,
+        },
+      ).
+        exp(
+        e,
+        to_,
+      ),
+    next_exps,
+  );
+};

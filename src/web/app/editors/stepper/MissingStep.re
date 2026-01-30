@@ -13,6 +13,11 @@ module Model = {
         cached_exp: Calc.saved(Exp.t),
         cached_result: option(bool),
       })
+    | WrittenStepOpen({
+        editor: CodeEditable.Model.t,
+        cached_exp: Calc.saved(Exp.t),
+        cached_result: option(bool),
+      })
     | NoneOpen;
 
   [@deriving (show({with_path: false}), sexp, yojson)]
@@ -61,8 +66,11 @@ module Update = {
   type t =
     | ToggleAxioms
     | ProposeRewrite
+    | ProposeWrittenStep
     | UpdateResult(bool)
+    | UpdateWrittenStepResult(bool)
     | RewriteEditorAction(CodeEditable.Update.t)
+    | WriteStepEditorAction(CodeEditable.Update.t)
     | AxiomBoxAction(AxiomsBox.Update.t);
 
   let update = (~settings, action, model: Model.t): Updated.t(Model.t) => {
@@ -72,6 +80,7 @@ module Update = {
         switch (model.open_box) {
         | NoneOpen
         | RewritesOpen(_) => Model.AxiomsOpen(AxiomsBox.Model.init)
+        | WrittenStepOpen(_) => Model.AxiomsOpen(AxiomsBox.Model.init)
         | AxiomsOpen(_) => Model.NoneOpen
         };
       Model.{
@@ -83,13 +92,32 @@ module Update = {
       let open_box =
         switch (model.open_box) {
         | NoneOpen
-        | AxiomsOpen(_) =>
+        | AxiomsOpen(_)
+        | WrittenStepOpen(_) =>
           Model.RewritesOpen({
             editor: CodeEditable.Model.mk(Editor.Model.mk(Zipper.init())),
             cached_exp: Calc.Pending,
             cached_result: None,
           })
         | RewritesOpen(_) => Model.NoneOpen
+        };
+      Model.{
+        ...model,
+        open_box,
+      }
+      |> Updated.return_quiet(~recalculate=true, ~logged=true);
+    | (ProposeWrittenStep, _) =>
+      let open_box =
+        switch (model.open_box) {
+        | NoneOpen
+        | AxiomsOpen(_)
+        | RewritesOpen(_) =>
+          Model.WrittenStepOpen({
+            editor: CodeEditable.Model.mk(Editor.Model.mk(Zipper.init())),
+            cached_exp: Calc.Pending,
+            cached_result: None,
+          })
+        | WrittenStepOpen(_) => Model.NoneOpen
         };
       Model.{
         ...model,
@@ -106,7 +134,18 @@ module Update = {
             editor: new_editor,
           }),
       };
-    | (RewriteEditorAction(_), _) => model |> Updated.raise_invalid_action
+    | (RewriteEditorAction(_), _) => model |> Updated.return_quiet
+    | (WriteStepEditorAction(action), WrittenStepOpen({editor, _} as r)) =>
+      let* new_editor = CodeEditable.Update.update(~settings, action, editor);
+      Model.{
+        ...model,
+        open_box:
+          Model.WrittenStepOpen({
+            ...r,
+            editor: new_editor,
+          }),
+      };
+    | (WriteStepEditorAction(_), _) => model |> Updated.return_quiet
     | (UpdateResult(result), RewritesOpen(r)) =>
       Model.{
         ...model,
@@ -117,7 +156,18 @@ module Update = {
           }),
       }
       |> Updated.return_quiet(~logged=true)
-    | (UpdateResult(_), _) => model |> Updated.raise_invalid_action
+    | (UpdateResult(_), _) => model |> Updated.return_quiet
+    | (UpdateWrittenStepResult(result), WrittenStepOpen(r)) =>
+      Model.{
+        ...model,
+        open_box:
+          Model.WrittenStepOpen({
+            ...r,
+            cached_result: Some(result),
+          }),
+      }
+      |> Updated.return_quiet
+    | (UpdateWrittenStepResult(_), _) => model |> Updated.return_quiet
     | (AxiomBoxAction(action), AxiomsOpen(m)) =>
       let* updated = AxiomsBox.Update.update(~settings, action, m);
       Model.{
@@ -132,8 +182,11 @@ module Update = {
     switch (action) {
     | ToggleAxioms
     | ProposeRewrite
+    | ProposeWrittenStep
     | UpdateResult(_)
+    | UpdateWrittenStepResult(_)
     | RewriteEditorAction(_)
+    | WriteStepEditorAction(_)
     | AxiomBoxAction(_) => false
     };
   };
@@ -267,6 +320,37 @@ module Update = {
           cached_exp: cached_exp |> Calc.save,
           cached_result: cached_result |> Calc.get_value,
         });
+      | WrittenStepOpen({editor, cached_exp, cached_result}) =>
+        // Calculate syntax, holes, types, etc for the editor
+        let editor =
+          CodeEditable.Update.calculate(
+            ~settings,
+            ~is_edited=true,
+            ~is_dynamic_term=true,
+            ~dynamics=Dynamics.Map.empty,
+            ~stitch=x => x,
+            ~ctx=Calc.get_value(ctx) |> SemanticCtx.get_ctx,
+            editor,
+          );
+        // Extract an exp from the editor
+        let cached_exp =
+          Calc.set(
+            ~eq=Exp.fast_equal,
+            CodeEditable.Model.get_statics(editor).elaborated,
+            cached_exp,
+          );
+        // Reset result if editor changes
+        let cached_result =
+          Calc.Calculated(cached_result)
+          |> {
+            let.calc _ = cached_exp;
+            None;
+          };
+        Model.WrittenStepOpen({
+          editor,
+          cached_exp: cached_exp |> Calc.save,
+          cached_result: cached_result |> Calc.get_value,
+        });
       | AxiomsOpen(m) =>
         AxiomsOpen(
           AxiomsBox.Update.calculate(~info_map, ~ctx, ~selected_exp, m),
@@ -299,6 +383,7 @@ module Selection = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t =
     | RewriteEditor(CodeEditable.Selection.t)
+    | WriteStepEditor(CodeEditable.Selection.t)
     | AxiomBoxSelection(AxiomsBox.Selection.t);
 
   let get_cursor_info = (~selection: t, model: Model.t): cursor(Update.t) => {
@@ -307,6 +392,10 @@ module Selection = {
       let+ ci = CodeEditable.Selection.get_cursor_info(~selection, editor);
       Update.RewriteEditorAction(ci);
     | (RewriteEditor(_), _) => empty
+    | (WriteStepEditor(selection), WrittenStepOpen({editor, _})) =>
+      let+ ci = CodeEditable.Selection.get_cursor_info(~selection, editor);
+      Update.WriteStepEditorAction(ci);
+    | (WriteStepEditor(_), _) => empty
     | (AxiomBoxSelection(selection), AxiomsOpen(m)) =>
       let+ ci = AxiomsBox.Selection.get_cursor_info(~selection, m);
       Update.AxiomBoxAction(ci);
@@ -320,6 +409,10 @@ module Selection = {
       CodeEditable.Selection.handle_key_event(~selection, editor, event)
       |> Option.map(x => Update.RewriteEditorAction(x))
     | (RewriteEditor(_), _) => None
+    | (WriteStepEditor(selection), WrittenStepOpen({editor, _})) =>
+      CodeEditable.Selection.handle_key_event(~selection, editor, event)
+      |> Option.map(x => Update.WriteStepEditorAction(x))
+    | (WriteStepEditor(_), _) => None
     | (AxiomBoxSelection(selection), AxiomsOpen(m)) =>
       AxiomsBox.Selection.handle_key_event(~selection, m, event)
       |> Option.map(x => Update.AxiomBoxAction(x))
@@ -452,6 +545,234 @@ module View = {
         && Exp.is_fun(Calc.get_saved_exc(model.full_exp));
       };
 
+      let view_rewrites_box = (editor, cached_exp, cached_result) => {
+        let unboxed_cached_exp =
+          Calc.get_saved_exc(~print="cached exp not calculated", cached_exp);
+        let unboxed_selected_exp =
+          Option.value(
+            ~default=EmptyHole |> Exp.fresh,
+            Calc.get_saved_exc(
+              ~print="selected exp not calculated",
+              model.selected_exp,
+            ),
+          );
+        [
+          // one element list with a div
+          // with a list containing two elements
+          // an Editor for user to propose their rewrite
+          // a button to submit the rewrite
+          div_c(
+            "rewrite-box",
+            [
+              Node.text("Replace: "),
+              CodeViewable.view_any(
+                ~globals,
+                ~settings=
+                  ExpToSegment.Settings.of_core(
+                    ~inline=false,
+                    ~fold_fn_bodies=`Text,
+                    globals.settings.core,
+                  ),
+                Exp(unboxed_selected_exp),
+              ),
+              Node.text("With: "),
+              div_c(
+                "inline-editor-wrapper",
+                [
+                  CodeEditable.View.view(
+                    ~globals,
+                    ~signal=
+                      fun
+                      | MakeActive => signal(MakeActive(RewriteEditor())),
+                    ~inject=x => inject(RewriteEditorAction(x)),
+                    ~selected=
+                      switch (selected) {
+                      | Some(RewriteEditor ()) => true
+                      | _ => false
+                      },
+                    ~dynamics=Dynamics.Map.empty,
+                    editor,
+                  ),
+                ],
+              ),
+            ]
+            @ {
+              switch (cached_result) {
+              | Some(true) => [
+                  Node.text("Valid"),
+                  Widgets.button(
+                    ~clss=["proof-button"],
+                    Node.text("Replace"),
+                    ~tooltip="replace",
+                    _ =>
+                    signal(
+                      AddAlgebriteStep(
+                        ProofHacks.exp_idx(
+                          unboxed_selected_exp,
+                          model.full_exp
+                          |> Calc.get_saved_exc(~print="full_exp"),
+                        ),
+                        unboxed_selected_exp,
+                        unboxed_cached_exp
+                        |> Substitution.in_exp(
+                             model.cached_env
+                             |> Calc.get_saved_exc(~print="env not cached"),
+                           ),
+                      ),
+                    )
+                  ),
+                ]
+              | Some(false) => [Node.text("Invalid")]
+              | None => [
+                  Widgets.button(
+                    ~clss=["proof-button"],
+                    Node.text("Check"),
+                    _ =>
+                      inject(
+                        UpdateResult(
+                          RewriteChecker.check_rewrite(
+                            unboxed_selected_exp
+                            |> Substitution.in_exp(
+                                 model.cached_env
+                                 |> Calc.get_saved_exc(
+                                      ~print="env not cached",
+                                    ),
+                               ),
+                            unboxed_cached_exp
+                            |> Substitution.in_exp(
+                                 model.cached_env
+                                 |> Calc.get_saved_exc(
+                                      ~print="env not cached",
+                                    ),
+                               ),
+                          ),
+                        ),
+                      ),
+                    ~tooltip="check",
+                  ),
+                ]
+              };
+            },
+          ),
+        ];
+      };
+
+      let view_written_step_box = (editor, cached_exp, cached_result) => {
+        let unboxed_cached_exp =
+          Calc.get_saved_exc(~print="cached exp not calculated", cached_exp);
+        let unboxed_selected_exp =
+          Option.value(
+            ~default=EmptyHole |> Exp.fresh,
+            Calc.get_saved_exc(
+              ~print="selected exp not calculated",
+              model.selected_exp,
+            ),
+          );
+        [
+          // one element list with a div
+          // with a list containing two elements
+          // an Editor for user to propose their rewrite
+          // a button to submit the rewrite
+          div_c(
+            "rewrite-box",
+            [
+              Node.text("Replace: "),
+              CodeViewable.view_any(
+                ~globals,
+                ~settings=
+                  ExpToSegment.Settings.of_core(
+                    ~inline=false,
+                    ~fold_fn_bodies=`Text,
+                    globals.settings.core,
+                  ),
+                Exp(unboxed_selected_exp),
+              ),
+              Node.text("With: "),
+              div_c(
+                "inline-editor-wrapper",
+                [
+                  CodeEditable.View.view(
+                    ~globals,
+                    ~signal=
+                      fun
+                      | MakeActive => signal(MakeActive(WriteStepEditor())),
+                    ~inject=x => inject(WriteStepEditorAction(x)),
+                    ~selected=
+                      switch (selected) {
+                      | Some(WriteStepEditor ()) => true
+                      | _ => false
+                      },
+                    ~dynamics=Dynamics.Map.empty,
+                    editor,
+                  ),
+                ],
+              ),
+            ]
+            @ {
+              switch (cached_result) {
+              | Some(true) => [
+                  Node.text("Valid"),
+                  Widgets.button(
+                    ~clss=["proof-button"],
+                    Node.text("Replace"),
+                    ~tooltip="replace",
+                    _ =>
+                    signal(
+                      AddAlgebriteStep(
+                        ProofHacks.exp_idx(
+                          unboxed_selected_exp,
+                          model.full_exp
+                          |> Calc.get_saved_exc(~print="full_exp"),
+                        ),
+                        unboxed_selected_exp,
+                        unboxed_cached_exp
+                        |> Substitution.in_exp(
+                             model.cached_env
+                             |> Calc.get_saved_exc(~print="env not cached"),
+                           ),
+                      ),
+                    )
+                  ),
+                ]
+              | Some(false) => [Node.text("Invalid")]
+              | None => [
+                  Widgets.button(
+                    ~clss=["proof-button"],
+                    Node.text("Check"),
+                    _ =>
+                      inject(
+                        UpdateWrittenStepResult(
+                          RewriteChecker.check_written_step(
+                            ~settings=globals.settings.core,
+                            ~env=
+                              model.cached_env
+                              |> Calc.get_saved_exc(~print="env not cached"),
+                            unboxed_selected_exp
+                            |> Substitution.in_exp(
+                                 model.cached_env
+                                 |> Calc.get_saved_exc(
+                                      ~print="env not cached",
+                                    ),
+                               ),
+                            unboxed_cached_exp
+                            |> Substitution.in_exp(
+                                 model.cached_env
+                                 |> Calc.get_saved_exc(
+                                      ~print="env not cached",
+                                    ),
+                               ),
+                          ),
+                        ),
+                      ),
+                    ~tooltip="check",
+                  ),
+                ]
+              };
+            },
+          ),
+        ];
+      };
+
       // I want to make a bunch of buttons here:
       // Evaluate [TODO], Rewrite, Axioms, Cases,
       let buttons =
@@ -503,6 +824,10 @@ module View = {
           )
           @ [
             proof_button(~callback=inject(ProposeRewrite), "Algebra ▼"),
+            proof_button(
+              ~callback=inject(ProposeWrittenStep),
+              "Write Step ▼",
+            ),
             proof_button(~callback=inject(ToggleAxioms), "Assumptions ▼"),
             proof_button(
               ~callback=
@@ -576,121 +901,9 @@ module View = {
                     ),
                   ]
                 | RewritesOpen({editor, cached_exp, cached_result}) =>
-                  let unboxed_cached_exp =
-                    Calc.get_saved_exc(
-                      ~print="cached exp not calculated",
-                      cached_exp,
-                    );
-                  let unboxed_selected_exp =
-                    Option.value(
-                      ~default=EmptyHole |> Exp.fresh,
-                      Calc.get_saved_exc(
-                        ~print="selected exp not calculated",
-                        model.selected_exp,
-                      ),
-                    );
-                  [
-                    // one element list with a div
-                    // with a list containing two elements
-                    // an Editor for user to propose their rewrite
-                    // a button to submit the rewrite
-                    div_c(
-                      "rewrite-box",
-                      [
-                        Node.text("Replace: "),
-                        CodeViewable.view_any(
-                          ~globals,
-                          ~settings=
-                            ExpToSegment.Settings.of_core(
-                              ~inline=false,
-                              ~fold_fn_bodies=`Text,
-                              globals.settings.core,
-                            ),
-                          Exp(unboxed_selected_exp),
-                        ),
-                        Node.text("With: "),
-                        div_c(
-                          "inline-editor-wrapper",
-                          [
-                            CodeEditable.View.view(
-                              ~globals,
-                              ~signal=
-                                fun
-                                | MakeActive =>
-                                  signal(MakeActive(RewriteEditor())),
-                              ~inject=x => inject(RewriteEditorAction(x)),
-                              ~selected=
-                                switch (selected) {
-                                | Some(RewriteEditor ()) => true
-                                | _ => false
-                                },
-                              ~dynamics=Dynamics.Map.empty,
-                              editor,
-                            ),
-                          ],
-                        ),
-                      ]
-                      @ {
-                        switch (cached_result) {
-                        | Some(true) => [
-                            Node.text("Valid"),
-                            Widgets.button(
-                              ~clss=["proof-button"],
-                              Node.text("Replace"),
-                              ~tooltip="replace",
-                              _ =>
-                              signal(
-                                AddAlgebriteStep(
-                                  ProofHacks.exp_idx(
-                                    unboxed_selected_exp,
-                                    model.full_exp
-                                    |> Calc.get_saved_exc(~print="full_exp"),
-                                  ),
-                                  unboxed_selected_exp,
-                                  unboxed_cached_exp
-                                  |> Substitution.in_exp(
-                                       model.cached_env
-                                       |> Calc.get_saved_exc(
-                                            ~print="env not cached",
-                                          ),
-                                     ),
-                                ),
-                              )
-                            ),
-                          ]
-                        | Some(false) => [Node.text("Invalid")]
-                        | None => [
-                            Widgets.button(
-                              ~clss=["proof-button"],
-                              Node.text("Check"),
-                              _ =>
-                                inject(
-                                  UpdateResult(
-                                    RewriteChecker.check_rewrite(
-                                      unboxed_selected_exp
-                                      |> Substitution.in_exp(
-                                           model.cached_env
-                                           |> Calc.get_saved_exc(
-                                                ~print="env not cached",
-                                              ),
-                                         ),
-                                      unboxed_cached_exp
-                                      |> Substitution.in_exp(
-                                           model.cached_env
-                                           |> Calc.get_saved_exc(
-                                                ~print="env not cached",
-                                              ),
-                                         ),
-                                    ),
-                                  ),
-                                ),
-                              ~tooltip="check",
-                            ),
-                          ]
-                        };
-                      },
-                    ),
-                  ];
+                  view_rewrites_box(editor, cached_exp, cached_result)
+                | WrittenStepOpen({editor, cached_exp, cached_result}) =>
+                  view_written_step_box(editor, cached_exp, cached_result)
                 };
               },
             ),
