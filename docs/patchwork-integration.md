@@ -133,6 +133,11 @@ The caret position sent over the wire uses this model:
 
 3. **Shape**: At `Outer` positions, the caret shape (convex/concave) is derived from `Zipper.Caret.direction`. For `Inner` positions, shape is always `null`.
 
+4. **Side**: Which edge of the piece the caret is on:
+   - `"left"` = caret is at the left edge of the piece (normal case, piece is to the right of caret)
+   - `"right"` = caret is at the right edge of the piece (end-of-segment case, piece is to the left of caret)
+   - `null` = caret is inside the piece (`Inner` position)
+
 **Example** (whitespace shown as `·`):
 
 ```
@@ -141,13 +146,15 @@ foo · 333 · bar
 
 Segment: `[foo, ·, 333, ·, bar]`
 
-| Visual       | Piece you're on  | caretOffset |
-| ------------ | ---------------- | ----------- |
-| `foo│· 333`  | `·` (whitespace) | 0           |
-| `foo ·│333`  | `333`            | 0           |
-| `foo ·3│33`  | `333`            | 1           |
-| `foo ·33│3`  | `333`            | 2           |
-| `foo ·333│·` | `·` (whitespace) | 0           |
+| Visual        | Piece you're on  | caretOffset | side    |
+| ------------- | ---------------- | ----------- | ------- |
+| `│foo · 333`  | `foo`            | 0           | `left`  |
+| `foo│· 333`   | `·` (whitespace) | 0           | `left`  |
+| `foo ·│333`   | `333`            | 0           | `left`  |
+| `foo ·3│33`   | `333`            | 1           | `null`  |
+| `foo ·33│3`   | `333`            | 2           | `null`  |
+| `foo ·333│·`  | `·` (whitespace) | 0           | `left`  |
+| `foo · 333│`  | `333` (last)     | 0           | `right` |
 
 ## Data Flow
 
@@ -287,8 +294,16 @@ patchwork push
 
 - Full-state sync (not diff-based)
 - Caret position can be disrupted when:
-  - Caret becomes end of focal segment due to other player's actions
   - Subterm containing caret is deleted
+
+### patchwork-extra/hazel Dependency
+
+The `side` field in caret messages must be forwarded by `tool.tsx` in `patchwork-extra/hazel`. When updating the Hazel embed package, ensure that `tool.tsx`:
+
+1. Forwards the `side` field when broadcasting caret updates via `handle.broadcast()`
+2. Includes the `side` field when sending `remote-caret` messages to iframes
+
+If the `side` field is not forwarded, remote carets at end-of-segment positions will render incorrectly (at the left edge of the last piece instead of the right edge).
 
 ## Projector Sync
 

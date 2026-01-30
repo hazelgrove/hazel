@@ -1,11 +1,10 @@
 import React, { useEffect, useRef, useCallback } from "react";
 import type {
   Init,
-  Ping,
   HazelToParent,
   ParentToHazel,
   EditorState,
-} from "../types/messages";
+} from "../types/patchworkmessages";
 
 /**
  * Retrieves a query parameter from the URL

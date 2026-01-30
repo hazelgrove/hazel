@@ -9,6 +9,7 @@ type remote_caret = {
   piece_id: Id.t,
   caret_offset: int,
   shape: option(Direction.t),
+  side: option(Direction.t) /* Left = at left edge of piece, Right = at right edge (end of segment) */
 };
 
 let remote_carets: ref(Maps.StringMap.t(remote_caret)) =
@@ -274,6 +275,12 @@ let listen = (schedule_action: Action.t => unit): unit => {
           | Some(`L_s7_right) => Some(Direction.Right)
           | None => None
           };
+        let side =
+          switch (RemoteCaret.get_side(rc)) {
+          | Some(`L_s2_left) => Some(Direction.Left)
+          | Some(`L_s7_right) => Some(Direction.Right)
+          | None => None
+          };
         Firebug.console##log(
           Js.string(
             "[CARET] iframe received remote-caret: user="
@@ -292,6 +299,7 @@ let listen = (schedule_action: Action.t => unit): unit => {
             piece_id,
             caret_offset,
             shape,
+            side,
           };
           remote_carets := Maps.StringMap.add(user_id, caret, remote_carets^);
           schedule_action(UpdateRemoteCarets);
@@ -351,9 +359,16 @@ let init_iframe = schedule_action => {
 
 /* Send caret position to parent for collaborative cursor display.
    caret_offset: 0 = Outer, n = Inner(n-1)
-   shape: caret shape at piece boundaries (None when inside a piece) */
+   shape: caret shape at piece boundaries (None when inside a piece)
+   side: which edge of the piece the caret is on (Left = left edge, Right = right edge at end of segment) */
 let send_caret =
-    (piece_id: Id.t, caret_offset: int, shape: option(Direction.t)): unit => {
+    (
+      piece_id: Id.t,
+      caret_offset: int,
+      shape: option(Direction.t),
+      side: option(Direction.t),
+    )
+    : unit => {
   Firebug.console##log(
     Js.string(
       "[CARET] iframe sending caret: piece="
@@ -368,6 +383,12 @@ let send_caret =
     | Some(Right) => Some(`L_s7_right)
     | None => None
     };
+  let side_js =
+    switch (side) {
+    | Some(Left) => Some(`L_s2_left)
+    | Some(Right) => Some(`L_s7_right)
+    | None => None
+    };
   let caret_message =
     CaretUpdate.t_to_js(
       CaretUpdate.create(
@@ -375,6 +396,7 @@ let send_caret =
         ~pieceId=Id.to_string(piece_id),
         ~caretOffset=caret_offset,
         ~shape=?shape_js,
+        ~side=?side_js,
         (),
       ),
     );

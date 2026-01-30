@@ -161,18 +161,28 @@ let should_send_caret = (a: Action.t): bool =>
   };
 
 /* Get caret position from zipper for sending to parent.
-   Returns (piece_id, caret_offset, shape) where:
+   Returns (piece_id, caret_offset, shape, side) where:
    - piece_id: ID of the piece you're "on" (first of right siblings, or last of left at end)
    - caret_offset: 0 for Outer, n+1 for Inner(n)
-   - shape: caret shape at piece boundaries (None when inside a piece) */
+   - shape: caret shape at piece boundaries (None when inside a piece)
+   - side: which edge of the piece the caret is on (Left = left edge, Right = right edge, None = inside) */
 let get_caret_position =
-    (z: Zipper.t): option((Id.t, int, option(Direction.t))) => {
-  /* Get the piece we're "on" - first of right siblings, or last of left at segment end */
-  let piece_opt =
-    switch (z.relatives.siblings) {
-    | (_, [piece, ..._]) => Some(piece)
-    | ([_, ..._] as left, []) => Some(ListUtil.last(left))
-    | _ => None
+    (z: Zipper.t)
+    : option((Id.t, int, option(Direction.t), option(Direction.t))) => {
+  /* Get the piece we're "on" and which side of the caret it's on */
+  let (piece_opt, side) =
+    switch (z.relatives.siblings, z.caret) {
+    | ((_, [piece, ..._]), Outer) => (Some(piece), Some(Direction.Left)) /* Normal: at left edge of piece */
+    | ((_, [piece, ..._]), Inner(_)) => (Some(piece), None) /* Inside piece */
+    | (([_, ..._] as left, []), Outer) => (
+        Some(ListUtil.last(left)),
+        Some(Direction.Right),
+      ) /* End of segment: at right edge */
+    | (([_, ..._] as left, []), Inner(_)) => (
+        Some(ListUtil.last(left)),
+        None,
+      ) /* Inside last piece */
+    | _ => (None, None)
     };
   switch (piece_opt) {
   | Some(piece) =>
@@ -188,7 +198,7 @@ let get_caret_position =
       | Inner(_) => None
       | Outer => Zipper.Caret.direction(z)
       };
-    Some((piece_id, caret_offset, shape));
+    Some((piece_id, caret_offset, shape, side));
   | None => None
   };
 };
@@ -196,8 +206,8 @@ let get_caret_position =
 let send_caret = (a: Action.t, z: Zipper.t): unit =>
   if (should_send_caret(a)) {
     switch (get_caret_position(z)) {
-    | Some((piece_id, caret_offset, shape)) =>
-      PatchworkComm.send_caret(piece_id, caret_offset, shape)
+    | Some((piece_id, caret_offset, shape, side)) =>
+      PatchworkComm.send_caret(piece_id, caret_offset, shape, side)
     | None => ()
     };
   };

@@ -60,12 +60,17 @@ export interface EditorState {
  * - pieceId: ID of the piece the caret is "on" (first of right siblings, or last of left if at end)
  * - caretOffset: 0 = Outer (at piece's left edge), n = Inner(n-1) (n columns into the piece)
  * - shape: Caret shape for rendering at piece boundaries (null when inside a piece)
+ * - side: Which edge of the piece the caret is on when at Outer position.
+ *         "left" = caret is at left edge of piece (normal case, piece is to the right)
+ *         "right" = caret is at right edge of piece (end-of-segment, piece is to the left)
+ *         null = caret is inside the piece (Inner position)
  */
 export interface CaretUpdate {
   t: "caret";
   pieceId: string;
   caretOffset: number;
   shape: "left" | "right" | null;
+  side: "left" | "right" | null;
 }
 
 /**
@@ -79,6 +84,7 @@ export interface RemoteCaret {
   pieceId: string;
   caretOffset: number;
   shape: "left" | "right" | null;
+  side: "left" | "right" | null;
 }
 
 /**

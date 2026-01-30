@@ -121,6 +121,20 @@ module RemoteCaret : sig
     unit
   [@@js.set "shape"]
 
+  val get_side :
+    'tags this ->
+    ([ `L_s2_left [@js "left"] | `L_s7_right [@js "right"] ][@js.enum]) option
+  [@@js.get "side"]
+
+  val set_side :
+    'tags this ->
+    ([ `Null
+     | `U1 of ([ `L_s2_left [@js "left"] ][@js.enum])
+     | `U2 of ([ `L_s7_right [@js "right"] ][@js.enum]) ]
+    [@js.union]) ->
+    unit
+  [@@js.set "side"]
+
   val create :
     t:([ `L_s5_remote_caret [@js "remote-caret"] ][@js.enum]) ->
     userId:string ->
@@ -128,6 +142,7 @@ module RemoteCaret : sig
     pieceId:string ->
     caretOffset:int ->
     ?shape:([ `L_s2_left [@js "left"] | `L_s7_right [@js "right"] ][@js.enum]) ->
+    ?side:([ `L_s2_left [@js "left"] | `L_s7_right [@js "right"] ][@js.enum]) ->
     unit ->
     t
   [@@js.builder]
@@ -326,7 +341,11 @@ end
     - caretOffset: 0 = Outer (at piece's left edge), n = Inner(n-1) (n columns
       into the piece)
     - shape: Caret shape for rendering at piece boundaries (null when inside a
-      piece) *)
+      piece)
+    - side: Which edge of the piece the caret is on when at Outer position.
+      "left" = caret is at left edge of piece (normal case, piece is to the
+      right) "right" = caret is at right edge of piece (end-of-segment, piece is
+      to the left) null = caret is inside the piece (Inner position) *)
 module CaretUpdate : sig
   type t = [ `CaretUpdate ] intf
   [@@js.custom { of_js = Obj.magic; to_js = Obj.magic }]
@@ -376,11 +395,26 @@ module CaretUpdate : sig
     unit
   [@@js.set "shape"]
 
+  val get_side :
+    'tags this ->
+    ([ `L_s2_left [@js "left"] | `L_s7_right [@js "right"] ][@js.enum]) option
+  [@@js.get "side"]
+
+  val set_side :
+    'tags this ->
+    ([ `Null
+     | `U1 of ([ `L_s2_left [@js "left"] ][@js.enum])
+     | `U2 of ([ `L_s7_right [@js "right"] ][@js.enum]) ]
+    [@js.union]) ->
+    unit
+  [@@js.set "side"]
+
   val create :
     t:([ `L_s0_caret [@js "caret"] ][@js.enum]) ->
     pieceId:string ->
     caretOffset:int ->
     ?shape:([ `L_s2_left [@js "left"] | `L_s7_right [@js "right"] ][@js.enum]) ->
+    ?side:([ `L_s2_left [@js "left"] | `L_s7_right [@js "right"] ][@js.enum]) ->
     unit ->
     t
   [@@js.builder]

@@ -50,7 +50,8 @@ let main =
 
 /* Render a remote caret at the position of a piece.
    caret_offset: 0 = Outer (at piece's left edge), n = Inner(n-1) (n columns into the piece)
-   shape: caret shape at piece boundaries (None when inside a piece) */
+   shape: caret shape at piece boundaries (None when inside a piece)
+   side: which edge of the piece the caret is on (Left = left edge, Right = right edge at end of segment) */
 let view =
     (
       ~measured: Measured.t,
@@ -59,22 +60,43 @@ let view =
       ~piece_id: Id.t,
       ~caret_offset: int,
       ~shape: option(Direction.t),
+      ~side: option(Direction.t),
     )
     : option(Node.t) => {
   /* Find the piece position in the measured layout */
   switch (Measured.find_by_id(piece_id, measured)) {
   | None => None /* Piece not found in current layout */
   | Some(measurement) =>
-    /* Position is piece origin plus the caret offset in columns */
     let origin = measurement.origin;
+    /* Calculate column position based on side:
+       - Left side (normal): origin.col + caret_offset
+       - Right side (end of segment): last.col (exclusive end, already the position after the piece) */
+    let col =
+      switch (side) {
+      | Some(Direction.Right) => measurement.last.col /* Right edge of piece */
+      | _ => origin.col + caret_offset /* Left edge or inside piece */
+      };
     let position =
       Point.{
         row: origin.row,
-        col: origin.col + caret_offset,
+        col,
       };
-    /* Side is Left when at piece boundary (Outer), Right otherwise */
-    let side = caret_offset == 0 ? Direction.Left : Direction.Right;
-    Some(main(~font_metrics, ~color, ~origin=position, ~side, ~shape));
+    /* Visual side for caret shape rendering */
+    let visual_side =
+      switch (side) {
+      | Some(Direction.Right) => Direction.Right /* At right edge */
+      | Some(Direction.Left) => Direction.Left /* At left edge */
+      | None => caret_offset == 0 ? Direction.Left : Direction.Right /* Fallback for inside */
+      };
+    Some(
+      main(
+        ~font_metrics,
+        ~color,
+        ~origin=position,
+        ~side=visual_side,
+        ~shape,
+      ),
+    );
   };
 };
 
@@ -90,6 +112,7 @@ let view_all =
          ~piece_id=rc.piece_id,
          ~caret_offset=rc.caret_offset,
          ~shape=rc.shape,
+         ~side=rc.side,
        )
      );
 };
