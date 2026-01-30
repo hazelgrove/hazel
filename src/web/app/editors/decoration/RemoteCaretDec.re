@@ -48,7 +48,29 @@ let main =
   );
 };
 
+/* Look up measurement for a piece, using shard_index for multi-shard tiles.
+   For tiles, shard_index identifies which specific shard's measurement to use.
+   For non-tiles, shard_index is None and we use the standard lookup. */
+let find_shard_measurement =
+    (piece_id: Id.t, shard_index: option(int), measured: Measured.t)
+    : option(Measured.measurement) => {
+  switch (shard_index) {
+  | None => Measured.find_by_id(piece_id, measured)
+  | Some(idx) =>
+    /* For tiles with shard_index, look up the specific shard */
+    switch (Id.Map.find_opt(piece_id, measured.tiles)) {
+    | Some(shards) =>
+      switch (List.assoc_opt(idx, shards)) {
+      | Some(m) => Some(m)
+      | None => Measured.find_by_id(piece_id, measured) /* Fallback */
+      }
+    | None => Measured.find_by_id(piece_id, measured) /* Fallback */
+    }
+  };
+};
+
 /* Render a remote caret at the position of a piece.
+   shard_index: For tiles, which shard (needed for multi-shard tiles like let/in)
    caret_offset: 0 = Outer (at piece's left edge), n = Inner(n-1) (n columns into the piece)
    shape: caret shape at piece boundaries (None when inside a piece)
    side: which edge of the piece the caret is on (Left = left edge, Right = right edge at end of segment) */
@@ -58,13 +80,13 @@ let view =
       ~font_metrics: FontMetrics.t,
       ~color: string,
       ~piece_id: Id.t,
+      ~shard_index: option(int),
       ~caret_offset: int,
       ~shape: option(Direction.t),
       ~side: option(Direction.t),
     )
     : option(Node.t) => {
-  /* Find the piece position in the measured layout */
-  switch (Measured.find_by_id(piece_id, measured)) {
+  switch (find_shard_measurement(piece_id, shard_index, measured)) {
   | None => None /* Piece not found in current layout */
   | Some(measurement) =>
     let origin = measurement.origin;
@@ -113,6 +135,7 @@ let view_all =
          ~font_metrics,
          ~color=rc.color,
          ~piece_id=rc.piece_id,
+         ~shard_index=rc.shard_index,
          ~caret_offset=rc.caret_offset,
          ~shape=rc.shape,
          ~side=rc.side,

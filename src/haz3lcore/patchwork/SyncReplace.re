@@ -161,32 +161,43 @@ let should_send_caret = (a: Action.t): bool =>
   };
 
 /* Get caret position from zipper for sending to parent.
-   Returns (piece_id, caret_offset, shape, side) where:
-   - piece_id: ID of the piece you're "on" (first of right siblings, or last of left at end)
+   Returns (piece_id, shard_index, caret_offset, shape, side) where:
+   - piece_id: ID of the piece we're "on" (from Indicated.for_index, skips whitespace)
+   - shard_index: Which shard of the piece (from tile's shards field for fragments)
    - caret_offset: 0 for Outer, n+1 for Inner(n)
    - shape: caret shape at piece boundaries (None when inside a piece)
-   - side: which edge of the piece the caret is on (Left = left edge, Right = right edge, None = inside) */
+   - side: which edge of the piece the caret is on (Left = left edge, Right = right edge, None = inside)
+
+   Uses Indicated.for_index to properly identify the piece, which handles:
+   - Skipping Secondary pieces (whitespace) to get the actual code piece */
 let get_caret_position =
     (z: Zipper.t)
-    : option((Id.t, int, option(Direction.t), option(Direction.t))) => {
-  /* Get the piece we're "on" and which side of the caret it's on */
-  let (piece_opt, side) =
-    switch (z.relatives.siblings, z.caret) {
-    | ((_, [piece, ..._]), Outer) => (Some(piece), Some(Direction.Left)) /* Normal: at left edge of piece */
-    | ((_, [piece, ..._]), Inner(_)) => (Some(piece), None) /* Inside piece */
-    | (([_, ..._] as left, []), Outer) => (
-        Some(ListUtil.last(left)),
-        Some(Direction.Right),
-      ) /* End of segment: at right edge */
-    | (([_, ..._] as left, []), Inner(_)) => (
-        Some(ListUtil.last(left)),
-        None,
-      ) /* Inside last piece */
-    | _ => (None, None)
-    };
-  switch (piece_opt) {
-  | Some(piece) =>
+    : option(
+        (Id.t, option(int), int, option(Direction.t), option(Direction.t)),
+      ) => {
+  /* Use Indicated.for_index to properly identify the piece we're "on".
+     This handles skipping Secondary pieces (whitespace) to get the actual code piece. */
+  switch (Indicated.for_index(z)) {
+  | None => None
+  | Some((piece, direction, relation)) =>
     let piece_id = Piece.id(piece);
+    /* Determine shard index based on the relation:
+       - Parent: Use Indicated.shard_index which computes which shard we're adjacent to
+         based on our position in the parent's children
+       - Sibling: Extract from the piece's own t.shards field for fragmented tiles */
+    let shard_index =
+      switch (relation) {
+      | Indicated.Parent => Indicated.shard_index(z)
+      | Indicated.Sibling =>
+        switch (piece) {
+        | Tile(t) =>
+          switch (t.shards) {
+          | [i] => Some(i) /* Single shard fragment - return its index */
+          | _ => None /* Complete tile - shard_index not needed */
+          }
+        | _ => None /* Grout, Secondary, Projector - no shards */
+        }
+      };
     let caret_offset =
       switch (z.caret) {
       | Outer => 0
@@ -198,16 +209,35 @@ let get_caret_position =
       | Inner(_) => None
       | Outer => Zipper.Caret.direction(z)
       };
-    Some((piece_id, caret_offset, shape, side));
-  | None => None
+    /* Side indicates which edge of the piece the caret is on.
+       The `direction` from Indicated tells us which side of the caret the PIECE is on:
+       - direction = Right means piece is to the right → caret is at LEFT edge
+       - direction = Left means piece is to the left → caret is at RIGHT edge
+       For Inner positions, side is None (inside the piece) */
+    let side =
+      switch (z.caret) {
+      | Inner(_) => None
+      | Outer =>
+        switch (direction) {
+        | Right => Some(Direction.Left) /* Piece to right → caret at left edge */
+        | Left => Some(Direction.Right) /* Piece to left → caret at right edge */
+        }
+      };
+    Some((piece_id, shard_index, caret_offset, shape, side));
   };
 };
 
 let send_caret = (a: Action.t, z: Zipper.t): unit =>
   if (should_send_caret(a)) {
     switch (get_caret_position(z)) {
-    | Some((piece_id, caret_offset, shape, side)) =>
-      PatchworkComm.send_caret(piece_id, caret_offset, shape, side)
+    | Some((piece_id, shard_index, caret_offset, shape, side)) =>
+      PatchworkComm.send_caret(
+        piece_id,
+        shard_index,
+        caret_offset,
+        shape,
+        side,
+      );
     | None => ()
     };
   };

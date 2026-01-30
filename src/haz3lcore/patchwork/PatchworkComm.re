@@ -7,6 +7,7 @@ type remote_caret = {
   user_id: string,
   color: string,
   piece_id: Id.t,
+  shard_index: option(int), /* For tiles: which shard (needed for multi-shard tiles like let/in) */
   caret_offset: int,
   shape: option(Direction.t),
   side: option(Direction.t) /* Left = at left edge of piece, Right = at right edge (end of segment) */
@@ -268,6 +269,7 @@ let listen = (schedule_action: Action.t => unit): unit => {
         let user_id = RemoteCaret.get_userId(rc);
         let color = RemoteCaret.get_color(rc);
         let piece_id_str = RemoteCaret.get_pieceId(rc);
+        let shard_index = RemoteCaret.get_shardIdx(rc);
         let caret_offset = RemoteCaret.get_caretOffset(rc);
         let shape =
           switch (RemoteCaret.get_shape(rc)) {
@@ -287,6 +289,13 @@ let listen = (schedule_action: Action.t => unit): unit => {
             ++ user_id
             ++ " piece="
             ++ piece_id_str
+            ++ " shard="
+            ++ (
+              switch (shard_index) {
+              | Some(i) => string_of_int(i)
+              | None => "None"
+              }
+            )
             ++ " offset="
             ++ string_of_int(caret_offset),
           ),
@@ -297,6 +306,7 @@ let listen = (schedule_action: Action.t => unit): unit => {
             user_id,
             color,
             piece_id,
+            shard_index,
             caret_offset,
             shape,
             side,
@@ -358,12 +368,14 @@ let init_iframe = schedule_action => {
 };
 
 /* Send caret position to parent for collaborative cursor display.
+   shard_index: For tiles, which shard (needed for multi-shard tiles like let/in)
    caret_offset: 0 = Outer, n = Inner(n-1)
    shape: caret shape at piece boundaries (None when inside a piece)
    side: which edge of the piece the caret is on (Left = left edge, Right = right edge at end of segment) */
 let send_caret =
     (
       piece_id: Id.t,
+      shard_index: option(int),
       caret_offset: int,
       shape: option(Direction.t),
       side: option(Direction.t),
@@ -373,6 +385,13 @@ let send_caret =
     Js.string(
       "[CARET] iframe sending caret: piece="
       ++ Id.to_string(piece_id)
+      ++ " shard="
+      ++ (
+        switch (shard_index) {
+        | Some(i) => string_of_int(i)
+        | None => "None"
+        }
+      )
       ++ " offset="
       ++ string_of_int(caret_offset),
     ),
@@ -394,6 +413,7 @@ let send_caret =
       CaretUpdate.create(
         ~t=`L_s0_caret,
         ~pieceId=Id.to_string(piece_id),
+        ~shardIdx=?shard_index,
         ~caretOffset=caret_offset,
         ~shape=?shape_js,
         ~side=?side_js,

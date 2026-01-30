@@ -104,6 +104,8 @@ module RemoteCaret : sig
   val set_color : 'tags this -> string -> unit [@@js.set "color"]
   val get_pieceId : 'tags this -> string [@@js.get "pieceId"]
   val set_pieceId : 'tags this -> string -> unit [@@js.set "pieceId"]
+  val get_shardIdx : 'tags this -> int option [@@js.get "shardIdx"]
+  val set_shardIdx : 'tags this -> int option -> unit [@@js.set "shardIdx"]
   val get_caretOffset : 'tags this -> int [@@js.get "caretOffset"]
   val set_caretOffset : 'tags this -> int -> unit [@@js.set "caretOffset"]
 
@@ -140,6 +142,7 @@ module RemoteCaret : sig
     userId:string ->
     color:string ->
     pieceId:string ->
+    ?shardIdx:int ->
     caretOffset:int ->
     ?shape:([ `L_s2_left [@js "left"] | `L_s7_right [@js "right"] ][@js.enum]) ->
     ?side:([ `L_s2_left [@js "left"] | `L_s7_right [@js "right"] ][@js.enum]) ->
@@ -338,6 +341,10 @@ end
     Position model:
     - pieceId: ID of the piece the caret is "on" (first of right siblings, or
       last of left if at end)
+    - shardIdx: For tiles, which shard (delimiter) of the tile. null for
+      non-tiles. Multi-shard tiles (let/in, if/then/else) share one ID across
+      all shards. We need shardFlatDoc to look up the correct shard's
+      measurement.
     - caretOffset: 0 = Outer (at piece's left edge), n = Inner(n-1) (n columns
       into the piece)
     - shape: Caret shape for rendering at piece boundaries (null when inside a
@@ -378,6 +385,8 @@ module CaretUpdate : sig
 
   val get_pieceId : 'tags this -> string [@@js.get "pieceId"]
   val set_pieceId : 'tags this -> string -> unit [@@js.set "pieceId"]
+  val get_shardIdx : 'tags this -> int option [@@js.get "shardIdx"]
+  val set_shardIdx : 'tags this -> int option -> unit [@@js.set "shardIdx"]
   val get_caretOffset : 'tags this -> int [@@js.get "caretOffset"]
   val set_caretOffset : 'tags this -> int -> unit [@@js.set "caretOffset"]
 
@@ -412,6 +421,7 @@ module CaretUpdate : sig
   val create :
     t:([ `L_s0_caret [@js "caret"] ][@js.enum]) ->
     pieceId:string ->
+    ?shardIdx:int ->
     caretOffset:int ->
     ?shape:([ `L_s2_left [@js "left"] | `L_s7_right [@js "right"] ][@js.enum]) ->
     ?side:([ `L_s2_left [@js "left"] | `L_s7_right [@js "right"] ][@js.enum]) ->

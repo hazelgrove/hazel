@@ -58,6 +58,9 @@ export interface EditorState {
  *
  * Position model:
  * - pieceId: ID of the piece the caret is "on" (first of right siblings, or last of left if at end)
+ * - shardIdx: For tiles, which shard (delimiter) of the tile. null for non-tiles.
+ *               Multi-shard tiles (let/in, if/then/else) share one ID across all shards.
+ *               We need shardIndex to look up the correct shard's measurement.
  * - caretOffset: 0 = Outer (at piece's left edge), n = Inner(n-1) (n columns into the piece)
  * - shape: Caret shape for rendering at piece boundaries (null when inside a piece)
  * - side: Which edge of the piece the caret is on when at Outer position.
@@ -68,6 +71,7 @@ export interface EditorState {
 export interface CaretUpdate {
   t: "caret";
   pieceId: string;
+  shardIdx: number | null;
   caretOffset: number;
   shape: "left" | "right" | null;
   side: "left" | "right" | null;
@@ -82,6 +86,7 @@ export interface RemoteCaret {
   userId: string;
   color: string;
   pieceId: string;
+  shardIdx: number | null;
   caretOffset: number;
   shape: "left" | "right" | null;
   side: "left" | "right" | null;
