@@ -17,6 +17,7 @@ let caret_base_path = (side, shape): list(SvgUtil.Path.cmd) =>
 
 let main =
     (
+      ~user_id: string,
       ~font_metrics: FontMetrics.t,
       ~color: string,
       ~origin: Point.t,
@@ -31,6 +32,7 @@ let main =
   Node.create_svg(
     "svg",
     ~attrs=[
+      Attr.id("remote-caret-" ++ user_id),
       Attr.classes(["remote-caret"]),
       DecUtil.abs_position(~font_metrics, ~height_fudge, ~scale, origin),
       Attr.create("viewBox", Printf.sprintf("0 0 %f %f", scale, scale)),
@@ -76,6 +78,7 @@ let find_shard_measurement =
    side: which edge of the piece the caret is on (Left = left edge, Right = right edge at end of segment) */
 let view =
     (
+      ~user_id: string,
       ~measured: Measured.t,
       ~font_metrics: FontMetrics.t,
       ~color: string,
@@ -115,6 +118,7 @@ let view =
       };
     Some(
       main(
+        ~user_id,
         ~font_metrics,
         ~color,
         ~origin=position,
@@ -129,8 +133,9 @@ let view =
 let view_all =
     (~measured: Measured.t, ~font_metrics: FontMetrics.t): list(Node.t) => {
   PatchworkComm.get_remote_carets()
-  |> List.filter_map(((_, rc: PatchworkComm.remote_caret)) =>
+  |> List.filter_map(((user_id, rc: PatchworkComm.remote_caret)) =>
        view(
+         ~user_id,
          ~measured,
          ~font_metrics,
          ~color=rc.color,
