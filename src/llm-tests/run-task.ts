@@ -162,6 +162,12 @@ async function runCore(
   await page.locator(S.assistantTab).click();
 
   await page.locator(S.apiKey).fill(apiKey);
+  // assert that apiKey was filled
+  const filledKey = await page.locator(S.apiKey).inputValue();
+  if (filledKey !== apiKey) {
+    throw new Error('Failed to fill API key');
+  }
+  // Maybe just try it twice? Or retry on failure?
   await page.locator(S.apiButton).first().click({ force: true });
 
   await page.waitForTimeout(1000);
