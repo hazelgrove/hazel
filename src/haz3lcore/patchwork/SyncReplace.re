@@ -157,24 +157,30 @@ let should_send_state = (a: Action.t): bool =>
   | Dump => true
   };
 
-let send_state = (a: Action.t, z: Zipper.t): unit =>
+let send_state = (a: Action.t, old_z: Zipper.t, new_z: Zipper.t): unit =>
   if (should_send_state(a)) {
     let overall_log = PerfLog.start("send_state_total");
 
-    let seg = z |> Zipper.zip;
-    let num_pieces = PerfLog.Count.pieces_in_segment_deep(seg);
-    let context = string_of_int(num_pieces) ++ " pieces";
-
-    let flat_doc =
-      PerfLog.measure_with_context("seg_to_doc", context, () =>
-        FlatConvert.seg_to_doc(seg)
+    // Convert old state to flat doc
+    let old_seg = old_z |> Zipper.zip;
+    let old_flat_doc =
+      PerfLog.measure("old_seg_to_doc", () =>
+        FlatConvert.seg_to_doc(old_seg)
       );
 
-    let doc_size = PerfLog.Count.pieces_in_doc(flat_doc);
-    let send_context = string_of_int(doc_size) ++ " doc entries";
+    // Convert new state to flat doc
+    let new_seg = new_z |> Zipper.zip;
+    let num_pieces = PerfLog.Count.pieces_in_segment_deep(new_seg);
+    let context = string_of_int(num_pieces) ++ " pieces";
 
-    PerfLog.measure_with_context("send_to_parent", send_context, () =>
-      PatchworkComm.send_state(flat_doc)
+    let new_flat_doc =
+      PerfLog.measure_with_context("seg_to_doc", context, () =>
+        FlatConvert.seg_to_doc(new_seg)
+      );
+
+    // Send both docs to compute delta and send
+    PerfLog.measure("send_to_parent", () =>
+      PatchworkComm.send_state(old_flat_doc, new_flat_doc)
     );
 
     PerfLog.end_(overall_log);

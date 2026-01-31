@@ -147,7 +147,7 @@ module Update = {
     /* 3. Update the zipper */
     let+ zipper = Perform.go(~statics=old_statics, ~syntax, a, state);
 
-    SyncReplace.send_state(a, zipper);
+    SyncReplace.send_state(a, state.zipper, zipper);
     SyncReplace.send_caret(a, zipper);
 
     Model.{

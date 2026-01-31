@@ -244,6 +244,96 @@ module JsConvert = {
     EditorState.t_to_js(EditorState.create(~t=`L_s8_state, ~state, ()));
   };
 
+  // Compute delta between old and new flat docs using structural equality
+  type delta = {
+    changed: Id.Map.t(FlatConvert.Flat.piece),
+    added: Id.Map.t(FlatConvert.Flat.piece),
+    deleted: list(Id.t),
+  };
+
+  let compute_delta =
+      (old_doc: FlatConvert.Doc.t, new_doc: FlatConvert.Doc.t): delta => {
+    let changed = ref(Id.Map.empty);
+    let added = ref(Id.Map.empty);
+    let deleted = ref([]);
+
+    // Find changed and added pieces
+    new_doc
+    |> Id.Map.iter((id, new_piece) => {
+         switch (Id.Map.find_opt(id, old_doc)) {
+         | None =>
+           // Piece is new
+           added := Id.Map.add(id, new_piece, added^)
+         | Some(old_piece) =>
+           // Piece exists, check if changed using structural equality
+           if (old_piece != new_piece) {
+             changed := Id.Map.add(id, new_piece, changed^);
+           }
+         }
+       });
+
+    // Find deleted pieces
+    old_doc
+    |> Id.Map.iter((id, _) => {
+         switch (Id.Map.find_opt(id, new_doc)) {
+         | None => deleted := [id, ...deleted^]
+         | Some(_) => ()
+         }
+       });
+
+    {changed: changed^, added: added^, deleted: deleted^};
+  };
+
+  let js_of_delta = (delta: delta): Ojs.t => {
+    // Create JS objects for changed and added maps
+    let changed_obj = Ojs.empty_obj();
+    let changed_pieces =
+      FlatDoc.HazelDoc.AnonymousInterface2.Pieces4.t_of_js(changed_obj);
+
+    delta.changed
+    |> Id.Map.iter((id, piece) => {
+         let id_str = Id.to_string(id);
+         let js_piece = of_flat_piece(piece);
+         FlatDoc.HazelDoc.AnonymousInterface2.Pieces4.set(
+           changed_pieces,
+           id_str,
+           js_piece,
+         );
+       });
+
+    let added_obj = Ojs.empty_obj();
+    let added_pieces =
+      FlatDoc.HazelDoc.AnonymousInterface2.Pieces4.t_of_js(added_obj);
+
+    delta.added
+    |> Id.Map.iter((id, piece) => {
+         let id_str = Id.to_string(id);
+         let js_piece = of_flat_piece(piece);
+         FlatDoc.HazelDoc.AnonymousInterface2.Pieces4.set(
+           added_pieces,
+           id_str,
+           js_piece,
+         );
+       });
+
+    // Create JS array for deleted IDs
+    let deleted_array =
+      delta.deleted
+      |> List.map(id => Id.to_string(id) |> Js.string)
+      |> Array.of_list
+      |> Js.array;
+
+    // Create delta message object using Js.Unsafe
+    let obj = Js.Unsafe.obj([||]);
+    Js.Unsafe.set(obj, "t", Js.string("delta"));
+    Js.Unsafe.set(obj, "changed", changed_obj);
+    Js.Unsafe.set(obj, "added", added_obj);
+    Js.Unsafe.set(obj, "deleted", deleted_array);
+
+    // Convert to Ojs.t - Obj.magic is safe here as we're just changing the type tag
+    (Obj.magic(obj): Ojs.t);
+  };
+
   let flatdoc_of_hazeldoc = (doc: HazelDoc.t_0): FlatConvert.Doc.t => {
     let pieces_map = FlatDoc.HazelDoc.AnonymousInterface2.get_pieces(doc);
     let js_obj =
@@ -400,14 +490,33 @@ let listen = (schedule_action: Action.t => unit): unit => {
   );
 };
 
-let send_state = (map: FlatConvert.Doc.t): unit => {
-  let num_entries = FlatConvert.Doc.cardinal(map);
-  let context = string_of_int(num_entries) ++ " entries";
-
-  let js_obj =
-    PerfLog.measure_with_context("js_of_flatdoc", context, () =>
-      JsConvert.js_of_flatdoc(map)
+let send_state =
+    (old_doc: FlatConvert.Doc.t, new_doc: FlatConvert.Doc.t): unit => {
+  // Compute delta using structural equality
+  let delta =
+    PerfLog.measure("compute_delta", () =>
+      JsConvert.compute_delta(old_doc, new_doc)
     );
+
+  let num_changed = Id.Map.cardinal(delta.changed);
+  let num_added = Id.Map.cardinal(delta.added);
+  let num_deleted = List.length(delta.deleted);
+
+  Firebug.console##log(
+    Js.string(
+      "[PERF] Delta: "
+      ++ string_of_int(num_changed)
+      ++ " changed, "
+      ++ string_of_int(num_added)
+      ++ " added, "
+      ++ string_of_int(num_deleted)
+      ++ " deleted",
+    ),
+  );
+
+  // Convert delta to JS
+  let js_obj =
+    PerfLog.measure("js_of_delta", () => JsConvert.js_of_delta(delta));
 
   // Measure payload size
   let json_str = Js.Unsafe.global##.JSON##stringify(js_obj);
