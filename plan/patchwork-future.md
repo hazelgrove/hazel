@@ -44,6 +44,10 @@ For architecture and current implementation documentation, see `docs/patchwork-i
 
 - [ ] Remove excessive profiling logs from tool.tsx (after performance work complete)
 - [ ] Update/clarify comments in tool.tsx map handling
+- [ ] Investigate src/types.d.ts in patchwork-extra/hazel
+  - Appears to be type augmentation for caret messages
+  - Possibly redundant with inline type extension in tool.tsx
+  - Decide: commit, ignore, or delete
 
 ---
 
