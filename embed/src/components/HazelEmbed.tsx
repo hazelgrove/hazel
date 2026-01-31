@@ -100,7 +100,7 @@ const HazelEmbed: React.FC<HazelEmbedProps> = ({
         const timestamp = performance.now();
         const payloadSize = JSON.stringify(hazelMessage).length;
         const sizeKB = (payloadSize / 1024).toFixed(2);
-        console.log(`[EMBED-BOUNDARY] Received state from iframe ${instanceId} at ${timestamp.toFixed(2)}ms (${payloadSize} bytes / ${sizeKB} KB)`);
+        console.log(`[PERF] Received state from iframe ${instanceId} at ${timestamp.toFixed(2)}ms (${payloadSize} bytes / ${sizeKB} KB)`);
         // Store timestamp for calculating round-trip time
         (window as any).__hazelEmbedLastReceive = {
           timestamp,
@@ -127,13 +127,13 @@ const HazelEmbed: React.FC<HazelEmbedProps> = ({
           const sendTimestamp = performance.now();
           const payloadSize = JSON.stringify(message).length;
           const sizeKB = (payloadSize / 1024).toFixed(2);
-          console.log(`[EMBED-BOUNDARY] Sending state to iframe ${instanceId} at ${sendTimestamp.toFixed(2)}ms (${payloadSize} bytes / ${sizeKB} KB)`);
+          console.log(`[PERF] Sending state to iframe ${instanceId} at ${sendTimestamp.toFixed(2)}ms (${payloadSize} bytes / ${sizeKB} KB)`);
 
           // Calculate time spent in parent app (Patchwork/Automerge)
           const lastReceive = (window as any).__hazelEmbedLastReceive;
           if (lastReceive && lastReceive.instanceId !== instanceId) {
             const parentProcessingTime = sendTimestamp - lastReceive.timestamp;
-            console.log(`[EMBED-BOUNDARY] ⚠️  PARENT PROCESSING TIME: ${parentProcessingTime.toFixed(2)}ms (from ${lastReceive.instanceId} -> ${instanceId})`);
+            console.log(`[PERF] ⚠️  PARENT PROCESSING TIME: ${parentProcessingTime.toFixed(2)}ms (from ${lastReceive.instanceId} -> ${instanceId})`);
             console.log({
               type: 'parent-processing',
               fromInstance: lastReceive.instanceId,

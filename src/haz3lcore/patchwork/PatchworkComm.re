@@ -478,7 +478,7 @@ let listen = (schedule_action: Action.t => unit): unit => {
         let num_entries = FlatConvert.Doc.cardinal(delta_doc);
         Js_of_ocaml.Firebug.console##log(
           Js_of_ocaml.Js.string(
-            "[SYNC] Received delta with "
+            "[PERF] Received delta with"
             ++ string_of_int(num_entries)
             ++ " pieces",
           ),

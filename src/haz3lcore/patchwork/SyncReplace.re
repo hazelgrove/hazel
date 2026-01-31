@@ -106,7 +106,7 @@ let sync_replace =
   let num_merged = FlatConvert.Doc.cardinal(merged_doc);
   Js_of_ocaml.Firebug.console##log(
     Js_of_ocaml.Js.string(
-      "[SYNC] Merged doc has " ++ string_of_int(num_merged) ++ " pieces",
+      "[PERF] Merged doc has" ++ string_of_int(num_merged) ++ " pieces",
     ),
   );
 
