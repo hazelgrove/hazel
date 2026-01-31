@@ -66,6 +66,11 @@ let move_to_id =
 };
 
 let sync_replace = (z: Zipper.t, segment: Segment.t): option(Zipper.t) => {
+  let overall_log = PerfLog.start("sync_replace_total");
+
+  let num_pieces = PerfLog.Count.pieces_in_segment_deep(segment);
+  let context = string_of_int(num_pieces) ++ " pieces";
+
   let (id_init, d_init: Direction.t) =
     switch (z.relatives.siblings) {
     | (_, [p, ..._]) => (Piece.id(p), Right)
@@ -73,18 +78,26 @@ let sync_replace = (z: Zipper.t, segment: Segment.t): option(Zipper.t) => {
     | _ => (Id.invalid, Left)
     };
   let caret_init = z.caret;
+  let refractors = z.refractors;
   let ancestors = z.relatives.ancestors;
   let ancestor_ids =
     List.map(fst, ancestors)
     |> List.map((anc: Ancestor.t) =>
          (anc.id, anc.shards |> fst |> ListUtil.hd_opt)
        );
-  // print_endline(
-  //   "ancestor_ids: "
-  //   ++ String.concat(", ", List.map(x=>x|>fst|>Id.to_string, ancestor_ids)),
-  // );
-  let z = Zipper.unzip(segment);
 
+  let z =
+    PerfLog.measure_with_context("unzip_segment", context, () =>
+      Zipper.unzip(segment)
+    );
+
+  // Restore refractors
+  let z = {
+    ...z,
+    refractors,
+  };
+
+  let cursor_log = PerfLog.start("cursor_repositioning");
   let z =
     switch (id_init) {
     | id =>
@@ -98,9 +111,6 @@ let sync_replace = (z: Zipper.t, segment: Segment.t): option(Zipper.t) => {
           switch (ancestor_ids) {
           | [] => None
           | [ancestor_id, ...ancestor_ids] =>
-            // print_endline(
-            //   "tying to move to ancestor_id: " ++ Id.to_string(ancestor_id),
-            // );
             let z = z |> move_to_start;
             switch (move_to_id_anc(z, ancestor_id)) {
             | Some(z) => Some(z)
@@ -114,6 +124,9 @@ let sync_replace = (z: Zipper.t, segment: Segment.t): option(Zipper.t) => {
         };
       }
     };
+  PerfLog.end_(cursor_log);
+
+  PerfLog.end_(overall_log);
   Some(z);
 };
 
@@ -146,8 +159,25 @@ let should_send_state = (a: Action.t): bool =>
 
 let send_state = (a: Action.t, z: Zipper.t): unit =>
   if (should_send_state(a)) {
-    let flat_doc = FlatConvert.seg_to_doc(z |> Zipper.zip);
-    PatchworkComm.send_state(flat_doc);
+    let overall_log = PerfLog.start("send_state_total");
+
+    let seg = z |> Zipper.zip;
+    let num_pieces = PerfLog.Count.pieces_in_segment_deep(seg);
+    let context = string_of_int(num_pieces) ++ " pieces";
+
+    let flat_doc =
+      PerfLog.measure_with_context("seg_to_doc", context, () =>
+        FlatConvert.seg_to_doc(seg)
+      );
+
+    let doc_size = PerfLog.Count.pieces_in_doc(flat_doc);
+    let send_context = string_of_int(doc_size) ++ " doc entries";
+
+    PerfLog.measure_with_context("send_to_parent", send_context, () =>
+      PatchworkComm.send_state(flat_doc)
+    );
+
+    PerfLog.end_(overall_log);
   };
 
 /* Determines whether to send caret position update.
@@ -237,7 +267,7 @@ let send_caret = (a: Action.t, z: Zipper.t): unit =>
         caret_offset,
         shape,
         side,
-      );
+      )
     | None => ()
     };
   };

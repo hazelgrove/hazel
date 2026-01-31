@@ -31,11 +31,13 @@ module Doc = {
 };
 
 let seg_to_doc = (seg: Segment.t): Doc.t => {
+  let piece_count = ref(0);
   let root_form = Form.get(ParensExp);
   let rec go_seg = (seg: Segment.t): Doc.t => {
     seg |> List.map(go_piece) |> Doc.union_all;
   }
   and go_piece = (piece: Piece.t): Doc.t => {
+    piece_count := piece_count^ + 1;
     switch (piece) {
     | Projector({id, kind, syntax, model}) =>
       /* Flatten the wrapped syntax piece and add it to the doc,
@@ -69,20 +71,31 @@ let seg_to_doc = (seg: Segment.t): Doc.t => {
          )
     };
   };
-  Doc.add(
-    Id.invalid,
-    Flat.Tile({
-      id: Id.invalid,
-      label: root_form.label,
-      mold: root_form.mold,
-      shards: [0, 1],
-      children: [List.map(Piece.id, seg)],
-    }),
-    go_seg(seg),
+  let result =
+    Doc.add(
+      Id.invalid,
+      Flat.Tile({
+        id: Id.invalid,
+        label: root_form.label,
+        mold: root_form.mold,
+        shards: [0, 1],
+        children: [List.map(Piece.id, seg)],
+      }),
+      go_seg(seg),
+    );
+  // Log piece traversal count
+  Js_of_ocaml.Firebug.console##log(
+    Js_of_ocaml.Js.string(
+      "[PERF] seg_to_doc traversed "
+      ++ string_of_int(piece_count^)
+      ++ " pieces",
+    ),
   );
+  result;
 };
 
 let doc_to_seg = (doc: Doc.t): Segment.t => {
+  let piece_count = ref(0);
   let root_seg_ids =
     switch (Doc.find_opt(Id.invalid, doc)) {
     | Some(Tile({children: [children], _})) => children
@@ -92,6 +105,7 @@ let doc_to_seg = (doc: Doc.t): Segment.t => {
     List.map(go_piece, seg_ids);
   }
   and go_piece = (piece_id: Id.t): Base.piece => {
+    piece_count := piece_count^ + 1;
     switch (Doc.find_opt(piece_id, doc)) {
     | Some(Tile({id, label, mold, shards, children})) =>
       Tile({
@@ -113,5 +127,14 @@ let doc_to_seg = (doc: Doc.t): Segment.t => {
     | None => failwith("Piece not found: " ++ Id.show(piece_id))
     };
   };
-  go_seg(root_seg_ids);
+  let result = go_seg(root_seg_ids);
+  // Log piece reconstruction count
+  Js_of_ocaml.Firebug.console##log(
+    Js_of_ocaml.Js.string(
+      "[PERF] doc_to_seg reconstructed "
+      ++ string_of_int(piece_count^)
+      ++ " pieces",
+    ),
+  );
+  result;
 };

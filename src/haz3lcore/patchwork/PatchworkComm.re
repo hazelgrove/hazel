@@ -285,23 +285,23 @@ let listen = (schedule_action: Action.t => unit): unit => {
           | Some(`L_s7_right) => Some(Direction.Right)
           | None => None
           };
-        Firebug.console##log(
-          Js.string(
-            "[CARET] iframe received remote-caret: user="
-            ++ user_id
-            ++ " piece="
-            ++ piece_id_str
-            ++ " shard="
-            ++ (
-              switch (shard_index) {
-              | Some(i) => string_of_int(i)
-              | None => "None"
-              }
-            )
-            ++ " offset="
-            ++ string_of_int(caret_offset),
-          ),
-        );
+        // Firebug.console##log(
+        //   Js.string(
+        //     "[CARET] iframe received remote-caret: user="
+        //     ++ user_id
+        //     ++ " piece="
+        //     ++ piece_id_str
+        //     ++ " shard="
+        //     ++ (
+        //       switch (shard_index) {
+        //       | Some(i) => string_of_int(i)
+        //       | None => "None"
+        //       }
+        //     )
+        //     ++ " offset="
+        //     ++ string_of_int(caret_offset),
+        //   ),
+        // );
         switch (Id.of_string(piece_id_str)) {
         | Some(piece_id) =>
           let caret = {
@@ -317,25 +317,42 @@ let listen = (schedule_action: Action.t => unit): unit => {
           remote_carets := Maps.StringMap.add(user_id, caret, remote_carets^);
           schedule_action(UpdateRemoteCarets);
         | None =>
-          Firebug.console##log(
-            Js.string(
-              "[CARET] Invalid piece_id in remote-caret: " ++ piece_id_str,
-            ),
-          )
+          // Firebug.console##log(
+          //   Js.string(
+          //     "[CARET] Invalid piece_id in remote-caret: " ++ piece_id_str,
+          //   ),
+          // )
+          ()
         };
       | `U_s6_remote_caret_remove(rcr) =>
         let user_id = RemoteCaretRemove.get_userId(rcr);
-        Firebug.console##log(
-          Js.string(
-            "[CARET] iframe received remote-caret-remove: user=" ++ user_id,
-          ),
-        );
+        // Firebug.console##log(
+        //   Js.string(
+        //     "[CARET] iframe received remote-caret-remove: user=" ++ user_id,
+        //   ),
+        // );
         remote_carets := Maps.StringMap.remove(user_id, remote_carets^);
         schedule_action(UpdateRemoteCarets);
       | `U_s8_state(state) =>
+        let receive_log = PerfLog.start("receive_state_total");
+
         let js_state = EditorState.get_state(state);
-        let state = JsConvert.flatdoc_of_hazeldoc(js_state);
-        let seg = FlatConvert.doc_to_seg(state);
+
+        let flatdoc =
+          PerfLog.measure("flatdoc_of_hazeldoc", () =>
+            JsConvert.flatdoc_of_hazeldoc(js_state)
+          );
+
+        let num_entries = FlatConvert.Doc.cardinal(flatdoc);
+        let context = string_of_int(num_entries) ++ " entries";
+
+        let seg =
+          PerfLog.measure_with_context("doc_to_seg", context, () =>
+            FlatConvert.doc_to_seg(flatdoc)
+          );
+
+        PerfLog.end_(receive_log);
+
         schedule_action(SyncReplace(seg));
       }
     | None => ()
@@ -353,8 +370,32 @@ let listen = (schedule_action: Action.t => unit): unit => {
   );
 };
 
-let send_state = (map: FlatConvert.Doc.t): unit =>
-  map |> JsConvert.js_of_flatdoc |> send_to_parent;
+let send_state = (map: FlatConvert.Doc.t): unit => {
+  let num_entries = FlatConvert.Doc.cardinal(map);
+  let context = string_of_int(num_entries) ++ " entries";
+
+  let js_obj =
+    PerfLog.measure_with_context("js_of_flatdoc", context, () =>
+      JsConvert.js_of_flatdoc(map)
+    );
+
+  // Measure payload size
+  let json_str = Js.Unsafe.global##.JSON##stringify(js_obj);
+  let payload_size = json_str##.length;
+  let size_kb = float_of_int(payload_size) /. 1024.0;
+  let size_kb_str = Js.number_of_float(size_kb)##toFixed(2) |> Js.to_string;
+  Firebug.console##log(
+    Js.string(
+      "[PERF] Payload size: "
+      ++ string_of_int(payload_size)
+      ++ " bytes ("
+      ++ size_kb_str
+      ++ " KB)",
+    ),
+  );
+
+  PerfLog.measure("postMessage_send", () => send_to_parent(js_obj));
+};
 
 let init_iframe = schedule_action => {
   print_endline("Initializing iframe");
@@ -384,21 +425,21 @@ let send_caret =
       side: option(Direction.t),
     )
     : unit => {
-  Firebug.console##log(
-    Js.string(
-      "[CARET] iframe sending caret: piece="
-      ++ Id.to_string(piece_id)
-      ++ " shard="
-      ++ (
-        switch (shard_index) {
-        | Some(i) => string_of_int(i)
-        | None => "None"
-        }
-      )
-      ++ " offset="
-      ++ string_of_int(caret_offset),
-    ),
-  );
+  // Firebug.console##log(
+  //   Js.string(
+  //     "[CARET] iframe sending caret: piece="
+  //     ++ Id.to_string(piece_id)
+  //     ++ " shard="
+  //     ++ (
+  //       switch (shard_index) {
+  //       | Some(i) => string_of_int(i)
+  //       | None => "None"
+  //       }
+  //     )
+  //     ++ " offset="
+  //     ++ string_of_int(caret_offset),
+  //   ),
+  // );
   let shape_js =
     switch (shape) {
     | Some(Left) => Some(`L_s2_left)
