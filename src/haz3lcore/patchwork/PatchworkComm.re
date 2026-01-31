@@ -2,6 +2,14 @@ open Js_of_ocaml;
 open PatchworkMessages;
 open Util;
 
+/* Patchwork/iframe mode detection.
+   When running inside Patchwork, we disable Hazel's localStorage persistence
+   because Automerge handles persistence. This check is immediate (no waiting
+   for postMessage handshake) so it can be used during initialization. */
+let is_in_iframe = (): bool => {
+  Js.Unsafe.global##.parent !== Js.Unsafe.global;
+};
+
 /* Remote caret state for collaborative cursor display */
 type remote_caret = {
   user_id: string,
@@ -281,7 +289,11 @@ module JsConvert = {
          }
        });
 
-    {changed: changed^, added: added^, deleted: deleted^};
+    {
+      changed: changed^,
+      added: added^,
+      deleted: deleted^,
+    };
   };
 
   let js_of_delta = (delta: delta): Ojs.t => {
@@ -458,22 +470,23 @@ let listen = (schedule_action: Action.t => unit): unit => {
 
         let js_state = EditorState.get_state(state);
 
-        let flatdoc =
+        let delta_doc =
           PerfLog.measure("flatdoc_of_hazeldoc", () =>
             JsConvert.flatdoc_of_hazeldoc(js_state)
           );
 
-        let num_entries = FlatConvert.Doc.cardinal(flatdoc);
-        let context = string_of_int(num_entries) ++ " entries";
-
-        let seg =
-          PerfLog.measure_with_context("doc_to_seg", context, () =>
-            FlatConvert.doc_to_seg(flatdoc)
-          );
+        let num_entries = FlatConvert.Doc.cardinal(delta_doc);
+        Js_of_ocaml.Firebug.console##log(
+          Js_of_ocaml.Js.string(
+            "[SYNC] Received delta with "
+            ++ string_of_int(num_entries)
+            ++ " pieces",
+          ),
+        );
 
         PerfLog.end_(receive_log);
 
-        schedule_action(SyncReplace(seg));
+        schedule_action(SyncReplace(delta_doc));
       }
     | None => ()
     };
@@ -514,9 +527,16 @@ let send_state =
     ),
   );
 
-  // Convert delta to JS
+  // Combine changed and added pieces into a single map for sending
+  // (deletions work implicitly via parent's children array changes)
+  let affected_pieces =
+    Id.Map.union((_, _, b) => Some(b), delta.changed, delta.added);
+
+  // Convert to JS using existing state format: { t: "state", state: { title, pieces } }
   let js_obj =
-    PerfLog.measure("js_of_delta", () => JsConvert.js_of_delta(delta));
+    PerfLog.measure("js_of_state", () =>
+      JsConvert.js_of_flatdoc(affected_pieces)
+    );
 
   // Measure payload size
   let json_str = Js.Unsafe.global##.JSON##stringify(js_obj);

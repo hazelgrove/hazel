@@ -44,7 +44,9 @@ The integration uses an **iframe-based architecture** with three parts:
 Hazel's internal AST is a **nested tree** (`Segment`), but Automerge works best with **flatter structures**. The `FlatConvert.re` module converts between:
 
 - **Segment** - Hazel's internal nested tree with tiles containing child tiles
-- **HazelDoc** - Flat array of pieces with UUID-based children references
+- **HazelDoc** - Flat **map** of pieces (keyed by UUID) with UUID-based children references
+
+The map-based schema (changed from array in Jan 2026) enables O(1) Automerge updates instead of O(n) array diffing.
 
 ## Message Protocol
 
@@ -55,7 +57,7 @@ Communication uses PostMessage with these message types:
 | `init`  | Both      | Handshake on iframe load |
 | `ping`  | Both      | Connection testing       |
 | `pong`  | Both      | Ping response            |
-| `state` | Both      | Full document state sync |
+| `state` | Both      | Delta-based document sync (only changed pieces) |
 
 ## Caret Position Sync
 
@@ -162,20 +164,21 @@ Segment: `[foo, ·, 333, ·, bar]`
 
 1. User types in Hazel iframe
 2. `SyncReplace.send_state()` called after action completes
-3. `FlatConvert.seg_to_doc()` converts Segment → flat Doc
-4. `PatchworkComm.js_of_flatdoc()` converts to JS types
-5. PostMessage sends `EditorState` to parent
-6. Parent's `tool.tsx` updates Automerge document
+3. `FlatConvert.seg_to_doc()` converts both old and new Segment → flat Doc
+4. `PatchworkComm.compute_delta()` finds changed/added pieces
+5. Only affected pieces sent via PostMessage (delta, not full state)
+6. Parent's `tool.tsx` updates Automerge document with changed pieces
 7. Automerge syncs to other clients
 
 ### Remote edit → apply locally:
 
 1. Automerge receives update from another client
-2. `tool.tsx` sends `EditorState` to iframe via PostMessage
-3. `PatchworkComm.listen()` receives message
-4. `FlatConvert.doc_to_seg()` converts flat Doc → Segment
-5. `SyncReplace.sync_replace()` applies new segment while preserving caret
-6. Editor re-renders
+2. `tool.tsx` computes which pieces changed by comparing with previous doc
+3. Sends only affected pieces to iframe via PostMessage
+4. `PatchworkComm.listen()` receives delta message
+5. `SyncReplace.sync_replace()` merges delta with current state (delta overrides)
+6. `FlatConvert.doc_to_seg()` converts merged Doc → Segment
+7. Editor re-renders with preserved caret position
 
 ## Directory Structure
 
@@ -247,6 +250,15 @@ let to_flat_piece = (js_obj: Ojs.t): FlatConvert.Flat.piece => {
 
 **Tradeoff:** String matching is stable (no cascading renames) but loses compile-time exhaustiveness checking - missing cases become runtime errors instead of compile errors.
 
+## Patchwork-Specific Behavior
+
+When Hazel runs inside Patchwork (detected via `PatchworkComm.is_in_iframe()`), certain behaviors change:
+
+- **localStorage disabled**: Editor content is NOT saved to localStorage (Automerge handles persistence)
+- **Settings still saved**: User settings (theme, etc.) still use localStorage
+- **Mode switcher hidden**: Only Scratch mode is available (other modes don't sync via Automerge)
+- **Sync enabled**: Caret and state sync only operate when in iframe mode
+
 ## URL Configuration
 
 The Hazel iframe can load from:
@@ -292,9 +304,8 @@ patchwork push
 
 ## Current Limitations
 
-- Full-state sync (not diff-based)
-- Caret position can be disrupted when:
-  - Subterm containing caret is deleted
+- Caret position can be disrupted when subterm containing caret is deleted
+- No divergence recovery mechanism (if clients diverge, delta sync won't reconcile)
 
 ### patchwork-extra/hazel Dependency
 
@@ -329,6 +340,7 @@ This would prevent remote state from overwriting local projector state, but the 
 
 See `plan/patchwork-future.md` for planned improvements:
 
-- Debounce caret messages, selection sync, user labels
-- Performance optimizations (diff-based sync)
+- Debounce caret messages, selection sync
+- Cache flat doc to avoid re-conversion on every edit
+- Divergence recovery mechanism
 - Refractor sync (for collaborative debugging)

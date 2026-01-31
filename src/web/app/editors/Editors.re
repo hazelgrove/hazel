@@ -32,6 +32,14 @@ module StoreMode =
   });
 
 module Store = {
+  /* Load default editor state without touching localStorage.
+     Used in Patchwork mode where Automerge provides the content. */
+  let load_default = (~settings) => {
+    Model.Scratch(
+      ScratchMode.Store.default() |> ScratchMode.Model.unpersist(~settings),
+    );
+  };
+
   let load = (~settings, ~instructor_mode) => {
     // Check if both name and share URL parameters are present
     let has_share_params =
@@ -443,41 +451,51 @@ module View = {
 
   let top_bar =
       (~globals: Globals.t, ~inject: Update.t => 'a, ~editors: Model.t) => {
-    let mode_menu = {
-      div(
-        ~attrs=[Attr.class_("mode-name"), Attr.title("Toggle Mode")],
+    /* In Patchwork mode, hide the mode switcher since only Scratch mode
+       is supported (other modes aren't synced via Automerge). */
+    let mode_menu =
+      if (Haz3lcore.PatchworkComm.is_in_iframe()) {
+        [];
+      } else {
         [
-          select(
-            ~attrs=[
-              Attr.on_change(_ =>
-                fun
-                | "Scratch" => inject(Update.SwitchMode(Scratch))
-                | "Documentation" => inject(Update.SwitchMode(Documentation))
-                | "Tutorial" => inject(Update.SwitchMode(Tutorial))
-                | "Exercises" => inject(Update.SwitchMode(Exercises))
-                | _ => failwith("Invalid mode")
+          text("/"),
+          div(
+            ~attrs=[Attr.class_("mode-name"), Attr.title("Toggle Mode")],
+            [
+              select(
+                ~attrs=[
+                  Attr.on_change(_ =>
+                    fun
+                    | "Scratch" => inject(Update.SwitchMode(Scratch))
+                    | "Documentation" =>
+                      inject(Update.SwitchMode(Documentation))
+                    | "Tutorial" => inject(Update.SwitchMode(Tutorial))
+                    | "Exercises" => inject(Update.SwitchMode(Exercises))
+                    | _ => failwith("Invalid mode")
+                  ),
+                ],
+                List.map(
+                  s =>
+                    EditorModeView.option_view(
+                      (
+                        switch (editors) {
+                        | Scratch(_) => "Scratch"
+                        | Documentation(_) => "Documentation"
+                        | Tutorial(_) => "Tutorial"
+                        | Exercises(_) => "Exercises"
+                        }
+                      )
+                      == s,
+                      s,
+                    ),
+                  ["Scratch", "Documentation", "Tutorial", "Exercises"],
+                ),
               ),
             ],
-            List.map(
-              s =>
-                EditorModeView.option_view(
-                  (
-                    switch (editors) {
-                    | Scratch(_) => "Scratch"
-                    | Documentation(_) => "Documentation"
-                    | Tutorial(_) => "Tutorial"
-                    | Exercises(_) => "Exercises"
-                    }
-                  )
-                  == s,
-                  s,
-                ),
-              ["Scratch", "Documentation", "Tutorial", "Exercises"],
-            ),
           ),
-        ],
-      );
-    };
+          text("/"),
+        ];
+      };
     let contents =
       switch (editors) {
       | Scratch(m) =>
@@ -505,9 +523,6 @@ module View = {
           m,
         )
       };
-    div(
-      ~attrs=[Attr.id("editor-mode")],
-      [text("/"), mode_menu, text("/")] @ contents,
-    );
+    div(~attrs=[Attr.id("editor-mode")], mode_menu @ contents);
   };
 };

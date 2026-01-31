@@ -122,8 +122,8 @@ let go =
     z
     |> Insert.go(char, ~ci=Indicated.ci_of(z, statics.info_map))
     |> return(Cant_insert)
-  | SyncReplace(segment) =>
-    SyncReplace.sync_replace(z, segment)
+  | SyncReplace(delta_doc) =>
+    SyncReplace.sync_replace(z, delta_doc)
     |> Result.of_option(~error=Action.Failure.Cant_insert)
   | UpdateRemoteCarets =>
     /* No-op on zipper state, just triggers re-render for remote cursors */

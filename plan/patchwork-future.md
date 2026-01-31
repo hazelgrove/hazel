@@ -26,9 +26,10 @@ For architecture and current implementation documentation, see `docs/patchwork-i
 
 ## Performance
 
-- [x] Diff-based sync (IN PROGRESS - Jan 2026)
+- [x] Diff-based sync (DONE - Jan 2026)
   - Changed from array to map schema for O(1) Automerge updates
-  - Moving to delta protocol (OCaml computes diff, sends only changes)
+  - Delta protocol: OCaml computes diff, sends only changed pieces
+  - Both directions: Hazel→Patchwork and Patchwork→Hazel use deltas
 - [ ] Cache old flat doc to avoid re-conversion on every edit
   - Currently: old_zipper → flat_doc conversion happens on every send
   - Optimization: Store last sent flat_doc in syntax cache, reuse it as "old" state
@@ -48,6 +49,37 @@ For architecture and current implementation documentation, see `docs/patchwork-i
   - Appears to be type augmentation for caret messages
   - Possibly redundant with inline type extension in tool.tsx
   - Decide: commit, ignore, or delete
+
+---
+
+## Patchwork-Specific Behavior (gate behind `is_in_iframe()`)
+
+The `PatchworkComm.is_in_iframe()` check detects when Hazel is running inside Patchwork.
+Several behaviors should be gated behind this check to avoid unnecessary work when not in Patchwork mode:
+
+- [x] Disable localStorage persistence for editor content (Automerge handles it)
+- [x] Hide editor mode switcher (only Scratch mode syncs via Automerge)
+- [ ] Default Zen mode to ON in iframe (currently hardcoded in settings default)
+  - Keep Zen mode as a user-togglable option, just change the default
+- [ ] Gate all sync-related code (caret broadcast, state send/receive) behind iframe check
+  - Currently this code runs even when not in iframe (just fails silently)
+  - Would reduce unnecessary overhead in standalone Hazel
+
+---
+
+## Sync Lifecycle & Recovery
+
+Issues discovered during delta-based sync implementation (Jan 2026):
+
+- [ ] Divergence recovery mechanism
+  - If clients diverge (network partition, bugs, etc.), delta sync won't reconcile them
+  - Options: periodic full sync, checksum comparison, manual resync button
+- [ ] Initial state handling
+  - Currently relies on tool.tsx sending initial full state on mount
+  - May need explicit handshake: Hazel requests state, Patchwork responds
+- [ ] Consider full-replace mode for initial state
+  - Current SyncReplace always merges; initial load might benefit from full replacement
+  - Could add flag to SyncReplace or separate FullReplace action
 
 ---
 

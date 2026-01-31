@@ -65,12 +65,11 @@ let move_to_id =
   go(z);
 };
 
-let sync_replace = (z: Zipper.t, segment: Segment.t): option(Zipper.t) => {
+let sync_replace =
+    (z: Zipper.t, delta_doc: FlatConvert.Doc.t): option(Zipper.t) => {
   let overall_log = PerfLog.start("sync_replace_total");
 
-  let num_pieces = PerfLog.Count.pieces_in_segment_deep(segment);
-  let context = string_of_int(num_pieces) ++ " pieces";
-
+  // Save cursor position info
   let (id_init, d_init: Direction.t) =
     switch (z.relatives.siblings) {
     | (_, [p, ..._]) => (Piece.id(p), Right)
@@ -86,9 +85,43 @@ let sync_replace = (z: Zipper.t, segment: Segment.t): option(Zipper.t) => {
          (anc.id, anc.shards |> fst |> ListUtil.hd_opt)
        );
 
+  // Flatten current state to doc
+  let current_seg = PerfLog.measure("zip_current", () => Zipper.zip(z));
+
+  let current_doc =
+    PerfLog.measure("seg_to_doc_current", () =>
+      FlatConvert.seg_to_doc(current_seg)
+    );
+
+  // Merge delta with current state (delta overrides current)
+  let merged_doc =
+    PerfLog.measure("merge_docs", () =>
+      FlatConvert.Doc.union(
+        (_, _, delta_piece) => Some(delta_piece),
+        current_doc,
+        delta_doc,
+      )
+    );
+
+  let num_merged = FlatConvert.Doc.cardinal(merged_doc);
+  Js_of_ocaml.Firebug.console##log(
+    Js_of_ocaml.Js.string(
+      "[SYNC] Merged doc has " ++ string_of_int(num_merged) ++ " pieces",
+    ),
+  );
+
+  // Unflatten merged doc to segment
+  let new_seg =
+    PerfLog.measure("doc_to_seg_merged", () =>
+      FlatConvert.doc_to_seg(merged_doc)
+    );
+
+  let num_pieces = PerfLog.Count.pieces_in_segment_deep(new_seg);
+  let context = string_of_int(num_pieces) ++ " pieces";
+
   let z =
     PerfLog.measure_with_context("unzip_segment", context, () =>
-      Zipper.unzip(segment)
+      Zipper.unzip(new_seg)
     );
 
   // Restore refractors

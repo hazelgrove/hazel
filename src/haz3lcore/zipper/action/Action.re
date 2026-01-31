@@ -91,7 +91,7 @@ type probe =
 
 [@deriving (show({with_path: false}), sexp, yojson, eq)]
 type t =
-  | SyncReplace(Segment.t)
+  | SyncReplace(FlatTypes.Doc.t)
   | UpdateRemoteCarets /* Trigger re-render for remote cursor display */
   | Reparse
   | Buffer(buffer)

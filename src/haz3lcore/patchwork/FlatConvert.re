@@ -1,34 +1,8 @@
 open Util;
 include ZipperBase;
 
-module Flat = {
-  type tile = {
-    id: Id.t,
-    label: Label.t,
-    mold: Mold.t,
-    shards: list(int),
-    children: list(list(Id.t)),
-  };
-  type projector = {
-    id: Id.t,
-    kind: string,
-    syntax: Id.t,
-    model: string,
-  };
-  type piece =
-    | Tile(tile)
-    | Grout(Grout.t)
-    | Secondary(Secondary.t)
-    | Projector(projector);
-};
-
-module Doc = {
-  include Id.Map;
-  type nonrec t = t(Flat.piece);
-  let union_all = (docs: list(t)): t => {
-    List.fold_left(union((_, _, a) => Some(a)), empty, docs);
-  };
-};
+/* Re-export types from FlatTypes to maintain API compatibility */
+include FlatTypes;
 
 let seg_to_doc = (seg: Segment.t): Doc.t => {
   let piece_count = ref(0);
