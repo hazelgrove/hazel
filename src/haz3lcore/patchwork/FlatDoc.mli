@@ -445,21 +445,40 @@ module FlatPiece : sig
 end
 
 (** HazelDoc is the top-level document structure sent via PostMessage. It's a
-    flat array of all pieces in the document, with relationships encoded via
-    UUID references in FlatTile.children. *)
+    flat map of all pieces in the document (keyed by UUID), with relationships
+    encoded via UUID references in FlatTile.children.
+
+    Changed from Array to Map for Automerge performance - map updates are O(1)
+    instead of O(n) array diffing. *)
 module HazelDoc : sig
-  module AnonymousInterface2 : sig
+  module rec AnonymousInterface2 : sig
+    module Pieces4 : sig
+      type t = private Ojs.t
+
+      val t_to_js : t -> Ojs.t
+      val t_of_js : Ojs.t -> t
+      val get : t -> string -> FlatPiece.t [@@js.index_get]
+      val set : t -> string -> FlatPiece.t -> unit [@@js.index_set]
+    end
+
     type t = private Ojs.t
 
     val t_to_js : t -> Ojs.t
     val t_of_js : Ojs.t -> t
     val get_title : t -> string [@@js.get "title"]
     val set_title : t -> string -> unit [@@js.set "title"]
-    val get_tiles : t -> FlatPiece.t list [@@js.get "tiles"]
-    val set_tiles : t -> FlatPiece.t list -> unit [@@js.set "tiles"]
+    val get_pieces : t -> Pieces4.t [@@js.get "pieces"]
+    val set_pieces : t -> Pieces4.t -> unit [@@js.set "pieces"]
+    val create : title:string -> pieces:Pieces4.t -> unit -> t [@@js.builder]
+  end
 
-    val create : title:string -> tiles:FlatPiece.t list -> unit -> t
-    [@@js.builder]
+  and Pieces4 : sig
+    type t = private Ojs.t
+
+    val t_to_js : t -> Ojs.t
+    val t_of_js : Ojs.t -> t
+    val get : t -> string -> FlatPiece.t [@@js.index_get]
+    val set : t -> string -> FlatPiece.t -> unit [@@js.index_set]
   end
 
   type t = AnonymousInterface2.t

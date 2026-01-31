@@ -222,19 +222,49 @@ module JsConvert = {
   };
 
   let js_of_flatdoc = (map: FlatConvert.Doc.t): Ojs.t => {
-    let tiles =
-      map |> Id.Map.to_list |> List.map(((_x, y)) => of_flat_piece(y));
+    // Create empty JS object for pieces map
+    let pieces_obj = Ojs.empty_obj();
+    let pieces =
+      FlatDoc.HazelDoc.AnonymousInterface2.Pieces4.t_of_js(pieces_obj);
+
+    // Add each piece to the map using UUID as key
+    map
+    |> Id.Map.iter((id, piece) => {
+         let id_str = Id.to_string(id);
+         let js_piece = of_flat_piece(piece);
+         FlatDoc.HazelDoc.AnonymousInterface2.Pieces4.set(
+           pieces,
+           id_str,
+           js_piece,
+         );
+       });
+
     let state =
-      FlatDoc.HazelDoc.AnonymousInterface2.create(~title="", ~tiles, ());
+      FlatDoc.HazelDoc.AnonymousInterface2.create(~title="", ~pieces, ());
     EditorState.t_to_js(EditorState.create(~t=`L_s8_state, ~state, ()));
   };
 
-  let flatdoc_of_hazeldoc = (doc: HazelDoc.t_0): FlatConvert.Doc.t =>
-    doc
-    |> FlatDoc.HazelDoc.AnonymousInterface2.get_tiles
-    |> List.map(to_flat_piece)
-    |> List.map(piece => (id_from_piece(piece), piece))
+  let flatdoc_of_hazeldoc = (doc: HazelDoc.t_0): FlatConvert.Doc.t => {
+    let pieces_map = FlatDoc.HazelDoc.AnonymousInterface2.get_pieces(doc);
+    let js_obj =
+      FlatDoc.HazelDoc.AnonymousInterface2.Pieces4.t_to_js(pieces_map);
+
+    // Get keys from JS object using Object.keys()
+    let keys_js_array = Js.Unsafe.global##.Object##keys(js_obj);
+    let keys = Js.to_array(keys_js_array) |> Array.map(Js.to_string);
+
+    // Convert JS object to list of (key, value) pairs, then to OCaml Map
+    keys
+    |> Array.to_list
+    |> List.map(key => {
+         let js_piece =
+           FlatDoc.HazelDoc.AnonymousInterface2.Pieces4.get(pieces_map, key);
+         let piece = to_flat_piece(js_piece);
+         let id = id_from_piece(piece);
+         (id, piece);
+       })
     |> Id.Map.of_list;
+  };
 };
 
 let send_to_parent = (message: Ojs.t): unit => {

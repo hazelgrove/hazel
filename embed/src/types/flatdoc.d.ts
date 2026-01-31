@@ -112,10 +112,13 @@ export type FlatPiece = FlatTile | Grout | Secondary | FlatProjector;
 
 /**
  * HazelDoc is the top-level document structure sent via PostMessage.
- * It's a flat array of all pieces in the document, with relationships
- * encoded via UUID references in FlatTile.children.
+ * It's a flat map of all pieces in the document (keyed by UUID), with
+ * relationships encoded via UUID references in FlatTile.children.
+ *
+ * Changed from Array to Map for Automerge performance - map updates are
+ * O(1) instead of O(n) array diffing.
  */
 export type HazelDoc = {
     title: string;
-    tiles: Array<FlatPiece>;
+    pieces: { [id: string]: FlatPiece };
 }
