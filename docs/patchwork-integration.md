@@ -54,10 +54,21 @@ Communication uses PostMessage with these message types:
 
 | Message | Direction | Purpose                  |
 | ------- | --------- | ------------------------ |
-| `init`  | Both      | Handshake on iframe load |
+| `init`  | Both      | Handshake on iframe load (triggers full state send) |
 | `ping`  | Both      | Connection testing       |
 | `pong`  | Both      | Ping response            |
 | `state` | Both      | Delta-based document sync (only changed pieces) |
+
+### Initialization Handshake
+
+When the Hazel iframe loads:
+
+1. HazelEmbed sends `init` message to iframe (parent → iframe)
+2. Hazel's `init_iframe()` sends `init` message back to parent (iframe → parent)
+3. tool.tsx receives `init` and sends full document state to iframe
+4. Hazel receives state and initializes editor
+
+This handshake ensures the iframe receives the full Automerge state after it's ready to receive messages, avoiding race conditions where state is sent before the iframe is listening.
 
 ## Caret Position Sync
 
@@ -189,6 +200,7 @@ src/haz3lcore/patchwork/
 ├── PatchworkComm.re       # PostMessage communication, type conversion
 ├── SyncReplace.re         # Apply remote state while preserving caret
 ├── FlatConvert.re         # Convert Segment ↔ flat Doc
+├── FlatTypes.re           # Flat piece types and Doc module (breaks dependency cycle)
 ├── FlatDoc.mli            # OCaml types for flat document (generated)
 ├── PatchworkMessages.mli  # OCaml types for messages (generated)
 └── dune                   # Build rules
@@ -306,6 +318,7 @@ patchwork push
 
 - Caret position can be disrupted when subterm containing caret is deleted
 - No divergence recovery mechanism (if clients diverge, delta sync won't reconcile)
+- Remote carets not cleaned up on peer disconnect (ghost carets accumulate when users refresh)
 
 ### patchwork-extra/hazel Dependency
 
@@ -340,7 +353,7 @@ This would prevent remote state from overwriting local projector state, but the 
 
 See `plan/patchwork-future.md` for planned improvements:
 
-- Debounce caret messages, selection sync
+- Debounce caret messages, selection sync, stale caret cleanup
 - Cache flat doc to avoid re-conversion on every edit
 - Divergence recovery mechanism
 - Refractor sync (for collaborative debugging)
