@@ -36,6 +36,10 @@ For architecture and current implementation documentation, see `docs/patchwork-i
 - [ ] Consider dirty-tracking instead of full diff
   - Track which pieces changed during edit operation
   - Send O(k) delta where k = changed pieces, not O(n) full document
+- [ ] Cursor repositioning: O(n) → O(log n) or O(1)
+  - **Current state:** After receiving remote edit, `move_to_id` does linear scan from document start to find the piece the cursor was on. Cost is O(cursor_position), ~0ms at top, ~30ms+ near bottom of large docs.
+  - **Recent fix:** Changed `Zipper.unzip(~direction=Left, ...)` to start at beginning, eliminating redundant `move_to_start` traversal (was doing two passes, now one).
+  - **Future fix:** Build ID→path index during `doc_to_seg`, then construct zipper directly at target position. Requires `Zipper.from_path(seg, path)` or similar.
 
 ---
 

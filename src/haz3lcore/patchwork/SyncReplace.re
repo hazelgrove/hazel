@@ -33,7 +33,7 @@ let move_to_id_anc = (z: t, (id, shard)): option(t) => {
 };
 let move_to_id =
     (d_init: Direction.t, caret_init: Caret.t, z: t, id: Id.t): option(t) => {
-  let z = z |> move_to_start;
+  //let z = z |> move_to_start;
   let rec go = (z: t): option(t) => {
     let (guy, flag) =
       switch (z.relatives.siblings) {
@@ -106,7 +106,7 @@ let sync_replace =
   let num_merged = FlatConvert.Doc.cardinal(merged_doc);
   Js_of_ocaml.Firebug.console##log(
     Js_of_ocaml.Js.string(
-      "[PERF] Merged doc has" ++ string_of_int(num_merged) ++ " pieces",
+      "[SYNC] Merged doc has " ++ string_of_int(num_merged) ++ " pieces",
     ),
   );
 
@@ -121,7 +121,7 @@ let sync_replace =
 
   let z =
     PerfLog.measure_with_context("unzip_segment", context, () =>
-      Zipper.unzip(new_seg)
+      Zipper.unzip(~direction=Left, new_seg)
     );
 
   // Restore refractors
@@ -144,11 +144,11 @@ let sync_replace =
           switch (ancestor_ids) {
           | [] => None
           | [ancestor_id, ...ancestor_ids] =>
-            let z = z |> move_to_start;
+            //let z = z |> move_to_start;
             switch (move_to_id_anc(z, ancestor_id)) {
             | Some(z) => Some(z)
             | None => go(ancestor_ids, z)
-            };
+            }
           };
         };
         switch (go(ancestor_ids, z)) {

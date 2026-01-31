@@ -221,5 +221,9 @@ Second action - no warmup overhead.
 ## Future Optimization Targets
 
 1. **handle.change() performance** - Investigate Automerge map update overhead, consider batching or different data structure
-2. **cursor_repositioning** - Profile to understand the ~33ms baseline cost
+2. **cursor_repositioning** - Currently O(cursor_position) due to linear scan. Fixed redundant double-traversal by using `unzip(~direction=Left)`. Further optimization would require ID→path indexing.
 3. **Cache old flat doc** - Eliminate redundant seg_to_doc call (~3ms savings)
+
+## Post-Profiling Fix (Jan 2026)
+
+**cursor_repositioning optimization:** Changed `Zipper.unzip(~direction=Left, new_seg)` so cursor starts at document beginning instead of end. Previously `move_to_start` walked from end to beginning, then `move_to_id` walked back. Now `move_to_start` is a no-op. Cost is now ~0ms at top of document, scaling linearly with cursor position (still O(n) but halved the constant factor).
