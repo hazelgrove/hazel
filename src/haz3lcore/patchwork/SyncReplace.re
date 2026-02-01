@@ -2,6 +2,99 @@ open Util;
 open Zipper;
 open Language;
 
+/* Information needed to restore selection after sync.
+   We track the anchor (far endpoint from caret) by its piece ID and shards. */
+type selection_anchor_info = {
+  focus: Direction.t,
+  anchor_id: Id.t,
+  anchor_shards: option(list(int)) /* Some for Tile, None for others */
+};
+
+/* Extract selection anchor info for restoration after sync.
+   Returns None if selection is empty or is a Buffer (not Normal mode).
+
+   Note: Due to how cursor repositioning works (id_init captures the piece
+   outside the selection on the right), after sync + reposition, the cursor
+   ends up at the RIGHT edge of the original selection regardless of focus.
+   So we always track the LEFTMOST piece of the selection (first of content)
+   as our target, and always grow leftward to find it. */
+let get_selection_anchor_info = (z: Zipper.t): option(selection_anchor_info) =>
+  switch (z.selection) {
+  | {content: [], _} => None
+  | {mode: Buffer(_), _} => None
+  | {focus, content: [first_piece, ..._], mode: Normal} =>
+    /* Always track the leftmost piece - we grow leftward to find it */
+    let anchor_id = Piece.id(first_piece);
+    let anchor_shards =
+      switch (first_piece) {
+      | Tile(t) => Some(t.shards)
+      | Grout(_)
+      | Secondary(_)
+      | Projector(_) => None
+      };
+    Some({
+      focus,
+      anchor_id,
+      anchor_shards,
+    });
+  };
+
+/* Check if a piece matches the anchor specification.
+   For Tiles, we check both ID and shards field to handle fragmented multi-delimiter forms. */
+let piece_matches_anchor =
+    (p: Piece.t, anchor_id: Id.t, anchor_shards: option(list(int))): bool =>
+  Piece.id(p) == anchor_id
+  && (
+    switch (p, anchor_shards) {
+    | (Tile(t), Some(shards)) => t.shards == shards
+    | (_, None) => true
+    | (_, Some(_)) => false /* Non-tile but expected shards - mismatch */
+    }
+  );
+
+/* Get the most recently added piece to selection (at the grow-direction end).
+   Returns None if selection is empty. */
+let get_selection_edge_piece =
+    (grow_direction: Direction.t, z: Zipper.t): option(Piece.t) =>
+  switch (grow_direction, z.selection.content) {
+  | (_, []) => None
+  | (Left, [p, ..._]) => Some(p)
+  | (Right, content) => ListUtil.last_opt(content)
+  };
+
+/* Restore selection by growing leftward from current cursor position.
+   After sync + cursor repositioning, the cursor ends up at the RIGHT edge
+   of where the selection was (regardless of original focus). So we always
+   grow leftward until we find the leftmost piece of the original selection.
+   Returns the zipper with restored selection, or with empty selection if restoration fails. */
+let restore_selection =
+    (z: Zipper.t, anchor_info: selection_anchor_info): Zipper.t => {
+  let {focus: focus_init, anchor_id, anchor_shards} = anchor_info;
+
+  /* Always grow leftward since cursor ends up on the right side */
+  let grow_direction = Direction.Left;
+  let z = Zipper.set_focus(z, grow_direction);
+
+  /* Grow selection until we find the leftmost piece or run out of pieces */
+  let rec grow_to_anchor = (z: Zipper.t): Zipper.t =>
+    switch (Zipper.select(grow_direction, z)) {
+    | None =>
+      /* Can't grow anymore - restoration failed, clear selection */
+      Zipper.unselect(z)
+    | Some(z) =>
+      switch (get_selection_edge_piece(grow_direction, z)) {
+      | Some(p) when piece_matches_anchor(p, anchor_id, anchor_shards) =>
+        /* Found the leftmost piece - restore original focus direction */
+        Zipper.set_focus(z, focus_init)
+      | _ =>
+        /* Keep growing */
+        grow_to_anchor(z)
+      }
+    };
+
+  grow_to_anchor(z);
+};
+
 let rec move_to_start = (z: t): t => {
   switch (Move.local(ByToken, Left, z)) {
   | Some(z) => move_to_start(z)
@@ -151,7 +244,9 @@ let move_to_id =
       at each level of the zipper, giving us the closest lexical position.
    3. If no predecessor survives (e.g., cursor was at start of a child),
       fall back to ancestor-based positioning which preserves structural
-      position (which child of which ancestor we were in). */
+      position (which child of which ancestor we were in).
+
+   Returns (zipper, found_exact) where found_exact is true only if case 1 succeeded. */
 let reposition_cursor =
     (
       z: t,
@@ -161,37 +256,42 @@ let reposition_cursor =
       ~d_init: Direction.t,
       ~caret_init: Caret.t,
     )
-    : Zipper.t =>
+    : (Zipper.t, bool) =>
   switch (id_init) {
   | id =>
     switch (move_to_id(d_init, caret_init, z, id)) {
-    | Some(z) => {
-        ...z,
-        caret: caret_init,
-      }
+    | Some(z) => (
+        {
+          ...z,
+          caret: caret_init,
+        },
+        true,
+      )
     | None =>
       let z = {
         ...z,
         caret: Outer,
       };
-      switch (move_to_predecessor(z, predecessor_ids)) {
-      | Some(z) => z
-      | None =>
-        let rec go = (ancestor_ids, z): option(t) => {
-          switch (ancestor_ids) {
-          | [] => None
-          | [ancestor_id, ...ancestor_ids] =>
-            switch (move_to_id_anc(z, ancestor_id)) {
-            | Some(z) => Some(z)
-            | None => go(ancestor_ids, z)
-            }
+      let z =
+        switch (move_to_predecessor(z, predecessor_ids)) {
+        | Some(z) => z
+        | None =>
+          let rec go = (ancestor_ids, z): option(t) => {
+            switch (ancestor_ids) {
+            | [] => None
+            | [ancestor_id, ...ancestor_ids] =>
+              switch (move_to_id_anc(z, ancestor_id)) {
+              | Some(z) => Some(z)
+              | None => go(ancestor_ids, z)
+              }
+            };
+          };
+          switch (go(ancestor_ids, z)) {
+          | Some(z) => z
+          | None => z
           };
         };
-        switch (go(ancestor_ids, z)) {
-        | Some(z) => z
-        | None => z
-        };
-      };
+      (z, false);
     }
   };
 
@@ -199,11 +299,18 @@ let sync_replace = (z: Zipper.t, delta_doc: FlatConvert.Doc.t): Zipper.t => {
   let overall_log = PerfLog.start("sync_replace_total");
 
   // Save cursor position info
+  // When siblings are empty but selection covers the entire segment,
+  // use a piece from the selection edge as the anchor for repositioning.
   let (id_init, d_init: Direction.t) =
-    switch (z.relatives.siblings) {
-    | (_, [p, ..._]) => (Piece.id(p), Right)
-    | ([_, ..._] as l, []) => (Piece.id(ListUtil.last(l)), Left)
-    | _ => (Id.invalid, Left)
+    switch (z.relatives.siblings, z.selection.content) {
+    | ((_, [p, ..._]), _) => (Piece.id(p), Right)
+    | (([_, ..._] as l, []), _) => (Piece.id(ListUtil.last(l)), Left)
+    | (([], []), [_, ..._] as sel) =>
+      switch (z.selection.focus) {
+      | Right => (Piece.id(ListUtil.last(sel)), Left)
+      | Left => (Piece.id(List.hd(sel)), Right)
+      }
+    | (([], []), []) => (Id.invalid, Left)
     };
   let caret_init = z.caret;
   let refractors = z.refractors;
@@ -218,6 +325,9 @@ let sync_replace = (z: Zipper.t, delta_doc: FlatConvert.Doc.t): Zipper.t => {
            List.length(fst(anc.children)),
          )
        );
+
+  // Save selection info for restoration (before unselecting)
+  let selection_anchor = get_selection_anchor_info(z);
 
   // Flatten current state to doc (unselect first to reassemble any fragments)
   let current_seg =
@@ -267,7 +377,7 @@ let sync_replace = (z: Zipper.t, delta_doc: FlatConvert.Doc.t): Zipper.t => {
   };
 
   let cursor_log = PerfLog.start("cursor_repositioning");
-  let z =
+  let (z, found_exact) =
     reposition_cursor(
       z,
       ~predecessor_ids,
@@ -277,6 +387,17 @@ let sync_replace = (z: Zipper.t, delta_doc: FlatConvert.Doc.t): Zipper.t => {
       ~caret_init,
     );
   PerfLog.end_(cursor_log);
+
+  // Restore selection if we found the exact cursor position and had a selection
+  let z =
+    switch (selection_anchor) {
+    | Some(anchor_info) when found_exact =>
+      PerfLog.measure("selection_restoration", () =>
+        restore_selection(z, anchor_info)
+      )
+    | _ => z
+    };
+
   PerfLog.end_(overall_log);
   z;
 };
