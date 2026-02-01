@@ -5,8 +5,11 @@ open Util;
 /* Patchwork/iframe mode detection.
    When running inside Patchwork, we disable Hazel's localStorage persistence
    because Automerge handles persistence. This check is immediate (no waiting
-   for postMessage handshake) so it can be used during initialization. */
+   for postMessage handshake) so it can be used during initialization.
+   Returns false in non-browser environments (e.g., Node.js tests). */
 let is_in_iframe = (): bool => {
+  Js.Optdef.test(Js.Unsafe.global##.window)
+  &&
   Js.Unsafe.global##.parent !== Js.Unsafe.global;
 };
 
