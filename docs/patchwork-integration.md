@@ -347,6 +347,7 @@ patchwork push
 - Caret position can be disrupted when subterm containing caret is deleted
 - No divergence recovery mechanism (if clients diverge, delta sync won't reconcile)
 - Remote carets not cleaned up on peer disconnect (ghost carets accumulate when users refresh)
+- **Undo/redo sync partial:** Undo/redo actions now sync to other clients via `PatchworkUndoSync`, but there's a known bug where the receiver can crash with `"Piece not found"` exception during `sync_replace`. This happens when the delta references pieces that aren't in the merged doc. The issue appears intermittently, possibly related to how pieces are restored after deletion. Investigation needed in `FlatConvert.doc_to_seg` and delta computation.
 
 ### patchwork-extra/hazel Dependency
 

@@ -195,34 +195,38 @@ let should_send_state = (a: Action.t): bool =>
   | Dump => true
   };
 
-let send_state = (a: Action.t, old_z: Zipper.t, new_z: Zipper.t): unit =>
-  if (should_send_state(a)) {
-    let overall_log = PerfLog.start("send_state_total");
+/* Core state-sending logic without action check.
+   Computes delta between old and new zipper and sends to parent. */
+let send_state_delta = (old_z: Zipper.t, new_z: Zipper.t): unit => {
+  let overall_log = PerfLog.start("send_state_total");
 
-    // Convert old state to flat doc
-    let old_seg = old_z |> Zipper.zip;
-    let old_flat_doc =
-      PerfLog.measure("old_seg_to_doc", () =>
-        FlatConvert.seg_to_doc(old_seg)
-      );
+  // Convert old state to flat doc
+  let old_seg = old_z |> Zipper.zip;
+  let old_flat_doc =
+    PerfLog.measure("old_seg_to_doc", () => FlatConvert.seg_to_doc(old_seg));
 
-    // Convert new state to flat doc
-    let new_seg = new_z |> Zipper.zip;
-    //let num_pieces = PerfLog.Count.pieces_in_segment_deep(new_seg);
-    let num_pieces = (-1);
-    let context = string_of_int(num_pieces) ++ " pieces";
+  // Convert new state to flat doc
+  let new_seg = new_z |> Zipper.zip;
+  //let num_pieces = PerfLog.Count.pieces_in_segment_deep(new_seg);
+  let num_pieces = (-1);
+  let context = string_of_int(num_pieces) ++ " pieces";
 
-    let new_flat_doc =
-      PerfLog.measure_with_context("seg_to_doc", context, () =>
-        FlatConvert.seg_to_doc(new_seg)
-      );
-
-    // Send both docs to compute delta and send
-    PerfLog.measure("send_to_parent", () =>
-      PatchworkComm.send_state(old_flat_doc, new_flat_doc)
+  let new_flat_doc =
+    PerfLog.measure_with_context("seg_to_doc", context, () =>
+      FlatConvert.seg_to_doc(new_seg)
     );
 
-    PerfLog.end_(overall_log);
+  // Send both docs to compute delta and send
+  PerfLog.measure("send_to_parent", () =>
+    PatchworkComm.send_state(old_flat_doc, new_flat_doc)
+  );
+
+  PerfLog.end_(overall_log);
+};
+
+let send_state = (a: Action.t, old_z: Zipper.t, new_z: Zipper.t): unit =>
+  if (should_send_state(a)) {
+    send_state_delta(old_z, new_z);
   };
 
 /* Determines whether to send caret position update.
@@ -302,19 +306,18 @@ let get_caret_position =
   };
 };
 
+/* Core caret-sending logic without action check.
+   Extracts caret position from zipper and sends to parent. */
+let send_caret_position = (z: Zipper.t): unit =>
+  switch (get_caret_position(z)) {
+  | Some((piece_id, shard_index, caret_offset, shape, side)) =>
+    PatchworkComm.send_caret(piece_id, shard_index, caret_offset, shape, side)
+  | None => ()
+  };
+
 let send_caret = (a: Action.t, z: Zipper.t): unit =>
   if (should_send_caret(a)) {
-    switch (get_caret_position(z)) {
-    | Some((piece_id, shard_index, caret_offset, shape, side)) =>
-      PatchworkComm.send_caret(
-        piece_id,
-        shard_index,
-        caret_offset,
-        shape,
-        side,
-      )
-    | None => ()
-    };
+    send_caret_position(z);
   };
 
 /* Sync state and caret to Patchwork parent after an edit.
@@ -323,4 +326,12 @@ let sync_to_parent =
     (~action: Action.t, ~old_zipper: Zipper.t, ~new_zipper: Zipper.t): unit => {
   send_state(action, old_zipper, new_zipper);
   send_caret(action, new_zipper);
+};
+
+/* Sync state and caret after undo/redo.
+   Unlike sync_to_parent, this doesn't check action type since undo/redo
+   are handled at a higher level (History) and don't go through Action.t. */
+let sync_for_undo = (~old_zipper: Zipper.t, ~new_zipper: Zipper.t): unit => {
+  send_state_delta(old_zipper, new_zipper);
+  send_caret_position(new_zipper);
 };
