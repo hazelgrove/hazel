@@ -9,27 +9,60 @@ let rec move_to_start = (z: t): t => {
   };
 };
 
-let move_to_id_anc = (z: t, (id, shard)): option(t) => {
-  // this doesn't really work
+let move_to_id_anc = (z: t, (id, shard, child_idx)): option(t) => {
+  /* Find a position where the target ancestor is in the ancestor stack,
+     preferring the correct child index. Falls back to the highest child
+     index <= target if exact match not found (e.g., if child was deleted). */
   let z = z |> move_to_start;
-  let rec go = (z: t): option(t) => {
-    let guy =
+  let rec go = (z: t, best: option(t)): option(t) => {
+    let match_opt =
       List.find_opt(
         (a: Ancestors.generation) =>
           fst(a).id == id && fst(a).shards |> fst |> ListUtil.hd_opt == shard,
         z.relatives.ancestors,
-      )
-      != None;
-    guy
-      ? Some(z)
+      );
+    let (best, found_exact) =
+      switch (match_opt) {
+      | Some((anc, _)) =>
+        let current_child = List.length(fst(anc.children));
+        if (current_child == child_idx) {
+          /* Exact match - we're done */
+          (Some(z), true);
+        } else if (current_child < child_idx) {
+          /* We're in a lower child - remember this as fallback if it's
+             the best we've seen (highest child index not exceeding target) */
+          let dominated =
+            switch (best) {
+            | None => true
+            | Some(best_z) =>
+              switch (
+                List.find_opt(
+                  (a: Ancestors.generation) => fst(a).id == id,
+                  best_z.relatives.ancestors,
+                )
+              ) {
+              | Some((best_anc, _)) =>
+                current_child > List.length(fst(best_anc.children))
+              | None => true
+              }
+            };
+          (dominated ? Some(z) : best, false);
+        } else {
+          /* We're past the target child - keep the best we found */
+          (best, false);
+        };
+      | None => (best, false)
+      };
+    found_exact
+      ? best
       : (
         switch (Move.local(ByToken, Right, z)) {
-        | Some(z) => go(z)
-        | None => None
+        | Some(z) => go(z, best)
+        | None => best
         }
       );
   };
-  go(z);
+  go(z, None);
 };
 let move_to_id =
     (d_init: Direction.t, caret_init: Caret.t, z: t, id: Id.t): option(t) => {
@@ -65,8 +98,45 @@ let move_to_id =
   go(z);
 };
 
-let sync_replace =
-    (z: Zipper.t, delta_doc: FlatConvert.Doc.t): option(Zipper.t) => {
+let reposition_cursor =
+    (
+      z: t,
+      ~ancestor_ids: list((Id.t, option(int), int)),
+      ~id_init: Id.t,
+      ~d_init: Direction.t,
+      ~caret_init: Caret.t,
+    )
+    : Zipper.t =>
+  switch (id_init) {
+  | id =>
+    switch (move_to_id(d_init, caret_init, z, id)) {
+    | Some(z) => {
+        ...z,
+        caret: caret_init,
+      }
+    | None =>
+      let rec go = (ancestor_ids, z): option(t) => {
+        switch (ancestor_ids) {
+        | [] => None
+        | [ancestor_id, ...ancestor_ids] =>
+          switch (move_to_id_anc(z, ancestor_id)) {
+          | Some(z) => Some(z)
+          | None => go(ancestor_ids, z)
+          }
+        };
+      };
+      let z = {
+        ...z,
+        caret: Outer,
+      };
+      switch (go(ancestor_ids, z)) {
+      | Some(z) => z
+      | None => z
+      };
+    }
+  };
+
+let sync_replace = (z: Zipper.t, delta_doc: FlatConvert.Doc.t): Zipper.t => {
   let overall_log = PerfLog.start("sync_replace_total");
 
   // Save cursor position info
@@ -80,9 +150,13 @@ let sync_replace =
   let refractors = z.refractors;
   let ancestors = z.relatives.ancestors;
   let ancestor_ids =
-    List.map(fst, ancestors)
-    |> List.map((anc: Ancestor.t) =>
-         (anc.id, anc.shards |> fst |> ListUtil.hd_opt)
+    ancestors
+    |> List.map(((anc: Ancestor.t, _sibs)) =>
+         (
+           anc.id,
+           anc.shards |> fst |> ListUtil.hd_opt,
+           List.length(fst(anc.children)),
+         )
        );
 
   // Flatten current state to doc
@@ -132,40 +206,10 @@ let sync_replace =
   };
 
   let cursor_log = PerfLog.start("cursor_repositioning");
-  let z =
-    switch (id_init) {
-    | id =>
-      switch (move_to_id(d_init, caret_init, z, id)) {
-      | Some(z) => {
-          ...z,
-          caret: caret_init,
-        }
-      | None =>
-        let rec go = (ancestor_ids, z): option(t) => {
-          switch (ancestor_ids) {
-          | [] => None
-          | [ancestor_id, ...ancestor_ids] =>
-            //let z = z |> move_to_start;
-            switch (move_to_id_anc(z, ancestor_id)) {
-            | Some(z) => Some(z)
-            | None => go(ancestor_ids, z)
-            }
-          };
-        };
-        let z = {
-          ...z,
-          caret: Outer,
-        };
-        switch (go(ancestor_ids, z)) {
-        | Some(z) => z
-        | None => z
-        };
-      }
-    };
+  let z = reposition_cursor(z, ~ancestor_ids, ~id_init, ~d_init, ~caret_init);
   PerfLog.end_(cursor_log);
-
   PerfLog.end_(overall_log);
-  Some(z);
+  z;
 };
 
 let should_send_state = (a: Action.t): bool =>
