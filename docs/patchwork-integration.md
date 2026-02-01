@@ -393,7 +393,7 @@ patchwork push
 
 - Caret position can be disrupted when subterm containing caret is deleted
 - No divergence recovery mechanism (if clients diverge, delta sync won't reconcile)
-- Remote carets not cleaned up on peer disconnect (ghost carets accumulate when users refresh)
+- Anonymous users may briefly see duplicate carets on refresh (until 3-minute timeout cleanup)
 
 ### patchwork-extra/hazel Dependency
 
@@ -430,8 +430,8 @@ This would prevent remote state from overwriting local projector state, but the 
 
 - **Debounce outgoing caret messages** (50ms threshold)
 - **Sync selection ranges** (highlight what others have selected)
-- **Clean up stale remote carets on peer disconnect**: When a user refreshes, they get a new `senderId`. The old caret is never removed, so ghost carets accumulate. Fix by listening for Automerge peer disconnect events or implementing timeout-based cleanup.
-- **Optimize remote caret forwarding in tool.tsx**: Currently stores all carets in state and re-forwards all on each change. Should forward directly in ephemeral message handler.
+- ~~**Clean up stale remote carets on peer disconnect**~~: DONE. Remote carets are now keyed by persistent `userId` (from the broadcast message) instead of ephemeral `senderId`. This ensures logged-in users who refresh replace their old caret rather than creating a duplicate. Additionally, carets not updated within 3 minutes are automatically removed via timeout cleanup. Note: Anonymous users (who get a new random ID each session) may still briefly see duplicate carets until the stale one times out.
+- ~~**Optimize remote caret forwarding in tool.tsx**~~: DONE. Carets are now forwarded directly to the iframe in the ephemeral message handler, avoiding the previous pattern of storing all carets in state and re-forwarding all on every change. State is still maintained for the iframe init/reload case.
 
 ### Performance
 
