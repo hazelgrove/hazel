@@ -103,12 +103,12 @@ let sync_replace =
       )
     );
 
-  let num_merged = FlatConvert.Doc.cardinal(merged_doc);
-  Js_of_ocaml.Firebug.console##log(
-    Js_of_ocaml.Js.string(
-      "[SYNC] Merged doc has " ++ string_of_int(num_merged) ++ " pieces",
-    ),
-  );
+  // let num_merged = FlatConvert.Doc.cardinal(merged_doc);
+  // Js_of_ocaml.Firebug.console##log(
+  //   Js_of_ocaml.Js.string(
+  //     "[SYNC] Merged doc has " ++ string_of_int(num_merged) ++ " pieces",
+  //   ),
+  // );
 
   // Unflatten merged doc to segment
   let new_seg =
@@ -116,7 +116,8 @@ let sync_replace =
       FlatConvert.doc_to_seg(merged_doc)
     );
 
-  let num_pieces = PerfLog.Count.pieces_in_segment_deep(new_seg);
+  //let num_pieces = PerfLog.Count.pieces_in_segment_deep(new_seg);
+  let num_pieces = (-1);
   let context = string_of_int(num_pieces) ++ " pieces";
 
   let z =
@@ -207,7 +208,8 @@ let send_state = (a: Action.t, old_z: Zipper.t, new_z: Zipper.t): unit =>
 
     // Convert new state to flat doc
     let new_seg = new_z |> Zipper.zip;
-    let num_pieces = PerfLog.Count.pieces_in_segment_deep(new_seg);
+    //let num_pieces = PerfLog.Count.pieces_in_segment_deep(new_seg);
+    let num_pieces = (-1);
     let context = string_of_int(num_pieces) ++ " pieces";
 
     let new_flat_doc =

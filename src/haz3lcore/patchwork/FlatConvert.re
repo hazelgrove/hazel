@@ -58,12 +58,8 @@ let seg_to_doc = (seg: Segment.t): Doc.t => {
       go_seg(seg),
     );
   // Log piece traversal count
-  Js_of_ocaml.Firebug.console##log(
-    Js_of_ocaml.Js.string(
-      "[PERF] seg_to_doc traversed "
-      ++ string_of_int(piece_count^)
-      ++ " pieces",
-    ),
+  PerfLog.log(
+    "seg_to_doc traversed " ++ string_of_int(piece_count^) ++ " pieces",
   );
   result;
 };
@@ -103,12 +99,8 @@ let doc_to_seg = (doc: Doc.t): Segment.t => {
   };
   let result = go_seg(root_seg_ids);
   // Log piece reconstruction count
-  Js_of_ocaml.Firebug.console##log(
-    Js_of_ocaml.Js.string(
-      "[PERF] doc_to_seg reconstructed "
-      ++ string_of_int(piece_count^)
-      ++ " pieces",
-    ),
+  PerfLog.log(
+    "doc_to_seg reconstructed " ++ string_of_int(piece_count^) ++ " pieces",
   );
   result;
 };

@@ -17,10 +17,15 @@ type t = {
   context: option(string),
 };
 
-let enabled = ref(true);
+let enabled = ref(false);
 
 let enable = () => enabled := true;
 let disable = () => enabled := false;
+
+let log = (message: string): unit =>
+  if (enabled^) {
+    Firebug.console##log(Js.string("[PERF] " ++ message));
+  };
 
 let now = (): float => {
   // Use performance.now() for high-resolution timing
@@ -109,9 +114,5 @@ module Count = {
       0,
       seg,
     );
-  };
-
-  let pieces_in_doc = (doc: FlatConvert.Doc.t): int => {
-    FlatConvert.Doc.cardinal(doc);
   };
 };

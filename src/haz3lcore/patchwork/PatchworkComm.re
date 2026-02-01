@@ -484,12 +484,8 @@ let listen = (schedule_action: Action.t => unit): unit => {
           );
 
         let num_entries = FlatConvert.Doc.cardinal(delta_doc);
-        Js_of_ocaml.Firebug.console##log(
-          Js_of_ocaml.Js.string(
-            "[PERF] Received delta with"
-            ++ string_of_int(num_entries)
-            ++ " pieces",
-          ),
+        PerfLog.log(
+          "Received delta with " ++ string_of_int(num_entries) ++ " pieces",
         );
 
         PerfLog.end_(receive_log);
@@ -522,17 +518,14 @@ let send_state =
   let num_changed = Id.Map.cardinal(delta.changed);
   let num_added = Id.Map.cardinal(delta.added);
   let num_deleted = List.length(delta.deleted);
-
-  Firebug.console##log(
-    Js.string(
-      "[PERF] Delta: "
-      ++ string_of_int(num_changed)
-      ++ " changed, "
-      ++ string_of_int(num_added)
-      ++ " added, "
-      ++ string_of_int(num_deleted)
-      ++ " deleted",
-    ),
+  PerfLog.log(
+    "Delta: "
+    ++ string_of_int(num_changed)
+    ++ " changed, "
+    ++ string_of_int(num_added)
+    ++ " added, "
+    ++ string_of_int(num_deleted)
+    ++ " deleted",
   );
 
   // Combine changed and added pieces into a single map for sending
@@ -551,14 +544,12 @@ let send_state =
   let payload_size = json_str##.length;
   let size_kb = float_of_int(payload_size) /. 1024.0;
   let size_kb_str = Js.number_of_float(size_kb)##toFixed(2) |> Js.to_string;
-  Firebug.console##log(
-    Js.string(
-      "[PERF] Payload size: "
-      ++ string_of_int(payload_size)
-      ++ " bytes ("
-      ++ size_kb_str
-      ++ " KB)",
-    ),
+  PerfLog.log(
+    "Payload size: "
+    ++ string_of_int(payload_size)
+    ++ " bytes ("
+    ++ size_kb_str
+    ++ " KB)",
   );
 
   PerfLog.measure("postMessage_send", () => send_to_parent(js_obj));
