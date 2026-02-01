@@ -44,12 +44,24 @@ export interface Pong {
 }
 
 /**
- * The main sync message - contains full document state.
- * Currently uses full-state sync (not diff-based).
+ * The main sync message - contains document state delta.
+ *
+ * - `state`: Changed/added pieces (partial HazelDoc with only affected pieces)
+ * - `deleted`: IDs of pieces to remove from Automerge
+ *
+ * Why explicit deletion? Hazel uses a tree structure where deleted pieces
+ * simply disappear. Automerge uses a flat map where pieces persist unless
+ * explicitly removed. Without explicit deletion, deleted pieces become
+ * "orphans" in Automerge, causing undo/redo sync to fail: when undo restores
+ * a piece, it's already in Automerge (unchanged), so it's not forwarded to
+ * other clients, who then crash when the parent references a missing piece.
+ *
+ * See docs/patchwork-integration.md "Explicit Deletion Sync" for details.
  */
 export interface EditorState {
   t: "state";
   state: HazelDoc;
+  deleted?: string[];
 }
 
 /**

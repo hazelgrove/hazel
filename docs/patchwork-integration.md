@@ -189,9 +189,9 @@ Segment: `[foo, ·, 333, ·, bar]`
 1. User types in Hazel iframe
 2. `SyncReplace.send_state()` called after action completes
 3. `FlatConvert.seg_to_doc()` converts both old and new Segment → flat Doc
-4. `PatchworkComm.compute_delta()` finds changed/added pieces
-5. Only affected pieces sent via PostMessage (delta, not full state)
-6. Parent's `tool.tsx` updates Automerge document with changed pieces
+4. `PatchworkComm.compute_delta()` finds changed, added, and **deleted** pieces
+5. Delta sent via PostMessage: affected pieces + deleted IDs
+6. Parent's `tool.tsx` updates Automerge: adds/changes pieces, **deletes removed pieces**
 7. Automerge syncs to other clients
 
 ### Remote edit → apply locally:
@@ -205,6 +205,53 @@ Segment: `[foo, ·, 333, ·, bar]`
 7. Editor re-renders with preserved caret position
 
 **Note:** The `useEffect[doc]` in tool.tsx only handles changes AFTER initialization. Initial state is sent exclusively through the `init` handler to ensure the iframe is ready to receive it.
+
+## Explicit Deletion Sync
+
+### The Problem: Tree vs Flat Map Mismatch
+
+Hazel internally uses a **tree** structure where pieces are nested inside parent tiles. When a piece is deleted (e.g., cut), it simply disappears from the tree—there's no trace of it.
+
+Automerge stores a **flat map** of all pieces, keyed by UUID. If we only send changed/added pieces, deleted pieces remain in Automerge as "orphans"—still present but unreferenced by any parent.
+
+This mismatch causes problems for undo/redo sync:
+
+1. User A cuts a piece → piece becomes orphan in Automerge (still exists, just unreferenced)
+2. User A undoes → piece is "restored" in Hazel's tree
+3. When syncing to User B: the parent tile changed (its children array now references the piece again), but the piece itself is unchanged in Automerge
+4. tool.tsx compares with previous Automerge state, sees no change to the piece, doesn't forward it
+5. User B's Hazel crashes: parent references a piece that wasn't included in the delta
+
+### The Solution: Explicit Deletion
+
+The `state` message includes a `deleted` field listing piece IDs to remove from Automerge:
+
+```typescript
+interface EditorState {
+  t: "state";
+  state: HazelDoc;      // Changed/added pieces
+  deleted?: string[];   // IDs of pieces to remove
+}
+```
+
+This keeps Automerge in sync with Hazel's tree: when pieces are deleted in Hazel, they're also deleted from Automerge. Undo then "re-adds" them as genuinely new pieces, triggering proper delta detection.
+
+### How Deletion is Computed
+
+In `PatchworkComm.re`, `compute_delta` compares old and new flat docs:
+
+```reason
+// Find deleted pieces
+old_doc
+|> Id.Map.iter((id, _) => {
+     switch (Id.Map.find_opt(id, new_doc)) {
+     | None => deleted := [id, ...deleted^]  // In old, not in new → deleted
+     | Some(_) => ()
+     }
+   });
+```
+
+The key insight: `FlatConvert.seg_to_doc` only includes pieces **reachable** from the tree root. When you cut something, it's removed from the segment, so it's not in the new flat doc, so it appears in `deleted`.
 
 ## Echo Loop Prevention
 
@@ -347,7 +394,6 @@ patchwork push
 - Caret position can be disrupted when subterm containing caret is deleted
 - No divergence recovery mechanism (if clients diverge, delta sync won't reconcile)
 - Remote carets not cleaned up on peer disconnect (ghost carets accumulate when users refresh)
-- **Undo/redo sync partial:** Undo/redo actions now sync to other clients via `PatchworkUndoSync`, but there's a known bug where the receiver can crash with `"Piece not found"` exception during `sync_replace`. This happens when the delta references pieces that aren't in the merged doc. The issue appears intermittently, possibly related to how pieces are restored after deletion. Investigation needed in `FlatConvert.doc_to_seg` and delta computation.
 
 ### patchwork-extra/hazel Dependency
 

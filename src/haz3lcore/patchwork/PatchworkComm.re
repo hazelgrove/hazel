@@ -229,7 +229,8 @@ module JsConvert = {
     };
   };
 
-  let js_of_flatdoc = (map: FlatConvert.Doc.t): Ojs.t => {
+  let js_of_flatdoc =
+      (~deleted: list(Id.t)=[], map: FlatConvert.Doc.t): Ojs.t => {
     // Create empty JS object for pieces map
     let pieces_obj = Ojs.empty_obj();
     let pieces =
@@ -249,10 +250,21 @@ module JsConvert = {
 
     let state =
       FlatDoc.HazelDoc.AnonymousInterface2.create(~title="", ~pieces, ());
-    EditorState.t_to_js(EditorState.create(~t=`L_s8_state, ~state, ()));
+
+    // Convert deleted IDs to string list for JS
+    let deleted_strs = List.map(Id.to_string, deleted);
+
+    EditorState.t_to_js(
+      EditorState.create(~t=`L_s8_state, ~state, ~deleted=deleted_strs, ()),
+    );
   };
 
-  // Compute delta between old and new flat docs using structural equality
+  /* Compute delta between old and new flat docs using structural equality.
+
+     The deleted list is critical: Hazel's tree structure means deleted pieces
+     simply disappear, but Automerge's flat map keeps pieces until explicitly
+     removed. Without explicit deletion, deleted pieces become "orphans" in
+     Automerge, breaking undo/redo sync. See docs/patchwork-integration.md. */
   type delta = {
     changed: Id.Map.t(FlatConvert.Flat.piece),
     added: Id.Map.t(FlatConvert.Flat.piece),
@@ -529,14 +541,13 @@ let send_state =
   );
 
   // Combine changed and added pieces into a single map for sending
-  // (deletions work implicitly via parent's children array changes)
   let affected_pieces =
     Id.Map.union((_, _, b) => Some(b), delta.changed, delta.added);
 
-  // Convert to JS using existing state format: { t: "state", state: { title, pieces } }
+  // Convert to JS with deleted IDs included
   let js_obj =
     PerfLog.measure("js_of_state", () =>
-      JsConvert.js_of_flatdoc(affected_pieces)
+      JsConvert.js_of_flatdoc(~deleted=delta.deleted, affected_pieces)
     );
 
   // Measure payload size
