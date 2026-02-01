@@ -26,12 +26,14 @@ The integration uses an **iframe-based architecture** with three parts:
 ### The Three Parts
 
 1. **`embed/` directory (this repo)** - npm package `@hazelgrove/hazel-embed`
+
    - `HazelEmbed.tsx` - React component that creates the iframe and handles PostMessage
    - Verifies message source to only accept messages from its own iframe
    - `flatdoc.d.ts` / `patchworkmessages.d.ts` - TypeScript types (source of truth for OCaml types)
    - Used by any app that wants to embed Hazel with sync support
 
 2. **`src/haz3lcore/patchwork/` (this repo)** - OCaml code running inside the iframe
+
    - `PatchworkComm.re` - PostMessage communication and type conversion
    - `FlatConvert.re` - Converts between Hazel's tree AST and flat sync format
    - `SyncReplace.re` - Applies remote state while preserving caret position
@@ -53,12 +55,12 @@ The map-based schema (changed from array in Jan 2026) enables O(1) Automerge upd
 
 Communication uses PostMessage with these message types:
 
-| Message | Direction        | Purpose                                      |
-| ------- | ---------------- | -------------------------------------------- |
-| `init`  | Iframe → Parent  | Iframe signals readiness, triggers state send |
-| `ping`  | Both             | Connection testing                           |
-| `pong`  | Both             | Ping response                                |
-| `state` | Both             | Document sync (full state or delta)          |
+| Message | Direction       | Purpose                                       |
+| ------- | --------------- | --------------------------------------------- |
+| `init`  | Iframe → Parent | Iframe signals readiness, triggers state send |
+| `ping`  | Both            | Connection testing                            |
+| `pong`  | Both            | Ping response                                 |
+| `state` | Both            | Document sync (full state or delta)           |
 
 ### Initialization Sequence
 
@@ -165,15 +167,15 @@ foo · 333 · bar
 
 Segment: `[foo, ·, 333, ·, bar]`
 
-| Visual        | Piece you're on  | caretOffset | side    |
-| ------------- | ---------------- | ----------- | ------- |
-| `│foo · 333`  | `foo`            | 0           | `left`  |
-| `foo│· 333`   | `·` (whitespace) | 0           | `left`  |
-| `foo ·│333`   | `333`            | 0           | `left`  |
-| `foo ·3│33`   | `333`            | 1           | `null`  |
-| `foo ·33│3`   | `333`            | 2           | `null`  |
-| `foo ·333│·`  | `·` (whitespace) | 0           | `left`  |
-| `foo · 333│`  | `333` (last)     | 0           | `right` |
+| Visual       | Piece you're on  | caretOffset | side    |
+| ------------ | ---------------- | ----------- | ------- |
+| `│foo · 333` | `foo`            | 0           | `left`  |
+| `foo│· 333`  | `·` (whitespace) | 0           | `left`  |
+| `foo ·│333`  | `333`            | 0           | `left`  |
+| `foo ·3│33`  | `333`            | 1           | `null`  |
+| `foo ·33│3`  | `333`            | 2           | `null`  |
+| `foo ·333│·` | `·` (whitespace) | 0           | `left`  |
+| `foo · 333│` | `333` (last)     | 0           | `right` |
 
 ## Data Flow
 
@@ -229,8 +231,8 @@ The `state` message includes a `deleted` field listing piece IDs to remove from 
 ```typescript
 interface EditorState {
   t: "state";
-  state: HazelDoc;      // Changed/added pieces
-  deleted?: string[];   // IDs of pieces to remove
+  state: HazelDoc; // Changed/added pieces
+  deleted?: string[]; // IDs of pieces to remove
 }
 ```
 
@@ -256,11 +258,13 @@ The key insight: `FlatConvert.seg_to_doc` only includes pieces **reachable** fro
 ## Echo Loop Prevention
 
 When the local user edits, Hazel sends state to Patchwork, which updates Automerge, which triggers a change event. Without protection, this change event would send state back to the originating iframe, causing an echo loop with symptoms like:
+
 - Rapid typing causes edits to appear out of order
 - Cursor jumps unexpectedly
 - `sync_replace` called on the sender (should only happen on receiver)
 
 The fix uses `isUpdatingFromIframe` ref in tool.tsx:
+
 1. Set flag `true` before `handle.change()`
 2. Check flag at start of change listener - if true, skip and reset flag
 3. Use `queueMicrotask` to reset flag after async change events
@@ -429,9 +433,29 @@ This would prevent remote state from overwriting local projector state, but the 
 ### Caret Sync Improvements
 
 - **Debounce outgoing caret messages** (50ms threshold)
-- **Sync selection ranges** (highlight what others have selected)
-- ~~**Clean up stale remote carets on peer disconnect**~~: DONE. Remote carets are now keyed by persistent `userId` (from the broadcast message) instead of ephemeral `senderId`. This ensures logged-in users who refresh replace their old caret rather than creating a duplicate. Additionally, carets not updated within 3 minutes are automatically removed via timeout cleanup. Note: Anonymous users (who get a new random ID each session) may still briefly see duplicate carets until the stale one times out.
-- ~~**Optimize remote caret forwarding in tool.tsx**~~: DONE. Carets are now forwarded directly to the iframe in the ephemeral message handler, avoiding the previous pattern of storing all carets in state and re-forwarding all on every change. State is still maintained for the iframe init/reload case.
+
+### Remote Selection Rendering
+
+Display other users' selections (highlighted in their caret color). This is optional/nice-to-have.
+
+**Wire protocol**: Extend remote caret messages to include selection endpoints:
+
+- `selection_start_id`, `selection_start_shards` (leftmost piece of selection)
+- `selection_end_id`, `selection_end_shards` (rightmost piece of selection)
+- Send `null` for both when no selection
+
+**Rendering challenge**: `Highlight.of_segment` needs a `Segment.t`, not just endpoint IDs. For local selection, `z.selection.content` is readily available. For remote selections, we must extract the sub-segment between the endpoints, which requires traversing the segment tree (O(n), potentially into nested tile children).
+
+**Recommended approach - cached extraction**:
+
+1. When remote selection message arrives, traverse segment to extract sub-segment between endpoints
+2. Cache the extracted segment (or list of piece IDs) keyed by user ID
+3. On each render, use cached segment with `Highlight.of_segment`
+4. Invalidate cache when document structure changes via sync
+
+This amortizes O(n) traversal—only happens when remote user changes selection, not on every local keystroke.
+
+**Alternative**: Integrate selection tracking into existing render traversal (track "am I between start/end ID?" as we iterate). Avoids separate traversal but requires refactoring decoration rendering.
 
 ### Performance
 
@@ -442,7 +466,6 @@ This would prevent remote state from overwriting local projector state, but the 
 
 ### Sync Lifecycle & Recovery
 
-- **Preserve local selection during sync**: Currently, incoming remote edits wipe out the local user's selection. The `sync_replace` routine restores cursor position but not selection state. We should save the selection content/range before applying remote changes and restore it afterward (adjusting for any structural changes that may have affected the selected region).
 - **Divergence recovery**: If clients diverge (network partition, bugs), delta sync won't reconcile them. Options: periodic full sync, checksum comparison, manual resync button.
 - **Full-replace mode for initial state**: Current SyncReplace always merges; initial load might benefit from full replacement.
 
