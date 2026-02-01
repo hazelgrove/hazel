@@ -19,7 +19,8 @@ module Model = {
   let init = {
     captions: true,
     secondary_icons: false,
-    zen: true,
+    /* Zen mode on by default in Patchwork iframe, off otherwise */
+    zen: Haz3lcore.PatchworkComm.is_in_iframe(),
     core: {
       statics: true,
       elaborate: false,

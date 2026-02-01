@@ -1,9 +1,5 @@
 import React, { useEffect, useRef, useCallback } from "react";
-import type {
-  HazelToParent,
-  ParentToHazel,
-  EditorState,
-} from "../types/patchworkmessages";
+import type { HazelToParent, ParentToHazel } from "../types/patchworkmessages";
 
 /**
  * Retrieves a query parameter from the URL
@@ -85,21 +81,6 @@ const HazelEmbed: React.FC<HazelEmbedProps> = ({
       if (event.data?.source?.includes("react")) return;
 
       const hazelMessage = event.data as HazelToParent;
-
-      // Log when we receive message from iframe (before passing to Patchwork)
-      if (hazelMessage.t === "state") {
-        const timestamp = performance.now();
-        const payloadSize = JSON.stringify(hazelMessage).length;
-        const sizeKB = (payloadSize / 1024).toFixed(2);
-        console.log(`[PERF] Received state from iframe ${instanceId} at ${timestamp.toFixed(2)}ms (${payloadSize} bytes / ${sizeKB} KB)`);
-        // Store timestamp for calculating round-trip time
-        (window as any).__hazelEmbedLastReceive = {
-          timestamp,
-          instanceId,
-          payloadSize,
-        };
-      }
-
       onMessage(hazelMessage, instanceId);
     };
 
@@ -113,44 +94,10 @@ const HazelEmbed: React.FC<HazelEmbedProps> = ({
   const sendMessage = useCallback(
     (message: ParentToHazel) => {
       if (hazelRef.current) {
-        // Convert state messages from HazelDoc to InternalHazelDoc format
-        if (message.t === "state") {
-          const sendTimestamp = performance.now();
-          const payloadSize = JSON.stringify(message).length;
-          const sizeKB = (payloadSize / 1024).toFixed(2);
-          console.log(`[PERF] Sending state to iframe ${instanceId} at ${sendTimestamp.toFixed(2)}ms (${payloadSize} bytes / ${sizeKB} KB)`);
-
-          // Calculate time spent in parent app (Patchwork/Automerge)
-          const lastReceive = (window as any).__hazelEmbedLastReceive;
-          if (lastReceive && lastReceive.instanceId !== instanceId) {
-            const parentProcessingTime = sendTimestamp - lastReceive.timestamp;
-            console.log(`[PERF] ⚠️  PARENT PROCESSING TIME: ${parentProcessingTime.toFixed(2)}ms (from ${lastReceive.instanceId} -> ${instanceId})`);
-            console.log({
-              type: 'parent-processing',
-              fromInstance: lastReceive.instanceId,
-              toInstance: instanceId,
-              duration_ms: parentProcessingTime,
-              receivedAt: lastReceive.timestamp,
-              sentAt: sendTimestamp,
-              inputPayloadBytes: lastReceive.payloadSize,
-              outputPayloadBytes: payloadSize,
-            });
-          }
-
-          const convertedMessage: EditorState = {
-            t: "state",
-            state: message.state,
-          };
-          sendToHazel(hazelRef.current, convertedMessage);
-        } else {
-          // Pass through other message types unchanged
-          sendToHazel(hazelRef.current, message);
-        }
-      } else {
-        console.error("Hazel iframe is not available.");
+        sendToHazel(hazelRef.current, message);
       }
     },
-    [instanceId],
+    [],
   );
 
   // Register the sendMessage function with the parent component

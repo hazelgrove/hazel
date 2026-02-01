@@ -314,3 +314,11 @@ let send_caret = (a: Action.t, z: Zipper.t): unit =>
     | None => ()
     };
   };
+
+/* Sync state and caret to Patchwork parent after an edit.
+   Only call this when running inside Patchwork iframe. */
+let sync_to_parent =
+    (~action: Action.t, ~old_zipper: Zipper.t, ~new_zipper: Zipper.t): unit => {
+  send_state(action, old_zipper, new_zipper);
+  send_caret(action, new_zipper);
+};

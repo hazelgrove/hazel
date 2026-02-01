@@ -384,8 +384,17 @@ let listen = (schedule_action: Action.t => unit): unit => {
     let from_self: bool =
       Js.Unsafe.get(ev, "source") |> Js.equals(Dom_html.window);
 
+    /* Wrap in try/catch to gracefully handle unknown message types.
+       Other scripts (browser extensions, Patchwork internals) may send
+       postMessages that don't match our protocol. */
     let msg: option(ParentToHazel.t) =
-      from_self ? None : Ojs.option_of_js(ParentToHazel.t_of_js, dataJs);
+      if (from_self) {
+        None;
+      } else {
+        try(Some(ParentToHazel.t_of_js(dataJs))) {
+        | _ => None
+        };
+      };
 
     switch (msg) {
     | Some(msg) =>

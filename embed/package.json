@@ -38,10 +38,7 @@
     "type": "npm run type:patchworkmessages && npm run type:flatdoc",
     "style": "prettier --write ."
   },
-  "dependencies": {
-    "react-d3-tree": "^3.6.6",
-    "react-icons": "^5.5.0"
-  },
+  "dependencies": {},
   "peerDependencies": {
     "react": "^18.0.0 || ^19.0.0",
     "react-dom": "^18.0.0 || ^19.0.0"
@@ -51,7 +48,6 @@
     "@types/react": "^19.1.8",
     "@types/react-dom": "^19.1.6",
     "@vitejs/plugin-react": "^4.6.0",
-    "globals": "^16.3.0",
     "prettier": "^3.6.2",
     "tsx": "^4.20.3",
     "typescript": "~5.8.3",

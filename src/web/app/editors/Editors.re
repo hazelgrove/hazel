@@ -450,79 +450,77 @@ module View = {
     };
 
   let top_bar =
-      (~globals: Globals.t, ~inject: Update.t => 'a, ~editors: Model.t) => {
-    /* In Patchwork mode, hide the mode switcher since only Scratch mode
-       is supported (other modes aren't synced via Automerge). */
-    let mode_menu =
-      if (Haz3lcore.PatchworkComm.is_in_iframe()) {
-        [];
-      } else {
-        [
-          text("/"),
-          div(
-            ~attrs=[Attr.class_("mode-name"), Attr.title("Toggle Mode")],
-            [
-              select(
-                ~attrs=[
-                  Attr.on_change(_ =>
-                    fun
-                    | "Scratch" => inject(Update.SwitchMode(Scratch))
-                    | "Documentation" =>
-                      inject(Update.SwitchMode(Documentation))
-                    | "Tutorial" => inject(Update.SwitchMode(Tutorial))
-                    | "Exercises" => inject(Update.SwitchMode(Exercises))
-                    | _ => failwith("Invalid mode")
-                  ),
-                ],
-                List.map(
-                  s =>
-                    EditorModeView.option_view(
-                      (
-                        switch (editors) {
-                        | Scratch(_) => "Scratch"
-                        | Documentation(_) => "Documentation"
-                        | Tutorial(_) => "Tutorial"
-                        | Exercises(_) => "Exercises"
-                        }
-                      )
-                      == s,
-                      s,
-                    ),
-                  ["Scratch", "Documentation", "Tutorial", "Exercises"],
+      (~globals: Globals.t, ~inject: Update.t => 'a, ~editors: Model.t) =>
+    /* In Patchwork mode, hide the mode switcher and mode-specific contents
+       since only Scratch mode is supported (other modes aren't synced via Automerge). */
+    if (Haz3lcore.PatchworkComm.is_in_iframe()) {
+      div(~attrs=[Attr.id("editor-mode")], []);
+    } else {
+      let mode_menu = [
+        text("/"),
+        div(
+          ~attrs=[Attr.class_("mode-name"), Attr.title("Toggle Mode")],
+          [
+            select(
+              ~attrs=[
+                Attr.on_change(_ =>
+                  fun
+                  | "Scratch" => inject(Update.SwitchMode(Scratch))
+                  | "Documentation" =>
+                    inject(Update.SwitchMode(Documentation))
+                  | "Tutorial" => inject(Update.SwitchMode(Tutorial))
+                  | "Exercises" => inject(Update.SwitchMode(Exercises))
+                  | _ => failwith("Invalid mode")
                 ),
+              ],
+              List.map(
+                s =>
+                  EditorModeView.option_view(
+                    (
+                      switch (editors) {
+                      | Scratch(_) => "Scratch"
+                      | Documentation(_) => "Documentation"
+                      | Tutorial(_) => "Tutorial"
+                      | Exercises(_) => "Exercises"
+                      }
+                    )
+                    == s,
+                    s,
+                  ),
+                ["Scratch", "Documentation", "Tutorial", "Exercises"],
               ),
-            ],
-          ),
-          text("/"),
-        ];
-      };
-    let contents =
-      switch (editors) {
-      | Scratch(m) =>
-        ScratchMode.View.top_bar(
-          ~globals,
-          ~inject=a => Update.Scratch(a) |> inject,
-          m,
-        )
-      | Documentation(m) =>
-        ScratchMode.View.top_bar(
-          ~globals,
-          ~inject=a => Update.Scratch(a) |> inject,
-          m,
-        )
-      | Tutorial(m) =>
-        TutorialsMode.View.top_bar(
-          ~globals,
-          ~inject=a => Update.Tutorial(a) |> inject,
-          m,
-        )
-      | Exercises(m) =>
-        ExercisesMode.View.top_bar(
-          ~globals,
-          ~inject=a => Update.Exercises(a) |> inject,
-          m,
-        )
-      };
-    div(~attrs=[Attr.id("editor-mode")], mode_menu @ contents);
-  };
+            ),
+          ],
+        ),
+        text("/"),
+      ];
+      let contents =
+        switch (editors) {
+        | Scratch(m) =>
+          ScratchMode.View.top_bar(
+            ~globals,
+            ~inject=a => Update.Scratch(a) |> inject,
+            m,
+          )
+        | Documentation(m) =>
+          ScratchMode.View.top_bar(
+            ~globals,
+            ~inject=a => Update.Scratch(a) |> inject,
+            m,
+          )
+        | Tutorial(m) =>
+          TutorialsMode.View.top_bar(
+            ~globals,
+            ~inject=a => Update.Tutorial(a) |> inject,
+            m,
+          )
+        | Exercises(m) =>
+          ExercisesMode.View.top_bar(
+            ~globals,
+            ~inject=a => Update.Exercises(a) |> inject,
+            m,
+          )
+        };
+      div(~attrs=[Attr.id("editor-mode")], mode_menu @ contents);
+    };
 };
