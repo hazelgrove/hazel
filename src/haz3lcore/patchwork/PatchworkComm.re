@@ -336,40 +336,11 @@ module JsConvert = {
 
   let compute_delta =
       (old_doc: FlatConvert.Doc.t, new_doc: FlatConvert.Doc.t): delta => {
-    // Debug: log doc contents for small docs
-    let old_count = Id.Map.cardinal(old_doc);
-    let new_count = Id.Map.cardinal(new_doc);
-    if (old_count <= 10 && new_count <= 10) {
-      let id_list = (doc: FlatConvert.Doc.t): string =>
-        doc
-        |> Id.Map.bindings
-        |> List.map(((id, _)) => Id.to_string(id))
-        |> String.concat(", ");
-      Firebug.console##log(
-        Js.string(
-          "[DELTA] old_doc ("
-          ++ string_of_int(old_count)
-          ++ "): ["
-          ++ id_list(old_doc)
-          ++ "]",
-        ),
-      );
-      Firebug.console##log(
-        Js.string(
-          "[DELTA] new_doc ("
-          ++ string_of_int(new_count)
-          ++ "): ["
-          ++ id_list(new_doc)
-          ++ "]",
-        ),
-      );
-    };
-
     let changed = ref(Id.Map.empty);
     let added = ref(Id.Map.empty);
     let deleted = ref([]);
 
-    // Debug: log doc sizes and all piece IDs
+    // Debug: log doc sizes and all piece IDs for small docs
     let old_count = Id.Map.cardinal(old_doc);
     let new_count = Id.Map.cardinal(new_doc);
     if (old_count <= 15 && new_count <= 15) {
