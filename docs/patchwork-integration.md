@@ -206,6 +206,20 @@ Segment: `[foo, ·, 333, ·, bar]`
 
 **Note:** The `useEffect[doc]` in tool.tsx only handles changes AFTER initialization. Initial state is sent exclusively through the `init` handler to ensure the iframe is ready to receive it.
 
+## Echo Loop Prevention
+
+When the local user edits, Hazel sends state to Patchwork, which updates Automerge, which triggers a change event. Without protection, this change event would send state back to the originating iframe, causing an echo loop with symptoms like:
+- Rapid typing causes edits to appear out of order
+- Cursor jumps unexpectedly
+- `sync_replace` called on the sender (should only happen on receiver)
+
+The fix uses `isUpdatingFromIframe` ref in tool.tsx:
+1. Set flag `true` before `handle.change()`
+2. Check flag at start of change listener - if true, skip and reset flag
+3. Use `queueMicrotask` to reset flag after async change events
+
+If echo symptoms recur, check that all three parts are in place in tool.tsx.
+
 ## Directory Structure
 
 ### Hazel repo (this repo)
@@ -223,8 +237,7 @@ src/haz3lcore/patchwork/
 embed/
 ├── src/
 │   ├── components/
-│   │   ├── HazelEmbed.tsx # React component for embedding
-│   │   └── DocGraph.tsx   # Debug visualization
+│   │   └── HazelEmbed.tsx # React component for embedding
 │   ├── types/
 │   │   ├── flatdoc.d.ts   # TypeScript types (source of truth)
 │   │   └── patchworkmessages.d.ts
@@ -366,9 +379,40 @@ This would prevent remote state from overwriting local projector state, but the 
 
 ## Future Work
 
-See `plan/patchwork-future.md` for planned improvements:
+### Caret Sync Improvements
 
-- Debounce caret messages, selection sync, stale caret cleanup
-- Cache flat doc to avoid re-conversion on every edit
-- Divergence recovery mechanism
-- Refractor sync (for collaborative debugging)
+- **Debounce outgoing caret messages** (50ms threshold)
+- **Sync selection ranges** (highlight what others have selected)
+- **Clean up stale remote carets on peer disconnect**: When a user refreshes, they get a new `senderId`. The old caret is never removed, so ghost carets accumulate. Fix by listening for Automerge peer disconnect events or implementing timeout-based cleanup.
+- **Optimize remote caret forwarding in tool.tsx**: Currently stores all carets in state and re-forwards all on each change. Should forward directly in ephemeral message handler.
+
+### Performance
+
+- **Cache old flat doc**: Currently `old_zipper → flat_doc` conversion happens on every send. Store last sent flat_doc in syntax cache to eliminate one `seg_to_doc` call per edit.
+- **Profile and optimize `FlatConvert`** for large documents
+- **Dirty-tracking instead of full diff**: Track which pieces changed during edit, send O(k) delta where k = changed pieces
+- **Cursor repositioning O(n) → O(log n)**: After receiving remote edit, `move_to_id` does linear scan from document start. Build ID→path index during `doc_to_seg`, then construct zipper directly at target position.
+
+### Sync Lifecycle & Recovery
+
+- **Divergence recovery**: If clients diverge (network partition, bugs), delta sync won't reconcile them. Options: periodic full sync, checksum comparison, manual resync button.
+- **Full-replace mode for initial state**: Current SyncReplace always merges; initial load might benefit from full replacement.
+
+### Security
+
+- **Restrict PostMessage origin** (currently uses `"*"`)
+- **Validate incoming messages more strictly**
+
+### Atomic Pieces (Automerge Optimization)
+
+Automerge decomposes nested objects into field-level CRDT operations. Setting one piece generates 20-30 patches (one per field). A potential optimization is to store pieces as JSON strings:
+
+```typescript
+// Current (field-level CRDT):
+d.pieces[id] = { id, label, mold, children, ... };  // 20-30 ops
+
+// Alternative (atomic):
+d.pieces[id] = JSON.stringify({ id, label, mold, children, ... });  // 1 op
+```
+
+Trade-off: Lose field-level conflict resolution (concurrent edits to same piece → last-writer-wins), but this is likely acceptable since the probability of two users editing the same piece simultaneously is low. See [CloudKitchens blog](https://techblog.cloudkitchens.com/p/protocol-buffer-crdts-outperforming) for a similar approach.
