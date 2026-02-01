@@ -107,7 +107,53 @@ module JsConvert = {
       (),
     );
 
-  let of_tile = (tile: FlatConvert.Flat.tile): FlatDoc.FlatTile.t =>
+  /* Validate tile structure: for a complete tile, len(children) = len(shards) - 1.
+     For incomplete tiles (fragments), the relationship may differ.
+     Log warnings for debugging sync issues with multi-delimiter forms. */
+  let validate_tile_structure =
+      (
+        ~context: string,
+        ~id: Id.t,
+        ~label: Label.t,
+        ~shards: list(int),
+        ~children: list('a),
+      )
+      : unit => {
+    let num_shards = List.length(shards);
+    let num_children = List.length(children);
+    let expected_children = max(0, num_shards - 1);
+    if (num_children != expected_children && num_shards > 0) {
+      Firebug.console##warn(
+        Js.string(
+          "[SYNC DEBUG] "
+          ++ context
+          ++ " tile structure mismatch: id="
+          ++ Id.to_string(id)
+          ++ " label="
+          ++ String.concat(",", label)
+          ++ " shards="
+          ++ string_of_int(num_shards)
+          ++ " (indices: "
+          ++ String.concat(",", List.map(string_of_int, shards))
+          ++ ")"
+          ++ " children="
+          ++ string_of_int(num_children)
+          ++ " (expected "
+          ++ string_of_int(expected_children)
+          ++ ")",
+        ),
+      );
+    };
+  };
+
+  let of_tile = (tile: FlatConvert.Flat.tile): FlatDoc.FlatTile.t => {
+    validate_tile_structure(
+      ~context="SEND",
+      ~id=tile.id,
+      ~label=tile.label,
+      ~shards=tile.shards,
+      ~children=tile.children,
+    );
     FlatDoc.FlatTile.create(
       ~t=`L_s11_Tile,
       ~id=Id.to_string(tile.id),
@@ -117,6 +163,7 @@ module JsConvert = {
       ~children=tile.children |> List.map(List.map(Id.to_string)),
       (),
     );
+  };
 
   let of_projector =
       (proj: FlatConvert.Flat.projector): FlatDoc.FlatProjector.t =>
@@ -177,13 +224,26 @@ module JsConvert = {
     }
   and to_tile: FlatDoc.FlatTile.t => FlatConvert.Flat.tile =
     tile => {
-      id: Id.of_string(FlatDoc.FlatTile.get_id(tile)) |> Option.get,
-      label: FlatDoc.FlatTile.get_label(tile),
-      mold: to_mold(FlatDoc.FlatTile.get_mold(tile)),
-      shards: FlatDoc.FlatTile.get_shards(tile),
-      children:
+      let id = Id.of_string(FlatDoc.FlatTile.get_id(tile)) |> Option.get;
+      let label = FlatDoc.FlatTile.get_label(tile);
+      let shards = FlatDoc.FlatTile.get_shards(tile);
+      let children =
         FlatDoc.FlatTile.get_children(tile)
-        |> List.map(List.map(id => Id.of_string(id) |> Option.get)),
+        |> List.map(List.map(id_str => Id.of_string(id_str) |> Option.get));
+      validate_tile_structure(
+        ~context="RECV",
+        ~id,
+        ~label,
+        ~shards,
+        ~children,
+      );
+      {
+        id,
+        label,
+        mold: to_mold(FlatDoc.FlatTile.get_mold(tile)),
+        shards,
+        children,
+      };
     }
   and to_secondary: FlatDoc.Secondary.t => Secondary.t =
     secondary => {
@@ -276,9 +336,91 @@ module JsConvert = {
 
   let compute_delta =
       (old_doc: FlatConvert.Doc.t, new_doc: FlatConvert.Doc.t): delta => {
+    // Debug: log doc contents for small docs
+    let old_count = Id.Map.cardinal(old_doc);
+    let new_count = Id.Map.cardinal(new_doc);
+    if (old_count <= 10 && new_count <= 10) {
+      let id_list = (doc: FlatConvert.Doc.t): string =>
+        doc
+        |> Id.Map.bindings
+        |> List.map(((id, _)) => Id.to_string(id))
+        |> String.concat(", ");
+      Firebug.console##log(
+        Js.string(
+          "[DELTA] old_doc ("
+          ++ string_of_int(old_count)
+          ++ "): ["
+          ++ id_list(old_doc)
+          ++ "]",
+        ),
+      );
+      Firebug.console##log(
+        Js.string(
+          "[DELTA] new_doc ("
+          ++ string_of_int(new_count)
+          ++ "): ["
+          ++ id_list(new_doc)
+          ++ "]",
+        ),
+      );
+    };
+
     let changed = ref(Id.Map.empty);
     let added = ref(Id.Map.empty);
     let deleted = ref([]);
+
+    // Debug: log doc sizes and all piece IDs
+    let old_count = Id.Map.cardinal(old_doc);
+    let new_count = Id.Map.cardinal(new_doc);
+    if (old_count <= 15 && new_count <= 15) {
+      let id_list = (doc: FlatConvert.Doc.t): string =>
+        doc
+        |> Id.Map.bindings
+        |> List.map(((id, _)) => Id.to_string(id))
+        |> String.concat(", ");
+      Firebug.console##log(
+        Js.string(
+          "[DELTA] old_doc ("
+          ++ string_of_int(old_count)
+          ++ " pieces): ["
+          ++ id_list(old_doc)
+          ++ "]",
+        ),
+      );
+      Firebug.console##log(
+        Js.string(
+          "[DELTA] new_doc ("
+          ++ string_of_int(new_count)
+          ++ " pieces): ["
+          ++ id_list(new_doc)
+          ++ "]",
+        ),
+      );
+    };
+
+    // Helper for debug logging
+    let piece_debug = (piece: FlatConvert.Flat.piece): string =>
+      switch (piece) {
+      | Tile({id, label, shards, children, _}) =>
+        let children_str =
+          children
+          |> List.map(seg =>
+               "[" ++ String.concat(",", List.map(Id.to_string, seg)) ++ "]"
+             )
+          |> String.concat(";");
+        "Tile(id="
+        ++ Id.to_string(id)
+        ++ ",label=["
+        ++ String.concat(",", label)
+        ++ "],shards=["
+        ++ String.concat(",", List.map(string_of_int, shards))
+        ++ "],children=["
+        ++ children_str
+        ++ "])";
+      | Grout({id, _}) => "Grout(" ++ Id.to_string(id) ++ ")"
+      | Secondary({id, _}) => "Secondary(" ++ Id.to_string(id) ++ ")"
+      | Projector({id, _}) => "Projector(" ++ Id.to_string(id) ++ ")"
+      };
 
     // Find changed and added pieces
     new_doc
@@ -288,10 +430,31 @@ module JsConvert = {
            // Piece is new
            added := Id.Map.add(id, new_piece, added^)
          | Some(old_piece) =>
-           // Piece exists, check if changed using structural equality
+           // Debug: log ALL pieces for small docs
+           if (old_count <= 10 && new_count <= 10) {
+             let phys_eq = old_piece === new_piece;
+             let struct_eq = old_piece == new_piece;
+             Firebug.console##log(
+               Js.string(
+                 "[DELTA] Piece "
+                 ++ Id.to_string(id)
+                 ++ ": phys_eq="
+                 ++ string_of_bool(phys_eq)
+                 ++ " struct_eq="
+                 ++ string_of_bool(struct_eq),
+               ),
+             );
+             Firebug.console##log(
+               Js.string("  old: " ++ piece_debug(old_piece)),
+             );
+             Firebug.console##log(
+               Js.string("  new: " ++ piece_debug(new_piece)),
+             );
+           };
+           // Piece exists, check if changed using structural inequality
            if (old_piece != new_piece) {
              changed := Id.Map.add(id, new_piece, changed^);
-           }
+           };
          }
        });
 
@@ -503,6 +666,53 @@ let listen = (schedule_action: Action.t => unit): unit => {
           "Received delta with " ++ string_of_int(num_entries) ++ " pieces",
         );
 
+        // Debug: log detailed receive info for small deltas
+        if (num_entries > 0 && num_entries <= 10) {
+          let piece_summary = (piece: FlatConvert.Flat.piece): string =>
+            switch (piece) {
+            | Tile({id, label, shards, children, _}) =>
+              "Tile(id="
+              ++ Id.to_string(id)
+              ++ ", label=["
+              ++ String.concat(",", label)
+              ++ "], shards=["
+              ++ String.concat(",", List.map(string_of_int, shards))
+              ++ "], children="
+              ++ string_of_int(List.length(children))
+              ++ ")"
+            | Grout({id, shape}) =>
+              "Grout(id="
+              ++ Id.to_string(id)
+              ++ ", shape="
+              ++ (
+                switch (shape) {
+                | Convex => "Convex"
+                | Concave => "Concave"
+                }
+              )
+              ++ ")"
+            | Secondary({id, content}) =>
+              "Secondary(id="
+              ++ Id.to_string(id)
+              ++ ", "
+              ++ (
+                switch (content) {
+                | Whitespace(s) => "ws=" ++ String.escaped(s)
+                | Comment(s) => "comment=" ++ s
+                }
+              )
+              ++ ")"
+            | Projector({id, kind, _}) =>
+              "Projector(id=" ++ Id.to_string(id) ++ ", kind=" ++ kind ++ ")"
+            };
+
+          Firebug.console##log(Js.string("[DELTA RECV] Received pieces:"));
+          delta_doc
+          |> FlatConvert.Doc.iter((_, piece) => {
+               Firebug.console##log(Js.string("  " ++ piece_summary(piece)))
+             });
+        };
+
         PerfLog.end_(receive_log);
 
         schedule_action(SyncReplace(delta_doc));
@@ -542,6 +752,74 @@ let send_state =
     ++ string_of_int(num_deleted)
     ++ " deleted",
   );
+
+  // Debug: log detailed delta info for small changes
+  let total_changes = num_changed + num_added + num_deleted;
+  if (total_changes > 0 && total_changes <= 10) {
+    let piece_summary = (piece: FlatConvert.Flat.piece): string =>
+      switch (piece) {
+      | Tile({id, label, shards, children, _}) =>
+        "Tile(id="
+        ++ Id.to_string(id)
+        ++ ", label=["
+        ++ String.concat(",", label)
+        ++ "], shards=["
+        ++ String.concat(",", List.map(string_of_int, shards))
+        ++ "], children="
+        ++ string_of_int(List.length(children))
+        ++ ")"
+      | Grout({id, shape}) =>
+        "Grout(id="
+        ++ Id.to_string(id)
+        ++ ", shape="
+        ++ (
+          switch (shape) {
+          | Convex => "Convex"
+          | Concave => "Concave"
+          }
+        )
+        ++ ")"
+      | Secondary({id, content}) =>
+        "Secondary(id="
+        ++ Id.to_string(id)
+        ++ ", "
+        ++ (
+          switch (content) {
+          | Whitespace(s) => "ws=" ++ String.escaped(s)
+          | Comment(s) => "comment=" ++ s
+          }
+        )
+        ++ ")"
+      | Projector({id, kind, _}) =>
+        "Projector(id=" ++ Id.to_string(id) ++ ", kind=" ++ kind ++ ")"
+      };
+
+    if (num_changed > 0) {
+      Firebug.console##log(Js.string("[DELTA SEND] Changed pieces:"));
+      delta.changed
+      |> Id.Map.iter((_, piece) => {
+           Firebug.console##log(Js.string("  " ++ piece_summary(piece)))
+         });
+    };
+
+    if (num_added > 0) {
+      Firebug.console##log(Js.string("[DELTA SEND] Added pieces:"));
+      delta.added
+      |> Id.Map.iter((_, piece) => {
+           Firebug.console##log(Js.string("  " ++ piece_summary(piece)))
+         });
+    };
+
+    if (num_deleted > 0) {
+      Firebug.console##log(
+        Js.string(
+          "[DELTA SEND] Deleted IDs: ["
+          ++ String.concat(", ", List.map(Id.to_string, delta.deleted))
+          ++ "]",
+        ),
+      );
+    };
+  };
 
   // Combine changed and added pieces into a single map for sending
   let affected_pieces =

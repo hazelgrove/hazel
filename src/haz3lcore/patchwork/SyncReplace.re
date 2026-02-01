@@ -219,8 +219,9 @@ let sync_replace = (z: Zipper.t, delta_doc: FlatConvert.Doc.t): Zipper.t => {
          )
        );
 
-  // Flatten current state to doc
-  let current_seg = PerfLog.measure("zip_current", () => Zipper.zip(z));
+  // Flatten current state to doc (unselect first to reassemble any fragments)
+  let current_seg =
+    PerfLog.measure("zip_current", () => Zipper.unselect_and_zip(z));
 
   let current_doc =
     PerfLog.measure("seg_to_doc_current", () =>
@@ -312,13 +313,13 @@ let should_send_state = (a: Action.t): bool =>
 let send_state_delta = (old_z: Zipper.t, new_z: Zipper.t): unit => {
   let overall_log = PerfLog.start("send_state_total");
 
-  // Convert old state to flat doc
-  let old_seg = old_z |> Zipper.zip;
+  // Convert old state to flat doc (unselect first to reassemble any fragments)
+  let old_seg = Zipper.unselect_and_zip(old_z);
   let old_flat_doc =
     PerfLog.measure("old_seg_to_doc", () => FlatConvert.seg_to_doc(old_seg));
 
-  // Convert new state to flat doc
-  let new_seg = new_z |> Zipper.zip;
+  // Convert new state to flat doc (unselect first to reassemble any fragments)
+  let new_seg = Zipper.unselect_and_zip(new_z);
   //let num_pieces = PerfLog.Count.pieces_in_segment_deep(new_seg);
   let num_pieces = (-1);
   let context = string_of_int(num_pieces) ++ " pieces";

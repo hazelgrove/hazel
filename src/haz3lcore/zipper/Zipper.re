@@ -28,6 +28,13 @@ let delete_parent = (z: t): t => {
   relatives: Relatives.delete_parent(z.relatives),
 };
 
+/* WARNING: Prefer `unselect_and_zip` in most cases. Using `zip` directly
+   when there's an active selection will produce a segment with fragmented
+   tiles that share the same ID but have different shards. This can cause
+   issues when flattening to a map representation (e.g., for sync), as only
+   one fragment per ID will be preserved. Use `zip` directly only when you
+   know there's no selection or when you specifically need the raw selection
+   state in the output. */
 let zip = (z: t): Segment.t =>
   Relatives.zip(~sel=z.selection.content, z.relatives);
 

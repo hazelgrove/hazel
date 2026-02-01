@@ -442,6 +442,7 @@ This would prevent remote state from overwriting local projector state, but the 
 
 ### Sync Lifecycle & Recovery
 
+- **Preserve local selection during sync**: Currently, incoming remote edits wipe out the local user's selection. The `sync_replace` routine restores cursor position but not selection state. We should save the selection content/range before applying remote changes and restore it afterward (adjusting for any structural changes that may have affected the selected region).
 - **Divergence recovery**: If clients diverge (network partition, bugs), delta sync won't reconcile them. Options: periodic full sync, checksum comparison, manual resync button.
 - **Full-replace mode for initial state**: Current SyncReplace always merges; initial load might benefit from full replacement.
 
