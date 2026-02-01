@@ -142,6 +142,22 @@ let edit_action_tests = (
       },
     ),
     test_case(
+      "update_pattern renames in let def",
+      `Quick,
+      () => {
+        let result =
+          apply_and_render(
+            "let x = 3 in let y = x in y",
+            Edit(UpdatePattern("x", "z")),
+          );
+        check_rendered(
+          "update_pattern_let_def",
+          "let z = 3 in let y = z in y",
+          result,
+        );
+      },
+    ),
+    test_case(
       "update_binding_clause replaces binding",
       `Quick,
       () => {

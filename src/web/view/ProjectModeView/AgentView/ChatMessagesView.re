@@ -2,6 +2,7 @@ open Virtual_dom.Vdom;
 open Node;
 open Util.WebUtil;
 open Util;
+open Haz3lcore;
 open Js_of_ocaml;
 
 open JsUtil;
@@ -557,6 +558,110 @@ let view =
 
       let linear_display = linear_messages_display;
 
+      let is_edit_tool_call =
+          (tool_result: OpenRouter.Reply.Model.tool_result): bool => {
+        switch (tool_result.tool_call.name) {
+        | "initialize"
+        | "update_definition"
+        | "update_body"
+        | "update_pattern"
+        | "update_binding_clause"
+        | "delete_binding_clause"
+        | "delete_body"
+        | "insert_before"
+        | "insert_after" => true
+        | _ => false
+        };
+      };
+
+      let edit_tool_results =
+        agent_chunk.tool_results |> List.filter(is_edit_tool_call);
+
+      // Extract message IDs and tool results from content for toggle wiring
+      let tool_result_messages =
+        agent_chunk.content
+        |> List.filter_map((msg: Agent.Message.Model.t) =>
+             switch (msg.role) {
+             | ToolResult(tool_result) => Some((msg.id, tool_result))
+             | _ => None
+             }
+           );
+
+      let edit_calls_summary =
+        switch (edit_tool_results) {
+        | [] =>
+          div(
+            ~attrs=[
+              clss(["agent-tool-summary", "agent-tool-summary-empty"]),
+            ],
+            [
+              div(
+                ~attrs=[clss(["agent-tool-summary-header"])],
+                [text("Edits Performed")],
+              ),
+              div(
+                ~attrs=[clss(["agent-tool-summary-empty-text"])],
+                [text("No edit tool calls were made in this response.")],
+              ),
+            ],
+          )
+        | _ =>
+          let summary_rows =
+            List.filter_map(
+              (tool_result: OpenRouter.Reply.Model.tool_result) =>
+                switch (
+                  List.find_opt(
+                    (
+                      (_, msg_tool_result): (
+                        Id.t,
+                        OpenRouter.Reply.Model.tool_result,
+                      ),
+                    ) =>
+                      msg_tool_result.tool_call.id == tool_result.tool_call.id,
+                    tool_result_messages,
+                  )
+                ) {
+                | Some((msg_id, msg_tool_result)) =>
+                  let toggle_expanded = _ =>
+                    Effect.Many([
+                      agent_inject(
+                        Agent.Agent.Update.Action.ChatSystemAction(
+                          Agent.ChatSystem.Update.Action.ChatAction(
+                            Agent.Chat.Update.Action.MessageAction(
+                              msg_id,
+                              Agent.Message.Update.SetToolResultExpanded(
+                                !msg_tool_result.expanded,
+                              ),
+                            ),
+                            current_chat_id,
+                          ),
+                        ),
+                      ),
+                      Effect.Stop_propagation,
+                    ]);
+                  Some(
+                    ToolResultView.view(
+                      ~globals,
+                      ~tool_result=msg_tool_result,
+                      ~toggle_expanded,
+                    ),
+                  );
+                | None => None
+                },
+              edit_tool_results,
+            );
+          div(
+            ~attrs=[clss(["agent-tool-summary"])],
+            [
+              div(
+                ~attrs=[clss(["agent-tool-summary-header"])],
+                [text("Edits Performed")],
+              ),
+              div(~attrs=[clss(["agent-tool-summary-body"])], summary_rows),
+            ],
+          );
+        };
+
       div(
         ~attrs=[clss(["message-container", "agent-message-container"])],
         [
@@ -565,7 +670,10 @@ let view =
             ~attrs=[clss(["message-identifier", "llm-identifier"])],
             [Icons.corylus, text("Filbert")],
           ),
-          div(~attrs=[clss(["agent-message-wrapper"])], linear_display),
+          div(
+            ~attrs=[clss(["agent-message-wrapper"])],
+            linear_display @ [edit_calls_summary],
+          ),
         ],
       );
     | Agent.ChunkedUIChat.Model.ErrorMessage(error_content) =>

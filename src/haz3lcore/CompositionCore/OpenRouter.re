@@ -32,6 +32,8 @@ module Reply = {
       success: bool,
       expanded: bool,
       diff: option(diff),
+      before_segment: option(Segment.t),
+      after_segment: option(Segment.t),
       content: string,
     };
 

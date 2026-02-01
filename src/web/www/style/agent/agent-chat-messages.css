@@ -872,6 +872,39 @@
   overflow: hidden;
 }
 
+/* Edit Summary Display */
+.agent-tool-summary {
+  margin-top: 0.75em;
+  border: 0.6px solid var(--BR2);
+  border-radius: 6px;
+  background-color: var(--T1);
+  overflow: hidden;
+}
+
+.agent-tool-summary-header {
+  padding: 0.5em 0.75em;
+  font-size: 0.8em;
+  font-weight: 600;
+  color: var(--STONE);
+  border-bottom: 0.6px solid var(--BR2);
+  background-color: var(--T2);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.agent-tool-summary-body {
+  padding: 0.5em 0.75em;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5em;
+}
+
+.agent-tool-summary-empty-text {
+  padding: 0.6em 0.75em;
+  font-size: 0.85em;
+  color: var(--BR2);
+}
+
 .tool-call-header {
   display: flex;
   align-items: center;

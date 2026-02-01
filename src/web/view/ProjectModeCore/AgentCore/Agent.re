@@ -332,6 +332,22 @@ module Message = {
                 | None => `Null
                 },
               ),
+              (
+                "before",
+                switch (tool_result.before_segment) {
+                | Some(before_segment) =>
+                  `String(Printer.of_segment(~holes="?", before_segment))
+                | None => `Null
+                },
+              ),
+              (
+                "after",
+                switch (tool_result.after_segment) {
+                | Some(after_segment) =>
+                  `String(Printer.of_segment(~holes="?", after_segment))
+                | None => `Null
+                },
+              ),
             ])
           | _ => `Null
           },
@@ -1427,6 +1443,24 @@ module Agent = {
       );
     };
 
+    let mk_segment_snapshots =
+        (
+          ~old_editor: Editor.t,
+          ~new_editor: Editor.t,
+          action: CompositionActions.action,
+        )
+        : (option(Segment.t), option(Segment.t)) => {
+      switch (action) {
+      | EditorAction(_) =>
+        let old_segment =
+          Select.all(old_editor.state.zipper).selection.content;
+        let new_segment =
+          Select.all(new_editor.state.zipper).selection.content;
+        (Some(old_segment), Some(new_segment));
+      | _ => (None, None)
+      };
+    };
+
     let handle_tool_call =
         (
           ~tool_call: OpenRouter.Reply.Model.tool_call,
@@ -1458,6 +1492,12 @@ module Agent = {
             "The "
             ++ tool_call.name
             ++ " tool call was successful and has been applied to the model.";
+          let (before_segment, after_segment) =
+            mk_segment_snapshots(
+              ~old_editor=cell_editor.editor.editor,
+              ~new_editor=editor.editor,
+              action,
+            );
           let tool_result: OpenRouter.Reply.Model.tool_result = {
             tool_call,
             success: true,
@@ -1468,6 +1508,8 @@ module Agent = {
                 ~new_editor=editor.editor,
                 action,
               ),
+            before_segment,
+            after_segment,
             content: success_message,
           };
           let model =
@@ -1494,11 +1536,22 @@ module Agent = {
         | Error(error) =>
           switch (error) {
           | Failure.Info(msg) =>
+            let before_segment =
+              switch (action) {
+              | EditorAction(_) =>
+                Some(
+                  Select.all(cell_editor.editor.editor.state.zipper).selection.
+                    content,
+                )
+              | _ => None
+              };
             let tool_result: OpenRouter.Reply.Model.tool_result = {
               tool_call,
               success: false,
               expanded: false,
               diff: None,
+              before_segment,
+              after_segment: None,
               content: msg,
             };
             let model =
@@ -1523,6 +1576,8 @@ module Agent = {
           success: false,
           expanded: false,
           diff: None,
+          before_segment: None,
+          after_segment: None,
           content: msg,
         };
         // Do not add unparseable tool calls to subtask tool results for now
