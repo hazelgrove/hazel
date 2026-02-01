@@ -191,6 +191,12 @@ module ViewComponents = {
   };
 };
 
+type timeline_node = {
+  segment: option(Segment.t),
+  label: string,
+  index: int,
+};
+
 let view =
     (
       ~globals: Globals.t,
@@ -605,51 +611,133 @@ let view =
               ),
             ],
           )
-        | _ =>
-          let summary_rows =
-            List.filter_map(
-              (tool_result: OpenRouter.Reply.Model.tool_result) =>
-                switch (
-                  List.find_opt(
-                    (
-                      (_, msg_tool_result): (
-                        Id.t,
-                        OpenRouter.Reply.Model.tool_result,
-                      ),
-                    ) =>
-                      msg_tool_result.tool_call.id == tool_result.tool_call.id,
-                    tool_result_messages,
-                  )
-                ) {
-                | Some((msg_id, msg_tool_result)) =>
-                  let toggle_expanded = _ =>
-                    Effect.Many([
-                      agent_inject(
-                        Agent.Agent.Update.Action.ChatSystemAction(
-                          Agent.ChatSystem.Update.Action.ChatAction(
-                            Agent.Chat.Update.Action.MessageAction(
-                              msg_id,
-                              Agent.Message.Update.SetToolResultExpanded(
-                                !msg_tool_result.expanded,
-                              ),
-                            ),
-                            current_chat_id,
+        | [first, ...rest] =>
+          // Build interleaved list: node, tool result, node, tool result, ...
+          let all_edits = [first, ...rest];
+
+          // Helper to render a timeline node
+          let render_node = (node: timeline_node) => {
+            let is_disabled =
+              switch (node.segment) {
+              | None => true
+              | Some(_) => false
+              };
+            let is_active =
+              switch (agent_model.active_timeline_node) {
+              | Some(active_index) => node.index == active_index
+              | None => false
+              };
+            let on_click = _ =>
+              switch (node.segment) {
+              | None => Effect.Stop_propagation
+              | Some(segment) =>
+                Effect.Many([
+                  agent_inject(
+                    Agent.Agent.Update.Action.LoadSegmentIntoEditor(segment),
+                  ),
+                  agent_inject(
+                    Agent.Agent.Update.Action.SetActiveTimelineNode(
+                      Some(node.index),
+                    ),
+                  ),
+                  Effect.Stop_propagation,
+                ])
+              };
+            div(
+              ~attrs=[
+                clss([
+                  "timeline-node",
+                  is_disabled ? "disabled" : "",
+                  is_active ? "active" : "",
+                ]),
+                Attr.on_click(on_click),
+                Attr.title(
+                  is_disabled
+                    ? node.label ++ " (no segment data)" : node.label,
+                ),
+              ],
+              [],
+            );
+          };
+
+          // Helper to render a tool result
+          let render_tool_result =
+              (tool_result: OpenRouter.Reply.Model.tool_result) => {
+            switch (
+              List.find_opt(
+                (
+                  (_, msg_tool_result): (
+                    Id.t,
+                    OpenRouter.Reply.Model.tool_result,
+                  ),
+                ) =>
+                  msg_tool_result.tool_call.id == tool_result.tool_call.id,
+                tool_result_messages,
+              )
+            ) {
+            | Some((msg_id, msg_tool_result)) =>
+              let toggle_expanded = _ =>
+                Effect.Many([
+                  agent_inject(
+                    Agent.Agent.Update.Action.ChatSystemAction(
+                      Agent.ChatSystem.Update.Action.ChatAction(
+                        Agent.Chat.Update.Action.MessageAction(
+                          msg_id,
+                          Agent.Message.Update.SetToolResultExpanded(
+                            !msg_tool_result.expanded,
                           ),
                         ),
+                        current_chat_id,
                       ),
-                      Effect.Stop_propagation,
-                    ]);
-                  Some(
-                    ToolResultView.view(
-                      ~globals,
-                      ~tool_result=msg_tool_result,
-                      ~toggle_expanded,
                     ),
-                  );
-                | None => None
+                  ),
+                  Effect.Stop_propagation,
+                ]);
+              Some(
+                ToolResultView.view(
+                  ~globals,
+                  ~tool_result=msg_tool_result,
+                  ~toggle_expanded,
+                ),
+              );
+            | None => None
+            };
+          };
+
+          // Build timeline states
+          let initial_node: timeline_node = {
+            segment: first.before_segment,
+            label: "Initial",
+            index: 0,
+          };
+
+          // Build interleaved elements: initial node, then for each edit: tool result + node
+          let interleaved_elements = {
+            let initial = [render_node(initial_node)];
+            let rest_elements =
+              List.mapi(
+                (i, tool_result: OpenRouter.Reply.Model.tool_result) => {
+                  let tool_result_view = render_tool_result(tool_result);
+                  let next_node: timeline_node = {
+                    segment: tool_result.after_segment,
+                    label: "After Edit " ++ string_of_int(i + 1),
+                    index: i + 1,
+                  };
+                  let node_view = render_node(next_node);
+
+                  // Return list of [tool_result, node]
+                  switch (tool_result_view) {
+                  | Some(view) => [view, node_view]
+                  | None => [node_view]
+                  };
                 },
-              edit_tool_results,
-            );
+                all_edits,
+              )
+              |> List.flatten;
+
+            initial @ rest_elements;
+          };
+
           div(
             ~attrs=[clss(["agent-tool-summary"])],
             [
@@ -657,7 +745,10 @@ let view =
                 ~attrs=[clss(["agent-tool-summary-header"])],
                 [text("Edits Performed")],
               ),
-              div(~attrs=[clss(["agent-tool-summary-body"])], summary_rows),
+              div(
+                ~attrs=[clss(["agent-tool-summary-content"])],
+                interleaved_elements,
+              ),
             ],
           );
         };

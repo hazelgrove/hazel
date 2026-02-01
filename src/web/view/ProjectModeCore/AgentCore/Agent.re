@@ -1036,6 +1036,7 @@ module Agent = {
     type t = {
       chat_system: ChatSystem.Model.t,
       prompting,
+      active_timeline_node: option(int),
     };
   };
 
@@ -1073,6 +1074,7 @@ module Agent = {
           dev_notes,
           tools: CompositionUtils.Public.tools,
         },
+        active_timeline_node: None,
       };
     };
   };
@@ -1183,7 +1185,9 @@ module Agent = {
       type t =
         | ChatSystemAction(ChatSystem.Update.Action.t)
         | SendMessage(Message.Model.t, Id.t)
-        | HandleLLMResponse(OpenRouter.Reply.Model.t, Id.t);
+        | HandleLLMResponse(OpenRouter.Reply.Model.t, Id.t)
+        | LoadSegmentIntoEditor(Segment.t)
+        | SetActiveTimelineNode(option(int));
     };
 
     let send_llm_request =
@@ -1690,6 +1694,27 @@ module Agent = {
           editor,
           settings,
           schedule_action,
+        )
+      | LoadSegmentIntoEditor(segment) =>
+        // Replace editor with segment by converting to zipper
+        let new_zipper = Zipper.unzip(~direction=Right, segment);
+        let new_editor_model = Editor.Model.mk(new_zipper);
+        let new_code_with_statics =
+          CodeWithStatics.Model.mk(new_editor_model);
+        (
+          model,
+          {
+            ...editor,
+            editor: new_code_with_statics,
+          }
+          |> Updated.return,
+        );
+      | SetActiveTimelineNode(node_index) => (
+          {
+            ...model,
+            active_timeline_node: node_index,
+          },
+          editor |> Updated.return,
         )
       };
     };
