@@ -15,8 +15,8 @@
  *   - Iframe side: PatchworkComm.re listen() handles ParentToHazel messages
  *
  * Typical message flow:
- *   1. Iframe loads, sends Init to parent
- *   2. Parent sends Init back (handshake complete)
+ *   1. Iframe loads, sends Init to parent (signals readiness)
+ *   2. Parent responds with EditorState (full document)
  *   3. User edits in iframe -> iframe sends EditorState to parent
  *   4. Parent stores in Automerge, syncs to other clients
  *   5. Other client's edit arrives -> parent sends EditorState to iframe
@@ -25,7 +25,7 @@
 
 import type { HazelDoc } from "./flatdoc";
 
-/** Sent when iframe loads or parent connects - handshake message */
+/** Sent when iframe loads to signal readiness to receive state */
 export interface Init {
   t: "init";
   message: string;
@@ -106,4 +106,4 @@ export interface RemoteCaretRemove {
 export type HazelToParent = Init | Ping | Pong | EditorState | CaretUpdate;
 
 /** Messages sent from parent (Patchwork) to Hazel iframe */
-export type ParentToHazel = Init | Ping | Pong | EditorState | RemoteCaret | RemoteCaretRemove;
+export type ParentToHazel = Ping | Pong | EditorState | RemoteCaret | RemoteCaretRemove;

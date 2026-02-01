@@ -390,11 +390,6 @@ let listen = (schedule_action: Action.t => unit): unit => {
     switch (msg) {
     | Some(msg) =>
       switch (msg) {
-      | `U_s1_init(_init) =>
-        /* Parent no longer sends init - this case is kept for backwards compatibility
-           but should never be reached. The handshake is now one-way: iframe sends init
-           to signal readiness, parent responds with state. */
-        ()
       | `U_s3_ping(_ping) =>
         let pongJs: Ojs.t =
           Pong.t_to_js(

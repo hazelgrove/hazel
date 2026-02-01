@@ -234,45 +234,6 @@ module Ping : sig
   val cast_from : 'tags this -> t [@@js.custom let cast_from = Obj.magic]
 end
 
-(** Sent when iframe loads or parent connects - handshake message *)
-module Init : sig
-  type t = [ `Init ] intf [@@js.custom { of_js = Obj.magic; to_js = Obj.magic }]
-  type t_0 = t
-
-  [@@@js.stop]
-
-  type tags = [ `Init ]
-  type tags_0 = tags
-
-  [@@@js.start]
-
-  [@@@js.implem
-  type tags = [ `Init ]
-  type tags_0 = tags]
-
-  type 'tags this = 'tags intf constraint 'tags = [> `Init ]
-
-  val t_to_js : t -> Ojs.t
-  val t_of_js : Ojs.t -> t
-  val t_0_to_js : t_0 -> Ojs.t
-  val t_0_of_js : Ojs.t -> t_0
-
-  val get_t : 'tags this -> ([ `L_s1_init [@js "init"] ][@js.enum])
-  [@@js.get "t"]
-
-  val set_t : 'tags this -> ([ `L_s1_init [@js "init"] ][@js.enum]) -> unit
-  [@@js.set "t"]
-
-  val get_message : 'tags this -> string [@@js.get "message"]
-  val set_message : 'tags this -> string -> unit [@@js.set "message"]
-
-  val create :
-    t:([ `L_s1_init [@js "init"] ][@js.enum]) -> message:string -> unit -> t
-  [@@js.builder]
-
-  val cast_from : 'tags this -> t [@@js.custom let cast_from = Obj.magic]
-end
-
 (** The main sync message - contains full document state. Currently uses
     full-state sync (not diff-based). *)
 module EditorState : sig
@@ -321,8 +282,7 @@ end
 (** Messages sent from parent (Patchwork) to Hazel iframe *)
 module ParentToHazel : sig
   type t =
-    ([ `U_s1_init of Init.t [@js "init"]
-     | `U_s3_ping of Ping.t [@js "ping"]
+    ([ `U_s3_ping of Ping.t [@js "ping"]
      | `U_s4_pong of Pong.t [@js "pong"]
      | `U_s5_remote_caret of RemoteCaret.t [@js "remote-caret"]
      | `U_s6_remote_caret_remove of RemoteCaretRemove.t
@@ -336,6 +296,45 @@ module ParentToHazel : sig
   val t_of_js : Ojs.t -> t
   val t_0_to_js : t_0 -> Ojs.t
   val t_0_of_js : Ojs.t -> t_0
+end
+
+(** Sent when iframe loads to signal readiness to receive state *)
+module Init : sig
+  type t = [ `Init ] intf [@@js.custom { of_js = Obj.magic; to_js = Obj.magic }]
+  type t_0 = t
+
+  [@@@js.stop]
+
+  type tags = [ `Init ]
+  type tags_0 = tags
+
+  [@@@js.start]
+
+  [@@@js.implem
+  type tags = [ `Init ]
+  type tags_0 = tags]
+
+  type 'tags this = 'tags intf constraint 'tags = [> `Init ]
+
+  val t_to_js : t -> Ojs.t
+  val t_of_js : Ojs.t -> t
+  val t_0_to_js : t_0 -> Ojs.t
+  val t_0_of_js : Ojs.t -> t_0
+
+  val get_t : 'tags this -> ([ `L_s1_init [@js "init"] ][@js.enum])
+  [@@js.get "t"]
+
+  val set_t : 'tags this -> ([ `L_s1_init [@js "init"] ][@js.enum]) -> unit
+  [@@js.set "t"]
+
+  val get_message : 'tags this -> string [@@js.get "message"]
+  val set_message : 'tags this -> string -> unit [@@js.set "message"]
+
+  val create :
+    t:([ `L_s1_init [@js "init"] ][@js.enum]) -> message:string -> unit -> t
+  [@@js.builder]
+
+  val cast_from : 'tags this -> t [@@js.custom let cast_from = Obj.magic]
 end
 
 (** Caret position update - sent from Hazel iframe when local caret moves. Used

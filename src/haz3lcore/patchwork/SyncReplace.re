@@ -151,6 +151,10 @@ let sync_replace =
             }
           };
         };
+        let z = {
+          ...z,
+          caret: Outer,
+        };
         switch (go(ancestor_ids, z)) {
         | Some(z) => z
         | None => z
@@ -164,7 +168,7 @@ let sync_replace =
 };
 
 let should_send_state = (a: Action.t): bool =>
-  //TODO(andrew): review actions esp project
+  //TODO(andrew): Doing this here misses undo/redo actions...
   switch (a) {
   | SyncReplace(_)
   | UpdateRemoteCarets
