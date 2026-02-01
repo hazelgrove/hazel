@@ -26,8 +26,11 @@ let move_to_id_anc = (z: t, (id, shard, child_idx)): option(t) => {
       | Some((anc, _)) =>
         let current_child = List.length(fst(anc.children));
         if (current_child == child_idx) {
-          /* Exact match - we're done */
-          (Some(z), true);
+          (
+            /* Exact match - we're done */
+            Some(z),
+            true,
+          );
         } else if (current_child < child_idx) {
           /* We're in a lower child - remember this as fallback if it's
              the best we've seen (highest child index not exceeding target) */
@@ -48,8 +51,11 @@ let move_to_id_anc = (z: t, (id, shard, child_idx)): option(t) => {
             };
           (dominated ? Some(z) : best, false);
         } else {
-          /* We're past the target child - keep the best we found */
-          (best, false);
+          (
+            /* We're past the target child - keep the best we found */
+            best,
+            false,
+          );
         };
       | None => (best, false)
       };
