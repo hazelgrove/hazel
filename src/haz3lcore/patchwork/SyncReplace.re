@@ -9,6 +9,46 @@ let rec move_to_start = (z: t): t => {
   };
 };
 
+/* Collect IDs of pieces that are "same-segment predecessors" of the cursor.
+   These are pieces in fst(siblings) at current level, plus pieces in
+   fst(generation.siblings) for each ancestor level. NOT pieces from
+   ancestor.children (those are in different children, not same segment). */
+let collect_predecessor_ids = (z: t): Id.Map.t(unit) => {
+  /* Pieces before cursor at current level */
+  let current_preds = z.relatives.siblings |> fst |> List.map(Piece.id);
+  /* Pieces before each ancestor at their respective levels */
+  let ancestor_preds =
+    z.relatives.ancestors
+    |> List.concat_map(((_, sibs): Ancestors.generation) =>
+         sibs |> fst |> List.map(Piece.id)
+       );
+  let all_preds = current_preds @ ancestor_preds;
+  all_preds |> List.to_seq |> Seq.map(id => (id, ())) |> Id.Map.of_seq;
+};
+
+/* Find position based on same-segment predecessors. Scans left-to-right,
+   tracking the rightmost position where the piece to our left is a predecessor.
+   Returns that position if found, None otherwise. */
+let move_to_predecessor = (z: t, predecessor_ids: Id.Map.t(unit)): option(t) => {
+  let z = z |> move_to_start;
+  let rec go = (z: t, best: option(t)): option(t) => {
+    /* Check if piece to our left is a predecessor */
+    let is_pred =
+      switch (z.relatives.siblings |> fst |> ListUtil.last_opt) {
+      | Some(p) => Id.Map.mem(Piece.id(p), predecessor_ids)
+      | None => false
+      };
+    /* Rightward bias: always update best when we see a predecessor,
+       so we end up with the rightmost one */
+    let best = is_pred ? Some(z) : best;
+    switch (Move.local(ByToken, Right, z)) {
+    | Some(z) => go(z, best)
+    | None => best
+    };
+  };
+  go(z, None);
+};
+
 let move_to_id_anc = (z: t, (id, shard, child_idx)): option(t) => {
   /* Find a position where the target ancestor is in the ancestor stack,
      preferring the correct child index. Falls back to the highest child
@@ -104,9 +144,18 @@ let move_to_id =
   go(z);
 };
 
+/* Reposition cursor after sync, using layered fallback strategy:
+   1. Try to find the exact piece the cursor was on (by ID)
+   2. If deleted, find the rightmost "same-segment predecessor" that survives.
+      These are pieces that were in the same segment as the cursor (siblings)
+      at each level of the zipper, giving us the closest lexical position.
+   3. If no predecessor survives (e.g., cursor was at start of a child),
+      fall back to ancestor-based positioning which preserves structural
+      position (which child of which ancestor we were in). */
 let reposition_cursor =
     (
       z: t,
+      ~predecessor_ids: Id.Map.t(unit),
       ~ancestor_ids: list((Id.t, option(int), int)),
       ~id_init: Id.t,
       ~d_init: Direction.t,
@@ -121,23 +170,27 @@ let reposition_cursor =
         caret: caret_init,
       }
     | None =>
-      let rec go = (ancestor_ids, z): option(t) => {
-        switch (ancestor_ids) {
-        | [] => None
-        | [ancestor_id, ...ancestor_ids] =>
-          switch (move_to_id_anc(z, ancestor_id)) {
-          | Some(z) => Some(z)
-          | None => go(ancestor_ids, z)
-          }
-        };
-      };
       let z = {
         ...z,
         caret: Outer,
       };
-      switch (go(ancestor_ids, z)) {
+      switch (move_to_predecessor(z, predecessor_ids)) {
       | Some(z) => z
-      | None => z
+      | None =>
+        let rec go = (ancestor_ids, z): option(t) => {
+          switch (ancestor_ids) {
+          | [] => None
+          | [ancestor_id, ...ancestor_ids] =>
+            switch (move_to_id_anc(z, ancestor_id)) {
+            | Some(z) => Some(z)
+            | None => go(ancestor_ids, z)
+            }
+          };
+        };
+        switch (go(ancestor_ids, z)) {
+        | Some(z) => z
+        | None => z
+        };
       };
     }
   };
@@ -154,6 +207,7 @@ let sync_replace = (z: Zipper.t, delta_doc: FlatConvert.Doc.t): Zipper.t => {
     };
   let caret_init = z.caret;
   let refractors = z.refractors;
+  let predecessor_ids = collect_predecessor_ids(z);
   let ancestors = z.relatives.ancestors;
   let ancestor_ids =
     ancestors
@@ -212,7 +266,15 @@ let sync_replace = (z: Zipper.t, delta_doc: FlatConvert.Doc.t): Zipper.t => {
   };
 
   let cursor_log = PerfLog.start("cursor_repositioning");
-  let z = reposition_cursor(z, ~ancestor_ids, ~id_init, ~d_init, ~caret_init);
+  let z =
+    reposition_cursor(
+      z,
+      ~predecessor_ids,
+      ~ancestor_ids,
+      ~id_init,
+      ~d_init,
+      ~caret_init,
+    );
   PerfLog.end_(cursor_log);
   PerfLog.end_(overall_log);
   z;
