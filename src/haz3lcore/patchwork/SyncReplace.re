@@ -256,7 +256,7 @@ let get_caret_position =
       ) => {
   /* Use Indicated.for_index to properly identify the piece we're "on".
      This handles skipping Secondary pieces (whitespace) to get the actual code piece. */
-  switch (Indicated.for_index(z)) {
+  switch (Indicated.piece'(~no_ws=false, ~ign=_ => false, z)) {
   | None => None
   | Some((piece, direction, relation)) =>
     let piece_id = Piece.id(piece);
