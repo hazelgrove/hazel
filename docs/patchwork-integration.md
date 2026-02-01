@@ -27,6 +27,7 @@ The integration uses an **iframe-based architecture** with three parts:
 
 1. **`embed/` directory (this repo)** - npm package `@hazelgrove/hazel-embed`
    - `HazelEmbed.tsx` - React component that creates the iframe and handles PostMessage
+   - Verifies message source to only accept messages from its own iframe
    - `flatdoc.d.ts` / `patchworkmessages.d.ts` - TypeScript types (source of truth for OCaml types)
    - Used by any app that wants to embed Hazel with sync support
 
@@ -52,23 +53,28 @@ The map-based schema (changed from array in Jan 2026) enables O(1) Automerge upd
 
 Communication uses PostMessage with these message types:
 
-| Message | Direction | Purpose                  |
-| ------- | --------- | ------------------------ |
-| `init`  | Both      | Handshake on iframe load (triggers full state send) |
-| `ping`  | Both      | Connection testing       |
-| `pong`  | Both      | Ping response            |
-| `state` | Both      | Delta-based document sync (only changed pieces) |
+| Message | Direction        | Purpose                                      |
+| ------- | ---------------- | -------------------------------------------- |
+| `init`  | Iframe → Parent  | Iframe signals readiness, triggers state send |
+| `ping`  | Both             | Connection testing                           |
+| `pong`  | Both             | Ping response                                |
+| `state` | Both             | Document sync (full state or delta)          |
 
-### Initialization Handshake
+### Initialization Sequence
 
 When the Hazel iframe loads:
 
-1. HazelEmbed sends `init` message to iframe (parent → iframe)
-2. Hazel's `init_iframe()` sends `init` message back to parent (iframe → parent)
-3. tool.tsx receives `init` and sends full document state to iframe
-4. Hazel receives state and initializes editor
+```
+1. Hazel iframe loads and JavaScript executes
+2. init_iframe() sets up message listener
+3. init_iframe() sends "init" to parent
+4. tool.tsx receives "init" → sends full document state to iframe
+5. Hazel receives state → applies via SyncReplace action
+```
 
-This handshake ensures the iframe receives the full Automerge state after it's ready to receive messages, avoiding race conditions where state is sent before the iframe is listening.
+This one-way handshake ensures the iframe only receives state after its message listener is ready. The parent waits for the iframe to signal readiness rather than guessing when to send.
+
+**Key design point:** The `init` message is only sent from iframe to parent. The parent does NOT send `init` to the iframe—it responds with `state` instead.
 
 ## Caret Position Sync
 
@@ -171,6 +177,13 @@ Segment: `[foo, ·, 333, ·, bar]`
 
 ## Data Flow
 
+### Initialization (on iframe load):
+
+1. Hazel iframe loads, `init_iframe()` executes
+2. Sends `init` message to parent
+3. `tool.tsx` receives `init`, sends **full document state**
+4. Hazel applies state via `SyncReplace` action
+
 ### Local edit → sync to others:
 
 1. User types in Hazel iframe
@@ -184,12 +197,14 @@ Segment: `[foo, ·, 333, ·, bar]`
 ### Remote edit → apply locally:
 
 1. Automerge receives update from another client
-2. `tool.tsx` computes which pieces changed by comparing with previous doc
+2. `tool.tsx` `useEffect[doc]` detects change, computes delta
 3. Sends only affected pieces to iframe via PostMessage
 4. `PatchworkComm.listen()` receives delta message
 5. `SyncReplace.sync_replace()` merges delta with current state (delta overrides)
 6. `FlatConvert.doc_to_seg()` converts merged Doc → Segment
 7. Editor re-renders with preserved caret position
+
+**Note:** The `useEffect[doc]` in tool.tsx only handles changes AFTER initialization. Initial state is sent exclusively through the `init` handler to ensure the iframe is ready to receive it.
 
 ## Directory Structure
 

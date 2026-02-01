@@ -1,6 +1,5 @@
 import React, { useEffect, useRef, useCallback } from "react";
 import type {
-  Init,
   HazelToParent,
   ParentToHazel,
   EditorState,
@@ -74,25 +73,17 @@ const HazelEmbed: React.FC<HazelEmbedProps> = ({
 }) => {
   const hazelRef = useRef<HTMLIFrameElement>(null);
 
-  useEffect(() => {
-    if (hazelRef.current) {
-      hazelRef.current.onload = () => {
-        const initMessage: Init = {
-          t: "init",
-          message: `Hello, you are instance ${instanceId}!`,
-        };
-
-        sendToHazel(hazelRef.current!, initMessage);
-      };
-    }
-  }, [instanceId]);
-
   // Listen for messages from the iframe
   useEffect(() => {
     const handleMessage = (event: MessageEvent) => {
+      // Only accept messages from our iframe
+      if (!hazelRef.current || event.source !== hazelRef.current.contentWindow) {
+        return;
+      }
+
+      // Filter out React DevTools messages
       if (event.data?.source?.includes("react")) return;
 
-      // Extract the message from the event data (using internal types from iframe)
       const hazelMessage = event.data as HazelToParent;
 
       // Log when we receive message from iframe (before passing to Patchwork)
