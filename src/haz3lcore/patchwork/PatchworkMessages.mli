@@ -236,7 +236,9 @@ end
 
 (** The main sync message - contains document state delta.
 
-    - `state`: Changed/added pieces (partial HazelDoc with only affected pieces)
+    - `state`: Changed/added pieces (partial HazelDoc with only affected pieces,
+      after state)
+    - `before`: Before state of changed pieces (for granular CRDT operations)
     - `deleted`: IDs of pieces to remove from Automerge
 
     Why explicit deletion? Hazel uses a tree structure where deleted pieces
@@ -246,7 +248,14 @@ end
     piece, it's already in Automerge (unchanged), so it's not forwarded to other
     clients, who then crash when the parent references a missing piece.
 
-    See docs/patchwork-integration.md "Explicit Deletion Sync" for details. *)
+    Why `before` state? To enable granular CRDT operations in tool.tsx. By
+    comparing before/after for each piece, we can detect shard changes (which
+    require atomic replacement) vs. content changes (which can use granular RGA
+    operations on children arrays). The before state is used solely to compute
+    what operations Hazel intended to perform.
+
+    See docs/patchwork-integration.md "Explicit Deletion Sync" for details. See
+    docs/automerge-granular-sync.md for the granular sync design. *)
 module EditorState : sig
   type t = [ `EditorState ] intf
   [@@js.custom { of_js = Obj.magic; to_js = Obj.magic }]
@@ -279,12 +288,15 @@ module EditorState : sig
 
   val get_state : 'tags this -> HazelDoc.t_0 [@@js.get "state"]
   val set_state : 'tags this -> HazelDoc.t_0 -> unit [@@js.set "state"]
+  val get_before : 'tags this -> HazelDoc.t_0 option [@@js.get "before"]
+  val set_before : 'tags this -> HazelDoc.t_0 -> unit [@@js.set "before"]
   val get_deleted : 'tags this -> string list option [@@js.get "deleted"]
   val set_deleted : 'tags this -> string list -> unit [@@js.set "deleted"]
 
   val create :
     t:([ `L_s8_state [@js "state"] ][@js.enum]) ->
     state:HazelDoc.t_0 ->
+    ?before:HazelDoc.t_0 ->
     ?deleted:string list ->
     unit ->
     t

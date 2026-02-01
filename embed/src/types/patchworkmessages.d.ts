@@ -46,7 +46,8 @@ export interface Pong {
 /**
  * The main sync message - contains document state delta.
  *
- * - `state`: Changed/added pieces (partial HazelDoc with only affected pieces)
+ * - `state`: Changed/added pieces (partial HazelDoc with only affected pieces, after state)
+ * - `before`: Before state of changed pieces (for granular CRDT operations)
  * - `deleted`: IDs of pieces to remove from Automerge
  *
  * Why explicit deletion? Hazel uses a tree structure where deleted pieces
@@ -56,11 +57,19 @@ export interface Pong {
  * a piece, it's already in Automerge (unchanged), so it's not forwarded to
  * other clients, who then crash when the parent references a missing piece.
  *
+ * Why `before` state? To enable granular CRDT operations in tool.tsx.
+ * By comparing before/after for each piece, we can detect shard changes
+ * (which require atomic replacement) vs. content changes (which can use
+ * granular RGA operations on children arrays). The before state is used
+ * solely to compute what operations Hazel intended to perform.
+ *
  * See docs/patchwork-integration.md "Explicit Deletion Sync" for details.
+ * See docs/automerge-granular-sync.md for the granular sync design.
  */
 export interface EditorState {
   t: "state";
   state: HazelDoc;
+  before?: HazelDoc;
   deleted?: string[];
 }
 

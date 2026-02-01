@@ -292,14 +292,11 @@ module JsConvert = {
     };
   };
 
-  let js_of_flatdoc =
-      (~deleted: list(Id.t)=[], map: FlatConvert.Doc.t): Ojs.t => {
-    // Create empty JS object for pieces map
+  /* Convert a flat doc to a JS HazelDoc object */
+  let hazeldoc_of_flatdoc = (map: FlatConvert.Doc.t): HazelDoc.t_0 => {
     let pieces_obj = Ojs.empty_obj();
     let pieces =
       FlatDoc.HazelDoc.AnonymousInterface2.Pieces4.t_of_js(pieces_obj);
-
-    // Add each piece to the map using UUID as key
     map
     |> Id.Map.iter((id, piece) => {
          let id_str = Id.to_string(id);
@@ -310,15 +307,37 @@ module JsConvert = {
            js_piece,
          );
        });
+    FlatDoc.HazelDoc.AnonymousInterface2.create(~title="", ~pieces, ());
+  };
 
-    let state =
-      FlatDoc.HazelDoc.AnonymousInterface2.create(~title="", ~pieces, ());
+  let js_of_flatdoc =
+      (
+        ~deleted: list(Id.t)=[],
+        ~before: option(FlatConvert.Doc.t)=?,
+        map: FlatConvert.Doc.t,
+      )
+      : Ojs.t => {
+    // Create JS HazelDoc for the after state
+    let state = hazeldoc_of_flatdoc(map);
 
     // Convert deleted IDs to string list for JS
     let deleted_strs = List.map(Id.to_string, deleted);
 
+    // Convert before state if provided
+    let before_js =
+      switch (before) {
+      | Some(before_doc) => Some(hazeldoc_of_flatdoc(before_doc))
+      | None => None
+      };
+
     EditorState.t_to_js(
-      EditorState.create(~t=`L_s8_state, ~state, ~deleted=deleted_strs, ()),
+      EditorState.create(
+        ~t=`L_s8_state,
+        ~state,
+        ~before=?before_js,
+        ~deleted=deleted_strs,
+        (),
+      ),
     );
   };
 
@@ -327,9 +346,15 @@ module JsConvert = {
      The deleted list is critical: Hazel's tree structure means deleted pieces
      simply disappear, but Automerge's flat map keeps pieces until explicitly
      removed. Without explicit deletion, deleted pieces become "orphans" in
-     Automerge, breaking undo/redo sync. See docs/patchwork-integration.md. */
+     Automerge, breaking undo/redo sync. See docs/patchwork-integration.md.
+
+     The changed_before field enables granular CRDT operations: by comparing
+     before/after for each changed piece, tool.tsx can detect shard changes
+     (requiring atomic replacement) vs. content changes (allowing granular
+     RGA ops). See docs/automerge-granular-sync.md. */
   type delta = {
     changed: Id.Map.t(FlatConvert.Flat.piece),
+    changed_before: Id.Map.t(FlatConvert.Flat.piece),
     added: Id.Map.t(FlatConvert.Flat.piece),
     deleted: list(Id.t),
   };
@@ -337,6 +362,7 @@ module JsConvert = {
   let compute_delta =
       (old_doc: FlatConvert.Doc.t, new_doc: FlatConvert.Doc.t): delta => {
     let changed = ref(Id.Map.empty);
+    let changed_before = ref(Id.Map.empty);
     let added = ref(Id.Map.empty);
     let deleted = ref([]);
 
@@ -425,6 +451,7 @@ module JsConvert = {
            // Piece exists, check if changed using structural inequality
            if (old_piece != new_piece) {
              changed := Id.Map.add(id, new_piece, changed^);
+             changed_before := Id.Map.add(id, old_piece, changed_before^);
            };
          }
        });
@@ -440,6 +467,7 @@ module JsConvert = {
 
     {
       changed: changed^,
+      changed_before: changed_before^,
       added: added^,
       deleted: deleted^,
     };
@@ -796,10 +824,22 @@ let send_state =
   let affected_pieces =
     Id.Map.union((_, _, b) => Some(b), delta.changed, delta.added);
 
-  // Convert to JS with deleted IDs included
+  // Only include before state if there are changed pieces (not just added)
+  let before =
+    if (Id.Map.is_empty(delta.changed_before)) {
+      None;
+    } else {
+      Some(delta.changed_before);
+    };
+
+  // Convert to JS with deleted IDs and before state included
   let js_obj =
     PerfLog.measure("js_of_state", () =>
-      JsConvert.js_of_flatdoc(~deleted=delta.deleted, affected_pieces)
+      JsConvert.js_of_flatdoc(
+        ~deleted=delta.deleted,
+        ~before?,
+        affected_pieces,
+      )
     );
 
   // Measure payload size

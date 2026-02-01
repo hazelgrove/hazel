@@ -361,6 +361,10 @@ let sync_replace = (z: Zipper.t, delta_doc: FlatConvert.Doc.t): Zipper.t => {
       FlatConvert.doc_to_seg(merged_doc)
     );
 
+  // Validate invariants after sync - disable in production for performance
+  // This helps detect any CRDT merge issues that violate Hazel's invariants
+  SegmentValidator.validate_all(new_seg);
+
   //let num_pieces = PerfLog.Count.pieces_in_segment_deep(new_seg);
   let num_pieces = (-1);
   let context = string_of_int(num_pieces) ++ " pieces";
