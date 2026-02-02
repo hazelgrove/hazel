@@ -175,7 +175,11 @@ let tests =
             option(exp),
             "Function",
             Some(Exp.(constructor("A", None))),
-            introduce_expression(Typ.(sum([Variant("A", [], None)]))),
+            introduce_expression(
+              Typ.(
+                sum([Variant("A", ConstructorMap.empty_variant_ann, None)])
+              ),
+            ),
           )
         }),
         test_case("Type fun", `Quick, () => {
