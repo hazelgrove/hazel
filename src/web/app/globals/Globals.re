@@ -51,7 +51,8 @@ module Action = {
     | NextLog
     | SkipLog
     | SkipExercise
-    | ToggleReplay;
+    | ToggleReplay
+    | ClearLog;
 
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t =
@@ -86,6 +87,7 @@ module Model = {
        convenience to avoid having to pass it around everywhere. Can only
        be used in view functions. */
     get_log_and: (string => unit) => unit,
+    get_log_count: (int => unit) => unit,
     export_all:
       (
         ~settings: Language.CoreSettings.t,
@@ -111,6 +113,10 @@ module Model = {
       get_log_and: _ =>
         failwith(
           "Cannot use get_log_and outside of the main view or update functions!",
+        ),
+      get_log_count: _ =>
+        failwith(
+          "Cannot use get_log_count outside of the main view or update functions!",
         ),
       export_all: (~settings as _, ~instructor_mode as _, ~log as _) =>
         failwith(

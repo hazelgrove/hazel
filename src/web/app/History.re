@@ -106,7 +106,7 @@ module Update = {
         );
         model |> Updated.return_quiet;
       | FinishImport(None) =>
-        print_endline("Log import failed");
+        LogSidebar.log_error("Log import failed");
         model |> Updated.return_quiet;
       | FinishImport(Some(data)) =>
         let of_data = (data: string): list((float, Page.Update.t)) =>
@@ -114,14 +114,13 @@ module Update = {
           |> Sexplib.Sexp.of_string
           |> Log.Entry.s_of_sexp_opt
           |> List.filter_map(x => x);
-        // |> List.filter(((ts, _action)) => ts > 1757794060000.0);
         let actions =
           data
           |> of_data
           |> Log.flatten_imports(~of_data)
           |> (
             x => {
-              print_endline(
+              LogSidebar.log_info(
                 "Imported log entries: " ++ string_of_int(List.length(x)),
               );
               x;
@@ -135,15 +134,15 @@ module Update = {
       | NextLog =>
         switch (model.future_log) {
         | [] =>
-          print_endline("No next log action to perform");
+          LogSidebar.log_info("No next log action to perform");
           model |> Updated.return_quiet;
         | [(t, next), ...rest] =>
-          print_endline(
-            "Applying next log action: "
-            ++ JsUtil.print_timestamp(t)
-            ++ " :: "
-            ++ Page.Update.show(next),
+          LogSidebar.log_action(
+            "Applying next log action",
+            Some(JsUtil.print_timestamp(t)),
           );
+          // Keep full action expression in console for detailed debugging
+          print_endline("Full action: " ++ Page.Update.show(next));
           try({
             let updated =
               Page.Update.update(
@@ -171,7 +170,7 @@ module Update = {
             };
           }) {
           | _ =>
-            print_endline("Failed to apply log action");
+            LogSidebar.log_error("Failed to apply log action");
             Model.{
               ...model,
               future_log:
@@ -185,10 +184,10 @@ module Update = {
           };
         }
       | SkipLog =>
-        print_endline("Skipping the next log entry");
+        LogSidebar.log_action("Skipping the next log entry", None);
         switch (model.future_log) {
         | [] =>
-          print_endline("No log entry to skip");
+          LogSidebar.log_info("No log entry to skip");
           model |> return_quiet;
         | [(_, _), ...rest] =>
           {
@@ -198,7 +197,10 @@ module Update = {
           |> return_quiet
         };
       | SkipExercise =>
-        print_endline("Skipping to the next exercise in the log");
+        LogSidebar.log_action(
+          "Skipping to the next exercise in the log",
+          None,
+        );
         let rec skip_to_next_exercise = (log: list((float, Page.Update.t))) =>
           switch (log) {
           | [] => []
@@ -217,6 +219,10 @@ module Update = {
           replay_toggle: !model.replay_toggle,
         }
         |> return_quiet
+      | ClearLog =>
+        Log.DB.clear_and(() => ());
+        LogSidebar.log_info("Log cleared");
+        model |> return_quiet;
       }
     | action =>
       let current =

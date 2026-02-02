@@ -116,7 +116,7 @@ module Update = {
             cached_result: Some(result),
           }),
       }
-      |> Updated.raise_invalid_action
+      |> Updated.return_quiet(~logged=true)
     | (UpdateResult(_), _) => model |> Updated.raise_invalid_action
     | (AxiomBoxAction(action), AxiomsOpen(m)) =>
       let* updated = AxiomsBox.Update.update(~settings, action, m);

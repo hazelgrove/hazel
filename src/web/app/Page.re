@@ -17,6 +17,7 @@ module Model = {
     editors: Editors.Model.t,
     explain_this: ExplainThisModel.t,
     assistant: AssistantModel.t,
+    log_sidebar: LogSidebar.Model.t,
     selection,
   };
 
@@ -33,11 +34,13 @@ module Store = {
       );
     let explain_this = ExplainThisModel.Store.load();
     let assistant = AssistantModel.Store.load();
+    let log_sidebar = LogSidebar.Model.init();
     {
       editors,
       globals,
       explain_this,
       assistant,
+      log_sidebar,
       selection: Editors.Selection.default_selection(editors),
     };
   };
@@ -632,13 +635,7 @@ module View = {
     );
   };
 
-  let top_bar =
-      (
-        ~globals,
-        ~inject: Update.t => Ui_effect.t(unit),
-        ~editors,
-        ~next_log: option(Update.t),
-      ) =>
+  let top_bar = (~globals, ~inject: Update.t => Ui_effect.t(unit), ~editors) =>
     div(
       ~attrs=[Attr.id("top-bar")],
       [
@@ -661,37 +658,6 @@ module View = {
             ),
           ],
         ),
-      ]
-      @ (
-        next_log
-        |> Option.map(_ =>
-             [
-               Widgets.button(
-                 text("next"),
-                 _ => Ui_effect.Many([inject(Globals(Log(NextLog)))]),
-                 ~tooltip="Play next action from imported log",
-               ),
-               Widgets.button(
-                 text("skip"),
-                 _ => Ui_effect.Many([inject(Globals(Log(SkipLog)))]),
-                 ~tooltip="Skip the rest of the imported log",
-               ),
-               Widgets.button(
-                 text("skip exercise"),
-                 _ => Ui_effect.Many([inject(Globals(Log(SkipExercise)))]),
-                 ~tooltip="Skip to the next exercise in the imported log",
-               ),
-             ]
-           )
-        |> Option.to_list
-        |> List.flatten
-      )
-      @ [
-        Widgets.button(
-          text("play/pause"),
-          _ => Ui_effect.Many([inject(Globals(Log(ToggleReplay)))]),
-          ~tooltip="Toggle replaying imported log automatically",
-        ),
       ],
     );
 
@@ -700,19 +666,22 @@ module View = {
         ~get_log_and: (string => unit) => unit,
         ~inject: Update.t => Ui_effect.t(unit),
         ~cursor: Cursor.cursor(Editors.Update.t),
-        ~next_log: option(Update.t),
         {
           globals,
           editors,
           explain_this: explainThisModel,
           assistant: assistantModel,
+          log_sidebar,
           selection,
         } as model: Model.t,
       ) => {
+    let log_count = LogCount.get();
     let globals = {
       ...globals,
       inject_global: x => inject(Globals(x)),
       get_log_and,
+      get_log_count: _ =>
+        failwith("get_log_count is deprecated, use Log.get_count_sync"),
       export_all: Export.export_all,
     };
     let bottom_bar = CursorInspector.view(~globals, cursor);
@@ -727,6 +696,8 @@ module View = {
           | MakeActive(s) => inject(MakeActive(Scratch(s))),
         ~explainThisModel,
         ~assistantModel,
+        ~log_model=log_sidebar,
+        ~log_count,
         ~editor=Update.get_editor(model),
         cursor.info,
       );
@@ -778,7 +749,7 @@ module View = {
     };
 
     [
-      top_bar(~globals, ~inject, ~editors, ~next_log),
+      top_bar(~globals, ~inject, ~editors),
       div(
         ~attrs=[
           Attr.id("main"),
@@ -794,17 +765,12 @@ module View = {
   };
 
   let view =
-      (
-        ~get_log_and,
-        ~inject: Update.t => Ui_effect.t(unit),
-        ~next_log: option(Update.t),
-        model: Model.t,
-      ) => {
+      (~get_log_and, ~inject: Update.t => Ui_effect.t(unit), model: Model.t) => {
     let cursor = Selection.get_cursor_info(~selection=model.selection, model);
     div(
       ~attrs=[Attr.id("page"), ...handlers(~cursor, ~inject, model)],
       [FontSpecimen.view, JsUtil.clipboard_shim]
-      @ main_view(~get_log_and, ~cursor, ~inject, ~next_log, model),
+      @ main_view(~get_log_and, ~cursor, ~inject, model),
     );
   };
 };

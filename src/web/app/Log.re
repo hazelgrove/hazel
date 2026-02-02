@@ -23,10 +23,12 @@ module DB = {
     openDB(~upgrade, ~error, ~version=1, db_name, db => f(db));
   };
 
-  let add = (key: string, value: string): unit =>
+  let add = (key: string, value: string): unit => {
+    LogCount.increment();
     with_db(db =>
       Store.add(~key, ~callback=_key => (), kv_store(db), value)
     );
+  };
 
   let get = (key: string, f: option(string) => unit): unit => {
     let error = _ => Printf.printf("ERROR: Log.IDBKV.get");
@@ -40,6 +42,7 @@ module DB = {
 
   let clear_and = (callback): unit => {
     let error = _ => Printf.printf("ERROR: Log.IDBKV.clear");
+    LogCount.clear();
     with_db(db => Store.clear(~error, ~callback, kv_store(db)));
   };
 };
@@ -79,9 +82,22 @@ module Entry = {
     };
 };
 
+let get_and = (f: string => unit): unit =>
+  DB.get_all(entries => f("(" ++ String.concat(" ", entries) ++ ")"));
+
+let get_count = (f: int => unit): unit =>
+  DB.get_all(entries => f(List.length(entries)));
+
+// Synchronously get the cached count (may be stale until sync_count is called)
+let get_count_sync = (): int => LogCount.get();
+
+// Sync the cached count with the database
+let sync_count = (): unit =>
+  DB.get_all(entries => LogCount.set(List.length(entries)));
+
 let import = (data: string): unit =>
   /* Should be fine to fire saves concurrently? */
-  DB.clear_and(() =>
+  DB.clear_and(() => {
     try(
       data
       |> Sexplib.Sexp.of_string
@@ -89,16 +105,15 @@ let import = (data: string): unit =>
       |> List.iter(Entry.save)
     ) {
     | _ => Printf.printf("Log.Entry.import: Deserialization error")
-    }
-  );
+    };
+    // Sync count after import completes
+    sync_count();
+  });
 
 let update = (action: Page.Update.t, result: Updated.t('a)): unit =>
   if (result.logged) {
     Entry.save(Entry.mk(action));
   };
-
-let get_and = (f: string => unit): unit =>
-  DB.get_all(entries => f("(" ++ String.concat(" ", entries) ++ ")"));
 
 let to_actions = () => {
   print_endline("HELLO??");

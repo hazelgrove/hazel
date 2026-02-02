@@ -64,8 +64,11 @@ let apply =
            ~dynamics=true,
          )
     ) {
-    | _ =>
-      print_endline("ERROR: Exception during calculate phase");
+    | exc =>
+      Printf.printf(
+        "ERROR: Exception during calculate: %s\n",
+        Printexc.to_string(exc),
+      );
       {
         ...model,
         replay_toggle: false,
@@ -180,6 +183,8 @@ let start = {
     JsUtil.focus_clipboard_shim();
     /* Setup scroll listener for floating elements (backpack) */
     FloatingElement.setup_scroll_listener();
+    // Sync log count from database
+    Log.sync_count();
     schedule_action(
       Assistant(AssistantUpdate.ChatAction(FilterLoadingMessages)),
     );
@@ -226,13 +231,7 @@ let start = {
   let%arr app_model = app_model
   and app_inject = app_inject;
   try(
-    History.View.view(
-      app_model,
-      ~inject=app_inject,
-      ~get_log_and=Log.get_and,
-      ~next_log=
-        Util.ListUtil.hd_opt(app_model.future_log) |> Option.map(snd),
-    )
+    History.View.view(app_model, ~inject=app_inject, ~get_log_and=Log.get_and)
   ) {
   | exc =>
     print_endline(
