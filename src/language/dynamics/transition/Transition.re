@@ -212,6 +212,7 @@ module Transition = (EV: EV_MODE) => {
            | `Substitution
            | `Environment
          ],
+        ~targets: Sample.targets=Sample.no_targets,
         ~in_closure=?,
         env: Environment.t(Exp.t), // Environment is empty in substitution mode
         d,
@@ -280,7 +281,7 @@ module Transition = (EV: EV_MODE) => {
       and. d1' =
         req_final(req(env), d1 => Let1(dp, d1, d2) |> wrap_ctx, d1);
       let.wrap_closure _ = (env, Let(dp, d1', d2) |> rewrap);
-      let {matches, closures} = matches(dp, d1');
+      let {matches, samples} = matches(targets, dp, d1');
       let matches_str = {
         switch (matches) {
         | IndetMatch
@@ -297,7 +298,7 @@ module Transition = (EV: EV_MODE) => {
         let env' = Environment.add_bindings(env, env');
         Step({
           expr: subst_env(env', d2),
-          side_effects: [RecordPatProbes(closures)],
+          side_effects: [RecordPatProbes(samples)],
           kind: LetBind(matches_str),
           is_value: false,
         });
@@ -470,7 +471,7 @@ module Transition = (EV: EV_MODE) => {
         switch (unboxed_fun) {
         | Constructor(_) => Constructor
         | FunEnv(dp, d3, replacement_env) =>
-          let matches = matches(dp, d2');
+          let matches = matches(targets, dp, d2');
           switch (matches.matches) {
           | IndetMatch
           | DoesNotMatch => Indet
@@ -479,15 +480,15 @@ module Transition = (EV: EV_MODE) => {
             Step({
               expr: subst_env(env'', d3),
               side_effects: [
-                RecordPatProbes(matches.closures),
                 RecordStackFrame,
+                RecordPatProbes(matches.samples),
               ],
               kind: FunAp,
               is_value: false,
             });
           };
         | FunNoEnv(dp, d3) when mode == `Substitution =>
-          let matches = matches(dp, d2');
+          let matches = matches(targets, dp, d2');
           switch (matches.matches) {
           | IndetMatch
           | DoesNotMatch => Indet
@@ -499,8 +500,8 @@ module Transition = (EV: EV_MODE) => {
                   d3,
                 ),
               side_effects: [
-                RecordPatProbes(matches.closures),
                 RecordStackFrame,
+                RecordPatProbes(matches.samples),
               ],
               kind: FunAp,
               is_value: false,
@@ -508,26 +509,36 @@ module Transition = (EV: EV_MODE) => {
           };
         | FunNoEnv(_) => Indet
         | BuiltinFun(ident) =>
-          let builtin =
-            VarMap.lookup(Builtins.forms_init, ident)
-            |> OptUtil.get(() => {
-                 /* This exception should never be raised because there is
-                    no way for the user to create a BuiltinFun. They are all
-                    inserted into the context before evaluation. */
-                 raise(
-                   EvaluatorError.Exception(InvalidBuiltin(ident)),
-                 )
-               });
-          switch (builtin(d2')) {
-          | Some(expr) =>
+          if (ident == "print") {
+            /* Println for probes study */
             Step({
-              expr,
-              side_effects: [],
+              expr: tuple([]),
+              side_effects: [RecordPrint(d2')],
               kind: BuiltinAp(ident),
-              is_value: false,
-            })
-          | None => Indet
-          };
+              is_value: true,
+            });
+          } else {
+            let builtin =
+              VarMap.lookup(Builtins.forms_init, ident)
+              |> OptUtil.get(() => {
+                   /* This exception should never be raised because there is
+                      no way for the user to create a BuiltinFun. They are all
+                      inserted into the context before evaluation. */
+                   raise(
+                     EvaluatorError.Exception(InvalidBuiltin(ident)),
+                   )
+                 });
+            switch (builtin(d2')) {
+            | Some(expr) =>
+              Step({
+                expr,
+                side_effects: [],
+                kind: BuiltinAp(ident),
+                is_value: false,
+              })
+            | None => Indet
+            };
+          }
         | DeferredAp(d3, d4s) =>
           let n_args =
             List.length(
@@ -849,19 +860,19 @@ module Transition = (EV: EV_MODE) => {
         fun
         | [] => None
         | [(dp, d2), ...rules] => {
-            let matches = matches(dp, d1);
+            let matches = matches(targets, dp, d1);
             switch (matches.matches) {
-            | Matches(env') => Some((env', d2, matches.closures))
+            | Matches(env') => Some((env', d2, matches.samples))
             | DoesNotMatch => next_rule(rules)
             | IndetMatch => None
             };
           }
       );
       switch (next_rule(rules)) {
-      | Some((env', d2, closures)) =>
+      | Some((env', d2, samples)) =>
         Step({
           expr: subst_env(Environment.add_bindings(env, env'), d2),
-          side_effects: [RecordPatProbes(closures)],
+          side_effects: [RecordPatProbes(samples)],
           kind: CaseApply,
           is_value: false,
         })
@@ -934,21 +945,10 @@ module Transition = (EV: EV_MODE) => {
     | Undefined =>
       let. _ = otherwise(env, d);
       Indet;
-    | Probe(d'', pr) =>
-      /* When evaluated, a probe adds a dynamics info entry
-       * reflecting the evaluation of the contained expression */
-      let. _ = otherwise(env, d => Probe(d, pr) |> rewrap)
-      and. d' = req_final(req(env), d => Probe(d, pr) |> wrap_ctx, d'');
-      Step({
-        expr: d',
-        side_effects: [RecordExpProbe(pr)],
-        kind: RemoveParens,
-        is_value: false,
-      });
-    | Parens(d) =>
+    | Parens(d') =>
       let. _ = otherwise(env, d);
       Step({
-        expr: d,
+        expr: d',
         side_effects: [],
         kind: RemoveParens,
         is_value: false,
@@ -997,8 +997,8 @@ let should_hide_step_kind = (~settings: CoreSettings.Evaluation.t) =>
   | UnOp(_)
   | ListCons
   | ListConcat
-  | TupleExtension
-  | CaseApply
+  | TupleExtension => false
+  | CaseApply => !settings.show_case_steps
   | Projection // TODO(Matt): We don't want to show projection to the user
   | Conditional(_)
   | RemoveTypeAlias

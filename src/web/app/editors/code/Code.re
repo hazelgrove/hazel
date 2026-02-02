@@ -6,6 +6,13 @@ open Util.WebUtil;
 
 /* Helpers for rendering code text with holes and syntax highlighting */
 
+let is_ref = (token: string, sort: Sort.t) =>
+  sort != Pat
+  && sort != TPat
+  && !Token.is_keyword(token)
+  && !Token.is_base_typ(token)
+  && Token.is_typ_var(token);
+
 let of_delim' =
   Core.Memo.general(
     ~cache_size_bound=10000,
@@ -17,6 +24,7 @@ let of_delim' =
       is_in_buffer: bool,
       is_complete: bool,
       is_infix_var: bool,
+      font_metrics: FontMetrics.t,
     ): t => {
       let base_cls =
         switch (token) {
@@ -30,9 +38,18 @@ let of_delim' =
         };
       let plurality = plurality == 1 ? "mono" : "poly";
       let in_buffer = is_in_buffer ? ["in-parsed-buffer"] : [];
+      let var_class = is_ref(token, sort) ? ["ref"] : [];
       span(
-        ~attrs=[Attr.classes(["token", base_cls, plurality] @ in_buffer)],
-        [Node.text(token)],
+        ~attrs=[
+          Attr.classes(
+            ["token", base_cls, plurality] @ in_buffer @ var_class,
+          ),
+        ],
+        /* Currently only supporting emojis in strings; this is a
+           conservative choice to guard against perf regressions;
+           it can likely be relaxed. See also Token.bounding_box */
+        base_cls == "string-lit"
+          ? GraphemeView.render(~font_metrics, token) : [text(token)],
       );
     },
   );
@@ -53,6 +70,7 @@ let view =
       ~measured: Measured.t,
       ~settings: Settings.Model.t,
       ~shape_map: ProjectorCore.Shape.Map.t,
+      ~refractor_shape_map: Id.Map.t(_),
       ~font_metrics: FontMetrics.t,
       ~term_data: TermData.t,
       ~buffer_ids: list(Id.t),
@@ -96,6 +114,7 @@ let view =
       Tile.is_complete(t),
       Mold.is_infix_op(t.mold)
       && Form.is_infix_delimiter_op_prefix(List.nth(t.label, i)),
+      font_metrics,
     );
 
   let measure_of = p => Measured.find_p(~msg="Text", p, measured);
@@ -123,7 +142,15 @@ let view =
   let rec of_segment = (seg: Segment.t): list(Node.t) =>
     List.concat_map(
       fun
-      | Piece.Tile(t) => [
+      | Piece.Tile(t) => {
+          let _ =
+            switch (Id.Map.find_opt(t.id, refractor_shape_map)) {
+            | Some(_) =>
+              DeferredLinebreaks.update(2) |> ignore;
+              ();
+            | None => ()
+            };
+
           span(
             ~attrs=[
               Attr.classes(Tile.id(t) |> is_dynamic ? ["dynamic"] : []),
@@ -131,8 +158,8 @@ let view =
             Aba.mk(t.shards, t.children)
             |> Aba.join(i => [of_delim(t, i)], of_segment)
             |> List.concat,
-          ),
-        ]
+          );
+        }
       | Grout(g) => [of_grout(g)]
       | Secondary(s) => [of_secondary(s)]
       | Projector(pr) => [of_projector(pr)],

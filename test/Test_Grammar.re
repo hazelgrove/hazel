@@ -83,7 +83,6 @@ let sample_expression = (cls_exp: Exp.cls): Grammar.UnitGrammar.exp => {
         };
         closure(Environment.empty, empty_hole());
       | Parens => parens(empty_hole())
-      | Probe => probe(empty_hole(), Probe.empty)
       | Cons => cons(empty_hole(), empty_hole())
       | UnOp(op) => un_op(op, empty_hole())
       | BinOp(op) => bin_op(op, empty_hole(), empty_hole())
@@ -117,7 +116,6 @@ let sample_pattern = (cls_pat: Pat.cls): Grammar.UnitGrammar.pat => {
       | Label => label("label")
       | TupLabel => tup_label(label("label"), empty_hole())
       | Parens => parens(empty_hole())
-      | Probe => probe(empty_hole(), Probe.empty)
       | Ap => ap(empty_hole(), empty_hole())
       | Asc => asc(empty_hole(), Typ.string())
       | Wild => wild()

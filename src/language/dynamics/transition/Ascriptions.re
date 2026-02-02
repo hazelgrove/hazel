@@ -6,6 +6,16 @@
 
  Ascriptions should be propagated inside of expressions when consistent.
  e.g. [1, 2] : [Int] -> [1 : Int, 2 : Int]
+
+ ID PRESERVATION FOR PROBES:
+ When an ascription transition transforms an expression, we preserve the original
+ expression's ID. This is critical for the probe system, which tracks expressions
+ by ID in probe_map.
+
+ The general principle: any case that returns Some(...) should preserve the ID of
+ the expression being ascribed (`e` from the outer `Asc(e, t)` pattern). We do this
+ either by returning `Some(e)` directly, or by using `IdTagged.fast_copy(DHExp.rep_id(e), ...)`
+ when constructing a new expression structure.
  */
 type closure_closures = list(Probe.call_stack => Dynamics.Probe.Closure.t);
 module ClosureWriter =
@@ -16,11 +26,12 @@ module ClosureWriter =
   });
 
 let rec transition =
-        (~recursive=false, d: DHExp.t): ClosureWriter.t(option(DHExp.t)) => {
+        (~recursive=false, ~targets: Sample.targets, d: DHExp.t)
+        : ClosureWriter.t(option(DHExp.t)) => {
   open ClosureWriter.Syntax;
   let recur = (d: DHExp.t): ClosureWriter.t(DHExp.t) =>
     if (recursive) {
-      let+ d' = transition(~recursive, d);
+      let+ d' = transition(~recursive, ~targets, d);
       Option.value(~default=d, d');
     } else {
       ClosureWriter.return(d);
@@ -63,30 +74,43 @@ let rec transition =
     | (Closure(ce, d), t) =>
       let+ d' =
         transition(~recursive, Asc(d, t |> Typ.fresh) |> DHExp.fresh);
-      Option.map(d' => Closure(ce, d') |> DHExp.fresh, d');
+      Option.map(d => Closure(ce, d) |> DHExp.fresh, d');
     | (Fun(p, e, t, v), Arrow(t1, t2)) =>
       ClosureWriter.return(
         Some(
-          IdTagged.FreshGrammar.(
-            Exp.(fn(Pat.(asc(p, t1)), asc(e, t2), t, v))
+          IdTagged.fast_copy(
+            DHExp.rep_id(e),
+            IdTagged.FreshGrammar.(
+              Exp.(fn(Pat.(asc(p, t1)), asc(body, t2), closure_ty, name))
+            ),
           ),
         ),
       )
-    | (TupLabel({term: ExplicitNonlabel, _}, e), _) =>
-      let+ d' = recur(Asc(e, t) |> DHExp.fresh);
-      Some(d');
+    | (TupLabel({term: ExplicitNonlabel, _}, inner), _) =>
+      ClosureWriter.return(Some(recur(Asc(inner, t) |> DHExp.fresh)))
     | (TupLabel(l, e), TupLabel(_l2, t)) =>
       // TODO Figure out what to do if the labels don't match
-      let+ e = recur(Asc(e, t) |> DHExp.fresh);
+      let+ e =
+        IdTagged.fast_copy(
+          DHExp.rep_id(e),
+          TupLabel(l, recur(Asc(inner, inner_ty) |> DHExp.fresh))
+          |> DHExp.fresh,
+        );
       Some(TupLabel(l, e) |> DHExp.fresh);
     | (Tuple(es), Prod(tys)) when List.length(es) == List.length(tys) =>
       let+ es =
         List.map2((e, ty) => {recur(Asc(e, ty) |> DHExp.fresh)}, es, tys)
         |> ClosureWriter.sequence;
-      Some(Tuple(es) |> DHExp.fresh);
+      Some(IdTagged.fast_copy(DHExp.rep_id(e), Tuple(es) |> DHExp.fresh));
     | (_, Unknown(_)) =>
       let+ e = recur(e);
       Some(e);
+    | (Cons(d1, d2), List(ty)) =>
+      let* d1 = recur(Asc(d1, ty) |> DHExp.fresh);
+      let+ d2 = recur(Asc(d2, t) |> DHExp.fresh);
+      Some(
+        IdTagged.fast_copy(DHExp.rep_id(e), Cons(d1, d2) |> DHExp.fresh),
+      );
     | (Atom(value) as d, Atom(typ)) =>
       ClosureWriter.return(
         switch (value, typ) {
@@ -95,7 +119,7 @@ let rec transition =
         | (Nat(_), Nat)
         | (Float(_), Float)
         | (SInt(_), SInt)
-        | (Bool(_), Bool) => Some(d |> Exp.fresh)
+        | (Bool(_), Bool) => Some(e)
         | (Int(_), _)
         | (String(_), _)
         | (Nat(_), _)
@@ -109,35 +133,60 @@ let rec transition =
         List.map(d => recur(Asc(d, ty) |> DHExp.fresh), ds)
         |> ClosureWriter.sequence;
 
-      Some(ListLit(ds) |> DHExp.fresh);
-    | (Cons(d1, d2), List(ty)) =>
-      let* d1 = recur(Asc(d1, ty) |> DHExp.fresh);
-      let+ d2 = recur(Asc(d2, t) |> DHExp.fresh);
-      Some(Cons(d1, d2) |> DHExp.fresh);
-    | (TypFun(tp, e, v), Poly(tp', t')) =>
+      Some(
+        IdTagged.fast_copy(DHExp.rep_id(e), ListLit(ds) |> DHExp.fresh),
+      );
+
+    | (TypFun(tp, body, name), Poly(tp', t')) =>
       let new_ty: Typ.t =
         switch (TPat.tyvar_of_utpat(tp)) {
         | Some(tyvar) => Var(tyvar) |> Typ.temp
         | None => Unknown(Internal) |> Typ.temp
         };
-      let+ e = recur(Asc(e, Typ.subst(new_ty, tp', t')) |> DHExp.fresh);
-      Some(TypFun(tp, e, v) |> DHExp.fresh);
-    | (If(e, e1, e2), t) =>
-      let* e = recur(e);
-      let* e1 = recur(Asc(e1, t |> Typ.temp) |> DHExp.fresh);
-      let+ e2 = recur(Asc(e2, t |> Typ.temp) |> DHExp.fresh);
-      Some(If(e, e1, e2) |> DHExp.fresh);
-    | (Match(e, rules), t) =>
+
       ClosureWriter.return(
         Some(
-          Match(
-            e,
-            List.map(
-              ((p, e)) => (p, Asc(e, t |> Typ.temp) |> DHExp.fresh),
-              rules,
-            ),
-          )
-          |> DHExp.fresh,
+          IdTagged.fast_copy(
+            DHExp.rep_id(e),
+            TypFun(
+              tp,
+              recur(Asc(body, Typ.subst(new_ty, tp', t')) |> DHExp.fresh),
+              name,
+            )
+            |> DHExp.fresh,
+          ),
+        ),
+      );
+
+    | (If(cond, e1, e2), t) =>
+      ClosureWriter.return(
+        Some(
+          IdTagged.fast_copy(
+            DHExp.rep_id(e),
+            If(
+              recur(cond),
+              recur(Asc(e1, t |> Typ.temp) |> DHExp.fresh),
+              recur(Asc(e2, t |> Typ.temp) |> DHExp.fresh),
+            )
+            |> DHExp.fresh,
+          ),
+        ),
+      )
+    | (Match(scrut, rules), t) =>
+      ClosureWriter.return(
+        Some(
+          IdTagged.fast_copy(
+            DHExp.rep_id(e),
+            Match(
+              scrut,
+              List.map(
+                ((p, body)) =>
+                  (p, Asc(body, t |> Typ.temp) |> DHExp.fresh),
+                rules,
+              ),
+            )
+            |> DHExp.fresh,
+          ),
         ),
       )
     | (
@@ -235,7 +284,6 @@ let rec transition =
     | (DeferredAp(_), _)
     | (Deferral(_), _)
     | (LivelitName(_), _)
-    | (Probe(_, _), _)
     | (TupleExtension(_, _), _)
     // These are handled above and must have the wrong type
     | (Atom(_), _)

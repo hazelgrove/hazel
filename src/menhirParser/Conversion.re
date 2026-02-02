@@ -388,7 +388,6 @@ module rec Exp: {
     | MultiHole(_) => raise(Failure("MultiHole not supported"))
     | Closure(_) => raise(Failure("Closure not supported"))
     | Parens(e) => of_core(e)
-    | Probe(e, _) => of_core(e)
     | Constructor(s, typ) =>
       Constructor(s, Option.map(Option.map(Typ.of_core), typ))
     | DeferredAp(e, es) =>
@@ -414,7 +413,10 @@ module rec Exp: {
           if (indicated) {
             Dynarray.add_last(indicated_ids, id);
           };
-          {ids: [id]};
+          {
+            ids: [id],
+            secondary: IdTagged.IdTag.empty_secondary,
+          };
         },
         indicated_exp,
       );
@@ -461,7 +463,11 @@ and Typ: {
           (sumterm: AST.sumterm): ConstructorMap.variant(IndicatedG.typ) =>
             switch (sumterm) {
             | Variant(name, typ) =>
-              Variant(name, [Id.mk()], Option.map(of_menhir_ast, typ))
+              Variant(
+                name,
+                ConstructorMap.mk_variant_ann(~ids=[Id.mk()], ()),
+                Option.map(of_menhir_ast, typ),
+              )
             | BadEntry(typ) => BadEntry(of_menhir_ast(typ))
             },
           sumterms,
@@ -594,7 +600,6 @@ and Pat: {
     | MultiHole(_) => raise(Failure("MultiHole not supported"))
     | Asc(p, t) => AscPat(of_core(p), Typ.of_core(t))
     | Parens(p) => of_core(p)
-    | Probe(p, _) => of_core(p)
     | Label(s) => LabelPat(s)
     | ExplicitNonlabel => ExplicitNonlabel
     | TupLabel(p1, p2) => TupLabelPat(of_core(p1), of_core(p2))

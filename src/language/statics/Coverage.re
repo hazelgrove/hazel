@@ -144,7 +144,6 @@ module Ctr = {
       failwith(
         "all_ctrs_of_type called with a non-normalized type: " ++ Typ.show(ty),
       )
-    | Probe(ty, _) => all_ctrs_of_typ(ty)
     };
   };
 
@@ -428,7 +427,6 @@ module UnseenPatternList: UnseenPatternList = {
         "prepend_ctr called with a non-normalized type: "
         ++ Typ.show(col_type),
       )
-    | Probe(ty, _) => cons_ctr(ctr, ty, unseen_pattern)
     };
   };
 
@@ -565,8 +563,6 @@ module UnseenPatternList: UnseenPatternList = {
         "cons_from_type called with a non-normalized type: "
         ++ Typ.show(col_type),
       )
-    | Probe(ty, _) =>
-      cons_from_type(seen_in_col, ty, col_ctr, unseen_pattern)
     };
   };
 
@@ -630,7 +626,6 @@ module UnseenPatternList: UnseenPatternList = {
         "prepend_from_type called with a non-normalized type: "
         ++ Typ.show(col_type),
       )
-    | Probe(ty, _) => cons_type_default(ty, col_ctr, unseen_pattern)
     };
   };
 

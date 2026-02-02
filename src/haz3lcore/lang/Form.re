@@ -169,6 +169,7 @@ type compound_form =
   | ParensPat
   | ParensTyp
   | ParensTPat
+  | BlockExp
   | ApExpEmpty
   | ApExp
   | ApPat
@@ -258,6 +259,7 @@ let get: compound_form => t =
   | ListLitExp => mk_op_c(LT, ["[", "]"], Exp, [Exp])
   | ListLitPat => mk_op_c(LT, ["[", "]"], Pat, [Pat])
   | ListTyp => mk_op_c(LT, ["[", "]"], Typ, [Typ])
+  | BlockExp => mk_op_c(LT, ["{", "}"], Exp, [Exp])
   //NOTE(andrew): parens being below aps is load-bearing, unfortunately
   | ParensExp => mk_parens(Exp)
   | ParensPat => mk_parens(Pat)
@@ -275,7 +277,7 @@ let get: compound_form => t =
   | TypFun => mk_pre_c(L, ["typfun", "->"], P.fun_, Exp, [TPat])
   | Poly => mk_pre_c(L, ["poly", "->"], P.fun_, Typ, [TPat])
   | Forall => mk_pre_c(L, ["forall", "->"], P.fun_, Exp, [Pat])
-  | ProofObject => mk_op_c(L, ["proof_object", "indeed"], Exp, [Exp])
+  | ProofObject => mk_op_c(L, ["proof_object", "end"], Exp, [Exp])
   | Rec => mk_pre_c(L, ["rec", "->"], P.fun_, Typ, [TPat])
   | Rule =>
     mk(L, ["|", "=>"], Mold.mk_bin'(P.rule_sep, Rul, Exp, [Pat], Exp))

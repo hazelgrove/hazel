@@ -250,7 +250,6 @@ let rec unbox: type a. (unbox_request(a), DHExp.t) => unboxed(a) =
         Filter(_) |
         Closure(_) |
         Parens(_) |
-        Probe(_) |
         ListConcat(_) |
         TupleExtension(_) |
         Dot(_) |
