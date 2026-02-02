@@ -199,13 +199,15 @@ let rec elaborate_pattern =
 
   let dpat =
     if (probe_unknowns && contains_unknown) {
-      switch (dpat) {
-      | {term: Probe(_), _} => dpat
-      | _ => {
-          term: Probe(dpat, Probe.empty),
-          annotation: dpat.annotation,
-        }
-      };
+      // switch (dpat) {
+      // | {term: Probe(_), _} => dpat
+      // | _ => {
+      //     term: Probe(dpat, Probe.empty),
+      //     annotation: dpat.annotation,
+      //   }
+      // };
+      // TODO
+      dpat;
     } else {
       dpat;
     };
@@ -503,13 +505,15 @@ let rec elaborate =
 
   let dhexp =
     if (probe_unknowns && contains_unknown) {
-      switch (dhexp) {
-      | {term: Probe(_), _} => dhexp
-      | _ => {
-          term: Probe(dhexp, Probe.empty),
-          annotation: dhexp.annotation,
-        }
-      };
+      // switch (dhexp) {
+      // | {term: Probe(_), _} => dhexp
+      // | _ => {
+      //     term: Probe(dhexp, Probe.empty),
+      //     annotation: dhexp.annotation,
+      //   }
+      // };
+      // TODO
+      dhexp;
     } else {
       dhexp;
     };

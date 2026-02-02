@@ -17,7 +17,7 @@
  either by returning `Some(e)` directly, or by using `IdTagged.fast_copy(DHExp.rep_id(e), ...)`
  when constructing a new expression structure.
  */
-type closure_closures = list(Probe.call_stack => Dynamics.Probe.Closure.t);
+type closure_closures = list((Sample.call_stack, int, int) => Sample.t);
 module ClosureWriter =
   Util.WriterMonad.Make({
     type t = closure_closures;
@@ -39,19 +39,6 @@ let rec transition =
   switch (DHExp.term_of(d)) {
   | Asc(e, t) =>
     switch (DHExp.term_of(e), Typ.term_of(Typ.unroll(t))) {
-    | (_, Probe(t', p)) =>
-      let* d' = recur(Asc(e, t') |> DHExp.fresh);
-      let+ () =
-        ClosureWriter.tell([
-          Dynamics.Probe.Closure.mk(
-            Typ.rep_id(t),
-            e,
-            Environment.empty,
-            _,
-            p,
-          ),
-        ]);
-      Some(d');
     | (Asc(e, t'), t)
         // This is only necessary because sometimes we add two ascriptions and aren't marking it as a non-value
         when
@@ -70,12 +57,20 @@ let rec transition =
       }
     | (e, Parens(t)) =>
       // This is an impossible case since types should be normalized before coming to transitions
-      transition(~recursive, Asc(e |> DHExp.fresh, t) |> DHExp.fresh)
+      transition(
+        ~recursive,
+        ~targets,
+        Asc(e |> DHExp.fresh, t) |> DHExp.fresh,
+      )
     | (Closure(ce, d), t) =>
       let+ d' =
-        transition(~recursive, Asc(d, t |> Typ.fresh) |> DHExp.fresh);
+        transition(
+          ~recursive,
+          ~targets,
+          Asc(d, t |> Typ.fresh) |> DHExp.fresh,
+        );
       Option.map(d => Closure(ce, d) |> DHExp.fresh, d');
-    | (Fun(p, e, t, v), Arrow(t1, t2)) =>
+    | (Fun(p, body, closure_ty, name), Arrow(t1, t2)) =>
       ClosureWriter.return(
         Some(
           IdTagged.fast_copy(
@@ -87,16 +82,17 @@ let rec transition =
         ),
       )
     | (TupLabel({term: ExplicitNonlabel, _}, inner), _) =>
-      ClosureWriter.return(Some(recur(Asc(inner, t) |> DHExp.fresh)))
-    | (TupLabel(l, e), TupLabel(_l2, t)) =>
+      let+ d = recur(Asc(inner, t) |> DHExp.fresh);
+      Some(d);
+    | (TupLabel(l, inner), TupLabel(_l2, inner_ty)) =>
+      let+ inner = recur(Asc(inner, inner_ty) |> DHExp.fresh);
       // TODO Figure out what to do if the labels don't match
-      let+ e =
+      Some(
         IdTagged.fast_copy(
           DHExp.rep_id(e),
-          TupLabel(l, recur(Asc(inner, inner_ty) |> DHExp.fresh))
-          |> DHExp.fresh,
-        );
-      Some(TupLabel(l, e) |> DHExp.fresh);
+          TupLabel(l, inner) |> DHExp.fresh,
+        ),
+      );
     | (Tuple(es), Prod(tys)) when List.length(es) == List.length(tys) =>
       let+ es =
         List.map2((e, ty) => {recur(Asc(e, ty) |> DHExp.fresh)}, es, tys)
@@ -144,34 +140,25 @@ let rec transition =
         | None => Unknown(Internal) |> Typ.temp
         };
 
-      ClosureWriter.return(
-        Some(
-          IdTagged.fast_copy(
-            DHExp.rep_id(e),
-            TypFun(
-              tp,
-              recur(Asc(body, Typ.subst(new_ty, tp', t')) |> DHExp.fresh),
-              name,
-            )
-            |> DHExp.fresh,
-          ),
+      let+ body' =
+        recur(Asc(body, Typ.subst(new_ty, tp', t')) |> DHExp.fresh);
+      Some(
+        IdTagged.fast_copy(
+          DHExp.rep_id(e),
+          TypFun(tp, body', name) |> DHExp.fresh,
         ),
       );
 
     | (If(cond, e1, e2), t) =>
-      ClosureWriter.return(
-        Some(
-          IdTagged.fast_copy(
-            DHExp.rep_id(e),
-            If(
-              recur(cond),
-              recur(Asc(e1, t |> Typ.temp) |> DHExp.fresh),
-              recur(Asc(e2, t |> Typ.temp) |> DHExp.fresh),
-            )
-            |> DHExp.fresh,
-          ),
+      let* cond = recur(cond);
+      let* e1 = recur(Asc(e1, t |> Typ.temp) |> DHExp.fresh);
+      let+ e2 = recur(Asc(e2, t |> Typ.temp) |> DHExp.fresh);
+      Some(
+        IdTagged.fast_copy(
+          DHExp.rep_id(e),
+          If(cond, e1, e2) |> DHExp.fresh,
         ),
-      )
+      );
     | (Match(scrut, rules), t) =>
       ClosureWriter.return(
         Some(
@@ -303,10 +290,11 @@ let rec transition =
   };
 };
 
-let rec transition_multiple = (d: DHExp.t): (closure_closures, DHExp.t) => {
-  switch (transition(~recursive=true, d)) {
+let rec transition_multiple =
+        (~targets: Sample.targets, d: DHExp.t): (closure_closures, DHExp.t) => {
+  switch (transition(~targets, ~recursive=true, d)) {
   | (closures, Some(d'')) =>
-    let (c, d) = transition_multiple(d'');
+    let (c, d) = transition_multiple(~targets, d'');
     (closures @ c, d);
   | _ => ([], d)
   };

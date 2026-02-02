@@ -33,7 +33,7 @@ let get_dynamic_typ = (info: info): Typ.t => {
          (d: Dynamics.Info.t) => {
            let statics =
              Statics.mk(CoreSettings.on, Builtins.ctx_init(Some(Int)));
-           let type_of = (c: Dynamics.Probe.Closure.t) => {
+           let type_of = (c: Sample.t) => {
              IdTagged.rep_id(c.value)
              |> Id.Map.find_opt(_, statics(c.value))
              |> Option.bind(
