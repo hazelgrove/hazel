@@ -180,20 +180,38 @@ select {
 }
 
 #closure-cursor-bar .breadcrumb-entry.ghost {
-  opacity: 0.4;
+  opacity: 0.7;
+}
+
+/* Color coding for call stack position - uses same colors as sample display */
+#closure-cursor-bar .breadcrumb-entry.above {
+  color: var(--sample-above-text);
+}
+#closure-cursor-bar .breadcrumb-entry.below {
+  color: var(--sample-below-text);
+}
+#closure-cursor-bar .breadcrumb-separator.above {
+  color: var(--sample-above-text);
+}
+#closure-cursor-bar .breadcrumb-separator.below {
+  color: var(--sample-below-text);
 }
 
 #closure-cursor-bar .breadcrumb-separator {
   color: var(--BR1);
   font-size: 0.8em;
   cursor: pointer;
-  padding: 0.1em 0.2em;
+  padding: 0.1em 0;
   border-radius: 1em;
   transition: background-color 0.1s;
+  /* Fixed width so double chevron doesn't cause layout shift */
+  display: inline-block;
+  width: 1.2em;
+  text-align: center;
 }
 
 #closure-cursor-bar .breadcrumb-separator.ghost {
-  opacity: 0.4;
+  opacity: 0.7;
 }
 
 #closure-cursor-bar .top-level {

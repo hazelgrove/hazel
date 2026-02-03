@@ -125,7 +125,6 @@ let view =
     let sample_cursor = refractors.sample_cursor;
     let call_stack = sample_cursor.call_stack |> List.rev;
     let index = sample_cursor.index;
-    let stack_length = List.length(call_stack);
 
     /* Top-level λ entry (always present when bar is shown) */
     let top_level_entry =
@@ -134,77 +133,95 @@ let view =
     /* Build breadcrumb entries with separators */
     let entries =
       if (List.is_empty(call_stack)) {
-        [
-          /* Just λ when at top level */
-          top_level_entry,
-        ];
+        [top_level_entry];
       } else {
-        /* λ followed by separator and stack entries */
-        let stack_entries =
-          List.mapi(
-            (i, (app_id, stack_name)) => {
-              let is_focused = i == index;
-              /* Ghost entries are those beyond the current index */
-              let is_ghost = i > index;
-              /* Use name from stack if available, otherwise look up in info_map */
-              let (_, body_id_opt) = get_fn_info(~info_map, app_id);
-              let display_name =
-                switch (stack_name) {
-                | Some(name) => Some(name)
-                | None =>
-                  let (name_opt, _) = get_fn_info(~info_map, app_id);
-                  name_opt;
-                };
-              let is_unknown = Option.is_none(display_name);
-              let display_text =
-                is_unknown ? {js|○|js} : Option.get(display_name);
-              let classes =
-                ["breadcrumb-entry"]
-                @ (is_focused ? ["focused"] : [])
-                @ (is_ghost ? ["ghost"] : [])
-                @ (is_unknown ? ["unknown"] : []);
-              /* Click handler: set cursor index, optionally jump to definition */
-              let on_click = evt =>
-                Effect.Many(
-                  [set_cursor_index(~globals, i, evt)]
-                  @ (
-                    switch (body_id_opt) {
-                    | Some(body_id) => [jump_to(~globals, body_id, evt)]
-                    | None => []
-                    }
-                  ),
-                );
-              let attrs = [
-                Attr.classes(classes),
-                Attr.on_pointerdown(on_click),
-              ];
-              let entry = div(~attrs, [text(display_text)]);
-              /* Separator before each entry (clicking separator goes to app site) */
-              [separator(~globals, ~is_ghost, ~index=i, app_id), entry];
-            },
-            call_stack,
-          )
-          |> List.flatten;
-        [top_level_entry] @ stack_entries;
-      };
+        /* Build entries with index */
+        let rec build_entries = (i, remaining) =>
+          switch (remaining) {
+          | [] => []
+          | [(app_id, stack_name), ...rest] =>
+            let is_focused = i == index;
+            let is_ghost = i > index;
+            let is_first_ghost = i == index + 1;
+            /* Position class for color coding */
+            let position_class =
+              i < index ? "above" : (i > index ? "below" : "");
 
-    /* Show indicator if there's more below the index */
-    let has_more_below = index < stack_length - 1 && stack_length > 0;
-    let more_indicator =
-      has_more_below
-        ? [
-          span(
-            ~attrs=[Attr.class_("more-indicator")],
-            [text({js|░|js})],
-          ),
-        ]
-        : [];
+            /* Get function info */
+            let (_, body_id_opt) = get_fn_info(~info_map, app_id);
+            let display_name =
+              switch (stack_name) {
+              | Some(name) => Some(name)
+              | None =>
+                let (name_opt, _) = get_fn_info(~info_map, app_id);
+                name_opt;
+              };
+            let is_unknown = Option.is_none(display_name);
+            let display_text =
+              is_unknown ? {js|○|js} : Option.get(display_name);
+
+            /* Entry classes */
+            let entry_classes =
+              ["breadcrumb-entry"]
+              @ (is_focused ? ["focused"] : [])
+              @ (is_ghost ? ["ghost"] : [])
+              @ (is_unknown ? ["unknown"] : [])
+              @ (position_class != "" ? [position_class] : []);
+
+            /* Entry click handler */
+            let on_entry_click = evt =>
+              Effect.Many(
+                [set_cursor_index(~globals, i, evt)]
+                @ (
+                  switch (body_id_opt) {
+                  | Some(body_id) => [jump_to(~globals, body_id, evt)]
+                  | None => []
+                  }
+                ),
+              );
+
+            let entry =
+              div(
+                ~attrs=[
+                  Attr.classes(entry_classes),
+                  Attr.on_pointerdown(on_entry_click),
+                ],
+                [text(display_text)],
+              );
+
+            /* Separator classes */
+            let sep_classes =
+              ["breadcrumb-separator"]
+              @ (is_ghost ? ["ghost"] : [])
+              @ (position_class != "" ? [position_class] : []);
+
+            /* Separator: double chevron for first ghost (visual indicator), regular for others */
+            let sep_text = is_first_ghost ? {js|❯❯|js} : {js|❯|js};
+
+            /* Separator click handler */
+            let on_sep_click = evt =>
+              Effect.Many([
+                jump_to(~globals, app_id, evt),
+                set_cursor_index(~globals, i, evt),
+              ]);
+
+            let sep =
+              span(
+                ~attrs=[
+                  Attr.classes(sep_classes),
+                  Attr.on_pointerdown(on_sep_click),
+                ],
+                [text(sep_text)],
+              );
+
+            [sep, entry, ...build_entries(i + 1, rest)];
+          };
+
+        [top_level_entry, ...build_entries(0, call_stack)];
+      };
 
     div(
       ~attrs=[Attr.id("closure-cursor-bar")],
-      [
-        //stack_icon(),
-        div(~attrs=[Attr.class_("breadcrumbs")], entries @ more_indicator),
-      ],
+      [div(~attrs=[Attr.class_("breadcrumbs")], entries)],
     );
   };
