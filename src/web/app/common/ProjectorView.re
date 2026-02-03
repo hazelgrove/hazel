@@ -291,18 +291,22 @@ let flex_code =
       ~single_line=false, /* Perf optimization if you promise it's single-line */
       ~background=?,
       ~text_only=false,
+      ~is_dynamic=?,
       sort,
       segment,
-    ) =>
+    ) => {
+  let is_dynamic = Option.value(~default=(_: Id.t) => false, is_dynamic);
   text_only
     ? text_code(segment)
     : simple_code(
         ~background?,
+        ~is_dynamic,
         ~is_single_line=single_line,
         font_metrics,
         sort,
         segment,
       );
+};
 
 /* Route top-level metadata to the projector view function. */
 let mk_view =

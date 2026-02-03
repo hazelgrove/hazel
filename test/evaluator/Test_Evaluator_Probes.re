@@ -85,7 +85,8 @@ let get_samples_by_line = (code: string): IntMap.t(list(string)) => {
       );
 
     /* Elaborate and evaluate */
-    let elaborated = Elaborator.elaborate(info_map, term) |> fst;
+    let elaborated =
+      Elaborator.elaborate(~probe_unknowns=false, info_map, term) |> fst;
     let (_, state) =
       Evaluator.evaluate(~targets, ~env=Builtins.env_init, elaborated);
     let probes = EvaluatorState.get_probes(state);

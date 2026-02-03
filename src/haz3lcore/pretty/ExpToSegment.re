@@ -218,7 +218,6 @@ let rec external_precedence_typ = (tp: Typ.t) =>
 
   // Matt: I think multiholes are min because we don't know the precedence of the `⟩?⟨`s
   | Unknown(Hole(MultiHole(_))) => Precedence.min
-  | Probe(typ, _) => external_precedence_typ(typ)
   };
 
 /* Conditional parenthesization helpers.
@@ -770,13 +769,6 @@ and parenthesize_typ =
           List.map(parenthesize_any(~parenthesization, ~show_filters), xs),
         ),
       ),
-    )
-    |> rewrap
-  | Probe(t, pr) =>
-    Probe(
-      parenthesize_typ(~already_paren=true, t)
-      |> paren_typ_at(Precedence.min),
-      pr,
     )
     |> rewrap
   };
@@ -1997,11 +1989,11 @@ and typ_to_pretty = (~settings: Settings.t, typ: Typ.t): pretty => {
           List.map2((id, t) => [mk_form(TypPlus, id, [])] @ t, ids, ts),
         ),
     );
-  | Probe(typ, _) => go(typ) // TODO Wrap?
   };
 }
 and tpat_to_pretty = (~settings: Settings.t, tpat: TPat.t): pretty => {
   let wrap = wrap_with_secondary(~secondary=settings.secondary);
+  let pad_ids = pad_ids(~settings);
   /* Use settings-aware concatenation and form building */
   switch (tpat |> IdTagged.term_of) {
   | Invalid(t) =>

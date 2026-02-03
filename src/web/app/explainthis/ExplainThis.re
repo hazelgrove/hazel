@@ -2676,7 +2676,6 @@ let get_doc =
     | ExplicitNonlabel
     | ProdProjection(_)
     | ProdExtension(_)
-    | Probe(_)
     | Parens(_) => default // Shouldn't be hit?
     }
   | Some(InfoTPat(info)) =>

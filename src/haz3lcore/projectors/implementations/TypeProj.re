@@ -45,7 +45,7 @@ let get_dynamic_typ = (info: info): Typ.t => {
                   | _ => None,
                 );
            };
-           let types = List.map(type_of, d) |> Util.OptUtil.sequence;
+           let types = List.map(type_of, d.samples) |> Util.OptUtil.sequence;
 
            Option.bind(
              types,

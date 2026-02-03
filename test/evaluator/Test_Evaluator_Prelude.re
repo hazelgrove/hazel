@@ -104,7 +104,7 @@ let elaborate = u =>
 
 /* Elaborate an expression with existing statics map */
 let elaborate_with_info = (info_map, u) =>
-  Elaborator.elaborate(info_map, u) |> fst;
+  Elaborator.elaborate(~probe_unknowns=false, info_map, u) |> fst;
 
 (exp, probes) => (
   {

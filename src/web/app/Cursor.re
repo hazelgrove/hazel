@@ -2,7 +2,7 @@ open Haz3lcore;
 open Language;
 type cursor('update) = {
   info: option(Info.t),
-  dynamics: option(list(Dynamics.Probe.Closure.t)),
+  dynamics: option(list(Sample.t)),
   selected_text: option(unit => string),
   selection: option(Segment.t),
   indicated_piece: option(Piece.t),
