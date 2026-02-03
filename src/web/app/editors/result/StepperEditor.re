@@ -155,7 +155,7 @@ module View = {
         ~selected_id,
         ~_dynamics: Language.Dynamics.Map.t=Language.Dynamics.Map.empty,
         model: Model.t,
-      ) =>
+      ) => {
     CodeSelectable.View.view(
       ~dynamics=Language.Dynamics.Map.empty,
       ~signal=
@@ -176,4 +176,5 @@ module View = {
           ),
       model.editor,
     );
+  };
 };
