@@ -63,7 +63,24 @@
 - For #3-4, look for existing helpers in auto-probe code before writing new ones
 - Could start with #1 (easiest) and expand later
 
-**Status:** Deferred. Add when we want richer feedback between editor cursor and closure cursor bar.
+**Status:** Option 1 implemented. Options 2-4 deferred.
+
+---
+
+## Separator Click / Sample Indication Sync (TODO - Investigate)
+
+**Observed issue:** When clicking a separator in the closure cursor bar, the breadcrumb entry gets the red "indicated" outline (because the syntax cursor moves to the app_id), but the corresponding **sample** in the probe doesn't get indicated.
+
+**Possible cause:** Sample indication is tied to `indicated_call` in `sample_cursor`, which only gets set when clicking directly on a sample (via `Capture` action). Clicking the separator only calls `SetIndex` + `jump_to` - it doesn't set `indicated_call`.
+
+**Possible off-by-one aspect:** The sample cursor index might be at a different depth than expected, causing the "wrong" sample to appear indicated (or none at all).
+
+**To investigate:**
+- How does `indicated_call` interact with sample display?
+- Should separator clicks set `indicated_call`?
+- Is there an index mismatch between breadcrumb position and sample filtering?
+
+**Status:** Needs investigation. Noted late at night when too tired to fully diagnose.
 
 ---
 
