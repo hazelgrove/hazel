@@ -288,16 +288,12 @@
   height: 1.3em;
   width: 1.3em;
   border-radius: 1em;
-  filter: invert(1);
-  background: url(../../img/noun-pinned-1560993.svg) #33ffff;
+  background: url(../../img/noun-pinned-1560993.svg) var(--R1);
   background-size: 70%;
   background-position: center;
   background-repeat: no-repeat;
   transform-origin: top right;
   scale: 0.6;
-}
-.projector.probe .pin {
-  background-color: oklch(0.8 0.18 201.83);
 }
 
 /* OFFSIDE VIEW */
@@ -739,15 +735,14 @@
 }
 
 .sample-context-menu .action-item.pinned .pin-icon {
-  filter: invert(1) brightness(1.5);
+  background-color: var(--R1);
 }
 
 .sample-context-menu .action-item .pin-icon {
   height: 1.3em;
   width: 1.3em;
   border-radius: 1em;
-  filter: invert(1) saturate(0) brightness(1.5);
-  background: url(../../img/noun-pinned-1560993.svg) #00ffff;
+  background: url(../../img/noun-pinned-1560993.svg) var(--T3);
   background-size: 70%;
   background-position: center;
   background-repeat: no-repeat;
@@ -767,7 +762,7 @@
 }
 
 .sample-context-menu .action-item:hover .pin-icon {
-  filter: invert(1) brightness(3) saturate(0.4);
+  background-color: var(--R1);
 }
 
 .live-offside .live-env {

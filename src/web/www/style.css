@@ -166,6 +166,7 @@ select {
   border-radius: 1em;
   color: var(--BR3);
   transition: background-color 0.1s;
+  position: relative;
 }
 
 #closure-cursor-bar .breadcrumb-entry:hover,
@@ -251,16 +252,18 @@ select {
   background-size: 70%;
   background-position: center;
   background-repeat: no-repeat;
-  filter: invert(1);
+  /* filter: invert(1); */
   cursor: pointer;
   margin-right: 0.2em;
   vertical-align: middle;
-  position: relative;
+  position: absolute;
   top: -0.1em;
+  left: -0.4em;
+  scale: 0.75;
 }
 
 #closure-cursor-bar .pin-icon:hover {
-  filter: invert(1) brightness(1.2);
+  filter: brightness(1.2);
 }
 
 #bottom-bar {
