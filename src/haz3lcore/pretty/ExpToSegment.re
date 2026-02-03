@@ -1401,7 +1401,8 @@ let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
     let+ p = pat_to_pretty(~settings: Settings.t, p)
     and+ thm = go(thm)
     and+ e = go(e);
-    let e = settings.inline ? e : [Secondary(mk_newline(Id.mk()))] @ e;
+    let e =
+      settings.inline == Inline ? e : [Secondary(mk_newline(Id.mk()))] @ e;
     wrap(exp, [mk_form(Theorem, id, [p, thm])] @ e);
   | ProofObject(t) =>
     let id = exp |> Exp.rep_id;
