@@ -154,6 +154,10 @@ select {
   display: none;
 }
 
+#closure-cursor-bar:focus {
+  outline: none;
+}
+
 #closure-cursor-bar .breadcrumbs {
   display: flex;
   align-items: center;
@@ -162,7 +166,7 @@ select {
 
 #closure-cursor-bar .breadcrumb-entry {
   cursor: pointer;
-  padding: 0.1em 0.4em;
+  padding: 0 0.4em;
   border-radius: 1em;
   color: var(--BR3);
   transition: background-color 0.1s;
@@ -171,7 +175,7 @@ select {
 
 #closure-cursor-bar .breadcrumb-entry:hover,
 #closure-cursor-bar .breadcrumb-separator:hover {
-  background-color: var(--SAND);
+  background-color: white;
 }
 
 #closure-cursor-bar .breadcrumb-entry.focused {
@@ -179,6 +183,15 @@ select {
   background-color: var(--G5);
   font-weight: 500;
   text-decoration: underline;
+}
+
+#closure-cursor-bar .breadcrumb-entry.indicated {
+  outline: 1.5px solid var(--R1);
+  border-radius: 3px;
+}
+
+#closure-cursor-bar .breadcrumb-entry.focused.indicated {
+  text-decoration: none;
 }
 
 #closure-cursor-bar .breadcrumb-entry.ghost {
@@ -219,6 +232,19 @@ select {
 #closure-cursor-bar .top-level {
   color: var(--BR4);
   padding: 0.1em 0.4em;
+  cursor: pointer;
+  border-radius: 1em;
+  transition: background-color 0.1s;
+}
+
+#closure-cursor-bar .top-level:hover {
+  background-color: var(--SAND);
+}
+
+#closure-cursor-bar .top-level.focused {
+  color: var(--G0);
+  background-color: var(--G5);
+  font-weight: 500;
 }
 
 #closure-cursor-bar .more-indicator {
@@ -258,7 +284,7 @@ select {
   vertical-align: middle;
   position: absolute;
   top: -0.1em;
-  left: -0.5em;
+  right: -0.75em;
   scale: 0.75;
 }
 

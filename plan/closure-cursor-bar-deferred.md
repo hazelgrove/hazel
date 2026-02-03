@@ -168,3 +168,163 @@ Investigation Stack:
 Could also be implemented as multiple pins with a stack/tree structure, rather than just one pin.
 
 **Status:** Deferred. This is a more general debugging workflow enhancement. Could be valuable for complex debugging scenarios.
+
+---
+
+## Keyboard Navigation
+
+**Concept:** Navigate the closure cursor bar with keyboard.
+
+### MVP
+- Left/Right arrow keys to move between breadcrumb entries
+- Enter to jump to the current entry's definition
+
+### Extension: Dropdown Navigation
+- Down arrow opens a dropdown showing function applications within the current function body
+- Could show applications that are lexically inside the function definition
+- Selecting one would jump to it (and possibly add a probe if needed)
+- This would allow keyboard-based navigation through the entire call structure
+
+### Data Source Questions
+- Should dropdowns be populated from dynamics (what actually executed) or lexically (what apps exist in the function body)?
+- Lexical: Always shows all possible calls, even if not executed this run
+- Dynamic: Only shows calls that actually happened, with sample data
+- Could be a combination: lexical structure, annotated with dynamic info
+
+**Status:** Deferred. Start with MVP, consider dropdown extension later.
+
+---
+
+## Bidirectional Hover Highlighting
+
+**Concept:** Highlight matching elements when hovering.
+
+### Breadcrumb → Sample
+When hovering a breadcrumb entry, highlight the corresponding sample(s) in probes.
+
+### Sample → Breadcrumb
+When hovering a sample in a probe, highlight the matching breadcrumb entry.
+
+### Implementation Thoughts
+- Would likely need a `hover_cursor` field separate from the committed `sample_cursor`
+- Both probes and closure cursor bar would check this for highlighting
+- Similar infrastructure to indicated highlighting, but triggered by hover instead of syntax cursor
+
+**Status:** Deferred. Useful for understanding correspondence between bar and samples.
+
+---
+
+## Argument Values in Tooltips
+
+**Concept:** Show argument values in breadcrumb tooltips, e.g., `map([1,2,3])` instead of just `map`.
+
+### Implementation Challenges
+- Need to probe the argument expressions to capture their values
+- Would require adding app argument IDs to sample targets before evaluation
+- Closure cursor bar currently only receives statics info, would need dynamics too
+- Need to fish out the argument values from samples and format them
+
+### Alternative: Lighter Version
+- Just show the argument expressions (syntax), not their values
+- This is available from statics without additional probing
+
+**Status:** Deferred. Requires infrastructure changes. Consider lighter syntax-only version first.
+
+---
+
+## Copy Call Stack
+
+**Concept:** Button to copy the current call stack for debugging/sharing.
+
+### Possible Formats
+- Human-readable: `λ > map > filter > f`
+- With locations: `λ > map (line 5) > filter (line 12) > f (line 3)`
+- JSON for tooling integration
+
+**Status:** Deferred. Low priority but potentially useful for bug reports.
+
+---
+
+## Multiple Sample Selection
+
+**Concept:** Allow selecting multiple samples for comparison/analysis.
+
+### Use Cases
+- Compare two execution paths: "Why did `process(5)` work but `process(6)` fail?"
+- Call stack diff: highlight where two samples' call stacks diverge
+- Side-by-side value comparison
+
+### Connection to Investigation Breadcrumbs
+- Investigation breadcrumbs track exploration history (where you've looked)
+- Multiple selection tracks comparison targets (what you're analyzing)
+- Could potentially unify: investigation points become selectable samples
+
+**Status:** Deferred. Interesting direction but adds complexity. Revisit when single-cursor workflows feel limiting.
+
+---
+
+## Time Travel Slider
+
+**Concept:** Scrub through execution using step_start/step_end data.
+
+### How It Would Work
+- Slider representing evaluation steps
+- As you scrub, highlight samples whose step ranges contain the current step
+- Shows "program state at step N"
+
+### Limitations
+- With probe_all: many samples, rich scrubbing experience
+- Without probe_all: limited to collected samples only
+- May need UI to indicate "no data at this step"
+
+**Status:** Deferred. Interesting but depends on probe density.
+
+---
+
+## Evaluation Context Stepping (Exploratory)
+
+**Concept:** Capture evaluation context within function calls, enabling finer-grained stepping.
+
+### Current State
+Call stack entries represent function application boundaries. Within a function body, we don't track intermediate evaluation steps in the cursor.
+
+### Possible Extension
+- Capture evaluation context frames (what's being evaluated within a function)
+- Alternating sequence: call stack entry → eval context → call stack entry → ...
+- Would allow stepping through entire program at expression granularity
+
+### Open Questions
+- What exactly constitutes an "evaluation context frame"?
+- How to represent in UI without overwhelming?
+- Relationship to step_start/step_end data we already have?
+
+**Status:** Very exploratory. Needs more thought on what this would look like concretely.
+
+---
+
+## Pin from Dynamic Cursor UI
+
+**Concept:** Allow pinning directly from the closure cursor bar, not just from sample dropdowns.
+
+### Possible Affordances
+- Right-click or long-press on breadcrumb entry shows context menu with "Pin here"
+- Small pin icon appears on hover (like current unpin icon, but for pinning)
+- Clicking would pin the call stack up to and including that entry
+
+### Could We Show Full Sample Context Menu?
+
+Analysis of what we'd need:
+
+| Feature | Required Data | Currently Available? |
+|---------|--------------|---------------------|
+| Pin action | `app_id`, call stack | ✅ Yes - construct from `sample_cursor.call_stack` trimmed to entry index |
+| Step Into | Full `Sample.t` | ❌ No - needs dynamics passed in |
+| Environment | `sample.env`, `view_seg`, `utility` | ❌ No - needs dynamics + rendering utilities |
+
+**Current ClosureCursorBar inputs:** `globals`, `refractors` (has `sample_cursor`), `info_map` (statics only)
+
+**What's missing:** `Dynamics.Info.t`, samples list, `view_seg`/`utility`
+
+**Verdict:** Simplified context menu with just Pin is doable now. Full menu (Step Into + Environment) requires threading dynamics through.
+
+**Status:** Deferred. Pin-only version could be quick; full menu needs more plumbing.

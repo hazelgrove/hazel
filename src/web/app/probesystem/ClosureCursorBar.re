@@ -1,5 +1,6 @@
 open Virtual_dom.Vdom;
 open Node;
+open Util;
 open Util.WebUtil;
 open Haz3lcore;
 open Language;
@@ -116,12 +117,52 @@ let separator =
 let stack_icon = () =>
   span(~attrs=[Attr.class_("stack-icon")], [text({js|≡|js})]);
 
+/* Keyboard handler for navigation */
+let key_handler =
+    (
+      ~globals: Globals.t,
+      ~index: int,
+      ~max_index: int,
+      ~call_stack: list((Id.t, option(string))),
+      ~info_map: Statics.Map.t,
+      evt: Js_of_ocaml.Js.t(Js_of_ocaml.Dom_html.keyboardEvent),
+    ) => {
+  open Effect;
+  let key = Key.mk(KeyDown, evt);
+  switch (key.key) {
+  | D("ArrowLeft") =>
+    /* Move to shallower level (toward top-level) */
+    let new_index = max(-1, index - 1);
+    Many([set_cursor_index(~globals, new_index, evt), Stop_propagation]);
+  | D("ArrowRight") =>
+    /* Move to deeper level (toward innermost call) */
+    let new_index = min(max_index, index + 1);
+    Many([set_cursor_index(~globals, new_index, evt), Stop_propagation]);
+  | D("Enter") =>
+    /* Jump to definition of current entry, then refocus main editor */
+    JsUtil.focus_clipboard_shim();
+    if (index >= 0 && index < List.length(call_stack)) {
+      let (app_id, _) = List.nth(call_stack, index);
+      let (_, body_id_opt) = get_fn_info(~info_map, app_id);
+      switch (body_id_opt) {
+      | Some(body_id) =>
+        Many([jump_to(~globals, body_id, evt), Stop_propagation])
+      | None => Stop_propagation
+      };
+    } else {
+      Stop_propagation;
+    }
+  | _ => Ignore
+  };
+};
+
 /* Main view function */
 let view =
     (
       ~globals: Globals.t,
       ~refractors: Zipper.Refractor.t,
       ~info_map: Statics.Map.t,
+      ~indicated_id: option(Id.t),
     )
     : Node.t =>
   /* Only show when probes exist */
@@ -139,9 +180,17 @@ let view =
         Option.map(fst, Util.ListUtil.hd_opt(stack))
       );
 
-    /* Top-level λ entry (always present when bar is shown) */
+    /* Top-level λ entry (always present when bar is shown)
+     * Clicking resets cursor to top level (index -1) */
     let top_level_entry =
-      span(~attrs=[Attr.class_("top-level")], [text({js|λ|js})]);
+      span(
+        ~attrs=[
+          Attr.classes(["top-level"] @ (index == -1 ? ["focused"] : [])),
+          Attr.title("Go to top level"),
+          Attr.on_pointerdown(set_cursor_index(~globals, -1)),
+        ],
+        [text({js|λ|js})],
+      );
 
     /* Build breadcrumb entries with separators */
     let entries =
@@ -172,12 +221,16 @@ let view =
             let display_text =
               is_unknown ? {js|○|js} : Option.get(display_name);
 
+            /* Check if this entry is indicated (syntax cursor on the app) */
+            let is_indicated = Some(app_id) == indicated_id;
+
             /* Entry classes */
             let entry_classes =
               ["breadcrumb-entry"]
               @ (is_focused ? ["focused"] : [])
               @ (is_ghost ? ["ghost"] : [])
               @ (is_unknown ? ["unknown"] : [])
+              @ (is_indicated ? ["indicated"] : [])
               @ (position_class != "" ? [position_class] : []);
 
             /* Entry click handler */
@@ -202,7 +255,13 @@ let view =
                   span(
                     ~attrs=[
                       Attr.class_("pin-icon"),
-                      Attr.on_pointerdown(unpin(~globals, ps)),
+                      Attr.title("Click to unpin"),
+                      Attr.on_pointerdown(evt =>
+                        Effect.Many([
+                          Effect.Stop_propagation,
+                          unpin(~globals, ps, evt),
+                        ])
+                      ),
                     ],
                     [],
                   ),
@@ -210,10 +269,18 @@ let view =
               | _ => []
               };
 
+            /* Tooltip for entry - show "Jump to definition" if clickable */
+            let entry_tooltip =
+              switch (body_id_opt) {
+              | Some(_) => "Jump to definition"
+              | None => display_text
+              };
+
             let entry =
               div(
                 ~attrs=[
                   Attr.classes(entry_classes),
+                  Attr.title(entry_tooltip),
                   Attr.on_pointerdown(on_entry_click),
                 ],
                 pin_icon @ [text(display_text)],
@@ -236,6 +303,7 @@ let view =
               span(
                 ~attrs=[
                   Attr.classes(sep_classes),
+                  Attr.title("Jump to call site"),
                   Attr.on_pointerdown(on_sep_click),
                 ],
                 [text({js|❯|js})],
@@ -247,8 +315,16 @@ let view =
         [top_level_entry, ...build_entries(0, call_stack)];
       };
 
+    let max_index = List.length(call_stack) - 1;
+
     div(
-      ~attrs=[Attr.id("closure-cursor-bar")],
+      ~attrs=[
+        Attr.id("closure-cursor-bar"),
+        Attr.tabindex(0),
+        Attr.on_keydown(
+          key_handler(~globals, ~index, ~max_index, ~call_stack, ~info_map),
+        ),
+      ],
       [div(~attrs=[Attr.class_("breadcrumbs")], entries)],
     );
   };

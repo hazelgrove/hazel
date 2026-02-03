@@ -740,11 +740,14 @@ module View = {
 
     /* Closure cursor bar - shows call stack breadcrumbs when probes are active */
     let current_editor = Update.get_editor(model);
+    let indicated_id =
+      Haz3lcore.Indicated.index(current_editor.editor.state.zipper);
     let closure_cursor_bar =
       ClosureCursorBar.view(
         ~globals,
         ~refractors=current_editor.editor.state.zipper.refractors,
         ~info_map=current_editor.statics.info_map,
+        ~indicated_id,
       );
 
     /* Scroll handler for viewport culling. Only enabled for Scratch and

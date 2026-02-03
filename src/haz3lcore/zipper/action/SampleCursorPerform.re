@@ -83,7 +83,8 @@ let set_index = (z: Zipper.t, i: int): Zipper.t =>
     z,
     sample_cursor => {
       let max_index = List.length(sample_cursor.call_stack) - 1;
-      let clamped_index = max(0, min(i, max_index));
+      /* Allow -1 for top-level (outside all calls) */
+      let clamped_index = max(-1, min(i, max_index));
       {
         ...sample_cursor,
         index: clamped_index,
