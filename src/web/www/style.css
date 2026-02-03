@@ -138,7 +138,7 @@ select {
 #closure-cursor-bar {
   grid-row: 2 / span 1;
   grid-column: 1 / span 1;
-  z-index: var(--top-bar-z);
+  z-index: calc(var(--top-bar-z) - 1);
   display: flex;
   align-items: center;
   background-color: var(--ui-bkg);
@@ -146,7 +146,7 @@ select {
   padding: 0.25em 0.75em;
   min-height: 0;
   font-family: var(--code-font);
-  font-size: 0.85em;
+  /* font-size: 0.85em; */
 }
 
 #closure-cursor-bar:empty,
@@ -163,13 +163,14 @@ select {
 #closure-cursor-bar .breadcrumb-entry {
   cursor: pointer;
   padding: 0.1em 0.4em;
-  border-radius: 3px;
+  border-radius: 1em;
   color: var(--BR3);
   transition: background-color 0.1s;
 }
 
-#closure-cursor-bar .breadcrumb-entry:hover {
-  background-color: var(--T2);
+#closure-cursor-bar .breadcrumb-entry:hover,
+#closure-cursor-bar .breadcrumb-separator:hover {
+  background-color: var(--SAND);
 }
 
 #closure-cursor-bar .breadcrumb-entry.focused {
@@ -183,19 +184,42 @@ select {
 }
 
 #closure-cursor-bar .breadcrumb-separator {
-  color: var(--BR2);
+  color: var(--BR1);
   font-size: 0.8em;
+  cursor: pointer;
+  padding: 0.1em 0.2em;
+  border-radius: 1em;
+  transition: background-color 0.1s;
+}
+
+#closure-cursor-bar .breadcrumb-separator.ghost {
+  opacity: 0.4;
 }
 
 #closure-cursor-bar .top-level {
-  color: var(--BR2);
-  font-style: italic;
+  color: var(--BR4);
+  padding: 0.1em 0.4em;
 }
 
 #closure-cursor-bar .more-indicator {
   color: var(--BR2);
   margin-left: 0.25em;
   opacity: 0.5;
+}
+
+#closure-cursor-bar .stack-icon {
+  color: var(--BR4);
+  margin-right: 0.5em;
+  font-size: 0.9em;
+}
+
+#closure-cursor-bar .breadcrumb-entry.unknown {
+  color: var(--BR1);
+  cursor: default;
+}
+
+#closure-cursor-bar .breadcrumb-entry.unknown:hover {
+  background-color: transparent;
 }
 
 #bottom-bar {

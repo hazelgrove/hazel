@@ -4,30 +4,47 @@ open Util.WebUtil;
 open Haz3lcore;
 open Language;
 
-/* Extract function name from an application ID by looking up in statics.
+/* Extract function info from an application ID by looking up in statics.
  *
- * Note: This returns "?" for applications inside built-in function implementations
+ * Returns (name_opt, body_id_opt) where:
+ * - name_opt: Display name for the function (None for unknown)
+ * - body_id_opt: ID of the function body/definition for "go to definition"
+ *
+ * Note: Returns (None, None) for applications inside built-in function implementations
  * (e.g., recursive calls within `map`). These app_ids aren't in info_map because
  * statics only runs on user surface syntax, not internalized built-in code.
- *
- * Future enhancement: Augment RecordStackFrame to carry the function name directly.
- * This would require:
- * - Changing the effect type to RecordStackFrame(option(string))
- * - Extracting the name from `init` (the Ap expression) when emitting the effect
- * - Changing call_stack type from list(Id.t) to list((Id.t, option(string)))
- * - Updating all call_stack consumers
  */
-let get_fn_name = (~info_map: Statics.Map.t, app_id: Id.t): string =>
+let get_fn_info =
+    (~info_map: Statics.Map.t, app_id: Id.t)
+    : (option(string), option(Id.t)) =>
   switch (Statics.Map.lookup(app_id, info_map)) {
   | Some(InfoExp({term: {term: Ap(_, fn_exp, _), _}, _})) =>
+    let fn_id = Exp.rep_id(fn_exp);
     switch (fn_exp.term) {
-    | Var(name) => name
-    | Constructor(name, _) => name
-    | Fun(_) => {js|λ|js}
-    | BuiltinFun(name) => name /* Shouldn't happen in surface syntax, but handle it */
-    | _ => "fn"
-    }
-  | _ => "?"
+    | Var(name) =>
+      /* Look up binding site for the variable */
+      let body_id =
+        switch (Statics.Map.lookup(fn_id, info_map)) {
+        | Some(ci) => Info.get_binding_site(ci)
+        | None => None
+        };
+      (Some(name), body_id);
+    | Constructor(name, _) =>
+      let body_id =
+        switch (Statics.Map.lookup(fn_id, info_map)) {
+        | Some(ci) => Info.get_binding_site(ci)
+        | None => None
+        };
+      (Some(name), body_id);
+    | Fun(_) =>
+      /* Anonymous function - the fn_exp itself is the body */
+      (Some({js|λ|js}), Some(fn_id))
+    | BuiltinFun(name) =>
+      /* Built-in functions have no user-visible body */
+      (Some(name), None)
+    | _ => (Some("fn"), None)
+    };
+  | _ => (None, None)
   };
 
 /* Jump to syntax location */
@@ -39,7 +56,7 @@ let has_probes = (refractors: Zipper.Refractor.t): bool =>
   !List.is_empty(refractors.manuals)
   || !Id.Map.is_empty(refractors.autos.ids);
 
-/* Render a single breadcrumb entry */
+/* Render a single breadcrumb entry (the function name - clicks go to definition) */
 let breadcrumb_entry =
     (
       ~globals: Globals.t,
@@ -48,23 +65,40 @@ let breadcrumb_entry =
       ~is_ghost: bool,
       app_id: Id.t,
     ) => {
-  let name = get_fn_name(~info_map, app_id);
+  let (name_opt, body_id_opt) = get_fn_info(~info_map, app_id);
+  let is_unknown = Option.is_none(name_opt);
+  let display_text = is_unknown ? {js|○|js} : Option.get(name_opt);
   let classes =
     ["breadcrumb-entry"]
     @ (is_focused ? ["focused"] : [])
-    @ (is_ghost ? ["ghost"] : []);
-  div(
+    @ (is_ghost ? ["ghost"] : [])
+    @ (is_unknown ? ["unknown"] : []);
+  let attrs =
+    [Attr.classes(classes)]
+    @ (
+      switch (body_id_opt) {
+      | Some(body_id) => [Attr.on_pointerdown(jump_to(~globals, body_id))]
+      | None => []
+      }
+    );
+  div(~attrs, [text(display_text)]);
+};
+
+/* Render the separator arrow (clicks go to application site) */
+let separator = (~globals: Globals.t, ~is_ghost: bool, app_id: Id.t) => {
+  let classes = ["breadcrumb-separator"] @ (is_ghost ? ["ghost"] : []);
+  span(
     ~attrs=[
       Attr.classes(classes),
       Attr.on_pointerdown(jump_to(~globals, app_id)),
     ],
-    [text(name)],
+    [text({js|❯|js})] //⟩❯
   );
 };
 
-/* Render the separator arrow between breadcrumbs */
-let separator = () =>
-  span(~attrs=[Attr.class_("breadcrumb-separator")], [text({js|▸|js})]);
+/* Stack icon at the beginning of the bar */
+let stack_icon = () =>
+  span(~attrs=[Attr.class_("stack-icon")], [text({js|≡|js})]);
 
 /* Main view function */
 let view =
@@ -83,33 +117,40 @@ let view =
     let index = sample_cursor.index;
     let stack_length = List.length(call_stack);
 
+    /* Top-level λ entry (always present when bar is shown) */
+    let top_level_entry =
+      span(~attrs=[Attr.class_("top-level")], [text({js|λ|js})]);
+
     /* Build breadcrumb entries with separators */
     let entries =
       if (List.is_empty(call_stack)) {
         [
-          /* Empty state - at top level */
-          span(~attrs=[Attr.class_("top-level")], [text({js|⌀|js})]),
+          /* Just λ when at top level */
+          top_level_entry,
         ];
       } else {
-        List.mapi(
-          (i, app_id) => {
-            let is_focused = i == index;
-            /* Ghost entries are those beyond the current index */
-            let is_ghost = i > index;
-            let entry =
-              breadcrumb_entry(
-                ~globals,
-                ~info_map,
-                ~is_focused,
-                ~is_ghost,
-                app_id,
-              );
-            /* Add separator before all entries except the first */
-            i == 0 ? [entry] : [separator(), entry];
-          },
-          call_stack,
-        )
-        |> List.flatten;
+        /* λ followed by separator and stack entries */
+        let stack_entries =
+          List.mapi(
+            (i, app_id) => {
+              let is_focused = i == index;
+              /* Ghost entries are those beyond the current index */
+              let is_ghost = i > index;
+              let entry =
+                breadcrumb_entry(
+                  ~globals,
+                  ~info_map,
+                  ~is_focused,
+                  ~is_ghost,
+                  app_id,
+                );
+              /* Separator before each entry (clicking separator goes to app site) */
+              [separator(~globals, ~is_ghost, app_id), entry];
+            },
+            call_stack,
+          )
+          |> List.flatten;
+        [top_level_entry] @ stack_entries;
       };
 
     /* Show indicator if there's more below the index */
@@ -126,6 +167,9 @@ let view =
 
     div(
       ~attrs=[Attr.id("closure-cursor-bar")],
-      [div(~attrs=[Attr.class_("breadcrumbs")], entries @ more_indicator)],
+      [
+        //stack_icon(),
+        div(~attrs=[Attr.class_("breadcrumbs")], entries @ more_indicator),
+      ],
     );
   };
