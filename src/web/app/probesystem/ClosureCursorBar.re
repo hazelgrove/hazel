@@ -151,7 +151,7 @@ let key_handler =
       };
     } else {
       Stop_propagation;
-    }
+    };
   | _ => Ignore
   };
 };
@@ -185,7 +185,7 @@ let view =
     let top_level_entry =
       span(
         ~attrs=[
-          Attr.classes(["top-level"] @ (index == -1 ? ["focused"] : [])),
+          Attr.classes(["top-level"] @ (index == (-1) ? ["focused"] : [])),
           Attr.title("Go to top level"),
           Attr.on_pointerdown(set_cursor_index(~globals, -1)),
         ],
