@@ -19,21 +19,21 @@ let restart_caret_animation = () =>
 
 let apply =
     (
-      model: History.Model.t,
-      action: History.Update.t,
+      model: Logged.Model.t,
+      action: Logged.Update.t,
       ~schedule_action,
       ~schedule_autosave,
     )
-    : History.Model.t => {
+    : Logged.Model.t => {
   restart_caret_animation();
 
   /* This function is split into two phases, update and calculate.
      The intention is that eventually, the calculate phase will be
      done automatically by incremental calculation. */
   // ---------- UPDATE PHASE ----------
-  let updated: Updated.t(History.Model.t) =
+  let updated: Updated.t(Logged.Model.t) =
     try(
-      History.Update.update(
+      Logged.Update.update(
         ~import_log=Log.import,
         ~get_log_and=Log.get_and,
         ~schedule_action,
@@ -58,7 +58,7 @@ let apply =
   let model' =
     try(
       updated.model
-      |> History.Update.calculate(
+      |> Logged.Update.calculate(
            ~schedule_action,
            ~is_edited=updated.is_edit,
            ~dynamics=true,
@@ -98,8 +98,8 @@ let start = {
   let%sub save_scheduler = BonsaiUtil.Alarm.alarm;
   let%sub (app_model, app_inject) =
     Bonsai.state_machine1(
-      (module History.Model),
-      (module History.Update),
+      (module Logged.Model),
+      (module Logged.Update),
       ~apply_action=
         (~inject, ~schedule_event, input) => {
           let schedule_action = x => schedule_event(inject(x));
@@ -112,8 +112,8 @@ let start = {
           apply(~schedule_action, ~schedule_autosave);
         },
       ~default_model=
-        History.Model.init()
-        |> History.Update.calculate(
+        Logged.Model.init()
+        |> Logged.Update.calculate(
              ~schedule_action=_ => (),
              ~is_edited=true,
              ~dynamics=false,
@@ -220,7 +220,8 @@ let start = {
         let _ = Haz3lcore.ProbePerform.FocusEffect.execute();
         /* Update floating elements (backpack) to viewport coordinates */
         FloatingElement.update_all();
-        model.current.globals.settings.core.statics ? Animation.go() : ();
+        model.current.current.globals.settings.core.statics
+          ? Animation.go() : ();
       },
       (),
     );
@@ -231,7 +232,7 @@ let start = {
   let%arr app_model = app_model
   and app_inject = app_inject;
   try(
-    History.View.view(app_model, ~inject=app_inject, ~get_log_and=Log.get_and)
+    Logged.View.view(app_model, ~inject=app_inject, ~get_log_and=Log.get_and)
   ) {
   | exc =>
     print_endline(

@@ -183,11 +183,6 @@ let controls_section =
             ~onclick=_ => inject(Log(SkipLog)),
             [text("Skip")],
           ),
-          button(
-            ~tooltip="Skip to next exercise",
-            ~onclick=_ => inject(Log(SkipExercise)),
-            [text("Skip Exercise")],
-          ),
         ],
       ),
       progress_bar(~current=model.current_step, ~total=model.total_steps),

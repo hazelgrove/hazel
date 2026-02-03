@@ -50,7 +50,6 @@ module Action = {
     | FinishImport(option(string))
     | NextLog
     | SkipLog
-    | SkipExercise
     | ToggleReplay
     | ClearLog;
 
