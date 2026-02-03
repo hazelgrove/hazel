@@ -57,7 +57,9 @@ let set_cursor_index = (~globals: Globals.t, i: int, _) =>
 
 /* Remove a pin by toggling it off */
 let unpin = (~globals: Globals.t, pinned_stack: Sample.call_stack, _) =>
-  globals.inject_global(ActiveEditor(Project(SampleCursor(TogglePin(pinned_stack)))));
+  globals.inject_global(
+    ActiveEditor(Project(SampleCursor(TogglePin(pinned_stack)))),
+  );
 
 /* Check if any probes exist */
 let has_probes = (refractors: Zipper.Refractor.t): bool =>
@@ -196,8 +198,7 @@ let view =
             /* Pin icon (shown if this entry is pinned, clicking removes pin) */
             let pin_icon =
               switch (is_pinned, pinned_stack) {
-              | (true, Some(ps)) =>
-                [
+              | (true, Some(ps)) => [
                   span(
                     ~attrs=[
                       Attr.class_("pin-icon"),

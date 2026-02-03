@@ -803,16 +803,17 @@ let probearium =
     ),
     legend_view(~font_metrics=globals.font_metrics),
     sketch_view(~globals, ~explain_this_inject),
-    call_cursor_view(~sample_cursor=refractors.sample_cursor, ~fancyd=id =>
-      fancy(
-        ~refractor_data,
-        ~info_map=editor.statics.info_map,
-        ~default=None, /*Some([Example.exp("<In Builtin>")]),*/
-        ~globals,
-        id,
-      )
-      |> Option.value(~default=div([]))
-    ),
+    // call_cursor_view(~sample_cursor=refractors.sample_cursor, ~fancyd=id =>
+    //   fancy(
+    //     ~refractor_data,
+    //     ~info_map=editor.statics.info_map,
+    //     ~default=None, /*Some([Example.exp("<In Builtin>")]),*/
+    //     ~globals,
+    //     id,
+    //   )
+    //   |> Option.value(~default=div([]))
+    // ),
+    //TODO(andrew): don't show autos here? or collapse them by default at least
     probes_panel_view(
       ~globals,
       ~refractors,
