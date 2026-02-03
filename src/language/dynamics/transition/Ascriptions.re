@@ -107,7 +107,7 @@ let rec transition =
       Some(
         IdTagged.fast_copy(DHExp.rep_id(e), Cons(d1, d2) |> DHExp.fresh),
       );
-    | (Atom(value) as d, Atom(typ)) =>
+    | (Atom(value), Atom(typ)) =>
       ClosureWriter.return(
         switch (value, typ) {
         | (Int(_), Int)

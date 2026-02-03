@@ -227,7 +227,7 @@ let manual_probe_data =
     )
     : list(menu_item_data) =>
   switch (ci) {
-  | Some(InfoExp(_) | InfoPat(_)) when can_probe => [
+  | Some(InfoExp(_) | InfoPat(_) | InfoTyp(_)) when can_probe => [
       {
         name:
           switch (probe_status) {
@@ -275,7 +275,7 @@ let type_annotation_data =
     )
     : list(menu_item_data) =>
   switch (ci) {
-  | Some(InfoExp(_) | InfoPat(_)) when can_type => [
+  | Some(InfoExp(_) | InfoPat(_) | InfoTyp(_)) when can_type => [
       {
         name:
           switch (probe_status) {

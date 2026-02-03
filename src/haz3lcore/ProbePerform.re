@@ -87,12 +87,13 @@ let rec target_subterm_ids = (id: Id.t, info_map: Statics.Map.t) =>
       ]
     | _ => [id]
     }
-  /* Filter out terms that can't meaningfully be probed */
+  /* Filter out terms that can't meaningfully be probed (type patterns, labels, etc.) */
   | info when !Info.is_typable_term(info) => []
   /* Default: use rep_id for expressions and patterns to handle multi-tile forms
      (tuples, list literals, case expressions) where non-representative tile IDs
      would otherwise cause probe_map/evaluator ID mismatch */
   | Some(InfoExp({term, _})) => [IdTagged.rep_id(term)]
+  | Some(InfoTyp({term, _})) => [IdTagged.rep_id(term)]
   | Some(InfoPat({term, _})) => [Pat.rep_id(term)]
   | _ => [id]
   };
@@ -529,9 +530,10 @@ let rm_probes_in_selection =
      );
 };
 
-/* Check if type annotation is allowed for the given id. */
+/* Check if type annotation is allowed for the given id.
+   Uses target_subterm_ids to support types (which redirect to their parent expressions). */
 let can_statics = (id: Id.t, info_map: Statics.Map.t): bool =>
-  Info.is_typable_term(Statics.Map.lookup(id, info_map));
+  target_subterm_ids(id, info_map) != [];
 
 /* Toggle type annotation on the indicated term.
    Unlike probes, type annotations don't support auto mode or pins. */

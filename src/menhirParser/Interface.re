@@ -19,4 +19,14 @@ let parse = (f, s) => {
   result;
 };
 
-let parse_program = s => parse(Parser.program, s);
+let parse_program = s => {
+  print_endline("Parsing program: " ++ s);
+  parse(
+    lexbuf => {
+      let t = Parser.program(lexbuf);
+      print_endline("Token ");
+      t;
+    },
+    s,
+  );
+};
