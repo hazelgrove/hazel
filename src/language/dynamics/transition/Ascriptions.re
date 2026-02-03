@@ -64,6 +64,8 @@ let rec transition =
     };
   switch (DHExp.term_of(d)) {
   | Asc(e, t) =>
+    /* Record sample if this type is probed */
+    let* () = record_type_probe(~targets, t, e);
     switch (DHExp.term_of(e), Typ.term_of(Typ.unroll(t))) {
     | (Asc(e, t'), t)
         // This is only necessary because sometimes we add two ascriptions and aren't marking it as a non-value
@@ -125,8 +127,6 @@ let rec transition =
         |> ClosureWriter.sequence;
       Some(IdTagged.fast_copy(DHExp.rep_id(e), Tuple(es) |> DHExp.fresh));
     | (_, Unknown(_)) =>
-      /* Record sample if this type is probed */
-      let* () = record_type_probe(~targets, t, e);
       let+ e = recur(e);
       Some(e);
     | (Cons(d1, d2), List(ty)) =>
@@ -313,7 +313,7 @@ let rec transition =
     | (Cons(_), _)
     | (Constructor(_), _)
     | (ProofObject(_), _) => ClosureWriter.return(None)
-    }
+    };
   | _ => ClosureWriter.return(None)
   };
 };
