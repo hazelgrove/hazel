@@ -600,7 +600,12 @@ let rec normalize = (~rec_counter=0, ctx: Ctx.t, ty: t): t => {
   | Atom(_)
   | ExplicitNonlabel
   | Label(_) => ty
-  | Parens(t) => normalize(ctx, t)
+  | Parens(t) =>
+    /* Preserve the Parens ID on the normalized inner type.
+       This is critical for type probes: when a probe is attached to parens
+       like ^^probe((Int, String)), the probe ID is on the Parens wrapper.
+       We need to copy that ID onto the result so record_type_probe can find it. */
+    IdTagged.fast_copy(rep_id(ty), normalize(ctx, t))
   | List(t) => List(normalize(ctx, t)) |> rewrap
   | Arrow(t1, t2) =>
     Arrow(normalize(ctx, t1), normalize(ctx, t2)) |> rewrap
