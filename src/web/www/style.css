@@ -245,6 +245,7 @@ select {
   color: var(--G0);
   background-color: var(--G5);
   font-weight: 500;
+  text-decoration: underline;
 }
 
 #closure-cursor-bar .more-indicator {

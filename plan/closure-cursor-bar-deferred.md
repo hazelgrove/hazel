@@ -175,9 +175,19 @@ Could also be implemented as multiple pins with a stack/tree structure, rather t
 
 **Concept:** Navigate the closure cursor bar with keyboard.
 
-### MVP
+### MVP (Implemented)
 - Left/Right arrow keys to move between breadcrumb entries
-- Enter to jump to the current entry's definition
+- Enter to jump to the current entry's definition (then refocuses main editor)
+
+### Focus Shortcut (TODO)
+Need a keyboard shortcut to focus the closure cursor bar from the main editor.
+
+**Candidate shortcuts:**
+- `Ctrl+;` - ergonomic, usually unbound
+- `Ctrl+Shift+K` - mnemonic for "call stacK"
+- `Ctrl+Shift+D` - mnemonic for "Dynamic cursor"
+
+**TODO:** Check with team on preferred shortcut to avoid conflicts with existing bindings.
 
 ### Extension: Dropdown Navigation
 - Down arrow opens a dropdown showing function applications within the current function body
@@ -191,7 +201,7 @@ Could also be implemented as multiple pins with a stack/tree structure, rather t
 - Dynamic: Only shows calls that actually happened, with sample data
 - Could be a combination: lexical structure, annotated with dynamic info
 
-**Status:** Deferred. Start with MVP, consider dropdown extension later.
+**Status:** MVP implemented. Focus shortcut pending. Dropdown extension deferred.
 
 ---
 
