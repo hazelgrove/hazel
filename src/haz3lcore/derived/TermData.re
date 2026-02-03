@@ -85,3 +85,15 @@ let segment = (id: Id.t, data: t): option(Segment.t) => {
   let (l, r) = Skel.range(skel);
   ListUtil.sublist((l, r + 1), base_seg);
 };
+
+let get_term_rows =
+    (id: Id.t, data: t, measured: Measured.t)
+    : option((int, list(Segment.t))) => {
+  let+ (start, final) = extreme_measures(id, data, measured);
+  let term_rows =
+    measured.piece_rows
+    |> List.rev
+    |> Util.ListUtil.sublist((start.row, final.row + 1))
+    |> List.map(List.rev);
+  (start.row, term_rows);
+};

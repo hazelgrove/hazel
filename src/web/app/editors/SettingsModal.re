@@ -54,7 +54,7 @@ let view =
         Evaluation(ShowFixpoints),
       ),
       setting(
-        Util.Unicode.castArrowSym,
+        "⇨",
         "show ascription steps",
         settings.show_ascription_steps,
         Evaluation(ShowAscriptionSteps),
