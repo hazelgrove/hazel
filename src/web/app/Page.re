@@ -738,6 +738,15 @@ module View = {
         model.editors,
       );
 
+    /* Closure cursor bar - shows call stack breadcrumbs when probes are active */
+    let current_editor = Update.get_editor(model);
+    let closure_cursor_bar =
+      ClosureCursorBar.view(
+        ~globals,
+        ~refractors=current_editor.editor.state.zipper.refractors,
+        ~info_map=current_editor.statics.info_map,
+      );
+
     /* Scroll handler for viewport culling. Only enabled for Scratch and
      * Documentation modes where there's a single editor filling the
      * scrollable area. Tutorial and Exercises have multiple editors. */
@@ -774,6 +783,7 @@ module View = {
 
     [
       top_bar(~globals, ~inject, ~editors),
+      closure_cursor_bar,
       div(
         ~attrs=[
           Attr.id("main"),

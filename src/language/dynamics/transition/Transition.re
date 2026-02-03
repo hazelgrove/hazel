@@ -513,7 +513,7 @@ module Transition = (EV: EV_MODE) => {
             /* Println for probes study */
             Step({
               expr: tuple([]),
-              side_effects: [RecordPrint(d2')],
+              side_effects: [RecordStackFrame, RecordPrint(d2')],
               kind: BuiltinAp(ident),
               is_value: true,
             });
@@ -532,7 +532,7 @@ module Transition = (EV: EV_MODE) => {
             | Some(expr) =>
               Step({
                 expr,
-                side_effects: [],
+                side_effects: [RecordStackFrame],
                 kind: BuiltinAp(ident),
                 is_value: false,
               })
