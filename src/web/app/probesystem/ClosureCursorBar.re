@@ -145,7 +145,7 @@ let view =
             let is_first_ghost = i == index + 1;
             /* Position class for color coding */
             let position_class =
-              i < index ? "above" : (i > index ? "below" : "");
+              i < index ? "above" : i > index ? "below" : "";
 
             /* Get function info */
             let (_, body_id_opt) = get_fn_info(~info_map, app_id);
@@ -196,7 +196,7 @@ let view =
               @ (position_class != "" ? [position_class] : []);
 
             /* Separator: double chevron for first ghost (visual indicator), regular for others */
-            let sep_text = is_first_ghost ? {js|❯❯|js} : {js|❯|js};
+            let sep_text = is_first_ghost ? {js|❯|js} : {js|❯|js};
 
             /* Separator click handler */
             let on_sep_click = evt =>

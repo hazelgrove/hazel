@@ -177,6 +177,7 @@ select {
   color: var(--G0);
   background-color: var(--G5);
   font-weight: 500;
+  text-decoration: underline;
 }
 
 #closure-cursor-bar .breadcrumb-entry.ghost {
@@ -190,15 +191,15 @@ select {
 #closure-cursor-bar .breadcrumb-entry.below {
   color: var(--sample-below-text);
 }
-#closure-cursor-bar .breadcrumb-separator.above {
+/* #closure-cursor-bar .breadcrumb-separator.above {
   color: var(--sample-above-text);
 }
 #closure-cursor-bar .breadcrumb-separator.below {
   color: var(--sample-below-text);
-}
+} */
 
 #closure-cursor-bar .breadcrumb-separator {
-  color: var(--BR1);
+  color: var(--BR2);
   font-size: 0.8em;
   cursor: pointer;
   padding: 0.1em 0;
@@ -211,7 +212,7 @@ select {
 }
 
 #closure-cursor-bar .breadcrumb-separator.ghost {
-  opacity: 0.7;
+  color: var(--BR1);
 }
 
 #closure-cursor-bar .top-level {
