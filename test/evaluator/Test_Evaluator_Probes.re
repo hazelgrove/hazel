@@ -800,30 +800,79 @@ in f(1)|},
     {|^^probe(1; 2) : Int|},
     [(0, ["2"])],
   ),
-  // TODO
-  /*    test_case("Probe around unknown type", `Quick, () => {
-              PGrammar.(
-                probe_test(
-                  {|3 : PROBE(?)|},
-                  Exp.(
-                    asc(
-                      int(3),
-                      Typ.probe(
-                        ~ann=[probed_value(Atom(Int(Bigint.of_int(3))))],
-                        Typ.unknown(Internal),
-                        {refs: []},
-                      ),
-                    )
-                  ),
-                )
-              )
-            }),
+];
 
-        */
+let type_probe_tests = [
+  /* Basic type probes in expression ascriptions */
   probe_line_test(
-    "Probe on type in ascription",
+    "Probe on unknown type in ascription",
     {|3 : ^^probe(?)|},
     [(0, ["3"])],
+  ),
+  probe_line_test(
+    "Probe on Int type in ascription",
+    {|42 : ^^probe(Int)|},
+    [(0, ["42"])],
+  ),
+  probe_line_test(
+    "Probe on list type in ascription",
+    {|[1, 2, 3] : ^^probe([Int])|},
+    [(0, ["[1, 2, 3]"])],
+  ),
+  probe_line_test(
+    "Probe on tuple type in ascription",
+    {|(1, "a") : ^^probe((Int, String))|},
+    [(0, ["(1, \"a\")"])],
+  ),
+  probe_line_test(
+    "Probe on labeled tuple type in ascription",
+    {|(1, "hi") : ^^probe((a=Int, b=String))|},
+    [(0, ["(a=1, b=\"hi\")"])],
+  ),
+  /* Type probes in pattern ascriptions */
+  probe_line_test(
+    "Probe on type in pattern ascription",
+    {|let x : ^^probe(Int) = 5 in x|},
+    [(0, ["5"])],
+  ),
+  probe_line_test(
+    "Probe on labeled tuple type in pattern ascription",
+    {|let x : ^^probe((a=Int, b=String)) = (1, "hi") in x|},
+    [(0, ["(a=1, b=\"hi\")"])],
+  ),
+  /* Type probes with type aliases */
+  probe_line_test(
+    "Probe on type alias in expression ascription",
+    {|type MyInt = Int in 5 : ^^probe(MyInt)|},
+    [(0, ["5"])],
+  ),
+  probe_line_test(
+    "Probe on type alias in pattern ascription",
+    {|type MyInt = Int in let x : ^^probe(MyInt) = 5 in x|},
+    [(0, ["5"])],
+  ),
+  /* Probe on sum type definition */
+  probe_line_test(
+    "Probe on sum type definition",
+    {|type T = ^^probe(A + B(Int)) in A|},
+    [(0, ["A"])],
+  ),
+  /* Probe on constructor payload type */
+  probe_line_test(
+    "Probe on constructor payload type",
+    {|type T = +A(^^probe(Int)) in A(1)|},
+    [(0, ["1"])],
+  ),
+  probe_line_test(
+    "Probe on constructor payload type with computation",
+    {|type T = +A(^^probe(Int)) in A(1 + 2)|},
+    [(0, ["3"])],
+  ),
+  /* Polymorphic type application - note: may hit TypFun evaluation bug */
+  probe_line_test(
+    "Probe on type in polymorphic application",
+    {|let id = typfun T -> fun (x : T) -> x in id@<^^probe(Int)>(42)|},
+    [(0, ["42"])],
   ),
 ];
 
@@ -835,4 +884,5 @@ let tests = [
   ("Evaluator.Probes.Nested", nested_probe_tests),
   ("Evaluator.Probes.Recursion", recursion_tests),
   ("Evaluator.Probes.Ascription", ascription_tests),
+  ("Evaluator.Probes.Types", type_probe_tests),
 ];
