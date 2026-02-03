@@ -10,6 +10,7 @@ module Model = {
     context_inspector: bool,
     instructor_mode: bool,
     benchmark: bool,
+    show_log_panel: bool,
     explainThis: ExplainThisModel.Settings.t,
     assistant: AssistantSettings.t,
     sidebar: SidebarModel.Settings.t,
@@ -43,6 +44,7 @@ module Model = {
     context_inspector: false,
     instructor_mode: false,
     benchmark: false,
+    show_log_panel: false,
     explainThis: {
       show: true,
       show_feedback: false,
@@ -113,6 +115,7 @@ module Update = {
     | Benchmark
     | ContextInspector
     | InstructorMode
+    | ShowLogPanel
     | Evaluation(evaluation)
     | Sidebar(SidebarModel.Settings.action)
     | ExplainThis(ExplainThisModel.Settings.action)
@@ -311,6 +314,11 @@ module Update = {
               show_api_key: !settings.assistant.show_api_key,
             },
           }
+        }
+      | ShowLogPanel => {
+          ...settings,
+          show_log_panel:
+            !settings.show_log_panel && ExerciseSettings.show_instructor,
         }
       | Benchmark => {
           ...settings,

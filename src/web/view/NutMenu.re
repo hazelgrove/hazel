@@ -116,7 +116,12 @@ let dev_group = (~globals) => {
     ~globals,
     "Developer",
     [
-      ("✓", "Benchmarks", globals.settings.benchmark, Benchmark),
+      (
+        "✓",
+        "Benchmarks",
+        globals.settings.benchmark,
+        Settings.Update.Benchmark,
+      ),
       ("𝑒", "Elaboration", globals.settings.core.elaborate, Elaborate),
       ("↵", "Whitespace", globals.settings.secondary_icons, SecondaryIcons),
       (
@@ -125,7 +130,19 @@ let dev_group = (~globals) => {
         globals.settings.core.flip_animations,
         FlipAnimations,
       ),
-    ],
+    ]
+    @ (
+      ExerciseSettings.show_instructor
+        ? [
+          (
+            "📃",
+            "Log Panel",
+            globals.settings.show_log_panel,
+            ShowLogPanel,
+          ),
+        ]
+        : []
+    ),
   );
 };
 

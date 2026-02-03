@@ -102,8 +102,10 @@ let persistent_view = (~globals: Globals.t) =>
           explain_this_tab(~globals),
           assistant_tab(~globals),
           probes_tab(~globals),
-          log_control_tab(~globals),
-        ],
+        ]
+        @ (
+          globals.settings.show_log_panel ? [log_control_tab(~globals)] : []
+        ),
       ),
     ],
   );
