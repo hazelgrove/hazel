@@ -67,9 +67,23 @@ let resolve_pending_focus =
   };
 };
 
+let set_index = (z: Zipper.t, i: int): Zipper.t =>
+  update(
+    z,
+    sample_cursor => {
+      let max_index = List.length(sample_cursor.call_stack) - 1;
+      let clamped_index = max(0, min(i, max_index));
+      {
+        ...sample_cursor,
+        index: clamped_index,
+      };
+    },
+  );
+
 let go = (z: Zipper.t, a: Action.sample_cursor): Zipper.t =>
   switch (a) {
   | Capture(sample, id) => capture(z, sample, id)
   | TogglePin(call_stack) => toggle_pin_call(z, call_stack)
+  | SetIndex(i) => set_index(z, i)
   | Reset => reset(z)
   };

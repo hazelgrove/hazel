@@ -45,6 +45,7 @@ type select =
 type sample_cursor =
   | Capture(Language.Sample.t, option(Id.t))
   | TogglePin(Language.Sample.call_stack)
+  | SetIndex(int) /* Navigate to a specific depth in the call stack */
   | Reset;
 
 [@deriving (show({with_path: false}), sexp, yojson, eq)]

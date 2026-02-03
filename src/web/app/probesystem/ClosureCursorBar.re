@@ -51,6 +51,10 @@ let get_fn_info =
 let jump_to = (~globals: Globals.t, id: Id.t, _) =>
   globals.inject_global(ActiveEditor(Move(Goal(TileId(id)))));
 
+/* Set sample cursor to a specific index in the call stack */
+let set_cursor_index = (~globals: Globals.t, i: int, _) =>
+  globals.inject_global(ActiveEditor(Project(SampleCursor(SetIndex(i)))));
+
 /* Check if any probes exist */
 let has_probes = (refractors: Zipper.Refractor.t): bool =>
   !List.is_empty(refractors.manuals)
@@ -84,13 +88,19 @@ let breadcrumb_entry =
   div(~attrs, [text(display_text)]);
 };
 
-/* Render the separator arrow (clicks go to application site) */
-let separator = (~globals: Globals.t, ~is_ghost: bool, app_id: Id.t) => {
+/* Render the separator arrow (clicks go to application site and set cursor index) */
+let separator =
+    (~globals: Globals.t, ~is_ghost: bool, ~index: int, app_id: Id.t) => {
   let classes = ["breadcrumb-separator"] @ (is_ghost ? ["ghost"] : []);
   span(
     ~attrs=[
       Attr.classes(classes),
-      Attr.on_pointerdown(jump_to(~globals, app_id)),
+      Attr.on_pointerdown(evt => {
+        Effect.Many([
+          jump_to(~globals, app_id, evt),
+          set_cursor_index(~globals, index, evt),
+        ])
+      }),
     ],
     [text({js|❯|js})] //⟩❯
   );
@@ -132,20 +142,45 @@ let view =
         /* λ followed by separator and stack entries */
         let stack_entries =
           List.mapi(
-            (i, app_id) => {
+            (i, (app_id, stack_name)) => {
               let is_focused = i == index;
               /* Ghost entries are those beyond the current index */
               let is_ghost = i > index;
-              let entry =
-                breadcrumb_entry(
-                  ~globals,
-                  ~info_map,
-                  ~is_focused,
-                  ~is_ghost,
-                  app_id,
+              /* Use name from stack if available, otherwise look up in info_map */
+              let (_, body_id_opt) = get_fn_info(~info_map, app_id);
+              let display_name =
+                switch (stack_name) {
+                | Some(name) => Some(name)
+                | None =>
+                  let (name_opt, _) = get_fn_info(~info_map, app_id);
+                  name_opt;
+                };
+              let is_unknown = Option.is_none(display_name);
+              let display_text =
+                is_unknown ? {js|○|js} : Option.get(display_name);
+              let classes =
+                ["breadcrumb-entry"]
+                @ (is_focused ? ["focused"] : [])
+                @ (is_ghost ? ["ghost"] : [])
+                @ (is_unknown ? ["unknown"] : []);
+              /* Click handler: set cursor index, optionally jump to definition */
+              let on_click = evt =>
+                Effect.Many(
+                  [set_cursor_index(~globals, i, evt)]
+                  @ (
+                    switch (body_id_opt) {
+                    | Some(body_id) => [jump_to(~globals, body_id, evt)]
+                    | None => []
+                    }
+                  ),
                 );
+              let attrs = [
+                Attr.classes(classes),
+                Attr.on_pointerdown(on_click),
+              ];
+              let entry = div(~attrs, [text(display_text)]);
               /* Separator before each entry (clicking separator goes to app site) */
-              [separator(~globals, ~is_ghost, app_id), entry];
+              [separator(~globals, ~is_ghost, ~index=i, app_id), entry];
             },
             call_stack,
           )

@@ -137,8 +137,8 @@ let legend_sample_view =
       ~font_metrics: FontMetrics.t,
       ~ap_id: option(Id.t),
       ~indicated_call: option(Id.t),
-      ~cursor_stack: list(Id.t),
-      ~sample_stack: list(Id.t),
+      ~cursor_stack: Sample.call_stack,
+      ~sample_stack: Sample.call_stack,
       ~step_range: (int, int),
       ~focus_step_range: option((int, int)),
       ~caption: string,
@@ -224,8 +224,8 @@ let legend_view = (~font_metrics: FontMetrics.t) => {
           ~indicated=false,
           ~ap_id=None,
           ~indicated_call=None,
-          ~cursor_stack=[Id.invalid, Id.invalid],
-          ~sample_stack=[Id.invalid],
+          ~cursor_stack=[(Id.invalid, None), (Id.invalid, None)],
+          ~sample_stack=[(Id.invalid, None)],
           ~step_range=(0, 5),
           ~focus_step_range=focus,
           ~caption="Before",
@@ -238,8 +238,8 @@ let legend_view = (~font_metrics: FontMetrics.t) => {
           ~indicated=true,
           ~ap_id=None,
           ~indicated_call=None,
-          ~cursor_stack=[Id.invalid],
-          ~sample_stack=[Id.invalid],
+          ~cursor_stack=[(Id.invalid, None)],
+          ~sample_stack=[(Id.invalid, None)],
           ~step_range=(10, 20),
           ~focus_step_range=None,
           ~caption="At Cursor",
@@ -252,8 +252,8 @@ let legend_view = (~font_metrics: FontMetrics.t) => {
           ~indicated=false,
           ~ap_id=None,
           ~indicated_call=None,
-          ~cursor_stack=[Id.invalid],
-          ~sample_stack=[Id.invalid, Id.invalid],
+          ~cursor_stack=[(Id.invalid, None)],
+          ~sample_stack=[(Id.invalid, None), (Id.invalid, None)],
           ~step_range=(25, 30),
           ~focus_step_range=focus,
           ~caption="After",
@@ -266,8 +266,8 @@ let legend_view = (~font_metrics: FontMetrics.t) => {
           ~indicated=false,
           ~indicated_call=None,
           ~ap_id=Some(Id.invalid),
-          ~cursor_stack=[Id.invalid, Id.invalid],
-          ~sample_stack=[Id.invalid],
+          ~cursor_stack=[(Id.invalid, None), (Id.invalid, None)],
+          ~sample_stack=[(Id.invalid, None)],
           ~step_range=(5, 25),
           ~focus_step_range=focus,
           ~caption="Contains",
@@ -280,8 +280,8 @@ let legend_view = (~font_metrics: FontMetrics.t) => {
           ~indicated=false,
           ~ap_id=None,
           ~indicated_call=None,
-          ~cursor_stack=[Id.mk()],
-          ~sample_stack=[Id.invalid],
+          ~cursor_stack=[(Id.mk(), None)],
+          ~sample_stack=[(Id.invalid, None)],
           ~step_range=(0, 0),
           ~focus_step_range=None,
           ~caption="Off Cursor",
@@ -294,8 +294,8 @@ let legend_view = (~font_metrics: FontMetrics.t) => {
           ~indicated=false,
           ~indicated_call=Some(Id.invalid),
           ~ap_id=None,
-          ~cursor_stack=[Id.invalid],
-          ~sample_stack=[Id.invalid, Id.invalid],
+          ~cursor_stack=[(Id.invalid, None)],
+          ~sample_stack=[(Id.invalid, None), (Id.invalid, None)],
           ~step_range=(12, 18),
           ~focus_step_range=focus,
           ~caption="Inside",
@@ -420,13 +420,16 @@ let call_cursor_view = (~sample_cursor: Sample.Cursor.t, ~fancyd) =>
       div(
         ~attrs=[clss(["stack"])],
         List.mapi(
-          (i, id) =>
+          (i, (id, _name)) =>
             div(
               ~attrs=[
                 Attr.classes([
                   i == sample_cursor.index ? "is-index" : "not",
                   i > sample_cursor.index ? "after-index" : "not",
-                  List.mem(id, sample_cursor.call_stack)
+                  List.exists(
+                    ((frame_id, _)) => frame_id == id,
+                    sample_cursor.call_stack,
+                  )
                   && Some(id) == sample_cursor.indicated_call
                     ? "indicated-call" : "not",
                 ]),
