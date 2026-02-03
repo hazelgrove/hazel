@@ -64,8 +64,15 @@ let rec transition =
     };
   switch (DHExp.term_of(d)) {
   | Asc(e, t) =>
-    /* Record sample if this type is probed */
-    let* () = record_type_probe(~targets, t, e);
+    /* Record sample if this type is probed.
+       Skip recording if the inner expression is Parens, since we'll record again
+       when the ascription is pushed inside and parens are removed. This prevents
+       duplicate samples for expressions like (1, "a") : ^^probe((Int, String)). */
+    let* () =
+      switch (DHExp.term_of(e)) {
+      | Parens(_) => ClosureWriter.return()
+      | _ => record_type_probe(~targets, t, e)
+      };
     switch (DHExp.term_of(e), Typ.term_of(Typ.unroll(t))) {
     | (Asc(e, t'), t)
         // This is only necessary because sometimes we add two ascriptions and aren't marking it as a non-value

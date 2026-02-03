@@ -19,10 +19,13 @@ let combine_result = (r1: match_result, r2: match_result): match_result =>
  * Collected during pattern matching when patterns are targeted. */
 type sample_closures = list((Sample.call_stack, int, int) => Sample.t);
 
-/* Core pattern matching logic - just a switch on pattern structure */
+/* Core pattern matching logic - just a switch on pattern structure.
+   sample_closures is optional: when provided, type probe closures from
+   pattern ascriptions (Asc) are captured. */
 let match_pattern =
     (
       ~targets: Sample.targets,
+      ~sample_closures: option(ref(sample_closures))=?,
       recur: (Pat.t, DHExp.t) => match_result,
       dp: Pat.t,
       d: DHExp.t,
@@ -73,9 +76,13 @@ let match_pattern =
     List.map2(recur, ps, ds) |> List.fold_left(combine_result, Matches([]));
   | Parens(p) => recur(p, d)
   | Asc(p, t1) =>
-    // TODO Capture closures
-    let (_closures, exp) =
+    let (closures, exp) =
       Ascriptions.transition_multiple(~targets, Asc(d, t1) |> DHExp.fresh);
+    /* Capture type probe closures from the pattern ascription */
+    switch (sample_closures) {
+    | Some(ref_closures) => ref_closures := closures @ ref_closures^
+    | None => ()
+    };
     recur(p, exp);
   };
 
@@ -117,13 +124,14 @@ let rec matches_inner =
           d: DHExp.t,
         )
         : match_result => {
-  // TODO Record closures
-  let (_closures, d) = Ascriptions.transition_multiple(~targets, d);
+  // Capture type probe closures from value ascriptions
+  let (closures, d) = Ascriptions.transition_multiple(~targets, d);
+  sample_closures := closures @ sample_closures^;
   let pat_id = Pat.rep_id(dp);
   let maybe_spec = Id.Map.find_opt(pat_id, targets);
   let recur = matches_inner(targets, sample_closures);
 
-  let result = match_pattern(~targets, recur, dp, d);
+  let result = match_pattern(~targets, ~sample_closures, recur, dp, d);
   record_sample(sample_closures, pat_id, maybe_spec, d, result);
   result;
 };

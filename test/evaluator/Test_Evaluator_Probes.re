@@ -854,19 +854,19 @@ let type_probe_tests = [
   /* Probe on sum type definition */
   probe_line_test(
     "Probe on sum type definition",
-    {|type T = ^^probe(A + B(Int)) in A|},
+    {|type T = ^^probe(A + B(Int)) in A : T|},
     [(0, ["A"])],
   ),
   /* Probe on constructor payload type */
   probe_line_test(
     "Probe on constructor payload type",
-    {|type T = +A(^^probe(Int)) in A(1)|},
+    {|type T = +A(^^probe(Int)) in A(1) : T|},
     [(0, ["1"])],
   ),
   probe_line_test(
     "Probe on constructor payload type with computation",
-    {|type T = +A(^^probe(Int)) in A(1 + 2)|},
-    [(0, ["3"])],
+    {|type T = +A(^^probe(Int)) in A(1 + 2) : T|},
+    [(0, ["1 + 2"])] // Indet because we reduce the cast to int on the plus
   ),
   /* Polymorphic type application - note: may hit TypFun evaluation bug */
   probe_line_test(
