@@ -1390,6 +1390,7 @@ let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
     let+ p = pat_to_pretty(~settings: Settings.t, p)
     and+ thm = go(thm)
     and+ e = go(e);
+    let e = settings.inline ? e : [Secondary(mk_newline(Id.mk()))] @ e;
     wrap(exp, [mk_form(Theorem, id, [p, thm])] @ e);
   | ProofObject(t) =>
     let id = exp |> Exp.rep_id;
@@ -1776,7 +1777,7 @@ and typ_to_pretty = (~settings: Settings.t, typ: Typ.t): pretty => {
     | Variant(c, ann, None) => {
         let+ seg =
           text_to_pretty(
-            Option.value(~default=Id.invalid, ListUtil.hd_opt(ann.ids)),
+            OptUtil.get(() => Id.mk(), ListUtil.hd_opt(ann.ids)),
             Sort.Typ,
             c,
           );
@@ -1785,7 +1786,7 @@ and typ_to_pretty = (~settings: Settings.t, typ: Typ.t): pretty => {
     | Variant(c, ann, Some(x)) => {
         let+ constructor =
           text_to_pretty(
-            Option.value(~default=Id.invalid, List.nth_opt(ann.ids, 1)),
+            OptUtil.get(() => Id.mk(), List.nth_opt(ann.ids, 1)),
             Sort.Typ,
             c,
           );
@@ -1795,7 +1796,7 @@ and typ_to_pretty = (~settings: Settings.t, typ: Typ.t): pretty => {
           @ [
             mk_form(
               ApTyp,
-              Option.value(~default=Id.invalid, ListUtil.hd_opt(ann.ids)),
+              OptUtil.get(() => Id.mk(), ListUtil.hd_opt(ann.ids)),
               [go(x)],
             ),
           ],
