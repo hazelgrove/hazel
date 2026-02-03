@@ -493,7 +493,7 @@ module Transition = (EV: EV_MODE) => {
             Step({
               expr: subst_env(env'', d3),
               side_effects: [
-                RecordStackFrame(fn_name),
+                RecordStackFrame(fn_name, Some(d2')),
                 RecordPatProbes(matches.samples),
               ],
               kind: FunAp,
@@ -513,7 +513,7 @@ module Transition = (EV: EV_MODE) => {
                   d3,
                 ),
               side_effects: [
-                RecordStackFrame(fn_name),
+                RecordStackFrame(fn_name, Some(d2')),
                 RecordPatProbes(matches.samples),
               ],
               kind: FunAp,
@@ -527,7 +527,7 @@ module Transition = (EV: EV_MODE) => {
             Step({
               expr: tuple([]),
               side_effects: [
-                RecordStackFrame(Some(ident)),
+                RecordStackFrame(Some(ident), Some(d2')),
                 RecordPrint(d2'),
               ],
               kind: BuiltinAp(ident),
@@ -548,7 +548,7 @@ module Transition = (EV: EV_MODE) => {
             | Some(expr) =>
               Step({
                 expr,
-                side_effects: [RecordStackFrame(Some(ident))],
+                side_effects: [RecordStackFrame(Some(ident), Some(d2'))],
                 kind: BuiltinAp(ident),
                 is_value: false,
               })

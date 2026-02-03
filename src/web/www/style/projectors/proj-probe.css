@@ -778,6 +778,50 @@
   border-top: 0.6px solid var(--BR3);
 }
 
+/* Call display section showing function call with argument values */
+.sample-context-menu .call-display {
+  display: flex;
+  flex-direction: row;
+  align-items: baseline;
+  padding: 0.2em 0.55em;
+  background-color: var(--live-env-bkg);
+  font-family: var(--code-font);
+  font-size: var(--base-font-size);
+  color: var(--GB0);
+  white-space: nowrap;
+}
+
+.sample-context-menu .context-actions + .call-display {
+  border-top: 0.6px solid var(--BR3);
+}
+
+.sample-context-menu .call-display + .environment-section .live-env {
+  border-top: 0.6px solid var(--BR3);
+}
+
+.sample-context-menu .call-display .paren {
+  font-weight: bold;
+}
+
+/* Multiline call display for tuple arguments */
+.sample-context-menu .call-display.multiline {
+  flex-direction: column;
+  align-items: flex-start;
+}
+
+.sample-context-menu .call-display .call-header {
+  display: flex;
+  flex-direction: row;
+  align-items: baseline;
+}
+
+.sample-context-menu .call-display .call-arg-row {
+  display: flex;
+  flex-direction: row;
+  align-items: baseline;
+  padding-left: 1em;
+}
+
 /* Require .indicated on probe AND .cursor on value for menu to appear */
 .projector.probe.indicated
   .live-offside:focus
