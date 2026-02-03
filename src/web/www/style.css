@@ -241,6 +241,28 @@ select {
   background-color: transparent;
 }
 
+/* Pin icon - same style as sample pin but positioned for breadcrumb */
+#closure-cursor-bar .pin-icon {
+  display: inline-block;
+  width: 1em;
+  height: 1em;
+  border-radius: 1em;
+  background: url(../img/noun-pinned-1560993.svg) var(--R1);
+  background-size: 70%;
+  background-position: center;
+  background-repeat: no-repeat;
+  filter: invert(1);
+  cursor: pointer;
+  margin-right: 0.2em;
+  vertical-align: middle;
+  position: relative;
+  top: -0.1em;
+}
+
+#closure-cursor-bar .pin-icon:hover {
+  filter: invert(1) brightness(1.2);
+}
+
 #bottom-bar {
   z-index: var(--bottom-bar-z);
   grid-row: 4 / span 1;

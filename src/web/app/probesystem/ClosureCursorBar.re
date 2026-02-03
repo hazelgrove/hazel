@@ -55,6 +55,10 @@ let jump_to = (~globals: Globals.t, id: Id.t, _) =>
 let set_cursor_index = (~globals: Globals.t, i: int, _) =>
   globals.inject_global(ActiveEditor(Project(SampleCursor(SetIndex(i)))));
 
+/* Remove a pin by toggling it off */
+let unpin = (~globals: Globals.t, pinned_stack: Sample.call_stack, _) =>
+  globals.inject_global(ActiveEditor(Project(SampleCursor(TogglePin(pinned_stack)))));
+
 /* Check if any probes exist */
 let has_probes = (refractors: Zipper.Refractor.t): bool =>
   !List.is_empty(refractors.manuals)
@@ -126,6 +130,13 @@ let view =
     let call_stack = sample_cursor.call_stack |> List.rev;
     let index = sample_cursor.index;
 
+    /* Check if there's a pinned stack and get the head app_id */
+    let pinned_stack = sample_cursor.pinned_stack;
+    let pinned_head_id =
+      Option.bind(pinned_stack, stack =>
+        Option.map(fst, Util.ListUtil.hd_opt(stack))
+      );
+
     /* Top-level λ entry (always present when bar is shown) */
     let top_level_entry =
       span(~attrs=[Attr.class_("top-level")], [text({js|λ|js})]);
@@ -142,7 +153,6 @@ let view =
           | [(app_id, stack_name), ...rest] =>
             let is_focused = i == index;
             let is_ghost = i > index;
-            let is_first_ghost = i == index + 1;
             /* Position class for color coding */
             let position_class =
               i < index ? "above" : i > index ? "below" : "";
@@ -180,13 +190,32 @@ let view =
                 ),
               );
 
+            /* Check if this entry is pinned */
+            let is_pinned = Some(app_id) == pinned_head_id;
+
+            /* Pin icon (shown if this entry is pinned, clicking removes pin) */
+            let pin_icon =
+              switch (is_pinned, pinned_stack) {
+              | (true, Some(ps)) =>
+                [
+                  span(
+                    ~attrs=[
+                      Attr.class_("pin-icon"),
+                      Attr.on_pointerdown(unpin(~globals, ps)),
+                    ],
+                    [],
+                  ),
+                ]
+              | _ => []
+              };
+
             let entry =
               div(
                 ~attrs=[
                   Attr.classes(entry_classes),
                   Attr.on_pointerdown(on_entry_click),
                 ],
-                [text(display_text)],
+                pin_icon @ [text(display_text)],
               );
 
             /* Separator classes */
@@ -194,9 +223,6 @@ let view =
               ["breadcrumb-separator"]
               @ (is_ghost ? ["ghost"] : [])
               @ (position_class != "" ? [position_class] : []);
-
-            /* Separator: double chevron for first ghost (visual indicator), regular for others */
-            let sep_text = is_first_ghost ? {js|❯|js} : {js|❯|js};
 
             /* Separator click handler */
             let on_sep_click = evt =>
@@ -211,7 +237,7 @@ let view =
                   Attr.classes(sep_classes),
                   Attr.on_pointerdown(on_sep_click),
                 ],
-                [text(sep_text)],
+                [text({js|❯|js})],
               );
 
             [sep, entry, ...build_entries(i + 1, rest)];
