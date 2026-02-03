@@ -821,7 +821,7 @@ in f(1)|},
 
         */
   probe_line_test(
-    "Probe on function application with ascription",
+    "Probe on type in ascription",
     {|3 : ^^probe(?)|},
     [(0, ["3"])],
   ),

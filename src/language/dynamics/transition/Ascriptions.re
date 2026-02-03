@@ -25,6 +25,32 @@ module ClosureWriter =
     let append = (@);
   });
 
+/* Record a sample for a probed type.
+ * When a type has a probe on it (i.e., its ID is in targets), and we're
+ * processing an ascription, we record the value being ascribed as a sample
+ * for that type's probe. */
+let record_type_probe =
+    (~targets: Sample.targets, typ: Typ.t, value: DHExp.t)
+    : ClosureWriter.t(unit) => {
+  let typ_id = Typ.rep_id(typ);
+  switch (Id.Map.find_opt(typ_id, targets)) {
+  | Some(spec) =>
+    ClosureWriter.tell([
+      (call_stack: Sample.call_stack, step_start: int, step_end: int) =>
+        Sample.mk(
+          ~step_start,
+          ~step_end,
+          typ_id,
+          value,
+          Environment.empty,
+          call_stack,
+          spec,
+        ),
+    ])
+  | None => ClosureWriter.return()
+  };
+};
+
 let rec transition =
         (~recursive=false, ~targets: Sample.targets, d: DHExp.t)
         : ClosureWriter.t(option(DHExp.t)) => {
@@ -99,6 +125,8 @@ let rec transition =
         |> ClosureWriter.sequence;
       Some(IdTagged.fast_copy(DHExp.rep_id(e), Tuple(es) |> DHExp.fresh));
     | (_, Unknown(_)) =>
+      /* Record sample if this type is probed */
+      let* () = record_type_probe(~targets, t, e);
       let+ e = recur(e);
       Some(e);
     | (Cons(d1, d2), List(ty)) =>
