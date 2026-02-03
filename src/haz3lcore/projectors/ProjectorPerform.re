@@ -195,18 +195,14 @@ let go =
       if (ProjectorCore.Kind.is_refractor(kind)) {
         Zipper.update_manuals(
           map =>
-            ListUtil.assoc_update(
-              projector_idx_to_id(idx),
-              fun
-              | Some(entry: Refractors.entry) =>
-                Some(
-                  Refractors.{
-                    kind: entry.kind,
-                    model: new_model,
-                  },
-                )
-              | None => None,
-              map,
+            ListUtil.update_nth(idx, map, ((id, entry: Refractors.entry)) =>
+              (
+                id,
+                Refractors.{
+                  kind: entry.kind,
+                  model: new_model,
+                },
+              )
             ),
           z,
         );
