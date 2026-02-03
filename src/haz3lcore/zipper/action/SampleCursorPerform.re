@@ -35,7 +35,13 @@ let capture = (z: Zipper.t, sample: Sample.t, id): Zipper.t =>
 
 let toggle_pin_call = (z: Zipper.t, call_stack): Zipper.t =>
   update_pinned_call(z, pinned_call => {
-    Some(call_stack) == pinned_call ? None : Some(call_stack)
+    /* Compare by ID only - function names may differ */
+    switch (pinned_call) {
+    | Some(existing)
+        when Sample.ids_of_stack(call_stack) == Sample.ids_of_stack(existing) =>
+      None
+    | _ => Some(call_stack)
+    }
   });
 
 let reset = (z: Zipper.t): Zipper.t =>
@@ -47,8 +53,13 @@ let reset = (z: Zipper.t): Zipper.t =>
 let resolve_pending_focus =
     (z: Zipper.t, samples: list(Sample.t), target_stack: Sample.call_stack)
     : Zipper.t => {
+  /* Compare by ID only - target_stack may have None for function names */
+  let target_ids = Sample.ids_of_stack(target_stack);
   let matching_sample =
-    List.find_opt((s: Sample.t) => s.call_stack == target_stack, samples);
+    List.find_opt(
+      (s: Sample.t) => Sample.ids_of_stack(s.call_stack) == target_ids,
+      samples,
+    );
   switch (matching_sample) {
   | Some(sample) =>
     update(z, sample_cursor =>

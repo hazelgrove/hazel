@@ -17,6 +17,10 @@ type stack_frame = (Id.t, option(string));
 [@deriving (show({with_path: false}), sexp, yojson, eq)]
 type call_stack = list(stack_frame);
 
+/* Extract just the IDs from a call stack, discarding function names.
+ * Used for comparisons where we only care about the call context, not names. */
+let ids_of_stack = (cs: call_stack): list(Id.t) => List.map(fst, cs);
+
 /* Maps expression/pattern IDs to their capture specifications.
  * Presence in this map means "collect a sample when evaluated". */
 type targets = Id.Map.t(capture_spec);
@@ -502,10 +506,16 @@ module Selection = {
     | Some(pinned_stack) =>
       /* Extract just the Id.t from head of pinned_stack for comparison */
       let pinned_head_id = Option.map(fst, ListUtil.hd_opt(pinned_stack));
+      /* Compare by ID only - pinned_stack may have None for function names
+       * but actual samples have real names from evaluation */
+      let pinned_ids = ids_of_stack(pinned_stack);
       List.filter(
         (sample: t) =>
           pinned_head_id == ap_id
-          || ListUtil.is_suffix_of(pinned_stack, sample.call_stack),
+          || ListUtil.is_suffix_of(
+               pinned_ids,
+               ids_of_stack(sample.call_stack),
+             ),
         samples,
       );
     | None => samples

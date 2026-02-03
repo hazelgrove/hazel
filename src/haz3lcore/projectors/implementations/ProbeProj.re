@@ -512,7 +512,9 @@ let env_val =
 let show_pin = (~ap_id: option(Id.t), di: Dynamics.Info.t, sample: Sample.t) => {
   switch (ap_id, di.sample_cursor.pinned_stack) {
   | (Some(ap_id), Some(pinned_stack)) =>
-    pinned_stack == [(ap_id, None), ...sample.call_stack]
+    /* Compare by ID only - function names may differ */
+    Sample.ids_of_stack(pinned_stack)
+    == [ap_id, ...Sample.ids_of_stack(sample.call_stack)]
   | _ => false
   };
 };

@@ -24,8 +24,12 @@
   --pat-cell: hsl(165, 30%, 70%);
 
   /* Sample call stack position colors - shared between samples and closure cursor bar */
-  --sample-above-text: oklch(0.68 0.12 343.53); /* pink for above/before cursor */
-  --sample-below-text: oklch(0.76 0.08 193.44); /* blue for below/after cursor */
+  --sample-above-text: oklch(
+    0.68 0.12 343.53
+  ); /* pink for above/before cursor */
+  --sample-below-text: oklch(
+    0.76 0.08 193.44
+  ); /* blue for below/after cursor */
   --sample-above-bg: oklch(0.93 0.06 -0.01);
   --sample-below-bg: oklch(0.93 0.03 195);
 }
@@ -742,7 +746,7 @@
   height: 1.3em;
   width: 1.3em;
   border-radius: 1em;
-  background: url(../../img/noun-pinned-1560993.svg) var(--T3);
+  background: url(../../img/noun-pinned-1560993.svg) var(--R1);
   background-size: 70%;
   background-position: center;
   background-repeat: no-repeat;
