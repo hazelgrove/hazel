@@ -77,7 +77,8 @@ select {
   height: 100vh;
   width: 100vw;
   display: grid;
-  grid-template: 2em minmax(0, 1fr) 2em / 1fr fit-content(18em);
+  /* Row 1: top-bar, Row 2: closure-cursor-bar (auto collapses when empty), Row 3: main, Row 4: bottom-bar */
+  grid-template: 2em auto minmax(0, 1fr) 2em / 1fr fit-content(18em);
   background-color: var(--light-page-color);
   color: var(--STONE);
   user-select: none;
@@ -90,7 +91,7 @@ select {
 
 #main {
   /* Backpack uses position:fixed + FloatingElement to escape overflow clipping */
-  grid-row: 2 / span 1;
+  grid-row: 3 / span 1;
   grid-column: 1 / span 1;
   overflow: auto;
   padding: 0;
@@ -112,6 +113,8 @@ select {
 }
 
 #sidebars {
+  grid-row: 2 / span 2;
+  grid-column: 2 / span 1;
   display: flex;
   justify-content: space-between;
   width: 100%;
@@ -131,9 +134,168 @@ select {
   z-index: var(--top-bar-hover-z);
 }
 
+/* Closure Cursor Bar - breadcrumbs display for call stack */
+#closure-cursor-bar {
+  grid-row: 2 / span 1;
+  grid-column: 1 / span 1;
+  z-index: calc(var(--top-bar-z) - 1);
+  display: flex;
+  align-items: center;
+  background-color: var(--ui-bkg);
+  border-bottom: 0.6px solid var(--BR2);
+  padding: 0.25em 0.75em;
+  min-height: 0;
+  font-family: var(--code-font);
+  /* font-size: 0.85em; */
+}
+
+#closure-cursor-bar:empty,
+#closure-cursor-bar.hidden {
+  display: none;
+}
+
+#closure-cursor-bar:focus {
+  outline: none;
+}
+
+#closure-cursor-bar .breadcrumbs {
+  display: flex;
+  align-items: center;
+  gap: 0.25em;
+}
+
+#closure-cursor-bar .breadcrumb-entry {
+  cursor: pointer;
+  padding: 0 0.4em;
+  border-radius: 1em;
+  color: var(--BR3);
+  transition: background-color 0.1s;
+  position: relative;
+}
+
+#closure-cursor-bar .breadcrumb-entry:hover,
+#closure-cursor-bar .breadcrumb-separator:hover {
+  background-color: white;
+}
+
+#closure-cursor-bar .breadcrumb-entry.focused {
+  color: var(--G0);
+  background-color: var(--G5);
+  font-weight: 500;
+  text-decoration: underline;
+}
+
+#closure-cursor-bar .breadcrumb-entry.indicated {
+  outline: 1.5px solid var(--R1);
+  border-radius: 3px;
+}
+
+#closure-cursor-bar .breadcrumb-entry.focused.indicated {
+  text-decoration: none;
+}
+
+#closure-cursor-bar .breadcrumb-entry.ghost {
+  opacity: 0.7;
+}
+
+/* Color coding for call stack position - uses same colors as sample display */
+#closure-cursor-bar .breadcrumb-entry.above {
+  color: var(--sample-above-text);
+}
+#closure-cursor-bar .breadcrumb-entry.below {
+  color: var(--sample-below-text);
+}
+/* #closure-cursor-bar .breadcrumb-separator.above {
+  color: var(--sample-above-text);
+}
+#closure-cursor-bar .breadcrumb-separator.below {
+  color: var(--sample-below-text);
+} */
+
+#closure-cursor-bar .breadcrumb-separator {
+  color: var(--BR2);
+  font-size: 0.8em;
+  cursor: pointer;
+  padding: 0.1em 0;
+  border-radius: 1em;
+  transition: background-color 0.1s;
+  /* Fixed width so double chevron doesn't cause layout shift */
+  display: inline-block;
+  width: 1.2em;
+  text-align: center;
+}
+
+#closure-cursor-bar .breadcrumb-separator.ghost {
+  color: var(--BR1);
+}
+
+#closure-cursor-bar .top-level {
+  color: var(--BR4);
+  padding: 0.1em 0.4em;
+  cursor: pointer;
+  border-radius: 1em;
+  transition: background-color 0.1s;
+}
+
+#closure-cursor-bar .top-level:hover {
+  background-color: var(--SAND);
+}
+
+#closure-cursor-bar .top-level.focused {
+  color: var(--G0);
+  background-color: var(--G5);
+  font-weight: 500;
+  text-decoration: underline;
+}
+
+#closure-cursor-bar .more-indicator {
+  color: var(--BR2);
+  margin-left: 0.25em;
+  opacity: 0.5;
+}
+
+#closure-cursor-bar .stack-icon {
+  color: var(--BR4);
+  margin-right: 0.5em;
+  font-size: 0.9em;
+}
+
+#closure-cursor-bar .breadcrumb-entry.unknown {
+  color: var(--BR1);
+  cursor: default;
+}
+
+#closure-cursor-bar .breadcrumb-entry.unknown:hover {
+  background-color: transparent;
+}
+
+/* Pin icon - same style as sample pin but positioned for breadcrumb */
+#closure-cursor-bar .pin-icon {
+  display: inline-block;
+  width: 1em;
+  height: 1em;
+  border-radius: 1em;
+  background: url(../img/noun-pinned-1560993.svg) var(--R1);
+  background-size: 70%;
+  background-position: center;
+  background-repeat: no-repeat;
+  /* filter: invert(1); */
+  cursor: pointer;
+  margin-right: 0.2em;
+  vertical-align: middle;
+  position: absolute;
+  top: -0.1em;
+  right: -0.75em;
+  scale: 0.75;
+}
+
+#closure-cursor-bar .pin-icon:hover {
+  filter: brightness(1.2);
+}
+
 #bottom-bar {
   z-index: var(--bottom-bar-z);
-  grid-row: 3 / span 1;
+  grid-row: 4 / span 1;
   grid-column: 1 / span 2;
   display: flex;
   align-items: center;

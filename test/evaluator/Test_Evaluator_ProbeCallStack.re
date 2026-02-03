@@ -27,7 +27,9 @@ let get_all_samples = (code: string): list(Sample.t) => {
 
 /* Show call stack for debugging */
 let show_call_stack = (cs: Sample.call_stack): string =>
-  "[" ++ String.concat(", ", List.map(Id.str3, cs)) ++ "]";
+  "["
+  ++ String.concat(", ", List.map(((id, _)) => Id.str3(id), cs))
+  ++ "]";
 
 let call_stack_testable =
   testable(Fmt.using(show_call_stack, Fmt.string), (==));

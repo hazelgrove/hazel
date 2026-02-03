@@ -5,8 +5,6 @@
 /* Persistent Sidebar */
 
 #persistent {
-  grid-row: 2 / span 1;
-  grid-column: 2 / span 1;
   border-left: 0.6px solid var(--BR2);
   overflow-y: auto;
   overflow-x: hidden;

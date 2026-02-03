@@ -18,12 +18,15 @@ module Info = {
     sample_cursor: Sample.Cursor.init,
   };
 
-  let is_in = (di: t): option(Sample.t) =>
+  let is_in = (di: t): option(Sample.t) => {
+    let cursor_ids =
+      Sample.ids_of_stack(Sample.Cursor.trimmed_stack(di.sample_cursor));
     List.find_opt(
       (sample: Sample.t) =>
-        Sample.Cursor.trimmed_stack(di.sample_cursor) == sample.call_stack,
+        Sample.ids_of_stack(sample.call_stack) == cursor_ids,
       di.samples,
     );
+  };
 
   let first_cursor_sample = (ap_id: option(Id.t), di: t): option(Sample.t) => {
     let find_cursor =

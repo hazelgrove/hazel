@@ -1,10 +1,19 @@
 open Util;
 
+/* Argument values for function applications, keyed by app_id.
+ * Each entry is a list of (call_stack_before_entering, elided_arg_value).
+ * The call_stack is the stack BEFORE entering the function, so we can match
+ * samples taken inside the function with their calling arguments. */
+[@deriving (show({with_path: false}), sexp, yojson)]
+type app_args_t =
+  Id.Map.t(list((Sample.call_stack, Sample.Env.elided_value)));
+
 [@deriving (show({with_path: false}), sexp, yojson)]
 type t = {
   theorems: list((Id.t, string, Environment.t(Exp.t), Exp.t)),
   tests: TestMap.t,
   probes: Sample.Map.t,
+  app_args: app_args_t, /* Argument values for function applications */
   step_count: int,
   pending_probe_starts: Id.Map.t(int), /* Transient state only needed during evaluation */
   targets: Sample.targets /* IDs of expressions/patterns to sample */
@@ -13,7 +22,7 @@ type t = {
 type effect =
   | RecordTest(TestMap.instance_report)
   | RecordExpProbe(Sample.capture_spec)
-  | RecordStackFrame
+  | RecordStackFrame(option(string), option(DHExp.t)) /* (fn_name, arg_value) */
   | RecordPatProbes(PatternMatch.sample_closures)
   | RecordTheorem(Id.t, string, Environment.t(Exp.t), Exp.t)
   | RecordPrint(DHExp.t); /* Println for probes study */
@@ -21,6 +30,7 @@ type effect =
 let mk = (~targets: Sample.targets): t => {
   tests: TestMap.empty,
   probes: Sample.Map.empty,
+  app_args: Id.Map.empty,
   step_count: 0,
   pending_probe_starts: Id.Map.empty,
   targets,
@@ -51,6 +61,49 @@ let get_probes = ({probes, _}) => probes;
 
 let get_theorems = ({theorems, _}) => theorems;
 
+let get_app_args = ({app_args, _}) => app_args;
+
+/* Elide arg value for storage (handles closures, etc.) */
+let elide_arg =
+    (env: Environment.t(Exp.t), d: DHExp.t): Sample.Env.elided_value =>
+  Sample.Env.elide(env, d);
+
+/* Add an argument value for an application */
+let add_app_arg =
+    (
+      state: t,
+      app_id: Id.t,
+      call_stack: Sample.call_stack,
+      arg: Sample.Env.elided_value,
+    )
+    : t => {
+  let existing =
+    Id.Map.find_opt(app_id, state.app_args) |> Option.value(~default=[]);
+  {
+    ...state,
+    app_args:
+      Id.Map.add(app_id, [(call_stack, arg), ...existing], state.app_args),
+  };
+};
+
+/* Look up argument value for an application at a specific call_stack.
+ * Used when creating samples for probes on Ap expressions. */
+let lookup_app_arg =
+    (state: t, app_id: Id.t, call_stack: Sample.call_stack)
+    : option(Sample.Env.elided_value) => {
+  let call_stack_ids = Sample.ids_of_stack(call_stack);
+  switch (Id.Map.find_opt(app_id, state.app_args)) {
+  | None => None
+  | Some(entries) =>
+    List.find_map(
+      ((stored_stack, arg)) =>
+        Sample.ids_of_stack(stored_stack) == call_stack_ids
+          ? Some(arg) : None,
+      entries,
+    )
+  };
+};
+
 let add_test = (state: t, instance_report: TestMap.instance_report) => {
   ...state,
   tests:
@@ -74,7 +127,7 @@ let add_theorem = ({theorems, _} as es, id, name, env, goal) => {
 let update =
     (
       state: t,
-      call_stack: list(Id.t),
+      call_stack: Sample.call_stack,
       env: Environment.t(Exp.t),
       init: DHExp.t,
       next: DHExp.t,
@@ -90,7 +143,17 @@ let update =
   List.fold_left(
     ((call_stack: Sample.call_stack, state: t), effect: effect) =>
       switch (effect) {
-      | RecordStackFrame => ([DHExp.rep_id(init), ...call_stack], state)
+      | RecordStackFrame(fn_name, arg_opt) =>
+        let app_id = DHExp.rep_id(init);
+        /* Store argument value if provided, keyed by (app_id, call_stack_before_entering) */
+        let state =
+          switch (arg_opt) {
+          | Some(arg) =>
+            let elided_arg = elide_arg(env, arg);
+            add_app_arg(state, app_id, call_stack, elided_arg);
+          | None => state
+          };
+        ([(app_id, fn_name), ...call_stack], state);
       | RecordTest(instance_report) => (
           call_stack,
           add_test(state, instance_report),
@@ -102,8 +165,11 @@ let update =
         let step_start =
           get_probe_start(state, probe_id) |> Option.value(~default=0);
         let step_end = state.step_count - 1;
+        /* Look up arg if this probe is on an Ap expression */
+        let args = lookup_app_arg(state, probe_id, call_stack);
         let sample =
           Sample.mk(
+            ~args,
             ~step_start,
             ~step_end,
             probe_id,
