@@ -833,12 +833,9 @@ let move_cursor =
   /* Cursor would be outside window, reset to next visible sample */
   | Some(idx) =>
     let next_idx_maybe = idx - offset;
-    if (next_idx_maybe >= 0 && next_idx_maybe < List.length(samples)) {
-      parent(
-        SampleCursor(Capture(List.nth(samples, next_idx_maybe), ap_id)),
-      );
-    } else {
-      Effect.Ignore;
+    switch (List.nth_opt(samples, next_idx_maybe)) {
+    | Some(sample) => parent(SampleCursor(Capture(sample, ap_id)))
+    | None => Effect.Ignore
     };
   | _ => Effect.Ignore
   };
