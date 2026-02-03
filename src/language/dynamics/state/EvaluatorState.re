@@ -13,7 +13,7 @@ type t = {
 type effect =
   | RecordTest(TestMap.instance_report)
   | RecordExpProbe(Sample.capture_spec)
-  | RecordStackFrame
+  | RecordStackFrame(option(string)) /* Function name extracted at evaluation time */
   | RecordPatProbes(PatternMatch.sample_closures)
   | RecordTheorem(Id.t, string, Environment.t(Exp.t), Exp.t)
   | RecordPrint(DHExp.t); /* Println for probes study */
@@ -74,7 +74,7 @@ let add_theorem = ({theorems, _} as es, id, name, env, goal) => {
 let update =
     (
       state: t,
-      call_stack: list(Id.t),
+      call_stack: Sample.call_stack,
       env: Environment.t(Exp.t),
       init: DHExp.t,
       next: DHExp.t,
@@ -90,7 +90,10 @@ let update =
   List.fold_left(
     ((call_stack: Sample.call_stack, state: t), effect: effect) =>
       switch (effect) {
-      | RecordStackFrame => ([DHExp.rep_id(init), ...call_stack], state)
+      | RecordStackFrame(fn_name) => (
+          [(DHExp.rep_id(init), fn_name), ...call_stack],
+          state,
+        )
       | RecordTest(instance_report) => (
           call_stack,
           add_test(state, instance_report),

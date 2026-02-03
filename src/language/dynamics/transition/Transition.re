@@ -200,6 +200,17 @@ module Transition = (EV: EV_MODE) => {
       r;
     };
 
+  /* Extract function name from a function expression (including closures).
+     Used to record the name in the call stack for better debugging. */
+  let get_fn_name_from_expr = (d: DHExp.t): option(string) =>
+    switch (d.term) {
+    | Closure(_, e) => Exp.get_fn_name(e)
+    | Fun(_, _, _, name) => name
+    | TypFun(_, _, name) => name
+    | BuiltinFun(name) => Some(name)
+    | _ => None
+    };
+
   /* Note[Matt]: For IDs, I'm currently using a fresh id
      if anything about the current node changes, if only its
      children change, we use rewrap */
@@ -467,6 +478,8 @@ module Transition = (EV: EV_MODE) => {
           is_value: false,
         })
       | _ =>
+        /* Extract function name before unboxing (unboxing discards the name) */
+        let fn_name = get_fn_name_from_expr(d1');
         let-unbox unboxed_fun = (Fun, d1');
         switch (unboxed_fun) {
         | Constructor(_) => Constructor
@@ -480,7 +493,7 @@ module Transition = (EV: EV_MODE) => {
             Step({
               expr: subst_env(env'', d3),
               side_effects: [
-                RecordStackFrame,
+                RecordStackFrame(fn_name),
                 RecordPatProbes(matches.samples),
               ],
               kind: FunAp,
@@ -500,7 +513,7 @@ module Transition = (EV: EV_MODE) => {
                   d3,
                 ),
               side_effects: [
-                RecordStackFrame,
+                RecordStackFrame(fn_name),
                 RecordPatProbes(matches.samples),
               ],
               kind: FunAp,
@@ -513,7 +526,10 @@ module Transition = (EV: EV_MODE) => {
             /* Println for probes study */
             Step({
               expr: tuple([]),
-              side_effects: [RecordPrint(d2')],
+              side_effects: [
+                RecordStackFrame(Some(ident)),
+                RecordPrint(d2'),
+              ],
               kind: BuiltinAp(ident),
               is_value: true,
             });
@@ -532,7 +548,7 @@ module Transition = (EV: EV_MODE) => {
             | Some(expr) =>
               Step({
                 expr,
-                side_effects: [],
+                side_effects: [RecordStackFrame(Some(ident))],
                 kind: BuiltinAp(ident),
                 is_value: false,
               })

@@ -35,7 +35,13 @@ let capture = (z: Zipper.t, sample: Sample.t, id): Zipper.t =>
 
 let toggle_pin_call = (z: Zipper.t, call_stack): Zipper.t =>
   update_pinned_call(z, pinned_call => {
-    Some(call_stack) == pinned_call ? None : Some(call_stack)
+    /* Compare by ID only - function names may differ */
+    switch (pinned_call) {
+    | Some(existing)
+        when Sample.ids_of_stack(call_stack) == Sample.ids_of_stack(existing) =>
+      None
+    | _ => Some(call_stack)
+    }
   });
 
 let reset = (z: Zipper.t): Zipper.t =>
@@ -47,8 +53,13 @@ let reset = (z: Zipper.t): Zipper.t =>
 let resolve_pending_focus =
     (z: Zipper.t, samples: list(Sample.t), target_stack: Sample.call_stack)
     : Zipper.t => {
+  /* Compare by ID only - target_stack may have None for function names */
+  let target_ids = Sample.ids_of_stack(target_stack);
   let matching_sample =
-    List.find_opt((s: Sample.t) => s.call_stack == target_stack, samples);
+    List.find_opt(
+      (s: Sample.t) => Sample.ids_of_stack(s.call_stack) == target_ids,
+      samples,
+    );
   switch (matching_sample) {
   | Some(sample) =>
     update(z, sample_cursor =>
@@ -67,9 +78,24 @@ let resolve_pending_focus =
   };
 };
 
+let set_index = (z: Zipper.t, i: int): Zipper.t =>
+  update(
+    z,
+    sample_cursor => {
+      let max_index = List.length(sample_cursor.call_stack) - 1;
+      /* Allow -1 for top-level (outside all calls) */
+      let clamped_index = max(-1, min(i, max_index));
+      {
+        ...sample_cursor,
+        index: clamped_index,
+      };
+    },
+  );
+
 let go = (z: Zipper.t, a: Action.sample_cursor): Zipper.t =>
   switch (a) {
   | Capture(sample, id) => capture(z, sample, id)
   | TogglePin(call_stack) => toggle_pin_call(z, call_stack)
+  | SetIndex(i) => set_index(z, i)
   | Reset => reset(z)
   };

@@ -127,7 +127,7 @@ module Eval = Transition(EvaluatorEVMode);
 let rec evaluate =
         (
           ~in_closure=?,
-          ~call_stack: list(Id.t),
+          ~call_stack: Sample.call_stack,
           state: EvaluatorEVMode.state,
           env,
           init: DHExp.t,
