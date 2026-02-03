@@ -190,7 +190,7 @@ let external_precedence_pat = (dp: Pat.t) =>
   | MultiHole(_) => Precedence.min
   };
 
-let rec external_precedence_typ = (tp: Typ.t) =>
+let external_precedence_typ = (tp: Typ.t) =>
   switch (Typ.term_of(tp)) {
   // Indivisible forms never need parentheses around them
   | Unknown(Hole(Invalid(_)))
