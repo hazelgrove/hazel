@@ -977,7 +977,9 @@ let move_cursor =
     let next_idx_maybe = idx - offset;
     if (next_idx_maybe >= 0 && next_idx_maybe < List.length(samples)) {
       let sample = List.nth(samples, next_idx_maybe);
-      parent(SampleCursor(Capture(Sample.capture_of_sample(sample), ap_id)));
+      parent(
+        SampleCursor(Capture(Sample.capture_of_sample(sample), ap_id)),
+      );
     } else {
       Effect.Ignore;
     };

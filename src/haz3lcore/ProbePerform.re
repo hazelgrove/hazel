@@ -764,7 +764,12 @@ let resolve_pending_probe_cursor =
       switch (selected) {
       | Some(sample) =>
         /* Use capture to set sample cursor (preserves deeper stack if applicable) */
-        let z = SampleCursorPerform.capture(z, Sample.capture_of_sample(sample), None);
+        let z =
+          SampleCursorPerform.capture(
+            z,
+            Sample.capture_of_sample(sample),
+            None,
+          );
         /* Clear pending_probe_cursor */
         Zipper.update_refractors(z, r =>
           {

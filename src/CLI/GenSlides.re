@@ -11,39 +11,39 @@
  *   1. Reads all .hz files from input_dir recursively
  *   2. Parses each file and serializes to PersistentSegment format
  *   3. Generates individual ML files (one per .hz file)
- *   4. Generates AllExamples.re aggregation module
- *   5. Generates dune file for the examples library
+ *   4. Generates AllStudy.re aggregation module
+ *   5. Generates dune file for the study library
  *
  * OUTPUT FILES (in output_dir):
- *   - ExamplesStudyCalculator.ml, etc. (one per .hz file)
- *   - AllExamples.re (lists all slides, or empty stub after clean)
+ *   - StudyDebuggingCalculator.ml, etc. (one per .hz file)
+ *   - AllStudy.re (lists all slides, or empty stub after clean)
  *   - dune (library definition)
  *
  * INTEGRATION (already done, listed here for reference):
- *   - src/web/dune: added "examples" to libraries
- *   - src/web/init/Init.re: added "@ Examples.AllExamples.all"
+ *   - src/web/dune: added "study" to libraries
+ *   - src/web/init/Init.re: added "@ Study.AllStudy.all"
  *
  * TO COMPLETELY REMOVE THIS FEATURE:
  *   1. Run: ./hazel gen-slides-clean
- *   2. Remove "examples" from src/web/dune libraries list
- *   3. Remove "@ Examples.AllExamples.all" from src/web/init/Init.re
- *   4. Delete src/web/init/examples/ directory
+ *   2. Remove "study" from src/web/dune libraries list
+ *   3. Remove "@ Study.AllStudy.all" from src/web/init/Init.re
+ *   4. Delete src/web/init/study/ directory
  *   5. Delete this file (src/CLI/GenSlides.re)
  *
  * CONFIGURATION (change these constants below to customize):
  */
 
 /* Source directory containing .hz files */
-let input_dir = "hazel-programs/examples";
+let input_dir = "hazel-programs/study";
 
 /* Output directory for generated ML files */
-let output_dir = "src/web/init/examples";
+let output_dir = "src/web/init/study";
 
-/* Prefix for slide titles (e.g., "Examples / study / ..." ) */
-let root_title = "Examples";
+/* Prefix for slide titles (e.g., "Study / debugging / ..." ) */
+let root_title = "Study";
 
 /* Name of the aggregation module */
-let aggregation_module = "AllExamples.re";
+let aggregation_module = "AllStudy.re";
 
 /* Strip leading indentation from .hz files before parsing?
  * Uses Util.StringUtil.trim_leading (src/util/StringUtil.re:75-79) */
@@ -92,7 +92,7 @@ let rec find_hz_files = (base_dir: string, rel_path: string): list(string) => {
 };
 
 /* Convert a relative path to a module name
-   e.g., "study/calculator/calculator.hz" -> "ExamplesStudyCalculatorCalculator" */
+   e.g., "debugging/calculator/calculator.hz" -> "StudyDebuggingCalculatorCalculator" */
 let path_to_module_name = (root_prefix: string, rel_path: string): string => {
   let without_ext = Filename.chop_suffix(rel_path, ".hz");
   let parts = String.split_on_char('/', without_ext);
@@ -104,7 +104,7 @@ let path_to_module_name = (root_prefix: string, rel_path: string): string => {
 };
 
 /* Convert a relative path to a slide title
-   e.g., "study/calculator/calculator.hz" -> "Examples / study / calculator / calculator" */
+   e.g., "debugging/calculator/calculator.hz" -> "Study / debugging / calculator / calculator" */
 let path_to_title = (root_title: string, rel_path: string): string => {
   let without_ext = Filename.chop_suffix(rel_path, ".hz");
   let parts = String.split_on_char('/', without_ext);
@@ -204,12 +204,12 @@ let generate_stub_aggregation_module = (): unit => {
   print_endline("Generated stub: " ++ aggregation_module);
 };
 
-/* Generate the dune file for the examples library */
+/* Generate the dune file for the study library */
 let generate_dune_file = (): unit => {
   let content =
     "(include_subdirs unqualified)\n\n"
     ++ "(library\n"
-    ++ " (name examples)\n"
+    ++ " (name study)\n"
     ++ " (libraries haz3lcore))\n";
 
   write_file(output_dir ++ "/dune", content);

@@ -48,7 +48,7 @@ echo 'let x = true in x + 3' | ./hazel analyze -
 # Output: Static errors (raw format showing Inconsistent Expectation)
 
 # Run tests and see results
-./hazel test hazel-programs/examples/test-demo.hz
+./hazel test hazel-programs/study/test-demo.hz
 # Output:
 # Test Results: Out of 6 tests, one is failing
 #

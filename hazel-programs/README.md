@@ -11,8 +11,9 @@ hazel-programs/
 │   ├── errors/
 │   ├── example_programs/
 │   └── table_api/
-├── study/      # Programs for user studies (probe mechanism evaluation)
-└── examples/   # General example programs
+└── study/      # Programs and docs for user studies (probe mechanism evaluation)
+    ├── debugging/   # Programs with intentional bugs for debugging tasks
+    └── writing/     # Sketch/solution pairs for program writing tasks
 ```
 
 ## File Format
@@ -36,7 +37,7 @@ in length([1, 2, 3])
 
 ```bash
 # From repository root:
-./hazel run hazel-programs/examples/basic-functions.hz
+./hazel run hazel-programs/study/basic-functions.hz
 
 # Or from stdin:
 cat hazel-programs/docs/BasicReference.hz | ./hazel run -
@@ -68,7 +69,7 @@ Programs from the main Hazel documentation slides (`src/web/init/docs/`). Includ
 Programs from B2T2 (Bootstrap to Table Types) slides (`src/b2t2/slides/`). Examples of table processing in Hazel.
 
 ### `study/`
-Programs for user studies evaluating Hazel features. May include intentional bugs or incomplete sections.
-
-### `examples/`
-Hand-written example programs demonstrating Hazel capabilities.
+Programs and documentation for user studies evaluating Hazel's probe debugging mechanism.
+- `debugging/` - Programs with intentional bugs for debugging tasks
+- `writing/` - Sketch/solution pairs for program writing tasks
+- Planning docs, tutorials, and guides for the study

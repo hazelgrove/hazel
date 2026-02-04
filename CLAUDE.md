@@ -78,8 +78,9 @@ test/
 hazel-programs/         # Sample Hazel programs (.hz files)
 ├── docs/               # Documentation examples (extracted from src/web/init/docs/)
 ├── b2t2/               # B2T2 slide examples (extracted from src/b2t2/slides/)
-├── study/              # User study programs
-└── examples/           # General examples
+└── study/              # User study programs and documentation
+    ├── debugging/      # Programs with intentional bugs for debugging tasks
+    └── writing/        # Sketch/solution pairs for program writing tasks
 
 plans/                  # Project plans and documentation
 ├── hazel-lsp-cli/      # CLI/LSP development plan
