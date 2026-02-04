@@ -122,6 +122,7 @@ type t = {
   value: DHExp.t, /* Value of expression */
   env: Env.t, /* (Filtered) Environment Values  */
   call_stack, /* Call stacks as ap ids */
+  args: option(Env.elided_value), /* Argument value if probe is on an Ap */
   time: float, /* Time of evaluation */
   seq: int, /* Sequence number: a count index of each sample taken */
   origin, /* Is this sample from a probe or a print statement */
@@ -134,6 +135,7 @@ let seq_counter = ref(0);
 let mk =
     (
       ~origin: origin=Probe,
+      ~args: option(Env.elided_value)=None,
       ~step_start: int,
       ~step_end: int,
       syntax_id: Id.t,
@@ -152,6 +154,7 @@ let mk =
   value,
   env: Env.filter(env, spec.refs),
   call_stack: stack,
+  args,
   time: JsUtil.precise_timestamp(),
   seq: {
     seq_counter := seq_counter^ + 1;
