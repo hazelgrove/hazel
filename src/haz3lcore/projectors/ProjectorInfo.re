@@ -18,17 +18,6 @@ let utility: ProjectorBase.utility = {
     );
   let lift_syntax =
       (inline, fn: Any.t => Any.t, seg: Base.segment): option(Base.segment) => {
-    print_endline("lifting syntax with inline=" ++ string_of_bool(inline));
-    print_endline("Seg: " ++ Segment.show(seg));
-    print_endline(
-      "Term: "
-      ++ (
-        switch (seg |> seg_to_term) {
-        | None => "None"
-        | Some(s) => Any.show(s)
-        }
-      ),
-    );
     switch (seg |> seg_to_term) {
     | None => None
     | Some(s) => Some(s |> fn |> term_to_seg(inline))
