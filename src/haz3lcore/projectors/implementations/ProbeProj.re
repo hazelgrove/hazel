@@ -600,6 +600,31 @@ let get_fn_name_from_statics =
   | _ => None
   };
 
+/* Extract variable names that appear directly as arguments.
+ * For Var(x) -> [x]
+ * For Tuple([Var(x), expr, Var(y)]) -> [x, y]
+ * Unwraps Parens as needed.
+ * Used to filter redundant entries from environment display. */
+let get_arg_var_names =
+    (statics: option(Language.Statics.Info.t)): list(string) => {
+  let rec extract_var = (e: Exp.t): option(string) =>
+    switch (e.term) {
+    | Var(name) => Some(name)
+    | Parens(inner) => extract_var(inner)
+    | _ => None
+    };
+  switch (statics) {
+  | Some(InfoExp({term: {term: Ap(_, _, arg), _}, _})) =>
+    switch (arg.term) {
+    | Var(name) => [name]
+    | Parens(inner) => extract_var(inner) |> Option.to_list
+    | Tuple(elements) => List.filter_map(extract_var, elements)
+    | _ => []
+    }
+  | _ => []
+  };
+};
+
 /* Call display section showing function call with argument values */
 let sample_call_display =
     (
@@ -708,11 +733,24 @@ let sample_call_display =
   | _ => []
   };
 
-/* Environment section showing variable bindings */
+/* Environment section showing variable bindings.
+ * filter_vars: variable names to exclude (already shown in call display) */
 let sample_environment =
-    (~settings: settings, sample: Sample.t, view_seg, utility: utility)
+    (
+      ~settings: settings,
+      ~filter_vars: list(string)=[],
+      sample: Sample.t,
+      view_seg,
+      utility: utility,
+    )
     : list(Node.t) => {
-  let elems = sample.env |> ListUtil.dedup |> Sample.Env.remove_opaques;
+  let elems =
+    sample.env
+    |> ListUtil.dedup
+    |> Sample.Env.remove_opaques
+    |> List.filter((en: Sample.Env.entry) =>
+         !List.mem(en.binding.name, filter_vars)
+       );
   elems == []
     ? []
     : [
@@ -741,7 +779,15 @@ let sample_context_menu =
       utility: utility,
     )
     : Node.t => {
-  let env_elems = sample.env |> ListUtil.dedup |> Sample.Env.remove_opaques;
+  /* Get variable names shown in call display to filter from environment */
+  let filter_vars = get_arg_var_names(statics);
+  let env_elems =
+    sample.env
+    |> ListUtil.dedup
+    |> Sample.Env.remove_opaques
+    |> List.filter((en: Sample.Env.entry) =>
+         !List.mem(en.binding.name, filter_vars)
+       );
   let has_env = env_elems != [];
   let has_call = Option.is_some(sample.args);
   div(
@@ -754,7 +800,7 @@ let sample_context_menu =
       @ SafeTriangle.CSSDropdown.menu_attrs(dropdown_id(sample.id)),
     sample_context_actions(~parent, ~ap_id, ~di, sample)
     @ sample_call_display(~settings, ~statics, sample, view_seg, utility)
-    @ sample_environment(~settings, sample, view_seg, utility),
+    @ sample_environment(~settings, ~filter_vars, sample, view_seg, utility),
   );
 };
 
