@@ -112,7 +112,7 @@ and uexp_to_info_map =
       ~override_self: option(Self.exp)=?,
       ~inferred_label: option(LabeledTuple.label)=?,
       ~label_sort,
-      {annotation: {ids}, term} as uexp: Exp.t,
+      {annotation: {ids, _}, term} as uexp: Exp.t,
       m: Map.t,
     )
     : (Info.exp, Map.t) => {
@@ -261,27 +261,12 @@ and uexp_to_info_map =
         m,
       );
 
-    /* Special case for probes, which would otherwise lose their id association here */
     let elaborated_exp =
-      switch (term) {
-      | Probe(_, p) =>
-        rewrap(
-          Probe(
-            Tuple([
-              TupLabel(Label(l) |> Exp.fresh, original_expression)
-              |> Exp.fresh,
-            ])
-            |> Exp.fresh,
-            p,
-          ),
-        )
-      | _ =>
-        rewrap(
-          Tuple([
-            TupLabel(Label(l) |> Exp.fresh, original_expression) |> Exp.fresh,
-          ]),
-        )
-      };
+      rewrap(
+        Tuple([
+          TupLabel(Label(l) |> Exp.fresh, original_expression) |> Exp.fresh,
+        ]),
+      );
 
     // We need to reanalyze the elaborated expression to get the statics in the map for the label and tuple
     let (info, m) =
@@ -385,15 +370,12 @@ and uexp_to_info_map =
         m,
       )
     | DynamicErrorHole(e, _)
-    | Parens(e)
-    | Probe(e, _) =>
+    | Parens(e) =>
       let (e, m) = go(~ana, e, m);
-      add(~self=Just(e.ty), ~co_ctx=e.co_ctx, m);
+      add'(~self=e.self, ~co_ctx=e.co_ctx, m);
     | UnOp(Meta(Unquote), e) when is_in_filter =>
       let e: Exp.t = {
-        annotation: {
-          ids: IdTagged.ids(e),
-        },
+        annotation: IdTagged.IdTag.mk_internal(IdTagged.ids(e)),
         term:
           switch (e.term) {
           | Var("e") =>
@@ -586,17 +568,21 @@ and uexp_to_info_map =
       let ty_list = List.map(Info.exp_ty, es');
 
       let (malformed_labels, duplicate_labels, invalid_labels) =
-        List.fold_left(
-          ((a, b, c), e: Info.exp) => {
-            switch (e.status) {
-            | InHole(
-                Common(
-                  TupleLabelError({
-                    malformed_labels,
-                    duplicate_labels,
-                    invalid_labels,
-                    _,
-                  }),
+        List.fold_left2(
+          ((a, b, c), e: Exp.t, e_info: Info.exp) => {
+            // Only collect errors from TupLabel elements
+            switch (e.term, e_info.status) {
+            | (
+                TupLabel(_, _),
+                InHole(
+                  Common(
+                    TupleLabelError({
+                      malformed_labels,
+                      duplicate_labels,
+                      invalid_labels,
+                      _,
+                    }),
+                  ),
                 ),
               ) => (
                 a @ malformed_labels,
@@ -607,6 +593,7 @@ and uexp_to_info_map =
             }
           },
           ([], [], []),
+          es,
           es',
         );
 
@@ -914,10 +901,10 @@ and uexp_to_info_map =
         };
       }
     | TypAp(fn, utyp) =>
-      let typfn_ana = Forall(EmptyHole |> TPat.fresh, syn) |> Typ.temp;
+      let typfn_ana = Poly(EmptyHole |> TPat.fresh, syn) |> Typ.temp;
       let (fn, m) = go(~ana=typfn_ana, fn, m);
       let (_, m) = utyp_to_info_map(~ctx, ~ancestors, utyp, m);
-      let (option_name, ty_body) = Typ.matched_forall(ctx, fn.ty);
+      let (option_name, ty_body) = Typ.matched_poly(ctx, fn.ty);
       switch (option_name) {
       | Some(name) =>
         add(
@@ -1033,8 +1020,16 @@ and uexp_to_info_map =
           InexhaustiveMatch(unwrapped_self, unseen_pattern)
         };
       add'(~self, ~co_ctx=CoCtx.mk(ctx, p.ctx, e.co_ctx), m);
+    | Forall(p, e) =>
+      let (p, m) = go_pat(~is_synswitch=false, ~co_ctx=CoCtx.empty, p, m);
+      let (e, m) = go'(~ctx=p.ctx, ~ana=Atom(Bool) |> Typ.temp, e, m);
+      add'(
+        ~self=Common(Just(Atom(Bool) |> Typ.temp)),
+        ~co_ctx=CoCtx.mk(ctx, p.ctx, e.co_ctx),
+        m,
+      );
     | TypFun(utpat, body, _) =>
-      let (name_expected_opt, item) = Typ.matched_forall(ctx, ana);
+      let (name_expected_opt, item) = Typ.matched_poly(ctx, ana);
       let (mode_body, ctx_body) =
         switch (TPat.tyvar_of_utpat(utpat)) {
         | Some(name) when !Ctx.shadows_typ(ctx, name) =>
@@ -1061,7 +1056,7 @@ and uexp_to_info_map =
       let m = utpat_to_info_map(~ctx, ~ancestors, utpat, m) |> snd;
       let (body, m) = go'(~ctx=ctx_body, ~ana=mode_body, body, m);
       add(
-        ~self=Just(Forall(utpat, body.ty) |> Typ.temp),
+        ~self=Just(Poly(utpat, body.ty) |> Typ.temp),
         ~co_ctx=body.co_ctx,
         m,
       );
@@ -1138,6 +1133,46 @@ and uexp_to_info_map =
           CoCtx.union([def.co_ctx, CoCtx.mk(ctx, p_ana.ctx, body.co_ctx)]),
         m,
       );
+    | Theorem({term: Var(_), _} as p, e1, e2) =>
+      let (e1', m) = go'(~ctx, ~ana=Atom(Bool) |> Typ.temp, e1, m);
+      let (p', _) =
+        go_pat(
+          ~is_synswitch=false,
+          ~co_ctx=CoCtx.empty,
+          ~ana=Typ.fresh(ProofOf(e1)),
+          p,
+          m,
+        );
+      let (e2, m) = go'(~ctx=p'.ctx, ~ana, e2, m);
+      /* add co_ctx to pattern */
+      let (p, m) =
+        go_pat(~is_synswitch=false, ~co_ctx=e2.co_ctx, ~ana=syn, p, m);
+      add(
+        ~self=Just(e2.ty),
+        ~co_ctx=
+          CoCtx.union([
+            p'.co_ctx,
+            e1'.co_ctx,
+            CoCtx.mk(ctx, p.ctx, e2.co_ctx),
+          ]),
+        m,
+      );
+    | Theorem(p, e1, e2) =>
+      let (_, m) = go'(~ctx, ~ana=Atom(Bool) |> Typ.temp, e1, m);
+      let (p', _) =
+        go_pat(~is_synswitch=false, ~co_ctx=CoCtx.empty, ~ana=syn, p, m);
+      let (e2, m) = go'(~ctx=p'.ctx, ~ana, e2, m);
+      /* add co_ctx to pattern */
+      let (p, m) =
+        go_pat(~is_synswitch=false, ~co_ctx=e2.co_ctx, ~ana=syn, p, m);
+      add'(
+        ~self=BadTheorem(e2.ty),
+        ~co_ctx=CoCtx.union([p'.co_ctx, CoCtx.mk(ctx, p.ctx, e2.co_ctx)]),
+        m,
+      );
+    | ProofObject(e) =>
+      let (_, m) = go'(~ctx, ~ana=Atom(Bool) |> Typ.temp, e, m);
+      add(~self=Just(Typ.temp(ProofOf(e))), ~co_ctx=CoCtx.empty, m); // TODO[Matt]: do types need coctxs now?
     | FixF(p, e, _) =>
       let (p', _) =
         go_pat(~is_synswitch=false, ~co_ctx=CoCtx.empty, ~ana, p, m);
@@ -1369,7 +1404,15 @@ and upat_to_info_map =
       m: Map.t,
     )
     : (Info.pat, Map.t) => {
-  let add = (~self, ~ctx, ~constraint_, ~label_inference=?, m) => {
+  let add' =
+      (
+        ~self: Self.pat,
+        ~ctx: Ctx.t,
+        ~constraint_: Coverage.Constraint.t,
+        ~label_inference: option(Info.label_inference(Info.pat))=?,
+        m: Id.Map.t(Info.t),
+      )
+      : (Info.pat, Map.t) => {
     let prev_synswitch =
       switch (Id.Map.find_opt(Pat.rep_id(upat), m)) {
       | Some(Info.InfoPat({ana, ty, _})) when Typ.is_syn_plus(ana) =>
@@ -1386,7 +1429,11 @@ and upat_to_info_map =
         ~co_ctx,
         ~ana,
         ~ancestors,
-        ~self=Common(Option.value(~default=self, override_self)),
+        ~self=
+          Option.value(
+            ~default=self,
+            override_self |> Option.map((s): Self.pat => Common(s)),
+          ),
         ~constraint_,
         ~label_inference,
         ~inferred_label,
@@ -1394,6 +1441,17 @@ and upat_to_info_map =
       );
 
     (info, add_info(ids, InfoPat(info), m));
+  };
+  let add =
+      (
+        ~self: Self.t,
+        ~ctx: Ctx.t,
+        ~constraint_: Coverage.Constraint.t,
+        ~label_inference: option(Info.label_inference(Info.pat))=?,
+        m: Id.Map.t(Info.t),
+      )
+      : (Info.pat, Map.t) => {
+    add'(~self=Common(self), ~ctx, ~constraint_, ~label_inference?, m);
   };
   let upat_to_info_map =
       (
@@ -1463,27 +1521,12 @@ and upat_to_info_map =
         original_expression,
         m,
       );
-    /* Special case for probes, which would otherwise lose their id association here */
     let elaborated_pat =
-      switch (term) {
-      | Probe(_, p) =>
-        rewrap(
-          Probe(
-            Tuple([
-              TupLabel(Label(l) |> Pat.fresh, original_expression)
-              |> Pat.fresh,
-            ])
-            |> Pat.fresh,
-            p,
-          ),
-        )
-      | _ =>
-        rewrap(
-          Tuple([
-            TupLabel(Label(l) |> Pat.fresh, original_expression) |> Pat.fresh,
-          ]),
-        )
-      };
+      rewrap(
+        Tuple([
+          TupLabel(Label(l) |> Pat.fresh, original_expression) |> Pat.fresh,
+        ]),
+      );
     let (info, m) =
       upat_to_info_map(
         ~ctx,
@@ -1769,15 +1812,18 @@ and upat_to_info_map =
       let (malformed_labels, duplicate_labels, invalid_labels) =
         List.fold_left(
           ((a, b, c), e: Info.pat) => {
-            switch (e.status) {
-            | InHole(
-                Common(
-                  TupleLabelError({
-                    malformed_labels,
-                    duplicate_labels,
-                    invalid_labels,
-                    _,
-                  }),
+            switch (e.term.term, e.status) {
+            | (
+                TupLabel(_, _),
+                InHole(
+                  Common(
+                    TupleLabelError({
+                      malformed_labels,
+                      duplicate_labels,
+                      invalid_labels,
+                      _,
+                    }),
+                  ),
                 ),
               ) => (
                 a @ malformed_labels,
@@ -1790,16 +1836,19 @@ and upat_to_info_map =
           ([], [], []),
           info_pats,
         );
+
+      let ty_list = Typ.remove_duplicate_labels(~duplicate_labels, tys);
+
       let self =
         List.is_empty(malformed_labels)
         && List.is_empty(duplicate_labels)
         && List.is_empty(invalid_labels)
-          ? Self.Just(Prod(tys) |> Typ.temp)
+          ? Self.Just(Prod(ty_list) |> Typ.temp)
           : Self.TupleLabelError({
               malformed_labels,
               duplicate_labels,
               invalid_labels,
-              typ: Prod(tys) |> Typ.temp,
+              typ: Prod(ty_list) |> Typ.temp,
             });
 
       add(
@@ -1815,10 +1864,9 @@ and upat_to_info_map =
       List.exists(l => name == l, duplicates)
         ? atomic(Duplicate(name, self), Coverage.Constraint.Truth)
         : atomic(self, Coverage.Constraint.Truth);
-    | Parens(p)
-    | Probe(p, _) =>
+    | Parens(p) =>
       let (p, m) = go(~ctx, ~ana, p, m);
-      add(~self=Just(p.ty), ~ctx=p.ctx, ~constraint_=p.constraint_, m);
+      add'(~self=p.self, ~ctx=p.ctx, ~constraint_=p.constraint_, m);
     | Constructor(ctr, ty) =>
       let self = Self.of_ctr(ctx, ctr, ana, ty);
       atomic(self, Coverage.Constraint.Ap(ctr, None));
@@ -1827,8 +1875,8 @@ and upat_to_info_map =
       let fn_ana = Arrow(syn, ana) |> Typ.temp;
       let (fn', m) = go(~ctx, ~ana=fn_ana, fn, m);
       let m = {
-        switch (fn |> Pat.term_of) {
-        | Constructor(_) => m
+        switch (ctr) {
+        | Some(_) => m
         | _ =>
           let info =
             Info.derived_pat(
@@ -1919,7 +1967,17 @@ and utyp_to_info_map =
       List.is_empty(duplicate_labels)
         ? map_m(go, ts, m) |> snd
         : map_m(
-            go'(~expects=LabelExpected(Duplicate, duplicate_labels)),
+            (t: Typ.t) =>
+              go'(
+                ~expects=
+                  switch (t.term) {
+                  | Label(_)
+                  | TupLabel(_, _) =>
+                    LabelExpected(Duplicate, duplicate_labels)
+                  | _ => TypeExpected
+                  },
+                t,
+              ),
             ts,
             m,
           )
@@ -1989,7 +2047,7 @@ and utyp_to_info_map =
         variants,
       );
     add(m);
-  | Forall({term: Var(name), _} as utpat, tbody) =>
+  | Poly({term: Var(name), _} as utpat, tbody) =>
     let body_ctx =
       Ctx.extend_tvar(
         ctx,
@@ -2010,12 +2068,25 @@ and utyp_to_info_map =
       |> snd;
     let m = utpat_to_info_map(~ctx, ~ancestors, utpat, m) |> snd;
     add(m); // TODO: check with andrew
-  | Forall(utpat, tbody) =>
+  | Poly(utpat, tbody) =>
     let m =
       utyp_to_info_map(tbody, ~ctx, ~ancestors, ~expects=TypeExpected, m)
       |> snd;
     let m = utpat_to_info_map(~ctx, ~ancestors, utpat, m) |> snd;
     add(m); // TODO: check with andrew
+  | ProofOf(e) =>
+    let (_, m) =
+      uexp_to_info_map(
+        ~ctx,
+        ~ancestors,
+        ~ana=Atom(Bool) |> Typ.temp,
+        ~duplicates=[],
+        ~expected_labels=None,
+        ~label_sort=false,
+        e,
+        m,
+      );
+    add(m);
   | Rec({term: Var(name), _} as utpat, tbody) =>
     let body_ctx =
       Ctx.extend_tvar(
@@ -2080,7 +2151,7 @@ and variant_to_info_map =
   | BadEntry(uty) =>
     let m = go(VariantExpected(Unique, ty_sum), uty, m) |> snd;
     (m, ctrs);
-  | Variant(ctr, ids, param) =>
+  | Variant(ctr, ann, param) =>
     let m =
       go(
         ConstructorExpected(
@@ -2089,9 +2160,7 @@ and variant_to_info_map =
         ),
         {
           term: Var(ctr),
-          annotation: {
-            ids: ids,
-          },
+          annotation: IdTagged.IdTag.mk_internal(ann.ids),
         },
         m,
       )
@@ -2106,8 +2175,9 @@ and variant_to_info_map =
 };
 
 let mk =
-  Core.Memo.general(~cache_size_bound=1000, (ctx, e) => {
+  Core.Memo.general(~cache_size_bound=1000, (ana, ctx, e) => {
     uexp_to_info_map(
+      ~ana,
       ~ctx,
       ~ancestors=[],
       ~duplicates=[],
@@ -2119,5 +2189,5 @@ let mk =
     |> snd
   });
 
-let mk = (core: CoreSettings.t, ctx, exp) =>
-  core.statics ? mk(ctx, exp) : Id.Map.empty;
+let mk = (~ana=Typ.temp(Unknown(SynSwitch)), core: CoreSettings.t, ctx, exp) =>
+  core.statics ? mk(ana, ctx, exp) : Id.Map.empty;

@@ -1,9 +1,12 @@
 open Haz3lcore;
 
 let exp_to_segment_settings: ExpToSegment.Settings.t = {
+  secondary: AutoFormat,
+  parenthesization: Defensive,
+  label_format: QuoteWhenNecessary,
   inline: false,
   fold_case_clauses: false,
-  fold_fn_bodies: false,
+  fold_fn_bodies: `NoFold,
   project_tables: false,
   hide_fixpoints: false,
   show_filters: true,

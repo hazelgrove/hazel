@@ -251,10 +251,10 @@ module MkDeferredLinebreaks = () => {
   let of_secondary = (): int => 1 + consume();
 };
 
-let of_segment =
+let of_segment_inner =
     (
-      ~indent_level=Id.Map.empty,
-      ~is_single_line=?,
+      indent_level: Id.Map.t(int),
+      is_single_line: bool,
       seg: Segment.t,
       shape_map: Id.Map.t(ProjectorCore.Shape.t),
       refractor_shape_map: Id.Map.t(int),
@@ -263,7 +263,7 @@ let of_segment =
   module DeferredLinebreaks = MkDeferredLinebreaks();
 
   let indent_level =
-    Id.Map.is_empty(indent_level) && is_single_line == None
+    Id.Map.is_empty(indent_level) && !is_single_line
       ? Indentation.level_map(seg) : indent_level;
 
   let indent_of_linebreak = (w: Secondary.t): option(int) =>
@@ -335,7 +335,7 @@ let of_segment =
             ~col=new_indent - origin.col,
           );
         // add seg to map and reset seg
-        //TODO(andrew): decide if should actually add linebreak here
+        //TODO: decide if should actually add linebreak here
         let map = add_piece_row(origin.row, seg, map);
         let map =
           size.row == 0 ? map : add_n_empty_piece_rows(size.row - 1, map);
@@ -388,9 +388,27 @@ let of_segment =
   map;
 };
 
-/* Memoized for perf */
-let of_segment = (~is_single_line=?) =>
-  Core.Memo.general(of_segment(~is_single_line?));
+/* Memoized for perf. We use an inner function with positional args
+   because Core.Memo.general doesn't preserve labeled argument types.
+   The wrapper provides the nice labeled argument interface. */
+let of_segment_memo = Core.Memo.general(of_segment_inner);
+
+let of_segment =
+    (
+      ~indent_level=Id.Map.empty,
+      ~is_single_line=false,
+      seg: Segment.t,
+      shape_map: Id.Map.t(ProjectorCore.Shape.t),
+      refractor_shape_map: Id.Map.t(int),
+    )
+    : t =>
+  of_segment_memo(
+    indent_level,
+    is_single_line,
+    seg,
+    shape_map,
+    refractor_shape_map,
+  );
 
 /* Width in characters of row at measurement.origin */
 let start_row_width = (measurement: measurement, measured: t): int =>

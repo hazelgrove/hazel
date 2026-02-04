@@ -64,7 +64,6 @@ type settings = {
   type_alpha: bool, // Alpha equivalence over type variables
   exp_alpha: bool, // Alpha equivalence over expression variables
   ignore_parens: bool,
-  ignore_probes: bool,
   ignore_ascriptions: bool,
   ignore_dynamic_errors: bool,
   ignore_function_types: bool,
@@ -92,7 +91,6 @@ let equality =
         type_alpha,
         exp_alpha,
         ignore_parens,
-        ignore_probes,
         ignore_ascriptions,
         ignore_dynamic_errors,
         ignore_function_types,
@@ -129,8 +127,6 @@ let equality =
     | (_, DynamicErrorHole(x, _)) when ignore_dynamic_errors => exp'(e1, x)
     | (Parens(x), _) when ignore_parens => exp'(x, e2)
     | (_, Parens(x)) when ignore_parens => exp'(e1, x)
-    | (Probe(x, _), _) when ignore_probes => exp'(x, e2)
-    | (_, Probe(x, _)) when ignore_probes => exp'(e1, x)
     | (Asc(x, _), _) when ignore_ascriptions => exp'(x, e2)
     | (_, Asc(x, _)) when ignore_ascriptions => exp'(e1, x)
     | (Filter(_, x), _) when ignore_filters => exp'(x, e2)
@@ -214,8 +210,6 @@ let equality =
     | (DynamicErrorHole(_), _) => false
     | (Parens(x), Parens(y)) => exp'(x, y)
     | (Parens(_), _) => false
-    | (Probe(x, tag1), Probe(y, tag2)) => tag1 == tag2 && exp'(x, y)
-    | (Probe(_), _) => false
     | (Asc(x, t1), Asc(y, t2)) => typ'(t1, t2) && exp'(x, y)
     | (Asc(_), _) => false
     | (Filter(f1, x), Filter(f2, y)) => filter'(f1, f2) && exp'(x, y)
@@ -254,11 +248,19 @@ let equality =
     | (Let(p1, e1, e2), Let(p2, e3, e4)) =>
       switch (pat'(p1, p2)) {
       | Some(alphas_exp') =>
-        exp(Alphas.combine(alphas_exp', alphas_exp), alphas_typ, e1, e3)
-        && exp(alphas_exp, alphas_typ, e2, e4)
+        exp(alphas_exp, alphas_typ, e1, e3)
+        && exp(Alphas.combine(alphas_exp', alphas_exp), alphas_typ, e2, e4)
       | None => false
       }
     | (Let(_, _, _), _) => false
+    | (Theorem(p1, e1, e2), Theorem(p2, e3, e4)) =>
+      switch (pat'(p1, p2)) {
+      | Some(alphas_exp') =>
+        exp(alphas_exp, alphas_typ, e1, e3)
+        && exp(Alphas.combine(alphas_exp', alphas_exp), alphas_typ, e2, e4)
+      | None => false
+      }
+    | (Theorem(_, _, _), _) => false
 
     // Forms with type binders
     | (TypFun(tp1, e1, _), TypFun(tp2, e2, _)) =>
@@ -276,6 +278,13 @@ let equality =
       | None => false
       }
     | (TyAlias(_, _, _), _) => false
+    | (Forall(p1, e1), Forall(p2, e2)) =>
+      switch (pat'(p1, p2)) {
+      | Some(alphas_exp') =>
+        exp(Alphas.combine(alphas_exp', alphas_exp), alphas_typ, e1, e2)
+      | None => false
+      }
+    | (Forall(_, _), _) => false
 
     // Forms with environments. (Note fix also has an environment and is handled above.)
     | (Closure(env1, e1), Closure(env2, e2)) when closures_by_id =>
@@ -386,28 +395,32 @@ let equality =
     | (ListConcat(e11, e12), ListConcat(e21, e22)) =>
       exp'(e11, e21) && exp'(e12, e22)
     | (ListConcat(_, _), _) => false
+    | (ProofObject(e1), ProofObject(e2)) => exp'(e1, e2)
+    | (ProofObject(_), _) => false
     };
   }
   and pat =
       (alphas_exp: Alphas.t, alphas_typ: Alphas.t, p1: Pat.t, p2: Pat.t)
       : option(Alphas.t) => {
     let pat' = pat(alphas_exp, alphas_typ);
+    let typ' = typ(alphas_exp, alphas_typ);
     let any' = any(alphas_exp, alphas_typ);
     switch (p1 |> Grammar.Annotated.term_of, p2 |> Grammar.Annotated.term_of) {
     // Wrappers when ignored: unwrap.
-    | (Probe(x, _), _) when ignore_probes => pat'(x, p2)
-    | (_, Probe(x, _)) when ignore_probes => pat'(p1, x)
     | (Parens(x), _) when ignore_parens => pat'(x, p2)
     | (_, Parens(x)) when ignore_parens => pat'(p1, x)
     | (Asc(x, _), _) when ignore_ascriptions => pat'(x, p2)
     | (_, Asc(x, _)) when ignore_ascriptions => pat'(p1, x)
 
     // Wrappers otherwise: compare.
-    | (Probe(x, tag1), Probe(y, tag2)) when tag1 == tag2 => pat'(x, y)
-    | (Probe(_), _) => None
     | (Parens(x), Parens(y)) => pat'(x, y)
     | (Parens(_), _) => None
-    | (Asc(x, _), Asc(y, _)) => pat'(x, y)
+    | (Asc(x, t1), Asc(y, t2)) =>
+      if (typ'(t1, t2)) {
+        pat'(x, y);
+      } else {
+        None;
+      }
     | (Asc(_), _) => None
 
     // Variables: special case depending on alpha equivalence.
@@ -493,6 +506,7 @@ let equality =
       (alphas_exp: Alphas.t, alphas_typ: Alphas.t, t1: Typ.t, t2: Typ.t): bool => {
     // This function takes alphas_exp for the theorem keyword branches which have expressions in types.
     let any' = any(alphas_exp, alphas_typ);
+    let exp' = exp(alphas_exp, alphas_typ);
     let typ' = typ(alphas_exp, alphas_typ);
     let tpat' = tpat;
     switch (t1 |> Grammar.Annotated.term_of, t2 |> Grammar.Annotated.term_of) {
@@ -518,13 +532,13 @@ let equality =
       | None => false
       }
     | (Rec(_, _), _) => false
-    | (Forall(tp1, t1), Forall(tp2, t2)) =>
+    | (Poly(tp1, t1), Poly(tp2, t2)) =>
       switch (tpat'(tp1, tp2)) {
       | Some(alphas_typ') =>
         typ(alphas_exp, Alphas.combine(alphas_typ', alphas_typ), t1, t2)
       | None => false
       }
-    | (Forall(_, _), _) => false
+    | (Poly(_, _), _) => false
 
     // Type variables: special case depending on alpha equivalence.
     | (Var(x), Var(y)) =>
@@ -578,6 +592,8 @@ let equality =
     | (ProdExtension(t1, t2), ProdExtension(t1', t2')) =>
       typ'(t1, t1') && typ'(t2, t2')
     | (ProdExtension(_), _) => false
+    | (ProofOf(e1), ProofOf(e2)) => exp'(e1, e2)
+    | (ProofOf(_), _) => false
     };
   }
   and tpat = (tp1: TPat.t, tp2: TPat.t): option(Alphas.t) => {
@@ -702,7 +718,6 @@ let syntactic_settings = {
   exp_alpha: false,
   ignore_parens: false,
   ignore_dynamic_errors: false,
-  ignore_probes: false,
   ignore_ascriptions: false,
   ignore_function_types: false,
   ignore_constructor_types: false,
@@ -725,7 +740,6 @@ let semantic_settings = {
   exp_alpha: true,
   ignore_parens: true,
   ignore_dynamic_errors: false,
-  ignore_probes: true,
   ignore_ascriptions: false,
   ignore_function_types: false,
   ignore_constructor_types: false,

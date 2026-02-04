@@ -1,3 +1,6 @@
+[@deriving show({with_path: false})]
+type t('a) = option('a);
+
 let get = (if_none, o) =>
   switch (o) {
   | None => if_none()

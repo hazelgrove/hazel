@@ -57,6 +57,9 @@ let sample_expression = (cls_exp: Exp.cls): Grammar.UnitGrammar.exp => {
       | LivelitAp => livelit_ap(Forward, livelit_name("^slider"), int(1))
       | Var => var("x")
       | Let => let_(Pat.empty_hole(), empty_hole(), empty_hole())
+      | Theorem => theorem(Pat.empty_hole(), empty_hole(), empty_hole())
+      | ProofObject => proof_object(Exp.empty_hole())
+      | Forall => forall(Pat.empty_hole(), empty_hole())
       | FixF => fix_f(Pat.empty_hole(), empty_hole(), None)
       | TyAlias =>
         ty_alias(
@@ -80,7 +83,6 @@ let sample_expression = (cls_exp: Exp.cls): Grammar.UnitGrammar.exp => {
         };
         closure(Environment.empty, empty_hole());
       | Parens => parens(empty_hole())
-      | Probe => probe(empty_hole(), Probe.empty)
       | Cons => cons(empty_hole(), empty_hole())
       | UnOp(op) => un_op(op, empty_hole())
       | BinOp(op) => bin_op(op, empty_hole(), empty_hole())
@@ -114,7 +116,6 @@ let sample_pattern = (cls_pat: Pat.cls): Grammar.UnitGrammar.pat => {
       | Label => label("label")
       | TupLabel => tup_label(label("label"), empty_hole())
       | Parens => parens(empty_hole())
-      | Probe => probe(empty_hole(), Probe.empty)
       | Ap => ap(empty_hole(), empty_hole())
       | Asc => asc(empty_hole(), Typ.string())
       | Wild => wild()
@@ -143,7 +144,8 @@ let sample_type = (cls_typ: Typ.cls): Grammar.UnitGrammar.typ => {
         tup_label(unknown(Hole(EmptyHole)), unknown(Hole(EmptyHole)))
       | Parens => parens(unknown(Hole(EmptyHole)))
       | Rec => rec_(TPat.var("x"), unknown(Hole(EmptyHole)))
-      | Forall => forall(TPat.var("x"), unknown(Hole(EmptyHole)))
+      | Poly => poly(TPat.var("x"), unknown(Hole(EmptyHole)))
+      | ProofOf => proof_of(Exp.var("x"))
       | EmptyHole => unknown(Hole(EmptyHole))
       | SynSwitch => unknown(SynSwitch)
       | Internal => unknown(Internal)

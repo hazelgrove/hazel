@@ -18,6 +18,9 @@ type t = {
    * certain ids to be present/non-present unexpectedly. */
   term_data: TermData.t,
   terms: TermMap.t,
+  /* A list of projector IDs in the order they appear in the segment
+   * (allows actions to refer to projectors by index) */
+  projector_list: list(Id.t),
   /* Since the introduction of shape_map below, caching projectors
    * here is almost vesigial (currently used only for error deco) */
   projectors: Id.Map.t(Base.projector),
@@ -36,9 +39,8 @@ let t_of_yojson = _ => failwith("Editor.Meta.t_of_yojson");
 
 let mk = (~info_map, ~dyn_map, z): t => {
   let segment = Zipper.unselect_and_zip(z);
-  let refractor_mapping = Id.Map.empty;
-  let MakeTerm.{term: _, terms, projectors, term_data} =
-    MakeTerm.go(refractor_mapping, segment);
+  let MakeTerm.{term: _, terms, projectors, projector_list, term_data} =
+    MakeTerm.go(segment);
   let projector_shapes =
     ProjectorInfo.ShapeMapSemantics.mk(
       projectors,
@@ -57,6 +59,7 @@ let mk = (~info_map, ~dyn_map, z): t => {
     selection_ids: Selection.selection_ids(z.selection),
     terms,
     projectors,
+    projector_list,
     shape_map: projector_shapes,
     cached_backpack: Segment.global_missing_shards(segment),
   };

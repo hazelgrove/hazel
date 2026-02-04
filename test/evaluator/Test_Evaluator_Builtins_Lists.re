@@ -73,11 +73,11 @@ let tests = (
     test_case("cons element to list", `Quick, () =>
       parse_and_evaluate_test({|[1, 2, 3]|}, {|cons(1, [2, 3])|})
     ),
-    test_case("hd of non-empty list", `Quick, () =>
-      parse_and_evaluate_test({|1|}, {|hd([1, 2, 3])|})
+    test_case("head of non-empty list", `Quick, () =>
+      parse_and_evaluate_test({|1|}, {|head([1, 2, 3])|})
     ),
     test_case("tl of non-empty list", `Quick, () =>
-      parse_and_evaluate_test({|[2, 3]|}, {|tl([1, 2, 3])|})
+      parse_and_evaluate_test({|[2, 3]|}, {|tail([1, 2, 3])|})
     ),
     test_case("is_empty of empty list", `Quick, () =>
       parse_and_evaluate_test({|true|}, {|is_empty([])|})
@@ -445,6 +445,36 @@ let tests = (
           {|sort(fun (x, y) -> if x == y then Eq else (if x < y then Gt else Lt), [3, 1, 4, 1, 5])|},
         );
       },
+    ),
+    test_case("unique", `Quick, () =>
+      parse_and_evaluate_test({|[1, 2, 3]|}, {|unique([1, 2, 2, 3, 1, 3])|})
+    ),
+    test_case("group_on_key by parity", `Quick, () =>
+      parse_and_evaluate_test(
+        {|[(1, [1, 3]), (0, [2, 4])]|},
+        {|group_on_key([1, 2, 3, 4], fun x -> int_mod(x, 2))|},
+      )
+    ),
+    test_case("pivot_table", `Quick, () =>
+      parse_and_evaluate_test(
+        {|
+      [(index="x", `A`=2, `B`=1, `C`=0), (index="y", `A`=1, `B`=1, `C`=1)]
+      |},
+        {|pivot_table(
+  [
+    ("A", "x"),
+    ("A", "y"),
+    ("B", "x"),
+    ("B", "y"),
+    ("A", "x"),
+    ("C", "y")
+  ],
+  fun (r, _) -> r,
+  fun (_, c) -> c,
+  length
+)
+|},
+      )
     ),
   ],
 );

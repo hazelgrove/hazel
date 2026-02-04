@@ -75,6 +75,13 @@
 .code-deco .refractors svg path.child-line {
   stroke: var(--G0) !important;
 }
+/* Kind-based colors for refractor arms: probe = green, type = purple */
+.code-deco .refractors svg path.child-line.probe {
+  stroke: var(--G0) !important;
+}
+.code-deco .refractors svg path.child-line.statics {
+  stroke: #bd92cf !important;
+}
 .code-deco .refractors svg path.child-line.repl {
   stroke: var(--BR3) !important;
   /* stroke-dasharray: 0.5 2.5; */
@@ -89,7 +96,7 @@
   fill: var(--exp-base) !important;
 }
 
-.code-deco .refractors svg.shard.probe-indicated path {
+.code-deco .refractors svg.shard.refractor-indicated path {
   opacity: 0.4;
 }
 
@@ -117,7 +124,7 @@
 }
 
 .refractors svg:has(.child-line) {
-  z-index: 2; /* TODO(andrew) */
+  z-index: 2;
 }
 
 .refractors .child-line {
@@ -129,8 +136,12 @@
   stroke-dasharray: 0.5 2.5;
   opacity: 0.4;
 }
-.refractors svg:has(.repl-indicated) + svg path.child-line.dashed {
+.refractors svg:has(.refractor-indicated) + svg path.child-line.dashed {
   stroke: var(--G0) !important;
+  opacity: 1;
+}
+.refractors svg:has(.refractor-indicated) + svg path.child-line.statics.dashed {
+  stroke: #bd92cf !important;
   opacity: 1;
 }
 
@@ -138,8 +149,12 @@
   background-color: var(--exp-indicated) !important;
 }
 
-.indication-probed svg.shard.indicated > path {
+.indication-refractored svg.shard.indicated > path {
   fill: var(--exp-base);
+}
+
+.indication-refractored.statics svg.shard.indicated > path {
+  fill: hsl(281, 80%, 95%);
 }
 
 /* INLINE VIEW */
@@ -231,9 +246,9 @@
   --original-bg: var(--pat-indicated);
   color: var(--SAND);
 }
-.overlays .projector.probe.error:not(.selected) .num-samples {
+/* .overlays .projector.probe.error:not(.selected) .num-samples {
   --original-bg: var(--R1);
-}
+} */
 .overlays .projector.probe.selected .num-samples {
   --original-bg: var(--num-samples);
   color: black;
@@ -277,41 +292,6 @@
 }
 .projector.probe .pin {
   background-color: oklch(0.8 0.18 201.83);
-}
-.live-env-header .pin-icon {
-  height: 1.3em;
-  width: 1.3em;
-  border-radius: 1em;
-  filter: invert(1) saturate(0) brightness(1.5);
-  background: url(../../img/noun-pinned-1560993.svg) #00ffff;
-  background-size: 70%;
-  background-position: center;
-  background-repeat: no-repeat;
-  scale: 0.75;
-}
-.live-env-header:hover .pin-icon {
-  filter: invert(1) brightness(3) saturate(0.4);
-}
-.live-env-header.pinned .pin-icon {
-  filter: invert(1) brightness(1.5);
-}
-
-.live-env-header {
-  margin: 0.2em 0.5em;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  /* background-color: #c3af7a; */
-  outline: 0.6px solid var(--BR4);
-  border-radius: 1em;
-  width: fit-content;
-  padding: 0 0.3em;
-  gap: 0.1em;
-  color: black;
-}
-
-.live-env-header:hover {
-  background-color: var(--T3);
 }
 
 /* OFFSIDE VIEW */
@@ -379,7 +359,7 @@
 .live-offside .sample-groups {
   display: flex;
   flex-direction: row;
-  gap: 2px;
+  gap: 6px;
 }
 
 .live-offside .sample-group {
@@ -412,9 +392,9 @@
 /* TOKEN BKG */
 .live-offside .sample {
   position: relative;
-  --bottom-border-clr: oklch(0.8 0.06 145.88); /*var(--exp-shadow);*/
+  --bottom-border-clr: none;
   --bkg: var(--exp-base);
-  --below-shadow: #87ace0;
+  --below-shadow: oklch(0.8 0.09 230);
   --num-levels: 7;
   --base: 0;
   padding: 0 0.1em;
@@ -438,43 +418,40 @@
 .live-offside .sample:has(.value.indet.cursor) {
   background-color: var(--T3) !important;
 }
-.live-offside .sample:has(.value.cursor-callee) {
+/* .live-offside .sample:has(.value.cursor-callee) {
   --below-shadow: var(--exp-ap-indicated);
 }
 .live-offside .sample:has(.value.cursor-caller) {
   --caller-accent: var(--exp-ap-indicated);
   --bottom-border-clr: var(--caller-accent);
   --bkg: var(--exp-ap-indicated);
-}
-/* .live-offside .sample:has(.value.cursor-caller):not(:hover) {
-  outline-style: none;
-  border-color: rgb(165, 64, 205);
-  border-radius: 0.2em;
-  border-bottom-style: dotted;
-}
-.live-offside .sample:has(.value.cursor-callee):not(:hover) {
-  outline-style: none;
-  border-color: rgb(72, 130, 224);
-  border-radius: 0.2em;
-  border-bottom-style: dotted;
-} */
-/* .live-offside.Single:has(
-    .value.cursor-unrelated:not(.below):not(.above):not(:hover)
-  ),
-.live-offside.Single:has(.value.cursor-callee.indirect) {
-  filter: contrast(0.32) brightness(1.51);
 } */
 
 .live-offside .sample:has(.value.cursor-unrelated.level0) {
   --bottom-border-clr: #73e1a3;
 }
 
+.live-offside .sample:has(.value.below) {
+  background-color: oklch(0.93 0.03 195);
+}
+.live-offside .sample:has(.value.above) {
+  background-color: oklch(0.93 0.06 -0.01);
+}
 .live-offside.Many .sample:has(.value.above) {
-  --below-shadow: oklch(0.9 0.07 300);
+  position: relative;
+  top: -3.5px;
+  --bottom-border-clr: #bd92cf;
+  --below-shadow: oklch(0.89 0.05 355);
+  box-shadow: 0 3.5px 0 var(--below-shadow);
   border-bottom-width: 1px;
   border-bottom-style: solid;
-  background-color: #f4ecff;
-  --bottom-border-clr: #bd92cf;
+}
+.live-offside.Many .sample:has(.value.below) {
+  translate: 0 3px;
+  box-shadow: 0px -0.75px 0 var(--below-shadow),
+    0px -1.5px 0 var(--below-shadow), 0px -2.25px 0 var(--below-shadow),
+    0px -3px 0 var(--below-shadow);
+  height: calc(1.45em - 4.25px);
 }
 
 .live-offside.Many .sample:has(.value.above.indirect) {
@@ -513,12 +490,6 @@
   filter: drop-shadow(0 5.25px 0 var(--below-shadow));
 }
 
-.live-offside.Many .sample:has(.value.above) {
-  top: -3.5px;
-  box-shadow: 0 3.5px 0 oklch(0.9 0.07 300);
-  position: relative;
-  border-bottom-style: solid;
-}
 .live-offside.Many .sample:has(.value.above.L1) {
   top: -1.5px;
   box-shadow: 0 1.5px 0 #c8c8c8bb;
@@ -530,58 +501,9 @@
   border: none;
   overflow: hidden;
 }
-.live-offside.Many .sample:has(.value.below) {
-  translate: 0 3px;
-  box-shadow: 0px -0.75px 0 var(--below-shadow),
-    0px -1.5px 0 var(--below-shadow), 0px -2.25px 0 var(--below-shadow),
-    0px -3px 0 var(--below-shadow);
-  height: calc(1.45em - 4.25px);
-}
-.live-offside.Many .sample:has(.value.cursor-unrelated) {
+.live-offside.Many
+  .sample:has(.value.cursor-unrelated:not(.above):not(.below)) {
   background-color: #e5efe8;
-}
-.live-offside.Many .sample:has(.value.above) {
-  background-color: #eedaf8;
-}
-.live-offside.Many .sample:has(.value.below) {
-  background-color: oklch(0.89 0.04 254.25);
-}
-
-.live-offside .sample .code-text:after {
-  /* Might have to disable this for multiline display to work */
-  display: none;
-}
-
-.live-offside .sample:has(.value.cursor) .code-text .token {
-  color: var(--exp-indicated);
-}
-
-.live-offside.Single .sample:has(.value.cursor-unrelated) .code-text .token {
-  color: #d4ddd4;
-}
-.live-offside.Many .value.cursor-caller .code-text .token {
-  color: var(--TYP);
-}
-.live-offside.Many .value.cursor-callee .code-text .token {
-  color: var(--PAT);
-}
-
-.live-offside.Single .sample:has(.value.above) .code-text .token {
-  color: #d8bcfe;
-}
-
-.live-offside.Single .sample:has(.value.below) .code-text .token {
-  color: oklch(0.91 0.05 255.11);
-}
-.live-offside.Single .sample:has(.value.cursor-caller) .code-text .token {
-  color: var(--TYP);
-}
-.live-offside.Single .sample:has(.value.cursor-callee) .code-text .token {
-  color: var(--PAT);
-}
-
-.live-offside.Many .sample:has(.value.cursor-unrelated) .code-text .token {
-  color: white;
 }
 
 .live-offside.Many .sample:has(.value.above.L2) {
@@ -647,20 +569,18 @@
 .live-offside .sample:has(.value.cursor) {
   background-color: var(--bkg);
 }
-.projector.probe.indicated .live-offside.Single .sample:has(.value.cursor) {
-  border-bottom: 1px solid var(--G0);
+
+/* Fallback style for when above/below are turned off */
+.live-offside.Single .sample {
+  background-color: #d6eed6;
+}
+
+.projector.probe.indicated .live-offside:focus .sample:has(.value.cursor) {
+  outline: 1.5px solid var(--R1);
   background-color: oklch(from var(--bkg) calc(l * 0.96) calc(c + 0.04) h);
 }
-.projector.probe.indicated
-  .live-offside.Single:focus
-  .sample:has(.value.cursor) {
-  border-bottom: 1px solid var(--R1);
-}
-.projector.probe.indicated .live-offside.Many .sample:has(.value.cursor) {
+.projector.probe.indicated .live-offside .sample:has(.value.cursor) {
   outline: 1.5px solid var(--G0);
-}
-.projector.probe.indicated .live-offside.Many:focus .sample:has(.value.cursor) {
-  outline: 1.5px solid var(--R1);
 }
 
 .live-offside .sample:hover {
@@ -700,7 +620,6 @@
 /* TOKENS */
 
 .live-offside .value.indet .code-text .token {
-  /* color: var(--R2) !important; */
   color: white;
   filter: none !important;
 }
@@ -709,38 +628,54 @@
   color: grey;
 }
 
-.live-offside.value.cursor .code-text .token {
-  color: var(--exp-indicated);
-}
-/* .projector.probe.Pat .value.cursor .code-text .token {
-  color: var(--pat-indicated);
-} */
-
-.live-offside.Single .value.cursor-unrelated .code-text .token {
-  /* color: var(--exp-indicated); */
-  color: rgb(102, 102, 102);
-  /* opacity: 0.4; */
-}
-.live-offside.Many .value.cursor-unrelated .code-text .token {
-  /* color: var(--exp-indicated); */
-  color: white;
-  /* opacity: 0.4; */
-}
-/* .projector.probe .value.cursor-callee.indirect .code-text .token {
-  color: white;
-}
-.projector.probe .value.cursor-callee.direct .code-text .token {
-  color: var(--exp-ap-indicated);
-} */
-
 .live-offside .value .token.explicit-hole {
   color: white;
   text-shadow: none;
 }
 
-/* LIVE ENV */
+.live-offside .sample .code-text:after {
+  /* Might have to disable this for multiline display to work */
+  display: none;
+}
+.indicated .live-offside .value.cursor .code-text .token {
+  color: #247e3d;
+}
 
-.live-offside .sample-dropdown {
+.live-offside .value.cursor .code-text .token {
+  color: var(--exp-indicated);
+}
+
+.live-offside.Many .value.cursor-unrelated .code-text .token {
+  color: white;
+}
+/* .live-offside.Single .value.cursor-unrelated .code-text .token {
+  color: rgb(102, 102, 102);
+} */
+.live-offside.Single .value.cursor-unrelated .code-text .token {
+  color: #437543;
+}
+.live-offside.Single .value.above .code-text .token {
+  color: oklch(0.68 0.12 343.53);
+}
+.live-offside.Single .value.below .code-text .token {
+  color: oklch(0.76 0.08 193.44);
+}
+.live-offside.Many .value.above.cursor-caller .code-text .token,
+.live-offside.Single .value.above.cursor-caller .code-text .token {
+  color: oklch(0.58 0.21 346.68);
+}
+.live-offside.Many .value.below.cursor-callee .code-text .token,
+.live-offside.Single .value.below.cursor-callee .code-text .token {
+  color: var(--PAT);
+}
+
+/* .live-offside.Many .sample:has(.value.cursor-unrelated) .code-text .token {
+  color: white;
+} */
+
+/* SAMPLE CONTEXT MENU (dropdown) */
+
+.live-offside .sample-context-menu {
   border-radius: 0 0.2em 0.2em 0.2em;
   background-color: var(--BR1);
   display: none;
@@ -752,16 +687,99 @@
   border-bottom: 1px solid var(--BR2);
 }
 
+/* Context actions section */
+.sample-context-menu .context-actions {
+  display: flex;
+  flex-direction: row;
+  gap: 0.6em;
+  padding: 0.2em 0.5em;
+}
+
+.sample-context-menu .action-item {
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  /* outline: 0.6px solid var(--BR4); */
+  border-radius: 1em;
+  width: fit-content;
+  padding: 0 0.3em;
+  gap: 0.1em;
+  color: black;
+  white-space: nowrap;
+}
+
+.sample-context-menu .action-item:hover {
+  background-color: var(--T3);
+}
+
+.sample-context-menu .action-item .shortcut {
+  margin-left: 0.3em;
+  padding: 0 0.3em;
+  font-size: 0.8em;
+  opacity: 0.5;
+  background-color: var(--T2);
+  border-radius: 0.2em;
+}
+
+.sample-context-menu .action-item.pinned .pin-icon {
+  filter: invert(1) brightness(1.5);
+}
+
+.sample-context-menu .action-item .pin-icon {
+  height: 1.3em;
+  width: 1.3em;
+  border-radius: 1em;
+  filter: invert(1) saturate(0) brightness(1.5);
+  background: url(../../img/noun-pinned-1560993.svg) #00ffff;
+  background-size: 70%;
+  background-position: center;
+  background-repeat: no-repeat;
+  scale: 0.75;
+}
+
+.sample-context-menu .action-item .step-into-icon {
+  height: 1.3em;
+  width: 1.3em;
+  border-radius: 1em;
+  filter: invert(1) saturate(0) brightness(1.5);
+  background: url(../../img/noun-microscope-7023456.svg) #00ffff;
+  background-size: 70%;
+  background-position: center;
+  background-repeat: no-repeat;
+  scale: 0.75;
+}
+
+.sample-context-menu .action-item:hover .pin-icon {
+  filter: invert(1) brightness(3) saturate(0.4);
+}
+
 .live-offside .live-env {
   padding: 0.2em 0.55em;
   background-color: var(--live-env-bkg);
 }
-.live-offside * + .live-env {
+
+.sample-context-menu .context-actions + .environment-section .live-env {
   border-top: 0.6px solid var(--BR3);
 }
 
-.live-offside .sample-dropdown:hover {
-  display: flex;
+/* Require .indicated on probe AND .cursor on value for menu to appear */
+.projector.probe.indicated
+  .live-offside:focus
+  .sample:has(.value.cursor):hover
+  .sample-context-menu,
+.projector.probe.indicated
+  .live-offside:focus
+  .sample:has(.value.cursor)
+  .sample-context-menu.dropdown-active {
+  display: block;
+}
+.projector.probe.indicated
+  .sample:has(.value.cursor):hover
+  .sample-context-menu:empty,
+.projector.probe.indicated
+  .sample:has(.value.cursor)
+  .sample-context-menu.dropdown-active:empty {
+  display: none;
 }
 
 .live-offside .live-env .live-env-entry {
@@ -772,13 +790,6 @@
   color: var(--GB0);
   font-family: var(--code-font);
   font-size: var(--base-font-size);
-}
-
-.projector.probe.indicated .sample:hover .sample-dropdown {
-  display: block;
-}
-.projector.probe.indicated .sample:hover .sample-dropdown:empty {
-  display: none;
 }
 
 .projector.probe .nav-arrow {
@@ -798,9 +809,9 @@
 .projector.probe .nav-arrow {
   filter: invert(1) brightness(0.7) sepia(1) hue-rotate(61deg) saturate(0.6);
 }
-.projector.probe.Pat .nav-arrow {
+/* .projector.probe.Pat .nav-arrow {
   filter: invert(1) brightness(0.7) sepia(1) hue-rotate(141deg) saturate(0.6);
-}
+} */
 
 .projector.probe:not(.indicated) .nav-arrow {
   pointer-events: none;
@@ -822,4 +833,29 @@
 }
 .projector.probe .live-offside .sample:has(.value.after) {
   background-color: oklch(0.94 0.03 254.38);
+}
+
+/* Indicator explaining why no samples are shown */
+.empty-status {
+  cursor: pointer;
+  filter: sepia(1);
+  /* scale: 0.8; */
+}
+.empty-status.no-samples {
+  cursor: default;
+}
+
+/* Animated spinner while waiting for evaluation */
+.empty-status.evaluating {
+  cursor: wait;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
 }

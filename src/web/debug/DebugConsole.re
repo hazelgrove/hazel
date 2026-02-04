@@ -56,7 +56,7 @@ let print =
         (state: Language.EvaluatorState.t): list(string) =>
       collect_print_samples(state)
       |> List.sort((a, b) =>
-           Int.compare(a.Language.Sample.iter, b.Language.Sample.iter)
+           Int.compare(a.Language.Sample.seq, b.Language.Sample.seq)
          )
       |> List.map(sample =>
            sample.Language.Sample.value
@@ -86,6 +86,21 @@ let print =
     | Some(summary) => print(summary)
     | None => print("No print outputs")
     };
+  | "F9" =>
+    /* Print program with probes in text-only format */
+    let env_init = Language.Builtins.env_init;
+    let (_, state) =
+      statics.elaborated |> Language.Evaluator.evaluate(~env=env_init);
+    let probe_map = state.probes;
+    let text =
+      ProbeText.of_zipper(
+        ~window=ProbeProj.Settings.s^.window,
+        ~probe_map,
+        zipper,
+      );
+    print("=== Program with Probes ===");
+    print(text);
+    print("===========================");
   | _ => print("DEBUG: No action for key: " ++ key)
   };
 };

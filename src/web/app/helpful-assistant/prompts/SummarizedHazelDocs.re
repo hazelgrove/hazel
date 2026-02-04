@@ -20,7 +20,7 @@ let self = [
   "```",
   "- Hazel also supports polymorphic functions.",
   "```",
-  "let poly_id: forall a -> a -> a = typfun a -> fun x: a -> x;",
+  "let poly_id: poly a -> a -> a = typfun a -> fun x: a -> x;",
   "```",
   "- Polymorphic functions can be applied with type arguments using `@<T>` syntax.",
   "```",

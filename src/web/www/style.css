@@ -18,6 +18,7 @@
 @import "style/dynamics.css";
 @import "style/stepper.css";
 @import "style/toggle.css";
+@import "style/theorems.css";
 
 /* BASE ELEMENTS */
 
@@ -88,13 +89,11 @@ select {
 }
 
 #main {
-  /* grid-row: 1 / span 2; */
-  /* TODO(andrew): fix backpack visibility */
+  /* Backpack uses position:fixed + FloatingElement to escape overflow clipping */
   grid-row: 2 / span 1;
   grid-column: 1 / span 1;
   overflow: auto;
   padding: 0;
-  /* padding-top: 2em; */
   background-color: var(--main-bkg);
   display: flex;
   flex-direction: column;

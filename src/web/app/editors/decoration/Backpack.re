@@ -161,15 +161,46 @@ let main =
   let pole_height =
     (Float.of_int(vertical_disp - 1) +. height_offset)
     *. font_metrics.row_height;
+
+  /* The backpack uses position:fixed to escape overflow clipping from #main.
+     Local coordinates are stored as data attributes and converted to viewport
+     coordinates by FloatingElement.update_all() after render. */
+  let local_top = pole_top; /* Top of the backpack assembly */
   div(
     ~attrs=[
-      Attr.classes(["backpack"] @ (can_put_down ? [] : ["cant-put-down"])),
+      Attr.classes(
+        ["backpack", "floating-fixed"]
+        @ (can_put_down ? [] : ["cant-put-down"]),
+      ),
+      /* FloatingElement data attributes for viewport positioning */
+      Attr.create("data-float-anchor-class", "code-container"),
+      Attr.create("data-float-local-top", Float.to_string(local_top)),
+      Attr.create("data-float-local-left", Float.to_string(left)),
+      /* Start hidden; FloatingElement.update_all() will make visible after positioning */
+      Attr.create(
+        "style",
+        "position: fixed; visibility: hidden; top: 0; left: 0;",
+      ),
     ],
     [
-      flag(~font_metrics, ~left, ~contents, ~flag_top),
-      genie(~font_metrics, ~left, ~genie_top, ~genie_height, ~genie_width),
-    ]
-    @ [pole(~left, ~pole_top, ~pole_height)],
+      /* Child elements use position:absolute relative to the backpack container,
+         so we need to offset them by -local_top and -left since the container
+         will be positioned at (local_left, local_top) in viewport coords */
+      flag(
+        ~font_metrics,
+        ~left=0.,
+        ~contents,
+        ~flag_top=flag_top -. local_top,
+      ),
+      genie(
+        ~font_metrics,
+        ~left=0.,
+        ~genie_top=genie_top -. local_top,
+        ~genie_height,
+        ~genie_width,
+      ),
+      pole(~left=0., ~pole_top=pole_top -. local_top, ~pole_height),
+    ],
   );
 };
 

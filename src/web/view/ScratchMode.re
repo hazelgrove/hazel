@@ -20,7 +20,6 @@ module Model = {
     model.current,
     List.map(
       ((s: string, m: CellEditor.Model.t)) => {
-        //TODO(andrew): reinstate
         let current_segment = Zipper.zip(m.editor.editor.state.zipper);
         let original = Init.find_documentation_slide(s);
         let original_segment =
@@ -364,7 +363,11 @@ module Update = {
     let (key, ed) = List.nth(model.scratchpads, model.current);
     let worker_request = ref([]);
     let queue_worker =
-      Some(expr => {worker_request := worker_request^ @ [("", expr)]});
+      Some(
+        (req_value: WorkerServer.Request.value) => {
+          worker_request := worker_request^ @ [("", req_value)]
+        },
+      );
     let new_ed =
       CellEditor.Update.calculate(
         ~settings,
@@ -379,7 +382,7 @@ module Update = {
       WorkerClient.request(
         worker_request^,
         ~handler=
-          r =>
+          r => {
             schedule_action(
               CellAction(
                 ResultAction(
@@ -395,7 +398,8 @@ module Update = {
                   ),
                 ),
               ),
-            ),
+            )
+          },
         ~timeout=
           _ =>
             schedule_action(

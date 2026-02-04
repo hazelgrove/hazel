@@ -9,15 +9,15 @@ type t = {
 
 let to_string = Printer.of_segment(~holes="", ~indent="");
 
+let refractors_init_str =
+  ZipperBase.Refractor.persist(ZipperBase.Refractor.init);
+
 let persist = (zipper: Zipper.t) => {
   let segment = zipper |> Zipper.zip;
   {
     segment: segment |> Segment.sexp_of_t |> Sexplib.Sexp.to_string,
     backup_text: to_string(segment, ~refractors=zipper.refractors.manuals),
-    refractors:
-      zipper.refractors.manuals
-      |> ZipperBase.Refractor.Map.sexp_of_t
-      |> Sexplib.Sexp.to_string,
+    refractors: ZipperBase.Refractor.persist(zipper.refractors),
   };
 };
 
@@ -26,9 +26,11 @@ let restore_refractors =
   ...refractors,
   manuals:
     try(
-      persisted |> Sexplib.Sexp.of_string |> ZipperBase.Refractor.Map.t_of_sexp
+      persisted
+      |> Sexplib.Sexp.of_string
+      |> ZipperBase.Refractor.RefractorList.t_of_sexp
     ) {
-    | _ => Id.Map.empty
+    | _ => []
     },
 };
 

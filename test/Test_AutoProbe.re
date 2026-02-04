@@ -69,7 +69,7 @@ let term_id_to_string =
         ~holes="",
         ~concave_holes="",
         ~refractor_seg_to_seg=(a, b) => (a, b),
-        ~refractors=Id.Map.empty,
+        ~refractors=[],
         ~projector_to_segment=_ => [],
         segment,
       )
@@ -104,7 +104,7 @@ let test_probe_placement = (~name: string, ~code: string): test_case(_) => {
         Segment.root_id(Segment.skel(root_segment), root_segment);
 
       /* Compute statics */
-      let MakeTerm.{term, _} = MakeTerm.go(Id.Map.empty, root_segment);
+      let MakeTerm.{term, _} = MakeTerm.go(root_segment);
       let info_map =
         Statics.mk(CoreSettings.on, Builtins.ctx_init(Some(Int)), term);
 
@@ -221,7 +221,7 @@ let incomplete = ? in  # incomplete #
 /* CONTAINER SPECIAL CASES - multi-line containers prefer elements */
 let container_tests = [
   test_probe_placement(
-    //TODO(andrew): consider probing parens instead of tuple
+    //TODO: consider probing parens instead of tuple
     ~name="Single-line tuple - normal behavior",
     ~code={|let pair = (a, b) in # a, b #
 pair # pair #|},
@@ -294,7 +294,8 @@ let let_expression_tests = [
     ~code={|let x = ? in ? # x #|},
   ),
   test_probe_placement(
-    //TODO(andrew): probably this should probe body instead ie never probe
+    /* Probing whole let vs body is semantically equivalent (same value).
+     * Current implementation keeps it simpler by using default behavior. */
     ~name="Normal single line let (no hole body)",
     ~code={|let x = 2 + 1 in x # let x = 2 + 1 in x #|},
   ),
@@ -330,23 +331,6 @@ let if_expression_tests = [
   ),
 ];
 
-// Decided not to do this for now
-/* VARIABLE REFERENCE REDUNDANCY - track seen variables */
-// let variable_redundancy_tests = [
-//   test_probe_placement(
-//     ~name="Don't probe reference already probed",
-//     ~code={|let a = # a #
-//   1 in              # 1 #
-// a|},
-//   ),
-//   test_probe_placement(
-//     ~name="Don't probe references already probed in compound pattern",
-//     ~code={|let (a, b) = # a, b #
-//     pair in              # pair #
-//   a|},
-//   ),
-// ];
-
 /* FUNCTION TYPE FILTERING - avoid probing function values */
 let function_type_tests = [
   test_probe_placement(
@@ -359,6 +343,30 @@ adder|},
   ),
 ];
 
+/* CASE EXPRESSION SPECIAL CASES - multi-tile forms (case + rules) */
+let case_expression_tests = [
+  test_probe_placement(
+    ~name="Single-line case - probe scrutinee and case expression",
+    ~code={|case 0      # 0 #
+| _ => 1 end # case 0 | _ => 1 end #|},
+  ),
+  test_probe_placement(
+    ~name="Multi-line case - end on own line",
+    ~code=
+      {|case 0      # 0 #
+| _ => 1    # 1 #
+end         # case 0 | _ => 1 end #|},
+  ),
+  test_probe_placement(
+    ~name="Case with multiple branches",
+    ~code=
+      {|case x        # x #
+| 0 => a      # a #
+| _ => b      # b #
+end           # case x | 0 => a | _ => b end #|},
+  ),
+];
+
 let tests = [
   ("AutoProbe.Basic", basic_tests),
   ("AutoProbe.DefaultSelection", nested_multiline_tests),
@@ -366,6 +374,6 @@ let tests = [
   ("AutoProbe.Containers", container_tests),
   ("AutoProbe.LetExpressions", let_expression_tests),
   ("AutoProbe.IfExpressions", if_expression_tests),
-  //("AutoProbe.VariableRedundancy", variable_redundancy_tests),
   ("AutoProbe.FunctionTypes", function_type_tests),
+  ("AutoProbe.CaseExpressions", case_expression_tests),
 ];

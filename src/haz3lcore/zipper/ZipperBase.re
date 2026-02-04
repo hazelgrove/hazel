@@ -5,27 +5,8 @@ type caret =
   | Outer
   | Inner(int);
 
-module Refractor = {
-  module Map = {
-    [@deriving (show({with_path: false}), sexp, yojson, eq)]
-    type t = Id.Map.t(Base.projector);
-    let empty = Id.Map.empty;
-  };
-
-  [@deriving (show({with_path: false}), sexp, yojson, eq)]
-  type t = {
-    manuals: Map.t,
-    autos: list(Id.t),
-    ephemerals: Map.t,
-    dyn_cursor: Language.DynCursor.t,
-  };
-  let init = {
-    manuals: Id.Map.empty,
-    autos: [],
-    ephemerals: Id.Map.empty,
-    dyn_cursor: Language.DynCursor.init,
-  };
-};
+/* Refractor state extracted to Refractors.re - see state location docs there */
+module Refractor = Refractors;
 
 // assuming single backpack, shards may appear in selection, backpack, or siblings
 [@deriving (show({with_path: false}), sexp, yojson, eq)]
@@ -42,34 +23,6 @@ let update_refractors = (z: t, f: Refractor.t => Refractor.t): t => {
   refractors: f(z.refractors),
 };
 
-let update_refractor =
-    (z: t, id: Id.t, f: Base.projector => Base.projector): t => {
-  ...z,
-  refractors: {
-    ...z.refractors,
-    manuals:
-      Id.Map.map(
-        (projector: Base.projector): Base.projector =>
-          if (projector.id == id) {
-            f(projector);
-          } else {
-            projector;
-          },
-        z.refractors.manuals,
-      ),
-    ephemerals:
-      Id.Map.map(
-        (projector: Base.projector): Base.projector =>
-          if (projector.id == id) {
-            f(projector);
-          } else {
-            projector;
-          },
-        z.refractors.ephemerals,
-      ),
-  },
-};
-
 let update_manuals = (f, z: t): t => {
   ...z,
   refractors: {
@@ -78,15 +31,21 @@ let update_manuals = (f, z: t): t => {
   },
 };
 
+let add_manual = (id: Id.t, kind: ProjectorCore.Kind.t, z: t): t =>
+  update_manuals(x => [(id, Refractors.mk_entry(kind)), ...x], z);
+
 let update_ephemerals = (f, z: t): t => {
   ...z,
   refractors: {
     ...z.refractors,
-    ephemerals: f(z.refractors.ephemerals),
+    autos: {
+      ...z.refractors.autos,
+      ephemerals: f(z.refractors.autos.ephemerals),
+    },
   },
 };
 
-let get_ephemerals = (z: t): Refractor.Map.t => z.refractors.ephemerals;
+let get_ephemerals = (z: t): Refractor.Map.t => z.refractors.autos.ephemerals;
 
 let update_relatives = (f: Relatives.t => Relatives.t, z: t): t => {
   ...z,

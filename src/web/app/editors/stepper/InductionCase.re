@@ -12,8 +12,9 @@ type model'('stepper) = {
   inner_exp: Calc.saved(Exp.t),
   step: 'stepper,
   last_exp: Calc.saved(Exp.t),
-  hypo_points: Calc.saved(list(Exp.t)),
-  inner_ctx: Calc.saved(Ctx.t),
+  inner_ctx: Calc.saved(SemanticCtx.t),
+  hypotheses: Calc.saved(list((Binding.t, Exp.t))),
+  constraint_: Calc.saved(option(Coverage.Constraint.t)),
 };
 
 [@deriving (show({with_path: false}), sexp, yojson)]
@@ -44,8 +45,9 @@ module F = (Stepper: STEPPER) => {
     inner_exp: Calc.Pending,
     step: Stepper.init,
     last_exp: Calc.Pending,
-    hypo_points: Calc.Pending,
     inner_ctx: Calc.Pending,
+    hypotheses: Calc.Pending,
+    constraint_: Calc.Pending,
   };
 
   let persist = (model: model) => {
@@ -62,8 +64,9 @@ module F = (Stepper: STEPPER) => {
       inner_exp: Calc.Pending,
       step: Stepper.unpersist(p.stepper),
       last_exp: Calc.Pending,
-      hypo_points: Calc.Pending,
       inner_ctx: Calc.Pending,
+      hypotheses: Calc.Pending,
+      constraint_: Calc.Pending,
     };
   };
 
@@ -97,10 +100,12 @@ module F = (Stepper: STEPPER) => {
       (
         ~settings: Calc.t(CoreSettings.t),
         ~elab_scrut: Calc.t(Exp.t),
-        ~scrut_ty: Calc.t(Typ.t),
         ~scrut_co_ctx: Calc.t(CoCtx.t),
-        ~ctx: Calc.t(Ctx.t),
+        ~scrut_ty: Calc.t(Typ.t),
         ~exp: Calc.t(Exp.t),
+        ~ctx: Calc.t(SemanticCtx.t),
+        ~info_map: Calc.t(Statics.Map.t),
+        ~ana: Calc.t(Typ.t),
         model: model,
       ) => {
     let pattern =
@@ -118,6 +123,7 @@ module F = (Stepper: STEPPER) => {
         ~is_dynamic_term=true,
         model.pattern,
       );
+
     let elab_pattern =
       Calc.set(
         ~eq=Pat.fast_equal,
@@ -125,61 +131,147 @@ module F = (Stepper: STEPPER) => {
         |> ProofHacks.remove_wrapping_function,
         model.elab_pattern,
       );
-    let inner_exp =
-      model.inner_exp
+
+    let (inner_ctx, inner_exp, hypotheses) =
+      (model.inner_ctx, model.inner_exp, model.hypotheses)
+      |> Calc.saved_3
       |> {
         open Calc.Syntax;
         let.calc elab_pattern = elab_pattern
         and.calc elab_scrut = elab_scrut
         and.calc scrut_co_ctx = scrut_co_ctx
-        and.calc exp = exp;
-        ProofHacks.replace_exp(
-          elab_scrut,
-          scrut_co_ctx,
-          elab_pattern |> ProofHacks.pat_to_exp,
-          elab_pattern |> Pat.bindings |> CoCtx.of_bindings,
-          exp,
-        );
-      };
-    let hypo_points =
-      model.hypo_points
-      |> {
-        open Calc.Syntax;
-        let.calc elab_pattern = elab_pattern
-        and.calc scrut_ty = scrut_ty;
-        ProofHacks.get_inductive_hypotheses(
-          CodeEditable.Model.get_statics(pattern).info_map,
-          scrut_ty,
-          elab_pattern,
-        )
-        |> List.map(v => Exp.fresh(Var(v)));
-      };
-    let inner_ctx =
-      model.inner_ctx
-      |> {
-        open Calc.Syntax;
-        let.calc elab_pattern = elab_pattern
         and.calc scrut_ty = scrut_ty
-        and.calc ctx = ctx;
-        ProofHacks.dhpat_extend_ctx(elab_pattern, scrut_ty, ctx)
-        |> Option.value(~default=ctx);
-      };
-    let (stepper, last_exp) =
+        and.calc sem_ctx = ctx
+        and.calc info_map = info_map
+        and.calc exp = exp;
+
+        // 1. Find what variables the pattern adds to the scope, and
+        // add them to the env and ctx.
+        let added_variables =
+          elab_pattern |> Pat.bindings |> Binding.variable_names;
+        let sem_ctx =
+          SemanticCtx.add_from_pattern(sem_ctx, elab_pattern, scrut_ty);
+
+        // 2. Work out what the inner exp would be
+        // Note: this is an option in case some capture nonsense happens.
+        let inner_exp =
+          ProofHacks.replace_exp(
+            info_map,
+            elab_scrut,
+            scrut_co_ctx,
+            elab_pattern |> ProofHacks.pat_to_exp,
+            elab_pattern |> Pat.bindings |> CoCtx.of_bindings,
+            added_variables,
+            exp,
+          );
+
+        // 3. Create the case_equality assertion, and add to env and ctx if appropriate
+        // Note: if the LHS of case_eq is in any way captured by the added variables, then we cannot use it.
+        let is_case_eq_captured =
+          CoCtx.has_any(scrut_co_ctx, added_variables);
+        let case_eq =
+          is_case_eq_captured
+            ? None
+            : Some(
+                BinOp(
+                  Poly(Equals),
+                  elab_scrut,
+                  elab_pattern |> ProofHacks.pat_to_exp,
+                )
+                |> Exp.fresh
+                |> Substitution.in_exp(SemanticCtx.get_env(sem_ctx)),
+              );
+        let (sem_ctx, case_eq_name) =
+          switch (case_eq) {
+          | Some(case_eq) =>
+            SemanticCtx.add_hypothesis(sem_ctx, "case_eq", case_eq)
+            |> PairUtil.map_snd(Option.some)
+          | None => (sem_ctx, None)
+          };
+
+        // 4. Find the inductive hypotheses, and add to env and ctx
+        // Note: we do not add any IHs that are captured by the added variables. (This should happen iff the inner exp is captured)
+        let inductive_hypotheses =
+          ProofHacks.get_inductive_hypotheses(
+            CodeEditable.Model.get_statics(pattern).info_map,
+            scrut_ty,
+            elab_pattern,
+          )
+          |> List.filter_map(h =>
+               ProofHacks.replace_exp(
+                 info_map,
+                 elab_scrut,
+                 scrut_co_ctx,
+                 h |> ProofHacks.pat_to_exp,
+                 h |> Pat.bindings |> CoCtx.of_bindings,
+                 added_variables,
+                 exp,
+               )
+             );
+        let (sem_ctx, ihs) =
+          List.fold_left(
+            ((acc, ihs), h) =>
+              SemanticCtx.add_hypothesis(acc, "ih", h)
+              |> PairUtil.map_snd(x => [(x, h), ...ihs]),
+            (sem_ctx, []),
+            inductive_hypotheses,
+          );
+
+        let inner_exp =
+          inner_exp |> Option.value(~default=Exp.fresh(EmptyHole));
+
+        let case_eq_h =
+          switch (case_eq, case_eq_name) {
+          | (Some(e), Some(n)) => [(n, e)]
+          | _ => []
+          };
+        let hypotheses = case_eq_h @ ihs;
+
+        (sem_ctx, inner_exp, hypotheses);
+      }
+      |> Calc.to_3;
+
+    let (stepper, last_exp, validity) =
       Stepper.calculate(
         ~settings, // TODO: this is a little ugly
         ~ctx=inner_ctx,
         ~exp=inner_exp,
+        ~ana,
         model.step,
       );
-    {
-      pattern,
-      elab_pattern: elab_pattern |> Calc.save,
-      inner_exp: inner_exp |> Calc.save,
-      hypo_points: hypo_points |> Calc.save,
-      step: stepper,
-      last_exp: last_exp |> Calc.save,
-      inner_ctx: inner_ctx |> Calc.save,
-    };
+
+    let constraint_ =
+      {
+        open OptUtil.Syntax;
+        let statics = CodeWithStatics.Model.get_statics(pattern);
+        let* info =
+          Statics.Map.lookup(
+            elab_pattern |> Calc.get_value |> Pat.rep_id,
+            statics.info_map,
+          );
+        let* info_pat =
+          switch (info) {
+          | InfoPat(info_pat) => Some(info_pat)
+          | _ => None
+          };
+        Some(Info.pat_constraint(info_pat));
+      }
+      |> Calc.set(_, model.constraint_);
+
+    (
+      {
+        pattern,
+        elab_pattern: elab_pattern |> Calc.save,
+        inner_exp: inner_exp |> Calc.save,
+        step: stepper,
+        last_exp: last_exp |> Calc.save,
+        inner_ctx: inner_ctx |> Calc.save,
+        hypotheses: hypotheses |> Calc.save,
+        constraint_: constraint_ |> Calc.save,
+      },
+      constraint_,
+      validity,
+    );
   };
 
   let get_cursor_info = (~focus: focus, model: model) => {
@@ -245,8 +337,9 @@ module F = (Stepper: STEPPER) => {
       );
     let pattern_editor =
       WebUtil.div_c("inline-editor-wrapper", [pattern_editor]);
+    module StepperTargetBox = StepperTargetBox.F(Stepper);
     let stepper_view =
-      Stepper.view(
+      StepperTargetBox.target_box(
         ~globals,
         ~take_focus=s => take_focus(Stepper(s)),
         ~hide_stepper,
@@ -258,6 +351,8 @@ module F = (Stepper: STEPPER) => {
           },
         ~is_toplevel=false,
         model.step,
+        Exp.fresh(Atom(Bool(true))),
+        model.last_exp |> Calc.get_saved_exc(~print="last_exp not calculated"),
       );
     WebUtil.div_c(
       "induction-case",
@@ -270,6 +365,35 @@ module F = (Stepper: STEPPER) => {
             pattern_editor,
             WebUtil.Node.text(" : "),
           ],
+        ),
+        WebUtil.div_c(
+          "induction-case-hypotheses",
+          List.filter_map(
+            fun
+            | (Binding.{name: _, id: _}, exp) => {
+                let rule = ProofRule.exp_to_rule(exp);
+                let conclusion = ProofRule.conclusion_exp(rule);
+                let code =
+                  CodeViewable.view_any(
+                    ~globals,
+                    ~settings=
+                      Haz3lcore.ExpToSegment.Settings.of_core(
+                        ~inline=true,
+                        ~fold_fn_bodies=`Text,
+                        globals.settings.core,
+                      ),
+                    Exp(conclusion),
+                  );
+                Some(
+                  WebUtil.div_c(
+                    "induction-case-hypothesis",
+                    [WebUtil.Node.text("assume "), code],
+                  ),
+                );
+              },
+            model.hypotheses
+            |> Calc.get_saved_exc(~print="hypotheses not calculated"),
+          ),
         ),
       ]
       @ stepper_view,
