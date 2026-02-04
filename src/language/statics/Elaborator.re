@@ -24,7 +24,7 @@ let fresh_ascription = (d: Exp.t, t: Typ.t, t': option(Typ.t)) => {
 };
 let elaborated_type =
     (m: Statics.Map.t, uexp: Exp.t): (Typ.t, Typ.t, Ctx.t, CoCtx.t, Exp.t) => {
-  let (ana_ty, ty, ctx, co_ctx, term) =
+  let (ana_ty, self_ty, ctx, co_ctx, term) =
     switch (Id.Map.find_opt(Exp.rep_id(uexp), m)) {
     | Some(Info.InfoExp({ana, ty, ctx, co_ctx, term: new_term, _})) => (
         ana,
@@ -35,7 +35,7 @@ let elaborated_type =
       )
     | _ => raise(MissingTypeInfo)
     };
-  let elab_ty = Typ.match_synswitch(ana_ty, ty);
+  let elab_ty = Typ.match_synswitch(ana_ty, self_ty);
   (
     elab_ty |> Typ.normalize(ctx) |> Typ.all_ids_temp,
     ana_ty,
@@ -93,7 +93,6 @@ let rec elaborate_pattern =
   let (elaborated_type, ana, ctx, upat) = elaborated_pat_type(m, upat);
   let elaborate_pattern = (~in_container=false, m, upat) =>
     elaborate_pattern(m, upat, in_container);
-
   let (term, rewrap) = Pat.unwrap(upat);
   let dpat =
     switch (term) {
@@ -169,20 +168,16 @@ let rec elaborate_pattern =
         };
       Constructor(c, Some(t)) |> rewrap;
     };
-
   (dpat, elaborated_type);
 };
 
 let rec elaborate = (m: Statics.Map.t, uexp: Exp.t): (DHExp.t, Typ.t) => {
-  let elaborate = elaborate;
-  let elaborate_pattern = elaborate_pattern;
   // In the case of singleton labeled tuples we update the syntax in Statics.
   // We store this syntax with the same ID as the original expression and store it on the Info.exp in the Statics.map
   // We are then pulling this out and using it in place of the actual expression.
 
   let (elaborated_type, ana, ctx, co_ctx, statics_pseudo_elaborated) =
     elaborated_type(m, uexp);
-
   let (_, rewrap) = Exp.unwrap(uexp);
   let uexp = rewrap(statics_pseudo_elaborated.term);
 

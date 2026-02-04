@@ -25,10 +25,7 @@ let empty: t = {
 };
 
 let elaborate =
-  Core.Memo.general(
-    ~cache_size_bound=1000, (info_map: Statics.Map.t, term: Exp.t) =>
-    Elaborator.uexp_elab(info_map, term)
-  );
+  Core.Memo.general(~cache_size_bound=1000, Elaborator.uexp_elab);
 
 let dh_err = (error: string): DHExp.t => Var(error) |> DHExp.fresh;
 
