@@ -15,7 +15,6 @@ let self_ty = (info: option(Info.t)): option(Typ.t) =>
   switch (info) {
   | Some(InfoExp({self, _})) => Self.typ_of_exp(self)
   | Some(InfoPat({self, _})) => Self.typ_of_pat(self)
-  | Some(InfoTyp({term, _})) => Some(term)
   | _ => None
   };
 

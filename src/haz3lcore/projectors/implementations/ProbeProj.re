@@ -833,9 +833,12 @@ let move_cursor =
   /* Cursor would be outside window, reset to next visible sample */
   | Some(idx) =>
     let next_idx_maybe = idx - offset;
-    switch (List.nth_opt(samples, next_idx_maybe)) {
-    | Some(sample) => parent(SampleCursor(Capture(sample, ap_id)))
-    | None => Effect.Ignore
+    if (next_idx_maybe >= 0 && next_idx_maybe < List.length(samples)) {
+      parent(
+        SampleCursor(Capture(List.nth(samples, next_idx_maybe), ap_id)),
+      );
+    } else {
+      Effect.Ignore;
     };
   | _ => Effect.Ignore
   };
@@ -1170,7 +1173,6 @@ module M: Projector = {
     | Exp(_)
     | Pat(_) => Some()
     | Any(_) => Some() /* Grout don't have sorts rn */
-    | Typ(_) => Some()
     | _ => None
     };
 
@@ -1189,16 +1191,8 @@ module M: Projector = {
   let view = ({info, local, parent, view_seg, _}: View.args(model, action)) => {
     let settings = Settings.s^;
     /* Wrap view_seg to fix single_line=true for all probe displays */
-    let view_seg_single_line =
-        (~background=?, ~text_only: option(bool)=?, sort, segment) =>
-      view_seg(
-        ~single_line=true,
-        ~background?,
-        ~text_only?,
-        ~is_dynamic=?None,
-        sort,
-        segment,
-      );
+    let view_seg_single_line = (~background=?, ~text_only=?, sort, segment) =>
+      view_seg(~single_line=true, ~background?, ~text_only?, sort, segment);
     View.{
       inline: Node.div([]),
       overlay: Some(overlay_view(info)),

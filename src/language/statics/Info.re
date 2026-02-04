@@ -409,8 +409,8 @@ let is_typable_term: option(t) => bool =
   fun
   | Some(InfoExp({term: {term: Deferral(_) | Label(_) | TyAlias(_), _}, _})) =>
     false
-  | Some(InfoTPat(_) | Secondary(_)) => false
-  | Some(InfoExp(_) | InfoPat(_) | InfoTyp(_)) => true
+  | Some(InfoTyp(_) | InfoTPat(_) | Secondary(_)) => false
+  | Some(InfoExp(_) | InfoPat(_)) => true
   | None => false;
 
 let exp_co_ctx: exp => CoCtx.t = ({co_ctx, _}) => co_ctx;
