@@ -43,7 +43,7 @@ type select =
 
 [@deriving (show({with_path: false}), sexp, yojson, eq)]
 type sample_cursor =
-  | Capture(Language.Sample.t, option(Id.t))
+  | Capture(Language.Sample.Capture.t, option(Id.t))
   | TogglePin(Language.Sample.call_stack)
   | SetIndex(int) /* Navigate to a specific depth in the call stack */
   | Reset;
@@ -88,7 +88,7 @@ type probe =
   | ToggleManual
   | ToggleAuto
   | ToggleStatics
-  | StepInto(Language.Sample.t, Id.t);
+  | StepInto(Language.Sample.call_stack, Id.t);
 
 [@deriving (show({with_path: false}), sexp, yojson, eq)]
 type t =

@@ -531,10 +531,10 @@ let is_jump_target = (info_map: Statics.Map.t, z: Zipper.t): option(Id.t) => {
 /* Step into from a specific sample, using the sample's call_stack
    instead of the current sample_cursor's trimmed_stack. This ensures
    we maintain the exact execution context of the selected sample. */
-let step_into_sample =
+let step_into_call_stack =
     (
       ~syntax: CachedSyntax.t,
-      ~sample: Sample.t,
+      ~call_stack: Sample.call_stack,
       ~ap_id: Id.t,
       info_map: Statics.Map.t,
       z: Zipper.t,
@@ -565,8 +565,8 @@ let step_into_sample =
     | Non => add_auto(body_id, ~syntax, ~info_map, z)
     };
 
-  /* Set pin and dyn cursor using the sample's call_stack */
-  let new_stack: Sample.call_stack = [(ap_id, None), ...sample.call_stack];
+  /* Set pin and dyn cursor using the call_stack */
+  let new_stack: Sample.call_stack = [(ap_id, None), ...call_stack];
 
   /* Determine where to jump and where to look for samples.
    * For function literals:
@@ -595,7 +595,7 @@ let step_into_sample =
       {
         ...z.refractors.sample_cursor,
         call_stack: new_stack,
-        index: List.length(sample.call_stack),
+        index: List.length(call_stack),
         pinned_stack: Some(new_stack),
         pending_focus: None //Some(pending_focus),
       }
@@ -682,8 +682,8 @@ let go =
     | Some(id) => toggle_statics(~syntax, id, info_map, z)
     | None => z
     }
-  | StepInto(sample, ap_id) =>
-    switch (step_into_sample(~syntax, ~sample, ~ap_id, info_map, z)) {
+  | StepInto(call_stack, ap_id) =>
+    switch (step_into_call_stack(~syntax, ~call_stack, ~ap_id, info_map, z)) {
     | Some(z) => z
     | None => z
     }
@@ -764,7 +764,7 @@ let resolve_pending_probe_cursor =
       switch (selected) {
       | Some(sample) =>
         /* Use capture to set sample cursor (preserves deeper stack if applicable) */
-        let z = SampleCursorPerform.capture(z, sample, None);
+        let z = SampleCursorPerform.capture(z, Sample.capture_of_sample(sample), None);
         /* Clear pending_probe_cursor */
         Zipper.update_refractors(z, r =>
           {

@@ -48,7 +48,10 @@ let work = (req_value: Request.value): Response.value => {
       Error(
         Language.ProgramResult.UnknownException(Printexc.to_string(exn)),
       );
-    | (result, state) => Ok((result, state))
+    | (result, state) =>
+      /* Clear transient data before sending to avoid serializing
+       * massive amounts of unnecessary data (e.g., app_args can be 100MB+) */
+      Ok((result, Language.EvaluatorState.clear_transient(state)))
     };
   //TODO(andrew): rm profiling before final merge
   // let eval_end = JsUtil.precise_timestamp();

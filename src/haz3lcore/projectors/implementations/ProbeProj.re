@@ -427,7 +427,7 @@ let value_view =
           col: e##.clientX,
         });
     };
-    parent(SampleCursor(Capture(sample, ap_id)));
+    parent(SampleCursor(Capture(Sample.capture_of_sample(sample), ap_id)));
   };
 
   let val_pointerup = (e: Js.t(Dom_html.pointerEvent)) => {
@@ -530,7 +530,7 @@ let dropdown_id = (sample_id: int): string =>
 /* Step into handler for sample context menu */
 let step_into_sample =
     (~parent, ~sample: Sample.t, ~ap_id: Id.t): Ui_effect.t(unit) =>
-  parent(Probe(StepInto(sample, ap_id)));
+  parent(Probe(StepInto(sample.call_stack, ap_id)));
 
 /* Context actions for a sample (Pin/Unpin, Step Into, etc.) */
 let sample_context_actions =
@@ -881,7 +881,10 @@ let mv_least_distant_sample =
         samples,
       )
     ) {
-    | Some(selected) => parent(SampleCursor(Capture(selected, ap_id)))
+    | Some(selected) =>
+      parent(
+        SampleCursor(Capture(Sample.capture_of_sample(selected), ap_id)),
+      )
     | None => Effect.Ignore
     };
   | None => Effect.Ignore
@@ -973,9 +976,8 @@ let move_cursor =
   | Some(idx) =>
     let next_idx_maybe = idx - offset;
     if (next_idx_maybe >= 0 && next_idx_maybe < List.length(samples)) {
-      parent(
-        SampleCursor(Capture(List.nth(samples, next_idx_maybe), ap_id)),
-      );
+      let sample = List.nth(samples, next_idx_maybe);
+      parent(SampleCursor(Capture(Sample.capture_of_sample(sample), ap_id)));
     } else {
       Effect.Ignore;
     };

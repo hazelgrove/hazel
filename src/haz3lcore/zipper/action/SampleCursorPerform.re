@@ -18,18 +18,18 @@ let update_pinned_call =
     }
   );
 
-let capture = (z: Zipper.t, sample: Sample.t, id): Zipper.t =>
+let capture = (z: Zipper.t, data: Sample.Capture.t, id): Zipper.t =>
   update(z, sample_cursor =>
     {
       ...sample_cursor,
-      time: Some(sample.time),
-      seq: sample.seq,
+      time: Some(data.time),
+      seq: data.seq,
       indicated_call: id /*!= None ? id : z.refractors.sample_cursor.indicated_call*/,
       call_stack:
-        !ListUtil.is_suffix_of(sample.call_stack, sample_cursor.call_stack)
-          ? sample.call_stack : sample_cursor.call_stack,
-      index: List.length(sample.call_stack) - 1,
-      step_range: Some((sample.step_start, sample.step_end)),
+        !ListUtil.is_suffix_of(data.call_stack, sample_cursor.call_stack)
+          ? data.call_stack : sample_cursor.call_stack,
+      index: List.length(data.call_stack) - 1,
+      step_range: Some((data.step_start, data.step_end)),
     }
   );
 

@@ -220,14 +220,27 @@ let neighbor_tokens = (z: t): (option(Token.t), option(Token.t)) => (
   neighbor_token(Right, z),
 );
 
-let rec do_until_piece =
-        (action: t => option(t), p_n: neighbors => bool, z: t): option(t) => {
-  let* z = action(z);
-  if (p_n(Siblings.neighbors(z.relatives.siblings))) {
-    Some(z);
-  } else {
-    do_until_piece(action, p_n, z);
+/* Iterative version to avoid stack overflow on large programs */
+let do_until_piece =
+    (action: t => option(t), p_n: neighbors => bool, z: t): option(t) => {
+  let current = ref(action(z));
+  let result = ref(None);
+  let done_ = ref(false);
+  while (! done_^) {
+    switch (current^) {
+    | None =>
+      result := None;
+      done_ := true;
+    | Some(z) =>
+      if (p_n(Siblings.neighbors(z.relatives.siblings))) {
+        result := Some(z);
+        done_ := true;
+      } else {
+        current := action(z);
+      }
+    };
   };
+  result^;
 };
 
 /* Do `action` until the predicate on the generalized neigbors of the
@@ -236,15 +249,31 @@ let rec do_until_piece =
    we are at the edge of a segment, in which case it's the relevant shard
    of the parent. The None case strictly means the beginning/end of the program.
    If no such piece is found, don't move. Does not check predicate before
-   moving; caller should handle that case if necessary */
-let rec do_until =
-        (action: t => option(t), p_n: neighbors => bool, z: t): option(t) => {
-  let* z = action(z);
-  if (p_n(generalized_neighbors(z))) {
-    Some(z);
-  } else {
-    do_until(action, p_n, z);
+   moving; caller should handle that case if necessary.
+
+   NOTE: This is implemented iteratively to avoid stack overflow on large
+   programs. The previous recursive implementation would overflow when
+   traversing documents with thousands of tokens. */
+let do_until =
+    (action: t => option(t), p_n: neighbors => bool, z: t): option(t) => {
+  let current = ref(action(z));
+  let result = ref(None);
+  let done_ = ref(false);
+  while (! done_^) {
+    switch (current^) {
+    | None =>
+      result := None;
+      done_ := true;
+    | Some(z) =>
+      if (p_n(generalized_neighbors(z))) {
+        result := Some(z);
+        done_ := true;
+      } else {
+        current := action(z);
+      }
+    };
   };
+  result^;
 };
 
 let do_to_extreme = (action: t => option(t), z: t): t =>

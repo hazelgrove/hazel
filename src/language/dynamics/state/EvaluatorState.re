@@ -63,6 +63,19 @@ let get_theorems = ({theorems, _}) => theorems;
 
 let get_app_args = ({app_args, _}) => app_args;
 
+/* Clear transient data that's only needed during evaluation.
+ * Call this before sending EvaluatorState over postMessage
+ * to avoid serializing massive amounts of unnecessary data.
+ * - app_args: only needed to look up args during sample creation
+ * - pending_probe_starts: only needed during evaluation
+ * - targets: only needed during evaluation */
+let clear_transient = (state: t): t => {
+  ...state,
+  app_args: Id.Map.empty,
+  pending_probe_starts: Id.Map.empty,
+  targets: Id.Map.empty,
+};
+
 /* Elide arg value for storage (handles closures, etc.) */
 let elide_arg =
     (env: Environment.t(Exp.t), d: DHExp.t): Sample.Env.elided_value =>
@@ -145,12 +158,15 @@ let update =
       switch (effect) {
       | RecordStackFrame(fn_name, arg_opt) =>
         let app_id = DHExp.rep_id(init);
-        /* Store argument value if provided, keyed by (app_id, call_stack_before_entering) */
+        /* Only store argument value if this app_id is a probe target.
+         * This avoids accumulating massive app_args data for programs
+         * with many function calls but no probes on those calls. */
         let state =
           switch (arg_opt) {
-          | Some(arg) =>
+          | Some(arg) when Id.Map.mem(app_id, state.targets) =>
             let elided_arg = elide_arg(env, arg);
             add_app_arg(state, app_id, call_stack, elided_arg);
+          | Some(_)
           | None => state
           };
         ([(app_id, fn_name), ...call_stack], state);

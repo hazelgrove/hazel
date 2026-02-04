@@ -652,3 +652,25 @@ module Selection = {
     };
   };
 };
+
+/* Lightweight capture data for passing through actions.
+   In a submodule to avoid type inference issues with Sample.t
+   which has overlapping field names. */
+module Capture = {
+  [@deriving (show({with_path: false}), sexp, yojson, eq)]
+  type t = {
+    time: float,
+    seq: int,
+    call_stack,
+    step_start: int,
+    step_end: int,
+  };
+};
+
+let capture_of_sample = (sample: t): Capture.t => {
+  time: sample.time,
+  seq: sample.seq,
+  call_stack: sample.call_stack,
+  step_start: sample.step_start,
+  step_end: sample.step_end,
+};
