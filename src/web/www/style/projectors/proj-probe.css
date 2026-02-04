@@ -22,6 +22,16 @@
 
   --exp-cell: hsl(115, 30%, 70%);
   --pat-cell: hsl(165, 30%, 70%);
+
+  /* Sample call stack position colors - shared between samples and closure cursor bar */
+  --sample-above-text: oklch(
+    0.68 0.12 343.53
+  ); /* pink for above/before cursor */
+  --sample-below-text: oklch(
+    0.76 0.08 193.44
+  ); /* blue for below/after cursor */
+  --sample-above-bg: oklch(0.93 0.06 -0.01);
+  --sample-below-bg: oklch(0.93 0.03 195);
 }
 
 /* Turn off caret when text projector is focused */
@@ -282,16 +292,12 @@
   height: 1.3em;
   width: 1.3em;
   border-radius: 1em;
-  filter: invert(1);
-  background: url(../../img/noun-pinned-1560993.svg) #33ffff;
+  background: url(../../img/noun-pinned-1560993.svg) var(--R1);
   background-size: 70%;
   background-position: center;
   background-repeat: no-repeat;
   transform-origin: top right;
   scale: 0.6;
-}
-.projector.probe .pin {
-  background-color: oklch(0.8 0.18 201.83);
 }
 
 /* OFFSIDE VIEW */
@@ -432,10 +438,10 @@
 }
 
 .live-offside .sample:has(.value.below) {
-  background-color: oklch(0.93 0.03 195);
+  background-color: var(--sample-below-bg);
 }
 .live-offside .sample:has(.value.above) {
-  background-color: oklch(0.93 0.06 -0.01);
+  background-color: var(--sample-above-bg);
 }
 .live-offside.Many .sample:has(.value.above) {
   position: relative;
@@ -655,10 +661,10 @@
   color: #437543;
 }
 .live-offside.Single .value.above .code-text .token {
-  color: oklch(0.68 0.12 343.53);
+  color: var(--sample-above-text);
 }
 .live-offside.Single .value.below .code-text .token {
-  color: oklch(0.76 0.08 193.44);
+  color: var(--sample-below-text);
 }
 .live-offside.Many .value.above.cursor-caller .code-text .token,
 .live-offside.Single .value.above.cursor-caller .code-text .token {
@@ -733,15 +739,14 @@
 }
 
 .sample-context-menu .action-item.pinned .pin-icon {
-  filter: invert(1) brightness(1.5);
+  background-color: var(--R1);
 }
 
 .sample-context-menu .action-item .pin-icon {
   height: 1.3em;
   width: 1.3em;
   border-radius: 1em;
-  filter: invert(1) saturate(0) brightness(1.5);
-  background: url(../../img/noun-pinned-1560993.svg) #00ffff;
+  background: url(../../img/noun-pinned-1560993.svg) var(--R1);
   background-size: 70%;
   background-position: center;
   background-repeat: no-repeat;
@@ -761,7 +766,7 @@
 }
 
 .sample-context-menu .action-item:hover .pin-icon {
-  filter: invert(1) brightness(3) saturate(0.4);
+  background-color: var(--R1);
 }
 
 .live-offside .live-env {
@@ -771,6 +776,50 @@
 
 .sample-context-menu .context-actions + .environment-section .live-env {
   border-top: 0.6px solid var(--BR3);
+}
+
+/* Call display section showing function call with argument values */
+.sample-context-menu .call-display {
+  display: flex;
+  flex-direction: row;
+  align-items: baseline;
+  padding: 0.2em 0.55em;
+  background-color: var(--live-env-bkg);
+  font-family: var(--code-font);
+  font-size: var(--base-font-size);
+  color: var(--GB0);
+  white-space: nowrap;
+}
+
+.sample-context-menu .context-actions + .call-display {
+  border-top: 0.6px solid var(--BR3);
+}
+
+.sample-context-menu .call-display + .environment-section .live-env {
+  border-top: 0.6px solid var(--BR3);
+}
+
+.sample-context-menu .call-display .paren {
+  font-weight: bold;
+}
+
+/* Multiline call display for tuple arguments */
+.sample-context-menu .call-display.multiline {
+  flex-direction: column;
+  align-items: flex-start;
+}
+
+.sample-context-menu .call-display .call-header {
+  display: flex;
+  flex-direction: row;
+  align-items: baseline;
+}
+
+.sample-context-menu .call-display .call-arg-row {
+  display: flex;
+  flex-direction: row;
+  align-items: baseline;
+  padding-left: 1em;
 }
 
 /* Require .indicated on probe AND .cursor on value for menu to appear */

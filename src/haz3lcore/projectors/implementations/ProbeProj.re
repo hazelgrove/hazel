@@ -369,7 +369,7 @@ let cursor_clss =
 
 module Debug = {
   let stack = (stack: Sample.call_stack): string =>
-    stack |> List.map(Id.str3) |> String.concat("\n");
+    stack |> List.map(((id, _)) => Id.str3(id)) |> String.concat("\n");
 
   let str = (~ap_id: option(Id.t), sample: Sample.t): string =>
     "sample id: "
@@ -378,7 +378,7 @@ module Debug = {
     ++ "ap:"
     ++ (
       switch (Sample.Cursor.cur_call(ap_id, sample)) {
-      | Some([ap_id, ..._]) => Id.str3(ap_id)
+      | Some([(ap_id, _), ..._]) => Id.str3(ap_id)
       | _ => "None"
       }
     )
@@ -396,7 +396,7 @@ let pin_call = (~parent, ~ap_id: option(Id.t), ~di: Dynamics.Info.t) =>
   switch (ap_id, Dynamics.Info.is_in(di)) {
   | (Some(ap_id), Some(sample)) =>
     print_endline("actually pinning call");
-    parent(SampleCursor(TogglePin([ap_id, ...sample.call_stack])));
+    parent(SampleCursor(TogglePin([(ap_id, None), ...sample.call_stack])));
   | _ =>
     print_endline("ignoring");
     Effect.Ignore;
@@ -512,7 +512,9 @@ let env_val =
 let show_pin = (~ap_id: option(Id.t), di: Dynamics.Info.t, sample: Sample.t) => {
   switch (ap_id, di.sample_cursor.pinned_stack) {
   | (Some(ap_id), Some(pinned_stack)) =>
-    pinned_stack == [ap_id, ...sample.call_stack]
+    /* Compare by ID only - function names may differ */
+    Sample.ids_of_stack(pinned_stack)
+    == [ap_id, ...Sample.ids_of_stack(sample.call_stack)]
   | _ => false
   };
 };
@@ -583,6 +585,129 @@ let sample_context_actions =
   | None => []
   };
 
+/* Get function name from statics info if this is an Ap expression */
+let get_fn_name_from_statics =
+    (statics: option(Language.Statics.Info.t)): option(string) =>
+  switch (statics) {
+  | Some(InfoExp({term: {term: Ap(_, fn_exp, _), _}, _})) =>
+    switch (fn_exp.term) {
+    | Var(name) => Some(name)
+    | Constructor(name, _) => Some(name)
+    | Fun(_) => Some({js|λ|js})
+    | BuiltinFun(name) => Some(name)
+    | _ => Some("fn")
+    }
+  | _ => None
+  };
+
+/* Call display section showing function call with argument values */
+let sample_call_display =
+    (
+      ~settings: settings,
+      ~statics: option(Language.Statics.Info.t),
+      sample: Sample.t,
+      view_seg,
+      utility: utility,
+    )
+    : list(Node.t) =>
+  switch (sample.args, get_fn_name_from_statics(statics)) {
+  | (Some(arg_val), Some(fn_name)) =>
+    let length = SampleLength.get(settings.window, sample);
+    let render_exp = (exp: Exp.t) => {
+      let (seg, _) = abbreviated_seg_of(utility, length, exp);
+      view_seg(~text_only=false, Sort.Exp, seg);
+    };
+    /* Check if arg is a tuple with multiple elements - render multi-line */
+    switch (arg_val) {
+    | Opaque => [
+        div(
+          ~attrs=[Attr.classes(["call-display"])],
+          [
+            Node.span(
+              ~attrs=[Attr.classes(["fn-name"])],
+              [Node.text(fn_name)],
+            ),
+            Node.span(~attrs=[Attr.classes(["paren"])], [Node.text("(")]),
+            Node.text({js|⟨fn⟩|js}),
+            Node.span(~attrs=[Attr.classes(["paren"])], [Node.text(")")]),
+          ],
+        ),
+      ]
+    | Val(arg_exp) =>
+      switch (arg_exp.term) {
+      | Tuple(elements) when List.length(elements) > 1 =>
+        /* Multi-line display for tuple arguments */
+        let num_elems = List.length(elements);
+        let arg_rows =
+          List.mapi(
+            (i, elem) => {
+              let is_last = i == num_elems - 1;
+              div(
+                ~attrs=[Attr.classes(["call-arg-row"])],
+                [render_exp(elem)]
+                @ (is_last ? [] : [Node.text(",")])
+                @ (
+                  is_last
+                    ? [
+                      Node.span(
+                        ~attrs=[Attr.classes(["paren"])],
+                        [Node.text(")")],
+                      ),
+                    ]
+                    : []
+                ),
+              );
+            },
+            elements,
+          );
+        [
+          div(
+            ~attrs=[Attr.classes(["call-display", "multiline"])],
+            [
+              div(
+                ~attrs=[Attr.classes(["call-header"])],
+                [
+                  Node.span(
+                    ~attrs=[Attr.classes(["fn-name"])],
+                    [Node.text(fn_name)],
+                  ),
+                  Node.span(
+                    ~attrs=[Attr.classes(["paren"])],
+                    [Node.text("(")],
+                  ),
+                ],
+              ),
+            ]
+            @ arg_rows,
+          ),
+        ];
+      | _ =>
+        /* Single argument - render inline with parens */
+        [
+          div(
+            ~attrs=[Attr.classes(["call-display"])],
+            [
+              Node.span(
+                ~attrs=[Attr.classes(["fn-name"])],
+                [Node.text(fn_name)],
+              ),
+              Node.span(
+                ~attrs=[Attr.classes(["paren"])],
+                [Node.text("(")],
+              ),
+              render_exp(arg_exp),
+              Node.span(
+                ~attrs=[Attr.classes(["paren"])],
+                [Node.text(")")],
+              ),
+            ],
+          ),
+        ]
+      }
+    };
+  | _ => []
+  };
+
 /* Environment section showing variable bindings */
 let sample_environment =
     (~settings: settings, sample: Sample.t, view_seg, utility: utility)
@@ -607,6 +732,7 @@ let sample_environment =
 let sample_context_menu =
     (
       ~settings: settings,
+      ~statics: option(Language.Statics.Info.t),
       ~parent,
       ~ap_id,
       ~di,
@@ -617,11 +743,17 @@ let sample_context_menu =
     : Node.t => {
   let env_elems = sample.env |> ListUtil.dedup |> Sample.Env.remove_opaques;
   let has_env = env_elems != [];
+  let has_call = Option.is_some(sample.args);
   div(
     ~attrs=
-      [Attr.classes(["sample-context-menu"] @ (has_env ? [] : ["no-env"]))]
+      [
+        Attr.classes(
+          ["sample-context-menu"] @ (has_env || has_call ? [] : ["no-env"]),
+        ),
+      ]
       @ SafeTriangle.CSSDropdown.menu_attrs(dropdown_id(sample.id)),
     sample_context_actions(~parent, ~ap_id, ~di, sample)
+    @ sample_call_display(~settings, ~statics, sample, view_seg, utility)
     @ sample_environment(~settings, sample, view_seg, utility),
   );
 };
@@ -631,6 +763,7 @@ let sample_view =
       ~ap_id: option(Id.t),
       ~hide_env: bool,
       ~settings: settings,
+      ~statics: option(Language.Statics.Info.t),
       ~num_total: int,
       di: Dynamics.Info.t,
       utility: utility,
@@ -668,6 +801,7 @@ let sample_view =
         ? [
           sample_context_menu(
             ~settings,
+            ~statics,
             ~parent,
             ~ap_id,
             ~di,
@@ -686,6 +820,7 @@ let sample_group_view =
       ~ap_id: option(Id.t),
       ~hide_env: bool,
       ~settings: settings,
+      ~statics: option(Language.Statics.Info.t),
       ~num_total: int,
       di: Dynamics.Info.t,
       utility,
@@ -704,6 +839,7 @@ let sample_group_view =
               ~ap_id,
               ~hide_env,
               ~settings,
+              ~statics,
               ~num_total,
               di,
               utility,
@@ -1112,6 +1248,7 @@ let offside_view =
             ~ap_id,
             ~hide_env,
             ~settings,
+            ~statics=info.statics,
             ~num_total,
             di,
             utility,

@@ -127,7 +127,7 @@ module Eval = Transition(EvaluatorEVMode);
 let rec evaluate =
         (
           ~in_closure=?,
-          ~call_stack: list(Id.t),
+          ~call_stack: Sample.call_stack,
           state: EvaluatorEVMode.state,
           env,
           init: DHExp.t,
@@ -210,8 +210,12 @@ let rec evaluate =
         EvaluatorState.get_probe_start(state^, expr_id)
         |> Option.value(~default=0);
       let step_end = state^.step_count - 1;
+      /* Look up arg if this probe is on an Ap expression */
+      let args =
+        EvaluatorState.lookup_app_arg(state^, expr_id, original_call_stack);
       let sample =
         Sample.mk(
+          ~args,
           ~step_start,
           ~step_end,
           expr_id,
