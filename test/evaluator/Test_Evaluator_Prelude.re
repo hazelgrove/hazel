@@ -96,7 +96,6 @@ let parse_with_probes = (s: string): (Exp.t, Statics.Map.t, Sample.targets) => {
 
 let elaborate = u =>
   Elaborator.elaborate(
-    ~probe_unknowns=false,
     Statics.mk(CoreSettings.on, Builtins.ctx_init(Some(Int)), u),
     u,
   )
@@ -104,7 +103,7 @@ let elaborate = u =>
 
 /* Elaborate an expression with existing statics map */
 let elaborate_with_info = (info_map, u) =>
-  Elaborator.elaborate(~probe_unknowns=false, info_map, u) |> fst;
+  Elaborator.elaborate(info_map, u) |> fst;
 
 (exp, probes) => (
   {
@@ -172,8 +171,7 @@ let full_small_step_reduction =
 let full_preservation_test = (uexp: TermBase.exp_t): unit => {
   let statics =
     Statics.mk(CoreSettings.on, Builtins.ctx_init(Some(Int)), uexp);
-  let (elaborated, ty) =
-    Elaborator.elaborate(~probe_unknowns=false, statics, uexp);
+  let (elaborated, ty) = Elaborator.elaborate(statics, uexp);
 
   let evaluated =
     Evaluator.evaluate(~env=Builtins.env_init, elaborated) |> fst;
