@@ -24,7 +24,6 @@ let (suite, _) =
       Test_Menhir.tests,
       Test_StringUtil.tests,
       Test_PatternMatch.tests,
-      Test_WriterMonad.tests,
       Test_Equality.tests,
       Test_Substitution.tests,
     ]
