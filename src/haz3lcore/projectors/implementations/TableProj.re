@@ -9,7 +9,6 @@ let table_of =
     (any: Any.t): option((list(LabeledTuple.label), list(list(Exp.t)))) =>
   switch (any) {
   | Exp({term: ListLit(es), _}) =>
-    print_endline("Processing ListLit...");
     let data: list(option((list(string), list(TermBase.exp_t)))) =
       List.map(
         e => {

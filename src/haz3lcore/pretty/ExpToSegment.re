@@ -1049,7 +1049,6 @@ let fold_fun_if = (condition, f_name: string, pieces, exp) =>
   };
 
 let project_table_if = (should_project, pieces) => {
-  print_endline("Projecting table: " ++ string_of_bool(should_project));
   if (should_project) {
     switch (MakeTerm.for_projection([pieces])) {
     | None => failwith("ExpToSegment.fold_if")
