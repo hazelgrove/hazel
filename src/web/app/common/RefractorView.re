@@ -47,6 +47,8 @@ let mk_data =
           Option.value(
             TermData.segment(id, term_data)
             |> Option.map(Segment.unparenthesize)
+            |> Option.map(Segment.trim_secondary(Left))
+            |> Option.map(Segment.trim_secondary(Right))
             |> Option.map(Segment.parenthesize),
             ~default=
               Base.Secondary({
