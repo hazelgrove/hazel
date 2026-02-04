@@ -556,3 +556,16 @@ let goal_of_typ = (ty: Typ.t): Exp.t => {
   | _ => Exp.fresh(Invalid("Bad_Goal"))
   };
 };
+
+let strip_theorems = (exp: Exp.t): Exp.t => {
+  Exp.map_term(
+    ~f_exp=
+      (cont, exp) => {
+        switch (exp |> Exp.term_of) {
+        | Theorem(_, _, e2) => cont(e2)
+        | _ => cont(exp)
+        }
+      },
+    exp,
+  );
+};
