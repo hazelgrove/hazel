@@ -363,10 +363,6 @@ svg:has(.child-line) {
   z-index: var(--backpack-z);
 }
 
-<<<<<<< HEAD
-=======
-
->>>>>>> origin/dataframe-projector
 /* Invisible backdrop to capture clicks outside context menu */
 .context-menu-backdrop {
   position: fixed;

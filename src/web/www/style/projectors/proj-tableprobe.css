@@ -1,0 +1,162 @@
+/* PROJECTOR: Tables */
+
+/* Tables */
+.tableprobe {
+    border-collapse: collapse;
+    font-size: 0.875rem;
+    width: 100%;
+    table-layout: auto;
+    text-align: center;
+    background-color: var(--df-bg);
+}
+.tableprobe th {
+  position: sticky;
+  top: 0;
+  z-index: calc(var(--projector-z) + 1);
+  opacity: 1;
+}
+.tableprobe th,
+.tableprobe td {
+    border: 1px solid #ddd;
+    vertical-align: top;
+}
+
+.tableprobe th {
+    background-color: var(--df-header-bg);
+    font-weight: 600;
+}
+
+.tableprobe tr:nth-child(even) {
+    background-color: var(--df-zebra-bg);
+}
+
+.tableprobe tr:hover {
+    background-color: var(--df-hover-bg);
+}
+
+/* Closure Navigation Buttons in Table Header */
+.closure-nav-button {
+    cursor: pointer;
+    padding: 2px 6px;
+    margin: 0 4px;
+    border-radius: 3px;
+    background-color: var(--df-header-bg);
+    color: var(--BR2);
+    font-size: 14px;
+    transition: all 0.2s ease;
+    user-select: none;
+    display: inline-block;
+    vertical-align: middle;
+}
+
+.closure-nav-button:hover {
+    background-color: var(--df-hover-bg);
+    transform: scale(1.05);
+}
+
+.closure-nav-button:active {
+    transform: scale(0.95);
+}
+
+/* Drop Column Buttons */
+.drop-column-button {
+    cursor: pointer;
+    padding: 1px 4px;
+    margin-left: 4px;
+    border-radius: 2px;
+    background-color: transparent;
+    color: var(--BR2);
+    font-size: 12px;
+    font-weight: bold;
+    transition: all 0.2s ease;
+    user-select: none;
+    display: inline-block;
+    vertical-align: middle;
+    border: 1px solid transparent;
+}
+
+.drop-column-button:hover {
+    background-color: #ff6b6b;
+    color: white;
+    border-color: #ff5252;
+    transform: scale(1.1);
+}
+
+.drop-column-button:active {
+    transform: scale(0.9);
+}
+
+/* Column Menu */
+.column-menu {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    background-color: var(--df-bg);
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    z-index: calc(var(--projector-z) + 2);
+    min-width: 120px;
+}
+
+.menu-item {
+    padding: 8px 12px;
+    cursor: pointer;
+    font-size: 0.875rem;
+    color: var(--BR2);
+}
+
+.menu-item:hover {
+    background-color: var(--df-hover-bg);
+}
+
+.submenu-item {
+    padding: 8px 12px;
+    cursor: pointer;
+    font-size: 0.875rem;
+    color: var(--BR2);
+}
+
+.submenu-item:hover {
+    background-color: var(--df-hover-bg);
+}
+
+.submenu-back {
+    padding: 8px 12px;
+    cursor: pointer;
+    font-size: 0.875rem;
+    color: var(--BR2);
+}
+
+.submenu-back:hover {
+    background-color: var(--df-hover-bg);
+}
+
+/* Ensure table header cells with buttons are properly aligned */
+.tableprobe th {
+    text-align: center;
+    vertical-align: middle;
+}
+
+.tableprobe th:has(.closure-nav-button) {
+    white-space: nowrap;
+}
+
+
+.projector.tableprobe {
+    height: 100%;
+    width: 100%;
+    overflow: auto;
+    box-sizing: content-box;
+
+    display: flex;
+    flex-direction: initial;
+    justify-content: initial;
+    align-items: initial;
+    gap: initial;
+}
+
+.projector.tableprobe>.code {
+    overflow-y: scroll;
+    overflow-x: scroll;
+}

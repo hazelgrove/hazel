@@ -27,21 +27,12 @@ let table_of =
     (any: Any.t): option((list(LabeledTuple.label), list(list(Exp.t)))) =>
   switch (any) {
   | Exp({term: ListLit(es), _}) =>
-    print_endline("TableProj: table_of: got ListLit");
-    let data =
+    switch (
       OptUtil.traverse(
         e => extract_labeled_tuple_entries(e) |> Option.map(List.split),
         es,
-      );
-    print_endline(
-      "Data: "
-      ++ [%derive.show:
-           option(list((list(string), list(TermBase.exp_t))))
-         ](
-           data,
-         ),
-    );
-    switch (data) {
+      )
+    ) {
     | Some(data: list((list(string), list(TermBase.exp_t)))) =>
       let (headers: list(list(string)), rows: list(list(TermBase.exp_t))) =
         List.split(data);
@@ -56,7 +47,7 @@ let table_of =
       | _ => None
       };
     | None => None
-    };
+    }
   | _ => None
   };
 
