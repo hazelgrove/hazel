@@ -153,6 +153,8 @@ let start = {
       >= 0;
     NinjaKeys.initialize(Shortcut.options(schedule_action));
     JsUtil.focus_clipboard_shim();
+    /* Setup scroll listener for floating elements (backpack) */
+    FloatingElement.setup_scroll_listener();
     schedule_action(
       Assistant(AssistantUpdate.ChatAction(FilterLoadingMessages)),
     );
@@ -184,6 +186,10 @@ let start = {
         } else {
           ();
         };
+        /* Handle scheduled probe focus from step-into (see ProbePerform.FocusEffect) */
+        let _ = Haz3lcore.ProbePerform.FocusEffect.execute();
+        /* Update floating elements (backpack) to viewport coordinates */
+        FloatingElement.update_all();
         model.current.globals.settings.core.statics ? Animation.go() : ();
       },
       (),

@@ -45,6 +45,7 @@ let semantics_group = (~globals) => {
       ("τ", "Types", globals.settings.core.statics, Statics),
       ("⇲", "Completion", globals.settings.core.assist, Assist),
       ("𝛿", "Evaluation", globals.settings.core.dynamics, Dynamics),
+      // ("∀", "Probe All", globals.settings.core.probe_all, ProbeAll),
       ("?", "Docs", globals.settings.sidebar.show, Sidebar(ToggleShow)),
       // (
       //   "👍",
@@ -90,10 +91,16 @@ let stepper_group = (~globals: Globals.t) => {
         Evaluation(ShowFilters),
       ),
       (
-        Util.Unicode.castArrowSym,
+        "⇨",
         "Show Ascription Steps",
         s.show_ascription_steps,
         Evaluation(ShowAscriptionSteps),
+      ),
+      (
+        "⇨",
+        "Show Case Steps",
+        s.show_case_steps,
+        Evaluation(ShowCaseSteps),
       ),
       (
         "π",

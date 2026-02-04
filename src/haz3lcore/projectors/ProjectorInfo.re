@@ -10,9 +10,9 @@ let utility: ProjectorBase.utility = {
   let term_to_seg =
     ExpToSegment.any_to_segment(
       ~settings={
-        ...ExpToSegment.Settings.of_core(~inline=false, CoreSettings.off),
+        ...ExpToSegment.Settings.of_core(~inline=true, CoreSettings.off),
         show_unknown_as_hole: false,
-        fold_fn_bodies: false,
+        fold_fn_bodies: `NoFold,
       },
     );
   let lift_syntax =
@@ -21,7 +21,9 @@ let utility: ProjectorBase.utility = {
     | None => None
     | Some(s) => Some(s |> fn |> term_to_seg)
     };
-  let seg_to_string = Printer.of_segment(~holes="?");
+  /* NOTE: Setting indent to anything other than "" has serious
+   * perf implications when there are lots of probes on the screen */
+  let seg_to_string = Printer.of_segment(~holes="?", ~indent="");
   {
     term_to_seg,
     seg_to_term,
@@ -31,29 +33,51 @@ let utility: ProjectorBase.utility = {
 };
 
 let mk_info =
-    (p: Piece.projector, ~statics: Statics.Map.t, ~dynamics: Dynamics.Map.t)
+    (
+      p: Piece.projector,
+      ~sample_cursor: Sample.Cursor.t,
+      ~statics: Statics.Map.t,
+      ~dynamics: Dynamics.Map.t,
+    )
     : ProjectorBase.info => {
   id: p.id,
   syntax: Piece.unparenthesize(p.syntax),
   statics: Statics.Map.lookup(p.id, statics),
-  dynamics: Dynamics.Map.lookup(p.id, dynamics),
+  dynamics:
+    switch (Dynamics.Map.lookup(p.id, dynamics)) {
+    | Some(samples) =>
+      Some({
+        samples,
+        sample_cursor,
+      })
+    | None => None
+    },
   utility,
 };
 
 module ShapeMapSemantics = {
   let from_semantics =
-      (statics: Statics.Map.t, dynamics: Dynamics.Map.t, p: Base.projector)
+      (
+        sample_cursor: Language.Sample.Cursor.t,
+        statics: Statics.Map.t,
+        dynamics: Dynamics.Map.t,
+        p: Base.projector,
+      )
       : ProjectorCore.Shape.t => {
     let (module P) = ProjectorInit.to_module(p.kind);
-    P.placeholder(p.model, mk_info(p, ~statics, ~dynamics));
+    P.placeholder(p.model, mk_info(p, ~sample_cursor, ~statics, ~dynamics));
   };
 
   let mk =
       (
         proj_map: Id.Map.t(Base.projector),
+        refractors: ZipperBase.Refractor.t,
         statics: Statics.Map.t,
         dynamics: Dynamics.Map.t,
       )
       : Id.Map.t(ProjectorCore.Shape.t) =>
-    Id.Map.map(from_semantics(statics, dynamics), proj_map);
+    Id.Map.map(
+      from_semantics(refractors.sample_cursor, statics, dynamics),
+      proj_map,
+    );
 };

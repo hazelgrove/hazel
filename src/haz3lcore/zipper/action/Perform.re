@@ -53,10 +53,11 @@ let go =
     )
     |> return(CantReparse)
   | Buffer(a) => Buffer.go(~ci=Indicated.ci_of(z, statics.info_map), a, z)
-  | Project(a) => ProjectorPerform.go(syntax.term_data, a, z)
+  | Project(a) =>
+    ProjectorPerform.go(syntax.term_data, a, z, syntax.projector_list)
   | Move(d) =>
     Move.go(
-      ~ci=Indicated.ci_of(z, statics.info_map),
+      ~statics=statics.info_map,
       ~col_target=Option.value(col_target, ~default=0),
       ~measured=syntax.measured,
       d,
@@ -122,5 +123,6 @@ let go =
     |> Insert.go(char, ~ci=Indicated.ci_of(z, statics.info_map))
     |> return(Cant_insert)
   | Put_down => Zipper.put_down(z) |> return(Cant_put_down)
+  | Probe(a) => Ok(ProbePerform.go(~statics, ~syntax, a, z))
   | Dump => Ok(Dump.to_zipper(z))
   };

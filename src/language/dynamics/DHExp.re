@@ -13,14 +13,7 @@ include Exp;
 let term_of: t => term = IdTagged.term_of;
 let fast_copy: (Id.t, t) => t = IdTagged.fast_copy;
 
-let mk = (ids, term): t => {
-  {
-    term,
-    annotation: {
-      ids: ids,
-    },
-  };
-};
+let mk = (ids, term): t => IdTagged.mk_internal(ids, term);
 
 // Also strips static error holes - kinda like unelaboration
 let rec strip_ascriptions =
@@ -94,6 +87,9 @@ let ty_subst = (s: Typ.t, tpat: TPat.t, exp: t): t => {
           | Closure(_)
           | Seq(_)
           | Let(_)
+          | Theorem(_)
+          | ProofObject(_)
+          | Forall(_)
           | Ap(_)
           | BuiltinFun(_)
           | BinOp(_)
@@ -122,7 +118,6 @@ let ty_subst = (s: Typ.t, tpat: TPat.t, exp: t): t => {
           | Use(_)
           | DeferredAp(_)
           | Parens(_)
-          | Probe(_)
           | UnOp(_) => continue(exp)
           },
       exp,
@@ -141,6 +136,9 @@ let rec ty_comparable = (d1, d2) => {
   | (Undefined, _)
   | (Var(_), _)
   | (Let(_), _)
+  | (Theorem(_), _)
+  | (ProofObject(_), _)
+  | (Forall(_), _)
   | (FixF(_), _)
   | (TyAlias(_), _)
   | (TypAp(_), _)
@@ -162,8 +160,6 @@ let rec ty_comparable = (d1, d2) => {
   | (BuiltinFun(_), _)
   | (TypFun(_), _)
   | (TupleExtension(_), _) => false
-  | (Probe(d1, _), _) => ty_comparable(d1, d2)
-  | (_, Probe(d2, _)) => ty_comparable(d1, d2)
   | (Parens(d1), _) => ty_comparable(d1, d2)
   | (_, Parens(d2)) => ty_comparable(d1, d2)
   | (Asc(d1, _), _) => ty_comparable(d1, d2)
@@ -239,6 +235,9 @@ let rec poly_equal = (d1, d2): option(bool) => {
   | (Undefined, _)
   | (Var(_), _)
   | (Let(_), _)
+  | (Theorem(_), _)
+  | (ProofObject(_), _)
+  | (Forall(_), _)
   | (FixF(_), _)
   | (TyAlias(_), _)
   | (TypAp(_), _)
@@ -262,8 +261,6 @@ let rec poly_equal = (d1, d2): option(bool) => {
   | (BuiltinFun(_), _) => None
 
   // Wrapping forms: just look through them
-  | (Probe(d1, _), _) => poly_equal(d1, d2)
-  | (_, Probe(d2, _)) => poly_equal(d1, d2)
   | (Parens(d1), _) => poly_equal(d1, d2)
   | (_, Parens(d2)) => poly_equal(d1, d2)
   | (Asc(d1, _), _) => poly_equal(d1, d2)

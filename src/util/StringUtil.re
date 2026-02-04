@@ -56,7 +56,7 @@ let plain_search: (string, string, int) => int =
 let to_lines = String.split_on_char('\n');
 
 let line_widths = (s: string): list(int) =>
-  s |> to_lines |> List.map(String.length);
+  s |> to_lines |> List.map(Unicode.length);
 
 let max_line_width = (s: string): int =>
   s |> line_widths |> List.fold_left(max, 0);
@@ -74,6 +74,8 @@ let unescape_linebreaks: string => string =
 
 let trim_leading = (s: string): string => {
   s
+  |> replace(regexp("\r\n"), _, "\n")  // Normalize Windows line breaks
+  |> replace(regexp("\r"), _, "\n")  // Normalize old Mac line breaks
   |> replace(regexp("^[ ]*"), _, "")  // Remove leading spaces at start
   |> replace(regexp("\n[ ]*"), _, "\n"); // Remove leading spaces after newlines
 };
@@ -134,4 +136,58 @@ let prefixes = (s: string): list(string) => {
   } else {
     aux(1);
   };
+};
+
+// Removes double quotes from string and escapes newlines
+// Update once https://github.com/hazelgrove/hazel/issues/786 is done
+let sanitize_for_string_expression = (s: string): string => {
+  s |> replace(regexp("\""), _, "") |> replace(regexp("\n"), _, "\\n");
+};
+
+let sanitize_for_label = (s: string): string => {
+  s |> replace(regexp("`"), _, "");
+};
+
+// AI generated function
+// checks if 'sub' is a subsequence of 's'
+// (i.e., all characters of 'sub' appear in 's' in the same order, but not necessarily consecutively)
+// case insensitive, ignores spaces on sub
+let subseq_search = (s: string, sub: string): bool => {
+  let s_len = String.length(s);
+  let sub_len = String.length(sub);
+
+  let rec search = (s_idx: int, sub_idx: int): bool =>
+    // If we've matched all characters in sub, we're done
+    if (sub_idx >= sub_len) {
+      true;
+    } else if
+      // If we've exhausted s but still have characters to match in sub
+      (s_idx >= s_len) {
+      false;
+    } else if
+      // Skip spaces in sub
+      (sub.[sub_idx] == ' ') {
+      search(s_idx, sub_idx + 1);
+    } else if
+      // If current characters match (case insensitive), advance both indices
+      (Char.lowercase_ascii(s.[s_idx]) == Char.lowercase_ascii(sub.[sub_idx])) {
+      search(s_idx + 1, sub_idx + 1);
+    } else {
+      // If they don't match, advance only the s index
+      search(
+        s_idx + 1,
+        sub_idx,
+      );
+    };
+
+  print_endline(
+    "Subseq search: "
+    ++ sub
+    ++ " in "
+    ++ s
+    ++ "returns"
+    ++ string_of_bool(search(0, 0)),
+  );
+
+  search(0, 0);
 };

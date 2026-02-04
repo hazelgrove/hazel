@@ -23,12 +23,14 @@ module Model = {
       elaborate: false,
       assist: true,
       dynamics: true,
+      probe_all: false,
       flip_animations: true,
       evaluation: {
         show_case_clauses: true,
         show_fn_bodies: false,
         show_fixpoints: false,
         show_ascription_steps: false,
+        show_case_steps: false,
         show_lookup_steps: false,
         show_stepper_filters: false,
         project_tables: false,
@@ -93,6 +95,7 @@ module Update = {
     | ShowCaseClauses
     | ShowFnBodies
     | ShowAscriptionSteps
+    | ShowCaseSteps
     | ShowFixpoints
     | ProjectTables
     | ShowLookups
@@ -106,6 +109,7 @@ module Update = {
     | SecondaryIcons
     | Statics
     | Dynamics
+    | ProbeAll
     | Assist
     | Elaborate
     | Benchmark
@@ -152,6 +156,16 @@ module Update = {
             dynamics: !settings.core.dynamics,
           },
         }
+      | ProbeAll => {
+          ...settings,
+          core: {
+            ...settings.core,
+            /* Turning on probe_all requires dynamics to be on */
+            dynamics: !settings.core.probe_all || settings.core.dynamics,
+            statics: !settings.core.probe_all || settings.core.statics,
+            probe_all: !settings.core.probe_all,
+          },
+        }
       | Assist => {
           ...settings,
           core: {
@@ -194,6 +208,10 @@ module Update = {
           | ShowAscriptionSteps => {
               ...evaluation,
               show_ascription_steps: !evaluation.show_ascription_steps,
+            }
+          | ShowCaseSteps => {
+              ...evaluation,
+              show_case_steps: !evaluation.show_case_steps,
             }
           | ShowFixpoints => {
               ...evaluation,

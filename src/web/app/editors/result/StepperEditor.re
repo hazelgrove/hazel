@@ -40,6 +40,7 @@ module Update = {
         ~is_edited,
         ~stitch,
         ~dynamics: Language.Dynamics.Map.t,
+        ~ana,
         {editor, taken_steps, next_steps, refls}: Model.t,
       )
       : Model.t => {
@@ -50,6 +51,7 @@ module Update = {
         ~stitch,
         ~dynamics,
         ~is_dynamic_term=true,
+        ~ana,
         editor,
       );
     {
@@ -80,6 +82,8 @@ module View = {
       (
         ~syntax: CachedSyntax.t,
         ~font_metrics: FontMetrics.t,
+        ~inject: Update.t => Ui_effect.t(unit),
+        ~selected_id: option(Id.t),
         signal: event => Ui_effect.t(unit),
         model: Model.t,
       ) => {
@@ -125,32 +129,52 @@ module View = {
          );
 
     taken_steps(model.taken_steps)
-    @ next_steps(model.next_steps, ~inject=x => signal(TakeStep(x)))
-    @ refl_steps(model.refls, ~inject=x => signal(Refl(x)));
+    @ next_steps(model.next_steps, ~inject=x =>
+        Some(List.nth(model.next_steps, x)) == selected_id
+          ? signal(TakeStep(x))
+          : inject(Select(Term(Id(List.nth(model.next_steps, x), Right))))
+      )
+    @ refl_steps(model.refls, ~inject=x => {
+        Some(List.nth(model.refls, x)) == selected_id
+          ? signal(Refl(x))
+          : {
+            inject(Select(Term(Id(List.nth(model.refls, x), Right))));
+          }
+      });
   };
 
+  /* Steppers don't support probe dynamics - expressions shown are
+     intermediate evaluation steps, not the main program being probed. */
   let view =
       (
         ~globals: Globals.t,
+        ~inject,
         ~signal: event => 'a,
         ~overlays=[],
         ~selected,
+        ~selected_id,
+        ~_dynamics: Language.Dynamics.Map.t=Language.Dynamics.Map.empty,
         model: Model.t,
-      ) =>
+      ) => {
     CodeSelectable.View.view(
+      ~dynamics=Language.Dynamics.Map.empty,
       ~signal=
         fun
         | MakeActive => signal(MakeActive),
       ~selected,
       ~globals,
+      ~inject,
       ~overlays=
         overlays
         @ deco(
             ~syntax=model.editor.editor.syntax,
             ~font_metrics=globals.font_metrics,
+            ~inject,
+            ~selected_id,
             signal,
             model,
           ),
       model.editor,
     );
+  };
 };

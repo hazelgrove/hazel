@@ -20,7 +20,7 @@
  (instrumentation
   (backend bisect_ppx))
  (modules
-  (:standard \ Main Gradescope)
+  (:standard \ Main GradingReport)
   \
   Worker
   WorkerServer)
@@ -35,6 +35,7 @@
   util
   ppx_yojson_conv.expander
   haz3lcore
+  b2t2
   pretty
   omd)
  (js_of_ocaml)
@@ -60,6 +61,14 @@
    ppx_sexp_conv
    ppx_deriving.show
    bonsai.ppx_bonsai)))
+
+(executable
+ (name gradingReport)
+ (modules GradingReport)
+ (libraries ppx_yojson_conv.expander haz3lcore web)
+ (modes js)
+ (preprocess
+  (pps ppx_yojson_conv ppx_let ppx_sexp_conv ppx_deriving.show)))
 
 (executable
  (name worker)

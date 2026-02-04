@@ -22,11 +22,12 @@ let startup: PersistentData.t = {
       Probes.out,
       Livelits.out,
     ]
+    @ B2t2.Slides.all_slides
     |> List.map(((name, content: PersistentSegment.t)) =>
          (
            name,
            {
-             editor: content |> PersistentSegment.to_persistent_zipper,
+             editor: content |> PersistentSegment.unpersist,
              result: EvalResult.Model.init |> EvalResult.Model.persist,
            }: CellEditor.Model.persistent,
          )

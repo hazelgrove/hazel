@@ -7,6 +7,7 @@ module Evaluation = {
     show_fn_bodies: bool,
     show_fixpoints: bool,
     show_ascription_steps: bool,
+    show_case_steps: bool,
     show_lookup_steps: bool,
     show_stepper_filters: bool,
     project_tables: bool,
@@ -22,6 +23,7 @@ module Evaluation = {
     show_fn_bodies: false,
     show_fixpoints: false,
     show_ascription_steps: false,
+    show_case_steps: false,
     show_lookup_steps: false,
     show_stepper_filters: false,
     project_tables: false,
@@ -38,6 +40,7 @@ type t = {
   elaborate: bool,
   assist: bool,
   dynamics: bool,
+  probe_all: bool,
   flip_animations: bool,
   evaluation: Evaluation.t,
 };
@@ -47,6 +50,7 @@ let off: t = {
   elaborate: false,
   assist: false,
   dynamics: false,
+  probe_all: false,
   flip_animations: false,
   evaluation: Evaluation.init,
 };
@@ -56,6 +60,7 @@ let on: t = {
   elaborate: true,
   assist: true,
   dynamics: true,
+  probe_all: false, /* Off by default even in "on" config - opt-in feature */
   flip_animations: true,
   evaluation: Evaluation.init,
 };

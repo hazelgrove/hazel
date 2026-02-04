@@ -38,6 +38,39 @@ let group_by = (key: 'x => 'k, xs: list('x)): list(('k, list('x))) =>
     xs,
   );
 
+/**
+  Groups consecutive elements that satisfy a predicate.
+
+  Unlike [group_by], this only groups elements that are adjacent in the list.
+  The predicate compares against the first element of the current group.
+
+  @param should_group
+  Predicate taking (representative, candidate) - returns true if candidate
+  should be grouped with representative (first element of current group).
+
+  @param xs
+  The list of elements to be grouped.
+
+  @return
+  A list of groups, where each group is a list of consecutive elements
+  that satisfied the predicate. Groups are in reverse order.
+*/
+let group_consecutive =
+    (should_group: ('a, 'a) => bool, xs: list('a)): list(list('a)) =>
+  List.fold_left(
+    (acc: list(list('a)), item: 'a) =>
+      switch (acc) {
+      | [] => [[item]]
+      | [[rep, ..._] as first, ...rest] when should_group(rep, item) => [
+          first @ [item],
+          ...rest,
+        ]
+      | _ => [[item], ...acc]
+      },
+    [],
+    xs,
+  );
+
 let rec range = (~lo: int=0, hi: int) =>
   if (lo > hi) {
     raise(Invalid_argument("ListUtil.range"));
@@ -347,6 +380,16 @@ let rec rev_concat: (list('a), list('a)) => list('a) =
     };
   };
 
+let rec unzip3 =
+        (lst: list(('a, 'b, 'c))): (list('a), list('b), list('c)) => {
+  switch (lst) {
+  | [] => ([], [], [])
+  | [(a, b, c), ...tail] =>
+    let (as_, bs, cs) = unzip3(tail);
+    ([a, ...as_], [b, ...bs], [c, ...cs]);
+  };
+};
+
 let cross = (xs, ys) =>
   List.concat(List.map(x => List.map(y => (x, y), ys), xs));
 
@@ -398,15 +441,15 @@ let suffix_at_depth = (xs: list('a), ys: list('a)): option(int) => {
   go(0, xs, ys);
 };
 
-/* list truncated after at most n elementsnts */
+/* list truncated after at most n elements */
 let truncate = (n: int, xs: list('a)): list('a) => {
-  let rec loop = (n, xs, acc) =>
+  let rec loop = (n: int, xs: list('a), acc: list('a)): list('a) =>
     switch (n, xs) {
     | (0, _) => acc
     | (_, []) => acc
     | (n, [x, ...xs]) => loop(n - 1, xs, [x, ...acc])
     };
-  loop(n, xs, []);
+  List.rev(loop(n, xs, []));
 };
 
 /* list without the first n elements, recurse into list until 0 then return rest */
@@ -511,3 +554,36 @@ let rec forall2_opt =
   | _ => Some(false) // Different lengths
   };
 };
+
+let assoc_opt_by = (eq, key, assoc) => {
+  let rec find = lst =>
+    switch (lst) {
+    | [] => None
+    | [(k, v), ...rest] => eq(key, k) ? Some(v) : find(rest)
+    };
+  find(assoc);
+};
+
+let assoc_update = (key, f, assoc) => {
+  let rec go = lst =>
+    switch (lst) {
+    | [] =>
+      switch (f(None)) {
+      | Some(v) => [(key, v)]
+      | None => []
+      }
+    | [(k, v), ...rest] =>
+      if (k == key) {
+        switch (f(Some(v))) {
+        | Some(v') => [(k, v'), ...rest]
+        | None => rest
+        };
+      } else {
+        [(k, v), ...go(rest)];
+      }
+    };
+  go(assoc);
+};
+
+let remove_assoc = (key, assoc) =>
+  List.filter(((k, _)) => k != key, assoc);

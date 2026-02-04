@@ -224,6 +224,6 @@ module M: Projector = {
   };
   let update = (model, _, _) => model;
 
-  let view = (_, info, ~local as _, ~parent, ~view_seg: View.seg) =>
+  let view = ({info, parent, view_seg, _}: View.args(model, action)): View.t =>
     View.mk(table(info, ~view_seg, ~parent, info |> get));
 };
