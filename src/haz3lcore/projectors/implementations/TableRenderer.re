@@ -498,7 +498,14 @@ let sort_column_with_direction =
 };
 
 let build_column_menu =
-    (info, h, dyn_type, local, parent, menu_path: list(string)) => {
+    (
+      info: info,
+      h: string,
+      dyn_type: option(Typ.t),
+      local: action => Ui_effect.t(unit),
+      parent: external_action => Ui_effect.t(unit),
+      menu_path: list(string),
+    ) => {
   let column_type =
     dyn_type |> Option.bind(_, ty => get_column_type_from_ty(ty, h));
   let columns_opt = dyn_type |> Option.bind(_, get_columns);
