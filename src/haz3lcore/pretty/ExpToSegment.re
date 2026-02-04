@@ -52,12 +52,12 @@ module Settings = {
     label_format: QuoteWhenNecessary,
     inline,
     fold_case_clauses: !settings.evaluation.show_case_clauses,
+    project_tables: settings.evaluation.project_tables,
     fold_fn_bodies:
       fold_fn_bodies
       |> Option.value(
            ~default=settings.evaluation.show_fn_bodies ? `NoFold : `Fold,
          ),
-    project_tables: settings.evaluation.project_tables,
     hide_fixpoints: !settings.evaluation.show_fixpoints,
     show_filters: settings.evaluation.show_stepper_filters,
     show_unknown_as_hole: true,
@@ -70,8 +70,8 @@ module Settings = {
       label_format: QuoteWhenNecessary,
       inline,
       fold_case_clauses: false,
-      fold_fn_bodies: `NoFold,
       project_tables: false,
+      fold_fn_bodies: `NoFold,
       hide_fixpoints: false,
       show_filters: true,
       show_unknown_as_hole: true,
@@ -1441,6 +1441,7 @@ let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
     let id = exp |> Exp.rep_id;
     let+ e1 = go(e1)
     and+ e2 = go(e2);
+
     wrap(
       exp,
       e2

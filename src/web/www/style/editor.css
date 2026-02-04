@@ -13,6 +13,13 @@
   white-space: pre;
   font-family: var(--code-font);
   font-weight: normal;
+/* Invisible backdrop to capture clicks outside context menu */
+.context-menu-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: calc(var(--context-menu-z) - 1);
+}
+
   font-size: var(--base-font-size);
 }
 
@@ -356,6 +363,10 @@ svg:has(.child-line) {
   z-index: var(--backpack-z);
 }
 
+<<<<<<< HEAD
+=======
+
+>>>>>>> origin/dataframe-projector
 /* Invisible backdrop to capture clicks outside context menu */
 .context-menu-backdrop {
   position: fixed;

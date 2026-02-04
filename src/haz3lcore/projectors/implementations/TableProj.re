@@ -5,9 +5,10 @@ open Language;
 
 let max_column_length = 12;
 
-let extract_labeled_tuple_entries =
-    (exp: Exp.t): option(list((LabeledTuple.label, DHExp.t))) => {
+let rec extract_labeled_tuple_entries =
+        (exp: Exp.t): option(list((LabeledTuple.label, DHExp.t))) => {
   switch (exp.term) {
+  | Parens(e) => extract_labeled_tuple_entries(e)
   | Tuple(es) =>
     OptUtil.traverse(
       (e: Exp.t) => {
@@ -26,11 +27,20 @@ let table_of =
     (any: Any.t): option((list(LabeledTuple.label), list(list(Exp.t)))) =>
   switch (any) {
   | Exp({term: ListLit(es), _}) =>
+    print_endline("TableProj: table_of: got ListLit");
     let data =
       OptUtil.traverse(
         e => extract_labeled_tuple_entries(e) |> Option.map(List.split),
         es,
       );
+    print_endline(
+      "Data: "
+      ++ [%derive.show:
+           option(list((list(string), list(TermBase.exp_t))))
+         ](
+           data,
+         ),
+    );
     switch (data) {
     | Some(data: list((list(string), list(TermBase.exp_t)))) =>
       let (headers: list(list(string)), rows: list(list(TermBase.exp_t))) =
@@ -214,6 +224,6 @@ module M: Projector = {
   };
   let update = (model, _, _) => model;
 
-  let view = ({info, parent, view_seg, _}: View.args(model, action)) =>
+  let view = ({info, parent, view_seg, _}: View.args(model, action)): View.t =>
     View.mk(table(info, ~view_seg, ~parent, info |> get));
 };
