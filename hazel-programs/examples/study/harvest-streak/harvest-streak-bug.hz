@@ -1,0 +1,301 @@
+# NIGHT GARDEN HARVEST LEDGER #
+# Track your harvest festival under the stars! #
+# Consecutive harvests of the same quality build streak bonuses #
+
+# Quality tiers from the moonlit fields #
+type Quality =
+  + Bronze      # Common harvest, basic value #
+  + Silver      # Good quality, moderate bonus #
+  + Gold        # Excellent harvest, high value #
+  + Starlight   # Legendary, blessed by the moon #
+in
+
+# Crops that grow under the night sky #
+type Crop =
+  + Moonmelon   # Glows faintly, sweet taste #
+  + Starfruit   # Shaped like stars, tangy #
+  + Nightberry  # Deep purple, magical properties #
+  + Duskwheat   # Golden stalks, hearty grain #
+in
+
+# A single harvest from the garden #
+type Harvest = (
+  crop = Crop,
+  quality = Quality,
+  quantity = Int
+) in
+
+# The harvest ledger tracks all harvests and bonuses #
+type Ledger = (
+  harvests = [Harvest],
+  totalValue = Int,
+  streakBonus = Int,
+  lastQuality = Quality
+) in
+
+# Actions the farmer can take #
+type Action =
+  + RecordHarvest(Harvest)  # Log a new harvest #
+  + ClaimBonus              # Collect accumulated streak bonus #
+  + CloseDay                # End the harvest day, reset streaks #
+in
+
+# Calculate base value of a crop #
+let cropValue : Crop -> Int =
+  fun c ->
+    case c
+    | Moonmelon => 15
+    | Starfruit => 20
+    | Nightberry => 25
+    | Duskwheat => 10
+    end
+in
+
+# Quality multiplier for harvest value #
+let qualityMultiplier : Quality -> Int =
+  fun q ->
+    case q
+    | Bronze => 1
+    | Silver => 2
+    | Gold => 3
+    | Starlight => 5
+    end
+in
+
+# Calculate the value of a single harvest #
+let harvestValue : Harvest -> Int =
+  fun h ->
+    cropValue(h.crop) * qualityMultiplier(h.quality) * h.quantity
+in
+
+# Initial empty ledger #
+let initLedger : Ledger = (
+  harvests = [],
+  totalValue = 0,
+  streakBonus = 0,
+  lastQuality = Bronze
+) in
+
+# Process a harvest action and update the ledger #
+let processHarvest : (Ledger, Harvest) -> Ledger =
+  fun (ledger, h) ->
+    let value = harvestValue(h) in
+    let isFirst = length(ledger.harvests) == 0 in
+    let newLast = h.quality in
+    let continues = !isFirst && h.quality == newLast in
+    let newStreak =
+      if continues
+      then ledger.streakBonus + 5
+      else 0
+    in
+    (
+      harvests = h :: ledger.harvests,
+      totalValue = ledger.totalValue + value + newStreak,
+      streakBonus = newStreak,
+      lastQuality = newLast
+    )
+in
+
+# Claim the streak bonus and reset it #
+let claimBonus : Ledger -> Ledger =
+  fun ledger ->
+    (
+      harvests = ledger.harvests,
+      totalValue = ledger.totalValue + ledger.streakBonus,
+      streakBonus = 0,
+      lastQuality = ledger.lastQuality
+    )
+in
+
+# Close the harvest day - reset streak tracking #
+let closeDay : Ledger -> Ledger =
+  fun ledger ->
+    (
+      harvests = ledger.harvests,
+      totalValue = ledger.totalValue,
+      streakBonus = 0,
+      lastQuality = Bronze
+    )
+in
+
+# Main update function - dispatch actions #
+let update : (Ledger, Action) -> Ledger =
+  fun (ledger, action) ->
+    case action
+    | RecordHarvest(h) => processHarvest(ledger, h)
+    | ClaimBonus => claimBonus(ledger)
+    | CloseDay => closeDay(ledger)
+    end
+in
+
+# Run multiple actions in sequence #
+let run : (Ledger, [Action]) -> Ledger =
+  fun (ledger, actions) ->
+    fold_left(actions, update, ledger)
+in
+
+# ===== TESTS ===== #
+
+# Basic harvest recording #
+hint "recording harvest adds to total value"
+test
+  let h = (crop = Moonmelon, quality = Bronze, quantity = 2) in
+  let ledger = update(initLedger, RecordHarvest(h)) in
+  ledger.totalValue == 30
+end;
+
+hint "harvest is added to harvests list"
+test
+  let h = (crop = Starfruit, quality = Silver, quantity = 1) in
+  let ledger = update(initLedger, RecordHarvest(h)) in
+  length(ledger.harvests) == 1
+end;
+
+# Quality multiplier tests #
+hint "silver quality doubles value"
+test
+  let h = (crop = Duskwheat, quality = Silver, quantity = 1) in
+  let ledger = update(initLedger, RecordHarvest(h)) in
+  ledger.totalValue == 20
+end;
+
+hint "gold quality triples value"
+test
+  let h = (crop = Duskwheat, quality = Gold, quantity = 1) in
+  let ledger = update(initLedger, RecordHarvest(h)) in
+  ledger.totalValue == 30
+end;
+
+hint "starlight quality gives 5x value"
+test
+  let h = (crop = Nightberry, quality = Starlight, quantity = 1) in
+  let ledger = update(initLedger, RecordHarvest(h)) in
+  ledger.totalValue == 125
+end;
+
+# Streak bonus tests #
+hint "same quality builds streak"
+test
+  let h1 = (crop = Moonmelon, quality = Gold, quantity = 1) in
+  let h2 = (crop = Starfruit, quality = Gold, quantity = 1) in
+  let ledger = run(initLedger, [RecordHarvest(h1), RecordHarvest(h2)]) in
+  ledger.streakBonus == 5
+end;
+
+hint "streak bonus accumulates with consecutive same-quality harvests"
+test
+  let h1 = (crop = Moonmelon, quality = Silver, quantity = 1) in
+  let h2 = (crop = Starfruit, quality = Silver, quantity = 1) in
+  let h3 = (crop = Nightberry, quality = Silver, quantity = 1) in
+  let ledger = run(initLedger, [
+    RecordHarvest(h1),
+    RecordHarvest(h2),
+    RecordHarvest(h3)
+  ]) in
+  ledger.streakBonus == 10
+end;
+
+hint "different quality resets streak"
+test
+  let h1 = (crop = Moonmelon, quality = Bronze, quantity = 1) in
+  let h2 = (crop = Starfruit, quality = Gold, quantity = 1) in
+  let ledger = run(initLedger, [RecordHarvest(h1), RecordHarvest(h2)]) in
+  ledger.streakBonus == 0
+end;
+
+hint "streak resets then can build again"
+test
+  let h1 = (crop = Moonmelon, quality = Bronze, quantity = 1) in
+  let h2 = (crop = Starfruit, quality = Gold, quantity = 1) in
+  let h3 = (crop = Nightberry, quality = Gold, quantity = 1) in
+  let ledger = run(initLedger, [
+    RecordHarvest(h1),
+    RecordHarvest(h2),
+    RecordHarvest(h3)
+  ]) in
+  ledger.streakBonus == 5
+end;
+
+# Claim bonus tests #
+hint "claiming bonus adds to total"
+test
+  let h1 = (crop = Moonmelon, quality = Gold, quantity = 1) in
+  let h2 = (crop = Starfruit, quality = Gold, quantity = 1) in
+  let ledger = run(initLedger, [
+    RecordHarvest(h1),
+    RecordHarvest(h2),
+    ClaimBonus
+  ]) in
+  ledger.streakBonus == 0
+end;
+
+# Close day tests #
+hint "closing day resets streak tracking"
+test
+  let h1 = (crop = Moonmelon, quality = Gold, quantity = 1) in
+  let h2 = (crop = Starfruit, quality = Gold, quantity = 1) in
+  let ledger = run(initLedger, [
+    RecordHarvest(h1),
+    RecordHarvest(h2),
+    CloseDay
+  ]) in
+  ledger.streakBonus == 0 && ledger.lastQuality == Bronze
+end;
+
+# lastQuality tracking tests #
+hint "lastQuality tracks most recent harvest quality"
+test
+  let h = (crop = Moonmelon, quality = Starlight, quantity = 1) in
+  let ledger = update(initLedger, RecordHarvest(h)) in
+  ledger.lastQuality == Starlight
+end;
+
+# Crop value tests #
+hint "nightberry has highest base value"
+test
+  let h1 = (crop = Nightberry, quality = Bronze, quantity = 1) in
+  let h2 = (crop = Moonmelon, quality = Bronze, quantity = 1) in
+  let ledger1 = update(initLedger, RecordHarvest(h1)) in
+  let ledger2 = update(initLedger, RecordHarvest(h2)) in
+  ledger1.totalValue > ledger2.totalValue
+end;
+
+hint "duskwheat has lowest base value"
+test
+  let h1 = (crop = Duskwheat, quality = Bronze, quantity = 1) in
+  let h2 = (crop = Moonmelon, quality = Bronze, quantity = 1) in
+  let ledger1 = update(initLedger, RecordHarvest(h1)) in
+  let ledger2 = update(initLedger, RecordHarvest(h2)) in
+  ledger1.totalValue < ledger2.totalValue
+end;
+
+# Quantity tests #
+hint "quantity multiplies value"
+test
+  let h = (crop = Moonmelon, quality = Bronze, quantity = 5) in
+  let ledger = update(initLedger, RecordHarvest(h)) in
+  ledger.totalValue == 75
+end;
+
+# Complex scenario test #
+hint "full harvest day scenario"
+test
+  let ledger = run(initLedger, [
+    RecordHarvest((crop = Duskwheat, quality = Bronze, quantity = 3)),
+    RecordHarvest((crop = Moonmelon, quality = Bronze, quantity = 2)),
+    RecordHarvest((crop = Starfruit, quality = Gold, quantity = 1)),
+    RecordHarvest((crop = Nightberry, quality = Gold, quantity = 1)),
+    ClaimBonus,
+    CloseDay
+  ]) in
+  ledger.streakBonus == 0 &&
+  length(ledger.harvests) == 4
+end;
+
+# Demo: A festival harvest day #
+run(initLedger, [
+  RecordHarvest((crop = Moonmelon, quality = Silver, quantity = 2)),
+  RecordHarvest((crop = Starfruit, quality = Silver, quantity = 1)),
+  RecordHarvest((crop = Nightberry, quality = Gold, quantity = 1)),
+  ClaimBonus
+])

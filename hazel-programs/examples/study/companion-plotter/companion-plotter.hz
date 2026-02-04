@@ -1,0 +1,423 @@
+# COMPANION PLANTING GRID - A Night Garden Simulation #
+# Plants sense their neighbors under the moonlight #
+# Companions help each other grow; rivals struggle side by side #
+
+# A crop is represented by its emoji #
+type Crop = String in
+type Row = Int in
+type Col = Int in
+
+# Health is 0-100, affected by neighboring plants #
+type Health = Int in
+
+# A cell in the garden grid #
+type Cell = (
+  crop = Crop,
+  health = Health
+) in
+
+# The garden field is a grid of cells #
+type Field = [[Cell]] in
+
+# Companion effects between crops #
+type Effect =
+  + Beneficial   # Companions boost each other #
+  + Harmful      # Rivals suppress each other #
+  + Neutral      # No interaction #
+in
+
+# The garden state #
+type Model = (
+  field = Field,
+  currentSeed = Crop,
+  seedInventory = [Crop]
+) in
+
+# Actions the gardener can take #
+type Action =
+  + PlantCrop(Row, Col)      # Plant current seed at position #
+  + HarvestCrop(Row, Col)    # Remove a crop #
+  + CalculateHealth          # Recalculate all health based on neighbors #
+  + SelectSeed(Int)          # Choose a seed from inventory #
+  + WaterAll                 # Boost all health by 5 #
+in
+
+# Utility: clamp value between 0 and 100 #
+let clamp : Int -> Int =
+  fun x ->
+    if x < 0 then 0
+    else if x > 100 then 100
+    else x
+in
+
+# Create an empty cell #
+let emptyCell : Cell = (crop = "", health = 0) in
+
+# Create a cell with a crop at base health #
+let makeCell : Crop -> Cell =
+  fun crop -> (crop = crop, health = 50)
+in
+
+# Determine the companion effect between two crops #
+# Tomato and Basil are companions #
+# Carrot and Corn are companions #
+# Tomato and Carrot are rivals #
+let companionEffect : (Crop, Crop) -> Effect =
+  fun (crop1, crop2) ->
+    if crop1 == "" || crop2 == "" then Neutral
+    else if crop1 == crop2 then Neutral
+    else if (crop1 == "tomato" && crop2 == "basil") ||
+            (crop1 == "basil" && crop2 == "tomato") then Beneficial
+    else if (crop1 == "carrot" && crop2 == "corn") ||
+            (crop1 == "corn" && crop2 == "carrot") then Beneficial
+    else if (crop1 == "tomato" && crop2 == "carrot") ||
+            (crop1 == "carrot" && crop2 == "tomato") then Harmful
+    else Neutral
+in
+
+# Convert effect to health modifier #
+let effectToModifier : Effect -> Int =
+  fun effect ->
+    case effect
+    | Beneficial => 10
+    | Harmful => -10
+    | Neutral => 0
+    end
+in
+
+# Get cell at position, or empty if out of bounds #
+let getCell : (Field, Row, Col) -> Cell =
+  fun (field, row, col) ->
+    if row < 0 || col < 0 then emptyCell
+    else if row >= length(field) then emptyCell
+    else
+      let rowData = nth(field, row) in
+      if col >= length(rowData) then emptyCell
+      else nth(rowData, col)
+in
+
+# Set cell at position #
+let setCell : (Field, Row, Col, Cell) -> Field =
+  fun (field, row, col, cell) ->
+    mapi(field, fun (i, r) ->
+      if i == row
+      then mapi(r, fun (j, c) ->
+        if j == col then cell else c)
+      else r)
+in
+
+# Get all orthogonal neighbors of a position #
+let getNeighborCells : (Field, Row, Col) -> [Cell] =
+  fun (field, row, col) ->
+    [
+      getCell(field, row - 1, col),  # Above #
+      getCell(field, row + 1, col),  # Below #
+      getCell(field, row, col - 1),  # Left #
+      getCell(field, row, col + 1)   # Right #
+    ]
+in
+
+# Calculate total health modifier from all neighbors #
+let neighborModifier : (Field, Row, Col) -> Int =
+  fun (field, row, col) ->
+    let cell = getCell(field, row, col) in
+    if cell.crop == "" then 0
+    else
+      let neighbors = getNeighborCells(field, row, col) in
+      let effects = map(neighbors, fun neighbor ->
+        companionEffect(cell.crop, neighbor.crop)
+      ) in
+      let modifiers = map(effects, effectToModifier) in
+      fold_left(modifiers, fun (acc, m) -> acc + m, 0)
+in
+
+# Recalculate health for a single cell based on neighbors #
+let recalculateCellHealth : (Field, Row, Col) -> Cell =
+  fun (field, row, col) ->
+    let cell = getCell(field, row, col) in
+    if cell.crop == "" then emptyCell
+    else
+      let modifier = neighborModifier(field, row, col) in
+      let baseHealth = 50 in
+      (crop = cell.crop, health = clamp(baseHealth + modifier))
+in
+
+# Recalculate health for entire field #
+let recalculateAllHealth : Field -> Field =
+  fun field ->
+    mapi(field, fun (row, rowData) ->
+      mapi(rowData, fun (col, _) ->
+        recalculateCellHealth(field, row, col)
+      )
+    )
+in
+
+# Create initial empty 3x3 garden #
+let emptyField : Field =
+  [
+    [emptyCell, emptyCell, emptyCell],
+    [emptyCell, emptyCell, emptyCell],
+    [emptyCell, emptyCell, emptyCell]
+  ]
+in
+
+# Initial model state #
+let init : Model = (
+  field = emptyField,
+  currentSeed = "tomato",
+  seedInventory = ["tomato", "basil", "carrot", "corn", "sunflower"]
+) in
+
+# Apply an action to the model #
+let update : (Model, Action) -> Model =
+  fun (model, action) ->
+    case action
+    | PlantCrop(row, col) =>
+        let currentCell = getCell(model.field, row, col) in
+        if currentCell.crop != "" then model
+        else
+          let newCell = makeCell(model.currentSeed) in
+          let newField = setCell(model.field, row, col, newCell) in
+          (
+            field = newField,
+            currentSeed = model.currentSeed,
+            seedInventory = model.seedInventory
+          )
+    | HarvestCrop(row, col) =>
+        let newField = setCell(model.field, row, col, emptyCell) in
+        (
+          field = newField,
+          currentSeed = model.currentSeed,
+          seedInventory = model.seedInventory
+        )
+    | CalculateHealth =>
+        let newField = recalculateAllHealth(model.field) in
+        (
+          field = newField,
+          currentSeed = model.currentSeed,
+          seedInventory = model.seedInventory
+        )
+    | SelectSeed(idx) =>
+        (
+          field = model.field,
+          currentSeed = nth(model.seedInventory, idx),
+          seedInventory = model.seedInventory
+        )
+    | WaterAll =>
+        let wateredField = map(model.field, fun row ->
+          map(row, fun cell ->
+            if cell.crop == "" then cell
+            else (crop = cell.crop, health = clamp(cell.health + 5))
+          )
+        ) in
+        (
+          field = wateredField,
+          currentSeed = model.currentSeed,
+          seedInventory = model.seedInventory
+        )
+    end
+in
+
+# Run multiple actions in sequence #
+let garden : (Model, [Action]) -> Model =
+  fun (model: Model, actions: [Action]) ->
+    fold_left(actions, update, model)
+in
+
+# Helper to get health at a position #
+let healthAt : (Model, Row, Col) -> Health =
+  fun (model, row, col) ->
+    let cell = getCell(model.field, row, col) in
+    cell.health
+in
+
+# Helper to get crop at a position #
+let cropAt : (Model, Row, Col) -> Crop =
+  fun (model, row, col) ->
+    let cell = getCell(model.field, row, col) in
+    cell.crop
+in
+
+# ===== TESTS ===== #
+
+# Basic planting #
+hint "can plant a crop"
+test
+  let m = update(init, PlantCrop(0, 0)) in
+  cropAt(m, 0, 0) == "tomato"
+end;
+
+hint "new crop starts at base health"
+test
+  let m = update(init, PlantCrop(1, 1)) in
+  healthAt(m, 1, 1) == 50
+end;
+
+hint "cannot plant on occupied cell"
+test
+  let m = garden(init, [PlantCrop(0, 0), SelectSeed(1), PlantCrop(0, 0)]) in
+  cropAt(m, 0, 0) == "tomato"
+end;
+
+# Seed selection #
+hint "select different seed"
+test
+  let m = garden(init, [SelectSeed(1), PlantCrop(0, 0)]) in
+  cropAt(m, 0, 0) == "basil"
+end;
+
+# Harvesting #
+hint "can harvest a crop"
+test
+  let m = garden(init, [PlantCrop(0, 0), HarvestCrop(0, 0)]) in
+  cropAt(m, 0, 0) == ""
+end;
+
+hint "harvested cell has 0 health"
+test
+  let m = garden(init, [PlantCrop(0, 0), HarvestCrop(0, 0)]) in
+  healthAt(m, 0, 0) == 0
+end;
+
+# Companion effects - Beneficial #
+hint "tomato and basil are companions"
+test
+  companionEffect("tomato", "basil") == Beneficial
+end;
+
+hint "carrot and corn are companions"
+test
+  companionEffect("carrot", "corn") == Beneficial
+end;
+
+hint "tomato next to basil gains health"
+test
+  let m = garden(init, [
+    PlantCrop(0, 0),              # tomato at (0,0) #
+    SelectSeed(1),
+    PlantCrop(0, 1),              # basil at (0,1) #
+    CalculateHealth
+  ]) in
+  healthAt(m, 0, 0) > 50
+end;
+
+hint "basil next to tomato gains health"
+test
+  let m = garden(init, [
+    PlantCrop(0, 0),              # tomato #
+    SelectSeed(1),
+    PlantCrop(0, 1),              # basil #
+    CalculateHealth
+  ]) in
+  healthAt(m, 0, 1) > 50
+end;
+
+# Companion effects - Harmful #
+hint "tomato and carrot are rivals"
+test
+  companionEffect("tomato", "carrot") == Harmful
+end;
+
+hint "tomato next to carrot loses health"
+test
+  let m = garden(init, [
+    PlantCrop(1, 1),              # tomato at center #
+    SelectSeed(2),
+    PlantCrop(1, 0),              # carrot to the left #
+    CalculateHealth
+  ]) in
+  healthAt(m, 1, 1) < 50
+end;
+
+# Neutral effects #
+hint "same crop has no effect"
+test
+  companionEffect("tomato", "tomato") == Neutral
+end;
+
+hint "unrelated crops are neutral"
+test
+  companionEffect("sunflower", "corn") == Neutral
+end;
+
+# Multiple neighbors #
+hint "multiple companions stack benefits"
+test
+  let m = garden(init, [
+    PlantCrop(1, 1),              # tomato in center #
+    SelectSeed(1),
+    PlantCrop(0, 1),              # basil above #
+    PlantCrop(1, 0),              # basil left #
+    CalculateHealth
+  ]) in
+  healthAt(m, 1, 1) == 70         # 50 + 10 + 10 #
+end;
+
+hint "mixed neighbors balance out"
+test
+  let m = garden(init, [
+    PlantCrop(1, 1),              # tomato in center #
+    SelectSeed(1),
+    PlantCrop(0, 1),              # basil above: +10 #
+    SelectSeed(2),
+    PlantCrop(1, 0),              # carrot left: -10 #
+    CalculateHealth
+  ]) in
+  healthAt(m, 1, 1) == 50         # 50 + 10 - 10 = 50 #
+end;
+
+# Watering #
+hint "watering increases health"
+test
+  let m = garden(init, [PlantCrop(0, 0), WaterAll]) in
+  healthAt(m, 0, 0) == 55
+end;
+
+# Health clamping #
+hint "health cannot exceed 100"
+test
+  let m = garden(init, [
+    PlantCrop(1, 1),              # tomato #
+    SelectSeed(1),
+    PlantCrop(0, 1),              # basil above #
+    PlantCrop(2, 1),              # basil below #
+    PlantCrop(1, 0),              # basil left #
+    PlantCrop(1, 2),              # basil right #
+    CalculateHealth,
+    WaterAll, WaterAll, WaterAll, WaterAll, WaterAll, WaterAll
+  ]) in
+  healthAt(m, 1, 1) <= 100
+end;
+
+hint "health cannot go below 0"
+test
+  let m = garden(init, [
+    PlantCrop(1, 1),              # tomato in center #
+    SelectSeed(2),
+    PlantCrop(0, 1),              # carrot above: -10 #
+    PlantCrop(2, 1),              # carrot below: -10 #
+    PlantCrop(1, 0),              # carrot left: -10 #
+    PlantCrop(1, 2),              # carrot right: -10 #
+    CalculateHealth
+  ]) in
+  healthAt(m, 1, 1) >= 0
+end;
+
+# Demo: A companion garden under moonlight #
+let moonGarden = garden(init, [
+  # Plant tomato in center #
+  PlantCrop(1, 1),
+  # Surround with basil companions #
+  SelectSeed(1),
+  PlantCrop(0, 1),
+  PlantCrop(1, 0),
+  # Add some corn #
+  SelectSeed(3),
+  PlantCrop(2, 2),
+  # Carrot next to corn for companionship #
+  SelectSeed(2),
+  PlantCrop(2, 1),
+  # Calculate how they affect each other #
+  CalculateHealth
+]) in
+moonGarden

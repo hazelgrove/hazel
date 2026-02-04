@@ -1,0 +1,404 @@
+# LUNAR GROWTH TRACKER - A Mystical Greenhouse Simulation #
+# Plants grow based on lunar energy, each responding differently to moon phases #
+
+# Moon phases cycle through the night sky #
+type MoonPhase =
+  + New       # Dark moon, hidden power #
+  + Waxing    # Growing crescent #
+  + Full      # Bright and radiant #
+  + Waning    # Fading light #
+in
+
+# Each plant kind has different affinities to lunar energy #
+type PlantKind =
+  + Moonbloom   # Thrives in darkness, loves New moon #
+  + Starfern    # Basks in radiance, loves Full moon #
+  + Duskrose    # Prefers transitions, loves Waxing/Waning #
+  + Evergreen   # Steady grower, unaffected by phases #
+in
+
+# A plant in the greenhouse #
+type Plant = (
+  kind = PlantKind,
+  name = String,
+  growth = Int,      # 0-100, harvest at 100 #
+  affinity = MoonPhase  # Which phase this plant loves #
+) in
+
+# The greenhouse state #
+type Greenhouse = (
+  plants = [Plant],
+  currentPhase = MoonPhase,
+  nightCount = Int
+) in
+
+# Actions the gardener can take #
+type Action =
+  + PlantSeed(PlantKind, String)  # Plant a new seedling #
+  + NightPasses(MoonPhase)        # A night passes with given moon phase #
+  + Harvest                       # Harvest all fully grown plants #
+  + WaterAll                      # Water all plants for bonus growth #
+in
+
+# Clamp a value between 0 and 100 #
+let clamp : Int -> Int =
+  fun x ->
+    if x < 0 then 0
+    else if x > 100 then 100
+    else x
+in
+
+# Get the default affinity for a plant kind #
+let defaultAffinity : PlantKind -> MoonPhase =
+  fun kind ->
+    case kind
+    | Moonbloom => New
+    | Starfern => Full
+    | Duskrose => Waxing
+    | Evergreen => New  # Doesn't matter for Evergreen #
+    end
+in
+
+# Create a new seedling #
+let makePlant : (PlantKind, String) -> Plant =
+  fun (kind, name) ->
+    (
+      kind = kind,
+      name = name,
+      growth = 0,
+      affinity = defaultAffinity(kind)
+    )
+in
+
+# Check if two moon phases are opposites #
+# New/Full are opposites, Waxing/Waning are opposites #
+let isOpposite : (MoonPhase, MoonPhase) -> Bool =
+  fun (phase1, phase2) ->
+    case (phase1, phase2)
+    | (New, Full) => true
+    | (Full, New) => true
+    | (Waxing, Waning) => true
+    | (Waning, Waxing) => true
+    | _ => false
+    end
+in
+
+# Check if a phase is a transition phase (Waxing or Waning) #
+let isTransition : MoonPhase -> Bool =
+  fun phase ->
+    case phase
+    | Waxing => true
+    | Waning => true
+    | _ => false
+    end
+in
+
+# Calculate growth bonus based on plant affinity and current moon phase #
+# +10 bonus if phase matches affinity #
+# -5 penalty if phase is opposite to affinity #
+# Duskrose gets bonus for any transition phase #
+# Evergreen always gets base growth #
+let growthBonus : (Plant, MoonPhase) -> Int =
+  fun (plant, currentPhase) ->
+    case plant.kind
+    | Evergreen => 10  # Always grows steadily #
+    | Duskrose =>
+        if isTransition(currentPhase)
+        then 20  # Loves transition phases #
+        else if currentPhase == New || currentPhase == Full
+        then 5   # Tolerates extremes #
+        else 10
+    | _ =>  # Moonbloom and Starfern #
+        if plant.affinity == currentPhase
+        then 20  # Perfect conditions #
+        else if isOpposite(plant.affinity, currentPhase)
+        then 5   # Opposite phase penalty: 10 - 5 = 5 #
+        else 10  # Neutral phase #
+    end
+in
+
+# Apply growth to a single plant #
+let growPlant : (Plant, MoonPhase) -> Plant =
+  fun (plant, phase) ->
+    let bonus = growthBonus(plant, phase) in
+    (
+      kind = plant.kind,
+      name = plant.name,
+      growth = clamp(plant.growth + bonus),
+      affinity = plant.affinity
+    )
+in
+
+# Initialize an empty greenhouse #
+let initGreenhouse : Greenhouse =
+  (
+    plants = [],
+    currentPhase = New,
+    nightCount = 0
+  )
+in
+
+# Apply an action to the greenhouse #
+let update : (Greenhouse, Action) -> Greenhouse =
+  fun (gh, action) ->
+    case action
+    | PlantSeed(kind, name) =>
+        let newPlant = makePlant(kind, name) in
+        (
+          plants = newPlant :: gh.plants,
+          currentPhase = gh.currentPhase,
+          nightCount = gh.nightCount
+        )
+    | NightPasses(phase) =>
+        let grownPlants = map(gh.plants, fun p -> growPlant(p, phase)) in
+        (
+          plants = grownPlants,
+          currentPhase = phase,
+          nightCount = gh.nightCount + 1
+        )
+    | Harvest =>
+        let remaining = filter(gh.plants, fun p -> p.growth < 100) in
+        (
+          plants = remaining,
+          currentPhase = gh.currentPhase,
+          nightCount = gh.nightCount
+        )
+    | WaterAll =>
+        let wateredPlants = map(gh.plants, fun p ->
+          (
+            kind = p.kind,
+            name = p.name,
+            growth = clamp(p.growth + 5),
+            affinity = p.affinity
+          )
+        ) in
+        (
+          plants = wateredPlants,
+          currentPhase = gh.currentPhase,
+          nightCount = gh.nightCount
+        )
+    end
+in
+
+# Run multiple actions in sequence #
+let tend : (Greenhouse, [Action]) -> Greenhouse =
+  fun (gh: Greenhouse, actions: [Action]) ->
+    fold_left(actions, update, gh)
+in
+
+# Helper: generate n nights of a given phase #
+let moonNights : (Int, MoonPhase) -> [Action] =
+  fun (n, phase) ->
+    if n <= 0 then []
+    else map(range(1, n), fun _ -> NightPasses(phase))
+in
+
+# Get a plant by name from the greenhouse #
+let findPlant : (Greenhouse, String) -> Plant =
+  fun (gh, name) ->
+    find(gh.plants, fun p -> p.name == name)
+in
+
+# Count plants at full growth #
+let countHarvestable : Greenhouse -> Int =
+  fun gh ->
+    length(filter(gh.plants, fun p -> p.growth >= 100))
+in
+
+# ===== TESTS ===== #
+
+# Basic planting #
+hint "can plant a seedling"
+test
+  let gh = update(initGreenhouse, PlantSeed(Moonbloom, "Luna")) in
+  length(gh.plants) == 1
+end;
+
+hint "seedling starts at 0 growth"
+test
+  let gh = update(initGreenhouse, PlantSeed(Starfern, "Stella")) in
+  let plant = findPlant(gh, "Stella") in
+  plant.growth == 0
+end;
+
+# Moon phase effects on Moonbloom #
+hint "Moonbloom grows fast during New moon"
+test
+  let gh = tend(initGreenhouse, [
+    PlantSeed(Moonbloom, "Luna"),
+    NightPasses(New)
+  ]) in
+  let plant = findPlant(gh, "Luna") in
+  plant.growth == 20  # Perfect conditions #
+end;
+
+hint "Moonbloom grows slowly during Full moon (opposite)"
+test
+  let gh = tend(initGreenhouse, [
+    PlantSeed(Moonbloom, "Luna"),
+    NightPasses(Full)
+  ]) in
+  let plant = findPlant(gh, "Luna") in
+  plant.growth == 5  # Opposite phase penalty #
+end;
+
+hint "Moonbloom grows normally during Waxing (neutral)"
+test
+  let gh = tend(initGreenhouse, [
+    PlantSeed(Moonbloom, "Luna"),
+    NightPasses(Waxing)
+  ]) in
+  let plant = findPlant(gh, "Luna") in
+  plant.growth == 10  # Neutral phase #
+end;
+
+# Moon phase effects on Starfern #
+hint "Starfern grows fast during Full moon"
+test
+  let gh = tend(initGreenhouse, [
+    PlantSeed(Starfern, "Stella"),
+    NightPasses(Full)
+  ]) in
+  let plant = findPlant(gh, "Stella") in
+  plant.growth == 20  # Perfect conditions #
+end;
+
+hint "Starfern grows slowly during New moon (opposite)"
+test
+  let gh = tend(initGreenhouse, [
+    PlantSeed(Starfern, "Stella"),
+    NightPasses(New)
+  ]) in
+  let plant = findPlant(gh, "Stella") in
+  plant.growth == 5  # Opposite phase penalty #
+end;
+
+# Duskrose behavior #
+hint "Duskrose loves Waxing phase"
+test
+  let gh = tend(initGreenhouse, [
+    PlantSeed(Duskrose, "Twilight"),
+    NightPasses(Waxing)
+  ]) in
+  let plant = findPlant(gh, "Twilight") in
+  plant.growth == 20  # Transition bonus #
+end;
+
+hint "Duskrose loves Waning phase"
+test
+  let gh = tend(initGreenhouse, [
+    PlantSeed(Duskrose, "Twilight"),
+    NightPasses(Waning)
+  ]) in
+  let plant = findPlant(gh, "Twilight") in
+  plant.growth == 20  # Transition bonus #
+end;
+
+hint "Duskrose tolerates Full moon"
+test
+  let gh = tend(initGreenhouse, [
+    PlantSeed(Duskrose, "Twilight"),
+    NightPasses(Full)
+  ]) in
+  let plant = findPlant(gh, "Twilight") in
+  plant.growth == 5  # Tolerates extremes #
+end;
+
+# Evergreen behavior #
+hint "Evergreen grows steadily regardless of phase"
+test
+  let gh1 = tend(initGreenhouse, [
+    PlantSeed(Evergreen, "Constant"),
+    NightPasses(New)
+  ]) in
+  let gh2 = tend(initGreenhouse, [
+    PlantSeed(Evergreen, "Constant"),
+    NightPasses(Full)
+  ]) in
+  let p1 = findPlant(gh1, "Constant") in
+  let p2 = findPlant(gh2, "Constant") in
+  p1.growth == 10 && p2.growth == 10
+end;
+
+# Watering #
+hint "watering adds 5 growth to all plants"
+test
+  let gh = tend(initGreenhouse, [
+    PlantSeed(Moonbloom, "Luna"),
+    PlantSeed(Starfern, "Stella"),
+    NightPasses(New),
+    WaterAll
+  ]) in
+  let luna = findPlant(gh, "Luna") in
+  let stella = findPlant(gh, "Stella") in
+  luna.growth == 25 && stella.growth == 10
+end;
+
+# Harvesting #
+hint "harvest removes fully grown plants"
+test
+  let gh = tend(initGreenhouse, [
+    PlantSeed(Moonbloom, "Luna"),
+    NightPasses(New), NightPasses(New), NightPasses(New),
+    NightPasses(New), NightPasses(New),  # 5 * 20 = 100 #
+    Harvest
+  ]) in
+  length(gh.plants) == 0
+end;
+
+hint "harvest keeps plants not yet fully grown"
+test
+  let gh = tend(initGreenhouse, [
+    PlantSeed(Moonbloom, "Luna"),
+    PlantSeed(Starfern, "Stella"),
+    NightPasses(New), NightPasses(New), NightPasses(New),
+    NightPasses(New), NightPasses(New),  # Luna: 100, Stella: 25 #
+    Harvest
+  ]) in
+  length(gh.plants) == 1 &&
+  (findPlant(gh, "Stella")).growth == 25
+end;
+
+# Growth clamping #
+hint "growth cannot exceed 100"
+test
+  let gh = tend(initGreenhouse, [
+    PlantSeed(Moonbloom, "Luna"),
+    NightPasses(New), NightPasses(New), NightPasses(New),
+    NightPasses(New), NightPasses(New), NightPasses(New)  # 6 * 20 = 120, clamped to 100 #
+  ]) in
+  let plant = findPlant(gh, "Luna") in
+  plant.growth == 100
+end;
+
+# Night count tracking #
+hint "night count increments with each night"
+test
+  let gh = tend(initGreenhouse, moonNights(7, Full)) in
+  gh.nightCount == 7
+end;
+
+# The key test that would fail with the bug #
+hint "Moonbloom in opposite phase grows slowly over multiple nights"
+test
+  let gh = tend(initGreenhouse, [
+    PlantSeed(Moonbloom, "Luna")
+  ] @ moonNights(4, Full)) in
+  let plant = findPlant(gh, "Luna") in
+  # With correct code: 4 * 5 = 20 (opposite penalty) #
+  # With bug: 4 * 10 = 40 (no penalty applied) #
+  plant.growth == 20
+end;
+
+# Demo: A full lunar cycle garden #
+let lunarCycle = tend(initGreenhouse, [
+  PlantSeed(Moonbloom, "Luna"),
+  PlantSeed(Starfern, "Stella"),
+  PlantSeed(Duskrose, "Twilight"),
+  PlantSeed(Evergreen, "Cedar"),
+  NightPasses(New),
+  NightPasses(Waxing),
+  NightPasses(Full),
+  NightPasses(Waning)
+]) in
+lunarCycle

@@ -1,0 +1,221 @@
+# Crop Plotter #
+
+type Crop = String in
+type Field = [[Crop]] in
+type Row = Int in
+type Col = Int in
+
+type Model = (
+  field = Field,
+  currentSeed = Crop,
+  seedInventory = [Crop]
+) in
+
+type Action =
+  + SelectSeed(Int)
+  + PlantCrop(Row, Col)
+  + HarvestCrop(Row, Col)
+  + ClearField
+  + PlantRow(Row)
+in
+
+let init: Model = (
+  field = [
+    ["", "", ""],
+    ["", "", ""],
+    ["", "", ""]
+  ],
+  currentSeed = "🌱",
+  seedInventory = ["🌱", "🌻", "🥕", "🌽", "🍅"]
+) in
+
+let setCell: (Field, Row, Col, Crop) -> Field =
+  fun field, row, col, crop ->
+    mapi(field, fun (i, r) ->
+      if i == row
+      then mapi(r, fun (j, c) ->
+        if i == col
+        then crop
+        else c)
+      else r)
+in
+
+let setRow: (Field, Row, Crop) -> Field =
+  fun field, targetRow, crop ->
+    mapi(field, fun (i, row) ->
+      if i == targetRow
+      then map(row, fun _ -> crop)
+      else row)
+in
+
+let setAll: (Field, Crop) -> Field =
+  fun (field, crop) ->
+    map(field, fun row -> map(row, fun _ -> crop))
+in
+
+let updateField: (Model, Field -> Field) -> Model =
+  fun (m, f) -> (f(m.field), m.currentSeed, m.seedInventory)
+in
+
+let update: (Model, Action) -> Model =
+  fun m, action ->
+    case action
+    | SelectSeed(idx) =>
+        (m.field, nth(m.seedInventory, idx), m.seedInventory)
+    | PlantCrop(row, col) =>
+        updateField(m, fun f -> setCell(f, row, col, m.currentSeed))
+    | HarvestCrop(row, col) =>
+        updateField(m, fun f -> setCell(f, row, col, ""))
+    | ClearField =>
+        updateField(m, fun f -> setAll(f, ""))
+    | PlantRow(row) =>
+        updateField(m, fun f -> setRow(f, row, m.currentSeed))
+    end
+in
+
+let do: (Model, [Action]) -> Model =
+  fun (init: Model, actions: [Action]) ->
+    fold_left(actions, update, init)
+in
+
+# Tests #
+
+hint "plant single crop"
+test
+  let m = update(init, PlantCrop(0, 0)) in
+  m.field == [
+    ["🌱", "", ""],
+    ["", "", ""],
+    ["", "", ""]
+  ]
+end;
+
+hint "plant in middle"
+test
+  let m = update(init, PlantCrop(1, 1)) in
+  m.field == [
+    ["", "", ""],
+    ["", "🌱", ""],
+    ["", "", ""]
+  ]
+end;
+
+hint "plant in corner"
+test
+  let m = update(init, PlantCrop(2, 2)) in
+  m.field == [
+    ["", "", ""],
+    ["", "", ""],
+    ["", "", "🌱"]
+  ]
+end;
+
+hint "plant entire row"
+test
+  let m = update(init, PlantRow(1)) in
+  m.field == [
+    ["", "", ""],
+    ["🌱", "🌱", "🌱"],
+    ["", "", ""]
+  ]
+end;
+
+hint "select different seed and plant"
+test
+  let m = do(init, [SelectSeed(1), PlantCrop(2, 2)]) in
+  m.field == [
+    ["", "", ""],
+    ["", "", ""],
+    ["", "", "🌻"]
+  ]
+  && m.currentSeed == "🌻"
+end;
+
+hint "plant row then harvest one"
+test
+  let m = do(init, [PlantRow(0), HarvestCrop(0, 1)]) in
+  m.field == [
+    ["🌱", "", "🌱"],
+    ["", "", ""],
+    ["", "", ""]
+  ]
+end;
+
+hint "clear entire field"
+test
+  let model = update(init, PlantCrop(1, 1)) in
+  let (grid, _, _) = update(model, ClearField) in
+  grid == [
+    ["", "", ""],
+    ["", "", ""],
+    ["", "", ""]
+  ]
+end;
+
+hint "plant tomatoes in specific cell"
+test
+  let m = do(init, [SelectSeed(4), PlantCrop(1, 2)]) in
+  m.field == [
+    ["", "", ""],
+    ["", "", "🍅"],
+    ["", "", ""]
+  ]
+end;
+
+hint "plant row then harvest first"
+test
+  let m = do(init, [PlantRow(2), HarvestCrop(2, 0)]) in
+  m.field == [
+    ["", "", ""],
+    ["", "", ""],
+    ["", "🌱", "🌱"]
+  ]
+end;
+
+hint "multiple actions then clear"
+test
+  let m = do(init, [
+    PlantCrop(0, 0),
+    PlantCrop(1, 1),
+    PlantCrop(2, 2),
+    ClearField
+  ]) in
+  m.field == [
+    ["", "", ""],
+    ["", "", ""],
+    ["", "", ""]
+  ]
+end;
+
+hint "mixed planting pattern"
+test
+  let m = do(init, [
+    PlantRow(0),
+    SelectSeed(2),
+    PlantCrop(1, 1)
+  ]) in
+  m.field == [
+    ["🌱", "🌱", "🌱"],
+    ["", "🥕", ""],
+    ["", "", ""]
+  ]
+end;
+
+hint "complex sequence"
+test
+  let m = do(init, [
+    PlantCrop(0, 0),
+    PlantRow(2),
+    SelectSeed(3),
+    PlantCrop(1, 1),
+    HarvestCrop(2, 2)
+  ]) in
+  m.field == [
+    ["🌱", "", ""],
+    ["", "🌽", ""],
+    ["🌱", "🌱", ""]
+  ]
+  && m.currentSeed == "🌽"
+end;
+
+do(init, [SelectSeed(1), PlantCrop(2, 2)])
