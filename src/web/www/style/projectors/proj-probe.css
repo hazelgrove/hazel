@@ -695,6 +695,17 @@
   padding: 0.2em 0.5em;
 }
 
+/* Vertical layout when no environment */
+.sample-context-menu.no-env .context-actions {
+  flex-direction: column;
+  gap: 0.1em;
+  padding: 0.3em 0.4em;
+}
+.sample-context-menu.no-env .action-item {
+  justify-content: space-between;
+  padding: 0.15em 0.4em;
+}
+
 .sample-context-menu .action-item {
   cursor: pointer;
   display: flex;
