@@ -1356,13 +1356,7 @@ module M: Projector = {
 
   let focusable =
     Focusable.{
-      pointer:
-        Some(
-          id => {
-            print_endline("focusing probe " ++ Id.str3(id));
-            JsUtil.get_elem_by_id(Id.cls(id))##focus;
-          },
-        ),
+      pointer: Some(id => {JsUtil.get_elem_by_id(Id.cls(id))##focus}),
       keyboard: None,
     };
 
