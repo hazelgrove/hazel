@@ -2,7 +2,6 @@
 /* To remove: ./hazel gen-slides-clean */
 
 let all: list((string, Haz3lcore.PersistentSegment.t)) = [
-  StudyBasicFunctions.out,
   StudyDebuggingCalculatorCalculatorBugAssociativity.out,
   StudyDebuggingCalculatorCalculatorBugPrecedence.out,
   StudyDebuggingCalculatorCalculator.out,
@@ -40,9 +39,6 @@ let all: list((string, Haz3lcore.PersistentSegment.t)) = [
   StudyDebuggingTictactoeTictactoeBugDiagonal.out,
   StudyDebuggingTictactoeTictactoeBugTurn.out,
   StudyDebuggingTictactoeTictactoe.out,
-  StudyListFunctions.out,
-  StudyOptionDemo.out,
-  StudyTestDemo.out,
   StudyWritingBasepointBasepointSketch.out,
   StudyWritingBasepointBasepointSolution.out,
   StudyWritingClampClampSketch.out,

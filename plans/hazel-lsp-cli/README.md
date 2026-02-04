@@ -7,28 +7,32 @@ This plan outlines the development of Hazel's CLI/language server capabilities t
 ## Goals
 
 ### 1. Enable AI Development of Hazel Programs
+
 Build out CLI tools that allow AI agents (Claude Code, etc.) to develop Hazel code via standard text files, with semantic feedback comparable to what humans get in the Hazel editor.
 
 ### 2. Build a Corpus of Sample Hazel Programs
+
 Use AI development to create sample programs for:
+
 - Documentation examples
 - User study tasks (probe mechanism evaluation)
 - Test cases and benchmarks
 
 ### 3. Process Development
+
 Establish workflows for AI-assisted Hazel development that can be documented and reused.
 
 ## Current State Assessment
 
 ### Existing CLI Commands (via `./hazel`)
 
-| Command | Status | Description |
-|---------|--------|-------------|
-| `run` | **Working** | Evaluates program, prints final value |
-| `format` | **Working** | Reconstructs code from AST with explicit holes (`?`) |
-| `analyze` | **Working** | Reports static errors with line numbers and erroneous terms |
-| `probe` | **Working** | Shows probe values inline; use `--many` for multiple samples |
-| `test` | **Working** | Runs tests and reports pass/fail with line numbers and hints |
+| Command   | Status      | Description                                                  |
+| --------- | ----------- | ------------------------------------------------------------ |
+| `run`     | **Working** | Evaluates program, prints final value                        |
+| `format`  | **Working** | Reconstructs code from AST with explicit holes (`?`)         |
+| `analyze` | **Working** | Reports static errors with line numbers and erroneous terms  |
+| `probe`   | **Working** | Shows probe values inline; use `--many` for multiple samples |
+| `test`    | **Working** | Runs tests and reports pass/fail with line numbers and hints |
 
 ### Example Usage (Current)
 
@@ -48,7 +52,7 @@ echo 'let x = true in x + 3' | ./hazel analyze -
 # Output: Static errors (raw format showing Inconsistent Expectation)
 
 # Run tests and see results
-./hazel test hazel-programs/study/test-demo.hz
+./hazel test hazel-programs/test.hz
 # Output:
 # Test Results: Out of 6 tests, one is failing
 #
@@ -64,11 +68,13 @@ echo 'let x = true in x + 3' | ./hazel analyze -
 ### Phase 1: Fix Critical Bugs ✅ COMPLETED
 
 #### 1.1 Fix Probe Command ✅
+
 - Added `evaluate_with_probe_map` to `src/CLI/Run.re`
 - Updated `src/CLI/Cli.re` to build probe_map from zipper's refractors
 - Probe command now correctly shows values inline
 
 #### 1.2 Improve Static Error Formatting ✅
+
 - Implemented Rust-style error format with source context
 - Shows line numbers, column positions, and carets pointing to errors
 - Uses existing `ErrorPrint.re` for human-readable messages
@@ -76,7 +82,9 @@ echo 'let x = true in x + 3' | ./hazel analyze -
 ### Phase 2: Add Missing Features
 
 #### 2.1 Test Results Command ✅ COMPLETED
+
 Added `./hazel test` command that:
+
 - Runs the program and reports test pass/fail with counts
 - Shows line numbers for each test
 - Displays hint strings for named tests (`hint "name" test ... end`)
@@ -86,26 +94,32 @@ Added `./hazel test` command that:
 See [test-command-plan.md](./test-command-plan.md) for design details.
 
 #### 2.2 Better Syntax Error Reporting
+
 **Priority: Medium**
 
 Investigate what feedback is available when parsing fails:
+
 - Tylr's recovering parser should provide partial results
 - Could show where grout (implicit holes) was inserted
 
 ### Phase 3: Enhanced Debugging Support
 
 #### 3.1 Probe Output Refinement
+
 **Priority: Medium**
 
 The probe text output currently uses Unicode symbols (`≡`, `∅`, etc.). Consider:
+
 - Alternative ASCII-only mode for broader compatibility
 - Structured output option (JSON) for programmatic consumption
 - More context about probe locations
 
 #### 3.2 Combined Analysis Mode
+
 **Priority: Low**
 
 A single command that runs all analyses and outputs comprehensive feedback:
+
 - Static errors
 - Test results
 - Probed values
@@ -115,6 +129,7 @@ This would reduce round-trips for AI agents.
 ### Phase 4: Edit Actions (Future)
 
 Currently agents edit Hazel as plain text. Future work could expose:
+
 - Structure-aware edit operations
 - Refactoring commands
 - Code completion suggestions
@@ -204,16 +219,19 @@ test 2 + 2 == 4 end
 ## Current TODOs
 
 ### Medium Priority
+
 - [ ] Better syntax error reporting
 - [ ] Auto-probe failing test expressions (show actual values vs expected)
 
 ### Low Priority
+
 - [ ] Combined analysis mode (all feedback in one command)
 - [ ] JSON output option for programmatic consumption
 - [ ] ASCII-only output mode
 - [ ] Add column numbers to error locations
 
 ### Completed
+
 - [x] Add test results CLI command (./hazel test) with hints and line numbers
 - [x] Add line numbers to static errors (uses Measured.find_by_id)
 - [x] Fix probe command - now passes probe_map to evaluator correctly
