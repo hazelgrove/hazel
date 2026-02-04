@@ -1,6 +1,6 @@
 #!/usr/bin/env ts-node
 
-import { chromium, Page, BrowserContext } from 'playwright';
+import { chromium, Page, Locator } from 'playwright';
 import fs from 'fs';
 import yaml from 'js-yaml';
 import minimist from 'minimist';
@@ -68,6 +68,46 @@ const S = {
   testFail: '.test-result.Fail',
   testIndet: '.test-result.Indet',
 };
+
+async function pasteOrTypeText(
+  page: Page,
+  text: string,
+  mod: 'Control' | 'Meta'
+) {
+  try {
+    await page.evaluate(async (txt) => {
+      if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(txt);
+      } else {
+        throw new Error('Clipboard not available');
+      }
+    }, text);
+
+    await page.keyboard.press(`${mod}+V`);
+  } catch {
+    await page.keyboard.type(text);
+  }
+}
+
+async function retryFillUntil(
+  locator: Locator,
+  value: string,
+  timeoutMs = 5000
+) {
+  const start = Date.now();
+
+  while (Date.now() - start < timeoutMs) {
+    await locator.fill(value);
+
+    if (await locator.inputValue() === value) {
+      return;
+    }
+
+    await locator.page().waitForTimeout(100);
+  }
+
+  throw new Error(`Failed to fill input within ${timeoutMs}ms`);
+}
 
 async function waitOpenRouterChatDone(
   page: import('playwright').Page,
@@ -157,17 +197,12 @@ async function runCore(
   await page.keyboard.press(`${mod}+A`).catch(() => {});
   await page.keyboard.press('Delete').catch(() => {});
 
-  await page.keyboard.type(task.initialProgram);
+  await pasteOrTypeText(page, task.initialProgram, mod);
 
   await page.locator(S.assistantTab).click();
 
-  await page.locator(S.apiKey).fill(apiKey);
-  // assert that apiKey was filled
-  const filledKey = await page.locator(S.apiKey).inputValue();
-  if (filledKey !== apiKey) {
-    throw new Error('Failed to fill API key');
-  }
-  // Maybe just try it twice? Or retry on failure?
+  await retryFillUntil(page.locator(S.apiKey), apiKey);
+
   await page.locator(S.apiButton).first().click({ force: true });
 
   await page.waitForTimeout(1000);
@@ -181,14 +216,14 @@ async function runCore(
 
   await page.waitForTimeout(500);
 
-  await waitOpenRouterChatDone(page, task.prompt);
+  await waitOpenRouterChatDone(page, task.prompt, { timeoutMs: attemptTimeoutMs });
 
   await page.locator('.code-container > .code').first().click({ force: true });
   await page.keyboard.press(`${mod}+A`).catch(() => {});
   await page.keyboard.press('ArrowRight');
   await page.keyboard.press('Enter');
   await page.keyboard.type(';\n');
-  await page.keyboard.type(task.tests);
+  await pasteOrTypeText(page, task.tests, mod);
 
   await page.waitForTimeout(500);
 
