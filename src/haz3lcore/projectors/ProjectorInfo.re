@@ -17,11 +17,23 @@ let utility: ProjectorBase.utility = {
       any,
     );
   let lift_syntax =
-      (inline, fn: Any.t => Any.t, seg: Base.segment): option(Base.segment) =>
+      (inline, fn: Any.t => Any.t, seg: Base.segment): option(Base.segment) => {
+    print_endline("lifting syntax with inline=" ++ string_of_bool(inline));
+    print_endline("Seg: " ++ Segment.show(seg));
+    print_endline(
+      "Term: "
+      ++ (
+        switch (seg |> seg_to_term) {
+        | None => "None"
+        | Some(s) => Any.show(s)
+        }
+      ),
+    );
     switch (seg |> seg_to_term) {
     | None => None
     | Some(s) => Some(s |> fn |> term_to_seg(inline))
     };
+  };
   /* NOTE: Setting indent to anything other than "" has serious
    * perf implications when there are lots of probes on the screen */
   let seg_to_string = Printer.of_segment(~holes="?", ~indent="");

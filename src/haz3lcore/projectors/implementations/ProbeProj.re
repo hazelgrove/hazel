@@ -578,7 +578,6 @@ let value_view =
          span(
            ~attrs=[
              Attr.on_click(_ => {
-               print_endline("clicked badge for renderer " ++ r.id);
                let exp = sample.value;
                let oactive =
                  switch (r.parse_packed(sort, exp)) {
@@ -590,11 +589,6 @@ let value_view =
                    });
                  | None => None
                  };
-               print_endline("setting active renderer to " ++ r.id);
-               print_endline(
-                 "oactive: "
-                 ++ [%derive.show: OptUtil.t(active_renderer)](oactive),
-               );
                local(ToggleModal(oactive));
              }),
              Attr.classes(["renderer-badge"]),
@@ -770,14 +764,17 @@ let sample_context_menu =
       view_seg,
       utility: utility,
     )
-    : Node.t =>
+    : Node.t => {
+  let env_elems = sample.env |> ListUtil.dedup |> Sample.Env.remove_opaques;
+  let has_env = env_elems != [];
   div(
     ~attrs=
-      [Attr.classes(["sample-context-menu"])]
+      [Attr.classes(["sample-context-menu"] @ (has_env ? [] : ["no-env"]))]
       @ SafeTriangle.CSSDropdown.menu_attrs(dropdown_id(sample.id)),
     sample_context_actions(~parent, ~ap_id, ~di, sample)
     @ sample_environment(~settings, sample, view_seg, utility),
   );
+};
 
 let sample_view =
     (

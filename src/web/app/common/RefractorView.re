@@ -40,9 +40,23 @@ let mk_data =
   open Util.OptUtil.Syntax;
   let {measured, term_data, selection_ids, _}: CachedSyntax.t = syntax;
   List.filter_map(
-    ((id, entry)) => {
+    ((id: Id.t, entry: Refractors.entry)) => {
       /* Construct full Base.projector on demand for rendering */
-      let p = Refractors.to_projector(id, entry);
+      let p =
+        Refractors.to_projector(
+          Option.value(
+            TermData.segment(id, term_data)
+            |> Option.map(Segment.unparenthesize)
+            |> Option.map(Segment.parenthesize),
+            ~default=
+              Base.Secondary({
+                id: Id.invalid,
+                content: Whitespace(""),
+              }),
+          ),
+          id,
+          entry,
+        );
       let+ measurement = measurement_of_term(id, term_data, measured);
       let info =
         ProjectorInfo.mk_info(p, ~sample_cursor, ~statics, ~dynamics);

@@ -84,10 +84,16 @@ let go =
       a: Action.project,
       z: Zipper.t,
       projector_list: list(Id.t),
+      refractor_list: list(Id.t),
     )
     : result(ZipperBase.t, Action.Failure.t) => {
   let projector_idx_to_id = (idx: int): Id.t =>
     List.nth(projector_list, idx);
+  let refractor_idx_to_id = (idx: int): Id.t =>
+    List.nth(refractor_list, idx);
+  let idx_to_id = (kind: ProjectorCore.Kind.t, idx: int): Id.t =>
+    ProjectorCore.Kind.is_refractor(kind)
+      ? refractor_idx_to_id(idx) : projector_idx_to_id(idx);
 
   let select_term =
     Select.current_term(
@@ -179,55 +185,93 @@ let go =
     | None => Error(Cant_project)
     }
   | SetSyntax(idx, kind, seg) =>
-    let id = projector_idx_to_id(idx);
+    let id = idx_to_id(kind, idx);
     // Ensure seg is parenthesized unless it already is
     let parenthesized_piece =
       Segment.unparenthesize(seg) |> Segment.parenthesize;
-    Ok(
-      if (ProjectorCore.Kind.is_refractor(kind)) {
-        // Refractors overlay on syntax rather than replacing it,
-        // so SetSyntax is a no-op for refractors
-        z;
-      } else {
-        // For projectors, update via the standard path
+    if (ProjectorCore.Kind.is_refractor(kind)) {
+      let parenthesized_seg = [parenthesized_piece];
+      // Check for existing refractors (automatic ephemeral or manual) that control this projector
+      let original_id = id;
+      let ephemeral_model =
+        Id.Map.find_opt(original_id, z.refractors.autos.ephemerals)
+        |> Option.map((pr: Refractors.entry) => pr.model);
+      let manual_refractor_model =
+        List.assoc_opt(original_id, z.refractors.manuals)
+        |> Option.map((pr: Refractors.entry) => pr.model);
+      switch (manual_refractor_model, ephemeral_model) {
+      | (Some(refractor_model), _) =>
+        // Manual refractor exists: update the selection to this projector's term range,
+        // replace with new syntax, and create a new refractor probe monitoring the updated term
+        let new_id =
+          MakeTerm.from_zip_for_sem(
+            Zipper.unzip(~direction=Right, parenthesized_seg),
+          ).
+            term
+          |> Language.Exp.rep_id;
+
+        let new_z = {
+          open OptUtil.Syntax;
+          let* (l, r) = TermData.extremes_shards(id, term_data);
+          let+ z = Select.shard_range(l, r, z);
+          let z = Zipper.replace_selection(Right, parenthesized_seg, z);
+          ZipperBase.add_manual(~model=refractor_model, new_id, kind, z);
+        };
+
+        switch (new_z) {
+        | Some(z) => Ok(z)
+        | None => Error(Cant_project)
+        };
+      | (_, Some(_)) =>
+        // Ephemeral refractor exists: update selection and replace syntax,
+        // but don't create new refractor as this is handled automatically
+
+        let new_z = {
+          open OptUtil.Syntax;
+          let* (l, r) = TermData.extremes_shards(id, term_data);
+          let+ z = Select.shard_range(l, r, z);
+          let z = Zipper.replace_selection(Right, parenthesized_seg, z);
+          z;
+        };
+
+        switch (new_z) {
+        | Some(z) => Ok(z)
+        | None => Error(Cant_project)
+        };
+      | (None, None) => assert(false)
+      };
+    } else {
+      Ok(
         update(
-          p =>
+          pr =>
             {
-              ...p,
+              ...pr,
               syntax: parenthesized_piece,
             },
           id,
           z,
-        );
-      },
-    );
+        ),
+      );
+    };
   | SetModel(idx, kind, new_model) =>
-    print_endline(
-      "Setting model of projector idx "
-      ++ string_of_int(idx)
-      ++ " (kind "
-      ++ ProjectorCore.Kind.name(kind)
-      ++ ") to "
-      ++ new_model,
-    );
-    let id = projector_idx_to_id(idx);
+    let id = idx_to_id(kind, idx);
     Ok(
       if (ProjectorCore.Kind.is_refractor(kind)) {
-        // Refractors use Refractors.entry which only has kind and model
         Zipper.update_manuals(
-          List.map(((entry_id, entry: Refractors.entry)) =>
-            if (entry_id == id) {
-              (
-                entry_id,
-                {
-                  ...entry,
-                  model: new_model,
-                },
-              );
-            } else {
-              (entry_id, entry);
-            }
-          ),
+          map =>
+            ListUtil.assoc_update(
+              id,
+              fun
+              | Some(entry: Refractors.entry) =>
+                Some(
+                  Refractors.{
+                    kind: entry.kind,
+                    model: new_model,
+                  },
+                )
+              | None => None,
+              map,
+            ),
           z,
         );
       } else {
@@ -243,25 +287,21 @@ let go =
       },
     );
   | Focus(idx, kind, d) =>
+    let id = idx_to_id(kind, idx);
     switch (d) {
     | None =>
       /* Focus by mouse click */
       let (module P) = ProjectorInit.to_module(kind);
       switch (P.focusable.pointer) {
-      | Some(focus) => focus(projector_idx_to_id(idx))
+      | Some(focus) => focus(id)
       | None => ()
       };
-      Ok(
-        Option.value(
-          ~default=z,
-          Move.jump_to_id_indicated(z, projector_idx_to_id(idx)),
-        ),
-      );
+      Ok(Option.value(~default=z, Move.jump_to_id_indicated(z, id)));
     | Some(Right) =>
       /* Focus by arrow key hand-off */
       let (module P) = ProjectorInit.to_module(kind);
       switch (P.focusable.keyboard) {
-      | Some(focus) => focus(projector_idx_to_id(idx), Right)
+      | Some(focus) => focus(id, Right)
       | None => ()
       };
       Ok(z);
@@ -269,11 +309,11 @@ let go =
       /* Focus by arrow key hand-off */
       let (module P) = ProjectorInit.to_module(kind);
       switch (P.focusable.keyboard) {
-      | Some(focus) => focus(projector_idx_to_id(idx), Left)
+      | Some(focus) => focus(id, Left)
       | None => ()
       };
       Ok(z);
-    }
+    };
   | Escape(idx, d) =>
     switch (Move.jump_to_side_of_id(d, z, projector_idx_to_id(idx))) {
     | Some(z) => Ok(z)
