@@ -66,7 +66,8 @@ module Action = {
     | Redo // global actions so they can be accessed by the command palette
     | Log(log)
     | SetMetaDown(bool)
-    | UpdateVisibleRows(VisibleRows.t);
+    | UpdateVisibleRows(VisibleRows.t)
+    | ClearException;
 };
 
 module Model = {
@@ -158,6 +159,7 @@ module Update = {
     | SetMetaDown(_) => false
     | UpdateVisibleRows(_) => false
     | Log(_) => false
+    | ClearException => false
     };
   };
 };

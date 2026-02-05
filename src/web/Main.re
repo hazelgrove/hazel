@@ -19,61 +19,35 @@ let restart_caret_animation = () =>
 
 let apply =
     (
-      model: Logged.Model.t,
-      action: Logged.Update.t,
+      model: CrashHandling.Model.t,
+      action: CrashHandling.Update.t,
       ~schedule_action,
       ~schedule_autosave,
     )
-    : Logged.Model.t => {
+    : CrashHandling.Model.t => {
   restart_caret_animation();
 
   /* This function is split into two phases, update and calculate.
      The intention is that eventually, the calculate phase will be
      done automatically by incremental calculation. */
   // ---------- UPDATE PHASE ----------
-  let updated: Updated.t(Logged.Model.t) =
-    try(
-      Logged.Update.update(
-        ~import_log=Log.import,
-        ~get_log_and=Log.get_and,
-        ~schedule_action,
-        action,
-        model,
-      )
-    ) {
-    | Haz3lcore.Action.Failure.Exception(t) =>
-      Printf.printf(
-        "ERROR: Action.Failure: %s\n",
-        t |> Haz3lcore.Action.Failure.show,
-      );
-      model |> Updated.return_quiet;
-    | exc =>
-      Printf.printf(
-        "ERROR: Exception during apply: %s\n",
-        Printexc.to_string(exc),
-      );
-      model |> Updated.return_quiet;
-    };
+  let updated: Updated.t(CrashHandling.Model.t) =
+    CrashHandling.Update.update(
+      ~import_log=Log.import,
+      ~get_log_and=Log.get_and,
+      ~schedule_action,
+      action,
+      model,
+    );
   // ---------- CALCULATE PHASE ----------
   let model' =
-    try(
-      updated.model
-      |> Logged.Update.calculate(
-           ~schedule_action,
-           ~is_edited=updated.is_edit,
-           ~dynamics=true,
-         )
-    ) {
-    | exc =>
-      Printf.printf(
-        "ERROR: Exception during calculate: %s\n",
-        Printexc.to_string(exc),
-      );
-      {
-        ...model,
-        replay_toggle: false,
-      };
-    };
+    CrashHandling.Update.calculate(
+      ~schedule_action,
+      ~is_edited=updated.is_edit,
+      ~dynamics=true,
+      model,
+      updated.model,
+    );
 
   if (updated.is_edit) {
     schedule_autosave(
@@ -98,8 +72,8 @@ let start = {
   let%sub save_scheduler = BonsaiUtil.Alarm.alarm;
   let%sub (app_model, app_inject) =
     Bonsai.state_machine1(
-      (module Logged.Model),
-      (module Logged.Update),
+      (module CrashHandling.Model),
+      (module CrashHandling.Update),
       ~apply_action=
         (~inject, ~schedule_event, input) => {
           let schedule_action = x => schedule_event(inject(x));
@@ -112,12 +86,13 @@ let start = {
           apply(~schedule_action, ~schedule_autosave);
         },
       ~default_model=
-        Logged.Model.load()
-        |> Logged.Update.calculate(
-             ~schedule_action=_ => (),
-             ~is_edited=true,
-             ~dynamics=false,
-           ),
+        CrashHandling.Update.calculate(
+          ~schedule_action=_ => (),
+          ~is_edited=true,
+          ~dynamics=false,
+          CrashHandling.Model.load(),
+          CrashHandling.Model.load(),
+        ),
       save_scheduler,
     );
 
@@ -130,7 +105,7 @@ let start = {
     let%map app_inject = app_inject
     and model = app_model;
     Ui_effect.Many(
-      model.replay_toggle
+      model.model.replay_toggle
         ? [app_inject(Page.Update.Globals(Log(NextLog)))] : [],
     );
   };
@@ -220,7 +195,7 @@ let start = {
         let _ = Haz3lcore.ProbePerform.FocusEffect.execute();
         /* Update floating elements (backpack) to viewport coordinates */
         FloatingElement.update_all();
-        model.current.current.globals.settings.core.statics
+        model.model.current.current.globals.settings.core.statics
           ? Animation.go() : ();
       },
       (),
@@ -232,7 +207,11 @@ let start = {
   let%arr app_model = app_model
   and app_inject = app_inject;
   try(
-    Logged.View.view(app_model, ~inject=app_inject, ~get_log_and=Log.get_and)
+    CrashHandling.View.view(
+      ~get_log_and=Log.get_and,
+      ~inject=app_inject,
+      app_model,
+    )
   ) {
   | exc =>
     print_endline(
