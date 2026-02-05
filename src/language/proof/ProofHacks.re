@@ -139,7 +139,6 @@ let rec pat_to_exp = (pat: Pat.t): Exp.t => {
   | Label(l) => rewrap(Label(l))
   | ExplicitNonlabel => rewrap(ExplicitNonlabel)
   | TupLabel(l, e) => rewrap(TupLabel(pat_to_exp(l), pat_to_exp(e)))
-  | Probe(e, probe) => rewrap(Probe(pat_to_exp(e), probe))
   };
 };
 
@@ -225,8 +224,7 @@ let dhpat_extend_ctx = (dhpat: DHPat.t, ty: Typ.t, ctx: Ctx.t): option(Ctx.t) =>
     | Wild
     | Invalid(_)
     | MultiHole(_) => Some([])
-    | Parens(dhp)
-    | Probe(dhp, _) => dhpat_var_entry(dhp, ty)
+    | Parens(dhp) => dhpat_var_entry(dhp, ty)
     | Atom(c) =>
       Typ.equal(ty, Atom(Atom.cls_of_t(c)) |> Typ.temp) ? Some([]) : None
     | Constructor(_) => Some([]) // TODO: make this stricter
@@ -268,7 +266,6 @@ let rec get_inductive_hypotheses = (m, t, pat) => {
   | TupLabel(l, e) =>
     get_inductive_hypotheses_inner(m, t, l)
     @ get_inductive_hypotheses_inner(m, t, e)
-  | Probe(e, _) => get_inductive_hypotheses_inner(m, t, e)
   | ExplicitNonlabel => []
   };
 }
@@ -482,7 +479,6 @@ let rec replace_exp =
         | Filter(_)
         | Closure(_)
         | Parens(_)
-        | Probe(_, _)
         | Cons(_, _)
         | ListConcat(_, _)
         | UnOp(_, _)

@@ -2812,6 +2812,285 @@ let go: ([?], [?], [?]) -> [?] =
         Fresh.(Exp.(var("zip")));
       },
     },
+    {
+      str: {|fix unique -> fun xs ->
+              fold_left(xs, fun (seen, x) -> if mem(seen, x) then seen else seen @ [x], [])|},
+      name: "unique",
+      arg: List(unknown(Internal)),
+      ret: List(unknown(Internal)),
+      imp: {
+        Fresh.(
+          Exp.(
+            fix_f(
+              Pat.var("unique"),
+              fn(
+                Pat.var("xs"),
+                ap(
+                  Forward,
+                  var("fold_left"),
+                  tuple([
+                    var("xs"),
+                    fn(
+                      Pat.tuple([Pat.var("seen"), Pat.var("x")]),
+                      if_(
+                        ap(
+                          Forward,
+                          var("mem"),
+                          tuple([var("seen"), var("x")]),
+                        ),
+                        var("seen"),
+                        ap(
+                          Forward,
+                          var("append"),
+                          tuple([var("seen"), list_lit([var("x")])]),
+                        ),
+                      ),
+                    ),
+                    list_lit([]),
+                  ]),
+                ),
+              ),
+              None,
+            )
+          )
+        );
+      },
+    },
+    {
+      str: {hazel|fix pivot_table -> fun (table, new_col, index, value) ->
+             let indices = map(table, index) |> unique in
+             let new_cols = map(table, new_col) |> unique in
+
+             map(indices, fun idx ->
+                (index=idx) ...
+                (map(new_cols, fun col ->
+                  (label=col,
+                    value=filter(table, fun r -> index(r) == idx && new_col(r) == col)
+                    |>value)
+                ) |> from_lvs))|hazel},
+      name: "pivot_table",
+      arg:
+        Prod([
+          list(unknown(Internal)),
+          arrow(unknown(Internal), unknown(Internal)),
+          arrow(unknown(Internal), unknown(Internal)),
+          arrow(unknown(Internal), unknown(Internal)),
+        ]),
+      ret: List(unknown(Internal)),
+      imp: {
+        open Fresh;
+        open Exp;
+        let indices =
+          ap(
+            Reverse,
+            var("unique"),
+            ap(Forward, var("map"), tuple([var("table"), var("index")])),
+          );
+        let new_cols =
+          ap(
+            Reverse,
+            var("unique"),
+            ap(
+              Forward,
+              var("map"),
+              tuple([var("table"), var("new_col")]),
+            ),
+          );
+
+        // filter(table, fun r -> index(r) == idx && new_col(r) == col)
+        let filtered_values =
+          ap(
+            Forward,
+            var("filter"),
+            tuple([
+              var("table"),
+              fn(
+                Pat.var("r"),
+                bin_op(
+                  Bool(And),
+                  bin_op(
+                    Poly(Equals),
+                    ap(Forward, var("index"), var("r")),
+                    var("idx"),
+                  ),
+                  bin_op(
+                    Poly(Equals),
+                    ap(Forward, var("new_col"), var("r")),
+                    var("col"),
+                  ),
+                ),
+              ),
+            ]),
+          );
+        /*   (label=col,
+             value=filter(table, fun r -> index(r) == idx && new_col(r) == col)
+             |>value) */
+        let lvs =
+          tuple([
+            tup_label(label("label"), var("col")),
+            tup_label(
+              label("value"),
+              ap(Forward, var("value"), filtered_values),
+            ),
+          ]);
+
+        let from_lvs =
+          ap(
+            Reverse,
+            var("from_lvs"),
+            ap(
+              Forward,
+              var("map"),
+              tuple([var("new_cols"), fn(Pat.var("col"), lvs)]),
+            ),
+          );
+
+        let mapped =
+          ap(
+            Forward,
+            var("map"),
+            tuple([
+              var("indices"),
+              fn(
+                Pat.var("idx"),
+                tuple_extension(
+                  tuple([tup_label(label("index"), var("idx"))]),
+                  from_lvs,
+                ),
+              ),
+            ]),
+          );
+
+        let fn =
+          fn(
+            Pat.tuple([
+              Pat.var("table"),
+              Pat.var("new_col"),
+              Pat.var("index"),
+              Pat.var("value"),
+            ]),
+            let_(
+              Pat.var("indices"),
+              indices,
+              let_(Pat.var("new_cols"), new_cols, mapped),
+            ),
+          );
+        fix_f(Pat.var("pivot_table"), fn, None);
+      },
+    },
+    {
+      str: {|fix group_on_key -> fun (xs, f) -> fold_left(xs, fun (acc, x) ->
+        let update_groups = fix update_groups -> fun (acc, key, x) ->
+          case acc
+          | [] => [(key, [x])]
+          | (k, g) :: acc => if k == key then (k, x :: g) :: acc else (k, g) :: update_groups(acc, key, x)
+          end in update_groups(acc, f(x), x), [])|},
+      name: "group_on_key",
+      arg:
+        Prod([
+          list(unknown(Internal)),
+          arrow(unknown(Internal), unknown(Internal)),
+        ]),
+      ret: List(prod([unknown(Internal), list(unknown(Internal))])),
+      imp: {
+        Fresh.(
+          Exp.(
+            fix_f(
+              Pat.var("group_on_key"),
+              fn(
+                ~name="group_on_key+",
+                Pat.tuple([Pat.var("xs"), Pat.var("f")]),
+                ap(
+                  Forward,
+                  var("fold_left"),
+                  tuple([
+                    var("xs"),
+                    let_(
+                      Pat.var("update_groups"),
+                      fix_f(
+                        Pat.var("update_groups"),
+                        fn(
+                          ~name="update_groups+",
+                          Pat.tuple([
+                            Pat.var("acc"),
+                            Pat.var("key"),
+                            Pat.var("x"),
+                          ]),
+                          match(
+                            var("acc"),
+                            [
+                              (
+                                Pat.list_lit([]),
+                                list_lit([
+                                  tuple([
+                                    var("key"),
+                                    list_lit([var("x")]),
+                                  ]),
+                                ]),
+                              ),
+                              (
+                                Pat.cons(
+                                  Pat.tuple([Pat.var("k"), Pat.var("g")]),
+                                  Pat.var("acc_tail"),
+                                ),
+                                if_(
+                                  bin_op(
+                                    Poly(Equals),
+                                    var("k"),
+                                    var("key"),
+                                  ),
+                                  cons(
+                                    tuple([
+                                      var("k"),
+                                      list_concat(
+                                        var("g"),
+                                        list_lit([var("x")]),
+                                      ),
+                                    ]),
+                                    var("acc_tail"),
+                                  ),
+                                  cons(
+                                    tuple([var("k"), var("g")]),
+                                    ap(
+                                      Forward,
+                                      var("update_groups"),
+                                      tuple([
+                                        var("acc_tail"),
+                                        var("key"),
+                                        var("x"),
+                                      ]),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        None,
+                      ),
+                      fn(
+                        Pat.tuple([Pat.var("acc"), Pat.var("x")]),
+                        ap(
+                          Forward,
+                          var("update_groups"),
+                          tuple([
+                            var("acc"),
+                            ap(Forward, var("f"), var("x")),
+                            var("x"),
+                          ]),
+                        ),
+                      ),
+                    ),
+                    list_lit([]),
+                  ]),
+                ),
+              ),
+              None,
+            )
+          )
+        );
+      },
+    },
   ]
   // De-alias all aliases
   |> Util.ListUtil.map_with_history((prev, curr) =>

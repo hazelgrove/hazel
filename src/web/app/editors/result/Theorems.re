@@ -93,7 +93,7 @@ module Update = {
 
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t =
-    | TheoremUpdate(Id.t, StepperView.Update.t);
+    | TheoremUpdate(int, StepperView.Update.t);
 
   let can_undo = (action: t) => {
     switch (action) {
@@ -115,9 +115,15 @@ module Update = {
         },
       };
     switch (action) {
-    | TheoremUpdate(id, action) =>
-      switch (Id.Map.find_opt(id, model.thm_map)) {
-      | Some(thm) =>
+    | TheoremUpdate(n, action) =>
+      let id_and_thm = {
+        open OptUtil.Syntax;
+        let* id = List.nth_opt(model.thms |> Calc.get_saved([]), n);
+        let* thm = Id.Map.find_opt(id, model.thm_map);
+        Some((id, thm));
+      };
+      switch (id_and_thm) {
+      | Some((id, thm)) =>
         let* stepper_view =
           StepperView.Update.update(~settings, action, thm.stepper_view);
         let thm_map =
@@ -134,7 +140,7 @@ module Update = {
           thm_map,
         };
       | None => model |> Updated.return_quiet
-      }
+      };
     };
   };
 
@@ -280,11 +286,17 @@ module Update = {
 module Focus = {
   open Cursor;
   [@deriving (show({with_path: false}), sexp, yojson)]
-  type t = (Id.t, StepperView.Focus.t);
+  type t = (int, StepperView.Focus.t);
 
-  let get_cursor_info = (~focus: t, model: Model.t) =>
-    switch (Id.Map.find_opt(focus |> fst, model.thm_map)) {
-    | Some(thm) =>
+  let get_cursor_info = (~focus: t, model: Model.t) => {
+    let id_and_thm = {
+      open OptUtil.Syntax;
+      let* id = List.nth_opt(model.thms |> Calc.get_saved([]), focus |> fst);
+      let* thm = Id.Map.find_opt(id, model.thm_map);
+      Some((id, thm));
+    };
+    switch (id_and_thm) {
+    | Some((_id, thm)) =>
       let+ c =
         StepperView.Focus.get_cursor_info(
           ~focus=snd(focus),
@@ -293,10 +305,17 @@ module Focus = {
       Update.TheoremUpdate(focus |> fst, c);
     | None => Cursor.empty
     };
+  };
 
-  let handle_key_event = (~focus: t, ~event: Key.t, model: Model.t) =>
-    switch (Id.Map.find_opt(focus |> fst, model.thm_map)) {
-    | Some(thm) =>
+  let handle_key_event = (~focus: t, ~event: Key.t, model: Model.t) => {
+    let id_and_thm = {
+      open OptUtil.Syntax;
+      let* id = List.nth_opt(model.thms |> Calc.get_saved([]), focus |> fst);
+      let* thm = Id.Map.find_opt(id, model.thm_map);
+      Some((id, thm));
+    };
+    switch (id_and_thm) {
+    | Some((_id, thm)) =>
       StepperView.Focus.handle_key_event(
         ~focus=snd(focus),
         ~event,
@@ -305,6 +324,7 @@ module Focus = {
       |> Option.map((x): Update.t => Update.TheoremUpdate(fst(focus), x))
     | None => None
     };
+  };
 };
 
 module View = {
@@ -335,8 +355,8 @@ module View = {
     switch (model.thms |> Calc.get_saved([])) {
     | [] => []
     | xs =>
-      List.map(
-        id => {
+      List.mapi(
+        (idx, id) => {
           let Model.{stepper_view, name, _} = Id.Map.find(id, model.thm_map);
           let status =
             switch (StepperView.Model.get_validity(stepper_view)) {
@@ -366,12 +386,12 @@ module View = {
               ~globals,
               ~signal=
                 fun
-                | MakeActive(f) => take_focus((id, f))
+                | MakeActive(f) => take_focus((idx, f))
                 | HideStepper => Ui_effect.Ignore,
-              ~inject=a => inject(Update.TheoremUpdate(id, a)),
+              ~inject=a => inject(Update.TheoremUpdate(idx, a)),
               ~selected=
                 switch (selected) {
-                | Some((id', s)) when Id.equal(id, id') => Some(s)
+                | Some((idx', s)) when idx == idx' => Some(s)
                 | _ => None
                 },
               ~is_toplevel=false,

@@ -131,7 +131,8 @@ let rec unbox: type a. (unbox_request(a), DHExp.t) => unboxed(a) =
     | (LabeledTupleEntries, Tuple(ds)) =>
       let unbox_tup_label =
           (d: Exp.t): option((option(LabeledTuple.label), Exp.t)) => {
-        switch (d.term) {
+        switch (Ascriptions.transition_multiple(d).term) {
+        // TODO Think about whether we should transition here
         | TupLabel({term: Label(l), _}, e) => Some((Some(l), e))
         | _ => Some((None, d))
         };
@@ -250,7 +251,6 @@ let rec unbox: type a. (unbox_request(a), DHExp.t) => unboxed(a) =
         Filter(_) |
         Closure(_) |
         Parens(_) |
-        Probe(_) |
         ListConcat(_) |
         TupleExtension(_) |
         Dot(_) |

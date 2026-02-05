@@ -52,13 +52,58 @@ let parse_exp = (s: string) => {
   | None => Alcotest.fail("Failed to parse expression: " ++ s)
   };
 };
+
+/* Parse code with probes (^^probe syntax) and build targets */
+let parse_with_probes = (s: string): (Exp.t, Statics.Map.t, Sample.targets) => {
+  switch (Haz3lcore.Parser.to_zipper(s)) {
+  | None => Alcotest.fail("Failed to parse expression: " ++ s)
+  | Some(z) =>
+    let make_term_result = Haz3lcore.MakeTerm.from_zip_for_sem(z);
+    let term = make_term_result.term;
+    /* Extract probe IDs directly from zipper's refractors.
+     * Map values to unit since we only need the IDs as keys. */
+    let probe_ids =
+      Id.Map.union(
+        (_, _, _) => Some(),
+        Id.Map.map(_ => (), Id.Map.of_list(z.refractors.manuals)),
+        Id.Map.map(_ => (), z.refractors.autos.ephemerals),
+      );
+
+    /* Build statics map for refs lookup */
+    let info_map =
+      Statics.mk(CoreSettings.on, Builtins.ctx_init(Some(Int)), term);
+
+    /* Build targets from probe_ids, computing refs for each */
+    let targets: Sample.targets =
+      Id.Map.fold(
+        (id, (), acc) => {
+          let refs =
+            switch (Statics.Map.lookup(id, info_map)) {
+            | Some(InfoExp(_)) => Statics.Map.refs_in(info_map, id)
+            | Some(InfoPat(_)) => Statics.Map.bound_in(info_map, id)
+            | _ => []
+            };
+          let spec: Sample.capture_spec = {refs: refs};
+          Id.Map.add(id, spec, acc);
+        },
+        probe_ids,
+        Id.Map.empty,
+      );
+
+    (term, info_map, targets);
+  };
+};
+
 let elaborate = u =>
   Elaborator.elaborate(
-    ~probe_unknowns=false,
     Statics.mk(CoreSettings.on, Builtins.ctx_init(Some(Int)), u),
     u,
   )
   |> fst;
+
+/* Elaborate an expression with existing statics map */
+let elaborate_with_info = (info_map, u) =>
+  Elaborator.elaborate(info_map, u) |> fst;
 
 (exp, probes) => (
   {
@@ -126,8 +171,7 @@ let full_small_step_reduction =
 let full_preservation_test = (uexp: TermBase.exp_t): unit => {
   let statics =
     Statics.mk(CoreSettings.on, Builtins.ctx_init(Some(Int)), uexp);
-  let (elaborated, ty) =
-    Elaborator.elaborate(~probe_unknowns=false, statics, uexp);
+  let (elaborated, ty) = Elaborator.elaborate(statics, uexp);
 
   let evaluated =
     Evaluator.evaluate(~env=Builtins.env_init, elaborated) |> fst;

@@ -10,6 +10,9 @@ let qcheck_pads_typ_for_exp_to_segment =
       let _ =
         ExpToSegment.typ_to_segment(
           ~settings={
+            secondary: AutoFormat,
+            parenthesization: Defensive,
+            label_format: QuoteWhenNecessary,
             inline: false,
             fold_case_clauses: false,
             fold_fn_bodies: `NoFold,

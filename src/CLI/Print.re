@@ -1,7 +1,17 @@
 open Haz3lcore;
 
-let exp_to_segment_settings: ExpToSegment.Settings.t =
-  ExpToSegment.Settings.editable(~inline=false);
+let exp_to_segment_settings: ExpToSegment.Settings.t = {
+  secondary: AutoFormat,
+  parenthesization: Defensive,
+  label_format: QuoteWhenNecessary,
+  inline: false,
+  fold_case_clauses: false,
+  fold_fn_bodies: `NoFold,
+  hide_fixpoints: false,
+  show_filters: true,
+  show_unknown_as_hole: true,
+  raise_if_padding: false,
+};
 
 let segmentize =
   ExpToSegment.exp_to_segment(~settings=exp_to_segment_settings, _);

@@ -128,6 +128,8 @@ module MkState = () => {
 
   let is_button_down = (): bool => state.button == Down;
 
+  let get_down_loc = (): Point.t => state.loc;
+
   let is_init = (): bool =>
     state.button == Up && state.count == 0 && state.loc == Point.zero;
 

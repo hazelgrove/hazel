@@ -9,6 +9,8 @@
  * with ExpToSeg. This should probably be rewritten to
  * use that somehow. */
 
+open Util;
+
 let flat_ellipses = "…"; //"⋱"; // "┄"
 let flat_ellipses_term = () =>
   IdTagged.fresh(Invalid(flat_ellipses): Exp.term);
@@ -23,6 +25,126 @@ let is_flat_ellipses = (term: IdTagged.t(Exp.term)): bool =>
   | _ => false
   };
 let available = ref(0);
+
+module AbbrevBudget = {
+  let label_estimated_length = (~label: Exp.t): int =>
+    switch (label |> Exp.term_of) {
+    | Label(name) => String.length(name)
+    | Var(name) => String.length(name)
+    | Invalid(str) => String.length(str)
+    | Atom(String(str)) => String.length(str)
+    | _ => 0
+    };
+
+  let with_budget = (~budget: int, ~run: unit => 'a): ('a, int) => {
+    let prev: int = available^;
+    let limited: int =
+      if (budget < 0) {
+        0;
+      } else if (budget > prev) {
+        prev;
+      } else {
+        budget;
+      };
+    available := limited;
+    let result: 'a = run();
+    let remaining: int = available^;
+    let consumed: int = limited - remaining;
+    let next_total: int = {
+      let diff: int = prev - consumed;
+      diff < 0 ? 0 : diff;
+    };
+    available := next_total;
+    (result, consumed);
+  };
+
+  let split_evenly = (~total: int, ~parts: int): list(int) =>
+    if (parts <= 0) {
+      [];
+    } else if (total <= 0) {
+      let rec zeros = (count: int, acc: list(int)): list(int) =>
+        count <= 0 ? acc : zeros(count - 1, [0, ...acc]);
+      zeros(parts, []);
+    } else {
+      let base: int = total / parts;
+      let remainder: int = total mod parts;
+      let rec distribute = (index: int, acc: list(int)): list(int) =>
+        index < 0
+          ? acc
+          : distribute(
+              index - 1,
+              [base + (index < remainder ? 1 : 0), ...acc],
+            );
+      distribute(parts - 1, []);
+    };
+
+  let label_cap = (~label: Exp.t, ~available: int): int => {
+    let estimated_label_len: int = label_estimated_length(~label);
+    let desired: int = estimated_label_len + 1;
+    let half: int = available / 2;
+    let proposed: int = half < desired ? desired : half;
+    let capped: int = proposed < 1 ? 1 : proposed;
+    capped > available ? available : capped;
+  };
+
+  let label_min_budget = (~label: Exp.t): int => {
+    let est: int = label_estimated_length(~label);
+    if (est >= 3) {
+      3;
+    } else if (est == 2) {
+      2;
+    } else {
+      1;
+    };
+  };
+};
+
+module AbbrevSequence = {
+  let separator_cost: int = 2;
+  let ellipsis_cost: int = 3;
+
+  let rec consume =
+          (
+            items: list(Exp.t),
+            budgets: list(int),
+            ~abbreviate: Exp.t => Exp.t,
+          )
+          : list(Exp.t) =>
+    switch (items, budgets) {
+    | ([], _) => []
+    | ([item, ...rest], [budget, ...rest_budgets]) =>
+      let (abbreviated_item: Exp.t, _): (Exp.t, int) =
+        AbbrevBudget.with_budget(~budget, ~run=() => abbreviate(item));
+      if (rest == []) {
+        [abbreviated_item];
+      } else if (available^ > ellipsis_cost) {
+        available := available^ - separator_cost;
+        [abbreviated_item, ...consume(rest, rest_budgets, ~abbreviate)];
+      } else {
+        available := available^ - ellipsis_cost;
+        [abbreviated_item, flat_ellipses_term()];
+      };
+    | (_, _) => []
+    };
+
+  let run = (~items: list(Exp.t), ~abbreviate: Exp.t => Exp.t): list(Exp.t) => {
+    let count: int = List.length(items);
+    if (count <= 0) {
+      [];
+    } else {
+      let separators_needed: int =
+        count <= 1 ? 0 : (count - 1) * separator_cost;
+      let available_now: int = available^;
+      let available_for_items: int = {
+        let diff: int = available_now - separators_needed;
+        diff < 0 ? 0 : diff;
+      };
+      let budgets: list(int) =
+        AbbrevBudget.split_evenly(~total=available_for_items, ~parts=count);
+      consume(items, budgets, ~abbreviate);
+    };
+  };
+};
 
 let abbreviate_str = (min_len: int, s: string): string => {
   let len = String.length(s);
@@ -43,6 +165,59 @@ let abbreviate_str = (min_len: int, s: string): string => {
   };
 };
 
+let is_comment_token = (s: string): bool => {
+  let len: int = String.length(s);
+  if (len == 1) {
+    s == "#";
+  } else if (len >= 2 && s.[0] == '#' && s.[len - 1] == '#') {
+    let rec loop = (idx: int): bool =>
+      if (idx >= len - 1) {
+        true;
+      } else {
+        let ch: char = s.[idx];
+        ch == '#' || ch == '\n' ? false : loop(idx + 1);
+      };
+    loop(1);
+  } else {
+    false;
+  };
+};
+
+let take_grapheme_prefix =
+    (count: int, clusters: list(string)): list(string) => {
+  let rec loop =
+          (remaining: int, rest: list(string), acc: list(string))
+          : list(string) =>
+    if (remaining <= 0) {
+      List.rev(acc);
+    } else {
+      switch (rest) {
+      | [] => List.rev(acc)
+      | [hd, ...tl] => loop(remaining - 1, tl, [hd, ...acc])
+      };
+    };
+  loop(count, clusters, []);
+};
+
+let abbreviate_string_token = (~min_len: int, s: string): string => {
+  let grapheme_len: int = Unicode.length(s);
+  let ellipsis: string = flat_ellipses;
+  if (grapheme_len < 2) {
+    s;
+  } else if (grapheme_len <= min_len || min_len < 1) {
+    available := available^ - String.length(s);
+    s;
+  } else {
+    let clusters: list(string) = Unicode.to_list(s);
+    let prefix_clusters: list(string) =
+      take_grapheme_prefix(min_len > 0 ? min_len - 1 : 0, clusters);
+    let prefix: string = String.concat("", prefix_clusters);
+    let truncated: string = prefix ++ ellipsis;
+    available := available^ - String.length(truncated);
+    truncated;
+  };
+};
+
 let indet_term: Exp.term = Invalid("?");
 let indet_term_typ: Typ.term = Unknown(Internal);
 let indet_term_pat: Pat.term = Invalid("?");
@@ -56,7 +231,6 @@ let rec abbreviate_exp = (exp: Exp.t): Exp.t => {
       term,
     };
   };
-
   let wrap_or = (term, str): Exp.term =>
     if (available^ > String.length(str)) {
       available := available^ - String.length(str);
@@ -65,24 +239,26 @@ let rec abbreviate_exp = (exp: Exp.t): Exp.t => {
       Invalid(abbreviate_str(available^, str));
     };
 
-  let abbreviate_seq = xs => {
-    let rec go = xs =>
-      switch (xs) {
+  let abbreviate_list_seq = (xs: list(Exp.t)): list(Exp.t) => {
+    let rec go = (seq: list(Exp.t)): list(Exp.t) =>
+      switch (seq) {
       | [] => []
-      | [x, ...xs] =>
-        let hd = abbreviate_exp(x);
+      | [x, ...rest] =>
+        let head: Exp.t = abbreviate_exp(x);
         if (available^ > 3) {
           available := available^ - 2; // comma space
-          [hd, ...go(xs)];
-        } else if (xs == []) {
-          [hd];
+          [head, ...go(rest)];
+        } else if (rest == []) {
+          [head];
         } else {
           available := available^ - 3;
-          [hd, flat_ellipses_term()];
+          [head, flat_ellipses_term()];
         };
       };
     go(xs);
   };
+  let abbreviate_tuple_seq = (xs: list(Exp.t)): list(Exp.t) =>
+    AbbrevSequence.run(~items=xs, ~abbreviate=abbreviate_exp);
 
   // Helper to handle cases where we need to check available space and potentially return indet_term
   let handle_op_indet =
@@ -126,9 +302,14 @@ let rec abbreviate_exp = (exp: Exp.t): Exp.t => {
       Invalid("<" ++ InvalidOperationError.show(err) ++ ">")
 
     // Atomic string cases
-    | Invalid(x) => Invalid(abbreviate_str(available^, x))
+    | Invalid(x) =>
+      let abbreviated =
+        is_comment_token(x)
+          ? abbreviate_string_token(~min_len=available^, x)
+          : abbreviate_str(available^, x);
+      Invalid(abbreviated);
     | Atom(String(s)) =>
-      let str = abbreviate_str(available^, s);
+      let str = abbreviate_string_token(~min_len=available^, s);
       available := available^ - 2; // for quotes in printed representation
       Atom(String(str));
     | Var(v) => Var(abbreviate_str(available^, v))
@@ -159,15 +340,41 @@ let rec abbreviate_exp = (exp: Exp.t): Exp.t => {
         ListLit([flat_ellipses_term()]);
       } else {
         available := available^ - 2; // square brackets
-        ListLit(abbreviate_seq(xs));
+        ListLit(abbreviate_list_seq(xs));
       }
-    | Tuple([_, _, ..._] as xs) => Tuple(abbreviate_seq(xs))
+    | Tuple([_, _, ..._] as xs) => Tuple(abbreviate_tuple_seq(xs))
     | TupLabel(e1, e2) =>
       if (available^ <= 3) {
         Invalid(flat_ellipses);
       } else {
         available := available^ - 3;
-        TupLabel(abbreviate_exp(e1), abbreviate_exp(e2));
+        let remaining: int = available^;
+        let label_min_budget: int =
+          if (remaining <= 0) {
+            0;
+          } else {
+            min(AbbrevBudget.label_min_budget(~label=e1), remaining);
+          };
+        let label_preferred: int =
+          min(
+            AbbrevBudget.label_cap(~label=e1, ~available=remaining),
+            remaining,
+          );
+        let label_budget: int =
+          if (label_preferred < label_min_budget) {
+            label_min_budget;
+          } else {
+            label_preferred;
+          };
+        let (label', _): (Exp.t, int) =
+          AbbrevBudget.with_budget(~budget=label_budget, ~run=() =>
+            abbreviate_exp(e1)
+          );
+        let (value', _): (Exp.t, int) =
+          AbbrevBudget.with_budget(~budget=available^, ~run=() =>
+            abbreviate_exp(e2)
+          );
+        TupLabel(label', value');
       }
     | Dot(e1, e2) =>
       if (available^ <= 3) {
@@ -186,8 +393,7 @@ let rec abbreviate_exp = (exp: Exp.t): Exp.t => {
           flat_ellipses_term();
         };
       Ap(Forward, konst, arg);
-    | Parens(e)
-    | Probe(e, _) =>
+    | Parens(e) =>
       available := available^ - 2;
       Parens(abbreviate_exp(e));
 
@@ -603,17 +809,20 @@ let rec abbreviate_exp = (exp: Exp.t): Exp.t => {
           | [] => []
           | [pair, ...pairs] =>
             let hd = abbreviate_pair(pair);
-            if (available^ > 3) {
+            if (available^ > 12) {
               available := available^ - 6; // "| " " => "
               [hd, ...go(pairs)];
-            } else if (pairs == []) {
+              // } else if (available^ > 6) {
+              //   available := available^ - 6; // "| " " => "
+              //   [hd, (flat_ellipses_term_pat(), flat_ellipses_term())];
+            } else if (available^ > 6) {
               [hd];
             } else {
-              available := available^ - 3;
-              [hd, (flat_ellipses_term_pat(), flat_ellipses_term())];
+              [];
             };
           };
-        Match(exp', go(pat_exp_pairs));
+        let pairs = go(pat_exp_pairs);
+        Match(exp', pairs);
       }
 
     | TypAp(e, t) =>
@@ -747,7 +956,7 @@ and abbreviate_pat = (pat: Pat.t): Pat.t => {
     | Atom(Float(f)) =>
       Invalid(abbreviate_str(available^, string_of_float(f)))
     | Atom(String(s)) =>
-      let str = abbreviate_str(available^, s);
+      let str = abbreviate_string_token(~min_len=available^, s);
       available := available^ - 2; // for quotes in printed representation
       Atom(String(str));
     | Atom(Bool(b)) => wrap_or(Atom(Bool(b)), string_of_bool(b))
@@ -852,7 +1061,12 @@ and abbreviate_pat = (pat: Pat.t): Pat.t => {
         MultiHole(List.map(abbreviate_any, things));
       }
 
-    | Invalid(str) => Invalid(abbreviate_str(available^, str))
+    | Invalid(str) =>
+      let abbreviated =
+        is_comment_token(str)
+          ? abbreviate_string_token(~min_len=available^, str)
+          : abbreviate_str(available^, str);
+      Invalid(abbreviated);
     | EmptyHole => EmptyHole
     | Constructor(name, typ) =>
       if (available^ <= 1) {
@@ -861,8 +1075,7 @@ and abbreviate_pat = (pat: Pat.t): Pat.t => {
         available := available^ - 1; // space
         Constructor(name, typ);
       }
-    | Parens(p)
-    | Probe(p, _) =>
+    | Parens(p) =>
       if (available^ <= 3) {
         indet_term_pat;
       } else {
@@ -1056,7 +1269,6 @@ and abbreviate_typ = (typ: Typ.t): Typ.t => {
           );
         };
       }
-    | Probe(typ, _) => abbreviate_typ(typ).term
     | ProofOf(e) =>
       handle_unary(
         ~cost=13, // "proof_of " + " end"
@@ -1074,7 +1286,12 @@ and abbreviate_tpat = (tpat: TPat.t): TPat.t => {
   let term =
     switch (tpat.term) {
     | EmptyHole => tpat.term
-    | Invalid(str) => Invalid(abbreviate_str(available^, str))
+    | Invalid(str) =>
+      let abbreviated =
+        is_comment_token(str)
+          ? abbreviate_string_token(~min_len=available^, str)
+          : abbreviate_str(available^, str);
+      Invalid(abbreviated);
     | Var(v) => Var(abbreviate_str(available^, v))
     | MultiHole(things) =>
       if (available^ <= 1) {
@@ -1092,7 +1309,7 @@ and abbreviate_any = (any: Any.t): Any.t =>
   | Pat(p) => Pat(abbreviate_pat(p))
   | Typ(t) => Typ(abbreviate_typ(t))
   | TPat(tp) => TPat(abbreviate_tpat(tp))
-  | Rul(_r) => failwith("TODO")
+  | Rul(_) => any
   | Any(_) => any
   };
 
@@ -1104,5 +1321,16 @@ let abbreviate_exp = (~available as a=12, exp: Exp.t): (Exp.t, int) => {
     ? (flat_ellipses_term(), length_exp)
     : {
       (exp, length_exp);
+    };
+};
+
+let abbreviate_pat = (~available as a=12, pat: Pat.t): (Pat.t, int) => {
+  available := a;
+  let pat = abbreviate_pat(pat);
+  let length_pat = a - available^;
+  a < 0 || a <= 1 && length_pat > 1
+    ? (flat_ellipses_term_pat(), length_pat)
+    : {
+      (pat, length_pat);
     };
 };

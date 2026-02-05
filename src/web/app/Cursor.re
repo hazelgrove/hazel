@@ -3,7 +3,7 @@ open Language;
 type cursor('update) = {
   info: option(Info.t),
   dynamic_info: option(Info.t),
-  dynamics: option(list(Dynamics.Probe.Closure.t)),
+  dynamics: option(list(Sample.t)),
   selected_text: option(unit => string),
   selection: option(Segment.t),
   indicated_piece: option(Piece.t),
@@ -12,6 +12,8 @@ type cursor('update) = {
   editor_action: Action.t => option('update),
   undo_action: option('update),
   redo_action: option('update),
+  /* Global statics summary for status indicator */
+  error_ids: list(Util.Id.t),
 };
 
 let map = (f: 'a => 'b, cursor) => {
@@ -40,6 +42,7 @@ let empty = {
   editor_action: _ => None,
   undo_action: None,
   redo_action: None,
+  error_ids: [],
 };
 
 let (let+) = (cursor, f) => map(f, cursor);

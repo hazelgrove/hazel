@@ -23,8 +23,7 @@ type cls =
   | Poly
   | ProofOf
   | ProdProjection
-  | ProdExtension
-  | Probe;
+  | ProdExtension;
 
 include TermBase.Typ;
 
@@ -39,9 +38,7 @@ let fresh: term => t = IdTagged.fresh;
 let temp: term => t =
   term => {
     term,
-    annotation: {
-      ids: [Id.invalid],
-    },
+    annotation: IdTagged.IdTag.temp(),
   };
 
 let all_ids_temp = {
@@ -52,9 +49,7 @@ let all_ids_temp = {
     (continue, exp) =>
       {
         term: exp.term,
-        annotation: {
-          ids: [Id.invalid],
-        },
+        annotation: IdTagged.IdTag.temp(),
       }
       |> continue;
   map_term(~f_exp=f, ~f_pat=f, ~f_typ=f, ~f_tpat=f, ~f_rul=f);
@@ -99,8 +94,7 @@ let cls_of_term: Grammar.typ_term('a) => cls =
   | Poly(_) => Poly
   | ProofOf(_) => ProofOf
   | ProdProjection(_) => ProdProjection
-  | ProdExtension(_) => ProdExtension
-  | Probe(_, _) => Probe;
+  | ProdExtension(_) => ProdExtension;
 
 let show_cls: cls => string =
   fun
@@ -124,8 +118,7 @@ let show_cls: cls => string =
   | Poly => "Type quantifier"
   | ProofOf => "Proof type"
   | ProdProjection => "Tuple projection"
-  | ProdExtension => "Tuple extension"
-  | Probe => "Probed type";
+  | ProdExtension => "Tuple extension";
 
 let rec is_arrow = (typ: t) => {
   switch (typ.term) {
@@ -145,17 +138,15 @@ let rec is_arrow = (typ: t) => {
   | Rec(_)
   | ProdProjection(_)
   | ProdExtension(_) => false
-  | Probe(typ, _) => is_arrow(typ)
   };
 };
 
-let rec is_atom = (ty: t): bool =>
+let is_atom = (ty: t): bool =>
   switch (ty.term) {
   | Atom(_) => true
-  | Parens(ty)
-  | TupLabel(_, ty) => is_atom(ty)
-  | Probe(ty, _) => is_atom(ty)
   | ProofOf(_)
+  | Parens(_)
+  | TupLabel(_)
   | Arrow(_)
   | Unknown(_)
   | List(_)
@@ -194,7 +185,6 @@ let rec has_fun = (typ: t) =>
     )
   | Prod(tys) => List.exists(has_fun, tys)
   | ProdExtension(t1, t2) => has_fun(t1) || has_fun(t2)
-  | Probe(typ, _) => has_fun(typ)
   };
 
 let rec is_poly = (typ: t) => {
@@ -215,7 +205,6 @@ let rec is_poly = (typ: t) => {
   | Rec(_)
   | ProdProjection(_)
   | ProdExtension(_) => false
-  | Probe(typ, _) => is_poly(typ)
   };
 };
 
@@ -288,7 +277,6 @@ let rec free_vars = (~bound=[], ty: t): list(Var.t) =>
   | Rec(x, ty)
   | Poly(x, ty) =>
     free_vars(~bound=(x |> TPat.tyvar_of_utpat |> Option.to_list) @ bound, ty)
-  | Probe(ty, _) => free_vars(~bound, ty)
   | ProofOf(_) => []
   };
 
@@ -322,7 +310,6 @@ let rec vars = (ty: t): list(Var.t) =>
   | TupLabel(_, ty)
   | ProdProjection(ty, _) => vars(ty)
   | ProdExtension(ty1, ty2) => vars(ty1) @ vars(ty2)
-  | Probe(ty, _) => vars(ty)
   };
 let rec aliases_deep = (ctx: Ctx.t, ty: t): list((string, t)) => {
   let defs =
@@ -379,7 +366,6 @@ let rec num_nodes = (ty: t): int => {
   | ProofOf(_) => 10 // TODO[Matt]: this is a hack to make sure that Yes types are not counted as small
   | ProdProjection(ty1, ty2) => 1 + num_nodes(ty1) + num_nodes(ty2)
   | ProdExtension(ty1, ty2) => 1 + num_nodes(ty1) + num_nodes(ty2)
-  | Probe(ty, _) => 1 + num_nodes(ty)
   };
 };
 
@@ -413,7 +399,6 @@ let rec count_unknowns = (ty: t): int =>
   | TupLabel(_, ty) => count_unknowns(ty)
   | ProdProjection(ty1, _) => count_unknowns(ty1)
   | ProdExtension(ty1, ty2) => count_unknowns(ty1) + count_unknowns(ty2)
-  | Probe(ty, _) => count_unknowns(ty)
   };
 
 let rec contains_sum_or_var = (ty: t): bool =>
@@ -435,7 +420,6 @@ let rec contains_sum_or_var = (ty: t): bool =>
   | ExplicitNonlabel
   | Label(_) => false
   | TupLabel(_, ty) => contains_sum_or_var(ty)
-  | Probe(ty, _) => contains_sum_or_var(ty)
   };
 
 let rec contains_unknown = (ty: t): bool =>
@@ -464,7 +448,6 @@ let rec contains_unknown = (ty: t): bool =>
   | ExplicitNonlabel
   | Label(_) => false
   | TupLabel(_, ty) => contains_unknown(ty)
-  | Probe(ty, _) => contains_unknown(ty)
   };
 
 let rec subst = (s: t, x: TPat.t, ty: t): t => {
@@ -491,7 +474,6 @@ let rec subst = (s: t, x: TPat.t, ty: t): t => {
     | List(ty) => List(subst(s, x, ty)) |> rewrap
     | Var(y) => str == y ? s : Var(y) |> rewrap
     | Parens(ty) => Parens(subst(s, x, ty)) |> rewrap
-    | Probe(ty, info) => Probe(subst(s, x, ty), info) |> rewrap
     | ProdProjection(t1, t2) =>
       ProdProjection(subst(s, x, t1), subst(s, x, t2)) |> rewrap
     | ProdExtension(t1, t2) =>
@@ -665,7 +647,6 @@ let rec normalize = (~rec_counter=0, ctx: Ctx.t, ty: t): t => {
     Rec(tpat, normalize(Ctx.extend_dummy_tvar(ctx, tpat), ty)) |> rewrap
   | Poly(name, ty) =>
     Poly(name, normalize(Ctx.extend_dummy_tvar(ctx, name), ty)) |> rewrap
-  | Probe(ty, probe) => Probe(normalize(ctx, ty), probe) |> rewrap
   | ProofOf(_) => ty // Todo: should we normalize this?
   };
 };
@@ -680,8 +661,6 @@ let rec meet = (ctx: Ctx.t, ty1: t, ty2: t): option(t) => {
   | (Parens(ty1), _) => meet'(ty1, ty2)
   | (TupLabel({term: ExplicitNonlabel, _}, ty1'), _) => meet'(ty1', ty2)
   | (_, TupLabel({term: ExplicitNonlabel, _}, ty2')) => meet'(ty1, ty2')
-  | (Probe(ty1, _), _) => meet'(ty1, ty2)
-  | (_, Probe(ty2, _)) => meet'(ty1, ty2)
   | (Unknown(p1), Unknown(p2)) =>
     Some(Unknown(meet_type_provenance(p1, p2)) |> temp)
   | (Unknown(_), _) => Some(ty2)
@@ -834,8 +813,6 @@ let rec match_synswitch = (t1: t, t2: t) => {
   // HACK[Matt]: The only possible poly is `Poly Syn -> Syn`
   | (Poly(_), Poly(_)) => t2
   | (Poly(_), _) => t1
-  | (Probe(ty1, _), _) =>
-    Probe(match_synswitch(ty1, t2), Probe.empty) |> rewrap1
   };
 };
 
@@ -851,8 +828,6 @@ let rec join = (ctx: Ctx.t, ty1: t, ty2: t): t => {
   switch (term_of(ty1), term_of(ty2)) {
   | (_, Parens(ty2)) => join'(ty1, ty2)
   | (Parens(ty1), _) => join'(ty1, ty2)
-  | (Probe(ty1, _), _) => join'(ty1, ty2)
-  | (_, Probe(ty2, _)) => join'(ty1, ty2)
   | (TupLabel({term: ExplicitNonlabel, _}, ty1'), _) => join'(ty1', ty2)
   | (_, TupLabel({term: ExplicitNonlabel, _}, ty2')) => join'(ty1, ty2')
   | (Unknown(p1), Unknown(p2)) =>
@@ -1135,7 +1110,6 @@ let rec is_syn = (ty: t): bool =>
   | ProdProjection(_)
   | ProdExtension(_)
   | ExplicitNonlabel => false
-  | Probe(ty, _) => is_syn(ty)
   };
 
 let rec is_ana_atom = (ty: t) =>
@@ -1156,7 +1130,6 @@ let rec is_ana_atom = (ty: t) =>
   | ProdProjection(_)
   | ProdExtension(_)
   | Sum(_) => None
-  | Probe(ty, _) => is_ana_atom(ty)
   };
 
 let rec is_syn_plus = (ty: t): bool =>
@@ -1178,7 +1151,6 @@ let rec is_syn_plus = (ty: t): bool =>
   | Sum(_)
   | ProdProjection(_)
   | ProdExtension(_) => false
-  | Probe(ty, _) => is_syn_plus(ty)
   };
 
 /* Does the type require parentheses when on the left of an arrow for printing? */
@@ -1200,7 +1172,6 @@ let rec needs_parens = (ty: t): bool =>
   | Arrow(_, _)
   | Prod(_)
   | Sum(_) => true /* disambiguate between (A + B) -> C and A + (B -> C) */
-  | Probe(ty, _) => needs_parens(ty)
   };
 
 let pretty_print_tvar = (tv: TPat.t): string =>
@@ -1256,7 +1227,6 @@ let rec pretty_print = (ty: t): string =>
     "rec " ++ pretty_print_tvar(tv) ++ " -> " ++ pretty_print(t)
   | Poly(tv, t) =>
     "poly " ++ pretty_print_tvar(tv) ++ " -> " ++ pretty_print(t)
-  | Probe(ty, _) => pretty_print(ty)
   | ProofOf(_e) => "yes <e> indeed"
   }
 and ctr_pretty_print =
@@ -1295,8 +1265,6 @@ let rec diff = (ty: t, ty': t): list(Id.t) => {
     ids^;
   };
   switch (term_of(ty), term_of(ty')) {
-  | (Probe(t1, _), _) => diff(t1, ty')
-  | (_, Probe(t2, _)) => diff(ty, t2)
   | (Parens(t1), Parens(t2)) => diff(t1, t2)
   | (Parens(t1), _) => diff(t1, ty')
   | (_, Parens(t2)) => diff(ty, t2)

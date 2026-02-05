@@ -2,11 +2,6 @@
  A nice property would be that elaboration is idempotent...
  */
 
-/*
- * probe_unknowns parameter: Added for live typing. When enabled, it will add probes
- * around any expression/pattern that is partially unknown.
- */
-
 open Util;
 
 exception MissingTypeInfo;
@@ -28,25 +23,22 @@ let fresh_ascription = (d: Exp.t, t: Typ.t, t': option(Typ.t)) => {
   );
 };
 let elaborated_type =
-    (m: Statics.Map.t, uexp: Exp.t)
-    : (Typ.t, Typ.t, Self.exp, Ctx.t, CoCtx.t, Exp.t) => {
-  let (ana_ty, ty, self, ctx, co_ctx, term) =
+    (m: Statics.Map.t, uexp: Exp.t): (Typ.t, Typ.t, Ctx.t, CoCtx.t, Exp.t) => {
+  let (ana_ty, self_ty, ctx, co_ctx, term) =
     switch (Id.Map.find_opt(Exp.rep_id(uexp), m)) {
-    | Some(Info.InfoExp({ana, ty, self, ctx, co_ctx, term: new_term, _})) => (
+    | Some(Info.InfoExp({ana, ty, ctx, co_ctx, term: new_term, _})) => (
         ana,
         ty,
-        self,
         ctx,
         co_ctx,
         new_term,
       )
     | _ => raise(MissingTypeInfo)
     };
-  let elab_ty = Typ.match_synswitch(ana_ty, ty);
+  let elab_ty = Typ.match_synswitch(ana_ty, self_ty);
   (
     elab_ty |> Typ.normalize(ctx) |> Typ.all_ids_temp,
     ana_ty,
-    self,
     ctx,
     co_ctx,
     term,
@@ -54,8 +46,8 @@ let elaborated_type =
 };
 
 let elaborated_pat_type =
-    (m: Statics.Map.t, upat: Pat.t): (Typ.t, Typ.t, Ctx.t, Pat.t, Self.pat) => {
-  let (ana_ty, self_ty, ctx, prev_synswitch, term, label_inference, self) =
+    (m: Statics.Map.t, upat: Pat.t): (Typ.t, Typ.t, Ctx.t, Pat.t) => {
+  let (ana_ty, self_ty, ctx, prev_synswitch, term, label_inference) =
     switch (Id.Map.find_opt(Pat.rep_id(upat), m)) {
     | Some(
         Info.InfoPat({
@@ -65,7 +57,6 @@ let elaborated_pat_type =
           prev_synswitch,
           term: new_term,
           label_inference,
-          self,
           _,
         }),
       ) => (
@@ -75,7 +66,6 @@ let elaborated_pat_type =
         prev_synswitch,
         new_term,
         label_inference,
-        self,
       )
     | _ => raise(MissingTypeInfo)
     };
@@ -94,31 +84,15 @@ let elaborated_pat_type =
       | _ => Typ.match_synswitch(syn_ty, ana_ty)
       }
     };
-  (
-    elab_ty |> Typ.normalize(ctx) |> Typ.all_ids_temp,
-    ana_ty,
-    ctx,
-    term,
-    self,
-  );
+  (elab_ty |> Typ.normalize(ctx) |> Typ.all_ids_temp, ana_ty, ctx, term);
 };
 
 let rec elaborate_pattern =
-        (
-          ~probe_unknowns: bool,
-          m: Statics.Map.t,
-          upat: Pat.t,
-          in_container: bool,
-        )
-        : (Pat.t, Typ.t) => {
+        (m: Statics.Map.t, upat: Pat.t, in_container: bool): (Pat.t, Typ.t) => {
   // Pulling upat back out of the statics map for statics level singleton tuple autolabeling
-  let (elaborated_type, ana, ctx, upat, self) = elaborated_pat_type(m, upat);
+  let (elaborated_type, ana, ctx, upat) = elaborated_pat_type(m, upat);
   let elaborate_pattern = (~in_container=false, m, upat) =>
-    elaborate_pattern(~probe_unknowns, m, upat, in_container);
-
-  let contains_unknown =
-    Option.map(Typ.contains_unknown, Self.typ_of_pat(self))
-    |> Option.value(~default=true);
+    elaborate_pattern(m, upat, in_container);
   let (term, rewrap) = Pat.unwrap(upat);
   let dpat =
     switch (term) {
@@ -176,14 +150,10 @@ let rec elaborate_pattern =
     // Type annotations should already appeard
     | Parens(p) =>
       let (p', _) = elaborate_pattern(m, p);
-      p';
+      Parens(p') |> rewrap;
     | Asc(p, t) =>
       let (p', _) = elaborate_pattern(m, p);
       Asc(p', Typ.normalize(ctx, t)) |> rewrap;
-    | Probe(p, probe) =>
-      let (e', _) = elaborate_pattern(m, p);
-      let probe = Dynamics.Probe.instrument_pat(m, Pat.rep_id(upat), probe);
-      Probe(e', probe) |> rewrap;
     | Constructor(c, _) =>
       let ana_ty =
         switch (Id.Map.find_opt(Pat.rep_id(upat), m)) {
@@ -198,38 +168,16 @@ let rec elaborate_pattern =
         };
       Constructor(c, Some(t)) |> rewrap;
     };
-
-  let dpat =
-    if (probe_unknowns && contains_unknown) {
-      switch (dpat) {
-      | {term: Probe(_), _} => dpat
-      | {term: TupLabel(_, _), _} => dpat // TupLabels can not have probes
-      | _ => {
-          term: Probe(dpat, Probe.empty),
-          annotation: dpat.annotation,
-        }
-      };
-    } else {
-      dpat;
-    };
   (dpat, elaborated_type);
 };
 
-let rec elaborate =
-        (~probe_unknowns: bool, m: Statics.Map.t, uexp: Exp.t)
-        : (DHExp.t, Typ.t) => {
-  let elaborate = elaborate(~probe_unknowns);
-  let elaborate_pattern = elaborate_pattern(~probe_unknowns);
+let rec elaborate = (m: Statics.Map.t, uexp: Exp.t): (DHExp.t, Typ.t) => {
   // In the case of singleton labeled tuples we update the syntax in Statics.
   // We store this syntax with the same ID as the original expression and store it on the Info.exp in the Statics.map
   // We are then pulling this out and using it in place of the actual expression.
 
-  let (elaborated_type, ana, self, ctx, co_ctx, statics_pseudo_elaborated) =
+  let (elaborated_type, ana, ctx, co_ctx, statics_pseudo_elaborated) =
     elaborated_type(m, uexp);
-
-  let contains_unknown =
-    Option.map(Typ.contains_unknown, Self.typ_of_exp(self))
-    |> Option.value(~default=true);
   let (_, rewrap) = Exp.unwrap(uexp);
   let uexp = rewrap(statics_pseudo_elaborated.term);
 
@@ -257,11 +205,7 @@ let rec elaborate =
       Asc(elaborate(m, e) |> fst, Typ.normalize(ctx, t)) |> rewrap
     | Parens(e) =>
       let (e', _) = elaborate(m, e);
-      e';
-    | Probe(e, probe) =>
-      let (e', _) = elaborate(m, e);
-      let probe = Dynamics.Probe.instrument_exp(m, Exp.rep_id(uexp), probe);
-      Probe(e', probe) |> rewrap;
+      Parens(e') |> rewrap;
     | Deferral(_) => uexp
     | Atom(c) =>
       let c =
@@ -508,26 +452,11 @@ let rec elaborate =
       Match(e', List.combine(ps', es')) |> rewrap;
     };
 
-  let dhexp =
-    if (probe_unknowns && contains_unknown) {
-      switch (dhexp) {
-      | {term: Probe(_), _} => dhexp
-      | {term: TupLabel(_, _), _} => dhexp // TupLabels can not have probes
-      | _ => {
-          term: Probe(dhexp, Probe.empty),
-          annotation: dhexp.annotation,
-        }
-      };
-    } else {
-      dhexp;
-    };
   (dhexp, elaborated_type);
 };
 
-let uexp_elab =
-    (~probe_unknowns: bool, m: Statics.Map.t, uexp: Exp.t)
-    : ElaborationResult.t => {
-  switch (elaborate(~probe_unknowns, m, uexp)) {
+let uexp_elab = (m: Statics.Map.t, uexp: Exp.t): ElaborationResult.t => {
+  switch (elaborate(m, uexp)) {
   | exception MissingTypeInfo => DoesNotElaborate
   | (d, ty) => Elaborates(d, ty)
   };

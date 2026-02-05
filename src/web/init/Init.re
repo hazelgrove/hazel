@@ -27,7 +27,7 @@ let startup: PersistentData.t = {
          (
            name,
            {
-             editor: content |> PersistentSegment.to_persistent_zipper,
+             editor: content |> PersistentSegment.unpersist,
              result: EvalResult.Model.init |> EvalResult.Model.persist,
            }: CellEditor.Model.persistent,
          )

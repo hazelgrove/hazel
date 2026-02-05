@@ -13,12 +13,12 @@ module PairUtil = PairUtil;
 module CsvUtil = CsvUtil;
 module Result = Result;
 module StateMonad = StateMonad;
-module WriterMonad = WriterMonad;
 module StringUtil = StringUtil;
 module TimeUtil = TimeUtil;
 module TupleUtil = TupleUtil;
 module WebUtil = WebUtil;
 module JsUtil = JsUtil;
+module ContextMenuListener = ContextMenuListener;
 module Key = Key;
 module Os = Os;
 module Point = Point;
@@ -32,6 +32,8 @@ module VarMap = VarMap;
 module ProjectorShape = ProjectorShape;
 module API = API;
 module OpenRouter = OpenRouter;
+module SafeTriangle = SafeTriangle;
+module FloatingElement = FloatingElement;
 
 // Used by [@deriving sexp, yojson)]
 include Sexplib.Std;

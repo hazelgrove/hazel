@@ -19,6 +19,7 @@ module Model = {
   type t = {
     cached_settings: Calc.saved(CoreSettings.t),
     elab: Calc.saved(Exp.t),
+    cached_targets: Calc.saved(Sample.targets), /* Input targets for cache invalidation */
     result: Calc.t(ProgramResult.t(ProgramResult.inner)),
     display,
     theorems: Theorems.Model.t,
@@ -33,6 +34,7 @@ module Model = {
   let init = {
     cached_settings: Calc.Pending,
     elab: Calc.Pending,
+    cached_targets: Calc.Pending,
     result: Calc.NewValue(ProgramResult.ResultPending),
     display: Evaluation(Calc.Pending),
     theorems: Theorems.Model.init,
@@ -53,6 +55,7 @@ module Model = {
     | Some(stepper) => {
         cached_settings: Calc.Pending,
         elab: Calc.Pending,
+        cached_targets: Calc.Pending,
         result: Calc.NewValue(ProgramResult.ResultPending),
         display: Stepper(StepperView.Model.unpersist(stepper)),
         theorems,
@@ -102,7 +105,7 @@ module Model = {
          }
        );
 
-  let dynamics = (model: t): Calc.t(Dynamics.t) =>
+  let dynamics_full = (model: t): Calc.t(Dynamics.t) =>
     model
     |> dynamics
     |> Calc.map(_, s =>
@@ -187,33 +190,49 @@ module Update = {
   let calculate =
       (
         ~settings: CoreSettings.t,
-        ~queue_worker: option(Exp.t => unit),
+        ~queue_worker: option(WorkerServer.Request.value => unit),
         ~is_edited: bool,
         statics: Haz3lcore.CachedStatics.t,
-        {cached_settings, elab, result, display, theorems}: Model.t,
+        {cached_settings, elab, cached_targets, result, display, theorems}: Model.t,
       ) => {
-    // Check whether settings / elab have changed
+    // Check whether settings / elab / targets have changed
     let settings =
       cached_settings
       |> Calc.set(settings, ~eq=CoreSettings.eq_ignoring_stepper_modals);
     let elab = Calc.set(~eq=Exp.fast_equal, statics.elaborated, elab);
+    let targets =
+      Calc.set(
+        ~eq=Id.Map.equal(Sample.equal_capture_spec),
+        statics.targets,
+        cached_targets,
+      );
 
     // Calculate the result
     let result: Calc.t(ProgramResult.t(ProgramResult.inner)) =
       result
       |> {
         let.calc_t elab = elab
-        and.calc settings = settings; // TODO[Matt]: We could make this more fine-grained, we only care about one setting
+        // TODO[Matt]: We could make this more fine-grained, we only care about one setting
+        and.calc settings = settings
+        and.calc targets = targets;
         switch (queue_worker) {
         // Dynamics is off:
         | _ when !settings.dynamics => ProgramResult.ResultPending
         // Using the webworker:
         | Some(queue_worker) =>
-          queue_worker(elab);
+          queue_worker({
+            expr: elab,
+            targets,
+          });
           ProgramResult.ResultPending;
         // Using the main thread:
         | None =>
-          switch (WorkerServer.work(elab)) {
+          switch (
+            WorkerServer.work({
+              expr: elab,
+              targets,
+            })
+          ) {
           | Ok((exp, state)) =>
             ProgramResult.ResultOk(
               ProgramResult.{
@@ -292,6 +311,7 @@ module Update = {
       {
         cached_settings: settings |> Calc.save,
         elab: elab |> Calc.save,
+        cached_targets: targets |> Calc.save,
         result: result |> Calc.make_old,
         display,
         theorems,
@@ -374,14 +394,17 @@ module View = {
     let editor = Option.map(snd, editor);
     let code_view =
       Option.map(
-        CodeSelectable.View.view(
-          ~signal=
-            fun
-            | MakeActive => signal(MakeActive(Evaluation())),
-          ~inject=a => inject(EvalEditorAction(a)),
-          ~globals,
-          ~selected,
-        ),
+        (editor: CodeSelectable.Model.t) =>
+          CodeSelectable.View.view(
+            ~signal=
+              fun
+              | MakeActive => signal(MakeActive(Evaluation())),
+            ~inject=a => inject(EvalEditorAction(a)),
+            ~globals,
+            ~selected,
+            ~dynamics=editor.dynamics.probe_map,
+            editor,
+          ),
         editor,
       );
     let exn_view =

@@ -35,7 +35,6 @@ type cls =
   | Filter
   | Closure
   | Parens
-  | Probe
   | Cons
   | UnOp(Operators.op_un)
   | BinOp(Operators.op_bin)
@@ -61,9 +60,7 @@ let equal = fast_equal;
 let temp: term => t =
   term => {
     term,
-    annotation: {
-      ids: [Id.invalid],
-    },
+    annotation: IdTagged.IdTag.temp(),
   };
 let fresh: term => t = IdTagged.fresh;
 
@@ -118,7 +115,6 @@ let cls_of_term: type a. Grammar.exp_term(a) => cls =
   | Filter(_) => Filter
   | Closure(_) => Closure
   | Parens(_) => Parens
-  | Probe(_) => Probe
   | Cons(_) => Cons
   | ListConcat(_) => ListConcat
   | UnOp(op, _) => UnOp(op)
@@ -170,7 +166,6 @@ let show_cls: cls => string =
   | Filter => "Filter"
   | Closure => "Closure"
   | Parens => "Parenthesized expression"
-  | Probe => "Probe"
   | Cons => "Cons"
   | ListConcat => "List Concatenation"
   | BinOp(op) => Operators.show_binop(op)
@@ -204,8 +199,7 @@ let get_label: t => option(LabeledTuple.label) = {
 // determine when to allow for recursive definitions in a let binding.
 let rec is_fun = (e: t) => {
   switch (e.term) {
-  | Parens(e)
-  | Probe(e, _) => is_fun(e)
+  | Parens(e) => is_fun(e)
   | Asc(e, _) => is_fun(e)
   | TypFun(_)
   | Fun(_)
@@ -272,7 +266,6 @@ let rec is_tuple_of_functions = (e: t) =>
     switch (e.term) {
     | Asc(e, _)
     | Parens(e)
-    | Probe(e, _)
     | TupLabel(_, e) => is_tuple_of_functions(e)
     | Tuple(es) => es |> List.for_all(is_fun)
     | Dot(e1, e2) =>
@@ -351,7 +344,6 @@ let rec get_num_of_functions = (e: t) =>
   } else {
     switch (e.term) {
     | Parens(e)
-    | Probe(e, _)
     | TupLabel(_, e)
     | Dot(e, _) => get_num_of_functions(e)
     | Tuple(es) => is_tuple_of_functions(e) ? Some(List.length(es)) : None
@@ -405,9 +397,7 @@ let (replace_all_ids, replace_all_ids_typ) = {
     (continue, exp) =>
       {
         ...exp,
-        annotation: {
-          ids: [Id.mk()],
-        },
+        annotation: IdTagged.IdTag.mk_internal([Id.mk()]),
       }
       |> continue;
   (
@@ -432,8 +422,7 @@ let rec get_fn_name = (e: t) => {
   switch (e.term) {
   | Fun(_, _, _, n) => n
   | FixF(_, e, _) => get_fn_name(e)
-  | Parens(e)
-  | Probe(e, _) => get_fn_name(e)
+  | Parens(e) => get_fn_name(e)
   | TypFun(_, _, n) => n
   | _ => None
   };

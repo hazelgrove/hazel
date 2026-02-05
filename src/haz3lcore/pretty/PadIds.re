@@ -28,7 +28,8 @@ let pad_typ_ids = (ty: Typ.t): Typ.t => {
         cont({
           ...ty,
           annotation: {
-            ids: ids,
+            ids,
+            secondary: ty.annotation.secondary,
           },
         });
       },

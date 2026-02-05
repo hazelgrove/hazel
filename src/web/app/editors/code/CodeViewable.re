@@ -6,13 +6,14 @@ open Haz3lcore;
 
 let view =
     (
-      ~is_dynamic=(_: Id.t) => false,
       ~globals: Globals.t,
       ~measured,
       ~term_data,
       ~buffer_ids,
       ~segment,
       ~shape_map,
+      ~refractor_shape_map,
+      ~is_dynamic=(_: Id.t) => false,
       (),
     )
     : Node.t => {
@@ -21,6 +22,7 @@ let view =
       ~measured,
       ~settings=globals.settings,
       ~shape_map,
+      ~refractor_shape_map,
       ~font_metrics=globals.font_metrics,
       ~term_data,
       ~buffer_ids,
@@ -33,14 +35,16 @@ let view =
 let view_segment =
     (~globals: Globals.t, ~is_dynamic=(_: Id.t) => false, segment: Segment.t) => {
   let shape_map = ProjectorCore.Shape.Map.empty; // assume no projectors
+  let refractor_shape_map = Id.Map.empty; //assume no refractors
   let term_data = TermData.empty; //assume no indication/selection decoratinos
   view(
     ~globals,
-    ~measured=Measured.of_segment(segment, shape_map),
+    ~measured=Measured.of_segment(segment, shape_map, refractor_shape_map),
     ~term_data,
     ~buffer_ids=[],
     ~segment,
     ~shape_map,
+    ~refractor_shape_map,
     ~is_dynamic,
     (),
   );

@@ -216,20 +216,20 @@ let join_tests = (
           Typ.join(
             Builtins.ctx_init(None),
             sum([
-              Variant("A", [], Some(int())),
-              Variant("B", [], Some(bool())),
+              Variant("A", ConstructorMap.empty_variant_ann, Some(int())),
+              Variant("B", ConstructorMap.empty_variant_ann, Some(bool())),
             ]),
             sum([
-              Variant("A", [], Some(int())),
-              Variant("B", [], Some(bool())),
+              Variant("A", ConstructorMap.empty_variant_ann, Some(int())),
+              Variant("B", ConstructorMap.empty_variant_ann, Some(bool())),
             ]),
           );
         check(
           typ,
           "Join of sum types with same variants",
           sum([
-            Variant("A", [], Some(int())),
-            Variant("B", [], Some(bool())),
+            Variant("A", ConstructorMap.empty_variant_ann, Some(int())),
+            Variant("B", ConstructorMap.empty_variant_ann, Some(bool())),
           ]),
           t,
         );

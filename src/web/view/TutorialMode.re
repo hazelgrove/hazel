@@ -227,9 +227,9 @@ module Update = {
       (~settings, ~is_edited, ~schedule_action, model: Model.t): Model.t => {
     let stitched_elabs = Tutorial.stitch_term(model.editors);
     let worker_request = ref([]);
-    let queue_worker = (pos, expr) => {
+    let queue_worker = (pos, req_value: WorkerServer.Request.value) => {
       worker_request :=
-        worker_request^ @ [(pos |> Tutorial.key_for_statics, expr)];
+        worker_request^ @ [(pos |> Tutorial.key_for_statics, req_value)];
     };
     let cells =
       Tutorial.map2_stitched(
@@ -239,8 +239,8 @@ module Update = {
               editor,
               statics: cell.editor.statics,
               dynamics:
-                EvalResult.Model.dynamics(cell.result) |> Calc.get_value,
-
+                EvalResult.Model.dynamics_full(cell.result) |> Calc.get_value,
+              context_menu: None,
               dynamic_statics: cell.editor.dynamic_statics,
               pinned_call: cell.editor.pinned_call,
             },

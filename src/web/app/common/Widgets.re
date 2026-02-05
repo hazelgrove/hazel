@@ -43,7 +43,7 @@ let toggle = (~tooltip="", label, active, action) =>
   div(
     ~attrs=[
       clss(["toggle-switch"] @ (active ? ["active"] : [])),
-      Attr.on_click(action),
+      Attr.on_pointerdown(action),
       Attr.title(tooltip),
     ],
     [div(~attrs=[clss(["toggle-knob"])], [text(label)])],
@@ -53,7 +53,7 @@ let toggle_named = (~tooltip="", ~warning=?, icon, active, action) =>
   div(
     ~attrs=[
       clss(["named-menu-item"] @ (active ? ["active"] : [])),
-      Attr.on_click(action),
+      Attr.on_pointerdown(action),
     ],
     [
       toggle(icon, active, _ => Effect.Ignore),

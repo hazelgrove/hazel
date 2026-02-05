@@ -59,6 +59,7 @@ let semantics_group = (~globals) => {
         LiveTyping,
         Some("May slow down editor performance"),
       ),
+      // ("∀", "Probe All", globals.settings.core.probe_all, ProbeAll, None),
       // (
       //   "👍",
       //   "Feedback",
@@ -110,10 +111,17 @@ let stepper_group = (~globals: Globals.t) => {
         None,
       ),
       (
-        Util.Unicode.castArrowSym,
+        "⇨",
         "Show Ascription Steps",
         s.show_ascription_steps,
         Evaluation(ShowAscriptionSteps),
+        None,
+      ),
+      (
+        "⇨",
+        "Show Case Steps",
+        s.show_case_steps,
+        Evaluation(ShowCaseSteps),
         None,
       ),
       (

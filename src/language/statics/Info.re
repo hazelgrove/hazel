@@ -378,6 +378,9 @@ let ancestors_of: t => ancestors =
   | InfoTPat({ancestors, _}) => ancestors
   | Secondary(_) => []; //TODO
 
+let parent_id_of: t => option(Id.t) =
+  info => info |> ancestors_of |> ListUtil.hd_opt;
+
 let id_of: t => Id.t =
   fun
   | InfoExp(i) => Exp.rep_id(i.term)
@@ -397,6 +400,18 @@ let error_of: t => option(error) =
   | InfoTyp({status: InHole(err), _}) => Some(Typ(err))
   | InfoTPat({status: InHole(err), _}) => Some(TPat(err))
   | Secondary(_) => None;
+
+/* A term is "typable" if it can meaningfully be assigned a type and will
+   have a runtime value. This includes expressions and patterns, but excludes
+   types, type patterns, and certain expression forms (deferrals, labels,
+   type aliases) that don't produce useful values for probing/statics display. */
+let is_typable_term: option(t) => bool =
+  fun
+  | Some(InfoExp({term: {term: Deferral(_) | Label(_) | TyAlias(_), _}, _})) =>
+    false
+  | Some(InfoTyp(_) | InfoTPat(_) | Secondary(_)) => false
+  | Some(InfoExp(_) | InfoPat(_)) => true
+  | None => false;
 
 let exp_co_ctx: exp => CoCtx.t = ({co_ctx, _}) => co_ctx;
 let exp_ty: exp => Typ.t = ({ty, _}) => ty;
@@ -800,7 +815,11 @@ let fixed_typ_err_common: (error_common, Typ.t) => Typ.t =
     | NoType(FreeConstructor(c)) =>
       typ_or_ana(
         Sum([
-          ConstructorMap.Variant(c, [Id.invalid], None),
+          ConstructorMap.Variant(
+            c,
+            ConstructorMap.mk_variant_ann(~ids=[Id.invalid], ()),
+            None,
+          ),
           ConstructorMap.BadEntry(Unknown(Internal) |> Typ.temp),
         ])
         |> Typ.temp,
@@ -1093,14 +1112,15 @@ let derived_tpat = (~utpat: TPat.t, ~ctx, ~ancestors): tpat => {
 let get_binding_site = (info: t): option(Id.t) => {
   switch (info) {
   | InfoExp({term: {term: Var(name), _}, ctx, _}) =>
-    let+ entry = Ctx.lookup_var(ctx, name);
-    entry.id;
+    let* entry = Ctx.lookup_var(ctx, name);
+    entry.id == Id.invalid ? None : Some(entry.id);
   | InfoExp({term: {term: Constructor(name, _), _}, ctx, _})
   | InfoPat({term: {term: Constructor(name, _), _}, ctx, _}) =>
-    let+ entry = Ctx.lookup_ctr(ctx, name);
-    entry.id;
+    let* entry = Ctx.lookup_ctr(ctx, name);
+    entry.id == Id.invalid ? None : Some(entry.id);
   | InfoTyp({term: {term: Var(name), _}, ctx, _}) =>
-    Ctx.lookup_tvar_id(ctx, name)
+    let* id = Ctx.lookup_tvar_id(ctx, name);
+    id == Id.invalid ? None : Some(id);
   | _ => None
   };
 };

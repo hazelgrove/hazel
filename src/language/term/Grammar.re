@@ -88,7 +88,6 @@ and exp_term('a) =
   | Filter(stepper_filter_kind_t('a), exp_t('a))
   | Closure([@show.opaque] Environment.t(exp_t('a)), exp_t('a))
   | Parens(exp_t('a)) // (
-  | Probe(exp_t('a), Probe.t)
   | Cons(exp_t('a), exp_t('a))
   | ListConcat(exp_t('a), exp_t('a))
   | UnOp(Operators.op_un, exp_t('a))
@@ -113,7 +112,6 @@ and pat_term('a) =
   | Label(string)
   | TupLabel(pat_t('a), pat_t('a))
   | Parens(pat_t('a))
-  | Probe(pat_t('a), Probe.t)
   | Ap(pat_t('a), pat_t('a))
   | Asc(pat_t('a), typ_t('a))
 and pat_t('a) = Annotated.t(pat_term('a), 'a)
@@ -134,7 +132,6 @@ and typ_term('a) =
   | ProofOf(exp_t('a))
   | ProdProjection(typ_t('a), typ_t('a))
   | ProdExtension(typ_t('a), typ_t('a))
-  | Probe(typ_t('a), Probe.t)
 and typ_t('a) = Annotated.t(typ_term('a), 'a)
 and tpat_term('a) =
   | Invalid(string)
@@ -257,7 +254,6 @@ let rec map_exp_annotation: type a b. (a => b, exp_t(a)) => exp_t(b) =
             map_exp_annotation(f, e),
           )
         | Parens(e) => Parens(map_exp_annotation(f, e))
-        | Probe(e, probe) => Probe(map_exp_annotation(f, e), probe)
         | Cons(e1, e2) =>
           Cons(map_exp_annotation(f, e1), map_exp_annotation(f, e2))
         | ListConcat(e1, e2) =>
@@ -327,7 +323,6 @@ and map_pat_annotation: 'a 'b. ('a => 'b, pat_t('a)) => pat_t('b) =
         | TupLabel(p1, p2) =>
           TupLabel(map_pat_annotation(f, p1), map_pat_annotation(f, p2))
         | Parens(p) => Parens(map_pat_annotation(f, p))
-        | Probe(p, probe) => Probe(map_pat_annotation(f, p), probe)
         | Ap(p1, p2) =>
           Ap(map_pat_annotation(f, p1), map_pat_annotation(f, p2))
         | Asc(p, t) =>
@@ -372,7 +367,6 @@ and map_typ_annotation: 'a 'b. ('a => 'b, typ_t('a)) => typ_t('b) =
             map_typ_annotation(f, t1),
             map_typ_annotation(f, t2),
           )
-        | Probe(t, probe) => Probe(map_typ_annotation(f, t), probe)
         },
       annotation: new_annotation,
     };
@@ -644,10 +638,6 @@ module Factory = (DefaultAnnotation: DefaultAnnotation) => {
       term: Parens(e),
       annotation: default_annotation(ann),
     };
-    let probe = (~ann=?, e1, e2): exp_t(DefaultAnnotation.t) => {
-      term: Probe(e1, e2),
-      annotation: default_annotation(ann),
-    };
     let cons = (~ann=?, e1, e2): exp_t(DefaultAnnotation.t) => {
       term: Cons(e1, e2),
       annotation: default_annotation(ann),
@@ -760,10 +750,6 @@ module Factory = (DefaultAnnotation: DefaultAnnotation) => {
       term: Parens(p),
       annotation: default_annotation(ann),
     };
-    let probe = (~ann=?, p1, p2): pat_t(DefaultAnnotation.t) => {
-      term: Probe(p1, p2),
-      annotation: default_annotation(ann),
-    };
     let ap = (~ann=?, p1, p2): pat_t(DefaultAnnotation.t) => {
       term: Ap(p1, p2),
       annotation: default_annotation(ann),
@@ -862,10 +848,6 @@ module Factory = (DefaultAnnotation: DefaultAnnotation) => {
     };
     let empty_hole = (~ann=?, ()): typ_t(DefaultAnnotation.t) => {
       term: Unknown(Hole(EmptyHole)),
-      annotation: default_annotation(ann),
-    };
-    let probe = (~ann=?, t, probe): typ_t(DefaultAnnotation.t) => {
-      term: Probe(t, probe),
       annotation: default_annotation(ann),
     };
   };

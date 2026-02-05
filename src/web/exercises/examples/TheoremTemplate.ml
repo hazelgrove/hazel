@@ -6,6 +6,7 @@ let exercise : TheoremExerciseSpec.t =
     prompt = "";
     prelude =
       {
+        refractors = Haz3lcore.ZipperBase.Refractor.init;
         selection = { focus = Left; content = []; mode = Normal };
         relatives =
           {
@@ -27,6 +28,7 @@ let exercise : TheoremExerciseSpec.t =
       };
     lemmas =
       {
+        refractors = Haz3lcore.ZipperBase.Refractor.init;
         selection = { focus = Left; content = []; mode = Normal };
         relatives =
           {
@@ -48,6 +50,7 @@ let exercise : TheoremExerciseSpec.t =
       };
     theorem =
       {
+        refractors = Haz3lcore.ZipperBase.Refractor.init;
         selection = { focus = Left; content = []; mode = Normal };
         relatives =
           {

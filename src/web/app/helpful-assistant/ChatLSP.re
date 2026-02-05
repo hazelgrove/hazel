@@ -364,6 +364,19 @@ module ErrorRound = {
   open OptUtil.Syntax;
   module StringSet = Set.Make(String);
 
+  /* Orphan backpack tiles are unmatched delimiters (like `=>`, `(`).
+   * They're just delimiter tiles with no probed children, so we can
+   * safely use empty refractors and identity for refractor_seg_to_seg. */
+  let orphan_to_string: Base.tile => string =
+    Base.tile_to_string(
+      ~holes="",
+      ~concave_holes=" ",
+      ~projector_to_segment=Triggers.projector_to_invoke,
+      ~refractors=[],
+      ~refractor_seg_to_seg=(a, b) =>
+      (a, b)
+    );
+
   let get_parse_errs =
       (sketch_z: Zipper.t, completion: string): Result.t(Zipper.t, string) =>
     //NOTE: This function is pretty basic; reporting approach could be improved
@@ -373,15 +386,7 @@ module ErrorRound = {
     | Some(completion_z) =>
       switch (Zipper.local_backpack(completion_z)) {
       | [_, ..._] as orphans =>
-        let orphans =
-          List.map(
-            Base.tile_to_string(
-              ~holes="",
-              ~concave_holes=" ",
-              ~projector_to_segment=Triggers.projector_to_invoke,
-            ),
-            orphans,
-          );
+        let orphans = List.map(orphan_to_string, orphans);
         Error(
           "The parser has detected unmatched delimiters. (The presence of a '=>' in the list likely indicates that a '->' was mistakingly used in a case expression). Unmatched delimiters: "
           ++ String.concat(", ", orphans),

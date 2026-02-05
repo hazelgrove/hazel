@@ -7,6 +7,7 @@ module Evaluation = {
     show_fn_bodies: bool,
     show_fixpoints: bool,
     show_ascription_steps: bool,
+    show_case_steps: bool,
     show_lookup_steps: bool,
     show_stepper_filters: bool,
     // TODO[Matt]: Move this to somewhere where it is a per-scratch setting
@@ -21,6 +22,7 @@ module Evaluation = {
     show_fn_bodies: false,
     show_fixpoints: false,
     show_ascription_steps: false,
+    show_case_steps: false,
     show_lookup_steps: false,
     show_stepper_filters: false,
     stepper_history: false,
@@ -37,6 +39,7 @@ type t = {
   assist: bool,
   dynamics: bool,
   live_typing: bool,
+  probe_all: bool,
   flip_animations: bool,
   evaluation: Evaluation.t,
 };
@@ -47,6 +50,7 @@ let off: t = {
   assist: false,
   dynamics: false,
   live_typing: false,
+  probe_all: false,
   flip_animations: false,
   evaluation: Evaluation.init,
 };
@@ -57,6 +61,7 @@ let on: t = {
   assist: true,
   dynamics: true,
   live_typing: true,
+  probe_all: false, /* Off by default even in "on" config - opt-in feature */
   flip_animations: true,
   evaluation: Evaluation.init,
 };

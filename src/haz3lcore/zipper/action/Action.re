@@ -42,6 +42,12 @@ type select =
   | SetFocus(Direction.t);
 
 [@deriving (show({with_path: false}), sexp, yojson, eq)]
+type sample_cursor =
+  | Capture(Language.Sample.t, option(Id.t))
+  | TogglePin(Language.Sample.call_stack)
+  | Reset;
+
+[@deriving (show({with_path: false}), sexp, yojson, eq)]
 type chooser =
   | Specific(ProjectorCore.Kind.t)
   | ChooseLivelit;
@@ -52,12 +58,13 @@ type chooser =
  * and from each projector's own internal action type */
 [@deriving (show({with_path: false}), sexp, yojson, eq)]
 type project =
+  | SampleCursor(sample_cursor)
   | SetIndicated(chooser) /* Project syntax at caret */
   | RemoveIndicated /* Remove projector at caret */
-  | SetSyntax(Id.t, Base.segment) /* Set underlying syntax */
-  | SetModel(Id.t, string) /* Set serialized projector model */
-  | Focus(Id.t, ProjectorCore.Kind.t, option(Util.Direction.t)) /* Pass control to projector */
-  | Escape(Id.t, Direction.t); /* Pass control to parent editor */
+  | SetSyntax(int, Base.segment) /* Set underlying syntax */
+  | SetModel(int, ProjectorCore.Kind.t, string) /* Set serialized model (projector or refractor) */
+  | Focus(int, ProjectorCore.Kind.t, option(Util.Direction.t)) /* Pass control to projector */
+  | Escape(int, Direction.t); /* Pass control to parent editor */
 
 [@deriving (show({with_path: false}), sexp, yojson, eq)]
 type agent =
@@ -76,6 +83,13 @@ type paste =
   | Segment(Segment.t);
 
 [@deriving (show({with_path: false}), sexp, yojson, eq)]
+type probe =
+  | ToggleManual
+  | ToggleAuto
+  | ToggleStatics
+  | StepInto(Language.Sample.t, Id.t);
+
+[@deriving (show({with_path: false}), sexp, yojson, eq)]
 type t =
   | Reparse
   | Buffer(buffer)
@@ -90,6 +104,7 @@ type t =
   | Insert(string)
   | Put_down
   | Introduce
+  | Probe(probe)
   | Dump;
 
 module Failure = {
@@ -133,13 +148,15 @@ let is_edit: t => bool =
   | Unselect(_) => false
   | Project(p) =>
     switch (p) {
+    | SetModel(_) => false
     | SetSyntax(_)
-    | SetModel(_)
     | SetIndicated(_)
     | RemoveIndicated => true
     | Focus(_)
+    | SampleCursor(_)
     | Escape(_) => false
-    };
+    }
+  | Probe(_) => true;
 
 /* Determines whether undo/redo skips action */
 let is_historic: t => bool =
@@ -164,8 +181,10 @@ let is_historic: t => bool =
     | SetIndicated(_)
     | RemoveIndicated => true
     | Focus(_)
+    | SampleCursor(_)
     | Escape(_) => false
-    };
+    }
+  | Probe(_) => true;
 
 let prevent_in_read_only_editor = (a: t) =>
   switch (a) {
@@ -189,8 +208,10 @@ let prevent_in_read_only_editor = (a: t) =>
     | SetIndicated(_)
     | RemoveIndicated
     | Focus(_)
+    | SampleCursor(_)
     | Escape(_) => false
     }
+  | Probe(_) => false
   };
 
 /* Currently animations are disabled during drag selection
@@ -221,4 +242,5 @@ let should_animate: t => bool =
   | Copy
   | Move(_)
   | Project(_)
+  | Probe(_)
   | Dump => true;

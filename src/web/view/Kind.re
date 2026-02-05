@@ -11,6 +11,9 @@ let view = (~globals, kind: Language.Ctx.kind): Node.t =>
         CodeViewable.view_typ(
           ~globals,
           ~settings={
+            secondary: AutoFormat,
+            parenthesization: Defensive,
+            label_format: QuoteWhenNecessary,
             inline: true,
             fold_case_clauses: false,
             fold_fn_bodies: `NoFold,

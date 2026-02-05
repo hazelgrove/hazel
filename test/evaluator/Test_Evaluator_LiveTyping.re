@@ -26,22 +26,21 @@ module FError =
   });
 
 /**
- * Helper function to assemble dynamic statics map from probe closures and type instantiations.
+ * Helper function to assemble dynamic statics map from samples and type instantiations.
  * This logic is shared between multiple test cases.
  */
 let mk_dynamic_statics =
     (
-      probe_data: Id.Map.t(list(Dynamics.Probe.Closure.t)),
+      probe_data: Id.Map.t(list(Sample.t)),
       type_insts: Dynamics.TypeInstMap.t,
     )
     : DynamicStatics.Map.t => {
   DynamicStatics.Map.mk(
     Id.Map.map(
-      closures =>
+      samples =>
         List.map(
-          (c: Dynamics.Probe.Closure.t): DynamicStatics.sample =>
-            {exp: c.value},
-          closures,
+          (s: Sample.t): DynamicStatics.sample => {exp: s.value},
+          samples,
         ),
       probe_data,
     ),
@@ -114,10 +113,9 @@ let test_live_typing = (~test_name=?, expected_exp: FError.exp) => {
     original_errors,
   );
 
-  // Elaborate the expression with unknown type probing enabled
+  // Elaborate the expression
   let elaborated_exp =
-    Elaborator.elaborate(~probe_unknowns=true, initial_statics, exp_with_ids)
-    |> fst;
+    Elaborator.elaborate(initial_statics, exp_with_ids) |> fst;
 
   // Evaluate the elaborated expression to collect dynamic information
   let (_, evaluation_state) =
@@ -209,7 +207,6 @@ in
         let exp = parse_exp(program);
         let elaborated =
           Elaborator.elaborate(
-            ~probe_unknowns=true,
             Statics.mk(CoreSettings.on, Builtins.ctx_init(Some(Int)), exp),
             exp,
           )
