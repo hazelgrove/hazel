@@ -426,3 +426,6 @@ let next = Node.text("⮕");
 let prev = Node.text("⮕");
 
 let infoIcon = Node.text("❖");
+
+// Play icon for App View - simple triangle
+let play = simple_icon(~view="0 0 24 24", ["M8 5v14l11-7z"]);

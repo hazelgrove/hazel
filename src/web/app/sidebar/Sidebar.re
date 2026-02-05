@@ -73,6 +73,15 @@ let probes_tab = (~globals: Globals.t): Node.t =>
     ~globals,
   );
 
+let app_view_tab = (~globals: Globals.t): Node.t =>
+  tab_of(
+    ~panel=AppView,
+    ~cls=["app-view-button"],
+    ~icon=Icons.play,
+    ~tooltip="Switch to App View",
+    ~globals,
+  );
+
 let collapse_tab = (~globals: Globals.t): Node.t => {
   let tooltip =
     globals.settings.sidebar.show ? "Collapse Sidebar" : "Expand Sidebar";
@@ -93,6 +102,7 @@ let persistent_view = (~globals: Globals.t) =>
           explain_this_tab(~globals),
           assistant_tab(~globals),
           probes_tab(~globals),
+          app_view_tab(~globals),
         ],
       ),
     ],
@@ -225,6 +235,12 @@ let view =
                 ~cursor,
                 ~editor,
               )
+            | AppView =>
+              // Create an inject function for app view updates
+              // For now, this is a simple no-op since the sidebar view
+              // is primarily for display/testing apps
+              let app_inject = (_new_model: Language.DHExp.t) => Effect.Ignore;
+              AppViewPanel.view(~globals, ~editor, ~inject=app_inject);
             },
           ],
         )
