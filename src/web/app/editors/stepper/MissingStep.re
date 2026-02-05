@@ -681,7 +681,7 @@ module View = {
           div_c(
             "rewrite-box",
             [
-              Node.text("Replace: "),
+              Node.text("From: "),
               CodeViewable.view_any(
                 ~globals,
                 ~settings=
@@ -692,7 +692,7 @@ module View = {
                   ),
                 Exp(unboxed_selected_exp),
               ),
-              Node.text("With: "),
+              Node.text("Take a step to: "),
               div_c(
                 "inline-editor-wrapper",
                 [
@@ -833,7 +833,7 @@ module View = {
               ? [
                 proof_button(
                   ~callback=inject(ProposeWrittenStep),
-                  "Write Step ▼",
+                  "Take Step ▼",
                 ),
               ]
               : []
