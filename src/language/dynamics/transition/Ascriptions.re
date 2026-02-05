@@ -230,6 +230,8 @@ let rec transition = (~recursive=false, d: DHExp.t): option(DHExp.t) => {
       Some(Seq(e1, Asc(e2, t) |> DHExp.fresh) |> DHExp.fresh)
     | (Parens(e), _) =>
       Some(Parens(Asc(e, t) |> DHExp.fresh) |> DHExp.fresh)
+    | (Projector(data, e), _) =>
+      Some(Projector(data, Asc(e, t) |> DHExp.fresh) |> DHExp.fresh)
     // We _could_ do this, but it would be a bit weird
     | (Use(_), _) // I'm scaredto do Use because the type-directed literals might make this look weird in the stepper
     | (BuiltinFun(_), _)
