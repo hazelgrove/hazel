@@ -1,5 +1,7 @@
 # HazelHtml: Web App Library Plan
 
+> **Note:** This was the original planning document. For the final implementation details, see **[hazel-html-implementation.md](hazel-html-implementation.md)**.
+
 ## Overview
 
 This document outlines a plan to build a comprehensive web app library for Hazel, enabling:
@@ -11,18 +13,24 @@ The library builds on Jane Street's Virtual_dom (already used by Hazel) and foll
 
 ## Implementation Status (hazel-html branch)
 
-**Completed:**
-- `BuiltinsADT.re` defines full `HTML`, `Attr`, `Cmd`, `Sub`, `App`, `KeyEvent`, `MouseEvent` types
-- `HazelDOM.re` renders all HTML elements (~40) and attributes (~45) to `Virtual_dom.Node.t`
+**✅ Completed:**
+- All types defined in `BuiltinsADT.re`: `HTML`, `Attr`, `Cmd`, `Sub`, `App`, `KeyEvent`, `MouseEvent`
+- `HazelDOM.re` renders all HTML elements (~40) and attributes (~45) to Virtual_dom
 - `CmdRunner.re` executes commands (Focus, Blur, ScrollTo, Delay, Log, etc.)
 - `SubManager.re` manages subscriptions (OnResize, OnKeyDown, Every, AnimationFrame, etc.)
 - Event handlers support both `Html -> Html` and `Html -> (Html, Cmd)` return types
-- `HTMLProj.re` wraps this as a projector with self-modifying lifecycle
+- `HTMLProj.re` detects App type and evaluates subscriptions
+- Subscription lifecycle management with global registry and cleanup on re-render
 
-**Remaining:**
-- Subscription lifecycle integration (requires projector mount/unmount hooks)
-- Full App runner for `App` type with init/subscriptions
+**⏳ Remaining (minor):**
+- Execute init_cmd when App first renders (detected but not run)
 - Error boundaries for runtime issues
+- Testing with real Hazel programs
+
+**📝 Deviations from original plan:**
+- Types kept in `BuiltinsADT.re` rather than separate `src/language/html/` directory
+- Subscription lifecycle uses global registry rather than projector lifecycle hooks
+- AnimationFrame subscriptions can't be cleanly stopped (recursive request pattern)
 - Testing and documentation
 
 ## Original State (projector-html branch, for reference)
