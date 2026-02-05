@@ -316,7 +316,7 @@ let app = (
 
 2. **AnimationFrame cleanup**: AnimationFrame subscriptions recursively request frames and currently can't be stopped.
 
-3. **No error boundaries**: Runtime errors in Hazel expression evaluation (e.g., type mismatches, failed pattern matches, infinite loops) are not caught. If an event handler or subscription callback fails to evaluate, it may crash or silently fail. Error boundaries would catch these exceptions and display a fallback UI like "Error: [message]" instead of breaking the entire projector.
+3. **Error boundaries**: Runtime errors in event handlers are now caught and display inline error UI (red-bordered div with error message). Subscription callback errors are caught and logged to console. Infinite loops or stack overflows may still crash.
 
 ## Future Enhancements
 
