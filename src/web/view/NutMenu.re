@@ -108,6 +108,12 @@ let stepper_group = (~globals: Globals.t) => {
         s.enable_proof,
         Evaluation(EnableProof),
       ),
+      (
+        "✏️",
+        "Write out steps",
+        s.write_out_steps,
+        Evaluation(WriteOutSteps),
+      ),
     ],
   );
 };

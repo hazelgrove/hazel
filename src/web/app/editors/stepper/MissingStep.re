@@ -193,7 +193,7 @@ module Update = {
 
   let calculate =
       (
-        ~settings,
+        ~settings: CoreSettings.t,
         exp,
         info_map,
         ctx: Calc.t(SemanticCtx.t),
@@ -285,6 +285,7 @@ module Update = {
                  s => e |> Exp.rep_id == EvaluatorStep.get_step_id(s),
                  next_steps,
                )
+             || settings.evaluation.write_out_steps
            );
       };
     let open_box =
@@ -511,6 +512,7 @@ module View = {
         switch (
           model.selected_exp |> Calc.get_saved_exc(~print="Selected Exp")
         ) {
+        | _ when globals.settings.core.evaluation.write_out_steps => None
         | Some(selected_exp) =>
           List.find_index(
             x => x == (selected_exp |> Exp.rep_id),
@@ -824,12 +826,18 @@ module View = {
               ]
               : []
           )
+          @ (
+            globals.settings.core.evaluation.write_out_steps
+              ? [
+                proof_button(
+                  ~callback=inject(ProposeWrittenStep),
+                  "Write Step ▼",
+                ),
+              ]
+              : []
+          )
           @ [
             proof_button(~callback=inject(ProposeRewrite), "Algebra ▼"),
-            proof_button(
-              ~callback=inject(ProposeWrittenStep),
-              "Write Step ▼",
-            ),
             proof_button(~callback=inject(ToggleAxioms), "Assumptions ▼"),
             proof_button(
               ~callback=
