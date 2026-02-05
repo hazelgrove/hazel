@@ -543,8 +543,9 @@ and remold_mod = (shape, seg: t): t =>
         switch (remold_tile(Exp, shape, t)) {
         | None => [Tile(t), ...remold_mod(snd(Tile.shapes(t)), tl)]
         | Some(t) =>
-          let (remolded, shape, rest) = remold_exp_uni(snd(Tile.shapes(t)), tl, [Mod]);
-          [Piece.Tile(t), ...remolded] @ remold_mod(shape, rest)
+          let (remolded, shape, rest) =
+            remold_exp_uni(snd(Tile.shapes(t)), tl, [Mod]);
+          [Piece.Tile(t), ...remolded] @ remold_mod(shape, rest);
         }
       | Some(t) when !Tile.has_end(Right, t) =>
         let (_, r) = Tile.nibs(t);

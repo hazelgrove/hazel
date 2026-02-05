@@ -456,8 +456,37 @@ let rec elaborate = (m: Statics.Map.t, uexp: Exp.t): (DHExp.t, Typ.t) => {
           es,
         );
       Match(e', List.combine(ps', es')) |> rewrap;
-    // TODO (Phase 1.3): Implement module expansion in elaborator
-    | Module(_) => uexp
+    | Module(items) =>
+      /* Elaborate module by expanding to nested let/type + labeled tuple.
+         We elaborate each item and construct the expanded form directly. */
+      let elaborate_mod_item = (item: Mod.t, body: Exp.t): Exp.t => {
+        switch (item.term) {
+        | ModLet(pat, def) =>
+          let (pat', _) = elaborate_pattern(m, pat, false);
+          let (def', _) = elaborate(m, def);
+          Let(pat', def', body) |> Exp.fresh;
+        | ModType(tpat, typ) =>
+          /* Type aliases don't need elaboration of their type */
+          TyAlias(tpat, Typ.normalize(ctx, typ), body) |> Exp.fresh
+        | ModExp(e) =>
+          /* Bare expression becomes let _ = e in body */
+          let (e', _) = elaborate(m, e);
+          let wild_pat = Pat.fresh(Wild);
+          Let(wild_pat, e', body) |> Exp.fresh;
+        | Invalid(_)
+        | EmptyHole
+        | MultiHole(_) =>
+          /* Error cases - skip the item */
+          body
+        };
+      };
+
+      /* Build the labeled tuple body */
+      let non_shadowed = ExpandModule.compute_non_shadowed_bindings(items);
+      let tuple_body = ExpandModule.build_labeled_tuple(non_shadowed);
+
+      /* Wrap with elaborated items from bottom to top */
+      List.fold_right(elaborate_mod_item, items, tuple_body);
     };
   (dhexp, elaborated_type);
 };

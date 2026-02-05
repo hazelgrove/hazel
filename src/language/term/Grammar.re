@@ -504,6 +504,7 @@ module Factory = (DefaultAnnotation: DefaultAnnotation) => {
   type typ = typ_t(DefaultAnnotation.t);
   type tpat = tpat_t(DefaultAnnotation.t);
   type typ_provenance = type_provenance(DefaultAnnotation.t);
+  type mod_ = mod_t(DefaultAnnotation.t);
 
   let default_annotation = ann =>
     Option.value(~default=DefaultAnnotation.default_value(), ann);

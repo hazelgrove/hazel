@@ -920,12 +920,9 @@ and mod_term: unsorted => TermBase.Mod.term = {
   | Pre(([(_id, (["type", "="], [TPat(tp)]))], []), Typ(ty)) =>
     ret(ModType(tp, ty))
   /* Expression-level structures (binary ops, prefix, postfix) - wrap as ModExp */
-  | Bin(Exp(_), _, Exp(_)) as tm =>
-    ret(ModExp(exp(tm)))
-  | Pre(_, Exp(_)) as tm =>
-    ret(ModExp(exp(tm)))
-  | Post(Exp(_), _) as tm =>
-    ret(ModExp(exp(tm)))
+  | Bin(Exp(_), _, Exp(_)) as tm => ret(ModExp(exp(tm)))
+  | Pre(_, Exp(_)) as tm => ret(ModExp(exp(tm)))
+  | Post(Exp(_), _) as tm => ret(ModExp(exp(tm)))
   | (Pre(_) | Post(_) | Bin(_)) as tm => ret(hole(tm));
 }
 
