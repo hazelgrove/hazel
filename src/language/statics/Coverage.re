@@ -139,6 +139,7 @@ module Ctr = {
     | ProdExtension(_)
     | Var(_) => Infinite
     | Parens(_)
+    | Projector(_)
     | ExplicitNonlabel
     | Label(_) =>
       failwith(
@@ -419,6 +420,7 @@ module UnseenPatternList: UnseenPatternList = {
     | ProofOf(_)
     | Var(_) => unseen_pattern
     | Parens(_)
+    | Projector(_)
     | ProdProjection(_)
     | ProdExtension(_)
     | ExplicitNonlabel
@@ -555,6 +557,7 @@ module UnseenPatternList: UnseenPatternList = {
     | ProofOf(_)
     | Var(_) => cons_wild(unseen_pattern)
     | Parens(_)
+    | Projector(_)
     | ProdProjection(_)
     | ProdExtension(_)
     | ExplicitNonlabel
@@ -617,6 +620,7 @@ module UnseenPatternList: UnseenPatternList = {
     | ProofOf(_)
     | Var(_) => cons_wild(unseen_pattern)
     | Parens(_)
+    | Projector(_)
     | ProdProjection(_)
     | ProdExtension(_)
     | ExplicitNonlabel

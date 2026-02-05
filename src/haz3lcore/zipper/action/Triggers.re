@@ -55,9 +55,6 @@ let expand_projector = (z: t): option(t) => {
       ...rest,
     ]
       when Token.is_projector_invoke(name) =>
-    /* Trim only need because of grout/whitespace transmutation when syntax is hole */
-    let syntax =
-      syntax |> Segment.trim_secondary(Right) |> Segment.trim_secondary(Left);
     let+ piece = invoked_projector(name, syntax);
     Zipper.update_siblings(
       ((_, r)) => ([piece, ...rest] |> List.rev, r),
