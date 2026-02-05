@@ -554,7 +554,7 @@ let init = (any: Any.t) =>
   };
 ```
 
-### 6.2 Resizable Projector
+### 6.2 Resizable Projector (Future)
 
 Add ability to resize the HTML projector:
 - Modifier+drag on projector edges to resize
@@ -562,12 +562,16 @@ Add ability to resize the HTML projector:
 - Persist across re-renders
 - Useful for both inline previews and app development
 
+**Note:** This feature requires significant changes to the projector model architecture.
+Currently the HTMLProj model stores the expression itself, not UI state. Resizing would
+need a separate UI state mechanism.
+
 ### 6.3 Deliverables
 
-- [ ] Expand `init` to recognize all HTML constructors
-- [ ] Expand `init` to recognize App type tuples
-- [ ] Add resize handles to projector
-- [ ] Store/restore projector size in model
+- [x] Expand `init` to recognize all HTML constructors
+- [x] Expand `init` to recognize App type tuples
+- [ ] Add resize handles to projector (future)
+- [ ] Store/restore projector size in model (future)
 
 ---
 
@@ -596,10 +600,15 @@ Look for specific patterns in the scratchpad:
 
 ### 7.4 Deliverables
 
-- [ ] Add "App View" sidebar panel
+- [x] Add "App View" sidebar panel (placeholder with instructions)
+- [ ] Pass evaluation results to sidebar (requires architectural changes)
 - [ ] Detect app definitions in scratchpad
 - [ ] App runner component with full lifecycle
 - [ ] Proper sizing and layout
+
+**Note:** The sidebar currently only receives `CodeEditable.Model.t` which doesn't
+include evaluation results. To actually render apps in the sidebar, we'd need to
+pass `CellEditor.Model.t` or add a separate channel for evaluation results.
 
 ---
 
@@ -630,12 +639,13 @@ hazel-programs/html-examples/
 
 ### 8.3 Deliverables
 
-- [ ] Counter example
-- [ ] Todo list example
-- [ ] Timer example
-- [ ] Keyboard example
-- [ ] Animation example
-- [ ] Full app example
+- [x] Counter example
+- [x] Todo list example
+- [x] Timer example
+- [x] Keyboard example
+- [x] Animation example
+- [x] Full app example
+- [x] README with usage instructions
 
 ---
 
