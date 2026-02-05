@@ -1665,3 +1665,73 @@ No ID appears in multiple places, so no overwrites occur.
 ```
 
 This fixes the stack overflow that occurred when ModExp's ID overlapped with the inner expression's IDs.
+
+---
+
+## Known Issue: Nested Semicolon IDs Not Collected
+
+### The Problem
+
+For modules with 3+ items like `{ let x = 1; let y = 2; let z = 3 }`, only the **first** semicolon has cursor inspector info. Subsequent semicolons show "whitespace or comment".
+
+### Root Cause
+
+The Skel (skeleton) system produces **nested** binary structures for same-precedence operators:
+
+```
+Bin(Bin(a_skel, [;1], b_skel), [;2], c_skel)
+```
+
+When `unsorted` in MakeTerm processes this:
+1. Outer level sees `Bin(l_skel, [;2], c_skel)`
+2. Recursively processes `l_skel` → produces `Mod(inner_result)` with `annotation.ids = [;1]`
+3. Outer `tiles` only contains `[;2]`
+4. `is_mod_seq(tiles)` returns `Some([])` - no between_kids at this level
+5. Result: `all_items = [Mod(inner_result), Mod(c)]`
+6. `ids(unsorted)` at outer level = `[;2]` only
+
+The inner `;1` ID is buried inside `inner_result.annotation.ids` and never collected.
+
+### Current State
+
+- `flatten_mod` correctly flattens the **terms** (extracts all Mod items from nested MultiHole)
+- But it does NOT collect the **IDs** from nested structures
+- Only the outermost semicolon ID ends up in the Module expression's annotation
+- Statics adds cursor info only for those IDs
+
+### Potential Solutions
+
+**Option A: Modify Skel to produce flat structures for semicolons**
+
+Make semicolons behave like commas in tuples (if tuples are indeed flat). This would require changes to `Skel.re` to handle ModSeq specially. However, it's unclear if tuples actually produce flat structures or just happen to work for other reasons.
+
+**Option B: Collect IDs during flattening**
+
+Modify `flatten_mod` (or create a new function) to collect IDs from nested MultiHole annotations while flattening:
+
+```reason
+let rec flatten_mod_with_ids = (m: Mod.t): (list(Mod.t), list(Id.t)) =>
+  switch (m.term) {
+  | MultiHole(kids) =>
+    let results = kids |> List.filter_map(...) |> List.map(flatten_mod_with_ids);
+    let items = results |> List.map(fst) |> List.flatten;
+    let ids = m.annotation.ids @ (results |> List.map(snd) |> List.flatten);
+    (items, ids)
+  | _ => ([m], [])
+  };
+```
+
+Then use these collected IDs in the Module case of exp_term.
+
+**Option C: Accept the limitation**
+
+Document that cursor inspector works for curly braces and the first semicolon, but not subsequent semicolons. This is a minor UX issue - the type information is still correct, just not accessible via clicking all semicolons.
+
+### Decision
+
+Deferred. The current implementation works correctly for evaluation and type-checking. Cursor inspector works for:
+- Curly braces (`{` and `}`)
+- First semicolon
+- All ModLet/ModType items
+
+This is acceptable for Phase 1. A complete fix can be addressed in a future iteration.

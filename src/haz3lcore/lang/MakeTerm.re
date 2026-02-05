@@ -331,11 +331,17 @@ and exp_term: unsorted => (Exp.term, list(Id.t)) = {
         /* ModBody absorption: inner Mod's semicolon IDs become part of Module.
            ID order: [curly_brace_id] @ semicolon_ids (outer first, then adopted).
            This ensures cursor inspector works for both curly braces AND semicolons.
-           Special case: {} with just an EmptyHole child means empty module. */
+           IMPORTANT: Only absorb when body is MultiHole (from semicolons).
+           For single items, body.annotation.ids would be the ModLet/ModType ID,
+           which is also used by the expanded Let/TyAlias - absorbing would duplicate. */
         switch (body) {
         | {term: EmptyHole, _} => ret(Module([]))
-        | {annotation: {ids, _}, term: _} =>
+        | {annotation: {ids, _}, term: MultiHole(_)} =>
+          /* Multiple items: absorb semicolon IDs */
           adopted_ids := ids @ adopted_ids^;
+          (Module(flatten_mod(body)), ids)
+        | _ =>
+          /* Single item: don't absorb (would duplicate ModLet/ModType ID) */
           ret(Module(flatten_mod(body)))
         }
       | (["{", "}"], [Exp(body)])
@@ -914,13 +920,14 @@ and mod_term: unsorted => TermBase.Mod.term = {
       }
     | _ => ret(hole(tm))
     }
-  /* ModSeq: semicolon-separated module items */
+  /* ModSeq: semicolon-separated module items (like tuples with commas) */
   | Bin(Mod(m1), tiles, Mod(m2)) =>
-    switch (tiles) {
-    | ([(_id, ([";"], []))], []) =>
-      /* For now, sequence produces a multihole - will be refined in Phase 1.2 */
-      ret(MultiHole([Mod(m1), Mod(m2)]))
-    | _ => ret(hole(Bin(Mod(m1), tiles, Mod(m2))))
+    switch (is_mod_seq(tiles)) {
+    | Some(between_kids) =>
+      /* Flatten all mod items into MultiHole, like tuples flatten into Tuple */
+      let all_items = [Grammar.Mod(m1)] @ List.map(m => Grammar.Mod(m), between_kids) @ [Grammar.Mod(m2)];
+      ret(MultiHole(all_items))
+    | None => ret(hole(Bin(Mod(m1), tiles, Mod(m2))))
     }
   /* ModLet: let p = e - the pattern is inside the tile, expression is the body */
   | Pre(([(_id, (["let", "="], [Pat(p)]))], []), Exp(e)) =>
