@@ -41,6 +41,7 @@
   --TYP: oklch(60% 0.2 300);
   --PAT: oklch(from var(--TYP) l c calc(h - 1 * 75));
   --TPAT: var(--PAT);
+  --MOD: oklch(60% 0.2 120); /* Module sort - greenish, can be refined later */
   --LABEL: oklch(60% 0.2 180);
 
   /* AURA - docs highlighting */
@@ -84,6 +85,7 @@
   --token-pat: var(--PAT);
   --token-typ: var(--TYP);
   --token-tpat: var(--TPAT);
+  --token-mod: var(--MOD);
   --token-label: var(--LABEL);
   --token-string-lit: var(--Y3);
   --token-comment: var(--G2);
@@ -104,9 +106,11 @@
   --shard-caret-pat: oklch(from var(--token-pat) 95% calc(c/4) h);
   --shard-caret-typ: oklch(from var(--token-typ) 95% calc(c/4) h);
   --shard-caret-tpat: oklch(from var(--token-tpat) 95% calc(c/4) h);
+  --shard-caret-mod: oklch(from var(--token-mod) 95% calc(c/4) h);
   --shard-pat: var(--shard-caret-pat);
   --shard-typ: var(--shard-caret-typ);
   --shard-tpat: var(--shard-caret-tpat);
+  --shard-mod: var(--shard-caret-mod);
   --shard-selected: var(--Y1);
   --shard-buffer: var(--T1);
   --shard_projector: var(--T2);

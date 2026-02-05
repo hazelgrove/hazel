@@ -66,6 +66,18 @@ let mk_pre_c =
     (exp, label: Label.t, prec, sort: Sort.t, inner_sorts: list(Sort.t)) =>
   mk(exp, label, Mold.mk_pre(prec, sort, inner_sorts));
 
+// Prefix form where the body (right operand) has a different sort than out
+let mk_pre_c' =
+    (
+      exp,
+      label: Label.t,
+      prec,
+      sort: Sort.t,
+      inner_sorts: list(Sort.t),
+      body_sort: Sort.t,
+    ) =>
+  mk(exp, label, Mold.mk_pre'(prec, sort, inner_sorts, body_sort));
+
 let mk_op_c = (exp, label: Label.t, sort: Sort.t, inner_sorts: list(Sort.t)) =>
   mk(exp, label, Mold.mk_op(sort, inner_sorts));
 
@@ -174,7 +186,6 @@ type compound_form =
   | ParensPat
   | ParensTyp
   | ParensTPat
-  | BlockExp
   | ApExpEmpty
   | ApExp
   | ApPat
@@ -201,13 +212,14 @@ type compound_form =
   | Use
   // TRIPLE DELIMITERS
   | Let
-  | TEST_Let //TODO(andrew): rm
-  | TEST_TypeAlias //TODO(andrew): rm
-  | TEST_Seq
-  | TEST_Curly
   | Theorem
   | TypeAlias
-  | If;
+  | If
+  // MODULE FORMS
+  | ModBody
+  | ModSeq
+  | ModLet
+  | ModType;
 
 let get: compound_form => t =
   fun
@@ -268,7 +280,6 @@ let get: compound_form => t =
   | ListLitExp => mk_op_c(LT, ["[", "]"], Exp, [Exp])
   | ListLitPat => mk_op_c(LT, ["[", "]"], Pat, [Pat])
   | ListTyp => mk_op_c(LT, ["[", "]"], Typ, [Typ])
-  | BlockExp => mk_op_c(LT, ["{", "}"], Exp, [Exp])
   //NOTE(andrew): parens being below aps is load-bearing, unfortunately
   | ParensExp => mk_parens(Exp)
   | ParensPat => mk_parens(Pat)
@@ -301,13 +312,14 @@ let get: compound_form => t =
   | ProofOf => mk_op_c(L, ["proof_of", "end"], Typ, [Exp])
   // TRIPLE DELIMITERS
   | Let => mk_pre_c(L, ["let", "=", "in"], P.let_, Exp, [Pat, Exp])
-  | TEST_Let => mk_pre_c(L, ["let", "="], P.let_, Pat, [Pat])
-  | TEST_TypeAlias => mk_pre_c(L, ["type", "="], P.let_, Pat, [TPat])
-  | TEST_Seq => mk_infix(";", Pat, P.semi)
-  | TEST_Curly => mk_op_c(LT, ["{", "}"], Pat, [Pat])
   | TypeAlias => mk_pre_c(L, ["type", "=", "in"], P.let_, Exp, [TPat, Typ])
   | If => mk_pre_c(L, ["if", "then", "else"], P.if_, Exp, [Exp, Exp])
-  | HintedTest => mk_op_c(L, ["hint", "test", "end"], Exp, [Exp, Exp]);
+  | HintedTest => mk_op_c(L, ["hint", "test", "end"], Exp, [Exp, Exp])
+  // MODULE FORMS
+  | ModBody => mk_op_c(LT, ["{", "}"], Exp, [Mod])
+  | ModSeq => mk_infix(";", Mod, P.mod_seq)
+  | ModLet => mk_pre_c'(L, ["let", "="], P.let_, Mod, [Pat], Exp)
+  | ModType => mk_pre_c'(L, ["type", "="], P.let_, Mod, [TPat], Typ);
 
 let forms: list((compound_form, t)) =
   List.map(f => (f, get(f)), all_of_compound_form);
@@ -519,6 +531,18 @@ module Expansion = {
   let sorted_expansions: sorted_expansions =
     List.filter_map(((_, form: t)) => sorted_expanding_of(form), forms)
     |> List.flatten;
+
+  /* Try to get expansion for a token in a specific sort context.
+     Returns None if no expansion exists for this sort. */
+  let try_get = (sort: Sort.t, t: Token.t): option((Label.t, Direction.t)) => {
+    let matching =
+      sorted_expansions
+      |> List.find_opt(((tok, s, _, _)) => tok == t && s == sort);
+    switch (matching) {
+    | Some((_, _, lbl, dir)) => Some((lbl, dir))
+    | None => None
+    };
+  };
 
   /* Get expansion for a token in a specific sort context.
      Returns monotile if no expansion exists for this sort.

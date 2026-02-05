@@ -254,6 +254,7 @@ let rec match_exp =
     let* ctx = match_exp(alphas, ctx, e, e2);
     Some(ctx);
   | (Use(_, _), _) => None
+  | (Module(_), _) => None // TODO (Phase 1.3): Implement module matching
   };
 }
 

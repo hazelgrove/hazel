@@ -105,7 +105,8 @@ let rec in_exp = (env: Environment.t(Exp.t), exp: Exp.t) =>
         | Asc(_)
         | LivelitName(_)
         | ProofObject(_)
-        | Undefined => cont(e)
+        | Undefined
+        | Module(_) => cont(e)
         };
       },
     exp,

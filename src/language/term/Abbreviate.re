@@ -926,6 +926,7 @@ let rec abbreviate_exp = (exp: Exp.t): Exp.t => {
       }
     | Filter(_) => indet_term //TODO
     | Projector(data, e) => Projector(data, abbreviate_exp(e))
+    | Module(_) => indet_term //TODO: modules should be expanded before abbreviation
     };
   rewrap(term);
 }
@@ -1313,6 +1314,7 @@ and abbreviate_any = (any: Any.t): Any.t =>
   | Typ(t) => Typ(abbreviate_typ(t))
   | TPat(tp) => TPat(abbreviate_tpat(tp))
   | Rul(_) => any
+  | Mod(_) => any
   | Any(_) => any
   };
 

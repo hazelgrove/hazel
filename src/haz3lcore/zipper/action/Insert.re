@@ -46,6 +46,25 @@ let expansion = (sort: Sort.t, t: Token.t, z: t): (Label.t, Direction.t) => {
   };
 };
 
+/* Determine the effective sort for insertion, considering both local and parent sorts.
+   Default: local-first (try local sort, fall back to parent).
+   Special case: semicolon with Mod parent prefers Mod (for ModSeq over CellJoin). */
+let effective_sort = (t: Token.t, z: t): Sort.t => {
+  let local_sort = Relatives.sort(z.relatives);
+  let parent_sort = Ancestors.sort(z.relatives.ancestors);
+
+  /* Special case: semicolon inside module context should be ModSeq, not CellJoin */
+  if (t == ";" && parent_sort == Sort.Mod) {
+    parent_sort;
+  } else {
+    /* Default: local-first with parent fallback */
+    switch (Form.Expansion.try_get(local_sort, t)) {
+    | Some(_) => local_sort
+    | None => parent_sort
+    };
+  };
+};
+
 /* Insert a new shard based on token `t` on the `d`-side of the caret */
 let insert_shard = (~id: Id.t, ~d: Direction.t, t: Token.t, z: t): t => {
   let z = destroy_selection(z);
@@ -55,7 +74,7 @@ let insert_shard = (~id: Id.t, ~d: Direction.t, t: Token.t, z: t): t => {
     let target = Zipper.backpack_find(t, z) |> Option.get;
     Zipper.put_down_target(d, target, z);
   } else {
-    let sort = Relatives.sort(z.relatives);
+    let sort = effective_sort(t, z);
     let (label, delim_d) = expansion(sort, t, z);
     let mold = Form.Molds.get(sort, label);
     let shard =

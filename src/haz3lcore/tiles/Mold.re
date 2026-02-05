@@ -36,6 +36,25 @@ let mk_pre = (p, out, in_) => {
     nibs: (l, r),
   };
 };
+
+// Prefix form where the body (right nib) has a different sort than out
+let mk_pre' = (p, out, in_, sort_r) => {
+  let l =
+    Nib.{
+      shape: Convex,
+      sort: out,
+    };
+  let r =
+    Nib.{
+      shape: Concave(p),
+      sort: sort_r,
+    };
+  {
+    out,
+    in_,
+    nibs: (l, r),
+  };
+};
 let mk_post = (p, out, in_) => {
   let l =
     Nib.{
