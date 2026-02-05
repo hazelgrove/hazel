@@ -21,12 +21,13 @@ module M: Projector = {
   let update = (m, _, _) => m;
 
   let view = ({model, info, parent, view_seg, _}: View.args(model, action)) => {
+    let current_model =
+      switch (info.syntax |> info.utility.seg_to_term) {
+      | Some(Exp(term)) => term
+      | _ => model
+      };
     let seed: HazelDOM.t = {
-      model:
-        switch (info.syntax |> info.utility.seg_to_term) {
-        | Some(Exp(term)) => term
-        | _ => model
-        },
+      model: current_model,
       inject: (new_model: model) =>
         /* Allow HTMLements to replace themselves wholesale. Note that
            this will fail if anything other than a builtin is used in
@@ -36,6 +37,8 @@ module M: Projector = {
         Exp(term)
         |> info.utility.term_to_seg
         |> view_seg(~background=false, Exp),
+      projector_id: Some(info.id),
+      subscriptions: None // TODO: Detect App type and extract subscriptions
     };
     View.mk(HazelDOM.go(seed));
   };

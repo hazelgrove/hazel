@@ -8,7 +8,15 @@ type t = {
   model: DHExp.t,
   inject: DHExp.t => Ui_effect.t(unit),
   view_term: DHExp.t => Node.t,
+  // Optional: projector ID for subscription tracking
+  projector_id: option(Id.t),
+  // Optional: subscriptions to set up (Sub expression)
+  subscriptions: option(DHExp.t),
 };
+
+// Global registry of active subscriptions per projector
+let active_subscriptions: Hashtbl.t(Id.t, SubManager.active_subs) =
+  Hashtbl.create(16);
 
 // Legacy input types that render as <input type="...">
 let input_type_mappings: list((string, string)) = [
@@ -687,7 +695,42 @@ and node_body =
   | _ => None
   };
 
+// Manage subscriptions for a projector
+let manage_subscriptions = (mvu: t): unit => {
+  switch (mvu.projector_id, mvu.subscriptions) {
+  | (Some(id), Some(sub_exp)) =>
+    // Clean up existing subscriptions for this projector
+    switch (Hashtbl.find_opt(active_subscriptions, id)) {
+    | Some(handles) =>
+      SubManager.cleanup(handles);
+      Hashtbl.remove(active_subscriptions, id);
+    | None => ()
+    };
+    // Set up new subscriptions
+    let get_model = () => mvu.model;
+    let ctx: SubManager.context = {
+      model: mvu.model,
+      inject: mvu.inject,
+    };
+    let handles = SubManager.subscribe(ctx, sub_exp, get_model);
+    if (List.length(handles) > 0) {
+      Hashtbl.replace(active_subscriptions, id, handles);
+    };
+  | (Some(id), None) =>
+    // No subscriptions - clean up any existing ones
+    switch (Hashtbl.find_opt(active_subscriptions, id)) {
+    | Some(handles) =>
+      SubManager.cleanup(handles);
+      Hashtbl.remove(active_subscriptions, id);
+    | None => ()
+    }
+  | (None, _) => () // No projector ID, can't track subscriptions
+  };
+};
+
 let go = (mvu: t): Node.t => {
+  // Manage subscriptions before rendering
+  manage_subscriptions(mvu);
   let attrs = [Attr.tabindex(2), Attr.classes(["MVU-render"])];
   Node.div(~attrs, [render_elem(mvu, mvu.model)]);
 };
