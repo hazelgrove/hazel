@@ -21,16 +21,21 @@ The library builds on Jane Street's Virtual_dom (already used by Hazel) and foll
 - Event handlers support both `Html -> Html` and `Html -> (Html, Cmd)` return types
 - `HTMLProj.re` detects App type and evaluates subscriptions
 - Subscription lifecycle management with global registry and cleanup on re-render
+- **Resizable HTML projector** - drag right edge to resize, size persisted in projector model
+- **App View sidebar panel** - renders evaluation result as HTML with full interactivity
+- **Interactive sidebar state** - event handlers update global state, Reset button available
+- **Error boundaries** - graceful error handling in both projector and sidebar
+- **Example programs** - counter, todo-list, timer, keyboard, animation, full-app in hazel-programs/
 
 **⏳ Remaining (minor):**
-- Error boundaries for runtime issues (catch evaluation failures gracefully)
-- Testing with real Hazel programs
+- Testing with more complex real Hazel programs
+- Named app binding detection (currently evaluates entire program expression)
 
 **📝 Deviations from original plan:**
 - Types kept in `BuiltinsADT.re` rather than separate `src/language/html/` directory
 - Subscription lifecycle uses global registry rather than projector lifecycle hooks
 - AnimationFrame subscriptions can't be cleanly stopped (recursive request pattern)
-- Testing and documentation
+- Sidebar app detection uses final expression, not named `app` binding
 
 ## Original State (projector-html branch, for reference)
 
@@ -570,8 +575,8 @@ need a separate UI state mechanism.
 
 - [x] Expand `init` to recognize all HTML constructors
 - [x] Expand `init` to recognize App type tuples
-- [ ] Add resize handles to projector (future)
-- [ ] Store/restore projector size in model (future)
+- [x] Add resize handles to projector (drag right edge to resize)
+- [x] Store/restore projector size in model (ui_state with width/height)
 
 ---
 
@@ -601,14 +606,12 @@ Look for specific patterns in the scratchpad:
 ### 7.4 Deliverables
 
 - [x] Add "App View" sidebar panel (placeholder with instructions)
-- [ ] Pass evaluation results to sidebar (requires architectural changes)
-- [ ] Detect app definitions in scratchpad
-- [ ] App runner component with full lifecycle
-- [ ] Proper sizing and layout
-
-**Note:** The sidebar currently only receives `CodeEditable.Model.t` which doesn't
-include evaluation results. To actually render apps in the sidebar, we'd need to
-pass `CellEditor.Model.t` or add a separate channel for evaluation results.
+- [x] Pass evaluation results to sidebar (thread CellEditor.Model.t through)
+- [x] App runner component with full lifecycle (init cmd, subscriptions)
+- [x] Interactive state management (inject updates global state)
+- [x] Error boundaries for graceful failure handling
+- [x] Reset button to return to evaluation result
+- [ ] Detect app definitions by looking for `app` binding (evaluates entire program instead)
 
 ---
 
