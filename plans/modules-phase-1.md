@@ -158,10 +158,12 @@ Add module forms to `compound_form`:
 Add to `get` function:
 ```ocaml
 | ModBody => mk_op_c(LT, ["{", "}"], Exp, [Mod])
-| ModSeq => mk_infix(";", Mod, P.semi)
-| ModLet => mk_pre_c(L, ["let", "="], P.let_, Mod, [Pat, Exp])
-| ModType => mk_pre_c(L, ["type", "="], P.let_, Mod, [TPat, Typ])
+| ModSeq => mk_infix(";", Mod, P.mod_seq)
+| ModLet => mk_pre_c'(L, ["let", "="], P.let_, Mod, [Pat], Exp)   // Note: uses mk_pre_c'
+| ModType => mk_pre_c'(L, ["type", "="], P.let_, Mod, [TPat], Typ) // Note: uses mk_pre_c'
 ```
+
+**Important**: ModLet and ModType use `mk_pre_c'` (not `mk_pre_c`) because they need heterogeneous sorts - the form's out sort is Mod, but the body (after `=`) is Exp/Typ. See "Implementation Notes" section for details.
 
 Add to `atomic_form` and `get_atomic_form`:
 ```ocaml
@@ -184,12 +186,15 @@ type t = {
 }
 ```
 
-For `ModLet = mk_pre_c(L, ["let", "="], P.let_, Mod, [Pat, Exp])`:
+For `ModLet = mk_pre_c'(L, ["let", "="], P.let_, Mod, [Pat], Exp)`:
 - `L` = Leading delimiter triggers expansion
 - `["let", "="]` = Two tokens
 - `P.let_` = Precedence
-- `Mod` = Output sort
-- `[Pat, Exp]` = Child sorts (pattern, then expression)
+- `Mod` = Output sort (the form IS a Mod item)
+- `[Pat]` = Inner sorts (just the pattern between "let" and "=")
+- `Exp` = Body sort (what comes after "=" is an expression)
+
+**Note**: This uses `mk_pre_c'` which creates a heterogeneous prefix form where the body sort differs from the out sort. See "Implementation Notes" for why this is necessary.
 
 ---
 
@@ -821,3 +826,214 @@ Let(p1, e1,
 ```
 
 Where `x1`, `x2` are the non-shadowed variables bound by `p1`, `p2`.
+
+---
+
+## Implementation Notes (Phase 1.1 Completed)
+
+This section documents what was actually implemented, key insights discovered, and deviations from the original plan.
+
+### Status Summary
+
+**Completed (Phase 1.1 - Syntax Foundation)**:
+- ✅ Mod sort added to Sort.re
+- ✅ Module forms defined in Form.re (ModBody, ModSeq, ModLet, ModType)
+- ✅ Remold functions added to Segment.re (remold_mod, remold_mod_uni)
+- ✅ MakeTerm parsing for modules with flattening
+- ✅ CSS styling for Mod sort (greenish color)
+- ✅ Stubs in dynamics/statics for Module expression
+
+**Not Yet Implemented**:
+- ❌ Module expansion to labeled tuples (ExpandModule.re)
+- ❌ Full statics integration with expansion
+- ❌ Elaborator integration
+- ❌ Empty module atomic form ({})
+
+### Key Insight: Heterogeneous Prefix Forms
+
+**Problem Discovered**: The original plan specified:
+```ocaml
+| ModLet => mk_pre_c(L, ["let", "="], P.let_, Mod, [Pat, Exp])
+```
+
+This is incorrect. For a 2-token prefix form, `inner_sorts` specifies:
+- Sorts of children **between** tokens (1 slot for 2 tokens)
+- The **body** sort (what comes after the prefix) is controlled by the right nib
+
+With `mk_pre(p, out, in_)`, both nibs get sort `out`. But ModLet needs:
+- Left nib: Mod (the form produces a Mod item)
+- Right nib: Exp (the body after `=` is an expression)
+
+**Solution**: Created `mk_pre'` and `mk_pre_c'` for heterogeneous prefix forms:
+
+```ocaml
+// In Mold.re:
+let mk_pre' = (p, out, in_, sort_r) => {
+  let l = Nib.{shape: Convex, sort: out};
+  let r = Nib.{shape: Concave(p), sort: sort_r};  // Different sort!
+  {out, in_, nibs: (l, r)};
+};
+
+// In Form.re:
+let mk_pre_c' = (exp, label, prec, sort, inner_sorts, body_sort) =>
+  mk(exp, label, Mold.mk_pre'(prec, sort, inner_sorts, body_sort));
+
+// Correct form definitions:
+| ModLet => mk_pre_c'(L, ["let", "="], P.let_, Mod, [Pat], Exp)
+| ModType => mk_pre_c'(L, ["type", "="], P.let_, Mod, [TPat], Typ)
+```
+
+This follows the precedent of `mk_bin'` which already allows heterogeneous left/right sorts for binary operators.
+
+### Key Insight: Sort Disambiguation at Heterogeneous Boundaries
+
+**Problem**: At heterogeneous form boundaries, multiple sorts are simultaneously valid. For example, after `{ type t = Int`:
+- **Local sort** (right nib of `Int`) = `Typ`
+- **Parent sort** (bi-delimited region `{ }`) = `Mod`
+
+When typing `;`, which sort should it use? The current design assumed one sort per insertion point, which breaks at these boundaries.
+
+**Key Insight**: At heterogeneous boundaries, **two sorts are relevant**:
+- **Local sort**: for extending the current content (e.g., `Int -> Bool`)
+- **Parent sort**: for completing content and adding siblings (e.g., `Int; let x = 1`)
+
+The token being inserted disambiguates which context applies.
+
+**Important**: Only local and parent (bi-delimited region) sorts matter. Grandparents would be outside the bi-delimiter and can't affect inner sort resolution.
+
+### Solution: Mod→Exp Fallback Pattern
+
+We established a general **Mod→Exp fallback pattern**: when in Mod context and no Mod form exists, try Exp.
+
+This handles two categories:
+1. **Exp forms in Mod context**: `if`, `test`, function literals, etc. should expand inside `{ }`
+2. **Bare expressions in Mod context**: `2+2` should remold with Exp molds
+
+Additionally, there's a **semicolon special case**: when `;` is typed and parent sort is Mod, prefer Mod (for ModSeq over CellJoin).
+
+**Why this is principled**:
+- Mod is unique: it's the only sort where standalone items of another sort (Exp) are valid
+- Priority is preserved: ModLet takes precedence over exp Let (checked first)
+- It's explicit: only Mod→Exp, not Mod→Pat or Mod→Typ
+- Semicolon special case matches intuition that `;` means "this item is done, next one coming"
+
+**Decision Table**:
+
+| Scenario | Local | Parent | Token | Result |
+|----------|-------|--------|-------|--------|
+| `{ type t = Int;` | Typ | Mod | `;` | Mod (semicolon special case) |
+| `{ let x = 1;` | Exp | Mod | `;` | Mod (semicolon special case) |
+| `{ if ...` | Mod | - | `if` | Exp (Mod→Exp fallback) |
+| `1 + 2` (top level) | Exp | Exp | `+` | Exp (local first) |
+
+**In Segment.re (remold_mod)**:
+```ocaml
+| Tile(t) =>
+  switch (remold_tile(Mod, shape, t)) {
+  | None =>
+    /* No Mod form - try Exp since bare expressions are valid module items */
+    switch (remold_tile(Exp, shape, t)) {
+    | None => [Tile(t), ...remold_mod(snd(Tile.shapes(t)), tl)]
+    | Some(t) =>
+      let (remolded, shape, rest) = remold_exp_uni(snd(Tile.shapes(t)), tl, [Mod]);
+      [Piece.Tile(t), ...remolded] @ remold_mod(shape, rest)
+    }
+  | Some(t) => ...
+  }
+```
+
+**In Insert.re (effective_sort)**:
+```ocaml
+switch (Form.Expansion.try_get(local_sort, t)) {
+| Some(_) => local_sort
+| None =>
+  /* In Mod context, try Exp since bare expressions are valid module items */
+  if (local_sort == Sort.Mod) {
+    switch (Form.Expansion.try_get(Exp, t)) {
+    | Some(_) => Exp
+    | None => parent_sort
+    };
+  } else {
+    parent_sort;
+  }
+};
+```
+
+### Key Insight: MakeTerm Pattern Matching
+
+For prefix forms, the tile's children list contains only what's **between** tokens. The body is a separate argument to the Pre constructor.
+
+**Wrong pattern** (expected 2 children for 2-token form):
+```ocaml
+| Pre(([(_id, (["let", "="], [Pat(p), Exp(e)]))], []), Mod(_)) =>
+```
+
+**Correct pattern** (1 child between tokens, body separate):
+```ocaml
+| Pre(([(_id, (["let", "="], [Pat(p)]))], []), Exp(e)) =>
+  ret(ModLet(p, e))
+```
+
+### Key Insight: Handling Expression-Level Structures in Mod
+
+When parsing in Mod context, expression-level structures like `2+2` (which is `Bin(Exp, tiles, Exp)`) need to be wrapped as ModExp:
+
+```ocaml
+/* Expression-level structures - wrap as ModExp */
+| Bin(Exp(_), _, Exp(_)) as tm => ret(ModExp(exp(tm)))
+| Pre(_, Exp(_)) as tm => ret(ModExp(exp(tm)))
+| Post(Exp(_), _) as tm => ret(ModExp(exp(tm)))
+```
+
+### Precedent: Rul Sort Fallback
+
+The Mod→Exp fallback pattern has precedent in Form.Expansion.get for Rul sort:
+
+```ocaml
+| Rul =>
+  /* Rul context: fall back to any expansion since rules contain
+     Exp/Pat operands but have no direct operand forms. */
+  let any_match = sorted_expansions |> List.find_opt(((tok, _, _, _)) => tok == t);
+  ...
+```
+
+Both Rul and Mod are "container" sorts that hold items of other sorts, requiring fallback logic.
+
+### Files Modified (Phase 1.1)
+
+| File | Changes |
+|------|---------|
+| `src/language/term/Sort.re` | Added `Mod` variant |
+| `src/language/term/Grammar.re` | Added `mod_term`, `mod_t`, `Module` in exp_term |
+| `src/language/term/TermBase.re` | Added Mod module with map_term, etc. |
+| `src/language/term/Mod.re` | New file with Mod utilities |
+| `src/language/term/Any.re` | Added `is_mod` function |
+| `src/language/term/Equality.re` | Added mod equality |
+| `src/haz3lcore/lang/Form.re` | Added module forms, `mk_pre_c'` helper |
+| `src/haz3lcore/tiles/Mold.re` | Added `mk_pre'` for heterogeneous prefix |
+| `src/haz3lcore/tiles/Segment.re` | Added `remold_mod`, `remold_mod_uni`, Exp fallback |
+| `src/haz3lcore/lang/MakeTerm.re` | Added module parsing with flattening |
+| `src/haz3lcore/lang/Precedence.re` | Added `mod_seq` precedence |
+| `src/haz3lcore/zipper/action/Insert.re` | Added Mod→Exp expansion fallback |
+| `src/web/www/style/variables.css` | Added `--MOD` color variable |
+| `src/web/www/style/editor.css` | Added mod sort styling |
+| Various statics/dynamics files | Added stub cases for Module |
+
+### Remaining Work (Phase 1.2+)
+
+1. **Module Expansion**: Implement `ExpandModule.re` to transform modules to nested let/type + labeled tuple
+2. **Statics Integration**: Wire up expansion in type checking
+3. **Elaborator Integration**: Wire up expansion for dynamics
+4. **Empty Module**: Add `{}` atomic form
+5. **Testing**: Comprehensive tests for module semantics
+
+### Future Considerations
+
+**Universal Semicolon**: An alternative approach would be a single sort-polymorphic `;` operator that works at whatever level makes sense contextually. This would eliminate the CellJoin/ModSeq ambiguity entirely. Challenges:
+- Hazel's tiles have concrete sorts; `Any` sort behavior isn't truly polymorphic
+- Would need sort-dispatching at MakeTerm phase
+- Larger architectural change
+
+Could be revisited if we move toward more semicolon-separated syntax throughout Hazel.
+
+**Removing CellJoin**: If expression-level `;` (CellJoin) isn't needed, removing it eliminates the semicolon ambiguity entirely. Worth considering as module syntax matures.

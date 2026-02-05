@@ -48,7 +48,9 @@ let expansion = (sort: Sort.t, t: Token.t, z: t): (Label.t, Direction.t) => {
 
 /* Determine the effective sort for insertion, considering both local and parent sorts.
    Default: local-first (try local sort, fall back to parent).
-   Special case: semicolon with Mod parent prefers Mod (for ModSeq over CellJoin). */
+   Special cases:
+   - Semicolon with Mod parent prefers Mod (for ModSeq over CellJoin)
+   - Mod context falls back to Exp since bare expressions are valid module items */
 let effective_sort = (t: Token.t, z: t): Sort.t => {
   let local_sort = Relatives.sort(z.relatives);
   let parent_sort = Ancestors.sort(z.relatives.ancestors);
@@ -60,7 +62,17 @@ let effective_sort = (t: Token.t, z: t): Sort.t => {
     /* Default: local-first with parent fallback */
     switch (Form.Expansion.try_get(local_sort, t)) {
     | Some(_) => local_sort
-    | None => parent_sort
+    | None =>
+      /* In Mod context, try Exp since bare expressions are valid module items.
+         This mirrors remold_mod which also falls back to Exp. */
+      if (local_sort == Sort.Mod) {
+        switch (Form.Expansion.try_get(Exp, t)) {
+        | Some(_) => Exp
+        | None => parent_sort
+        };
+      } else {
+        parent_sort;
+      }
     };
   };
 };
