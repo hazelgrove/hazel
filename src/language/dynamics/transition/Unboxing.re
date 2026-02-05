@@ -251,6 +251,7 @@ let rec unbox: type a. (unbox_request(a), DHExp.t) => unboxed(a) =
         HintedTest(_) |
         Filter(_) |
         Closure(_) |
+        Projector(_) |
         ListConcat(_) |
         TupleExtension(_) |
         Dot(_) |
