@@ -41,6 +41,22 @@ let measure_time = (name: string, measure: bool, f: unit => 'a): 'a =>
     f();
   };
 
+// Web-friendly timing using performance.now()
+let now_ms = (): float => JsUtil.precise_timestamp();
+
+let log_time = (name: string, start_ms: float): unit => {
+  let elapsed = now_ms() -. start_ms;
+  Printf.printf("[PERF] %-40s %8.2fms\n%!", name, elapsed);
+};
+
+// Wrap a function with timing
+let timed = (name: string, f: unit => 'a): 'a => {
+  let start = now_ms();
+  let result = f();
+  log_time(name, start);
+  result;
+};
+
 let format_time_diff = (prior: float): string => {
   let now = JsUtil.timestamp();
   let diff_seconds = (now -. prior) /. 1000.0;

@@ -43,6 +43,20 @@ module VisibleRows = {
     };
 };
 
+// MVU App state for the sidebar
+// App = (init_model, view: model -> Html, subs: model -> Sub)
+// We store pre-evaluated html and subs to avoid re-evaluating in view
+module AppViewState = {
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type t = {
+    model: Language.DHExp.t, // Current model state
+    view_fn: Language.DHExp.t, // view: model -> Html
+    subs_fn: Language.DHExp.t, // subscriptions: model -> Sub
+    html: Language.DHExp.t, // Pre-evaluated: view_fn(model)
+    subs: Language.DHExp.t, // Pre-evaluated: subs_fn(model)
+  };
+};
+
 module Action = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t =
@@ -57,7 +71,9 @@ module Action = {
     | Redo // global actions so they can be accessed by the command palette
     | SetMetaDown(bool)
     | UpdateVisibleRows(VisibleRows.t)
-    | SetAppViewHtml(Language.DHExp.t) // Update the App View sidebar HTML state
+    | SetAppViewModel(Language.DHExp.t) // Update the MVU model state
+    // InitAppView takes raw (model, view_fn, subs_fn) - evaluation happens in handler
+    | InitAppView(Language.DHExp.t, Language.DHExp.t, Language.DHExp.t)
     | ResetAppView; // Reset App View to show evaluation result
 };
 
@@ -70,8 +86,8 @@ module Model = {
     font_metrics: FontMetrics.t,
     meta_down: bool,
     visible_rows: option(VisibleRows.t),
-    // App View sidebar state (overrides evaluation result when Some)
-    app_view_html: option(Language.DHExp.t),
+    // MVU App View sidebar state
+    app_view_state: option(AppViewState.t),
     // Calculated:
     color_highlights: option(ColorSteps.colorMap),
     // Other:
@@ -97,7 +113,7 @@ module Model = {
       settings,
       meta_down: false,
       visible_rows: None,
-      app_view_html: None,
+      app_view_state: None,
       color_highlights: None,
       inject_global: _ =>
         failwith(
@@ -146,7 +162,8 @@ module Update = {
     | Redo => false
     | SetMetaDown(_) => false
     | UpdateVisibleRows(_) => false
-    | SetAppViewHtml(_) => false
+    | SetAppViewModel(_) => false
+    | InitAppView(_) => false
     | ResetAppView => false
     };
   };

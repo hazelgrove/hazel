@@ -137,6 +137,7 @@ module View = {
   type event;
 
   let view = (~globals, ~overlays: list(Node.t)=[], model: Model.t) => {
+    let start = TimeUtil.now_ms();
     let {
       editor:
         {
@@ -146,6 +147,7 @@ module View = {
         },
       _,
     }: Model.t = model;
+    let code_view_start = TimeUtil.now_ms();
     let code_text_view =
       CodeViewable.view(
         ~globals,
@@ -156,6 +158,7 @@ module View = {
         ~shape_map,
         ~refractor_shape_map=Id.Map.empty //Id.Map.map(_ => 2, z.refractors.map),
       );
+    TimeUtil.log_time("    CodeViewable.view", code_view_start);
     let statics_decos =
       Arms.Errors.of_ids(
         ~font_metrics=globals.font_metrics,
@@ -164,9 +167,12 @@ module View = {
       );
     let container_classes =
       ["code-container"] @ (globals.meta_down ? ["meta-down"] : []);
-    Node.div(
-      ~attrs=[Attr.classes(container_classes)],
-      [code_text_view, statics_decos] @ overlays,
-    );
+    let result =
+      Node.div(
+        ~attrs=[Attr.classes(container_classes)],
+        [code_text_view, statics_decos] @ overlays,
+      );
+    TimeUtil.log_time("  CodeWithStatics.view", start);
+    result;
   };
 };

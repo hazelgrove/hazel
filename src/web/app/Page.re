@@ -104,6 +104,23 @@ module Update = {
     | Exercises(_) => None // These have different cell structures
     };
 
+  // Evaluate a Hazel expression (for MVU app state updates)
+  let evaluate_exp = (exp: Language.DHExp.t): Language.DHExp.t => {
+    open Haz3lcore;
+    open Language;
+    fst(
+      Evaluator.evaluate(
+        ~env=Builtins.env_init,
+        fst(
+          Elaborator.elaborate(
+            Statics.mk(CoreSettings.on, Builtins.ctx_init(Some(Int)), exp),
+            exp,
+          ),
+        ),
+      ),
+    );
+  };
+
   let update_global =
       (
         ~import_log,
@@ -182,12 +199,60 @@ module Update = {
         },
       }
       |> return_quiet
-    | SetAppViewHtml(html) =>
+    | SetAppViewModel(new_model) =>
+      // Update model and re-evaluate view_fn(model) and subs_fn(model)
+      switch (model.globals.app_view_state) {
+      | Some(state) =>
+        // Re-evaluate with the new model
+        let html =
+          evaluate_exp(
+            Language.IdTagged.FreshGrammar.Exp.ap(
+              Forward,
+              state.view_fn,
+              new_model,
+            ),
+          );
+        let subs =
+          evaluate_exp(
+            Language.IdTagged.FreshGrammar.Exp.ap(
+              Forward,
+              state.subs_fn,
+              new_model,
+            ),
+          );
+        {
+          ...model,
+          globals: {
+            ...model.globals,
+            app_view_state:
+              Some({...state, model: new_model, html, subs}),
+          },
+        }
+        |> return_quiet;
+      | None => model |> return_quiet // No app initialized yet
+      }
+    | InitAppView(init_model, view_fn, subs_fn) =>
+      // Initialize MVU app state with evaluated html and subs
+      let html =
+        evaluate_exp(
+          Language.IdTagged.FreshGrammar.Exp.ap(Forward, view_fn, init_model),
+        );
+      let subs =
+        evaluate_exp(
+          Language.IdTagged.FreshGrammar.Exp.ap(Forward, subs_fn, init_model),
+        );
+      let state: Globals.AppViewState.t = {
+        model: init_model,
+        view_fn,
+        subs_fn,
+        html,
+        subs,
+      };
       {
         ...model,
         globals: {
           ...model.globals,
-          app_view_html: Some(html),
+          app_view_state: Some(state),
         },
       }
       |> return_quiet
@@ -196,7 +261,7 @@ module Update = {
         ...model,
         globals: {
           ...model.globals,
-          app_view_html: None,
+          app_view_state: None,
         },
       }
       |> return_quiet
@@ -284,15 +349,17 @@ module Update = {
         action: t,
         model: Model.t,
       ) => {
+    let start = TimeUtil.now_ms();
     let globals = {
       ...model.globals,
       export_all: Export.export_all,
       get_log_and,
     };
-    switch (action) {
+    let result = switch (action) {
     | Globals(action) =>
       update_global(~globals, ~import_log, ~schedule_action, action, model)
     | Editors(action) =>
+      let editors_start = TimeUtil.now_ms();
       let* editors =
         Editors.Update.update(
           ~globals,
@@ -302,6 +369,7 @@ module Update = {
           action,
           model.editors,
         );
+      TimeUtil.log_time("  Editors.Update.update", editors_start);
       /* Reset visible_rows when switching to modes without viewport culling,
        * otherwise stale culling bounds hide projectors incorrectly */
       let globals =
@@ -358,6 +426,8 @@ module Update = {
       Store.save(model);
       model |> return_quiet;
     };
+    TimeUtil.log_time("Page.update TOTAL", start);
+    result;
   };
 
   let can_undo = (action: t) => {
@@ -783,11 +853,15 @@ module View = {
 
   let view =
       (~get_log_and, ~inject: Update.t => Ui_effect.t(unit), model: Model.t) => {
+    let start = TimeUtil.now_ms();
     let cursor = Selection.get_cursor_info(~selection=model.selection, model);
-    div(
-      ~attrs=[Attr.id("page"), ...handlers(~cursor, ~inject, model)],
-      [FontSpecimen.view, JsUtil.clipboard_shim]
-      @ main_view(~get_log_and, ~cursor, ~inject, model),
-    );
+    let result =
+      div(
+        ~attrs=[Attr.id("page"), ...handlers(~cursor, ~inject, model)],
+        [FontSpecimen.view, JsUtil.clipboard_shim]
+        @ main_view(~get_log_and, ~cursor, ~inject, model),
+      );
+    TimeUtil.log_time("Page.view TOTAL", start);
+    result;
   };
 };

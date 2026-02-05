@@ -2193,4 +2193,11 @@ let mk =
   });
 
 let mk = (~ana=Typ.temp(Unknown(SynSwitch)), core: CoreSettings.t, ctx, exp) =>
-  core.statics ? mk(ana, ctx, exp) : Id.Map.empty;
+  if (core.statics) {
+    let start = Util.TimeUtil.now_ms();
+    let result = mk(ana, ctx, exp);
+    Util.TimeUtil.log_time("    Statics.mk (inner)", start);
+    result;
+  } else {
+    Id.Map.empty;
+  };

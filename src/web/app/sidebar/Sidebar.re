@@ -237,9 +237,9 @@ let view =
                 ~editor,
               )
             | AppView =>
-              // Wire inject to update the global app_view_html state
-              let app_inject = (new_html: Language.DHExp.t) =>
-                globals.inject_global(SetAppViewHtml(new_html));
+              // Wire inject to update the MVU model state
+              let app_inject = (new_model: Language.DHExp.t) =>
+                globals.inject_global(SetAppViewModel(new_model));
               AppViewPanel.view(~globals, ~cell_editor, ~inject=app_inject);
             },
           ],

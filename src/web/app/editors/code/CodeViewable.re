@@ -1,3 +1,4 @@
+open Util;
 open Util.WebUtil;
 open Haz3lcore;
 
@@ -15,6 +16,7 @@ let view =
       ~refractor_shape_map,
     )
     : Node.t => {
+  let start = TimeUtil.now_ms();
   let code =
     Code.view(
       ~measured,
@@ -26,7 +28,9 @@ let view =
       ~buffer_ids,
       segment,
     );
-  div_c("code", [span_c("code-text", code)]);
+  let result = div_c("code", [span_c("code-text", code)]);
+  TimeUtil.log_time("      Code.view (inner)", start);
+  result;
 };
 
 let view_segment = (~globals: Globals.t, segment: Segment.t) => {

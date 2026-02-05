@@ -1,0 +1,52 @@
+# MVU Counter Example #
+# A counter using proper MVU architecture (Model-View-Update) #
+# App type: (init_model, view: model -> Html, subs: model -> Sub) #
+# Handlers are: model -> model (not Html -> Html) #
+
+# Model is just an integer (the count)
+let init = 0 in
+
+# view: Int -> Html
+# Takes the current model (count) and returns HTML
+let view = fun model ->
+  Div(
+    [Class("counter"), Style([("text-align", "center"), ("padding", "20px")])],
+    [
+      H2([], [Text("MVU Counter")]),
+      Div(
+        [Style([("font-size", "48px"), ("margin", "20px")])],
+        [Int(model)]
+      ),
+      Div(
+        [],
+        [
+          Button(
+            [
+              OnClick(fun m -> m - 1),
+              Style([("font-size", "24px"), ("margin", "10px"), ("padding", "10px 20px")])
+            ],
+            [Text("-")]
+          ),
+          Button(
+            [
+              OnClick(fun m -> m + 1),
+              Style([("font-size", "24px"), ("margin", "10px"), ("padding", "10px 20px")])
+            ],
+            [Text("+")]
+          )
+        ]
+      ),
+      P(
+        [Style([("color", "#666"), ("font-size", "12px")])],
+        [Text("Click buttons to change count")]
+      )
+    ]
+  )
+in
+
+# subs: Int -> Sub
+# Takes the current model and returns subscriptions (none for this example)
+let subs = fun model -> None in
+
+# Return the App tuple: (init_model, view_fn, subs_fn)
+(init, view, subs)

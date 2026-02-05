@@ -1,3 +1,4 @@
+open Util;
 open Transition;
 
 [@deriving (show({with_path: false}), eq)]
@@ -253,9 +254,13 @@ let evaluate_and_limit =
 let evaluate =
     (~targets: Sample.targets=Sample.no_targets, ~env, d: DHExp.t)
     : (Exp.t, EvaluatorState.t) => {
-  switch (evaluate_and_limit(~targets, ~env, d)) {
-  | Completed((x, state)) => (x, state)
-  | StepLimitExceeded =>
-    raise(Failure("Impossible: Step limit exceeded when not set"))
-  };
+  let start = TimeUtil.now_ms();
+  let result =
+    switch (evaluate_and_limit(~targets, ~env, d)) {
+    | Completed((x, state)) => (x, state)
+    | StepLimitExceeded =>
+      raise(Failure("Impossible: Step limit exceeded when not set"))
+    };
+  TimeUtil.log_time("Evaluator.evaluate", start);
+  result;
 };

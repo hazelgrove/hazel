@@ -85,13 +85,21 @@ let init_from_term =
       term,
     )
     : t => {
+  let total_start = TimeUtil.now_ms();
+
   let ctx_init =
     Option.value(
       ~default=Builtins.ctx_init(is_dynamic_term ? None : Some(Int)),
       ctx,
     );
+
+  let statics_start = TimeUtil.now_ms();
   let info_map = Statics.mk(~ana?, settings, ctx_init, term);
+  TimeUtil.log_time("  Statics.mk", statics_start);
+
   let error_ids = Statics.Map.error_ids(info_map);
+
+  let elab_start = TimeUtil.now_ms();
   let elaborated =
     switch () {
     | _ when !settings.statics => dh_err("Statics disabled")
@@ -103,7 +111,14 @@ let init_from_term =
       | Elaborates(d, _) => d
       }
     };
+  TimeUtil.log_time("  Elaboration", elab_start);
+
+  let targets_start = TimeUtil.now_ms();
   let targets = compute_targets(~settings, ~info_map, ~probe_ids);
+  TimeUtil.log_time("  compute_targets", targets_start);
+
+  TimeUtil.log_time("CachedStatics.init_from_term TOTAL", total_start);
+
   {
     term,
     elaborated,
