@@ -35,10 +35,10 @@ module Kind = {
     Slider,
     SliderF,
     TextArea,
-    Card,
+    Csv, /* Competes with Card for empty list */
+    Card, /* Competes with Csv for empty list */
     Livelit,
     HTML,
-    Csv,
   ];
 
   /* Note: Probe intentionally excluded - probes use separate action path */
