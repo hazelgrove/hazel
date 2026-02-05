@@ -597,43 +597,88 @@ let rec weak_head_normalize = (~rec_counter=0, ctx: Ctx.t, ty: t): t => {
   };
 };
 
+/* Normalize cache - memoize by type ID.
+   NOTE: This may not be safe if the same type ID can appear in different
+   contexts where it should normalize differently. For concrete types like
+   HTML (which don't contain free type variables), this should be safe.
+   Clear the cache at the start of each elaboration pass. */
+let normalize_cache: ref(Id.Map.t(t)) = ref(Id.Map.empty);
+let normalize_calls = ref(0);
+let normalize_cache_hits = ref(0);
+
+let reset_normalize_cache = () => {
+  normalize_cache := Id.Map.empty;
+  normalize_calls := 0;
+  normalize_cache_hits := 0;
+};
+
+let print_normalize_stats = () => {
+  Printf.printf(
+    "[NORM] normalize: %d calls, %d cache hits\n%!",
+    normalize_calls^,
+    normalize_cache_hits^,
+  );
+};
+
 let rec normalize = (~rec_counter=0, ctx: Ctx.t, ty: t): t => {
+  normalize_calls := normalize_calls^ + 1;
   if (rec_counter > 1000) {
     failwith("normalize exceeded 1000 recursive calls");
   };
-  let normalize = normalize(~rec_counter=rec_counter + 1);
-  let (term, rewrap) = unwrap(ty);
-  switch (term) {
-  | Var(x) =>
-    switch (Ctx.lookup_alias(ctx, x)) {
-    | Some(ty) => normalize(ctx, ty)
-    | None => ty
-    }
-  | Unknown(_)
-  | Atom(_)
-  | ExplicitNonlabel
-  | Label(_) => ty
-  | Parens(t)
-  | Projector(_, t) => normalize(ctx, t)
-  | List(t) => List(normalize(ctx, t)) |> rewrap
-  | Arrow(t1, t2) =>
-    Arrow(normalize(ctx, t1), normalize(ctx, t2)) |> rewrap
-  | Prod(ts) => Prod(List.map(normalize(ctx), ts)) |> rewrap
-  | ProdProjection(_) => weak_head_normalize(ctx, ty) |> normalize(ctx)
-  | ProdExtension(_) => weak_head_normalize(ctx, ty) |> normalize(ctx)
-  | TupLabel({term: ExplicitNonlabel, _}, ty) => normalize(ctx, ty) // Drop ExplicitNonlabel in normalization
-  | TupLabel(label, ty) =>
-    TupLabel(normalize(ctx, label), normalize(ctx, ty)) |> rewrap
-  | Sum(ts) =>
-    Sum(ConstructorMap.map(Option.map(normalize(ctx)), ts)) |> rewrap
-  | Rec(tpat, ty) =>
-    /* NOTE: Dummy tvar added has fake id but shouldn't matter
-       as in current implementation Recs do not occur in the
-       surface syntax, so we won't try to jump to them. */
-    Rec(tpat, normalize(Ctx.extend_dummy_tvar(ctx, tpat), ty)) |> rewrap
-  | Poly(name, ty) =>
-    Poly(name, normalize(Ctx.extend_dummy_tvar(ctx, name), ty)) |> rewrap
-  | ProofOf(_) => ty // Todo: should we normalize this?
+  let id = rep_id(ty);
+  switch (Id.Map.find_opt(id, normalize_cache^)) {
+  | Some(cached) =>
+    normalize_cache_hits := normalize_cache_hits^ + 1;
+    cached;
+  | None =>
+    let normalize = normalize(~rec_counter=rec_counter + 1);
+    let (term, rewrap) = unwrap(ty);
+    let result =
+      switch (term) {
+      | Var(x) =>
+        switch (Ctx.lookup_alias(ctx, x)) {
+        | Some(ty) => normalize(ctx, ty)
+        | None => ty
+        }
+      | Unknown(_)
+      | Atom(_)
+      | ExplicitNonlabel
+      | Label(_) => ty
+      | Parens(t)
+      | Projector(_, t) => normalize(ctx, t)
+      | List(t) =>
+        let t' = normalize(ctx, t);
+        t === t' ? ty : List(t') |> rewrap
+      | Arrow(t1, t2) =>
+        let t1' = normalize(ctx, t1);
+        let t2' = normalize(ctx, t2);
+        t1 === t1' && t2 === t2' ? ty : Arrow(t1', t2') |> rewrap
+      | Prod(ts) =>
+        let ts' = List.map(normalize(ctx), ts);
+        List.for_all2((===), ts, ts') ? ty : Prod(ts') |> rewrap
+      | ProdProjection(_) => weak_head_normalize(ctx, ty) |> normalize(ctx)
+      | ProdExtension(_) => weak_head_normalize(ctx, ty) |> normalize(ctx)
+      | TupLabel({term: ExplicitNonlabel, _}, ty) => normalize(ctx, ty) // Drop ExplicitNonlabel in normalization
+      | TupLabel(label, t) =>
+        let label' = normalize(ctx, label);
+        let t' = normalize(ctx, t);
+        label === label' && t === t' ? ty : TupLabel(label', t') |> rewrap
+      | Sum(ts) =>
+        let ts' = ConstructorMap.map(Option.map(normalize(ctx)), ts);
+        ts === ts' ? ty : Sum(ts') |> rewrap
+      | Rec(tpat, t) =>
+        /* NOTE: Dummy tvar added has fake id but shouldn't matter
+           as in current implementation Recs do not occur in the
+           surface syntax, so we won't try to jump to them. */
+        let t' = normalize(Ctx.extend_dummy_tvar(ctx, tpat), t);
+        t === t' ? ty : Rec(tpat, t') |> rewrap
+      | Poly(name, t) =>
+        let t' = normalize(Ctx.extend_dummy_tvar(ctx, name), t);
+        t === t' ? ty : Poly(name, t') |> rewrap
+      | ProofOf(_) => ty // Todo: should we normalize this?
+      };
+    normalize_cache := Id.Map.add(id, result, normalize_cache^);
+    result;
   };
 };
 

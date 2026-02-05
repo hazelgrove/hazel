@@ -174,13 +174,43 @@ let rec elaborate_pattern =
   (dpat, elaborated_type);
 };
 
+/* Elaboration profiling - mutable counters */
+let elab_call_count = ref(0);
+let elab_type_time = ref(0.0);
+let normalize_time = ref(0.0);
+let normalize_count = ref(0);
+
+let reset_elab_stats = () => {
+  elab_call_count := 0;
+  elab_type_time := 0.0;
+  normalize_time := 0.0;
+  normalize_count := 0;
+};
+
+let print_elab_stats = () => {
+  Printf.printf("[ELAB] elaborate called %d times\n%!", elab_call_count^);
+  Printf.printf("[ELAB] elaborated_type total: %.2fms\n%!", elab_type_time^);
+  Printf.printf("[ELAB] Typ.normalize called %d times, total: %.2fms\n%!", normalize_count^, normalize_time^);
+};
+
+let timed_normalize = (ctx, t) => {
+  let start = TimeUtil.now_ms();
+  let result = Typ.normalize(ctx, t);
+  normalize_time := normalize_time^ +. (TimeUtil.now_ms() -. start);
+  normalize_count := normalize_count^ + 1;
+  result;
+};
+
 let rec elaborate = (m: Statics.Map.t, uexp: Exp.t): (DHExp.t, Typ.t) => {
+  elab_call_count := elab_call_count^ + 1;
   // In the case of singleton labeled tuples we update the syntax in Statics.
   // We store this syntax with the same ID as the original expression and store it on the Info.exp in the Statics.map
   // We are then pulling this out and using it in place of the actual expression.
 
+  let elab_type_start = TimeUtil.now_ms();
   let (elaborated_type, ana, ctx, co_ctx, statics_pseudo_elaborated) =
     elaborated_type(m, uexp);
+  elab_type_time := elab_type_time^ +. (TimeUtil.now_ms() -. elab_type_start);
   let (_, rewrap) = Exp.unwrap(uexp);
   let uexp = rewrap(statics_pseudo_elaborated.term);
 
@@ -470,8 +500,21 @@ let fix_typ_ids =
   Exp.map_term(~f_typ=(cont, e) => e |> IdTagged.new_ids |> cont);
 
 let uexp_elab = (m: Statics.Map.t, uexp: Exp.t): ElaborationResult.t => {
-  switch (elaborate(m, uexp)) {
-  | exception MissingTypeInfo => DoesNotElaborate
-  | (d, ty) => Elaborates(d |> fix_typ_ids, ty)
-  };
+  reset_elab_stats();
+  Typ.reset_normalize_cache();
+  let start = TimeUtil.now_ms();
+  let result =
+    switch (elaborate(m, uexp)) {
+    | exception MissingTypeInfo => ElaborationResult.DoesNotElaborate
+    | (d, ty) =>
+      TimeUtil.log_time("    elaborate() inner", start);
+      print_elab_stats();
+      Typ.print_normalize_stats();
+      let fix_start = TimeUtil.now_ms();
+      let d' = d |> fix_typ_ids;
+      TimeUtil.log_time("    fix_typ_ids", fix_start);
+      ElaborationResult.Elaborates(d', ty);
+    };
+  TimeUtil.log_time("    uexp_elab total", start);
+  result;
 };
