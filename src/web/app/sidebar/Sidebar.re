@@ -237,10 +237,9 @@ let view =
                 ~editor,
               )
             | AppView =>
-              // Create an inject function for app view updates
-              // For now, this is a simple no-op since the sidebar view
-              // is primarily for display/testing apps
-              let app_inject = (_new_model: Language.DHExp.t) => Effect.Ignore;
+              // Wire inject to update the global app_view_html state
+              let app_inject = (new_html: Language.DHExp.t) =>
+                globals.inject_global(SetAppViewHtml(new_html));
               AppViewPanel.view(~globals, ~cell_editor, ~inject=app_inject);
             },
           ],

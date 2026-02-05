@@ -56,7 +56,9 @@ module Action = {
     | Undo // These two currently happen at the editor level, and are just
     | Redo // global actions so they can be accessed by the command palette
     | SetMetaDown(bool)
-    | UpdateVisibleRows(VisibleRows.t);
+    | UpdateVisibleRows(VisibleRows.t)
+    | SetAppViewHtml(Language.DHExp.t) // Update the App View sidebar HTML state
+    | ResetAppView; // Reset App View to show evaluation result
 };
 
 module Model = {
@@ -68,6 +70,8 @@ module Model = {
     font_metrics: FontMetrics.t,
     meta_down: bool,
     visible_rows: option(VisibleRows.t),
+    // App View sidebar state (overrides evaluation result when Some)
+    app_view_html: option(Language.DHExp.t),
     // Calculated:
     color_highlights: option(ColorSteps.colorMap),
     // Other:
@@ -93,6 +97,7 @@ module Model = {
       settings,
       meta_down: false,
       visible_rows: None,
+      app_view_html: None,
       color_highlights: None,
       inject_global: _ =>
         failwith(
@@ -141,6 +146,8 @@ module Update = {
     | Redo => false
     | SetMetaDown(_) => false
     | UpdateVisibleRows(_) => false
+    | SetAppViewHtml(_) => false
+    | ResetAppView => false
     };
   };
 };

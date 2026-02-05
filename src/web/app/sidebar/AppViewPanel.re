@@ -223,66 +223,96 @@ let render_not_html = (): Node.t =>
 
 let view =
     (
-      ~globals as _: Globals.t,
+      ~globals: Globals.t,
       ~cell_editor: option(CellEditor.Model.t),
       ~inject: DHExp.t => Ui_effect.t(unit),
     )
     : Node.t => {
-  // Get the content to render
-  let content =
-    switch (cell_editor) {
-    | None => render_instructions()
-    | Some(editor) =>
-      switch (get_evaluated_exp(editor)) {
-      | None => render_error("Evaluation pending or failed")
-      | Some(exp) when looks_like_html(exp) =>
-        // Create the MVU context for rendering
-        let mvu: HazelDOM.t = {
-          model: exp,
-          inject,
-          view_term: d => {
-            // Fallback for unknown terms - render as placeholder
-            Node.span(
-              ~attrs=[
-                Attr.create(
-                  "style",
-                  "background: #ffe0e0; padding: 2px 4px; border-radius: 2px;",
-                ),
-              ],
-              [text("[" ++ DHExp.show(d) ++ "]")],
-            );
-          },
-          projector_id: None,
-          subscriptions: None,
-        };
-        // Render the HTML
-        div(
-          ~attrs=[
-            clss(["app-view-content"]),
-            Attr.create(
-              "style",
-              "padding: 15px; background: white; min-height: 100px;",
-            ),
-          ],
-          [HazelDOM.render_elem(mvu, exp)],
-        );
-      | Some(_) => render_not_html()
+  // Determine HTML to render: prefer app_view_html state, fall back to evaluation
+  let html_to_render =
+    switch (globals.app_view_html) {
+    | Some(html) => Some(html) // Use state from event handlers
+    | None =>
+      // Fall back to evaluation result
+      switch (cell_editor) {
+      | None => None
+      | Some(editor) => get_evaluated_exp(editor)
       }
     };
+
+  // Check if we're showing state vs evaluation
+  let is_showing_state = Option.is_some(globals.app_view_html);
+
+  // Get the content to render
+  let content =
+    switch (html_to_render) {
+    | None =>
+      switch (cell_editor) {
+      | None => render_instructions()
+      | Some(_) => render_error("Evaluation pending or failed")
+      }
+    | Some(exp) when looks_like_html(exp) =>
+      // Create the MVU context for rendering
+      let mvu: HazelDOM.t = {
+        model: exp,
+        inject,
+        view_term: d => {
+          // Fallback for unknown terms - render as placeholder
+          Node.span(
+            ~attrs=[
+              Attr.create(
+                "style",
+                "background: #ffe0e0; padding: 2px 4px; border-radius: 2px;",
+              ),
+            ],
+            [text("[" ++ DHExp.show(d) ++ "]")],
+          );
+        },
+        projector_id: None,
+        subscriptions: None,
+      };
+      // Render the HTML
+      div(
+        ~attrs=[
+          clss(["app-view-content"]),
+          Attr.create(
+            "style",
+            "padding: 15px; background: white; min-height: 100px;",
+          ),
+        ],
+        [HazelDOM.render_elem(mvu, exp)],
+      );
+    | Some(_) => render_not_html()
+    };
+
+  // Reset button (only shown when we have state)
+  let reset_button =
+    is_showing_state
+      ? Node.button(
+          ~attrs=[
+            Attr.create(
+              "style",
+              "margin-left: auto; padding: 4px 8px; font-size: 12px; cursor: pointer;",
+            ),
+            Attr.on_click(_ => globals.inject_global(ResetAppView)),
+          ],
+          [text("Reset")],
+        )
+      : Node.none;
 
   div(
     ~attrs=[clss(["app-view-panel"])],
     [
-      // Header
+      // Header with reset button
       div(
         ~attrs=[
           clss(["app-view-header"]),
           Attr.create(
             "style",
-            "padding: 10px 15px; background: #f5f5f5; border-bottom: 1px solid #ddd; font-weight: bold;",
+            "padding: 10px 15px; background: #f5f5f5; border-bottom: 1px solid #ddd; font-weight: bold; display: flex; align-items: center;",
           ),
         ],
-        [text("App View")],
+        [text("App View"), reset_button],
       ),
       // Content area
       div(

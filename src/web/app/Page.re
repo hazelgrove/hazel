@@ -182,6 +182,24 @@ module Update = {
         },
       }
       |> return_quiet
+    | SetAppViewHtml(html) =>
+      {
+        ...model,
+        globals: {
+          ...model.globals,
+          app_view_html: Some(html),
+        },
+      }
+      |> return_quiet
+    | ResetAppView =>
+      {
+        ...model,
+        globals: {
+          ...model.globals,
+          app_view_html: None,
+        },
+      }
+      |> return_quiet
     | FinishImportAll(None) => model |> return_quiet
     | FinishImportAll(Some(data)) =>
       Export.import_all(
