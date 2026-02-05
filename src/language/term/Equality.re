@@ -127,6 +127,8 @@ let equality =
     | (_, DynamicErrorHole(x, _)) when ignore_dynamic_errors => exp'(e1, x)
     | (Parens(x), _) when ignore_parens => exp'(x, e2)
     | (_, Parens(x)) when ignore_parens => exp'(e1, x)
+    | (Projector(_, x), _) when ignore_parens => exp'(x, e2)
+    | (_, Projector(_, x)) when ignore_parens => exp'(e1, x)
     | (Asc(x, _), _) when ignore_ascriptions => exp'(x, e2)
     | (_, Asc(x, _)) when ignore_ascriptions => exp'(e1, x)
     | (Filter(_, x), _) when ignore_filters => exp'(x, e2)
@@ -210,6 +212,8 @@ let equality =
     | (DynamicErrorHole(_), _) => false
     | (Parens(x), Parens(y)) => exp'(x, y)
     | (Parens(_), _) => false
+    | (Projector(d1, x), Projector(d2, y)) => d1 == d2 && exp'(x, y)
+    | (Projector(_), _) => false
     | (Asc(x, t1), Asc(y, t2)) => typ'(t1, t2) && exp'(x, y)
     | (Asc(_), _) => false
     | (Filter(f1, x), Filter(f2, y)) => filter'(f1, f2) && exp'(x, y)
@@ -409,12 +413,16 @@ let equality =
     // Wrappers when ignored: unwrap.
     | (Parens(x), _) when ignore_parens => pat'(x, p2)
     | (_, Parens(x)) when ignore_parens => pat'(p1, x)
+    | (Projector(_, x), _) when ignore_parens => pat'(x, p2)
+    | (_, Projector(_, x)) when ignore_parens => pat'(p1, x)
     | (Asc(x, _), _) when ignore_ascriptions => pat'(x, p2)
     | (_, Asc(x, _)) when ignore_ascriptions => pat'(p1, x)
 
     // Wrappers otherwise: compare.
     | (Parens(x), Parens(y)) => pat'(x, y)
     | (Parens(_), _) => None
+    | (Projector(d1, x), Projector(d2, y)) when d1 == d2 => pat'(x, y)
+    | (Projector(_), _) => None
     | (Asc(x, t1), Asc(y, t2)) =>
       if (typ'(t1, t2)) {
         pat'(x, y);
@@ -513,6 +521,8 @@ let equality =
     // Wrappers when ignored: unwrap.
     | (Parens(x), _) when ignore_parens => typ'(x, t2)
     | (_, Parens(x)) when ignore_parens => typ'(t1, x)
+    | (Projector(_, x), _) when ignore_parens => typ'(x, t2)
+    | (_, Projector(_, x)) when ignore_parens => typ'(t1, x)
     | (TupLabel({term: ExplicitNonlabel, _}, t1), _)
         when ignore_explicit_unlabelling =>
       typ'(t1, t2)
@@ -523,6 +533,8 @@ let equality =
     // Wrappers otherwise: compare.
     | (Parens(x), Parens(y)) => typ'(x, y)
     | (Parens(_), _) => false
+    | (Projector(d1, x), Projector(d2, y)) => d1 == d2 && typ'(x, y)
+    | (Projector(_), _) => false
 
     // Forms with type binders
     | (Rec(tp1, t1), Rec(tp2, t2)) =>

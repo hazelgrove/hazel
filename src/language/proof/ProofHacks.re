@@ -134,6 +134,7 @@ let rec pat_to_exp = (pat: Pat.t): Exp.t => {
   | Var(x) => rewrap(Var(x))
   | Tuple(xs) => rewrap(Tuple(List.map(pat_to_exp, xs)))
   | Parens(e) => rewrap(Parens(pat_to_exp(e)))
+  | Projector(data, e) => rewrap(Projector(data, pat_to_exp(e)))
   | Ap(e1, e2) => rewrap(Ap(Forward, pat_to_exp(e1), pat_to_exp(e2)))
   | Asc(e, t1) => rewrap(Asc(pat_to_exp(e), t1))
   | Label(l) => rewrap(Label(l))
@@ -224,7 +225,8 @@ let dhpat_extend_ctx = (dhpat: DHPat.t, ty: Typ.t, ctx: Ctx.t): option(Ctx.t) =>
     | Wild
     | Invalid(_)
     | MultiHole(_) => Some([])
-    | Parens(dhp) => dhpat_var_entry(dhp, ty)
+    | Parens(dhp)
+    | Projector(_, dhp) => dhpat_var_entry(dhp, ty)
     | Atom(c) =>
       Typ.equal(ty, Atom(Atom.cls_of_t(c)) |> Typ.temp) ? Some([]) : None
     | Constructor(_) => Some([]) // TODO: make this stricter
@@ -257,7 +259,8 @@ let rec get_inductive_hypotheses = (m, t, pat) => {
   | Var(_) => []
   | Tuple(xs) =>
     List.concat(List.map(get_inductive_hypotheses_inner(m, t, _), xs))
-  | Parens(e) => get_inductive_hypotheses_inner(m, t, e)
+  | Parens(e)
+  | Projector(_, e) => get_inductive_hypotheses_inner(m, t, e)
   | Ap(e1, e2) =>
     get_inductive_hypotheses_inner(m, t, e1)
     @ get_inductive_hypotheses_inner(m, t, e2)
@@ -479,6 +482,7 @@ let rec replace_exp =
         | Filter(_)
         | Closure(_)
         | Parens(_)
+        | Projector(_)
         | Cons(_, _)
         | ListConcat(_, _)
         | UnOp(_, _)
