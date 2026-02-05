@@ -23,8 +23,7 @@ The library builds on Jane Street's Virtual_dom (already used by Hazel) and foll
 - Subscription lifecycle management with global registry and cleanup on re-render
 
 **⏳ Remaining (minor):**
-- Execute init_cmd when App first renders (detected but not run)
-- Error boundaries for runtime issues
+- Error boundaries for runtime issues (catch evaluation failures gracefully)
 - Testing with real Hazel programs
 
 **📝 Deviations from original plan:**

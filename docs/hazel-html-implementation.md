@@ -312,13 +312,11 @@ let app = (
 
 ## Known Limitations
 
-1. **No init_cmd execution**: The startup command from App init is detected but not yet executed on first render.
+1. **Subscription cleanup on removal**: When a projector is removed entirely (not just re-rendered), subscriptions may leak. Proper cleanup would require projector lifecycle hooks.
 
-2. **Subscription cleanup on removal**: When a projector is removed entirely (not just re-rendered), subscriptions may leak. Proper cleanup would require projector lifecycle hooks.
+2. **AnimationFrame cleanup**: AnimationFrame subscriptions recursively request frames and currently can't be stopped.
 
-3. **AnimationFrame cleanup**: AnimationFrame subscriptions recursively request frames and currently can't be stopped.
-
-4. **No error boundaries**: Runtime errors in handlers or subscriptions are not gracefully handled.
+3. **No error boundaries**: Runtime errors in Hazel expression evaluation (e.g., type mismatches, failed pattern matches, infinite loops) are not caught. If an event handler or subscription callback fails to evaluate, it may crash or silently fail. Error boundaries would catch these exceptions and display a fallback UI like "Error: [message]" instead of breaking the entire projector.
 
 ## Future Enhancements
 
