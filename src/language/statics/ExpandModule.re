@@ -64,7 +64,10 @@ let compute_non_shadowed_bindings =
 };
 
 /* Build a labeled tuple expression: (a=a, b=b, ...)
-   Uses temporary IDs since this is a synthetic construct. */
+   The tuple gets a fresh ID (NOT the Module's ID) because the Module's ID
+   is already used by Statics to store info for the Module itself. Using the
+   same ID would cause the statics map entry to be overwritten, leading to
+   infinite loops in the Elaborator. */
 let build_labeled_tuple = (bindings: list((Var.t, Pat.t))): Exp.t => {
   let fields =
     bindings
@@ -75,19 +78,31 @@ let build_labeled_tuple = (bindings: list((Var.t, Pat.t))): Exp.t => {
        });
 
   switch (fields) {
-  | [] => Exp.fresh(Tuple([])) /* Empty tuple for empty module */
+  | [] => Exp.fresh(Tuple([]))
   | _ => Exp.fresh(Tuple(fields))
   };
 };
 
 /* Wrap the body with a single module item.
-   ModLet becomes Let, ModType becomes TyAlias, ModExp becomes let _ = e in body */
+   ModLet becomes Let, ModType becomes TyAlias, ModExp becomes let _ = e in body.
+
+   ID preservation:
+   - ModLet/ModType: Preserve the Mod item's ID on the wrapper Let/TyAlias,
+     since these correspond to surface syntax tiles users can click on.
+   - ModExp: Use fresh ID. ModExp is a synthetic wrapper around an existing
+     expression - the inner expression already has its own IDs for cursor info.
+     The wrapper Let is entirely synthetic with no surface syntax counterpart. */
 let wrap_item = (item: Mod.t, body: Exp.t): Exp.t => {
   switch (item.term) {
-  | ModLet(pat, def) => Exp.fresh(Let(pat, def, body))
-  | ModType(tpat, typ) => Exp.fresh(TyAlias(tpat, typ, body))
+  | ModLet(pat, def) =>
+    let item_id = Mod.rep_id(item);
+    IdTagged.fast_copy(item_id, Exp.fresh(Let(pat, def, body)))
+  | ModType(tpat, typ) =>
+    let item_id = Mod.rep_id(item);
+    IdTagged.fast_copy(item_id, Exp.fresh(TyAlias(tpat, typ, body)))
   | ModExp(e) =>
-    /* Bare expression becomes: let _ = e in body */
+    /* Bare expression: fresh ID since ModExp is synthetic.
+       The inner expression e keeps its original IDs. */
     let wild_pat = Pat.fresh(Wild);
     Exp.fresh(Let(wild_pat, e, body));
   | Invalid(_)
@@ -103,12 +118,16 @@ let wrap_item = (item: Mod.t, body: Exp.t): Exp.t => {
       { let a = 1; let b = 2 }
       becomes:
       let a = 1 in let b = 2 in (a=a, b=b)
+
+   Note: The wrapper Let/TyAlias expressions preserve Mod item IDs for cursor
+   inspector support. The final tuple gets a fresh ID (not the Module's ID)
+   because the Module's ID is used by Statics to store the Module's own info.
    */
 let expand = (items: list(Mod.t)): Exp.t => {
   /* 1. Compute non-shadowed bindings for the final tuple */
   let non_shadowed = compute_non_shadowed_bindings(items);
 
-  /* 2. Build the labeled tuple body */
+  /* 2. Build the labeled tuple body (fresh ID) */
   let tuple_body = build_labeled_tuple(non_shadowed);
 
   /* 3. Wrap with definitions from bottom to top (fold_right preserves order) */

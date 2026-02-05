@@ -328,11 +328,15 @@ and exp_term: unsorted => (Exp.term, list(Id.t)) = {
       | ([t], []) when Token.is_var(t) => ret(Var(t))
       | ([t], []) when Token.is_ctr(t) => ret(Constructor(t, None))
       | (["{", "}"], [Mod(body)]) =>
-        /* ModBody: flatten module sequence into Module(items)
-           Special case: {} with just an EmptyHole child means empty module */
-        switch (body.term) {
-        | EmptyHole => ret(Module([]))
-        | _ => ret(Module(flatten_mod(body)))
+        /* ModBody absorption: inner Mod's semicolon IDs become part of Module.
+           ID order: [curly_brace_id] @ semicolon_ids (outer first, then adopted).
+           This ensures cursor inspector works for both curly braces AND semicolons.
+           Special case: {} with just an EmptyHole child means empty module. */
+        switch (body) {
+        | {term: EmptyHole, _} => ret(Module([]))
+        | {annotation: {ids, _}, term: _} =>
+          adopted_ids := ids @ adopted_ids^;
+          ret(Module(flatten_mod(body)))
         }
       | (["{", "}"], [Exp(body)])
       | (["(", ")"], [Exp(body)]) => ret(Parens(body))

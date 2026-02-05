@@ -1491,108 +1491,177 @@ For Phase 1, the workaround is using single-item modules in Menhir-parsed tests,
 
 ### The Problem
 
-The cursor inspector doesn't show type information for module items (ModLet, ModType, etc.). When you click on `let a = 1` inside a module, it shows "whitespace or comment" instead of the binding's type info.
+The cursor inspector doesn't show type information for:
+1. Module items (ModLet, ModType) - shows "whitespace or comment"
+2. Semicolons inside modules - shows no info
 
-### Root Cause Analysis
+### Surface Syntax IDs
 
-The cursor inspector works by looking up an expression's ID in the statics map. For the inspector to work on module items, the **expanded** expressions (the Let/TyAlias wrappers) must have IDs that trace back to the original surface syntax.
+For `{ let a = 1; let b = 2 }`, the surface syntax has these IDs:
 
-**Current implementation in `ExpandModule.re`**:
-```reason
-let wrap_item = (item: Mod.t, body: Exp.t): Exp.t => {
-  switch (item.term) {
-  | ModLet(pat, def) => Exp.fresh(Let(pat, def, body))  // <-- Creates NEW ID
-  | ModType(tpat, typ) => Exp.fresh(TyAlias(tpat, typ, body))  // <-- Creates NEW ID
-  ...
+```
+{ let a = 1 ; let b = 2 }
+^           ^           ^
+CB          S          CB    (curly braces and semicolon tiles)
+  ^-------^   ^-------^
+     L1          L2          (ModLet tiles)
 ```
 
-The `Exp.fresh` creates a new random ID for each wrapper expression. This breaks the cursor inspector because:
-1. The surface syntax has IDs for each `Mod.t` item (e.g., the ModLet tile)
-2. The expanded Let has a fresh ID that doesn't correspond to anything in the surface syntax
-3. When user clicks on the ModLet, the cursor inspector looks for the ModLet's ID but finds nothing relevant
+- Curly braces `{ }` tile has ID = CB
+- Semicolon `;` tile has ID = S
+- First ModLet `let a = 1` tile has ID = L1
+- Second ModLet `let b = 2` tile has ID = L2
 
-### The Solution: Preserve Mod Item IDs
+### Root Causes
 
-The wrapper expressions should reuse the original Mod item's ID:
+**Issue 1: Semicolon IDs are lost during parsing**
+
+In `MakeTerm.re`, the Module case doesn't absorb semicolon IDs from the body:
+```reason
+| (["{", "}"], [Mod(body)]) =>
+  ret(Module(flatten_mod(body)))  // body's IDs (including semicolons) are lost!
+```
+
+Compare to ListLit which properly absorbs comma IDs:
+```reason
+| {annotation: {ids, _}, term: Tuple(es)} =>
+  adopted_ids := ids @ adopted_ids^;  // Absorb comma IDs
+```
+
+**Issue 2: Expanded expressions use fresh IDs**
+
+`ExpandModule.wrap_item` uses `Exp.fresh` which creates random IDs:
+```reason
+| ModLet(pat, def) => Exp.fresh(Let(pat, def, body))  // Fresh ID, not L1!
+```
+
+### The Solution: Complete ID Mapping
+
+**Step 1: MakeTerm absorbs semicolon IDs**
+
+Fix the Module case to absorb IDs like ListLit does:
+```reason
+| (["{", "}"], [Mod(body)]) =>
+  switch (body) {
+  | {annotation: {ids, _}, term: EmptyHole} => ret(Module([]))
+  | {annotation: {ids, _}, term: _} =>
+    adopted_ids := ids @ adopted_ids^;  // Absorb semicolon IDs
+    ret(Module(flatten_mod(body)))
+  }
+```
+
+Result: Module expression gets IDs = [CB, S] (curly braces + semicolons)
+
+**Step 2: ExpandModule preserves Mod item IDs**
 
 ```reason
 let wrap_item = (item: Mod.t, body: Exp.t): Exp.t => {
-  let item_id = Mod.rep_id(item);  // Get the Mod item's ID
+  let item_id = Mod.rep_id(item);
   switch (item.term) {
   | ModLet(pat, def) =>
-    IdTagged.mk_internal([item_id], Let(pat, def, body))  // Preserve ID
+    IdTagged.fast_copy(item_id, Exp.fresh(Let(pat, def, body)))
   | ModType(tpat, typ) =>
-    IdTagged.mk_internal([item_id], TyAlias(tpat, typ, body))  // Preserve ID
+    IdTagged.fast_copy(item_id, Exp.fresh(TyAlias(tpat, typ, body)))
   ...
 ```
 
-With this change:
-- `ModLet` items expand to `Let` with the **same ID**
-- `ModType` items expand to `TyAlias` with the **same ID**
-- Cursor inspector can find the type info for the original surface syntax
+**Step 3: Synthetic tuple gets fresh IDs (NOT Module's IDs)**
 
-### Why This Also Unifies Statics and Elaborator
+The tuple `(a=a, b=b)` has no surface syntax counterpart and MUST use fresh IDs.
 
-**Current state**: Statics and Elaborator handle modules differently:
+**CRITICAL**: The tuple cannot use the Module's IDs (CB, S) because:
+1. Statics processes the expanded expression, storing Tuple info for those IDs
+2. Then Statics' Module case calls `add()`, storing Module info for those same IDs
+3. This overwrites the Tuple info with Module info
+4. When Elaborator later processes the tuple and looks up its ID, it gets Module info
+5. Elaborator sees Module term, tries to expand again → **infinite loop**
 
+### Complete ID Mapping
+
+```
+Surface syntax:
+{ let a = 1 ; let b = 2 }
+  ^-------^ ^ ^-------^
+     L1     S    L2
+
+Module expression IDs = [CB, S]  (curly braces + semicolons)
+ModLet item IDs = [L1], [L2]
+
+Expanded expression:
+Let(pat, def,              ID = L1  ← from first ModLet
+  Let(pat, def,            ID = L2  ← from second ModLet
+    Tuple([...])           ID = fresh  ← synthetic, no surface counterpart
+  )
+)
+```
+
+### Cursor Inspector Results
+
+After these fixes:
+- Click on `{` or `}` → looks up CB → Module info (tuple type) ✓
+- Click on `;` → looks up S → Module info (tuple type) ✓
+- Click on `let a = 1` → looks up L1 → Let info (binding type) ✓
+- Click on `let b = 2` → looks up L2 → Let info (binding type) ✓
+
+### Why Elaborator Keeps Inline Expansion
+
+The Elaborator cannot simply call `ExpandModule.expand` and then `elaborate` on the result because:
+1. `elaborate` calls `elaborated_type(m, uexp)` at the start of every call
+2. This looks up the expression's ID in the statics map
+3. For the expanded Let expressions, this works (Statics stored info for L1, L2)
+4. But Elaborator needs to elaborate the **inner** expressions (pat, def) differently
+
+So Elaborator keeps its inline expansion approach but with ID preservation:
 ```reason
-// Statics (uses ExpandModule.expand):
-| Module(items) =>
-  let expanded = ExpandModule.expand(items);
-  let (expanded_info, m) = go(~ana, expanded, m);
-  ...
-
-// Elaborator (has its own inline expansion):
 | Module(items) =>
   let elaborate_mod_item = (item: Mod.t, body: Exp.t): Exp.t => {
+    let item_id = Mod.rep_id(item);
     switch (item.term) {
     | ModLet(pat, def) =>
       let (pat', _) = elaborate_pattern(m, pat, false);
       let (def', _) = elaborate(m, def);
-      Let(pat', def', body) |> Exp.fresh;
+      IdTagged.fast_copy(item_id, Exp.fresh(Let(pat', def', body)));
     ...
 ```
 
-**Why the divergence existed**: The Elaborator was written to avoid a problem that doesn't actually exist if we preserve IDs.
+This approach:
+- Only calls `elaborate` on inner expressions (which have IDs in the statics map)
+- Constructs wrapper Let/TyAlias directly with preserved Mod item IDs
+- Constructs tuple with fresh IDs
+- Avoids ID lookup issues
 
-The Elaborator calls `elaborated_type(m, uexp)` at the start of every `elaborate` call to look up type info. If `ExpandModule.expand` creates **fresh** IDs, those IDs won't be in the statics map, causing lookup failures.
+### Implementation Checklist
 
-**With ID preservation**: Both Statics and Elaborator can use the same expansion:
-1. Statics calls `expand(items)` → Let has ModLet's ID → adds entry to map for that ID
-2. Elaborator calls `expand(items)` → Let has **same** ModLet's ID → lookup succeeds!
+1. **MakeTerm.re**: Add semicolon ID absorption to Module case
+2. **ExpandModule.wrap_item**: Use `IdTagged.fast_copy(item_id, ...)` to preserve Mod item IDs
+3. **ExpandModule.build_labeled_tuple**: Use fresh IDs (NOT Module's IDs)
+4. **Elaborator.re**: Keep inline expansion with ID preservation
+5. **Statics.re**: No changes needed (already works correctly)
 
-The Elaborator can be simplified to:
+### ID Duplication Avoidance
+
+The key insight is that IDs are partitioned:
+- **CB, S** (Module's IDs): Used only by the Module expression, stored once by Statics' Module case
+- **L1, L2** (Mod item IDs): Used by expanded Let/TyAlias, stored by Statics when processing expansion
+- **fresh** (tuple ID): Not in surface syntax, not looked up by anyone
+
+No ID appears in multiple places, so no overwrites occur.
+
+### CRITICAL: ModExp is Different from ModLet/ModType
+
+**ModLet and ModType** have corresponding surface syntax tiles (`let a = 1`, `type T = Int`). Users can click on these tiles, so preserving their IDs on the expanded Let/TyAlias makes sense.
+
+**ModExp is synthetic** - it's a wrapper MakeTerm creates around a bare expression inside a module. For `{ 1 + 1; let x = 2 }`:
+- `1 + 1` is an expression with its own IDs (from the `+` tile, etc.)
+- `ModExp(1 + 1)` is a synthetic wrapper with IDs that may overlap with the inner expression
+- The expanded `Let(_, 1+1, body)` has no surface syntax counterpart
+
+**Therefore**: ModExp should use **fresh IDs** for its wrapper Let, NOT preserve the ModExp's ID. The inner expression already has its own IDs for cursor inspector.
+
 ```reason
-| Module(items) =>
-  let expanded = ExpandModule.expand(items);
-  let (expanded', _) = elaborate(m, expanded);
-  expanded'
+| ModLet(pat, def) => IdTagged.fast_copy(item_id, ...)  // Preserve ID
+| ModType(tpat, typ) => IdTagged.fast_copy(item_id, ...) // Preserve ID
+| ModExp(e) => Exp.fresh(Let(wild_pat, e, body))  // Fresh ID - synthetic!
 ```
 
-### What About Synthetic Expressions?
-
-Some parts of the expansion have no corresponding surface syntax:
-- The final labeled tuple `(a=a, b=b)`
-- The `Label` and `Var` nodes inside the tuple
-- The wildcard pattern in `let _ = e in body` for bare expressions
-
-For these, we have options:
-1. **Use `Id.invalid`**: Simple, signals "no surface syntax"
-2. **Use Module's ID**: The outer Module's ID could be reused for the tuple (the tuple "is" the module's value)
-3. **Fresh IDs**: Acceptable since these don't need cursor info
-
-Recommendation: Use the Module's ID for the tuple body, `Id.invalid` for internal synthetic nodes.
-
-### Implementation Plan
-
-1. **Modify `ExpandModule.wrap_item`**: Preserve Mod item IDs on wrapper expressions
-2. **Modify `ExpandModule.build_labeled_tuple`**: Accept Module ID for the tuple
-3. **Simplify `Elaborator.re`**: Replace inline expansion with call to `ExpandModule.expand`
-4. **Verify cursor inspector**: Module items should now show type info
-
-### Impact
-
-- Cursor inspector works for module constructs
-- Code is simpler (single expansion function)
-- Statics and Elaborator are consistent
-- No architectural changes needed - just fixing the ID handling
+This fixes the stack overflow that occurred when ModExp's ID overlapped with the inner expression's IDs.
