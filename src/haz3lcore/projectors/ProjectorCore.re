@@ -42,9 +42,9 @@ module Kind = {
     SliderF,
     Knob,
     TextArea,
-    Card,
+    Csv, /* Competes with Card for empty list */
+    Card, /* Competes with Csv for empty list */
     Livelit,
-    Csv,
     NotePicker,
     RhythmGrid,
     XYPad,
