@@ -1484,3 +1484,115 @@ This is a language design decision with broader implications.
 - Potential future uses (CLI tools, batch processing)
 
 For Phase 1, the workaround is using single-item modules in Menhir-parsed tests, or writing tests that use the tile-based editor directly.
+
+---
+
+## Cursor Inspector: ID Preservation in Module Expansion
+
+### The Problem
+
+The cursor inspector doesn't show type information for module items (ModLet, ModType, etc.). When you click on `let a = 1` inside a module, it shows "whitespace or comment" instead of the binding's type info.
+
+### Root Cause Analysis
+
+The cursor inspector works by looking up an expression's ID in the statics map. For the inspector to work on module items, the **expanded** expressions (the Let/TyAlias wrappers) must have IDs that trace back to the original surface syntax.
+
+**Current implementation in `ExpandModule.re`**:
+```reason
+let wrap_item = (item: Mod.t, body: Exp.t): Exp.t => {
+  switch (item.term) {
+  | ModLet(pat, def) => Exp.fresh(Let(pat, def, body))  // <-- Creates NEW ID
+  | ModType(tpat, typ) => Exp.fresh(TyAlias(tpat, typ, body))  // <-- Creates NEW ID
+  ...
+```
+
+The `Exp.fresh` creates a new random ID for each wrapper expression. This breaks the cursor inspector because:
+1. The surface syntax has IDs for each `Mod.t` item (e.g., the ModLet tile)
+2. The expanded Let has a fresh ID that doesn't correspond to anything in the surface syntax
+3. When user clicks on the ModLet, the cursor inspector looks for the ModLet's ID but finds nothing relevant
+
+### The Solution: Preserve Mod Item IDs
+
+The wrapper expressions should reuse the original Mod item's ID:
+
+```reason
+let wrap_item = (item: Mod.t, body: Exp.t): Exp.t => {
+  let item_id = Mod.rep_id(item);  // Get the Mod item's ID
+  switch (item.term) {
+  | ModLet(pat, def) =>
+    IdTagged.mk_internal([item_id], Let(pat, def, body))  // Preserve ID
+  | ModType(tpat, typ) =>
+    IdTagged.mk_internal([item_id], TyAlias(tpat, typ, body))  // Preserve ID
+  ...
+```
+
+With this change:
+- `ModLet` items expand to `Let` with the **same ID**
+- `ModType` items expand to `TyAlias` with the **same ID**
+- Cursor inspector can find the type info for the original surface syntax
+
+### Why This Also Unifies Statics and Elaborator
+
+**Current state**: Statics and Elaborator handle modules differently:
+
+```reason
+// Statics (uses ExpandModule.expand):
+| Module(items) =>
+  let expanded = ExpandModule.expand(items);
+  let (expanded_info, m) = go(~ana, expanded, m);
+  ...
+
+// Elaborator (has its own inline expansion):
+| Module(items) =>
+  let elaborate_mod_item = (item: Mod.t, body: Exp.t): Exp.t => {
+    switch (item.term) {
+    | ModLet(pat, def) =>
+      let (pat', _) = elaborate_pattern(m, pat, false);
+      let (def', _) = elaborate(m, def);
+      Let(pat', def', body) |> Exp.fresh;
+    ...
+```
+
+**Why the divergence existed**: The Elaborator was written to avoid a problem that doesn't actually exist if we preserve IDs.
+
+The Elaborator calls `elaborated_type(m, uexp)` at the start of every `elaborate` call to look up type info. If `ExpandModule.expand` creates **fresh** IDs, those IDs won't be in the statics map, causing lookup failures.
+
+**With ID preservation**: Both Statics and Elaborator can use the same expansion:
+1. Statics calls `expand(items)` → Let has ModLet's ID → adds entry to map for that ID
+2. Elaborator calls `expand(items)` → Let has **same** ModLet's ID → lookup succeeds!
+
+The Elaborator can be simplified to:
+```reason
+| Module(items) =>
+  let expanded = ExpandModule.expand(items);
+  let (expanded', _) = elaborate(m, expanded);
+  expanded'
+```
+
+### What About Synthetic Expressions?
+
+Some parts of the expansion have no corresponding surface syntax:
+- The final labeled tuple `(a=a, b=b)`
+- The `Label` and `Var` nodes inside the tuple
+- The wildcard pattern in `let _ = e in body` for bare expressions
+
+For these, we have options:
+1. **Use `Id.invalid`**: Simple, signals "no surface syntax"
+2. **Use Module's ID**: The outer Module's ID could be reused for the tuple (the tuple "is" the module's value)
+3. **Fresh IDs**: Acceptable since these don't need cursor info
+
+Recommendation: Use the Module's ID for the tuple body, `Id.invalid` for internal synthetic nodes.
+
+### Implementation Plan
+
+1. **Modify `ExpandModule.wrap_item`**: Preserve Mod item IDs on wrapper expressions
+2. **Modify `ExpandModule.build_labeled_tuple`**: Accept Module ID for the tuple
+3. **Simplify `Elaborator.re`**: Replace inline expansion with call to `ExpandModule.expand`
+4. **Verify cursor inspector**: Module items should now show type info
+
+### Impact
+
+- Cursor inspector works for module constructs
+- Code is simpler (single expansion function)
+- Statics and Elaborator are consistent
+- No architectural changes needed - just fixing the ID handling
