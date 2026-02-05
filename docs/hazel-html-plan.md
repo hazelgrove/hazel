@@ -526,15 +526,128 @@ Once Hazel has type parameters:
 
 ---
 
+---
+
+## Phase 6: HTMLProj Improvements (NEW)
+
+### 6.1 Expand init Pattern Matching
+
+Current `init` only recognizes `Div(...)` expressions. Need to recognize:
+- All HTML constructors (Span, Button, Text, H1-H6, Form elements, etc.)
+- App type: `((HTML, Cmd), HTML -> Sub)` tuple pattern
+- Plain Text constructors
+
+```reason
+let init = (any: Any.t) =>
+  switch (any) {
+  // Single HTML constructor applied to args
+  | Exp({term: Ap(_, {term: Constructor(name, _), _}, _), _} as exp)
+      when is_html_constructor(name) =>
+    Some(exp)
+  // Nullary constructors like Br
+  | Exp({term: Constructor("Br", _), _} as exp) => Some(exp)
+  // App type: ((HTML, Cmd), HTML -> Sub)
+  | Exp({term: Tuple([init, subs_fn]), _} as exp)
+      when looks_like_app(init, subs_fn) =>
+    Some(exp)
+  | _ => None
+  };
+```
+
+### 6.2 Resizable Projector
+
+Add ability to resize the HTML projector:
+- Modifier+drag on projector edges to resize
+- Store size in projector model
+- Persist across re-renders
+- Useful for both inline previews and app development
+
+### 6.3 Deliverables
+
+- [ ] Expand `init` to recognize all HTML constructors
+- [ ] Expand `init` to recognize App type tuples
+- [ ] Add resize handles to projector
+- [ ] Store/restore projector size in model
+
+---
+
+## Phase 7: App Sidebar View (NEW)
+
+### 7.1 Overview
+
+Dedicated sidebar panel for running full HazelHtml apps:
+- Detects when scratchpad defines an `app` binding
+- Shows "Run App" option in sidebar
+- Renders app in a dedicated panel with proper sizing
+- Full interactivity with subscriptions and commands
+
+### 7.2 Detection
+
+Look for specific patterns in the scratchpad:
+- Top-level binding: `let app = ((init_html, init_cmd), subscriptions)`
+- Or a designated marker/annotation
+
+### 7.3 Sidebar Panel
+
+- New sidebar tab: "App View"
+- Responsive sizing to fill available space
+- Shows error state if app evaluation fails
+- "Restart" button to reinitialize
+
+### 7.4 Deliverables
+
+- [ ] Add "App View" sidebar panel
+- [ ] Detect app definitions in scratchpad
+- [ ] App runner component with full lifecycle
+- [ ] Proper sizing and layout
+
+---
+
+## Phase 8: Example Programs (NEW)
+
+### 8.1 Example .hz Files
+
+Create example programs demonstrating:
+1. **Counter** - Simple click interaction
+2. **Todo List** - Form handling, list management
+3. **Timer** - Subscriptions with `Every`
+4. **Keyboard Controls** - Global key events
+5. **Animation** - AnimationFrame subscription
+6. **Full App** - Complete App type with init, subs, commands
+
+### 8.2 Location
+
+Store examples in:
+```
+hazel-programs/html-examples/
+├── counter.hz
+├── todo-list.hz
+├── timer.hz
+├── keyboard.hz
+├── animation.hz
+└── full-app.hz
+```
+
+### 8.3 Deliverables
+
+- [ ] Counter example
+- [ ] Todo list example
+- [ ] Timer example
+- [ ] Keyboard example
+- [ ] Animation example
+- [ ] Full app example
+
+---
+
 ## Open Questions
 
 1. **Handler signature uniformity:** Should all event handlers return `(Html, Cmd)` or have separate `OnClick` vs `OnClickCmd` variants?
 
 2. **Subscription lifecycle:** How do subscriptions interact with projector focus/unfocus?
 
-3. **App viewer location:** Sidebar panel vs inline projector vs separate window?
+3. ~~**App viewer location:** Sidebar panel vs inline projector vs separate window?~~ → Decided: Both! Projector for inline, sidebar for dedicated view.
 
-4. **Error boundaries:** What happens when Html evaluation fails mid-render?
+4. ~~**Error boundaries:** What happens when Html evaluation fails mid-render?~~ → Implemented: Red error box with message.
 
 ---
 

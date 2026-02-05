@@ -3,6 +3,71 @@ open ProjectorBase;
 open Language;
 open IdTagged.FreshGrammar;
 
+// All valid HTML constructor names
+let html_constructors = [
+  // Text/primitive content
+  "Text",
+  "Bool",
+  "Int",
+  "Float",
+  // Structural elements
+  "Div",
+  "Span",
+  "P",
+  "Pre",
+  "Code",
+  "Blockquote",
+  // Headings
+  "H1",
+  "H2",
+  "H3",
+  "H4",
+  "H5",
+  "H6",
+  // Lists
+  "Ul",
+  "Ol",
+  "Li",
+  // Forms
+  "Form",
+  "Label",
+  "Input",
+  "TextArea",
+  "Button",
+  "Select",
+  "Option",
+  "Checkbox",
+  "Radio",
+  "Range",
+  // Links and media
+  "A",
+  "Img",
+  // Tables
+  "Table",
+  "Thead",
+  "Tbody",
+  "Tr",
+  "Th",
+  "Td",
+  // Semantic sections
+  "Header",
+  "Footer",
+  "Nav",
+  "Main",
+  "Section",
+  "Article",
+  "Aside",
+  // Utility
+  "Br",
+  "Hr",
+  // Generic
+  "Node",
+];
+
+// Check if a name is a valid HTML constructor
+let is_html_constructor = (name: string): bool =>
+  List.mem(name, html_constructors);
+
 // Detect if expression is an App type: ((HTML, Cmd), HTML -> Sub)
 // Returns Some((html_model, init_cmd, subscriptions_fn)) or None
 let detect_app =
@@ -19,6 +84,20 @@ let detect_app =
   | _ => None
   };
 };
+
+// Check if expression looks like an App type (for init detection)
+// App = ((HTML, Cmd), HTML -> Sub)
+let looks_like_app = (exp: DHExp.t): bool =>
+  switch (exp.term) {
+  | Tuple([init, _subs_fn])
+  | Parens({term: Tuple([init, _subs_fn]), _}) =>
+    switch (init.term) {
+    | Tuple([_html, _cmd])
+    | Parens({term: Tuple([_html, _cmd]), _}) => true
+    | _ => false
+    }
+  | _ => false
+  };
 
 // Evaluate a Hazel expression
 let evaluate = exp =>
@@ -42,9 +121,14 @@ module M: Projector = {
 
   let init = (any: Any.t) =>
     switch (any) {
-    //TODO: Be more (and less) picky
-    | Exp({term: Ap(_, {term: Constructor("Div", _), _}, _), _} as exp) =>
+    // HTML constructor applied to arguments: Div(...), Button(...), etc.
+    | Exp({term: Ap(_, {term: Constructor(name, _), _}, _), _} as exp)
+        when is_html_constructor(name) =>
       Some(exp)
+    // Nullary HTML constructor: Br
+    | Exp({term: Constructor("Br", _), _} as exp) => Some(exp)
+    // App type: ((HTML, Cmd), HTML -> Sub) tuple
+    | Exp(exp) when looks_like_app(exp) => Some(exp)
     | _ => None
     };
 
