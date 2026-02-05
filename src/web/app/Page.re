@@ -95,6 +95,15 @@ module Update = {
     | Exercises(m) => ExercisesMode.Model.get_editor(m)
     };
 
+  // Get full CellEditor including evaluation result (for App View sidebar)
+  let get_cell_editor = (model: Model.t): option(CellEditor.Model.t) =>
+    switch (model.editors) {
+    | Scratch(m) => Some(List.nth(m.scratchpads, m.current) |> snd)
+    | Documentation(m) => Some(List.nth(m.scratchpads, m.current) |> snd)
+    | Tutorial(_)
+    | Exercises(_) => None // These have different cell structures
+    };
+
   let update_global =
       (
         ~import_log,
@@ -688,6 +697,7 @@ module View = {
         ~explainThisModel,
         ~assistantModel,
         ~editor=Update.get_editor(model),
+        ~cell_editor=Update.get_cell_editor(model),
         cursor.info,
       );
 

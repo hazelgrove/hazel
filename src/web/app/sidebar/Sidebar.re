@@ -204,6 +204,7 @@ let view =
       ~explainThisModel: ExplainThisModel.t,
       ~assistantModel: AssistantModel.t,
       ~editor,
+      ~cell_editor: option(CellEditor.Model.t),
       info: option(Language.Info.t),
     ) => {
   let sub =
@@ -240,7 +241,7 @@ let view =
               // For now, this is a simple no-op since the sidebar view
               // is primarily for display/testing apps
               let app_inject = (_new_model: Language.DHExp.t) => Effect.Ignore;
-              AppViewPanel.view(~globals, ~editor, ~inject=app_inject);
+              AppViewPanel.view(~globals, ~cell_editor, ~inject=app_inject);
             },
           ],
         )
