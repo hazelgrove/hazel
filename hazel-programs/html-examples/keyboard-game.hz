@@ -3,7 +3,7 @@
 # Uses OnDocumentKeyDown subscription for global key events #
 
 # Position state encoded in the HTML #
-let game_view = (x, y) =>
+let game_view = (x, y) ->
   Div(
     [
       Id("game"),
@@ -49,7 +49,7 @@ in
 
 # Handle keyboard events #
 # KeyEvent = (key, code, ctrl, shift, alt, meta) #
-let handle_key = (html, key_event) =>
+let handle_key = (html, key_event) ->
   let (key, code, ctrl, shift, alt, meta) = key_event in
   let step = 20 in
   # Would need to extract x, y from html in real implementation #
@@ -68,7 +68,7 @@ let handle_key = (html, key_event) =>
 in
 
 # Subscriptions - listen for keyboard events #
-let subscriptions = html =>
+let subscriptions = html ->
   OnDocumentKeyDown(handle_key)
 in
 

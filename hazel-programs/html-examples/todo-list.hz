@@ -3,16 +3,16 @@
 # To use: paste into scratchpad, right-click the expression, select "Add HTML" #
 
 # Helper: render a single todo item #
-let todo_item = (todos, index, item) =>
+let todo_item = (todos, index, item) ->
   Li(
     [Style([("padding", "8px"), ("border-bottom", "1px solid #eee"), ("display", "flex"), ("justify-content", "space-between")])],
     [
       Span([], [Text(item)]),
       Button(
         [
-          OnClick(fun html =>
+          OnClick(fun html ->
             # Remove this item by filtering #
-            let new_todos = filter(fun (i, _) => i != index, zip(range(0, length(todos)), todos)) in
+            let new_todos = filter(fun (i, _) -> i != index, zip(range(0, length(todos)), todos)) in
             let items = map(snd, new_todos) in
             todo_list(items, "")
           ),
@@ -25,7 +25,7 @@ let todo_item = (todos, index, item) =>
 in
 
 # Main todo list view #
-let todo_list = (todos, input_value) =>
+let todo_list = (todos, input_value) ->
   Div(
     [Class("todo-app"), Style([("max-width", "400px"), ("margin", "20px auto"), ("font-family", "sans-serif")])],
     [
@@ -38,12 +38,12 @@ let todo_list = (todos, input_value) =>
             Type("text"),
             Value(input_value),
             Placeholder("Add a todo..."),
-            OnInput(fun (html, value) => todo_list(todos, value)),
+            OnInput(fun (html, value) -> todo_list(todos, value)),
             Style([("flex", "1"), ("padding", "8px"), ("font-size", "16px")])
           ]),
           Button(
             [
-              OnClick(fun html =>
+              OnClick(fun html ->
                 if input_value == "" then
                   todo_list(todos, input_value)
                 else

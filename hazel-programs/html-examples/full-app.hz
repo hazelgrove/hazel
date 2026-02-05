@@ -6,7 +6,7 @@
 let tabs = ["Home", "Form", "About"] in
 
 # Main app view #
-let app_view = (active_tab, form_name, form_message, saved_message) =>
+let app_view = (active_tab, form_name, form_message, saved_message) ->
   Div(
     [
       Id("app"),
@@ -26,10 +26,10 @@ let app_view = (active_tab, form_name, form_message, saved_message) =>
       # Header with tabs #
       Div(
         [Style([("display", "flex"), ("background", "#333")])],
-        map(fun tab =>
+        map(fun tab ->
           Button(
             [
-              OnClick(fun html => app_view(tab, form_name, form_message, saved_message)),
+              OnClick(fun html -> app_view(tab, form_name, form_message, saved_message)),
               Style([
                 ("flex", "1"),
                 ("padding", "15px"),
@@ -87,7 +87,7 @@ let app_view = (active_tab, form_name, form_message, saved_message) =>
                       Type("text"),
                       Value(form_name),
                       Placeholder("Enter your name"),
-                      OnInput(fun (html, value) => app_view(active_tab, value, form_message, saved_message)),
+                      OnInput(fun (html, value) -> app_view(active_tab, value, form_message, saved_message)),
                       Style([("width", "100%"), ("padding", "8px"), ("box-sizing", "border-box")])
                     ])
                   ]
@@ -100,7 +100,7 @@ let app_view = (active_tab, form_name, form_message, saved_message) =>
                       [
                         Value(form_message),
                         Placeholder("Enter your message"),
-                        OnInput(fun (html, value) => app_view(active_tab, form_name, value, saved_message)),
+                        OnInput(fun (html, value) -> app_view(active_tab, form_name, value, saved_message)),
                         Style([("width", "100%"), ("padding", "8px"), ("height", "100px"), ("box-sizing", "border-box")])
                       ],
                       form_message
@@ -110,7 +110,7 @@ let app_view = (active_tab, form_name, form_message, saved_message) =>
                 Button(
                   [
                     # OnClick returns (HTML, Cmd) to demonstrate command execution #
-                    OnClick(fun html =>
+                    OnClick(fun html ->
                       let new_saved = form_name ++ ": " ++ form_message in
                       (app_view(active_tab, "", "", new_saved), CmdBatch([
                         Log("Form submitted: " ++ new_saved),
@@ -161,8 +161,8 @@ let app_view = (active_tab, form_name, form_message, saved_message) =>
 in
 
 # Subscriptions - respond to window resize #
-let subscriptions = html =>
-  OnResize(fun (h, width, height) =>
+let subscriptions = html ->
+  OnResize(fun (h, width, height) ->
     # Could adjust layout based on width/height #
     h
   )

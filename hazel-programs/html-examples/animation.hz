@@ -2,7 +2,7 @@
 # A bouncing ball animation using AnimationFrame subscription #
 
 # Ball state: (x, y, vx, vy) encoded in HTML #
-let ball_view = (x, y, vx, vy) =>
+let ball_view = (x, y, vx, vy) ->
   Div(
     [
       Id("animation"),
@@ -62,7 +62,7 @@ let bounce = 0.8 in
 let friction = 0.99 in
 
 # Update function for animation frame #
-let update_ball = (html, timestamp) =>
+let update_ball = (html, timestamp) ->
   # In real implementation, extract state from html #
   # For demo, use hardcoded initial values #
   let x = 50.0 in
@@ -92,7 +92,7 @@ let update_ball = (html, timestamp) =>
 in
 
 # Subscriptions - request animation frames #
-let subscriptions = html =>
+let subscriptions = html ->
   AnimationFrame(update_ball)
 in
 

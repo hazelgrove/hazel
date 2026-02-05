@@ -2,7 +2,7 @@
 # A simple counter that increments/decrements on click #
 # To use: paste into scratchpad, right-click the expression, select "Add HTML" #
 
-let counter = n =>
+let counter = n ->
   Div(
     [Class("counter"), Style([("text-align", "center"), ("padding", "20px")])],
     [
@@ -16,14 +16,14 @@ let counter = n =>
         [
           Button(
             [
-              OnClick(fun html => counter(n - 1)),
+              OnClick(fun html -> counter(n - 1)),
               Style([("font-size", "24px"), ("margin", "10px"), ("padding", "10px 20px")])
             ],
             [Text("-")]
           ),
           Button(
             [
-              OnClick(fun html => counter(n + 1)),
+              OnClick(fun html -> counter(n + 1)),
               Style([("font-size", "24px"), ("margin", "10px"), ("padding", "10px 20px")])
             ],
             [Text("+")]

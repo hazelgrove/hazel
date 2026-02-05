@@ -5,7 +5,7 @@
 # Timer state is stored as (seconds_elapsed, is_running) #
 # We encode this in the HTML structure #
 
-let timer_view = (seconds, running) =>
+let timer_view = (seconds, running) ->
   let minutes = seconds / 60 in
   let secs = seconds % 60 in
   let time_str =
@@ -27,7 +27,7 @@ let timer_view = (seconds, running) =>
         [
           Button(
             [
-              OnClick(fun html =>
+              OnClick(fun html ->
                 let new_running = not running in
                 timer_view(seconds, new_running)
               ),
@@ -37,7 +37,7 @@ let timer_view = (seconds, running) =>
           ),
           Button(
             [
-              OnClick(fun html => timer_view(0, false)),
+              OnClick(fun html -> timer_view(0, false)),
               Style([("font-size", "24px"), ("padding", "15px 30px"), ("margin", "10px"), ("cursor", "pointer")])
             ],
             [Text("Reset")]
@@ -49,22 +49,22 @@ let timer_view = (seconds, running) =>
 in
 
 # Helper to extract state from HTML #
-let get_seconds = html =>
+let get_seconds = html ->
   # In real implementation, we'd parse the data attribute #
   # For now, assume we can access it somehow #
   0
 in
 
-let get_running = html =>
+let get_running = html ->
   # Would parse data-running attribute #
   false
 in
 
 # The subscriptions function - tick every 1000ms when running #
-let subscriptions = html =>
+let subscriptions = html ->
   # Extract running state from HTML #
   # When running, subscribe to tick every second #
-  Every(1000.0, fun (h, timestamp) =>
+  Every(1000.0, fun (h, timestamp) ->
     # Would need to extract current seconds and increment #
     # This is a simplified example #
     timer_view(1, true)
