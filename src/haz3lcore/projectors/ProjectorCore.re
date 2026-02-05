@@ -35,7 +35,15 @@ module Kind = {
     | ObservablePlot;
 
   let livelit_projectors: list(t) =
-    [Checkbox, Slider, SliderF, TextArea, Card, Livelit, Csv]
+    [
+      Checkbox,
+      Slider,
+      SliderF,
+      TextArea,
+      Csv, /* Competes with Card for empty list */
+      Card, /* Competes with Csv for empty list */
+      Livelit,
+    ]
     @ List.map(x => Exo(x), Exo.all_of_kind);
 
   /* Note: Probe intentionally excluded - probes use separate action path */
