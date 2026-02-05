@@ -332,6 +332,7 @@ module rec Exp: {
         annotation: true,
         term: of_menhir_ast(e).term,
       }
+    | Module(items) => module_(List.map(ModItem.of_menhir_ast, items))
     };
   };
 
@@ -398,7 +399,7 @@ module rec Exp: {
     | TupLabel(e1, e2) => TupLabel(of_core(e1), of_core(e2))
     | Dot(e1, e2) => Dot(of_core(e1), of_core(e2))
     | Ap(Reverse, _, _) => raise(Failure("Reverse not supported"))
-    | Module(_) => raise(Failure("Module not supported"))
+    | Module(items) => Module(List.map(ModItem.of_core, items))
     };
   };
 
@@ -603,6 +604,32 @@ and Pat: {
     | Label(s) => LabelPat(s)
     | ExplicitNonlabel => ExplicitNonlabel
     | TupLabel(p1, p2) => TupLabelPat(of_core(p1), of_core(p2))
+    };
+  };
+}
+and ModItem: {
+  let of_menhir_ast: AST.mod_item => IndicatedG.mod_;
+  let of_core: IndicatedG.mod_ => AST.mod_item;
+} = {
+  open IndicatedG.Mod;
+  let of_menhir_ast = (item: AST.mod_item): IndicatedG.mod_ => {
+    switch (item) {
+    | ModItemLet(p, e) =>
+      mod_let(Pat.of_menhir_ast(p), Exp.of_menhir_ast(e))
+    | ModItemType(tp, t) =>
+      mod_type(TPat.of_menhir_ast(tp), Typ.of_menhir_ast(t))
+    | ModItemExp(e) => mod_exp(Exp.of_menhir_ast(e))
+    };
+  };
+
+  let of_core = (mod_: IndicatedG.mod_): AST.mod_item => {
+    switch (mod_.term) {
+    | ModLet(p, e) => ModItemLet(Pat.of_core(p), Exp.of_core(e))
+    | ModType(tp, t) => ModItemType(TPat.of_core(tp), Typ.of_core(t))
+    | ModExp(e) => ModItemExp(Exp.of_core(e))
+    | Invalid(_)
+    | EmptyHole
+    | MultiHole(_) => ModItemExp(EmptyHole)
     };
   };
 };

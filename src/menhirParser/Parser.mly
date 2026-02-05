@@ -45,6 +45,8 @@ open AST
 %token CLOSE_PAREN
 %token OPEN_TRIPLE_CURLY
 %token CLOSE_TRIPLE_CURLY
+%token OPEN_CURLY
+%token CLOSE_CURLY
 %token DASH_ARROW
 %token EQUAL_ARROW
 %token SINGLE_EQUAL
@@ -372,4 +374,10 @@ exp:
     | u = unExp { u }
     | e1 = exp; TUPLE_EXTENSION; e2 = exp { TupleExtension(e1, e2) } %prec PLUS
     | e1 = exp; DOT; e2 = exp { Dot(e1, e2) }
+    | OPEN_CURLY; items = separated_list(SEMI_COLON, modItem); CLOSE_CURLY { Module(items) }
+
+modItem:
+    | LET; i = pat; SINGLE_EQUAL; e = exp { ModItemLet(i, e) }
+    | TYP; tp = tpat; SINGLE_EQUAL; ty = typ { ModItemType(tp, ty) }
+    | e = exp { ModItemExp(e) }
 

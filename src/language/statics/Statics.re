@@ -1385,24 +1385,13 @@ and uexp_to_info_map =
           })
         };
       add'(~self, ~co_ctx=body.co_ctx, m);
-    // TODO (Phase 1.3): Implement proper module expansion
     | Module(items) =>
-      // For now, just type-check the items and return unit type
-      let (co_ctxs, m) =
-        List.fold_left(
-          ((co_ctxs, m), item) => {
-            let (co_ctx, m) =
-              any_to_info_map(~ctx, ~ancestors, Mod(item), m);
-            (co_ctxs @ [co_ctx], m);
-          },
-          ([], m),
-          items,
-        );
-      add(
-        ~self=Just(Prod([]) |> Typ.temp), // Empty tuple for now
-        ~co_ctx=CoCtx.union(co_ctxs),
-        m,
-      );
+      /* Expand module to nested let/type + labeled tuple, then type-check expansion.
+         The Module's type is the type of the expanded expression (a labeled tuple). */
+      let expanded = ExpandModule.expand(items);
+      let (expanded_info, m) = go(~ana, expanded, m);
+      /* Add the Module itself to the map with the expanded expression's type */
+      add(~self=Just(expanded_info.ty), ~co_ctx=expanded_info.co_ctx, m);
     };
   };
 

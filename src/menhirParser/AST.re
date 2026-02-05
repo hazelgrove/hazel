@@ -178,7 +178,13 @@ and exp =
   | TyAlias(tpat, typ, exp)
   | Use(typ, exp)
   | IndicationExp(exp)
-  | TupleExtension(exp, exp);
+  | TupleExtension(exp, exp)
+  | Module(list(mod_item))
+
+and mod_item =
+  | ModItemLet(pat, exp)
+  | ModItemType(tpat, typ)
+  | ModItemExp(exp);
 
 /**
  * Generates a random CONSTRUCTOR_IDENT string. Used for CONSTRUCTOR_IDENT in the lexer.
@@ -1017,7 +1023,8 @@ let rec shrink_exp: QCheck.Shrink.t(exp) =
         | EmptyHole
         | BuiltinFun(_)
         | Undefined
-        | InvalidExp(_) => Iter.empty
+        | InvalidExp(_)
+        | Module(_) => Iter.empty
         }
       )
   )
