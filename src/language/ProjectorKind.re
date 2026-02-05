@@ -19,13 +19,14 @@ type t =
   | Csv;
 
 let livelit_projectors: list(t) = [
+  Csv, /* Competes with Card for empty list */
+  Card, /* Competes with Csv for empty list */
   Checkbox,
   Slider,
   SliderF,
   TextArea,
   Card,
   Livelit,
-  Csv,
 ];
 
 /* Note: Probe intentionally excluded - probes use separate action path */
