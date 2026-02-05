@@ -843,11 +843,26 @@ This section documents what was actually implemented, key insights discovered, a
 - ✅ CSS styling for Mod sort (greenish color)
 - ✅ Stubs in dynamics/statics for Module expression
 
-**Not Yet Implemented**:
-- ❌ Module expansion to labeled tuples (ExpandModule.re)
-- ❌ Full statics integration with expansion
-- ❌ Elaborator integration
-- ❌ Empty module atomic form ({})
+**Completed (Phase 1.2 - Module Expansion & Semantics)**:
+- ✅ ExpandModule.re: Transform module syntax to nested let/type + labeled tuple
+- ✅ Statics.re: Type-check modules by expanding and checking expanded form
+- ✅ Elaborator.re: Elaborate modules directly to expanded form
+
+**Completed (Phase 1.3 - Menhir Parser)**:
+- ✅ AST.re: Added Module and mod_item types
+- ✅ Lexer.mll: Added OPEN_CURLY and CLOSE_CURLY tokens
+- ✅ Parser.mly: Added modItem rule and module expression grammar
+- ✅ Conversion.re: Added ModItem conversion functions
+- ✅ Grammar.re: Added mod_ type alias for Factory module
+
+**Completed (Phase 1.4 - Testing)**:
+- ✅ Test_Statics_Modules.re: 9 statics tests (1 skipped for nested modules)
+- ✅ Test_Evaluator_Modules.re: 11 evaluator tests (2 skipped)
+- ✅ All 1446 tests pass
+
+**Not Implemented (Deferred)**:
+- ❌ Empty module atomic form ({}) - not critical for Phase 1
+- ❌ Nested module full support - marked as skip test
 
 ### Key Insight: Heterogeneous Prefix Forms
 
