@@ -439,6 +439,16 @@ module Sub = {
     );
 };
 
+// App type for full applications with init and subscriptions
+// App = (init: (HTML, Cmd), subscriptions: HTML -> Sub)
+module App = {
+  let t: Typ.t =
+    prod([
+      prod([var("HTML"), var("Cmd")]), // init: (HTML, Cmd)
+      arrow(var("HTML"), var("Sub")) // subscriptions: HTML -> Sub
+    ]);
+};
+
 // List of type aliases to add to the context
 // Some are sum types (with constructors), others are product types (no constructors)
 let type_aliases: list((string, Typ.t)) = [
@@ -451,6 +461,7 @@ let type_aliases: list((string, Typ.t)) = [
   ("Attr", HTML.attr),
   ("Cmd", Cmd.t),
   ("Sub", Sub.t),
+  ("App", App.t),
   ("$Meta", meta_type),
 ];
 
