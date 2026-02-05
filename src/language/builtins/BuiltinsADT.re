@@ -361,6 +361,34 @@ module HTML = {
     ]);
 };
 
+// Command type for side effects (fire-and-forget)
+module Cmd = {
+  let t: Typ.t =
+    IdTagged.FreshGrammar.Typ.rec_(
+      IdTagged.FreshGrammar.TPat.var("Cmd"),
+      sum_type([
+        // === No-op ===
+        ("CmdNone", None),
+        // === Batch multiple commands ===
+        ("Batch", Some(list(var("Cmd")))),
+        // === DOM manipulation ===
+        ("Focus", Some(string())), // element id
+        ("Blur", Some(string())), // element id
+        ("ScrollIntoView", Some(string())), // element id
+        ("ScrollTo", Some(prod([string(), float(), float()]))), // id, x, y
+        // === Clipboard ===
+        ("CopyToClipboard", Some(string())),
+        // === Time-delayed state update ===
+        (
+          "Delay",
+          Some(prod([float(), arrow(var("HTML"), var("HTML"))])),
+        ), // ms, transform
+        // === Debugging ===
+        ("Log", Some(string())),
+      ]),
+    );
+};
+
 // List of type aliases to add to the context
 // Some are sum types (with constructors), others are product types (no constructors)
 let type_aliases: list((string, Typ.t)) = [
@@ -371,6 +399,7 @@ let type_aliases: list((string, Typ.t)) = [
   ("MouseEvent", Event.mouse),
   ("HTML", HTML.t),
   ("Attr", HTML.attr),
+  ("Cmd", Cmd.t),
   ("$Meta", meta_type),
 ];
 
