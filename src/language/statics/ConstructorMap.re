@@ -145,23 +145,28 @@ let meet =
       m2: t('a),
     )
     : option(t('a)) => {
-  let (inter, left, right) = venn_regions(same_constructor(eq), m1, m2);
-  let meet_entries = List.filter_map(meet_entry(meet), inter);
-  if (List.length(meet_entries) == List.length(inter)) {
-    switch (
-      has_good_entry(left),
-      has_bad_entry(m1),
-      has_good_entry(right),
-      has_bad_entry(m2),
-    ) {
-    | (_, true, _, true) => Some(meet_entries @ left @ right)
-    | (false, true, _, _) => Some(meet_entries @ right)
-    | (_, _, false, true) => Some(meet_entries @ left)
-    | _ when left == [] && right == [] => Some(meet_entries)
-    | _ => None
-    };
+  /* Short-circuit: physical equality - meet of identical maps is that map */
+  if (m1 === m2) {
+    Some(m1);
   } else {
-    None;
+    let (inter, left, right) = venn_regions(same_constructor(eq), m1, m2);
+    let meet_entries = List.filter_map(meet_entry(meet), inter);
+    if (List.length(meet_entries) == List.length(inter)) {
+      switch (
+        has_good_entry(left),
+        has_bad_entry(m1),
+        has_good_entry(right),
+        has_bad_entry(m2),
+      ) {
+      | (_, true, _, true) => Some(meet_entries @ left @ right)
+      | (false, true, _, _) => Some(meet_entries @ right)
+      | (_, _, false, true) => Some(meet_entries @ left)
+      | _ when left == [] && right == [] => Some(meet_entries)
+      | _ => None
+      };
+    } else {
+      None;
+    };
   };
 };
 
@@ -173,33 +178,46 @@ let match_synswitch =
       m2: t('a),
     )
     : t('a) => {
-  let (inter, left, _) = venn_regions(same_constructor(eq), m1, m2);
-  let inter' =
-    List.map(
-      fun
-      | (Variant(ctr, ids, Some(value1)), Variant(_, _, Some(value2))) =>
-        Variant(ctr, ids, Some(match_synswitch(value1, value2)))
-      | (v, _) => v,
-      inter,
-    );
-  inter' @ left;
+  /* Short-circuit: physical equality */
+  if (m1 === m2) {
+    m1;
+  } else {
+    let (inter, left, _) = venn_regions(same_constructor(eq), m1, m2);
+    let inter' =
+      List.map(
+        fun
+        | (Variant(ctr, ids, Some(value1)), Variant(_, _, Some(value2))) =>
+          Variant(ctr, ids, Some(match_synswitch(value1, value2)))
+        | (v, _) => v,
+        inter,
+      );
+    inter' @ left;
+  };
 };
 
 let equal = (eq: ('a, 'a) => bool, m1: t('a), m2: t('a)) => {
-  switch (venn_regions(same_constructor(eq), m1, m2)) {
-  | (inter, [], []) =>
-    List.for_all(
-      ((x, y)) =>
-        switch (x, y) {
-        | (Variant(_, _, Some(value1)), Variant(_, _, Some(value2))) =>
-          eq(value1, value2)
-        | (Variant(_, _, None), Variant(_, _, None)) => true
-        | (BadEntry(x), BadEntry(y)) => eq(x, y)
-        | _ => false
-        },
-      inter,
-    )
-  | _ => false
+  /* Short-circuit: physical equality */
+  if (m1 === m2) {
+    true;
+  } else if (List.length(m1) != List.length(m2)) {
+    /* Short-circuit: length mismatch means not equal */
+    false;
+  } else {
+    switch (venn_regions(same_constructor(eq), m1, m2)) {
+    | (inter, [], []) =>
+      List.for_all(
+        ((x, y)) =>
+          switch (x, y) {
+          | (Variant(_, _, Some(value1)), Variant(_, _, Some(value2))) =>
+            eq(value1, value2)
+          | (Variant(_, _, None), Variant(_, _, None)) => true
+          | (BadEntry(x), BadEntry(y)) => eq(x, y)
+          | _ => false
+          },
+        inter,
+      )
+    | _ => false
+    };
   };
 };
 

@@ -652,6 +652,165 @@ hazel-programs/html-examples/
 
 ---
 
+## Phase 9: MVU Architecture & Performance (IN PROGRESS)
+
+### 9.1 Problem: Handler Type Constraints
+
+**Current State:** All event handlers in `BuiltinsADT.re` are typed as `Html -> Html`:
+```reason
+("OnClick", Some(arrow(var("HTML"), var("HTML")))),
+```
+
+This prevents proper MVU apps where handlers should be `model -> model` for arbitrary model types.
+
+**Options Under Consideration:**
+
+1. **Untyped/Dynamic Approach**: Remove type constraints on handlers, trust runtime. Hazel is gradually typed, so this fits the philosophy. Handlers would be `? -> ?` essentially.
+
+2. **Context-Dependent Typing**: The App tuple `(init_model, view, subs)` establishes a type context. Handlers inside `view` could be typed relative to the model type inferred from `init_model`. Would require term rewriting or local type instantiation.
+
+3. **New MVU-Specific Attributes**: Add `MvuOnClick(model -> model)` etc. Duplicative but explicit. Users choose which pattern to use.
+
+4. **Polymorphic Types**: Use Hazel's explicit polymorphism `forall a. a -> a`. Syntactically heavyweight but type-safe.
+
+**Decision:** TBD - leaning toward untyped approach for simplicity
+
+### 9.2 Problem: Performance (URGENT)
+
+**Symptom:** Editor is extremely slow (multi-second response to keystrokes) when HTML programs are loaded.
+
+**Root Cause Analysis:**
+
+The issue is architectural: expensive evaluation happens in the Bonsai **view function**, which is called on every state change (including editor keystrokes).
+
+```
+Current Flow:
+  Editor keystroke
+    → Hazel evaluates program
+    → Cell result changes
+    → Bonsai re-renders everything
+      → AppViewPanel.view() called
+        → evaluate(view_fn(model))  ← EXPENSIVE: full elaboration + evaluation
+        → evaluate(subs_fn(model))  ← EXPENSIVE: full elaboration + evaluation
+        → HazelDOM.go()
+          → manage_subscriptions()  ← Tears down/rebuilds every render
+          → render_elem()
+```
+
+**Why This Is Wrong:**
+- `view_fn(model)` only needs re-evaluation when `model` changes
+- Currently it re-evaluates on EVERY editor keystroke
+- The view function should be cheap (just build vdom), not do computation
+
+**Potential Solutions:**
+
+#### Option A: Move Evaluation to Update (Recommended)
+
+Store pre-computed results in state. Only re-evaluate in the update handler, not view:
+
+```
+New Flow:
+  SetAppViewModel(new_model)
+    → Update handler:
+        → html = evaluate(view_fn(new_model))
+        → subs = evaluate(subs_fn(new_model))
+        → Store AppViewState { model, html, subs }
+    → View function:
+        → Just render pre-computed html (cheap!)
+```
+
+Changes needed:
+- Expand `AppViewState` to include `html` and `subs` (pre-evaluated)
+- Move evaluation into `SetAppViewModel` handler in Page.re
+- AppViewPanel.view just renders stored html
+
+#### Option B: Separate Evaluation Island
+
+Make the sidebar not re-render on editor changes:
+- Only trigger sidebar re-render when evaluation result hash changes
+- Or use Bonsai primitives to isolate re-renders
+
+#### Option C: Lazy/Deferred Evaluation
+
+Don't evaluate until actually needed:
+- Debounce: wait for typing to stop before re-evaluating
+- Throttle: limit evaluation frequency
+
+#### Option D: Incremental Evaluation
+
+Cache elaboration results, only re-elaborate changed parts:
+- More complex, requires changes to evaluator
+- Long-term solution
+
+**Recommendation:** Start with Option A - it's the most architecturally correct fix. View functions should be pure renderers, not computation engines.
+
+### 9.3 Subscription Management
+
+Current issue: `manage_subscriptions()` is called on every render, tearing down and rebuilding subscriptions even when unchanged.
+
+**Fix:** Only update subscriptions when the subs expression actually changes:
+- Compare new subs to previous subs before teardown/setup
+- Store previous subs expression in state for comparison
+
+### 9.4 ConstructorMap O(n²) Fix (COMPLETED)
+
+**Problem Identified:** Browser profiling revealed 95%+ of cursor movement time was spent in `Equality.typ` comparing Sum types via `ConstructorMap.equal`.
+
+**Root Cause:** `ConstructorMap.venn_regions` uses `List.partition` for each element - O(n²) complexity. The HTML type is a large sum type with many constructors, making every type comparison expensive.
+
+**Call chain during statics:**
+```
+Statics.mk → Typ.meet → ConstructorMap.meet → venn_regions → List.partition (for each element)
+                     → ConstructorMap.equal → venn_regions → ...
+```
+
+**Fix Applied:** Added physical equality short-circuits (`===`) to avoid the O(n²) algorithm when comparing identical objects:
+
+1. **`Equality.re`:**
+   - `typ` function: Returns `true` immediately if `t1 === t2`
+   - `exp` function: Returns `true` immediately if `e1 === e2`
+
+2. **`ConstructorMap.re`:**
+   - `equal`: Physical equality check + length mismatch early exit
+   - `meet`: Physical equality check returns the map directly
+   - `match_synswitch`: Physical equality check returns the map directly
+
+**Why This Works:** In the statics system, the same type objects are often compared against themselves due to AST sharing. The physical equality check catches these cases, avoiding the expensive structural comparison entirely.
+
+**Files Changed:**
+- `src/language/term/Equality.re` - Added short-circuits to `typ` and `exp`
+- `src/language/statics/ConstructorMap.re` - Added short-circuits to `equal`, `meet`, `match_synswitch`
+
+**Result:** Cursor movement is now responsive again (sub-100ms instead of 900ms+).
+
+### 9.5 Remaining Performance Issue: Elaboration (TODO)
+
+The ConstructorMap fix addressed cursor movement. However, **elaboration** is still slow (6+ seconds) when the program changes. This appears to be triggered during edit actions.
+
+Profiling data from earlier session showed:
+```
+[PERF] Elaboration                               5920.23ms
+[PERF] CachedStatics.init_from_term TOTAL        6913.15ms
+```
+
+**Next Steps:**
+- Add timing instrumentation to Elaborator.re to identify hot spots
+- Profile what operations inside elaboration are expensive
+- Consider whether memoization or incremental elaboration could help
+
+### 9.6 Deliverables
+
+- [ ] Decide on handler typing approach (untyped vs context-dependent)
+- [ ] Implement handler typing solution
+- [ ] Move evaluation from view to update handler (Option A)
+- [ ] Expand AppViewState to cache html and subs
+- [ ] Update subscription management to diff-based
+- [x] **Fix ConstructorMap O(n²) performance** (cursor movement)
+- [ ] **Fix Elaboration performance** (edit actions)
+- [ ] Test performance with complex programs
+
+---
+
 ## Open Questions
 
 1. **Handler signature uniformity:** Should all event handlers return `(Html, Cmd)` or have separate `OnClick` vs `OnClickCmd` variants?
@@ -661,6 +820,10 @@ hazel-programs/html-examples/
 3. ~~**App viewer location:** Sidebar panel vs inline projector vs separate window?~~ → Decided: Both! Projector for inline, sidebar for dedicated view.
 
 4. ~~**Error boundaries:** What happens when Html evaluation fails mid-render?~~ → Implemented: Red error box with message.
+
+5. **MVU Handler Typing:** Untyped approach vs context-dependent typing vs explicit MVU attributes?
+
+6. **Performance Architecture:** Should we also apply Option A fixes to the inline HTML projector (HTMLProj.re)?
 
 ---
 

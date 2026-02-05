@@ -116,6 +116,10 @@ let equality =
 
   let rec exp =
           (alphas_exp: Alphas.t, alphas_typ: Alphas.t, e1: Exp.t, e2: Exp.t) => {
+    /* Short-circuit: physical equality */
+    if (e1 === e2) {
+      true;
+    } else {
     let exp' = exp(alphas_exp, alphas_typ);
     let pat' = pat(alphas_exp, alphas_typ);
     let typ' = typ(alphas_exp, alphas_typ);
@@ -402,6 +406,7 @@ let equality =
     | (ProofObject(e1), ProofObject(e2)) => exp'(e1, e2)
     | (ProofObject(_), _) => false
     };
+    };
   }
   and pat =
       (alphas_exp: Alphas.t, alphas_typ: Alphas.t, p1: Pat.t, p2: Pat.t)
@@ -512,6 +517,10 @@ let equality =
   }
   and typ =
       (alphas_exp: Alphas.t, alphas_typ: Alphas.t, t1: Typ.t, t2: Typ.t): bool => {
+    /* Short-circuit: physical equality */
+    if (t1 === t2) {
+      true;
+    } else {
     // This function takes alphas_exp for the theorem keyword branches which have expressions in types.
     let any' = any(alphas_exp, alphas_typ);
     let exp' = exp(alphas_exp, alphas_typ);
@@ -606,6 +615,7 @@ let equality =
     | (ProdExtension(_), _) => false
     | (ProofOf(e1), ProofOf(e2)) => exp'(e1, e2)
     | (ProofOf(_), _) => false
+    };
     };
   }
   and tpat = (tp1: TPat.t, tp2: TPat.t): option(Alphas.t) => {
