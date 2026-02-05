@@ -370,7 +370,7 @@ module Cmd = {
         // === No-op ===
         ("CmdNone", None),
         // === Batch multiple commands ===
-        ("Batch", Some(list(var("Cmd")))),
+        ("CmdBatch", Some(list(var("Cmd")))),
         // === DOM manipulation ===
         ("Focus", Some(string())), // element id
         ("Blur", Some(string())), // element id
@@ -389,6 +389,56 @@ module Cmd = {
     );
 };
 
+// Subscription type for event sources (continuous events)
+module Sub = {
+  let t: Typ.t =
+    IdTagged.FreshGrammar.Typ.rec_(
+      IdTagged.FreshGrammar.TPat.var("Sub"),
+      sum_type([
+        // === No-op ===
+        ("SubNone", None),
+        // === Batch multiple subscriptions ===
+        ("SubBatch", Some(list(var("Sub")))),
+        // === Window events ===
+        // OnResize: (Html, width, height) -> Html
+        (
+          "OnResize",
+          Some(arrow(prod([var("HTML"), int(), int()]), var("HTML"))),
+        ),
+        // OnVisibilityChange: (Html, visible?) -> Html
+        (
+          "OnVisibilityChange",
+          Some(arrow(prod([var("HTML"), bool()]), var("HTML"))),
+        ),
+        // === Global keyboard (document level) ===
+        (
+          "OnDocumentKeyDown",
+          Some(arrow(prod([var("HTML"), var("KeyEvent")]), var("HTML"))),
+        ),
+        (
+          "OnDocumentKeyUp",
+          Some(arrow(prod([var("HTML"), var("KeyEvent")]), var("HTML"))),
+        ),
+        // === Time-based ===
+        // Every: interval ms, (Html, timestamp) -> Html
+        (
+          "Every",
+          Some(
+            prod([
+              float(),
+              arrow(prod([var("HTML"), float()]), var("HTML")),
+            ]),
+          ),
+        ),
+        // AnimationFrame: (Html, timestamp) -> Html
+        (
+          "AnimationFrame",
+          Some(arrow(prod([var("HTML"), float()]), var("HTML"))),
+        ),
+      ]),
+    );
+};
+
 // List of type aliases to add to the context
 // Some are sum types (with constructors), others are product types (no constructors)
 let type_aliases: list((string, Typ.t)) = [
@@ -400,6 +450,7 @@ let type_aliases: list((string, Typ.t)) = [
   ("HTML", HTML.t),
   ("Attr", HTML.attr),
   ("Cmd", Cmd.t),
+  ("Sub", Sub.t),
   ("$Meta", meta_type),
 ];
 

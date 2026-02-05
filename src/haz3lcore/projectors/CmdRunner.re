@@ -92,7 +92,7 @@ let rec run = (ctx: context, cmd: DHExp.t): Ui_effect.t(unit) => {
 
   | Some(("CmdNone", _)) => Effect.Ignore
 
-  | Some(("Batch", body)) =>
+  | Some(("CmdBatch", body)) =>
     switch (of_list(body)) {
     | Some(cmds) => Effect.Many(List.map(run(ctx), cmds))
     | None => Effect.Ignore
