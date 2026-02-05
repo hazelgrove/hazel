@@ -1388,7 +1388,8 @@ and uexp_to_info_map =
       add'(~self, ~co_ctx=body.co_ctx, m);
     | Module(items) =>
       /* Expand module to nested let/type + labeled tuple, then type-check expansion.
-         The Module's type is the type of the expanded expression (a labeled tuple). */
+         The Module's type is the type of the expanded expression (a labeled tuple).
+         The expansion preserves Mod item IDs on wrapper Let/TyAlias expressions. */
       let expanded = ExpandModule.expand(items);
       let (expanded_info, m) = go(~ana, expanded, m);
       /* Add the Module itself to the map with the expanded expression's type */

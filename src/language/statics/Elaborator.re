@@ -458,21 +458,26 @@ let rec elaborate = (m: Statics.Map.t, uexp: Exp.t): (DHExp.t, Typ.t) => {
       Match(e', List.combine(ps', es')) |> rewrap;
     | Module(items) =>
       /* Elaborate module by expanding to nested let/type + labeled tuple.
-         We elaborate each item and construct the expanded form directly. */
+         We elaborate each item's inner expressions and construct the expanded
+         form directly, preserving Mod item IDs on the wrapper expressions
+         for cursor inspector support. */
       let elaborate_mod_item = (item: Mod.t, body: Exp.t): Exp.t => {
+        let item_id = Mod.rep_id(item);
         switch (item.term) {
         | ModLet(pat, def) =>
           let (pat', _) = elaborate_pattern(m, pat, false);
           let (def', _) = elaborate(m, def);
-          Let(pat', def', body) |> Exp.fresh;
+          /* Preserve ModLet's ID on wrapper Let for cursor inspector */
+          IdTagged.fast_copy(item_id, Exp.fresh(Let(pat', def', body)));
         | ModType(tpat, typ) =>
           /* Type aliases don't need elaboration of their type */
-          TyAlias(tpat, Typ.normalize(ctx, typ), body) |> Exp.fresh
+          IdTagged.fast_copy(item_id, Exp.fresh(TyAlias(tpat, Typ.normalize(ctx, typ), body)));
         | ModExp(e) =>
-          /* Bare expression becomes let _ = e in body */
+          /* Bare expression: fresh ID since ModExp is synthetic.
+             The inner expression e keeps its original IDs. */
           let (e', _) = elaborate(m, e);
           let wild_pat = Pat.fresh(Wild);
-          Let(wild_pat, e', body) |> Exp.fresh;
+          Exp.fresh(Let(wild_pat, e', body));
         | Invalid(_)
         | EmptyHole
         | MultiHole(_) =>
@@ -481,7 +486,7 @@ let rec elaborate = (m: Statics.Map.t, uexp: Exp.t): (DHExp.t, Typ.t) => {
         };
       };
 
-      /* Build the labeled tuple body */
+      /* Build the labeled tuple body (fresh ID, not Module's ID) */
       let non_shadowed = ExpandModule.compute_non_shadowed_bindings(items);
       let tuple_body = ExpandModule.build_labeled_tuple(non_shadowed);
 
