@@ -497,6 +497,8 @@ module View = {
           ~attrs=[
             Attr.classes(["proof-button"]),
             Attr.on_pointerdown(_ => Virtual_dom.Vdom.Effect.Stop_propagation),
+            Attr.on_pointerup(_ => Virtual_dom.Vdom.Effect.Stop_propagation),
+            Attr.on_mousemove(_ => Virtual_dom.Vdom.Effect.Stop_propagation),
             Attr.on_click(_ =>
               Ui_effect.Many([
                 callback,
@@ -874,6 +876,12 @@ module View = {
               ~attrs=[
                 Attr.class_("proof-context-box"),
                 Attr.on_pointerdown(_ =>
+                  Virtual_dom.Vdom.Effect.Stop_propagation
+                ),
+                Attr.on_pointerup(_ =>
+                  Virtual_dom.Vdom.Effect.Stop_propagation
+                ),
+                Attr.on_mousemove(_ =>
                   Virtual_dom.Vdom.Effect.Stop_propagation
                 ),
               ],
