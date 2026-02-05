@@ -1949,6 +1949,18 @@ and upat_to_info_map =
       switch (Typ.weak_head_normalize(ctx, e.ty).term) {
       | Prod([{term: TupLabel({term: Label(l2), _}, _), _}]) when l1 == l2 =>
         default_case()
+      | Unknown(_) =>
+        /* Unknown type could be a singleton labeled tuple. Only elaborate
+           (destructure) if the pattern is a Var whose name matches the label.
+           Otherwise, the pattern should have the full tuple type. */
+        switch (upat.term) {
+        | Var(name) when name == l1 =>
+          /* Pattern name matches label - this is destructuring */
+          elaborate_singleton_tuple(upat, ana_ty, l1, m)
+        | _ =>
+          /* Pattern name doesn't match label - use full tuple type */
+          default_case()
+        }
       | _ => elaborate_singleton_tuple(upat, ana_ty, l1, m)
       };
     | _ => default_case()

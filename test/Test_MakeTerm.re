@@ -320,5 +320,53 @@ let tests =
           {|let (_=x) = (_=1) in x|},
         )
       ),
+      /* Module parsing tests */
+      test_case("Empty module", `Quick, () =>
+        exp_check(module_([]), {|{}|})
+      ),
+      test_case("Module with single let binding", `Quick, () =>
+        exp_check(
+          module_([Mod.mod_let(Pat.var("x"), int(1))]),
+          {|{ let x = 1 }|},
+        )
+      ),
+      test_case("Module with multiple bindings", `Quick, () =>
+        exp_check(
+          module_([
+            Mod.mod_let(Pat.var("x"), int(1)),
+            Mod.mod_let(Pat.var("y"), int(2)),
+          ]),
+          {|{ let x = 1; let y = 2 }|},
+        )
+      ),
+      test_case("Module with type alias", `Quick, () =>
+        exp_check(
+          module_([
+            Mod.mod_type(TPat.var("T"), Typ.int()),
+            Mod.mod_let(Pat.var("x"), int(1)),
+          ]),
+          {|{ type T = Int; let x = 1 }|},
+        )
+      ),
+      test_case("Module dot access", `Quick, () =>
+        exp_check(
+          dot(
+            module_([Mod.mod_let(Pat.var("x"), int(1))]),
+            label("x"),
+          ),
+          {|{ let x = 1 }.x|},
+        )
+      ),
+      test_case("Nested module", `Quick, () =>
+        exp_check(
+          module_([
+            Mod.mod_let(
+              Pat.var("m"),
+              module_([Mod.mod_let(Pat.var("y"), int(1))]),
+            ),
+          ]),
+          {|{ let m = { let y = 1 } }|},
+        )
+      ),
     ],
   );

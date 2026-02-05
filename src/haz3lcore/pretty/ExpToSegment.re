@@ -1605,10 +1605,60 @@ let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
         ),
       ],
     );
-  | Module(_) =>
-    /* Phase 1.2: proper module pretty printing */
-    wrap(exp, text_to_pretty(exp |> Exp.rep_id, Sort.Exp, "{ ... }"))
-  // TODO: Add newlines
+  | Module([]) =>
+    /* Empty module: {} - output as atomic token like empty tuple () */
+    wrap(exp, text_to_pretty(exp |> Exp.rep_id, Sort.Exp, "{}"))
+  | Module(items) =>
+    /* Non-empty module: { item1; item2; ... } */
+    let id = exp |> Exp.rep_id;
+    let+ items_pretty =
+      items
+      |> List.map((item: Mod.t) =>
+           switch (item.term) {
+           | ModLet(p, e) =>
+             let+ p = pat_to_pretty(~settings, p)
+             and+ e = go(e);
+             [mk_form(ModLet, item |> Mod.rep_id, [p])] @ e;
+           | ModType(tp, t) =>
+             let+ tp = tpat_to_pretty(~settings, tp)
+             and+ t = typ_to_pretty(~settings, t);
+             [mk_form(ModType, item |> Mod.rep_id, [tp, t])];
+           | ModExp(e) =>
+             let+ e = go(e);
+             e;
+           | EmptyHole =>
+             let item_id = item |> Mod.rep_id;
+             p_just([
+               Grout({
+                 id: item_id,
+                 shape: Convex,
+               }),
+             ]);
+           | Invalid(s) =>
+             p_just(text_to_pretty(item |> Mod.rep_id, Sort.Mod, s))
+           | MultiHole(_) =>
+             /* TODO: handle MultiHole properly */
+             p_just(text_to_pretty(item |> Mod.rep_id, Sort.Mod, "?"))
+           }
+         )
+      |> all;
+    /* Join items with semicolons and wrap in braces */
+    let ids =
+      IdTagged.ids(exp) |> List.tl |> pad_ids(List.length(items) - 1);
+    let body =
+      switch (items_pretty) {
+      | [] => []
+      | [first, ...rest] =>
+        first
+        @ List.flatten(
+            List.map2(
+              (semi_id, item) => [mk_form(ModSeq, semi_id, [])] @ item,
+              ids,
+              rest,
+            ),
+          )
+      };
+    wrap(exp, [mk_form(ModBody, id, [body])]);
   };
 }
 and pat_to_pretty = (~settings: Settings.t, pat: Pat.t): pretty => {

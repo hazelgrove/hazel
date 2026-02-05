@@ -160,6 +160,7 @@ let is_potential_token = t =>
   } else {
     t == "()"
     || t == "[]"
+    || t == "{}"
     || is_potential_operand(t)
     || is_potential_operator(t)
     || is_string(t)
@@ -230,8 +231,17 @@ let tuple_lbl = [tuple_start, tuple_end];
 let empty_tuple = append(tuple_start, tuple_end);
 let is_empty_tuple = equal(empty_tuple);
 
+/* Modules */
+let mod_start = "{";
+let mod_end = "}";
+let mod_lbl = [mod_start, mod_end];
+let empty_module = append(mod_start, mod_end);
+let is_empty_module = equal(empty_module);
+
 let const_mono_delims =
-  base_typs @ bools @ [undefined, wild, empty_list, empty_tuple, empty_string];
+  base_typs
+  @ bools
+  @ [undefined, wild, empty_list, empty_tuple, empty_module, empty_string];
 
 let bad_token_cls: string => bad_token_cls =
   t =>

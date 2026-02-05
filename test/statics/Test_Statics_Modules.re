@@ -8,11 +8,7 @@ open Typ;
 
 /* Test empty module */
 let test_empty_module =
-  fully_consistent_typecheck(
-    "Empty module",
-    {|{}|},
-    Some(prod([])),
-  );
+  fully_consistent_typecheck("Empty module", {|{}|}, Some(prod([])));
 
 /* Test single binding module */
 let test_single_binding =
@@ -67,7 +63,49 @@ let test_module_access =
     Some(int()),
   );
 
-/* TODO: Test nested module when nested modules work */
+/* Test module as let binding definition - verifies module works in Exp position */
+let test_module_in_let_def =
+  fully_consistent_typecheck(
+    "Module as let definition",
+    {|let m = { let y = 1 } in m|},
+    Some(prod([tup_label(label("y"), int())])),
+  );
+
+/* Simpler diagnostic - module with two bindings to avoid singleton tuple issues */
+let test_module_two_bindings_in_let =
+  fully_consistent_typecheck(
+    "Module with two bindings as let def",
+    {|let m = { let x = 1; let y = 2 } in m|},
+    Some(prod([tup_label(label("x"), int()), tup_label(label("y"), int())])),
+  );
+
+/* Diagnostic: test the expanded form directly - this is what { let y = 1 } expands to */
+let test_expansion_directly =
+  fully_consistent_typecheck(
+    "Expanded module form directly",
+    {|let y = 1 in (y=y)|},
+    Some(prod([tup_label(label("y"), int())])),
+  );
+
+/* Diagnostic: expanded form nested in let */
+let test_expansion_in_let =
+  fully_consistent_typecheck(
+    "Expanded form in let",
+    {|let m = (let y = 1 in (y=y)) in m|},
+    Some(prod([tup_label(label("y"), int())])),
+  );
+
+/* Test nested module - inner module should have labeled tuple type */
+let test_nested_module =
+  fully_consistent_typecheck(
+    "Nested modules",
+    {|{ let m = { let y = 1 } }|},
+    Some(
+      prod([
+        tup_label(label("m"), prod([tup_label(label("y"), int())])),
+      ]),
+    ),
+  );
 
 /* Test module with complex expression */
 let test_module_complex_expression =
@@ -90,12 +128,6 @@ let test_module_as_labeled_tuple =
     Some(int()),
   );
 
-/* Skip test for syntax that may not work yet */
-let skip_module_test = (message: string, _expression: string) =>
-  test_case("Skip: " ++ message, `Quick, () => {
-    Alcotest.skip()
-  });
-
 let tests = (
   "Statics.Modules",
   [
@@ -108,6 +140,10 @@ let tests = (
     test_module_access,
     test_module_complex_expression,
     test_module_as_labeled_tuple,
-    skip_module_test("Nested modules", {|{ let m = { let y = 1 } }|}),
+    test_module_in_let_def,
+    test_module_two_bindings_in_let,
+    test_expansion_directly,
+    test_expansion_in_let,
+    test_nested_module,
   ],
 );

@@ -108,6 +108,7 @@ type atomic_form =
   | UndefinedLit
   | EmptyList
   | EmptyTuple
+  | EmptyModule
   | Deferral
   | ExplicitNonlabel
   | TyVar
@@ -416,6 +417,7 @@ let get_atomic_form: atomic_form => (Token.t => bool, list(Mold.t)) =
   | UndefinedLit => (Token.is_undefined, [op(Exp), op(Pat)])
   | EmptyList => (Token.is_empty_list, [op(Exp), op(Pat)])
   | EmptyTuple => (Token.is_empty_tuple, [op(Exp), op(Pat), op(Typ)])
+  | EmptyModule => (Token.is_empty_module, [op(Exp)])
   | Deferral => (Token.is_wild, [op(Exp)])
   | ExplicitNonlabel => (Token.is_wild, [op(Typ)])
   | TyVar => (Token.is_typ_var, [op(Typ)])

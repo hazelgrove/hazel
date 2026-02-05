@@ -311,6 +311,7 @@ and exp_term: unsorted => (Exp.term, list(Id.t)) = {
       | ([t], []) when Token.is_empty_tuple(t) => ret(Tuple([]))
       | ([t], []) when Token.is_wild(t) => ret(Deferral(OutsideAp))
       | ([t], []) when Token.is_empty_list(t) => ret(ListLit([]))
+      | ([t], []) when Token.is_empty_module(t) => ret(Module([]))
       | ([t], []) when Token.is_bool(t) =>
         ret(Atom(Bool(bool_of_string(t))))
       | ([t], []) when Token.is_undefined(t) => ret(Undefined)
@@ -327,8 +328,12 @@ and exp_term: unsorted => (Exp.term, list(Id.t)) = {
       | ([t], []) when Token.is_var(t) => ret(Var(t))
       | ([t], []) when Token.is_ctr(t) => ret(Constructor(t, None))
       | (["{", "}"], [Mod(body)]) =>
-        /* ModBody: flatten module sequence into Module(items) */
-        ret(Module(flatten_mod(body)))
+        /* ModBody: flatten module sequence into Module(items)
+           Special case: {} with just an EmptyHole child means empty module */
+        switch (body.term) {
+        | EmptyHole => ret(Module([]))
+        | _ => ret(Module(flatten_mod(body)))
+        }
       | (["{", "}"], [Exp(body)])
       | (["(", ")"], [Exp(body)]) => ret(Parens(body))
       | (["PROJ_WRAP", "PROJ_WRAP"], [Exp(body)]) => ret(body.term)
