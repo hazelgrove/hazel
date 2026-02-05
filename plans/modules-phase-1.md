@@ -1019,13 +1019,81 @@ Both Rul and Mod are "container" sorts that hold items of other sorts, requiring
 | `src/web/www/style/editor.css` | Added mod sort styling |
 | Various statics/dynamics files | Added stub cases for Module |
 
-### Remaining Work (Phase 1.2+)
+### Remaining Work: Detailed Phase Breakdown
 
-1. **Module Expansion**: Implement `ExpandModule.re` to transform modules to nested let/type + labeled tuple
-2. **Statics Integration**: Wire up expansion in type checking
-3. **Elaborator Integration**: Wire up expansion for dynamics
-4. **Empty Module**: Add `{}` atomic form
-5. **Testing**: Comprehensive tests for module semantics
+#### Phase 1.2: Module Expansion & Semantics
+
+1. **Module Expansion** (`ExpandModule.re`):
+   - Transform `{ let a = 1; let b = 2 }` → `let a = 1 in let b = 2 in (a=a, b=b)`
+   - Handle shadowing (only non-shadowed bindings in final tuple)
+   - Handle bare expressions (wrap in `let _ = ...`)
+   - Handle type definitions (expand to TyAlias)
+
+2. **Statics Integration** (`Statics.re`):
+   - Add Module case that expands and recurses
+   - Modules should type-check via their expansion
+
+3. **Elaborator Integration** (`Elaborator.re`):
+   - Add Module case that expands for evaluation
+   - Ensure proper ID mapping for cursor info
+
+#### Phase 1.3: Menhir Parser
+
+1. **Parser Updates** (`src/menhirParser/`):
+   - Add module syntax to Menhir grammar
+   - Add conversion for module terms in `Conversion.re`
+   - Ensure Menhir ↔ MakeTerm equivalence
+
+#### Phase 1.4: Testing
+
+Testing should cover multiple layers:
+
+1. **Parsing Tests** (`test/Test_Module.re` or extend `Test_Menhir.re`):
+   - String → Term parsing for module syntax
+   - Menhir ↔ MakeTerm equivalence for modules
+   - Roundtrip tests (code → parse → serialize → parse)
+
+2. **Statics Tests** (`test/statics/Test_Statics_Modules.re`):
+   - Module type inference (`{ let a = 1 }` has type `(a=Int)`)
+   - Module field access typing (`M.x`)
+   - Nested module typing
+   - Error cases (unbound variables in modules, etc.)
+
+3. **Dynamics Tests** (`test/evaluator/Test_Evaluator_Modules.re`):
+   - Module evaluation (`{ let a = 1 }.a` evaluates to `1`)
+   - Nested module evaluation
+   - Bare expressions in modules (side effects, tests)
+   - Shadowing behavior
+
+4. **Grammar Factory** (`test/Test_Grammar.re`):
+   - Add samples for all Mod.cls variants
+   - Ensure module factory functions work
+
+5. **Update Test Runner** (`test/haz3ltest.re`):
+   - Include new module test suites
+
+#### Phase 1.5: Polish & Exploration
+
+1. **Empty Module Atomic Form**:
+   - Add `{}` as atomic form for empty modules
+   - Currently `{ }` creates module with hole; need true empty
+
+2. **ExplainThis Documentation** (if appropriate):
+   - Add explanations for module syntax forms
+   - Check `src/web/app/explainthis/` for patterns
+
+3. **Other System Integration**:
+   - Check if any other systems need module support
+   - Look for exhaustiveness warnings or stub cases that need filling
+
+#### Phase 1.6: Final Report
+
+After implementation, document:
+1. **What was implemented**: Summary of all changes
+2. **What works**: Verified functionality with test results
+3. **What doesn't work**: Any known issues or skipped tests
+4. **What was skipped**: Features deemed unnecessary or deferred
+5. **Recommendations**: Suggestions for future work
 
 ### Future Considerations
 
