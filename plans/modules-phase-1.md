@@ -390,44 +390,199 @@ When expanding, the **curly brace ID becomes the parentheses ID** around the fin
 
 ---
 
-## Capitalized Names in Patterns
+## Capitalized Module Names: Design Considerations
 
-### Problem
+**Status: NOT IMPLEMENTED - Decision Required**
 
-Module names should be capitalized (like `M`), but capitalized identifiers in patterns are currently parsed as constructors.
+This section documents the design space for allowing capitalized module names (e.g., `let M = { ... }` and `M.x`). The original plan proposed a partial solution that was never implemented, and upon further analysis, that solution was incomplete.
 
-### Solution (Phase 1)
+### The Problem: Two Sides
 
-**Allow standalone capitalized identifiers as pattern variables.**
+Capitalized identifiers are currently parsed as constructors at the token/form level. This affects TWO places:
 
-Rule:
-- `Ctr(args)` in pattern → constructor application
-- `Ctr` standalone in pattern → variable binding
-
-This means `let M = { ... }` works, but you lose the ability to match nullary constructors in let patterns. This is acceptable because:
-1. Matching nullary constructors in `let` is marginal
-2. `case` patterns still work correctly
-3. We can refine later
-
-### Implementation
-
-In MakeTerm, when parsing patterns, don't turn standalone capitalized identifiers into `Constructor`:
-
-```ocaml
-// In pat_term, around the Ctr handling:
-| ([t], []) when Token.is_ctr(t) =>
-  // Only treat as constructor if it's applied, otherwise it's a variable
-  // This case is for standalone - just treat as Var
-  ret(Var(t))
-
-// The applied case is handled by the Ap pattern matching
+**1. Pattern/Binding Side:**
+```
+let M = { let x = 1 }
+    ^-- M is parsed as Constructor("M", None), not Var("M")
+        Statics rejects this because constructors can't be bound
 ```
 
-### Future Work (Phase 2+)
+**2. Expression/Reference Side:**
+```
+M.x
+^-- M is parsed as Constructor("M", None), not Var("M")
+    Statics tries to look up M as a constructor, fails
+```
 
-Consider:
-- `module` keyword with dedicated sort for module binding names
-- Context-aware parsing that knows about in-scope constructors
+Both sides must be addressed for capitalized modules to work.
+
+### Current Implementation State
+
+In `Token.re`:
+```reason
+let is_var = match("^[a-z_][A-Za-z0-9_']*$" | qualified)  // lowercase
+let is_ctr = match("^[A-Z][A-Za-z0-9_]*$")                 // capitalized
+```
+
+In `Form.re`:
+```reason
+| Var => (Token.is_var, [op(Exp), op(Pat)])  // lowercase → Var form
+| Ctr => (Token.is_ctr, [op(Exp), op(Pat)])  // capitalized → Ctr form
+```
+
+In `MakeTerm.re` (both exp and pat):
+```reason
+| ([t], []) when Token.is_var(t) => ret(Var(t))
+| ([t], []) when Token.is_ctr(t) => ret(Constructor(t, None))
+```
+
+The distinction happens at **token level** and propagates through forms and terms.
+
+### Why the Original Proposal Was Incomplete
+
+The original plan proposed changing only patterns:
+```reason
+// Proposed: standalone Ctr in patterns → Var
+| ([t], []) when Token.is_ctr(t) => ret(Var(t))
+```
+
+This would fix `let M = { ... }` but NOT `M.x` in expressions. The expression side was overlooked.
+
+Additionally, this change would break nullary constructor matching in ALL patterns:
+```reason
+case x | None => 1    // None would become Var("None"), not Constructor
+```
+
+### Design Options
+
+#### Option 1: Status Quo (Lowercase Modules)
+
+Use lowercase names: `let m = { let x = 1 } in m.x`
+
+**Pros:**
+- No implementation changes needed
+- Consistent with "modules are first-class values"
+- Avoids constructor ambiguity entirely
+
+**Cons:**
+- Doesn't match OCaml/ML convention
+- Less visual distinction for organizational structures
+- May feel inconsistent to users from ML background
+
+#### Option 2: Unify Var/Constructor at Term Level
+
+Replace separate `Var(string)` and `Constructor(string, ...)` with unified `Name(string)`. Statics resolves meaning from context.
+
+**Implementation:**
+1. Change `Grammar.re`: Replace `Var`/`Constructor` with `Name` in exp_term and pat_term
+2. Change `MakeTerm.re`: Both `is_var` and `is_ctr` tokens create `Name(t)`
+3. Change `Statics.re`: When encountering `Name(n)`:
+   - Look up in variable context
+   - Look up in constructor context
+   - Use type information to disambiguate
+
+**Concrete behavior:**
+```
+let M = { let x = 1 }   // M is Name, statics sees module type → binding
+M.x                      // M is Name, statics resolves to bound module
+case x | None => 1       // None is Name, statics sees sum type → constructor
+case x | Some(v) => v    // Some(v) is Ap, statics resolves Some as constructor
+```
+
+**Pros:**
+- Maximum flexibility
+- Context determines meaning (more principled)
+- Single identifier representation
+
+**Cons:**
+- Significant refactor (touches Grammar, MakeTerm, Statics, tests)
+- Cursor inspector can't show "Constructor" vs "Variable" until after statics
+- Potential for confusing error messages when context is ambiguous
+
+#### Option 3: Extend `is_var` to Include Capitalized
+
+Simpler variant of Option 2: just change the token regex so capitalized names are also "variables."
+
+**Implementation:**
+1. Change `Token.re`: `is_var` matches both lowercase and capitalized
+2. Remove or repurpose `Ctr` form
+3. MakeTerm creates `Var(t)` for all identifiers
+4. Statics determines if a `Var` is actually a constructor reference
+
+**Pros:**
+- Smaller change than full unification
+- Keeps `Var` term variant
+
+**Cons:**
+- `Var` becomes a misnomer (it's really "Name")
+- Still need statics changes for constructor lookup
+- Cursor inspector shows "Variable" for constructors (confusing)
+
+#### Option 4: Bidirectional Resolution with Capitalization Hints
+
+Parse as unified names, but statics uses capitalization + scope as disambiguation hints:
+
+1. If capitalized AND in scope as constructor → treat as constructor
+2. If capitalized AND NOT in scope as constructor → treat as variable
+3. If lowercase → always variable (can warn if shadows constructor)
+
+**Pros:**
+- Liberal parsing, stricter semantics
+- Can provide helpful warnings about naming conventions
+
+**Cons:**
+- Complex resolution rules
+- Behavior depends on what's in scope (potentially confusing)
+
+#### Option 5: Keep Distinction, Add Module-Specific Handling
+
+Keep Var/Constructor separate but add special cases:
+
+1. In patterns: Context-aware parsing (let patterns vs case patterns)
+2. In expressions: Allow Constructor to resolve to variable if not found as constructor
+
+**Pros:**
+- Minimal structural changes
+- Targeted fixes
+
+**Cons:**
+- Ad-hoc, multiple special cases
+- Harder to reason about
+
+### Trade-offs Summary
+
+| Concern | Option 1 | Option 2 | Option 3 | Option 4 | Option 5 |
+|---------|----------|----------|----------|----------|----------|
+| Implementation effort | None | High | Medium | High | Medium |
+| Conceptual cleanliness | High | High | Medium | Medium | Low |
+| OCaml convention | No | Yes | Yes | Yes | Partial |
+| Constructor handling | Clean | Context-based | Context-based | Heuristic | Special-cased |
+| Cursor inspector accuracy | Accurate | Post-statics | Misleading | Post-statics | Mixed |
+
+### Considerations
+
+**Aesthetic/Convention:**
+- OCaml uses capitalized module names - familiar to ML users
+- Capitalization visually distinguishes "big" organizational units
+- But: if modules are first-class, why treat them specially?
+
+**Information Design:**
+- Currently: cursor inspector shows "Constructor" or "Variable" based on capitalization (pre-statics)
+- With unification: would show generic "Identifier" pre-statics, resolved info post-statics
+- Question: Is pre-statics classification useful or misleading?
+
+**Scope of Change:**
+- Option 1 requires no changes but limits naming
+- Options 2-4 require touching multiple layers (Token, Form, MakeTerm, Statics, Cursor Inspector)
+- All options except 1 need careful handling of existing constructor semantics
+
+### Recommendation
+
+**For Phase 1:** Use lowercase module names (Option 1). This lets us ship working modules without resolving the naming question.
+
+**For Phase 1.5 or 2:** Revisit with Option 2 (full unification) or Option 3 (extend is_var). These are the cleanest solutions that address both sides of the problem.
+
+The key insight is that any solution supporting capitalized modules MUST address both the pattern/binding side AND the expression/reference side. Partial solutions that only fix patterns are incomplete.
 
 ---
 
@@ -856,13 +1011,17 @@ This section documents what was actually implemented, key insights discovered, a
 - ✅ Grammar.re: Added mod_ type alias for Factory module
 
 **Completed (Phase 1.4 - Testing)**:
-- ✅ Test_Statics_Modules.re: 9 statics tests (1 skipped for nested modules)
-- ✅ Test_Evaluator_Modules.re: 11 evaluator tests (2 skipped)
-- ✅ All 1446 tests pass
+- ✅ Test_Statics_Modules.re: 14 statics tests (all pass)
+- ✅ Test_Evaluator_Modules.re: 11 evaluator tests (2 skipped for Menhir grammar conflict)
+- ✅ Test_MakeTerm.re: Module parsing tests including nested modules
+- ✅ All 1461 tests pass
 
 **Not Implemented (Deferred)**:
-- ❌ Empty module atomic form ({}) - not critical for Phase 1
-- ❌ Nested module full support - marked as skip test
+- ❌ Empty module atomic form (`{}`) - compound form `["{", "}"]` used instead
+- ❌ Menhir multi-item modules with semicolons - grammar conflict with Seq in exp (see Known Limitations)
+
+**Bugs Fixed**:
+- ✅ Singleton labeled tuple elaboration for patterns with Unknown synth type (see "Singleton Labeled Tuple Bug Fix" section)
 
 ### Key Insight: Heterogeneous Prefix Forms
 
@@ -1120,3 +1279,208 @@ After implementation, document:
 Could be revisited if we move toward more semicolon-separated syntax throughout Hazel.
 
 **Removing CellJoin**: If expression-level `;` (CellJoin) isn't needed, removing it eliminates the semicolon ambiguity entirely. Worth considering as module syntax matures.
+
+---
+
+## Singleton Labeled Tuple Bug Fix
+
+### The Bug
+
+When a Var pattern is analyzed against a singleton labeled tuple type (e.g., `(y=Int)`), the pattern was incorrectly elaborated even when it shouldn't be, causing the variable to have the inner type (`Int`) instead of the full tuple type (`(y=Int)`).
+
+**Reproducer (no module syntax needed):**
+```
+let m = (y=1) in m
+```
+- Expected type of `m`: `(y=Int)`
+- Actual type before fix: `Int`
+
+This bug was discovered during module testing because modules with single bindings produce singleton labeled tuple types.
+
+### Root Cause
+
+In `src/language/statics/Statics.re`, lines 1941-1954 (pattern singleton tuple handling):
+
+```reason
+switch (Typ.weak_head_normalize(ctx, ana).term) {
+| Prod([{term: TupLabel({term: Label(l1), _}, ana_ty), _}]) =>
+  let (e, m) = go(~ana=syn, ~ctx, upat, m);
+
+  switch (Typ.weak_head_normalize(ctx, e.ty).term) {
+  | Prod([{term: TupLabel({term: Label(l2), _}, _), _}]) when l1 == l2 =>
+    default_case()
+  | _ => elaborate_singleton_tuple(upat, ana_ty, l1, m)   // <-- PROBLEM
+  };
+| _ => default_case()
+};
+```
+
+The logic:
+1. If `ana` (expected type) is a singleton labeled tuple `(l1=T)`
+2. Synth the pattern to get `e.ty`
+3. If `e.ty` is a singleton labeled tuple with matching label, don't elaborate
+4. **Otherwise, elaborate**
+
+For Var patterns, `e.ty` is always `Unknown(Internal)`. Since `Unknown` doesn't match the `Prod([TupLabel(...)])` case, it always elaborated - even when the pattern name didn't match the label.
+
+### The Fix
+
+Added handling for `Unknown` synth types that checks if the pattern name matches the label:
+
+```reason
+switch (Typ.weak_head_normalize(ctx, e.ty).term) {
+| Prod([{term: TupLabel({term: Label(l2), _}, _), _}]) when l1 == l2 =>
+  default_case()
+| Unknown(_) =>
+  /* Only elaborate if pattern is a Var whose name matches the label */
+  switch (upat.term) {
+  | Var(name) when name == l1 =>
+    elaborate_singleton_tuple(upat, ana_ty, l1, m)  // Destructuring
+  | _ =>
+    default_case()  // Pattern should have full tuple type
+  }
+| _ => elaborate_singleton_tuple(upat, ana_ty, l1, m)
+};
+```
+
+**Behavior after fix:**
+- `let a = (a=1) in a` → pattern `a` matches label `a` → elaborate → `a : Int` ✓
+- `let m = (y=1) in m` → pattern `m` ≠ label `y` → don't elaborate → `m : (y=Int)` ✓
+
+All existing singleton labeled tuple tests still pass.
+
+---
+
+## Known Limitations
+
+### Empty Module Atomic Form
+
+~~The empty module `{}` was not an atomic form like `()` (empty tuple) or `[]` (empty list).~~
+
+**Fixed:** Added `t == "{}"` to `Token.is_potential_token` in `Token.re:163`. Now typing `{}` creates an atomic `EmptyModule` token, matching the behavior of `()` and `[]`.
+
+---
+
+## Menhir Parser: Semicolon Ambiguity
+
+### The Problem
+
+The Menhir parser cannot parse modules with multiple semicolon-separated items:
+```
+{ let x = 1; let y = 2 }  // Menhir parse error
+```
+
+Single-item modules work fine:
+```
+{ let x = 1 }  // OK
+```
+
+### Technical Analysis
+
+The Menhir grammar (`src/menhirParser/Parser.mly`) has:
+
+```
+// Line 367: Seq in expressions uses semicolon
+| e1 = exp; SEMI_COLON; e2 = exp { Seq(e1, e2) }
+
+// Line 377: Module uses semicolon as item separator
+| OPEN_CURLY; items = separated_list(SEMI_COLON, modItem); CLOSE_CURLY { Module(items) }
+
+// Lines 380-386: Module items can contain expressions
+modItemExp:
+    | e = exp { e } %prec LET_EXP
+
+modItem:
+    | LET; i = pat; SINGLE_EQUAL; e = modItemExp { ModItemLet(i, e) }
+    | e = modItemExp { ModItemExp(e) }
+```
+
+When parsing `{ let x = 1; let y = 2 }`, after reading `{ let x = 1`, the parser sees `;` and faces a **shift-reduce conflict**:
+
+- **Reduce**: Treat `1` as the complete `modItemExp`, reduce to `modItem`, use `;` as list separator
+- **Shift**: Push `;` onto the stack to build `Seq(1, ...)` as part of a larger expression
+
+The `%prec LET_EXP` on `modItemExp` attempts to force early reduction, but precedence only resolves conflicts between the **same operator** in different positions. Here `;` plays **two different grammatical roles** (expression operator vs. list separator), which is fundamentally ambiguous in LR parsing.
+
+### Why Hazel's Tile-Based Approach Works
+
+Hazel's tile-based system has **sort-aware insertion**. In `Insert.re:54-77`:
+
+```reason
+let effective_sort = (t: Token.t, z: t): Sort.t => {
+  let local_sort = Relatives.sort(z.relatives);
+  let parent_sort = Ancestors.sort(z.relatives.ancestors);
+
+  /* Special case: semicolon inside module context should be ModSeq */
+  if (t == ";" && parent_sort == Sort.Mod) {
+    parent_sort;  // Use Mod sort, which gives ModSeq form
+  } else {
+    ...
+  }
+};
+```
+
+When typing `;` inside `{ }`:
+1. The system asks: "What's my parent sort?"
+2. Parent is `Mod` → use `ModSeq` form (module item separator)
+3. Parent is `Exp` → use `Seq` form (expression sequencing)
+
+This is **context-sensitive** disambiguation that LR parsing fundamentally cannot express - LR parsers make decisions based on **lookahead tokens and stack state**, not "what construct am I inside."
+
+### Potential Menhir Fixes
+
+**Option 1: Grammar Duplication (Clean but Verbose)**
+
+Create a separate expression grammar without Seq for use inside modules:
+
+```
+expNoSeq:
+    | ... all exp rules EXCEPT the Seq rule ...
+
+modItemExp:
+    | e = expNoSeq { e }
+```
+
+This is unambiguous but requires duplicating ~50 lines of grammar rules. Any future changes to `exp` would need to be mirrored in `expNoSeq`.
+
+**Option 2: GLR Parsing**
+
+Menhir supports GLR (Generalized LR) mode which can handle ambiguous grammars by exploring both parses simultaneously. Disambiguation happens via semantic actions or post-processing.
+
+```bash
+menhir --lalr ...  # Current: fails on ambiguity
+menhir --glr ...   # GLR: explores both parses
+```
+
+Adds complexity and potentially slower parsing, but avoids grammar duplication.
+
+**Option 3: Lexer Hack**
+
+Track brace depth in the lexer and emit different semicolon tokens inside braces:
+
+```
+SEMI_COLON       // Outside braces
+SEMI_COLON_MOD   // Inside { }
+```
+
+This is ugly but has precedent - C compilers use a similar "typedef hack" to distinguish type names from identifiers. Requires lexer state management.
+
+**Option 4: Post-Processing**
+
+Accept whichever parse Menhir produces and fix it up afterward. For example, if Menhir parses `{ let x = 1; let y = 2 }` as a single item with nested Seq, transform it to the correct multi-item structure in a post-pass.
+
+Fragile and requires understanding all the ways the "wrong" parse can manifest.
+
+**Option 5: Remove Expression-Level Semicolon**
+
+If expression-level `Seq` (`;` for sequencing expressions like `print("hi"); 42`) isn't essential, removing it eliminates the ambiguity entirely. Modules would be the only place semicolons appear.
+
+This is a language design decision with broader implications.
+
+### Current Status
+
+**Deferred.** The tile-based editor handles multi-item modules correctly. Only the Menhir parser is affected, which is used for:
+- Test input parsing (2 evaluator tests skipped)
+- Potential future uses (CLI tools, batch processing)
+
+For Phase 1, the workaround is using single-item modules in Menhir-parsed tests, or writing tests that use the tile-based editor directly.

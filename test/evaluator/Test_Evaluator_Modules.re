@@ -27,7 +27,10 @@ let test_multiple_bindings =
 /* Test shadowing - only last value exported */
 let test_shadowing =
   test_case("Shadowed binding exports last value", `Quick, () => {
-    parse_and_evaluate_test({|(x="hello")|}, {|{ let x = 1; let x = "hello" }|})
+    parse_and_evaluate_test(
+      {|(x="hello")|},
+      {|{ let x = 1; let x = "hello" }|},
+    )
   });
 
 /* Test accessing module binding via dot */
@@ -60,26 +63,18 @@ let test_module_with_function =
 /* Test module bindings can refer to earlier bindings */
 let test_sequential_bindings =
   test_case("Sequential bindings can refer to earlier ones", `Quick, () => {
-    parse_and_evaluate_test(
-      "(x=1, y=2)",
-      {|{ let x = 1; let y = x + 1 }|},
-    )
+    parse_and_evaluate_test("(x=1, y=2)", {|{ let x = 1; let y = x + 1 }|})
   });
 
 /* Test type alias in module */
 let test_type_alias =
   test_case("Type alias in module", `Quick, () => {
-    parse_and_evaluate_test(
-      "(x=42)",
-      {|{ type T = Int; let x = 42 : T }|},
-    )
+    parse_and_evaluate_test("(x=42)", {|{ type T = Int; let x = 42 : T }|})
   });
 
 /* Skip test for features that may not work yet */
 let skip_module_test = (message: string, _expression: string) =>
-  test_case("Skip: " ++ message, `Quick, () => {
-    Alcotest.skip()
-  });
+  test_case("Skip: " ++ message, `Quick, () => {Alcotest.skip()});
 
 let tests = (
   "Evaluator.Modules",

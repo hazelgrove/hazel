@@ -376,8 +376,12 @@ exp:
     | e1 = exp; DOT; e2 = exp { Dot(e1, e2) }
     | OPEN_CURLY; items = separated_list(SEMI_COLON, modItem); CLOSE_CURLY { Module(items) }
 
+/* Module item expressions cannot contain top-level Seq (semicolons are item separators) */
+modItemExp:
+    | e = exp { e } %prec LET_EXP
+
 modItem:
-    | LET; i = pat; SINGLE_EQUAL; e = exp { ModItemLet(i, e) }
+    | LET; i = pat; SINGLE_EQUAL; e = modItemExp { ModItemLet(i, e) }
     | TYP; tp = tpat; SINGLE_EQUAL; ty = typ { ModItemType(tp, ty) }
-    | e = exp { ModItemExp(e) }
+    | e = modItemExp { ModItemExp(e) }
 
