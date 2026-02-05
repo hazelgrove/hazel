@@ -9,11 +9,24 @@ This document outlines a plan to build a comprehensive web app library for Hazel
 
 The library builds on Jane Street's Virtual_dom (already used by Hazel) and follows Elm's architecture patterns where practical.
 
-## Current State (projector-html branch)
+## Implementation Status (hazel-html branch)
 
-- `BuiltinsADT.re` defines basic `HTML` and `Attr` types
-- `HazelDOM.re` renders `HTML` ADT to `Virtual_dom.Node.t`
+**Completed:**
+- `BuiltinsADT.re` defines full `HTML`, `Attr`, `Cmd`, `Sub`, `App`, `KeyEvent`, `MouseEvent` types
+- `HazelDOM.re` renders all HTML elements (~40) and attributes (~45) to `Virtual_dom.Node.t`
+- `CmdRunner.re` executes commands (Focus, Blur, ScrollTo, Delay, Log, etc.)
+- `SubManager.re` manages subscriptions (OnResize, OnKeyDown, Every, AnimationFrame, etc.)
+- Event handlers support both `Html -> Html` and `Html -> (Html, Cmd)` return types
 - `HTMLProj.re` wraps this as a projector with self-modifying lifecycle
+
+**Remaining:**
+- Subscription lifecycle integration (requires projector mount/unmount hooks)
+- Full App runner for `App` type with init/subscriptions
+- Error boundaries for runtime issues
+- Testing and documentation
+
+## Original State (projector-html branch, for reference)
+
 - Limited elements: Div, Span, Button, Checkbox, Radio, Range, Text, Bool, Int, Float
 - Limited attributes: Create, Style, OnClick, OnMousedown, OnInput
 - No command/effect system
@@ -264,10 +277,10 @@ module Mouse = {
 
 ### 1.4 Deliverables
 
-- [ ] Define types in `src/language/html/`
-- [ ] Register types with Hazel's builtin type system
-- [ ] Update `HazelDOM.re` to render all new elements/attributes
-- [ ] Add event data extraction for keyboard/mouse events
+- [x] Define types in `BuiltinsADT.re` (HTML, Attr, KeyEvent, MouseEvent)
+- [x] Register types with Hazel's builtin type system
+- [x] Update `HazelDOM.re` to render all new elements/attributes
+- [x] Add event data extraction for keyboard/mouse events
 - [ ] Test with HTML projector
 
 ---
@@ -336,10 +349,10 @@ let run: Cmd.t -> Ui_effect.t(unit) = cmd =>
 
 ### 2.4 Deliverables
 
-- [ ] Define `Cmd.t` type
-- [ ] Implement `CmdRunner.re`
-- [ ] Integrate with HTML projector lifecycle
-- [ ] Decide on handler signature (always tuple vs separate variants)
+- [x] Define `Cmd.t` type in `BuiltinsADT.re`
+- [x] Implement `CmdRunner.re`
+- [x] Integrate with HTML projector lifecycle (handlers can return `(Html, Cmd)`)
+- [x] Handler signature: both plain `Html` and `(Html, Cmd)` tuples supported
 
 ---
 
@@ -382,9 +395,9 @@ let update: (Sub.t, Html.t, Html.t -> unit) -> active_subs
 
 ### 3.3 Deliverables
 
-- [ ] Define `Sub.t` type
-- [ ] Implement `SubManager.re` with proper cleanup
-- [ ] Integration point in app/projector lifecycle
+- [x] Define `Sub.t` type in `BuiltinsADT.re`
+- [x] Implement `SubManager.re` with proper cleanup
+- [ ] Integration point in app/projector lifecycle (requires projector lifecycle hooks)
 
 ---
 
@@ -426,7 +439,7 @@ Recommend starting with **Option A** (projector-based) since the infrastructure 
 
 ### 4.3 Deliverables
 
-- [ ] `App` type definition (if separate from raw `Html`)
+- [x] `App` type definition in `BuiltinsADT.re`: `((HTML, Cmd), HTML -> Sub)`
 - [ ] App runner that manages init, subs, cmd execution
 - [ ] UI for displaying app output (projector or panel)
 
@@ -450,9 +463,9 @@ The HTML projector's self-modifying pattern:
 
 ### 5.3 Deliverables
 
-- [ ] Update `HTMLProj.re` to use new types
-- [ ] Add Cmd execution in projector lifecycle
-- [ ] Add Sub management in projector lifecycle
+- [x] Update `HazelDOM.re` to use new types (all elements/attributes supported)
+- [x] Add Cmd execution in event handlers (handlers can return `(Html, Cmd)`)
+- [ ] Add Sub management in projector lifecycle (requires projector lifecycle hooks)
 - [ ] Error boundaries for runtime issues
 
 ---
