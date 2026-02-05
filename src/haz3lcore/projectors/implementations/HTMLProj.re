@@ -60,11 +60,24 @@ module M: Projector = {
       | _ => model
       };
 
+    let inject = (new_model: model) =>
+      parent(SetSyntax(Exp(new_model) |> info.utility.term_to_seg));
+
     // Check if model is an App type vs plain Html
     let (html_model, subscriptions) =
       switch (detect_app(current_model)) {
-      | Some((html, _init_cmd, Some(subs_fn))) =>
-        // It's an App - evaluate subscriptions function with current html
+      | Some((html, Some(init_cmd), Some(subs_fn))) =>
+        // It's an App - run init_cmd and evaluate subscriptions
+        let cmd_ctx: CmdRunner.context = {
+          model: html,
+          inject,
+        };
+        let cmd_effect = CmdRunner.run(cmd_ctx, init_cmd);
+        Bonsai.Effect.Expert.handle(cmd_effect);
+        let subs = evaluate(Exp.ap(Forward, subs_fn, html));
+        (html, Some(subs));
+      | Some((html, None, Some(subs_fn))) =>
+        // App with no init cmd
         let subs = evaluate(Exp.ap(Forward, subs_fn, html));
         (html, Some(subs));
       | _ =>
@@ -74,11 +87,7 @@ module M: Projector = {
 
     let seed: HazelDOM.t = {
       model: html_model,
-      inject: (new_model: model) =>
-        /* Allow HTMLements to replace themselves wholesale. Note that
-           this will fail if anything other than a builtin is used in
-           a handler */
-        parent(SetSyntax(Exp(new_model) |> info.utility.term_to_seg)),
+      inject,
       view_term: term =>
         Exp(term)
         |> info.utility.term_to_seg
