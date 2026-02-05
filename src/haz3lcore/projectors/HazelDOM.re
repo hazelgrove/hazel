@@ -119,22 +119,56 @@ let evaluate = exp =>
 
 // === Event handlers ===
 
-// Simple event: Html -> Html
-let on_ = (mvu: t, handler, _evt) => {
-  let new_model = evaluate(Exp.ap(Forward, handler, mvu.model));
-  Effect.Many([Effect.Stop_propagation, mvu.inject(new_model)]);
+// Process handler result: either Html or (Html, Cmd)
+// Returns (new_model, optional_cmd_effect)
+let process_handler_result = (mvu: t, result: DHExp.t): Ui_effect.t(unit) => {
+  // Check if result is a tuple (Html, Cmd)
+  switch (result.term) {
+  | Tuple([new_model, cmd]) =>
+    // Result is (Html, Cmd) - run the command
+    let cmd_ctx: CmdRunner.context = {
+      model: new_model,
+      inject: mvu.inject,
+    };
+    let cmd_effect = CmdRunner.run(cmd_ctx, cmd);
+    Effect.Many([
+      Effect.Stop_propagation,
+      mvu.inject(new_model),
+      cmd_effect,
+    ]);
+  | Parens({term: Tuple([new_model, cmd]), _}) =>
+    let cmd_ctx: CmdRunner.context = {
+      model: new_model,
+      inject: mvu.inject,
+    };
+    let cmd_effect = CmdRunner.run(cmd_ctx, cmd);
+    Effect.Many([
+      Effect.Stop_propagation,
+      mvu.inject(new_model),
+      cmd_effect,
+    ]);
+  | _ =>
+    // Result is just Html
+    Effect.Many([Effect.Stop_propagation, mvu.inject(result)])
+  };
 };
 
-// Input/change event: (Html, String) -> Html
+// Simple event: Html -> Html or Html -> (Html, Cmd)
+let on_ = (mvu: t, handler, _evt) => {
+  let result = evaluate(Exp.ap(Forward, handler, mvu.model));
+  process_handler_result(mvu, result);
+};
+
+// Input/change event: (Html, String) -> Html or (Html, String) -> (Html, Cmd)
 let on_input = (mvu: t, handler, _evt, arg) => {
-  let new_model =
+  let result =
     evaluate(
       Exp.ap(Forward, handler, Exp.tuple([mvu.model, Exp.string(arg)])),
     );
-  Effect.Many([Effect.Stop_propagation, mvu.inject(new_model)]);
+  process_handler_result(mvu, result);
 };
 
-// Mouse event: (Html, MouseEvent) -> Html
+// Mouse event: (Html, MouseEvent) -> Html or -> (Html, Cmd)
 // MouseEvent = (clientX, clientY, button, ctrl, shift, alt, meta)
 let on_mouse = (mvu: t, handler, evt) => {
   let mouse_event =
@@ -147,12 +181,12 @@ let on_mouse = (mvu: t, handler, evt) => {
       Exp.bool(Js_of_ocaml.Js.to_bool(evt##.altKey)),
       Exp.bool(Js_of_ocaml.Js.to_bool(evt##.metaKey)),
     ]);
-  let new_model =
+  let result =
     evaluate(Exp.ap(Forward, handler, Exp.tuple([mvu.model, mouse_event])));
-  Effect.Many([Effect.Stop_propagation, mvu.inject(new_model)]);
+  process_handler_result(mvu, result);
 };
 
-// Keyboard event: (Html, KeyEvent) -> Html
+// Keyboard event: (Html, KeyEvent) -> Html or -> (Html, Cmd)
 // KeyEvent = (key, code, ctrl, shift, alt, meta)
 let on_key = (mvu: t, handler, evt) => {
   open Js_of_ocaml;
@@ -169,9 +203,9 @@ let on_key = (mvu: t, handler, evt) => {
       Exp.bool(Js.to_bool(evt##.altKey)),
       Exp.bool(Js.to_bool(evt##.metaKey)),
     ]);
-  let new_model =
+  let result =
     evaluate(Exp.ap(Forward, handler, Exp.tuple([mvu.model, key_event])));
-  Effect.Many([Effect.Stop_propagation, mvu.inject(new_model)]);
+  process_handler_result(mvu, result);
 };
 
 // === Attribute rendering ===
