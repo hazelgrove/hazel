@@ -398,6 +398,7 @@ module rec Exp: {
     | TupLabel(e1, e2) => TupLabel(of_core(e1), of_core(e2))
     | Dot(e1, e2) => Dot(of_core(e1), of_core(e2))
     | Ap(Reverse, _, _) => raise(Failure("Reverse not supported"))
+    | Projector(_, e) => of_core(e)
     };
   };
 
@@ -528,6 +529,7 @@ and Typ: {
           constructors,
         );
       SumTyp(sumterms);
+    | Projector(_, t) => of_core(t)
     };
   };
 }
@@ -602,6 +604,7 @@ and Pat: {
     | Label(s) => LabelPat(s)
     | ExplicitNonlabel => ExplicitNonlabel
     | TupLabel(p1, p2) => TupLabelPat(of_core(p1), of_core(p2))
+    | Projector(_, p) => of_core(p)
     };
   };
 };
