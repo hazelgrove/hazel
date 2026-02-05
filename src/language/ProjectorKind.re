@@ -28,6 +28,7 @@ let livelit_projectors: list(t) = [
   TextArea,
   Card,
   Livelit,
+  Table,
 ];
 
 /* Note: Probe intentionally excluded - probes use separate action path */
