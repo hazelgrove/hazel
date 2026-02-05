@@ -114,47 +114,144 @@ let evaluate = exp =>
   );
 
 module M: Projector = {
+  // UI state for projector sizing
   [@deriving (show({with_path: false}), sexp, yojson)]
-  type model = Grammar.exp_t(IdTagged.IdTag.t);
+  type ui_state = {
+    width: option(int),
+    height: option(int),
+    resizing:
+      option(
+        [
+          | `Width
+          | `Height
+          | `Both
+        ],
+      ),
+  };
+
+  let default_ui: ui_state = {
+    width: None,
+    height: None,
+    resizing: None,
+  };
+
   [@deriving (show({with_path: false}), sexp, yojson)]
-  type action = unit;
+  type model = {
+    exp: Grammar.exp_t(IdTagged.IdTag.t),
+    ui: ui_state,
+  };
+
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type action =
+    | SetWidth(int)
+    | SetHeight(int)
+    | StartResize(
+        [
+          | `Width
+          | `Height
+          | `Both
+        ],
+      )
+    | StopResize
+    | ResetSize;
 
   let init = (any: Any.t) =>
     switch (any) {
     // HTML constructor applied to arguments: Div(...), Button(...), etc.
     | Exp({term: Ap(_, {term: Constructor(name, _), _}, _), _} as exp)
         when is_html_constructor(name) =>
-      Some(exp)
+      Some({
+        exp,
+        ui: default_ui,
+      })
     // Nullary HTML constructor: Br
-    | Exp({term: Constructor("Br", _), _} as exp) => Some(exp)
+    | Exp({term: Constructor("Br", _), _} as exp) =>
+      Some({
+        exp,
+        ui: default_ui,
+      })
     // App type: ((HTML, Cmd), HTML -> Sub) tuple
-    | Exp(exp) when looks_like_app(exp) => Some(exp)
+    | Exp(exp) when looks_like_app(exp) =>
+      Some({
+        exp,
+        ui: default_ui,
+      })
     | _ => None
     };
 
   let focusable = Focusable.non;
   let dynamics = false;
-  let placeholder = (_, _) => ProjectorCore.Shape.inline(10);
-  let update = (m, _, _) => m;
 
-  let view = ({model, info, parent, view_seg, _}: View.args(model, action)) => {
-    let current_model =
+  // Placeholder shape based on UI state
+  let placeholder = (m: model, _) => {
+    let width =
+      switch (m.ui.width) {
+      | Some(w) => w / 8 // Convert pixels to character units (approx)
+      | None => 10
+      };
+    ProjectorCore.Shape.inline(width);
+  };
+
+  // Update model based on actions
+  let update = (m: model, _, action: action) =>
+    switch (action) {
+    | SetWidth(w) => {
+        ...m,
+        ui: {
+          ...m.ui,
+          width: Some(w),
+        },
+      }
+    | SetHeight(h) => {
+        ...m,
+        ui: {
+          ...m.ui,
+          height: Some(h),
+        },
+      }
+    | StartResize(mode) => {
+        ...m,
+        ui: {
+          ...m.ui,
+          resizing: Some(mode),
+        },
+      }
+    | StopResize => {
+        ...m,
+        ui: {
+          ...m.ui,
+          resizing: None,
+        },
+      }
+    | ResetSize => {
+        ...m,
+        ui: default_ui,
+      }
+    };
+
+  let view =
+      ({model, info, parent, local, view_seg, _}: View.args(model, action)) => {
+    open Virtual_dom.Vdom;
+
+    // Get current expression from syntax or fall back to model
+    let current_exp =
       switch (info.syntax |> info.utility.seg_to_term) {
       | Some(Exp(term)) => term
-      | _ => model
+      | _ => model.exp
       };
 
-    let inject = (new_model: model) =>
-      parent(SetSyntax(Exp(new_model) |> info.utility.term_to_seg));
+    // Inject updates the underlying syntax (expression only)
+    let inject_exp = (new_exp: DHExp.t) =>
+      parent(SetSyntax(Exp(new_exp) |> info.utility.term_to_seg));
 
     // Check if model is an App type vs plain Html
     let (html_model, subscriptions) =
-      switch (detect_app(current_model)) {
+      switch (detect_app(current_exp)) {
       | Some((html, Some(init_cmd), Some(subs_fn))) =>
         // It's an App - run init_cmd and evaluate subscriptions
         let cmd_ctx: CmdRunner.context = {
           model: html,
-          inject,
+          inject: inject_exp,
         };
         let cmd_effect = CmdRunner.run(cmd_ctx, init_cmd);
         Bonsai.Effect.Expert.handle(cmd_effect);
@@ -166,12 +263,12 @@ module M: Projector = {
         (html, Some(subs));
       | _ =>
         // Plain Html - no subscriptions
-        (current_model, None)
+        (current_exp, None)
       };
 
     let seed: HazelDOM.t = {
       model: html_model,
-      inject,
+      inject: inject_exp,
       view_term: term =>
         Exp(term)
         |> info.utility.term_to_seg
@@ -179,6 +276,75 @@ module M: Projector = {
       projector_id: Some(info.id),
       subscriptions,
     };
-    View.mk(HazelDOM.go(seed));
+
+    // Build style string based on UI state
+    let size_style = {
+      let w =
+        switch (model.ui.width) {
+        | Some(w) => "width: " ++ string_of_int(w) ++ "px; "
+        | None => ""
+        };
+      let h =
+        switch (model.ui.height) {
+        | Some(h) => "height: " ++ string_of_int(h) ++ "px; "
+        | None => ""
+        };
+      w ++ h;
+    };
+
+    // Resize handle (right edge)
+    let resize_handle =
+      Node.div(
+        ~attrs=[
+          Attr.classes(["html-proj-resize-handle"]),
+          Attr.create(
+            "style",
+            "position: absolute; right: 0; top: 0; bottom: 0; width: 6px; cursor: ew-resize; background: transparent;",
+          ),
+          Attr.on_mousedown(_ => {local(StartResize(`Width))}),
+        ],
+        [],
+      );
+
+    // Main content with optional resize wrapper
+    let content = HazelDOM.go(seed);
+    let wrapped =
+      Node.div(
+        ~attrs=[
+          Attr.classes(["html-proj-wrapper"]),
+          Attr.create(
+            "style",
+            "position: relative; display: inline-block; " ++ size_style,
+          ),
+          // Stop resize on mouseup anywhere in the projector
+          Attr.on_mouseup(_ => local(StopResize)),
+          // Handle resize drag
+          Attr.on_mousemove(evt => {
+            switch (model.ui.resizing) {
+            | Some(`Width) =>
+              let rect =
+                Js_of_ocaml.Js.Unsafe.coerce(
+                  Js_of_ocaml.Dom_html.eventTarget(evt),
+                )##getBoundingClientRect();
+              let x = Js_of_ocaml.Js.Unsafe.coerce(evt)##.clientX;
+              let new_width = max(50, x - rect##.left);
+              local(SetWidth(new_width));
+            | Some(`Height) =>
+              let rect =
+                Js_of_ocaml.Js.Unsafe.coerce(
+                  Js_of_ocaml.Dom_html.eventTarget(evt),
+                )##getBoundingClientRect();
+              let y = Js_of_ocaml.Js.Unsafe.coerce(evt)##.clientY;
+              let new_height = max(30, y - rect##.top);
+              local(SetHeight(new_height));
+            | Some(`Both)
+            | None => Effect.Ignore
+            }
+          }),
+        ],
+        [content, resize_handle],
+      );
+
+    View.mk(wrapped);
   };
 };
