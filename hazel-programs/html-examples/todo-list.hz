@@ -1,0 +1,72 @@
+# HazelHtml Todo List Example #
+# A todo list with add/remove functionality #
+# To use: paste into scratchpad, right-click the expression, select "Add HTML" #
+
+# Helper: render a single todo item #
+let todo_item = (todos, index, item) =>
+  Li(
+    [Style([("padding", "8px"), ("border-bottom", "1px solid #eee"), ("display", "flex"), ("justify-content", "space-between")])],
+    [
+      Span([], [Text(item)]),
+      Button(
+        [
+          OnClick(fun html =>
+            # Remove this item by filtering #
+            let new_todos = filter(fun (i, _) => i != index, zip(range(0, length(todos)), todos)) in
+            let items = map(snd, new_todos) in
+            todo_list(items, "")
+          ),
+          Style([("background", "#ff4444"), ("color", "white"), ("border", "none"), ("padding", "4px 8px"), ("cursor", "pointer")])
+        ],
+        [Text("X")]
+      )
+    ]
+  )
+in
+
+# Main todo list view #
+let todo_list = (todos, input_value) =>
+  Div(
+    [Class("todo-app"), Style([("max-width", "400px"), ("margin", "20px auto"), ("font-family", "sans-serif")])],
+    [
+      H2([Style([("text-align", "center")])], [Text("Todo List")]),
+      # Input form #
+      Div(
+        [Style([("display", "flex"), ("margin-bottom", "20px")])],
+        [
+          Input([
+            Type("text"),
+            Value(input_value),
+            Placeholder("Add a todo..."),
+            OnInput(fun (html, value) => todo_list(todos, value)),
+            Style([("flex", "1"), ("padding", "8px"), ("font-size", "16px")])
+          ]),
+          Button(
+            [
+              OnClick(fun html =>
+                if input_value == "" then
+                  todo_list(todos, input_value)
+                else
+                  todo_list(todos @ [input_value], "")
+              ),
+              Style([("padding", "8px 16px"), ("background", "#4CAF50"), ("color", "white"), ("border", "none"), ("cursor", "pointer")])
+            ],
+            [Text("Add")]
+          )
+        ]
+      ),
+      # Todo items #
+      Ul(
+        [Style([("list-style", "none"), ("padding", "0"), ("margin", "0")])],
+        mapi(todo_item(todos), todos)
+      ),
+      # Item count #
+      Div(
+        [Style([("text-align", "center"), ("color", "#666"), ("margin-top", "10px")])],
+        [Text(string_of_int(length(todos)) ++ " items")]
+      )
+    ]
+  )
+in
+
+todo_list(["Learn Hazel", "Build an app"], "")

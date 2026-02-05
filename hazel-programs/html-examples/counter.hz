@@ -1,0 +1,37 @@
+# HazelHtml Counter Example #
+# A simple counter that increments/decrements on click #
+# To use: paste into scratchpad, right-click the expression, select "Add HTML" #
+
+let counter = n =>
+  Div(
+    [Class("counter"), Style([("text-align", "center"), ("padding", "20px")])],
+    [
+      H2([], [Text("Counter")]),
+      Div(
+        [Style([("font-size", "48px"), ("margin", "20px")])],
+        [Int(n)]
+      ),
+      Div(
+        [],
+        [
+          Button(
+            [
+              OnClick(fun html => counter(n - 1)),
+              Style([("font-size", "24px"), ("margin", "10px"), ("padding", "10px 20px")])
+            ],
+            [Text("-")]
+          ),
+          Button(
+            [
+              OnClick(fun html => counter(n + 1)),
+              Style([("font-size", "24px"), ("margin", "10px"), ("padding", "10px 20px")])
+            ],
+            [Text("+")]
+          )
+        ]
+      )
+    ]
+  )
+in
+
+counter(0)

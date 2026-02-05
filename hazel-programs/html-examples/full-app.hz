@@ -1,0 +1,175 @@
+# HazelHtml Full App Example #
+# A complete app demonstrating HTML, Cmd, and Sub integration #
+# Features: tabs, forms, commands (Focus, Delay), subscriptions #
+
+# Tab names #
+let tabs = ["Home", "Form", "About"] in
+
+# Main app view #
+let app_view = (active_tab, form_name, form_message, saved_message) =>
+  Div(
+    [
+      Id("app"),
+      Data("tab", active_tab),
+      Data("name", form_name),
+      Data("message", form_message),
+      Style([
+        ("max-width", "500px"),
+        ("margin", "20px auto"),
+        ("font-family", "Arial, sans-serif"),
+        ("border", "1px solid #ddd"),
+        ("border-radius", "8px"),
+        ("overflow", "hidden")
+      ])
+    ],
+    [
+      # Header with tabs #
+      Div(
+        [Style([("display", "flex"), ("background", "#333")])],
+        map(fun tab =>
+          Button(
+            [
+              OnClick(fun html => app_view(tab, form_name, form_message, saved_message)),
+              Style([
+                ("flex", "1"),
+                ("padding", "15px"),
+                ("border", "none"),
+                ("background", if tab == active_tab then "#4CAF50" else "#333"),
+                ("color", "white"),
+                ("cursor", "pointer"),
+                ("font-size", "14px")
+              ])
+            ],
+            [Text(tab)]
+          ),
+          tabs
+        )
+      ),
+      # Content area #
+      Div(
+        [Style([("padding", "20px"), ("min-height", "200px")])],
+        [
+          if active_tab == "Home" then
+            Div(
+              [],
+              [
+                H2([], [Text("Welcome to HazelHtml!")]),
+                P([], [Text("This is a demo app showing various features:")]),
+                Ul(
+                  [],
+                  [
+                    Li([], [Text("Tab navigation")]),
+                    Li([], [Text("Form handling with OnInput")]),
+                    Li([], [Text("Commands (Focus, Log)")]),
+                    Li([], [Text("Responsive styling")])
+                  ]
+                ),
+                if saved_message != "" then
+                  Div(
+                    [Style([("background", "#e8f5e9"), ("padding", "10px"), ("margin-top", "20px"), ("border-radius", "4px")])],
+                    [Text("Last saved: " ++ saved_message)]
+                  )
+                else
+                  Div([], [])
+              ]
+            )
+          else if active_tab == "Form" then
+            Div(
+              [],
+              [
+                H2([], [Text("Contact Form")]),
+                Div(
+                  [Style([("margin-bottom", "15px")])],
+                  [
+                    Label([Style([("display", "block"), ("margin-bottom", "5px")])], [Text("Name:")]),
+                    Input([
+                      Id("name-input"),
+                      Type("text"),
+                      Value(form_name),
+                      Placeholder("Enter your name"),
+                      OnInput(fun (html, value) => app_view(active_tab, value, form_message, saved_message)),
+                      Style([("width", "100%"), ("padding", "8px"), ("box-sizing", "border-box")])
+                    ])
+                  ]
+                ),
+                Div(
+                  [Style([("margin-bottom", "15px")])],
+                  [
+                    Label([Style([("display", "block"), ("margin-bottom", "5px")])], [Text("Message:")]),
+                    TextArea(
+                      [
+                        Value(form_message),
+                        Placeholder("Enter your message"),
+                        OnInput(fun (html, value) => app_view(active_tab, form_name, value, saved_message)),
+                        Style([("width", "100%"), ("padding", "8px"), ("height", "100px"), ("box-sizing", "border-box")])
+                      ],
+                      form_message
+                    )
+                  ]
+                ),
+                Button(
+                  [
+                    # OnClick returns (HTML, Cmd) to demonstrate command execution #
+                    OnClick(fun html =>
+                      let new_saved = form_name ++ ": " ++ form_message in
+                      (app_view(active_tab, "", "", new_saved), CmdBatch([
+                        Log("Form submitted: " ++ new_saved),
+                        Focus("name-input")
+                      ]))
+                    ),
+                    Style([
+                      ("background", "#4CAF50"),
+                      ("color", "white"),
+                      ("padding", "10px 20px"),
+                      ("border", "none"),
+                      ("cursor", "pointer"),
+                      ("border-radius", "4px")
+                    ])
+                  ],
+                  [Text("Submit")]
+                )
+              ]
+            )
+          else
+            Div(
+              [],
+              [
+                H2([], [Text("About HazelHtml")]),
+                P([], [Text("HazelHtml is a web app library for Hazel.")]),
+                P([], [Text("It provides:")]),
+                Ul(
+                  [],
+                  [
+                    Li([], [Text("HTML element types (Div, Button, Input, etc.)")]),
+                    Li([], [Text("Attribute types (Class, Style, OnClick, etc.)")]),
+                    Li([], [Text("Command types (Focus, ScrollTo, Delay, etc.)")]),
+                    Li([], [Text("Subscription types (OnResize, Every, AnimationFrame, etc.)")])
+                  ]
+                ),
+                P([], [Text("The architecture follows an Elm-inspired pattern adapted for Hazel.")])
+              ]
+            )
+        ]
+      ),
+      # Footer #
+      Div(
+        [Style([("background", "#f5f5f5"), ("padding", "10px"), ("text-align", "center"), ("color", "#666"), ("font-size", "12px")])],
+        [Text("Built with HazelHtml")]
+      )
+    ]
+  )
+in
+
+# Subscriptions - respond to window resize #
+let subscriptions = html =>
+  OnResize(fun (h, width, height) =>
+    # Could adjust layout based on width/height #
+    h
+  )
+in
+
+# Initial state #
+let init_html = app_view("Home", "", "", "") in
+
+# The App tuple #
+((init_html, Focus("name-input")), subscriptions)

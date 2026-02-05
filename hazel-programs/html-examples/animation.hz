@@ -1,0 +1,102 @@
+# HazelHtml Animation Example #
+# A bouncing ball animation using AnimationFrame subscription #
+
+# Ball state: (x, y, vx, vy) encoded in HTML #
+let ball_view = (x, y, vx, vy) =>
+  Div(
+    [
+      Id("animation"),
+      Data("x", string_of_float(x)),
+      Data("y", string_of_float(y)),
+      Data("vx", string_of_float(vx)),
+      Data("vy", string_of_float(vy)),
+      Style([
+        ("width", "400px"),
+        ("height", "300px"),
+        ("position", "relative"),
+        ("background", "linear-gradient(to bottom, #87CEEB, #4169E1)"),
+        ("border", "2px solid #333"),
+        ("margin", "20px auto"),
+        ("overflow", "hidden")
+      ])
+    ],
+    [
+      # The ball #
+      Div(
+        [Style([
+          ("width", "30px"),
+          ("height", "30px"),
+          ("background", "radial-gradient(circle at 30% 30%, #ff6666, #cc0000)"),
+          ("position", "absolute"),
+          ("left", string_of_float(x) ++ "px"),
+          ("top", string_of_float(y) ++ "px"),
+          ("border-radius", "50%"),
+          ("box-shadow", "2px 2px 8px rgba(0,0,0,0.3)")
+        ])],
+        []
+      ),
+      # Ground #
+      Div(
+        [Style([
+          ("position", "absolute"),
+          ("bottom", "0"),
+          ("left", "0"),
+          ("right", "0"),
+          ("height", "40px"),
+          ("background", "#228B22")
+        ])],
+        []
+      ),
+      # Info #
+      Div(
+        [Style([("position", "absolute"), ("top", "10px"), ("left", "10px"), ("color", "white"), ("font-size", "12px")])],
+        [Text("Velocity: (" ++ string_of_float(vx) ++ ", " ++ string_of_float(vy) ++ ")")]
+      )
+    ]
+  )
+in
+
+# Physics constants #
+let gravity = 0.3 in
+let bounce = 0.8 in
+let friction = 0.99 in
+
+# Update function for animation frame #
+let update_ball = (html, timestamp) =>
+  # In real implementation, extract state from html #
+  # For demo, use hardcoded initial values #
+  let x = 50.0 in
+  let y = 50.0 in
+  let vx = 2.0 in
+  let vy = 0.0 in
+
+  # Apply physics #
+  let new_vy = vy + gravity in
+  let new_x = x + vx in
+  let new_y = y + new_vy in
+
+  # Bounce off walls #
+  let (final_x, final_vx) =
+    if new_x < 0.0 then (0.0, 0.0 - vx * bounce)
+    else if new_x > 370.0 then (370.0, 0.0 - vx * bounce)
+    else (new_x, vx * friction)
+  in
+
+  # Bounce off floor #
+  let (final_y, final_vy) =
+    if new_y > 230.0 then (230.0, 0.0 - new_vy * bounce)
+    else (new_y, new_vy)
+  in
+
+  ball_view(final_x, final_y, final_vx, final_vy)
+in
+
+# Subscriptions - request animation frames #
+let subscriptions = html =>
+  AnimationFrame(update_ball)
+in
+
+# Initial state #
+let init_html = ball_view(50.0, 50.0, 3.0, 0.0) in
+
+((init_html, CmdNone), subscriptions)
