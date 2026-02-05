@@ -35,6 +35,7 @@ type cls =
   | Filter
   | Closure
   | Parens
+  | Projector
   | Cons
   | UnOp(Operators.op_un)
   | BinOp(Operators.op_bin)
@@ -115,6 +116,7 @@ let cls_of_term: type a. Grammar.exp_term(a) => cls =
   | Filter(_) => Filter
   | Closure(_) => Closure
   | Parens(_) => Parens
+  | Projector(_) => Projector
   | Cons(_) => Cons
   | ListConcat(_) => ListConcat
   | UnOp(op, _) => UnOp(op)
@@ -174,6 +176,7 @@ let show_cls: cls => string =
   | Match => "Case expression"
   | LivelitName => "Livelit name"
   | LivelitAp => "Livelit application"
+  | Projector => "Projector"
   | Asc => "Type ascription expression";
 
 let rec match_tup_label: t => option((LabeledTuple.label, t)) = {
@@ -199,7 +202,8 @@ let get_label: t => option(LabeledTuple.label) = {
 // determine when to allow for recursive definitions in a let binding.
 let rec is_fun = (e: t) => {
   switch (e.term) {
-  | Parens(e) => is_fun(e)
+  | Parens(e)
+  | Projector(_, e) => is_fun(e)
   | Asc(e, _) => is_fun(e)
   | TypFun(_)
   | Fun(_)
@@ -266,6 +270,7 @@ let rec is_tuple_of_functions = (e: t) =>
     switch (e.term) {
     | Asc(e, _)
     | Parens(e)
+    | Projector(_, e)
     | TupLabel(_, e) => is_tuple_of_functions(e)
     | Tuple(es) => es |> List.for_all(is_fun)
     | Dot(e1, e2) =>
@@ -344,6 +349,7 @@ let rec get_num_of_functions = (e: t) =>
   } else {
     switch (e.term) {
     | Parens(e)
+    | Projector(_, e)
     | TupLabel(_, e)
     | Dot(e, _) => get_num_of_functions(e)
     | Tuple(es) => is_tuple_of_functions(e) ? Some(List.length(es)) : None
