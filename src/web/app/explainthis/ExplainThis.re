@@ -2179,6 +2179,7 @@ let get_doc =
             ),
           TerminalExp.ctr(v),
         )
+      | Module(_) => simple("Module expression")
       };
     get_message_exp(term.term);
   | Some(InfoPat({term, _})) =>

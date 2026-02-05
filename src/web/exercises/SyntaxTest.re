@@ -137,6 +137,7 @@ let rec find_fn = (name: string, uexp: Exp.t, l: list(Exp.t)): list(Exp.t) => {
   | Constructor(_)
   | Undefined
   | BuiltinFun(_)
+  | Module(_)
   | Var(_) => l
   };
 };
@@ -187,6 +188,7 @@ let rec var_mention = (name: string, uexp: Exp.t): bool => {
   | Constructor(_)
   | Undefined
   | LivelitName(_)
+  | Module(_)
   | Deferral(_) => false
   | Fun(args, body, _, _) =>
     var_mention_upat(name, args) ? false : var_mention(name, body)
@@ -258,6 +260,7 @@ let rec var_applied = (name: string, uexp: Exp.t): bool => {
   | Constructor(_)
   | Undefined
   | LivelitName(_)
+  | Module(_)
   | Deferral(_) => false
   | Fun(args, body, _, _)
   | FixF(args, body, _) =>
@@ -359,6 +362,7 @@ let rec tail_check = (name: string, uexp: Exp.t): bool => {
   | Undefined
   | Var(_)
   | LivelitName(_)
+  | Module(_)
   | BuiltinFun(_) => true
   | FixF(args, body, _)
   | Fun(args, body, _, _) =>

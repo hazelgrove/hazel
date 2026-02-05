@@ -102,6 +102,11 @@ let let_ = 45;
 /* Rules looser than commas so can do `case a,b | _ => ... */
 let rule_sep = 46;
 
+/* Module-level semicolon: looser than let/type so that
+   `let x = 1; let y = 2` parses as two separate module items,
+   not as `let x = (1; let y = 2)` */
+let mod_seq = 47;
+
 let min = 48;
 
 let compare = (p1: t, p2: t): int =>

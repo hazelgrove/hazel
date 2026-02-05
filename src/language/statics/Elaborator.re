@@ -454,6 +454,8 @@ let rec elaborate = (m: Statics.Map.t, uexp: Exp.t): (DHExp.t, Typ.t) => {
           es,
         );
       Match(e', List.combine(ps', es')) |> rewrap;
+    // TODO (Phase 1.3): Implement module expansion in elaborator
+    | Module(_) => uexp
     };
   (dhexp, elaborated_type);
 };

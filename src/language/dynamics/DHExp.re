@@ -118,7 +118,8 @@ let ty_subst = (s: Typ.t, tpat: TPat.t, exp: t): t => {
           | Use(_)
           | DeferredAp(_)
           | Parens(_)
-          | UnOp(_) => continue(exp)
+          | UnOp(_)
+          | Module(_) => continue(exp)
           },
       exp,
     )
@@ -218,6 +219,7 @@ let rec ty_comparable = (d1, d2) => {
     Typ.is_consistent(Ctx.empty_post_elaboration, t1, t2) && !Typ.has_fun(t1)
   | (Constructor(_), _) => false
   | (Ap(_), _) => false
+  | (Module(_), _) => false
   };
 };
 
@@ -316,5 +318,6 @@ let rec poly_equal = (d1, d2): option(bool) => {
   | (Ap(_, {term: Constructor(_), _}, _), Constructor(_)) => Some(false)
   | (Ap(_), _) => None
   | (Constructor(_), _) => None
+  | (Module(_), _) => None
   };
 };

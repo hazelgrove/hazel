@@ -59,6 +59,27 @@ let is_tuple_exp = is_nary(Any.is_exp, ",");
 let is_tuple_pat = is_nary(Any.is_pat, ",");
 let is_tuple_typ = is_nary(Any.is_typ, ",");
 let is_typ_bsum = is_nary(Any.is_typ, "+");
+let is_mod_seq = is_nary(Any.is_mod, ";");
+
+/* Flatten a module term into a list of module items.
+   Module sequences (from semicolons) are stored as MultiHole([Mod(m1), Mod(m2)])
+   during parsing and need to be flattened into a proper list for Module(items). */
+let rec flatten_mod = (m: TermBase.Mod.t): list(TermBase.Mod.t) =>
+  switch (m.term) {
+  | MultiHole(kids) =>
+    kids
+    |> List.filter_map(
+         fun
+         | Grammar.Mod(m) => Some(flatten_mod(m))
+         | _ => None,
+       )
+    |> List.flatten
+  | ModLet(_, _)
+  | ModType(_, _)
+  | ModExp(_)
+  | EmptyHole
+  | Invalid(_) => [m]
+  };
 
 let is_grout = tiles =>
   Aba.get_as(tiles) |> List.map(snd) |> List.for_all((==)(([" "], [])));
@@ -254,6 +275,7 @@ let rec go_s = (s: Sort.t, skel: Skel.t, seg: Segment.t): Any.t =>
   | Typ => Typ(typ(unsorted(Typ, skel, seg)))
   | Exp => Exp(exp(unsorted(Exp, skel, seg)))
   | Rul => Rul(rul(unsorted(Rul, skel, seg)))
+  | Mod => Mod(mod_(unsorted(Mod, skel, seg))) /* Phase 1.2: proper module parsing */
   | Any =>
     let sort = Segment.sort_of(skel, seg);
     if (sort == Any) {
@@ -304,6 +326,9 @@ and exp_term: unsorted => (Exp.term, list(Id.t)) = {
         ret(LivelitName(Token.parse_livelit(t)))
       | ([t], []) when Token.is_var(t) => ret(Var(t))
       | ([t], []) when Token.is_ctr(t) => ret(Constructor(t, None))
+      | (["{", "}"], [Mod(body)]) =>
+        /* ModBody: flatten module sequence into Module(items) */
+        ret(Module(flatten_mod(body)))
       | (["{", "}"], [Exp(body)])
       | (["(", ")"], [Exp(body)]) => ret(Parens(body))
       | (["PROJ_WRAP", "PROJ_WRAP"], [Exp(body)]) => ret(body.term)
@@ -853,6 +878,56 @@ and tpat_term: unsorted => TPat.term = {
   | (Pre(_) | Post(_)) as tm => ret(hole(tm))
   | tm => ret(hole(tm));
 }
+/* Phase 1.2: Module parsing - placeholder implementation */
+and mod_ = unsorted => {
+  let term = mod_term(unsorted);
+  let ids = ids(unsorted);
+  return(m => Mod(m), ids, IdTagged.mk(ids, get_secondary(ids), term));
+}
+and mod_term: unsorted => TermBase.Mod.term = {
+  let ret = (term: TermBase.Mod.term) => term;
+  let hole = unsorted => Mod.hole(kids_of_unsorted(unsorted));
+  fun
+  | Op(tiles) as tm =>
+    switch (tiles) {
+    | ([(_id, tile)], []) =>
+      switch (tile) {
+      | ([t], []) when is_hole_label(t) => ret(hole(tm))
+      | _ =>
+        /* Try parsing as expression and wrap as ModExp */
+        let e = exp(Op(tiles));
+        switch (e.term) {
+        | EmptyHole
+        | MultiHole(_)
+        | Invalid(_) => ret(hole(tm))
+        | _ => ret(ModExp(e))
+        };
+      }
+    | _ => ret(hole(tm))
+    }
+  /* ModSeq: semicolon-separated module items */
+  | Bin(Mod(m1), tiles, Mod(m2)) =>
+    switch (tiles) {
+    | ([(_id, ([";"], []))], []) =>
+      /* For now, sequence produces a multihole - will be refined in Phase 1.2 */
+      ret(MultiHole([Mod(m1), Mod(m2)]))
+    | _ => ret(hole(Bin(Mod(m1), tiles, Mod(m2))))
+    }
+  /* ModLet: let p = e - the pattern is inside the tile, expression is the body */
+  | Pre(([(_id, (["let", "="], [Pat(p)]))], []), Exp(e)) =>
+    ret(ModLet(p, e))
+  /* ModType: type t = T - the tpat is inside the tile, type is the body */
+  | Pre(([(_id, (["type", "="], [TPat(tp)]))], []), Typ(ty)) =>
+    ret(ModType(tp, ty))
+  /* Expression-level structures (binary ops, prefix, postfix) - wrap as ModExp */
+  | Bin(Exp(_), _, Exp(_)) as tm =>
+    ret(ModExp(exp(tm)))
+  | Pre(_, Exp(_)) as tm =>
+    ret(ModExp(exp(tm)))
+  | Post(Exp(_), _) as tm =>
+    ret(ModExp(exp(tm)))
+  | (Pre(_) | Post(_) | Bin(_)) as tm => ret(hole(tm));
+}
 
 and rul = (unsorted): Rul.t => {
   let e = exp(unsorted);
@@ -1038,6 +1113,7 @@ let for_projection =
         /* Rul case below prevents returning pseudo-terms
          * consisting of case scrutinee + rule(s) */
         | Rul => None
+        | Mod => Some(Mod(mod_(unsorted)))
         | Any => Some(Any()) /* grout */
         };
       };

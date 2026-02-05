@@ -157,6 +157,7 @@ let rec external_precedence = (exp: Exp.t): Precedence.t => {
 
   // Matt: I think multiholes are min because we don't know the precedence of the `⟩?⟨`s
   | MultiHole(_) => Precedence.min
+  | Module(_) => Precedence.min
   };
 };
 
@@ -563,6 +564,7 @@ let rec parenthesize =
       List.map(parenthesize_any(~parenthesization, ~show_filters), xs),
     )
     |> rewrap
+  | Module(_) => exp /* Phase 1.2: proper module parenthesization */
   };
 }
 and parenthesize_pat =
@@ -849,6 +851,7 @@ and parenthesize_any =
     )
   | TPat(tp) => TPat(parenthesize_tpat(~parenthesization, ~show_filters, tp))
   | Rul(r) => Rul(parenthesize_rul(~parenthesization, ~show_filters, r))
+  | Mod(_) => any /* Phase 1.2: proper module parenthesization */
   | Any(_) => any
   };
 
@@ -1583,6 +1586,9 @@ let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
         ),
       ],
     );
+  | Module(_) =>
+    /* Phase 1.2: proper module pretty printing */
+    wrap(exp, text_to_pretty(exp |> Exp.rep_id, Sort.Exp, "{ ... }"))
   // TODO: Add newlines
   };
 }
@@ -2036,9 +2042,10 @@ and any_to_pretty = (~settings: Settings.t, any: Any.t): pretty => {
   | Pat(p) => pat_to_pretty(~settings: Settings.t, p)
   | Typ(t) => typ_to_pretty(~settings: Settings.t, t)
   | TPat(tp) => tpat_to_pretty(~settings: Settings.t, tp)
+  | Mod(_)
   | Any(_)
   | Rul(_) =>
-    //TODO: print out invalid rules properly
+    //TODO: print out invalid rules/modules properly
     let id = any |> Any.rep_id;
     p_just([
       Grout({

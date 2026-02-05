@@ -63,6 +63,10 @@ type rul_t = Grammar.rul_t(IdTagged.IdTag.t);
 [@deriving (show({with_path: false}), sexp, yojson)]
 type rul_term = Grammar.rul_term(IdTagged.IdTag.t);
 [@deriving (show({with_path: false}), sexp, yojson)]
+type mod_t = Grammar.mod_t(IdTagged.IdTag.t);
+[@deriving (show({with_path: false}), sexp, yojson)]
+type mod_term = Grammar.mod_term(IdTagged.IdTag.t);
+[@deriving (show({with_path: false}), sexp, yojson)]
 type stepper_filter_kind_t = Grammar.stepper_filter_kind_t(IdTagged.IdTag.t);
 [@deriving (show({with_path: false}), sexp, yojson)]
 type type_hole = Grammar.type_hole(IdTagged.IdTag.t);
@@ -116,6 +120,8 @@ module rec Any: {
         )
       | Rul(x) =>
         Rul(Rul.map_term(~f_exp, ~f_pat, ~f_typ, ~f_tpat, ~f_rul, ~f_any, x))
+      | Mod(x) =>
+        Mod(Mod.map_term(~f_exp, ~f_pat, ~f_typ, ~f_tpat, ~f_rul, ~f_any, x))
       | Any () => Any()
       };
     x |> f_any(rec_call);
@@ -245,6 +251,13 @@ and Exp: {
             ),
           )
         | Asc(e, t) => Asc(exp_map_term(e), typ_map_term(t))
+        | Module(items) =>
+          Module(
+            List.map(
+              Mod.map_term(~f_exp, ~f_pat, ~f_typ, ~f_tpat, ~f_rul, ~f_any),
+              items,
+            ),
+          )
         },
     };
     x |> f_exp(rec_call);
@@ -535,6 +548,64 @@ and Rul: {
         },
     };
     x |> f_rul(rec_call);
+  };
+}
+and Mod: {
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type term = mod_term;
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type t = mod_t;
+
+  let map_term:
+    (
+      ~f_exp: (Exp.t => Exp.t, Exp.t) => Exp.t=?,
+      ~f_pat: (Pat.t => Pat.t, Pat.t) => Pat.t=?,
+      ~f_typ: (Typ.t => Typ.t, Typ.t) => Typ.t=?,
+      ~f_tpat: (TPat.t => TPat.t, TPat.t) => TPat.t=?,
+      ~f_rul: (Rul.t => Rul.t, Rul.t) => Rul.t=?,
+      ~f_any: (Any.t => Any.t, Any.t) => Any.t=?,
+      t
+    ) =>
+    t;
+} = {
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type term = mod_term;
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type t = mod_t;
+
+  let map_term =
+      (
+        ~f_exp=continue,
+        ~f_pat=continue,
+        ~f_typ=continue,
+        ~f_tpat=continue,
+        ~f_rul=continue,
+        ~f_any=continue,
+        x,
+      ) => {
+    let exp_map_term =
+      Exp.map_term(~f_exp, ~f_pat, ~f_typ, ~f_tpat, ~f_rul, ~f_any);
+    let pat_map_term =
+      Pat.map_term(~f_exp, ~f_pat, ~f_typ, ~f_tpat, ~f_rul, ~f_any);
+    let typ_map_term =
+      Typ.map_term(~f_exp, ~f_pat, ~f_typ, ~f_tpat, ~f_rul, ~f_any);
+    let tpat_map_term =
+      TPat.map_term(~f_exp, ~f_pat, ~f_typ, ~f_tpat, ~f_rul, ~f_any);
+    let any_map_term =
+      Any.map_term(~f_exp, ~f_pat, ~f_typ, ~f_tpat, ~f_rul, ~f_any);
+    let rec_call = ({term, _} as m: t) => {
+      ...m,
+      term:
+        switch (term) {
+        | EmptyHole
+        | Invalid(_) => term
+        | MultiHole(things) => MultiHole(List.map(any_map_term, things))
+        | ModLet(p, e) => ModLet(pat_map_term(p), exp_map_term(e))
+        | ModType(tp, t) => ModType(tpat_map_term(tp), typ_map_term(t))
+        | ModExp(e) => ModExp(exp_map_term(e))
+        },
+    };
+    x |> rec_call;
   };
 }
 

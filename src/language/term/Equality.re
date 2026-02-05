@@ -33,6 +33,7 @@ type equality = {
   typ: (Typ.t, Typ.t) => bool,
   tpat: (TPat.t, TPat.t) => bool,
   rul: (Rul.t, Rul.t) => bool,
+  mod_: (TermBase.Mod.t, TermBase.Mod.t) => bool,
   any: (Any.t, Any.t) => bool,
 };
 
@@ -121,6 +122,7 @@ let equality =
     let typ' = typ(alphas_exp, alphas_typ);
     let filter' = filter(alphas_exp, alphas_typ);
     let any' = any(alphas_exp, alphas_typ);
+    let mod' = mod_(alphas_exp, alphas_typ);
     switch (e1 |> Grammar.Annotated.term_of, e2 |> Grammar.Annotated.term_of) {
     // Wrappers when ignored: unwrap. These cases must come first.
     | (DynamicErrorHole(x, _), _) when ignore_dynamic_errors => exp'(x, e2)
@@ -397,6 +399,41 @@ let equality =
     | (ListConcat(_, _), _) => false
     | (ProofObject(e1), ProofObject(e2)) => exp'(e1, e2)
     | (ProofObject(_), _) => false
+    | (Module(items1), Module(items2)) =>
+      List.length(items1) == List.length(items2)
+      && List.for_all2(mod', items1, items2)
+    | (Module(_), _) => false
+    };
+  }
+  and mod_ =
+      (
+        alphas_exp: Alphas.t,
+        alphas_typ: Alphas.t,
+        m1: TermBase.Mod.t,
+        m2: TermBase.Mod.t,
+      )
+      : bool => {
+    let exp' = exp(alphas_exp, alphas_typ);
+    let pat' = (p1, p2) =>
+      Option.is_some(pat(alphas_exp, alphas_typ, p1, p2));
+    let typ' = typ(alphas_exp, alphas_typ);
+    let tpat' = (tp1, tp2) => Option.is_some(tpat(tp1, tp2));
+    let any' = any(alphas_exp, alphas_typ);
+    switch (m1 |> Grammar.Annotated.term_of, m2 |> Grammar.Annotated.term_of) {
+    | (EmptyHole, EmptyHole) => true
+    | (EmptyHole, _) => false
+    | (Invalid(s1), Invalid(s2)) => s1 == s2
+    | (Invalid(_), _) => false
+    | (MultiHole(xs1), MultiHole(xs2)) =>
+      List.length(xs1) == List.length(xs2) && List.for_all2(any', xs1, xs2)
+    | (MultiHole(_), _) => false
+    | (ModLet(p1, e1), ModLet(p2, e2)) => pat'(p1, p2) && exp'(e1, e2)
+    | (ModLet(_, _), _) => false
+    | (ModType(tp1, t1), ModType(tp2, t2)) =>
+      tpat'(tp1, tp2) && typ'(t1, t2)
+    | (ModType(_, _), _) => false
+    | (ModExp(e1), ModExp(e2)) => exp'(e1, e2)
+    | (ModExp(_), _) => false
     };
   }
   and pat =
@@ -695,6 +732,8 @@ let equality =
     | (Rul(_), _) => false
     | (TPat(tp1), TPat(tp2)) => tpat(tp1, tp2) |> Option.is_some
     | (TPat(_), _) => false
+    | (Mod(m1), Mod(m2)) => mod_(alphas_exp, alphas_typ, m1, m2)
+    | (Mod(_), _) => false
     | (Any (), Any ()) => true
     | (Any (), _) => false
     };
@@ -707,6 +746,7 @@ let equality =
     typ: typ(Alphas.empty, Alphas.empty),
     tpat: (tp1, tp2) => tpat(tp1, tp2) |> Option.is_some,
     rul: rul(Alphas.empty, Alphas.empty),
+    mod_: (m1, m2) => mod_(Alphas.empty, Alphas.empty, m1, m2),
     any: any(Alphas.empty, Alphas.empty),
   };
 };

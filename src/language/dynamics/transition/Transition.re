@@ -994,6 +994,10 @@ module Transition = (EV: EV_MODE) => {
         kind: CompleteFilter,
         is_value: true,
       });
+    // Modules should be expanded before reaching dynamics (Phase 1.3)
+    | Module(_) =>
+      let. _ = otherwise(env, d);
+      Indet;
     };
   };
 };

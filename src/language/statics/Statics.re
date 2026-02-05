@@ -90,6 +90,24 @@ let rec any_to_info_map =
       (CoCtx.union(co_ctxs), m);
     | Invalid(_) => (CoCtx.empty, m)
     }
+  | Mod(m_term) =>
+    // TODO (Phase 1.3): Implement proper module type checking
+    switch (m_term.term) {
+    | Invalid(_)
+    | EmptyHole => (CoCtx.empty, m)
+    | MultiHole(tms) =>
+      let (co_ctxs, m) = multi(~ctx, ~ancestors, m, tms);
+      (CoCtx.union(co_ctxs), m);
+    | ModLet(p, e) =>
+      let (co_ctx_e, m) = any_to_info_map(~ctx, ~ancestors, Exp(e), m);
+      let (_, m) = any_to_info_map(~ctx, ~ancestors, Pat(p), m);
+      (co_ctx_e, m);
+    | ModType(tp, t) =>
+      let (_, m) = any_to_info_map(~ctx, ~ancestors, TPat(tp), m);
+      let (_, m) = any_to_info_map(~ctx, ~ancestors, Typ(t), m);
+      (CoCtx.empty, m);
+    | ModExp(e) => any_to_info_map(~ctx, ~ancestors, Exp(e), m)
+    }
   | Any () => (CoCtx.empty, m)
   }
 and multi = (~ctx, ~ancestors, m, tms): (list(CoCtx.t), Map.t) =>
@@ -1367,6 +1385,24 @@ and uexp_to_info_map =
           })
         };
       add'(~self, ~co_ctx=body.co_ctx, m);
+    // TODO (Phase 1.3): Implement proper module expansion
+    | Module(items) =>
+      // For now, just type-check the items and return unit type
+      let (co_ctxs, m) =
+        List.fold_left(
+          ((co_ctxs, m), item) => {
+            let (co_ctx, m) =
+              any_to_info_map(~ctx, ~ancestors, Mod(item), m);
+            (co_ctxs @ [co_ctx], m);
+          },
+          ([], m),
+          items,
+        );
+      add(
+        ~self=Just(Prod([]) |> Typ.temp), // Empty tuple for now
+        ~co_ctx=CoCtx.union(co_ctxs),
+        m,
+      );
     };
   };
 
