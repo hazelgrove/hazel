@@ -969,6 +969,15 @@ module Transition = (EV: EV_MODE) => {
         kind: RemoveParens,
         is_value: false,
       });
+    /* TODO: May want a distinct RemoveProjector step kind later for stepper clarity */
+    | Projector(_, d') =>
+      let. _ = otherwise(env, d);
+      Step({
+        expr: d',
+        side_effects: [],
+        kind: RemoveParens,
+        is_value: false,
+      });
     | TyAlias(_, _, d) =>
       let. _ = otherwise(env, d);
       Step({
