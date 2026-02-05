@@ -125,6 +125,36 @@ let evaluate = exp =>
     ),
   );
 
+// Error boundary: wrap evaluate to catch exceptions and return error Html
+let safe_evaluate = (exp: DHExp.t): result(DHExp.t, string) =>
+  try(Ok(evaluate(exp))) {
+  | exn => Error(Printexc.to_string(exn))
+  };
+
+// Create an error display Html node
+let error_html = (msg: string): DHExp.t =>
+  Exp.ap(
+    Forward,
+    Exp.constructor("Div", None),
+    Exp.tuple([
+      Exp.list_lit([
+        Exp.ap(
+          Forward,
+          Exp.constructor("Style", None),
+          Exp.list_lit([
+            Exp.tuple([Exp.string("color"), Exp.string("red")]),
+            Exp.tuple([Exp.string("padding"), Exp.string("8px")]),
+            Exp.tuple([Exp.string("border"), Exp.string("1px solid red")]),
+            Exp.tuple([Exp.string("background"), Exp.string("#fee")]),
+          ]),
+        ),
+      ]),
+      Exp.list_lit([
+        Exp.ap(Forward, Exp.constructor("Text", None), Exp.string(msg)),
+      ]),
+    ]),
+  );
+
 // === Event handlers ===
 
 // Process handler result: either Html or (Html, Cmd)
@@ -163,17 +193,26 @@ let process_handler_result = (mvu: t, result: DHExp.t): Ui_effect.t(unit) => {
 
 // Simple event: Html -> Html or Html -> (Html, Cmd)
 let on_ = (mvu: t, handler, _evt) => {
-  let result = evaluate(Exp.ap(Forward, handler, mvu.model));
-  process_handler_result(mvu, result);
+  switch (safe_evaluate(Exp.ap(Forward, handler, mvu.model))) {
+  | Ok(result) => process_handler_result(mvu, result)
+  | Error(msg) =>
+    let err = error_html("Event handler error: " ++ msg);
+    Effect.Many([Effect.Stop_propagation, mvu.inject(err)]);
+  };
 };
 
 // Input/change event: (Html, String) -> Html or (Html, String) -> (Html, Cmd)
 let on_input = (mvu: t, handler, _evt, arg) => {
-  let result =
-    evaluate(
+  switch (
+    safe_evaluate(
       Exp.ap(Forward, handler, Exp.tuple([mvu.model, Exp.string(arg)])),
-    );
-  process_handler_result(mvu, result);
+    )
+  ) {
+  | Ok(result) => process_handler_result(mvu, result)
+  | Error(msg) =>
+    let err = error_html("Input handler error: " ++ msg);
+    Effect.Many([Effect.Stop_propagation, mvu.inject(err)]);
+  };
 };
 
 // Mouse event: (Html, MouseEvent) -> Html or -> (Html, Cmd)
@@ -189,9 +228,16 @@ let on_mouse = (mvu: t, handler, evt) => {
       Exp.bool(Js_of_ocaml.Js.to_bool(evt##.altKey)),
       Exp.bool(Js_of_ocaml.Js.to_bool(evt##.metaKey)),
     ]);
-  let result =
-    evaluate(Exp.ap(Forward, handler, Exp.tuple([mvu.model, mouse_event])));
-  process_handler_result(mvu, result);
+  switch (
+    safe_evaluate(
+      Exp.ap(Forward, handler, Exp.tuple([mvu.model, mouse_event])),
+    )
+  ) {
+  | Ok(result) => process_handler_result(mvu, result)
+  | Error(msg) =>
+    let err = error_html("Mouse handler error: " ++ msg);
+    Effect.Many([Effect.Stop_propagation, mvu.inject(err)]);
+  };
 };
 
 // Keyboard event: (Html, KeyEvent) -> Html or -> (Html, Cmd)
@@ -211,9 +257,16 @@ let on_key = (mvu: t, handler, evt) => {
       Exp.bool(Js.to_bool(evt##.altKey)),
       Exp.bool(Js.to_bool(evt##.metaKey)),
     ]);
-  let result =
-    evaluate(Exp.ap(Forward, handler, Exp.tuple([mvu.model, key_event])));
-  process_handler_result(mvu, result);
+  switch (
+    safe_evaluate(
+      Exp.ap(Forward, handler, Exp.tuple([mvu.model, key_event])),
+    )
+  ) {
+  | Ok(result) => process_handler_result(mvu, result)
+  | Error(msg) =>
+    let err = error_html("Keyboard handler error: " ++ msg);
+    Effect.Many([Effect.Stop_propagation, mvu.inject(err)]);
+  };
 };
 
 // === Attribute rendering ===

@@ -80,15 +80,27 @@ let evaluate = exp =>
     ),
   );
 
+// Error boundary: wrap evaluate to catch exceptions
+let safe_evaluate = (exp: DHExp.t): result(DHExp.t, string) =>
+  try(Ok(evaluate(exp))) {
+  | exn => Error(Printexc.to_string(exn))
+  };
+
 // Apply a handler with the current model and additional args
+// With error boundary - logs errors instead of crashing
 let apply_handler = (ctx: context, handler: DHExp.t, args: list(DHExp.t)) => {
   let arg_exp =
     switch (args) {
     | [] => ctx.model
     | _ => Exp.tuple([ctx.model, ...args])
     };
-  let new_model = evaluate(Exp.ap(Forward, handler, arg_exp));
-  Bonsai.Effect.Expert.handle(ctx.inject(new_model));
+  switch (safe_evaluate(Exp.ap(Forward, handler, arg_exp))) {
+  | Ok(new_model) => Bonsai.Effect.Expert.handle(ctx.inject(new_model))
+  | Error(msg) =>
+    Js_of_ocaml.Firebug.console##error(
+      Js_of_ocaml.Js.string("Subscription handler error: " ++ msg),
+    )
+  };
 };
 
 // Build a KeyEvent tuple from a JS keyboard event
