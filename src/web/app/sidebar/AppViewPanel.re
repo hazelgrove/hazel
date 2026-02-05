@@ -4,8 +4,53 @@ open Util.WebUtil;
 open Util;
 open Haz3lcore;
 open Language;
+open IdTagged.FreshGrammar;
 
 // App View sidebar panel - renders HTML evaluation results
+
+// Evaluate a Hazel expression
+let evaluate = exp =>
+  fst(
+    Evaluator.evaluate(
+      ~env=Builtins.env_init,
+      fst(
+        Elaborator.elaborate(
+          Statics.mk(CoreSettings.on, Builtins.ctx_init(Some(Int)), exp),
+          exp,
+        ),
+      ),
+    ),
+  );
+
+// Detect if expression is an App type: ((HTML, Cmd), HTML -> Sub)
+// Returns Some((html_model, init_cmd, subscriptions_fn)) or None
+let detect_app =
+    (exp: DHExp.t): option((DHExp.t, option(DHExp.t), option(DHExp.t))) => {
+  switch (exp.term) {
+  | Tuple([init, subs_fn])
+  | Parens({term: Tuple([init, subs_fn]), _}) =>
+    switch (init.term) {
+    | Tuple([html_model, init_cmd])
+    | Parens({term: Tuple([html_model, init_cmd]), _}) =>
+      Some((html_model, Some(init_cmd), Some(subs_fn)))
+    | _ => None
+    }
+  | _ => None
+  };
+};
+
+// Check if expression looks like an App type
+let looks_like_app = (exp: DHExp.t): bool =>
+  switch (exp.term) {
+  | Tuple([init, _subs_fn])
+  | Parens({term: Tuple([init, _subs_fn]), _}) =>
+    switch (init.term) {
+    | Tuple([_html, _cmd])
+    | Parens({term: Tuple([_html, _cmd]), _}) => true
+    | _ => false
+    }
+  | _ => false
+  };
 
 // Extract the evaluated DHExp from a CellEditor
 let get_evaluated_exp = (cell_editor: CellEditor.Model.t): option(DHExp.t) => {
@@ -243,6 +288,38 @@ let view =
   // Check if we're showing state vs evaluation
   let is_showing_state = Option.is_some(globals.app_view_html);
 
+  // Helper to render HTML with MVU context
+  let render_html_content = (html: DHExp.t, subscriptions: option(DHExp.t)) => {
+    let mvu: HazelDOM.t = {
+      model: html,
+      inject,
+      view_term: d => {
+        // Fallback for unknown terms - render as placeholder
+        Node.span(
+          ~attrs=[
+            Attr.create(
+              "style",
+              "background: #ffe0e0; padding: 2px 4px; border-radius: 2px;",
+            ),
+          ],
+          [text("[" ++ DHExp.show(d) ++ "]")],
+        );
+      },
+      projector_id: None, // TODO: Use a stable ID for subscription tracking
+      subscriptions,
+    };
+    div(
+      ~attrs=[
+        clss(["app-view-content"]),
+        Attr.create(
+          "style",
+          "padding: 15px; background: white; min-height: 100px;",
+        ),
+      ],
+      [HazelDOM.render_elem(mvu, html)],
+    );
+  };
+
   // Get the content to render
   let content =
     switch (html_to_render) {
@@ -251,37 +328,34 @@ let view =
       | None => render_instructions()
       | Some(_) => render_error("Evaluation pending or failed")
       }
+    | Some(exp) when looks_like_app(exp) =>
+      // It's an App type - extract html, cmd, and subscriptions
+      switch (detect_app(exp)) {
+      | Some((html, Some(init_cmd), Some(subs_fn))) =>
+        // Run the init command
+        let cmd_ctx: CmdRunner.context = {
+          model: html,
+          inject,
+        };
+        let cmd_effect = CmdRunner.run(cmd_ctx, init_cmd);
+        Bonsai.Effect.Expert.handle(cmd_effect);
+        // Evaluate subscriptions
+        let subs = evaluate(Exp.ap(Forward, subs_fn, html));
+        render_html_content(html, Some(subs));
+      | Some((html, None, Some(subs_fn))) =>
+        // No init command, just subscriptions
+        let subs = evaluate(Exp.ap(Forward, subs_fn, html));
+        render_html_content(html, Some(subs));
+      | Some((html, _, None)) =>
+        // No subscriptions
+        render_html_content(html, None)
+      | None =>
+        // Failed to detect app structure
+        render_error("Invalid App structure")
+      }
     | Some(exp) when looks_like_html(exp) =>
-      // Create the MVU context for rendering
-      let mvu: HazelDOM.t = {
-        model: exp,
-        inject,
-        view_term: d => {
-          // Fallback for unknown terms - render as placeholder
-          Node.span(
-            ~attrs=[
-              Attr.create(
-                "style",
-                "background: #ffe0e0; padding: 2px 4px; border-radius: 2px;",
-              ),
-            ],
-            [text("[" ++ DHExp.show(d) ++ "]")],
-          );
-        },
-        projector_id: None,
-        subscriptions: None,
-      };
-      // Render the HTML
-      div(
-        ~attrs=[
-          clss(["app-view-content"]),
-          Attr.create(
-            "style",
-            "padding: 15px; background: white; min-height: 100px;",
-          ),
-        ],
-        [HazelDOM.render_elem(mvu, exp)],
-      );
+      // Plain HTML - no subscriptions
+      render_html_content(exp, None)
     | Some(_) => render_not_html()
     };
 
