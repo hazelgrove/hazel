@@ -61,6 +61,9 @@ jobs:
           npm ci
           npm run build -- --base=./
         working-directory: ./source/external-apps/value-builder
+      - name: Setup zarith native BigInt runtime
+        run: opam exec -- make setup-zarith
+        working-directory: ./source
       - name: Build Release
         run: |
           export DUNE_CACHE=enabled
