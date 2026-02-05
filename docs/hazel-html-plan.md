@@ -783,20 +783,77 @@ Statics.mk → Typ.meet → ConstructorMap.meet → venn_regions → List.partit
 
 **Result:** Cursor movement is now responsive again (sub-100ms instead of 900ms+).
 
-### 9.5 Remaining Performance Issue: Elaboration (TODO)
+### 9.5 Elaboration Performance Investigation (IN PROGRESS)
 
-The ConstructorMap fix addressed cursor movement. However, **elaboration** is still slow (6+ seconds) when the program changes. This appears to be triggered during edit actions.
+The ConstructorMap fix addressed cursor movement. However, **elaboration** is still slow when programs use large types like HTML.
 
-Profiling data from earlier session showed:
+#### Root Cause Analysis
+
+Browser profiling on `Div([],[])` (a trivial program) revealed:
 ```
-[PERF] Elaboration                               5920.23ms
-[PERF] CachedStatics.init_from_term TOTAL        6913.15ms
+map_term (TermBase.re)    - 553ms (52.7%)
+f (Typ.re:43)             - 552ms (52.7%)
+normalize (Typ.re)        - 269ms (25.7%)
+Minor GC                  - 237ms (22.6%)
+lookup_alias (Ctx.re)     - 112ms (10.7%)
 ```
 
-**Next Steps:**
-- Add timing instrumentation to Elaborator.re to identify hot spots
-- Profile what operations inside elaboration are expensive
-- Consider whether memoization or incremental elaboration could help
+**Key finding:** For every expression during elaboration, `elaborated_type` calls:
+```reason
+elab_ty |> Typ.normalize(ctx) |> Typ.all_ids_temp
+```
+
+This means **two full traversals** of the type structure for every expression:
+1. `Typ.normalize` - traverses entire type to normalize
+2. `Typ.all_ids_temp` - traverses entire type AGAIN to replace IDs with temp IDs
+
+For the HTML type (~40 constructors, each with nested types like `List(Attr)` where Attr has ~45 constructors), this is extremely expensive.
+
+#### Attempted Fix: Typ.normalize Memoization
+
+Added ID-based memoization to `Typ.normalize`:
+- Cache normalized results by type ID
+- Clear cache at start of each elaboration pass
+
+**Results on counter program:**
+```
+First pass:  506 calls, 185 cache hits (36% hit rate)
+Second pass: 13,254 calls, 434 cache hits (3% hit rate)
+```
+
+**Observations:**
+- Memoization helps somewhat (program is faster than before)
+- But 13,254 normalize calls for a simple counter is excessive
+- Low cache hit rate (3%) on second pass suggests types have unique IDs rather than being shared
+- Two passes occur (likely statics then dynamics)
+
+#### ⚠️ Soundness Concern
+
+The `Typ.normalize` memoization caches by type ID only, ignoring the context parameter. This may not be safe if:
+- The same type ID appears in different contexts
+- Type aliases shadow each other in nested scopes
+
+For concrete types like HTML (no free type variables), this should be safe. But the general case needs more analysis.
+
+#### Files Changed (Experimental)
+
+- `src/language/term/Typ.re` - Added `normalize_cache`, memoization in `normalize`
+- `src/language/statics/Elaborator.re` - Added instrumentation, cache reset
+
+#### Remaining Questions
+
+1. Why does the dynamics pass trigger 26x more normalize calls than statics?
+2. Why are type IDs mostly unique (low cache hit rate) rather than shared?
+3. Is `all_ids_temp` actually necessary? What breaks without it?
+4. Could types be shared more instead of copied with fresh IDs?
+
+#### Future Directions
+
+1. **Investigate type sharing** - Why aren't types being shared/reused?
+2. **Lazy normalization** - Only normalize when actually needed
+3. **Avoid all_ids_temp** - Understand why it exists and if it can be removed
+4. **Cross-pass caching** - Don't clear cache between statics/dynamics (risky)
+5. **Canonical type table** - Pre-normalize common types like HTML once
 
 ### 9.6 Deliverables
 
