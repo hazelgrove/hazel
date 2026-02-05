@@ -16,6 +16,7 @@ type step_kind_model =
   | MissingStep(MissingStep.Model.t)
   | AxiomStep(AxiomStep.model'(step_model))
   | AlgebriteStep(AlgebriteStep.model'(step_model))
+  | WrittenStep(WrittenStep.model'(step_model))
 
 and step_model = {
   // Calculated
@@ -48,6 +49,7 @@ type persistent_step_kind =
   | MissingStep(MissingStep.Model.persistent)
   | AxiomStep(AxiomStep.persistent'(persistent_step))
   | AlgebriteStep(AlgebriteStep.persistent'(persistent_step))
+  | WrittenStep(WrittenStep.persistent'(persistent_step))
 
 and persistent_step = {
   step_kind: persistent_step_kind,
@@ -62,6 +64,7 @@ type step_kind_action =
   | MissingStep(MissingStep.Update.t)
   | AxiomStep(AxiomStep.action'(step_action))
   | AlgebriteStep(AlgebriteStep.action'(step_action))
+  | WrittenStep(WrittenStep.action'(step_action))
 
 and step_action =
   | StepKindAction(step_kind_action)
@@ -72,7 +75,8 @@ and step_action =
   | AddInduction(option(Exp.t))
   | AddForall
   | AddAxiomStep(string, int, Exp.t, Direction.t, string)
-  | AddAlgebriteStep(int, Exp.t, Exp.t);
+  | AddAlgebriteStep(int, Exp.t, Exp.t)
+  | AddWrittenStep(string, int, Exp.t, Exp.t);
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type step_kind_focus =
@@ -82,6 +86,7 @@ type step_kind_focus =
   | MissingStep(MissingStep.Selection.t)
   | AxiomStep(AxiomStep.focus'(step_focus))
   | AlgebriteStep(AlgebriteStep.focus'(step_focus))
+  | WrittenStep(WrittenStep.focus'(step_focus))
 
 and step_focus =
   | StepKindFocus(step_kind_focus)
@@ -107,6 +112,7 @@ module rec StepKind: {
   module MissingStep = MissingStep; // This could be functorized too.
   module AxiomStep = AxiomStep.F(Stepper);
   module AlgebriteStep = AlgebriteStep.F(Stepper);
+  module WrittenStep = WrittenStep.F(Stepper);
 
   [@deriving (show({with_path: false}), sexp, yojson)]
   type model = step_kind_model;
@@ -125,6 +131,7 @@ module rec StepKind: {
     | MissingStep(m) => MissingStep(MissingStep.Model.persist(m))
     | AxiomStep(m) => AxiomStep(AxiomStep.persist(m))
     | AlgebriteStep(m) => AlgebriteStep(AlgebriteStep.persist(m))
+    | WrittenStep(m) => WrittenStep(WrittenStep.persist(m))
     };
   };
 
@@ -136,6 +143,7 @@ module rec StepKind: {
     | MissingStep(m) => MissingStep(MissingStep.Model.unpersist(m))
     | AxiomStep(m) => AxiomStep(AxiomStep.unpersist(m))
     | AlgebriteStep(m) => AlgebriteStep(AlgebriteStep.unpersist(m))
+    | WrittenStep(m) => WrittenStep(WrittenStep.unpersist(m))
     };
   };
 
@@ -167,10 +175,14 @@ module rec StepKind: {
       | (AlgebriteStep(a), AlgebriteStep(m)) =>
         let* s = AlgebriteStep.update(~settings, a, m);
         (AlgebriteStep(s): model);
+      | (WrittenStep(a), WrittenStep(m)) =>
+        let* s = WrittenStep.update(~settings, a, m);
+        (WrittenStep(s): model);
       | (
           SingleStep(_) | InductionStep(_) | ForallStep(_) | MissingStep(_) |
           AxiomStep(_) |
-          AlgebriteStep(_),
+          AlgebriteStep(_) |
+          WrittenStep(_),
           _,
         ) =>
         model |> Updated.raise_invalid_action
@@ -186,6 +198,7 @@ module rec StepKind: {
     | MissingStep(action) => MissingStep.Update.can_undo(action)
     | AxiomStep(action) => AxiomStep.can_undo(action)
     | AlgebriteStep(action) => AlgebriteStep.can_undo(action)
+    | WrittenStep(action) => WrittenStep.can_undo(action)
     };
   };
 
@@ -331,6 +344,19 @@ module rec StepKind: {
           m,
         );
       (AlgebriteStep(m): model, h, e, v);
+    | WrittenStep(m) =>
+      let+ (m, h, e, v) =
+        WrittenStep.calculate(
+          ~settings,
+          ~hidden,
+          ~exp,
+          ~ctx,
+          ~editor,
+          ~info_map,
+          ~ana,
+          m,
+        );
+      (WrittenStep(m): model, h, e, v);
     };
 
   let get_cursor_info = (~focus: focus, model: model) =>
@@ -355,10 +381,14 @@ module rec StepKind: {
       | (AlgebriteStep(focus), AlgebriteStep(model)) =>
         let+ focus_info = AlgebriteStep.get_cursor_info(~focus, model);
         (AlgebriteStep(focus_info): action);
+      | (WrittenStep(focus), WrittenStep(model)) =>
+        let+ focus_info = WrittenStep.get_cursor_info(~focus, model);
+        (WrittenStep(focus_info): action);
       | (
           SingleStep(_) | InductionStep(_) | ForallStep(_) | MissingStep(_) |
           AxiomStep(_) |
-          AlgebriteStep(_),
+          AlgebriteStep(_) |
+          WrittenStep(_),
           _,
         ) => Cursor.empty
       }
@@ -385,10 +415,14 @@ module rec StepKind: {
     | (AlgebriteStep(focus), AlgebriteStep(model)) =>
       AlgebriteStep.handle_key_event(~focus, ~event, model)
       |> Option.map((x): action => AlgebriteStep(x))
+    | (WrittenStep(focus), WrittenStep(model)) =>
+      WrittenStep.handle_key_event(~focus, ~event, model)
+      |> Option.map((x): action => WrittenStep(x))
     | (
         SingleStep(_) | InductionStep(_) | ForallStep(_) | MissingStep(_) |
         AxiomStep(_) |
-        AlgebriteStep(_),
+        AlgebriteStep(_) |
+        WrittenStep(_),
         _,
       ) =>
       None
@@ -464,6 +498,17 @@ module rec StepKind: {
             },
           ~inject=x => inject(AlgebriteStep(x)),
           ~take_focus=x => take_focus(AlgebriteStep(x)),
+          m,
+        )
+      | WrittenStep(m) =>
+        WrittenStep.view_content(
+          ~focus=
+            switch (focus) {
+            | Some(WrittenStep(f)) => Some(f)
+            | _ => None
+            },
+          ~inject=x => inject(WrittenStep(x)),
+          ~take_focus=x => take_focus(WrittenStep(x)),
           m,
         )
       };
@@ -564,6 +609,22 @@ module rec StepKind: {
           },
         ~inject=x => inject(AlgebriteStep(x)),
         ~take_focus=x => take_focus(AlgebriteStep(x)),
+        ~hide_stepper,
+        ~undo,
+        ~is_toplevel,
+        m,
+      )
+    | WrittenStep(m) =>
+      WrittenStep.view_justification(
+        ~globals,
+        ~focus=
+          switch (focus) {
+          | Some(WrittenStep(f)) => Some(f)
+          | Some(_)
+          | None => None
+          },
+        ~inject=x => inject(WrittenStep(x)),
+        ~take_focus=x => take_focus(WrittenStep(x)),
         ~hide_stepper,
         ~undo,
         ~is_toplevel,
@@ -724,6 +785,24 @@ and Stepper: {
         }
         |> return
       | (AddAlgebriteStep(_, _, _), _, _) => model |> raise_invalid_action
+      | (
+          AddWrittenStep(justification, at_idx, at_exp, with_exp),
+          MissingStep(_),
+          _,
+        ) =>
+        {
+          ...model,
+          step_kind:
+            WrittenStep({
+              at_idx,
+              at_exp,
+              with_exp,
+              justification,
+              next_exp: Calc.Pending,
+            }),
+        }
+        |> return
+      | (AddWrittenStep(_, _, _, _), _, _) => model |> raise_invalid_action
       | (StepKindAction(sk_action), _, _) =>
         let* new_step_kind =
           StepKind.update(~settings, sk_action, model.step_kind);
@@ -745,6 +824,7 @@ and Stepper: {
     | AddForall => true
     | AddAxiomStep(_) => true
     | AddAlgebriteStep(_) => true
+    | AddWrittenStep(_) => true
     | StepKindAction(action) => StepKind.can_undo(action)
     };
   };
@@ -1022,6 +1102,8 @@ and Stepper: {
                       inject(AddAxiomStep(name, idx, e1, dir, eq))
                     | AddAlgebriteStep(idx, e1, e2) =>
                       inject(AddAlgebriteStep(idx, e1, e2))
+                    | AddWrittenStep(just, idx, e1, e2) =>
+                      inject(AddWrittenStep(just, idx, e1, e2))
                     | TakeStep(i) => inject(StepForward(i))
                     | Refl(i) => {
                         let refl_exps =

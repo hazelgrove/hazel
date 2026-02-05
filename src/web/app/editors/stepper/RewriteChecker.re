@@ -86,22 +86,42 @@ let check_rewrite = (from_: Exp.t, to_: Exp.t): bool => {
   };
 };
 
-let check_written_step = (~settings, ~env, from_: Exp.t, to_: Exp.t): bool => {
-  // checking using evaluation steps
-  let rec get_next_exps = (exp: Exp.t): list(Exp.t) => {
+let check_written_step =
+    (~settings, ~env, from_: Exp.t, to_: Exp.t): option(string) => {
+  let rec take_auto_steps = (exp: Exp.t): Exp.t => {
     switch (EvaluatorStep.get_status(~settings, exp, env)) {
     | EvaluatorStep.AutoStep(step) =>
       switch (EvaluatorStep.take_step(step)) {
-      | Some(next_exp) => get_next_exps(next_exp) @ [next_exp]
+      | Some(next_exp) => take_auto_steps(next_exp)
+      | None => exp
+      }
+    | AvailableSteps(_) => exp
+    };
+  };
+  let take_and_justify = (es: EvaluatorStep.step): option((string, Exp.t)) => {
+    switch (EvaluatorStep.take_step(es)) {
+    | Some(next_exp) =>
+      let kind = EvaluatorStep.get_step_kind(es);
+      let justification = Transition.stepper_justification(kind);
+      let final_exp = take_auto_steps(next_exp);
+      Some((justification, final_exp));
+    | None => None
+    };
+  };
+  // checking using evaluation steps
+  let rec get_next_exps = (exp: Exp.t): list((string, Exp.t)) => {
+    switch (EvaluatorStep.get_status(~settings, exp, env)) {
+    | EvaluatorStep.AutoStep(step) =>
+      switch (EvaluatorStep.take_step(step)) {
+      | Some(next_exp) => get_next_exps(next_exp)
       | None => []
       }
-    | AvailableSteps(steps) =>
-      List.filter_map(EvaluatorStep.take_step, steps)
+    | AvailableSteps(steps) => List.filter_map(take_and_justify, steps)
     };
   };
   let next_exps = get_next_exps(from_);
-  List.exists(
-    e =>
+  List.find_opt(
+    ((_, e)) =>
       Equality.equality(
         Equality.{
           ...Equality.semantic_settings,
@@ -115,5 +135,6 @@ let check_written_step = (~settings, ~env, from_: Exp.t, to_: Exp.t): bool => {
         to_,
       ),
     next_exps,
-  );
+  )
+  |> Option.map(fst);
 };

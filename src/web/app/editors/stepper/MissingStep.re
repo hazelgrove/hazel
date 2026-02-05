@@ -16,7 +16,7 @@ module Model = {
     | WrittenStepOpen({
         editor: CodeEditable.Model.t,
         cached_exp: Calc.saved(Exp.t),
-        cached_result: option(bool),
+        cached_result: option(option(string)),
       })
     | NoneOpen;
 
@@ -68,7 +68,7 @@ module Update = {
     | ProposeRewrite
     | ProposeWrittenStep
     | UpdateResult(bool)
-    | UpdateWrittenStepResult(bool)
+    | UpdateWrittenStepResult(option(string))
     | RewriteEditorAction(CodeEditable.Update.t)
     | WriteStepEditorAction(CodeEditable.Update.t)
     | AxiomBoxAction(AxiomsBox.Update.t);
@@ -429,6 +429,7 @@ module View = {
     | HideStepper
     | AddAxiomStep(string, int, Exp.t, Direction.t, string)
     | AddAlgebriteStep(int, Exp.t, Exp.t)
+    | AddWrittenStep(string, int, Exp.t, Exp.t)
     | MakeActive(Selection.t)
     | TakeStep(int)
     | Refl(int);
@@ -710,7 +711,7 @@ module View = {
             ]
             @ {
               switch (cached_result) {
-              | Some(true) => [
+              | Some(Some(j)) => [
                   Node.text("Valid"),
                   Widgets.button(
                     ~clss=["proof-button"],
@@ -718,7 +719,8 @@ module View = {
                     ~tooltip="replace",
                     _ =>
                     signal(
-                      AddAlgebriteStep(
+                      AddWrittenStep(
+                        j,
                         ProofHacks.exp_idx(
                           unboxed_selected_exp,
                           model.full_exp
@@ -734,7 +736,7 @@ module View = {
                     )
                   ),
                 ]
-              | Some(false) => [Node.text("Invalid")]
+              | Some(None) => [Node.text("Invalid")]
               | None => [
                   Widgets.button(
                     ~clss=["proof-button"],
