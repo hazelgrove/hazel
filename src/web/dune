@@ -8,12 +8,13 @@
 (library
  (name workerServer)
  (modules WorkerServer)
+ (wrapped false)
  (instrumentation
   (backend bisect_ppx))
  (libraries language)
  (js_of_ocaml)
  (preprocess
-  (pps ppx_yojson_conv ppx_sexp_conv ppx_deriving.show)))
+  (pps js_of_ocaml-ppx ppx_yojson_conv ppx_sexp_conv ppx_deriving.show)))
 
 (library
  (name web)
