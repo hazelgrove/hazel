@@ -257,21 +257,17 @@ let go =
     let id = idx_to_id(kind, idx);
     Ok(
       if (ProjectorCore.Kind.is_refractor(kind)) {
-        Zipper.update_manuals(
-          map =>
-            ListUtil.assoc_update(
-              id,
-              fun
-              | Some(entry: Refractors.entry) =>
-                Some(
-                  Refractors.{
-                    kind: entry.kind,
-                    model: new_model,
-                  },
-                )
-              | None => None,
-              map,
-            ),
+        Zipper.update_refractor(
+          id,
+          fun
+          | Some(entry: Refractors.entry) =>
+            Some(
+              Refractors.{
+                kind: entry.kind,
+                model: new_model,
+              },
+            )
+          | None => None,
           z,
         );
       } else {

@@ -317,9 +317,15 @@ let add_ids_from_auto_term =
   let auto_ids = Id.Map.bindings(z.refractors.autos.ids) |> List.map(fst);
   let ids = List.concat_map(ids_from_term(~syntax, ~info_map), auto_ids);
   Zipper.update_ephemerals(
-    _ =>
+    old_ephemerals =>
       List.fold_left(
-        (map, id) => Id.Map.add(id, Refractors.mk_entry(Probe), map),
+        (map, id) => {
+          /* Preserve existing model if present */
+          let model =
+            Id.Map.find_opt(id, old_ephemerals)
+            |> Option.map((entry: Refractors.entry) => entry.model);
+          Id.Map.add(id, Refractors.mk_entry(~model?, Probe), map);
+        },
         Id.Map.empty,
         ids,
       ),

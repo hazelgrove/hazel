@@ -45,6 +45,18 @@ let update_ephemerals = (f, z: t): t => {
   },
 };
 
+let update_refractor =
+    (
+      id: Id.t,
+      f: option(Refractors.entry) => option(Refractors.entry),
+      z: t,
+    )
+    : t => {
+  z
+  |> update_manuals(map => ListUtil.assoc_update(id, f, map))
+  |> update_ephemerals(map => Id.Map.update(id, f, map));
+};
+
 let get_ephemerals = (z: t): Refractor.Map.t => z.refractors.autos.ephemerals;
 
 let update_relatives = (f: Relatives.t => Relatives.t, z: t): t => {
