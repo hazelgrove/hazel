@@ -160,6 +160,12 @@ let stepper_group = (~globals: Globals.t) => {
         setting: Evaluation(EnableProof),
         tooltip: Some("Enable proof-based stepping mode (experimental)"),
       },
+      {
+        name: "Write out steps",
+        active: s.write_out_steps,
+        setting: Evaluation(WriteOutSteps),
+        tooltip: Some("Force writing out steps in exercises"),
+      },
     ],
   );
 };

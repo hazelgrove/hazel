@@ -48,6 +48,7 @@ module Model = {
         stepper_history: false,
         show_settings: false,
         show_hidden_steps: false,
+        write_out_steps: false,
         enable_proof: false,
         project_tables: false,
       },
@@ -132,6 +133,7 @@ module Update = {
     | ShowLookups
     | ShowFilters
     | ShowSettings
+    | WriteOutSteps
     | ShowHiddenSteps
     | ProjectTables;
 
@@ -294,6 +296,10 @@ module Update = {
           | ShowHiddenSteps => {
               ...evaluation,
               show_hidden_steps: !evaluation.show_hidden_steps,
+            }
+          | WriteOutSteps => {
+              ...evaluation,
+              write_out_steps: !evaluation.write_out_steps,
             }
           };
         {
