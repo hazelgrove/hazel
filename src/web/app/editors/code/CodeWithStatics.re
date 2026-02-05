@@ -1,5 +1,4 @@
 open Util;
-open Util.WebUtil;
 open Haz3lcore;
 open Language;
 open WebUtil;
