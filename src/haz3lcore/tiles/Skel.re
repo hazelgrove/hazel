@@ -26,6 +26,7 @@ let comma_label = [","];
 let case_label = ["case", "end"];
 let rule_label = ["|", "=>"];
 let plus_label = ["+"];
+let semi_label = [";"];
 
 // Determines if two pieces can be chained together in the skeleton.
 // Only returns true for operators that should form a single chain node.
@@ -46,7 +47,13 @@ let is_chainable = (p1: Piece.t, p2: Piece.t): bool =>
     || lbl1(plus_label)
     && lbl2(plus_label)
     && Mold.is_infix_op(t1.mold)
-    && Mold.is_infix_op(t2.mold);
+    && Mold.is_infix_op(t2.mold)
+    || lbl1(semi_label)
+    && lbl2(semi_label)
+    && Mold.is_infix_op(t1.mold)
+    && Mold.is_infix_op(t2.mold)
+    && t1.mold.out == Sort.Mod
+    && t2.mold.out == Sort.Mod;
   | _ => false
   };
 
