@@ -100,7 +100,7 @@ let persistent_view = (~globals: Globals.t) =>
         ~attrs=[clss(["tabs"])],
         [
           explain_this_tab(~globals),
-          assistant_tab(~globals),
+          // assistant_tab(~globals),
           probes_tab(~globals),
         ]
         @ (
