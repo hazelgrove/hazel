@@ -22,7 +22,7 @@ module Model = {
     statics: CachedStatics.t,
     dynamics: Dynamics.t,
     dynamic_statics: Calc.saved((StaticsBase.Map.t, list(Id.t))),
-    pinned_call: Calc.saved(option(list(Id.t))),
+    sample_cursor: Calc.saved(Language.Sample.Cursor.t),
   };
 
   let context_menu_is_open = (model: t): bool => model.context_menu != None;
@@ -34,7 +34,7 @@ module Model = {
       dynamics,
       context_menu: None,
       dynamic_statics: Calc.Pending,
-      pinned_call: Calc.Pending,
+      sample_cursor: Calc.Pending,
     };
   };
 
@@ -113,7 +113,7 @@ module Update = {
           editor,
           statics,
           dynamic_statics,
-          pinned_call,
+          sample_cursor,
           context_menu,
           dynamics: _,
         }: Model.t,
@@ -142,9 +142,10 @@ module Update = {
 
     let ctx_init: Ctx.t = Builtins.ctx_init(Some(Int));
 
-    // Track the current pinned call state
-    let current_pinned_call = Haz3lcore.ProbeProj.DynCursor.get_pinned_call();
-    let pinned_call_calc = Calc.set(current_pinned_call, pinned_call);
+    // Track the current sample cursor state
+    let current_sample_cursor = editor.state.zipper.refractors.sample_cursor;
+    let sample_cursor_calc =
+      Calc.set(~eq=Sample.Cursor.equal, current_sample_cursor, sample_cursor);
 
     let dynamic_statics =
       if (settings.live_typing) {
@@ -152,10 +153,10 @@ module Update = {
           dynamic_statics
           |> {
             let.calc dyn = dynamics
-            and.calc curr_pinned_call = pinned_call_calc;
+            and.calc curr_sample_cursor = sample_cursor_calc;
 
             let filtered_dynamics =
-              Language.Dynamics.filter_all_by_pin(curr_pinned_call, dyn);
+              Language.Dynamics.filter_by_cursor(curr_sample_cursor, dyn);
 
             let dynamic_expressions: Id.Map.t(DynamicStatics.Map.entry) =
               Id.Map.map(
@@ -219,7 +220,7 @@ module Update = {
       statics,
       dynamics: Calc.get_value(dynamics),
       dynamic_statics: Calc.save(dynamic_statics),
-      pinned_call: Calc.save(pinned_call_calc),
+      sample_cursor: Calc.save(sample_cursor_calc),
       context_menu,
     };
   };

@@ -508,7 +508,7 @@ let get_doc =
             dynamics: Dynamics.empty,
             context_menu: None,
             dynamic_statics: Pending,
-            pinned_call: Pending,
+            sample_cursor: Pending,
           },
         );
       let example_view =

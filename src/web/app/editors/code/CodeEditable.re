@@ -47,7 +47,7 @@ module Update = {
             dynamics: model.dynamics,
             context_menu: None,
             dynamic_statics: model.dynamic_statics,
-            pinned_call: model.pinned_call,
+            sample_cursor: model.sample_cursor,
           }
         | Error(err) => raise(Action.Failure.Exception(err))
       )

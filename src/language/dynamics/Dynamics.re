@@ -39,12 +39,9 @@ module TypeInstMap = {
     );
   };
   let filter_type_instantiations_by_pin =
-      (
-        pinned_call: option(list(Id.t)),
-        closures: list(TypeInstantiation.t),
-      )
+      (sample_cursor: Sample.Cursor.t, closures: list(TypeInstantiation.t))
       : list(TypeInstantiation.t) =>
-    switch (pinned_call) {
+    switch (sample_cursor.pinned_stack) {
     | Some(pinned_stack) =>
       List.filter(
         (closure: TypeInstantiation.t) =>
@@ -54,9 +51,9 @@ module TypeInstMap = {
     | None => closures
     };
 
-  let filter_all_by_pin = (pinned_call: option(list(Id.t)), map: t): t =>
+  let filter_by_cursor = (sample_cursor: Sample.Cursor.t, map: t): t =>
     Id.Map.map(
-      closures => filter_type_instantiations_by_pin(pinned_call, closures),
+      closures => filter_type_instantiations_by_pin(sample_cursor, closures),
       map,
     );
 };
@@ -114,9 +111,9 @@ module Map = {
    * If a call is pinned, returns only samples where the pinned
    * call stack is a suffix of the sample's call stack. */
   let filter_samples_by_pin =
-      (pinned_call: option(list(Id.t)), samples: list(Sample.t))
+      (pinned_call: Sample.Cursor.t, samples: list(Sample.t))
       : list(Sample.t) =>
-    switch (pinned_call) {
+    switch (pinned_call.pinned_stack) {
     | Some(pinned_stack) =>
       List.filter(
         (sample: Sample.t) =>
@@ -127,7 +124,7 @@ module Map = {
     };
 
   /* Apply sample filtering to all probes in the map */
-  let filter_all_by_pin = (pinned_call: option(list(Id.t)), map: t): t =>
+  let filter_by_cursor = (pinned_call: Sample.Cursor.t, map: t): t =>
     Id.Map.map(samples => filter_samples_by_pin(pinned_call, samples), map);
 };
 
@@ -155,11 +152,11 @@ let empty: t = {
   },
 };
 
-let filter_all_by_pin = (pinned_call: option(list(Id.t)), dyn: t): t => {
+let filter_by_cursor = (sample_cursor: Sample.Cursor.t, dyn: t): t => {
   {
-    probe_map: Map.filter_all_by_pin(pinned_call, dyn.probe_map),
+    probe_map: Map.filter_by_cursor(sample_cursor, dyn.probe_map),
     type_inst_map:
-      TypeInstMap.filter_all_by_pin(pinned_call, dyn.type_inst_map),
+      TypeInstMap.filter_by_cursor(sample_cursor, dyn.type_inst_map),
     test_results: dyn.test_results,
     theorems: dyn.theorems,
   };

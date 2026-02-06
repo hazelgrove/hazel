@@ -161,15 +161,7 @@ let cur_ap = (info: info) =>
     Some(Exp.rep_id(ap))
   | _ => None
   };
-
-module DynCursor = {
-  /* Manages shared state between probes - now delegates to Sample.Cursor */
-
-  let get_pinned_call = (): option(list(Id.t)) => None; /* Pinned call now managed via Sample.Cursor */
-
-  let reset = () => ();
-};
-
+  
 /* Select samples to display, using stateful window offset.
  * This wraps Sample.Selection with WindowState for offset persistence.
  * Optionally takes pre-filtered samples to avoid redundant filtering. */

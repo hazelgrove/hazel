@@ -19,7 +19,7 @@ module Model = {
       dynamics: Language.Dynamics.empty,
       context_menu: None,
       dynamic_statics: Pending,
-      pinned_call: Pending,
+      sample_cursor: Pending,
     },
     result: EvalResult.Model.init,
   };
@@ -41,7 +41,7 @@ module Model = {
       dynamics: Language.Dynamics.empty,
       context_menu: None,
       dynamic_statics: Pending,
-      pinned_call: Pending,
+      sample_cursor: Pending,
     },
     result: EvalResult.Model.unpersist(result),
   };

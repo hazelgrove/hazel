@@ -380,7 +380,7 @@ module Update = {
                 EvalResult.Model.dynamics_full(cell.result) |> Calc.get_value,
               context_menu: None,
               dynamic_statics: cell.editor.dynamic_statics,
-              pinned_call: cell.editor.pinned_call,
+              sample_cursor: cell.editor.sample_cursor,
             },
             result: cell.result,
           }
@@ -970,7 +970,7 @@ module View = {
         dynamics: Language.Dynamics.empty,
         context_menu: None,
         dynamic_statics: editor.editor.dynamic_statics,
-        pinned_call: editor.editor.pinned_call,
+        sample_cursor: editor.editor.sample_cursor,
       },
       result: editor.result,
     };
