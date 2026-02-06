@@ -1735,3 +1735,27 @@ Deferred. The current implementation works correctly for evaluation and type-che
 - All ModLet/ModType items
 
 This is acceptable for Phase 1. A complete fix can be addressed in a future iteration.
+
+**Update**: Fixed by making ModSeq semicolons chainable in Skel.re (see commit). The structure is now flat like commas, so all semicolon IDs are available in `tiles`. Remaining work: update MakeTerm to actually collect and return these IDs.
+
+---
+
+## Near-Term: Module Semicolon Decoration
+
+### The Problem
+
+When clicking a semicolon inside a module, the cursor inspector draws "arms" (decorative lines) between the curly braces and ALL other semicolons, since they all share the same Module expression IDs. This is visually noisy and cluttered for modules with several items.
+
+This behavior is inherited from how commas work in tuples and case/rule arms, where the arm decoration makes more sense because there are fewer delimiters and the visual grouping is useful.
+
+### Potential Solutions
+
+1. **Custom decoration for Module semicolons**: Override the default arm-drawing behavior specifically for Module expressions. Could show a simpler indicator (e.g., just highlight the matching curly braces, not all sibling semicolons).
+
+2. **Decoration grouping**: Only draw arms between the clicked semicolon and its immediately adjacent siblings, not all siblings.
+
+3. **Reduced decoration**: Show cursor info in the inspector panel but suppress the arm decoration entirely for module semicolons.
+
+### Priority
+
+This should be addressed soon - it affects usability when working inside modules. Consider as one of the next items to pick up after ID collection is complete.

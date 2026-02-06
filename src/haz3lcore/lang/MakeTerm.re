@@ -329,20 +329,17 @@ and exp_term: unsorted => (Exp.term, list(Id.t)) = {
       | ([t], []) when Token.is_ctr(t) => ret(Constructor(t, None))
       | (["{", "}"], [Mod(body)]) =>
         /* ModBody absorption: inner Mod's semicolon IDs become part of Module.
-           ID order: [curly_brace_id] @ semicolon_ids (outer first, then adopted).
-           This ensures cursor inspector works for both curly braces AND semicolons.
-           IMPORTANT: Only absorb when body is MultiHole (from semicolons).
-           For single items, body.annotation.ids would be the ModLet/ModType ID,
-           which is also used by the expanded Let/TyAlias - absorbing would duplicate. */
+           With flat Skel (ModSeq is chainable), body.annotation.ids contains
+           ALL semicolon IDs when body is MultiHole. These are absorbed so the
+           Module expression gets IDs = [curly_brace_id] @ [all_semicolon_ids].
+           IMPORTANT: Only absorb for MultiHole (multiple items with semicolons).
+           Single items have ModLet/ModType IDs that would conflict with expansion. */
         switch (body) {
         | {term: EmptyHole, _} => ret(Module([]))
         | {annotation: {ids, _}, term: MultiHole(_)} =>
-          /* Multiple items: absorb semicolon IDs */
           adopted_ids := ids @ adopted_ids^;
           (Module(flatten_mod(body)), ids)
-        | _ =>
-          /* Single item: don't absorb (would duplicate ModLet/ModType ID) */
-          ret(Module(flatten_mod(body)))
+        | _ => ret(Module(flatten_mod(body)))
         }
       | (["{", "}"], [Exp(body)])
       | (["(", ")"], [Exp(body)]) => ret(Parens(body))
