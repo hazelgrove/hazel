@@ -18,6 +18,7 @@
  when constructing a new expression structure.
  */
 // TODO Rename to samples
+[@deriving show]
 type ascription_samples = list((Id.t, Sample.capture_spec, Exp.t));
 module SampleWriter =
   Util.WriterMonad.Make({
@@ -40,15 +41,20 @@ let rec transition =
   switch (DHExp.term_of(d)) {
   | Asc(e, t) =>
     switch (DHExp.term_of(e), Typ.term_of(Typ.unroll(t))) {
-    | (Asc(e, t'), _)
+    | (Asc(e', t'), _)
         // This is only necessary because sometimes we add two ascriptions and aren't marking it as a non-value
         when Typ.is_consistent(Ctx.empty, Typ.unroll(t), Typ.unroll(t')) =>
+      let* () =
+        switch (Id.Map.find_opt(Exp.rep_id(e), targets)) {
+        | Some(spec) => SampleWriter.tell([(Exp.rep_id(e), spec, e')])
+        | None => SampleWriter.return()
+        };
       switch (Typ.meet(Ctx.empty, Typ.unroll(t), Typ.unroll(t'))) {
       | Some(t) =>
-        let+ result = recur(Asc(e, t) |> DHExp.fresh);
+        let+ result = recur(Asc(e', t) |> DHExp.fresh);
         Some(result);
       | None => SampleWriter.return(None) //TODO  This is an impossible case since we checked consistency
-      }
+      };
     | (e, Parens(t)) =>
       // This is an impossible case since types should be normalized before coming to transitions
       transition(
@@ -298,8 +304,6 @@ let rec transition_multiple =
   };
 };
 
-let transition = (~targets: Sample.targets, d: DHExp.t): option(DHExp.t) =>
-  snd(transition(~targets, ~recursive=false, d));
-
+// TODO return samples
 let transition_multiple = (~targets: Sample.targets, d: DHExp.t): DHExp.t =>
   snd(transition_multiple(~targets, d));

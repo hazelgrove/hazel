@@ -17,6 +17,7 @@ type effect =
   | RecordStackFrame
   | RecordPatProbes(PatternMatch.sample_closures)
   | RecordTypeInstantiation(Sample.call_stack => Dynamics.TypeInstantiation.t)
+  | RecordAscriptionProbe((Id.t, Sample.capture_spec, Exp.t))
   | RecordTheorem(Id.t, string, Environment.t(Exp.t), Exp.t)
   | RecordPrint(DHExp.t); /* Println for probes study */
 
@@ -140,6 +141,27 @@ let update =
             sample_closures,
           );
         /* Advance step count past pattern evaluation */
+        let state = {
+          ...state,
+          step_count: state.step_count + 1,
+        };
+        (call_stack, state);
+      | RecordAscriptionProbe((id, capture_spec, ascribed_exp)) =>
+        let step = state.step_count;
+        let sample =
+          Sample.mk(
+            ~step_start=step,
+            ~step_end=step,
+            id,
+            ascribed_exp,
+            env,
+            call_stack,
+            capture_spec,
+          );
+        print_endline("Adding sample");
+        let state = add_sample(state, sample);
+        /* Advance step count past ascription evaluation */
+        // TODO Check with disconcision
         let state = {
           ...state,
           step_count: state.step_count + 1,
