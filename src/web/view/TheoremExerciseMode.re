@@ -21,6 +21,7 @@ module Model = {
     title: string,
     prompt: string,
     cells,
+    write_out_steps: bool,
   };
 
   [@deriving (show({with_path: false}), sexp, yojson)]
@@ -48,6 +49,7 @@ module Model = {
           result: persistent.theorem |> EvalResult.Model.unpersist,
         },
       },
+      write_out_steps: spec.write_out_steps,
     };
   };
 
@@ -61,6 +63,7 @@ module Model = {
         lemmas: CellEditor.Model.mk(Editor.Model.mk(spec.lemmas)),
         theorem: CellEditor.Model.mk(Editor.Model.mk(spec.theorem)),
       },
+      write_out_steps: spec.write_out_steps,
     };
   };
 
@@ -72,6 +75,7 @@ module Model = {
       prelude: model.cells.prelude.editor.editor.state.zipper,
       lemmas: model.cells.lemmas.editor.editor.state.zipper,
       theorem: model.cells.theorem.editor.editor.state.zipper,
+      write_out_steps: model.write_out_steps,
     };
   };
 
@@ -83,6 +87,32 @@ module Model = {
   };
 };
 
+let override_core_settings =
+    (settings: Language.CoreSettings.t, model: Model.t) => {
+  {
+    ...settings,
+    evaluation: {
+      ...settings.evaluation,
+      write_out_steps:
+        model.write_out_steps || settings.evaluation.write_out_steps,
+    },
+  };
+};
+
+let override_settings = (settings: Settings.t, model: Model.t) => {
+  {
+    ...settings,
+    core: override_core_settings(settings.core, model),
+  };
+};
+
+let override_globals = (globals: Globals.t, model: Model.t) => {
+  {
+    ...globals,
+    settings: override_settings(globals.settings, model),
+  };
+};
+
 module Update = {
   open Updated;
 
@@ -90,11 +120,13 @@ module Update = {
   type t =
     | UpdateTitle(string)
     | UpdatePrompt(string)
+    | ToggleWriteOutSteps
     | Prelude(CellEditor.Update.t)
     | Lemmas(CellEditor.Update.t)
     | Theorem(CellEditor.Update.t);
 
   let update = (~settings: Settings.t, action: t, model: Model.t) => {
+    let settings = override_settings(settings, model);
     switch (action) {
     | UpdateTitle(new_title) when settings.instructor_mode =>
       Updated.return({
@@ -110,6 +142,14 @@ module Update = {
         prompt,
       })
     | UpdatePrompt(_) =>
+      print_endline("Instructor-only action");
+      Updated.return_quiet(model);
+    | ToggleWriteOutSteps when settings.instructor_mode =>
+      Updated.return({
+        ...model,
+        write_out_steps: !model.write_out_steps,
+      })
+    | ToggleWriteOutSteps =>
       print_endline("Instructor-only action");
       Updated.return_quiet(model);
     | Prelude(action) when settings.instructor_mode =>
@@ -199,6 +239,7 @@ module Update = {
     switch (action) {
     | UpdateTitle(_) => true
     | UpdatePrompt(_) => true
+    | ToggleWriteOutSteps => true
     | Prelude(action) => CellEditor.Update.can_undo(action)
     | Lemmas(action) => CellEditor.Update.can_undo(action)
     | Theorem(action) => CellEditor.Update.can_undo(action)
@@ -207,6 +248,7 @@ module Update = {
 
   let calculate =
       (~settings, ~is_edited, ~schedule_action, model: Model.t): Model.t => {
+    let settings = override_core_settings(settings, model);
     // Work out the terms
     let just_prelude_term =
       MakeTerm.from_zip_for_sem(
@@ -441,6 +483,7 @@ module View = {
         ~selection: option(Selection.t),
         model: Model.t,
       ) => {
+    let globals = override_globals(globals, model);
     let title_view =
       CellCommon.simple_cell_view([
         div(
@@ -470,6 +513,16 @@ module View = {
           ],
         ),
       ]);
+
+    let write_out_steps_view =
+      CellCommon.simple_cell_view([
+        text("Force writing out proof steps:"),
+        Widgets.toggle_named("", model.write_out_steps, _ =>
+          inject(Update.ToggleWriteOutSteps)
+        ),
+      ]);
+    let write_out_steps_view =
+      globals.settings.instructor_mode ? [write_out_steps_view] : [];
 
     let prompt_view =
       CellCommon.simple_cell_view([
@@ -542,13 +595,8 @@ module View = {
         |> Option.value(~default=(Float.nan, Float.nan)),
       );
 
-    [
-      score_view,
-      title_view,
-      prompt_view,
-      prelude_view,
-      lemmas_view,
-      theorem_view,
-    ];
+    [score_view, title_view]
+    @ write_out_steps_view
+    @ [prompt_view, prelude_view, lemmas_view, theorem_view];
   };
 };

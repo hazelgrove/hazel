@@ -8,4 +8,5 @@ type t = {
   prelude: Haz3lcore.Zipper.t,
   lemmas: Haz3lcore.Zipper.t,
   theorem: Haz3lcore.Zipper.t,
+  write_out_steps: bool,
 };
