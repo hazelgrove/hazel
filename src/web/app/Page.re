@@ -17,7 +17,6 @@ module Model = {
     editors: Editors.Model.t,
     explain_this: ExplainThisModel.t,
     assistant: AssistantModel.t,
-    log_sidebar: LogSidebar.Model.t,
     selection,
   };
 
@@ -34,13 +33,11 @@ module Store = {
       );
     let explain_this = ExplainThisModel.Store.load();
     let assistant = AssistantModel.Store.load();
-    let log_sidebar = LogSidebar.Model.init();
     {
       editors,
       globals,
       explain_this,
       assistant,
-      log_sidebar,
       selection: Editors.Selection.default_selection(editors),
     };
   };
@@ -664,6 +661,7 @@ module View = {
   let main_view =
       (
         ~get_log_and: (string => unit) => unit,
+        ~log_model,
         ~inject: Update.t => Ui_effect.t(unit),
         ~cursor: Cursor.cursor(Editors.Update.t),
         {
@@ -671,7 +669,6 @@ module View = {
           editors,
           explain_this: explainThisModel,
           assistant: assistantModel,
-          log_sidebar,
           selection,
         } as model: Model.t,
       ) => {
@@ -696,7 +693,7 @@ module View = {
           | MakeActive(s) => inject(MakeActive(Scratch(s))),
         ~explainThisModel,
         ~assistantModel,
-        ~log_model=log_sidebar,
+        ~log_model,
         ~log_count,
         ~editor=Update.get_editor(model),
         cursor.info,
@@ -765,12 +762,17 @@ module View = {
   };
 
   let view =
-      (~get_log_and, ~inject: Update.t => Ui_effect.t(unit), model: Model.t) => {
+      (
+        ~log_model,
+        ~get_log_and,
+        ~inject: Update.t => Ui_effect.t(unit),
+        model: Model.t,
+      ) => {
     let cursor = Selection.get_cursor_info(~selection=model.selection, model);
     div(
       ~attrs=[Attr.id("page"), ...handlers(~cursor, ~inject, model)],
       [FontSpecimen.view, JsUtil.clipboard_shim]
-      @ main_view(~get_log_and, ~cursor, ~inject, model),
+      @ main_view(~log_model, ~get_log_and, ~cursor, ~inject, model),
     );
   };
 };

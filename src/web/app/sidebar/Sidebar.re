@@ -241,8 +241,7 @@ let view =
               )
             | LogControl =>
               LogSidebar.view(
-                ~inject=globals.inject_global,
-                ~inject_log=_ => Effect.Ignore, // For now, ignore LogSidebar internal updates
+                ~globals,
                 ~model=log_model,
                 ~log_entries_count=log_count,
               )

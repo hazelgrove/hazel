@@ -8,6 +8,8 @@ module Model = {
   type t = {
     current: state,
     future_log: list((float, History.Update.t)),
+    past_log: list((float, History.Update.t)),
+    replay_messages: list(string),
     replay_toggle: bool,
   };
 
@@ -16,6 +18,8 @@ module Model = {
   let init = () => {
     current: History.Model.init(),
     future_log: [],
+    past_log: [],
+    replay_messages: [],
     replay_toggle: false,
   };
 };
@@ -27,13 +31,6 @@ module Update = {
   type t = History.Update.t;
 
   // let sexp = History.Update.sexp_of_t(action);
-  // For now, we don't ignore any actions; add here if needed
-  // check if str contains "(Select (Term (Id" (ignoring whitespace)
-  // let str = Sexplib.Sexp.to_string(sexp);
-  // StringUtil.match(StringUtil.regexp("Select\\s*\\(Term\\s*\\(Id"), str);
-  let ignore_if_action_fails_in_log_replay = (_action: t): bool => {
-    false;
-  };
 
   [@deriving (show({with_path: false}), sexp, yojson)]
   let update =
@@ -62,35 +59,29 @@ module Update = {
           |> Sexplib.Sexp.of_string
           |> Log.Entry.s_of_sexp_opt
           |> List.filter_map(x => x);
-        let actions =
-          data
-          |> of_data
-          |> Log.flatten_imports(~of_data)
-          |> (
-            x => {
-              LogSidebar.log_info(
-                "Imported log entries: " ++ string_of_int(List.length(x)),
-              );
-              x;
-            }
-          );
+        let actions = data |> of_data |> Log.flatten_imports(~of_data);
         {
           ...model,
           future_log: model.future_log @ actions,
+          replay_messages: [
+            "Imported log entries: " ++ string_of_int(List.length(actions)),
+            ...model.replay_messages,
+          ],
         }
         |> Updated.return_quiet;
       | NextLog =>
         switch (model.future_log) {
         | [] =>
-          LogSidebar.log_info("No next log action to perform");
-          model |> Updated.return_quiet;
+          {
+            ...model,
+            replay_messages: [
+              "No next log action to perform",
+              ...model.replay_messages,
+            ],
+          }
+          |> Updated.return_quiet
         | [(t, next), ...rest] =>
-          LogSidebar.log_action(
-            "Applying next log action",
-            Some(JsUtil.print_timestamp(t)),
-          );
-          // Keep full action expression in console for detailed debugging
-          print_endline("Full action: " ++ History.Update.show(next));
+          print_endline("Applying next log action...");
           try({
             let updated =
               History.Update.update(
@@ -105,6 +96,8 @@ module Update = {
               model: {
                 current: updated.model,
                 future_log: rest,
+                past_log: [(t, next), ...model.past_log],
+                replay_messages: model.replay_messages,
                 replay_toggle: model.replay_toggle,
               },
             };
@@ -113,29 +106,38 @@ module Update = {
             LogSidebar.log_error("Failed to apply log action");
             Model.{
               ...model,
-              future_log:
-                ignore_if_action_fails_in_log_replay(next)
-                  ? rest : model.future_log,
-              replay_toggle:
-                ignore_if_action_fails_in_log_replay(next)
-                  ? model.replay_toggle : false,
+              replay_messages: [
+                "Error applying log action : " ++ History.Update.show(next),
+                ...model.replay_messages,
+              ],
+              future_log: model.future_log,
+              replay_toggle: false,
             }
-            |> Updated.return_quiet;
+            |> return_quiet;
           };
         }
       | SkipLog =>
-        LogSidebar.log_action("Skipping the next log entry", None);
         switch (model.future_log) {
         | [] =>
-          LogSidebar.log_info("No log entry to skip");
-          model |> return_quiet;
+          {
+            ...model,
+            replay_messages: [
+              "No log entry to skip",
+              ...model.replay_messages,
+            ],
+          }
+          |> return_quiet
         | [(_, _), ...rest] =>
           {
             ...model,
+            replay_messages: [
+              "Skipped a log entry",
+              ...model.replay_messages,
+            ],
             future_log: rest,
           }
           |> return_quiet
-        };
+        }
       | ToggleReplay =>
         Model.{
           ...model,
@@ -144,8 +146,16 @@ module Update = {
         |> return_quiet
       | ClearLog =>
         Log.DB.clear_and(() => ());
-        LogSidebar.log_info("Log cleared");
-        model |> return_quiet;
+        {
+          ...model,
+          future_log: [],
+          past_log: [],
+          replay_messages: [
+            "Cleared all log entries",
+            ...model.replay_messages,
+          ],
+        }
+        |> return_quiet;
       }
     | action =>
       let current =
@@ -162,7 +172,9 @@ module Update = {
         model: {
           current: current.model,
           future_log: model.future_log,
+          past_log: model.past_log,
           replay_toggle: model.replay_toggle,
+          replay_messages: model.replay_messages,
         },
       };
     };
@@ -179,6 +191,8 @@ module Update = {
       model.current
       |> History.Update.calculate(~schedule_action, ~is_edited, ~dynamics),
     future_log: model.future_log,
+    past_log: model.past_log,
+    replay_messages: model.replay_messages,
     replay_toggle: model.replay_toggle,
   };
 };
@@ -196,6 +210,19 @@ module Selection = {
 module View = {
   let view =
       (~get_log_and, ~inject: Update.t => Ui_effect.t(unit), model: Model.t) => {
-    History.View.view(~get_log_and, ~inject, model.current);
+    History.View.view(
+      ~log_model=
+        LogSidebar.Model.{
+          messages: model.replay_messages,
+          is_playing: model.replay_toggle,
+          current_step: List.length(model.past_log),
+          total_steps:
+            List.length(model.past_log) + List.length(model.future_log),
+          show_details: true,
+        },
+      ~get_log_and,
+      ~inject,
+      model.current,
+    );
   };
 };

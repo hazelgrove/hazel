@@ -12,49 +12,6 @@ module Model = {
     total_steps: int,
     show_details: bool,
   };
-
-  let init = () => {
-    messages: [],
-    is_playing: false,
-    current_step: 0,
-    total_steps: 0,
-    show_details: false,
-  };
-};
-
-module Update = {
-  [@deriving (show({with_path: false}), sexp, yojson)]
-  type t =
-    | AddMessage(string)
-    | ClearMessages
-    | SetPlaying(bool)
-    | SetSteps(int, int)
-    | ToggleDetails;
-
-  let update = (action: t, model: Model.t): Model.t =>
-    switch (action) {
-    | AddMessage(msg) => {
-        ...model,
-        messages: [msg, ...Util.ListUtil.take(100, model.messages)],
-      }
-    | ClearMessages => {
-        ...model,
-        messages: [],
-      }
-    | SetPlaying(playing) => {
-        ...model,
-        is_playing: playing,
-      }
-    | SetSteps(current, total) => {
-        ...model,
-        current_step: current,
-        total_steps: total,
-      }
-    | ToggleDetails => {
-        ...model,
-        show_details: !model.show_details,
-      }
-    };
 };
 
 let button = (~attrs=[], ~tooltip="", ~onclick, ~disabled=false, children) => {
@@ -121,8 +78,7 @@ let message_item = (message: string) => {
   );
 };
 
-let controls_section =
-    (~inject: Globals.Action.t => Ui_effect.t(unit), ~model: Model.t) => {
+let controls_section = (~globals: Globals.t, ~model: Model.t) => {
   let play_pause_icon = model.is_playing ? "⏸️" : "▶️";
   let play_pause_tooltip =
     model.is_playing ? "Pause log replay" : "Start log replay";
@@ -138,7 +94,8 @@ let controls_section =
               file => {
                 switch (file) {
                 | None => Virtual_dom.Vdom.Effect.Ignore
-                | Some(file) => inject(Log(InitImport(file)))
+                | Some(file) =>
+                  globals.inject_global(Log(InitImport(file)))
                 }
               },
             ~id="log-import-input",
@@ -154,13 +111,17 @@ let controls_section =
               _ => {
                 let elem = Util.JsUtil.get_elem_by_id("log-import-input");
                 elem##click;
-                Virtual_dom.Vdom.Effect.Ignore;
+                Ui_effect.Ignore;
               },
             [text("Import Log")],
           ),
           button(
             ~tooltip="Export current log",
-            ~onclick=_ => inject(Log(ToggleReplay)), // This should trigger export
+            ~onclick=
+              _ => {
+                ExercisesMode.Update.export_submission(~globals);
+                Ui_effect.Ignore;
+              },
             [text("Export Log")],
           ),
         ],
@@ -170,17 +131,17 @@ let controls_section =
         [
           button(
             ~tooltip=play_pause_tooltip,
-            ~onclick=_ => inject(Log(ToggleReplay)),
+            ~onclick=_ => globals.inject_global(Log(ToggleReplay)),
             [text(play_pause_icon)],
           ),
           button(
             ~tooltip="Execute next log step",
-            ~onclick=_ => inject(Log(NextLog)),
+            ~onclick=_ => globals.inject_global(Log(NextLog)),
             [text("Next Step")],
           ),
           button(
             ~tooltip="Skip current log entry",
-            ~onclick=_ => inject(Log(SkipLog)),
+            ~onclick=_ => globals.inject_global(Log(SkipLog)),
             [text("Skip")],
           ),
         ],
@@ -190,28 +151,13 @@ let controls_section =
   );
 };
 
-let messages_section =
-    (~model: Model.t, ~inject_log: Update.t => Ui_effect.t(unit)) => {
+let messages_section = (~model: Model.t) => {
   div(
     ~attrs=[Attr.class_("log-messages")],
     [
       div(
         ~attrs=[Attr.class_("log-messages-header")],
-        [
-          span([text("Log Messages")]),
-          button(
-            ~attrs=[Attr.class_("log-clear-btn")],
-            ~tooltip="Clear all messages",
-            ~onclick=_ => inject_log(ClearMessages),
-            [text("Clear")],
-          ),
-          button(
-            ~attrs=[Attr.class_("log-details-btn")],
-            ~tooltip="Toggle detailed view",
-            ~onclick=_ => inject_log(ToggleDetails),
-            [text(model.show_details ? "Hide Details" : "Show Details")],
-          ),
-        ],
+        [span([text("Log Messages")])],
       ),
       div(
         ~attrs=[
@@ -232,8 +178,7 @@ let messages_section =
   );
 };
 
-let debug_section =
-    (~inject: Globals.Action.t => Ui_effect.t(unit), ~log_entries_count: int) => {
+let debug_section = (~globals: Globals.t, ~log_entries_count: int) => {
   div(
     ~attrs=[Attr.class_("log-debug")],
     [
@@ -256,7 +201,7 @@ let debug_section =
             ~attrs=[
               Attr.class_("log-button"),
               Attr.title("Clear all log entries"),
-              Attr.on_pointerdown(_ => inject(Log(ClearLog))),
+              Attr.on_pointerdown(_ => globals.inject_global(Log(ClearLog))),
             ],
             [text("Clear Log")],
           ),
@@ -266,20 +211,14 @@ let debug_section =
   );
 };
 
-let view =
-    (
-      ~inject: Globals.Action.t => Ui_effect.t(unit),
-      ~inject_log: Update.t => Ui_effect.t(unit),
-      ~model: Model.t,
-      ~log_entries_count: int,
-    ) => {
+let view = (~globals: Globals.t, ~model: Model.t, ~log_entries_count: int) => {
   div(
     ~attrs=[Attr.class_("log-sidebar")],
     [
       div(~attrs=[Attr.class_("log-header")], [text("Log Control Panel")]),
-      controls_section(~inject, ~model),
-      messages_section(~inject_log, ~model),
-      debug_section(~inject, ~log_entries_count),
+      controls_section(~globals, ~model),
+      messages_section(~model),
+      debug_section(~globals, ~log_entries_count),
     ],
   );
 };
