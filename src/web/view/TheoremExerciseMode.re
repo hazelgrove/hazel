@@ -35,6 +35,7 @@ module Model = {
     max_points: int,
     cells,
     editing_flags,
+    write_out_steps: bool,
   };
 
   [@deriving (show({with_path: false}), sexp, yojson)]
@@ -68,6 +69,7 @@ module Model = {
         },
       },
       editing_flags: editing_flags_false,
+      write_out_steps: spec.write_out_steps,
     };
   };
 
@@ -86,6 +88,7 @@ module Model = {
           CellEditor.Model.mk(Editor.Model.mk(spec.theorem, ~root=Exp)),
       },
       editing_flags: editing_flags_false,
+      write_out_steps: spec.write_out_steps,
     };
   };
 
@@ -99,6 +102,7 @@ module Model = {
       prelude: model.cells.prelude.editor.editor.state.zipper,
       lemmas: model.cells.lemmas.editor.editor.state.zipper,
       theorem: model.cells.theorem.editor.editor.state.zipper,
+      write_out_steps: model.write_out_steps,
     };
   };
 
@@ -106,6 +110,32 @@ module Model = {
     let prefix = "let exercise : Exercise.t = Theorem\n";
     let spec = spec_of_t(model);
     prefix ++ TheoremExercise.show_spec(spec) ++ "\n";
+  };
+};
+
+let override_core_settings =
+    (settings: Language.CoreSettings.t, model: Model.t) => {
+  {
+    ...settings,
+    evaluation: {
+      ...settings.evaluation,
+      write_out_steps:
+        model.write_out_steps || settings.evaluation.write_out_steps,
+    },
+  };
+};
+
+let override_settings = (settings: Settings.t, model: Model.t) => {
+  {
+    ...settings,
+    core: override_core_settings(settings.core, model),
+  };
+};
+
+let override_globals = (globals: Globals.t, model: Model.t) => {
+  {
+    ...globals,
+    settings: override_settings(globals.settings, model),
   };
 };
 
@@ -124,6 +154,7 @@ module Update = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t =
     | Instructor(instructor)
+    | ToggleWriteOutSteps
     | Prelude(CellEditor.Update.t)
     | Lemmas(CellEditor.Update.t)
     | Theorem(CellEditor.Update.t)
@@ -186,6 +217,14 @@ module Update = {
   let update = (~settings: Settings.t, action: t, model: Model.t) => {
     switch (action) {
     | Instructor(action) => instructor_update(~settings, action, model)
+    | ToggleWriteOutSteps when settings.instructor_mode =>
+      Updated.return({
+        ...model,
+        write_out_steps: !model.write_out_steps,
+      })
+    | ToggleWriteOutSteps =>
+      print_endline("Instructor-only action");
+      Updated.return_quiet(model);
     | Prelude(action) when settings.instructor_mode =>
       let* new_cell =
         CellEditor.Update.update(~settings, action, model.cells.prelude);
@@ -275,6 +314,7 @@ module Update = {
   let can_undo = (action: t): bool => {
     switch (action) {
     | Instructor(_) => false
+    | ToggleWriteOutSteps => true
     | Prelude(action) => CellEditor.Update.can_undo(action)
     | Lemmas(action) => CellEditor.Update.can_undo(action)
     | Theorem(action) => CellEditor.Update.can_undo(action)
@@ -289,6 +329,7 @@ module Update = {
         schedule_action(RefreshStatics)
       );
 
+    let settings = override_core_settings(settings, model);
     // Work out the terms
     let just_prelude_term =
       MakeTerm.from_zip_for_sem(
@@ -512,6 +553,7 @@ module View = {
     let editing_flags = model.editing_flags;
     let on_focus_textbox = _ => take_focus(TextBox);
 
+    let globals = override_globals(globals, model);
     let title_view =
       InstructorEditViews.title_view(
         ~instructor_mode=globals.settings.instructor_mode,
@@ -531,6 +573,16 @@ module View = {
         ~toggle_editing=_ => inject(Instructor(EditingModuleName)),
         ~update_module_name=m => inject(Instructor(UpdateModuleName(m))),
       );
+
+    let write_out_steps_view =
+      CellCommon.simple_cell_view([
+        WebUtil.Node.text("Force writing out proof steps:"),
+        Widgets.toggle_named("", model.write_out_steps, _ =>
+          inject(Update.ToggleWriteOutSteps)
+        ),
+      ]);
+    let write_out_steps_view =
+      globals.settings.instructor_mode ? [write_out_steps_view] : [];
 
     let prompt_view =
       InstructorEditViews.prompt_view(
@@ -601,14 +653,8 @@ module View = {
         |> Option.value(~default=(Float.nan, Float.nan)),
       );
 
-    [
-      score_view,
-      title_view,
-      module_name_view,
-      prompt_view,
-      prelude_view,
-      lemmas_view,
-      theorem_view,
-    ];
+    [score_view, title_view, module_name_view]
+    @ write_out_steps_view
+    @ [prompt_view, prelude_view, lemmas_view, theorem_view];
   };
 };
