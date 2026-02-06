@@ -74,10 +74,9 @@ let match_pattern =
   | Parens(p)
   | Projector(_, p) => recur(p, d)
   | Asc(p, t1) =>
-    recur(
-      p,
-      Ascriptions.transition_multiple(~targets, Asc(d, t1) |> DHExp.fresh),
-    )
+    let (_samples, d') =
+      Ascriptions.transition_multiple(~targets, Asc(d, t1) |> DHExp.fresh);
+    recur(p, d');
   };
 
 /* Record a sample closure if this pattern is targeted and matched */
@@ -118,7 +117,7 @@ let rec matches_inner =
           d: DHExp.t,
         )
         : match_result => {
-  let d = Ascriptions.transition_multiple(~targets, d);
+  let (_samples, d) = Ascriptions.transition_multiple(~targets, d);
   let pat_id = Pat.rep_id(dp);
   let maybe_spec = Id.Map.find_opt(pat_id, targets);
   let recur = matches_inner(targets, sample_closures);

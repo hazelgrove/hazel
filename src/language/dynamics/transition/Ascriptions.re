@@ -303,7 +303,3 @@ let rec transition_multiple =
   | None => SampleWriter.return(d)
   };
 };
-
-// TODO return samples
-let transition_multiple = (~targets: Sample.targets, d: DHExp.t): DHExp.t =>
-  snd(transition_multiple(~targets, d));
