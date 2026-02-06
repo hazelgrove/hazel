@@ -19,6 +19,7 @@ type cls =
   | Var
   | Constructor // Constructor does not exist on Typ.term it's being used here as a hack for the cursors inspector
   | Parens
+  | Projector
   | Rec
   | Poly
   | ProofOf
@@ -89,6 +90,7 @@ let cls_of_term: Grammar.typ_term('a) => cls =
   | Label(_) => Label
   | ExplicitNonlabel => ExplicitNonlabel
   | Parens(_) => Parens
+  | Projector(_) => Projector
   | Sum(_) => Sum
   | Rec(_) => Rec
   | Poly(_) => Poly
@@ -114,6 +116,7 @@ let show_cls: cls => string =
   | ExplicitNonlabel => "Explicitly unlabeled tuple item type"
   | Sum => "Sum type"
   | Parens => "Parenthesized type"
+  | Projector => "Projector type"
   | Rec => "Recursive type"
   | Poly => "Type quantifier"
   | ProofOf => "Proof type"
@@ -123,6 +126,7 @@ let show_cls: cls => string =
 let rec is_arrow = (typ: t) => {
   switch (typ.term) {
   | Parens(typ)
+  | Projector(_, typ)
   | TupLabel(_, typ) => is_arrow(typ)
   | Arrow(_) => true
   | Unknown(_)
@@ -146,6 +150,7 @@ let is_atom = (ty: t): bool =>
   | Atom(_) => true
   | ProofOf(_)
   | Parens(_)
+  | Projector(_)
   | TupLabel(_)
   | Arrow(_)
   | Unknown(_)
@@ -164,6 +169,7 @@ let is_atom = (ty: t): bool =>
 let rec has_fun = (typ: t) =>
   switch (typ.term) {
   | Parens(typ)
+  | Projector(_, typ)
   | TupLabel(_, typ)
   | ProdProjection(typ, _) => has_fun(typ)
   | Arrow(_)
@@ -190,6 +196,7 @@ let rec has_fun = (typ: t) =>
 let rec is_poly = (typ: t) => {
   switch (typ.term) {
   | Parens(typ)
+  | Projector(_, typ)
   | TupLabel(_, typ) => is_poly(typ)
   | Poly(_) => true
   | ProofOf(_)
@@ -266,7 +273,8 @@ let rec free_vars = (~bound=[], ty: t): list(Var.t) =>
   | Label(_)
   | ExplicitNonlabel => []
   | Var(v) => List.mem(v, bound) ? [] : [v]
-  | Parens(ty) => free_vars(~bound, ty)
+  | Parens(ty)
+  | Projector(_, ty) => free_vars(~bound, ty)
   | List(ty) => free_vars(~bound, ty)
   | ProdExtension(t1, t2)
   | Arrow(t1, t2) => free_vars(~bound, t1) @ free_vars(~bound, t2)
@@ -300,7 +308,8 @@ let rec vars = (ty: t): list(Var.t) =>
     vars(ty) |> List.filter((x': string) => x' != x)
   | Rec(_, ty) => vars(ty)
   | List(ty) => vars(ty)
-  | Parens(ty) => vars(ty)
+  | Parens(ty)
+  | Projector(_, ty) => vars(ty)
   | Poly({term: Var(x), _}, ty) =>
     vars(ty) |> List.filter((x': string) => x' != x)
   | Poly(_, ty) => vars(ty)
@@ -358,7 +367,8 @@ let rec num_nodes = (ty: t): int => {
       )
   | Rec(_, ty) => 1 + num_nodes(ty)
   | List(ty) => 1 + num_nodes(ty)
-  | Parens(ty) => 1 + num_nodes(ty)
+  | Parens(ty)
+  | Projector(_, ty) => 1 + num_nodes(ty)
   | Poly(_, ty) => 1 + num_nodes(ty)
   | ExplicitNonlabel
   | Label(_) => 1
@@ -391,7 +401,8 @@ let rec count_unknowns = (ty: t): int =>
     )
   | Rec(_, ty) => count_unknowns(ty)
   | List(ty) => count_unknowns(ty)
-  | Parens(ty) => count_unknowns(ty)
+  | Parens(ty)
+  | Projector(_, ty) => count_unknowns(ty)
   | Poly(_, ty) => count_unknowns(ty)
   | ProofOf(_) => 0
   | ExplicitNonlabel
@@ -411,7 +422,8 @@ let rec contains_sum_or_var = (ty: t): bool =>
   | Prod(tys) => List.exists(contains_sum_or_var, tys)
   | Rec(_, ty) => contains_sum_or_var(ty)
   | List(ty) => contains_sum_or_var(ty)
-  | Parens(ty) => contains_sum_or_var(ty)
+  | Parens(ty)
+  | Projector(_, ty) => contains_sum_or_var(ty)
   | Poly(_, ty) => contains_sum_or_var(ty)
   | ProofOf(_) => false
   | ProdProjection(ty1, _) => contains_sum_or_var(ty1)
@@ -446,6 +458,7 @@ let rec subst = (s: t, x: TPat.t, ty: t): t => {
     | List(ty) => List(subst(s, x, ty)) |> rewrap
     | Var(y) => str == y ? s : Var(y) |> rewrap
     | Parens(ty) => Parens(subst(s, x, ty)) |> rewrap
+    | Projector(data, ty) => Projector(data, subst(s, x, ty)) |> rewrap
     | ProdProjection(t1, t2) =>
       ProdProjection(subst(s, x, t1), subst(s, x, t2)) |> rewrap
     | ProdExtension(t1, t2) =>
@@ -600,7 +613,8 @@ let rec normalize = (~rec_counter=0, ctx: Ctx.t, ty: t): t => {
   | Atom(_)
   | ExplicitNonlabel
   | Label(_) => ty
-  | Parens(t) => normalize(ctx, t)
+  | Parens(t)
+  | Projector(_, t) => normalize(ctx, t)
   | List(t) => List(normalize(ctx, t)) |> rewrap
   | Arrow(t1, t2) =>
     Arrow(normalize(ctx, t1), normalize(ctx, t2)) |> rewrap
@@ -629,8 +643,10 @@ let rec normalize = (~rec_counter=0, ctx: Ctx.t, ty: t): t => {
 let rec meet = (ctx: Ctx.t, ty1: t, ty2: t): option(t) => {
   let meet' = meet(ctx);
   switch (term_of(ty1), term_of(ty2)) {
-  | (_, Parens(ty2)) => meet'(ty1, ty2)
-  | (Parens(ty1), _) => meet'(ty1, ty2)
+  | (_, Parens(ty2))
+  | (_, Projector(_, ty2)) => meet'(ty1, ty2)
+  | (Parens(ty1), _)
+  | (Projector(_, ty1), _) => meet'(ty1, ty2)
   | (TupLabel({term: ExplicitNonlabel, _}, ty1'), _) => meet'(ty1', ty2)
   | (_, TupLabel({term: ExplicitNonlabel, _}, ty2')) => meet'(ty1, ty2')
   | (Unknown(p1), Unknown(p2)) =>
@@ -752,6 +768,8 @@ let rec match_synswitch = (t1: t, t2: t) => {
   let (term1, rewrap1) = unwrap(t1);
   switch (term1, term_of(t2)) {
   | (Parens(t1), _) => Parens(match_synswitch(t1, t2)) |> rewrap1
+  | (Projector(data, t1), _) =>
+    Projector(data, match_synswitch(t1, t2)) |> rewrap1
   | (Unknown(SynSwitch), _) => t2
   // These cases can't have a synswitch inside
   | (Unknown(_), _)
@@ -957,7 +975,8 @@ let rec get_sum_constructors = (ctx: Ctx.t, ty: t): option(sum_map) => {
 let rec is_syn = (ty: t): bool =>
   switch (ty |> term_of) {
   | TupLabel(_, x)
-  | Parens(x) => is_syn(x)
+  | Parens(x)
+  | Projector(_, x) => is_syn(x)
   | Unknown(SynSwitch) => true
   | Unknown(_)
   | Atom(_)
@@ -978,7 +997,8 @@ let rec is_syn = (ty: t): bool =>
 let rec is_ana_atom = (ty: t) =>
   switch (ty |> term_of) {
   | TupLabel(_, x)
-  | Parens(x) => is_ana_atom(x)
+  | Parens(x)
+  | Projector(_, x) => is_ana_atom(x)
   | Atom(a) => Some(a)
   | Unknown(_)
   | ExplicitNonlabel
@@ -998,7 +1018,8 @@ let rec is_ana_atom = (ty: t) =>
 let rec is_syn_plus = (ty: t): bool =>
   switch (ty |> term_of) {
   | TupLabel(_, x)
-  | Parens(x) => is_syn_plus(x)
+  | Parens(x)
+  | Projector(_, x) => is_syn_plus(x)
   | Unknown(SynSwitch) => true
   | Arrow(t1, t2) => is_syn(t1) && is_syn_plus(t2)
   | Poly(_, t) => is_syn(t)
@@ -1019,7 +1040,8 @@ let rec is_syn_plus = (ty: t): bool =>
 /* Does the type require parentheses when on the left of an arrow for printing? */
 let rec needs_parens = (ty: t): bool =>
   switch (term_of(ty)) {
-  | Parens(ty) => needs_parens(ty)
+  | Parens(ty)
+  | Projector(_, ty) => needs_parens(ty)
   | Unknown(_)
   | Atom(_)
   | ExplicitNonlabel
@@ -1048,7 +1070,8 @@ let pretty_print_tvar = (tv: TPat.t): string =>
 /* Essentially recreates web/view/Type.re's view_ty but with string output */
 let rec pretty_print = (ty: t): string =>
   switch (term_of(ty)) {
-  | Parens(ty) => pretty_print(ty)
+  | Parens(ty)
+  | Projector(_, ty) => pretty_print(ty)
   | Unknown(_) => "?"
   | Atom(Int) => "Int"
   | Atom(Float) => "Float"
@@ -1130,6 +1153,8 @@ let rec diff = (ty: t, ty': t): list(Id.t) => {
   switch (term_of(ty), term_of(ty')) {
   | (Parens(t1), Parens(t2)) => diff(t1, t2)
   | (Parens(t1), _) => diff(t1, ty')
+  | (_, Projector(_, t2)) => diff(ty, t2)
+  | (Projector(_, t1), _) => diff(t1, ty')
   | (_, Parens(t2)) => diff(ty, t2)
   | (Unknown(_), Unknown(_)) => []
   | (Unknown(_), _) => get_ids()

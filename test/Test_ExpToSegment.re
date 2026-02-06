@@ -1095,10 +1095,47 @@ let roundtrip_grout_string_tests = (
    String-based tests (grout_term_to_seg_to_string_tests, roundtrip_grout_string_tests)
    still provide coverage for grout round-tripping. */
 
+/* ============================================================================
+   PROJECTOR ROUND-TRIP TESTS
+
+   These tests verify that projectors round-trip correctly through:
+   text → segment → term → segment → text
+
+   Projector syntax: ^^<kind>(<content>)
+   Where <kind> is one of: fold, slider, sliderf, check, text, card, livelit, csv
+   (probe and statics are refractors with different behavior)
+   ============================================================================ */
+
+let roundtrip_projector_tests = (
+  "Round-Trip: Projectors",
+  [
+    /* Simple projector wrapping a literal */
+    roundtrip_test({|Slider: integer|}, {|^^slider(50)|}),
+    roundtrip_test({|SliderF: float|}, {|^^sliderf(0.500000)|}),
+    roundtrip_test({|Checkbox: true|}, {|^^check(true)|}),
+    roundtrip_test({|Checkbox: false|}, {|^^check(false)|}),
+    /* Projector in expression context */
+    roundtrip_test({|Slider in let|}, {|let x = ^^slider(50) in x + 1|}),
+    /* Test secondary inside various wrappers */
+    roundtrip_test({|Parens: simple|}, {|(1 + 2)|}),
+    roundtrip_test({|Fold: simple|}, {|^^fold(1 + 2)|}),
+    roundtrip_test({|Fold in function|}, {|fun x -> ^^fold(x * 2)|}),
+    /* Nested projectors */
+    roundtrip_test({|Nested: slider in fold|}, {|^^fold(^^slider(50) + 1)|}),
+    /* Projector with spacing inside content - leading/trailing spaces in parens */
+    roundtrip_test({|Parens: inner spaced|}, {|( 50 )|}),
+    roundtrip_test({|Slider: inner spaced|}, {|^^slider( 50 )|}),
+    roundtrip_test({|Fold: inner spaced|}, {|^^fold( 1 + 2 )|}),
+    roundtrip_test({|Fold in pattern|}, {|fun ^^fold(x, y) -> x+y|}),
+    roundtrip_test({|Fold in type|}, {|type T = ^^fold((Int, String)) in 1|}),
+  ],
+);
+
 let all = [
   tests,
   roundtrip_tests,
   roundtrip_defensive_paren_tests,
   roundtrip_larger_programs,
   roundtrip_grout_string_tests,
+  roundtrip_projector_tests,
 ];

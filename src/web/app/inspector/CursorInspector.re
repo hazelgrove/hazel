@@ -22,20 +22,19 @@ let label_view = (label: string): Node.t =>
 
 let cls_view = (ci: Info.t): Node.t => {
   let cls = ci |> Info.cls_of;
+  let cls_text =
+    switch (Info.projector_kind_of(ci)) {
+    | Some(kind) => "Projector (" ++ ProjectorKind.show(kind) ++ ")"
+    | None =>
+      switch (cls) {
+      | Typ(EmptyHole)
+      | Exp(EmptyHole)
+      | Pat(EmptyHole) => Info.is_label(ci) ? "Label Hole" : Cls.show(cls)
+      | cls => cls |> Cls.show
+      }
+    };
 
-  div(
-    ~attrs=[clss(["syntax-class"])],
-    [
-      text(
-        switch (cls) {
-        | Typ(EmptyHole)
-        | Exp(EmptyHole)
-        | Pat(EmptyHole) => Info.is_label(ci) ? "Label Hole" : Cls.show(cls)
-        | cls => cls |> Cls.show
-        },
-      ),
-    ],
-  );
+  div(~attrs=[clss(["syntax-class"])], [text(cls_text)]);
 };
 
 let ctx_toggle = (~globals: Globals.t): Node.t =>

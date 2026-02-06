@@ -84,10 +84,16 @@ let go =
       a: Action.project,
       z: Zipper.t,
       projector_list: list(Id.t),
+      refractor_list: list(Id.t),
     )
     : result(ZipperBase.t, Action.Failure.t) => {
   let projector_idx_to_id = (idx: int): Id.t =>
     List.nth(projector_list, idx);
+  let refractor_idx_to_id = (idx: int): Id.t =>
+    List.nth(refractor_list, idx);
+  let idx_to_id = (kind: ProjectorCore.Kind.t, idx: int): Id.t =>
+    ProjectorCore.Kind.is_refractor(kind)
+      ? refractor_idx_to_id(idx) : projector_idx_to_id(idx);
 
   let select_term =
     Select.current_term(
@@ -191,18 +197,23 @@ let go =
       ),
     )
   | SetModel(idx, kind, new_model) =>
+    let id = idx_to_id(kind, idx);
     Ok(
       if (ProjectorCore.Kind.is_refractor(kind)) {
         Zipper.update_manuals(
           map =>
-            ListUtil.update_nth(idx, map, ((id, entry: Refractors.entry)) =>
-              (
-                id,
-                Refractors.{
-                  kind: entry.kind,
-                  model: new_model,
-                },
-              )
+            ListUtil.assoc_update(
+              id,
+              fun
+              | Some(entry: Refractors.entry) =>
+                Some(
+                  Refractors.{
+                    kind: entry.kind,
+                    model: new_model,
+                  },
+                )
+              | None => None,
+              map,
             ),
           z,
         );
@@ -213,31 +224,27 @@ let go =
               ...pr,
               model: new_model,
             },
-          projector_idx_to_id(idx),
+          id,
           z,
         );
       },
-    )
+    );
   | Focus(idx, kind, d) =>
+    let id = idx_to_id(kind, idx);
     switch (d) {
     | None =>
       /* Focus by mouse click */
       let (module P) = ProjectorInit.to_module(kind);
       switch (P.focusable.pointer) {
-      | Some(focus) => focus(projector_idx_to_id(idx))
+      | Some(focus) => focus(id)
       | None => ()
       };
-      Ok(
-        Option.value(
-          ~default=z,
-          Move.jump_to_id_indicated(z, projector_idx_to_id(idx)),
-        ),
-      );
+      Ok(Option.value(~default=z, Move.jump_to_id_indicated(z, id)));
     | Some(Right) =>
       /* Focus by arrow key hand-off */
       let (module P) = ProjectorInit.to_module(kind);
       switch (P.focusable.keyboard) {
-      | Some(focus) => focus(projector_idx_to_id(idx), Right)
+      | Some(focus) => focus(id, Right)
       | None => ()
       };
       Ok(z);
@@ -245,11 +252,11 @@ let go =
       /* Focus by arrow key hand-off */
       let (module P) = ProjectorInit.to_module(kind);
       switch (P.focusable.keyboard) {
-      | Some(focus) => focus(projector_idx_to_id(idx), Left)
+      | Some(focus) => focus(id, Left)
       | None => ()
       };
       Ok(z);
-    }
+    };
   | Escape(idx, d) =>
     switch (Move.jump_to_side_of_id(d, z, projector_idx_to_id(idx))) {
     | Some(z) => Ok(z)
