@@ -51,14 +51,19 @@ let all_probeable_ids = (info_map: Statics.Map.t): Id.Map.t(unit) =>
   );
 
 /* Collect IDs of expressions/patterns with partially unknown types.
- * Used for live_typing to automatically probe terms that need dynamic type feedback. */
+ * Used for live_typing to automatically probe terms that need dynamic type feedback.
+ * Note: We check the SELF (synthesized) type, not the fixed TY, because
+ * an expression like `1 : ?` analyzed against String would have ty=String
+ * but self=Unknown - we need dynamic feedback for the Unknown part. */
 let ids_with_unknown_types = (info_map: Statics.Map.t): Id.Map.t(unit) =>
   Id.Map.fold(
     (id, info, acc) =>
       switch (info) {
-      | Info.InfoExp({ty, _}) when Typ.contains_unknown(ty) =>
+      | Info.InfoExp({self: Common(Just(ty)), _})
+          when Typ.contains_unknown(ty) =>
         Id.Map.add(id, (), acc)
-      | Info.InfoPat({ty, _}) when Typ.contains_unknown(ty) =>
+      | Info.InfoPat({self: Common(Just(ty)), _})
+          when Typ.contains_unknown(ty) =>
         Id.Map.add(id, (), acc)
       | _ => acc
       },

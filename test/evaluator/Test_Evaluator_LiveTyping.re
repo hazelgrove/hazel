@@ -113,13 +113,21 @@ let test_live_typing = (~test_name=?, expected_exp: FError.exp) => {
     original_errors,
   );
 
+  // Compute targets for expressions with unknown types (needed for live typing)
+  let targets =
+    Haz3lcore.CachedStatics.compute_targets(
+      ~settings=CoreSettings.on,
+      ~info_map=initial_statics,
+      ~probe_ids=Id.Map.empty,
+    );
+
   // Elaborate the expression
   let elaborated_exp =
     Elaborator.elaborate(initial_statics, exp_with_ids) |> fst;
 
   // Evaluate the elaborated expression to collect dynamic information
   let (_, evaluation_state) =
-    Evaluator.evaluate(~env=Builtins.env_init, elaborated_exp);
+    Evaluator.evaluate(~targets, ~env=Builtins.env_init, elaborated_exp);
 
   // Extract probe data and type instantiations from the evaluation state
   let probe_data = EvaluatorState.get_probes(evaluation_state);
