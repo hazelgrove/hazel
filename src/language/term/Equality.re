@@ -776,3 +776,9 @@ let semantic_settings = {
 };
 
 let semantic = equality(semantic_settings);
+
+let ignoring_ascriptions =
+  equality({
+    ...semantic_settings,
+    ignore_ascriptions: true,
+  });
