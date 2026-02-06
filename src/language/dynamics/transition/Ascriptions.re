@@ -27,11 +27,8 @@ let rec transition = (~recursive=false, d: DHExp.t): option(DHExp.t) => {
   switch (DHExp.term_of(d)) {
   | Asc(inner_asc, t) =>
     switch (DHExp.term_of(inner_asc), Typ.term_of(Typ.unroll(t))) {
-    | (Asc(e, t'), t)
+    | (Asc(e, t'), _)
         // This is only necessary because sometimes we add two ascriptions and aren't marking it as a non-value
-        // TODO Consider doing sample recording in here so we don't have to play this game
-        // In non-recursive mode, skip this optimization when inner type is Unknown to allow proper probe recording.
-        // In recursive mode (used by transition_multiple for pattern matching), always apply it.
         when
           (
             recursive
@@ -42,14 +39,8 @@ let rec transition = (~recursive=false, d: DHExp.t): option(DHExp.t) => {
               }
             )
           )
-          && Typ.is_consistent(
-               Ctx.empty,
-               Typ.unroll(t |> Typ.temp),
-               Typ.unroll(t'),
-             ) =>
-      switch (
-        Typ.meet(Ctx.empty, Typ.unroll(t |> Typ.temp), Typ.unroll(t'))
-      ) {
+          && Typ.is_consistent(Ctx.empty, Typ.unroll(t), Typ.unroll(t')) =>
+      switch (Typ.meet(Ctx.empty, Typ.unroll(t), Typ.unroll(t'))) {
       | Some(t) =>
         /* Preserve the ID of the inner ascription for probe tracking */
         Some(
@@ -156,26 +147,26 @@ let rec transition = (~recursive=false, d: DHExp.t): option(DHExp.t) => {
           |> DHExp.fresh,
         ),
       );
-    | (If(cond, e1, e2), t) =>
+    | (If(cond, e1, e2), _) =>
       Some(
         IdTagged.fast_copy(
           DHExp.rep_id(inner_asc),
           If(
             recur(cond),
-            recur(Asc(e1, t |> Typ.temp) |> DHExp.fresh),
-            recur(Asc(e2, t |> Typ.temp) |> DHExp.fresh),
+            recur(Asc(e1, t) |> DHExp.fresh),
+            recur(Asc(e2, t) |> DHExp.fresh),
           )
           |> DHExp.fresh,
         ),
       )
-    | (Match(scrut, rules), t) =>
+    | (Match(scrut, rules), _) =>
       Some(
         IdTagged.fast_copy(
           DHExp.rep_id(inner_asc),
           Match(
             scrut,
             List.map(
-              ((p, body)) => (p, Asc(body, t |> Typ.temp) |> DHExp.fresh),
+              ((p, body)) => (p, Asc(body, t) |> DHExp.fresh),
               rules,
             ),
           )
@@ -253,6 +244,8 @@ let rec transition = (~recursive=false, d: DHExp.t): option(DHExp.t) => {
       Some(Seq(e1, Asc(e2, t) |> DHExp.fresh) |> DHExp.fresh)
     | (Parens(e), _) =>
       Some(Parens(Asc(e, t) |> DHExp.fresh) |> DHExp.fresh)
+    | (Projector(data, e), _) =>
+      Some(Projector(data, Asc(e, t) |> DHExp.fresh) |> DHExp.fresh)
     // We _could_ do this, but it would be a bit weird
     | (Use(_), _) // I'm scaredto do Use because the type-directed literals might make this look weird in the stepper
     | (BuiltinFun(_), _)

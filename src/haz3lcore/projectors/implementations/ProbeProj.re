@@ -631,14 +631,17 @@ let sample_context_menu =
       view_seg,
       utility: utility,
     )
-    : Node.t =>
+    : Node.t => {
+  let env_elems = sample.env |> ListUtil.dedup |> Sample.Env.remove_opaques;
+  let has_env = env_elems != [];
   div(
     ~attrs=
-      [Attr.classes(["sample-context-menu"])]
+      [Attr.classes(["sample-context-menu"] @ (has_env ? [] : ["no-env"]))]
       @ SafeTriangle.CSSDropdown.menu_attrs(dropdown_id(sample.id)),
     sample_context_actions(~parent, ~ap_id, ~di, sample)
     @ sample_environment(~settings, sample, view_seg, utility),
   );
+};
 
 let sample_view =
     (

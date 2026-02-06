@@ -886,11 +886,37 @@ and unsorted = (sort: Sort.t, skel: Skel.t, seg: Segment.t): unsorted => {
     switch (p) {
     | Secondary(_)
     | Grout(_) => []
-    | Projector({syntax, _} as pr) =>
+    | Projector({id, kind, model, syntax} as pr) =>
       let _ = log_projector(pr);
       let sort = Piece.sort(syntax) |> fst;
       let seg = Piece.unparenthesize(syntax);
-      [go_s(sort, Segment.skel(seg), seg)];
+      let inner = go_s(sort, Segment.skel(seg), seg);
+      /* Construct Projector term with proper annotation, preserving
+       * projector metadata (kind, model) in the term for round-tripping */
+      let projector_data: Grammar.projector_data = {
+        kind,
+        model,
+      };
+      let wrapped =
+        switch (inner) {
+        | Grammar.Exp(e) =>
+          Grammar.Exp({
+            term: Projector(projector_data, e),
+            annotation: IdTagged.IdTag.mk([id], get_secondary([id])),
+          })
+        | Grammar.Pat(p) =>
+          Grammar.Pat({
+            term: Projector(projector_data, p),
+            annotation: IdTagged.IdTag.mk([id], get_secondary([id])),
+          })
+        | Grammar.Typ(t) =>
+          Grammar.Typ({
+            term: Projector(projector_data, t),
+            annotation: IdTagged.IdTag.mk([id], get_secondary([id])),
+          })
+        | _ => inner
+        };
+      [wrapped];
     | Tile({mold, shards, children, _}) =>
       Aba.aba_triples(Aba.mk(shards, children))
       |> List.map(((l, kid, r)) => {
