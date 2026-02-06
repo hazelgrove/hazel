@@ -937,7 +937,7 @@ module Transition = (EV: EV_MODE) => {
       let.wrap_closure _ = (env, d);
       Indet;
     | Asc(d', t) =>
-      switch (Ascriptions.transition(d)) {
+      switch (Ascriptions.transition(~targets, d)) {
       | Some(d') =>
         let. _ = otherwise(env, d);
         Step({
@@ -949,7 +949,7 @@ module Transition = (EV: EV_MODE) => {
       | None =>
         let. _ = otherwise(env, d => Asc(d, t) |> rewrap)
         and. d' = req_final(req(env), d => Asc(d, t) |> wrap_ctx, d');
-        switch (Ascriptions.transition(Asc(d', t) |> rewrap)) {
+        switch (Ascriptions.transition(~targets, Asc(d', t) |> rewrap)) {
         | Some(d) =>
           Step({
             expr: d,

@@ -17,55 +17,42 @@
  either by returning `Some(e)` directly, or by using `IdTagged.fast_copy(DHExp.rep_id(e), ...)`
  when constructing a new expression structure.
  */
-let rec transition = (~recursive=false, d: DHExp.t): option(DHExp.t) => {
+let rec transition =
+        (~targets: Sample.targets, ~recursive=false, d: DHExp.t)
+        : option(DHExp.t) => {
   let recur = (d: DHExp.t): DHExp.t =>
     if (recursive) {
-      transition(~recursive, d) |> Option.value(~default=d);
+      transition(~targets, ~recursive, d) |> Option.value(~default=d);
     } else {
       d;
     };
   switch (DHExp.term_of(d)) {
-  | Asc(inner_asc, t) =>
-    switch (DHExp.term_of(inner_asc), Typ.term_of(Typ.unroll(t))) {
+  | Asc(e, t) =>
+    switch (DHExp.term_of(e), Typ.term_of(Typ.unroll(t))) {
     | (Asc(e, t'), _)
         // This is only necessary because sometimes we add two ascriptions and aren't marking it as a non-value
-        when
-          (
-            recursive
-            || (
-              switch (Typ.term_of(t')) {
-              | Unknown(_) => false
-              | _ => true
-              }
-            )
-          )
-          && Typ.is_consistent(Ctx.empty, Typ.unroll(t), Typ.unroll(t')) =>
+        when Typ.is_consistent(Ctx.empty, Typ.unroll(t), Typ.unroll(t')) =>
       switch (Typ.meet(Ctx.empty, Typ.unroll(t), Typ.unroll(t'))) {
-      | Some(t) =>
-        /* Preserve the ID of the inner ascription for probe tracking */
-        Some(
-          recur(
-            IdTagged.fast_copy(
-              DHExp.rep_id(inner_asc),
-              Asc(e, t) |> DHExp.fresh,
-            ),
-          ),
-        )
+      | Some(t) => Some(recur(Asc(e, t) |> DHExp.fresh))
       | None => None //TODO  This is an impossible case since we checked consistency
       }
     | (e, Parens(t)) =>
       // This is an impossible case since types should be normalized before coming to transitions
-      transition(~recursive, Asc(e |> DHExp.fresh, t) |> DHExp.fresh)
+      transition(
+        ~targets,
+        ~recursive,
+        Asc(e |> DHExp.fresh, t) |> DHExp.fresh,
+      )
     | (Closure(ce, d), t) =>
-      transition(~recursive, Asc(d, t |> Typ.fresh) |> DHExp.fresh)
+      transition(~targets, ~recursive, Asc(d, t |> Typ.fresh) |> DHExp.fresh)
       |> Option.map(d => Closure(ce, d) |> DHExp.fresh)
     | (Fun(p, body, closure_ty, name), Arrow(t1, t2)) =>
       Some(
         IdTagged.fast_copy(
-          DHExp.rep_id(inner_asc),
+          DHExp.rep_id(e),
           IdTagged.FreshGrammar.(
             Exp.(
-              fn(~typ=?closure_ty, ~name?, Pat.(asc(p, t1)), asc(body, t2))
+              fn(Pat.(asc(p, t1)), asc(body, t2), ~typ=?closure_ty, ~name?)
             )
           ),
         ),
@@ -76,7 +63,7 @@ let rec transition = (~recursive=false, d: DHExp.t): option(DHExp.t) => {
       // TODO Figure out what to do if the labels don't match
       Some(
         IdTagged.fast_copy(
-          DHExp.rep_id(inner_asc),
+          DHExp.rep_id(e),
           TupLabel(l, recur(Asc(inner, inner_ty) |> DHExp.fresh))
           |> DHExp.fresh,
         ),
@@ -84,7 +71,7 @@ let rec transition = (~recursive=false, d: DHExp.t): option(DHExp.t) => {
     | (Tuple(es), Prod(tys)) when List.length(es) == List.length(tys) =>
       Some(
         IdTagged.fast_copy(
-          DHExp.rep_id(inner_asc),
+          DHExp.rep_id(e),
           Tuple(
             List.map2(
               (e, ty) => recur(Asc(e, ty) |> DHExp.fresh),
@@ -95,7 +82,7 @@ let rec transition = (~recursive=false, d: DHExp.t): option(DHExp.t) => {
           |> DHExp.fresh,
         ),
       )
-    | (_, Unknown(_)) => Some(inner_asc)
+    | (_, Unknown(_)) => Some(e)
     | (Atom(value), Atom(typ)) =>
       switch (value, typ) {
       | (Int(_), Int)
@@ -103,7 +90,7 @@ let rec transition = (~recursive=false, d: DHExp.t): option(DHExp.t) => {
       | (Nat(_), Nat)
       | (Float(_), Float)
       | (SInt(_), SInt)
-      | (Bool(_), Bool) => Some(inner_asc)
+      | (Bool(_), Bool) => Some(e)
       | (Int(_), _)
       | (String(_), _)
       | (Nat(_), _)
@@ -114,7 +101,7 @@ let rec transition = (~recursive=false, d: DHExp.t): option(DHExp.t) => {
     | (ListLit(ds), List(ty)) =>
       Some(
         IdTagged.fast_copy(
-          DHExp.rep_id(inner_asc),
+          DHExp.rep_id(e),
           ListLit(List.map(d => recur(Asc(d, ty) |> DHExp.fresh), ds))
           |> DHExp.fresh,
         ),
@@ -122,7 +109,7 @@ let rec transition = (~recursive=false, d: DHExp.t): option(DHExp.t) => {
     | (Cons(d1, d2), List(ty)) =>
       Some(
         IdTagged.fast_copy(
-          DHExp.rep_id(inner_asc),
+          DHExp.rep_id(e),
           Cons(
             recur(Asc(d1, ty) |> DHExp.fresh),
             recur(Asc(d2, t) |> DHExp.fresh),
@@ -138,7 +125,7 @@ let rec transition = (~recursive=false, d: DHExp.t): option(DHExp.t) => {
         };
       Some(
         IdTagged.fast_copy(
-          DHExp.rep_id(inner_asc),
+          DHExp.rep_id(e),
           TypFun(
             tp,
             recur(Asc(body, Typ.subst(new_ty, tp', t')) |> DHExp.fresh),
@@ -150,7 +137,7 @@ let rec transition = (~recursive=false, d: DHExp.t): option(DHExp.t) => {
     | (If(cond, e1, e2), _) =>
       Some(
         IdTagged.fast_copy(
-          DHExp.rep_id(inner_asc),
+          DHExp.rep_id(e),
           If(
             recur(cond),
             recur(Asc(e1, t) |> DHExp.fresh),
@@ -162,7 +149,7 @@ let rec transition = (~recursive=false, d: DHExp.t): option(DHExp.t) => {
     | (Match(scrut, rules), _) =>
       Some(
         IdTagged.fast_copy(
-          DHExp.rep_id(inner_asc),
+          DHExp.rep_id(e),
           Match(
             scrut,
             List.map(
@@ -195,16 +182,16 @@ let rec transition = (~recursive=false, d: DHExp.t): option(DHExp.t) => {
       };
     | (Constructor(_, Some(Some(t))), t')
         when Typ.is_consistent(Ctx.empty, Typ.unroll(t), t' |> Typ.temp) =>
-      Some(inner_asc)
+      Some(e)
     | (ProofObject(e1), ProofOf(e2)) when Exp.fast_equal(e1, e2) =>
       Some(ProofObject(e1) |> DHExp.fresh)
-    | (Test(_), Prod([])) => Some(inner_asc)
+    | (Test(_), Prod([])) => Some(e)
     // These are non-value cases we're handling to process ascriptions as early as possible
     | (BinOp(bin_op, _, _), _) =>
       switch (Operators.semantics_of_bin_op(bin_op)) {
       | DefinedPoly(Equals | NotEquals)
           when Typ.is_consistent(Ctx.empty, t, Atom(Bool) |> Typ.temp) =>
-        Some(inner_asc)
+        Some(e)
       | Defined(_, _, ty_out, _)
           when
             Typ.is_consistent(
@@ -212,7 +199,7 @@ let rec transition = (~recursive=false, d: DHExp.t): option(DHExp.t) => {
               t,
               Atom(Atom.cls_of_kind(ty_out)) |> Typ.temp,
             ) =>
-        Some(inner_asc)
+        Some(e)
       | Undefined(_)
       | DefinedPoly(_)
       | Defined(_) => None
@@ -226,7 +213,7 @@ let rec transition = (~recursive=false, d: DHExp.t): option(DHExp.t) => {
               t,
               Atom(Atom.cls_of_kind(ty_out)) |> Typ.temp,
             ) =>
-        Some(inner_asc)
+        Some(e)
       | Undefined(_)
       | Defined(_) => None
       }
@@ -289,9 +276,9 @@ let rec transition = (~recursive=false, d: DHExp.t): option(DHExp.t) => {
   };
 };
 
-let rec transition_multiple = (d: DHExp.t): DHExp.t => {
-  switch (transition(~recursive=true, d)) {
-  | Some(d'') => transition_multiple(d'')
+let rec transition_multiple = (~targets: Sample.targets, d: DHExp.t): DHExp.t => {
+  switch (transition(~targets, ~recursive=true, d)) {
+  | Some(d'') => transition_multiple(~targets, d'')
   | None => d
   };
 };

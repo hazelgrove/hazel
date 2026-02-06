@@ -21,7 +21,12 @@ type sample_closures = list((Sample.call_stack, int, int) => Sample.t);
 
 /* Core pattern matching logic - just a switch on pattern structure */
 let match_pattern =
-    (recur: (Pat.t, DHExp.t) => match_result, dp: Pat.t, d: DHExp.t)
+    (
+      ~targets: Sample.targets,
+      recur: (Pat.t, DHExp.t) => match_result,
+      dp: Pat.t,
+      d: DHExp.t,
+    )
     : match_result =>
   switch (DHPat.term_of(dp)) {
   | Invalid(_)
@@ -69,7 +74,10 @@ let match_pattern =
   | Parens(p)
   | Projector(_, p) => recur(p, d)
   | Asc(p, t1) =>
-    recur(p, Ascriptions.transition_multiple(Asc(d, t1) |> DHExp.fresh))
+    recur(
+      p,
+      Ascriptions.transition_multiple(~targets, Asc(d, t1) |> DHExp.fresh),
+    )
   };
 
 /* Record a sample closure if this pattern is targeted and matched */
@@ -110,12 +118,12 @@ let rec matches_inner =
           d: DHExp.t,
         )
         : match_result => {
-  let d = Ascriptions.transition_multiple(d);
+  let d = Ascriptions.transition_multiple(~targets, d);
   let pat_id = Pat.rep_id(dp);
   let maybe_spec = Id.Map.find_opt(pat_id, targets);
   let recur = matches_inner(targets, sample_closures);
 
-  let result = match_pattern(recur, dp, d);
+  let result = match_pattern(~targets, recur, dp, d);
   record_sample(sample_closures, pat_id, maybe_spec, d, result);
   result;
 };
