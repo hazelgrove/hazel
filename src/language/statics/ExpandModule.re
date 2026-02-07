@@ -4,6 +4,17 @@
         { let a = 1; let b = 2 }
       Into:
         let a = 1 in let b = 2 in (a=a, b=b)
+
+   When an ana type is available (e.g., from a type annotation on the enclosing
+   let-binding), the expansion threads expected types into ModLet patterns as
+   type ascriptions. This enables proper error attribution: type errors appear
+   on the definition expression (which has a surface ID) rather than on synthetic
+   tuple references (which have fresh IDs invisible to the editor).
+
+      { let x = true } with ana=(x=Int)
+      becomes:
+        let (x : Int) = true in (x=x)
+      so the error appears on `true`, not on an invisible synthetic node.
    */
 
 /* Collect variable names bound by a pattern */
@@ -83,6 +94,27 @@ let build_labeled_tuple = (bindings: list((Var.t, Pat.t))): Exp.t => {
   };
 };
 
+/* Extract label->type mappings from an ana type, if it's a labeled tuple.
+   Strips Parens wrappers to handle annotated types like ((x=Int, y=Bool)). */
+let extract_ana_labels = (ana: Typ.t): list((Var.t, Typ.t)) => {
+  let rec strip_parens = (ty: Typ.t): Typ.t =>
+    switch (ty.term) {
+    | Parens(t) => strip_parens(t)
+    | _ => ty
+    };
+  switch (strip_parens(ana).term) {
+  | Prod(fields) =>
+    fields
+    |> List.filter_map((field: Typ.t) =>
+         switch (field.term) {
+         | TupLabel({term: Label(name), _}, typ) => Some((name, typ))
+         | _ => None
+         }
+       )
+  | _ => []
+  };
+};
+
 /* Wrap the body with a single module item.
    ModLet becomes Let, ModType becomes TyAlias, ModExp becomes let _ = e in body.
 
@@ -91,15 +123,30 @@ let build_labeled_tuple = (bindings: list((Var.t, Pat.t))): Exp.t => {
      since these correspond to surface syntax tiles users can click on.
    - ModExp: Use fresh ID. ModExp is a synthetic wrapper around an existing
      expression - the inner expression already has its own IDs for cursor info.
-     The wrapper Let is entirely synthetic with no surface syntax counterpart. */
-let wrap_item = (item: Mod.t, body: Exp.t): Exp.t => {
+
+   Type-directed annotation:
+   When ana_labels is non-empty and the pattern is a simple Var matching a label,
+   wraps the pattern with Asc(pat, expected_type). This causes the Let statics to
+   analyze the definition against the expected type, producing errors on the
+   definition expression (which has surface IDs) rather than on synthetic nodes. */
+let wrap_item =
+    (~ana_labels: list((Var.t, Typ.t)), item: Mod.t, body: Exp.t): Exp.t => {
   switch (item.term) {
   | ModLet(pat, def) =>
     let item_id = Mod.rep_id(item);
-    IdTagged.fast_copy(item_id, Exp.fresh(Let(pat, def, body)))
+    let pat =
+      switch (pat.term) {
+      | Var(name) =>
+        switch (List.assoc_opt(name, ana_labels)) {
+        | Some(expected_type) => Pat.fresh(Asc(pat, expected_type))
+        | None => pat
+        }
+      | _ => pat
+      };
+    IdTagged.fast_copy(item_id, Exp.fresh(Let(pat, def, body)));
   | ModType(tpat, typ) =>
     let item_id = Mod.rep_id(item);
-    IdTagged.fast_copy(item_id, Exp.fresh(TyAlias(tpat, typ, body)))
+    IdTagged.fast_copy(item_id, Exp.fresh(TyAlias(tpat, typ, body)));
   | ModExp(e) =>
     /* Bare expression: fresh ID since ModExp is synthetic.
        The inner expression e keeps its original IDs. */
@@ -119,11 +166,20 @@ let wrap_item = (item: Mod.t, body: Exp.t): Exp.t => {
       becomes:
       let a = 1 in let b = 2 in (a=a, b=b)
 
+   When ~ana is provided and is a labeled tuple type, the expansion adds type
+   annotations to matching ModLet patterns for proper error attribution.
+
    Note: The wrapper Let/TyAlias expressions preserve Mod item IDs for cursor
    inspector support. The final tuple gets a fresh ID (not the Module's ID)
    because the Module's ID is used by Statics to store the Module's own info.
    */
-let expand = (items: list(Mod.t)): Exp.t => {
+let expand = (~ana: option(Typ.t)=?, items: list(Mod.t)): Exp.t => {
+  let ana_labels =
+    switch (ana) {
+    | Some(ana) => extract_ana_labels(ana)
+    | None => []
+    };
+
   /* 1. Compute non-shadowed bindings for the final tuple */
   let non_shadowed = compute_non_shadowed_bindings(items);
 
@@ -131,5 +187,5 @@ let expand = (items: list(Mod.t)): Exp.t => {
   let tuple_body = build_labeled_tuple(non_shadowed);
 
   /* 3. Wrap with definitions from bottom to top (fold_right preserves order) */
-  List.fold_right(wrap_item, items, tuple_body);
+  List.fold_right(wrap_item(~ana_labels), items, tuple_body);
 };

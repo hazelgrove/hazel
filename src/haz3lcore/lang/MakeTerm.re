@@ -60,6 +60,7 @@ let is_tuple_pat = is_nary(Any.is_pat, ",");
 let is_tuple_typ = is_nary(Any.is_typ, ",");
 let is_typ_bsum = is_nary(Any.is_typ, "+");
 let is_mod_seq = is_nary(Any.is_mod, ";");
+let is_sig_seq = is_nary(Any.is_sig, ";");
 
 /* Flatten a module term into a list of module items.
    Module sequences (from semicolons) are stored as MultiHole([Mod(m1), Mod(m2)])
@@ -79,6 +80,25 @@ let rec flatten_mod = (m: TermBase.Mod.t): list(TermBase.Mod.t) =>
   | ModExp(_)
   | EmptyHole
   | Invalid(_) => [m]
+  };
+
+/* Flatten a signature term into a list of signature items.
+   Signature sequences (from semicolons) are stored as MultiHole([Sig(s1), Sig(s2)])
+   during parsing and need to be flattened into a proper list for Sig(items). */
+let rec flatten_sig = (s: TermBase.Sig.t): list(TermBase.Sig.t) =>
+  switch (s.term) {
+  | MultiHole(kids) =>
+    kids
+    |> List.filter_map(
+         fun
+         | (Grammar.Sig(s): TermBase.Any.t) => Some(flatten_sig(s))
+         | _ => None,
+       )
+    |> List.flatten
+  | SigLet(_)
+  | SigType(_, _)
+  | EmptyHole
+  | Invalid(_) => [s]
   };
 
 let is_grout = tiles =>
@@ -276,6 +296,7 @@ let rec go_s = (s: Sort.t, skel: Skel.t, seg: Segment.t): Any.t =>
   | Exp => Exp(exp(unsorted(Exp, skel, seg)))
   | Rul => Rul(rul(unsorted(Rul, skel, seg)))
   | Mod => Mod(mod_(unsorted(Mod, skel, seg))) /* Phase 1.2: proper module parsing */
+  | Sig => Sig(sig_(unsorted(Sig, skel, seg)))
   | Any =>
     let sort = Segment.sort_of(skel, seg);
     if (sort == Any) {
@@ -338,7 +359,7 @@ and exp_term: unsorted => (Exp.term, list(Id.t)) = {
         | {term: EmptyHole, _} => ret(Module([]))
         | {annotation: {ids, _}, term: MultiHole(_)} =>
           adopted_ids := ids @ adopted_ids^;
-          (Module(flatten_mod(body)), ids)
+          (Module(flatten_mod(body)), ids);
         | _ => ret(Module(flatten_mod(body)))
         }
       | (["{", "}"], [Exp(body)])
@@ -758,6 +779,15 @@ and typ_term: unsorted => (Typ.term, list(Id.t)) = {
   fun
   | Op(tiles) as tm =>
     switch (tiles) {
+    | ([(_id, (["{", "}"], [Sig(body)]))], []) =>
+      /* SigBody: parse signature body, similar to ModBody in exp_term */
+      switch (body) {
+      | {term: EmptyHole, _} => ret(Sig([]))
+      | {annotation: {ids, _}, term: MultiHole(_)} =>
+        adopted_ids := ids @ adopted_ids^;
+        (Sig(flatten_sig(body)), ids);
+      | _ => ret(Sig(flatten_sig(body)))
+      }
     | ([(_id, tile)], []) =>
       ret(
         switch (tile) {
@@ -922,8 +952,11 @@ and mod_term: unsorted => TermBase.Mod.term = {
     switch (is_mod_seq(tiles)) {
     | Some(between_kids) =>
       /* Flatten all mod items into MultiHole, like tuples flatten into Tuple */
-      let all_items = [Grammar.Mod(m1)] @ List.map(m => Grammar.Mod(m), between_kids) @ [Grammar.Mod(m2)];
-      ret(MultiHole(all_items))
+      let all_items =
+        [Grammar.Mod(m1)]
+        @ List.map(m => Grammar.Mod(m), between_kids)
+        @ [Grammar.Mod(m2)];
+      ret(MultiHole(all_items));
     | None => ret(hole(Bin(Mod(m1), tiles, Mod(m2))))
     }
   /* ModLet: let p = e - the pattern is inside the tile, expression is the body */
@@ -936,6 +969,44 @@ and mod_term: unsorted => TermBase.Mod.term = {
   | Bin(Exp(_), _, Exp(_)) as tm => ret(ModExp(exp(tm)))
   | Pre(_, Exp(_)) as tm => ret(ModExp(exp(tm)))
   | Post(Exp(_), _) as tm => ret(ModExp(exp(tm)))
+  | (Pre(_) | Post(_) | Bin(_)) as tm => ret(hole(tm));
+}
+and sig_ = unsorted => {
+  let term = sig_term(unsorted);
+  let ids = ids(unsorted);
+  return(s => Sig(s), ids, IdTagged.mk(ids, get_secondary(ids), term));
+}
+and sig_term: unsorted => TermBase.Sig.term = {
+  let ret = (term: TermBase.Sig.term) => term;
+  let hole = unsorted => Sig.hole(kids_of_unsorted(unsorted));
+  fun
+  | Op(tiles) as tm =>
+    switch (tiles) {
+    | ([(_id, tile)], []) =>
+      switch (tile) {
+      | ([t], []) when is_hole_label(t) => ret(hole(tm))
+      | ([t], []) => ret(Invalid(t))
+      | _ => ret(hole(tm))
+      }
+    | _ => ret(hole(tm))
+    }
+  /* SigSeq: semicolon-separated signature items */
+  | Bin(Sig(s1), tiles, Sig(s2)) =>
+    switch (is_sig_seq(tiles)) {
+    | Some(between_kids) =>
+      let sig_to_any = (s): TermBase.Any.t => Grammar.Sig(s);
+      let all_items =
+        [sig_to_any(s1)]
+        @ List.map(sig_to_any, between_kids)
+        @ [sig_to_any(s2)];
+      ret(MultiHole(all_items));
+    | None => ret(hole(Bin(Sig(s1), tiles, Sig(s2))))
+    }
+  /* SigLet: let p - the pattern is the body */
+  | Pre(([(_id, (["let"], []))], []), Pat(p)) => ret(SigLet(p))
+  /* SigType: type t = T - the tpat is inside the tile, type is the body */
+  | Pre(([(_id, (["type", "="], [TPat(tp)]))], []), Typ(ty)) =>
+    ret(SigType(tp, ty))
   | (Pre(_) | Post(_) | Bin(_)) as tm => ret(hole(tm));
 }
 
@@ -1150,6 +1221,7 @@ let for_projection =
          * consisting of case scrutinee + rule(s) */
         | Rul => None
         | Mod => Some(Mod(mod_(unsorted)))
+        | Sig => Some(Sig(sig_(unsorted)))
         | Any => Some(Any()) /* grout */
         };
       };

@@ -186,6 +186,7 @@ let sample_type = (cls_typ: Typ.cls): Grammar.UnitGrammar.typ => {
           },
           unknown(Hole(EmptyHole)),
         )
+      | Sig => assert(false) /* Excluded: Sig is surface syntax only */
       }
     )
   );
@@ -259,7 +260,8 @@ let tests = (
         List.iter(
           (cls: Typ.cls) => {
             switch (cls) {
-            | Constructor => ()
+            | Constructor
+            | Sig => ()
             | _ =>
               check(
                 cls_testable,

@@ -55,8 +55,8 @@ let effective_sort = (t: Token.t, z: t): Sort.t => {
   let local_sort = Relatives.sort(z.relatives);
   let parent_sort = Ancestors.sort(z.relatives.ancestors);
 
-  /* Special case: semicolon inside module context should be ModSeq, not CellJoin */
-  if (t == ";" && parent_sort == Sort.Mod) {
+  /* Special case: semicolon inside module/sig context should be ModSeq/SigSeq, not CellJoin */
+  if (t == ";" && (parent_sort == Sort.Mod || parent_sort == Sort.Sig)) {
     parent_sort;
   } else {
     /* Default: local-first with parent fallback */

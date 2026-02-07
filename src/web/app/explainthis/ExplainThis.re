@@ -2683,6 +2683,7 @@ let get_doc =
     | ProdExtension(_)
     | Parens(_)
     | Projector(_) => default // Shouldn't be hit?
+    | Sig(_) => default // Shouldn't be hit?
     }
   | Some(InfoTPat(info)) =>
     switch (info.term.term) {

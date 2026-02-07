@@ -926,7 +926,47 @@ let rec abbreviate_exp = (exp: Exp.t): Exp.t => {
       }
     | Filter(_) => indet_term //TODO
     | Projector(data, e) => Projector(data, abbreviate_exp(e))
-    | Module(_) => indet_term //TODO: modules should be expanded before abbreviation
+    | Module(items) =>
+      /* Modules should typically be expanded to labeled tuples before
+         abbreviation runs (in probe values). Handle gracefully anyway. */
+      if (available^ <= 2) {
+        indet_term;
+      } else {
+        available := available^ - 2; // { }
+        Module(List.map(abbreviate_mod_item, items));
+      }
+    };
+  rewrap(term);
+}
+and abbreviate_mod_item = (item: Mod.t): Mod.t => {
+  let rewrap = (term: Mod.term): Mod.t => {
+    ...item,
+    term,
+  };
+  let term: Mod.term =
+    switch (item.term) {
+    | Invalid(s) => Invalid(abbreviate_str(available^, s))
+    | EmptyHole => EmptyHole
+    | MultiHole(things) => MultiHole(List.map(abbreviate_any, things))
+    | ModLet(p, e) =>
+      if (available^ <= 5) {
+        Invalid(flat_ellipses);
+      } else {
+        available := available^ - 6; // "let " " = "
+        let p' = abbreviate_pat(p);
+        let e' = abbreviate_exp(e);
+        ModLet(p', e');
+      }
+    | ModType(tp, t) =>
+      if (available^ <= 6) {
+        Invalid(flat_ellipses);
+      } else {
+        available := available^ - 7; // "type " " = "
+        let tp' = abbreviate_tpat(tp);
+        let t' = abbreviate_typ(t);
+        ModType(tp', t');
+      }
+    | ModExp(e) => ModExp(abbreviate_exp(e))
     };
   rewrap(term);
 }
@@ -1279,6 +1319,7 @@ and abbreviate_typ = (typ: Typ.t): Typ.t => {
         e,
       )
     | Projector(data, t) => Projector(data, abbreviate_typ(t))
+    | Sig(_) => Sig([])
     };
   rewrap(term);
 }
@@ -1314,7 +1355,8 @@ and abbreviate_any = (any: Any.t): Any.t =>
   | Typ(t) => Typ(abbreviate_typ(t))
   | TPat(tp) => TPat(abbreviate_tpat(tp))
   | Rul(_) => any
-  | Mod(_) => any
+  | Mod(m) => Mod(abbreviate_mod_item(m))
+  | Sig(_) => any
   | Any(_) => any
   };
 

@@ -258,6 +258,7 @@ typ:
     | OPEN_PAREN; t = typ; CLOSE_PAREN { t }
     | t1 = typ; TUPLE_EXTENSION; t2 = typ { ProdExtension(t1, t2) } %prec TYP_AP_SYMBOL
     | t1 = typ; DOT; t2 = typ { ProdProjection(t1, t2) }
+    | OPEN_CURLY; items = separated_list(SEMI_COLON, sigItem); CLOSE_CURLY { Sig(items) }
 
 tupPatEntry:
     | p = pat {p}
@@ -384,4 +385,8 @@ modItem:
     | LET; i = pat; SINGLE_EQUAL; e = modItemExp { ModItemLet(i, e) }
     | TYP; tp = tpat; SINGLE_EQUAL; ty = typ { ModItemType(tp, ty) }
     | e = modItemExp { ModItemExp(e) }
+
+sigItem:
+    | LET; p = pat { SigItemLet(p) }
+    | TYP; tp = tpat; SINGLE_EQUAL; ty = typ { SigItemType(tp, ty) }
 

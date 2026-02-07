@@ -108,6 +108,34 @@ let rec any_to_info_map =
       (CoCtx.empty, m);
     | ModExp(e) => any_to_info_map(~ctx, ~ancestors, Exp(e), m)
     }
+  | Sig(s_term) =>
+    let ids = IdTagged.ids(s_term);
+    let cls = Cls.Sig(Sig.cls_of_term(s_term.term));
+    let add_sig_info = m =>
+      add_info(
+        ids,
+        Secondary({
+          id: IdTagged.rep_id(s_term),
+          cls,
+          sort: Sig,
+          ctx,
+        }),
+        m,
+      );
+    switch (s_term.term) {
+    | Invalid(_)
+    | EmptyHole => (CoCtx.empty, add_sig_info(m))
+    | MultiHole(tms) =>
+      let (co_ctxs, m) = multi(~ctx, ~ancestors, m, tms);
+      (CoCtx.union(co_ctxs), add_sig_info(m));
+    | SigLet(p) =>
+      let (_, m) = any_to_info_map(~ctx, ~ancestors, Pat(p), m);
+      (CoCtx.empty, add_sig_info(m));
+    | SigType(tp, t) =>
+      let (_, m) = any_to_info_map(~ctx, ~ancestors, TPat(tp), m);
+      let (_, m) = any_to_info_map(~ctx, ~ancestors, Typ(t), m);
+      (CoCtx.empty, add_sig_info(m));
+    };
   | Any () => (CoCtx.empty, m)
   }
 and multi = (~ctx, ~ancestors, m, tms): (list(CoCtx.t), Map.t) =>
@@ -321,8 +349,10 @@ and uexp_to_info_map =
       add(~self=IsMulti, ~co_ctx=CoCtx.union(co_ctxs), m);
     | Asc(e, t2) =>
       let (t, m) = go_typ(t2, ~expects=Info.TypeExpected, m);
-      let (e, m) = go'(~ana=t.term, ~ctx=t.ctx, e, m);
-      add(~self=Just(t.term), ~co_ctx=e.co_ctx, m);
+      /* Desugar any Sig types in the annotation without full normalization */
+      let t_ty = Typ.desugar_sig(ctx, t.term);
+      let (e, m) = go'(~ana=t_ty, ~ctx=t.ctx, e, m);
+      add(~self=Just(t_ty), ~co_ctx=e.co_ctx, m);
     | Invalid(token) => atomic(BadToken(token))
     | EmptyHole => atomic(Just(Unknown(Internal) |> Typ.temp))
     | Deferral(position) =>
@@ -1389,9 +1419,33 @@ and uexp_to_info_map =
     | Module(items) =>
       /* Expand module to nested let/type + labeled tuple, then type-check expansion.
          The Module's type is the type of the expanded expression (a labeled tuple).
-         The expansion preserves Mod item IDs on wrapper Let/TyAlias expressions. */
-      let expanded = ExpandModule.expand(items);
+         The expansion preserves Mod item IDs on wrapper Let/TyAlias expressions.
+         Pass ~ana so the expansion can add type annotations for error attribution. */
+      let expanded = ExpandModule.expand(~ana, items);
       let (expanded_info, m) = go(~ana, expanded, m);
+      /* Override expansion info for Mod item IDs: replace Exp cls with Mod cls
+         so cursor inspector shows "Let definition" instead of "Let expression" */
+      let m =
+        List.fold_left(
+          (m, item: Mod.t) => {
+            let ids = IdTagged.ids(item);
+            let mod_cls = Cls.Mod(Mod.cls_of_term(item.term));
+            switch (Id.Map.find_opt(IdTagged.rep_id(item), m)) {
+            | Some(Info.InfoExp(info)) =>
+              add_info(
+                ids,
+                Info.InfoExp({
+                  ...info,
+                  cls: mod_cls,
+                }),
+                m,
+              )
+            | _ => m
+            };
+          },
+          m,
+          items,
+        );
       /* Add the Module itself to the map with the expanded expression's type */
       add(~self=Just(expanded_info.ty), ~co_ctx=expanded_info.co_ctx, m);
     };
@@ -1933,8 +1987,10 @@ and upat_to_info_map =
       add(~self=Just(ty_out), ~ctx=arg.ctx, ~constraint_, m);
     | Asc(p, ann) =>
       let (ann, m) = utyp_to_info_map(~ctx, ~ancestors, ann, m);
-      let (p, m) = go(~ctx, ~under_ascription=true, ~ana=ann.term, p, m);
-      add(~self=Just(ann.term), ~ctx=p.ctx, ~constraint_=p.constraint_, m);
+      /* Desugar any Sig types in the annotation without full normalization */
+      let ann_ty = Typ.desugar_sig(ctx, ann.term);
+      let (p, m) = go(~ctx, ~under_ascription=true, ~ana=ann_ty, p, m);
+      add(~self=Just(ann_ty), ~ctx=p.ctx, ~constraint_=p.constraint_, m);
     };
 
   // This is to allow lifting single values into a singleton labeled tuple when the label is not present
@@ -2155,6 +2211,17 @@ and utyp_to_info_map =
       |> snd;
     let m = utpat_to_info_map(~ctx, ~ancestors, utpat, m) |> snd;
     add(m); // TODO: check with andrew
+  | Sig(items) =>
+    let m =
+      List.fold_left(
+        (m, item: Sig.t) => {
+          let (_, m) = any_to_info_map(~ctx, ~ancestors, Sig(item), m);
+          m;
+        },
+        m,
+        items,
+      );
+    add(m);
   };
 }
 and utpat_to_info_map =

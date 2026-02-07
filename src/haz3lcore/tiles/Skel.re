@@ -53,7 +53,13 @@ let is_chainable = (p1: Piece.t, p2: Piece.t): bool =>
     && Mold.is_infix_op(t1.mold)
     && Mold.is_infix_op(t2.mold)
     && t1.mold.out == Sort.Mod
-    && t2.mold.out == Sort.Mod;
+    && t2.mold.out == Sort.Mod
+    || lbl1(semi_label)
+    && lbl2(semi_label)
+    && Mold.is_infix_op(t1.mold)
+    && Mold.is_infix_op(t2.mold)
+    && t1.mold.out == Sort.Sig
+    && t2.mold.out == Sort.Sig;
   | _ => false
   };
 

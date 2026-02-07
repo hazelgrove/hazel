@@ -293,11 +293,42 @@ let term =
     )
     : list(Node.t) => {
   let id = Language.Any.rep_id(Id.Map.find(tile.id, terms));
-  switch (TermData.extreme_measures(id, term_data, measured)) {
-  | Some((l, r)) =>
-    let tiles = tiles_data(~term_data, ~terms, ~measured, tile);
-    term(~font_metrics, ~rows=measured.rows, ~tiles, (l, r), ~attr?);
-  | _ => []
+  let any_term = Id.Map.find(id, terms);
+
+  /* Module decoration: semicolons render as lone shards (no arms),
+     curly braces render as a pair (arms between braces, excluding semicolons) */
+  let is_module =
+    switch (any_term) {
+    | Exp({term: Module(_), _}) => true
+    | _ => false
+    };
+  let is_semi = tile.label == [";"];
+  let is_not_semi_tile = ((tid, _, _)) =>
+    switch (TermData.root_tile(tid, term_data)) {
+    | Some(t) => t.label != [";"]
+    | None => true
+    };
+
+  if (is_module && is_semi) {
+    let msg = "Arms.term";
+    switch (TermData.root_tile(tile.id, term_data)) {
+    | Some(t) =>
+      shards(
+        ~attr?,
+        ~font_metrics,
+        ~base_clss=None,
+        [(tile.id, t.mold, Measured.find_shards(~msg, t, measured))],
+      )
+    | None => []
+    };
+  } else {
+    switch (TermData.extreme_measures(id, term_data, measured)) {
+    | Some((l, r)) =>
+      let tiles = tiles_data(~term_data, ~terms, ~measured, tile);
+      let tiles = is_module ? List.filter(is_not_semi_tile, tiles) : tiles;
+      term(~font_metrics, ~rows=measured.rows, ~tiles, (l, r), ~attr?);
+    | _ => []
+    };
   };
 };
 

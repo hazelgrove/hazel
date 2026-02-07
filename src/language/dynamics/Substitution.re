@@ -220,7 +220,8 @@ and in_typ = (env: Environment.t(Exp.t), typ: Typ.t) =>
         | Poly(_, _)
         | ProdProjection(_, _)
         | ProdExtension(_, _)
-        | ProofOf(_) => cont(t)
+        | ProofOf(_)
+        | Sig(_) => cont(t)
         };
       },
     typ,

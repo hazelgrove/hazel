@@ -34,6 +34,7 @@ type equality = {
   tpat: (TPat.t, TPat.t) => bool,
   rul: (Rul.t, Rul.t) => bool,
   mod_: (TermBase.Mod.t, TermBase.Mod.t) => bool,
+  sig_: (TermBase.Sig.t, TermBase.Sig.t) => bool,
   any: (Any.t, Any.t) => bool,
 };
 
@@ -643,6 +644,38 @@ let equality =
     | (ProdExtension(_), _) => false
     | (ProofOf(e1), ProofOf(e2)) => exp'(e1, e2)
     | (ProofOf(_), _) => false
+    | (Sig(items1), Sig(items2)) =>
+      List.length(items1) == List.length(items2)
+      && List.for_all2(sig_(alphas_exp, alphas_typ), items1, items2)
+    | (Sig(_), _) => false
+    };
+  }
+  and sig_ =
+      (
+        alphas_exp: Alphas.t,
+        alphas_typ: Alphas.t,
+        s1: TermBase.Sig.t,
+        s2: TermBase.Sig.t,
+      )
+      : bool => {
+    let pat' = (p1, p2) =>
+      Option.is_some(pat(alphas_exp, alphas_typ, p1, p2));
+    let typ' = typ(alphas_exp, alphas_typ);
+    let tpat' = (tp1, tp2) => Option.is_some(tpat(tp1, tp2));
+    let any' = any(alphas_exp, alphas_typ);
+    switch (s1 |> Grammar.Annotated.term_of, s2 |> Grammar.Annotated.term_of) {
+    | (EmptyHole, EmptyHole) => true
+    | (EmptyHole, _) => false
+    | (Invalid(s1), Invalid(s2)) => s1 == s2
+    | (Invalid(_), _) => false
+    | (MultiHole(xs1), MultiHole(xs2)) =>
+      List.length(xs1) == List.length(xs2) && List.for_all2(any', xs1, xs2)
+    | (MultiHole(_), _) => false
+    | (SigLet(p1), SigLet(p2)) => pat'(p1, p2)
+    | (SigLet(_), _) => false
+    | (SigType(tp1, t1), SigType(tp2, t2)) =>
+      tpat'(tp1, tp2) && typ'(t1, t2)
+    | (SigType(_, _), _) => false
     };
   }
   and tpat = (tp1: TPat.t, tp2: TPat.t): option(Alphas.t) => {
@@ -746,6 +779,8 @@ let equality =
     | (TPat(_), _) => false
     | (Mod(m1), Mod(m2)) => mod_(alphas_exp, alphas_typ, m1, m2)
     | (Mod(_), _) => false
+    | (Sig(s1), Sig(s2)) => sig_(alphas_exp, alphas_typ, s1, s2)
+    | (Sig(_), _) => false
     | (Any (), Any ()) => true
     | (Any (), _) => false
     };
@@ -759,6 +794,7 @@ let equality =
     tpat: (tp1, tp2) => tpat(tp1, tp2) |> Option.is_some,
     rul: rul(Alphas.empty, Alphas.empty),
     mod_: (m1, m2) => mod_(Alphas.empty, Alphas.empty, m1, m2),
+    sig_: (s1, s2) => sig_(Alphas.empty, Alphas.empty, s1, s2),
     any: any(Alphas.empty, Alphas.empty),
   };
 };

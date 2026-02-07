@@ -711,14 +711,22 @@ end|}),
     roundtrip_test({|Theorem: simple|}, {|theorem x = 1 in x|}),
     roundtrip_test({|Theorem: spaced|}, {|theorem x  =  1  in  x|}),
     roundtrip_test({|Theorem: compact|}, {|theorem x=1 in x|}),
-    /* Module expressions - SKIP segment roundtrip due to structural differences:
-       Parser creates compound form ["{","}"], pretty-printer creates atomic "{}".
-       Text round-tripping works, but segment structure differs.
-       TODO: Align parser and pretty-printer segment structures. */
-    test_case("Module: skip segment roundtrip", `Quick, () => {
-      let _ = Alcotest.skip();
-      ();
-    }),
+    /* Module expressions: empty module roundtrip */
+    roundtrip_test({|Module: empty|}, {|{}|}),
+    /* Module text round-trip tests */
+    roundtrip_test({|Module: single let|}, {|{ let x = 1 }|}),
+    roundtrip_test({|Module: multiple lets|}, {|{ let x = 1; let y = 2 }|}),
+    roundtrip_test({|Module: compact spacing|}, {|{let x = 1}|}),
+    roundtrip_test({|Module: with type alias|}, {|{ type T = Int; let x = 1 }|}),
+    /* Sig text round-trip tests */
+    roundtrip_test(
+      {|Sig: single let|},
+      {|let m : { let x : Int } = { let x = 1 } in m|},
+    ),
+    roundtrip_test(
+      {|Sig: multiple lets|},
+      {|let m : { let x : Int; let y : Bool } = { let x = 1; let y = true } in m|},
+    ),
   ],
 );
 

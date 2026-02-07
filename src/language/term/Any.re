@@ -21,6 +21,11 @@ let is_mod: t => option(TermBase.Mod.t) =
   | Mod(m) => Some(m)
   | _ => None;
 
+let is_sig: t => option(TermBase.Sig.t) =
+  fun
+  | Sig(s) => Some(s)
+  | _ => None;
+
 let rec ids: TermBase.any_t => list(Id.t) =
   fun
   | Exp(tm) => IdTagged.ids(tm)
@@ -29,6 +34,7 @@ let rec ids: TermBase.any_t => list(Id.t) =
   | TPat(tm) => IdTagged.ids(tm)
   | Rul(tm) => Rul.ids(~any_ids=ids, tm)
   | Mod(tm) => IdTagged.ids(tm)
+  | Sig(tm) => IdTagged.ids(tm)
   | Any () => [];
 
 // Terms may consist of multiple tiles, eg the commas in an n-tuple,
@@ -50,4 +56,5 @@ let rep_id =
   | TPat(tm) => TPat.rep_id(tm)
   | Rul(tm) => Rul.rep_id(~any_ids=ids, tm)
   | Mod(tm) => IdTagged.rep_id(tm)
+  | Sig(tm) => IdTagged.rep_id(tm)
   | Any () => raise(Invalid_argument("Term.rep_id"));

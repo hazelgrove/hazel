@@ -350,10 +350,7 @@ let tests =
       ),
       test_case("Module dot access", `Quick, () =>
         exp_check(
-          dot(
-            module_([Mod.mod_let(Pat.var("x"), int(1))]),
-            label("x"),
-          ),
+          dot(module_([Mod.mod_let(Pat.var("x"), int(1))]), label("x")),
           {|{ let x = 1 }.x|},
         )
       ),

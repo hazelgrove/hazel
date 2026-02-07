@@ -481,6 +481,10 @@ and Typ: {
     | RecType(tp, t) =>
       parens(rec_(TPat.of_menhir_ast(tp), of_menhir_ast(t)))
     | ProofOfType(e) => proof_of(Exp.of_menhir_ast(e))
+    | Sig(items) => {
+        annotation: false,
+        term: Sig(List.map(SigItem.of_menhir_ast, items)),
+      }
     | IndicationTyp(t) => {
         annotation: true,
         term: of_menhir_ast(t).term,
@@ -532,6 +536,7 @@ and Typ: {
         );
       SumTyp(sumterms);
     | Projector(_, t) => of_core(t)
+    | Sig(items) => Sig(List.map(SigItem.of_core, items))
     };
   };
 }
@@ -633,6 +638,29 @@ and ModItem: {
     | Invalid(_)
     | EmptyHole
     | MultiHole(_) => ModItemExp(EmptyHole)
+    };
+  };
+}
+and SigItem: {
+  let of_menhir_ast: AST.sig_item => Language.Grammar.sig_t(bool);
+  let of_core: Language.Grammar.sig_t(bool) => AST.sig_item;
+} = {
+  open IndicatedG.Sig;
+  let of_menhir_ast = (item: AST.sig_item): Language.Grammar.sig_t(bool) => {
+    switch (item) {
+    | SigItemLet(p) => sig_let(Pat.of_menhir_ast(p))
+    | SigItemType(tp, t) =>
+      sig_type(TPat.of_menhir_ast(tp), Typ.of_menhir_ast(t))
+    };
+  };
+
+  let of_core = (sig_: Language.Grammar.sig_t(bool)): AST.sig_item => {
+    switch (sig_.term) {
+    | SigLet(p) => SigItemLet(Pat.of_core(p))
+    | SigType(tp, t) => SigItemType(TPat.of_core(tp), Typ.of_core(t))
+    | Invalid(_)
+    | EmptyHole
+    | MultiHole(_) => SigItemLet(EmptyHolePat)
     };
   };
 };
