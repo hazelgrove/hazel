@@ -760,10 +760,7 @@ let ex5 = list_of_mylist(x) in
       ),
       /* Sig type tests - no semicolon ambiguity since sig items don't contain
          expression-level semicolons. Sig appears in Typ position. */
-      menhir_maketerm_equivalent_test(
-        "Sig empty",
-        {|let m : {} = {} in m|},
-      ),
+      menhir_maketerm_equivalent_test("Sig empty", {|let m : {} = {} in m|}),
       menhir_maketerm_equivalent_test(
         "Sig type annotation single member",
         {|let m : { let x : Int } = { let x = 1 } in m|},
