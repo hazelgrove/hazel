@@ -31,27 +31,54 @@ let evaluate = exp =>
     ),
   );
 
-// Detect MVU App type: (init_model, view_fn, subs_fn) - a 3-tuple
-// Returns Some((init_model, view_fn, subs_fn)) or None
-let detect_mvu_app =
-    (exp: DHExp.t)
-    : option((DHExp.t, DHExp.t, DHExp.t)) => {
+// Check if an expression is a function (possibly wrapped in a Closure from evaluation)
+let is_function = (exp: DHExp.t): bool =>
   switch (exp.term) {
+  | Fun(_)
+  | FixF(_)
+  | Closure(_, {term: Fun(_), _})
+  | Closure(_, {term: FixF(_), _}) => true
+  | _ => false
+  };
+
+// App kind: Elm-style 4-tuple or legacy 3-tuple
+type app_kind =
+  | ElmApp(DHExp.t, DHExp.t, DHExp.t, DHExp.t)   // init_model, update, view, subs
+  | LegacyMvuApp(DHExp.t, DHExp.t, DHExp.t);      // init_model, view, subs
+
+// Detect app kind: 4-tuple first (more specific), then 3-tuple
+let detect_app_kind = (exp: DHExp.t): option(app_kind) => {
+  switch (exp.term) {
+  // 4-tuple: Elm-style (init_model, update_fn, view_fn, subs_fn)
+  | Tuple([init_model, update_fn, view_fn, subs_fn])
+  | Parens({term: Tuple([init_model, update_fn, view_fn, subs_fn]), _})
+    when is_function(update_fn) && is_function(view_fn) =>
+    Some(ElmApp(init_model, update_fn, view_fn, subs_fn))
+  // 3-tuple: Legacy MVU (init_model, view_fn, subs_fn)
   | Tuple([init_model, view_fn, subs_fn])
-  | Parens({term: Tuple([init_model, view_fn, subs_fn]), _}) =>
-    // Check that view_fn looks like a function (Fun or fix)
-    switch (view_fn.term) {
-    | Fun(_)
-    | FixF(_) => Some((init_model, view_fn, subs_fn))
-    | _ => None
-    }
+  | Parens({term: Tuple([init_model, view_fn, subs_fn]), _})
+    when is_function(view_fn) =>
+    Some(LegacyMvuApp(init_model, view_fn, subs_fn))
   | _ => None
   };
 };
 
-// Check if expression looks like an MVU App type (3-tuple with function)
+// Detect MVU App type: returns legacy 3-tuple format for backwards compat
+let detect_mvu_app =
+    (exp: DHExp.t)
+    : option((DHExp.t, DHExp.t, DHExp.t)) => {
+  switch (detect_app_kind(exp)) {
+  | Some(LegacyMvuApp(init_model, view_fn, subs_fn)) =>
+    Some((init_model, view_fn, subs_fn))
+  | Some(ElmApp(init_model, _update_fn, view_fn, subs_fn)) =>
+    Some((init_model, view_fn, subs_fn))
+  | None => None
+  };
+};
+
+// Check if expression looks like an MVU App type (3 or 4-tuple with function)
 let looks_like_mvu_app = (exp: DHExp.t): bool =>
-  Option.is_some(detect_mvu_app(exp));
+  Option.is_some(detect_app_kind(exp));
 
 // Detect legacy self-modifying App type: ((HTML, Cmd), HTML -> Sub)
 // Returns Some((html_model, init_cmd, subscriptions_fn)) or None
@@ -84,14 +111,12 @@ let looks_like_legacy_app = (exp: DHExp.t): bool =>
   };
 
 // Extract the evaluated DHExp from a CellEditor
-let get_evaluated_exp = (cell_editor: CellEditor.Model.t): option(DHExp.t) => {
-  let result = cell_editor.result.result |> Calc.get_value;
-  switch (result) {
+let get_evaluated_exp = (cell_editor: CellEditor.Model.t): option(DHExp.t) =>
+  switch (cell_editor.result.result |> Calc.get_value) {
   | ProgramResult.ResultOk(inner) => Some(inner.result)
   | ProgramResult.ResultFail(_)
   | ProgramResult.ResultPending => None
   };
-};
 
 // Check if an expression looks like HTML
 let looks_like_html = (d: DHExp.t): bool =>
@@ -314,17 +339,23 @@ let view =
   // Check if we have active MVU state
   let is_showing_state = Option.is_some(globals.app_view_state);
 
-  // Fallback view_term for unknown terms - render as placeholder
-  let fallback_view_term = (d: DHExp.t) =>
+  // Fallback view_term for unknown terms - show abbreviated Hazel code
+  let fallback_view_term = (d: DHExp.t) => {
+    let code_str = ProbeText.format_value(~max_length=80, d);
     Node.span(
       ~attrs=[
         Attr.create(
           "style",
-          "background: #ffe0e0; padding: 2px 4px; border-radius: 2px;",
+          "display: inline-block; font-family: monospace; font-size: 12px; "
+          ++ "background: #fff5f5; color: #c53030; "
+          ++ "border: 1px solid #feb2b2; border-radius: 4px; "
+          ++ "padding: 2px 6px; max-width: 300px; "
+          ++ "overflow: hidden; text-overflow: ellipsis; white-space: nowrap;",
         ),
       ],
-      [text("[" ++ DHExp.show(d) ++ "]")],
+      [text(code_str)],
     );
+  };
 
   // Helper to render HTML with error boundary
   // For MVU apps: model is the user's model, html is view_fn(model)
@@ -335,6 +366,8 @@ let view =
         ~html: DHExp.t,
         ~inject: DHExp.t => Ui_effect.t(unit),
         ~subscriptions: option(DHExp.t),
+        ~update_fn: option(DHExp.t)=None,
+        (),
       ) =>
     try({
       let mvu: HazelDOM.t = {
@@ -343,6 +376,7 @@ let view =
         view_term: fallback_view_term,
         projector_id: None, // TODO: Use a stable ID for subscription tracking
         subscriptions,
+        update_fn,
       };
       div(
         ~attrs=[
@@ -368,6 +402,8 @@ let view =
       ~html=state.html,
       ~inject,
       ~subscriptions=Some(state.subs),
+      ~update_fn=Some(state.update_fn),
+      (),
     );
 
   // Render legacy self-modifying app
@@ -379,6 +415,7 @@ let view =
         let cmd_ctx: CmdRunner.context = {
           model: html,
           inject,
+          update_fn: None,
         };
         let cmd_effect = CmdRunner.run(cmd_ctx, init_cmd);
         Bonsai.Effect.Expert.handle(cmd_effect);
@@ -389,6 +426,7 @@ let view =
           ~html,
           ~inject,
           ~subscriptions=Some(subs),
+          (),
         );
       | Some((html, None, Some(subs_fn))) =>
         // No init command, just subscriptions
@@ -398,10 +436,11 @@ let view =
           ~html,
           ~inject,
           ~subscriptions=Some(subs),
+          (),
         );
       | Some((html, _, None)) =>
         // No subscriptions
-        render_html_content(~model=html, ~html, ~inject, ~subscriptions=None)
+        render_html_content(~model=html, ~html, ~inject, ~subscriptions=None, ())
       | None =>
         // Failed to detect app structure
         render_error("Invalid App structure")
@@ -415,9 +454,34 @@ let view =
   // Get the content to render
   let content =
     switch (globals.app_view_state) {
-    | Some(state) =>
-      // We have MVU state - render from it
-      render_mvu_app(state)
+    | Some(_state) =>
+      // We have MVU state - check if eval result changed (auto-refresh)
+      switch (eval_result) {
+      | Some(exp) when exp !== _state.source_result =>
+        // Eval result changed! Check if it's still an MVU app
+        switch (detect_app_kind(exp)) {
+        | Some(ElmApp(init_model, update_fn, view_fn, subs_fn)) =>
+          Bonsai.Effect.Expert.handle(
+            globals.inject_global(
+              RefreshAppView(exp, init_model, update_fn, view_fn, subs_fn),
+            ),
+          );
+          render_mvu_app(_state);
+        | Some(LegacyMvuApp(init_model, view_fn, subs_fn)) =>
+          Bonsai.Effect.Expert.handle(
+            globals.inject_global(
+              RefreshAppView(exp, init_model, _state.update_fn, view_fn, subs_fn),
+            ),
+          );
+          render_mvu_app(_state);
+        | None =>
+          // Result changed but isn't MVU (intermediate edit state, holes, etc.)
+          // Keep showing current state - user can hit Reset for intentional clear
+          render_mvu_app(_state)
+        }
+      | Some(_) => render_mvu_app(_state)
+      | None => render_mvu_app(_state)
+      }
     | None =>
       // No state - check evaluation result
       switch (eval_result) {
@@ -427,14 +491,28 @@ let view =
         | Some(_) => render_error("Evaluation pending or failed")
         }
       | Some(exp) when looks_like_mvu_app(exp) =>
-        // It's an MVU App - trigger initialization (evaluation happens in update handler)
-        switch (detect_mvu_app(exp)) {
-        | Some((init_model, view_fn, subs_fn)) =>
-          // Dispatch action - evaluation will happen in Page.re update handler
+        switch (detect_app_kind(exp)) {
+        | Some(ElmApp(init_model, update_fn, view_fn, subs_fn)) =>
           Bonsai.Effect.Expert.handle(
-            globals.inject_global(InitAppView(init_model, view_fn, subs_fn)),
+            globals.inject_global(
+              InitAppView(exp, init_model, update_fn, view_fn, subs_fn),
+            ),
           );
-          // Show loading state while waiting for evaluation to complete
+          div(
+            ~attrs=[
+              Attr.create(
+                "style",
+                "padding: 20px; text-align: center; color: #666;",
+              ),
+            ],
+            [text("Initializing app...")],
+          )
+        | Some(LegacyMvuApp(init_model, view_fn, subs_fn)) =>
+          Bonsai.Effect.Expert.handle(
+            globals.inject_global(
+              InitAppView(exp, init_model, Exp.empty_hole(), view_fn, subs_fn),
+            ),
+          );
           div(
             ~attrs=[
               Attr.create(
@@ -447,12 +525,10 @@ let view =
         | None => render_error("Invalid MVU App structure")
         }
       | Some(exp) when looks_like_legacy_app(exp) =>
-        // Legacy self-modifying app
         render_legacy_app(exp)
       | Some(exp) when looks_like_html(exp) =>
-        // Plain HTML - no subscriptions, model IS html
-        render_html_content(~model=exp, ~html=exp, ~inject, ~subscriptions=None)
-      | Some(_) => render_not_html()
+        render_html_content(~model=exp, ~html=exp, ~inject, ~subscriptions=None, ())
+      | Some(_exp) => render_not_html()
       }
     };
 

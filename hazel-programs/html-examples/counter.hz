@@ -1,6 +1,6 @@
-# HazelHtml Counter Example #
-# A simple counter that increments/decrements on click #
-# To use: paste into scratchpad, right-click the expression, select "Add HTML" #
+#HazelHtml Counter Example#
+#A simple counter that increments/decrements on click#
+#To use: paste into scratchpad, right-click the expression, select "Add HTML"#
 
 let counter = n ->
   Div(

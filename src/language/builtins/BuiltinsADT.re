@@ -309,55 +309,31 @@ module HTML = {
       ("Style", Some(list(prod([string(), string()])))),
       // === Data attributes ===
       ("Data", Some(prod([string(), string()]))), // data-{name}={value}
-      // === Event handlers (self-modifying pattern) ===
-      // Simple events: Html -> Html
-      ("OnClick", Some(arrow(var("HTML"), var("HTML")))),
-      ("OnDoubleClick", Some(arrow(var("HTML"), var("HTML")))),
-      ("OnMouseEnter", Some(arrow(var("HTML"), var("HTML")))),
-      ("OnMouseLeave", Some(arrow(var("HTML"), var("HTML")))),
-      ("OnFocus", Some(arrow(var("HTML"), var("HTML")))),
-      ("OnBlur", Some(arrow(var("HTML"), var("HTML")))),
-      ("OnSubmit", Some(arrow(var("HTML"), var("HTML")))),
-      // Events with mouse data: (Html, MouseEvent) -> Html
-      (
-        "OnMouseDown",
-        Some(arrow(prod([var("HTML"), var("MouseEvent")]), var("HTML"))),
-      ),
-      (
-        "OnMouseUp",
-        Some(arrow(prod([var("HTML"), var("MouseEvent")]), var("HTML"))),
-      ),
-      (
-        "OnMouseMove",
-        Some(arrow(prod([var("HTML"), var("MouseEvent")]), var("HTML"))),
-      ),
-      // Events with key data: (Html, KeyEvent) -> Html
-      (
-        "OnKeyDown",
-        Some(arrow(prod([var("HTML"), var("KeyEvent")]), var("HTML"))),
-      ),
-      (
-        "OnKeyUp",
-        Some(arrow(prod([var("HTML"), var("KeyEvent")]), var("HTML"))),
-      ),
-      (
-        "OnKeyPress",
-        Some(arrow(prod([var("HTML"), var("KeyEvent")]), var("HTML"))),
-      ),
-      // Events with string data: (Html, String) -> Html
-      (
-        "OnInput",
-        Some(arrow(prod([var("HTML"), string()]), var("HTML"))),
-      ),
-      (
-        "OnChange",
-        Some(arrow(prod([var("HTML"), string()]), var("HTML"))),
-      ),
+      // === Event handlers (Elm-style: handlers produce messages) ===
+      // Simple events: handler IS the msg value (Unknown)
+      ("OnClick", Some(unknown(Internal))),
+      ("OnDoubleClick", Some(unknown(Internal))),
+      ("OnMouseEnter", Some(unknown(Internal))),
+      ("OnMouseLeave", Some(unknown(Internal))),
+      ("OnFocus", Some(unknown(Internal))),
+      ("OnBlur", Some(unknown(Internal))),
+      ("OnSubmit", Some(unknown(Internal))),
+      // Events with mouse data: MouseEvent -> msg
+      ("OnMouseDown", Some(arrow(var("MouseEvent"), unknown(Internal)))),
+      ("OnMouseUp", Some(arrow(var("MouseEvent"), unknown(Internal)))),
+      ("OnMouseMove", Some(arrow(var("MouseEvent"), unknown(Internal)))),
+      // Events with key data: KeyEvent -> msg
+      ("OnKeyDown", Some(arrow(var("KeyEvent"), unknown(Internal)))),
+      ("OnKeyUp", Some(arrow(var("KeyEvent"), unknown(Internal)))),
+      ("OnKeyPress", Some(arrow(var("KeyEvent"), unknown(Internal)))),
+      // Events with string data: String -> msg
+      ("OnInput", Some(arrow(string(), unknown(Internal)))),
+      ("OnChange", Some(arrow(string(), unknown(Internal)))),
       // === Legacy/generic attribute (backwards compat) ===
       ("Create", Some(prod([string(), string()]))), // generic attr(name, value)
       ("BoolAttr", Some(prod([string(), bool()]))), // generic bool attr
       // === Legacy event (backwards compat with old OnMousedown casing) ===
-      ("OnMousedown", Some(arrow(var("HTML"), var("HTML")))),
+      ("OnMousedown", Some(unknown(Internal))),
     ]);
 };
 
@@ -378,11 +354,8 @@ module Cmd = {
         ("ScrollTo", Some(prod([string(), float(), float()]))), // id, x, y
         // === Clipboard ===
         ("CopyToClipboard", Some(string())),
-        // === Time-delayed state update ===
-        (
-          "Delay",
-          Some(prod([float(), arrow(var("HTML"), var("HTML"))])),
-        ), // ms, transform
+        // === Time-delayed message dispatch ===
+        ("Delay", Some(prod([float(), unknown(Internal)]))), // ms, msg
         // === Debugging ===
         ("Log", Some(string())),
       ]),
@@ -400,52 +373,34 @@ module Sub = {
         // === Batch multiple subscriptions ===
         ("SubBatch", Some(list(var("Sub")))),
         // === Window events ===
-        // OnResize: (Html, width, height) -> Html
-        (
-          "OnResize",
-          Some(arrow(prod([var("HTML"), int(), int()]), var("HTML"))),
-        ),
-        // OnVisibilityChange: (Html, visible?) -> Html
-        (
-          "OnVisibilityChange",
-          Some(arrow(prod([var("HTML"), bool()]), var("HTML"))),
-        ),
+        // OnResize: (Int, Int) -> msg
+        ("OnResize", Some(arrow(prod([int(), int()]), unknown(Internal)))),
+        // OnVisibilityChange: Bool -> msg
+        ("OnVisibilityChange", Some(arrow(bool(), unknown(Internal)))),
         // === Global keyboard (document level) ===
-        (
-          "OnDocumentKeyDown",
-          Some(arrow(prod([var("HTML"), var("KeyEvent")]), var("HTML"))),
-        ),
-        (
-          "OnDocumentKeyUp",
-          Some(arrow(prod([var("HTML"), var("KeyEvent")]), var("HTML"))),
-        ),
+        // OnDocumentKeyDown: KeyEvent -> msg
+        ("OnDocumentKeyDown", Some(arrow(var("KeyEvent"), unknown(Internal)))),
+        // OnDocumentKeyUp: KeyEvent -> msg
+        ("OnDocumentKeyUp", Some(arrow(var("KeyEvent"), unknown(Internal)))),
         // === Time-based ===
-        // Every: interval ms, (Html, timestamp) -> Html
-        (
-          "Every",
-          Some(
-            prod([
-              float(),
-              arrow(prod([var("HTML"), float()]), var("HTML")),
-            ]),
-          ),
-        ),
-        // AnimationFrame: (Html, timestamp) -> Html
-        (
-          "AnimationFrame",
-          Some(arrow(prod([var("HTML"), float()]), var("HTML"))),
-        ),
+        // Every: (interval ms, Float -> msg)
+        ("Every", Some(prod([float(), arrow(float(), unknown(Internal))]))),
+        // AnimationFrame: Float -> msg
+        ("AnimationFrame", Some(arrow(float(), unknown(Internal)))),
       ]),
     );
 };
 
-// App type for full applications with init and subscriptions
-// App = (init: (HTML, Cmd), subscriptions: HTML -> Sub)
+// App type for full applications with Elm-style MVU architecture
+// App = (init_model, update: (msg, model) -> model, view: model -> HTML, subs: model -> Sub)
 module App = {
   let t: Typ.t =
     prod([
-      prod([var("HTML"), var("Cmd")]), // init: (HTML, Cmd)
-      arrow(var("HTML"), var("Sub")) // subscriptions: HTML -> Sub
+      unknown(Internal),                                    // init_model
+      arrow(prod([unknown(Internal), unknown(Internal)]),   // update: (msg, model) ->
+            unknown(Internal)),                             //   model (or (model, Cmd))
+      arrow(unknown(Internal), var("HTML")),                // view: model -> HTML
+      arrow(unknown(Internal), var("Sub")),                 // subs: model -> Sub
     ]);
 };
 

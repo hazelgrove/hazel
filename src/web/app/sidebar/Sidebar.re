@@ -237,9 +237,21 @@ let view =
                 ~editor,
               )
             | AppView =>
-              // Wire inject to update the MVU model state
-              let app_inject = (new_model: Language.DHExp.t) =>
-                globals.inject_global(SetAppViewModel(new_model));
+              // Wire inject: Elm apps dispatch AppViewMsg, legacy uses SetAppViewModel
+              let app_inject = (value: Language.DHExp.t) =>
+                switch (globals.app_view_state) {
+                | Some(state) =>
+                  // Check if update_fn is a real function (Elm mode) vs placeholder
+                  switch (state.update_fn.term) {
+                  | Fun(_)
+                  | FixF(_)
+                  | Closure(_, {term: Fun(_), _})
+                  | Closure(_, {term: FixF(_), _}) =>
+                    globals.inject_global(AppViewMsg(value))
+                  | _ => globals.inject_global(SetAppViewModel(value))
+                  }
+                | None => globals.inject_global(SetAppViewModel(value))
+                };
               AppViewPanel.view(~globals, ~cell_editor, ~inject=app_inject);
             },
           ],

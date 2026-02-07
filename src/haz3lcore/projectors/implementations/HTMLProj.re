@@ -252,6 +252,7 @@ module M: Projector = {
         let cmd_ctx: CmdRunner.context = {
           model: html,
           inject: inject_exp,
+          update_fn: None,
         };
         let cmd_effect = CmdRunner.run(cmd_ctx, init_cmd);
         Bonsai.Effect.Expert.handle(cmd_effect);
@@ -275,6 +276,7 @@ module M: Projector = {
         |> view_seg(~background=false, Exp),
       projector_id: Some(info.id),
       subscriptions,
+      update_fn: None,
     };
 
     // Build style string based on UI state

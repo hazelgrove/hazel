@@ -1,13 +1,13 @@
-# MVU Counter Example #
-# A counter using proper MVU architecture (Model-View-Update) #
-# App type: (init_model, view: model -> Html, subs: model -> Sub) #
-# Handlers are: model -> model (not Html -> Html) #
+#MVU Counter Example#
+#Elm-style architecture: (init_model, update, view, subs)#
+#Handlers produce messages routed through update#
 
-# Model is just an integer (the count)
-let init = 0 in
+#update: (msg, model) -> model#
+#Messages are integers representing the delta#
+let update = fun (msg, model) -> model + msg in
 
-# view: Int -> Html
-# Takes the current model (count) and returns HTML
+#view: model -> HTML#
+#OnClick takes a bare message value, not a function#
 let view = fun model ->
   Div(
     [Class("counter"), Style([("text-align", "center"), ("padding", "20px")])],
@@ -22,14 +22,14 @@ let view = fun model ->
         [
           Button(
             [
-              OnClick(fun m -> m - 1),
+              OnClick(-1),
               Style([("font-size", "24px"), ("margin", "10px"), ("padding", "10px 20px")])
             ],
             [Text("-")]
           ),
           Button(
             [
-              OnClick(fun m -> m + 1),
+              OnClick(1),
               Style([("font-size", "24px"), ("margin", "10px"), ("padding", "10px 20px")])
             ],
             [Text("+")]
@@ -44,9 +44,8 @@ let view = fun model ->
   )
 in
 
-# subs: Int -> Sub
-# Takes the current model and returns subscriptions (none for this example)
-let subs = fun model -> None in
+#subs: model -> Sub#
+let subs = fun _model -> SubNone in
 
-# Return the App tuple: (init_model, view_fn, subs_fn)
-(init, view, subs)
+#App 4-tuple: (init_model, update, view, subs)#
+(0, update, view, subs)

@@ -49,7 +49,9 @@ module VisibleRows = {
 module AppViewState = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t = {
+    source_result: Language.DHExp.t, // Eval result this state was derived from
     model: Language.DHExp.t, // Current model state
+    update_fn: Language.DHExp.t, // update: (msg, model) -> model (or (model, Cmd))
     view_fn: Language.DHExp.t, // view: model -> Html
     subs_fn: Language.DHExp.t, // subscriptions: model -> Sub
     html: Language.DHExp.t, // Pre-evaluated: view_fn(model)
@@ -72,8 +74,11 @@ module Action = {
     | SetMetaDown(bool)
     | UpdateVisibleRows(VisibleRows.t)
     | SetAppViewModel(Language.DHExp.t) // Update the MVU model state
-    // InitAppView takes raw (model, view_fn, subs_fn) - evaluation happens in handler
-    | InitAppView(Language.DHExp.t, Language.DHExp.t, Language.DHExp.t)
+    | AppViewMsg(Language.DHExp.t) // Elm mode: route msg through update_fn
+    // InitAppView takes (source_result, model, update_fn, view_fn, subs_fn)
+    | InitAppView(Language.DHExp.t, Language.DHExp.t, Language.DHExp.t, Language.DHExp.t, Language.DHExp.t)
+    // RefreshAppView: code changed, try to preserve model state
+    | RefreshAppView(Language.DHExp.t, Language.DHExp.t, Language.DHExp.t, Language.DHExp.t, Language.DHExp.t)
     | ResetAppView; // Reset App View to show evaluation result
 };
 
@@ -163,7 +168,9 @@ module Update = {
     | SetMetaDown(_) => false
     | UpdateVisibleRows(_) => false
     | SetAppViewModel(_) => false
+    | AppViewMsg(_) => false
     | InitAppView(_) => false
+    | RefreshAppView(_) => false
     | ResetAppView => false
     };
   };

@@ -1,11 +1,31 @@
-# HazelHtml Timer Example #
-# A timer that uses the Every subscription to update each second #
-# This example uses the App type: ((HTML, Cmd), HTML -> Sub) #
+#HazelHtml Timer Example#
+#Elm-style architecture with subscriptions#
+#Model: (seconds, is_running)#
 
-# Timer state is stored as (seconds_elapsed, is_running) #
-# We encode this in the HTML structure #
+#Messages: use tuples to distinguish message types#
+#("toggle", 0) = toggle running#
+#("reset", 0) = reset timer#
+#("tick", 0) = tick from subscription#
 
-let timer_view = (seconds, running) ->
+#update: (msg, model) -> model#
+let update = fun (msg, model) ->
+  let seconds = fst(model) in
+  let running = snd(model) in
+  if fst(msg) == "toggle" then
+    (seconds, not running)
+  else if fst(msg) == "reset" then
+    (0, false)
+  else if fst(msg) == "tick" then
+    if running then (seconds + 1, running)
+    else model
+  else
+    model
+in
+
+#view: (Int, Bool) -> HTML#
+let view = fun model ->
+  let seconds = fst(model) in
+  let running = snd(model) in
   let minutes = seconds / 60 in
   let secs = seconds % 60 in
   let time_str =
@@ -16,8 +36,6 @@ let timer_view = (seconds, running) ->
     [
       Id("timer"),
       Class("timer-app"),
-      Data("seconds", string_of_int(seconds)),
-      Data("running", if running then "true" else "false"),
       Style([("text-align", "center"), ("padding", "40px"), ("font-family", "monospace")])
     ],
     [
@@ -27,17 +45,14 @@ let timer_view = (seconds, running) ->
         [
           Button(
             [
-              OnClick(fun html ->
-                let new_running = not running in
-                timer_view(seconds, new_running)
-              ),
+              OnClick(("toggle", 0)),
               Style([("font-size", "24px"), ("padding", "15px 30px"), ("margin", "10px"), ("cursor", "pointer")])
             ],
             [Text(if running then "Pause" else "Start")]
           ),
           Button(
             [
-              OnClick(fun html -> timer_view(0, false)),
+              OnClick(("reset", 0)),
               Style([("font-size", "24px"), ("padding", "15px 30px"), ("margin", "10px"), ("cursor", "pointer")])
             ],
             [Text("Reset")]
@@ -48,32 +63,15 @@ let timer_view = (seconds, running) ->
   )
 in
 
-# Helper to extract state from HTML #
-let get_seconds = html ->
-  # In real implementation, we'd parse the data attribute #
-  # For now, assume we can access it somehow #
-  0
+#subs: model -> Sub#
+#Tick every 1000ms when running#
+let subs = fun model ->
+  let running = snd(model) in
+  if running then
+    Every(1000.0, fun _timestamp -> ("tick", 0))
+  else
+    SubNone
 in
 
-let get_running = html ->
-  # Would parse data-running attribute #
-  false
-in
-
-# The subscriptions function - tick every 1000ms when running #
-let subscriptions = html ->
-  # Extract running state from HTML #
-  # When running, subscribe to tick every second #
-  Every(1000.0, fun (h, timestamp) ->
-    # Would need to extract current seconds and increment #
-    # This is a simplified example #
-    timer_view(1, true)
-  )
-in
-
-# Initial state and app tuple #
-let init_html = timer_view(0, false) in
-let init_cmd = CmdNone in
-
-# App: ((HTML, Cmd), HTML -> Sub) #
-((init_html, init_cmd), subscriptions)
+#App 4-tuple: (init_model, update, view, subs)#
+((0, false), update, view, subs)

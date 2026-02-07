@@ -16,6 +16,7 @@ open IdTagged.FreshGrammar;
 type context = {
   model: DHExp.t,
   inject: DHExp.t => Ui_effect.t(unit),
+  update_fn: option(DHExp.t),
 };
 
 // Track active subscriptions for cleanup
@@ -26,11 +27,19 @@ type sub_handle =
 
 type active_subs = list(sub_handle);
 
-// Parse a constructor from a DHExp
-let of_constructor = (d: DHExp.t): option((string, DHExp.t)) =>
+// Strip evaluator wrappers (Asc, Closure, Parens) to find constructor
+let rec of_constructor = (d: DHExp.t): option((string, DHExp.t)) =>
   switch (d.term) {
-  | Ap(Forward, {term: Constructor(name, _), _}, body) =>
-    Some((name, body))
+  | Asc(inner, _)
+  | Closure(_, inner)
+  | Parens(inner) => of_constructor(inner)
+  | Ap(Forward, fn, body) =>
+    switch (fn.term) {
+    | Constructor(name, _) => Some((name, body))
+    | Asc({term: Constructor(name, _), _}, _) => Some((name, body))
+    | Closure(_, {term: Constructor(name, _), _}) => Some((name, body))
+    | _ => None
+    }
   | Constructor(name, _) =>
     Some((
       name,
@@ -42,29 +51,41 @@ let of_constructor = (d: DHExp.t): option((string, DHExp.t)) =>
   | _ => None
   };
 
+// Strip evaluator wrappers (Asc, Closure, Parens) from outermost level
+let rec strip_wrappers = (d: DHExp.t): DHExp.t =>
+  switch (d.term) {
+  | Asc(inner, _)
+  | Closure(_, inner)
+  | Parens(inner) => strip_wrappers(inner)
+  | _ => d
+  };
+
 // Extract float from DHExp
-let of_float = (d: DHExp.t): option(float) =>
+let of_float = (d: DHExp.t): option(float) => {
+  let d = strip_wrappers(d);
   switch (d.term) {
   | Atom(Float(f)) => Some(f)
-  | Parens({term: Atom(Float(f)), _}) => Some(f)
   | _ => None
   };
+};
 
 // Extract list from DHExp
-let of_list = (d: DHExp.t): option(list(DHExp.t)) =>
+let of_list = (d: DHExp.t): option(list(DHExp.t)) => {
+  let d = strip_wrappers(d);
   switch (d.term) {
   | ListLit(items) => Some(items)
-  | Parens({term: ListLit(items), _}) => Some(items)
   | _ => None
   };
+};
 
 // Extract tuple components
-let of_tuple = (d: DHExp.t): option(list(DHExp.t)) =>
+let of_tuple = (d: DHExp.t): option(list(DHExp.t)) => {
+  let d = strip_wrappers(d);
   switch (d.term) {
   | Tuple(items) => Some(items)
-  | Parens({term: Tuple(items), _}) => Some(items)
   | _ => None
   };
+};
 
 // Evaluate a Hazel expression
 let evaluate = exp =>
@@ -89,17 +110,36 @@ let safe_evaluate = (exp: DHExp.t): result(DHExp.t, string) =>
 // Apply a handler with the current model and additional args
 // With error boundary - logs errors instead of crashing
 let apply_handler = (ctx: context, handler: DHExp.t, args: list(DHExp.t)) => {
-  let arg_exp =
-    switch (args) {
-    | [] => ctx.model
-    | _ => Exp.tuple([ctx.model, ...args])
+  switch (ctx.update_fn) {
+  | Some(_) =>
+    // Elm mode: handler takes just event data, produces msg
+    let result =
+      switch (args) {
+      | [] => Ok(handler) // handler IS the msg (no event data)
+      | [single] => safe_evaluate(Exp.ap(Forward, handler, single))
+      | _ => safe_evaluate(Exp.ap(Forward, handler, Exp.tuple(args)))
+      };
+    switch (result) {
+    | Ok(msg) => Bonsai.Effect.Expert.handle(ctx.inject(msg))
+    | Error(err) =>
+      Js_of_ocaml.Firebug.console##error(
+        Js_of_ocaml.Js.string("Subscription handler error: " ++ err),
+      )
     };
-  switch (safe_evaluate(Exp.ap(Forward, handler, arg_exp))) {
-  | Ok(new_model) => Bonsai.Effect.Expert.handle(ctx.inject(new_model))
-  | Error(msg) =>
-    Js_of_ocaml.Firebug.console##error(
-      Js_of_ocaml.Js.string("Subscription handler error: " ++ msg),
-    )
+  | None =>
+    // Legacy: handler takes (model, ...args) -> model
+    let arg_exp =
+      switch (args) {
+      | [] => ctx.model
+      | _ => Exp.tuple([ctx.model, ...args])
+      };
+    switch (safe_evaluate(Exp.ap(Forward, handler, arg_exp))) {
+    | Ok(new_model) => Bonsai.Effect.Expert.handle(ctx.inject(new_model))
+    | Error(msg) =>
+      Js_of_ocaml.Firebug.console##error(
+        Js_of_ocaml.Js.string("Subscription handler error: " ++ msg),
+      )
+    };
   };
 };
 

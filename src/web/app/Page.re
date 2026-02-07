@@ -104,7 +104,7 @@ module Update = {
     | Exercises(_) => None // These have different cell structures
     };
 
-  // Evaluate a Hazel expression (for MVU app state updates)
+  // Evaluate a Hazel expression with full elaboration (for source-level exprs)
   let evaluate_exp = (exp: Language.DHExp.t): Language.DHExp.t => {
     open Haz3lcore;
     open Language;
@@ -117,6 +117,18 @@ module Update = {
             exp,
           ),
         ),
+      ),
+    );
+  };
+
+  // Evaluate without re-elaboration (for applying already-evaluated functions)
+  let evaluate_direct = (exp: Language.DHExp.t): Language.DHExp.t => {
+    open Haz3lcore;
+    open Language;
+    fst(
+      Evaluator.evaluate(
+        ~env=Builtins.env_init,
+        exp,
       ),
     );
   };
@@ -200,10 +212,8 @@ module Update = {
       }
       |> return_quiet
     | SetAppViewModel(new_model) =>
-      // Update model and re-evaluate view_fn(model) and subs_fn(model)
       switch (model.globals.app_view_state) {
       | Some(state) =>
-        // Re-evaluate with the new model
         let html =
           evaluate_exp(
             Language.IdTagged.FreshGrammar.Exp.ap(
@@ -231,8 +241,68 @@ module Update = {
         |> return_quiet;
       | None => model |> return_quiet // No app initialized yet
       }
-    | InitAppView(init_model, view_fn, subs_fn) =>
-      // Initialize MVU app state with evaluated html and subs
+    | AppViewMsg(msg) =>
+      switch (model.globals.app_view_state) {
+      | Some(state) =>
+        // Use evaluate_direct: sub-expressions are already elaborated+evaluated
+        let update_result =
+          evaluate_direct(
+            Language.IdTagged.FreshGrammar.Exp.ap(
+              Forward,
+              state.update_fn,
+              Language.IdTagged.FreshGrammar.Exp.tuple([msg, state.model]),
+            ),
+          );
+        // Extract (new_model, cmd) or just new_model (strip wrappers)
+        let update_result =
+          Haz3lcore.HazelDOM.strip_wrappers(update_result);
+        let (new_model, cmd_opt) =
+          switch (update_result.term) {
+          | Tuple([m, c]) => (m, Some(c))
+          | _ => (update_result, None)
+          };
+        let html =
+          evaluate_direct(
+            Language.IdTagged.FreshGrammar.Exp.ap(
+              Forward,
+              state.view_fn,
+              new_model,
+            ),
+          );
+        let subs =
+          evaluate_direct(
+            Language.IdTagged.FreshGrammar.Exp.ap(
+              Forward,
+              state.subs_fn,
+              new_model,
+            ),
+          );
+        // Run cmd if present
+        switch (cmd_opt) {
+        | Some(cmd) =>
+          let cmd_ctx: Haz3lcore.CmdRunner.context = {
+            model: new_model,
+            inject: m => {
+              schedule_action(Globals(AppViewMsg(m)));
+              Virtual_dom.Vdom.Effect.Ignore;
+            },
+            update_fn: Some(state.update_fn),
+          };
+          Bonsai.Effect.Expert.handle(Haz3lcore.CmdRunner.run(cmd_ctx, cmd));
+        | None => ()
+        };
+        {
+          ...model,
+          globals: {
+            ...model.globals,
+            app_view_state:
+              Some({...state, model: new_model, html, subs}),
+          },
+        }
+        |> return_quiet;
+      | None => model |> return_quiet
+      }
+    | InitAppView(source_result, init_model, update_fn, view_fn, subs_fn) =>
       let html =
         evaluate_exp(
           Language.IdTagged.FreshGrammar.Exp.ap(Forward, view_fn, init_model),
@@ -242,7 +312,9 @@ module Update = {
           Language.IdTagged.FreshGrammar.Exp.ap(Forward, subs_fn, init_model),
         );
       let state: Globals.AppViewState.t = {
+        source_result,
         model: init_model,
+        update_fn,
         view_fn,
         subs_fn,
         html,
@@ -256,6 +328,110 @@ module Update = {
         },
       }
       |> return_quiet
+    | RefreshAppView(source_result, init_model, update_fn, view_fn, subs_fn) =>
+      // Code changed - try to preserve current model state (hot reload)
+      switch (model.globals.app_view_state) {
+      | Some(state) =>
+        let new_state =
+          try({
+            let html =
+              evaluate_exp(
+                Language.IdTagged.FreshGrammar.Exp.ap(
+                  Forward,
+                  view_fn,
+                  state.model,
+                ),
+              );
+            let subs =
+              evaluate_exp(
+                Language.IdTagged.FreshGrammar.Exp.ap(
+                  Forward,
+                  subs_fn,
+                  state.model,
+                ),
+              );
+            Globals.AppViewState.{
+              source_result,
+              model: state.model,
+              update_fn,
+              view_fn,
+              subs_fn,
+              html,
+              subs,
+            };
+          }) {
+          | _exn =>
+            // Model type changed or other failure - full re-init
+            let html =
+              evaluate_exp(
+                Language.IdTagged.FreshGrammar.Exp.ap(
+                  Forward,
+                  view_fn,
+                  init_model,
+                ),
+              );
+            let subs =
+              evaluate_exp(
+                Language.IdTagged.FreshGrammar.Exp.ap(
+                  Forward,
+                  subs_fn,
+                  init_model,
+                ),
+              );
+            Globals.AppViewState.{
+              source_result,
+              model: init_model,
+              update_fn,
+              view_fn,
+              subs_fn,
+              html,
+              subs,
+            };
+          };
+        {
+          ...model,
+          globals: {
+            ...model.globals,
+            app_view_state: Some(new_state),
+          },
+        }
+        |> return_quiet;
+      | None =>
+        // Shouldn't happen (refresh implies existing state), but handle as init
+        let html =
+          evaluate_exp(
+            Language.IdTagged.FreshGrammar.Exp.ap(
+              Forward,
+              view_fn,
+              init_model,
+            ),
+          );
+        let subs =
+          evaluate_exp(
+            Language.IdTagged.FreshGrammar.Exp.ap(
+              Forward,
+              subs_fn,
+              init_model,
+            ),
+          );
+        let state: Globals.AppViewState.t = {
+          source_result,
+          model: init_model,
+          update_fn,
+          view_fn,
+          subs_fn,
+          html,
+          subs,
+        };
+        {
+          ...model,
+          globals: {
+            ...model.globals,
+            app_view_state: Some(state),
+          },
+        }
+        |> return_quiet;
+      }
     | ResetAppView =>
       {
         ...model,
@@ -354,6 +530,28 @@ module Update = {
       ...model.globals,
       export_all: Export.export_all,
       get_log_and,
+    };
+    {
+      let action_tag =
+        switch (action) {
+        | Globals(_) => "Globals"
+        | Editors(_) => "Editors"
+        | ExplainThis(_) => "ExplainThis"
+        | Assistant(_) => "Assistant"
+        | MakeActive(_) => "MakeActive"
+        | Benchmark(_) => "Benchmark"
+        | Start => "Start"
+        | Save => "Save"
+        };
+      let has_state = Option.is_some(model.globals.app_view_state);
+      if (action_tag != "Editors") {
+        print_endline(
+          "[AppView] Page.update: "
+          ++ action_tag
+          ++ " | state="
+          ++ (has_state ? "Some" : "None"),
+        );
+      };
     };
     let result = switch (action) {
     | Globals(action) =>

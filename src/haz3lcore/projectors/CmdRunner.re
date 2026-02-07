@@ -19,13 +19,22 @@ open IdTagged.FreshGrammar;
 type context = {
   model: DHExp.t,
   inject: DHExp.t => Ui_effect.t(unit),
+  update_fn: option(DHExp.t),
 };
 
-// Parse a constructor from a DHExp
-let of_constructor = (d: DHExp.t): option((string, DHExp.t)) =>
+// Strip evaluator wrappers (Asc, Closure, Parens) to find constructor
+let rec of_constructor = (d: DHExp.t): option((string, DHExp.t)) =>
   switch (d.term) {
-  | Ap(Forward, {term: Constructor(name, _), _}, body) =>
-    Some((name, body))
+  | Asc(inner, _)
+  | Closure(_, inner)
+  | Parens(inner) => of_constructor(inner)
+  | Ap(Forward, fn, body) =>
+    switch (fn.term) {
+    | Constructor(name, _) => Some((name, body))
+    | Asc({term: Constructor(name, _), _}, _) => Some((name, body))
+    | Closure(_, {term: Constructor(name, _), _}) => Some((name, body))
+    | _ => None
+    }
   | Constructor(name, _) =>
     Some((
       name,
@@ -37,37 +46,50 @@ let of_constructor = (d: DHExp.t): option((string, DHExp.t)) =>
   | _ => None
   };
 
+// Strip evaluator wrappers (Asc, Closure, Parens) from outermost level
+let rec strip_wrappers = (d: DHExp.t): DHExp.t =>
+  switch (d.term) {
+  | Asc(inner, _)
+  | Closure(_, inner)
+  | Parens(inner) => strip_wrappers(inner)
+  | _ => d
+  };
+
 // Extract string from DHExp
-let of_string = (d: DHExp.t): option(string) =>
+let of_string = (d: DHExp.t): option(string) => {
+  let d = strip_wrappers(d);
   switch (d.term) {
   | Atom(String(s)) => Some(s)
-  | Parens({term: Atom(String(s)), _}) => Some(s)
   | _ => None
   };
+};
 
 // Extract float from DHExp
-let of_float = (d: DHExp.t): option(float) =>
+let of_float = (d: DHExp.t): option(float) => {
+  let d = strip_wrappers(d);
   switch (d.term) {
   | Atom(Float(f)) => Some(f)
-  | Parens({term: Atom(Float(f)), _}) => Some(f)
   | _ => None
   };
+};
 
 // Extract list from DHExp
-let of_list = (d: DHExp.t): option(list(DHExp.t)) =>
+let of_list = (d: DHExp.t): option(list(DHExp.t)) => {
+  let d = strip_wrappers(d);
   switch (d.term) {
   | ListLit(items) => Some(items)
-  | Parens({term: ListLit(items), _}) => Some(items)
   | _ => None
   };
+};
 
 // Extract tuple components
-let of_tuple = (d: DHExp.t): option(list(DHExp.t)) =>
+let of_tuple = (d: DHExp.t): option(list(DHExp.t)) => {
+  let d = strip_wrappers(d);
   switch (d.term) {
   | Tuple(items) => Some(items)
-  | Parens({term: Tuple(items), _}) => Some(items)
   | _ => None
   };
+};
 
 // Evaluate a Hazel expression
 let evaluate = exp =>
@@ -175,16 +197,22 @@ let rec run = (ctx: context, cmd: DHExp.t): Ui_effect.t(unit) => {
     | Some([ms_exp, transform]) =>
       switch (of_float(ms_exp)) {
       | Some(ms) =>
-        // Schedule the transform to run after delay
+        // Schedule after delay
         Effect.of_sync_fun(
           () => {
             let _ =
               Js_of_ocaml.Dom_html.window##setTimeout(
                 Js_of_ocaml.Js.wrap_callback(() => {
-                  let new_model =
-                    evaluate(Exp.ap(Forward, transform, ctx.model));
-                  // Inject the new model from the callback using Expert.handle
-                  Bonsai.Effect.Expert.handle(ctx.inject(new_model));
+                  switch (ctx.update_fn) {
+                  | Some(_) =>
+                    // Elm mode: transform IS the msg value, dispatch directly
+                    Bonsai.Effect.Expert.handle(ctx.inject(transform))
+                  | None =>
+                    // Legacy: transform is model -> model
+                    let new_model =
+                      evaluate(Exp.ap(Forward, transform, ctx.model));
+                    Bonsai.Effect.Expert.handle(ctx.inject(new_model));
+                  }
                 }),
                 ms,
               );

@@ -12,6 +12,8 @@ type t = {
   projector_id: option(Id.t),
   // Optional: subscriptions to set up (Sub expression)
   subscriptions: option(DHExp.t),
+  // Optional: Elm-mode update function. Some = Elm mode, None = legacy mode
+  update_fn: option(DHExp.t),
 };
 
 // Global registry of active subscriptions per projector
@@ -25,10 +27,25 @@ let input_type_mappings: list((string, string)) = [
   ("Range", "range"),
 ];
 
-let of_constructor = (d: DHExp.t): option((string, DHExp.t)) =>
+// Strip evaluator wrappers (Asc, Closure, Parens) from outermost level
+let rec strip_wrappers = (d: DHExp.t): DHExp.t =>
   switch (d.term) {
-  | Ap(Forward, {term: Constructor(name, _), _}, body) =>
-    Some((name, body))
+  | Asc(inner, _)
+  | Closure(_, inner)
+  | Parens(inner) => strip_wrappers(inner)
+  | _ => d
+  };
+
+// Extract constructor name and body, stripping evaluator wrappers
+let of_constructor = (d: DHExp.t): option((string, DHExp.t)) => {
+  let d = strip_wrappers(d);
+  switch (d.term) {
+  | Ap(Forward, fn, body) =>
+    let fn = strip_wrappers(fn);
+    switch (fn.term) {
+    | Constructor(name, _) => Some((name, strip_wrappers(body)))
+    | _ => None
+    };
   | Constructor(name, _) =>
     // Nullary constructor - create an empty tuple as placeholder body
     Some((
@@ -40,54 +57,62 @@ let of_constructor = (d: DHExp.t): option((string, DHExp.t)) =>
     ))
   | _ => None
   };
+};
 
-let of_pair = (d: DHExp.t): option((string, string)) =>
+let of_pair = (d: DHExp.t): option((string, string)) => {
+  let d = strip_wrappers(d);
   switch (d.term) {
-  | Parens({
-      term:
-        Tuple([{term: Atom(String(k)), _}, {term: Atom(String(v)), _}]),
-      _,
-    }) =>
-    Some((k, v))
-  | Tuple([{term: Atom(String(k)), _}, {term: Atom(String(v)), _}]) =>
-    Some((k, v))
+  | Tuple([k, v]) =>
+    let k = strip_wrappers(k);
+    let v = strip_wrappers(v);
+    switch (k.term, v.term) {
+    | (Atom(String(k)), Atom(String(v))) => Some((k, v))
+    | _ => None
+    };
   | _ => None
   };
+};
 
-let of_string_bool_pair = (d: DHExp.t): option((string, bool)) =>
+let of_string_bool_pair = (d: DHExp.t): option((string, bool)) => {
+  let d = strip_wrappers(d);
   switch (d.term) {
-  | Parens({
-      term: Tuple([{term: Atom(String(k)), _}, {term: Atom(Bool(v)), _}]),
-      _,
-    }) =>
-    Some((k, v))
-  | Tuple([{term: Atom(String(k)), _}, {term: Atom(Bool(v)), _}]) =>
-    Some((k, v))
+  | Tuple([k, v]) =>
+    let k = strip_wrappers(k);
+    let v = strip_wrappers(v);
+    switch (k.term, v.term) {
+    | (Atom(String(k)), Atom(Bool(v))) => Some((k, v))
+    | _ => None
+    };
   | _ => None
   };
+};
 
-let of_string = (d: DHExp.t): option(string) =>
+let of_string = (d: DHExp.t): option(string) => {
+  let d = strip_wrappers(d);
   switch (d.term) {
   | Atom(String(s)) => Some(s)
-  | Parens({term: Atom(String(s)), _}) => Some(s)
   | _ => None
   };
+};
 
-let of_bool = (d: DHExp.t): option(bool) =>
+let of_bool = (d: DHExp.t): option(bool) => {
+  let d = strip_wrappers(d);
   switch (d.term) {
   | Atom(Bool(b)) => Some(b)
-  | Parens({term: Atom(Bool(b)), _}) => Some(b)
   | _ => None
   };
+};
 
-let of_int = (d: DHExp.t): option(int) =>
+let of_int = (d: DHExp.t): option(int) => {
+  let d = strip_wrappers(d);
   switch (d.term) {
   | Atom(Int(n)) => Bigint.to_int(n)
-  | Parens({term: Atom(Int(n)), _}) => Bigint.to_int(n)
   | _ => None
   };
+};
 
-let of_string_list = (d: DHExp.t): option(list(string)) =>
+let of_string_list = (d: DHExp.t): option(list(string)) => {
+  let d = strip_wrappers(d);
   switch (d.term) {
   | ListLit(items) =>
     let strings = List.filter_map(of_string, items);
@@ -98,6 +123,7 @@ let of_string_list = (d: DHExp.t): option(list(string)) =>
     };
   | _ => None
   };
+};
 
 let render_style_attr = (d: DHExp.t): option(string) =>
   switch (of_pair(d)) {
@@ -167,6 +193,7 @@ let process_handler_result = (mvu: t, result: DHExp.t): Ui_effect.t(unit) => {
     let cmd_ctx: CmdRunner.context = {
       model: new_model,
       inject: mvu.inject,
+      update_fn: mvu.update_fn,
     };
     let cmd_effect = CmdRunner.run(cmd_ctx, cmd);
     Effect.Many([
@@ -178,6 +205,7 @@ let process_handler_result = (mvu: t, result: DHExp.t): Ui_effect.t(unit) => {
     let cmd_ctx: CmdRunner.context = {
       model: new_model,
       inject: mvu.inject,
+      update_fn: mvu.update_fn,
     };
     let cmd_effect = CmdRunner.run(cmd_ctx, cmd);
     Effect.Many([
@@ -191,32 +219,50 @@ let process_handler_result = (mvu: t, result: DHExp.t): Ui_effect.t(unit) => {
   };
 };
 
-// Simple event: Html -> Html or Html -> (Html, Cmd)
+// Simple event: Elm mode: handler IS the msg value. Legacy: Html -> Html
 let on_ = (mvu: t, handler, _evt) => {
-  switch (safe_evaluate(Exp.ap(Forward, handler, mvu.model))) {
-  | Ok(result) => process_handler_result(mvu, result)
-  | Error(msg) =>
-    let err = error_html("Event handler error: " ++ msg);
-    Effect.Many([Effect.Stop_propagation, mvu.inject(err)]);
+  switch (mvu.update_fn) {
+  | Some(_) =>
+    // Elm mode: handler IS the msg value, dispatch directly
+    Effect.Many([Effect.Stop_propagation, mvu.inject(handler)])
+  | None =>
+    // Legacy: handler is model -> model
+    switch (safe_evaluate(Exp.ap(Forward, handler, mvu.model))) {
+    | Ok(result) => process_handler_result(mvu, result)
+    | Error(msg) =>
+      let err = error_html("Event handler error: " ++ msg);
+      Effect.Many([Effect.Stop_propagation, mvu.inject(err)]);
+    }
   };
 };
 
-// Input/change event: (Html, String) -> Html or (Html, String) -> (Html, Cmd)
+// Input/change event: Elm mode: String -> msg. Legacy: (Html, String) -> Html
 let on_input = (mvu: t, handler, _evt, arg) => {
-  switch (
-    safe_evaluate(
-      Exp.ap(Forward, handler, Exp.tuple([mvu.model, Exp.string(arg)])),
-    )
-  ) {
-  | Ok(result) => process_handler_result(mvu, result)
-  | Error(msg) =>
-    let err = error_html("Input handler error: " ++ msg);
-    Effect.Many([Effect.Stop_propagation, mvu.inject(err)]);
+  switch (mvu.update_fn) {
+  | Some(_) =>
+    // Elm mode: handler is String -> msg
+    switch (safe_evaluate(Exp.ap(Forward, handler, Exp.string(arg)))) {
+    | Ok(msg) => Effect.Many([Effect.Stop_propagation, mvu.inject(msg)])
+    | Error(err) =>
+      let err_html = error_html("Input handler error: " ++ err);
+      Effect.Many([Effect.Stop_propagation, mvu.inject(err_html)]);
+    }
+  | None =>
+    // Legacy: handler is (Html, String) -> Html
+    switch (
+      safe_evaluate(
+        Exp.ap(Forward, handler, Exp.tuple([mvu.model, Exp.string(arg)])),
+      )
+    ) {
+    | Ok(result) => process_handler_result(mvu, result)
+    | Error(msg) =>
+      let err = error_html("Input handler error: " ++ msg);
+      Effect.Many([Effect.Stop_propagation, mvu.inject(err)]);
+    }
   };
 };
 
-// Mouse event: (Html, MouseEvent) -> Html or -> (Html, Cmd)
-// MouseEvent = (clientX, clientY, button, ctrl, shift, alt, meta)
+// Mouse event: Elm mode: MouseEvent -> msg. Legacy: (Html, MouseEvent) -> Html
 let on_mouse = (mvu: t, handler, evt) => {
   let mouse_event =
     Exp.tuple([
@@ -228,20 +274,31 @@ let on_mouse = (mvu: t, handler, evt) => {
       Exp.bool(Js_of_ocaml.Js.to_bool(evt##.altKey)),
       Exp.bool(Js_of_ocaml.Js.to_bool(evt##.metaKey)),
     ]);
-  switch (
-    safe_evaluate(
-      Exp.ap(Forward, handler, Exp.tuple([mvu.model, mouse_event])),
-    )
-  ) {
-  | Ok(result) => process_handler_result(mvu, result)
-  | Error(msg) =>
-    let err = error_html("Mouse handler error: " ++ msg);
-    Effect.Many([Effect.Stop_propagation, mvu.inject(err)]);
+  switch (mvu.update_fn) {
+  | Some(_) =>
+    // Elm mode: handler is MouseEvent -> msg
+    switch (safe_evaluate(Exp.ap(Forward, handler, mouse_event))) {
+    | Ok(msg) => Effect.Many([Effect.Stop_propagation, mvu.inject(msg)])
+    | Error(err) =>
+      let err_html = error_html("Mouse handler error: " ++ err);
+      Effect.Many([Effect.Stop_propagation, mvu.inject(err_html)]);
+    }
+  | None =>
+    // Legacy: handler is (Html, MouseEvent) -> Html
+    switch (
+      safe_evaluate(
+        Exp.ap(Forward, handler, Exp.tuple([mvu.model, mouse_event])),
+      )
+    ) {
+    | Ok(result) => process_handler_result(mvu, result)
+    | Error(msg) =>
+      let err = error_html("Mouse handler error: " ++ msg);
+      Effect.Many([Effect.Stop_propagation, mvu.inject(err)]);
+    }
   };
 };
 
-// Keyboard event: (Html, KeyEvent) -> Html or -> (Html, Cmd)
-// KeyEvent = (key, code, ctrl, shift, alt, meta)
+// Keyboard event: Elm mode: KeyEvent -> msg. Legacy: (Html, KeyEvent) -> Html
 let on_key = (mvu: t, handler, evt) => {
   open Js_of_ocaml;
   let get_key = evt =>
@@ -257,15 +314,27 @@ let on_key = (mvu: t, handler, evt) => {
       Exp.bool(Js.to_bool(evt##.altKey)),
       Exp.bool(Js.to_bool(evt##.metaKey)),
     ]);
-  switch (
-    safe_evaluate(
-      Exp.ap(Forward, handler, Exp.tuple([mvu.model, key_event])),
-    )
-  ) {
-  | Ok(result) => process_handler_result(mvu, result)
-  | Error(msg) =>
-    let err = error_html("Keyboard handler error: " ++ msg);
-    Effect.Many([Effect.Stop_propagation, mvu.inject(err)]);
+  switch (mvu.update_fn) {
+  | Some(_) =>
+    // Elm mode: handler is KeyEvent -> msg
+    switch (safe_evaluate(Exp.ap(Forward, handler, key_event))) {
+    | Ok(msg) => Effect.Many([Effect.Stop_propagation, mvu.inject(msg)])
+    | Error(err) =>
+      let err_html = error_html("Keyboard handler error: " ++ err);
+      Effect.Many([Effect.Stop_propagation, mvu.inject(err_html)]);
+    }
+  | None =>
+    // Legacy: handler is (Html, KeyEvent) -> Html
+    switch (
+      safe_evaluate(
+        Exp.ap(Forward, handler, Exp.tuple([mvu.model, key_event])),
+      )
+    ) {
+    | Ok(result) => process_handler_result(mvu, result)
+    | Error(msg) =>
+      let err = error_html("Keyboard handler error: " ++ msg);
+      Effect.Many([Effect.Stop_propagation, mvu.inject(err)]);
+    }
   };
 };
 
@@ -675,78 +744,70 @@ let rec render_elem = (~elide_errors=false, mvu: t, d: DHExp.t): Node.t =>
   }
 
 // Extract (attrs, children) from a tuple body
-and attrs_and_elems = (mvu: t, body: DHExp.t): (list(Attr.t), list(Node.t)) =>
-  switch (DHExp.strip_ascriptions(body).term) {
-  | Tuple([{term: ListLit(attrs), _}, {term: ListLit(elems), _}]) => (
-      List.map(render_attr(mvu), attrs),
-      List.map(render_elem(mvu), elems),
-    )
-  | Parens({
-      term: Tuple([{term: ListLit(attrs), _}, {term: ListLit(elems), _}]),
-      _,
-    }) => (
-      List.map(render_attr(mvu), attrs),
-      List.map(render_elem(mvu), elems),
-    )
+and attrs_and_elems = (mvu: t, body: DHExp.t): (list(Attr.t), list(Node.t)) => {
+  let body = strip_wrappers(body);
+  switch (body.term) {
+  | Tuple([attrs_exp, elems_exp]) =>
+    let attrs_exp = strip_wrappers(attrs_exp);
+    let elems_exp = strip_wrappers(elems_exp);
+    switch (attrs_exp.term, elems_exp.term) {
+    | (ListLit(attrs), ListLit(elems)) => (
+        List.map(render_attr(mvu), attrs),
+        List.map(render_elem(mvu), elems),
+      )
+    | _ => ([], [mvu.view_term(body)])
+    };
   | _ => ([], [mvu.view_term(body)])
-  }
+  };
+}
 
 // Extract attrs from a list body (for elements that don't take children)
-and attrs_only = (mvu: t, body: DHExp.t): (list(Attr.t), unit) =>
-  switch (DHExp.strip_ascriptions(body).term) {
+and attrs_only = (mvu: t, body: DHExp.t): (list(Attr.t), unit) => {
+  let body = strip_wrappers(body);
+  switch (body.term) {
   | ListLit(attrs) => (List.map(render_attr(mvu), attrs), ())
-  | Parens({term: ListLit(attrs), _}) => (
-      List.map(render_attr(mvu), attrs),
-      (),
-    )
   | _ => ([], ())
-  }
+  };
+}
 
 // Extract (attrs, string) from a tuple body (for TextArea, Option)
 and attrs_and_string =
-    (mvu: t, body: DHExp.t): option((list(Attr.t), string)) =>
-  switch (DHExp.strip_ascriptions(body).term) {
-  | Tuple([{term: ListLit(attrs), _}, {term: Atom(String(s)), _}]) =>
-    Some((List.map(render_attr(mvu), attrs), s))
-  | Parens({
-      term:
-        Tuple([{term: ListLit(attrs), _}, {term: Atom(String(s)), _}]),
-      _,
-    }) =>
-    Some((List.map(render_attr(mvu), attrs), s))
+    (mvu: t, body: DHExp.t): option((list(Attr.t), string)) => {
+  let body = strip_wrappers(body);
+  switch (body.term) {
+  | Tuple([attrs_exp, str_exp]) =>
+    let attrs_exp = strip_wrappers(attrs_exp);
+    let str_exp = strip_wrappers(str_exp);
+    switch (attrs_exp.term, str_exp.term) {
+    | (ListLit(attrs), Atom(String(s))) =>
+      Some((List.map(render_attr(mvu), attrs), s))
+    | _ => None
+    };
   | _ => None
-  }
+  };
+}
 
 // Extract (tagName, attrs, children) for custom Node element
 and node_body =
-    (mvu: t, body: DHExp.t): option((string, list(Attr.t), list(Node.t))) =>
-  switch (DHExp.strip_ascriptions(body).term) {
-  | Tuple([
-      {term: Atom(String(tag)), _},
-      {term: ListLit(attrs), _},
-      {term: ListLit(elems), _},
-    ]) =>
-    Some((
-      tag,
-      List.map(render_attr(mvu), attrs),
-      List.map(render_elem(mvu), elems),
-    ))
-  | Parens({
-      term:
-        Tuple([
-          {term: Atom(String(tag)), _},
-          {term: ListLit(attrs), _},
-          {term: ListLit(elems), _},
-        ]),
-      _,
-    }) =>
-    Some((
-      tag,
-      List.map(render_attr(mvu), attrs),
-      List.map(render_elem(mvu), elems),
-    ))
+    (mvu: t, body: DHExp.t): option((string, list(Attr.t), list(Node.t))) => {
+  let body = strip_wrappers(body);
+  switch (body.term) {
+  | Tuple([tag_exp, attrs_exp, elems_exp]) =>
+    let tag_exp = strip_wrappers(tag_exp);
+    let attrs_exp = strip_wrappers(attrs_exp);
+    let elems_exp = strip_wrappers(elems_exp);
+    switch (tag_exp.term, attrs_exp.term, elems_exp.term) {
+    | (Atom(String(tag)), ListLit(attrs), ListLit(elems)) =>
+      Some((
+        tag,
+        List.map(render_attr(mvu), attrs),
+        List.map(render_elem(mvu), elems),
+      ))
+    | _ => None
+    };
   | _ => None
   };
+};
 
 // Manage subscriptions for a projector
 let manage_subscriptions = (mvu: t): unit => {
@@ -764,6 +825,7 @@ let manage_subscriptions = (mvu: t): unit => {
     let ctx: SubManager.context = {
       model: mvu.model,
       inject: mvu.inject,
+      update_fn: mvu.update_fn,
     };
     let handles = SubManager.subscribe(ctx, sub_exp, get_model);
     if (List.length(handles) > 0) {

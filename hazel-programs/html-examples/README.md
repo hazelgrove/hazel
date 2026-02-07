@@ -6,59 +6,53 @@ These example programs demonstrate the HazelHtml web app library features.
 
 1. Copy the code from any `.hz` file
 2. Paste it into a Hazel scratchpad
-3. Right-click on the expression that produces HTML
-4. Select "Add HTML" from the context menu
-5. The HTML projector will render your app
+3. For sidebar apps (4-tuple): open the App View sidebar panel
+4. For inline HTML: right-click on the expression, select "Add HTML"
+
+## Architecture
+
+### Elm-style MVU (sidebar App View)
+
+Apps are 4-tuples: `(init_model, update, view, subs)`
+
+- `init_model` - initial state (any type)
+- `update: (msg, model) -> model` - handle messages (can also return `(model, Cmd)`)
+- `view: model -> HTML` - render model as HTML
+- `subs: model -> Sub` - subscriptions based on model
+
+Handlers produce **messages**, not new models:
+- `OnClick(msg_value)` - bare message value
+- `OnInput(fun str -> msg)` - event data to message
+- `OnKeyDown(fun key_event -> msg)` - key event to message
+
+### Legacy self-modifying (inline HTML projector)
+
+The inline HTML projector still supports the old self-modifying pattern where
+handlers are `model -> model` functions. These run in "legacy mode" automatically.
 
 ## Examples
 
-### counter.hz
-A simple click counter demonstrating:
-- Basic HTML structure (Div, Button, Text)
-- Event handlers (OnClick)
-- Self-modifying pattern (click updates the view)
-
-### todo-list.hz
-A todo list application demonstrating:
-- Form input handling (OnInput)
-- List manipulation (adding/removing items)
-- More complex state management
+### mvu-counter.hz
+Elm-style counter: `(0, update, view, subs)` with integer messages.
 
 ### timer.hz
-A timer using subscriptions demonstrating:
-- The App type: `((HTML, Cmd), HTML -> Sub)`
-- Every subscription for periodic updates
-- Start/pause/reset functionality
-
-### keyboard-game.hz
-A keyboard-controlled game demonstrating:
-- OnDocumentKeyDown subscription for global key events
-- KeyEvent handling (arrow keys)
-- Position-based styling
-
-### animation.hz
-A bouncing ball animation demonstrating:
-- AnimationFrame subscription for smooth animation
-- Physics simulation (gravity, bounce)
-- Continuous visual updates
+Timer with subscriptions: uses `Every` for periodic ticks, tuple messages.
 
 ### full-app.hz
-A comprehensive example demonstrating:
-- Multiple features together (tabs, forms)
-- Commands (Focus, Log)
-- Event handlers returning (HTML, Cmd) tuples
-- Subscriptions (OnResize)
+Tabs, forms, commands: demonstrates `OnInput`, `Cmd`, tuple message dispatch.
+
+### counter.hz
+Legacy self-modifying counter for the inline HTML projector.
+
+### todo-list.hz
+Legacy self-modifying todo list for the inline HTML projector.
 
 ## Types Reference
 
-See `docs/hazel-html-implementation.md` for complete type documentation.
-
-### Quick Reference
-
 ```
 HTML = Div([attrs], [children]) | Button([attrs], [children]) | Text(str) | ...
-Attr = Class(str) | Style([(key, value)]) | OnClick(HTML -> HTML) | ...
-Cmd = CmdNone | Focus(id) | Log(msg) | Delay(ms, HTML -> HTML) | ...
-Sub = SubNone | Every(ms, (HTML, Float) -> HTML) | OnDocumentKeyDown(...) | ...
-App = ((HTML, Cmd), HTML -> Sub)
+Attr = Class(str) | Style([(key, value)]) | OnClick(msg) | OnInput(String -> msg) | ...
+Cmd  = CmdNone | Focus(id) | Log(msg) | Delay(ms, msg) | ...
+Sub  = SubNone | Every(ms, Float -> msg) | OnDocumentKeyDown(KeyEvent -> msg) | ...
+App  = (init_model, (msg, model) -> model, model -> HTML, model -> Sub)
 ```
