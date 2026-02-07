@@ -1,10 +1,7 @@
 #HazelHtml Full App Example#
 #Elm-style architecture with tabs, forms, commands, and subscriptions#
+#msg = (String, String), model = (String, (String, (String, String)))#
 
-#Model: (active_tab, form_name, form_message, saved_message)#
-#Messages: tuples like ("tab", tab_name), ("name", value), etc.#
-
-#update: (msg, model) -> model or (model, Cmd)#
 let update = fun (msg, model) ->
   let active_tab = fst(model) in
   let form_name = fst(snd(model)) in
@@ -26,13 +23,12 @@ let update = fun (msg, model) ->
     model
 in
 
-#view: model -> HTML#
-let view = fun model ->
+let view : (String, (String, (String, String))) -> HTML = fun model ->
   let active_tab = fst(model) in
   let form_name = fst(snd(model)) in
   let form_message = fst(snd(snd(model))) in
   let saved_message = snd(snd(snd(model))) in
-  let tabs = ["Home", "Form", "About"] in
+  let tabs : [String] = ["Home", "Form", "About"] in
   Div(
     [
       Id("app"),
@@ -159,8 +155,6 @@ let view = fun model ->
   )
 in
 
-#subs: model -> Sub#
-let subs = fun _model -> SubNone in
+let subs : (String, (String, (String, String))) -> Sub = fun _model -> SubNone in
 
-#App 4-tuple: (init_model, update, view, subs)#
 (("Home", ("", ("", ""))), update, view, subs)

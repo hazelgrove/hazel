@@ -339,21 +339,38 @@ let view =
   // Check if we have active MVU state
   let is_showing_state = Option.is_some(globals.app_view_state);
 
-  // Fallback view_term for unknown terms - show abbreviated Hazel code
+  // Fallback view_term for unknown terms - render as abbreviated Hazel code
   let fallback_view_term = (d: DHExp.t) => {
-    let code_str = ProbeText.format_value(~max_length=80, d);
-    Node.span(
+    let segment =
+      d
+      |> DHExp.strip_ascriptions
+      |> Abbreviate.abbreviate_exp(~available=40)
+      |> fst
+      |> ExpToSegment.exp_to_segment(
+           ~settings=
+             ExpToSegment.Settings.of_core(
+               ~inline=true,
+               CoreSettings.off,
+             ),
+         );
+    Node.div(
       ~attrs=[
         Attr.create(
           "style",
-          "display: inline-block; font-family: monospace; font-size: 12px; "
-          ++ "background: #fff5f5; color: #c53030; "
+          "display: inline-block; "
           ++ "border: 1px solid #feb2b2; border-radius: 4px; "
-          ++ "padding: 2px 6px; max-width: 300px; "
-          ++ "overflow: hidden; text-overflow: ellipsis; white-space: nowrap;",
+          ++ "padding: 2px 6px; background: #fff5f5; "
+          ++ "max-width: 300px; overflow: hidden;",
         ),
       ],
-      [text(code_str)],
+      [
+        ProjectorView.flex_code(
+          ~font_metrics=globals.font_metrics,
+          ~single_line=true,
+          Language.Sort.Exp,
+          segment,
+        ),
+      ],
     );
   };
 

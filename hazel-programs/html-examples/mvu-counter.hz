@@ -1,14 +1,10 @@
 #MVU Counter Example#
 #Elm-style architecture: (init_model, update, view, subs)#
-#Handlers produce messages routed through update#
+#msg = Int, model = Int#
 
-#update: (msg, model) -> model#
-#Messages are integers representing the delta#
-let update = fun (msg, model) -> model + msg in
+let update : (Int, Int) -> Int = fun (msg, model) -> model + msg in
 
-#view: model -> HTML#
-#OnClick takes a bare message value, not a function#
-let view = fun model ->
+let view : Int -> HTML = fun model ->
   Div(
     [Class("counter"), Style([("text-align", "center"), ("padding", "20px")])],
     [
@@ -44,8 +40,6 @@ let view = fun model ->
   )
 in
 
-#subs: model -> Sub#
-let subs = fun _model -> SubNone in
+let subs : Int -> Sub = fun _model -> SubNone in
 
-#App 4-tuple: (init_model, update, view, subs)#
 (0, update, view, subs)

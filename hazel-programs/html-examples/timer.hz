@@ -1,14 +1,8 @@
 #HazelHtml Timer Example#
 #Elm-style architecture with subscriptions#
-#Model: (seconds, is_running)#
+#msg = (String, Int), model = (Int, Bool)#
 
-#Messages: use tuples to distinguish message types#
-#("toggle", 0) = toggle running#
-#("reset", 0) = reset timer#
-#("tick", 0) = tick from subscription#
-
-#update: (msg, model) -> model#
-let update = fun (msg, model) ->
+let update : ((String, Int), (Int, Bool)) -> (Int, Bool) = fun (msg, model) ->
   let seconds = fst(model) in
   let running = snd(model) in
   if fst(msg) == "toggle" then
@@ -22,8 +16,7 @@ let update = fun (msg, model) ->
     model
 in
 
-#view: (Int, Bool) -> HTML#
-let view = fun model ->
+let view : (Int, Bool) -> HTML = fun model ->
   let seconds = fst(model) in
   let running = snd(model) in
   let minutes = seconds / 60 in
@@ -63,9 +56,7 @@ let view = fun model ->
   )
 in
 
-#subs: model -> Sub#
-#Tick every 1000ms when running#
-let subs = fun model ->
+let subs : (Int, Bool) -> Sub = fun model ->
   let running = snd(model) in
   if running then
     Every(1000.0, fun _timestamp -> ("tick", 0))
@@ -73,5 +64,4 @@ let subs = fun model ->
     SubNone
 in
 
-#App 4-tuple: (init_model, update, view, subs)#
 ((0, false), update, view, subs)
