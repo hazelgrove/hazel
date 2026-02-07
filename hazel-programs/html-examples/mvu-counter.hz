@@ -4,27 +4,24 @@
 
 let update : (Int, Int) -> Int = fun (msg, model) -> model + msg in
 
-let view : Int -> HTML = fun model ->
-  Div(
-    [Class("counter"), Style([("text-align", "center"), ("padding", "20px")])],
-    [
-      H2([], [Text("MVU Counter")]),
-      Div(
-        [Style([("font-size", "48px"), ("margin", "20px")])],
-        [Int(model)]
-      ),
-      Div(
-        [],
-        [
-          Button(
-            [
-              OnClick(-1),
-              Style([("font-size", "24px"), ("margin", "10px"), ("padding", "10px 20px")])
-            ],
-            [Text("-")]
+let view : Int -> HTML = fun model -> Div(
+  [Class("counter"), Style([("text-align", "center"), ("padding", "20px")])],
+  [
+    H2([], [Text("MVU Counter")]),
+    Div(
+      [Style([("font-size", "48px"), ("margin", "20px")])],
+      [Int(model)]
+    ),
+    Div(
+      [],
+      [
+        Button([
+          OnClick(-1),
+          Style([("font-size", "24px"), ("margin", "10px"), ("padding", "10px 20px")])
+          ],
+          [Text("-")]
           ),
-          Button(
-            [
+        Button([
               OnClick(1),
               Style([("font-size", "24px"), ("margin", "10px"), ("padding", "10px 20px")])
             ],

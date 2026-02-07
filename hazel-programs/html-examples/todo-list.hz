@@ -3,7 +3,7 @@
 #To use: paste into scratchpad, right-click the expression, select "Add HTML"#
 
 #Helper: render a single todo item#
-let todo_item = (todos, index, item) ->
+let todo_item = fun (todos, index, item) ->
   Li(
     [Style([("padding", "8px"), ("border-bottom", "1px solid #eee"), ("display", "flex"), ("justify-content", "space-between")])],
     [
@@ -25,7 +25,7 @@ let todo_item = (todos, index, item) ->
 in
 
 #Main todo list view#
-let todo_list = (todos, input_value) ->
+let todo_list = fun (todos, input_value) ->
   Div(
     [Class("todo-app"), Style([("max-width", "400px"), ("margin", "20px auto"), ("font-family", "sans-serif")])],
     [

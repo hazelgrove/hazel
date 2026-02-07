@@ -1,14 +1,34 @@
-# HazelHtml Keyboard Example #
-# A simple game where you move a box with arrow keys #
-# Uses OnDocumentKeyDown subscription for global key events #
+#HazelHtml Keyboard Game#
+#Move a box with arrow keys using OnDocumentKeyDown subscription#
+#msg = KeyEvent, model = (Int, Int)#
 
-# Position state encoded in the HTML #
-let game_view = (x, y) ->
+let max : (Int, Int) -> Int = fun (a, b) -> if a > b then a else b in
+let min : (Int, Int) -> Int = fun (a, b) -> if a < b then a else b in
+
+let step : Int = 20 in
+
+let update = fun (msg, model) ->
+  let x = fst(model) in
+  let y = snd(model) in
+  let key = fst(msg) in
+  if key == "ArrowUp" then
+    (x, max(0, y - step))
+  else if key == "ArrowDown" then
+    (x, min(360, y + step))
+  else if key == "ArrowLeft" then
+    (max(0, x - step), y)
+  else if key == "ArrowRight" then
+    (min(360, x + step), y)
+  else
+    model
+in
+
+let view : (Int, Int) -> HTML = fun model ->
+  let x = fst(model) in
+  let y = snd(model) in
   Div(
     [
       Id("game"),
-      Data("x", string_of_int(x)),
-      Data("y", string_of_int(y)),
       Style([
         ("width", "400px"),
         ("height", "400px"),
@@ -19,12 +39,10 @@ let game_view = (x, y) ->
       ])
     ],
     [
-      # Instructions #
       Div(
         [Style([("text-align", "center"), ("padding", "10px"), ("color", "#666")])],
         [Text("Use arrow keys to move the box")]
       ),
-      # The movable box #
       Div(
         [Style([
           ("width", "40px"),
@@ -38,7 +56,6 @@ let game_view = (x, y) ->
         ])],
         []
       ),
-      # Position display #
       Div(
         [Style([("position", "absolute"), ("bottom", "10px"), ("left", "10px"), ("color", "#333")])],
         [Text("Position: (" ++ string_of_int(x) ++ ", " ++ string_of_int(y) ++ ")")]
@@ -47,33 +64,8 @@ let game_view = (x, y) ->
   )
 in
 
-# Handle keyboard events #
-# KeyEvent = (key, code, ctrl, shift, alt, meta) #
-let handle_key = (html, key_event) ->
-  let (key, code, ctrl, shift, alt, meta) = key_event in
-  let step = 20 in
-  # Would need to extract x, y from html in real implementation #
-  let x = 180 in  # Center position for demo #
-  let y = 180 in
-  if key == "ArrowUp" then
-    game_view(x, max(0, y - step))
-  else if key == "ArrowDown" then
-    game_view(x, min(360, y + step))
-  else if key == "ArrowLeft" then
-    game_view(max(0, x - step), y)
-  else if key == "ArrowRight" then
-    game_view(min(360, x + step), y)
-  else
-    game_view(x, y)
+let subs : (Int, Int) -> Sub = fun _model ->
+  OnDocumentKeyDown(fun key_event -> key_event)
 in
 
-# Subscriptions - listen for keyboard events #
-let subscriptions = html ->
-  OnDocumentKeyDown(handle_key)
-in
-
-# Initial state at center #
-let init_html = game_view(180, 180) in
-
-# App tuple #
-((init_html, CmdNone), subscriptions)
+((180, 180), update, view, subs)

@@ -2,7 +2,7 @@
 #A simple counter that increments/decrements on click#
 #To use: paste into scratchpad, right-click the expression, select "Add HTML"#
 
-let counter = n ->
+let counter = fun n ->
   Div(
     [Class("counter"), Style([("text-align", "center"), ("padding", "20px")])],
     [

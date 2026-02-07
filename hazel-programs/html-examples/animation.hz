@@ -1,15 +1,48 @@
-# HazelHtml Animation Example #
-# A bouncing ball animation using AnimationFrame subscription #
+#HazelHtml Animation Example#
+#A bouncing ball using AnimationFrame subscription#
+#msg = Float (timestamp), model = (Float, Float, Float, Float) for x, y, vx, vy#
 
-# Ball state: (x, y, vx, vy) encoded in HTML #
-let ball_view = (x, y, vx, vy) ->
+let gravity : Float = 0.3 in
+let bounce : Float = 0.8 in
+let friction : Float = 0.99 in
+
+let update = fun (msg, model) ->
+  let x = fst(model) in
+  let y = fst(snd(model)) in
+  let vx = fst(snd(snd(model))) in
+  let vy = snd(snd(snd(model))) in
+  let new_vy = vy +. gravity in
+  let new_x = x +. vx in
+  let new_y = y +. new_vy in
+  let final_x =
+    if new_x <. 0.0 then 0.0
+    else if new_x >. 370.0 then 370.0
+    else new_x
+  in
+  let final_vx =
+    if new_x <. 0.0 then 0.0 -. vx *. bounce
+    else if new_x >. 370.0 then 0.0 -. vx *. bounce
+    else vx *. friction
+  in
+  let final_y =
+    if new_y >. 230.0 then 230.0
+    else new_y
+  in
+  let final_vy =
+    if new_y >. 230.0 then 0.0 -. new_vy *. bounce
+    else new_vy
+  in
+  (final_x, (final_y, (final_vx, final_vy)))
+in
+
+let view = fun model ->
+  let x = fst(model) in
+  let y = fst(snd(model)) in
+  let vx = fst(snd(snd(model))) in
+  let vy = snd(snd(snd(model))) in
   Div(
     [
       Id("animation"),
-      Data("x", string_of_float(x)),
-      Data("y", string_of_float(y)),
-      Data("vx", string_of_float(vx)),
-      Data("vy", string_of_float(vy)),
       Style([
         ("width", "400px"),
         ("height", "300px"),
@@ -21,7 +54,6 @@ let ball_view = (x, y, vx, vy) ->
       ])
     ],
     [
-      # The ball #
       Div(
         [Style([
           ("width", "30px"),
@@ -35,7 +67,6 @@ let ball_view = (x, y, vx, vy) ->
         ])],
         []
       ),
-      # Ground #
       Div(
         [Style([
           ("position", "absolute"),
@@ -47,7 +78,6 @@ let ball_view = (x, y, vx, vy) ->
         ])],
         []
       ),
-      # Info #
       Div(
         [Style([("position", "absolute"), ("top", "10px"), ("left", "10px"), ("color", "white"), ("font-size", "12px")])],
         [Text("Velocity: (" ++ string_of_float(vx) ++ ", " ++ string_of_float(vy) ++ ")")]
@@ -56,47 +86,8 @@ let ball_view = (x, y, vx, vy) ->
   )
 in
 
-# Physics constants #
-let gravity = 0.3 in
-let bounce = 0.8 in
-let friction = 0.99 in
-
-# Update function for animation frame #
-let update_ball = (html, timestamp) ->
-  # In real implementation, extract state from html #
-  # For demo, use hardcoded initial values #
-  let x = 50.0 in
-  let y = 50.0 in
-  let vx = 2.0 in
-  let vy = 0.0 in
-
-  # Apply physics #
-  let new_vy = vy + gravity in
-  let new_x = x + vx in
-  let new_y = y + new_vy in
-
-  # Bounce off walls #
-  let (final_x, final_vx) =
-    if new_x < 0.0 then (0.0, 0.0 - vx * bounce)
-    else if new_x > 370.0 then (370.0, 0.0 - vx * bounce)
-    else (new_x, vx * friction)
-  in
-
-  # Bounce off floor #
-  let (final_y, final_vy) =
-    if new_y > 230.0 then (230.0, 0.0 - new_vy * bounce)
-    else (new_y, new_vy)
-  in
-
-  ball_view(final_x, final_y, final_vx, final_vy)
+let subs = fun _model ->
+  AnimationFrame(fun timestamp -> timestamp)
 in
 
-# Subscriptions - request animation frames #
-let subscriptions = html ->
-  AnimationFrame(update_ball)
-in
-
-# Initial state #
-let init_html = ball_view(50.0, 50.0, 3.0, 0.0) in
-
-((init_html, CmdNone), subscriptions)
+((50.0, (50.0, (3.0, 0.0))), update, view, subs)
