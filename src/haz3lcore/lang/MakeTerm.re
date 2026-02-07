@@ -792,6 +792,7 @@ and typ_term: unsorted => (Typ.term, list(Id.t)) = {
       ret(
         switch (tile) {
         | ([t], []) when Token.is_empty_tuple(t) => Prod([])
+        | ([t], []) when Token.is_empty_module(t) => Sig([])
         | (["Bool"], []) => Atom(Bool)
         | (["Int"], []) => Atom(Int)
         | (["SInt"], []) => Atom(SInt)
