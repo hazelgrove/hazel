@@ -1445,8 +1445,24 @@ and uexp_to_info_map =
           m,
           items,
         );
-      /* Add the Module itself to the map with the expanded expression's type */
-      add(~self=Just(expanded_info.ty), ~co_ctx=expanded_info.co_ctx, m);
+      /* Build actual Prod type from module's exported bindings, rather than
+         using expanded_info.ty which masks width errors via fixed_typ_exp. */
+      let non_shadowed = ExpandModule.compute_non_shadowed_bindings(items);
+      let actual_ty = {
+        let fields =
+          non_shadowed
+          |> List.map(((name, pat)) => {
+               let ty =
+                 switch (Id.Map.find_opt(Pat.rep_id(pat), m)) {
+                 | Some(Info.InfoPat({ty, ctx: pat_ctx, _})) =>
+                   Typ.normalize(pat_ctx, ty)
+                 | _ => Typ.temp(Unknown(Internal))
+                 };
+               TupLabel(Label(name) |> Typ.temp, ty) |> Typ.temp;
+             });
+        Prod(fields) |> Typ.temp;
+      };
+      add(~self=Just(actual_ty), ~co_ctx=expanded_info.co_ctx, m);
     };
   };
 
