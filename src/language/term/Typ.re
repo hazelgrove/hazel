@@ -1216,12 +1216,7 @@ let rec pretty_print = (ty: t): string =>
       | Invalid(s) => s
       | MultiHole(_) => "?"
       };
-    "{ "
-    ++ String.concat(
-         "; ",
-         List.map(sig_item_str, items),
-       )
-    ++ " }"
+    "{ " ++ String.concat("; ", List.map(sig_item_str, items)) ++ " }";
   }
 and ctr_pretty_print =
   fun

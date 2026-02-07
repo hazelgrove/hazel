@@ -1603,7 +1603,10 @@ let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
            | ModLet(p, e) =>
              let+ p = pat_to_pretty(~settings, p)
              and+ e = go(e);
-             wrap_item(item, [mk_form(ModLet, item |> Mod.rep_id, [p])] @ e);
+             wrap_item(
+               item,
+               [mk_form(ModLet, item |> Mod.rep_id, [p])] @ e,
+             );
            | ModType(tp, t) =>
              let+ tp = tpat_to_pretty(~settings, tp)
              and+ t = typ_to_pretty(~settings, t);
@@ -2120,8 +2123,7 @@ and typ_to_pretty = (~settings: Settings.t, typ: Typ.t): pretty => {
         first
         @ List.flatten(
             List.map2(
-              (semi_id, item) =>
-                [mk_form(SigSeq, semi_id, [])] @ item,
+              (semi_id, item) => [mk_form(SigSeq, semi_id, [])] @ item,
               ids,
               rest,
             ),

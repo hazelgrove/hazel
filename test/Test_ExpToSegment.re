@@ -717,7 +717,10 @@ end|}),
     roundtrip_test({|Module: single let|}, {|{ let x = 1 }|}),
     roundtrip_test({|Module: multiple lets|}, {|{ let x = 1; let y = 2 }|}),
     roundtrip_test({|Module: compact spacing|}, {|{let x = 1}|}),
-    roundtrip_test({|Module: with type alias|}, {|{ type T = Int; let x = 1 }|}),
+    roundtrip_test(
+      {|Module: with type alias|},
+      {|{ type T = Int; let x = 1 }|},
+    ),
     /* Sig text round-trip tests */
     roundtrip_test(
       {|Sig: single let|},
