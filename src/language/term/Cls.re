@@ -5,7 +5,9 @@ type t =
   | Typ(Typ.cls)
   | TPat(TPat.cls)
   | Rul(Rul.cls)
-  | Secondary(Secondary.cls);
+  | Secondary(Secondary.cls)
+  | Mod(Mod.cls)
+  | Sig(Sig.cls);
 
 let show = (cls: t) =>
   switch (cls) {
@@ -15,4 +17,6 @@ let show = (cls: t) =>
   | TPat(cls) => TPat.show_cls(cls)
   | Rul(cls) => Rul.show_cls(cls)
   | Secondary(cls) => Secondary.show_cls(cls)
+  | Mod(cls) => Mod.show_cls(cls)
+  | Sig(cls) => Sig.show_cls(cls)
   };

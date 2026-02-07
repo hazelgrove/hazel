@@ -6,7 +6,8 @@ type t =
   | TPat
   | Rul
   | Exp
-  | Mod;
+  | Mod
+  | Sig;
 
 let root = Exp;
 
@@ -20,4 +21,5 @@ let to_string_verbose =
   | Typ => "type"
   | Rul => "rule"
   | Exp => "expression"
-  | Mod => "module";
+  | Mod => "module"
+  | Sig => "signature";

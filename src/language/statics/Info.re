@@ -340,6 +340,7 @@ type error =
 
 let sort_of: t => Sort.t =
   fun
+  | InfoExp({cls: Mod(_), _}) => Mod
   | InfoExp(_) => Exp
   | InfoPat(_) => Pat
   | InfoTyp(_) => Typ

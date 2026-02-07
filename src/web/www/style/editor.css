@@ -55,8 +55,12 @@
 .code .token.Mod {
   color: var(--token-mod);
 }
+.code .token.Sig {
+  color: var(--token-sig);
+}
 
-.code .token.poly {
+.code .token.poly,
+.code .token.keyword {
   font-weight: bold;
 }
 
@@ -182,6 +186,9 @@ svg.shard.indicated.TPat {
 svg.shard.indicated.Mod {
   filter: drop-shadow(var(--off-x) var(--off-y) var(--blur) var(--token-mod));
 }
+svg.shard.indicated.Sig {
+  filter: drop-shadow(var(--off-x) var(--off-y) var(--blur) var(--token-sig));
+}
 
 svg.shard.indicated.Any > path {
   fill: var(--shard-any);
@@ -204,6 +211,9 @@ svg.shard.indicated.TPat > path {
 svg.shard.indicated.Mod > path {
   fill: var(--shard-mod);
 }
+svg.shard.indicated.Sig > path {
+  fill: var(--shard-sig);
+}
 
 svg.shard.indicated.caret.Exp > path {
   fill: var(--shard-caret-exp);
@@ -219,6 +229,9 @@ svg.shard.indicated.caret.Typ > path {
 }
 svg.shard.indicated.caret.Mod > path {
   fill: var(--shard-caret-mod);
+}
+svg.shard.indicated.caret.Sig > path {
+  fill: var(--shard-caret-sig);
 }
 
 svg.shard.selected {
@@ -331,6 +344,9 @@ svg:has(.child-line) {
 }
 .child-line.Mod {
   stroke: var(--token-mod);
+}
+.child-line.Sig {
+  stroke: var(--token-sig);
 }
 
 /* BACKPACK DECO */

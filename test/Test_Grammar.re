@@ -162,6 +162,7 @@ let sample_type = (cls_typ: Typ.cls): Grammar.UnitGrammar.typ => {
       | ProdExtension =>
         prod_extension(unknown(Hole(EmptyHole)), unknown(Hole(EmptyHole)))
       | Constructor => assert(false) // Excluded because there is no Typ constructor
+      | Sig => assert(false) // Excluded: Sig is surface syntax only
       }
     )
   );
@@ -231,7 +232,8 @@ let tests = (
         List.iter(
           (cls: Typ.cls) => {
             switch (cls) {
-            | Constructor => ()
+            | Constructor
+            | Sig => ()
             | _ =>
               check(
                 cls_testable,

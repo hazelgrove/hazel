@@ -70,6 +70,12 @@
 #cursor-inspector .Label .gamma {
   background-color: var(--token-label);
 }
+#cursor-inspector .Mod .gamma {
+  background-color: var(--token-mod);
+}
+#cursor-inspector .Sig .gamma {
+  background-color: var(--token-sig);
+}
 
 #cursor-inspector .ci-header .gamma.visible,
 #cursor-inspector .ci-header.error .gamma.visible,
@@ -130,6 +136,12 @@
 #cursor-inspector .ci-header.ok.Label .toggle-switch.active {
   background-color: var(--token-label);
 }
+#cursor-inspector .ci-header.ok.Mod .toggle-switch.active {
+  background-color: var(--token-mod);
+}
+#cursor-inspector .ci-header.ok.Sig .toggle-switch.active {
+  background-color: var(--token-sig);
+}
 #cursor-inspector .ci-header.ok.Exp .toggle-switch .toggle-knob {
   color: var(--BR3);
 }
@@ -144,6 +156,12 @@
 }
 #cursor-inspector .ci-header.ok.Label .toggle-switch .toggle-knob {
   color: var(--token-label);
+}
+#cursor-inspector .ci-header.ok.Mod .toggle-switch .toggle-knob {
+  color: var(--token-mod);
+}
+#cursor-inspector .ci-header.ok.Sig .toggle-switch .toggle-knob {
+  color: var(--token-sig);
 }
 
 #cursor-inspector .ci-header.ok.Any {
@@ -170,6 +188,14 @@
   background-color: var(--shard-label);
   color: var(--token-label);
 }
+#cursor-inspector .ci-header.ok.Mod {
+  background-color: var(--shard-mod);
+  color: var(--token-mod);
+}
+#cursor-inspector .ci-header.ok.Sig {
+  background-color: var(--shard-sig);
+  color: var(--token-sig);
+}
 
 #cursor-inspector .term-tag {
   font-weight: bolder;
@@ -190,6 +216,12 @@
 }
 #cursor-inspector .TPat .divider {
   color: var(--token-tpat);
+}
+#cursor-inspector .Mod .divider {
+  color: var(--token-mod);
+}
+#cursor-inspector .Sig .divider {
+  color: var(--token-sig);
 }
 
 #cursor-inspector .status.error .code {

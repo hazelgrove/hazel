@@ -758,6 +758,29 @@ let ex5 = list_of_mylist(x) in
         "Module in let binding",
         {|let m = { let x = 1 } in m.x|},
       ),
+      /* Sig type tests - no semicolon ambiguity since sig items don't contain
+         expression-level semicolons. Sig appears in Typ position. */
+      menhir_maketerm_equivalent_test(
+        "Sig type annotation single member",
+        {|let m : { let x : Int } = { let x = 1 } in m|},
+      ),
+      menhir_maketerm_equivalent_test(
+        "Sig type annotation multiple members",
+        /* Uses single-item module to avoid Menhir Seq conflict in exp */
+        {|type S = { let x : Int; let y : Bool } in 1|},
+      ),
+      menhir_maketerm_equivalent_test(
+        "Sig with type member",
+        {|type S = { type T = Int; let x : Int } in 1|},
+      ),
+      menhir_maketerm_equivalent_test(
+        "Sig type unannotated member",
+        {|let m : { let x } = { let x = 1 } in m|},
+      ),
+      menhir_maketerm_equivalent_test(
+        "Sig annotation with single-item module",
+        {|let m : { let x : Int } = { let x = 1 } in m.x|},
+      ),
       QCheck_alcotest.to_alcotest(qcheck_menhir_maketerm_equivalent_test),
       QCheck_alcotest.to_alcotest(qcheck_menhir_serialized_equivalent_test),
     ],

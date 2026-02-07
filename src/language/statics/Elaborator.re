@@ -469,7 +469,10 @@ let rec elaborate = (m: Statics.Map.t, uexp: Exp.t): (DHExp.t, Typ.t) => {
           IdTagged.fast_copy(item_id, Exp.fresh(Let(pat', def', body)));
         | ModType(tpat, typ) =>
           /* Type aliases don't need elaboration of their type */
-          IdTagged.fast_copy(item_id, Exp.fresh(TyAlias(tpat, Typ.normalize(ctx, typ), body)));
+          IdTagged.fast_copy(
+            item_id,
+            Exp.fresh(TyAlias(tpat, Typ.normalize(ctx, typ), body)),
+          )
         | ModExp(e) =>
           /* Bare expression: fresh ID since ModExp is synthetic.
              The inner expression e keeps its original IDs. */

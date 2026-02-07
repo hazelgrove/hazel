@@ -219,7 +219,12 @@ type compound_form =
   | ModBody
   | ModSeq
   | ModLet
-  | ModType;
+  | ModType
+  // SIGNATURE FORMS
+  | SigBody
+  | SigSeq
+  | SigLet
+  | SigType;
 
 let get: compound_form => t =
   fun
@@ -319,7 +324,12 @@ let get: compound_form => t =
   | ModBody => mk_op_c(LT, ["{", "}"], Exp, [Mod])
   | ModSeq => mk_infix(";", Mod, P.mod_seq)
   | ModLet => mk_pre_c'(L, ["let", "="], P.let_, Mod, [Pat], Exp)
-  | ModType => mk_pre_c'(L, ["type", "="], P.let_, Mod, [TPat], Typ);
+  | ModType => mk_pre_c'(L, ["type", "="], P.let_, Mod, [TPat], Typ)
+  // SIGNATURE FORMS
+  | SigBody => mk_op_c(LT, ["{", "}"], Typ, [Sig])
+  | SigSeq => mk_infix(";", Sig, P.mod_seq)
+  | SigLet => mk_pre_c'(L, ["let"], P.let_, Sig, [], Pat)
+  | SigType => mk_pre_c'(L, ["type", "="], P.let_, Sig, [TPat], Typ);
 
 let forms: list((compound_form, t)) =
   List.map(f => (f, get(f)), all_of_compound_form);

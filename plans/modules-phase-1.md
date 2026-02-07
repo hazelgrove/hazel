@@ -1017,8 +1017,10 @@ This section documents what was actually implemented, key insights discovered, a
 - ✅ All 1461 tests pass
 
 **Not Implemented (Deferred)**:
-- ❌ Empty module atomic form (`{}`) - compound form `["{", "}"]` used instead
 - ❌ Menhir multi-item modules with semicolons - grammar conflict with Seq in exp (see Known Limitations)
+
+(Empty module atomic form was previously listed here but is now implemented — both the atomic `{}` token and compound `{ }` paths produce `Module([])`.)
+
 
 **Bugs Fixed**:
 - ✅ Singleton labeled tuple elaboration for patterns with Unknown synth type (see "Singleton Labeled Tuple Bug Fix" section)
@@ -1668,94 +1670,23 @@ This fixes the stack overflow that occurred when ModExp's ID overlapped with the
 
 ---
 
-## Known Issue: Nested Semicolon IDs Not Collected
+## Resolved: Nested Semicolon IDs Not Collected
 
-### The Problem
+**Fixed.** Originally, Skel produced nested binary structures for semicolons, so only the outermost semicolon ID was collected by MakeTerm. This was resolved in two steps:
 
-For modules with 3+ items like `{ let x = 1; let y = 2; let z = 3 }`, only the **first** semicolon has cursor inspector info. Subsequent semicolons show "whitespace or comment".
+1. **Skel chainability**: Made ModSeq semicolons chainable in `Skel.re` (with `mold.out == Sort.Mod` guard), producing flat n-ary structures like commas. CellJoin (Exp-sort) semicolons are unaffected.
 
-### Root Cause
+2. **ID absorption in MakeTerm**: With flat Skel, all semicolon IDs appear in the `MultiHole` annotation. The Module case in `exp_term` absorbs these IDs via `adopted_ids`, matching the pattern used by ListLit for comma IDs.
 
-The Skel (skeleton) system produces **nested** binary structures for same-precedence operators:
-
-```
-Bin(Bin(a_skel, [;1], b_skel), [;2], c_skel)
-```
-
-When `unsorted` in MakeTerm processes this:
-1. Outer level sees `Bin(l_skel, [;2], c_skel)`
-2. Recursively processes `l_skel` → produces `Mod(inner_result)` with `annotation.ids = [;1]`
-3. Outer `tiles` only contains `[;2]`
-4. `is_mod_seq(tiles)` returns `Some([])` - no between_kids at this level
-5. Result: `all_items = [Mod(inner_result), Mod(c)]`
-6. `ids(unsorted)` at outer level = `[;2]` only
-
-The inner `;1` ID is buried inside `inner_result.annotation.ids` and never collected.
-
-### Current State
-
-- `flatten_mod` correctly flattens the **terms** (extracts all Mod items from nested MultiHole)
-- But it does NOT collect the **IDs** from nested structures
-- Only the outermost semicolon ID ends up in the Module expression's annotation
-- Statics adds cursor info only for those IDs
-
-### Potential Solutions
-
-**Option A: Modify Skel to produce flat structures for semicolons**
-
-Make semicolons behave like commas in tuples (if tuples are indeed flat). This would require changes to `Skel.re` to handle ModSeq specially. However, it's unclear if tuples actually produce flat structures or just happen to work for other reasons.
-
-**Option B: Collect IDs during flattening**
-
-Modify `flatten_mod` (or create a new function) to collect IDs from nested MultiHole annotations while flattening:
-
-```reason
-let rec flatten_mod_with_ids = (m: Mod.t): (list(Mod.t), list(Id.t)) =>
-  switch (m.term) {
-  | MultiHole(kids) =>
-    let results = kids |> List.filter_map(...) |> List.map(flatten_mod_with_ids);
-    let items = results |> List.map(fst) |> List.flatten;
-    let ids = m.annotation.ids @ (results |> List.map(snd) |> List.flatten);
-    (items, ids)
-  | _ => ([m], [])
-  };
-```
-
-Then use these collected IDs in the Module case of exp_term.
-
-**Option C: Accept the limitation**
-
-Document that cursor inspector works for curly braces and the first semicolon, but not subsequent semicolons. This is a minor UX issue - the type information is still correct, just not accessible via clicking all semicolons.
-
-### Decision
-
-Deferred. The current implementation works correctly for evaluation and type-checking. Cursor inspector works for:
-- Curly braces (`{` and `}`)
-- First semicolon
-- All ModLet/ModType items
-
-This is acceptable for Phase 1. A complete fix can be addressed in a future iteration.
-
-**Update**: Fixed by making ModSeq semicolons chainable in Skel.re (see commit). The structure is now flat like commas, so all semicolon IDs are available in `tiles`. Remaining work: update MakeTerm to actually collect and return these IDs.
+All semicolons now have cursor inspector info.
 
 ---
 
-## Near-Term: Module Semicolon Decoration
+## Resolved: Module Semicolon Decoration
 
-### The Problem
+**Fixed.** Custom decoration logic in `Arms.re` (the middle `term` function):
 
-When clicking a semicolon inside a module, the cursor inspector draws "arms" (decorative lines) between the curly braces and ALL other semicolons, since they all share the same Module expression IDs. This is visually noisy and cluttered for modules with several items.
+- **Module semicolons**: Render only the clicked shard hexagon, no arms to other pieces
+- **Module curly braces**: Render only the brace pair with arm between them, filtering out semicolons
 
-This behavior is inherited from how commas work in tuples and case/rule arms, where the arm decoration makes more sense because there are fewer delimiters and the visual grouping is useful.
-
-### Potential Solutions
-
-1. **Custom decoration for Module semicolons**: Override the default arm-drawing behavior specifically for Module expressions. Could show a simpler indicator (e.g., just highlight the matching curly braces, not all sibling semicolons).
-
-2. **Decoration grouping**: Only draw arms between the clicked semicolon and its immediately adjacent siblings, not all siblings.
-
-3. **Reduced decoration**: Show cursor info in the inspector panel but suppress the arm decoration entirely for module semicolons.
-
-### Priority
-
-This should be addressed soon - it affects usability when working inside modules. Consider as one of the next items to pick up after ID collection is complete.
+Implementation uses three predicates (`is_module`, `is_semi`, `is_not_semi_tile`) to cleanly separate the module-specific behavior from the general arm-drawing logic.

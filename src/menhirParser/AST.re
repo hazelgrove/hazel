@@ -109,6 +109,7 @@ type typ =
   | IndicationTyp(typ)
   | ProdProjection(typ, typ)
   | ProdExtension(typ, typ)
+  | Sig(list(sig_item))
 and sumterm =
   | Variant(string, option(typ))
   | BadEntry(typ)
@@ -184,7 +185,11 @@ and exp =
 and mod_item =
   | ModItemLet(pat, exp)
   | ModItemType(tpat, typ)
-  | ModItemExp(exp);
+  | ModItemExp(exp)
+
+and sig_item =
+  | SigItemLet(pat)
+  | SigItemType(tpat, typ);
 
 /**
  * Generates a random CONSTRUCTOR_IDENT string. Used for CONSTRUCTOR_IDENT in the lexer.
@@ -1226,7 +1231,8 @@ and shrink_typ: QCheck.Shrink.t(typ) =
         | BoolType
         | NatType
         | UnknownType(_)
-        | InvalidTyp(_) => Iter.empty
+        | InvalidTyp(_)
+        | Sig(_) => Iter.empty
         }
       )
   );

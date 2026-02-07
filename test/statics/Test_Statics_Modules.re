@@ -1,10 +1,8 @@
-open Language;
-open Alcotest;
 open Test_Statics_Prelude;
 open FTemp;
 open Typ;
 
-/* Module statics tests - Phase 1 implementation */
+/* ===== WELL-TYPED MODULE TESTS ===== */
 
 /* Test empty module */
 let test_empty_module =
@@ -63,7 +61,7 @@ let test_module_access =
     Some(int()),
   );
 
-/* Test module as let binding definition - verifies module works in Exp position */
+/* Test module as let binding definition */
 let test_module_in_let_def =
   fully_consistent_typecheck(
     "Module as let definition",
@@ -71,15 +69,17 @@ let test_module_in_let_def =
     Some(prod([tup_label(label("y"), int())])),
   );
 
-/* Simpler diagnostic - module with two bindings to avoid singleton tuple issues */
+/* Test module with two bindings in let */
 let test_module_two_bindings_in_let =
   fully_consistent_typecheck(
     "Module with two bindings as let def",
     {|let m = { let x = 1; let y = 2 } in m|},
-    Some(prod([tup_label(label("x"), int()), tup_label(label("y"), int())])),
+    Some(
+      prod([tup_label(label("x"), int()), tup_label(label("y"), int())]),
+    ),
   );
 
-/* Diagnostic: test the expanded form directly - this is what { let y = 1 } expands to */
+/* Diagnostic: test the expanded form directly */
 let test_expansion_directly =
   fully_consistent_typecheck(
     "Expanded module form directly",
@@ -95,7 +95,7 @@ let test_expansion_in_let =
     Some(prod([tup_label(label("y"), int())])),
   );
 
-/* Test nested module - inner module should have labeled tuple type */
+/* Test nested module */
 let test_nested_module =
   fully_consistent_typecheck(
     "Nested modules",
@@ -128,9 +128,151 @@ let test_module_as_labeled_tuple =
     Some(int()),
   );
 
+/* Test nested field access */
+let test_nested_field_access =
+  fully_consistent_typecheck(
+    "Nested module field access",
+    {|let m = { let inner = { let x = 1 } } in m.inner.x|},
+    Some(int()),
+  );
+
+/* Test module with boolean binding */
+let test_module_bool =
+  fully_consistent_typecheck(
+    "Module with boolean binding",
+    {|{ let flag = true }|},
+    Some(prod([tup_label(label("flag"), bool())])),
+  );
+
+/* Test module with float binding */
+let test_module_float =
+  fully_consistent_typecheck(
+    "Module with float binding",
+    {|{ let pi = 3.14 }|},
+    Some(prod([tup_label(label("pi"), float())])),
+  );
+
+/* Test module with list binding */
+let test_module_list =
+  fully_consistent_typecheck(
+    "Module with list binding",
+    {|{ let xs = [1, 2, 3] }|},
+    Some(prod([tup_label(label("xs"), list(int()))])),
+  );
+
+/* Test module with tuple binding */
+let test_module_tuple =
+  fully_consistent_typecheck(
+    "Module with tuple binding",
+    {|{ let pair = (1, true) }|},
+    Some(prod([tup_label(label("pair"), prod([int(), bool()]))])),
+  );
+
+/* Test sequential binding reference */
+let test_sequential_binding_ref =
+  fully_consistent_typecheck(
+    "Later bindings can reference earlier ones",
+    {|{ let x = 1; let y = x + 1 }|},
+    Some(
+      prod([tup_label(label("x"), int()), tup_label(label("y"), int())]),
+    ),
+  );
+
+/* Test module with annotation (Prod type) */
+let test_module_with_prod_annotation =
+  fully_consistent_typecheck(
+    "Module with labeled tuple annotation",
+    {|let m : (x=Int) = { let x = 1 } in m|},
+    Some(prod([tup_label(label("x"), int())])),
+  );
+
+/* Test module with multi-field Prod annotation */
+let test_module_with_multi_prod_annotation =
+  fully_consistent_typecheck(
+    "Module with multi-field labeled tuple annotation",
+    {|let m : (x=Int, y=Bool) = { let x = 1; let y = true } in m|},
+    Some(
+      prod([tup_label(label("x"), int()), tup_label(label("y"), bool())]),
+    ),
+  );
+
+/* ===== TYPE ERROR TESTS ===== */
+
+/* Type mismatch: annotation says Int, module provides String */
+let test_error_type_mismatch =
+  inconsistent_typecheck(
+    "Type mismatch in module annotation",
+    {|let m : (x=Int) = { let x = "hello" } in m|} |> parse_exp,
+  );
+
+/* Type mismatch with multiple bindings */
+let test_error_type_mismatch_multi =
+  inconsistent_typecheck(
+    "Type mismatch in one of multiple bindings",
+    {|let m : (x=Int, y=Bool) = { let x = 1; let y = "oops" } in m|}
+    |> parse_exp,
+  );
+
+/* Wrong type used in module body */
+let test_error_wrong_type_in_body =
+  inconsistent_typecheck(
+    "Wrong type in annotated module body",
+    {|{ let x = 1 + true }|} |> parse_exp,
+  );
+
+/* Free variable in module */
+let test_error_free_variable =
+  inconsistent_typecheck(
+    "Free variable in module",
+    {|{ let x = unbound_var }|} |> parse_exp,
+  );
+
+/* Type error in nested module */
+let test_error_nested_type_mismatch =
+  inconsistent_typecheck(
+    "Type error in nested module",
+    {|{ let inner = { let x = 1 + true } }|} |> parse_exp,
+  );
+
+/* Dot access on non-existent field */
+let test_error_bad_field_access =
+  inconsistent_typecheck(
+    "Access non-existent module field",
+    {|{ let x = 1 }.y|} |> parse_exp,
+  );
+
+/* Dot access on non-existent field via variable */
+let test_error_bad_field_via_var =
+  inconsistent_typecheck(
+    "Access non-existent field via module variable",
+    {|let m = { let x = 1 } in m.y|} |> parse_exp,
+  );
+
+/* Type error from using module field with wrong type */
+let test_error_field_type_mismatch =
+  inconsistent_typecheck(
+    "Using module field where wrong type expected",
+    {|let m = { let x = "hello" } in m.x + 1|} |> parse_exp,
+  );
+
+/* Type annotation with wrong type on binding inside module */
+let test_error_binding_annotation_mismatch =
+  inconsistent_typecheck(
+    "Annotated binding type mismatch inside module",
+    {|{ let x : Int = "hello" }|} |> parse_exp,
+  );
+
+/* Type error in sequential binding reference */
+let test_error_sequential_type =
+  inconsistent_typecheck(
+    "Type error from sequential binding",
+    {|{ let x = "hello"; let y = x + 1 }|} |> parse_exp,
+  );
+
 let tests = (
   "Statics.Modules",
   [
+    /* Well-typed tests */
     test_empty_module,
     test_single_binding,
     test_multiple_bindings,
@@ -145,5 +287,24 @@ let tests = (
     test_expansion_directly,
     test_expansion_in_let,
     test_nested_module,
+    test_nested_field_access,
+    test_module_bool,
+    test_module_float,
+    test_module_list,
+    test_module_tuple,
+    test_sequential_binding_ref,
+    test_module_with_prod_annotation,
+    test_module_with_multi_prod_annotation,
+    /* Type error tests */
+    test_error_type_mismatch,
+    test_error_type_mismatch_multi,
+    test_error_wrong_type_in_body,
+    test_error_free_variable,
+    test_error_nested_type_mismatch,
+    test_error_bad_field_access,
+    test_error_bad_field_via_var,
+    test_error_field_type_mismatch,
+    test_error_binding_annotation_mismatch,
+    test_error_sequential_type,
   ],
 );
