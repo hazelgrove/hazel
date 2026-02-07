@@ -12,6 +12,7 @@
 @import "style/agent/agent-main-menu.css";
 @import "style/agent/agent-chat.css";
 @import "style/agent/agent-chat-messages.css";
+@import "style/probesystem.css";
 @import "style/sidebar.css";
 @import "style/project.css";
 @import "style/exercise-mode.css";
@@ -21,6 +22,7 @@
 @import "style/dynamics.css";
 @import "style/stepper.css";
 @import "style/toggle.css";
+@import "style/theorems.css";
 
 /* BASE ELEMENTS */
 
@@ -91,11 +93,11 @@ select {
 }
 
 #main {
-  grid-row: 1 / span 2;
+  /* Backpack uses position:fixed + FloatingElement to escape overflow clipping */
+  grid-row: 2 / span 1;
   grid-column: 1 / span 1;
   overflow: auto;
   padding: 0;
-  padding-top: 2em;
   background-color: var(--main-bkg);
   display: flex;
   flex-direction: column;

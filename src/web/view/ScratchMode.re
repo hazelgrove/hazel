@@ -28,7 +28,6 @@ module Model = {
                PersistentZipper.unpersist(pce.editor)
              )
           |> Option.map(Zipper.zip);
-
         if (Option.equal(
               Base.equal_segment,
               original_segment,
@@ -361,7 +360,11 @@ module Update = {
     let (key, ed) = List.nth(model.scratchpads, model.current);
     let worker_request = ref([]);
     let queue_worker =
-      Some(expr => {worker_request := worker_request^ @ [("", expr)]});
+      Some(
+        (req_value: WorkerServer.Request.value) => {
+          worker_request := worker_request^ @ [("", req_value)]
+        },
+      );
     let new_ed =
       CellEditor.Update.calculate(
         ~settings,
@@ -376,7 +379,7 @@ module Update = {
       WorkerClient.request(
         worker_request^,
         ~handler=
-          r =>
+          r => {
             schedule_action(
               CellAction(
                 ResultAction(
@@ -392,7 +395,8 @@ module Update = {
                   ),
                 ),
               ),
-            ),
+            )
+          },
         ~timeout=
           _ =>
             schedule_action(

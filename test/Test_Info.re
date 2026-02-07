@@ -7,7 +7,7 @@ let status_typ_tests = (
   "Info.status_typ",
   [
     test_case(
-      "Typ join on polymorphic types",
+      "Typ meet on polymorphic types",
       `Quick,
       () => {
         let status =

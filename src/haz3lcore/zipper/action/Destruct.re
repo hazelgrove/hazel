@@ -42,7 +42,7 @@ let outer = (d: Direction.t, z: t): option(t) =>
   };
 
 let rm_nth_right = (idx, t, z) =>
-  Insert.replace_shard(Right, Token.rm_nth(idx, t), z);
+  Insert.replace_shard(Right, Token.rm_nth(t, idx), z);
 
 let inner_left = (idx: int, z: t): option(t) =>
   switch (Zipper.neighbor_token(Right, z)) {

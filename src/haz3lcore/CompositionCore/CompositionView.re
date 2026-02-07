@@ -63,6 +63,8 @@ module Local = {
               CachedSyntax.init(z').term_data,
               SetIndicated(Specific(Fold)),
               z',
+              [],
+              [],
             )
           ) {
           | Ok(z'') => fold_terms(z'', rest)
@@ -182,6 +184,8 @@ module Local = {
             CachedSyntax.init(z').term_data,
             SetIndicated(Specific(Fold)),
             z',
+            [],
+            [],
           );
         z'';
       | _ => Ok(z)

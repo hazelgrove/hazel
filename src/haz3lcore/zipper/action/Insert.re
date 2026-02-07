@@ -151,7 +151,7 @@ let move_into_string_or_comment = (char: string, z: t): t =>
 /* Split creates three tokens; two from splitting the existing one,
  * and a new single-character token (or grout) in the middle. */
 let split = (z: t, char: string, idx: int, t: Token.t): option(t) => {
-  let (l, r) = Token.split_nth(idx, t);
+  let (l, r) = Token.split_nth(t, idx);
   let id = Zipper.adjacent_monotile_or_new_id(Right, z);
   let+ z = z |> Caret.set(Outer) |> Zipper.delete(Right);
   let z =

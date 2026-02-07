@@ -67,7 +67,6 @@ module Utils = {
     | Parens(e)
     | Filter(_, e)
     | Closure(_, e)
-    | Probe(e, _)
     | Asc(e, _)
     | FixF(_, e, _)
     | Use(_, e)
@@ -101,6 +100,10 @@ module Utils = {
     | LivelitName(_)
     | TyAlias(_)
     | ExplicitNonlabel
+    | Theorem(_, _, _)
+    | ProofObject(_)
+    | Forall(_, _)
+    | Projector(_, _)
     | Var(_) => []
     };
   };
@@ -201,7 +204,6 @@ module Namer = {
     | Var(name)
     | Constructor(name, _)
     | Label(name) => name
-    | Probe(pat, _)
     | Parens(pat)
     | Asc(pat, _) => mk_name_from_pat(pat)
     | Cons(pat1, pat2) =>
@@ -220,6 +222,7 @@ module Namer = {
     | Atom(_) => "{atom}"
     | ExplicitNonlabel => "{explicit nonlabel}"
     | Invalid(_) => "{invalid}"
+    | Projector(_, _) => "{projector}"
     };
   };
 

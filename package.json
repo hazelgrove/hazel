@@ -13,7 +13,8 @@
     "@esbuild-plugins/node-resolve": "^0.2.2",
     "hotkeys-js": "^3.8.7",
     "ninja-keys": "^1.2.2",
-    "algebrite": "^1.4.0"
+    "algebrite": "^1.4.0",
+    "web-worker": "^1.5.0"
   },
   "devDependencies": {
     "@types/node": "^24.3.0",

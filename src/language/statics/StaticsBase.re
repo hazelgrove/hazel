@@ -1,3 +1,4 @@
+open Util.OptUtil.Syntax;
 module Info = Info;
 
 module Map = {
@@ -48,9 +49,75 @@ module Map = {
 
   let bound_in = (m: t, id: Id.t): Binding.s =>
     switch (lookup(id, m)) {
-    | Some(InfoPat({term, _})) => Term.Pat.bindings(term)
+    | Some(InfoPat({term, _})) => Pat.bindings(term)
     | _ => []
     };
+
+  let parent_ci_of = (map: t, id: Id.t): option(Info.t) => {
+    let* ci = lookup(id, map);
+    let* parent_id = Info.parent_id_of(ci);
+    lookup(parent_id, map);
+  };
+
+  let parent_term_of = (map: t, id: Id.t): option(Any.t) => {
+    let* ci = parent_ci_of(map, id);
+    Info.any_of(ci);
+  };
+
+  /* Starting from a binding site id (possibly inside a deep pattern),
+   * climb ancestor ids to find the enclosing let, and return
+   * the id of its body expression. */
+  let enclosing_let_of_binding =
+      (~statics: t, ~binding_id: Id.t): option(Id.t) => {
+    open Util.OptUtil.Syntax;
+    let* ci_binder = lookup(binding_id, statics);
+    let rec climb = (ancs: list(Id.t)): option(Id.t) =>
+      switch (ancs) {
+      | [] => None
+      | [ancestor_id, ...rest] =>
+        let* ci = lookup(ancestor_id, statics);
+        switch (ci) {
+        | InfoExp({term: {term: Let(pat, def, _), _}, _}) =>
+          let binds = Pat.bindings(pat);
+          List.exists((b: Binding.t) => b.id == binding_id, binds)
+            ? Some(IdTagged.rep_id(def)) : climb(rest);
+        | InfoExp(_) => None
+        | _ => climb(rest)
+        };
+      };
+    climb(Info.ancestors_of(ci_binder));
+  };
+};
+
+let let_definition_path = (~statics: Map.t, ~id: Id.t): list(Pat.t) => {
+  let rec contains_id = (target: Id.t, ids: list(Id.t)): bool =>
+    switch (ids) {
+    | [] => false
+    | [head, ...tail] => Id.equal(head, target) || contains_id(target, tail)
+    };
+
+  let rec gather =
+          (remaining: list(Id.t), seen: list(Id.t), acc: list(Pat.t))
+          : list(Pat.t) =>
+    switch (remaining) {
+    | [] => acc
+    | [current_id, ...rest] =>
+      let acc' =
+        switch (Map.lookup(current_id, statics)) {
+        | Some(InfoExp({term: {term: Let(pat, def, _), _}, _})) =>
+          contains_id(IdTagged.rep_id(def), seen) ? [pat, ...acc] : acc
+        | _ => acc
+        };
+      gather(rest, [current_id, ...seen], acc');
+    };
+
+  switch (Map.lookup(id, statics)) {
+  | Some(info) =>
+    let ancestors: list(Id.t) = Info.ancestors_of(info);
+    let collected: list(Pat.t) = gather(ancestors, [id], []);
+    List.rev(collected);
+  | _ => []
+  };
 };
 
 let map_m = (f, xs, m: Map.t) =>
@@ -67,7 +134,7 @@ let rec is_arrow_like = (t: Typ.t) => {
   switch (t |> Typ.term_of) {
   | Unknown(_) => true
   | Arrow(_) => true
-  | Forall(_, t) => is_arrow_like(t)
+  | Poly(_, t) => is_arrow_like(t)
   | _ => false
   };
 };

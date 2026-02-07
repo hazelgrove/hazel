@@ -52,6 +52,15 @@ module Store = {
 module Update = {
   open Updated;
 
+  let get_editor = (model: Model.t): CodeEditable.Model.t =>
+    switch (model.editors) {
+    | Scratch(m) => (List.nth(m.scratchpads, m.current) |> snd).editor
+    | Documentation(m) => (List.nth(m.scratchpads, m.current) |> snd).editor
+    | Tutorial(m) => List.nth(m.exercises, m.current).cells.user_impl.editor
+    | Exercises(m) => ExercisesMode.Model.get_editor(m)
+    | Projects(m) => ProjectMode.Utils.get_editor(m).editor
+    };
+
   [@deriving (show({with_path: false}), sexp, yojson)]
   type benchmark_action =
     | Start
@@ -128,6 +137,26 @@ module Update = {
         schedule_action(Globals(FinishImportAll(data)))
       );
       model |> return_quiet;
+    | SetMetaDown(meta_down) =>
+      model.globals.meta_down == meta_down
+        ? model |> return_quiet
+        : {
+            ...model,
+            globals: {
+              ...model.globals,
+              meta_down,
+            },
+          }
+          |> return_quiet
+    | UpdateVisibleRows(visible_rows) =>
+      {
+        ...model,
+        globals: {
+          ...model.globals,
+          visible_rows: Some(visible_rows),
+        },
+      }
+      |> return_quiet
     | FinishImportAll(None) => model |> return_quiet
     | FinishImportAll(Some(data)) =>
       Export.import_all(
@@ -152,11 +181,7 @@ module Update = {
                 current |> fst,
                 current
                 |> snd
-                |> ((e: CellEditor.Model.t) => e.editor)
-                |> (
-                  (e: CodeWithStatics.Model.t) =>
-                    Zipper.zip(e.editor.state.zipper)
-                )
+                |> (e => e.editor.editor.state.zipper)
                 |> PersistentSegment.persist,
               ))
             );
@@ -168,7 +193,8 @@ module Update = {
           (filename, content);
         | Exercises(model) =>
           let current = List.nth(model.exercises, model.current);
-          let filename = current.editors.module_name ++ ".ml";
+          let filename =
+            ExercisesMode.Model.get_exercise_name(current) ++ ".ml";
           let content = "not supported";
           (filename, content);
         | Projects(_) =>
@@ -231,9 +257,20 @@ module Update = {
           action,
           model.editors,
         );
+      /* Reset visible_rows when switching to modes without viewport culling,
+       * otherwise stale culling bounds hide projectors incorrectly */
+      let globals =
+        switch (action) {
+        | SwitchMode(Tutorial | Exercises) => {
+            ...model.globals,
+            visible_rows: None,
+          }
+        | _ => model.globals
+        };
       {
         ...model,
         editors,
+        globals,
       };
     | ExplainThis(action) =>
       let* explain_this =
@@ -247,7 +284,7 @@ module Update = {
         ...model,
         selection,
       }
-      |> Updated.return
+      |> Updated.return(~is_edit=false, ~scroll_active=false)
     | Benchmark(Start) =>
       List.iter(a => schedule_action(Editors(a)), Benchmark.actions_1);
       schedule_action(Benchmark(Finish));
@@ -369,9 +406,35 @@ module View = {
     };
   };
 
+  let selection_has_refractors =
+      (
+        refractors: Haz3lcore.Zipper.Refractor.t,
+        selection: Haz3lcore.Segment.t,
+      )
+      : bool =>
+    if (List.is_empty(refractors.manuals)) {
+      false;
+    } else {
+      let ids = Haz3lcore.Segment.ids(selection);
+      List.exists(
+        id =>
+          List.exists(((id2, _)) => Id.equal(id, id2), refractors.manuals),
+        ids,
+      );
+    };
+
   let copy = (cursor: Cursor.cursor(Editors.Update.t)): unit => {
     let str = (cursor.selected_text |> Option.value(~default=() => ""))();
-    ClipboardCache.set(cursor.selection, str);
+    let should_set =
+      switch (cursor.editor, cursor.selection) {
+      | (Some(editor), Some(selection)) =>
+        /* If the selection contains refractors, we forgo the segment cache
+         * for the sake of preserving refractors in the copy via expanding
+         * their text invocation form, i.e. ^^refractor_name(<syntax>) */
+        !selection_has_refractors(editor.state.zipper.refractors, selection)
+      | _ => true
+      };
+    should_set ? ClipboardCache.set(cursor.selection, str) : ();
     JsUtil.copy(str);
   };
 
@@ -381,9 +444,16 @@ module View = {
         ~cursor: Cursor.cursor(Editors.Update.t),
         model: Model.t,
       ) => {
+    let update_meta =
+        (evt: Js.t(Dom_html.keyboardEvent)): list(Effect.t(unit)) => {
+      let meta_down = Js.to_bool(evt##.metaKey);
+      model.globals.meta_down == meta_down
+        ? [] : [inject(Globals(SetMetaDown(meta_down)))];
+    };
     let key_handler =
         (~inject, ~dir: Key.dir, evt: Js.t(Dom_html.keyboardEvent))
-        : Effect.t(unit) =>
+        : Effect.t(unit) => {
+      let meta_effects = update_meta(evt);
       Effect.(
         switch (
           Selection.handle_key_event(
@@ -392,17 +462,23 @@ module View = {
             model,
           )
         ) {
-        | None => Ignore
+        | None => meta_effects == [] ? Ignore : Many(meta_effects)
         | Some(action) =>
-          Many([Prevent_default, Stop_propagation, inject(action)])
+          Many(
+            [Prevent_default, Stop_propagation, inject(action)]
+            @ meta_effects,
+          )
         }
       );
+    };
     [
       Attr.on_keyup(key_handler(~inject, ~dir=KeyUp)),
       Attr.on_keydown(key_handler(~inject, ~dir=KeyDown)),
       Attr.on_blur(_ => {
         JsUtil.focus_clipboard_shim();
-        Effect.Ignore;
+        model.globals.meta_down
+          ? Effect.Many([inject(Globals(SetMetaDown(false)))])
+          : Effect.Ignore;
       }),
       Attr.on_focus(_ => {
         JsUtil.focus_clipboard_shim();
@@ -599,12 +675,7 @@ module View = {
       get_log_and,
       export_all: Export.export_all,
     };
-    let bottom_bar =
-      CursorInspector.view(
-        ~globals,
-        ~inject=a => inject(Editors(a)),
-        cursor,
-      );
+    let bottom_bar = CursorInspector.view(~globals, cursor);
     let sidebar =
       Sidebar.view(
         ~globals,
@@ -613,10 +684,11 @@ module View = {
         ~explainThisModel,
         ~editors_inject=(a: Editors.Update.t) => inject(Editors(a)),
         ~editors,
+        ~editor=Update.get_editor(model),
         ~signal=
           fun
           | MakeActive(selection) => inject(MakeActive(selection)),
-        cursor.info,
+        ~cursor,
       );
     let editors_view =
       Editors.View.view(
@@ -629,12 +701,49 @@ module View = {
         ~selection=Some(selection),
         model.editors,
       );
+
+    /* Scroll handler for viewport culling. Only enabled for Scratch and
+     * Documentation modes where there's a single editor filling the
+     * scrollable area. Tutorial and Exercises have multiple editors. */
+    let on_scroll = (evt: Js.t(Dom_html.event)) => {
+      let culling_enabled =
+        switch (editors) {
+        | Scratch(_)
+        | Documentation(_)
+        | Tutorial(_)
+        | Exercises(_)
+        | Projects(_) => false
+        };
+      if (!culling_enabled) {
+        Effect.Ignore;
+      } else {
+        let container =
+          Js.Opt.to_option(evt##.currentTarget)
+          |> Option.map(Js.Unsafe.coerce);
+        switch (container) {
+        | None => Effect.Ignore
+        | Some(c) =>
+          let new_visible =
+            Globals.VisibleRows.compute(
+              ~scroll_top=float_of_int(c##.scrollTop),
+              ~client_height=float_of_int(c##.clientHeight),
+              ~row_height=globals.font_metrics.row_height,
+              (),
+            );
+          Globals.VisibleRows.changed(globals.visible_rows, new_visible)
+            ? inject(Globals(UpdateVisibleRows(new_visible)))
+            : Effect.Ignore;
+        };
+      };
+    };
+
     [
       top_bar(~globals, ~inject, ~editors),
       div(
         ~attrs=[
           Attr.id("main"),
           Attr.class_(Editors.Model.mode_string(editors)),
+          Attr.on_scroll(on_scroll),
         ],
         editors_view,
       ),

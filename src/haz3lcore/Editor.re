@@ -186,6 +186,16 @@ module Update = {
         syntax,
       );
 
+    /* 3. Probe effects: collision cleanup, auto-probe regeneration,
+     *    step-into focus resolution, and cursor reset */
+    let zipper =
+      ProbePerform.editor_effects(
+        ~syntax,
+        ~info_map=new_statics.info_map,
+        ~dynamics=new_dynamics,
+        zipper,
+      );
+
     Model.{
       state: {
         ...state,

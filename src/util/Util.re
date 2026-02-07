@@ -10,6 +10,7 @@ module MapUtil = MapUtil;
 module Monads = Monads;
 module OptUtil = OptUtil;
 module PairUtil = PairUtil;
+module CsvUtil = CsvUtil;
 module Result = Result;
 module StateMonad = StateMonad;
 module StringUtil = StringUtil;
@@ -17,6 +18,7 @@ module TimeUtil = TimeUtil;
 module TupleUtil = TupleUtil;
 module WebUtil = WebUtil;
 module JsUtil = JsUtil;
+module ContextMenuListener = ContextMenuListener;
 module Key = Key;
 module Os = Os;
 module Point = Point;
@@ -29,6 +31,8 @@ module StructureShareSexp = StructureShareSexp;
 module VarMap = VarMap;
 module ProjectorShape = ProjectorShape;
 module API = API;
+module SafeTriangle = SafeTriangle;
+module FloatingElement = FloatingElement;
 
 // Used by [@deriving sexp, yojson)]
 include Sexplib.Std;

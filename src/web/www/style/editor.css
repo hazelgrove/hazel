@@ -97,6 +97,27 @@
   font-weight: bold;
 }
 
+/* For emoji rendering in code */
+.code .grapheme-cell {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  vertical-align: baseline;
+  white-space: pre;
+}
+
+.code-container.meta-down .token.ref {
+  cursor: pointer;
+}
+
+.code-container.meta-down .token.ref:hover {
+  text-decoration: underline;
+  text-decoration-style: solid;
+  text-underline-offset: 0.08em;
+  filter: brightness(1.5);
+}
+
 @keyframes rainbow {
   0% {
     color: #4477ff;
@@ -333,4 +354,101 @@ svg:has(.child-line) {
 
 .restructuring-genie {
   z-index: var(--backpack-z);
+}
+
+/* Invisible backdrop to capture clicks outside context menu */
+.context-menu-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: calc(var(--context-menu-z) - 1);
+}
+
+.context-menu {
+  position: absolute;
+  min-width: 160px;
+  z-index: var(--context-menu-z);
+  flex-direction: column;
+  justify-content: center;
+  background-color: var(--menu-bkg);
+  border-radius: 0 0.5em 0.5em 0.5em;
+  outline: 0.6px solid var(--menu-outline);
+  box-shadow: 0px 10px 20px var(--menu-shadow);
+  padding: 0.2em;
+}
+
+/* Border radius, transforms, and animations based on opening direction */
+.context-menu.open-down-right {
+  border-radius: 0 0.5em 0.5em 0.5em; /* top-left sharp */
+  transform-origin: top left;
+  animation: context-menu-open-down-right 0.12s ease-out;
+}
+.context-menu.open-down-left {
+  border-radius: 0.5em 0 0.5em 0.5em; /* top-right sharp */
+  transform: translateX(-100%);
+  transform-origin: top right;
+  animation: context-menu-open-down-left 0.12s ease-out;
+}
+.context-menu.open-up-right {
+  border-radius: 0.5em 0.5em 0.5em 0; /* bottom-left sharp */
+  transform: translateY(-100%);
+  transform-origin: bottom left;
+  animation: context-menu-open-up-right 0.12s ease-out;
+}
+.context-menu.open-up-left {
+  border-radius: 0.5em 0.5em 0 0.5em; /* bottom-right sharp */
+  transform: translate(-100%, -100%);
+  transform-origin: bottom right;
+  animation: context-menu-open-up-left 0.12s ease-out;
+}
+
+/* Open animations for each direction - scale from origin while maintaining translate */
+@keyframes context-menu-open-down-right {
+  from { opacity: 0; transform: scale(0.95); }
+  to { opacity: 1; transform: scale(1); }
+}
+@keyframes context-menu-open-down-left {
+  from { opacity: 0; transform: translateX(-100%) scale(0.95); }
+  to { opacity: 1; transform: translateX(-100%) scale(1); }
+}
+@keyframes context-menu-open-up-right {
+  from { opacity: 0; transform: translateY(-100%) scale(0.95); }
+  to { opacity: 1; transform: translateY(-100%) scale(1); }
+}
+@keyframes context-menu-open-up-left {
+  from { opacity: 0; transform: translate(-100%, -100%) scale(0.95); }
+  to { opacity: 1; transform: translate(-100%, -100%) scale(1); }
+}
+
+.context-menu .group .contents {
+  display: flex;
+  flex-direction: column;
+}
+.context-menu .named-menu-item {
+  display: flex;
+  align-items: center;
+  color: var(--menu-item-text);
+  cursor: pointer;
+  gap: 0.5em;
+}
+.context-menu .group .contents .named-menu-item {
+  padding: 0.05em 0.5em 0.05em 0.7em;
+}
+.context-menu .group .contents .named-menu-item:hover,
+.context-menu .group .contents .named-menu-item.selected {
+  background-color: var(--SAND);
+  border-radius: 0.2em;
+}
+.context-menu .named-menu-item .menu-shortcut {
+  margin-left: auto;
+  padding-left: 1em;
+  font-size: 0.85em;
+  opacity: 0.6;
+}
+.context-menu .named-menu-item .menu-colon {
+  opacity: 0.6;
+}
+.context-menu .menu-divider {
+  height: 0.6px;
+  background: var(--menu-outline);
+  margin: 6px 0.5em;
 }

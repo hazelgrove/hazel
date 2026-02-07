@@ -42,6 +42,13 @@ module Utils = {
     |> OptUtil.get_or_fail("Current project not found");
   };
 
+  let get_editor = (model: Model.t): CellEditor.Model.t => {
+    current_project(model).file_system
+    |> FileSystem.Utils.current_file
+    |> Option.map((file: FileSystem.Model.file) => file.editor)
+    |> OptUtil.get_or_fail("No current file");
+  };
+
   let add_project = (model: Model.t, project: Project.Model.t): Model.t => {
     {
       // Adds new binding or overwrites the existing binding to the project map

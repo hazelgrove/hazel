@@ -2,6 +2,7 @@ open Util;
 open Language;
 open Haz3lcore;
 open StepInterface;
+open Calc.Syntax;
 
 /* Types are defined outside the functor to make it
    easier to use them in other files. */
@@ -12,12 +13,14 @@ type model'('stepper) = {
   scrut: CodeEditable.Model.t,
   cases: list(InductionCase.model'('stepper)),
   // Calculated
-  elab_scrut: Calc.saved(Exp.t),
+  elab_scrut_raw: Calc.saved(Exp.t),
+  elab_scrut_sub: Calc.saved(Exp.t),
   scrut_ty: Calc.saved(Typ.t),
   scrut_co_ctx: Calc.saved(CoCtx.t),
   result: Calc.saved(Exp.t),
-  result_state: Calc.saved(EvaluatorState.t),
   join_exp: Calc.saved(Exp.t),
+  is_exhaustive: Calc.saved(bool),
+  validity: Calc.saved(option(bool)),
 };
 
 [@deriving (show({with_path: false}), sexp, yojson)]
@@ -57,12 +60,14 @@ let init = (~exp: option(Exp.t)=?, ()) => {
   {
     scrut,
     cases: [],
-    elab_scrut: Calc.Pending,
+    elab_scrut_raw: Calc.Pending,
+    elab_scrut_sub: Calc.Pending,
     scrut_ty: Calc.Pending,
     scrut_co_ctx: Calc.Pending,
     result: Calc.Pending,
-    result_state: Calc.Pending,
     join_exp: Calc.Pending,
+    is_exhaustive: Calc.Pending,
+    validity: Calc.Pending,
   };
 };
 
@@ -103,12 +108,14 @@ module F =
     {
       scrut: CodeEditable.Model.unpersist(p.scrut),
       cases: List.map(InductionCase.unpersist, p.cases),
-      elab_scrut: Calc.Pending,
+      elab_scrut_raw: Calc.Pending,
+      elab_scrut_sub: Calc.Pending,
       scrut_ty: Calc.Pending,
       scrut_co_ctx: Calc.Pending,
       result: Calc.Pending,
-      result_state: Calc.Pending,
       join_exp: Calc.Pending,
+      is_exhaustive: Calc.Pending,
+      validity: Calc.Pending,
     };
   };
 
@@ -166,37 +173,48 @@ module F =
         ~settings: Calc.t(CoreSettings.t),
         ~hidden: Calc.saved(bool),
         ~exp: Calc.t(Exp.t),
-        ~ctx: Calc.t(Ctx.t),
-        ~state: Calc.t(EvaluatorState.t),
+        ~ctx: Calc.t(SemanticCtx.t),
         ~editor as _,
+        ~info_map,
+        ~ana: Calc.t(Typ.t),
         model: model,
       ) => {
     let {
       scrut,
       cases,
-      elab_scrut,
+      elab_scrut_raw,
+      elab_scrut_sub,
       scrut_ty,
       scrut_co_ctx,
       result: _,
-      result_state: _,
       join_exp,
+      is_exhaustive,
+      validity,
     }: model = model;
     let scrut =
       CodeEditable.Update.calculate(
         ~settings=Calc.get_value(settings),
-        ~ctx=Calc.get_value(ctx),
+        ~ctx=Calc.get_value(ctx).ctx,
         ~dynamics=Dynamics.Map.empty,
         ~is_edited=true,
         ~stitch=x => x,
         ~is_dynamic_term=true,
         scrut,
       );
-    let elab_scrut =
+    let elab_scrut_raw =
       Calc.set(
         ~eq=Exp.fast_equal,
         CodeEditable.Model.get_statics(scrut).elaborated,
-        elab_scrut,
+        elab_scrut_raw,
       );
+    let elab_scrut_sub =
+      elab_scrut_sub
+      |> {
+        let.calc raw = elab_scrut_raw
+        and.calc sem_ctx = ctx;
+        let env = SemanticCtx.get_env(sem_ctx);
+        Substitution.in_exp(env, raw);
+      };
     let scrut_ty = {
       let self_ty =
         switch (
@@ -223,19 +241,21 @@ module F =
         };
       Calc.set(self_co_ctx, scrut_co_ctx);
     };
-    let cases =
+    let (cases, constraints, validities) =
       List.map(
         InductionCase.calculate(
           ~settings,
           ~scrut_ty,
-          ~elab_scrut,
           ~scrut_co_ctx,
+          ~elab_scrut=elab_scrut_sub,
           ~ctx,
+          ~info_map,
           ~exp,
-          ~state,
+          ~ana,
         ),
         cases,
-      );
+      )
+      |> ListUtil.unzip3;
 
     let new_join_exp =
       List.fold_left(
@@ -259,22 +279,56 @@ module F =
         join_exp,
       );
 
+    let is_exhaustive =
+      is_exhaustive
+      |> {
+        let.calc constraints = Calc.combine_list(constraints)
+        and.calc ctx = ctx
+        and.calc scrut_ty = scrut_ty;
+        let constraints = List.filter_map(Fun.id, constraints);
+        Coverage.check(
+          constraints,
+          Typ.normalize(SemanticCtx.get_ctx(ctx), scrut_ty),
+        ).
+          exhaustiveness
+        == Exhaustive;
+      };
+
+    let validity =
+      validity
+      |> {
+        let.calc validities = Calc.combine_list(validities)
+        and.calc is_exhaustive = is_exhaustive;
+        List.fold_left(
+          (v1, v2) =>
+            switch (v1, v2) {
+            | (Some(true), Some(true)) => Some(true)
+            | (Some(false), Some(false)) => Some(false)
+            | (_, _) => None
+            },
+          is_exhaustive ? Some(true) : None,
+          validities,
+        );
+      };
+
     let result = exp |> Calc.save;
-    let result_state = state |> Calc.save;
 
     Some((
       {
         scrut,
         cases,
-        elab_scrut: elab_scrut |> Calc.save,
+        elab_scrut_raw: elab_scrut_raw |> Calc.save,
+        elab_scrut_sub: elab_scrut_sub |> Calc.save,
         scrut_ty: scrut_ty |> Calc.save,
         scrut_co_ctx: scrut_co_ctx |> Calc.save,
         result,
-        result_state,
         join_exp: join_exp |> Calc.save,
+        is_exhaustive: is_exhaustive |> Calc.save,
+        validity: validity |> Calc.save,
       },
       hidden |> Calc.set(false),
-      Some((join_exp, state)),
+      Some(Calc.OldValue(Exp.fresh(Atom(Bool(true))))),
+      validity,
     ));
   };
 
@@ -321,7 +375,7 @@ module F =
         ~is_toplevel as _: bool,
         _: model,
       ) =>
-    WebUtil.Node.text("Case Analysis");
+    WebUtil.Node.text("Induction");
 
   let view_content =
       (
@@ -347,6 +401,7 @@ module F =
           | Some(_)
           | None => false
           },
+        ~dynamics=Dynamics.Map.empty,
         model.scrut,
       );
 
@@ -383,12 +438,16 @@ module F =
       WebUtil.div_c(
         "induction-scrut",
         [
-          WebUtil.Node.text("Cases on: "),
+          WebUtil.Node.text("Induction on: "),
           WebUtil.div_c("inline-editor-wrapper", [scrut_editor]),
         ],
       ),
     ]
     @ cases
-    @ [add_case_button];
+    @ [add_case_button]
+    @ [
+      model.is_exhaustive |> Calc.get_saved_exc(~print="exhaustive")
+        ? WebUtil.Node.text("exhaustive") : WebUtil.Node.text("inexhaustive"),
+    ];
   };
 };

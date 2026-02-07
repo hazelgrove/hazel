@@ -22,20 +22,19 @@ let label_view = (label: string): Node.t =>
 
 let cls_view = (ci: Info.t): Node.t => {
   let cls = ci |> Info.cls_of;
+  let cls_text =
+    switch (Info.projector_kind_of(ci)) {
+    | Some(kind) => "Projector (" ++ ProjectorKind.show(kind) ++ ")"
+    | None =>
+      switch (cls) {
+      | Typ(EmptyHole)
+      | Exp(EmptyHole)
+      | Pat(EmptyHole) => Info.is_label(ci) ? "Label Hole" : Cls.show(cls)
+      | cls => cls |> Cls.show
+      }
+    };
 
-  div(
-    ~attrs=[clss(["syntax-class"])],
-    [
-      text(
-        switch (cls) {
-        | Typ(EmptyHole)
-        | Exp(EmptyHole)
-        | Pat(EmptyHole) => Info.is_label(ci) ? "Label Hole" : Cls.show(cls)
-        | cls => cls |> Cls.show
-        },
-      ),
-    ],
-  );
+  div(~attrs=[clss(["syntax-class"])], [text(cls_text)]);
 };
 
 let ctx_toggle = (~globals: Globals.t): Node.t =>
@@ -77,15 +76,18 @@ let elements_noun: Cls.t => string =
     failwith("elements_noun: " ++ Cls.show(cls) ++ " cls has no elements");
 
 let code_view_settings: Haz3lcore.ExpToSegment.Settings.t = {
+  secondary: AutoFormat,
+  parenthesization: Defensive,
+  label_format: QuoteWhenNecessary,
   inline: true,
   fold_case_clauses: false,
-  fold_fn_bodies: false,
+  fold_fn_bodies: `NoFold,
   hide_fixpoints: false,
   show_filters: false,
   show_unknown_as_hole: true,
 };
 
-let view_any = (~globals, any: Term.Any.t) =>
+let view_any = (~globals, any: Any.t) =>
   any
   |> CodeViewable.view_any(~globals, ~settings=code_view_settings)
   |> code_box_container;
@@ -168,11 +170,6 @@ let common_err_view =
     | Inconsistent(CompareFun(ty)) => [
         text("values cannot be compared:"),
         view_type(ty),
-      ]
-    | Inconsistent(WithArrow(typ)) => [
-        text(":"),
-        view_type(typ) |> code_box_container,
-        text("inconsistent with arrow type"),
       ]
     | Inconsistent(Expectation({ana, syn})) =>
       switch (syn.term, ana.term) {
@@ -267,7 +264,7 @@ let common_ok_view =
         view_type(ana),
       ]
     | (_, Ana(Consistent({ana, syn, _})))
-        when Typ.fast_equal(~alpha_equivalence=false, ana, syn) =>
+        when Equality.semantic.typ(ana, syn) =>
       switch (syn.term) {
       | Label(l) => [label_view(l), text(" is a valid label")]
       | _ =>
@@ -336,7 +333,7 @@ let common_ok_view =
         | true => [text(" after reordering by labels ")]
         }
       )
-    | (_, Ana(InternallyInconsistent({ana, nojoin: tys}))) =>
+    | (_, Ana(InternallyInconsistent({ana, nomeet: tys}))) =>
       [
         text(elements_noun(cls) ++ " have inconsistent types:"),
         ...ListUtil.join(text(","), List.map(view_type, tys)),
@@ -424,10 +421,6 @@ let typ_ok_view = (~globals, cls: Cls.t, ok: Info.ok_typ) => {
   | Variant(name, sum_ty) => [
       view_type(Var(name) |> Typ.fresh),
       text("is a sum type constuctor of type"),
-      view_type(sum_ty),
-    ]
-  | VariantIncomplete(sum_ty) => [
-      text("An incomplete sum type constuctor of type"),
       view_type(sum_ty),
     ]
   | TypeUnderdetermined(underdetermined) =>
@@ -635,6 +628,11 @@ let rec exp_view =
     ])
   | InHole(BadLivelitModel(_)) =>
     div_err([text("Bad internal livelit model")])
+  | InHole(BadTheorem(typ)) =>
+    div_err([
+      text("Theorem pattern is not of the form p : t, got "),
+      view_type(typ),
+    ])
   | NotInHole(AnaDeferralConsistent(ana)) =>
     div_ok([text("Expecting type"), view_type(ana)])
   | NotInHole(Common(ok)) =>
@@ -767,34 +765,41 @@ let inspector_view = (~globals, ci): Node.t =>
     view_of_info(~globals, ci),
   );
 
-let view =
-    (
-      ~globals: Globals.t,
-      ~inject: Editors.Update.t => 'a,
-      cursor: Cursor.cursor(Editors.Update.t),
-    ) => {
+/* Status indicator showing global statics status */
+let status_indicator = (error_ids: list(Id.t)) => {
+  let has_errors = error_ids != [];
+  let error_count = List.length(error_ids);
+  let digit_class =
+    error_count >= 100
+      ? "digits-3" : error_count >= 10 ? "digits-2" : "digits-1";
+  let (status_class, icon, title) =
+    has_errors
+      ? (
+        "has-errors " ++ digit_class,
+        string_of_int(error_count),
+        string_of_int(error_count) ++ " error" ++ (error_count > 1 ? "s" : ""),
+      )
+      : ("no-errors", "✓", "No errors");
+  div(
+    ~attrs=[clss(["status-indicator", status_class]), Attr.title(title)],
+    [span(~attrs=[], [text(icon)])],
+  );
+};
+
+let view = (~globals: Globals.t, cursor: Cursor.cursor(Editors.Update.t)) => {
   let bar_view = div(~attrs=[Attr.id("bottom-bar")]);
+  let status = status_indicator(cursor.error_ids);
   let err_view = err =>
     bar_view([
       div(
         ~attrs=[Attr.id("cursor-inspector"), clss(["no-info"])],
         [div(~attrs=[clss(["icon"])], [Icons.magnify]), text(err)],
       ),
+      status,
     ]);
   switch (cursor.info) {
   | _ when !globals.settings.core.statics => div_empty
   | None => err_view("Whitespace or Comment")
-  | Some(ci) =>
-    bar_view([
-      inspector_view(~globals, ci),
-      ProjectorPanel.view(
-        ~inject=
-          a =>
-            cursor.editor_action(Project(a))
-            |> Option.map(inject)
-            |> Option.value(~default=Ui_effect.Ignore),
-        cursor,
-      ),
-    ])
+  | Some(ci) => bar_view([inspector_view(~globals, ci), status])
   };
 };
