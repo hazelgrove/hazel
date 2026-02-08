@@ -843,6 +843,17 @@ let manage_subscriptions = (mvu: t): unit => {
   };
 };
 
+// Clean up sidebar subscriptions (called from Page.re on ResetAppView)
+let cleanup_sidebar_subscriptions = (): unit => {
+  let id = Id.mk_str("app-view-sidebar");
+  switch (Hashtbl.find_opt(active_subscriptions, id)) {
+  | Some(handles) =>
+    SubManager.cleanup(handles);
+    Hashtbl.remove(active_subscriptions, id);
+  | None => ()
+  };
+};
+
 let go = (mvu: t): Node.t => {
   // Manage subscriptions before rendering
   manage_subscriptions(mvu);

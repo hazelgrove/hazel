@@ -55,7 +55,7 @@ module AppViewState = {
     view_fn: Language.DHExp.t, // view: model -> Html
     subs_fn: Language.DHExp.t, // subscriptions: model -> Sub
     html: Language.DHExp.t, // Pre-evaluated: view_fn(model)
-    subs: Language.DHExp.t, // Pre-evaluated: subs_fn(model)
+    subs: Language.DHExp.t // Pre-evaluated: subs_fn(model)
   };
 };
 
@@ -76,9 +76,21 @@ module Action = {
     | SetAppViewModel(Language.DHExp.t) // Update the MVU model state
     | AppViewMsg(Language.DHExp.t) // Elm mode: route msg through update_fn
     // InitAppView takes (source_result, model, update_fn, view_fn, subs_fn)
-    | InitAppView(Language.DHExp.t, Language.DHExp.t, Language.DHExp.t, Language.DHExp.t, Language.DHExp.t)
+    | InitAppView(
+        Language.DHExp.t,
+        Language.DHExp.t,
+        Language.DHExp.t,
+        Language.DHExp.t,
+        Language.DHExp.t,
+      )
     // RefreshAppView: code changed, try to preserve model state
-    | RefreshAppView(Language.DHExp.t, Language.DHExp.t, Language.DHExp.t, Language.DHExp.t, Language.DHExp.t)
+    | RefreshAppView(
+        Language.DHExp.t,
+        Language.DHExp.t,
+        Language.DHExp.t,
+        Language.DHExp.t,
+        Language.DHExp.t,
+      )
     | ResetAppView; // Reset App View to show evaluation result
 };
 

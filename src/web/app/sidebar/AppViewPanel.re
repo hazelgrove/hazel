@@ -17,6 +17,9 @@ open IdTagged.FreshGrammar;
 //    - Handlers are: Html -> Html
 //    - The HTML tree IS the model
 
+// Stable projector ID for the sidebar app view (deterministic UUID from string)
+let sidebar_projector_id = Id.mk_str("app-view-sidebar");
+
 // Evaluate a Hazel expression
 let evaluate = exp =>
   fst(
@@ -43,8 +46,8 @@ let is_function = (exp: DHExp.t): bool =>
 
 // App kind: Elm-style 4-tuple or legacy 3-tuple
 type app_kind =
-  | ElmApp(DHExp.t, DHExp.t, DHExp.t, DHExp.t)   // init_model, update, view, subs
-  | LegacyMvuApp(DHExp.t, DHExp.t, DHExp.t);      // init_model, view, subs
+  | ElmApp(DHExp.t, DHExp.t, DHExp.t, DHExp.t) // init_model, update, view, subs
+  | LegacyMvuApp(DHExp.t, DHExp.t, DHExp.t); // init_model, view, subs
 
 // Detect app kind: 4-tuple first (more specific), then 3-tuple
 let detect_app_kind = (exp: DHExp.t): option(app_kind) => {
@@ -52,21 +55,19 @@ let detect_app_kind = (exp: DHExp.t): option(app_kind) => {
   // 4-tuple: Elm-style (init_model, update_fn, view_fn, subs_fn)
   | Tuple([init_model, update_fn, view_fn, subs_fn])
   | Parens({term: Tuple([init_model, update_fn, view_fn, subs_fn]), _})
-    when is_function(update_fn) && is_function(view_fn) =>
+      when is_function(update_fn) && is_function(view_fn) =>
     Some(ElmApp(init_model, update_fn, view_fn, subs_fn))
   // 3-tuple: Legacy MVU (init_model, view_fn, subs_fn)
   | Tuple([init_model, view_fn, subs_fn])
   | Parens({term: Tuple([init_model, view_fn, subs_fn]), _})
-    when is_function(view_fn) =>
+      when is_function(view_fn) =>
     Some(LegacyMvuApp(init_model, view_fn, subs_fn))
   | _ => None
   };
 };
 
 // Detect MVU App type: returns legacy 3-tuple format for backwards compat
-let detect_mvu_app =
-    (exp: DHExp.t)
-    : option((DHExp.t, DHExp.t, DHExp.t)) => {
+let detect_mvu_app = (exp: DHExp.t): option((DHExp.t, DHExp.t, DHExp.t)) => {
   switch (detect_app_kind(exp)) {
   | Some(LegacyMvuApp(init_model, view_fn, subs_fn)) =>
     Some((init_model, view_fn, subs_fn))
@@ -348,10 +349,7 @@ let view =
       |> fst
       |> ExpToSegment.exp_to_segment(
            ~settings=
-             ExpToSegment.Settings.of_core(
-               ~inline=true,
-               CoreSettings.off,
-             ),
+             ExpToSegment.Settings.of_core(~inline=true, CoreSettings.off),
          );
     Node.div(
       ~attrs=[
@@ -391,10 +389,11 @@ let view =
         model,
         inject,
         view_term: fallback_view_term,
-        projector_id: None, // TODO: Use a stable ID for subscription tracking
+        projector_id: Some(sidebar_projector_id),
         subscriptions,
         update_fn,
       };
+      HazelDOM.manage_subscriptions(mvu);
       div(
         ~attrs=[
           clss(["app-view-content"]),
@@ -457,7 +456,13 @@ let view =
         );
       | Some((html, _, None)) =>
         // No subscriptions
-        render_html_content(~model=html, ~html, ~inject, ~subscriptions=None, ())
+        render_html_content(
+          ~model=html,
+          ~html,
+          ~inject,
+          ~subscriptions=None,
+          (),
+        )
       | None =>
         // Failed to detect app structure
         render_error("Invalid App structure")
@@ -487,7 +492,13 @@ let view =
         | Some(LegacyMvuApp(init_model, view_fn, subs_fn)) =>
           Bonsai.Effect.Expert.handle(
             globals.inject_global(
-              RefreshAppView(exp, init_model, _state.update_fn, view_fn, subs_fn),
+              RefreshAppView(
+                exp,
+                init_model,
+                _state.update_fn,
+                view_fn,
+                subs_fn,
+              ),
             ),
           );
           render_mvu_app(_state);
@@ -523,11 +534,17 @@ let view =
               ),
             ],
             [text("Initializing app...")],
-          )
+          );
         | Some(LegacyMvuApp(init_model, view_fn, subs_fn)) =>
           Bonsai.Effect.Expert.handle(
             globals.inject_global(
-              InitAppView(exp, init_model, Exp.empty_hole(), view_fn, subs_fn),
+              InitAppView(
+                exp,
+                init_model,
+                Exp.empty_hole(),
+                view_fn,
+                subs_fn,
+              ),
             ),
           );
           div(
@@ -538,13 +555,18 @@ let view =
               ),
             ],
             [text("Initializing app...")],
-          )
+          );
         | None => render_error("Invalid MVU App structure")
         }
-      | Some(exp) when looks_like_legacy_app(exp) =>
-        render_legacy_app(exp)
+      | Some(exp) when looks_like_legacy_app(exp) => render_legacy_app(exp)
       | Some(exp) when looks_like_html(exp) =>
-        render_html_content(~model=exp, ~html=exp, ~inject, ~subscriptions=None, ())
+        render_html_content(
+          ~model=exp,
+          ~html=exp,
+          ~inject,
+          ~subscriptions=None,
+          (),
+        )
       | Some(_exp) => render_not_html()
       }
     };

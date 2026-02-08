@@ -235,12 +235,13 @@ let rec subscribe =
           apply_handler(ctx', handler, [key_event]);
           Js._true;
         });
+      // Use capture phase (Js._true) so we fire before Hazel's editor handlers
       let listener_id =
         Dom.addEventListener(
           Dom_html.document,
           Dom.Event.make("keydown"),
           listener,
-          Js._false,
+          Js._true,
         );
       [EventHandle(() => Dom.removeEventListener(listener_id))];
 
@@ -256,12 +257,13 @@ let rec subscribe =
           apply_handler(ctx', handler, [key_event]);
           Js._true;
         });
+      // Use capture phase (Js._true) so we fire before Hazel's editor handlers
       let listener_id =
         Dom.addEventListener(
           Dom_html.document,
           Dom.Event.make("keyup"),
           listener,
-          Js._false,
+          Js._true,
         );
       [EventHandle(() => Dom.removeEventListener(listener_id))];
 
@@ -293,28 +295,29 @@ let rec subscribe =
       }
 
     | Some(("AnimationFrame", handler)) =>
-      // For animation frames, we need to recursively request frames
-      let rec request_frame = () => {
-        let _ =
-          Dom_html.window##requestAnimationFrame(
-            Js.wrap_callback(timestamp => {
-              let ts = Js.to_float(timestamp);
-              let current_model = get_model();
-              let ctx' = {
-                ...ctx,
-                model: current_model,
-              };
-              apply_handler(ctx', handler, [Exp.float(ts)]);
-              // Request next frame
-              request_frame();
-            }),
-          );
-        ();
-      };
+      // Recursive animation frame loop with cleanup via running flag
+      let running = ref(true);
+      let rec request_frame = () =>
+        if (running^) {
+          let _ =
+            Dom_html.window##requestAnimationFrame(
+              Js.wrap_callback(timestamp =>
+                if (running^) {
+                  let ts = Js.to_float(timestamp);
+                  let current_model = get_model();
+                  let ctx' = {
+                    ...ctx,
+                    model: current_model,
+                  };
+                  apply_handler(ctx', handler, [Exp.float(ts)]);
+                  request_frame();
+                }
+              ),
+            );
+          ();
+        };
       request_frame();
-      // Note: Proper cleanup for animation frames would need tracking
-      // For now, we don't support stopping animation frames
-      [];
+      [EventHandle(() => running := false)];
 
     | Some((name, _)) =>
       Firebug.console##log(

@@ -105,33 +105,28 @@ module Update = {
     };
 
   // Evaluate a Hazel expression with full elaboration (for source-level exprs)
-  let evaluate_exp = (exp: Language.DHExp.t): Language.DHExp.t => {
-    open Haz3lcore;
-    open Language;
-    fst(
-      Evaluator.evaluate(
-        ~env=Builtins.env_init,
-        fst(
-          Elaborator.elaborate(
-            Statics.mk(CoreSettings.on, Builtins.ctx_init(Some(Int)), exp),
-            exp,
+  let evaluate_exp = (exp: Language.DHExp.t): Language.DHExp.t =>
+    Language.(
+      fst(
+        Evaluator.evaluate(
+          ~env=Builtins.env_init,
+          fst(
+            Elaborator.elaborate(
+              Statics.mk(
+                CoreSettings.on,
+                Builtins.ctx_init(Some(Int)),
+                exp,
+              ),
+              exp,
+            ),
           ),
         ),
-      ),
+      )
     );
-  };
 
   // Evaluate without re-elaboration (for applying already-evaluated functions)
-  let evaluate_direct = (exp: Language.DHExp.t): Language.DHExp.t => {
-    open Haz3lcore;
-    open Language;
-    fst(
-      Evaluator.evaluate(
-        ~env=Builtins.env_init,
-        exp,
-      ),
-    );
-  };
+  let evaluate_direct = (exp: Language.DHExp.t): Language.DHExp.t =>
+    Language.(fst(Evaluator.evaluate(~env=Builtins.env_init, exp)));
 
   let update_global =
       (
@@ -235,7 +230,12 @@ module Update = {
           globals: {
             ...model.globals,
             app_view_state:
-              Some({...state, model: new_model, html, subs}),
+              Some({
+                ...state,
+                model: new_model,
+                html,
+                subs,
+              }),
           },
         }
         |> return_quiet;
@@ -254,8 +254,7 @@ module Update = {
             ),
           );
         // Extract (new_model, cmd) or just new_model (strip wrappers)
-        let update_result =
-          Haz3lcore.HazelDOM.strip_wrappers(update_result);
+        let update_result = Haz3lcore.HazelDOM.strip_wrappers(update_result);
         let (new_model, cmd_opt) =
           switch (update_result.term) {
           | Tuple([m, c]) => (m, Some(c))
@@ -296,7 +295,12 @@ module Update = {
           globals: {
             ...model.globals,
             app_view_state:
-              Some({...state, model: new_model, html, subs}),
+              Some({
+                ...state,
+                model: new_model,
+                html,
+                subs,
+              }),
           },
         }
         |> return_quiet;
@@ -304,11 +308,11 @@ module Update = {
       }
     | InitAppView(source_result, init_model, update_fn, view_fn, subs_fn) =>
       let html =
-        evaluate_exp(
+        evaluate_direct(
           Language.IdTagged.FreshGrammar.Exp.ap(Forward, view_fn, init_model),
         );
       let subs =
-        evaluate_exp(
+        evaluate_direct(
           Language.IdTagged.FreshGrammar.Exp.ap(Forward, subs_fn, init_model),
         );
       let state: Globals.AppViewState.t = {
@@ -327,32 +331,54 @@ module Update = {
           app_view_state: Some(state),
         },
       }
-      |> return_quiet
+      |> return_quiet;
     | RefreshAppView(source_result, init_model, update_fn, view_fn, subs_fn) =>
       // Code changed - try to preserve current model state (hot reload)
+      // Only preserve model if init_model has compatible structure (same program edited)
+      // Otherwise re-init (different program loaded, e.g. switching tabs)
       switch (model.globals.app_view_state) {
       | Some(state) =>
+        // Check if model structures are compatible (same term kind and arity)
+        let models_compatible =
+          switch (
+            Haz3lcore.HazelDOM.strip_wrappers(state.model).term,
+            Haz3lcore.HazelDOM.strip_wrappers(init_model).term,
+          ) {
+          | (Atom(Int(_)), Atom(Int(_)))
+          | (Atom(Float(_)), Atom(Float(_)))
+          | (Atom(String(_)), Atom(String(_)))
+          | (Atom(Bool(_)), Atom(Bool(_))) => true
+          | (Tuple(xs), Tuple(ys)) => List.length(xs) == List.length(ys)
+          | (ListLit(xs), ListLit(ys)) => List.length(xs) == List.length(ys)
+          | _ => false
+          };
+        let model_to_use =
+          if (models_compatible) {
+            state.model;
+          } else {
+            init_model;
+          };
         let new_state =
           try({
             let html =
-              evaluate_exp(
+              evaluate_direct(
                 Language.IdTagged.FreshGrammar.Exp.ap(
                   Forward,
                   view_fn,
-                  state.model,
+                  model_to_use,
                 ),
               );
             let subs =
-              evaluate_exp(
+              evaluate_direct(
                 Language.IdTagged.FreshGrammar.Exp.ap(
                   Forward,
                   subs_fn,
-                  state.model,
+                  model_to_use,
                 ),
               );
             Globals.AppViewState.{
               source_result,
-              model: state.model,
+              model: model_to_use,
               update_fn,
               view_fn,
               subs_fn,
@@ -361,9 +387,9 @@ module Update = {
             };
           }) {
           | _exn =>
-            // Model type changed or other failure - full re-init
+            // Evaluation failed - full re-init with init_model
             let html =
-              evaluate_exp(
+              evaluate_direct(
                 Language.IdTagged.FreshGrammar.Exp.ap(
                   Forward,
                   view_fn,
@@ -371,7 +397,7 @@ module Update = {
                 ),
               );
             let subs =
-              evaluate_exp(
+              evaluate_direct(
                 Language.IdTagged.FreshGrammar.Exp.ap(
                   Forward,
                   subs_fn,
@@ -433,6 +459,8 @@ module Update = {
         |> return_quiet;
       }
     | ResetAppView =>
+      // Clean up sidebar subscriptions before resetting
+      Haz3lcore.HazelDOM.cleanup_sidebar_subscriptions();
       {
         ...model,
         globals: {
@@ -440,7 +468,7 @@ module Update = {
           app_view_state: None,
         },
       }
-      |> return_quiet
+      |> return_quiet;
     | FinishImportAll(None) => model |> return_quiet
     | FinishImportAll(Some(data)) =>
       Export.import_all(
@@ -553,77 +581,78 @@ module Update = {
         );
       };
     };
-    let result = switch (action) {
-    | Globals(action) =>
-      update_global(~globals, ~import_log, ~schedule_action, action, model)
-    | Editors(action) =>
-      let editors_start = TimeUtil.now_ms();
-      let* editors =
-        Editors.Update.update(
-          ~globals,
-          ~schedule_action=a => schedule_action(Editors(a)),
-          ~send_assistant_insertion_info=
-            assistant_callback(~schedule_action, model),
-          action,
-          model.editors,
-        );
-      TimeUtil.log_time("  Editors.Update.update", editors_start);
-      /* Reset visible_rows when switching to modes without viewport culling,
-       * otherwise stale culling bounds hide projectors incorrectly */
-      let globals =
-        switch (action) {
-        | SwitchMode(Tutorial | Exercises) => {
-            ...model.globals,
-            visible_rows: None,
-          }
-        | _ => model.globals
+    let result =
+      switch (action) {
+      | Globals(action) =>
+        update_global(~globals, ~import_log, ~schedule_action, action, model)
+      | Editors(action) =>
+        let editors_start = TimeUtil.now_ms();
+        let* editors =
+          Editors.Update.update(
+            ~globals,
+            ~schedule_action=a => schedule_action(Editors(a)),
+            ~send_assistant_insertion_info=
+              assistant_callback(~schedule_action, model),
+            action,
+            model.editors,
+          );
+        TimeUtil.log_time("  Editors.Update.update", editors_start);
+        /* Reset visible_rows when switching to modes without viewport culling,
+         * otherwise stale culling bounds hide projectors incorrectly */
+        let globals =
+          switch (action) {
+          | SwitchMode(Tutorial | Exercises) => {
+              ...model.globals,
+              visible_rows: None,
+            }
+          | _ => model.globals
+          };
+        {
+          ...model,
+          editors,
+          globals,
         };
-      {
-        ...model,
-        editors,
-        globals,
+      | ExplainThis(action) =>
+        let* explain_this =
+          ExplainThisUpdate.set_update(model.explain_this, action);
+        {
+          ...model,
+          explain_this,
+        };
+      | Assistant(action) =>
+        let* assistant =
+          AssistantUpdate.update(
+            ~action,
+            ~settings=globals.settings,
+            ~model=model.assistant,
+            ~editor=get_editor(model),
+            ~schedule_action=a => schedule_action(Assistant(a)),
+            ~schedule_editor_action=a => schedule_action(Editors(a)),
+          );
+        {
+          ...model,
+          assistant,
+        };
+      | MakeActive(selection) =>
+        {
+          ...model,
+          selection,
+        }
+        |> Updated.return(~is_edit=false, ~scroll_active=false)
+      | Benchmark(Start) =>
+        List.iter(a => schedule_action(Editors(a)), Benchmark.actions_1);
+        schedule_action(Benchmark(Finish));
+        Benchmark.start();
+        model |> Updated.return_quiet;
+      | Benchmark(Finish) =>
+        Benchmark.finish();
+        model |> Updated.return_quiet;
+      | Start => model |> return // Triggers recalculation at the start
+      | Save =>
+        print_endline("Saving...");
+        Store.save(model);
+        model |> return_quiet;
       };
-    | ExplainThis(action) =>
-      let* explain_this =
-        ExplainThisUpdate.set_update(model.explain_this, action);
-      {
-        ...model,
-        explain_this,
-      };
-    | Assistant(action) =>
-      let* assistant =
-        AssistantUpdate.update(
-          ~action,
-          ~settings=globals.settings,
-          ~model=model.assistant,
-          ~editor=get_editor(model),
-          ~schedule_action=a => schedule_action(Assistant(a)),
-          ~schedule_editor_action=a => schedule_action(Editors(a)),
-        );
-      {
-        ...model,
-        assistant,
-      };
-    | MakeActive(selection) =>
-      {
-        ...model,
-        selection,
-      }
-      |> Updated.return(~is_edit=false, ~scroll_active=false)
-    | Benchmark(Start) =>
-      List.iter(a => schedule_action(Editors(a)), Benchmark.actions_1);
-      schedule_action(Benchmark(Finish));
-      Benchmark.start();
-      model |> Updated.return_quiet;
-    | Benchmark(Finish) =>
-      Benchmark.finish();
-      model |> Updated.return_quiet;
-    | Start => model |> return // Triggers recalculation at the start
-    | Save =>
-      print_endline("Saving...");
-      Store.save(model);
-      model |> return_quiet;
-    };
     TimeUtil.log_time("Page.update TOTAL", start);
     result;
   };
