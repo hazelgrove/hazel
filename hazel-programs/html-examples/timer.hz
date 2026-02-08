@@ -1,26 +1,31 @@
 #HazelHtml Timer Example#
 #Elm-style architecture with subscriptions#
-#msg = (String, Int), model = (Int, Bool)#
+#msg = Msg sum type, model = (seconds=Int, running=Bool)#
 
-let update : ((String, Int), (Int, Bool)) -> (Int, Bool) = fun (msg, model) ->
-  let seconds = fst(model) in
-  let running = snd(model) in
-  if fst(msg) == "toggle" then
-    (seconds, not running)
-  else if fst(msg) == "reset" then
-    (0, false)
-  else if fst(msg) == "tick" then
-    if running then (seconds + 1, running)
-    else model
-  else
-    model
+type Msg =
+  + Toggle
+  + Reset
+  + Tick
 in
 
-let view : (Int, Bool) -> HTML = fun model ->
-  let seconds = fst(model) in
-  let running = snd(model) in
-  let minutes = seconds / 60 in
-  let secs = seconds % 60 in
+let init = (seconds=0, running=false) in
+
+let update = fun (msg, model) ->
+  case msg
+  | Toggle =>
+      (seconds=model.seconds, running=if model.running then false else true)
+  | Reset =>
+      (seconds=0, running=false)
+  | Tick =>
+      if model.running then
+        (seconds=model.seconds + 1, running=model.running)
+      else model
+  end
+in
+
+let view = fun model ->
+  let minutes = model.seconds / 60 in
+  let secs = int_mod((model.seconds), 60) in
   let time_str =
     (if minutes < 10 then "0" else "") ++ string_of_int(minutes) ++ ":" ++
     (if secs < 10 then "0" else "") ++ string_of_int(secs)
@@ -38,14 +43,14 @@ let view : (Int, Bool) -> HTML = fun model ->
         [
           Button(
             [
-              OnClick(("toggle", 0)),
+              OnClick(Toggle),
               Style([("font-size", "24px"), ("padding", "15px 30px"), ("margin", "10px"), ("cursor", "pointer")])
             ],
-            [Text(if running then "Pause" else "Start")]
+            [Text(if model.running then "Pause" else "Start")]
           ),
           Button(
             [
-              OnClick(("reset", 0)),
+              OnClick(Reset),
               Style([("font-size", "24px"), ("padding", "15px 30px"), ("margin", "10px"), ("cursor", "pointer")])
             ],
             [Text("Reset")]
@@ -56,12 +61,43 @@ let view : (Int, Bool) -> HTML = fun model ->
   )
 in
 
-let subs : (Int, Bool) -> Sub = fun model ->
-  let running = snd(model) in
-  if running then
-    Every(1000.0, fun _timestamp -> ("tick", 0))
+let subs = fun model ->
+  if model.running then
+    Every(1000.0, fun _timestamp -> Tick)
   else
     SubNone
 in
 
-((0, false), update, view, subs)
+# Tests #
+
+hint "toggle starts timer"
+test
+  let m = update(Toggle, init) in
+  m.running == true && m.seconds == 0
+end;
+
+hint "toggle pauses running timer"
+test
+  let m = update(Toggle, (seconds=5, running=true)) in
+  m.running == false && m.seconds == 5
+end;
+
+hint "tick increments when running"
+test
+  let m = update(Tick, (seconds=3, running=true)) in
+  m.seconds == 4
+end;
+
+hint "tick does nothing when paused"
+test
+  let m = update(Tick, (seconds=3, running=false)) in
+  m.seconds == 3
+end;
+
+hint "reset stops and zeroes"
+test
+  let m = update(Reset, (seconds=42, running=true)) in
+  m.seconds == 0 && m.running == false
+end;
+
+(init, update, view, subs)

@@ -1,0 +1,280 @@
+# TIC-TAC-TOE MVU #
+# Classic 3x3 game with X and O #
+
+type Cell = + Empty + X + O in
+type Board = [Cell] in
+type Player = + PlayerX + PlayerO in
+type GameStatus = + InProgress + Won(Player) + Draw in
+
+type Msg = + ClickCell(Int) + NewGame in
+
+let emptyBoard : Board =
+  [Empty, Empty, Empty,
+   Empty, Empty, Empty,
+   Empty, Empty, Empty]
+in
+
+let init = (
+  board = emptyBoard,
+  turn = PlayerX,
+  status = InProgress
+) in
+
+let getCell = fun (board, pos) -> nth(board, pos) in
+
+let setCell = fun (board, pos, cell) ->
+  mapi(board, fun (i, c) -> if i == pos then cell else c)
+in
+
+let playerCell = fun p ->
+  case p | PlayerX => X | PlayerO => O end
+in
+
+let cellStr = fun c ->
+  case c | Empty => " " | X => "X" | O => "O" end
+in
+
+let threeInRow = fun (a, b, c) ->
+  case (a, b, c)
+  | (X, X, X) => Some(X)
+  | (O, O, O) => Some(O)
+  | _ => None
+  end
+in
+
+let getCells3 = fun (board, i, j, k) ->
+  (getCell(board, i), getCell(board, j), getCell(board, k))
+in
+
+let checkWinner = fun board ->
+  let row0 = threeInRow(getCells3(board, 0, 1, 2)) in
+  let row1 = threeInRow(getCells3(board, 3, 4, 5)) in
+  let row2 = threeInRow(getCells3(board, 6, 7, 8)) in
+  let col0 = threeInRow(getCells3(board, 0, 3, 6)) in
+  let col1 = threeInRow(getCells3(board, 1, 4, 7)) in
+  let col2 = threeInRow(getCells3(board, 2, 5, 8)) in
+  let diag1 = threeInRow(getCells3(board, 0, 4, 8)) in
+  let diag2 = threeInRow(getCells3(board, 2, 4, 6)) in
+  case row0 | Some(c) => Some(c) | None =>
+  case row1 | Some(c) => Some(c) | None =>
+  case row2 | Some(c) => Some(c) | None =>
+  case col0 | Some(c) => Some(c) | None =>
+  case col1 | Some(c) => Some(c) | None =>
+  case col2 | Some(c) => Some(c) | None =>
+  case diag1 | Some(c) => Some(c) | None =>
+  diag2
+  end end end end end end end
+in
+
+let isFull = fun board -> for_all(board, fun c -> c != Empty) in
+
+let cellToPlayer = fun c ->
+  case c | X => PlayerX | O => PlayerO | Empty => PlayerX end
+in
+
+let calcStatus = fun board ->
+  case checkWinner(board)
+  | Some(c) => Won(cellToPlayer(c))
+  | None => if isFull(board) then Draw else InProgress
+  end
+in
+
+let nextPlayer = fun p ->
+  case p | PlayerX => PlayerO | PlayerO => PlayerX end
+in
+
+let isValidMove = fun (model, pos) ->
+  pos >= 0 && pos < 9 &&
+  getCell(model.board, pos) == Empty &&
+  model.status == InProgress
+in
+
+let move = fun (model, pos) ->
+  if isValidMove(model, pos) then
+    let newBoard = setCell(model.board, pos, playerCell(model.turn)) in
+    let newStatus = calcStatus(newBoard) in
+    (board = newBoard, turn = nextPlayer(model.turn), status = newStatus)
+  else model
+in
+
+let update = fun (msg, model) ->
+  case msg
+  | ClickCell(pos) => move(model, pos)
+  | NewGame => init
+  end
+in
+
+let view = fun model ->
+  let statusText =
+    case model.status
+    | InProgress =>
+        case model.turn
+        | PlayerX => "X's turn"
+        | PlayerO => "O's turn"
+        end
+    | Won(p) =>
+        case p
+        | PlayerX => "X wins!"
+        | PlayerO => "O wins!"
+        end
+    | Draw => "It's a draw!"
+    end
+  in
+  Div(
+    [Style([("max-width", "300px"), ("margin", "20px auto"), ("text-align", "center"), ("font-family", "sans-serif")])],
+    [
+      H2([], [Text("Tic-Tac-Toe")]),
+      P([Style([("font-size", "18px"), ("margin-bottom", "15px")])], [Text(statusText)]),
+      # Board: 3 rows of 3 cells each #
+      Div(
+        [Style([("display", "inline-block")])],
+        [
+          # Row 0 #
+          Div([Style([("display", "flex")])],
+            mapi([0, 1, 2], fun (_i, pos) ->
+              Button(
+                [
+                  OnClick(ClickCell(pos)),
+                  Style([
+                    ("width", "80px"), ("height", "80px"), ("font-size", "36px"),
+                    ("border", "2px solid #333"), ("cursor", "pointer"),
+                    ("background", "white"), ("font-weight", "bold")
+                  ])
+                ],
+                [Text(cellStr(getCell(model.board, pos)))]
+              )
+            )
+          ),
+          # Row 1 #
+          Div([Style([("display", "flex")])],
+            mapi([3, 4, 5], fun (_i, pos) ->
+              Button(
+                [
+                  OnClick(ClickCell(pos)),
+                  Style([
+                    ("width", "80px"), ("height", "80px"), ("font-size", "36px"),
+                    ("border", "2px solid #333"), ("cursor", "pointer"),
+                    ("background", "white"), ("font-weight", "bold")
+                  ])
+                ],
+                [Text(cellStr(getCell(model.board, pos)))]
+              )
+            )
+          ),
+          # Row 2 #
+          Div([Style([("display", "flex")])],
+            mapi([6, 7, 8], fun (_i, pos) ->
+              Button(
+                [
+                  OnClick(ClickCell(pos)),
+                  Style([
+                    ("width", "80px"), ("height", "80px"), ("font-size", "36px"),
+                    ("border", "2px solid #333"), ("cursor", "pointer"),
+                    ("background", "white"), ("font-weight", "bold")
+                  ])
+                ],
+                [Text(cellStr(getCell(model.board, pos)))]
+              )
+            )
+          )
+        ]
+      ),
+      # New Game button #
+      Div(
+        [Style([("margin-top", "15px")])],
+        [
+          Button(
+            [
+              OnClick(NewGame),
+              Style([("padding", "10px 20px"), ("font-size", "16px"), ("background", "#4CAF50"),
+                     ("color", "white"), ("border", "none"), ("cursor", "pointer"), ("border-radius", "4px")])
+            ],
+            [Text("New Game")]
+          )
+        ]
+      )
+    ]
+  )
+in
+
+let subs = fun _model -> SubNone in
+
+# Helper for playing sequences #
+let play = fun (model, moves) ->
+  fold_left(moves, fun (m, pos) -> move(m, pos), model)
+in
+
+# Tests #
+
+hint "initial board is empty"
+test for_all(init.board, fun c -> c == Empty) end;
+
+hint "X plays first"
+test init.turn == PlayerX end;
+
+hint "game starts in progress"
+test init.status == InProgress end;
+
+hint "move places correct marker"
+test
+  let m = move(init, 0) in
+  getCell(m.board, 0) == X
+end;
+
+hint "turn alternates after move"
+test
+  let m = move(init, 0) in
+  m.turn == PlayerO
+end;
+
+hint "O places O marker"
+test
+  let m = play(init, [0, 4]) in
+  getCell(m.board, 4) == O
+end;
+
+hint "invalid move on occupied cell"
+test
+  let m = play(init, [0, 0]) in
+  getCell(m.board, 0) == X &&
+  m.turn == PlayerO
+end;
+
+hint "X wins with top row"
+test
+  let m = play(init, [0, 3, 1, 4, 2]) in
+  m.status == Won(PlayerX)
+end;
+
+hint "O wins with middle column"
+test
+  let m = play(init, [0, 1, 2, 4, 6, 7]) in
+  m.status == Won(PlayerO)
+end;
+
+hint "X wins with main diagonal"
+test
+  let m = play(init, [0, 1, 4, 2, 8]) in
+  m.status == Won(PlayerX)
+end;
+
+hint "draw when board full"
+test
+  let m = play(init, [0, 1, 2, 5, 3, 6, 4, 8, 7]) in
+  case m.status | Draw => true | _ => false end
+end;
+
+hint "no moves after win"
+test
+  let m = play(init, [0, 3, 1, 4, 2, 5]) in
+  case m.status | Won(PlayerX) => getCell(m.board, 5) == Empty | _ => false end
+end;
+
+hint "new game resets"
+test
+  let m = play(init, [0, 1, 4]) in
+  let m2 = update(NewGame, m) in
+  for_all(m2.board, fun c -> c == Empty) && m2.turn == PlayerX
+end;
+
+(init, update, view, subs)

@@ -1,28 +1,26 @@
 #HazelHtml Animation Example#
 #A bouncing ball using AnimationFrame subscription#
-#msg = Float (timestamp), model = (Float, Float, Float, Float) for x, y, vx, vy#
+#msg = Float (timestamp), model = (x=Float, y=Float, vx=Float, vy=Float)#
 
 let gravity : Float = 0.3 in
 let bounce : Float = 0.8 in
 let friction : Float = 0.99 in
 
-let update = fun (msg, model) ->
-  let x = fst(model) in
-  let y = fst(snd(model)) in
-  let vx = fst(snd(snd(model))) in
-  let vy = snd(snd(snd(model))) in
-  let new_vy = vy +. gravity in
-  let new_x = x +. vx in
-  let new_y = y +. new_vy in
+let init = (x=50.0, y=50.0, vx=3.0, vy=0.0) in
+
+let update = fun (_msg, model) ->
+  let new_vy = model.vy +. gravity in
+  let new_x = model.x +. model.vx in
+  let new_y = model.y +. new_vy in
   let final_x =
     if new_x <. 0.0 then 0.0
     else if new_x >. 370.0 then 370.0
     else new_x
   in
   let final_vx =
-    if new_x <. 0.0 then 0.0 -. vx *. bounce
-    else if new_x >. 370.0 then 0.0 -. vx *. bounce
-    else vx *. friction
+    if new_x <. 0.0 then 0.0 -. model.vx *. bounce
+    else if new_x >. 370.0 then 0.0 -. model.vx *. bounce
+    else model.vx *. friction
   in
   let final_y =
     if new_y >. 230.0 then 230.0
@@ -32,14 +30,10 @@ let update = fun (msg, model) ->
     if new_y >. 230.0 then 0.0 -. new_vy *. bounce
     else new_vy
   in
-  (final_x, (final_y, (final_vx, final_vy)))
+  (x=final_x, y=final_y, vx=final_vx, vy=final_vy)
 in
 
 let view = fun model ->
-  let x = fst(model) in
-  let y = fst(snd(model)) in
-  let vx = fst(snd(snd(model))) in
-  let vy = snd(snd(snd(model))) in
   Div(
     [
       Id("animation"),
@@ -60,8 +54,8 @@ let view = fun model ->
           ("height", "30px"),
           ("background", "radial-gradient(circle at 30% 30%, #ff6666, #cc0000)"),
           ("position", "absolute"),
-          ("left", string_of_float(x) ++ "px"),
-          ("top", string_of_float(y) ++ "px"),
+          ("left", string_of_float(model.x) ++ "px"),
+          ("top", string_of_float(model.y) ++ "px"),
           ("border-radius", "50%"),
           ("box-shadow", "2px 2px 8px rgba(0,0,0,0.3)")
         ])],
@@ -80,7 +74,7 @@ let view = fun model ->
       ),
       Div(
         [Style([("position", "absolute"), ("top", "10px"), ("left", "10px"), ("color", "white"), ("font-size", "12px")])],
-        [Text("Velocity: (" ++ string_of_float(vx) ++ ", " ++ string_of_float(vy) ++ ")")]
+        [Text("Velocity: (" ++ string_of_float(model.vx) ++ ", " ++ string_of_float(model.vy) ++ ")")]
       )
     ]
   )
@@ -90,4 +84,36 @@ let subs = fun _model ->
   AnimationFrame(fun timestamp -> timestamp)
 in
 
-((50.0, (50.0, (3.0, 0.0))), update, view, subs)
+# Tests #
+
+hint "gravity increases vy"
+test
+  let m = update(0.0, (x=100.0, y=100.0, vx=0.0, vy=0.0)) in
+  m.vy >. 0.0
+end;
+
+hint "ball bounces off floor"
+test
+  let m = update(0.0, (x=100.0, y=229.5, vx=0.0, vy=5.0)) in
+  m.vy <. 0.0
+end;
+
+hint "ball bounces off right wall"
+test
+  let m = update(0.0, (x=369.5, y=100.0, vx=5.0, vy=0.0)) in
+  m.vx <. 0.0
+end;
+
+hint "ball bounces off left wall"
+test
+  let m = update(0.0, (x=0.5, y=100.0, vx=(0.0 -. 5.0), vy=0.0)) in
+  m.vx >. 0.0
+end;
+
+hint "friction slows horizontal velocity"
+test
+  let m = update(0.0, (x=100.0, y=100.0, vx=10.0, vy=0.0)) in
+  m.vx <. 10.0
+end;
+
+(init, update, view, subs)

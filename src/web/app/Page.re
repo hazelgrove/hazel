@@ -257,7 +257,7 @@ module Update = {
         let update_result = Haz3lcore.HazelDOM.strip_wrappers(update_result);
         let (new_model, cmd_opt) =
           switch (update_result.term) {
-          | Tuple([m, c]) => (m, Some(c))
+          | Tuple([m, c]) when Haz3lcore.HazelDOM.is_cmd(c) => (m, Some(c))
           | _ => (update_result, None)
           };
         let html =
@@ -307,10 +307,22 @@ module Update = {
       | None => model |> return_quiet
       }
     | InitAppView(source_result, init_model, update_fn, view_fn, subs_fn) =>
+      print_endline(
+        "InitAppView: init_model cls = "
+        ++ Language.Exp.show_cls(Language.Exp.cls_of_term(init_model.term)),
+      );
+      print_endline(
+        "InitAppView: view_fn cls = "
+        ++ Language.Exp.show_cls(Language.Exp.cls_of_term(view_fn.term)),
+      );
       let html =
         evaluate_direct(
           Language.IdTagged.FreshGrammar.Exp.ap(Forward, view_fn, init_model),
         );
+      print_endline(
+        "InitAppView: html result cls = "
+        ++ Language.Exp.show_cls(Language.Exp.cls_of_term(html.term)),
+      );
       let subs =
         evaluate_direct(
           Language.IdTagged.FreshGrammar.Exp.ap(Forward, subs_fn, init_model),
@@ -811,22 +823,40 @@ module View = {
         (~inject, ~dir: Key.dir, evt: Js.t(Dom_html.keyboardEvent))
         : Effect.t(unit) => {
       let meta_effects = update_meta(evt);
-      Effect.(
-        switch (
-          Selection.handle_key_event(
-            ~selection=Some(model.selection),
-            ~event=Key.mk(dir, evt),
-            model,
-          )
-        ) {
-        | None => meta_effects == [] ? Ignore : Many(meta_effects)
-        | Some(action) =>
-          Many(
-            [Prevent_default, Stop_propagation, inject(action)]
-            @ meta_effects,
-          )
-        }
-      );
+      // Don't intercept keyboard events targeting input elements
+      // (e.g. <input>/<textarea> in App View panel)
+      let target_is_input = {
+        let target = Js.Opt.to_option(evt##.target);
+        switch (target) {
+        | Some(el) =>
+          let el = Js.Unsafe.coerce(el);
+          let tag: string = Js.to_string(el##.tagName);
+          let id: string = Js.Optdef.case(el##.id, () => "", Js.to_string);
+          (tag == "INPUT" || tag == "TEXTAREA" || tag == "SELECT")
+          && id != JsUtil.clipboard_shim_id;
+        | None => false
+        };
+      };
+      if (target_is_input) {
+        meta_effects == [] ? Effect.Ignore : Effect.Many(meta_effects);
+      } else {
+        Effect.(
+          switch (
+            Selection.handle_key_event(
+              ~selection=Some(model.selection),
+              ~event=Key.mk(dir, evt),
+              model,
+            )
+          ) {
+          | None => meta_effects == [] ? Ignore : Many(meta_effects)
+          | Some(action) =>
+            Many(
+              [Prevent_default, Stop_propagation, inject(action)]
+              @ meta_effects,
+            )
+          }
+        );
+      };
     };
     [
       Attr.on_keyup(key_handler(~inject, ~dir=KeyUp)),

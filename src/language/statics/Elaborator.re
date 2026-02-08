@@ -105,8 +105,7 @@ let normalize_ctr_type = (ctx: Ctx.t, ty: Typ.t): Typ.t => {
   | Some(name)
       when
         List.exists(((n, _)) => n == name, BuiltinsADT.type_aliases)
-        && Ctx.lookup_tvar_id(ctx, name) == Some(Id.invalid) =>
-    ty
+        && Ctx.lookup_tvar_id(ctx, name) == Some(Id.invalid) => ty
   | _ =>
     /* Second try: compact any expanded builtin Rec types back to Var.
        This handles the case where the meet result has Rec("HTML",...)

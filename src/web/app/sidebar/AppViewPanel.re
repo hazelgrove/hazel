@@ -578,7 +578,7 @@ let view =
           ~attrs=[
             Attr.create(
               "style",
-              "margin-left: auto; padding: 4px 8px; font-size: 12px; cursor: pointer;",
+              "margin-left: auto; padding: 4px 8px; font-size: 12px; cursor: pointer; background-color: var(--T1); border: 1px solid var(--BR3); color: var(--BR3); border-radius: 0.3em;",
             ),
             Attr.on_click(_ => globals.inject_global(ResetAppView)),
           ],
@@ -595,10 +595,10 @@ let view =
           clss(["app-view-header"]),
           Attr.create(
             "style",
-            "padding: 10px 15px; background: #f5f5f5; border-bottom: 1px solid #ddd; font-weight: bold; display: flex; align-items: center;",
+            "padding: 6px 8px; color: var(--BR3); border-bottom: 1px solid #ddd; font-weight: bold; display: flex; align-items: center;",
           ),
         ],
-        [text("App View"), reset_button],
+        [text("MVU"), reset_button],
       ),
       // Content area
       div(

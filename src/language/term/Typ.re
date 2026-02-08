@@ -823,7 +823,7 @@ let rec meet = (ctx: Ctx.t, ty1: t, ty2: t): option(t) => {
         | Some({term: Rec(tp1, _), _})
             when TPat.tyvar_of_utpat(tp1) == Some(name) =>
           incr(meet_var_eq);
-          Some(ty1)
+          Some(ty1);
         | _ =>
           /* Var resolves to something other than a matching Rec;
              fall through to general Var expansion */
@@ -845,7 +845,7 @@ let rec meet = (ctx: Ctx.t, ty1: t, ty2: t): option(t) => {
         | Some({term: Rec(tp2, _), _})
             when TPat.tyvar_of_utpat(tp2) == Some(name) =>
           incr(meet_var_eq);
-          Some(ty2)
+          Some(ty2);
         | _ =>
           incr(meet_var_expand);
           let* ty_name = Ctx.lookup_alias(ctx, name);

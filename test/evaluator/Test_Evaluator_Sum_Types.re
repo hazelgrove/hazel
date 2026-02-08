@@ -282,7 +282,14 @@ let tests = (
             }
           | _ => false
           };
-        Alcotest.(check(bool, "Br annotation is Var(\"HTML\")", true, has_compact_annotation));
+        Alcotest.(
+          check(
+            bool,
+            "Br annotation is Var(\"HTML\")",
+            true,
+            has_compact_annotation,
+          )
+        );
       },
     ),
     test_case(
@@ -297,7 +304,8 @@ let tests = (
            We need to find the Constructor node inside the Ap. */
         let ctr_type =
           switch (elaborated.term) {
-          | Ap(_, {term: Constructor(_, Some(Some(ty))), _}, _) => Some(ty)
+          | Ap(_, {term: Constructor(_, Some(Some(ty))), _}, _) =>
+            Some(ty)
           | Constructor(_, Some(Some(ty))) => Some(ty)
           | _ => None
           };
@@ -314,7 +322,14 @@ let tests = (
             }
           | None => false
           };
-        Alcotest.(check(bool, "Text annotation return type is Var(\"HTML\")", true, has_compact_annotation));
+        Alcotest.(
+          check(
+            bool,
+            "Text annotation return type is Var(\"HTML\")",
+            true,
+            has_compact_annotation,
+          )
+        );
       },
     ),
     test_case(
@@ -323,8 +338,7 @@ let tests = (
       () => {
         /* After evaluation, the constructor annotation should still use
            Var form. This tests the full elaborate→evaluate pipeline. */
-        let evaluated =
-          evaluate(elaborate(parse_exp("Br")));
+        let evaluated = evaluate(elaborate(parse_exp("Br")));
         let has_compact_annotation =
           switch (evaluated.term) {
           | Constructor(_, Some(Some(ty))) =>
@@ -334,7 +348,14 @@ let tests = (
             }
           | _ => false
           };
-        Alcotest.(check(bool, "Br annotation is Var(\"HTML\") after eval", true, has_compact_annotation));
+        Alcotest.(
+          check(
+            bool,
+            "Br annotation is Var(\"HTML\") after eval",
+            true,
+            has_compact_annotation,
+          )
+        );
       },
     ),
   ],

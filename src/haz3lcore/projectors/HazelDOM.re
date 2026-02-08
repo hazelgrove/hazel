@@ -59,6 +59,18 @@ let of_constructor = (d: DHExp.t): option((string, DHExp.t)) => {
   };
 };
 
+// Check if a DHExp looks like a Cmd value (CmdNone, CmdBatch, etc.)
+let is_cmd = (d: DHExp.t): bool => {
+  switch (of_constructor(strip_wrappers(d))) {
+  | Some(("CmdNone", _))
+  | Some(("CmdBatch", _))
+  | Some(("Focus", _))
+  | Some(("Delay", _))
+  | Some(("Log", _)) => true
+  | _ => false
+  };
+};
+
 let of_pair = (d: DHExp.t): option((string, string)) => {
   let d = strip_wrappers(d);
   switch (d.term) {
@@ -566,6 +578,20 @@ let rec render_elem = (~elide_errors=false, mvu: t, d: DHExp.t): Node.t =>
   | Some(x) =>
     switch (x) {
     // === Text content ===
+    | ("Text", body)
+        when {
+          switch (body.term) {
+          | Atom(String(_)) => false
+          | _ =>
+            let cls =
+              Language.Exp.show_cls(Language.Exp.cls_of_term(body.term));
+            print_endline(
+              "HazelDOM: Text body not a string atom, got: " ++ cls,
+            );
+            true;
+          };
+        } =>
+      of_error(elide_errors, mvu, d)
     | ("Text", {term: Atom(String(str)), _}) => Node.text(str)
 
     // === Primitive value display ===
@@ -738,9 +764,17 @@ let rec render_elem = (~elide_errors=false, mvu: t, d: DHExp.t): Node.t =>
       Node.a(~attrs, children);
 
     // Fallback
-    | _ => of_error(elide_errors, mvu, d)
+    | (name, _body) =>
+      print_endline("HazelDOM: Unknown constructor: " ++ name);
+      of_error(elide_errors, mvu, d);
     }
-  | _ => of_error(elide_errors, mvu, d)
+  | None =>
+    let cls =
+      Language.Exp.show_cls(
+        Language.Exp.cls_of_term(strip_wrappers(d).term),
+      );
+    print_endline("HazelDOM: Not a constructor, got: " ++ cls);
+    of_error(elide_errors, mvu, d);
   }
 
 // Extract (attrs, children) from a tuple body

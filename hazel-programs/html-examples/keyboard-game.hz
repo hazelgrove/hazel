@@ -1,30 +1,33 @@
 #HazelHtml Keyboard Game#
 #Move a box with arrow keys using OnDocumentKeyDown subscription#
-#msg = String (just the key name), model = (Int, Int)#
+#msg = Msg sum type, model = (x=Int, y=Int)#
+
+type Msg =
+  + MoveUp
+  + MoveDown
+  + MoveLeft
+  + MoveRight
+  + NoOp
+in
 
 let max : (Int, Int) -> Int = fun (a, b) -> if a > b then a else b in
 let min : (Int, Int) -> Int = fun (a, b) -> if a < b then a else b in
 
 let step : Int = 20 in
 
+let init = (x=180, y=180) in
+
 let update = fun (msg, model) ->
-  let x = fst(model) in
-  let y = snd(model) in
-  if msg == "ArrowUp" then
-    (x, max(0, y - step))
-  else if msg == "ArrowDown" then
-    (x, min(360, y + step))
-  else if msg == "ArrowLeft" then
-    (max(0, x - step), y)
-  else if msg == "ArrowRight" then
-    (min(360, x + step), y)
-  else
-    model
+  case msg
+  | MoveUp => (x=model.x, y=max(0, model.y - step))
+  | MoveDown => (x=model.x, y=min(360, model.y + step))
+  | MoveLeft => (x=max(0, model.x - step), y=model.y)
+  | MoveRight => (x=min(360, model.x + step), y=model.y)
+  | NoOp => model
+  end
 in
 
-let view : (Int, Int) -> HTML = fun model ->
-  let x = fst(model) in
-  let y = snd(model) in
+let view = fun model ->
   Div(
     [
       Id("game"),
@@ -48,8 +51,8 @@ let view : (Int, Int) -> HTML = fun model ->
           ("height", "40px"),
           ("background", "#4CAF50"),
           ("position", "absolute"),
-          ("left", string_of_int(x) ++ "px"),
-          ("top", string_of_int(y) ++ "px"),
+          ("left", string_of_int(model.x) ++ "px"),
+          ("top", string_of_int(model.y) ++ "px"),
           ("border-radius", "4px"),
           ("transition", "all 0.1s ease")
         ])],
@@ -57,14 +60,76 @@ let view : (Int, Int) -> HTML = fun model ->
       ),
       Div(
         [Style([("position", "absolute"), ("bottom", "10px"), ("left", "10px"), ("color", "#333")])],
-        [Text("Position: (" ++ string_of_int(x) ++ ", " ++ string_of_int(y) ++ ")")]
+        [Text("Position: (" ++ string_of_int(model.x) ++ ", " ++ string_of_int(model.y) ++ ")")]
       )
     ]
   )
 in
 
-let subs : (Int, Int) -> Sub = fun _model ->
-  OnDocumentKeyDown(fun (key, _code, _ctrl, _shift, _alt, _meta) -> key)
+let subs = fun _model ->
+  OnDocumentKeyDown(fun (key, _code, _ctrl, _shift, _alt, _meta) ->
+    if key == "ArrowUp" then MoveUp
+    else if key == "ArrowDown" then MoveDown
+    else if key == "ArrowLeft" then MoveLeft
+    else if key == "ArrowRight" then MoveRight
+    else NoOp
+  )
 in
 
-((180, 180), update, view, subs)
+# Tests #
+
+hint "move up decreases y"
+test
+  let m = update(MoveUp, (x=100, y=100)) in
+  m.y == 80
+end;
+
+hint "move down increases y"
+test
+  let m = update(MoveDown, (x=100, y=100)) in
+  m.y == 120
+end;
+
+hint "move left decreases x"
+test
+  let m = update(MoveLeft, (x=100, y=100)) in
+  m.x == 80
+end;
+
+hint "move right increases x"
+test
+  let m = update(MoveRight, (x=100, y=100)) in
+  m.x == 120
+end;
+
+hint "clamp at top boundary"
+test
+  let m = update(MoveUp, (x=100, y=0)) in
+  m.y == 0
+end;
+
+hint "clamp at bottom boundary"
+test
+  let m = update(MoveDown, (x=100, y=360)) in
+  m.y == 360
+end;
+
+hint "clamp at left boundary"
+test
+  let m = update(MoveLeft, (x=0, y=100)) in
+  m.x == 0
+end;
+
+hint "clamp at right boundary"
+test
+  let m = update(MoveRight, (x=360, y=100)) in
+  m.x == 360
+end;
+
+hint "noop does nothing"
+test
+  let m = update(NoOp, (x=100, y=100)) in
+  m.x == 100 && m.y == 100
+end;
+
+(init, update, view, subs)

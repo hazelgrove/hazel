@@ -1,33 +1,35 @@
 #HazelHtml Full App Example#
 #Elm-style architecture with tabs, forms, commands, and subscriptions#
-#msg = (String, String), model = (String, (String, (String, String)))#
+#msg = Msg sum type, model = (active_tab=String, form_name=String, form_message=String, saved_message=String)#
 
-let update = fun (msg, model) ->
-  let active_tab = fst(model) in
-  let form_name = fst(snd(model)) in
-  let form_message = fst(snd(snd(model))) in
-  let saved_message = snd(snd(snd(model))) in
-  let tag = fst(msg) in
-  let value = snd(msg) in
-  if tag == "tab" then
-    (value, (form_name, (form_message, saved_message)))
-  else if tag == "name" then
-    (active_tab, (value, (form_message, saved_message)))
-  else if tag == "message" then
-    (active_tab, (form_name, (value, saved_message)))
-  else if tag == "submit" then
-    let new_saved = form_name ++ ": " ++ form_message in
-    ((active_tab, ("", ("", new_saved))),
-     CmdBatch([Log("Form submitted: " ++ new_saved), Focus("name-input")]))
-  else
-    model
+type Msg =
+  + Tab(String)
+  + Name(String)
+  + Message(String)
+  + Submit
 in
 
-let view : (String, (String, (String, String))) -> HTML = fun model ->
-  let active_tab = fst(model) in
-  let form_name = fst(snd(model)) in
-  let form_message = fst(snd(snd(model))) in
-  let saved_message = snd(snd(snd(model))) in
+let init = (active_tab="Home", form_name="", form_message="", saved_message="") in
+
+let update = fun (msg, model) ->
+  case msg
+  | Tab(tab) =>
+      ((active_tab=tab, form_name=model.form_name, form_message=model.form_message, saved_message=model.saved_message),
+       CmdNone)
+  | Name(name) =>
+      ((active_tab=model.active_tab, form_name=name, form_message=model.form_message, saved_message=model.saved_message),
+       CmdNone)
+  | Message(text) =>
+      ((active_tab=model.active_tab, form_name=model.form_name, form_message=text, saved_message=model.saved_message),
+       CmdNone)
+  | Submit =>
+      let new_saved = model.form_name ++ ": " ++ model.form_message in
+      ((active_tab=model.active_tab, form_name="", form_message="", saved_message=new_saved),
+       CmdBatch([Log("Form submitted: " ++ new_saved), Focus("name-input")]))
+  end
+in
+
+let view = fun model ->
   let tabs : [String] = ["Home", "Form", "About"] in
   Div(
     [
@@ -45,30 +47,29 @@ let view : (String, (String, (String, String))) -> HTML = fun model ->
       #Header with tabs#
       Div(
         [Style([("display", "flex"), ("background", "#333")])],
-        map(fun tab ->
+        map(tabs, fun tab ->
           Button(
             [
-              OnClick(("tab", tab)),
+              OnClick(Tab(tab)),
               Style([
                 ("flex", "1"),
                 ("padding", "15px"),
                 ("border", "none"),
-                ("background", if tab == active_tab then "#4CAF50" else "#333"),
+                ("background", if tab == model.active_tab then "#4CAF50" else "#333"),
                 ("color", "white"),
                 ("cursor", "pointer"),
                 ("font-size", "14px")
               ])
             ],
             [Text(tab)]
-          ),
-          tabs
+          )
         )
       ),
       #Content area#
       Div(
         [Style([("padding", "20px"), ("min-height", "200px")])],
         [
-          if active_tab == "Home" then
+          if model.active_tab == "Home" then
             Div([], [
               H2([], [Text("Welcome to HazelHtml!")]),
               P([], [Text("This is a demo app showing various features:")]),
@@ -78,15 +79,15 @@ let view : (String, (String, (String, String))) -> HTML = fun model ->
                 Li([], [Text("Commands (Focus, Log)")]),
                 Li([], [Text("Responsive styling")])
               ]),
-              if saved_message != "" then
+              if model.saved_message != "" then
                 Div(
                   [Style([("background", "#e8f5e9"), ("padding", "10px"), ("margin-top", "20px"), ("border-radius", "4px")])],
-                  [Text("Last saved: " ++ saved_message)]
+                  [Text("Last saved: " ++ model.saved_message)]
                 )
               else
                 Div([], [])
             ])
-          else if active_tab == "Form" then
+          else if model.active_tab == "Form" then
             Div([], [
               H2([], [Text("Contact Form")]),
               Div(
@@ -96,9 +97,9 @@ let view : (String, (String, (String, String))) -> HTML = fun model ->
                   Input([
                     Id("name-input"),
                     Type("text"),
-                    Value(form_name),
+                    Value(model.form_name),
                     Placeholder("Enter your name"),
-                    OnInput(fun value -> ("name", value)),
+                    OnInput(fun value -> Name(value)),
                     Style([("width", "100%"), ("padding", "8px"), ("box-sizing", "border-box")])
                   ])
                 ]
@@ -109,18 +110,18 @@ let view : (String, (String, (String, String))) -> HTML = fun model ->
                   Label([Style([("display", "block"), ("margin-bottom", "5px")])], [Text("Message:")]),
                   TextArea(
                     [
-                      Value(form_message),
+                      Value(model.form_message),
                       Placeholder("Enter your message"),
-                      OnInput(fun value -> ("message", value)),
+                      OnInput(fun value -> Message(value)),
                       Style([("width", "100%"), ("padding", "8px"), ("height", "100px"), ("box-sizing", "border-box")])
                     ],
-                    form_message
+                    model.form_message
                   )
                 ]
               ),
               Button(
                 [
-                  OnClick(("submit", "")),
+                  OnClick(Submit),
                   Style([
                     ("background", "#4CAF50"),
                     ("color", "white"),
@@ -155,6 +156,40 @@ let view : (String, (String, (String, String))) -> HTML = fun model ->
   )
 in
 
-let subs : (String, (String, (String, String))) -> Sub = fun _model -> SubNone in
+let subs = fun _model -> SubNone in
 
-(("Home", ("", ("", ""))), update, view, subs)
+# Tests #
+
+hint "tab switch"
+test
+  let (m, _cmd) = update(Tab("Form"), init) in
+  m.active_tab == "Form"
+end;
+
+hint "name input"
+test
+  let (m, _cmd) = update(Name("Alice"), init) in
+  m.form_name == "Alice"
+end;
+
+hint "message input"
+test
+  let (m, _cmd) = update(Message("Hello"), init) in
+  m.form_message == "Hello"
+end;
+
+hint "submit clears form and saves"
+test
+  let filled = (active_tab="Form", form_name="Bob", form_message="Hi", saved_message="") in
+  let (m, _cmd) = update(Submit, filled) in
+  m.form_name == "" && m.form_message == "" && m.saved_message == "Bob: Hi"
+end;
+
+hint "tab preserves form data"
+test
+  let (filled, _) = update(Name("Alice"), init) in
+  let (m, _cmd) = update(Tab("About"), filled) in
+  m.form_name == "Alice"
+end;
+
+(init, update, view, subs)

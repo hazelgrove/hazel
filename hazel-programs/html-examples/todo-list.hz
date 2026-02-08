@@ -1,31 +1,35 @@
 #HazelHtml Todo List Example#
 #A todo list with add/remove functionality#
-#To use: paste into scratchpad, right-click the expression, select "Add HTML"#
+#msg = Msg sum type, model = (todos=[String], input_value=String)#
 
-#Helper: render a single todo item#
-let todo_item = fun (todos, index, item) ->
-  Li(
-    [Style([("padding", "8px"), ("border-bottom", "1px solid #eee"), ("display", "flex"), ("justify-content", "space-between")])],
-    [
-      Span([], [Text(item)]),
-      Button(
-        [
-          OnClick(fun html ->
-            #Remove this item by filtering#
-            let new_todos = filter(fun (i, _) -> i != index, zip(range(0, length(todos)), todos)) in
-            let items = map(snd, new_todos) in
-            todo_list(items, "")
-          ),
-          Style([("background", "#ff4444"), ("color", "white"), ("border", "none"), ("padding", "4px 8px"), ("cursor", "pointer")])
-        ],
-        [Text("X")]
-      )
-    ]
-  )
+type Msg =
+  + AddTodo
+  + RemoveTodo(Int)
+  + UpdateInput(String)
 in
 
-#Main todo list view#
-let todo_list = fun (todos, input_value) ->
+let init = (todos=["Learn Hazel", "Build an app"], input_value="") in
+
+let remove_at : ([String], Int) -> [String] =
+  fun (xs, idx) ->
+    let indexed = mapi(xs, fun (i, x) -> (i, x)) in
+    let filtered = filter(indexed, fun pair -> fst(pair) != idx) in
+    map(filtered, fun pair -> snd(pair))
+in
+
+let update = fun (msg, model) ->
+  case msg
+  | AddTodo =>
+      if model.input_value == "" then model
+      else (todos=model.todos @ [model.input_value], input_value="")
+  | RemoveTodo(idx) =>
+      (todos=remove_at(model.todos, idx), input_value=model.input_value)
+  | UpdateInput(value) =>
+      (todos=model.todos, input_value=value)
+  end
+in
+
+let view = fun model ->
   Div(
     [Class("todo-app"), Style([("max-width", "400px"), ("margin", "20px auto"), ("font-family", "sans-serif")])],
     [
@@ -36,19 +40,14 @@ let todo_list = fun (todos, input_value) ->
         [
           Input([
             Type("text"),
-            Value(input_value),
+            Value(model.input_value),
             Placeholder("Add a todo..."),
-            OnInput(fun (html, value) -> todo_list(todos, value)),
+            OnInput(fun value -> UpdateInput(value)),
             Style([("flex", "1"), ("padding", "8px"), ("font-size", "16px")])
           ]),
           Button(
             [
-              OnClick(fun html ->
-                if input_value == "" then
-                  todo_list(todos, input_value)
-                else
-                  todo_list(todos @ [input_value], "")
-              ),
+              OnClick(AddTodo),
               Style([("padding", "8px 16px"), ("background", "#4CAF50"), ("color", "white"), ("border", "none"), ("cursor", "pointer")])
             ],
             [Text("Add")]
@@ -58,15 +57,69 @@ let todo_list = fun (todos, input_value) ->
       #Todo items#
       Ul(
         [Style([("list-style", "none"), ("padding", "0"), ("margin", "0")])],
-        mapi(todo_item(todos), todos)
+        mapi(model.todos, fun (index, item) ->
+          Li(
+            [Style([("padding", "8px"), ("border-bottom", "1px solid #eee"), ("display", "flex"), ("justify-content", "space-between")])],
+            [
+              Span([], [Text(item)]),
+              Button(
+                [
+                  OnClick(RemoveTodo(index)),
+                  Style([("background", "#ff4444"), ("color", "white"), ("border", "none"), ("padding", "4px 8px"), ("cursor", "pointer")])
+                ],
+                [Text("X")]
+              )
+            ]
+          )
+        )
       ),
       #Item count#
       Div(
         [Style([("text-align", "center"), ("color", "#666"), ("margin-top", "10px")])],
-        [Text(string_of_int(length(todos)) ++ " items")]
+        [Text(string_of_int(length(model.todos)) ++ " items")]
       )
     ]
   )
 in
 
-todo_list(["Learn Hazel", "Build an app"], "")
+let subs = fun _model -> SubNone in
+
+# Tests #
+
+hint "add todo appends to list"
+test
+  let m = update(AddTodo, (todos=["A"], input_value="B")) in
+  m.todos == ["A", "B"] && m.input_value == ""
+end;
+
+hint "add empty todo does nothing"
+test
+  let m = update(AddTodo, (todos=["A"], input_value="")) in
+  m.todos == ["A"]
+end;
+
+hint "remove first todo"
+test
+  let m = update(RemoveTodo(0), (todos=["A", "B", "C"], input_value="")) in
+  m.todos == ["B", "C"]
+end;
+
+hint "remove last todo"
+test
+  let m = update(RemoveTodo(2), (todos=["A", "B", "C"], input_value="")) in
+  m.todos == ["A", "B"]
+end;
+
+hint "remove middle todo"
+test
+  let m = update(RemoveTodo(1), (todos=["A", "B", "C"], input_value="")) in
+  m.todos == ["A", "C"]
+end;
+
+hint "update input"
+test
+  let m = update(UpdateInput("hello"), init) in
+  m.input_value == "hello"
+end;
+
+(init, update, view, subs)

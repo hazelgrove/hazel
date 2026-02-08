@@ -1,0 +1,185 @@
+# EMOJIPAINT MVU #
+# A 3x3 emoji drawing grid with brush selection #
+
+type Emoji = String in
+type Canvas = [[Emoji]] in
+type Row = Int in
+type Col = Int in
+
+type Action =
+  + SetBrush(Int)
+  + PaintCell(Row, Col)
+  + ClearCell(Row, Col)
+  + ClearGrid
+  + PaintRow(Row)
+in
+
+let init = (
+  canvas = [
+    ["", "", ""],
+    ["", "", ""],
+    ["", "", ""]
+  ],
+  brush = "😄",
+  palette = ["😄", "😅", "😆", "😉", "😊"]
+) in
+
+let setCell: (Canvas, Row, Col, Emoji) -> Canvas =
+  fun canvas, row, col, emoji ->
+    mapi(canvas, fun (i, r) ->
+      if i == row
+      then mapi(r, fun (j, c) ->
+        if j == col
+        then emoji
+        else c)
+      else r)
+in
+
+let setRow: (Canvas, Row, Emoji) -> Canvas =
+  fun canvas, targetRow, emoji ->
+    mapi(canvas, fun (i, row) ->
+      if i == targetRow
+      then map(row, fun _ -> emoji)
+      else row)
+in
+
+let setAll: (Canvas, Emoji) -> Canvas =
+  fun (canvas, emoji) ->
+    map(canvas, fun row -> map(row, fun _ -> emoji))
+in
+
+let update = fun (action, model) ->
+  case action
+  | SetBrush(idx) =>
+      (canvas=model.canvas, brush=nth(model.palette, idx), palette=model.palette)
+  | PaintCell(row, col) =>
+      (canvas=setCell(model.canvas, row, col, model.brush), brush=model.brush, palette=model.palette)
+  | ClearCell(row, col) =>
+      (canvas=setCell(model.canvas, row, col, ""), brush=model.brush, palette=model.palette)
+  | ClearGrid =>
+      (canvas=setAll(model.canvas, ""), brush=model.brush, palette=model.palette)
+  | PaintRow(row) =>
+      (canvas=setRow(model.canvas, row, model.brush), brush=model.brush, palette=model.palette)
+  end
+in
+
+let view = fun model ->
+  Div(
+    [Style([("max-width", "400px"), ("margin", "20px auto"), ("font-family", "sans-serif"), ("text-align", "center")])],
+    [
+      H2([], [Text("EmojiPaint")]),
+      # Palette row #
+      Div(
+        [Style([("margin-bottom", "15px"), ("display", "flex"), ("justify-content", "center"), ("gap", "5px")])],
+        mapi(model.palette, fun (idx, emoji) ->
+          Button(
+            [
+              OnClick(SetBrush(idx)),
+              Style([
+                ("font-size", "24px"),
+                ("padding", "8px 12px"),
+                ("cursor", "pointer"),
+                ("border", if emoji == model.brush then "3px solid #4CAF50" else "1px solid #ccc"),
+                ("border-radius", "4px"),
+                ("background", "white")
+              ])
+            ],
+            [Text(emoji)]
+          )
+        )
+      ),
+      # Canvas grid #
+      Div(
+        [Style([("display", "inline-block")])],
+        mapi(model.canvas, fun (row_idx, row) ->
+          Div(
+            [Style([("display", "flex"), ("justify-content", "center")])],
+            mapi(row, fun (col_idx, cell) ->
+              Button(
+                [
+                  OnClick(PaintCell(row_idx, col_idx)),
+                  Style([
+                    ("width", "60px"),
+                    ("height", "60px"),
+                    ("font-size", "28px"),
+                    ("border", "1px solid #ddd"),
+                    ("cursor", "pointer"),
+                    ("background", "white")
+                  ])
+                ],
+                [Text(if cell == "" then " " else cell)]
+              )
+            )
+          )
+        )
+      ),
+      # Controls #
+      Div(
+        [Style([("margin-top", "15px")])],
+        [
+          Button(
+            [
+              OnClick(ClearGrid),
+              Style([("padding", "8px 16px"), ("background", "#ff4444"), ("color", "white"), ("border", "none"), ("cursor", "pointer"), ("border-radius", "4px")])
+            ],
+            [Text("Clear All")]
+          )
+        ]
+      ),
+      # Current brush display #
+      Div(
+        [Style([("margin-top", "10px"), ("color", "#666")])],
+        [Text("Brush: " ++ model.brush)]
+      )
+    ]
+  )
+in
+
+let subs = fun _model -> SubNone in
+
+# Tests #
+
+let do = fun (m, actions) -> fold_left(actions, fun (acc, a) -> update(a, acc), m) in
+
+hint "paint a cell"
+test
+  let m = update(PaintCell(0, 0), init) in
+  m.canvas == [["😄", "", ""], ["", "", ""], ["", "", ""]]
+end;
+
+hint "paint a row"
+test
+  let m = update(PaintRow(1), init) in
+  m.canvas == [["", "", ""], ["😄", "😄", "😄"], ["", "", ""]]
+end;
+
+hint "set brush and paint"
+test
+  let m = do(init, [SetBrush(1), PaintCell(2, 2)]) in
+  m.canvas == [["", "", ""], ["", "", ""], ["", "", "😅"]]
+  && m.brush == "😅"
+end;
+
+hint "paint row then clear cell"
+test
+  let m = do(init, [PaintRow(0), ClearCell(0, 1)]) in
+  m.canvas == [["😄", "", "😄"], ["", "", ""], ["", "", ""]]
+end;
+
+hint "clear grid"
+test
+  let m = do(init, [PaintCell(1, 1), ClearGrid]) in
+  m.canvas == [["", "", ""], ["", "", ""], ["", "", ""]]
+end;
+
+hint "multiple operations"
+test
+  let m = do(init, [
+    PaintRow(0),
+    SetBrush(2),
+    PaintCell(1, 1)
+  ]) in
+  m.canvas == [["😄", "😄", "😄"], ["", "😆", ""], ["", "", ""]]
+end;
+
+(init, update, view, subs)
