@@ -374,17 +374,29 @@ module Sub = {
         ("SubBatch", Some(list(var("Sub")))),
         // === Window events ===
         // OnResize: (Int, Int) -> msg
-        ("OnResize", Some(arrow(prod([int(), int()]), unknown(Internal)))),
+        (
+          "OnResize",
+          Some(arrow(prod([int(), int()]), unknown(Internal))),
+        ),
         // OnVisibilityChange: Bool -> msg
         ("OnVisibilityChange", Some(arrow(bool(), unknown(Internal)))),
         // === Global keyboard (document level) ===
         // OnDocumentKeyDown: KeyEvent -> msg
-        ("OnDocumentKeyDown", Some(arrow(var("KeyEvent"), unknown(Internal)))),
+        (
+          "OnDocumentKeyDown",
+          Some(arrow(var("KeyEvent"), unknown(Internal))),
+        ),
         // OnDocumentKeyUp: KeyEvent -> msg
-        ("OnDocumentKeyUp", Some(arrow(var("KeyEvent"), unknown(Internal)))),
+        (
+          "OnDocumentKeyUp",
+          Some(arrow(var("KeyEvent"), unknown(Internal))),
+        ),
         // === Time-based ===
         // Every: (interval ms, Float -> msg)
-        ("Every", Some(prod([float(), arrow(float(), unknown(Internal))]))),
+        (
+          "Every",
+          Some(prod([float(), arrow(float(), unknown(Internal))])),
+        ),
         // AnimationFrame: Float -> msg
         ("AnimationFrame", Some(arrow(float(), unknown(Internal)))),
       ]),
@@ -396,11 +408,13 @@ module Sub = {
 module App = {
   let t: Typ.t =
     prod([
-      unknown(Internal),                                    // init_model
-      arrow(prod([unknown(Internal), unknown(Internal)]),   // update: (msg, model) ->
-            unknown(Internal)),                             //   model (or (model, Cmd))
-      arrow(unknown(Internal), var("HTML")),                // view: model -> HTML
-      arrow(unknown(Internal), var("Sub")),                 // subs: model -> Sub
+      unknown(Internal), // init_model
+      arrow(
+        prod([unknown(Internal), unknown(Internal)]), // update: (msg, model) ->
+        unknown(Internal),
+      ), //   model (or (model, Cmd))
+      arrow(unknown(Internal), var("HTML")), // view: model -> HTML
+      arrow(unknown(Internal), var("Sub")) // subs: model -> Sub
     ]);
 };
 

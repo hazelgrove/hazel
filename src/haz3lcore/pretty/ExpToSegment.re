@@ -1034,7 +1034,7 @@ let fold_fun_if = (condition, f_name: string, pieces, exp) =>
       FoldProj.sexp_of_t({
         text: f_name,
         expanded: false,
-        always_render: true,
+        always_render: false //TODO(andrew): re-enable maybe (causes massive slowdown for progs with big types)
       })
       |> Sexplib.Sexp.to_string;
     [ProjectorInit.init_or_noop_from_str(Fold, syntax, Exp(exp), str)];

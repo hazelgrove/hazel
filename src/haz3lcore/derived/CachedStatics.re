@@ -13,11 +13,11 @@ type t = {
 let empty: t = {
   term: {
     term: Tuple([]),
-    annotation: IdTagged.IdTag.temp(),
+    annotation: IdTagged.IdTag.temp,
   },
   elaborated: {
     term: Tuple([]),
-    annotation: IdTagged.IdTag.temp(),
+    annotation: IdTagged.IdTag.temp,
   },
   info_map: Id.Map.empty,
   error_ids: [],

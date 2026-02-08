@@ -1,6 +1,6 @@
 #HazelHtml Keyboard Game#
 #Move a box with arrow keys using OnDocumentKeyDown subscription#
-#msg = KeyEvent, model = (Int, Int)#
+#msg = String (just the key name), model = (Int, Int)#
 
 let max : (Int, Int) -> Int = fun (a, b) -> if a > b then a else b in
 let min : (Int, Int) -> Int = fun (a, b) -> if a < b then a else b in
@@ -10,14 +10,13 @@ let step : Int = 20 in
 let update = fun (msg, model) ->
   let x = fst(model) in
   let y = snd(model) in
-  let key = fst(msg) in
-  if key == "ArrowUp" then
+  if msg == "ArrowUp" then
     (x, max(0, y - step))
-  else if key == "ArrowDown" then
+  else if msg == "ArrowDown" then
     (x, min(360, y + step))
-  else if key == "ArrowLeft" then
+  else if msg == "ArrowLeft" then
     (max(0, x - step), y)
-  else if key == "ArrowRight" then
+  else if msg == "ArrowRight" then
     (min(360, x + step), y)
   else
     model
@@ -65,7 +64,7 @@ let view : (Int, Int) -> HTML = fun model ->
 in
 
 let subs : (Int, Int) -> Sub = fun _model ->
-  OnDocumentKeyDown(fun key_event -> key_event)
+  OnDocumentKeyDown(fun (key, _code, _ctrl, _shift, _alt, _meta) -> key)
 in
 
 ((180, 180), update, view, subs)

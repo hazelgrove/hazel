@@ -61,7 +61,7 @@ let equal = fast_equal;
 let temp: term => t =
   term => {
     term,
-    annotation: IdTagged.IdTag.temp(),
+    annotation: IdTagged.IdTag.temp,
   };
 let fresh: term => t = IdTagged.fresh;
 

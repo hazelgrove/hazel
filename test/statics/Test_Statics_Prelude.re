@@ -194,5 +194,5 @@ module FIError =
 module FTemp =
   Grammar.Factory({
     type t = IdTagged.IdTag.t;
-    let default_value = (): IdTagged.IdTag.t => IdTagged.IdTag.temp();
+    let default_value = (): IdTagged.IdTag.t => IdTagged.IdTag.temp;
   });
