@@ -33,6 +33,93 @@ let reset_elab_stats = () => {
   fix_typ_ids_time := 0.0;
 };
 
+/* Normalize a constructor's type annotation, but keep it compact if the
+   constructor belongs to an unshadowed builtin sum type. Builtin type aliases
+   (HTML, Attr, etc.) use Var references like Var("HTML") in Ctx.add_ctrs.
+   Keeping these compact through elaboration enables the Var-Var fast path
+   in Typ.meet during post-eval statics, avoiding expensive structural
+   comparison of large sum types. Ascriptions.re resolves these Var references
+   lazily via weak_head_normalize with the builtin context. */
+/* Recursively replace Rec("name", ...) with Var("name") for unshadowed
+   builtin type aliases. Returns the original type unchanged if no builtin
+   Rec types are found. Preserves physical identity when nothing changes. */
+let rec compact_builtin_recs = (ctx: Ctx.t, ty: Typ.t): Typ.t => {
+  let is_builtin_alias = (name: string): bool =>
+    List.exists(((n, _)) => n == name, BuiltinsADT.type_aliases)
+    && Ctx.lookup_tvar_id(ctx, name) == Some(Id.invalid);
+  switch (Typ.term_of(ty)) {
+  | Rec(tp, _) =>
+    switch (TPat.tyvar_of_utpat(tp)) {
+    | Some(name) when is_builtin_alias(name) => Var(name) |> Typ.temp
+    | _ => ty
+    }
+  | Arrow(t1, t2) =>
+    let t1' = compact_builtin_recs(ctx, t1);
+    let t2' = compact_builtin_recs(ctx, t2);
+    if (t1' === t1 && t2' === t2) {
+      ty;
+    } else {
+      Arrow(t1', t2') |> Typ.temp;
+    };
+  | List(t) =>
+    let t' = compact_builtin_recs(ctx, t);
+    if (t' === t) {
+      ty;
+    } else {
+      List(t') |> Typ.temp;
+    };
+  | Prod(ts) =>
+    let ts' = List.map(compact_builtin_recs(ctx), ts);
+    if (List.for_all2((===), ts, ts')) {
+      ty;
+    } else {
+      Prod(ts') |> Typ.temp;
+    };
+  | TupLabel(l, t) =>
+    let t' = compact_builtin_recs(ctx, t);
+    if (t' === t) {
+      ty;
+    } else {
+      TupLabel(l, t') |> Typ.temp;
+    };
+  | Parens(t) =>
+    let t' = compact_builtin_recs(ctx, t);
+    if (t' === t) {
+      ty;
+    } else {
+      Parens(t') |> Typ.temp;
+    };
+  | _ => ty
+  };
+};
+
+let normalize_ctr_type = (ctx: Ctx.t, ty: Typ.t): Typ.t => {
+  /* First try: check if the type already has a compact builtin return type */
+  let return_type_name =
+    switch (Typ.term_of(ty)) {
+    | Var(name) => Some(name)
+    | Arrow(_, {term: Var(name), _}) => Some(name)
+    | _ => None
+    };
+  switch (return_type_name) {
+  | Some(name)
+      when
+        List.exists(((n, _)) => n == name, BuiltinsADT.type_aliases)
+        && Ctx.lookup_tvar_id(ctx, name) == Some(Id.invalid) =>
+    ty
+  | _ =>
+    /* Second try: compact any expanded builtin Rec types back to Var.
+       This handles the case where the meet result has Rec("HTML",...)
+       instead of Var("HTML") due to ctr_ana_typ unrolling. */
+    let compacted = compact_builtin_recs(ctx, ty);
+    if (compacted !== ty) {
+      compacted;
+    } else {
+      Typ.normalize(ctx, ty);
+    };
+  };
+};
+
 let fresh_ascription = (ctx: Ctx.t, d: Exp.t, t: Typ.t, t': option(Typ.t)) => {
   IdTagged.FreshGrammar.Exp.(
     switch (t') {
@@ -40,13 +127,18 @@ let fresh_ascription = (ctx: Ctx.t, d: Exp.t, t: Typ.t, t': option(Typ.t)) => {
     | Some(ty) when Typ.fast_equal(ty, t) => d
     | Some(ty) =>
       /* Types didn't match on fast_equal (unnormalized).
-         Normalize both and compare again before inserting ascription. */
+         Normalize both and compare again before inserting ascription.
+         IMPORTANT: We store the UNNORMALIZED type in the Asc node to
+         keep types compact (e.g., Var("HTML") instead of Rec("HTML", Sum(...))).
+         Ascriptions.re resolves types lazily via weak_head_normalize when
+         it needs the structural form. This enables the Var-Var fast path
+         in Typ.meet for post-eval statics and keeps eval output compact. */
       let ty_n = Typ.normalize(ctx, ty);
       let t_n = Typ.normalize(ctx, t);
       if (Typ.fast_equal(ty_n, t_n)) {
         d;
       } else {
-        asc(d, ty_n);
+        asc(d, ty);
       };
     | _ => d
     }
@@ -180,7 +272,7 @@ let rec elaborate_pattern =
       Projector(data, p') |> rewrap;
     | Asc(p, t) =>
       let (p', _) = elaborate_pattern(m, p);
-      Asc(p', Typ.normalize(ctx, t)) |> rewrap;
+      Asc(p', normalize_ctr_type(ctx, t)) |> rewrap;
     | Constructor(c, _) =>
       let ana_ty =
         switch (Id.Map.find_opt(Pat.rep_id(upat), m)) {
@@ -189,8 +281,9 @@ let rec elaborate_pattern =
         };
       let t =
         switch (Self.ctr_ana_typ(ctx, ana_ty, c), Ctx.lookup_ctr(ctx, c)) {
-        | (Some(ana_ty), _) => Some(Typ.normalize(ctx, ana_ty))
-        | (_, Some({typ: syn_ty, _})) => Some(Typ.normalize(ctx, syn_ty))
+        | (Some(ana_ty), _) => Some(normalize_ctr_type(ctx, ana_ty))
+        | (_, Some({typ: syn_ty, _})) =>
+          Some(normalize_ctr_type(ctx, syn_ty))
         | _ => None
         };
       Constructor(c, Some(t)) |> rewrap;
@@ -256,7 +349,7 @@ let rec elaborate = (m: Statics.Map.t, uexp: Exp.t): (DHExp.t, Typ.t) => {
       let (e', _) = elaborate(m, e);
       DynamicErrorHole(e', err) |> rewrap;
     | Asc(e, t) =>
-      Asc(elaborate(m, e) |> fst, Typ.normalize(ctx, t)) |> rewrap
+      Asc(elaborate(m, e) |> fst, normalize_ctr_type(ctx, t)) |> rewrap
     | Parens(e) =>
       let (e', _) = elaborate(m, e);
       Parens(e') |> rewrap;
@@ -289,7 +382,7 @@ let rec elaborate = (m: Statics.Map.t, uexp: Exp.t): (DHExp.t, Typ.t) => {
       let t =
         switch (self) {
         | Common(FreeConstructor(_)) => Some(None)
-        | _ => Some(Some(Typ.normalize(ctx, ty)))
+        | _ => Some(Some(normalize_ctr_type(ctx, ty)))
         };
       Constructor(c, t) |> rewrap;
     | Fun(p, e, _, n) =>

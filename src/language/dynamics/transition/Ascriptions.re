@@ -7,6 +7,16 @@
  Ascriptions should be propagated inside of expressions when consistent.
  e.g. [1, 2] : [Int] -> [1 : Int, 2 : Int]
 
+ IMPORTANT: This module does NOT assume types are pre-normalized. Types in
+ ascription nodes may be compact Var references (e.g., Var("HTML")) rather
+ than expanded structural forms (e.g., Rec("HTML", Sum(47 ctrs))). All
+ structural pattern matching on types must go through weak_head_normalize
+ first. This design:
+   1. Enables the Var-Var fast path in Typ.meet for post-eval statics
+   2. Keeps eval output compact (better display, smaller serialization)
+   3. Is the first step toward full type closures (Option B) where each
+      type carries its own resolution context
+
  ID PRESERVATION FOR PROBES:
  When an ascription transition transforms an expression, we preserve the original
  expression's ID. This is critical for the probe system, which tracks expressions
@@ -17,7 +27,18 @@
  either by returning `Some(e)` directly, or by using `IdTagged.fast_copy(DHExp.rep_id(e), ...)`
  when constructing a new expression structure.
  */
+
+/* Builtin context for type resolution, set once at startup via set_ctx.
+   Types in Asc nodes may be compact Var references (e.g., Var("HTML"))
+   that need resolution for structural matching. This is a ref rather
+   than a direct import to break a dependency cycle (Ascriptions →
+   Builtins → ... → Unboxing → Ascriptions). The context is constant
+   after initialization — it contains only builtin type aliases. */
+let ctx_ref: ref(Ctx.t) = ref(Ctx.empty);
+let set_ctx = (ctx: Ctx.t) => ctx_ref := ctx;
+
 let rec transition = (~recursive=false, d: DHExp.t): option(DHExp.t) => {
+  let ctx = ctx_ref^;
   let recur = (d: DHExp.t): DHExp.t =>
     if (recursive) {
       transition(~recursive, d) |> Option.value(~default=d);
@@ -26,18 +47,16 @@ let rec transition = (~recursive=false, d: DHExp.t): option(DHExp.t) => {
     };
   switch (DHExp.term_of(d)) {
   | Asc(e, t) =>
-    switch (DHExp.term_of(e), Typ.term_of(Typ.unroll(t))) {
+    /* Resolve the type for structural matching. Types may be Var("HTML")
+       which needs weak_head_normalize to get the structural form (Rec/Sum/Arrow).
+       The ORIGINAL compact type `t` is preserved in newly created Asc nodes. */
+    let t_resolved = Typ.weak_head_normalize(ctx, t);
+    switch (DHExp.term_of(e), Typ.term_of(Typ.unroll(t_resolved))) {
     | (Asc(e, t'), t)
         // This is only necessary because sometimes we add two ascriptions and aren't marking it as a non-value
         when
-          Typ.is_consistent(
-            Ctx.empty,
-            Typ.unroll(t |> Typ.temp),
-            Typ.unroll(t'),
-          ) =>
-      switch (
-        Typ.meet(Ctx.empty, Typ.unroll(t |> Typ.temp), Typ.unroll(t'))
-      ) {
+          Typ.is_consistent(ctx, Typ.unroll(t |> Typ.temp), Typ.unroll(t')) =>
+      switch (Typ.meet(ctx, Typ.unroll(t |> Typ.temp), Typ.unroll(t'))) {
       | Some(t) => Some(recur(Asc(e, t) |> DHExp.fresh))
       | None => None //TODO  This is an impossible case since we checked consistency
       }
@@ -167,8 +186,7 @@ let rec transition = (~recursive=false, d: DHExp.t): option(DHExp.t) => {
         ),
         Sum(m) as sumt',
       )
-        when
-          Typ.is_consistent(Ctx.empty, Typ.unroll(sumt), sumt' |> Typ.temp) =>
+        when Typ.is_consistent(ctx, Typ.unroll(sumt), sumt' |> Typ.temp) =>
       let entry = ConstructorMap.get_entry(c, m);
       switch (entry) {
       | Some(Some(t')) =>
@@ -180,7 +198,7 @@ let rec transition = (~recursive=false, d: DHExp.t): option(DHExp.t) => {
       | None => None
       };
     | (Constructor(_, Some(Some(t))), t')
-        when Typ.is_consistent(Ctx.empty, Typ.unroll(t), t' |> Typ.temp) =>
+        when Typ.is_consistent(ctx, Typ.unroll(t), t' |> Typ.temp) =>
       Some(e)
     | (ProofObject(e1), ProofOf(e2)) when Exp.fast_equal(e1, e2) =>
       Some(ProofObject(e1) |> DHExp.fresh)
@@ -189,12 +207,12 @@ let rec transition = (~recursive=false, d: DHExp.t): option(DHExp.t) => {
     | (BinOp(bin_op, _, _), _) =>
       switch (Operators.semantics_of_bin_op(bin_op)) {
       | DefinedPoly(Equals | NotEquals)
-          when Typ.is_consistent(Ctx.empty, t, Atom(Bool) |> Typ.temp) =>
+          when Typ.is_consistent(ctx, t, Atom(Bool) |> Typ.temp) =>
         Some(e)
       | Defined(_, _, ty_out, _)
           when
             Typ.is_consistent(
-              Ctx.empty,
+              ctx,
               t,
               Atom(Atom.cls_of_kind(ty_out)) |> Typ.temp,
             ) =>
@@ -208,7 +226,7 @@ let rec transition = (~recursive=false, d: DHExp.t): option(DHExp.t) => {
       | Defined(_, ty_out, _)
           when
             Typ.is_consistent(
-              Ctx.empty,
+              ctx,
               t,
               Atom(Atom.cls_of_kind(ty_out)) |> Typ.temp,
             ) =>
@@ -270,7 +288,7 @@ let rec transition = (~recursive=false, d: DHExp.t): option(DHExp.t) => {
     | (Cons(_), _)
     | (ProofObject(_), _)
     | (Constructor(_), _) => None
-    }
+    };
   | _ => None
   };
 };

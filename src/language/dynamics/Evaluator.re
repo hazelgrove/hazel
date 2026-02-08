@@ -241,11 +241,19 @@ let evaluate_and_limit =
       d: DHExp.t,
     )
     : step_constrained((Exp.t, EvaluatorState.t)) => {
+  /* Initialize Ascriptions with builtin context for type resolution.
+     This lets types stay as compact Var references through evaluation. */
+  Ascriptions.set_ctx(Builtins.ctx_init(None));
   let state = ref(EvaluatorState.mk(~targets));
   let result = evaluate(~call_stack=[], state, env, d);
   let result = Trampoline.run(~step_limit?, result);
   switch (result) {
   | Completed((_, _, x)) =>
+    /* TODO: replace_all_ids here is likely redundant — Substitution.in_exp
+       already calls it on each substituted value (Substitution.re:34), and
+       display sites (stepper, ExpToSegment) do their own freshening.
+       Consider removing; not performance-critical (Constructor is atomic
+       in map_term so types aren't traversed) but conceptually wrong layer. */
     Completed((x |> Substitution.in_exp(env) |> Exp.replace_all_ids, state^))
   | StepLimitExceeded => StepLimitExceeded
   };

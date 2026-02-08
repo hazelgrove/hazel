@@ -858,19 +858,29 @@ and uexp_to_info_map =
           };
 
         /* This logic lets us treat constructors differently to functions in
-           terms of error localization */
+           terms of error localization.
+           Optimization: When the constructor already has a type annotation
+           (e.g., from elaboration in post-eval statics), use it directly as
+           fn_ana. This avoids the expensive ctr_ana_typ path which unrolls
+           Rec types, causing O(n) meets where n = number of sum constructors.
+           For unannotated constructors (pre-eval), the original ctr_ana_typ
+           path is used for proper error localization. */
         let fn_ana =
-          switch (Exp.ctr_name(fn)) {
-          | Some(name) =>
-            switch (Self.ctr_ana_typ(ctx, ana, name)) {
-            | Some(ty_ana) =>
-              switch (Typ.matched_arrow_strict(ctx, ty_ana)) {
-              | Some((ty1, ty2)) => Arrow(ty1, ty2) |> Typ.temp
+          switch (fn.term) {
+          | Constructor(_, Some(Some(ty))) => ty
+          | _ =>
+            switch (Exp.ctr_name(fn)) {
+            | Some(name) =>
+              switch (Self.ctr_ana_typ(ctx, ana, name)) {
+              | Some(ty_ana) =>
+                switch (Typ.matched_arrow_strict(ctx, ty_ana)) {
+                | Some((ty1, ty2)) => Arrow(ty1, ty2) |> Typ.temp
+                | None => Arrow(syn, syn) |> Typ.temp
+                }
               | None => Arrow(syn, syn) |> Typ.temp
               }
             | None => Arrow(syn, syn) |> Typ.temp
             }
-          | None => Arrow(syn, syn) |> Typ.temp
           };
         let (fn, m) = go(~ana=fn_ana, fn, m);
         switch (custom_statics) {
@@ -925,20 +935,23 @@ and uexp_to_info_map =
         | _ => None
         };
 
-      /* This logic lets us treat constructors differently to functions in
-         terms of error localization */
+      /* Same optimization as Ap: use constructor annotation directly when available */
       let fn_ana =
-        switch (Exp.ctr_name(fn)) {
-        | Some(name) =>
-          switch (Self.ctr_ana_typ(ctx, ana, name)) {
-          | Some(ty_ana) =>
-            switch (Typ.matched_arrow_strict(ctx, ty_ana)) {
-            | Some((ty1, ty2)) => Arrow(ty1, ty2) |> Typ.temp
+        switch (fn.term) {
+        | Constructor(_, Some(Some(ty))) => ty
+        | _ =>
+          switch (Exp.ctr_name(fn)) {
+          | Some(name) =>
+            switch (Self.ctr_ana_typ(ctx, ana, name)) {
+            | Some(ty_ana) =>
+              switch (Typ.matched_arrow_strict(ctx, ty_ana)) {
+              | Some((ty1, ty2)) => Arrow(ty1, ty2) |> Typ.temp
+              | None => Arrow(syn, syn) |> Typ.temp
+              }
             | None => Arrow(syn, syn) |> Typ.temp
             }
           | None => Arrow(syn, syn) |> Typ.temp
           }
-        | None => Arrow(syn, syn) |> Typ.temp
         };
       let (fn, m) = go(~ana=fn_ana, fn, m);
 

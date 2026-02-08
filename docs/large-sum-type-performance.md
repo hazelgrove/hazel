@@ -602,7 +602,7 @@ upstream normalization, which poisons downstream statics.**
 
 ## Remediation Options (Feb 8, 2026)
 
-### Option A: Builtin-specific — Give Ascriptions.re a real context (RECOMMENDED FIRST)
+### Option A: Builtin-specific — Give Ascriptions.re a real context (SELECTED)
 
 Replace `Typ.meet(Ctx.empty, ...)` with `Typ.meet(builtin_ctx, ...)` in
 Ascriptions.re. This lets types stay as `Var("HTML")` through evaluation, hitting
@@ -610,14 +610,44 @@ the Var-Var fast path. Zero changes to the AST representation, zero postMessage
 concerns. Implementation: thread the builtin alias map (or full initial context)
 through the evaluator to Ascriptions.re.
 
+**Key architectural change**: Ascriptions.re currently assumes all types are
+pre-normalized (no unresolved Vars). After this change, it MUST NOT assume
+normalization — it resolves types lazily via `weak_head_normalize(ctx, t)` before
+structural pattern matching. This is documented prominently in Ascriptions.re.
+
+**Incremental toward type closures (Option B)**: The Ascriptions.re changes
+(removing normalization assumption, adding context-based lazy resolution) are
+identical to what Option B requires. The only difference is where the context
+comes from: Option A threads a single `builtin_ctx`, Option B would use per-type
+context closures. So this work is NOT throwaway — it's the first step toward
+the principled long-term architecture.
+
+**Display benefit**: Types in the eval result stay as compact `Var("HTML")` instead
+of expanded `Rec("HTML", Sum(47 ctrs))`. This also addresses large-output display
+problems — no need for post-hoc alias replacement in the view layer.
+
 Concretely:
-- Store `Builtins.ctx_init` (or the alias subset) as a field available to the
-  evaluator's transition functions
-- In Ascriptions.re, use this context instead of `Ctx.empty` for all `meet`,
-  `is_consistent`, and `unroll` calls
-- In the elaborator, stop normalizing types in `fresh_ascription` — keep them
-  as compact Var references
-- Ascriptions.re can now resolve `Var("HTML")` itself when needed
+- Store `Builtins.ctx_init` (or the alias subset) on `EvaluatorState.t`
+- Thread it to `Ascriptions.transition` (5 call sites in Transition.re)
+- In Ascriptions.re: add `weak_head_normalize(ctx, t)` before structural matching,
+  replace 6 `Ctx.empty` calls with the threaded context
+- In the elaborator, modify `fresh_ascription` — keep types as `Var(x)` when `x`
+  is an unshadowed builtin alias (check via context lookup + `===` against known
+  builtin type objects)
+- Shadowed builtins still get normalized as before (correct behavior)
+
+**Shadowing check cost**: To determine if `Var("HTML")` refers to an unshadowed
+builtin, `fresh_ascription` does `Ctx.lookup_alias(ctx, "HTML")` (O(context_depth)
+linear scan) then `===` against the builtin type object (O(1)). Context depth is
+typically 10-50 entries. This replaces a `Typ.normalize` call that traverses the
+entire 47-constructor sum type tree — strictly cheaper. If context depth ever
+becomes a concern, a `Set<string>` of currently-shadowed builtin names could be
+maintained incrementally (O(1) check), but this is unlikely to be needed.
+
+**Option C (interning) was considered but rejected**: Interning relies on physical
+equality (`===`), which is destroyed by `Exp.replace_all_ids` (Evaluator.re:249).
+Option A uses the Var-Var string comparison fast path in `meet`, which is robust
+to any pass that clones or re-IDs types.
 
 **Estimated impact**: Should eliminate nearly all 17K sum-sum meets in post-eval
 statics, since builtins are the overwhelming source. Post-eval statics could drop
@@ -649,7 +679,10 @@ context approach is simpler and probably equivalent in practice. Just pair (type
 — zero extra elaborator work, structured clone handles the sharing, done."
 
 This is the right long-term architecture for user-defined types, not just builtins.
-But Option A is simpler and solves the immediate problem.
+Option A is the first incremental step — its Ascriptions.re changes (removing the
+normalization assumption, adding lazy resolution via context) are shared with this
+approach. Moving from A to B later requires only changing the context source, not
+the consumer code.
 
 ### Option C: Type interning
 
@@ -683,6 +716,86 @@ immediately. ~20-30 lines of code.
 - **Arrow/List/TupLabel meet skip**: Minor allocation savings
 - **ConstructorMap.map phys eq**: Minor allocation savings
 - **All 6 meet optimizations combined**: post_statics 2,249ms→~1,270ms (-44%)
+
+## Post-Eval Statics: SOLVED (Feb 8, 2026)
+
+Implemented **Option A** (compact builtin types + lazy resolution in Ascriptions.re).
+
+### Root cause (confirmed empirically)
+
+Shape diagnostics in bench.re revealed the source:
+- Constructor annotations had `has_rec=49` after elaboration (49 of 79 constructors)
+- Asc nodes had `has_rec=0` — Asc nodes were NOT the source
+- The Rec types came from `normalize_ctr_type` falling through to full normalize
+
+The chain:
+1. `Self.ctr_ana_typ` → `get_sum_constructors` unrolls Rec → `ana = Arrow(_, Rec(...))`
+2. `Typ.meet(ana, syn)` where syn has `Var("HTML")` → var_expand → result has Rec
+3. `Info.InfoExp.ty` = meet result with Rec (from `status_common`)
+4. `normalize_ctr_type` gets `Arrow(_, Rec(...))`, doesn't match `Arrow(_, Var(name))`
+5. Falls through to `Typ.normalize` → fully expands everything
+6. Post-eval statics hits these → 2M meet calls, 17K sum meets
+
+### Fix: `compact_builtin_recs` in Elaborator.re
+
+New function that recursively replaces `Rec(tp, _)` → `Var(name)` for unshadowed
+builtin type aliases. Called from `normalize_ctr_type` when the fast path
+(`Arrow(_, Var(name))`) doesn't match. Combined with:
+- `fresh_ascription`: stores unnormalized type `ty` (not `ty_n`) in Asc nodes
+- `Ascriptions.re`: resolves lazily via `weak_head_normalize(builtin_ctx, t)`
+- `Evaluator.re`: calls `Ascriptions.set_ctx(Builtins.ctx_init(None))` at start
+
+### Results
+
+| Program | Post Statics (before) | Post Statics (after) | Speedup |
+|---------|----------------------|---------------------|---------|
+| counter | 391ms | 1.0ms | 391x |
+| mvu_counter | 549ms | 1.0ms | 549x |
+| keyboard_game | 264ms | 2.1ms | 126x |
+| animation | 149ms | 1.3ms | 115x |
+| full_app | 2,133ms | 3.7ms | **577x** |
+
+Meet stats (full_app post_statics):
+- Meet calls: 2,021,652 → 2,578
+- Sum meets: 17,733 → **0**
+- Rec-Rec: 420 → **0**
+- Var-Var eq: 4 → **96**
+
+Shape data after fix: `has_rec=1` in elab/eval (down from 49). One remaining
+has_rec is a non-builtin edge case, not performance-critical.
+
+### Investigation of `replace_all_ids` (NOT the cause)
+
+`Exp.replace_all_ids` (Evaluator.re:252) was initially suspected as a source
+of expanded types, but investigation showed `Constructor(_) => term` in
+`TermBase.re:map_term` — Constructor is ATOMIC, so neither `replace_all_ids`
+nor `Substitution.in_exp` traverses constructor type annotations. The expanded
+Rec types are introduced during ELABORATION, not evaluation. `replace_all_ids`
+was restored with a TODO note for future removal (redundant with per-substitution
+freshening in Substitution.re:34).
+
+### Compatibility with type closures (Option B)
+
+`compact_builtin_recs` is a step TOWARD type closures:
+- Same pattern: keep types compact (Var refs), resolve lazily via context
+- Ascriptions.re changes (lazy resolution via `weak_head_normalize`) are shared
+- When type closures arrive, `compact_builtin_recs` becomes unnecessary
+- Easy to unwind: remove function, revert `fresh_ascription` (1 line),
+  remove `Ascriptions.set_ctx` (1 line)
+
+## Cumulative Performance Summary
+
+All measurements on `full_app` benchmark (HTML app with 47-constructor sum types).
+
+| Stage | Original | After all fixes | Speedup |
+|-------|----------|----------------|---------|
+| Statics | 252ms | 16ms | 16x |
+| Elaboration | 1,273ms | 2.7ms | 471x |
+| Evaluation | 29ms | 2.6ms | 11x |
+| Post-eval statics | 2,133ms | 3.7ms | 577x |
+| Post-eval elab | 85ms | 3.4ms | 25x |
+| ExpToSegment | 138ms | 2.5ms | 55x |
+| **Total pipeline** | **~3,910ms** | **~31ms** | **~126x** |
 
 ## Type Flow Investigation (Feb 8, 2026)
 

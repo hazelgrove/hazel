@@ -281,7 +281,7 @@ let map = (type a, f: option(a) => option(a), m: t(a)): t(a) => {
           };
           Variant(ctr, args, value');
         | BadEntry(value) => BadEntry(value)
-        };
+        }
       },
       m,
     );

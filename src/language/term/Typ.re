@@ -474,8 +474,7 @@ let rec subst = (s: t, x: TPat.t, ty: t): t => {
       } else {
         Sum(sm') |> rewrap;
       };
-    | Poly(tp2, _) when TPat.tyvar_of_utpat(x) == TPat.tyvar_of_utpat(tp2) =>
-      ty
+    | Poly(tp2, _) when TPat.tyvar_of_utpat(x) == TPat.tyvar_of_utpat(tp2) => ty
     | Poly(tp2, t) =>
       let t' = subst(s, x, t);
       if (t' === t) {
@@ -483,8 +482,7 @@ let rec subst = (s: t, x: TPat.t, ty: t): t => {
       } else {
         Poly(tp2, t') |> rewrap;
       };
-    | Rec(tp2, _) when TPat.tyvar_of_utpat(x) == TPat.tyvar_of_utpat(tp2) =>
-      ty
+    | Rec(tp2, _) when TPat.tyvar_of_utpat(x) == TPat.tyvar_of_utpat(tp2) => ty
     | Rec(tp2, t) =>
       let t' = subst(s, x, t);
       if (t' === t) {
@@ -751,6 +749,9 @@ let meet_var_eq = ref(0);
 let meet_rec_rec = ref(0);
 let meet_in_rec = ref(false);
 let meet_sum_from_rec = ref(0);
+let meet_phys_eq = ref(0);
+let meet_var_expand = ref(0);
+let meet_unknown = ref(0);
 let reset_meet_stats = () => {
   meet_calls := 0;
   meet_sum_calls := 0;
@@ -759,6 +760,9 @@ let reset_meet_stats = () => {
   meet_rec_rec := 0;
   meet_in_rec := false;
   meet_sum_from_rec := 0;
+  meet_phys_eq := 0;
+  meet_var_expand := 0;
+  meet_unknown := 0;
 };
 
 /* Lattice meet on types. This was called 'join' in the 2019 Hazelnut live paper,
@@ -767,6 +771,7 @@ let reset_meet_stats = () => {
 let rec meet = (ctx: Ctx.t, ty1: t, ty2: t): option(t) => {
   incr(meet_calls);
   if (ty1 === ty2) {
+    incr(meet_phys_eq);
     Some(ty1);
   } else {
     let meet' = meet(ctx);
@@ -778,13 +783,18 @@ let rec meet = (ctx: Ctx.t, ty1: t, ty2: t): option(t) => {
     | (TupLabel({term: ExplicitNonlabel, _}, ty1'), _) => meet'(ty1', ty2)
     | (_, TupLabel({term: ExplicitNonlabel, _}, ty2')) => meet'(ty1, ty2')
     | (Unknown(p1), Unknown(p2)) =>
+      incr(meet_unknown);
       if (p1 == p2) {
         Some(ty1);
       } else {
         Some(Unknown(meet_type_provenance(p1, p2)) |> temp);
-      }
-    | (Unknown(_), _) => Some(ty2)
-    | (_, Unknown(_)) => Some(ty1)
+      };
+    | (Unknown(_), _) =>
+      incr(meet_unknown);
+      Some(ty2);
+    | (_, Unknown(_)) =>
+      incr(meet_unknown);
+      Some(ty1);
     | (Var(n1), Var(n2)) =>
       if (n1 == n2) {
         incr(meet_var_eq);
@@ -799,11 +809,62 @@ let rec meet = (ctx: Ctx.t, ty1: t, ty2: t): option(t) => {
         | (None, None) => None
         };
       }
+    /* Var-Rec fast path: when a Var resolves to a Rec with the same
+       tpat name as the Rec we're meeting with, they're the same recursive
+       type — return the compact Var form. This avoids expensive structural
+       comparison of the bodies (which may differ syntactically due to
+       unrolling but are semantically equivalent). The lookup_alias call
+       serves as a soundness check: it verifies the Var actually resolves
+       to a type alias in the current context. */
+    | (Var(name), Rec(tp2, _)) =>
+      switch (TPat.tyvar_of_utpat(tp2)) {
+      | Some(rec_name) when rec_name == name =>
+        switch (Ctx.lookup_alias(ctx, name)) {
+        | Some({term: Rec(tp1, _), _})
+            when TPat.tyvar_of_utpat(tp1) == Some(name) =>
+          incr(meet_var_eq);
+          Some(ty1)
+        | _ =>
+          /* Var resolves to something other than a matching Rec;
+             fall through to general Var expansion */
+          incr(meet_var_expand);
+          let* ty_name = Ctx.lookup_alias(ctx, name);
+          let+ ty_meet = meet'(ty_name, ty2);
+          equal(ty_name, ty_meet) ? ty1 : ty_meet;
+        }
+      | _ =>
+        incr(meet_var_expand);
+        let* ty_name = Ctx.lookup_alias(ctx, name);
+        let+ ty_meet = meet'(ty_name, ty2);
+        equal(ty_name, ty_meet) ? ty1 : ty_meet;
+      }
+    | (Rec(tp1, _), Var(name)) =>
+      switch (TPat.tyvar_of_utpat(tp1)) {
+      | Some(rec_name) when rec_name == name =>
+        switch (Ctx.lookup_alias(ctx, name)) {
+        | Some({term: Rec(tp2, _), _})
+            when TPat.tyvar_of_utpat(tp2) == Some(name) =>
+          incr(meet_var_eq);
+          Some(ty2)
+        | _ =>
+          incr(meet_var_expand);
+          let* ty_name = Ctx.lookup_alias(ctx, name);
+          let+ ty_meet = meet'(ty_name, ty1);
+          equal(ty_name, ty_meet) ? ty2 : ty_meet;
+        }
+      | _ =>
+        incr(meet_var_expand);
+        let* ty_name = Ctx.lookup_alias(ctx, name);
+        let+ ty_meet = meet'(ty_name, ty1);
+        equal(ty_name, ty_meet) ? ty2 : ty_meet;
+      }
     | (Var(name), _) =>
+      incr(meet_var_expand);
       let* ty_name = Ctx.lookup_alias(ctx, name);
       let+ ty_meet = meet'(ty_name, ty2);
       equal(ty_name, ty_meet) ? ty1 : ty_meet;
     | (_, Var(name)) =>
+      incr(meet_var_expand);
       let* ty_name = Ctx.lookup_alias(ctx, name);
       let+ ty_meet = meet'(ty_name, ty1);
       equal(ty_name, ty_meet) ? ty2 : ty_meet;
