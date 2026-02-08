@@ -103,27 +103,35 @@ let looks_like_app = (exp: DHExp.t): bool =>
 // MVU runtime contain Closures which the elaborator can't handle.
 let evaluate = exp => fst(Evaluator.evaluate(~env=Builtins.env_init, exp));
 
+// Refs for resize drag state
+let wrapper_ref: ref(option(Js_of_ocaml.Js.Unsafe.any)) = ref(None);
+let resize_cols = ref(40);
+let resize_rows = ref(12);
+// Pixel-per-char ratios computed on pointerdown, used during drag
+let px_per_col = ref(10.0);
+let px_per_row = ref(18.0);
+
 module M: Projector = {
-  // UI state for projector sizing
   [@deriving (show({with_path: false}), sexp, yojson)]
   type ui_state = {
-    width: option(int),
-    height: option(int),
-    resizing:
-      option(
-        [
-          | `Width
-          | `Height
-          | `Both
-        ],
-      ),
+    cols: int,
+    rows: int,
   };
 
   let default_ui: ui_state = {
-    width: None,
-    height: None,
-    resizing: None,
+    cols: 40,
+    rows: 12,
   };
+
+  // Shadow derived deserializers to handle migration from old format
+  let ui_state_of_sexp = sexp =>
+    try(ui_state_of_sexp(sexp)) {
+    | _ => default_ui
+    };
+  let ui_state_of_yojson = json =>
+    try(ui_state_of_yojson(json)) {
+    | _ => default_ui
+    };
 
   [@deriving (show({with_path: false}), sexp, yojson)]
   type model = {
@@ -133,16 +141,7 @@ module M: Projector = {
 
   [@deriving (show({with_path: false}), sexp, yojson)]
   type action =
-    | SetWidth(int)
-    | SetHeight(int)
-    | StartResize(
-        [
-          | `Width
-          | `Height
-          | `Both
-        ],
-      )
-    | StopResize
+    | SetDimensions(int, int)
     | ResetSize;
 
   let init = (any: Any.t) =>
@@ -172,45 +171,19 @@ module M: Projector = {
   let focusable = Focusable.non;
   let dynamics = false;
 
-  // Placeholder shape based on UI state
-  let placeholder = (m: model, _) => {
-    let width =
-      switch (m.ui.width) {
-      | Some(w) => w / 8 // Convert pixels to character units (approx)
-      | None => 10
-      };
-    ProjectorCore.Shape.inline(width);
-  };
+  let placeholder = (m: model, _) =>
+    ProjectorCore.Shape.{
+      horizontal: m.ui.cols,
+      vertical: Block(m.ui.rows - 1),
+    };
 
-  // Update model based on actions
-  let update = (m: model, _, action: action) =>
+  let update = (m: model, _, action: action) => {
     switch (action) {
-    | SetWidth(w) => {
+    | SetDimensions(cols, rows) => {
         ...m,
         ui: {
-          ...m.ui,
-          width: Some(w),
-        },
-      }
-    | SetHeight(h) => {
-        ...m,
-        ui: {
-          ...m.ui,
-          height: Some(h),
-        },
-      }
-    | StartResize(mode) => {
-        ...m,
-        ui: {
-          ...m.ui,
-          resizing: Some(mode),
-        },
-      }
-    | StopResize => {
-        ...m,
-        ui: {
-          ...m.ui,
-          resizing: None,
+          cols: max(8, cols),
+          rows: max(3, rows),
         },
       }
     | ResetSize => {
@@ -218,6 +191,7 @@ module M: Projector = {
         ui: default_ui,
       }
     };
+  };
 
   let view =
       ({model, info, parent, local, view_seg, _}: View.args(model, action)) => {
@@ -269,71 +243,76 @@ module M: Projector = {
       update_fn: None,
     };
 
-    // Build style string based on UI state
-    let size_style = {
-      let w =
-        switch (model.ui.width) {
-        | Some(w) => "width: " ++ string_of_int(w) ++ "px; "
-        | None => ""
-        };
-      let h =
-        switch (model.ui.height) {
-        | Some(h) => "height: " ++ string_of_int(h) ++ "px; "
-        | None => ""
-        };
-      w ++ h;
-    };
-
-    // Resize handle (right edge)
+    // Corner resize handle with pointer capture for drag.
+    // On pointerdown: compute px-per-char ratios from the .projector container.
+    // On mousemove: convert cursor position to char units; dispatch when changed.
+    // The framework handles visual resizing via placeholder recomputation.
     let resize_handle =
       Node.div(
         ~attrs=[
           Attr.classes(["html-proj-resize-handle"]),
-          Attr.create(
-            "style",
-            "position: absolute; right: 0; top: 0; bottom: 0; width: 6px; cursor: ew-resize; background: transparent;",
-          ),
-          Attr.on_mousedown(_ => {local(StartResize(`Width))}),
+          Attr.on_pointerdown((evt: Js_of_ocaml.Js.t(Js_of_ocaml.Dom_html.pointerEvent)) => {
+            resize_cols := model.ui.cols;
+            resize_rows := model.ui.rows;
+            let target =
+              evt##.currentTarget
+              |> Js_of_ocaml.Js.Opt.get(_, _ => failwith("no target"));
+            JsUtil.setPointerCapture(target, evt##.pointerId);
+            // wrapper = .html-proj-wrapper, container = .projector
+            let wrapper = Js_of_ocaml.Js.Unsafe.coerce(target)##.parentNode;
+            wrapper_ref := Some(wrapper);
+            let container = wrapper##.parentNode;
+            let cw: float = max(1.0, float_of_int(container##.offsetWidth));
+            let ch: float = max(1.0, float_of_int(container##.offsetHeight));
+            px_per_col := cw /. float_of_int(model.ui.cols);
+            px_per_row := ch /. float_of_int(model.ui.rows);
+            Effect.Ignore;
+          }),
+          Attr.on_mousemove(evt => {
+            switch (wrapper_ref^) {
+            | Some(wrapper) =>
+              let container = Js_of_ocaml.Js.Unsafe.coerce(wrapper)##.parentNode;
+              let rect = container##getBoundingClientRect();
+              let left: float = rect##.left;
+              let top: float = rect##.top;
+              let e = Js_of_ocaml.Js.Unsafe.coerce(evt);
+              let client_x: float = float_of_int(e##.clientX);
+              let client_y: float = float_of_int(e##.clientY);
+              let new_cols =
+                max(8, int_of_float(floor((client_x -. left) /. px_per_col^)));
+              let new_rows =
+                max(3, int_of_float(floor((client_y -. top) /. px_per_row^)));
+              if (new_cols != resize_cols^ || new_rows != resize_rows^) {
+                resize_cols := new_cols;
+                resize_rows := new_rows;
+                local(SetDimensions(new_cols, new_rows));
+              } else {
+                Effect.Ignore;
+              };
+            | None => Effect.Ignore
+            };
+          }),
+          Attr.on_pointerup((evt: Js_of_ocaml.Js.t(Js_of_ocaml.Dom_html.pointerEvent)) => {
+            let target =
+              evt##.currentTarget
+              |> Js_of_ocaml.Js.Opt.get(_, _ => failwith("no target"));
+            if (JsUtil.hasPointerCapture(target, evt##.pointerId)) {
+              JsUtil.releasePointerCapture(target, evt##.pointerId);
+            };
+            wrapper_ref := None;
+            // Final dispatch in case last mousemove was skipped
+            local(SetDimensions(resize_cols^, resize_rows^));
+          }),
         ],
         [],
       );
 
-    // Main content with optional resize wrapper
+    // Main content
     let content = HazelDOM.go(seed);
+    let wrapper_classes = ["html-proj-wrapper"];
     let wrapped =
       Node.div(
-        ~attrs=[
-          Attr.classes(["html-proj-wrapper"]),
-          Attr.create(
-            "style",
-            "position: relative; display: inline-block; " ++ size_style,
-          ),
-          // Stop resize on mouseup anywhere in the projector
-          Attr.on_mouseup(_ => local(StopResize)),
-          // Handle resize drag
-          Attr.on_mousemove(evt => {
-            switch (model.ui.resizing) {
-            | Some(`Width) =>
-              let rect =
-                Js_of_ocaml.Js.Unsafe.coerce(
-                  Js_of_ocaml.Dom_html.eventTarget(evt),
-                )##getBoundingClientRect();
-              let x = Js_of_ocaml.Js.Unsafe.coerce(evt)##.clientX;
-              let new_width = max(50, x - rect##.left);
-              local(SetWidth(new_width));
-            | Some(`Height) =>
-              let rect =
-                Js_of_ocaml.Js.Unsafe.coerce(
-                  Js_of_ocaml.Dom_html.eventTarget(evt),
-                )##getBoundingClientRect();
-              let y = Js_of_ocaml.Js.Unsafe.coerce(evt)##.clientY;
-              let new_height = max(30, y - rect##.top);
-              local(SetHeight(new_height));
-            | Some(`Both)
-            | None => Effect.Ignore
-            }
-          }),
-        ],
+        ~attrs=[Attr.classes(wrapper_classes)],
         [content, resize_handle],
       );
 

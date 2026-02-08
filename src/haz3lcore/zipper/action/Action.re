@@ -148,7 +148,7 @@ let is_edit: t => bool =
   | Unselect(_) => false
   | Project(p) =>
     switch (p) {
-    | SetModel(_) => false
+    | SetModel(_)
     | SetSyntax(_)
     | SetIndicated(_)
     | RemoveIndicated => true
