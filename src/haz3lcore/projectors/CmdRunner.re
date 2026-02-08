@@ -91,19 +91,9 @@ let of_tuple = (d: DHExp.t): option(list(DHExp.t)) => {
   };
 };
 
-// Evaluate a Hazel expression
-let evaluate = exp =>
-  fst(
-    Evaluator.evaluate(
-      ~env=Builtins.env_init,
-      fst(
-        Elaborator.elaborate(
-          Statics.mk(CoreSettings.on, Builtins.ctx_init(Some(Int)), exp),
-          exp,
-        ),
-      ),
-    ),
-  );
+// Evaluate directly (skip elaboration/statics). Command handlers are
+// already-evaluated Closures, so re-elaborating would fail.
+let evaluate = exp => fst(Evaluator.evaluate(~env=Builtins.env_init, exp));
 
 // Run a single command, returning an effect
 let rec run = (ctx: context, cmd: DHExp.t): Ui_effect.t(unit) => {

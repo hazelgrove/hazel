@@ -87,19 +87,10 @@ let of_tuple = (d: DHExp.t): option(list(DHExp.t)) => {
   };
 };
 
-// Evaluate a Hazel expression
-let evaluate = exp =>
-  fst(
-    Evaluator.evaluate(
-      ~env=Builtins.env_init,
-      fst(
-        Elaborator.elaborate(
-          Statics.mk(CoreSettings.on, Builtins.ctx_init(Some(Int)), exp),
-          exp,
-        ),
-      ),
-    ),
-  );
+// Evaluate a Hazel expression directly (skip elaboration/statics).
+// Handlers from subscriptions are already-evaluated Closures, so
+// re-elaborating would fail on runtime-only nodes like Closure.
+let evaluate = exp => fst(Evaluator.evaluate(~env=Builtins.env_init, exp));
 
 // Error boundary: wrap evaluate to catch exceptions
 let safe_evaluate = (exp: DHExp.t): result(DHExp.t, string) =>
@@ -113,6 +104,9 @@ let apply_handler = (ctx: context, handler: DHExp.t, args: list(DHExp.t)) => {
   switch (ctx.update_fn) {
   | Some(_) =>
     // Elm mode: handler takes just event data, produces msg
+    print_endline(
+      "apply_handler: Elm mode, args=" ++ string_of_int(List.length(args)),
+    );
     let result =
       switch (args) {
       | [] => Ok(handler) // handler IS the msg (no event data)
@@ -120,11 +114,18 @@ let apply_handler = (ctx: context, handler: DHExp.t, args: list(DHExp.t)) => {
       | _ => safe_evaluate(Exp.ap(Forward, handler, Exp.tuple(args)))
       };
     switch (result) {
-    | Ok(msg) => Bonsai.Effect.Expert.handle(ctx.inject(msg))
+    | Ok(msg) =>
+      let msg_cls =
+        Language.Exp.show_cls(
+          Language.Exp.cls_of_term(strip_wrappers(msg).term),
+        );
+      print_endline("apply_handler: msg cls=" ++ msg_cls);
+      Bonsai.Effect.Expert.handle(ctx.inject(msg));
     | Error(err) =>
+      print_endline("apply_handler: ERROR: " ++ err);
       Js_of_ocaml.Firebug.console##error(
         Js_of_ocaml.Js.string("Subscription handler error: " ++ err),
-      )
+      );
     };
   | None =>
     // Legacy: handler takes (model, ...args) -> model
@@ -272,9 +273,13 @@ let rec subscribe =
       | Some([ms_exp, handler]) =>
         switch (of_float(ms_exp)) {
         | Some(ms) =>
+          print_endline(
+            "SubManager: Setting up Every(" ++ string_of_float(ms) ++ "ms)",
+          );
           let interval_id =
             Dom_html.window##setInterval(
               Js.wrap_callback(() => {
+                print_endline("SubManager: Every interval fired");
                 let timestamp =
                   Js.to_float(
                     Js.Unsafe.coerce(Dom_html.window)##performance##now(),
@@ -289,9 +294,13 @@ let rec subscribe =
               ms,
             );
           [IntervalHandle(interval_id)];
-        | None => []
+        | None =>
+          print_endline("SubManager: Every - failed to extract float");
+          [];
         }
-      | _ => []
+      | _ =>
+        print_endline("SubManager: Every - failed to extract tuple");
+        [];
       }
 
     | Some(("AnimationFrame", handler)) =>

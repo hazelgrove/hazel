@@ -99,19 +99,9 @@ let looks_like_app = (exp: DHExp.t): bool =>
   | _ => false
   };
 
-// Evaluate a Hazel expression
-let evaluate = exp =>
-  fst(
-    Evaluator.evaluate(
-      ~env=Builtins.env_init,
-      fst(
-        Elaborator.elaborate(
-          Statics.mk(CoreSettings.on, Builtins.ctx_init(Some(Int)), exp),
-          exp,
-        ),
-      ),
-    ),
-  );
+// Evaluate directly (skip elaboration/statics). Expressions from
+// MVU runtime contain Closures which the elaborator can't handle.
+let evaluate = exp => fst(Evaluator.evaluate(~env=Builtins.env_init, exp));
 
 module M: Projector = {
   // UI state for projector sizing

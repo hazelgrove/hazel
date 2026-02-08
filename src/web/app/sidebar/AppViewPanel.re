@@ -20,19 +20,9 @@ open IdTagged.FreshGrammar;
 // Stable projector ID for the sidebar app view (deterministic UUID from string)
 let sidebar_projector_id = Id.mk_str("app-view-sidebar");
 
-// Evaluate a Hazel expression
-let evaluate = exp =>
-  fst(
-    Evaluator.evaluate(
-      ~env=Builtins.env_init,
-      fst(
-        Elaborator.elaborate(
-          Statics.mk(CoreSettings.on, Builtins.ctx_init(Some(Int)), exp),
-          exp,
-        ),
-      ),
-    ),
-  );
+// Evaluate directly (skip elaboration/statics). Expressions from
+// MVU runtime contain Closures which the elaborator can't handle.
+let evaluate = exp => fst(Evaluator.evaluate(~env=Builtins.env_init, exp));
 
 // Check if an expression is a function (possibly wrapped in a Closure from evaluation)
 let is_function = (exp: DHExp.t): bool =>
