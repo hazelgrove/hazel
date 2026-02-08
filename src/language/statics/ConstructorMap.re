@@ -101,25 +101,75 @@ let is_ground = is_hole =>
   | [BadEntry(x)] when is_hole(x) => true
   | _ => false;
 
+/* Extract constructor name from a variant, if it has one */
+let constructor_key =
+  fun
+  | Variant(ctr, _, _) => Some(ctr)
+  | BadEntry(_) => None;
+
 /* computes all three regions of a venn diagram of two sets represented as lists */
 let venn_regions =
     (f: ('a, 'a) => bool, xs: list('a), ys: list('a))
     : (list(('a, 'a)), list('a), list('a)) => {
-  let rec go = (xs, ys, seen_xs, acc, left, right) =>
-    switch (xs) {
-    | [] => (acc |> List.rev, left |> List.rev, List.rev_append(right, ys))
-    | [x, ...xs] =>
-      switch (List.partition(f(x, _), ys)) {
-      | ([], _) =>
-        switch (List.partition(f(x, _), seen_xs)) {
-        | ([], _) => go(xs, ys, [x, ...seen_xs], acc, [x, ...left], right)
-        | (_, _) => go(xs, ys, seen_xs, acc, left, right)
+  /* Build hashtable from ys keyed by constructor name */
+  let ys_tbl: Hashtbl.t(string, 'a) = Hashtbl.create(List.length(ys));
+  List.iter(
+    y =>
+      switch (constructor_key(y)) {
+      | Some(key) => Hashtbl.add(ys_tbl, key, y)
+      | None => ()
+      },
+    ys,
+  );
+  /* Collect BadEntry items from ys for fallback matching */
+  let ys_bad_entries = List.filter(y => constructor_key(y) == None, ys);
+  let ys_bad_matched: Hashtbl.t(int, bool) =
+    Hashtbl.create(List.length(ys_bad_entries));
+  /* Track seen constructor names for dedup of xs (preserving original behavior) */
+  let seen_xs: Hashtbl.t(string, bool) = Hashtbl.create(List.length(xs));
+  let acc = ref([]);
+  let left = ref([]);
+  List.iter(
+    x =>
+      switch (constructor_key(x)) {
+      | Some(key) =>
+        switch (Hashtbl.find_opt(ys_tbl, key)) {
+        | Some(y) =>
+          Hashtbl.remove(ys_tbl, key);
+          Hashtbl.replace(seen_xs, key, true);
+          acc := [(x, y), ...acc^];
+        | None =>
+          if (!Hashtbl.mem(seen_xs, key)) {
+            Hashtbl.replace(seen_xs, key, true);
+            left := [x, ...left^];
+          }
         }
-      | ([y, ..._], ys') =>
-        go(xs, ys', [x, ...seen_xs], [(x, y), ...acc], left, right)
-      }
-    };
-  go(xs, ys, [], [], [], []);
+      | None =>
+        /* BadEntry: fall back to linear scan against ys_bad_entries */
+        let matched = ref(false);
+        List.iteri(
+          (i, y) =>
+            if (! matched^ && !Hashtbl.mem(ys_bad_matched, i) && f(x, y)) {
+              Hashtbl.add(ys_bad_matched, i, true);
+              matched := true;
+              acc := [(x, y), ...acc^];
+            },
+          ys_bad_entries,
+        );
+        if (! matched^) {
+          left := [x, ...left^];
+        };
+      },
+    xs,
+  );
+  /* Remaining ys: unmatched Variant entries still in hashtable + unmatched BadEntries */
+  let right =
+    Hashtbl.fold((_key, y, r) => [y, ...r], ys_tbl, [])
+    @ List.filteri(
+        (i, _y) => !Hashtbl.mem(ys_bad_matched, i),
+        ys_bad_entries,
+      );
+  (acc^ |> List.rev, left^ |> List.rev, right);
 };
 
 let meet_entry =
@@ -219,12 +269,27 @@ let equal = (eq: ('a, 'a) => bool, m1: t('a), m2: t('a)) =>
   };
 
 let map = (type a, f: option(a) => option(a), m: t(a)): t(a) => {
-  List.map(
-    fun
-    | Variant(ctr, args, value) => Variant(ctr, args, f(value))
-    | BadEntry(value) => BadEntry(value),
-    m,
-  );
+  let changed = ref(false);
+  let result =
+    List.map(
+      variant => {
+        switch (variant) {
+        | Variant(ctr, args, value) =>
+          let value' = f(value);
+          if (value' !== value) {
+            changed := true;
+          };
+          Variant(ctr, args, value');
+        | BadEntry(value) => BadEntry(value)
+        };
+      },
+      m,
+    );
+  if (changed^) {
+    result;
+  } else {
+    m;
+  };
 };
 
 let map_preserving = (type a, type b, f: a => b, m: t(a)): t(b) => {

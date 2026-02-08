@@ -436,14 +436,20 @@ After evaluation, the result is displayed in the footer. This involves:
 2. `Statics.mk` on the eval result — full type checking
 3. `Elaborator.uexp_elab` on the eval result — full elaboration (via CachedStatics.init)
 
-### Post-eval statics benchmark results:
+### Post-eval full pipeline benchmark (Feb 8, 2026):
 
-| Program | Pre-eval statics | Post-eval statics | Ratio |
-|---------|-----------------|-------------------|-------|
-| counter | 7.5ms | 408ms | 54x |
-| mvu_counter | 12ms | 595ms | 50x |
-| keyboard_game | 14ms | 360ms | 26x |
-| full_app | 23ms | 2,353ms | 102x |
+| Program | Statics | Elab | Eval | Post Statics | Post Elab | E2S | Total Post-Eval |
+|---------|---------|------|------|-------------|-----------|-----|-----------------|
+| simple_let | 0.8 | 0.0 | 0.2 | 0.1 | 0.2 | 0.3 | 0.6 |
+| fibonacci | 0.6 | 0.1 | 3.7 | 0.0 | 0.2 | 0.0 | 0.2 |
+| counter | 7.3 | 29.8 | 0.6 | 390.8 | 111.9 | 3.0 | 505.7 |
+| mvu_counter | 9.3 | 33.1 | 23.4 | 548.6 | 16.7 | 41.0 | 606.3 |
+| keyboard_game | 10.9 | 20.3 | 21.1 | 263.8 | 9.9 | 46.1 | 319.8 |
+| animation | 14.4 | 17.8 | 1.6 | 148.6 | 8.1 | 1.8 | 158.5 |
+| full_app | 19.2 | 191.6 | 29.1 | 2133.1 | 85.3 | 138.1 | 2356.5 |
+
+(All times in ms. Post Statics = `Statics.mk` on eval result. Post Elab = `uexp_elab`
+on eval result. E2S = `ExpToSegment.exp_to_segment` on eval result.)
 
 ### Post-eval meet stats (full_app):
 - Pre-eval: 8,906 meet calls, 0 sum meets, 0 rec-rec
@@ -451,19 +457,51 @@ After evaluation, the result is displayed in the footer. This involves:
 
 The `===` optimization is completely ineffective on the evaluated result.
 
+### Post-eval meet stats (all programs):
+
+| Program | Meet Calls | Sum Meets | from_rec | var_eq | rec_rec | sum_ms |
+|---------|-----------|-----------|----------|--------|---------|--------|
+| counter | 360,923 | 3,165 | 3,139 | 2,482 | 73 | 522ms |
+| mvu_counter | 469,145 | 4,113 | 4,044 | 3,198 | 96 | 870ms |
+| keyboard_game | 251,621 | 2,199 | 2,154 | 1,704 | 54 | 403ms |
+| animation | 162,048 | 1,419 | 1,376 | 1,088 | 32 | 205ms |
+| full_app | 2,021,652 | 17,733 | 17,514 | 13,851 | 420 | 3,361ms |
+
+### Notable: counter post-elab anomaly
+
+Counter's post-eval elaboration is 111.9ms vs 8-17ms for other MVU programs.
+The counter's eval result has unevaluated case expressions with sum type
+constructors, triggering 79K normalize calls during post-eval elaboration.
+
 ### Why post-eval statics is slow
 
-Two factors destroy physical equality:
+The primary cause is **normalized types in ascriptions**: The elaborator writes
+normalized types (e.g., `Rec("HTML", Sum(47 ctrs))`) into Asc nodes. When
+post-eval statics encounters `Asc(expr, Rec(...))`, it uses the expanded Rec
+form, defeating the Var-Var fast path in meet. (Hypothesis — needs verification
+by inspecting actual types in ascription nodes of the eval result.)
 
-1. **Normalized types in ascriptions**: The elaborator writes normalized types
-   (e.g., `Rec("HTML", Sum(47 ctrs))`) into Asc nodes. When post-eval statics
-   encounters `Asc(expr, Rec(...))`, it uses the expanded Rec form, defeating
-   the Var-Var fast path in meet. (Hypothesis — needs verification.)
+### Web worker boundary: NOT the main problem
 
-2. **Web worker boundary**: `postMessage` uses the structured clone algorithm
-   which does NOT preserve reference identity. All physical equality is destroyed
-   when the evaluated result crosses the web worker boundary. Even if the evaluator
-   preserved type sharing, structured cloning would break it.
+`postMessage` uses the structured clone algorithm. Per the WhatWG spec, structured
+clone maintains a "memory" map during cloning: "The purpose of the memory map is
+to avoid serializing objects twice. This ends up preserving cycles and the identity
+of duplicate objects in graphs."
+
+This means:
+- **Within a single `postMessage`, shared references ARE preserved.** If k elements
+  of a list all point to the same type object of size w, after cloning they still
+  all point to the same (cloned) object. Space stays ~w, not k*w.
+- **`===` between cloned objects and objects outside the clone graph will fail.**
+  E.g., comparing an eval-result type with a type from the statics context.
+- **`===` between independently-allocated but structurally-equal objects still fails.**
+
+So the web worker boundary does NOT destroy sharing within the eval result itself.
+The real question is whether the evaluator/elaborator creates shared type references
+across Asc nodes in the first place. If every Asc node gets its own independently
+allocated `Rec("HTML", Sum(47 ctrs))`, then there's no sharing to preserve and
+structured clone is irrelevant. Factor (1) — types being in expanded Rec form
+instead of Var form — is the primary problem.
 
 ### Post-eval rendering pipeline (EvalResult.re)
 
@@ -477,26 +515,176 @@ When eval results come back:
      - `Statics.mk` — full statics on eval result
      - `Elaborator.uexp_elab` — full elaboration on eval result
 
-## What to Do Next
+## Typ.meet Optimizations (Feb 8, 2026)
 
-1. **Fix post-eval statics** (HIGHEST PRIORITY, 2.3s for full_app):
-   - Investigate what types appear in ascriptions in the evaluated result
-   - Check Ascriptions.re and Transition.re for type handling in evaluator
-   - Options: type dedup pass before statics, keep types as Vars in ascriptions,
-     or intern types after web worker crossing
-   - Add ExpToSegment and elaborate-on-eval-result to benchmark
+Implemented incrementally with benchmarks between each. All optimizations target
+the `meet` function and its supporting code.
 
-2. **Web worker physical equality**: Structured cloning breaks all `===`.
-   After results cross the web worker boundary, need a dedup/intern pass
-   to restore physical equality. This single fix could solve post-eval statics.
+### Benchmark results (full_app post_statics):
 
-3. **Investigate duplicate ID downstream effects**: Check these call sites for
-   issues with duplicate type IDs in elaborated/evaluated code:
-   - Results display panel, probes, UI decoration mapping
-   - If needed, add one-time UUID dedup pass before display
+| Optimization | post_statics | sum_ms | meet calls | Change |
+|---|---|---|---|---|
+| Baseline (pre-opt) | 2,249ms | 5,104ms | 2,021,652 | — |
+| 1. Hash venn_regions | 1,812ms | 3,406ms | 2,021,652 | -19% |
+| 2. Rec-Rec skip subst | 1,289ms | 2,238ms | 2,003,506 | -43% cumulative |
+| 3. Alloc-preserving subst | ~1,289ms | ~2,200ms | 1,940,538 | -63K meets, ~same time |
+| 4. Unknown-Unknown skip | ~1,270ms | ~2,150ms | 1,940,538 | minor |
+| 5. Arrow/List meet skip | ~1,270ms | ~2,150ms | 1,940,538 | minor |
+| 6. ConstructorMap.map phys eq | ~1,270ms | ~2,150ms | 1,940,538 | minor |
+| **Final (all 6)** | **~1,270ms** | **~2,150ms** | **1,940,538** | **-44% total** |
 
-4. **Benchmark additions needed**:
-   - Post-eval statics: DONE (added to bench.re)
-   - Post-eval elaboration: TODO
-   - ExpToSegment.exp_to_segment on eval result: TODO
-   - Full editor chain timing: TODO (lower priority)
+### 1. Hash-based venn_regions (DONE)
+`ConstructorMap.re`: Replaced O(n*m) `List.partition`-per-element with O(n+m)
+`Hashtbl`-based lookup. For 47-constructor HTML type: ~47x speedup in inner loop.
+
+### 2. Skip subst in Rec-Rec when var names match (DONE)
+`Typ.re`: When both Rec types use the same type variable name (the common case
+for `Rec("HTML", ...)` meeting `Rec("HTML", ...)`), skip the no-op substitution
+that still traverses the entire body. Eliminated 420 full-body traversals, 18K
+fewer meet calls via improved `===` hit rate.
+
+### 3. Allocation-preserving subst (DONE)
+`Typ.re`: `subst` always creates new allocations via `rewrap` even when the
+variable doesn't appear. Fix: check `===` on recursive results, return original
+if unchanged. Also fix leaf cases (Unknown, Label, ExplicitNonlabel) that
+unnecessarily reconstruct via `rewrap`.
+
+### 4. Unknown-Unknown allocation skip (DONE)
+`Typ.re`: `Unknown(p1), Unknown(p2)` always allocates `temp`. When `p1 == p2`,
+return `Some(ty1)` instead.
+
+### 5. Arrow/List/TupLabel meet allocation skip (DONE)
+`Typ.re`: These cases always allocate via `|> temp` even when children are
+unchanged. Check if meet results are `===` to inputs and return original.
+
+### 6. ConstructorMap.map preserve physical equality (DONE)
+`ConstructorMap.re`: `map` always creates new list via `List.map`, breaking `===`
+checks in `normalize` for Sum types. Track whether anything changed, return
+original map `m` if not.
+
+## Root Cause Analysis: "The Body of the Hydra" (Feb 8, 2026)
+
+The single core problem: **types lose their compact identity as they flow through
+the system, and the consumers that need to compare them don't have the information
+to resolve them back.**
+
+### The chain
+
+1. **Builtins start as `Var("HTML")`** in the context. Statics uses these, and
+   `meet` hits the Var-Var fast path. Pre-eval statics is fast (19ms, 0 sum meets).
+
+2. **The elaborator normalizes them**: `fresh_ascription` turns `Var("HTML")` into
+   `Rec("HTML", Sum(47 ctrs))` in Asc nodes. This is forced because...
+
+3. **Ascriptions.re uses `Ctx.empty`**: Every `meet`/`is_consistent` call in
+   `Ascriptions.re` passes `Ctx.empty`. With no context, it can't resolve
+   `Var("HTML")`. So the elaborator **must** pre-normalize types into structural
+   form before handing them to evaluation.
+
+4. **Post-eval statics sees expanded types**: When `Statics.mk` runs on the eval
+   result, it encounters `Rec("HTML", Sum(47 ctrs))` in every Asc node. Can't use
+   the Var-Var fast path. Does full O(N^2) constructor comparison. 2M meets, 17K
+   sum meets.
+
+**Root cause: Ascriptions.re has no type resolution capability, which forces
+upstream normalization, which poisons downstream statics.**
+
+### Additional damage sources
+
+- **`Exp.replace_all_ids`** (Evaluator.re:249): Traverses the entire expression tree
+  including all types, giving every node a fresh `Id.mk()`. Unconditionally destroys
+  all physical equality. The concern is purely view-level (duplicate IDs confuse
+  display). Should potentially be moved to the view layer.
+
+- **Post-eval elaboration**: `CachedStatics.init` runs both `Statics.mk` AND
+  `Elaborator.uexp_elab` on the eval result. The elaboration costs 85-120ms and
+  may be unnecessary — likely an artifact of the caching infrastructure.
+
+## Remediation Options (Feb 8, 2026)
+
+### Option A: Builtin-specific — Give Ascriptions.re a real context (RECOMMENDED FIRST)
+
+Replace `Typ.meet(Ctx.empty, ...)` with `Typ.meet(builtin_ctx, ...)` in
+Ascriptions.re. This lets types stay as `Var("HTML")` through evaluation, hitting
+the Var-Var fast path. Zero changes to the AST representation, zero postMessage
+concerns. Implementation: thread the builtin alias map (or full initial context)
+through the evaluator to Ascriptions.re.
+
+Concretely:
+- Store `Builtins.ctx_init` (or the alias subset) as a field available to the
+  evaluator's transition functions
+- In Ascriptions.re, use this context instead of `Ctx.empty` for all `meet`,
+  `is_consistent`, and `unroll` calls
+- In the elaborator, stop normalizing types in `fresh_ascription` — keep them
+  as compact Var references
+- Ascriptions.re can now resolve `Var("HTML")` itself when needed
+
+**Estimated impact**: Should eliminate nearly all 17K sum-sum meets in post-eval
+statics, since builtins are the overwhelming source. Post-eval statics could drop
+from ~1.3s to something close to pre-eval statics (19ms).
+
+### Option B: Type closures — Pair types with contexts (PRINCIPLED, LONG-TERM)
+
+Instead of storing bare `Typ.t` in the elaborated AST, store `(Typ.t, Ctx.t)` —
+a "type closure." Types stay in compact Var form, with enough context to resolve
+them lazily on demand.
+
+**Full context approach** (recommended over alias-only):
+- The `ctx` already exists at every point in the elaborator. Just reference it.
+- Contexts are immutable lists in Reason, sharing tails. Structured clone preserves
+  shared references within a single `postMessage`. Total serialized data is O(N)
+  where N is unique bindings — each binding entry appears exactly once.
+- The builtin type definitions (the big sum types) appear once in the base context
+  and are shared by every deeper context. Structured clone serializes them once.
+
+**Alias-only approach** (analyzed, NOT recommended):
+- Per attachment cost: O(N) per type attachment point to filter ctx for aliases.
+  M attachment points gives O(N*M). Expensive.
+- Incremental alternative: Maintain separate alias map, add on `type` definitions
+  entering scope. O(1) per scope change. But requires threading extra data.
+- Savings are modest since sharing already handles the serialization concern.
+
+**Conclusion**: "The alias-only approach is NOT obviously cheaper overall. The full
+context approach is simpler and probably equivalent in practice. Just pair (type, ctx)
+— zero extra elaborator work, structured clone handles the sharing, done."
+
+This is the right long-term architecture for user-defined types, not just builtins.
+But Option A is simpler and solves the immediate problem.
+
+### Option C: Type interning
+
+Create a canonical table of builtin `Typ.t` objects. Whenever the elaborator writes
+a type that normalizes to a builtin, substitute the canonical interned object. All
+Asc nodes referring to `HTML` then share the same physical object; `===` fires
+immediately. ~20-30 lines of code.
+
+### Other potential wins (lower priority)
+
+- **Skip post-eval elaboration**: Check if `Elaborator.uexp_elab` on the eval result
+  is actually needed by the display code, or if it's just an artifact of CachedStatics
+- **Move `replace_all_ids` to view layer**: Instead of running it at end of evaluation,
+  run it in `ExpToSegment` or `CodeSelectable.Model.mk_from_exp`
+- **Dedicated `is_consistent_bool`**: Avoid all allocation in consistency checks by
+  returning bool directly instead of building a result type via `meet` and discarding it
+- **Investigate duplicate ID downstream effects**: Check results panel, probes, UI
+  decoration for issues with duplicate type IDs
+
+## Completed Optimizations
+
+- **Benchmark additions**: DONE (`[POST]`, `[PELAB]`, `[E2S]` lines)
+- **IdTag.temp unthunked** (Feb 8, 2026): Changed from thunked function to constant.
+  No algorithmic change but saves unnecessary allocations.
+- **Statics `===` in meet**: Pre-eval statics 252ms → 21ms (12x)
+- **Lazy normalize + disable all_ids_temp**: Elab 1,273ms → 151ms (8.4x)
+- **Hash venn_regions**: sum_ms -33%
+- **Rec-Rec skip subst**: sum_ms -34% more, 43% cumulative on post_statics
+- **Alloc-preserving subst**: 63K fewer meet calls (2M→1.94M)
+- **Unknown-Unknown skip**: Minor allocation savings
+- **Arrow/List/TupLabel meet skip**: Minor allocation savings
+- **ConstructorMap.map phys eq**: Minor allocation savings
+- **All 6 meet optimizations combined**: post_statics 2,249ms→~1,270ms (-44%)
+
+## Type Flow Investigation (Feb 8, 2026)
+
+See `docs/type-flow-investigation.md` for detailed analysis of how types flow through
+elaboration → evaluation → post-eval statics, focusing on Ascriptions.re.

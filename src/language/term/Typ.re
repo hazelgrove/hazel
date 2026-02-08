@@ -39,7 +39,7 @@ let fresh: term => t = IdTagged.fresh;
 let temp: term => t =
   term => {
     term,
-    annotation: IdTagged.IdTag.temp(),
+    annotation: IdTagged.IdTag.temp,
   };
 
 let all_ids_temp = {
@@ -50,7 +50,7 @@ let all_ids_temp = {
     (continue, exp) =>
       {
         term: exp.term,
-        annotation: IdTagged.IdTag.temp(),
+        annotation: IdTagged.IdTag.temp,
       }
       |> continue;
   map_term(~f_exp=f, ~f_pat=f, ~f_typ=f, ~f_tpat=f, ~f_rul=f);
@@ -439,31 +439,97 @@ let rec subst = (s: t, x: TPat.t, ty: t): t => {
   | Some(str) =>
     let (term, rewrap) = Grammar.Annotated.unwrap(ty);
     switch (term) {
-    | Atom(_) => ty
-    | Label(name) => Grammar.Label(name) |> rewrap
-    | ExplicitNonlabel => ExplicitNonlabel |> rewrap
-    | Unknown(prov) => Unknown(prov) |> rewrap
+    | Atom(_)
+    | Label(_)
+    | ExplicitNonlabel
+    | Unknown(_)
+    | ProofOf(_) => ty
     | Arrow(ty1, ty2) =>
-      Arrow(subst(s, x, ty1), subst(s, x, ty2)) |> rewrap
-    | Prod(tys) => Prod(List.map(subst(s, x), tys)) |> rewrap
-    | TupLabel(label, ty) => TupLabel(label, subst(s, x, ty)) |> rewrap
+      let ty1' = subst(s, x, ty1);
+      let ty2' = subst(s, x, ty2);
+      if (ty1' === ty1 && ty2' === ty2) {
+        ty;
+      } else {
+        Grammar.Arrow(ty1', ty2') |> rewrap;
+      };
+    | Prod(tys) =>
+      let tys' = List.map(subst(s, x), tys);
+      if (List.for_all2((a, b) => a === b, tys, tys')) {
+        ty;
+      } else {
+        Prod(tys') |> rewrap;
+      };
+    | TupLabel(label, t) =>
+      let label' = subst(s, x, label);
+      let t' = subst(s, x, t);
+      if (label' === label && t' === t) {
+        ty;
+      } else {
+        TupLabel(label', t') |> rewrap;
+      };
     | Sum(sm) =>
-      Sum(ConstructorMap.map(Option.map(subst(s, x)), sm)) |> rewrap
-    | Poly(tp2, ty) when TPat.tyvar_of_utpat(x) == TPat.tyvar_of_utpat(tp2) =>
-      Poly(tp2, ty) |> rewrap
-    | Poly(tp2, ty) => Poly(tp2, subst(s, x, ty)) |> rewrap
-    | Rec(tp2, ty) when TPat.tyvar_of_utpat(x) == TPat.tyvar_of_utpat(tp2) =>
-      Rec(tp2, ty) |> rewrap
-    | Rec(tp2, ty) => Rec(tp2, subst(s, x, ty)) |> rewrap
-    | List(ty) => List(subst(s, x, ty)) |> rewrap
-    | Var(y) => str == y ? s : Var(y) |> rewrap
-    | Parens(ty) => Parens(subst(s, x, ty)) |> rewrap
-    | Projector(data, ty) => Projector(data, subst(s, x, ty)) |> rewrap
+      let sm' = ConstructorMap.map(Option.map(subst(s, x)), sm);
+      if (sm' === sm) {
+        ty;
+      } else {
+        Sum(sm') |> rewrap;
+      };
+    | Poly(tp2, _) when TPat.tyvar_of_utpat(x) == TPat.tyvar_of_utpat(tp2) =>
+      ty
+    | Poly(tp2, t) =>
+      let t' = subst(s, x, t);
+      if (t' === t) {
+        ty;
+      } else {
+        Poly(tp2, t') |> rewrap;
+      };
+    | Rec(tp2, _) when TPat.tyvar_of_utpat(x) == TPat.tyvar_of_utpat(tp2) =>
+      ty
+    | Rec(tp2, t) =>
+      let t' = subst(s, x, t);
+      if (t' === t) {
+        ty;
+      } else {
+        Rec(tp2, t') |> rewrap;
+      };
+    | List(t) =>
+      let t' = subst(s, x, t);
+      if (t' === t) {
+        ty;
+      } else {
+        List(t') |> rewrap;
+      };
+    | Var(y) => str == y ? s : ty
+    | Parens(t) =>
+      let t' = subst(s, x, t);
+      if (t' === t) {
+        ty;
+      } else {
+        Parens(t') |> rewrap;
+      };
+    | Projector(data, t) =>
+      let t' = subst(s, x, t);
+      if (t' === t) {
+        ty;
+      } else {
+        Projector(data, t') |> rewrap;
+      };
     | ProdProjection(t1, t2) =>
-      ProdProjection(subst(s, x, t1), subst(s, x, t2)) |> rewrap
+      let t1' = subst(s, x, t1);
+      let t2' = subst(s, x, t2);
+      if (t1' === t1 && t2' === t2) {
+        ty;
+      } else {
+        ProdProjection(t1', t2') |> rewrap;
+      };
     | ProdExtension(t1, t2) =>
-      ProdExtension(subst(s, x, t1), subst(s, x, t2)) |> rewrap
-    | ProofOf(e) => ProofOf(e) |> rewrap
+      let t1' = subst(s, x, t1);
+      let t2' = subst(s, x, t2);
+      if (t1' === t1 && t2' === t2) {
+        ty;
+      } else {
+        ProdExtension(t1', t2') |> rewrap;
+      };
     };
   | None => ty
   };
@@ -712,7 +778,11 @@ let rec meet = (ctx: Ctx.t, ty1: t, ty2: t): option(t) => {
     | (TupLabel({term: ExplicitNonlabel, _}, ty1'), _) => meet'(ty1', ty2)
     | (_, TupLabel({term: ExplicitNonlabel, _}, ty2')) => meet'(ty1, ty2')
     | (Unknown(p1), Unknown(p2)) =>
-      Some(Unknown(meet_type_provenance(p1, p2)) |> temp)
+      if (p1 == p2) {
+        Some(ty1);
+      } else {
+        Some(Unknown(meet_type_provenance(p1, p2)) |> temp);
+      }
     | (Unknown(_), _) => Some(ty2)
     | (_, Unknown(_)) => Some(ty1)
     | (Var(n1), Var(n2)) =>
@@ -748,9 +818,10 @@ let rec meet = (ctx: Ctx.t, ty1: t, ty2: t): option(t) => {
       meet_in_rec := true;
       let ctx = Ctx.extend_dummy_tvar(ctx, tp1);
       let ty1' =
-        switch (TPat.tyvar_of_utpat(tp2)) {
-        | Some(x2) => subst(Var(x2) |> temp, tp1, ty1)
-        | None => ty1
+        switch (TPat.tyvar_of_utpat(tp1), TPat.tyvar_of_utpat(tp2)) {
+        | (Some(x1), Some(x2)) when x1 == x2 => ty1 /* Same var name, skip subst */
+        | (_, Some(x2)) => subst(Var(x2) |> temp, tp1, ty1)
+        | (_, None) => ty1
         };
       let result = {
         let+ ty_body = meet(ctx, ty1', ty2);
@@ -783,15 +854,27 @@ let rec meet = (ctx: Ctx.t, ty1: t, ty2: t): option(t) => {
         when LabeledTuple.match_labels(name1, name2) =>
       Some(ty1)
     | (Label(_), _) => None
-    | (Arrow(ty1, ty2), Arrow(ty1', ty2')) =>
-      let* ty1 = meet'(ty1, ty1');
-      let+ ty2 = meet'(ty2, ty2');
-      Arrow(ty1, ty2) |> temp;
+    | (Arrow(a1, a2), Arrow(b1, b2)) =>
+      let* r1 = meet'(a1, b1);
+      let+ r2 = meet'(a2, b2);
+      if (r1 === a1 && r2 === a2) {
+        ty1;
+      } else if (r1 === b1 && r2 === b2) {
+        ty2;
+      } else {
+        Grammar.Arrow(r1, r2) |> temp;
+      };
     | (Arrow(_), _) => None
-    | (TupLabel(lab1, ty1'), TupLabel(lab2, ty2')) =>
-      let* lab = meet'(lab1, lab2);
-      let+ ty = meet'(ty1', ty2');
-      TupLabel(lab, ty) |> temp;
+    | (TupLabel(la, a), TupLabel(lb, b)) =>
+      let* rl = meet'(la, lb);
+      let+ r = meet'(a, b);
+      if (rl === la && r === a) {
+        ty1;
+      } else if (rl === lb && r === b) {
+        ty2;
+      } else {
+        Grammar.TupLabel(rl, r) |> temp;
+      };
     | (TupLabel(_), _) => None
     | (Prod(tys1), Prod(tys2)) =>
       let tys1 =
@@ -829,9 +912,15 @@ let rec meet = (ctx: Ctx.t, ty1: t, ty2: t): option(t) => {
         meet_sum_time_ms^ +. (JsUtil.precise_timestamp() -. start);
       result;
     | (Sum(_), _) => None
-    | (List(ty1), List(ty2)) =>
-      let+ ty = meet'(ty1, ty2);
-      List(ty) |> temp;
+    | (List(a), List(b)) =>
+      let+ r = meet'(a, b);
+      if (r === a) {
+        ty1;
+      } else if (r === b) {
+        ty2;
+      } else {
+        Grammar.List(r) |> temp;
+      };
     | (List(_), _) => None
     | (ProofOf(e1), ProofOf(e2)) =>
       Equality.semantic.exp(e1, e2) ? Some(ty1) : None
