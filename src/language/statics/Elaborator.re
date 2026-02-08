@@ -13,6 +13,26 @@ module ElaborationResult = {
     | DoesNotElaborate;
 };
 
+/* Elaboration profiling - mutable counters.
+   Declared early so they're available to elaborated_type/elaborated_pat_type. */
+let elab_call_count = ref(0);
+let elab_type_time = ref(0.0);
+let normalize_time = ref(0.0);
+let normalize_count = ref(0);
+let match_synswitch_time = ref(0.0);
+let all_ids_temp_time = ref(0.0);
+let fix_typ_ids_time = ref(0.0);
+
+let reset_elab_stats = () => {
+  elab_call_count := 0;
+  elab_type_time := 0.0;
+  normalize_time := 0.0;
+  normalize_count := 0;
+  match_synswitch_time := 0.0;
+  all_ids_temp_time := 0.0;
+  fix_typ_ids_time := 0.0;
+};
+
 let fresh_ascription = (d: Exp.t, t: Typ.t, t': option(Typ.t)) => {
   IdTagged.FreshGrammar.Exp.(
     switch (t') {
@@ -35,14 +55,16 @@ let elaborated_type =
       )
     | _ => raise(MissingTypeInfo)
     };
+  let ms_start = TimeUtil.now_ms();
   let elab_ty = Typ.match_synswitch(ana_ty, self_ty);
-  (
-    elab_ty |> Typ.normalize(ctx) |> Typ.all_ids_temp,
-    ana_ty,
-    ctx,
-    co_ctx,
-    term,
-  );
+  match_synswitch_time :=
+    match_synswitch_time^ +. (TimeUtil.now_ms() -. ms_start);
+  let normalized = Typ.normalize(ctx, elab_ty);
+  /* TEMPORARILY DISABLED: all_ids_temp - investigating perf impact */
+  /* let ait_start = TimeUtil.now_ms();
+     let result = Typ.all_ids_temp(normalized);
+     all_ids_temp_time := all_ids_temp_time^ +. (TimeUtil.now_ms() -. ait_start); */
+  (normalized, ana_ty, ctx, co_ctx, term);
 };
 
 let elaborated_pat_type =
@@ -69,6 +91,7 @@ let elaborated_pat_type =
       )
     | _ => raise(MissingTypeInfo)
     };
+  let ms_start = TimeUtil.now_ms();
   let elab_ty =
     switch (prev_synswitch) {
     | None => Typ.match_synswitch(self_ty, ana_ty)
@@ -84,7 +107,14 @@ let elaborated_pat_type =
       | _ => Typ.match_synswitch(syn_ty, ana_ty)
       }
     };
-  (elab_ty |> Typ.normalize(ctx) |> Typ.all_ids_temp, ana_ty, ctx, term);
+  match_synswitch_time :=
+    match_synswitch_time^ +. (TimeUtil.now_ms() -. ms_start);
+  let normalized = Typ.normalize(ctx, elab_ty);
+  /* TEMPORARILY DISABLED: all_ids_temp - investigating perf impact */
+  /* let ait_start = TimeUtil.now_ms();
+     let result = Typ.all_ids_temp(normalized);
+     all_ids_temp_time := all_ids_temp_time^ +. (TimeUtil.now_ms() -. ait_start); */
+  (normalized, ana_ty, ctx, term);
 };
 
 let rec elaborate_pattern =
@@ -174,23 +204,20 @@ let rec elaborate_pattern =
   (dpat, elaborated_type);
 };
 
-/* Elaboration profiling - mutable counters */
-let elab_call_count = ref(0);
-let elab_type_time = ref(0.0);
-let normalize_time = ref(0.0);
-let normalize_count = ref(0);
-
-let reset_elab_stats = () => {
-  elab_call_count := 0;
-  elab_type_time := 0.0;
-  normalize_time := 0.0;
-  normalize_count := 0;
-};
-
 let print_elab_stats = () => {
   Printf.printf("[ELAB] elaborate called %d times\n%!", elab_call_count^);
   Printf.printf("[ELAB] elaborated_type total: %.2fms\n%!", elab_type_time^);
-  Printf.printf("[ELAB] Typ.normalize called %d times, total: %.2fms\n%!", normalize_count^, normalize_time^);
+  Printf.printf(
+    "[ELAB] Typ.normalize called %d times, total: %.2fms\n%!",
+    normalize_count^,
+    normalize_time^,
+  );
+  Printf.printf(
+    "[ELAB] match_synswitch total: %.2fms\n%!",
+    match_synswitch_time^,
+  );
+  Printf.printf("[ELAB] all_ids_temp total: %.2fms\n%!", all_ids_temp_time^);
+  Printf.printf("[ELAB] fix_typ_ids total: %.2fms\n%!", fix_typ_ids_time^);
 };
 
 let timed_normalize = (ctx, t) => {
@@ -501,7 +528,7 @@ let fix_typ_ids =
 
 let uexp_elab = (m: Statics.Map.t, uexp: Exp.t): ElaborationResult.t => {
   reset_elab_stats();
-  Typ.reset_normalize_cache();
+  Typ.reset_normalize_stats();
   let start = TimeUtil.now_ms();
   let result =
     switch (elaborate(m, uexp)) {
@@ -510,10 +537,12 @@ let uexp_elab = (m: Statics.Map.t, uexp: Exp.t): ElaborationResult.t => {
       TimeUtil.log_time("    elaborate() inner", start);
       print_elab_stats();
       Typ.print_normalize_stats();
-      let fix_start = TimeUtil.now_ms();
-      let d' = d |> fix_typ_ids;
-      TimeUtil.log_time("    fix_typ_ids", fix_start);
-      ElaborationResult.Elaborates(d', ty);
+      /* TEMPORARILY DISABLED: fix_typ_ids - investigating perf impact */
+      /* let fix_start = TimeUtil.now_ms();
+         let d' = d |> fix_typ_ids;
+         fix_typ_ids_time := fix_typ_ids_time^ +. (TimeUtil.now_ms() -. fix_start);
+         TimeUtil.log_time("    fix_typ_ids", fix_start); */
+      ElaborationResult.Elaborates(d, ty);
     };
   TimeUtil.log_time("    uexp_elab total", start);
   result;

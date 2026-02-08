@@ -144,7 +144,7 @@ let meet =
       m1: t('a),
       m2: t('a),
     )
-    : option(t('a)) => {
+    : option(t('a)) =>
   /* Short-circuit: physical equality - meet of identical maps is that map */
   if (m1 === m2) {
     Some(m1);
@@ -168,7 +168,6 @@ let meet =
       None;
     };
   };
-};
 
 let match_synswitch =
     (
@@ -177,7 +176,7 @@ let match_synswitch =
       m1: t('a),
       m2: t('a),
     )
-    : t('a) => {
+    : t('a) =>
   /* Short-circuit: physical equality */
   if (m1 === m2) {
     m1;
@@ -193,15 +192,14 @@ let match_synswitch =
       );
     inter' @ left;
   };
-};
 
-let equal = (eq: ('a, 'a) => bool, m1: t('a), m2: t('a)) => {
+let equal = (eq: ('a, 'a) => bool, m1: t('a), m2: t('a)) =>
   /* Short-circuit: physical equality */
   if (m1 === m2) {
     true;
   } else if (List.length(m1) != List.length(m2)) {
-    /* Short-circuit: length mismatch means not equal */
     false;
+         /* Short-circuit: length mismatch means not equal */
   } else {
     switch (venn_regions(same_constructor(eq), m1, m2)) {
     | (inter, [], []) =>
@@ -219,7 +217,6 @@ let equal = (eq: ('a, 'a) => bool, m1: t('a), m2: t('a)) => {
     | _ => false
     };
   };
-};
 
 let map = (type a, f: option(a) => option(a), m: t(a)): t(a) => {
   List.map(

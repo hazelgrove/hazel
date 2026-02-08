@@ -6,15 +6,15 @@ open Typ;
 let tests = (
   "Statics.Lists",
   [
-    test_case("A @ A", `Quick, () => {
+    test_case("Qux @ Qux", `Quick, () => {
       annotated_tree_test(
-        "A @ A",
+        "Qux @ Qux",
         list(unknown(Internal)),
         FIError.Exp.(
           let a =
             constructor(
-              ~ann=Some(Exp(Common(NoType(FreeConstructor("A"))))),
-              "A",
+              ~ann=Some(Exp(Common(NoType(FreeConstructor("Qux"))))),
+              "Qux",
               None,
             );
           list_concat(a, a)

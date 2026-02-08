@@ -1,0 +1,9 @@
+(executable
+ (name bench)
+ (libraries haz3lcore)
+ (modes js)
+ (js_of_ocaml
+  (flags :standard --debuginfo --noinline --sourcemap)
+  (build_runtime_flags :standard --noinline))
+ (preprocess
+  (pps ppx_deriving.show)))
