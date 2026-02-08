@@ -33,11 +33,21 @@ let reset_elab_stats = () => {
   fix_typ_ids_time := 0.0;
 };
 
-let fresh_ascription = (d: Exp.t, t: Typ.t, t': option(Typ.t)) => {
+let fresh_ascription = (ctx: Ctx.t, d: Exp.t, t: Typ.t, t': option(Typ.t)) => {
   IdTagged.FreshGrammar.Exp.(
     switch (t') {
     | Some({term: Unknown(Internal), _}) => d
-    | Some(ty) when !Typ.fast_equal(ty, t) => asc(d, ty)
+    | Some(ty) when Typ.fast_equal(ty, t) => d
+    | Some(ty) =>
+      /* Types didn't match on fast_equal (unnormalized).
+         Normalize both and compare again before inserting ascription. */
+      let ty_n = Typ.normalize(ctx, ty);
+      let t_n = Typ.normalize(ctx, t);
+      if (Typ.fast_equal(ty_n, t_n)) {
+        d;
+      } else {
+        asc(d, ty_n);
+      };
     | _ => d
     }
   );
@@ -55,16 +65,8 @@ let elaborated_type =
       )
     | _ => raise(MissingTypeInfo)
     };
-  let ms_start = TimeUtil.now_ms();
   let elab_ty = Typ.match_synswitch(ana_ty, self_ty);
-  match_synswitch_time :=
-    match_synswitch_time^ +. (TimeUtil.now_ms() -. ms_start);
-  let normalized = Typ.normalize(ctx, elab_ty);
-  /* TEMPORARILY DISABLED: all_ids_temp - investigating perf impact */
-  /* let ait_start = TimeUtil.now_ms();
-     let result = Typ.all_ids_temp(normalized);
-     all_ids_temp_time := all_ids_temp_time^ +. (TimeUtil.now_ms() -. ait_start); */
-  (normalized, ana_ty, ctx, co_ctx, term);
+  (elab_ty, ana_ty, ctx, co_ctx, term);
 };
 
 let elaborated_pat_type =
@@ -91,7 +93,6 @@ let elaborated_pat_type =
       )
     | _ => raise(MissingTypeInfo)
     };
-  let ms_start = TimeUtil.now_ms();
   let elab_ty =
     switch (prev_synswitch) {
     | None => Typ.match_synswitch(self_ty, ana_ty)
@@ -107,14 +108,7 @@ let elaborated_pat_type =
       | _ => Typ.match_synswitch(syn_ty, ana_ty)
       }
     };
-  match_synswitch_time :=
-    match_synswitch_time^ +. (TimeUtil.now_ms() -. ms_start);
-  let normalized = Typ.normalize(ctx, elab_ty);
-  /* TEMPORARILY DISABLED: all_ids_temp - investigating perf impact */
-  /* let ait_start = TimeUtil.now_ms();
-     let result = Typ.all_ids_temp(normalized);
-     all_ids_temp_time := all_ids_temp_time^ +. (TimeUtil.now_ms() -. ait_start); */
-  (normalized, ana_ty, ctx, term);
+  (elab_ty, ana_ty, ctx, term);
 };
 
 let rec elaborate_pattern =
@@ -283,7 +277,7 @@ let rec elaborate = (m: Statics.Map.t, uexp: Exp.t): (DHExp.t, Typ.t) => {
         Typ.meet_all(~empty=Unknown(Internal) |> Typ.temp, ctx, tys);
 
       let ds' =
-        List.map2((d, t) => fresh_ascription(d, t, meet_ty), ds, tys);
+        List.map2((d, t) => fresh_ascription(ctx, d, t, meet_ty), ds, tys);
       ListLit(ds') |> rewrap;
     | LivelitName(_) => uexp
     | Constructor(c, _) =>
@@ -355,7 +349,7 @@ let rec elaborate = (m: Statics.Map.t, uexp: Exp.t): (DHExp.t, Typ.t) => {
       // attach labels if needed for labeled tuples
       let (def_term, def_rewrap) = DHExp.unwrap(def);
       let def =
-        switch (def_term, Typ.term_of(Typ.normalize(ctx, ty1))) {
+        switch (def_term, Typ.term_of(Typ.weak_head_normalize(ctx, ty1))) {
         | (Tuple(ds), Prod(tys)) =>
           Tuple(
             LabeledTuple.rearrange(
@@ -433,8 +427,8 @@ let rec elaborate = (m: Statics.Map.t, uexp: Exp.t): (DHExp.t, Typ.t) => {
       let (f', f_ty) = elaborate(m, f);
       If(
         c',
-        fresh_ascription(t', t_ty, Some(elaborated_type)),
-        fresh_ascription(f', f_ty, Some(elaborated_type)),
+        fresh_ascription(ctx, t', t_ty, Some(elaborated_type)),
+        fresh_ascription(ctx, f', f_ty, Some(elaborated_type)),
       )
       |> rewrap;
     | Seq(e1, e2) =>
@@ -508,7 +502,7 @@ let rec elaborate = (m: Statics.Map.t, uexp: Exp.t): (DHExp.t, Typ.t) => {
         List.map(
           e => {
             let (e', ty) = elaborate(m, e);
-            fresh_ascription(e', ty, Some(elaborated_type));
+            fresh_ascription(ctx, e', ty, Some(elaborated_type));
           },
           es,
         );
@@ -537,11 +531,13 @@ let uexp_elab = (m: Statics.Map.t, uexp: Exp.t): ElaborationResult.t => {
       TimeUtil.log_time("    elaborate() inner", start);
       print_elab_stats();
       Typ.print_normalize_stats();
-      /* TEMPORARILY DISABLED: fix_typ_ids - investigating perf impact */
-      /* let fix_start = TimeUtil.now_ms();
-         let d' = d |> fix_typ_ids;
-         fix_typ_ids_time := fix_typ_ids_time^ +. (TimeUtil.now_ms() -. fix_start);
-         TimeUtil.log_time("    fix_typ_ids", fix_start); */
+      /* Normalize the final return type once (lazy normalization) */
+      let ctx =
+        switch (Id.Map.find_opt(Exp.rep_id(uexp), m)) {
+        | Some(Info.InfoExp({ctx, _})) => ctx
+        | _ => Ctx.empty
+        };
+      let ty = Typ.normalize(ctx, ty);
       ElaborationResult.Elaborates(d, ty);
     };
   TimeUtil.log_time("    uexp_elab total", start);

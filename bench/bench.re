@@ -11,6 +11,7 @@ type bench_result = {
   statics_ms: float,
   elab_ms: float,
   eval_ms: float,
+  post_eval_statics_ms: float,
   /* statics prof */
   statics_meet_calls: int,
   statics_meet_sum_calls: int,
@@ -32,6 +33,13 @@ type bench_result = {
   elab_match_synswitch_ms: float,
   elab_all_ids_temp_ms: float,
   elab_fix_typ_ids_ms: float,
+  /* post-eval statics prof */
+  post_meet_calls: int,
+  post_meet_sum_calls: int,
+  post_meet_sum_ms: float,
+  post_rec_rec: int,
+  post_sum_from_rec: int,
+  post_var_eq: int,
 };
 
 let bench = (~iterations=3, name: string, program: string): bench_result => {
@@ -103,12 +111,34 @@ let bench = (~iterations=3, name: string, program: string): bench_result => {
   let elab_fix_typ_ids_ms =
     (now_ms() -. fix_start) /. float_of_int(iterations);
 
+  let eval_result = ref(elaborated);
   let start = now_ms();
   for (_ in 1 to iterations) {
-    let _ = Evaluator.evaluate(~env=Builtins.env_init, elaborated);
-    ();
+    let (result, _state) =
+      Evaluator.evaluate(~env=Builtins.env_init, elaborated);
+    eval_result := result;
   };
   let eval_ms = (now_ms() -. start) /. float_of_int(iterations);
+
+  /* Time post-eval statics: run statics on the evaluated result */
+  let evaluated_exp = eval_result^;
+  Typ.reset_meet_stats();
+  Typ.reset_normalize_stats();
+  let start = now_ms();
+  for (_ in 1 to iterations) {
+    Typ.reset_meet_stats();
+    Typ.reset_normalize_stats();
+    let _ =
+      Statics.mk(CoreSettings.on, Builtins.ctx_init(Some(Int)), evaluated_exp);
+    ();
+  };
+  let post_eval_statics_ms = (now_ms() -. start) /. float_of_int(iterations);
+  let post_meet_calls = Typ.meet_calls^;
+  let post_meet_sum_calls = Typ.meet_sum_calls^;
+  let post_meet_sum_ms = Typ.meet_sum_time_ms^;
+  let post_rec_rec = Typ.meet_rec_rec^;
+  let post_sum_from_rec = Typ.meet_sum_from_rec^;
+  let post_var_eq = Typ.meet_var_eq^;
 
   {
     name,
@@ -116,6 +146,7 @@ let bench = (~iterations=3, name: string, program: string): bench_result => {
     statics_ms,
     elab_ms,
     eval_ms,
+    post_eval_statics_ms,
     statics_meet_calls,
     statics_meet_sum_calls,
     statics_meet_sum_ms,
@@ -134,18 +165,25 @@ let bench = (~iterations=3, name: string, program: string): bench_result => {
     elab_match_synswitch_ms,
     elab_all_ids_temp_ms,
     elab_fix_typ_ids_ms,
+    post_meet_calls,
+    post_meet_sum_calls,
+    post_meet_sum_ms,
+    post_rec_rec,
+    post_sum_from_rec,
+    post_var_eq,
   };
 };
 
 let print_result = (r: bench_result): unit => {
   Printf.printf(
-    "[BENCH] %-20s  parse:%7.1fms  statics:%7.1fms  elab:%7.1fms  eval:%7.1fms  total:%7.1fms\n%!",
+    "[BENCH] %-20s  parse:%7.1fms  statics:%7.1fms  elab:%7.1fms  eval:%7.1fms  post_statics:%7.1fms  total:%7.1fms\n%!",
     r.name,
     r.parse_ms,
     r.statics_ms,
     r.elab_ms,
     r.eval_ms,
-    r.parse_ms +. r.statics_ms +. r.elab_ms +. r.eval_ms,
+    r.post_eval_statics_ms,
+    r.parse_ms +. r.statics_ms +. r.elab_ms +. r.eval_ms +. r.post_eval_statics_ms,
   );
   Printf.printf(
     "[PROF]  %-20s  statics: meet=%d sum=%d(from_rec=%d) var_eq=%d rec_rec=%d sum_ms=%.1f | elab: meet=%d sum=%d(from_rec=%d) var_eq=%d rec_rec=%d sum_ms=%.1f norm=%d/%.1fms\n%!",
@@ -175,6 +213,16 @@ let print_result = (r: bench_result): unit => {
     r.elab_all_ids_temp_ms,
     r.elab_fix_typ_ids_ms,
     other_ms,
+  );
+  Printf.printf(
+    "[POST]  %-20s  post_statics: meet=%d sum=%d(from_rec=%d) var_eq=%d rec_rec=%d sum_ms=%.1f\n%!",
+    r.name,
+    r.post_meet_calls,
+    r.post_meet_sum_calls,
+    r.post_sum_from_rec,
+    r.post_var_eq,
+    r.post_rec_rec,
+    r.post_meet_sum_ms,
   );
 };
 
@@ -560,12 +608,13 @@ let () = {
   Printf.printf("Hazel Benchmark Suite\n%!");
   Printf.printf("%s\n%!", String.make(100, '='));
   Printf.printf(
-    "[BENCH] %-20s  %7s  %9s  %7s  %7s  %7s\n%!",
+    "[BENCH] %-20s  %7s  %9s  %7s  %7s  %14s  %7s\n%!",
     "program",
     "parse",
     "statics",
     "elab",
     "eval",
+    "post_statics",
     "total",
   );
   Printf.printf("[BENCH] %s\n%!", String.make(75, '-'));

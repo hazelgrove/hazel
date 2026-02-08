@@ -404,23 +404,99 @@ dune build bench/bench.bc.js && node _build/default/bench/bench.bc.js
 ... | grep PROF
 ```
 
+## Lazy Normalize: IMPLEMENTED (Feb 7, 2026)
+
+Removed `Typ.normalize` from `elaborated_type`/`elaborated_pat_type`. Normalize
+now only happens at specific use sites:
+
+- `uexp_elab` return: normalize final type once
+- `fresh_ascription`: internalized normalize (try fast_equal first, normalize fallback)
+- Case-specific: Asc, Constructor, TypAp, Pat Asc, Pat Constructor (kept as-is)
+- Let label rearrangement: changed from normalize to weak_head_normalize
+- `get_labels`: already does weak_head_normalize internally, no change needed
+
+Results for full_app:
+```
+Original elab:           1,273ms
+After all_ids_temp off:    703ms  (1.8x)
+After lazy normalize:      151ms  (8.4x from original)
+
+Normalize calls: 1,543,190 → 438,452 (71% reduction)
+Meet calls in elab: 89,048 → 184 (99.8% reduction!)
+Sum meets in elab: 786 → 0 (eliminated)
+```
+
+The `===` in meet now fires for elaboration too, because types aren't being
+destroyed by all_ids_temp or redundant normalize.
+
+## Post-Eval Statics: THE NEW BOTTLENECK (Feb 7, 2026)
+
+After evaluation, the result is displayed in the footer. This involves:
+1. `ExpToSegment.exp_to_segment(exp)` — convert eval result to displayable code
+2. `Statics.mk` on the eval result — full type checking
+3. `Elaborator.uexp_elab` on the eval result — full elaboration (via CachedStatics.init)
+
+### Post-eval statics benchmark results:
+
+| Program | Pre-eval statics | Post-eval statics | Ratio |
+|---------|-----------------|-------------------|-------|
+| counter | 7.5ms | 408ms | 54x |
+| mvu_counter | 12ms | 595ms | 50x |
+| keyboard_game | 14ms | 360ms | 26x |
+| full_app | 23ms | 2,353ms | 102x |
+
+### Post-eval meet stats (full_app):
+- Pre-eval: 8,906 meet calls, 0 sum meets, 0 rec-rec
+- Post-eval: 2,021,652 meet calls, 17,733 sum meets, 420 rec-rec
+
+The `===` optimization is completely ineffective on the evaluated result.
+
+### Why post-eval statics is slow
+
+Two factors destroy physical equality:
+
+1. **Normalized types in ascriptions**: The elaborator writes normalized types
+   (e.g., `Rec("HTML", Sum(47 ctrs))`) into Asc nodes. When post-eval statics
+   encounters `Asc(expr, Rec(...))`, it uses the expanded Rec form, defeating
+   the Var-Var fast path in meet. (Hypothesis — needs verification.)
+
+2. **Web worker boundary**: `postMessage` uses the structured clone algorithm
+   which does NOT preserve reference identity. All physical equality is destroyed
+   when the evaluated result crosses the web worker boundary. Even if the evaluator
+   preserved type sharing, structured cloning would break it.
+
+### Post-eval rendering pipeline (EvalResult.re)
+
+When eval results come back:
+1. `CodeSelectable.Model.mk_from_exp(~settings, exp)` (EvalResult.re:257)
+   - `ExpToSegment.exp_to_segment(term)` — convert to displayable segments
+   - `Zipper.unzip` — create zipper
+   - `Editor.Model.mk` — create editor model
+2. `CodeSelectable.Update.calculate(...)` (EvalResult.re:267)
+   - `CachedStatics.init` (CodeWithStatics.re:117)
+     - `Statics.mk` — full statics on eval result
+     - `Elaborator.uexp_elab` — full elaboration on eval result
+
 ## What to Do Next
 
-1. **Address normalize cost** (HIGHEST PRIORITY): With all_ids_temp removed,
-   normalize is now the dominant cost (469ms, ~67% of 703ms elab). Options:
-   - Sound caching (context-aware keys, or builtin-only cache)
-   - Reducing call count (avoid normalizing already-normalized types)
-   - Lazy normalization (only normalize when structurally needed)
-   - Physical identity preservation (if normalize returns same structure,
-     return same object → enables `===` in meet for elaboration too)
+1. **Fix post-eval statics** (HIGHEST PRIORITY, 2.3s for full_app):
+   - Investigate what types appear in ascriptions in the evaluated result
+   - Check Ascriptions.re and Transition.re for type handling in evaluator
+   - Options: type dedup pass before statics, keep types as Vars in ascriptions,
+     or intern types after web worker crossing
+   - Add ExpToSegment and elaborate-on-eval-result to benchmark
 
-2. **Investigate duplicate ID downstream effects**: Check these call sites for
+2. **Web worker physical equality**: Structured cloning breaks all `===`.
+   After results cross the web worker boundary, need a dedup/intern pass
+   to restore physical equality. This single fix could solve post-eval statics.
+
+3. **Investigate duplicate ID downstream effects**: Check these call sites for
    issues with duplicate type IDs in elaborated/evaluated code:
-   - Results display panel (elaborated code display, evaluated code display)
-   - Probes (evaluated code display)
-   - Any UI that maps type IDs to decorations/cursors
-   If needed, add a one-time UUID dedup pass before display (not during elab).
+   - Results display panel, probes, UI decoration mapping
+   - If needed, add one-time UUID dedup pass before display
 
-3. **Find who passes Rec types to meet** (lower priority): The `===` check
-   made this moot for statics (all eliminated), but understanding the flow
-   could help reason about elaboration's Rec-Rec meets too.
+4. **Benchmark additions needed**:
+   - Post-eval statics: DONE (added to bench.re)
+   - Post-eval elaboration: TODO
+   - ExpToSegment.exp_to_segment on eval result: TODO
+   - Full editor chain timing: TODO (lower priority)
