@@ -251,7 +251,8 @@ module M: Projector = {
       Node.div(
         ~attrs=[
           Attr.classes(["html-proj-resize-handle"]),
-          Attr.on_pointerdown((evt: Js_of_ocaml.Js.t(Js_of_ocaml.Dom_html.pointerEvent)) => {
+          Attr.on_pointerdown(
+            (evt: Js_of_ocaml.Js.t(Js_of_ocaml.Dom_html.pointerEvent)) => {
             resize_cols := model.ui.cols;
             resize_rows := model.ui.rows;
             let target =
@@ -271,7 +272,8 @@ module M: Projector = {
           Attr.on_mousemove(evt => {
             switch (wrapper_ref^) {
             | Some(wrapper) =>
-              let container = Js_of_ocaml.Js.Unsafe.coerce(wrapper)##.parentNode;
+              let container =
+                Js_of_ocaml.Js.Unsafe.coerce(wrapper)##.parentNode;
               let rect = container##getBoundingClientRect();
               let left: float = rect##.left;
               let top: float = rect##.top;
@@ -279,9 +281,15 @@ module M: Projector = {
               let client_x: float = float_of_int(e##.clientX);
               let client_y: float = float_of_int(e##.clientY);
               let new_cols =
-                max(8, int_of_float(floor((client_x -. left) /. px_per_col^)));
+                max(
+                  8,
+                  int_of_float(floor((client_x -. left) /. px_per_col^)),
+                );
               let new_rows =
-                max(3, int_of_float(floor((client_y -. top) /. px_per_row^)));
+                max(
+                  3,
+                  int_of_float(floor((client_y -. top) /. px_per_row^)),
+                );
               if (new_cols != resize_cols^ || new_rows != resize_rows^) {
                 resize_cols := new_cols;
                 resize_rows := new_rows;
@@ -290,9 +298,10 @@ module M: Projector = {
                 Effect.Ignore;
               };
             | None => Effect.Ignore
-            };
+            }
           }),
-          Attr.on_pointerup((evt: Js_of_ocaml.Js.t(Js_of_ocaml.Dom_html.pointerEvent)) => {
+          Attr.on_pointerup(
+            (evt: Js_of_ocaml.Js.t(Js_of_ocaml.Dom_html.pointerEvent)) => {
             let target =
               evt##.currentTarget
               |> Js_of_ocaml.Js.Opt.get(_, _ => failwith("no target"));

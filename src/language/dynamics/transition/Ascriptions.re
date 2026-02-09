@@ -52,11 +52,10 @@ let rec transition = (~recursive=false, d: DHExp.t): option(DHExp.t) => {
        The ORIGINAL compact type `t` is preserved in newly created Asc nodes. */
     let t_resolved = Typ.weak_head_normalize(ctx, t);
     switch (DHExp.term_of(e), Typ.term_of(Typ.unroll(t_resolved))) {
-    | (Asc(e, t'), t)
+    | (Asc(e, t'), _)
         // This is only necessary because sometimes we add two ascriptions and aren't marking it as a non-value
-        when
-          Typ.is_consistent(ctx, Typ.unroll(t |> Typ.temp), Typ.unroll(t')) =>
-      switch (Typ.meet(ctx, Typ.unroll(t |> Typ.temp), Typ.unroll(t'))) {
+        when Typ.is_consistent(ctx, Typ.unroll(t), Typ.unroll(t')) =>
+      switch (Typ.meet(ctx, Typ.unroll(t), Typ.unroll(t'))) {
       | Some(t) => Some(recur(Asc(e, t) |> DHExp.fresh))
       | None => None //TODO  This is an impossible case since we checked consistency
       }
@@ -152,26 +151,26 @@ let rec transition = (~recursive=false, d: DHExp.t): option(DHExp.t) => {
           |> DHExp.fresh,
         ),
       );
-    | (If(cond, e1, e2), t) =>
+    | (If(cond, e1, e2), _) =>
       Some(
         IdTagged.fast_copy(
           DHExp.rep_id(e),
           If(
             recur(cond),
-            recur(Asc(e1, t |> Typ.temp) |> DHExp.fresh),
-            recur(Asc(e2, t |> Typ.temp) |> DHExp.fresh),
+            recur(Asc(e1, t) |> DHExp.fresh),
+            recur(Asc(e2, t) |> DHExp.fresh),
           )
           |> DHExp.fresh,
         ),
       )
-    | (Match(scrut, rules), t) =>
+    | (Match(scrut, rules), _) =>
       Some(
         IdTagged.fast_copy(
           DHExp.rep_id(e),
           Match(
             scrut,
             List.map(
-              ((p, body)) => (p, Asc(body, t |> Typ.temp) |> DHExp.fresh),
+              ((p, body)) => (p, Asc(body, t) |> DHExp.fresh),
               rules,
             ),
           )
