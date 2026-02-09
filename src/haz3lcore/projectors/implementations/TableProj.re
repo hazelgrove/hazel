@@ -123,20 +123,7 @@ let value_view = (_info: info, utility: utility, view_seg, exp) => {
   let (seg, length) = abbreviated_seg_of(utility, max_column_length, exp);
 
   Node.div(
-    ~attrs=[
-      //Attr.title(DynCursor.Debug.str(info, closure)),
-      Attr.classes([
-        "value",
-        length_cls(length),
-        // @ DynCursor.clss(info, closure)
-        // @ (Option.is_some(cur_ap(info)) ? ["ap"] : [])
-        // @ (!is_value(closure.value) ? ["indet"] : []),
-      ]),
-      // Attr.on_double_click(_ => local(ToggleShowAllVals(index))),
-      // Attr.on_pointerdown(val_pointerdown),
-      // Attr.on_pointerup(val_pointerup),
-      // Attr.on_mousemove(val_mousemove),
-    ],
+    ~attrs=[Attr.classes(["value", length_cls(length)])],
     [view_seg(Sort.Exp, seg)],
   );
 };
