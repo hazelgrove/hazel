@@ -261,9 +261,10 @@ module Update = {
     | Log(_)
     | Undo
     | Redo
+    | RethrowException
     | ClearException =>
       failwith(
-        "Undo/Redo/Log import/ClearException are handled in higher-level modules",
+        "Undo/Redo/Log import/RethrowException/ClearException are handled in higher-level modules",
       )
     };
   };

@@ -1,26 +1,38 @@
 open Util;
 
+type current_exception =
+  | Update(string)
+  | Calculate(string);
+
+let last_exception: ref(option(exn)) = ref(None);
+let current_exception: ref(option(current_exception)) = ref(None);
+
+let set_last_exception = exn => {
+  last_exception := Some(exn);
+};
+
+let clear_last_exception = () => {
+  last_exception := None;
+};
+
+let set_current_exception = exn_type => {
+  current_exception := Some(exn_type);
+};
+
+let clear_current_exception = () => {
+  current_exception := None;
+};
+
 module Model = {
   [@deriving (sexp, yojson)]
   type state = Logged.Model.t;
-  [@deriving (sexp, yojson)]
-  type current_exception =
-    | NoException
-    | Update(string)
-    | Calculate(string);
 
   [@deriving (sexp, yojson)]
-  type t = {
-    model: state,
-    current_exception,
-  };
+  type t = {model: state};
 
   let equal = (===);
 
-  let load = () => {
-    model: Logged.Model.load(),
-    current_exception: NoException,
-  };
+  let load = () => {model: Logged.Model.load()};
 };
 
 module Update = {
@@ -38,12 +50,15 @@ module Update = {
       : Updated.t(Model.t) =>
     switch (action) {
     | Globals(ClearException) =>
-      {
-        ...model,
-        current_exception: NoException,
+      clear_last_exception();
+      clear_current_exception();
+      model |> Updated.return_quiet;
+    | Globals(RethrowException) =>
+      switch (last_exception^) {
+      | None => model |> Updated.return_quiet
+      | Some(exn) => raise(exn)
       }
-      |> Updated.return_quiet
-    | _ when model.current_exception == NoException =>
+    | _ when current_exception^ == None =>
       try({
         let updated =
           Logged.Update.update(
@@ -57,7 +72,6 @@ module Update = {
           ...updated,
           model: {
             model: updated.model,
-            current_exception: NoException,
           },
         };
       }) {
@@ -71,12 +85,11 @@ module Update = {
         print_endline("cannot perform action");
         model |> Updated.return_quiet;
       | exn =>
+        set_last_exception(exn);
         let msg = Printexc.to_string(exn);
         print_endline("CrashHandling: Caught exception in update: " ++ msg);
-        Updated.return_quiet({
-          ...model,
-          current_exception: Update(msg),
-        });
+        set_current_exception(Update(msg));
+        model |> Updated.return_quiet;
       }
     | _ => model |> Updated.return_quiet
     };
@@ -94,15 +107,13 @@ module Update = {
       model:
         model.model
         |> Logged.Update.calculate(~schedule_action, ~is_edited, ~dynamics),
-      current_exception: model.current_exception,
     }) {
     | exn =>
+      set_last_exception(exn);
       let msg = Printexc.to_string(exn);
       print_endline("CrashHandling: Caught exception in calculate: " ++ msg);
-      {
-        ...previous_model,
-        current_exception: Calculate(msg),
-      };
+      set_current_exception(Calculate(msg));
+      previous_model;
     };
 };
 
@@ -111,7 +122,12 @@ module View = {
   open WebUtil.Node;
 
   let hsod_view =
-      (~title: string, ~msg: string, ~inject_backtrack: Ui_effect.t(unit)) =>
+      (
+        ~title: string,
+        ~msg: string,
+        ~inject_backtrack: Ui_effect.t(unit),
+        ~inject_rethrow: Ui_effect.t(unit),
+      ) =>
     div(
       ~attrs=[Attr.class_("hsod-container")],
       [
@@ -181,6 +197,14 @@ module View = {
                           ],
                           [Node.text("Revert to previous state")],
                         ),
+                        button(
+                          ~attrs=[
+                            Attr.create("type", "button"),
+                            Attr.class_("hsod-button"),
+                            Attr.on_click(_ => inject_rethrow),
+                          ],
+                          [Node.text("Rethrow exception")],
+                        ),
                       ],
                     ),
                   ],
@@ -194,26 +218,33 @@ module View = {
 
   let view =
       (~get_log_and, ~inject: Update.t => Ui_effect.t(unit), model: Model.t) =>
-    switch (model.current_exception) {
-    | NoException => Logged.View.view(~get_log_and, ~inject, model.model)
-    | Update(msg) =>
+    switch (current_exception^) {
+    | None =>
+      try(Logged.View.view(~get_log_and, ~inject, model.model)) {
+      | exn =>
+        set_last_exception(exn);
+        let msg = Printexc.to_string(exn);
+        set_current_exception(Update(msg));
+        hsod_view(
+          ~title="Exception during View",
+          ~msg,
+          ~inject_backtrack=inject(Globals(Undo)),
+          ~inject_rethrow=inject(Globals(RethrowException)),
+        );
+      }
+    | Some(Update(msg)) =>
       hsod_view(
         ~title="Exception during Update",
         ~msg,
         ~inject_backtrack=inject(Globals(ClearException)),
+        ~inject_rethrow=inject(Globals(RethrowException)),
       )
-    | Calculate(msg) =>
+    | Some(Calculate(msg)) =>
       hsod_view(
         ~title="Exception during Calculate",
         ~msg,
         ~inject_backtrack=inject(Globals(ClearException)),
+        ~inject_rethrow=inject(Globals(RethrowException)),
       )
-    | exception exn =>
-      let msg = Printexc.to_string(exn);
-      hsod_view(
-        ~title="Exception during View",
-        ~msg,
-        ~inject_backtrack=inject(Globals(Undo)),
-      );
     };
 };

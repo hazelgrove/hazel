@@ -67,6 +67,7 @@ module Action = {
     | Log(log)
     | SetMetaDown(bool)
     | UpdateVisibleRows(VisibleRows.t)
+    | RethrowException
     | ClearException;
 };
 
@@ -159,6 +160,7 @@ module Update = {
     | SetMetaDown(_) => false
     | UpdateVisibleRows(_) => false
     | Log(_) => false
+    | RethrowException => false
     | ClearException => false
     };
   };
