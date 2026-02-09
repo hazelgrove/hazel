@@ -116,7 +116,21 @@ let dev_group = (~globals: Globals.t) => {
         Benchmark: Settings.Update.t,
       ),
       ("𝑒", "Elaboration", globals.settings.core.elaborate, Elaborate),
-      ("↵", "Whitespace", globals.settings.secondary_icons, SecondaryIcons),
+    ],
+  );
+};
+
+let code_display_group = (~globals: Globals.t) => {
+  settings_group(
+    ~globals,
+    "Code Display",
+    [
+      (
+        "↵",
+        "Whitespace",
+        globals.settings.secondary_icons,
+        SecondaryIcons: Settings.Update.t,
+      ),
       (
         "a",
         "Animations",
@@ -139,6 +153,7 @@ let dev_group = (~globals: Globals.t) => {
     ),
   );
 };
+
 //("l", "Line Numbers", globals.settings.line_numbers, ToggleLineNumbers)
 let settings_menu = (~globals) => {
   [
@@ -146,5 +161,6 @@ let settings_menu = (~globals) => {
     values_group(~globals),
     stepper_group(~globals),
     dev_group(~globals),
+    code_display_group(~globals),
   ];
 };

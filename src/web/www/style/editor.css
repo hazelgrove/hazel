@@ -67,7 +67,7 @@
 * to avoid inserting an extraneous whitespace context for inline
 * syntax views, e.g. type views in the cursor inspector */
 .code-text:after {
-  content: "";
+  content: "​";
 }
 
 

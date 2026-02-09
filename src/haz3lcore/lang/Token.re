@@ -42,7 +42,7 @@ let bounding_box = (t: t): Point.t =>
 /* Token Recognition Predicates */
 
 /* A. Secondary Notation (Comments, Whitespace, etc.)  */
-let empty = "";
+let empty = ""; /* This is invalid for view */
 let space = " ";
 let linebreak = "\n";
 let comment_regexp = regexp("^#[^#\n]*#$"); /* Multiline comments not supported */
