@@ -106,23 +106,14 @@ let controls_section = (~globals: Globals.t, ~model: Model.t) => {
             ],
           ),
           button(
-            ~tooltip="Import log file",
+            ~tooltip="Import log file and reset state",
             ~onclick=
               _ => {
                 let elem = Util.JsUtil.get_elem_by_id("log-import-input");
                 elem##click;
                 Ui_effect.Ignore;
               },
-            [text("Import Log")],
-          ),
-          button(
-            ~tooltip="Export current log",
-            ~onclick=
-              _ => {
-                ExercisesMode.Update.export_submission(~globals);
-                Ui_effect.Ignore;
-              },
-            [text("Export Log")],
+            [text("Import & Reset")],
           ),
         ],
       ),

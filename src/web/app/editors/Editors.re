@@ -90,6 +90,15 @@ module Store = {
       ExercisesMode.Store.save(~instructor_mode, m);
     };
   };
+
+  let reset = (~settings, ~instructor_mode) => {
+    StoreMode.save(Tutorial);
+    let _ = ScratchMode.Store.reset();
+    let _ = ScratchMode.StoreDocumentation.reset();
+    let _ = TutorialsMode.Store.reset(~settings, ~instructor_mode);
+    let _ = ExercisesMode.Store.reset(~settings, ~instructor_mode);
+    load(~settings, ~instructor_mode);
+  };
 };
 
 module Update = {

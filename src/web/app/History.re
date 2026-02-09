@@ -13,8 +13,14 @@ module Model = {
 
   let equal = (===);
 
-  let init = () => {
+  let load = () => {
     current: Page.Store.load(),
+    undo_stack: [],
+    redo_stack: [],
+  };
+
+  let reset = (~font_metrics=?, ()) => {
+    current: Page.Model.reset(~font_metrics?, ()),
     undo_stack: [],
     redo_stack: [],
   };

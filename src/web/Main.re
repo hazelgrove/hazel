@@ -112,7 +112,7 @@ let start = {
           apply(~schedule_action, ~schedule_autosave);
         },
       ~default_model=
-        Logged.Model.init()
+        Logged.Model.load()
         |> Logged.Update.calculate(
              ~schedule_action=_ => (),
              ~is_edited=true,

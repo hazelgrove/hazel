@@ -15,8 +15,8 @@ module Model = {
 
   let equal = (===);
 
-  let init = () => {
-    current: History.Model.init(),
+  let load = () => {
+    current: History.Model.load(),
     future_log: [],
     past_log: [],
     replay_messages: [],
@@ -60,9 +60,30 @@ module Update = {
           |> Log.Entry.s_of_sexp_opt
           |> List.filter_map(x => x);
         let actions = data |> of_data |> Log.flatten_imports(~of_data);
+        let current =
+          History.Model.reset(
+            ~font_metrics=model.current.current.globals.font_metrics, // Keep old font metrics - otherwise it goes weird
+            (),
+          );
+        // Retain log panel after import
+        let current = {
+          ...current,
+          current: {
+            ...current.current,
+            globals: {
+              ...current.current.globals,
+              settings: {
+                ...current.current.globals.settings,
+                show_log_panel: true,
+                sidebar: model.current.current.globals.settings.sidebar,
+              },
+            },
+          },
+        };
         {
           ...model,
-          future_log: model.future_log @ actions,
+          current,
+          future_log: actions,
           replay_messages: [
             "Imported log entries: " ++ string_of_int(List.length(actions)),
             ...model.replay_messages,

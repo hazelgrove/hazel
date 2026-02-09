@@ -21,6 +21,20 @@ module Model = {
   };
 
   let equal = (===);
+
+  let reset = (~font_metrics=?, ()) => {
+    let globals = Globals.Model.init(~font_metrics?, ());
+    let settings = globals.settings;
+    let instructor_mode = globals.settings.instructor_mode;
+    let editors = Editors.Store.reset(~settings, ~instructor_mode);
+    {
+      globals,
+      editors,
+      explain_this: ExplainThisModel.init,
+      assistant: AssistantModel.init(),
+      selection: Editors.Selection.default_selection(editors),
+    };
+  };
 };
 
 module Store = {

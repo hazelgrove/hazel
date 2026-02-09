@@ -97,35 +97,36 @@ module Model = {
     export_persistent: unit => unit,
   };
 
+  let init =
+      (~settings=Settings.Model.init, ~font_metrics=FontMetrics.init, ()) => {
+    settings,
+    font_metrics,
+    meta_down: false,
+    visible_rows: None,
+    color_highlights: None,
+    inject_global: _ =>
+      failwith("Cannot use inject_global outside of the main view function!"),
+    get_log_and: _ =>
+      failwith(
+        "Cannot use get_log_and outside of the main view or update functions!",
+      ),
+    get_log_count: _ =>
+      failwith(
+        "Cannot use get_log_count outside of the main view or update functions!",
+      ),
+    export_all: (~settings as _, ~instructor_mode as _, ~log as _) =>
+      failwith(
+        "Cannot use export_all outside of the main view or update functions!",
+      ),
+    export_persistent: () =>
+      failwith(
+        "Cannot use export_persistent outside of the main view function!",
+      ),
+  };
+
   let load = () => {
     let settings = Settings.Store.load();
-    {
-      font_metrics: FontMetrics.init,
-      settings,
-      meta_down: false,
-      visible_rows: None,
-      color_highlights: None,
-      inject_global: _ =>
-        failwith(
-          "Cannot use inject_global outside of the main view function!",
-        ),
-      get_log_and: _ =>
-        failwith(
-          "Cannot use get_log_and outside of the main view or update functions!",
-        ),
-      get_log_count: _ =>
-        failwith(
-          "Cannot use get_log_count outside of the main view or update functions!",
-        ),
-      export_all: (~settings as _, ~instructor_mode as _, ~log as _) =>
-        failwith(
-          "Cannot use export_all outside of the main view or update functions!",
-        ),
-      export_persistent: () =>
-        failwith(
-          "Cannot use export_persistent outside of the main view function!",
-        ),
-    };
+    init(~settings, ());
   };
 
   let save = model => {
