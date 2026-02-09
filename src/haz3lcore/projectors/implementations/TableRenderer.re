@@ -153,6 +153,13 @@ let get_columns = (ty: Typ.t): option(list(string)) => {
   };
 };
 
+/* Check if a type is an Option type (+None +Some(?))  */
+let is_option_type = (ty: Typ.t): bool => {
+  let ctx = Builtins.ctx_init(Some(Int));
+  Typ.is_consistent(ctx, ty, BuiltinsADT.Option.t)
+  && Typ.is_more_precise(ctx, ty, BuiltinsADT.Option.t);
+};
+
 let strip_parens =
   Exp.map_term(~f_exp=(continue, e) =>
     switch (e.term) {
@@ -337,6 +344,81 @@ let filter_by_column = (op, info: info, column: string): Base.segment => {
               None,
             ),
           ]),
+        )
+      ),
+    )
+  );
+};
+
+/* Drop rows where the option column is None, unwrapping Some values */
+let drop_nones_column = (info: info, column: string): Base.segment => {
+  IdTagged.FreshGrammar.(
+    apply_transformation(
+      info,
+      Exp.(
+        ap(
+          Forward,
+          var("filter_map"),
+          tuple([
+            deferral(InAp),
+            fn(
+              Pat.var("row"),
+              ap(
+                Forward,
+                var("option_map"),
+                tuple([
+                  dot(var("row"), label(column)),
+                  fn(
+                    Pat.var("v"),
+                    tuple_extension(
+                      var("row"),
+                      tuple([tup_label(label(column), var("v"))]),
+                    ),
+                    None,
+                    None,
+                  ),
+                ]),
+              ),
+              None,
+              None,
+            ),
+          ]),
+        )
+      ),
+    )
+  );
+};
+
+/* Replace None values with an expression hole for user to fill in default */
+let provide_default_column = (info: info, column: string): Base.segment => {
+  IdTagged.FreshGrammar.(
+    apply_rowwise_transformation(
+      info,
+      Exp.(
+        fn(
+          Pat.var("row"),
+          tuple_extension(
+            var("row"),
+            tuple([
+              tup_label(
+                label(column),
+                match(
+                  dot(var("row"), label(column)),
+                  [
+                    /* None => hole for user to fill in */
+                    (BuiltinsADT.Option.pat_none, empty_hole()),
+                    /* Some(x) => x */
+                    (
+                      Pat.ap(BuiltinsADT.Option.pat_some, Pat.var("v")),
+                      var("v"),
+                    ),
+                  ],
+                ),
+              ),
+            ]),
+          ),
+          None,
+          None,
         )
       ),
     )
@@ -807,6 +889,33 @@ let build_column_menu =
       | None => []
       };
 
+    /* Option type actions: Drop Nones and Provide Default */
+    let option_items =
+      switch (column_type) {
+      | Some(ty) =>
+        is_option_type(ty)
+          ? [
+            Action({
+              text: "Drop Nones",
+              action: () =>
+                Effect.Many([
+                  local(CloseMenu),
+                  parent(SetSyntax(drop_nones_column(info, h))),
+                ]),
+            }),
+            Action({
+              text: "Provide Default",
+              action: () =>
+                Effect.Many([
+                  local(CloseMenu),
+                  parent(SetSyntax(provide_default_column(info, h))),
+                ]),
+            }),
+          ]
+          : []
+      | None => []
+      };
+
     base_items
     @ [
       Action({
@@ -821,7 +930,8 @@ let build_column_menu =
     @ conversion_submenu
     @ move_items
     @ sort_submenu
-    @ filter_submenu;
+    @ filter_submenu
+    @ option_items;
   | _ => [] // Unknown menu path
   };
 };
