@@ -97,6 +97,7 @@ module Update = {
     | ShowCaseClauses
     | ShowFnBodies
     | ShowAscriptionSteps
+    | ShowAscriptions
     | ShowCaseSteps
     | ShowFixpoints
     | ShowLookups
@@ -210,6 +211,10 @@ module Update = {
           | ShowAscriptionSteps => {
               ...evaluation,
               show_ascription_steps: !evaluation.show_ascription_steps,
+            }
+          | ShowAscriptions => {
+              ...evaluation,
+              show_ascriptions: !evaluation.show_ascriptions,
             }
           | ShowCaseSteps => {
               ...evaluation,
