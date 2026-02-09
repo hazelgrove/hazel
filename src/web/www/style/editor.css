@@ -27,7 +27,7 @@
   left: 0;
   position: sticky; 
   display: flex;
-  padding: 0 0.7em 0 0.5em;
+  padding: 0 1em 0 0.2em;
   margin: -2px -0.6em -2px 0;
   min-width: 31px; /*The width of three digits*/
   text-align: right;
@@ -51,13 +51,13 @@
 
 .code .code-text.line-numbers-text :not(.line-numbers-bold){
   opacity: 0.5;
-  color: var(--STONE);
+  color: var(--BR1);
 }
 
 .code .code-text.line-numbers-text .line-numbers-bold{
   font-weight: bolder; 
   opacity: 1;
-  color: var(--BLACK);
+  color: var(--BR2);
 }
 
 /* This is a hack to compensating for default linebreak handling
