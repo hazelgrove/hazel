@@ -304,6 +304,48 @@ let add_column_after =
   );
 };
 
+/* Replace column values with expression holes for manual reentry */
+let clear_column = (info: info, column: string): Base.segment => {
+  IdTagged.FreshGrammar.(
+    Exp.(
+      apply_rowwise_transformation(
+        info,
+        fn(
+          Pat.var("r"),
+          tuple_extension(
+            var("r"),
+            tuple([tup_label(label(column), empty_hole())]),
+          ),
+          None,
+          None,
+        ),
+      )
+    )
+  );
+};
+
+/* No-op: places the field projection back into the field for reference */
+let noop_column = (info: info, column: string): Base.segment => {
+  IdTagged.FreshGrammar.(
+    Exp.(
+      apply_rowwise_transformation(
+        info,
+        fn(
+          Pat.var("r"),
+          tuple_extension(
+            var("r"),
+            tuple([
+              tup_label(label(column), dot(var("r"), label(column))),
+            ]),
+          ),
+          None,
+          None,
+        ),
+      )
+    )
+  );
+};
+
 let group_by_column = (info: info, column: string): Base.segment => {
   IdTagged.FreshGrammar.(
     apply_transformation(
@@ -754,6 +796,30 @@ let build_column_menu =
       }
     | None => []
     }
+  | ["Transform"] =>
+    // Show transform submenu
+    [
+      Action({
+        text: "← Back",
+        action: () => local(ShowSubmenu([])) // Go back to main menu
+      }),
+      Action({
+        text: "Clear",
+        action: () =>
+          Effect.Many([
+            local(CloseMenu),
+            parent(SetSyntax(clear_column(info, h))),
+          ]),
+      }),
+      Action({
+        text: "Identity",
+        action: () =>
+          Effect.Many([
+            local(CloseMenu),
+            parent(SetSyntax(noop_column(info, h))),
+          ]),
+      }),
+    ]
   | ["Sort"] =>
     // Show sort submenu
     [
@@ -842,6 +908,14 @@ let build_column_menu =
       | None => []
       };
 
+    /* Transform submenu is always available */
+    let transform_submenu = [
+      Action({
+        text: "Transform →",
+        action: () => local(ShowSubmenu(["Transform"])) // Navigate to transform submenu
+      }),
+    ];
+
     let move_items =
       (can_move_left ? [true] : [])
       @ (can_move_right ? [false] : [])
@@ -928,6 +1002,7 @@ let build_column_menu =
       }),
     ]
     @ conversion_submenu
+    @ transform_submenu
     @ move_items
     @ sort_submenu
     @ filter_submenu
