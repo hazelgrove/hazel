@@ -64,7 +64,6 @@ type settings = {
   type_alpha: bool, // Alpha equivalence over type variables
   exp_alpha: bool, // Alpha equivalence over expression variables
   ignore_parens: bool,
-  ignore_probes: bool,
   ignore_ascriptions: bool,
   ignore_dynamic_errors: bool,
   ignore_function_types: bool,
@@ -92,7 +91,6 @@ let equality =
         type_alpha,
         exp_alpha,
         ignore_parens,
-        ignore_probes,
         ignore_ascriptions,
         ignore_dynamic_errors,
         ignore_function_types,
@@ -129,8 +127,8 @@ let equality =
     | (_, DynamicErrorHole(x, _)) when ignore_dynamic_errors => exp'(e1, x)
     | (Parens(x), _) when ignore_parens => exp'(x, e2)
     | (_, Parens(x)) when ignore_parens => exp'(e1, x)
-    | (Probe(x, _), _) when ignore_probes => exp'(x, e2)
-    | (_, Probe(x, _)) when ignore_probes => exp'(e1, x)
+    | (Projector(_, x), _) when ignore_parens => exp'(x, e2)
+    | (_, Projector(_, x)) when ignore_parens => exp'(e1, x)
     | (Asc(x, _), _) when ignore_ascriptions => exp'(x, e2)
     | (_, Asc(x, _)) when ignore_ascriptions => exp'(e1, x)
     | (Filter(_, x), _) when ignore_filters => exp'(x, e2)
@@ -214,8 +212,8 @@ let equality =
     | (DynamicErrorHole(_), _) => false
     | (Parens(x), Parens(y)) => exp'(x, y)
     | (Parens(_), _) => false
-    | (Probe(x, tag1), Probe(y, tag2)) => tag1 == tag2 && exp'(x, y)
-    | (Probe(_), _) => false
+    | (Projector(d1, x), Projector(d2, y)) => d1 == d2 && exp'(x, y)
+    | (Projector(_), _) => false
     | (Asc(x, t1), Asc(y, t2)) => typ'(t1, t2) && exp'(x, y)
     | (Asc(_), _) => false
     | (Filter(f1, x), Filter(f2, y)) => filter'(f1, f2) && exp'(x, y)
@@ -409,22 +407,28 @@ let equality =
       (alphas_exp: Alphas.t, alphas_typ: Alphas.t, p1: Pat.t, p2: Pat.t)
       : option(Alphas.t) => {
     let pat' = pat(alphas_exp, alphas_typ);
+    let typ' = typ(alphas_exp, alphas_typ);
     let any' = any(alphas_exp, alphas_typ);
     switch (p1 |> Grammar.Annotated.term_of, p2 |> Grammar.Annotated.term_of) {
     // Wrappers when ignored: unwrap.
-    | (Probe(x, _), _) when ignore_probes => pat'(x, p2)
-    | (_, Probe(x, _)) when ignore_probes => pat'(p1, x)
     | (Parens(x), _) when ignore_parens => pat'(x, p2)
     | (_, Parens(x)) when ignore_parens => pat'(p1, x)
+    | (Projector(_, x), _) when ignore_parens => pat'(x, p2)
+    | (_, Projector(_, x)) when ignore_parens => pat'(p1, x)
     | (Asc(x, _), _) when ignore_ascriptions => pat'(x, p2)
     | (_, Asc(x, _)) when ignore_ascriptions => pat'(p1, x)
 
     // Wrappers otherwise: compare.
-    | (Probe(x, tag1), Probe(y, tag2)) when tag1 == tag2 => pat'(x, y)
-    | (Probe(_), _) => None
     | (Parens(x), Parens(y)) => pat'(x, y)
     | (Parens(_), _) => None
-    | (Asc(x, _), Asc(y, _)) => pat'(x, y)
+    | (Projector(d1, x), Projector(d2, y)) when d1 == d2 => pat'(x, y)
+    | (Projector(_), _) => None
+    | (Asc(x, t1), Asc(y, t2)) =>
+      if (typ'(t1, t2)) {
+        pat'(x, y);
+      } else {
+        None;
+      }
     | (Asc(_), _) => None
 
     // Variables: special case depending on alpha equivalence.
@@ -517,6 +521,8 @@ let equality =
     // Wrappers when ignored: unwrap.
     | (Parens(x), _) when ignore_parens => typ'(x, t2)
     | (_, Parens(x)) when ignore_parens => typ'(t1, x)
+    | (Projector(_, x), _) when ignore_parens => typ'(x, t2)
+    | (_, Projector(_, x)) when ignore_parens => typ'(t1, x)
     | (TupLabel({term: ExplicitNonlabel, _}, t1), _)
         when ignore_explicit_unlabelling =>
       typ'(t1, t2)
@@ -527,6 +533,8 @@ let equality =
     // Wrappers otherwise: compare.
     | (Parens(x), Parens(y)) => typ'(x, y)
     | (Parens(_), _) => false
+    | (Projector(d1, x), Projector(d2, y)) => d1 == d2 && typ'(x, y)
+    | (Projector(_), _) => false
 
     // Forms with type binders
     | (Rec(tp1, t1), Rec(tp2, t2)) =>
@@ -722,7 +730,6 @@ let syntactic_settings = {
   exp_alpha: false,
   ignore_parens: false,
   ignore_dynamic_errors: false,
-  ignore_probes: false,
   ignore_ascriptions: false,
   ignore_function_types: false,
   ignore_constructor_types: false,
@@ -745,7 +752,6 @@ let semantic_settings = {
   exp_alpha: true,
   ignore_parens: true,
   ignore_dynamic_errors: false,
-  ignore_probes: true,
   ignore_ascriptions: false,
   ignore_function_types: false,
   ignore_constructor_types: false,

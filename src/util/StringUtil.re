@@ -56,7 +56,7 @@ let plain_search: (string, string, int) => int =
 let to_lines = String.split_on_char('\n');
 
 let line_widths = (s: string): list(int) =>
-  s |> to_lines |> List.map(String.length);
+  s |> to_lines |> List.map(Unicode.length);
 
 let max_line_width = (s: string): int =>
   s |> line_widths |> List.fold_left(max, 0);
@@ -74,6 +74,8 @@ let unescape_linebreaks: string => string =
 
 let trim_leading = (s: string): string => {
   s
+  |> replace(regexp("\r\n"), _, "\n")  // Normalize Windows line breaks
+  |> replace(regexp("\r"), _, "\n")  // Normalize old Mac line breaks
   |> replace(regexp("^[ ]*"), _, "")  // Remove leading spaces at start
   |> replace(regexp("\n[ ]*"), _, "\n"); // Remove leading spaces after newlines
 };

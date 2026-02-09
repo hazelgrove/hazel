@@ -114,14 +114,14 @@ open AST
 
 
 
+/* Structural mixfix forms - loosest binding (bodies include flat sequences) */
 %nonassoc LET_EXP
-%right SEMI_COLON
-
 %right SUM_TYP
-
-
 %right DASH_ARROW
 %nonassoc IF_EXP
+
+/* Flat sequences - tighter than structural forms */
+%right SEMI_COLON
 
 %right L_OR
 %right L_AND

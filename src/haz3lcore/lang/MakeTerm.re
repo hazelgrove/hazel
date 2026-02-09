@@ -13,11 +13,6 @@
 open Util;
 open Language;
 
-/* Hack: Temporary construct internal to maketerm
- * to handle probe parsing; see `tokens` below */
-let probe_wrap = ["PROBE_WRAP", "PROBE_WRAP"];
-let is_probe_wrap = (==)(probe_wrap);
-
 // TODO make less hacky
 let tokens =
   Piece.get(
@@ -26,10 +21,8 @@ let tokens =
     (t: Tile.t) => t.shards |> List.map(List.nth(t.label)),
     _ =>
       /* Hack: These act as temporary wrappers for projectors,
-       * which are retained through maketerm so as to be used in
-       * dynamics. These are inserted and removed entirely internal
-       * to maketerm. */
-      probe_wrap,
+       * given that they in-effect act as a convex wrapping form */
+      ["PROJ_WRAP", "PROJ_WRAP"],
   );
 
 [@deriving (show({with_path: false}), sexp, yojson)]
@@ -50,6 +43,7 @@ type t = {
   terms: TermMap.t,
   term_data: TermData.t,
   projectors: Id.Map.t(Piece.projector),
+  projector_list: list(Id.t),
 };
 
 let is_nary =
@@ -132,26 +126,82 @@ let record_term_data = (sort: Sort.t, seg: Segment.t, skel: Skel.t): unit =>
 
 /* Map to collect projector ids */
 let projectors: ref(Id.Map.t(Piece.projector)) = ref(Id.Map.empty);
+let projector_list: ref(list(Id.t)) = ref([]);
+
+/* Map from tile IDs to their outer secondary (before, after) */
+let secondary_map: ref(Segment.SecondaryCollection.secondary_map) =
+  ref(Id.Map.empty);
+
+/* Look up outer secondary for a term by its representative ID */
+let get_secondary = (ids: list(Id.t)): IdTagged.IdTag.secondary_runs =>
+  switch (ids) {
+  | [id, ..._] =>
+    switch (Id.Map.find_opt(id, secondary_map^)) {
+    | Some(sec) => sec
+    | None => IdTagged.IdTag.empty_secondary
+    }
+  | [] => IdTagged.IdTag.empty_secondary
+  };
+
+/* Track IDs that are "adopted" from inner terms into outer multi-tile forms.
+ *
+ * PROBLEM: List literals and case expressions are multi-tile forms where the
+ * delimiters (`[`/`]`, `case`/`end`) combine with inner delimiters (commas,
+ * `|`/`=>` rules) to form a single term. During bottom-up parsing, the inner
+ * content is first parsed as a separate term (Tuple or Rules), creating
+ * term_data entries. When the outer delimiters are matched, the inner term
+ * is absorbed and its IDs become part of the outer term. However, the
+ * term_data entries for these adopted IDs retain stale skeleton/segment info
+ * from the inner term, breaking the invariant that term_data[id] reflects
+ * the actual term that id belongs to.
+ *
+ * SOLUTION: Track adopted IDs at absorption points (ListLit, Match, ListLit
+ * patterns), then consolidate their term_data entries to match the outer
+ * term's data after parsing completes. This is O(k) where k is the number
+ * of adopted IDs, rather than O(n) over all term_data entries.
+ *
+ * EXAMPLE: This inconsistency can cause issues for any code that relies on
+ * term_data for spatial reasoning. For instance, with `[1, 2]` formatted as:
+ *   [
+ *     1, 2
+ *   ]
+ * The comma is first parsed as part of a Tuple on row 1, creating term_data
+ * with a skeleton spanning only row 1. When `[`/`]` absorbs this into a
+ * ListLit, the comma's term_data still has the Tuple's skeleton. AutoProbe
+ * uses term_data to find terms ending on each row, so it sees a "phantom
+ * tuple" on row 1 and selects it for probing, but Arms can't find the
+ * correct term to draw decorations for. Consolidation fixes this by giving
+ * the comma the ListLit's skeleton, so lookups return the correct spatial
+ * extent.
+ *
+ * NOTE: This is somewhat ad-hoc - these absorption forms don't have first-class
+ * syntactic support, so we handle them imperatively at each absorption site.
+ * A cleaner solution would require richer syntax representation for multi-tile
+ * forms, but this targeted fix avoids that complexity. */
+let adopted_ids: ref(list(Id.t)) = ref([]);
 
 /* Strip a projector from a segment and log it in the map */
 let log_projector = (pr: Base.projector): unit => {
   projectors := Id.Map.add(pr.id, pr, projectors^);
+  projector_list := [pr.id, ...projector_list^];
 };
 
-/* Check if a term should be instrumented with a probe.
- * Precondition: The relevant projector must have been
- * logged before this is called */
-let should_instrument = (id: Id.t): bool =>
-  switch (Id.Map.find_opt(id, projectors^)) {
-  | Some(pr) =>
-    let (module P) = ProjectorInit.to_module(pr.kind);
-    P.dynamics;
-  | None => failwith("MakeTerm.exp: projector not found")
-  };
+/* Convert IdTagged secondary to ConstructorMap secondary.
+   Both use the same Secondary.t type, so this is just a type cast. */
+let to_variant_secondary =
+    (sec: IdTagged.IdTag.secondary_runs): ConstructorMap.secondary_runs => sec;
 
 let parse_sum_term: Typ.t => ConstructorMap.variant(Typ.t) =
   fun
-  | {term: Var(ctr), annotation: {ids, _}} => Variant(ctr, ids, None)
+  | {term: Var(ctr), annotation: {ids, secondary}} =>
+    Variant(
+      ctr,
+      {
+        ids,
+        secondary: to_variant_secondary(secondary),
+      },
+      None,
+    )
   /* Constructor applications in sum type definitions are implemented as having type sort;
      until they are reimplemented as their own sort, we must prevent these from being parsed
      into types, where they can go on to mess with statics. Thus we let them fall through to
@@ -161,21 +211,31 @@ let parse_sum_term: Typ.t => ConstructorMap.variant(Typ.t) =
         Unknown(
           Hole(
             MultiHole([
-              Typ({term: Var(ctr), annotation: {ids: ids_ctr, _}}),
+              Typ({
+                term: Var(ctr),
+                annotation: {ids: ids_ctr, secondary: (inner_before, _)},
+              }),
               Typ(u),
             ]),
           ),
         ),
-      annotation: {ids: ids_ap, _},
+      annotation: {ids: ids_ap, secondary: (_, outer_after)},
     } =>
-    Variant(ctr, ids_ctr @ ids_ap, Some(u))
+    /* For constructor applications, use the inner before (constructor's leading space)
+       and outer after (trailing space on the whole application) for round-tripping */
+    Variant(
+      ctr,
+      {
+        ids: ids_ctr @ ids_ap,
+        secondary: (inner_before, outer_after),
+      },
+      Some(u),
+    )
   | t => BadEntry(t);
 
 let mk_bad = (ctr, ids, value) => {
   let t: Typ.t = {
-    annotation: {
-      ids: ids,
-    },
+    annotation: IdTagged.IdTag.mk(ids, get_secondary(ids)),
     term: Var(ctr),
   };
   switch (value) {
@@ -206,17 +266,9 @@ let rec go_s = (s: Sort.t, skel: Skel.t, seg: Segment.t): Any.t =>
 and exp = unsorted => {
   let (term, inner_ids) = exp_term(unsorted);
   let ids = ids(unsorted) @ inner_ids;
+
   let e: TermBase.exp_t =
-    return(
-      e => Exp(e),
-      ids,
-      {
-        annotation: {
-          ids: ids,
-        },
-        term,
-      },
-    );
+    return(e => Exp(e), ids, IdTagged.mk(ids, get_secondary(ids), term));
   switch (term) {
   | TupLabel(_) =>
     // The tile id is the id of the tuple not the tuplabel
@@ -232,7 +284,7 @@ and exp_term: unsorted => (Exp.term, list(Id.t)) = {
   | Op(tiles) as tm =>
     switch (tiles) {
     // single-tile case
-    | ([(id, t)], []) =>
+    | ([(_id, t)], []) =>
       switch (t) {
       | ([t], []) when Token.is_empty_tuple(t) => ret(Tuple([]))
       | ([t], []) when Token.is_wild(t) => ret(Deferral(OutsideAp))
@@ -252,13 +304,17 @@ and exp_term: unsorted => (Exp.term, list(Id.t)) = {
         ret(LivelitName(Token.parse_livelit(t)))
       | ([t], []) when Token.is_var(t) => ret(Var(t))
       | ([t], []) when Token.is_ctr(t) => ret(Constructor(t, None))
+      | (["{", "}"], [Exp(body)])
       | (["(", ")"], [Exp(body)]) => ret(Parens(body))
-      | (label, [Exp(body)]) when is_probe_wrap(label) =>
-        // Temporary wrapping form to persist projector probes
-        ret(should_instrument(id) ? Probe(body, Probe.empty) : body.term)
+      | (["PROJ_WRAP", "PROJ_WRAP"], [Exp(body)]) => ret(body.term)
       | (["[", "]"], [Exp(body)]) =>
+        /* ListLit absorption: inner Tuple's comma IDs become part of ListLit.
+           ID order: [bracket_id] @ comma_ids (outer first, then adopted).
+           IMPORTANT: Must align with ExpToSegment.exp_to_pretty ListLit case,
+           which expects List.hd = bracket, List.tl = commas. */
         switch (body) {
-        | {annotation: {ids}, term: Tuple(es)} =>
+        | {annotation: {ids, _}, term: Tuple(es)} =>
+          adopted_ids := ids @ adopted_ids^;
           // Addresses tup_labels in lists like: [l=32, 1]
           (
             ListLit(
@@ -275,7 +331,7 @@ and exp_term: unsorted => (Exp.term, list(Id.t)) = {
               ),
             ),
             ids,
-          )
+          );
         | term => ret(ListLit([term]))
         }
       | (["test", "end"], [Exp(test)]) => ret(Test(test))
@@ -284,8 +340,14 @@ and exp_term: unsorted => (Exp.term, list(Id.t)) = {
       | (["hint", "test", "end"], [Exp(hint), Exp(test)]) =>
         ret(HintedTest(test, hint))
       | (["case", "end"], [Rul({term, annotation: {ids, _}})]) =>
+        /* Match absorption: inner Rules' |/=> IDs become part of Match.
+           ID order: [case_end_id] @ rule_ids (outer first, then adopted).
+           IMPORTANT: Must align with ExpToSegment.exp_to_pretty Match case,
+           which expects List.hd = case/end, List.tl = rules. */
         switch (term) {
-        | Rules(scrut, rules) => (Match(scrut, rules), ids)
+        | Rules(scrut, rules) =>
+          adopted_ids := ids @ adopted_ids^;
+          (Match(scrut, rules), ids);
         // If the rule parser is correct, below should be impossible
         | MultiHole(anys) => (MultiHole(anys), ids)
         | Invalid(string) => (Invalid(string), ids)
@@ -364,19 +426,23 @@ and exp_term: unsorted => (Exp.term, list(Id.t)) = {
             Forward,
             l,
             {
-              annotation: {
-                ids: [Id.nullary_ap_flag],
-              },
+              annotation:
+                IdTagged.IdTag.mk(
+                  [Id.nullary_ap_flag],
+                  get_secondary([Id.nullary_ap_flag]),
+                ),
               term: Tuple([]),
             },
           ),
         )
       | (["(", ")"], [Exp(arg)]) =>
         let use_deferral = (arg: Exp.t): Exp.t => {
-          annotation: {
-            ids: IdTagged.ids(arg),
-          },
-          term: Deferral(InAp),
+          let deferral_ids = IdTagged.ids(arg);
+          {
+            annotation:
+              IdTagged.IdTag.mk(deferral_ids, get_secondary(deferral_ids)),
+            term: Deferral(InAp),
+          };
         };
         switch (arg.term) {
         | Var(l) when Token.is_livelit(l) =>
@@ -517,17 +583,9 @@ and exp_term: unsorted => (Exp.term, list(Id.t)) = {
 and pat = unsorted => {
   let (term, inner_ids) = pat_term(unsorted);
   let ids = ids(unsorted) @ inner_ids;
+
   let p =
-    return(
-      p => Pat(p),
-      ids,
-      {
-        annotation: {
-          ids: ids,
-        },
-        term,
-      },
-    );
+    return(p => Pat(p), ids, IdTagged.mk(ids, get_secondary(ids), term));
   switch (term) {
   | TupLabel(_) => Tuple([p]) |> Pat.fresh
   | _ => p
@@ -539,37 +597,40 @@ and pat_term: unsorted => (Pat.term, list(Id.t)) = {
   fun
   | Op(tiles) as tm =>
     switch (tiles) {
-    | ([(id, tile)], []) =>
-      ret(
-        switch (tile) {
-        | ([t], []) when Token.is_empty_tuple(t) => Tuple([])
-        | ([t], []) when Token.is_empty_list(t) => ListLit([])
-        | ([t], []) when Token.is_bool(t) =>
-          Atom(Bool(bool_of_string(t)))
-        | ([t], []) when Token.is_float(t) =>
-          Atom(Float(float_of_string(t)))
-        | ([t], []) when Token.is_int(t) =>
-          Atom(Int(Bigint.of_string(t)))
-        | ([t], []) when Token.is_string(t) =>
-          Atom(String(Token.strip_quotes(t)))
-        | ([t], []) when Token.is_quoted_label(t) =>
-          Label(Token.strip_quotes(~quote=Token.label_delim, t))
-        | ([t], []) when Token.is_var(t) => Var(t)
-        | ([t], []) when Token.is_wild(t) => Wild
-        | ([t], []) when Token.is_ctr(t) => Constructor(t, None)
-        | (["(", ")"], [Pat(body)]) => Parens(body)
-        | (label, [Pat(body)]) when is_probe_wrap(label) =>
-          should_instrument(id) ? Probe(body, Probe.empty) : body.term
-        | (["[", "]"], [Pat(body)]) =>
-          switch (body) {
-          | {term: Tuple(ps), _} => ListLit(ps)
-          | term => ListLit([term])
-          }
-        | ([t], []) when is_hole_label(t) => hole(tm)
-        | ([t], []) => Invalid(t)
-        | _ => hole(tm)
-        },
-      )
+    | ([(_id, tile)], []) =>
+      switch (tile) {
+      | ([t], []) when Token.is_empty_tuple(t) => ret(Tuple([]))
+      | ([t], []) when Token.is_empty_list(t) => ret(ListLit([]))
+      | ([t], []) when Token.is_bool(t) =>
+        ret(Atom(Bool(bool_of_string(t))))
+      | ([t], []) when Token.is_float(t) =>
+        ret(Atom(Float(float_of_string(t))))
+      | ([t], []) when Token.is_int(t) =>
+        ret(Atom(Int(Bigint.of_string(t))))
+      | ([t], []) when Token.is_string(t) =>
+        ret(Atom(String(Token.strip_quotes(t))))
+      | ([t], []) when Token.is_quoted_label(t) =>
+        ret(Label(Token.strip_quotes(~quote=Token.label_delim, t)))
+      | ([t], []) when Token.is_var(t) => ret(Var(t))
+      | ([t], []) when Token.is_wild(t) => ret(Wild)
+      | ([t], []) when Token.is_ctr(t) => ret(Constructor(t, None))
+      | (["(", ")"], [Pat(body)]) => ret(Parens(body))
+      | (["PROJ_WRAP", "PROJ_WRAP"], [Pat(body)]) => ret(body.term)
+      | (["[", "]"], [Pat(body)]) =>
+        /* ListLit pattern absorption: inner Tuple's comma IDs become part of ListLit.
+           ID order: [bracket_id] @ comma_ids (outer first, then adopted).
+           IMPORTANT: Must align with ExpToSegment.pat_to_pretty ListLit case,
+           which expects List.hd = bracket, List.tl = commas. */
+        switch (body) {
+        | {term: Tuple(ps), annotation: {ids, _}} =>
+          adopted_ids := ids @ adopted_ids^;
+          (ListLit(ps), ids);
+        | term => ret(ListLit([term]))
+        }
+      | ([t], []) when is_hole_label(t) => ret(hole(tm))
+      | ([t], []) => ret(Invalid(t))
+      | _ => ret(hole(tm))
+      }
     | _ => ret(hole(tm))
     }
   | Post(Pat(l), tiles) as tm =>
@@ -648,16 +709,7 @@ and typ = unsorted => {
   let (term, inner_ids) = typ_term(unsorted);
   let ids = ids(unsorted) @ inner_ids;
   let t =
-    return(
-      ty => Typ(ty),
-      ids,
-      {
-        term,
-        annotation: {
-          ids: ids,
-        },
-      },
-    );
+    return(ty => Typ(ty), ids, IdTagged.mk(ids, get_secondary(ids), term));
   switch (term) {
   | TupLabel(_) => Prod([t]) |> Typ.fresh
   | _ => t
@@ -685,7 +737,7 @@ and typ_term: unsorted => (Typ.term, list(Id.t)) = {
         | ([t], []) when Token.is_quoted_label(t) =>
           Label(Token.sub(t, 1, Token.length(t) - 2))
         | (["(", ")"], [Typ(body)]) => Parens(body)
-        | (label, [Typ(body)]) when is_probe_wrap(label) => body.term
+        | (["PROJ_WRAP", "PROJ_WRAP"], [Typ(body)]) => body.term
         | (["[", "]"], [Typ(body)]) => List(body)
         | ([t], []) when is_hole_label(t) => hole(tm)
         | ([t], []) => Unknown(Hole(Invalid(t)))
@@ -778,16 +830,7 @@ and typ_term: unsorted => (Typ.term, list(Id.t)) = {
 and tpat = unsorted => {
   let term = tpat_term(unsorted);
   let ids = ids(unsorted);
-  return(
-    ty => TPat(ty),
-    ids,
-    {
-      term,
-      annotation: {
-        ids: ids,
-      },
-    },
-  );
+  return(ty => TPat(ty), ids, IdTagged.mk(ids, get_secondary(ids), term));
 }
 and tpat_term: unsorted => TPat.term = {
   let ret = (term: TPat.term) => term;
@@ -801,7 +844,7 @@ and tpat_term: unsorted => TPat.term = {
         | ([t], []) when Token.is_typ_var(t) => Var(t)
         | ([t], []) when is_hole_label(t) => hole(tm)
         | ([t], []) => Invalid(t)
-        | (label, [TPat(body)]) when is_probe_wrap(label) => body.term
+        | (["PROJ_WRAP", "PROJ_WRAP"], [TPat(body)]) => body.term
         | _ => hole(tm)
         },
       )
@@ -815,9 +858,7 @@ and rul = (unsorted): Rul.t => {
   let e = exp(unsorted);
   let mk_rules = (scrut: Exp.t, rules, ids): Rul.t => {
     term: Rules(scrut, rules),
-    annotation: {
-      ids: ids,
-    },
+    annotation: IdTagged.IdTag.mk(ids, get_secondary(ids)),
   };
   switch (e) {
   | {term: MultiHole(_), _} =>
@@ -845,11 +886,37 @@ and unsorted = (sort: Sort.t, skel: Skel.t, seg: Segment.t): unsorted => {
     switch (p) {
     | Secondary(_)
     | Grout(_) => []
-    | Projector({syntax, _} as pr) =>
+    | Projector({id, kind, model, syntax} as pr) =>
       let _ = log_projector(pr);
       let sort = Piece.sort(syntax) |> fst;
       let seg = Piece.unparenthesize(syntax);
-      [go_s(sort, Segment.skel(seg), seg)];
+      let inner = go_s(sort, Segment.skel(seg), seg);
+      /* Construct Projector term with proper annotation, preserving
+       * projector metadata (kind, model) in the term for round-tripping */
+      let projector_data: Grammar.projector_data = {
+        kind,
+        model,
+      };
+      let wrapped =
+        switch (inner) {
+        | Grammar.Exp(e) =>
+          Grammar.Exp({
+            term: Projector(projector_data, e),
+            annotation: IdTagged.IdTag.mk([id], get_secondary([id])),
+          })
+        | Grammar.Pat(p) =>
+          Grammar.Pat({
+            term: Projector(projector_data, p),
+            annotation: IdTagged.IdTag.mk([id], get_secondary([id])),
+          })
+        | Grammar.Typ(t) =>
+          Grammar.Typ({
+            term: Projector(projector_data, t),
+            annotation: IdTagged.IdTag.mk([id], get_secondary([id])),
+          })
+        | _ => inner
+        };
+      [wrapped];
     | Tile({mold, shards, children, _}) =>
       Aba.aba_triples(Aba.mk(shards, children))
       |> List.map(((l, kid, r)) => {
@@ -895,6 +962,45 @@ and unsorted = (sort: Sort.t, skel: Skel.t, seg: Segment.t): unsorted => {
   };
 };
 
+/* Consolidate term_data for adopted IDs (see adopted_ids comment above).
+ * Updates each adopted ID's term_data entry to match the rep_id's entry,
+ * giving adopted IDs the correct skeleton/segment of the outer term.
+ *
+ * IMPORTANT: We preserve the original root_piece for each adopted ID.
+ * The root_piece identifies the actual tile that the ID refers to, which
+ * is needed by Arms.tiles_data to find the correct shards for decoration.
+ * Only skel, sort, and base_seg should be updated to match the outer term. */
+let consolidate_adopted = (): unit => {
+  adopted_ids^
+  |> List.iter(id => {
+       switch (Id.Map.find_opt(id, map^)) {
+       | None => ()
+       | Some(term) =>
+         let rep = Language.Any.rep_id(term);
+         switch (
+           Id.Map.find_opt(rep, term_data^),
+           Id.Map.find_opt(id, term_data^),
+         ) {
+         | (Some(rep_data), Some(old_data)) =>
+           /* Preserve the original root_piece while updating skel/sort/base_seg */
+           term_data :=
+             Id.Map.add(
+               id,
+               {
+                 ...rep_data,
+                 root_piece: old_data.root_piece,
+               },
+               term_data^,
+             )
+         | (Some(rep_data), None) =>
+           /* Fallback: if no old entry, use rep_data as-is (shouldn't happen normally) */
+           term_data := Id.Map.add(id, rep_data, term_data^)
+         | (None, _) => ()
+         };
+       }
+     });
+};
+
 let go =
   Core.Memo.general(
     ~cache_size_bound=1000,
@@ -902,12 +1008,17 @@ let go =
       map := TermMap.empty;
       term_data := Id.Map.empty;
       projectors := Id.Map.empty;
+      projector_list := [];
+      adopted_ids := [];
+      secondary_map := Segment.SecondaryCollection.collect(seg);
       let term = exp(unsorted(Exp, Segment.skel(seg), seg));
+      consolidate_adopted();
       {
         term,
         term_data: term_data^,
         terms: map^,
         projectors: projectors^,
+        projector_list: projector_list^,
       };
     },
   );

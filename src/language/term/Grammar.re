@@ -1,5 +1,12 @@
 open Util;
 
+/* Projector metadata for term-level projector wrappers */
+[@deriving (show({with_path: false}), sexp, yojson, eq)]
+type projector_data = {
+  kind: ProjectorKind.t,
+  model: string,
+};
+
 module Annotated = {
   [@deriving (show({with_path: false}), sexp, yojson, eq)]
   type t('a, 'b) = {
@@ -88,7 +95,7 @@ and exp_term('a) =
   | Filter(stepper_filter_kind_t('a), exp_t('a))
   | Closure([@show.opaque] Environment.t(exp_t('a)), exp_t('a))
   | Parens(exp_t('a)) // (
-  | Probe(exp_t('a), Probe.t)
+  | Projector(projector_data, exp_t('a))
   | Cons(exp_t('a), exp_t('a))
   | ListConcat(exp_t('a), exp_t('a))
   | UnOp(Operators.op_un, exp_t('a))
@@ -113,7 +120,7 @@ and pat_term('a) =
   | Label(string)
   | TupLabel(pat_t('a), pat_t('a))
   | Parens(pat_t('a))
-  | Probe(pat_t('a), Probe.t)
+  | Projector(projector_data, pat_t('a))
   | Ap(pat_t('a), pat_t('a))
   | Asc(pat_t('a), typ_t('a))
 and pat_t('a) = Annotated.t(pat_term('a), 'a)
@@ -129,6 +136,7 @@ and typ_term('a) =
   | Label(string)
   | TupLabel(typ_t('a), typ_t('a))
   | Parens(typ_t('a))
+  | Projector(projector_data, typ_t('a))
   | Rec(tpat_t('a), typ_t('a))
   | Poly(tpat_t('a), typ_t('a))
   | ProofOf(exp_t('a))
@@ -256,7 +264,7 @@ let rec map_exp_annotation: type a b. (a => b, exp_t(a)) => exp_t(b) =
             map_exp_annotation(f, e),
           )
         | Parens(e) => Parens(map_exp_annotation(f, e))
-        | Probe(e, probe) => Probe(map_exp_annotation(f, e), probe)
+        | Projector(data, e) => Projector(data, map_exp_annotation(f, e))
         | Cons(e1, e2) =>
           Cons(map_exp_annotation(f, e1), map_exp_annotation(f, e2))
         | ListConcat(e1, e2) =>
@@ -326,7 +334,7 @@ and map_pat_annotation: 'a 'b. ('a => 'b, pat_t('a)) => pat_t('b) =
         | TupLabel(p1, p2) =>
           TupLabel(map_pat_annotation(f, p1), map_pat_annotation(f, p2))
         | Parens(p) => Parens(map_pat_annotation(f, p))
-        | Probe(p, probe) => Probe(map_pat_annotation(f, p), probe)
+        | Projector(data, p) => Projector(data, map_pat_annotation(f, p))
         | Ap(p1, p2) =>
           Ap(map_pat_annotation(f, p1), map_pat_annotation(f, p2))
         | Asc(p, t) =>
@@ -349,6 +357,7 @@ and map_typ_annotation: 'a 'b. ('a => 'b, typ_t('a)) => typ_t('b) =
         | Arrow(t1, t2) =>
           Arrow(map_typ_annotation(f, t1), map_typ_annotation(f, t2))
         | Parens(t) => Parens(map_typ_annotation(f, t))
+        | Projector(data, t) => Projector(data, map_typ_annotation(f, t))
         | Rec(tp, t) =>
           Rec(map_tpat_annotation(f, tp), map_typ_annotation(f, t))
         | Poly(tp, t) =>
@@ -642,8 +651,8 @@ module Factory = (DefaultAnnotation: DefaultAnnotation) => {
       term: Parens(e),
       annotation: default_annotation(ann),
     };
-    let probe = (~ann=?, e1, e2): exp_t(DefaultAnnotation.t) => {
-      term: Probe(e1, e2),
+    let projector = (~ann=?, data, e): exp_t(DefaultAnnotation.t) => {
+      term: Projector(data, e),
       annotation: default_annotation(ann),
     };
     let cons = (~ann=?, e1, e2): exp_t(DefaultAnnotation.t) => {
@@ -758,8 +767,8 @@ module Factory = (DefaultAnnotation: DefaultAnnotation) => {
       term: Parens(p),
       annotation: default_annotation(ann),
     };
-    let probe = (~ann=?, p1, p2): pat_t(DefaultAnnotation.t) => {
-      term: Probe(p1, p2),
+    let projector = (~ann=?, data, p): pat_t(DefaultAnnotation.t) => {
+      term: Projector(data, p),
       annotation: default_annotation(ann),
     };
     let ap = (~ann=?, p1, p2): pat_t(DefaultAnnotation.t) => {
@@ -844,6 +853,10 @@ module Factory = (DefaultAnnotation: DefaultAnnotation) => {
     };
     let parens = (~ann=?, t): typ_t(DefaultAnnotation.t) => {
       term: Parens(t),
+      annotation: default_annotation(ann),
+    };
+    let projector = (~ann=?, data, t): typ_t(DefaultAnnotation.t) => {
+      term: Projector(data, t),
       annotation: default_annotation(ann),
     };
     let rec_ = (~ann=?, tp, t): typ_t(DefaultAnnotation.t) => {

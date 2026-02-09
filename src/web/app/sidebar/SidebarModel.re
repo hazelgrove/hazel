@@ -4,7 +4,8 @@ module Settings = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type panel =
     | LanguageDocumentation
-    | HelpfulAssistant;
+    | HelpfulAssistant
+    | Probes;
 
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t = {

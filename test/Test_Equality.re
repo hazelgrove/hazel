@@ -20,5 +20,35 @@ let tests = (
         );
       },
     ),
+    test_case(
+      "forall type inequality",
+      `Quick,
+      () => {
+        let forall_string =
+          Exp.forall(
+            Pat.asc(Pat.var("x"), Typ.string()),
+            Exp.bin_op(
+              Operators.Poly(Operators.Equals),
+              Exp.var("x"),
+              Exp.var("x"),
+            ),
+          );
+        let forall_int =
+          Exp.forall(
+            Pat.asc(Pat.var("x"), Typ.int()),
+            Exp.bin_op(
+              Operators.Poly(Operators.Equals),
+              Exp.var("x"),
+              Exp.var("x"),
+            ),
+          );
+        check(
+          bool,
+          "forall x : String -> x == x !== forall x : Int -> x == x",
+          false,
+          Equality.semantic.exp(forall_string, forall_int),
+        );
+      },
+    ),
   ],
 );
