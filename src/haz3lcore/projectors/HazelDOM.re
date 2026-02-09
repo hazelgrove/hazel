@@ -572,13 +572,7 @@ let rec render_elem = (~elide_errors=false, mvu: t, d: DHExp.t): Node.t =>
         when {
           switch (body.term) {
           | Atom(String(_)) => false
-          | _ =>
-            let cls =
-              Language.Exp.show_cls(Language.Exp.cls_of_term(body.term));
-            print_endline(
-              "HazelDOM: Text body not a string atom, got: " ++ cls,
-            );
-            true;
+          | _ => true
           };
         } =>
       of_error(elide_errors, mvu, d)
@@ -754,17 +748,9 @@ let rec render_elem = (~elide_errors=false, mvu: t, d: DHExp.t): Node.t =>
       Node.a(~attrs, children);
 
     // Fallback
-    | (name, _body) =>
-      print_endline("HazelDOM: Unknown constructor: " ++ name);
-      of_error(elide_errors, mvu, d);
+    | (_name, _body) => of_error(elide_errors, mvu, d)
     }
-  | None =>
-    let cls =
-      Language.Exp.show_cls(
-        Language.Exp.cls_of_term(strip_wrappers(d).term),
-      );
-    print_endline("HazelDOM: Not a constructor, got: " ++ cls);
-    of_error(elide_errors, mvu, d);
+  | None => of_error(elide_errors, mvu, d)
   }
 
 // Extract (attrs, children) from a tuple body
@@ -837,28 +823,9 @@ and node_body =
 let manage_subscriptions = (mvu: t): unit => {
   switch (mvu.projector_id, mvu.subscriptions) {
   | (Some(id), Some(sub_exp)) =>
-    let sub_cls =
-      Language.Exp.show_cls(
-        Language.Exp.cls_of_term(strip_wrappers(sub_exp).term),
-      );
-    switch (of_constructor(strip_wrappers(sub_exp))) {
-    | Some((name, _)) =>
-      print_endline(
-        "manage_subscriptions: sub=" ++ name ++ " (cls=" ++ sub_cls ++ ")",
-      )
-    | None =>
-      print_endline(
-        "manage_subscriptions: sub not a constructor (cls=" ++ sub_cls ++ ")",
-      )
-    };
     // Clean up existing subscriptions for this projector
     switch (Hashtbl.find_opt(active_subscriptions, id)) {
     | Some(handles) =>
-      print_endline(
-        "manage_subscriptions: cleaning up "
-        ++ string_of_int(List.length(handles))
-        ++ " handles",
-      );
       SubManager.cleanup(handles);
       Hashtbl.remove(active_subscriptions, id);
     | None => ()
@@ -871,11 +838,6 @@ let manage_subscriptions = (mvu: t): unit => {
       update_fn: mvu.update_fn,
     };
     let handles = SubManager.subscribe(ctx, sub_exp, get_model);
-    print_endline(
-      "manage_subscriptions: got "
-      ++ string_of_int(List.length(handles))
-      ++ " new handles",
-    );
     if (List.length(handles) > 0) {
       Hashtbl.replace(active_subscriptions, id, handles);
     };

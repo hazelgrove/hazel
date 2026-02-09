@@ -2,7 +2,7 @@
 #Elm-style architecture: (init_model, update, view, subs)#
 #msg = Int, model = Int#
 
-let update : (Int, Int) -> Int = fun (msg, model) -> model + msg in
+let update = fun (msg, model) -> (model + msg, CmdNone) in
 
 let view : Int -> HTML = fun model -> Div(
   [Class("counter"), Style([("text-align", "center"), ("padding", "20px")])],

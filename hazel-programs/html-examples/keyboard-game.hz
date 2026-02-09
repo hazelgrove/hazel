@@ -19,11 +19,11 @@ let init = (x=180, y=180) in
 
 let update = fun (msg, model) ->
   case msg
-  | MoveUp => (x=model.x, y=max(0, model.y - step))
-  | MoveDown => (x=model.x, y=min(360, model.y + step))
-  | MoveLeft => (x=max(0, model.x - step), y=model.y)
-  | MoveRight => (x=min(360, model.x + step), y=model.y)
-  | NoOp => model
+  | MoveUp => ((x=model.x, y=max(0, model.y - step)), CmdNone)
+  | MoveDown => ((x=model.x, y=min(360, model.y + step)), CmdNone)
+  | MoveLeft => ((x=max(0, model.x - step), y=model.y), CmdNone)
+  | MoveRight => ((x=min(360, model.x + step), y=model.y), CmdNone)
+  | NoOp => (model, CmdNone)
   end
 in
 
@@ -80,55 +80,55 @@ in
 
 hint "move up decreases y"
 test
-  let m = update(MoveUp, (x=100, y=100)) in
+  let (m, _cmd) = update(MoveUp, (x=100, y=100)) in
   m.y == 80
 end;
 
 hint "move down increases y"
 test
-  let m = update(MoveDown, (x=100, y=100)) in
+  let (m, _cmd) = update(MoveDown, (x=100, y=100)) in
   m.y == 120
 end;
 
 hint "move left decreases x"
 test
-  let m = update(MoveLeft, (x=100, y=100)) in
+  let (m, _cmd) = update(MoveLeft, (x=100, y=100)) in
   m.x == 80
 end;
 
 hint "move right increases x"
 test
-  let m = update(MoveRight, (x=100, y=100)) in
+  let (m, _cmd) = update(MoveRight, (x=100, y=100)) in
   m.x == 120
 end;
 
 hint "clamp at top boundary"
 test
-  let m = update(MoveUp, (x=100, y=0)) in
+  let (m, _cmd) = update(MoveUp, (x=100, y=0)) in
   m.y == 0
 end;
 
 hint "clamp at bottom boundary"
 test
-  let m = update(MoveDown, (x=100, y=360)) in
+  let (m, _cmd) = update(MoveDown, (x=100, y=360)) in
   m.y == 360
 end;
 
 hint "clamp at left boundary"
 test
-  let m = update(MoveLeft, (x=0, y=100)) in
+  let (m, _cmd) = update(MoveLeft, (x=0, y=100)) in
   m.x == 0
 end;
 
 hint "clamp at right boundary"
 test
-  let m = update(MoveRight, (x=360, y=100)) in
+  let (m, _cmd) = update(MoveRight, (x=360, y=100)) in
   m.x == 360
 end;
 
 hint "noop does nothing"
 test
-  let m = update(NoOp, (x=100, y=100)) in
+  let (m, _cmd) = update(NoOp, (x=100, y=100)) in
   m.x == 100 && m.y == 100
 end;
 

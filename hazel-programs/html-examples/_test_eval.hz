@@ -1,0 +1,29 @@
+# Test: does the evaluator fully reduce expressions inside constructors? #
+
+type Cell = + Empty + X + O in
+
+let cellStr = fun c ->
+  case c | Empty => " " | X => "X" | O => "O" end
+in
+
+let model = (seconds=42, running=true) in
+
+# Test 1: dot access on labeled tuple #
+let t1 = model.seconds in
+
+# Test 2: string_of_int of dot access #
+let t2 = string_of_int(model.seconds) in
+
+# Test 3: if on dot access #
+let t3 = if model.running then "Pause" else "Start" in
+
+# Test 4: Constructor with computed arg #
+let t4 = Text(string_of_int(model.seconds)) in
+
+# Test 5: case expression inside constructor #
+let t5 = Text(cellStr(Empty)) in
+
+# Test 6: string concat with dot access #
+let t6 = "Count: " ++ string_of_int(model.seconds) in
+
+(t1, t2, t3, t4, t5, t6)

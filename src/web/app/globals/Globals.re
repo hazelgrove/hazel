@@ -51,7 +51,7 @@ module AppViewState = {
   type t = {
     source_result: Language.DHExp.t, // Eval result this state was derived from
     model: Language.DHExp.t, // Current model state
-    update_fn: Language.DHExp.t, // update: (msg, model) -> model (or (model, Cmd))
+    update_fn: option(Language.DHExp.t), // Some = Elm update fn, None = legacy
     view_fn: Language.DHExp.t, // view: model -> Html
     subs_fn: Language.DHExp.t, // subscriptions: model -> Sub
     html: Language.DHExp.t, // Pre-evaluated: view_fn(model)
@@ -75,11 +75,11 @@ module Action = {
     | UpdateVisibleRows(VisibleRows.t)
     | SetAppViewModel(Language.DHExp.t) // Update the MVU model state
     | AppViewMsg(Language.DHExp.t) // Elm mode: route msg through update_fn
-    // InitAppView takes (source_result, model, update_fn, view_fn, subs_fn)
+    // InitAppView takes (source_result, model, update_fn option, view_fn, subs_fn)
     | InitAppView(
         Language.DHExp.t,
         Language.DHExp.t,
-        Language.DHExp.t,
+        option(Language.DHExp.t),
         Language.DHExp.t,
         Language.DHExp.t,
       )
@@ -87,7 +87,7 @@ module Action = {
     | RefreshAppView(
         Language.DHExp.t,
         Language.DHExp.t,
-        Language.DHExp.t,
+        option(Language.DHExp.t),
         Language.DHExp.t,
         Language.DHExp.t,
       )

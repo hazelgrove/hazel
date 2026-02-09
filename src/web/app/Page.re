@@ -243,22 +243,26 @@ module Update = {
       }
     | AppViewMsg(msg) =>
       switch (model.globals.app_view_state) {
-      | Some(state) =>
+      | Some(state) when Option.is_some(state.update_fn) =>
+        let update_fn = Option.get(state.update_fn);
         // Use evaluate_direct: sub-expressions are already elaborated+evaluated
         let update_result =
           evaluate_direct(
             Language.IdTagged.FreshGrammar.Exp.ap(
               Forward,
-              state.update_fn,
+              update_fn,
               Language.IdTagged.FreshGrammar.Exp.tuple([msg, state.model]),
             ),
           );
-        // Extract (new_model, cmd) or just new_model (strip wrappers)
+        // Extract (new_model, cmd) tuple — update always returns (Model, Cmd)
         let update_result = Haz3lcore.HazelDOM.strip_wrappers(update_result);
-        let (new_model, cmd_opt) =
+        let (new_model, cmd) =
           switch (update_result.term) {
-          | Tuple([m, c]) when Haz3lcore.HazelDOM.is_cmd(c) => (m, Some(c))
-          | _ => (update_result, None)
+          | Tuple([m, c]) => (m, c)
+          | _ => (
+              update_result,
+              Language.IdTagged.FreshGrammar.Exp.constructor("CmdNone", None),
+            )
           };
         let html =
           evaluate_direct(
@@ -276,19 +280,18 @@ module Update = {
               new_model,
             ),
           );
-        // Run cmd if present
-        switch (cmd_opt) {
-        | Some(cmd) =>
+        {
+          // Run cmd (CmdRunner handles CmdNone as no-op)
+
           let cmd_ctx: Haz3lcore.CmdRunner.context = {
             model: new_model,
             inject: m => {
               schedule_action(Globals(AppViewMsg(m)));
               Virtual_dom.Vdom.Effect.Ignore;
             },
-            update_fn: Some(state.update_fn),
+            update_fn: state.update_fn,
           };
           Bonsai.Effect.Expert.handle(Haz3lcore.CmdRunner.run(cmd_ctx, cmd));
-        | None => ()
         };
         {
           ...model,
@@ -304,25 +307,14 @@ module Update = {
           },
         }
         |> return_quiet;
+      | Some(_) => model |> return_quiet // Legacy app: no update_fn
       | None => model |> return_quiet
       }
     | InitAppView(source_result, init_model, update_fn, view_fn, subs_fn) =>
-      print_endline(
-        "InitAppView: init_model cls = "
-        ++ Language.Exp.show_cls(Language.Exp.cls_of_term(init_model.term)),
-      );
-      print_endline(
-        "InitAppView: view_fn cls = "
-        ++ Language.Exp.show_cls(Language.Exp.cls_of_term(view_fn.term)),
-      );
       let html =
         evaluate_direct(
           Language.IdTagged.FreshGrammar.Exp.ap(Forward, view_fn, init_model),
         );
-      print_endline(
-        "InitAppView: html result cls = "
-        ++ Language.Exp.show_cls(Language.Exp.cls_of_term(html.term)),
-      );
       let subs =
         evaluate_direct(
           Language.IdTagged.FreshGrammar.Exp.ap(Forward, subs_fn, init_model),
@@ -571,28 +563,7 @@ module Update = {
       export_all: Export.export_all,
       get_log_and,
     };
-    {
-      let action_tag =
-        switch (action) {
-        | Globals(_) => "Globals"
-        | Editors(_) => "Editors"
-        | ExplainThis(_) => "ExplainThis"
-        | Assistant(_) => "Assistant"
-        | MakeActive(_) => "MakeActive"
-        | Benchmark(_) => "Benchmark"
-        | Start => "Start"
-        | Save => "Save"
-        };
-      let has_state = Option.is_some(model.globals.app_view_state);
-      if (action_tag != "Editors") {
-        print_endline(
-          "[AppView] Page.update: "
-          ++ action_tag
-          ++ " | state="
-          ++ (has_state ? "Some" : "None"),
-        );
-      };
-    };
+    ();
     let result =
       switch (action) {
       | Globals(action) =>

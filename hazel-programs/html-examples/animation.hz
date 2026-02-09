@@ -30,7 +30,7 @@ let update = fun (_msg, model) ->
     if new_y >. 230.0 then 0.0 -. new_vy *. bounce
     else new_vy
   in
-  (x=final_x, y=final_y, vx=final_vx, vy=final_vy)
+  ((x=final_x, y=final_y, vx=final_vx, vy=final_vy), CmdNone)
 in
 
 let view = fun model ->
@@ -88,31 +88,31 @@ in
 
 hint "gravity increases vy"
 test
-  let m = update(0.0, (x=100.0, y=100.0, vx=0.0, vy=0.0)) in
+  let (m, _cmd) = update(0.0, (x=100.0, y=100.0, vx=0.0, vy=0.0)) in
   m.vy >. 0.0
 end;
 
 hint "ball bounces off floor"
 test
-  let m = update(0.0, (x=100.0, y=229.5, vx=0.0, vy=5.0)) in
+  let (m, _cmd) = update(0.0, (x=100.0, y=229.5, vx=0.0, vy=5.0)) in
   m.vy <. 0.0
 end;
 
 hint "ball bounces off right wall"
 test
-  let m = update(0.0, (x=369.5, y=100.0, vx=5.0, vy=0.0)) in
+  let (m, _cmd) = update(0.0, (x=369.5, y=100.0, vx=5.0, vy=0.0)) in
   m.vx <. 0.0
 end;
 
 hint "ball bounces off left wall"
 test
-  let m = update(0.0, (x=0.5, y=100.0, vx=(0.0 -. 5.0), vy=0.0)) in
+  let (m, _cmd) = update(0.0, (x=0.5, y=100.0, vx=(0.0 -. 5.0), vy=0.0)) in
   m.vx >. 0.0
 end;
 
 hint "friction slows horizontal velocity"
 test
-  let m = update(0.0, (x=100.0, y=100.0, vx=10.0, vy=0.0)) in
+  let (m, _cmd) = update(0.0, (x=100.0, y=100.0, vx=10.0, vy=0.0)) in
   m.vx <. 10.0
 end;
 

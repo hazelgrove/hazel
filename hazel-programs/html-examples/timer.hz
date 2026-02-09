@@ -13,13 +13,13 @@ let init = (seconds=0, running=false) in
 let update = fun (msg, model) ->
   case msg
   | Toggle =>
-      (seconds=model.seconds, running=if model.running then false else true)
+      ((seconds=model.seconds, running=if model.running then false else true), CmdNone)
   | Reset =>
-      (seconds=0, running=false)
+      ((seconds=0, running=false), CmdNone)
   | Tick =>
       if model.running then
-        (seconds=model.seconds + 1, running=model.running)
-      else model
+        ((seconds=model.seconds + 1, running=model.running), CmdNone)
+      else (model, CmdNone)
   end
 in
 
@@ -72,31 +72,31 @@ in
 
 hint "toggle starts timer"
 test
-  let m = update(Toggle, init) in
+  let (m, _cmd) = update(Toggle, init) in
   m.running == true && m.seconds == 0
 end;
 
 hint "toggle pauses running timer"
 test
-  let m = update(Toggle, (seconds=5, running=true)) in
+  let (m, _cmd) = update(Toggle, (seconds=5, running=true)) in
   m.running == false && m.seconds == 5
 end;
 
 hint "tick increments when running"
 test
-  let m = update(Tick, (seconds=3, running=true)) in
+  let (m, _cmd) = update(Tick, (seconds=3, running=true)) in
   m.seconds == 4
 end;
 
 hint "tick does nothing when paused"
 test
-  let m = update(Tick, (seconds=3, running=false)) in
+  let (m, _cmd) = update(Tick, (seconds=3, running=false)) in
   m.seconds == 3
 end;
 
 hint "reset stops and zeroes"
 test
-  let m = update(Reset, (seconds=42, running=true)) in
+  let (m, _cmd) = update(Reset, (seconds=42, running=true)) in
   m.seconds == 0 && m.running == false
 end;
 

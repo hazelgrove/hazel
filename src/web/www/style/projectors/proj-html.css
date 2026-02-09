@@ -29,7 +29,7 @@
 }
 
 .html-proj-resize-handle::after {
-  content: '';
+  content: "";
   position: absolute;
   right: 2px;
   bottom: 2px;
@@ -42,4 +42,8 @@
 .html-proj-wrapper.resizing,
 .html-proj-wrapper.resizing * {
   cursor: nwse-resize !important;
+}
+
+.MVU-render {
+  height: 100%;
 }

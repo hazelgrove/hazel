@@ -99,8 +99,8 @@ in
 
 let update = fun (msg, model) ->
   case msg
-  | ClickCell(pos) => move(model, pos)
-  | NewGame => init
+  | ClickCell(pos) => (move(model, pos), CmdNone)
+  | NewGame => (init, CmdNone)
   end
 in
 
@@ -273,7 +273,7 @@ end;
 hint "new game resets"
 test
   let m = play(init, [0, 1, 4]) in
-  let m2 = update(NewGame, m) in
+  let (m2, _cmd) = update(NewGame, m) in
   for_all(m2.board, fun c -> c == Empty) && m2.turn == PlayerX
 end;
 

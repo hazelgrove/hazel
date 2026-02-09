@@ -408,7 +408,7 @@ let view =
       ~html=state.html,
       ~inject,
       ~subscriptions=Some(state.subs),
-      ~update_fn=Some(state.update_fn),
+      ~update_fn=state.update_fn,
       (),
     );
 
@@ -475,20 +475,20 @@ let view =
         | Some(ElmApp(init_model, update_fn, view_fn, subs_fn)) =>
           Bonsai.Effect.Expert.handle(
             globals.inject_global(
-              RefreshAppView(exp, init_model, update_fn, view_fn, subs_fn),
+              RefreshAppView(
+                exp,
+                init_model,
+                Some(update_fn),
+                view_fn,
+                subs_fn,
+              ),
             ),
           );
           render_mvu_app(_state);
         | Some(LegacyMvuApp(init_model, view_fn, subs_fn)) =>
           Bonsai.Effect.Expert.handle(
             globals.inject_global(
-              RefreshAppView(
-                exp,
-                init_model,
-                _state.update_fn,
-                view_fn,
-                subs_fn,
-              ),
+              RefreshAppView(exp, init_model, None, view_fn, subs_fn),
             ),
           );
           render_mvu_app(_state);
@@ -513,7 +513,13 @@ let view =
         | Some(ElmApp(init_model, update_fn, view_fn, subs_fn)) =>
           Bonsai.Effect.Expert.handle(
             globals.inject_global(
-              InitAppView(exp, init_model, update_fn, view_fn, subs_fn),
+              InitAppView(
+                exp,
+                init_model,
+                Some(update_fn),
+                view_fn,
+                subs_fn,
+              ),
             ),
           );
           div(
@@ -528,13 +534,7 @@ let view =
         | Some(LegacyMvuApp(init_model, view_fn, subs_fn)) =>
           Bonsai.Effect.Expert.handle(
             globals.inject_global(
-              InitAppView(
-                exp,
-                init_model,
-                Exp.empty_hole(),
-                view_fn,
-                subs_fn,
-              ),
+              InitAppView(exp, init_model, None, view_fn, subs_fn),
             ),
           );
           div(

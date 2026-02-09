@@ -20,12 +20,12 @@ in
 let update = fun (msg, model) ->
   case msg
   | AddTodo =>
-      if model.input_value == "" then model
-      else (todos=model.todos @ [model.input_value], input_value="")
+      if model.input_value == "" then (model, CmdNone)
+      else ((todos=model.todos @ [model.input_value], input_value=""), CmdNone)
   | RemoveTodo(idx) =>
-      (todos=remove_at(model.todos, idx), input_value=model.input_value)
+      ((todos=remove_at(model.todos, idx), input_value=model.input_value), CmdNone)
   | UpdateInput(value) =>
-      (todos=model.todos, input_value=value)
+      ((todos=model.todos, input_value=value), CmdNone)
   end
 in
 
@@ -88,37 +88,37 @@ let subs = fun _model -> SubNone in
 
 hint "add todo appends to list"
 test
-  let m = update(AddTodo, (todos=["A"], input_value="B")) in
+  let (m, _cmd) = update(AddTodo, (todos=["A"], input_value="B")) in
   m.todos == ["A", "B"] && m.input_value == ""
 end;
 
 hint "add empty todo does nothing"
 test
-  let m = update(AddTodo, (todos=["A"], input_value="")) in
+  let (m, _cmd) = update(AddTodo, (todos=["A"], input_value="")) in
   m.todos == ["A"]
 end;
 
 hint "remove first todo"
 test
-  let m = update(RemoveTodo(0), (todos=["A", "B", "C"], input_value="")) in
+  let (m, _cmd) = update(RemoveTodo(0), (todos=["A", "B", "C"], input_value="")) in
   m.todos == ["B", "C"]
 end;
 
 hint "remove last todo"
 test
-  let m = update(RemoveTodo(2), (todos=["A", "B", "C"], input_value="")) in
+  let (m, _cmd) = update(RemoveTodo(2), (todos=["A", "B", "C"], input_value="")) in
   m.todos == ["A", "B"]
 end;
 
 hint "remove middle todo"
 test
-  let m = update(RemoveTodo(1), (todos=["A", "B", "C"], input_value="")) in
+  let (m, _cmd) = update(RemoveTodo(1), (todos=["A", "B", "C"], input_value="")) in
   m.todos == ["A", "C"]
 end;
 
 hint "update input"
 test
-  let m = update(UpdateInput("hello"), init) in
+  let (m, _cmd) = update(UpdateInput("hello"), init) in
   m.input_value == "hello"
 end;
 

@@ -188,7 +188,7 @@ Run from the CLI: `node _build/default/src/CLI/cli.bc.js test myprogram.hz`
 
 **Subscription lifecycle**: Subscriptions are fully torn down and recreated on every model change. This is simple but means timers restart their countdown each tick (still fire at approximately the right interval) and AnimationFrame loops are re-requested each frame.
 
-**Cmd detection**: The runtime needs to distinguish `(Model, Cmd)` tuples from models that happen to be 2-element tuples. It does this by checking whether the second element is a recognized Cmd constructor (`CmdNone`, `CmdBatch`, `Focus`, etc.) via `is_cmd`. Labeled tuples like `(x=1, y=2)` are unaffected.
+**Cmd extraction**: The runtime always expects `update` to return a `(Model, Cmd)` tuple. CmdRunner handles `CmdNone` as a no-op. If the result is not a tuple (e.g. during mid-edit), the runtime falls back to treating the whole result as the model with `CmdNone`.
 
 ## Keyboard Focus
 
@@ -208,11 +208,7 @@ In Elm, there are two entry points:
 - `Browser.sandbox`: `update : Msg -> Model -> Model` (no commands possible)
 - `Browser.element`: `update : Msg -> Model -> (Model, Cmd Msg)` (always returns tuple)
 
-You choose one up front. There's no ambiguity about the return type.
-
-Currently, our runtime accepts **either** `Model` or `(Model, Cmd)` from `update`, disambiguating at runtime by checking whether the second tuple element is a Cmd constructor. This works but is awkward — it fights the type system and creates a special case in the runtime (`is_cmd` check in Page.re).
-
-**Recommendation**: Always require `(Model, Cmd)`. Use `CmdNone` when no command is needed. This matches Elm's `Browser.element` and eliminates the ambiguity. The `is_cmd` runtime check could then be removed.
+Our `update` always returns `(Model, Cmd)`, matching Elm's `Browser.element`. Use `CmdNone` when no command is needed. The runtime always extracts a 2-tuple from the update result.
 
 ### No type parameters
 
@@ -290,7 +286,9 @@ This pattern is still supported in the runtime but is not recommended for new pr
 
 ### Where legacy code is entangled with MVU
 
-The two systems are not yet fully separated. The branching point is `update_fn: option(DHExp.t)` — when `Some`, the runtime uses Elm-style dispatch; when `None`, it falls back to legacy behavior. This branching happens in:
+The branching point is `update_fn: option(DHExp.t)` in `AppViewState` and `HazelDOM.t` — when `Some`, the runtime uses Elm-style dispatch; when `None`, it falls back to legacy behavior. This option is set cleanly at initialization time (`AppViewPanel.detect_app_kind`), not via runtime type inspection.
+
+The branching happens in:
 
 - **HazelDOM.re**: All 4 event handler functions (`on_`, `on_input`, `on_mouse`, `on_key`) check `mvu.update_fn` to decide whether handlers produce messages (Elm) or return new HTML (legacy).
 
@@ -300,19 +298,17 @@ The two systems are not yet fully separated. The branching point is `update_fn: 
 
 - **AppViewPanel.re**: `detect_app_kind` checks for 4-tuple (Elm) vs 3-tuple (legacy MVU) vs 2-tuple (legacy self-modifying). `render_legacy_app` handles the self-modifying path separately.
 
-- **Page.re**: Two separate action handlers: `AppViewMsg` (Elm dispatch) and `SetAppViewModel` (legacy direct model replacement). Different evaluation strategies — `evaluate_direct` for Elm, `evaluate_exp` for legacy.
+- **Page.re**: `AppViewMsg` only fires for Elm apps (guarded by `Option.is_some(state.update_fn)`). `SetAppViewModel` handles legacy direct model replacement.
 
-- **Sidebar.re**: `app_inject` inspects the injected value at runtime — if it's a function, routes to `AppViewMsg`; if not, routes to `SetAppViewModel`.
+- **Sidebar.re**: `app_inject` checks `state.update_fn` option to route to `AppViewMsg` (Elm) or `SetAppViewModel` (legacy).
 
 - **HTMLProj.re**: The inline HTML projector always uses `update_fn: None` (legacy mode only).
 
-### Path to separation
+### Path to further separation
 
 To fully divorce the systems:
-1. Remove the `option` from `update_fn` — make it required for MVU apps
-2. Move all legacy branching into a separate module (e.g., `LegacyHazelDOM`)
-3. Have AppViewPanel route to completely different render paths based on app kind
-4. Remove the runtime type-checking in Sidebar.re's `app_inject`
+1. Move all legacy branching into a separate module (e.g., `LegacyHazelDOM`)
+2. Have AppViewPanel route to completely different render paths based on app kind
 
 Sources:
 - [The Elm Architecture](https://guide.elm-lang.org/architecture/)
