@@ -1,0 +1,391 @@
+#Spectral Seed Catalog#
+#A ghost gardener's seed catalog using untested HTML elements and attributes#
+#Exercises: Select, Option, OnChange, OnMouseEnter, OnMouseLeave, OnDoubleClick,#
+#Delay, CopyToClipboard, SubBatch, OnResize, Ol, H3, Hr, A, Href, Classes, Checked#
+
+type Msg =
+  + SelectCategory(String)
+  + HoverSeed(Int)
+  + UnhoverSeed
+  + CollectSeed(Int)
+  + DismissNotification
+  + ShareCollection
+  + WindowResized(Int, Int)
+  + ToggleNightMode
+in
+
+let seeds = [
+  (name="Phantom Orchid", category="Flowers", emoji="*", desc="Blooms only at midnight"),
+  (name="Wraith Basil", category="Herbs", emoji="~", desc="Season your spectral soups"),
+  (name="Ghost Cap", category="Mushrooms", emoji="^", desc="Glows with eerie light"),
+  (name="Banshee Rose", category="Flowers", emoji="@", desc="Its thorns wail in wind"),
+  (name="Spirit Sage", category="Herbs", emoji="&", desc="Grants visions of beyond"),
+  (name="Shade Truffle", category="Mushrooms", emoji="#", desc="Found in haunted groves")
+] in
+
+let empty_ints : [Int] = [] in
+let init = (
+  category="All",
+  hoveredSeed= -1,
+  collected=empty_ints,
+  notification="",
+  windowWidth=800,
+  nightMode=true
+) in
+
+let contains = fun (lst, val) ->
+  length(filter(lst, fun x -> x == val)) > 0
+in
+
+let update = fun (msg, model) ->
+  case msg
+  | SelectCategory(cat) =>
+      ((category=cat, hoveredSeed=model.hoveredSeed, collected=model.collected,
+        notification=model.notification, windowWidth=model.windowWidth, nightMode=model.nightMode),
+       CmdNone)
+  | HoverSeed(idx) =>
+      ((category=model.category, hoveredSeed=idx, collected=model.collected,
+        notification=model.notification, windowWidth=model.windowWidth, nightMode=model.nightMode),
+       CmdNone)
+  | UnhoverSeed =>
+      ((category=model.category, hoveredSeed= -1, collected=model.collected,
+        notification=model.notification, windowWidth=model.windowWidth, nightMode=model.nightMode),
+       CmdNone)
+  | CollectSeed(idx) =>
+      if contains(model.collected, idx) then
+        (model, CmdNone)
+      else
+        let new_collected = model.collected @ [idx] in
+        ((category=model.category, hoveredSeed=model.hoveredSeed, collected=new_collected,
+          notification="Seed collected!", windowWidth=model.windowWidth, nightMode=model.nightMode),
+         Delay(2000.0, DismissNotification))
+  | DismissNotification =>
+      ((category=model.category, hoveredSeed=model.hoveredSeed, collected=model.collected,
+        notification="", windowWidth=model.windowWidth, nightMode=model.nightMode),
+       CmdNone)
+  | ShareCollection =>
+      let count_str = string_of_int(length(model.collected)) in
+      let text = "My ghost garden has " ++ count_str ++ " spectral seeds!" in
+      ((category=model.category, hoveredSeed=model.hoveredSeed, collected=model.collected,
+        notification="Copied to clipboard!", windowWidth=model.windowWidth, nightMode=model.nightMode),
+       CmdBatch([CopyToClipboard(text), Delay(2000.0, DismissNotification)]))
+  | WindowResized(w, _h) =>
+      ((category=model.category, hoveredSeed=model.hoveredSeed, collected=model.collected,
+        notification=model.notification, windowWidth=w, nightMode=model.nightMode),
+       CmdNone)
+  | ToggleNightMode =>
+      ((category=model.category, hoveredSeed=model.hoveredSeed, collected=model.collected,
+        notification=model.notification, windowWidth=model.windowWidth,
+        nightMode=if model.nightMode then false else true),
+       CmdNone)
+  end
+in
+
+let filtered_seeds = fun model ->
+  if model.category == "All" then seeds
+  else filter(seeds, fun s -> s.category == model.category)
+in
+
+let view = fun model ->
+  let bg = if model.nightMode then "#1a1a2e" else "#f0e6d3" in
+  let fg = if model.nightMode then "#e0d0ff" else "#2d2d2d" in
+  let accent = if model.nightMode then "#7b2d8b" else "#8b4513" in
+  let card_bg = if model.nightMode then "#16213e" else "#fff8f0" in
+  let is_wide = model.windowWidth > 600 in
+  Div(
+    [
+      Id("seed-catalog"),
+      Classes(["catalog-app", if model.nightMode then "night-mode" else "day-mode"]),
+      Style([
+        ("max-width", "700px"),
+        ("margin", "20px auto"),
+        ("padding", "20px"),
+        ("font-family", "Georgia, serif"),
+        ("background", bg),
+        ("color", fg),
+        ("border-radius", "12px"),
+        ("border", "2px solid " ++ accent)
+      ])
+    ],
+    [
+      #Title#
+      H1(
+        [Style([("text-align", "center"), ("letter-spacing", "2px"), ("margin-bottom", "5px")])],
+        [Text("Spectral Seed Catalog")]
+      ),
+      P(
+        [Style([("text-align", "center"), ("font-style", "italic"), ("margin-top", "0")])],
+        [Text("A Late Night Ghost Gardener's Companion")]
+      ),
+
+      #Night mode toggle with Checked#
+      Div(
+        [Style([("text-align", "right"), ("margin-bottom", "10px")])],
+        [
+          Label([], [
+            Input([
+              Type("checkbox"),
+              Checked(model.nightMode),
+              OnClick(ToggleNightMode)
+            ]),
+            Text(" Night Mode")
+          ])
+        ]
+      ),
+
+      Hr([Style([("border-color", accent), ("margin", "15px 0")])]),
+
+      #Decorative link#
+      A(
+        [Href("#ghostly-gardens"), Style([("color", accent), ("text-decoration", "none")])],
+        [Text("Visit the Ghostly Gardens Archives")]
+      ),
+
+      Hr([Style([("border-color", accent), ("margin", "15px 0")])]),
+
+      #Category filter with Select and OnChange#
+      H3(
+        [Style([("margin-bottom", "8px")])],
+        [Text("Filter by Category")]
+      ),
+      Select(
+        [
+          OnChange(fun value -> SelectCategory(value)),
+          Style([
+            ("padding", "8px 12px"),
+            ("font-size", "16px"),
+            ("border-radius", "6px"),
+            ("border", "1px solid " ++ accent),
+            ("background", card_bg),
+            ("color", fg),
+            ("margin-bottom", "15px")
+          ])
+        ],
+        [
+          Option([Value("All"), Selected(model.category == "All")], "All Seeds"),
+          Option([Value("Flowers"), Selected(model.category == "Flowers")], "Flowers"),
+          Option([Value("Herbs"), Selected(model.category == "Herbs")], "Herbs"),
+          Option([Value("Mushrooms"), Selected(model.category == "Mushrooms")], "Mushrooms")
+        ]
+      ),
+
+      #Notification banner#
+      if model.notification != "" then
+        Div(
+          [Style([
+            ("background", "#4a2c6a"),
+            ("color", "#e0d0ff"),
+            ("padding", "10px"),
+            ("border-radius", "6px"),
+            ("margin-bottom", "15px"),
+            ("text-align", "center")
+          ])],
+          [Text(model.notification)]
+        )
+      else Div([], []),
+
+      #Seed cards with OnMouseEnter, OnMouseLeave, OnDoubleClick#
+      H3(
+        [Style([("margin-bottom", "8px")])],
+        [Text("Seeds (" ++ string_of_int(length(filtered_seeds(model))) ++ ")")]
+      ),
+      Div(
+        [Style([
+          ("display", if is_wide then "grid" else "block"),
+          ("grid-template-columns", "1fr 1fr"),
+          ("gap", "10px")
+        ])],
+        mapi(seeds, (fun (idx, seed) ->
+          if model.category == "All" || seed.category == model.category then
+            Div(
+              [
+                Classes(["seed-card", seed.category]),
+                OnMouseEnter(HoverSeed(idx)),
+                OnMouseLeave(UnhoverSeed),
+                OnDoubleClick(CollectSeed(idx)),
+                Style([
+                  ("padding", "12px"),
+                  ("border", if contains(model.collected, idx) then "2px solid gold" else "1px solid " ++ accent),
+                  ("border-radius", "8px"),
+                  ("background", if model.hoveredSeed == idx then accent else card_bg),
+                  ("cursor", "pointer"),
+                  ("transition", "background 0.2s"),
+                  ("margin-bottom", if is_wide then "0" else "10px")
+                ])
+              ],
+              [
+                Div(
+                  [Style([("display", "flex"), ("justify-content", "space-between"), ("align-items", "center")])],
+                  [
+                    Span(
+                      [Style([("font-weight", "bold"), ("font-size", "16px")])],
+                      [Text(seed.emoji ++ " " ++ seed.name)]
+                    ),
+                    Span(
+                      [Style([("font-size", "12px"), ("opacity", "0.7")])],
+                      [Text(seed.category)]
+                    )
+                  ]
+                ),
+                if model.hoveredSeed == idx then
+                  P(
+                    [Style([("margin", "8px 0 0 0"), ("font-style", "italic"), ("font-size", "14px")])],
+                    [Text(seed.desc)]
+                  )
+                else Div([], []),
+                if contains(model.collected, idx) then
+                  Span(
+                    [Style([("font-size", "11px"), ("color", "gold")])],
+                    [Text("Collected")]
+                  )
+                else
+                  Span(
+                    [Style([("font-size", "11px"), ("opacity", "0.5")])],
+                    [Text("Double-click to collect")]
+                  )
+              ]
+            )
+          else Div([Style([("display", "none")])], [])
+        ))
+      ),
+
+      Hr([Style([("border-color", accent), ("margin", "20px 0")])]),
+
+      #Collected seeds with Ol#
+      H3(
+        [Style([("margin-bottom", "8px")])],
+        [Text("Your Collection (" ++ string_of_int(length(model.collected)) ++ ")")]
+      ),
+      if length(model.collected) > 0 then
+        Div([], [
+          Ol(
+            [Style([("padding-left", "20px")])],
+            map(model.collected, fun idx ->
+              Li(
+                [Style([("margin-bottom", "4px")])],
+                [Text(nth(seeds, idx).name)]
+              )
+            )
+          ),
+          #Share button with CopyToClipboard#
+          Button(
+            [
+              OnClick(ShareCollection),
+              Classes(["share-btn"]),
+              Style([
+                ("margin-top", "10px"),
+                ("padding", "8px 16px"),
+                ("background", accent),
+                ("color", "white"),
+                ("border", "none"),
+                ("border-radius", "6px"),
+                ("cursor", "pointer"),
+                ("font-size", "14px")
+              ])
+            ],
+            [Text("Share Collection")]
+          )
+        ])
+      else
+        P(
+          [Style([("font-style", "italic"), ("opacity", "0.6")])],
+          [Text("No seeds collected yet. Double-click a seed to add it!")]
+        ),
+
+      Hr([Style([("border-color", accent), ("margin", "20px 0")])]),
+
+      #Footer with window width display#
+      Div(
+        [Style([("text-align", "center"), ("font-size", "12px"), ("opacity", "0.5")])],
+        [Text("Window width: " ++ string_of_int(model.windowWidth) ++ "px")]
+      )
+    ]
+  )
+in
+
+let subs = fun _model ->
+  SubBatch([
+    OnResize(fun (w, h) -> WindowResized(w, h))
+  ])
+in
+
+# Tests #
+
+hint "select category filters to Flowers"
+test
+  let (m, _cmd) = update(SelectCategory("Flowers"), init) in
+  m.category == "Flowers"
+end;
+
+hint "select All shows all categories"
+test
+  let (m, _cmd) = update(SelectCategory("All"), init) in
+  m.category == "All"
+end;
+
+hint "hover seed sets hoveredSeed"
+test
+  let (m, _cmd) = update(HoverSeed(2), init) in
+  m.hoveredSeed == 2
+end;
+
+hint "unhover resets hoveredSeed"
+test
+  let hovered = (category="All", hoveredSeed=3, collected=empty_ints, notification="", windowWidth=800, nightMode=true) in
+  let (m, _cmd) = update(UnhoverSeed, hovered) in
+  m.hoveredSeed == -1
+end;
+
+hint "collect seed adds to collection"
+test
+  let (m, _cmd) = update(CollectSeed(0), init) in
+  m.collected == [0] && m.notification == "Seed collected!"
+end;
+
+hint "collect duplicate does not add"
+test
+  let with_one = (category="All", hoveredSeed= -1, collected=[0], notification="", windowWidth=800, nightMode=true) in
+  let (m, _cmd) = update(CollectSeed(0), with_one) in
+  m.collected == [0]
+end;
+
+hint "dismiss notification clears message"
+test
+  let with_notif = (category="All", hoveredSeed= -1, collected=empty_ints, notification="hello", windowWidth=800, nightMode=true) in
+  let (m, _cmd) = update(DismissNotification, with_notif) in
+  m.notification == ""
+end;
+
+hint "window resize updates width"
+test
+  let (m, _cmd) = update(WindowResized(1024, 768), init) in
+  m.windowWidth == 1024
+end;
+
+hint "share collection sets notification"
+test
+  let (m, _cmd) = update(ShareCollection, init) in
+  m.notification == "Copied to clipboard!"
+end;
+
+hint "toggle night mode off"
+test
+  let (m, _cmd) = update(ToggleNightMode, init) in
+  m.nightMode == false
+end;
+
+hint "toggle night mode on again"
+test
+  let day = (category="All", hoveredSeed= -1, collected=empty_ints, notification="", windowWidth=800, nightMode=false) in
+  let (m, _cmd) = update(ToggleNightMode, day) in
+  m.nightMode == true
+end;
+
+hint "collect multiple seeds"
+test
+  let (m1, _c1) = update(CollectSeed(1), init) in
+  let (m2, _c2) = update(CollectSeed(4), m1) in
+  m2.collected == [1, 4]
+end;
+
+(init, update, view, subs)

@@ -266,10 +266,8 @@ let rec subscribe =
           let interval_id =
             Dom_html.window##setInterval(
               Js.wrap_callback(() => {
-                let timestamp =
-                  Js.to_float(
-                    Js.Unsafe.coerce(Dom_html.window)##performance##now(),
-                  );
+                let perf = Js.Unsafe.coerce(Dom_html.window)##.performance;
+                let timestamp = Js.to_float(perf##now());
                 let current_model = get_model();
                 let ctx' = {
                   ...ctx,

@@ -1,0 +1,555 @@
+# GHOST GARDEN HARVEST LEDGER #
+# Track your harvest festival under the stars! #
+# Consecutive harvests of the same quality build streak bonuses #
+# MVU app with view layer for the haunted harvest ledger #
+
+# Quality tiers from the moonlit fields #
+type Quality =
+  + Bronze      # Common harvest, basic value #
+  + Silver      # Good quality, moderate bonus #
+  + Gold        # Excellent harvest, high value #
+  + Starlight   # Legendary, blessed by the moon #
+in
+
+# Crops that grow under the night sky #
+type Crop =
+  + Moonmelon   # Glows faintly, sweet taste #
+  + Starfruit   # Shaped like stars, tangy #
+  + Nightberry  # Deep purple, magical properties #
+  + Duskwheat   # Golden stalks, hearty grain #
+in
+
+# A single harvest from the garden #
+type Harvest = (
+  crop = Crop,
+  quality = Quality,
+  quantity = Int
+) in
+
+# The harvest ledger tracks all harvests and bonuses #
+type Model = (
+  harvests = [Harvest],
+  totalValue = Int,
+  streakBonus = Int,
+  lastQuality = Quality
+) in
+
+# Actions the farmer can take #
+type Action =
+  + RecordHarvest(Harvest)  # Log a new harvest #
+  + ClaimBonus              # Collect accumulated streak bonus #
+  + CloseDay                # End the harvest day, reset streaks #
+in
+
+# Calculate base value of a crop #
+let cropValue : Crop -> Int =
+  fun c ->
+    case c
+    | Moonmelon => 15
+    | Starfruit => 20
+    | Nightberry => 25
+    | Duskwheat => 10
+    end
+in
+
+# Quality multiplier for harvest value #
+let qualityMultiplier : Quality -> Int =
+  fun q ->
+    case q
+    | Bronze => 1
+    | Silver => 2
+    | Gold => 3
+    | Starlight => 5
+    end
+in
+
+# Calculate the value of a single harvest #
+let harvestValue : Harvest -> Int =
+  fun h ->
+    cropValue(h.crop) * qualityMultiplier(h.quality) * h.quantity
+in
+
+# Initial empty ledger #
+let init : Model = (
+  harvests = [],
+  totalValue = 0,
+  streakBonus = 0,
+  lastQuality = Bronze
+) in
+
+# Process a harvest action and update the ledger #
+let processHarvest : (Model, Harvest) -> Model =
+  fun (ledger, h) ->
+    let value = harvestValue(h) in
+    # Check if this harvest continues the quality streak #
+    # First harvest never continues a streak (no previous harvest) #
+    let isFirst = length(ledger.harvests) == 0 in
+    let continues = !isFirst && h.quality == ledger.lastQuality in
+    let newLast = h.quality in
+    let newStreak =
+      if continues
+      then ledger.streakBonus + 5
+      else 0
+    in
+    (
+      harvests = h :: ledger.harvests,
+      totalValue = ledger.totalValue + value + newStreak,
+      streakBonus = newStreak,
+      lastQuality = newLast
+    )
+in
+
+# Claim the streak bonus and reset it #
+let claimBonus : Model -> Model =
+  fun ledger ->
+    (
+      harvests = ledger.harvests,
+      totalValue = ledger.totalValue + ledger.streakBonus,
+      streakBonus = 0,
+      lastQuality = ledger.lastQuality
+    )
+in
+
+# Close the harvest day - reset streak tracking #
+let closeDay : Model -> Model =
+  fun ledger ->
+    (
+      harvests = ledger.harvests,
+      totalValue = ledger.totalValue,
+      streakBonus = 0,
+      lastQuality = Bronze
+    )
+in
+
+# Main update function - (Action, Model) -> (Model, Cmd) #
+let update = fun (action, model) ->
+  case action
+  | RecordHarvest(h) => (processHarvest(model, h), CmdNone)
+  | ClaimBonus => (claimBonus(model), CmdNone)
+  | CloseDay => (closeDay(model), CmdNone)
+  end
+in
+
+# ===== HELPER FUNCTIONS FOR VIEW ===== #
+
+# Crop name as string #
+let cropName : Crop -> String =
+  fun c ->
+    case c
+    | Moonmelon => "Moonmelon"
+    | Starfruit => "Starfruit"
+    | Nightberry => "Nightberry"
+    | Duskwheat => "Duskwheat"
+    end
+in
+
+# Quality name with ghost emoji indicator #
+let qualityLabel : Quality -> String =
+  fun q ->
+    case q
+    | Bronze => "Bronze"
+    | Silver => "Silver"
+    | Gold => "Gold"
+    | Starlight => "Starlight"
+    end
+in
+
+# Quality emoji indicator #
+let qualityEmoji : Quality -> String =
+  fun q ->
+    case q
+    | Bronze => "🥉"
+    | Silver => "🥈"
+    | Gold => "🥇"
+    | Starlight => "⭐"
+    end
+in
+
+# Quality accent color for the ghost theme #
+let qualityColor : Quality -> String =
+  fun q ->
+    case q
+    | Bronze => "#cd7f32"
+    | Silver => "#c0c0c0"
+    | Gold => "#ffd700"
+    | Starlight => "#e0b0ff"
+    end
+in
+
+# ===== VIEW ===== #
+
+let view : Model -> HTML = fun model ->
+  let harvestRows =
+    let ordered = reverse(model.harvests) in
+    mapi(ordered, fun (i, h) ->
+      Tr(
+        [Style([("border-bottom", "1px solid #21262d")])],
+        [
+          Td(
+            [Style([("padding", "8px 12px"), ("color", "#8b949e")])],
+            [Text(string_of_int(i + 1))]
+          ),
+          Td(
+            [Style([("padding", "8px 12px"), ("color", "#c9d1d9")])],
+            [Text(cropName(h.crop))]
+          ),
+          Td(
+            [Style([("padding", "8px 12px"), ("color", qualityColor(h.quality))])],
+            [Text(qualityEmoji(h.quality) ++ " " ++ qualityLabel(h.quality))]
+          ),
+          Td(
+            [Style([("padding", "8px 12px"), ("color", "#c9d1d9"), ("text-align", "right")])],
+            [Text(string_of_int(h.quantity))]
+          ),
+          Td(
+            [Style([("padding", "8px 12px"), ("color", "#58a6ff"), ("text-align", "right"), ("font-weight", "bold")])],
+            [Text(string_of_int(harvestValue(h)))]
+          )
+        ]
+      )
+    )
+  in
+  Div(
+    [Style([
+      ("max-width", "600px"), ("margin", "20px auto"), ("font-family", "monospace"),
+      ("background", "#0d1117"), ("padding", "24px"), ("border-radius", "12px"),
+      ("color", "#c9d1d9"), ("border", "1px solid #30363d")
+    ])],
+    [
+      # Header #
+      H1(
+        [Style([("text-align", "center"), ("color", "#e0b0ff"), ("margin-bottom", "4px"), ("font-size", "24px")])],
+        [Text("👻 Harvest Ledger 👻")]
+      ),
+      P(
+        [Style([("text-align", "center"), ("color", "#8b949e"), ("margin-top", "0"), ("font-size", "12px")])],
+        [Text("Track your ghost garden harvests")]
+      ),
+      Hr([Style([("border", "none"), ("border-top", "1px solid #21262d"), ("margin", "16px 0")])]),
+
+      # Summary stats row #
+      Div(
+        [Style([("display", "flex"), ("justify-content", "space-around"), ("margin-bottom", "20px"),
+                ("padding", "12px"), ("background", "#161b22"), ("border-radius", "8px"),
+                ("border", "1px solid #21262d")])],
+        [
+          # Total value #
+          Div(
+            [Style([("text-align", "center")])],
+            [
+              Div([Style([("font-size", "11px"), ("color", "#8b949e"), ("margin-bottom", "4px")])],
+                  [Text("TOTAL VALUE")]),
+              Div([Style([("font-size", "24px"), ("color", "#58a6ff"), ("font-weight", "bold")])],
+                  [Text(string_of_int(model.totalValue))])
+            ]
+          ),
+          # Streak bonus #
+          Div(
+            [Style([("text-align", "center")])],
+            [
+              Div([Style([("font-size", "11px"), ("color", "#8b949e"), ("margin-bottom", "4px")])],
+                  [Text("STREAK BONUS")]),
+              Div([Style([("font-size", "24px"), ("color", if model.streakBonus > 0 then "#3fb950" else "#484f58"), ("font-weight", "bold")])],
+                  [Text("+" ++ string_of_int(model.streakBonus))])
+            ]
+          ),
+          # Last quality #
+          Div(
+            [Style([("text-align", "center")])],
+            [
+              Div([Style([("font-size", "11px"), ("color", "#8b949e"), ("margin-bottom", "4px")])],
+                  [Text("LAST QUALITY")]),
+              Div([Style([("font-size", "24px"), ("color", qualityColor(model.lastQuality))])],
+                  [Text(qualityEmoji(model.lastQuality))])
+            ]
+          )
+        ]
+      ),
+
+      # Harvest table #
+      Table(
+        [Style([("width", "100%"), ("border-collapse", "collapse"), ("margin-bottom", "20px")])],
+        [
+          Thead(
+            [Style([("border-bottom", "2px solid #30363d")])],
+            [
+              Tr(
+                [],
+                [
+                  Th([Style([("padding", "8px 12px"), ("text-align", "left"), ("color", "#8b949e"), ("font-size", "11px"), ("text-transform", "uppercase")])],
+                     [Text("#")]),
+                  Th([Style([("padding", "8px 12px"), ("text-align", "left"), ("color", "#8b949e"), ("font-size", "11px"), ("text-transform", "uppercase")])],
+                     [Text("Crop")]),
+                  Th([Style([("padding", "8px 12px"), ("text-align", "left"), ("color", "#8b949e"), ("font-size", "11px"), ("text-transform", "uppercase")])],
+                     [Text("Quality")]),
+                  Th([Style([("padding", "8px 12px"), ("text-align", "right"), ("color", "#8b949e"), ("font-size", "11px"), ("text-transform", "uppercase")])],
+                     [Text("Qty")]),
+                  Th([Style([("padding", "8px 12px"), ("text-align", "right"), ("color", "#8b949e"), ("font-size", "11px"), ("text-transform", "uppercase")])],
+                     [Text("Value")])
+                ]
+              )
+            ]
+          ),
+          Tbody(
+            [],
+            if length(model.harvests) == 0
+            then [
+              Tr([], [
+                Td(
+                  [Style([("padding", "20px"), ("text-align", "center"), ("color", "#484f58"), ("font-style", "italic")])],
+                  [Text("No harvests yet... the garden awaits")]
+                )
+              ])
+            ]
+            else harvestRows
+          )
+        ]
+      ),
+
+      # Action buttons #
+      Div(
+        [Style([("display", "flex"), ("flex-wrap", "wrap"), ("gap", "8px"), ("margin-bottom", "12px")])],
+        [
+          # Harvest buttons - one per crop/quality combo for demo #
+          H3([Style([("width", "100%"), ("color", "#e0b0ff"), ("font-size", "14px"), ("margin", "4px 0")])],
+              [Text("🌙 Record Harvest")]),
+          Button(
+            [OnClick(RecordHarvest((crop = Moonmelon, quality = Bronze, quantity = 2))),
+             Style([("padding", "8px 14px"), ("background", "#21262d"), ("color", "#cd7f32"),
+                    ("border", "1px solid #30363d"), ("border-radius", "6px"),
+                    ("cursor", "pointer"), ("font-family", "monospace"), ("font-size", "12px")])],
+            [Text("🥉 Moonmelon x2")]
+          ),
+          Button(
+            [OnClick(RecordHarvest((crop = Starfruit, quality = Silver, quantity = 1))),
+             Style([("padding", "8px 14px"), ("background", "#21262d"), ("color", "#c0c0c0"),
+                    ("border", "1px solid #30363d"), ("border-radius", "6px"),
+                    ("cursor", "pointer"), ("font-family", "monospace"), ("font-size", "12px")])],
+            [Text("🥈 Starfruit x1")]
+          ),
+          Button(
+            [OnClick(RecordHarvest((crop = Nightberry, quality = Gold, quantity = 1))),
+             Style([("padding", "8px 14px"), ("background", "#21262d"), ("color", "#ffd700"),
+                    ("border", "1px solid #30363d"), ("border-radius", "6px"),
+                    ("cursor", "pointer"), ("font-family", "monospace"), ("font-size", "12px")])],
+            [Text("🥇 Nightberry x1")]
+          ),
+          Button(
+            [OnClick(RecordHarvest((crop = Duskwheat, quality = Gold, quantity = 1))),
+             Style([("padding", "8px 14px"), ("background", "#21262d"), ("color", "#ffd700"),
+                    ("border", "1px solid #30363d"), ("border-radius", "6px"),
+                    ("cursor", "pointer"), ("font-family", "monospace"), ("font-size", "12px")])],
+            [Text("🥇 Duskwheat x1")]
+          ),
+          Button(
+            [OnClick(RecordHarvest((crop = Moonmelon, quality = Starlight, quantity = 1))),
+             Style([("padding", "8px 14px"), ("background", "#21262d"), ("color", "#e0b0ff"),
+                    ("border", "1px solid #30363d"), ("border-radius", "6px"),
+                    ("cursor", "pointer"), ("font-family", "monospace"), ("font-size", "12px")])],
+            [Text("⭐ Moonmelon x1")]
+          )
+        ]
+      ),
+      # Ledger action buttons #
+      Div(
+        [Style([("display", "flex"), ("gap", "8px"), ("margin-top", "8px")])],
+        [
+          Button(
+            [OnClick(ClaimBonus),
+             Style([("padding", "8px 16px"), ("background", "#238636"), ("color", "white"),
+                    ("border", "none"), ("border-radius", "6px"),
+                    ("cursor", "pointer"), ("font-family", "monospace"), ("font-size", "13px")])],
+            [Text("💰 Claim Bonus")]
+          ),
+          Button(
+            [OnClick(CloseDay),
+             Style([("padding", "8px 16px"), ("background", "#8b2252"), ("color", "white"),
+                    ("border", "none"), ("border-radius", "6px"),
+                    ("cursor", "pointer"), ("font-family", "monospace"), ("font-size", "13px")])],
+            [Text("🌅 Close Day")]
+          )
+        ]
+      ),
+
+      # Footer #
+      Div(
+        [Style([("text-align", "center"), ("color", "#484f58"), ("font-size", "11px"),
+                ("margin-top", "16px"), ("padding-top", "12px"), ("border-top", "1px solid #21262d")])],
+        [Text("👻 Harvests: " ++ string_of_int(length(model.harvests)) ++ " | Ghost Garden Ledger")]
+      )
+    ]
+  )
+in
+
+let subs : Model -> Sub = fun _model -> SubNone in
+
+# ===== TEST HELPERS ===== #
+
+let do_step = fun (acc, a) -> let (m, _) = update(a, acc) in m in
+let do_actions = fun (m, actions) -> fold_left(actions, (fun (acc, a) -> let (m2, _) = update(a, acc) in m2), m) in
+
+# ===== TESTS ===== #
+
+# Basic harvest recording #
+hint "recording harvest adds to total value"
+test
+  let h = (crop = Moonmelon, quality = Bronze, quantity = 2) in
+  let (ledger, _cmd) = update(RecordHarvest(h), init) in
+  # Moonmelon(15) * Bronze(1) * 2 = 30, no streak bonus on first #
+  ledger.totalValue == 30
+end;
+
+hint "harvest is added to harvests list"
+test
+  let h = (crop = Starfruit, quality = Silver, quantity = 1) in
+  let (ledger, _cmd) = update(RecordHarvest(h), init) in
+  length(ledger.harvests) == 1
+end;
+
+# Quality multiplier tests #
+hint "silver quality doubles value"
+test
+  let h = (crop = Duskwheat, quality = Silver, quantity = 1) in
+  let (ledger, _cmd) = update(RecordHarvest(h), init) in
+  # Duskwheat(10) * Silver(2) * 1 = 20 #
+  ledger.totalValue == 20
+end;
+
+hint "gold quality triples value"
+test
+  let h = (crop = Duskwheat, quality = Gold, quantity = 1) in
+  let (ledger, _cmd) = update(RecordHarvest(h), init) in
+  # Duskwheat(10) * Gold(3) * 1 = 30 #
+  ledger.totalValue == 30
+end;
+
+hint "starlight quality gives 5x value"
+test
+  let h = (crop = Nightberry, quality = Starlight, quantity = 1) in
+  let (ledger, _cmd) = update(RecordHarvest(h), init) in
+  # Nightberry(25) * Starlight(5) * 1 = 125 #
+  ledger.totalValue == 125
+end;
+
+# Streak bonus tests #
+hint "same quality builds streak"
+test
+  let h1 = (crop = Moonmelon, quality = Gold, quantity = 1) in
+  let h2 = (crop = Starfruit, quality = Gold, quantity = 1) in
+  let ledger = do_actions(init, [RecordHarvest(h1), RecordHarvest(h2)]) in
+  # First: 15*3=45, streak=0 #
+  # Second: 20*3=60, streak continues, +5 bonus #
+  ledger.streakBonus == 5
+end;
+
+hint "streak bonus accumulates with consecutive same-quality harvests"
+test
+  let h1 = (crop = Moonmelon, quality = Silver, quantity = 1) in
+  let h2 = (crop = Starfruit, quality = Silver, quantity = 1) in
+  let h3 = (crop = Nightberry, quality = Silver, quantity = 1) in
+  let ledger = do_actions(init, [
+    RecordHarvest(h1),
+    RecordHarvest(h2),
+    RecordHarvest(h3)
+  ]) in
+  # h1: streak=0, h2: streak=5, h3: streak=10 #
+  ledger.streakBonus == 10
+end;
+
+hint "different quality resets streak"
+test
+  let h1 = (crop = Moonmelon, quality = Bronze, quantity = 1) in
+  let h2 = (crop = Starfruit, quality = Gold, quantity = 1) in
+  let ledger = do_actions(init, [RecordHarvest(h1), RecordHarvest(h2)]) in
+  # Quality changed, streak should reset to 0 #
+  ledger.streakBonus == 0
+end;
+
+hint "streak resets then can build again"
+test
+  let h1 = (crop = Moonmelon, quality = Bronze, quantity = 1) in
+  let h2 = (crop = Starfruit, quality = Gold, quantity = 1) in
+  let h3 = (crop = Nightberry, quality = Gold, quantity = 1) in
+  let ledger = do_actions(init, [
+    RecordHarvest(h1),
+    RecordHarvest(h2),
+    RecordHarvest(h3)
+  ]) in
+  # h1: Bronze, streak=0 #
+  # h2: Gold (changed), streak=0 #
+  # h3: Gold (continues), streak=5 #
+  ledger.streakBonus == 5
+end;
+
+# Claim bonus tests #
+hint "claiming bonus resets streak bonus to zero"
+test
+  let h1 = (crop = Moonmelon, quality = Gold, quantity = 1) in
+  let h2 = (crop = Starfruit, quality = Gold, quantity = 1) in
+  let ledger = do_actions(init, [
+    RecordHarvest(h1),
+    RecordHarvest(h2),
+    ClaimBonus
+  ]) in
+  # After claim, streak bonus is reset #
+  ledger.streakBonus == 0
+end;
+
+# Close day tests #
+hint "closing day resets streak tracking"
+test
+  let h1 = (crop = Moonmelon, quality = Gold, quantity = 1) in
+  let h2 = (crop = Starfruit, quality = Gold, quantity = 1) in
+  let ledger = do_actions(init, [
+    RecordHarvest(h1),
+    RecordHarvest(h2),
+    CloseDay
+  ]) in
+  ledger.streakBonus == 0 && ledger.lastQuality == Bronze
+end;
+
+# lastQuality tracking #
+hint "lastQuality tracks most recent harvest quality"
+test
+  let h = (crop = Moonmelon, quality = Starlight, quantity = 1) in
+  let (ledger, _cmd) = update(RecordHarvest(h), init) in
+  ledger.lastQuality == Starlight
+end;
+
+# Crop value comparison tests #
+hint "nightberry has highest base value"
+test
+  let h1 = (crop = Nightberry, quality = Bronze, quantity = 1) in
+  let h2 = (crop = Moonmelon, quality = Bronze, quantity = 1) in
+  let (ledger1, _) = update(RecordHarvest(h1), init) in
+  let (ledger2, _) = update(RecordHarvest(h2), init) in
+  ledger1.totalValue > ledger2.totalValue
+end;
+
+hint "quantity multiplies value"
+test
+  let h = (crop = Moonmelon, quality = Bronze, quantity = 5) in
+  let (ledger, _cmd) = update(RecordHarvest(h), init) in
+  # 15 * 1 * 5 = 75 #
+  ledger.totalValue == 75
+end;
+
+# Complex scenario test #
+hint "full harvest day scenario"
+test
+  let ledger = do_actions(init, [
+    # Morning: Bronze harvests build streak #
+    RecordHarvest((crop = Duskwheat, quality = Bronze, quantity = 3)),
+    RecordHarvest((crop = Moonmelon, quality = Bronze, quantity = 2)),
+    # Afternoon: Switch to Gold, streak resets #
+    RecordHarvest((crop = Starfruit, quality = Gold, quantity = 1)),
+    RecordHarvest((crop = Nightberry, quality = Gold, quantity = 1)),
+    # Evening: Claim bonus and close #
+    ClaimBonus,
+    CloseDay
+  ]) in
+  ledger.streakBonus == 0 &&
+  length(ledger.harvests) == 4
+end;
+
+(init, update, view, subs)

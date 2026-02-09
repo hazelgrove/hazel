@@ -1,0 +1,671 @@
+# LUNAR GROWTH TRACKER - A Mystical Greenhouse Simulation (MVU) #
+# Plants grow based on lunar energy, each responding differently to moon phases #
+
+# Moon phases cycle through the night sky #
+type MoonPhase =
+  + New       # Dark moon, hidden power #
+  + Waxing    # Growing crescent #
+  + Full      # Bright and radiant #
+  + Waning    # Fading light #
+in
+
+# Each plant kind has different affinities to lunar energy #
+type PlantKind =
+  + Moonbloom   # Thrives in darkness, loves New moon #
+  + Starfern    # Basks in radiance, loves Full moon #
+  + Duskrose    # Prefers transitions, loves Waxing/Waning #
+  + Evergreen   # Steady grower, unaffected by phases #
+in
+
+# A plant in the greenhouse #
+type Plant = (
+  kind = PlantKind,
+  name = String,
+  growth = Int,      # 0-100, harvest at 100 #
+  affinity = MoonPhase  # Which phase this plant loves #
+) in
+
+# Actions the gardener can take #
+type Action =
+  + PlantSeed(PlantKind, String)  # Plant a new seedling #
+  + NightPasses(MoonPhase)        # A night passes with given moon phase #
+  + Harvest                       # Harvest all fully grown plants #
+  + WaterAll                      # Water all plants for bonus growth #
+in
+
+# The model is the greenhouse state #
+type Model = (
+  plants = [Plant],
+  currentPhase = MoonPhase,
+  nightCount = Int
+) in
+
+# Clamp a value between 0 and 100 #
+let clamp : Int -> Int =
+  fun x ->
+    if x < 0 then 0
+    else if x > 100 then 100
+    else x
+in
+
+# Get the default affinity for a plant kind #
+let defaultAffinity : PlantKind -> MoonPhase =
+  fun kind ->
+    case kind
+    | Moonbloom => New
+    | Starfern => Full
+    | Duskrose => Waxing
+    | Evergreen => New  # Doesn't matter for Evergreen #
+    end
+in
+
+# Create a new seedling #
+let makePlant : (PlantKind, String) -> Plant =
+  fun (kind, name) ->
+    (
+      kind = kind,
+      name = name,
+      growth = 0,
+      affinity = defaultAffinity(kind)
+    )
+in
+
+# Check if two moon phases are opposites #
+# New/Full are opposites, Waxing/Waning are opposites #
+let isOpposite : (MoonPhase, MoonPhase) -> Bool =
+  fun (phase1, phase2) ->
+    case (phase1, phase2)
+    | (New, Full) => true
+    | (Full, New) => true
+    | (Waxing, Waning) => true
+    | (Waning, Waxing) => true
+    | _ => false
+    end
+in
+
+# Check if a phase is a transition phase (Waxing or Waning) #
+let isTransition : MoonPhase -> Bool =
+  fun phase ->
+    case phase
+    | Waxing => true
+    | Waning => true
+    | _ => false
+    end
+in
+
+# Calculate growth bonus based on plant affinity and current moon phase #
+let growthBonus : (Plant, MoonPhase) -> Int =
+  fun (plant, currentPhase) ->
+    case plant.kind
+    | Evergreen => 10  # Always grows steadily #
+    | Duskrose =>
+        if isTransition(currentPhase)
+        then 20  # Loves transition phases #
+        else if currentPhase == New || currentPhase == Full
+        then 5   # Tolerates extremes #
+        else 10
+    | _ =>  # Moonbloom and Starfern #
+        if plant.affinity == currentPhase
+        then 20  # Perfect conditions #
+        else if isOpposite(plant.affinity, currentPhase)
+        then 5   # Opposite phase penalty #
+        else 10  # Neutral phase #
+    end
+in
+
+# Apply growth to a single plant #
+let growPlant : (Plant, MoonPhase) -> Plant =
+  fun (plant, phase) ->
+    let bonus = growthBonus(plant, phase) in
+    (
+      kind = plant.kind,
+      name = plant.name,
+      growth = clamp(plant.growth + bonus),
+      affinity = plant.affinity
+    )
+in
+
+# Initialize an empty greenhouse #
+let init : Model =
+  (
+    plants = [],
+    currentPhase = New,
+    nightCount = 0
+  )
+in
+
+# Apply an action to the model (MVU update signature) #
+let update : (Action, Model) -> (Model, Cmd) =
+  fun (action, model) ->
+    case action
+    | PlantSeed(kind, name) =>
+        let newPlant = makePlant(kind, name) in
+        (
+          (
+            plants = newPlant :: model.plants,
+            currentPhase = model.currentPhase,
+            nightCount = model.nightCount
+          ),
+          CmdNone
+        )
+    | NightPasses(phase) =>
+        let grownPlants = map(model.plants, fun p -> growPlant(p, phase)) in
+        (
+          (
+            plants = grownPlants,
+            currentPhase = phase,
+            nightCount = model.nightCount + 1
+          ),
+          CmdNone
+        )
+    | Harvest =>
+        let remaining = filter(model.plants, fun p -> p.growth < 100) in
+        (
+          (
+            plants = remaining,
+            currentPhase = model.currentPhase,
+            nightCount = model.nightCount
+          ),
+          CmdNone
+        )
+    | WaterAll =>
+        let wateredPlants = map(model.plants, fun p ->
+          (
+            kind = p.kind,
+            name = p.name,
+            growth = clamp(p.growth + 5),
+            affinity = p.affinity
+          )
+        ) in
+        (
+          (
+            plants = wateredPlants,
+            currentPhase = model.currentPhase,
+            nightCount = model.nightCount
+          ),
+          CmdNone
+        )
+    end
+in
+
+# Helper: generate n nights of a given phase #
+let moonNights : (Int, MoonPhase) -> [Action] =
+  fun (n, phase) ->
+    if n <= 0 then []
+    else map(range(1, n), fun _ -> NightPasses(phase))
+in
+
+# Get a plant by name from the model #
+let findPlant : (Model, String) -> Plant =
+  fun (model, name) ->
+    find(model.plants, fun p -> p.name == name)
+in
+
+# Count plants at full growth #
+let countHarvestable : Model -> Int =
+  fun model ->
+    length(filter(model.plants, fun p -> p.growth >= 100))
+in
+
+# Moon phase emoji #
+let phaseEmoji : MoonPhase -> String =
+  fun phase ->
+    case phase
+    | New => "\240\159\140\145"
+    | Waxing => "\240\159\140\146"
+    | Full => "\240\159\140\149"
+    | Waning => "\240\159\140\152"
+    end
+in
+
+# Plant kind emoji #
+let kindEmoji : PlantKind -> String =
+  fun kind ->
+    case kind
+    | Moonbloom => "\240\159\140\153"
+    | Starfern => "\226\173\144"
+    | Duskrose => "\240\159\140\185"
+    | Evergreen => "\240\159\140\178"
+    end
+in
+
+# Plant kind name #
+let kindName : PlantKind -> String =
+  fun kind ->
+    case kind
+    | Moonbloom => "Moonbloom"
+    | Starfern => "Starfern"
+    | Duskrose => "Duskrose"
+    | Evergreen => "Evergreen"
+    end
+in
+
+# Moon phase name #
+let phaseName : MoonPhase -> String =
+  fun phase ->
+    case phase
+    | New => "New"
+    | Waxing => "Waxing"
+    | Full => "Full"
+    | Waning => "Waning"
+    end
+in
+
+# Growth bar color based on growth level #
+let growthColor : Int -> String =
+  fun g ->
+    if g >= 100 then "#50fa7b"
+    else if g >= 75 then "#8be9fd"
+    else if g >= 50 then "#bd93f9"
+    else if g >= 25 then "#ffb86c"
+    else "#ff5555"
+in
+
+# Auto-generate plant name from kind and night count #
+let autoName : (PlantKind, Model) -> String =
+  fun (kind, model) ->
+    kindEmoji(kind) ++ string_of_int(model.nightCount)
+in
+
+# === VIEW === #
+
+let view : Model -> HTML = fun model ->
+
+  # Shared styles #
+  let darkBg = ("background", "#0d1117") in
+  let textColor = ("color", "#c9d1d9") in
+  let fontFamily = ("font-family", "monospace, sans-serif") in
+  let cardBg = ("background", "#161b22") in
+  let borderStyle = ("border", "1px solid #30363d") in
+  let btnBase = [
+    ("padding", "8px 16px"),
+    ("border", "1px solid #30363d"),
+    ("border-radius", "6px"),
+    ("cursor", "pointer"),
+    ("font-size", "14px"),
+    fontFamily
+  ] in
+
+  # Render a single plant card #
+  let plantCard = fun plant ->
+    let pct = string_of_int(plant.growth) ++ "%" in
+    let barColor = growthColor(plant.growth) in
+    Div(
+      [Style([
+        cardBg, borderStyle, ("border-radius", "8px"),
+        ("padding", "12px"), ("margin-bottom", "8px")
+      ])],
+      [
+        # Plant header: emoji, name, growth number #
+        Div(
+          [Style([("display", "flex"), ("justify-content", "space-between"), ("align-items", "center"), ("margin-bottom", "8px")])],
+          [
+            Span([Style([("font-size", "18px")])], [
+              Text(kindEmoji(plant.kind) ++ " " ++ plant.name)
+            ]),
+            Span([Style([("color", barColor), ("font-weight", "bold")])], [
+              Text(pct)
+            ])
+          ]
+        ),
+        # Growth bar background #
+        Div(
+          [Style([
+            ("background", "#21262d"),
+            ("border-radius", "4px"),
+            ("height", "12px"),
+            ("overflow", "hidden")
+          ])],
+          [
+            # Growth bar fill #
+            Div(
+              [Style([
+                ("background", barColor),
+                ("width", pct),
+                ("height", "12px"),
+                ("border-radius", "4px"),
+                ("transition", "width 0.3s")
+              ])],
+              []
+            )
+          ]
+        ),
+        # Kind label #
+        Div(
+          [Style([("color", "#8b949e"), ("font-size", "12px"), ("margin-top", "4px")])],
+          [Text(kindName(plant.kind) ++ " | Affinity: " ++ phaseEmoji(plant.affinity) ++ " " ++ phaseName(plant.affinity))]
+        )
+      ]
+    )
+  in
+
+  # Main layout #
+  Div(
+    [Style([
+      darkBg, textColor, fontFamily,
+      ("min-height", "100vh"),
+      ("padding", "20px"),
+      ("box-sizing", "border-box")
+    ])],
+    [
+      # Header #
+      Div(
+        [Style([("text-align", "center"), ("margin-bottom", "24px")])],
+        [
+          H1([Style([("color", "#58a6ff"), ("margin-bottom", "4px")])], [
+            Text(phaseEmoji(model.currentPhase) ++ " Lunar Growth Tracker")
+          ]),
+          P([Style([("color", "#8b949e"), ("margin", "0")])], [
+            Text("Night " ++ string_of_int(model.nightCount) ++ " | Phase: " ++ phaseName(model.currentPhase) ++ " " ++ phaseEmoji(model.currentPhase))
+          ])
+        ]
+      ),
+
+      # Plant list #
+      Div(
+        [Style([("max-width", "600px"), ("margin", "0 auto 24px auto")])],
+        if length(model.plants) == 0
+        then [
+          Div(
+            [Style([cardBg, borderStyle, ("border-radius", "8px"), ("padding", "24px"), ("text-align", "center"), ("color", "#8b949e")])],
+            [Text("No plants yet. Plant some seeds below!")]
+          )
+        ]
+        else map(model.plants, plantCard)
+      ),
+
+      # Controls area #
+      Div(
+        [Style([("max-width", "600px"), ("margin", "0 auto")])],
+        [
+          # Plant seed buttons #
+          H3([Style([("color", "#58a6ff"), ("margin-bottom", "8px")])], [Text("Plant Seeds")]),
+          Div(
+            [Style([("display", "flex"), ("flex-wrap", "wrap"), ("gap", "8px"), ("margin-bottom", "20px")])],
+            [
+              Button(
+                [OnClick(PlantSeed(Moonbloom, autoName(Moonbloom, model))),
+                 Style(btnBase @ [("background", "#1a1e2e"), ("color", "#c9d1d9")])],
+                [Text(kindEmoji(Moonbloom) ++ " Plant Moonbloom")]
+              ),
+              Button(
+                [OnClick(PlantSeed(Starfern, autoName(Starfern, model))),
+                 Style(btnBase @ [("background", "#1a1e2e"), ("color", "#c9d1d9")])],
+                [Text(kindEmoji(Starfern) ++ " Plant Starfern")]
+              ),
+              Button(
+                [OnClick(PlantSeed(Duskrose, autoName(Duskrose, model))),
+                 Style(btnBase @ [("background", "#1a1e2e"), ("color", "#c9d1d9")])],
+                [Text(kindEmoji(Duskrose) ++ " Plant Duskrose")]
+              ),
+              Button(
+                [OnClick(PlantSeed(Evergreen, autoName(Evergreen, model))),
+                 Style(btnBase @ [("background", "#1a1e2e"), ("color", "#c9d1d9")])],
+                [Text(kindEmoji(Evergreen) ++ " Plant Evergreen")]
+              )
+            ]
+          ),
+
+          # Moon phase buttons #
+          H3([Style([("color", "#58a6ff"), ("margin-bottom", "8px")])], [Text("Advance Night")]),
+          Div(
+            [Style([("display", "flex"), ("flex-wrap", "wrap"), ("gap", "8px"), ("margin-bottom", "20px")])],
+            [
+              Button(
+                [OnClick(NightPasses(New)),
+                 Style(btnBase @ [
+                   ("background", if model.currentPhase == New then "#1f6feb" else "#1a1e2e"),
+                   ("color", "#c9d1d9")
+                 ])],
+                [Text(phaseEmoji(New) ++ " New")]
+              ),
+              Button(
+                [OnClick(NightPasses(Waxing)),
+                 Style(btnBase @ [
+                   ("background", if model.currentPhase == Waxing then "#1f6feb" else "#1a1e2e"),
+                   ("color", "#c9d1d9")
+                 ])],
+                [Text(phaseEmoji(Waxing) ++ " Waxing")]
+              ),
+              Button(
+                [OnClick(NightPasses(Full)),
+                 Style(btnBase @ [
+                   ("background", if model.currentPhase == Full then "#1f6feb" else "#1a1e2e"),
+                   ("color", "#c9d1d9")
+                 ])],
+                [Text(phaseEmoji(Full) ++ " Full")]
+              ),
+              Button(
+                [OnClick(NightPasses(Waning)),
+                 Style(btnBase @ [
+                   ("background", if model.currentPhase == Waning then "#1f6feb" else "#1a1e2e"),
+                   ("color", "#c9d1d9")
+                 ])],
+                [Text(phaseEmoji(Waning) ++ " Waning")]
+              )
+            ]
+          ),
+
+          # Action buttons #
+          H3([Style([("color", "#58a6ff"), ("margin-bottom", "8px")])], [Text("Actions")]),
+          Div(
+            [Style([("display", "flex"), ("gap", "8px"), ("margin-bottom", "20px")])],
+            [
+              Button(
+                [OnClick(WaterAll),
+                 Style(btnBase @ [("background", "#0d419d"), ("color", "#c9d1d9")])],
+                [Text("\240\159\146\167 Water All")]
+              ),
+              Button(
+                [OnClick(Harvest),
+                 Style(btnBase @ [("background", "#238636"), ("color", "#ffffff")])],
+                [Text("\240\159\140\190 Harvest")]
+              )
+            ]
+          ),
+
+          # Stats footer #
+          Div(
+            [Style([cardBg, borderStyle, ("border-radius", "8px"), ("padding", "12px"), ("text-align", "center"), ("color", "#8b949e"), ("font-size", "13px")])],
+            [Text(
+              string_of_int(length(model.plants)) ++ " plants | " ++
+              string_of_int(countHarvestable(model)) ++ " ready to harvest"
+            )]
+          )
+        ]
+      )
+    ]
+  )
+in
+
+let subs : Model -> Sub = fun _model -> SubNone in
+
+# ===== TEST HELPERS ===== #
+let do_step = fun (acc, a) -> let (m, _) = update(a, acc) in m in
+let do_actions = fun (m, actions) -> fold_left(actions, do_step, m) in
+
+# ===== TESTS ===== #
+
+# Basic planting #
+hint "can plant a seedling"
+test
+  let (m, _) = update(PlantSeed(Moonbloom, "Luna"), init) in
+  length(m.plants) == 1
+end;
+
+hint "seedling starts at 0 growth"
+test
+  let (m, _) = update(PlantSeed(Starfern, "Stella"), init) in
+  let plant = findPlant(m, "Stella") in
+  plant.growth == 0
+end;
+
+# Moon phase effects on Moonbloom #
+hint "Moonbloom grows fast during New moon"
+test
+  let m = do_actions(init, [
+    PlantSeed(Moonbloom, "Luna"),
+    NightPasses(New)
+  ]) in
+  let plant = findPlant(m, "Luna") in
+  plant.growth == 20  # Perfect conditions #
+end;
+
+hint "Moonbloom grows slowly during Full moon (opposite)"
+test
+  let m = do_actions(init, [
+    PlantSeed(Moonbloom, "Luna"),
+    NightPasses(Full)
+  ]) in
+  let plant = findPlant(m, "Luna") in
+  plant.growth == 5  # Opposite phase penalty #
+end;
+
+hint "Moonbloom grows normally during Waxing (neutral)"
+test
+  let m = do_actions(init, [
+    PlantSeed(Moonbloom, "Luna"),
+    NightPasses(Waxing)
+  ]) in
+  let plant = findPlant(m, "Luna") in
+  plant.growth == 10  # Neutral phase #
+end;
+
+# Moon phase effects on Starfern #
+hint "Starfern grows fast during Full moon"
+test
+  let m = do_actions(init, [
+    PlantSeed(Starfern, "Stella"),
+    NightPasses(Full)
+  ]) in
+  let plant = findPlant(m, "Stella") in
+  plant.growth == 20  # Perfect conditions #
+end;
+
+hint "Starfern grows slowly during New moon (opposite)"
+test
+  let m = do_actions(init, [
+    PlantSeed(Starfern, "Stella"),
+    NightPasses(New)
+  ]) in
+  let plant = findPlant(m, "Stella") in
+  plant.growth == 5  # Opposite phase penalty #
+end;
+
+# Duskrose behavior #
+hint "Duskrose loves Waxing phase"
+test
+  let m = do_actions(init, [
+    PlantSeed(Duskrose, "Twilight"),
+    NightPasses(Waxing)
+  ]) in
+  let plant = findPlant(m, "Twilight") in
+  plant.growth == 20  # Transition bonus #
+end;
+
+hint "Duskrose loves Waning phase"
+test
+  let m = do_actions(init, [
+    PlantSeed(Duskrose, "Twilight"),
+    NightPasses(Waning)
+  ]) in
+  let plant = findPlant(m, "Twilight") in
+  plant.growth == 20  # Transition bonus #
+end;
+
+hint "Duskrose tolerates Full moon"
+test
+  let m = do_actions(init, [
+    PlantSeed(Duskrose, "Twilight"),
+    NightPasses(Full)
+  ]) in
+  let plant = findPlant(m, "Twilight") in
+  plant.growth == 5  # Tolerates extremes #
+end;
+
+# Evergreen behavior #
+hint "Evergreen grows steadily regardless of phase"
+test
+  let m1 = do_actions(init, [
+    PlantSeed(Evergreen, "Constant"),
+    NightPasses(New)
+  ]) in
+  let m2 = do_actions(init, [
+    PlantSeed(Evergreen, "Steady"),
+    NightPasses(Full)
+  ]) in
+  let p1 = findPlant(m1, "Constant") in
+  let p2 = findPlant(m2, "Steady") in
+  p1.growth == 10 && p2.growth == 10
+end;
+
+# Watering #
+hint "watering adds 5 growth to all plants"
+test
+  let m = do_actions(init, [
+    PlantSeed(Moonbloom, "Luna"),
+    PlantSeed(Starfern, "Stella"),
+    NightPasses(New),
+    WaterAll
+  ]) in
+  let luna = findPlant(m, "Luna") in
+  let stella = findPlant(m, "Stella") in
+  luna.growth == 25 && stella.growth == 10
+end;
+
+# Harvesting #
+hint "harvest removes fully grown plants"
+test
+  let m = do_actions(init, [
+    PlantSeed(Moonbloom, "Luna"),
+    NightPasses(New), NightPasses(New), NightPasses(New),
+    NightPasses(New), NightPasses(New),  # 5 * 20 = 100 #
+    Harvest
+  ]) in
+  length(m.plants) == 0
+end;
+
+hint "harvest keeps plants not yet fully grown"
+test
+  let m = do_actions(init, [
+    PlantSeed(Moonbloom, "Luna"),
+    PlantSeed(Starfern, "Stella"),
+    NightPasses(New), NightPasses(New), NightPasses(New),
+    NightPasses(New), NightPasses(New),  # Luna: 100, Stella: 25 #
+    Harvest
+  ]) in
+  length(m.plants) == 1 &&
+  (findPlant(m, "Stella")).growth == 25
+end;
+
+# Growth clamping #
+hint "growth cannot exceed 100"
+test
+  let m = do_actions(init, [
+    PlantSeed(Moonbloom, "Luna"),
+    NightPasses(New), NightPasses(New), NightPasses(New),
+    NightPasses(New), NightPasses(New), NightPasses(New)  # 6 * 20 = 120, clamped to 100 #
+  ]) in
+  let plant = findPlant(m, "Luna") in
+  plant.growth == 100
+end;
+
+# Night count tracking #
+hint "night count increments with each night"
+test
+  let m = do_actions(init, moonNights(7, Full)) in
+  m.nightCount == 7
+end;
+
+# The key test: opposite phase penalty over multiple nights #
+hint "Moonbloom in opposite phase grows slowly over multiple nights"
+test
+  let m = do_actions(init, [
+    PlantSeed(Moonbloom, "Luna")
+  ] @ moonNights(4, Full)) in
+  let plant = findPlant(m, "Luna") in
+  # With correct code: 4 * 5 = 20 (opposite penalty) #
+  plant.growth == 20
+end;
+
+(init, update, view, subs)

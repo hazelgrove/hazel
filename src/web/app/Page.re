@@ -244,69 +244,109 @@ module Update = {
     | AppViewMsg(msg) =>
       switch (model.globals.app_view_state) {
       | Some(state) when Option.is_some(state.update_fn) =>
-        let update_fn = Option.get(state.update_fn);
-        // Use evaluate_direct: sub-expressions are already elaborated+evaluated
-        let update_result =
-          evaluate_direct(
-            Language.IdTagged.FreshGrammar.Exp.ap(
-              Forward,
-              update_fn,
-              Language.IdTagged.FreshGrammar.Exp.tuple([msg, state.model]),
-            ),
+        try({
+          let update_fn = Option.get(state.update_fn);
+          // Use evaluate_direct: sub-expressions are already elaborated+evaluated
+          Js_of_ocaml.Firebug.console##log(
+            Js_of_ocaml.Js.string("AppViewMsg: dispatching msg"),
           );
-        // Extract (new_model, cmd) tuple — update always returns (Model, Cmd)
-        let update_result = Haz3lcore.HazelDOM.strip_wrappers(update_result);
-        let (new_model, cmd) =
-          switch (update_result.term) {
-          | Tuple([m, c]) => (m, c)
-          | _ => (
-              update_result,
-              Language.IdTagged.FreshGrammar.Exp.constructor("CmdNone", None),
-            )
-          };
-        let html =
-          evaluate_direct(
-            Language.IdTagged.FreshGrammar.Exp.ap(
-              Forward,
-              state.view_fn,
-              new_model,
-            ),
+          let update_result =
+            evaluate_direct(
+              Language.IdTagged.FreshGrammar.Exp.ap(
+                Forward,
+                update_fn,
+                Language.IdTagged.FreshGrammar.Exp.tuple([msg, state.model]),
+              ),
+            );
+          Js_of_ocaml.Firebug.console##log(
+            Js_of_ocaml.Js.string("AppViewMsg: update evaluated OK"),
           );
-        let subs =
-          evaluate_direct(
-            Language.IdTagged.FreshGrammar.Exp.ap(
-              Forward,
-              state.subs_fn,
-              new_model,
-            ),
+          // Extract (new_model, cmd) tuple — update always returns (Model, Cmd)
+          let update_result =
+            Haz3lcore.HazelDOM.strip_wrappers(update_result);
+          let (new_model, cmd) =
+            switch (update_result.term) {
+            | Tuple([m, c]) =>
+              Js_of_ocaml.Firebug.console##log(
+                Js_of_ocaml.Js.string(
+                  "AppViewMsg: extracted (model, cmd) tuple",
+                ),
+              );
+              (m, c);
+            | _ =>
+              Js_of_ocaml.Firebug.console##warn(
+                Js_of_ocaml.Js.string(
+                  "AppViewMsg: update result is NOT a tuple, using fallback",
+                ),
+              );
+              (
+                update_result,
+                Language.IdTagged.FreshGrammar.Exp.constructor(
+                  "CmdNone",
+                  None,
+                ),
+              );
+            };
+          let html =
+            evaluate_direct(
+              Language.IdTagged.FreshGrammar.Exp.ap(
+                Forward,
+                state.view_fn,
+                new_model,
+              ),
+            );
+          Js_of_ocaml.Firebug.console##log(
+            Js_of_ocaml.Js.string("AppViewMsg: view evaluated OK"),
           );
-        {
-          // Run cmd (CmdRunner handles CmdNone as no-op)
+          let subs =
+            evaluate_direct(
+              Language.IdTagged.FreshGrammar.Exp.ap(
+                Forward,
+                state.subs_fn,
+                new_model,
+              ),
+            );
+          Js_of_ocaml.Firebug.console##log(
+            Js_of_ocaml.Js.string("AppViewMsg: subs evaluated OK"),
+          );
+          {
+            // Run cmd (CmdRunner handles CmdNone as no-op)
 
-          let cmd_ctx: Haz3lcore.CmdRunner.context = {
-            model: new_model,
-            inject: m => {
-              schedule_action(Globals(AppViewMsg(m)));
-              Virtual_dom.Vdom.Effect.Ignore;
-            },
-            update_fn: state.update_fn,
+            let cmd_ctx: Haz3lcore.CmdRunner.context = {
+              model: new_model,
+              inject: m => {
+                schedule_action(Globals(AppViewMsg(m)));
+                Virtual_dom.Vdom.Effect.Ignore;
+              },
+              update_fn: state.update_fn,
+            };
+            Bonsai.Effect.Expert.handle(
+              Haz3lcore.CmdRunner.run(cmd_ctx, cmd),
+            );
           };
-          Bonsai.Effect.Expert.handle(Haz3lcore.CmdRunner.run(cmd_ctx, cmd));
-        };
-        {
-          ...model,
-          globals: {
-            ...model.globals,
-            app_view_state:
-              Some({
-                ...state,
-                model: new_model,
-                html,
-                subs,
-              }),
-          },
+          {
+            ...model,
+            globals: {
+              ...model.globals,
+              app_view_state:
+                Some({
+                  ...state,
+                  model: new_model,
+                  html,
+                  subs,
+                }),
+            },
+          }
+          |> return_quiet;
+        }) {
+        | exn =>
+          Js_of_ocaml.Firebug.console##error(
+            Js_of_ocaml.Js.string(
+              "AppViewMsg EXCEPTION: " ++ Printexc.to_string(exn),
+            ),
+          );
+          model |> return_quiet;
         }
-        |> return_quiet;
       | Some(_) => model |> return_quiet // Legacy app: no update_fn
       | None => model |> return_quiet
       }

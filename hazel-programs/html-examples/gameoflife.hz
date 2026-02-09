@@ -1,0 +1,297 @@
+# GAME OF LIFE MVU #
+# Conway's cellular automaton with interactive grid #
+
+type Cell = + Dead + Alive in
+
+type Grid = (
+  cells = [Cell],
+  width = Int,
+  height = Int
+) in
+
+type Action =
+  + ToggleCell(Int)
+  + Step
+  + ToggleRunning
+  + Reset
+  + Glider
+in
+
+# Grid operations #
+let makeGrid : (Int, Int) -> Grid =
+  fun (w, h) ->
+    (cells = map(range(0, w * h - 1), fun _ -> Dead), width = w, height = h)
+in
+
+let toIndex : (Grid, Int, Int) -> Int =
+  fun (g, x, y) -> y * g.width + x
+in
+
+let inBounds : (Grid, Int, Int) -> Bool =
+  fun (g, x, y) -> x >= 0 && x < g.width && y >= 0 && y < g.height
+in
+
+let getCell : (Grid, Int, Int) -> Cell =
+  fun (g, x, y) ->
+    if inBounds(g, x, y) then nth(g.cells, toIndex(g, x, y)) else Dead
+in
+
+let setCell : (Grid, Int, Int, Cell) -> Grid =
+  fun (g, x, y, cell) ->
+    let idx = toIndex(g, x, y) in
+    (cells = mapi(g.cells, fun (i, c) -> if i == idx then cell else c),
+     width = g.width, height = g.height)
+in
+
+let countNeighbors : (Grid, Int, Int) -> Int =
+  fun (g, x, y) ->
+    length(filter([
+      getCell(g, x - 1, y - 1), getCell(g, x, y - 1), getCell(g, x + 1, y - 1),
+      getCell(g, x - 1, y),                             getCell(g, x + 1, y),
+      getCell(g, x - 1, y + 1), getCell(g, x, y + 1), getCell(g, x + 1, y + 1)
+    ], fun c -> c == Alive))
+in
+
+let nextCellState : (Cell, Int) -> Cell =
+  fun (current, neighbors) ->
+    case current
+    | Alive => if neighbors == 2 || neighbors == 3 then Alive else Dead
+    | Dead => if neighbors == 3 then Alive else Dead
+    end
+in
+
+let stepGrid : Grid -> Grid =
+  fun g ->
+    let newCells = mapi(g.cells, fun (idx, _) ->
+      let x = int_mod(idx, g.width) in
+      let y = idx / g.width in
+      nextCellState(getCell(g, x, y), countNeighbors(g, x, y))
+    ) in
+    (cells = newCells, width = g.width, height = g.height)
+in
+
+let setAlive : (Grid, [(Int, Int)]) -> Grid =
+  fun (g, coords) ->
+    fold_left(coords, (fun (grid, xy) ->
+      let (x, y) = xy in setCell(grid, x, y, Alive)
+    ), g)
+in
+
+let countAlive : Grid -> Int =
+  fun g -> length(filter(g.cells, fun c -> c == Alive))
+in
+
+let runGrid : (Grid, Int) -> Grid =
+  fun (g, n) ->
+    if n <= 0 then g
+    else fold_left(range(1, n), (fun (grid, _) -> stepGrid(grid)), g)
+in
+
+# Glider pattern at (1,1) #
+let placeGlider : Grid -> Grid =
+  fun grid -> setAlive(grid, [(2, 1), (3, 2), (1, 3), (2, 3), (3, 3)])
+in
+
+let gridSize = 8 in
+
+let init = (
+  grid = makeGrid(gridSize, gridSize),
+  running = false,
+  generation = 0
+) in
+
+let update = fun (action, model) ->
+  case action
+  | ToggleCell(idx) =>
+      let cell = nth(model.grid.cells, idx) in
+      let newCell = case cell | Alive => Dead | Dead => Alive end in
+      let newCells = mapi(model.grid.cells, fun (i, c) ->
+        if i == idx then newCell else c) in
+      let newGrid = (cells=newCells, width=model.grid.width, height=model.grid.height) in
+      ((grid=newGrid, running=model.running, generation=model.generation), CmdNone)
+  | Step =>
+      ((grid=stepGrid(model.grid), running=model.running,
+        generation=model.generation + 1), CmdNone)
+  | ToggleRunning =>
+      let nowRunning = if model.running then false else true in
+      ((grid=model.grid, running=nowRunning, generation=model.generation), CmdNone)
+  | Reset => (init, CmdNone)
+  | Glider =>
+      ((grid=placeGlider(model.grid), running=model.running,
+        generation=model.generation), CmdNone)
+  end
+in
+
+let cellColor = fun cell ->
+  case cell | Alive => "#39ff14" | Dead => "#0d0d1a" end
+in
+
+let view = fun model ->
+  Div(
+    [Style([("max-width", "400px"), ("margin", "20px auto"), ("text-align", "center"),
+            ("font-family", "monospace"), ("background", "#0a0a14"), ("padding", "20px"),
+            ("border-radius", "8px"), ("color", "#ccc")])],
+    [
+      H2([Style([("color", "#39ff14")])], [Text("Game of Life")]),
+      P([], [Text("Generation: " ++ string_of_int(model.generation))]),
+      # Grid using Table #
+      Table(
+        [Style([("border-collapse", "collapse"), ("margin", "10px auto")])],
+        map(range(0, model.grid.height - 1), fun y ->
+          Tr([], map(range(0, model.grid.width - 1), fun x ->
+            let idx = y * model.grid.width + x in
+            let cell = nth(model.grid.cells, idx) in
+            Td(
+              [
+                OnClick(ToggleCell(idx)),
+                Style([
+                  ("width", "20px"), ("height", "20px"),
+                  ("border", "1px solid #1a1a2e"),
+                  ("cursor", "pointer"),
+                  ("background", cellColor(cell)),
+                  ("transition", "background 0.1s")
+                ])
+              ],
+              []
+            )
+          ))
+        )
+      ),
+      # Controls #
+      Div(
+        [Style([("margin-top", "15px"), ("display", "flex"),
+                ("justify-content", "center"), ("gap", "8px")])],
+        [
+          Button(
+            [OnClick(Step),
+             Style([("padding", "8px 16px"), ("background", "#2196F3"),
+                    ("color", "white"), ("border", "none"), ("cursor", "pointer"),
+                    ("border-radius", "4px")])],
+            [Text("Step")]
+          ),
+          Button(
+            [OnClick(ToggleRunning),
+             Style([("padding", "8px 16px"),
+                    ("background", if model.running then "#ff9800" else "#4CAF50"),
+                    ("color", "white"), ("border", "none"), ("cursor", "pointer"),
+                    ("border-radius", "4px")])],
+            [Text(if model.running then "Pause" else "Run")]
+          ),
+          Button(
+            [OnClick(Glider),
+             Style([("padding", "8px 16px"), ("background", "#9C27B0"),
+                    ("color", "white"), ("border", "none"), ("cursor", "pointer"),
+                    ("border-radius", "4px")])],
+            [Text("Glider")]
+          ),
+          Button(
+            [OnClick(Reset),
+             Style([("padding", "8px 16px"), ("background", "#f44336"),
+                    ("color", "white"), ("border", "none"), ("cursor", "pointer"),
+                    ("border-radius", "4px")])],
+            [Text("Reset")]
+          )
+        ]
+      )
+    ]
+  )
+in
+
+let subs = fun model ->
+  if model.running then Every(400.0, fun _ts -> Step) else SubNone
+in
+
+# Test helpers #
+let do_step = fun (acc, a) -> let (m, _) = update(a, acc) in m in
+let do_actions = fun (m, actions) -> fold_left(actions, do_step, m) in
+
+# Tests #
+
+hint "empty grid has all dead cells"
+test countAlive(makeGrid(3, 3)) == 0 end;
+
+hint "can set and get cell"
+test getCell(setCell(makeGrid(3, 3), 1, 1, Alive), 1, 1) == Alive end;
+
+hint "out of bounds returns Dead"
+test
+  let g = makeGrid(3, 3) in
+  getCell(g, -1, 0) == Dead && getCell(g, 5, 5) == Dead
+end;
+
+hint "isolated cell has 0 neighbors"
+test countNeighbors(setAlive(makeGrid(5, 5), [(2, 2)]), 2, 2) == 0 end;
+
+hint "cell with one neighbor"
+test countNeighbors(setAlive(makeGrid(5, 5), [(2, 2), (2, 3)]), 2, 2) == 1 end;
+
+hint "alive with 2 neighbors survives"
+test
+  let g = setAlive(makeGrid(3, 3), [(0, 1), (1, 1), (2, 1)]) in
+  getCell(stepGrid(g), 1, 1) == Alive
+end;
+
+hint "alive with 1 neighbor dies"
+test
+  let g = setAlive(makeGrid(3, 3), [(1, 1), (1, 0)]) in
+  getCell(stepGrid(g), 1, 1) == Dead
+end;
+
+hint "dead with 3 neighbors born"
+test
+  let g = setAlive(makeGrid(3, 3), [(0, 0), (1, 0), (0, 1)]) in
+  getCell(stepGrid(g), 1, 1) == Alive
+end;
+
+hint "blinker oscillates"
+test
+  let g = setAlive(makeGrid(5, 5), [(1, 2), (2, 2), (3, 2)]) in
+  let g2 = stepGrid(g) in
+  getCell(g2, 2, 1) == Alive && getCell(g2, 2, 2) == Alive && getCell(g2, 2, 3) == Alive
+end;
+
+hint "blinker returns after 2 steps"
+test
+  let g = setAlive(makeGrid(5, 5), [(1, 2), (2, 2), (3, 2)]) in
+  let g2 = runGrid(g, 2) in
+  getCell(g2, 1, 2) == Alive && getCell(g2, 2, 2) == Alive && getCell(g2, 3, 2) == Alive
+end;
+
+hint "block is stable"
+test
+  let g = setAlive(makeGrid(4, 4), [(1, 1), (2, 1), (1, 2), (2, 2)]) in
+  countAlive(stepGrid(g)) == 4
+end;
+
+hint "simultaneous update"
+test
+  let g = setAlive(makeGrid(5, 5), [(1, 2), (2, 2), (3, 2)]) in
+  let g2 = stepGrid(g) in
+  getCell(g2, 1, 2) == Dead && getCell(g2, 3, 2) == Dead
+end;
+
+hint "toggle cell via update"
+test
+  let m = do_actions(init, [ToggleCell(0)]) in
+  nth(m.grid.cells, 0) == Alive
+end;
+
+hint "step increments generation"
+test
+  let m = do_actions(init, [Step, Step]) in
+  m.generation == 2
+end;
+
+hint "reset clears grid"
+test
+  let m = do_actions(init, [ToggleCell(0), ToggleCell(5), Reset]) in
+  countAlive(m.grid) == 0 && m.generation == 0
+end;
+
+hint "glider places 5 cells"
+test
+  let m = do_actions(init, [Glider]) in
+  countAlive(m.grid) == 5
+end;
+
+(init, update, view, subs)
