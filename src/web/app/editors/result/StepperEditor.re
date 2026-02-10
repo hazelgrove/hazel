@@ -173,7 +173,7 @@ module View = {
         ~inject,
         ~signal: event => 'a,
         ~overlays=[],
-        ~selected,
+        ~selected: CodeEditable.View.selected,
         ~selected_id,
         ~_dynamics: Language.Dynamics.Map.t=Language.Dynamics.Map.empty,
         model: Model.t,
@@ -189,7 +189,8 @@ module View = {
           inject,
           escape: _ => Ui_effect.Ignore,
           take_focus: _ => Ui_effect.Ignore,
-          focus: selected ? Some() : None,
+          focus: selected == Yes ? Some() : None,
+          highlight: selected == JustHighlight,
         }),
       ~globals,
       ~overlays=
